@@ -171,11 +171,10 @@ export function bcWhenNote(at: number | null, maxDays: number): WhenNote {
 }
 
 // What Send now does, where no time is picked: it goes when it is pressed, and outside the sending hours it waits for
-// the next nine o'clock, as the preview's stamp says.
+// the next nine o'clock, as the preview's stamp says. In the business's time, which the preview's stamp is in; the city
+// is said where a time is picked (bcWhenNote), not under Now too.
 export function bcNowNote(): string {
   const C = pageClock();
   const open = C.nextOpen(Date.now());
-  return open.moved
-    ? `Send now goes out ${C.when(open.at)}, ${C.city()} time — ${sendsWaitWords(C.hours)}`
-    : `Send now goes out as soon as you press it, ${C.city()} time`;
+  return open.moved ? `Goes out ${C.when(open.at)} — ${sendsWaitWords(C.hours)}` : "Goes out as soon as you press Send";
 }

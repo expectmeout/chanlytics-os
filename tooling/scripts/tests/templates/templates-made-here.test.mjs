@@ -228,7 +228,7 @@ test("the job fills the slots per person and holds anyone a slot cannot be fille
     head.includes('data-testid="template-new"') &&
       // Delete is an item of the pane's kit Menu: its test id rides the item's `gate` (the question it asks is `testid=`).
       s.includes('"data-testid": "template-delete"') &&
-      s.includes('" · made here"'),
+      s.includes('"Made here"'),
   );
   const tc = readCode("apps/dashboard/src/surfaces/campaigns/templates/composer-forms.tsx");
   for (const id of [

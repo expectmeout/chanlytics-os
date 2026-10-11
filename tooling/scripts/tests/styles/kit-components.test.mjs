@@ -538,12 +538,12 @@ test("Face draws the gallery's Face family, hidden from a screen reader, its pic
 });
 
 /**
- * A person's row, as the gallery draws it, with what was said or not, a note or not, an address or none, and a row's
- * kind as its mark instead of a face.
+ * A person's row, as the gallery draws it, with what was said or not, a note or not, an address or none, a row's kind as
+ * its mark instead of a face, or nothing in its first column (`bare`).
  */
-const row = ({ said = true, note = false, href = undefined, mark = false } = {}) =>
+const row = ({ said = true, note = false, href = undefined, mark = false, bare = false } = {}) =>
   h(ListRow, {
-    ...(mark ? { mark: glyph() } : { face: { initials: "AR" } }),
+    ...(bare ? { bare: true } : mark ? { mark: glyph() } : { face: { initials: "AR" } }),
     name: "Aisha Rahman",
     end: (place) => h("span", { className: cx("pill pill-warn", place) }, "Needs you"),
     said: said ? "asked about Saturday" : undefined,
@@ -562,6 +562,7 @@ const LIST_ROWS = {
   "list-row-note": () => row({ note: true }),
   "list-row-door": () => row({ note: true, href: "#kit" }),
   "list-row-mark": () => row({ said: false, mark: true }),
+  "list-row-bare": () => row({ bare: true }),
 };
 
 test("ListRow draws the gallery's List row family, and the page's own elements where the row takes them", () => {

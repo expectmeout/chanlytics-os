@@ -226,7 +226,7 @@ export const pbFirstFree = (
 
 // Who a run reaches, said in the guardrails: what each channel it goes by asks of a person (contracts consentGuardWords), so
 // an email about a visit is not said to need a yes and a number. The channels are the ones the playbook keeps ticked.
-export const pbWhoWords = (channels: readonly ConsentChannel[], purpose: AskedPurpose, about: MessageAbout) =>
+const pbWhoWords = (channels: readonly ConsentChannel[], purpose: AskedPurpose, about: MessageAbout) =>
   consentGuardWords(channels, purpose, about).join(" ");
 
 // A sentence from a clause contracts words (heldBackWords: "people who asked to stop, ... are held back at the wire").

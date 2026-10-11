@@ -118,6 +118,11 @@ const STATES: { entry: string; bring: (page: Page) => Promise<void>; ready: stri
     },
     ready: "section.sheet .sheet-job-back",
   },
+  {
+    entry: "sheet-kit-kicker",
+    bring: (p) => p.getByTestId("sheet-kicker-open").click(),
+    ready: "section.sheet.sheet-kicker",
+  },
   { entry: "menu-kit", bring: (p) => p.getByTestId("menu-open").click(), ready: ".more-menu" },
   { entry: "menu-kit-set", bring: (p) => p.getByTestId("menu-set-open").click(), ready: ".more-menu" },
   { entry: "menu-kit-switches", bring: (p) => p.getByTestId("menu-switches-open").click(), ready: ".more-menu" },
@@ -168,6 +173,7 @@ const STATES: { entry: string; bring: (page: Page) => Promise<void>; ready: stri
   { entry: "field-kit-wrong", bring: async () => undefined, ready: ".field-error" },
   { entry: "field-kit-title", bring: async () => undefined, ready: ".rec-input-title" },
   { entry: "picker-kit-readonly", bring: async () => undefined, ready: ".token[data-readonly]" },
+  { entry: "picker-kit-inline", bring: async () => undefined, ready: ".token.token-inline" },
 ];
 
 /** The entry's static HTML, from the gallery's families. */

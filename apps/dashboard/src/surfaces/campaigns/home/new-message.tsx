@@ -98,16 +98,20 @@ function Held(p: NewMessageProps & { compose: Compose; onTrigger: (trigger: stri
 }
 
 /**
- * The sheet's title: "Turn on How did it go" where a moment's Turn on opened it, named as the campaign it would start (the
- * moment's own name while it holds none, by the workspace's word); New message otherwise, and where the moment already
- * holds a campaign, whose name is no title for a second (the composer says it holds one: decision 20). The moment is the
- * one the composer's field holds (`held`), which another chosen in the sheet replaces, never only the address's.
+ * The sheet's title, its kicker over the pane's own head (pane-sheet.tsx): "Turn on" where a moment's Turn on opened it
+ * on a moment that holds no campaign yet, the name of the one it would start under it; "Edit" where a campaign is being
+ * changed; New message otherwise, and where the moment already holds a campaign, whose name is no title for a second (the
+ * composer says it holds one: decision 20). The moment is the one the composer's field holds (`held`), which another
+ * chosen in the sheet replaces, never only the address's.
  */
 function composeTitleOf(compose: Compose, home: LifecycleHome, held: string | null): string {
   const W = LIFECYCLE_WORDS.compose;
-  if (compose.mode !== "every" || compose.edit || !compose.moment) return W.title;
+  // A change to a campaign says so over its name, which the pane's head holds: "New message" over it read as a second one.
+  if (compose.mode === "every" && compose.edit) return W.edit;
+  if (compose.mode !== "every" || !compose.moment) return W.title;
   const stage = home.rail.stages.find((s) => s.moment === (held ?? compose.moment));
-  return stage && stage.state === "off" ? W.turnOn(stage.name) : W.title;
+  // The campaign's name is the pane's own title under the sheet's, to rename in place: the sheet says what it does.
+  return stage && stage.state === "off" ? W.turnOnShort : W.title;
 }
 
 /** The moment the composer's field holds, as it says each one chosen, for the Turn on it was opened by. */
@@ -133,6 +137,8 @@ export function NewMessage(p: NewMessageProps) {
       onClose={p.onClose}
       askFirst
       wide
+      // Every time's foot holds Cancel; Send once's holds Send and Schedule alone, so its corner keeps the Close.
+      footCloses={compose.mode === "every"}
       testid="cmh-composer"
       tools={
         compose.mode === "every" && (compose.edit || compose.moment) ? undefined : (

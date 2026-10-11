@@ -2,7 +2,14 @@ import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { atRoute } from "../address";
 import { apiGet } from "../workspace";
-import { appointmentWordOf, journeyOf, journeyStageOf, type JourneyStageId } from "../../packages/contracts/src/index";
+import {
+  LIFECYCLE_WORDS,
+  VERSION_CHANNEL_WORDS,
+  appointmentWordOf,
+  journeyOf,
+  journeyStageOf,
+  type JourneyStageId,
+} from "../../packages/contracts/src/index";
 import { messagesOffered, momentSlots, type TemplatesRead } from "./offered";
 
 /**
@@ -75,26 +82,24 @@ test.describe("Campaigns' home on a real workspace", () => {
     ).toEqual(journey.map((s) => s.id));
     const text = await home.innerText();
     for (const s of INVENTED) expect(text, `invented: "${s}"`).not.toContain(s);
-    // Where the workspace stands on its channels, said once at the rail's head (8 Oct 2026): the channels the readiness
-    // answered, in the product's words, each closed one with its reason; a workspace paused for billing says that
-    // alone. Where this read carries no readiness the page asks the broadcasts' (lifecycle.ts readyOf), so the line may
-    // still be drawn: only its words are held, where the read says what they must be.
+    // Where the workspace stands on its channels, said once at the rail's head: a chip each (Ruben, 11 Oct 2026, where
+    // three sentences stood), an open one saying it sends and a closed one pressed for why, in the product's words; a
+    // workspace paused for billing says that alone. Where this read carries no readiness the page asks the broadcasts'
+    // (lifecycle.ts readyOf), so the chips may still be drawn: only what they say is held, where the read says it.
     type Ready = Record<string, { ready: boolean }> & { paused?: boolean };
     const ready = (await pb.json()).data.ready as Ready | null;
     const channelsLine = home.getByTestId("cmh-channels-rail");
     if (ready) {
       await expect(channelsLine).toBeVisible();
-      const line = await channelsLine.innerText();
       if (ready.paused) {
-        expect(line).toMatch(/^This workspace is paused/);
+        expect(await channelsLine.innerText()).toMatch(/^This workspace is paused/);
       } else {
-        expect(line).toMatch(/^Sending |^Nothing can send yet/);
-        for (const [channel, word] of [
-          ["whatsapp", "on WhatsApp"],
-          ["sms", "by text"],
-          ["email", "by email"],
-        ] as const) {
-          if (ready[channel]?.ready) expect(line).toContain(word);
+        for (const channel of ["whatsapp", "sms", "email"] as const) {
+          const word = VERSION_CHANNEL_WORDS[channel];
+          const chip = ready[channel]?.ready
+            ? channelsLine.getByRole("img", { name: LIFECYCLE_WORDS.channels.sending(word) })
+            : channelsLine.getByRole("button", { name: LIFECYCLE_WORDS.channels.notSetUp(word) });
+          await expect(chip, `${word}'s chip`).toBeVisible();
         }
       }
     }
@@ -140,7 +145,7 @@ test.describe("Campaigns' home on a real workspace", () => {
     }
     await expect(home.getByTestId("cmh-coming").getByTestId("cmh-waiting-acts")).toHaveCount(0);
 
-    // New message opens the composer in a sheet from the side, on Send once; Every time a moment comes is the playbook
+    // New message opens the composer in a sheet from the side, on Send once; Every time is the playbook
     // composer: the moments behind its moment, each with who it reaches today; the messages that fit it, or the honest
     // line; the clock in the business's zone. Cancelled -- nothing is saved. (In Glass, the default look, the page's act
     // is drawn in the frame's head, outside the page's own element, so it is found on the page.)
@@ -213,10 +218,11 @@ test.describe("Campaigns' home on a real workspace", () => {
     const drawer = page.getByTestId("cmh-drawer");
     await expect(drawer).toBeVisible();
     await expect(drawer.getByTestId("pb-detail")).toBeVisible();
-    // Goes by: the channels it goes by, as the composer's Send by row, switched here in place (8 Oct 2026). A switch per
-    // channel, WhatsApp, Text and Email, each read-only where the workspace cannot send on it or the message cannot go by
-    // it, the group named as it is labelled. Nothing is pressed: a press would change the workspace's playbook. A
-    // follow-up where deals are off runs nothing here, and has no row.
+    // Goes by: the channels it goes by, as the composer's Send by row, switched here in place (8 Oct 2026), one of the
+    // drawer's lines (11 Oct 2026). A toggle per channel, WhatsApp, Text and Email, a switch to a screen reader, each
+    // taking no press where the workspace cannot send on it or the message cannot go by it, the group named as it is
+    // labelled. Nothing is pressed: a press would change the workspace's playbook. A follow-up where deals are off runs
+    // nothing here, and has no row.
     const via = drawer.getByTestId("pb-goes-by");
     if (first.trigger === "proposal_waiting" && data.deals_on === false) {
       await expect(via).toHaveCount(0);

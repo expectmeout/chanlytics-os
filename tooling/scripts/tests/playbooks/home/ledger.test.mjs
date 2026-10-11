@@ -151,18 +151,26 @@ test("one campaign per moment: the journey's groups in order, then Lists & offer
   assert.equal(l.words, C.LIFECYCLE_WORDS.ledger);
 });
 
-test("First contact holds the receptionist and the call's text as rows of their own kind: never counted, no Turn on", () => {
+test("First contact holds the receptionist and the call's text as rows of their own kind: never counted, no Turn on, each a door", () => {
   const l = ledger();
   const fc = group(l, "first_contact");
   assert.equal(fc.add, null);
   const [receptionist, callText] = fc.rows;
   assert.deepEqual(
     [receptionist.kind, receptionist.status, receptionist.stateWords, receptionist.open, receptionist.results],
-    ["receptionist", "always", "Answers · asks for the yes", null, "uncounted"],
+    [
+      "receptionist",
+      "always",
+      "Answers · asks for the yes",
+      { kind: "route", label: "Open", route: "admin/workspace" },
+      "uncounted",
+    ],
+    "the receptionist opens its settings: every row on the list opens something (11 Oct 2026)",
   );
   assert.deepEqual(
     [callText.kind, callText.stateWords, callText.tone, callText.open],
     ["call_text", "No message for it yet", "warn", { kind: "route", label: "Open", route: "messages" }],
+    "with no message for it, the Library, where one is written",
   );
   assert.equal(l.counts.needs, 0, "the call's text is not a campaign: its amber is not a campaign needing you");
 });
@@ -186,7 +194,9 @@ const callTextTemplate = (over = {}) => {
 test("the call's text says what the library holds: one WhatsApp approved is on, one it has not is none yet, and a library unread or failed says nothing", () => {
   const callText = (library) => row(ledger({ library }), "call_text");
   const on = callText([callTextTemplate()]);
-  assert.deepEqual([on.status, on.stateWords, on.tone], ["always", "When a caller asks", "ok"]);
+  assert.deepEqual([on.status, on.stateWords, on.tone], ["always", "Live", "ok"]);
+  // Its door opens the message in a drawer of its own over the home, by its name (11 Oct 2026: never the Library's page).
+  assert.deepEqual(on.open, { kind: "route", label: "Open", route: `campaigns/message:${callTextTemplate().name}` });
   const unapproved = callText([callTextTemplate({ meta_status: "pending" })]);
   assert.deepEqual(
     [unapproved.status, unapproved.stateWords, unapproved.tone],

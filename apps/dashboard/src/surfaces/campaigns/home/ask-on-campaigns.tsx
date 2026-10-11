@@ -77,7 +77,9 @@ export function SetUpAsk() {
       data-testid="cmh-setup-ask"
       {...gate("approve", "set up campaigns")}
     >
-      <Icon name="three" size={13} /> {LIFECYCLE_WORDS.ask.setUp}
+      <Icon name="three" size={13} />
+      <span>{LIFECYCLE_WORDS.ask.setUpDoor}</span>
+      <Icon name="chevron" size={12} />
     </Button>
   );
 }

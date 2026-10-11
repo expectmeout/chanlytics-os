@@ -1936,10 +1936,7 @@ test("When the send goes is a sentence -- Now, or a day and a time of the sendin
   assert.equal(faceOf(tree, "bc-when-mode"), "Now");
   assert.equal(dayOf(tree), null);
   assert.equal(pickerOf(tree, "bc-when-time"), null);
-  assert.ok(
-    textOf(byTestId(tree, "bc-when-note")).startsWith("Send now goes out"),
-    textOf(byTestId(tree, "bc-when-note")),
-  );
+  assert.ok(textOf(byTestId(tree, "bc-when-note")).startsWith("Goes out"), textOf(byTestId(tree, "bc-when-note")));
   assert.equal(scheduleOf(tree).props.disabled, true, "nothing to schedule until a time is picked");
 
   // A time picked opens with the first one ahead: a quarter hour of the sending hours, by the business's clock.
@@ -2488,8 +2485,8 @@ test("A message is a row you scan, and the words open under it: what it is, what
   assert.ok(byTestId(row, "template-sent"), "and what went out, in its own cell");
   assert.equal(byTestId(tree, "template-open-body"), null, "the whole message is not drawn until it is asked for");
   assert.equal(paneOf(tree), null, "and nothing is open beside the list");
-  // The name WhatsApp knows it by is the open message's, in its foot beside its kind and where it was made: in type on
-  // every closed row ("winback_offer") it was a word nobody acts on (23 Sep, Campaigns made compact).
+  // The name WhatsApp knows it by is no row's: in type on every closed row ("winback_offer") it was a word nobody acts on
+  // (23 Sep, Campaigns made compact).
   const opened = messagesOpen({
     templatesAll: [templateRow({ id: "t-en", name: "offer_spring", language: "en_US", meta_status: "approved" })],
   });
@@ -2498,10 +2495,10 @@ test("A message is a row you scan, and the words open under it: what it is, what
     0,
     "no name in type on the row's line",
   );
-  assert.ok(
-    textOf(byTestId(paneOf(opened), "template-open-body")).includes("offer_spring"),
-    "and the name WhatsApp knows it by, in the open message's pane",
-  );
+  // Nor in the open message's pane (11 Oct 2026): where it was made, in one word, and never the name it is filed under.
+  const body = textOf(byTestId(paneOf(opened), "template-open-body"));
+  assert.ok(!body.includes("offer_spring"), body);
+  assert.match(body, /Made here|From WhatsApp Manager/);
 
   // No language on the closed row. Open, ONE language control per message, where a slot per language stood ("EN ES"
   // on every row): the language in view, its state drawn, and no "+1" for a message that exists in one language.
@@ -4251,7 +4248,6 @@ test("a playbook may run on any list: the composer picks one of the workspace's 
 
 /* ------------------------------- Send by (One message, every channel, step 3) ------------------------------- */
 
-const { Switch } = await import(`${SRC}/surfaces/kit/switch/switch.tsx`);
 const { Tooltip } = await import(`${SRC}/surfaces/kit/tooltip/tooltip.tsx`);
 const { otherChannelSets } = await import(`${SRC}/lib/campaign-channels.ts`);
 const { bcPersonRow } = await import(`${SRC}/surfaces/campaigns/broadcasts/run-sheet.tsx`);
@@ -4329,10 +4325,30 @@ const openVia = (over = {}) => {
   return writing({ initialSegment: null, initialRun: null });
 };
 const viaAgain = () => again({ initialSegment: null, initialRun: null });
-/** The Send by row's switches by channel: each as the kit's Switch was given it. */
+/**
+ * The Send by row's toggles by channel (parts/send-by.tsx: a capsule each, a switch to a screen reader), read as the
+ * switches they replaced were read: whether it is on, whether it takes no press, what describes it, and a press that asks
+ * for a state, which presses the toggle where its state is not that one already.
+ */
 const viaOf = (tree) =>
   Object.fromEntries(
-    ["whatsapp", "sms", "email"].map((c) => [c, find(byTestId(tree, `bc-via-${c}`), (n) => n.type === Switch)]),
+    ["whatsapp", "sms", "email"].map((c) => {
+      const one = byTestId(tree, `bc-via-${c}`);
+      return [
+        c,
+        one && {
+          props: {
+            role: one.props.role,
+            checked: one.props["aria-checked"],
+            readOnly: one.props["data-fixed"] === "true",
+            describedBy: one.props["aria-describedby"],
+            onCheckedChange: (on) => {
+              if (on !== one.props["aria-checked"]) one.props.onClick();
+            },
+          },
+        },
+      ];
+    }),
   );
 /** Why each closed channel is closed, from the tooltips the row wears (a channel that says nothing wears none). */
 const reasonsOf = (tree) =>

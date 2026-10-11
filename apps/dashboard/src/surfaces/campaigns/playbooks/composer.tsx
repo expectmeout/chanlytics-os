@@ -145,7 +145,7 @@ function sheetBodyGlass(x: SectionCtx) {
       {glassRow(CM_VIA_WORDS.label, "pb-row-via", viaSection(x))}
       {glassRow("Says", "pb-row-says", messageSection(x))}
       {glassRow("When", "pb-row-when", whenOnly(x))}
-      {glassRow("Under", "pb-row-under", underLine(x))}
+      {glassRow("Rules", "pb-row-under", underLine(x))}
       {numberWarning(x)}
     </div>
   );

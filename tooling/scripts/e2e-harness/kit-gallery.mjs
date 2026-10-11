@@ -262,11 +262,13 @@ const PHOTO =
  * A person's row on a phone, as the kit draws it, with a line of words said or not, a note under it or not, as a link to
  * their page or not, and a row whose first column is its kind (the kit's mark) instead of someone's face.
  */
-const listRow = ({ said = true, note = false, door = false, mark = false } = {}) =>
-  (door ? `<a class="list-row" href="#kit">` : `<div class="list-row">`) +
-  (mark
-    ? `<span class="mark list-row-mark" aria-hidden="true">${icon("bell", 13)}</span>`
-    : `<span class="face list-row-face" aria-hidden="true"><span>AR</span></span>`) +
+const listRow = ({ said = true, note = false, door = false, mark = false, bare = false } = {}) =>
+  (door ? `<a class="list-row" href="#kit">` : `<div class="list-row${bare ? " list-row-bare" : ""}">`) +
+  (bare
+    ? ""
+    : mark
+      ? `<span class="mark list-row-mark" aria-hidden="true">${icon("bell", 13)}</span>`
+      : `<span class="face list-row-face" aria-hidden="true"><span>AR</span></span>`) +
   `<div class="list-row-name">Aisha Rahman</div><span class="pill pill-warn list-row-end">Needs you</span>` +
   (said ? `<div class="list-row-said">asked about Saturday</div>` : "") +
   `<div class="list-row-facts"><span>Sat · 10:00</span><span>2 h ago</span></div>` +
@@ -381,6 +383,23 @@ const kitSheet = () =>
   `<button type="button" class="btn btn-sm btn-ghost">Cancel</button>` +
   `<button type="button" tabindex="0" aria-label="More for the services" aria-haspopup="menu" aria-expanded="false" ` +
   `class="btn btn-icon btn-sm btn-ghost">${icon("more", 14)}</button></div></footer></section>`;
+
+/**
+ * The kit's Sheet with its title a kicker (`kicker`, kit-behaves.tsx's): the title a quiet line with its small Close at
+ * its end and no rule under it, over rows that carry their own name, and a foot that closes it (`footCloses`: its
+ * Cancel), where on a phone the corner's Close steps out of sight.
+ */
+const kitKickerSheet = () =>
+  `<button type="button" class="btn">Turn on Win-back</button>` +
+  `<div class="sheet-backdrop" role="presentation" aria-hidden="true"></div>` +
+  `<section class="sheet sheet-kicker" role="dialog" tabindex="-1" data-foot-closes="true">` +
+  `<div class="sheet-handle" aria-hidden="true"></div>` +
+  `<header class="rec-sheet-head"><div class="rec-sheet-heading"><h2 class="rec-sheet-title">Turn on</h2></div>` +
+  `<button type="button" tabindex="0" aria-label="Close" class="rec-sheet-close">${icon("x", 13)}</button></header>` +
+  `<div class="rec-sheet-body">${KIT_ROWS}</div>` +
+  `<footer class="rec-sheet-foot"><div data-foot-pair="">` +
+  `<button type="button" class="btn btn-sm btn-ghost">Cancel</button>` +
+  `<button type="button" class="btn btn-sm btn-primary">Start it</button></div></footer></section>`;
 
 /**
  * The kit's Sheet in a phone's job's shape, open on its second step (kit-behaves.tsx's): the control that opened it,
@@ -769,6 +788,13 @@ const kitPickerReadOnly = () =>
   `aria-haspopup="listbox" aria-readonly="true" aria-label="The hour it runs: 10:00" class="token" data-readonly="">` +
   `<span class="token-face">10:00</span><span aria-hidden="true" class="token-caret">` +
   `${icon("chevron-down", 11)}</span></button></span>`;
+
+/** The kit's Picker read as a word of its sentence (`inline`): no capsule, its words underlined, its chevron after. */
+const kitPickerInline = () =>
+  `<span class="gx-pop-words">Every day at <button type="button" tabindex="0" role="combobox" aria-expanded="false" ` +
+  `aria-haspopup="listbox" aria-label="The hour it runs: 10:00" class="token token-inline">` +
+  `<span class="token-face">10:00</span><span aria-hidden="true" class="token-caret">` +
+  `${icon("chevron-down", 11)}</span></button>, up to 25 people a run.</span>`;
 
 /** The kit's toast, raised: Base UI's region wearing the house's stack, a confirmation with its Undo and its ×. */
 const kitToast = () =>
@@ -1814,13 +1840,16 @@ export const FAMILIES = [
       "phone shares: three lines, two (nothing said, so the face spans two), a line of its own under the facts, and " +
       "a row with a page of its own, a link that keeps the row's colours with no underline. People's and Leads' phone " +
       "rows draw it (surfaces/people/cells/row-card.tsx); and a row whose first column is its kind, the kit's mark in " +
-      "the face's place (Campaigns' phone list, surfaces/campaigns/home/ledger/ledger-phone.tsx).",
+      "the face's place; and a row with nothing in its first column, its lines from its start, where what the rows " +
+      "are is said around them (Campaigns' phone list, each row on its moment's line: " +
+      "surfaces/campaigns/home/ledger/ledger-phone.tsx).",
     entries: [
       { id: "list-row", html: listRow() },
       { id: "list-row-two", html: listRow({ said: false }) },
       { id: "list-row-note", html: listRow({ note: true }) },
       { id: "list-row-door", html: listRow({ note: true, door: true }) },
       { id: "list-row-mark", html: listRow({ said: false, mark: true }) },
+      { id: "list-row-bare", html: listRow({ bare: true }) },
     ],
   },
   {
@@ -1923,6 +1952,7 @@ export const FAMILIES = [
     entries: [
       { id: "sheet-kit", stage: "sheet", html: kitSheet() },
       { id: "sheet-kit-job", stage: "sheet", html: kitJobSheet() },
+      { id: "sheet-kit-kicker", stage: "sheet", html: kitKickerSheet() },
     ],
   },
   {
@@ -2003,6 +2033,7 @@ export const FAMILIES = [
       { id: "picker-kit-find", stage: "pop", html: kitPickerFind() },
       { id: "picker-kit-none", stage: "pop", html: kitPickerNone() },
       { id: "picker-kit-readonly", html: kitPickerReadOnly() },
+      { id: "picker-kit-inline", html: kitPickerInline() },
     ],
   },
   {

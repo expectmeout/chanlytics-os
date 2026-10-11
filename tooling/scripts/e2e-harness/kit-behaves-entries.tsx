@@ -257,6 +257,45 @@ function SheetKitJob() {
   );
 }
 
+/** The sheet with its title a kicker over rows that carry their own name, its foot's Cancel the act that closes it. */
+function SheetKitKicker() {
+  const [open, setOpen] = useState(false);
+  return (
+    <Figure id="sheet-kit-kicker" about="the kit's Sheet, its title a kicker">
+      <Button data-testid="sheet-kicker-open" onClick={() => setOpen(true)}>
+        Turn on Win-back
+      </Button>
+      <Sheet
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Turn on"
+        close={{ label: "Close", glyph: glyph("x", 13) }}
+        kicker
+        footCloses
+        foot={
+          <div data-foot-pair="">
+            <Button variant="quiet" size="sm" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" size="sm" onClick={() => setOpen(false)}>
+              Start it
+            </Button>
+          </div>
+        }
+      >
+        {SHEET_SERVICES.map(([name, long]) => (
+          <div key={name} className="rec-row" data-empty="false">
+            <span className="rec-row-key">{name}</span>
+            <div className="rec-row-val">
+              <span className="rec-row-value">{long}</span>
+            </div>
+          </div>
+        ))}
+      </Sheet>
+    </Figure>
+  );
+}
+
 /** One menu its controls share, each control carrying its row (a table's Call): the menu says the row that opened it. */
 const CALL_ROWS = [
   { name: "Sam's Gym", number: "(512) 555-0142" },
@@ -491,6 +530,28 @@ function PickerKitReadOnly() {
           readOnly
           data-testid="picker-readonly"
         />
+      </span>
+    </Figure>
+  );
+}
+
+/** A picker read as a word of its sentence (`inline`): no capsule, its words underlined. */
+function PickerKitInline() {
+  const [hour, setHour] = useState<string>("10");
+  return (
+    <Figure id="picker-kit-inline" about="the kit's Picker, inline">
+      <span className="gx-pop-words">
+        Every day at{" "}
+        <Picker
+          label="The hour it runs"
+          value={hour}
+          onValueChange={setHour}
+          groups={HOURS}
+          chevron={glyph("chevron-down", 11)}
+          inline
+          data-testid="picker-inline"
+        />
+        , up to 25 people a run.
       </span>
     </Figure>
   );
@@ -741,6 +802,7 @@ function FieldKitTitle() {
 export const ENTRIES: { id: string; Draw: () => ReactElement; closed: boolean }[] = [
   { id: "sheet-kit", Draw: SheetKit, closed: false },
   { id: "sheet-kit-job", Draw: SheetKitJob, closed: false },
+  { id: "sheet-kit-kicker", Draw: SheetKitKicker, closed: false },
   { id: "menu-kit", Draw: MenuKit, closed: false },
   { id: "menu-kit-set", Draw: MenuKitSet, closed: false },
   { id: "menu-kit-switches", Draw: MenuKitSwitches, closed: false },
@@ -765,4 +827,5 @@ export const ENTRIES: { id: string; Draw: () => ReactElement; closed: boolean }[
   { id: "picker-kit-find", Draw: PickerKitFind, closed: false },
   { id: "picker-kit-none", Draw: PickerKitNone, closed: false },
   { id: "picker-kit-readonly", Draw: PickerKitReadOnly, closed: true },
+  { id: "picker-kit-inline", Draw: PickerKitInline, closed: true },
 ];
