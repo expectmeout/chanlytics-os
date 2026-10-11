@@ -240,9 +240,12 @@ const patchIn = (pl: Record<string, unknown>): Record<string, unknown> =>
   );
 
 /**
- * The undo of a pause: it resumes the campaign under its class's mode, so where the card read that mode as `auto` it says
- * in full that the campaign sends on its own, in the Resume ask's own sentence (LIFECYCLE_WORDS.ledger.resume.auto,
- * decision 7). Any other mode adds nothing, and a card made where the mode could not be read (`mode` null) claims none.
+ * The undo of a pause: it resumes the campaign under the mode its runs go under, so where the card read that mode as
+ * `auto` it says in full that the campaign sends on its own, in the Resume ask's own sentence
+ * (LIFECYCLE_WORDS.ledger.resume.auto, decision 7). Any other mode adds nothing, and a card made where the mode could not
+ * be read (`mode` null) claims none. The payload's `mode` is decided where the row and the clock are, by the card's
+ * builder through contracts effectiveMode (00395): a campaign on trial under an auto class is `veto` there, so its undo
+ * never promises it sends on its own. This label has neither: it is written once, from the payload, when the card is made.
  */
 const resumeUndoLabel = (mode: unknown): string =>
   mode === "auto" ? `Resume it. ${LIFECYCLE_WORDS.ledger.resume.auto}` : "Resume it";

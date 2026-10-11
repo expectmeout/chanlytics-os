@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
+import { changePlaybookDoor } from "./_change-door.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -17,6 +18,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
+const { MODE_WORDS } = await import(at("apps/dashboard/src/server/ask/tools/act/playbook.ts"));
 const { LIFECYCLE_WORDS, PROPOSAL_SPECS, PLAYBOOK_PATCH_WORDS, REACH_OUT_IS_NOT_A_MOMENT } =
   await import("@chanlytics/contracts");
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
@@ -66,26 +68,8 @@ const tables = (over = {}) => ({
   events: [],
   ...over,
 });
-/**
- * The change_playbook door in memory, as 00377 writes it and the route calls it: of the columns named only those that
- * differ written, the line's verb following the state that moved, what each held answered; nothing that differs is no
- * write and no line (`was` empty, `decision_id` null).
- */
-const changeDoor = (rows) => ({
-  change_playbook: (a) => {
-    const p = rows.playbooks.find((x) => x.id === a.p_playbook_id && x.tenant_id === a.p_tenant_id);
-    if (!p) throw Object.assign(new Error("Playbook not found."), { code: "P0002" });
-    const set = Object.fromEntries(Object.entries(a.p_set).filter(([k, v]) => p[k] !== v));
-    if (Object.keys(set).length === 0) return { id: p.id, was: {}, decision_id: null, undo_dropped: false };
-    const was = Object.fromEntries(Object.keys(set).map((k) => [k, p[k]]));
-    Object.assign(p, set);
-    const id = `d${rows.decisions.length + 1}`;
-    const verb =
-      set.state === "running" ? "start_playbook" : set.state === "paused" ? "pause_playbook" : "change_playbook";
-    rows.decisions.push({ id, verb });
-    return { id: p.id, was, decision_id: id, undo_dropped: false };
-  },
-});
+/** The change_playbook door in memory, as 00395 writes it and the route calls it (_change-door.mjs). */
+const changeDoor = (rows) => changePlaybookDoor(rows, USER);
 const change = (input, rows = tables(), faults = {}) => {
   const supabase = fakeDb(rows, faults, changeDoor(rows));
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
@@ -185,6 +169,33 @@ test("a pause says the run that waits stays waiting; a resume says its class's m
   });
   assert.equal(unread.isError, true);
   assert.match(said(unread), /sending mode .* could not be read/);
+});
+
+test("a campaign on trial goes as veto (00395): its resume card says veto's words, never that it sends on its own, and its pause's undo claims no auto; once its trial is over, auto's words again", async () => {
+  // A week of trial from the 14th: its runs wait half an hour for a Stop, whatever its auto class says.
+  const onTrial = { trial_until: "2026-09-21T14:00:00Z" };
+  const resume = await change(
+    { state: "running" },
+    tables({ playbooks: [playbookRow({ state: "paused", ...onTrial })] }),
+  );
+  assert.equal(resume.isError, false, resume.result);
+  assert.equal(resume.proposal.summary, PLAYBOOK_PATCH_WORDS.resumed("Re-engage", "veto", MODE_WORDS.veto));
+  assert.ok(!resume.proposal.summary.includes(LIFECYCLE_WORDS.ledger.resume.auto), resume.proposal.summary);
+  const pause = await change({ state: "paused" }, tables({ playbooks: [playbookRow(onTrial)] }));
+  assert.equal(pause.isError, false, pause.result);
+  assert.deepEqual([pause.proposal.undo, pause.proposal.payload.mode], ["Resume it", "veto"]);
+  // A minute before now, the trial ended: its class's auto is how its runs go.
+  const over = { trial_until: "2026-09-14T13:59:00Z" };
+  const after = await change({ state: "running" }, tables({ playbooks: [playbookRow({ state: "paused", ...over })] }));
+  assert.equal(
+    after.proposal.summary,
+    PLAYBOOK_PATCH_WORDS.resumed("Re-engage", "auto", LIFECYCLE_WORDS.ledger.resume.auto),
+  );
+  const pausedAfter = await change({ state: "paused" }, tables({ playbooks: [playbookRow(over)] }));
+  assert.deepEqual(
+    [pausedAfter.proposal.undo, pausedAfter.proposal.payload.mode],
+    [`Resume it. ${LIFECYCLE_WORDS.ledger.resume.auto}`, "auto"],
+  );
 });
 
 test("a change is refused in words before any card: not an id, not this workspace's, a reach-out's step, a value out of bounds, a cadence off the month's offer, and nothing that would change", async () => {

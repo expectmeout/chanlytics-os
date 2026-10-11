@@ -8,6 +8,7 @@ import {
   PLAYBOOK_PATCH_KEYS,
   PLAYBOOK_PATCH_WORDS,
   PLAYBOOK_STATES,
+  effectiveMode,
   isPlaybookState,
   noteRows,
   triggerOf,
@@ -26,7 +27,7 @@ const PLAYBOOK_FROM = "campaigns with action playbooks";
 /**
  * How a resumed playbook's runs go, in full (D7): under auto, that it sends on its own and nothing waits for approval, in
  * the drawer's Resume sentence (LIFECYCLE_WORDS.ledger.resume.auto), which a pause card's undo says too: one fact, one
- * sentence.
+ * sentence. `mode` is the one its runs go under (contracts effectiveMode): a campaign on trial goes as veto, and says so.
  */
 const resumeDoes = (mode: string): string =>
   mode === "auto" ? LIFECYCLE_WORDS.ledger.resume.auto : (MODE_WORDS[mode] ?? mode);
@@ -90,8 +91,11 @@ async function proposePlaybookChange(
     return refuse(
       `the sending mode of “${cls}” could not be read just now, so a resume cannot say what its runs would do; say so, and try again in a moment`,
     );
-  // A class with no row of its own runs under ask, as a run reads it (core run-playbook).
-  const mode = policies ? (policies.find((r) => r.class === row.policy_class)?.mode ?? "ask") : null;
+  // A class with no row of its own runs under ask, as a run reads it (core run-playbook). And a run goes as the campaign
+  // will stand after this change: under auto while it is on trial, as veto does (contracts effectiveMode, 00395), so the
+  // card and a pause's undo say how its runs go, never its class's mode alone.
+  const classMode = policies ? (policies.find((r) => r.class === row.policy_class)?.mode ?? "ask") : null;
+  const mode = classMode === null ? null : effectiveMode({ ...row, ...set }, classMode, t.now);
   const waits = row.waiting ? row.waiting.recipient_count : null;
   return propose({
     kind: "playbook_change",

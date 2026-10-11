@@ -3,7 +3,7 @@
  * declares its body: a change in place (any of state, name, run_hour, cap_per_run, gap_days, cadence_days, and since 00395
  * params, until and trial_until), the channels alone, or the whole playbook, and no other key. A change is judged against
  * the playbook as it stands and its message (core
- * checkPlaybookPatch) and written with its line in the ledger in one call (the change_playbook door, modelled below),
+ * checkPlaybookPatch) and written with its line in the ledger in one call (the change_playbook door, _change-door.mjs),
  * which answers what each field held; nothing to change writes nothing. On a database before the door (PGRST202) the
  * same change is written as it was before, for one release, and answers the same: either deploy order works.
  */
@@ -12,6 +12,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
+import { changePlaybookDoor } from "./_change-door.mjs";
 import { PLAYBOOK_PATCH_WORDS } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -98,59 +99,8 @@ const world = (over = {}) => ({
   ...over,
 });
 
-/** The nine columns the door may write (00395), and the two of them a null clears. */
-const DOOR_KEYS = [
-  "state",
-  "name",
-  "run_hour",
-  "cap_per_run",
-  "gap_days",
-  "cadence_days",
-  "params",
-  "until",
-  "trial_until",
-];
-const CLEARED = ["until", "trial_until"];
-/** What the door compares as it stores it: the slots as jsonb, a trial's end as the instant, the rest as they are. */
-const sameAsHeld = (k, v, held) =>
-  k === "params"
-    ? JSON.stringify(v) === JSON.stringify(held)
-    : k === "trial_until" && v !== null && held != null
-      ? Date.parse(v) === Date.parse(held)
-      : v === (held ?? null);
-/**
- * The change_playbook door in memory, as 00395 writes it: a key outside the nine refused (22023), and a null but for the
- * two dates; then the row as it stands, of the columns named only those that differ written, the decision as theirs, its
- * verb following the state that moved, and what each held answered; where nothing differs (a second press that lands
- * after the first), nothing written and no line: `was` empty, `decision_id` null.
- */
-const changeDoor = (tables) => ({
-  change_playbook: (a) => {
-    const named = Object.entries(a.p_set ?? {});
-    if (named.length === 0 || named.some(([k, v]) => !DOOR_KEYS.includes(k) || (v === null && !CLEARED.includes(k))))
-      throw Object.assign(new Error("change_playbook: name what changes"), { code: "22023" });
-    const p = tables.playbooks.find((x) => x.id === a.p_playbook_id && x.tenant_id === a.p_tenant_id);
-    if (!p) throw Object.assign(new Error("Playbook not found."), { code: "P0002" });
-    const set = Object.fromEntries(named.filter(([k, v]) => !sameAsHeld(k, v, p[k])));
-    if (Object.keys(set).length === 0) return { id: p.id, was: {}, decision_id: null, undo_dropped: false };
-    const was = Object.fromEntries(Object.keys(set).map((k) => [k, p[k] ?? null]));
-    Object.assign(p, set);
-    const verb =
-      set.state === "running" ? "start_playbook" : set.state === "paused" ? "pause_playbook" : "change_playbook";
-    const decision = {
-      id: `decision-${tables.decisions.length + 1}`,
-      tenant_id: a.p_tenant_id,
-      subject_type: "playbook",
-      subject_id: p.id,
-      verb,
-      actor_user_id: USER,
-      payload: { ...(a.p_decision ?? {}), ...(a.p_via ? { via: a.p_via } : {}) },
-      undo_of: a.p_undo_of ?? null,
-    };
-    tables.decisions.push(decision);
-    return { id: p.id, was, decision_id: decision.id, undo_dropped: false };
-  },
-});
+/** The change_playbook door in memory, as 00395 writes it (_change-door.mjs), on the member's session. */
+const changeDoor = (tables) => changePlaybookDoor(tables, USER);
 /** A database before the door's migration: PostgREST's answer for a function it does not hold. */
 const noDoor = () => ({
   change_playbook: () => {

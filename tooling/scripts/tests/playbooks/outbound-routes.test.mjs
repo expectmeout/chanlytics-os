@@ -11,6 +11,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
+import { changePlaybookDoor } from "./change/_change-door.mjs";
 import { PLAYBOOK_PATCH_WORDS, REACH_OUT_IS_NOT_A_MOMENT } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -100,41 +101,8 @@ const withStartDoor = (tables, rpcs = {}, refusal = null) => ({
     return { id: row.id, decision_id: decision.id, undo_dropped: false };
   },
 });
-/**
- * The `change_playbook` door for a database in memory: the row the caller names in the workspace named, the
- * columns the set names written, then the decision as theirs -- start_playbook, pause_playbook or change_playbook -- in
- * `tables.decisions`; the row's id, what each written column held and the decision's id. No such row is P0002, and
- * nothing is written, as its one transaction leaves it. Of the columns named only those that differ are written, the
- * verb following the state that moved; where none differs nothing is written and no line: `was` empty, `decision_id`
- * null (00377's no-op).
- */
-const withChangeDoor = (tables, rpcs = {}) => ({
-  ...rpcs,
-  change_playbook: (a) => {
-    const row = (tables.playbooks ?? []).find((p) => p.id === a.p_playbook_id && p.tenant_id === a.p_tenant_id);
-    if (!row) throw Object.assign(new Error("Playbook not found."), { code: "P0002" });
-    const set = Object.fromEntries(Object.entries(a.p_set).filter(([k, v]) => row[k] !== v));
-    if (Object.keys(set).length === 0) return { id: row.id, was: {}, decision_id: null, undo_dropped: false };
-    const was = Object.fromEntries(Object.keys(set).map((k) => [k, row[k]]));
-    Object.assign(row, set);
-    const decisions = (tables.decisions ??= []);
-    const verb =
-      set.state === "running" ? "start_playbook" : set.state === "paused" ? "pause_playbook" : "change_playbook";
-    const decision = {
-      id: `decision-${decisions.length + 1}`,
-      tenant_id: a.p_tenant_id,
-      subject_type: "playbook",
-      subject_id: row.id,
-      verb,
-      actor_type: "user",
-      actor_user_id: USER,
-      payload: { ...(a.p_decision ?? {}), ...(a.p_via ? { via: a.p_via } : {}) },
-      undo_of: a.p_undo_of ?? null,
-    };
-    decisions.push(decision);
-    return { id: row.id, was, decision_id: decision.id, undo_dropped: false };
-  },
-});
+/** The `change_playbook` door for a database in memory, as 00395 writes it (change/_change-door.mjs), beside `rpcs`. */
+const withChangeDoor = (tables, rpcs = {}) => ({ ...rpcs, ...changePlaybookDoor(tables, USER) });
 const ctxFor = (tables, params = {}, rpcs = {}, opts = {}) => ({
   supabase: fakeDb(tables, {}, withChangeDoor(tables, withStartDoor(tables, rpcs)), opts),
   userId: USER,
