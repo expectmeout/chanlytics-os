@@ -25852,6 +25852,69 @@ declare const LIFECYCLE_WORDS: {
                 readonly to: "admin/integrations";
             };
         };
+        /**
+         * The composers and a campaign's drawer as one sentence of words to press (Ruben, 11 Oct 2026, "Option B"): the words
+         * round its tokens, the one line under it saying who it reaches now, what happens next, and what an edit changes.
+         */
+        readonly sentence: {
+            readonly everyDay: "Every day at";
+            /** The rule its runs keep, said after its channels: the mode Autonomy holds for the moment's class. */
+            readonly rule: {
+                auto: string;
+                veto: string;
+                ask: string;
+                never: string;
+            };
+            /** What the rule's word opens, to a screen reader. */
+            readonly ruleLabel: "The rule its runs keep, on your Autonomy tab";
+            /** The channels' word, to a screen reader: what pressing it opens. */
+            readonly channelsLabel: "The channels it goes by";
+            /** Under the channels' switches: a person gets a run's message on one of them, never on each. */
+            readonly channelsNote: "Each person gets it once, on one of these.";
+            /** Where it goes by no channel yet: the channels' word says so. */
+            readonly noChannel: "no channel yet";
+            /**
+             * Who a moment's campaign goes to, after "to" in its sentence ("a WhatsApp to everyone with an appointment
+             * tomorrow"): the moment said as the people it names, in the workspace's word for an appointment.
+             */
+            readonly who: (trigger: string, word: AppointmentWord) => string;
+            /** Who it reaches now: "All 6 can hear it", "2 of 6 can hear it". */
+            readonly hear: (will: number, pool: number) => string;
+            /** Nobody the moment names yet: "Nobody with an appointment tomorrow right now". */
+            readonly nobody: (of: string) => string;
+            /** What happens next, before it is saved ("First run today at 10:00 AM"), or for one that runs ("Next run …"). */
+            readonly firstRun: (when: string) => string;
+            readonly nextRun: (when: string) => string;
+            /** A day and an hour as a line says them, from a label's "today 10:00 AM": "today at 10:00 AM". */
+            readonly at: (label: string) => string;
+            /** A send's one act, once a time is picked: "Schedule for tomorrow at 9:00 AM". */
+            readonly scheduleFor: (when: string) => string;
+            /**
+             * The message, folded under its first words (Ruben, 11 Oct 2026: "make the preview something you expand to see, so
+             * the drawers are more compact"): what the fold says while it is open.
+             */
+            readonly previewOpen: "How it reads";
+            readonly previewLabel: "The message, as it reads";
+            /** An edit's changes, counted in its foot: "2 changes · from the next run". */
+            readonly changes: (n: number) => string;
+            /** The foot of a Turn on whose moment's own message is not in the Library yet: the one press adds it, then starts. */
+            readonly addsFirst: (title: string) => string;
+            /** The message under its preview: "Visit reminder · written for you", and its door. */
+            readonly writtenForYou: "written for you";
+            /** Beside the moment's own message, not added yet: the word that picks one of the Library's instead. */
+            readonly another: "another message";
+            readonly change: "Change";
+            readonly open: "Open";
+            /** A word of a running campaign changed in place, said with its Undo: "Visit reminder runs at 9:00 AM now". */
+            readonly saved: {
+                readonly hour: (name: string, hour: string) => LifecycleSentence;
+                readonly cap: (name: string, n: number) => LifecycleSentence;
+                readonly gap: (name: string, days: number) => LifecycleSentence;
+                readonly undone: (name: string) => LifecycleSentence;
+            };
+            /** Its runs, newest last, a bar each: what the strip says to a screen reader, and its head. */
+            readonly runs: (n: number) => string;
+        };
         readonly failed: {
             readonly what: "who and what you can send to";
             readonly body: "Nothing goes out until it reads. Everything else here is current.";

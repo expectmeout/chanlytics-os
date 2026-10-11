@@ -1,15 +1,15 @@
 /**
  * Who a run reaches (moved from legacy/components/campaign-bits.jsx, decision 0015):
- * `CmReach` says the number that gets a message with the subtractions named. The
- * playbook composer's To row draws the same number on one line instead (`CmWho`: the count, who it reaches on which
- * channel, and the subtractions behind "Who's held back"), with the split as a bar where it goes by more than WhatsApp.
+ * `CmReach` says the number that gets a message with the subtractions named. A campaign's sentence draws the same
+ * number on one quiet line under it instead (`CmReachLine`), the subtractions behind it.
  */
 import type { ReactNode } from "react";
+import { LIFECYCLE_WORDS, PREVIEW_WORDS } from "@chanlytics/contracts";
 import type { ReachSplit } from "@chanlytics/contracts";
+import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
-import { Meter } from "../../kit/meter/meter";
+import { Popover } from "../../kit/popover/popover";
 import { navigate } from "../../legacy-verbs";
-import { CmHeldBack } from "./held-back";
 import { CmSplitBar } from "./split-bar";
 
 /** The one reason an owner can act on: where they act on it. */
@@ -133,28 +133,38 @@ export function CmReach({
   );
 }
 
-interface CmWhoProps {
+interface CmReachLineProps {
   will: number;
   pool: number;
+  /** What the pool is, where nobody is in it: "Nobody with an appointment tomorrow right now". */
   of?: string | null;
   held?: number;
   reasons?: CmReachReason[];
-  /** The clause for who it reaches on which channel (parts/channels.ts cmReachBy), where it goes by more than WhatsApp alone. */
+  /** Who it reaches on which channel (parts/channels.ts cmReachBy), where it goes by more than WhatsApp alone. */
   by?: string | null;
-  /** The split by channel, drawn as a bar where `by` is said; otherwise the bar is who it reaches against who is held. */
   split?: ReachSplit | null;
-  /** The month's emails or texts running out for this run (contracts allowanceBeforeSend), said under the bar; null while there is room. */
+  /** The month's emails or texts running out for this run, said with the reasons; null while there is room. */
   allowance?: string | null;
+  /** The rules every run keeps (who it reaches first, the week's breath), said last in what the line opens. */
+  guard?: string | null;
+  /** The first reason anybody waits, where the reasons are not a list of lines (a send by hand counts them its own way). */
+  first?: string | null;
+  /** What the line opens, where the page draws it (a send names the people it holds back): in place of the reasons. */
+  box?: ReactNode;
   testid: string;
 }
 
+/** The dot before the line: green where everyone it names can hear it, amber where someone is held back, quiet where nobody is named. */
+const reachTone = (will: number, pool: number, reasons: number): "ok" | "warn" | "plain" =>
+  pool === 0 ? "plain" : will < pool || reasons > 0 ? "warn" : "ok";
+
 /**
- * The To row's count on one line, where the card's stood on four: "12 of 40 who said yes · 10 on WhatsApp, 2 by email", the
- * reasons anybody is held back behind one quiet "Who's held back" (each with its door), and under them one thin bar --
- * who it reaches on which channel where it goes by more than WhatsApp, else who it reaches against who is held; no bar
- * where nobody is counted, a picture of nothing.
+ * Who it reaches now, as one quiet line under a campaign's sentence (Ruben, 11 Oct 2026, "Option B"): a dot, "2 of 6 can
+ * hear it", and the first reason anybody is held back ("4 never said yes to offers"); the line is the press that opens the
+ * rest in the kit's popover -- every reason with its door, who it reaches on which channel and its bar, and the month's
+ * allowance. It stood as a count, a clause by channel, a link and a bar on two lines, between the sentence and the message.
  */
-export function CmWho({
+export function CmReachLine({
   will,
   pool,
   of = null,
@@ -163,50 +173,61 @@ export function CmWho({
   by = null,
   split = null,
   allowance = null,
+  guard = null,
+  first = null,
+  box = null,
   testid,
-}: CmWhoProps) {
-  const total = Math.max(pool, will + held, 1);
-  const rest = Math.max(0, total - will - held);
+}: CmReachLineProps) {
+  const S = LIFECYCLE_WORDS.compose.sentence;
+  const total = Math.max(pool, will + held);
+  const lead = first ?? reasons[0]?.t ?? null;
+  const tone = reachTone(will, total, lead ? 1 : 0);
+  const said = total === 0 ? S.nobody(of ?? "") : S.hear(will, total);
+  const more = reasons.length > 0 || !!by || !!allowance || !!guard || !!box;
+  const line = (
+    <>
+      <span className="cm-reach-dot" data-tone={tone} aria-hidden="true" />
+      <span className="cm-reach-said">
+        <span className="cm-reach-count">{said}</span>
+        {lead ? <span className="cm-reach-first"> · {lead}</span> : null}
+      </span>
+      {more ? <Icon name="chevron" size={11} /> : null}
+    </>
+  );
   return (
-    <div className="cm-who" data-testid={testid}>
-      <p className="cm-who-line">
-        <span className="cm-reach-n">
-          <span className="cm-reach-will tabular">{will}</span>
-          <span className="cm-reach-of">
-            of <span className="tabular">{pool}</span>
-            {of ? ` ${of}` : ""}
-          </span>
-        </span>
-        {by ? (
-          <span className="cm-who-by">
-            <span aria-hidden="true">·</span>
-            <span data-testid={`${testid}-by`}>{by}</span>
-          </span>
-        ) : null}
-        {reasons.length > 0 && (
-          <CmHeldBack testid={`${testid}-held`}>
-            <CmReachWhy reasons={reasons} testid={testid} />
-          </CmHeldBack>
-        )}
-      </p>
-      {by && split ? (
-        <CmSplitBar split={split} className="cm-who-bar" testid={`${testid}-bar`} />
-      ) : will + held + pool === 0 ? null : (
-        <Meter
-          size="sm"
-          className="cm-who-bar"
-          parts={[
-            { share: will, tone: "ok" },
-            { share: held, tone: "warn" },
-            { share: rest, color: "var(--line-strong)" },
-          ]}
-          aria-label={`${will} of ${pool} reached${held > 0 ? `; ${held} wait` : ""}`}
-        />
-      )}
-      {allowance && (
-        <p className="cm-who-allowance" data-testid={`${testid}-allowance`}>
-          {allowance}
-        </p>
+    <div className="cm-reach-line" data-testid={testid} data-tone={tone}>
+      {more ? (
+        <Popover
+          label={PREVIEW_WORDS.heldBack}
+          align="start"
+          className="bc-held-box cm-reach-box"
+          trigger={
+            <LinkButton className="cm-reach-press" data-testid={`${testid}-held`}>
+              {line}
+            </LinkButton>
+          }
+        >
+          {by ? (
+            <p className="cm-reach-by" data-testid={`${testid}-by`}>
+              {by}
+            </p>
+          ) : null}
+          {by && split ? <CmSplitBar split={split} className="cm-who-bar" testid={`${testid}-bar`} /> : null}
+          {box ?? (reasons.length > 0 && <CmReachWhy reasons={reasons} testid={testid} />)}
+          {allowance ? (
+            <p className="cm-who-allowance" data-testid={`${testid}-allowance`}>
+              {allowance}
+            </p>
+          ) : null}
+          {guard ? (
+            <p className="cm-reach-guard" data-testid={`${testid}-guard`}>
+              <Icon name="shield" size={11} />
+              <span>{guard}</span>
+            </p>
+          ) : null}
+        </Popover>
+      ) : (
+        <span className="cm-reach-press">{line}</span>
       )}
     </div>
   );
