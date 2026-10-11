@@ -1438,8 +1438,9 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
       // The calendar's read and everyone's visits off it, apart since 9 Oct 2026 so the pools ask for both at once.
       svc.includes("export async function calendarRead(") &&
       svc.includes("export function visitsIn(") &&
-      svc.includes(
-        "peopleVisitsOf(feed.parsed.items, rows, { timezone, source, own, services, rules }, now.getTime())",
+      // The record joins the feed there (0002's readers): the cal's `record`.
+      /peopleVisitsOf\(\s*feed\.parsed\.items,\s*rows,\s*\{ timezone, source, own, services, rules, record \},\s*now\.getTime\(\),?\s*\)/.test(
+        svc,
       ),
     "one parse, indexed once, for everyone",
   );
@@ -2540,7 +2541,7 @@ test("REGRESSION: the owner invited to meetings on their own calendar is not a c
 
   const index = indexFeed(f.items, own);
   assert.deepEqual(allVisitsIn(index, owner), [], "none of the meetings on their own calendar is a visit");
-  assert.deepEqual(visitsIn(index, owner, NOW), { next: null, last: null, near: [] });
+  assert.deepEqual(visitsIn(index, owner, NOW), { next: null, last: null, near: [], missed: null });
   assert.equal(index.byEmail.get(OWNER_ADDR), undefined, "and the address is not indexed at all");
   // A customer on an event the owner is copied on is still that customer's.
   assert.deepEqual(
@@ -2667,4 +2668,38 @@ test("the receptionist's match by name is what it was: a first name of four lett
   );
   // The service, without the name the title carries.
   assert.equal(visitServiceOf("Daniela Ruiz · Colour", ["Daniela Ruiz"]), "Colour");
+});
+
+test("a visit a member said they missed, or kept, says so on the timeline: never 'Past visit' over a member's word (0002 step 8)", () => {
+  const visit = (id, day, said) => ({
+    id,
+    start: `2026-08-${day}T14:00:00.000Z`,
+    end: `2026-08-${day}T16:00:00.000Z`,
+    title: "Colour",
+    all_day: false,
+    via: "phone",
+    ...(said ? { said } : {}),
+  });
+  const missed = visit("m", "10", "missed");
+  const kept = visit("k", "20", "kept");
+  const vm = toPersonVM(
+    {
+      ...detail_(),
+      visits: {
+        timezone: TZ,
+        source: "Google Calendar",
+        state: "ok",
+        next: null,
+        last: kept,
+        missed,
+        all: [missed, kept],
+      },
+    },
+    TZ,
+    new Date(NOW),
+  );
+  assert.deepEqual(
+    vm.timeline.filter((i) => i.kind === "visit").map((i) => i.text),
+    ["Kept · Colour", "Missed · Colour"],
+  );
 });

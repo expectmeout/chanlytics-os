@@ -14,7 +14,11 @@ import {
   peopleVisitsOf,
   withVisitsOf,
   DAY_MS,
+  feedMarksOf,
+  seasonHorizon,
+  type PoolRecord,
 } from "@chanlytics/contracts";
+import { recordOver } from "@chanlytics/db";
 import type { RouteContext } from "@/server/with-route";
 import { lazily, type Lazy } from "@/server/lazy";
 import { calendarOf } from "./calendar-settings";
@@ -49,6 +53,34 @@ export type ZoneAndSettings = Lazy<{ timezone: string; config: unknown }>;
 export interface CalendarRead {
   lookup: Awaited<ReturnType<typeof calendarOf>>;
   feed: ParsedRead | null;
+  /** The record over the feed's season, joined to it (decision 0002's readers); null without it: the feed alone. */
+  record: PoolRecord | null;
+}
+
+/**
+ * The record over the season a feed's parse holds (seasonHorizon), as a reader joins it to the feed (contracts
+ * feedWithRecord): a booking's rows, and the word a member said of each feed event, by its key and start. Null when it
+ * could not be read, logged: the reader says the calendar is unavailable, as for a feed it could not read, since a visit
+ * the record cancelled or a member said missed could not be told from one that stands.
+ */
+export async function poolRecordOf(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+  now: Date,
+): Promise<PoolRecord | null> {
+  const season = seasonHorizon(now);
+  try {
+    const read = await recordOver(
+      ctx.supabase,
+      tenantId,
+      new Date(season.from).toISOString(),
+      new Date(season.to).toISOString(),
+    );
+    return { noted: read.noted, marks: feedMarksOf(read.feed) };
+  } catch (e) {
+    log.error("visits_record_read_failed", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) });
+    return null;
+  }
 }
 
 /** The lookup, then the feed it names. `known` and `stale` as peopleVisits takes them. */
@@ -60,18 +92,24 @@ export async function calendarRead(
   opts: { stale?: boolean } = {},
 ): Promise<CalendarRead> {
   const lookup = await calendarOf(ctx, tenantId, known === undefined ? undefined : await lazily(known));
-  if (!lookup.url) return { lookup, feed: null };
+  if (!lookup.url) return { lookup, feed: null, record: null };
+  // The record beside the feed, not after it: the two are independent.
+  const recordRead = poolRecordOf(ctx, tenantId, now);
   try {
     const feed = await parsedFeedFor(tenantId, lookup.url, lookup.timezone, now, { stale: opts.stale === true });
-    return { lookup, feed };
+    return { lookup, feed, record: await recordRead };
   } catch (e) {
     log.error("calendar_parse_failed", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) });
-    return { lookup, feed: { parsed: null, at: null, reason: "not_ical", status: null, checkedAt: null } };
+    return {
+      lookup,
+      feed: { parsed: null, at: null, reason: "not_ical", status: null, checkedAt: null },
+      record: await recordRead,
+    };
   }
 }
 
 /** Everyone's visits off a calendar already read: the rows indexed against its feed, once. */
-export function visitsIn({ lookup, feed }: CalendarRead, rows: PersonRowDto[], now: Date): PeopleVisits {
+export function visitsIn({ lookup, feed, record }: CalendarRead, rows: PersonRowDto[], now: Date): PeopleVisits {
   const { lostCalendar, timezone, source, bookingLink, own, profile } = lookup;
   const services = profile?.services ?? [];
   const rules = profile?.booking_rules ?? null;
@@ -84,11 +122,18 @@ export function visitsIn({ lookup, feed }: CalendarRead, rows: PersonRowDto[], n
       services,
       rules,
     };
-  if (!feed.parsed)
+  // A record that could not be read (poolRecordOf, logged) is the calendar unavailable, as a feed is.
+  if (!feed.parsed || !record)
     return { calendar: { state: "unavailable", source, timezone }, visits, bookingLink, services, rules };
   // Everyone's visits, each marked a consultation or not, by the pool's one rule (contracts peopleVisitsOf): what the
-  // edge's playbook runner reads too.
-  const marked = peopleVisitsOf(feed.parsed.items, rows, { timezone, source, own, services, rules }, now.getTime());
+  // edge's playbook runner reads too. The record joins the feed there: a booking's visits, a cancelled one left out, a
+  // member's kept or missed on each (0002's readers).
+  const marked = peopleVisitsOf(
+    feed.parsed.items,
+    rows,
+    { timezone, source, own, services, rules, record },
+    now.getTime(),
+  );
   return { calendar: { state: "ok", source, timezone }, visits: marked, bookingLink, services, rules };
 }
 

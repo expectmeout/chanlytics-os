@@ -522,6 +522,7 @@ export const LOG_EVENTS = [
   "unsubscribe_probe_failed",
   "unsubscribe_probe_unreadable",
   "usage_read_capped",
+  "visits_record_read_failed",
   "voice_converge",
   "voice_door_auth",
   "voice_guardrail_correction",

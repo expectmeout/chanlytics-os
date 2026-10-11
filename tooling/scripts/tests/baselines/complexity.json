@@ -174,11 +174,6 @@
     "branches": 32,
     "depth": 2
   },
-  "apps/edge/lib/playbooks.ts::loadTenantRunContext#1": {
-    "lines": 135,
-    "branches": 35,
-    "depth": 2
-  },
   "apps/edge/lib/reach-out/check.ts::checkSends#1": {
     "lines": 188,
     "branches": 13,
@@ -310,12 +305,12 @@
     "depth": 0
   },
   "packages/contracts/src/people/lists/list-rules.ts::listFactWords#1": {
-    "lines": 60,
-    "branches": 49,
+    "lines": 53,
+    "branches": 46,
     "depth": 1
   },
   "packages/contracts/src/people/person-row.ts::toPersonRowVM#1": {
-    "lines": 124,
+    "lines": 120,
     "branches": 57,
     "depth": 0
   },

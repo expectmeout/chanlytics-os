@@ -4914,7 +4914,9 @@ async function keepChannelStanding(db, tenantId, channelId, standing) {
 
 // src/repositories/calendar/appointments.ts
 import {
-  APPOINTMENT_STATUSES
+  APPOINTMENT_STATUSES,
+  recordIdOf,
+  recordKeyOf
 } from "../../contracts/dist/index.js";
 var LIVE_STATUSES = ["proposed", "booked"];
 var SPAN_MAX = 2e3;
@@ -4960,11 +4962,28 @@ var FEED_SPAN_MAX = 1e4;
 async function visitsOver(db, tenantId, fromIso, toIso) {
   const [noted, feed] = await Promise.all([
     db.from("appointments").select("*").eq("tenant_id", tenantId).neq("source", "calendar_feed").gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).limit(SPAN_MAX),
-    db.from("appointments").select("id, status, external_id").eq("tenant_id", tenantId).eq("source", "calendar_feed").is("vanished_at", null).gt("ends_at", fromIso).lt("starts_at", toIso).limit(FEED_SPAN_MAX)
+    db.from("appointments").select("id, status, external_id, starts_at").eq("tenant_id", tenantId).eq("source", "calendar_feed").is("vanished_at", null).gt("ends_at", fromIso).lt("starts_at", toIso).limit(FEED_SPAN_MAX)
   ]);
   if (noted.error) throw new Error(`visits_over: ${noted.error.message}`);
   if (feed.error) throw new Error(`visits_over: ${feed.error.message}`);
   return { noted: noted.data ?? [], feed: feed.data ?? [] };
+}
+var SAID_STATUSES = ["kept", "missed", "cancelled"];
+async function feedWordsOver(db, tenantId, fromIso, toIso) {
+  return readAllRows(
+    "appointments_feed_words",
+    (from, to) => db.from("appointments").select("id, status, external_id, starts_at").eq("tenant_id", tenantId).eq("source", "calendar_feed").is("vanished_at", null).in("status", [...SAID_STATUSES]).gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).order("id", { ascending: true }).range(from, to)
+  );
+}
+async function recordOver(db, tenantId, fromIso, toIso) {
+  const [noted, feed] = await Promise.all([
+    readAllRows(
+      "appointments_noted",
+      (from, to) => db.from("appointments").select("*").eq("tenant_id", tenantId).neq("source", "calendar_feed").gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).order("id", { ascending: true }).range(from, to)
+    ),
+    feedWordsOver(db, tenantId, fromIso, toIso)
+  ]);
+  return { noted, feed };
 }
 async function appointmentWorkspace(db, id) {
   const { data, error } = await db.from("appointments").select("id, tenant_id").eq("id", id).maybeSingle();
@@ -4983,7 +5002,7 @@ async function markVisit(db, p) {
 async function appointmentsForClient(db, tenantId, who, fromIso) {
   const or = clientFilter(who);
   if (!or) return [];
-  const { data, error } = await db.from("appointments").select("*").eq("tenant_id", tenantId).in("status", [...LIVE_STATUSES]).gt("ends_at", fromIso).or(or).order("starts_at", { ascending: true }).limit(50);
+  const { data, error } = await db.from("appointments").select("*").eq("tenant_id", tenantId).neq("source", "calendar_feed").gt("ends_at", fromIso).or(or).order("starts_at", { ascending: true }).limit(50);
   if (error) throw new Error(`appointments_for_client: ${error.message}`);
   return data ?? [];
 }
@@ -5039,19 +5058,22 @@ var KEYS_PER_READ = 25;
 var isStatus = (s) => APPOINTMENT_STATUSES.includes(s);
 async function appointmentStates(db, tenantId, keys) {
   const out = /* @__PURE__ */ new Map();
-  for (let i = 0; i < keys.length; i += KEYS_PER_READ) {
-    const { data, error } = await db.from("appointments").select("external_id, status, starts_at, vanished_at, updated_at").eq("tenant_id", tenantId).eq("source", "calendar_feed").in("external_id", keys.slice(i, i + KEYS_PER_READ));
+  const put = (key, r) => {
+    if (key && isStatus(r.status))
+      out.set(key, { status: r.status, starts_at: r.starts_at, vanished_at: r.vanished_at, updated_at: r.updated_at });
+  };
+  const ids = keys.flatMap((k) => recordIdOf(k) ?? []);
+  const feedKeys = keys.filter((k) => recordIdOf(k) === null);
+  for (let i = 0; i < feedKeys.length; i += KEYS_PER_READ) {
+    const { data, error } = await db.from("appointments").select("external_id, status, starts_at, vanished_at, updated_at").eq("tenant_id", tenantId).eq("source", "calendar_feed").in("external_id", feedKeys.slice(i, i + KEYS_PER_READ));
     if (error && (error.code === "PGRST205" || error.code === "42P01")) return out;
     if (error) throw new Error(`appointments: ${error.message}`);
-    for (const r of data ?? []) {
-      if (r.external_id && isStatus(r.status))
-        out.set(r.external_id, {
-          status: r.status,
-          starts_at: r.starts_at,
-          vanished_at: r.vanished_at,
-          updated_at: r.updated_at
-        });
-    }
+    for (const r of data ?? []) put(r.external_id, r);
+  }
+  for (let i = 0; i < ids.length; i += KEYS_PER_READ) {
+    const { data, error } = await db.from("appointments").select("id, status, starts_at, vanished_at, updated_at").eq("tenant_id", tenantId).in("id", ids.slice(i, i + KEYS_PER_READ));
+    if (error) throw new Error(`appointments: ${error.message}`);
+    for (const r of data ?? []) put(recordKeyOf(r.id), r);
   }
   return out;
 }
@@ -5207,6 +5229,7 @@ export {
   failQueuedSend,
   failStrandedRun,
   failedMessageErrors,
+  feedWordsOver,
   finishableRuns,
   firstReplies,
   followUpOnFile,
@@ -5369,6 +5392,7 @@ export {
   recordLateCarrierOptOut,
   recordModelUsage,
   recordOutbound,
+  recordOver,
   recordPartnerSecondFactorReset,
   recordProviderDomain,
   recordStatusByExternalId,

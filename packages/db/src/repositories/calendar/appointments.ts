@@ -6,7 +6,10 @@
  *                       client holds near an instant), insertAppointment, updateAppointment ("refused" when the row's
  *                       guard will not take the move: a finished visit cancelled).
  *   the board           appointmentsBetween (the live rows over a span the feed does not already draw), appointmentsForClient
- *                       (one person's, by their number or address, from an instant on).
+ *                       (one person's, by their number or address, from an instant on), visitsOver (a span's rows, and
+ *                       the feed's by key, with what a member said of each).
+ *   the pools           recordOver (a season's bookings and the feed's said rows, paged whole), feedWordsOver (the said
+ *                       rows alone): what People, Reports, the playbooks and a caller's visits join to the feed.
  *   the feed            syncFeedAppointments (one read of the calendar feed kept through appointments_feed_sync, 00348),
  *                       appointmentStates (how the appointments a reminder batch was drawn for stand now, by key).
  *   an erasure's hand   appointmentsScrub (appointments_scrub: the person taken out of their visits and the notices).
@@ -19,11 +22,14 @@
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import {
   APPOINTMENT_STATUSES,
+  recordIdOf,
+  recordKeyOf,
   type AppointmentState,
   type AppointmentStatus,
   type FeedAppointmentRow,
 } from "@chanlytics/contracts";
 import type { Database, Json } from "../../database.types";
+import { readAllRows } from "../../paged";
 
 type Db = SupabaseClient<Database>;
 export type AppointmentRow = Database["public"]["Tables"]["appointments"]["Row"];
@@ -162,7 +168,7 @@ export async function visitsOver(
   toIso: string,
 ): Promise<{
   noted: AppointmentRow[];
-  feed: Array<{ id: string; status: string; external_id: string | null }>;
+  feed: Array<{ id: string; status: string; external_id: string | null; starts_at: string }>;
 }> {
   const [noted, feed] = await Promise.all([
     db
@@ -176,7 +182,7 @@ export async function visitsOver(
       .limit(SPAN_MAX),
     db
       .from("appointments")
-      .select("id, status, external_id")
+      .select("id, status, external_id, starts_at")
       .eq("tenant_id", tenantId)
       .eq("source", "calendar_feed")
       .is("vanished_at", null)
@@ -187,6 +193,62 @@ export async function visitsOver(
   if (noted.error) throw new Error(`visits_over: ${noted.error.message}`);
   if (feed.error) throw new Error(`visits_over: ${feed.error.message}`);
   return { noted: noted.data ?? [], feed: feed.data ?? [] };
+}
+
+/** The words a member says of a feed's visit (00397): what a reader lays on its event. A booked row says nothing. */
+const SAID_STATUSES = ["kept", "missed", "cancelled"] as const;
+
+/** A feed row as a reader lays it on its event: its id, its word, its key, and the start the word was said of. */
+type FeedRowWord = Pick<AppointmentRow, "id" | "status" | "external_id" | "starts_at">;
+
+/**
+ * The feed's rows over a span a member said a word of and the calendar still names, read whole: a select answers a
+ * thousand rows at most (paged.ts), and a season of a busy calendar is more. What a reader of the feed lays on it.
+ */
+export async function feedWordsOver(db: Db, tenantId: string, fromIso: string, toIso: string): Promise<FeedRowWord[]> {
+  return readAllRows<FeedRowWord>("appointments_feed_words", (from, to) =>
+    db
+      .from("appointments")
+      .select("id, status, external_id, starts_at")
+      .eq("tenant_id", tenantId)
+      .eq("source", "calendar_feed")
+      .is("vanished_at", null)
+      .in("status", [...SAID_STATUSES])
+      .gt("ends_at", fromIso)
+      .lt("starts_at", toIso)
+      .order("starts_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
+}
+
+/**
+ * The record over a feed's season, as a pool joins it to the feed (contracts feedWithRecord; 0002's readers): a
+ * booking's rows however they stand, and the feed's rows a member said a word of. Each read whole, past the thousand
+ * rows one select answers, so the furthest bookings of a busy season are never the ones dropped. A failure throws.
+ */
+export async function recordOver(
+  db: Db,
+  tenantId: string,
+  fromIso: string,
+  toIso: string,
+): Promise<{ noted: AppointmentRow[]; feed: FeedRowWord[] }> {
+  const [noted, feed] = await Promise.all([
+    readAllRows<AppointmentRow>("appointments_noted", (from, to) =>
+      db
+        .from("appointments")
+        .select("*")
+        .eq("tenant_id", tenantId)
+        .neq("source", "calendar_feed")
+        .gt("ends_at", fromIso)
+        .lt("starts_at", toIso)
+        .order("starts_at", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to),
+    ),
+    feedWordsOver(db, tenantId, fromIso, toIso),
+  ]);
+  return { noted, feed };
 }
 
 /**
@@ -217,7 +279,11 @@ export async function markVisit(
   return { data, error };
 }
 
-/** One person's rows, by their number or their address, that end after `fromIso`: their next visit, and the ones since. */
+/**
+ * One person's rows, by their number or their address, that end after `fromIso`: their next visit, and the ones since,
+ * however each stands, so the reader joins them to the feed as the pools do (contracts feedWithRecord): a cancelled one
+ * leaves its copy in the feed out, a request is no visit yet. A booking's rows; the feed's own carry no client.
+ */
 export async function appointmentsForClient(
   db: Db,
   tenantId: string,
@@ -230,7 +296,7 @@ export async function appointmentsForClient(
     .from("appointments")
     .select("*")
     .eq("tenant_id", tenantId)
-    .in("status", [...LIVE_STATUSES])
+    .neq("source", "calendar_feed")
     .gt("ends_at", fromIso)
     .or(or)
     .order("starts_at", { ascending: true })
@@ -358,25 +424,34 @@ export async function appointmentStates(
   keys: readonly string[],
 ): Promise<Map<string, AppointmentState>> {
   const out = new Map<string, AppointmentState>();
+  const put = (key: string | null, r: { status: string } & Omit<AppointmentState, "status">) => {
+    if (key && isStatus(r.status))
+      out.set(key, { status: r.status, starts_at: r.starts_at, vanished_at: r.vanished_at, updated_at: r.updated_at });
+  };
+  // A booking's row goes by its id (contracts recordKeyOf), since a run draws its visits from the record too (0002's
+  // readers): a notice's booking cancelled or said missed holds its reminder as a feed event's does.
+  const ids = keys.flatMap((k) => recordIdOf(k) ?? []);
+  const feedKeys = keys.filter((k) => recordIdOf(k) === null);
   // `.in()` puts every key in the URL, and a calendar's UID can be long: a few keys a read.
-  for (let i = 0; i < keys.length; i += KEYS_PER_READ) {
+  for (let i = 0; i < feedKeys.length; i += KEYS_PER_READ) {
     const { data, error } = await db
       .from("appointments")
       .select("external_id, status, starts_at, vanished_at, updated_at")
       .eq("tenant_id", tenantId)
       .eq("source", "calendar_feed")
-      .in("external_id", keys.slice(i, i + KEYS_PER_READ));
+      .in("external_id", feedKeys.slice(i, i + KEYS_PER_READ));
     if (error && (error.code === "PGRST205" || error.code === "42P01")) return out;
     if (error) throw new Error(`appointments: ${error.message}`);
-    for (const r of data ?? []) {
-      if (r.external_id && isStatus(r.status))
-        out.set(r.external_id, {
-          status: r.status,
-          starts_at: r.starts_at,
-          vanished_at: r.vanished_at,
-          updated_at: r.updated_at,
-        });
-    }
+    for (const r of data ?? []) put(r.external_id, r);
+  }
+  for (let i = 0; i < ids.length; i += KEYS_PER_READ) {
+    const { data, error } = await db
+      .from("appointments")
+      .select("id, status, starts_at, vanished_at, updated_at")
+      .eq("tenant_id", tenantId)
+      .in("id", ids.slice(i, i + KEYS_PER_READ));
+    if (error) throw new Error(`appointments: ${error.message}`);
+    for (const r of data ?? []) put(recordKeyOf(r.id), r);
   }
   return out;
 }

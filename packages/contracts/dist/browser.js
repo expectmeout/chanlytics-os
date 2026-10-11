@@ -13643,6 +13643,13 @@ var LIST_RULE_FIELDS = [
     needs: ["calendar"],
     draft: "days until their next appointment; op this_week is Monday to Sunday of this week"
   },
+  {
+    id: "missed_visit",
+    label: "Missed a visit",
+    kind: "days",
+    needs: ["calendar"],
+    draft: "days since a visit they did not come to, as a member marked it missed on the calendar"
+  },
   { id: "booked", label: "A visit booked", kind: "yesno", needs: ["calendar"], draft: "an appointment booked ahead" },
   {
     id: "asked_not_booked",
@@ -13763,6 +13770,7 @@ var fact = (shape) => z.strictObject(shape);
 var ListFactSchema = z.discriminatedUnion("field", [
   fact({ field: z.literal("last_visit"), ...Days }),
   fact({ field: z.literal("next_visit"), ...Days }),
+  fact({ field: z.literal("missed_visit"), ...Days }),
   fact({ field: z.literal("booked"), ...YesNo }),
   fact({ field: z.literal("asked_not_booked"), ...YesNo }),
   fact({ field: z.literal("last_heard"), ...Days }),
@@ -13785,7 +13793,7 @@ var ListFactSchema = z.discriminatedUnion("field", [
 var AnySchema = z.strictObject({ any: z.array(ListFactSchema).check(z.minLength(2), z.maxLength(LIST_ANY_MAX)) });
 var ListConditionSchema = z.union([AnySchema, ListFactSchema]);
 function factProblem(f) {
-  if (f.field !== "last_visit" && f.field !== "next_visit" && f.field !== "last_heard" && f.field !== "first_contact")
+  if (f.field !== "last_visit" && f.field !== "next_visit" && f.field !== "missed_visit" && f.field !== "last_heard" && f.field !== "first_contact")
     return null;
   if ((f.op === "more_than" || f.op === "within") && f.days === void 0) return `${f.field} ${f.op} needs days`;
   if (f.op === "this_week" && f.field !== "next_visit") return "only the next visit can be this week";
@@ -13892,6 +13900,8 @@ function holds(f, v, inList) {
       return dayHolds(v.lastVisitDays, f.op, f.days);
     case "next_visit":
       return f.op === "this_week" ? v.nextVisitThisWeek : dayHolds(v.nextVisitDays, f.op, f.days);
+    case "missed_visit":
+      return dayHolds(v.missedVisitDays, f.op, f.days);
     case "last_heard":
       return dayHolds(v.heardDays, f.op, f.days);
     case "first_contact":
@@ -13952,13 +13962,20 @@ var DEAL_STAGE_LIST_WORDS = {
   ended: "ended"
 };
 var PURPOSE_WORDS = { offers: "offers", messages: "messages" };
+var DAY_FACT_ENDS = {
+  last_visit: { never: "Never visited", ever: "Has visited" },
+  missed_visit: { never: "Never missed a visit", ever: "Has missed a visit" },
+  last_heard: { never: "Never heard from", ever: "Has written or called" },
+  first_contact: { never: "No first contact on file", ever: "Has a first contact" }
+};
 function listFactWords(f, listName = () => null) {
   const label = fieldOf(f.field).label;
   switch (f.field) {
     case "last_visit":
+    case "missed_visit":
     case "last_heard":
     case "first_contact":
-      return f.op === "never" ? f.field === "last_visit" ? "Never visited" : f.field === "last_heard" ? "Never heard from" : "No first contact on file" : f.op === "ever" ? f.field === "last_visit" ? "Has visited" : f.field === "last_heard" ? "Has written or called" : "Has a first contact" : f.op === "more_than" ? `${label} more than ${plural(f.days ?? 0, "day")} ago` : `${label} in the last ${plural(f.days ?? 0, "day")}`;
+      return f.op === "never" ? DAY_FACT_ENDS[f.field].never : f.op === "ever" ? DAY_FACT_ENDS[f.field].ever : f.op === "more_than" ? `${label} more than ${plural(f.days ?? 0, "day")} ago` : `${label} in the last ${plural(f.days ?? 0, "day")}`;
     case "next_visit":
       return f.op === "this_week" ? `${label} this week` : f.op === "never" ? "No visit ahead" : f.op === "ever" ? "A visit ahead" : f.op === "within" ? `${label} in the next ${plural(f.days ?? 0, "day")}` : `${label} more than ${plural(f.days ?? 0, "day")} away`;
     case "booked":
@@ -17850,6 +17867,13 @@ function appointmentKeyOf(item) {
   if (!item.uid) return `ev:${item.start}`;
   return item.occurrence === void 0 ? item.uid : `${item.uid}:${item.occurrence}`;
 }
+var RECORD_KEY = "appt:";
+function recordKeyOf(id) {
+  return `${RECORD_KEY}${id}`;
+}
+function recordIdOf(key) {
+  return key.startsWith(RECORD_KEY) ? key.slice(RECORD_KEY.length) : null;
+}
 
 // src/config/workspace-config/alerts.ts
 var ALERT_ADDRESSES_MAX = 10;
@@ -17995,7 +18019,7 @@ function indexFeed(items, own) {
     const c = extractContacts(it, own);
     for (const ph of c.phones) byPhone.set(ph, [...byPhone.get(ph) ?? [], it]);
     for (const em of c.emails) byEmail.set(em, [...byEmail.get(em) ?? [], it]);
-    texts.push({ item: it, text: [it.title, ...c.names, it.description ?? ""].join("\n") });
+    if (!it.uid || recordIdOf(it.uid) === null) texts.push({ item: it, text: [it.title, ...c.names, it.description ?? ""].join("\n") });
   }
   return { byPhone, byEmail, texts, own };
 }
@@ -18006,7 +18030,8 @@ var visitOf = (it, via) => ({
   end: it.end,
   title: it.title || "Busy",
   allDay: it.allDay,
-  via
+  via,
+  ...it.said ? { said: it.said } : {}
 });
 function allVisitsIn(index, person) {
   if (isOwn(index.own, person)) return [];
@@ -18026,15 +18051,20 @@ function allVisitsIn(index, person) {
   return out.sort((a, b) => a.start - b.start);
 }
 function visitsIn(index, person, nowMs) {
-  if (isOwn(index.own, person)) return { next: null, last: null, near: [] };
+  if (isOwn(index.own, person)) return { next: null, last: null, near: [], missed: null };
   let next = null;
   let last = null;
+  let missed = null;
   const near2 = [];
   const seen = /* @__PURE__ */ new Set();
   const take = (it, via) => {
     if (seen.has(it)) return;
     seen.add(it);
     const v = visitOf(it, via);
+    if (v.said === "missed") {
+      if (!missed || v.start > missed.start) missed = v;
+      return;
+    }
     if (it.end >= nowMs) {
       if (!next || v.start < next.start) next = v;
     } else if (!last || v.end > last.end) last = v;
@@ -18046,7 +18076,7 @@ function visitsIn(index, person, nowMs) {
   if (re) {
     for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
   }
-  return { next, last, near: near2.sort((a, b) => a.start - b.start) };
+  return { next, last, near: near2.sort((a, b) => a.start - b.start), missed };
 }
 function visitsOf(items, person, nowMs, own) {
   return visitsIn(indexFeed(items, own), person, nowMs);
@@ -18123,7 +18153,8 @@ function toVisitDto(v) {
     title: v.title,
     all_day: v.allDay,
     via: v.via,
-    ...v.key ? { key: v.key } : {}
+    ...v.key ? { key: v.key } : {},
+    ...v.said ? { said: v.said } : {}
   } : null;
 }
 var NAME_WORD = /^[\p{L}][\p{L}'’.-]*$/u;
@@ -18186,7 +18217,11 @@ function afterPersonRefused(code2) {
 }
 function bookedAfterAsk(visits, askedMs) {
   if (!visits) return false;
-  return visitAnswersAsk(visits.next ? visits.next.start : null, visits.last ? visits.last.start : null, askedMs);
+  return visitAnswersAsk(visits.next ? visits.next.start : null, begunOf(visits.last, visits.missed), askedMs);
+}
+function begunOf(last, missed) {
+  const starts = [last, missed].flatMap((v) => v ? [ms(v.start)] : []).filter((t) => Number.isFinite(t));
+  return starts.length ? Math.max(...starts) : null;
 }
 function visitAnswersAsk(nextStartMs, lastStartMs, askedMs) {
   if (nextStartMs !== null) return true;
@@ -18530,10 +18565,11 @@ function feedItemOfAppointment(row2) {
     end: Date.parse(row2.ends_at),
     title: appointmentTitle(row2),
     allDay: row2.all_day,
-    uid: `appt:${row2.id}`,
-    description: row2.note,
+    uid: recordKeyOf(row2.id),
+    // The client's number where an event carries one, and their address as a guest, so the one visits index
+    // (indexFeed) finds the row by either as it finds an event: a notice that gave a number alone is still theirs.
+    description: [row2.note, row2.client_phone].filter(Boolean).join("\n") || null,
     location: null,
-    // The client as a guest, so the one visits index (indexFeed) finds the row by their address as it finds an event.
     attendees: row2.client_email ? [{ name: row2.client_name, email: row2.client_email }] : [],
     organizer: null
   };
@@ -18556,13 +18592,32 @@ function feedMarksOf(rows2) {
   const marks = /* @__PURE__ */ new Map();
   for (const r2 of rows2) {
     const mark = visitMarkOf(r2);
-    if (mark && r2.external_id) marks.set(r2.external_id, mark);
+    if (mark && r2.external_id) marks.set(r2.external_id, { ...mark, start: Date.parse(r2.starts_at) });
   }
   return marks;
 }
+function markOn(marks, it) {
+  const m = marks?.get(appointmentKeyOf(it));
+  return m && m.start === it.start ? { id: m.id, status: m.status } : null;
+}
+function feedWithRecord(items, record2, own) {
+  if (!record2) return [...items];
+  const out = [];
+  for (const it of withoutVisitsRowsDraw([...items], [...record2.noted], own)) {
+    const said = markOn(record2.marks, it)?.status;
+    if (said === "cancelled") continue;
+    out.push(said === "kept" || said === "missed" ? { ...it, said } : it);
+  }
+  for (const r2 of record2.noted) {
+    if (r2.status !== "booked" && r2.status !== "kept" && r2.status !== "missed") continue;
+    const it = feedItemOfAppointment(r2);
+    out.push(r2.status === "booked" ? it : { ...it, said: r2.status });
+  }
+  return out.sort((a, b) => a.start - b.start);
+}
 function itemOfAppointment(row2, people) {
   return {
-    id: `appt:${row2.id}`,
+    id: recordKeyOf(row2.id),
     start: new Date(Date.parse(row2.starts_at)).toISOString(),
     end: new Date(Date.parse(row2.ends_at)).toISOString(),
     title: appointmentTitle(row2),
@@ -26156,9 +26211,11 @@ function visitTitleFor(title, name) {
   }
   return title;
 }
-function visitKeysOf(v) {
+function visitKeysOf(v, nowMs, tz) {
   const near2 = v ? v.near ?? [v.last, v.next].filter((x) => x !== null) : [];
+  const missedMs = v?.missed ? Date.parse(v.missed.start) : NaN;
   return {
+    missedVisitDays: Number.isFinite(missedMs) ? Math.max(0, localDaysBetween(missedMs, nowMs, tz)) : null,
     visitDays: v ? near2.map((x) => ({ date: visitDateKey(x.start, v.timezone), via: x.via })) : [],
     nextVisitDate: v?.next ? visitDateKey(v.next.start, v.timezone) : null,
     lastVisitDate: v?.last ? visitDateKey(v.last.start, v.timezone) : null,
@@ -26224,11 +26281,7 @@ function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null
   const booked = !!v?.next;
   const nextVisitMs = v?.next ? Date.parse(v.next.start) : null;
   const lastVisitMs = v?.last ? Date.parse(v.last.start) : null;
-  const askedNotBooked = calendar === "ok" && askedMs !== null && nowMs - askedMs <= MONTH_MS && !visitAnswersAsk(
-    nextVisitMs !== null && Number.isFinite(nextVisitMs) ? nextVisitMs : null,
-    lastVisitMs !== null && Number.isFinite(lastVisitMs) ? lastVisitMs : null,
-    askedMs
-  );
+  const askedNotBooked = calendar === "ok" && askedMs !== null && nowMs - askedMs <= MONTH_MS && !visitAnswersAsk(nextVisitMs !== null && Number.isFinite(nextVisitMs) ? nextVisitMs : null, begunOf(v?.last, v?.missed), askedMs);
   const stateDetail = state === "needs_you" ? r2.open_escalation_reason ? reasonShort(r2.open_escalation_reason) : r2.queued_reply_at && personStanding(r2, nowMs).standing !== "needs_you" ? "a reply is about to send \u2014 you can still stop it" : "waiting for a person" : state === "waiting_on_you" ? [HELD_WORDS.yours.pill.toLowerCase(), theirTurnWords(last)].filter(Boolean).join(", and ") : state === "opted_out" ? consent.sub : state === "new" ? `first contact ${first.label}` : state === "quiet" ? `last heard from ${ago(askedMs, tz, nowMs)}` : state === "unheard" ? last.ts === null ? "no contact recorded" : "they have not written or called" : "";
   const vm = {
     id: r2.id,
@@ -26278,7 +26331,7 @@ function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null
     standing: state === "needs_you" || state === "waiting_on_you" ? state : null,
     assigned: !r2.latest_assignee_user_id ? "nobody" : !viewerId ? "someone" : r2.latest_assignee_user_id === viewerId ? "me" : "teammate",
     stopped: isOptedOutContact({ consent: r2.consent, dnc: r2.dnc }),
-    ...visitKeysOf(v),
+    ...visitKeysOf(v, nowMs, tz),
     deal: dealOf(r2, tz, nowMs),
     openDeals: openDealsOf(r2, tz, nowMs),
     ...consultationKeysOf(v, nextVisitMs),
@@ -26307,7 +26360,7 @@ function personLikeOf(p) {
   };
 }
 function peopleVisitsOf(items, people, cal, nowMs) {
-  const index = indexFeed([...items], cal.own);
+  const index = indexFeed(feedWithRecord(items, cal.record, cal.own), cal.own);
   const mark = (v) => v ? { ...v, consultation: isConsultationTitle(v.title, cal.services, cal.rules) } : null;
   const out = /* @__PURE__ */ new Map();
   for (const p of people) {
@@ -26318,7 +26371,8 @@ function peopleVisitsOf(items, people, cal, nowMs) {
       state: "ok",
       next: mark(toVisitDto(v.next)),
       last: mark(toVisitDto(v.last)),
-      near: v.near.map((x) => mark(toVisitDto(x))).filter((x) => x !== null)
+      near: v.near.map((x) => mark(toVisitDto(x))).filter((x) => x !== null),
+      missed: mark(toVisitDto(v.missed ?? null))
     });
   }
   return out;
@@ -27552,8 +27606,9 @@ function visitItems({ profile, nowMs, base, stamp }) {
         ...stamp(t),
         kind: "visit",
         who: "Calendar",
-        // Past, never "visited": the calendar says when, not that they came (decision 0002's answer 3).
-        text: `${ahead ? "Booked" : "Past visit"} \xB7 ${visitTitleFor(v.title, base.name)}`,
+        // Past, never "visited": the calendar says when, not that they came (decision 0002's answer 3). A member's word on
+        // it is said instead (step 8): kept, or missed.
+        text: `${ahead ? "Booked" : v.said === "missed" ? "Missed" : v.said === "kept" ? "Kept" : "Past visit"} \xB7 ${visitTitleFor(v.title, base.name)}`,
         sub: `${visitTime(v, zone)} \xB7 from ${profile.visits.source}${v.via === "name" ? " \xB7 matched by name" : ""}`,
         link: { label: "Open the day", to: `calendar/${visitDateKey(v.start, zone)}` }
       });
@@ -38973,6 +39028,7 @@ export {
   feedProblemWords,
   feedSourceLabel,
   feedUrlOk,
+  feedWithRecord,
   fenceActed,
   fenced,
   fencedInline,
@@ -39296,6 +39352,7 @@ export {
   localHour,
   localToUtcMs,
   lookPrefOf,
+  markOn,
   maskedEmail,
   matchColumns,
   matchPerson,
@@ -39652,6 +39709,8 @@ export {
   receptionistCardOf,
   receptionistDtoOf,
   receptionistOn,
+  recordIdOf,
+  recordKeyOf,
   recordOrNull,
   refusalOf,
   refusedWords,

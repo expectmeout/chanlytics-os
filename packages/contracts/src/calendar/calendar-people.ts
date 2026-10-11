@@ -18,7 +18,7 @@
  */
 import { dayInZone, dayPlusInZone } from "./zone-math";
 import type { FeedItem } from "./feed";
-import { appointmentKeyOf } from "./appointment-key";
+import { appointmentKeyOf, recordIdOf } from "./appointment-key";
 import { normalizeEmail } from "../shared/email-address";
 import { alertAddressesOf } from "../config/workspace-config/alerts";
 import { formatPhoneDisplay, normalizePhone } from "../shared/phone";
@@ -278,13 +278,17 @@ export interface Visit {
   title: string;
   allDay: boolean;
   via: MatchVia;
+  /** What a member said became of it (FeedItem.said): kept or missed. Absent while it stands. */
+  said?: "kept" | "missed";
 }
 
 export interface Visits {
-  /** The first appointment that has not ended. */
+  /** The first appointment that has not ended, and was not said missed. */
   next: Visit | null;
-  /** The latest one that has. */
+  /** The latest one that has, and that they came to as far as anyone said: a visit said missed is no visit. */
   last: Visit | null;
+  /** The latest visit a member said they missed (decision 0002 step 8): what a win-back reads. */
+  missed?: Visit | null;
   /** Every appointment starting within NEAR_VISIT_MS of now, by start: what a day-keyed moment reads (playbook-reach visitOnDay). */
   near: Visit[];
 }
@@ -315,7 +319,10 @@ export function indexFeed(items: FeedItem[], own: OwnAddresses): FeedIndex {
     const c = extractContacts(it, own);
     for (const ph of c.phones) byPhone.set(ph, [...(byPhone.get(ph) ?? []), it]);
     for (const em of c.emails) byEmail.set(em, [...(byEmail.get(em) ?? []), it]);
-    texts.push({ item: it, text: [it.title, ...c.names, it.description ?? ""].join("\n") });
+    // A booking's row is its client's by their number or address, never by name (personOfAppointment): a notice for an
+    // unsaved Maria Lopez is not the saved Maria Lopez's visit.
+    if (!it.uid || recordIdOf(it.uid) === null)
+      texts.push({ item: it, text: [it.title, ...c.names, it.description ?? ""].join("\n") });
   }
   return { byPhone, byEmail, texts, own };
 }
@@ -329,6 +336,7 @@ const visitOf = (it: FeedItem, via: MatchVia): Visit => ({
   title: it.title || "Busy",
   allDay: it.allDay,
   via,
+  ...(it.said ? { said: it.said } : {}),
 });
 
 /** Every appointment of one person against an indexed feed, oldest first: their number first, their address second, their whole name third. */
@@ -352,15 +360,22 @@ export function allVisitsIn(index: FeedIndex, person: PersonLike): Visit[] {
 
 /** One person's next and last appointment against an indexed feed: their number first, their address second, their whole name third. */
 export function visitsIn(index: FeedIndex, person: PersonLike, nowMs: number): Visits {
-  if (isOwn(index.own, person)) return { next: null, last: null, near: [] };
+  if (isOwn(index.own, person)) return { next: null, last: null, near: [], missed: null };
   let next: Visit | null = null;
   let last: Visit | null = null;
+  let missed: Visit | null = null;
   const near: Visit[] = [];
   const seen = new Set<FeedItem>();
   const take = (it: FeedItem, via: MatchVia) => {
     if (seen.has(it)) return;
     seen.add(it);
     const v = visitOf(it, via);
+    // A visit said missed is none of their visits: not the next, not the last, no day a moment is keyed to. It is the
+    // one a win-back reads instead.
+    if (v.said === "missed") {
+      if (!missed || v.start > missed.start) missed = v;
+      return;
+    }
     if (it.end >= nowMs) {
       if (!next || v.start < next.start) next = v;
     } else if (!last || v.end > last.end) last = v;
@@ -370,7 +385,7 @@ export function visitsIn(index: FeedIndex, person: PersonLike, nowMs: number): V
   if (person.email) for (const it of index.byEmail.get(person.email.toLowerCase()) ?? []) take(it, "email");
   const re = nameMatcher(person.name);
   if (re) for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
-  return { next, last, near: near.sort((a, b) => a.start - b.start) };
+  return { next, last, near: near.sort((a, b) => a.start - b.start), missed };
 }
 
 /** One person's next and last appointment in a parsed feed. */
@@ -507,6 +522,8 @@ export interface VisitDto {
   consultation?: boolean;
   /** The appointment's key (Visit.key), which a reminder keeps to ask its row again when it goes. Absent on an older read. */
   key?: string;
+  /** What a member said became of it (decision 0002 step 8): kept or missed. Absent while it stands, and on an older read. */
+  said?: "kept" | "missed";
 }
 
 /** A person's appointments as their profile reads them. */
@@ -520,6 +537,8 @@ export interface PersonVisitsDto {
   all?: VisitDto[];
   /** The visits within a few days of the read, by start (Visits.near): what a day-keyed moment reads. Absent on an older read. */
   near?: VisitDto[];
+  /** The latest visit a member said they missed (Visits.missed), or null. Absent on an older read. */
+  missed?: VisitDto | null;
 }
 
 export function toVisitDto(v: Visit | null): VisitDto | null {
@@ -532,6 +551,7 @@ export function toVisitDto(v: Visit | null): VisitDto | null {
         all_day: v.allDay,
         via: v.via,
         ...(v.key ? { key: v.key } : {}),
+        ...(v.said ? { said: v.said } : {}),
       }
     : null;
 }
@@ -685,11 +705,24 @@ export function afterPersonRefused(code: string | null | undefined): "skip" | "s
 /**
  * Whether someone who reached out has an appointment that answers it: one
  * upcoming, or one held since they got in touch. The conversion Chanlytics
- * counts is the booking, not a stage somebody moved a card into.
+ * counts is the booking, not a stage somebody moved a card into, so a visit a
+ * member said they missed answers it too: they booked (0002's readers).
  */
-export function bookedAfterAsk(visits: Pick<Visits, "next" | "last"> | null | undefined, askedMs: number): boolean {
+export function bookedAfterAsk(
+  visits: Pick<Visits, "next" | "last" | "missed"> | null | undefined,
+  askedMs: number,
+): boolean {
   if (!visits) return false;
-  return visitAnswersAsk(visits.next ? visits.next.start : null, visits.last ? visits.last.start : null, askedMs);
+  return visitAnswersAsk(visits.next ? visits.next.start : null, begunOf(visits.last, visits.missed), askedMs);
+}
+
+/** The start of the latest visit begun, kept or missed or neither (null: none): what an ask is answered by since. */
+export function begunOf(
+  last: { start: number | string } | null | undefined,
+  missed: { start: number | string } | null | undefined,
+): number | null {
+  const starts = [last, missed].flatMap((v) => (v ? [ms(v.start)] : [])).filter((t) => Number.isFinite(t));
+  return starts.length ? Math.max(...starts) : null;
 }
 
 /**

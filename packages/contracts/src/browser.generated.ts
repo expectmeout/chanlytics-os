@@ -48,8 +48,8 @@ export { consentAnswerWords, receiptWords, toRunReportVM, RUN_REPORT_STEPS, RUN_
 export { REPLY_WINDOW_HOURS, REPLY_WINDOW_MS, REPLY_WINDOW_WORDS, HELD_REASONS, EMAIL_HOLDS, DELIVERY_RECEIPTS_TIP, DELIVERY_RECEIPTS_WORDS, finishedRunHeldWhy, isReplyTo } from "./broadcasts/run-words";
 export { SEND_WHEN_WORDS } from "./broadcasts/send-when-words";
 export { whatsappOffersOpen } from "./broadcasts/whatsapp-offers";
-export { appointmentTitle, busyOfAppointments, feedItemOfAppointment, personOfAppointment, itemOfAppointment, withoutVisitsRowsDraw, daysWithAppointments, feedMarksOf } from "./calendar/appointment-item";
-export { appointmentKeyOf } from "./calendar/appointment-key";
+export { appointmentTitle, busyOfAppointments, feedItemOfAppointment, personOfAppointment, itemOfAppointment, withoutVisitsRowsDraw, daysWithAppointments, feedMarksOf, feedWithRecord, markOn } from "./calendar/appointment-item";
+export { appointmentKeyOf, recordKeyOf, recordIdOf } from "./calendar/appointment-key";
 export { dayIntervals, closedOn, openAt, hasHours, freeWindows, filterOpenings, describeOpenings, BOOKING_DEFAULTS } from "./calendar/availability";
 export { isBookingTool, bookingToolName, bookingToolOfAddress, bookingNoticeOf, NOTICE_SCHEMA, NOTICE_READ_MAX_TOKENS, noticePrompt, isNoticeHold, NOTICE_DEFAULT_LENGTH_MS, noticeAnswerOf, clientKeyOf, appointmentKey, SAME_VISIT_MS, BOOKING_TOOL_IDS, bookingToolCalendar, bookingToolOptions, BOOKING_TOOL_STEPS, GMAIL_FORWARD_NOTE, BOOKING_TRY_NOTE, NOTICE_HOLD_WORDS, forwardingConfirmationOf } from "./calendar/booking-notice";
 export { serviceOf, toCalendarVM } from "./calendar/calendar";
