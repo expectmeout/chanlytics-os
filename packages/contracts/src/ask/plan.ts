@@ -15,7 +15,8 @@
  *                 is written in that shape (OFFER_MESSAGE, in words that fit any dated offer), so the next offer reuses
  *                 it, with a version per channel the workspace sends offers on (WhatsApp with a number, email where email
  *                 sends offers, never a text: texts carry no offers); every send types the owner's words into its offer
- *   the note      "Offer: {words}", with the dates, until the offer's last day, unless the receptionist has it
+ *   the note      "Offer: {words}", with the dates, until the offer's last day, unless the receptionist has it, or
+ *                 the member asking may not approve one (the words say who may)
  *   the send      at ten on the business's clock on `from` (at Approve where ten has passed today)
  *   the month's   a running one is paused while the offer runs, so nobody gets two offers and it never sends this one
  *   offer         on its own cadence or after the offer ends; the words say to resume it after
@@ -103,6 +104,12 @@ export interface PlanWorld {
   journey: { id: JourneyStageId; covered: boolean; moment: string | null }[] | null;
   /** The built-in offers list's token (`seg:offers_ok`): who an offer goes to where the owner names no list. */
   offersList: string;
+  /**
+   * Whether the member asking may approve a note for the receptionist (a settings card: an owner's or a partner's). Where
+   * not, the plan makes no note, so it is not dead for them at its first step, and its words say the receptionist is not
+   * told of the offer until an owner or a partner adds one.
+   */
+  canNote: boolean;
 }
 
 /** One step: the action it is expanded through (its kind) and that action's input, whether it sends, and why. */
@@ -226,6 +233,8 @@ export const PLAN_WORDS = {
   noText: CHANNEL_WORDS.noOffersByText,
   noteMade: (until: string): string => `Tells the receptionist about the offer, until ${until}.`,
   noteKnown: "The receptionist already has a note about the offer.",
+  /** A note is an owner's or a partner's to approve (the settings card's role), and the member asking is neither. */
+  noteLeftOut: "The receptionist is not told about the offer until an owner or a partner adds a note about it.",
   /** The pause is a silent step: it applies at the plan's Approve, not on the offer's first day. */
   monthsOfferPaused: (name: string, until: string): string =>
     `Pauses the month's offer, “${name}”, from when you approve it, so nobody gets two offers; resume it after ${until}.`,
@@ -486,8 +495,23 @@ interface OfferRead {
   cap: number | null;
   /** The day to ask for a reminder, or null. */
   reminder: string | null;
-  note: Record<string, unknown> | null;
+  note: ReturnType<typeof noteOf>;
   pauses: ReturnType<typeof monthsOfferPauses>;
+}
+
+/**
+ * The receptionist's note as a step, where the receptionist lacks it and the member asking may approve one, and what
+ * the plan says of it: made, already held, or left for an owner or a partner to add (PlanWorld.canNote).
+ */
+function noteOf(
+  offer: Offer,
+  line: string,
+  dates: OfferDates,
+  world: PlanWorld,
+): { input: Record<string, unknown> | null; said: string } {
+  const input = offerNote(offer, line, dates, world.notes);
+  if (!input) return { input: null, said: SAY.noteKnown };
+  return world.canNote ? { input, said: SAY.noteMade(dates.untilWords) } : { input: null, said: SAY.noteLeftOut };
 }
 
 function offerRead(offer: Offer, say: string | undefined, world: PlanWorld): OfferRead | { refused: string } {
@@ -522,7 +546,7 @@ function offerRead(offer: Offer, say: string | undefined, world: PlanWorld): Off
     tight,
     cap,
     reminder: reminderDay(world, dates, cap !== null),
-    note: offerNote(offer, line, dates, world.notes),
+    note: noteOf(offer, line, dates, world),
     pauses: monthsOfferPauses(world, dates.untilWords),
   };
 }
@@ -552,7 +576,7 @@ function sendWords(r: OfferRead, world: PlanWorld): string[] {
 function offerPlan(r: OfferRead, world: PlanWorld): { steps: PlanStep[]; words: string } {
   const { steps, add } = planSteps();
   const template_id = r.message.made ? stepToken(add("message", r.message.input, SAY.why.message)) : r.message.id;
-  if (r.note) add("note", r.note, SAY.why.note);
+  if (r.note.input) add("note", r.note.input, SAY.why.note);
   for (const p of r.pauses) add("change", p.input, SAY.why.pause);
   const sends = { template_id, params: r.message.params };
   const title = SAY.offerTitle(r.offer.words);
@@ -586,7 +610,7 @@ function offerPlan(r: OfferRead, world: PlanWorld): { steps: PlanStep[]; words: 
   const words = [
     r.message.made ? SAY.writeMessage(r.message.name, r.on) : SAY.reuseMessage(r.message.name),
     ...r.onSaid,
-    r.note ? SAY.noteMade(r.dates.untilWords) : SAY.noteKnown,
+    r.note.said,
     ...r.pauses.map((p) => p.said),
     ...sendWords(r, world),
   ];

@@ -7,6 +7,7 @@ import {
   WHOSE,
   json,
   needsOf,
+  offeredTo,
   refuse,
   type ActDef,
   type ActTool,
@@ -201,7 +202,7 @@ export function toolSchema(input: z.ZodType): Record<string, unknown> {
 
 /** The actions of a tool this role may use, in the model's order (D2): a tool with no action, its one, or none. */
 export function offeredActions(t: Pick<Tool<ReadDef | ActDef>, "actions">, role: MembershipRole): string[] {
-  return Object.keys(t.actions).filter((a) => roleAtLeast(role, needsOf(t.actions[a])));
+  return Object.keys(t.actions).filter((a) => offeredTo(t.actions[a], role));
 }
 
 /**
@@ -326,8 +327,9 @@ function parseInput<D extends ReadDef | ActDef>(
 ): { ok: true; def: D; data: Record<string, unknown> } | { ok: false; error: string } {
   const asked = actionOf(tool, raw);
   if (asked !== null && Object.prototype.hasOwnProperty.call(tool.actions, asked)) {
-    const needs = needsOf(tool.actions[asked]);
-    if (!roleAtLeast(role, needs)) return { ok: false, error: `${tool.name}: action ${asked} is ${WHOSE[needs]}` };
+    const def = tool.actions[asked];
+    if (def && !offeredTo(def, role))
+      return { ok: false, error: `${tool.name}: action ${asked} is ${WHOSE[needsOf(def)]}` };
   }
   const input = INPUTS.get(role)?.get(tool.name);
   if (!input) {

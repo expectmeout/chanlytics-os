@@ -11,6 +11,7 @@ import {
   messageWhyNot,
   noteRows,
   readyForMessage,
+  roleAtLeast,
   type AskCitationKind,
   type AskProposal,
   type AskReadSet,
@@ -180,6 +181,12 @@ export const actAction = <S extends z.ZodObject>(def: ActDef<S> & { words: strin
  */
 export const needsOf = (def: ReadDef | ActDef): MembershipRole =>
   "kind" in def ? PROPOSAL_SPECS[def.kind].needs : (def.needs ?? "viewer");
+
+/**
+ * Whether a role may use a definition (D2): the one predicate the registry offers each action by (registry.ts
+ * offeredActions), and Ask's plan asks of a step it would make (act/plan.ts: a note for the receptionist).
+ */
+export const offeredTo = (def: ReadDef | ActDef, role: MembershipRole): boolean => roleAtLeast(role, needsOf(def));
 
 /** Whose a role's action is, in the words a refusal says it: "an owner's", "an owner's or a partner's". */
 export const WHOSE: Record<MembershipRole, string> = {

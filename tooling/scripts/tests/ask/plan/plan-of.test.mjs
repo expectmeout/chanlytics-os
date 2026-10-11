@@ -113,6 +113,7 @@ const world = (over = {}) => ({
   room: null,
   journey: JOURNEY,
   offersList: OFFERS,
+  canNote: true,
   ...over,
 });
 
@@ -524,6 +525,20 @@ const ROWS = [
     }),
     steps: [firstSend(1, [])],
     words: [REUSED, W.noteKnown, GOES, REMINDS],
+  },
+  {
+    name: "asked by a member who may not approve a note for the receptionist: no note step, the steps renumbered, and the words say the receptionist is not told until an owner or a partner adds it (pre-review ruling 1)",
+    intent: offer(),
+    world: world({ messages: [monthsOfferMessage()], playbooks: [monthsOffer()], canNote: false }),
+    steps: [pauseStep(1), firstSend(2, [1])],
+    words: [REUSED, W.noteLeftOut, PAUSES, GOES, REMINDS],
+  },
+  {
+    name: "and one written message's token still names step 1 with the note left out",
+    intent: offer(),
+    world: world({ canNote: false }),
+    steps: [WRITTEN({ whatsapp: { body: WA_BODY }, email: EMAIL }), writtenSend(2, [1])],
+    words: [WRITES("WhatsApp and email"), W.noteLeftOut, GOES, REMINDS],
   },
   {
     name: "an offer that ends before its twentieth day: the reminder is asked for on its last day (ruling 1)",

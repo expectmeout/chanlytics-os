@@ -349,6 +349,8 @@ const worldOf = (over = {}) => ({
     { id: "quiet", covered: false, moment: "quiet_30" },
   ],
   offersList: OFFERS,
+  // An owner asks: a note for the receptionist is theirs to approve.
+  canNote: true,
   ...over,
 });
 
@@ -494,12 +496,33 @@ test("a change to the campaign an earlier step makes (no plan names one today) t
   assert.equal(said(await asStep({ until: "2026-10-01" })).error, PLAYBOOK_PATCH_WORDS.untilPast("Oct 11"));
 });
 
+test("an operator's November offer: no note for the receptionist, which is an owner's or a partner's to approve, and the words say the receptionist is not told until one of them adds it; the rest of the plan is the operator's, renumbered; an owner's plan has the note as before", async () => {
+  // The words name who may approve a note: the settings card's role (contracts settingsSpec).
+  assert.equal(PROPOSAL_SPECS.settings.needs, "partner", "W.noteLeftOut names an owner or a partner");
+  const intent = offer();
+  const op = await plan(intent, tables(), "operator");
+  const { cards } = cardsAreSteps(op, intent, worldOf({ canNote: false }));
+  assert.deepEqual(
+    cards.map((p) => [p.kind, p.plan.step, p.plan.silent, p.plan.after]),
+    [
+      ["playbook_change", 1, true, []],
+      ["broadcast", 2, false, [1]],
+    ],
+    "the pause and the send, stamped 1..2, the send waiting for the pause alone",
+  );
+  assert.equal(cards[1].payload.template_id, OFFER_EMAIL);
+  assert.ok(said(op).words.includes(W.noteLeftOut), said(op).words);
+  assert.ok(!said(op).words.includes("Tells the receptionist"), "no note said made");
+  // An owner's: the note, as before.
+  const owner = await plan(intent, tables(), "owner");
+  assert.deepEqual(
+    owner.proposals.map((p) => p.kind),
+    ["settings", "playbook_change", "broadcast"],
+  );
+  assert.ok(!said(owner).words.includes(W.noteLeftOut));
+});
+
 test("a step its handler refuses is the plan's refusal, naming the step in its words; the plan's own refusal is planOf's", async () => {
-  // An operator: the note is a partner's or an owner's to approve (contracts settingsSpec), so step 1 is refused.
-  const op = await plan(offer(), tables(), "operator");
-  assert.equal(op.isError, true);
-  assert.deepEqual([op.proposal, op.proposals], [null, undefined], "no card of the plan is made");
-  assert.equal(said(op).error, `Step 1 (note): ${C.proposalBelowNeeds("settings")}`);
   // Everyone on the list pressed Unsubscribe on the business's email: the send's step is refused in its own words.
   const unsubscribed = PEOPLE.map((p) => ({ ...p, email_marketing: "opted_out" }));
   const nobody = await call({ action: "plan", ...offer() }, tables(), "owner", unsubscribed);

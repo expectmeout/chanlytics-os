@@ -18,7 +18,15 @@ import {
 import { load } from "../../../readers";
 import { channelsReady, config } from "../../../readers/facts";
 import { playbooks } from "../../../readers/playbooks";
-import { actAction, proposeMany, refuse, type ActDef, type ProposalOutcome, type ToolContext } from "../context";
+import {
+  actAction,
+  offeredTo,
+  proposeMany,
+  refuse,
+  type ActDef,
+  type ProposalOutcome,
+  type ToolContext,
+} from "../context";
 import { getRoom } from "../read/calendar";
 import { readJourney, readMessages } from "../read/campaigns";
 import { listLists } from "../read/people";
@@ -66,7 +74,9 @@ function intentOf(asked: PlanAsked): PlanIntent | { refusal: string } {
  * Campaigns' home composes it), the campaigns (GET playbooks' reader, the journey's own read), the room (calendar.room:
  * none where no calendar can say it, or one with no slot either way), the receptionist's notes (the settings), and the
  * channels an offer may go by now (the channels' readiness with the offer's own rule, contracts channelChoices). Each
- * read once a turn, the independent ones together.
+ * read once a turn, the independent ones together. And whether the member asking may approve a note for the
+ * receptionist (context.ts offeredTo, the registry's own predicate), so a plan is never dead at a step its member may
+ * not approve.
  */
 async function planWorld(t: ToolContext, language: PlanWorld["language"]): Promise<PlanWorld> {
   const [library, lists, journey, pb, room, ready, cfg] = await Promise.all([
@@ -107,6 +117,8 @@ async function planWorld(t: ToolContext, language: PlanWorld["language"]): Promi
       .filter((s) => runs.has(s.id))
       .map((s) => ({ id: s.id, covered: s.covered, moment: s.moment })),
     offersList: OFFERS_LIST,
+    // Whether this member may approve the receptionist's note, by the predicate the registry offers propose_settings by.
+    canNote: offeredTo(settingsAct, t.role),
   };
 }
 

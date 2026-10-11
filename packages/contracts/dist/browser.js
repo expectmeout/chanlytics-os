@@ -18485,6 +18485,8 @@ var PLAN_WORDS = {
   noText: CHANNEL_WORDS.noOffersByText,
   noteMade: (until) => `Tells the receptionist about the offer, until ${until}.`,
   noteKnown: "The receptionist already has a note about the offer.",
+  /** A note is an owner's or a partner's to approve (the settings card's role), and the member asking is neither. */
+  noteLeftOut: "The receptionist is not told about the offer until an owner or a partner adds a note about it.",
   /** The pause is a silent step: it applies at the plan's Approve, not on the offer's first day. */
   monthsOfferPaused: (name, until) => `Pauses the month's offer, \u201C${name}\u201D, from when you approve it, so nobody gets two offers; resume it after ${until}.`,
   firstSend: (list2, day, at3) => `The offer goes to \u201C${list2}\u201D on ${day} at ${at3}.`,
@@ -18639,6 +18641,11 @@ function reminderDay(world, dates, paced) {
   const day = nineteen <= dates.until ? nineteen : dates.until;
   return day > dates.from ? day : null;
 }
+function noteOf(offer, line, dates, world) {
+  const input = offerNote(offer, line, dates, world.notes);
+  if (!input) return { input: null, said: SAY.noteKnown };
+  return world.canNote ? { input, said: SAY.noteMade(dates.untilWords) } : { input: null, said: SAY.noteLeftOut };
+}
 function offerRead(offer, say2, world) {
   if (!offer.words.trim()) return { refused: SAY.noWords };
   const dates = offerDates(offer, world);
@@ -18666,7 +18673,7 @@ function offerRead(offer, say2, world) {
     tight,
     cap,
     reminder: reminderDay(world, dates, cap !== null),
-    note: offerNote(offer, line, dates, world.notes),
+    note: noteOf(offer, line, dates, world),
     pauses: monthsOfferPauses(world, dates.untilWords)
   };
 }
@@ -18687,7 +18694,7 @@ function sendWords2(r2, world) {
 function offerPlan(r2, world) {
   const { steps, add } = planSteps();
   const template_id = r2.message.made ? stepToken(add("message", r2.message.input, SAY.why.message)) : r2.message.id;
-  if (r2.note) add("note", r2.note, SAY.why.note);
+  if (r2.note.input) add("note", r2.note.input, SAY.why.note);
   for (const p of r2.pauses) add("change", p.input, SAY.why.pause);
   const sends2 = { template_id, params: r2.message.params };
   const title = SAY.offerTitle(r2.offer.words);
@@ -18721,7 +18728,7 @@ function offerPlan(r2, world) {
   const words2 = [
     r2.message.made ? SAY.writeMessage(r2.message.name, r2.on) : SAY.reuseMessage(r2.message.name),
     ...r2.onSaid,
-    r2.note ? SAY.noteMade(r2.dates.untilWords) : SAY.noteKnown,
+    r2.note.said,
     ...r2.pauses.map((p) => p.said),
     ...sendWords2(r2, world)
   ];

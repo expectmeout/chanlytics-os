@@ -15127,6 +15127,12 @@ interface PlanWorld {
     }[] | null;
     /** The built-in offers list's token (`seg:offers_ok`): who an offer goes to where the owner names no list. */
     offersList: string;
+    /**
+     * Whether the member asking may approve a note for the receptionist (a settings card: an owner's or a partner's). Where
+     * not, the plan makes no note, so it is not dead for them at its first step, and its words say the receptionist is not
+     * told of the offer until an owner or a partner adds one.
+     */
+    canNote: boolean;
 }
 /** One step: the action it is expanded through (its kind) and that action's input, whether it sends, and why. */
 interface PlanStep {
@@ -15169,6 +15175,8 @@ declare const PLAN_WORDS: {
     readonly noText: "Texts carry no offers.";
     readonly noteMade: (until: string) => string;
     readonly noteKnown: "The receptionist already has a note about the offer.";
+    /** A note is an owner's or a partner's to approve (the settings card's role), and the member asking is neither. */
+    readonly noteLeftOut: "The receptionist is not told about the offer until an owner or a partner adds a note about it.";
     /** The pause is a silent step: it applies at the plan's Approve, not on the offer's first day. */
     readonly monthsOfferPaused: (name: string, until: string) => string;
     readonly firstSend: (list: string, day: string, at: string) => string;
