@@ -3465,9 +3465,11 @@ test("calendar.week reads the board as its page reads it (ledger #11): with no d
       // notices' health line (two reads) and the workspace's mailbox, before everyone; and, once the feed has read,
       // the record's taken time over the days on offer, which a week alone does not cover. The record's reads are
       // asked together (9 Oct 2026, calendar-week.ts recordOverSpan), so they reach the database in no one order:
-      // each, as often.
+      // each, as often. The span's record is two reads since a member's word on a visit (00397, visitsOver): the
+      // bookings whole, and the feed's rows by key.
       [...weekAsked].sort(),
       [
+        "appointments.select",
         "appointments.select",
         "appointment_notices.select",
         "appointment_notices.select",
