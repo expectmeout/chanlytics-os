@@ -388,8 +388,7 @@ function peopleScroll(s: PeopleState) {
  * own, and the open list's acts are at the foot of the Lists sheet. A word nobody may use here is not drawn.
  */
 function phoneBar(s: PeopleState) {
-  const { activeSaved, activeList, listGone, setListsOpen, listsOpen, q, setQ, searchRef, searchOpen, setSearchOpen } =
-    s;
+  const { activeSaved, activeList, listGone, setListsOpen, listsOpen, q, setQ, searchRef } = s;
   const { selecting, sel, shown } = s;
   const picked = selecting ? shown.filter((p) => sel.has(p.id)).length : 0;
   return (
@@ -403,8 +402,6 @@ function phoneBar(s: PeopleState) {
       q={q}
       onQ={setQ}
       searchRef={searchRef}
-      searchOpen={searchOpen}
-      onSearchOpen={setSearchOpen}
       searchLabel={PL_SEARCH_LABEL}
       testid="people"
       trailing={phoneBarActs(s)}

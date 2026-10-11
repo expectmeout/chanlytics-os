@@ -456,7 +456,7 @@ function onTouchScreen(): boolean {
  * Whether a text field may take focus as it is drawn. Not on a touch screen: a field that took focus by itself raised
  * the keyboard over a sheet the person had not read yet, and the phone moved the page to it. There a sheet opens with
  * itself in focus (the kit's Sheet, RecordSheet), and a tap on a field begins the typing. A mouse and keys keep the
- * field ready. An editor a press opened in place (a rename, a search its button reveals) asks it too, and its box
+ * field ready. An editor a press opened in place (a rename, a Change row's field) asks it too, and its box
  * takes the focus there (`editorBox`).
  */
 export function focusAsDrawn(): boolean {
@@ -470,7 +470,7 @@ function focusBoxOnTouch(el: HTMLElement | null): void {
 }
 
 /**
- * What the box of an editor a press opened in place spreads: a rename, a search its button reveals, a name asked in
+ * What the box of an editor a press opened in place spreads: a rename, a name asked in
  * the row (Ruben, 9 October 2026: these open as a sheet does, with no keyboard until the field is tapped; its field
  * asks `focusAsDrawn`). On a touch screen the box takes focus as it is drawn, since its field does not: the control
  * that was pressed is gone by then, and focus left on the page's body sends the next Tab, and a screen reader, back

@@ -6064,6 +6064,7 @@ export type Database = {
           id: string
           left_empty_at: string | null
           locale: string
+          logo_path: string | null
           name: string
           sells_by: string | null
           slug: string
@@ -6076,6 +6077,7 @@ export type Database = {
           id?: string
           left_empty_at?: string | null
           locale?: string
+          logo_path?: string | null
           name: string
           sells_by?: string | null
           slug: string
@@ -6088,6 +6090,7 @@ export type Database = {
           id?: string
           left_empty_at?: string | null
           locale?: string
+          logo_path?: string | null
           name?: string
           sells_by?: string | null
           slug?: string
@@ -8588,6 +8591,10 @@ export type Database = {
       set_template_title: {
         Args: { p_template_id: string; p_title: string }
         Returns: Json
+      }
+      set_workspace_logo: {
+        Args: { p_logo_path: string; p_tenant_id: string }
+        Returns: string
       }
       setup_request: {
         Args: { p_tenant_id: string; p_what: string }

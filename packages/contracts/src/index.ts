@@ -15,6 +15,7 @@ export * from "./google";
 export * from "./journey";
 export * from "./leads";
 export * from "./lines";
+export * from "./logo";
 export * from "./mobile";
 export * from "./new-conversation";
 export * from "./notes";

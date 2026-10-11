@@ -1539,6 +1539,8 @@ html.legacy-on .bt-link { position: relative; }
 .bt-bookings-held { display: grid; gap: 8px; }
 .bt-bookings-notice { display: grid; gap: 2px; }
 .bt-bookings-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+/* The logo row's Save and Cancel (or Use it and Not this one), under the picture it would keep (00407). */
+.bt-logo-acts { display: flex; flex-wrap: wrap; gap: 6px; }
 
 /* The closed days: from, until, why, and the press that removes one. */
 .bt-closures { display: flex; flex-direction: column; align-items: flex-start; gap: 0; }

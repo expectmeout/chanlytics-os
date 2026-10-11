@@ -26,8 +26,6 @@ interface LeadsPhoneBarProps {
   q: string;
   onQ: (q: string) => void;
   searchRef: RefObject<HTMLInputElement | null> | null;
-  searchOpen?: boolean;
-  onSearchOpen?: (open: boolean) => void;
   onFind?: () => void;
   canFind?: boolean;
   mapOn?: boolean;
@@ -107,8 +105,6 @@ export const LeadsPhoneBar = ({
   q,
   onQ,
   searchRef,
-  searchOpen = false,
-  onSearchOpen = () => undefined,
   onFind = () => undefined,
   canFind = false,
   mapOn = false,
@@ -128,8 +124,6 @@ export const LeadsPhoneBar = ({
       q={q}
       onQ={onQ}
       searchRef={searchRef}
-      searchOpen={searchOpen}
-      onSearchOpen={onSearchOpen}
       searchLabel="Search leads"
       testid="leads"
       title={title}

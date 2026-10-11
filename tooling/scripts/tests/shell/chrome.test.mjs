@@ -20,9 +20,11 @@ import {
   LOOK_OPTIONS,
   DEFAULT_LOOK_PREF,
   LOOK_OFFERED,
+  workspaceInitials,
+  identityWords,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
-import { installLegacyReact, fresh, again, all, byTestId, press, textOf } from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, all, byTestId, classes, press, textOf } from "../_legacy-react.mjs";
 
 test("the theme: a choice, or the device's; unknown values fall back; the sidebar has two states", () => {
   assert.equal(resolveTheme("light", true), "light");
@@ -255,6 +257,146 @@ test("the wiring: the pill is retired, the shell bridge carries its two actions 
     ),
     "the drawer is never a rail",
   );
+});
+
+test("the account chip says it opens a menu with the chevrons the workspace row draws, in the same ink", async () => {
+  // Both buttons open a popover from the sidebar. The row at the top always drew the chevrons; the chip at the foot drew
+  // none, so nothing said it was a button (Ruben, 11 Oct 2026). Drawn as a person sees them, and the rail hides each.
+  installLegacyReact({ usePPToast: () => [null, () => {}] });
+  await import("../../../../apps/dashboard/src/legacy/components/sidebar.jsx");
+  globalThis.window.__chrome = { themes: THEME_OPTIONS, looks: LOOK_OPTIONS, lookOffered: false };
+  fresh();
+  const drawn = again(() =>
+    globalThis.React.createElement(globalThis.window.Sidebar, {
+      themePref: "dark",
+      onTheme: () => {},
+      look: "glass",
+      onLook: () => {},
+    }),
+  );
+  const chevrons = (testid) => all(byTestId(drawn, testid), (n) => n.type === "Icon" && n.props.name === "chevrons");
+
+  assert.equal(chevrons("sb-workspace").length, 1, "the workspace row, which always had them");
+  const chip = chevrons("sb-account");
+  assert.equal(chip.length, 1, "the account chip, which opens a menu as the row does");
+  assert.equal(chip[0].props.size, 14, "at the row's size");
+  assert.ok(
+    classes(chip[0]).includes("sb-chev"),
+    "wearing the class that gives them the dim ink and hides them in the rail",
+  );
+});
+
+test("the workspace row says its name, and under it how many workspaces there are only where there is more than one; never the lines", async () => {
+  // "1 of 1 line on" under the name said again what Today says, for any workspace (Ruben, 11 Oct 2026). What the row's
+  // menu does is switch, so the line under the name says how many there are to switch between.
+  installLegacyReact({ usePPToast: () => [null, () => {}] });
+  await import("../../../../apps/dashboard/src/legacy/components/sidebar.jsx");
+  globalThis.window.__chrome = { themes: THEME_OPTIONS, looks: LOOK_OPTIONS, lookOffered: false };
+  globalThis.window.TODAY_DATA = { standing: { lines: { short: "1 of 1 line on" } } };
+  const workspace = (id, name) => ({ id, slug: id, name, status: "active", timezone: "UTC", role: "owner" });
+  const row = (workspaces) => {
+    globalThis.window.__WORKSPACES = workspaces;
+    globalThis.window.__ACTIVE_WORKSPACE = workspaces[0].id;
+    fresh();
+    const drawn = byTestId(
+      again(() =>
+        globalThis.React.createElement(globalThis.window.Sidebar, {
+          themePref: "dark",
+          onTheme: () => {},
+          look: "glass",
+          onLook: () => {},
+        }),
+      ),
+      "sb-workspace",
+    );
+    const plan = all(drawn, (n) => classes(n).includes("sb-team-plan"));
+    return { name: textOf(all(drawn, (n) => classes(n).includes("sb-team-name"))[0]), under: plan.map(textOf) };
+  };
+  try {
+    assert.deepEqual(
+      row([workspace("w1", "Luna Studio")]),
+      { name: "Luna Studio", under: [] },
+      "one workspace: its name alone, and not the lines Today publishes",
+    );
+    assert.deepEqual(
+      row([workspace("w1", "Luna Studio"), workspace("w2", "Luna Annex")]),
+      { name: "Luna Studio", under: ["2 workspaces"] },
+      "two: how many there are to switch between",
+    );
+  } finally {
+    delete globalThis.window.TODAY_DATA;
+    delete globalThis.window.__WORKSPACES;
+    delete globalThis.window.__ACTIVE_WORKSPACE;
+  }
+});
+
+test("the workspace's circle wears its own logo over its initials, and its initials alone without one; never Ask's three", async () => {
+  // 00407: the circle said Ask's three for every business. The initials are contracts' rule, through the bridge.
+  installLegacyReact({ usePPToast: () => [null, () => {}] });
+  await import("../../../../apps/dashboard/src/legacy/components/sidebar.jsx");
+  globalThis.window.__chrome = { themes: THEME_OPTIONS, looks: LOOK_OPTIONS, lookOffered: false };
+  globalThis.window.__identity = { workspace: workspaceInitials, words: identityWords };
+  const LOGO = "https://proj.supabase.co/storage/v1/object/public/workspace-logos/a/b.png";
+  const circleOf = (logo_url) => {
+    globalThis.window.__WORKSPACES = [
+      { id: "w1", slug: "w1", name: "Nails & Co", status: "active", timezone: "UTC", role: "owner", logo_url },
+      {
+        id: "w2",
+        slug: "w2",
+        name: "The Hair Studio",
+        status: "active",
+        timezone: "UTC",
+        role: "owner",
+        logo_url: null,
+      },
+    ];
+    globalThis.window.__ACTIVE_WORKSPACE = "w1";
+    fresh();
+    const sidebar = () =>
+      globalThis.React.createElement(globalThis.window.Sidebar, {
+        themePref: "dark",
+        onTheme: () => {},
+        look: "glass",
+        onLook: () => {},
+      });
+    const row = byTestId(again(sidebar), "sb-workspace");
+    const circle = all(row, (n) => n.type === "span" && classes(n).includes("sb-team-mark"))[0];
+    press(row);
+    const menu = byTestId(again(sidebar), "sb-workspace-menu");
+    return {
+      initials: textOf(circle),
+      picture: all(circle, (n) => n.type === "img").map((n) => [n.props.src, classes(n)]),
+      three: all(row, (n) => n.type === "Icon" && n.props.name === "three").length,
+      menu: all(menu, (n) => n.type === "span" && classes(n).includes("sb-ws-mark")).map((m) => [
+        textOf(m),
+        all(m, (n) => n.type === "img").length,
+      ]),
+    };
+  };
+  try {
+    assert.deepEqual(circleOf(LOGO), {
+      initials: "NC",
+      picture: [[LOGO, ["face-photo"]]],
+      three: 0,
+      menu: [
+        ["NC", 1],
+        ["HS", 0],
+      ],
+    });
+    assert.deepEqual(circleOf(null), {
+      initials: "NC",
+      picture: [],
+      three: 0,
+      menu: [
+        ["NC", 0],
+        ["HS", 0],
+      ],
+    });
+  } finally {
+    delete globalThis.window.__identity;
+    delete globalThis.window.__WORKSPACES;
+    delete globalThis.window.__ACTIVE_WORKSPACE;
+  }
 });
 
 test("navigating INSIDE a surface does not tear the surface down", () => {

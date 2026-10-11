@@ -384,6 +384,9 @@ export interface RetellAgentConfig {
   /** The post-call analysis schema on the agent, as stored; the planner
    *  checks ours are on it (voice-shell.ts CALL_ANALYSIS_FIELDS). */
   post_call_analysis_data: unknown[] | null;
+  /** How long a caller's silence waits before the agent speaks again, and how often; null = the provider's default. */
+  reminder_trigger_ms: number | null;
+  reminder_max_count: number | null;
 }
 
 /** GET /get-agent — the fields above, read-only. Null when the provider says no. */
@@ -413,6 +416,8 @@ export async function getAgent(cfg: RetellConfig, agentId: string): Promise<Rete
     data_storage_retention_days: num("data_storage_retention_days"),
     opt_in_signed_url: bool("opt_in_signed_url"),
     post_call_analysis_data: Array.isArray(a.post_call_analysis_data) ? (a.post_call_analysis_data as unknown[]) : null,
+    reminder_trigger_ms: num("reminder_trigger_ms"),
+    reminder_max_count: num("reminder_max_count"),
   };
 }
 

@@ -154,6 +154,8 @@ export interface Workspace {
   sells_by?: string | null;
   /** The caller's role in it (0012): said beside every workspace on the switcher. */
   role?: string | null;
+  /** Where its own logo is served (00407): the sidebar's circle, the rail and the switcher draw it over its initials. */
+  logo_url?: string | null;
 }
 
 export interface Me {

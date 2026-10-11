@@ -304,6 +304,10 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
       ...reportsCampaigns(),
     ];
   },
+  // The workspace's logo (00407) is drawn from the boot's own list: the sidebar's circle, the rail and the switcher read
+  // it again from there, so a picture saved or taken away is on screen as the answer lands.
+  "PUT workspaces/logo": () => [workspaceOverride],
+  "DELETE workspaces/logo": () => [workspaceOverride],
   "POST team/invite": settings,
   "POST team/invite/[id]/resend": settings,
   "PATCH team/[id]": settings,
@@ -393,6 +397,8 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST billing/checkout": "Stripe's checkout opens; the return reads Billing again (billing.ts outcome)",
   "POST billing/portal": "Stripe's portal opens",
   "POST workspaces/create": "the tab switches to the new workspace, which boots",
+  "POST workspaces/logo/lookup":
+    "a look that stores nothing: the Logo row draws the picture it answers, and only a save keeps it",
   "POST handovers/[id]/accept": "the tab switches to the workspace handed over, which boots",
   "POST handovers/[id]/decline": "the handover leaves the screen asking, and the app opens as it would have",
   "DELETE me": "the account is gone and the tab goes to sign in",

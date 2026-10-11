@@ -34,6 +34,7 @@ import {
   greetingFor,
   GREETING_DEFAULT,
   POLICY_COVERS,
+  RETELL_MODELS,
 } from "@chanlytics/contracts";
 
 /** The opening line and its unnamed default: contracts' (greeting.ts), so the first run can show it; said here too. */
@@ -188,6 +189,9 @@ export function desiredVoiceShell(fnUrl: string, bookingHeaders?: Record<string,
 
 /** What the converger reads off a live Retell LLM. */
 export interface LiveVoiceLlm {
+  /** Read for the notes alone: a model or temperature is never changed here (a model change goes through the gate). */
+  model?: string | null;
+  model_temperature?: number | null;
   general_prompt?: string | null;
   begin_message?: string | null;
   default_dynamic_variables?: Record<string, string> | null;
@@ -201,6 +205,8 @@ export interface VoiceConvergencePlan {
   llmPatch: Partial<VoiceShellTarget> | null;
   /** Live tools the shell does not define. Listed, never silently dropped. */
   unknownTools: string[];
+  /** What differs from the product's defaults and is reported, never changed: the model and its temperature. */
+  notes: string[];
 }
 
 const normalizedText = (s: string | null | undefined) => (s ?? "").replace(/\r\n/g, "\n").trim();
@@ -300,7 +306,7 @@ export function planVoiceConvergence(live: LiveVoiceLlm, desired: VoiceShellTarg
     drift.push(`live tools the shell does not define (an apply would drop them): ${unknownTools.join(", ")}`);
   if (toolsDiffer) patch.general_tools = desired.general_tools;
 
-  return { drift, llmPatch: Object.keys(patch).length ? patch : null, unknownTools };
+  return { drift, llmPatch: Object.keys(patch).length ? patch : null, unknownTools, notes: llmNotes(live) };
 }
 
 /**
@@ -423,12 +429,20 @@ export interface LiveAgentSettings {
   opt_in_signed_url?: boolean | null;
   data_storage_retention_days?: number | null;
   post_call_analysis_data?: unknown[] | null;
+  /** A locale, a list of them, or the deprecated "multi" (stored as its ten locales); unset is en-US. */
+  language?: string | string[] | null;
+  reminder_trigger_ms?: number | null;
+  reminder_max_count?: number | null;
+  voice_id?: string | null;
+  post_call_analysis_model?: string | null;
 }
 
 export interface AgentPlan {
   drift: string[];
   /** The PATCH body for update-agent, or null when nothing differs. */
   agentPatch: Record<string, unknown> | null;
+  /** What differs from the product's defaults and is reported, never changed: the voice and the post-call model. */
+  notes: string[];
 }
 
 /**
@@ -443,7 +457,10 @@ export interface AgentPlan {
  * Retention is NOT drift. How long the provider keeps a call is a product
  * decision, applied only when the converger is told a number.
  */
-export function planAgentSettings(live: LiveAgentSettings, opts: { retentionDays?: number } = {}): AgentPlan {
+export function planAgentSettings(
+  live: LiveAgentSettings,
+  opts: { retentionDays?: number; locales?: readonly string[] } = {},
+): AgentPlan {
   const drift: string[] = [];
   const patch: Record<string, unknown> = {};
   const events = live.webhook_events ?? RETELL_DEFAULT_EVENTS;
@@ -501,7 +518,150 @@ export function planAgentSettings(live: LiveAgentSettings, opts: { retentionDays
       patch.data_storage_retention_days = opts.retentionDays;
     }
   }
-  return { drift, agentPatch: Object.keys(patch).length ? patch : null };
+  planFirstSeconds(live, opts.locales, drift, patch);
+  return { drift, agentPatch: Object.keys(patch).length ? patch : null, notes: agentNotes(live) };
+}
+
+/**
+ * How long a caller's silence after the agent speaks waits before the agent speaks again, and how many times. Retell's
+ * default is ten seconds once; of the salon's twelve callers in thirty days, three heard the whole greeting and hung up
+ * after two to nine seconds of silence (the engine review's second pass, 11 Oct 2026). Four seconds, twice.
+ */
+export const SILENCE_REMINDER_MS = 4_000;
+export const SILENCE_REMINDERS = 2;
+
+/** The ten locales Retell's deprecated "multi" is stored as: what every agent was provisioned with. */
+const RETELL_MULTI = ["en-US", "es-ES", "fr-FR", "de-DE", "hi-IN", "ru-RU", "pt-PT", "ja-JP", "it-IT", "nl-NL"];
+
+/**
+ * The locale for each language a workspace can say it speaks (the Business tab's names, contracts COMMON_LANGUAGES
+ * first), lower-cased. Spanish is Latin American and Portuguese Brazilian: the forms a US business's callers speak.
+ */
+const RETELL_LOCALE_OF: Readonly<Record<string, string>> = {
+  english: "en-US",
+  spanish: "es-419",
+  español: "es-419",
+  espanol: "es-419",
+  portuguese: "pt-BR",
+  french: "fr-FR",
+  mandarin: "zh-CN",
+  chinese: "zh-CN",
+  cantonese: "yue-CN",
+  arabic: "ar-SA",
+  russian: "ru-RU",
+  polish: "pl-PL",
+  italian: "it-IT",
+  hindi: "hi-IN",
+  german: "de-DE",
+  japanese: "ja-JP",
+  korean: "ko-KR",
+  vietnamese: "vi-VN",
+  tagalog: "fil-PH",
+  filipino: "fil-PH",
+  ukrainian: "uk-UA",
+  turkish: "tr-TR",
+  dutch: "nl-NL",
+  greek: "el-GR",
+  hebrew: "he-IL",
+};
+
+/**
+ * The locales an agent listens for, from the languages its workspace speaks, or why what it listens for is kept. Every
+ * agent was given Retell's ten-locale "multi", which has recognition choose among ten languages on every word; a
+ * workspace that speaks English and Spanish now listens for those two. English is always among them: the greeting is
+ * English, so a caller may answer in it. The line is left as it is when the workspace names no language, or names one
+ * the table has no locale for (typed by hand, "Spanish (Mexico)", or one Retell lacks, Haitian Creole): narrowed to
+ * the rest, a line that understood those callers would stop, for a word nobody meant as a setting.
+ */
+export function retellLocalesFor(
+  languages: readonly string[] | null | undefined,
+): { locales: string[] } | { kept: string } {
+  const named = (languages ?? []).map((l) => l.trim()).filter(Boolean);
+  if (!named.length) return { kept: "the workspace names no language: what the agent listens for is kept" };
+  const pairs = named.map((name) => ({ name, locale: RETELL_LOCALE_OF[name.toLowerCase()] }));
+  const unknown = pairs.filter((p) => !p.locale).map((p) => p.name);
+  if (unknown.length)
+    return {
+      kept: `the workspace names ${unknown.join(", ")}, which the provider has no locale for here: what the agent listens for is kept`,
+    };
+  const found = pairs.map((p) => p.locale).filter((l): l is string => typeof l === "string");
+  return { locales: [...new Set(["en-US", ...found])] };
+}
+
+/** A locale's language, without its region: en-GB and en-US are both English. */
+const languageOf = (locale: string) => locale.replace(/-.*$/, "").toLowerCase();
+
+/**
+ * Said whenever the agent's latest version is an unpublished draft. The converger never publishes a draft it did not
+ * make in that run: it may hold edits made elsewhere. 11 Oct 2026: a draft was patched in place in silence, and the
+ * line kept the old words.
+ */
+export function unpublishedLatestNote(version: unknown): string {
+  return `v${String(version)}, the agent's latest, is an unpublished draft: what is planned here is that draft, and a pinned line runs the last published version, which is not read here. The converger never publishes a draft it did not make in this run (it may hold edits made elsewhere): look at v${String(version)} in Retell and publish it there`;
+}
+
+/** Said when the converger made a draft and was not told to publish it: a second run will find it and leave it. */
+export function newDraftNote(draft: unknown, published: unknown): string {
+  return `v${String(draft)} is a draft: a pinned line stays on v${String(published)} until it is published. A second run finds it as a draft it did not make and leaves it, so publish it in Retell, or apply and publish together next time`;
+}
+
+/** The live language as locales, whatever form Retell returned it in. */
+function liveLocales(language: LiveAgentSettings["language"]): string[] {
+  if (Array.isArray(language)) return language;
+  if (language === "multi") return RETELL_MULTI;
+  return [language || "en-US"];
+}
+
+/** The first seconds of a call: the silence reminders, and, where the workspace is known, the locales it listens for. */
+function planFirstSeconds(
+  live: LiveAgentSettings,
+  locales: readonly string[] | undefined,
+  drift: string[],
+  patch: Record<string, unknown>,
+): void {
+  const trigger = live.reminder_trigger_ms ?? 10_000;
+  const times = live.reminder_max_count ?? 1;
+  if (trigger !== SILENCE_REMINDER_MS || times !== SILENCE_REMINDERS) {
+    drift.push(
+      `a silent caller is reminded after ${trigger} ms, ${times} time(s); the product reminds after ${SILENCE_REMINDER_MS} ms, ${SILENCE_REMINDERS} times`,
+    );
+    patch.reminder_trigger_ms = SILENCE_REMINDER_MS;
+    patch.reminder_max_count = SILENCE_REMINDERS;
+  }
+  if (!locales?.length) return;
+  const have = liveLocales(live.language);
+  // By language, not region: a dialect the owner picked (en-GB) is theirs, and is not overwritten with en-US.
+  const languages = (ls: readonly string[]) => [...new Set(ls.map(languageOf))].sort().join();
+  if (languages(have) !== languages(locales)) {
+    drift.push(`listens for ${have.join(", ")}; the workspace speaks ${locales.join(", ")}`);
+    patch.language = locales.length === 1 ? locales[0] : [...locales];
+  }
+}
+
+/** The agent's settings that differ from the product's defaults and stay as they are: the voice, the post-call model. */
+function agentNotes(live: LiveAgentSettings): string[] {
+  const notes: string[] = [];
+  if (live.voice_id && live.voice_id !== "minimax-Tamsin")
+    notes.push(`voice is ${live.voice_id}; the product's default is minimax-Tamsin (a voice is the owner's: kept)`);
+  if (live.post_call_analysis_model && live.post_call_analysis_model !== RETELL_MODELS.analysis)
+    notes.push(
+      `post-call analysis runs on ${live.post_call_analysis_model}; the product's is ${RETELL_MODELS.analysis} (kept: a model change goes through the gate)`,
+    );
+  return notes;
+}
+
+/** The LLM's settings that differ from the product's defaults and stay as they are: the model, the temperature. */
+function llmNotes(live: LiveVoiceLlm): string[] {
+  const notes: string[] = [];
+  if (live.model && live.model !== RETELL_MODELS.llm)
+    notes.push(
+      `model is ${live.model}; the product's is ${RETELL_MODELS.llm} (kept: a model change goes through the gate)`,
+    );
+  if (typeof live.model_temperature === "number" && live.model_temperature !== 0)
+    notes.push(
+      `temperature is ${live.model_temperature}; the product's is 0, so the facts are read, not improvised (kept)`,
+    );
+  return notes;
 }
 
 /** The diagnostic's view of the agent settings. Strings only. */

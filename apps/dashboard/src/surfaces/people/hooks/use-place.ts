@@ -28,7 +28,6 @@ const PLACE_SAVE_DELAY_MS = 200;
 /** What the page's one hook of controls hands this hook: the words in the box, the selection and the scrolling pane. */
 export interface PlaceControls {
   phone: boolean;
-  setSearchOpen: Dispatch<SetStateAction<boolean>>;
   setBulkSheet: Dispatch<SetStateAction<string | null>>;
   selectMode: boolean;
   setSelectMode: Dispatch<SetStateAction<boolean>>;
@@ -212,8 +211,7 @@ function usePlaceKeeper(
 
 export function usePlPlace(args: PlaceArgs) {
   const { controls, page, view, ids, noun, landed, selectionOf, extra, onPlace, windowed } = args;
-  const { phone, setSearchOpen, selectMode, sel, setSel, toggleSel, setAllMatching, clearSelection, searchRef } =
-    controls;
+  const { phone, selectMode, sel, setSel, toggleSel, setAllMatching, clearSelection, searchRef } = controls;
   useSelectionResets(controls, selectionOf);
   const cursor = useCursor({ page, view, ids, noun, windowed });
   usePlaceKeeper({ controls, page, view, landed, extra, onPlace }, cursor);
@@ -238,9 +236,8 @@ export function usePlPlace(args: PlaceArgs) {
       // Select-people selection with nobody picked yet is one too.
       selected: sel.size > 0 || (phone && selectMode),
       clearSel: clearSelection,
-      // On a phone the field is the bar's, behind its button: / opens it, and the field takes focus as it draws.
+      // The field is drawn on a phone too (the bar's, the kit's Search): / puts the caret in it.
       focusSearch: () => {
-        if (phone) setSearchOpen(true);
         if (searchRef.current) searchRef.current.focus();
       },
       ...own,

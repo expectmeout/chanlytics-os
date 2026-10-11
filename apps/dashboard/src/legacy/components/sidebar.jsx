@@ -146,13 +146,32 @@ const sbWorkspaceName = () => {
   if (ws && ws.name) return ws.name;
   return window.__DEMO_MODE ? "Chanlytics Sales" : "Workspace";
 };
-const sbMarkOf = (n) => {
-  const w = String(n || "").split(/[\s@._-]+/).filter(Boolean);
-  return ((w[0]?.[0] ?? "") + (w[1]?.[0] ?? "")).toUpperCase() || "—";
+/** A workspace's initials: contracts' one rule (workspaceInitials), which the bridge publishes as __identity.workspace. */
+const sbMarkOf = (n) => (window.__identity && window.__identity.workspace ? window.__identity.workspace(n) : "—");
+/** A picture that does not load stands aside, and the initials under it show again (the kit Face's rule). */
+const sbLogoGone = (e) => {
+  e.currentTarget.hidden = true;
 };
-const sbWorkspaceMark = () => sbMarkOf(sbWorkspaceName());
-/** The workspace's mark: in Glass the three, as every canvas's sidebar draws it (E3); in Classic the initials. */
-const sbTeamMark = (look) => (look === "glass" ? <Icon name="three" size={20} /> : sbWorkspaceMark());
+/**
+ * A workspace's circle: its own logo where it has one (00407), drawn over its initials; else the initials, in the accent
+ * (components.css), so the business's circle never reads as a member's own face. Ask's three is Ask's, not the
+ * business's (Ruben, 11 Oct 2026). Decoration: the name beside it says which workspace.
+ */
+const SbWorkspaceFace = ({ ws, className }) => (
+  <span className={className} aria-hidden="true">
+    {sbMarkOf(ws ? ws.name : sbWorkspaceName())}
+    {ws && ws.logo_url ? <img key={ws.logo_url} className="face-photo" src={ws.logo_url} alt="" loading="lazy" decoding="async" onError={sbLogoGone} /> : null}
+  </span>
+);
+/**
+ * The workspace's second line: how many there are to switch between, where there is more than one, since that is what the
+ * row's menu does. One workspace says its name alone: the role is the account chip's, and the lines are Today's
+ * (Ruben, 11 Oct 2026: "1 of 1 line on" was no help to anyone).
+ */
+const sbTeamSub = () => {
+  const n = (window.__WORKSPACES || []).length;
+  return n > 1 ? <div className="sb-team-plan">{n} workspaces</div> : null;
+};
 // The person, in the words contracts/identity.ts gives: the name they gave,
 // else "Your account" — never a name invented from the email. The demo keeps
 // its persona; signed in with no identity yet, we say so.
@@ -268,7 +287,7 @@ const WorkspaceMenu = ({ onNavigate, close }) => {
             data-testid="sb-ws-item"
             onClick={() => { close(); if (!current && window.__shell) window.__shell.switchWorkspace(w.id); }}
           >
-            <span className="sb-ws-mark">{sbMarkOf(w.name)}</span>
+            <SbWorkspaceFace ws={w} className="sb-ws-mark" />
             <span className="more-item-label">{w.name}{roleOf(w, current) ? <span className="sb-ws-role">{roleOf(w, current)}</span> : null}</span>
             {current && <Icon name="check" size={12} />}
           </button>
@@ -352,19 +371,6 @@ const UserMenu = ({ who, themePref, onTheme, look, onLook, onNavigate, close, fl
       </button>
     </>
   );
-};
-
-/**
- * The workspace's second line. Glass says the lines, as every canvas's sidebar does ("3 lines on"), in Today's own words
- * (contracts `standing.lines.short`, TODAY_DATA; the sentence wrapped under the name), and the role where Today has not
- * landed; Classic says the role, and how many workspaces where there are more.
- */
-const sbTeamSub = (look, who, workspaceCount) => {
-  if (window.__DEMO_MODE) return <div className="sb-team-plan">Professional</div>;
-  const lines = look === "glass" ? window.TODAY_DATA?.standing?.lines?.short : null;
-  if (lines) return <div className="sb-team-plan">{lines}</div>;
-  if (!who.role) return null;
-  return <div className="sb-team-plan">{who.role}{workspaceCount > 1 ? ` · ${workspaceCount} workspaces` : ""}</div>;
 };
 
 /** The account row's second line: the role in Glass (the canvases' sidebar), the address in Classic. */
@@ -465,8 +471,6 @@ const Sidebar = ({
     </div>
   );
 
-  const workspaceCount = (window.__WORKSPACES || []).length;
-
   return (
     <aside className={`sidebar ${collapsed ? "collapsed" : ""}`} {...drawerSwipe} data-testid="sidebar">
       {/* Workspace — the menu's trigger */}
@@ -481,10 +485,9 @@ const Sidebar = ({
         data-tip-side="right"
         data-testid="sb-workspace"
       >
-        <div className="sb-team-mark">{sbTeamMark(look)}</div>
+        <SbWorkspaceFace ws={sbWorkspace()} className="sb-team-mark" />
         <div className="sb-team-body">
-          <div className="sb-team-name">{sbWorkspaceName()}</div>
-          {sbTeamSub(look, who, workspaceCount)}
+          <div className="sb-team-name">{sbWorkspaceName()}</div>{sbTeamSub()}
         </div>
         <Icon name="chevrons" size={14} style={{ color: "var(--ink-dim)" }} />
       </button>
@@ -568,7 +571,7 @@ const Sidebar = ({
             <div className="name">{who.name}</div>
             <div className="email">{sbAccountSub(look, who)}</div>
           </div>
-          {window.__DEMO_MODE && !collapsed && <div className="user-credits mono tabular">{sbCredits()}</div>}
+          {window.__DEMO_MODE && !collapsed && <div className="user-credits mono tabular">{sbCredits()}</div>}<Icon name="chevrons" size={14} className="sb-chev" />
         </button>
         <SbMenu menu={meMenu} side="up" label="Account" testid="sb-account-menu">
           <UserMenu who={who} themePref={themePref} onTheme={onTheme} look={look} onLook={onLook} onNavigate={onNavigate} close={meMenu.close} flash={flash} />

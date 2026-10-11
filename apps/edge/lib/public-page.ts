@@ -8,9 +8,8 @@
  * It answers null rather than throwing: a page that cannot be read says nothing, and nothing is wrong.
  */
 import { feedUrlOk } from "./packages/contracts.js";
-
-/** Who is asking, for a site that wants to know: the platform's own reader, with the page that says what it does. */
-export const BOT_USER_AGENT = "ChanlyticsBot/1.0 (+https://chanlytics.com/bot)";
+// Who is asking, for a site that wants to know: channels' (site-reads.ts), the one place it is said.
+import { BOT_USER_AGENT } from "./packages/channels.js";
 
 /** An http to https hop and a www one are what a site does; more than this is a chain, and not followed. */
 const REDIRECTS_MAX = 3;

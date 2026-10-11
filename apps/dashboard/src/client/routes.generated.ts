@@ -19,6 +19,7 @@ export const ROUTES = {
   "DELETE team/partner": { method: "DELETE", path: "/api/v1/team/partner" },
   "DELETE templates/[id]": { method: "DELETE", path: "/api/v1/templates/[id]" },
   "DELETE templates/versions/[id]": { method: "DELETE", path: "/api/v1/templates/versions/[id]" },
+  "DELETE workspaces/logo": { method: "DELETE", path: "/api/v1/workspaces/logo" },
   "GET activity": { method: "GET", path: "/api/v1/activity" },
   "GET ask/openings": { method: "GET", path: "/api/v1/ask/openings" },
   "GET ask/threads": { method: "GET", path: "/api/v1/ask/threads" },
@@ -212,6 +213,7 @@ export const ROUTES = {
   "POST templates/versions": { method: "POST", path: "/api/v1/templates/versions" },
   "POST vitals": { method: "POST", path: "/api/v1/vitals" },
   "POST workspaces/create": { method: "POST", path: "/api/v1/workspaces/create" },
+  "POST workspaces/logo/lookup": { method: "POST", path: "/api/v1/workspaces/logo/lookup" },
   "PUT business-record": { method: "PUT", path: "/api/v1/business-record" },
   "PUT contacts/[id]/consent": { method: "PUT", path: "/api/v1/contacts/[id]/consent" },
   "PUT contacts/[id]/details": { method: "PUT", path: "/api/v1/contacts/[id]/details" },
@@ -235,6 +237,7 @@ export const ROUTES = {
   "PUT settings": { method: "PUT", path: "/api/v1/settings" },
   "PUT templates/[id]": { method: "PUT", path: "/api/v1/templates/[id]" },
   "PUT views/[page]": { method: "PUT", path: "/api/v1/views/[page]" },
+  "PUT workspaces/logo": { method: "PUT", path: "/api/v1/workspaces/logo" },
 } as const;
 
 /** The handler each key names, as a type: what it takes and answers rides on it (route.ts, Shape). */
@@ -256,6 +259,7 @@ export type Routes = {
   "DELETE team/partner": typeof import("../../app/api/v1/team/partner/route").DELETE;
   "DELETE templates/[id]": typeof import("../../app/api/v1/templates/[id]/route").DELETE;
   "DELETE templates/versions/[id]": typeof import("../../app/api/v1/templates/versions/[id]/route").DELETE;
+  "DELETE workspaces/logo": typeof import("../../app/api/v1/workspaces/logo/route").DELETE;
   "GET activity": typeof import("../../app/api/v1/activity/route").GET;
   "GET ask/openings": typeof import("../../app/api/v1/ask/openings/route").GET;
   "GET ask/threads": typeof import("../../app/api/v1/ask/threads/route").GET;
@@ -449,6 +453,7 @@ export type Routes = {
   "POST templates/versions": typeof import("../../app/api/v1/templates/versions/route").POST;
   "POST vitals": typeof import("../../app/api/v1/vitals/route").POST;
   "POST workspaces/create": typeof import("../../app/api/v1/workspaces/create/route").POST;
+  "POST workspaces/logo/lookup": typeof import("../../app/api/v1/workspaces/logo/lookup/route").POST;
   "PUT business-record": typeof import("../../app/api/v1/business-record/route").PUT;
   "PUT contacts/[id]/consent": typeof import("../../app/api/v1/contacts/[id]/consent/route").PUT;
   "PUT contacts/[id]/details": typeof import("../../app/api/v1/contacts/[id]/details/route").PUT;
@@ -472,4 +477,5 @@ export type Routes = {
   "PUT settings": typeof import("../../app/api/v1/settings/route").PUT;
   "PUT templates/[id]": typeof import("../../app/api/v1/templates/[id]/route").PUT;
   "PUT views/[page]": typeof import("../../app/api/v1/views/[page]/route").PUT;
+  "PUT workspaces/logo": typeof import("../../app/api/v1/workspaces/logo/route").PUT;
 };

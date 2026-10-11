@@ -39251,6 +39251,7 @@ export {
   isWireUnavailableError,
   judgeBatch,
   layerTwo,
+  leadMarksFrom,
   mainAsk,
   markImageFrom,
   markPlaces,

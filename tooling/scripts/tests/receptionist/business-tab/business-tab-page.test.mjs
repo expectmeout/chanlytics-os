@@ -106,11 +106,12 @@ test("a missing voice is named in the gap line, and the link opens its row", () 
   );
 });
 
-test("Who you are draws seven rows, in the spec's order", () => {
+test("Who you are draws eight rows, in the spec's order: the logo after the name (00407)", () => {
   const card = byTestId(drawTab({ profile: marisa }), "rec-card-who");
   const keys = all(card, (n) => classes(n).includes("rec-row-key")).map(textOf);
   assert.deepEqual(keys, [
     "Name",
+    "Logo",
     "Address",
     "Website",
     "Booking link",

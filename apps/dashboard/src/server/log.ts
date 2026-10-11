@@ -201,6 +201,9 @@ export const DASHBOARD_LOG_EVENTS = [
   "visits_record_read_failed",
   "waitlist_join",
   "waitlist_repeat_not_updated",
+  "workspace_logo_lookup",
+  "workspace_logo_remove_failed",
+  "workspace_logo_store_failed",
   "write_receipt_unkept",
   "you_are_live_tell_failed",
 ] as const;

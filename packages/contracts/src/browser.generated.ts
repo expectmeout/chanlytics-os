@@ -174,6 +174,8 @@ export { standingFromConfig, standingNeedsRead, standingAlertWords, standingAfte
 export { registrationPathOf, soleProprietorLimits, REGISTRATION_PATHS, SOLE_PROP_LIMITS, REGISTRATION_QUESTION, REGISTRATION_PATH_WORDS, REGISTRATION_COST_WORDS } from "./lines/registration-path";
 export { WHATSAPP_COST_WORDS } from "./lines/whatsapp-cost";
 export { tryItLink } from "./lines/whatsapp-try-it";
+export { LOGO_PAD, LOGO_PLATE_LIGHT, LOGO_PLATE_DARK, logoLayout, logoDrawRect } from "./logo/layout";
+export { WORKSPACE_LOGOS_BUCKET, LOGO_SIDE, LOGO_SIDE_MIN, LOGO_BYTES_MAX, LOGO_BASE64_MAX, LOGO_CHOSEN_MAX_BYTES, LOGO_CHOSEN_TYPES, LOGO_FOUND_MAX_BYTES, LOGO_FOUND_SIDE_MIN, LOGO_FOUND_SIDE_MAX, workspaceLogoPath, isLogoPathOf, workspaceLogoSrc, LOGO_LOOKUP_OUTCOMES, LOGO_WORDS, logoLookupWords, logoFoundOn, workspaceInitials } from "./logo/logo";
 export { APP_ROUTE_RE, PUSH_TOKEN_MAX, parsePageMessage, parseShellMessage } from "./mobile/app-bridge";
 export { CALL_ACTIVITY_NAME, CALL_ACTIVITY_STALE_MS, CALL_ACTIVITY_ROLES, callActivityStart, callActivityPropsOf } from "./mobile/live-activity";
 export { todayWidgetSnapshot, parseTodayWidgetSnapshot } from "./mobile/widget";
@@ -277,7 +279,7 @@ export { ok, err } from "./shared/envelope";
 export { ERROR_CODES, AppError } from "./shared/errors";
 export { escapeHtml } from "./shared/html";
 export { UUID, isUuid, asTenantId, asContactId } from "./shared/identity";
-export { normalizeLink, whyNotALink, linkHost } from "./shared/link";
+export { normalizeLink, whyNotALink, linkHost, publicObjectSrc } from "./shared/link";
 export { sumOf } from "./shared/numbers";
 export { normalizePhone, samePhone, shortCode, phoneDialable, whyNotAPhone, whyNotAHandoff, whyNotForward, handoffE164, phoneTail, formatPhoneDisplay, HANDOFF_FORWARDS_BACK, FORWARD_IS_HANDOFF } from "./shared/phone";
 export { MIN_MS, HOUR_MS, DAY_MS, WEEK_MS, jittered, spanUnits, spanLabel, waitedLabel, agoShort, agoWords, timezoneCity } from "./shared/time";

@@ -13648,6 +13648,54 @@ function leadListEmptyOf(s) {
   };
 }
 
+// src/shared/link.ts
+var MAX_LINK = 500;
+var SCHEME = /^[a-z][a-z0-9+.-]*:/i;
+var HOST = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
+function normalizeLink(raw) {
+  if (raw == null) return null;
+  const s = String(raw).trim();
+  if (!s || /\s/.test(s)) return null;
+  const withScheme = SCHEME.test(s) ? s : `https://${s}`;
+  if (withScheme.length > MAX_LINK) return null;
+  let u;
+  try {
+    u = new URL(withScheme);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+  if (!HOST.test(u.hostname)) return null;
+  return withScheme;
+}
+function whyNotALink(raw) {
+  if (normalizeLink(raw)) return null;
+  const s = String(raw ?? "").trim();
+  if (!s) return "A web address is needed.";
+  if (/\s/.test(s)) return "Only the address itself, with no spaces in it.";
+  if (SCHEME.test(s) && !/^https?:/i.test(s)) return "That needs to be a web address, starting with https://.";
+  if (s.length > MAX_LINK) return "That address is too long to store: paste the link itself, not a whole page.";
+  return "That needs a full web address, like docs.example.com/proposal.";
+}
+function linkHost(url) {
+  try {
+    return new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+function publicObjectSrc(supabaseUrl, bucket, path) {
+  if (!supabaseUrl) return null;
+  let origin;
+  try {
+    origin = new URL(supabaseUrl).origin;
+  } catch {
+    return null;
+  }
+  if (!/^https:\/\//.test(origin) && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin)) return null;
+  return `${origin}/storage/v1/object/public/${bucket}/${path}`;
+}
+
 // src/leads/lead-row.ts
 function leadBand(search) {
   const r2 = search?.round;
@@ -13673,15 +13721,8 @@ var stageLabelOf = (stage, closedReason) => stage === "archived" ? LEAD_CLOSED_W
 var LEAD_MARKS_BUCKET = "lead-marks";
 var LEAD_MARK_PATH = /^[0-9a-f]{64}\.(png|jpg|webp|gif|ico)$/;
 function leadMarkSrc(supabaseUrl, path) {
-  if (!path || !LEAD_MARK_PATH.test(path) || !supabaseUrl) return null;
-  let origin;
-  try {
-    origin = new URL(supabaseUrl).origin;
-  } catch {
-    return null;
-  }
-  if (!/^https:\/\//.test(origin) && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin)) return null;
-  return `${origin}/storage/v1/object/public/${LEAD_MARKS_BUCKET}/${path}`;
+  if (!path || !LEAD_MARK_PATH.test(path)) return null;
+  return publicObjectSrc(supabaseUrl, LEAD_MARKS_BUCKET, path);
 }
 function toLeadRowVM(r2, tz, now, search = null) {
   const nowMs = now.getTime();
@@ -18667,43 +18708,6 @@ function visitAnswersAsk(nextStartMs, lastStartMs, askedMs) {
   return lastStartMs !== null && lastStartMs >= askedMs - DAY_MS;
 }
 
-// src/shared/link.ts
-var MAX_LINK = 500;
-var SCHEME = /^[a-z][a-z0-9+.-]*:/i;
-var HOST = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
-function normalizeLink(raw) {
-  if (raw == null) return null;
-  const s = String(raw).trim();
-  if (!s || /\s/.test(s)) return null;
-  const withScheme = SCHEME.test(s) ? s : `https://${s}`;
-  if (withScheme.length > MAX_LINK) return null;
-  let u;
-  try {
-    u = new URL(withScheme);
-  } catch {
-    return null;
-  }
-  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
-  if (!HOST.test(u.hostname)) return null;
-  return withScheme;
-}
-function whyNotALink(raw) {
-  if (normalizeLink(raw)) return null;
-  const s = String(raw ?? "").trim();
-  if (!s) return "A web address is needed.";
-  if (/\s/.test(s)) return "Only the address itself, with no spaces in it.";
-  if (SCHEME.test(s) && !/^https?:/i.test(s)) return "That needs to be a web address, starting with https://.";
-  if (s.length > MAX_LINK) return "That address is too long to store: paste the link itself, not a whole page.";
-  return "That needs a full web address, like docs.example.com/proposal.";
-}
-function linkHost(url) {
-  try {
-    return new URL(url).hostname.toLowerCase().replace(/^www\./, "");
-  } catch {
-    return url;
-  }
-}
-
 // src/deals/deal-amount.ts
 function amountWords(cents, per, currency = "USD") {
   if (cents === null || cents === void 0 || !Number.isFinite(cents)) return null;
@@ -23314,18 +23318,18 @@ function isReachOutRun(audience) {
   return !!audience && typeof audience === "object" && audience.kind === "reach_out";
 }
 var REACH_OUT_LANGUAGE = "en";
-function reachOutValues(lead, workspace, opening) {
+function reachOutValues(lead, workspace, opening2) {
   return slotValues(REACH_OUT_SLOT_SET, {
     business: lead.business_name,
     city: lead.city,
     "your business": workspace.businessName,
     "your name": workspace.yourName,
     "booking link": workspace.bookingLink,
-    opening
+    opening: opening2
   });
 }
-function reachOutEmailOf(words2, lead, workspace, opening = null) {
-  const values = reachOutValues(lead, workspace, opening);
+function reachOutEmailOf(words2, lead, workspace, opening2 = null) {
+  const values = reachOutValues(lead, workspace, opening2);
   const texts = words2.subject === null ? [words2.body] : [words2.subject, words2.body];
   if (texts.some((t) => slotHoles(REACH_OUT_SLOT_SET, t, values))) return { ok: false, reason: "missing_value" };
   const email = renderOwnVersion("email", words2, values, REACH_OUT_LANGUAGE, REACH_OUT_SLOT_SET);
@@ -26195,6 +26199,179 @@ function tryItNotes(wa, nowMs) {
   const fresh = age >= 0 && age < TRY_IT_LIVE_WITHIN_MS;
   return [{ text: TRY_IT_NOTE, link: { label: `wa.me/${digits2}`, href }, ...fresh ? { live: true } : {} }];
 }
+
+// src/logo/layout.ts
+var LOGO_PAD = 0.16;
+var LOGO_PLATE_LIGHT = "rgb(255, 255, 255)";
+var LOGO_PLATE_DARK = "rgb(28, 28, 32)";
+var CLEAR = 16;
+var OPAQUE = 240;
+var NEAR = 36;
+var AGREE = 0.95;
+var WIDE = 2.5;
+var SMALL = 96;
+var LIGHT_MARK = 0.82;
+var lightness = (r2, g, b) => (0.2126 * r2 + 0.7152 * g + 0.0722 * b) / 255;
+function rgbaOf(data, pixel) {
+  const i = pixel * 4;
+  return [data[i] ?? 0, data[i + 1] ?? 0, data[i + 2] ?? 0, data[i + 3] ?? 0];
+}
+function borderOf(width, height) {
+  const at3 = [];
+  for (let x = 0; x < width; x++) at3.push(x, (height - 1) * width + x);
+  for (let y = 1; y < height - 1; y++) at3.push(y * width, y * width + width - 1);
+  return height === 1 ? at3.slice(0, width) : at3;
+}
+function groundOf(px) {
+  const { data, width, height } = px;
+  const edge = borderOf(width, height);
+  let clear = 0;
+  let r2 = 0;
+  let g = 0;
+  let b = 0;
+  let solid = 0;
+  for (const i of edge) {
+    const [pr, pg, pb, a] = rgbaOf(data, i);
+    if (a < CLEAR) clear++;
+    else if (a >= OPAQUE) {
+      solid++;
+      r2 += pr;
+      g += pg;
+      b += pb;
+    }
+  }
+  if (clear >= edge.length * AGREE) return { kind: "clear" };
+  if (solid < edge.length * AGREE) return { kind: "busy" };
+  const mean = { r: r2 / solid, g: g / solid, b: b / solid };
+  let agree = 0;
+  for (const i of edge) {
+    const [pr, pg, pb, a] = rgbaOf(data, i);
+    const d = Math.abs(pr - mean.r) + Math.abs(pg - mean.g) + Math.abs(pb - mean.b);
+    if (a >= OPAQUE && d <= NEAR) agree++;
+  }
+  if (agree < edge.length * AGREE) return { kind: "busy" };
+  return { kind: "solid", r: Math.round(mean.r), g: Math.round(mean.g), b: Math.round(mean.b) };
+}
+function contentOf(px, ground) {
+  const { data, width, height } = px;
+  let x0 = width;
+  let y0 = height;
+  let x1 = -1;
+  let y1 = -1;
+  let lit = 0;
+  let weight = 0;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const [r2, g, b, a] = rgbaOf(data, y * width + x);
+      if (a < CLEAR) continue;
+      if (ground.kind === "solid") {
+        const d = Math.abs(r2 - ground.r) + Math.abs(g - ground.g) + Math.abs(b - ground.b);
+        if (a >= OPAQUE && d <= NEAR) continue;
+      }
+      if (x < x0) x0 = x;
+      if (x > x1) x1 = x;
+      if (y < y0) y0 = y;
+      if (y > y1) y1 = y;
+      lit += lightness(r2, g, b) * a;
+      weight += a;
+    }
+  }
+  if (x1 < 0) return null;
+  return { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1, light: weight ? lit / weight : 0 };
+}
+function logoLayout(px) {
+  const { width, height } = px;
+  if (width < 1 || height < 1 || px.data.length < width * height * 4) return null;
+  const ground = groundOf(px);
+  if (ground.kind === "busy") {
+    const side = Math.min(width, height);
+    return {
+      mode: "fill",
+      crop: { x: Math.floor((width - side) / 2), y: Math.floor((height - side) / 2), w: side, h: side },
+      plate: null,
+      notes: side < SMALL ? ["small"] : []
+    };
+  }
+  const box = contentOf(px, ground);
+  if (!box) return null;
+  const notes = [];
+  if (Math.max(box.w, box.h) / Math.min(box.w, box.h) > WIDE) notes.push("wide");
+  if (Math.max(box.w, box.h) < SMALL) notes.push("small");
+  const plate = ground.kind === "solid" ? `rgb(${ground.r}, ${ground.g}, ${ground.b})` : box.light > LIGHT_MARK ? LOGO_PLATE_DARK : LOGO_PLATE_LIGHT;
+  return { mode: "fit", crop: { x: box.x, y: box.y, w: box.w, h: box.h }, plate, notes };
+}
+function logoDrawRect(layout, side) {
+  if (layout.mode === "fill") return { x: 0, y: 0, w: side, h: side };
+  const room = side * (1 - 2 * LOGO_PAD);
+  const scale = Math.min(room / layout.crop.w, room / layout.crop.h);
+  const w = layout.crop.w * scale;
+  const h = layout.crop.h * scale;
+  return { x: (side - w) / 2, y: (side - h) / 2, w, h };
+}
+
+// src/logo/logo.ts
+var WORKSPACE_LOGOS_BUCKET = "workspace-logos";
+var LOGO_SIDE = 256;
+var LOGO_SIDE_MIN = 128;
+var LOGO_BYTES_MAX = 262144;
+var LOGO_BASE64_MAX = Math.ceil(LOGO_BYTES_MAX / 3) * 4;
+var LOGO_CHOSEN_MAX_BYTES = 10 * 1024 * 1024;
+var LOGO_CHOSEN_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+var LOGO_FOUND_MAX_BYTES = 524288;
+var LOGO_FOUND_SIDE_MIN = 96;
+var LOGO_FOUND_SIDE_MAX = 2048;
+var RANDOM_ID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+var WORKSPACE_LOGO_PATH = new RegExp(`^${RANDOM_ID}/${RANDOM_ID}\\.png$`);
+var workspaceLogoPath = (tenantId, fileId) => `${tenantId}/${fileId}.png`;
+function isLogoPathOf(tenantId, path) {
+  return !!path && WORKSPACE_LOGO_PATH.test(path) && path.startsWith(`${tenantId}/`);
+}
+function workspaceLogoSrc(supabaseUrl, path) {
+  if (!path || !WORKSPACE_LOGO_PATH.test(path)) return null;
+  return publicObjectSrc(supabaseUrl, WORKSPACE_LOGOS_BUCKET, path);
+}
+function workspaceInitials(name) {
+  const words2 = String(name ?? "").split(/[^\p{L}\p{N}'’]+/u).map((w) => w.replace(/^['’]+|['’]+$/g, "")).filter(Boolean);
+  const named = words2.length > 1 && /^the$/i.test(words2[0] ?? "") ? words2.slice(1) : words2;
+  return ((named[0]?.[0] ?? "") + (named[1]?.[0] ?? "")).toUpperCase() || "\u2014";
+}
+var LOGO_LOOKUP_OUTCOMES = ["found", "none", "unreachable", "not_its_own", "no_website"];
+var LOGO_WORDS = {
+  label: "Logo",
+  add: "Add",
+  change: "Change",
+  menuLabel: "Your logo",
+  choose: "Choose a picture",
+  fromWebsite: "Use the one on your website",
+  remove: "Remove",
+  save: "Save",
+  cancel: "Cancel",
+  useIt: "Use it",
+  notThis: "Not this one",
+  looking: "Looking on your website\u2026",
+  saving: "Saving\u2026",
+  saved: "Saved",
+  removed: "Removed",
+  notSaved: "Not saved \u2014 it didn't go through. Try again.",
+  unusable: "We couldn't use that picture. Try another.",
+  wide: "This one is wide, so it will look small in the circle. A square version fits best.",
+  small: "This picture is small, so it may look soft."
+};
+function logoLookupWords(outcome) {
+  switch (outcome) {
+    case "found":
+      return null;
+    case "none":
+      return "We couldn't find a logo on your website. Choose a picture instead.";
+    case "unreachable":
+      return "We couldn't reach your website just now. Try again, or choose a picture.";
+    case "not_its_own":
+      return "Your website is a page on another service, so its logo would be theirs. Choose a picture instead.";
+    case "no_website":
+      return "Add your website first, or choose a picture.";
+  }
+}
+var logoFoundOn = (host) => `Found on ${host}`;
 
 // src/shared/identity.ts
 var UUID3 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -31702,6 +31879,7 @@ var ROUTE_KEYS = [
   "DELETE team/partner",
   "DELETE templates/[id]",
   "DELETE templates/versions/[id]",
+  "DELETE workspaces/logo",
   "GET activity",
   "GET ask/openings",
   "GET ask/threads",
@@ -31895,6 +32073,7 @@ var ROUTE_KEYS = [
   "POST templates/versions",
   "POST vitals",
   "POST workspaces/create",
+  "POST workspaces/logo/lookup",
   "PUT business-record",
   "PUT contacts/[id]/consent",
   "PUT contacts/[id]/details",
@@ -31917,7 +32096,8 @@ var ROUTE_KEYS = [
   "PUT segments/[id]",
   "PUT settings",
   "PUT templates/[id]",
-  "PUT views/[page]"
+  "PUT views/[page]",
+  "PUT workspaces/logo"
 ];
 
 // src/schema-sets.generated.ts
@@ -32461,12 +32641,13 @@ function checkChipsOf(i) {
 
 // src/voice/greeting.ts
 function greetingFor(name) {
-  const who = name ? ` ${name}` : "";
-  return `Thank you for calling${who}! This call may be recorded. I'm the automated assistant \u2014 how can I help you today?`;
+  return `${opening(name)} I'm the automated assistant, and calls are recorded. How can I help?`;
+}
+function opening(name) {
+  return name ? `Hi, ${name}.` : "Hi, thanks for calling.";
 }
 function pausedGreetingFor(name) {
-  const who = name ? ` ${name}` : "";
-  return `Thank you for calling${who}! This call may be recorded. I'm the automated assistant, and today I can only take a message for the team.`;
+  return `${opening(name)} I'm the automated assistant, and calls are recorded. Today I can only take a message for the team.`;
 }
 var GREETING_DEFAULT = /* @__PURE__ */ greetingFor(null);
 
@@ -39150,6 +39331,20 @@ export {
   LIST_STANDINGS,
   LIVE_OVERLONG_MS,
   LIVE_STALE_MS,
+  LOGO_BASE64_MAX,
+  LOGO_BYTES_MAX,
+  LOGO_CHOSEN_MAX_BYTES,
+  LOGO_CHOSEN_TYPES,
+  LOGO_FOUND_MAX_BYTES,
+  LOGO_FOUND_SIDE_MAX,
+  LOGO_FOUND_SIDE_MIN,
+  LOGO_LOOKUP_OUTCOMES,
+  LOGO_PAD,
+  LOGO_PLATE_DARK,
+  LOGO_PLATE_LIGHT,
+  LOGO_SIDE,
+  LOGO_SIDE_MIN,
+  LOGO_WORDS,
   LOOK_OFFERED,
   LOOK_OPTIONS,
   ListConditionSchema,
@@ -39562,6 +39757,7 @@ export {
   WHATSAPP_LANGUAGES,
   WHATSAPP_VERSION_ALONE,
   WHY_FROM_MAPS,
+  WORKSPACE_LOGOS_BUCKET,
   WRITE_HOLDS,
   WRITE_HOLD_WORDS,
   abandonedCall,
@@ -40098,6 +40294,7 @@ export {
   isLensParam,
   isLibrarySample,
   isLiveCall,
+  isLogoPathOf,
   isLookPref,
   isModelId,
   isNoticeHold,
@@ -40279,6 +40476,10 @@ export {
   localDaysBetween,
   localHour,
   localToUtcMs,
+  logoDrawRect,
+  logoFoundOn,
+  logoLayout,
+  logoLookupWords,
   lookPrefOf,
   markOn,
   maskedEmail,
@@ -40583,6 +40784,7 @@ export {
   proseAnswer,
   providerCodeOf,
   providerNameOf,
+  publicObjectSrc,
   purposeOfPlaybook,
   purposeOfTemplate,
   pushFor,
@@ -41049,6 +41251,9 @@ export {
   wordCount,
   wordsIssueWords,
   wordsNeedOpening,
+  workspaceInitials,
+  workspaceLogoPath,
+  workspaceLogoSrc,
   workspacePartnerVM,
   workspacePath,
   writeReachOf,

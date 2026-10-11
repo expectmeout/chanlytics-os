@@ -420,7 +420,7 @@ test.describe("Phone shell on a real workspace", () => {
     await page.waitForLoadState("networkidle");
     const bar = page.getByTestId("people-phone-bar");
     await expect(bar).toBeVisible();
-    for (const id of ["people-phone-lists", "people-phone-search-open"])
+    for (const id of ["people-phone-lists", "people-phone-search"])
       await expect(bar.getByTestId(id)).toBeInViewport({ ratio: 1 });
     await expect(page.locator(".cl-controls")).toHaveCount(0);
     expect(
@@ -440,10 +440,10 @@ test.describe("Phone shell on a real workspace", () => {
       (await row.locator(".pl-card > .list-row-end").boundingBox())!.height,
       "a state is a pill, not a 36px button",
     ).toBeLessThanOrEqual(22);
-    // Search: the bar becomes the field, at 16px (a phone zooms into anything smaller); the clear (×) empties it from
-    // the first word, and the field left empty rests as focus leaves it (there is no Cancel).
-    // On a touch screen the field waits for a tap: no keyboard rises by itself.
-    await bar.getByTestId("people-phone-search-open").click();
+    // Search: the field from the first draw, at 16px (a phone zooms into anything smaller). Nothing focuses it by
+    // itself, and ONE tap begins the typing: it rested as a capsule a tap only swapped for the field, and a second tap
+    // raised the keyboard (Ruben, 11 Oct 2026). The clear (×) empties it from the first word and keeps it in focus
+    // (there is no Cancel).
     const field = page.getByTestId("people-phone-search");
     await expect(field).toBeVisible();
     await expect(field).not.toBeFocused();
@@ -451,8 +451,9 @@ test.describe("Phone shell on a real workspace", () => {
     await expect(field).toBeFocused();
     expect(await field.evaluate((el) => Number.parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
     await field.fill("zz");
-    await page.getByTestId("people-phone-search-clear").click();
+    await page.getByTestId("people-phone-search-clear").tap();
     await expect(field).toHaveValue("");
+    await expect(field).toBeFocused();
     await field.blur();
     await expect(bar.getByTestId("people-phone-lists")).toBeVisible();
     // A list picked in the sheet closes it and leaves no tip behind: the tap focused its row, the sheet took the row

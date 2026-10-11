@@ -304,6 +304,15 @@ export async function lineForwardingSet(db: Db, args: LineForwardingArgs) {
   return db.rpc("line_forwarding_set", args);
 }
 
+/**
+ * The workspace's logo address set through its one door (set_workspace_logo, 00407), on the member's session: the
+ * caller's settings permission, the workspace's own folder, the change's event in the same transaction. An empty path
+ * clears it. The address it held before, or the database's refusal.
+ */
+export async function setWorkspaceLogo(db: Db, tenantId: string, path: string) {
+  return db.rpc("set_workspace_logo", { p_tenant_id: tenantId, p_logo_path: path });
+}
+
 /** The columns an edit may write, as the table types them. */
 export type PlaybookPatch = Database["public"]["Tables"]["playbooks"]["Update"];
 

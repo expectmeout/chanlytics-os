@@ -558,6 +558,72 @@ function setPublicFetch(f) {
   return before;
 }
 
+// src/site-reads.ts
+var BOT_USER_AGENT = "ChanlyticsBot/1.0 (+https://chanlytics.com/bot)";
+var READ_FLOOR_MS = 500;
+var PAGE_READ_CAP_MS = 8e3;
+var IMAGE_READ_CAP_MS = 5e3;
+var PAGE_MAX_BYTES = 96e3;
+async function pageText(fetchImpl, url, timeoutMs) {
+  const stop = AbortSignal.timeout(Math.max(READ_FLOOR_MS, Math.min(timeoutMs, PAGE_READ_CAP_MS)));
+  try {
+    const res = await fetchImpl(url, {
+      signal: stop,
+      redirect: "follow",
+      headers: {
+        accept: "text/html,application/xhtml+xml",
+        "user-agent": BOT_USER_AGENT
+      }
+    });
+    if (!res.ok) return null;
+    if (!(res.headers.get("content-type") ?? "").toLowerCase().includes("html")) return null;
+    const body = await res.text();
+    return body.slice(0, PAGE_MAX_BYTES);
+  } catch {
+    return null;
+  }
+}
+async function imageBytes(fetchImpl, url, timeoutMs, maxBytes) {
+  const stop = AbortSignal.timeout(Math.max(READ_FLOOR_MS, Math.min(timeoutMs, IMAGE_READ_CAP_MS)));
+  try {
+    const res = await fetchImpl(url, {
+      signal: stop,
+      redirect: "follow",
+      headers: {
+        accept: "image/png,image/jpeg,image/webp,image/gif,image/x-icon;q=0.9,*/*;q=0.5",
+        "user-agent": BOT_USER_AGENT
+      }
+    });
+    if (!res.ok || !res.body) return null;
+    if (Number(res.headers.get("content-length") ?? 0) > maxBytes) {
+      await res.body.cancel().catch(() => void 0);
+      return null;
+    }
+    const reader = res.body.getReader();
+    const parts = [];
+    let size = 0;
+    for (; ; ) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maxBytes) {
+        await reader.cancel().catch(() => void 0);
+        return null;
+      }
+      parts.push(value);
+    }
+    const out = new Uint8Array(size);
+    let at = 0;
+    for (const part of parts) {
+      out.set(part, at);
+      at += part.byteLength;
+    }
+    return out;
+  } catch {
+    return null;
+  }
+}
+
 // src/models/anthropic.ts
 import { fallbackModel, modelRoute, usageOf, NO_USAGE } from "../../contracts/dist/index.js";
 var ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
@@ -1137,7 +1203,9 @@ async function getAgent(cfg, agentId) {
     data_storage_setting: str2("data_storage_setting"),
     data_storage_retention_days: num("data_storage_retention_days"),
     opt_in_signed_url: bool("opt_in_signed_url"),
-    post_call_analysis_data: Array.isArray(a.post_call_analysis_data) ? a.post_call_analysis_data : null
+    post_call_analysis_data: Array.isArray(a.post_call_analysis_data) ? a.post_call_analysis_data : null,
+    reminder_trigger_ms: num("reminder_trigger_ms"),
+    reminder_max_count: num("reminder_max_count")
   };
 }
 async function getAgentRaw(cfg, agentId) {
@@ -1246,7 +1314,8 @@ import {
   CALL_OUTCOMES,
   greetingFor,
   GREETING_DEFAULT,
-  POLICY_COVERS
+  POLICY_COVERS,
+  RETELL_MODELS
 } from "../../contracts/dist/index.js";
 var VOICE_SHELL_PROMPT = "{{business_facts}}\n\nWho you are speaking with:\n{{caller_context}}";
 var VOICE_SHELL_BEGIN = "{{greeting}}";
@@ -1405,7 +1474,7 @@ function planVoiceConvergence(live, desired) {
   if (unknownTools.length)
     drift.push(`live tools the shell does not define (an apply would drop them): ${unknownTools.join(", ")}`);
   if (toolsDiffer) patch.general_tools = desired.general_tools;
-  return { drift, llmPatch: Object.keys(patch).length ? patch : null, unknownTools };
+  return { drift, llmPatch: Object.keys(patch).length ? patch : null, unknownTools, notes: llmNotes(live) };
 }
 function voiceShellDrift(live, fnUrl) {
   const booking = (live.general_tools ?? []).find((t) => t.name === "send_booking_link");
@@ -1520,7 +1589,102 @@ function planAgentSettings(live, opts = {}) {
       patch.data_storage_retention_days = opts.retentionDays;
     }
   }
-  return { drift, agentPatch: Object.keys(patch).length ? patch : null };
+  planFirstSeconds(live, opts.locales, drift, patch);
+  return { drift, agentPatch: Object.keys(patch).length ? patch : null, notes: agentNotes(live) };
+}
+var SILENCE_REMINDER_MS = 4e3;
+var SILENCE_REMINDERS = 2;
+var RETELL_MULTI = ["en-US", "es-ES", "fr-FR", "de-DE", "hi-IN", "ru-RU", "pt-PT", "ja-JP", "it-IT", "nl-NL"];
+var RETELL_LOCALE_OF = {
+  english: "en-US",
+  spanish: "es-419",
+  espa\u00F1ol: "es-419",
+  espanol: "es-419",
+  portuguese: "pt-BR",
+  french: "fr-FR",
+  mandarin: "zh-CN",
+  chinese: "zh-CN",
+  cantonese: "yue-CN",
+  arabic: "ar-SA",
+  russian: "ru-RU",
+  polish: "pl-PL",
+  italian: "it-IT",
+  hindi: "hi-IN",
+  german: "de-DE",
+  japanese: "ja-JP",
+  korean: "ko-KR",
+  vietnamese: "vi-VN",
+  tagalog: "fil-PH",
+  filipino: "fil-PH",
+  ukrainian: "uk-UA",
+  turkish: "tr-TR",
+  dutch: "nl-NL",
+  greek: "el-GR",
+  hebrew: "he-IL"
+};
+function retellLocalesFor(languages) {
+  const named = (languages ?? []).map((l) => l.trim()).filter(Boolean);
+  if (!named.length) return { kept: "the workspace names no language: what the agent listens for is kept" };
+  const pairs = named.map((name) => ({ name, locale: RETELL_LOCALE_OF[name.toLowerCase()] }));
+  const unknown = pairs.filter((p) => !p.locale).map((p) => p.name);
+  if (unknown.length)
+    return {
+      kept: `the workspace names ${unknown.join(", ")}, which the provider has no locale for here: what the agent listens for is kept`
+    };
+  const found = pairs.map((p) => p.locale).filter((l) => typeof l === "string");
+  return { locales: [.../* @__PURE__ */ new Set(["en-US", ...found])] };
+}
+var languageOf = (locale) => locale.replace(/-.*$/, "").toLowerCase();
+function unpublishedLatestNote(version) {
+  return `v${String(version)}, the agent's latest, is an unpublished draft: what is planned here is that draft, and a pinned line runs the last published version, which is not read here. The converger never publishes a draft it did not make in this run (it may hold edits made elsewhere): look at v${String(version)} in Retell and publish it there`;
+}
+function newDraftNote(draft, published) {
+  return `v${String(draft)} is a draft: a pinned line stays on v${String(published)} until it is published. A second run finds it as a draft it did not make and leaves it, so publish it in Retell, or apply and publish together next time`;
+}
+function liveLocales(language) {
+  if (Array.isArray(language)) return language;
+  if (language === "multi") return RETELL_MULTI;
+  return [language || "en-US"];
+}
+function planFirstSeconds(live, locales, drift, patch) {
+  const trigger = live.reminder_trigger_ms ?? 1e4;
+  const times = live.reminder_max_count ?? 1;
+  if (trigger !== SILENCE_REMINDER_MS || times !== SILENCE_REMINDERS) {
+    drift.push(
+      `a silent caller is reminded after ${trigger} ms, ${times} time(s); the product reminds after ${SILENCE_REMINDER_MS} ms, ${SILENCE_REMINDERS} times`
+    );
+    patch.reminder_trigger_ms = SILENCE_REMINDER_MS;
+    patch.reminder_max_count = SILENCE_REMINDERS;
+  }
+  if (!locales?.length) return;
+  const have = liveLocales(live.language);
+  const languages = (ls) => [...new Set(ls.map(languageOf))].sort().join();
+  if (languages(have) !== languages(locales)) {
+    drift.push(`listens for ${have.join(", ")}; the workspace speaks ${locales.join(", ")}`);
+    patch.language = locales.length === 1 ? locales[0] : [...locales];
+  }
+}
+function agentNotes(live) {
+  const notes = [];
+  if (live.voice_id && live.voice_id !== "minimax-Tamsin")
+    notes.push(`voice is ${live.voice_id}; the product's default is minimax-Tamsin (a voice is the owner's: kept)`);
+  if (live.post_call_analysis_model && live.post_call_analysis_model !== RETELL_MODELS.analysis)
+    notes.push(
+      `post-call analysis runs on ${live.post_call_analysis_model}; the product's is ${RETELL_MODELS.analysis} (kept: a model change goes through the gate)`
+    );
+  return notes;
+}
+function llmNotes(live) {
+  const notes = [];
+  if (live.model && live.model !== RETELL_MODELS.llm)
+    notes.push(
+      `model is ${live.model}; the product's is ${RETELL_MODELS.llm} (kept: a model change goes through the gate)`
+    );
+  if (typeof live.model_temperature === "number" && live.model_temperature !== 0)
+    notes.push(
+      `temperature is ${live.model_temperature}; the product's is 0, so the facts are read, not improvised (kept)`
+    );
+  return notes;
 }
 function agentSettingsDrift(live) {
   const plan = planAgentSettings(live);
@@ -1528,9 +1692,9 @@ function agentSettingsDrift(live) {
 }
 
 // src/voice/voice-provision.ts
-import { E164, HOUR_MS, RETELL_MODELS } from "../../contracts/dist/index.js";
+import { E164, HOUR_MS, RETELL_MODELS as RETELL_MODELS2 } from "../../contracts/dist/index.js";
 var VOICE_LLM_DEFAULTS = {
-  model: RETELL_MODELS.llm,
+  model: RETELL_MODELS2.llm,
   model_temperature: 0,
   start_speaker: "agent"
 };
@@ -1538,10 +1702,14 @@ var VOICE_AGENT_DEFAULTS = {
   voice_id: "minimax-Tamsin",
   language: ["en-US", "es-ES", "fr-FR", "de-DE", "hi-IN", "ru-RU", "pt-PT", "ja-JP", "it-IT", "nl-NL"],
   end_call_after_silence_ms: 3e4,
+  // A silent caller is reminded after four seconds, twice (voice-shell.ts SILENCE_REMINDER_MS): the converger holds
+  // every live agent to the same. The ten locales stay until a line is converged to its workspace's (retellLocalesOf).
+  reminder_trigger_ms: SILENCE_REMINDER_MS,
+  reminder_max_count: SILENCE_REMINDERS,
   max_call_duration_ms: HOUR_MS,
   data_storage_setting: "everything",
   data_storage_retention_days: 90,
-  post_call_analysis_model: RETELL_MODELS.analysis,
+  post_call_analysis_model: RETELL_MODELS2.analysis,
   allow_user_dtmf: true
 };
 var VOICE_NUMBER_DEFAULTS = {
@@ -4970,6 +5138,7 @@ export {
   APIFY_TIMEOUT_MS,
   ApifyRefused,
   ApifyRetryable,
+  BOT_USER_AGENT,
   CALLER_UNKNOWN,
   CALL_ANALYSIS_FIELDS,
   EDGE_TOKEN_TTL_MS,
@@ -5105,6 +5274,7 @@ export {
   hostedAddress,
   hostedIdentity,
   idTokenClaims,
+  imageBytes,
   importPhoneNumber,
   isAreaCode,
   isBrandNotReady,
@@ -5127,6 +5297,7 @@ export {
   messageIdHeader,
   messageIdsIn,
   mintConversationToken,
+  newDraftNote,
   newNonce,
   nextA2PStep,
   nextLineStep,
@@ -5135,6 +5306,7 @@ export {
   noteTenant,
   oneTimeCodeOf,
   ownDomainIdentity,
+  pageText,
   parseAccounts,
   parseLocations,
   parsePlaceDetails,
@@ -5178,6 +5350,7 @@ export {
   resendWebhookSignature,
   resetBreakers,
   retellImportBody,
+  retellLocalesFor,
   reviewBells,
   reviewIdOf,
   reviewParent,
@@ -5234,6 +5407,7 @@ export {
   twilioSignedString,
   twilioUrls,
   unb64url,
+  unpublishedLatestNote,
   unsubscribeUrl,
   updateAgent,
   updateCampaignRequest,

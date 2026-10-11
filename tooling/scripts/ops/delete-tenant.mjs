@@ -264,6 +264,15 @@ for (const c of byTable.get("tenant_channels") ?? []) {
     );
 }
 
+// The workspace's logo (00407) is a file in a public bucket, which no cascade reaches. Its folder is read here, said with
+// the counts, and emptied after the rows are gone; a bucket this database does not have yet reads as no files.
+const { data: logoFiles } = await db.storage.from("workspace-logos").list(tenantId);
+const logos = (logoFiles ?? []).map((f) => `${tenantId}/${f.name}`);
+if (logos.length)
+  console.log(
+    `  ${"logo files".padEnd(22)} ${String(logos.length).padStart(6)}   removed from workspace-logos after the rows`,
+  );
+
 if (orphans.length) {
   console.log(`\nWOULD BE STRANDED OUTSIDE THE DATABASE (${orphans.length}):`);
   for (const o of orphans) console.log(`  · ${o}`);
@@ -304,6 +313,15 @@ if (dErr) {
 if (!gone || gone.length !== 1) {
   console.error(`REFUSING TO REPORT SUCCESS: expected 1 tenant row deleted, got ${gone?.length ?? 0}.`);
   process.exit(1);
+}
+
+if (logos.length) {
+  const { error: lErr } = await db.storage.from("workspace-logos").remove(logos);
+  console.log(
+    lErr
+      ? `the logo files could not be removed (${lErr.message}); remove them from workspace-logos by hand: ${logos.join(", ")}`
+      : `removed ${logos.length} logo file${logos.length === 1 ? "" : "s"} from workspace-logos`,
+  );
 }
 
 const { data: still } = await db.from("tenants").select("id").eq("id", tenantId).maybeSingle();

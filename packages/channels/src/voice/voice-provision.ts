@@ -23,6 +23,8 @@ import {
   VOICE_WEBHOOK_EVENTS,
   VOICE_WEBHOOK_TIMEOUT_MS,
   CALL_ANALYSIS_FIELDS,
+  SILENCE_REMINDER_MS,
+  SILENCE_REMINDERS,
 } from "./voice-shell";
 import { E164, HOUR_MS, RETELL_MODELS } from "@chanlytics/contracts";
 
@@ -47,6 +49,10 @@ export const VOICE_AGENT_DEFAULTS = {
   voice_id: "minimax-Tamsin",
   language: ["en-US", "es-ES", "fr-FR", "de-DE", "hi-IN", "ru-RU", "pt-PT", "ja-JP", "it-IT", "nl-NL"],
   end_call_after_silence_ms: 30000,
+  // A silent caller is reminded after four seconds, twice (voice-shell.ts SILENCE_REMINDER_MS): the converger holds
+  // every live agent to the same. The ten locales stay until a line is converged to its workspace's (retellLocalesOf).
+  reminder_trigger_ms: SILENCE_REMINDER_MS,
+  reminder_max_count: SILENCE_REMINDERS,
   max_call_duration_ms: HOUR_MS,
   data_storage_setting: "everything",
   data_storage_retention_days: 90,
