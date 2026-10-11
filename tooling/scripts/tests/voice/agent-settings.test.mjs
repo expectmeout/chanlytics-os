@@ -8,6 +8,9 @@
  * They were flipped by hand in the provider's dashboard; now the converger
  * plans them, the diagnostic reports drift, and the provisioning script
  * mirrors them. Retention is applied only when asked — a product decision.
+ * The first seconds of a call are planned the same way: a silent caller is
+ * reminded after four seconds, twice, and an agent listens for the languages
+ * its workspace speaks (the engine review's second pass, 11 Oct 2026).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -18,7 +21,13 @@ import {
   VOICE_WEBHOOK_TIMEOUT_MS,
   CALL_ANALYSIS_FIELDS,
   voiceAgentCreateBody,
+  retellLocalesFor,
+  unpublishedLatestNote,
+  newDraftNote,
+  planVoiceConvergence,
+  desiredVoiceShell,
 } from "@chanlytics/channels";
+import { RETELL_MODELS } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
 
 /** Where the voice tools post in these fixtures: the address an edge off production gives them (dashboard-origin.ts). */
@@ -34,6 +43,8 @@ test("a fresh agent (provider defaults) is planned onto the pipeline's settings"
   assert.deepEqual(Object.keys(plan.agentPatch).sort(), [
     "opt_in_signed_url",
     "post_call_analysis_data",
+    "reminder_max_count",
+    "reminder_trigger_ms",
     "webhook_events",
     "webhook_timeout_ms",
   ]);
@@ -63,6 +74,8 @@ test("a converged agent plans nothing, and extra events are kept", () => {
     opt_in_signed_url: true,
     data_storage_retention_days: null,
     post_call_analysis_data: CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })),
+    reminder_trigger_ms: 4000,
+    reminder_max_count: 2,
   };
   const plan = planAgentSettings(live);
   assert.equal(plan.agentPatch, null);
@@ -79,6 +92,8 @@ test("a leftover ?key= on the call webhook's URL is drift, planned away to the b
     opt_in_signed_url: true,
     data_storage_retention_days: null,
     post_call_analysis_data: CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })),
+    reminder_trigger_ms: 4000,
+    reminder_max_count: 2,
   };
   const bare = "https://chanlytics-messaging.vercel.app/api/retell-webhook";
   // Raw from the provider (the converger, the script): the query is still on the URL.
@@ -113,6 +128,8 @@ test("retention is planned only when asked, and refused outside the provider's r
     opt_in_signed_url: true,
     data_storage_retention_days: null,
     post_call_analysis_data: CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })),
+    reminder_trigger_ms: 4000,
+    reminder_max_count: 2,
   };
   const asked = planAgentSettings(live, { retentionDays: 365 });
   assert.deepEqual(asked.agentPatch, { data_storage_retention_days: 365 });
@@ -126,7 +143,12 @@ test("retention is planned only when asked, and refused outside the provider's r
 
 test("the converger, the diagnostic and the provisioning script all read the same plan", () => {
   const converge = readRaw("tooling/scripts/ops/voice-converge.mjs");
-  assert.ok(converge.includes("planAgentSettings(agent, retentionDays !== undefined ? { retentionDays } : {})"));
+  assert.ok(converge.includes("planAgentSettings(agent, {"));
+  assert.ok(converge.includes("const spoken = languages?.length ? retellLocalesFor(languages) : null;"));
+  assert.ok(
+    converge.includes('...(spoken && "locales" in spoken ? { locales: spoken.locales } : {}),'),
+    "unset, or naming a language with no locale, the language is kept",
+  );
   assert.ok(converge.includes("/update-agent/${agent.agent_id}"));
   assert.ok(converge.includes('"--retention-days"'));
   assert.ok(
@@ -147,8 +169,13 @@ test("the converger, the diagnostic and the provisioning script all read the sam
   );
   assert.ok(converge.includes('const publish = process.argv.includes("--publish");'));
   assert.ok(
-    converge.includes("is a DRAFT: a pinned line stays on"),
+    converge.includes("newDraftNote(working.version, agent.version)"),
     "without --publish the script says the line did not change",
+  );
+  assert.ok(
+    converge.includes("if (!agent.is_published) console.log(") &&
+      converge.indexOf("unpublishedLatestNote(agent.version)") < converge.indexOf("if (!apply)"),
+    "a draft that was already the latest is named before the plan, dry run or not (11 Oct 2026: it was patched in silence)",
   );
   // The diagnostic's agent-settings drift is run in diag-door.test.mjs.
   const adapter = readCode("packages/channels/src/voice/voice-retell.ts");
@@ -158,4 +185,113 @@ test("the converger, the diagnostic and the provisioning script all read the sam
   assert.deepEqual(created.webhook_events, ["call_started", "call_ended", "call_analyzed", "transcript_updated"]);
   assert.equal(created.webhook_timeout_ms, 20000);
   assert.equal(created.opt_in_signed_url, true);
+  assert.deepEqual([created.reminder_trigger_ms, created.reminder_max_count], [4000, 2]);
+});
+
+const CONVERGED = {
+  webhook_events: [...VOICE_WEBHOOK_EVENTS],
+  webhook_timeout_ms: 20000,
+  opt_in_signed_url: true,
+  data_storage_retention_days: null,
+  post_call_analysis_data: CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })),
+  reminder_trigger_ms: 4000,
+  reminder_max_count: 2,
+};
+
+test("a silent caller is reminded after four seconds, twice: the provider's ten-second single reminder is drift", () => {
+  const unset = planAgentSettings({ ...CONVERGED, reminder_trigger_ms: null, reminder_max_count: null });
+  assert.deepEqual(unset.agentPatch, { reminder_trigger_ms: 4000, reminder_max_count: 2 });
+  assert.equal(unset.drift.length, 1);
+  assert.ok(unset.drift[0].includes("10000 ms, 1 time(s)"), unset.drift[0]);
+  // Either half alone is drift, and both are written, so the pair is never half set.
+  const once = planAgentSettings({ ...CONVERGED, reminder_max_count: 1 });
+  assert.deepEqual(once.agentPatch, { reminder_trigger_ms: 4000, reminder_max_count: 2 });
+  const slow = planAgentSettings({ ...CONVERGED, reminder_trigger_ms: 6000 });
+  assert.deepEqual(slow.agentPatch, { reminder_trigger_ms: 4000, reminder_max_count: 2 });
+  assert.equal(agentSettingsDrift(CONVERGED).converged, true);
+});
+
+test("an agent listens for the languages its workspace speaks, in whatever form the provider stored them", () => {
+  const multi = ["en-US", "es-ES", "fr-FR", "de-DE", "hi-IN", "ru-RU", "pt-PT", "ja-JP", "it-IT", "nl-NL"];
+  const salon = retellLocalesFor(["English", "Spanish"]).locales;
+  assert.deepEqual(salon, ["en-US", "es-419"], "Spanish is Latin American: the form a US business's callers speak");
+  // Provisioned with the ten locales, as a list or as the retired "multi": both narrow to the workspace's two.
+  for (const language of [multi, "multi"]) {
+    const plan = planAgentSettings({ ...CONVERGED, language }, { locales: salon });
+    assert.deepEqual(plan.agentPatch, { language: ["en-US", "es-419"] });
+    assert.ok(plan.drift[0].includes("the workspace speaks en-US, es-419"), plan.drift[0]);
+  }
+  // One language is written as one locale, the provider's single form.
+  const english = planAgentSettings(
+    { ...CONVERGED, language: multi },
+    { locales: retellLocalesFor(["English"]).locales },
+  );
+  assert.deepEqual(english.agentPatch, { language: "en-US" });
+  // Converged in any order, and unset is the provider's English.
+  assert.equal(planAgentSettings({ ...CONVERGED, language: ["es-419", "en-US"] }, { locales: salon }).agentPatch, null);
+  assert.equal(planAgentSettings({ ...CONVERGED, language: null }, { locales: ["en-US"] }).agentPatch, null);
+  // A dialect the owner picked is a language the workspace speaks: en-GB is not overwritten with en-US.
+  assert.equal(planAgentSettings({ ...CONVERGED, language: "en-GB" }, { locales: ["en-US"] }).agentPatch, null);
+  assert.equal(planAgentSettings({ ...CONVERGED, language: ["en-GB", "es-ES"] }, { locales: salon }).agentPatch, null);
+  // A language the workspace dropped is drift: one it added is too.
+  assert.deepEqual(
+    planAgentSettings({ ...CONVERGED, language: ["en-US", "es-419"] }, { locales: ["en-US"] }).agentPatch,
+    { language: "en-US" },
+  );
+  // No workspace named, no language planned: the diagnostic never reports a line's languages as drift.
+  assert.equal(planAgentSettings({ ...CONVERGED, language: multi }).agentPatch, null);
+});
+
+test("the workspace's language names become the provider's locales, English always among them; a name with none keeps the line", () => {
+  assert.deepEqual(retellLocalesFor(["english", " Portuguese ", "Español"]), { locales: ["en-US", "pt-BR", "es-419"] });
+  assert.deepEqual(
+    retellLocalesFor(["Spanish", "español"]),
+    { locales: ["en-US", "es-419"] },
+    "two spellings of one language listen once, and the greeting's English is always heard",
+  );
+  // None named, or one named that no locale is known for: the line keeps what it listens for, never narrowed to the
+  // rest (the review, 11 Oct 2026: "Spanish (Mexico)" beside English would have left English alone).
+  for (const languages of [[], undefined, ["Haitian Creole"], ["English", "Spanish (Mexico)"], ["Français"]]) {
+    const r = retellLocalesFor(languages);
+    assert.ok("kept" in r && !("locales" in r), JSON.stringify(languages));
+  }
+  assert.ok(retellLocalesFor(["English", "Spanish (Mexico)"]).kept.includes("Spanish (Mexico)"), "the name is said");
+});
+
+test("a draft the converger did not make in this run is named, never published; one it made says where to publish it", () => {
+  const found = unpublishedLatestNote(5);
+  assert.ok(found.startsWith("v5, the agent's latest, is an unpublished draft"), found);
+  assert.ok(found.includes("never publishes a draft it did not make") && found.includes("publish it there"));
+  const made = newDraftNote(4, 3);
+  assert.ok(made.startsWith("v4 is a draft: a pinned line stays on v3 until it is published"), made);
+  assert.ok(made.includes("A second run finds it as a draft it did not make"), "a re-run is not the way to publish it");
+});
+
+test("the voice, the models and the temperature are reported when they differ, and never planned", () => {
+  const owner = planAgentSettings({ ...CONVERGED, voice_id: "custom_voice_1", post_call_analysis_model: "gpt-5" });
+  assert.equal(owner.agentPatch, null, "a voice or a model is never changed by the converger");
+  assert.deepEqual(owner.drift, []);
+  assert.equal(owner.notes.length, 2);
+  assert.ok(owner.notes[0].includes("custom_voice_1") && owner.notes[0].includes("kept"));
+  assert.ok(owner.notes[1].includes("gpt-5") && owner.notes[1].includes(RETELL_MODELS.analysis));
+  const ours = planAgentSettings({
+    ...CONVERGED,
+    voice_id: "minimax-Tamsin",
+    post_call_analysis_model: RETELL_MODELS.analysis,
+  });
+  assert.deepEqual(ours.notes, []);
+});
+
+test("the LLM's model and temperature are reported when they differ, and never planned", () => {
+  const desired = desiredVoiceShell(FN_URL, { "x-fn-secret": "sealed" });
+  const his = planVoiceConvergence({ ...desired, model: "claude-5.5-sonnet", model_temperature: 0.4 }, desired);
+  assert.equal(his.llmPatch, null, "a model change goes through the gate, never the converger");
+  assert.deepEqual(his.drift, []);
+  assert.equal(his.notes.length, 2);
+  assert.ok(his.notes[0].includes("claude-5.5-sonnet") && his.notes[0].includes(RETELL_MODELS.llm));
+  assert.ok(his.notes[1].includes("0.4"));
+  assert.deepEqual(
+    planVoiceConvergence({ ...desired, model: RETELL_MODELS.llm, model_temperature: 0 }, desired).notes,
+    [],
+  );
 });

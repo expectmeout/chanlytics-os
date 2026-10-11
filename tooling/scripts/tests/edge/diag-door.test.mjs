@@ -509,6 +509,8 @@ const agentOnShell = (id, llm) => ({
   opt_in_signed_url: true,
   data_storage_retention_days: 90,
   post_call_analysis_data: CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })),
+  reminder_trigger_ms: 4000,
+  reminder_max_count: 2,
 });
 /** The LLM as get-retell-llm returns it: the shell, with the secret header on its tools. */
 const llmOnShell = (id) => ({
@@ -593,6 +595,8 @@ test("each voice line's agent and shell are read from Retell: the live transcrip
           webhook_timeout_ms: 10000,
           opt_in_signed_url: false,
           post_call_analysis_data: [],
+          reminder_trigger_ms: undefined,
+          reminder_max_count: undefined,
         },
       };
     if (req.url.endsWith("/get-retell-llm/llm_ok?version=1")) return { body: llmOnShell("llm_ok") };
@@ -653,7 +657,8 @@ test("each voice line's agent and shell are read from Retell: the live transcrip
     assert.equal(old.agent.converged, false);
     assert.ok(
       old.agent.drift.some((d) => d.includes("transcript_updated")) &&
-        old.agent.drift.some((d) => d.includes("opt_in_signed_url")),
+        old.agent.drift.some((d) => d.includes("opt_in_signed_url")) &&
+        old.agent.drift.some((d) => d.includes("reminded after 10000 ms")),
     );
 
     assert.equal(

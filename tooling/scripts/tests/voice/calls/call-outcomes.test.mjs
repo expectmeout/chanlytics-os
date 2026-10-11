@@ -256,6 +256,8 @@ test("the agent's analysis fields: each has a type, a name and a description; ea
     webhook_timeout_ms: 20000,
     opt_in_signed_url: true,
     data_storage_retention_days: null,
+    reminder_trigger_ms: 4000,
+    reminder_max_count: 2,
   };
   const stranger = { type: "system-presets", name: "call_summary" };
   const withOurs = planAgentSettings({
@@ -288,6 +290,8 @@ test("an agent that has the five fields it had is told it lacks topic and langua
     webhook_timeout_ms: 20000,
     opt_in_signed_url: true,
     data_storage_retention_days: null,
+    reminder_trigger_ms: 4000,
+    reminder_max_count: 2,
   };
   const stranger = { type: "system-presets", name: "call_summary" };
   const plan = planAgentSettings({

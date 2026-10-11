@@ -9,10 +9,17 @@
  * provider key on a laptop, and the key lives here and nowhere else. This
  * endpoint plans the same agent-level settings the script does — the webhook
  * events, the webhook budget, signed recording links, the post-call analysis
- * fields (packages/channels planAgentSettings) — and, with { apply: true },
+ * fields, the silence reminders and the locales the agent listens for, from
+ * the languages its workspace speaks (packages/channels planAgentSettings) —
+ * and, with { apply: true },
  * applies them the way the script does: a published version cannot change,
  * so a new draft is created from it and patched, and with { publish: true }
  * the draft is published so a number pinned to latest_published follows it.
+ * A draft that was already the latest takes the patch where it is and is never
+ * published for it: it may hold edits made elsewhere, so the answer says so,
+ * whether or not anything is applied. What differs from the product's defaults
+ * and is the owner's (the voice, the post-call model) comes back as `notes`,
+ * and is never changed here.
  * The LLM (the shell, with its secret tool header) is never touched here.
  *
  * Dry run by default. Idempotent: a converged agent plans nothing. The
@@ -32,8 +39,13 @@ import {
   updateAgent,
   publishAgentVersion,
   planAgentSettings,
+  retellLocalesFor,
+  unpublishedLatestNote,
+  newDraftNote,
   type LiveAgentSettings,
 } from "../packages/channels.js";
+import { resolveChannel } from "../packages/db.js";
+import { loadTenantRuntime } from "../tenant-runtime.js";
 import { env } from "../env.js";
 import { logger } from "../log.js";
 import type { Admitted } from "../admin-auth.js";
@@ -64,6 +76,50 @@ async function agentsNamed(body: Body): Promise<string[] | Response> {
   return (data ?? []).map((r) => r.external_id).filter((id): id is string => typeof id === "string");
 }
 
+/**
+ * The locales the agent's workspace speaks, or why the language is left as it is: an agent no workspace was found for, a
+ * workspace that could not be read (a blip is never a change to the line), or languages that say nothing certain
+ * (retellLocalesFor) keep what it listens for.
+ */
+async function workspaceLocales(agentId: string): Promise<{ locales: string[] } | { kept: string }> {
+  const db = pg();
+  const routed = db ? await resolveChannel(db, "voice", agentId) : null;
+  if (!db || !routed) return { kept: "no workspace was found for this agent: what it listens for is kept" };
+  const rt = await loadTenantRuntime(db, routed);
+  if (rt.loadFailed) return { kept: "the workspace could not be read: what the agent listens for is kept" };
+  return retellLocalesFor(rt.brain?.profile?.languages);
+}
+
+/** One agent's plan, and the answer's record of it before anything is applied: the backup, its webhook secret stripped. */
+async function planOne(agentId: string, before: Record<string, unknown>) {
+  const spoken = await workspaceLocales(agentId);
+  const opts = "locales" in spoken ? { locales: spoken.locales } : {};
+  const plan = planAgentSettings(before as unknown as LiveAgentSettings, opts);
+  const out: Record<string, unknown> = {
+    agent_id: agentId,
+    version: before.version ?? null,
+    is_published: before.is_published ?? null,
+    drift: plan.drift,
+    notes: "kept" in spoken ? [...plan.notes, spoken.kept] : plan.notes,
+    patch_keys: plan.agentPatch ? Object.keys(plan.agentPatch) : [],
+    applied: false,
+    before: forRecord(before),
+  };
+  if (before.is_published !== true) out.note = unpublishedLatestNote(before.version);
+  return { opts, plan, out };
+}
+
+/** The agent read again after the change, planned on the same terms: what the provider now holds. */
+async function readBack(cfg: { apiKey: string }, agentId: string, opts: { locales?: string[] }) {
+  const after = await getAgentRaw(cfg, agentId);
+  if (!after) return null;
+  return {
+    version: after.version ?? null,
+    is_published: after.is_published ?? null,
+    drift: planAgentSettings(after as unknown as LiveAgentSettings, opts).drift,
+  };
+}
+
 export async function convergeVoiceAgents(auth: Admitted, body: Partial<Body>): Promise<Response> {
   const L = logger();
   if (auth.workspace)
@@ -84,16 +140,7 @@ export async function convergeVoiceAgents(auth: Admitted, body: Partial<Body>): 
       agents.push({ agent_id: agentId, error: "unreadable" });
       continue;
     }
-    const plan = planAgentSettings(before as unknown as LiveAgentSettings);
-    const out: Record<string, unknown> = {
-      agent_id: agentId,
-      version: before.version ?? null,
-      is_published: before.is_published ?? null,
-      drift: plan.drift,
-      patch_keys: plan.agentPatch ? Object.keys(plan.agentPatch) : [],
-      applied: false,
-      before: forRecord(before),
-    };
+    const { opts, plan, out } = await planOne(agentId, before);
     if (apply && plan.agentPatch) {
       // A published version cannot change: the patch goes on a new draft.
       let working = typeof before.version === "number" ? before.version : null;
@@ -120,16 +167,9 @@ export async function convergeVoiceAgents(auth: Admitted, body: Partial<Body>): 
         }
         out.published_version = working;
       } else if (working !== null && working !== before.version) {
-        out.note = `v${working} is a draft: a pinned line stays on v${before.version} until it is published`;
+        out.note = newDraftNote(working, before.version);
       }
-      const after = await getAgentRaw(cfg, agentId);
-      out.after = after
-        ? {
-            version: after.version ?? null,
-            is_published: after.is_published ?? null,
-            drift: planAgentSettings(after as unknown as LiveAgentSettings).drift,
-          }
-        : null;
+      out.after = await readBack(cfg, agentId, opts);
       L.info("voice_converge", {
         agent_id: agentId,
         from: before.version ?? null,
