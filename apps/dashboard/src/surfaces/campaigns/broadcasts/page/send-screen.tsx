@@ -10,11 +10,11 @@
 import type { ReactNode } from "react";
 import {
   CAMPAIGN_ROOMS,
-  HEARD_UNREAD_WORDS,
   NO_TEMPLATE_WORDS,
   STARTER_LINE_WORDS,
   allowanceBeforeSend,
   heardTooWords,
+  heardUnreadWords,
   heldBackWords,
   messageHolds,
   monthSentAt,
@@ -79,13 +79,13 @@ function bcWhoNotes(v: BcV) {
 // send that goes now): the send leaves them out, as the route skips them (the week's breath), and the kit's switch beside
 // it, off, sends to them too (contracts heardWords, heardTooWords). Said in the To row, where the count it changes is, and
 // only where somebody heard. Where who heard could not be read, one line says the send still leaves them out (contracts
-// HEARD_UNREAD_WORDS), and there is nobody to switch.
+// heardUnreadWords, for the time it goes too), and there is nobody to switch.
 function bcHeard(v: BcV) {
   const { active, heard, ahead, breathe, setHeardToo, data } = v;
   if (active && data.heardRead === false)
     return (
       <div className="bc-excl-hint" data-testid="bc-heard-unread">
-        {HEARD_UNREAD_WORDS}
+        {heardUnreadWords(ahead)}
       </div>
     );
   if (!active || heard <= 0) return null;
@@ -505,9 +505,10 @@ function bcNewTemplate(v: BcV) {
 // cannot be taken back asking before anything leaves. A time picked makes Schedule it the act, with Send now beside it. Cancel,
 // and Escape, with something written: the one question first (UnsavedAsk), where the foot's acts were.
 function bcSendFoot(v: BcV) {
-  const { data, name, setName, canSend, armed, ready, say, whenAt, whenNote, submit, setArmed, active, activeCount } =
-    v;
-  const { tpl, busy, work, splitWords } = v;
+  const { data, name, setName, canSend, armed, ready, say, whenAt, whenNote, submit, setArmed, active } = v;
+  // Send now goes at once: its button and its confirm say who it sends to now (reach.ts bcSendNowOf), whatever time is
+  // picked for Schedule it, and it is not offered when nobody would go now.
+  const { tpl, busy, work, sendNow } = v;
   if (work.asking) return <UnsavedAsk onYes={work.discard} onNo={work.stay} testid="bc-leave" />;
   // A time picked that cannot be scheduled (passed, or past the ceiling) is what Schedule it waits on, when nothing else is.
   const stop = say ?? (whenAt !== null && !whenNote.ok ? { tone: "warn" as const, words: whenNote.words } : null);
@@ -526,17 +527,17 @@ function bcSendFoot(v: BcV) {
       Schedule it
     </Button>
   );
-  const sendNow = (
+  const sendNowAct = (
     <Button
       key="now"
       variant={later ? undefined : "primary"}
       className={`bc-send-now ${later ? "bc-act-second" : "bc-act-main"}`}
-      disabled={!ready}
+      disabled={!ready || !(sendNow.count > 0)}
       onClick={() => setArmed(true)}
       data-testid="bc-send"
       {...gate("approve", "send a broadcast")}
     >
-      <Icon name="send" size={13} /> {active && activeCount > 0 ? `Send to ${activeCount} now` : "Send now"}
+      <Icon name="send" size={13} /> {active && sendNow.count > 0 ? `Send to ${sendNow.count} now` : "Send now"}
     </Button>
   );
   return (
@@ -571,11 +572,11 @@ function bcSendFoot(v: BcV) {
                 and nothing has left. Send now does not -- it is the only act on this
                 surface that cannot be taken back, and it was the only one that was not
                 armed, while Stop, Skip and both Deletes each ask first. */}
-        {!armed && (later ? [sendNow, scheduleIt] : [scheduleIt, sendNow])}
+        {!armed && (later ? [sendNowAct, scheduleIt] : [scheduleIt, sendNowAct])}
         {armed && tpl && active && (
           <Confirm
-            question={`Send “${bcTitle(tpl.name)}”${bcLangWords(tpl)} to ${activeCount} ${activeCount === 1 ? "person" : "people"} on “${active.label}”?`}
-            detail={`${splitWords ? `${splitWords}. ` : ""}It goes out now${data.chunk ? `, ${data.chunk} at a time` : ""}. A message already delivered cannot be taken back.`}
+            question={`Send “${bcTitle(tpl.name)}”${bcLangWords(tpl)} to ${sendNow.count} ${sendNow.count === 1 ? "person" : "people"} on “${active.label}”?`}
+            detail={`${sendNow.splitWords ? `${sendNow.splitWords}. ` : ""}It goes out now${data.chunk ? `, ${data.chunk} at a time` : ""}. A message already delivered cannot be taken back.`}
             yes="Yes, send it"
             busy={busy}
             onYes={() => submit(false)}

@@ -168,8 +168,16 @@ export interface BcReach {
   tpl: BroadcastTemplate | null;
   purpose: AskedPurpose;
   sizeOf: (a: AudienceOption | null) => number;
-  /** Who the send goes to now: those it reaches, less those it leaves out while it breathes. The count Send says. */
+  /**
+   * Who the send goes to at the time it is set for: those it reaches, less those it leaves out while it breathes. The count
+   * the To line says, and Schedule it sends.
+   */
   activeCount: number;
+  /**
+   * What Send now sends: judged for now whatever time is picked (reach.ts bcSendNowOf), so its button and its confirm say
+   * the number it goes to, and the channel split of them (null for WhatsApp alone). The screen's own with no time picked.
+   */
+  sendNow: { count: number; splitWords: string | null };
   /**
    * Of those it reaches, how many heard from a campaign or a broadcast within the week before the send goes: the time
    * picked, else now (contracts heardFor over the reading's `heardTouches`, as the route judges it).

@@ -40571,8 +40571,9 @@ interface TouchIndex {
     followUpKeys: Map<string, Map<string, number>>;
 }
 /**
- * Every touch since `since`, as of `now`. Runs are read by when they were made, from `since` on; a touch is dated by
- * when it went, or when its run is due, and one before `since` holds nobody back. Paged throughout: past a thousand
+ * Every touch since `since`, as of `now`. A touch is dated by when it went, or when its run is due, and one before
+ * `since` holds nobody back. Runs are read by those dates, not only by when they were made (runsSince): a run made weeks
+ * ago that went, or is due, on or after `since` holds its people as one made this week does. Paged throughout: past a thousand
  * touches, the breath and each gap silently stopped holding and the people a read could no longer see were messaged
  * again. A read that fails THROWS -- "nobody was touched" is the reading that messages people twice. The workspace's
  * zone, read beside the runs, says which day is today for a run waiting for a person; unreadable, every waiting run
@@ -40580,10 +40581,11 @@ interface TouchIndex {
  */
 declare function touchesSince(db: Db$6, tenantId: string, since: Date, now: Date): Promise<Touch[]>;
 /**
- * Who a run of any kind reached, or is about to, within the week's breath before `now` (contracts PLAYBOOK_BREATH_MS): the
- * breath's one read. contact id -> the time of their latest touch, as the row keeps it. The Playbooks page says by it how
- * many of a moment's people wait for it, the broadcast composer how many a send leaves out, Ask's cards the same, and a
- * send by hand (core createBroadcast's `touched` port) leaves them out by it, so all of them say one number. Throws as
+ * Who a run of any kind reached, or is about to, from the week's breath before `now` on (contracts PLAYBOOK_BREATH_MS):
+ * the breath's one read. contact id -> the time of their latest touch, as the row keeps it -- a run due later counts at
+ * the time it is due. The Playbooks page says by it how many of a moment's people wait for it, the broadcast composer how
+ * many a send leaves out (now, or for the time it is set for: contracts leftOutBy), Ask's cards the same, and a send by
+ * hand (core createBroadcast's `touches` port) leaves them out by it, so all of them say one number. Throws as
  * touchesSince does: "nobody was touched" is the reading that messages people twice.
  */
 declare function recentTouches(db: Db$6, tenantId: string, now: Date): Promise<Record<string, string>>;

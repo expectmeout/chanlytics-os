@@ -2379,6 +2379,12 @@ interface BroadcastReceipt {
      * recipient_count less these (contracts goesToOf).
      */
     left_out: number;
+    /**
+     * Whether it was set for a time still ahead at the press: its breath was judged by the week before that time, and a
+     * receipt says it is scheduled and words who was left out so ("within the week before it goes"). False for a send that
+     * goes now, one asked for a time already past (which goes now), and one moved to the morning from now (`moved_from`).
+     */
+    scheduled_ahead: boolean;
     decision_id: string;
 }
 /**

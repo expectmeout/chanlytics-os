@@ -5333,11 +5333,51 @@ test("a send scheduled ahead leaves out who heard within the week before it goes
   assert.equal(textOf(byTestId(tree, "bc-who-n")), "2");
 });
 
+test("Send now beside a picked time is counted for now: its button and its confirm leave out who heard this week, while the count above is the picked time's", () => {
+  // Ana (WhatsApp) and Mia (email) heard two days ago, Bo did not: by WhatsApp and email the send reaches the three.
+  setSurfaceValue(
+    "broadcasts",
+    viaSurface({ audiences: [viaAudience(viaRows(), ALL_READY, { "c-wa": iso(-2 * D), "c-mail": iso(-2 * D) })] }),
+  );
+  const props = { initialSegment: null, initialRun: null };
+  let tree = writing(props);
+  viaOf(tree).email.props.onCheckedChange(true);
+  tree = again(props);
+  // Now: the two are left out, and Send now names the one it goes to.
+  assert.equal(textOf(byTestId(tree, "bc-who-n")), "1");
+  assert.ok(textOf(byTestId(tree, "bc-send")).includes("Send to 1 now"), textOf(byTestId(tree, "bc-send")));
+  // Ten days ahead: Schedule it goes to the three, nobody left out...
+  pickerOf(tree, "bc-when-mode").props.onValueChange("later");
+  tree = again(props);
+  find(tree, (n) => n.type === DatePicker).props.onValueChange(globalThis.__clock.dayKey(Date.now() + 10 * D));
+  tree = again(props);
+  pickerOf(tree, "bc-when-time").props.onValueChange("14:30");
+  tree = again(props);
+  assert.equal(textOf(byTestId(tree, "bc-who-n")), "3");
+  assert.equal(byTestId(tree, "bc-heard"), null);
+  // ...while Send now, which goes at once, still leaves the two out, and its confirm says the same.
+  assert.ok(textOf(byTestId(tree, "bc-send")).includes("Send to 1 now"), textOf(byTestId(tree, "bc-send")));
+  press(byTestId(tree, "bc-send"));
+  tree = again(props);
+  const confirm = textOf(byTestId(tree, "bc-send-confirm"));
+  assert.ok(confirm.includes("to 1 person on “Everyone”"), confirm);
+  assert.ok(!confirm.includes("by email"), `who goes now goes by WhatsApp alone: ${confirm}`);
+});
+
 test("a composer whose read of who heard this week failed says the send still leaves them out, and counts as it can", () => {
   setSurfaceValue("broadcasts", viaSurface({ heardRead: false }));
-  const tree = writing({ initialSegment: null, initialRun: null });
-  assert.equal(textOf(byTestId(tree, "bc-heard-unread")), contracts.HEARD_UNREAD_WORDS);
+  const props = { initialSegment: null, initialRun: null };
+  let tree = writing(props);
+  assert.equal(textOf(byTestId(tree, "bc-heard-unread")), contracts.heardUnreadWords(false));
   assert.equal(byTestId(tree, "bc-heard-too"), null, "no switch for people it cannot name");
+  // A time picked ahead: said for the week before it goes, as the other breath words are.
+  pickerOf(tree, "bc-when-mode").props.onValueChange("later");
+  tree = again(props);
+  find(tree, (n) => n.type === DatePicker).props.onValueChange(globalThis.__clock.dayKey(Date.now() + 3 * D));
+  tree = again(props);
+  pickerOf(tree, "bc-when-time").props.onValueChange("14:30");
+  tree = again(props);
+  assert.equal(textOf(byTestId(tree, "bc-heard-unread")), contracts.heardUnreadWords(true));
   setSurfaceValue("broadcasts", viaSurface());
   assert.equal(
     byTestId(writing({ initialSegment: null, initialRun: null }), "bc-heard-unread"),

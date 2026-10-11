@@ -70,6 +70,12 @@ export interface BroadcastReceipt {
    * recipient_count less these (contracts goesToOf).
    */
   left_out: number;
+  /**
+   * Whether it was set for a time still ahead at the press: its breath was judged by the week before that time, and a
+   * receipt says it is scheduled and words who was left out so ("within the week before it goes"). False for a send that
+   * goes now, one asked for a time already past (which goes now), and one moved to the morning from now (`moved_from`).
+   */
+  scheduled_ahead: boolean;
   decision_id: string;
 }
 
@@ -306,9 +312,9 @@ export async function createBroadcast(
   // 4a. Whoever heard from a campaign or a broadcast this week is left out (skipped at enrolment, in the assembly), unless
   // the person sending it sends to them too: refused in words when nobody else is left, never a run of skips.
   // Judged for the time it is set for (`when` as asked, now for a send that goes at once): the week before it goes.
+  const ahead = when.getTime() > now.getTime();
   const { goes, leftOut } = await breathOf(ports, enrolled, want.breathe, { now, sendsAt: when });
-  if (goes.length === 0)
-    throw new AppError("conflict", allLeftOutWords(label, leftOut.length, when.getTime() > now.getTime()), 409);
+  if (goes.length === 0) throw new AppError("conflict", allLeftOutWords(label, leftOut.length, ahead), 409);
   // An audience past the day's limit is split, not silently cut: WhatsApp's limit is Meta's, so it counts the people
   // who go by WhatsApp alone, now.
   const over = health ? overLimitRefusal(health, goes.filter((e) => e.channel === "whatsapp").length) : null;
@@ -415,6 +421,7 @@ export async function createBroadcast(
     // And who was written as left out: a skip the hold did not write is queued, held at the wire by the row's mark, and
     // is not claimed either.
     left_out: out.size - made.leftOutUnwritten,
+    scheduled_ahead: ahead,
     decision_id: made.decisionId,
   };
 }

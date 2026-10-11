@@ -4168,10 +4168,14 @@ async function followUpTouchesSince(db, tenantId, since, now) {
   return touchesOf(db, tenantId, since, now, true);
 }
 var FOLLOW_UP_PARAMS = '[{"kind":"proposal_link"}]';
+var runsSince = (since) => {
+  const s = since.toISOString();
+  return `created_at.gte.${s},scheduled_for.gte.${s},finished_at.gte.${s},state.eq.sending`;
+};
 async function touchesOf(db, tenantId, since, now, followUpsOnly) {
   const [all2, zone] = await Promise.all([
     readAllRows("broadcasts", (from, to) => {
-      const q = db.from("broadcasts").select("id, playbook_id, state, scheduled_for, created_at, run_for, params").eq("tenant_id", tenantId).gte("created_at", since.toISOString());
+      const q = db.from("broadcasts").select("id, playbook_id, state, scheduled_for, created_at, run_for, params").eq("tenant_id", tenantId).or(runsSince(since));
       return (followUpsOnly ? q.contains("params", FOLLOW_UP_PARAMS) : q).order("id").range(from, to);
     }),
     db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle().then(

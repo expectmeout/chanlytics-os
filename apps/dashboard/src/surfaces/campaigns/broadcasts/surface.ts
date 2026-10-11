@@ -128,7 +128,7 @@ export interface BroadcastsSurface {
   listsRead: boolean;
   /**
    * Whether who heard from a campaign or a broadcast this week was read (GET broadcasts' `touched_at`); false counts the
-   * audiences with nobody left out, and the composer says the send still leaves them out (contracts HEARD_UNREAD_WORDS).
+   * audiences with nobody left out, and the composer says the send still leaves them out (contracts heardUnreadWords).
    */
   heardRead: boolean;
   audiences: AudienceOption[];

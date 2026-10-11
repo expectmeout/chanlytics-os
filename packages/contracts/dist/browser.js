@@ -2520,19 +2520,20 @@ var LEFT_OUT_FACTS = { breath: RECIPIENT_REASON_HEARD };
 function leftOutByFacts(facts) {
   return facts.breath === RECIPIENT_REASON_HEARD;
 }
-function breathSince(sendsAt, now) {
-  return Math.max(sendsAt, now) - PLAYBOOK_BREATH_MS;
+function heardWithin(sendsAt, now) {
+  const since = Math.max(sendsAt, now) - PLAYBOOK_BREATH_MS;
+  return (at3) => at3 >= since;
 }
 function leftOutBy(touches, sendsAt, now) {
-  const since = breathSince(sendsAt, now);
+  const heard = heardWithin(sendsAt, now);
   return new Set(
-    Object.entries(touches).filter(([, at3]) => Date.parse(at3) >= since).map(([id]) => id)
+    Object.entries(touches).filter(([, at3]) => heard(Date.parse(at3))).map(([id]) => id)
   );
 }
 function heardFor(heard, sendsAt, now) {
-  const since = breathSince(sendsAt, now);
+  const within2 = heardWithin(sendsAt, now);
   const heardBy = { whatsapp: 0, sms: 0, email: 0 };
-  for (const h of heard) if (h.at >= since) heardBy[h.channel] += 1;
+  for (const h of heard) if (within2(h.at)) heardBy[h.channel] += 1;
   return { heard: heardBy.whatsapp + heardBy.sms + heardBy.email, heardBy };
 }
 function breathSplit(reached, idOf, out) {
@@ -2562,7 +2563,9 @@ function heardTooWords(n, ahead) {
 function allLeftOutWords(label, n, ahead) {
   return `Everyone it reaches on \u201C${label}\u201D heard from you ${heardWhen(ahead)}, so ${n === 1 ? "the one person is" : `all ${n} are`} left out.`;
 }
-var HEARD_UNREAD_WORDS = "Who heard from you this week could not be read just now: the send still leaves them out, so it may go to fewer.";
+function heardUnreadWords(ahead) {
+  return `Who heard from you ${heardWhen(ahead)} could not be read just now: the send still leaves them out, so it may go to fewer.`;
+}
 function goesToOf(receipt) {
   return receipt.recipient_count - (receipt.left_out ?? 0);
 }
@@ -12032,8 +12035,9 @@ var broadcastSpec = {
     const d = rec(data);
     const leftOut2 = typeof d.left_out === "number" ? d.left_out : 0;
     const n = typeof d.recipient_count === "number" ? goesToOf({ recipient_count: d.recipient_count, left_out: leftOut2 }) : Number(pl.count ?? 0);
-    const said = heardWords(leftOut2, true, Boolean(pl.scheduled_for));
-    return `Broadcast \u201C${d.name ?? asText(pl.name)}\u201D \u2014 ${n} ${n === 1 ? "person" : "people"}, ${pl.scheduled_for ? "scheduled" : "sending now"}${said ? ` \xB7 ${said}` : ""}`;
+    const ahead = d.scheduled_ahead === true;
+    const said = heardWords(leftOut2, true, ahead);
+    return `Broadcast \u201C${d.name ?? asText(pl.name)}\u201D \u2014 ${n} ${n === 1 ? "person" : "people"}, ${ahead ? "scheduled" : "sending now"}${said ? ` \xB7 ${said}` : ""}`;
   },
   undo: {
     label: () => "Cancel it, if it has not finished",
@@ -38545,7 +38549,6 @@ export {
   HANDOVER_WORDS,
   HAND_KINDS,
   HAND_WORDS_MAX,
-  HEARD_UNREAD_WORDS,
   HELD_ON,
   HELD_REASONS,
   HELD_WORDS,
@@ -39553,6 +39556,7 @@ export {
   heardFor,
   heardSinceProposal,
   heardTooWords,
+  heardUnreadWords,
   heardWords,
   heldBackOfOneRun,
   heldBackWords,

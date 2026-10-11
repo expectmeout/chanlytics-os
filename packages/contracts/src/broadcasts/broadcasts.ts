@@ -179,7 +179,7 @@ export {
   heardWords,
   heardTooWords,
   allLeftOutWords,
-  HEARD_UNREAD_WORDS,
+  heardUnreadWords,
   goesToOf,
   HELD_REASONS,
   EMAIL_HOLDS,

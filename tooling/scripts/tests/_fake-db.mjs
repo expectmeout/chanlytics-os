@@ -216,6 +216,9 @@ function matches(row, filters, defaults = {}) {
                               // A handover accepted, or a link's row (0016): "brought" is either.
                               if (o === "not" && v === "is.null") return cell(row, c) != null;
                               if (o === "lt") return cell(row, c) != null && cell(row, c) < v;
+                              // A run read by any of the dates its touches are counted at (db touches.ts): ISO
+                              // timestamps sort as text, as `lt` reads them.
+                              if (o === "gte") return cell(row, c) != null && cell(row, c) >= v;
                               if (o === "eq") return String(cell(row, c)) === v;
                               // SQL's <>: a NULL is not unequal to anything, which is why a filter pairs it with
                               // `is.null` (the domains sweep: every hold but a complaint's, and no hold at all).

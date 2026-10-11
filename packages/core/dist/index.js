@@ -2904,9 +2904,9 @@ async function createBroadcast(ports, cmd) {
   if (enrolled.length === 0) throw new AppError12("conflict", emptyAudienceRefusal(purpose, label, pool, how), 409);
   if (enrolled.length > BROADCAST_MAX_RECIPIENTS)
     throw new AppError12("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
+  const ahead = when.getTime() > now.getTime();
   const { goes, leftOut } = await breathOf(ports, enrolled, want.breathe, { now, sendsAt: when });
-  if (goes.length === 0)
-    throw new AppError12("conflict", allLeftOutWords(label, leftOut.length, when.getTime() > now.getTime()), 409);
+  if (goes.length === 0) throw new AppError12("conflict", allLeftOutWords(label, leftOut.length, ahead), 409);
   const over = health ? overLimitRefusal(health, goes.filter((e) => e.channel === "whatsapp").length) : null;
   if (over) throw new AppError12("validation", over);
   const tz = await ports.timezone();
@@ -2985,6 +2985,7 @@ async function createBroadcast(ports, cmd) {
     // And who was written as left out: a skip the hold did not write is queued, held at the wire by the row's mark, and
     // is not claimed either.
     left_out: out.size - made.leftOutUnwritten,
+    scheduled_ahead: ahead,
     decision_id: made.decisionId
   };
 }

@@ -49,30 +49,33 @@ export function leftOutByFacts(facts: Readonly<Record<string, unknown>>): boolea
 }
 
 /**
- * The latest touch at which a send going at `sendsAt` leaves a person out (the week's breath, spec §5.6): the week before
- * a person RECEIVES it. Its time is the one it is set for, or now; one set for a moment already past goes now.
+ * Whether a touch at `at` (epoch ms) leaves a person out of a send going at `sendsAt` (the week's breath, spec §5.6): it
+ * falls within the week before a person RECEIVES it. Its time is the one it is set for, or now; one set for a moment
+ * already past goes now. The one comparison leftOutBy and heardFor both make.
  */
-function breathSince(sendsAt: number, now: number): number {
-  return Math.max(sendsAt, now) - PLAYBOOK_BREATH_MS;
+function heardWithin(sendsAt: number, now: number): (at: number) => boolean {
+  const since = Math.max(sendsAt, now) - PLAYBOOK_BREATH_MS;
+  return (at) => at >= since;
 }
 
 /**
  * Who a send leaves out, the one rule wherever the breath is applied: everyone whose latest touch (contact id -> when, as
  * packages/db recentTouches answers it at the press) is at or after the week before the send goes. A send that goes now
  * leaves out who heard within the last week, as it always did; one three days ahead, who heard within the last four; one
- * a week or more ahead, nobody known at the press. The read's own window (now less the week) already holds every touch any
- * send time can need, since a send never goes before now. Core createBroadcast and Ask's card apply it to the touches;
- * the composer applies heardFor, the same rule, to a preview's.
+ * a week or more ahead, nobody known at the press. recentTouches answers every touch dated at or after now less the week,
+ * whenever its run was made (a run is read by the dates its touches count at: sent, or due), and a send never goes before
+ * now, so the read holds every touch any send time needs. Core createBroadcast and Ask's card apply it to the touches; the
+ * composer applies heardFor, the same rule, to a preview's.
  */
 export function leftOutBy(
   touches: Readonly<Record<string, string>>,
   sendsAt: number,
   now: number,
 ): ReadonlySet<string> {
-  const since = breathSince(sendsAt, now);
+  const heard = heardWithin(sendsAt, now);
   return new Set(
     Object.entries(touches)
-      .filter(([, at]) => Date.parse(at) >= since)
+      .filter(([, at]) => heard(Date.parse(at)))
       .map(([id]) => id),
   );
 }
@@ -93,9 +96,9 @@ export function heardFor(
   sendsAt: number,
   now: number,
 ): { heard: number; heardBy: Record<ConsentChannel, number> } {
-  const since = breathSince(sendsAt, now);
+  const within = heardWithin(sendsAt, now);
   const heardBy: Record<ConsentChannel, number> = { whatsapp: 0, sms: 0, email: 0 };
-  for (const h of heard) if (h.at >= since) heardBy[h.channel] += 1;
+  for (const h of heard) if (within(h.at)) heardBy[h.channel] += 1;
   return { heard: heardBy.whatsapp + heardBy.sms + heardBy.email, heardBy };
 }
 
@@ -165,11 +168,13 @@ export function allLeftOutWords(label: string, n: number, ahead: boolean): strin
 }
 
 /**
- * What the composer says when who heard this week could not be read: the send still leaves them out (it reads them again,
- * and is refused while it cannot), so its count may be fewer than the page's.
+ * What the composer says when who heard could not be read: the send still leaves them out (it reads them again, and is
+ * refused while it cannot), so its count may be fewer than the page's. Said for the send's own time, as the other breath
+ * words are (`ahead`: set for later).
  */
-export const HEARD_UNREAD_WORDS =
-  "Who heard from you this week could not be read just now: the send still leaves them out, so it may go to fewer.";
+export function heardUnreadWords(ahead: boolean): string {
+  return `Who heard from you ${heardWhen(ahead)} could not be read just now: the send still leaves them out, so it may go to fewer.`;
+}
 
 /**
  * How many a send's receipt says it goes to (POST broadcasts' answer): everyone it enrolled less those left out. A

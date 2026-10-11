@@ -45,7 +45,7 @@ export {
   heardWords,
   heardTooWords,
   allLeftOutWords,
-  HEARD_UNREAD_WORDS,
+  heardUnreadWords,
   goesToOf,
   audiencePreview,
   audienceTrigger,

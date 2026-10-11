@@ -1230,6 +1230,18 @@ test("a broadcast card leaves out whoever heard this week, as the route skips th
     PROPOSAL_SPECS.broadcast.receipt(r.proposal, { id: "b1", name: "Visit note", recipient_count: 2, left_out: 1 }),
     "Broadcast “Visit note” — 1 person, sending now · 1 left out: heard from you this week",
   );
+  // Whether it was scheduled is the route's answer, not the card's time: one set for a time that passed before it was
+  // approved went now, judged by this week; one the route set ahead, by the week before it goes.
+  const lateCard = { ...r.proposal, payload: { ...r.proposal.payload, scheduled_for: "2026-09-01T09:00:00-04:00" } };
+  const answer = { id: "b1", name: "Visit note", recipient_count: 2, left_out: 1 };
+  assert.equal(
+    PROPOSAL_SPECS.broadcast.receipt(lateCard, { ...answer, scheduled_ahead: false }),
+    "Broadcast “Visit note” — 1 person, sending now · 1 left out: heard from you this week",
+  );
+  assert.equal(
+    PROPOSAL_SPECS.broadcast.receipt(lateCard, { ...answer, scheduled_ahead: true }),
+    "Broadcast “Visit note” — 1 person, scheduled · 1 left out: heard from you within the week before it goes",
+  );
   // Nobody heard: the card is what it always was.
   const quiet = await propose(BROADCAST, heardBy());
   assert.match(quiet.proposal.summary, /^2 people who said yes · “visit_reminder” · now: /);
@@ -1263,6 +1275,9 @@ test("campaigns.audiences counts what a card would: who it sends to, with how ma
   assert.equal(everyone(heard).can_be_sent_messages, 1);
   assert.equal(everyone(heard).left_out_messages, 1);
   assert.ok(heard.note.includes("left out"), heard.note);
+  // Counted for a send that goes now; a card set for later counts for its own time.
+  assert.ok(heard.note.includes("who a send that goes now goes to"), heard.note);
+  assert.ok(heard.note.includes("a card set for later counts for its own time"), heard.note);
   const card = await propose(BROADCAST, heardBy(PEOPLE[0]));
   assert.equal(
     card.proposal.payload.count,
@@ -1387,5 +1402,12 @@ test("a card scheduled ahead leaves out who heard within the week before it goes
     made.recipient_count - made.left_out,
     card.proposal.payload.count,
     "one number: the card's and the route's",
+  );
+  // The receipt over the route's own answer: scheduled, and the week before it goes.
+  assert.ok(
+    PROPOSAL_SPECS.broadcast
+      .receipt(card.proposal, made)
+      .endsWith("1 person, scheduled · 1 left out: heard from you within the week before it goes"),
+    PROPOSAL_SPECS.broadcast.receipt(card.proposal, made),
   );
 });

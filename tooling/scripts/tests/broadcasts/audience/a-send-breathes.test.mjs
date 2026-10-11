@@ -489,7 +489,71 @@ test("the window is the breath's constant: who heard is db recentTouches, two da
   assert.equal(r.left_out, 1);
 });
 
+test("a run is read by when its touches count, not only by when it was made: made ten days ago and due two days ago is a touch for a send now, and one due in three days is a touch for a send in three days", async () => {
+  const OLD_DUE = "88888888-8888-4888-8888-88888888880a";
+  const OLD_LATER = "88888888-8888-4888-8888-88888888880b";
+  // Both made ten days ago: the first went two days ago, the second waits for three days from now.
+  const made = (id, due, state) => ({
+    ...sentRun(id, 10),
+    state,
+    scheduled_for: due,
+    started_at: state === "sent" ? due : null,
+    finished_at: state === "sent" ? due : null,
+  });
+  const db = () =>
+    fakeDb({
+      tenants: [{ id: TENANT, name: "Harbor", timezone: "America/New_York" }],
+      broadcasts: [made(OLD_DUE, ago(2 * DAY), "sent"), made(OLD_LATER, ahead(3), "scheduled")],
+      broadcast_recipients: [sentTo(OLD_DUE, ANA, 2), sentTo(OLD_LATER, CY, 0, { state: "queued", sent_at: null })],
+    });
+  const touches = await recentTouches(db(), TENANT, NOW);
+  assert.deepEqual(touches, { [ANA]: ago(2 * DAY), [CY]: ahead(3) }, "each dated when it counts: sent, or due");
+  assert.deepEqual([...leftOutBy(touches, NOW.getTime(), NOW.getTime())].sort(), [ANA, CY].sort(), "a send now");
+  assert.ok(leftOutBy(touches, NOW.getTime() + 3 * DAY, NOW.getTime()).has(CY), "a send in three days");
+  // The playbooks sweep reads the same: a run made long ago that went, or goes, within its window is a touch.
+  const { touchesSince } = await import("@chanlytics/db");
+  const seen = await touchesSince(db(), TENANT, new Date(NOW.getTime() - PLAYBOOK_BREATH_MS), NOW);
+  assert.deepEqual(
+    seen.map((t) => [t.contact_id, t.at, t.sent]).sort(),
+    [
+      [ANA, ago(2 * DAY), true],
+      [CY, ahead(3), false],
+    ].sort(),
+  );
+  // And the send by hand over the dashboard's port: both are left out of a send that goes now.
+  const ports = createBroadcastPorts({ supabase: db(), userId: "u1" }, TENANT, { fresh: false });
+  const f = fakes({ touches: (now) => ports.touches(now) });
+  const r = await make(f, {});
+  assert.deepEqual(f.of("holdRecipients"), [["holdRecipients", "b1", [ANA, CY], RECIPIENT_REASON_HEARD]]);
+  assert.equal(r.left_out, 2);
+});
+
 /* ---- The week before it goes: a send scheduled ahead is judged by its own time ---- */
+
+test("a read of who heard that failed is said for the send's own time too, as the other breath words are", async () => {
+  const { heardUnreadWords } = await import("@chanlytics/contracts");
+  assert.equal(
+    heardUnreadWords(false),
+    "Who heard from you this week could not be read just now: the send still leaves them out, so it may go to fewer.",
+  );
+  assert.equal(
+    heardUnreadWords(true),
+    "Who heard from you within the week before it goes could not be read just now: the send still leaves them out, so it may go to fewer.",
+  );
+});
+
+test("the receipt says whether the send was set for a time still ahead at the press, which its breath was judged by: ahead, now, and a time that passed before the press", async () => {
+  const later = await make(fakes({ touches: heard(BEA) }), { scheduled_for: ahead(10) });
+  assert.equal(later.scheduled_ahead, true);
+  assert.equal(later.left_out, 0, "two days ago is before the week ending ten days ahead began");
+  const now = await make(fakes({ touches: heard(BEA) }), {});
+  assert.equal(now.scheduled_ahead, false);
+  assert.equal(now.left_out, 1);
+  // Asked for an hour ago (a card approved late): it goes now, judged by this week.
+  const passed = await make(fakes({ touches: heard(BEA) }), { scheduled_for: ago(60 * 60_000) });
+  assert.equal(passed.scheduled_ahead, false);
+  assert.equal(passed.left_out, 1);
+});
 
 test("the one rule: a person is left out when their latest touch is within the week before the send goes -- its scheduled time, or now -- as known at the press", () => {
   const now = NOW.getTime();

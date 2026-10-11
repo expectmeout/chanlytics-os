@@ -97,6 +97,23 @@ function bcReadingOf(
 const bcGoes = (r: { sending: number; heard: number }, breathe: boolean): number =>
   breathe ? r.sending - r.heard : r.sending;
 
+/**
+ * What Send now sends, beside a time picked or not: it goes at once, so who heard is judged for now (contracts heardFor,
+ * the one rule the route judges it by), whatever time the screen is set for, under the switch as the send carries it
+ * (`breathe`). Its button and its confirm say this count and this split, so each act's number is what that act sends; with
+ * no time picked it is the screen's own reading.
+ */
+function bcSendNowOf(
+  a: AudienceOption | null,
+  purpose: AskedPurpose,
+  on: readonly ConsentChannel[],
+  { breathe, now }: { breathe: boolean; now: number },
+): BcReach["sendNow"] {
+  const r = bcReadingOf(a, purpose, on, { sendsAt: now, now });
+  const split = r.preview && r.preview.split ? reachAfterBreath(r.preview.split, r.heardBy, breathe) : null;
+  return { count: bcGoes(r, breathe), splitWords: cmSplitWords(split, on) };
+}
+
 /** The send a choice is an answer for: its message, its list and its channels, as the armed question is (state.tsx). */
 const bcSendKey = (tplId: string, aud: string, channels: readonly ConsentChannel[]): string =>
   `${tplId}|${aud}|${channels.join(",")}`;
@@ -173,6 +190,7 @@ export function bcReachOf({
     purpose,
     sizeOf,
     activeCount,
+    sendNow: bcSendNowOf(active, purpose, on, { breathe, now }),
     heard: reading.heard,
     ahead,
     breathe,

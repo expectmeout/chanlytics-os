@@ -84,6 +84,8 @@ const ANSWERS = {
     state: "scheduled",
     recipient_count: 12,
     scheduled_for: "2026-09-12T15:00:00.000Z",
+    // Set for a time still ahead when it was pressed (core createBroadcast): the receipt says scheduled by it.
+    scheduled_ahead: true,
     decision_id: D(9),
   },
   ["POST /api/v1/playbooks"]: { id: PB1, name: "Win-back", state: "running", decision_id: D(0) },

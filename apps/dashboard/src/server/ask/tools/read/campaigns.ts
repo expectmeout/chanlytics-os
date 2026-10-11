@@ -255,7 +255,7 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
   ];
   // Said only where somebody is left out, so a listing with nobody left out reads as it always did.
   const leftOutSaid = audiences.some((a) => "left_out_offers" in a || "left_out_messages" in a)
-    ? " A broadcast leaves out whoever heard from you this week: can_be_sent counts who it goes to, and left_out_offers and left_out_messages how many are left out, which the card says too."
+    ? " A broadcast leaves out whoever heard from you within the week before it goes: can_be_sent counts who a send that goes now goes to, and left_out_offers and left_out_messages how many are left out, which the card says too; a card set for later counts for its own time, so it may leave out fewer."
     : "";
   return {
     route: "broadcasts",
