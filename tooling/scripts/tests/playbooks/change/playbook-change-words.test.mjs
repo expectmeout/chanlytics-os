@@ -69,7 +69,10 @@ const ports = (over = {}) => ({
   timezone: async () => ZONE,
   ...over,
 });
-const judge = (asked, row = ROW, p = ports()) => checkPlaybookPatch(p, row, asked, NOW);
+const judge = (asked, row = ROW, p = ports(), isUndo = false) =>
+  checkPlaybookPatch(p, row, asked, { now: NOW, undo: isUndo });
+/** The same judgement on an undo: the PUT naming the decision it undoes, which writes back what the door recorded. */
+const undo = (asked, row = ROW) => judge(asked, row, ports(), true);
 const refusedWith = (p, words, status = 400) =>
   assert.rejects(p, (e) => {
     assert.equal(e.message, words);
@@ -171,6 +174,19 @@ test("its trial's end: an instant with its offset, kept as one spelling, and nul
     W.trialWhen,
     "A trial ends at a date and a time with its zone, as 2026-10-18T14:00:00Z, or at null, which ends it now.",
   );
+});
+
+test("an undo writes back the end and the trial the door recorded, past or not: nothing clears either when it passes, so what a change held may be past by its undo; their shapes are still judged, and a change that is no undo still names dates to come", async () => {
+  // A campaign that ended on the 1st had its end moved; its undo puts the 1st back. Likewise a trial that ended on the 5th.
+  const later = { ...ROW, until: "2026-11-30", trial_until: "2026-11-01T14:00:00.000Z" };
+  assert.deepEqual(await undo({ until: "2026-10-01", trial_until: "2026-10-05T14:00:00Z" }, later), {
+    set: { until: "2026-10-01", trial_until: "2026-10-05T14:00:00.000Z" },
+    was: { until: "2026-11-30", trial_until: "2026-11-01T14:00:00.000Z" },
+  });
+  await refusedWith(undo({ until: "Oct 1" }, later), W.untilDay);
+  await refusedWith(undo({ trial_until: "2026-10-05" }, later), W.trialWhen);
+  await refusedWith(judge({ until: "2026-10-01" }, later), W.untilPast("Oct 11"));
+  await refusedWith(judge({ trial_until: "2026-10-05T14:00:00Z" }, later), W.trialPast);
 });
 
 test("the three ride with the six in one change; a reach-out's step takes none of them; and what a change does not name is never read", async () => {

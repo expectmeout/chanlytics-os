@@ -3157,20 +3157,22 @@ async function patchParams(ports, row, v) {
   refuseFollowUpWithoutLink(trig, specs);
   return specs;
 }
-async function patchUntil(ports, v, now) {
+async function patchUntil(ports, v, when) {
   if (v === void 0 || v === null) return v;
   if (!isDayKey(v)) throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.untilDay);
+  if (when.undo) return v;
   const tz = await ports.timezone();
-  const today = localDate3(tz, now);
-  if (v < today) throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.untilPast(campaignDayWords(today, tz, now)));
+  const today = localDate3(tz, when.now);
+  if (v < today)
+    throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.untilPast(campaignDayWords(today, tz, when.now)));
   return v;
 }
 var INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/;
-function trialUntilOf(v, now) {
+function trialUntilOf(v, when) {
   if (v === void 0 || v === null) return v;
   const at = typeof v === "string" && INSTANT.test(v) ? Date.parse(v) : Number.NaN;
   if (!Number.isFinite(at)) throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.trialWhen);
-  if (at <= now.getTime()) throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.trialPast);
+  if (!when.undo && at <= when.now.getTime()) throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.trialPast);
   return new Date(at).toISOString();
 }
 function patchHeldOf(row) {
@@ -3192,7 +3194,7 @@ function holdsAlready(k, to, held) {
     return Date.parse(to) === Date.parse(held);
   return to === held;
 }
-async function checkPlaybookPatch(ports, row, asked2, now) {
+async function checkPlaybookPatch(ports, row, asked2, when) {
   const keys = Object.keys(asked2).filter((k) => asked2[k] !== void 0);
   if (keys.length === 0 || keys.some((k) => !PLAYBOOK_PATCH_KEYS.includes(k)))
     throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.nothing);
@@ -3208,8 +3210,8 @@ async function checkPlaybookPatch(ports, row, asked2, now) {
     gap_days: patchNumber("gap_days", asked2.gap_days, row.gap_days),
     cadence_days: patchNumber("cadence_days", asked2.cadence_days, row.cadence_days),
     params: await patchParams(ports, row, asked2.params),
-    until: await patchUntil(ports, asked2.until, now),
-    trial_until: trialUntilOf(asked2.trial_until, now)
+    until: await patchUntil(ports, asked2.until, when),
+    trial_until: trialUntilOf(asked2.trial_until, when)
   };
   const held = patchHeldOf(row);
   const set = {};

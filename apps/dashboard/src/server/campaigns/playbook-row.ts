@@ -115,7 +115,7 @@ type PlaybookPutBody = z.infer<typeof PLAYBOOK_PUT_BODY>;
  */
 function trialAsked(asked: Record<string, unknown> | null, now: Date): string | null {
   if (asked?.trial === true) return newCampaignTrialUntil(now);
-  return trialUntilOf(asked?.trial_until, now) ?? null;
+  return trialUntilOf(asked?.trial_until, { now, undo: false }) ?? null;
 }
 
 /**
@@ -185,9 +185,11 @@ export async function changePlaybook(ctx: RouteContext, body: PlaybookPutBody, p
  * fields' bounds, a cadence for the month's offer alone, a resume refused on an archived list, its words held to its
  * message's slots, its end a day today or later by the business's clock, its trial's end an instant to come, a
  * reach-out's step paused or resumed and nothing else), then written with its line in the ledger in one transaction
- * (the change_playbook door): the row locked, only what differs set, and what each field held answered as `was`, which an undo puts back. Nothing
- * that differs writes nothing and answers what it is, so a second press of Pause is no second line. On a database before
- * the door, written the way it was before (changeTheOldWay), for one release.
+ * (the change_playbook door): the row locked, only what differs set, and what each field held answered as `was`, which
+ * an undo puts back. An undo is a change naming the decision it undoes (ctx.undoOf, the x-undo-of header Ask's commit
+ * runner sends): it restores the end and the trial the door recorded, past or not, where any other change names dates
+ * still to come. Nothing that differs writes nothing and answers what it is, so a second press of Pause is no second
+ * line. On a database before the door, written the way it was before (changeTheOldWay), for one release.
  */
 async function patchPlaybook(ctx: RouteContext, asked: Record<string, unknown>, p: PlaybookRow) {
   const read = await playbookForChange(ctx.supabase, p.tenant_id, p.id);
@@ -196,7 +198,10 @@ async function patchPlaybook(ctx: RouteContext, asked: Record<string, unknown>, 
   // The table's check holds a state to the two; one it does not know is no row a change is judged against.
   if (!isPlaybookState(read.state)) throw new Error(`playbook ${p.id} holds a state the check does not: ${read.state}`);
   const row = { ...read, state: read.state };
-  const { set, was } = await checkPlaybookPatch(playbookPatchPorts(ctx, p.tenant_id), row, asked, new Date());
+  const { set, was } = await checkPlaybookPatch(playbookPatchPorts(ctx, p.tenant_id), row, asked, {
+    now: new Date(),
+    undo: ctx.undoOf !== undefined,
+  });
   // Nothing differs: nothing written and no line, answered as the door answers its own no-op (was empty, decision_id null).
   if (Object.keys(set).length === 0) return { id: p.id, name: row.name, state: row.state, was: {}, decision_id: null };
   const name = set.name ?? row.name;

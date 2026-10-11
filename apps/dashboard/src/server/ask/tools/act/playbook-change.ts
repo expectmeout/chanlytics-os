@@ -108,7 +108,8 @@ async function proposePlaybookChange(t: ToolContext, input: ChangeAsked): Promis
   const asked = Object.fromEntries(PLAYBOOK_PATCH_KEYS.filter((k) => given[k] !== undefined).map((k) => [k, given[k]]));
   let judged: { set: PlaybookPatch; was: PlaybookPatch };
   try {
-    judged = await checkPlaybookPatch(playbookPatchPorts(t.ctx, t.tenantId), row, asked, t.now);
+    // A card is never an undo: its dates are still to come.
+    judged = await checkPlaybookPatch(playbookPatchPorts(t.ctx, t.tenantId), row, asked, { now: t.now, undo: false });
   } catch (e) {
     return refuse(e instanceof Error ? e.message : String(e));
   }

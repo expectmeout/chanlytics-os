@@ -19,8 +19,14 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const { MODE_WORDS } = await import(at("apps/dashboard/src/server/ask/tools/act/playbook.ts"));
-const { LIFECYCLE_WORDS, PLAYBOOK_CARD_REFUSALS, PROPOSAL_SPECS, PLAYBOOK_PATCH_WORDS, REACH_OUT_IS_NOT_A_MOMENT } =
-  await import("@chanlytics/contracts");
+const {
+  LIFECYCLE_WORDS,
+  PLAYBOOK_CARD_REFUSALS,
+  PROPOSAL_SPECS,
+  PLAYBOOK_PATCH_WORDS,
+  REACH_OUT_IS_NOT_A_MOMENT,
+  lifecyclePlaybooksOf,
+} = await import("@chanlytics/contracts");
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
 const playbookRoute = await import(at("apps/dashboard/app/api/v1/playbooks/[id]/route.ts"));
@@ -76,8 +82,11 @@ const change = (input, rows = tables(), faults = {}) => {
   return buildProposal(t, "propose_campaign", { action: "change", playbook_id: PB, ...input });
 };
 const said = (r) => JSON.parse(r.result).error;
-/** A card's commit or undo, sent to the real PUT over the same rows. */
-const sendTo = async (rows, call) => {
+/**
+ * A card's commit or undo, sent to the real PUT over the same rows. `undoOf` is the decision an undo names, as the
+ * commit runner sends it (legacy-bridge/ask/commit.ts: the x-undo-of header, the route's ctx.undoOf).
+ */
+const sendTo = async (rows, call, undoOf) => {
   assert.equal(call.route, "PUT playbooks/[id]");
   setRateStore(memoryStore());
   return playbookRoute.PUT.run(
@@ -87,8 +96,15 @@ const sendTo = async (rows, call) => {
       userId: USER,
       email: "ada@example.com",
       params: call.params,
+      ...(undoOf ? { undoOf } : {}),
     },
   );
+};
+/** A change card's Undo, as the commit runner sends it: its spec's call, naming the decision its Approve wrote. */
+const undoTo = (rows, p, approved) => {
+  const spec = PROPOSAL_SPECS.playbook_change;
+  const record = spec.undo.record(p, approved, { settings: null });
+  return sendTo(rows, spec.undo.call(record, { settings: null }), record.decision_id ?? undefined);
 };
 
 test("a rename and a new hour: a card that carries what changes and what it held, in the product's words, and whose Approve and Undo are the playbook's own PUT", async () => {
@@ -319,9 +335,9 @@ test("its trial (00395 trial_until): an instant says its last day; null ends it,
     [set.proposal.payload.trial_until, set.proposal.payload.was],
     ["2026-09-21T14:00:00.000Z", { trial_until: null }],
   );
-  // A trial still to come when the PUT judges it, at the route's own clock (core trialUntilOf refuses one past): its
-  // undo writes it back.
-  const onTrial = { trial_until: "2099-09-21T14:00:00Z" };
+  // Its undo writes back what the door recorded, past or not: the PUT judges at its own clock, by which this trial has
+  // ended, and an undo restores it all the same (core checkPlaybookPatch `undo`).
+  const onTrial = { trial_until: "2026-09-21T14:00:00Z" };
   const rows = tables({ playbooks: [playbookRow(onTrial)] });
   const ended = await change({ trial_until: null }, rows);
   assert.equal(ended.isError, false, ended.result);
@@ -333,9 +349,9 @@ test("its trial (00395 trial_until): an instant says its last day; null ends it,
   assert.deepEqual(commit.body, { trial_until: null }, "the null that clears it, and nothing else");
   const approved = await sendTo(rows, commit);
   assert.equal(rows.playbooks[0].trial_until, null);
-  await sendTo(rows, spec.undo.call(spec.undo.record(p, approved, { settings: null }), { settings: null }));
+  await undoTo(rows, p, approved);
   // The same instant, kept in the one spelling a change writes (core trialUntilOf).
-  assert.equal(rows.playbooks[0].trial_until, "2099-09-21T14:00:00.000Z");
+  assert.equal(rows.playbooks[0].trial_until, "2026-09-21T14:00:00.000Z");
   // A trial's end already past is refused: null is how a trial ends now.
   assert.equal(
     PLAYBOOK_PATCH_WORDS.trialPast,
@@ -389,4 +405,63 @@ test("a trial follows its class's mode: under ask or never a trial changes nothi
     { "policies.select": { message: "the read failed" } },
   );
   assert.equal(ends.proposal.summary, PLAYBOOK_PATCH_WORDS.trial_until(null));
+});
+
+test("an undo restores what the door recorded, past or not: a resume with a new trial on a campaign whose earlier trial ended, and a later end on a campaign that has ended, are undone to the past values, each line naming the line it undoes; a PUT that is no undo still refuses a past end or a past trial", async () => {
+  // Its first week's trial ended on the 1st; resumed now with a new one (far off, still to come by the PUT's own clock).
+  const ended = { state: "paused", trial_until: "2026-09-01T14:00:00Z" };
+  const rows = tables({ playbooks: [playbookRow(ended)] });
+  const resumed = (await change({ state: "running", trial_until: "2099-09-21T14:00:00Z" }, rows)).proposal;
+  assert.deepEqual(resumed.payload.was, ended);
+  const spec = PROPOSAL_SPECS.playbook_change;
+  const approved = await sendTo(rows, spec.commit(resumed, { settings: null }));
+  assert.deepEqual([rows.playbooks[0].state, rows.playbooks[0].trial_until], ["running", "2099-09-21T14:00:00.000Z"]);
+  await undoTo(rows, resumed, approved);
+  assert.deepEqual(
+    [rows.playbooks[0].state, rows.playbooks[0].trial_until],
+    ["paused", "2026-09-01T14:00:00.000Z"],
+    "the trial that had ended, as it was",
+  );
+  assert.deepEqual(
+    rows.decisions.map((d) => [d.verb, d.undo_of ?? null]),
+    [
+      ["start_playbook", null],
+      ["pause_playbook", approved.decision_id],
+    ],
+  );
+
+  // It ended on the 10th; a later end is undone to the 10th, and the home says it has ended again.
+  const over = tables({ playbooks: [playbookRow({ until: "2026-09-10" })] });
+  const later = (await change({ until: "2099-11-30" }, over)).proposal;
+  assert.deepEqual(later.payload.was, { until: "2026-09-10" });
+  const extended = await sendTo(over, spec.commit(later, { settings: null }));
+  assert.equal(over.playbooks[0].until, "2099-11-30");
+  await undoTo(over, later, extended);
+  assert.equal(over.playbooks[0].until, "2026-09-10");
+  assert.deepEqual(
+    over.decisions.map((d) => [d.verb, d.undo_of ?? null]),
+    [
+      ["change_playbook", null],
+      ["change_playbook", extended.decision_id],
+    ],
+  );
+  const home = lifecyclePlaybooksOf(
+    { playbooks: [{ ...over.playbooks[0], last_run_for: null }], timezone: TZ, calendar: "none" },
+    NOW,
+  );
+  assert.deepEqual([home.cards[0].read.ended, home.cards[0].read.off], ["Sep 10", LIFECYCLE_WORDS.ended("Sep 10")]);
+  assert.equal(LIFECYCLE_WORDS.ended("Sep 10"), "Ended Sep 10");
+
+  // A PUT that names no undo is judged as any change is: a past end and a past trial are refused, nothing written.
+  const direct = (body) => sendTo(over, { route: "PUT playbooks/[id]", params: { id: PB }, body });
+  await assert.rejects(direct({ until: "2026-09-11" }), (e) => {
+    assert.match(e.message, /^An end is today or later: today is /);
+    return true;
+  });
+  await assert.rejects(direct({ trial_until: "2026-09-21T14:00:00Z" }), (e) => {
+    assert.equal(e.message, PLAYBOOK_PATCH_WORDS.trialPast);
+    return true;
+  });
+  assert.deepEqual([over.playbooks[0].until, over.playbooks[0].trial_until ?? null], ["2026-09-10", null]);
+  assert.equal(over.decisions.length, 2, "no line for a refused change");
 });

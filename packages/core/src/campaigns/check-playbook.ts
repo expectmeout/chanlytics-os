@@ -297,17 +297,32 @@ async function patchParams(
   return specs;
 }
 
-/** Its last day a change names (00395 `until`): a day by the business's clock, today or later; null clears it. */
+/**
+ * When a change is judged (`now`) and whether it is an undo (`undo`): one that writes back what the door recorded a
+ * change held (its `was`), which restores a past end or a past trial as it was, since nothing clears either when it
+ * passes. A change that is not an undo names a date still to come at `now`.
+ */
+interface PatchWhen {
+  now: Date;
+  undo: boolean;
+}
+
+/**
+ * Its last day a change names (00395 `until`): a day by the business's clock, today or later, or on an undo the day it
+ * held, past or not; null clears it.
+ */
 async function patchUntil(
   ports: Pick<CheckPlaybookPatchPorts, "timezone">,
   v: unknown,
-  now: Date,
+  when: PatchWhen,
 ): Promise<string | null | undefined> {
   if (v === undefined || v === null) return v;
   if (!isDayKey(v)) throw new AppError("validation", PLAYBOOK_PATCH_WORDS.untilDay);
+  if (when.undo) return v;
   const tz = await ports.timezone();
-  const today = localDate(tz, now);
-  if (v < today) throw new AppError("validation", PLAYBOOK_PATCH_WORDS.untilPast(campaignDayWords(today, tz, now)));
+  const today = localDate(tz, when.now);
+  if (v < today)
+    throw new AppError("validation", PLAYBOOK_PATCH_WORDS.untilPast(campaignDayWords(today, tz, when.now)));
   return v;
 }
 
@@ -317,14 +332,15 @@ const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d
 /**
  * The end of its trial a change or a new campaign names (00395 `trial_until`): an instant still to come at `now`, kept
  * in one spelling (UTC); null ends it, or starts none. A trial that has already ended is none, so an instant past is
- * refused, from any caller. The one judgement checkPlaybookPatch and POST playbooks (the dashboard's startNewPlaybook,
- * before a starter is filed) ask.
+ * refused, from every caller but an undo (`when.undo`), which writes back the instant the door recorded, past or not.
+ * The one judgement checkPlaybookPatch and POST playbooks (the dashboard's startNewPlaybook, before a starter is filed)
+ * ask.
  */
-export function trialUntilOf(v: unknown, now: Date): string | null | undefined {
+export function trialUntilOf(v: unknown, when: PatchWhen): string | null | undefined {
   if (v === undefined || v === null) return v;
   const at = typeof v === "string" && INSTANT.test(v) ? Date.parse(v) : Number.NaN;
   if (!Number.isFinite(at)) throw new AppError("validation", PLAYBOOK_PATCH_WORDS.trialWhen);
-  if (at <= now.getTime()) throw new AppError("validation", PLAYBOOK_PATCH_WORDS.trialPast);
+  if (!when.undo && at <= when.now.getTime()) throw new AppError("validation", PLAYBOOK_PATCH_WORDS.trialPast);
   return new Date(at).toISOString();
 }
 
@@ -356,17 +372,18 @@ function holdsAlready(k: PlaybookPatchKey, to: unknown, held: unknown): boolean 
  * writes, judged one way. `asked` names any of the nine (contracts PLAYBOOK_PATCH_KEYS) and nothing else; each number is
  * held to its bounds (PLAYBOOK_LIMITS; a name past PLAYBOOK_NAME_MAX is refused, never cut, so a card says exactly what
  * is stored), a cadence to the month's offer, a resume to a list that is not archived (by the port), its words to its
- * message's slots (patchParams), its end to a day today or later by the business's clock at `now`, its trial's end to an
- * instant after `now` (trialUntilOf), and a reach-out's step to its state alone (its sheet changes the rest). It answers
- * only what differs from the
- * row as it stands, `set`, and what each of those held, `was`; nothing that differs is `{ set: {}, was: {} }`, which the
- * card refuses in words and the route answers without a write.
+ * message's slots (patchParams), its end to a day today or later by the business's clock at `when.now`, its trial's end
+ * to an instant after it (trialUntilOf), and a reach-out's step to its state alone (its sheet changes the rest). An undo
+ * (`when.undo`: PUT playbooks/:id naming the decision it undoes) writes back what the door recorded, so its end and its
+ * trial are restored past or not, their shapes still judged. It answers only what differs from the row as it stands,
+ * `set`, and what each of those held, `was`; nothing that differs is `{ set: {}, was: {} }`, which the card refuses in
+ * words and the route answers without a write.
  */
 export async function checkPlaybookPatch(
   ports: CheckPlaybookPatchPorts,
   row: PlaybookPatchRow,
   asked: Record<string, unknown>,
-  now: Date,
+  when: PatchWhen,
 ): Promise<{ set: PlaybookPatch; was: PlaybookPatch }> {
   const keys = Object.keys(asked).filter((k) => asked[k] !== undefined);
   if (keys.length === 0 || keys.some((k) => !(PLAYBOOK_PATCH_KEYS as readonly string[]).includes(k)))
@@ -385,8 +402,8 @@ export async function checkPlaybookPatch(
     gap_days: patchNumber("gap_days", asked.gap_days, row.gap_days),
     cadence_days: patchNumber("cadence_days", asked.cadence_days, row.cadence_days),
     params: await patchParams(ports, row, asked.params),
-    until: await patchUntil(ports, asked.until, now),
-    trial_until: trialUntilOf(asked.trial_until, now),
+    until: await patchUntil(ports, asked.until, when),
+    trial_until: trialUntilOf(asked.trial_until, when),
   };
   const held = patchHeldOf(row);
   const set: PlaybookPatch = {};
