@@ -33,7 +33,7 @@ import { RecordChips } from "../../kit/record/row";
 import { BtaHandoff, BtaLanguages, BtaRules, BtaVoice } from "./answers-fields";
 import type { Fields, HandoffWords } from "./answers-fields";
 import { BtFold } from "./gestures/fold";
-import { btoWorkspaceZone } from "./open";
+import { btoStoredZone } from "./open";
 import { phoneShown } from "./save";
 import type { Brain, Config, Profile } from "./save";
 import { businessTabSave } from "./saver";
@@ -204,8 +204,9 @@ const BtaNotes = ({
     full: BTA_NOTES_FULL,
   });
   const list = Array.isArray(draft) ? (draft as NoteDraft[]) : [];
-  // Whether a note has ended is judged on the workspace's day, as the closed days' row judges what is still ahead.
-  const zone = btoWorkspaceZone();
+  // Whether a note has ended is the composer's own rule (contracts noteEndedWords), in the zone the composer is given:
+  // the workspace's own, null where it has none, never the zone the page shows times in.
+  const zone = btoStoredZone();
   const now = new Date();
   return (
     <div className="bt-notes" data-testid="rec-notes-rows">

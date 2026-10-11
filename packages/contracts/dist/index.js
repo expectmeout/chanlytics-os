@@ -19581,7 +19581,7 @@ function notesWords(notes) {
 }
 function noteEndedWords(until, tz, now) {
   if (typeof until !== "string" || !until) return null;
-  return until < zoneDayKey(now.getTime(), tz) ? `ended ${closureDatesLabel({ date: until })}` : null;
+  return notesInForce([{ until }], tz, now).length ? null : `ended ${closureDatesLabel({ date: until })}`;
 }
 var OPENING_SHOWN = 72;
 function instructionsWords(text) {

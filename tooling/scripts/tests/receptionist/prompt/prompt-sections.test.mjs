@@ -419,6 +419,18 @@ test("a note's last day is the business's own day: at 23:30 in New York it is st
     "Other things to know:",
     "- Parking: Free parking behind the building.",
   ]);
+  // In winter New York is five hours behind (EST): 04:30 UTC is 23:30 on the note's last day, still said, and 05:30 UTC
+  // is 00:30 the next day, when it is not. The instant that ended the October note keeps the December one.
+  const winter = [PARKING, note("Holiday hours", "2026-12-10")];
+  assert.deepEqual(notesOf(withNotes(winter, new Date("2026-12-11T04:30:00Z"), ny)), [
+    "Other things to know:",
+    "- Parking: Free parking behind the building.",
+    "- Holiday hours (until Thursday, December 10, 2026): Holiday hours is said.",
+  ]);
+  assert.deepEqual(notesOf(withNotes(winter, new Date("2026-12-11T05:30:00Z"), ny)), [
+    "Other things to know:",
+    "- Parking: Free parking behind the building.",
+  ]);
 });
 
 test("with no zone a note keeps the closures' fallback: a day longer rather than hiding one that lasts, and the two agree", () => {

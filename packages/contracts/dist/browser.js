@@ -20520,161 +20520,6 @@ function unknownDetails(text) {
   return [...text.matchAll(/\{[^{}\n]{1,40}\}/g)].map((m) => m[0]).filter((name) => !namesADetail(name));
 }
 
-// src/config/business-tab/how-it-answers.ts
-var COMMON_LANGUAGES = [
-  "English",
-  "Spanish",
-  "Portuguese",
-  "French",
-  "Haitian Creole",
-  "Mandarin",
-  "Cantonese",
-  "Arabic",
-  "Russian",
-  "Polish",
-  "Italian",
-  "Hindi"
-];
-var TONE_PRESETS = [
-  {
-    label: "Warm and brief",
-    tone: "Warm and brief. Friendly, a sentence or two at a time, and straight to what the customer asked."
-  },
-  {
-    label: "Professional, no small talk",
-    tone: "Professional and to the point. Polite and clear, with no small talk and no exclamation marks."
-  },
-  {
-    label: "Chatty, first names",
-    tone: "Chatty and relaxed. Uses the customer's first name when it has one, and sounds like a friendly front desk."
-  }
-];
-var cutAtWord = (text, max) => {
-  const t = text.replace(/\s+/g, " ").trim();
-  if (t.length <= max) return t;
-  const head = t.slice(0, max + 1);
-  const at3 = head.lastIndexOf(" ");
-  const cut = (at3 > 0 ? head.slice(0, at3) : t.slice(0, max)).replace(/[\s,;:·—–-]+$/u, "");
-  return `${cut}\u2026`;
-};
-var NOTE_CHIPS = CHIPS_SHOWN;
-function notesWords(notes) {
-  const titles = (Array.isArray(notes) ? notes : []).map((n2) => n2 && typeof n2.title === "string" ? n2.title.trim() : "").filter((t) => t !== "");
-  const n = titles.length;
-  return {
-    count: n,
-    chips: titles.slice(0, NOTE_CHIPS),
-    more: n > NOTE_CHIPS ? chipsMoreWords(n - NOTE_CHIPS) : null
-  };
-}
-function noteEndedWords(until, tz, now) {
-  if (typeof until !== "string" || !until) return null;
-  return until < zoneDayKey(now.getTime(), tz) ? `ended ${closureDatesLabel({ date: until })}` : null;
-}
-var OPENING_SHOWN = 72;
-function instructionsWords(text) {
-  const t = typeof text === "string" ? text.trim() : "";
-  if (!t) return { opening: null, limit: null };
-  return {
-    opening: `\u201C${cutAtWord(t, OPENING_SHOWN)}\u201D`,
-    limit: `${count(t.length)} of ${count(INSTRUCTIONS_MAX)} characters`
-  };
-}
-function fallbacksWords(fallbacks) {
-  const keys = Object.keys(FALLBACK_DEFAULTS);
-  const f = fallbacks && typeof fallbacks === "object" ? fallbacks : {};
-  const differ = keys.filter((k) => {
-    const t = typeof f[k] === "string" ? f[k].trim() : "";
-    return t !== "" && !isProductFallback(k, t);
-  }).length;
-  return { line: `${count(keys.length)} messages, ${differ ? "in your words" : "the product's wording"}` };
-}
-
-// src/config/business-tab/open-week.ts
-var DAY_COUNT_WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven"];
-function openWeekWords(hours, tz) {
-  const open = DAYS.filter((d) => dayIntervals(hours?.[d]).length > 0).length;
-  const zone = `in ${timezoneCity(tz)} time`;
-  if (!open) return `Times are ${zone}`;
-  return `${DAY_COUNT_WORDS[open]} ${open === 1 ? "day" : "days"} a week, ${zone}`;
-}
-function hoursZoneWords(tz) {
-  return `All times in ${timezoneCity(tz)} time, as the receptionist states them.`;
-}
-function closuresAheadWords(closures, tz, now) {
-  const dated = (closures ?? []).filter((c) => !!c?.date);
-  const ahead = closuresFrom(dated, zoneDayKey(now.getTime(), tz));
-  const next = ahead[0];
-  if (!next) return { count: 0, line: null };
-  const named = `${closureDatesLabel(next)}${next.note ? ` \xB7 ${next.note}` : ""}`;
-  return { count: ahead.length, line: `${ahead.length} ahead \xB7 ${ahead.length > 1 ? "next " : ""}${named}` };
-}
-
-// src/config/business-tab/prompt-cost-words.ts
-function blockShareWords(chars, total) {
-  const SHARES = [
-    [1 / 10, "a tenth"],
-    [1 / 5, "a fifth"],
-    [1 / 4, "a quarter"],
-    [1 / 3, "a third"],
-    [2 / 5, "two fifths"],
-    [1 / 2, "half"],
-    [3 / 5, "three fifths"],
-    [2 / 3, "two thirds"],
-    [3 / 4, "three quarters"],
-    [4 / 5, "four fifths"],
-    [9 / 10, "nine tenths"]
-  ];
-  if (!(typeof chars === "number" && chars > 0) || !(typeof total === "number" && total > 0)) return null;
-  const f = Math.min(1, chars / total);
-  if (f >= 0.95) return "nearly everything it reads";
-  if (f < 0.075) return "less than a tenth of everything it reads";
-  const [share, words2] = SHARES.reduce((best, s) => Math.abs(s[0] - f) < Math.abs(best[0] - f) ? s : best);
-  return `${Math.abs(share - f) > 0.03 ? "about " : ""}${words2} of everything it reads`;
-}
-function promptCostWords(chars, total) {
-  const share = blockShareWords(chars, total);
-  return `${count(chars)} characters${share ? ` \u2014 ${share}` : ""}.`;
-}
-function promptTotalWords(total) {
-  return `${count(total)} ${total === 1 ? "character" : "characters"} in all.`;
-}
-var PROMPT_READERS = {
-  whatsapp: "Every WhatsApp message, word for word",
-  voice: "Every phone call, composed when the call starts"
-};
-var PROMPT_NOW = {
-  label: {
-    whatsapp: "Sent alongside it, rebuilt for every message",
-    voice: "Sent alongside it, rebuilt for every call"
-  },
-  why: {
-    whatsapp: "Shown separately because it is sent separately \u2014 folding a value that changes every minute into the block above would throw away the prompt cache on every message.",
-    voice: "Shown separately because it is sent separately \u2014 folding a value that changes every minute into the block above would throw away the prompt cache on every call."
-  }
-};
-
-// src/config/workspace-config/brain-config.ts
-function newReceptionistDefaults(businessName) {
-  return {
-    system_prompt: baselinePrompt(businessName),
-    // What a customer reads when the model cannot be reached: the product's
-    // wording, naming the business's details rather than copying them, so they
-    // are filled as each message goes out and follow the details from then on
-    // (fallbackMessages, S5). Copied, a workspace set up before its line existed
-    // told customers "call us at .", and a new booking link never reached them.
-    fallbacks: { ...FALLBACK_DEFAULTS }
-  };
-}
-var BASELINE_OPENING = "You are the assistant for ";
-var BASELINE_CLOSING = ", answering inbound customer messages. You are warm, concise and professional \u2014 a great front-desk person, in text form. If you do not know something, say so plainly and offer to have a person follow up.";
-function baselinePrompt(businessName) {
-  return `${BASELINE_OPENING}${businessName}${BASELINE_CLOSING}`;
-}
-function isBaselinePrompt(text) {
-  return text.startsWith(BASELINE_OPENING) && text.endsWith(BASELINE_CLOSING);
-}
-
 // src/config/workspace-config/offers-ask.ts
 var FACT = /* @__PURE__ */ (() => ({
   yes: "Said yes to offers.",
@@ -21052,6 +20897,161 @@ function rulesSection({ base, profile, channel, policy, link }) {
 ${PROMPT_OPENINGS.rules}
 ${rules.map((r2) => `- ${r2}`).join("\n")}`);
   return s;
+}
+
+// src/config/business-tab/how-it-answers.ts
+var COMMON_LANGUAGES = [
+  "English",
+  "Spanish",
+  "Portuguese",
+  "French",
+  "Haitian Creole",
+  "Mandarin",
+  "Cantonese",
+  "Arabic",
+  "Russian",
+  "Polish",
+  "Italian",
+  "Hindi"
+];
+var TONE_PRESETS = [
+  {
+    label: "Warm and brief",
+    tone: "Warm and brief. Friendly, a sentence or two at a time, and straight to what the customer asked."
+  },
+  {
+    label: "Professional, no small talk",
+    tone: "Professional and to the point. Polite and clear, with no small talk and no exclamation marks."
+  },
+  {
+    label: "Chatty, first names",
+    tone: "Chatty and relaxed. Uses the customer's first name when it has one, and sounds like a friendly front desk."
+  }
+];
+var cutAtWord = (text, max) => {
+  const t = text.replace(/\s+/g, " ").trim();
+  if (t.length <= max) return t;
+  const head = t.slice(0, max + 1);
+  const at3 = head.lastIndexOf(" ");
+  const cut = (at3 > 0 ? head.slice(0, at3) : t.slice(0, max)).replace(/[\s,;:·—–-]+$/u, "");
+  return `${cut}\u2026`;
+};
+var NOTE_CHIPS = CHIPS_SHOWN;
+function notesWords(notes) {
+  const titles = (Array.isArray(notes) ? notes : []).map((n2) => n2 && typeof n2.title === "string" ? n2.title.trim() : "").filter((t) => t !== "");
+  const n = titles.length;
+  return {
+    count: n,
+    chips: titles.slice(0, NOTE_CHIPS),
+    more: n > NOTE_CHIPS ? chipsMoreWords(n - NOTE_CHIPS) : null
+  };
+}
+function noteEndedWords(until, tz, now) {
+  if (typeof until !== "string" || !until) return null;
+  return notesInForce([{ until }], tz, now).length ? null : `ended ${closureDatesLabel({ date: until })}`;
+}
+var OPENING_SHOWN = 72;
+function instructionsWords(text) {
+  const t = typeof text === "string" ? text.trim() : "";
+  if (!t) return { opening: null, limit: null };
+  return {
+    opening: `\u201C${cutAtWord(t, OPENING_SHOWN)}\u201D`,
+    limit: `${count(t.length)} of ${count(INSTRUCTIONS_MAX)} characters`
+  };
+}
+function fallbacksWords(fallbacks) {
+  const keys = Object.keys(FALLBACK_DEFAULTS);
+  const f = fallbacks && typeof fallbacks === "object" ? fallbacks : {};
+  const differ = keys.filter((k) => {
+    const t = typeof f[k] === "string" ? f[k].trim() : "";
+    return t !== "" && !isProductFallback(k, t);
+  }).length;
+  return { line: `${count(keys.length)} messages, ${differ ? "in your words" : "the product's wording"}` };
+}
+
+// src/config/business-tab/open-week.ts
+var DAY_COUNT_WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven"];
+function openWeekWords(hours, tz) {
+  const open = DAYS.filter((d) => dayIntervals(hours?.[d]).length > 0).length;
+  const zone = `in ${timezoneCity(tz)} time`;
+  if (!open) return `Times are ${zone}`;
+  return `${DAY_COUNT_WORDS[open]} ${open === 1 ? "day" : "days"} a week, ${zone}`;
+}
+function hoursZoneWords(tz) {
+  return `All times in ${timezoneCity(tz)} time, as the receptionist states them.`;
+}
+function closuresAheadWords(closures, tz, now) {
+  const dated = (closures ?? []).filter((c) => !!c?.date);
+  const ahead = closuresFrom(dated, zoneDayKey(now.getTime(), tz));
+  const next = ahead[0];
+  if (!next) return { count: 0, line: null };
+  const named = `${closureDatesLabel(next)}${next.note ? ` \xB7 ${next.note}` : ""}`;
+  return { count: ahead.length, line: `${ahead.length} ahead \xB7 ${ahead.length > 1 ? "next " : ""}${named}` };
+}
+
+// src/config/business-tab/prompt-cost-words.ts
+function blockShareWords(chars, total) {
+  const SHARES = [
+    [1 / 10, "a tenth"],
+    [1 / 5, "a fifth"],
+    [1 / 4, "a quarter"],
+    [1 / 3, "a third"],
+    [2 / 5, "two fifths"],
+    [1 / 2, "half"],
+    [3 / 5, "three fifths"],
+    [2 / 3, "two thirds"],
+    [3 / 4, "three quarters"],
+    [4 / 5, "four fifths"],
+    [9 / 10, "nine tenths"]
+  ];
+  if (!(typeof chars === "number" && chars > 0) || !(typeof total === "number" && total > 0)) return null;
+  const f = Math.min(1, chars / total);
+  if (f >= 0.95) return "nearly everything it reads";
+  if (f < 0.075) return "less than a tenth of everything it reads";
+  const [share, words2] = SHARES.reduce((best, s) => Math.abs(s[0] - f) < Math.abs(best[0] - f) ? s : best);
+  return `${Math.abs(share - f) > 0.03 ? "about " : ""}${words2} of everything it reads`;
+}
+function promptCostWords(chars, total) {
+  const share = blockShareWords(chars, total);
+  return `${count(chars)} characters${share ? ` \u2014 ${share}` : ""}.`;
+}
+function promptTotalWords(total) {
+  return `${count(total)} ${total === 1 ? "character" : "characters"} in all.`;
+}
+var PROMPT_READERS = {
+  whatsapp: "Every WhatsApp message, word for word",
+  voice: "Every phone call, composed when the call starts"
+};
+var PROMPT_NOW = {
+  label: {
+    whatsapp: "Sent alongside it, rebuilt for every message",
+    voice: "Sent alongside it, rebuilt for every call"
+  },
+  why: {
+    whatsapp: "Shown separately because it is sent separately \u2014 folding a value that changes every minute into the block above would throw away the prompt cache on every message.",
+    voice: "Shown separately because it is sent separately \u2014 folding a value that changes every minute into the block above would throw away the prompt cache on every call."
+  }
+};
+
+// src/config/workspace-config/brain-config.ts
+function newReceptionistDefaults(businessName) {
+  return {
+    system_prompt: baselinePrompt(businessName),
+    // What a customer reads when the model cannot be reached: the product's
+    // wording, naming the business's details rather than copying them, so they
+    // are filled as each message goes out and follow the details from then on
+    // (fallbackMessages, S5). Copied, a workspace set up before its line existed
+    // told customers "call us at .", and a new booking link never reached them.
+    fallbacks: { ...FALLBACK_DEFAULTS }
+  };
+}
+var BASELINE_OPENING = "You are the assistant for ";
+var BASELINE_CLOSING = ", answering inbound customer messages. You are warm, concise and professional \u2014 a great front-desk person, in text form. If you do not know something, say so plainly and offer to have a person follow up.";
+function baselinePrompt(businessName) {
+  return `${BASELINE_OPENING}${businessName}${BASELINE_CLOSING}`;
+}
+function isBaselinePrompt(text) {
+  return text.startsWith(BASELINE_OPENING) && text.endsWith(BASELINE_CLOSING);
 }
 
 // src/config/workspace-config/resolve.ts

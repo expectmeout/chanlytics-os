@@ -15,6 +15,8 @@ import {
   handoffCallWords,
   notesWords,
   noteEndedWords,
+  composeSystemPrompt,
+  DAY_MS,
   instructionsWords,
   fallbacksWords,
   chipsMoreWords,
@@ -1076,6 +1078,27 @@ test("a note whose last day has passed on the business's own day reads ended, wi
   assert.equal(title.props.value, "Summer offer", "the title box keeps its name and its words");
   assert.equal(title.props["aria-describedby"], "bt-note-1-ended", "and is described by the words beside it");
   assert.deepEqual([endedOf(0), endedOf(2)], [null, null], "a note still lasting, and one with no end, say nothing");
+});
+
+test("in a workspace with no zone a note's end is judged as the composer judges it, never by the zone the page shows times in", () => {
+  // With no zone the composer's day is UTC's a day back: a note whose last day is that day is still told to the
+  // receptionist, so the form does not call it ended; one whose last day is the day before is not, and the form does.
+  const at = Date.now();
+  const lastDay = new Date(at - DAY_MS).toISOString().slice(0, 10);
+  const dayBefore = new Date(at - 2 * DAY_MS).toISOString().slice(0, 10);
+  const told = { title: "Holiday hours", text: "Open 10 to 2.", until: lastDay };
+  const gone = { title: "Summer offer", text: "Colour at 20% off.", until: dayBefore };
+  let tree = drawTab({ profile: { ...marisa, notes: [told, gone] }, zone: null });
+  openFold(tree, "notes");
+  tree = redrawTab();
+  const endedOf = (i) => find(noteRows(tree)[i], (n) => classes(n).includes("rec-input-unit"));
+  const base = { business_name: "Marisa's Beauty Salon", booking_link: null, whatsapp_line: null };
+  const composed = composeSystemPrompt(base, { notes: [told, gone] }, "whatsapp", null, new Date(at));
+  assert.ok(composed.includes("\n- Holiday hours (until "), "the composer, with no zone, still says it");
+  assert.equal(endedOf(0), null, "so the form does not call it ended");
+  assert.ok(!composed.includes("Summer offer"), "the composer has stopped saying the one before");
+  assert.equal(textOf(endedOf(1)), noteEndedWords(dayBefore, null, new Date(at)));
+  assert.match(textOf(endedOf(1)), /^ended [A-Z][a-z]{2} \d{1,2}$/);
 });
 
 test("a note's last day that is not on the calendar is refused under its Until box, in a closed day's words, and nothing is sent", () => {

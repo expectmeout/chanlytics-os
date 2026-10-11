@@ -14880,7 +14880,7 @@ declare function proposalBelowNeeds(kind: ProposalKindAboveOperator): string;
  * pure, as the repo's other derived tables are: a bare call at the top level is kept by every bundle that inlines
  * contracts (db, core, channels, jobs), and would carry every spec and its words in with it.
  */
-declare const PROPOSAL_GATE: Record<"message" | "reply" | "note" | "broadcast" | "playbook" | "deal" | "list" | "invite" | "whisper" | "run" | "settings" | "steer" | "thread_verb" | "person_mode" | "policy" | "lead_search" | "person_details" | "playbook_channels" | "playbook_change", ProposalGate>;
+declare const PROPOSAL_GATE: Record<"message" | "reply" | "note" | "broadcast" | "playbook" | "deal" | "list" | "invite" | "whisper" | "run" | "settings" | "policy" | "steer" | "thread_verb" | "person_mode" | "lead_search" | "person_details" | "playbook_channels" | "playbook_change", ProposalGate>;
 /**
  * Whether a committed card's undo is still true to offer: its spec's window, and ten minutes for a kind with none.
  *
@@ -17658,11 +17658,12 @@ declare function notesWords(notes: readonly ({
 } | null | undefined)[] | null | undefined): NotesWordsVM;
 /**
  * A note's end, beside its title in the notes fold once its last day has passed: "ended Oct 10". Null while it lasts
- * (its last day included) and for a note with no end. The day is the business's (zoneDayKey), as the closed days' row
- * counts what is still ahead (closuresAheadWords), and the date is spelled as that row spells a closed day
- * (closureDatesLabel). The receptionist stops saying the note on the same day (compose.ts).
+ * (its last day included) and for a note with no end. Ended is decided by the composer's own rule (notesInForce), so
+ * the form calls a note ended exactly when the receptionist stops being told it. `tz` is the zone the composer is given,
+ * the workspace's own, never a zone a page shows times in: with none, the composer's fallback decides here too. The date
+ * is spelled as the closed days' row spells a closed day (closureDatesLabel).
  */
-declare function noteEndedWords(until: unknown, tz: string, now: Date): string | null;
+declare function noteEndedWords(until: unknown, tz: string | null | undefined, now: Date): string | null;
 /** The owner's own words, at rest and in their box. */
 interface InstructionsWordsVM {
     /** Their opening, quoted and cut at a word; null with nothing written. */
