@@ -36,6 +36,8 @@ interface DrawerProps {
   flash: Flash;
   onClose: () => void;
   onEdit: (p: PlaybookCardVM) => void;
+  /** Open the message a playbook sends in its own drawer, over the home, pushed so Back returns here. */
+  onMessage: (name: string) => void;
   /** Change a reach-out: its sheet is the page's, at an address of its own. */
   onEditChain: (c: ReachOutChainDto) => void;
 }
@@ -50,10 +52,15 @@ function DrawerBody({
   flash,
   onClose,
   onEdit,
+  onMessage,
   onEditChain,
 }: DrawerProps & { id: string }) {
   const row = playbooks ? (playbooks.rows.find((p) => p.id === id) ?? null) : null;
-  if (row) return <PlaybookPane p={row} canAct={canAct} onEdit={onEdit} flash={flash} onClose={onClose} />;
+  if (row) {
+    return (
+      <PlaybookPane p={row} canAct={canAct} onEdit={onEdit} onMessage={onMessage} flash={flash} onClose={onClose} />
+    );
+  }
   const chain = reachOuts ? (reachOuts.find((c) => c.root_id === id) ?? null) : null;
   if (chain) return <ReachOutPane chain={chain} canAct={canAct} flash={flash} onClose={onClose} onEdit={onEditChain} />;
   // What is no playbook waits on the chains: unread, it is not yet known to be missing; failed, it cannot be told.

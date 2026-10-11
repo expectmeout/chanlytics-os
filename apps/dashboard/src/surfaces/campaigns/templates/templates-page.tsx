@@ -19,13 +19,16 @@
  * version's rename, hide and delete, a WhatsApp language, a template written to a number's account.
  *
  * It is the Inbox's shape (parts/split.tsx): the list in a pane and, while something is open, that thing in a second
- * pane beside it -- a message, a reach-out's email, or the composer writing a new one. The route has no address per
- * template, so which is open is the page's own.
+ * pane beside it -- a message, a reach-out's email, or the composer writing a new one. On a phone what is open rises over
+ * the list in the drawer Campaigns' home opens its own in (home/pane-sheet.tsx; Ruben, 11 Oct 2026: a message took the
+ * screen over "like a page"), the list still under it. The route has no address per template, so which is open is the
+ * page's own.
  *
  * The page is real on every workspace. A demo session draws the same words as a real one, over what it holds; without a
  * read, the waiting line says which of the two is looking.
  */
 import { useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { LIBRARY_WORDS } from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { canDo, demoSession, gateTitle, useLegacyToast } from "../../legacy-verbs";
@@ -33,7 +36,8 @@ import { FailedRead } from "../../kit/empty/empty";
 import { tabDraft } from "../../kit/record/work";
 import { useSurface } from "../../use-surface";
 import { CmHead } from "../parts/head";
-import { CmSplit } from "../parts/split";
+import { CmSplit, useCmPhone } from "../parts/split";
+import { PaneSheet } from "../home/pane-sheet";
 import { ReachOutEmailPane } from "../reach-out/email-message";
 import { tplEmailOpen, tplEmails, tplEmailsMatching } from "./emails";
 import { listingOf } from "./group";
@@ -129,6 +133,7 @@ function MessagesReal() {
   const versions = settings?.templateVersions ?? NO_VERSIONS;
   const S = library;
   const state = usePageState();
+  const phone = useCmPhone();
   const { doing, setDoing, doingRef, composing, setComposing, showHidden, setShowHidden } = state;
   const { openKey, setOpenKey, q, setQ, toastNode, flash } = state;
   const busy = doing !== null;
@@ -255,12 +260,33 @@ function MessagesReal() {
     </div>
   );
 
-  // The list in its pane, and what is open beside it -- a message, an email or the composer (parts/split.tsx).
+  // The list in its pane, and what is open beside it -- a message, an email or the composer (parts/split.tsx); on a
+  // phone, over it in the drawer.
   return (
     <>
-      <CmSplit className="tpl-page" testid="messages-real" list={list} open={pane} />
+      <CmSplit className="tpl-page" testid="messages-real" list={list} open={phone ? null : pane} />
+      {phone ? phoneDrawer({ pane, composing, onClose: composing ? () => setComposing(false) : closeOpen }) : null}
       {toastNode}
     </>
+  );
+}
+
+/**
+ * What is open, on a phone: over the list in the drawer Campaigns' home opens its own in, whose Close asks the composer
+ * first about what was written (its foot has no Cancel), and which a message alone fits.
+ */
+function phoneDrawer({ pane, composing, onClose }: { pane: ReactNode; composing: boolean; onClose: () => void }) {
+  return (
+    <PaneSheet
+      open={pane !== null}
+      title={LIBRARY_WORDS.title}
+      onClose={onClose}
+      askFirst={composing}
+      fit={!composing}
+      testid="tpl-drawer"
+    >
+      {pane}
+    </PaneSheet>
   );
 }
 

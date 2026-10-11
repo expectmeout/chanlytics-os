@@ -21,7 +21,7 @@ import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { StatePill } from "../../kit/pill/state-pill";
-import { CmPane } from "../parts/split";
+import { CmPane, useCmPhone } from "../parts/split";
 import { reachOuts } from "./surface";
 import { ReachOutSheet } from "./sheet";
 
@@ -165,10 +165,12 @@ interface ActsProps {
   onEdit: (() => void) | null;
   /** The pane's own close: a chain removed leaves the screen before its toast says so. */
   onGone: () => void;
+  /** Drawn in a phone's foot: Edit and Pause are its equal pair there (kit.css `data-foot-pair`), as a playbook's are. */
+  foot?: boolean;
 }
 
 /** Edit, Pause or Resume, and Remove only while the report says it may go (R16), asking first. */
-function ReachOutActs({ chain, said, W, flash, onEdit, onGone }: ActsProps) {
+function ReachOutActs({ chain, said, W, flash, onEdit, onGone, foot = false }: ActsProps) {
   const V = reachOuts;
   const RW = W.REACH_OUT_ROW_WORDS;
   const [busy, setBusy] = useState(false);
@@ -197,7 +199,7 @@ function ReachOutActs({ chain, said, W, flash, onEdit, onGone }: ActsProps) {
     }, RW.removed(chain.name));
   };
   return (
-    <div className="pb-card-acts ro-acts" data-testid="ro-acts">
+    <div className="pb-card-acts ro-acts" data-foot-pair={foot && !sure ? "" : undefined} data-testid="ro-acts">
       {sure ? (
         <Confirm
           question={RW.removeAsk(chain.name)}
@@ -247,21 +249,20 @@ function ReachOutActs({ chain, said, W, flash, onEdit, onGone }: ActsProps) {
 interface OpenProps {
   chain: ReachOutChainDto;
   canAct: boolean;
-  flash: Flash | undefined;
   W: Words;
-  pace: { host: string | null; share: number };
-  onEdit?: (chain: ReachOutChainDto) => void;
-  /** The pane's close, pressed once a Remove is taken. */
-  onGone: () => void;
+  /** The report as read, the way to read it again, and what it says. */
+  read: ReportRead | null;
+  retry: () => void;
+  said: Said | null;
+  /** Its acts, where the body holds them (a desk's pane); a phone's are the pane's foot. */
+  acts: ReactNode;
+  editing: boolean;
+  onEditDone: () => void;
 }
 
-/** The open row: the chain's path, its report as read, its acts. */
-function ReachOutOpen({ chain, canAct, flash, W, pace, onEdit, onGone }: OpenProps) {
-  const [read, retry] = useReachOutReport(chain.root_id, true);
-  const [editing, setEditing] = useState(false);
+/** The open row: the chain's path, its report as read, and its acts where the body holds them. */
+function ReachOutOpen({ chain, canAct, W, read, retry, said, acts, editing, onEditDone }: OpenProps) {
   const RW = W.REACH_OUT_ROW_WORDS;
-  const said =
-    read && read.state === "ok" ? W.chainReportWordsOf(chain, read.report, read.reach || RO_NO_REACH, pace) : null;
   return (
     <div className="ro-open" data-testid="ro-open-body">
       <ReachOutPath chain={chain} W={W} />
@@ -274,23 +275,14 @@ function ReachOutOpen({ chain, canAct, flash, W, pace, onEdit, onGone }: OpenPro
         <FailedRead kind="line" what={RW.failed} onRetry={retry} testid="ro-failed" />
       )}
       {said && <ReachOutReport said={said} />}
-      <ReachOutActs
-        chain={chain}
-        said={said}
-        W={W}
-        flash={flash}
-        onEdit={chain.search ? () => (onEdit ? onEdit(chain) : setEditing(true)) : null}
-        onGone={onGone}
-      />
+      {acts}
       {/* Who may is the role store's one answer (contracts roleGate, a partner included), never a copy of it. */}
       {!canAct && (
         <p className="bc-excl-hint" data-testid="ro-role">
           {gateTitle("approve", "change, pause, resume or remove a reach-out")}
         </p>
       )}
-      {editing && chain.search && (
-        <ReachOutSheet search={chain.search} chain={chain} onClose={() => setEditing(false)} />
-      )}
+      {editing && chain.search && <ReachOutSheet search={chain.search} chain={chain} onClose={onEditDone} />}
     </div>
   );
 }
@@ -304,25 +296,58 @@ interface PaneProps {
   onEdit?: (chain: ReachOutChainDto) => void;
 }
 
-/** The reach-out open, in the pane beside the list (parts/split.tsx): its name and state over its path, report and acts. */
+/**
+ * The reach-out open, in the pane beside the list (parts/split.tsx): its name and state over its path, report and acts.
+ * On a phone its acts are the pane's foot, Edit and Pause an equal pair a thumb reaches, as a playbook's drawer has them
+ * (Ruben, 11 Oct 2026: two small buttons stood in the body under the report), and its head has no glyph.
+ */
 export function ReachOutPane({ chain, canAct, flash, onClose, onEdit }: PaneProps) {
   const W = reachOuts.words;
   const pace = W.chainPaceOf(chain);
+  const phone = useCmPhone();
+  const [read, retry] = useReachOutReport(chain.root_id, true);
+  const [editing, setEditing] = useState(false);
+  const said =
+    read && read.state === "ok" ? W.chainReportWordsOf(chain, read.report, read.reach || RO_NO_REACH, pace) : null;
   const state = chain.state !== "running" ? "paused" : chain.next.waiting_run_id ? "approval" : "running";
+  const acts = (
+    <ReachOutActs
+      chain={chain}
+      said={said}
+      W={W}
+      flash={flash}
+      onEdit={chain.search ? () => (onEdit ? onEdit(chain) : setEditing(true)) : null}
+      onGone={onClose}
+      foot={phone}
+    />
+  );
   return (
     <CmPane
       testid="ro-pane"
       mark={
-        <span className="mark pb-row-mark" aria-hidden="true">
-          <Icon name="mail" size={13} />
-        </span>
+        phone ? null : (
+          <span className="mark pb-row-mark" aria-hidden="true">
+            <Icon name="mail" size={13} />
+          </span>
+        )
       }
       title={chain.name}
       badge={<StatePill kind="playbook" value={state} />}
       sub={W.chainHintOf(chain, pace.host)}
+      foot={phone && canAct ? acts : undefined}
       onClose={onClose}
     >
-      <ReachOutOpen chain={chain} canAct={canAct} flash={flash} W={W} pace={pace} onEdit={onEdit} onGone={onClose} />
+      <ReachOutOpen
+        chain={chain}
+        canAct={canAct}
+        W={W}
+        read={read}
+        retry={retry}
+        said={said}
+        acts={phone && canAct ? null : acts}
+        editing={editing}
+        onEditDone={() => setEditing(false)}
+      />
     </CmPane>
   );
 }

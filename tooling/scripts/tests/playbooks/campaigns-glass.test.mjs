@@ -146,7 +146,7 @@ test("the head says the month's allowance from half used, quietly: one line afte
   assert.ok(textOf(standingSaid()?.sentence).includes("300 of 500 texts used this month"));
 });
 
-test("the playbook composer: five rows, To, Send by, Says, When and Under, each holding its section", () => {
+test("the playbook composer: five rows, To, Send by, Says, When and Rules, each holding its section", () => {
   const glass = composing();
   const rows = ["pb-row-to", "pb-row-via", "pb-row-says", "pb-row-when", "pb-row-under"].map((id) =>
     byTestId(glass, id),
@@ -155,7 +155,7 @@ test("the playbook composer: five rows, To, Send by, Says, When and Under, each 
     rows.every((r) => r),
     "the five rows",
   );
-  assert.deepEqual(rows.map(wordOf), ["To", "Send by", "Says", "When", "Under"]);
+  assert.deepEqual(rows.map(wordOf), ["To", "Send by", "Says", "When", "Rules"]);
   // In the order they are drawn: Send by stands under To (8 Oct 2026), beside the count its switches change, where it
   // stood two rows and a whole preview below it.
   assert.deepEqual(
@@ -166,7 +166,7 @@ test("the playbook composer: five rows, To, Send by, Says, When and Under, each 
   assert.ok(within(glass, "pb-row-says", "pb-message"), "Says holds the message");
   assert.ok(within(glass, "pb-row-via", "pb-via-sec"), "Send by holds the channels it goes by");
   assert.ok(within(glass, "pb-row-when", "pb-clock"), "When holds the sentence of its numbers");
-  assert.ok(within(glass, "pb-row-under", "pb-guard"), "Under holds the guardrails");
+  assert.ok(within(glass, "pb-row-under", "pb-guard"), "Rules holds the guardrails");
   assert.ok(
     within(glass, "pb-row-under", "pb-runs-under") || byTestId(glass, "pb-runs-under") === null,
     "and the row it runs under",

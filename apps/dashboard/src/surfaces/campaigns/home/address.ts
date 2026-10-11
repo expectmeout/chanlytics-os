@@ -6,6 +6,7 @@
  *   campaigns/in:<group>             the ledger narrowed to one group: a journey stage's word-free id (`before`), `lists`,
  *                                    `reach_out` or `sent_once` (decision 46); a card's press or a phone's chip replaces it
  *   campaigns/moment:<id>            a playbook (or a reach-out) open in the drawer, the address every old `outbound/<id>` lands on
+ *   campaigns/message:<name>         a message open in a drawer of its own, by its name (the call's text; a playbook's message)
  *   campaigns/new                    the composer, on Send once
  *   campaigns/new:to:<audience>      the same, on the list or audience it was asked for (every old `broadcasts/<audience>` lands here)
  *   campaigns/new:every              the composer, on Every time a moment comes
@@ -25,6 +26,8 @@ export interface HomeAddress {
   group: string | null;
   /** The playbook or reach-out open in the drawer. */
   moment: string | null;
+  /** A message open in a drawer of its own, by its name: read and changed there, over the home (Ruben, 11 Oct 2026). */
+  message: string | null;
   /**
    * The composer: Send once (on the audience asked for, or the one it opens on), or Every time a moment comes, on a moment,
    * or changing one.
@@ -35,7 +38,7 @@ export interface HomeAddress {
 /** The home itself. Read here alone: use-home.ts closes to `groupRoute(null)`, so an export would be a dead one. */
 const HOME_ROUTE = "campaigns";
 
-const NONE: HomeAddress = { group: null, moment: null, compose: null };
+const NONE: HomeAddress = { group: null, moment: null, message: null, compose: null };
 
 /** A group's id as an address writes it: word-free, lower case, words joined by underscores (`before`, `reach_out`). */
 const GROUP_ID = /^[a-z]+(?:_[a-z]+)*$/;
@@ -70,6 +73,10 @@ export function parseHome(param: string | null): HomeAddress {
     const id = param.slice("moment:".length);
     return id ? { ...NONE, moment: id } : NONE;
   }
+  if (param.startsWith("message:")) {
+    const name = param.slice("message:".length);
+    return name ? { ...NONE, message: name } : NONE;
+  }
   const compose = composeOf(param);
   return compose ? { ...NONE, compose } : NONE;
 }
@@ -77,6 +84,7 @@ export function parseHome(param: string | null): HomeAddress {
 /** The route an address is spelled as: the shell's, `campaigns/moment:<id>`. */
 function homeRoute(a: HomeAddress): string {
   if (a.moment) return `${HOME_ROUTE}/moment:${a.moment}`;
+  if (a.message) return `${HOME_ROUTE}/message:${a.message}`;
   const c = a.compose;
   if (!c) return a.group ? `${HOME_ROUTE}/in:${a.group}` : HOME_ROUTE;
   if (c.mode === "once") return c.to ? `${HOME_ROUTE}/new:to:${c.to}` : `${HOME_ROUTE}/new`;
@@ -86,6 +94,9 @@ function homeRoute(a: HomeAddress): string {
 
 /** A moment open in the drawer. */
 export const momentRoute = (id: string): string => homeRoute({ ...NONE, moment: id });
+
+/** A message open in its own drawer, by its name. */
+export const messageRoute = (name: string): string => homeRoute({ ...NONE, message: name });
 
 /** The ledger narrowed to one group, or every group for null: what a card's press and a phone's chip replace the address with. */
 export const groupRoute = (group: string | null): string => homeRoute({ ...NONE, group });

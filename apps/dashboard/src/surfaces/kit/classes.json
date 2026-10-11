@@ -78,6 +78,7 @@
     "link-btn-danger",
     "link-btn-inherit",
     "list-row",
+    "list-row-bare",
     "list-row-end",
     "list-row-face",
     "list-row-facts",
@@ -243,6 +244,7 @@
     "sheet-job-close",
     "sheet-job-head",
     "sheet-job-title",
+    "sheet-kicker",
     "stabs",
     "stabs-pill",
     "stabs-tab",
@@ -259,6 +261,7 @@
     "token",
     "token-caret",
     "token-face",
+    "token-inline",
     "ui-tip"
   ],
   "modifiers": [

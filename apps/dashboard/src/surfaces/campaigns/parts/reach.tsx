@@ -151,7 +151,8 @@ interface CmWhoProps {
 /**
  * The To row's count on one line, where the card's stood on four: "12 of 40 who said yes · 10 on WhatsApp, 2 by email", the
  * reasons anybody is held back behind one quiet "Who's held back" (each with its door), and under them one thin bar --
- * who it reaches on which channel where it goes by more than WhatsApp, else who it reaches against who is held.
+ * who it reaches on which channel where it goes by more than WhatsApp, else who it reaches against who is held; no bar
+ * where nobody is counted, a picture of nothing.
  */
 export function CmWho({
   will,
@@ -190,7 +191,7 @@ export function CmWho({
       </p>
       {by && split ? (
         <CmSplitBar split={split} className="cm-who-bar" testid={`${testid}-bar`} />
-      ) : (
+      ) : will + held + pool === 0 ? null : (
         <Meter
           size="sm"
           className="cm-who-bar"

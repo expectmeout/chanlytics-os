@@ -352,6 +352,8 @@ export const STARTER_LINE_WORDS = {
    * is, which the line says once it is in review (`standing`). The link was the whole of that, in 25 words.
    */
   add: "Add it",
+  /** After the moment's own message's name, where it is not added yet: "Win-back, written for you". */
+  written: "written for you",
 } as const;
 
 /**

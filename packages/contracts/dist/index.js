@@ -8425,21 +8425,48 @@ var LIFECYCLE_WORDS = {
   callText: {
     name: "The call's text",
     words: "The booking link and your WhatsApp, sent while they're on the phone",
-    on: "When a caller asks",
+    // Its state is a state, as every row's is (Ruben, 11 Oct 2026: "When a caller asks" stood where "Live" stands); when
+    // it is sent is its line.
+    on: "Live",
+    when: "Sent when a caller asks for it",
     none: "No message for it yet"
+  },
+  /**
+   * A moment with no campaign yet shows the one it offers as a row of its own, off (Ruben, 11 Oct 2026: a row to press
+   * where a heading had a Turn on under it): its line says what it does, by the moment's id.
+   */
+  offered: {
+    off: "Off",
+    before: "The day before each visit",
+    after: "The day after each visit",
+    proposal: "When a proposal waits for an answer",
+    quiet: "Brings back people who've gone quiet"
   },
   monthsOffer: { name: "The month's offer" },
   gone: {
     title: "That campaign isn't here any more.",
     body: "Its runs stay in Sent, with their numbers."
   },
+  /** A message's own drawer over the home (`campaigns/message:<name>`) whose name leads to no message any more. */
+  messageGone: {
+    title: "That message isn't here any more.",
+    body: "Every message you keep is in the Library."
+  },
   compose: {
     title: CAMPAIGN_ROOMS.newMessage,
     kind: "What kind of message",
     once: "Send once",
-    every: "Every time a moment comes",
+    // Beside "Send once" at the sheet's head; the moment it comes on is the To row's (Ruben, 11 Oct 2026: shorter words).
+    every: "Every time",
     /** The sheet a moment's Turn on opens, titled for the campaign it starts (spec §4.2): "Turn on Appointment reminder". */
     turnOn: (name) => `Turn on ${name}`,
+    /**
+     * The same sheet on the home, where the campaign's own name stands under it to rename in place (Ruben, 11 Oct 2026:
+     * "Turn on Win-back" over "Win-back" said the name twice).
+     */
+    turnOnShort: "Turn on",
+    /** The same sheet changing a campaign the drawer showed: its kicker, over the campaign's own name. */
+    edit: "Edit",
     /** A campaign the moment already holds, said as the composer opens on it (decision 20): "Win-back · On". */
     holds: (name, paused) => `${name} \xB7 ${paused ? "Paused" : "On"}`,
     /**
@@ -8474,7 +8501,22 @@ var LIFECYCLE_WORDS = {
       could.length > 0 ? `could also go by ${joinWords(could)}` : ""
     ].filter(Boolean).join("; "),
     /** After a change of channels, where a run of the playbook already waits: it was made with the channels it had. */
-    runKeeps: "the run that waits keeps the channels it was made with"
+    runKeeps: "the run that waits keeps the channels it was made with",
+    /**
+     * The Moments head's channels on a phone (Ruben, 11 Oct 2026): a chip each, a filled dot where it sends and a hollow
+     * one where it is not set up, as the rows' marks draw them; a hollow chip pressed says why under the row, and one
+     * door to Settings › Connections stands at its end.
+     */
+    head: "Your channels",
+    sending: (word) => `${word}, sending`,
+    notSetUp: (word) => `${word}, not set up: why`,
+    setUp: "Set up",
+    /** Nothing can send at all: one card in the head in place of the reach line, its one door to Connections. */
+    none: {
+      title: "Nothing can send yet",
+      body: "Connect WhatsApp, a texting line or email, and your moments start here.",
+      act: "Set up channels"
+    }
   },
   // A read that failed is its own state, never a tile that is not there or a zero that was not counted. The page draws the
   // kit's failed read where the data would be, and its Retry reads `surface` again.
@@ -8568,6 +8610,8 @@ var LIFECYCLE_WORDS = {
     door: "Ask",
     /** The chip Ask offers on the first day says the same sentence (contracts SET_UP_CAMPAIGNS). */
     setUp: SET_UP_CAMPAIGNS.en,
+    /** The first day's door to it, at the list's top: what pressing it does, said as an offer. */
+    setUpDoor: "Let Ask set up your campaigns",
     about: "Ask about this campaign"
   },
   reach: {
@@ -8579,8 +8623,11 @@ var LIFECYCLE_WORDS = {
     opensMessages: "Opens:",
     ownOffers: ["the month's offer", "your notes"],
     asks: "Your receptionist now asks for it. Once a person, inside a conversation they started. At the desk, the code or the phrase does the same.",
-    /** The phone's line in the Moments head: who of everyone in People a message can reach now. */
-    phoneHear: (canHear, people) => `${canHear} of ${people} can hear you`,
+    /**
+     * The phone's line in the Moments head: who of everyone in People a message can reach now. Everyone is said as
+     * everyone ("All 29 can hear you"), not as a fraction of itself; nobody in People is no line at all (the tile).
+     */
+    phoneHear: (canHear, people) => canHear === people ? people === 1 ? "1 can hear you" : `All ${people} can hear you` : `${canHear} of ${people} can hear you`,
     /** The phone's door to how the yes to offers is got: the words that door carries on a run's sheet and in Setup. */
     phoneYes: "Get their yes",
     code: "Show the code",
@@ -27786,7 +27833,9 @@ var STARTER_LINE_WORDS = {
    * The link that adds the moment's own message: its email and text versions at once, a WhatsApp version where a number
    * is, which the line says once it is in review (`standing`). The link was the whole of that, in 25 words.
    */
-  add: "Add it"
+  add: "Add it",
+  /** After the moment's own message's name, where it is not added yet: "Win-back, written for you". */
+  written: "written for you"
 };
 var MESSAGE_BEGIN_WORDS = {
   customIsAnOffer: "A message you write is an offer or news. Only a starter is a reminder, a check after or a follow-up.",
@@ -27962,7 +28011,8 @@ function lifecycleReach(input, stages) {
     read: "read",
     rungs,
     yes: asks ? { note: W.asks, code: door, phrase: b.optIn.phrase, copy: W.copy } : null,
-    phone: {
+    // Nobody in People yet: no line of noughts ("0 of 0 can hear you", an amber "0 to offers" about nobody).
+    phone: reach.people === 0 ? { words: null, offers: null, yes: null } : {
       words: W.phoneHear(reach.canHear, reach.people),
       offers: { words: `${reach.saidOffers} to offers`, tone: offers ? offers.tone : "plain" },
       yes: asks ? { label: W.phoneYes, route: GET_YES_ROUTE } : null
@@ -28360,7 +28410,7 @@ function receptionistRow(stage) {
     people: { n: stage.people, unit: stage.unit },
     results: "uncounted",
     next: NO_NEXT,
-    open: null,
+    open: { kind: "route", label: "Open", route: "admin/workspace" },
     waiting: null,
     act: null,
     search: rowSearchOf(stage.name, stage.caps)
@@ -28385,7 +28435,7 @@ function callTextRow(library2, caps) {
     people: { n: null, unit: "" },
     results: "uncounted",
     next: NO_NEXT,
-    open: { kind: "route", label: "Open", route: "messages" },
+    open: { kind: "route", label: "Open", route: found ? `campaigns/message:${found.name}` : "messages" },
     waiting: null,
     act: null,
     search: rowSearchOf(W.name, W.words, caps)
@@ -28618,6 +28668,12 @@ function ledgerOrder(by) {
   if (by === "replied") return (a, b) => repliedOf(b) - repliedOf(a) || byName(a, b);
   const at3 = (r2) => r2.next.atMs ?? Number.MAX_SAFE_INTEGER;
   return (a, b) => NEXT_RANK[a.status] - NEXT_RANK[b.status] || at3(a) - at3(b) || byName(a, b);
+}
+function ledgerPhoneWhat(r2) {
+  if (r2.kind === "receptionist") return r2.hint;
+  if (r2.kind === "call_text") return LIFECYCLE_WORDS.callText.when;
+  if (r2.kind === "offer" && r2.status === "off") return r2.hint;
+  return null;
 }
 function ledgerPhoneLine(r2, caps) {
   const dash = LIFECYCLE_WORDS.ledger.dash;
@@ -41543,6 +41599,7 @@ export {
   ledgerOrder,
   ledgerPeopleWords,
   ledgerPhoneLine,
+  ledgerPhoneWhat,
   ledgerRowIn,
   legacyErasedEmailHash,
   legacyErasedPhoneHash,
