@@ -121,32 +121,33 @@ const monthsOffer = (over = {}) => ({
 /** The steps as the rows compare them: everything but each one's why, which is held apart (every step has one). */
 const shape = (steps) => steps.map(({ n, kind, silent, input, after }) => ({ n, kind, silent, input, after }));
 
+/** The values a send fills the offer message with: per person, and the owner's words typed into the offer's. */
 const MONTHS_PARAMS = ["@first_name", "@business_name", LINE, "@booking_link"];
-const WRITTEN_PARAMS = ["@first_name", "@business_name", "@booking_link"];
+/** A written message takes the same four values in the same order: the next offer reuses it. */
+const WRITTEN_PARAMS = MONTHS_PARAMS;
 const BOTH = ["whatsapp", "email"];
 
-/** The message the plan writes from the month's offer starter, in English, the offer in place of its third value. */
+/** The offer message's values: the month's offer starter's, the offer the one typed. */
+const OFFER_SLOTS = [
+  { position: 1, label: "First name", kind: "first_name" },
+  { position: 2, label: "Business name", kind: "business_name" },
+  { position: 3, label: "The offer", kind: "text" },
+  { position: 4, label: "Booking link", kind: "booking_link" },
+];
+/** The message a plan writes, in English: the offer is its typed value, never words of its own body. */
 const WRITTEN = (versions) => ({
   n: 1,
   kind: "message",
   silent: true,
   after: [],
-  input: {
-    name: "offer_10_off_every_service_all_november",
-    language: "en",
-    category: "marketing",
-    versions,
-    slots: [
-      { position: 1, label: "First name", kind: "first_name" },
-      { position: 2, label: "Business name", kind: "business_name" },
-      { position: 3, label: "Booking link", kind: "booking_link" },
-    ],
-  },
+  input: { name: "offer", language: "en", category: "marketing", versions, slots: OFFER_SLOTS },
 });
-const WA_BODY = `Hi {{1}}, this month at {{2}}: ${LINE} Book here: {{3}} or reply with a day that suits you.\n\nReply STOP to opt out`;
+/** Words that fit any dated offer: no "this month". */
+const WA_BODY =
+  "Hi {{1}}, an offer from {{2}}: {{3}} Book here: {{4}} or reply with a day that suits you.\n\nReply STOP to opt out";
 const EMAIL = {
-  subject: "This month at {{2}}",
-  body: `Hi {{1}},\n\nThis month at {{2}}: ${LINE}\n\nBook here: {{3}}, or reply with a day that suits you.`,
+  subject: "An offer from {{2}}",
+  body: "Hi {{1}},\n\nAn offer from {{2}}: {{3}}\n\nBook here: {{4}}, or reply with a day that suits you.",
 };
 
 const listStep = (n) => ({
@@ -204,7 +205,8 @@ const secondSend = (n, after, over = {}) => ({
 });
 
 const REUSED = "Sends “this_months_offer”, already in the Library, with the offer in its words.";
-const WRITES = (on) => `Writes the offer as a new message, “offer_10_off_every_service_all_november”, for ${on}.`;
+const WRITES = (on) =>
+  `Writes a message for offers, “offer”, for ${on}: this offer goes in its words, and the next offer can send it too.`;
 const NOTE = "Tells the receptionist about the offer, until Nov 30.";
 const GOES = "The offer goes to “Can receive offers” on Nov 1 at 10:00 AM.";
 const REMINDS =
@@ -416,11 +418,21 @@ const ROWS = [
     ],
   },
   {
-    name: "less room on the calendar than half the audience: the first send is a capped campaign that ends with the offer (rulings 2, 3)",
-    intent: offer(),
+    name: "an offer starting today, with less room than half its audience: a capped campaign from its Approve, ending with the offer (rulings 2, 3)",
+    intent: offer({ from: "2026-10-11", until: "2026-11-15" }),
     world: world({ messages: [monthsOfferMessage()], room: { open: 15 } }),
     steps: [
-      noteStep(1),
+      {
+        ...noteStep(1),
+        input: {
+          change: {
+            op: "add_note",
+            title: `Offer: ${WORDS}`,
+            text: `The offer: ${LINE} It runs from Oct 11 to Nov 15.`,
+            until: "2026-11-15",
+          },
+        },
+      },
       {
         n: 2,
         kind: "playbook",
@@ -435,16 +447,28 @@ const ROWS = [
           cap_per_run: 15,
           name: `Offer: ${WORDS}`,
           channels: BOTH,
-          until: "2026-11-30",
+          until: "2026-11-15",
         },
       },
     ],
     words: [
       REUSED,
-      NOTE,
-      W.paced(15, 40),
-      "The campaign starts its runs the day it is approved: approve it on Nov 1.",
+      "Tells the receptionist about the offer, until Nov 15.",
+      "The calendar has 15 open slots in the next 14 days for 40 people, so the offer goes as a campaign: up to 15 a day, each person once, until it ends, starting when you approve it.",
       W.reminderPaced,
+    ],
+  },
+  {
+    name: "the same tight room for an offer three weeks out: its broadcast, scheduled, and the words say to ask again on its day (ruling 3)",
+    intent: offer(),
+    world: world({ messages: [monthsOfferMessage()], room: { open: 15 } }),
+    steps: [listStep(1), noteStep(2), firstSend(3, [1, 2]), secondSend(4, [1, 2])],
+    words: [
+      REUSED,
+      NOTE,
+      GOES,
+      "The calendar has 15 open slots in the next 14 days for 40 people: ask again on Nov 1 to pace the offer to the room then.",
+      REMINDS,
     ],
   },
   {
@@ -775,8 +799,12 @@ for (const row of ROWS) {
 test("the refusals and the words the brief names are words", () => {
   for (const k of ["fromAfterUntil", "fromPast", "noChannel", "noOffersList"]) assert.equal(typeof W[k], "string", k);
   assert.match(W.countZero("Still to book"), /“Still to book”/);
-  assert.match(W.paced(15, 40), /15 open slots ahead for 40 people.*up to 15 a day/);
-  assert.match(W.paced(0, 3), /no open slot ahead for 3 people.*up to 1 a day/);
+  assert.match(W.paced(15, 40), /15 open slots in the next 14 days for 40 people.*up to 15 a day/);
+  assert.match(W.paced(0, 3), /no open slot in the next 14 days for 3 people.*up to 1 a day/);
+  assert.match(
+    W.roomTight(1, 40, "Nov 1"),
+    /^The calendar has 1 open slot in the next 14 days for 40 people: ask again on Nov 1/,
+  );
   assert.doesNotMatch(
     Object.values(W)
       .filter((w) => typeof w === "string")
@@ -866,25 +894,107 @@ test("every step's input is the input of the Ask action it is expanded through",
   assert.deepEqual([...seen].sort(), ["broadcast", "change", "list", "message", "note", "playbook"]);
 });
 
-test("the Spanish message is written from the Spanish starter", () => {
+test("the Spanish message is written in Spanish, the starter's Spanish values, the offer typed into its own", () => {
   const out = planOf(offer({}, "10% de descuento en todo noviembre"), world({ language: "es" }));
-  const [message] = out.steps;
+  const [message, , , first] = out.steps;
   assert.equal(message.input.language, "es");
-  assert.equal(
-    message.input.versions.whatsapp.body,
-    "Hola {{1}}, este mes en {{2}}: 10% de descuento en todo noviembre. Reserva aquí: {{3}} o responde con el día que mejor te venga.\n\nResponde STOP para darte de baja",
-  );
+  assert.deepEqual(message.input.versions, {
+    whatsapp: {
+      body: "Hola {{1}}, una oferta de {{2}}: {{3}} Reserva aquí: {{4}} o responde con el día que mejor te venga.\n\nResponde STOP para darte de baja",
+    },
+    email: {
+      subject: "Una oferta de {{2}}",
+      body: "Hola {{1}}:\n\nUna oferta de {{2}}: {{3}}\n\nReserva aquí: {{4}}, o responde con el día que mejor te venga.",
+    },
+  });
   assert.deepEqual(
-    message.input.slots.map((s) => s.label),
-    ["Nombre", "Nombre del negocio", "Enlace de reservas"],
+    message.input.slots.map((s) => [s.label, s.kind]),
+    [
+      ["Nombre", "first_name"],
+      ["Nombre del negocio", "business_name"],
+      ["La oferta", "text"],
+      ["Enlace de reservas", "booking_link"],
+    ],
   );
+  assert.deepEqual(first.input.params, [
+    "@first_name",
+    "@business_name",
+    "10% de descuento en todo noviembre.",
+    "@booking_link",
+  ]);
 });
 
 test("a name the Library holds is not written twice", () => {
-  const out = planOf(
-    offer(),
-    world({ messages: [{ ...monthsOfferMessage(), name: "offer_10_off_every_service_all_november", slots: [] }] }),
-  );
+  const out = planOf(offer(), world({ messages: [{ ...monthsOfferMessage(), name: "offer", slots: [] }] }));
   const [message] = out.steps;
-  assert.equal(message.input.name, "offer_10_off_every_service_all_november_2");
+  assert.equal(message.input.name, "offer_2");
+});
+
+/** A message a plan wrote, as campaigns with action messages reads it once filed: English under en_US, WhatsApp in review. */
+const filed = (step) => ({
+  name: step.input.name,
+  language: C.messageLanguageCode(step.input.language),
+  category: step.input.category,
+  versions: [
+    { channel: "whatsapp", id: V(5), state: "pending" },
+    { channel: "email", id: V(6), state: "approved" },
+  ],
+  slots: step.input.slots,
+  used_by: [],
+});
+
+test("the message one plan writes is the message the next plan sends, with that offer's own words", () => {
+  const first = planOf(offer(), world());
+  const [written] = first.steps;
+  assert.equal(written.kind, "message");
+  const weekend = "20% off every booking this weekend";
+  const next = planOf(
+    offer({ words: weekend, from: "2026-10-17", until: "2026-10-18" }),
+    world({ messages: [filed(written)] }),
+  );
+  const params = ["@first_name", "@business_name", `${weekend}.`, "@booking_link"];
+  assert.deepEqual(shape(next.steps), [
+    {
+      n: 1,
+      kind: "note",
+      silent: true,
+      after: [],
+      input: {
+        change: {
+          op: "add_note",
+          title: `Offer: ${weekend}`,
+          text: `The offer: ${weekend}. It runs from Oct 17 to Oct 18.`,
+          until: "2026-10-18",
+        },
+      },
+    },
+    {
+      n: 2,
+      kind: "broadcast",
+      silent: false,
+      after: [1],
+      input: {
+        template_id: V(5),
+        audience_kind: "list",
+        audience_id: "offers_ok",
+        params,
+        scheduled_for: "2026-10-17T14:00:00.000Z",
+        name: `Offer: ${weekend}`,
+        channels: BOTH,
+      },
+    },
+  ]);
+  assert.equal(
+    next.words,
+    [
+      "Sends “offer”, already in the Library, with the offer in its words.",
+      "Tells the receptionist about the offer, until Oct 18.",
+      "The offer goes to “Can receive offers” on Oct 17 at 10:00 AM.",
+      W.reminderAfterEnd("Nov 5"),
+    ].join(" "),
+  );
+  // In Spanish too: the Spanish message a plan writes is the one the next Spanish plan sends.
+  const es = planOf(offer({}, "10% de descuento"), world({ language: "es" }));
+  const again = planOf(offer({ words: "Fin de semana" }), world({ language: "es", messages: [filed(es.steps[0])] }));
+  assert.equal(again.steps.filter((s) => s.kind === "message").length, 0, "reused, not written again");
 });

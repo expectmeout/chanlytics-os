@@ -28,7 +28,8 @@ export const TEMPLATE_FOOTER_MAX = 60;
 export const TEMPLATE_EXAMPLE_MAX = 100;
 /** The longest name a person gives one of a message's values ("First name"): the edge's ceiling and the door's (00343). */
 export const TEMPLATE_LABEL_MAX = 40;
-export const TEMPLATE_NAME_MAX = 60;
+/** The longest name slugTemplateName makes, the edge's ceiling too (00343); read by nothing outside this module. */
+const TEMPLATE_NAME_MAX = 60;
 /** What a name that is not one Meta accepts is told (templateNameOk). */
 export const TEMPLATE_NAME_WORDS = "The name needs letters, digits or underscores.";
 /** What a WhatsApp body past what Meta takes is told (templateBodyTooLong): the draft's check, and Ask's message card. */

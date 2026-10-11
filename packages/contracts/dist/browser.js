@@ -18372,7 +18372,24 @@ var STAGE_WORDS = {
   proposal: "while a proposal waits",
   quiet: "once they go quiet"
 };
+var OFFER_MESSAGE = {
+  en: {
+    whatsapp: `Hi {{1}}, an offer from {{2}}: {{3}} Book here: {{4}} or reply with a day that suits you.
+
+${SENDER_WORDS.en.textStop}`,
+    subject: "An offer from {{2}}",
+    email: "Hi {{1}},\n\nAn offer from {{2}}: {{3}}\n\nBook here: {{4}}, or reply with a day that suits you."
+  },
+  es: {
+    whatsapp: `Hola {{1}}, una oferta de {{2}}: {{3}} Reserva aqu\xED: {{4}} o responde con el d\xEDa que mejor te venga.
+
+${SENDER_WORDS.es.textStop}`,
+    subject: "Una oferta de {{2}}",
+    email: "Hola {{1}}:\n\nUna oferta de {{2}}: {{3}}\n\nReserva aqu\xED: {{4}}, o responde con el d\xEDa que mejor te venga."
+  }
+};
 var channelWord = (c) => c === "whatsapp" ? VERSION_CHANNEL_WORDS.whatsapp : VERSION_CHANNEL_WORDS[c].toLowerCase();
+var roomWords = (open, audience) => `The calendar has ${open > 0 ? plural(open, "open slot") : "no open slot"} in the next ${BOOKING_DEFAULTS.max_days_ahead} days for ${plural(audience, "person", "people")}`;
 var capOf = (open) => Math.min(PLAYBOOK_LIMITS.cap_per_run.max, Math.max(PLAYBOOK_LIMITS.cap_per_run.min, Math.floor(open)));
 var PLAN_WORDS = {
   noWords: "words is the offer in the owner's words: ask what the offer is.",
@@ -18384,7 +18401,7 @@ var PLAN_WORDS = {
   journeyUnread: "The journey could not be read just now, so which moments are covered is not known: say so, and try again in a moment.",
   nothingToCover: "Every moment asked for is covered already or not offered here (an appointment's moments need a calendar connected, a proposal's needs deals on): say so, and propose nothing.",
   reuseMessage: (name) => `Sends \u201C${name}\u201D, already in the Library, with the offer in its words.`,
-  writeMessage: (name, on) => `Writes the offer as a new message, \u201C${name}\u201D, for ${joinWords(on.map(channelWord))}.`,
+  writeMessage: (name, on) => `Writes a message for offers, \u201C${name}\u201D, for ${joinWords(on.map(channelWord))}: this offer goes in its words, and the next offer can send it too.`,
   withoutWhatsApp: "It goes without WhatsApp: no WhatsApp number is connected.",
   withoutEmail: "It goes without email: email is not set up to send offers.",
   noText: CHANNEL_WORDS.noOffersByText,
@@ -18394,8 +18411,10 @@ var PLAN_WORDS = {
   monthsOfferSays: (name, until) => `The month's offer, \u201C${name}\u201D, says this offer from now on: change its words back after ${until}.`,
   firstSend: (list2, day, at3) => `The offer goes to \u201C${list2}\u201D on ${day} at ${at3}.`,
   firstAtApprove: (list2, at3) => `The offer goes to \u201C${list2}\u201D when you approve it, as ${at3} today has passed.`,
-  paced: (open, audience) => `The calendar has ${open > 0 ? plural(open, "open slot") : "no open slot"} ahead for ${plural(audience, "person", "people")}, so the offer goes as a campaign: up to ${capOf(open)} a day, each person once, until it ends.`,
-  approveOn: (day) => `The campaign starts its runs the day it is approved: approve it on ${day}.`,
+  /** An offer that starts today, on a calendar with less room than half its audience: a campaign, from its Approve. */
+  paced: (open, audience) => `${roomWords(open, audience)}, so the offer goes as a campaign: up to ${capOf(open)} a day, each person once, until it ends, starting when you approve it.`,
+  /** The same room for an offer that starts later: the room counted now is not the offer's, so it is asked again then. */
+  roomTight: (open, audience, from) => `${roomWords(open, audience)}: ask again on ${from} to pace the offer to the room then.`,
   reminderNew: (day, at3, from) => `A reminder goes on ${day} at ${at3} to a new list of whoever has not booked since ${from}; anyone who heard from you in the week before is left out.`,
   reminderTo: (day, at3, list2) => `A reminder goes on ${day} at ${at3} to \u201C${list2}\u201D; anyone who heard from you in the week before is left out.`,
   countZero: (list2) => `There is no reminder: nobody is on \u201C${list2}\u201D today.`,
@@ -18511,26 +18530,22 @@ function reusedMessage(world, on, line) {
     inReview: on.includes("whatsapp") && m.versions.some((v) => v.channel === "whatsapp" && v.state === "pending")
   };
 }
-var withOffer = (s, at3, line) => s.replace(/\{\{(\d+)\}\}/g, (whole, d) => {
-  const n = Number(d);
-  return n === at3 ? line : n > at3 ? `{{${n - 1}}}` : whole;
-});
-function writtenMessage(world, on, line, words2) {
+function writtenMessage(world, on, line) {
   const starter = starterByName("this_months_offer");
   if (!starter) throw new Error("the month's offer starter is gone from the starter set");
-  const code2 = messageLanguageCode(world.language);
-  const text = starterText(starter, code2);
-  const email = starterEmailText(starter, code2);
-  const at3 = text.slots.findIndex((s) => s.kind === "text") + 1;
-  const slots = text.slots.filter((s) => s.kind !== "text").map((s, i) => ({ position: i + 1, label: s.label, kind: s.kind }));
+  const slots = starterText(starter, messageLanguageCode(world.language)).slots.map((s, i) => ({
+    position: i + 1,
+    label: s.label,
+    kind: s.kind
+  }));
+  const words2 = OFFER_MESSAGE[world.language];
   const versions = {
-    ...on.includes("whatsapp") ? { whatsapp: { body: [withOffer(text.body, at3, line), text.footer].filter(Boolean).join("\n\n") } } : {},
-    ...on.includes("email") && email ? { email: { subject: withOffer(email.subject, at3, line), body: withOffer(email.body, at3, line) } } : {}
+    ...on.includes("whatsapp") ? { whatsapp: { body: words2.whatsapp } } : {},
+    ...on.includes("email") ? { email: { subject: words2.subject, body: words2.email } } : {}
   };
-  const base = slugTemplateName(`offer ${words2}`) || "offer";
   const held = new Set(world.messages.map((m) => m.name));
   const name = firstFree(
-    (i) => i === 1 ? base : `${base.slice(0, TEMPLATE_NAME_MAX - `_${i}`.length)}_${i}`,
+    (i) => i === 1 ? "offer" : `offer_${i}`,
     (n) => held.has(n) || starterByName(n) !== null
   );
   return {
@@ -18602,9 +18617,10 @@ function offerRead(offer, say2, world) {
   const to = audience ? audienceOf(audience.token) : null;
   if (!audience || !to) return { refused: SAY.noOffersList };
   const line = offerLine(say2?.trim() ? say2 : offer.words);
-  const message = reusedMessage(world, on, line) ?? writtenMessage(world, on, line, offer.words);
+  const message = reusedMessage(world, on, line) ?? writtenMessage(world, on, line);
   const room = world.room;
-  const cap = room && audience.count !== null && room.open * 2 < audience.count ? capOf(room.open) : null;
+  const tight = room && audience.count !== null && room.open * 2 < audience.count ? { open: room.open, audience: audience.count } : null;
+  const cap = tight && dates.from === dates.today ? capOf(tight.open) : null;
   return {
     offer,
     dates,
@@ -18613,6 +18629,7 @@ function offerRead(offer, say2, world) {
     audience,
     to,
     message,
+    tight,
     cap,
     reminder: reminderOf(world, audience, dates, cap !== null),
     note: offerNote(offer, line, dates, world.notes),
@@ -18621,11 +18638,9 @@ function offerRead(offer, say2, world) {
 }
 function sendWords2(r2, world) {
   const hour = clockHour(SEND_HOUR);
-  const first = r2.cap !== null ? [
-    SAY.paced(world.room?.open ?? 0, r2.audience.count ?? 0),
-    ...r2.dates.from > r2.dates.today ? [SAY.approveOn(r2.dates.fromWords)] : []
-  ] : [
-    r2.dates.firstAt === null ? SAY.firstAtApprove(r2.audience.name, hour) : SAY.firstSend(r2.audience.name, r2.dates.fromWords, hour)
+  const first = r2.tight && r2.cap !== null ? [SAY.paced(r2.tight.open, r2.tight.audience)] : [
+    r2.dates.firstAt === null ? SAY.firstAtApprove(r2.audience.name, hour) : SAY.firstSend(r2.audience.name, r2.dates.fromWords, hour),
+    ...r2.tight ? [SAY.roomTight(r2.tight.open, r2.tight.audience, r2.dates.fromWords)] : []
   ];
   const rem = r2.reminder;
   const day = rem.kind === "none" ? "" : campaignDayWords(rem.day, world.tz, world.now);
@@ -39072,7 +39087,6 @@ export {
   TEMPLATE_FOOTER_MAX,
   TEMPLATE_LABEL_MAX,
   TEMPLATE_LANGUAGES,
-  TEMPLATE_NAME_MAX,
   TEMPLATE_NAME_WORDS,
   TEMPLATE_SAME_NAME_WORDS,
   TEMPLATE_STATUSES,
