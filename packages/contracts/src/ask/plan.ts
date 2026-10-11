@@ -2,35 +2,32 @@
  * A plan of Ask's, with no model (the marketing manager's spec §5.4, D3): the owner's intent, an offer ("10% off every
  * service all November") or the journey to cover, and a snapshot of the workspace (PlanWorld) give the steps, as data,
  * and nothing is read or written here. Each step is the input of one of Ask's own actions, which the server expands it
- * through as its own card (a message, a list, a note for the receptionist, a change to a campaign, a broadcast, a
- * campaign); a step that names what an earlier step makes carries its token (`@step:n`), which the commit fills from
- * what the plan made (resolveSteps). The steps that send nothing are silent and are approved together; a send is its
- * own press and waits for them (`after`).
+ * through as its own card (a message, a note for the receptionist, a change to a campaign, a broadcast, a campaign); a
+ * step that names what an earlier step makes carries its token (`@step:n`), which the commit fills from what the plan
+ * made (resolveSteps). The steps that send nothing are silent and are approved together; a send is its own press and
+ * waits for them (`after`).
  *
  * The rules, each a row of the table test (tooling/scripts/tests/ask/plan/plan-of.test.mjs):
  *
- *   the message   a marketing message in the workspace's language whose values take the offer (one typed value, the
- *                 rest filled per person) and that holds a version on every channel the offer goes by is reused, the
- *                 month's offer's own first; else one is written in that shape (OFFER_MESSAGE: the month's offer
- *                 starter's values, its offer the typed one, in words that fit any dated offer), so the next offer
- *                 reuses it, with a version per channel the workspace sends offers on (WhatsApp with a number, email
- *                 where email sends offers, never a text: texts carry no offers); every send types the owner's words
- *                 into its offer's value
- *   the list      the reminder's list (who of the first send's list has not booked since the offer began) is reused
- *                 wherever a list of the workspace has the same rule, whatever its name, else made
+ *   the message   a marketing message in the workspace's language whose one typed value is the offer (the month's
+ *                 offer starter's own, "The offer"), every other filled per person, with a version on every channel the
+ *                 offer goes by, is reused: the starter first, then one a plan wrote ("offer"), then any other; else one
+ *                 is written in that shape (OFFER_MESSAGE, in words that fit any dated offer), so the next offer reuses
+ *                 it, with a version per channel the workspace sends offers on (WhatsApp with a number, email where email
+ *                 sends offers, never a text: texts carry no offers); every send types the owner's words into its offer
  *   the note      "Offer: {words}", with the dates, until the offer's last day, unless the receptionist has it
- *   the sends     at ten on the business's clock: the first on `from` (at Approve where ten has passed today), a
- *                 reminder nineteen days later where the offer still runs, a calendar can say who booked and its list is
- *                 not empty
- *   the month's   running on the reused message, its words change; running on another, it is paused while the offer
- *   offer         runs, and the words say to resume it after
- *   the pace      an offer that starts today, on a calendar with fewer open slots in the days ahead than half the
- *                 audience, goes as a campaign instead, as many a day as it has room for, ending with the offer; one
- *                 that starts later is a broadcast, and the words say the room is tight and to ask again on its day
+ *   the send      at ten on the business's clock on `from` (at Approve where ten has passed today)
+ *   the month's   a running one is paused while the offer runs, so nobody gets two offers and it never sends this one
+ *   offer         on its own cadence or after the offer ends; the words say to resume it after
+ *   the pace      an offer that starts today, on a calendar with fewer open slots ahead than half the audience, goes as
+ *                 a campaign instead, the open slots a day ahead as many a day, ending with the offer; one that starts
+ *                 later is a broadcast, and the words say the room is tight and to ask again on its day
+ *   the reminder  never a step: a send enrols its people at its Approve, so who has not booked is known only on the
+ *                 day. The words end on when to ask for it (nineteen days in, or the offer's last day), where a
+ *                 calendar can say who booked
  *   the journey   a campaign on each moment not covered yet that the workspace can run, its moment's starter (the
  *                 review ask the day after, where the Library holds it); nothing for first contact, the receptionist's
  */
-import { BOOKING_DEFAULTS } from "../calendar/availability";
 import { isDayKey, shiftKey } from "../calendar/day-keys";
 import type { Note } from "../config/workspace-config/business-profile";
 import { PROFILE_LIMITS } from "../config/workspace-config/config-rules";
@@ -38,7 +35,6 @@ import type { ConsentChannel } from "../consent/consent-channels";
 import { BROADCAST_NAME_MAX } from "../broadcasts/broadcasts";
 import { CHANNEL_WORDS } from "../broadcasts/reach-for";
 import { JOURNEY_STAGE_IDS, journeyStageOf, type JourneyStageId } from "../journey/journey";
-import { asListRule, listRuleParts, type ListCondition, type ListRule } from "../people/lists/list-rules";
 import { parseListToken } from "../people/lists/lists";
 import { campaignDayWords, localDate } from "../playbooks/playbook-schedule";
 import { PLAYBOOK_DEFAULTS, PLAYBOOK_LIMITS, PLAYBOOK_NAME_MAX } from "../playbooks/playbook-triggers";
@@ -58,7 +54,7 @@ export type PlanIntent =
   | {
       intent: "offer";
       offer: {
-        /** The offer in the owner's words ("10% off every service all November"): the note's title, the sends' names. */
+        /** The offer in the owner's words ("10% off every service all November"): the note's title, the send's name. */
         words: string;
         /** Its first and last day, YYYY-MM-DD by the business's calendar. */
         from: string;
@@ -92,8 +88,11 @@ export interface PlanWorld {
   playbooks: { id: string; name: string; trigger: string; state: string; template_name: string | null }[];
   /** The receptionist's notes. */
   notes: Note[];
-  /** The open slots on the calendar ahead (calendar.room); null where that is not known, which is never "full". */
-  room: { open: number } | null;
+  /**
+   * The calendar's open slots over the days ahead it counts (calendar.room: `days`, at most the booking window's
+   * fourteen); null where that is not known, which is never "full".
+   */
+  room: { open: number; days: number } | null;
   /**
    * The journey's stages this workspace can run (journeyGuide's: an appointment's moments only with a calendar
    * connected, a proposal's only where deals are on), each covered or not and the moment a campaign on it starts from
@@ -121,9 +120,11 @@ type StepKind = PlanStep["kind"];
 type OfferChannel = "whatsapp" | "email";
 type Offer = Extract<PlanIntent, { intent: "offer" }>["offer"];
 type ListEntry = PlanWorld["lists"][number];
+type Room = NonNullable<PlanWorld["room"]>;
 type Audience = { audience_kind: "list" | "saved"; audience_id: string };
+type Slot = { position: number; label: string; kind: string };
 
-/** The token a step's input names what an earlier step makes by: `@step:2` is step 2's list. */
+/** The token a step's input names what an earlier step makes by: `@step:1` is step 1's message. */
 export const STEP_TOKEN = /^@step:(\d+)$/;
 
 export function stepToken(n: number): string {
@@ -132,7 +133,7 @@ export function stepToken(n: number): string {
 
 /** The hour a send goes at, by the business's clock: the hour a campaign runs at unless told otherwise. */
 const SEND_HOUR = PLAYBOOK_DEFAULTS.runHour;
-/** The reminder goes this many days after the first send: the 20th of a month-long offer that starts on the 1st. */
+/** The day to ask for a reminder, this many days after the first send: the 20th of a month-long offer from the 1st. */
 const REMINDER_AFTER_DAYS = 19;
 /** The channels an offer may go by, in the order a message's versions are written. */
 const OFFER_CHANNELS: readonly OfferChannel[] = ["whatsapp", "email"];
@@ -140,6 +141,8 @@ const OFFER_CHANNELS: readonly OfferChannel[] = ["whatsapp", "email"];
 const PER_PERSON = new Set(["first_name", "business_name", "booking_link", "review_link"]);
 /** A version a send can go by: approved, or still in WhatsApp's review. */
 const LIVE = new Set(["approved", "pending"]);
+/** A message a plan wrote: "offer", or "offer_2" where that name was held. */
+const WRITTEN_NAME = /^offer(?:_\d+)?$/;
 const SILENT: Record<StepKind, boolean> = {
   message: true,
   list: true,
@@ -147,14 +150,6 @@ const SILENT: Record<StepKind, boolean> = {
   change: true,
   broadcast: false,
   playbook: false,
-};
-const NOT_BOOKED: ListCondition = { field: "booked", op: "is", yes: false };
-/** No appointment since the offer began, read on the reminder's day: the last one before it, or none ever. */
-const NONE_SINCE: ListCondition = {
-  any: [
-    { field: "last_visit", op: "more_than", days: REMINDER_AFTER_DAYS },
-    { field: "last_visit", op: "never" },
-  ],
 };
 
 /** Each stage of the journey, as a sentence about when it sends says it. */
@@ -186,24 +181,24 @@ const OFFER_MESSAGE: Record<PlanWorld["language"], { whatsapp: string; subject: 
       "Hola {{1}}:\n\nUna oferta de {{2}}: {{3}}\n\nReserva aquí: {{4}}, o responde con el día que mejor te venga.",
   },
 };
+
 const channelWord = (c: OfferChannel): string =>
   c === "whatsapp" ? VERSION_CHANNEL_WORDS.whatsapp : VERSION_CHANNEL_WORDS[c].toLowerCase();
 
-/**
- * "The calendar has 15 open slots in the next 14 days for 40 people": the days are the ones calendar.room counts over,
- * the booking window's default (the dashboard's ROOM_DAYS is the same one).
- */
-const roomWords = (open: number, audience: number): string =>
-  `The calendar has ${open > 0 ? plural(open, "open slot") : "no open slot"} in the next ${BOOKING_DEFAULTS.max_days_ahead} days for ${plural(audience, "person", "people")}`;
+/** "The calendar has 15 open slots in the next 14 days for 40 people". */
+const roomWords = (room: Room, audience: number): string =>
+  `The calendar has ${room.open > 0 ? plural(room.open, "open slot") : "no open slot"} in the next ${plural(room.days, "day")} for ${plural(audience, "person", "people")}`;
 
-/** The pace a campaign sends at: as many a day as the calendar has open slots, within what a campaign's cap may be. */
-const capOf = (open: number): number =>
-  Math.min(PLAYBOOK_LIMITS.cap_per_run.max, Math.max(PLAYBOOK_LIMITS.cap_per_run.min, Math.floor(open)));
+/** A campaign's pace: the open slots a day ahead, rounded up, within what a campaign's cap may be. */
+const capOf = (room: Room): number =>
+  Math.min(
+    PLAYBOOK_LIMITS.cap_per_run.max,
+    Math.max(PLAYBOOK_LIMITS.cap_per_run.min, Math.ceil(room.open / Math.max(1, room.days))),
+  );
 
 /**
  * What a plan says. Its refusals are the model's to say back (each ends on what to do); its words and each step's why
- * are the person's. The breath is a send's own (people who heard from a campaign or a broadcast that week wait), and
- * WhatsApp's review is WhatsApp's.
+ * are the person's. WhatsApp's review is WhatsApp's.
  */
 export const PLAN_WORDS = {
   noWords: "words is the offer in the owner's words: ask what the offer is.",
@@ -213,12 +208,19 @@ export const PLAN_WORDS = {
     "from is a day already past on the business's calendar: an offer starts today or later. Ask when it starts.",
   noChannel:
     "Nothing here can carry an offer: WhatsApp needs a connected number, email needs email set up to send offers, and texts carry no offers. Say so, and what to set up first.",
+  noChannelNamed:
+    "channels names no channel: name WhatsApp, email or both, or leave channels out for every one the workspace sends offers on.",
   noOffersList:
     "who is not a list this workspace has: name one people with action lists gives, or leave who out for everyone who can receive offers.",
   journeyUnread:
     "The journey could not be read just now, so which moments are covered is not known: say so, and try again in a moment.",
   nothingToCover:
     "Every moment asked for is covered already or not offered here (an appointment's moments need a calendar connected, a proposal's needs deals on): say so, and propose nothing.",
+  /** What an offer is called: the receptionist's note, the send and the campaign. */
+  offerTitle: (words: string): string => `Offer: ${words}`,
+  /** What the receptionist's note says: the offer as the message says it, its dates, and what it is for. */
+  noteText: (line: string, from: string, until: string, service: string | null): string =>
+    `The offer: ${line} It runs from ${from} to ${until}.${service ? ` It is for ${service}.` : ""}`,
   reuseMessage: (name: string): string => `Sends “${name}”, already in the Library, with the offer in its words.`,
   writeMessage: (name: string, on: readonly OfferChannel[]): string =>
     `Writes a message for offers, “${name}”, for ${joinWords(on.map(channelWord))}: this offer goes in its words, and the next offer can send it too.`,
@@ -228,44 +230,31 @@ export const PLAN_WORDS = {
   noteMade: (until: string): string => `Tells the receptionist about the offer, until ${until}.`,
   noteKnown: "The receptionist already has a note about the offer.",
   monthsOfferPaused: (name: string, until: string): string =>
-    `Pauses the month's offer, “${name}”, so nobody gets two offers: resume it after ${until}.`,
-  monthsOfferSays: (name: string, until: string): string =>
-    `The month's offer, “${name}”, says this offer from now on: change its words back after ${until}.`,
+    `Pauses the month's offer, “${name}”, while this offer runs, so nobody gets two offers: resume it after ${until}.`,
   firstSend: (list: string, day: string, at: string): string => `The offer goes to “${list}” on ${day} at ${at}.`,
   firstAtApprove: (list: string, at: string): string =>
     `The offer goes to “${list}” when you approve it, as ${at} today has passed.`,
   /** An offer that starts today, on a calendar with less room than half its audience: a campaign, from its Approve. */
-  paced: (open: number, audience: number): string =>
-    `${roomWords(open, audience)}, so the offer goes as a campaign: up to ${capOf(open)} a day, each person once, until it ends, starting when you approve it.`,
+  paced: (room: Room, audience: number): string =>
+    `${roomWords(room, audience)}, so the offer goes as a campaign: up to ${capOf(room)} a day, each person once, until it ends, starting when you approve it.`,
   /** The same room for an offer that starts later: the room counted now is not the offer's, so it is asked again then. */
-  roomTight: (open: number, audience: number, from: string): string =>
-    `${roomWords(open, audience)}: ask again on ${from} to pace the offer to the room then.`,
-  reminderNew: (day: string, at: string, from: string): string =>
-    `A reminder goes on ${day} at ${at} to a new list of whoever has not booked since ${from}; anyone who heard from you in the week before is left out.`,
-  reminderTo: (day: string, at: string, list: string): string =>
-    `A reminder goes on ${day} at ${at} to “${list}”; anyone who heard from you in the week before is left out.`,
-  countZero: (list: string): string => `There is no reminder: nobody is on “${list}” today.`,
-  reminderAfterEnd: (day: string): string => `There is no reminder: the offer ends before ${day}.`,
-  reminderPaced: "There is no reminder: the campaign already sends the offer as fast as the calendar can take it.",
-  reminderNoCalendar: (from: string): string =>
-    `There is no reminder: who has booked since ${from} can be told only from a connected calendar.`,
-  reminderUnwritable: (list: string): string =>
-    `There is no reminder: who on “${list}” has not booked cannot be written as a list.`,
+  roomTight: (room: Room, audience: number, from: string): string =>
+    `${roomWords(room, audience)}: ask again on ${from} to pace the offer to the room then.`,
   whatsappReview:
     "Its WhatsApp version waits on WhatsApp's review, which may still be running at the first send: whoever it reaches on WhatsApp waits for it.",
+  /** The reminder is a question of its own on its day, when who has booked is known: a send counts its people at its Approve. */
+  reminderAsk: (day: string, list: string): string =>
+    `On ${day}, ask me to send a reminder to whoever on “${list}” has not booked by then: that is its own question on the day, when who has booked is known.`,
   cover: (n: number): string =>
     `Starts ${plural(n, "campaign")}, one on each moment not covered yet, each its own card.`,
   notOffered: (stages: readonly string[]): string => `Not offered here: ${joinWords(stages)}.`,
   pausedOn: (name: string): string => `“${name}” stands paused on its moment: resume it from its drawer.`,
   why: {
     message: "No message in the Library carries an offer on every channel this one goes by.",
-    list: "The reminder goes only to whoever has not booked since the offer began.",
     note: "So the receptionist can answer about the offer.",
     pause: "So nobody gets the month's offer and this one.",
-    says: "The month's offer sends the same message, so it carries this offer.",
     first: "The offer, on its first day.",
     paced: "The offer, as fast as the calendar can take it.",
-    second: "A reminder to whoever has not booked.",
     stage: (id: JourneyStageId): string => `Nobody hears from you ${STAGE_WORDS[id]} yet.`,
   },
 } as const;
@@ -293,9 +282,8 @@ function firstFree(named: (i: number) => string, taken: (name: string) => boolea
   }
 }
 
-/** A list's token as a broadcast names its audience: a People list by its id, one of the workspace's own (or a step's) as saved. */
+/** A list's token as a broadcast names its audience: a People list by its id, one of the workspace's own as saved. */
 function audienceOf(token: string): Audience | null {
-  if (STEP_TOKEN.test(token)) return { audience_kind: "saved", audience_id: token };
   const ref = parseListToken(token);
   if (!ref) return null;
   return { audience_kind: ref.kind === "builtin" ? "list" : "saved", audience_id: ref.id };
@@ -381,22 +369,43 @@ const offerLine = (words: string): string => {
 };
 
 /** A message's values in order: the offer where it types one, each other filled per person. */
-const valuesOf = (slots: MessageRead["slots"], line: string): string[] =>
+const valuesOf = (slots: readonly Slot[], line: string): string[] =>
   [...slots].sort((a, b) => a.position - b.position).map((s) => (s.kind === "text" ? line : `@${s.kind}`));
+
+/**
+ * The month's offer starter's values in the workspace's language, numbered: their labels and kinds, "The offer" ("La
+ * oferta") the one typed. One spelling of the offer's value: what a written message takes, and what a reused one must.
+ */
+function offerSlots(language: PlanWorld["language"]): Slot[] {
+  const starter = starterByName("this_months_offer");
+  if (!starter) throw new Error("the month's offer starter is gone from the starter set");
+  return starterText(starter, messageLanguageCode(language)).slots.map((s, i) => ({
+    position: i + 1,
+    label: s.label,
+    kind: s.kind,
+  }));
+}
 
 type OfferMessage =
   | { made: false; name: string; id: string; params: string[]; inReview: boolean }
   | { made: true; name: string; input: Record<string, unknown>; params: string[] };
 
 /**
- * The message to reuse: a marketing one in the workspace's language whose values take the offer (one typed value, every
- * other filled per person) with a live version on every channel the offer goes by; the one the month's offer runs on
- * first, then the month's offer starter, then the Library's order. Its id is its version on the first of those channels.
+ * The message to reuse: a marketing one in the workspace's language whose one typed value is the offer's (the
+ * starter's "The offer", by its label), every other filled per person, with a live version on every channel the offer
+ * goes by; the starter first, then one a plan wrote, then the Library's order. Its id is its version on the first of
+ * those channels, and it is in review where the WhatsApp version it would send still is.
  */
 function reusedMessage(world: PlanWorld, on: readonly OfferChannel[], line: string): OfferMessage | null {
-  const takes = (m: MessageRead) =>
-    m.slots.filter((s) => s.kind === "text").length === 1 &&
-    m.slots.every((s) => s.kind === "text" || PER_PERSON.has(s.kind));
+  const offer = offerSlots(world.language).find((s) => s.kind === "text");
+  const takes = (m: MessageRead) => {
+    const typed = m.slots.filter((s) => s.kind === "text");
+    return (
+      typed.length === 1 &&
+      typed.every((s) => s.label === offer?.label) &&
+      m.slots.every((s) => s.kind === "text" || PER_PERSON.has(s.kind))
+    );
+  };
   const versionOn = (m: MessageRead, c: OfferChannel) => m.versions.find((v) => v.channel === c && LIVE.has(v.state));
   const fits = world.messages.filter(
     (m) =>
@@ -405,8 +414,8 @@ function reusedMessage(world: PlanWorld, on: readonly OfferChannel[], line: stri
       takes(m) &&
       on.every((c) => versionOn(m, c)),
   );
-  const monthly = new Set(world.playbooks.filter((p) => p.trigger === "everyone_monthly").map((p) => p.template_name));
-  const m = fits.find((x) => monthly.has(x.name)) ?? fits.find((x) => x.name === "this_months_offer") ?? fits.at(0);
+  const rank = (m: MessageRead) => (m.name === "this_months_offer" ? 0 : WRITTEN_NAME.test(m.name) ? 1 : 2);
+  const m = [...fits].sort((a, b) => rank(a) - rank(b)).at(0);
   const version = m ? on.map((c) => versionOn(m, c)).find((v) => v !== undefined) : undefined;
   if (!m || !version) return null;
   return {
@@ -414,24 +423,18 @@ function reusedMessage(world: PlanWorld, on: readonly OfferChannel[], line: stri
     name: m.name,
     id: version.id,
     params: valuesOf(m.slots, line),
-    inReview: on.includes("whatsapp") && m.versions.some((v) => v.channel === "whatsapp" && v.state === "pending"),
+    inReview: on.includes("whatsapp") && versionOn(m, "whatsapp")?.state === "pending",
   };
 }
 
 /**
- * A new message for offers, in the shape a plan reuses: the month's offer starter's values in the workspace's language
- * (their labels and kinds, "The offer" the one typed), in OFFER_MESSAGE's words, with a WhatsApp version and an email
- * version where the offer goes by each. Its sends type the owner's words into the offer's value, so the next offer sends
- * the same message with its own. Named for what it is, "offer", under a name the Library does not hold.
+ * A new message for offers, in the shape a plan reuses: the starter's values (offerSlots), OFFER_MESSAGE's words, a
+ * WhatsApp version and an email version where the offer goes by each. Its sends type the owner's words into the offer's
+ * value, so the next offer sends the same message with its own. Named for what it is, "offer", under a name the Library
+ * does not hold.
  */
 function writtenMessage(world: PlanWorld, on: readonly OfferChannel[], line: string): OfferMessage {
-  const starter = starterByName("this_months_offer");
-  if (!starter) throw new Error("the month's offer starter is gone from the starter set");
-  const slots = starterText(starter, messageLanguageCode(world.language)).slots.map((s, i) => ({
-    position: i + 1,
-    label: s.label,
-    kind: s.kind,
-  }));
+  const slots = offerSlots(world.language);
   const words = OFFER_MESSAGE[world.language];
   const versions = {
     ...(on.includes("whatsapp") ? { whatsapp: { body: words.whatsapp } } : {}),
@@ -457,80 +460,33 @@ function offerNote(
   dates: OfferDates,
   notes: readonly Note[],
 ): Record<string, unknown> | null {
-  const title = clip(`Offer: ${offer.words}`, PROFILE_LIMITS.noteTitle);
+  const title = clip(SAY.offerTitle(offer.words), PROFILE_LIMITS.noteTitle);
   if (notes.some((n) => n.title === title && n.until === dates.until)) return null;
-  const parts = [
-    `The offer: ${line}`,
-    `It runs from ${dates.fromWords} to ${dates.untilWords}.`,
-    ...(offer.service?.trim() ? [offerLine(`It is for ${offer.service.trim()}`)] : []),
-  ];
-  return {
-    change: { op: "add_note", title, text: clip(parts.join(" "), PROFILE_LIMITS.noteText), until: dates.until },
-  };
+  const service = offer.service?.trim().replace(/[.!?…]+$/, "") || null;
+  const text = SAY.noteText(line, dates.fromWords, dates.untilWords, service);
+  return { change: { op: "add_note", title, text: clip(text, PROFILE_LIMITS.noteText), until: dates.until } };
 }
-
-/** Each running month's offer: its words changed where it runs on the reused message, else paused while the offer runs. */
-function monthsOfferChanges(
-  world: PlanWorld,
-  message: OfferMessage,
-  until: string,
-): { input: Record<string, unknown>; why: string; said: string }[] {
-  return world.playbooks
-    .filter((p) => p.trigger === "everyone_monthly" && p.state === "running")
-    .map((p) =>
-      !message.made && p.template_name === message.name
-        ? {
-            input: { playbook_id: p.id, params: message.params },
-            why: SAY.why.says,
-            said: SAY.monthsOfferSays(p.name, until),
-          }
-        : {
-            input: { playbook_id: p.id, state: "paused" },
-            why: SAY.why.pause,
-            said: SAY.monthsOfferPaused(p.name, until),
-          },
-    );
-}
-
-type Reminder =
-  | { kind: "make"; day: string; at: number; name: string; all: ListCondition[] }
-  | { kind: "reuse"; day: string; at: number; name: string; to: Audience }
-  | { kind: "none"; said: string };
-
-/** A rule's chips in any order, another list it reads by its token: two rules that say the same say it alike. */
-const ruleSaid = (rule: ListRule): string => [...listRuleParts(rule, (token) => token)].sort().join("\n");
 
 /**
- * The reminder: nineteen days after the first send, to who of its list has not booked since the offer began (that list's
- * rule, the offers list's said as said yes to offers, with no appointment booked and none since), on a list of the
- * workspace with the same rule where there is one, else a new one. None where the offer ends first, the first send is
- * paced, no calendar can say who booked, the rule cannot be written, or the list it would reuse holds nobody.
+ * Every running month's offer, paused while the offer runs: on its own cadence it would send this offer, or its own,
+ * beside the plan's send, and go on after the offer ends. The words say to resume it after.
  */
-function reminderOf(world: PlanWorld, audience: ListEntry, dates: OfferDates, paced: boolean): Reminder {
-  const day = shiftKey(dates.from, REMINDER_AFTER_DAYS);
-  if (day > dates.until)
-    return { kind: "none", said: SAY.reminderAfterEnd(campaignDayWords(day, world.tz, world.now)) };
-  if (paced) return { kind: "none", said: SAY.reminderPaced };
-  if (!world.journey?.some((s) => s.id === "before" || s.id === "after"))
-    return { kind: "none", said: SAY.reminderNoCalendar(dates.fromWords) };
-  const saidYes: ListCondition = { field: "said_yes", op: "is", to: "offers", yes: true };
-  const base = audience.token === world.offersList ? [saidYes] : asListRule(audience.rule)?.all;
-  const rule = base ? asListRule({ all: [...base, NOT_BOOKED, NONE_SINCE] }) : null;
-  if (!rule) return { kind: "none", said: SAY.reminderUnwritable(audience.name) };
-  const at = wallClockAt(world.tz, day, SEND_HOUR, 0);
-  const want = ruleSaid(rule);
-  for (const l of world.lists) {
-    const r = asListRule(l.rule);
-    const to = audienceOf(l.token);
-    if (!r || !to || ruleSaid(r) !== want) continue;
-    return l.count === 0 ? { kind: "none", said: SAY.countZero(l.name) } : { kind: "reuse", day, at, name: l.name, to };
-  }
-  const taken = new Set(world.lists.map((l) => l.name.toLowerCase()));
-  const name = firstFree(
-    (i) => `Not booked since ${dates.fromWords}${i === 1 ? "" : ` (${i})`}`,
-    (n) => taken.has(n.toLowerCase()),
-  );
-  return { kind: "make", day, at, name, all: rule.all };
+function monthsOfferPauses(world: PlanWorld, until: string): { input: Record<string, unknown>; said: string }[] {
+  return world.playbooks
+    .filter((p) => p.trigger === "everyone_monthly" && p.state === "running")
+    .map((p) => ({ input: { playbook_id: p.id, state: "paused" }, said: SAY.monthsOfferPaused(p.name, until) }));
+}
+
+/**
+ * The day the words say to ask for a reminder: nineteen days in, or the offer's last day where it ends sooner. None
+ * where that is its first day, where the offer is paced (its campaign reaches everyone as the calendar can take them),
+ * or where no calendar can say who booked.
+ */
+function reminderDay(world: PlanWorld, dates: OfferDates, paced: boolean): string | null {
+  if (paced || !world.journey?.some((s) => s.id === "before" || s.id === "after")) return null;
+  const nineteen = shiftKey(dates.from, REMINDER_AFTER_DAYS);
+  const day = nineteen <= dates.until ? nineteen : dates.until;
+  return day > dates.from ? day : null;
 }
 
 /** Everything an offer's plan is made of, read and judged before a step is numbered. */
@@ -542,19 +498,21 @@ interface OfferRead {
   audience: ListEntry;
   to: Audience;
   message: OfferMessage;
-  /** The calendar's open slots and the audience, where it has less room than half of it; null where it has more or is not known. */
-  tight: { open: number; audience: number } | null;
+  /** The calendar's room and the audience, where it has less room than half of it; null where it has more or is not known. */
+  tight: { room: Room; audience: number } | null;
   /** The paced campaign's cap, where the room is tight and the offer starts today; null where the offer is a broadcast. */
   cap: number | null;
-  reminder: Reminder;
+  /** The day to ask for a reminder, or null. */
+  reminder: string | null;
   note: Record<string, unknown> | null;
-  changes: ReturnType<typeof monthsOfferChanges>;
+  pauses: ReturnType<typeof monthsOfferPauses>;
 }
 
 function offerRead(offer: Offer, say: string | undefined, world: PlanWorld): OfferRead | { refused: string } {
   if (!offer.words.trim()) return { refused: SAY.noWords };
   const dates = offerDates(offer, world);
   if ("refused" in dates) return dates;
+  if (offer.channels?.length === 0) return { refused: SAY.noChannelNamed };
   const { on, said: onSaid } = offerChannels(offer.channels, world.channels);
   if (on.length === 0) return { refused: SAY.noChannel };
   const audience = world.lists.find((l) => l.token === (offer.who ?? world.offersList));
@@ -565,12 +523,10 @@ function offerRead(offer: Offer, say: string | undefined, world: PlanWorld): Off
   const room = world.room;
   // Room not known is never full (calendar.room's none, or a calendar with no slot either way).
   const tight =
-    room && audience.count !== null && room.open * 2 < audience.count
-      ? { open: room.open, audience: audience.count }
-      : null;
+    room && audience.count !== null && room.open * 2 < audience.count ? { room, audience: audience.count } : null;
   // The room is counted over the days from now and a campaign sends from its Approve: an offer is paced to it only on
   // its first day. One that starts later is its broadcast, and the words say to ask again then.
-  const cap = tight && dates.from === dates.today ? capOf(tight.open) : null;
+  const cap = tight && dates.from === dates.today ? capOf(tight.room) : null;
   return {
     offer,
     dates,
@@ -581,52 +537,41 @@ function offerRead(offer: Offer, say: string | undefined, world: PlanWorld): Off
     message,
     tight,
     cap,
-    reminder: reminderOf(world, audience, dates, cap !== null),
+    reminder: reminderDay(world, dates, cap !== null),
     note: offerNote(offer, line, dates, world.notes),
-    changes: monthsOfferChanges(world, message, dates.untilWords),
+    pauses: monthsOfferPauses(world, dates.untilWords),
   };
 }
 
-/** What the plan says of its sends: the first (or the paced campaign), then the reminder or why there is none. */
+/** What the plan says of its send: the broadcast (or the paced campaign), WhatsApp's review, and when to ask for a reminder. */
 function sendWords(r: OfferRead, world: PlanWorld): string[] {
   const hour = clockHour(SEND_HOUR);
   const first =
     r.tight && r.cap !== null
-      ? [SAY.paced(r.tight.open, r.tight.audience)]
+      ? [SAY.paced(r.tight.room, r.tight.audience)]
       : [
           r.dates.firstAt === null
             ? SAY.firstAtApprove(r.audience.name, hour)
             : SAY.firstSend(r.audience.name, r.dates.fromWords, hour),
-          ...(r.tight ? [SAY.roomTight(r.tight.open, r.tight.audience, r.dates.fromWords)] : []),
+          ...(r.tight ? [SAY.roomTight(r.tight.room, r.tight.audience, r.dates.fromWords)] : []),
         ];
-  const rem = r.reminder;
-  const day = rem.kind === "none" ? "" : campaignDayWords(rem.day, world.tz, world.now);
-  const reminder =
-    rem.kind === "none"
-      ? rem.said
-      : rem.kind === "make"
-        ? SAY.reminderNew(day, hour, r.dates.fromWords)
-        : SAY.reminderTo(day, hour, rem.name);
   // A WhatsApp version still to be reviewed and a first send under a day away: WhatsApp's review may still be running.
   const reviewing = r.on.includes("whatsapp") && (r.message.made || r.message.inReview);
   const soon = (r.dates.firstAt ?? world.now.getTime()) - world.now.getTime() < DAY_MS;
-  return [...first, reminder, ...(reviewing && soon ? [SAY.whatsappReview] : [])];
+  return [
+    ...first,
+    ...(reviewing && soon ? [SAY.whatsappReview] : []),
+    ...(r.reminder ? [SAY.reminderAsk(campaignDayWords(r.reminder, world.tz, world.now), r.audience.name)] : []),
+  ];
 }
 
 function offerPlan(r: OfferRead, world: PlanWorld): { steps: PlanStep[]; words: string } {
   const { steps, add } = planSteps();
   const template_id = r.message.made ? stepToken(add("message", r.message.input, SAY.why.message)) : r.message.id;
-  const rem = r.reminder;
-  const remindTo =
-    rem.kind === "make"
-      ? audienceOf(stepToken(add("list", { name: rem.name, all: rem.all, cannot: "" }, SAY.why.list)))
-      : rem.kind === "reuse"
-        ? rem.to
-        : null;
   if (r.note) add("note", r.note, SAY.why.note);
-  for (const c of r.changes) add("change", c.input, c.why);
+  for (const p of r.pauses) add("change", p.input, SAY.why.pause);
   const sends = { template_id, params: r.message.params };
-  const named = (lead: string, max: number) => clip(`${lead}: ${r.offer.words}`, max);
+  const title = SAY.offerTitle(r.offer.words);
   if (r.cap !== null)
     add(
       "playbook",
@@ -636,7 +581,7 @@ function offerPlan(r: OfferRead, world: PlanWorld): { steps: PlanStep[]; words: 
         policy_class: "campaign",
         ...sends,
         cap_per_run: r.cap,
-        name: named("Offer", PLAYBOOK_NAME_MAX),
+        name: clip(title, PLAYBOOK_NAME_MAX),
         channels: r.on,
         until: r.dates.until,
       },
@@ -649,28 +594,16 @@ function offerPlan(r: OfferRead, world: PlanWorld): { steps: PlanStep[]; words: 
         ...sends,
         ...r.to,
         ...(r.dates.firstAt === null ? {} : { scheduled_for: new Date(r.dates.firstAt).toISOString() }),
-        name: named("Offer", BROADCAST_NAME_MAX),
+        name: clip(title, BROADCAST_NAME_MAX),
         channels: r.on,
       },
       SAY.why.first,
-    );
-  if (remindTo && rem.kind !== "none")
-    add(
-      "broadcast",
-      {
-        ...sends,
-        ...remindTo,
-        scheduled_for: new Date(rem.at).toISOString(),
-        name: named("Reminder", BROADCAST_NAME_MAX),
-        channels: r.on,
-      },
-      SAY.why.second,
     );
   const words = [
     r.message.made ? SAY.writeMessage(r.message.name, r.on) : SAY.reuseMessage(r.message.name),
     ...r.onSaid,
     r.note ? SAY.noteMade(r.dates.untilWords) : SAY.noteKnown,
-    ...r.changes.map((c) => c.said),
+    ...r.pauses.map((p) => p.said),
     ...sendWords(r, world),
   ];
   return { steps, words: words.join(" ") };
@@ -678,13 +611,19 @@ function offerPlan(r: OfferRead, world: PlanWorld): { steps: PlanStep[]; words: 
 
 /* ------------------------------------------------------------------ the journey */
 
-/** A campaign on a stage's moment: its starter, but the day after's review ask where the Library holds it in this language. */
+/**
+ * A campaign on a stage's moment: its starter, but the day after's review ask where the Library holds it in this
+ * language, by a version it can go by (a live one; WhatsApp's only where a number is connected).
+ */
 function stageInput(id: JourneyStageId, moment: string, world: PlanWorld): Record<string, unknown> {
   const review =
     id === "after"
       ? world.messages.find((m) => m.name === "after_visit_review" && languageBase(m.language) === world.language)
       : undefined;
-  const version = review ? (review.versions.find((v) => v.channel === "whatsapp") ?? review.versions.at(0)) : undefined;
+  const goes = (review?.versions ?? []).filter(
+    (v) => LIVE.has(v.state) && (v.channel !== "whatsapp" || world.channels.whatsapp),
+  );
+  const version = goes.find((v) => v.channel === "whatsapp") ?? goes.at(0);
   return version ? { trigger: moment, template_id: version.id } : { trigger: moment };
 }
 

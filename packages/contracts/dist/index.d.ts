@@ -14907,7 +14907,7 @@ declare function journeyOf(s: {
 type PlanIntent = {
     intent: "offer";
     offer: {
-        /** The offer in the owner's words ("10% off every service all November"): the note's title, the sends' names. */
+        /** The offer in the owner's words ("10% off every service all November"): the note's title, the send's name. */
         words: string;
         /** Its first and last day, YYYY-MM-DD by the business's calendar. */
         from: string;
@@ -14956,9 +14956,13 @@ interface PlanWorld {
     }[];
     /** The receptionist's notes. */
     notes: Note[];
-    /** The open slots on the calendar ahead (calendar.room); null where that is not known, which is never "full". */
+    /**
+     * The calendar's open slots over the days ahead it counts (calendar.room: `days`, at most the booking window's
+     * fourteen); null where that is not known, which is never "full".
+     */
     room: {
         open: number;
+        days: number;
     } | null;
     /**
      * The journey's stages this workspace can run (journeyGuide's: an appointment's moments only with a calendar
@@ -14986,13 +14990,13 @@ interface PlanStep {
     after: number[];
 }
 type OfferChannel = "whatsapp" | "email";
-/** The token a step's input names what an earlier step makes by: `@step:2` is step 2's list. */
+type Room = NonNullable<PlanWorld["room"]>;
+/** The token a step's input names what an earlier step makes by: `@step:1` is step 1's message. */
 declare const STEP_TOKEN: RegExp;
 declare function stepToken(n: number): string;
 /**
  * What a plan says. Its refusals are the model's to say back (each ends on what to do); its words and each step's why
- * are the person's. The breath is a send's own (people who heard from a campaign or a broadcast that week wait), and
- * WhatsApp's review is WhatsApp's.
+ * are the person's. WhatsApp's review is WhatsApp's.
  */
 declare const PLAN_WORDS: {
     readonly noWords: "words is the offer in the owner's words: ask what the offer is.";
@@ -15000,9 +15004,14 @@ declare const PLAN_WORDS: {
     readonly fromAfterUntil: "until comes before from: an offer's last day is its first day or later. Ask which dates they meant.";
     readonly fromPast: "from is a day already past on the business's calendar: an offer starts today or later. Ask when it starts.";
     readonly noChannel: "Nothing here can carry an offer: WhatsApp needs a connected number, email needs email set up to send offers, and texts carry no offers. Say so, and what to set up first.";
+    readonly noChannelNamed: "channels names no channel: name WhatsApp, email or both, or leave channels out for every one the workspace sends offers on.";
     readonly noOffersList: "who is not a list this workspace has: name one people with action lists gives, or leave who out for everyone who can receive offers.";
     readonly journeyUnread: "The journey could not be read just now, so which moments are covered is not known: say so, and try again in a moment.";
     readonly nothingToCover: "Every moment asked for is covered already or not offered here (an appointment's moments need a calendar connected, a proposal's needs deals on): say so, and propose nothing.";
+    /** What an offer is called: the receptionist's note, the send and the campaign. */
+    readonly offerTitle: (words: string) => string;
+    /** What the receptionist's note says: the offer as the message says it, its dates, and what it is for. */
+    readonly noteText: (line: string, from: string, until: string, service: string | null) => string;
     readonly reuseMessage: (name: string) => string;
     readonly writeMessage: (name: string, on: readonly OfferChannel[]) => string;
     readonly withoutWhatsApp: "It goes without WhatsApp: no WhatsApp number is connected.";
@@ -15011,33 +15020,24 @@ declare const PLAN_WORDS: {
     readonly noteMade: (until: string) => string;
     readonly noteKnown: "The receptionist already has a note about the offer.";
     readonly monthsOfferPaused: (name: string, until: string) => string;
-    readonly monthsOfferSays: (name: string, until: string) => string;
     readonly firstSend: (list: string, day: string, at: string) => string;
     readonly firstAtApprove: (list: string, at: string) => string;
     /** An offer that starts today, on a calendar with less room than half its audience: a campaign, from its Approve. */
-    readonly paced: (open: number, audience: number) => string;
+    readonly paced: (room: Room, audience: number) => string;
     /** The same room for an offer that starts later: the room counted now is not the offer's, so it is asked again then. */
-    readonly roomTight: (open: number, audience: number, from: string) => string;
-    readonly reminderNew: (day: string, at: string, from: string) => string;
-    readonly reminderTo: (day: string, at: string, list: string) => string;
-    readonly countZero: (list: string) => string;
-    readonly reminderAfterEnd: (day: string) => string;
-    readonly reminderPaced: "There is no reminder: the campaign already sends the offer as fast as the calendar can take it.";
-    readonly reminderNoCalendar: (from: string) => string;
-    readonly reminderUnwritable: (list: string) => string;
+    readonly roomTight: (room: Room, audience: number, from: string) => string;
     readonly whatsappReview: "Its WhatsApp version waits on WhatsApp's review, which may still be running at the first send: whoever it reaches on WhatsApp waits for it.";
+    /** The reminder is a question of its own on its day, when who has booked is known: a send counts its people at its Approve. */
+    readonly reminderAsk: (day: string, list: string) => string;
     readonly cover: (n: number) => string;
     readonly notOffered: (stages: readonly string[]) => string;
     readonly pausedOn: (name: string) => string;
     readonly why: {
         readonly message: "No message in the Library carries an offer on every channel this one goes by.";
-        readonly list: "The reminder goes only to whoever has not booked since the offer began.";
         readonly note: "So the receptionist can answer about the offer.";
         readonly pause: "So nobody gets the month's offer and this one.";
-        readonly says: "The month's offer sends the same message, so it carries this offer.";
         readonly first: "The offer, on its first day.";
         readonly paced: "The offer, as fast as the calendar can take it.";
-        readonly second: "A reminder to whoever has not booked.";
         readonly stage: (id: JourneyStageId) => string;
     };
 };

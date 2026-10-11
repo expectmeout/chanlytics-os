@@ -1,19 +1,21 @@
 /**
  * A plan, with no model (the marketing manager's spec §5.4, D3): contracts planOf turns an intent ("10% off every
  * service all November", or "cover my journey") and a snapshot of the workspace (PlanWorld) into steps, as data, and no
- * I/O. Each rule of §5.4's table is a row here, EXECUTED, deep-equal on the steps (their kinds, whether each is silent,
- * the steps it waits on, and its whole input) and on the plan's words: a message reused by its category, language and
- * slots, or written from the month's offer starter with a version on each channel the workspace sends offers on (never
- * a text); a list reused by its rule, never its name, or made; the receptionist's note; the sends at ten on the
- * business's clock; the month's offer paused, or its words changed where its message is the one reused; the first send
- * paced as a capped campaign where the calendar has less room than the audience; and a campaign on each moment of the
- * journey not covered yet. The dates are the business's: a start already past is refused by the same judge that refuses
- * a campaign's past end (contracts localDate), and ten o'clock is wallClockAt's.
+ * I/O. Each rule of §5.4's table, as ruled since, is a row here, EXECUTED, deep-equal on the steps (their kinds, whether
+ * each is silent, the steps it waits on, and its whole input) and on the plan's words: a message reused by its category,
+ * language and its one typed value being the offer's, or written in that shape with a version on each channel the
+ * workspace sends offers on (never a text), so the next offer reuses it; the receptionist's note; the send at ten on the
+ * business's clock; a running month's offer paused while the offer runs; the send paced as a capped campaign where the
+ * offer starts today and the calendar has less room than half the audience, and said tight where it starts later; the
+ * reminder never a step but the day to ask for it, said last; and a campaign on each moment of the journey not covered
+ * yet. The dates are the business's: a start already past is refused by the same judge that refuses a campaign's past
+ * end (contracts localDate), and ten o'clock is wallClockAt's.
  *
  * Every step's input is the input of the Ask action it is expanded through (Task 17): each is parsed, strictly, by that
- * action's own schema (the dashboard's act handlers, read as modules), a written message passes the door's own checks of
- * its words (POST templates/message's checkMessage), and a note's change is one AskSettingsChangeSchema reads. The
- * playbook step's `until` is the one key its action does not take yet: Task 17 teaches it.
+ * action's own schema (the dashboard's tools, read as modules, each action found by its name), every written message
+ * passes the door's own checks of its words (POST templates/message's checkMessage), and a note's change is one
+ * AskSettingsChangeSchema reads. The playbook step's `until` is the one key its action does not take yet: Task 17
+ * teaches it, and takes this strip out.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -37,20 +39,10 @@ const V = (n) => `77777777-7777-4777-8777-${String(n).padStart(12, "0")}`;
 const PB = "88888888-8888-4888-8888-888888888888";
 const OWN = "99999999-9999-4999-8999-999999999999";
 const WORDS = "10% off every service all November";
-/** What fills the offer's slot: the owner's words, as a sentence. */
+/** What fills the offer's value: the owner's words, as a sentence. */
 const LINE = "10% off every service all November.";
-/** Ten o'clock on 1 and 20 Nov 2026 in New York: standard time from 1 Nov, five hours behind UTC. */
+/** Ten o'clock on 1 Nov 2026 in New York: standard time from that morning, five hours behind UTC. */
 const FIRST_AT = "2026-11-01T15:00:00.000Z";
-const SECOND_AT = "2026-11-20T15:00:00.000Z";
-
-const SAID_YES = { field: "said_yes", op: "is", to: "offers", yes: true };
-const NOT_BOOKED = { field: "booked", op: "is", yes: false };
-const NO_VISIT_SINCE = {
-  any: [
-    { field: "last_visit", op: "more_than", days: 19 },
-    { field: "last_visit", op: "never" },
-  ],
-};
 
 /** The built-in offers list as People's lists read it: its rule, and who is on it. */
 const offersList = (count = 40) => ({
@@ -59,6 +51,14 @@ const offersList = (count = 40) => ({
   rule: { v: 2, all: [{ field: "can_receive", op: "is", to: "offers", yes: true }] },
   count,
 });
+
+/** The offer message's values: the month's offer starter's, the offer the one typed. */
+const OFFER_SLOTS = [
+  { position: 1, label: "First name", kind: "first_name" },
+  { position: 2, label: "Business name", kind: "business_name" },
+  { position: 3, label: "The offer", kind: "text" },
+  { position: 4, label: "Booking link", kind: "booking_link" },
+];
 
 /** The month's offer starter as campaigns with action messages reads it: both versions approved, the offer its third value. */
 const monthsOfferMessage = (over = {}) => ({
@@ -69,15 +69,34 @@ const monthsOfferMessage = (over = {}) => ({
     { channel: "whatsapp", id: V(1), state: "approved" },
     { channel: "email", id: V(2), state: "approved" },
   ],
-  slots: [
-    { position: 1, label: "First name", kind: "first_name" },
-    { position: 2, label: "Business name", kind: "business_name" },
-    { position: 3, label: "The offer", kind: "text" },
-    { position: 4, label: "Booking link", kind: "booking_link" },
-  ],
+  slots: OFFER_SLOTS,
   used_by: [],
   ...over,
 });
+/** A quick note: marketing, one typed value, but not the offer's ("The note"). */
+const quickNote = () =>
+  monthsOfferMessage({
+    name: "quick_note",
+    versions: [
+      { channel: "whatsapp", id: V(11), state: "approved" },
+      { channel: "email", id: V(12), state: "approved" },
+    ],
+    slots: [
+      { position: 1, label: "First name", kind: "first_name" },
+      { position: 2, label: "Business name", kind: "business_name" },
+      { position: 3, label: "The note", kind: "text" },
+    ],
+  });
+/** The message an earlier plan wrote, filed. */
+const writtenOffer = (over = {}) =>
+  monthsOfferMessage({
+    name: "offer",
+    versions: [
+      { channel: "whatsapp", id: V(21), state: "approved" },
+      { channel: "email", id: V(22), state: "approved" },
+    ],
+    ...over,
+  });
 
 /** The journey of a workspace with a calendar and no deals: first contact the receptionist's, nothing else covered. */
 const JOURNEY = [
@@ -121,19 +140,10 @@ const monthsOffer = (over = {}) => ({
 /** The steps as the rows compare them: everything but each one's why, which is held apart (every step has one). */
 const shape = (steps) => steps.map(({ n, kind, silent, input, after }) => ({ n, kind, silent, input, after }));
 
-/** The values a send fills the offer message with: per person, and the owner's words typed into the offer's. */
-const MONTHS_PARAMS = ["@first_name", "@business_name", LINE, "@booking_link"];
-/** A written message takes the same four values in the same order: the next offer reuses it. */
-const WRITTEN_PARAMS = MONTHS_PARAMS;
+/** The values a send fills an offer message with: per person, and the owner's words typed into the offer's. */
+const PARAMS = ["@first_name", "@business_name", LINE, "@booking_link"];
 const BOTH = ["whatsapp", "email"];
 
-/** The offer message's values: the month's offer starter's, the offer the one typed. */
-const OFFER_SLOTS = [
-  { position: 1, label: "First name", kind: "first_name" },
-  { position: 2, label: "Business name", kind: "business_name" },
-  { position: 3, label: "The offer", kind: "text" },
-  { position: 4, label: "Booking link", kind: "booking_link" },
-];
 /** The message a plan writes, in English: the offer is its typed value, never words of its own body. */
 const WRITTEN = (versions) => ({
   n: 1,
@@ -150,14 +160,7 @@ const EMAIL = {
   body: "Hi {{1}},\n\nAn offer from {{2}}: {{3}}\n\nBook here: {{4}}, or reply with a day that suits you.",
 };
 
-const listStep = (n) => ({
-  n,
-  kind: "list",
-  silent: true,
-  after: [],
-  input: { name: "Not booked since Nov 1", all: [SAID_YES, NOT_BOOKED, NO_VISIT_SINCE], cannot: "" },
-});
-const noteStep = (n) => ({
+const noteStep = (n, from = "Nov 1", until = "Nov 30", day = "2026-11-30") => ({
   n,
   kind: "note",
   silent: true,
@@ -166,10 +169,17 @@ const noteStep = (n) => ({
     change: {
       op: "add_note",
       title: `Offer: ${WORDS}`,
-      text: `The offer: ${LINE} It runs from Nov 1 to Nov 30.`,
-      until: "2026-11-30",
+      text: `The offer: ${LINE} It runs from ${from} to ${until}.`,
+      until: day,
     },
   },
+});
+const pauseStep = (n) => ({
+  n,
+  kind: "change",
+  silent: true,
+  after: [],
+  input: { playbook_id: PB, state: "paused" },
 });
 const firstSend = (n, after, over = {}) => ({
   n,
@@ -180,106 +190,65 @@ const firstSend = (n, after, over = {}) => ({
     template_id: V(1),
     audience_kind: "list",
     audience_id: "offers_ok",
-    params: MONTHS_PARAMS,
+    params: PARAMS,
     scheduled_for: FIRST_AT,
     name: `Offer: ${WORDS}`,
     channels: BOTH,
     ...over,
   },
 });
-const secondSend = (n, after, over = {}) => ({
-  n,
-  kind: "broadcast",
-  silent: false,
-  after,
-  input: {
-    template_id: V(1),
-    audience_kind: "saved",
-    audience_id: stepToken(1),
-    params: MONTHS_PARAMS,
-    scheduled_for: SECOND_AT,
-    name: `Reminder: ${WORDS}`,
-    channels: BOTH,
-    ...over,
-  },
-});
+/** The written message's send: its template is step 1's. */
+const writtenSend = (n, after, over = {}) => firstSend(n, after, { template_id: stepToken(1), ...over });
+/** A send whose ten o'clock has passed today: no time, it goes at Approve. */
+const atApprove = (step) => {
+  const { scheduled_for: _past, ...input } = step.input;
+  return { ...step, input };
+};
 
 const REUSED = "Sends “this_months_offer”, already in the Library, with the offer in its words.";
 const WRITES = (on) =>
   `Writes a message for offers, “offer”, for ${on}: this offer goes in its words, and the next offer can send it too.`;
 const NOTE = "Tells the receptionist about the offer, until Nov 30.";
+const PAUSES =
+  "Pauses the month's offer, “This month's offer”, while this offer runs, so nobody gets two offers: resume it after Nov 30.";
 const GOES = "The offer goes to “Can receive offers” on Nov 1 at 10:00 AM.";
 const REMINDS =
-  "A reminder goes on Nov 20 at 10:00 AM to a new list of whoever has not booked since Nov 1; anyone who heard from you in the week before is left out.";
+  "On Nov 20, ask me to send a reminder to whoever on “Can receive offers” has not booked by then: that is its own question on the day, when who has booked is known.";
+
+/** A today's offer: from Sunday 11 Oct to 15 Nov. */
+const TODAY = { from: "2026-10-11", until: "2026-11-15" };
+const TODAY_NOTE = noteStep(0, "Oct 11", "Nov 15", "2026-11-15");
+const TODAY_SAYS = "Tells the receptionist about the offer, until Nov 15.";
+const REMINDS_OCT_30 = W.reminderAsk("Oct 30", "Can receive offers");
 
 /** The rows: an intent, a world, and the steps and words it plans, or its refusal. */
 const ROWS = [
   {
-    name: "the month's offer is reused, and since it runs on that message its words change",
+    name: "the month's offer starter is reused, and the month's offer that runs on it is paused while the offer runs (ruling 3)",
     intent: offer(),
     world: world({ messages: [monthsOfferMessage()], playbooks: [monthsOffer()] }),
-    steps: [
-      listStep(1),
-      noteStep(2),
-      { n: 3, kind: "change", silent: true, after: [], input: { playbook_id: PB, params: MONTHS_PARAMS } },
-      firstSend(4, [1, 2, 3]),
-      secondSend(5, [1, 2, 3]),
-    ],
-    words: [
-      REUSED,
-      NOTE,
-      "The month's offer, “This month's offer”, says this offer from now on: change its words back after Nov 30.",
-      GOES,
-      REMINDS,
-    ],
+    steps: [noteStep(1), pauseStep(2), firstSend(3, [1, 2])],
+    words: [REUSED, NOTE, PAUSES, GOES, REMINDS],
   },
   {
     name: "no message carries an offer: one is written for WhatsApp and email, and a paused month's offer is left alone",
     intent: offer(),
     world: world({ playbooks: [monthsOffer({ state: "paused" })] }),
-    steps: [
-      WRITTEN({ whatsapp: { body: WA_BODY }, email: EMAIL }),
-      listStep(2),
-      noteStep(3),
-      firstSend(4, [1, 2, 3], { template_id: stepToken(1), params: WRITTEN_PARAMS }),
-      secondSend(5, [1, 2, 3], { template_id: stepToken(1), audience_id: stepToken(2), params: WRITTEN_PARAMS }),
-    ],
+    steps: [WRITTEN({ whatsapp: { body: WA_BODY }, email: EMAIL }), noteStep(2), writtenSend(3, [1, 2])],
     words: [WRITES("WhatsApp and email"), NOTE, GOES, REMINDS],
   },
   {
     name: "with no WhatsApp number the message is written for email alone, and the words say why",
     intent: offer(),
     world: world({ channels: { whatsapp: false, email_offers: true } }),
-    steps: [
-      WRITTEN({ email: EMAIL }),
-      listStep(2),
-      noteStep(3),
-      firstSend(4, [1, 2, 3], { template_id: stepToken(1), params: WRITTEN_PARAMS, channels: ["email"] }),
-      secondSend(5, [1, 2, 3], {
-        template_id: stepToken(1),
-        audience_id: stepToken(2),
-        params: WRITTEN_PARAMS,
-        channels: ["email"],
-      }),
-    ],
+    steps: [WRITTEN({ email: EMAIL }), noteStep(2), writtenSend(3, [1, 2], { channels: ["email"] })],
     words: [WRITES("email"), W.withoutWhatsApp, NOTE, GOES, REMINDS],
   },
   {
     name: "where email does not send offers the message has no email version, and the words say so",
     intent: offer(),
     world: world({ channels: { whatsapp: true, email_offers: false } }),
-    steps: [
-      WRITTEN({ whatsapp: { body: WA_BODY } }),
-      listStep(2),
-      noteStep(3),
-      firstSend(4, [1, 2, 3], { template_id: stepToken(1), params: WRITTEN_PARAMS, channels: ["whatsapp"] }),
-      secondSend(5, [1, 2, 3], {
-        template_id: stepToken(1),
-        audience_id: stepToken(2),
-        params: WRITTEN_PARAMS,
-        channels: ["whatsapp"],
-      }),
-    ],
+    steps: [WRITTEN({ whatsapp: { body: WA_BODY } }), noteStep(2), writtenSend(3, [1, 2], { channels: ["whatsapp"] })],
     words: [WRITES("WhatsApp"), W.withoutEmail, NOTE, GOES, REMINDS],
   },
   {
@@ -288,32 +257,48 @@ const ROWS = [
     world: world({
       messages: [monthsOfferMessage({ versions: [{ channel: "whatsapp", id: V(1), state: "approved" }] })],
     }),
-    steps: [
-      WRITTEN({ whatsapp: { body: WA_BODY }, email: EMAIL }),
-      listStep(2),
-      noteStep(3),
-      firstSend(4, [1, 2, 3], { template_id: stepToken(1), params: WRITTEN_PARAMS }),
-      secondSend(5, [1, 2, 3], { template_id: stepToken(1), audience_id: stepToken(2), params: WRITTEN_PARAMS }),
-    ],
+    steps: [WRITTEN({ whatsapp: { body: WA_BODY }, email: EMAIL }), noteStep(2), writtenSend(3, [1, 2])],
     words: [WRITES("WhatsApp and email"), NOTE, GOES, REMINDS],
   },
   {
     name: "a text asked for is dropped, since texts carry no offers",
     intent: offer({ channels: ["whatsapp", "sms"] }),
     world: world({ messages: [monthsOfferMessage()] }),
-    steps: [
-      listStep(1),
-      noteStep(2),
-      firstSend(3, [1, 2], { channels: ["whatsapp"] }),
-      secondSend(4, [1, 2], { channels: ["whatsapp"] }),
-    ],
+    steps: [noteStep(1), firstSend(2, [1], { channels: ["whatsapp"] })],
     words: [REUSED, W.noText, NOTE, GOES, REMINDS],
+  },
+  {
+    name: "a quick note is not an offer message: the plan's own is sent, the quick note never (ruling 2)",
+    intent: offer(),
+    world: world({ messages: [quickNote(), writtenOffer()] }),
+    steps: [noteStep(1), firstSend(2, [1], { template_id: V(21) })],
+    words: ["Sends “offer”, already in the Library, with the offer in its words.", NOTE, GOES, REMINDS],
+  },
+  {
+    name: "with only a quick note in the Library, an offer message is written (ruling 2)",
+    intent: offer(),
+    world: world({ messages: [quickNote()] }),
+    steps: [WRITTEN({ whatsapp: { body: WA_BODY }, email: EMAIL }), noteStep(2), writtenSend(3, [1, 2])],
+    words: [WRITES("WhatsApp and email"), NOTE, GOES, REMINDS],
+  },
+  {
+    name: "the month's offer starter comes before a message a plan wrote, whatever the Library's order (ruling 2)",
+    intent: offer(),
+    world: world({ messages: [writtenOffer(), quickNote(), monthsOfferMessage()] }),
+    steps: [noteStep(1), firstSend(2, [1])],
+    words: [REUSED, NOTE, GOES, REMINDS],
   },
   {
     name: "neither WhatsApp nor email can carry an offer here: refused (Review Focus 2)",
     intent: offer(),
     world: world({ channels: { whatsapp: false, email_offers: false } }),
     refused: W.noChannel,
+  },
+  {
+    name: "channels that name none is its own refusal",
+    intent: offer({ channels: [] }),
+    world: world(),
+    refused: W.noChannelNamed,
   },
   {
     name: "an offer that ends before it starts is refused",
@@ -340,54 +325,7 @@ const ROWS = [
     refused: W.noOffersList,
   },
   {
-    name: "a list of the same rule is reused whatever its name; one of the plan's name and another rule is not",
-    intent: offer(),
-    world: world({
-      messages: [monthsOfferMessage()],
-      lists: [
-        offersList(),
-        {
-          token: "list:11111111-1111-4111-8111-111111111111",
-          name: "Not booked since Nov 1",
-          rule: { all: [SAID_YES] },
-          count: 9,
-        },
-        {
-          token: `list:${OWN}`,
-          name: "Still to book",
-          rule: { v: 2, all: [NO_VISIT_SINCE, SAID_YES, NOT_BOOKED] },
-          count: 12,
-        },
-      ],
-    }),
-    steps: [noteStep(1), firstSend(2, [1]), secondSend(3, [1], { audience_id: OWN })],
-    words: [
-      REUSED,
-      NOTE,
-      GOES,
-      "A reminder goes on Nov 20 at 10:00 AM to “Still to book”; anyone who heard from you in the week before is left out.",
-    ],
-  },
-  {
-    name: "the reminder's list holds nobody today: the second send is left out, and the words say why",
-    intent: offer(),
-    world: world({
-      messages: [monthsOfferMessage()],
-      lists: [
-        offersList(),
-        {
-          token: `list:${OWN}`,
-          name: "Still to book",
-          rule: { all: [SAID_YES, NOT_BOOKED, NO_VISIT_SINCE] },
-          count: 0,
-        },
-      ],
-    }),
-    steps: [noteStep(1), firstSend(2, [1])],
-    words: [REUSED, NOTE, GOES, W.countZero("Still to book")],
-  },
-  {
-    name: "the month's offer runs on another message: it is paused while this offer runs (ruling 1)",
+    name: "the month's offer runs on another message: it is paused too, and the written message is sent (ruling 1)",
     intent: offer(),
     world: world({
       messages: [
@@ -403,36 +341,18 @@ const ROWS = [
     }),
     steps: [
       WRITTEN({ whatsapp: { body: WA_BODY }, email: EMAIL }),
-      listStep(2),
-      noteStep(3),
-      { n: 4, kind: "change", silent: true, after: [], input: { playbook_id: PB, state: "paused" } },
-      firstSend(5, [1, 2, 3, 4], { template_id: stepToken(1), params: WRITTEN_PARAMS }),
-      secondSend(6, [1, 2, 3, 4], { template_id: stepToken(1), audience_id: stepToken(2), params: WRITTEN_PARAMS }),
+      noteStep(2),
+      pauseStep(3),
+      writtenSend(4, [1, 2, 3]),
     ],
-    words: [
-      WRITES("WhatsApp and email"),
-      NOTE,
-      "Pauses the month's offer, “This month's offer”, so nobody gets two offers: resume it after Nov 30.",
-      GOES,
-      REMINDS,
-    ],
+    words: [WRITES("WhatsApp and email"), NOTE, PAUSES, GOES, REMINDS],
   },
   {
-    name: "an offer starting today, with less room than half its audience: a capped campaign from its Approve, ending with the offer (rulings 2, 3)",
-    intent: offer({ from: "2026-10-11", until: "2026-11-15" }),
-    world: world({ messages: [monthsOfferMessage()], room: { open: 15 } }),
+    name: "an offer starting today, with less room than half its audience: a campaign capped at the open slots a day, from its Approve, ending with the offer (rulings 2, 3, 4)",
+    intent: offer(TODAY),
+    world: world({ messages: [monthsOfferMessage()], room: { open: 15, days: 14 } }),
     steps: [
-      {
-        ...noteStep(1),
-        input: {
-          change: {
-            op: "add_note",
-            title: `Offer: ${WORDS}`,
-            text: `The offer: ${LINE} It runs from Oct 11 to Nov 15.`,
-            until: "2026-11-15",
-          },
-        },
-      },
+      { ...TODAY_NOTE, n: 1 },
       {
         n: 2,
         kind: "playbook",
@@ -443,8 +363,8 @@ const ROWS = [
           list: OFFERS,
           policy_class: "campaign",
           template_id: V(1),
-          params: MONTHS_PARAMS,
-          cap_per_run: 15,
+          params: PARAMS,
+          cap_per_run: 2,
           name: `Offer: ${WORDS}`,
           channels: BOTH,
           until: "2026-11-15",
@@ -453,16 +373,15 @@ const ROWS = [
     ],
     words: [
       REUSED,
-      "Tells the receptionist about the offer, until Nov 15.",
-      "The calendar has 15 open slots in the next 14 days for 40 people, so the offer goes as a campaign: up to 15 a day, each person once, until it ends, starting when you approve it.",
-      W.reminderPaced,
+      TODAY_SAYS,
+      "The calendar has 15 open slots in the next 14 days for 40 people, so the offer goes as a campaign: up to 2 a day, each person once, until it ends, starting when you approve it.",
     ],
   },
   {
     name: "the same tight room for an offer three weeks out: its broadcast, scheduled, and the words say to ask again on its day (ruling 3)",
     intent: offer(),
-    world: world({ messages: [monthsOfferMessage()], room: { open: 15 } }),
-    steps: [listStep(1), noteStep(2), firstSend(3, [1, 2]), secondSend(4, [1, 2])],
+    world: world({ messages: [monthsOfferMessage()], room: { open: 15, days: 14 } }),
+    steps: [noteStep(1), firstSend(2, [1])],
     words: [
       REUSED,
       NOTE,
@@ -473,89 +392,48 @@ const ROWS = [
   },
   {
     name: "room for the whole audience twice over is no pacing; nor is a room not known (ruling 3)",
-    intent: offer(),
-    world: world({ messages: [monthsOfferMessage()], room: { open: 20 } }),
-    steps: [listStep(1), noteStep(2), firstSend(3, [1, 2]), secondSend(4, [1, 2])],
-    words: [REUSED, NOTE, GOES, REMINDS],
-  },
-  {
-    name: "today, with ten o'clock past: the first send goes at Approve, and the words say so (ruling 6)",
-    intent: offer({ from: "2026-10-11", until: "2026-11-15" }),
-    world: world({ messages: [monthsOfferMessage()], now: new Date("2026-10-11T16:00:00Z") }),
-    steps: [
-      {
-        ...listStep(1),
-        input: { name: "Not booked since Oct 11", all: [SAID_YES, NOT_BOOKED, NO_VISIT_SINCE], cannot: "" },
-      },
-      {
-        ...noteStep(2),
-        input: {
-          change: {
-            op: "add_note",
-            title: `Offer: ${WORDS}`,
-            text: `The offer: ${LINE} It runs from Oct 11 to Nov 15.`,
-            until: "2026-11-15",
-          },
-        },
-      },
-      (() => {
-        const s = firstSend(3, [1, 2]);
-        delete s.input.scheduled_for;
-        return s;
-      })(),
-      secondSend(4, [1, 2], { scheduled_for: "2026-10-30T14:00:00.000Z" }),
-    ],
+    intent: offer(TODAY),
+    world: world({ messages: [monthsOfferMessage()], room: { open: 20, days: 14 } }),
+    steps: [{ ...TODAY_NOTE, n: 1 }, atApprove(firstSend(2, [1]))],
     words: [
       REUSED,
-      "Tells the receptionist about the offer, until Nov 15.",
+      TODAY_SAYS,
       "The offer goes to “Can receive offers” when you approve it, as 10:00 AM today has passed.",
-      "A reminder goes on Oct 30 at 10:00 AM to a new list of whoever has not booked since Oct 11; anyone who heard from you in the week before is left out.",
+      REMINDS_OCT_30,
     ],
   },
   {
-    name: "a new WhatsApp version and a first send under a day away: the words say WhatsApp's review may still run (ruling 7)",
-    intent: offer({ from: "2026-10-11", until: "2026-11-15" }),
+    name: "today, with ten o'clock past: the send goes at Approve, and the words say so (ruling 6)",
+    intent: offer(TODAY),
+    world: world({ messages: [monthsOfferMessage()], now: new Date("2026-10-11T16:00:00Z") }),
+    steps: [{ ...TODAY_NOTE, n: 1 }, atApprove(firstSend(2, [1]))],
+    words: [
+      REUSED,
+      TODAY_SAYS,
+      "The offer goes to “Can receive offers” when you approve it, as 10:00 AM today has passed.",
+      REMINDS_OCT_30,
+    ],
+  },
+  {
+    name: "a new WhatsApp version and a send under a day away: the words say WhatsApp's review may still run (ruling 7)",
+    intent: offer(TODAY),
     world: world({ now: new Date("2026-10-11T13:00:00Z") }),
     steps: [
       WRITTEN({ whatsapp: { body: WA_BODY }, email: EMAIL }),
-      {
-        ...listStep(2),
-        input: { name: "Not booked since Oct 11", all: [SAID_YES, NOT_BOOKED, NO_VISIT_SINCE], cannot: "" },
-      },
-      {
-        ...noteStep(3),
-        input: {
-          change: {
-            op: "add_note",
-            title: `Offer: ${WORDS}`,
-            text: `The offer: ${LINE} It runs from Oct 11 to Nov 15.`,
-            until: "2026-11-15",
-          },
-        },
-      },
-      firstSend(4, [1, 2, 3], {
-        template_id: stepToken(1),
-        params: WRITTEN_PARAMS,
-        scheduled_for: "2026-10-11T14:00:00.000Z",
-      }),
-      secondSend(5, [1, 2, 3], {
-        template_id: stepToken(1),
-        audience_id: stepToken(2),
-        params: WRITTEN_PARAMS,
-        scheduled_for: "2026-10-30T14:00:00.000Z",
-      }),
+      { ...TODAY_NOTE, n: 2 },
+      writtenSend(3, [1, 2], { scheduled_for: "2026-10-11T14:00:00.000Z" }),
     ],
     words: [
       WRITES("WhatsApp and email"),
-      "Tells the receptionist about the offer, until Nov 15.",
+      TODAY_SAYS,
       "The offer goes to “Can receive offers” on Oct 11 at 10:00 AM.",
-      "A reminder goes on Oct 30 at 10:00 AM to a new list of whoever has not booked since Oct 11; anyone who heard from you in the week before is left out.",
       W.whatsappReview,
+      REMINDS_OCT_30,
     ],
   },
   {
-    name: "a reused message whose WhatsApp version is still in review says so too, a first send under a day away; a day off, not",
-    intent: offer({ from: "2026-10-11", until: "2026-11-15" }),
+    name: "a reused message whose WhatsApp version it sends is in review says so too, a send under a day away",
+    intent: offer(TODAY),
     world: world({
       messages: [
         monthsOfferMessage({
@@ -567,35 +445,44 @@ const ROWS = [
       ],
       now: new Date("2026-10-11T13:00:00Z"),
     }),
-    steps: [
-      {
-        ...listStep(1),
-        input: { name: "Not booked since Oct 11", all: [SAID_YES, NOT_BOOKED, NO_VISIT_SINCE], cannot: "" },
-      },
-      {
-        ...noteStep(2),
-        input: {
-          change: {
-            op: "add_note",
-            title: `Offer: ${WORDS}`,
-            text: `The offer: ${LINE} It runs from Oct 11 to Nov 15.`,
-            until: "2026-11-15",
-          },
-        },
-      },
-      firstSend(3, [1, 2], { scheduled_for: "2026-10-11T14:00:00.000Z" }),
-      secondSend(4, [1, 2], { scheduled_for: "2026-10-30T14:00:00.000Z" }),
-    ],
+    steps: [{ ...TODAY_NOTE, n: 1 }, firstSend(2, [1], { scheduled_for: "2026-10-11T14:00:00.000Z" })],
     words: [
       REUSED,
-      "Tells the receptionist about the offer, until Nov 15.",
+      TODAY_SAYS,
       "The offer goes to “Can receive offers” on Oct 11 at 10:00 AM.",
-      "A reminder goes on Oct 30 at 10:00 AM to a new list of whoever has not booked since Oct 11; anyone who heard from you in the week before is left out.",
       W.whatsappReview,
+      REMINDS_OCT_30,
     ],
   },
   {
-    name: "a version in review and a first send more than a day away: nothing to say of the review",
+    name: "a version in review is nothing to say where the offer goes without WhatsApp: its email is what is sent",
+    intent: offer(TODAY),
+    world: world({
+      channels: { whatsapp: false, email_offers: true },
+      messages: [
+        monthsOfferMessage({
+          versions: [
+            { channel: "whatsapp", id: V(1), state: "pending" },
+            { channel: "email", id: V(2), state: "approved" },
+          ],
+        }),
+      ],
+      now: new Date("2026-10-11T13:00:00Z"),
+    }),
+    steps: [
+      { ...TODAY_NOTE, n: 1 },
+      firstSend(2, [1], { template_id: V(2), channels: ["email"], scheduled_for: "2026-10-11T14:00:00.000Z" }),
+    ],
+    words: [
+      REUSED,
+      W.withoutWhatsApp,
+      TODAY_SAYS,
+      "The offer goes to “Can receive offers” on Oct 11 at 10:00 AM.",
+      REMINDS_OCT_30,
+    ],
+  },
+  {
+    name: "a version in review and a send more than a day away: nothing to say of the review",
     intent: offer(),
     world: world({
       messages: [
@@ -607,7 +494,7 @@ const ROWS = [
         }),
       ],
     }),
-    steps: [listStep(1), noteStep(2), firstSend(3, [1, 2]), secondSend(4, [1, 2])],
+    steps: [noteStep(1), firstSend(2, [1])],
     words: [REUSED, NOTE, GOES, REMINDS],
   },
   {
@@ -617,38 +504,37 @@ const ROWS = [
       messages: [monthsOfferMessage()],
       notes: [{ title: `Offer: ${WORDS}`, text: "Anything.", until: "2026-11-30" }],
     }),
-    steps: [listStep(1), firstSend(2, [1]), secondSend(3, [1])],
+    steps: [firstSend(1, [])],
     words: [REUSED, W.noteKnown, GOES, REMINDS],
   },
   {
-    name: "an offer shorter than the reminder's day has no reminder",
+    name: "an offer that ends before its twentieth day: the reminder is asked for on its last day (ruling 1)",
     intent: offer({ until: "2026-11-07" }),
     world: world({ messages: [monthsOfferMessage()] }),
-    steps: [
-      {
-        ...noteStep(1),
-        input: {
-          change: {
-            op: "add_note",
-            title: `Offer: ${WORDS}`,
-            text: `The offer: ${LINE} It runs from Nov 1 to Nov 7.`,
-            until: "2026-11-07",
-          },
-        },
-      },
-      firstSend(2, [1]),
+    steps: [noteStep(1, "Nov 1", "Nov 7", "2026-11-07"), firstSend(2, [1])],
+    words: [
+      REUSED,
+      "Tells the receptionist about the offer, until Nov 7.",
+      GOES,
+      W.reminderAsk("Nov 7", "Can receive offers"),
     ],
-    words: [REUSED, "Tells the receptionist about the offer, until Nov 7.", GOES, W.reminderAfterEnd("Nov 20")],
   },
   {
-    name: "with no calendar, who has booked cannot be told: no reminder",
+    name: "a one-day offer has no day left to ask for a reminder (ruling 1)",
+    intent: offer({ until: "2026-11-01" }),
+    world: world({ messages: [monthsOfferMessage()] }),
+    steps: [noteStep(1, "Nov 1", "Nov 1", "2026-11-01"), firstSend(2, [1])],
+    words: [REUSED, "Tells the receptionist about the offer, until Nov 1.", GOES],
+  },
+  {
+    name: "with no calendar, who has booked cannot be told: no reminder is said (ruling 1)",
     intent: offer(),
     world: world({ messages: [monthsOfferMessage()], journey: [{ id: "quiet", covered: false, moment: "quiet_30" }] }),
     steps: [noteStep(1), firstSend(2, [1])],
-    words: [REUSED, NOTE, GOES, W.reminderNoCalendar("Nov 1")],
+    words: [REUSED, NOTE, GOES],
   },
   {
-    name: "the owner's phrasing is what the message says, and a list of theirs is the audience",
+    name: "the owner's phrasing is what the message says, a list of theirs is the audience, and the reminder names it",
     intent: offer({ who: `list:${OWN}`, service: "any service" }, "A tenth off anything you book in November"),
     world: world({
       messages: [monthsOfferMessage()],
@@ -664,15 +550,7 @@ const ROWS = [
     }),
     steps: [
       {
-        ...listStep(1),
-        input: {
-          name: "Not booked since Nov 1",
-          all: [{ field: "calls", op: "at_least", n: 2 }, NOT_BOOKED, NO_VISIT_SINCE],
-          cannot: "",
-        },
-      },
-      {
-        ...noteStep(2),
+        ...noteStep(1),
         input: {
           change: {
             op: "add_note",
@@ -682,16 +560,13 @@ const ROWS = [
           },
         },
       },
-      firstSend(3, [1, 2], {
+      firstSend(2, [1], {
         audience_kind: "saved",
         audience_id: OWN,
         params: ["@first_name", "@business_name", "A tenth off anything you book in November.", "@booking_link"],
       }),
-      secondSend(4, [1, 2], {
-        params: ["@first_name", "@business_name", "A tenth off anything you book in November.", "@booking_link"],
-      }),
     ],
-    words: [REUSED, NOTE, "The offer goes to “Regulars” on Nov 1 at 10:00 AM.", REMINDS],
+    words: [REUSED, NOTE, "The offer goes to “Regulars” on Nov 1 at 10:00 AM.", W.reminderAsk("Nov 20", "Regulars")],
   },
 
   /* ---- cover_journey ---- */
@@ -708,27 +583,36 @@ const ROWS = [
   {
     name: "the day after sends the review ask where the Library holds it (ruling 9)",
     intent: { intent: "cover_journey" },
-    world: world({
-      messages: [
-        {
-          name: "after_visit_review",
-          language: "en_US",
-          category: "utility",
-          versions: [
-            { channel: "email", id: V(8), state: "approved" },
-            { channel: "whatsapp", id: V(7), state: "approved" },
-          ],
-          slots: [],
-          used_by: [],
-        },
-      ],
-    }),
+    world: world({ messages: [reviewAsk()] }),
     steps: [
       { n: 1, kind: "playbook", silent: false, after: [], input: { trigger: "visit_tomorrow" } },
       { n: 2, kind: "playbook", silent: false, after: [], input: { trigger: "visited", template_id: V(7) } },
       { n: 3, kind: "playbook", silent: false, after: [], input: { trigger: "lapsed" } },
     ],
     words: ["Starts 3 campaigns, one on each moment not covered yet, each its own card."],
+  },
+  {
+    name: "the review ask by a version it can go by: not WhatsApp's without a number, nor one WhatsApp refused",
+    intent: { intent: "cover_journey", stages: ["after"] },
+    world: world({ channels: { whatsapp: false, email_offers: true }, messages: [reviewAsk()] }),
+    steps: [{ n: 1, kind: "playbook", silent: false, after: [], input: { trigger: "visited", template_id: V(8) } }],
+    words: ["Starts 1 campaign, one on each moment not covered yet, each its own card."],
+  },
+  {
+    name: "a review ask's WhatsApp version that WhatsApp refused is not picked: its email version is",
+    intent: { intent: "cover_journey", stages: ["after"] },
+    world: world({
+      messages: [
+        reviewAsk({
+          versions: [
+            { channel: "whatsapp", id: V(7), state: "rejected" },
+            { channel: "email", id: V(8), state: "approved" },
+          ],
+        }),
+      ],
+    }),
+    steps: [{ n: 1, kind: "playbook", silent: false, after: [], input: { trigger: "visited", template_id: V(8) } }],
+    words: ["Starts 1 campaign, one on each moment not covered yet, each its own card."],
   },
   {
     name: "cover the journey without a calendar: the win-back by silence alone",
@@ -782,6 +666,22 @@ const ROWS = [
   },
 ];
 
+/** The review ask as the Library reads it: WhatsApp's version and email's, approved. */
+function reviewAsk(over = {}) {
+  return {
+    name: "after_visit_review",
+    language: "en_US",
+    category: "utility",
+    versions: [
+      { channel: "email", id: V(8), state: "approved" },
+      { channel: "whatsapp", id: V(7), state: "approved" },
+    ],
+    slots: [],
+    used_by: [],
+    ...over,
+  };
+}
+
 for (const row of ROWS) {
   test(row.name, () => {
     const out = planOf(row.intent, row.world);
@@ -796,13 +696,14 @@ for (const row of ROWS) {
   });
 }
 
-test("the refusals and the words the brief names are words", () => {
-  for (const k of ["fromAfterUntil", "fromPast", "noChannel", "noOffersList"]) assert.equal(typeof W[k], "string", k);
-  assert.match(W.countZero("Still to book"), /“Still to book”/);
-  assert.match(W.paced(15, 40), /15 open slots in the next 14 days for 40 people.*up to 15 a day/);
-  assert.match(W.paced(0, 3), /no open slot in the next 14 days for 3 people.*up to 1 a day/);
+test("the refusals and the words the brief names are words, and the pace is the open slots a day", () => {
+  for (const k of ["fromAfterUntil", "fromPast", "noChannel", "noChannelNamed", "noOffersList"])
+    assert.equal(typeof W[k], "string", k);
+  assert.match(W.paced({ open: 15, days: 14 }, 40), /15 open slots in the next 14 days for 40 people.*up to 2 a day/);
+  assert.match(W.paced({ open: 9, days: 1 }, 40), /9 open slots in the next 1 day for 40 people.*up to 9 a day/);
+  assert.match(W.paced({ open: 0, days: 14 }, 3), /no open slot in the next 14 days for 3 people.*up to 1 a day/);
   assert.match(
-    W.roomTight(1, 40, "Nov 1"),
+    W.roomTight({ open: 1, days: 14 }, 40, "Nov 1"),
     /^The calendar has 1 open slot in the next 14 days for 40 people: ask again on Nov 1/,
   );
   assert.doesNotMatch(
@@ -836,67 +737,73 @@ test("a step's token is @step:n, and resolveSteps fills every one from what the 
   assert.equal(payload.audience_id, stepToken(2), "the payload it was given is left as it was");
 });
 
-/* ---- every step's input is its action's input ---- */
+/* ---- every step's input is its action's input, and every written message the door's ---- */
 
-const action = async (rel, name) => {
-  const m = await import(at(`apps/dashboard/src/server/ask/tools/act/${rel}`));
-  const def = m[name];
-  return def.actions ? Object.values(def.actions)[0] : def;
+const tool = async (rel, name) => (await import(at(`apps/dashboard/src/server/ask/tools/act/${rel}`)))[name];
+const campaignTool = await tool("campaign.ts", "propose_campaign");
+const settingsTool = await tool("settings.ts", "propose_settings");
+/** An action of a tool by its name: propose_campaign's own, or "" for a tool that is one action. */
+const action = (t, name) => {
+  const def = t.actions[name];
+  assert.ok(def, `${t.name} has the action ${name || "(its own)"}`);
+  return def;
 };
+const SCHEMAS = {
+  message: action(campaignTool, "message").input,
+  note: action(settingsTool, "").input,
+  broadcast: action(campaignTool, "broadcast").input,
+  playbook: action(campaignTool, "playbook").input,
+  change: action(campaignTool, "change").input,
+};
+const { checkMessage } = await import(at("apps/dashboard/src/server/campaigns/write-message.ts"));
+const { slotExample } = await import(at("apps/dashboard/src/server/ask/tools/act/says.ts"));
 
-test("every step's input is the input of the Ask action it is expanded through", async () => {
-  const schemas = {
-    message: (await action("message.ts", "messageAction")).input,
-    list: (await action("list.ts", "propose_list")).input,
-    note: (await action("settings.ts", "propose_settings")).input,
-    broadcast: (await action("broadcast.ts", "broadcastAction")).input,
-    playbook: (await action("playbook.ts", "playbookAction")).input,
-    change: (await action("playbook-change.ts", "playbookChangeAction")).input,
+/** A written message as the message card files it (act/message.ts proposeMessage), held to the door's own checks. */
+function doorTakes(step, label) {
+  assert.equal(step.kind, "message", label);
+  const body = {
+    name: C.slugTemplateName(step.input.name),
+    language: C.messageLanguageCode(step.input.language),
+    category: step.input.category,
+    versions: step.input.versions,
+    slots: step.input.slots.map((x) => ({ ...x, example: slotExample(x) })),
   };
-  const { checkMessage } = await import(at("apps/dashboard/src/server/campaigns/write-message.ts"));
-  const { slotExample } = await import(at("apps/dashboard/src/server/ask/tools/act/says.ts"));
+  assert.doesNotThrow(() => checkMessage(body), label);
+  if (body.versions.whatsapp) {
+    const draft = C.validateTemplateDraft({
+      name: body.name,
+      language: body.language,
+      category: body.category,
+      body: body.versions.whatsapp.body,
+      examples: body.slots.map((x) => x.example),
+    });
+    assert.ok(draft.ok && draft.warnings.length === 0, `${label}: ${JSON.stringify(draft)}`);
+  }
+}
+
+test("every step's input is the input of the Ask action it is expanded through", () => {
   const seen = new Set();
   for (const row of ROWS.filter((r) => !r.refused)) {
     const out = planOf(row.intent, row.world);
     for (const s of out.steps) {
       seen.add(s.kind);
-      // The playbook action takes `until` from Task 17; every other key is its own today.
+      // The playbook action takes `until` from Task 17, which takes this strip out; every other key is its own today.
       const { until, ...rest } = s.input;
       const input = s.kind === "playbook" ? rest : s.input;
       if (s.kind === "playbook" && until !== undefined) assert.ok(C.isDayKey(until), `${row.name}: until is a day`);
-      const parsed = schemas[s.kind].strict().safeParse(input);
+      const parsed = SCHEMAS[s.kind].strict().safeParse(input);
       assert.ok(parsed.success, `${row.name}, step ${s.n} (${s.kind}): ${JSON.stringify(parsed.error?.issues)}`);
       if (s.kind === "note") assert.ok(C.AskSettingsChangeSchema.safeParse(s.input.change).success, row.name);
-      if (s.kind === "list") assert.ok(C.asListRule({ all: s.input.all }), `${row.name}: the list's rule reads`);
-      if (s.kind === "message") {
-        // The door's own checks of the words, on the body the message card files (act/message.ts proposeMessage).
-        const body = {
-          name: C.slugTemplateName(s.input.name),
-          language: C.messageLanguageCode(s.input.language),
-          category: s.input.category,
-          versions: s.input.versions,
-          slots: s.input.slots.map((x) => ({ ...x, example: slotExample(x) })),
-        };
-        assert.doesNotThrow(() => checkMessage(body), row.name);
-        if (body.versions.whatsapp) {
-          const draft = C.validateTemplateDraft({
-            name: body.name,
-            language: body.language,
-            category: body.category,
-            body: body.versions.whatsapp.body,
-            examples: body.slots.map((x) => x.example),
-          });
-          assert.ok(draft.ok && draft.warnings.length === 0, `${row.name}: ${JSON.stringify(draft)}`);
-        }
-      }
+      if (s.kind === "message") doorTakes(s, row.name);
     }
   }
-  assert.deepEqual([...seen].sort(), ["broadcast", "change", "list", "message", "note", "playbook"]);
+  assert.deepEqual([...seen].sort(), ["broadcast", "change", "message", "note", "playbook"]);
 });
 
 test("the Spanish message is written in Spanish, the starter's Spanish values, the offer typed into its own", () => {
   const out = planOf(offer({}, "10% de descuento en todo noviembre"), world({ language: "es" }));
-  const [message, , , first] = out.steps;
+  const [message, , first] = out.steps;
+  doorTakes(message, "the Spanish message");
   assert.equal(message.input.language, "es");
   assert.deepEqual(message.input.versions, {
     whatsapp: {
@@ -922,12 +829,16 @@ test("the Spanish message is written in Spanish, the starter's Spanish values, t
     "10% de descuento en todo noviembre.",
     "@booking_link",
   ]);
+  // An English message's offer value is not the Spanish one's: an English offer message is not reused in Spanish.
+  const english = planOf(offer(), world({ language: "es", messages: [writtenOffer({ language: "es" })] }));
+  assert.equal(english.steps[0].kind, "message", "written in Spanish, not the English-labelled one sent");
 });
 
 test("a name the Library holds is not written twice", () => {
   const out = planOf(offer(), world({ messages: [{ ...monthsOfferMessage(), name: "offer", slots: [] }] }));
   const [message] = out.steps;
   assert.equal(message.input.name, "offer_2");
+  doorTakes(message, "offer_2");
 });
 
 /** A message a plan wrote, as campaigns with action messages reads it once filed: English under en_US, WhatsApp in review. */
@@ -943,16 +854,15 @@ const filed = (step) => ({
   used_by: [],
 });
 
-test("the message one plan writes is the message the next plan sends, with that offer's own words", () => {
-  const first = planOf(offer(), world());
+test("the message one plan writes is the message the next plan sends, with that offer's own words (ruling 1 of the pre-review)", () => {
+  const first = planOf(offer(), world({ messages: [quickNote()] }));
   const [written] = first.steps;
-  assert.equal(written.kind, "message");
+  doorTakes(written, "the first plan's message");
   const weekend = "20% off every booking this weekend";
   const next = planOf(
     offer({ words: weekend, from: "2026-10-17", until: "2026-10-18" }),
-    world({ messages: [filed(written)] }),
+    world({ messages: [quickNote(), filed(written)] }),
   );
-  const params = ["@first_name", "@business_name", `${weekend}.`, "@booking_link"];
   assert.deepEqual(shape(next.steps), [
     {
       n: 1,
@@ -977,7 +887,7 @@ test("the message one plan writes is the message the next plan sends, with that 
         template_id: V(5),
         audience_kind: "list",
         audience_id: "offers_ok",
-        params,
+        params: ["@first_name", "@business_name", `${weekend}.`, "@booking_link"],
         scheduled_for: "2026-10-17T14:00:00.000Z",
         name: `Offer: ${weekend}`,
         channels: BOTH,
@@ -990,11 +900,13 @@ test("the message one plan writes is the message the next plan sends, with that 
       "Sends “offer”, already in the Library, with the offer in its words.",
       "Tells the receptionist about the offer, until Oct 18.",
       "The offer goes to “Can receive offers” on Oct 17 at 10:00 AM.",
-      W.reminderAfterEnd("Nov 5"),
+      W.reminderAsk("Oct 18", "Can receive offers"),
     ].join(" "),
   );
   // In Spanish too: the Spanish message a plan writes is the one the next Spanish plan sends.
   const es = planOf(offer({}, "10% de descuento"), world({ language: "es" }));
-  const again = planOf(offer({ words: "Fin de semana" }), world({ language: "es", messages: [filed(es.steps[0])] }));
+  const [esWritten] = es.steps;
+  doorTakes(esWritten, "the first Spanish plan's message");
+  const again = planOf(offer({ words: "Fin de semana" }), world({ language: "es", messages: [filed(esWritten)] }));
   assert.equal(again.steps.filter((s) => s.kind === "message").length, 0, "reused, not written again");
 });
