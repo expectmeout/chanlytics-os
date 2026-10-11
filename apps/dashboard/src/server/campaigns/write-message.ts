@@ -5,7 +5,9 @@
  *
  * Everything that could refuse the message comes first, before anything is filed: a name of the shape Meta takes and no
  * starter's (a starter begins only as itself), a language from the list, at least one version, the values numbered in
- * order, no channel its purpose never goes by (a text carries no offer, contracts channelNeverCarries), each version's
+ * order, no channel its purpose never goes by (a text carries no offer, contracts channelNeverCarries), no `utility`
+ * category without a WhatsApp version for Meta to review (a message somebody writes is an offer or news: the check a
+ * member's first version meets, template-versions.ts refuseWrittenUtility), each version's
  * words on its channel's rules against the values (contracts validateOwnVersion, and validateTemplateDraft for
  * WhatsApp's, which Meta would refuse at the wire), and no twin: a message of the same name and language on file on any
  * channel is answered 409 in the words a WhatsApp submission is.
@@ -37,7 +39,7 @@ import {
 } from "@chanlytics/contracts";
 import { messageVersionRowsOf } from "@chanlytics/db";
 import { SAME_NAME_WORDS, submitDraft } from "@/server/campaigns/template-submit";
-import { MESSAGE_VALUES_WORDS, fileWrittenVersion } from "@/server/campaigns/template-versions";
+import { MESSAGE_VALUES_WORDS, fileWrittenVersion, refuseWrittenUtility } from "@/server/campaigns/template-versions";
 import type { RouteContext } from "@/server/with-route";
 import type { Member } from "@/server/route";
 
@@ -118,6 +120,8 @@ function checkMessage(body: WriteMessageBody, slots: WriteMessageBody["slots"]):
   const purpose = purposeOfTemplate(body.category);
   const never = channels.map((c) => channelNeverCarries(c, purpose)).find((w) => w !== null);
   if (never) refuse(never);
+  // Nobody reviews a category its writer declares: utility comes with a WhatsApp version Meta reviews, or not at all.
+  if (!body.versions.whatsapp) refuseWrittenUtility(body.category);
   for (const channel of OWN_VERSION_CHANNELS) {
     const words = ownWords(body.versions, channel);
     const check = words ? validateOwnVersion(channel, words, slots.length, body.language) : null;

@@ -9,8 +9,9 @@ import { writeMessage } from "@/server/campaigns/write-message";
  *
  * { name, language, category: "marketing" | "utility", versions: { whatsapp?: { body, footer? }, email?: { subject,
  * body }, sms?: { body } }, slots: [{ position, label, example?, kind }] }. Everything that could refuse it is said first
- * and nothing is filed: a text of an offer (texts carry no offers), words a channel refuses, a twin (the same name and
- * language on file, 409). Then the email and text versions are filed at once, approved, and WhatsApp's last, sent to
+ * and nothing is filed: a text of an offer (texts carry no offers), a `utility` message with no WhatsApp version for Meta
+ * to review (a message somebody writes is an offer or news, as POST templates/versions says), words a channel refuses,
+ * a twin (the same name and language on file, 409). Then the email and text versions are filed at once, approved, and WhatsApp's last, sent to
  * Meta for review, so a refusal there leaves the others filed. The answer is { name, language, versions: [{ channel, id,
  * state: "approved" | "pending" }], refused?: { channel, words } }: each version filed, and the first that could not be.
  *

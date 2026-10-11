@@ -151,6 +151,16 @@ async function beginMessage(
 }
 
 /**
+ * A message somebody writes is an offer or news (rule 4): nobody reviews a category its writer declares, so `utility`
+ * (about their own visit or proposal) is a starter's alone, which Chanlytics writes, or comes with a WhatsApp version
+ * Meta reviews. The one check of it: a member's first version of a message (beginVersion, POST templates/versions, which
+ * never has a WhatsApp version) and a message written whole with no WhatsApp version (write-message.ts).
+ */
+export function refuseWrittenUtility(category: "marketing" | "utility"): void {
+  if (category === "utility") throw new AppError("validation", MESSAGE_BEGIN_WORDS.customIsAnOffer);
+}
+
+/**
  * The first version of a message the workspace holds no row of. A starter of the registry begins as itself: its category,
  * its values and no title of its own (the starter's title is read from the registry), only on a channel it writes
  * something for in this language, else it is not found, as it was before this door existed, and only with the starter's
@@ -181,7 +191,7 @@ async function beginVersion(db: Acting, tenantId: string, v: VersionRequest): Pr
     example: x.example ?? null,
   }));
   const words = checkedWords(v, variables.length);
-  if (category === "utility") throw new AppError("validation", MESSAGE_BEGIN_WORDS.customIsAnOffer);
+  refuseWrittenUtility(category);
   return beginMessage(db.userId, tenantId, v, words, { category, variables, title: title ?? null });
 }
 
@@ -217,8 +227,8 @@ export async function saveVersion(ctx: RouteContext, member: Member, v: VersionR
  * message is (its category and values) with every version at once. Beside the rows its message has, where the workspace
  * holds any of its name (writeVersion: the message's own slots and category), else as its first (beginMessage: the
  * category and values said, a text of an offer refused). The words are checked here as everywhere (checkedWords).
- * Unlike a member's first version (beginVersion), no starter's name reaches here (the caller refuses one) and a utility
- * category is filed as it is said, its WhatsApp version, where it has one, going to Meta's review after it.
+ * No starter's name reaches here, and a utility category only with a WhatsApp version for Meta to review: the caller
+ * refuses both first (refuseWrittenUtility, the check a member's first version meets).
  */
 export async function fileWrittenVersion(
   db: Acting,

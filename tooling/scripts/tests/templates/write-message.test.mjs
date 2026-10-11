@@ -5,16 +5,17 @@
  * SQL is proved on Postgres in template-versions.db.test.mjs), and the edge stubbed with the provider guard open, so a
  * submission to Meta is a call this file counts and nothing leaves the machine.
  *
- * What is proved: every check comes before anything is filed (a text of an offer, a twin, words a channel refuses);
- * the email and text versions are filed first, at once and approved, and WhatsApp's last, in review; a WhatsApp version
- * the edge refuses leaves the others filed and is answered under `refused`, never thrown.
+ * What is proved: every check comes before anything is filed (a text of an offer, a utility message with no WhatsApp
+ * version for Meta to review, a twin, words a channel refuses); the email and text versions are filed first, at once
+ * and approved, and WhatsApp's last, in review; a WhatsApp version the edge refuses leaves the others filed and is
+ * answered under `refused`, never thrown.
  */
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
-import { LIBRARY_WORDS, channelNeverCarries } from "@chanlytics/contracts";
+import { LIBRARY_WORDS, MESSAGE_BEGIN_WORDS, channelNeverCarries } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -69,6 +70,9 @@ const WHATSAPP = {
   body: "Hi {{1}}, spring colour is 10% off at {{2}} this month. Reply to book a time.",
   footer: "Reply STOP to opt out",
 };
+/** A utility message's versions: about the customer's own visit, no offer in it. */
+const VISIT_EMAIL = { subject: "Your visit to {{2}}", body: "Hi {{1}}, thank you for coming to {{2}} today." };
+const VISIT_WHATSAPP = { body: "Hi {{1}}, thank you for coming to {{2}} today. Reply here if anything needs a look." };
 /** A written message's body: an offer by default, its versions named by each case. */
 const message = (over = {}) => ({
   name: "spring_colour",
@@ -221,30 +225,32 @@ test("POST templates/message declares its policy as POST templates does, and has
   assert.deepEqual(w.order, [], "a member who only looks files nothing");
 });
 
-test("(a) an email and a text version: two rows filed at once, approved, the first beginning the message with its category and values, the second beside it; Meta is not asked", async () => {
+test("(a) a utility message with an email and a text version and no WhatsApp one is refused in the product's words before anything is filed: nobody reviews a category its writer declares", async () => {
   const w = open();
-  const r = await w.post(message({ name: "visit_thanks", category: "utility", versions: { email: EMAIL, sms: SMS } }));
-  const rows = w.tables.templates.filter((t) => t.name === "visit_thanks");
+  await refused(
+    w.post(message({ name: "visit_thanks", category: "utility", versions: { email: VISIT_EMAIL, sms: SMS } })),
+    "validation",
+    400,
+    MESSAGE_BEGIN_WORDS.customIsAnOffer,
+  );
+  assert.deepEqual(w.order, [], "no door was called and Meta was not asked");
+  assert.deepEqual(w.tables.templates, []);
+});
+
+test("(a1) a marketing message with an email version alone: one row filed at once and approved, beginning the message with its category and values; Meta is not asked", async () => {
+  const w = open();
+  const r = await w.post(message({ versions: { email: EMAIL } }));
+  const rows = w.tables.templates.filter((t) => t.name === "spring_colour");
   assert.deepEqual(
     rows.map((t) => [t.channel, t.meta_status, t.category]),
-    [
-      ["email", "approved", "utility"],
-      ["sms", "approved", "utility"],
-    ],
+    [["email", "approved", "marketing"]],
   );
   assert.deepEqual(r, {
-    name: "visit_thanks",
+    name: "spring_colour",
     language: "en_US",
-    versions: [
-      { channel: "email", id: rows[0].id, state: "approved" },
-      { channel: "sms", id: rows[1].id, state: "approved" },
-    ],
+    versions: [{ channel: "email", id: rows[0].id, state: "approved" }],
   });
-  assert.deepEqual(
-    w.order,
-    ["create:email", "save:sms"],
-    "the email begins the message, the text is written beside it",
-  );
+  assert.deepEqual(w.order, ["create:email"], "the email begins the message");
   assert.deepEqual(
     rows[0].variables,
     SLOTS.map((s) => ({ position: s.position, label: s.label, example: s.example })),
@@ -252,6 +258,51 @@ test("(a) an email and a text version: two rows filed at once, approved, the fir
   );
   assert.equal(rows[0].created_by, USER, "the first version is the member's, on the service role's door");
   assert.deepEqual(w.meta.calls, [], "no WhatsApp version: nothing asked of Meta");
+});
+
+test("(a2) a utility message with a WhatsApp version for Meta to review: its email is filed at once and approved, WhatsApp's goes to Meta and is in review; with a text too, the text is written beside the email", async () => {
+  const w = open();
+  const r = await w.post(
+    message({ name: "visit_thanks", category: "utility", versions: { email: VISIT_EMAIL, whatsapp: VISIT_WHATSAPP } }),
+  );
+  assert.deepEqual(w.order, ["create:email", "meta"], "the email first, WhatsApp last");
+  assert.deepEqual(w.filed("visit_thanks"), [
+    ["email", "approved"],
+    ["whatsapp", "pending"],
+  ]);
+  const row = (channel) => w.tables.templates.find((t) => t.name === "visit_thanks" && t.channel === channel);
+  assert.equal(row("email").category, "utility");
+  assert.equal(w.meta.calls[0].category, "utility", "the category Meta reviews is the one the message says");
+  assert.deepEqual(r, {
+    name: "visit_thanks",
+    language: "en_US",
+    versions: [
+      { channel: "email", id: row("email").id, state: "approved" },
+      { channel: "whatsapp", id: row("whatsapp").id, state: "pending" },
+    ],
+  });
+
+  const t = open();
+  const all = await t.post(
+    message({
+      name: "visit_thanks",
+      category: "utility",
+      versions: { email: VISIT_EMAIL, sms: SMS, whatsapp: VISIT_WHATSAPP },
+    }),
+  );
+  assert.deepEqual(
+    t.order,
+    ["create:email", "save:sms", "meta"],
+    "the email begins the message, the text is written beside it, WhatsApp's last",
+  );
+  assert.deepEqual(
+    all.versions.map((v) => [v.channel, v.state]),
+    [
+      ["email", "approved"],
+      ["sms", "approved"],
+      ["whatsapp", "pending"],
+    ],
+  );
 });
 
 test("(b) an email and a WhatsApp version with the edge taking it: the email is filed first and approved, then WhatsApp's goes to Meta and is in review", async () => {
