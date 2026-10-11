@@ -1251,7 +1251,7 @@ import {
 var VOICE_SHELL_PROMPT = "{{business_facts}}\n\nWho you are speaking with:\n{{caller_context}}";
 var VOICE_SHELL_BEGIN = "{{greeting}}";
 var HANDOFF_VAR = "{{handoff_number}}";
-var FACTS_UNAVAILABLE = "The business's details could not be loaded for this call. Do not state opening hours, prices, services or an address from memory \u2014 you do not have them. Say you will have someone confirm, offer to take a message, and offer to send the booking link to the caller's WhatsApp.";
+var FACTS_UNAVAILABLE = "The business's details could not be loaded for this call. Do not state opening hours, prices, services or an address from memory \u2014 you do not have them. Say you will have someone confirm, and offer to take their name and a message so the team can call them back. Do not offer to send anything.";
 var CALLER_UNKNOWN = "New caller - no prior interactions on record.";
 function availabilityUrl(fnUrl) {
   return /\/api\/retell-fn$/.test(fnUrl) ? fnUrl.replace(/\/api\/retell-fn$/, "/api/retell-availability") : `${fnUrl}-availability`;
@@ -1279,11 +1279,13 @@ function voiceShellTools(fnUrl, bookingHeaders) {
     {
       type: "custom",
       name: "send_booking_link",
-      description: "Text the booking link to the caller's WhatsApp. Use when the caller wants to book. It goes to the number they are calling from unless another number is given.",
+      description: "Send the booking link to the caller's WhatsApp when the caller wants to book, unless your instructions say there is no link or no way to send it. It goes to the number they are calling from unless another number is given.",
       url: fnUrl,
       method: "POST",
       speak_during_execution: true,
-      execution_message_description: "Say you are sending the booking link to their WhatsApp now.",
+      // Said while the tool runs, before it has answered: so it promises nothing, and the answer it speaks after says
+      // what happened (11 Oct 2026: "sending it to their WhatsApp now" came before every refusal).
+      execution_message_description: "Say one moment, please.",
       speak_after_execution: true,
       ...bookingHeaders ? { headers: bookingHeaders } : {},
       // No `required` list: the provider drops an empty one on save, and the
@@ -1301,7 +1303,7 @@ function voiceShellTools(fnUrl, bookingHeaders) {
     {
       type: "custom",
       name: "check_availability",
-      description: "Check which appointment times are open right now. Use when the caller asks when they could come in, or before offering a time. Returns the open windows; offer up to three that fit, then send the booking link. Never confirm a slot yourself.",
+      description: "Check which appointment times are open right now. Use when the caller asks when they could come in, or before offering a time. Returns the open windows and what to offer after them; offer up to three that fit, then do what the answer says. Never confirm a slot yourself.",
       url: availabilityUrl(fnUrl),
       method: "POST",
       speak_during_execution: true,

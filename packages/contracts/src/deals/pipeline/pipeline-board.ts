@@ -7,7 +7,8 @@ import { DEAL_LOST_REASONS, DEAL_LOST_REASON_WORDS, type DealLostReason } from "
 import type { DealVM } from "../deal-vm";
 import type { DealSheetMode } from "../sheet/deal-acts";
 import type { PipelineGroupKey, PipelineSource, PipelineVM } from "./pipeline-vm";
-import { PIPELINE_WORDS } from "./pipeline-words";
+import { GROUP_WORDS, PIPELINE_WORDS } from "./pipeline-words";
+import { csvCell } from "../../shared/csv";
 
 /* ------------------------------------------------ the Pipeline as a workspace: the peek and the board's moves */
 
@@ -51,6 +52,54 @@ export function pipelineMove(
  * the other way); Value, what each deal comes to over a year; Person, by name. The groups themselves never move.
  */
 export const PIPELINE_SORTS = ["stage", "value", "name", "next"] as const;
+
+/** The sorts a phone offers, a desk's headings' own (pipelineSorted): each a sort and the way it runs first. */
+export const PIPELINE_PHONE_SORTS: readonly {
+  by: (typeof PIPELINE_SORTS)[number];
+  dir: "asc" | "desc";
+  label: string;
+}[] = [
+  { by: "stage", dir: "asc", label: "By stage" },
+  { by: "value", dir: "desc", label: "Highest value first" },
+  { by: "next", dir: "asc", label: "Next step soonest" },
+  { by: "name", dir: "asc", label: "Name, A to Z" },
+];
+
+/**
+ * The deals shown, as a file (a phone's Export; Ruben, 10 Oct 2026): who, how to reach them, and the deal as its row
+ * says it -- where it stands, the service, what it comes to, its standing, how long, the next step. Every cell is
+ * csvCell's, the one rule every file the product writes is spelled by.
+ */
+export function pipelineCsv(
+  rows: readonly {
+    group: PipelineGroupKey;
+    name: string;
+    person: { phone?: string | null; email?: string | null };
+    service: string | null;
+    value: string | null;
+    inStage: string;
+    chip: { words: string } | null;
+    next: { words: string; when: string } | null;
+  }[],
+): string {
+  const head = ["Name", "Phone", "Email", "Stage", "Service", "Value", "Standing", "In stage", "Next step"];
+  const lines = rows.map((r) =>
+    [
+      r.name,
+      r.person.phone || "",
+      r.person.email || "",
+      GROUP_WORDS[r.group],
+      r.service || "",
+      r.value || "",
+      r.chip ? r.chip.words : "",
+      r.inStage,
+      r.next ? `${r.next.words} (${r.next.when})` : "",
+    ]
+      .map(csvCell)
+      .join(","),
+  );
+  return [head.map(csvCell).join(","), ...lines].join("\r\n");
+}
 export type PipelineSort = (typeof PIPELINE_SORTS)[number];
 
 /** A deal's worth over a year, to order by: a month's twelve times, a year's and a one-off's as they are; null for none. */

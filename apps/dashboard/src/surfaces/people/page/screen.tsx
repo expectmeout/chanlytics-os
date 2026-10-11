@@ -17,7 +17,7 @@ import { RuleEditor } from "../lists/rule-editor";
 import { SaveShownAsList } from "../lists/save-shown";
 import { PeopleRail } from "../rail/people-rail";
 import { PeopleListsSheet } from "../rail/lists-sheet";
-import { PeoplePhoneBar } from "../rail/phone-bar";
+import { BarWord, PeoplePhoneBar, SELECT_WORDS } from "../rail/phone-bar";
 import { PeopleStanding } from "../rail/standing";
 import { PeopleListActSheet } from "../sheets/list-sheets";
 import { PhoneSheetRow } from "../sheets/phone-sheet";
@@ -390,8 +390,11 @@ function peopleScroll(s: PeopleState) {
 function phoneBar(s: PeopleState) {
   const { activeSaved, activeList, listGone, setListsOpen, listsOpen, q, setQ, searchRef, searchOpen, setSearchOpen } =
     s;
+  const { selecting, sel, shown } = s;
+  const picked = selecting ? shown.filter((p) => sel.has(p.id)).length : 0;
   return (
     <PeoplePhoneBar
+      title={selecting ? (picked ? `${picked.toLocaleString()} selected` : "Select people") : null}
       listLabel={
         activeSaved ? activeSaved.name : activeList ? activeList.label : listGone ? listGone.title : "Everyone"
       }
@@ -409,26 +412,44 @@ function phoneBar(s: PeopleState) {
   );
 }
 
+/**
+ * The bar's Select walks a selection through one word (Ruben, 10 Oct 2026): Select starts one, Select all then takes
+ * everyone shown, and once everyone is, Cancel ends it, back to Select. A selection begun on a face says Select all too.
+ */
+function selectStep(s: PeopleState) {
+  const { selecting, sel, shown, shownIds, setSel, setSelectMode, clearSelection } = s;
+  if (!selecting) return { word: "Select", press: () => setSelectMode(true) };
+  if (shown.every((p) => sel.has(p.id))) return { word: "Cancel", press: clearSelection };
+  return { word: "Select all", press: () => setSel(new Set(shownIds)) };
+}
+
 /** The bar's words: Select, where a selection could do something; Sort; and Export, as a desktop's controls say it. */
 function phoneBarActs(s: PeopleState) {
-  const { canEditLists, canExport, shown, setSelectMode, exportBlocked, exportHref, exportName, plFlash } = s;
+  const { canEditLists, canExport, shown, exportBlocked, exportHref, exportName, plFlash } = s;
+  const select = selectStep(s);
   return (
     <div className="pp-bar-acts">
       {(canEditLists || canExport) && shown.length > 0 ? (
-        <Button variant="quiet" size="sm" onClick={() => setSelectMode(true)} data-testid="people-phone-select">
-          Select
+        <Button variant="plain" size="sm" onClick={select.press} data-testid="people-phone-select">
+          <BarWord word={select.word} words={SELECT_WORDS} />
         </Button>
       ) : null}
       <Menu
         label="Sort"
         groups={menuGroups(peopleSortItems(s))}
         trigger={
-          <Button variant="quiet" size="sm" data-testid="people-phone-sort">
+          <Button variant="plain" size="sm" data-testid="people-phone-sort">
             Sort
           </Button>
         }
       />
-      <PeopleFileActs exportBlocked={exportBlocked} exportHref={exportHref} exportName={exportName} flash={plFlash} />
+      <PeopleFileActs
+        plain
+        exportBlocked={exportBlocked}
+        exportHref={exportHref}
+        exportName={exportName}
+        flash={plFlash}
+      />
     </div>
   );
 }
@@ -548,7 +569,6 @@ export function peopleScreen(s: PeopleState) {
     plFlash,
     bulkSheet,
     setBulkSheet,
-    shownIds,
     fileColumns,
     addOpen,
     setAddOpen,
@@ -614,7 +634,6 @@ export function peopleScreen(s: PeopleState) {
             phone={phone}
             sheet={phone ? bulkSheet : null}
             onSheet={setBulkSheet}
-            onSelectAll={() => setSel(new Set(shownIds))}
             fileColumns={fileColumns}
           />
         )}

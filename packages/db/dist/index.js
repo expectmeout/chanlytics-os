@@ -336,6 +336,26 @@ async function purgeAiUsage(db) {
   if (error) throw new Error(`ai_usage_purge: ${error.message}`);
   return Number(data) || 0;
 }
+async function keepModelTurn(db, turn) {
+  const { error } = await db.rpc("model_turn_keep", {
+    p_tenant_id: turn.tenantId,
+    p_turn_id: turn.turnId,
+    p_conversation_id: turn.conversationId,
+    p_prompt_hash: turn.promptHash,
+    p_prompt_text: turn.promptText,
+    p_request: turn.request,
+    ...turn.response ? { p_response: turn.response } : {},
+    ...turn.model ? { p_model: turn.model } : {},
+    ...turn.latencyMs === null ? {} : { p_latency_ms: Math.max(0, Math.round(turn.latencyMs)) }
+  });
+  if (error) throw new Error(`model_turn_keep: ${error.message}`);
+}
+async function scrubModelTurns(db, tenantId, needles) {
+  const { data, error } = await db.rpc("model_turns_scrub", { p_tenant_id: tenantId, p_needles: [...needles] });
+  if (error && (error.code === "PGRST202" || error.code === "42883")) return 0;
+  if (error) throw new Error(`model_turns_scrub: ${error.message}`);
+  return data ?? 0;
+}
 async function usageMonth(db, tenantId, month) {
   const { data, error } = await db.rpc("ai_usage_month", { p_tenant_id: tenantId, p_month: month });
   if (error) throw new Error(`ai_usage_month: ${error.message}`);
@@ -427,6 +447,7 @@ var ERASURE_LEGS = {
   ask_scrub: "scrub_ask_for_contact: the assistant's turns that name them deleted (00238)",
   deliveries_scrub: "provider_events_scrub: a kept delivery that names them deleted (00336)",
   notes_scrub: "person_notes_scrub: their numbers and addresses overwritten in other people's notes (00341)",
+  turns_scrub: "model_turns_scrub: the receptionist's kept turns that name them, in anyone's thread, deleted (00401); their own went with their conversation",
   appointments_scrub: "appointments_scrub: their visits keep their time and service and lose the client's name, number, address and note; the notices that made them, and any whose subject names them, lose the name (00345)"
 };
 var withPerson = (by) => ({ kind: "with_person", by });
@@ -636,7 +657,8 @@ var ERASURE_STRATEGIES = {
   },
   // What the owner asked the finder for, and the kinds of business it suggested.
   lead_searches: all(NOT_PERSONAL, "asked", "card", "name", "plan"),
-  lead_suggestions: all(NOT_PERSONAL, "business_line", "items"),
+  // The ideas for a search (00398, 00399): the business line, the plans, what they were written over and what was passed on.
+  lead_suggestions: all(NOT_PERSONAL, "business_line", "items", "basis", "passed"),
   lead_suppressions: { hash: DIGEST },
   leads: {
     ...all(
@@ -696,6 +718,17 @@ var ERASURE_STRATEGIES = {
   // The kinds a member's phones are not told (00372), and a member's sort and columns: the member's own settings.
   memberships: all(NOT_PERSONAL, "push_off", "views"),
   messages: all(withPerson("erase_contact"), "template_name", "media", "external_id", "content_hash", "error", "meta"),
+  // A kept turn (decision 0039): the person's own go when their conversation does, by the fence's cascade, and a turn
+  // about someone else that quoted them is deleted by needle; the prompt it read is the business's own facts, and
+  // leaves by its clock.
+  model_turns: {
+    ...all(scrubbedBy("turns_scrub", "erase_contact"), "request", "response"),
+    ...all(NOT_PERSONAL, "prompt_hash", "model")
+  },
+  model_prompts: { text: byAge("model_prompts"), prompt_hash: NOT_PERSONAL },
+  // The settings as they stood (decision 0039, step 3): the business's own, as tenant_config.config is, and unlike it
+  // a version leaves by its clock once it is replaced.
+  tenant_config_versions: { config: byAge("tenant_config_versions") },
   notifications: {
     ...all(byAge("notifications"), "title", "body"),
     ...all(NOT_PERSONAL, "route", "subject_type", "subject_id")
@@ -3258,7 +3291,7 @@ var IMPORTED_CALL_NOTE = /^\[voice call note /;
 var isBackfill = (m) => !!m.meta && typeof m.meta === "object" && m.meta.backfill === true;
 var isAcknowledgement = (m) => !!m.meta && typeof m.meta === "object" && m.meta.ack === true;
 var effectiveAt = (m) => new Date(m.channel_ts ?? m.created_at).getTime();
-function assembleHistory(rows, limit) {
+function keptTurns(rows) {
   const kept = rows.filter((m) => {
     const body = (m.body ?? "").trim();
     if (!body) return false;
@@ -3266,8 +3299,10 @@ function assembleHistory(rows, limit) {
     if (isBackfill(m) && IMPORTED_CALL_NOTE.test(body)) return false;
     return true;
   });
-  kept.sort((a, b) => effectiveAt(a) - effectiveAt(b));
-  return kept.map((m) => ({
+  return kept.sort((a, b) => effectiveAt(a) - effectiveAt(b));
+}
+function assembleHistory(rows, limit) {
+  return keptTurns(rows).map((m) => ({
     // A call note is the customer's own history on another channel — one
     // agent, so it counts the same as a message.
     role: m.sender === "customer" ? "user" : "assistant",
@@ -3315,7 +3350,7 @@ var EMPTY_LEAD = {
   history: [],
   optedOut: false
 };
-async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
+async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16, answering) {
   const withAnswer = await db.from("contacts").select(
     "id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, marketing_channels, offers_asked_at, tenants(sells_by)"
   ).eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
@@ -3340,12 +3375,7 @@ async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
   const dealsOn = dealsAreOn(contact.sellsBy);
   const { data: conv, error: vErr } = await db.from("conversations").select("id").eq("tenant_id", tenantId).eq("contact_id", contact.id).maybeSingle();
   if (vErr) throw new Error(`readLeadContext/conversation: ${vErr.message}`);
-  let history = [];
-  if (conv) {
-    const { data: rows, error: hErr } = await db.from("messages").select(HISTORY_COLUMNS).eq("tenant_id", tenantId).eq("conversation_id", conv.id).order("created_at", { ascending: false }).limit(historyLimit * 3);
-    if (hErr) throw new Error(`readLeadContext/history: ${hErr.message}`);
-    history = assembleHistory(rows ?? [], historyLimit);
-  }
+  const { history, lastTurnAt } = conv ? await turnsBefore(db, tenantId, conv.id, historyLimit, answering) : { history: [], lastTurnAt: null };
   const { data: dealRows } = dealsOn ? await db.from("deals").select("stage, service, proposed_at, decided_at, ended_at, created_at, proposal_url").eq("tenant_id", tenantId).eq("contact_id", contact.id).order("created_at", { ascending: false }) : { data: [] };
   const current = pickCurrentDeal(dealRows ?? []);
   const others = (dealRows ?? []).filter((d) => d !== current && dealIsOpen(d));
@@ -3359,7 +3389,7 @@ async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
     // Having said anything at all is what makes someone returning — not merely
     // existing as a row, which an outbound-only contact would also satisfy.
     returning: history.length > 0,
-    lastSeenAt: contact.last_seen_at ?? null,
+    lastSeenAt: answering ? lastTurnAt : contact.last_seen_at ?? null,
     history,
     optedOut: contact.consent === "opted_out" || contact.dnc === true,
     hasEmail: !!contact.email,
@@ -3373,6 +3403,14 @@ async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
     deal: current ? dealRowFacts(current) : null,
     otherDeals: others.map((d) => ({ ...dealRowFacts(d), proposal_url: d.proposal_url }))
   };
+}
+async function turnsBefore(db, tenantId, conversationId, limit, answering) {
+  const { data: rows, error } = await db.from("messages").select(`id, ${HISTORY_COLUMNS}`).eq("tenant_id", tenantId).eq("conversation_id", conversationId).order("created_at", { ascending: false }).limit(answering ? Math.max(limit * 3, 24) + 1 : limit * 3);
+  if (error) throw new Error(`readLeadContext/history: ${error.message}`);
+  const before = (rows ?? []).filter((m) => m.id !== answering);
+  const newest = keptTurns(before).at(-1);
+  const lastTurnAt = newest ? new Date(effectiveAt(newest)).toISOString() : null;
+  return { history: assembleHistory(before, limit), lastTurnAt };
 }
 function dealRowFacts(d) {
   return {
@@ -4687,6 +4725,50 @@ async function readLeadOne(db, tenantId, leadId, searchId) {
   if (!lead || lead.tenant_id !== tenantId || lead.blanked_at || lead.erased_at || !member) return null;
   return { lead, member, places: places.count ?? 1 };
 }
+async function readIdeaHistory(db, tenantId) {
+  const { data, error } = await db.rpc("lead_suggest_history", { p_tenant_id: tenantId });
+  if (error) throw new Error(`lead_suggest_history: ${error.message}`);
+  return data;
+}
+async function writeIdeas(db, args) {
+  const { data, error } = await db.rpc("lead_suggestions_write", args);
+  if (error) throw new Error(`lead_suggestions_write(${args.p_act}): ${error.message}`);
+  return data && typeof data === "object" && !Array.isArray(data) ? data : {};
+}
+async function claimIdeas(db, tenantId, line) {
+  const got = await writeIdeas(db, { p_tenant_id: tenantId, p_act: "claim", p_line: line });
+  return typeof got.claim === "string" && got.claim ? got.claim : null;
+}
+async function keepIdeas(db, tenantId, claim, row) {
+  const got = await writeIdeas(db, {
+    p_tenant_id: tenantId,
+    p_act: "keep",
+    p_claim: claim,
+    p_line: row.business_line,
+    p_by_owner: row.by_owner,
+    p_items: row.items,
+    // A keep always has a basis ("" where no round has ended); null is the owner's line, saved apart.
+    p_basis: row.basis ?? "",
+    p_passed: row.passed
+  });
+  return got.kept === true;
+}
+async function failIdeas(db, tenantId, claim) {
+  await writeIdeas(db, { p_tenant_id: tenantId, p_act: "fail", p_claim: claim });
+}
+async function saveIdeasLine(db, tenantId, line) {
+  await writeIdeas(db, { p_tenant_id: tenantId, p_act: "line", p_line: line });
+}
+async function ideasClockAndLanguage(db, tenantId) {
+  const { data, error } = await db.from("tenants").select("timezone, locale").eq("id", tenantId).maybeSingle();
+  if (error) throw new Error(`tenants: ${error.message}`);
+  return data;
+}
+async function ideasBasis(db, tenantId) {
+  const { data, error } = await db.from("lead_rounds").select("ended_at").eq("tenant_id", tenantId).eq("state", "ended").not("ended_at", "is", null).order("ended_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error(`lead_rounds: ${error.message}`);
+  return data ? data.ended_at : null;
+}
 
 // src/lines.ts
 async function ownLineOf(db, tenantId) {
@@ -4930,7 +5012,9 @@ async function keepChannelStanding(db, tenantId, channelId, standing) {
 
 // src/repositories/calendar/appointments.ts
 import {
-  APPOINTMENT_STATUSES
+  APPOINTMENT_STATUSES,
+  recordIdOf,
+  recordKeyOf
 } from "../../contracts/dist/index.js";
 var LIVE_STATUSES = ["proposed", "booked"];
 var SPAN_MAX = 2e3;
@@ -4972,10 +5056,51 @@ async function appointmentsBetween(db, tenantId, fromIso, toIso) {
   if (error) throw new Error(`appointments_between: ${error.message}`);
   return data ?? [];
 }
+var FEED_SPAN_MAX = 1e4;
+async function visitsOver(db, tenantId, fromIso, toIso) {
+  const [noted, feed] = await Promise.all([
+    db.from("appointments").select("*").eq("tenant_id", tenantId).neq("source", "calendar_feed").gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).limit(SPAN_MAX),
+    db.from("appointments").select("id, status, external_id, starts_at").eq("tenant_id", tenantId).eq("source", "calendar_feed").is("vanished_at", null).gt("ends_at", fromIso).lt("starts_at", toIso).limit(FEED_SPAN_MAX)
+  ]);
+  if (noted.error) throw new Error(`visits_over: ${noted.error.message}`);
+  if (feed.error) throw new Error(`visits_over: ${feed.error.message}`);
+  return { noted: noted.data ?? [], feed: feed.data ?? [] };
+}
+var SAID_STATUSES = ["kept", "missed", "cancelled"];
+async function feedWordsOver(db, tenantId, fromIso, toIso) {
+  return readAllRows(
+    "appointments_feed_words",
+    (from, to) => db.from("appointments").select("id, status, external_id, starts_at").eq("tenant_id", tenantId).eq("source", "calendar_feed").is("vanished_at", null).in("status", [...SAID_STATUSES]).gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).order("id", { ascending: true }).range(from, to)
+  );
+}
+async function recordOver(db, tenantId, fromIso, toIso) {
+  const [noted, feed] = await Promise.all([
+    readAllRows(
+      "appointments_noted",
+      (from, to) => db.from("appointments").select("*").eq("tenant_id", tenantId).neq("source", "calendar_feed").gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).order("id", { ascending: true }).range(from, to)
+    ),
+    feedWordsOver(db, tenantId, fromIso, toIso)
+  ]);
+  return { noted, feed };
+}
+async function appointmentWorkspace(db, id) {
+  const { data, error } = await db.from("appointments").select("id, tenant_id").eq("id", id).maybeSingle();
+  if (error) throw new Error(`appointment_workspace: ${error.message}`);
+  return data ?? null;
+}
+async function markVisit(db, p) {
+  const { data, error } = await db.rpc("mark_visit", {
+    p_appointment_id: p.appointmentId,
+    p_status: p.status,
+    ...p.via ? { p_via: p.via } : {},
+    ...p.undoOf ? { p_undo_of: p.undoOf } : {}
+  });
+  return { data, error };
+}
 async function appointmentsForClient(db, tenantId, who, fromIso) {
   const or = clientFilter(who);
   if (!or) return [];
-  const { data, error } = await db.from("appointments").select("*").eq("tenant_id", tenantId).in("status", [...LIVE_STATUSES]).gt("ends_at", fromIso).or(or).order("starts_at", { ascending: true }).limit(50);
+  const { data, error } = await db.from("appointments").select("*").eq("tenant_id", tenantId).neq("source", "calendar_feed").gt("ends_at", fromIso).or(or).order("starts_at", { ascending: true }).limit(50);
   if (error) throw new Error(`appointments_for_client: ${error.message}`);
   return data ?? [];
 }
@@ -5031,19 +5156,22 @@ var KEYS_PER_READ = 25;
 var isStatus = (s) => APPOINTMENT_STATUSES.includes(s);
 async function appointmentStates(db, tenantId, keys) {
   const out = /* @__PURE__ */ new Map();
-  for (let i = 0; i < keys.length; i += KEYS_PER_READ) {
-    const { data, error } = await db.from("appointments").select("external_id, status, starts_at, vanished_at, updated_at").eq("tenant_id", tenantId).eq("source", "calendar_feed").in("external_id", keys.slice(i, i + KEYS_PER_READ));
+  const put = (key, r) => {
+    if (key && isStatus(r.status))
+      out.set(key, { status: r.status, starts_at: r.starts_at, vanished_at: r.vanished_at, updated_at: r.updated_at });
+  };
+  const ids = keys.flatMap((k) => recordIdOf(k) ?? []);
+  const feedKeys = keys.filter((k) => recordIdOf(k) === null);
+  for (let i = 0; i < feedKeys.length; i += KEYS_PER_READ) {
+    const { data, error } = await db.from("appointments").select("external_id, status, starts_at, vanished_at, updated_at").eq("tenant_id", tenantId).eq("source", "calendar_feed").in("external_id", feedKeys.slice(i, i + KEYS_PER_READ));
     if (error && (error.code === "PGRST205" || error.code === "42P01")) return out;
     if (error) throw new Error(`appointments: ${error.message}`);
-    for (const r of data ?? []) {
-      if (r.external_id && isStatus(r.status))
-        out.set(r.external_id, {
-          status: r.status,
-          starts_at: r.starts_at,
-          vanished_at: r.vanished_at,
-          updated_at: r.updated_at
-        });
-    }
+    for (const r of data ?? []) put(r.external_id, r);
+  }
+  for (let i = 0; i < ids.length; i += KEYS_PER_READ) {
+    const { data, error } = await db.from("appointments").select("id, status, starts_at, vanished_at, updated_at").eq("tenant_id", tenantId).in("id", ids.slice(i, i + KEYS_PER_READ));
+    if (error) throw new Error(`appointments: ${error.message}`);
+    for (const r of data ?? []) put(recordKeyOf(r.id), r);
   }
   return out;
 }
@@ -5129,6 +5257,7 @@ export {
   appointmentNoticeOf,
   appointmentNoticesOf,
   appointmentStates,
+  appointmentWorkspace,
   appointmentsBetween,
   appointmentsForClient,
   appointmentsScrub,
@@ -5148,6 +5277,7 @@ export {
   claimCallActivity,
   claimCallNotification,
   claimControl,
+  claimIdeas,
   claimIdempotencyKey,
   claimQueuedSend,
   claimReplyTell,
@@ -5197,9 +5327,11 @@ export {
   eventOfDelivery,
   everyoneIn,
   everyoneOnceIn,
+  failIdeas,
   failQueuedSend,
   failStrandedRun,
   failedMessageErrors,
+  feedWordsOver,
   finishableRuns,
   firstReplies,
   followUpOnFile,
@@ -5230,6 +5362,8 @@ export {
   holdRecipients,
   holdTold,
   holdsReplyTurn,
+  ideasBasis,
+  ideasClockAndLanguage,
   ingestCall,
   ingestInbound,
   ingestInboundEmail,
@@ -5244,9 +5378,11 @@ export {
   keepChannelQuality,
   keepChannelStanding,
   keepForwardingConfirmation,
+  keepIdeas,
   keepIdempotencyReceipt,
   keepInvoiceAmount,
   keepMessageCost,
+  keepModelTurn,
   keepProviderEvent,
   lastInboundEmail,
   lastOutboundEmailSubject,
@@ -5269,6 +5405,7 @@ export {
   markProcessed,
   markReplyDraft,
   markReplyTold,
+  markVisit,
   markWaitlistInvited,
   memberAlertsOf,
   memberHasAddress,
@@ -5340,6 +5477,7 @@ export {
   readAllRows,
   readAllRowsByKey,
   readDealForPhone,
+  readIdeaHistory,
   readJobToRequeue,
   readLeadContext,
   readLeadOne,
@@ -5361,6 +5499,7 @@ export {
   recordLateCarrierOptOut,
   recordModelUsage,
   recordOutbound,
+  recordOver,
   recordPartnerSecondFactorReset,
   recordProviderDomain,
   recordStatusByExternalId,
@@ -5395,10 +5534,12 @@ export {
   runSending,
   runningTwins,
   runsWaitingOf,
+  saveIdeasLine,
   saveReachOutChain,
   saveTemplateVersion,
   savedListFor,
   savedListsFor,
+  scrubModelTurns,
   scrubPersonNotes,
   scrubProviderEvents,
   searchMessages,
@@ -5466,6 +5607,7 @@ export {
   updateAppointment,
   updatePlaybook,
   usageMonth,
+  visitsOver,
   waitlistWaiting,
   watchedEvents,
   watchedTables,

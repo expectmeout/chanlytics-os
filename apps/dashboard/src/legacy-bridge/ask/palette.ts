@@ -76,8 +76,14 @@ export interface PaletteGlobals {
     };
   } | null;
   __BROADCASTS?: { rows?: Run[] } | null;
-  /** The Leads surface (leads.ts): the first day's suggestions and the searches, as the Leads chips read them. */
-  __LEADS?: { suggestions?: { items?: { words: string }[] } | null; searches?: { asked: string }[] } | null;
+  /**
+   * The Leads surface (leads.ts): the ideas and the searches, as the Leads chips read them. An idea is asked as its plan
+   * in words (`ask`, 00398), so the plan Ask proposes is the plan the idea opens; one kept from before says its words.
+   */
+  __LEADS?: {
+    suggestions?: { items?: { words: string; ask?: string }[] } | null;
+    searches?: { asked: string }[];
+  } | null;
 }
 
 const LAST_LANGUAGE_KEY = "chanlytics:ask:lang";
@@ -267,7 +273,7 @@ export function askPalette(win: Window, storage: Storage | null) {
         // People's surface says whether deals are on here (0008); until it does, the question is not offered.
         dealsOn: !!w.__PEOPLE?.dealsOn,
         // On Leads: the first day's ideas, else the latest two searches' own words; the leads bridge publishes both.
-        leadIdeas: (w.__LEADS?.suggestions?.items ?? []).map((i) => i.words),
+        leadIdeas: (w.__LEADS?.suggestions?.items ?? []).map((i) => i.ask || i.words),
         leadSearches: (w.__LEADS?.searches ?? []).map((s) => s.asked),
         // On Campaigns: the campaigns the playbooks surface read, each by name, moment, state and a run that waits.
         campaigns: campaignsRead(),

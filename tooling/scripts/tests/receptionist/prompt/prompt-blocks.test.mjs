@@ -11,6 +11,7 @@ import {
   ownWordsOf,
   newReceptionistDefaults,
   PROMPT_OPENINGS,
+  NO_WAY_TO_SEND_LINK,
   whoseWords,
   instructionsDraft,
   hasProfile,
@@ -316,8 +317,10 @@ test("the resolver composes the typed details with the owner's words as ownWords
                 );
               } else {
                 asStored++;
-                // The Autonomy rows in force, then the standing rules (the money row, the fence): never none.
-                const rules = [...policyRules(policy, channel), DATA_NOT_INSTRUCTIONS];
+                // The Autonomy rows in force, then the standing rules (the money row, the fence): never none. A call with a
+                // link and no WhatsApp line to send it by (known is null here) is told so first (contracts offersLinkOn).
+                const cannotSend = channel === "voice" && b.booking_link ? [NO_WAY_TO_SEND_LINK] : [];
+                const rules = [...cannotSend, ...policyRules(policy, channel), DATA_NOT_INSTRUCTIONS];
                 want = `${system_prompt}\n\n${PROMPT_OPENINGS.rules}\n${rules.map((r) => `- ${r}`).join("\n")}`;
               }
               assert.equal(

@@ -113,6 +113,7 @@ export const ROUTES = {
   "POST calendar/notices/[id]/dismiss": { method: "POST", path: "/api/v1/calendar/notices/[id]/dismiss" },
   "POST calendar/notices/[id]/read-again": { method: "POST", path: "/api/v1/calendar/notices/[id]/read-again" },
   "POST calendar/preview": { method: "POST", path: "/api/v1/calendar/preview" },
+  "POST calendar/visits/[id]": { method: "POST", path: "/api/v1/calendar/visits/[id]" },
   "POST calls/[id]/end": { method: "POST", path: "/api/v1/calls/[id]/end" },
   "POST calls/[id]/hand-over": { method: "POST", path: "/api/v1/calls/[id]/hand-over" },
   "POST calls/[id]/whisper": { method: "POST", path: "/api/v1/calls/[id]/whisper" },
@@ -349,6 +350,7 @@ export type Routes = {
   "POST calendar/notices/[id]/dismiss": typeof import("../../app/api/v1/calendar/notices/[id]/dismiss/route").POST;
   "POST calendar/notices/[id]/read-again": typeof import("../../app/api/v1/calendar/notices/[id]/read-again/route").POST;
   "POST calendar/preview": typeof import("../../app/api/v1/calendar/preview/route").POST;
+  "POST calendar/visits/[id]": typeof import("../../app/api/v1/calendar/visits/[id]/route").POST;
   "POST calls/[id]/end": typeof import("../../app/api/v1/calls/[id]/end/route").POST;
   "POST calls/[id]/hand-over": typeof import("../../app/api/v1/calls/[id]/hand-over/route").POST;
   "POST calls/[id]/whisper": typeof import("../../app/api/v1/calls/[id]/whisper/route").POST;

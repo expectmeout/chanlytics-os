@@ -2,7 +2,8 @@
 /**
  * The receptionist's regression evals, as a nightly job (scorecard move 10, change 10): a made-up workspace's composed
  * prompt, the platform's own layer two, and the cases in tooling/evals/nightly-cases.json (planted injections, refunds
- * and discounts, prices in every currency, Spanish handoffs, multi-turn threads), each asked of the model and judged by
+ * and discounts, prices in every currency, Spanish handoffs, multi-turn threads, and questions whose right answer is a
+ * fact of that workspace: an hour, a closed day, the address, a service), each asked of the model and judged by
  * eval-judge.mjs, the way an owner would read the answer.
  *
  *   node tooling/scripts/evals/nightly.mjs            # asks the model each case, --repeats times (default 2)
@@ -15,8 +16,9 @@
  *
  * The pass line is the lower bound of the 95% Wilson interval of the pass rate, not the rate: a run that passes 19 of 20
  * has not shown 95%, and the bound says how much a small run has shown. A case marked `hard` (a price, a promise of
- * money, an injection obeyed) must pass every time it is asked; the bound is for the rest. Exit 0 = held, 1 = the line
- * or a hard case was missed, 2 = could not run.
+ * money, an injection obeyed) must pass every time it is asked; the bound is for the rest. A case on trial
+ * (`provisional`, decision 0039) is asked and reported and moves neither: a new case joins the gate once a run has
+ * held it and what was said has been read. Exit 0 = held, 1 = the line or a hard case was missed, 2 = could not run.
  *
  * It lives outside tests/, so `pnpm test` never runs it (it costs money and needs a key); the pure parts (wilsonLower,
  * gateOf, runCase) are executed by tooling/scripts/tests/ai/nightly-evals.test.mjs over a scripted API.
@@ -58,9 +60,17 @@ export function wilsonLower(passes, n, z = Z_95) {
 
 /**
  * What a run comes to: every asking judged. `results` are { case, pass, failures }, one per asking. The run holds when no
- * hard case failed in any asking and the Wilson lower bound of the pass rate reaches the line.
+ * hard case failed in any asking and the Wilson lower bound of the pass rate reaches the line. The askings of a case on
+ * trial are counted apart (`trial`) and decide nothing.
  */
-export function gateOf(results, line = PASS_LINE) {
+export function gateOf(all, line = PASS_LINE) {
+  const results = all.filter((r) => !r.case.provisional);
+  const onTrial = all.filter((r) => r.case.provisional);
+  const trial = {
+    n: onTrial.length,
+    passes: onTrial.filter((r) => r.pass).length,
+    missed: [...new Set(onTrial.filter((r) => !r.pass).map((r) => r.case.id))],
+  };
   const n = results.length;
   const passes = results.filter((r) => r.pass).length;
   const lower = wilsonLower(passes, n);
@@ -81,6 +91,7 @@ export function gateOf(results, line = PASS_LINE) {
     hardMisses: [...new Set(hardMisses)],
     missed,
     byTag,
+    trial,
   };
 }
 
@@ -181,8 +192,14 @@ export function report(gate, results) {
     `${gate.passes}/${gate.n} askings passed; the pass rate's lower bound is ${gate.lower.toFixed(3)} against a line of ${gate.line}.`,
     ...Object.entries(gate.byTag).map(([t, v]) => `  ${t.padEnd(12)} ${v.passes}/${v.n}`),
   ];
+  if (gate.trial.n)
+    lines.push(
+      `On trial, counted in neither: ${gate.trial.passes}/${gate.trial.n} askings passed${gate.trial.missed.length ? ` (missed: ${gate.trial.missed.join(", ")})` : ""}.`,
+    );
   for (const r of results.filter((x) => !x.pass)) {
-    lines.push(`MISS ${r.case.id}${r.case.hard ? " (hard)" : ""}: ${r.failures.join("; ")}`);
+    lines.push(
+      `${r.case.provisional ? "TRIAL" : "MISS"} ${r.case.id}${r.case.hard ? " (hard)" : ""}: ${r.failures.join("; ")}`,
+    );
     lines.push(
       `     said: ${String(r.result.text ?? r.result.error ?? "")
         .replace(/\s+/g, " ")

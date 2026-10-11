@@ -259,6 +259,14 @@ Writes; for a member of the workspace the request names, operator or above; coun
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/calendar/preview/route.ts`).
 
+### `POST /api/v1/calendar/visits/[id]`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `person_edit` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `status` | one of `"kept"`, `"missed"`, `"cancelled"` | yes |  |
+
 ## calls
 
 ### `GET /api/v1/calls`

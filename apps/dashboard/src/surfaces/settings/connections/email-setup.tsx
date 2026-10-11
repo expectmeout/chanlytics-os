@@ -66,7 +66,7 @@ export const EmailSetupForm = ({ email, businessName, flash, onClose }: EmailSet
             unit={`@${email.domain}`}
             value={local}
             onChange={setLocal}
-            hint="It cannot be changed later: it goes on business cards and into customers' address books."
+            hint="It can't be changed later, so pick one to keep."
             problem={problems.local ? <span data-testid="email-local-problem">{problems.local}</span> : undefined}
             placeholder="yourbusiness"
             autoCapitalize="none"

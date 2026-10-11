@@ -150,7 +150,7 @@ export interface InboundHandoff {
  */
 export interface BrainCall {
   tenantId: string | null;
-  /** The conversation it answers. */
+  /** The conversation it answers: the ledger's subject, and what the turn is kept under (decision 0039). */
   subjectId?: string | null;
   /** tenant_config.version the prompt was composed from; null when it could not be read. */
   configVersion?: number | null;
@@ -229,8 +229,17 @@ export interface InboundPorts {
   /** The control plane's one door: the workspace's persona, policy, credentials. */
   runtime(db: InboundDb, routed: RoutedChannel): Promise<InboundRuntime>;
   leads: {
-    /** Who this person is, from the rows: the same reader the voice agent uses. */
-    read(db: InboundDb, tenantId: string, phoneE164: string, historyLimit?: number): Promise<LeadContext>;
+    /**
+     * Who this person is, from the rows: the same reader the voice agent uses. `answering` names the message being
+     * answered, which is left out of their history and their last touch (it was stored before they were read).
+     */
+    read(
+      db: InboundDb,
+      tenantId: string,
+      phoneE164: string,
+      historyLimit?: number,
+      answering?: string,
+    ): Promise<LeadContext>;
     /** People → profile → "Receptionist for …": this person's own mode, or null. */
     personReplyMode(db: InboundDb, tenantId: string, contactId: string): Promise<string | null>;
     /**

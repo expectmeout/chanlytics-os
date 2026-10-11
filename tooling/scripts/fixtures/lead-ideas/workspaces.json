@@ -1,0 +1,812 @@
+{
+  "about": [
+    "Made-up workspaces, each with its searches in lead_suggest_history's shape (00398) and what its ideas must and must not be.",
+    "A search's `at_days_ago` is made its `at` from the moment the eval runs. Names, places and numbers are invented: no customer's.",
+    "expect.worked: a kind that worked, which at least one idea must build on (the same kind, or a why that names it).",
+    "expect.avoid: kinds that did not work, never an idea. expect.taken: a kind and a place it was searched in, never planned there again.",
+    "expect.ownKind: a kind the business is itself (its listing's type), never an idea. expect.language: the ideas' language. expect.passed: a kind and a place offered twice before, never again.",
+    "expect.closeKindNeeds: ideas of a kind close to one that did not work (expect.closeKinds) must leave out this word."
+  ],
+  "workspaces": [
+    {
+      "id": "first-day",
+      "line": "Ledgerline Books: monthly bookkeeping, payroll, tax filing",
+      "address": "",
+      "leadsLeft": 250,
+      "history": {
+        "basis": null,
+        "home": {
+          "city": "Austin",
+          "region": "TX",
+          "zip": "78701"
+        },
+        "listing": null,
+        "searches": []
+      },
+      "expect": {}
+    },
+    {
+      "id": "a-kind-that-worked",
+      "line": "Ledgerline Books: monthly bookkeeping, payroll",
+      "address": "",
+      "leadsLeft": 180,
+      "history": {
+        "basis": "2026-09-01T15:00:00.000Z",
+        "home": {
+          "city": "Austin",
+          "region": "TX",
+          "zip": "78701"
+        },
+        "listing": {
+          "address": "100 Congress Ave, Austin, TX 78701, USA",
+          "type": "accounting"
+        },
+        "searches": [
+          {
+            "kind": "restaurant",
+            "name": "restaurants",
+            "terms": ["restaurant"],
+            "area": {
+              "kind": "zip",
+              "label": "near 78701",
+              "state": "TX",
+              "center": null,
+              "radius_m": 8000,
+              "zip": "78701",
+              "query": "78701, TX, USA"
+            },
+            "count": 50,
+            "contact": "email",
+            "criteria": [],
+            "exclusions": [
+              {
+                "key": "chains",
+                "text": "chains"
+              }
+            ],
+            "at_days_ago": 40,
+            "removed": false,
+            "rounds": 2,
+            "state": "ended",
+            "ending": "target_reached",
+            "nearby": [
+              {
+                "kind": "zip",
+                "label": "near 78702",
+                "state": "TX",
+                "center": null,
+                "radius_m": 8000,
+                "zip": "78702",
+                "query": "78702, TX, USA"
+              },
+              {
+                "kind": "zip",
+                "label": "near 78703",
+                "state": "TX",
+                "center": null,
+                "radius_m": 8000,
+                "zip": "78703",
+                "query": "78703, TX, USA"
+              }
+            ],
+            "found": {
+              "qualified": 30,
+              "review": 6,
+              "excluded": 24
+            },
+            "left_out": {
+              "chains": 14,
+              "kind": 8,
+              "unreachable": 2
+            },
+            "leads": {
+              "contacted": 20,
+              "interested": 1,
+              "booked": 1,
+              "customers": 1,
+              "said_no": 2,
+              "not_a_fit": 1,
+              "stale": 0,
+              "with_email": 26,
+              "with_phone": 34,
+              "last_contacted_at": "2026-09-01T12:00:00.000Z"
+            },
+            "not_a_fit_why": {
+              "chain": 1
+            },
+            "reach": {
+              "sent": 20,
+              "replied": 5,
+              "interested": 2,
+              "declined": 2,
+              "last_sent_at": "2026-09-01T12:00:00.000Z"
+            },
+            "won": {
+              "deals": 1,
+              "cents": 240000
+            },
+            "from_idea": false
+          }
+        ]
+      },
+      "expect": {
+        "worked": "restaurant",
+        "workedWord": "restaurant",
+        "taken": [["restaurant", "near 78701"]]
+      }
+    },
+    {
+      "id": "an-area-that-ran-dry",
+      "line": "Brightside Dental Lab: crowns and bridges made for dental offices",
+      "address": "200 Lamar Blvd, Austin, TX 78703",
+      "leadsLeft": 220,
+      "history": {
+        "basis": "2026-09-25T15:00:00.000Z",
+        "home": null,
+        "listing": null,
+        "searches": [
+          {
+            "kind": "dentist",
+            "name": "dentists",
+            "terms": ["dentist", "dental office"],
+            "area": {
+              "kind": "zip",
+              "label": "near 78703",
+              "state": "TX",
+              "center": null,
+              "radius_m": 8000,
+              "zip": "78703",
+              "query": "78703, TX, USA"
+            },
+            "count": 100,
+            "contact": "email",
+            "criteria": [],
+            "exclusions": [],
+            "at_days_ago": 15,
+            "removed": false,
+            "rounds": 1,
+            "state": "ended",
+            "ending": "searched_everything",
+            "nearby": [
+              {
+                "kind": "zip",
+                "label": "near 78705",
+                "state": "TX",
+                "center": null,
+                "radius_m": 8000,
+                "zip": "78705",
+                "query": "78705, TX, USA"
+              },
+              {
+                "kind": "city",
+                "label": "Round Rock, TX",
+                "state": "TX",
+                "center": null,
+                "radius_m": 25000,
+                "query": "Round Rock, TX, USA"
+              }
+            ],
+            "found": {
+              "qualified": 18,
+              "review": 4,
+              "excluded": 6
+            },
+            "left_out": {
+              "kind": 4,
+              "unreachable": 2
+            },
+            "leads": {
+              "contacted": 0,
+              "interested": 0,
+              "booked": 0,
+              "customers": 0,
+              "said_no": 0,
+              "not_a_fit": 0,
+              "stale": 0,
+              "with_email": 17,
+              "with_phone": 22,
+              "last_contacted_at": null
+            },
+            "not_a_fit_why": {},
+            "reach": {
+              "sent": 0,
+              "replied": 0,
+              "interested": 0,
+              "declined": 0,
+              "last_sent_at": null
+            },
+            "won": {
+              "deals": 0,
+              "cents": 0
+            },
+            "from_idea": false
+          }
+        ]
+      },
+      "expect": {
+        "taken": [["dentist", "near 78703"]]
+      }
+    },
+    {
+      "id": "a-kind-full-of-chains",
+      "line": "Bean Counter Roasters: wholesale coffee beans and espresso machine service",
+      "address": "",
+      "leadsLeft": 120,
+      "history": {
+        "basis": "2026-09-20T15:00:00.000Z",
+        "home": {
+          "city": "Austin",
+          "region": "TX",
+          "zip": "78704"
+        },
+        "listing": null,
+        "searches": [
+          {
+            "kind": "coffee_shop",
+            "name": "coffee shops",
+            "terms": ["coffee shop", "cafe"],
+            "area": {
+              "kind": "zip",
+              "label": "near 78704",
+              "state": "TX",
+              "center": null,
+              "radius_m": 8000,
+              "zip": "78704",
+              "query": "78704, TX, USA"
+            },
+            "count": 50,
+            "contact": "email",
+            "criteria": [
+              {
+                "key": "independent",
+                "text": "independently owned"
+              }
+            ],
+            "exclusions": [],
+            "at_days_ago": 25,
+            "removed": false,
+            "rounds": 1,
+            "state": "ended",
+            "ending": "target_reached",
+            "nearby": [
+              {
+                "kind": "zip",
+                "label": "near 78745",
+                "state": "TX",
+                "center": null,
+                "radius_m": 8000,
+                "zip": "78745",
+                "query": "78745, TX, USA"
+              }
+            ],
+            "found": {
+              "qualified": 8,
+              "review": 6,
+              "excluded": 26
+            },
+            "left_out": {
+              "kind": 6,
+              "independent": 20
+            },
+            "leads": {
+              "contacted": 10,
+              "interested": 0,
+              "booked": 0,
+              "customers": 0,
+              "said_no": 2,
+              "not_a_fit": 5,
+              "stale": 0,
+              "with_email": 9,
+              "with_phone": 14,
+              "last_contacted_at": "2026-09-03T12:00:00.000Z"
+            },
+            "not_a_fit_why": {
+              "chain": 5
+            },
+            "reach": {
+              "sent": 10,
+              "replied": 1,
+              "interested": 0,
+              "declined": 1,
+              "last_sent_at": "2026-09-03T12:00:00.000Z"
+            },
+            "won": {
+              "deals": 0,
+              "cents": 0
+            },
+            "from_idea": false
+          }
+        ]
+      },
+      "expect": {
+        "avoid": ["coffee_shop"],
+        "taken": [["coffee_shop", "near 78704"]]
+      }
+    },
+    {
+      "id": "a-kind-nobody-answered",
+      "line": "Clearview Window Cleaning: storefront and office window cleaning",
+      "address": "",
+      "leadsLeft": 40,
+      "history": {
+        "basis": "2026-09-28T15:00:00.000Z",
+        "home": {
+          "city": "Austin",
+          "region": "TX",
+          "zip": "78701"
+        },
+        "listing": null,
+        "searches": [
+          {
+            "kind": "retail_store",
+            "name": "retail stores",
+            "terms": ["retail store", "boutique"],
+            "area": {
+              "kind": "city",
+              "label": "Austin, TX",
+              "state": "TX",
+              "center": null,
+              "radius_m": 25000,
+              "query": "Austin, TX, USA"
+            },
+            "count": 50,
+            "contact": "email",
+            "criteria": [],
+            "exclusions": [
+              {
+                "key": "chains",
+                "text": "chains"
+              }
+            ],
+            "at_days_ago": 12,
+            "removed": false,
+            "rounds": 1,
+            "state": "ended",
+            "ending": "target_reached",
+            "nearby": [],
+            "found": {
+              "qualified": 24,
+              "review": 6,
+              "excluded": 10
+            },
+            "left_out": {
+              "chains": 6,
+              "kind": 4
+            },
+            "leads": {
+              "contacted": 14,
+              "interested": 0,
+              "booked": 0,
+              "customers": 0,
+              "said_no": 0,
+              "not_a_fit": 0,
+              "stale": 0,
+              "with_email": 20,
+              "with_phone": 28,
+              "last_contacted_at": "2026-09-16T12:00:00.000Z"
+            },
+            "not_a_fit_why": {},
+            "reach": {
+              "sent": 14,
+              "replied": 0,
+              "interested": 0,
+              "declined": 0,
+              "last_sent_at": "2026-09-16T12:00:00.000Z"
+            },
+            "won": {
+              "deals": 0,
+              "cents": 0
+            },
+            "from_idea": false
+          }
+        ]
+      },
+      "expect": {
+        "avoid": ["retail_store"],
+        "taken": [["retail_store", "austin, tx"]]
+      }
+    },
+    {
+      "id": "a-search-still-running",
+      "line": "Northline Signage: storefront signs, vehicle wraps",
+      "address": "",
+      "leadsLeft": 300,
+      "history": {
+        "basis": null,
+        "home": {
+          "city": "Austin",
+          "region": "TX",
+          "zip": "78758"
+        },
+        "listing": null,
+        "searches": [
+          {
+            "kind": "auto_dealer",
+            "name": "car dealerships",
+            "terms": ["car dealership"],
+            "area": {
+              "kind": "zip",
+              "label": "near 78758",
+              "state": "TX",
+              "center": null,
+              "radius_m": 8000,
+              "zip": "78758",
+              "query": "78758, TX, USA"
+            },
+            "count": 50,
+            "contact": "email",
+            "criteria": [],
+            "exclusions": [],
+            "at_days_ago": 0,
+            "removed": false,
+            "rounds": 1,
+            "state": "waiting_on_owner",
+            "ending": null,
+            "nearby": [],
+            "found": {
+              "qualified": 0,
+              "review": 0,
+              "excluded": 0
+            },
+            "left_out": {},
+            "leads": {
+              "contacted": 0,
+              "interested": 0,
+              "booked": 0,
+              "customers": 0,
+              "said_no": 0,
+              "not_a_fit": 0,
+              "stale": 0,
+              "with_email": 0,
+              "with_phone": 0,
+              "last_contacted_at": null
+            },
+            "reach": {
+              "sent": 0,
+              "replied": 0,
+              "interested": 0,
+              "declined": 0,
+              "last_sent_at": null
+            },
+            "won": {
+              "deals": 0,
+              "cents": 0
+            },
+            "not_a_fit_why": {}
+          }
+        ]
+      },
+      "expect": {
+        "taken": [["auto_dealer", "near 78758"]]
+      }
+    },
+    {
+      "id": "a-kind-emailed-lately",
+      "line": "Clearview Window Cleaning: storefront and office window cleaning",
+      "address": "",
+      "leadsLeft": 200,
+      "history": {
+        "basis": "2026-10-08T15:00:00.000Z",
+        "home": {
+          "city": "Austin",
+          "region": "TX",
+          "zip": "78701"
+        },
+        "listing": null,
+        "searches": [
+          {
+            "kind": "retail_store",
+            "name": "retail stores",
+            "terms": ["retail store"],
+            "area": {
+              "kind": "zip",
+              "label": "near 78701",
+              "state": "TX",
+              "center": null,
+              "radius_m": 8000,
+              "zip": "78701",
+              "query": "78701, TX, USA"
+            },
+            "count": 50,
+            "contact": "email",
+            "criteria": [],
+            "exclusions": [
+              {
+                "key": "chains",
+                "text": "chains"
+              }
+            ],
+            "at_days_ago": 3,
+            "removed": false,
+            "rounds": 1,
+            "state": "ended",
+            "ending": "target_reached",
+            "nearby": [
+              {
+                "kind": "zip",
+                "label": "near 78702",
+                "state": "TX",
+                "center": null,
+                "radius_m": 8000,
+                "zip": "78702",
+                "query": "78702, TX, USA"
+              }
+            ],
+            "found": {
+              "qualified": 24,
+              "review": 6,
+              "excluded": 10
+            },
+            "left_out": {
+              "chains": 6,
+              "kind": 4
+            },
+            "leads": {
+              "contacted": 14,
+              "interested": 0,
+              "booked": 0,
+              "customers": 0,
+              "said_no": 0,
+              "not_a_fit": 0,
+              "stale": 0,
+              "with_email": 20,
+              "with_phone": 28,
+              "last_contacted_at": "2026-10-09T15:00:00.000Z"
+            },
+            "reach": {
+              "sent": 14,
+              "replied": 0,
+              "interested": 0,
+              "declined": 0,
+              "last_sent_at": "2026-10-09T15:00:00.000Z"
+            },
+            "won": {
+              "deals": 0,
+              "cents": 0
+            },
+            "not_a_fit_why": {}
+          }
+        ]
+      },
+      "expect": {
+        "taken": [["retail_store", "near 78701"]]
+      }
+    },
+    {
+      "id": "una-linea-en-espanol",
+      "line": "Taquería La Esquina: tacos y catering para oficinas y eventos",
+      "address": "",
+      "leadsLeft": 250,
+      "language": "es",
+      "history": {
+        "basis": null,
+        "home": {
+          "city": "Austin",
+          "region": "TX",
+          "zip": "78741"
+        },
+        "listing": null,
+        "searches": []
+      },
+      "expect": {
+        "language": "es"
+      }
+    },
+    {
+      "id": "a-close-kind-leaves-out-what-went-wrong",
+      "line": "Bean Counter Roasters: wholesale coffee beans and espresso machine service",
+      "address": "",
+      "leadsLeft": 120,
+      "history": {
+        "basis": "2026-09-20T15:00:00.000Z",
+        "home": {
+          "city": "Austin",
+          "region": "TX",
+          "zip": "78704"
+        },
+        "listing": null,
+        "searches": [
+          {
+            "kind": "coffee_shop",
+            "name": "coffee shops",
+            "terms": ["coffee shop", "cafe"],
+            "area": {
+              "kind": "zip",
+              "label": "near 78704",
+              "state": "TX",
+              "center": null,
+              "radius_m": 8000,
+              "zip": "78704",
+              "query": "78704, TX, USA"
+            },
+            "count": 50,
+            "contact": "email",
+            "criteria": [
+              {
+                "key": "independent",
+                "text": "independently owned"
+              }
+            ],
+            "exclusions": [],
+            "at_days_ago": 25,
+            "removed": false,
+            "rounds": 1,
+            "state": "ended",
+            "ending": "target_reached",
+            "nearby": [
+              {
+                "kind": "zip",
+                "label": "near 78745",
+                "state": "TX",
+                "center": null,
+                "radius_m": 8000,
+                "zip": "78745",
+                "query": "78745, TX, USA"
+              }
+            ],
+            "found": {
+              "qualified": 8,
+              "review": 6,
+              "excluded": 26
+            },
+            "left_out": {
+              "kind": 6,
+              "independent": 20
+            },
+            "leads": {
+              "contacted": 10,
+              "interested": 0,
+              "booked": 0,
+              "customers": 0,
+              "said_no": 2,
+              "not_a_fit": 5,
+              "stale": 0,
+              "with_email": 9,
+              "with_phone": 14,
+              "last_contacted_at": "2026-09-03T12:00:00.000Z"
+            },
+            "not_a_fit_why": {
+              "chain": 5
+            },
+            "reach": {
+              "sent": 10,
+              "replied": 1,
+              "interested": 0,
+              "declined": 1,
+              "last_sent_at": "2026-09-03T12:00:00.000Z"
+            },
+            "won": {
+              "deals": 0,
+              "cents": 0
+            },
+            "from_idea": false
+          }
+        ]
+      },
+      "expect": {
+        "avoid": ["coffee_shop"],
+        "taken": [["coffee_shop", "near 78704"]],
+        "closeKinds": ["cafe", "coffeehouse", "espresso_bar", "coffee_bar"],
+        "closeKindNeeds": "chain"
+      }
+    },
+    {
+      "id": "offered-twice",
+      "line": "Ledgerline Books: monthly bookkeeping, payroll",
+      "address": "",
+      "leadsLeft": 180,
+      "passed": [
+        {
+          "key": "cafe",
+          "place": "near 78702",
+          "label": "near 78702",
+          "times": 2
+        }
+      ],
+      "history": {
+        "basis": "2026-09-01T15:00:00.000Z",
+        "home": {
+          "city": "Austin",
+          "region": "TX",
+          "zip": "78701"
+        },
+        "listing": {
+          "address": "100 Congress Ave, Austin, TX 78701, USA",
+          "type": "accounting"
+        },
+        "searches": [
+          {
+            "kind": "restaurant",
+            "name": "restaurants",
+            "terms": ["restaurant"],
+            "area": {
+              "kind": "zip",
+              "label": "near 78701",
+              "state": "TX",
+              "center": null,
+              "radius_m": 8000,
+              "zip": "78701",
+              "query": "78701, TX, USA"
+            },
+            "count": 50,
+            "contact": "email",
+            "criteria": [],
+            "exclusions": [
+              {
+                "key": "chains",
+                "text": "chains"
+              }
+            ],
+            "at_days_ago": 40,
+            "removed": false,
+            "rounds": 2,
+            "state": "ended",
+            "ending": "target_reached",
+            "nearby": [
+              {
+                "kind": "zip",
+                "label": "near 78702",
+                "state": "TX",
+                "center": null,
+                "radius_m": 8000,
+                "zip": "78702",
+                "query": "78702, TX, USA"
+              },
+              {
+                "kind": "zip",
+                "label": "near 78703",
+                "state": "TX",
+                "center": null,
+                "radius_m": 8000,
+                "zip": "78703",
+                "query": "78703, TX, USA"
+              }
+            ],
+            "found": {
+              "qualified": 30,
+              "review": 6,
+              "excluded": 24
+            },
+            "left_out": {
+              "chains": 14,
+              "kind": 8,
+              "unreachable": 2
+            },
+            "leads": {
+              "contacted": 20,
+              "interested": 1,
+              "booked": 1,
+              "customers": 1,
+              "said_no": 2,
+              "not_a_fit": 1,
+              "stale": 0,
+              "with_email": 26,
+              "with_phone": 34,
+              "last_contacted_at": "2026-09-01T12:00:00.000Z"
+            },
+            "not_a_fit_why": {
+              "chain": 1
+            },
+            "reach": {
+              "sent": 20,
+              "replied": 5,
+              "interested": 2,
+              "declined": 2,
+              "last_sent_at": "2026-09-01T12:00:00.000Z"
+            },
+            "won": {
+              "deals": 1,
+              "cents": 240000
+            },
+            "from_idea": false
+          }
+        ]
+      },
+      "expect": {
+        "worked": "restaurant",
+        "workedWord": "restaurant",
+        "passed": [["cafe", "near 78702"]]
+      }
+    }
+  ]
+}

@@ -897,10 +897,7 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
   // sent the owner to record a consent that message does not need.
   const nobody = { audiences: [NOBODY] };
   const offers = textOf(byTestId(drawn({ initialSegment: "s-nobody" }, nobody), "bc-nobody"));
-  assert.ok(
-    offers.includes("has said yes to offers yet — that is a separate answer from saying yes to messages"),
-    offers,
-  );
+  assert.ok(offers.includes("has said yes to offers yet. Record it under “Offers and news”"), offers);
   const messages = textOf(
     byTestId(drawn({ initialSegment: "s-nobody" }, { ...nobody, templates: [utility] }), "bc-nobody"),
   );
@@ -976,7 +973,7 @@ test("the detail: every person on a broadcast, with what happened to them; the s
     "a number that may send, an audience inside its limit: the button is live",
   );
   const flagged = numberOn(numberHealth({ quality: "GREEN", event: "FLAGGED", limit: "TIER_1K" }));
-  assert.ok(textOf(byTestId(flagged, "bc-number-refusal")).includes("flagged"), "why it may not send");
+  assert.ok(textOf(byTestId(flagged, "bc-number")).includes("flagged"), "why it may not send, over the sentence");
   assert.equal(send(flagged).props.disabled, true, "the button follows the number");
   const big = audienceOf("s-regulars", "Regulars", { conversational: 300, marketing: 300 });
   const over = numberOn(numberHealth({ quality: "GREEN", event: null, limit: "TIER_250" }), { audiences: [big] });

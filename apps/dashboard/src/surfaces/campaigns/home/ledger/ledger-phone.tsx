@@ -1,19 +1,23 @@
 /**
  * Campaigns on a phone (≤900px; spec 2026-10-09 §4.4; decision 16): one list on the journey's line. The Moments head says
- * one meta line (how many moments are on, who can hear you) and the channels' standing only where one is closed; past
+ * how many moments are on beside its name, who can hear you on one line (its amber "0 to offers" the door to getting that
+ * yes), and the channels as a chip each with one Set up; where nothing can send, one card says so in their place; past
  * seven rows a sticky strip of chips (All, Needs you, each moment, Lists, Reach-outs, each above zero) and a search circle;
- * then the groups, each moment's head its node on the line (glyph ring, caps, figure, state; an empty one's Turn on), its
- * rows under it, and Lists & offers, Reach-outs and one-offs off the line after them. A row is the kit's ListRow wearing
- * its kind as a mark (never a face: a face is someone), its name the door to its drawer, its state a pill in the phone's
- * words, its moment, next run and people in one line (contracts ledgerPhoneLine), its channels and what came back. What
- * a row decides stands under it at its whole width: Approve and Skip, Resume's question (its press at the row's end), a
- * chain's door to its run. One choice at a time (a moment, or a status), the order Next, and no page swipe: the strip
+ * then the groups, each moment's head its node on the line (glyph ring, its name and how many, a state where the node does
+ * not say it, and an empty one's Turn on on a line of its own under the name), its rows under it, and Lists & offers,
+ * Reach-outs and one-offs off the line after them. A row is the kit's ListRow with nothing in its first column (`bare`:
+ * the moment's line beside it says what it is, where the same glyph stood on every row of a moment), its name the door
+ * to its drawer, its state a pill in the phone's words, its next run and people in one line (contracts ledgerPhoneLine,
+ * without the moment it sits under), its channels and what came back where anything did. What a row decides stands under
+ * it at its whole width: Approve and Skip, Resume's question (its press at the row's end), a chain's door to its run.
+ * (Ruben, 11 Oct 2026: the list made calmer and more compact.) One choice at a time (a moment, or a status), the order Next, and no page swipe: the strip
  * scrolls across under a thumb and walks no view. Every word is the view model's.
  */
 import { useState } from "react";
 import type { ReactNode, RefObject } from "react";
-import { LIFECYCLE_WORDS, ledgerPhoneLine } from "@chanlytics/contracts";
+import { LIFECYCLE_WORDS, ledgerPhoneLine, ledgerPhoneWhat } from "@chanlytics/contracts";
 import type {
+  LifecycleAct,
   LifecycleGroup,
   LifecycleHome,
   LifecycleLedger,
@@ -32,10 +36,17 @@ import { StatePill } from "../../../kit/pill/state-pill";
 import { SubTabs } from "../../../kit/sub-tabs/sub-tabs";
 import type { SubTab } from "../../../kit/sub-tabs/sub-tabs";
 import { editorBox, focusAsDrawn, routeDoor } from "../../../legacy-verbs";
-import { ChannelMarks, ChannelsLine } from "../../parts/channels-line";
+import {
+  ChannelChips,
+  ChannelMarks,
+  ChannelsLine,
+  channelsDoor,
+  channelsNone,
+  channelsPaused,
+} from "../../parts/channels-line";
 import { CmDot, cmRowPress } from "../../parts/head";
 import { HomeFailed } from "../failed";
-import { firstDayStage, nodeGlyph } from "../rail";
+import { nodeGlyph } from "../rail";
 import { TileRead } from "../tiles";
 import { AddAct, ResumePress, ResumeQuestion, WaitingActs, useResumeAsk } from "./ledger-acts";
 import type { LedgerActs } from "./ledger-acts";
@@ -47,26 +58,73 @@ import type { LedgerView } from "./use-ledger-view";
 /** What the phone reads of the home. */
 type PhoneHome = Pick<LifecycleHome, "rail" | "reach" | "head" | "failed" | "ledger">;
 
-/** One meta line under Moments: how many are on and who can hear you; the channels' standing only where one is closed. */
+/**
+ * Who can hear you, in one line: "All 3 can hear you", and who said yes to offers beside it. Where nobody has, the amber
+ * words are themselves the door to how that yes is got (they stood apart as "Get their yes" on a line of their own);
+ * nobody in People is no line at all (contracts lifecycleReach).
+ */
+function PhoneReach({ phone }: { phone: NonNullable<PhoneHome["reach"]["phone"]> }) {
+  if (!phone.words) return null;
+  const offers = phone.offers;
+  const asks = offers && offers.tone === "warn" ? phone.yes : null;
+  return (
+    <p className="cmh-meta-line">
+      <span>{phone.words}</span>
+      {offers && asks ? (
+        <LinkButton
+          className="cmh-offers-door"
+          {...routeDoor(asks.route)}
+          aria-label={`${offers.words}: ${asks.label}`}
+          data-testid="cmh-phone-yes"
+        >
+          <StatePill kind="tone" value={offers.tone} label={offers.words} />
+          <Icon name="chevron" size={11} />
+        </LinkButton>
+      ) : offers && offers.tone === "warn" ? (
+        <StatePill kind="tone" value={offers.tone} label={offers.words} />
+      ) : offers ? (
+        <>
+          <CmDot />
+          <span>{offers.words}</span>
+        </>
+      ) : null}
+    </p>
+  );
+}
+
+/** Nothing can send at all: one card in the reach line's place, with its one door to Settings › Connections. */
+function PhoneNone({ door }: { door: string | null }) {
+  const W = LIFECYCLE_WORDS.channels.none;
+  return (
+    <div className="cmh-none" data-testid="cmh-channels-none">
+      <p className="cmh-none-title">{W.title}</p>
+      <p className="cmh-none-body">{W.body}</p>
+      {door ? (
+        <Button size="sm" {...routeDoor(door)} data-testid="cmh-channels-none-door">
+          {W.act}
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * The Moments head under its name (Ruben, 11 Oct 2026): who can hear you, then the channels as chips; or, where nothing
+ * can send, the one card in their place over the chips. The workspace's pause is its one line, with Billing's door.
+ */
 function PhoneMeta({ home }: { home: PhoneHome }) {
   const phone = home.reach.phone;
-  const on = home.rail.phoneWords;
-  const closed = (home.head.channels ?? []).some((c) => !c.open);
+  const parts = home.head.channels ?? null;
+  const none = channelsNone(parts);
   return (
     <div className="cmh-meta" role="group" aria-label={LIFECYCLE_WORDS.reach.title} data-testid="cmh-reach">
       <TileRead read={home.reach.read} failed={home.failed.reach} testid="cmh-reach" />
-      <p className="cmh-meta-line">
-        {on ? <span>{on}</span> : null}
-        {on && phone ? <CmDot /> : null}
-        {phone ? <span>{phone.words}</span> : null}
-        {phone ? <StatePill kind="tone" value={phone.offers.tone} label={phone.offers.words} /> : null}
-      </p>
-      {phone?.yes ? (
-        <LinkButton className="cmh-meta-yes" {...routeDoor(phone.yes.route)} data-testid="cmh-phone-yes">
-          {phone.yes.label}
-        </LinkButton>
-      ) : null}
-      {closed ? <ChannelsLine parts={home.head.channels} testid="cmh-channels" /> : null}
+      {none ? <PhoneNone door={channelsDoor(parts)} /> : phone ? <PhoneReach phone={phone} /> : null}
+      {channelsPaused(parts) ? (
+        <ChannelsLine parts={parts} testid="cmh-channels" />
+      ) : (
+        <ChannelChips parts={parts} testid="cmh-channels" withDoor={!none} />
+      )}
     </div>
   );
 }
@@ -162,9 +220,17 @@ interface HeadProps {
   W: LifecycleLedger["words"];
 }
 
-/** A group's head: a moment's node on the line (its glyph or clock or check, caps, figure, state, or Turn on), or a group off the line. */
-function PhoneHead({ g, stage, acts, W }: HeadProps) {
-  const turnOn = g.add && g.rows.length === 0 ? g.add : null;
+/**
+ * A group's head: a moment's node on the line (its glyph or clock or check), its name and how many, and its state where
+ * the node does not say it; or a group off the line, its name and its meta. A label, never a press: everything pressed
+ * on the list is a row (Ruben, 11 Oct 2026: the heads, a Turn on under one and a door under another, read as a page of
+ * different things to press). A moment that is on says so with its node's filled check. Nobody counted is nothing.
+ */
+function PhoneHead({ g, stage, W }: HeadProps) {
+  const figure = stage ? (stage.people === null ? null : stage.people) : null;
+  // A group off the line says how its campaigns stand, and "No campaign yet" only where it holds no row and offers none.
+  const meta = !stage && g.meta && !(g.meta === W.none && (g.rows.length > 0 || g.add)) ? g.meta : null;
+  const offered = g.rows.length === 0 && !!g.add;
   return (
     <div
       className="cmh-spine-head"
@@ -178,28 +244,84 @@ function PhoneHead({ g, stage, acts, W }: HeadProps) {
       <span className="cmh-node" aria-hidden="true">
         <Icon name={stage ? nodeGlyph(stage) : g.glyph} size={13} />
       </span>
-      <span className="cmh-group-caps">{g.caps}</span>
-      {stage ? (
-        <span className="cmh-figure tabular" data-testid="cmh-people">
-          {stage.people === null ? W.dash : stage.people}
-        </span>
-      ) : (
-        <span className="cmh-dim">{g.meta}</span>
-      )}
-      {turnOn ? (
-        <AddAct act={turnOn} acts={acts} testid="cmh-turn-on" />
-      ) : stage ? (
-        <StatePill kind="tone" value={stage.tone} label={stage.phoneWords} />
-      ) : (
-        <span />
-      )}
+      <span className="cmh-spine-title">
+        <span className="cmh-group-caps">{g.caps}</span>
+        {figure !== null ? (
+          <span className="cmh-figure tabular" data-testid="cmh-people">
+            {figure}
+          </span>
+        ) : meta ? (
+          <span className="cmh-dim">{meta}</span>
+        ) : null}
+      </span>
+      {stage && !offered && !isOn(stage) ? <StatePill kind="tone" value={stage.tone} label={stage.phoneWords} /> : null}
+    </div>
+  );
+}
+
+interface OfferedProps {
+  g: LifecycleGroup;
+  stage: LifecycleStage | null;
+  act: LifecycleAct;
+  acts: LedgerActs;
+}
+
+/**
+ * A moment with no campaign yet: the campaign it offers as a row of its own, off, its line what it does ("Win-back · Off ·
+ * Brings back people who've gone quiet"), pressed to turn it on (the composer) or, where the moment needs the calendar
+ * first, to connect it ("Appointment reminder · Needs your calendar"). A group off the line offers its act by its words
+ * ("Find businesses to write to"). Its name is the press the row's own press finds (cmRowPress), as a campaign's is.
+ */
+function PhoneOffered({ g, stage, act, acts }: OfferedProps) {
+  const O = LIFECYCLE_WORDS.offered;
+  const needsCalendar = act.kind === "route" && !!stage && act.label === LIFECYCLE_WORDS.needsCalendar.door;
+  const name = stage ? stage.name : act.label;
+  // What it needs first leads its line, in the amber, where a pill that long cut its name short; "Off" is its pill.
+  const state = stage && !needsCalendar ? O.off : null;
+  const what = stage ? (O[stage.id] ?? null) : null;
+  const door = acts.door(act);
+  const press = door ? { ...door } : { onClick: () => acts.onAct(act), ...(act.kind === "turn_on" ? acts.gated : {}) };
+  return (
+    <div
+      className="cmh-phone-row"
+      data-row={`offered:${g.id}`}
+      data-kind="offered"
+      data-opens="true"
+      data-testid="cmh-offered"
+    >
+      <ListRow
+        bare
+        name={
+          <LinkButton {...press} size="inherit" className="cmh-row-name" data-row-open data-testid="cmh-offered-open">
+            {name}
+          </LinkButton>
+        }
+        end={(place) => (
+          <span className={`${place} cmh-row-end`}>
+            {state ? <StatePill kind="tone" value="plain" label={state} /> : null}
+            <Icon name="chevron" size={12} />
+          </span>
+        )}
+        said={
+          needsCalendar ? (
+            <>
+              <span className="cmh-offered-needs">{LIFECYCLE_WORDS.needsCalendar.none}</span>
+              {what ? ` · ${what}` : null}
+            </>
+          ) : (
+            what
+          )
+        }
+        className="cmh-phone-line"
+        role="presentation"
+        onClick={cmRowPress}
+      />
     </div>
   );
 }
 
 interface PhoneRowProps {
   r: LifecycleRow;
-  g: LifecycleGroup;
   W: LifecycleLedger["words"];
   acts: LedgerActs;
   mark: "settled" | "arrived" | null;
@@ -211,33 +333,59 @@ interface PhoneRowProps {
  * it at its whole width. A row with nothing to say in the phone's words (the call's text while its templates are unread
  * or failed) wears no pill, never an empty one.
  */
-function PhoneRow({ r, g, W, acts, mark }: PhoneRowProps) {
+function PhoneRow({ r, W, acts, mark }: PhoneRowProps) {
   const resume = r.act && r.act.kind === "resume" ? r.act : null;
   const door = r.act && r.act.kind === "route" ? r.act : null;
+  // A row that is not a campaign yet (the month's offer, off) turns on where it stands: its name is that press, as a
+  // campaign's name is its drawer's, so the row opens something as every row does.
+  const turnOn = !r.open && r.act && r.act.kind === "turn_on" ? r.act : null;
+  const opens = rowOpens(r, acts) || !!turnOn;
   const ask = useResumeAsk();
+  const results = resultsWords(r, W).words;
   return (
     <div
       className="cmh-phone-row"
       data-row={r.id}
       data-kind={r.kind}
       data-state={r.status}
-      data-opens={rowOpens(r, acts) ? "true" : undefined}
+      data-opens={opens ? "true" : undefined}
       data-settled={mark === "settled" ? "true" : undefined}
       data-arrived={mark === "arrived" ? "true" : undefined}
       data-testid="cmh-row"
     >
       <ListRow
-        mark={<Icon name={g.glyph} size={13} />}
-        name={<RowName r={r} acts={acts} />}
+        bare
+        name={
+          turnOn ? (
+            <LinkButton
+              onClick={() => acts.onAct(turnOn)}
+              {...acts.gated}
+              size="inherit"
+              className="cmh-row-name"
+              data-row-open
+              data-testid="cmh-row-open"
+            >
+              {r.name}
+            </LinkButton>
+          ) : (
+            <RowName r={r} acts={acts} plain />
+          )
+        }
         end={(place) =>
           resume ? (
             <ResumePress act={resume} ask={ask} gated={acts.gated} className={`${place} cmh-row-resume`} />
-          ) : r.phoneWords ? (
-            <StatePill kind="tone" value={r.tone} label={r.phoneWords} className={place} />
-          ) : null
+          ) : (
+            // Its state, and the chevron that says the row opens something, as every row on the list does now.
+            <span className={`${place} cmh-row-end`}>
+              {r.phoneWords ? <StatePill kind="tone" value={r.tone} label={r.phoneWords} /> : null}
+              {opens ? <Icon name="chevron" size={12} /> : null}
+            </span>
+          )
         }
-        said={ledgerPhoneLine(r, g.caps)}
-        facts={[<ChannelMarks key="by" marks={r.channels} />, resultsWords(r, W).words]}
+        // What a First contact row does, then its next run and its people; the moment is the head over the row. What came
+        // back only where anything did (a dash on every quiet row was a line of nothing).
+        said={[ledgerPhoneWhat(r), ledgerPhoneLine(r, "")].filter(Boolean).join(" · ")}
+        facts={[<ChannelMarks key="by" marks={r.channels} />, results === W.dash ? null : results]}
         className="cmh-phone-line"
         role="presentation"
         onClick={cmRowPress}
@@ -275,7 +423,6 @@ interface LedgerPhoneProps {
 export function LedgerPhone({ home, view, acts, mark, searchRef, firstDayDoor = null }: LedgerPhoneProps) {
   const ledger = home.ledger;
   const W = ledger.words;
-  const doorAt = firstDayDoor ? firstDayStage(home.rail.stages) : null;
   const list = useSwapMotion<HTMLDivElement>(`${view.status}|${view.group ?? ""}`, ".cmh-group");
   const stageOf = (id: string) => home.rail.stages.find((s) => s.id === id) ?? null;
   const markOf = (id: string) => (mark && mark.id === id ? mark.kind : null);
@@ -291,6 +438,11 @@ export function LedgerPhone({ home, view, acts, mark, searchRef, firstDayDoor = 
     >
       <header className="cmh-block-head">
         <h2 className="cmh-h">{LIFECYCLE_WORDS.phone.moments}</h2>
+        {home.rail.phoneWords ? (
+          <span className="cmh-dim" data-testid="cmh-on">
+            {home.rail.phoneWords}
+          </span>
+        ) : null}
       </header>
       <PhoneMeta home={home} />
       {home.failed.counts ? <HomeFailed failed={home.failed.counts} testid="pb-counts-failed" /> : null}
@@ -309,6 +461,8 @@ export function LedgerPhone({ home, view, acts, mark, searchRef, firstDayDoor = 
         data-tools={ledger.tools ? "true" : undefined}
         data-testid="cmh-ledger"
       >
+        {/* The first day's door, once, at the list's top: it stood under the moment it hinted, and read as that moment's. */}
+        {firstDayDoor && !view.filtered ? <div className="cmh-first-ask-top">{firstDayDoor}</div> : null}
         {view.rows.length === 0 && view.filtered ? (
           <EmptyState
             kind="line"
@@ -329,12 +483,11 @@ export function LedgerPhone({ home, view, acts, mark, searchRef, firstDayDoor = 
             data-testid="cmh-group"
           >
             <PhoneHead g={g} stage={stageOf(g.id)} acts={acts} W={W} />
-            {g.id === doorAt ? <div className="cmh-first-ask-row">{firstDayDoor}</div> : null}
+            {g.rows.length === 0 && g.add ? <PhoneOffered g={g} stage={stageOf(g.id)} act={g.add} acts={acts} /> : null}
             {g.rows.map((r) => (
               <PhoneRow
                 key={markOf(r.id) === "arrived" ? `${r.id}:arrived` : r.id}
                 r={r}
-                g={g}
                 W={W}
                 acts={acts}
                 mark={markOf(r.id)}

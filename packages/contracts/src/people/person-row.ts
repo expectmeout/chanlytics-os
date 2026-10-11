@@ -30,7 +30,7 @@ import {
 import { isOptedOutContact } from "../consent/consent";
 import { replyWindow } from "../config/policy";
 import type { FollowUpStand } from "../playbooks/playbooks";
-import { visitAnswersAsk, visitDateKey, visitDay, visitLine, type MatchVia } from "../calendar/calendar-people";
+import { bookedAfterAsk, visitDateKey, visitDay, visitLine, type MatchVia } from "../calendar/calendar-people";
 import { nextStepOf, stepIsDue, type PersonNextStepVM } from "../notes/steps";
 import { initialsOf, isEmailStopped, isIdentifierName } from "../conversations/thread-contact";
 import { dealOf, openDealsOf, type DealVM } from "../deals/deal-vm";
@@ -198,6 +198,8 @@ export interface PersonRowVM {
   nextVisitDays: number | null;
   /** The workspace's days since the last visit; null without one. */
   lastVisitDays: number | null;
+  /** Whole days since the latest visit a member said they missed (PersonVisitsDto.missed), by the business's calendar; null for none. */
+  missedVisitDays: number | null;
   /** The next visit falls in this week, Monday to Sunday, by the workspace's clock. */
   nextVisitThisWeek: boolean;
   /** The workspace's days since they last wrote or called (askedMs); null when they never have. */
@@ -306,14 +308,22 @@ export function visitTitleFor(title: string, name: string): string {
 
 /**
  * What a day-keyed playbook reads of a row's visits (playbook-reach.ts): the calendar's day of the next and the last, how
- * each was found to be theirs (a number and an address are exact, a name is a guess: MatchVia), and the calendar's zone.
- * All null without a calendar read.
+ * each was found to be theirs (a number and an address are exact, a name is a guess: MatchVia), and the calendar's zone;
+ * and the whole days since a visit a member said they missed, by the business's calendar (a list's missed_visit). All
+ * null without a calendar read.
  */
 function visitKeysOf(
   v: PersonRowDto["visits"],
-): Pick<PersonRowVM, "nextVisitDate" | "lastVisitDate" | "nextVisitVia" | "lastVisitVia" | "visitDays" | "calendarTz"> {
+  nowMs: number,
+  tz: string,
+): Pick<
+  PersonRowVM,
+  "nextVisitDate" | "lastVisitDate" | "nextVisitVia" | "lastVisitVia" | "visitDays" | "calendarTz" | "missedVisitDays"
+> {
   const near = v ? (v.near ?? [v.last, v.next].filter((x) => x !== null)) : [];
+  const missedMs = v?.missed ? Date.parse(v.missed.start) : NaN;
   return {
+    missedVisitDays: Number.isFinite(missedMs) ? Math.max(0, localDaysBetween(missedMs, nowMs, tz)) : null,
     visitDays: v ? near.map((x) => ({ date: visitDateKey(x.start, v.timezone), via: x.via })) : [],
     nextVisitDate: v?.next ? visitDateKey(v.next.start, v.timezone) : null,
     lastVisitDate: v?.last ? visitDateKey(v.last.start, v.timezone) : null,
@@ -435,14 +445,7 @@ export function toPersonRowVM(
   const nextVisitMs = v?.next ? Date.parse(v.next.start) : null;
   const lastVisitMs = v?.last ? Date.parse(v.last.start) : null;
   const askedNotBooked =
-    calendar === "ok" &&
-    askedMs !== null &&
-    nowMs - askedMs <= MONTH_MS &&
-    !visitAnswersAsk(
-      nextVisitMs !== null && Number.isFinite(nextVisitMs) ? nextVisitMs : null,
-      lastVisitMs !== null && Number.isFinite(lastVisitMs) ? lastVisitMs : null,
-      askedMs,
-    );
+    calendar === "ok" && askedMs !== null && nowMs - askedMs <= MONTH_MS && !bookedAfterAsk(v, askedMs);
   const stateDetail =
     state === "needs_you"
       ? r.open_escalation_reason
@@ -519,7 +522,7 @@ export function toPersonRowVM(
           ? "me"
           : "teammate",
     stopped: isOptedOutContact({ consent: r.consent, dnc: r.dnc }),
-    ...visitKeysOf(v),
+    ...visitKeysOf(v, nowMs, tz),
     deal: dealOf(r, tz, nowMs),
     openDeals: openDealsOf(r, tz, nowMs),
     ...consultationKeysOf(v, nextVisitMs),

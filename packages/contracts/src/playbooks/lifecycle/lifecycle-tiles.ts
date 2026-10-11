@@ -128,11 +128,15 @@ export function lifecycleReach(input: LifecycleInput, stages: readonly Lifecycle
     read: "read",
     rungs,
     yes: asks ? { note: W.asks, code: door, phrase: b.optIn.phrase, copy: W.copy } : null,
-    phone: {
-      words: W.phoneHear(reach.canHear, reach.people),
-      offers: { words: `${reach.saidOffers} to offers`, tone: offers ? offers.tone : "plain" },
-      yes: asks ? { label: W.phoneYes, route: GET_YES_ROUTE } : null,
-    },
+    // Nobody in People yet: no line of noughts ("0 of 0 can hear you", an amber "0 to offers" about nobody).
+    phone:
+      reach.people === 0
+        ? { words: null, offers: null, yes: null }
+        : {
+            words: W.phoneHear(reach.canHear, reach.people),
+            offers: { words: `${reach.saidOffers} to offers`, tone: offers ? offers.tone : "plain" },
+            yes: asks ? { label: W.phoneYes, route: GET_YES_ROUTE } : null,
+          },
   };
 }
 

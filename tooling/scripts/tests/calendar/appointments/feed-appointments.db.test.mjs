@@ -210,7 +210,7 @@ test(
 );
 
 test(
-  "the guard: kept, missed and cancelled are final; proposed is booked or cancelled; a same-status update is no move",
+  "the guard: kept, missed and cancelled are final; proposed is booked or cancelled, and booked never proposed again; a same-status update is no move",
   { skip },
   async () => {
     const at = Date.now() + 10 * D;
@@ -221,10 +221,30 @@ test(
     ok(await set(`g1-${RUN}`, "cancelled"), "booked to cancelled");
     const refused = await set(`g1-${RUN}`, "booked");
     assert.match(refused.error?.message ?? "", /terminal/, "cancelled is final");
-    // A hold, as a booking tool will write one (decision 0002's `proposed`): set here by the service role to test its edges.
-    ok(await set(`g2-${RUN}`, "proposed"), "a hold");
-    const kept2 = await set(`g2-${RUN}`, "kept");
-    assert.match(kept2.error?.message ?? "", /booked or cancelled/, "a proposed appointment is booked or cancelled");
+    // A booked visit is never a request again (00397): a request is written proposed, and only moves on from there.
+    const back = await set(`g2-${RUN}`, "proposed");
+    assert.match(back.error?.message ?? "", /not proposed again/, "booked does not go back to proposed");
+    // A request, as a booking tool or the receptionist writes one (decision 0002's `proposed`): its edges.
+    const at3 = Date.now() + 12 * D;
+    ok(
+      await db.from("appointments").insert({
+        tenant_id: A,
+        source: "booking_email",
+        external_id: `g3-${RUN}`,
+        status: "proposed",
+        starts_at: new Date(at3).toISOString(),
+        ends_at: new Date(at3 + H).toISOString(),
+        timezone: "America/New_York",
+      }),
+      "a request",
+    );
+    const kept3 = await db
+      .from("appointments")
+      .update({ status: "kept" })
+      .eq("tenant_id", A)
+      .eq("external_id", `g3-${RUN}`)
+      .select("status");
+    assert.match(kept3.error?.message ?? "", /booked or cancelled/, "a proposed appointment is booked or cancelled");
   },
 );
 

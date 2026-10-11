@@ -50,6 +50,8 @@ export const ERASURE_LEGS = {
   ask_scrub: "scrub_ask_for_contact: the assistant's turns that name them deleted (00238)",
   deliveries_scrub: "provider_events_scrub: a kept delivery that names them deleted (00336)",
   notes_scrub: "person_notes_scrub: their numbers and addresses overwritten in other people's notes (00341)",
+  turns_scrub:
+    "model_turns_scrub: the receptionist's kept turns that name them, in anyone's thread, deleted (00401); their own went with their conversation",
   appointments_scrub:
     "appointments_scrub: their visits keep their time and service and lose the client's name, number, address and note; the notices that made them, and any whose subject names them, lose the name (00345)",
 } as const;
@@ -277,7 +279,8 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   },
   // What the owner asked the finder for, and the kinds of business it suggested.
   lead_searches: all(NOT_PERSONAL, "asked", "card", "name", "plan"),
-  lead_suggestions: all(NOT_PERSONAL, "business_line", "items"),
+  // The ideas for a search (00398, 00399): the business line, the plans, what they were written over and what was passed on.
+  lead_suggestions: all(NOT_PERSONAL, "business_line", "items", "basis", "passed"),
   lead_suppressions: { hash: DIGEST },
   leads: {
     ...all(
@@ -337,6 +340,17 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   // The kinds a member's phones are not told (00372), and a member's sort and columns: the member's own settings.
   memberships: all(NOT_PERSONAL, "push_off", "views"),
   messages: all(withPerson("erase_contact"), "template_name", "media", "external_id", "content_hash", "error", "meta"),
+  // A kept turn (decision 0039): the person's own go when their conversation does, by the fence's cascade, and a turn
+  // about someone else that quoted them is deleted by needle; the prompt it read is the business's own facts, and
+  // leaves by its clock.
+  model_turns: {
+    ...all(scrubbedBy("turns_scrub", "erase_contact"), "request", "response"),
+    ...all(NOT_PERSONAL, "prompt_hash", "model"),
+  },
+  model_prompts: { text: byAge("model_prompts"), prompt_hash: NOT_PERSONAL },
+  // The settings as they stood (decision 0039, step 3): the business's own, as tenant_config.config is, and unlike it
+  // a version leaves by its clock once it is replaced.
+  tenant_config_versions: { config: byAge("tenant_config_versions") },
   notifications: {
     ...all(byAge("notifications"), "title", "body"),
     ...all(NOT_PERSONAL, "route", "subject_type", "subject_id"),

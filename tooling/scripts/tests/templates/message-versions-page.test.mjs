@@ -1511,7 +1511,7 @@ test("the form for an email names the message from its title, refuses a title th
   byTestId(tree, "tpl-own-value-2-name").props.onValueChange("Date");
   byTestId(redraw(), "tpl-own-value-2-example").props.onValueChange("Oct 1");
   tree = redraw();
-  assert.equal(textOf(byTestId(tree, "tpl-own-value-2-name").props.label), "Name of value 2");
+  assert.equal(textOf(byTestId(tree, "tpl-own-value-2-name").props.label), "Value 2");
   assert.equal(byTestId(tree, "tpl-own-value-1-name").props.maxLength, contracts.TEMPLATE_LABEL_MAX);
   assert.equal(byTestId(tree, "tpl-own-value-1-example").props.maxLength, contracts.TEMPLATE_EXAMPLE_MAX);
   const editor = editorIn(tree);

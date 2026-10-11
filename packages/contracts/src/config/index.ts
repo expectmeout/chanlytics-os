@@ -151,7 +151,15 @@ export type { StandingInputs, BusinessGap } from "./business-tab/business-gap";
 export { openWeekWords, hoursZoneWords, closuresAheadWords } from "./business-tab/open-week";
 export type { ClosuresAheadVM } from "./business-tab/open-week";
 export { chipsMoreWords, CHIPS_SHOWN } from "./business-tab/counts";
-export { servicesWords, servicesToldWords, serviceUndoName, servicesFoundWords } from "./business-tab/services-words";
+export {
+  servicesWords,
+  servicesToldWords,
+  serviceUndoName,
+  servicesFoundWords,
+  serviceLineWords,
+  lengthWords,
+  SERVICE_PRICE_EMPTY,
+} from "./business-tab/services-words";
 export type { ServiceWordsInput, ServicesWordsVM } from "./business-tab/services-words";
 export {
   blockShareWords,
@@ -184,7 +192,13 @@ export {
 export type { HandoffWordsVM } from "./business-tab/handoff-words";
 export { abilityRows, cannotRows } from "./business-tab/abilities";
 export type { AbilityInputs, AbilityRowVM, AbilitiesVM, CannotRowVM } from "./business-tab/abilities";
-export { offersBookingLink, priceNextStep, NO_LINK_DETAILS } from "./no-booking-link";
+export {
+  offersBookingLink,
+  offersLinkOn,
+  priceNextStep,
+  NO_LINK_DETAILS,
+  NO_WAY_TO_SEND_LINK,
+} from "./no-booking-link";
 export {
   brainMetaOf,
   replyWhy,

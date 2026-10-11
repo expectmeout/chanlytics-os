@@ -440,7 +440,8 @@ test.describe("Phone shell on a real workspace", () => {
       (await row.locator(".pl-card > .list-row-end").boundingBox())!.height,
       "a state is a pill, not a 36px button",
     ).toBeLessThanOrEqual(22);
-    // Search: the bar becomes the field, at 16px (a phone zooms into anything smaller), and Cancel gives it back.
+    // Search: the bar becomes the field, at 16px (a phone zooms into anything smaller); the clear (×) empties it from
+    // the first word, and the field left empty rests as focus leaves it (there is no Cancel).
     // On a touch screen the field waits for a tap: no keyboard rises by itself.
     await bar.getByTestId("people-phone-search-open").click();
     const field = page.getByTestId("people-phone-search");
@@ -449,7 +450,10 @@ test.describe("Phone shell on a real workspace", () => {
     await field.tap();
     await expect(field).toBeFocused();
     expect(await field.evaluate((el) => Number.parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
-    await page.getByTestId("people-phone-search-cancel").click();
+    await field.fill("zz");
+    await page.getByTestId("people-phone-search-clear").click();
+    await expect(field).toHaveValue("");
+    await field.blur();
     await expect(bar.getByTestId("people-phone-lists")).toBeVisible();
     // A list picked in the sheet closes it and leaves no tip behind: the tap focused its row, the sheet took the row
     // away, and the tip was placed at the corner of the top bar 280ms later.
@@ -557,10 +561,12 @@ test.describe("Phone shell on a real workspace", () => {
   });
   /**
    * Selecting on a phone (the same spec, 4.5): the face is the checkbox, and a selection is one capsule docked at the foot, the tab
-   * bar standing down -- ✕, the count, Add to list and ⋯ -- whose ⋯ opens a sheet with the rest. On 22 Sep the bar was a pill 188px
+   * bar standing down -- ✕, the count, then Add to list, Note and More as its tabs are drawn -- whose More opens a sheet with the rest. On 22 Sep the bar was a pill 188px
    * wide at the middle of the screen, its seven controls stacked 312px tall over the rows.
    */
-  test("a selection is one docked capsule at the foot, and ⋯ opens its sheet whole on the screen", async ({ page }) => {
+  test("a selection is one docked capsule at the foot, and More opens its sheet whole on the screen", async ({
+    page,
+  }) => {
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
     const row = page.locator(".pl-table tbody tr.pl-card-row").first();

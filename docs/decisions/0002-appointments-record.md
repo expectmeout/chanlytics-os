@@ -9,9 +9,23 @@ rather than a signed webhook), the board drawing its rows, and a caller's own vi
 and a read older than the workspace's last refused), which the board and the openings leave out since they read the
 feed itself; and step 5 in part: a visit run's reminder asks its row again at the send and is held for one cancelled or
 missed, or that a read after the run's found moved or gone from the calendar (a row older than the run's read is the
-older word). Still owed to the readers lane: the backfill (3), Reports and People reading rows (4), the playbooks
-drawing from rows (the rest of 5), and `kept` from time with a person's `missed` (8), which come together so a visit
-inferred kept can still be said missed. The paths below are the ones at `e3d9dc6c`; `packages/contracts/src/calendar/`
+older word). Then step 8's door (00397, 10 October 2026): an operator or above says kept, missed or cancelled on the
+board's panel (`POST calendar/visits/:id`, `mark_visit`, the decision theirs in the same transaction), kept and
+missed correctable one into the other through it alone, the board drawing each word, and an ended visit worded as past,
+never done. Then the readers (11 October 2026, steps 4, 5 and 8's reading, no migration): People, a person's page,
+Reports' booking line and booking link, the Playbooks page's pools, the edge's runs and a caller's own visits read the
+record beside the feed (db `recordOver` over the feed's season, read whole past PostgREST's thousand rows, joined by
+contracts `feedWithRecord` inside `peopleVisitsOf`): a booking a notice stated is the notice's visit, its copy in the
+feed left out; a cancelled visit is none; a request is no visit yet; a member's word is said of the event where it
+stands (`markOn`: one the calendar moved before the hourly sync carries none); and a visit a member said missed is no
+next or last visit and no day a moment keys on, but a list's `missed_visit` (answer 4), and the timeline says Kept or
+Missed. A visit missed still answers an ask (`bookedAfterAsk`): they booked, so a no-show is not "Asked, never booked".
+A notice's row carries its client's number where an event carries one, so a number alone finds it, and never a name
+(`indexFeed`). A run that drew a notice's booking asks that row again at the send (`appointmentStates` by
+`recordKeyOf`), as it asks a feed event's. A record that cannot be read is the calendar unavailable, logged
+(`visits_record_read_failed`), as a feed is. The record joins only where a calendar is read: a workspace with notices
+and no calendar link keeps its visit moments off until Ruben says otherwise. Left: the receptionist's request (answer
+5), and a row linked to a person by `contact_id` alone (the board finds it; the pools find a row by number or address). The paths below are the ones at `e3d9dc6c`; `packages/contracts/src/calendar/`
 holds what `availability.ts` and `calendar-people.ts` held. Written against commit `b729bdf` (21 September 2026) and refreshed against `e3d9dc6c` (PR #885, 23 September 2026): every file
 and line below was re-read at that commit, with deals (0004), the proposal link
 and smart lists on main. _What has changed since it was written_ says what moved
@@ -482,3 +496,13 @@ Ruben: "review and go with the best suggestions for chanlytics". Each answer as 
    (Ruben's approval of 9 October 2026: the receptionist may request a booking, never confirm one).
 
 The readers lane is next for this note: steps 4, 5 and 8 together, with the answers above (0046, lane A, step 3).
+Step 8's door came first (00397, 10 October 2026), since every reader that draws a visit's word reads it from there:
+`missed` as a list's rule (answer 4) comes with People reading the record (step 4), and the receptionist's request
+(answer 5) after the readers.
+
+The readers followed on 11 October 2026, as the status says. Answer 2's words were not needed: no reader counts the
+record's rows alone. Each reads the feed with the record beside it, so a window older than the first row is the
+feed's, as it was before the record. Answer 1's fifteen minutes is the join's rule (`withoutVisitsRowsDraw`). Answer
+5's "count only `booked` and `kept` as booked" is read as it was asked, of a request: a request joins no pool. A visit
+said missed was booked, so it answers an ask in Reports' booking line and People's "Asked, never booked" alike (one
+rule, `bookedAfterAsk`); a cancelled one does not.

@@ -118,13 +118,73 @@ interface CallStartInput {
   db: Db | null;
   /** One clock for the whole opening: the prompt's hours, the day described, the openings, the memory's "last in touch". */
   now?: Date;
+  /** How long the plan and each calendar read may take (PLAN_BUDGET_MS, CALENDAR_READ_MS); a test hands in shorter ones. */
+  budgets?: { planMs: number; readMs: number };
   /** The calendar is the one read that leaves the database; a test hands in its own. */
-  calendar?: { openings: typeof openingsFor; visits: typeof visitsFor };
+  calendar?: Calendar;
 }
 
-export async function planCallStart(o: CallStartInput): Promise<CallStart> {
+/**
+ * How long the plan may take before the call is answered without it. Retell gives this webhook ten seconds, and the
+ * delivery's keep, the hold and the answer need the rest; a plan past it was a dropped call (the engine review's second
+ * pass, 11 Oct 2026).
+ */
+const PLAN_BUDGET_MS = 6_500;
+
+/** The calendar a call's plan reads: the one read that leaves the database; a test hands in its own. */
+interface Calendar {
+  openings(rt: TenantRuntime, now: Date): Promise<string | null>;
+  visits(rt: TenantRuntime, who: { phone: string | null; name: string | null }, now: Date): Promise<string | null>;
+}
+
+/** A call's calendar: what follows an opening or a visit offers the link only where WhatsApp can carry it (linkOfferedOn). */
+const CALL_CALENDAR: Calendar = {
+  openings: (rt, at) => openingsFor(rt, "call", at),
+  visits: (rt, who, at) => visitsFor(rt, who, "call", at),
+};
+
+/** How long each calendar read may take inside the plan: the openings, and the caller's visits (the record and the feed). */
+const CALENDAR_READ_MS = 2_000;
+
+/** A read that answers within `ms`, or null: a slow read costs its own block, never the call. */
+async function inTime<T>(ms: number, read: Promise<T>): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([read, new Promise<null>((r) => (timer = setTimeout(() => r(null), ms)))]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * The plan, or, past PLAN_BUDGET_MS, the shell's own words: no facts, a caller told as new and a nameless greeting, as a
+ * database that does not answer gets. `late` says which; the plan left behind only reads.
+ */
+export async function planCallStartWithin(o: CallStartInput): Promise<CallStart & { late: boolean }> {
+  const budget = o.budgets?.planMs ?? PLAN_BUDGET_MS;
+  const readMs = o.budgets?.readMs ?? CALENDAR_READ_MS;
+  const cal = o.calendar ?? CALL_CALENDAR;
+  // Each calendar read within its own budget: a slow feed or record costs its block, never the call.
+  const calendar: Calendar = {
+    openings: (rt, at) => inTime(readMs, cal.openings(rt, at)),
+    visits: (rt, who, at) => inTime(readMs, cal.visits(rt, who, at)),
+  };
+  const planned = await inTime(budget, planCallStart(o, calendar));
+  if (planned) return { ...planned, late: false };
+  return {
+    variables: { caller_context: CALLER_UNKNOWN, business_facts: FACTS_UNAVAILABLE, greeting: greetingFor(null) },
+    facts: "unreadable",
+    memory: "none",
+    alert: false,
+    error: `the plan took longer than ${budget} ms`,
+    conversationId: null,
+    tenantId: null,
+    late: true,
+  };
+}
+
+async function planCallStart(o: CallStartInput, calendar: Calendar): Promise<CallStart> {
   const now = o.now ?? new Date();
-  const calendar = o.calendar ?? { openings: openingsFor, visits: visitsFor };
   const phone = normalizePhone(o.from);
 
   let facts: FactsOutcome = "unreadable";

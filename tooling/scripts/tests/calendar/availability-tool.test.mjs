@@ -340,7 +340,7 @@ test("the shell carries the tool beside the booking link, the edge guards it, an
   );
   assert.ok(edge.includes("filterOpenings(data.openings, { day, minMinutes: offer?.minMinutes ?? null })"));
   assert.ok(
-    edge.includes("return json(200, { result: CANNOT_SEE })"),
+    edge.includes("return json(200, { result: CANNOT_SEE_NO_LINK })"),
     "a refusal is a sentence the agent speaks, never an error status",
   );
   const brain = {
@@ -506,9 +506,10 @@ let heldSeq = 0;
 /**
  * A workspace answering calls on its own agent. `booking` is its Booking row (null: none set, which reads as auto);
  * `calendar` is a feed that reads ("feed"), an address that answers nothing ("gone"), or none connected (null); `hours`
- * its opening hours. The database is handed to the door here.
+ * its opening hours; `whatsapp` whether a WhatsApp line answers, which a call sends the link by (contracts offersLinkOn).
+ * The database is handed to the door here.
  */
-function heldWorkspace({ booking = null, calendar = "feed", hours = EVERY_DAY } = {}) {
+function heldWorkspace({ booking = null, calendar = "feed", hours = EVERY_DAY, whatsapp = true } = {}) {
   const i = ++heldSeq;
   const T = `cccccccc-0000-4000-8000-00000000d${String(i).padStart(3, "0")}`;
   const agent = `agent_availability_held_${i}`;
@@ -527,6 +528,9 @@ function heldWorkspace({ booking = null, calendar = "feed", hours = EVERY_DAY } 
       {
         tenants: [{ id: T, name: "Harbor Nails", timezone: TZ, status: "active" }],
         tenant_channels: [
+          ...(whatsapp
+            ? [{ id: `wa-held-${i}`, tenant_id: T, kind: "whatsapp", number_e164: "+13055550199", status: "active" }]
+            : []),
           {
             id: `voice-held-${i}`,
             tenant_id: T,
@@ -639,6 +643,18 @@ test("with no calendar, or one that cannot be read, no time is guessed -- and un
   }
 });
 
+test("a workspace with a booking link and no WhatsApp line: the times end in the details, and nothing offers WhatsApp", async () => {
+  // 11 Oct 2026: the live salon has no WhatsApp, and its calls were told to send the link to the caller's WhatsApp.
+  const times = await askedHeld(heldWorkspace({ whatsapp: false }));
+  assert.match(times, A_TIME, "the times are still said");
+  assert.match(times, /take their name, what they need, and where and when/, times);
+  for (const calendar of [null, "gone"]) {
+    const said = await askedHeld(heldWorkspace({ whatsapp: false, calendar }));
+    assert.doesNotMatch(said, A_TIME, `${calendar}: no time guessed`);
+    assert.ok(!/WhatsApp|booking link/i.test(said), `${calendar}: nothing it cannot send is offered: ${said}`);
+  }
+});
+
 test("under a hold, a fortnight with nothing open is said without the link", async () => {
   const held = await askedHeld(heldWorkspace({ booking: "ask", hours: {} }));
   assert.match(held, /nothing is open in the next 14 days/);
@@ -646,6 +662,56 @@ test("under a hold, a fortnight with nothing open is said without the link", asy
   assert.ok(holdsTheLink(held), held);
   const auto = await askedHeld(heldWorkspace({ hours: {} }));
   assert.match(auto, /send the booking link so they are told when a slot frees up/, "on auto, as it was");
+});
+
+test("the openings handed to chat and to a call's start end in a person confirming under a hold, and in the link only where it can go", async () => {
+  // 11 Oct 2026: openingsFor read neither the hold nor whether a call could send the link, so a held workspace's
+  // receptionist was handed "then send the booking link" beside a rule that said never to.
+  const { openingsFor } = await import(
+    pathToFileURL(path.join(here, "../../../../apps/edge/lib/calendar/availability.ts")).href
+  );
+  const url = "https://cal.example/openings-handed.ics";
+  heldFeeds.set(url, ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//booking tool//EN", "END:VCALENDAR"].join("\r\n"));
+  const WA = { kind: "whatsapp", number_e164: "+13055550199", status: "active" };
+  const rt = (policy, channels) => ({
+    tenantId: "cccccccc-0000-4000-8000-00000000e001",
+    brain: {
+      business_name: "Harbor Nails",
+      booking_link: "https://book.example/harbor-openings",
+      system_prompt: "x".repeat(50),
+      fallbacks: { greeting: "g", error: "e", non_text: "n" },
+      profile: { hours: EVERY_DAY },
+    },
+    calendar: { ical_url: url },
+    timezone: TZ,
+    policy,
+    known: { channels },
+    notifications: null,
+    features: null,
+  });
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (u) =>
+    heldFeeds.has(String(u))
+      ? new Response(heldFeeds.get(String(u)), { status: 200, headers: { "content-type": "text/calendar" } })
+      : new Response("no such calendar", { status: 404 });
+  setPg(fakeDb({ appointments: [] }));
+  try {
+    const NOW = new Date("2026-10-12T13:00:00Z");
+    const held = { booking: { mode: "ask" } };
+    for (const on of ["chat", "call"]) {
+      const said = await openingsFor(rt(held, [WA]), on, NOW);
+      assert.match(said, A_TIME, on);
+      assert.match(said, /a member of the team will call or text them to confirm/, `${on}: ${said}`);
+      assert.ok(holdsTheLink(said), `${on}: under a hold no link follows the times: ${said}`);
+    }
+    assert.match(await openingsFor(rt({}, [WA]), "call", NOW), /then send the booking link/, "a call with WhatsApp");
+    assert.match(await openingsFor(rt({}, []), "chat", NOW), /then send the booking link/, "chat: in the thread");
+    const noWa = await openingsFor(rt({}, []), "call", NOW);
+    assert.ok(!/booking link/i.test(noWa), `a call with no WhatsApp line is offered no link: ${noWa}`);
+  } finally {
+    globalThis.fetch = realFetch;
+    setPg(null);
+  }
 });
 
 test("a business with no booking link (one that quotes each job): no calendar is the caller's details taken, one it cannot read a call back, and the times it does read end in the details", async () => {

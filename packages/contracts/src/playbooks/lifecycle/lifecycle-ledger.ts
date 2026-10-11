@@ -306,7 +306,10 @@ function playbookRow(p: LifecyclePlaybook, at: RowAt): LifecycleRow {
   };
 }
 
-/** The receptionist: First contact's own row, never counted, opening nothing. */
+/**
+ * The receptionist: First contact's own row, never counted. It opens what it is told, Settings › Business (Ruben, 11 Oct
+ * 2026: every row opens something; this one was the one that did nothing).
+ */
 function receptionistRow(stage: LifecycleStage): LifecycleRow {
   return {
     id: "receptionist",
@@ -323,14 +326,18 @@ function receptionistRow(stage: LifecycleStage): LifecycleRow {
     people: { n: stage.people, unit: stage.unit },
     results: "uncounted",
     next: NO_NEXT,
-    open: null,
+    open: { kind: "route", label: "Open", route: "admin/workspace" },
     waiting: null,
     act: null,
     search: rowSearchOf(stage.name, stage.caps),
   };
 }
 
-/** The call's text: the message the phone agent texts a caller who asks to book, a door to the Library. Never counted. */
+/**
+ * The call's text: the message the phone agent texts a caller who asks to book. Never counted. Its door opens that message
+ * in a drawer of its own over the home (`campaigns/message:<name>`, Ruben, 11 Oct 2026: a page it went to read as a page);
+ * where there is none yet, the Library, where one is written.
+ */
 function callTextRow(library: LifecycleInput["library"], caps: string): LifecycleRow {
   const W = LIFECYCLE_WORDS.callText;
   const found = library ? bookingTemplate(library) : null;
@@ -355,7 +362,7 @@ function callTextRow(library: LifecycleInput["library"], caps: string): Lifecycl
     people: { n: null, unit: "" },
     results: "uncounted",
     next: NO_NEXT,
-    open: { kind: "route", label: "Open", route: "messages" },
+    open: { kind: "route", label: "Open", route: found ? `campaigns/message:${found.name}` : "messages" },
     waiting: null,
     act: null,
     search: rowSearchOf(W.name, W.words, caps),
@@ -671,6 +678,19 @@ export function ledgerOrder(by: LedgerSort): (a: LifecycleRow, b: LifecycleRow) 
  * the line leaves it out; a paused row's end is its Resume, so the line says it rests. A figure not counted is left out,
  * never said as a zero.
  */
+/**
+ * What a row that is not a campaign does, said first on its phone line: the receptionist answers whoever writes, the
+ * call's text is sent when a caller asks for it, the month's offer goes every so often. Null for a campaign, whose line is
+ * its next run and its people.
+ */
+export function ledgerPhoneWhat(r: LifecycleRow): string | null {
+  if (r.kind === "receptionist") return r.hint;
+  if (r.kind === "call_text") return LIFECYCLE_WORDS.callText.when;
+  // The month's offer, not made yet: how often it would go, and to whom ("Every 30 days, to a yes to offers").
+  if (r.kind === "offer" && r.status === "off") return r.hint;
+  return null;
+}
+
 export function ledgerPhoneLine(r: LifecycleRow, caps: string): string {
   const dash = LIFECYCLE_WORDS.ledger.dash;
   const next = r.status === "waiting" || r.next.words === dash ? null : r.next.words;

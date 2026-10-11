@@ -13,6 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  NO_WAY_TO_SEND_LINK,
   newReceptionistDefaults,
   instructionsDraft,
   FALLBACK_DEFAULTS,
@@ -1114,7 +1115,11 @@ test("the own-words fold opens the baseline a save before S4 left in the owner's
   const bare = { ...record.brain, profile: without(profile, "extra_instructions") };
   assert.deepEqual(
     told(bare),
-    [withStanding(record.brain.system_prompt, "whatsapp"), withStanding(record.brain.system_prompt, "voice")],
+    [
+      withStanding(record.brain.system_prompt, "whatsapp"),
+      // A call with the link and no WhatsApp line to send it by is told so first (contracts offersLinkOn).
+      withStanding(record.brain.system_prompt, "voice", record.brain.booking_link ? [NO_WAY_TO_SEND_LINK] : []),
+    ],
     "and without it the resolver hands the stored prompt back with only the standing rules after it, which is what review measured",
   );
 

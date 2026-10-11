@@ -56,24 +56,26 @@ export const DEAL_SHEET_WORDS = {
   service: { label: "Service", any: "Any service" },
   link: {
     label: "Proposal link",
-    hint: "A Google Doc, a PDF or any page you would send them.",
+    hint: "A doc, a PDF or any page.",
     placeholder: "docs.example.com/proposal",
   },
   value: {
     label: "Value",
-    hint: "Optional. Only you see it: the receptionist never says a figure.",
+    // Optional is said by the box being empty and nothing refusing it; who sees it is the one thing to say (Ruben,
+    // 10 Oct 2026: "Optional." under three boxes in a row).
+    hint: "Only you see it.",
     placeholder: "2,500",
     per: "How often",
   },
   agreed: {
     label: "Agreed amount",
-    hint: "Optional.",
+    hint: "Only you see it.",
     fromProposal: "The proposal's value, unless they agreed another.",
   },
-  validUntil: { label: "Valid until", hint: "Optional." },
+  validUntil: { label: "Valid until", hint: null },
   when: { won: "When they said yes", lost: "When they passed", ended: "When it ended" },
   reason: { label: "Why they passed" },
-  note: { label: "Note", hint: "Optional. Only your team sees it.", placeholder: "In their words, or yours" },
+  note: { label: "Note", hint: "Only your team sees it.", placeholder: "In their words, or yours" },
   how: {
     label: "How they said yes",
     none: "Not recorded",
@@ -83,11 +85,11 @@ export const DEAL_SHEET_WORDS = {
     where: "Where it was signed",
     wherePlaceholder: "DocuSign, Sep 20",
   },
-  message: { label: "Message", hint: "Sent as written. It has to carry the link." },
+  message: { label: "Message", hint: "It has to carry the link." },
   discard: {
-    question: "Discard your changes?",
-    detail: "Nothing here has been recorded.",
-    yes: "Yes, discard",
+    question: "Discard changes?",
+    detail: null,
+    yes: "Discard",
     no: "Keep editing",
   },
   reading: "Reading…",
@@ -162,7 +164,7 @@ export interface DealSheetVM {
     perLabel: string;
     pers: { value: DealPer; label: string }[];
   } | null;
-  validUntil: { label: string; hint: string } | null;
+  validUntil: { label: string; hint: string | null } | null;
   when: { label: string; max: string } | null;
   reason: { label: string; options: { value: DealLostReason; label: string }[] } | null;
   note: { label: string; hint: string; placeholder: string; max: number } | null;

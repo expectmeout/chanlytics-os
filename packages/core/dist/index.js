@@ -38336,6 +38336,21 @@ async function ingestOrSay(cx) {
     throw e;
   }
 }
+var KIND_OF_CODE = String.raw`(?:verification|security|one[- ]time|log ?in|sign[- ]in|authentication|2fa|otp)`;
+var A_CODE = String.raw`(?:[A-Z]{1,3}-)?\d{4,8}`;
+var ONE_TIME_CODE = new RegExp(
+  [
+    String.raw`\b${KIND_OF_CODE}\s+(?:code|pin|passcode)\b[^\n]{0,20}?\b${A_CODE}\b`,
+    String.raw`\b${A_CODE}\s+is\s+your\b[^\n]{0,40}?\b(?:code|pin|passcode)\b`,
+    String.raw`\buse\s+${A_CODE}\s+to\s+(?:sign in|log in|login|verify|confirm)\b`,
+    String.raw`\b(?:do not|don'?t|never) share (?:this|the|your) code\b`
+  ].join("|"),
+  "i"
+);
+function oneTimeCode(body) {
+  const t = (body ?? "").trim();
+  return t.length > 0 && t.length <= 320 && ONE_TIME_CODE.test(t);
+}
 async function setAside(cx) {
   const { ports, tenantId, isEnvDefault, from, channel, db, rt } = cx;
   const recordOrSay = () => ingestOrSay(cx);
@@ -38343,6 +38358,13 @@ async function setAside(cx) {
     const ing = await recordOrSay();
     const sink = ports.persist.sink(db, tenantId, ing, rt, channel);
     await sink.unreachableSender();
+    await sink.processed(handledOf(SET_ASIDE));
+    return true;
+  }
+  if (oneTimeCode(cx.n.body)) {
+    const ing = await recordOrSay();
+    const sink = ports.persist.sink(db, tenantId, ing, rt, channel);
+    cx.L.info("one_time_code_set_aside");
     await sink.processed(handledOf(SET_ASIDE));
     return true;
   }
@@ -38774,12 +38796,12 @@ async function heldForThePerson(at, bodyText) {
 import { resolveSystemPrompt, describeNow, shadowWordsOf } from "../../contracts/dist/index.js";
 import { errField as errField9 } from "../../channels/dist/index.js";
 async function leadNoteFor(at) {
-  const { db, tenantId, from, ports, rt, L, channel } = at;
+  const { db, tenantId, from, ports, rt, L, channel, ing } = at;
   let leadNote;
   if (db && tenantId) {
     try {
       const e164 = from.startsWith("+") ? from : `+${from}`;
-      const lead = await ports.leads.read(db, tenantId, e164, 1);
+      const lead = await ports.leads.read(db, tenantId, e164, 1, ing?.message_id);
       leadNote = ports.leads.describe(lead, /* @__PURE__ */ new Date(), rt?.timezone ?? "UTC", channel);
       const visits = rt ? await ports.calendar.visits(rt, { phone: e164, name: lead.name }) : null;
       if (visits) leadNote = `${leadNote}
@@ -38809,7 +38831,7 @@ function checked(at, brainCfg, r) {
   return { replyText: two.replyText, escalate: two.escalate, escalationReason: two.escalationReason };
 }
 async function modelTurn(at, bodyText, photo) {
-  const { ports, db, rt, thread, n, fallbacks, L } = at;
+  const { ports, db, rt, thread, n, fallbacks, L, channel } = at;
   const brainCfg = at.brainCfg;
   let replyText;
   let escalate;
@@ -38831,8 +38853,8 @@ async function modelTurn(at, bodyText, photo) {
         // and its hand-written prompt when it does not. lib/call-start.ts
         // composes the SAME thing for the voice agent, which is the point:
         // two copies of the hours is how two channels start disagreeing
-        // about when the business opens.
-        resolveSystemPrompt(brainCfg, "whatsapp", rt?.timezone, /* @__PURE__ */ new Date(), rt?.policy, rt?.known),
+        // about when the business opens. A text is told it answers texts (compose.ts).
+        resolveSystemPrompt(brainCfg, channel, rt?.timezone, /* @__PURE__ */ new Date(), rt?.policy, rt?.known),
         fallbacks.error,
         leadNote,
         // "Are you open?" it could already answer. "Are you open RIGHT NOW?"

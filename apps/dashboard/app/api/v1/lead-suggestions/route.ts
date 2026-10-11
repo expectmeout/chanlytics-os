@@ -1,17 +1,19 @@
-import { BusinessLineSchema } from "@chanlytics/contracts";
+import { BusinessLineSchema, ROLE_PERMS } from "@chanlytics/contracts";
 import { read, workspace, write } from "@/server/route";
 import { setBusinessLine, suggestionsFor } from "@/server/leads/leads";
 
 /**
- * GET /api/v1/lead-suggestions — the three or four kinds of business worth
- * reaching, on the first day (§8.9). Kept for a week, so this is one model
- * call a week per workspace; the bucket is here because a read that can reach
- * a model is not a free read.
+ * GET /api/v1/lead-suggestions — the ideas for a new search (§8.9, 00398): four
+ * ready plans written from the business line and what the workspace's searches
+ * found. Kept until a round ends, the line is saved or a month passes, so a
+ * model is asked rarely; the bucket is here because a read that can reach a
+ * model is not a free read. Only a member who may find has them written: any
+ * other reads what was written.
  */
 export const GET = read({
   scope: workspace,
   rate: "lead_suggest",
-  handle: ({ ctx, member }) => suggestionsFor(ctx, member.tenantId),
+  handle: ({ ctx, member }) => suggestionsFor(ctx, member.tenantId, { write: ROLE_PERMS[member.role]?.find === true }),
 });
 
 /**

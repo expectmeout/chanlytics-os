@@ -40,6 +40,8 @@ const brain = {
   business_name: "Harbor Nails",
   phone_display: "(305) 555-0100",
   booking_link: "https://book.example/harbor",
+  // The link goes by WhatsApp alone, so these are a workspace with a WhatsApp line (contracts offersLinkOn).
+  whatsapp_line: "+13055550199",
   system_prompt: "x".repeat(50),
   fallbacks: { greeting: "g", error: "e", non_text: "n" },
 };
@@ -87,12 +89,45 @@ test("speaking aloud, the agent offers to send the link to the caller's WhatsApp
   );
 });
 
-test("with no facts to read, the shell's fallback offers the link on WhatsApp, as the tool it offers says", () => {
+test("a call with a booking link and no WhatsApp line never offers it: it takes the details, and points at the website", () => {
+  // 11 Oct 2026: the live salon has no WhatsApp, and its calls were told to send the link to the caller's WhatsApp.
+  const without = composeSystemPrompt(
+    { ...brain, whatsapp_line: null },
+    { ...profile, website: "harbor.example" },
+    "voice",
+  );
+  const line = without.split("\n").find((l) => l.startsWith("Booking:")) ?? "";
+  assert.ok(line.includes("never use send_booking_link and never promise a link or a message"), line);
+  assert.ok(
+    line.includes("take their name, what they need, and where and when, and say the team will follow up"),
+    line,
+  );
+  assert.ok(line.includes("a website is listed above, they can book there"), line);
+  assert.ok(!/caller's WhatsApp/.test(without), "nothing on the call offers WhatsApp");
+  assert.ok(without.includes("Booking link: https://book.example/harbor"), "the link is still a fact of the business");
+  assert.ok(
+    without.includes("Keep answers to one or two sentences, and never read a URL out character by character."),
+    "speaking aloud, nothing is offered in its place",
+  );
+});
+
+test("with no facts to read, the shell's fallback offers nothing it may not have; the tool says where the link goes, and promises nothing while it runs", () => {
+  // 11 Oct 2026: with no details there is no knowing whether there is a link, or a WhatsApp line to send it by.
   assert.doesNotMatch(FACTS_UNAVAILABLE, TEXTS_THE_LINK, "REGRESSION: the fallback offered to text the link");
-  assert.ok(FACTS_UNAVAILABLE.includes("offer to send the booking link to the caller's WhatsApp"), FACTS_UNAVAILABLE);
+  assert.doesNotMatch(FACTS_UNAVAILABLE, /booking link|WhatsApp/, FACTS_UNAVAILABLE);
+  assert.match(FACTS_UNAVAILABLE, /take their name and a message so the team can call them back/);
   const tool = desiredVoiceShell(FN_URL).general_tools.find((t) => t.name === "send_booking_link");
-  assert.match(tool.description, /to the caller's WhatsApp/);
-  assert.match(tool.execution_message_description, /to their WhatsApp/);
+  // Used when the caller wants to book unless the call's instructions say otherwise: a stored prompt names no tool, and
+  // must keep it (the review of 11 Oct 2026).
+  assert.match(
+    tool.description,
+    /^Send the booking link to the caller's WhatsApp when the caller wants to book, unless your instructions say there is no link or no way to send it\./,
+  );
+  assert.doesNotMatch(tool.description, TEXTS_THE_LINK, "REGRESSION: the tool said it texts the link");
+  const availability = desiredVoiceShell(FN_URL).general_tools.find((t) => t.name === "check_availability");
+  assert.doesNotMatch(availability.description, /booking link/, "what follows the times is the answer's to say");
+  // Said before the tool has answered, so before anyone knows whether it went: nothing is promised.
+  assert.equal(tool.execution_message_description, "Say one moment, please.");
 });
 
 test("the availability tool offers the link on WhatsApp when there is no calendar, and when it cannot see one", async () => {
@@ -103,6 +138,8 @@ test("the availability tool offers the link on WhatsApp when there is no calenda
       {
         tenants: [{ id: T, name: "Harbor Nails", timezone: "America/New_York", status: "active" }],
         tenant_channels: [
+          // The WhatsApp line the link would go by (contracts offersLinkOn).
+          { id: "wa-1", tenant_id: T, kind: "whatsapp", number_e164: "+13055550199", status: "active" },
           {
             id: "voice-1",
             tenant_id: T,
@@ -139,13 +176,10 @@ test("the availability tool offers the link on WhatsApp when there is no calenda
     const blind = await ask("agent_nobody_routes");
     assert.match(none, /no calendar to check/i, "the world is the one intended");
     assert.match(blind, /can't see the calendar/i, "the world is the one intended");
-    for (const [why, said] of [
-      ["no calendar", none],
-      ["cannot see it", blind],
-    ]) {
-      assert.doesNotMatch(said, TEXTS_THE_LINK, `${why} -- REGRESSION: it offered to text the link`);
-      assert.ok(said.includes("send the booking link to the caller's WhatsApp"), `${why}: ${said}`);
-    }
+    assert.doesNotMatch(none, TEXTS_THE_LINK, "REGRESSION: it offered to text the link");
+    assert.ok(none.includes("send the booking link to the caller's WhatsApp"), none);
+    // A line nobody routes is nobody's business: nothing it could send is offered, only a call back.
+    assert.equal(blind, "I can't see the calendar right now. Offer to have someone call back.");
   } finally {
     setPg(null);
   }

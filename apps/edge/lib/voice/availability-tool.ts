@@ -16,25 +16,24 @@
  * SPEAKS this string, so an error status would make it say nothing while the
  * caller waits.
  */
-import { json, refuse } from "../http.js";
+import { json } from "../http.js";
 import { pg } from "../pg.js";
 import { readDealForPhone, resolveChannel } from "../packages/db.js";
 import { loadTenantRuntime } from "../tenant-runtime.js";
-import { openingsData } from "../calendar/availability.js";
+import { linkOfferedOn, openingsData } from "../calendar/availability.js";
 import {
   bookingHeld,
   describeOpenings,
   filterOpenings,
   NO_LINK_DETAILS,
   normalizePhone,
-  offersBookingLink,
   offerFor,
   offerLead,
   type ConsultRules,
   type ServiceLike,
   type ServiceOffer,
 } from "../packages/contracts.js";
-import { voiceDoorAuth } from "./voice-door-auth.js";
+import { refusedOutLoud, voiceDoorAuth } from "./voice-door-auth.js";
 import { logger } from "../log.js";
 
 const CANNOT_SEE =
@@ -48,6 +47,10 @@ const NO_CALENDAR =
  * cannot be offered times is offered a call back, or has their details taken for the team.
  */
 const CANNOT_SEE_NO_LINK = "I can't see the calendar right now. Offer to have someone call back.";
+
+/** Spoken to a knock the door turned away: nothing was read, so only a call back is offered. */
+const KNOCK_REFUSED =
+  "I can't check the calendar just now. Take the caller's name and say someone will call them back.";
 
 const NO_CALENDAR_NO_LINK = `There is no calendar to check. Take ${NO_LINK_DETAILS}, and say the team will follow up.`;
 
@@ -112,9 +115,7 @@ export async function availabilityTool(request: Request): Promise<Response> {
   const raw = await request.text();
   // The third Retell door, guarded like the other two (voice-door-auth.ts): the signature, or the x-fn-secret header
   // while this door still reads one.
-  if (!voiceDoorAuth("availability", request, raw).ok) {
-    return refuse(401, "bad_secret");
-  }
+  if (!voiceDoorAuth("availability", request, raw).ok) return refusedOutLoud("availability", KNOCK_REFUSED);
   let body: {
     call?: { call_id?: string; from_number?: string; agent_id?: string };
     args?: { day?: unknown; service?: unknown };
@@ -131,14 +132,22 @@ export async function availabilityTool(request: Request): Promise<Response> {
   const db = pg();
   const routed = db && call.agent_id ? await resolveChannel(db, "voice", call.agent_id) : null;
   if (!db || !routed) {
+    // Whose business this is is unknown, so nothing it could send is offered: only a call back.
     L.info("retell_availability_unrouted");
-    return json(200, { result: CANNOT_SEE });
+    return json(200, { result: CANNOT_SEE_NO_LINK });
   }
   const rt = await loadTenantRuntime(db, routed);
+  if (rt.loadFailed) {
+    // The workspace could not be read: the diary is unseen, not absent, so it is never told as "no calendar", and
+    // nothing the settings might hold is offered (11 Oct 2026: a blip was told to callers as no calendar).
+    L.info("retell_availability_unavailable", { tenant_id: routed.tenantId, held: false });
+    return json(200, { result: CANNOT_SEE_NO_LINK });
+  }
   // Autonomy -> Booking, by the rule retell-fn.ts sends the link by. A hold changes what follows the times, never
   // whether they are said.
   const held = bookingHeld(rt.policy);
-  const hasBookingLink = offersBookingLink(rt.brain);
+  // The link a call can send: one WhatsApp can carry (linkOfferedOn), never one promised to a workspace without it.
+  const hasBookingLink = linkOfferedOn("call", rt);
   const lane = !hasBookingLink ? "no_link" : held ? "held" : "link";
   if (!rt.calendar?.ical_url) {
     L.info("retell_availability_no_calendar", { tenant_id: routed.tenantId, held });

@@ -58,7 +58,7 @@ what the script writes.
 | [`lead_places`](#lead_places) | `packages/db/src/repositories/leads.ts` | on, 1 policy |
 | [`lead_platform`](#lead_platform) | none | on, no policy, so only the service role reaches it |
 | [`lead_preferences`](#lead_preferences) | none | on, 1 policy |
-| [`lead_rounds`](#lead_rounds) | none | on, 1 policy |
+| [`lead_rounds`](#lead_rounds) | `packages/db/src/repositories/leads.ts` | on, 1 policy |
 | [`lead_runs`](#lead_runs) | none | on, 1 policy |
 | [`lead_search_members`](#lead_search_members) | none | on, 1 policy |
 | [`lead_searches`](#lead_searches) | `packages/db/src/events.ts`, `packages/db/src/repositories/reach-out-sheet.ts` | on, 1 policy |
@@ -69,6 +69,8 @@ what the script writes.
 | [`mailboxes`](#mailboxes) | `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/email.ts` | on, 1 policy |
 | [`memberships`](#memberships) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/notifications.ts` | on, 2 policies |
 | [`messages`](#messages) | `packages/db/src/events.ts`, `packages/db/src/jobs.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notifications.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/routing.ts`, `packages/db/src/repositories/thread.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 3 policies |
+| [`model_prompts`](#model_prompts) | none | on, no policy, so only the service role reaches it |
+| [`model_turns`](#model_turns) | none | on, no policy, so only the service role reaches it |
 | [`notification_marks`](#notification_marks) | none | on, 1 policy |
 | [`notification_reads`](#notification_reads) | none | on, 1 policy |
 | [`notifications`](#notifications) | `packages/db/src/repositories/notifications.ts` | on, 1 policy |
@@ -103,7 +105,8 @@ what the script writes.
 | [`templates`](#templates) | `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/templates.ts` | on, 1 policy |
 | [`tenant_channels`](#tenant_channels) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/routing.ts`, `packages/db/src/sweeps.ts` | on, 1 policy |
 | [`tenant_config`](#tenant_config) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts` | on, 2 policies |
-| [`tenants`](#tenants) | `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 2 policies |
+| [`tenant_config_versions`](#tenant_config_versions) | none | on, no policy, so only the service role reaches it |
+| [`tenants`](#tenants) | `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 2 policies |
 | [`waitlist`](#waitlist) | `packages/db/src/waitlist.ts` | on, no policy, so only the service role reaches it |
 | [`lead_searches_view`](#lead_searches_view) (view) | none | |
 | [`usage_ledger`](#usage_ledger) (view) | none | |
@@ -1374,7 +1377,7 @@ Foreign keys:
 
 The unit of execution and of money: the probe (seq 1), each top-up and each Find new ones. Carries the plan it ran, its reservation and spend, one ending; final once ended (lead_rounds_guard). The search's state is its latest round's.
 
-- Owned by: none
+- Owned by: `packages/db/src/repositories/leads.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -1533,7 +1536,7 @@ Foreign keys:
 
 ### lead_suggestions
 
-The three or four kinds of business worth reaching, written from the workspace's business line (§8.9). One row per workspace; by_owner says the line is the owner's own words, not the workspace's name and services. The service writes it; members read it.
+The ideas for a new search (§8.9), each a ready plan, written from the workspace's business line and what its searches found (00398). One row per workspace; by_owner says the line is the owner's own words. The service writes it; members read it.
 
 - Owned by: none
 - Primary key: `tenant_id`
@@ -1546,6 +1549,10 @@ The three or four kinds of business worth reaching, written from the workspace's
 | `by_owner` | boolean | no | `false` |  |
 | `items` | jsonb | no | `'[]'::jsonb` |  |
 | `made_at` | timestamp with time zone | no | `now()` |  |
+| `basis` | text | yes |  | What the ideas were written over: the end of the workspace's newest ended round when they were written, so a round that ends since asks for new ones (server/leads/lead-suggestions.ts). Null on ideas written before 00398, which are asked for again. |
+| `making_at` | timestamp with time zone | yes |  | When a read claimed the writing of new ideas (lead_suggestions_claim); cleared when they are kept or fail. A claim older than two minutes is taken over. |
+| `failed_at` | timestamp with time zone | yes |  | When the model last would not write them: the next reads say so for a few minutes rather than ask again. |
+| `passed` | jsonb | no | `'[]'::jsonb` | Ideas offered before and not started since, as [{key, place, label, times}] (contracts ideaPassed, 00399): offered twice and not started is a no, and not offered again. |
 
 Foreign keys:
 
@@ -1812,6 +1819,51 @@ Foreign keys:
 | `messages_acting_member_insert` | insert | authenticated |  | `(is_acting_member(tenant_id) AND (direction = 'outbound'::text) AND (sender = 'human'::text) AND (sent_by = auth.uid()) AND (status = 'queued'::text) AND (medi…` |
 | `messages_acting_member_update` | update | authenticated | `(is_acting_member(tenant_id) AND (status = 'queued'::text) AND (sending_at IS NULL))` | `(is_acting_member(tenant_id) AND (status = 'canceled'::text))` |
 | `messages_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### model_prompts
+
+The text of a system prompt the receptionist was given, once per workspace and hash (decision 0039): what a reply's meta.prompt_hash, and its row of ai_usage, open. The business's facts, nothing of a person. Written by model_turn_keep alone; no session reads it. Kept while a turn reads it and RETENTION_DAYS.model_prompts after (purge_model_prompts).
+
+- Owned by: none
+- Primary key: `tenant_id`, `prompt_hash`
+- Row-level security: on, no policy, so only the service role reaches it
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `tenant_id` | uuid | no |  |  |
+| `prompt_hash` | text | no |  |  |
+| `text` | text | no |  |  |
+| `first_seen_at` | timestamp with time zone | no | `now()` |  |
+| `last_seen_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+### model_turns
+
+One receptionist turn about one conversation, as the model read it beside its prompt, and what it answered (decision 0039). Holds the person's words and the team's notes about them: it goes with its conversation, with an erasure of anyone it names (model_turns_scrub), and after RETENTION_DAYS.model_turns (purge_model_turns). A reply names its turn in meta.turn_id. Written by model_turn_keep alone; no session reads it.
+
+- Owned by: none
+- Primary key: `id`
+- Row-level security: on, no policy, so only the service role reaches it
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no |  |  |
+| `tenant_id` | uuid | no |  |  |
+| `conversation_id` | uuid | no |  |  |
+| `prompt_hash` | text | no |  |  |
+| `request` | jsonb | no |  |  |
+| `response` | jsonb | yes |  |  |
+| `model` | text | yes |  |  |
+| `latency_ms` | integer | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id`, `conversation_id` → [`conversations`](#conversations) (`tenant_id`, `id`), on delete cascade
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 ### notification_marks
 
@@ -2831,9 +2883,31 @@ Foreign keys:
 | `tenant_config_owner_read` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE ((m.user_id = auth.uid()) AND (m.role = 'owner'::text))))` |  |
 | `tenant_config_owner_update` | update | authenticated | `caller_has_permission(tenant_id, 'settings'::text)` | `caller_has_permission(tenant_id, 'settings'::text)` |
 
+### tenant_config_versions
+
+A workspace's settings as they stood at each version (decision 0039, step 3): what a reply's meta.config_version opens. Written by the trigger on tenant_config alone, in the save's own transaction; no session reads it. A version is kept while it is in force and RETENTION_DAYS.tenant_config_versions after it is replaced (purge_config_versions).
+
+- Owned by: none
+- Primary key: `tenant_id`, `version`
+- Row-level security: on, no policy, so only the service role reaches it
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `tenant_id` | uuid | no |  |  |
+| `version` | integer | no |  |  |
+| `config` | jsonb | no |  |  |
+| `changed_at` | timestamp with time zone | no | `now()` |  |
+| `changed_by` | uuid | yes |  |  |
+| `replaced_at` | timestamp with time zone | yes |  |  |
+
+Foreign keys:
+
+- `changed_by` → `auth.users` (`id`), on delete set null
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
 ### tenants
 
-- Owned by: `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts`
+- Owned by: `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 

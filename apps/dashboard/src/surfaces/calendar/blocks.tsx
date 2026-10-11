@@ -6,6 +6,7 @@
 import { useLayoutEffect, useRef } from "react";
 import type { CSSProperties } from "react";
 import type { CalendarBlockVM, CalendarServiceVM, CalendarVM, CalendarWindowVM } from "@chanlytics/contracts";
+import { VISIT_WORDS } from "@chanlytics/contracts";
 import { AgendaItem, AgendaItems, AgendaOpen } from "../kit/agenda/agenda";
 import { EmptyState } from "../kit/empty/empty";
 import { calendar } from "./verbs";
@@ -38,6 +39,14 @@ function phaseOf(b: CalendarBlockVM, d: CalendarFrame, now: number | null): stri
   return soonest && soonest.id === b.id ? "next" : "later";
 }
 
+/** What a member said became of a visit (decision 0002 step 8), in the board's word for it; null while it stands. */
+function saidOf(b: CalendarBlockVM): { status: "kept" | "missed" | "cancelled"; word: string } | null {
+  const status = b.visit?.status;
+  return status === "kept" || status === "missed" || status === "cancelled"
+    ? { status, word: VISIT_WORDS[status] }
+    : null;
+}
+
 /** One taken block from the feed. Neutral, never an agent's colour: the calendar did not say who booked it, only that the time is taken. */
 function CrBlock({
   b,
@@ -65,17 +74,21 @@ function CrBlock({
           right: "auto",
         }
       : {};
+  // What a member said became of it (0002 step 8), said quietly: the word beside the time, and a cancelled one struck.
+  const said = saidOf(b)?.status ?? null;
+  const saidWord = saidOf(b)?.word ?? null;
   return (
     <button
       className="cal-appt feed"
       style={{ top: ofHours(from), height: `max(22px, ${ofHours(span)} - 2px)`, ...laned }}
       onClick={() => onOpen(b)}
-      title={`${b.title} · ${b.time}${b.tool ? ` · ${b.tool}` : ""}`}
-      aria-label={`${b.title}, ${b.time}, ${dayLong}${b.tool ? `, booked through ${b.tool}` : ""}`}
+      title={`${b.title} · ${b.time}${b.tool ? ` · ${b.tool}` : ""}${saidWord ? ` · ${saidWord}` : ""}`}
+      aria-label={`${b.title}, ${b.time}, ${dayLong}${b.tool ? `, booked through ${b.tool}` : ""}${saidWord ? `, ${saidWord.toLowerCase()}` : ""}`}
       data-testid="cal-block"
       data-phase={phase}
       data-lane={b.lanes > 1 ? `${b.lane + 1}/${b.lanes}` : undefined}
       data-tool={b.tool ?? undefined}
+      data-visit={said ?? undefined}
     >
       <span className="cal-appt-line1">
         <span className="cal-appt-who">{b.title}</span>
@@ -85,6 +98,7 @@ function CrBlock({
         {b.time}
         {wide && b.person ? ` · ${b.person.name}` : ""}
         {b.tool ? ` · ${b.tool}` : ""}
+        {saidWord ? ` · ${saidWord}` : ""}
       </span>
     </button>
   );
@@ -141,17 +155,22 @@ function dayHead(p: {
           Closed{d.closed.note ? ` · ${d.closed.note}` : ""}
         </span>
       )}
-      {d.allDay.map((b) => (
-        <button
-          key={b.id}
-          className="cal-allday"
-          onClick={() => onOpen(b)}
-          title={b.title}
-          aria-label={`${b.title}, all day, ${d.long}`}
-        >
-          {b.title}
-        </button>
-      ))}
+      {d.allDay.map((b) => {
+        const said = saidOf(b);
+        return (
+          <button
+            key={b.id}
+            className="cal-allday"
+            onClick={() => onOpen(b)}
+            title={said ? `${b.title} · ${said.word}` : b.title}
+            aria-label={`${b.title}, all day, ${d.long}${said ? `, ${said.word.toLowerCase()}` : ""}`}
+            data-visit={said?.status}
+          >
+            {b.title}
+            {said ? ` · ${said.word}` : ""}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -296,7 +315,8 @@ function monthCell(p: {
   onDay: (key: string) => void;
 }) {
   const { d, monthKey, feedOk, fit, onDay } = p;
-  const taken = d.blocks.length + d.allDay.length;
+  // A visit said cancelled is no time taken, whatever the calendar still holds.
+  const taken = [...d.blocks, ...d.allDay].filter((b) => saidOf(b)?.status !== "cancelled").length;
   const open = d.windows.filter(fit).length;
   const inMonth = d.key.slice(0, 7) === monthKey;
   return (
@@ -423,7 +443,7 @@ function agendaDay(p: {
               key={b.id}
               time={allDay ? "All day" : calendar.clockLabel(b.t)}
               name={b.person ? b.person.name : b.service}
-              service={[b.person ? b.service : null, b.tool].filter(Boolean).join(" · ") || null}
+              service={[b.person ? b.service : null, b.tool, saidOf(b)?.word].filter(Boolean).join(" · ") || null}
               dur={allDay ? null : calendar.durationLabel(b.dur)}
               onOpen={() => onOpen(b)}
               hint={b.time}

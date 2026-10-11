@@ -286,6 +286,21 @@ begin
       returning id into v_id;
       v_change := 'added';
       v_added := v_added + 1;
+    elsif v_row.status in ('kept', 'missed', 'cancelled') and v_row.starts_at is distinct from v_in.starts_at then
+      -- A person's word was about the visit at its old time (00397): the event moved since is a new visit. The marked
+      -- row is set aside under the key and its old start, gone from the feed as it stood, and a fresh one is booked.
+      update appointments
+         set external_id = left(v_row.external_id, 512) || '@' || extract(epoch from v_row.starts_at)::bigint::text,
+             vanished_at = coalesce(vanished_at, v_now)
+       where id = v_row.id;
+      insert into appointments (tenant_id, contact_id, source, external_id, status, starts_at, ends_at, all_day,
+                                service, consultation, timezone)
+      values (p_tenant_id, v_contact, 'calendar_feed', v_in.external_id, 'booked', v_in.starts_at, v_in.ends_at,
+              coalesce(v_in.all_day, false), left(nullif(btrim(v_in.service), ''), 200),
+              coalesce(v_in.consultation, false), v_tz)
+      returning id into v_id;
+      v_change := 'moved';
+      v_moved := v_moved + 1;
     else
       v_id := v_row.id;
       if v_row.vanished_at is not null then
@@ -350,12 +365,21 @@ CREATE FUNCTION public.appointments_guard() RETURNS trigger
     AS $$
 begin
   if NEW.status is distinct from OLD.status then
+    -- A person's correction of their own word, through mark_visit alone: kept and missed may trade places.
+    if OLD.status in ('kept', 'missed') and NEW.status in ('kept', 'missed')
+       and current_setting('chanlytics.visit_correction', true) = 'on' then
+      return NEW;
+    end if;
     if OLD.status in ('kept', 'missed', 'cancelled') then
       raise exception 'appointments.status is terminal (% -> % refused)', OLD.status, NEW.status
         using errcode = 'check_violation';
     end if;
     if OLD.status = 'proposed' and NEW.status not in ('booked', 'cancelled') then
       raise exception 'a proposed appointment may only be booked or cancelled (% refused)', NEW.status
+        using errcode = 'check_violation';
+    end if;
+    if OLD.status = 'booked' and NEW.status = 'proposed' then
+      raise exception 'a booked appointment is not proposed again (booked -> proposed refused)'
         using errcode = 'check_violation';
     end if;
   end if;
@@ -380,6 +404,8 @@ begin
     v_change := 'cancelled';
   elsif old.status = 'proposed' and new.status = 'booked' then
     v_change := 'confirmed';
+  elsif new.status in ('kept', 'missed') and old.status is distinct from new.status then
+    v_change := new.status;
   elsif new.starts_at is distinct from old.starts_at then
     v_change := 'moved';
   else
@@ -396,7 +422,7 @@ end $$;
 -- Name: FUNCTION appointments_note_change(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.appointments_note_change() IS 'appointment.changed {change, source, starts_at} for each write of an appointment''s status or start the feed''s door did not make (00389), in the same transaction: added, confirmed, cancelled or moved, and nothing for a write that changes none of those. The feed''s door writes its own (00348).';
+COMMENT ON FUNCTION public.appointments_note_change() IS 'appointment.changed {change, source, starts_at} in the same transaction as the write (00389, 00397): added, confirmed, cancelled, kept, missed or moved, and nothing for a write that changes none of those. On a feed''s row only a moved status is said (appointments_note_status): the feed''s door writes its own events (00348) and never moves a status, so that is a person''s word.';
 
 
 --
@@ -7339,6 +7365,61 @@ COMMENT ON FUNCTION public.lead_reserve(p_tenant_id uuid, p_month text, p_day te
 
 
 --
+-- Name: lead_round_adds_to_its_kind(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_round_adds_to_its_kind() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_kind    text;
+  v_places  integer;
+  v_matched integer;
+  v_email   integer;
+begin
+  begin
+    v_kind := coalesce(new.plan->>'category_key',
+                       (select s.plan->>'category_key' from public.lead_searches s where s.id = new.search_id));
+    if v_kind is null or v_kind !~ '^[a-z][a-z0-9_]{1,39}$' then
+      return null;
+    end if;
+    -- What the round judged: every place but one the owner took out afterwards, how many qualified, and how many of
+    -- those have an email (leadReachLine reads with_email over matched).
+    select count(*) filter (where m.excluded_by is distinct from 'owner'),
+           count(*) filter (where m.class = 'qualified'),
+           count(*) filter (where m.class = 'qualified' and l.email is not null)
+      into v_places, v_matched, v_email
+      from public.lead_search_members m
+      left join public.leads l on l.id = m.lead_id
+     where m.round_id = new.id;
+    if coalesce(v_places, 0) = 0 then
+      return null;
+    end if;
+    insert into public.lead_niche_priors as n (category_key, places, matched, with_email, updated_at)
+    values (v_kind, v_places, v_matched, v_email, now())
+    on conflict (category_key) do update
+       set places     = n.places + excluded.places,
+           matched    = n.matched + excluded.matched,
+           with_email = n.with_email + excluded.with_email,
+           updated_at = now();
+  exception when others then
+    -- A count is never worth a round that cannot end.
+    return null;
+  end;
+  return null;
+end;
+$_$;
+
+
+--
+-- Name: FUNCTION lead_round_adds_to_its_kind(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_round_adds_to_its_kind() IS 'A round that ends adds what it judged to its kind''s platform-wide counts (lead_niche_priors), by its plan''s category_key (00398). Its caller''s rights (00400): the service, or a door of its own. Aggregates only. Never raises.';
+
+
+--
 -- Name: lead_round_answer(uuid, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -8884,6 +8965,270 @@ COMMENT ON FUNCTION public.lead_spend_refusal(p_tenant_id uuid) IS 'Null when th
 
 
 --
+-- Name: lead_suggest_history(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_suggest_history(p_tenant_id uuid) RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  with s as (
+    -- The searches the finder ran (a list brought in is not a kind searched for), newest first.
+    select s.id, s.plan, s.created_at, s.removed_at
+      from public.lead_searches s
+     where s.tenant_id = p_tenant_id
+       and s.via in ('people', 'ask')
+       and s.created_at > now() - interval '180 days'
+     order by s.created_at desc
+     limit 24
+  ),
+  r as (
+    -- Each search's newest round: how it ended, and the areas beside it Claude named.
+    select x.search_id, x.rounds, x.state, x.ending, x.ended_at, x.nearby
+      from (
+        select r.search_id, r.state, r.ending, r.ended_at, r.nearby,
+               count(*) over (partition by r.search_id) as rounds,
+               row_number() over (partition by r.search_id order by r.seq desc) as n
+          from public.lead_rounds r
+          join s on s.id = r.search_id
+         where r.tenant_id = p_tenant_id
+      ) x
+     where x.n = 1
+  ),
+  m as (
+    select m.search_id,
+           count(*) filter (where m.class = 'qualified') as qualified,
+           count(*) filter (where m.class = 'review') as review,
+           count(*) filter (where m.class = 'excluded') as excluded
+      from public.lead_search_members m
+      join s on s.id = m.search_id
+     where m.tenant_id = p_tenant_id
+     group by m.search_id
+  ),
+  x as (
+    -- Why places were left out, by the key that left them out: the kind, no way to reach them, the owner, or one of the
+    -- plan's own exclusions and criteria (contracts class.ts).
+    select y.search_id, jsonb_object_agg(y.excluded_by, y.n) as by_key
+      from (
+        select m.search_id, m.excluded_by, count(*) as n
+          from public.lead_search_members m
+          join s on s.id = m.search_id
+         where m.tenant_id = p_tenant_id and m.class = 'excluded' and m.excluded_by is not null
+         group by m.search_id, m.excluded_by
+      ) y
+     group by y.search_id
+  ),
+  kept as (
+    select distinct m.search_id, m.lead_id
+      from public.lead_search_members m
+      join s on s.id = m.search_id
+     where m.tenant_id = p_tenant_id and m.class <> 'excluded'
+  ),
+  l as (
+    -- What came of the leads each search kept, and when one was last contacted. A lead in two searches counts in each.
+    select k.search_id,
+           count(*) filter (where l.contacted_at is not null) as contacted,
+           count(*) filter (where l.last_outcome = 'interested') as interested,
+           count(*) filter (where l.booked_at is not null) as booked,
+           count(*) filter (where l.stage = 'converted') as customers,
+           count(*) filter (where l.closed_reason = 'said_no') as said_no,
+           count(*) filter (where l.closed_reason = 'not_a_fit') as not_a_fit,
+           count(*) filter (where l.closed_reason = 'stale') as stale,
+           count(*) filter (where l.email is not null) as with_email,
+           count(*) filter (where l.phone_e164 is not null) as with_phone,
+           max(l.contacted_at) as last_contacted_at
+      from kept k
+      join public.leads l on l.id = k.lead_id and l.tenant_id = p_tenant_id
+     where l.erased_at is null
+     group by k.search_id
+  ),
+  w as (
+    -- Why a lead was not a fit, as the owner said it (lead.not_a_fit: chain, wrong_kind, too_far, customer, other).
+    select y.search_id, jsonb_object_agg(y.why, y.n) as by_why
+      from (
+        select k.search_id, e.data->>'why' as why, count(distinct e.subject_id) as n
+          from kept k
+          join public.events e on e.subject_id = k.lead_id
+         where e.tenant_id = p_tenant_id and e.kind = 'lead.not_a_fit' and e.data->>'why' is not null
+         group by k.search_id, e.data->>'why'
+      ) y
+     group by y.search_id
+  ),
+  ro as (
+    -- The reach-out to its leads: how many were emailed, and when the last email went.
+    select k.search_id, count(distinct o.lead_id) as sent, max(o.sent_at) as last_sent_at
+      from kept k
+      join public.reach_out_sends o on o.lead_id = k.lead_id and o.tenant_id = p_tenant_id
+     where o.state = 'sent'
+     group by k.search_id
+  ),
+  rr as (
+    -- Replies a person wrote (not an out-of-office or a machine), by what they meant; an undone reading is not one.
+    select k.search_id,
+           count(distinct p.lead_id) as replied,
+           count(distinct p.lead_id) filter (where p.intent = 'interested') as interested,
+           count(distinct p.lead_id) filter (where p.intent in ('no', 'wrong_person')) as declined
+      from kept k
+      join public.reach_out_replies p on p.lead_id = k.lead_id and p.tenant_id = p_tenant_id
+     where p.undone_at is null and p.claim = 'person'
+     group by k.search_id
+  ),
+  d as (
+    select k.search_id, count(*) as won, coalesce(sum(d.amount_cents), 0) as cents
+      from kept k
+      join public.deals d on d.lead_id = k.lead_id and d.tenant_id = p_tenant_id
+     where d.stage = 'won'
+     group by k.search_id
+  )
+  select jsonb_build_object(
+    'basis', (select max(r2.ended_at) from public.lead_rounds r2 where r2.tenant_id = p_tenant_id and r2.state = 'ended'),
+    'home', (select jsonb_build_object('city', b.city, 'region', b.region, 'zip', b.postal_code)
+               from public.business_records b where b.tenant_id = p_tenant_id),
+    'listing', (select jsonb_build_object('address', g.address, 'type', g.facts->>'primary_type')
+                  from public.google_listings g
+                 where g.tenant_id = p_tenant_id
+                 order by g.linked_at desc
+                 limit 1),
+    'searches', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'kind', s.plan->>'category_key',
+               'name', s.plan->>'name',
+               'terms', coalesce(s.plan->'terms', '[]'::jsonb),
+               'area', s.plan->'area',
+               'count', s.plan->'count',
+               'contact', s.plan->>'contact',
+               'criteria', coalesce(s.plan->'criteria', '[]'::jsonb),
+               'exclusions', coalesce(s.plan->'exclusions', '[]'::jsonb),
+               'from_idea', s.plan->>'from' = 'idea',
+               'at', s.created_at,
+               'removed', s.removed_at is not null,
+               'rounds', coalesce(r.rounds, 0),
+               'state', r.state,
+               'ending', r.ending,
+               'ended_at', r.ended_at,
+               'nearby', coalesce(r.nearby, '[]'::jsonb),
+               'found', jsonb_build_object('qualified', coalesce(m.qualified, 0), 'review', coalesce(m.review, 0),
+                                           'excluded', coalesce(m.excluded, 0)),
+               'left_out', coalesce(x.by_key, '{}'::jsonb),
+               'leads', jsonb_build_object('contacted', coalesce(l.contacted, 0), 'interested', coalesce(l.interested, 0),
+                                           'booked', coalesce(l.booked, 0), 'customers', coalesce(l.customers, 0),
+                                           'said_no', coalesce(l.said_no, 0), 'not_a_fit', coalesce(l.not_a_fit, 0),
+                                           'stale', coalesce(l.stale, 0), 'with_email', coalesce(l.with_email, 0),
+                                           'with_phone', coalesce(l.with_phone, 0),
+                                           'last_contacted_at', l.last_contacted_at),
+               'not_a_fit_why', coalesce(w.by_why, '{}'::jsonb),
+               'reach', jsonb_build_object('sent', coalesce(ro.sent, 0), 'replied', coalesce(rr.replied, 0),
+                                           'interested', coalesce(rr.interested, 0), 'declined', coalesce(rr.declined, 0),
+                                           'last_sent_at', ro.last_sent_at),
+               'won', jsonb_build_object('deals', coalesce(d.won, 0), 'cents', coalesce(d.cents, 0))
+             ) order by s.created_at desc)
+        from s
+        left join r on r.search_id = s.id
+        left join m on m.search_id = s.id
+        left join x on x.search_id = s.id
+        left join l on l.search_id = s.id
+        left join w on w.search_id = s.id
+        left join ro on ro.search_id = s.id
+        left join rr on rr.search_id = s.id
+        left join d on d.search_id = s.id
+    ), '[]'::jsonb)
+  );
+$$;
+
+
+--
+-- Name: FUNCTION lead_suggest_history(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_suggest_history(p_tenant_id uuid) IS 'What a workspace''s finder searches of the last 180 days asked for and found, and what came of the leads each kept (contacted and when last, interested, booked, customers, said no, not a fit and why, reach-out sent and when last, replied, deals won), whether each was started from an idea, with where the workspace is: the ideas for a new search are written from it (00398, 00399). Counts, moments and the plan''s own words only; never a business''s name, a person, a reply''s words or a judgment''s reasons. The service''s alone: the route checks the member may find.';
+
+
+--
+-- Name: lead_suggestions_write(uuid, text, timestamp with time zone, text, boolean, jsonb, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_suggestions_write(p_tenant_id uuid, p_act text, p_claim timestamp with time zone DEFAULT NULL::timestamp with time zone, p_line text DEFAULT NULL::text, p_by_owner boolean DEFAULT false, p_items jsonb DEFAULT '[]'::jsonb, p_basis text DEFAULT NULL::text, p_passed jsonb DEFAULT '[]'::jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_line    text := left(btrim(coalesce(p_line, '')), 160);
+  v_claimed timestamptz;
+  v_done    boolean;
+begin
+  if p_act = 'claim' then
+    -- The claim on writing: this read's own moment, or null while another read's claim is under two minutes old. A
+    -- workspace with no row gets one, with the line and no ideas.
+    if char_length(v_line) < 3 then
+      v_line := 'this business';
+    end if;
+    insert into public.lead_suggestions as k (tenant_id, business_line, by_owner, items, made_at, making_at)
+    values (p_tenant_id, v_line, false, '[]'::jsonb, now(), clock_timestamp())
+    on conflict (tenant_id) do update set making_at = clock_timestamp()
+     where k.making_at is null or k.making_at < now() - interval '2 minutes'
+    returning k.making_at into v_claimed;
+    return jsonb_build_object('claim', v_claimed);
+  elsif p_act = 'keep' then
+    -- Kept while the claim stands: false when it was let go meanwhile (the owner saved a line, or a slower write was
+    -- taken over), and nothing is written.
+    update public.lead_suggestions k
+       set business_line = v_line,
+           by_owner      = coalesce(p_by_owner, false),
+           items         = coalesce(p_items, '[]'::jsonb),
+           basis         = left(p_basis, 80),
+           passed        = coalesce(p_passed, '[]'::jsonb),
+           made_at       = now(),
+           making_at     = null,
+           failed_at     = null
+     where k.tenant_id = p_tenant_id
+       and p_claim is not null
+       and k.making_at = p_claim
+       and char_length(v_line) >= 3
+    returning true into v_done;
+    if coalesce(v_done, false) then
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (p_tenant_id, 'lead.ideas_written', 'lead', 'lead_search', null,
+              jsonb_build_object('how', 'written', 'count', jsonb_array_length(coalesce(p_items, '[]'::jsonb)),
+                                 'by_owner', coalesce(p_by_owner, false)));
+    end if;
+    return jsonb_build_object('kept', coalesce(v_done, false));
+  elsif p_act = 'fail' then
+    -- The model would not write them under this claim: the claim let go and the failure kept, so the next reads say so
+    -- for a while rather than ask again. A claim since taken over is left alone.
+    update public.lead_suggestions k
+       set failed_at = now(), making_at = null
+     where k.tenant_id = p_tenant_id and p_claim is not null and k.making_at = p_claim
+    returning true into v_done;
+    return jsonb_build_object('failed', coalesce(v_done, false));
+  elsif p_act = 'line' then
+    -- The owner's own words: kept with no ideas and no basis, so the next read asks again, and nothing passed on, since
+    -- what was passed on was another line's. The owner's word clears any claim: a write in flight finds its claim gone.
+    if char_length(v_line) < 3 then
+      raise exception 'a business line is at least three characters' using errcode = '22023';
+    end if;
+    insert into public.lead_suggestions as k (tenant_id, business_line, by_owner, items, basis, passed, made_at, making_at, failed_at)
+    values (p_tenant_id, v_line, true, '[]'::jsonb, null, '[]'::jsonb, now(), null, null)
+    on conflict (tenant_id) do update
+       set business_line = excluded.business_line, by_owner = true, items = '[]'::jsonb, basis = null,
+           passed = '[]'::jsonb, made_at = now(), making_at = null, failed_at = null;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'lead.ideas_written', 'lead', 'lead_search', null,
+            jsonb_build_object('how', 'line', 'count', 0, 'by_owner', true));
+    return jsonb_build_object('saved', true);
+  end if;
+  raise exception 'act is claim, keep, fail or line' using errcode = '22023';
+end;
+$$;
+
+
+--
+-- Name: FUNCTION lead_suggestions_write(p_tenant_id uuid, p_act text, p_claim timestamp with time zone, p_line text, p_by_owner boolean, p_items jsonb, p_basis text, p_passed jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_suggestions_write(p_tenant_id uuid, p_act text, p_claim timestamp with time zone, p_line text, p_by_owner boolean, p_items jsonb, p_basis text, p_passed jsonb) IS 'The one writer of lead_suggestions (00400), by act: claim ({claim}: this read''s moment, or null while another''s stands), keep ({kept}: only while p_claim stands), fail ({failed}: the claim let go and the failure kept), line ({saved}: the owner''s own words, which clear any claim). A keep and a line write lead.ideas_written. The service''s alone.';
+
+
+--
 -- Name: lead_suppression_hash(uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -9458,6 +9803,77 @@ CREATE FUNCTION public.mark_processed(p_tenant_id uuid, p_message_id uuid) RETUR
      set meta = meta || jsonb_build_object('processed_at', now())
    where id = p_message_id and tenant_id = p_tenant_id;
 $$;
+
+
+--
+-- Name: mark_visit(uuid, text, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.mark_visit(p_appointment_id uuid, p_status text, p_via text DEFAULT NULL::text, p_undo_of uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+  v_row   public.appointments%rowtype;
+begin
+  -- The caller is auth.uid(), read here, never a parameter (00021's rule): the word is theirs.
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_status is null or p_status not in ('kept', 'missed', 'cancelled') then
+    raise exception 'mark_visit: kept, missed or cancelled (% refused)', p_status using errcode = '22023';
+  end if;
+  select * into v_row from public.appointments where id = p_appointment_id for update;
+  -- One the caller does not act in is one they cannot see: a stranger learns nothing.
+  if not found or not public.is_acting_member(v_row.tenant_id) then
+    raise exception 'Appointment not found.' using errcode = 'P0002';
+  end if;
+  if v_row.status = p_status then
+    return jsonb_build_object('appointment', jsonb_build_object('id', v_row.id, 'status', v_row.status),
+                              'from', v_row.status, 'unchanged', true);
+  end if;
+  if p_status in ('kept', 'missed') then
+    if v_row.status = 'proposed' then
+      return jsonb_build_object('error', 'never_booked');
+    end if;
+    if v_row.status = 'cancelled' then
+      return jsonb_build_object('error', 'cancelled');
+    end if;
+    if v_row.starts_at > now() then
+      return jsonb_build_object('error', 'not_begun');
+    end if;
+  else
+    if v_row.status = 'cancelled' then
+      return jsonb_build_object('error', 'cancelled');
+    end if;
+    if v_row.status in ('kept', 'missed') then
+      return jsonb_build_object('error', 'already_said');
+    end if;
+    if v_row.ends_at <= now() then
+      return jsonb_build_object('error', 'over');
+    end if;
+  end if;
+  -- Kept and missed trade places only here: the guard reads this for the transaction, and nothing else raises it.
+  if v_row.status in ('kept', 'missed') then
+    perform set_config('chanlytics.visit_correction', 'on', true);
+  end if;
+  update public.appointments set status = p_status where id = v_row.id;
+  perform set_config('chanlytics.visit_correction', 'off', true);
+  return jsonb_build_object('appointment', jsonb_build_object('id', v_row.id, 'status', p_status),
+                            'from', v_row.status)
+      || public.team_decision(v_row.tenant_id, v_actor, 'appointment', v_row.id, 'mark_visit',
+                              jsonb_build_object('from', v_row.status, 'to', p_status, 'source', v_row.source,
+                                                 'starts_at', v_row.starts_at, 'contact_id', v_row.contact_id),
+                              p_via, p_undo_of);
+end $$;
+
+
+--
+-- Name: FUNCTION mark_visit(p_appointment_id uuid, p_status text, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.mark_visit(p_appointment_id uuid, p_status text, p_via text, p_undo_of uuid) IS 'A member says what became of a visit (00397, decision 0002 step 8): kept or missed once it has begun, cancelled until it has ended, kept and missed correctable one into the other, every other end final; the mark_visit decision as theirs in the same transaction, and appointment.changed by the triggers. A refusal is answered as {error}: never_booked, cancelled, not_begun, already_said or over. Returns the appointment''s id and status, from, and the decision''s id.';
 
 
 --
@@ -10625,6 +11041,79 @@ CREATE FUNCTION public.mint_reply_token() RETURNS text
   select string_agg(substr('abcdefghijklmnopqrstuvwxyz234567', 1 + (get_byte(r.b, g.i) % 32), 1), '' order by g.i)
     from (select gen_random_bytes(24) as b) r, generate_series(0, 23) as g(i);
 $$;
+
+
+--
+-- Name: model_turn_keep(uuid, uuid, uuid, text, text, jsonb, jsonb, text, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.model_turn_keep(p_tenant_id uuid, p_turn_id uuid, p_conversation_id uuid, p_prompt_hash text, p_prompt_text text, p_request jsonb, p_response jsonb DEFAULT NULL::jsonb, p_model text DEFAULT NULL::text, p_latency_ms integer DEFAULT NULL::integer) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  -- The prompt first, so a turn never names a text that is not kept. Seen again, only its clock moves, and at most
+  -- once a day: the keep is counted in days, and a row every reply rewrote would be a dead row a reply. The text under
+  -- a hash is the text, and a second writer's copy is the same one.
+  insert into public.model_prompts (tenant_id, prompt_hash, text)
+  values (p_tenant_id, p_prompt_hash, p_prompt_text)
+  on conflict (tenant_id, prompt_hash) do update set last_seen_at = now()
+    where public.model_prompts.last_seen_at < now() - interval '1 day';
+
+  -- The same turn written twice (a retried call) is the turn it already is.
+  insert into public.model_turns (id, tenant_id, conversation_id, prompt_hash, request, response, model, latency_ms)
+  values (p_turn_id, p_tenant_id, p_conversation_id, p_prompt_hash, p_request, p_response, p_model, p_latency_ms)
+  on conflict (id) do nothing;
+end $$;
+
+
+--
+-- Name: FUNCTION model_turn_keep(p_tenant_id uuid, p_turn_id uuid, p_conversation_id uuid, p_prompt_hash text, p_prompt_text text, p_request jsonb, p_response jsonb, p_model text, p_latency_ms integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.model_turn_keep(p_tenant_id uuid, p_turn_id uuid, p_conversation_id uuid, p_prompt_hash text, p_prompt_text text, p_request jsonb, p_response jsonb, p_model text, p_latency_ms integer) IS 'Keeps one receptionist turn and the prompt it read, together (decision 0039). The model port''s alone (packages/db keepModelTurn), as the service role.';
+
+
+--
+-- Name: model_turns_scrub(uuid, text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.model_turns_scrub(p_tenant_id uuid, p_needles text[]) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_patterns text[];
+  v_n        integer;
+begin
+  if p_tenant_id is null or p_needles is null then
+    return 0;
+  end if;
+  -- One pattern per needle of six characters or more, lower-cased, its LIKE characters escaped (provider_events_scrub's
+  -- rule, 00336): a turn is read once, as text, against them all.
+  select array_agg(distinct '%' || replace(replace(replace(lower(n.needle), '\', '\\'), '%', '\%'), '_', '\_') || '%')
+    into v_patterns
+    from unnest(p_needles) as n(needle)
+   where length(n.needle) >= 6;
+  if v_patterns is null then
+    return 0;
+  end if;
+  -- The person's own turns went with their conversation. These are anyone else's in the workspace that quoted them:
+  -- a note about another customer that named this one, a thread that spelled their number. The whole turn goes; it is
+  -- evidence with a month to live, and half of one proves nothing.
+  delete from public.model_turns t
+   where t.tenant_id = p_tenant_id
+     and (lower(t.request::text) like any (v_patterns) or lower(coalesce(t.response::text, '')) like any (v_patterns));
+  get diagnostics v_n = row_count;
+  return v_n;
+end $$;
+
+
+--
+-- Name: FUNCTION model_turns_scrub(p_tenant_id uuid, p_needles text[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.model_turns_scrub(p_tenant_id uuid, p_needles text[]) IS 'An erasure''s hand on the kept turns (decision 0039): the workspace''s turns that name the person by any of the needles (six characters or more; without regard to case; a needle''s own %, _ or backslash is a character) are deleted. Answers how many.';
 
 
 --
@@ -15185,6 +15674,30 @@ COMMENT ON FUNCTION public.purge_ask(p_keep interval) IS 'Drops Ask threads (and
 
 
 --
+-- Name: purge_config_versions(interval); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.purge_config_versions(p_keep interval DEFAULT '400 days'::interval) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    SET lock_timeout TO '3s'
+    AS $$
+declare v_count integer;
+begin
+  delete from public.tenant_config_versions where replaced_at is not null and replaced_at < now() - p_keep;
+  get diagnostics v_count = row_count;
+  return v_count;
+end $$;
+
+
+--
+-- Name: FUNCTION purge_config_versions(p_keep interval); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.purge_config_versions(p_keep interval) IS 'Nightly. Deletes a workspace''s old settings 400 days after they were replaced (contracts RETENTION_DAYS.tenant_config_versions; decision 0039, step 3); the version in force is never taken. Answers how many.';
+
+
+--
 -- Name: purge_cron_history(interval, integer, interval); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -15461,6 +15974,61 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.purge_leads() IS 'Nightly. A lead untouched for 90 days is set aside (archived, stale); set aside and 180 days since it was found, its details are removed (lead_blank); a place a search left out loses its details after 30 days but stays counted as left out. Judgments older than 180 days go. Numbers: contracts'' RETENTION_DAYS.';
+
+
+--
+-- Name: purge_model_prompts(interval); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.purge_model_prompts(p_keep interval DEFAULT '400 days'::interval) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    SET lock_timeout TO '3s'
+    AS $$
+declare v_count integer;
+begin
+  delete from public.model_prompts where last_seen_at < now() - p_keep;
+  get diagnostics v_count = row_count;
+  return v_count;
+end $$;
+
+
+--
+-- Name: FUNCTION purge_model_prompts(p_keep interval); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.purge_model_prompts(p_keep interval) IS 'Nightly, after purge_model_turns. Deletes the prompts no turn has read for 400 days (contracts RETENTION_DAYS.model_prompts, the usage ledger''s own keep). Answers how many.';
+
+
+--
+-- Name: purge_model_turns(interval); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.purge_model_turns(p_keep interval DEFAULT '30 days'::interval) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    SET lock_timeout TO '3s'
+    AS $$
+declare
+  v_total integer := 0;
+  v_n     integer;
+begin
+  loop
+    delete from public.model_turns t
+     where t.id in (select c.id from public.model_turns c where c.created_at < now() - p_keep limit 1000);
+    get diagnostics v_n = row_count;
+    v_total := v_total + v_n;
+    exit when v_n < 1000;
+  end loop;
+  return v_total;
+end $$;
+
+
+--
+-- Name: FUNCTION purge_model_turns(p_keep interval); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.purge_model_turns(p_keep interval) IS 'Nightly. Deletes the receptionist''s kept turns thirty days after they were taken (contracts RETENTION_DAYS.model_turns; decision 0039), a thousand at a time. Answers how many.';
 
 
 --
@@ -22169,6 +22737,66 @@ COMMENT ON FUNCTION public.tenant_config_read(p_tenant_id uuid) IS 'A member''s 
 
 
 --
+-- Name: tenant_config_version_keep(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.tenant_config_version_keep() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_by uuid;
+begin
+  -- The session's own user where there is one; else the writer's updated_by where this write set it; else nobody.
+  v_by := coalesce(
+    auth.uid(),
+    case when tg_op = 'INSERT' or new.updated_by is distinct from old.updated_by then new.updated_by end
+  );
+  update public.tenant_config_versions
+     set replaced_at = now()
+   where tenant_id = new.tenant_id and replaced_at is null and version <> new.version;
+  insert into public.tenant_config_versions (tenant_id, version, config, changed_by)
+  values (new.tenant_id, new.version, new.config, v_by)
+  on conflict (tenant_id, version) do update
+     set config = excluded.config, changed_at = now(), changed_by = excluded.changed_by, replaced_at = null;
+  return new;
+end $$;
+
+
+--
+-- Name: FUNCTION tenant_config_version_keep(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.tenant_config_version_keep() IS 'After a workspace''s settings take a new version: the settings as they now stand kept under it, who brought them, and the version before marked replaced, in the save''s own transaction (decision 0039, step 3).';
+
+
+--
+-- Name: tenant_config_version_moves(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.tenant_config_version_moves() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+begin
+  if new.config is distinct from old.config and new.version <= old.version then
+    -- A writer that changed the settings and did not move the number, or moved it back.
+    new.version := old.version + 1;
+  elsif new.version < old.version then
+    new.version := old.version;
+  end if;
+  return new;
+end $$;
+
+
+--
+-- Name: FUNCTION tenant_config_version_moves(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.tenant_config_version_moves() IS 'Before a change to a workspace''s settings: a config that changed takes the next version whatever the writer sent, and a version never goes back, so a version names one config (decision 0039, step 3).';
+
+
+--
 -- Name: tenant_config_write(uuid, jsonb, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -22995,7 +23623,7 @@ CREATE TABLE public.ai_usage (
     CONSTRAINT ai_usage_output_tokens_check CHECK ((output_tokens >= 0)),
     CONSTRAINT ai_usage_port_check CHECK ((port = ANY (ARRAY['anthropic'::text, 'typesafe'::text]))),
     CONSTRAINT ai_usage_prompt_hash_check CHECK (((prompt_hash IS NULL) OR (prompt_hash ~ '^[0-9a-f]{16,64}$'::text))),
-    CONSTRAINT ai_usage_purpose_check CHECK ((purpose = ANY (ARRAY['receptionist'::text, 'reply_draft'::text, 'ask'::text, 'lead_json'::text, 'template_draft'::text, 'review_reply'::text, 'lead_judge'::text, 'note_suggest'::text, 'reach_out_check'::text, 'reply_read'::text, 'booking_read'::text]))),
+    CONSTRAINT ai_usage_purpose_check CHECK ((purpose = ANY (ARRAY['receptionist'::text, 'reply_draft'::text, 'ask'::text, 'lead_json'::text, 'template_draft'::text, 'review_reply'::text, 'lead_judge'::text, 'note_suggest'::text, 'reach_out_check'::text, 'reply_read'::text, 'booking_read'::text, 'lead_suggest'::text]))),
     CONSTRAINT ai_usage_shadow_check CHECK (((shadow AND (port <> 'anthropic'::text)) OR ((NOT shadow) AND (question IS NULL) AND (primary_answer IS NULL) AND (shadow_answer IS NULL) AND (shadow_confidence IS NULL) AND (confident IS NULL) AND (agrees IS NULL)))),
     CONSTRAINT ai_usage_shadow_words_check CHECK (((char_length(COALESCE(question, ''::text)) <= 80) AND (char_length(COALESCE(primary_answer, ''::text)) <= 80) AND (char_length(COALESCE(shadow_answer, ''::text)) <= 80) AND ((shadow_confidence IS NULL) OR ((shadow_confidence >= (0)::numeric) AND (shadow_confidence <= (1)::numeric))))),
     CONSTRAINT ai_usage_usd_check CHECK (((usd IS NULL) OR (usd >= (0)::numeric)))
@@ -23753,8 +24381,8 @@ CREATE TABLE public.decisions (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT decisions_actor_type_check CHECK ((actor_type = ANY (ARRAY['user'::text, 'ai'::text, 'system'::text, 'owner_phone'::text]))),
     CONSTRAINT decisions_actor_user_id_check CHECK (((actor_type = 'user'::text) OR (actor_user_id IS NULL))),
-    CONSTRAINT decisions_subject_type_check CHECK ((subject_type = ANY (ARRAY['conversation'::text, 'escalation'::text, 'draft'::text, 'lead'::text, 'message'::text, 'agent'::text, 'membership'::text, 'invitation'::text, 'contact'::text, 'call'::text, 'channel'::text, 'broadcast'::text, 'playbook'::text, 'review'::text, 'workspace'::text, 'deal'::text, 'list'::text]))),
-    CONSTRAINT decisions_verb_check CHECK ((verb = ANY (ARRAY['approve'::text, 'edit'::text, 'decline'::text, 'snooze'::text, 'wake'::text, 'take_over'::text, 'hand_back'::text, 'resolve'::text, 'archive'::text, 'reply'::text, 'cancel_send'::text, 'pause_agent'::text, 'resume_agent'::text, 'invite'::text, 'revoke_invite'::text, 'change_role'::text, 'remove_member'::text, 'erase'::text, 'whisper'::text, 'connect_channel'::text, 'consent_change'::text, 'send_broadcast'::text, 'cancel_broadcast'::text, 'start_playbook'::text, 'pause_playbook'::text, 'reply_review'::text, 'export'::text, 'end_call'::text, 'record_deal'::text, 'make_list'::text, 'rename_list'::text, 'change_list_rule'::text, 'add_to_list'::text, 'drop_from_list'::text, 'archive_list'::text, 'restore_list'::text, 'delete_list'::text, 'import'::text, 'open_recording'::text, 'merge'::text, 'change_playbook'::text])))
+    CONSTRAINT decisions_subject_type_check CHECK ((subject_type = ANY (ARRAY['conversation'::text, 'escalation'::text, 'draft'::text, 'lead'::text, 'message'::text, 'agent'::text, 'membership'::text, 'invitation'::text, 'contact'::text, 'call'::text, 'channel'::text, 'broadcast'::text, 'playbook'::text, 'review'::text, 'workspace'::text, 'deal'::text, 'list'::text, 'appointment'::text]))),
+    CONSTRAINT decisions_verb_check CHECK ((verb = ANY (ARRAY['approve'::text, 'edit'::text, 'decline'::text, 'snooze'::text, 'wake'::text, 'take_over'::text, 'hand_back'::text, 'resolve'::text, 'archive'::text, 'reply'::text, 'cancel_send'::text, 'pause_agent'::text, 'resume_agent'::text, 'invite'::text, 'revoke_invite'::text, 'change_role'::text, 'remove_member'::text, 'erase'::text, 'whisper'::text, 'connect_channel'::text, 'consent_change'::text, 'send_broadcast'::text, 'cancel_broadcast'::text, 'start_playbook'::text, 'pause_playbook'::text, 'reply_review'::text, 'export'::text, 'end_call'::text, 'record_deal'::text, 'make_list'::text, 'rename_list'::text, 'change_list_rule'::text, 'add_to_list'::text, 'drop_from_list'::text, 'archive_list'::text, 'restore_list'::text, 'delete_list'::text, 'import'::text, 'open_recording'::text, 'merge'::text, 'change_playbook'::text, 'mark_visit'::text])))
 );
 
 
@@ -24764,6 +25392,11 @@ CREATE TABLE public.lead_suggestions (
     by_owner boolean DEFAULT false NOT NULL,
     items jsonb DEFAULT '[]'::jsonb NOT NULL,
     made_at timestamp with time zone DEFAULT now() NOT NULL,
+    basis text,
+    making_at timestamp with time zone,
+    failed_at timestamp with time zone,
+    passed jsonb DEFAULT '[]'::jsonb NOT NULL,
+    CONSTRAINT lead_suggestions_basis_check CHECK ((char_length(basis) <= 80)),
     CONSTRAINT lead_suggestions_business_line_check CHECK (((char_length(business_line) >= 3) AND (char_length(business_line) <= 160)))
 );
 
@@ -24772,7 +25405,35 @@ CREATE TABLE public.lead_suggestions (
 -- Name: TABLE lead_suggestions; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.lead_suggestions IS 'The three or four kinds of business worth reaching, written from the workspace''s business line (§8.9). One row per workspace; by_owner says the line is the owner''s own words, not the workspace''s name and services. The service writes it; members read it.';
+COMMENT ON TABLE public.lead_suggestions IS 'The ideas for a new search (§8.9), each a ready plan, written from the workspace''s business line and what its searches found (00398). One row per workspace; by_owner says the line is the owner''s own words. The service writes it; members read it.';
+
+
+--
+-- Name: COLUMN lead_suggestions.basis; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lead_suggestions.basis IS 'What the ideas were written over: the end of the workspace''s newest ended round when they were written, so a round that ends since asks for new ones (server/leads/lead-suggestions.ts). Null on ideas written before 00398, which are asked for again.';
+
+
+--
+-- Name: COLUMN lead_suggestions.making_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lead_suggestions.making_at IS 'When a read claimed the writing of new ideas (lead_suggestions_claim); cleared when they are kept or fail. A claim older than two minutes is taken over.';
+
+
+--
+-- Name: COLUMN lead_suggestions.failed_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lead_suggestions.failed_at IS 'When the model last would not write them: the next reads say so for a few minutes rather than ask again.';
+
+
+--
+-- Name: COLUMN lead_suggestions.passed; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lead_suggestions.passed IS 'Ideas offered before and not started since, as [{key, place, label, times}] (contracts ideaPassed, 00399): offered twice and not started is a no, and not offered again.';
 
 
 --
@@ -24999,6 +25660,57 @@ CREATE TABLE public.messages (
 --
 
 COMMENT ON COLUMN public.messages.sending_at IS 'When the one run that took this queued row to the wire claimed it (00352): set where status = ''queued'' and it is null, so a second job naming the row sends nothing, and a member''s call-back takes only a row nobody has claimed (00362). Cleared only when the provider provably did not take the message. A broadcast''s email is claimed as it is written (00369). Null on a row no job sent (an inbound message, a direct answer).';
+
+
+--
+-- Name: model_prompts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.model_prompts (
+    tenant_id uuid NOT NULL,
+    prompt_hash text NOT NULL,
+    text text NOT NULL,
+    first_seen_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_seen_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT model_prompts_prompt_hash_check CHECK ((prompt_hash ~ '^[0-9a-f]{16,64}$'::text)),
+    CONSTRAINT model_prompts_text_check CHECK (((char_length(text) >= 1) AND (char_length(text) <= 200000)))
+);
+
+
+--
+-- Name: TABLE model_prompts; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.model_prompts IS 'The text of a system prompt the receptionist was given, once per workspace and hash (decision 0039): what a reply''s meta.prompt_hash, and its row of ai_usage, open. The business''s facts, nothing of a person. Written by model_turn_keep alone; no session reads it. Kept while a turn reads it and RETENTION_DAYS.model_prompts after (purge_model_prompts).';
+
+
+--
+-- Name: model_turns; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.model_turns (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    conversation_id uuid NOT NULL,
+    prompt_hash text NOT NULL,
+    request jsonb NOT NULL,
+    response jsonb,
+    model text,
+    latency_ms integer,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT model_turns_latency_ms_check CHECK (((latency_ms IS NULL) OR (latency_ms >= 0))),
+    CONSTRAINT model_turns_model_check CHECK (((model IS NULL) OR ((char_length(model) >= 1) AND (char_length(model) <= 80)))),
+    CONSTRAINT model_turns_prompt_hash_check CHECK ((prompt_hash ~ '^[0-9a-f]{16,64}$'::text)),
+    CONSTRAINT model_turns_request_check CHECK (((jsonb_typeof(request) = 'object'::text) AND (pg_column_size(request) <= 1048576))),
+    CONSTRAINT model_turns_response_check CHECK (((response IS NULL) OR ((jsonb_typeof(response) = 'object'::text) AND (pg_column_size(response) <= 131072))))
+);
+
+
+--
+-- Name: TABLE model_turns; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.model_turns IS 'One receptionist turn about one conversation, as the model read it beside its prompt, and what it answered (decision 0039). Holds the person''s words and the team''s notes about them: it goes with its conversation, with an erasure of anyone it names (model_turns_scrub), and after RETENTION_DAYS.model_turns (purge_model_turns). A reply names its turn in meta.turn_id. Written by model_turn_keep alone; no session reads it.';
 
 
 --
@@ -26281,6 +26993,28 @@ COMMENT ON COLUMN public.tenant_config.calendar_checked_at IS 'When the calendar
 
 
 --
+-- Name: tenant_config_versions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.tenant_config_versions (
+    tenant_id uuid NOT NULL,
+    version integer NOT NULL,
+    config jsonb NOT NULL,
+    changed_at timestamp with time zone DEFAULT now() NOT NULL,
+    changed_by uuid,
+    replaced_at timestamp with time zone,
+    CONSTRAINT tenant_config_versions_version_check CHECK ((version >= 1))
+);
+
+
+--
+-- Name: TABLE tenant_config_versions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.tenant_config_versions IS 'A workspace''s settings as they stood at each version (decision 0039, step 3): what a reply''s meta.config_version opens. Written by the trigger on tenant_config alone, in the save''s own transaction; no session reads it. A version is kept while it is in force and RETENTION_DAYS.tenant_config_versions after it is replaced (purge_config_versions).';
+
+
+--
 -- Name: tenants; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -27037,6 +27771,22 @@ ALTER TABLE ONLY public.messages
 
 
 --
+-- Name: model_prompts model_prompts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.model_prompts
+    ADD CONSTRAINT model_prompts_pkey PRIMARY KEY (tenant_id, prompt_hash);
+
+
+--
+-- Name: model_turns model_turns_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.model_turns
+    ADD CONSTRAINT model_turns_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: notification_marks notification_marks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -27418,6 +28168,14 @@ ALTER TABLE ONLY public.tenant_channels
 
 ALTER TABLE ONLY public.tenant_config
     ADD CONSTRAINT tenant_config_pkey PRIMARY KEY (tenant_id);
+
+
+--
+-- Name: tenant_config_versions tenant_config_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tenant_config_versions
+    ADD CONSTRAINT tenant_config_versions_pkey PRIMARY KEY (tenant_id, version);
 
 
 --
@@ -28334,6 +29092,27 @@ COMMENT ON INDEX public.messages_tenant_inbound_recent IS 'The back office asks 
 
 
 --
+-- Name: model_prompts_last_seen; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX model_prompts_last_seen ON public.model_prompts USING btree (last_seen_at);
+
+
+--
+-- Name: model_turns_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX model_turns_at ON public.model_turns USING btree (created_at);
+
+
+--
+-- Name: model_turns_conversation; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX model_turns_conversation ON public.model_turns USING btree (tenant_id, conversation_id, created_at DESC);
+
+
+--
 -- Name: notifications_recipient; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -28754,6 +29533,13 @@ CREATE INDEX tenant_config_calendar_due_idx ON public.tenant_config USING btree 
 
 
 --
+-- Name: tenant_config_versions_replaced; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX tenant_config_versions_replaced ON public.tenant_config_versions USING btree (replaced_at) WHERE (replaced_at IS NOT NULL);
+
+
+--
 -- Name: waitlist_email_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -28807,6 +29593,13 @@ CREATE TRIGGER appointments_guard BEFORE UPDATE ON public.appointments FOR EACH 
 --
 
 CREATE TRIGGER appointments_note_change AFTER INSERT OR UPDATE OF status, starts_at ON public.appointments FOR EACH ROW WHEN ((new.source <> 'calendar_feed'::text)) EXECUTE FUNCTION public.appointments_note_change();
+
+
+--
+-- Name: appointments appointments_note_status; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER appointments_note_status AFTER UPDATE OF status ON public.appointments FOR EACH ROW WHEN (((new.source = 'calendar_feed'::text) AND (old.status IS DISTINCT FROM new.status))) EXECUTE FUNCTION public.appointments_note_change();
 
 
 --
@@ -29139,6 +29932,13 @@ CREATE TRIGGER jobs_wake AFTER INSERT ON public.jobs REFERENCING NEW TABLE AS ne
 
 
 --
+-- Name: lead_rounds lead_round_adds_to_its_kind; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER lead_round_adds_to_its_kind AFTER UPDATE OF state ON public.lead_rounds FOR EACH ROW WHEN (((new.state = 'ended'::text) AND (old.state IS DISTINCT FROM 'ended'::text))) EXECUTE FUNCTION public.lead_round_adds_to_its_kind();
+
+
+--
 -- Name: lead_rounds lead_rounds_guard; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -29430,6 +30230,27 @@ CREATE TRIGGER tenant_channels_set_updated_at BEFORE UPDATE ON public.tenant_cha
 --
 
 CREATE TRIGGER tenant_config_moddatetime BEFORE UPDATE ON public.tenant_config FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
+
+
+--
+-- Name: tenant_config tenant_config_version_kept; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER tenant_config_version_kept AFTER UPDATE ON public.tenant_config FOR EACH ROW WHEN ((new.version IS DISTINCT FROM old.version)) EXECUTE FUNCTION public.tenant_config_version_keep();
+
+
+--
+-- Name: tenant_config tenant_config_version_kept_first; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER tenant_config_version_kept_first AFTER INSERT ON public.tenant_config FOR EACH ROW EXECUTE FUNCTION public.tenant_config_version_keep();
+
+
+--
+-- Name: tenant_config tenant_config_version_moves; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER tenant_config_version_moves BEFORE UPDATE OF config, version ON public.tenant_config FOR EACH ROW EXECUTE FUNCTION public.tenant_config_version_moves();
 
 
 --
@@ -30764,6 +31585,30 @@ ALTER TABLE ONLY public.messages
 
 
 --
+-- Name: model_prompts model_prompts_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.model_prompts
+    ADD CONSTRAINT model_prompts_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: model_turns model_turns_conversation_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.model_turns
+    ADD CONSTRAINT model_turns_conversation_id_same_workspace FOREIGN KEY (tenant_id, conversation_id) REFERENCES public.conversations(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: model_turns model_turns_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.model_turns
+    ADD CONSTRAINT model_turns_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: notification_marks notification_marks_notification_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -31385,6 +32230,22 @@ ALTER TABLE ONLY public.tenant_config
 
 ALTER TABLE ONLY public.tenant_config
     ADD CONSTRAINT tenant_config_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: tenant_config_versions tenant_config_versions_changed_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tenant_config_versions
+    ADD CONSTRAINT tenant_config_versions_changed_by_fkey FOREIGN KEY (changed_by) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: tenant_config_versions tenant_config_versions_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tenant_config_versions
+    ADD CONSTRAINT tenant_config_versions_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -32243,6 +33104,18 @@ CREATE POLICY messages_member_select ON public.messages FOR SELECT TO authentica
 
 
 --
+-- Name: model_prompts; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.model_prompts ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: model_turns; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.model_turns ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: notification_marks; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -32774,6 +33647,12 @@ CREATE POLICY tenant_config_owner_read ON public.tenant_config FOR SELECT TO aut
 
 CREATE POLICY tenant_config_owner_update ON public.tenant_config FOR UPDATE TO authenticated USING (public.caller_has_permission(tenant_id, 'settings'::text)) WITH CHECK (public.caller_has_permission(tenant_id, 'settings'::text));
 
+
+--
+-- Name: tenant_config_versions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.tenant_config_versions ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: tenants; Type: ROW SECURITY; Schema: public; Owner: -
@@ -34114,6 +34993,14 @@ GRANT ALL ON FUNCTION public.lead_reserve(p_tenant_id uuid, p_month text, p_day 
 
 
 --
+-- Name: FUNCTION lead_round_adds_to_its_kind(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_round_adds_to_its_kind() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_round_adds_to_its_kind() TO service_role;
+
+
+--
 -- Name: FUNCTION lead_round_answer(p_round_id uuid, p_answer text, p_plan jsonb); Type: ACL; Schema: public; Owner: -
 --
 
@@ -34324,6 +35211,22 @@ GRANT ALL ON FUNCTION public.lead_spend_refusal(p_tenant_id uuid) TO service_rol
 
 
 --
+-- Name: FUNCTION lead_suggest_history(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_suggest_history(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_suggest_history(p_tenant_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION lead_suggestions_write(p_tenant_id uuid, p_act text, p_claim timestamp with time zone, p_line text, p_by_owner boolean, p_items jsonb, p_basis text, p_passed jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_suggestions_write(p_tenant_id uuid, p_act text, p_claim timestamp with time zone, p_line text, p_by_owner boolean, p_items jsonb, p_basis text, p_passed jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_suggestions_write(p_tenant_id uuid, p_act text, p_claim timestamp with time zone, p_line text, p_by_owner boolean, p_items jsonb, p_basis text, p_passed jsonb) TO service_role;
+
+
+--
 -- Name: FUNCTION lead_suppression_hash(p_tenant_id uuid, p_value text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -34431,6 +35334,15 @@ GRANT ALL ON FUNCTION public.lookup_user_for_invite(p_tenant_id uuid, p_email te
 
 REVOKE ALL ON FUNCTION public.mark_processed(p_tenant_id uuid, p_message_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.mark_processed(p_tenant_id uuid, p_message_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION mark_visit(p_appointment_id uuid, p_status text, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.mark_visit(p_appointment_id uuid, p_status text, p_via text, p_undo_of uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.mark_visit(p_appointment_id uuid, p_status text, p_via text, p_undo_of uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.mark_visit(p_appointment_id uuid, p_status text, p_via text, p_undo_of uuid) TO service_role;
 
 
 --
@@ -34628,6 +35540,22 @@ GRANT ALL ON FUNCTION public.migration_head() TO service_role;
 
 REVOKE ALL ON FUNCTION public.mint_reply_token() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.mint_reply_token() TO service_role;
+
+
+--
+-- Name: FUNCTION model_turn_keep(p_tenant_id uuid, p_turn_id uuid, p_conversation_id uuid, p_prompt_hash text, p_prompt_text text, p_request jsonb, p_response jsonb, p_model text, p_latency_ms integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.model_turn_keep(p_tenant_id uuid, p_turn_id uuid, p_conversation_id uuid, p_prompt_hash text, p_prompt_text text, p_request jsonb, p_response jsonb, p_model text, p_latency_ms integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.model_turn_keep(p_tenant_id uuid, p_turn_id uuid, p_conversation_id uuid, p_prompt_hash text, p_prompt_text text, p_request jsonb, p_response jsonb, p_model text, p_latency_ms integer) TO service_role;
+
+
+--
+-- Name: FUNCTION model_turns_scrub(p_tenant_id uuid, p_needles text[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.model_turns_scrub(p_tenant_id uuid, p_needles text[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.model_turns_scrub(p_tenant_id uuid, p_needles text[]) TO service_role;
 
 
 --
@@ -35310,6 +36238,14 @@ GRANT ALL ON FUNCTION public.purge_ask(p_keep interval) TO service_role;
 
 
 --
+-- Name: FUNCTION purge_config_versions(p_keep interval); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.purge_config_versions(p_keep interval) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.purge_config_versions(p_keep interval) TO service_role;
+
+
+--
 -- Name: FUNCTION purge_cron_history(p_keep interval, p_keep_per_job integer, p_keep_frequent interval); Type: ACL; Schema: public; Owner: -
 --
 
@@ -35363,6 +36299,22 @@ GRANT ALL ON FUNCTION public.purge_jobs(p_finished interval, p_failed interval) 
 
 REVOKE ALL ON FUNCTION public.purge_leads() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.purge_leads() TO service_role;
+
+
+--
+-- Name: FUNCTION purge_model_prompts(p_keep interval); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.purge_model_prompts(p_keep interval) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.purge_model_prompts(p_keep interval) TO service_role;
+
+
+--
+-- Name: FUNCTION purge_model_turns(p_keep interval); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.purge_model_turns(p_keep interval) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.purge_model_turns(p_keep interval) TO service_role;
 
 
 --
@@ -36369,6 +37321,23 @@ GRANT ALL ON FUNCTION public.template_sends(p_tenant_id uuid) TO service_role;
 REVOKE ALL ON FUNCTION public.tenant_config_read(p_tenant_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.tenant_config_read(p_tenant_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.tenant_config_read(p_tenant_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION tenant_config_version_keep(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.tenant_config_version_keep() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.tenant_config_version_keep() TO service_role;
+
+
+--
+-- Name: FUNCTION tenant_config_version_moves(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.tenant_config_version_moves() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.tenant_config_version_moves() TO authenticated;
+GRANT ALL ON FUNCTION public.tenant_config_version_moves() TO service_role;
 
 
 --
@@ -37582,6 +38551,20 @@ GRANT INSERT(meta) ON TABLE public.messages TO authenticated;
 
 
 --
+-- Name: TABLE model_prompts; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.model_prompts TO service_role;
+
+
+--
+-- Name: TABLE model_turns; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.model_turns TO service_role;
+
+
+--
 -- Name: TABLE notification_marks; Type: ACL; Schema: public; Owner: -
 --
 
@@ -38078,6 +39061,13 @@ GRANT UPDATE(version) ON TABLE public.tenant_config TO authenticated;
 --
 
 GRANT UPDATE(updated_by) ON TABLE public.tenant_config TO authenticated;
+
+
+--
+-- Name: TABLE tenant_config_versions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.tenant_config_versions TO service_role;
 
 
 --

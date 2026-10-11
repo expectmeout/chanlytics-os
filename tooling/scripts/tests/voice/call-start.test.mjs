@@ -46,7 +46,13 @@ const FN_URL = "https://chanlytics-messaging.vercel.app/api/retell-fn";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { planCallStart } = await import(at("apps/edge/lib/voice/call-start.ts"));
+const { planCallStartWithin } = await import(at("apps/edge/lib/voice/call-start.ts"));
+/** The plan as the door asks for it, inside its budget, which none of these worlds comes near. */
+const planCallStart = async (o) => {
+  const { late, ...r } = await planCallStartWithin(o);
+  assert.equal(late, false, "the plan answered within its budget");
+  return r;
+};
 
 const TZ = "America/New_York";
 /** A Monday at 10:00 in New York. */
@@ -455,4 +461,49 @@ test("the shell's defaults are the judgement's fallbacks, one constant each: a c
   }
   assert.ok(greetingFor("Aurora Nails").includes("Aurora Nails"));
   assert.ok(!/\{\{|\bnull\b|undefined/.test(greetingFor(null)), "no placeholder or stray value is read aloud");
+});
+
+test("within its budget: a calendar read that hangs costs its own block, never the call; a plan that hangs is answered with the shell's own words", async () => {
+  // Retell gives the webhook ten seconds; #1551 put two more reads on this path (the engine review's second pass).
+  const never = () => new Promise(() => {});
+  const w = fresh();
+  const slow = { openings: never, visits: never };
+  const budgets = { planMs: 2_000, readMs: 20 };
+  const r = await planCallStartWithin({
+    agentId: w.agent,
+    from: CALLER,
+    db: world(w),
+    now: NOW,
+    calendar: slow,
+    budgets,
+  });
+  assert.deepEqual(
+    [r.late, r.facts, r.memory],
+    [false, "composed", "known"],
+    "the plan answered, its slow reads left out",
+  );
+  assert.equal(r.variables.business_facts, factsOf(w, null), "the facts, with no openings block");
+  assert.ok(!r.variables.caller_context.includes("Their appointments"), "and no visits");
+
+  const hung = { from: () => ({ select: never }), rpc: never };
+  const late = await planCallStartWithin({
+    agentId: w.agent,
+    from: CALLER,
+    db: hung,
+    now: NOW,
+    calendar: slow,
+    budgets: { planMs: 30, readMs: 20 },
+  });
+  assert.equal(late.late, true);
+  assert.deepEqual(
+    [late.facts, late.memory, late.tenantId, late.conversationId],
+    ["unreadable", "none", null, null],
+    "nothing it did not finish reading",
+  );
+  assert.deepEqual(late.variables, {
+    caller_context: CALLER_UNKNOWN,
+    business_facts: FACTS_UNAVAILABLE,
+    greeting: greetingFor(null),
+  });
+  assert.match(late.error, /longer than 30 ms/);
 });

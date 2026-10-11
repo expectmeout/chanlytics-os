@@ -30,7 +30,6 @@ export function PeopleBulkBar({
   phone = false,
   sheet = null,
   onSheet = () => undefined,
-  onSelectAll = null,
   lead = null,
   acts = null,
   fileColumns = null,
@@ -48,7 +47,6 @@ export function PeopleBulkBar({
   phone?: boolean;
   sheet?: string | null;
   onSheet?: (step: string | null) => void;
-  onSelectAll?: (() => void) | null;
   lead?: ReactNode;
   acts?: readonly string[] | null;
   fileColumns?: readonly FileColumn[] | null;
@@ -69,7 +67,6 @@ export function PeopleBulkBar({
       phone,
       sheet,
       onSheet,
-      onSelectAll,
       lead,
       acts,
       fileColumns,

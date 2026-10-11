@@ -655,10 +655,7 @@ test("a starter's line says where its WhatsApp version stands in the Library's w
     STARTER_LINE_WORDS.reviewing(2),
     "Your starter messages' WhatsApp versions are in review (2) — they appear here once approved, usually within minutes.",
   );
-  assert.ok(
-    STARTER_LINE_WORDS.add.startsWith("Add it — its email and text versions are written at once") &&
-      STARTER_LINE_WORDS.add.includes("where a number is connected WhatsApp reviews its WhatsApp version"),
-    "adding writes the email and the text at once and gives WhatsApp its own version only where there is a number",
-  );
+  // The link says what it does, and stops: where the WhatsApp version stands is the line's once it is added (`standing`).
+  assert.equal(STARTER_LINE_WORDS.add, "Add it");
 });
 const m1 = (status) => campaignMessageOf([W({ meta_status: status })], NAME, LANGUAGE);

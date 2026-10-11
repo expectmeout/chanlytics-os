@@ -461,7 +461,7 @@ test("the pages: titles not names, the starter set in Settings, one click on Bro
     integrations.includes('messages: "channel-messages"') && !integrations.includes("TemplatesCard"),
     "Integrations points at Messages (the WhatsApp row's verb) and lists no template",
   );
-  assert.ok(s.includes("tplTitle(") && s.includes('" · made here"'), "a title, with the raw name beside it");
+  assert.ok(s.includes("tplTitle(") && s.includes('"Made here"'), "a title, with where it was made under it");
   // Broadcasts' send screen and its slot choices (moved from broadcasts.jsx), read as one.
   const b = ["page/send-screen.tsx", "page/reach.ts"]
     .map((f) => readCode(`apps/dashboard/src/surfaces/campaigns/broadcasts/${f}`))
@@ -483,7 +483,8 @@ test("the pages: titles not names, the starter set in Settings, one click on Bro
   const p = ["composer-sections.tsx", "composer-model.ts"]
     .map((f) => readCode(`apps/dashboard/src/surfaces/campaigns/playbooks/${f}`))
     .join(" ");
-  assert.ok(p.includes('data-testid="pb-starter"') && p.includes('data-testid="pb-add-starter"'));
+  // The moment's own message, not added yet, reads in the preview, and Turn on adds it first (Ruben, 11 Oct 2026).
+  assert.ok(p.includes('data-testid="pb-starter"') && p.includes("export function starterToAdd("));
   assert.ok(
     p.includes("starters.forTrigger(f.trigger)") &&
       p.includes("const tpl = f.picked ? usable.find((t) => t.id === f.tplId) || null : rowIn(starterGroup, null);"),

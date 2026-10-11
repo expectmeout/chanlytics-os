@@ -53,6 +53,13 @@ export interface LeadSearchPlan {
   card: "local_businesses";
   /** Who is sought, plural, as the sentence says it: "personal trainers". */
   name: string;
+  /**
+   * The kind of business, as one key ("personal_trainer"): what a round that ends adds its counts to (lead_niche_priors)
+   * and what the ideas group a workspace's searches by (00398). Absent on a plan made before it was kept.
+   */
+  category_key?: string;
+  /** Where the plan came from, when it was not asked for: an idea on the first day (00398). Absent otherwise. */
+  from?: "idea";
   /** The owner's words, at most 400 characters. */
   asked: string;
   terms: string[];

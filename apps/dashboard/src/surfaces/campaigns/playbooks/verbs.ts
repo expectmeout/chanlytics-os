@@ -53,6 +53,15 @@ export const playbooks = {
    */
   channels: (id: string, channels: ConsentChannel[], opts: Accepted<"PUT playbooks/[id]"> = {}) =>
     api()("PUT playbooks/[id]", { params: { id }, body: { channels }, onAccepted: opts.onAccepted }),
+  /**
+   * One word of its sentence changed in place, from its drawer (its hour, how many a run sends, the days between): the
+   * route judges it against the playbook as it stands and writes that field alone, answering what it held.
+   */
+  change: (
+    id: string,
+    body: { run_hour?: number; cap_per_run?: number; gap_days?: number; cadence_days?: number },
+    opts: Accepted<"PUT playbooks/[id]"> = {},
+  ) => api()("PUT playbooks/[id]", { params: { id }, body, onAccepted: opts.onAccepted }),
   pause: (id: string, opts: Accepted<"PUT playbooks/[id]"> = {}) =>
     api()("PUT playbooks/[id]", { params: { id }, body: { state: "paused" }, onAccepted: opts.onAccepted }),
   resume: (id: string, opts: Accepted<"PUT playbooks/[id]"> = {}) =>

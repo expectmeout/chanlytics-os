@@ -419,11 +419,14 @@ test("the playbook composer says there is no message exactly where the spec expe
       const face = textOf(pickerOf(tree, "pb-moment").props.face).trim();
       const { groups } = messagesOffered(templates, momentSlots(face, true));
       assert.ok(byTestId(tree, "pb-message"), `${name}, ${face}: the section is always drawn`);
+      // With nothing to send, the moment's own message is offered to add (Turn on adds it), else the honest line says so.
+      const starter = !!byTestId(tree, "pb-starter");
       assert.equal(
         !!byTestId(tree, "pb-no-template"),
-        groups.length === 0,
+        groups.length === 0 && !starter,
         `${name}, ${face}: the honest line where the spec expects ${groups.length} messages`,
       );
+      if (groups.length === 0) assert.ok(starter || byTestId(tree, "pb-no-template"), `${name}, ${face}: never silent`);
     }
   }
 });

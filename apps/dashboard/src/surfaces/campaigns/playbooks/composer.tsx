@@ -22,24 +22,29 @@
  * Checked here the way the route checks it -- a message chosen, every slot filled -- so an enabled Start is a Start that
  * succeeds unless the server knows something newer (a template no longer approved, a booking link gone).
  */
-import { useMemo, useState } from "react";
-import type { ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { LIFECYCLE_WORDS } from "@chanlytics/contracts";
 import type { ConsentChannel } from "@chanlytics/contracts";
-import { canDo, routeDoor } from "../../legacy-verbs";
+import { canDo } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
 import { Field } from "../../kit/field/field";
 import { Icon } from "../../kit/icon/icon";
-import { LinkButton } from "../../kit/link-button/link-button";
 import { UnsavedAsk, tabDraft, useUnsavedWork } from "../../kit/record/work";
 import type { UnsavedWork } from "../../kit/record/work";
 import { useSurface } from "../../use-surface";
-import { CM_VIA_WORDS, cmNothingOpen } from "../parts/channels";
 import { CmPane } from "../parts/split";
 import { composerActs } from "./composer-acts";
 import { composerModel, composerOffered, composerOpened } from "./composer-model";
 import type { Fields } from "./composer-model";
-import { messageSection, underLine, viaSection, whenOnly, whoSection } from "./composer-sections";
+import {
+  changedFields,
+  forecast,
+  messageSection,
+  overSentence,
+  reachLine,
+  recipe,
+  starterToAdd,
+} from "./composer-sections";
 import type { SectionCtx } from "./composer-sections";
 import type { PlaybookCardVM, PlaybooksSurface } from "./surface";
 
@@ -56,22 +61,40 @@ interface ComposerProps {
   onCancel: () => void;
 }
 
-/** The sheet's foot: what stops Start, Cancel, and Start; with something changed, Cancel asks once first (UnsavedAsk). */
+/**
+ * What the foot says over its acts: what stops it first; else, for the moment's own message not added yet, that Turn on
+ * adds it; else, for a campaign being changed, how many of its words moved and that they apply from its next run.
+ */
+function footSay(x: SectionCtx): { tone: string; t: string } | null {
+  const S = LIFECYCLE_WORDS.compose.sentence;
+  const starter = starterToAdd(x);
+  if (x.say && (x.say.tone === "danger" || !x.trig)) return x.say;
+  if (starter) return { tone: "plain", t: S.addsFirst(starter.title) };
+  if (x.say) return x.say;
+  const moved = changedFields(x).length;
+  return moved > 0 ? { tone: "plain", t: S.changes(moved) } : null;
+}
+
+/**
+ * The sheet's foot: what it says first, Cancel, and the one act the sheet is for -- Turn on, which adds the moment's own
+ * message first where it is not added yet, or Save changes; with something changed, Cancel asks once first (UnsavedAsk).
+ */
 function sheetFoot(p: {
   x: SectionCtx;
   work: UnsavedWork;
   editing: PlaybookCardVM | null;
   busy: boolean;
   error: string | null;
-  save: () => Promise<void>;
+  turnOn: () => Promise<void>;
 }) {
-  const { x, work, editing, busy, error, save } = p;
-  const { say, ready } = x;
+  const { x, work, editing, busy, error, turnOn } = p;
+  const say = footSay(x);
+  const ready = x.ready || (!!starterToAdd(x) && !x.adding && !!x.trig);
   return (
     <div className="pb-foot" data-foot-pair={work.asking ? undefined : ""}>
       {/* Cancel, and Escape, with something changed: the one question first (UnsavedAsk), where the buttons were. */}
       {work.asking ? (
-        <UnsavedAsk onYes={work.discard} onNo={work.stay} what="saved" testid="pb-leave" />
+        <UnsavedAsk onYes={work.discard} onNo={work.stay} testid="pb-leave" />
       ) : (
         <>
           <span
@@ -85,8 +108,8 @@ function sheetFoot(p: {
           <Button onClick={work.leave} data-testid="pb-cancel">
             Cancel
           </Button>
-          <Button variant="primary" disabled={!ready} onClick={save} data-testid="pb-save">
-            {busy ? "Saving…" : editing ? "Save changes" : "Start it"}
+          <Button variant="primary" disabled={!ready || busy} onClick={() => void turnOn()} data-testid="pb-save">
+            {busy || x.adding ? "Saving…" : editing ? "Save changes" : LIFECYCLE_WORDS.compose.turnOnShort}
           </Button>
         </>
       )}
@@ -94,59 +117,19 @@ function sheetFoot(p: {
   );
 }
 
-/** Under Glass a section is a row: its word at the left (To, Says, When, Under), what it holds beside it (C2). */
-function glassRow(word: string, testid: string, body: ReactNode) {
-  return (
-    <div className="pb-grow" data-testid={testid}>
-      <span className="pb-grow-word">{word}</span>
-      <div className="pb-grow-body">{body}</div>
-    </div>
-  );
-}
-
 /**
- * What stops a run from sending from the number: a number that cannot send, or none. Said while the campaign goes by
- * WhatsApp, the one channel that has a number; one that goes by email alone never asks. Each says it with its door to
- * Settings › Connections, where it is mended (decision 20).
+ * The sheet's body, as one sentence (Ruben, 11 Oct 2026, "Option B"; composer-sections.tsx): what keeps a run from sending
+ * over it, the sentence, who it reaches now under it, the message as its person reads it, and when it first runs. It
+ * stood as five rows of a word and a section each (To, Send by, Says, When, Rules).
  */
-function numberWarning({ data, kept }: SectionCtx) {
-  if (!data.number || !kept.includes("whatsapp")) return null;
-  const W = LIFECYCLE_WORDS.compose.number;
-  const door = (
-    <LinkButton {...routeDoor(W.door.to)} data-testid="pb-number-door">
-      {W.door.label}
-    </LinkButton>
-  );
-  if (data.number.present && !data.number.health.canSend)
-    return (
-      <p className="pb-warn" data-testid="pb-number">
-        {data.number.health.refusal} {door}
-      </p>
-    );
-  // Where nothing can send at all, the Send by row has already said so, WhatsApp's number among its doors.
-  return data.number.present || cmNothingOpen(data.ready) ? null : (
-    <p className="pb-warn" data-testid="pb-number">
-      {W.words} {door}
-    </p>
-  );
-}
-
-/**
- * The same sections under Glass stand as the canvas's four rows (the compact composer, C2): To, Says, When, and Under,
- * which is the row of Autonomy it runs under and its guardrails, drawn apart from the sentence they follow. A row is its
- * word at the left and a section at the right; what the section holds and its testids are the Classic sheet's. Send by,
- * the row the channels added, stands under To (8 Oct 2026): the count under To is counted over the channels ticked, and
- * stood two rows and a whole preview away from the switches that change it.
- */
-function sheetBodyGlass(x: SectionCtx) {
+function composerBody(x: SectionCtx) {
   return (
-    <div className="pb-compose">
-      {glassRow("To", "pb-row-to", whoSection(x))}
-      {glassRow(CM_VIA_WORDS.label, "pb-row-via", viaSection(x))}
-      {glassRow("Says", "pb-row-says", messageSection(x))}
-      {glassRow("When", "pb-row-when", whenOnly(x))}
-      {glassRow("Under", "pb-row-under", underLine(x))}
-      {numberWarning(x)}
+    <div className="pb-compose cm-sentence">
+      {overSentence(x)}
+      {recipe(x)}
+      {reachLine(x)}
+      {messageSection(x)}
+      {forecast(x)}
     </div>
   );
 }
@@ -195,6 +178,8 @@ export function PlaybookComposer({ data, editing, initialTrigger = null, onTrigg
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  // Turn on pressed with the moment's own message not added yet: it is added, and the campaign saved once it reads back.
+  const [startAfter, setStartAfter] = useState(false);
   // Which step of the preview's walk is in view: the channels it goes by, one at a time (composer-sections.tsx).
   const [who, setWho] = useState(0);
   const templatesAll = useSurface("settings")?.templatesAll;
@@ -223,6 +208,8 @@ export function PlaybookComposer({ data, editing, initialTrigger = null, onTrigg
     data,
     editingId: editing ? editing.id : null,
     editingTemplateName: editing ? editing.template_name : null,
+    editing,
+    opened,
     f: held,
     canEdit,
     adding,
@@ -238,6 +225,17 @@ export function PlaybookComposer({ data, editing, initialTrigger = null, onTrigg
     who,
     setWho,
     ...acts,
+  };
+  // The message added reads back with the playbooks: the campaign is saved on it then, as Turn on was pressed for.
+  useEffect(() => {
+    if (!startAfter || busy || adding || !m.ready) return;
+    setStartAfter(false);
+    void acts.save();
+  }, [startAfter, busy, adding, m.ready, acts]);
+  const turnOn = async () => {
+    if (!starterToAdd(x)) return acts.save();
+    setStartAfter(true);
+    await acts.addStarter();
   };
   // In the pane beside the list (parts/split.tsx), where the record kit's sheet stood over the page: the list stays in
   // sight and in reach, as the Inbox's does beside a thread.
@@ -263,9 +261,9 @@ export function PlaybookComposer({ data, editing, initialTrigger = null, onTrigg
       }
       onClose={work.leave}
       closeLabel="Cancel"
-      foot={sheetFoot({ x, work, editing, busy, error, save: acts.save })}
+      foot={sheetFoot({ x, work, editing, busy, error, turnOn })}
     >
-      {sheetBodyGlass(x)}
+      {composerBody(x)}
     </CmPane>
   );
 }

@@ -11,6 +11,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
+  leadAreaFrom,
   leadMapAcross,
   leadMapLegend,
   leadMapNote,
@@ -19,6 +20,9 @@ import {
   type LeadRowVM,
 } from "@chanlytics/contracts";
 import { gate } from "../../legacy-verbs";
+import { LinkButton } from "../../kit/link-button/link-button";
+import { Sheet } from "../../kit/sheet/sheet";
+import { JOB_CANCEL, PhoneSheetRow } from "../../people/sheets/phone-sheet";
 import type { NearbyArea } from "../bench/types";
 import { LeadCallMenu, ldCallProps } from "../cells/call-menu";
 import { LeadTile } from "../cells/tile";
@@ -312,6 +316,70 @@ const mapPlot = (
   </div>
 );
 
+/**
+ * A phone's way further out (Ruben, 10 Oct 2026): one quiet word under the map, Search nearby, where a caption and a row
+ * of ZIP pills and Search wider stood at one weight. It opens a sheet: each nearby area with where it lies from the
+ * ground shown ("9.2 mi southwest", since a ZIP alone says nothing), then a wider area. Each press asks the plan card,
+ * as before: nothing starts until the owner approves.
+ */
+function NearbyOnPhone(o: {
+  plot: LeadMapPlot;
+  nearby: readonly NearbyArea[];
+  onNearby: (area: NearbyArea) => void;
+  onWiden: () => void;
+  canFind: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const go = (fn: () => void) => () => {
+    setOpen(false);
+    fn();
+  };
+  // Nothing nearby to offer: the one way further out is the word itself, with no sheet of one row.
+  if (!o.nearby.length)
+    return (
+      <LinkButton
+        onClick={o.onWiden}
+        data-testid="map-widen"
+        {...(o.canFind ? {} : gate("find", "search a wider area"))}
+      >
+        Search wider
+      </LinkButton>
+    );
+  return (
+    <>
+      <LinkButton
+        onClick={() => setOpen(true)}
+        data-testid="map-nearby-open"
+        {...(o.canFind ? {} : gate("find", "search nearby"))}
+      >
+        Search nearby
+      </LinkButton>
+      <Sheet
+        open={open}
+        shape="job"
+        title="Search nearby"
+        close={JOB_CANCEL}
+        onClose={() => setOpen(false)}
+        testid="map-nearby-sheet"
+      >
+        <div className="pp-sheet-rows">
+          {o.nearby.map((a) => (
+            <PhoneSheetRow
+              key={a.label}
+              icon="pin"
+              label={a.zip ? `Around ${a.zip}` : a.label}
+              meta={leadAreaFrom(o.plot.center, a.center) || null}
+              onClick={go(() => o.onNearby(a))}
+              testid={`map-nearby-${a.zip || a.label}`}
+            />
+          ))}
+          <PhoneSheetRow icon="map" label="A wider area" onClick={go(o.onWiden)} testid="map-widen" />
+        </div>
+      </Sheet>
+    </>
+  );
+}
+
 interface LeadMapProps {
   rows: readonly LeadRowVM[];
   plot: LeadMapPlot;
@@ -367,38 +435,46 @@ export const LeadMap = ({
         ) : (
           mapPlot(plot, byId, { picked, onPick, x, card })
         )}
-        <div className="ld-map-foot">
-          {/* Which picture this is, in contracts' words: the area asked for, or only where the leads are, or -- across
+        {phone ? (
+          // A phone says no sentence under its map: the ring, or the pins alone, are the picture. Its one line is how many
+          // are on it and what their colours say, with Search nearby at its end.
+          <div className="ld-map-foot">
+            {plot.tooWide ? null : bar}
+            <NearbyOnPhone plot={plot} nearby={nearby} onNearby={onNearby} onWiden={onWiden} canFind={canFind} />
+          </div>
+        ) : (
+          <div className="ld-map-foot">
+            {/* Which picture this is, in contracts' words: the area asked for, or only where the leads are, or -- across
               searches in different cities -- that these were never one place at all. Where the plot is that sentence
-              already (too wide to draw), it is not said twice. */}
-          {plot.tooWide ? null : (
-            <span className="ld-map-note" data-testid="lead-map-note">
-              {leadMapNote(plot, !!oneSearch)}
-            </span>
-          )}
-          <span className="sp" />
-          {nearby.map((a) => (
+              already (too wide to draw), it is not said twice; nor where the leads are the picture (contracts: none). */}
+            {plot.tooWide || !leadMapNote(plot, !!oneSearch) ? null : (
+              <span className="ld-map-note" data-testid="lead-map-note">
+                {leadMapNote(plot, !!oneSearch)}
+              </span>
+            )}
+            <span className="sp" />
+            {nearby.map((a) => (
+              <button
+                key={a.label}
+                type="button"
+                className="ld-band-fit"
+                onClick={() => onNearby(a)}
+                data-testid={`map-nearby-${a.zip || a.label}`}
+              >
+                {a.label}
+              </button>
+            ))}
             <button
-              key={a.label}
               type="button"
-              className="ld-band-fit"
-              onClick={() => onNearby(a)}
-              data-testid={`map-nearby-${a.zip || a.label}`}
+              className="btn btn-sm"
+              onClick={onWiden}
+              data-testid="map-widen"
+              {...(canFind ? {} : gate("find", "search a wider area"))}
             >
-              {a.label}
+              Search wider
             </button>
-          ))}
-          <button
-            type="button"
-            className="btn btn-sm"
-            onClick={onWiden}
-            data-testid="map-widen"
-            {...(canFind ? {} : gate("find", "search a wider area"))}
-          >
-            Search wider
-          </button>
-        </div>
-        {phone && !plot.tooWide ? bar : null}
+          </div>
+        )}
       </div>
     </div>
   );

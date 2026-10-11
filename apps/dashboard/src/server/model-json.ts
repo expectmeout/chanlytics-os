@@ -27,6 +27,18 @@ import { GatewayRefused, streamModel, type GatewayCall } from "./ask/gateway";
  * drafter's (templates.ts).
  */
 export const JSON_MODEL = MODEL_ROUTES.lead_json.model;
+/**
+ * The model a purpose asks: the ideas for a new search their own route's (lead_suggest, 00398), every other draft
+ * JSON_MODEL. An edge that does not know the ideas' model yet refuses it as a bad request; they are asked once more on
+ * JSON_MODEL, so either app may deploy first.
+ */
+const modelOf = (purpose: ModelJsonCall["purpose"]) =>
+  purpose === "lead_suggest" ? MODEL_ROUTES.lead_suggest.model : JSON_MODEL;
+const unknownModel = (e: unknown, model: string) =>
+  model !== JSON_MODEL &&
+  e instanceof GatewayRefused &&
+  e.refusal.kind === "bad_request" &&
+  /unknown model/.test(e.refusal.message);
 
 /** How long one answer may take unless the caller bounds it: the edge's own door stops at a minute (vercel.json). */
 const MODEL_JSON_TIMEOUT_MS = MIN_MS;
@@ -42,25 +54,40 @@ type ModelJsonCall = Omit<GatewayCall, "request" | "purpose"> & {
   request: Omit<GatewayCall["request"], "output_config" | "model"> & { schema: Record<string, unknown> };
 };
 
-export async function askForJson<T>(call: ModelJsonCall, schema: ZodType<T>, what: string): Promise<T> {
+/** One answer's text and why it stopped, from the model named. */
+async function answerFrom(
+  call: ModelJsonCall,
+  model: string,
+  what: string,
+): Promise<{ text: string; stop: string | null }> {
   const { schema: json, ...request } = call.request;
   let text = "";
   let stop: string | null = null;
+  for await (const ev of stream({
+    ...call,
+    signal: call.signal ?? AbortSignal.timeout(MODEL_JSON_TIMEOUT_MS),
+    request: {
+      ...request,
+      model,
+      output_config: { effort: "low", format: { type: "json_schema", schema: json } },
+    },
+  })) {
+    if (ev.type === "text") text += ev.text;
+    else if (ev.type === "stop") stop = ev.stopReason;
+    else if (ev.type === "error")
+      throw new AppError("upstream_anthropic", `The ${what} could not be written just now. Try again in a moment.`);
+  }
+  return { text, stop };
+}
+
+export async function askForJson<T>(call: ModelJsonCall, schema: ZodType<T>, what: string): Promise<T> {
+  const model = modelOf(call.purpose);
+  let answer: { text: string; stop: string | null };
   try {
-    for await (const ev of stream({
-      ...call,
-      signal: call.signal ?? AbortSignal.timeout(MODEL_JSON_TIMEOUT_MS),
-      request: {
-        ...request,
-        model: JSON_MODEL,
-        output_config: { effort: "low", format: { type: "json_schema", schema: json } },
-      },
-    })) {
-      if (ev.type === "text") text += ev.text;
-      else if (ev.type === "stop") stop = ev.stopReason;
-      else if (ev.type === "error")
-        throw new AppError("upstream_anthropic", `The ${what} could not be written just now. Try again in a moment.`);
-    }
+    answer = await answerFrom(call, model, what).catch((e: unknown) => {
+      if (unknownModel(e, model)) return answerFrom(call, JSON_MODEL, what);
+      throw e;
+    });
   } catch (e) {
     if (e instanceof GatewayRefused) {
       if (e.refusal.kind === "budget")
@@ -71,6 +98,7 @@ export async function askForJson<T>(call: ModelJsonCall, schema: ZodType<T>, wha
     }
     throw e;
   }
+  const { text, stop } = answer;
   if (stop === "refusal") throw new AppError("validation", `Claude would not write this ${what}.`, 422);
   let value: unknown;
   try {

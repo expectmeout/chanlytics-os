@@ -68,7 +68,8 @@ import { tellPhonesCallStarted } from "./call-activity.js";
 import { apns, apnsKeys } from "../ops/apns.js";
 import { erasedBeforeCall } from "../erased.js";
 import { upsertEscalation } from "../packages/jobs.js";
-import { frameGuardrail, offersBookingLink, pauseMsOf, MIN_MS } from "../packages/contracts.js";
+import { frameGuardrail, pauseMsOf, MIN_MS } from "../packages/contracts.js";
+import { linkOfferedOn } from "../calendar/availability.js";
 import { env } from "../env.js";
 import { keptUrl, retellSigned } from "./voice-door-auth.js";
 import { logger, errField } from "../log.js";
@@ -442,11 +443,12 @@ async function correctReceptionist(
   const L = logger();
   if (corrected.size >= CORRECTED_MAX) corrected.clear();
   corrected.add(s.retellCallId);
-  // What the correction offers is what this receptionist offers: the link, or the details for a business with none.
-  const { brain } = await loadTenantRuntime(db, routed);
+  // What the correction offers is what this receptionist offers on a call: the link where WhatsApp can carry it, or
+  // the details (linkOfferedOn).
+  const rt = await loadTenantRuntime(db, routed);
   // The plan asks for a correction only while the key is held (canCorrect).
   const put = await updateLiveCall({ apiKey: env.RETELL_API_KEY! }, s.retellCallId, {
-    additionalContext: frameGuardrail(s.rule, { hasBookingLink: offersBookingLink(brain) }),
+    additionalContext: frameGuardrail(s.rule, { hasBookingLink: linkOfferedOn("call", rt) }),
     // Never by decree. Every whisper this product sends is worked into the
     // next answer rather than spoken on command, and a correction the caller
     // hears being read out is a second mistake on top of the first.

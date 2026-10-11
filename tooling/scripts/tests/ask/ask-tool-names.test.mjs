@@ -941,6 +941,21 @@ function withCampaignWord(frozen) {
 }
 
 /**
+ * 11 Oct 2026 (Leads on a phone, and the ideas for a new search, 00398): a plan's sentence marks where its criteria
+ * begin and end (contracts planWords: "in Austin, TX: a; b; reached by …"), where these bytes ran them on after the area,
+ * and a plan Ask proposes names its kind (`category_key`, the key an idea and the platform's counts read it by), beside
+ * its name. The one frozen plan is the plumbers'; the fixture stays as it was made.
+ */
+function withThePlansWords(frozen) {
+  return frozen
+    .replaceAll(
+      "in Austin, TX has a website (confirmed) family-owned, reached by",
+      "in Austin, TX: has a website (confirmed); family-owned; reached by",
+    )
+    .replace('"name":"plumbers","asked"', '"name":"plumbers","category_key":"plumber","asked"');
+}
+
+/**
  * 10 Oct 2026 (the moment spec, decision 19): the line a read says while it runs is a person's, so campaigns.playbooks
  * says "Reading the campaigns" where these bytes say "Reading the playbooks". The action keeps its name; the fixture
  * stays as it was made.
@@ -1035,6 +1050,9 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // 9 Oct 2026: and a playbook card's title says "Campaign" (withCampaignWord), in its result and in the card.
     const playbookCard = NAMES[old] === "propose_campaign.playbook";
     if (playbookCard) result = withCampaignWord(result);
+    // 11 Oct 2026: a plan's sentence and its kind (withThePlansWords), in the result and in the card.
+    const leadPlan = NAMES[old] === "propose_lead_search";
+    if (leadPlan) result = withThePlansWords(result);
     const card =
       campaignsOwn && typeof want.proposal === "string"
         ? {
@@ -1042,7 +1060,9 @@ test("every old tool's call, made by its new name and action, answers the bytes 
               ? withCampaignWord(withTheClocksHour(want.proposal))
               : withTheClocksHour(want.proposal),
           }
-        : {};
+        : leadPlan && typeof want.proposal === "string"
+          ? { proposal: withThePlansWords(want.proposal) }
+          : {};
     // An action above the caller is refused by the registry first since PR 4.3 (the Phase 4 plan, D2), in its words,
     // before anything is read, as its builder refused it: the other change to these bytes.
     const act = ACT_DEFS.find((x) => x.name === call.name)?.actions[call.input.action ?? ""];
@@ -1109,12 +1129,14 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     const withDoubts = NAMES[old] === "people.get" ? [...withDecisions, "person_doubts.select"] : withDecisions;
     // 7 Oct 2026 (00345, bookings arrive by email): the calendar's reader reads the record beside the feed -- the
     // appointments over the span, the notices' health line (the latest, and the held count) and the workspace's mailbox
-    // -- so calendar.week makes those four reads more. Its bytes are unchanged: this workspace has no calendar and no
-    // booking has arrived, and with no feed to read nothing of the record's taken time is asked.
+    // -- so calendar.week makes those reads more. Its bytes are unchanged: this workspace has no calendar and no
+    // booking has arrived, and with no feed to read nothing of the record's taken time is asked. Since 00397 the span's
+    // record is two reads (db visitsOver: the bookings whole, and the feed's rows by key), so five more.
     const withCalendar =
       NAMES[old] === "calendar.week"
         ? [
             ...withDoubts,
+            "appointments.select",
             "appointments.select",
             "appointment_notices.select",
             "appointment_notices.select",

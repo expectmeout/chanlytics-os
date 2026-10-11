@@ -44,13 +44,17 @@ import {
   type CalendarFeedDto,
   type CalendarNoticesDto,
   type TenantConfig,
+  markOn,
+  type FeedMark,
+  feedMarksOf,
 } from "@chanlytics/contracts";
 import {
   appointmentNoticesOf,
-  appointmentsBetween,
   heldNoticesOf,
   mailboxOfTenant,
   type MailboxRow,
+  visitsOver,
+  type AppointmentRow,
 } from "@chanlytics/db";
 import { hostedAddress } from "@chanlytics/channels";
 import type { RouteContext } from "@/server/with-route";
@@ -122,7 +126,12 @@ export function itemsToDays(
   people: PersonLike[],
   own: OwnAddresses,
   services: string[],
-  consult: { services: readonly { name: string }[]; rules: ConsultRules | null },
+  consult: {
+    services: readonly { name: string }[];
+    rules: ConsultRules | null;
+    /** The record's row for each event the sync keeps, by its key and start (markOn): what a member's word is said on. */
+    marks?: ReadonlyMap<string, FeedMark>;
+  },
 ): { days: Array<Pick<CalendarDayDto, "key" | "items">>; dropped: number } {
   const out: Array<Pick<CalendarDayDto, "key" | "items">> = [];
   let dropped = 0;
@@ -147,6 +156,7 @@ export function itemsToDays(
         guess: guessName(it, services),
         consultation: isConsultationTitle(it.title, consult.services, consult.rules),
         consult_service: consultServiceOf(it.title, consult.services, consult.rules),
+        visit: markOn(consult.marks, it),
       };
     });
     out.push({ key, items: rows });
@@ -179,6 +189,8 @@ export type CalendarSources = {
    * feed's events (docs/plans/2026-10-07-bookings-arrive-by-email.md). Empty for a workspace none have reached.
    */
   rows: AppointmentLike[];
+  /** The record's row for each feed event the hourly sync keeps, by its key, with how it stands (feedMarksOf). */
+  marks: ReadonlyMap<string, FeedMark>;
   /**
    * The record's taken time over the days the receptionist may offer, read beside a feed that reads (record-busy.ts):
    * what the open times subtract with the feed's own, whichever span the page shows. Empty with no readable feed,
@@ -215,7 +227,7 @@ async function recordOverSpan(
   from: string,
   to: string,
   by: { tool: string | null; name: string | null },
-): Promise<{ rows: AppointmentLike[]; notices: Omit<CalendarNoticesDto, "count"> }> {
+): Promise<{ rows: AppointmentLike[]; marks: Map<string, FeedMark>; notices: Omit<CalendarNoticesDto, "count"> }> {
   const spanFrom = new Date(zoneMidnight(tz, from)).toISOString();
   const spanTo = new Date(zoneMidnight(tz, shiftKey(to, 1))).toISOString();
   const failed = (e: unknown) =>
@@ -223,14 +235,16 @@ async function recordOverSpan(
       tenant_id: tenantId,
       error: e instanceof Error ? e.message : String(e),
     });
-  const [rows, notices] = await Promise.all([
-    appointmentsBetween(ctx.supabase, tenantId, spanFrom, spanTo).catch((e): AppointmentLike[] => {
+  const [record, notices] = await Promise.all([
+    visitsOver(ctx.supabase, tenantId, spanFrom, spanTo).catch((e): { noted: AppointmentRow[]; feed: [] } => {
       failed(e);
-      return [];
+      return { noted: [], feed: [] };
     }),
     noticesHealth(ctx, tenantId, by, true),
   ]);
-  return { rows, notices };
+  // A booking's rows however they stand: drawn (a cancelled one struck), and each one's copy in the feed left out
+  // (withoutVisitsRowsDraw), cancelled or not. The feed's own rows by key, for what a member says on them.
+  return { rows: record.noted, marks: feedMarksOf(record.feed), notices };
 }
 
 /**
@@ -375,12 +389,13 @@ export async function calendarSources(
   // the notices' health only where the owner named a tool: without one no email was ever read as a booking, so there
   // is nothing to ask, and a workspace that never set this up costs Setup no query.
   const named = { tool: cfg?.bookings?.tool ?? null, name: cfg?.brain?.business_name ?? null };
-  const { rows, notices } = !opts.feedOnly
+  const { rows, marks, notices } = !opts.feedOnly
     ? await recordOverSpan(ctx, tenantId, timezone, span.from, to, named)
     : named.tool
-      ? { rows: NO_RECORD.rows, notices: await noticesHealth(ctx, tenantId, named, false, opts.mailbox) }
+      ? { ...NO_RECORD, notices: await noticesHealth(ctx, tenantId, named, false, opts.mailbox) }
       : NO_RECORD;
-  base.feed.notices = { ...notices, count: rows.length };
+  // The visits the notices became over the span, a cancelled one aside.
+  base.feed.notices = { ...notices, count: rows.filter((r) => r.status !== "cancelled").length };
 
   // What the board needs of the address and the settings, and not them: the calendar's name, the business's own.
   const read = {
@@ -392,6 +407,7 @@ export async function calendarSources(
     rules,
     base,
     rows,
+    marks,
   };
   const sources = await withFeedAndPeople(ctx, tenantId, read, url, profile, now, {
     fresh: !!opts.fresh,
@@ -403,8 +419,13 @@ export async function calendarSources(
 }
 
 /** A read that asks nothing of the record: no rows over the span, no notice's health line, no address. */
-const NO_RECORD: { rows: AppointmentLike[]; notices: Omit<CalendarNoticesDto, "count"> } = {
+const NO_RECORD: {
+  rows: AppointmentLike[];
+  marks: Map<string, FeedMark>;
+  notices: Omit<CalendarNoticesDto, "count">;
+} = {
   rows: [],
+  marks: new Map(),
   notices: { tool: null, address: null, last_at: null, held: 0, held_list: [], forwarding: null },
 };
 
@@ -468,7 +489,9 @@ async function takenBesideTheFeed(
   const from = zoneMidnight(read.timezone, read.span.from);
   const to = zoneMidnight(read.timezone, shiftKey(read.span.from, read.span.days));
   return from <= offer.from && offer.to <= to
-    ? busyOfAppointments(read.rows)
+    ? // Taken time is a visit that still stands, as the record's own read of it says (record-busy.ts): not one already
+      // kept or missed, which the board draws all the same.
+      busyOfAppointments(read.rows.filter((r) => r.status === "proposed" || r.status === "booked"))
     : recordBusy(ctx, tenantId, now, daysAhead);
 }
 
@@ -479,7 +502,8 @@ async function takenBesideTheFeed(
  * nothing, and changes nothing it is handed.
  */
 export function weekFrom(s: CalendarSources, people: PersonLike[], now: Date): CalendarWeekDto {
-  const { timezone, span, source, ownAddresses, profile, rules, base, feed, parsed, serviceNames, rows, taken } = s;
+  const { timezone, span, source, ownAddresses, profile, rules, base, feed, parsed, serviceNames, rows, marks, taken } =
+    s;
   // The feed's events, less those a row already draws (the same client, the same quarter hour): a visit a tool both
   // emailed and wrote into the calendar is drawn once, from the notice, which states what the event's title hints at.
   const events = parsed ? withoutVisitsRowsDraw(parsed.items, rows, ownAddresses) : [];
@@ -491,7 +515,7 @@ export function weekFrom(s: CalendarSources, people: PersonLike[], now: Date): C
     people,
     ownAddresses,
     serviceNames,
-    { services: profile?.services ?? [], rules },
+    { services: profile?.services ?? [], rules, marks },
   );
   const days = daysWithAppointments(fromFeed, rows, timezone, people);
   // Open times only where a calendar reads: the rows say what was booked online, not what a staff member typed into

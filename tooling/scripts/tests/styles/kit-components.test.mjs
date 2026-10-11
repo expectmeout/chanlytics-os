@@ -363,6 +363,11 @@ const BUTTONS = {
   btn: () => [h(Button, null, "Export"), h(Button, null, glyph(), "Add a person")],
   "btn-primary": () => h(Button, { variant: "primary" }, glyph(), "Save"),
   "btn-ghost": () => h(Button, { variant: "quiet" }, "Cancel"),
+  "btn-plain": () => [
+    h(Button, { variant: "plain", size: "sm" }, "Select"),
+    h(Button, { variant: "plain", size: "sm", "aria-haspopup": "menu", "aria-expanded": true }, "Sort"),
+    h(Button, { variant: "plain", size: "sm" }, "Export"),
+  ],
   "btn-danger": () => h(Button, { variant: "danger" }, glyph(), "Yes, delete"),
   "btn-danger-quiet": () => h(Button, { tone: "danger" }, "Delete…"),
   "btn-sm": () => [
@@ -534,12 +539,12 @@ test("Face draws the gallery's Face family, hidden from a screen reader, its pic
 });
 
 /**
- * A person's row, as the gallery draws it, with what was said or not, a note or not, an address or none, and a row's
- * kind as its mark instead of a face.
+ * A person's row, as the gallery draws it, with what was said or not, a note or not, an address or none, a row's kind as
+ * its mark instead of a face, or nothing in its first column (`bare`).
  */
-const row = ({ said = true, note = false, href = undefined, mark = false } = {}) =>
+const row = ({ said = true, note = false, href = undefined, mark = false, bare = false } = {}) =>
   h(ListRow, {
-    ...(mark ? { mark: glyph() } : { face: { initials: "AR" } }),
+    ...(bare ? { bare: true } : mark ? { mark: glyph() } : { face: { initials: "AR" } }),
     name: "Aisha Rahman",
     end: (place) => h("span", { className: cx("pill pill-warn", place) }, "Needs you"),
     said: said ? "asked about Saturday" : undefined,
@@ -558,6 +563,7 @@ const LIST_ROWS = {
   "list-row-note": () => row({ note: true }),
   "list-row-door": () => row({ note: true, href: "#kit" }),
   "list-row-mark": () => row({ said: false, mark: true }),
+  "list-row-bare": () => row({ bare: true }),
 };
 
 test("ListRow draws the gallery's List row family, and the page's own elements where the row takes them", () => {
@@ -1217,7 +1223,7 @@ const SEARCHES = {
   "search-desk": () => searchOf({ rests: false, label: "Search by name or message", testid: "inbox-search" }),
 };
 
-test("Search draws the gallery's Search family: the capsule at rest, the field with its clear and Cancel, the desk's field", () => {
+test("Search draws the gallery's Search family: the capsule at rest, the field with its clear, the desk's field", () => {
   assert.deepEqual(parting(FAMILIES, "Search", SEARCHES), HELD);
   const rest = drawn(searchOf({ rests: true, className: "pp-lookup" }));
   assert.equal(rest.props.className, "search pp-lookup", "the page's layout class comes last");
@@ -1233,14 +1239,23 @@ test("Search draws the gallery's Search family: the capsule at rest, the field w
   const open = drawn(
     searchOf({ rests: true, open: true, value: "Sam", onChange: (q) => (words = q), onOpen: (o) => (shut = o) }),
   );
-  const cancel = open.props.children.flat().filter(Boolean).at(-1);
-  assert.equal(cancel.props["data-testid"], "people-phone-search-cancel");
-  press(cancel);
-  assert.deepEqual([words, shut], ["", false], "Cancel empties the field and rests it");
+  // No Cancel (Ruben, 10 Oct 2026): the clear stands in the field's end from the first word, and empties it; the field
+  // left empty rests as focus leaves it.
+  const label = open.props.children.flat().filter(Boolean).at(-1);
+  const clear = label.props.children.flat().filter(Boolean).at(-1);
+  assert.equal(clear.props["data-testid"], "people-phone-search-clear");
+  press(clear);
+  assert.deepEqual([words, shut], ["", null], "the clear empties the field and keeps it open");
+  // The label holds the glyph, the field's box (the input inside it) and the clear.
+  const field = label.props.children.flat().filter(Boolean)[1].props.children[0];
+  assert.equal(field.props["data-testid"], "people-phone-search");
+  field.props.onBlur();
+  assert.equal(shut, null, "with words still in it, leaving the field asks nothing: it stays open");
+  const empty = drawn(searchOf({ rests: true, open: true, value: "", onOpen: (o) => (shut = o) }));
+  const emptyLabel = empty.props.children.flat().filter(Boolean).at(-1);
+  assert.equal(emptyLabel.props.children.flat().filter(Boolean).length, 2, "no clear until a word is typed");
+  emptyLabel.props.children.flat().filter(Boolean)[1].props.children[0].props.onBlur();
+  assert.equal(shut, false, "left empty, it rests as focus leaves it");
   const desk = drawn(searchOf({ rests: false, value: "Sam" }));
-  assert.equal(
-    desk.props.children.flat().filter(Boolean).length,
-    1,
-    "on a desk the field stands alone, with no Cancel",
-  );
+  assert.equal(desk.props.children.flat().filter(Boolean).length, 1, "on a desk the field stands alone");
 });

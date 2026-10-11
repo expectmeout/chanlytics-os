@@ -319,6 +319,13 @@ export const EVENT_KINDS = [
    * one line per lead.
    */
   "lead.set_aside",
+  /**
+   * The ideas for a new search were written (00400: lead_suggestions_write), { how: "written" | "line", count, by_owner }:
+   * "written" when the model's ideas were kept, with how many; "line" when the owner set the business line they are
+   * written from, which asks for new ones. A record for Reports (how often ideas are written, whether owners rewrite
+   * the line), never a line of the owner's Activity.
+   */
+  "lead.ideas_written",
   // A deal (0004): written by deal_record, one kind per stage; record kinds, kept.
   "deal.proposed",
   "deal.won",
@@ -675,6 +682,11 @@ export const DECISION_VERBS = [
    * member per call per hour. A customer's voice left the building to someone's speakers; who listened is the audit.
    */
   "open_recording",
+  /**
+   * A member said what became of a visit (00397 mark_visit, decision 0002 step 8): kept, missed or cancelled, subject
+   * 'appointment' (its row), payload from, to, the row's source, its start and the person it is for.
+   */
+  "mark_visit",
 ] as const;
 export type DecisionVerb = (typeof DECISION_VERBS)[number];
 
@@ -698,6 +710,8 @@ export const DECISION_SUBJECTS = [
   "deal",
   /** One of the workspace's own lists (segments): its life, in the ledger (00169). */
   "list",
+  /** A visit the record keeps (00345): what a member said became of it (00397). */
+  "appointment",
 ] as const;
 export type DecisionSubject = (typeof DECISION_SUBJECTS)[number];
 

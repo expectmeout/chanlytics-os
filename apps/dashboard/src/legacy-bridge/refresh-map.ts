@@ -276,6 +276,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // count, which the Business tab's fold and the board's card both draw from, so the list says what is left at once.
   "POST calendar/notices/[id]/read-again": () => [calendarOverride],
   "POST calendar/notices/[id]/dismiss": () => [calendarOverride],
+  // What a member said became of a visit (0002 step 8): the board's read carries each visit's word.
+  "POST calendar/visits/[id]": () => [calendarOverride],
   // A class's mode is what lets a playbook send by itself, ask, or never: People's rows say it of the follow-up (0006), and the Reviews
   // lens's, of a review, whether its composer asks the receptionist for a draft.
   "PUT policies": () => [settingsOverride, peopleOverride, reviewsOverride],

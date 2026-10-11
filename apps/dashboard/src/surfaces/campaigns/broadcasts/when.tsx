@@ -8,10 +8,9 @@
  */
 import { DAY_MS, MIN_MS, SEND_WHEN_WORDS, sendsWaitWords } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
-import { Button } from "../../kit/button/button";
 import { DatePicker } from "../../kit/datepicker/datepicker";
 import { Icon } from "../../kit/icon/icon";
-import { Picker } from "../../kit/picker/picker";
+import { Picker, Token } from "../../kit/picker/picker";
 import { cmChevron, cmGroups } from "../parts/picks";
 
 // The receipt's sentence for when a send really goes is when-words.ts's (bcWhenWords): words alone, off the shell.
@@ -38,9 +37,9 @@ function slotWords(time: string): string {
   return `${((h + 11) % 12) + 1}:${pad2(m)} ${h < 12 ? "AM" : "PM"}`;
 }
 
-// A day as a token says it: "Today", else its weekday and date ("Tue, Oct 6"), from the business's "YYYY-MM-DD".
+// A day as a word of the sentence says it: "today", else its weekday and date ("Tue, Oct 6"), from the business's "YYYY-MM-DD".
 function dayToken(day: string, today: string): string {
-  if (day === today) return SEND_WHEN_WORDS.today;
+  if (day === today) return SEND_WHEN_WORDS.today.toLowerCase();
   return new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" }).format(
     new Date(`${day}T00:00:00Z`),
   );
@@ -88,8 +87,9 @@ function modeGroups(maxDays: number) {
   ]);
 }
 
-// The day and the time of a time picked: the kit's date picker opened from a small button that says the day, and the
-// kit's picker of the sending hours, with the time already held (a send kept from before may sit off the quarter hours).
+// The day and the time of a time picked, words of the send's sentence: the kit's date picker opened from the word that says
+// the day, and the kit's picker of the sending hours, with the time already held (a send kept from before may sit off the
+// quarter hours). The zone is said by the line under the sentence, where the time is said in full.
 function dayAndTime({ at, maxDays, onChange }: BcWhenPickProps & { at: number }) {
   const C = pageClock();
   const { day, time } = partsOf(at);
@@ -104,14 +104,9 @@ function dayAndTime({ at, maxDays, onChange }: BcWhenPickProps & { at: number })
         today={today}
         label={SEND_WHEN_WORDS.dayLabel}
         glyphs={{ previous: <Icon name="chevron" size={14} />, next: <Icon name="chevron" size={14} /> }}
-        trigger={
-          <Button size="sm" data-testid="bc-when-day">
-            {dayToken(day, today)}
-            <Icon name="chevron-down" size={11} />
-          </Button>
-        }
-      />
-      <span>{SEND_WHEN_WORDS.at}</span>
+        trigger={<Token data-testid="bc-when-day">{dayToken(day, today)}</Token>}
+      />{" "}
+      {SEND_WHEN_WORDS.at}{" "}
       <Picker
         label={SEND_WHEN_WORDS.timeLabel}
         value={time}
@@ -119,31 +114,32 @@ function dayAndTime({ at, maxDays, onChange }: BcWhenPickProps & { at: number })
         groups={cmGroups(times.map((t) => ({ id: t, label: slotWords(t) })))}
         chevron={cmChevron()}
         face={slotWords(time)}
+        inline
         data-testid="bc-when-time"
       />
-      <span>{SEND_WHEN_WORDS.zone(C.city())}</span>
     </>
   );
 }
 
-// When the send goes, said as one sentence with its day and time chosen in place, by the business's clock (pageClock):
-// 22:30 here is half past ten where the business is, whatever the device's zone. It holds the instant, so what is sent
-// is what the note says, and it stops at now and at the ceiling the route keeps.
+// When the send goes, the last words of its sentence ("…, [now]." or "…, [on] [Tue, Oct 6] at [9:15 AM]."), by the
+// business's clock (pageClock): 22:30 here is half past ten where the business is, whatever the device's zone. It holds
+// the instant, so what is sent is what the note says, and it stops at now and at the ceiling the route keeps.
 export function BcWhenPick(props: BcWhenPickProps) {
   const { at, maxDays, onChange } = props;
   return (
-    <p className="bc-when-line" data-testid="bc-when">
+    <span data-testid="bc-when">
       <Picker
         label={SEND_WHEN_WORDS.modeLabel}
         value={at === null ? "now" : "later"}
         onValueChange={(mode) => onChange(mode === "later" ? firstSlot(Date.now()) : null)}
         groups={modeGroups(maxDays)}
         chevron={cmChevron()}
-        face={at === null ? SEND_WHEN_WORDS.now : SEND_WHEN_WORDS.on}
+        face={(at === null ? SEND_WHEN_WORDS.now : SEND_WHEN_WORDS.on).toLowerCase()}
+        inline
         data-testid="bc-when-mode"
       />
-      {at === null ? null : dayAndTime({ at, maxDays, onChange })}
-    </p>
+      {at === null ? null : <> {dayAndTime({ at, maxDays, onChange })}</>}
+    </span>
   );
 }
 
@@ -171,11 +167,10 @@ export function bcWhenNote(at: number | null, maxDays: number): WhenNote {
 }
 
 // What Send now does, where no time is picked: it goes when it is pressed, and outside the sending hours it waits for
-// the next nine o'clock, as the preview's stamp says.
+// the next nine o'clock, as the preview's stamp says. In the business's time, which the preview's stamp is in; the city
+// is said where a time is picked (bcWhenNote), not under Now too.
 export function bcNowNote(): string {
   const C = pageClock();
   const open = C.nextOpen(Date.now());
-  return open.moved
-    ? `Send now goes out ${C.when(open.at)}, ${C.city()} time — ${sendsWaitWords(C.hours)}`
-    : `Send now goes out as soon as you press it, ${C.city()} time`;
+  return open.moved ? `Goes out ${C.when(open.at)} — ${sendsWaitWords(C.hours)}` : "Goes out as soon as you press Send";
 }

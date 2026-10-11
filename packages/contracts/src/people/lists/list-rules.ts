@@ -56,6 +56,13 @@ export const LIST_RULE_FIELDS: readonly {
     needs: ["calendar"],
     draft: "days until their next appointment; op this_week is Monday to Sunday of this week",
   },
+  {
+    id: "missed_visit",
+    label: "Missed a visit",
+    kind: "days",
+    needs: ["calendar"],
+    draft: "days since a visit they did not come to, as a member marked it missed on the calendar",
+  },
   { id: "booked", label: "A visit booked", kind: "yesno", needs: ["calendar"], draft: "an appointment booked ahead" },
   {
     id: "asked_not_booked",
@@ -185,6 +192,7 @@ const fact = <T extends z.core.$ZodLooseShape>(shape: T) => z.strictObject(shape
 export const ListFactSchema = z.discriminatedUnion("field", [
   fact({ field: z.literal("last_visit"), ...Days }),
   fact({ field: z.literal("next_visit"), ...Days }),
+  fact({ field: z.literal("missed_visit"), ...Days }),
   fact({ field: z.literal("booked"), ...YesNo }),
   fact({ field: z.literal("asked_not_booked"), ...YesNo }),
   fact({ field: z.literal("last_heard"), ...Days }),
@@ -215,7 +223,13 @@ export type ListCondition = ListFact | ListAny;
 
 /** Whether a day fact's op carries its days, and whether `this_week` is said of a fact it fits. */
 function factProblem(f: ListFact): string | null {
-  if (f.field !== "last_visit" && f.field !== "next_visit" && f.field !== "last_heard" && f.field !== "first_contact")
+  if (
+    f.field !== "last_visit" &&
+    f.field !== "next_visit" &&
+    f.field !== "missed_visit" &&
+    f.field !== "last_heard" &&
+    f.field !== "first_contact"
+  )
     return null;
   if ((f.op === "more_than" || f.op === "within") && f.days === undefined) return `${f.field} ${f.op} needs days`;
   if (f.op === "this_week" && f.field !== "next_visit") return "only the next visit can be this week";
@@ -370,6 +384,8 @@ function holds(f: ListFact, v: PersonRowVM, inList: InList): boolean {
       return dayHolds(v.lastVisitDays, f.op, f.days);
     case "next_visit":
       return f.op === "this_week" ? v.nextVisitThisWeek : dayHolds(v.nextVisitDays, f.op, f.days);
+    case "missed_visit":
+      return dayHolds(v.missedVisitDays, f.op, f.days);
     case "last_heard":
       return dayHolds(v.heardDays, f.op, f.days);
     case "first_contact":
@@ -438,6 +454,17 @@ const DEAL_STAGE_LIST_WORDS: Record<(typeof LIST_DEAL_STAGES)[number], string> =
 };
 const PURPOSE_WORDS: Record<(typeof LIST_PURPOSES)[number], string> = { offers: "offers", messages: "messages" };
 
+/** A day fact said with no days: never, and ever, each field in its own words. */
+const DAY_FACT_ENDS: Record<
+  "last_visit" | "missed_visit" | "last_heard" | "first_contact",
+  { never: string; ever: string }
+> = {
+  last_visit: { never: "Never visited", ever: "Has visited" },
+  missed_visit: { never: "Never missed a visit", ever: "Has missed a visit" },
+  last_heard: { never: "Never heard from", ever: "Has written or called" },
+  first_contact: { never: "No first contact on file", ever: "Has a first contact" },
+};
+
 /**
  * One fact in the page's words: a chip. `listName` says a list another list reads by its name; without it the chip
  * says "another list".
@@ -446,20 +473,13 @@ export function listFactWords(f: ListFact, listName: (token: string) => string |
   const label = fieldOf(f.field).label;
   switch (f.field) {
     case "last_visit":
+    case "missed_visit":
     case "last_heard":
     case "first_contact":
       return f.op === "never"
-        ? f.field === "last_visit"
-          ? "Never visited"
-          : f.field === "last_heard"
-            ? "Never heard from"
-            : "No first contact on file"
+        ? DAY_FACT_ENDS[f.field].never
         : f.op === "ever"
-          ? f.field === "last_visit"
-            ? "Has visited"
-            : f.field === "last_heard"
-              ? "Has written or called"
-              : "Has a first contact"
+          ? DAY_FACT_ENDS[f.field].ever
           : f.op === "more_than"
             ? `${label} more than ${plural(f.days ?? 0, "day")} ago`
             : `${label} in the last ${plural(f.days ?? 0, "day")}`;

@@ -159,7 +159,7 @@ test("the plan schema keeps its keys unique and its shape whole; the sentence sa
   const p = plan();
   assert.equal(
     planSentence(p),
-    "Find 200 personal trainers in Austin, TX with a website, reached by a checked email or a phone. Leaving out: chain gyms.",
+    "Find 200 personal trainers in Austin, TX: with a website; reached by a checked email or a phone. Leaving out: chain gyms.",
   );
   const seen = plan({
     contact: "phone",
@@ -168,7 +168,7 @@ test("the plan schema keeps its keys unique and its shape whole; the sentence sa
   });
   assert.equal(
     planSentence(seen),
-    "Find 200 personal trainers in Austin, TX already sell OTC medicine (confirmed), reached by phone or a checked email.",
+    "Find 200 personal trainers in Austin, TX: already sell OTC medicine (confirmed); reached by phone or a checked email.",
   );
   assert.throws(
     () => plan({ exclusions: [{ key: "website", text: "Chain gyms", origin: "claude" }] }),
@@ -179,7 +179,7 @@ test("the plan schema keeps its keys unique and its shape whole; the sentence sa
   const acronym = plan({ exclusions: [{ key: "cvs", text: "CVS pharmacies", origin: "claude" }] });
   assert.equal(
     planSentence(acronym),
-    "Find 200 personal trainers in Austin, TX with a website, reached by a checked email or a phone. Leaving out: CVS pharmacies.",
+    "Find 200 personal trainers in Austin, TX: with a website; reached by a checked email or a phone. Leaving out: CVS pharmacies.",
     "an acronym's own case survives: only a lowercase second letter gets folded",
   );
 });
@@ -943,7 +943,7 @@ test("the sentence is the plan card's words joined: every picker is one word of 
   );
   assert.equal(
     planSaid(p),
-    "Find 200 personal trainers in Austin, TX with a website, reached by a checked email or a phone.",
+    "Find 200 personal trainers in Austin, TX: with a website; reached by a checked email or a phone.",
   );
   assert.equal(planLeavingOut(p), " Leaving out: chain gyms.");
   assert.equal(

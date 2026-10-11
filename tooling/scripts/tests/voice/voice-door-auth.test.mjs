@@ -29,7 +29,7 @@ const DOORS = {
   availability: await import(at("apps/edge/api/retell-availability.ts")),
 };
 // No database: past the door each one answers what it answers without one. What is proven here is only whether the
-// door opened -- 401 or not.
+// door opened (turnedAway).
 setPg(null);
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (url) => {
@@ -71,6 +71,20 @@ function knock(door, { secret = null, elsewhere = false, signature = null, raw =
   return DOORS[door].POST(new Request(url, { method: "POST", headers, body: raw }));
 }
 
+/**
+ * What each door says to a knock it turned away: the webhook a 401; each tool a sentence the agent can speak, since a 401
+ * has no words and a call whose knock was refused went silent (11 Oct 2026). Nothing is read or sent for either.
+ */
+const TURNED_AWAY = {
+  fn: "I can't send anything just now. Take the caller's name and say someone will call them back.",
+  availability: "I can't check the calendar just now. Take the caller's name and say someone will call them back.",
+};
+async function turnedAway(door, res) {
+  if (door === "inbound") return res.status === 401;
+  return res.status === 200 && (await res.json()).result === TURNED_AWAY[door];
+}
+const came = async (door, opts) => !(await turnedAway(door, await knock(door, opts)));
+
 /** What the doors logged while `fn` ran: voice_door_auth lines, as fields. */
 async function logged(fn) {
   const lines = [];
@@ -109,11 +123,10 @@ for (const door of ["inbound", "fn", "availability"]) {
   test(`${door}: the secret opens it where this door reads one, Retell's signature opens it on its own, and the log says what each knock carried; nothing else does`, async () => {
     const raw = JSON.stringify(BODIES[door]);
     const lines = await logged(async () => {
-      assert.notEqual((await knock(door, { secret: SECRET })).status, 401, "the secret");
-      assert.notEqual((await knock(door, { secret: SECRET, signature: sign(raw) })).status, 401, "the secret, signed");
-      assert.notEqual(
-        (await knock(door, { signature: sign(raw) })).status,
-        401,
+      assert.ok(await came(door, { secret: SECRET }), "the secret");
+      assert.ok(await came(door, { secret: SECRET, signature: sign(raw) }), "the secret, signed");
+      assert.ok(
+        await came(door, { signature: sign(raw) }),
         "the signature alone: the caller signs, so that is a credential before the switch says it is the only one",
       );
       for (const [opts, why] of [
@@ -128,7 +141,7 @@ for (const door of ["inbound", "fn", "availability"]) {
         ],
         [{ signature: sign(raw, { at: Date.now() - 6 * 60_000 }) }, "a signature six minutes old"],
       ])
-        assert.equal((await knock(door, opts)).status, 401, why);
+        assert.equal(await came(door, opts), false, why);
     });
     assert.deepEqual(
       lines.map((l) => [l.door, l.sig, l.secret, l.signed_only, l.ok]),
@@ -143,8 +156,8 @@ for (const door of ["inbound", "fn", "availability"]) {
     const was = process.env.RETELL_FN_SECRET;
     delete process.env.RETELL_FN_SECRET;
     try {
-      assert.equal((await knock(door, { secret: "" })).status, 401);
-      assert.equal((await knock(door, { secret: "anything" })).status, 401);
+      assert.equal(await came(door, { secret: "" }), false);
+      assert.equal(await came(door, { secret: "anything" }), false);
     } finally {
       process.env.RETELL_FN_SECRET = was;
     }
@@ -157,8 +170,8 @@ for (const door of ["inbound", "fn", "availability"]) {
     assert.notEqual(raw, reser);
     const lines = await logged(() =>
       withSigned("1", async () => {
-        assert.notEqual((await knock(door, { raw, signature: sign(raw) })).status, 401, "signed over the raw body");
-        assert.notEqual((await knock(door, { raw, signature: sign(reser) })).status, 401, "signed as Retell's example");
+        assert.ok(await came(door, { raw, signature: sign(raw) }), "signed over the raw body");
+        assert.ok(await came(door, { raw, signature: sign(reser) }), "signed as Retell's example");
         for (const [opts, why] of [
           [{ raw, secret: SECRET }, "the secret alone, once the signature is required"],
           [
@@ -168,7 +181,7 @@ for (const door of ["inbound", "fn", "availability"]) {
           [{ raw, signature: sign(raw, { at: Date.now() - 6 * 60_000 }) }, "a signature six minutes old"],
           [{ raw: `${raw} `, signature: sign(raw) }, "a body that is not the one signed"],
         ])
-          assert.equal((await knock(door, opts)).status, 401, why);
+          assert.equal(await came(door, opts), false, why);
       }),
     );
     assert.deepEqual(

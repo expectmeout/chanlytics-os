@@ -24,7 +24,7 @@ import { pathToFileURL } from "node:url";
 import { transform } from "lightningcss";
 import * as contracts from "@chanlytics/contracts";
 import { ROOT } from "../_source.mjs";
-import { installLegacyReact, fresh, all, find, byTestId, textOf, press } from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, all, find, byTestId, textOf, press } from "../_legacy-react.mjs";
 
 installLegacyReact({
   location: {
@@ -50,7 +50,7 @@ const { cmPreviewBy, cmChannelOfPerson } = await import(`${SRC}/surfaces/campaig
 const channelsModule = await import(`${SRC}/surfaces/campaigns/parts/channels.ts`);
 const { cmReachBy, cmChannelColour, cmViaTicks, cmDefaultChannels, cmOfferedMessages, cmStandInOf, CM_NO_MESSAGE_YET } =
   channelsModule;
-const { CmVia } = await import(`${SRC}/surfaces/campaigns/parts/send-by.tsx`);
+const { CmViaWord } = await import(`${SRC}/surfaces/campaigns/parts/send-by.tsx`);
 const { Meter } = await import(`${SRC}/surfaces/kit/meter/meter.tsx`);
 const { Tooltip } = await import(`${SRC}/surfaces/kit/tooltip/tooltip.tsx`);
 
@@ -387,7 +387,8 @@ test("the stepper walks the people and wraps, each press one step, and says its 
   const steps = [];
   const at = (index) => h(PreviewStepper, { people, index, onStep: (i) => steps.push(i) });
   let tree = at(0);
-  assert.equal(textOf(byTestId(tree, "mp-step")), "Ana Reyes1 of 3");
+  // A person is drawn with their initials (the kit's face, hidden from a screen reader), then their name and place.
+  assert.equal(textOf(byTestId(tree, "mp-step")), "ARAna Reyes1 of 3");
   const press1 = (tree, label) => press(find(tree, (n) => n.props?.["aria-label"] === label));
   press1(tree, "The next person");
   press1(tree, "The person before this one");
@@ -424,7 +425,7 @@ test("the stepper walks the people and wraps, each press one step, and says its 
 
 /* ---------------------------------- why a channel is closed, to a finger ---------------------------------- */
 
-test("why a channel is closed is a line under the Send by row where there is no pointer -- the kit's tooltip never shows to a finger -- and each switch keeps the same words as its description", () => {
+test("why a channel is closed is said under its word in the channels' list, where a finger reads it -- the kit's tooltip never shows to a finger -- and each toggle keeps the same words as its description", () => {
   fresh();
   // The workspace sends on WhatsApp alone: WhatsApp is the one on (and stays on), text and email are closed, each for its own reason.
   const ready = contracts.channelsReady({
@@ -433,56 +434,53 @@ test("why a channel is closed is a line under the Send by row where there is no 
     email: { mailbox: false, domain: false },
   });
   const ticks = cmViaTicks(["whatsapp"], ready, { purpose: "conversational", about: "ours" }, false);
-  const tree = h(CmVia, { ticks, onTick() {}, testid: "bc-via" });
-  const whys = byTestId(tree, "bc-via-whys");
-  assert.deepEqual(
-    all(whys, (n) => n.type === "li").map((n) => [n.props["data-channel"], textOf(n)]),
-    ticks.map((t) => [t.channel, `${t.word} ${t.why}`]),
-    "a line for each channel that has a reason, under the row, with the channel's name before it",
-  );
   assert.deepEqual(
     ticks.map((t) => t.why !== null),
     [true, true, true],
     "(the one channel that is on says why it cannot be turned off, as the others say why they cannot be turned on)",
   );
-  assert.equal(whys.props["aria-hidden"], "true", "hidden from a screen reader, which has the words already");
-  // The screen reader's own copy is each switch's description, as it was.
+  // The channels are a word of the sentence that opens their list (the kit popover's children, which the stub draws).
+  const tree = again(() => h(CmViaWord, { ticks, onTick() {}, testid: "bc-via" }));
   for (const t of ticks) {
     const one = byTestId(tree, `bc-via-${t.channel}`);
-    const said = find(one, (n) => n.props?.className === "cm-sr");
-    assert.equal(textOf(said), t.why);
-    assert.equal(find(one, (n) => n.props?.describedBy !== undefined).props.describedBy, said.props.id);
+    const why = byTestId(tree, `bc-via-${t.channel}-why`);
+    assert.equal(textOf(why), t.why, "its reason under its word");
+    assert.equal(one.props["aria-describedby"], why.props.id, "and its description");
+    assert.equal(one.props.role, "switch");
   }
-  // Nothing to say, no line: a row whose every channel is open and none is the last one on.
+  assert.equal(byTestId(tree, "bc-via-whys"), null, "no line under the list says a reason a second time");
+  // Nothing to say: every channel open and none the last one on: no reason under any.
+  fresh();
   const open = contracts.channelsReady({
     whatsapp: { canSend: true, refusal: null },
     textLine: { sms_state: "active", reg_mock: false },
     email: { mailbox: true, domain: true, offers: OFFERS_OPEN },
   });
-  const quiet = h(CmVia, {
+  const quiet = h(CmViaWord, {
     ticks: cmViaTicks(["whatsapp", "sms"], open, { purpose: "conversational", about: "ours" }, false),
     onTick() {},
     testid: "bc-via",
   });
-  assert.equal(byTestId(quiet, "bc-via-whys"), null);
+  assert.equal(["whatsapp", "sms", "email"].filter((c) => byTestId(quiet, `bc-via-${c}-why`)).length, 0);
 });
 
-test("the line is drawn for a touch screen alone: hidden in the stylesheet, shown under (hover: none), in tokens", () => {
+test("the channels' list is drawn in tokens: a row a finger's height, the reason under its word in the quiet size and ink, a closed one's in the warning's", () => {
   const file = "apps/dashboard/src/surfaces/campaigns/campaigns.css";
   const css = transform({
     filename: file,
     code: fs.readFileSync(path.join(ROOT, file)),
     minify: true,
   }).code.toString();
-  const rule = /\.cm-via-whys\{([^}]*)\}/.exec(css);
-  assert.ok(rule, "a rule for the line");
-  assert.ok(rule[1].includes("display:none"), "off wherever there is a pointer, where the tooltip says it");
-  const touch = /@media \(hover:none\)\{\.cm-via-whys\{([^}]*)\}\}/.exec(css);
-  assert.ok(touch, "and on under (hover: none)");
-  assert.ok(touch[1].includes("display:flex"), touch?.[1]);
-  // Its size, ink and gap are the tokens', as every value in a stylesheet is.
-  assert.ok(rule[1].includes("font-size:var(--text-xs)") && rule[1].includes("color:var(--ink-dim)"), rule[1]);
-  assert.ok(touch[1].includes("gap:var(--space-1)"), touch[1]);
+  const sub = /\.cm-via-sub\{([^}]*)\}/.exec(css);
+  assert.ok(sub, "a rule for the reason");
+  assert.ok(sub[1].includes("font-size:var(--text-xs)") && sub[1].includes("color:var(--ink-dim)"), sub[1]);
+  assert.ok(
+    /\.cm-via-sub\[data-warn=true\]\{color:var\(--warn-ink\)\}/.test(css),
+    "a closed one's in the warning's ink",
+  );
+  const one = /\.cm-via \.cm-via-one\{([^}]*)\}/.exec(css);
+  assert.ok(one, "a rule for the row");
+  assert.ok(one[1].includes("min-height:52px"), one[1]);
 });
 
 /* ---------------------------------- the split as a bar ---------------------------------- */
@@ -704,7 +702,7 @@ test("a message with an email version and no WhatsApp row is offered by the chan
   assert.deepEqual(withNumber.ticks, {
     whatsapp: { on: false, why: "This message has no WhatsApp version." },
     sms: { on: false, why: "This message has no text version yet." },
-    email: { on: true, why: "A campaign goes by at least one channel." },
+    email: { on: true, why: "Keep at least one on." },
   });
   // A workspace with no number: WhatsApp's reason is the workspace's, which wins; Text and Email are as they were.
   const noNumber = sendByOf(offered, NO_NUMBER);
@@ -716,7 +714,7 @@ test("a message with an email version and no WhatsApp row is offered by the chan
   assert.deepEqual(noNumber.ticks, {
     whatsapp: { on: false, why: "Connect a WhatsApp number first." },
     sms: { on: false, why: "This message has no text version yet." },
-    email: { on: true, why: "A campaign goes by at least one channel." },
+    email: { on: true, why: "Keep at least one on." },
   });
 });
 

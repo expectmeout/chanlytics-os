@@ -85,12 +85,6 @@ const { Picker } = await import(`${SRC}/surfaces/kit/picker/picker.tsx`);
 const { CmSlot } = await import(`${SRC}/surfaces/campaigns/parts/slot.tsx`);
 /** One of the composer's choices, the kit's Picker (surfaces/kit/picker/), by its test id. */
 const pickerOf = (tree, testid) => find(tree, (n) => n.type === Picker && n.props["data-testid"] === testid);
-/** What a picker's token says: the page's face, else the one chosen, else what it says with none. */
-const faceOf = (tree, testid) => {
-  const p = pickerOf(tree, testid);
-  const one = p.props.groups.flatMap((g) => g.options).find((o) => o.value === p.props.value);
-  return textOf(p.props.face ?? (one ? one.label : (p.props.placeholder ?? "")));
-};
 /** The kit menu's item by its words (the ⋯ beside Pause and Edit, where Run now and Delete live): what a press does. */
 const moreItem = (tree, label) => {
   const menu = find(tree, (n) => n.type === Menu);
@@ -303,9 +297,8 @@ const openByLink = () => {
 };
 /** The slots of the send's message that are typed, in their order: the bubble's controls (parts/slot.tsx), where the table's boxes were. */
 const typedSlots = (tree) => all(tree, (n) => n.type === CmSlot).filter((s) => s.props.kind === "text");
-/** The send's name box, by its own words: the foot's Field (the kit's, by its placeholder). */
-const nameBox = (tree) =>
-  find(tree, (n) => n.type === Field && String(n.props?.placeholder || "").startsWith("Name this broadcast"));
+/** The send's name box, by its name: the Name row's Field (the kit's, by its aria-label). */
+const nameBox = (tree) => find(tree, (n) => n.type === Field && n.props?.["aria-label"] === "Name this broadcast");
 /** Campaigns' home at an address's param (null: the home itself), as the route draws it. */
 const home = (param = null) => CampaignsHome({ param, nowMs: NOW });
 /** What the composer was told: the sheet closes on Cancel and on a thrown-away draft, and says what it saved on a Save. */
@@ -447,7 +440,7 @@ test("the playbook composer keeps what was typed in the tab, opens again on it, 
   assert.deepEqual(closed, [], "REGRESSION: Escape dropped the composer and everything typed in it");
   assert.ok(byTestId(tree, "pb-composer"), "still open");
   assert.ok(byTestId(tree, "pb-leave-confirm"), "the one question");
-  assert.equal(textOf(byTestId(tree, "pb-leave-confirm")).includes("Throw away what you've written?"), true);
+  assert.equal(textOf(byTestId(tree, "pb-leave-confirm")).includes("Discard what you wrote?"), true);
   assert.equal(byTestId(tree, "pb-cancel"), null, "in the buttons' place");
   press(byTestId(tree, "pb-leave-no"));
   tree = redraw(composer);
@@ -461,17 +454,18 @@ test("the playbook composer keeps what was typed in the tab, opens again on it, 
   assert.equal(tabClosing(), false, "gone from the page, it holds the tab no longer");
   tree = composer();
   assert.equal(byTestId(tree, "pb-name").props.value, "Sunday quiet", "on the words that were typed");
-  assert.ok(faceOf(tree, "pb-moment").includes("Welcome"), "the draft's moment: the first one nothing is doing yet");
+  assert.equal(
+    pickerOf(tree, "pb-moment").props.value,
+    "new_week",
+    "the draft's moment: the first one nothing is doing yet",
+  );
 
   // A moment's Turn on pressed while a new playbook is half-written: the composer opens on THAT moment (the sheet keys the
   // composer by the moment, so React mounts it anew), with the words kept. Drawn on its own: the stub keeps one set of
   // cells whatever the key.
   unmount();
   const pressed = composer({ initialTrigger: "phoned_only" });
-  assert.ok(
-    faceOf(pressed, "pb-moment").includes(contracts.triggerOf("phoned_only").label),
-    "the moment pressed wins over the draft's",
-  );
+  assert.equal(pickerOf(pressed, "pb-moment").props.value, "phoned_only", "the moment pressed wins over the draft's");
   assert.equal(byTestId(pressed, "pb-name").props.value, "Sunday quiet", "and the words stay");
   unmount();
   tree = composer();
@@ -725,7 +719,7 @@ test("the send screen keeps its words -- a name, a typed value, a picked time --
   press(byTestId(tree, "bc-leave-no"));
   tree = redraw(page);
   assert.ok(byTestId(tree, "bc-compose-close"));
-  assert.ok(byTestId(tree, "bc-send"), "and the send's acts are back");
+  assert.ok(byTestId(tree, "bc-schedule"), "and the send's one act is back: Schedule, since a time is picked");
   assert.equal(typedSlots(tree)[0].props.typed, "20% off colour");
 
   // Left and come back to: the send screen, on the same list, with the same words.
@@ -946,7 +940,7 @@ test("a template half-written is kept, comes back with the page, and Close asks 
     assert.equal(byTestId(tree, "tpl-body").props.value, "Hi {{1}}, 20% off any colour service this week.");
     type(byTestId(tree, "tpl-name"), "autumn_colour");
     tree = redraw(composeNew);
-    const ex = find(tree, (n) => n.type === Field && String(n.props?.placeholder || "").includes("what a real value"));
+    const ex = find(tree, (n) => n.type === Field && n.props?.placeholder === "Ana");
     type(ex, "Dani");
     tree = redraw(composeNew);
     await press(byTestId(tree, "tpl-submit"));
@@ -997,7 +991,7 @@ test("a template composer drawn where there is no number to write to says so in 
   type(byTestId(tree, "tpl-name"), "autumn_colour");
   tree = redraw(() => TemplateComposer({ businessName: "Northside Studio", onDone() {}, onCancel() {} }));
   type(
-    find(tree, (n) => n.type === Field && String(n.props?.placeholder || "").includes("what a real value")),
+    find(tree, (n) => n.type === Field && n.props?.placeholder === "Ana"),
     "Dani",
   );
   redraw(() => TemplateComposer({ businessName: "Northside Studio", onDone() {}, onCancel() {} }));
