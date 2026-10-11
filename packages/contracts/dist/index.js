@@ -16194,6 +16194,592 @@ function emptyAudienceRefusal(purpose, label, pool, how) {
   return purpose === "marketing" ? "Nobody there has said yes to offers yet \u2014 that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under \u201COffers and news\u201D on a person's profile, or get their yes with the phrase and the QR in Sent." : "Nobody there has said yes to messages yet. Even a reminder needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and the QR in Sent.";
 }
 
+// src/journey/journey.ts
+var JOURNEY_STAGE_IDS = ["first_contact", "before", "after", "proposal", "quiet"];
+var HOLDS = {
+  first_contact: ["new_week", "phoned_only"],
+  before: ["visit_tomorrow"],
+  after: ["visited"],
+  proposal: ["proposal_waiting"],
+  quiet: ["quiet_30", "lapsed"]
+};
+function journeyStageOf(trigger) {
+  return JOURNEY_STAGE_IDS.find((id) => HOLDS[id].includes(trigger)) ?? null;
+}
+function journeyOf(s) {
+  const W = appointmentWords(s.word);
+  const unmet = s.calendarOn ? null : "calendar";
+  const winBack = s.calendarOn ? "lapsed" : "quiet_30";
+  const every = { day: "Every", at: "day" };
+  const stages = [
+    {
+      id: "first_contact",
+      kind: "receptionist",
+      caps: "First contact",
+      name: "Your receptionist",
+      glyph: "chat",
+      unit: "this week",
+      trigger: null,
+      holds: HOLDS.first_contact,
+      poolKey: "new_week",
+      unmet: null,
+      one: false,
+      off: null
+    },
+    {
+      id: "before",
+      kind: "moment",
+      caps: W.before.caps,
+      name: W.before.name,
+      glyph: "bell",
+      unit: "people",
+      trigger: "visit_tomorrow",
+      holds: HOLDS.before,
+      poolKey: "visit_tomorrow",
+      unmet,
+      one: false,
+      off: { hint: "tomorrow", when: every, why: W.offTomorrow }
+    },
+    {
+      id: "after",
+      kind: "moment",
+      caps: W.after.caps,
+      name: "How did it go",
+      glyph: "check",
+      unit: "yesterday",
+      trigger: "visited",
+      holds: HOLDS.after,
+      poolKey: "visited",
+      unmet,
+      one: false,
+      off: { hint: "yesterday", when: { day: "The day", at: "after" }, why: W.offYesterday }
+    },
+    {
+      id: "proposal",
+      kind: "moment",
+      caps: "Proposal waiting",
+      name: "Proposal follow-up",
+      glyph: "deal",
+      unit: "waiting",
+      trigger: "proposal_waiting",
+      holds: HOLDS.proposal,
+      poolKey: "proposal_waiting",
+      unmet: null,
+      one: true,
+      off: {
+        hint: "waiting",
+        when: { day: "When one", at: "waits" },
+        why: (n) => `Off \xB7 ${plural(n, "proposal")} waiting`
+      }
+    },
+    {
+      id: "quiet",
+      kind: "moment",
+      caps: "Quiet or lapsed",
+      name: "Win-back",
+      glyph: "refresh",
+      unit: "people",
+      trigger: winBack,
+      holds: HOLDS.quiet,
+      poolKey: winBack,
+      unmet: null,
+      one: false,
+      off: {
+        hint: "quiet",
+        when: every,
+        why: (n) => `Off \xB7 ${plural(n, "person", "people")} ${n === 1 ? "has" : "have"} gone quiet`
+      }
+    }
+  ];
+  return stages.filter((x) => x.id !== "proposal" || s.dealsOn || s.held.has("proposal"));
+}
+
+// src/playbooks/playbook-schedule.ts
+function onTrialAt(p, now) {
+  const end = Date.parse(p.trial_until ?? "");
+  return Number.isFinite(end) && now.getTime() < end;
+}
+function effectiveMode(p, mode, now) {
+  return mode === "auto" && onTrialAt(p, now) ? "veto" : mode;
+}
+function newCampaignTrialUntil(now) {
+  return new Date(now.getTime() + WEEK_MS).toISOString();
+}
+function campaignEnded(p, day) {
+  return p.until && day > p.until ? p.until : null;
+}
+function campaignDayWords(day, tz, now) {
+  return clockDate(zoneMidnight(tz, day) + 12 * HOUR_MS, tz, now.getTime());
+}
+function trialDayWords(p, tz, now) {
+  return onTrialAt(p, now) ? clockDate(Date.parse(p.trial_until ?? ""), tz, now.getTime()) : null;
+}
+function planRun(mode, now) {
+  switch (mode) {
+    case "auto":
+      return { kind: "send", state: "scheduled", at: now };
+    case "veto":
+      return { kind: "send", state: "scheduled", at: new Date(now.getTime() + PLAYBOOK_VETO_DELAY_MS) };
+    case "ask":
+      return { kind: "hold", state: "pending_approval" };
+    default:
+      return { kind: "off" };
+  }
+}
+function parts(tz, now) {
+  try {
+    const f = dateFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      hour12: false
+    });
+    const p = Object.fromEntries(f.formatToParts(now).map((x) => [x.type, x.value]));
+    const hour = Number(p.hour) % 24;
+    return { date: `${p.year}-${p.month}-${p.day}`, hour };
+  } catch {
+    return { date: now.toISOString().slice(0, 10), hour: now.getUTCHours() };
+  }
+}
+function localDate(tz, now) {
+  return parts(tz, now).date;
+}
+function localHour(tz, now) {
+  return parts(tz, now).hour;
+}
+function nextOpenMoment(tz, when) {
+  const { date, hour } = parts(tz, when);
+  if (hour >= PLAYBOOK_HOURS.min && hour <= PLAYBOOK_HOURS.max) return { at: when, moved: false };
+  const day = hour < PLAYBOOK_HOURS.min ? date : shiftKey(date, 1);
+  let at3 = zoneMidnight(tz, day) + PLAYBOOK_HOURS.min * HOUR_MS;
+  const landed = parts(tz, new Date(at3)).hour;
+  if (landed !== PLAYBOOK_HOURS.min) at3 += (PLAYBOOK_HOURS.min - landed) * HOUR_MS;
+  return { at: new Date(at3), moved: true };
+}
+function runDueNow(p, tz, now) {
+  if (p.state !== "running") return false;
+  const { date, hour } = parts(tz, now);
+  return hour >= p.run_hour && hour <= PLAYBOOK_HOURS.max && p.last_run_for !== date;
+}
+function inLastSendingHour(tz, now) {
+  return parts(tz, now).hour >= PLAYBOOK_HOURS.max;
+}
+function scheduleLine(p, word) {
+  const at3 = clockHour(p.run_hour);
+  if (triggerOf(p.trigger)?.kind === "visit") {
+    const W = appointmentWords(word);
+    return `Daily ${at3} \xB7 ${p.trigger === "visit_tomorrow" ? W.tomorrowWho : W.yesterdayWho} \xB7 up to ${p.cap_per_run}`;
+  }
+  if (p.trigger === "everyone_monthly") return `Every ${p.cadence_days} days at ${at3} \xB7 up to ${p.cap_per_run} a day`;
+  if (triggerOf(p.trigger)?.kind === "deal") return `Daily ${at3} \xB7 up to ${p.cap_per_run} \xB7 once per proposal`;
+  return `Daily ${at3} \xB7 up to ${p.cap_per_run} \xB7 once per person, again after ${p.gap_days} days`;
+}
+function runsWords(p) {
+  const at3 = clockHour(p.run_hour);
+  return p.trigger === "everyone_monthly" ? `runs every ${p.cadence_days} days at ${at3}` : `runs daily at ${at3}`;
+}
+var NEXT_RUN_WORKSPACE_PAUSED = "after billing resumes";
+function nextRunLabel(p, tz, now, workspacePaused) {
+  if (p.state !== "running") return "paused";
+  if (workspacePaused) return NEXT_RUN_WORKSPACE_PAUSED;
+  const next = nextRunOf(p, tz, now);
+  return next.soon ? "today, within the hour" : `${next.day} ${clockHour(next.hour)}`;
+}
+function nextRunOf(p, tz, now) {
+  const { date, hour } = parts(tz, now);
+  if (p.last_run_for !== date) {
+    if (hour < p.run_hour) return { day: "today", hour: p.run_hour, soon: false };
+    if (hour <= PLAYBOOK_HOURS.max) return { day: "today", hour: p.run_hour, soon: true };
+  }
+  return { day: "tomorrow", hour: p.run_hour, soon: false };
+}
+
+// src/ask/plan.ts
+var STEP_TOKEN = /^@step:(\d+)$/;
+function stepToken(n) {
+  return `@step:${n}`;
+}
+var SEND_HOUR = PLAYBOOK_DEFAULTS.runHour;
+var REMINDER_AFTER_DAYS = 19;
+var OFFER_CHANNELS = ["whatsapp", "email"];
+var PER_PERSON = /* @__PURE__ */ new Set(["first_name", "business_name", "booking_link", "review_link"]);
+var LIVE = /* @__PURE__ */ new Set(["approved", "pending"]);
+var SILENT = {
+  message: true,
+  list: true,
+  note: true,
+  change: true,
+  broadcast: false,
+  playbook: false
+};
+var NOT_BOOKED = { field: "booked", op: "is", yes: false };
+var NONE_SINCE = {
+  any: [
+    { field: "last_visit", op: "more_than", days: REMINDER_AFTER_DAYS },
+    { field: "last_visit", op: "never" }
+  ]
+};
+var STAGE_WORDS = {
+  first_contact: "at first contact",
+  before: "the day before an appointment",
+  after: "the day after an appointment",
+  proposal: "while a proposal waits",
+  quiet: "once they go quiet"
+};
+var channelWord = (c) => c === "whatsapp" ? VERSION_CHANNEL_WORDS.whatsapp : VERSION_CHANNEL_WORDS[c].toLowerCase();
+var capOf = (open) => Math.min(PLAYBOOK_LIMITS.cap_per_run.max, Math.max(PLAYBOOK_LIMITS.cap_per_run.min, Math.floor(open)));
+var PLAN_WORDS = {
+  noWords: "words is the offer in the owner's words: ask what the offer is.",
+  notADay: "from and until are days on the business's calendar, written YYYY-MM-DD: ask for them again.",
+  fromAfterUntil: "until comes before from: an offer's last day is its first day or later. Ask which dates they meant.",
+  fromPast: "from is a day already past on the business's calendar: an offer starts today or later. Ask when it starts.",
+  noChannel: "Nothing here can carry an offer: WhatsApp needs a connected number, email needs email set up to send offers, and texts carry no offers. Say so, and what to set up first.",
+  noOffersList: "who is not a list this workspace has: name one people with action lists gives, or leave who out for everyone who can receive offers.",
+  journeyUnread: "The journey could not be read just now, so which moments are covered is not known: say so, and try again in a moment.",
+  nothingToCover: "Every moment asked for is covered already or not offered here (an appointment's moments need a calendar connected, a proposal's needs deals on): say so, and propose nothing.",
+  reuseMessage: (name) => `Sends \u201C${name}\u201D, already in the Library, with the offer in its words.`,
+  writeMessage: (name, on) => `Writes the offer as a new message, \u201C${name}\u201D, for ${joinWords(on.map(channelWord))}.`,
+  withoutWhatsApp: "It goes without WhatsApp: no WhatsApp number is connected.",
+  withoutEmail: "It goes without email: email is not set up to send offers.",
+  noText: CHANNEL_WORDS.noOffersByText,
+  noteMade: (until) => `Tells the receptionist about the offer, until ${until}.`,
+  noteKnown: "The receptionist already has a note about the offer.",
+  monthsOfferPaused: (name, until) => `Pauses the month's offer, \u201C${name}\u201D, so nobody gets two offers: resume it after ${until}.`,
+  monthsOfferSays: (name, until) => `The month's offer, \u201C${name}\u201D, says this offer from now on: change its words back after ${until}.`,
+  firstSend: (list2, day, at3) => `The offer goes to \u201C${list2}\u201D on ${day} at ${at3}.`,
+  firstAtApprove: (list2, at3) => `The offer goes to \u201C${list2}\u201D when you approve it, as ${at3} today has passed.`,
+  paced: (open, audience) => `The calendar has ${open > 0 ? plural(open, "open slot") : "no open slot"} ahead for ${plural(audience, "person", "people")}, so the offer goes as a campaign: up to ${capOf(open)} a day, each person once, until it ends.`,
+  approveOn: (day) => `The campaign starts its runs the day it is approved: approve it on ${day}.`,
+  reminderNew: (day, at3, from) => `A reminder goes on ${day} at ${at3} to a new list of whoever has not booked since ${from}; anyone who heard from you in the week before is left out.`,
+  reminderTo: (day, at3, list2) => `A reminder goes on ${day} at ${at3} to \u201C${list2}\u201D; anyone who heard from you in the week before is left out.`,
+  countZero: (list2) => `There is no reminder: nobody is on \u201C${list2}\u201D today.`,
+  reminderAfterEnd: (day) => `There is no reminder: the offer ends before ${day}.`,
+  reminderPaced: "There is no reminder: the campaign already sends the offer as fast as the calendar can take it.",
+  reminderNoCalendar: (from) => `There is no reminder: who has booked since ${from} can be told only from a connected calendar.`,
+  reminderUnwritable: (list2) => `There is no reminder: who on \u201C${list2}\u201D has not booked cannot be written as a list.`,
+  whatsappReview: "Its WhatsApp version waits on WhatsApp's review, which may still be running at the first send: whoever it reaches on WhatsApp waits for it.",
+  cover: (n) => `Starts ${plural(n, "campaign")}, one on each moment not covered yet, each its own card.`,
+  notOffered: (stages) => `Not offered here: ${joinWords(stages)}.`,
+  pausedOn: (name) => `\u201C${name}\u201D stands paused on its moment: resume it from its drawer.`,
+  why: {
+    message: "No message in the Library carries an offer on every channel this one goes by.",
+    list: "The reminder goes only to whoever has not booked since the offer began.",
+    note: "So the receptionist can answer about the offer.",
+    pause: "So nobody gets the month's offer and this one.",
+    says: "The month's offer sends the same message, so it carries this offer.",
+    first: "The offer, on its first day.",
+    paced: "The offer, as fast as the calendar can take it.",
+    second: "A reminder to whoever has not booked.",
+    stage: (id) => `Nobody hears from you ${STAGE_WORDS[id]} yet.`
+  }
+};
+var SAY = PLAN_WORDS;
+function planSteps() {
+  const steps = [];
+  const add = (kind, input, why) => {
+    const n = steps.length + 1;
+    const after = SILENT[kind] ? [] : steps.filter((s) => s.silent).map((s) => s.n);
+    steps.push({ n, kind, silent: SILENT[kind], input, why, after });
+    return n;
+  };
+  return { steps, add };
+}
+function firstFree(named, taken) {
+  for (let i = 1; ; i += 1) {
+    const name = named(i);
+    if (!taken(name)) return name;
+  }
+}
+function audienceOf(token2) {
+  if (STEP_TOKEN.test(token2)) return { audience_kind: "saved", audience_id: token2 };
+  const ref = parseListToken(token2);
+  if (!ref) return null;
+  return { audience_kind: ref.kind === "builtin" ? "list" : "saved", audience_id: ref.id };
+}
+function resolveSteps(payload, made) {
+  let unresolved = null;
+  const fill2 = (v) => {
+    if (typeof v === "string") {
+      const m = STEP_TOKEN.exec(v);
+      if (!m) return v;
+      const n = Number(m[1]);
+      const step2 = made[n];
+      if (step2) return step2.id;
+      unresolved ??= n;
+      return v;
+    }
+    if (Array.isArray(v)) return v.map(fill2);
+    if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fill2(x)]));
+    return v;
+  };
+  const out = Object.fromEntries(Object.entries(payload).map(([k, x]) => [k, fill2(x)]));
+  return unresolved === null ? out : { unresolved };
+}
+function offerDates(offer, world) {
+  if (!isDayKey(offer.from) || !isDayKey(offer.until)) return { refused: SAY.notADay };
+  if (offer.until < offer.from) return { refused: SAY.fromAfterUntil };
+  const today = localDate(world.tz, world.now);
+  if (offer.from < today) return { refused: SAY.fromPast };
+  const at3 = wallClockAt(world.tz, offer.from, SEND_HOUR, 0);
+  return {
+    today,
+    from: offer.from,
+    until: offer.until,
+    firstAt: at3 > world.now.getTime() ? at3 : null,
+    fromWords: campaignDayWords(offer.from, world.tz, world.now),
+    untilWords: campaignDayWords(offer.until, world.tz, world.now)
+  };
+}
+function offerChannels(asked, can) {
+  const want = asked ?? OFFER_CHANNELS;
+  const ready = { whatsapp: can.whatsapp, email: can.email_offers };
+  return {
+    on: OFFER_CHANNELS.filter((c) => want.includes(c) && ready[c]),
+    said: [
+      ...want.includes("sms") ? [SAY.noText] : [],
+      ...want.includes("whatsapp") && !can.whatsapp ? [SAY.withoutWhatsApp] : [],
+      ...want.includes("email") && !can.email_offers ? [SAY.withoutEmail] : []
+    ]
+  };
+}
+var offerLine = (words3) => {
+  const t = words3.trim();
+  return /[.!?…]$/.test(t) ? t : `${t}.`;
+};
+var valuesOf = (slots, line) => [...slots].sort((a, b) => a.position - b.position).map((s) => s.kind === "text" ? line : `@${s.kind}`);
+function reusedMessage(world, on, line) {
+  const takes = (m2) => m2.slots.filter((s) => s.kind === "text").length === 1 && m2.slots.every((s) => s.kind === "text" || PER_PERSON.has(s.kind));
+  const versionOn = (m2, c) => m2.versions.find((v) => v.channel === c && LIVE.has(v.state));
+  const fits = world.messages.filter(
+    (m2) => m2.category === "marketing" && languageBase(m2.language) === world.language && takes(m2) && on.every((c) => versionOn(m2, c))
+  );
+  const monthly = new Set(world.playbooks.filter((p) => p.trigger === "everyone_monthly").map((p) => p.template_name));
+  const m = fits.find((x) => monthly.has(x.name)) ?? fits.find((x) => x.name === "this_months_offer") ?? fits.at(0);
+  const version = m ? on.map((c) => versionOn(m, c)).find((v) => v !== void 0) : void 0;
+  if (!m || !version) return null;
+  return {
+    made: false,
+    name: m.name,
+    id: version.id,
+    params: valuesOf(m.slots, line),
+    inReview: on.includes("whatsapp") && m.versions.some((v) => v.channel === "whatsapp" && v.state === "pending")
+  };
+}
+var withOffer = (s, at3, line) => s.replace(/\{\{(\d+)\}\}/g, (whole, d) => {
+  const n = Number(d);
+  return n === at3 ? line : n > at3 ? `{{${n - 1}}}` : whole;
+});
+function writtenMessage(world, on, line, words3) {
+  const starter = starterByName("this_months_offer");
+  if (!starter) throw new Error("the month's offer starter is gone from the starter set");
+  const code2 = messageLanguageCode(world.language);
+  const text = starterText(starter, code2);
+  const email = starterEmailText(starter, code2);
+  const at3 = text.slots.findIndex((s) => s.kind === "text") + 1;
+  const slots = text.slots.filter((s) => s.kind !== "text").map((s, i) => ({ position: i + 1, label: s.label, kind: s.kind }));
+  const versions = {
+    ...on.includes("whatsapp") ? { whatsapp: { body: [withOffer(text.body, at3, line), text.footer].filter(Boolean).join("\n\n") } } : {},
+    ...on.includes("email") && email ? { email: { subject: withOffer(email.subject, at3, line), body: withOffer(email.body, at3, line) } } : {}
+  };
+  const base = slugTemplateName(`offer ${words3}`) || "offer";
+  const held = new Set(world.messages.map((m) => m.name));
+  const name = firstFree(
+    (i) => i === 1 ? base : `${base.slice(0, TEMPLATE_NAME_MAX - `_${i}`.length)}_${i}`,
+    (n) => held.has(n) || starterByName(n) !== null
+  );
+  return {
+    made: true,
+    name,
+    input: { name, language: world.language, category: "marketing", versions, slots },
+    params: valuesOf(slots, line)
+  };
+}
+function offerNote(offer, line, dates, notes) {
+  const title = clip(`Offer: ${offer.words}`, PROFILE_LIMITS.noteTitle);
+  if (notes.some((n) => n.title === title && n.until === dates.until)) return null;
+  const parts2 = [
+    `The offer: ${line}`,
+    `It runs from ${dates.fromWords} to ${dates.untilWords}.`,
+    ...offer.service?.trim() ? [offerLine(`It is for ${offer.service.trim()}`)] : []
+  ];
+  return {
+    change: { op: "add_note", title, text: clip(parts2.join(" "), PROFILE_LIMITS.noteText), until: dates.until }
+  };
+}
+function monthsOfferChanges(world, message, until) {
+  return world.playbooks.filter((p) => p.trigger === "everyone_monthly" && p.state === "running").map(
+    (p) => !message.made && p.template_name === message.name ? {
+      input: { playbook_id: p.id, params: message.params },
+      why: SAY.why.says,
+      said: SAY.monthsOfferSays(p.name, until)
+    } : {
+      input: { playbook_id: p.id, state: "paused" },
+      why: SAY.why.pause,
+      said: SAY.monthsOfferPaused(p.name, until)
+    }
+  );
+}
+var ruleSaid = (rule2) => [...listRuleParts(rule2, (token2) => token2)].sort().join("\n");
+function reminderOf(world, audience, dates, paced) {
+  const day = shiftKey(dates.from, REMINDER_AFTER_DAYS);
+  if (day > dates.until)
+    return { kind: "none", said: SAY.reminderAfterEnd(campaignDayWords(day, world.tz, world.now)) };
+  if (paced) return { kind: "none", said: SAY.reminderPaced };
+  if (!world.journey?.some((s) => s.id === "before" || s.id === "after"))
+    return { kind: "none", said: SAY.reminderNoCalendar(dates.fromWords) };
+  const saidYes = { field: "said_yes", op: "is", to: "offers", yes: true };
+  const base = audience.token === world.offersList ? [saidYes] : asListRule(audience.rule)?.all;
+  const rule2 = base ? asListRule({ all: [...base, NOT_BOOKED, NONE_SINCE] }) : null;
+  if (!rule2) return { kind: "none", said: SAY.reminderUnwritable(audience.name) };
+  const at3 = wallClockAt(world.tz, day, SEND_HOUR, 0);
+  const want = ruleSaid(rule2);
+  for (const l of world.lists) {
+    const r2 = asListRule(l.rule);
+    const to = audienceOf(l.token);
+    if (!r2 || !to || ruleSaid(r2) !== want) continue;
+    return l.count === 0 ? { kind: "none", said: SAY.countZero(l.name) } : { kind: "reuse", day, at: at3, name: l.name, to };
+  }
+  const taken = new Set(world.lists.map((l) => l.name.toLowerCase()));
+  const name = firstFree(
+    (i) => `Not booked since ${dates.fromWords}${i === 1 ? "" : ` (${i})`}`,
+    (n) => taken.has(n.toLowerCase())
+  );
+  return { kind: "make", day, at: at3, name, all: rule2.all };
+}
+function offerRead(offer, say2, world) {
+  if (!offer.words.trim()) return { refused: SAY.noWords };
+  const dates = offerDates(offer, world);
+  if ("refused" in dates) return dates;
+  const { on, said: onSaid } = offerChannels(offer.channels, world.channels);
+  if (on.length === 0) return { refused: SAY.noChannel };
+  const audience = world.lists.find((l) => l.token === (offer.who ?? world.offersList));
+  const to = audience ? audienceOf(audience.token) : null;
+  if (!audience || !to) return { refused: SAY.noOffersList };
+  const line = offerLine(say2?.trim() ? say2 : offer.words);
+  const message = reusedMessage(world, on, line) ?? writtenMessage(world, on, line, offer.words);
+  const room = world.room;
+  const cap2 = room && audience.count !== null && room.open * 2 < audience.count ? capOf(room.open) : null;
+  return {
+    offer,
+    dates,
+    on,
+    onSaid,
+    audience,
+    to,
+    message,
+    cap: cap2,
+    reminder: reminderOf(world, audience, dates, cap2 !== null),
+    note: offerNote(offer, line, dates, world.notes),
+    changes: monthsOfferChanges(world, message, dates.untilWords)
+  };
+}
+function sendWords(r2, world) {
+  const hour = clockHour(SEND_HOUR);
+  const first = r2.cap !== null ? [
+    SAY.paced(world.room?.open ?? 0, r2.audience.count ?? 0),
+    ...r2.dates.from > r2.dates.today ? [SAY.approveOn(r2.dates.fromWords)] : []
+  ] : [
+    r2.dates.firstAt === null ? SAY.firstAtApprove(r2.audience.name, hour) : SAY.firstSend(r2.audience.name, r2.dates.fromWords, hour)
+  ];
+  const rem = r2.reminder;
+  const day = rem.kind === "none" ? "" : campaignDayWords(rem.day, world.tz, world.now);
+  const reminder = rem.kind === "none" ? rem.said : rem.kind === "make" ? SAY.reminderNew(day, hour, r2.dates.fromWords) : SAY.reminderTo(day, hour, rem.name);
+  const reviewing = r2.on.includes("whatsapp") && (r2.message.made || r2.message.inReview);
+  const soon = (r2.dates.firstAt ?? world.now.getTime()) - world.now.getTime() < DAY_MS;
+  return [...first, reminder, ...reviewing && soon ? [SAY.whatsappReview] : []];
+}
+function offerPlan(r2, world) {
+  const { steps, add } = planSteps();
+  const template_id = r2.message.made ? stepToken(add("message", r2.message.input, SAY.why.message)) : r2.message.id;
+  const rem = r2.reminder;
+  const remindTo = rem.kind === "make" ? audienceOf(stepToken(add("list", { name: rem.name, all: rem.all, cannot: "" }, SAY.why.list))) : rem.kind === "reuse" ? rem.to : null;
+  if (r2.note) add("note", r2.note, SAY.why.note);
+  for (const c of r2.changes) add("change", c.input, c.why);
+  const sends2 = { template_id, params: r2.message.params };
+  const named = (lead, max) => clip(`${lead}: ${r2.offer.words}`, max);
+  if (r2.cap !== null)
+    add(
+      "playbook",
+      {
+        trigger: "saved_list",
+        list: r2.audience.token,
+        policy_class: "campaign",
+        ...sends2,
+        cap_per_run: r2.cap,
+        name: named("Offer", PLAYBOOK_NAME_MAX),
+        channels: r2.on,
+        until: r2.dates.until
+      },
+      SAY.why.paced
+    );
+  else
+    add(
+      "broadcast",
+      {
+        ...sends2,
+        ...r2.to,
+        ...r2.dates.firstAt === null ? {} : { scheduled_for: new Date(r2.dates.firstAt).toISOString() },
+        name: named("Offer", BROADCAST_NAME_MAX),
+        channels: r2.on
+      },
+      SAY.why.first
+    );
+  if (remindTo && rem.kind !== "none")
+    add(
+      "broadcast",
+      {
+        ...sends2,
+        ...remindTo,
+        scheduled_for: new Date(rem.at).toISOString(),
+        name: named("Reminder", BROADCAST_NAME_MAX),
+        channels: r2.on
+      },
+      SAY.why.second
+    );
+  const words3 = [
+    r2.message.made ? SAY.writeMessage(r2.message.name, r2.on) : SAY.reuseMessage(r2.message.name),
+    ...r2.onSaid,
+    r2.note ? SAY.noteMade(r2.dates.untilWords) : SAY.noteKnown,
+    ...r2.changes.map((c) => c.said),
+    ...sendWords(r2, world)
+  ];
+  return { steps, words: words3.join(" ") };
+}
+function stageInput(id, moment, world) {
+  const review = id === "after" ? world.messages.find((m) => m.name === "after_visit_review" && languageBase(m.language) === world.language) : void 0;
+  const version = review ? review.versions.find((v) => v.channel === "whatsapp") ?? review.versions.at(0) : void 0;
+  return version ? { trigger: moment, template_id: version.id } : { trigger: moment };
+}
+function journeyPlan(stages, world) {
+  const journey = world.journey;
+  if (!journey) return { refused: SAY.journeyUnread };
+  const { steps, add } = planSteps();
+  const missing = [];
+  const paused = [];
+  for (const id of JOURNEY_STAGE_IDS) {
+    if (id === "first_contact" || stages && !stages.includes(id)) continue;
+    const stage = journey.find((s) => s.id === id);
+    if (!stage) {
+      if (stages) missing.push(STAGE_WORDS[id]);
+      continue;
+    }
+    if (stage.covered || !stage.moment) continue;
+    const held = world.playbooks.find((p) => p.state === "paused" && journeyStageOf(p.trigger) === id);
+    if (held) paused.push(SAY.pausedOn(held.name));
+    else add("playbook", stageInput(id, stage.moment, world), SAY.why.stage(id));
+  }
+  const said = [...missing.length ? [SAY.notOffered(missing)] : [], ...paused];
+  if (steps.length === 0) return { refused: [SAY.nothingToCover, ...said].join(" ") };
+  return { steps, words: [SAY.cover(steps.length), ...said].join(" ") };
+}
+function planOf(intent, world) {
+  if (intent.intent === "cover_journey") return journeyPlan(intent.stages, world);
+  const read = offerRead(intent.offer, intent.say, world);
+  return "refused" in read ? read : offerPlan(read, world);
+}
+
 // src/shared/html.ts
 var escapeHtml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
@@ -22231,108 +22817,6 @@ function visitServiceOf(title, names3) {
   return service;
 }
 
-// src/playbooks/playbook-schedule.ts
-function onTrialAt(p, now) {
-  const end = Date.parse(p.trial_until ?? "");
-  return Number.isFinite(end) && now.getTime() < end;
-}
-function effectiveMode(p, mode, now) {
-  return mode === "auto" && onTrialAt(p, now) ? "veto" : mode;
-}
-function newCampaignTrialUntil(now) {
-  return new Date(now.getTime() + WEEK_MS).toISOString();
-}
-function campaignEnded(p, day) {
-  return p.until && day > p.until ? p.until : null;
-}
-function campaignDayWords(day, tz, now) {
-  return clockDate(zoneMidnight(tz, day) + 12 * HOUR_MS, tz, now.getTime());
-}
-function trialDayWords(p, tz, now) {
-  return onTrialAt(p, now) ? clockDate(Date.parse(p.trial_until ?? ""), tz, now.getTime()) : null;
-}
-function planRun(mode, now) {
-  switch (mode) {
-    case "auto":
-      return { kind: "send", state: "scheduled", at: now };
-    case "veto":
-      return { kind: "send", state: "scheduled", at: new Date(now.getTime() + PLAYBOOK_VETO_DELAY_MS) };
-    case "ask":
-      return { kind: "hold", state: "pending_approval" };
-    default:
-      return { kind: "off" };
-  }
-}
-function parts(tz, now) {
-  try {
-    const f = dateFormat("en-CA", {
-      timeZone: tz,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      hour12: false
-    });
-    const p = Object.fromEntries(f.formatToParts(now).map((x) => [x.type, x.value]));
-    const hour = Number(p.hour) % 24;
-    return { date: `${p.year}-${p.month}-${p.day}`, hour };
-  } catch {
-    return { date: now.toISOString().slice(0, 10), hour: now.getUTCHours() };
-  }
-}
-function localDate(tz, now) {
-  return parts(tz, now).date;
-}
-function localHour(tz, now) {
-  return parts(tz, now).hour;
-}
-function nextOpenMoment(tz, when) {
-  const { date, hour } = parts(tz, when);
-  if (hour >= PLAYBOOK_HOURS.min && hour <= PLAYBOOK_HOURS.max) return { at: when, moved: false };
-  const day = hour < PLAYBOOK_HOURS.min ? date : shiftKey(date, 1);
-  let at3 = zoneMidnight(tz, day) + PLAYBOOK_HOURS.min * HOUR_MS;
-  const landed = parts(tz, new Date(at3)).hour;
-  if (landed !== PLAYBOOK_HOURS.min) at3 += (PLAYBOOK_HOURS.min - landed) * HOUR_MS;
-  return { at: new Date(at3), moved: true };
-}
-function runDueNow(p, tz, now) {
-  if (p.state !== "running") return false;
-  const { date, hour } = parts(tz, now);
-  return hour >= p.run_hour && hour <= PLAYBOOK_HOURS.max && p.last_run_for !== date;
-}
-function inLastSendingHour(tz, now) {
-  return parts(tz, now).hour >= PLAYBOOK_HOURS.max;
-}
-function scheduleLine(p, word) {
-  const at3 = clockHour(p.run_hour);
-  if (triggerOf(p.trigger)?.kind === "visit") {
-    const W = appointmentWords(word);
-    return `Daily ${at3} \xB7 ${p.trigger === "visit_tomorrow" ? W.tomorrowWho : W.yesterdayWho} \xB7 up to ${p.cap_per_run}`;
-  }
-  if (p.trigger === "everyone_monthly") return `Every ${p.cadence_days} days at ${at3} \xB7 up to ${p.cap_per_run} a day`;
-  if (triggerOf(p.trigger)?.kind === "deal") return `Daily ${at3} \xB7 up to ${p.cap_per_run} \xB7 once per proposal`;
-  return `Daily ${at3} \xB7 up to ${p.cap_per_run} \xB7 once per person, again after ${p.gap_days} days`;
-}
-function runsWords(p) {
-  const at3 = clockHour(p.run_hour);
-  return p.trigger === "everyone_monthly" ? `runs every ${p.cadence_days} days at ${at3}` : `runs daily at ${at3}`;
-}
-var NEXT_RUN_WORKSPACE_PAUSED = "after billing resumes";
-function nextRunLabel(p, tz, now, workspacePaused) {
-  if (p.state !== "running") return "paused";
-  if (workspacePaused) return NEXT_RUN_WORKSPACE_PAUSED;
-  const next = nextRunOf(p, tz, now);
-  return next.soon ? "today, within the hour" : `${next.day} ${clockHour(next.hour)}`;
-}
-function nextRunOf(p, tz, now) {
-  const { date, hour } = parts(tz, now);
-  if (p.last_run_for !== date) {
-    if (hour < p.run_hour) return { day: "today", hour: p.run_hour, soon: false };
-    if (hour <= PLAYBOOK_HOURS.max) return { day: "today", hour: p.run_hour, soon: true };
-  }
-  return { day: "tomorrow", hour: p.run_hour, soon: false };
-}
-
 // src/playbooks/playbook-follow-ups.ts
 var FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
 var FOLLOW_UP_NEEDS_LINK = "A proposal follow-up carries the proposal's link: pick a message with a slot for it, and fill that slot with their proposal's link.";
@@ -24090,106 +24574,6 @@ function sendingDomainsFootWords(count2, max) {
   return `A new domain starts at ${DOMAIN_RAMP[0].perDay} a day and grows with the days it sends. ${where}`;
 }
 
-// src/journey/journey.ts
-var JOURNEY_STAGE_IDS = ["first_contact", "before", "after", "proposal", "quiet"];
-var HOLDS = {
-  first_contact: ["new_week", "phoned_only"],
-  before: ["visit_tomorrow"],
-  after: ["visited"],
-  proposal: ["proposal_waiting"],
-  quiet: ["quiet_30", "lapsed"]
-};
-function journeyStageOf(trigger) {
-  return JOURNEY_STAGE_IDS.find((id) => HOLDS[id].includes(trigger)) ?? null;
-}
-function journeyOf(s) {
-  const W = appointmentWords(s.word);
-  const unmet = s.calendarOn ? null : "calendar";
-  const winBack = s.calendarOn ? "lapsed" : "quiet_30";
-  const every = { day: "Every", at: "day" };
-  const stages = [
-    {
-      id: "first_contact",
-      kind: "receptionist",
-      caps: "First contact",
-      name: "Your receptionist",
-      glyph: "chat",
-      unit: "this week",
-      trigger: null,
-      holds: HOLDS.first_contact,
-      poolKey: "new_week",
-      unmet: null,
-      one: false,
-      off: null
-    },
-    {
-      id: "before",
-      kind: "moment",
-      caps: W.before.caps,
-      name: W.before.name,
-      glyph: "bell",
-      unit: "people",
-      trigger: "visit_tomorrow",
-      holds: HOLDS.before,
-      poolKey: "visit_tomorrow",
-      unmet,
-      one: false,
-      off: { hint: "tomorrow", when: every, why: W.offTomorrow }
-    },
-    {
-      id: "after",
-      kind: "moment",
-      caps: W.after.caps,
-      name: "How did it go",
-      glyph: "check",
-      unit: "yesterday",
-      trigger: "visited",
-      holds: HOLDS.after,
-      poolKey: "visited",
-      unmet,
-      one: false,
-      off: { hint: "yesterday", when: { day: "The day", at: "after" }, why: W.offYesterday }
-    },
-    {
-      id: "proposal",
-      kind: "moment",
-      caps: "Proposal waiting",
-      name: "Proposal follow-up",
-      glyph: "deal",
-      unit: "waiting",
-      trigger: "proposal_waiting",
-      holds: HOLDS.proposal,
-      poolKey: "proposal_waiting",
-      unmet: null,
-      one: true,
-      off: {
-        hint: "waiting",
-        when: { day: "When one", at: "waits" },
-        why: (n) => `Off \xB7 ${plural(n, "proposal")} waiting`
-      }
-    },
-    {
-      id: "quiet",
-      kind: "moment",
-      caps: "Quiet or lapsed",
-      name: "Win-back",
-      glyph: "refresh",
-      unit: "people",
-      trigger: winBack,
-      holds: HOLDS.quiet,
-      poolKey: winBack,
-      unmet: null,
-      one: false,
-      off: {
-        hint: "quiet",
-        when: every,
-        why: (n) => `Off \xB7 ${plural(n, "person", "people")} ${n === 1 ? "has" : "have"} gone quiet`
-      }
-    }
-  ];
-  return stages.filter((x) => x.id !== "proposal" || s.dealsOn || s.held.has("proposal"));
-}
-
 // src/journey/journey-guide.ts
 function guideStageWords(W) {
   return {
@@ -24847,13 +25231,13 @@ var CAN_SEND_WORDS = {
   LIMITED: "limited",
   BLOCKED: "blocked"
 };
-var sendWords = (w) => {
+var sendWords2 = (w) => {
   if (typeof w !== "string" || !w) return null;
   return Object.hasOwn(CAN_SEND_WORDS, w) ? CAN_SEND_WORDS[w] ?? null : w.toLowerCase().replace(/_/g, " ");
 };
 function standingChangeWords(p) {
-  const to = sendWords(p.to);
-  const from = sendWords(p.from);
+  const to = sendWords2(p.to);
+  const from = sendWords2(p.from);
   if (!to) return null;
   return from ? `from ${from} to ${to}` : to;
 }
@@ -32892,13 +33276,13 @@ function noLineYetStageOf(s) {
   const { dto, choice, returned } = s;
   if (!dto.lines?.ready || dto.requests.line || dto.requests.port) return s.rows;
   const onTrial = billingDoorOpen(dto.billing) && dto.billing.status === "trialing";
-  const plan = planOf(dto.billing, onTrial);
+  const plan = phonePlanOf(dto.billing, onTrial);
   if (!s.canSpend && !plan) return s.rows;
   if (plan && returned) return startingStageOf(s);
   if (s.canSpend && choice?.pending) return buyingStageOf(s);
   return chooseStageOf(s, plan, onTrial);
 }
-function planOf(billing, onTrial) {
+function phonePlanOf(billing, onTrial) {
   const W = FIRST_RUN_PHONE_WORDS;
   return billingDoorOpen(billing) && (billing.status === "none" || onTrial) ? { offer: W.planOffer(priceWords(billing.price ?? null)), note: onTrial ? W.planNoteTrial : W.planNote } : null;
 }
@@ -40296,6 +40680,7 @@ export {
   PIPELINE_SORTS,
   PIPELINE_WORDS,
   PLAN_NOTE_MAX,
+  PLAN_WORDS,
   PLATFORM_DAYS_READ,
   PLATFORM_HOLD_NOTICE,
   PLATFORM_HOLD_READD,
@@ -40537,6 +40922,7 @@ export {
   STARTER_TEMPLATES,
   START_PLAN_WORDS,
   STEP_SHEET_WORDS,
+  STEP_TOKEN,
   STOP_ALL_REFUSALS,
   STOP_ENDED_OFFERS_SOURCE,
   SYSTEM_ONE_MODEL,
@@ -41533,6 +41919,7 @@ export {
   planLeavingOut,
   planMinutes,
   planNoteOf,
+  planOf,
   planRun,
   planSaid,
   planSentence,
@@ -41728,6 +42115,7 @@ export {
   resolveFacts,
   resolveList,
   resolveParams,
+  resolveSteps,
   resolveSystemPrompt,
   resolveTheme,
   resumeDomain,
@@ -41896,6 +42284,7 @@ export {
   stepSheetDirty,
   stepSheetFor,
   stepSheetMerge,
+  stepToken,
   stepWhenWords,
   stopRequestQuestion,
   stoppedRunFix,

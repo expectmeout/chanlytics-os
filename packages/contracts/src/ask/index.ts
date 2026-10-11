@@ -110,6 +110,8 @@ export type {
   AskAnswerRead,
 } from "./ask-answer";
 export { ASK_ANSWER_FORMAT } from "./answer-format";
+export { planOf, resolveSteps, stepToken, STEP_TOKEN, PLAN_WORDS } from "./plan";
+export type { PlanIntent, PlanWorld, PlanStep } from "./plan";
 export { ASK_CONTEXT_MAX_ROWS, ASK_CONTEXT_ROW_KINDS, itemFocus } from "./ask-context";
 export { PageContextSchema } from "./ask-schemas";
 export type { AskContextRowKind, PageContextRow, PageContext } from "./ask-context";
