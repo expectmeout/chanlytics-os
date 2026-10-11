@@ -1,5 +1,5 @@
 /**
- * A proposal follow-up: who it is for, the breath after a touch, when it would run, and the words for it. Moved whole
+ * A proposal follow-up: who it is for, when it would run past the breath, and the words for it. Moved whole
  * from playbooks.ts (Reach out Part 2.5), which re-exports it.
  */
 import { shiftKey } from "../calendar/day-keys";
@@ -11,9 +11,9 @@ import type { PersonRowVM } from "../people/person-row";
 import type { DealVM } from "../deals/deal-vm";
 import { readyOrWhatsApp } from "../broadcasts/reach-any";
 import { type ChannelsReady, DEFAULT_CAMPAIGN_CHANNELS, type ReachRow, reachFor } from "../broadcasts/reach-for";
+import { heardWithin } from "../broadcasts/run-words";
 import { runDueNow } from "./playbook-schedule";
 import { DAY_MS, sweepTickAtOrAfter } from "./playbook-time";
-import { PLAYBOOK_BREATH_MS } from "./playbook-triggers";
 
 /** Why a proposal follow-up is not made or run here: deals are off. The check, a run now and Ask say it alike. */
 export const FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings › Business, answer “${SELLS_BY_QUESTION}” with “${SELLS_BY_WORDS.proposal.label}”.`;
@@ -54,8 +54,8 @@ export function followUpNames(
 /**
  * The proposal follow-up as People and Today read it (0006), answered by the People read where deals are on and a
  * follow-up runs under a mode other than never: its clock, whether its runs wait for a person, and, from any
- * playbook's runs since the oldest proposal out, who had theirs and who is in a run on its way or waiting; and who
- * heard from any run this week, whom the week's breath holds. Contact id -> when.
+ * playbook's runs since the oldest proposal out, who had theirs and who is in a run on its way or waiting; and the
+ * messages from any run, sent or due, by which the week's breath holds them. Contact id -> when.
  */
 export interface FollowUpFactsDto {
   run_hour: number;
@@ -76,22 +76,15 @@ export interface FollowUpFactsDto {
   /** Contact id -> when the run they are in was made to wait for a person. */
   held: Record<string, string>;
   /**
-   * Contact id -> the last message of the chain the week's breath holds them by from now on, each within a week of the
-   * next (broadcasts/run-words.ts breathChainOf over packages/db recentTouches): they are free a week after it.
+   * Contact id -> the time of every message of theirs from a week ago on, sent or due, earliest first (packages/db
+   * recentTouches): the follow-up's day is the first of its run's ticks at which none falls within a week of it
+   * (followUpStandOf, by the breath's one predicate, broadcasts/run-words.ts heardWithin).
    */
-  heard: Record<string, string>;
+  heard: Record<string, string[]>;
 }
 
 /** Where one person stands with the follow-up: in a run to come -- when, and whether it waits on the owner -- or had it. */
 export type FollowUpStand = { kind: "will"; atMs: number; asks: boolean } | { kind: "had"; atMs: number };
-
-/**
- * When a message sent at `atMs` stops holding its person back: one playbook message a person a week, across all. Whether
- * one holds a run at all is the breath's one predicate (broadcasts/run-words.ts heardWithin), within a week either side.
- */
-export function breathEndsAt(atMs: number): number {
-  return atMs + PLAYBOOK_BREATH_MS;
-}
 
 /**
  * What a follow-up was about, as one key (0029): the deal its words were written for (facts.deal_id), else the link
@@ -192,29 +185,30 @@ export function playbookStopBy(o: {
 }
 
 /**
- * The follow-up's first run that reaches someone clear from `fromMs` on (0006), as the sweep keeps it: one run a
- * day, at the first tick it is due (runDueNow: its hour come, the hours open, not run that day), reaching whoever
- * is clear at that moment. Today's, if still to come and they are clear by it; else the first day to come whose
- * run, at its hour's tick, finds them clear.
+ * The follow-up's first run that finds someone clear (0006), as the sweep keeps it: one run a day, at the first tick it
+ * is due (runDueNow: its hour come, the hours open, not run that day), reaching whoever is clear at that moment
+ * (`clearAt`, asked of each tick). Today's, if still to come and they are clear at it; else the first day to come whose
+ * run, at its hour's tick, finds them clear. The one spelling of the run's ticks a follow-up's day is read from.
  */
 export function followUpRunAt(
   f: Pick<FollowUpFactsDto, "run_hour" | "last_run_for">,
   tz: string,
-  fromMs: number,
+  clearAt: (tickMs: number) => boolean,
   nowMs: number,
 ): number {
   const today = zoneDayKey(nowMs, tz);
   const p = { state: "running" as const, run_hour: f.run_hour, last_run_for: f.last_run_for };
   if (f.last_run_for !== today) {
     const tick = sweepTickAtOrAfter(Math.max(nowMs, wallClockAt(tz, today, f.run_hour, 0)));
-    if (zoneDayKey(tick, tz) === today && runDueNow(p, tz, new Date(tick)) && fromMs <= tick) return tick;
+    if (zoneDayKey(tick, tz) === today && runDueNow(p, tz, new Date(tick)) && clearAt(tick)) return tick;
   }
   let day = shiftKey(today, 1);
-  for (let i = 0; i < 400; i++, day = shiftKey(day, 1)) {
-    const tick = sweepTickAtOrAfter(wallClockAt(tz, day, f.run_hour, 0));
-    if (fromMs <= tick) return tick;
+  let tick = sweepTickAtOrAfter(wallClockAt(tz, day, f.run_hour, 0));
+  for (let i = 0; i < 400 && !clearAt(tick); i++) {
+    day = shiftKey(day, 1);
+    tick = sweepTickAtOrAfter(wallClockAt(tz, day, f.run_hour, 0));
   }
-  return sweepTickAtOrAfter(fromMs);
+  return tick;
 }
 
 /**
@@ -259,10 +253,11 @@ export function followUpStandOf(
   if (queued !== null && followUpIsFor(r, queued)) return { kind: "will", atMs: queued, asks: false };
   const held = when(f.held);
   if (held !== null && followUpIsFor(r, held)) return { kind: "will", atMs: held, asks: true };
-  // The week's breath holds them to its end; the run that finds them clear is theirs.
-  const heard = when(f.heard);
-  const free = heard !== null ? breathEndsAt(heard) : nowMs;
-  return { kind: "will", atMs: followUpRunAt(f, tz, free, nowMs), asks: f.asks };
+  // The week's breath: the first of the run's ticks at which no message of theirs, sent or due, falls within a week of it
+  // (broadcasts/run-words.ts heardWithin, the sweep's own) is theirs.
+  const times = (f.heard[r.id] ?? []).map(Date.parse);
+  const clearAt = (tick: number) => !times.some(heardWithin(tick, nowMs));
+  return { kind: "will", atMs: followUpRunAt(f, tz, clearAt, nowMs), asks: f.asks };
 }
 
 /**

@@ -2,7 +2,6 @@ import "server-only";
 import {
   AppError,
   audienceTrigger,
-  breathChainOf,
   breathTouchOf,
   campaignMessageOf,
   FOLLOW_UP_ONE,
@@ -232,7 +231,8 @@ export async function followUpFacts(ctx: RouteContext, tenantId: string, now: Da
   ]);
   const message = campaignMessageOf(rows, p.template_name, p.template_language);
   if (whatsappStops(channels, number, message?.versions.whatsapp?.status ?? null)) return null;
-  // Who heard this week is the breath's one read (packages/db recentTouches), as every other page and the send read it.
+  // Who heard, or is due a message, is the breath's one read (packages/db recentTouches), as every other page and the
+  // send read it.
   const [followUps, recent] = await Promise.all([
     followUpTouchesFor(ctx, tenantId, now, out),
     recentTouches(ctx.supabase, tenantId, now),
@@ -240,18 +240,15 @@ export async function followUpFacts(ctx: RouteContext, tenantId: string, now: Da
   const had: Record<string, string> = {};
   const queued: Record<string, string> = {};
   const held: Record<string, string> = {};
-  const heard: Record<string, string> = {};
+  const heard: Record<string, string[]> = {};
   const latest = (m: Record<string, string>, t: Touch) => {
     if (!m[t.contact_id] || Date.parse(t.at) > Date.parse(m[t.contact_id])) m[t.contact_id] = t.at;
   };
   // Only who holds a proposal out: the rows the facts are for.
   for (const t of followUps) if (out.contacts.has(t.contact_id)) latest(t.sent ? had : t.held ? held : queued, t);
-  // The message the breath holds them by until a week after it: the last of the chain from now, each within a week of
-  // the next (contracts breathChainOf), so the stand's day is the day the sweep would next send them.
-  for (const [id, times] of Object.entries(recent)) {
-    const at = out.contacts.has(id) ? breathChainOf(times, now.getTime()) : null;
-    if (at !== null) heard[id] = new Date(at).toISOString();
-  }
+  // Every message of theirs, sent or due, from the breath's read: the stand walks the run's ticks to the first none falls
+  // within a week of (contracts followUpStandOf), so its day is the day the sweep would next send them.
+  for (const [id, times] of Object.entries(recent)) if (out.contacts.has(id)) heard[id] = times;
   return {
     run_hour: p.run_hour,
     last_run_for: p.last_run_for,

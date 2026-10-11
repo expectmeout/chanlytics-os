@@ -33,7 +33,6 @@ export {
   CAMPAIGN_NOT_FOUND,
   REACH_OUT_IS_NOT_A_MOMENT,
   followUpNames,
-  breathEndsAt,
   followUpIsFor,
   followUpKey,
   playbookRunStop,

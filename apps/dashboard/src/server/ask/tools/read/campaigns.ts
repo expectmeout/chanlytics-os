@@ -250,7 +250,7 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
     ...(touched
       ? []
       : [
-          "Who heard from you this week could not be read just now, so who a broadcast goes to is not counted (can_be_sent is null): say so, and propose no broadcast until it can be read.",
+          "Who has had a message from you lately, or has one due, could not be read just now, so who a broadcast goes to is not counted (can_be_sent is null): say so, and propose no broadcast until it can be read.",
         ]),
   ];
   // Said only where somebody is left out, so a listing with nobody left out reads as it always did.

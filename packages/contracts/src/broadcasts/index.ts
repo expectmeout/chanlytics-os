@@ -43,7 +43,6 @@ export {
   leftOutBy,
   heardWithin,
   breathTouchOf,
-  breathChainOf,
   heardFor,
   heardWords,
   heardTooWords,

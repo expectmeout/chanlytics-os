@@ -89,7 +89,10 @@ interface Asked {
   params: unknown;
   scheduledFor: unknown;
   name: unknown;
-  /** Whether it leaves out whoever heard this week: yes unless the body says false (the composer's own switch). */
+  /**
+   * Whether it leaves out whoever hears from you within a week of it, before or after: yes unless the body says false
+   * (the composer's own switch).
+   */
   breathe: boolean;
 }
 
@@ -249,7 +252,7 @@ async function breathOf(
     createLog.error("campaign_step_failed", { step: "touches", error: errField(e) });
     throw new AppError(
       "internal",
-      "Who heard from you this week could not be read just now. Nothing was sent; try again.",
+      "Who has had a message from you lately, or has one due, could not be read just now. Nothing was sent; try again.",
       500,
     );
   });
@@ -429,7 +432,7 @@ export async function createBroadcast(
 /**
  * The ledger's line for a send by hand (the decision the run is written with, 00381): what was sent, to whom and when, and,
  * as a playbook's run records it, how many the month holds; with how many the breath left out where any were, and that
- * the person sent to whoever heard this week too where they did. The skips are their own writes after the run, and one that
+ * the person sent to whoever hears from you within a week of it too where they did. The skips are their own writes after the run, and one that
  * could not be made is logged there (assemble.ts) and counted on the receipt; the ledger's line says what was asked.
  */
 function decisionPayload(

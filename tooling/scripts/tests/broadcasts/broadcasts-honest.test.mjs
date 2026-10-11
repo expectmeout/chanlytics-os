@@ -5409,6 +5409,46 @@ test("Send now beside a picked time is counted for now: its button and its confi
   assert.ok(!confirm.includes("by email"), `who goes now goes by WhatsApp alone: ${confirm}`);
 });
 
+test("Send now beside a picked time that leaves everyone out still sends now: its Yes sends at once, with no time", async () => {
+  // Ana and Bo are queued for a run twelve days ahead: nobody now, everyone ten days ahead (two days apart).
+  setSurfaceValue(
+    "broadcasts",
+    viaSurface({
+      audiences: [viaAudience(viaRows(), ALL_READY, { "c-wa": [iso(12 * D)], "c-both": [iso(12 * D)] })],
+    }),
+  );
+  const sent = [];
+  broadcasts.send = async (body) => {
+    sent.push(body);
+    return {
+      ok: true,
+      data: { id: "b-now", name: "Now", recipient_count: 2, left_out: 0, scheduled_for: iso(0), moved_from: null },
+    };
+  };
+  const props = { initialSegment: null, initialRun: null };
+  let tree = writing(props);
+  pickerOf(tree, "bc-when-mode").props.onValueChange("later");
+  tree = again(props);
+  find(tree, (n) => n.type === DatePicker).props.onValueChange(globalThis.__clock.dayKey(Date.now() + 10 * D));
+  tree = again(props);
+  pickerOf(tree, "bc-when-time").props.onValueChange("14:30");
+  tree = again(props);
+  // Ten days ahead nobody goes: Schedule it waits, and the foot says why.
+  assert.equal(textOf(byTestId(tree, "bc-who-n")), "0");
+  assert.equal(
+    find(tree, (n) => String(n.props?.className || "").includes("bc-send-later")).props.disabled,
+    true,
+    "Schedule it waits",
+  );
+  // Now both go: Send now is offered, and its Yes sends, now.
+  assert.equal(byTestId(tree, "bc-send").props.disabled, false, "Send now may go");
+  assert.ok(textOf(byTestId(tree, "bc-send")).includes("Send to 2 now"), textOf(byTestId(tree, "bc-send")));
+  press(byTestId(tree, "bc-send"));
+  await press(byTestId(again(props), "bc-send-yes"));
+  assert.equal(sent.length, 1, "the Yes sent it");
+  assert.equal(sent[0].scheduled_for, null, "at once, with no time");
+});
+
 test("a composer whose read of who heard this week failed says the send still leaves them out, and counts as it can", () => {
   setSurfaceValue("broadcasts", viaSurface({ heardRead: false }));
   const props = { initialSegment: null, initialRun: null };

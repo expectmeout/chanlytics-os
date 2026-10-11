@@ -91,7 +91,7 @@ export function useUnknownAudienceNotice(
 }
 
 // The words of the send, kept or fresh: the values typed into its slots and what fills each, the template it writes
-// here, its name, its time, whether it is on its way, and whether it goes to whoever heard this week too.
+// here, its name, its time, whether it is on its way, and whether it goes to whoever hears from you within a week of it too.
 export function useBcWords(kept: BcKept | null) {
   const [params, setParams] = useState<Params>((kept && kept.params) || {});
   const [sources, setSources] = useState<Sources>((kept && kept.sources) || {});

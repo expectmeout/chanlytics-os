@@ -1288,7 +1288,9 @@ test("campaigns.audiences counts what a card would: who it sends to, with how ma
   const broken = await listing(heardBy(PEOPLE[0]), { "broadcasts.select": { message: "connection reset" } });
   assert.equal(everyone(broken).can_be_sent_messages, null);
   assert.ok(
-    broken.could_not_read.some((w) => w.startsWith("Who heard from you this week could not be read just now")),
+    broken.could_not_read.some((w) =>
+      w.startsWith("Who has had a message from you lately, or has one due, could not be read just now"),
+    ),
     JSON.stringify(broken.could_not_read),
   );
 });

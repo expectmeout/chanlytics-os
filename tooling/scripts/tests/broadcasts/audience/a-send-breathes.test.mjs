@@ -306,7 +306,10 @@ test("who heard this week could not be read: refused, nothing written, and the l
   const { out, said } = await logged(make(f, {}));
   assert.equal(out.e.code, "internal");
   assert.equal(out.e.status, 500);
-  assert.equal(out.e.message, "Who heard from you this week could not be read just now. Nothing was sent; try again.");
+  assert.equal(
+    out.e.message,
+    "Who has had a message from you lately, or has one due, could not be read just now. Nothing was sent; try again.",
+  );
   assert.equal(out.e.details, undefined, "the database's words are the log's, never the answer's");
   assert.deepEqual(f.ops(), []);
   assert.deepEqual(

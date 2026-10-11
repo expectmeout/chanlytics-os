@@ -73,27 +73,6 @@ export function breathTouchOf(times: readonly string[], sendsAt: number, now: nu
 }
 
 /**
- * The last message of the chain the breath holds a person by from `now` on, or null when nothing within a week of now
- * holds them: the first message within a week of now, then each within a week of the time the one before frees them
- * (heardWithin, the one predicate). They are free a week after it (playbooks breathEndsAt): the first time no message of
- * theirs falls within a week of, the day the sweep would next send them anything -- with messages two days ago and ten
- * days ahead, seventeen days on, not five. A follow-up's stand reads it (the dashboard's followUpFacts `heard`).
- */
-export function breathChainOf(times: readonly string[], now: number): number | null {
-  let free = now;
-  let last: number | null = null;
-  for (const at of times.map(Date.parse).sort((a, b) => a - b)) {
-    if (!heardWithin(free, now)(at)) {
-      if (at > free) break;
-      continue;
-    }
-    last = at;
-    free = Math.max(free, at + PLAYBOOK_BREATH_MS);
-  }
-  return last;
-}
-
-/**
  * Who a send leaves out, the one rule wherever the breath is applied: everyone with a message (contact id -> the times of
  * their messages, as packages/db recentTouches answers it at the press) within a week of the send, either side
  * (heardWithin). A send that goes now leaves out who heard within the last week or is due another within the next; one

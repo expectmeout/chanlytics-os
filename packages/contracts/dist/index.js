@@ -7749,19 +7749,6 @@ function breathTouchOf(times, sendsAt, now) {
   for (const at3 of times.map(Date.parse)) if (within2(at3) && (latest === null || at3 > latest)) latest = at3;
   return latest;
 }
-function breathChainOf(times, now) {
-  let free = now;
-  let last = null;
-  for (const at3 of times.map(Date.parse).sort((a, b) => a - b)) {
-    if (!heardWithin(free, now)(at3)) {
-      if (at3 > free) break;
-      continue;
-    }
-    last = at3;
-    free = Math.max(free, at3 + PLAYBOOK_BREATH_MS);
-  }
-  return last;
-}
 function leftOutBy(touches, sendsAt, now) {
   return new Set(
     Object.entries(touches).filter(([, times]) => breathTouchOf(times, sendsAt, now) !== null).map(([id]) => id)
@@ -22832,9 +22819,6 @@ var PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS;
 function followUpNames(r2, nowMs, pace) {
   return waitingOnProposal(r2, nowMs, pace) && !!r2.deal?.proposal?.url && nowMs - (r2.deal.sinceMs ?? Number.NEGATIVE_INFINITY) <= PLAYBOOK_TOUCH_WINDOW_MS;
 }
-function breathEndsAt(atMs) {
-  return atMs + PLAYBOOK_BREATH_MS;
-}
 function followUpKey(about) {
   return about.deal ? `deal:${about.deal}` : about.link ? `link:${about.link}` : "bare";
 }
@@ -22868,19 +22852,20 @@ function playbookStopBy(o) {
     byOthers: o.channels.some((c) => c !== "whatsapp")
   });
 }
-function followUpRunAt(f, tz, fromMs, nowMs) {
+function followUpRunAt(f, tz, clearAt, nowMs) {
   const today = zoneDayKey(nowMs, tz);
   const p = { state: "running", run_hour: f.run_hour, last_run_for: f.last_run_for };
   if (f.last_run_for !== today) {
-    const tick = sweepTickAtOrAfter(Math.max(nowMs, wallClockAt(tz, today, f.run_hour, 0)));
-    if (zoneDayKey(tick, tz) === today && runDueNow(p, tz, new Date(tick)) && fromMs <= tick) return tick;
+    const tick2 = sweepTickAtOrAfter(Math.max(nowMs, wallClockAt(tz, today, f.run_hour, 0)));
+    if (zoneDayKey(tick2, tz) === today && runDueNow(p, tz, new Date(tick2)) && clearAt(tick2)) return tick2;
   }
   let day = shiftKey(today, 1);
-  for (let i = 0; i < 400; i++, day = shiftKey(day, 1)) {
-    const tick = sweepTickAtOrAfter(wallClockAt(tz, day, f.run_hour, 0));
-    if (fromMs <= tick) return tick;
+  let tick = sweepTickAtOrAfter(wallClockAt(tz, day, f.run_hour, 0));
+  for (let i = 0; i < 400 && !clearAt(tick); i++) {
+    day = shiftKey(day, 1);
+    tick = sweepTickAtOrAfter(wallClockAt(tz, day, f.run_hour, 0));
   }
-  return sweepTickAtOrAfter(fromMs);
+  return tick;
 }
 function followUpStandOf(r2, f, tz, nowMs, pace, ready) {
   if (!followUpNames(r2, nowMs, pace)) return null;
@@ -22901,9 +22886,9 @@ function followUpStandOf(r2, f, tz, nowMs, pace, ready) {
   if (queued !== null && followUpIsFor(r2, queued)) return { kind: "will", atMs: queued, asks: false };
   const held = when(f.held);
   if (held !== null && followUpIsFor(r2, held)) return { kind: "will", atMs: held, asks: true };
-  const heard = when(f.heard);
-  const free = heard !== null ? breathEndsAt(heard) : nowMs;
-  return { kind: "will", atMs: followUpRunAt(f, tz, free, nowMs), asks: f.asks };
+  const times = (f.heard[r2.id] ?? []).map(Date.parse);
+  const clearAt = (tick) => !times.some(heardWithin(tick, nowMs));
+  return { kind: "will", atMs: followUpRunAt(f, tz, clearAt, nowMs), asks: f.asks };
 }
 function followUpWords(s, tz, nowMs) {
   const day = clockNear(s.atMs, tz, nowMs);
@@ -28621,7 +28606,7 @@ function whoWill(p) {
     case "all-heard":
       return {
         why: heldWaitWords(p.held ?? 0),
-        pill: { tone: "warn", label: "One a week" }
+        pill: { tone: "warn", label: "All waiting" }
       };
     case "uncounted":
       return { why: "Who it reaches could not be counted", pill: null };
@@ -41101,8 +41086,6 @@ export {
   booksWithOf,
   booksWithOptions,
   brainMetaOf,
-  breathChainOf,
-  breathEndsAt,
   breathSplit,
   breathTouchOf,
   broadcastFailureFix,

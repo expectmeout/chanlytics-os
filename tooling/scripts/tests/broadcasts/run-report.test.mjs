@@ -929,7 +929,7 @@ test("a run's report says each person's channel where it reached anybody by some
   assert.equal(subs(quiet)[1][1], "every one reached the handset");
 });
 
-test("a person a send skipped for the week's breath is held back, in words: they heard from you this week", () => {
+test("a person a send skipped for the week's breath is held back, in words: they hear from you within a week of it", () => {
   const vm = C.toRunReportVM(
     {
       broadcast: { state: "sent", params: [] },

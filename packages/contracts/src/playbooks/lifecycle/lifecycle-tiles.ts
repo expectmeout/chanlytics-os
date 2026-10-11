@@ -213,7 +213,7 @@ function whoWill(p: LifecyclePlaybook): { why: string; pill: LifecycleComing["pi
     case "all-heard":
       return {
         why: heldWaitWords(p.held ?? 0),
-        pill: { tone: "warn", label: "One a week" },
+        pill: { tone: "warn", label: "All waiting" },
       };
     case "uncounted":
       return { why: "Who it reaches could not be counted", pill: null };

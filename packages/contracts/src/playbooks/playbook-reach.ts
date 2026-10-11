@@ -401,7 +401,8 @@ export function playbookRunReach(
  *
  * An empty pool has two different causes and they are not the same news:
  * nobody on the list has said yes to offers (a thing to go and fix), or
- * everybody has and they all heard from you this week (a thing to wait out).
+ * everybody has and they all hear from you within a week of today, by a
+ * message sent or due (a thing to wait out).
  * "nobody" also holds a list whose yes has no number to send to, and an empty
  * list: nobody to send to is true of both, and only a missing yes is fixed by
  * getting one (playbookReachDoor).

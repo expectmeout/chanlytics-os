@@ -2881,7 +2881,7 @@ async function breathOf(ports, enrolled, breathe, at) {
     createLog.error("campaign_step_failed", { step: "touches", error: errField5(e) });
     throw new AppError12(
       "internal",
-      "Who heard from you this week could not be read just now. Nothing was sent; try again.",
+      "Who has had a message from you lately, or has one due, could not be read just now. Nothing was sent; try again.",
       500
     );
   });

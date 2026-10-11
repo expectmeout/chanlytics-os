@@ -85,6 +85,7 @@ export function bcRunActs({
 // The send, and the starter set added from the send screen.
 export function bcSendActs({
   ready,
+  readyNow,
   canSend,
   setBusy,
   tpl,
@@ -118,12 +119,14 @@ export function bcSendActs({
   | "addingStarters"
   | "setAddingStarters"
 > &
-  Pick<BcSlotWords, "ready" | "specs"> &
+  Pick<BcSlotWords, "ready" | "readyNow" | "specs"> &
   Pick<BcReach, "tpl" | "active" | "on" | "breathe"> &
   Pick<BcRunActs, "cancel">): BcSendActs {
   const submit = async (scheduled: boolean) => {
-    // `ready` says both are there (bcSlotWordsOf); the two are named again for the compiler.
-    if (!ready || !canSend || !tpl || !active) return;
+    // Each act by its own readiness (bcSlotWordsOf): Schedule it by the time picked, Send now by who goes now -- so a
+    // Send now its button offers is never a Yes that does nothing. Both say the message and the list are there; the two
+    // are named again for the compiler.
+    if (!(scheduled ? ready : readyNow) || !canSend || !tpl || !active) return;
     setBusy(true);
     const r = await broadcasts.send({
       template_id: tpl.id,
@@ -133,8 +136,8 @@ export function bcSendActs({
       channels: on,
       scheduled_for: scheduled && whenAt !== null ? new Date(whenAt).toISOString() : null,
       name: name.trim() || null,
-      // Sent to whoever heard this week too, by the switch beside the count; else nothing said, and the send leaves them
-      // out, as the route does by default.
+      // Sent to whoever hears from you within a week of it too, by the switch beside the count; else nothing said, and the
+      // send leaves them out, as the route does by default.
       ...(breathe ? {} : { breathe: false }),
     });
     setBusy(false);

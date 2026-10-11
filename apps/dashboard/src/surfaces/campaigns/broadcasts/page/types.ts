@@ -117,8 +117,9 @@ export interface BcBase {
   channels: ConsentChannel[];
   setChannels: Setter<ConsentChannel[]>;
   /**
-   * The send the switch "Also send to the N who heard this week" (contracts heardTooWords) was switched on for (reach.ts
-   * bcSendKey), or null: off, the send leaves out whoever heard from a campaign or a broadcast this week; on, it carries
+   * The send the switch "Also send to the N who hear from you within a week of it" (contracts heardTooWords) was switched
+   * on for (reach.ts bcSendKey), or null: off, the send leaves out whoever hears from a campaign or a broadcast within a
+   * week of it; on, it carries
    * `breathe: false`. It answers for that message, list and channels alone: on any other send it is off.
    */
   heardTooFor: string | null;

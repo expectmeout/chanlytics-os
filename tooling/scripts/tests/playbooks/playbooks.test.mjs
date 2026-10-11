@@ -609,7 +609,7 @@ test("the page and its doors: Campaigns' home is real, and the old Outbound is i
   assert.ok(!/Nobody/.test(comingOf(4)), "and says nothing of the kind");
   assert.match(
     comingOf(0, 2),
-    /2 hear from you within a week of today and waitOne a week$/,
+    /2 hear from you within a week of today and waitAll waiting$/,
     "people waiting out the week are not nobody",
   );
 });
@@ -978,18 +978,18 @@ test("where one person stands with the follow-up (0006): by its run's own rules,
   assert.equal(stand(out("a"), facts({ last_run_for: "2026-09-08" })).atMs, at("2026-09-09T15:05:00Z"));
   // A playbook reached them four days ago: the week's breath holds them to Friday's run; ending after Friday's tick,
   // to Saturday's.
-  assert.equal(stand(out("a"), facts({ heard: { a: iso(now - 4 * DAY) } })).atMs, at("2026-09-11T15:05:00Z"));
+  assert.equal(stand(out("a"), facts({ heard: { a: [iso(now - 4 * DAY)] } })).atMs, at("2026-09-11T15:05:00Z"));
   assert.equal(
-    stand(out("a"), facts({ heard: { a: iso(now - 4 * DAY + 3 * HOUR) } })).atMs,
+    stand(out("a"), facts({ heard: { a: [iso(now - 4 * DAY + 3 * HOUR)] } })).atMs,
     at("2026-09-12T15:05:00Z"),
   );
   // The breath ending later today: today's run where it ends before the tick, tomorrow's where it ends after.
   assert.equal(
-    stand(out("a"), facts({ heard: { a: iso(now - 7 * DAY + HOUR / 2) } })).atMs,
+    stand(out("a"), facts({ heard: { a: [iso(now - 7 * DAY + HOUR / 2)] } })).atMs,
     at("2026-09-08T15:05:00Z"),
   );
   assert.equal(
-    stand(out("a"), facts({ heard: { a: iso(now - 7 * DAY + 2 * HOUR) } })).atMs,
+    stand(out("a"), facts({ heard: { a: [iso(now - 7 * DAY + 2 * HOUR)] } })).atMs,
     at("2026-09-09T15:05:00Z"),
   );
   // Already in a run: on its way, it goes; made to wait for the owner, it waits, whatever the class says now.
@@ -1073,13 +1073,46 @@ test("where one person stands with the follow-up (0006): by its run's own rules,
   assert.equal(stand(out("h"), facts({ purpose: "marketing" })).kind, "will", "a yes to offers too: it reaches them");
   // The run's own day, as the sweep keeps it: its hour passed today and it has not run, the next tick while the hours
   // are open, the last at five past eight at night; after them, tomorrow at its hour's tick.
-  assert.equal(followUpRunAt({ run_hour: 9, last_run_for: null }, tz, now, now), now + 5 * 60_000);
+  // Nobody held: the first tick is clear.
+  const clear = () => true;
+  assert.equal(followUpRunAt({ run_hour: 9, last_run_for: null }, tz, clear, now), now + 5 * 60_000);
   const eight = at("2026-09-09T00:03:00Z"); // three past eight at night in New York, still the 8th
-  assert.equal(followUpRunAt({ run_hour: 9, last_run_for: null }, tz, eight, eight), at("2026-09-09T00:05:00Z"));
+  assert.equal(followUpRunAt({ run_hour: 9, last_run_for: null }, tz, clear, eight), at("2026-09-09T00:05:00Z"));
   const halfPast = at("2026-09-09T00:30:00Z"); // half past eight: the hours' last tick has gone
-  assert.equal(followUpRunAt({ run_hour: 9, last_run_for: null }, tz, halfPast, halfPast), at("2026-09-09T13:05:00Z"));
+  assert.equal(followUpRunAt({ run_hour: 9, last_run_for: null }, tz, clear, halfPast), at("2026-09-09T13:05:00Z"));
   const late = at("2026-09-09T01:30:00Z"); // half past nine at night
-  assert.equal(followUpRunAt({ run_hour: 9, last_run_for: null }, tz, late, late), at("2026-09-09T13:05:00Z"));
+  assert.equal(followUpRunAt({ run_hour: 9, last_run_for: null }, tz, clear, late), at("2026-09-09T13:05:00Z"));
+});
+
+test("a follow-up's day is the first of the sweep's ticks at which no message of theirs falls within a week of it: a message far ahead holds the day back to the tick after it, and a message exactly a week before a tick holds that tick", () => {
+  const tz = "UTC";
+  const now = Date.parse("2026-10-12T12:00:00Z");
+  const at = (s) => Date.parse(s);
+  const out = person("a", {
+    deal: { stage: "proposed", sinceMs: now - 10 * DAY, proposal: { url: "https://docs.example.com/proposal/a" } },
+    askedMs: now - 30 * DAY,
+  });
+  // Run at nine, today's already run: the sweep's ticks are each day's 09:05.
+  const facts = (heard) => ({
+    run_hour: 9,
+    last_run_for: "2026-10-12",
+    asks: false,
+    purpose: "conversational",
+    had: {},
+    queued: {},
+    held: {},
+    heard: { a: heard },
+  });
+  const day = (times) => followUpStandOf(out, facts(times), tz, now, null, null).atMs;
+  // Messages on the 10th at 14:00 and the 24th at 20:00: every tick to the 31st has one within a week of it, and the
+  // 1st of November's is the first clear of both. Not the 18th, where the first message's week ends.
+  assert.equal(day(["2026-10-10T14:00:00Z", "2026-10-24T20:00:00Z"]), at("2026-11-01T09:05:00Z"));
+  // A message exactly a week before the 13th's tick holds that tick (a week either side, the bound included): the 14th.
+  assert.equal(day(["2026-10-06T09:05:00Z"]), at("2026-10-14T09:05:00Z"));
+  // A minute earlier, the 13th's tick is clear.
+  assert.equal(day(["2026-10-06T09:04:00Z"]), at("2026-10-13T09:05:00Z"));
+  // Nothing heard: the next tick.
+  assert.equal(day([]), at("2026-10-13T09:05:00Z"));
 });
 
 test("a reach-out's step reaches nobody among People: its run is its own, and it never falls through to everyone (Reach out, Part 3)", () => {

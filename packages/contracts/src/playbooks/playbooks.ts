@@ -52,7 +52,6 @@ export {
   FOLLOW_UP_ONE,
   PLAYBOOK_TOUCH_WINDOW_MS,
   followUpNames,
-  breathEndsAt,
   followUpIsFor,
   followUpKey,
   playbookRunStop,

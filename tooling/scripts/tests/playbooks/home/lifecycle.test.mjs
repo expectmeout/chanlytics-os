@@ -803,7 +803,7 @@ test("a moment that reaches people says how many, and who waits out the week; a 
   });
   assert.deepEqual(
     [heard.rows[0].why, heard.rows[0].pill.label],
-    ["2 hear from you within a week of today and wait", "One a week"],
+    ["2 hear from you within a week of today and wait", "All waiting"],
   );
   // One for one: the verb agrees.
   const one = coming({
