@@ -18,7 +18,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
-const { MODE_WORDS } = await import(at("apps/dashboard/src/server/ask/tools/act/playbook.ts"));
+const { MODE_WORDS } = await import(at("apps/dashboard/src/server/ask/tools/act/playbook-card.ts"));
 const {
   LIFECYCLE_WORDS,
   PLAYBOOK_CARD_REFUSALS,
