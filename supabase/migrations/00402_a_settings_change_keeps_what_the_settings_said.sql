@@ -126,9 +126,17 @@ create trigger tenant_config_version_kept
   for each row when (new.version is distinct from old.version)
   execute function public.tenant_config_version_keep();
 
--- Where every workspace stands today is its first kept version: one row a workspace.
+-- Where every workspace stands today is its first kept version: one row a workspace. It came into force at the last
+-- save its events still hold (settings.changed); else at updated_at, which the hourly calendar stamp also moves, so
+-- for a workspace with a feed that is a moment the version was certainly in force, not when it began.
 insert into public.tenant_config_versions (tenant_id, version, config, changed_at, changed_by)
-select c.tenant_id, c.version, c.config, c.updated_at, c.updated_by
+select c.tenant_id, c.version, c.config,
+       coalesce(
+         (select max(e.created_at) from public.events e
+           where e.tenant_id = c.tenant_id and e.kind = 'settings.changed'),
+         c.updated_at
+       ),
+       c.updated_by
   from public.tenant_config c
 on conflict (tenant_id, version) do nothing;
 
