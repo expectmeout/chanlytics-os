@@ -1524,6 +1524,33 @@
       "where": null
     },
     {
+      "table": "model_prompts",
+      "name": "model_prompts_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "prompt_hash"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "model_turns",
+      "name": "model_turns_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "notification_marks",
       "name": "notification_marks_pkey",
       "primary": true,
@@ -2324,6 +2351,21 @@
       "keys": [
         {
           "column": "tenant_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "tenant_config_versions",
+      "name": "tenant_config_versions_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "version"
         }
       ],
       "where": null

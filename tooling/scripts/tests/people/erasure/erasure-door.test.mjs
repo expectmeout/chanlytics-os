@@ -68,6 +68,7 @@ async function erase({ erased = false, faults = {}, storage = [], rpcs = {} } = 
     scrub_ask_for_contact: () => 2,
     provider_events_scrub: () => 1,
     person_notes_scrub: () => 1,
+    model_turns_scrub: () => 1,
     erase_contact: () => ({ counts: { calls: 1 }, storage_paths: [REC], jobs_canceled: 0 }),
     ...rpcs,
   });
@@ -108,6 +109,7 @@ test("an erasure runs its legs in the design's order: the block, the copies, Sto
     "jobs.update", // the finished job only
     "rpc:provider_events_scrub", // the deliveries the intake ledger keeps a week, by the same identifiers (00336)
     "rpc:person_notes_scrub", // other people's notes, the needle overwritten in place (00341)
+    "rpc:model_turns_scrub", // the receptionist's kept turns that name them, in anyone's thread (00359)
     "rpc:erase_contact", // the rows, after Storage
     "policies.delete",
     "rpc:scrub_ask_for_contact",
@@ -115,6 +117,7 @@ test("an erasure runs its legs in the design's order: the block, the copies, Sto
     "jobs.update",
     "rpc:provider_events_scrub", // a delivery kept while the erasure ran
     "rpc:person_notes_scrub", // a note written while it ran
+    "rpc:model_turns_scrub", // a turn the receptionist took while it ran
   ]);
   assert.deepEqual(removed, [[REC]], "Storage once, before the rows; nothing late to sweep");
   assert.deepEqual(value, {
@@ -172,6 +175,16 @@ test("every leg before the rows fails closed: a 500 that says nothing was delete
         },
       },
       /notes that carried this person's number or address could not be scrubbed, so nothing was deleted/,
+    ],
+    "the kept turns' pre-scrub": [
+      {
+        rpcs: {
+          model_turns_scrub: () => {
+            throw new Error("refused");
+          },
+        },
+      },
+      /kept turns that named this person could not be scrubbed, so nothing was deleted/,
     ],
     Storage: [{ storage: [{ error: "unavailable" }] }, /Nothing has been deleted, and repeating this request/],
   };
@@ -261,6 +274,28 @@ test("past the rows every leg is best effort, and a late recording is swept and 
     },
   });
   assert.equal(older.value.erased, true, "no scrub yet leaves the notes as they were, never a refused erasure");
+
+  // The receptionist's kept turns (00359), on the same terms: refused on the second pass, or on a database before
+  // 00359 with no turns to scrub, the erasure stands.
+  let turnPasses = 0;
+  const turns = await erase({
+    rpcs: {
+      model_turns_scrub: () => {
+        if (turnPasses++) throw new Error("refused");
+        return 1;
+      },
+    },
+  });
+  assert.equal(turns.value.erased, true, "a turn that would not scrub on the second pass does not undo an erasure");
+  assert.equal(turnPasses, 2, "scrubbed before the rows, and tried again after them");
+  const noTurns = await erase({
+    rpcs: {
+      model_turns_scrub: () => {
+        throw Object.assign(new Error("Could not find the function public.model_turns_scrub"), { code: "PGRST202" });
+      },
+    },
+  });
+  assert.equal(noTurns.value.erased, true, "a database that keeps no turns has none to scrub, never a refused erasure");
 });
 
 test("a re-drive of an erased person repeats the id-keyed legs and says which of them held", async () => {

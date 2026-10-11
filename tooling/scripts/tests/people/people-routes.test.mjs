@@ -433,7 +433,12 @@ test("an erasure hands the Ask scrub, the kept deliveries' scrub and the notes' 
   const scrubs = [];
   const kept = [];
   const noted = [];
+  const turned = [];
   const rpcs = {
+    model_turns_scrub: (a) => {
+      turned.push(a);
+      return 0;
+    },
     scrub_ask_for_contact: (a) => {
       scrubs.push(a);
       return 0;
@@ -501,16 +506,26 @@ test("an erasure hands the Ask scrub, the kept deliveries' scrub and the notes' 
     "other people's notes (00341), by the same spellings, the person's own left to go with them",
   );
   assert.deepEqual(
+    turned.map((a) => [a.p_tenant_id, a.p_needles]),
+    [
+      [A, needles],
+      [A, needles],
+    ],
+    "the receptionist's kept turns that name them (00359), by the same spellings, before erase_contact and after it",
+  );
+  assert.deepEqual(
     seen.filter((s) => s.rpc).map((s) => s.rpc),
     [
       "erasure_digests",
       "scrub_ask_for_contact",
       "provider_events_scrub",
       "person_notes_scrub",
+      "model_turns_scrub",
       "erase_contact",
       "scrub_ask_for_contact",
       "provider_events_scrub",
       "person_notes_scrub",
+      "model_turns_scrub",
     ],
     "the digests are the database's (00263), made before the block is written",
   );

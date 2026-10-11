@@ -771,6 +771,38 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         .filter((e) => e.tenant_id === p_tenant && e.kind === "usage.ask_tokens" && Date.parse(e.created_at) >= since)
         .reduce((sum, e) => sum + n(e.data?.input_tokens) + n(e.data?.output_tokens), 0);
     },
+    // A receptionist's turn kept with the prompt it read (00359): the prompt once per workspace and hash, its clock
+    // moved when it is read again a day or more on; the turn once per id. The fence to the conversation and the sizes
+    // are SQL's, proved on a stack in ai/model-turns.db.test.mjs.
+    model_turn_keep: (a) => {
+      const at = stampOf(tables);
+      const prompts = (tables.model_prompts ??= []);
+      const read = prompts.find((p) => p.tenant_id === a.p_tenant_id && p.prompt_hash === a.p_prompt_hash);
+      if (read) {
+        if (Date.parse(read.last_seen_at) < Date.parse(at) - 86_400_000) read.last_seen_at = at;
+      } else
+        prompts.push({
+          tenant_id: a.p_tenant_id,
+          prompt_hash: a.p_prompt_hash,
+          text: a.p_prompt_text,
+          first_seen_at: at,
+          last_seen_at: at,
+        });
+      const turns = (tables.model_turns ??= []);
+      if (!turns.some((t) => t.id === a.p_turn_id))
+        turns.push({
+          id: a.p_turn_id,
+          tenant_id: a.p_tenant_id,
+          conversation_id: a.p_conversation_id,
+          prompt_hash: a.p_prompt_hash,
+          request: a.p_request,
+          response: a.p_response ?? null,
+          model: a.p_model ?? null,
+          latency_ms: a.p_latency_ms ?? null,
+          created_at: at,
+        });
+      return null;
+    },
     // Whether the session holds a partner's seat that row policy hides from it (00280). A world has no row policy, so it
     // hides no seat, and a seat in it is never one this asks about: a suite that models the hiding gives its own.
     session_has_partner_seat: () => false,

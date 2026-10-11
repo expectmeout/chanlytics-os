@@ -59,6 +59,14 @@ export const CLOCKS = {
   purge_cron_history: { kind: "keep", why: "retention: the clocks' own run history" },
   purge_events: { kind: "keep", why: "retention: evidence events after thirty days" },
   purge_idempotency_keys: { kind: "keep", why: "retention: the keys writes were answered under, after a day" },
+  purge_config_versions: {
+    kind: "keep",
+    why: "retention: a workspace's settings as they stood, 400 days after a version is replaced",
+  },
+  purge_model_turns: {
+    kind: "keep",
+    why: "retention: the receptionist's kept turns after thirty days, and the prompts no turn has read for 400",
+  },
   purge_jobs: { kind: "keep", why: "retention: the ledger's finished and failed rows" },
   purge_leads: { kind: "keep", why: "retention: leads nobody worked, and places a search left out" },
   purge_notifications: { kind: "keep", why: "retention: notifications after ninety days" },

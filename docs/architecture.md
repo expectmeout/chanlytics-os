@@ -280,6 +280,18 @@ lane's plan is `docs/plans/2026-09-29-s10-ai.md`).
   model that answered, four kinds of tokens and the price at list (`contracts/ai/usage.ts`), kept 400 days. A member
   reads their workspace's (`GET usage` rolls the month up for an owner), the health sweep pages on its failures
   (`apps/edge/lib/ops/model-watch.ts`), and a new workspace starts with a day's budget (00274).
+- **A turn, kept as the model read it** (`model_turns` and `model_prompts`, 00359; decision 0039): where the
+  receptionist's door is told the conversation it answers, it keeps what the model read beside its prompt (the clock,
+  who the person is, an owner's steer, the thread) and what it answered before layer two, for thirty days, and the
+  prompt's text once under its hash; the reply's record names the turn (`meta.turn_id`). Keeping it is the door's last
+  act and never costs the answer (`apps/edge/lib/model.ts` `keepTurn`). No session reads either table; an operator
+  reads a turn with `tooling/scripts/ops/turn-read.mjs`. An erasure takes a person's turns with their conversation and
+  any other turn that names them (`model_turns_scrub`), and both keeps are the database's own nightly clock
+  (`purge_model_turns` in `sweep_status`).
+- **The settings, at each version** (`tenant_config_versions`, 00360; decision 0039): a trigger on `tenant_config`
+  keeps the settings as they stand under every version, in the save's own transaction, and holds the version to the
+  database (a changed config takes the next number, and a number never goes back), so the `config_version` a reply is
+  stamped with opens the settings it was written under. Kept while in force and 400 days after; read by no session.
 - **One injection policy** (`contracts/ai/fence.ts`): someone else's words reach a model only inside a fence they cannot
   close, and every system prompt shown such words carries one rule line. Ask fences where data becomes something the
   model reads: a tool's result (`server/ask/round.ts`), a read made ahead of the question

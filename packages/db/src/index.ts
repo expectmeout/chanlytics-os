@@ -15,8 +15,16 @@ export {
   settleDelivery,
 } from "./events";
 export type { EmittedKind, EventData, DeliveredEvent, DeliveryRow } from "./events";
-export { recordModelUsage, workspaceMayUseModels, aiFailuresHour, purgeAiUsage, usageMonth } from "./ai-usage";
-export type { AiFailures, UsageMonthRow } from "./ai-usage";
+export {
+  recordModelUsage,
+  workspaceMayUseModels,
+  aiFailuresHour,
+  purgeAiUsage,
+  usageMonth,
+  keepModelTurn,
+  scrubModelTurns,
+} from "./ai-usage";
+export type { AiFailures, UsageMonthRow, ModelTurnKept } from "./ai-usage";
 export { keepInvoiceAmount } from "./billing-events";
 export { migrationHead } from "./ops";
 export { ERASURE_LEGS, ERASURE_STRATEGIES } from "./erasure-registry";

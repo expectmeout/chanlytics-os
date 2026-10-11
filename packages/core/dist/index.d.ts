@@ -3804,7 +3804,7 @@ interface InboundHandoff {
  */
 interface BrainCall {
     tenantId: string | null;
-    /** The conversation it answers. */
+    /** The conversation it answers: the ledger's subject, and what the turn is kept under (decision 0039). */
     subjectId?: string | null;
     /** tenant_config.version the prompt was composed from; null when it could not be read. */
     configVersion?: number | null;

@@ -59,6 +59,10 @@ export const DB_PATHS = [
   "tooling/scripts/gen/schema-snapshot.mjs",
   // the ledger the migrations are held to, which a stack suite (migration-head) loads
   "tooling/scripts/checks/migration-ledger.mjs",
+  // what the kept turns' suite (ai/model-turns.db.test.mjs) runs over the database: the scripted model its door asks,
+  // and the operator's reader, which it runs as a person runs it
+  "tooling/scripts/tests/ai/_model-world.mjs",
+  "tooling/scripts/ops/turn-read.mjs",
   // the launcher `pnpm test:db` runs through, and the module it loads
   "tooling/scripts/checks/test.mjs",
   "tooling/scripts/checks/coverage.mjs",

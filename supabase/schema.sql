@@ -9186,6 +9186,79 @@ $$;
 
 
 --
+-- Name: model_turn_keep(uuid, uuid, uuid, text, text, jsonb, jsonb, text, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.model_turn_keep(p_tenant_id uuid, p_turn_id uuid, p_conversation_id uuid, p_prompt_hash text, p_prompt_text text, p_request jsonb, p_response jsonb DEFAULT NULL::jsonb, p_model text DEFAULT NULL::text, p_latency_ms integer DEFAULT NULL::integer) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  -- The prompt first, so a turn never names a text that is not kept. Seen again, only its clock moves, and at most
+  -- once a day: the keep is counted in days, and a row every reply rewrote would be a dead row a reply. The text under
+  -- a hash is the text, and a second writer's copy is the same one.
+  insert into public.model_prompts (tenant_id, prompt_hash, text)
+  values (p_tenant_id, p_prompt_hash, p_prompt_text)
+  on conflict (tenant_id, prompt_hash) do update set last_seen_at = now()
+    where public.model_prompts.last_seen_at < now() - interval '1 day';
+
+  -- The same turn written twice (a retried call) is the turn it already is.
+  insert into public.model_turns (id, tenant_id, conversation_id, prompt_hash, request, response, model, latency_ms)
+  values (p_turn_id, p_tenant_id, p_conversation_id, p_prompt_hash, p_request, p_response, p_model, p_latency_ms)
+  on conflict (id) do nothing;
+end $$;
+
+
+--
+-- Name: FUNCTION model_turn_keep(p_tenant_id uuid, p_turn_id uuid, p_conversation_id uuid, p_prompt_hash text, p_prompt_text text, p_request jsonb, p_response jsonb, p_model text, p_latency_ms integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.model_turn_keep(p_tenant_id uuid, p_turn_id uuid, p_conversation_id uuid, p_prompt_hash text, p_prompt_text text, p_request jsonb, p_response jsonb, p_model text, p_latency_ms integer) IS 'Keeps one receptionist turn and the prompt it read, together (decision 0039). The model port''s alone (packages/db keepModelTurn), as the service role.';
+
+
+--
+-- Name: model_turns_scrub(uuid, text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.model_turns_scrub(p_tenant_id uuid, p_needles text[]) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_patterns text[];
+  v_n        integer;
+begin
+  if p_tenant_id is null or p_needles is null then
+    return 0;
+  end if;
+  -- One pattern per needle of six characters or more, lower-cased, its LIKE characters escaped (provider_events_scrub's
+  -- rule, 00336): a turn is read once, as text, against them all.
+  select array_agg(distinct '%' || replace(replace(replace(lower(n.needle), '\', '\\'), '%', '\%'), '_', '\_') || '%')
+    into v_patterns
+    from unnest(p_needles) as n(needle)
+   where length(n.needle) >= 6;
+  if v_patterns is null then
+    return 0;
+  end if;
+  -- The person's own turns went with their conversation. These are anyone else's in the workspace that quoted them:
+  -- a note about another customer that named this one, a thread that spelled their number. The whole turn goes; it is
+  -- evidence with a month to live, and half of one proves nothing.
+  delete from public.model_turns t
+   where t.tenant_id = p_tenant_id
+     and (lower(t.request::text) like any (v_patterns) or lower(coalesce(t.response::text, '')) like any (v_patterns));
+  get diagnostics v_n = row_count;
+  return v_n;
+end $$;
+
+
+--
+-- Name: FUNCTION model_turns_scrub(p_tenant_id uuid, p_needles text[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.model_turns_scrub(p_tenant_id uuid, p_needles text[]) IS 'An erasure''s hand on the kept turns (decision 0039): the workspace''s turns that name the person by any of the needles (six characters or more; without regard to case; a needle''s own %, _ or backslash is a character) are deleted. Answers how many.';
+
+
+--
 -- Name: newest_messages(uuid, uuid[], integer, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -13398,6 +13471,30 @@ COMMENT ON FUNCTION public.purge_ask(p_keep interval) IS 'Drops Ask threads (and
 
 
 --
+-- Name: purge_config_versions(interval); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.purge_config_versions(p_keep interval DEFAULT '400 days'::interval) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    SET lock_timeout TO '3s'
+    AS $$
+declare v_count integer;
+begin
+  delete from public.tenant_config_versions where replaced_at is not null and replaced_at < now() - p_keep;
+  get diagnostics v_count = row_count;
+  return v_count;
+end $$;
+
+
+--
+-- Name: FUNCTION purge_config_versions(p_keep interval); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.purge_config_versions(p_keep interval) IS 'Nightly. Deletes a workspace''s old settings 400 days after they were replaced (contracts RETENTION_DAYS.tenant_config_versions; decision 0039, step 3); the version in force is never taken. Answers how many.';
+
+
+--
 -- Name: purge_cron_history(interval, integer, interval); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -13590,6 +13687,61 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.purge_leads() IS 'Nightly. A lead untouched for 90 days is set aside (archived, stale); set aside and 180 days since it was found, its details are removed (lead_blank); a place a search left out loses its details after 30 days but stays counted as left out. Judgments older than 180 days go. Numbers: contracts'' RETENTION_DAYS.';
+
+
+--
+-- Name: purge_model_prompts(interval); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.purge_model_prompts(p_keep interval DEFAULT '400 days'::interval) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    SET lock_timeout TO '3s'
+    AS $$
+declare v_count integer;
+begin
+  delete from public.model_prompts where last_seen_at < now() - p_keep;
+  get diagnostics v_count = row_count;
+  return v_count;
+end $$;
+
+
+--
+-- Name: FUNCTION purge_model_prompts(p_keep interval); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.purge_model_prompts(p_keep interval) IS 'Nightly, after purge_model_turns. Deletes the prompts no turn has read for 400 days (contracts RETENTION_DAYS.model_prompts, the usage ledger''s own keep). Answers how many.';
+
+
+--
+-- Name: purge_model_turns(interval); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.purge_model_turns(p_keep interval DEFAULT '30 days'::interval) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    SET lock_timeout TO '3s'
+    AS $$
+declare
+  v_total integer := 0;
+  v_n     integer;
+begin
+  loop
+    delete from public.model_turns t
+     where t.id in (select c.id from public.model_turns c where c.created_at < now() - p_keep limit 1000);
+    get diagnostics v_n = row_count;
+    v_total := v_total + v_n;
+    exit when v_n < 1000;
+  end loop;
+  return v_total;
+end $$;
+
+
+--
+-- Name: FUNCTION purge_model_turns(p_keep interval); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.purge_model_turns(p_keep interval) IS 'Nightly. Deletes the receptionist''s kept turns thirty days after they were taken (contracts RETENTION_DAYS.model_turns; decision 0039), a thousand at a time. Answers how many.';
 
 
 --
@@ -19401,6 +19553,66 @@ end $$;
 
 
 --
+-- Name: tenant_config_version_keep(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.tenant_config_version_keep() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_by uuid;
+begin
+  -- The session's own user where there is one; else the writer's updated_by where this write set it; else nobody.
+  v_by := coalesce(
+    auth.uid(),
+    case when tg_op = 'INSERT' or new.updated_by is distinct from old.updated_by then new.updated_by end
+  );
+  update public.tenant_config_versions
+     set replaced_at = now()
+   where tenant_id = new.tenant_id and replaced_at is null and version <> new.version;
+  insert into public.tenant_config_versions (tenant_id, version, config, changed_by)
+  values (new.tenant_id, new.version, new.config, v_by)
+  on conflict (tenant_id, version) do update
+     set config = excluded.config, changed_at = now(), changed_by = excluded.changed_by, replaced_at = null;
+  return new;
+end $$;
+
+
+--
+-- Name: FUNCTION tenant_config_version_keep(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.tenant_config_version_keep() IS 'After a workspace''s settings take a new version: the settings as they now stand kept under it, who brought them, and the version before marked replaced, in the save''s own transaction (decision 0039, step 3).';
+
+
+--
+-- Name: tenant_config_version_moves(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.tenant_config_version_moves() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+begin
+  if new.config is distinct from old.config and new.version <= old.version then
+    -- A writer that changed the settings and did not move the number, or moved it back.
+    new.version := old.version + 1;
+  elsif new.version < old.version then
+    new.version := old.version;
+  end if;
+  return new;
+end $$;
+
+
+--
+-- Name: FUNCTION tenant_config_version_moves(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.tenant_config_version_moves() IS 'Before a change to a workspace''s settings: a config that changed takes the next version whatever the writer sent, and a version never goes back, so a version names one config (decision 0039, step 3).';
+
+
+--
 -- Name: trigger_calendar_sweep(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -22085,6 +22297,57 @@ COMMENT ON COLUMN public.messages.sending_at IS 'When the one run that took this
 
 
 --
+-- Name: model_prompts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.model_prompts (
+    tenant_id uuid NOT NULL,
+    prompt_hash text NOT NULL,
+    text text NOT NULL,
+    first_seen_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_seen_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT model_prompts_prompt_hash_check CHECK ((prompt_hash ~ '^[0-9a-f]{16,64}$'::text)),
+    CONSTRAINT model_prompts_text_check CHECK (((char_length(text) >= 1) AND (char_length(text) <= 200000)))
+);
+
+
+--
+-- Name: TABLE model_prompts; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.model_prompts IS 'The text of a system prompt the receptionist was given, once per workspace and hash (decision 0039): what a reply''s meta.prompt_hash, and its row of ai_usage, open. The business''s facts, nothing of a person. Written by model_turn_keep alone; no session reads it. Kept while a turn reads it and RETENTION_DAYS.model_prompts after (purge_model_prompts).';
+
+
+--
+-- Name: model_turns; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.model_turns (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    conversation_id uuid NOT NULL,
+    prompt_hash text NOT NULL,
+    request jsonb NOT NULL,
+    response jsonb,
+    model text,
+    latency_ms integer,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT model_turns_latency_ms_check CHECK (((latency_ms IS NULL) OR (latency_ms >= 0))),
+    CONSTRAINT model_turns_model_check CHECK (((model IS NULL) OR ((char_length(model) >= 1) AND (char_length(model) <= 80)))),
+    CONSTRAINT model_turns_prompt_hash_check CHECK ((prompt_hash ~ '^[0-9a-f]{16,64}$'::text)),
+    CONSTRAINT model_turns_request_check CHECK (((jsonb_typeof(request) = 'object'::text) AND (pg_column_size(request) <= 1048576))),
+    CONSTRAINT model_turns_response_check CHECK (((response IS NULL) OR ((jsonb_typeof(response) = 'object'::text) AND (pg_column_size(response) <= 131072))))
+);
+
+
+--
+-- Name: TABLE model_turns; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.model_turns IS 'One receptionist turn about one conversation, as the model read it beside its prompt, and what it answered (decision 0039). Holds the person''s words and the team''s notes about them: it goes with its conversation, with an erasure of anyone it names (model_turns_scrub), and after RETENTION_DAYS.model_turns (purge_model_turns). A reply names its turn in meta.turn_id. Written by model_turn_keep alone; no session reads it.';
+
+
+--
 -- Name: notification_marks; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -23356,6 +23619,28 @@ COMMENT ON COLUMN public.tenant_config.calendar_checked_at IS 'When the calendar
 
 
 --
+-- Name: tenant_config_versions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.tenant_config_versions (
+    tenant_id uuid NOT NULL,
+    version integer NOT NULL,
+    config jsonb NOT NULL,
+    changed_at timestamp with time zone DEFAULT now() NOT NULL,
+    changed_by uuid,
+    replaced_at timestamp with time zone,
+    CONSTRAINT tenant_config_versions_version_check CHECK ((version >= 1))
+);
+
+
+--
+-- Name: TABLE tenant_config_versions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.tenant_config_versions IS 'A workspace''s settings as they stood at each version (decision 0039, step 3): what a reply''s meta.config_version opens. Written by the trigger on tenant_config alone, in the save''s own transaction; no session reads it. A version is kept while it is in force and RETENTION_DAYS.tenant_config_versions after it is replaced (purge_config_versions).';
+
+
+--
 -- Name: tenants; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -24112,6 +24397,22 @@ ALTER TABLE ONLY public.messages
 
 
 --
+-- Name: model_prompts model_prompts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.model_prompts
+    ADD CONSTRAINT model_prompts_pkey PRIMARY KEY (tenant_id, prompt_hash);
+
+
+--
+-- Name: model_turns model_turns_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.model_turns
+    ADD CONSTRAINT model_turns_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: notification_marks notification_marks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -24493,6 +24794,14 @@ ALTER TABLE ONLY public.tenant_channels
 
 ALTER TABLE ONLY public.tenant_config
     ADD CONSTRAINT tenant_config_pkey PRIMARY KEY (tenant_id);
+
+
+--
+-- Name: tenant_config_versions tenant_config_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tenant_config_versions
+    ADD CONSTRAINT tenant_config_versions_pkey PRIMARY KEY (tenant_id, version);
 
 
 --
@@ -25395,6 +25704,27 @@ COMMENT ON INDEX public.messages_tenant_inbound_recent IS 'The back office asks 
 
 
 --
+-- Name: model_prompts_last_seen; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX model_prompts_last_seen ON public.model_prompts USING btree (last_seen_at);
+
+
+--
+-- Name: model_turns_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX model_turns_at ON public.model_turns USING btree (created_at);
+
+
+--
+-- Name: model_turns_conversation; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX model_turns_conversation ON public.model_turns USING btree (tenant_id, conversation_id, created_at DESC);
+
+
+--
 -- Name: notifications_recipient; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -25805,6 +26135,13 @@ CREATE INDEX sending_domains_tenant ON public.sending_domains USING btree (tenan
 --
 
 CREATE INDEX tenant_config_calendar_due_idx ON public.tenant_config USING btree (calendar_checked_at NULLS FIRST) WHERE (config ? 'calendar'::text);
+
+
+--
+-- Name: tenant_config_versions_replaced; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX tenant_config_versions_replaced ON public.tenant_config_versions USING btree (replaced_at) WHERE (replaced_at IS NOT NULL);
 
 
 --
@@ -26463,6 +26800,27 @@ CREATE TRIGGER tenant_channels_set_updated_at BEFORE UPDATE ON public.tenant_cha
 --
 
 CREATE TRIGGER tenant_config_moddatetime BEFORE UPDATE ON public.tenant_config FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
+
+
+--
+-- Name: tenant_config tenant_config_version_kept; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER tenant_config_version_kept AFTER UPDATE ON public.tenant_config FOR EACH ROW WHEN ((new.version IS DISTINCT FROM old.version)) EXECUTE FUNCTION public.tenant_config_version_keep();
+
+
+--
+-- Name: tenant_config tenant_config_version_kept_first; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER tenant_config_version_kept_first AFTER INSERT ON public.tenant_config FOR EACH ROW EXECUTE FUNCTION public.tenant_config_version_keep();
+
+
+--
+-- Name: tenant_config tenant_config_version_moves; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER tenant_config_version_moves BEFORE UPDATE OF config, version ON public.tenant_config FOR EACH ROW EXECUTE FUNCTION public.tenant_config_version_moves();
 
 
 --
@@ -27769,6 +28127,30 @@ ALTER TABLE ONLY public.messages
 
 
 --
+-- Name: model_prompts model_prompts_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.model_prompts
+    ADD CONSTRAINT model_prompts_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: model_turns model_turns_conversation_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.model_turns
+    ADD CONSTRAINT model_turns_conversation_id_same_workspace FOREIGN KEY (tenant_id, conversation_id) REFERENCES public.conversations(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: model_turns model_turns_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.model_turns
+    ADD CONSTRAINT model_turns_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: notification_marks notification_marks_notification_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -28390,6 +28772,22 @@ ALTER TABLE ONLY public.tenant_config
 
 ALTER TABLE ONLY public.tenant_config
     ADD CONSTRAINT tenant_config_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: tenant_config_versions tenant_config_versions_changed_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tenant_config_versions
+    ADD CONSTRAINT tenant_config_versions_changed_by_fkey FOREIGN KEY (changed_by) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: tenant_config_versions tenant_config_versions_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tenant_config_versions
+    ADD CONSTRAINT tenant_config_versions_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -29248,6 +29646,18 @@ CREATE POLICY messages_member_select ON public.messages FOR SELECT TO authentica
 
 
 --
+-- Name: model_prompts; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.model_prompts ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: model_turns; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.model_turns ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: notification_marks; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -29779,6 +30189,12 @@ CREATE POLICY tenant_config_member_read ON public.tenant_config FOR SELECT TO au
 
 CREATE POLICY tenant_config_owner_update ON public.tenant_config FOR UPDATE TO authenticated USING (public.caller_has_permission(tenant_id, 'settings'::text)) WITH CHECK (public.caller_has_permission(tenant_id, 'settings'::text));
 
+
+--
+-- Name: tenant_config_versions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.tenant_config_versions ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: tenants; Type: ROW SECURITY; Schema: public; Owner: -
@@ -31438,6 +31854,22 @@ GRANT ALL ON FUNCTION public.mint_reply_token() TO service_role;
 
 
 --
+-- Name: FUNCTION model_turn_keep(p_tenant_id uuid, p_turn_id uuid, p_conversation_id uuid, p_prompt_hash text, p_prompt_text text, p_request jsonb, p_response jsonb, p_model text, p_latency_ms integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.model_turn_keep(p_tenant_id uuid, p_turn_id uuid, p_conversation_id uuid, p_prompt_hash text, p_prompt_text text, p_request jsonb, p_response jsonb, p_model text, p_latency_ms integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.model_turn_keep(p_tenant_id uuid, p_turn_id uuid, p_conversation_id uuid, p_prompt_hash text, p_prompt_text text, p_request jsonb, p_response jsonb, p_model text, p_latency_ms integer) TO service_role;
+
+
+--
+-- Name: FUNCTION model_turns_scrub(p_tenant_id uuid, p_needles text[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.model_turns_scrub(p_tenant_id uuid, p_needles text[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.model_turns_scrub(p_tenant_id uuid, p_needles text[]) TO service_role;
+
+
+--
 -- Name: FUNCTION newest_messages(p_tenant_id uuid, p_threads uuid[], p_each integer, p_most integer); Type: ACL; Schema: public; Owner: -
 --
 
@@ -32090,6 +32522,14 @@ GRANT ALL ON FUNCTION public.purge_ask(p_keep interval) TO service_role;
 
 
 --
+-- Name: FUNCTION purge_config_versions(p_keep interval); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.purge_config_versions(p_keep interval) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.purge_config_versions(p_keep interval) TO service_role;
+
+
+--
 -- Name: FUNCTION purge_cron_history(p_keep interval, p_keep_per_job integer, p_keep_frequent interval); Type: ACL; Schema: public; Owner: -
 --
 
@@ -32127,6 +32567,22 @@ GRANT ALL ON FUNCTION public.purge_jobs(p_finished interval, p_failed interval) 
 
 REVOKE ALL ON FUNCTION public.purge_leads() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.purge_leads() TO service_role;
+
+
+--
+-- Name: FUNCTION purge_model_prompts(p_keep interval); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.purge_model_prompts(p_keep interval) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.purge_model_prompts(p_keep interval) TO service_role;
+
+
+--
+-- Name: FUNCTION purge_model_turns(p_keep interval); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.purge_model_turns(p_keep interval) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.purge_model_turns(p_keep interval) TO service_role;
 
 
 --
@@ -33040,6 +33496,23 @@ GRANT ALL ON FUNCTION public.team_roster(p_tenant_id uuid) TO service_role;
 
 REVOKE ALL ON FUNCTION public.team_take_turn(p_tenant_id uuid, p_actor uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.team_take_turn(p_tenant_id uuid, p_actor uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION tenant_config_version_keep(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.tenant_config_version_keep() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.tenant_config_version_keep() TO service_role;
+
+
+--
+-- Name: FUNCTION tenant_config_version_moves(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.tenant_config_version_moves() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.tenant_config_version_moves() TO authenticated;
+GRANT ALL ON FUNCTION public.tenant_config_version_moves() TO service_role;
 
 
 --
@@ -34220,6 +34693,20 @@ GRANT INSERT(meta) ON TABLE public.messages TO authenticated;
 
 
 --
+-- Name: TABLE model_prompts; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.model_prompts TO service_role;
+
+
+--
+-- Name: TABLE model_turns; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.model_turns TO service_role;
+
+
+--
 -- Name: TABLE notification_marks; Type: ACL; Schema: public; Owner: -
 --
 
@@ -34716,6 +35203,13 @@ GRANT UPDATE(version) ON TABLE public.tenant_config TO authenticated;
 --
 
 GRANT UPDATE(updated_by) ON TABLE public.tenant_config TO authenticated;
+
+
+--
+-- Name: TABLE tenant_config_versions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.tenant_config_versions TO service_role;
 
 
 --

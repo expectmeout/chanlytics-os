@@ -336,6 +336,26 @@ async function purgeAiUsage(db) {
   if (error) throw new Error(`ai_usage_purge: ${error.message}`);
   return Number(data) || 0;
 }
+async function keepModelTurn(db, turn) {
+  const { error } = await db.rpc("model_turn_keep", {
+    p_tenant_id: turn.tenantId,
+    p_turn_id: turn.turnId,
+    p_conversation_id: turn.conversationId,
+    p_prompt_hash: turn.promptHash,
+    p_prompt_text: turn.promptText,
+    p_request: turn.request,
+    ...turn.response ? { p_response: turn.response } : {},
+    ...turn.model ? { p_model: turn.model } : {},
+    ...turn.latencyMs === null ? {} : { p_latency_ms: Math.max(0, Math.round(turn.latencyMs)) }
+  });
+  if (error) throw new Error(`model_turn_keep: ${error.message}`);
+}
+async function scrubModelTurns(db, tenantId, needles) {
+  const { data, error } = await db.rpc("model_turns_scrub", { p_tenant_id: tenantId, p_needles: [...needles] });
+  if (error && (error.code === "PGRST202" || error.code === "42883")) return 0;
+  if (error) throw new Error(`model_turns_scrub: ${error.message}`);
+  return data ?? 0;
+}
 async function usageMonth(db, tenantId, month) {
   const { data, error } = await db.rpc("ai_usage_month", { p_tenant_id: tenantId, p_month: month });
   if (error) throw new Error(`ai_usage_month: ${error.message}`);
@@ -387,6 +407,7 @@ var ERASURE_LEGS = {
   ask_scrub: "scrub_ask_for_contact: the assistant's turns that name them deleted (00238)",
   deliveries_scrub: "provider_events_scrub: a kept delivery that names them deleted (00336)",
   notes_scrub: "person_notes_scrub: their numbers and addresses overwritten in other people's notes (00341)",
+  turns_scrub: "model_turns_scrub: the receptionist's kept turns that name them, in anyone's thread, deleted (00359); their own went with their conversation",
   appointments_scrub: "appointments_scrub: their visits keep their time and service and lose the client's name, number, address and note; the notices that made them, and any whose subject names them, lose the name (00345)"
 };
 var withPerson = (by) => ({ kind: "with_person", by });
@@ -482,6 +503,17 @@ var ERASURE_STRATEGIES = {
     "mark_path"
   ),
   messages: all(withPerson("erase_contact"), "template_name", "media", "external_id", "content_hash", "error", "meta"),
+  // A kept turn (decision 0039): the person's own go when their conversation does, by the fence's cascade, and a turn
+  // about someone else that quoted them is deleted by needle; the prompt it read is the business's own facts, and
+  // leaves by its clock.
+  model_turns: {
+    ...all(scrubbedBy("turns_scrub", "erase_contact"), "request", "response"),
+    ...all(NOT_PERSONAL, "prompt_hash", "model")
+  },
+  model_prompts: { text: byAge("model_prompts"), prompt_hash: NOT_PERSONAL },
+  // The settings as they stood (decision 0039, step 3): the business's own, as tenant_config.config is, and unlike it
+  // a version leaves by its clock once it is replaced.
+  tenant_config_versions: { config: byAge("tenant_config_versions") },
   notifications: {
     ...all(byAge("notifications"), "title", "body"),
     ...all(NOT_PERSONAL, "route", "subject_type", "subject_id")
@@ -4546,6 +4578,7 @@ export {
   keepIdempotencyReceipt,
   keepInvoiceAmount,
   keepMessageCost,
+  keepModelTurn,
   keepProviderEvent,
   lastInboundEmail,
   lastOutboundEmailSubject,
@@ -4682,6 +4715,7 @@ export {
   saveTemplateVersion,
   savedListFor,
   savedListsFor,
+  scrubModelTurns,
   scrubPersonNotes,
   scrubProviderEvents,
   searchMessages,

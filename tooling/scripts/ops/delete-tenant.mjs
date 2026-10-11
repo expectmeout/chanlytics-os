@@ -120,6 +120,9 @@ const TABLES = [
   "mailboxes",
   "memberships",
   "messages",
+  // A receptionist's turns as the model read them, and the prompts they read (00359, decision 0039).
+  "model_prompts",
+  "model_turns",
   "notification_reads",
   "notifications",
   "partner_earnings",
@@ -148,6 +151,8 @@ const TABLES = [
   "templates",
   "tenant_channels",
   "tenant_config",
+  // The settings as they stood at each version (00360, decision 0039).
+  "tenant_config_versions",
 ];
 
 /** Survives the delete with a null tenant_id, deliberately. */

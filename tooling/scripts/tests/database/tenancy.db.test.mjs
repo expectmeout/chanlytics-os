@@ -352,6 +352,19 @@ before(async () => {
   await seed("reach_out_check_spend", { tenant_id: A, day: "2026-09-26", attempts: 1 }, null);
   // A thread's reply turn (00284): the inbound path's bookkeeping, the service role's alone.
   await seed("reply_turns", { conversation_id: ctx.conversation, tenant_id: A, message_id: ctx.message }, null);
+  // A turn the receptionist took and the prompt it read (00359): the model port's, the service role's alone.
+  await seed("model_prompts", { tenant_id: A, prompt_hash: "0123456789abcdef", text: "tenancy" }, null);
+  await seed(
+    "model_turns",
+    {
+      id: globalThis.crypto.randomUUID(),
+      tenant_id: A,
+      conversation_id: ctx.conversation,
+      prompt_hash: "0123456789abcdef",
+      request: {},
+    },
+    null,
+  );
   // A reply's reading (00222): the service role's doors write it, members read it.
   await seed(
     "reach_out_replies",
@@ -691,6 +704,12 @@ const TENANT_TABLES = {
     () => ({ tenant_id: A, class: "faq", mode: "auto", subject_type: "contact", subject_id: ctx.contact2 }),
   ],
   tenant_config: ["member", () => ({ tenant_id: A })],
+  // The settings as they stood at each version (00360, decision 0039): written by the trigger on tenant_config, so a
+  // workspace has its first from the day it is made; read by no session.
+  tenant_config_versions: [
+    "none",
+    () => ({ tenant_id: A, version: 900_000 + Math.floor(Math.random() * 99_999), config: {} }),
+  ],
   billing_accounts: ["member", () => ({ tenant_id: A })],
   billing_events: ["none", () => ({ id: `evt_stranger_${Date.now()}`, type: "invoice.paid", tenant_id: A })],
   business_records: [
@@ -752,6 +771,26 @@ const TENANT_TABLES = {
   jobs: ["none", () => ({ tenant_id: A, kind: "line_provision", due_at: new Date().toISOString(), payload: {} })],
   // A thread's reply turn (00284): read and written by the inbound path's service role, by no member.
   reply_turns: ["none", () => ({ conversation_id: ctx.conversation, tenant_id: A, message_id: ctx.message })],
+  // A receptionist's turn as the model read it, and the prompt it read (00359, decision 0039): written by the model
+  // port's service role through model_turn_keep, read by no session.
+  model_prompts: [
+    "none",
+    () => ({
+      tenant_id: A,
+      prompt_hash: globalThis.crypto.randomUUID().replaceAll("-", "").slice(0, 16),
+      text: "probe",
+    }),
+  ],
+  model_turns: [
+    "none",
+    () => ({
+      id: globalThis.crypto.randomUUID(),
+      tenant_id: A,
+      conversation_id: ctx.conversation,
+      prompt_hash: "0123456789abcdef",
+      request: {},
+    }),
+  ],
   // The lead finder (00140): members read, nobody signed in writes a row; the
   // judgments and the counters are the service role's. The view runs under
   // the reader's own row security (security_invoker), and is not writable.

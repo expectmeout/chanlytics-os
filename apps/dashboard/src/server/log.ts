@@ -105,6 +105,8 @@ export const DASHBOARD_LOG_EVENTS = [
   "erase_person_policy_failed",
   "erase_storage_failed",
   "erase_sweep_decision_failed",
+  "erase_turns_prescrub_failed",
+  "erase_turns_scrub_failed",
   "export.call",
   "export.leads",
   "export.people",

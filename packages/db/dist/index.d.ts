@@ -1,5 +1,5 @@
 import { SupabaseClient, AuthMFAAdminDeleteFactorResponse, UserResponse, AuthMFAAdminListFactorsResponse, AuthResponse, PostgrestError } from '@supabase/supabase-js';
-import { ContactAddedData, ContactConsentChangedData, PlatformActedData, ActivationMilestone, WabaEventKind, AiUsageBody, RETENTION_DAYS, PurposeBearing, Handled, BrainIntent, OfferCounts, OfferPause, OfferPauseReason, SchemaSet, ConsentChannel, DealFacts, LeadChannel, VoiceEndReason, SCHEMA_SETS, OwnVersionChannel, DoubtSeen, SeenMarksDto, PersonRowDto, NameableContact, PersonDoubtDto, PersonDecisionDto, NumberStanding, AppointmentState, FeedAppointmentRow } from '@chanlytics/contracts';
+import { ContactAddedData, ContactConsentChangedData, PlatformActedData, ActivationMilestone, WabaEventKind, ModelTurnRequest, ModelTurnResponse, AiUsageBody, RETENTION_DAYS, PurposeBearing, Handled, BrainIntent, OfferCounts, OfferPause, OfferPauseReason, SchemaSet, ConsentChannel, DealFacts, LeadChannel, VoiceEndReason, SCHEMA_SETS, OwnVersionChannel, DoubtSeen, SeenMarksDto, PersonRowDto, NameableContact, PersonDoubtDto, PersonDecisionDto, NumberStanding, AppointmentState, FeedAppointmentRow } from '@chanlytics/contracts';
 export { VoiceEndReason } from '@chanlytics/contracts';
 import * as _supabase_postgrest_js from '@supabase/postgrest-js';
 
@@ -4035,6 +4035,89 @@ type Database = {
                     }
                 ];
             };
+            model_prompts: {
+                Row: {
+                    first_seen_at: string;
+                    last_seen_at: string;
+                    prompt_hash: string;
+                    tenant_id: string;
+                    text: string;
+                };
+                Insert: {
+                    first_seen_at?: string;
+                    last_seen_at?: string;
+                    prompt_hash: string;
+                    tenant_id: string;
+                    text: string;
+                };
+                Update: {
+                    first_seen_at?: string;
+                    last_seen_at?: string;
+                    prompt_hash?: string;
+                    tenant_id?: string;
+                    text?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "model_prompts_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
+            model_turns: {
+                Row: {
+                    conversation_id: string;
+                    created_at: string;
+                    id: string;
+                    latency_ms: number | null;
+                    model: string | null;
+                    prompt_hash: string;
+                    request: Json;
+                    response: Json | null;
+                    tenant_id: string;
+                };
+                Insert: {
+                    conversation_id: string;
+                    created_at?: string;
+                    id: string;
+                    latency_ms?: number | null;
+                    model?: string | null;
+                    prompt_hash: string;
+                    request: Json;
+                    response?: Json | null;
+                    tenant_id: string;
+                };
+                Update: {
+                    conversation_id?: string;
+                    created_at?: string;
+                    id?: string;
+                    latency_ms?: number | null;
+                    model?: string | null;
+                    prompt_hash?: string;
+                    request?: Json;
+                    response?: Json | null;
+                    tenant_id?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "model_turns_conversation_id_same_workspace";
+                        columns: ["tenant_id", "conversation_id"];
+                        isOneToOne: false;
+                        referencedRelation: "conversations";
+                        referencedColumns: ["tenant_id", "id"];
+                    },
+                    {
+                        foreignKeyName: "model_turns_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
             notification_marks: {
                 Row: {
                     dismissed_at: string | null;
@@ -5922,6 +6005,41 @@ type Database = {
                     }
                 ];
             };
+            tenant_config_versions: {
+                Row: {
+                    changed_at: string;
+                    changed_by: string | null;
+                    config: Json;
+                    replaced_at: string | null;
+                    tenant_id: string;
+                    version: number;
+                };
+                Insert: {
+                    changed_at?: string;
+                    changed_by?: string | null;
+                    config: Json;
+                    replaced_at?: string | null;
+                    tenant_id: string;
+                    version: number;
+                };
+                Update: {
+                    changed_at?: string;
+                    changed_by?: string | null;
+                    config?: Json;
+                    replaced_at?: string | null;
+                    tenant_id?: string;
+                    version?: number;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "tenant_config_versions_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
             tenants: {
                 Row: {
                     created_at: string;
@@ -7384,6 +7502,27 @@ type Database = {
                 Args: never;
                 Returns: string;
             };
+            model_turn_keep: {
+                Args: {
+                    p_conversation_id: string;
+                    p_latency_ms?: number;
+                    p_model?: string;
+                    p_prompt_hash: string;
+                    p_prompt_text: string;
+                    p_request: Json;
+                    p_response?: Json;
+                    p_tenant_id: string;
+                    p_turn_id: string;
+                };
+                Returns: undefined;
+            };
+            model_turns_scrub: {
+                Args: {
+                    p_needles: string[];
+                    p_tenant_id: string;
+                };
+                Returns: number;
+            };
             newest_messages: {
                 Args: {
                     p_each: number;
@@ -8177,6 +8316,12 @@ type Database = {
                 };
                 Returns: number;
             };
+            purge_config_versions: {
+                Args: {
+                    p_keep?: string;
+                };
+                Returns: number;
+            };
             purge_cron_history: {
                 Args: {
                     p_keep?: string;
@@ -8206,6 +8351,18 @@ type Database = {
             };
             purge_leads: {
                 Args: never;
+                Returns: number;
+            };
+            purge_model_prompts: {
+                Args: {
+                    p_keep?: string;
+                };
+                Returns: number;
+            };
+            purge_model_turns: {
+                Args: {
+                    p_keep?: string;
+                };
                 Returns: number;
             };
             purge_notifications: {
@@ -9757,6 +9914,15 @@ declare function activitySubjects(db: Db$A, tenantId: string, subjects: readonly
  *   purgeAiUsage          the rows past their keep (ai_usage_purge).
  *   usageMonth            a workspace's month of metered use by meter, purpose and model (ai_usage_month), on the
  *                         caller's client: RLS decides whose rows it sums.
+ *
+ * And what a row of it names (decision 0039; 00359 model_prompts, model_turns):
+ *
+ *   keepModelTurn         one receptionist turn as the model read it, and the text of the prompt it read, in one
+ *                         write (model_turn_keep). A write that fails throws; the model port logs it and keeps the answer.
+ *   scrubModelTurns       an erasure's hand (model_turns_scrub): the workspace's kept turns that name the person.
+ *
+ * The turns' two clocks are the database's own (purge_model_turns and purge_model_prompts, nightly on one registered
+ * job), so nothing here runs them.
  */
 
 type Db$z = SupabaseClient<Database>;
@@ -9769,6 +9935,23 @@ interface AiFailures {
 }
 declare function aiFailuresHour(db: Db$z, min: number): Promise<AiFailures[]>;
 declare function purgeAiUsage(db: Db$z): Promise<number>;
+/** One turn to keep: the conversation it was about, the prompt it read, and the two records of it. */
+interface ModelTurnKept {
+    /** The model port's own id for the turn: what the reply's meta names it by. */
+    turnId: string;
+    tenantId: string;
+    conversationId: string;
+    promptHash: string;
+    promptText: string;
+    request: ModelTurnRequest;
+    /** Null where no answer came. */
+    response: ModelTurnResponse | null;
+    model: string | null;
+    latencyMs: number | null;
+}
+declare function keepModelTurn(db: Db$z, turn: ModelTurnKept): Promise<void>;
+/** An erasure's hand: the workspace's kept turns that name any of the person's identifiers, deleted; how many went. */
+declare function scrubModelTurns(db: Db$z, tenantId: string, needles: readonly string[]): Promise<number>;
 interface UsageMonthRow {
     meter: "model" | "voice_seconds" | "wa_conversation";
     purpose: string | null;
@@ -9859,6 +10042,7 @@ declare const ERASURE_LEGS: {
     readonly ask_scrub: "scrub_ask_for_contact: the assistant's turns that name them deleted (00238)";
     readonly deliveries_scrub: "provider_events_scrub: a kept delivery that names them deleted (00336)";
     readonly notes_scrub: "person_notes_scrub: their numbers and addresses overwritten in other people's notes (00341)";
+    readonly turns_scrub: "model_turns_scrub: the receptionist's kept turns that name them, in anyone's thread, deleted (00359); their own went with their conversation";
     readonly appointments_scrub: "appointments_scrub: their visits keep their time and service and lose the client's name, number, address and note; the notices that made them, and any whose subject names them, lose the name (00345)";
 };
 type ErasureLeg = keyof typeof ERASURE_LEGS;
@@ -13874,6 +14058,84 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
                 referencedColumns: ["id"];
             }];
         };
+        model_prompts: {
+            Row: {
+                first_seen_at: string;
+                last_seen_at: string;
+                prompt_hash: string;
+                tenant_id: string;
+                text: string;
+            };
+            Insert: {
+                first_seen_at?: string;
+                last_seen_at?: string;
+                prompt_hash: string;
+                tenant_id: string;
+                text: string;
+            };
+            Update: {
+                first_seen_at?: string;
+                last_seen_at?: string;
+                prompt_hash?: string;
+                tenant_id?: string;
+                text?: string;
+            };
+            Relationships: [{
+                foreignKeyName: "model_prompts_tenant_id_fkey";
+                columns: ["tenant_id"];
+                isOneToOne: false;
+                referencedRelation: "tenants";
+                referencedColumns: ["id"];
+            }];
+        };
+        model_turns: {
+            Row: {
+                conversation_id: string;
+                created_at: string;
+                id: string;
+                latency_ms: number | null;
+                model: string | null;
+                prompt_hash: string;
+                request: Json;
+                response: Json | null;
+                tenant_id: string;
+            };
+            Insert: {
+                conversation_id: string;
+                created_at?: string;
+                id: string;
+                latency_ms?: number | null;
+                model?: string | null;
+                prompt_hash: string;
+                request: Json;
+                response?: Json | null;
+                tenant_id: string;
+            };
+            Update: {
+                conversation_id?: string;
+                created_at?: string;
+                id?: string;
+                latency_ms?: number | null;
+                model?: string | null;
+                prompt_hash?: string;
+                request?: Json;
+                response?: Json | null;
+                tenant_id?: string;
+            };
+            Relationships: [{
+                foreignKeyName: "model_turns_conversation_id_same_workspace";
+                columns: ["tenant_id", "conversation_id"];
+                isOneToOne: false;
+                referencedRelation: "conversations";
+                referencedColumns: ["tenant_id", "id"];
+            }, {
+                foreignKeyName: "model_turns_tenant_id_fkey";
+                columns: ["tenant_id"];
+                isOneToOne: false;
+                referencedRelation: "tenants";
+                referencedColumns: ["id"];
+            }];
+        };
         notification_marks: {
             Row: {
                 dismissed_at: string | null;
@@ -15680,6 +15942,39 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
                 referencedColumns: ["id"];
             }];
         };
+        tenant_config_versions: {
+            Row: {
+                changed_at: string;
+                changed_by: string | null;
+                config: Json;
+                replaced_at: string | null;
+                tenant_id: string;
+                version: number;
+            };
+            Insert: {
+                changed_at?: string;
+                changed_by?: string | null;
+                config: Json;
+                replaced_at?: string | null;
+                tenant_id: string;
+                version: number;
+            };
+            Update: {
+                changed_at?: string;
+                changed_by?: string | null;
+                config?: Json;
+                replaced_at?: string | null;
+                tenant_id?: string;
+                version?: number;
+            };
+            Relationships: [{
+                foreignKeyName: "tenant_config_versions_tenant_id_fkey";
+                columns: ["tenant_id"];
+                isOneToOne: false;
+                referencedRelation: "tenants";
+                referencedColumns: ["id"];
+            }];
+        };
         tenants: {
             Row: {
                 created_at: string;
@@ -17139,6 +17434,27 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             Args: never;
             Returns: string;
         };
+        model_turn_keep: {
+            Args: {
+                p_conversation_id: string;
+                p_latency_ms?: number;
+                p_model?: string;
+                p_prompt_hash: string;
+                p_prompt_text: string;
+                p_request: Json;
+                p_response?: Json;
+                p_tenant_id: string;
+                p_turn_id: string;
+            };
+            Returns: undefined;
+        };
+        model_turns_scrub: {
+            Args: {
+                p_needles: string[];
+                p_tenant_id: string;
+            };
+            Returns: number;
+        };
         newest_messages: {
             Args: {
                 p_each: number;
@@ -17932,6 +18248,12 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             };
             Returns: number;
         };
+        purge_config_versions: {
+            Args: {
+                p_keep?: string;
+            };
+            Returns: number;
+        };
         purge_cron_history: {
             Args: {
                 p_keep?: string;
@@ -17961,6 +18283,18 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
         };
         purge_leads: {
             Args: never;
+            Returns: number;
+        };
+        purge_model_prompts: {
+            Args: {
+                p_keep?: string;
+            };
+            Returns: number;
+        };
+        purge_model_turns: {
+            Args: {
+                p_keep?: string;
+            };
             Returns: number;
         };
         purge_notifications: {
@@ -22945,6 +23279,84 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             referencedColumns: ["id"];
         }];
     };
+    model_prompts: {
+        Row: {
+            first_seen_at: string;
+            last_seen_at: string;
+            prompt_hash: string;
+            tenant_id: string;
+            text: string;
+        };
+        Insert: {
+            first_seen_at?: string;
+            last_seen_at?: string;
+            prompt_hash: string;
+            tenant_id: string;
+            text: string;
+        };
+        Update: {
+            first_seen_at?: string;
+            last_seen_at?: string;
+            prompt_hash?: string;
+            tenant_id?: string;
+            text?: string;
+        };
+        Relationships: [{
+            foreignKeyName: "model_prompts_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+        }];
+    };
+    model_turns: {
+        Row: {
+            conversation_id: string;
+            created_at: string;
+            id: string;
+            latency_ms: number | null;
+            model: string | null;
+            prompt_hash: string;
+            request: Json;
+            response: Json | null;
+            tenant_id: string;
+        };
+        Insert: {
+            conversation_id: string;
+            created_at?: string;
+            id: string;
+            latency_ms?: number | null;
+            model?: string | null;
+            prompt_hash: string;
+            request: Json;
+            response?: Json | null;
+            tenant_id: string;
+        };
+        Update: {
+            conversation_id?: string;
+            created_at?: string;
+            id?: string;
+            latency_ms?: number | null;
+            model?: string | null;
+            prompt_hash?: string;
+            request?: Json;
+            response?: Json | null;
+            tenant_id?: string;
+        };
+        Relationships: [{
+            foreignKeyName: "model_turns_conversation_id_same_workspace";
+            columns: ["tenant_id", "conversation_id"];
+            isOneToOne: false;
+            referencedRelation: "conversations";
+            referencedColumns: ["tenant_id", "id"];
+        }, {
+            foreignKeyName: "model_turns_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+        }];
+    };
     notification_marks: {
         Row: {
             dismissed_at: string | null;
@@ -24747,6 +25159,39 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             foreignKeyName: "tenant_config_tenant_id_fkey";
             columns: ["tenant_id"];
             isOneToOne: true;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+        }];
+    };
+    tenant_config_versions: {
+        Row: {
+            changed_at: string;
+            changed_by: string | null;
+            config: Json;
+            replaced_at: string | null;
+            tenant_id: string;
+            version: number;
+        };
+        Insert: {
+            changed_at?: string;
+            changed_by?: string | null;
+            config: Json;
+            replaced_at?: string | null;
+            tenant_id: string;
+            version: number;
+        };
+        Update: {
+            changed_at?: string;
+            changed_by?: string | null;
+            config?: Json;
+            replaced_at?: string | null;
+            tenant_id?: string;
+            version?: number;
+        };
+        Relationships: [{
+            foreignKeyName: "tenant_config_versions_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
             referencedRelation: "tenants";
             referencedColumns: ["id"];
         }];
@@ -28688,6 +29133,84 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             referencedColumns: ["id"];
         }];
     };
+    model_prompts: {
+        Row: {
+            first_seen_at: string;
+            last_seen_at: string;
+            prompt_hash: string;
+            tenant_id: string;
+            text: string;
+        };
+        Insert: {
+            first_seen_at?: string;
+            last_seen_at?: string;
+            prompt_hash: string;
+            tenant_id: string;
+            text: string;
+        };
+        Update: {
+            first_seen_at?: string;
+            last_seen_at?: string;
+            prompt_hash?: string;
+            tenant_id?: string;
+            text?: string;
+        };
+        Relationships: [{
+            foreignKeyName: "model_prompts_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+        }];
+    };
+    model_turns: {
+        Row: {
+            conversation_id: string;
+            created_at: string;
+            id: string;
+            latency_ms: number | null;
+            model: string | null;
+            prompt_hash: string;
+            request: Json;
+            response: Json | null;
+            tenant_id: string;
+        };
+        Insert: {
+            conversation_id: string;
+            created_at?: string;
+            id: string;
+            latency_ms?: number | null;
+            model?: string | null;
+            prompt_hash: string;
+            request: Json;
+            response?: Json | null;
+            tenant_id: string;
+        };
+        Update: {
+            conversation_id?: string;
+            created_at?: string;
+            id?: string;
+            latency_ms?: number | null;
+            model?: string | null;
+            prompt_hash?: string;
+            request?: Json;
+            response?: Json | null;
+            tenant_id?: string;
+        };
+        Relationships: [{
+            foreignKeyName: "model_turns_conversation_id_same_workspace";
+            columns: ["tenant_id", "conversation_id"];
+            isOneToOne: false;
+            referencedRelation: "conversations";
+            referencedColumns: ["tenant_id", "id"];
+        }, {
+            foreignKeyName: "model_turns_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+        }];
+    };
     notification_marks: {
         Row: {
             dismissed_at: string | null;
@@ -30490,6 +31013,39 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             foreignKeyName: "tenant_config_tenant_id_fkey";
             columns: ["tenant_id"];
             isOneToOne: true;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+        }];
+    };
+    tenant_config_versions: {
+        Row: {
+            changed_at: string;
+            changed_by: string | null;
+            config: Json;
+            replaced_at: string | null;
+            tenant_id: string;
+            version: number;
+        };
+        Insert: {
+            changed_at?: string;
+            changed_by?: string | null;
+            config: Json;
+            replaced_at?: string | null;
+            tenant_id: string;
+            version: number;
+        };
+        Update: {
+            changed_at?: string;
+            changed_by?: string | null;
+            config?: Json;
+            replaced_at?: string | null;
+            tenant_id?: string;
+            version?: number;
+        };
+        Relationships: [{
+            foreignKeyName: "tenant_config_versions_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
             referencedRelation: "tenants";
             referencedColumns: ["id"];
         }];
@@ -34431,6 +34987,84 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             referencedColumns: ["id"];
         }];
     };
+    model_prompts: {
+        Row: {
+            first_seen_at: string;
+            last_seen_at: string;
+            prompt_hash: string;
+            tenant_id: string;
+            text: string;
+        };
+        Insert: {
+            first_seen_at?: string;
+            last_seen_at?: string;
+            prompt_hash: string;
+            tenant_id: string;
+            text: string;
+        };
+        Update: {
+            first_seen_at?: string;
+            last_seen_at?: string;
+            prompt_hash?: string;
+            tenant_id?: string;
+            text?: string;
+        };
+        Relationships: [{
+            foreignKeyName: "model_prompts_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+        }];
+    };
+    model_turns: {
+        Row: {
+            conversation_id: string;
+            created_at: string;
+            id: string;
+            latency_ms: number | null;
+            model: string | null;
+            prompt_hash: string;
+            request: Json;
+            response: Json | null;
+            tenant_id: string;
+        };
+        Insert: {
+            conversation_id: string;
+            created_at?: string;
+            id: string;
+            latency_ms?: number | null;
+            model?: string | null;
+            prompt_hash: string;
+            request: Json;
+            response?: Json | null;
+            tenant_id: string;
+        };
+        Update: {
+            conversation_id?: string;
+            created_at?: string;
+            id?: string;
+            latency_ms?: number | null;
+            model?: string | null;
+            prompt_hash?: string;
+            request?: Json;
+            response?: Json | null;
+            tenant_id?: string;
+        };
+        Relationships: [{
+            foreignKeyName: "model_turns_conversation_id_same_workspace";
+            columns: ["tenant_id", "conversation_id"];
+            isOneToOne: false;
+            referencedRelation: "conversations";
+            referencedColumns: ["tenant_id", "id"];
+        }, {
+            foreignKeyName: "model_turns_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+        }];
+    };
     notification_marks: {
         Row: {
             dismissed_at: string | null;
@@ -36233,6 +36867,39 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             foreignKeyName: "tenant_config_tenant_id_fkey";
             columns: ["tenant_id"];
             isOneToOne: true;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+        }];
+    };
+    tenant_config_versions: {
+        Row: {
+            changed_at: string;
+            changed_by: string | null;
+            config: Json;
+            replaced_at: string | null;
+            tenant_id: string;
+            version: number;
+        };
+        Insert: {
+            changed_at?: string;
+            changed_by?: string | null;
+            config: Json;
+            replaced_at?: string | null;
+            tenant_id: string;
+            version: number;
+        };
+        Update: {
+            changed_at?: string;
+            changed_by?: string | null;
+            config?: Json;
+            replaced_at?: string | null;
+            tenant_id?: string;
+            version?: number;
+        };
+        Relationships: [{
+            foreignKeyName: "tenant_config_versions_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
             referencedRelation: "tenants";
             referencedColumns: ["id"];
         }];
@@ -40279,4 +40946,4 @@ declare function appointmentNoticeById(db: Db, tenantId: string, id: string): Pr
  */
 declare function dismissAppointmentNotice(db: Db, tenantId: string, id: string): Promise<boolean>;
 
-export { type ActivitySubject, type ActivitySubjects, type AiFailures, type AppointmentInsert, type AppointmentNoticeInsert, type AppointmentNoticeRow, type AppointmentRow, type AppointmentSync, type AppointmentUpdate, type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, type CreateWorkspaceArgs, DB_REQUEST_HEADER, DEFAULT_ROW_CAP, type Database, type DbLog, type DbObserver, type DealMove, type DeliveredEvent, type DeliveryProvider, type DeliveryRow, type DomainCapacity, type DueCalendar, type DueDomain, type DuePage, type DuePlaybook, ERASURE_LEGS, ERASURE_STRATEGIES, type EmittedKind, type ErasureLeg, type ErasureStrategy, type EventData, type FollowerLead, HISTORY_COLUMNS, type HandItem, type HandoverInvite, type HandoverResult, type HandoverSent, type HandoverWorkspace, type HeldNoticeMark, type HeldNoticeRun, IDS_PER_READ, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type JobToRequeue, type Json, type KeptDelivery, type KeptDeliveryRow, type LateCarrierStop, type LeadContext, type LeadOneLead, type LeadOneMember, type LineForwardingArgs, type ListRow, MAX_ROWS, type MailboxRow, type MessageHit, type MessageInsert, type MessageSender, type MessageVariable, type MessageVersionRow, type MigrationHead, type NewVoiceSession, type NormalizedCallInput, type OpenHandover, type OutboundTarget, type OutreachFactsRow, type OutreachMode, PEOPLE_PAGE, PERSON_FORGOTTEN, type Page, type ParentEmail, type PartnerBalanceLine, type PartnerHandoverLine, type PartnerInvitation, type PartnerInviteMail, type PartnerInviteSent, type PartnerJoined, type PartnerOverviewRow, type PartnerPayoutAnswer, type PartnerPublicRow, type PartnerRow, type PartnerTenantRow, type PartnerVerbResult, type PartnerWorkspaceMoneyLine, type PeopleCursor, type PersonForSend, type PgThreadState, type PlatformPartnerBalanceLine, type PlatformPartnerWorkspaceLine, type PlaybookPatch, type PlaybookToStart, type PolicyRecord, type PutTenantConfigResult, type QueuedOutcome, type ReachOutDayDue, type ReachOutRecordRow, type ReachOutReplyOf, type ReachOutRunSend, type ReachOutSendInsert, type ReachOutSendRow, type ReachOutStepRow, type ReplyListRow, type ReplyReadingRow, type ResolvePersonInput, type ResolvedPerson, type RoutedChannel, type SavedListRow, type SendStanding, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type StrandedRun, type SubscribeOptions, type TemplateRow, type TemplateToSend, type TenantConfigRow, type TenantDb, type ThreadTurn, type Touch, type TouchIndex, type UncheckedSend, type Unsubscribed, type UsageMonthRow, type VersionRef, type VoiceSessionRow, type WhatsappNumber, type WorkspacePartner, type WriteError, type WrittenEmail, type YesRow, acceptHandover, acceptPartnerInvite, activitySubjects, activityTokensOf, addPersonNote, addToList, addToWaitlist, addressesSuppressed, aiFailuresHour, answeredReachOutEmail, applyDomainCheck, applyReplyReading, appointmentByClientStart, appointmentByKey, appointmentNoticeById, appointmentNoticeOf, appointmentNoticesOf, appointmentStates, appointmentsBetween, appointmentsForClient, appointmentsScrub, approveBroadcast, archiveConversation, archiveList, assembleBroadcast, assembleHistory, becomePartner, callerNameOf, callersOf, campaignMonthSent, campaignSeries, claimCallActivity, claimCallNotification, claimControl, claimIdempotencyKey, claimQueuedSend, claimReplyTell, claimReplyTurn, claimSends, claimVoiceTurn, clearForwardingConfirmation, closedRunSends, coldReceiptsOwed, contactEmailOf, contactIdByEmail, contactIdByPhone, contactSeen, countSendingDomains, countSentToday, createList, createMessageVersion, createServiceClient, createWorkspaceFn, createWorkspaceForBusiness, declineHandover, declinePartnerInvite, deleteList, deleteSecondFactor, deleteSendingDomain, deleteSendingDomainAsRead, deliveryOf, describeLead, dismissAppointmentNotice, dismissPersonDoubt, domainCapacityOf, domainHeldSince, doubtOn, dropFromList, dueCalendars, dueDomains, duePlaybooks, dueSendingDomains, emailOfferCounts, emailOffersPause, emailWordsByTemplate, emailWordsFrom, emailWordsOf, emitEvent, endVoiceSession, erasureDigests, eventOfDelivery, everyoneIn, failQueuedSend, failStrandedRun, failedMessageErrors, finishableRuns, firstReplies, followUpTouchesSince, forgetActivityTokens, forgetNotification, getHandoverInvite, getOpenHandovers, getOwnPartner, getPartnerBalance, getPartnerBroughtCount, getPartnerHandovers, getPartnerInvitations, getPartnerInviteMail, getPartnerLetters, getPartnerWorkspaces, getPlatformPartners, getTenantConfig, getWorkspacePartner, handRun, hasNewerCopy, heldNoticeDue, heldNoticesOf, heldStale, holdRecipients, holdsReplyTurn, ingestCall, ingestInbound, ingestInboundEmail, insertAppointment, insertQueuedEmail, insertVoiceSession, invitePartner, inviteUserByEmail, isMissingDoor, isWorkspaceCall, keepAppointmentNotice, keepChannelQuality, keepChannelStanding, keepForwardingConfirmation, keepIdempotencyReceipt, keepInvoiceAmount, keepMessageCost, keepProviderEvent, lastInboundEmail, lastOutboundEmailSubject, leadAddressBounced, leadNamesByIds, leadSlotsOf, leadWritten, lineForwardingSet, linkCallMessage, listMemberIds, listPolicies, listRow, listSecondFactors, mailboxById, mailboxFor, mailboxOfTenant, markContact, markHeldNotice, markPartnerPaid, markProcessed, markReplyDraft, markReplyTold, markWaitlistInvited, memberHasAddress, membershipCountOf, mergePeople, messageByExternalId, messageSenders, messageSlots, messageVersionRowsOf, migrationHead, monthSent, moveSend, moveVoiceSessionContext, namedFetch, namesOfPeople, notesForReceptionist, noticeKept, observeDb, offerLanguageOf, offersAnswerOf, offersEmailReach, openConversation, openDoubtsOf, ourLastWire, outreachFactsOf, outreachModeOf, ownLineOf, ownVersionsFiled, parentEmailOf, pauseConversation, pauseEmailOffers, peopleCursorOf, peoplePage, personDecisions, personReplyMode, personRow, platformHoldStands, platformWide, playbookChannels, playbookForChannels, playbooksOnList, providerEventOf, purgeAiUsage, putTenantConfig, queuedOutcomes, queuedRecipients, reachOutAudience, reachOutDayDue, reachOutFollowers, reachOutPerson, reachOutRecord, reachOutReplyOf, reachOutReport, reachOutRootOf, reachOutRunSendsOf, reachOutSendRefOf, reachOutStepsOf, readAllRows, readAllRowsByKey, readDealForPhone, readJobToRequeue, readLeadContext, readLeadOne, readThreadState, readVoiceSession, readVoiceSessionByConversation, recheckSends, recordActivation, recordCallNote, recordCarrierOptOut, recordCheck, recordConsent, recordDeal, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordEvent, recordLateCarrierOptOut, recordModelUsage, recordOutbound, recordPartnerSecondFactorReset, recordProviderDomain, recordStatusByExternalId, recordWhatsAppOffersStop, refreshWaitlistRow, relayEvents, releaseControl, releaseIdempotencyKey, releaseQueuedSend, releaseUnavailableHolds, removePlaybook, removeTemplateVersion, renameList, repliedTo, repliesFor, replyReadingOf, replyReadingRefOf, replyUndoableOf, reportSeries, reputationHoldsSince, resendHandover, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveEscalationByReason, resolveOutboundTarget, resolveOutboundTargetForContact, resolvePerson, reviewsLedger, runGoesByOthers, runSending, runsWaitingOf, saveTemplateVersion, savedListFor, savedListsFor, scrubPersonNotes, scrubProviderEvents, searchMessages, searchNamesByIds, sendJobScheduled, sendNow, sendStanding, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailOf, sentEmailWithMessageId, sessionHoldsPartnerSeat, setCallRecording, setEmailOffersYes, setEmailUnsubscribed, setListRule, setPartnerLetters, setPartnerStanding, setPartnerStatus, setPersonReplyMode, setPlaybookState, setPolicyMode, setTemplateQuality, settleDelivery, signUpOnPublicKey, staleSends, stampEmailComplaint, stampEmailLeftAs, stampEmailSent, stampHandled, stampMailboxReceived, stampPlaybooksTried, stampReachOutStep, startPlaybook, stopAllMessages, strandedRuns, stuckClaims, subjectsWith, subscribeWorkspaceChanges, subscriptionPaused, suppressEmailOf, syncFeedAppointments, takeCheckAttempt, takeIdempotencyKey, takeReplyRead, templateIdOf, templateStatusOf, templatesFor, templatesNamed, templatesToSend, tenantDb, tenantZoneOf, textLineFacts, textReached, touchIndex, touchSendingDomain, touchesSince, uncheckedSends, uncheckedWaiting, undoReplyReading, updateAppointment, updatePlaybook, usageMonth, waitlistWaiting, watchedEvents, watchedTables, whatsappChannelFacts, whatsappNumberOf, whatsappNumbersToRead, wireRowOf, withdrawEmail, withdrawPartnerInvite, workspaceAbout, workspaceAnswersOnItsOwn, workspaceIdsOf, workspaceMaySpend, workspaceMayUseModels, workspaceNameAndConfig, workspacePaused, writtenEmail, writtenEmails, yesesSince };
+export { type ActivitySubject, type ActivitySubjects, type AiFailures, type AppointmentInsert, type AppointmentNoticeInsert, type AppointmentNoticeRow, type AppointmentRow, type AppointmentSync, type AppointmentUpdate, type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, type CreateWorkspaceArgs, DB_REQUEST_HEADER, DEFAULT_ROW_CAP, type Database, type DbLog, type DbObserver, type DealMove, type DeliveredEvent, type DeliveryProvider, type DeliveryRow, type DomainCapacity, type DueCalendar, type DueDomain, type DuePage, type DuePlaybook, ERASURE_LEGS, ERASURE_STRATEGIES, type EmittedKind, type ErasureLeg, type ErasureStrategy, type EventData, type FollowerLead, HISTORY_COLUMNS, type HandItem, type HandoverInvite, type HandoverResult, type HandoverSent, type HandoverWorkspace, type HeldNoticeMark, type HeldNoticeRun, IDS_PER_READ, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type JobToRequeue, type Json, type KeptDelivery, type KeptDeliveryRow, type LateCarrierStop, type LeadContext, type LeadOneLead, type LeadOneMember, type LineForwardingArgs, type ListRow, MAX_ROWS, type MailboxRow, type MessageHit, type MessageInsert, type MessageSender, type MessageVariable, type MessageVersionRow, type MigrationHead, type ModelTurnKept, type NewVoiceSession, type NormalizedCallInput, type OpenHandover, type OutboundTarget, type OutreachFactsRow, type OutreachMode, PEOPLE_PAGE, PERSON_FORGOTTEN, type Page, type ParentEmail, type PartnerBalanceLine, type PartnerHandoverLine, type PartnerInvitation, type PartnerInviteMail, type PartnerInviteSent, type PartnerJoined, type PartnerOverviewRow, type PartnerPayoutAnswer, type PartnerPublicRow, type PartnerRow, type PartnerTenantRow, type PartnerVerbResult, type PartnerWorkspaceMoneyLine, type PeopleCursor, type PersonForSend, type PgThreadState, type PlatformPartnerBalanceLine, type PlatformPartnerWorkspaceLine, type PlaybookPatch, type PlaybookToStart, type PolicyRecord, type PutTenantConfigResult, type QueuedOutcome, type ReachOutDayDue, type ReachOutRecordRow, type ReachOutReplyOf, type ReachOutRunSend, type ReachOutSendInsert, type ReachOutSendRow, type ReachOutStepRow, type ReplyListRow, type ReplyReadingRow, type ResolvePersonInput, type ResolvedPerson, type RoutedChannel, type SavedListRow, type SendStanding, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type StrandedRun, type SubscribeOptions, type TemplateRow, type TemplateToSend, type TenantConfigRow, type TenantDb, type ThreadTurn, type Touch, type TouchIndex, type UncheckedSend, type Unsubscribed, type UsageMonthRow, type VersionRef, type VoiceSessionRow, type WhatsappNumber, type WorkspacePartner, type WriteError, type WrittenEmail, type YesRow, acceptHandover, acceptPartnerInvite, activitySubjects, activityTokensOf, addPersonNote, addToList, addToWaitlist, addressesSuppressed, aiFailuresHour, answeredReachOutEmail, applyDomainCheck, applyReplyReading, appointmentByClientStart, appointmentByKey, appointmentNoticeById, appointmentNoticeOf, appointmentNoticesOf, appointmentStates, appointmentsBetween, appointmentsForClient, appointmentsScrub, approveBroadcast, archiveConversation, archiveList, assembleBroadcast, assembleHistory, becomePartner, callerNameOf, callersOf, campaignMonthSent, campaignSeries, claimCallActivity, claimCallNotification, claimControl, claimIdempotencyKey, claimQueuedSend, claimReplyTell, claimReplyTurn, claimSends, claimVoiceTurn, clearForwardingConfirmation, closedRunSends, coldReceiptsOwed, contactEmailOf, contactIdByEmail, contactIdByPhone, contactSeen, countSendingDomains, countSentToday, createList, createMessageVersion, createServiceClient, createWorkspaceFn, createWorkspaceForBusiness, declineHandover, declinePartnerInvite, deleteList, deleteSecondFactor, deleteSendingDomain, deleteSendingDomainAsRead, deliveryOf, describeLead, dismissAppointmentNotice, dismissPersonDoubt, domainCapacityOf, domainHeldSince, doubtOn, dropFromList, dueCalendars, dueDomains, duePlaybooks, dueSendingDomains, emailOfferCounts, emailOffersPause, emailWordsByTemplate, emailWordsFrom, emailWordsOf, emitEvent, endVoiceSession, erasureDigests, eventOfDelivery, everyoneIn, failQueuedSend, failStrandedRun, failedMessageErrors, finishableRuns, firstReplies, followUpTouchesSince, forgetActivityTokens, forgetNotification, getHandoverInvite, getOpenHandovers, getOwnPartner, getPartnerBalance, getPartnerBroughtCount, getPartnerHandovers, getPartnerInvitations, getPartnerInviteMail, getPartnerLetters, getPartnerWorkspaces, getPlatformPartners, getTenantConfig, getWorkspacePartner, handRun, hasNewerCopy, heldNoticeDue, heldNoticesOf, heldStale, holdRecipients, holdsReplyTurn, ingestCall, ingestInbound, ingestInboundEmail, insertAppointment, insertQueuedEmail, insertVoiceSession, invitePartner, inviteUserByEmail, isMissingDoor, isWorkspaceCall, keepAppointmentNotice, keepChannelQuality, keepChannelStanding, keepForwardingConfirmation, keepIdempotencyReceipt, keepInvoiceAmount, keepMessageCost, keepModelTurn, keepProviderEvent, lastInboundEmail, lastOutboundEmailSubject, leadAddressBounced, leadNamesByIds, leadSlotsOf, leadWritten, lineForwardingSet, linkCallMessage, listMemberIds, listPolicies, listRow, listSecondFactors, mailboxById, mailboxFor, mailboxOfTenant, markContact, markHeldNotice, markPartnerPaid, markProcessed, markReplyDraft, markReplyTold, markWaitlistInvited, memberHasAddress, membershipCountOf, mergePeople, messageByExternalId, messageSenders, messageSlots, messageVersionRowsOf, migrationHead, monthSent, moveSend, moveVoiceSessionContext, namedFetch, namesOfPeople, notesForReceptionist, noticeKept, observeDb, offerLanguageOf, offersAnswerOf, offersEmailReach, openConversation, openDoubtsOf, ourLastWire, outreachFactsOf, outreachModeOf, ownLineOf, ownVersionsFiled, parentEmailOf, pauseConversation, pauseEmailOffers, peopleCursorOf, peoplePage, personDecisions, personReplyMode, personRow, platformHoldStands, platformWide, playbookChannels, playbookForChannels, playbooksOnList, providerEventOf, purgeAiUsage, putTenantConfig, queuedOutcomes, queuedRecipients, reachOutAudience, reachOutDayDue, reachOutFollowers, reachOutPerson, reachOutRecord, reachOutReplyOf, reachOutReport, reachOutRootOf, reachOutRunSendsOf, reachOutSendRefOf, reachOutStepsOf, readAllRows, readAllRowsByKey, readDealForPhone, readJobToRequeue, readLeadContext, readLeadOne, readThreadState, readVoiceSession, readVoiceSessionByConversation, recheckSends, recordActivation, recordCallNote, recordCarrierOptOut, recordCheck, recordConsent, recordDeal, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordEvent, recordLateCarrierOptOut, recordModelUsage, recordOutbound, recordPartnerSecondFactorReset, recordProviderDomain, recordStatusByExternalId, recordWhatsAppOffersStop, refreshWaitlistRow, relayEvents, releaseControl, releaseIdempotencyKey, releaseQueuedSend, releaseUnavailableHolds, removePlaybook, removeTemplateVersion, renameList, repliedTo, repliesFor, replyReadingOf, replyReadingRefOf, replyUndoableOf, reportSeries, reputationHoldsSince, resendHandover, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveEscalationByReason, resolveOutboundTarget, resolveOutboundTargetForContact, resolvePerson, reviewsLedger, runGoesByOthers, runSending, runsWaitingOf, saveTemplateVersion, savedListFor, savedListsFor, scrubModelTurns, scrubPersonNotes, scrubProviderEvents, searchMessages, searchNamesByIds, sendJobScheduled, sendNow, sendStanding, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailOf, sentEmailWithMessageId, sessionHoldsPartnerSeat, setCallRecording, setEmailOffersYes, setEmailUnsubscribed, setListRule, setPartnerLetters, setPartnerStanding, setPartnerStatus, setPersonReplyMode, setPlaybookState, setPolicyMode, setTemplateQuality, settleDelivery, signUpOnPublicKey, staleSends, stampEmailComplaint, stampEmailLeftAs, stampEmailSent, stampHandled, stampMailboxReceived, stampPlaybooksTried, stampReachOutStep, startPlaybook, stopAllMessages, strandedRuns, stuckClaims, subjectsWith, subscribeWorkspaceChanges, subscriptionPaused, suppressEmailOf, syncFeedAppointments, takeCheckAttempt, takeIdempotencyKey, takeReplyRead, templateIdOf, templateStatusOf, templatesFor, templatesNamed, templatesToSend, tenantDb, tenantZoneOf, textLineFacts, textReached, touchIndex, touchSendingDomain, touchesSince, uncheckedSends, uncheckedWaiting, undoReplyReading, updateAppointment, updatePlaybook, usageMonth, waitlistWaiting, watchedEvents, watchedTables, whatsappChannelFacts, whatsappNumberOf, whatsappNumbersToRead, wireRowOf, withdrawEmail, withdrawPartnerInvite, workspaceAbout, workspaceAnswersOnItsOwn, workspaceIdsOf, workspaceMaySpend, workspaceMayUseModels, workspaceNameAndConfig, workspacePaused, writtenEmail, writtenEmails, yesesSince };
