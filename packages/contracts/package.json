@@ -27,6 +27,11 @@
       "import": "./dist/report-lens.js",
       "default": "./dist/report-lens.js"
     },
+    "./ads-page": {
+      "types": "./dist/ads-page.d.ts",
+      "import": "./dist/ads-page.js",
+      "default": "./dist/ads-page.js"
+    },
     "./alert-pane": {
       "types": "./dist/alert-pane.d.ts",
       "import": "./dist/alert-pane.js",

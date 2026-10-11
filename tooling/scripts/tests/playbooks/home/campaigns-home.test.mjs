@@ -978,6 +978,28 @@ test("what came back says what a read is where a text or an email went too (0030
   assert.equal(byTestId(tree, "cmh-read-note"), null);
 });
 
+test("what came back has a second door, Full report, to Reports' Campaigns over the days the tile counts, in the workspace's own time (and 'All runs' stays)", () => {
+  const real = Date.now;
+  Date.now = () => NOW;
+  try {
+    surfaces();
+    const tree = page();
+    const results = byTestId(tree, "cmh-results");
+    const door = find(results, (n) => n.props?.["data-testid"] === "cmh-full-report");
+    assert.ok(door, "the tile's head has the door");
+    assert.match(textOf(door), /Full report/);
+    // Friday 2 Oct 2026 at 9:44 PM in New York is still the 2nd there, whatever day it is in UTC: thirty days ending on it.
+    assert.equal(door.props.href, "#/reports/campaigns:2026-09-03~2026-10-02");
+    const heads = all(results, (n) => /\bcmh-more\b/.test(String(n.props?.className ?? "")));
+    assert.ok(
+      heads.some((n) => /All runs/.test(textOf(n))),
+      "and the door it had",
+    );
+  } finally {
+    Date.now = real;
+  }
+});
+
 test("on a phone a failed read is said in the same places: over the moments, in the list, and in what came back", () => {
   surfaces({
     playbooks: { countsRead: false },

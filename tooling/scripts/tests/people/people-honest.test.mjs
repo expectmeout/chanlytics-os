@@ -2516,15 +2516,16 @@ test("a row says where the person came from, in words, and nothing when nothing 
       person(2, { came_from: "sms" }),
       person(3, { came_from: null }),
       person(4),
+      person(5, { came_from: "ad" }),
     ],
     views: { people: { sortBy: "last", sortDir: "desc", columns: { came_from: true } } },
   });
   const tree = draw();
   const said = (id) => textOf(byTestId(rowOf(tree, id), "row-came-from")).trim();
   assert.deepEqual(
-    ["p1", "p2", "p3", "p4"].map(said),
-    ["Your calendar", "Text", "", ""],
-    "and a row read before the column existed says nothing either",
+    ["p1", "p2", "p3", "p4", "p5"].map(said),
+    ["Your calendar", "Text", "", "", "An ad"],
+    "and a row read before the column existed says nothing either; an ad is a way in like the rest",
   );
   for (const id of ["p3", "p4"])
     assert.ok(

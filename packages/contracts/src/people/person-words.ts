@@ -31,10 +31,10 @@ export const PERSON_CHANNEL_WORDS: Record<PersonChannel, string> = {
  * Where a person first came from, as people_list decides it once (00138): the
  * door that added them (calendar, lead, a client list's import since 00170,
  * manual), an imported history (import), else their first call (call) or the
- * wire of their first message (whatsapp, sms, email). People's "Came from"
- * column says it in these words; a stored value is never shown.
+ * wire of their first message (whatsapp, sms, email), or an ad they tapped or answered (ad, 11 Oct 2026: any paid
+ * ad, whichever platform). People's "Came from" column says it in these words; a stored value is never shown.
  */
-export type PersonCameFrom = "whatsapp" | "sms" | "email" | "call" | "calendar" | "manual" | "import" | "lead";
+export type PersonCameFrom = "whatsapp" | "sms" | "email" | "call" | "calendar" | "manual" | "import" | "lead" | "ad";
 
 /** The words for each, once: the three wires say what a reply on them says (REPLY_VIA), and a call says what its glyph says (PERSON_CHANNEL_WORDS.voice). */
 export const PERSON_CAME_FROM_WORDS: Record<PersonCameFrom, string> = {
@@ -46,4 +46,18 @@ export const PERSON_CAME_FROM_WORDS: Record<PersonCameFrom, string> = {
   manual: "Added by hand",
   import: "Imported",
   lead: "A lead you found",
+  ad: "An ad",
 };
+
+/**
+ * The platforms an ad runs on, in the words the Ads page says them in (ads/words.ts PLATFORM_WORD, which is that page's
+ * alone to load: this is People's copy of three words, and tooling/scripts/tests/ads/ads-connect.test.mjs holds the two equal).
+ */
+export const PERSON_AD_ON: Record<"meta" | "google" | "tiktok", string> = {
+  meta: "Facebook and Instagram",
+  google: "Google",
+  tiktok: "TikTok",
+};
+
+/** Where an ad brought someone, as a line under a name says it: `From an ad · Spring offer`, or `From an ad` where the ad is not known. */
+export const fromAdWords = (name: string | null): string => (name ? `From an ad · ${name}` : "From an ad");

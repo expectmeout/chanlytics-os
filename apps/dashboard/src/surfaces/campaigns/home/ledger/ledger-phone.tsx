@@ -50,7 +50,7 @@ import { nodeGlyph } from "../rail";
 import { TileRead } from "../tiles";
 import { AddAct, ResumePress, ResumeQuestion, WaitingActs, useResumeAsk } from "./ledger-acts";
 import type { LedgerActs } from "./ledger-acts";
-import type { RowMark } from "./ledger-keys";
+import type { RowMark } from "../../parts/ledger-keys";
 import { RowName, resultsWords, rowOpens } from "./ledger-row";
 import { SentOnce, ToolSay } from "./ledger-tools";
 import type { LedgerView } from "./use-ledger-view";

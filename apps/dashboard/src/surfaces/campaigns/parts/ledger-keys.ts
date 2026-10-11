@@ -1,10 +1,10 @@
 /**
- * Campaigns' ledger and the keyboard (decision 18): People's list keys, in the shape of its listener
+ * Campaigns' ledgers and the keyboard (decision 18), Messages' and Ads': People's list keys, in the shape of its listener
  * (surfaces/people/hooks/keyboard.ts) and reading People's own rules for what is typing, what a control is and what
- * stands over the page (surfaces/people/words.ts). `/` goes to the search, J/K or ↓/↑ walk a cursor down the rows the
- * screen shows (focus goes to the row's name with it, so Tab reaches its acts and Enter opens it as a link does), Enter
- * opens the row under the cursor, Escape lets go of the words searched and then of the filter. Never while typing (but
- * Escape in the search box), never with a modifier, never behind a menu or a sheet.
+ * stands over the page (surfaces/people/words.ts). `/` goes to the search (where the ledger has one), J/K or ↓/↑ walk a
+ * cursor down the rows the screen shows (focus goes to the row's name with it, so Tab reaches its acts and Enter opens it as
+ * a link does), Enter opens the row under the cursor, Escape lets go of the words searched and then of the filter. Never
+ * while typing (but Escape in the search box), never with a modifier, never behind a menu or a sheet.
  *
  * Focus comes home: a sheet opened from a row gives it, as it closes, to that row's opener
  * (`[data-row="<id>"] [data-row-open]`), one opened from a moment's card on the rail to the card's name, or where the row
@@ -26,7 +26,8 @@ interface LedgerKeyDoors {
   move: (step: number) => void;
   /** Open a row: its opener pressed, as a press on the row would. */
   open: (id: string) => void;
-  focusSearch: () => void;
+  /** Go to the ledger's search; a ledger with none (Ads') leaves it out, and `/` is not taken from the page. */
+  focusSearch?: () => void;
   /** Whether Escape has something to let go of: words searched, a status, a group. */
   narrowed: boolean;
   clearOne: () => void;
@@ -118,7 +119,7 @@ export function onLedgerKey(k: LedgerKeyDoors | null, e: KeyboardEvent): void {
   }
   // A menu, Ask, the notifications or the kit's sheet open over the page has the keys.
   if (found(PL_OVERLAY)) return;
-  if (e.key === "/") {
+  if (e.key === "/" && k.focusSearch) {
     e.preventDefault();
     k.focusSearch();
     return;

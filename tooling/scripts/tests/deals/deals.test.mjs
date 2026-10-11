@@ -726,6 +726,7 @@ test("where the new clients came from: the source most of them share, said as a 
     "2 of 3 new clients were added by hand.",
     "2 of 3 new clients came from your imported history.",
     "2 of 3 new clients came from Leads.",
+    "2 of 3 new clients came from an ad.",
   ]);
   assert.deepEqual(linesOf({ won: 3, sources: [{ came_from: "manual", count: 1 }] }), [
     "1 of 3 new clients was added by hand.",

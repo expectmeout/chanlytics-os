@@ -47,6 +47,7 @@ export type {
 export {
   REPORT_LENSES,
   LENS_ROUTES,
+  adsReportRoute,
   lensRoute,
   isLensParam,
   lensOfRoute,
@@ -57,7 +58,7 @@ export {
   lensIsShown,
   lensEmpty,
 } from "./lenses";
-export type { LensId, LensRow, LensRange, LensEmpty, LensWho } from "./lenses";
+export type { LensId, LensRow, LensRange, LensEmpty, LensWho, ReportsParts } from "./lenses";
 export { lensAnswerOf } from "./lens-answer";
 export { toReviewsReportVM, REVIEWS_WAITING_SHOWN } from "./review-report";
 export type { ReviewsReportDto, ReviewWaitingVM, ReviewsReportVM } from "./review-report";

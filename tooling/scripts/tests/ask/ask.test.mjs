@@ -232,8 +232,10 @@ const REACHED = {
 // new scope's jump is this list's to add (surfaces/people/words.ts plScopes).
 const SCOPES = ["clients/pipeline"];
 // Reports' lenses are addresses of `reports`, which the registry routes as one page: each lens's jump is derived from the
-// lens registry (contracts REPORT_LENSES), so a lens that joins it is a jump here without a line of this table.
-for (const lens of REPORT_LENSES.filter((l) => l.id !== "overview")) {
+// lens registry (contracts REPORT_LENSES), so a lens that joins it is a jump here without a line of this table. The Ads lens is
+// the one the palette does not list: it is shown where the workspace has ads (`ads_on`, a demo session for now), and a real
+// workspace's palette has none of it (report-lenses.test.mjs holds that it is no jump).
+for (const lens of REPORT_LENSES.filter((l) => l.id !== "overview" && l.shownWhen !== "ads_on")) {
   REACHED[lensRoute(lens.id)] = [`Reports › ${lens.label}`, lensRoute(lens.id)];
   SCOPES.push(lensRoute(lens.id));
 }
@@ -450,8 +452,8 @@ test("the surfaces are one list, Leads among them, and every kind a scope may ha
   assert.equal(new Set(ASK_SURFACES).size, ASK_SURFACES.length, "each said once");
   assert.deepEqual(
     ASK_SCOPE_KINDS.filter((k) => !ASK_CITATION_KINDS.includes(k)),
-    ["run"],
-    "a run is the one scope word no citation spells: its address's word for a Broadcasts row",
+    ["run", "ad"],
+    "a run is its address's word for a Broadcasts row; an ad is cited as the page it is on until the Ads read lands (0049)",
   );
   assert.ok(ASK_CITATION_KINDS.includes("broadcast"), "which a citation names a broadcast");
   // A campaign is one now, open in its drawer (the moment spec, A1): campaigns/moment:<id>.

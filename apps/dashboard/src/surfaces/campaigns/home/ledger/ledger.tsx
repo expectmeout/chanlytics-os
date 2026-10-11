@@ -15,7 +15,7 @@ import { useSwapMotion } from "../../../kit/motion/use-swap-motion";
 import { HomeFailed } from "../failed";
 import { AddAct } from "./ledger-acts";
 import type { LedgerActs } from "./ledger-acts";
-import type { RowMark } from "./ledger-keys";
+import type { RowMark } from "../../parts/ledger-keys";
 import { LedgerRow } from "./ledger-row";
 import { LedgerHeads, LedgerTools, SentOnce } from "./ledger-tools";
 import type { LedgerView } from "./use-ledger-view";

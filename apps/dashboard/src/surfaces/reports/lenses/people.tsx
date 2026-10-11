@@ -16,7 +16,7 @@
  * (the existing `rpt-span-*` classes: a card never stands alone at a third of its row).
  */
 import { useMemo } from "react";
-import { plural, type ReportVM } from "@chanlytics/contracts";
+import { lensRoute, plural, type ReportVM } from "@chanlytics/contracts";
 import {
   FIRST_CAME_NOBODY,
   PEOPLE_RHYTHM_EMPTY,
@@ -30,8 +30,10 @@ import { HeatStrip } from "../../kit/charts/heat";
 import { LineChart } from "../../kit/charts/line";
 import { RadarChart } from "../../kit/charts/radar";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
+import { navigate } from "../../legacy-verbs";
 import type { Follower } from "../../use-surface";
 import { RptSection, RptStrip } from "../blocks";
+import { lensShownHere } from "../chrome";
 import type { PeopleSurface } from "../people-surface";
 import { rptPeriods } from "../series";
 import type { ReportsSurface } from "../surface";
@@ -168,12 +170,12 @@ function bookFailed() {
  * columns: where the pool could not be counted the failed read takes the last row alone, and the rhythm card moves up to
  * fill the second.
  */
-function windowRows({ vm, days }: ReportsSurface, v: PeopleReportVM) {
+function windowRows({ vm, days }: ReportsSurface, v: PeopleReportVM, ads: (() => void) | null) {
   return (
     <>
       <div className="rpt-grid">
         {channelsCard(v, "rpt-span-4")}
-        {firstCard(v, "rpt-span-4")}
+        {firstCard(v, "rpt-span-4", ads)}
         {peopleCard(vm, days, "rpt-span-4")}
       </div>
       <div className="rpt-grid">
@@ -213,12 +215,12 @@ function bookRow(v: PeopleReportVM) {
 }
 
 /** The lens's own read held and current: the strip and the window's cards with the book's, or the kept cards and the book's where no window was read. */
-function mixRows(R: ReportsSurface, v: PeopleReportVM) {
+function mixRows(R: ReportsSurface, v: PeopleReportVM, ads: (() => void) | null) {
   if (v.windowAvailable)
     return (
       <>
         <RptStrip tiles={v.strip} className="quad" testid="people-strip" />
-        {windowRows(R, v)}
+        {windowRows(R, v, ads)}
       </>
     );
   return (
@@ -251,6 +253,16 @@ function stuckSection(v: PeopleReportVM) {
   );
 }
 
+/**
+ * The door from "An ad" to Reports › Ads, over the days this lens shows: the days the address says, else the period kept, which
+ * Ads opens on too. Only where the Ads lens is shown to this workspace; none otherwise.
+ */
+function adsDoor({ range }: ReportsSurface): (() => void) | null {
+  return lensShownHere("ads") === true
+    ? () => navigate(lensRoute("ads", typeof range === "string" ? null : range))
+    : null;
+}
+
 export function PeopleLens({
   R,
   own,
@@ -276,7 +288,7 @@ export function PeopleLens({
             />
           </div>
         )}
-        {shown ? mixRows(R, shown) : keptRow(R)}
+        {shown ? mixRows(R, shown, adsDoor(R)) : keptRow(R)}
       </RptSection>
       {shown?.windowAvailable ? timeSection(shown) : null}
       {shown?.nowAvailable ? stuckSection(shown) : null}

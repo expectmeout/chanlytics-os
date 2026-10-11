@@ -8,7 +8,7 @@
  * groups: Connected, Available, Later. "Later" is a row's state, not a list at the bottom. Settings' page (settings.jsx)
  * still draws it by its old name, which seed-globals publishes (settings/globals.ts), until Settings' frame moves.
  */
-import { Fragment, useEffect, useState, type ReactNode } from "react";
+import { Fragment, Suspense, lazy, useEffect, useState, type ReactNode } from "react";
 import {
   CONNECTION_GROUP_WORDS,
   connectionRows,
@@ -23,6 +23,7 @@ import { googleVerbs } from "@/legacy-bridge/google";
 import { FailedRead } from "../../kit/empty/empty";
 import { RecordRow } from "../../kit/record/row";
 import { refusalToast, useLegacyToast, type LegacyFlash } from "../../legacy-verbs";
+import { demoSession } from "../../legacy-verbs";
 import { useSurface } from "../../use-surface";
 import type { SetupSurface } from "../../setup/surface";
 import { SendingDomains } from "./domains-block";
@@ -34,6 +35,9 @@ import { ConnectionRow, type Arm } from "./row";
 import { signupLeftOpenAt, waConnect, type SignupDoor } from "./whatsapp";
 
 type WaConfig = SignupDoor | null | undefined;
+
+// The Ad accounts card (MOCKUP) is a chunk of its own, fetched only by a demo session: a real workspace's pane draws none of it.
+const AdAccounts = lazy(() => import("./ad-accounts").then((m) => ({ default: m.AdAccounts })));
 
 /** What the browser came back from Google with, said once. */
 function googleNote(): string | null {
@@ -351,6 +355,11 @@ export const PaneIntegrationsReal = () => {
   return (
     <>
       {groups.map(({ g, list }) => groupCard({ g, list, note, setNote, row }))}
+      {demoSession() && (
+        <Suspense fallback={null}>
+          <AdAccounts flash={flash} />
+        </Suspense>
+      )}
       {toastNode}
     </>
   );

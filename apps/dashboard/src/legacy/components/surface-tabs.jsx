@@ -136,6 +136,9 @@ const stripPlace = (page, param) => {
     const at = route ? window.plScopes(true).map((s) => window.plScopeRoute(s.id)).indexOf(route) : -1;
     return at < 0 ? null : { strip: "people", at };
   }
+  // Campaigns' own views (its chrome's, surfaces/campaigns/routes.ts): Messages, the home and its addresses, then Ads. A demo session's
+  // alone: a real workspace has no Ads view, so its Campaigns draws no strip.
+  if (page === "campaigns" && window.__DEMO_MODE) return { strip: "campaigns", at: param && /^ads(:|$)/.test(param) ? 1 : 0 };
   const found = Object.entries(ST_GROUPS).find(([key, g]) => key !== "people" && g.match.includes(page));
   if (!found) return null;
   const at = found[1].tabs.filter((t) => !t.demoOnly || window.__DEMO_MODE).findIndex((t) => t.id === page);

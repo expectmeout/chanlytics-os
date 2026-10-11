@@ -213,6 +213,9 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   "reports/people": ["reports_people"],
   "reports/campaigns": ["reports_campaigns"],
   "reports/pipeline": [],
+  // The Ads lens (a demo session's, from the Ads sample) reads nothing of its own: an empty row, or it would fall to the Overview's
+  // read of the Campaigns lens.
+  "reports/ads": [],
   // The Overview draws the Campaigns lens's reads for one fact, which campaign drew the most replies (the page makes it from
   // `campaigns.sources`): the page's own row, which the Overview and a lens with no row of its own fall to. It is read as the
   // Overview comes on screen and again when it has aged, never for each burst of messages (campaigns-surface.ts heardOnTheLens).

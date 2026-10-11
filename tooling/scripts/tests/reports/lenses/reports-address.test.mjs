@@ -37,6 +37,7 @@ test("the page takes the Overview's address and each lens's, and no other addres
     "reports/people",
     "reports/pipeline",
     "reports/campaigns",
+    "reports/ads",
     "reports/reviews",
   ])
     assert.ok(routeHasPage(route), route);
@@ -53,6 +54,11 @@ test("the page takes the days a member picked: alone for the Overview, after its
     `reports/people:${DAYS}`,
     `reports/reviews:${DAYS}`,
     "reports/2026-09-15~2026-09-15",
+    // Ads alone says what it is narrowed to, after the days (or without them, on the period kept).
+    `reports/ads:${DAYS}`,
+    `reports/ads:${DAYS}:platform:meta`,
+    `reports/ads:${DAYS}:ad:5b0e8c1a-3f2d-4c1e-9a7b-1d2e3f4a5b6c`,
+    "reports/ads:platform:google",
   ])
     assert.ok(routeHasPage(route), route);
   for (const no of [
@@ -65,6 +71,10 @@ test("the page takes the days a member picked: alone for the Overview, after its
     "reports/2026-09-01", // half a window
     `reports/usage:${DAYS}`,
     `reports/people:${DAYS}:more`,
+    `reports/people:${DAYS}:ad:x`, // only Ads has a scope
+    `reports/ads:${DAYS}:platform:bing`, // a platform we do not run on
+    `reports/ads:${DAYS}:more`,
+    "reports/ads:",
   ])
     assert.ok(!routeHasPage(no), `${no} is the frame table's: not found`);
   // A pick, another lens over the same days, and back to the period are all the one page's own moves.
@@ -100,6 +110,39 @@ test("on days a member picked every tab keeps them, so another lens is the same 
     ["reports", "reports/receptionist", "reports/people", "reports/campaigns", "reports/reviews"],
     "and with no days in the address, none in a tab's",
   );
+});
+
+test("Ads is a tab in a demo session and nowhere else, between Campaigns and Reviews; its scope is its own and the days ride every tab", () => {
+  hold("booking");
+  const demo = globalThis.__DEMO_MODE;
+  try {
+    globalThis.__DEMO_MODE = false;
+    assert.ok(!chromeAt(null).views.tabs.some((t) => t.id === "ads"), "a workspace without ads has no tab");
+    globalThis.__DEMO_MODE = true;
+    assert.deepEqual(
+      chromeAt(null).views.tabs.map((t) => t.id),
+      ["overview", "receptionist", "people", "campaigns", "ads", "reviews"],
+    );
+    const ads = chromeAt(`ads:${DAYS}:platform:google`);
+    assert.equal(ads.views.picked, "ads");
+    assert.deepEqual(ads.crumbs, [{ label: "Reports", to: "reports" }, "Ads"]);
+    assert.deepEqual(
+      ads.views.tabs.map((t) => [t.id, t.to]),
+      [
+        ["overview", `reports/${DAYS}`],
+        ["receptionist", `reports/receptionist:${DAYS}`],
+        ["people", `reports/people:${DAYS}`],
+        ["campaigns", `reports/campaigns:${DAYS}`],
+        ["ads", `reports/ads:${DAYS}`],
+        ["reviews", `reports/reviews:${DAYS}`],
+      ],
+      "the days stay on every tab, and the scope stays on none: a tab is the lens over those days",
+    );
+    // Ads' own tab, with no days in the address, is the lens on the period kept.
+    assert.equal(chromeAt("ads").views.tabs.find((t) => t.id === "ads")?.to, "reports/ads");
+  } finally {
+    globalThis.__DEMO_MODE = demo;
+  }
 });
 
 test("a move between two lenses is a pushed or replaced entry on the one page, never a request for a page", () => {
