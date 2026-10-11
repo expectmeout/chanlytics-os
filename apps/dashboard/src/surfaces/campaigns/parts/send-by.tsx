@@ -1,102 +1,95 @@
 /**
- * The Send by row (One message, every channel, step 3; the campaigns-on-every-channel spec, 4.9): one toggle for each
- * channel a campaign may go by, WhatsApp, Text and Email, on the broadcast composer, the playbook composer and a
- * playbook's drawer alike. Each is an independent on or off, drawn as the home draws a campaign's channels (Ruben, 11 Oct
- * 2026, where three switches and their reasons took a row and three lines under it): a small capsule with the channel's
- * dot and its word, the dot filled in the channel's colour where it is on, hollow where it is off, and "waits" after the
- * word, in amber, where a playbook keeps it ticked though it cannot send on it yet. Each is a switch to a screen reader.
+ * The channels a campaign goes by (One message, every channel, step 3; the campaigns-on-every-channel spec, 4.9), on the
+ * broadcast composer, the playbook composer and a playbook's drawer alike: a word of the campaign's sentence (Ruben,
+ * 11 Oct 2026, "Option B") that says them -- each on one's dot and name, "WhatsApp or Email", "· waits" after one kept that
+ * cannot send yet -- and opens their list in the kit's popover. It stood as a row of capsules under its own word, Send by.
  *
- * A channel the workspace cannot send on, or the message cannot go by, is off and does not change when pressed (`fixed`),
- * and so is the one channel left on: drawn faint, its press says why under the row, one at a time, in the line a finger
- * reads (a tooltip is for a pointer and a keyboard alone, which still has it, and a screen reader has it as the toggle's
- * description). A channel turned on that waits says why the same way, as it is turned on. What is on, and why a channel
- * is closed, is parts/channels.ts's.
+ * The list is one row a channel, WhatsApp, Text and Email, each an independent on or off and a switch to a screen reader:
+ * its dot (filled in the channel's colour where it is on, hollow where it is off, as the home draws a campaign's
+ * channels), its word, under them how many of the people it reaches now it carries there or why it is closed, and a
+ * check where it is on. A channel the workspace cannot send on, or the message cannot go by, is off and does not change
+ * when pressed (`fixed`), and so is the one channel left on; each says why under its word, where a finger reads it. What
+ * is on, and why a channel is closed, is parts/channels.ts's.
  *
- * Where the workspace can send on nothing at all (`standing`, parts/channels.ts cmNothingOpen), the row says so once under
- * its toggles: "Nothing can send yet", then each channel with its reason as the door to Settings › Connections that mends
- * it. Three dimmed toggles whose reasons wait for a press were a dead end.
+ * Where the workspace can send on nothing at all (`standing`, parts/channels.ts cmNothingOpen), the list says so once
+ * under its rows: "Nothing can send yet", then each channel with its reason as the door to Settings › Connections that
+ * mends it.
  */
-import { useId, useState } from "react";
+import { Fragment, useId } from "react";
 import { LIFECYCLE_WORDS } from "@chanlytics/contracts";
 import type { ChannelStandingPart, ConsentChannel } from "@chanlytics/contracts";
+import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
-import { Tooltip } from "../../kit/tooltip/tooltip";
+import { Token } from "../../kit/picker/picker";
+import { Popover } from "../../kit/popover/popover";
 import { CM_VIA_WORDS, type CmViaTick } from "./channels";
 import { ChannelsLine } from "./channels-line";
 
 interface CmViaProps {
   ticks: readonly CmViaTick[];
   onTick: (channel: ConsentChannel, on: boolean) => void;
-  /** The row's test id; each channel's is `<testid>-<channel>`. */
+  /** The list's test id; each channel's is `<testid>-<channel>`, and the sentence's word `<testid>-word`. */
   testid: string;
-  /** The group's name to a screen reader where the row is not "Send by": a playbook's drawer calls it "Goes by". */
+  /** The group's name to a screen reader where it is not "Send by": a playbook's drawer calls it "Goes by". */
   label?: string;
-  /** A change is being saved: said to a screen reader, where the toggles only stop taking a press. */
+  /** A change is being saved: said to a screen reader, where the rows only stop taking a press. */
   busy?: boolean;
-  /** The workspace's standing where it can send on nothing (cmNothingOpen), said in place of the reasons; else null. */
+  /** The workspace's standing where it can send on nothing (cmNothingOpen), said under the rows; else null. */
   standing?: readonly ChannelStandingPart[] | null;
+  /** How many of the people it reaches now each channel carries ("12 people"), said under its word. */
+  counts?: Partial<Record<ConsentChannel, string>>;
 }
 
 /** The mark's state, in the home's words for a channel's dot: on, kept and waiting, or not on. */
 const dotState = (tick: CmViaTick): "on" | "waits" | "could" => (!tick.on ? "could" : tick.waiting ? "waits" : "on");
 
-/** One channel: its toggle, its dot and its word, with the reason it is closed (or stays on, or waits) where it has one. */
-function CmViaOne(p: {
+/** One channel: its dot and word, its count or its reason under them, and its check. */
+function CmViaOne({
+  tick,
+  onTick,
+  sub,
+  testid,
+}: {
   tick: CmViaTick;
   onTick: CmViaProps["onTick"];
-  onWhy: (channel: ConsentChannel | null) => void;
-  whyShown: boolean;
-  whyId: string;
+  sub: string | null;
   testid: string;
 }) {
-  const { tick, onTick, onWhy, whyShown, whyId, testid } = p;
   const id = useId();
   const srWhy = `${id}-why`;
-  const press = () => {
-    if (tick.fixed) {
-      onWhy(whyShown ? null : tick.channel);
-      return;
-    }
-    const next = !tick.on;
-    onTick(tick.channel, next);
-    // Turned on where it waits, it says why at once; turned off, nothing is left to say of it.
-    onWhy(next && tick.waiting && tick.why ? tick.channel : null);
-  };
-  const one = (
+  return (
     <LinkButton
       role="switch"
       aria-checked={tick.on}
       aria-describedby={tick.why ? srWhy : undefined}
-      aria-controls={tick.why ? whyId : undefined}
       className="cm-via-one"
       data-channel={tick.channel}
       data-on={tick.on ? "true" : "false"}
       data-fixed={tick.fixed ? "true" : undefined}
-      onClick={press}
+      onClick={() => (tick.fixed ? undefined : onTick(tick.channel, !tick.on))}
       data-testid={testid}
     >
       <span className="cmh-chan" data-channel={tick.channel} data-state={dotState(tick)}>
         <span className="cm-via-word">{tick.word}</span>
         {tick.on && tick.waiting ? <span className="cmh-chan-waits"> · {LIFECYCLE_WORDS.channels.waits}</span> : null}
       </span>
-      {tick.why ? (
-        <span id={srWhy} className="cm-sr">
-          {tick.why}
-        </span>
-      ) : null}
+      <span
+        className="cm-via-sub"
+        id={tick.why ? srWhy : undefined}
+        data-warn={tick.why ? "true" : undefined}
+        data-testid={tick.why ? `${testid}-why` : undefined}
+      >
+        {sub}
+      </span>
+      <span className="cm-via-tick" aria-hidden="true">
+        {tick.on ? <Icon name="check" size={14} /> : null}
+      </span>
     </LinkButton>
   );
-  return tick.why ? <Tooltip tip={tick.why}>{one}</Tooltip> : one;
 }
 
-/**
- * The row: a toggle for each channel, in the page's order, and under it the reason of the one last pressed that has one.
- * Where nothing can send, the standing line takes its place, for every reader: it carries the doors.
- */
-export function CmVia({ ticks, onTick, testid, label, busy, standing = null }: CmViaProps) {
-  const [why, setWhy] = useState<ConsentChannel | null>(null);
-  const whyId = `${testid}-why`;
-  const shown = why ? (ticks.find((t) => t.channel === why && t.why) ?? null) : null;
+/** The list: a row for each channel, in the page's order; where nothing can send, the standing line under them. */
+function CmVia({ ticks, onTick, testid, label, busy, standing = null, counts }: CmViaProps) {
   return (
     <div
       className="cm-via"
@@ -110,29 +103,46 @@ export function CmVia({ ticks, onTick, testid, label, busy, standing = null }: C
           key={t.channel}
           tick={t}
           onTick={onTick}
-          onWhy={setWhy}
-          whyShown={why === t.channel}
-          whyId={whyId}
+          sub={t.why ?? counts?.[t.channel] ?? null}
           testid={`${testid}-${t.channel}`}
         />
       ))}
-      {standing ? (
-        <ChannelsLine parts={standing} testid={`${testid}-standing`} />
-      ) : (
-        <p
-          className="cm-via-why"
-          id={whyId}
-          role="status"
-          hidden={shown ? undefined : true}
-          data-testid={`${testid}-whys`}
-        >
-          {shown ? (
-            <>
-              <span className="cm-via-why-word">{shown.word}</span> {shown.why}
-            </>
-          ) : null}
-        </p>
-      )}
+      {standing ? <ChannelsLine parts={standing} testid={`${testid}-standing`} /> : null}
     </div>
+  );
+}
+
+/**
+ * The channels as a word of the sentence: the ones on, "or" between them (a person gets it on one of them), and the press
+ * that opens the list with the line that says a person gets it once. A role that may not change them reads the word.
+ */
+export function CmViaWord(props: CmViaProps & { readOnly?: boolean }) {
+  const { ticks, testid, readOnly = false } = props;
+  const S = LIFECYCLE_WORDS.compose.sentence;
+  const on = ticks.filter((t) => t.on);
+  const face =
+    on.length === 0
+      ? S.noChannel
+      : on.map((t, i) => (
+          <Fragment key={t.channel}>
+            {i === 0 ? null : <span className="cm-via-or">{i === on.length - 1 ? " or " : ", "}</span>}
+            <span className="cmh-chan" data-channel={t.channel} data-state={dotState(t)}>
+              {t.word}
+              {t.waiting ? <span className="cmh-chan-waits"> · {LIFECYCLE_WORDS.channels.waits}</span> : null}
+            </span>
+          </Fragment>
+        ));
+  const said = `${S.channelsLabel}: ${on.map((t) => t.word).join(", ") || S.noChannel}`;
+  const word = (
+    <Token className="cm-via-token" aria-label={said} data-testid={`${testid}-word`}>
+      {face}
+    </Token>
+  );
+  if (readOnly) return word;
+  return (
+    <Popover label={S.channelsLabel} align="start" size="flush" className="cm-via-box" trigger={word}>
+      <CmVia {...props} />
+      {props.standing ? null : <p className="cm-via-note">{S.channelsNote}</p>}
+    </Popover>
   );
 }

@@ -526,8 +526,8 @@ test("the Leads door: its search's chain, else its ready, else its unconfirmed i
   await settle();
   assert.match(
     byTestId(onPhone(), "leads-write").props.className,
-    /ph-big ro-door-phone/,
-    "a phone's is the full-width one",
+    /ro-door ro-door-phone/,
+    "a phone's is the full-width one (the dock's, #1553: no ph-big of its own)",
   );
   redraw = door();
   await settle();

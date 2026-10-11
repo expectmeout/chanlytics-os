@@ -24,6 +24,8 @@ import type { ReactElement, ReactNode, Ref } from "react";
 import { useMemo } from "react";
 import { chosen } from "../chosen";
 import { Panel } from "../panel/panel";
+import { Press } from "../press";
+import type { PressAct, PressDoor } from "../press";
 import { cx } from "../variants";
 
 /** The room between the token and its list. */
@@ -76,8 +78,8 @@ export type PickerProps<V extends string> = {
   /** While a save is out: it keeps its focus and opens on nothing new (never `disabled`, which lets focus go). */
   readOnly?: boolean;
   /**
-   * Read as a word of its sentence (`.token-inline`): no capsule at rest, its words underlined, the line it stands on
-   * its own height; a finger still finds 44px round it. For a sentence of several (a campaign's "Every day at…").
+   * Read as a word of its sentence (`.token-inline`): a soft tinted word, no capsule's edge and no chevron, the line it
+   * stands on its own height; a finger still finds 44px round it. For a sentence of several (a campaign's "Every day at…").
    */
   inline?: boolean;
   /** The id a test finds the token by (a page's tests and the browser's specs). */
@@ -251,4 +253,17 @@ function PickerFind<V extends string>(props: PickerProps<V> & { one: PickerOptio
 export function Picker<V extends string>(props: PickerProps<V>) {
   const one = props.groups.flatMap((group) => group.options).find((option) => option.value === props.value) ?? null;
   return props.search ? <PickerFind {...props} one={one} search={props.search} /> : <PickerList {...props} one={one} />;
+}
+
+/**
+ * A word of a sentence that is pressed rather than chosen from a list, drawn as the picker's inline token: a campaign's
+ * channels, which open their switches in the kit's popover; the rule it runs under, which opens Autonomy. Pressed, it
+ * acts or opens a page where it has an address, as the kit's press does; it is the trigger a popover is opened by.
+ */
+export function Token({ className, children, ...element }: PressAct | PressDoor) {
+  return (
+    <Press {...element} className={cx("token", "token-inline", className)}>
+      <span className="token-face">{children}</span>
+    </Press>
+  );
 }

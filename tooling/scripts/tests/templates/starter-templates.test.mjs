@@ -483,7 +483,8 @@ test("the pages: titles not names, the starter set in Settings, one click on Bro
   const p = ["composer-sections.tsx", "composer-model.ts"]
     .map((f) => readCode(`apps/dashboard/src/surfaces/campaigns/playbooks/${f}`))
     .join(" ");
-  assert.ok(p.includes('data-testid="pb-starter"') && p.includes('data-testid="pb-add-starter"'));
+  // The moment's own message, not added yet, reads in the preview, and Turn on adds it first (Ruben, 11 Oct 2026).
+  assert.ok(p.includes('data-testid="pb-starter"') && p.includes("export function starterToAdd("));
   assert.ok(
     p.includes("starters.forTrigger(f.trigger)") &&
       p.includes("const tpl = f.picked ? usable.find((t) => t.id === f.tplId) || null : rowIn(starterGroup, null);"),

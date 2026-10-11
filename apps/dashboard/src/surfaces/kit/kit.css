@@ -4302,36 +4302,43 @@ footer.rec-sheet-foot .btn {
   border-color: var(--accent);
   box-shadow: var(--focus-field), var(--surface-inset-depth);
 }
-/* A token read as a word of its sentence (Picker's `inline`: a campaign's "Every day at 10:00 AM, up to 25 people a
-   run…"): no capsule at rest, the one chosen in the sentence's ink and weight, a dotted rule under it and its chevron
-   after, so a sentence of three choices reads as one and keeps its own line's height (three capsules 44px tall broke it
-   over three tall lines on a phone). Under a finger it keeps the touch floor's 44px as the press round it, not as its
-   height; under a pointer, and open, its rule is drawn whole. A keyboard's ring is a button's. */
+/* A token read as a word of its sentence (Picker's `inline`, and the kit's Token: a campaign's "Every day at 10:00 AM, a
+   WhatsApp to everyone with an appointment tomorrow"): a soft tinted word in the sentence's ink and weight, as a
+   shortcut's parameter is drawn, with no edge and no chevron, so a sentence of several reads as one and keeps its own
+   line's height (three capsules 44px tall broke it over three tall lines on a phone). It was a dotted rule under the
+   word, which read as a misspelling on a phone (Ruben, 11 Oct 2026). Pressed, and open, its tint deepens. Under a finger
+   it keeps the touch floor's 44px as the press round it, not as its height. A keyboard's ring is a button's. */
 .token.token-inline {
   position: relative;
+  display: inline;
   height: auto;
   min-height: 0;
-  gap: 2px;
-  padding: 0;
-  border-color: transparent;
-  background: transparent;
+  padding: 1px 7px 2px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--line);
   box-shadow: none;
+  font-weight: var(--weight-medium);
+  text-align: start;
   vertical-align: baseline;
+  white-space: normal;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
-.token-inline .token-face {
-  text-decoration: underline dotted var(--ink-faint);
-  text-underline-offset: 4px;
+.token-inline .token-caret {
+  display: none;
 }
-.token.token-inline:is(:hover, [data-popup-open]) {
-  background: transparent;
+.token.token-inline:is([data-popup-open], :active) {
+  background: var(--line-strong);
 }
-.token-inline:is(:hover, [data-popup-open]) .token-face {
-  text-decoration-style: solid;
-  text-decoration-color: var(--ink-dim);
+/* A pointer's hover alone: a touch screen keeps :hover on the last word tapped, which then stood pressed. */
+@media (hover: hover) {
+  .token.token-inline:hover {
+    background: var(--line-strong);
+  }
 }
 .token.token-inline:focus-visible {
-  border-color: transparent;
-  border-radius: var(--radius-sm);
   box-shadow: var(--focus-ring);
 }
 @media (pointer: coarse) {

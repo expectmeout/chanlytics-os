@@ -35,7 +35,9 @@ import type { ReactNode } from "react";
 import { PREVIEW_WORDS, personInitials } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
 import { Button } from "../../kit/button/button";
+import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
+import { cx } from "../../kit/variants";
 
 interface MpPart {
   kind: "text" | "slot";
@@ -145,6 +147,11 @@ export interface MessagePreviewProps {
    * its tinted words, as a customer reads them.
    */
   slot?: ((at: number, text: string) => ReactNode) | null;
+  /**
+   * No chat head over it (the business's name and "Business account"): a composer's preview, where the walk over the
+   * bubble says who reads it and the sheet's head already says who sends it (Ruben, 11 Oct 2026, "Option B").
+   */
+  bare?: boolean;
   children?: ReactNode;
   testid?: string | null;
 }
@@ -159,6 +166,15 @@ function bubbleLabel(m: {
 }) {
   const { from, header, footer, words, rows } = m;
   return `Preview — ${from || "your business"} sends: ${header ? `${header}. ` : ""}${words}${footer ? `. ${footer}` : ""}${rows.length ? `. Buttons: ${rows.map((b) => b.text).join(", ")}` : ""}`;
+}
+
+/** Where the person reads it, a quiet label over the preview ("By email"). */
+function mpVia(via: string | null) {
+  return via ? (
+    <span className="mp-via" data-testid="mp-via">
+      {via}
+    </span>
+  ) : null;
 }
 
 /** The body's parts as the preview draws them: a slot the composer fills is its control, else tinted words, links lifted out. */
@@ -176,7 +192,23 @@ function mpBody(parts: readonly MpPart[], slot: MessagePreviewProps["slot"], key
   );
 }
 
+/** The chat's head: the business's initials and name, and the line under it ("Business account"). */
+function MpHead({ from, kind }: { from: string | null | undefined; kind: string }) {
+  return (
+    <figcaption className="mp-head">
+      <span className="mp-avatar" aria-hidden="true">
+        {mpInitials(from)}
+      </span>
+      <span className="mp-who">
+        <span className="mp-name">{from || "Your business"}</span>
+        <span className="mp-kind">{kind}</span>
+      </span>
+    </figcaption>
+  );
+}
+
 interface MailFrameProps {
+  bare: boolean;
   from: string | null | undefined;
   kind: string;
   mail: MpMail;
@@ -189,20 +221,12 @@ interface MailFrameProps {
 }
 
 /** An email as its person reads it: who from, when, the subject, the words, and the foot the sender adds. */
-function MailFrame({ from, kind, mail, parts, values, words, slot, when, keyer }: MailFrameProps) {
+function MailFrame({ bare, from, kind, mail, parts, values, words, slot, when, keyer }: MailFrameProps) {
   const subject = mail.subject ? mpFill(mail.subject, values) : null;
   const label = `Preview — ${from || "your business"} emails${subject ? `: ${subject}` : ""}. ${words}. ${mail.foot.replace(/\n/g, " ")}`;
   return (
     <figure className="mp-frame mp-mail-frame">
-      <figcaption className="mp-head">
-        <span className="mp-avatar" aria-hidden="true">
-          {mpInitials(from)}
-        </span>
-        <span className="mp-who">
-          <span className="mp-name">{from || "Your business"}</span>
-          <span className="mp-kind">{kind}</span>
-        </span>
-      </figcaption>
+      {bare ? null : <MpHead from={from} kind={kind} />}
       <div className="mp-mail" role={slot ? "group" : "img"} aria-label={label}>
         {when && (
           <span className="mp-mail-when" aria-hidden="true">
@@ -226,6 +250,7 @@ function MailFrame({ from, kind, mail, parts, values, words, slot, when, keyer }
 }
 
 interface BubbleFrameProps {
+  bare: boolean;
   from: string | null | undefined;
   kind: string;
   header: string | null;
@@ -242,6 +267,7 @@ interface BubbleFrameProps {
 
 /** A message as its person reads it in a chat: the business's name in the header, the bubble, its buttons, and Not sent where it is not. */
 function BubbleFrame({
+  bare,
   from,
   kind,
   header,
@@ -257,15 +283,7 @@ function BubbleFrame({
 }: BubbleFrameProps) {
   return (
     <figure className="mp-frame">
-      <figcaption className="mp-head">
-        <span className="mp-avatar" aria-hidden="true">
-          {mpInitials(from)}
-        </span>
-        <span className="mp-who">
-          <span className="mp-name">{from || "Your business"}</span>
-          <span className="mp-kind">{kind}</span>
-        </span>
-      </figcaption>
+      {bare ? null : <MpHead from={from} kind={kind} />}
       <div className="mp-thread">
         {day && <span className="mp-day">{day}</span>}
         {/* One label for a screen reader, so the preview is heard as a preview
@@ -350,6 +368,7 @@ export function MessagePreview({
   mail = null,
   note = null,
   slot = null,
+  bare,
   children = null,
   testid = null,
 }: MessagePreviewProps) {
@@ -362,16 +381,13 @@ export function MessagePreview({
   const keyer = () => `l${seq++}`;
   return (
     <div
-      className={`mp${compact ? " mp-compact" : ""}${held ? " mp-held" : ""}`}
+      className={cx("mp", compact && "mp-compact", held && "mp-held", bare && "mp-bare")}
       data-testid={testid || "message-preview"}
     >
-      {via && (
-        <span className="mp-via" data-testid="mp-via">
-          {via}
-        </span>
-      )}
+      {mpVia(via)}
       {mail ? (
         <MailFrame
+          bare={!!bare}
           from={from}
           kind={kind}
           mail={mail}
@@ -384,6 +400,7 @@ export function MessagePreview({
         />
       ) : (
         <BubbleFrame
+          bare={!!bare}
           from={from}
           kind={kind}
           header={header}
@@ -445,11 +462,18 @@ export function PreviewStepper({
   const p = people[index] || people[0];
   if (!p) return null;
   const go = (d: number) => () => onStep((index + d + people.length) % people.length);
+  // A person walked is drawn with their initials, as a thread names them; a channel is its words alone.
+  const person = words === PREVIEW_WORDS.walk.people;
   return (
     <>
       <div className="mp-step" data-testid="mp-step">
+        <span className="mp-step-who">
+          {person ? <Face initials={mpInitials(p.label)} size="sm" /> : null}
+          <span className="mp-step-name">{p.label}</span>
+          <span className="mp-step-pos tabular">{p.position}</span>
+        </span>
         {/* The icon set has one chevron and it points right; the back button
-            mirrors it rather than adding a second glyph for one arrow. */}
+            mirrors it rather than adding a second glyph for one arrow. Both stand at the walk's end, under the thumb. */}
         <Button
           iconOnly
           variant="quiet"
@@ -460,10 +484,6 @@ export function PreviewStepper({
         >
           <Icon name="chevron" size={13} />
         </Button>
-        <span className="mp-step-who">
-          <span className="mp-step-name">{p.label}</span>
-          <span className="mp-step-pos tabular">{p.position}</span>
-        </span>
         <Button iconOnly variant="quiet" size="sm" className="mp-step-btn" onClick={go(1)} aria-label={words.next}>
           <Icon name="chevron" size={13} />
         </Button>

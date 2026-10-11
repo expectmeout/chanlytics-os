@@ -5,7 +5,10 @@
  */
 import { SET_UP_CAMPAIGNS } from "../../ask/ask-suggestions";
 import { CHANNELS_DOOR } from "../../broadcasts/channels-standing";
+import type { PolicyMode } from "../../config/workspace-config/policy-classes";
 import type { ConsentChannel } from "../../consent/consent-channels";
+import { appointmentWords } from "../../journey/appointment-word";
+import type { AppointmentWord } from "../../journey/appointment-word";
 import { CALENDAR_SETTING_ROUTE } from "../../setup/calendar-source";
 import { clockHour } from "../../shared/clock";
 import { CAMPAIGN_ROOMS, runStoppedWords } from "../../shell/campaign-rooms";
@@ -103,6 +106,89 @@ export const LIFECYCLE_WORDS = {
     number: {
       words: "No WhatsApp number is connected yet: a run cannot send by WhatsApp until one is.",
       door: { label: "Open Connections", to: CHANNELS_DOOR },
+    },
+    /**
+     * The composers and a campaign's drawer as one sentence of words to press (Ruben, 11 Oct 2026, "Option B"): the words
+     * round its tokens, the one line under it saying who it reaches now, what happens next, and what an edit changes.
+     */
+    sentence: {
+      everyDay: "Every day at",
+      /** The rule its runs keep, said after its channels: the mode Autonomy holds for the moment's class. */
+      rule: {
+        auto: "without asking you",
+        veto: "unless you stop it",
+        ask: "asking you first",
+        never: "while Autonomy keeps it quiet",
+      } satisfies Record<PolicyMode, string>,
+      /** What the rule's word opens, to a screen reader. */
+      ruleLabel: "The rule its runs keep, on your Autonomy tab",
+      /** The channels' word, to a screen reader: what pressing it opens. */
+      channelsLabel: "The channels it goes by",
+      /** Under the channels' switches: a person gets a run's message on one of them, never on each. */
+      channelsNote: "Each person gets it once, on one of these.",
+      /** Where it goes by no channel yet: the channels' word says so. */
+      noChannel: "no channel yet",
+      /**
+       * Who a moment's campaign goes to, after "to" in its sentence ("a WhatsApp to everyone with an appointment
+       * tomorrow"): the moment said as the people it names, in the workspace's word for an appointment.
+       */
+      who: (trigger: string, word: AppointmentWord): string => {
+        const W = appointmentWords(word);
+        if (trigger === "visit_tomorrow") return W.tomorrowWho;
+        if (trigger === "visited") return W.yesterdayWho;
+        if (trigger === "lapsed") return `everyone with no ${word} in 45 days`;
+        if (trigger === "quiet_30") return "everyone quiet for 30 days";
+        if (trigger === "everyone_monthly") return "everyone who said yes";
+        if (trigger === "proposal_waiting") return "every proposal waiting";
+        if (trigger === "new_week") return "everyone new this week";
+        if (trigger === "phoned_only") return "everyone who only ever phoned";
+        if (trigger === "saved_list") return "everyone on a list";
+        return (triggerOf(trigger)?.label ?? "").toLowerCase();
+      },
+      /** Who it reaches now: "All 6 can hear it", "2 of 6 can hear it"; "2 can hear it" where nobody counted the pool. */
+      hear: (will: number, pool: number | null): string =>
+        pool === null
+          ? `${will} can hear it`
+          : will > 0 && will === pool
+            ? `All ${will} can hear it`
+            : `${will} of ${pool} can hear it`,
+      /** Nobody the moment names yet: "Nobody with an appointment tomorrow right now". */
+      nobody: (of: string): string => `Nobody ${of} right now`,
+      /** What happens next, before it is saved ("First run today at 10:00 AM"), or for one that runs ("Next run …"). */
+      firstRun: (when: string): string => `First run ${when}`,
+      nextRun: (when: string): string => `Next run ${when}`,
+      /** A day and an hour as a line says them, from a label's "today 10:00 AM": "today at 10:00 AM". */
+      at: (label: string): string => label.replace(/^(today|tomorrow) (?=\d)/, "$1 at "),
+      /** A send's one act, once a time is picked: "Schedule for tomorrow at 9:00 AM". */
+      scheduleFor: (when: string): string => `Schedule for ${when}`,
+      /**
+       * The message, folded under its first words (Ruben, 11 Oct 2026: "make the preview something you expand to see, so
+       * the drawers are more compact"): what the fold says while it is open.
+       */
+      previewOpen: "How it reads",
+      previewLabel: "The message, as it reads",
+      /** An edit's changes, counted in its foot: "2 changes · from the next run". */
+      changes: (n: number): string => `${plural(n, "change", "changes")} · from the next run`,
+      /** The foot of a Turn on whose moment's own message is not in the Library yet: the one press adds it, then starts. */
+      addsFirst: (title: string): string => `Adds ${title} to your Library, then turns it on.`,
+      /** The message under its preview: "Visit reminder · written for you", and its door. */
+      writtenForYou: "written for you",
+      /** Beside the moment's own message, not added yet: the word that picks one of the Library's instead. */
+      another: "another message",
+      change: "Change",
+      open: "Open",
+      /** A word of a running campaign changed in place, said with its Undo: "Visit reminder runs at 9:00 AM now". */
+      saved: {
+        hour: (name: string, hour: string): LifecycleSentence => [{ b: name }, ` runs at ${hour} now`],
+        cap: (name: string, n: number): LifecycleSentence => [{ b: name }, ` reaches up to ${n} a run now`],
+        gap: (name: string, days: number): LifecycleSentence => [
+          { b: name },
+          ` waits ${days} days before the same person hears it again`,
+        ],
+        undone: (name: string): LifecycleSentence => [{ b: name }, " is back as it was"],
+      },
+      /** Its runs, newest last, a bar each: what the strip says to a screen reader, and its head. */
+      runs: (n: number): string => `The newest ${plural(n, "run", "runs")}`,
     },
     // The send screen is made of the broadcasts read (its lists and its messages): said where it could not be, with its Retry.
     failed: {

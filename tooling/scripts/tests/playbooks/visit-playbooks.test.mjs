@@ -130,6 +130,7 @@ const { installPolicyStore } = await import(`${SRC}/legacy-bridge/policy-store.t
 installPolicyStore(globalThis);
 globalThis.__POLICIES = { role: "owner", rows: [{ class: "booking", mode: "auto", limits: {} }], dealsOn: false };
 const { PlaybookComposer } = await import(`${SRC}/surfaces/campaigns/playbooks/composer.tsx`);
+const { CmRuleWord } = await import(`${SRC}/surfaces/campaigns/parts/rule.tsx`);
 const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
 /** The playbooks surface as the bridge publishes it: every moment offered, none set up, the reminder approved. */
 const playbooksVM = (over = {}) => {
@@ -561,10 +562,11 @@ test("the wiring: the CHECKs, the facts column, the runner attaching the calenda
     "the composer says it plainly where there is no calendar, with its door (playbook-composer.test.mjs)",
   );
   assert.equal(byTestId(composingVisit("ok"), "pb-calendar"), null, "and says nothing where the calendar is connected");
-  const runsUnder = find(byTestId(composer, "pb-runs-under"), (n) => n.type === globalThis.PolicyChip);
+  // The rule its runs keep is a word of the composer's sentence (Ruben, 11 Oct 2026), named by the moment's class.
+  const runsUnder = find(byTestId(composer, "pb-recipe"), (n) => n.type === CmRuleWord);
   assert.equal(runsUnder?.props.cls, triggerOf("visit_tomorrow").cls, "the Autonomy row the reminder's runs keep to");
   assert.ok(
-    textOf(byTestId(composer, "pb-clock")).includes("one message per visit") && byTestId(composer, "pb-cap") === null,
+    !textOf(byTestId(composer, "pb-recipe")).includes(" a run") && byTestId(composer, "pb-cap") === null,
     "a visit moment has no cap and no gap: one message per visit",
   );
   // No gap and no breath promised for a visit trigger, and the card's count of the day's visits, are run in

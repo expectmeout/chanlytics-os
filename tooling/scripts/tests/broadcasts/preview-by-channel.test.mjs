@@ -50,7 +50,7 @@ const { cmPreviewBy, cmChannelOfPerson } = await import(`${SRC}/surfaces/campaig
 const channelsModule = await import(`${SRC}/surfaces/campaigns/parts/channels.ts`);
 const { cmReachBy, cmChannelColour, cmViaTicks, cmDefaultChannels, cmOfferedMessages, cmStandInOf, CM_NO_MESSAGE_YET } =
   channelsModule;
-const { CmVia } = await import(`${SRC}/surfaces/campaigns/parts/send-by.tsx`);
+const { CmViaWord } = await import(`${SRC}/surfaces/campaigns/parts/send-by.tsx`);
 const { Meter } = await import(`${SRC}/surfaces/kit/meter/meter.tsx`);
 const { Tooltip } = await import(`${SRC}/surfaces/kit/tooltip/tooltip.tsx`);
 
@@ -387,7 +387,8 @@ test("the stepper walks the people and wraps, each press one step, and says its 
   const steps = [];
   const at = (index) => h(PreviewStepper, { people, index, onStep: (i) => steps.push(i) });
   let tree = at(0);
-  assert.equal(textOf(byTestId(tree, "mp-step")), "Ana Reyes1 of 3");
+  // A person is drawn with their initials (the kit's face, hidden from a screen reader), then their name and place.
+  assert.equal(textOf(byTestId(tree, "mp-step")), "ARAna Reyes1 of 3");
   const press1 = (tree, label) => press(find(tree, (n) => n.props?.["aria-label"] === label));
   press1(tree, "The next person");
   press1(tree, "The person before this one");
@@ -424,7 +425,7 @@ test("the stepper walks the people and wraps, each press one step, and says its 
 
 /* ---------------------------------- why a channel is closed, to a finger ---------------------------------- */
 
-test("why a channel is closed is said under the Send by row, one at a time, as its toggle is pressed -- the kit's tooltip never shows to a finger -- and each toggle keeps the same words as its description", () => {
+test("why a channel is closed is said under its word in the channels' list, where a finger reads it -- the kit's tooltip never shows to a finger -- and each toggle keeps the same words as its description", () => {
   fresh();
   // The workspace sends on WhatsApp alone: WhatsApp is the one on (and stays on), text and email are closed, each for its own reason.
   const ready = contracts.channelsReady({
@@ -438,61 +439,48 @@ test("why a channel is closed is said under the Send by row, one at a time, as i
     [true, true, true],
     "(the one channel that is on says why it cannot be turned off, as the others say why they cannot be turned on)",
   );
-  const draw = () => again(() => h(CmVia, { ticks, onTick() {}, testid: "bc-via" }));
-  let tree = draw();
-  const whys = byTestId(tree, "bc-via-whys");
-  assert.equal(whys.props.hidden, true, "nothing said until one is pressed: three reasons stood under the row");
-  assert.equal(whys.props.role, "status", "said to a screen reader as it changes");
-  // Each pressed in turn says its own, the channel's name before it, in the one line.
-  for (const t of ticks) {
-    press(byTestId(draw(), `bc-via-${t.channel}`));
-    tree = draw();
-    assert.equal(textOf(byTestId(tree, "bc-via-whys")), `${t.word} ${t.why}`);
-  }
-  press(byTestId(tree, `bc-via-${ticks.at(-1).channel}`));
-  assert.equal(byTestId(draw(), "bc-via-whys").props.hidden, true, "pressed again, it is put away");
-  // The screen reader's own copy is each toggle's description, as each switch's was.
-  tree = draw();
+  // The channels are a word of the sentence that opens their list (the kit popover's children, which the stub draws).
+  const tree = again(() => h(CmViaWord, { ticks, onTick() {}, testid: "bc-via" }));
   for (const t of ticks) {
     const one = byTestId(tree, `bc-via-${t.channel}`);
-    const said = find(one, (n) => n.props?.className === "cm-sr");
-    assert.equal(textOf(said), t.why);
-    assert.equal(one.props["aria-describedby"], said.props.id);
+    const why = byTestId(tree, `bc-via-${t.channel}-why`);
+    assert.equal(textOf(why), t.why, "its reason under its word");
+    assert.equal(one.props["aria-describedby"], why.props.id, "and its description");
     assert.equal(one.props.role, "switch");
   }
-  // Nothing to say: a row whose every channel is open and none is the last one on never shows the line.
+  assert.equal(byTestId(tree, "bc-via-whys"), null, "no line under the list says a reason a second time");
+  // Nothing to say: every channel open and none the last one on: no reason under any.
   fresh();
   const open = contracts.channelsReady({
     whatsapp: { canSend: true, refusal: null },
     textLine: { sms_state: "active", reg_mock: false },
     email: { mailbox: true, domain: true, offers: OFFERS_OPEN },
   });
-  const quiet = h(CmVia, {
+  const quiet = h(CmViaWord, {
     ticks: cmViaTicks(["whatsapp", "sms"], open, { purpose: "conversational", about: "ours" }, false),
     onTick() {},
     testid: "bc-via",
   });
-  assert.equal(byTestId(quiet, "bc-via-whys").props.hidden, true);
+  assert.equal(["whatsapp", "sms", "email"].filter((c) => byTestId(quiet, `bc-via-${c}-why`)).length, 0);
 });
 
-test("the reason's line and the toggles are drawn in tokens: the line in the quiet size and ink, put away while it says nothing; each toggle a capsule a finger finds 44px round", () => {
+test("the channels' list is drawn in tokens: a row a finger's height, the reason under its word in the quiet size and ink, a closed one's in the warning's", () => {
   const file = "apps/dashboard/src/surfaces/campaigns/campaigns.css";
   const css = transform({
     filename: file,
     code: fs.readFileSync(path.join(ROOT, file)),
     minify: true,
   }).code.toString();
-  const line = /\.cm-via-why\{([^}]*)\}/.exec(css);
-  assert.ok(line, "a rule for the line");
-  assert.ok(line[1].includes("font-size:var(--text-xs)") && line[1].includes("color:var(--ink-dim)"), line[1]);
-  assert.ok(/\.cm-via-why\[hidden\]\{display:none\}/.test(css), "put away while it says nothing");
-  const one = /\.cm-via \.cm-via-one\{([^}]*)\}/.exec(css);
-  assert.ok(one, "a rule for the toggle");
-  assert.ok(one[1].includes("border-radius:var(--radius-full)") && one[1].includes("min-height:0"), one[1]);
+  const sub = /\.cm-via-sub\{([^}]*)\}/.exec(css);
+  assert.ok(sub, "a rule for the reason");
+  assert.ok(sub[1].includes("font-size:var(--text-xs)") && sub[1].includes("color:var(--ink-dim)"), sub[1]);
   assert.ok(
-    /@media \(pointer:coarse\)\{\.cm-via \.cm-via-one:after\{[^}]*inset:/.test(css),
-    "and a finger's press round it",
+    /\.cm-via-sub\[data-warn=true\]\{color:var\(--warn-ink\)\}/.test(css),
+    "a closed one's in the warning's ink",
   );
+  const one = /\.cm-via \.cm-via-one\{([^}]*)\}/.exec(css);
+  assert.ok(one, "a rule for the row");
+  assert.ok(one[1].includes("min-height:52px"), one[1]);
 });
 
 /* ---------------------------------- the split as a bar ---------------------------------- */

@@ -114,47 +114,12 @@
   color: var(--ink-faint);
 }
 
-/* A drawer's facts as lines (parts/lines.tsx): the kit's inset, a line each, its word in the dim ink at the left and what
-   it holds beside it, a hairline between them, as Settings' sheets draw a list of settings. */
+/* A drawer's lines (parts/lines.tsx): the kit's inset, a line each, a hairline between them, as Settings' sheets draw a
+   list of settings: a campaign's runs. */
 .cm-lines {
   display: flex;
   flex-direction: column;
   min-width: 0;
-}
-.cm-line {
-  display: grid;
-  grid-template-columns: 64px minmax(0, 1fr);
-  column-gap: var(--space-3);
-  /* On the first line's words: a line of words, a row of switches and a chip all sit on the word's own line. */
-  align-items: baseline;
-  min-height: 44px;
-  padding: 12px 14px;
-  font-size: var(--text-sm);
-  line-height: var(--leading-snug);
-}
-.cm-line + .cm-line {
-  border-top: 1px solid var(--line);
-}
-.cm-line-k {
-  color: var(--ink-dim);
-}
-.cm-line-v {
-  min-width: 0;
-  color: var(--ink-muted);
-  text-wrap: pretty;
-}
-.cm-line-v b {
-  font-weight: var(--weight-medium);
-  color: var(--ink);
-}
-/* A word in a line that opens something is the line's words, underlined: its press is the line's height already. */
-.cm-line-v .ob-link {
-  min-height: 0;
-  border-bottom: 0;
-  text-align: left;
-  text-decoration: underline;
-  text-decoration-color: var(--line-strong);
-  text-underline-offset: 3px;
 }
 .msg-delete-held {
   display: flex;
@@ -530,18 +495,55 @@
   text-transform: uppercase;
   color: var(--ink-dim);
 }
-/* Incoming: the notch is the TOP-left corner. */
+/* Incoming: the notch is the TOP-left corner, with the tail a message the customer receives has there. */
 .mp-bubble {
   align-self: flex-start;
   position: relative;
   max-width: 272px;
   padding: 8px 11px 18px;
   background: var(--bg-raised);
-  border-radius: var(--radius-xs) var(--radius-lg) var(--radius-lg) var(--radius-lg);
+  border-radius: 0 var(--radius-lg) var(--radius-lg) var(--radius-lg);
   box-shadow: var(--shadow-sm);
   font-size: var(--text-sm);
   color: var(--ink);
   transition: opacity var(--duration-fast) var(--ease-out);
+}
+.mp-bubble::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -7px;
+  width: 8px;
+  height: 10px;
+  background: inherit;
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+}
+.mp-thread {
+  padding-left: 16px;
+}
+/* A composer's preview (MessagePreview `bare`): the chat's ground the sheet's width, no head; the walk over the bubble,
+   who reads it at its start and its arrows at its end; a note under it on the same ground. */
+.mp.mp-bare {
+  gap: 0;
+  border-radius: var(--radius-xl);
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+.mp-bare > .mp-frame {
+  max-width: none;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+.mp-bare > .mp-step {
+  order: -1;
+  max-width: none;
+  padding: var(--space-2) var(--space-2) 0 var(--space-3);
+}
+.mp-bare > .mp-note,
+.mp-bare > .mp-via {
+  padding: 0 var(--space-3) var(--space-3);
 }
 /* A text heading, bold at the top of the bubble, where WhatsApp puts it. */
 .mp-header {
@@ -556,14 +558,10 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
-/* What fills per person, so the eye can see what varies. A neutral tint, not the
-   accent: the accent means a live agent here and nothing else. */
+/* What fills per person, so the eye can see what varies: its words in the link's tint, not boxed (Ruben, 11 Oct 2026:
+   a box round every name and time made the message a form). Not the accent: the accent means a live agent here. */
 .mp-slot {
-  background: var(--bg-active);
-  border-radius: var(--radius-xs);
-  padding: 0 2px;
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
+  color: var(--info-ink);
 }
 .mp-link {
   color: var(--info-ink);
@@ -656,9 +654,8 @@
   flex: 1;
   min-width: 0;
   display: flex;
-  align-items: baseline;
-  justify-content: center;
-  gap: var(--space-1);
+  align-items: center;
+  gap: var(--space-2);
 }
 .mp-step-name {
   font-size: var(--text-sm);
@@ -1244,13 +1241,6 @@ html.legacy-on .tpl-fresh {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* The message and the language it goes out in: one control and the one beside it, the same height. */
-.pb-msg-head {
-  display: flex;
-  align-items: stretch;
-  gap: 8px;
-  min-width: 0;
-}
 .pb-preview {
   display: flex;
   border-radius: var(--radius-lg);
@@ -1332,35 +1322,6 @@ html.legacy-on .tpl-fresh {
   gap: 8px 16px;
   font-size: var(--text-xs);
   color: var(--ink-dim);
-}
-.pb-runs-under {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-}
-.pb-guard {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 9px 3px 7px;
-  border-radius: var(--radius-full);
-  color: var(--ink-muted);
-  cursor: help;
-}
-.pb-guard:hover {
-  color: var(--ink);
-  background: var(--bg-active);
-}
-.pb-guard:focus-visible {
-  outline: none;
-  color: var(--ink);
-  box-shadow: var(--focus-ring);
-}
-/* Who the run reaches, said where it is read: the guardrails' own line, under the row's other parts. */
-.pb-guard-words {
-  flex: 1 1 100%;
-  min-width: 0;
-  text-wrap: pretty;
 }
 /* What is missing where the message would be: dashed, as an unset moment is on the page. */
 .pb-empty {
@@ -2244,11 +2205,6 @@ html.legacy-on .bc-run-line .bc-run-link {
   height: 36px;
   padding: 0 15px;
   border-radius: var(--radius-md);
-}
-/* The foot's two acts by their part, not their name: Send now is the main one until a time is picked, and then Schedule it is. */
-.bc-send .bc-act-second {
-  border-color: var(--line-strong);
-  color: var(--ink-muted);
 }
 .bc-send .bc-act-main {
   padding: 0 17px;
@@ -3463,74 +3419,302 @@ html.legacy-on .msg-use-link {
   }
 }
 
-/* The playbook composer's rows (C2): the word at the left, what the row holds beside it, a hairline between rows. The
-   sections keep their own markup and testids; their eyebrows (Who it's for, What it says, When it runs) go, since the
-   row's word says it. */
-.pb-compose {
-  gap: 0;
-}
-.pb-grow {
-  display: grid;
-  grid-template-columns: var(--space-12) minmax(0, 1fr);
-  column-gap: var(--space-3);
-  align-items: start;
-  padding: var(--space-4) 0;
-  border-bottom: 1px solid var(--line);
-}
-.pb-grow:last-of-type {
-  border-bottom: 0;
-}
-.pb-grow-word {
-  padding-top: var(--space-1);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  color: var(--ink-dim);
-}
-.pb-grow-body {
+/* ---- A campaign as one sentence (Ruben, 11 Oct 2026, "Option B") ----
+   The composers and a campaign's drawer read as one sentence of words to press ("Every day at [10:00 AM], a [WhatsApp]
+   to [everyone with an appointment tomorrow], [without asking you]."), the kit's inline tokens its words; one quiet line
+   under it says who it reaches now, the message stands as its person reads it with its name under it, and one line says
+   when it runs next. What keeps it from sending stands over the sentence, one callout each. They were rows of a word and
+   a section, with a count, a bar, a chip and a shield each. */
+.cm-sentence {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
   min-width: 0;
 }
-.pb-grow .pb-sec {
-  padding: 0;
+.pb-compose.cm-sentence {
+  padding: var(--space-3) 0 var(--space-5);
+}
+.bc-composer.cm-sentence {
+  padding: var(--space-3) calc(var(--space-4) + var(--space-2)) var(--space-5);
+}
+/* The message folded under its first words (parts/preview-fold.tsx): the chat glyph and two lines of what it says, a press
+   that opens the preview itself; open, the row says "How it reads" over it. The fold is the kit's (RecordDisclosure); what
+   its row holds is the page's. */
+.cm-msg-fold {
+  width: 100%;
+  min-width: 0;
+}
+.cm-fold-label {
+  display: flex;
+  align-items: flex-start;
   gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-3) 0;
+  line-height: var(--leading-snug);
 }
-.pb-grow .pb-sec-k {
+.cm-fold-label > .icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--ink-dim);
+}
+.cm-fold-shut {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  color: var(--ink-muted);
+}
+.cm-fold-open {
+  display: none;
+  font-weight: var(--weight-medium);
+  color: var(--ink-muted);
+}
+.cm-msg-fold [data-open="true"] .cm-fold-shut {
   display: none;
 }
-
-/* In a row what a pick is for is said by the row (the reach, the message's line), not under it. */
-.pb-grow .pb-pick-sub {
-  display: none;
+.cm-msg-fold [data-open="true"] .cm-fold-open {
+  display: inline;
 }
-.pb-grow .pb-pick-text {
-  flex: 0 1 auto;
+/* Open, the bubble stands on the fold's own ground: no second frame inside it. */
+.cm-msg-fold .mp.mp-bare {
+  border: 0;
+  border-radius: 0;
+  background: none;
 }
-.pb-grow .pb-msg-head {
+.cm-msg-fold .mp-bare > .mp-step {
+  padding: 0;
+}
+.cm-msg-fold .mp-bare .mp-thread {
+  padding: var(--space-2) 0 var(--space-1) var(--space-2);
+}
+.cm-recipe {
+  margin: 0;
+  font-size: var(--text-xl);
+  line-height: 1.85;
+  color: var(--ink-muted);
+  text-wrap: pretty;
+}
+/* A word an edit moved wears a dot at its corner (the foot counts them). */
+.cm-changed {
+  position: relative;
+}
+.cm-changed::before {
+  content: "";
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  pointer-events: none;
+}
+/* Who it reaches now, under the sentence: its dot, "2 of 6 can hear it", the first reason anybody waits, the press that opens the rest. */
+.cm-reach-line {
+  min-width: 0;
+  margin-top: calc(-1 * var(--space-2));
+}
+.cm-reach-press {
+  display: inline-flex;
   align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  min-width: 0;
+  min-height: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.cm-reach-said {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cm-reach-count {
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+.cm-reach-line[data-tone="warn"] .cm-reach-first {
+  color: var(--warn-ink);
+}
+.cm-reach-line > .cm-reach-press > .cm-reach-dot {
+  width: 7px;
+  height: 7px;
+}
+.cm-reach-line[data-tone="ok"] .cm-reach-dot {
+  background: var(--ok);
+}
+.cm-reach-box {
+  max-width: min(360px, calc(100vw - 32px));
+}
+.cm-reach-by {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.cm-reach-guard {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--ink-dim);
+}
+.cm-reach-guard .icon {
+  flex: none;
+  margin-top: 2px;
+}
+/* One callout over the sentence: what keeps a run from sending, its glyph, and its door at the end. */
+.cm-callout {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  background: var(--warn-soft);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--warn-ink);
+}
+.cm-callout > .icon {
+  flex: none;
+}
+.cm-callout-words {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.cm-callout-door {
+  flex: none;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: inherit;
+}
+.cm-callout[data-tone="plain"] {
+  background: var(--line);
+  color: var(--ink-muted);
+}
+/* The message under its preview: its name and its language, words to press, and "written for you" for the moment's own. */
+.cm-msg-cap {
+  display: flex;
   flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-1);
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.9;
+  color: var(--ink-dim);
 }
-.pb-when {
-  line-height: var(--leading-relaxed);
+.cm-msg-cap > .icon {
+  align-self: center;
+  color: var(--accent);
 }
-/* The bubble stands on the pane itself, not on a stage of its own; the fields under it are an inset. */
+.cm-msg-cap > b {
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.cm-msg-cap-dim {
+  white-space: pre;
+}
+/* When it runs next, the sentence's last line: a glyph and the words. */
+.cm-next {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.cm-next > .icon {
+  flex: none;
+}
+.cm-next b {
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+/* The channels a campaign goes by, pressed: a channel a row, its dot and word, how many it reaches there or why it is
+   closed under them, and a check where it is on; under the list, that a person gets it once. */
+.cm-via-box {
+  width: min(320px, calc(100vw - 32px));
+  padding: var(--space-2);
+}
+.cm-via {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+.cm-via .cm-via-one {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20px;
+  grid-template-areas: "word tick" "sub tick";
+  align-items: center;
+  column-gap: var(--space-3);
+  min-height: 52px;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: none;
+  text-align: start;
+}
+.cm-via .cm-via-one[data-on="true"] {
+  background: var(--line);
+}
+.cm-via .cm-via-one[data-fixed="true"][data-on="false"] .cmh-chan {
+  color: var(--ink-faint);
+}
+.cm-via .cmh-chan {
+  grid-area: word;
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+.cm-via-sub {
+  grid-area: sub;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.cm-via-sub[data-warn="true"] {
+  color: var(--warn-ink);
+}
+.cm-via-tick {
+  grid-area: tick;
+  display: inline-flex;
+  justify-content: center;
+  color: var(--accent);
+}
+.cm-via-note {
+  margin: var(--space-2) var(--space-3) var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.cm-via-token .cmh-chan {
+  font-weight: inherit;
+  color: inherit;
+}
+.cm-via-or {
+  font-weight: var(--weight-regular);
+  color: var(--ink-dim);
+}
+/* The bubble stands on the pane itself, not on a stage of its own. */
 .pb-preview {
   justify-content: flex-start;
+  flex-direction: column;
   padding: 0;
   border: 0;
   background: none;
 }
-.pb-fills {
-  border: 0;
-  border-radius: var(--surface-inset-radius);
-  background: var(--surface-inset-fill);
-  box-shadow: var(--surface-inset-depth);
+.pb-preview .mp.mp-bare {
+  max-width: none;
 }
-.pb-guard {
-  border: 1px solid var(--surface-inset-edge);
-  background: var(--bg-sunken);
-}
-/* What is missing where the message would be is its line, under the row's word, with no box round it (Ruben, 11 Oct
-   2026: "Win-back, written for you · Add it" stood in an inset of its own, its glyph a line over its words); named by its
-   testid, since its class is a primitive's word. */
+/* What is missing where the message would be is its line, with no box round it; named by its testid, since its class is a
+   primitive's word. */
 [data-testid="pb-message-empty"] {
   padding: 0;
   border: 0;
@@ -3541,15 +3725,6 @@ html.legacy-on .msg-use-link {
 }
 [data-testid="pb-starter"] > svg {
   margin-top: 0;
-}
-/* Its one press, "Add it", is the line's link: the ink's, underlined, a word's height (the touch floor stood it 44px). */
-[data-testid="pb-starter"] [data-testid="pb-add-starter"] {
-  min-height: 0;
-  font-weight: var(--weight-medium);
-  color: var(--ink);
-  text-decoration: underline;
-  text-decoration-color: var(--line-strong);
-  text-underline-offset: 3px;
 }
 
 /* The broadcast composer's rows (C2, the second door): one pane, the width of the canvases' composer, each question a
@@ -3573,29 +3748,6 @@ html.legacy-on .msg-use-link {
     linear-gradient(#000 0 0) content-box exclude,
     linear-gradient(#000 0 0);
   pointer-events: none;
-}
-.bc-grows {
-  padding: 0 calc(var(--space-4) + var(--space-2));
-}
-.bc-grow {
-  display: grid;
-  grid-template-columns: var(--space-12) minmax(0, 1fr);
-  column-gap: var(--space-3);
-  align-items: start;
-  padding: var(--space-4) 0;
-  border-bottom: 1px solid var(--line);
-}
-.bc-grow:last-child {
-  border-bottom: 0;
-}
-.bc-grow-word {
-  padding-top: var(--space-1);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  color: var(--ink-dim);
-}
-.bc-grow-body {
-  min-width: 0;
 }
 .bc-glass .bc-col {
   flex: none;
@@ -3927,22 +4079,22 @@ section:has(> .tpl-composer:not(.is-translate)) {
 /* ---- Playbooks in the split ---- */
 
 /* A slot the owner can change is a control in the bubble (parts/slot.tsx): its words as the bubble writes them, inline,
-   tinted as what varies, with a dotted rule under them that says a press changes them. */
+   in the tint of what varies, on a soft ground of its own that says a press changes them, as the sentence's words do. */
 .mp-body > button.mp-slot {
   display: inline;
   /* A word of the bubble: the touch floor's 44px stood its line apart from the next. */
   min-height: 0;
-  padding: 0 2px;
+  padding: 0 3px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: var(--line);
   font: inherit;
-  color: inherit;
-  text-decoration: underline dotted;
-  text-decoration-color: var(--ink-dim);
-  text-underline-offset: 3px;
+  color: var(--info-ink);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
-.mp-body > button.mp-slot:hover,
 .mp-body > button.mp-slot[data-popup-open] {
-  background: var(--selected-fill);
-  color: var(--ink);
+  background: var(--line-strong);
 }
 .mp-body > button.mp-slot:focus-visible {
   outline: none;
@@ -3968,70 +4120,9 @@ section:has(> .tpl-composer:not(.is-translate)) {
 }
 
 /* ---- Broadcasts in the split ---- */
-/* The send's three questions are sentences of tokens (page/send-screen.tsx): the list and how many of it can hear the
-   message, the message and its language, "Now" or a day and a time. A sentence wraps where its tokens do not fit, and a
-   token is as wide as its words wherever it stands. */
-.bc-to-line,
-.bc-says-line,
-.bc-when-line {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-  margin: 0;
-  font-size: var(--text-sm);
-  color: var(--ink-muted);
-}
-.bc-to-count {
-  display: inline-flex;
-  align-items: baseline;
-  gap: var(--space-1);
-  color: var(--ink-dim);
-  white-space: nowrap;
-}
-.bc-to-n {
-  font-weight: var(--weight-medium);
-  color: var(--ink);
-}
-.bc-to-bar {
-  min-width: 0;
-}
-/* The To line after its count: who it reaches on which channel, in one clause, where it goes by more than WhatsApp alone
-   (page/audience.tsx BcReachBy; the playbook's is parts/reach.tsx CmWho). The thin bar under it is the kit's meter, a focus
-   stop for its tip. */
-.bc-to-by,
-.cm-who-by {
-  display: inline-flex;
-  align-items: baseline;
-  gap: var(--space-1);
-  min-width: 0;
-  color: var(--ink-dim);
-}
-.bc-to-bar:focus-visible,
 .cm-who-bar:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
-}
-/* The playbook composer's To count on one line, its bar under it, and the reasons behind "Who's held back". */
-.cm-who {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  min-width: 0;
-}
-.cm-who-line {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-1) var(--space-2);
-  min-width: 0;
-  margin: 0;
-  font-size: var(--text-sm);
-  color: var(--ink-muted);
-}
-.cm-who .cm-reach-will {
-  font-size: var(--text-base);
 }
 .cm-who-bar {
   min-width: 0;
@@ -4126,103 +4217,13 @@ section:has(> .tpl-composer:not(.is-translate)) {
 .cm-reach-by {
   margin-top: var(--space-1);
 }
-/* Send by (parts/send-by.tsx; Ruben, 11 Oct 2026, where three switches and their reasons took a row and three lines): a
-   small capsule for each channel with its dot and its word, as the home draws a campaign's channels (.cmh-chan), in one
-   row that wraps. On, the dot is filled in the channel's colour and the word is the ink's; off, hollow and quieter; closed
-   to this message, fainter still. A finger keeps 44px round each (the touch floor's height is its press, not its size).
-   Under the row, the reason of the one last pressed. */
-.cm-via {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-.cm-via .cm-via-one {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  min-height: 0;
-  height: 28px;
-  padding: 0 9px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-full);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-medium);
-  color: var(--ink-muted);
-  text-decoration: none;
-  transition:
-    border-color var(--duration-fast) var(--ease-out),
-    color var(--duration-fast) var(--ease-out);
-}
-.cm-via .cm-via-one[data-on="true"] {
-  border-color: var(--line-strong);
-  color: var(--ink);
-}
-.cm-via .cm-via-one[data-fixed="true"][data-on="false"] {
-  color: var(--ink-faint);
-}
-@media (hover: hover) {
-  .cm-via .cm-via-one:hover {
-    border-color: var(--line-strong);
-  }
-}
-@media (pointer: coarse) {
-  .cm-via .cm-via-one::after {
-    content: "";
-    position: absolute;
-    inset: -8px -3px;
-  }
-}
-.cm-via .cm-via-one .cmh-chan {
-  color: inherit;
-}
-.cm-via-why {
-  flex-basis: 100%;
-  margin: 2px 0 0;
-  font-size: var(--text-xs);
-  line-height: var(--leading-snug);
-  color: var(--ink-dim);
-  text-wrap: pretty;
-}
-.cm-via-why[hidden] {
-  display: none;
-}
-.cm-via-why-word {
-  color: var(--ink-muted);
-}
-/* Where the workspace can send on nothing, the row says so once under its switches (parts/send-by.tsx `standing`): the
-   row's whole width, in the quiet size, for a pointer and a thumb alike, since its words are the doors that mend it. */
+/* Where the workspace can send on nothing, the list says so once under its rows (parts/send-by.tsx `standing`), in the
+   quiet size, since its words are the doors that mend it. */
 .cm-via > .cmh-channels {
-  flex-basis: 100%;
-  margin-top: 0;
+  margin: var(--space-2) var(--space-3) var(--space-1);
   font-size: var(--text-sm);
   line-height: var(--leading-snug);
   color: var(--ink-muted);
-}
-/* A row's word is one line: "Send by" is the longest of them. */
-.bc-grow-word,
-.pb-grow-word {
-  white-space: nowrap;
-}
-/* On a phone a row's word stands over what it asks, which takes the pane's whole width: in a 48px column beside it, what
-   To and Says explain stood in what was left of a phone's sheet and broke every few words (Ruben, 7 Oct 2026). */
-@media (max-width: 900px) {
-  .bc-grow,
-  .pb-grow {
-    grid-template-columns: minmax(0, 1fr);
-    row-gap: var(--space-2);
-  }
-  .bc-grow-word,
-  .pb-grow-word {
-    padding-top: 0;
-  }
-  /* And a hint under what a row asks reads from the left, as the row does: centred, a short one ("None of the channels
-     ticked can carry this message yet.") stood apart from the picker over it. */
-  .bc-grow-body .bc-excl-hint,
-  .pb-grow-body .bc-excl-hint {
-    align-self: stretch;
-  }
 }
 /* The ledger is always the list, in the split's one pane (parts/split.tsx): its head is the runs by state (the kit's
    sub-tabs, whose strip keeps the list's own sides), what went out under them, and the week ahead; then the runs, which
@@ -4361,9 +4362,6 @@ html.legacy-on .cm-pane-sub .bc-run-link {
 .bc-composer > .bc-cols > .bc-col {
   flex: none;
 }
-.bc-composer > .bc-grows {
-  padding: 0;
-}
 .cm-pane-foot > .bc-foot {
   padding: 0;
   border-top: 0;
@@ -4372,10 +4370,6 @@ html.legacy-on .cm-pane-sub .bc-run-link {
   height: var(--control-h-md);
   padding: 0 var(--space-4);
   border-radius: var(--control-radius);
-}
-.bc-pane .cm-pane-foot .bc-act-second {
-  border-color: var(--line-strong);
-  color: var(--ink-muted);
 }
 .bc-pane .cm-pane-foot .bc-act-main {
   gap: var(--space-2);
@@ -5160,19 +5154,6 @@ div.tpl-slotbox:not([data-lines="1"]) {
 .cmh[data-phone] .cmh-coming-line > :nth-child(n + 3) {
   grid-column: 2;
   justify-self: start;
-}
-/* The drawer's Goes by row: the word, then the composer's switches (parts/send-by.tsx), under the playbook's sentence. */
-.ob-via {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2) var(--space-4);
-  margin: var(--space-3) 0 0;
-}
-.ob-via-k {
-  font-size: var(--text-xs);
-  font-weight: var(--weight-medium);
-  color: var(--ink-dim);
 }
 /* The ladder's "messages" rung said by channel: one quiet line under its bar, before what the yes opens. */
 .cmh-rung-by {
@@ -6215,15 +6196,9 @@ div.tpl-slotbox:not([data-lines="1"]) {
 .cmh-host-body :is(.cm-pane-close, .cm-pane-back) {
   display: none;
 }
-.cmh-host-body > .bc-pane > .cm-pane-head {
-  display: none;
-}
 /* A composer in the sheet: its rows start under its name, a little closer than a page's. */
 .cmh-host-body .pb-compose {
   padding: 0 0 var(--space-2);
-}
-.cmh-host-body .pb-grow {
-  padding: var(--space-3) 0;
 }
 /* Under the sheet's kicker (pane-sheet.tsx) the pane's head is the sheet's one head: close under the kicker's line, its
    name a step under a page's, its line under it; on a phone no capsule's margins round it, and the body starts at the

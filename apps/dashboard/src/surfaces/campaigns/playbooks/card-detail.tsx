@@ -14,9 +14,7 @@ import {
   MESSAGE_GONE_WORDS,
   PLAYBOOK_DELETE_WORDS,
   appointmentWordOf,
-  appointmentWords,
   pipelineRoute,
-  poolWords,
 } from "@chanlytics/contracts";
 import type { AppointmentWord, ConsentChannel } from "@chanlytics/contracts";
 import type { Output } from "@/client/api";
@@ -29,16 +27,17 @@ import { LinkButton } from "../../kit/link-button/link-button";
 import { Menu } from "../../kit/menu/menu";
 import type { MenuItem } from "../../kit/menu/menu";
 import { StatePill } from "../../kit/pill/state-pill";
-import { PolicyChip } from "../../kit/policy-chip/policy-chip";
 import { useSurface } from "../../use-surface";
 import { bcRunOffer, bcWhenWords } from "../broadcasts/when-words";
 import { askAboutItem } from "../home/ask-on-campaigns";
 import { SentenceParts } from "../home/sentence";
 import { MessagePreview } from "../parts/message-preview";
-import { CmLine, CmLines } from "../parts/lines";
+import { CmPreviewFold } from "../parts/preview-fold";
 import { CmPane, useCmPhone } from "../parts/split";
-import { CardVia, cardViaOf, goesBySaid } from "./card-channels";
+import { cardViaOf, goesBySaid } from "./card-channels";
 import { CardRuns } from "./card-runs";
+import { CardSentence } from "./card-sentence";
+import type { CardChange } from "./card-sentence";
 import type { PlaybookCardVM, PlaybookTriggerOption, PlaybooksSurface } from "./surface";
 import { playbooks as V } from "./verbs";
 import {
@@ -58,8 +57,8 @@ import {
   pbWrongSlot,
 } from "./words";
 
-/** What the toast raises (the shell's one flash). */
-export type Flash = (flash: { tone?: string; msg: ReactNode }) => void;
+/** What the toast raises (the shell's one flash): its words, and an Undo where what it says can be taken back. */
+export type Flash = (flash: { tone?: string; msg: ReactNode; undo?: (() => unknown) | null }) => void;
 
 /** A playbook as the surface holds it. */
 type PlaybookRow = PlaybookCardVM;
@@ -159,13 +158,14 @@ function cardActs({ p, busy, setBusy, setSure, setSkipSure, flash, onGone }: Act
   const act = async <D,>(
     fn: (o: { onAccepted: (d: D) => void }) => Promise<Outcome<D>>,
     said: (d: D) => ReactNode,
+    undo: (() => unknown) | null = null,
   ): Promise<void> => {
     if (busy) return;
     setBusy(true);
     let done = false;
     const say = (d: D) => {
       done = true;
-      flash({ tone: "ok", msg: said(d) });
+      flash({ tone: "ok", msg: said(d), undo });
     };
     const r = await fn({ onAccepted: say });
     setBusy(false);
@@ -245,14 +245,32 @@ function cardActs({ p, busy, setBusy, setSure, setSkipSure, flash, onGone }: Act
   // One channel switched in the drawer: the channels it keeps now are sent, alone (verbs.ts `channels`). The server
   // judges them against the playbook as it stands and writes nothing else, and the page says so the moment it takes
   // them. A run that already waits keeps the channels it was made with, and the receipt says that too.
-  const channels = (next: readonly ConsentChannel[]) => {
+  const channels = (next: readonly ConsentChannel[], was: readonly ConsentChannel[]) => {
     if (next.length === 0) return Promise.resolve();
     return act(
       (o) => V.channels(p.id, [...next], o),
       () => goesBySaid(p.name, next, !!p.totals.waiting),
+      // Undo sends back what it kept, and says so the same way.
+      () =>
+        void act(
+          (o) => V.channels(p.id, [...was], o),
+          () => goesBySaid(p.name, was, !!p.totals.waiting),
+        ),
     );
   };
-  return { act, toggle, runNow, approve, skip, remove, channels };
+  // A word of its sentence changed in place (card-sentence.tsx): that field alone, said with its Undo, which sends back
+  // what the field held.
+  const change = (c: CardChange) =>
+    act(
+      (o) => V.change(p.id, c.body, o),
+      () => <SentenceParts parts={c.said} />,
+      () =>
+        void act(
+          (o) => V.change(p.id, c.was, o),
+          () => <SentenceParts parts={LIFECYCLE_WORDS.compose.sentence.saved.undone(p.name)} />,
+        ),
+    );
+  return { act, toggle, runNow, approve, skip, remove, channels, change };
 }
 
 /** Everything the card's sections read. */
@@ -275,64 +293,41 @@ interface CardCtx extends ReturnType<typeof cardRead> {
 }
 
 /**
- * What it sends, as a customer reads it, and under it which message and in which language: a door to that message, which
- * opens over the home in a drawer of its own (`onMessage`, the home's `message:<name>`), where it is read and changed;
- * the Library's page where no drawer is offered.
+ * What it sends, folded under its first words (Ruben, 11 Oct 2026: "more compact"), opening onto the message as a customer
+ * reads it; under it which message and in which language, a door to that message, which opens over the home in a drawer
+ * of its own (`onMessage`, the home's `message:<name>`), where it is read and changed; the Library's page where no drawer
+ * is offered.
  */
 function cardWords(c: CardCtx) {
   const { p, message, businessName, onMessage } = c;
+  const S = LIFECYCLE_WORDS.compose.sentence;
   return (
     message && (
       <div className="ob-words" data-testid="pb-words">
-        <MessagePreview
-          from={businessName}
-          body={message.body}
-          values={message.values}
-          header={message.template.header}
-          footer={pbFooter(message.template)}
-          buttons={message.template.buttons}
-          compact
-        />
-        <LinkButton
-          className="ob-words-name"
-          onClick={() => (onMessage ? onMessage(p.template_name) : navigate("messages"))}
-          data-testid="pb-template-name"
-        >
-          {pbTitle(p.template_name)} <span className="dim">&middot; {pbLangWords(p.template_language)}</span>
-          <Icon name="chevron" size={11} />
-        </LinkButton>
+        <CmPreviewFold id={`pb-words-${p.id}`} body={message.body} values={message.values} testid="pb-words-fold">
+          <MessagePreview
+            from={businessName}
+            body={message.body}
+            values={message.values}
+            header={message.template.header}
+            footer={pbFooter(message.template)}
+            buttons={message.template.buttons}
+            bare
+          />
+        </CmPreviewFold>
+        <p className="cm-msg-cap">
+          <LinkButton
+            className="ob-words-name"
+            onClick={() => (onMessage ? onMessage(p.template_name) : navigate("messages"))}
+            data-testid="pb-template-name"
+          >
+            <b>{pbTitle(p.template_name)}</b>
+            <span className="cm-msg-cap-dim"> · {pbLangWords(p.template_language)} · </span>
+            {S.open} <Icon name="chevron" size={11} />
+          </LinkButton>
+        </p>
       </div>
     )
-  );
-}
-
-/**
- * Who its moment reaches, as a link that opens them, and who of them wait: nothing where the server could not count.
- * The trigger's own hint is the head's line, so the count stands alone here.
- */
-function whoWords(c: CardCtx): ReactNode {
-  const { p, trig, noNumber, named, listRoute, word } = c;
-  if (named === null || p.candidates === null || p.held === null) return null;
-  return (
-    <>
-      <LinkButton
-        className="ob-link"
-        data-tip={
-          trig && trig.kind === "visit"
-            ? `Everyone with a recorded yes — the day's ${appointmentWords(word).many} are picked from them · click to open them in People`
-            : trig && trig.kind === "deal"
-              ? "The proposals waiting with nothing back — before their links, their follow-ups and the week's breath · click to open them in the Pipeline"
-              : "The list this campaign watches — before the gap and the week's breath · click to open it in People"
-        }
-        onClick={() => navigate(listRoute)}
-        data-testid="pb-audience"
-      >
-        {noNumber ||
-          `${pbPeople(p.candidates)} ${trig && trig.kind === "deal" ? poolWords(p.trigger, word) : "on the list"} said yes`}
-      </LinkButton>
-      {/* Why a list with people on it can still offer nobody: one message per person per week, across playbooks. */}
-      {p.held > 0 ? <>, {pbPeople(p.held)} more wait this week</> : null}
-    </>
   );
 }
 
@@ -373,14 +368,22 @@ function sentenceArchived(c: CardCtx) {
  * that mends a run reaching nobody; or why it runs nothing (off, its list archived, paused).
  */
 function nextWords(c: CardCtx): ReactNode {
-  const { p, reachWords, reachDoor } = c;
+  const { p, trig, reachWords, reachDoor } = c;
   if (p.listArchived) return sentenceArchived(c);
   if (p.state === "paused") return <>Paused &mdash; nothing runs until you resume it</>;
-  const at = p.next.charAt(0).toUpperCase() + p.next.slice(1);
+  // Who the run reaches now, as many as one run takes (a visit's moment has no cap), and who waits out the week: said
+  // where the moment was counted, where the drawer's Who line said it (Ruben, 11 Oct 2026: the line is the sentence now).
+  const now = p.candidates ?? 0;
+  const waits = p.held ?? 0;
+  const counted = p.candidates !== null && p.held !== null && !p.totals.waiting;
+  const reaches = counted && now > 0 ? (trig && trig.kind === "visit" ? now : Math.min(now, p.cap_per_run)) : 0;
   return (
     <>
-      <b>{at}</b>
+      {LIFECYCLE_WORDS.compose.sentence.nextRun("")}
+      <b>{LIFECYCLE_WORDS.compose.sentence.at(p.next)}</b>
+      {reaches > 0 ? <> &middot; {pbPeople(reaches)}</> : null}
       {reachWords ? <> &middot; {reachWords}</> : null}
+      {reaches > 0 && waits > 0 ? <> &middot; {pbPeople(waits)} more wait this week</> : null}
       {reachDoor ? (
         <>
           {" "}
@@ -394,71 +397,61 @@ function nextWords(c: CardCtx): ReactNode {
   );
 }
 
+/** One callout over the sentence: what stops it, and the door that mends it where there is one. */
+function cardCallout(testid: string, glyph: string, words: ReactNode, tone: "warn" | "plain" = "warn") {
+  return (
+    <p className="cm-callout" data-tone={tone === "plain" ? "plain" : undefined} data-testid={testid}>
+      <Icon name={glyph} size={14} />
+      <span className="cm-callout-words">{words}</span>
+    </p>
+  );
+}
+
 /**
- * What stops it, said over the lines: why it runs nothing (a follow-up where deals are off: no next run to say), the
- * message gone, or a slot that reads wrong (Edit, for a role that may).
+ * What stops it, said over the sentence, a callout each: why it runs nothing (a follow-up where deals are off: no next run
+ * to say), the message gone, a slot that reads wrong (Edit, for a role that may), or a list whose yes has no number.
  */
 function cardWarnings(c: CardCtx) {
-  const { p, canAct, onEdit, templateGone, wrongSlot } = c;
+  const { p, canAct, onEdit, templateGone, wrongSlot, noNumber } = c;
   return (
     <>
-      {p.off && (
-        <p className="bc-excl-hint" data-testid="pb-off">
-          {p.off}
-        </p>
-      )}
-      {templateGone && (
-        <p className="bc-excl-hint warn" data-testid="pb-template-gone">
-          {MESSAGE_GONE_WORDS.card}
-        </p>
-      )}
-      {wrongSlot && (
-        <p className="bc-excl-hint warn" data-testid="pb-slot-wrong">
-          Its message reads wrong: {wrongSlot}
-          {canAct ? (
-            <>
-              {" "}
-              <LinkButton className="ob-link" onClick={() => onEdit(p)} data-testid="pb-slot-wrong-edit">
-                Edit it
-              </LinkButton>
-              , and each slot takes what it should.
-            </>
-          ) : null}
-        </p>
-      )}
+      {p.off && cardCallout("pb-off", "pause", p.off, "plain")}
+      {templateGone && cardCallout("pb-template-gone", "alert", MESSAGE_GONE_WORDS.card)}
+      {wrongSlot &&
+        cardCallout(
+          "pb-slot-wrong",
+          "alert",
+          <>
+            Its message reads wrong: {wrongSlot}
+            {canAct ? (
+              <>
+                {" "}
+                <LinkButton className="ob-link" onClick={() => onEdit(p)} data-testid="pb-slot-wrong-edit">
+                  Edit it
+                </LinkButton>
+                , and each slot takes what it should.
+              </>
+            ) : null}
+          </>,
+        )}
+      {noNumber && cardCallout("pb-no-number", "chat", noNumber)}
     </>
   );
 }
 
 /**
- * The facts, a line each (parts/lines.tsx; Ruben, 11 Oct 2026, where one sentence held them all): when it runs next, who
- * said yes, its clock, the channels it goes by (switched in place: card-channels.tsx), and the row of Autonomy it runs
- * under.
+ * When it runs next, the line over its sentence ("Next run today at 9:00 AM · 7 people"), with the door that mends a run
+ * reaching nobody; or why it runs nothing.
  */
-function cardLines(c: CardCtx) {
-  const { p, canAct, busy, via, acts, reachWords } = c;
+function cardNext(c: CardCtx) {
+  if (c.p.off) return null;
   return (
-    <CmLines testid="pb-facts">
-      <CmLine word="Next run" testid="pb-next">
-        {p.off ? null : (
-          <span className="ob-line-words" data-testid={reachWords ? "pb-reach" : undefined}>
-            {nextWords(c)}
-          </span>
-        )}
-      </CmLine>
-      <CmLine word="Who" testid="pb-who-line">
-        {whoWords(c)}
-      </CmLine>
-      <CmLine word="When" testid="pb-when-line">
-        {p.schedule}
-      </CmLine>
-      <CmLine word={LIFECYCLE_WORDS.channels.goesBy} testid="pb-goes-by">
-        <CardVia p={p} canAct={canAct} busy={busy} via={via} onChannels={(next) => void acts.channels(next)} bare />
-      </CmLine>
-      <CmLine word="Rules" testid="pb-rules-line">
-        {p.policy_class ? <PolicyChip cls={p.policy_class} /> : null}
-      </CmLine>
-    </CmLines>
+    <p className="cm-next" data-testid="pb-next">
+      <Icon name="clock" size={13} />
+      <span className="ob-line-words" data-testid={c.reachWords ? "pb-reach" : undefined}>
+        {nextWords(c)}
+      </span>
+    </p>
   );
 }
 
@@ -606,17 +599,28 @@ function cardDeleteAsk(c: CardCtx) {
 }
 
 /**
- * What the card says, down one column (Ruben, 11 Oct 2026: the drawer said what the campaign does three times, in its head,
- * a chip and a paragraph): what is wrong with it, if anything; its facts, a line each; what it sends, as a customer reads
- * it; then its runs, newest first.
+ * What the card says, down one column (Ruben, 11 Oct 2026, "Option B"): what stops it, if anything; when it runs next;
+ * its sentence, each word that can change changed in place (card-sentence.tsx); what it sends, folded under its first
+ * words; then its runs, folded under their one line.
  */
 function cardBody(c: CardCtx) {
+  const { p, word, canAct, busy, via, listRoute, acts } = c;
   return (
     <>
       {cardWarnings(c)}
-      {cardLines(c)}
+      {cardNext(c)}
+      <CardSentence
+        p={p}
+        word={word}
+        canAct={canAct}
+        busy={busy}
+        via={via}
+        listRoute={listRoute}
+        onChange={(change) => void acts.change(change)}
+        onChannels={(next) => void acts.channels(next, via.kept)}
+      />
       {cardWords(c)}
-      <CardRuns p={c.p} />
+      <CardRuns p={p} />
     </>
   );
 }
@@ -678,7 +682,13 @@ export function PlaybookPane({ p, canAct, onEdit, onMessage, flash, onClose }: P
     </div>
   ) : phone && canAct ? (
     <div className="pb-pane-foot" data-foot-pair="">
-      <Button size="sm" disabled={c.busy} onClick={() => void c.acts.toggle()} data-testid="pb-pause-foot">
+      <Button
+        size="sm"
+        variant={p.state === "paused" ? "primary" : undefined}
+        disabled={c.busy}
+        onClick={() => void c.acts.toggle()}
+        data-testid="pb-pause-foot"
+      >
         <Icon name={p.state === "paused" ? "play" : "pause"} size={12} /> {p.state === "paused" ? "Resume" : "Pause"}
       </Button>
       <Button size="sm" disabled={c.busy} onClick={() => onEdit(p)} data-testid="pb-edit-foot">
@@ -705,12 +715,11 @@ export function PlaybookPane({ p, canAct, onEdit, onMessage, flash, onClose }: P
           value={status === "paused" ? "paused" : status === "approval" ? "approval" : "running"}
         />
       }
-      sub={p.triggerHint}
       tools={cardOwnActs(c, phone)}
       foot={foot}
       onClose={onClose}
     >
-      <div className="ob-card-detail" data-testid="pb-detail" data-state={status}>
+      <div className="ob-card-detail cm-sentence" data-testid="pb-detail" data-state={status}>
         {cardBody(c)}
       </div>
     </CmPane>

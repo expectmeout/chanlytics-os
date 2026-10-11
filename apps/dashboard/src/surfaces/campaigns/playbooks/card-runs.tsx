@@ -1,12 +1,14 @@
 /**
- * A playbook's drawer, its runs (Ruben, 11 Oct 2026: the drawer's facts a line each, its runs under its message): one line
- * of what they earned in all, and the newest of them, a line each, each opening as itself on Sent. Apart from
- * card-detail.tsx, which draws the rest of the drawer and holds its verbs.
+ * A playbook's drawer, its runs (Ruben, 11 Oct 2026: the drawer's facts a line each, its runs under its message; then
+ * "more compact without scrolling"): one line of what they earned in all, which folds open onto the newest of them, a
+ * line each, each opening as itself on Sent (the kit's fold, RecordDisclosure). Apart from card-detail.tsx, which draws
+ * the rest of the drawer and holds its verbs.
  */
 import { DELIVERY_RECEIPTS_TIP } from "@chanlytics/contracts";
 import { navigate } from "../../legacy-verbs";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
+import { RecordDisclosure } from "../../kit/record/disclosure";
 import { CmLines } from "../parts/lines";
 import type { PlaybookCardVM } from "./surface";
 import { pbDay, pbReplyTip } from "./words";
@@ -56,40 +58,48 @@ function historyRow(h: History) {
 export function CardRuns({ p }: { p: PlaybookCardVM }) {
   const t = p.totals;
   const runs = t.history && t.history.length > 0 ? t.history : null;
+  const head = (
+    <span className="ob-runs-head" data-testid={t.runs > 1 ? "pb-results" : undefined}>
+      {t.runs > 1 ? (
+        <>
+          <span className="tabular">{t.runs}</span> runs &middot; <span className="tabular">{t.sent}</span> sent
+          &middot;{" "}
+          <span className="tabular" data-tip={DELIVERY_RECEIPTS_TIP}>
+            {t.delivered}
+          </span>{" "}
+          delivered &middot;{" "}
+          <span className="tabular" data-tip={pbReplyTip()}>
+            {t.replied}
+          </span>{" "}
+          replied
+          {t.held > 0 ? (
+            <>
+              {" "}
+              &middot; <span className="tabular">{t.held}</span> held back
+            </>
+          ) : null}
+        </>
+      ) : p.last_run_for ? (
+        <>Last ran {pbDay(p.last_run_for)}</>
+      ) : (
+        <>It has not run yet</>
+      )}
+    </span>
+  );
   return (
     <section className="ob-runs" data-testid="pb-history">
-      <p className="ob-runs-head" data-testid={t.runs > 1 ? "pb-results" : undefined}>
-        {t.runs > 1 ? (
-          <>
-            <span className="tabular">{t.runs}</span> runs &middot; <span className="tabular">{t.sent}</span> sent
-            &middot;{" "}
-            <span className="tabular" data-tip={DELIVERY_RECEIPTS_TIP}>
-              {t.delivered}
-            </span>{" "}
-            delivered &middot;{" "}
-            <span className="tabular" data-tip={pbReplyTip()}>
-              {t.replied}
-            </span>{" "}
-            replied
-            {t.held > 0 ? (
-              <>
-                {" "}
-                &middot; <span className="tabular">{t.held}</span> held back
-              </>
-            ) : null}
-          </>
-        ) : p.last_run_for ? (
-          <>Last ran {pbDay(p.last_run_for)}</>
-        ) : (
-          <>It has not run yet</>
-        )}
-      </p>
-      {runs ? <CmLines>{runs.map((h) => historyRow(h))}</CmLines> : null}
-      {runs && t.runs > runs.length ? (
-        <span className="ob-history-more" data-testid="pb-history-more">
-          The newest {runs.length} of {t.runs} runs
-        </span>
-      ) : null}
+      {runs ? (
+        <RecordDisclosure id={`pb-runs-${p.id}`} label={head} testid="pb-runs-fold">
+          <CmLines>{runs.map((h) => historyRow(h))}</CmLines>
+          {t.runs > runs.length ? (
+            <span className="ob-history-more" data-testid="pb-history-more">
+              The newest {runs.length} of {t.runs} runs
+            </span>
+          ) : null}
+        </RecordDisclosure>
+      ) : (
+        head
+      )}
     </section>
   );
 }

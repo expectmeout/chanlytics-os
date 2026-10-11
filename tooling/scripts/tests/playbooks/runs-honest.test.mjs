@@ -25,7 +25,9 @@ import {
   POLICY_CLASS_WORDS,
   POLICY_MODE_WORDS,
   MESSAGE_GONE_WORDS,
+  LIFECYCLE_WORDS,
   campaignMessagesOf,
+  starterForTrigger,
 } from "@chanlytics/contracts";
 import {
   installLegacyReact,
@@ -723,12 +725,17 @@ test("REGRESSION (C18): a visit reminder's detail shows its policy chip -- its c
         triggerLabel: "Visit tomorrow",
       }),
     );
-    const chip = find(tree, (n) => n.type === globalThis.PolicyChip);
-    assert.ok(chip && chip.rendered, "REGRESSION: no chip at all");
+    // The rule's word in the drawer's sentence (Ruben, 11 Oct 2026): what the mode does to a run, found by its class.
+    const rule = find(tree, (n) => n.props?.["data-testid"] === "pb-rules-line");
+    assert.ok(rule, "REGRESSION: no rule at all");
     assert.equal(
-      textOf(chip.rendered),
-      `${POLICY_CLASS_WORDS.booking.short} · ${POLICY_MODE_WORDS.auto.chip}`,
-      "the chip says what the mode does, not how it is filed",
+      textOf(rule),
+      LIFECYCLE_WORDS.compose.sentence.rule.auto,
+      "the word says what the mode does, not how it is filed",
+    );
+    assert.ok(
+      POLICY_MODE_WORDS.auto.chip && POLICY_CLASS_WORDS.booking.short,
+      "(the matrix's own words stay Autonomy's)",
     );
   } finally {
     delete globalThis.window.__POLICIES;
@@ -738,7 +745,10 @@ test("REGRESSION (C18): a visit reminder's detail shows its policy chip -- its c
 test("REGRESSION (C19): with no approved template, the composer's hint opens Messages -- it named the page in plain words", () => {
   // A workspace with no playbook and no approved template, and the home's composer on Every time a moment comes.
   setSurfaceValue("playbooks", { ...playbooksSample(new Date(NOW)), rows: [], templates: [] });
-  const tree = homeAt("new:every");
+  // A moment with no message of its own: one that has one offers it, to add as Turn on starts (Ruben, 11 Oct 2026).
+  const bare = PLAYBOOK_TRIGGERS.find((t) => !starterForTrigger(t.id) && t.kind !== "reach_out");
+  assert.ok(bare, "a moment with no message written for it");
+  const tree = homeAt(`new:moment:${bare.id}`);
   const hint = byTestId(tree, "pb-no-template");
   assert.ok(hint, "the composer is open on a workspace with no template");
   // A door is a link inside its sentence: its address in the href, the app's own way there on a press. As a button it took
@@ -784,13 +794,11 @@ test("REGRESSION (C7): Run now says when the run really goes -- it said 'sending
   assert.ok(!/\bnow\b/.test(said), said);
 });
 
-/** What one of the drawer's lines holds (parts/lines.tsx), its word left out, or null where it draws none. */
+/** What one part of the drawer says (its next-run line, a callout), or null where it draws none. */
 const lineOf = (tree, id) => {
   const line = byTestId(tree, id);
   if (!line) return null;
-  return textOf(find(line, (n) => String(n.props?.className || "") === "cm-line-v"))
-    .replace(/\s+/g, " ")
-    .trim();
+  return textOf(line).replace(/\s+/g, " ").trim();
 };
 
 test("A playbook's detail says what its runs earned on one line over them, and nothing when it has not run", () => {
@@ -807,30 +815,25 @@ test("A playbook's detail says what its runs earned on one line over them, and n
   assert.equal(byTestId(pane(playbook({ totals: { ...playbook().totals, runs: 0 } })), "pb-results"), null);
 });
 
-test("A playbook's detail says its facts a line each, its moment's condition in its head, and the message it sends under them", () => {
+test("A playbook's detail is its next run over its sentence, and the message it sends under them; the people are a word of it that opens them", () => {
   setSurfaceValue("playbooks", playbooksSurface());
   const tree = pane(playbook());
-  // The trigger, the schedule, the audience and the next run were five chips and a meta line above the message, then one
-  // sentence beside it; they are a line each now (Ruben, 11 Oct 2026), the message under them.
-  assert.ok(lineOf(tree, "pb-who-line").includes("on the list said yes"), lineOf(tree, "pb-who-line"));
-  assert.ok(byTestId(tree, "pb-next"), "Next run is a line");
-  assert.ok(byTestId(tree, "pb-when-line"), "and the clock");
+  // When it runs next and who that run reaches, then the sentence, then the message (Ruben, 11 Oct 2026, "Option B"): the
+  // facts stood a line each, and before that as five chips and a meta line above the message.
+  assert.ok(lineOf(tree, "pb-next").startsWith("Next run"), lineOf(tree, "pb-next"));
+  assert.ok(byTestId(tree, "pb-recipe"), "the sentence");
+  const text = textOf(tree);
   assert.ok(
-    textOf(tree).indexOf("Next run") < textOf(tree).indexOf(textOf(byTestId(tree, "pb-words"))),
-    "the facts over the message",
+    text.indexOf("Next run") < text.indexOf(textOf(byTestId(tree, "pb-words"))),
+    "the next run over the message",
   );
-  // The trigger's hint is a CONDITION -- contracts PLAYBOOK_TRIGGERS say "Nothing heard in 30 days", "Only ever phoned,
-  // never texted" -- so it is the line under the name, never "Goes to" before it (broken English on five of the six).
-  assert.ok(!textOf(byTestId(tree, "pb-facts")).includes("Goes to"));
-  const hint = PLAYBOOK_TRIGGERS.find((t) => t.id === "quiet_30").hint;
-  const head = find(pane(playbook({ triggerHint: hint })), (n) => String(n.props?.className || "") === "cm-pane-sub");
-  assert.equal(textOf(head), hint);
+  // The moment is said by the sentence and the sheet's kicker: no line under the name says its condition again.
   assert.equal(
-    find(tree, (n) => String(n.props?.className || "").includes("ob-audience")),
+    find(tree, (n) => String(n.props?.className || "") === "cm-pane-sub"),
     null,
-    "no chip row above the message",
   );
-  // The audience is still a door to the people it means.
+  assert.equal(byTestId(tree, "pb-facts"), null, "no lines of facts");
+  // The people are a word of the sentence, a door to them.
   assert.match(byTestId(tree, "pb-audience").props["data-tip"], /^The list this campaign watches — /);
   press(byTestId(tree, "pb-audience"));
   assert.match(went.at(-1), /^clients\/seg:/);
@@ -871,15 +874,15 @@ test("REGRESSION: a playbook whose yes has no number says so and offers no QR --
     const drawn = (id) => pane(surfaceValue("playbooks").rows.find((p) => p.id === id));
     const noNumber = drawn("pb-quiet");
     assert.equal(
-      lineOf(noNumber, "pb-who-line"),
+      lineOf(noNumber, "pb-no-number"),
       "1 person on the list said yes to offers, with no number to send to",
-      "REGRESSION: a yes with no number is said as one",
+      "REGRESSION: a yes with no number is said as one, over the sentence",
     );
     assert.ok(/ · nobody to send to$/.test(lineOf(noNumber, "pb-next")), lineOf(noNumber, "pb-next"));
     assert.equal(byTestId(noNumber, "pb-reach-door"), null, "REGRESSION: the QR asked for an answer they had given");
     // Nobody on it said yes: its count is true, and the door to that yes stands.
     const noYes = drawn("pb-new");
-    assert.equal(lineOf(noYes, "pb-who-line"), "0 people on the list said yes");
+    assert.ok(/ · nobody to send to · Get their yes$/.test(lineOf(noYes, "pb-next")), lineOf(noYes, "pb-next"));
     assert.equal(textOf(byTestId(noYes, "pb-reach-door")), "Get their yes");
     press(byTestId(noYes, "pb-reach-door"));
     assert.equal(went.at(-1), "broadcasts/get-yes", "and getting it is one press from the playbook's detail");
@@ -1021,16 +1024,16 @@ test("REGRESSION: counts that could not be read are said as such, and nothing dr
     assert.ok(!/nobody|\b0 of\b/i.test(coming), `REGRESSION: ${coming}`);
     // The playbook's detail says what it knows -- the moment, the clock, the next run -- and no count, no reach, no door.
     const opened = pane(surfaceValue("playbooks").rows[0]);
-    const said = textOf(byTestId(opened, "pb-facts")).replace(/\s+/g, " ");
+    const said = textOf(byTestId(opened, "pb-detail")).replace(/\s+/g, " ");
     assert.ok(/Next run/.test(said), said);
     assert.equal(byTestId(opened, "pb-who-line"), null, "no Who line where nobody was counted");
     assert.ok(!said.includes("on the list said yes") && !said.includes("nobody to send to"), `REGRESSION: ${said}`);
     assert.equal(byTestId(opened, "pb-reach-door"), null);
     // Nor does the composer, where a moment is picked by who it reaches.
     const composing = homeAt("new:every");
-    // Its "Who it's for" section (the sheet around it is the record kit's, not loaded here).
-    const who = byTestId(composing, "pb-who");
-    assert.ok(who, "the composer opens");
+    // Its sentence, and no reach line under it (the sheet around it is the record kit's, not loaded here).
+    const who = byTestId(composing, "pb-composer");
+    assert.ok(byTestId(who, "pb-recipe"), "the composer opens");
     assert.equal(byTestId(who, "pb-reach"), null, "REGRESSION: the composer drew '0 of 0'");
     // And its moments, listed in the kit's Picker: none says how many it reaches today.
     const options = pickerOf(who, "pb-moment").props.groups.flatMap((g) => g.options);
@@ -1061,8 +1064,11 @@ test("A paused playbook says it is paused, and a run's day is words", () => {
 
   // A list with people on it that offers nobody says why: one message per person
   // per week, across playbooks. A bare "0 people" read as broken.
-  const held = lineOf(pane(playbook({ candidates: 0, held: 2 })), "pb-who-line");
-  assert.equal(held, "0 people on the list said yes, 2 people more wait this week");
+  const held = lineOf(pane(playbook({ candidates: 0, held: 2 })), "pb-next");
+  assert.ok(held.endsWith(" · waiting out the week's gap"), held);
+  // And one that reaches some says how many, and who waits the week out.
+  const some = lineOf(pane(playbook({ candidates: 7, held: 2 })), "pb-next");
+  assert.ok(some.endsWith(" · 7 people · 2 people more wait this week"), some);
 });
 
 test("a proposal follow-up's detail (0006): where deals are on, who it reaches with a proposal waiting; where they are off, why it runs nothing, and no count it never took", async () => {
@@ -1107,8 +1113,8 @@ test("a proposal follow-up's detail (0006): where deals are on, who it reaches w
       "offered where deals are on",
     );
     const drawnOn = sentence(pane(on.rows[0]));
-    assert.ok(drawnOn.includes("2 people with a proposal waiting said yes"), drawnOn);
-    assert.ok(drawnOn.includes("once per proposal") && /Next run/.test(drawnOn), drawnOn);
+    assert.ok(drawnOn.includes(" · 2 people"), drawnOn);
+    assert.ok(drawnOn.includes("One message per proposal") && /Next run/.test(drawnOn), drawnOn);
     const off = await read(false);
     assert.deepEqual(
       [off.triggers.some((t) => t.id === "proposal_waiting"), off.countsRead],
