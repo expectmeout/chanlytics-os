@@ -9,7 +9,10 @@ rather than a signed webhook), the board drawing its rows, and a caller's own vi
 and a read older than the workspace's last refused), which the board and the openings leave out since they read the
 feed itself; and step 5 in part: a visit run's reminder asks its row again at the send and is held for one cancelled or
 missed, or that a read after the run's found moved or gone from the calendar (a row older than the run's read is the
-older word). Still owed to the readers lane: the backfill (3), Reports and People reading rows (4), the playbooks
+older word). Then step 8's door (00397, 11 October 2026): an operator or above says kept, missed or cancelled on the
+board's panel (`POST calendar/visits/:id`, `mark_visit`, the decision theirs in the same transaction), kept and
+missed correctable one into the other through it alone, the board drawing each word, and an ended visit worded as past,
+never done. Still owed to the readers lane: the backfill (3), Reports and People reading rows (4), the playbooks
 drawing from rows (the rest of 5), and `kept` from time with a person's `missed` (8), which come together so a visit
 inferred kept can still be said missed. The paths below are the ones at `e3d9dc6c`; `packages/contracts/src/calendar/`
 holds what `availability.ts` and `calendar-people.ts` held. Written against commit `b729bdf` (21 September 2026) and refreshed against `e3d9dc6c` (PR #885, 23 September 2026): every file
@@ -482,3 +485,6 @@ Ruben: "review and go with the best suggestions for chanlytics". Each answer as 
    (Ruben's approval of 9 October 2026: the receptionist may request a booking, never confirm one).
 
 The readers lane is next for this note: steps 4, 5 and 8 together, with the answers above (0046, lane A, step 3).
+Step 8's door came first (00397, 11 October 2026), since every reader that draws a visit's word reads it from there:
+`missed` as a list's rule (answer 4) comes with People reading the record (step 4), and the receptionist's request
+(answer 5) after the readers.

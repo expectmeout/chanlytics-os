@@ -16,14 +16,14 @@
  * client, where RLS decides, by the edge for a caller's own visits, and by a reminder's send. A failed read or write
  * throws, so the caller's retry meets it.
  */
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import {
   APPOINTMENT_STATUSES,
   type AppointmentState,
   type AppointmentStatus,
   type FeedAppointmentRow,
 } from "@chanlytics/contracts";
-import type { Database } from "../../database.types";
+import type { Database, Json } from "../../database.types";
 
 type Db = SupabaseClient<Database>;
 export type AppointmentRow = Database["public"]["Tables"]["appointments"]["Row"];
@@ -144,6 +144,52 @@ export async function appointmentsBetween(
     .limit(SPAN_MAX);
   if (error) throw new Error(`appointments_between: ${error.message}`);
   return data ?? [];
+}
+
+/**
+ * Every row over a span, whatever its source and however it stands, by start: what the board needs to say what a member
+ * said became of a visit (00397), a booking's and a feed event's alike. The feed's rows come too, for their ids and
+ * statuses only: the board draws the feed itself (appointmentsBetween leaves them out for that reason).
+ */
+export async function visitsOver(db: Db, tenantId: string, fromIso: string, toIso: string): Promise<AppointmentRow[]> {
+  const { data, error } = await db
+    .from("appointments")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .gt("ends_at", fromIso)
+    .lt("starts_at", toIso)
+    .order("starts_at", { ascending: true })
+    .limit(SPAN_MAX);
+  if (error) throw new Error(`visits_over: ${error.message}`);
+  return data ?? [];
+}
+
+/**
+ * The workspace a visit belongs to, as the caller may see it: on a member's session RLS decides, so one they cannot see
+ * is null. What a route about one visit is scoped by.
+ */
+export async function appointmentWorkspace(db: Db, id: string): Promise<{ id: string; tenant_id: string } | null> {
+  const { data, error } = await db.from("appointments").select("id, tenant_id").eq("id", id).maybeSingle();
+  if (error) throw new Error(`appointment_workspace: ${error.message}`);
+  return data ?? null;
+}
+
+/**
+ * A member says what became of a visit (00397 mark_visit), on their own session: kept, missed or cancelled, with the
+ * decision theirs in the same transaction. The door's answer as it gave it (a refusal is `{ error }`), and the
+ * database's error for one it threw (not found, not signed in).
+ */
+export async function markVisit(
+  db: Db,
+  p: { appointmentId: string; status: "kept" | "missed" | "cancelled"; via: string | null; undoOf: string | null },
+): Promise<{ data: Json | null; error: PostgrestError | null }> {
+  const { data, error } = await db.rpc("mark_visit", {
+    p_appointment_id: p.appointmentId,
+    p_status: p.status,
+    ...(p.via ? { p_via: p.via } : {}),
+    ...(p.undoOf ? { p_undo_of: p.undoOf } : {}),
+  });
+  return { data, error };
 }
 
 /** One person's rows, by their number or their address, that end after `fromIso`: their next visit, and the ones since. */

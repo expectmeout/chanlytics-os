@@ -6,6 +6,7 @@
 import { useLayoutEffect, useRef } from "react";
 import type { CSSProperties } from "react";
 import type { CalendarBlockVM, CalendarServiceVM, CalendarVM, CalendarWindowVM } from "@chanlytics/contracts";
+import { VISIT_WORDS } from "@chanlytics/contracts";
 import { AgendaItem, AgendaItems, AgendaOpen } from "../kit/agenda/agenda";
 import { EmptyState } from "../kit/empty/empty";
 import { calendar } from "./verbs";
@@ -65,17 +66,21 @@ function CrBlock({
           right: "auto",
         }
       : {};
+  // What a member said became of it (0002 step 8), said quietly: the word beside the time, and a cancelled one struck.
+  const said = b.visit && b.visit.status !== "booked" && b.visit.status !== "proposed" ? b.visit.status : null;
+  const saidWord = said ? VISIT_WORDS[said] : null;
   return (
     <button
       className="cal-appt feed"
       style={{ top: ofHours(from), height: `max(22px, ${ofHours(span)} - 2px)`, ...laned }}
       onClick={() => onOpen(b)}
-      title={`${b.title} · ${b.time}${b.tool ? ` · ${b.tool}` : ""}`}
-      aria-label={`${b.title}, ${b.time}, ${dayLong}${b.tool ? `, booked through ${b.tool}` : ""}`}
+      title={`${b.title} · ${b.time}${b.tool ? ` · ${b.tool}` : ""}${saidWord ? ` · ${saidWord}` : ""}`}
+      aria-label={`${b.title}, ${b.time}, ${dayLong}${b.tool ? `, booked through ${b.tool}` : ""}${saidWord ? `, ${saidWord.toLowerCase()}` : ""}`}
       data-testid="cal-block"
       data-phase={phase}
       data-lane={b.lanes > 1 ? `${b.lane + 1}/${b.lanes}` : undefined}
       data-tool={b.tool ?? undefined}
+      data-visit={said ?? undefined}
     >
       <span className="cal-appt-line1">
         <span className="cal-appt-who">{b.title}</span>
@@ -85,6 +90,7 @@ function CrBlock({
         {b.time}
         {wide && b.person ? ` · ${b.person.name}` : ""}
         {b.tool ? ` · ${b.tool}` : ""}
+        {saidWord ? ` · ${saidWord}` : ""}
       </span>
     </button>
   );

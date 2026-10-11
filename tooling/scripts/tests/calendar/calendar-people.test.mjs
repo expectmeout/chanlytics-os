@@ -1177,8 +1177,8 @@ test("automatically: an hourly sweep on the edge and the owner's own read both p
   );
   const route = readCode("apps/dashboard/app/api/v1/contacts/route.ts");
   assert.ok(
-    route.includes('role: "operator",') && route.includes('ctx.supabase.rpc("create_person"'),
-    "the door's own route stays, for a hand",
+    route.includes('role: "operator",') && route.includes("addPerson(ctx,"),
+    "the door's own route stays, for a hand: through addPerson, on the member's session (#1545)",
   );
   // The profile reads where they came from: the door's contact.added row for them. Somebody else's, and another kind
   // of row about them, each older, are not it. Run.
@@ -2181,7 +2181,7 @@ test("every visit, oldest first, for the timeline; the profile reads them as Vis
     visits.map((i) => [i.text, i.who]),
     [
       ["Booked · Balayage", "Calendar"],
-      ["Visited · Colour", "Calendar"],
+      ["Past visit · Colour", "Calendar"],
     ],
     "newest first, ahead reads as booked",
   );

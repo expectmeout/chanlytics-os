@@ -239,6 +239,7 @@ function toBlock(item: CalendarItemDto, tz: string, dayStartMs: number, dayEndMs
     ...noticeFacts(item),
     start: item.start,
     end: item.end,
+    visit: item.visit ?? null,
     lane: 0,
     lanes: 1,
   };

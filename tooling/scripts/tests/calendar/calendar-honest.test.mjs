@@ -2516,3 +2516,49 @@ test("every testid the page is known by is drawn in its view, the date picker fo
     "a viewer: nothing moved, cancelled, synced two ways, or priced",
   );
 });
+
+test("what became of a visit (0002 step 8): a past one says Past, never Done, and offers Kept and Missed on its row; a word said shows on the block and in the panel, with its correction", () => {
+  const withVisit = (status) => {
+    const week = dto();
+    week.days[1].items[0].visit = { id: "a1", status };
+    return week;
+  };
+  // Booked and over (the fixture's Tuesday is behind any clock this runs on): whether they came is the member's to say.
+  fresh(withVisit("booked"));
+  let tree = page();
+  byTestId(tree, "cal-block").props.onClick();
+  tree = page();
+  assert.equal(
+    textOf(byTestId(tree, "cal-panel-state")),
+    "Past",
+    "REGRESSION: an ended visit said Done, as if they came",
+  );
+  const acts = byTestId(tree, "cal-panel-visit");
+  assert.ok(acts, "the acts are drawn on the record's row");
+  assert.ok(byTestId(acts, "cal-panel-visit-kept") && byTestId(acts, "cal-panel-visit-missed"));
+  assert.equal(byTestId(acts, "cal-panel-visit-cancelled"), null, "an ended visit is not cancelled now");
+  leave();
+
+  // Said missed: the block says it, the panel says it, and offers the one correction.
+  fresh(withVisit("missed"));
+  tree = page();
+  const block = byTestId(tree, "cal-block");
+  assert.equal(block.props["data-visit"], "missed");
+  assert.match(block.props["aria-label"], /, missed$/);
+  block.props.onClick();
+  tree = page();
+  assert.equal(textOf(byTestId(tree, "cal-panel-state")), "Missed");
+  const correct = byTestId(tree, "cal-panel-visit");
+  assert.ok(byTestId(correct, "cal-panel-visit-kept"));
+  assert.equal(byTestId(correct, "cal-panel-visit-missed"), null);
+  leave();
+
+  // An event the record has not kept yet: nothing to say it on, and nothing offered.
+  fresh();
+  tree = page();
+  byTestId(tree, "cal-block").props.onClick();
+  tree = page();
+  assert.equal(byTestId(tree, "cal-panel-visit"), null);
+  assert.equal(textOf(byTestId(tree, "cal-panel-state")), "Past");
+  leave();
+});

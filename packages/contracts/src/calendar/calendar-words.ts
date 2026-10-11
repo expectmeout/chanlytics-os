@@ -8,7 +8,62 @@ import { DAYS } from "../config/workspace-config/config-rules";
 import { hoursRuns } from "../config/workspace-config/prompt-hours";
 import { BOOKING_DEFAULTS, dayIntervals, type BookingRulesLike } from "./availability";
 import { DAY_SHORT, keyParts } from "./day-keys";
-import type { CalendarFeedDto } from "./calendar-dto";
+import type { CalendarFeedDto, VisitMark } from "./calendar-dto";
+
+/* ----------------------------------------------------------- what became of a visit (decision 0002, step 8) */
+
+/** What a member may say became of a visit (00397 mark_visit). */
+export type VisitWord = "kept" | "missed" | "cancelled";
+
+/** Each word as the panel says it, on a state and on an act alike. */
+export const VISIT_WORDS: Record<VisitWord, string> = { kept: "Kept", missed: "Missed", cancelled: "Cancelled" };
+
+/** The door's refusals (mark_visit's `{ error }`), each in a sentence for the person who asked. */
+export const VISIT_REFUSALS: Record<string, string> = {
+  never_booked: "It was only requested, never booked: it can be cancelled, but not kept or missed.",
+  cancelled: "It was cancelled already.",
+  not_begun: "It hasn't begun yet: whether they came is said once it has.",
+  already_said: "It's marked kept or missed already: say the other if that was wrong.",
+  over: "It has ended: say whether they came instead.",
+};
+
+/**
+ * What the panel says beside a visit's time: the member's word on it, else "Past" once it has ended (the record never
+ * infers that they came: 0002's answer 3), else nothing.
+ */
+export function visitStateOf(
+  visit: VisitMark | null,
+  endMs: number,
+  nowMs: number,
+): { text: string; tone: VisitWord | "past" } | null {
+  const said = visit?.status;
+  if (said === "kept" || said === "missed" || said === "cancelled") return { text: VISIT_WORDS[said], tone: said };
+  return endMs <= nowMs ? { text: "Past", tone: "past" } : null;
+}
+
+/**
+ * What a member may say of a visit now, in the order it is offered, by mark_visit's own rules (00397): kept or missed
+ * once it has begun, cancelled until it ends; a kept visit may be corrected to missed and a missed one to kept; nothing
+ * of a cancelled one, nor of an event the record has not kept yet.
+ */
+export function visitActsOf(visit: VisitMark | null, startMs: number, endMs: number, nowMs: number): VisitWord[] {
+  if (!visit) return [];
+  switch (visit.status) {
+    case "kept":
+      return ["missed"];
+    case "missed":
+      return ["kept"];
+    case "cancelled":
+      return [];
+    case "proposed":
+      return endMs > nowMs ? ["cancelled"] : [];
+    case "booked": {
+      const out: VisitWord[] = startMs <= nowMs ? ["kept", "missed"] : [];
+      if (endMs > nowMs) out.push("cancelled");
+      return out;
+    }
+  }
+}
 
 /* ----------------------------------------------------------- the words */
 

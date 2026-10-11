@@ -3,6 +3,7 @@
  * windows, the feed as the pill and the bar say it, and the hours, closures, rules and services beside them.
  * Types only; calendar.ts builds it (toCalendarVM).
  */
+import type { VisitMark } from "./calendar-dto";
 import type { MatchVia } from "./calendar-people";
 import type { CalendarSourceVM } from "../setup/calendar-source";
 import type { CalendarFeedHealth, CalendarFeedNoteVM } from "./calendar-words";
@@ -44,6 +45,8 @@ export interface CalendarBlockVM {
   price: string | null;
   start: string;
   end: string;
+  /** The record's row for the visit and how it stands (CalendarItemDto.visit), or null: what the panel's acts are said on. */
+  visit: VisitMark | null;
   /** Blocks that overlap in time sit side by side: this block's lane, and how many lanes its cluster needs. */
   lane: number;
   lanes: number;

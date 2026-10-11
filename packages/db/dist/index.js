@@ -4956,6 +4956,25 @@ async function appointmentsBetween(db, tenantId, fromIso, toIso) {
   if (error) throw new Error(`appointments_between: ${error.message}`);
   return data ?? [];
 }
+async function visitsOver(db, tenantId, fromIso, toIso) {
+  const { data, error } = await db.from("appointments").select("*").eq("tenant_id", tenantId).gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).limit(SPAN_MAX);
+  if (error) throw new Error(`visits_over: ${error.message}`);
+  return data ?? [];
+}
+async function appointmentWorkspace(db, id) {
+  const { data, error } = await db.from("appointments").select("id, tenant_id").eq("id", id).maybeSingle();
+  if (error) throw new Error(`appointment_workspace: ${error.message}`);
+  return data ?? null;
+}
+async function markVisit(db, p) {
+  const { data, error } = await db.rpc("mark_visit", {
+    p_appointment_id: p.appointmentId,
+    p_status: p.status,
+    ...p.via ? { p_via: p.via } : {},
+    ...p.undoOf ? { p_undo_of: p.undoOf } : {}
+  });
+  return { data, error };
+}
 async function appointmentsForClient(db, tenantId, who, fromIso) {
   const or = clientFilter(who);
   if (!or) return [];
@@ -5113,6 +5132,7 @@ export {
   appointmentNoticeOf,
   appointmentNoticesOf,
   appointmentStates,
+  appointmentWorkspace,
   appointmentsBetween,
   appointmentsForClient,
   appointmentsScrub,
@@ -5251,6 +5271,7 @@ export {
   markProcessed,
   markReplyDraft,
   markReplyTold,
+  markVisit,
   markWaitlistInvited,
   memberAlertsOf,
   memberHasAddress,
@@ -5448,6 +5469,7 @@ export {
   updateAppointment,
   updatePlaybook,
   usageMonth,
+  visitsOver,
   waitlistWaiting,
   watchedEvents,
   watchedTables,

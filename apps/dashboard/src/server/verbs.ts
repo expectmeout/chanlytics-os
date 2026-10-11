@@ -26,6 +26,7 @@ import {
   reachOutSendRefOf,
   replyReadingRefOf,
   type Json,
+  appointmentWorkspace,
 } from "@chanlytics/db";
 import type { RouteContext } from "./with-route";
 import { requireUuid } from "./request-guards";
@@ -137,6 +138,19 @@ async function loadContact(ctx: RouteContext, id: string): Promise<VerbContact> 
 
 /** The contact named by `:id`, as the row a consent route acts on. */
 export const contactScope = row((ctx, params) => loadContact(ctx, String(params.id ?? "")));
+
+/**
+ * A visit the record keeps (00345), as the row a member's word on it is said on: read under RLS, so one the caller
+ * cannot see is a 404, and judged in its own workspace.
+ */
+async function loadAppointment(ctx: RouteContext, id: string): Promise<{ id: string; tenant_id: string }> {
+  const found = await appointmentWorkspace(ctx.supabase, requireUuid(id, "appointment"));
+  if (!found) throw new AppError("not_found", "Appointment not found.", 404);
+  return found;
+}
+
+/** The visit named by `:id`, as the row a route about what became of it acts on. */
+export const appointmentScope = row((ctx, params) => loadAppointment(ctx, String(params.id ?? "")));
 
 interface VerbMessage {
   id: string;

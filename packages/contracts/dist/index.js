@@ -6078,6 +6078,37 @@ function hoursLines(hours) {
 }
 
 // src/calendar/calendar-words.ts
+var VISIT_WORDS = { kept: "Kept", missed: "Missed", cancelled: "Cancelled" };
+var VISIT_REFUSALS = {
+  never_booked: "It was only requested, never booked: it can be cancelled, but not kept or missed.",
+  cancelled: "It was cancelled already.",
+  not_begun: "It hasn't begun yet: whether they came is said once it has.",
+  already_said: "It's marked kept or missed already: say the other if that was wrong.",
+  over: "It has ended: say whether they came instead."
+};
+function visitStateOf(visit, endMs, nowMs) {
+  const said = visit?.status;
+  if (said === "kept" || said === "missed" || said === "cancelled") return { text: VISIT_WORDS[said], tone: said };
+  return endMs <= nowMs ? { text: "Past", tone: "past" } : null;
+}
+function visitActsOf(visit, startMs, endMs, nowMs) {
+  if (!visit) return [];
+  switch (visit.status) {
+    case "kept":
+      return ["missed"];
+    case "missed":
+      return ["kept"];
+    case "cancelled":
+      return [];
+    case "proposed":
+      return endMs > nowMs ? ["cancelled"] : [];
+    case "booked": {
+      const out = startMs <= nowMs ? ["kept", "missed"] : [];
+      if (endMs > nowMs) out.push("cancelled");
+      return out;
+    }
+  }
+}
 function clockLabel(t) {
   const h = Math.floor(t);
   const m = Math.round((t - h) * 60);
@@ -16603,6 +16634,9 @@ function personOfAppointment(row2, people) {
     ...found.thread !== void 0 ? { thread: found.thread, wa_inbound_at: found.waInboundAt ?? null } : {}
   };
 }
+function visitMarkOf(row2) {
+  return APPOINTMENT_STATUSES.includes(row2.status) ? { id: row2.id, status: row2.status } : null;
+}
 function itemOfAppointment(row2, people) {
   return {
     id: `appt:${row2.id}`,
@@ -16622,7 +16656,8 @@ function itemOfAppointment(row2, people) {
     tool: bookingToolName(row2.tool),
     service: row2.service,
     staff: row2.staff,
-    price: row2.price
+    price: row2.price,
+    visit: visitMarkOf(row2)
   };
 }
 function withoutVisitsRowsDraw(items, rows2, own) {
@@ -16776,6 +16811,7 @@ function toBlock(item, tz, dayStartMs, dayEndMs, now) {
     ...noticeFacts(item),
     start: item.start,
     end: item.end,
+    visit: item.visit ?? null,
     lane: 0,
     lanes: 1
   };
@@ -17486,7 +17522,12 @@ var DECISION_VERBS = [
    * A member opened a call's recording (00277): subject 'call', written by recording_opened as the member, once per
    * member per call per hour. A customer's voice left the building to someone's speakers; who listened is the audit.
    */
-  "open_recording"
+  "open_recording",
+  /**
+   * A member said what became of a visit (00397 mark_visit, decision 0002 step 8): kept, missed or cancelled, subject
+   * 'appointment' (its row), payload from, to, the row's source, its start and the person it is for.
+   */
+  "mark_visit"
 ];
 var DECISION_SUBJECTS = [
   "conversation",
@@ -17507,7 +17548,9 @@ var DECISION_SUBJECTS = [
   "workspace",
   "deal",
   /** One of the workspace's own lists (segments): its life, in the ledger (00169). */
-  "list"
+  "list",
+  /** A visit the record keeps (00345): what a member said became of it (00397). */
+  "appointment"
 ];
 var ACTOR_TYPES = ["user", "ai", "system", "owner_phone"];
 var TEMPLATE_STATUSES = ["approved", "pending", "rejected", "paused", "disabled"];
@@ -27097,7 +27140,8 @@ function visitItems({ profile, nowMs, base, stamp }) {
         ...stamp(t),
         kind: "visit",
         who: "Calendar",
-        text: `${ahead ? "Booked" : "Visited"} \xB7 ${visitTitleFor(v.title, base.name)}`,
+        // Past, never "visited": the calendar says when, not that they came (decision 0002's answer 3).
+        text: `${ahead ? "Booked" : "Past visit"} \xB7 ${visitTitleFor(v.title, base.name)}`,
         sub: `${visitTime(v, zone)} \xB7 from ${profile.visits.source}${v.via === "name" ? " \xB7 matched by name" : ""}`,
         link: { label: "Open the day", to: `calendar/${visitDateKey(v.start, zone)}` }
       });
@@ -34141,7 +34185,8 @@ var SCHEMA_SETS = {
     "review",
     "workspace",
     "deal",
-    "list"
+    "list",
+    "appointment"
   ],
   "decisions.verb": [
     "approve",
@@ -34184,7 +34229,8 @@ var SCHEMA_SETS = {
     "import",
     "open_recording",
     "merge",
-    "change_playbook"
+    "change_playbook",
+    "mark_visit"
   ],
   "escalations.reason": [
     "human_token",
@@ -34513,6 +34559,7 @@ var ROUTE_KEYS = [
   "POST calendar/notices/[id]/dismiss",
   "POST calendar/notices/[id]/read-again",
   "POST calendar/preview",
+  "POST calendar/visits/[id]",
   "POST calls/[id]/end",
   "POST calls/[id]/hand-over",
   "POST calls/[id]/whisper",
@@ -38365,6 +38412,7 @@ var WORDS2 = {
   archive_list: "Archived a list",
   restore_list: "Restored a list",
   delete_list: "Deleted a list",
+  mark_visit: "Said what became of a visit",
   // events
   "message.received": "A customer wrote",
   "message.sent": "A message went out",
@@ -39565,7 +39613,8 @@ var VERB_FAMILY = {
   restore_list: "lists",
   delete_list: "lists",
   import: "people",
-  open_recording: "calls"
+  open_recording: "calls",
+  mark_visit: "calendar"
 };
 var PREFIX_FAMILY = {
   message: "conversations",
@@ -40717,6 +40766,8 @@ export {
   VERSION_CHANNELS,
   VERSION_CHANNEL_WORDS,
   VISION_STRENGTH,
+  VISIT_REFUSALS,
+  VISIT_WORDS,
   VOICE_END_REASONS,
   WABA_FIELDS,
   WAITING_AFTER_DAYS,
@@ -42142,15 +42193,18 @@ export {
   vetoRunNotice,
   viewerListWords,
   violatesNoPrices,
+  visitActsOf,
   visitAnswersAsk,
   visitDateKey,
   visitDay,
   visitDayWord,
   visitFactsFor,
   visitLine,
+  visitMarkOf,
   visitMomentDay,
   visitOnDay,
   visitStartTime,
+  visitStateOf,
   visitTime,
   visitTitleFor,
   visitsIn,

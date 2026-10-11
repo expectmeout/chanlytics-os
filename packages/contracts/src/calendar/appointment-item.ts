@@ -6,7 +6,8 @@
  *
  * Pure: the dashboard's week assembler (server/calendar/calendar-week.ts) hands the rows in and takes the items out.
  */
-import type { CalendarItemDto } from "./calendar-dto";
+import type { CalendarItemDto, VisitMark } from "./calendar-dto";
+import { APPOINTMENT_STATUSES, type AppointmentStatus } from "./feed-appointments";
 import type { BusyBlock, FeedItem } from "./feed";
 import { extractContacts, type OwnAddresses, type PersonLike, type PersonMatch } from "./calendar-people";
 import { bookingToolName, SAME_VISIT_MS } from "./booking-notice";
@@ -83,6 +84,13 @@ export function personOfAppointment(row: AppointmentLike, people: PersonLike[]):
   };
 }
 
+/** The row's id and status as the board carries them: null for a status the record does not hold. */
+export function visitMarkOf(row: Pick<AppointmentLike, "id" | "status">): VisitMark | null {
+  return (APPOINTMENT_STATUSES as readonly string[]).includes(row.status)
+    ? { id: row.id, status: row.status as AppointmentStatus }
+    : null;
+}
+
 /** The board's row for an appointment: the item the day draws, with what the notice stated. */
 export function itemOfAppointment(row: AppointmentLike, people: PersonLike[]): CalendarItemDto {
   return {
@@ -104,6 +112,7 @@ export function itemOfAppointment(row: AppointmentLike, people: PersonLike[]): C
     service: row.service,
     staff: row.staff,
     price: row.price,
+    visit: visitMarkOf(row),
   };
 }
 

@@ -7390,6 +7390,15 @@ type Database = {
                 };
                 Returns: undefined;
             };
+            mark_visit: {
+                Args: {
+                    p_appointment_id: string;
+                    p_status: string;
+                    p_undo_of?: string;
+                    p_via?: string;
+                };
+                Returns: Json;
+            };
             may_read_workspace: {
                 Args: {
                     p_tenant: string;

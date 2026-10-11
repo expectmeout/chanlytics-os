@@ -833,3 +833,138 @@ test("the people are read beside the calendar's feed, not after it: a slow feed 
     globalThis.fetch = scripted;
   }
 });
+
+/* ------------------------------------------- what became of a visit (decision 0002 step 8, 00397) */
+
+const { recordOfSpan } = await import(at("apps/dashboard/src/server/calendar/calendar-week.ts"));
+const visitRoute = await import(at("apps/dashboard/app/api/v1/calendar/visits/[id]/route.ts"));
+/** A member's press, as the route reads it. */
+const post = (body) =>
+  new Request("http://localhost/api/v1/calendar/visits/x", { method: "POST", body: JSON.stringify(body) });
+
+test("the record over a span: a booking's rows are drawn while they stand or once a member said what became of them, and each feed event's row is found by its key", () => {
+  const row = (id, source, status, over = {}) => ({
+    id,
+    source,
+    status,
+    external_id: `k-${id}`,
+    vanished_at: null,
+    starts_at: "2026-09-08T14:00:00.000Z",
+    ends_at: "2026-09-08T15:00:00.000Z",
+    ...over,
+  });
+  const { rows, marks } = recordOfSpan([
+    row("b1", "booking_email", "booked"),
+    row("b2", "booking_email", "missed"),
+    row("b3", "booking_email", "cancelled"),
+    row("b4", "booking_email", "proposed"),
+    row("f1", "calendar_feed", "booked"),
+    row("f2", "calendar_feed", "missed"),
+    row("f3", "calendar_feed", "booked", { vanished_at: "2026-09-08T16:00:00.000Z" }),
+  ]);
+  assert.deepEqual(
+    rows.map((r) => r.id),
+    ["b1", "b2", "b4"],
+    "a cancelled booking frees its time; the feed's own rows are never drawn twice",
+  );
+  assert.deepEqual(
+    [...marks],
+    [
+      ["k-f1", { id: "f1", status: "booked" }],
+      ["k-f2", { id: "f2", status: "missed" }],
+    ],
+    "a row the feed stopped naming is no event's",
+  );
+
+  const event = (uid, start, occurrence) => ({
+    start,
+    end: start + 3_600_000,
+    title: "Gloss · Emily",
+    allDay: false,
+    uid,
+    ...(occurrence === undefined ? {} : { occurrence }),
+    description: null,
+    location: null,
+    attendees: [],
+  });
+  const at9 = ny(2026, 9, 8, 9);
+  const { days } = itemsToDays(
+    [event("ev-a", at9), event("ev-b", at9 + 3_600_000, 1757000000000), event("ev-c", at9 + 7_200_000)],
+    "2026-09-08",
+    1,
+    TZ,
+    [],
+    new Set(),
+    [],
+    {
+      services: [],
+      rules: null,
+      marks: new Map([
+        ["ev-a", { id: "f1", status: "missed" }],
+        ["ev-b:1757000000000", { id: "f2", status: "booked" }],
+      ]),
+    },
+  );
+  assert.deepEqual(
+    days[0].items.map((it) => it.visit),
+    [{ id: "f1", status: "missed" }, { id: "f2", status: "booked" }, null],
+    "an occurrence by its own key; an event the sync has not kept has no row to say anything on",
+  );
+});
+
+test("POST calendar/visits/:id: an operator's word reaches the door with what they said; a viewer, a stranger's visit and a word that is not one of the three are refused before it; its refusal is a sentence", async () => {
+  const V = "dddddddd-0000-4000-8000-00000000d001";
+  const THEIRS = "dddddddd-0000-4000-8000-00000000d002";
+  const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const doors = [];
+  const world = (role, answer) => {
+    const t = {
+      ...tables(null, role),
+      appointments: [
+        { id: V, tenant_id: T, status: "booked" },
+        { id: THEIRS, tenant_id: B, status: "booked" },
+      ],
+      decisions: [],
+    };
+    return {
+      ...ctxFor(t, {
+        mark_visit: (a) => {
+          doors.push(a);
+          return answer;
+        },
+      }),
+      params: { id: V },
+    };
+  };
+  const said = { appointment: { id: V, status: "missed" }, from: "booked", decision_id: "dec-1" };
+  const out = await visitRoute.POST.run(post({ status: "missed" }), world("operator", said));
+  assert.deepEqual(out, { visit: { id: V, status: "missed" }, from: "booked", decision_id: "dec-1", unchanged: false });
+  assert.deepEqual(doors, [{ p_appointment_id: V, p_status: "missed" }]);
+
+  doors.length = 0;
+  await assert.rejects(visitRoute.POST.run(post({ status: "missed" }), world("viewer", said)), (e) => {
+    assert.equal(e.status, 403);
+    return true;
+  });
+  await assert.rejects(
+    visitRoute.POST.run(post({ status: "missed" }), { ...world("operator", said), params: { id: THEIRS } }),
+    (e) => {
+      assert.ok([403, 404].includes(e.status), `another workspace's visit: ${e.status}`);
+      return true;
+    },
+  );
+  await assert.rejects(visitRoute.POST.run(post({ status: "rescheduled" }), world("operator", said)), (e) => {
+    assert.equal(e.code, "validation");
+    return true;
+  });
+  assert.deepEqual(doors, [], "nothing reached the door for a refusal");
+
+  await assert.rejects(
+    visitRoute.POST.run(post({ status: "missed" }), world("operator", { error: "not_begun" })),
+    (e) => {
+      assert.equal(e.code, "validation");
+      assert.match(e.message, /hasn't begun yet/);
+      return true;
+    },
+  );
+});
