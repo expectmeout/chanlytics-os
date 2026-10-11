@@ -54,11 +54,11 @@ const answerMoves = (a) => [
 // 2026-09-27-ask-chat-on-a-phone, D16); these are its parts, and AskCard below holds its state and its verbs.
 
 // Each card's kind as the mark in its tile: a list's card and a run's card are marked as their rows are.
-const AT_CARD_ICONS = { reply: "chat", steer: "chat", whisper: "phone", invite: "users", policy: "shield", settings: "settings", person_mode: "settings", thread_verb: "inbox", broadcast: "wave", playbook: "bolt", playbook_channels: "bolt", playbook_change: "bolt", lead_search: "search", deal: "users", note: "edit", person_details: "user", list: askKindGlyph("list"), run: askKindGlyph("run") };
+const AT_CARD_ICONS = { reply: "chat", steer: "chat", whisper: "phone", invite: "users", policy: "shield", settings: "settings", person_mode: "settings", thread_verb: "inbox", broadcast: "wave", playbook: "bolt", playbook_channels: "bolt", playbook_change: "bolt", lead_search: "search", deal: "users", note: "edit", person_details: "user", list: askKindGlyph("list"), run: askKindGlyph("run"), message: askKindGlyph("template") };
 
 // The card's head: the kind's mark in its tile, the title, and the kind's word under it.
 const AskCardHead = ({ p, t }) => {
-  const KIND = { reply: t.kReply, steer: t.kSteer, thread_verb: t.kInbox, person_mode: t.kPerson, policy: t.kAutonomy, settings: t.kSettings, whisper: t.kWhisper, invite: t.kTeam, broadcast: t.kBroadcast, playbook: t.kPlaybook, playbook_channels: t.kPlaybook, playbook_change: t.kPlaybook, lead_search: t.kLeads, deal: t.kDeal, note: t.kNote, person_details: t.kDetails, list: t.kList, run: t.kRun };
+  const KIND = { reply: t.kReply, steer: t.kSteer, thread_verb: t.kInbox, person_mode: t.kPerson, policy: t.kAutonomy, settings: t.kSettings, whisper: t.kWhisper, invite: t.kTeam, broadcast: t.kBroadcast, playbook: t.kPlaybook, playbook_channels: t.kPlaybook, playbook_change: t.kPlaybook, lead_search: t.kLeads, deal: t.kDeal, note: t.kNote, person_details: t.kDetails, list: t.kList, run: t.kRun, message: t.kMessage };
   return (
     <div className="ask-card-head">
       <span className="ask-card-mark"><Icon name={AT_CARD_ICONS[p.kind] || "inbox"} size={15} /></span>
@@ -73,15 +73,19 @@ const AskCardHead = ({ p, t }) => {
 // The change as it will land, on the sunken ground: a reply as the sent bubble it will be, anything else its summary.
 // Before the act a reply's warnings stand under it, and while it can go as it is (its window open), its undo's own
 // words say what follows; with the window shut only a template can go, and the note says so instead.
+// A message the card writes is drawn whole, each version under its channel's word as the person reached on it reads
+// it, and when each goes and who it reaches under them (its summary, which quotes them, is the model's).
 const AskCardChange = ({ p, t, idle }) => {
   const pl = p.payload || {};
   const reply = p.kind === "reply";
   const shut = pl.window_open === false;
+  const written = p.kind === "message" && Array.isArray(pl.said) ? pl.said : null;
   return (
     <>
       <div className={`ask-card-change${reply ? " bubble" : ""}`}>
-        <p className="ask-card-summary">{p.summary}</p>
+        {written ? <div className="ask-card-said" data-testid="ask-card-versions">{written.map((v) => <p key={v.channel} className="ask-card-summary"><span className="ask-card-kind">{v.label}</span>{"\n"}{v.words}</p>)}</div> : <p className="ask-card-summary">{p.summary}</p>}
       </div>
+      {written && pl.follows ? <p className="ask-card-foot">{pl.follows}</p> : null}
       {reply && idle && pl.price_warning ? <div className="ask-card-note">{t.priceNote}</div> : null}
       {reply && idle && shut ? <div className="ask-card-note">{t.windowNote}</div> : null}
       {reply && idle && !shut && p.undo ? <p className="ask-card-foot">{p.undo}</p> : null}

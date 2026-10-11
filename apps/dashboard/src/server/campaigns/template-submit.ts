@@ -6,7 +6,13 @@
  * (meta-templates.ts createTemplate), as every write that leaves for a provider is. A message written whole
  * (write-message.ts, POST templates/message) submits its WhatsApp version through the same verb (submitDraft).
  */
-import { AppError, LIBRARY_WORDS, templateComponents, validateTemplateDraft } from "@chanlytics/contracts";
+import {
+  AppError,
+  LIBRARY_WORDS,
+  TEMPLATE_SAME_NAME_WORDS,
+  templateComponents,
+  validateTemplateDraft,
+} from "@chanlytics/contracts";
 import { templateIdOf } from "@chanlytics/db";
 import { jsonBody } from "@/server/request-guards";
 import { createTemplate } from "@/server/campaigns/meta-templates";
@@ -33,9 +39,6 @@ interface TemplateAsked {
   labels?: unknown;
   button?: unknown;
 }
-
-/** A name and language this workspace already holds, as a submission refuses it and a message written whole does. */
-export const SAME_NAME_WORDS = "A template with that name and language already exists. Pick another name.";
 
 /** What the edge said when it did not submit the template, in the person's words: Meta's own reason where it gave one. */
 function submitRefusal(r: { reason: EdgeReason; detail?: string }): AppError {
@@ -80,7 +83,8 @@ export async function submitDraft(ctx: RouteContext, member: Member, body: Templ
   const v = check.value;
 
   const dup = await templateIdOf(ctx.supabase, member.tenantId, v.name, v.language);
-  if (dup) throw new AppError("conflict", SAME_NAME_WORDS, 409);
+  // A name and language this workspace already holds, refused as a message written whole and Ask's card refuse it.
+  if (dup) throw new AppError("conflict", TEMPLATE_SAME_NAME_WORDS, 409);
 
   const labels = Array.isArray(body?.labels)
     ? (body.labels as unknown[]).map((l) =>

@@ -1,7 +1,9 @@
 /**
  * Campaigns' cards: a broadcast, a playbook that sends on its own, the channels a playbook goes by, a playbook that
- * exists changed in place (paused, resumed, renamed or retimed), and a playbook's run that waits for a person.
+ * exists changed in place (paused, resumed, renamed or retimed), a playbook's run that waits for a person, and a message
+ * written for the Library, a version per channel.
  */
+import { CHANNEL_WORDS } from "../broadcasts/reach-for";
 import {
   CONSENT_CHANNELS,
   CONSENT_CHANNEL_WORDS,
@@ -13,7 +15,15 @@ import { PLAYBOOK_PATCH_KEYS } from "../playbooks/playbook-patch";
 import { SENDING_HOURS_WORDS } from "../playbooks/playbook-triggers";
 import { clockWhen } from "../shared/clock";
 import { plural } from "../shared/words";
-import { CAMPAIGN_ROOMS, LIBRARY_STARTER_WORDS } from "../shell/campaign-rooms";
+import { CAMPAIGN_ROOMS, LIBRARY_STARTER_WORDS, LIBRARY_WORDS } from "../shell/campaign-rooms";
+import { MESSAGE_BEGIN_WORDS } from "../templates/campaign-message";
+import {
+  OWN_VERSION_CHANNELS,
+  VERSION_CHANNEL_WORDS,
+  type OwnVersionChannel,
+  type VersionChannel,
+} from "../templates/message-versions";
+import { TEMPLATE_BODY_WORDS, TEMPLATE_LANGUAGES, TEMPLATE_SAME_NAME_WORDS } from "../templates/templates";
 import {
   PROPOSAL_WORDS,
   asText,
@@ -350,4 +360,154 @@ export const runSpec: ProposalSpec = {
     const id = idIn(payload, "broadcast_id");
     return id ? `broadcasts/run:${id}` : "broadcasts";
   },
+};
+
+/* ------------------------------------------------ a message written for the Library (the marketing manager, §5.2) */
+
+/** A channel as a sentence about a message's version names it: "WhatsApp", "email", "text". */
+const versionWord = (c: VersionChannel): string =>
+  c === "whatsapp" ? VERSION_CHANNEL_WORDS.whatsapp : VERSION_CHANNEL_WORDS[c].toLowerCase();
+/** "email version", "email and text versions". */
+const versionsWords = (own: readonly OwnVersionChannel[]): string =>
+  `${own.map(versionWord).join(" and ")} version${own.length === 1 ? "" : "s"}`;
+
+/**
+ * What Ask's message card says (propose_campaign's action message). Why one is not made, to the model: each opens with the
+ * sentence POST templates/message says where the door has one (its checks are the card's), then says what to do. And the
+ * card's own words, to the person: its title, when each version can go, what the door filed, and what its undo does.
+ */
+export const MESSAGE_WORDS = {
+  /** A text version of an offer: the door's sentence (contracts channelNeverCarries). */
+  smsOffer: `${CHANNEL_WORDS.noOffersByText} Say so, and write the offer for WhatsApp and email alone.`,
+  /** A message about their own appointment with no WhatsApp version for WhatsApp to review: the door's sentence. */
+  utilityNeedsWhatsapp: `${MESSAGE_BEGIN_WORDS.customIsAnOffer} One about their own appointment or proposal is written with a WhatsApp version, which WhatsApp reviews: add one, or write it as an offer or news (marketing).`,
+  /** A WhatsApp version past what WhatsApp takes: the door's sentence (templateBodyTooLong). */
+  tooLong: `${TEMPLATE_BODY_WORDS} Shorten its WhatsApp version, and propose it again.`,
+  /** A WhatsApp version where no number is connected: what the door answers when the edge finds none. */
+  noNumber: `${LIBRARY_WORDS.writeNeedsNumber} Say so, and write it for email or text alone, or once a number is connected.`,
+  /** An email version where email cannot send: why, in channelsReady's sentence (the mailbox, or the deployment's email). */
+  noMailbox: (why: string): string => `${why} Say so, and write it without an email version.`,
+  /** A name and language the Library holds: the door's sentence for a twin, and where that message's versions change. */
+  twin: (name: string): string =>
+    `${TEMPLATE_SAME_NAME_WORDS} Say so: “${name}” in this language is in ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library}, where its versions are changed.`,
+  /** The card's title: the name the door files the message under, and its language. */
+  title: (name: string, language: string): string =>
+    `${CAMPAIGN_ROOMS.newMessage}: ${name} (${TEMPLATE_LANGUAGES.find((l) => l.id === language)?.label ?? language})`,
+  /** When its versions can go: an email's and a text's once Approve files them, WhatsApp's once it is reviewed. */
+  goes: (now: readonly OwnVersionChannel[], review: boolean): string =>
+    [
+      now.length > 0 ? `Goes ${channelsWords(now)} now` : "",
+      review ? "WhatsApp waits on Meta's review (usually minutes, sometimes a day)" : "",
+    ]
+      .filter(Boolean)
+      .join("; "),
+  /** What the door filed (its answer): each version, ready or in review, and the one it could not file, in its words. */
+  filed: (
+    name: string,
+    filed: readonly { channel: ConsentChannel; state: string }[],
+    refused: { channel: ConsentChannel; words: string } | null,
+  ): string => {
+    const said = filed.map((v) =>
+      v.channel === "whatsapp"
+        ? `its WhatsApp version is ${v.state === "approved" ? "approved" : "with WhatsApp for review"}`
+        : `its ${versionWord(v.channel)} version is ready`,
+    );
+    if (said.length === 0) return `“${name}” was not filed${refused ? `: ${refused.words}` : ""}`;
+    const not = refused ? ` · its ${versionWord(refused.channel)} version was not filed: ${refused.words}` : "";
+    return `“${name}” is in the ${CAMPAIGN_ROOMS.library} — ${said.join("; ")}${not}`;
+  },
+  /** The undo's button: the email and text versions it deletes; none where the card writes none. */
+  undo: (own: readonly OwnVersionChannel[]): string | null =>
+    own.length > 0 ? `Delete its ${versionsWords(own)}` : null,
+  /** What the undo did: those versions deleted, and the WhatsApp version, where the door filed one, left and said. */
+  undone: (own: readonly OwnVersionChannel[], whatsapp: boolean): string => {
+    const gone = `Its ${versionsWords(own)} ${own.length === 1 ? "is" : "are"} deleted`;
+    return whatsapp
+      ? `${gone}. Its WhatsApp version stays: WhatsApp holds it, and it is deleted from ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library}`
+      : gone;
+  },
+} as const;
+
+/** A version the door filed, as its answer and the undo's record say it: its channel, its id and its state. */
+interface VersionAnswered {
+  channel: ConsentChannel;
+  id: string;
+  state: string;
+}
+
+/** The versions an answer or a record names, each on a channel the product knows and with an id; none else. */
+const versionsIn = (v: unknown): VersionAnswered[] =>
+  Array.isArray(v)
+    ? v
+        .map(rec)
+        .flatMap((x) =>
+          (CONSENT_CHANNELS as readonly unknown[]).includes(x.channel) && typeof x.id === "string" && x.id
+            ? [{ channel: x.channel as ConsentChannel, id: x.id, state: asText(x.state) }]
+            : [],
+        )
+    : [];
+/** An email's or a text's version: one written here, which its own door deletes. WhatsApp's is WhatsApp's. */
+const writtenHere = (c: ConsentChannel): c is OwnVersionChannel => c !== "whatsapp";
+
+/**
+ * A message written for the Library from a card (the marketing manager's spec §5.2): the commit is POST templates/message
+ * with the card's body, which files the email and text versions at once and sends WhatsApp's for review, every refusal
+ * said before anything is filed (the card was made by the same checks). Its receipt says what the door filed and the
+ * version it could not. Its undo deletes the email and text versions the door filed, one DELETE templates/versions/[id]
+ * each, within ten minutes; a WhatsApp version is WhatsApp's to hold (deleting a template at Meta is a decision of its
+ * own), so it is left, and the undo says so and where it is deleted by hand. Open is the Library, which gives one message
+ * no address of its own.
+ */
+export const messageSpec: ProposalSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const name = asText(pl.name);
+    const versions = rec(pl.versions);
+    if (!name || Object.keys(versions).length === 0) return refuseWith(PROPOSAL_WORDS.cannotApprove);
+    return {
+      route: "POST templates/message",
+      body: {
+        name,
+        language: pl.language,
+        category: pl.category,
+        versions,
+        slots: Array.isArray(pl.slots) ? pl.slots : [],
+      },
+    };
+  },
+  receipt: ({ payload: pl }, data) => {
+    const d = rec(data);
+    const refused = rec(d.refused);
+    const not = (CONSENT_CHANNELS as readonly unknown[]).includes(refused.channel)
+      ? { channel: refused.channel as ConsentChannel, words: asText(refused.words) }
+      : null;
+    return MESSAGE_WORDS.filed(asText(d.name ?? pl.name), versionsIn(d.versions), not);
+  },
+  undo: {
+    // The versions the card writes that an undo can delete, in the order the door files them.
+    label: ({ payload }) => MESSAGE_WORDS.undo(OWN_VERSION_CHANNELS.filter((c) => rec(payload.versions)[c] != null)),
+    window: "ten_minutes",
+    // The email and text versions the door answered it filed, and the state of a WhatsApp version it filed beside them.
+    record: (_p, data) => {
+      const filed = versionsIn(rec(data).versions);
+      const own = filed.filter((v) => writtenHere(v.channel)).map(({ channel, id }) => ({ channel, id }));
+      if (own.length === 0) return null;
+      return { versions: own, whatsapp: filed.find((v) => v.channel === "whatsapp")?.state ?? null };
+    },
+    call: (u) => {
+      const own = versionsIn(u.versions).filter((v) => writtenHere(v.channel));
+      return own.length === 0
+        ? refuseWith(PROPOSAL_WORDS.noUndo)
+        : own.map((v): ProposalCall => ({ route: "DELETE templates/versions/[id]", params: { id: v.id } }));
+    },
+    receipt: (_data, u) =>
+      MESSAGE_WORDS.undone(
+        versionsIn(u.versions)
+          .map((v) => v.channel)
+          .filter(writtenHere),
+        u.whatsapp != null,
+      ),
+  },
+  open: () => "messages",
 };

@@ -31,6 +31,13 @@ export const TEMPLATE_LABEL_MAX = 40;
 export const TEMPLATE_NAME_MAX = 60;
 /** What a name that is not one Meta accepts is told (templateNameOk). */
 export const TEMPLATE_NAME_WORDS = "The name needs letters, digits or underscores.";
+/** What a WhatsApp body past what Meta takes is told (templateBodyTooLong): the draft's check, and Ask's message card. */
+export const TEMPLATE_BODY_WORDS = `The message must be under ${TEMPLATE_BODY_MAX} characters.`;
+/**
+ * What a message of a name and language the workspace already holds is told: POST templates, POST templates/message and
+ * Ask's message card, which refuses it before it is a card.
+ */
+export const TEMPLATE_SAME_NAME_WORDS = "A template with that name and language already exists. Pick another name.";
 /** Meta's ceiling for the words on a button. */
 export const TEMPLATE_BUTTON_TEXT_MAX = 25;
 
@@ -50,6 +57,17 @@ export function slugTemplateName(raw: string): string {
     .replace(/^_+|_+$/g, "")
     .slice(0, TEMPLATE_NAME_MAX)
     .replace(/_+$/g, "");
+}
+
+/** A WhatsApp body as Meta reviews it: one kind of line break, and nothing blank at either end. */
+const bodyAsReviewed = (body: string | null | undefined): string =>
+  String(body ?? "")
+    .replace(/\r\n/g, "\n")
+    .trim();
+
+/** Whether a WhatsApp body is past what Meta takes (TEMPLATE_BODY_MAX), read as its review reads it: the one test of it. */
+export function templateBodyTooLong(body: string): boolean {
+  return bodyAsReviewed(body).length > TEMPLATE_BODY_MAX;
 }
 
 /** The numbered slots a body names, sorted and unique. */
@@ -106,12 +124,9 @@ export function validateTemplateDraft(d: TemplateDraftInput): TemplateDraftCheck
     return { ok: false, error: "Pick a language from the list." };
   if (!(TEMPLATE_CATEGORIES as readonly string[]).includes(d.category))
     return { ok: false, error: "A template is marketing or utility." };
-  const body = String(d.body ?? "")
-    .replace(/\r\n/g, "\n")
-    .trim();
+  const body = bodyAsReviewed(d.body);
   if (!body) return { ok: false, error: "Write the message." };
-  if (body.length > TEMPLATE_BODY_MAX)
-    return { ok: false, error: `The message must be under ${TEMPLATE_BODY_MAX} characters.` };
+  if (templateBodyTooLong(body)) return { ok: false, error: TEMPLATE_BODY_WORDS };
   const slots = placeholdersOf(body);
   if (!placeholdersSequential(slots))
     return { ok: false, error: "Number the values {{1}}, {{2}}, {{3}} in order, with no gaps." };

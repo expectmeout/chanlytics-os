@@ -12,7 +12,8 @@
  * WhatsApp's, which Meta would refuse at the wire), and no twin: a message of the same name and language on file on any
  * channel is answered 409 in the words a WhatsApp submission is. A name on file in another language is a language of
  * that message, written beside it, and only as what it is held as (its category and its number of values, read once),
- * else 409 in words that say what is held.
+ * else 409 in words that say what is held. The three are exported (checkMessage, messageOnFile, heldValues): Ask's
+ * message card makes each before it is a card (ask/tools/act/message.ts), so a card never promises what this refuses.
  *
  * Then the email and text versions are filed, at once and approved, through the doors a member's own are
  * (template-versions.ts fileWrittenVersion: the first begins the message with its category and values, the other is
@@ -29,6 +30,7 @@ import {
   OWN_VERSION_CHANNELS,
   TEMPLATE_LANGUAGES,
   TEMPLATE_NAME_WORDS,
+  TEMPLATE_SAME_NAME_WORDS,
   channelNeverCarries,
   purposeOfTemplate,
   starterByName,
@@ -40,7 +42,7 @@ import {
   type ParamSpec,
 } from "@chanlytics/contracts";
 import { heldMessageOf, messageVersionRowsOf } from "@chanlytics/db";
-import { SAME_NAME_WORDS, submitDraft } from "@/server/campaigns/template-submit";
+import { submitDraft } from "@/server/campaigns/template-submit";
 import { MESSAGE_VALUES_WORDS, fileWrittenVersion, refuseWrittenUtility } from "@/server/campaigns/template-versions";
 import { log } from "@/server/log";
 import type { RouteContext } from "@/server/with-route";
@@ -117,8 +119,13 @@ function whatsappDraft(body: WriteMessageBody, slots: WriteMessageBody["slots"])
   };
 }
 
-/** Every refusal the message could meet, before anything is filed, in the person's words (400). */
-function checkMessage(body: WriteMessageBody, slots: WriteMessageBody["slots"]): void {
+/** The values in the order of their positions: what every check and the filing read. */
+const slotsOf = (body: WriteMessageBody): WriteMessageBody["slots"] =>
+  [...body.slots].sort((a, b) => a.position - b.position);
+
+/** Every refusal of the message's own words, before anything is filed, in the person's words (400). */
+export function checkMessage(body: WriteMessageBody): void {
+  const slots = slotsOf(body);
   const refuse = (words: string) => {
     throw new AppError("validation", words);
   };
@@ -145,18 +152,25 @@ function checkMessage(body: WriteMessageBody, slots: WriteMessageBody["slots"]):
 }
 
 /**
+ * A twin: whether the workspace holds the message already, its name in its language, on any channel. The door answers it
+ * 409 (TEMPLATE_SAME_NAME_WORDS); its other versions are written in the Library.
+ */
+export async function messageOnFile(
+  ctx: RouteContext,
+  tenantId: string,
+  body: Pick<WriteMessageBody, "name" | "language">,
+): Promise<boolean> {
+  return (await messageVersionRowsOf(ctx.supabase, tenantId, { name: body.name, language: body.language })).length > 0;
+}
+
+/**
  * The message on file under this name in another language, read once before anything is filed: a language of a message
  * is the same kind of message with the same values, so one said otherwise is refused (409) in words that say what is
  * held. What it answers is how many values the versions are written beside, or null where the name begins a message.
  */
-async function heldValues(
-  ctx: RouteContext,
-  tenantId: string,
-  body: WriteMessageBody,
-  slots: number,
-): Promise<number | null> {
+export async function heldValues(ctx: RouteContext, tenantId: string, body: WriteMessageBody): Promise<number | null> {
   const held = await heldMessageOf(ctx.supabase, tenantId, body.name, body.language);
-  if (held && (held.category !== body.category || held.slots !== slots))
+  if (held && (held.category !== body.category || held.slots !== body.slots.length))
     throw new AppError("conflict", MESSAGE_BEGIN_WORDS.heldOtherwise(held.category, held.slots), 409);
   return held ? held.slots : null;
 }
@@ -167,13 +181,11 @@ export async function writeMessage(
   body: WriteMessageBody,
 ): Promise<WriteMessageAnswer> {
   const { name, language, category } = body;
-  const slots = [...body.slots].sort((a, b) => a.position - b.position);
-  checkMessage(body, slots);
-  // A twin: the message is on file already, on some channel. Its other versions are written in the Library.
-  if ((await messageVersionRowsOf(ctx.supabase, member.tenantId, { name, language })).length > 0)
-    throw new AppError("conflict", SAME_NAME_WORDS, 409);
+  const slots = slotsOf(body);
+  checkMessage(body);
+  if (await messageOnFile(ctx, member.tenantId, body)) throw new AppError("conflict", TEMPLATE_SAME_NAME_WORDS, 409);
   // A language of a message held in another: written beside it, as what it is held as.
-  let held = await heldValues(ctx, member.tenantId, body, slots.length);
+  let held = await heldValues(ctx, member.tenantId, body);
 
   const filed: VersionFiled[] = [];
   const answer = (refused?: WriteMessageAnswer["refused"]): WriteMessageAnswer => ({

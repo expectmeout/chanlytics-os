@@ -48,6 +48,9 @@ function tabOf(win: Window): ProposalTab {
 }
 
 const isRefusal = (c: ProposalCall | ProposalRefusal): c is ProposalRefusal => "refused" in c;
+/** An undo of several rows answers its calls as a list (contracts ProposalUndo.call). */
+const isCalls = (c: ProposalCall | readonly ProposalCall[] | ProposalRefusal): c is readonly ProposalCall[] =>
+  Array.isArray(c);
 
 /**
  * One of a spec's calls, through the typed client, marked as a card's, under a key that is the card's own (its
@@ -109,12 +112,21 @@ export async function undoProposal(
   if (!record || !undo) return { ok: false, message: PROPOSAL_WORDS.noUndo };
   // The row this undo reverses, when the commit's route answered with one.
   const undoOf = typeof record.decision_id === "string" && record.decision_id ? record.decision_id : undefined;
-  const call = undo.call(record, tabOf(win));
-  if (isRefusal(call)) return { ok: false, message: call.refused };
-  const r = await send(client, call, `${p.id}:undo`, undoOf);
-  if (!r.ok) return r;
-  tell(win, call);
-  return { ok: true, receipt: undo.receipt(r.data), undo: null };
+  const made = undo.call(record, tabOf(win));
+  if (!isCalls(made) && isRefusal(made)) return { ok: false, message: made.refused };
+  // Several rows, each through its own door (a message's versions): one call each, in order, stopping at the first
+  // refused, each under a key of its own, so pressing Undo again after a refusal answers the ones that landed as they
+  // landed (server/route.ts onceForKey) and sends the rest.
+  const calls = isCalls(made) ? made : [made];
+  if (calls.length === 0) return { ok: false, message: PROPOSAL_WORDS.noUndo };
+  let data: unknown = null;
+  for (const [i, call] of calls.entries()) {
+    const r = await send(client, call, i === 0 ? `${p.id}:undo` : `${p.id}:undo:${i + 1}`, undoOf);
+    if (!r.ok) return r;
+    tell(win, call);
+    data = r.data;
+  }
+  return { ok: true, receipt: undo.receipt(data, record), undo: null };
 }
 
 /** "Edit in the composer": open the thread with the words ready to change. */

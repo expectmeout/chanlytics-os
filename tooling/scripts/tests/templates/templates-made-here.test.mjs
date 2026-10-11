@@ -12,6 +12,7 @@ import {
   PARAM_SOURCES,
   TEMPLATE_CATEGORIES,
   TEMPLATE_LANGUAGES,
+  TEMPLATE_SAME_NAME_WORDS,
   exampleParams,
   firstNameOf,
   paramLabel,
@@ -210,7 +211,9 @@ test("the routes: what Meta refuses is refused first; a duplicate name is a conf
     r.includes("const check = validateTemplateDraft({") &&
       r.includes('if (!check.ok) throw new AppError("validation", check.error);'),
   );
-  assert.ok(r.includes('"A template with that name and language already exists. Pick another name."'));
+  // The duplicate's sentence is contracts' since Ask's message card says it too (TEMPLATE_SAME_NAME_WORDS).
+  assert.ok(r.includes('throw new AppError("conflict", TEMPLATE_SAME_NAME_WORDS, 409);'));
+  assert.equal(TEMPLATE_SAME_NAME_WORDS, "A template with that name and language already exists. Pick another name.");
   assert.ok(r.includes("WhatsApp did not accept it: ${r.detail"), "Meta's words reach the person");
   const del = readCode(
     "apps/dashboard/app/api/v1/templates/[id]/route.ts",

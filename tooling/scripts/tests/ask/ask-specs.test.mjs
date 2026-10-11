@@ -13,7 +13,8 @@
  * kinds PR 4.6 added (a person's note and details, the Phase 4 plan's D8 and D9) answer the three readings as their
  * family's cards do, and their calls are pinned over the answers their routes really give; so are PR 4.7's two, a list
  * kept by its rule (D10) and a playbook's run waiting for a person (D11), the one of 8 Oct 2026, the channels a
- * playbook that exists goes by, and the one of 9 Oct 2026, a playbook that exists changed in place.
+ * playbook that exists goes by, the one of 9 Oct 2026, a playbook that exists changed in place, and the one of 10 Oct
+ * 2026, a message written for the Library (its own suite: ask/tools/message-card.test.mjs).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -38,7 +39,7 @@ import {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const POLICY = JSON.parse(fs.readFileSync(path.join(ROOT, "tooling/scripts/tests/route-policy.json"), "utf8")).routes;
 
-/** The eighteen kinds, in AskProposal's order, and one no card has. */
+/** The nineteen kinds, in AskProposal's order, and one no card has. */
 const KINDS = [
   "reply",
   "steer",
@@ -58,12 +59,13 @@ const KINDS = [
   "run",
   "playbook_channels",
   "playbook_change",
+  "message",
   "teleport",
 ];
 
 /* ------------------------------------------------------------------ the gate */
 
-test("the gate each kind checks before Approve is the one it checked at a993b71d; a person's note and details, a list, a run and a playbook's channels, each an operator's, check approve", () => {
+test("the gate each kind checks before Approve is the one it checked at a993b71d; a person's note and details, a list, a run, a playbook's channels and change, and a message written, each an operator's, check approve", () => {
   assert.deepEqual(PROPOSAL_GATE, {
     reply: "approve",
     steer: "approve",
@@ -83,6 +85,7 @@ test("the gate each kind checks before Approve is the one it checked at a993b71d
     run: "approve",
     playbook_channels: "approve",
     playbook_change: "approve",
+    message: "approve",
   });
 });
 
@@ -129,6 +132,7 @@ const UNDO_OPEN = {
   run: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
   playbook_channels: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
   playbook_change: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
+  message: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
   teleport: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
 };
 
@@ -204,6 +208,8 @@ const OPEN = {
   // (the spec's own test below).
   playbook_channels: "outbound",
   playbook_change: "outbound",
+  // The Library, which gives one message no address of its own: before Approve and after it.
+  message: "messages",
   teleport: [null, null, "inbox/th-c1", null, null, "inbox/th-c1", null, null, null, null, null, null, null, null],
 };
 
@@ -239,6 +245,11 @@ const ANSWER = {
   search_id: "s1",
   deal: { id: "deal1" },
   note: { id: "n1" },
+  // POST templates/message's (WriteMessageAnswer): an email version filed, WhatsApp's in review.
+  versions: [
+    { channel: "email", id: "v1", state: "approved" },
+    { channel: "whatsapp", id: "v2", state: "pending" },
+  ],
 };
 const TAB = { settings: { config: { brain: {} }, version: 3 } };
 const TAB_AFTER = { settings: { config: { brain: {} }, version: 4 } };
@@ -305,9 +316,21 @@ const SHAPES = {
   ],
   playbook_channels: [card("playbook_channels", GOES_BY)],
   playbook_change: [card("playbook_change", CHANGE)],
+  message: [
+    card("message", {
+      name: "october_offer",
+      language: "en",
+      category: "marketing",
+      versions: { whatsapp: { body: "Hi {{1}}" }, email: { subject: "Hi", body: "Hi {{1}}" } },
+      slots: [{ position: 1, label: "First name", example: "Dani", kind: "first_name" }],
+    }),
+  ],
 };
 
-/** Every route a kind's spec reaches over its shapes: its commit, a second call, and the undo of what it kept. */
+/**
+ * Every route a kind's spec reaches over its shapes: its commit, a second call, and the undo of what it kept, whose calls
+ * may be several (a message's versions, one each).
+ */
 function routesOf(kind) {
   const spec = PROPOSAL_SPECS[kind];
   const seen = [];
@@ -319,9 +342,10 @@ function routesOf(kind) {
     if (then) seen.push({ route: then.route, by: "then" });
     const record = spec.undo?.record(p, ANSWER, TAB) ?? null;
     if (record) {
-      const undo = spec.undo.call(record, TAB_AFTER);
-      assert.ok(undo.route, `${kind}: every undo kept here can be sent (${undo.refused})`);
-      seen.push({ route: undo.route, by: "undo" });
+      for (const undo of [spec.undo.call(record, TAB_AFTER)].flat()) {
+        assert.ok(undo.route, `${kind}: every undo kept here can be sent (${undo.refused})`);
+        seen.push({ route: undo.route, by: "undo" });
+      }
     }
   }
   return seen;
@@ -406,8 +430,8 @@ test("Ask's new campaign opens its drawer once it is made, by the id the route a
   });
 });
 
-test("the eighteen kinds each have a spec, and every route a spec names is a route the app has", () => {
-  assert.deepEqual(Object.keys(PROPOSAL_SPECS), KINDS.slice(0, 18));
+test("the nineteen kinds each have a spec, and every route a spec names is a route the app has", () => {
+  assert.deepEqual(Object.keys(PROPOSAL_SPECS), KINDS.slice(0, 19));
   const named = Object.fromEntries(
     Object.keys(PROPOSAL_SPECS).map((k) => [k, [...new Set(routesOf(k).map((x) => x.route))].sort()]),
   );
@@ -437,6 +461,7 @@ test("the eighteen kinds each have a spec, and every route a spec names is a rou
     run: ["POST broadcasts/[id]/approve", "POST broadcasts/[id]/cancel"],
     playbook_channels: ["PUT playbooks/[id]"],
     playbook_change: ["PUT playbooks/[id]"],
+    message: ["DELETE templates/versions/[id]", "POST templates/message"],
   });
   for (const routes of Object.values(named)) for (const r of routes) assert.ok(ROUTE_KEYS.includes(r), r);
 });

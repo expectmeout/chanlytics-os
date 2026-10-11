@@ -3218,6 +3218,61 @@ test("a list and a playbook's run waiting for a person (PR 4.7) are drawn as the
     });
 });
 
+test("a message the card writes (the marketing manager, §5.2) is drawn whole: its word in the Line's English and Spanish and a template's mark, each version under its channel's word as the person reached on it reads it, and when each goes and who it reaches under them", () => {
+  const { AskCard, askKindGlyph } = globalThis.window.AskAnswerKit;
+  const said = [
+    {
+      channel: "whatsapp",
+      label: "On WhatsApp",
+      words: "Hi Dani, everything is 10% off this month. Reply STOP to opt out.",
+    },
+    {
+      channel: "email",
+      label: "By email",
+      words: "“This month at the business”\nHi Dani,\n\nEverything is 10% off this month.",
+    },
+  ];
+  const follows =
+    "Goes by email now; WhatsApp waits on Meta's review (usually minutes, sometimes a day) · On WhatsApp: only people with a recorded yes to offers and a phone number.";
+  const p = {
+    id: "p1",
+    kind: "message",
+    needs: "operator",
+    title: "New message: october_offer (English)",
+    summary: `On WhatsApp: Hi Dani, … · By email: “This month at the business” — Hi Dani, … · ${follows}`,
+    payload: { name: "october_offer", language: "en", category: "marketing", versions: {}, slots: [], said, follows },
+    undo: "Delete its email version",
+  };
+  for (const [lang, word] of [
+    ["en", "message"],
+    ["es", "mensaje"],
+  ]) {
+    const tree = render(AskCard, { p, t: globalThis.window.askText(lang), onNav() {} });
+    assert.equal(byTestId(tree, "ask-card").props["data-kind"], "message");
+    const head = byClass(tree, "ask-card-head")[0];
+    assert.equal(textOf(byClass(head, "ask-card-kind")[0]), word, `${lang}: its word`);
+    assert.equal(find(head, (n) => n.type === "Icon").props.name, askKindGlyph("template"), "a template's mark");
+    assert.ok(textOf(head).startsWith(p.title));
+    // Every version whole, under its channel's word, in the card's said block; the summary's quotes are the model's.
+    const versions = byTestId(tree, "ask-card-versions");
+    assert.ok(versions.props.className.split(" ").includes("ask-card-said"));
+    const rows = byClass(versions, "ask-card-summary");
+    assert.deepEqual(
+      rows.map((r) => [textOf(byClass(r, "ask-card-kind")[0]), textOf(r)]),
+      said.map((s) => [s.label, `${s.label}\n${s.words}`]),
+    );
+    assert.equal(
+      byClass(tree, "ask-card-summary").some((n) => textOf(n) === p.summary),
+      false,
+      "the versions are drawn whole, never quoted twice",
+    );
+    assert.equal(textOf(byClass(tree, "ask-card-foot")[0]), follows, "when each goes and who it reaches, under them");
+  }
+  // A message card from before its versions were carried draws its summary, as every card does.
+  const bare = render(AskCard, { p: { ...p, payload: {} }, t: globalThis.window.askText("en"), onNav() {} });
+  assert.equal(textOf(byClass(bare, "ask-card-summary")[0]), p.summary);
+});
+
 test("REGRESSION (N18): every page a real workspace ships is a jump away -- 'calendar' offered only to ask about it", async () => {
   ask();
   render(Palette, OPEN);

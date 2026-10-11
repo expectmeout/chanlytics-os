@@ -127,13 +127,14 @@ export {
   PREVIEW_WORDS,
   PREVIEW_CHANNEL_WORDS,
   previewOn,
+  previewParts,
   previewSays,
   previewVersionsOf,
   reachBarParts,
   reachByWords,
   reachBarWords,
 } from "./preview-by-channel";
-export type { PreviewVersions, PreviewOn, ReachBarPart } from "./preview-by-channel";
+export type { PreviewVersions, PreviewOn, PreviewPart, ReachBarPart } from "./preview-by-channel";
 export { READY_WHATSAPP_ALONE, readyOrWhatsApp, answeredYes, personReachOf } from "./reach-any";
 export type { PersonReach } from "./reach-any";
 export { CHANNELS_DOOR, channelsStandingParts, channelsStandingWords } from "./channels-standing";

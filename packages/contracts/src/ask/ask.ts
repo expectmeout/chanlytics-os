@@ -185,7 +185,8 @@ export interface AskProposal {
     | "list"
     | "run"
     | "playbook_channels"
-    | "playbook_change";
+    | "playbook_change"
+    | "message";
   /** The lowest role that may commit it, its spec's (ask-proposals/); the route re-checks on Approve. */
   needs: ProposalNeeds;
   title: string;

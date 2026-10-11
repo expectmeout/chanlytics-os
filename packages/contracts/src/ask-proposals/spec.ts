@@ -52,9 +52,14 @@ export interface ProposalUndo {
   window: "cancelable" | "ten_minutes" | "version";
   /** What the commit keeps for the undo, from the card, the route's answer and the tab at Approve; null for none. */
   record(p: AskProposal, data: unknown, tab: ProposalTab): Record<string, unknown> | null;
-  /** The call that reverses it, from what the commit kept and what the tab holds now. */
-  call(record: Record<string, unknown>, tab: ProposalTab): ProposalCall | ProposalRefusal;
-  receipt(data: unknown): string;
+  /**
+   * The call that reverses it, from what the commit kept and what the tab holds now; or the calls, made in order and
+   * stopping at the first refused, where what the commit made is several rows each with its own door (a message's
+   * versions).
+   */
+  call(record: Record<string, unknown>, tab: ProposalTab): ProposalCall | readonly ProposalCall[] | ProposalRefusal;
+  /** What the undo did: from the last call's answer, and what the commit kept. */
+  receipt(data: unknown, record: Record<string, unknown>): string;
 }
 
 export interface ProposalSpec {
