@@ -9,7 +9,6 @@
 import { useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import {
-  DELIVERY_RECEIPTS_TIP,
   LIFECYCLE_TOAST,
   LIFECYCLE_WORDS,
   MESSAGE_GONE_WORDS,
@@ -39,11 +38,11 @@ import { MessagePreview } from "../parts/message-preview";
 import { CmLine, CmLines } from "../parts/lines";
 import { CmPane, useCmPhone } from "../parts/split";
 import { CardVia, cardViaOf, goesBySaid } from "./card-channels";
+import { CardRuns } from "./card-runs";
 import type { PlaybookCardVM, PlaybookTriggerOption, PlaybooksSurface } from "./surface";
 import { playbooks as V } from "./verbs";
 import {
   PB_NONE,
-  pbDay,
   pbFooter,
   pbIcon,
   pbLangWords,
@@ -53,7 +52,6 @@ import {
   pbReach,
   pbReachDoor,
   pbReachWords,
-  pbReplyTip,
   pbSentWhen,
   pbStatus,
   pbTitle,
@@ -67,7 +65,6 @@ export type Flash = (flash: { tone?: string; msg: ReactNode }) => void;
 type PlaybookRow = PlaybookCardVM;
 
 type Waiting = NonNullable<PlaybookCardVM["totals"]["waiting"]>;
-type History = PlaybookCardVM["totals"]["history"][number];
 
 /** What an act's verb answers: the API's own, a refusal carrying the sentence for the toast. */
 type Outcome<D> = { ok: true; data: D } | { ok: false; message: string };
@@ -465,88 +462,6 @@ function cardLines(c: CardCtx) {
   );
 }
 
-/** One run, a line that opens as itself on Sent (broadcasts/run:<id>), read by its id however old it is. */
-function historyRow(h: History) {
-  return (
-    <LinkButton
-      key={h.id}
-      className="ob-history-row"
-      onClick={() => navigate(`broadcasts/run:${h.id}`)}
-      data-testid="pb-run-open"
-    >
-      <span className="ob-history-day tabular">
-        {pbDay(h.run_for || (h.scheduled_for ? h.scheduled_for.slice(0, 10) : ""))}
-      </span>
-      <span className="ob-history-said">
-        {h.state === "sent" ? (
-          <>
-            {h.sent} sent
-            {h.held > 0 ? ` · ${h.held} held` : ""}
-            {h.replied > 0 ? ` · ${h.replied} replied` : ""}
-          </>
-        ) : h.state === "pending_approval" ? (
-          `Waiting for you · ${h.recipient_count} people`
-        ) : h.state === "sending" ? (
-          `Sending · ${h.sent} so far`
-        ) : h.state === "scheduled" ? (
-          `Scheduled · ${h.recipient_count} people`
-        ) : (
-          h.state
-        )}
-      </span>
-      <Icon name="chevron" size={11} />
-    </LinkButton>
-  );
-}
-
-/**
- * Its runs: one line of what they earned in all ("38 runs · 212 sent · 208 delivered · 41 replied", each number with its
- * tip), and the newest of them, a line each, newest first, from the same rows the totals are summed over. One run says
- * itself once, on its row, with when it ran over it (the sum and the row disagreed about which numbers to show); a
- * campaign that never ran says so in the line's place.
- */
-function cardHistory(c: CardCtx) {
-  const { p } = c;
-  const t = p.totals;
-  const runs = t.history && t.history.length > 0 ? t.history : null;
-  return (
-    <section className="ob-runs" data-testid="pb-history">
-      <p className="ob-runs-head" data-testid={t.runs > 1 ? "pb-results" : undefined}>
-        {t.runs > 1 ? (
-          <>
-            <span className="tabular">{t.runs}</span> {t.runs === 1 ? "run" : "runs"} &middot;{" "}
-            <span className="tabular">{t.sent}</span> sent &middot;{" "}
-            <span className="tabular" data-tip={DELIVERY_RECEIPTS_TIP}>
-              {t.delivered}
-            </span>{" "}
-            delivered &middot;{" "}
-            <span className="tabular" data-tip={pbReplyTip()}>
-              {t.replied}
-            </span>{" "}
-            replied
-            {t.held > 0 ? (
-              <>
-                {" "}
-                &middot; <span className="tabular">{t.held}</span> held back
-              </>
-            ) : null}
-          </>
-        ) : p.last_run_for ? (
-          <>Last ran {pbDay(p.last_run_for)}</>
-        ) : (
-          <>It has not run yet</>
-        )}
-      </p>
-      {runs ? <CmLines>{runs.map((h) => historyRow(h))}</CmLines> : null}
-      {runs && t.runs > runs.length ? (
-        <span className="ob-history-more" data-testid="pb-history-more">
-          The newest {runs.length} of {t.runs} runs
-        </span>
-      ) : null}
-    </section>
-  );
-}
-
 /** A run waiting on a person: Approve, the card's one filled act, for every role (it says who may), and Skip, which asks. */
 function cardWaitActs(c: CardCtx) {
   const { p, canAct, busy, skipSure, setSkipSure, waiting, paused, acts } = c;
@@ -701,7 +616,7 @@ function cardBody(c: CardCtx) {
       {cardWarnings(c)}
       {cardLines(c)}
       {cardWords(c)}
-      {cardHistory(c)}
+      <CardRuns p={c.p} />
     </>
   );
 }
