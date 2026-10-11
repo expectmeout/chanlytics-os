@@ -1751,7 +1751,7 @@ test("one helper says what a row's or a fold's save will tell the receptionist: 
     const kept = S.willSay({ was: base.brain, next: rules, sections: "guardrails", channel: "whatsapp" });
     assert.equal(kept.whole, tab.consequenceOf("guardrails", rules, "whatsapp").text);
     assert.equal(kept.caveat, tab.consequenceOf("guardrails", rules, "whatsapp").note);
-    assert.match(kept.caveat, /Autonomy tab/);
+    assert.match(kept.caveat, /Autonomy/);
     // A block whose lines are facts says each that comes and goes: a closed day added is one line that comes.
     const days = S.draftOf("closures", base);
     days.push({ date: "2099-07-04", note: "Independence Day" });
@@ -1798,6 +1798,7 @@ test("one helper says what a row's or a fold's save will tell the receptionist: 
       caveat: null,
       chars: null,
       total: null,
+      changed: false,
     });
     // A draft the save's own schema refuses: nothing true can be said of a save that will not go, and a block that is
     // null for THAT reason must not read as one the save takes away.
@@ -1847,7 +1848,7 @@ test("a save that crosses the resolver's line says so, whichever gesture sends i
       sections: "hours",
       channel: "whatsapp",
     });
-    assert.match(stops.note, /stops being given the details on this page/);
+    assert.match(stops.note, /stops being given your details/);
     assert.deepEqual(
       [stops.whole, stops.added, stops.removed],
       [null, null, null],
@@ -1864,7 +1865,7 @@ test("a save that crosses the resolver's line says so, whichever gesture sends i
       sections: "hours",
       channel: "whatsapp",
     });
-    assert.match(starts.note, /starts being given the details on this page/);
+    assert.match(starts.note, /starts being given your details/);
     assert.equal(starts.added, linesOf(starts.whole).join("\n"), "every line of the block is new");
   } finally {
     delete W.__SETTINGS;
@@ -1976,7 +1977,7 @@ test("the two caps the write schema keeps are in LIMITS, once, and a day with mo
 
 test("a block whose lines are runs says nothing goes unless the whole block goes: a changed Friday takes no Monday with it", () => {
   // The quality review's probe. The hours block's lines are run-collapsed ("Monday–Thursday: 09:30–18:00"). Changing
-  // only Friday's close re-cut the runs, and "It will no longer be told" listed "Monday–Thursday: 09:30–18:00", a line
+  // only Friday's close re-cut the runs, and "No longer told" listed "Monday–Thursday: 09:30–18:00", a line
   // about days that were unchanged. Which sections say their lines in runs is one table's (RUN_BLOCKS), never an
   // `if (fold === "hours")` in the page.
   try {

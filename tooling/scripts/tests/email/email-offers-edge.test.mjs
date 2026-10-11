@@ -553,6 +553,11 @@ test("the owner is told once when a gate pauses their offers by email: a row on 
     "the news is held with the offers (D2)",
   );
   assert.match(row.body, /everything on WhatsApp go on/);
+  assert.match(
+    row.body,
+    /a broadcast or a campaign that goes only by email stops/,
+    "a campaign to its owner (decision 19)",
+  );
   // The mail: to the address the workspace keeps for its notices, the same subject and words.
   const sent = mailed.filter((m) => m.url.includes("api.resend.com/emails"));
   assert.equal(sent.length, 1, "one mail");

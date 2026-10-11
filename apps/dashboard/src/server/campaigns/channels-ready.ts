@@ -9,10 +9,11 @@ import {
   parseTenantConfig,
   standingFromConfig,
 } from "@chanlytics/contracts";
-import { getTenantConfig, mailboxOfTenant, textLineFacts, whatsappChannelFacts, workspacePaused } from "@chanlytics/db";
+import { mailboxOfTenant, textLineFacts, whatsappChannelFacts, workspacePaused } from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
 import { emailWire } from "../connections/email-readiness";
 import { log } from "../log";
+import { configRowOf } from "../workspace/config-row";
 
 /**
  * Whether this workspace can send a campaign on each channel now (One message, every channel, step 3; contracts
@@ -53,7 +54,7 @@ export async function channelsReadyOf(
   let configUnread = false;
   const config =
     domain === true && offers === true
-      ? await getTenantConfig(ctx.supabase, tenantId).catch(() => {
+      ? await configRowOf(ctx.supabase, tenantId).catch(() => {
           configUnread = true;
           return null;
         })

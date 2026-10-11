@@ -225,8 +225,8 @@ export interface ReplyPorts extends Pick<
   queue(row: QueuedReply): Promise<string>;
   /** The send job, due after the grace window; throws when it could not be scheduled. */
   schedule(tenantId: TenantId, dueAt: Date, payload: SendPayload): Promise<void>;
-  /** A queued row with no job to send it, canceled so it never sits "Sending…" forever. */
-  cancelOrphan(messageId: string): Promise<void>;
+  /** A queued row with no job to send it, withdrawn so it never sits "Sending…" forever. */
+  cancelOrphan(tenantId: TenantId, messageId: string): Promise<void>;
   /**
    * The receipt kept under the key, written only onto the row that still carries this caller's stamp: true iff it
    * does, false when another caller took the key over since. Throws when the write itself could not be made; where
@@ -632,7 +632,7 @@ async function queueReply(
   } catch (e) {
     // Never leave an orphan queued row that silently never sends -- nor one a
     // taken-over caller wrote, which must not.
-    await ports.cancelOrphan(message_id);
+    await ports.cancelOrphan(conv.tenant_id, message_id);
     throw e;
   }
   return { receipt, templateName: template?.name ?? null };

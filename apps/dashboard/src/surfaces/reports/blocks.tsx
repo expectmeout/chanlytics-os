@@ -11,7 +11,6 @@ import {
   BOOKED_NEEDS_A_LINK,
   CALENDAR_SETTING_ROUTE,
   bookedTileOf,
-  metricWordsOf,
   plural,
   type BookingReportVM,
   type CampaignSourceVM,
@@ -19,6 +18,7 @@ import {
   type ReportStripTile,
   type ReportVM,
 } from "@chanlytics/contracts";
+import { metricWordsOf } from "@chanlytics/contracts/report-lens";
 import { listRoute, openBookingTool, routeDoor } from "../legacy-verbs";
 import { titleOf } from "../campaigns/templates/verbs";
 import { EmptyState, FailedRead } from "../kit/empty/empty";
@@ -28,24 +28,32 @@ import { LinkButton } from "../kit/link-button/link-button";
 import { RadialChart } from "../kit/charts/radial";
 import { Tooltip } from "../kit/tooltip/tooltip";
 
-/** A section of the page under its title, with a line of what it holds beside it where it has one. */
+/**
+ * A section of the page under its title, with a line of what it holds beside it where it has one. `bare` keeps the title
+ * for a screen reader (the section's label) and draws none: a lens's one section named what its tab already says
+ * ("Your customers" under People), which Ruben had taken out (9 Oct 2026).
+ */
 export function RptSection({
   title,
   meta = null,
   testid = null,
+  bare = false,
   children,
 }: {
   title: string;
   meta?: string | null;
   testid?: string | null;
+  bare?: boolean;
   children?: ReactNode;
 }) {
   return (
     <section className="rpt-section" aria-label={title} data-testid={testid || undefined}>
-      <header className="rpt-section-head">
-        <h2 className="rpt-section-title">{title}</h2>
-        {meta && <span className="rpt-section-meta">{meta}</span>}
-      </header>
+      {!bare && (
+        <header className="rpt-section-head">
+          <h2 className="rpt-section-title">{title}</h2>
+          {meta && <span className="rpt-section-meta">{meta}</span>}
+        </header>
+      )}
       {children}
     </section>
   );
@@ -161,7 +169,9 @@ export function RptFacts({ facts }: { facts: ReportFactVM[] }) {
 /**
  * A tile as the kit's figure: its value, the period before in counts beside it, its line under it, and over its label the
  * words for what it counts (contracts metricWordsOf), named by its metric. Every strip of the page draws its tiles with it,
- * so a figure says the same on every lens; the grid, the dividers and the padding are the page's.
+ * so a figure says the same on every lens; the grid, the dividers and the padding are the page's. A tile that names a work
+ * page (`door`) opens it from its number, a ratio of too few (`n` under `minN`) is greyed and says how few, and a tile that
+ * says what needs you or what failed (`tone`) has its number read in amber or red, as the kit's figure draws each.
  */
 export function RptFigure({ t }: { t: ReportStripTile }) {
   return (
@@ -173,7 +183,34 @@ export function RptFigure({ t }: { t: ReportStripTile }) {
       change={t.compare}
       meta={t.meta}
       definition={metricWordsOf(t.metric)}
+      n={t.n}
+      minN={t.minN}
+      tone={t.tone}
+      door={t.door ? routeDoor(t.door) : undefined}
     />
+  );
+}
+
+/**
+ * A strip of figures: the page's list of terms, each tile the kit's figure (RptFigure); the grid, the dividers and the padding
+ * are the page's (reports.css, `.rpt-figures`), and `className` places the strip among the lens's other cards. `testid` names
+ * the strip for the tests that find it.
+ */
+export function RptStrip({
+  tiles,
+  className,
+  testid,
+}: {
+  tiles: ReportStripTile[];
+  className?: string;
+  testid?: string;
+}) {
+  return (
+    <dl className={className ? `rpt-figures ${className}` : "rpt-figures"} data-testid={testid}>
+      {tiles.map((t) => (
+        <RptFigure key={t.id} t={t} />
+      ))}
+    </dl>
   );
 }
 
@@ -185,13 +222,7 @@ export function RptTiles({ vm, booking }: { vm: ReportVM; booking: BookingReport
   const tiles = [by.messages, by.calls, by.people, bookedTileOf(booking), by.needed].filter(
     (t): t is ReportStripTile => !!t,
   );
-  return (
-    <dl className="rpt-figures" data-testid="reports-tiles">
-      {tiles.map((t) => (
-        <RptFigure key={t.id} t={t} />
-      ))}
-    </dl>
-  );
+  return <RptStrip tiles={tiles} testid="reports-tiles" />;
 }
 
 /** Who asked and still has no time on the calendar: the share's other side, and the door to People's own list of them. */
@@ -280,7 +311,7 @@ function sourceRow(s: CampaignSourceVM) {
 // the row's door, to the playbook's card or the broadcast's own page.
 export function RptSources({ rows }: { rows: CampaignSourceVM[] }) {
   if (!rows.length)
-    return <EmptyState kind="line" title="No broadcast or playbook run reached anyone in this period." />;
+    return <EmptyState kind="line" title="No broadcast or campaign run reached anyone in this period." />;
   return (
     <div className="ck-table-wrap rpt-sources">
       <table className="ck-table">

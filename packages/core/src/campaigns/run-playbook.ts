@@ -34,7 +34,15 @@ import {
 import { assembleRun } from "./assemble";
 import { allowanceRecord, pastTheMonth } from "./allowance";
 import { parseChannels } from "./message-channels";
-import type { PlaybookRow, RunBy, RunContext, RunOutcome, RunPlaybookCommand, RunPlaybookPorts } from "./ports";
+import type {
+  AssembleDecision,
+  PlaybookRow,
+  RunBy,
+  RunContext,
+  RunOutcome,
+  RunPlaybookCommand,
+  RunPlaybookPorts,
+} from "./ports";
 
 type Skipped = Extract<RunOutcome, { outcome: "off" }>["skipped"];
 
@@ -280,39 +288,44 @@ function touchEnrolled(r: Run, goesAt: Date, eligible: readonly PersonRowVM[], h
 }
 
 /**
- * A run is made: the ledger, and the bell. A run that sends is on the ledger as whose decision it was (the system's
- * under the mode the owner chose; a person's when they asked for it). One that waits for a person tells them. And one
- * the sweep made under veto, which goes by itself, tells them when: "unless you stop it" is kept only for someone who
- * is told, and until this nobody was unless Campaigns happened to be open.
+ * Whose decision a run that sends is, written with the run (00381): the system's under the mode the owner chose; a
+ * person's when they asked for it. None for a run that waits for a person: their approval is its decision.
  */
-async function sayTheRun(
-  run: Run,
-  made: { madeId: string; n: number; at: Date | null; movedFrom: string | null },
-): Promise<void> {
-  const { ports, p, ctx, by, mode, channels } = run;
-  const { n, at } = made;
-  if (!at) {
-    await ports.notify(
-      `Playbook “${p.name}” is ready: ${n} ${n === 1 ? "person" : "people"}`,
-      `${n} ${n === 1 ? "person has" : "people have"} become eligible for “${p.name}”. Approve or skip the run on Today or in Campaigns. Nothing is sent until you do.`,
-      made.madeId,
-    );
-    return;
-  }
-  await ports.decide({
-    broadcastId: made.madeId,
+function decisionOf(run: Run, send: { n: number; at: Date; movedFrom: string | null }): AssembleDecision {
+  const { p, by, mode, channels } = run;
+  return {
     by,
     payload: {
       playbook_id: p.id,
       playbook: p.name,
       mode,
-      recipients: n,
+      recipients: send.n,
       channels: [...channels],
-      scheduled_for: at.toISOString(),
+      scheduled_for: send.at.toISOString(),
       run_now: by.kind === "user",
-      ...(made.movedFrom ? { moved_from: made.movedFrom } : {}),
+      ...(send.movedFrom ? { moved_from: send.movedFrom } : {}),
     },
-  });
+  };
+}
+
+/**
+ * A run is made: the bell. One that waits for a person tells them. And one the sweep made under veto, which goes by
+ * itself, tells them when: "unless you stop it" is kept only for someone who is told, and until this nobody was unless
+ * Campaigns happened to be open. A run that sends is on the ledger already, written with the run (decisionOf).
+ */
+async function sayTheRun(run: Run, made: { madeId: string; n: number; at: Date | null }): Promise<void> {
+  const { ports, p, ctx, by, mode } = run;
+  const { n, at } = made;
+  if (!at) {
+    await ports.notify(
+      // A person reads "campaign", never "playbook" (decision 19): Today's away card finds the queue's run in this title,
+      // and reads the old word too (contracts today-away.ts), since the bell keeps rows written before.
+      `Campaign “${p.name}” is ready: ${n} ${n === 1 ? "person" : "people"}`,
+      `${n} ${n === 1 ? "person has" : "people have"} become eligible for “${p.name}”. Approve or skip the run on Today or in Campaigns. Nothing is sent until you do.`,
+      made.madeId,
+    );
+    return;
+  }
   if (mode === "veto" && by.kind !== "user") {
     // With its day: a run made past the day's hours goes at nine tomorrow, and "9:00 AM" alone reads as already gone.
     const told = vetoRunNotice(p.name, n, clockWhen(at.getTime(), ctx.tz, ctx.now.getTime()));
@@ -438,11 +451,14 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
     })),
     sendAt: open ? open.at : null,
     held: past.held,
+    // The ledger's line, in the run's own write: a run that sends says whose decision it was; one that waits says nothing
+    // until a person approves it.
+    decision: open ? decisionOf(run, { n, at: open.at, movedFrom }) : null,
   });
   if (!made.ok) return { outcome: "failed", error: made.error };
   touchEnrolled(run, goesAt, eligible, past.held);
 
-  await sayTheRun(run, { madeId: made.id, n, at: open ? open.at : null, movedFrom });
+  await sayTheRun(run, { madeId: made.id, n, at: open ? open.at : null });
   await record({
     mode,
     eligible: n,

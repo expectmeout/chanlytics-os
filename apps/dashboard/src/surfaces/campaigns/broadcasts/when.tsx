@@ -6,7 +6,7 @@
  * kit's date picker and the time the kit's picker of the sending hours in quarter hours. It was the browser's own
  * `datetime-local` box, which drew in the system's colours and let a person type any minute of any day.
  */
-import { DAY_MS, MIN_MS, SEND_WHEN_WORDS } from "@chanlytics/contracts";
+import { DAY_MS, MIN_MS, SEND_WHEN_WORDS, sendsWaitWords } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
 import { Button } from "../../kit/button/button";
 import { DatePicker } from "../../kit/datepicker/datepicker";
@@ -166,7 +166,7 @@ export function bcWhenNote(at: number | null, maxDays: number): WhenNote {
   const open = C.nextOpen(at);
   if (open.at > now + maxDays * DAY_MS) return { ok: false, tone: "warn", words: `Pick a time within ${maxDays} days` };
   return open.moved
-    ? { ok: true, tone: "", words: `Goes out ${C.when(open.at)}, ${city} time — sends wait for ${C.hours.range}` }
+    ? { ok: true, tone: "", words: `Goes out ${C.when(open.at)}, ${city} time — ${sendsWaitWords(C.hours)}` }
     : { ok: true, tone: "", words: `Goes out ${C.when(at)}, ${city} time` };
 }
 
@@ -176,6 +176,6 @@ export function bcNowNote(): string {
   const C = pageClock();
   const open = C.nextOpen(Date.now());
   return open.moved
-    ? `Send now goes out ${C.when(open.at)}, ${C.city()} time — sends wait for ${C.hours.range}`
+    ? `Send now goes out ${C.when(open.at)}, ${C.city()} time — ${sendsWaitWords(C.hours)}`
     : `Send now goes out as soon as you press it, ${C.city()} time`;
 }

@@ -39,7 +39,7 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Chanlytics OS",
+  title: "Chanlytics",
   description: "The business workspace where AI agents do the work and you make the calls.",
   // The installable shell: a manifest, the icons a phone wants, and the
   // full-screen mode Safari reads from here rather than from the manifest.
@@ -52,8 +52,18 @@ export const metadata: Metadata = {
   // reads on it, in either theme. iOS reads this when the app is added to the home screen, so an app added before
   // keeps the old layout until it is removed and added again; the frame still keeps the bar's room for those
   // (components.css, .app-root).
+  //
+  // The tab's icon is the three on nothing: it sits on the browser's own strip, light or dark, so it brings no ground
+  // of its own, and only the shadows the tiles cast on each other are kept. The home-screen icon is the three on white
+  // (Ruben, 9 Oct 2026); iOS rounds the square itself and paints black wherever it is transparent, so it is opaque.
   manifest: "/manifest.webmanifest",
-  icons: { icon: "/icons/icon-192.png", apple: "/icons/apple-touch-icon.png" },
+  icons: {
+    icon: [
+      { url: "/icons/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icons/favicon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: "/icons/apple-touch-icon.png",
+  },
   appleWebApp: { capable: true, statusBarStyle: "default", title: "Chanlytics" },
 };
 

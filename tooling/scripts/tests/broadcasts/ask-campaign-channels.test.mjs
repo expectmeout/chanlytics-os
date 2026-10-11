@@ -683,7 +683,35 @@ test("campaigns with action playbooks says the channels each playbook goes by no
       ],
     }),
     {},
-    { people_list: () => PEOPLE },
+    {
+      people_list: () => PEOPLE,
+      // Campaigns' 30 days (00329 campaign_series, as GET reports/campaigns?period=30d reads it): one source for the
+      // visit reminder, none for the other. Any other window is not the ledger's, and answers nothing.
+      campaign_series: (a) =>
+        a.p_days === 30 && !a.p_end
+          ? {
+              timezone: TZ,
+              days: 30,
+              span_days: 60,
+              today: "2026-09-14",
+              series: [],
+              sources: [
+                {
+                  id: VISIT_PB,
+                  kind: "playbook",
+                  name: "Visit reminder",
+                  template_name: "visit_reminder",
+                  runs: 4,
+                  sent: 40,
+                  delivered: 38,
+                  read: 0,
+                  replied: 6,
+                  last_at: null,
+                },
+              ],
+            }
+          : null,
+    },
   );
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
   const out = await runTool(t, { name: "campaigns", input: { action: "playbooks" } });
@@ -694,6 +722,17 @@ test("campaigns with action playbooks says the channels each playbook goes by no
     "Visit reminder": ["whatsapp"],
     "Reminder by all three": ["whatsapp", "sms", "email"],
   });
+  // What each says it earned is its last 30 days, as its row on Campaigns says them (the moment spec, A6; D35), never
+  // all-time totals; and the read names Campaigns, never outbound.
+  const read = JSON.parse(out.result);
+  assert.equal(read.route, "campaigns", "Campaigns' own word, never outbound");
+  const days = Object.fromEntries(read.playbooks.map((p) => [p.name, p.last_30_days]));
+  assert.deepEqual(days, {
+    "Visit reminder": { sent: 40, replied: 6 },
+    "Reminder by all three": { sent: 0, replied: 0 },
+  });
+  for (const p of read.playbooks)
+    for (const k of ["runs", "sent", "replied"]) assert.equal(k in p, false, `no all-time ${k}`);
 });
 
 test("a proposal follow-up by WhatsApp and email: it answers their own request, so email carries it; a channel not ready yet stays on it, and the card says its runs hold those people", async () => {
@@ -990,10 +1029,17 @@ test("a moment's starter is found among the messages the composers offer: one wh
   assert.equal(found.isError, false, found.result);
   assert.equal(found.proposal.payload.template_id, "ffffffff-ffff-4fff-8fff-ffffffffff21", "the message's anchor");
   endsWith(found, "Says: By email: “We miss you” — Hi Dani, from the business.");
-  // With no version of it in hand the workspace holds no starter, and says so.
+  // With no version of it in hand the workspace holds no starter: the card adds it at its Approve (the moment spec's A0),
+  // named by its key and with no message (tooling/scripts/tests/playbooks/ask-setup/starter-card.test.mjs).
+  const onStarter = (r) => [
+    r.isError,
+    r.proposal?.payload.starter_key,
+    r.proposal && "template_id" in r.proposal.payload,
+  ];
   const none = await propose({ ...quiet, channels: ["email"] }, { templates: [] });
-  assert.match(said(none), /starter has no version this workspace can send yet/);
-  // A WhatsApp version this product cannot put on the wire whole holds nothing: a starter filed only so is not held.
+  assert.deepEqual(onStarter(none), [false, starter, false], none.result);
+  // A WhatsApp version this product cannot put on the wire whole holds nothing: a starter filed only so is not held, and
+  // the card adds the starter's email version.
   const picture = template("dddddddd-dddd-4ddd-8ddd-ddddddddddd5", starter, {
     components: [
       { type: "HEADER", format: "IMAGE" },
@@ -1001,8 +1047,8 @@ test("a moment's starter is found among the messages the composers offer: one wh
     ],
   });
   const blocked = await propose({ ...quiet, channels: ["email"] }, { templates: [picture] });
-  assert.match(said(blocked), /starter has no version this workspace can send yet/);
-  // The one the workspace hid is not held, whichever channel its version is on.
+  assert.deepEqual(onStarter(blocked), [false, starter, false], blocked.result);
+  // The one the workspace hid is not held, whichever channel its version is on, and no card adds it back.
   const hidden = await propose(
     { ...quiet, channels: ["email"] },
     {
@@ -1010,7 +1056,12 @@ test("a moment's starter is found among the messages the composers offer: one wh
       templates: [{ ...world.templates[0], hidden_at: ago(DAY) }],
     },
   );
-  assert.match(said(hidden), /starter has no version this workspace can send yet/);
+  // Said as hidden, not as having no version: it has one, and adding the starter set would leave it hidden.
+  assert.match(
+    said(hidden),
+    /starter is hidden in this workspace's Library: show it again under Campaigns › Library, or name another message\./,
+  );
+  assert.doesNotMatch(said(hidden), /no version|starter set/);
 });
 
 test("a hidden message is refused a playbook, and a message whose WhatsApp row is pending is refused for WhatsApp, in WhatsApp's own standing", async () => {
@@ -1082,9 +1133,11 @@ test("a WhatsApp version in review is no longer lost to Ask: its message is list
   assert.equal(found.isError, false, found.result);
   assert.equal(found.proposal.payload.template_id, WAITING, "the message's anchor, whichever of its rows is held");
   endsWith(found, "Says: By email: “We miss you” — Hi Dani, from the business.");
-  // With its WhatsApp row in review alone, no version of the starter can be sent: not held, as before.
+  // With its WhatsApp row in review alone, no version of the starter can be sent: not held, as before, and the card adds
+  // the starter's email version at its Approve (A0).
   const alone = await propose(quiet, { templates: [waiting] });
-  assert.match(said(alone), /starter has no version this workspace can send yet/);
+  assert.equal(alone.isError, false, alone.result);
+  assert.equal(alone.proposal.payload.starter_key, starter);
 });
 
 test("Ask is told what a message is: a name with a version on each channel it is written for, sent on the channels it holds; its tools say to propose by the `channels` the listing gives, and none says one approved WhatsApp template", async () => {

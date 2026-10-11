@@ -109,7 +109,7 @@ export async function changeSavedList(ctx: RouteContext, req: Request, list: Sav
       if (on.length)
         throw new AppError(
           "conflict",
-          `${on.map((p) => p.name).join(", ")} runs on ${list.name}, and a playbook's run has no one looking: a rule about "me" would stop it. Move the playbook first.`,
+          `${on.map((p) => p.name).join(", ")} runs on ${list.name}, and a campaign's run has no one looking: a rule about "me" would stop it. Move the campaign first.`,
           409,
         );
     }
@@ -194,7 +194,7 @@ export async function removeSavedList(ctx: RouteContext, list: SavedListRow) {
   if (error) {
     // A playbook put on it between the read above and this delete: 00169's reference refuses the delete.
     if (error.code === "23503")
-      throw new AppError("conflict", "A playbook was just put on this list. Delete it again to archive it.", 409);
+      throw new AppError("conflict", "A campaign was just put on this list. Delete it again to archive it.", 409);
     throw new Error(error.message);
   }
   if (!count) throw new AppError("not_found", "List not found.", 404);

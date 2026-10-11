@@ -44,7 +44,7 @@ The plan's contract (its §2.1), with what the build holds of each today.
 | The tokens | `apps/dashboard/src/legacy/styles/tokens.css`: the scales on `:root`; each theme's colours and shadows on `[data-theme="light"]` and `[data-theme="dark"]`; the roles on `:root, [data-theme]`, which are Classic; Glass's two blocks after them |
 | The kit's rules | `apps/dashboard/src/surfaces/kit/kit.css`, reading a role where a look sets the value (a surface, a control, an action), and otherwise a scale or the theme's colour; one breakpoint, 900px. Four primitives stand in it twice until Phase 4 takes the house's out: `.avatar` and `.face`, `.rec-sheet` and `.sheet`, and the surfaces of `.rec-card-tip` and `.confirm-block` beside `.panel-pop` and `.panel-inset`. Its header says what belongs there |
 | Its registry | `apps/dashboard/src/surfaces/kit/classes.json`: the kit's class names (the house's own, no prefix) and, apart, the modifiers its rules name (`.active`, `.show`). The measures read it |
-| Its components | `Button`, `LinkButton`, `Panel`, `Face`, `ListRow`, `Meter`, `Figure`, `MonthRange` (a period's days on a month, in the date picker's folder), and those with behaviour of their own, on Base UI: `Sheet`, `Menu`, `Popover`, `DatePicker`, `Select`, `Combobox`, `Tooltip`, `useToast`, `Switch`, `Segmented`, `Field` (Behaviour: Base UI, below): a folder each, `apps/dashboard/src/surfaces/kit/<family>/`, holding the component and its type test, named in `apps/dashboard/src/surfaces/kit/index.ts`; `cx` and `variants` in `apps/dashboard/src/surfaces/kit/variants.ts`, and what a press is in `apps/dashboard/src/surfaces/kit/press.tsx`, at the kit's root |
+| Its components | `Button`, `LinkButton`, `Panel`, `Face`, `ListRow`, `Meter`, `Figure`, `DayRangePicker` (a range of days picked on a month, in the date picker's folder), and those with behaviour of their own, on Base UI: `Sheet`, `Menu`, `Popover`, `DatePicker`, `Select`, `Combobox`, `Tooltip`, `useToast`, `Switch`, `Segmented`, `Field` (Behaviour: Base UI, below): a folder each, `apps/dashboard/src/surfaces/kit/<family>/`, holding the component and its type test, named in `apps/dashboard/src/surfaces/kit/index.ts`; `cx` and `variants` in `apps/dashboard/src/surfaces/kit/variants.ts`, and what a press is in `apps/dashboard/src/surfaces/kit/press.tsx`, at the kit's root |
 | The house's components over its classes | `StatePill`, `MoreMenu` and `usePPToast` in `apps/dashboard/src/legacy/components/data-bits.jsx`: JSX, which a surface cannot import. (`SurfaceTabs` is the frame's adapter over the kit's `ViewTabs`, `apps/dashboard/src/surfaces/kit/view-tabs/`, which a surface imports.) `Confirm`, `FieldError`, `EmptyState`, `FailedRead`, the record kit (`apps/dashboard/src/surfaces/kit/record/`) and `Icon` are the kit's own TSX, which the pages that have not moved read by name (`apps/dashboard/src/surfaces/kit/kit-globals.ts`). (Draw with the kit, step 2) |
 | The gallery | `tooling/scripts/e2e-harness/kit-gallery.mjs`: `node tooling/scripts/e2e-harness/server.mjs 3210 kit`, then http://localhost:3210/ (`t` turns the theme, `l` the look), and the page that runs the Base UI components at http://localhost:3210/behaves (`tooling/scripts/e2e-harness/kit-behaves-entries.tsx`); `docs/runbook.md`, "See the kit" |
 | Its checks | `e2e/kit/kit.spec.ts` and `e2e/kit/kit-behaves.spec.ts` in a browser; `tooling/scripts/tests/styles/kit-*.test.mjs` in `corepack pnpm test` |
@@ -165,12 +165,12 @@ A new token says, in a comment beside it, what it is for.
 | `tooling/scripts/tests/styles/kit-behaves.test.mjs` | the running page and the gallery's families on Base UI parting (an entry on one side alone); a switch, a segmented control or a field drawn on a server otherwise than its entry; a second React, or another Base UI, in the page's bundle |
 | `tooling/scripts/tests/styles/kit-base-ui.test.mjs` | Base UI pinned with a caret or a tag, or at a version the install did not make; a licence not MIT, a peer range without the dashboard's React, or an install script anywhere in what it brings |
 | the Base UI lint (`eslint.config.mjs`, `BASE_UI_INDEX`) | Base UI's index (`@base-ui/react`) imported, or re-exported, anywhere in the dashboard: each component imports its own part |
-| `corepack pnpm check:bundle` (CI, after the build) | the workspace route's JS or CSS, or a page's own JS, past its budget by more than its allowance in bytes, or a change adding more than 512 bytes without raising its budget by them (held against main's own build). A component with behaviour of its own is JS, so it is this alone that turns red when a page first draws one: the raise is the author's, in that change, by the bytes the job summary prints |
+| `corepack pnpm check:bundle` (CI, after the build) | a change that grows the workspace route's JS or CSS past 1 KB, or a page's own JS past 2 KB, against main's own build, with no line `Bundle: <why>` in its pull request's description; and any build over a ceiling, which no pull request crosses. A component with behaviour of its own is JS, so it is this that asks why when a page first draws one: the reason is the author's, in that pull request |
 
-A fall is banked with `UPDATE_BASELINES=1 corepack pnpm test`, which rewrites the register's numbers too, and the
-bundle's with `corepack pnpm check:bundle -- --update` after a dashboard build. A rise is raised with
-`UPDATE_BASELINES=raise corepack pnpm test` (the bundle's with `corepack pnpm check:bundle -- --raise js=<bytes> <page>=<bytes>`, no build needed) in the same
-change as its row under "Rises" in `docs/debt.md`, argued in the pull request. The one style prop the kit keeps, a
+A fall is banked with `UPDATE_BASELINES=1 corepack pnpm test`, which rewrites the register's numbers too. A rise is
+raised with `UPDATE_BASELINES=raise corepack pnpm test` in the same change as its row under "Rises" in `docs/debt.md`,
+argued in the pull request. What a workspace loads keeps no number in the repository but its ceilings: a growth past
+its line is argued in the pull request's description alone (`Bundle: <why>`). The one style prop the kit keeps, a
 meter part's share, is argued there.
 
 ## One shape per job
@@ -307,6 +307,6 @@ The canonical one to copy is `apps/dashboard/src/surfaces/kit/menu/menu.tsx` wit
 5. **The browser test.** In `e2e/kit/kit-behaves.spec.ts`: how a person brings each state to that entry, and what a
    keyboard and a pointer do (Escape, Tab, the arrows, the typeahead), held against a fault planted in the page.
 6. **Run** the build, typecheck, lint and test, then both specs (`corepack pnpm e2e:local -- e2e/kit/kit-behaves.spec.ts
-   --scenario=kit`, and the same for `e2e/kit/kit.spec.ts`), and show them in the pull request. The route's JS budget does
-   not move until a page draws the component, and then it is raised in that change (`check:bundle -- --raise
-   js=<bytes> <page>=<bytes>`, by the growth CI's summary prints).
+   --scenario=kit`, and the same for `e2e/kit/kit.spec.ts`), and show them in the pull request. What a page loads does
+   not move until a page draws the component; that change says why in its description (`Bundle: <why>`) where CI's
+   summary shows it past its line.

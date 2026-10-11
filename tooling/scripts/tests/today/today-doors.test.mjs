@@ -488,6 +488,48 @@ test("the card once it answers: Setup's own rows, WhatsApp first, and Hide puts 
   }
 });
 
+test("after the first run, with the calendar in, the card carries one door to the appointment reminder; without one it carries none", () => {
+  const answering = {
+    business: {
+      name: "Harbor Moving",
+      hours: true,
+      services: 2,
+      bookingLink: true,
+      address: true,
+      handoff: null,
+      broken: false,
+    },
+    channels: {
+      whatsapp: { present: false, active: false, number: null, quality: null, lastInboundAt: null },
+      voice: { present: true, active: true, number: "+13055550123", lastInboundAt: "2026-09-07T14:00:00Z" },
+    },
+  };
+  try {
+    feedSetup(setupSurface(answering));
+    const none = mountSetup();
+    assert.ok(
+      find(none, (n) => n.props?.["data-testid"] === "today-setup"),
+      "the card is drawn",
+    );
+    assert.equal(
+      find(none, (n) => n.props?.["data-testid"] === "today-setup-remind"),
+      undefined,
+      "no calendar: no reminder to offer",
+    );
+    feedSetup(setupSurface({ ...answering, calendar: { state: "ok" } }));
+    const card = mountSetup();
+    const line = find(card, (n) => n.props?.["data-testid"] === "today-setup-remind");
+    assert.ok(line, "the reminder's line, under the card's rows");
+    assert.ok(textOf(line).startsWith("Your calendar is in. Remind each customer the day before?"));
+    const remind = find(card, (n) => n.props?.["data-testid"] === "today-setup-remind-go");
+    assert.ok(remind, "one door to the appointment reminder");
+    assert.match(String(remind.props.href), /campaigns\/new:moment:visit_tomorrow$/);
+    assert.equal(textOf(remind), "Turn on");
+  } finally {
+    feedSetup(undefined);
+  }
+});
+
 test("the card draws nothing before Setup is read, nor once its read failed -- the seam holds undefined, then null", () => {
   for (const held of [undefined, null]) {
     feedSetup(held);

@@ -693,7 +693,7 @@ test("offers on WhatsApp from a US number are held while Meta's pause holds: the
   const US_PAUSED = us.whatsapp.offers?.why;
   assert.match(
     US_PAUSED,
-    /^Meta isn't delivering marketing messages on WhatsApp to US numbers right now \(paused since April 2025\)\. Appointment messages and replies on WhatsApp are unaffected\.$/,
+    /^Meta has paused offers on WhatsApp to US numbers\. Appointment messages and replies still go\.$/,
   );
   assert.deepEqual(us.whatsapp, { ready: true, why: null, offers: { ok: false, why: US_PAUSED, paused: null } });
   assert.equal(channelRefuses("whatsapp", "marketing", "ours", us), US_PAUSED);
@@ -742,15 +742,12 @@ test("offers on WhatsApp from a US number are held while Meta's pause holds: the
   const emailOnly = offersNote(usOpen);
   assert.match(
     emailOnly,
-    /^Offers and news go by email only for now\. Meta isn't delivering marketing messages on WhatsApp to US numbers/,
+    /^Offers and news go by email only for now\. Meta has paused offers on WhatsApp to US numbers/,
   );
   assert.match(emailOnly, /nothing promotional is sent by text/);
   assert.match(emailOnly, /by email if you have their address/);
   const none = offersNote(us);
-  assert.match(
-    none,
-    /^Offers and news have no channel right now\. Meta isn't delivering marketing messages on WhatsApp to US numbers/,
-  );
+  assert.match(none, /^Offers and news have no channel right now\. Meta has paused offers on WhatsApp to US numbers/);
   assert.match(none, /offers by email wait until email is set up for them\.$/);
   // The note leads with WhatsApp exactly where the WhatsApp tick is open for an offer: the ticks' own question, not a second reading.
   for (const ready of [us, usOpen, uk, READY, READY_OPEN])

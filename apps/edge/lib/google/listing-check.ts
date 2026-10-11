@@ -8,7 +8,7 @@ import { emitEvent } from "../packages/db.js";
 import { planListingCheck, publicFetcher, type PlaceDetails } from "../packages/channels.js";
 import { bookingPageKept, lensRoute, listingFactsOf, localDate, HOUR_MS } from "../packages/contracts.js";
 import { siteBookingPage } from "./booking-page.js";
-import { recordNotification } from "../ops/notify.js";
+import { keepAndPush } from "../ops/notify.js";
 import { logger } from "../log.js";
 import { readAllRows } from "../paged.js";
 import { placesKey } from "./google-config.js";
@@ -121,8 +121,9 @@ export async function checkListing(
     );
     if (reviews.error) throw new Error(reviews.error.message);
   }
+  // A new review reaches the phones too (decision 0040).
   for (const b of plan.bells) {
-    await recordNotification(row.tenant_id, {
+    await keepAndPush(row.tenant_id, {
       kind: "review",
       title: b.title,
       body: b.body,

@@ -18,7 +18,7 @@ test.describe("Installable shell, no session", () => {
     expect(m.status()).toBe(200);
     expect(m.headers()["content-type"]).toContain("manifest");
     const json = await m.json();
-    expect(json.name).toBe("Chanlytics OS");
+    expect(json.name).toBe("Chanlytics");
     expect(json.display).toBe("standalone");
     expect(json.icons.some((i: { purpose?: string }) => i.purpose === "maskable")).toBe(true);
     const sw = await request.get("/sw.js", { maxRedirects: 0 });
@@ -294,11 +294,13 @@ test.describe("Phone shell on a real workspace", () => {
   });
 
   /**
-   * Campaigns' home on a phone: the moments stand down a line (the phone's rail, one under another), the tiles are one column,
-   * every control is inside the screen, and New message, the page's act, is whole on the first screen. Its composer, in a
-   * sheet from the bottom, holds nothing past the edge either.
+   * Campaigns' home on a phone (decision 16 of the spec of 9 October 2026): the moments are the one list's spine, each
+   * moment's head on the line, one under another, its campaigns under it; the tiles are one column; every control is
+   * inside the screen; and New message, the page's act, is whole on the first screen. Its composer, in a sheet from the
+   * bottom, holds nothing past the edge either. Read-only: nothing here is pressed but New message, and its sheet is left
+   * unsaved.
    */
-  test("Campaigns: every control on the home is inside the screen, the moments stand down a line, and the page opens on the work", async ({
+  test("Campaigns: every control on the home is inside the screen, the moments' heads stand down a line with their campaigns under them, and the page opens on the work", async ({
     page,
   }) => {
     await page.goto("/#/campaigns");
@@ -307,27 +309,39 @@ test.describe("Phone shell on a real workspace", () => {
     await expect(home).toBeVisible();
     await expect(home).toHaveAttribute("data-phone", "true");
     await expect(page.getByTestId("cmh-new")).toBeInViewport({ ratio: 1 });
-    // One moment under another: each stage's top is below the one before it.
-    const stages = home.getByTestId("cmh-stage");
-    expect(await stages.count()).toBeGreaterThanOrEqual(4);
-    const tops = await stages.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().top));
+    // Heads on the line: each moment's head is below the one before it, never two on one line. The journey holds four
+    // moments, or five where deals are on (contracts journeyOf): how many is playbooks.spec's, read from the answer.
+    const heads = home.locator('[data-testid="cmh-group-head"][data-stage]');
+    expect(await heads.count()).toBeGreaterThanOrEqual(4);
+    const tops = await heads.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().top));
     expect(tops, "the moments stand one under another").toEqual([...tops].sort((a, b) => a - b));
     expect(new Set(tops.map(Math.round)).size, "no two moments on one line").toBe(tops.length);
-    // Who can hear you is a line in the moments' head (8 Oct 2026; it was a tile of its own over them), so the moments
-    // are the first tile on the page: nothing of the page's own stands above their tile.
+    // Rows under them: every campaign of a group stands below its group's head.
+    const underTheirHeads = await home.getByTestId("cmh-group").evaluateAll((groups) =>
+      groups.every((g) => {
+        const head = g.querySelector('[data-testid="cmh-group-head"]');
+        if (!head) return false;
+        const foot = head.getBoundingClientRect().bottom;
+        return [...g.querySelectorAll('[data-testid="cmh-row"]')].every(
+          (r) => r.getBoundingClientRect().top >= foot - 1,
+        );
+      }),
+    );
+    expect(underTheirHeads, "each group's campaigns stand under its head").toBe(true);
+    // Who can hear you is one line in the moments' head, inside their pane: nothing of the page's own stands above it.
     const rail = home.getByTestId("cmh-rail");
     await expect(rail.getByTestId("cmh-reach")).toBeVisible();
     await expect(home.getByTestId("cmh-reach")).toHaveCount(1);
+    await expect(home.getByTestId("cmh-also")).toHaveCount(0);
     const railTop = (await rail.boundingBox())?.y ?? 0;
-    for (const id of ["cmh-also", "cmh-coming", "cmh-results"]) {
+    for (const id of ["cmh-coming", "cmh-results"]) {
       const box = await home.getByTestId(id).first().boundingBox();
       if (box) expect(box.y, `${id} stands under the moments`).toBeGreaterThan(railTop);
     }
-    // The marks a moment goes by (8 Oct 2026): on a phone each keeps its word beside its dot (a dot alone said which
-    // channel by its colour), inside the screen, and the whole still says itself to a screen reader. Which moments
-    // carry marks is playbooks.spec's, against the API.
+    // The marks a campaign goes by (8 Oct 2026): on a phone each keeps its word beside its dot, inside the screen, and
+    // the whole says itself to a screen reader. Which campaigns carry marks is playbooks.spec's, against the API.
     const width = page.viewportSize()?.width ?? 0;
-    const marks = stages.getByTestId("cmh-chans");
+    const marks = home.getByTestId("cmh-row").locator(".cmh-chans");
     for (let i = 0; i < (await marks.count()); i++) {
       const m = marks.nth(i);
       await expect(m).toHaveAttribute("aria-label", /Goes by |waits?\b/);
@@ -446,21 +460,18 @@ test.describe("Phone shell on a real workspace", () => {
     await expect(sheet).toHaveCount(0);
     await page.waitForTimeout(400);
     await expect(page.locator(".ui-tip.show")).toHaveCount(0);
-    // Add a person: a sheet whose one button is on the screen.
-    await bar.getByRole("button", { name: "More" }).click();
-    // The menu is the kit's (Base UI), which opens a beat after the press: what it holds is read once it is open.
-    await expect(page.getByRole("menu")).toBeVisible();
-    const add = page.getByRole("menuitem", { name: "Add a person" });
+    // Add people: the page's act opens a sheet whose Save is on the screen.
+    const add = page.getByTestId("add-people");
     test.skip((await add.count()) === 0, "this member cannot add people");
     await add.click();
-    await expect(page.getByTestId("add-person-sheet")).toBeVisible();
-    await expect(page.getByTestId("add-person-save")).toBeInViewport({ ratio: 1 });
-    await page.getByTestId("add-person-sheet-close").click();
-    await expect(page.getByTestId("add-person-sheet")).toHaveCount(0);
+    await expect(page.getByTestId("people-add-sheet")).toBeVisible();
+    await expect(page.getByTestId("rec-sheet-save-people-add")).toBeInViewport({ ratio: 1 });
+    await page.getByTestId("people-add-sheet").locator(".rec-sheet-close").click();
+    await expect(page.getByTestId("people-add-sheet")).toHaveCount(0);
   });
   /**
    * A sheet stands on the keyboard (25 Sep). A phone lays its keyboard over the page and keeps the layout's height, so
-   * Add a person's Save sat under the keys. The shell says what the keyboard covers as --kb (data-bits watchKeyboard;
+   * Add people's Save sat under the keys. The shell says what the keyboard covers as --kb (data-bits watchKeyboard;
    * keyboard-inset.test.mjs proves the measure); here a keyboard 300px tall is said as the phone would say it, and the
    * sheet stands on it, whole, with its Save above the keys, and goes back down when the keyboard goes.
    */
@@ -469,13 +480,11 @@ test.describe("Phone shell on a real workspace", () => {
     await page.waitForLoadState("networkidle");
     const said = () => page.evaluate(() => document.documentElement.style.getPropertyValue("--kb"));
     expect(await said(), "the shell measures it, and no keyboard is up").toBe("0px");
-    await page.getByTestId("people-phone-bar").getByRole("button", { name: "More" }).click();
-    // The menu is the kit's (Base UI), which opens a beat after the press: what it holds is read once it is open.
-    await expect(page.getByRole("menu")).toBeVisible();
-    const add = page.getByRole("menuitem", { name: "Add a person" });
+    // Add people, the page's act, opens its sheet (Ruben, 10 Oct 2026: it was a ⋯'s item).
+    const add = page.getByTestId("add-people");
     test.skip((await add.count()) === 0, "this member cannot add people");
     await add.click();
-    const sheet = page.getByTestId("add-person-sheet");
+    const sheet = page.getByTestId("people-add-sheet");
     await expect(sheet).toBeVisible();
     const tall = page.viewportSize()!.height;
     const foot = async () => {
@@ -487,7 +496,7 @@ test.describe("Phone shell on a real workspace", () => {
     await page.evaluate((kb) => document.documentElement.style.setProperty("--kb", `${kb}px`), keys);
     await expect.poll(foot, { message: "standing on the keys" }).toBe(tall - keys);
     expect((await sheet.boundingBox())!.y, "its top on the screen").toBeGreaterThanOrEqual(0);
-    const save = (await page.getByTestId("add-person-save").boundingBox())!;
+    const save = (await page.getByTestId("rec-sheet-save-people-add").boundingBox())!;
     expect(save.y + save.height, "Save above the keys").toBeLessThanOrEqual(tall - keys);
     await page.evaluate(() => document.documentElement.style.setProperty("--kb", "0px"));
     await expect.poll(foot, { message: "back down when the keyboard goes" }).toBe(tall);
@@ -499,13 +508,11 @@ test.describe("Phone shell on a real workspace", () => {
   test("a sheet pulled down from its handle past a third closes", async ({ page }) => {
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
-    await page.getByTestId("people-phone-bar").getByRole("button", { name: "More" }).click();
-    // The menu is the kit's (Base UI), which opens a beat after the press: what it holds is read once it is open.
-    await expect(page.getByRole("menu")).toBeVisible();
-    const add = page.getByRole("menuitem", { name: "Add a person" });
+    // Add people, the page's act, opens its sheet (Ruben, 10 Oct 2026: it was a ⋯'s item).
+    const add = page.getByTestId("add-people");
     test.skip((await add.count()) === 0, "this member cannot add people");
     await add.click();
-    const sheet = page.getByTestId("add-person-sheet");
+    const sheet = page.getByTestId("people-add-sheet");
     await expect(sheet).toBeVisible();
     const b = (await sheet.boundingBox())!;
     await pullDown(page, b.x + b.width / 2, b.y + 10, b.height * 0.6);
@@ -815,8 +822,8 @@ test.describe("Phone shell on a real workspace", () => {
   });
 
   /**
-   * Reports' period stands over what scrolls (25 Sep): it is the head's act now, a round button beside the strip of lenses
-   * (6 Oct), outside the page's one scroller, and only the charts scroll, edge to edge.
+   * Reports' date range stands over what scrolls (25 Sep): it is the head's act now, a capsule beside the strip of lenses
+   * that says what the page is on (6 and 9 Oct), outside the page's one scroller, and only the charts scroll, edge to edge.
    */
   test("Reports' period stands over the charts, and only they scroll", async ({ page }) => {
     await page.goto("/#/reports");
@@ -847,7 +854,7 @@ test.describe("Phone shell on a real workspace", () => {
     expect(shape.scrolls, "the period stands over what scrolls").toBe(false);
     expect(shape.still, "and holds its place as the charts scroll").toBe(0);
     expect(shape.edge, "the charts scroll edge to edge").toEqual([0, 0]);
-    expect(shape.beside, "a round button beside the strip of lenses, on its line").toBe(true);
+    expect(shape.beside, "a capsule beside the strip of lenses, on its line").toBe(true);
   });
 
   /**

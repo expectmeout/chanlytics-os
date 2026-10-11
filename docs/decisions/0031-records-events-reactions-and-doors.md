@@ -6,7 +6,8 @@ clocks ratchet that holds invariant 6 (`tooling/scripts/tests/clocks/_clocks.mjs
 shows invariant 1 (`tooling/scripts/tests/baselines/writers.json`); of Phase 2, 0034's door with every writer on it and
 its doubt queue (00342 and 00344, 7 October 2026); the rest is not yet built: this note is the frame, and each step below is a note of its own,
 three of them decided with it (0032, 0033, 0034), and "Where it stands" below says, phase by phase and invariant by
-invariant, what is built and what is not. Proposed the same day from the wiring map of 5 October (the trace of
+invariant, what is built and what is not, and its entry of 9 October 2026 what that day's review against production
+moved. Proposed the same day from the wiring map of 5 October (the trace of
 how the Inbox, Campaigns, People, the Calendar and Setup reach each other, and a second review of it answered point by
 point). Written against commit `b9a4d5c` (main, 5 October 2026) and verified against the code at it, and read again at
 `6a8e85f` (main, 6 October 2026), since which 0028's merge door (00326) and the message-status notice (00327) are in the
@@ -216,11 +217,133 @@ acknowledged (`apps/edge/lib/whatsapp/answer-later.ts`). Unset, which is the def
 Meta's request as its reviewed contract says; the switch is how the road is tried on one workspace's traffic before
 that contract is changed for all.
 
+**9 October 2026**, a review of the frame against main at `d1bb65961` and against production, read only, after
+#1471 (00346 to 00348) and the merges of 7 and 8 October (00349 to 00359), all of which production holds (its head
+is 00359). Three readings were taken, each by a reviewer who had not built what it read: the spine and the clocks,
+the write paths and the patterns, and the road from a branch to production; the sharpest claims were read again in
+the code before they were kept.
+
+_What production says._ Six workspaces, four with any message in thirty days: about 140 messages and 76 calls. The
+spine has one subscription, `message.received` to `audit`, whose subscriber does nothing; of some 140 event kinds, four
+are written in the same transaction as their record (`message.received`, `call.recorded`, `appointment.changed`,
+`contact.consent_changed`) and about eighty TypeScript sites write theirs apart, best-effort, after the fact.
+`inbound_answer` has carried no production text yet (the four texts since 7 October arrived before its deploy), and
+the WhatsApp switch is unset. `resolve_person` writes a `person.resolved` for every call, so the hourly calendar sweep
+writes about 830 a week that say nothing changed, the largest kind by far. Every clock under pg_cron ran on time.
+
+_What it found, in the order it matters._ Two records are still written and then recorded: `assemble_broadcast`
+writes the run and its job, and the decision is a second write (`packages/core/src/campaigns/create-broadcast.ts`);
+a decision that fails answers 500 and lets the idempotency key go, so the next press is a second run to the whole
+audience, and the reach-out chain's save has the same shape. A member's take-over and hand-back are four to six writes
+on two clients (`packages/core/src/conversations/take-over.ts`, `hand-back.ts`); one that fails between them leaves
+the person's hold on the thread for up to a day while the Inbox shows it open, and the send door refuses every draft
+meanwhile. A provider's STOP is written to the person and its `contact.consent_changed` written apart, best-effort,
+while `consent_channels` is derived from that event. A subscription's change writes the account and the workspace's
+status apart (`apps/edge/lib/billing/billing.ts`). A failed `event_deliver` is told on the customer's bell, and one
+whose event was purged is counted nowhere. "May an automated message go" is two gates (voice's
+`outbound-gate.ts`, text's `reply-gates.ts`), and cancelling a queued message is written in five places. The 10-second
+clock that ends a hold scans `conversations`, whose `control_until` has no index. And the road: production is compared
+with main by version alone, so a 00346 of another name read as the same; migrations were applied by hand before their
+merge; a merge went in before its checks finished; nothing checks production after a deploy; a change to the one send
+door runs almost no tests, since selection follows folders.
+
+_What changes in the order._ The frame stands; its next steps move. Before any new mechanism, every record that is
+still written and then recorded takes a door, as 00353, 00356 and 00357 began: the broadcast and the reach-out chain with
+their decisions, the take-over and the hand-back whole, a provider's STOP with its event, a subscription's change with
+the workspace's status; a failed delivery is the platform's to hear, not the customer's; the hold's clock reads an
+index; and the sweep's no-change `person.resolved` is written no more. Then the road, since the week's two incidents
+were the road's: every push to production held first to production's ledger by name as well as version, whoever
+pushes; a migration the new code calls applied from its branch just before the merge, and the rest by a workflow a
+person starts from main once both apps serve the commit; the compare by name; a smoke after each production deploy; a
+merge only once its checks pass, which is a setting of Ruben's. Phase 2's remaining items are re-ranked behind those: receipts as events still wait on a reader;
+the reminder as a due row waits on the playbooks note. Phase 3's first real subscriber is the escalation's notice to
+the owner, not receipts: it has the widest coupling (fifteen sites in `packages/core/src/inbound`, the voice webhook,
+the email receipts), and today the owner's mail is sent inside Meta's and Retell's requests; its precondition is
+`escalation.opened` written in a door. An `appointment.*` subscriber that runs `reach_out_booked` closes the
+booking-email gap, since that door runs only from the hourly calendar sweep. Of the spine, what has no caller waits
+rather than grows: `aggregate_version` and `causation_id` until a projector, `job_capacity` until the reach-out's
+sends are jobs, the three per-kind dedupe indexes beside `jobs_dedupe_live` until one is shown to serve a read; one of
+the two re-drive paths (`event_deliveries_redrive`, the back office's `requeueFailedJob`) goes; and a paused
+subscription, which drops its events against 0032's decision 4, is settled one way. Phase 5 waits on Phase 4's
+numbers, as before. The staging project of Phase 0 stands beside the road, not in its place: the road keeps
+production's ledger honest, and staging is where a migration and a deploy are tried before production sees either.
+
+_Ruben's._ The merge settings (`enforce_admins`, branches kept up to date: both weighed against the Actions minutes in
+`docs/runbook.md`); the Environment's three secrets for the apply workflow; whether a paused subscription holds or drops; which workspace tries the
+WhatsApp switch; the alarm path the numbers of invariant 12 will ring.
+
+**10 October 2026**, the sweep and the road brought onto main at `c368115b4` and reviewed once, each branch by a reader
+who had not written it. The doors are 00381 to 00386, renumbered above main's 00371 and #1533's 00372: the run and
+the chain with their decisions (00381), the billing row and the switch (00382), a provider's STOP (00383), the
+resolution recorded on a change (00384), the hold's index (00385, built concurrently, alone in its file), the take-over
+and the hand-back (00386). The review changed six things: `resolve_person` is 00367's body with only its ledger row
+gated (copied from 00346, it would have undone 00367's rule for a number written with its +); the take-over withdraws
+only a draft no run has claimed (`sending_at` null, as 00362 and #1527's pause do: as a definer it reads past the row
+policy); `billing_apply` locks the row before it lays the columns over it (read from a second scan, a stamp waiting
+behind a reading wrote the older status back) and keeps #1527's guard that only the row's own customer is forgotten;
+the run's door refuses an actor who is not a member of the workspace; `team_decision` drops an undo link to another
+workspace's line instead of failing the write on the same-workspace key; and a failed delivery pages once per
+subscriber. The road changed as well: GitHub offers a private repository of a personal account no Environment with a
+required reviewer, so `migrate.yml` on a push would have applied each migration unasked the moment it merged; it is
+started by hand, after main's own checks and both deploys, and the before-merge path from a branch stays, held to the
+same check. Main's push does not run the node tests again (the pull request ran them, and the minutes cannot pay
+twice); the smoke runs on the edge's deployment, whose `ref` is the commit's sha, never `main`. Production's ledger,
+read by name that day, holds no clash. Invariant 11, every model turn a record, is decision 0039's, built beside this
+note and not yet on main.
+
+The same day, on the same branch, the items the 9 October review left: a queued message is withdrawn by one door
+(`withdraw_queued` and the member's doors over it, 00387), so the nine places that cancelled a send each in its own way
+call it; one predicate says whether an automated message may go (`unattendedHold`, core), the receptionist's reply and
+the outbound gate asking it in one order and failing closed; an escalation is opened with its event (`escalation_open`,
+00388), the hold refused with an event the ledger refused; the spine's first subscriber that acts (00389): an
+appointment's change writes `appointment.changed` in its own transaction, and `reach_out_booked` books the lead a
+reach-out wrote to however the booking arrived; a paused subscription keeps what it would have been handed (00390), a
+re-drive replaying it, and that re-drive is a delivery's one way back: the back office's requeue hands a delivery's job
+to it rather than running a second beside a row it would leave failed. Invariant 10's registry names 187 of its 195 columns (0036 step 3, 00391), and 0035's client
+keys the workspace's other writes. Invariant 2 is held in part: the doors-without-events baseline is built (sixty-eight
+doors writing seventy-seven tables, `baselines/doors-without-events.json`), and each door the day built has its event
+proved on a real database; the conformance test across every door is not.
+
+**10 October 2026, what was Ruben's,** settled the same evening on his word ("review and go with the best suggestions
+for chanlytics"), each as recommended:
+
+- **A paused subscription holds.** It keeps what it would have been handed, and a re-drive replays it (0032's decision
+  4, built in 00390); it never drops.
+- **Every promise has a number with a target** (invariant 12), set against production's own month and held beside each
+  number's words (contracts `PLATFORM_NUMBERS`), with a test that every column the rollup keeps is named
+  (`platform/every-number-names-a-target.test.mjs`) and a page the morning after a day past one
+  (`apps/edge/lib/ops/day-watch.ts`, `numbers_past_target`). The targets, at the 95th percentile where the number is
+  one:
+
+  | Number                             | Target                                                    | Paged |
+  | ---------------------------------- | --------------------------------------------------------- | ----- |
+  | The model's answer, `brain_p95_ms` | 10 s                                                      | yes   |
+  | A job's wait, `job_lag_ms`         | a reply 10 s, a waiting person 30 s, bulk 5 min           | yes   |
+  | Relay lag, `relay_lag_ms`          | 15 s                                                      | yes   |
+  | Intake lag, `intake_lag_ms`        | 1 min, each provider                                      | yes   |
+  | Duplicate sends                    | none                                                      | yes   |
+  | Dead letters                       | none, each kind                                           | yes   |
+  | First answer, `first_answer_ms`    | 30 s on a text channel, 15 min by email, whoever answered | no    |
+
+  The first answer is the workspace's wait, a person's answer in it, so it is shown against its target and not paged.
+  The rest are counts, named as counts. Hold and override rates wait on invariant 11's records (0039).
+
+- **The notes before each step an owner or a customer meets:** the owner hears of a hold from its event (0043); a
+  moment, a pause and a snooze are due rows (0044); a person's fields and their answers each have one door (0045);
+  0002's five questions answered in place; and what is left of this note in three lanes, with Ruben's switches beside
+  them (0046). The erasure registry's three questions are answered in 0036 and built (00392).
+- **Corrections to "Where it stands":** invariant 9 is held in part, not unbegun (`capabilityStatus`, read by Setup, the
+  Business tab and the activation route); and the doors-without-events baseline reads a trigger on a table a door writes
+  as that door's event, so a table whose trigger writes events for some changes alone (`contacts`) shows its writers as
+  evented: the measure understates there, and 0045's doors are read from their bodies.
+
+How many phases are left: three lanes (0046), with Phase 0's four switches beside them.
+
 ## Tests
 
 The invariants' holds, each a baseline under `tooling/scripts/tests/baselines/` that may only fall, in
-`docs/debt.md`'s register: event-shaped clocks (ten on 5 October 2026); doors that write a tenant table with no event
-test; subscribers with no double-delivery test; personal columns with no erasure strategy; tables with more than one
+`docs/debt.md`'s register: event-shaped clocks (ten on 5 October 2026); doors that write a record with no event (built
+10 October 2026); subscribers with no double-delivery test; personal columns with no erasure strategy; tables with more than one
 writer. Each arrives with the note that builds its mechanism.
 
 ## Risks

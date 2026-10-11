@@ -7,7 +7,7 @@ conventions and applies inside that tree.
 
 ## What this is
 
-Chanlytics OS is a multi-tenant, omnichannel AI receptionist and lead engine
+Chanlytics is a multi-tenant, omnichannel AI receptionist and lead engine
 for any business that turns a conversation into a booked appointment. A
 customer writes on WhatsApp, texts, phones or emails; the receptionist answers
 from the business's own facts and hands over what it should not decide; a team
@@ -38,11 +38,12 @@ corepack pnpm -r typecheck
 corepack pnpm lint                            # ESLint, warnings held per file and rule; -- --update banks a fall, -- --raise a rise
 corepack pnpm format                          # Prettier over the tree; the pre-commit hook does this for staged files
 corepack pnpm test                            # the node suite, in UTC (~20 min; run the files a change touches instead, one per command: node tooling/scripts/checks/test.mjs <file>), and what it ran of the code held at a floor; database suites skip without credentials
-TEST_TZ=Pacific/Auckland corepack pnpm test   # the same suite with the clock twelve hours east: CI's second leg (PowerShell: $env:TEST_TZ='Pacific/Auckland'). CI runs both legs only on a pull request labelled `suite`, or by hand (Ruben, 1 Oct 2026); every other pull request runs the tests of what it changed (tooling/scripts/checks/changed-tests.mjs), and the nightly the whole suite
+TEST_TZ=Pacific/Auckland corepack pnpm test   # the same suite with the clock twelve hours east: CI's second leg (PowerShell: $env:TEST_TZ='Pacific/Auckland'). CI runs both legs only on a pull request labelled `suite`, or by hand (Ruben, 1 Oct 2026); every other pull request runs the tests of what it changed (tooling/scripts/checks/changed-tests.mjs), never the whole suite (Ruben, 10 Oct 2026: a push is through CI in under ten minutes), and the nightly the whole suite
 UPDATE_BASELINES=1 corepack pnpm test         # the same, banking every ratchet's reduction, and nothing else (docs/debt.md)
 UPDATE_BASELINES=raise corepack pnpm test     # the same, raising a number that rose: argued under "Rises" in docs/debt.md
 corepack pnpm check:dead-exports              # knip against a baseline that may only fall; -- --update banks a fall, -- --raise a rise
-corepack pnpm check:bundle                    # after a dashboard build: the route's JS and CSS and each page's own JS, gzipped bytes, against its budget and ceiling (CI holds each change to what it adds against main's own build); -- --update banks a fall, -- --raise js=<bytes> <page>=<bytes> a rise by the growth argued, both with CI's numbers and no build
+corepack pnpm check:bundle                    # after a dashboard build: the route's JS and CSS and each page's own JS, gzipped bytes, against the ceilings; CI holds each change to what it adds against main's own build, and growth past its line (route 1 KB, a page 2 KB) passes when the PR's description has a line `Bundle: <why>`; nothing in the repository changes for it
+corepack pnpm check:local                     # before a push, on a committed branch holding all of origin/main: what CI's lint, hygiene and tests jobs and its typecheck run (the tests of what the branch changes), then an empty commit "Checked locally" whose line names the tree; pushed while main has not moved past it, CI skips those and runs the build and bundle alone (tooling/scripts/checks/checked-locally.mjs)
 corepack pnpm check:style-equality -- record <file> --against <file>   # a change that must move nothing on screen, recorded and compared (docs/runbook.md)
 corepack pnpm test:db                         # the database suites, against a running Supabase stack
 node tooling/scripts/checks/smoke.mjs --edge <edge-host> --dashboard <dashboard-host> --sha <merge-sha>  # after a deploy: the edge's /api/health and the dashboard's /api/version answer with the sha (docs/runbook.md, Deploy); one host alone exits 1, since the dashboard's /api/health is behind sign-in
@@ -88,6 +89,11 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
   palette in `charts.css` is counted, and kept), and may only fall. `inline-styles.json` counts the `style` props in
   the shell's markup, and may only fall too. A page stylesheet with its layout alone is the plan's Phase 4 target, and
   no test holds it yet.
+- **Every page says what it opens on.** A page's first reads are named in
+  `packages/contracts/src/shell/route-prefetch.ts` (`PREFETCH_READS`), started from the document's head and taken by the
+  page's own read, and a surface read only where it is drawn is read as its page is reached for. `tooling/scripts/tests/shell/surfaces/route-prefetch.test.mjs` runs
+  each page's surfaces against the list and fails a page with no entry. `docs/architecture.md`, "How a page opens",
+  says the five things a new page takes.
 - **Storage says tenant, everything a person or the API sees says workspace.** Never both in one layer.
 - **Names follow `docs/naming.md`.** Storage keeps its words, the wire is snake_case, every closed set is
   declared once. The tests it names hold it, and it marks the ones still owed.
@@ -118,7 +124,7 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
   not one of `tokens.css`'s breakpoints; lint warnings; a type size, radius, shadow, colour or blur a stylesheet writes
   instead of reading a token; a button, chip, tab, card, sheet, field or face class of a page's own;
   a `style` prop (`docs/plans/2026-09-28-the-interface-kit-and-its-looks.md`). A new offender is a red
-  build. `UPDATE_BASELINES=1` banks only what fell (knip, the lint and the bundle budget: their
+  build. `UPDATE_BASELINES=1` banks only what fell (knip's and the lint's: their
   `--update`); a number that must rise is raised with `UPDATE_BASELINES=raise` (theirs: `--raise`) in
   the same diff as its row under "Rises" in `docs/debt.md`, with the reason in the pull request. Where
   a tree's functions are all under the limits, the limits are lint errors (`LIMITED_TREES` in
@@ -259,8 +265,8 @@ listed there with its date and the program it waits on.
 
 ## Before you open a pull request
 
-`corepack pnpm --filter "./packages/*" build && corepack pnpm -r typecheck && corepack pnpm lint && corepack pnpm test`
-must all pass, `git status` must show no dist drift, and the pull request must say what changes
+`corepack pnpm check:local` must pass (the packages' build and no dist drift, typecheck, lint, dead exports, formatting, the
+audit and licences, the tests of what the branch changes; never the whole suite on a laptop), and the pull request must say what changes
 for a customer, what to set or apply before merging (usually nothing), and which deploy order
 it needs (usually either).
 

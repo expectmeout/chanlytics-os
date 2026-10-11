@@ -11,7 +11,8 @@ import { IDS_PER_READ } from "../people";
 type Db = SupabaseClient<Database>;
 
 /**
- * The active WhatsApp number: its config (its quality, limit and standing, as Meta last said them) and the number itself (E.164:
+ * The active WhatsApp number (the oldest, where a workspace holds two: the one a send goes from when nothing says which
+ * its person wrote to): its config (its quality, limit and standing, as Meta last said them) and the number itself (E.164:
  * offers on it are judged by Meta's pause on marketing messages to US numbers, contracts whatsapp-offers.ts), or null with
  * none. Throws on a failed read.
  */
@@ -25,6 +26,7 @@ export async function whatsappChannelFacts(
     .eq("tenant_id", tenantId)
     .eq("kind", "whatsapp")
     .eq("status", "active")
+    .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(`whatsapp_channel_config: ${error.message}`);
@@ -106,6 +108,96 @@ export async function playbookForChannels(
     .limit(1);
   if (waiting.error) throw new Error(`playbook_for_channels: ${waiting.error.message}`);
   return { ...data, run_waits: (waiting.data ?? []).length > 0 };
+}
+
+type PlaybookRowOf = Database["public"]["Tables"]["playbooks"]["Row"];
+
+/**
+ * One playbook as a change in place is judged against it (core checkPlaybookPatch; Ask's change card, PUT
+ * playbooks/:id's patch): its row under the caller's RLS, and the run of it that waits for approval, with how many it is
+ * for, which a pause leaves waiting (D8). Null where the workspace has no such playbook. A reach-out's root is one too:
+ * its sheet's Pause is a change of its state. Throws on a failed read.
+ */
+export async function playbookForChange(
+  db: Db,
+  tenantId: string,
+  playbookId: string,
+): Promise<
+  | (Pick<
+      PlaybookRowOf,
+      | "id"
+      | "name"
+      | "trigger"
+      | "state"
+      | "policy_class"
+      | "run_hour"
+      | "cap_per_run"
+      | "gap_days"
+      | "cadence_days"
+      | "list_id"
+      | "list_key"
+    > & { waiting: { id: string; recipient_count: number } | null })
+  | null
+> {
+  const { data, error } = await db
+    .from("playbooks")
+    .select("id, name, trigger, state, policy_class, run_hour, cap_per_run, gap_days, cadence_days, list_id, list_key")
+    .eq("tenant_id", tenantId)
+    .eq("id", playbookId)
+    .maybeSingle();
+  if (error) throw new Error(`playbook_for_change: ${error.message}`);
+  if (!data) return null;
+  const waiting = await db
+    .from("broadcasts")
+    .select("id, recipient_count")
+    .eq("tenant_id", tenantId)
+    .eq("playbook_id", playbookId)
+    .eq("state", "pending_approval")
+    .limit(1);
+  if (waiting.error) throw new Error(`playbook_for_change: ${waiting.error.message}`);
+  const [w] = waiting.data ?? [];
+  return { ...data, waiting: w ? { id: w.id, recipient_count: w.recipient_count } : null };
+}
+
+/**
+ * The running playbooks of a workspace on one moment, list and message (the moment spec, D9): a second "set up my
+ * campaigns" proposed a twin win-back, which the week's breath then left reaching nobody. Each by its id and name. Throws
+ * on a failed read.
+ */
+export async function runningTwins(
+  db: Db,
+  tenantId: string,
+  on: { trigger: string; listId: string | null; listKey: string | null; templateId: string },
+): Promise<{ id: string; name: string }[]> {
+  const { data, error } = await db
+    .from("playbooks")
+    .select("id, name, list_id, list_key")
+    .eq("tenant_id", tenantId)
+    .eq("state", "running")
+    .eq("trigger", on.trigger)
+    .eq("template_id", on.templateId);
+  if (error) throw new Error(`running_twins: ${error.message}`);
+  // The same list, or none on both: a moment's playbooks name no list, a list's name exactly one of the two.
+  return (data ?? [])
+    .filter((p) => (p.list_id ?? null) === on.listId && (p.list_key ?? null) === on.listKey)
+    .map((p) => ({ id: p.id, name: p.name }));
+}
+
+/**
+ * Whether this workspace already has a playbook on the proposal follow-up's moment (`trigger`), in any state: what the
+ * database's one-follow-up index (00167 playbooks_one_follow_up) holds a workspace to one of, read before a second is
+ * proposed (Ask's card) or a starter is filed for one (POST playbooks), so the index is the last word and never the first.
+ * Under the caller's row security. Throws on a failed read.
+ */
+export async function followUpOnFile(db: Db, tenantId: string, trigger: string): Promise<boolean> {
+  const { data, error } = await db
+    .from("playbooks")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("trigger", trigger)
+    .limit(1);
+  if (error) throw new Error(`follow_up_on_file: ${error.message}`);
+  return (data ?? []).length > 0;
 }
 
 /**

@@ -1,5 +1,5 @@
 /**
- * A receptionist's turn, as it is kept (decision 0039; model_turns, 00359): what the model read beside its system
+ * A receptionist's turn, as it is kept (decision 0039; model_turns, 00401): what the model read beside its system
  * prompt, and what it answered before layer two replaced any of it. The prompt's own text is kept once, under its hash
  * (model_prompts), so a turn is its prompt's hash and these two records, and reading it again needs nothing that has
  * changed since.

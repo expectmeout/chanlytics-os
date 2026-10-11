@@ -98,13 +98,21 @@ interface CallStart {
    * on purpose -- so there is nothing to hold and nothing to collide with.
    */
   conversationId: string | null;
-  /** Whose workspace the call belongs to, when it routed. */
+  /**
+   * Whose workspace the call belongs to, as soon as it routed: whatever the reads after the routing make of it. The door
+   * keeps the delivery under it and proves a test of "keep my number" with it (inbound-call.ts), and a caller who
+   * withheld their number, or whose memory could not be read, is no less this workspace's call. It was set only beside
+   * a memory that read, so those calls were kept under no workspace and their forwarding never proven.
+   */
   tenantId: string | null;
 }
 
 interface CallStartInput {
   agentId: string | undefined;
-  /** The caller's number as Retell sends it, with or without the "+"; "" when withheld. */
+  /**
+   * The caller's number as Retell sends it, "" when withheld. Read whole, "+" and all: the "+" is the country code, and
+   * stripped before the number was read, a ten-digit number from elsewhere was read as an American one.
+   */
   from: string;
   /** null when this deployment has no database: nothing can be routed, and nobody is paged for it. */
   db: Db | null;
@@ -117,8 +125,7 @@ interface CallStartInput {
 export async function planCallStart(o: CallStartInput): Promise<CallStart> {
   const now = o.now ?? new Date();
   const calendar = o.calendar ?? { openings: openingsFor, visits: visitsFor };
-  const digits = o.from.replace(/^\+/, "");
-  const phone = digits ? normalizePhone(digits) : null;
+  const phone = normalizePhone(o.from);
 
   let facts: FactsOutcome = "unreadable";
   let memory: MemoryOutcome = "none";
@@ -155,6 +162,7 @@ export async function planCallStart(o: CallStartInput): Promise<CallStart> {
         facts = "unrouted";
         alert = true;
       } else {
+        tenantId = routed.tenantId;
         // Both reads at once. Retell gives this webhook ten seconds before it
         // gives up on the call, and two round trips in series is how a slow
         // day turns into a dropped one. Settled, not all: the memory is read
@@ -228,7 +236,6 @@ export async function planCallStart(o: CallStartInput): Promise<CallStart> {
           }
           context = parts.join("\n");
           conversationId = lead.conversationId;
-          tenantId = routed.tenantId;
           // Said last, once the whole of it is built: a memory that threw
           // halfway is told as none, never as half.
           memory = lead.contactId ? "known" : "new";

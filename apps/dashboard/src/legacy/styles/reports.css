@@ -86,13 +86,15 @@
 .rpt-fact-row:focus-visible, .rpt-src:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .rpt-dates { font-size: var(--text-sm); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 .rpt-failed { font-size: 12px; color: var(--warn-ink); }
-/* The period: the page's act at the right of the strip of lenses (period-picker.tsx), a round button that opens it, with the
+/* The period: the page's act at the right of the strip of lenses (period-picker.tsx), a capsule that opens it, with the
    days it covers before it on a desk. */
 .rpt-period { display: flex; align-items: center; justify-content: flex-end; gap: 12px; min-width: 0; }
-/* The button is the Calendar's options button (calendar.css .cal-options): a glass circle the strip's height with its glyph
-   in the muted ink, the picked fill while it is open. It was the kit's outlined button, which the touch floor drew 36px
-   wide and 44 tall beside a strip of another glass (Ruben, 7 Oct 2026). */
-.rpt-period > .rpt-when-open { flex: none; width: var(--control-h-lg); height: var(--control-h-lg); padding: 0; border: 0; border-radius: var(--radius-circle); background: var(--surface-control-fill); box-shadow: var(--surface-control-depth); color: var(--ink-muted); }
+/* The button is the Calendar's options button (calendar.css .cal-options): a glass capsule the strip's height with its glyph
+   and the period it is on, "30 days" or "Month", in the muted ink, the picked fill while it is open (Ruben, 9 Oct 2026: the
+   bare glyph said nothing of what it held). It was the kit's outlined button, which the touch floor drew 36px wide and 44
+   tall beside a strip of another glass (Ruben, 7 Oct 2026). It keeps one width whichever word it says, the width the
+   frame holds for it before it is drawn (components.css `--rpt-when-w`), so the strip beside it never moves as it lands. */
+.rpt-period > .rpt-when-open { flex: none; gap: var(--space-2); min-width: var(--rpt-when-w, 6.5rem); height: var(--control-h-lg); padding: 0 var(--space-4) 0 var(--space-3); border: 0; border-radius: var(--radius-full); background: var(--surface-control-fill); box-shadow: var(--surface-control-depth); font-size: var(--text-base); font-weight: var(--weight-medium); color: var(--ink-muted); }
 .rpt-period > .rpt-when-open[aria-expanded="true"] { background: var(--selected-fill); color: var(--ink); }
 /* The picked fill under a pointer that hovers, and only there: a touch screen keeps :hover on the last thing tapped, so
    the button closed by a second tap wore the picked fill until something else was tapped, and a swipe across the page
@@ -102,10 +104,35 @@
 }
 /* 44px on a phone, where the strip beside it is 44 (kit.css), and under a thumb wherever it stands. */
 @media (max-width: 900px), (pointer: coarse) {
-  .rpt-period > .rpt-when-open { width: 44px; height: 44px; }
+  .rpt-period > .rpt-when-open { height: 44px; }
 }
-/* What it opens: the days in words, the four periods, then the month, at the width seven days need. */
-.rpt-when { display: grid; gap: 14px; width: 312px; max-width: calc(100vw - 24px); }
+/* Where the row has no room for the word it is the glyph's circle, as the Calendar's options are: the room is the row's
+   own (the frame's head says it, components.css `rpt-head`), not a guess from the screen's width. Strips to 44 either
+   side of it (a phone 360 wide is 336 across) say their word; a narrower one keeps the strip its room. */
+@container rpt-head (max-width: 319px) {
+  .rpt-period > .rpt-when-open { width: 44px; min-width: 0; padding: 0; justify-content: center; }
+  .rpt-when-word { display: none; }
+}
+.rpt-when-glyph { display: inline-flex; }
+/* Days in two months are the widest word it says ("Aug 25 – Sep 23", 152px with its glyph). Beside a strip on a phone
+   that left one tab whole (a phone 360 wide: a strip of 172), so there the dates stand without the glyph, which says
+   nothing the dates do not: 132px, and two tabs whole from 360 up (measured 9 Oct 2026). Never on the row too short
+   for any word, where the glyph's circle is all there is. */
+@container rpt-head (min-width: 320px) and (max-width: 420px) {
+  .rpt-period > .rpt-when-open[data-wide] { padding-inline-start: var(--space-4); }
+  .rpt-when-open[data-wide] > .rpt-when-glyph { display: none; }
+}
+/* What it opens: the days in words, the presets, then the month to pick any on, at the width seven days need. No taller
+   than the room under its button (Base UI's --available-height): on a phone the month's last week and its words were
+   under the screen, and nothing scrolled (10 Oct 2026). A finger that scrolls it from a day presses none
+   (range-press.ts). */
+.rpt-when { display: grid; gap: 12px; width: 312px; max-width: calc(100vw - 24px); max-height: var(--available-height, none); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+/* The presets, which hear a press on them and close the popover: the four periods' track over the shortcuts', drawn
+   alike (10 Oct 2026: the shortcuts were a row of quiet words under a track, two looks for one choice). Each track runs
+   across the popover and shares itself out evenly, a preset never narrower than its words. */
+.rpt-when-periods { display: grid; gap: 6px; }
+.rpt-when .rpt-when-presets { display: flex; width: 100%; }
+.rpt-when-presets > button { flex: 1 1 0; min-width: max-content; }
 .rpt-when-head { display: grid; gap: 2px; padding: 2px 4px 0; }
 .rpt-when-range { margin: 0; font-size: var(--text-md); font-weight: var(--weight-semibold); color: var(--ink); }
 .rpt-when-said { margin: 0; font-size: var(--text-sm); color: var(--ink-dim); }
@@ -128,11 +155,11 @@
 .rpt-section-title { margin: 0; font-size: var(--text-md); font-weight: 500; color: var(--ink); letter-spacing: -0.01em; }
 .rpt-section-meta { font-size: var(--text-sm); color: var(--ink-dim); }
 
-/* A part-bar under a plot or a donut in the same card is a second reading: a hairline sets it apart. It follows
+/* A part-bar under a plot in the same card is a second reading: a hairline sets it apart. It follows
    what it reads a second time and is never pushed to the card's foot -- the plot above it fills instead, so there is
    no gap between the two to push across. (It was pushed for one release, and a row made tall by six handover
    reasons opened a hole through the middle of Calls.) */
-.rpt .ck-card-body > .ck-plot + .ck-segbar, .rpt .ck-card-body > .ck-pie + .ck-segbar { padding-top: 12px; border-top: 1px solid var(--line); }
+.rpt .ck-card-body > .ck-plot + .ck-segbar { padding-top: 12px; border-top: 1px solid var(--line); }
 
 /* ---------- the headline ---------- */
 .rpt-hero { grid-column: span 5; flex-direction: row; align-items: center; gap: 20px; padding: 16px 20px; }
@@ -171,6 +198,9 @@ a.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: var(--
 .rpt-cell + .rpt-cell { border-left: 1px solid var(--line); }
 .rpt-figures.listing { --cells: 4; }
 .rpt-figures.answers { --cells: 2; }
+/* The Receptionist lens's: the four against the period before and the four steps after a reply, the three that wait on you. */
+.rpt-figures.quad { --cells: 4; }
+.rpt-figures.trio { --cells: 3; }
 
 /* ---------- inside the cards ---------- */
 .rpt-hours { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
@@ -187,6 +217,8 @@ a.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: var(--
 .rpt-booked-rest .icon { flex: none; margin-top: 1px; color: var(--ink-dim); }
 .rpt-booked-rest .cl-bucket-link { margin-left: 6px; }
 .rpt-booked-rest.is-done .icon { color: var(--ok); }
+/* The People lens's fresh book: how many have been quiet and the door to them, on a hairline at the card's foot, as the booked rest's. */
+.rpt-door-line { margin: 0; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); font-size: var(--text-sm); line-height: 1.45; color: var(--ink-muted); }
 
 /* Deals: the headline, the cohort's bars in the kit's card with the lines beside it (under it below 1180px), and the
    stock under the one hairline (.rpt-booked-rest). The kit's own type and ink; figures keep their width. */
@@ -217,6 +249,10 @@ a.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: var(--
   .rpt-figures.listing .rpt-cell:nth-child(n) { border-left: none; border-top: none; }
   .rpt-figures.listing .rpt-cell:nth-child(even) { border-left: 1px solid var(--line); }
   .rpt-figures.listing .rpt-cell:nth-child(n + 3) { border-top: 1px solid var(--line); }
+  .rpt-figures.quad { --cells: 2; }
+  .rpt-figures.quad .rpt-cell:nth-child(n) { border-left: none; border-top: none; }
+  .rpt-figures.quad .rpt-cell:nth-child(even) { border-left: 1px solid var(--line); }
+  .rpt-figures.quad .rpt-cell:nth-child(n + 3) { border-top: 1px solid var(--line); }
 }
 /* On a phone the panes stand at the boards' 12px from the screen's edges, under the frame's row of views, which stands
    there on every page (components.css): they stood at the head's 16, so the row and the page's width changed between the
@@ -248,9 +284,10 @@ a.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: var(--
   .rpt-cell:nth-child(n + 3) { border-top: 1px solid var(--line); }
   .rpt-cell:last-child { grid-column: 1 / -1; border-left: none; }
   .rpt-figures.listing .rpt-cell:last-child, .rpt-figures.answers .rpt-cell:last-child { grid-column: auto; border-left: 1px solid var(--line); }
+  /* Four stay two rows of two; three are two and one that takes the row, as any odd strip is. */
+  .rpt-figures.quad .rpt-cell:last-child { grid-column: auto; }
+  .rpt-figures.trio { --cells: 2; }
   .rpt .ck-card:not(.rpt-hero) { padding: 16px; }
-  .rpt .ck-pie { flex-direction: column; align-items: stretch; }
-  .rpt .ck-pie-figure { align-self: center; }
   /* When a source last ran folds away on a phone; the row keeps its name, its counts and its door. */
   .rpt-sources th:last-child, .rpt-sources td:last-child { display: none; }
 }

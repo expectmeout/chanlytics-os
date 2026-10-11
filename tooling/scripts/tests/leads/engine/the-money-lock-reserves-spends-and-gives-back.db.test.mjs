@@ -203,6 +203,8 @@ before(async () => {
       .select("id")
       .single(),
   ).id;
+  // A workspace that may spend (00364): the door and the runner ask, and a new workspace's plan has not started.
+  ok(await db.from("billing_accounts").upsert({ tenant_id: A, mode: "direct", status: "active" }));
   const email = `money-lock-owner-${stamp}@example.com`;
   const password = `pw-${stamp}-Aa1!long`;
   const made = await db.auth.admin.createUser({ email, password, email_confirm: true });
@@ -229,15 +231,17 @@ test(
   "reserved by the door, spent by the commits, settled against the reservation, and the rest given back at the end",
   { skip },
   async () => {
-    const made = await search(5, 0.6);
+    // A dollar: the actor's floor for each of the plan's two terms. A round starts only the runs its reserve holds a
+    // floor for (core runCaps), so $0.60 would start one.
+    const made = await search(5, 1);
     assert.ok(made.round_id, JSON.stringify(made));
     let round = await roundOf(made.round_id);
     assert.deepEqual(
       await counters(round),
       {
         allowance: { used: 0, reserved: 5 },
-        budget: { used: 0, reserved: 0.6 },
-        day: { used: 0, reserved: 0.6 },
+        budget: { used: 0, reserved: 1 },
+        day: { used: 0, reserved: 1 },
       },
       "the door reserves the count and the estimate before anything runs",
     );
@@ -262,7 +266,7 @@ test(
     let c = await counters(round);
     assert.deepEqual(c.allowance, { used: 5, reserved: 0 }, "what counted moved from held to used");
     assert.equal(money(c.budget.used), money(round.cost_usd), "the provider's usage is settled against the month");
-    assert.equal(money(c.budget.used + c.budget.reserved), 0.6, "out of the reservation, not on top of it");
+    assert.equal(money(c.budget.used + c.budget.reserved), 1, "out of the reservation, not on top of it");
     assert.equal(money(c.day.used), money(round.cost_usd));
     assert.ok(round.cost_usd > 0);
 

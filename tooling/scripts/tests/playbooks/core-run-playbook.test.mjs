@@ -18,7 +18,7 @@ const { runPlaybook } = await importSrc("packages/core/src/campaigns/run-playboo
 const NOW = new Date("2026-09-06T14:00:00Z"); // 10:00 in New York
 const TZ = "America/New_York";
 const D = 86_400_000;
-const WRITES = new Set(["record", "assemble", "holdRecipients", "decide", "notify"]);
+const WRITES = new Set(["record", "assemble", "holdRecipients", "notify"]);
 
 /** A person as the People page reads them: quiet for 40 days, said yes to both. */
 const person = (id, over = {}) => ({
@@ -199,12 +199,12 @@ function fakes(over = {}) {
     message: messageOf(),
     alreadyRan: false,
     record: undefined,
-    assemble: "b1",
+    // The run, its people, its job and its decision, whole (00381): the run's id, and the decision's when one was asked for.
+    assemble: (_row, _recipients, _sendAt, decision) => ({ id: "b1", decisionId: decision ? "d1" : null }),
     // The month's allowance, counted before anyone is enrolled: what this workspace's campaigns have sent by email and by
     // text this month (none here), and the write that holds those past it the moment the run exists.
     monthSent: 0,
     holdRecipients: undefined,
-    decide: undefined,
     notify: undefined,
     ...over,
   };
@@ -233,6 +233,7 @@ test("the mode decides: never runs nothing and says so; no row for the class mea
   const held = await runPlaybook(noRow.ports, cmd({ ctx: context({ modes: new Map() }) }));
   assert.equal(held.outcome, "held", "no row for the class is ask");
   assert.equal(noRow.of("assemble")[0][1].state, "pending_approval");
+  assert.equal(noRow.of("assemble")[0][4], null, "a run that waits is made with no decision: its approval is one");
   const asked = fakes();
   const r = await runPlaybook(
     asked.ports,
@@ -254,9 +255,8 @@ test("the mode decides: never runs nothing and says so; no row for the class mea
   assert.deepEqual(asked.of("assemble")[0][3], NOW);
   assert.deepEqual(asked.of("assemble")[0][1].created_by, "u1", "their run");
   assert.deepEqual(
-    asked.of("decide")[0][1],
+    asked.of("assemble")[0][4],
     {
-      broadcastId: "b1",
       by: { kind: "user", userId: "u1" },
       payload: {
         playbook_id: "p1",
@@ -268,7 +268,7 @@ test("the mode decides: never runs nothing and says so; no row for the class mea
         run_now: true,
       },
     },
-    "and their decision",
+    "and their decision, written with the run",
   );
   const refused = fakes();
   assert.deepEqual(
@@ -359,7 +359,7 @@ test("a calendar that could not be READ is the run failing, not the day done: no
     }),
   );
   assert.equal(r.outcome, "sent");
-  assert.deepEqual(back.ops(), ["assemble", "decide", "record"]);
+  assert.deepEqual(back.ops(), ["assemble", "record"]);
 });
 
 test("a message that could not be read is the run failing, not the template withdrawn: nothing is recorded, so the next sweep asks again", async () => {
@@ -496,7 +496,7 @@ test("auto: the row, the people, the send now, the system's decision, the run re
     scheduled_for: NOW.toISOString(),
     moved_from: null,
   });
-  assert.deepEqual(ops(), ["assemble", "decide", "record"]);
+  assert.deepEqual(ops(), ["assemble", "record"]);
   assert.deepEqual(of("assemble")[0][1], {
     name: "Win-back · 2026-09-06",
     template_id: "tpl-1",
@@ -520,8 +520,7 @@ test("auto: the row, the people, the send now, the system's decision, the run re
     channels: ["whatsapp"],
   });
   assert.deepEqual(of("assemble")[0][3], NOW);
-  assert.deepEqual(of("decide")[0][1], {
-    broadcastId: "b1",
+  assert.deepEqual(of("assemble")[0][4], {
     by: { kind: "system" },
     payload: {
       playbook_id: "p1",
@@ -555,9 +554,9 @@ test("auto: the row, the people, the send now, the system's decision, the run re
   assert.equal(veto.of("assemble")[0][1].scheduled_for, at.toISOString());
   // "Unless you stop it" is kept only for someone who is told: a run the sweep made under veto says it is on its way,
   // and when, by the business's clock. Until this nobody was told unless Campaigns happened to be open.
-  assert.deepEqual(veto.ops(), ["assemble", "decide", "notify", "record"]);
+  assert.deepEqual(veto.ops(), ["assemble", "notify", "record"]);
   assert.deepEqual(veto.of("notify")[0].slice(1), [
-    "Playbook “Win-back” sends today 10:30 AM: 2 people",
+    "Campaign “Win-back” sends today 10:30 AM: 2 people",
     "2 people will be sent “Win-back” today 10:30 AM. Stop the run on Today or in Campaigns before then if it should not go.",
     // The run it is about: the bell's row and the phone open that run, where Stop is (it named none, and opened Campaigns' home).
     "b1",
@@ -568,7 +567,7 @@ test("auto: the row, the people, the send now, the system's decision, the run re
     late.ports,
     cmd({ ctx: context({ now: new Date("2026-09-07T01:00:00Z"), modes: new Map([["reengage", "veto"]]) }) }),
   );
-  assert.equal(late.of("notify")[0][1], "Playbook “Win-back” sends tomorrow 9:00 AM: 2 people");
+  assert.equal(late.of("notify")[0][1], "Campaign “Win-back” sends tomorrow 9:00 AM: 2 people");
   // The run is made and on the ledger: a bell that fails does not cost the run its record.
   const deaf = fakes({ notify: new Error("the bell is down") });
   const made = await runPlaybook(deaf.ports, cmd({ ctx: context({ modes: new Map([["reengage", "veto"]]) }) }));
@@ -592,8 +591,12 @@ test("never at 3 AM, whoever asks: a person's run now at eleven at night goes at
   assert.equal(r.outcome, "sent");
   assert.deepEqual(f.of("assemble")[0][3], nine);
   assert.equal(f.of("assemble")[0][1].scheduled_for, nine.toISOString(), "the row says when it really goes");
-  assert.equal(f.of("decide")[0][1].payload.scheduled_for, nine.toISOString());
-  assert.equal(f.of("decide")[0][1].payload.moved_from, night.toISOString(), "and the ledger keeps what was asked for");
+  assert.equal(f.of("assemble")[0][4].payload.scheduled_for, nine.toISOString());
+  assert.equal(
+    f.of("assemble")[0][4].payload.moved_from,
+    night.toISOString(),
+    "and the ledger keeps what was asked for",
+  );
   assert.equal(f.log.at(-1)[4].moved_from, night.toISOString());
   assert.deepEqual(
     [r.scheduled_for, r.moved_from],
@@ -602,7 +605,7 @@ test("never at 3 AM, whoever asks: a person's run now at eleven at night goes at
   );
   const day = fakes();
   await runPlaybook(day.ports, cmd({ by: { kind: "user", userId: "u1" } }));
-  assert.ok(!("moved_from" in day.of("decide")[0][1].payload), "inside the hours nothing moves, and nothing says so");
+  assert.ok(!("moved_from" in day.of("assemble")[0][4].payload), "inside the hours nothing moves, and nothing says so");
 });
 
 test("ask: the row waits, nobody is scheduled, the owner is told in these words, the run recorded", async () => {
@@ -615,14 +618,14 @@ test("ask: the row waits, nobody is scheduled, the owner is told in these words,
   assert.equal(of("assemble")[0][1].scheduled_for, NOW.toISOString());
   assert.deepEqual(of("notify")[0], [
     "notify",
-    "Playbook “Win-back” is ready: 2 people",
+    "Campaign “Win-back” is ready: 2 people",
     "2 people have become eligible for “Win-back”. Approve or skip the run on Today or in Campaigns. Nothing is sent until you do.",
     // The run that waits: the row opens it, where Approve and Skip are.
     "b1",
   ]);
   const one = fakes();
   await runPlaybook(one.ports, cmd({ ctx: context({ modes: new Map([["reengage", "ask"]]), people: [person("a")] }) }));
-  assert.equal(one.of("notify")[0][1], "Playbook “Win-back” is ready: 1 person");
+  assert.equal(one.of("notify")[0][1], "Campaign “Win-back” is ready: 1 person");
   assert.match(one.of("notify")[0][2], /^1 person has become eligible/);
 });
 
@@ -1118,7 +1121,7 @@ test("a run goes by the channels its playbook ticks: each person once, on the fi
     { ...NOBODY_LEFT, pool: 4, will: 3, noNumber: 1, by_channel: { whatsapp: 1, sms: 1, email: 1 } },
     "who it left out, and why, and who it reaches on each channel, adding up to the list",
   );
-  assert.deepEqual(f.of("decide")[0][1].payload.channels, ["whatsapp", "sms", "email"]);
+  assert.deepEqual(f.of("assemble")[0][4].payload.channels, ["whatsapp", "sms", "email"]);
 });
 
 test("the number's daily limit is Meta's: it holds WhatsApp's people alone, and an email or a text is never held for it", async () => {
@@ -1546,7 +1549,7 @@ test("a run counts the month before it enrolls: whoever is past the room is enro
   assert.equal(r.outcome, "sent");
   assert.equal(r.eligible, 4, "everyone is enrolled, the held among them");
   assert.deepEqual(asked, ["email"], "only the channel somebody goes by is counted, once, before the run is written");
-  assert.deepEqual(f.ops(), ["assemble", "holdRecipients", "decide", "record"]);
+  assert.deepEqual(f.ops(), ["assemble", "holdRecipients", "record"]);
   assert.deepEqual(
     f.of("holdRecipients")[0],
     ["holdRecipients", "b1", ["e2", "e3"], "month_allowance"],

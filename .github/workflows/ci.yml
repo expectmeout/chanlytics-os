@@ -118,13 +118,58 @@ jobs:
         env:
           EXPO_PUBLIC_SITE_ORIGIN: https://example.com
 
-  typecheck:
-    name: Typecheck
+  # Ruben, 10 Oct 2026: a push is through CI in under ten minutes. What was one job of fifteen steps in a row (seven
+  # minutes of checks before a test ran, then the build) is four that run side by side once `scope` has answered, and
+  # the check branch protection requires by name, Typecheck, is the last: a gate that passes when every part passed or
+  # was not needed. The committed dist is what lint, the hygiene checks and the tests read, so only the build job builds
+  # the packages, and its dist check is what holds the others to the sources. A pull request whose head carries the
+  # line `corepack pnpm check:local` stamps, on the tree GitHub tests, skips what the laptop ran (lint, hygiene, the
+  # tests, the typecheck); the build and the bundle run for every change (tooling/scripts/checks/checked-locally.mjs).
+  scope:
+    name: What this change needs
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 5
+    outputs:
+      checked: ${{ steps.checked.outputs.checked }}
     steps:
       # Two commits deep: on a pull request the checkout is the merge commit GitHub tests, whose first parent is the
-      # base, so HEAD^1..HEAD is what the pull request changes (the changed tests, below).
+      # base and whose second is the pull request's head.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      # A pull request's title becomes the squash commit's subject: one sentence, at most 100 characters, no closing
+      # period (README, Conventions). First, so a title that breaks it fails in seconds. A pull request opened before
+      # 29 September 2026 is exempt, by its created_at, so the rule turned no open one red. The title and the time come
+      # from the event through the environment, never inside the script's text; a re-run is given the same event, so a
+      # title fixed in place is judged again by the next push. What lands is held on main by the `landed` job below.
+      - if: github.event_name == 'pull_request'
+        run: node tooling/scripts/checks/pr-title.mjs
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_CREATED_AT: ${{ github.event.pull_request.created_at }}
+      # checked=true only on a pull request whose head names its own tree in the stamp's line and whose merge into main
+      # is that tree: when main has moved past the branch, the merge is a tree nobody checked, and everything runs.
+      - id: checked
+        name: Was this tree checked locally?
+        env:
+          EVENT: ${{ github.event_name }}
+        run: node tooling/scripts/checks/checked-locally.mjs --ci >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build and bundle
+    needs: scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # The bundle check reads the pull request's description as it runs (below), so a re-run reads an edited one; the
+    # token reads nothing else.
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      # Two commits deep: the merge commit's first parent is the main commit the change stands on (the bundle, below).
       - uses: actions/checkout@v7
         with:
           fetch-depth: 2
@@ -133,75 +178,22 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-      # A pull request's title becomes the squash commit's subject: one sentence, at most 100 characters, no closing
-      # period (README, Conventions). Before the install, so a title that breaks it fails in seconds. A pull request
-      # opened before 29 September 2026 is exempt, by its created_at, so the rule turned no open one red. The title
-      # and the time come from the event through the environment, never inside the script's text; a re-run is given
-      # the same event, so a title fixed in place is judged again by the next push. What lands is held on main by
-      # the `landed` job below.
-      - if: github.event_name == 'pull_request'
-        run: node tooling/scripts/checks/pr-title.mjs
-        env:
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_CREATED_AT: ${{ github.event.pull_request.created_at }}
       - run: pnpm install --frozen-lockfile
-      # No production dependency with a known high or critical advisory (moderate ones are Dependabot's alerts,
-      # lifted by overrides in pnpm-workspace.yaml), and none under a licence the product may not ship: GPL, AGPL or
-      # one nobody has read (tooling/scripts/checks/licences.mjs). The audit reads the lockfile against the
-      # registry's advisories, so a registry outage fails it too: re-run. An advisory with no patched version
-      # anywhere (node-forge under Expo's CLI, GHSA-86w9-cpqp-85rv, 2 Oct 2026; braces under the same CLI's file map,
-      # GHSA-vfj7-8cjw-p6xm, a stack-exhaustion denial of service on deeply nested glob patterns, 3 Oct 2026, build
-      # time only, never in the app or a server) is ignored by its GHSA in pnpm-workspace.yaml
-      # (`auditConfig.ignoreGhsas`), each named here with the day and why; drop it once a fix ships.
-      - run: pnpm audit --prod --audit-level high
-      - name: Production licences are ones we may ship
-        shell: bash
-        run: pnpm licenses list --prod --json | node tooling/scripts/checks/licences.mjs
       # workspace packages build to dist first; apps typecheck against the built types
       - run: pnpm --filter "./packages/*" build
       # dist-drift guard: the edge executes committed dist, so stale dist is stale production
       - run: git diff --exit-code -- packages/*/dist
-      - run: pnpm -r typecheck
-      # Static analysis across the WHOLE workspace. It covered only the
-      # dashboard until apps/edge — the 1,600 lines a real customer message
-      # travels through — turned out to be the one unlinted thing in the repo.
-      # Warnings may only fall, per file and rule (baselines/lint-warnings.json).
-      - run: pnpm lint
-      # Dead exports may only fall: knip over the whole import graph, against a
-      # baseline (docs/debt.md). Its own step because the graph takes a minute
-      # the node suite should not.
-      - run: pnpm check:dead-exports
-      # Formatting is checked, never fixed, here: the pre-commit hook formats
-      # what is staged, and this step catches a commit made with the hook off.
-      - run: pnpm format:check
-      # `pnpm test`, not a second copy of the command: the suite needs Node's
-      # type-stripping flags to import the dashboard's .ts modules, and a
-      # duplicated invocation here silently ran without them — passing only
-      # because this runner's Node happens to strip types by default.
-      #
-      # The whole suite runs only when asked for (Ruben, 1 Oct 2026: it took 27
-      # minutes of every push, here and in the Auckland leg): on a pull request
-      # with the `suite` label (adding it starts suite.yml; a later push runs it
-      # here), or by hand (workflow_dispatch). Every other pull request runs the
-      # tests of what it changed: the folders its paths name, the rules and the
-      # ratchets always, the whole suite when the runner or a helper every test
-      # loads changed (tooling/scripts/checks/changed-tests.mjs). Without it a
-      # pull request ran no test, and five ratchets went red on main unseen
-      # between 29 Sep and 3 Oct. The nightly runs the whole suite.
-      - if: contains(github.event.pull_request.labels.*.name, 'suite') || github.event_name == 'workflow_dispatch'
-        run: pnpm test
-      - name: The tests of what the pull request changed
-        if: github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'suite')
-        run: node tooling/scripts/checks/changed-tests.mjs HEAD^1 HEAD
+      - if: needs.scope.outputs.checked != 'true'
+        run: pnpm -r typecheck
       # database.types.ts freshness is proved in database.yml, where a database exists to regenerate from.
       # The production build, the way Vercel runs it for the dashboard (Root
       # Directory apps/dashboard, `next build`, on Node 24 like this job). Nothing
       # above compiles a page: typecheck skips src/legacy, the ported JSX shell,
       # and no step prerendered a page or applied Next's own rules, such as a
       # "use client" page that may not export metadata. Until this step a build
-      # failure first appeared as a failed deployment. It lives in this job
-      # because branch protection requires "Typecheck" by name, so a build that
-      # fails now blocks the merge.
+      # failure first appeared as a failed deployment. Typecheck, the check branch
+      # protection requires by name, needs this job, so a build that fails blocks
+      # the merge.
       - uses: actions/cache@v6
         with:
           path: apps/dashboard/.next/cache
@@ -217,25 +209,23 @@ jobs:
           # build stops at /signup. Vercel builds with the real public values.
           NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-build-placeholder
-      # What a browser loads to open a workspace may only grow on purpose, and
-      # each change is held to what it adds (tooling/scripts/checks/bundle-budget.mjs,
-      # docs/debt.md). The build is deterministic to the byte, so the allowances
-      # are bytes, not a share: a 1% band filled with growth nobody argued (21
-      # merges of 5 Oct 2026, 6,238 bytes, no row) and the next change paid for
-      # them all.
+      # What a browser loads to open a workspace grows only on purpose
+      # (tooling/scripts/checks/bundle-budget.mjs). The build is deterministic to the byte.
       #
-      # A push to main records its measurement under its own sha, in the Actions
-      # cache. A pull request's checkout is the merge commit (fetch-depth 2
+      # A push to main records its measurement under its own sha: in the Actions
+      # cache, for the pull requests that stand on it, and as an artifact, for
+      # the weekly reading (bundle-week.yml), which compares main with main a week
+      # before. A pull request's checkout is the merge commit (fetch-depth 2
       # above), whose first parent is the main commit the change stands on: its
-      # record is the base, and the difference is what this change adds,
-      # whatever main carries. The restore falls back to the newest record when
-      # main's run for that commit has not saved yet (a pull request opened
-      # right after a merge), and the check then compares and says so, holding
-      # the change to the budget alone. The table lands in the job summary, in
-      # bytes: a raise or a bank takes those numbers, with no build on a laptop
-      # (`check:bundle -- --raise js=<bytes>`). The record is written before the
-      # verdict and saved whatever the verdict, so a main the check finds red is
-      # still the base its next change is held against.
+      # record is the base, and the difference is what this change adds, whatever
+      # main carries. A sum grown past its line fails until the description says
+      # why, in a line `Bundle: <why>`; the description is read here, as the step
+      # runs, so after editing it, run the job again. Nothing in the repository
+      # changes for it. The restore falls back to the newest record when main's
+      # run for that commit has not saved yet, and the check then compares and
+      # says so, holding the build to its ceiling alone. Every build, main's
+      # included, is held to the ceilings (baselines/bundle-ceiling.json). The
+      # record is written before the verdict and saved whatever the verdict.
       - name: The main commit this change stands on
         id: base
         if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
@@ -247,8 +237,19 @@ jobs:
           key: bundle-record-${{ steps.base.outputs.sha }}
           restore-keys: |
             bundle-record-
-      - if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
-        run: pnpm check:bundle -- --against .bundle/record.json --base "${{ steps.base.outputs.sha }}" --summary "$GITHUB_STEP_SUMMARY"
+      - name: What this change adds to what a workspace loads
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          BASE: ${{ steps.base.outputs.sha }}
+        run: |
+          if [ -n "$PR" ]; then
+            PR_BODY="$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json body --jq .body)"
+            export PR_BODY
+          fi
+          pnpm check:bundle -- --against .bundle/record.json --base "$BASE" --summary "$GITHUB_STEP_SUMMARY"
       - if: github.event_name != 'pull_request' && github.event_name != 'merge_group'
         run: pnpm check:bundle -- --record .bundle/record.json --sha "${{ github.sha }}" --summary "$GITHUB_STEP_SUMMARY"
       - uses: actions/cache/save@v6
@@ -256,6 +257,124 @@ jobs:
         with:
           path: .bundle/record.json
           key: bundle-record-${{ github.sha }}
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() && github.event_name == 'push' && hashFiles('.bundle/record.json') != '' }}
+        with:
+          name: bundle-record
+          path: .bundle/record.json
+          retention-days: 35
+
+  lint:
+    name: Lint
+    needs: scope
+    if: needs.scope.outputs.checked != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Static analysis across the WHOLE workspace. It covered only the
+      # dashboard until apps/edge — the 1,600 lines a real customer message
+      # travels through — turned out to be the one unlinted thing in the repo.
+      # Warnings may only fall, per file and rule (baselines/lint-warnings.json).
+      - run: pnpm lint
+
+  hygiene:
+    name: Audit, licences, dead exports and format
+    needs: scope
+    if: needs.scope.outputs.checked != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # No production dependency with a known high or critical advisory (moderate ones are Dependabot's alerts,
+      # lifted by overrides in pnpm-workspace.yaml), and none under a licence the product may not ship: GPL, AGPL or
+      # one nobody has read (tooling/scripts/checks/licences.mjs). The audit reads the lockfile against the
+      # registry's advisories, so a registry outage fails it too: re-run. An advisory with no patched version
+      # anywhere (node-forge under Expo's CLI, GHSA-86w9-cpqp-85rv, 2 Oct 2026; braces under the same CLI's file map,
+      # GHSA-vfj7-8cjw-p6xm, a stack-exhaustion denial of service on deeply nested glob patterns, 3 Oct 2026, build
+      # time only, never in the app or a server) is ignored by its GHSA in pnpm-workspace.yaml
+      # (`auditConfig.ignoreGhsas`), each named here with the day and why; drop it once a fix ships.
+      - run: pnpm audit --prod --audit-level high
+      - name: Production licences are ones we may ship
+        shell: bash
+        run: pnpm licenses list --prod --json | node tooling/scripts/checks/licences.mjs
+      # Dead exports may only fall: knip over the whole import graph, against a
+      # baseline (docs/debt.md).
+      - run: pnpm check:dead-exports
+      # Formatting is checked, never fixed, here: the pre-commit hook formats
+      # what is staged, and this step catches a commit made with the hook off.
+      - run: pnpm format:check
+
+  tests:
+    name: Tests of what changed
+    needs: scope
+    # The `suite` label asks for the whole suite whatever the laptop ran.
+    if: >-
+      (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch') &&
+      (needs.scope.outputs.checked != 'true' || contains(github.event.pull_request.labels.*.name, 'suite'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      # Two commits deep: on a pull request the checkout is the merge commit GitHub tests, whose first parent is the
+      # base, so HEAD^1..HEAD is what the pull request changes (the changed tests, below).
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # `pnpm test`, not a second copy of the command: the suite needs Node's
+      # type-stripping flags to import the dashboard's .ts modules, and a
+      # duplicated invocation here silently ran without them — passing only
+      # because this runner's Node happens to strip types by default.
+      #
+      # The whole suite runs only when asked for (Ruben, 1 Oct 2026: it took 27
+      # minutes of every push, here and in the Auckland leg): on a pull request
+      # with the `suite` label (adding it starts suite.yml; a later push runs it
+      # here), or by hand (workflow_dispatch). Every other pull request runs the
+      # tests of what it changed: the folders its paths name and the rules and
+      # the ratchets always, never the whole suite (Ruben, 10 Oct 2026: under ten
+      # minutes; tooling/scripts/checks/changed-tests.mjs). Without it a pull
+      # request ran no test, and five ratchets went red on main unseen between
+      # 29 Sep and 3 Oct. The nightly runs the whole suite.
+      - if: contains(github.event.pull_request.labels.*.name, 'suite') || github.event_name == 'workflow_dispatch'
+        run: pnpm test
+      - name: The tests of what the pull request changed
+        if: github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'suite')
+        run: node tooling/scripts/checks/changed-tests.mjs HEAD^1 HEAD
+
+  # The check branch protection requires by name. Renamed, it would leave every pull request waiting for a check that
+  # never reports. It runs whatever the parts said (always()), and fails when one failed or was cancelled; a part skipped
+  # because the tree was checked locally, or because the event runs no tests (a push to main), is not a failure.
+  typecheck:
+    name: Typecheck
+    needs: [scope, build, lint, hygiene, tests]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every part passed or was not needed
+        shell: bash
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          if echo "$NEEDS" | jq -e 'any(.[]; .result == "failure" or .result == "cancelled")' > /dev/null; then exit 1; fi
 
   # The node suite again, with the clock in Auckland (UTC+12, +13 in summer): a
   # rule that reads the viewer's zone instead of the workspace's gives the wrong

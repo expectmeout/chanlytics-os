@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-224 handlers in 47 domains.
+232 handlers in 47 domains.
 
 ## activity
 
@@ -64,6 +64,7 @@ Writes; for a member of the workspace the request names, viewer or above; counts
 | --- | --- | --- | --- |
 | `text` | string | yes | at least 1 characters; at most 1500 characters |
 | `purpose` | one of `"brief"`, `"answer"` | yes |  |
+| `before` | string | no | at most 1500 characters |
 
 ### `GET /api/v1/ask/threads`
 
@@ -237,6 +238,7 @@ Reads; for a member of the workspace the request names; counts against the `aggr
 | --- | --- | --- | --- |
 | `from` | string | no |  |
 | `days` | string | no |  |
+| `around` | one of `"today"` | no |  |
 | `fresh` | one of `"1"` | no |  |
 
 ### `POST /api/v1/calendar/notices/[id]/dismiss`
@@ -256,6 +258,14 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 Writes; for a member of the workspace the request names, operator or above; counts against the `settings` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/calendar/preview/route.ts`).
+
+### `POST /api/v1/calendar/visits/[id]`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `person_edit` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `status` | one of `"kept"`, `"missed"`, `"cancelled"` | yes |  |
 
 ## calls
 
@@ -953,17 +963,64 @@ Writes; for a member of the workspace the request names, partner or above; count
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `lead_member` rate; spends nothing.
 
+One of 5 bodies.
+
+Body 1:
+
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| (input) | object or object or object or object or object | yes |  |
+| `kind` | `"stage"` | yes |  |
+| `stage` | one of `"ready"`, `"nurture"`, `"converted"` | yes |  |
+
+Body 2:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `kind` | `"not_a_fit"` | yes |  |
+| `why` | one of `"chain"`, `"wrong_kind"`, `"too_far"`, `"customer"`, `"other"` | yes |  |
+
+Body 3:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `kind` | `"said_no"` | yes |  |
+
+Body 4:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `kind` | `"outcome"` | yes |  |
+| `outcome` | one of `"interested"`, `"call_back"`, `"not_interested"`, `"voicemail"`, `"no_answer"`, `"wrong_number"` | yes |  |
+| `note` | string | no | at most 280 characters |
+
+Body 5:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `kind` | `"emailed"` | yes |  |
 
 ### `POST /api/v1/leads/bulk`
 
 Writes; for a member of the workspace the request names, operator or above; counts against the `lead_bulk` rate; spends nothing.
 
+One of 2 bodies.
+
+Body 1:
+
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| (input) | object or object | yes |  |
+| `by` | `"ids"` | yes |  |
+| `action` | one of `"contacted"`, `"not_a_fit"`, `"keep"`, `"exclude"` | yes |  |
+| `ids` | array of string (uuid) | yes | at least 1; at most 500 |
+| `search_id` | string (uuid) | no |  |
+
+Body 2:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `by` | `"view"` | yes |  |
+| `action` | one of `"contacted"`, `"not_a_fit"` | yes |  |
+| `view` | object | yes |  |
 
 ### `POST /api/v1/leads/check-again`
 
@@ -1067,6 +1124,20 @@ Writes; for any signed-in person, for themselves; counts against the `profile_se
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/me/route.ts`).
 
+### `GET /api/v1/me/alerts`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/me/alerts/route.ts`).
+
+### `PUT /api/v1/me/alerts`
+
+Writes; for a member of the workspace the request names, viewer or above; counts against the `alert_choice` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `push_off` | array of string | yes | at most 40 |
+
 ### `PUT /api/v1/me/devices`
 
 Writes; for any signed-in person, for themselves; counts against the `device_register` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
@@ -1129,6 +1200,12 @@ Writes; for a member of the workspace the request names, viewer or above; counts
 | `id` | string | no |  |
 | `read` | boolean | no |  |
 | `dismissed` | boolean | no |  |
+
+### `POST /api/v1/notifications/test`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `alert_test` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/notifications/test/route.ts`).
 
 ## partner
 
@@ -1313,7 +1390,7 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 
 ### `GET /api/v1/playbooks`
 
-Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+Reads; for a member of the workspace the request names; counts against the `aggregate` rate; spends nothing.
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/playbooks/route.ts`).
 
@@ -1327,7 +1404,41 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `playbook` rate; spends nothing.
 
-Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/playbooks/[id]/route.ts`).
+One of 3 bodies.
+
+Body 1:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `state` | string | no |  |
+| `name` | string | no |  |
+| `run_hour` | number | no |  |
+| `cap_per_run` | number | no |  |
+| `gap_days` | number | no |  |
+| `cadence_days` | number | no |  |
+
+Body 2:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `channels` | array of string | yes |  |
+
+Body 3:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `name` | string or null | no |  |
+| `trigger` | string | yes |  |
+| `list_id` | string or null | no |  |
+| `list_key` | string or null | no |  |
+| `policy_class` | string or null | no |  |
+| `template_id` | string | yes |  |
+| `params` | array of any | no |  |
+| `channels` | array of string | no |  |
+| `run_hour` | number | no |  |
+| `cap_per_run` | number | no |  |
+| `gap_days` | number | no |  |
+| `cadence_days` | number | no |  |
 
 ### `DELETE /api/v1/playbooks/[id]`
 
@@ -1483,7 +1594,8 @@ Reads; for a member of the workspace the request names; counts against the `aggr
 | Query field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `period` | one of `"7d"`, `"30d"`, `"90d"`, `"month"` | no |  |
-| `days` | string | no |  |
+| `from` | string | no |  |
+| `to` | string | no |  |
 
 ### `GET /api/v1/reports/campaigns`
 
@@ -1492,7 +1604,8 @@ Reads; for a member of the workspace the request names; counts against the `aggr
 | Query field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `period` | one of `"7d"`, `"30d"`, `"90d"`, `"month"` | no |  |
-| `days` | string | no |  |
+| `from` | string | no |  |
+| `to` | string | no |  |
 
 ### `GET /api/v1/reports/headline`
 
@@ -1502,6 +1615,16 @@ Reads; for a member of the workspace the request names; counts against the `aggr
 | --- | --- | --- | --- |
 | `period` | one of `"7d"`, `"30d"`, `"90d"`, `"month"` | no |  |
 
+### `GET /api/v1/reports/people`
+
+Reads; for a member of the workspace the request names; counts against the `aggregate` rate; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `period` | one of `"7d"`, `"30d"`, `"90d"`, `"month"` | no |  |
+| `from` | string | no |  |
+| `to` | string | no |  |
+
 ### `GET /api/v1/reports/reach-outs`
 
 Reads; for a member of the workspace the request names; counts against the `aggregate` rate; spends nothing.
@@ -1509,7 +1632,18 @@ Reads; for a member of the workspace the request names; counts against the `aggr
 | Query field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `period` | one of `"7d"`, `"30d"`, `"90d"`, `"month"` | no |  |
-| `days` | string | no |  |
+| `from` | string | no |  |
+| `to` | string | no |  |
+
+### `GET /api/v1/reports/receptionist`
+
+Reads; for a member of the workspace the request names; counts against the `aggregate` rate; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `period` | one of `"7d"`, `"30d"`, `"90d"`, `"month"` | no |  |
+| `from` | string | no |  |
+| `to` | string | no |  |
 
 ### `GET /api/v1/reports/reviews`
 
@@ -1518,6 +1652,8 @@ Reads; for a member of the workspace the request names; counts against the `aggr
 | Query field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `period` | one of `"7d"`, `"30d"`, `"90d"`, `"month"` | no |  |
+| `from` | string | no |  |
+| `to` | string | no |  |
 
 ## segments
 
@@ -1649,6 +1785,18 @@ Writes; for a member of the workspace the request names, owner or above; counts 
 | --- | --- | --- | --- |
 | `email` | string | yes | matches `^[^\s@]+@[^\s@]+\.[^\s@]+$` |
 | `role` | one of `"operator"`, `"viewer"` | yes |  |
+
+### `POST /api/v1/team/invite/[id]/resend`
+
+Writes; for a member of the workspace the request names, owner or above; counts against the `invite` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/team/invite/[id]/resend/route.ts`).
+
+### `POST /api/v1/team/leave`
+
+Writes; for a member of the workspace the request names, viewer or above; counts against the `team` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/team/leave/route.ts`).
 
 ### `GET /api/v1/team/partner`
 

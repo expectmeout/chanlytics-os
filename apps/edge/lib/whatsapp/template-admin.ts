@@ -80,12 +80,14 @@ export async function createWhatsappTemplate(
   const db = pg();
   if (!db) return refuse(503, "no_database");
 
+  // The account of the oldest active number, whose credentials waCredentialsForTenant gives: a workspace may hold two.
   const { data: ch } = await db
     .from("tenant_channels")
     .select("id, waba_id")
     .eq("tenant_id", tenantId)
     .eq("kind", "whatsapp")
     .eq("status", "active")
+    .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
   if (!ch) return refuse(409, "no_channel");
@@ -175,6 +177,7 @@ export async function deleteWhatsappTemplate(
     .eq("tenant_id", tenantId)
     .eq("kind", "whatsapp")
     .eq("status", "active")
+    .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
   if (!ch?.waba_id) return refuse(409, "no_waba");
@@ -244,6 +247,7 @@ export async function syncWhatsappTemplates(auth: Admitted, body: Partial<{ tena
     .eq("tenant_id", tenantId)
     .eq("kind", "whatsapp")
     .eq("status", "active")
+    .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
   if (chErr) return refuse(500, "channel_read_failed", chErr.message);

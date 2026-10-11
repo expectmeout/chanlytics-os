@@ -12,8 +12,8 @@
  * the gate a card checks before Approve lets the roles that role lets (ROLE_PERMS, on the server's own ladder). The two
  * kinds PR 4.6 added (a person's note and details, the Phase 4 plan's D8 and D9) answer the three readings as their
  * family's cards do, and their calls are pinned over the answers their routes really give; so are PR 4.7's two, a list
- * kept by its rule (D10) and a playbook's run waiting for a person (D11), and the one of 8 Oct 2026, the channels a
- * playbook that exists goes by.
+ * kept by its rule (D10) and a playbook's run waiting for a person (D11), the one of 8 Oct 2026, the channels a
+ * playbook that exists goes by, and the one of 9 Oct 2026, a playbook that exists changed in place.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -26,6 +26,7 @@ import {
   MEMBERSHIP_ROLES,
   PROPOSAL_GATE,
   LIFECYCLE_TOAST,
+  LIFECYCLE_WORDS,
   PROPOSAL_SPECS,
   PROPOSAL_WORDS,
   ROLE_PERMS,
@@ -37,7 +38,7 @@ import {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const POLICY = JSON.parse(fs.readFileSync(path.join(ROOT, "tooling/scripts/tests/route-policy.json"), "utf8")).routes;
 
-/** The seventeen kinds, in AskProposal's order, and one no card has. */
+/** The eighteen kinds, in AskProposal's order, and one no card has. */
 const KINDS = [
   "reply",
   "steer",
@@ -56,6 +57,7 @@ const KINDS = [
   "list",
   "run",
   "playbook_channels",
+  "playbook_change",
   "teleport",
 ];
 
@@ -80,6 +82,7 @@ test("the gate each kind checks before Approve is the one it checked at a993b71d
     list: "approve",
     run: "approve",
     playbook_channels: "approve",
+    playbook_change: "approve",
   });
 });
 
@@ -125,6 +128,7 @@ const UNDO_OPEN = {
   list: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
   run: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
   playbook_channels: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
+  playbook_change: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
   teleport: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
 };
 
@@ -199,6 +203,7 @@ const OPEN = {
   // None of the table's payloads names a playbook: the home, where the old Playbooks address lands. With one, its drawer
   // (the spec's own test below).
   playbook_channels: "outbound",
+  playbook_change: "outbound",
   teleport: [null, null, "inbox/th-c1", null, null, "inbox/th-c1", null, null, null, null, null, null, null, null],
 };
 
@@ -248,6 +253,16 @@ const GOES_BY = {
   was: ["whatsapp"],
   run_waits: false,
 };
+/** A playbook's change, as the act builds its card (server/ask/tools/act/playbook-change.ts): what it changes, and what it held. */
+const CHANGE = {
+  playbook_id: "pb1",
+  playbook_name: "Win-back",
+  name: "Past clients",
+  run_hour: 9,
+  was: { name: "Win-back", run_hour: 10 },
+  run_waits: false,
+  timezone: "America/New_York",
+};
 /** A card of every shape each kind makes: each thread verb, a lead search new and answering, a deal with its step. */
 const SHAPES = {
   reply: [card("reply", { conversation_id: "c1", text: "On our way.", who: "Rosa" })],
@@ -289,6 +304,7 @@ const SHAPES = {
     card("run", { broadcast_id: "b1", verb: "skip", name: "Win-back · 2026-09-26", people: 12 }),
   ],
   playbook_channels: [card("playbook_channels", GOES_BY)],
+  playbook_change: [card("playbook_change", CHANGE)],
 };
 
 /** Every route a kind's spec reaches over its shapes: its commit, a second call, and the undo of what it kept. */
@@ -343,6 +359,11 @@ test("a playbook's channels, changed from a card: the playbook's own PUT with th
     spec.receipt(waits, {}),
     sentence(LIFECYCLE_TOAST.channels("Visit reminder", ["whatsapp", "email"], true)),
   );
+  // A card with no name says what a person calls it, a campaign (the moment spec, D19).
+  assert.equal(
+    spec.receipt(card("playbook_channels", { ...GOES_BY, name: undefined }), {}),
+    "The campaign goes by WhatsApp and Email now",
+  );
   assert.equal(spec.undo.label(p), "Put it back to WhatsApp");
   assert.equal(spec.undo.window, "ten_minutes");
   const kept = spec.undo.record(p, {}, TAB);
@@ -365,8 +386,28 @@ test("a playbook's channels, changed from a card: the playbook's own PUT with th
   assert.equal(spec.open(card("playbook_channels", { ...GOES_BY, playbook_id: null }), null), "outbound");
 });
 
-test("the seventeen kinds each have a spec, and every route a spec names is a route the app has", () => {
-  assert.deepEqual(Object.keys(PROPOSAL_SPECS), KINDS.slice(0, 17));
+test("Ask's new campaign opens its drawer once it is made, by the id the route answered; before then the home", () => {
+  const spec = PROPOSAL_SPECS.playbook;
+  assert.equal(
+    spec.open(card("playbook", {}), done({ playbook_id: "pb9", decision_id: "d9" })),
+    "campaigns/moment:pb9",
+  );
+  assert.equal(
+    spec.open(card("playbook", {}), null),
+    "outbound",
+    "not approved yet: the home, where the old address lands",
+  );
+  assert.equal(spec.open(card("playbook", {}), done(null)), "outbound");
+  assert.equal(spec.open(card("playbook", {}), done({ playbook_id: "" })), "outbound", "an empty id names nothing");
+  // The id is the one the commit kept for its undo: what the route answered when it made the campaign.
+  assert.deepEqual(spec.undo.record(card("playbook", {}), { id: "pb9", decision_id: "d9" }), {
+    playbook_id: "pb9",
+    decision_id: "d9",
+  });
+});
+
+test("the eighteen kinds each have a spec, and every route a spec names is a route the app has", () => {
+  assert.deepEqual(Object.keys(PROPOSAL_SPECS), KINDS.slice(0, 18));
   const named = Object.fromEntries(
     Object.keys(PROPOSAL_SPECS).map((k) => [k, [...new Set(routesOf(k).map((x) => x.route))].sort()]),
   );
@@ -395,6 +436,7 @@ test("the seventeen kinds each have a spec, and every route a spec names is a ro
     list: ["DELETE segments/[id]", "POST segments"],
     run: ["POST broadcasts/[id]/approve", "POST broadcasts/[id]/cancel"],
     playbook_channels: ["PUT playbooks/[id]"],
+    playbook_change: ["PUT playbooks/[id]"],
   });
   for (const routes of Object.values(named)) for (const r of routes) assert.ok(ROUTE_KEYS.includes(r), r);
 });
@@ -606,7 +648,7 @@ test("a list (D10): the name and the rule to the lists route, a list that keeps 
   );
   assert.equal(
     spec.undo.receipt({ archived: true, id: L1, paused: [], on_it: ["Win-back"], read_by: [] }),
-    "Archived, not deleted: a playbook runs on it. It comes back from Archived under your lists.",
+    "Archived, not deleted: a campaign runs on it. It comes back from Archived under your lists.",
   );
   // Open: People before it is made, the list itself once it is (the commit kept its id), People again once undone.
   assert.equal(cardOpenRoute(p), "clients");
@@ -674,4 +716,98 @@ test("a run (D11): approve and skip are the run's own doors, approve's undo is a
       refused: "This card cannot be approved from here.",
     });
   assert.ok("refused" in spec.commit(card("run", { verb: "approve" }), TAB), "nor a card that names no run");
+});
+
+/* ------------------------------------------------ a playbook's change, and a new one's starter (the moment spec) */
+
+test("a playbook's change from a card (A5): its own PUT with what it changes and nothing else, the drawer's sentence as its receipt, and an undo that puts back what the route found", () => {
+  const spec = PROPOSAL_SPECS.playbook_change;
+  const p = card("playbook_change", CHANGE);
+  assert.deepEqual([spec.needs, spec.gate], ["operator", "approve"]);
+  assert.deepEqual(spec.commit(p, TAB), {
+    route: "PUT playbooks/[id]",
+    params: { id: "pb1" },
+    body: { name: "Past clients", run_hour: 9 },
+  });
+  // A payload that carries more of a playbook sends none of it; one that changes nothing, or names no playbook, is never sent.
+  const loose = card("playbook_change", { ...CHANGE, trigger: "lapsed", template_id: "t9", state: null });
+  assert.deepEqual(spec.commit(loose, TAB).body, { name: "Past clients", run_hour: 9 });
+  for (const broken of [
+    { ...CHANGE, playbook_id: null },
+    { playbook_id: "pb1", playbook_name: "Win-back", was: {} },
+  ])
+    assert.deepEqual(spec.commit(card("playbook_change", broken), TAB), { refused: PROPOSAL_WORDS.cannotApprove });
+  const sentence = (parts) => parts.map((x) => (typeof x === "string" ? x : x.b)).join("");
+  // The route answers the name it stored; a pause and a resume say the drawer's own words.
+  assert.equal(spec.receipt(p, { name: "Past clients" }), sentence(LIFECYCLE_TOAST.changed("Past clients")));
+  const pause = card("playbook_change", {
+    playbook_id: "pb1",
+    playbook_name: "Win-back",
+    state: "paused",
+    was: { state: "running" },
+  });
+  const resume = card("playbook_change", {
+    playbook_id: "pb1",
+    playbook_name: "Win-back",
+    state: "running",
+    was: { state: "paused" },
+  });
+  assert.equal(spec.receipt(pause, { name: "Win-back" }), sentence(LIFECYCLE_TOAST.paused("Win-back")));
+  assert.equal(spec.receipt(resume, {}), sentence(LIFECYCLE_TOAST.resumed("Win-back")));
+  assert.deepEqual(
+    [spec.undo.label(p), spec.undo.label(pause), spec.undo.label(resume), spec.undo.window],
+    ["Put it back", "Resume it", "Pause it again", "ten_minutes"],
+  );
+  // Undoing a pause resumes it under its class's mode (D7): where the card read that mode as auto, the undo says in full
+  // that it sends on its own, in the Resume ask's own sentence; any other mode says nothing more, and a card made where
+  // the mode could not be read (null) claims none.
+  const pausedUnder = (mode) => spec.undo.label(card("playbook_change", { ...pause.payload, mode }));
+  assert.equal(pausedUnder("auto"), `Resume it. ${LIFECYCLE_WORDS.ledger.resume.auto}`);
+  assert.equal(pausedUnder("ask"), "Resume it");
+  assert.equal(pausedUnder(null), "Resume it");
+  // The undo puts back what the route found when it wrote (its `was`), the card's copy only where a route answers none.
+  // And the ledger row the change wrote, which its undo names (undo_of).
+  const kept = spec.undo.record(p, { was: { name: "Spring win-back", run_hour: 11 }, decision_id: "d-change" }, TAB);
+  assert.deepEqual(kept, {
+    playbook_id: "pb1",
+    was: { name: "Spring win-back", run_hour: 11 },
+    decision_id: "d-change",
+  });
+  assert.deepEqual(spec.undo.call(kept, TAB_AFTER), {
+    route: "PUT playbooks/[id]",
+    params: { id: "pb1" },
+    body: { name: "Spring win-back", run_hour: 11 },
+  });
+  assert.deepEqual(spec.undo.record(p, {}, TAB).was, CHANGE.was);
+  // A route that wrote nothing (somebody made the same change first) answers an empty `was`: no undo is offered, since one
+  // would undo what somebody else did.
+  assert.equal(spec.undo.record(p, { was: {}, decision_id: null }, TAB), null);
+  assert.deepEqual(spec.undo.call({ playbook_id: "pb1", was: {} }, TAB_AFTER), { refused: PROPOSAL_WORDS.noUndo });
+  assert.equal(spec.undo.receipt({}), "It is as it was");
+  assert.equal(spec.open(p, null), "campaigns/moment:pb1", "its drawer");
+});
+
+test("a playbook card (A0, the landing rule): a starter it names is committed in place of a message, it opens in the composer on its moment before Approve, and in the new drawer after, from the undo the commit kept", () => {
+  const spec = PROPOSAL_SPECS.playbook;
+  const onStarter = card("playbook", {
+    trigger: "quiet_30",
+    starter_key: "winback_reply",
+    name: null,
+    run_hour: 10,
+    cap_per_run: 25,
+  });
+  const body = spec.commit(onStarter, TAB).body;
+  assert.equal(body.starter_key, "winback_reply");
+  assert.equal("template_id" in body, false, "no message: the route files the starter first");
+  assert.equal(spec.commit(card("playbook", { trigger: "quiet_30", template_id: "t1" }), TAB).body.template_id, "t1");
+  assert.equal(spec.open(onStarter, null), "campaigns/new:moment:quiet_30");
+  assert.equal(spec.open(onStarter, done({ playbook_id: "pb9", decision_id: "d1" })), "campaigns/moment:pb9");
+  assert.equal(spec.open(card("playbook", {}), null), "outbound");
+  // The receipt says the starter's WhatsApp version went for review, where the route says it did, naming the reviewer as
+  // every sentence a person reads does (WhatsApp, never Meta); and "Campaign", the word a person reads.
+  const submitted = spec.receipt(onStarter, { name: "Win-back", starter: { status: "submitted" } });
+  assert.ok(submitted.endsWith(" · its starter's WhatsApp version is with WhatsApp for review"), submitted);
+  assert.doesNotMatch(submitted, /Meta/);
+  assert.doesNotMatch(spec.receipt(onStarter, { name: "Win-back" }), /review/);
+  assert.match(spec.receipt(onStarter, { name: "Win-back" }), /^Campaign “Win-back” is running/);
 });

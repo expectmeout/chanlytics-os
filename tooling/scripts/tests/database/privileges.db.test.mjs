@@ -130,13 +130,13 @@ union all
 select 'session_calls_service_door', coalesce(array_agg(x order by x), '{}') from (
   select p.oid::regprocedure::text as x
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-   where n.nspname = 'public' and p.proname in ('assemble_broadcast', 'create_message_version')
+   where n.nspname = 'public' and p.proname in ('assemble_broadcast', 'billing_apply', 'create_message_version', 'reach_out_save', 'team_decision')
      and (has_function_privilege('authenticated', p.oid, 'EXECUTE') or has_function_privilege('public', p.oid, 'EXECUTE'))
 ) s
 union all
 select 'service_door_missing', coalesce(array_agg(x order by x), '{}') from (
   select d.proname::text as x
-    from (values ('assemble_broadcast'), ('create_message_version')) as d(proname)
+    from (values ('assemble_broadcast'), ('billing_apply'), ('create_message_version'), ('reach_out_save'), ('team_decision')) as d(proname)
    where not exists (
      select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'public' and p.proname = d.proname and has_function_privilege('service_role', p.oid, 'EXECUTE'))
@@ -253,6 +253,21 @@ test(
     );
   },
 );
+
+test("a hold that ran out is found by index, not by a scan of every thread (00385)", { skip }, () => {
+  // expire_stale_pauses clears control_until < now() every ten seconds under pg_cron (00132) and read the whole table
+  // for it; conversations_pause_due served the pause the same sweep clears, and the hold had nothing.
+  const [row] = query("select indexdef from pg_indexes where indexname = 'conversations_control_due'");
+  assert.ok(
+    (row?.indexdef ?? "").includes("(control_until)"),
+    "create index conversations_control_due on conversations (control_until) where control_until is not null",
+  );
+  assert.match(
+    row?.indexdef ?? "",
+    /WHERE \(control_until IS NOT NULL\)/,
+    "partial: a thread nobody holds is not in it",
+  );
+});
 
 test("anon executes no function in public, directly or through PUBLIC", { skip }, () => {
   assert.deepEqual(rules.anon_executes, [], "revoke execute from public, anon");

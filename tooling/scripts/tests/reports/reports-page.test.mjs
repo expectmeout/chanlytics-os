@@ -7,11 +7,22 @@
  * reports-honest and rewritten for this page (C13, C25 to C28): every row a door, the period before drawn where it
  * reads, one keyboard stop per chart, a period control that never holds (the latest pick wins), and a table that
  * leaves the page. The period's own door (period.ts) runs for real, over a fetch this test holds, answers or refuses.
+ *
+ * And the date range: the capsule that says what the page is on, the days picked on its month or reached in one press,
+ * which move the address and are read by their first and last day, and days that fail to load. What the page does when
+ * its address moves by itself (a link, Back) is periods/report-range-page.test.mjs's, on a document of its own.
  */
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
-import { toReportVM, toDealReportVM, REPORT_CHANNELS } from "@chanlytics/contracts";
+import {
+  toReportVM,
+  toDealReportVM,
+  REPORT_CHANNELS,
+  reportDaysCount,
+  reportRangeOfKey,
+  shiftKey,
+} from "@chanlytics/contracts";
 import {
   installLegacyReact,
   fresh,
@@ -43,6 +54,8 @@ import {
   reviewsLedger,
   writtenReview,
 } from "./_report-world.mjs";
+import { ownHeld } from "./receptionist/_receptionist-world.mjs";
+import { held as peopleHeld, dtoWith as peopleDto } from "./people/_people-world.mjs";
 
 const went = [];
 const flashed = [];
@@ -61,10 +74,12 @@ globalThis.__WORKSPACES = [
 globalThis.__ACTIVE_WORKSPACE = "w1";
 const S = "../../../../apps/dashboard/src";
 const { ReportsPage } = await import(`${S}/surfaces/reports/reports-page.tsx`);
-const { RPT_CHANNELS } = await import(`${S}/surfaces/reports/series.ts`);
-const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
+const { RPT_CHANNEL_COLORS } = await import(`${S}/surfaces/reports/series.ts`);
+const { setSurfaceValue, surfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 const { keepReportPeriod } = await import(`${S}/surfaces/reports/surface.ts`);
-const { reviewsSample } = await import(`${S}/surfaces/reports/sample.ts`);
+const { peopleSample, receptionistSample, reviewsSample } = await import(`${S}/surfaces/reports/sample.ts`);
+const { toPeopleReportVM, toReceptionistReportVM, PEOPLE_RHYTHM_UNIT } =
+  await import("@chanlytics/contracts/report-lens");
 const { setStatus } = await import(`${S}/legacy-bridge/surface-status.ts`);
 const { startSurfaces } = await import(`${S}/legacy-bridge/surface-runner.ts`);
 // The shell's doors, which the surface reaches through the bridge's verbs (surfaces/legacy-verbs.ts).
@@ -89,8 +104,32 @@ const json = (status, body) =>
 const period = { asked: [], held: [], mode: "hold" };
 /** The days each period's answer says it covers (Month on this fixture's day: four). */
 const DAYS_OF = { "7d": 7, "30d": 30, "90d": 90, month: 4 };
-const answer = (id) =>
-  json(200, {
+/**
+ * The report over days a member picked, as the route answers it: as many days to their last day and as many before
+ * them, one message a day in the days picked, the last day named (`end`), and a booking line that is not counted for
+ * days that ended before today.
+ */
+const daysAnswer = (picked) => {
+  const days = reportDaysCount(picked);
+  const series = Array.from({ length: days * 2 }, (_, i) =>
+    rday(
+      shiftKey(picked.to, -(days * 2 - 1 - i)),
+      i < days ? {} : { messages_in: 1, conversations: 1, answered_ai: 1 },
+    ),
+  );
+  return json(200, {
+    ok: true,
+    data: {
+      report: reportDto({ ...quiet(), days, span_days: days * 2, end: picked.to, series }),
+      booking: { calendar: "ended", days, asked: 0, booked: 0 },
+      deals: null,
+    },
+  });
+};
+const answer = (id) => {
+  const range = reportRangeOfKey(id);
+  if (range !== null && typeof range !== "string") return daysAnswer(range);
+  return json(200, {
     ok: true,
     data: {
       report: reportDto({ days: DAYS_OF[id] }),
@@ -98,6 +137,7 @@ const answer = (id) =>
       deals: null,
     },
   });
+};
 /**
  * A reply posted to a review, and what the answer's re-read of the Reviews surface finds (null: no reply is on its way). The route
  * accepts the reply, then the refresh map re-reads Google and the Reviews read, which this serves as Google's now holds the review.
@@ -122,7 +162,10 @@ globalThis.window.fetch = async (url, init) => {
   if (/\/reports\/(campaigns|reach-outs)$/.test(u.pathname))
     return json(500, { ok: false, error: { code: "internal", message: "not read here" } });
   if (!u.pathname.endsWith("/reports")) return json(404, { ok: false, error: { code: "not_found", message: "no" } });
-  const id = u.searchParams.get("period");
+  // What a read names: a period, or the first and the last of the days picked, said here by the range's one name.
+  const id = u.searchParams.has("from")
+    ? `${u.searchParams.get("from")}~${u.searchParams.get("to")}`
+    : u.searchParams.get("period");
   period.asked.push(id);
   if (period.mode === "refuse") return json(500, { ok: false, error: { code: "internal", message: "down" } });
   if (period.mode === "answer") return answer(id);
@@ -158,6 +201,14 @@ const draw = () => ReportsPage({ pathname: lensAt });
 /** One lens drawn over what `set` puts in the surface, as a person at its address sees it. */
 const drawOnce = (set) => {
   set();
+  // The period kept in this browser is the one the surface shows, as it is whenever the page's own read published it:
+  // the page follows its address, and an address with no days says the period kept.
+  const shown = surfaceValue("reports");
+  if (shown?.period) keepReportPeriod(shown.period);
+  // The Receptionist lens's own read is of the range the report shows (its states are receptionist/receptionist-page.test.mjs's).
+  setSurfaceValue("reports_receptionist", shown ? ownHeld(undefined, shown.key) : undefined);
+  // The People lens's own read likewise (its states are people/people-page.test.mjs's).
+  setSurfaceValue("reports_people", shown ? peopleHeld(peopleDto(), shown.key) : undefined);
   fresh();
   went.length = 0;
   return draw();
@@ -194,9 +245,12 @@ const cls = (tree, c) => find(tree, (n) => classes(n).includes(c));
 const { Segmented } = await import(`${S}/surfaces/kit/segmented/segmented.tsx`);
 const { Field } = await import(`${S}/surfaces/kit/field/field.tsx`);
 const { Figure } = await import(`${S}/surfaces/kit/figure/figure.tsx`);
+const { HeatStrip } = await import(`${S}/surfaces/kit/charts/heat.tsx`);
+const { RadarChart } = await import(`${S}/surfaces/kit/charts/radar.tsx`);
+const { RptStrip } = await import(`${S}/surfaces/reports/blocks.tsx`);
 const { standingSaid } = await import(`${S}/surfaces/kit/head/standing.ts`);
 const { Popover } = await import(`${S}/surfaces/kit/popover/popover.tsx`);
-const { MonthRange } = await import(`${S}/surfaces/kit/datepicker/month-range.tsx`);
+const { DayRangePicker } = await import(`${S}/surfaces/kit/datepicker/day-range-picker.tsx`);
 // What the period's button opens loads on demand in the app (period-picker.tsx, held by periods/period-picker.test.mjs); the page's
 // tests read and press it open, so it is loaded first, as a pointer on the button loads it.
 const { loadPeriodPopover } = await import("../../../../apps/dashboard/src/surfaces/reports/period-picker.tsx");
@@ -234,6 +288,45 @@ const chosen = (tree) => {
   return c.props.options.find((o) => o.value === c.props.value)?.label;
 };
 const takeaway = (tree, id) => textOf(find(card(tree, id), (n) => classes(n).includes("ck-card-takeaway")));
+/** The date range's button, as what it opens holds it. */
+const rangeButton = (tree) => find(seen(tree), (n) => n.type === Popover).props.trigger;
+/** What the date range says of itself: its name to a screen reader, the word on it, and what stands beside it on a desk. */
+const rangeSays = (tree) => [
+  rangeButton(tree).props["aria-label"],
+  textOf(find(rangeButton(tree), (n) => n.props?.className === "rpt-when-word")),
+  textOf(cls(seen(tree), "rpt-dates")),
+];
+/** The month days are picked on, and a day reached in one press, by its test id. */
+const month = (tree) => find(seen(tree), (n) => n.type === DayRangePicker);
+/** The days reached in one press: a track of their own under the periods', drawn as it is. */
+const otherDays = (tree) => find(seen(tree), (n) => n.type === Segmented && n.props.label === "Other days");
+/**
+ * A run in which the shell's own move is followed, as the frame follows it: the address says the route a pick sent it
+ * to, and the page is drawn at it. `moves` holds each move and whether it took its entry's place. Each run is a
+ * workspace of its own, since a range read is held by the address's workspace (held-views.ts): what one test read
+ * must not paint at once in another that says it was never read.
+ */
+const moves = [];
+let rangeWorkspaces = 0;
+const followingMoves = async (run) => {
+  const nav = globalThis.CHANLY.nav;
+  const { hash, pathname } = globalThis.location;
+  globalThis.location.pathname = `/w/range-${(rangeWorkspaces += 1)}`;
+  moves.length = 0;
+  globalThis.CHANLY.nav = (to, opts) => {
+    moves.push([to, opts?.replace === true]);
+    globalThis.location.hash = `#/${to}`;
+    lensAt = `/w/harbor/${to}`;
+  };
+  try {
+    await run();
+  } finally {
+    globalThis.CHANLY.nav = nav;
+    globalThis.location.hash = hash;
+    globalThis.location.pathname = pathname;
+    lensAt = LENS_PATHS[0];
+  }
+};
 
 /* ------------------------------------------ the headline ------------------------------------------ */
 
@@ -327,9 +420,93 @@ test("the strip's figures: five counts, each named by its metric, the period bef
   assert.deepEqual(all(strip, (n) => n.type === "dt").length, 5);
 });
 
+test("a figure that counts what has a page opens it: Needed you is a door to the Inbox, a count with no page of its own is no door", () => {
+  const strip = card(page(), "reports-tiles");
+  const figureOf = (id) => find(strip, (n) => n.type === "div" && n.props["data-figure"] === id);
+  const needed = find(figureOf("handovers"), (n) => n.type === "a");
+  assert.ok(needed, "the number is a link, since a door is a link");
+  assert.equal(needed.props.href, "#/inbox");
+  assert.equal(textOf(needed), "3");
+  press(needed);
+  assert.deepEqual(went, ["inbox"], "and a plain press goes there by the app's own way");
+  const messages = find(figureOf("customer_messages"), (n) => n.type === "a");
+  assert.equal(messages.props.href, "#/conversations", "the customer messages open the conversations they count");
+  for (const id of ["calls", "new_people", "booked"])
+    assert.equal(
+      find(figureOf(id), (n) => n.type === "a" || n.type === "button"),
+      null,
+      `${id} opens nothing`,
+    );
+});
+
+test("a ratio of too few is greyed and says so: three answered is under the minimum, seventeen is read", () => {
+  const thin = (n) =>
+    toReportVM(
+      reportDto({
+        series: reportDto().series.map((d, i) =>
+          i < 7 ? d : rday(d.day, i === 7 ? { messages_in: n, conversations: 1, answered_ai: n } : {}),
+        ),
+      }),
+      { profile: null },
+    );
+  const answeredFigure = (vm) => {
+    fresh();
+    const strip = RptStrip({ tiles: vm.tiles.filter((t) => t.id === "answered"), testid: "answered-strip" });
+    assert.equal(strip.props["data-testid"], "answered-strip", "the strip is named for a test that finds it");
+    return find(strip, (n) => n.type === "div" && n.props["data-figure"] === "answered_share");
+  };
+  const few = answeredFigure(thin(3));
+  assert.deepEqual(classes(few), ["figure", "is-thin", "rpt-cell"], "the figure wears the kit's thin state");
+  assert.equal(textOf(cls(few, "figure-n")), "only 3, too few to read");
+  assert.equal(textOf(cls(few, "figure-value")), "100%", "the number is still said, greyed, never hidden");
+  const enough = answeredFigure(thin(9));
+  assert.deepEqual(classes(enough), ["figure", "rpt-cell"]);
+  assert.equal(cls(enough, "figure-n"), null);
+  const none = answeredFigure(thin(0));
+  assert.equal(textOf(cls(none, "figure-value")), "—", "nothing to answer is a dash, never a zero");
+  assert.deepEqual(classes(none), ["figure", "rpt-cell"], "of none there is no ratio to grey");
+  assert.equal(cls(none, "figure-n"), null, "and no line says it is of none: the meta already says why");
+  assert.equal(
+    find(answeredFigure(thin(3)), (n) => n.type === "a" || n.type === "button"),
+    null,
+    "the share has no page of its own, so its number is no door",
+  );
+});
+
+test("a tile that says what needs you or what failed draws a figure with its tone; a tile with none draws none", () => {
+  const tile = {
+    id: "stuck",
+    metric: "waiting_on_you",
+    label: "Steps overdue",
+    value: "6",
+    meta: "",
+    compare: "up from 2",
+  };
+  const figureOf = (t) => {
+    fresh();
+    return find(RptStrip({ tiles: [t] }), (n) => n.type === Figure);
+  };
+  assert.equal(figureOf({ ...tile, tone: "warn" }).props.tone, "warn", "what needs you is amber");
+  assert.equal(figureOf({ ...tile, tone: "fail" }).props.tone, "fail", "what failed is red");
+  assert.equal(figureOf(tile).props.tone, undefined, "a tile with no tone draws a figure with none");
+  const warned = find(
+    RptStrip({ tiles: [{ ...tile, tone: "warn" }] }),
+    (n) => n.type === "div" && n.props["data-figure"] === "waiting_on_you",
+  );
+  assert.deepEqual(classes(warned), ["figure", "is-warn", "rpt-cell"], "the kit's figure wears the tone");
+  assert.equal(textOf(cls(warned, "figure-change")), "up from 2", "its change is still said, in the kit's plain ink");
+  // No tile of the page's own lenses sets a tone yet: the People lens's stuck-now figures are the first.
+  const vm = toReportVM(reportDto(), { profile: null });
+  assert.deepEqual(
+    vm.tiles.filter((t) => t.tone !== undefined).map((t) => t.id),
+    [],
+    "no existing tile is toned",
+  );
+});
+
 /* ------------------------------------------ the cards ------------------------------------------ */
 
-test("every card is drawn, under the testids the e2e, Today and the Google tests read, in three sections", () => {
+test("every card is drawn, under the testids the e2e, Today and the Google tests read, in the lenses' sections", async () => {
   const tree = page();
   for (const id of [
     "chart-answered",
@@ -337,20 +514,58 @@ test("every card is drawn, under the testids the e2e, Today and the Google tests
     "chart-reasons",
     "chart-calls",
     "chart-booking",
-    "chart-channels",
+    // The Receptionist lens's own (receptionist/receptionist-page.test.mjs holds their words and states).
+    "receptionist-strip",
+    "chart-hold",
+    "chart-topics",
+    "chart-languages",
+    "chart-call-endings",
+    "receptionist-link",
+    "receptionist-time",
+    "receptionist-figures",
+    "receptionist-stuck",
+    // The People lens's own (people/people-page.test.mjs holds their words and states), then the two cards the frame kept.
+    "people-strip",
+    "chart-people-channels",
+    "chart-people-first",
+    "chart-people-yeses",
+    "chart-people-stops",
+    "chart-people-wires",
+    "chart-people-fresh",
     "chart-rhythm",
     "chart-people",
+    "people-time",
+    "chart-people-steps",
+    "chart-people-bounced",
+    "people-stuck",
+    "people-stand",
     "chart-funnel",
     "chart-campaigns",
     "chart-sources",
   ])
     assert.ok(card(tree, id), id);
-  assert.deepEqual(all(tree, (n) => n.type === "h2").map(textOf), [
-    "Worth knowing",
-    "The receptionist",
-    "Your customers",
-    "Campaigns",
-  ]);
+  // The sources' card names what sent them as a person reads it: campaigns, never playbooks (decision 19); and so does
+  // its table when nothing went out.
+  assert.equal(
+    find(tree, (n) => n.props?.testid === "chart-sources" && typeof n.props.title === "string")?.props.title,
+    "By campaign and broadcast",
+  );
+  const { RptSources } = await import(`${S}/surfaces/reports/blocks.tsx`);
+  assert.equal(RptSources({ rows: [] }).props.title, "No broadcast or campaign run reached anyone in this period.");
+  // A lens draws no heading that says what its tab says (Ruben, 9 Oct 2026): the section keeps its label for a screen reader.
+  assert.deepEqual(all(tree, (n) => n.type === "h2").map(textOf), ["Worth knowing"]);
+  assert.deepEqual(
+    all(tree, (n) => n.type === "section" && n.props.className === "rpt-section").map((n) => n.props["aria-label"]),
+    [
+      "The receptionist",
+      "Time between steps",
+      "Stuck now",
+      "Your customers",
+      "Time between steps",
+      "Stuck now",
+      "Campaigns",
+    ],
+  );
   assert.equal(
     find(tree, (n) => n.type === "section" && n.props["aria-label"] === "This period").props.className,
     "rpt-grid rpt-top",
@@ -366,12 +581,11 @@ test("each card's one line is the view model's, and adds the next thing: never a
     "About 2m 10s a call.",
     "390 seconds over 3 calls; the minutes and the voicemail are the tile's",
   );
-  assert.equal(takeaway(tree, "chart-channels"), "Mostly WhatsApp, as the 7 days before.");
   assert.equal(takeaway(tree, "chart-rhythm"), "Nothing on Monday.", "the busy side of the week is Worth knowing's");
   assert.equal(takeaway(tree, "chart-funnel"), "3 people said yes to messages, 2 people asked to stop.");
   assert.equal(
     takeaway(tree, "chart-campaigns"),
-    "From 3 broadcast and playbook runs.",
+    "From 3 broadcast and campaign runs.",
     "the sends are the funnel's; the card says what sent them",
   );
   for (const id of ["chart-reasons", "chart-people", "chart-booking"])
@@ -390,25 +604,40 @@ test("'every message was answered without you' is said only when it is true", ()
   assert.ok(!said.includes("without you") && said.includes("answered by you or by nobody"), said);
 });
 
-test("the channels in messages and calls, their colour fixed by channel, the week round the radar and the hours under it", () => {
+test("the kept rhythm card: the week round a radar and the hours under it, 24 cells, in the contracts' unit words", () => {
   const tree = page();
-  const pie = card(tree, "chart-channels");
-  assert.equal(textOf(cls(pie, "ck-pie-center")), "20messages and calls");
-  assert.deepEqual(
-    all(pie, (n) => classes(n).includes("ck-slice")).map((s) => s.props.fill),
-    ["var(--color-whatsapp)", "var(--color-voice)", "var(--color-email)", "var(--color-sms)"],
-  );
-  assert.equal(pie.props.style["--color-voice"], "var(--chart-cat-2)", "the card publishes the channel colours");
   const rhythm = card(tree, "chart-rhythm");
+  assert.ok(cls(rhythm, "ck-radar-line"), "the week round a radar");
   assert.equal(all(rhythm, (n) => classes(n).includes("ck-cell")).length, 24, "a cell an hour");
+  const strip = find(rhythm, (n) => n.type === HeatStrip);
+  assert.equal(strip.props.unit, PEOPLE_RHYTHM_UNIT, "the hours count what contracts says they count");
+  assert.equal(PEOPLE_RHYTHM_UNIT, "messages and calls");
+  assert.ok(strip.props.ariaLabel.includes(PEOPLE_RHYTHM_UNIT), strip.props.ariaLabel);
+  const radar = find(rhythm, (n) => n.type === RadarChart);
+  assert.ok(radar.props.ariaLabel.includes(PEOPLE_RHYTHM_UNIT), radar.props.ariaLabel);
+  // The donut is gone: nothing on the page draws a pie of the channels, and the lens's card is a list of bars. The walk
+  // reaches what the kit's parts rendered (the rhythm card's own cells above), so a pie's class would be found.
+  assert.deepEqual(
+    all(tree, (n) => classes(n).some((c) => /^ck-(pie|slice)/.test(c))),
+    [],
+    "REGRESSION: the donut counted messages and calls and said 'people': no element wears a ck-pie or ck-slice class",
+  );
+  assert.equal(card(tree, "chart-channels"), null);
 });
 
 test("a caller's mood and the reply spread are part-bars in their own order, each part in its colour and its word", () => {
   const tree = page();
   const mood = byTestId(card(tree, "chart-calls"), "caller-mood");
+  // A mood is an order, not a verdict: its parts wear the ordinal ink ramp like the spread, never the green and red of a status.
   assert.deepEqual(
     [mood.props.style["--color-Positive"], mood.props.style["--color-Neutral"]],
-    ["var(--ok)", "var(--chart-prior)"],
+    ["var(--chart-ramp-5)", "var(--chart-ramp-4)"],
+  );
+  const moodColors = Object.entries(mood.props.style).filter(([k]) => k.startsWith("--color-"));
+  assert.equal(moodColors.length, 2);
+  assert.ok(
+    moodColors.every(([, c]) => /^var\(--chart-ramp-\d\)$/.test(c)),
+    "no var(--ok) and no var(--danger)",
   );
   assert.equal(textOf(find(mood, (n) => classes(n).includes("ck-legend"))), "Positive2Neutral1");
   const spread = byTestId(card(tree, "chart-reply"), "reply-spread");
@@ -426,7 +655,7 @@ test("a caller's mood and the reply spread are part-bars in their own order, eac
 test("with a hold set the reply card draws it: the chart's one reference is the hold and the spread is said against it; with none there is neither", () => {
   const held = Array.from({ length: 8 }, () => ({ day: "2026-09-01", s: 63, hold: 60 }));
   const reply = card(page({ report: { replies: held, reply_seconds: held.map((r) => r.s) } }), "chart-reply");
-  assert.equal(textOf(cls(reply, "ck-ref")), "1-minute hold");
+  assert.equal(textOf(cls(reply, "ck-dotplot-ref")), "your 1-minute hold ends");
   const spread = byTestId(reply, "reply-spread");
   assert.equal(textOf(cls(spread, "ck-segbar-title")), "Every reply, against your hold");
   assert.deepEqual(
@@ -439,6 +668,7 @@ test("with a hold set the reply card draws it: the chart's one reference is the 
   );
   const plain = card(page(), "chart-reply");
   assert.equal(cls(plain, "ck-ref"), null, "no hold: no yardstick the owner never set");
+  assert.equal(cls(plain, "ck-dotplot-ref"), null, "and no caption for one");
   assert.equal(textOf(cls(byTestId(plain, "reply-spread"), "ck-segbar-title")), "Every reply, by how long it took");
 });
 
@@ -489,7 +719,11 @@ test("the page says the hold and the closed hours: the hero, the speed chart's y
     "the hold, never the speed the setting made",
   );
   const reply = card(tree, "chart-reply");
-  assert.equal(textOf(cls(reply, "ck-ref")), "1-minute hold", "the speed chart's one reference is the owner's hold");
+  assert.equal(
+    textOf(cls(reply, "ck-dotplot-ref")),
+    "your 1-minute hold ends",
+    "the reply plot's one reference is where the owner's hold ends",
+  );
   const spread = byTestId(reply, "reply-spread");
   assert.equal(textOf(cls(spread, "ck-segbar-title")), "Every reply, against your hold");
   assert.deepEqual(
@@ -526,15 +760,13 @@ test("a workspace with no hours is asked for them through the page, with the doo
   assert.equal(factOf(unread, "hours"), null, "a profile that could not be read says nothing of the hours");
 });
 
-test("the channels are contracts' words, in contracts' order, each in the colour kept for it", () => {
+test("the channels' colours are kept by channel, in contracts' order, and the same ones wherever a channel is drawn", () => {
   assert.deepEqual(
-    Object.keys(RPT_CHANNELS),
+    Object.keys(RPT_CHANNEL_COLORS),
     REPORT_CHANNELS.map((c) => c.key),
     "in the order a chart lists them",
   );
-  for (const { key, label } of REPORT_CHANNELS)
-    assert.equal(RPT_CHANNELS[key].label, label, `${key} says contracts' word`);
-  assert.deepEqual(Object.fromEntries(Object.entries(RPT_CHANNELS).map(([k, v]) => [k, v.color])), {
+  assert.deepEqual(RPT_CHANNEL_COLORS, {
     whatsapp: "var(--chart-cat-1)",
     voice: "var(--chart-cat-2)",
     email: "var(--chart-cat-3)",
@@ -640,21 +872,10 @@ test("asked, then booked: the share's other side sits on the card's foot, with t
   }
 });
 
-test("where they reach you: the same split the period before, under the donut, in its own counts", () => {
-  const tree = page();
-  const before = byTestId(card(tree, "chart-channels"), "channels-before");
-  assert.ok(before, "a part-bar of the period before");
-  assert.equal(textOf(find(before, (n) => classes(n).includes("ck-segbar-title"))), "The 7 days before");
-  // Seven on WhatsApp then, twelve now: the legend's counts are the prior ones, which no tile and no donut gives.
-  assert.ok(textOf(before).includes("WhatsApp") && textOf(before).includes("7"));
-});
-
 test("a v2 payload still draws: what it cannot know is said, never invented", () => {
   const v2 = reportDto();
   for (const k of ["replies", "channels", "hours"]) delete v2[k];
   const tree = across(() => setSurfaceValue("reports", { ...surface(), vm: toReportVM(v2) }));
-  assert.ok(textOf(card(tree, "chart-channels")).includes("Not counted for this period yet."));
-  assert.equal(takeaway(tree, "chart-channels"), "", "and no sentence about channels it never counted");
   assert.equal(plot(tree, "chart-reply"), null, "no speed line without the replies");
   assert.ok(byTestId(card(tree, "chart-reply"), "reply-spread"), "the spread still reads");
   assert.equal(cls(card(tree, "chart-rhythm"), "ck-heat"), null, "no hours without the grid");
@@ -672,7 +893,7 @@ test("the head names Reports on every lens with no way back above it: a lens is 
   lensAt = LENS_PATHS[0];
 });
 
-test("the period is a round button that opens the table's periods, each with a test id, the days in words and on a month", () => {
+test("the date range is a capsule that says what the page is on, and opens the four periods, the days reached in one press and a month to pick days on", () => {
   const tree = page();
   const c = control(tree);
   assert.deepEqual(
@@ -685,21 +906,50 @@ test("the period is a round button that opens the table's periods, each with a t
     ],
   );
   assert.equal(c.props.label, "Period");
+  assert.equal(c.props.value, "7d", "the period the page is on");
   const period = byTestId(seen(tree), "reports-period");
   const pop = find(period, (n) => n.type === Popover);
-  // A glyph alone, as the Calendar's options are, opening it: named for a screen reader by the period and its days.
+  // The capsule says its word beside its glyph (the bare glyph said nothing of what it held), and names the period
+  // and its days to a screen reader; on a desk the days stand beside it.
   const open = pop.props.trigger;
   assert.equal(open.props["data-testid"], "reports-period-open");
-  assert.equal(open.props.iconOnly, true);
-  assert.equal(open.props["aria-label"], "Period: Last 7 days, Aug 29 – Sep 4");
-  assert.equal(pop.props.label, "Period", "what it opens names itself");
+  assert.equal(open.props.iconOnly, undefined, "REGRESSION: a glyph alone, which said nothing of the period it held");
+  assert.deepEqual(rangeSays(tree), ["Date range: Last 7 days, Aug 29 – Sep 4", "7 days", "Aug 29 – Sep 4"]);
+  assert.equal(pop.props.label, "Date range", "what it opens names itself");
   assert.equal(textOf(byTestId(pop, "reports-period-range")), "Aug 29 – Sep 4", "the days in words");
   assert.match(textOf(cls(pop, "rpt-when-said")), /^Last 7 days · .+ time$/, "the period and the zone the days follow");
-  const month = find(pop, (n) => n.type === MonthRange);
+  assert.equal(
+    byTestId(pop, "reports-period-before"),
+    null,
+    "the days every figure is compared with are the figures' own to say (Ruben, 10 Oct 2026: not needed here)",
+  );
+  // The days reached in one press, worked out from the business's today (Friday 4 September), on a track drawn as the
+  // periods' is: none is the page's.
+  const other = otherDays(tree);
   assert.deepEqual(
-    [month.props.from, month.props.to, month.props.today],
-    ["2026-08-29", "2026-09-04", "2026-09-04"],
-    "and on a month: the window's first day to today",
+    other.props.options.map((o) => [o.value, o.label, o.testid]),
+    [
+      ["yesterday", "Yesterday", "period-yesterday"],
+      ["last-week", "Last week", "period-last-week"],
+      ["last-month", "Last month", "period-last-month"],
+    ],
+  );
+  assert.equal(other.props.value, "", "none of them is the page's");
+  assert.deepEqual(
+    [c.props.className, other.props.className],
+    ["rpt-when-presets", "rpt-when-presets"],
+    "the two tracks are laid out alike",
+  );
+  // And the month days are picked on: the period's own days drawn on it, none after today, ninety at most.
+  const picker = month(tree);
+  assert.deepEqual(
+    [picker.props.from, picker.props.to, picker.props.today, picker.props.most, picker.props.label],
+    ["2026-08-29", "2026-09-04", "2026-09-04", 90, "Days"],
+  );
+  assert.equal(
+    picker.props.hint({ first: null, band: { from: "2026-08-29", to: "2026-09-04" } }),
+    "Press a first day, then a last. 90 days at most.",
+    "what it says under itself is contracts' own",
   );
 });
 
@@ -715,9 +965,95 @@ test("the window picked shows at once, before its read lands: Month is the 1st t
       "said at once, from the business's today",
     );
     assert.match(textOf(cls(pop, "rpt-when-said")), /^This month so far · /);
-    const month = find(pop, (n) => n.type === MonthRange);
-    assert.deepEqual([month.props.from, month.props.to], ["2026-09-01", "2026-09-04"]);
+    assert.deepEqual([month(tree).props.from, month(tree).props.to], ["2026-09-01", "2026-09-04"]);
+    assert.deepEqual(rangeSays(tree), ["Date range: This month so far, Sep 1 – Sep 4", "Month", "Sep 1 – Sep 4"]);
   });
+});
+
+/** The week before the fixture's own: seven days that ended before the business's today. */
+const WEEK_BEFORE = { from: "2026-08-22", to: "2026-08-28" };
+const WEEK_BEFORE_KEY = "2026-08-22~2026-08-28";
+
+test("days picked on the month move the address and are read by their first and last day; the capsule says their dates, no period is chosen, and a period picked from there takes the days out of the address", async () => {
+  await inPeriodTest("answer", () =>
+    followingMoves(async () => {
+      let tree = page();
+      month(tree).props.onRangeChange(WEEK_BEFORE);
+      // Said at once, before the read lands: the control is on the days, and no period is.
+      tree = redraw();
+      assert.deepEqual(rangeSays(tree), ["Date range: 7 days, Aug 22 – Aug 28", "Aug 22 – 28", "7 days"]);
+      assert.equal(chosen(tree), undefined, "none of the four periods is these days");
+      for (let i = 0; i < 12; i++) await settle();
+      assert.deepEqual(
+        moves,
+        [[`reports/${WEEK_BEFORE_KEY}`, false]],
+        "the address says the days, as a new entry: Back walks the ranges a member looked at",
+      );
+      assert.deepEqual(period.asked, [WEEK_BEFORE_KEY], "one read, of the days picked");
+      redraw();
+      tree = redraw();
+      assert.equal(byTestId(tree, "reports-real").props["data-loading"], undefined, "the days landed");
+      assert.deepEqual(rangeSays(tree), ["Date range: 7 days, Aug 22 – Aug 28", "Aug 22 – 28", "7 days"]);
+      assert.deepEqual(
+        [month(tree).props.from, month(tree).props.to, month(tree).props.today],
+        ["2026-08-22", "2026-08-28", "2026-09-04"],
+        "the month shows what was picked, and today is still the business's",
+      );
+      assert.equal(failedLine(tree), null);
+      // The booking line follows people as they stand today, so it is not counted for days that ended.
+      const booked = find(tree, (n) => n.type === Figure && n.props.id === "booked");
+      assert.equal(textOf(booked.props.value), "—", "no count is drawn of what was not counted");
+      // A period by name from there: the address says no days again, and the period is read.
+      choose(tree, "30 days");
+      for (let i = 0; i < 12; i++) await settle();
+      assert.deepEqual(moves.at(-1), ["reports", false], "a period is never in the address");
+      assert.equal(period.asked.at(-1), "30d");
+      redraw();
+      tree = redraw();
+      assert.equal(chosen(tree), "30 days");
+      assert.equal(rangeSays(tree)[1], "30 days");
+    }),
+  );
+});
+
+test("a day reached in one press is days like any picked: Yesterday is the day before the business's today, in the address by its date", async () => {
+  await inPeriodTest("answer", () =>
+    followingMoves(async () => {
+      let tree = page();
+      otherDays(tree).props.onValueChange("yesterday");
+      for (let i = 0; i < 12; i++) await settle();
+      assert.deepEqual(moves, [["reports/2026-09-03~2026-09-03", false]]);
+      assert.deepEqual(period.asked, ["2026-09-03~2026-09-03"]);
+      redraw();
+      tree = redraw();
+      assert.deepEqual(rangeSays(tree), ["Date range: Yesterday, Sep 3", "Yesterday", "Sep 3"]);
+      assert.equal(otherDays(tree).props.value, "yesterday", "and it is drawn as chosen, on its own track");
+      assert.equal(chosen(tree), undefined, "and no period is");
+    }),
+  );
+});
+
+test("days that fail to load say so by their dates, keep the range showing, and the address goes back to it in the entry's own place", async () => {
+  await inPeriodTest("refuse", () =>
+    followingMoves(async () => {
+      let tree = page();
+      month(tree).props.onRangeChange(WEEK_BEFORE);
+      for (let i = 0; i < 12; i++) await settle();
+      tree = redraw();
+      assert.equal(textOf(failedLine(tree)), "Couldn't load Aug 22 – Aug 28. Still showing 7 days.");
+      assert.deepEqual(
+        moves,
+        [
+          [`reports/${WEEK_BEFORE_KEY}`, false],
+          ["reports", true],
+        ],
+        "the entry the pick made says what the page shows, so Back never returns to days that failed",
+      );
+      assert.equal(chosen(tree), "7 days", "and the control says what the page shows");
+      assert.equal(rangeSays(tree)[1], "7 days");
+      assert.equal(byTestId(tree, "reports-real").props["data-loading"], undefined, "nothing is left dimmed");
+    }),
+  );
 });
 
 test("a period on its way keeps the one showing, dimmed by the one rule every page uses, and says it is busy", async () => {
@@ -1377,6 +1713,109 @@ test("a demo's Reviews lens draws the sample's listing through the same section,
   }
 });
 
+test("a demo's Receptionist lens draws the sample's own read through the same fold, every part of it, and its tabs switch the sample's period", () => {
+  setSurfaceValue("reports", undefined);
+  setSurfaceValue("reports_receptionist", undefined);
+  globalThis.__DEMO_MODE = true;
+  lensAt = LENS_PATHS[1];
+  const foldOf = (range) => {
+    const own = receptionistSample(range);
+    return toReceptionistReportVM(own.dto, { nowMs: own.readAt });
+  };
+  try {
+    fresh();
+    let tree = draw();
+    assert.ok(byTestId(tree, "reports-sample"), "the sample's page");
+    for (const id of [
+      "receptionist-strip",
+      "chart-hold",
+      "chart-topics",
+      "chart-languages",
+      "chart-call-endings",
+      "receptionist-link",
+      "receptionist-figures",
+      "receptionist-stuck",
+    ])
+      assert.ok(byTestId(tree, id), `${id}: the sample has every part`);
+    assert.equal(byTestId(tree, "receptionist-failed"), null);
+    assert.equal(
+      byTestId(tree, "reports-sample").props["data-loading"],
+      undefined,
+      "the sample answers at once: nothing is on its way",
+    );
+    assert.equal(
+      textOf(cls(card(tree, "chart-hold"), "ck-card-takeaway")),
+      foldOf("30d").hold.line,
+      "the hold's line is the fold's, of the sample's numbers",
+    );
+    assert.equal(
+      textOf(cls(card(tree, "chart-reply"), "ck-dotplot-ref")),
+      "your 1-minute hold ends",
+      "the sample's business has a hold, so its replies are plotted past it",
+    );
+    choose(tree, "90 days");
+    tree = redraw();
+    assert.equal(chosen(tree), "90 days", "the sample's own period");
+    assert.equal(textOf(cls(card(tree, "chart-hold"), "ck-card-takeaway")), foldOf("90d").hold.line);
+    assert.notEqual(foldOf("90d").hold.line, foldOf("30d").hold.line, "a longer period is more replies");
+  } finally {
+    globalThis.__DEMO_MODE = false;
+    lensAt = LENS_PATHS[0];
+  }
+});
+
+test("a demo's People lens draws the sample's own read through the same fold, every part of it, and its tabs switch the sample's period", () => {
+  setSurfaceValue("reports", undefined);
+  setSurfaceValue("reports_people", undefined);
+  globalThis.__DEMO_MODE = true;
+  lensAt = LENS_PATHS[2];
+  const foldOf = (range) => toPeopleReportVM(peopleSample(range).dto);
+  try {
+    fresh();
+    let tree = draw();
+    assert.ok(byTestId(tree, "reports-sample"), "the sample's page");
+    for (const id of [
+      "people-strip",
+      "chart-people-channels",
+      "chart-people-first",
+      "chart-people-yeses",
+      "chart-people-stops",
+      "chart-people-wires",
+      "chart-people-fresh",
+      "people-time",
+      "chart-people-steps",
+      "chart-people-bounced",
+      "people-stuck",
+      "people-stand",
+      "chart-people",
+      "chart-rhythm",
+    ])
+      assert.ok(byTestId(tree, id), `${id}: the sample has every part`);
+    assert.equal(byTestId(tree, "people-failed"), null);
+    assert.equal(byTestId(tree, "people-now-failed"), null);
+    assert.equal(
+      byTestId(tree, "reports-sample").props["data-loading"],
+      undefined,
+      "the sample answers at once: nothing is on its way",
+    );
+    assert.equal(standingSaid().sentence, foldOf("30d").head, "the head says the sample's fold");
+    assert.equal(
+      textOf(cls(card(tree, "chart-people-steps"), "ck-card-takeaway")),
+      foldOf("30d").stepsDone.line,
+      "a card's line is the fold's, of the sample's numbers",
+    );
+    choose(tree, "90 days");
+    tree = redraw();
+    assert.equal(chosen(tree), "90 days", "the sample's own period");
+    assert.equal(standingSaid().sentence, foldOf("90d").head);
+    assert.notEqual(foldOf("90d").head, foldOf("30d").head, "a longer period is more people");
+    assert.equal(textOf(cls(card(tree, "chart-people-steps"), "ck-card-takeaway")), foldOf("90d").stepsDone.line);
+  } finally {
+    globalThis.__DEMO_MODE = false;
+    lensAt = LENS_PATHS[0];
+  }
+});
+
 test("a demo draws the same page from the sample, its tabs switch the sample; without a demo the page says what Reports reads", () => {
   setSurfaceValue("reports", undefined);
   globalThis.__DEMO_MODE = true;
@@ -1389,7 +1828,14 @@ test("a demo draws the same page from the sample, its tabs switch the sample; wi
     );
     lensAt = LENS_PATHS[2];
     fresh();
-    assert.ok(byTestId(draw(), "chart-channels"), "and its People lens");
+    // The sample answers the People lens's own read at once as well: the strip, and the cards the report keeps beside it.
+    const people = draw();
+    assert.ok(
+      byTestId(people, "people-strip") && byTestId(people, "chart-people") && byTestId(people, "chart-rhythm"),
+      "and its People lens",
+    );
+    assert.equal(byTestId(people, "people-failed"), null);
+    assert.equal(byTestId(people, "reports-sample").props["data-loading"], undefined, "nothing is on its way");
     lensAt = LENS_PATHS[0];
     fresh();
     tree = draw();
@@ -1617,7 +2063,7 @@ test("REGRESSION (C25): Reports says what the campaigns sent, not what offers ea
     !said.includes("offers earned") && !said.includes("yes to offers"),
     "REGRESSION: offers over visit reminders",
   );
-  assert.ok(said.includes("what your broadcasts and playbooks sent"), "the section says what a campaign is");
+  assert.ok(said.includes("Sent") || said.includes("sent"), "the lens still says what a campaign sent");
 });
 
 test("Reports draws a Deals section where deals are on and a deal was recorded: the headline, what became of the cohort in the kit's bars, the lines beside them, the stock", () => {
@@ -1662,11 +2108,10 @@ test("Reports draws a Deals section where deals are on and a deal was recorded: 
     ],
   );
   assert.equal(textOf(byTestId(section, "rpt-deals-stock")), "4 clients now · $7,500 a month.");
-  // Each fact once and nothing more: the section is its title, the headline, the card, the lines and the stock.
+  // Each fact once and nothing more: the section is the headline, the card, the lines and the stock (no title drawn).
   assert.equal(
     textOf(section),
     [
-      "Deals",
       "5 proposals went out in the last 7 days.",
       "What became of the proposals",
       "Became clients",
@@ -1691,7 +2136,9 @@ test("Reports draws a Deals section where deals are on and a deal was recorded: 
 });
 
 test("a period no proposal went out in draws no bars: the headline, what is still open in the column, and the stock", () => {
-  const tree = page({ deals: toDealReportVM(dealsDto({ clients: 2, open: { count: 2, amounts: [] } }), "7 days") });
+  const tree = page({
+    deals: toDealReportVM(dealsDto({ clients: 2, open: { count: 2, amounts: [] } }), "in the last 7 days"),
+  });
   const section = byTestId(tree, "rpt-deals");
   assert.equal(textOf(byTestId(section, "rpt-deals-headline")), "No proposals went out in the last 7 days.");
   assert.equal(byTestId(section, "rpt-deals-outcomes"), null, "no bars of nothing");
@@ -1699,7 +2146,7 @@ test("a period no proposal went out in draws no bars: the headline, what is stil
   assert.deepEqual(all(lines, (n) => n.type === "li").map(textOf), ["2 proposals still open."]);
   assert.ok(!classes(lines).includes("rpt-span-7"), "no card to sit beside: the lines take the column");
   assert.equal(textOf(byTestId(section, "rpt-deals-stock")), "2 clients now.");
-  const bare = page({ deals: toDealReportVM(dealsDto({ clients: 1 }), "7 days") });
+  const bare = page({ deals: toDealReportVM(dealsDto({ clients: 1 }), "in the last 7 days") });
   assert.equal(byTestId(bare, "rpt-deals-lines"), null, "nothing more to say: no lines");
   assert.equal(textOf(byTestId(bare, "rpt-deals-stock")), "1 client now.");
 });
@@ -1707,7 +2154,7 @@ test("a period no proposal went out in draws no bars: the headline, what is stil
 test("REGRESSION: a period nobody wrote or called in still says its deals -- the section sat inside the branch for a period with messages, so a workspace whose deals are made in meetings saw none", () => {
   const tree = page({
     report: quiet(),
-    deals: toDealReportVM(dealsDto({ sent: 1, waiting: 1, open: { count: 1, amounts: [] } }), "7 days"),
+    deals: toDealReportVM(dealsDto({ sent: 1, waiting: 1, open: { count: 1, amounts: [] } }), "in the last 7 days"),
   });
   assert.ok(card(tree, "reports-empty"), "the period is still said to be quiet");
   assert.ok(byTestId(tree, "rpt-deals"), "and the deals are there beside it");

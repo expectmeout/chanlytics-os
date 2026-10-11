@@ -54,6 +54,7 @@ export const ROUTES = {
   "GET leads/[id]": { method: "GET", path: "/api/v1/leads/[id]" },
   "GET leads/export": { method: "GET", path: "/api/v1/leads/export" },
   "GET lines/codes": { method: "GET", path: "/api/v1/lines/codes" },
+  "GET me/alerts": { method: "GET", path: "/api/v1/me/alerts" },
   "GET messages/[id]/media": { method: "GET", path: "/api/v1/messages/[id]/media" },
   "GET metrics": { method: "GET", path: "/api/v1/metrics" },
   "GET notifications": { method: "GET", path: "/api/v1/notifications" },
@@ -73,7 +74,9 @@ export const ROUTES = {
   "GET reports": { method: "GET", path: "/api/v1/reports" },
   "GET reports/campaigns": { method: "GET", path: "/api/v1/reports/campaigns" },
   "GET reports/headline": { method: "GET", path: "/api/v1/reports/headline" },
+  "GET reports/people": { method: "GET", path: "/api/v1/reports/people" },
   "GET reports/reach-outs": { method: "GET", path: "/api/v1/reports/reach-outs" },
+  "GET reports/receptionist": { method: "GET", path: "/api/v1/reports/receptionist" },
   "GET reports/reviews": { method: "GET", path: "/api/v1/reports/reviews" },
   "GET segments": { method: "GET", path: "/api/v1/segments" },
   "GET settings": { method: "GET", path: "/api/v1/settings" },
@@ -109,6 +112,7 @@ export const ROUTES = {
   "POST calendar/notices/[id]/dismiss": { method: "POST", path: "/api/v1/calendar/notices/[id]/dismiss" },
   "POST calendar/notices/[id]/read-again": { method: "POST", path: "/api/v1/calendar/notices/[id]/read-again" },
   "POST calendar/preview": { method: "POST", path: "/api/v1/calendar/preview" },
+  "POST calendar/visits/[id]": { method: "POST", path: "/api/v1/calendar/visits/[id]" },
   "POST calls/[id]/end": { method: "POST", path: "/api/v1/calls/[id]/end" },
   "POST calls/[id]/hand-over": { method: "POST", path: "/api/v1/calls/[id]/hand-over" },
   "POST calls/[id]/whisper": { method: "POST", path: "/api/v1/calls/[id]/whisper" },
@@ -164,6 +168,7 @@ export const ROUTES = {
   "POST mailboxes": { method: "POST", path: "/api/v1/mailboxes" },
   "POST messages/[id]/cancel-send": { method: "POST", path: "/api/v1/messages/[id]/cancel-send" },
   "POST messages/[id]/steer": { method: "POST", path: "/api/v1/messages/[id]/steer" },
+  "POST notifications/test": { method: "POST", path: "/api/v1/notifications/test" },
   "POST partner": { method: "POST", path: "/api/v1/partner" },
   "POST partner/invitations/[id]/accept": { method: "POST", path: "/api/v1/partner/invitations/[id]/accept" },
   "POST partner/invitations/[id]/decline": { method: "POST", path: "/api/v1/partner/invitations/[id]/decline" },
@@ -196,6 +201,8 @@ export const ROUTES = {
   "POST settings/receptionist": { method: "POST", path: "/api/v1/settings/receptionist" },
   "POST setup/request": { method: "POST", path: "/api/v1/setup/request" },
   "POST team/invite": { method: "POST", path: "/api/v1/team/invite" },
+  "POST team/invite/[id]/resend": { method: "POST", path: "/api/v1/team/invite/[id]/resend" },
+  "POST team/leave": { method: "POST", path: "/api/v1/team/leave" },
   "POST team/partner": { method: "POST", path: "/api/v1/team/partner" },
   "POST templates": { method: "POST", path: "/api/v1/templates" },
   "POST templates/draft": { method: "POST", path: "/api/v1/templates/draft" },
@@ -217,6 +224,7 @@ export const ROUTES = {
   "PUT lead-suggestions": { method: "PUT", path: "/api/v1/lead-suggestions" },
   "PUT mailboxes/[id]": { method: "PUT", path: "/api/v1/mailboxes/[id]" },
   "PUT me": { method: "PUT", path: "/api/v1/me" },
+  "PUT me/alerts": { method: "PUT", path: "/api/v1/me/alerts" },
   "PUT me/devices": { method: "PUT", path: "/api/v1/me/devices" },
   "PUT notifications": { method: "PUT", path: "/api/v1/notifications" },
   "PUT playbooks/[id]": { method: "PUT", path: "/api/v1/playbooks/[id]" },
@@ -282,6 +290,7 @@ export type Routes = {
   "GET leads/[id]": typeof import("../../app/api/v1/leads/[id]/route").GET;
   "GET leads/export": typeof import("../../app/api/v1/leads/export/route").GET;
   "GET lines/codes": typeof import("../../app/api/v1/lines/codes/route").GET;
+  "GET me/alerts": typeof import("../../app/api/v1/me/alerts/route").GET;
   "GET messages/[id]/media": typeof import("../../app/api/v1/messages/[id]/media/route").GET;
   "GET metrics": typeof import("../../app/api/v1/metrics/route").GET;
   "GET notifications": typeof import("../../app/api/v1/notifications/route").GET;
@@ -301,7 +310,9 @@ export type Routes = {
   "GET reports": typeof import("../../app/api/v1/reports/route").GET;
   "GET reports/campaigns": typeof import("../../app/api/v1/reports/campaigns/route").GET;
   "GET reports/headline": typeof import("../../app/api/v1/reports/headline/route").GET;
+  "GET reports/people": typeof import("../../app/api/v1/reports/people/route").GET;
   "GET reports/reach-outs": typeof import("../../app/api/v1/reports/reach-outs/route").GET;
+  "GET reports/receptionist": typeof import("../../app/api/v1/reports/receptionist/route").GET;
   "GET reports/reviews": typeof import("../../app/api/v1/reports/reviews/route").GET;
   "GET segments": typeof import("../../app/api/v1/segments/route").GET;
   "GET settings": typeof import("../../app/api/v1/settings/route").GET;
@@ -337,6 +348,7 @@ export type Routes = {
   "POST calendar/notices/[id]/dismiss": typeof import("../../app/api/v1/calendar/notices/[id]/dismiss/route").POST;
   "POST calendar/notices/[id]/read-again": typeof import("../../app/api/v1/calendar/notices/[id]/read-again/route").POST;
   "POST calendar/preview": typeof import("../../app/api/v1/calendar/preview/route").POST;
+  "POST calendar/visits/[id]": typeof import("../../app/api/v1/calendar/visits/[id]/route").POST;
   "POST calls/[id]/end": typeof import("../../app/api/v1/calls/[id]/end/route").POST;
   "POST calls/[id]/hand-over": typeof import("../../app/api/v1/calls/[id]/hand-over/route").POST;
   "POST calls/[id]/whisper": typeof import("../../app/api/v1/calls/[id]/whisper/route").POST;
@@ -392,6 +404,7 @@ export type Routes = {
   "POST mailboxes": typeof import("../../app/api/v1/mailboxes/route").POST;
   "POST messages/[id]/cancel-send": typeof import("../../app/api/v1/messages/[id]/cancel-send/route").POST;
   "POST messages/[id]/steer": typeof import("../../app/api/v1/messages/[id]/steer/route").POST;
+  "POST notifications/test": typeof import("../../app/api/v1/notifications/test/route").POST;
   "POST partner": typeof import("../../app/api/v1/partner/route").POST;
   "POST partner/invitations/[id]/accept": typeof import("../../app/api/v1/partner/invitations/[id]/accept/route").POST;
   "POST partner/invitations/[id]/decline": typeof import("../../app/api/v1/partner/invitations/[id]/decline/route").POST;
@@ -424,6 +437,8 @@ export type Routes = {
   "POST settings/receptionist": typeof import("../../app/api/v1/settings/receptionist/route").POST;
   "POST setup/request": typeof import("../../app/api/v1/setup/request/route").POST;
   "POST team/invite": typeof import("../../app/api/v1/team/invite/route").POST;
+  "POST team/invite/[id]/resend": typeof import("../../app/api/v1/team/invite/[id]/resend/route").POST;
+  "POST team/leave": typeof import("../../app/api/v1/team/leave/route").POST;
   "POST team/partner": typeof import("../../app/api/v1/team/partner/route").POST;
   "POST templates": typeof import("../../app/api/v1/templates/route").POST;
   "POST templates/draft": typeof import("../../app/api/v1/templates/draft/route").POST;
@@ -445,6 +460,7 @@ export type Routes = {
   "PUT lead-suggestions": typeof import("../../app/api/v1/lead-suggestions/route").PUT;
   "PUT mailboxes/[id]": typeof import("../../app/api/v1/mailboxes/[id]/route").PUT;
   "PUT me": typeof import("../../app/api/v1/me/route").PUT;
+  "PUT me/alerts": typeof import("../../app/api/v1/me/alerts/route").PUT;
   "PUT me/devices": typeof import("../../app/api/v1/me/devices/route").PUT;
   "PUT notifications": typeof import("../../app/api/v1/notifications/route").PUT;
   "PUT playbooks/[id]": typeof import("../../app/api/v1/playbooks/[id]/route").PUT;

@@ -135,7 +135,10 @@ const history = (w) => [
 ];
 
 /** The world as it is when everything is in order, unless a case says otherwise. */
-function world(w, { config = { brain: BRAIN }, status = "active", channels = [voiceChannel(w)], faults = {} } = {}) {
+function world(
+  w,
+  { config = { brain: BRAIN }, status = "active", channels = [voiceChannel(w)], faults = {}, phone = CALLER } = {},
+) {
   return fakeDb(
     {
       tenant_channels: channels,
@@ -143,7 +146,7 @@ function world(w, { config = { brain: BRAIN }, status = "active", channels = [vo
       policies: [],
       tenants: [{ id: w.tenant, name: "Harbor", timezone: TZ, status }],
       google_listings: [],
-      contacts: [contact(w)],
+      contacts: [{ ...contact(w), phone_e164: phone }],
       conversations: [conversation(w)],
       messages: history(w),
     },
@@ -233,6 +236,28 @@ test("no caller ID: the facts are owed to every call, and the memory is nobody's
   );
   assert.equal(r.variables.caller_context, CALLER_UNKNOWN);
   assert.equal(cal.asked.visits.length, 0, "nobody to look up");
+});
+
+test("a caller from abroad is recognised on the number they are on file under: the + is read as their country code, never stripped into an American number", async () => {
+  // Ten digits after the +, sequential, nobody's number. Stripped of its + before it was read, this caller was looked
+  // up as +1 479 123 4567, told as new, and had none of what they said before.
+  const abroad = "+4791234567";
+  const w = fresh();
+  const cal = calendar({ visits: VISITS });
+  const r = await planCallStart({
+    agentId: w.agent,
+    from: abroad,
+    db: world(w, { phone: abroad }),
+    now: NOW,
+    calendar: cal.port,
+  });
+  assert.deepEqual([r.memory, r.conversationId, r.error], ["known", C1, null]);
+  assert.ok(r.variables.caller_context.startsWith("Name on record: <profile_name>Rosa</profile_name>."));
+  assert.deepEqual(
+    cal.asked.visits.map((c) => c.who),
+    [{ phone: abroad, name: "Rosa" }],
+    "their visits, by the same number",
+  );
 });
 
 test("a number nobody has on file is told as new, in the words the text receptionist uses for the same person", async () => {
@@ -341,6 +366,36 @@ test("REGRESSION: a contact table that will not answer costs the caller their re
   assert.match(r.error, /readLeadContext\/contact: permission denied/);
   assert.equal(r.variables.business_facts, factsOf(w, OPENINGS), "the facts were read beside it and are kept");
   assert.equal(r.variables.caller_context, CALLER_UNKNOWN);
+});
+
+test("the workspace is known the moment the call routes: a withheld number and a memory that could not be read carry it as a read memory does, and only a call that routed nowhere carries none", async () => {
+  // The door keeps the delivery under it and proves a test of "keep my number" with it (inbound-call.ts). Set only
+  // beside a memory that read, a withheld caller's call was kept under no workspace and its forwarding never proven.
+  const cases = [
+    ["a caller on file", {}, CALLER, "known"],
+    ["a withheld number", {}, "", "none"],
+    ["a memory that could not be read", { "contacts.select": { message: "permission denied" } }, CALLER, "unread"],
+  ];
+  for (const [why, faults, from, memory] of cases) {
+    const w = fresh();
+    const r = await planCallStart({
+      agentId: w.agent,
+      from,
+      db: world(w, { faults }),
+      now: NOW,
+      calendar: calendar().port,
+    });
+    assert.deepEqual([r.memory, r.tenantId], [memory, w.tenant], why);
+    assert.equal(r.conversationId, memory === "known" ? C1 : null, `${why}: a thread to hold only when one was read`);
+  }
+  const nobody = fresh();
+  const db = world(nobody, { channels: [voiceChannel(nobody, { status: "disabled" })] });
+  const r = await planCallStart({ agentId: nobody.agent, from: CALLER, db, now: NOW, calendar: calendar().port });
+  assert.deepEqual([r.facts, r.tenantId], ["unrouted", null], "routed nowhere: nobody's");
+  const blip = fresh();
+  const down = world(blip, { faults: { "tenant_channels.select": { message: "connection reset" } } });
+  const b = await planCallStart({ agentId: blip.agent, from: CALLER, db: down, now: NOW, calendar: calendar().port });
+  assert.deepEqual([b.facts, b.tenantId], ["unreadable", null], "a routing that could not be read: nobody's either");
 });
 
 test("routed and read, and no persona: told there are no facts rather than told nothing; a config that does not parse says so", async () => {

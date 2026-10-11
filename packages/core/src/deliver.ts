@@ -43,7 +43,6 @@ import {
   isOfferByEmail,
   mayMessageFor,
   outreachRefusalOf,
-  passesHandoverPause,
   purposeOfTemplate,
   type DeliveryRefusal,
   type MessageAbout,
@@ -63,6 +62,7 @@ import {
   type Json,
 } from "@chanlytics/db";
 import { assertFrozenFor, offerFacts, offerRefusal, type OfferFacts } from "./deliver-email";
+import { heldByThread } from "./deliver-hold";
 import { textRefusal } from "./deliver-text";
 import { namedFailure, putOnWire, type WireUnavailable } from "./wire-senders";
 
@@ -120,6 +120,11 @@ export interface WirePayload {
    * wire). The email wire bounds its tries by it (channels sendEmail); absent, by its own deadline alone.
    */
   deadlineMs?: number;
+  /**
+   * The thread the words are for (Delivery.conversationId). A wire that holds more than one number reads which of them
+   * the person last wrote to by it (the job runner's WhatsApp wire); every other ignores it.
+   */
+  conversationId?: string;
 }
 
 /** How to put words on one channel's wire. Owns its own address format. */
@@ -181,6 +186,11 @@ export interface Delivery {
   messageId?: string | null;
   /** What this send is, for the rules (SendKind). Absent, the door derives it the way it always read `sender`: see kindOf. */
   kind?: SendKind;
+  /**
+   * The call this send is made on, by the provider's id for it (the hold's control_ref, as the inbound door took it):
+   * that call's own hold on the thread does not refuse it (deliver-hold.ts). Absent for every send not made mid-call.
+   */
+  onCall?: string | null;
   /** Recorded on a row this call writes. */
   meta?: Record<string, Json>;
   /**
@@ -241,7 +251,7 @@ export interface DeliverPorts {
 interface WireFacts {
   pausedUntil: string | null;
   /**
-   * Who is SPEAKING on this thread right now, and until when (00132).
+   * Who is SPEAKING on this thread right now, and until when (00132); for a call, which one (`ref`, its control_ref).
    *
    * Not `assignee_user_id`, which says who is responsible and may outlive the
    * exchange -- reading that as a live hold is how a thread taken over and
@@ -249,7 +259,7 @@ interface WireFacts {
    * expires; responsibility does not, and neither does the escalation that
    * keeps the thread in somebody's queue.
    */
-  control: { kind: string; until: string } | null;
+  control: { kind: string; ref: string | null; until: string } | null;
   /** The person this thread is with, as the thread says: what outreach asks the leads about. */
   contactId: string | null;
   contact: {
@@ -296,6 +306,7 @@ async function wireFacts({ db, emailOffers }: DeliverPorts, d: Delivery): Promis
   const row = data as unknown as {
     paused_until: string | null;
     control_kind?: string | null;
+    control_ref?: string | null;
     control_until?: string | null;
     contact_id?: string | null;
     contacts: WireFacts["contact"] | null;
@@ -303,7 +314,10 @@ async function wireFacts({ db, emailOffers }: DeliverPorts, d: Delivery): Promis
   };
   return {
     pausedUntil: row.paused_until ?? null,
-    control: row.control_kind && row.control_until ? { kind: row.control_kind, until: row.control_until } : null,
+    control:
+      row.control_kind && row.control_until
+        ? { kind: row.control_kind, ref: row.control_ref ?? null, until: row.control_until }
+        : null,
     contactId: row.contact_id ?? null,
     contact: row.contacts ?? {
       consent: null,
@@ -474,37 +488,6 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number, o: OutreachFacts |
   return heldByThread(d, f, nowMs, kind);
 }
 
-/** Whether somebody holds the thread, or its pause stands, for this send (what a draft, a system message and a broadcast each meet). */
-function heldByThread(d: Delivery, f: WireFacts, nowMs: number, kind: SendKind): DeliveryRefusal | null {
-  // Is somebody speaking on this thread right now (00132)? A person who took it over, or a call in progress. It is asked
-  // as a LIVE fact with an expiry, never as "does a column name somebody": the assignee it used to read is never cleared,
-  // so a thread taken over one Tuesday refused every draft after it for the life of the workspace.
-  const held = !!f.control && nowMs < new Date(f.control.until).getTime();
-  // A thread somebody holds does not take the receptionist's draft. Taking over withdraws the drafts written before it;
-  // this is the same promise kept at the wire, for the withdrawal that failed or the draft written in the same second.
-  // Only the draft: an answer meets the hold below, a system message is owed whoever holds the thread.
-  if (kind === "draft" && held) return "human_has_it";
-  // The thread's pause holds the receptionist answering now, and a broadcast.
-  // It does not hold a queued draft, written before the pause it now meets --
-  // the receptionist's own escalation pauses the thread and queues its holding
-  // message in the same breath -- so for a draft the question is not "is the
-  // thread paused" but "did a person speak since", which overtakenByHuman
-  // answers below; and every pause writer withdraws the drafts that came
-  // before it (pauseConversation, withdrawDrafts) besides. Nor does it hold a
-  // system message: an opt-in confirmation is owed the moment the yes was
-  // given, whoever holds the thread.
-  //
-  // A live hold stops them too, and that is what keeps two of our own agents off one person: while a call is in progress
-  // the thread is held, so the text receptionist stores what the customer writes and answers none of it, rather than
-  // talking over the call the same customer is on.
-  //
-  // The day-before reminder alone passes the thread's 24-hour pause (contracts passesHandoverPause, decision D4): it is
-  // about their own booking. The live hold above still holds it, and the batch waits for that rather than skipping.
-  const paused = !!f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime() && !passesHandoverPause(d.trigger);
-  if (kind !== "draft" && kind !== "system" && (held || paused)) return "human_has_it";
-  return null;
-}
-
 /**
  * A person spoke after this draft was written. A held reply exists so a
  * human can get there first; the fact is a newer human message on the
@@ -656,12 +639,7 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
   // later send to that person failing and telling them again.
   if (!sent.ok && d.channel === "sms" && smsRefusalOf(sent) === "opted_out") {
     if (facts.contactId)
-      await recordCarrierOptOut(ports.db, {
-        tenantId: d.tenantId,
-        contactId: facts.contactId,
-        channel: d.channel,
-        previous: facts.contact.consent,
-      });
+      await recordCarrierOptOut(ports.db, { tenantId: d.tenantId, contactId: facts.contactId, channel: d.channel });
     return refuse("opted_out", { consent: "opted_out", dnc: true }, { source: CARRIER_CONSENT_SOURCE });
   }
 

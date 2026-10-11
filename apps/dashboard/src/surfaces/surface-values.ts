@@ -17,10 +17,13 @@
  */
 import type { ReportsSurface } from "./reports/surface";
 import type { ReviewsSurface } from "./reports/reviews-surface";
+import type { ReceptionistSurface } from "./reports/receptionist-surface";
+import type { PeopleSurface as ReportsPeopleSurface } from "./reports/people-surface";
 import type { GoogleSurface } from "../legacy-bridge/google";
 import type { BroadcastsSurface } from "./campaigns/broadcasts/surface";
 import type { PlaybooksSurface } from "./campaigns/playbooks/surface";
 import type { ReachOutsSurface } from "./campaigns/reach-out/surface";
+import type { CampaignResultsSurface } from "./campaigns/home/results-surface";
 import type { SettingsSurface } from "../legacy-bridge/surfaces/settings";
 import type { ConversationsSurface, InboxSurface } from "./inbox/types";
 import type { ReportHeadlineVM, TodayVM } from "@chanlytics/contracts";
@@ -31,6 +34,7 @@ import type { LeadsSurface } from "./leads/surface";
 import type { SetupSurface } from "./setup/surface";
 import type { BillingSurface } from "./settings/billing/surface";
 import type { PartnerSurface } from "./settings/partner/surface";
+import type { AlertsSurface } from "./settings/notifications/surface";
 
 /** Every surface a TSX surface can read, by the key its override is registered under. */
 export interface SurfaceValues {
@@ -39,6 +43,10 @@ export interface SurfaceValues {
   reports_headline: ReportHeadlineVM;
   /** The Reviews lens's own read, folded once: its figures and cards, and the sentence at its head (reports/reviews-surface.ts). It follows the period (reports/period-surface.ts). */
   reports_reviews: ReviewsSurface;
+  /** The Receptionist lens's own read, as the route gave it: the page folds it (reports/receptionist-surface.ts). It follows the period (reports/period-surface.ts). */
+  reports_receptionist: ReceptionistSurface;
+  /** The People lens's own read, as the route gave it: the page folds it (reports/people-surface.ts). It follows the period (reports/period-surface.ts). */
+  reports_people: ReportsPeopleSurface;
   google: GoogleSurface;
   inbox: InboxSurface;
   conversations: ConversationsSurface;
@@ -46,6 +54,8 @@ export interface SurfaceValues {
   playbooks: PlaybooksSurface;
   broadcasts: BroadcastsSurface;
   reach_outs: ReachOutsSurface;
+  /** Campaigns' own 30 days, read where Campaigns is drawn (campaigns/home/results-surface.ts): the funnel's and each row's. */
+  campaign_results: CampaignResultsSurface;
   settings: SettingsSurface;
   live: LiveSurface;
   people: PeopleSurface;
@@ -57,6 +67,8 @@ export interface SurfaceValues {
   billing: BillingSurface | null;
   /** Undefined until read; null when the read failed. `dto` is null for a person who is not a partner. */
   partner: PartnerSurface | null;
+  /** What reaches this member's phones (decision 0040). Undefined until read; null when the read failed. */
+  alerts: AlertsSurface | null;
 }
 
 export type SurfaceKey = keyof SurfaceValues;
@@ -168,6 +180,8 @@ const SURFACE_KEYS: Record<SurfaceKey, true> = {
   reports: true,
   reports_headline: true,
   reports_reviews: true,
+  reports_receptionist: true,
+  reports_people: true,
   google: true,
   inbox: true,
   conversations: true,
@@ -175,6 +189,7 @@ const SURFACE_KEYS: Record<SurfaceKey, true> = {
   playbooks: true,
   broadcasts: true,
   reach_outs: true,
+  campaign_results: true,
   settings: true,
   live: true,
   people: true,
@@ -183,4 +198,5 @@ const SURFACE_KEYS: Record<SurfaceKey, true> = {
   setup: true,
   billing: true,
   partner: true,
+  alerts: true,
 };

@@ -28,7 +28,7 @@ import type { WorkspaceSettings } from "@/legacy-bridge/surfaces/settings";
 import type { PromptPreviewDto } from "@/server/receptionist/prompt-preview";
 import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
-import { RecordBox } from "../../kit/record/field";
+import { RecordBox, RecordTip } from "../../kit/record/field";
 import { RecordCombobox } from "../../kit/record/combobox";
 import { gate as roleGate } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
@@ -108,7 +108,6 @@ export const BtHoursRow = ({
       label="Hours"
       hint={tab.hoursZoneWords ? tab.hoursZoneWords(toldIn) : null}
       wide
-      saveLabel="Save the week"
       gate={roleGate("settings", "change your hours")}
       row={{
         value: hoursLine ? (
@@ -227,6 +226,9 @@ type ClosureKey = "date" | "until" | "note";
 /** What BtFold hands the closed days' body. */
 type ClosureFields = FoldFields<Closure[]>;
 
+/** What the closed days' tip says: the case the list cannot hold, and that a date gone by goes by itself. */
+const BTO_CLOSURES_TIP = "Closing early? Set that day's hours instead. Dates that have passed drop off by themselves.";
+
 /** The closed days, as rows of from, until and why. Hookless: its rows come and go. */
 const BtoClosures = ({ draft: days, rows, press, problems, readOnly }: ClosureFields) => {
   // The same cap the write schema enforces (contracts MAX_CLOSURES, LIMITS.closures), so the fold
@@ -307,27 +309,25 @@ const BtoClosures = ({ draft: days, rows, press, problems, readOnly }: ClosureFi
         );
       })}
       {closed.canAdd ? (
-        <button
-          type="button"
-          className="btn btn-sm bt-fold-add"
-          {...press(() => closed.add())}
-          data-testid="rec-closures-add"
-        >
-          <Icon name="plus" size={12} /> Add a closed day
-        </button>
+        <span className="bt-add-line">
+          <button
+            type="button"
+            className="btn btn-sm bt-fold-add"
+            {...press(() => closed.add())}
+            data-testid="rec-closures-add"
+          >
+            <Icon name="plus" size={12} /> Add a closed day
+          </button>
+          {/* The one case this cannot express, said behind a tip rather than left for an owner to discover by picking
+              the only option and turning away an afternoon of bookings; and that past dates need no tidying. */}
+          <RecordTip text={BTO_CLOSURES_TIP} label="About closed days" testid="rec-closures-tip" />
+        </span>
       ) : (
         <p className="bt-fold-note" data-testid="rec-closures-cap">
           {full}
         </p>
       )}
       <FieldError id="bt-closures-problem" message={said("closures")} testid="rec-closures-problem" />
-      {/* The one case this cannot express, said plainly rather than left for
-          an owner to discover by picking the only option and turning away an
-          afternoon of bookings. */}
-      <p className="bt-fold-note">
-        Closing early rather than all day? Leave it out of this list and set that day&apos;s hours above instead. Dates
-        that have passed stop being mentioned on their own — there is nothing to tidy up.
-      </p>
     </div>
   );
 };
@@ -388,7 +388,6 @@ export const BtOpenCard = ({
         {...shared}
         id="closures"
         label="Days you're closed"
-        hint="Holidays and one-off closures."
         gate={gate("the days you are closed")}
         row={{
           value: ahead.line,

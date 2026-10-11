@@ -39,10 +39,12 @@
     z-index: 220;
     /* The desktop sidebar's own 248px (Ruben, 25 Sep): at 300 its words ended by 190 and the rest of it was empty. */
     width: min(248px, 84vw);
-    /* Nothing under its last row. The home bar's inset was kept here as padding since the drawer was a panel down to
-       the screen's foot; it is a card as tall as what it holds now, so on an installed phone the inset stood as 34px
-       of empty glass under the account's row (Ruben, 7 Oct 2026). The inset is the card's limit, above, not room in it. */
-    padding-bottom: 0;
+    /* The account's face stands as far from the card's foot as the workspace's mark from its top, 18px (Ruben, 10 Oct
+       2026: "the same"). The top is the card's 14px and the switcher's 4px; under the face are the foot's 2px, the
+       account row's 4px and the 2px its two lines stand taller than the face, so the card's own padding at the foot is
+       10px. The home bar's inset is the card's limit (max-height, above), never room in it: kept as padding it stood as
+       34px of glass under the row on an installed phone (7 Oct 2026), and zeroing it left the face 8px from the foot. */
+    padding-bottom: 10px;
     transform: translateX(-102%);
     transition: transform 240ms var(--ease-out);
   }
@@ -259,14 +261,12 @@
   .set-row-info { flex: 1 1 200px; }
   /* A phone reads the row and its control, not the sentence under the label (the record kit's rule for a filled
      row, record.css): a row with a control keeps its hint for a desktop, and its note stays behind the mark. A row
-     with no control ("Nobody yet") is its sentence, and keeps it. A card's line under its title goes the same way,
-     and Team's legend of what each role may do: the role's word is on every row. */
+     with no control ("Nobody yet") is its sentence, and keeps it. A card's line under its title goes the same way.
+     Team's Roles row stays: it holds Compare and Preview as now, where it held a legend of every role. */
   .set-row:has(.set-row-control > *) .set-row-hint { display: none; }
   /* ...unless the line IS the card's news: the back office's health, who is waiting and the workspaces counted
      (`set-says`). Hidden, "The platform" and "Waiting to get in" were titles over nothing on a phone. */
   .settings .set-says { display: block; }
-  /* The Roles row is a desktop's: a phone reads each person's role word on their row. */
-  [data-testid="team-roles"] { display: none; }
   /* A finger's worth of every control. The settings input, the icon button and
      the options in a segmented dial each set a size for a mouse, and each was
      more specific than the 44px floor in legacy-bridge/legacy.css. */
@@ -543,7 +543,6 @@
      shows only for a search or a pick. Together they took 251px above the first thread. Each tap target keeps its
      44px: the box's is a thumb wide around it, without growing the row. */
   .inbox .ix-search-row { padding: 6px 14px; }
-  .inbox .ix-search-wrap { padding: 0 8px; }
   .inbox .ix-list-head { min-height: 40px; padding: 0 12px; }
   .inbox .ix-search-row .ix-checkall { width: 44px; min-height: 44px; margin: 0 -15px; }
   html.legacy-on .inbox .ix-checkall input { min-height: 0; }

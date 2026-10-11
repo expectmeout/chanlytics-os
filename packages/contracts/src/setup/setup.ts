@@ -326,6 +326,12 @@ export interface SetupVM {
    */
   forwardingOwed: boolean;
   /**
+   * A calendar link is connected (the setup read's `calendar.state` is not "none"), whether or not it reads just now:
+   * the fact Campaigns' moments read as a calendar (playbook-triggers.ts momentOffered's `calendarOn`, core's refusal).
+   * The calendar row's Ready is wider (booked by hand, bookings by email alone), so a door to a reminder asks this.
+   */
+  calendarLinked: boolean;
+  /**
    * What the first run's Check reads (first-run.ts): whether the receptionist is set up (none yet, set up, or a
    * config the parser refused, whose repair only Chanlytics can make), whether a Google listing is on record, and the
    * days whose hours it asks about (the setup read's google.unsure).

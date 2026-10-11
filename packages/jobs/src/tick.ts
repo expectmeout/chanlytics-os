@@ -22,11 +22,13 @@ import {
   retryWait,
   RUN_INTERRUPTED,
   TOLD_ELSEWHERE,
+  PAGES_THE_PLATFORM,
   UNKNOWN_KIND_GIVE_UP_MS,
   UNKNOWN_KIND_WAIT_MS,
   type LedgerRow,
 } from "./ledger";
 import { saySettled, type Settled } from "./settle";
+import { deliveryPage, deliveryPageKey } from "./delivery-page";
 
 export type TickFields = Record<string, string | number | boolean | null | undefined>;
 
@@ -50,6 +52,11 @@ export interface TickPorts {
   /** Never throws: a write that failed comes back as a row with its error. */
   settle(job: LedgerRow, certain: boolean): Promise<Settled[]>;
   alert(job: LedgerRow, news: JobNews): Promise<void>;
+  /**
+   * The platform's own pager (the edge's pageOperator: one page per condition per window), for a failure that is the
+   * platform's and never an owner's (ledger PAGES_THE_PLATFORM).
+   */
+  page(key: string, subject: string, body: string): Promise<unknown>;
   log: TickLog;
   now(): number;
   /** The draw a retry's wait is lengthened by (contracts jittered); Math.random when absent. */
@@ -57,6 +64,12 @@ export interface TickPorts {
 }
 
 export interface TickOptions {
+  /**
+   * When the tick started, as `now()` reads: the moment its function's door was reached, so the work before the loop
+   * (the door's reads, the outbox relayed) is inside every window below, as it is inside the function's ceiling. The
+   * loop's own first reading when absent.
+   */
+  startedAt?: number;
   /** Claim new work only this long after the tick starts. */
   claimForMs: number;
   /** Handlers are handed `start + yieldAtMs` as their deadline. */
@@ -105,7 +118,7 @@ export function lateFields(lateMs: Record<string, number>): Record<string, numbe
 }
 
 export async function runTick(ports: TickPorts, opts: TickOptions): Promise<TickCounts> {
-  const started = ports.now();
+  const started = opts.startedAt ?? ports.now();
   const deadlineFor = (kind: string) => started + (opts.yieldAtFor?.(kind) ?? opts.yieldAtMs);
   const c: TickCounts = { claimed: 0, done: 0, failed: 0, gaveUp: 0, deferred: 0, lateMs: {}, replyLateMs: 0 };
   const slots = Math.max(1, Math.floor(opts.slots ?? 1));
@@ -250,7 +263,9 @@ const keptFields = (job: LedgerRow, until: string, why: string): TickFields => (
  * (contracts jobNewsWords). It used to be `A lead_collect job failed`, over
  * the job's id, with a door to the Inbox whatever the job was. The id, the
  * kind and the error still travel, as the body's last line, for whoever reads
- * the email to the end; the bell shows only the first.
+ * the email to the end; the bell shows only the first. A failure that is the
+ * platform's (ledger PAGES_THE_PLATFORM) pages the operator instead, and a
+ * kind told elsewhere (TOLD_ELSEWHERE) rings no bell.
  */
 async function conclude(
   ports: TickPorts,
@@ -302,6 +317,16 @@ async function conclude(
     reason,
   });
 
+  // The platform's condition: the operator is paged with the job named and where to look, once per window (the
+  // pager's own rule). A page that could not be made is logged, never a reason to lose the recording above.
+  if (PAGES_THE_PLATFORM.has(job.kind)) {
+    try {
+      const page = deliveryPage(job, reason, wreckage);
+      await ports.page(deliveryPageKey(job), page.subject, page.body);
+    } catch (e) {
+      ports.log.error("job_page_failed", { job_id: job.id, kind: job.kind, error: errText(e) });
+    }
+  }
   if (TOLD_ELSEWHERE.has(job.kind)) return;
   try {
     // conclude() is only ever reached for a job that failed or never came

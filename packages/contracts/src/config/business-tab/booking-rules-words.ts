@@ -117,9 +117,9 @@ export function bookingRuleRefusal(key: BookingRuleKey): string {
 export const BOOKING_RULE_HINTS: Readonly<
   Record<"lead_hours" | "slot_min" | "buffer_min" | "max_days_ahead" | "party_max", string | null>
 > = /* @__PURE__ */ (() => ({
-  lead_hours: `Empty uses ${pluralGrouped(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
-  slot_min: `Empty uses the calendar's ${count(BOOKING_DEFAULTS.slot_min)}.`,
+  lead_hours: null,
+  slot_min: null,
   buffer_min: null,
-  max_days_ahead: `Empty uses ${count(BOOKING_DEFAULTS.max_days_ahead)}.`,
-  party_max: "Larger groups go to a person.",
+  max_days_ahead: null,
+  party_max: "Bigger groups are handed to a person.",
 }))();

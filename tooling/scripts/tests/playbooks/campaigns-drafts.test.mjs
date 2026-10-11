@@ -273,6 +273,8 @@ const playbooksSurface = (over = {}) => ({
   })),
   timezone: ZONE,
   calendar: "none",
+  // How the business works (the surface's shape, 9 Oct 2026): the words this file pins are the word "visit"'s.
+  shape: { calendar: "none", dealsOn: false, word: "visit" },
   number: { present: true, health: { canSend: true } },
   businessName: "Northside Studio",
   bookingLink: true,
@@ -301,9 +303,8 @@ const openByLink = () => {
 };
 /** The slots of the send's message that are typed, in their order: the bubble's controls (parts/slot.tsx), where the table's boxes were. */
 const typedSlots = (tree) => all(tree, (n) => n.type === CmSlot).filter((s) => s.props.kind === "text");
-/** The send's name box, by its own words: the foot's Field (the kit's, by its placeholder). */
-const nameBox = (tree) =>
-  find(tree, (n) => n.type === Field && String(n.props?.placeholder || "").startsWith("Name this broadcast"));
+/** The send's name box, by its name: the Name row's Field (the kit's, by its aria-label). */
+const nameBox = (tree) => find(tree, (n) => n.type === Field && n.props?.["aria-label"] === "Name this broadcast");
 /** Campaigns' home at an address's param (null: the home itself), as the route draws it. */
 const home = (param = null) => CampaignsHome({ param, nowMs: NOW });
 /** What the composer was told: the sheet closes on Cancel and on a thrown-away draft, and says what it saved on a Save. */
@@ -426,6 +427,11 @@ test("the playbook composer keeps what was typed in the tab, opens again on it, 
 
   unmount();
   tree = composer();
+  assert.equal(
+    byTestId(tree, "pb-name").props["aria-label"],
+    "The campaign's name",
+    "a campaign to a screen reader too",
+  );
   type(byTestId(tree, "pb-name"), "Sunday quiet");
   tree = redraw(composer);
   assert.equal(byTestId(tree, "pb-name").props.value, "Sunday quiet");
@@ -440,7 +446,7 @@ test("the playbook composer keeps what was typed in the tab, opens again on it, 
   assert.deepEqual(closed, [], "REGRESSION: Escape dropped the composer and everything typed in it");
   assert.ok(byTestId(tree, "pb-composer"), "still open");
   assert.ok(byTestId(tree, "pb-leave-confirm"), "the one question");
-  assert.equal(textOf(byTestId(tree, "pb-leave-confirm")).includes("Throw away what you've written?"), true);
+  assert.equal(textOf(byTestId(tree, "pb-leave-confirm")).includes("Discard what you wrote?"), true);
   assert.equal(byTestId(tree, "pb-cancel"), null, "in the buttons' place");
   press(byTestId(tree, "pb-leave-no"));
   tree = redraw(composer);
@@ -647,6 +653,32 @@ test("the home reopens once, when the playbooks are first read, and never over a
     fresh();
     again(() => home(param));
     assert.deepEqual(replaced, [], `${param}: never over an address that names something`);
+  }
+});
+
+test("a draft reopened over a narrowed ledger closes back to that group: replaced, never a step Back past the home", () => {
+  const backs = [];
+  const keep = globalThis.history.back;
+  globalThis.history.back = () => backs.push("back");
+  try {
+    keepWords({}, "Sunday quiet");
+    unmount();
+    fresh();
+    // Arrived at the home narrowed to a moment: the kept words swap the composer in, over nothing of the page's.
+    again(() => home("in:quiet"));
+    assert.deepEqual(replaced, ["campaigns/new:every"], "swapped in, never pushed");
+    const draw = () => again(() => home("new:every"));
+    let tree = draw();
+    assert.equal(byTestId(tree, "pb-name").props.value, "Sunday quiet");
+    // Closed (its words asked about first): nothing of the page's stands behind it, so the address is replaced with the
+    // home, still narrowed to the group the ledger had under the sheet.
+    press(byTestId(tree, "pb-cancel"));
+    tree = draw();
+    press(byTestId(tree, "pb-leave-yes"));
+    assert.deepEqual(backs, [], "no step Back: it would leave the page");
+    assert.equal(replaced.at(-1), "campaigns/in:quiet", "the home, narrowed as it was");
+  } finally {
+    globalThis.history.back = keep;
   }
 });
 
@@ -913,7 +945,7 @@ test("a template half-written is kept, comes back with the page, and Close asks 
     assert.equal(byTestId(tree, "tpl-body").props.value, "Hi {{1}}, 20% off any colour service this week.");
     type(byTestId(tree, "tpl-name"), "autumn_colour");
     tree = redraw(composeNew);
-    const ex = find(tree, (n) => n.type === Field && String(n.props?.placeholder || "").includes("what a real value"));
+    const ex = find(tree, (n) => n.type === Field && n.props?.placeholder === "Ana");
     type(ex, "Dani");
     tree = redraw(composeNew);
     await press(byTestId(tree, "tpl-submit"));
@@ -964,7 +996,7 @@ test("a template composer drawn where there is no number to write to says so in 
   type(byTestId(tree, "tpl-name"), "autumn_colour");
   tree = redraw(() => TemplateComposer({ businessName: "Northside Studio", onDone() {}, onCancel() {} }));
   type(
-    find(tree, (n) => n.type === Field && String(n.props?.placeholder || "").includes("what a real value")),
+    find(tree, (n) => n.type === Field && n.props?.placeholder === "Ana"),
     "Dani",
   );
   redraw(() => TemplateComposer({ businessName: "Northside Studio", onDone() {}, onCancel() {} }));

@@ -1437,7 +1437,11 @@ test("refresh with the profile connected syncs it as the owner -- the expired to
   const tables = world({
     google_listings: [listingRow()],
     google_connections: [connRow()],
-    google_reviews: [reviewRow(R1)],
+    // Rosa's, which Google still lists, and one it took down since the last read (decision 0036, 00392).
+    google_reviews: [
+      reviewRow(R1),
+      reviewRow("99999999-9999-4999-8999-999999999999", { review_id: "g-gone", author: "Dana", body: "Taken down." }),
+    ],
   });
   const creds = new Map([
     [A, { refresh_token: "rt-1", access_token: "at-stale", expires_at: Date.now() - 60_000, scope: SCOPE }],
@@ -1502,7 +1506,7 @@ test("refresh with the profile connected syncs it as the owner -- the expired to
     if (u === TOKEN_URL)
       return { status: 200, body: { access_token: "at-new", expires_in: 3600, scope: SCOPE, token_type: "Bearer" } };
     if (u === REVIEWS_URL("accounts/111", "222"))
-      return { status: 200, body: { reviews: [NEW, GBP_REVIEW], averageRating: 4.8, totalReviewCount: 13 } };
+      return { status: 200, body: { reviews: [NEW, GBP_REVIEW], averageRating: 4.8, totalReviewCount: 2 } };
     throw new Error(`unexpected ${req.method} ${req.url}`);
   });
   const t0 = Date.now();
@@ -1513,7 +1517,7 @@ test("refresh with the profile connected syncs it as the owner -- the expired to
   assert.ok(Date.parse(b2.connection.last_synced_at) >= t0, "the stamp is the successful sync");
   assert.deepEqual(
     [b2.listing.rating, b2.listing.review_count],
-    [4.8, 13],
+    [4.8, 2],
     "the rating and the count as the profile reports them",
   );
   assert.deepEqual(
@@ -1530,10 +1534,14 @@ test("refresh with the profile connected syncs it as the owner -- the expired to
     [[A, "rt-1", "at-new"]],
     "the fresh access token goes back through the vault door, for next time",
   );
-  assert.deepEqual(tables.google_reviews.map((r) => [r.review_id, r.origin, r.author]).sort(), [
-    ["g-1", "profile", "Rosa"],
-    ["g-3", "profile", "Luis"],
-  ]);
+  assert.deepEqual(
+    tables.google_reviews.map((r) => [r.review_id, r.origin, r.author]).sort(),
+    [
+      ["g-1", "profile", "Rosa"],
+      ["g-3", "profile", "Luis"],
+    ],
+    "a read that listed every review: Dana's, which Google no longer shows, is gone from the mirror",
+  );
   assert.equal(
     tables.google_reviews.find((r) => r.review_id === "g-1").id,
     R1,
@@ -1546,7 +1554,7 @@ test("refresh with the profile connected syncs it as the owner -- the expired to
   );
   assert.deepEqual(
     tables.events.map((e) => [e.kind, e.data]),
-    [["google.reviews", { source: "profile", fresh: 1, counted: 0, rating: 4.8, review_count: 13 }]],
+    [["google.reviews", { source: "profile", fresh: 1, counted: 0, rating: 4.8, review_count: 2 }]],
   );
   assert.ok(
     !net.calls.some((c) => c.url.startsWith("https://places.googleapis.com")),
@@ -1559,6 +1567,9 @@ test("refresh with the profile connected syncs it as the owner -- the expired to
   );
 
   // A location with more reviews than the pages the sync may read: the list does not end, and the record says it is not whole.
+  tables.google_reviews.push(
+    reviewRow("88888888-8888-4888-8888-888888888888", { review_id: "g-older", author: "Eli", body: "Years ago." }),
+  );
   net = wired((req) => {
     const u = req.url.split("?")[0];
     if (u === TOKEN_URL)
@@ -1581,6 +1592,10 @@ test("refresh with the profile connected syncs it as the owner -- the expired to
     tables.google_connections[0].reviews_complete,
     false,
     "Google's list had a page left when the pages ran out: the record is the newest reviews, not every one",
+  );
+  assert.ok(
+    tables.google_reviews.some((r) => r.review_id === "g-older"),
+    "a read that did not reach the oldest lets none go: Eli's may still be on Google",
   );
 });
 
@@ -1672,6 +1687,66 @@ test("refresh under the auto mode: a reply that names a price is held, not poste
     tables.events.map((e) => [e.tenant_id, e.kind, e.category, e.subject_type, e.subject_id, e.data]),
     [[A, "google.reply_held", "google", "review", R1, { review_id: "g-1", why: "price" }]],
     "the reason filed under the review row, which the report shows beside the review that waits",
+  );
+});
+
+test("refresh under the auto mode: replies held for their owner never keep older reviews waiting, and one Google refuses gives its place to the next", async () => {
+  // The three newest reviews each had a reply held for naming a price: they keep no reply_text, so they come back as
+  // unreplied every hour. Three older ones, all on duty and in the window, still wait for an answer.
+  const ids = [
+    R1,
+    R2,
+    R3,
+    "66666666-6666-4666-8666-666666666666",
+    "77777777-7777-4777-8777-777777777777",
+    "88888888-8888-4888-8888-888888888888",
+  ];
+  const unanswered = ids.map((id, i) =>
+    reviewRow(id, { review_id: `g-${i + 1}`, author: `Author ${i + 1}`, published_at: ago((i + 1) * HOUR) }),
+  );
+  const tables = autoModeWorld(unanswered[0]);
+  tables.google_reviews = unanswered;
+  tables.events = ids.slice(0, 3).map((id, i) => ({
+    id: `00000000-0000-4000-8000-00000000000${i}`,
+    tenant_id: A,
+    kind: "google.reply_held",
+    category: "google",
+    subject_type: "review",
+    subject_id: id,
+    data: { review_id: `g-${i + 1}`, why: "price" },
+    created_at: ago(30 * 60_000),
+  }));
+  use(tables, new Map([[A, liveCreds()]]));
+  const model = scripted(said("Thank you for coming in. We hope to see you again."));
+  setModelFetch(model.fetch);
+  google({ reviews: [] });
+  // Google refuses the reply under the fourth review (it was taken down, say); the rest it accepts.
+  const accepts = wire.answer;
+  const asked = [];
+  wire.answer = (req) => {
+    if (req.method === "PUT") asked.push(req.url.split("/reviews/")[1]);
+    return req.method === "PUT" && req.url.endsWith("/reviews/g-4/reply")
+      ? refusal(400, "The review is not available.", "FAILED_PRECONDITION")
+      : accepts(req);
+  };
+  const [status, body] = await withEnv({ ANTHROPIC_API_KEY: "model-key-for-this-file" }, async () =>
+    answer(await knock({ op: "refresh" })),
+  );
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.equal(model.calls.length, 3, "a draft for each of the three older reviews, and none for a held one");
+  assert.deepEqual(asked, ["g-4/reply", "g-5/reply", "g-6/reply"], "the refused one gave its place to the next");
+  assert.equal(body.read.answered, 2);
+  assert.deepEqual(
+    tables.google_reviews.map((r) => [r.review_id, r.reply_text !== null]),
+    [
+      ["g-1", false],
+      ["g-2", false],
+      ["g-3", false],
+      ["g-4", false],
+      ["g-5", true],
+      ["g-6", true],
+    ],
+    "the held ones wait for their owner, the refused one for the next hour, and the older two are answered",
   );
 });
 

@@ -249,10 +249,14 @@ test("an empty website says what empty means, and claims no page it cannot back"
   const tree = drawTab({ profile: without(marisa, "website"), facts: { website: { value: null, source: "absent" } } });
   const row = byTestId(tree, "rec-row-website");
   assert.equal(row.props["data-empty"], "true");
-  // Exactly what the composer does with an empty box: it writes no website line. Not that the receptionist has none to
-  // give -- the owner's own words may name one -- and not the page we publish, which no receptionist is told and the
-  // carriers are filed only from the business record's own website.
-  assert.match(textOf(row), /Optional\. Left empty, the receptionist is given no website\./);
+  // "Not set" and nothing under it (Ruben, 10 Oct 2026: a row says its value and stops). Never that the receptionist
+  // has none to give -- the owner's own words may name one -- nor the page we publish, which no receptionist is told
+  // and the carriers are filed only from the business record's own website.
+  assert.equal(textOf(find(row, (n) => classes(n).includes("rec-row-empty"))), "Not set");
+  assert.equal(
+    find(row, (n) => classes(n).includes("rec-row-hint")),
+    null,
+  );
   assert.doesNotMatch(textOf(row), /\/b\/|no website to give/);
   assert.equal(textOf(byTestId(tree, "rec-row-act-website")), "Add one");
 });
@@ -813,7 +817,7 @@ test("only one editor is open at a time: a clean one gives way, one holding chan
   assert.deepEqual(openRows(tree), ["address"], "one holding changes stays open until it is answered");
   assert.match(
     textOf(byTestId(tree, "rec-inline-address-ask-confirm")),
-    /Discard your changes\?/,
+    /Discard changes\?/,
     "and asks, beside its changes",
   );
   press(byTestId(tree, "rec-inline-address-ask-no"));
@@ -886,7 +890,7 @@ test("Cancel closes a row's one value at once and asks first in a fold of severa
   tree = redrawTab();
   cancelFoldOf(tree, "hours");
   tree = redrawTab();
-  assert.match(textOf(byTestId(tree, "rec-fold-hours-cancel-confirm")), /Discard your changes\?/);
+  assert.match(textOf(byTestId(tree, "rec-fold-hours-cancel-confirm")), /Discard changes\?/);
   press(byTestId(tree, "rec-fold-hours-cancel-no"));
   tree = redrawTab();
   assert.equal(byTestId(tree, "rec-fold-hours-cancel-confirm"), null);
@@ -976,7 +980,8 @@ test("a shift or a closed day that was just added is the row focus goes to, by t
   assert.deepEqual(focusOn("hours"), { row: "hours-tue-1" });
   const row = find(dayOf(tree, "tue"), (n) => n.props?.["data-rec-row"] === "hours-tue-1");
   assert.deepEqual(
-    all(row, (n) => n.type === "input").map((n) => n.props["aria-label"]),
+    // Its times are menus in the kit's box (open-week.tsx BtoTime), which the fold counts as fields (focus.ts).
+    all(row, (n) => n.props?.["aria-haspopup"] === "menu" && "value" in n.props).map((n) => n.props["aria-label"]),
     ["Tuesday opens, second shift", "Tuesday closes, second shift"],
     "the new shift's own boxes",
   );
@@ -1112,7 +1117,7 @@ test("a save in progress is not an open, unsaved editor: its box takes no typing
   assert.deepEqual(openRows(tree), ["website"]);
   assert.match(
     textOf(byTestId(tree, "rec-inline-website-ask-confirm")),
-    /Discard your changes\?/,
+    /Discard changes\?/,
     "nothing was saved, so the ask is drawn, and says so truly",
   );
   assert.deepEqual(
@@ -2025,7 +2030,7 @@ test("an untouched fold follows what is stored: a colleague's change read back i
   );
   assert.deepEqual(
     partsOf(byTestId(tree, "rec-fold-says-hours")).map(([eyebrow]) => eyebrow),
-    ["Your receptionist will be told"],
+    ["Preview what it's told"],
     "nothing goes: the week is as stored",
   );
   assert.equal(W.__settingsUnsaved(), false, "and it holds no changes");
@@ -2222,7 +2227,7 @@ test("on a phone a row opens as a sheet from the bottom, asks there, and its sav
     tree = redrawTab();
     assert.deepEqual(openFolds(tree), ["tone"], "one editor open, as at any width");
     const foot = find(foldOf(tree, "tone"), (n) => classes(n).includes("rec-sheet-foot"));
-    assert.match(textOf(byTestId(foot, "rec-fold-tone-ask-confirm")), /Discard your changes\?/, "in the sheet's foot");
+    assert.match(textOf(byTestId(foot, "rec-fold-tone-ask-confirm")), /Discard changes\?/, "in the sheet's foot");
     press(byTestId(tree, "rec-fold-tone-ask-no"));
     tree = redrawTab();
     assert.equal(byTestId(tree, "rec-fold-tone-ask-confirm"), null);

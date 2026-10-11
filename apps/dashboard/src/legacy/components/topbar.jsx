@@ -76,8 +76,16 @@ const tbnSections = (items) => {
 const TBN_FOLD_MS = 200;
 const tbnReduced = () => !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 
+// Escape closes what is drawn, for as long as it is drawn, and leaves a key an earlier listener took (a menu or a field inside).
+const useTbnEscape = (onClose) => React.useEffect(() => {
+  const onKey = (e) => { if (e.key === "Escape" && !e.defaultPrevented) onClose(); };
+  window.addEventListener("keydown", onKey);
+  return () => window.removeEventListener("keydown", onKey);
+}, [onClose]);
+
 const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onRead = null, onClose, alerts = null, onAlerts = () => {} }) => {
   const [openGroup, setOpenGroup] = React.useState(null);
+  useTbnEscape(onClose);
   // A note on its way out: dismissed by its × or slid away by a thumb, its slot folds shut (its height measured, then
   // none, over components.css's transition), then it goes; at once under reduced motion. Undo brings it back open.
   const slotEls = React.useRef(new Map());
@@ -102,10 +110,7 @@ const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onRead = null, on
   // anew each time it opens, and regroups then.
   const readHere = React.useRef(new Set());
   const asIs = new Map(items.map((n) => [n.id, n]));
-  const read = (id) => {
-    readHere.current.add(id);
-    if (onRead) onRead(id);
-  };
+  const read = (id) => { readHere.current.add(id); if (onRead) onRead(id); };
   const note = (n0, inGroup) => {
     const n = asIs.get(n0.id) || n0;
     const verb = tbnVerb(n);
@@ -185,9 +190,9 @@ const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onRead = null, on
     <>
       <div className="tbn-backdrop" role="presentation" onClick={onClose} />
       {/* Its handle says it can be pulled: a thumb pulls it down, and it goes the way it came (data-bits touchSwipe,
-          leaving). A popover under the bell on a wider screen, where neither moves it. */}
+          leaving). A popover under the bell on a wider screen, where neither moves it: the kit's pop panel, the glass. */}
       <div
-        className="tbn-pop"
+        className="tbn-pop panel panel-pop panel-flush"
         role="dialog" aria-modal="true"
         aria-label="Notifications"
         ref={window.dialogRef ? window.dialogRef("bell") : undefined}
@@ -435,12 +440,7 @@ const Topbar = ({
     return undefined;
   }, [unread, real]);
 
-  React.useEffect(() => {
-    if (!openNotifs) return;
-    const onKey = (e) => e.key === "Escape" && setOpenNotifs(false);
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [openNotifs]);
+  const closeBell = React.useCallback(() => setOpenNotifs(false), []);
 
   // Bell swings once when a session push lands (or an item updates in place)
   React.useEffect(() => {
@@ -457,7 +457,7 @@ const Topbar = ({
   const act = (id, to) => {
     if (real) real.read(id);
     else setNotifs(list => list.map(n => n.id === id ? { ...n, unread: false } : n));
-    setOpenNotifs(false);
+    closeBell();
     if (to) window.CHANLY.nav(to);
   };
 
@@ -591,7 +591,7 @@ const Topbar = ({
             onReadAll={readAll}
             onDismiss={dismiss}
             onRead={read}
-            onClose={() => setOpenNotifs(false)}
+            onClose={closeBell}
             alerts={real ? alertState : null}
             onAlerts={onAlerts}
           />
@@ -621,7 +621,7 @@ window.Topbar = Topbar;
 // used to be a line at the sidebar's foot, which a phone keeps in its drawer
 // and the rail cut to an icon. The live region stays mounted while all is
 // well, so the next change is announced.
-const SHELL_STATUS_ICON = { offline: "alert", paused: "pause", stale: "sparkle", degraded: "clock", disconnected: "bolt" };
+const SHELL_STATUS_ICON = { offline: "alert", paused: "pause", preview: "eye", stale: "sparkle", degraded: "clock", disconnected: "bolt" };
 /**
  * The live-call bar: who is on the phone right now, and how long.
  *
@@ -671,15 +671,23 @@ const ShellStatusBar = () => {
   React.useEffect(() => {
     window.addEventListener("shell:status", bump);
     window.addEventListener("surface:billing", bump);
-    return () => { window.removeEventListener("shell:status", bump); window.removeEventListener("surface:billing", bump); };
+    // An owner's preview of a narrower role (Settings › Team, Preview as): the role store says so as it changes.
+    window.addEventListener("team:changed", bump);
+    return () => {
+      window.removeEventListener("shell:status", bump);
+      window.removeEventListener("surface:billing", bump);
+      window.removeEventListener("team:changed", bump);
+    };
   }, []);
   // The pause rides with the billing surface: the webhook writes the row, the surface repaints, the line says so.
   const B = window.__BILLING_ACCOUNT;
   const paused = !!(B && window.__billing && window.__billing.vm(B.dto).paused);
-  const line = window.__chrome ? window.__chrome.statusLine({ ...(window.__SHELL_STATUS || { stale: false, degraded: [] }), paused }) : null;
+  const previewing = (window.ST_STORE && window.ST_STORE.viewAsRole) || null;
+  const line = window.__chrome ? window.__chrome.statusLine({ ...(window.__SHELL_STATUS || { stale: false, degraded: [] }), paused, previewing }) : null;
   const press = () => {
     if (!line) return;
     if (line.action === "billing") { if (window.CHANLY) window.CHANLY.nav("admin/billing"); return; }
+    if (line.action === "exit-preview") { if (window.ST_STORE && window.ST_STORE.setViewAs) window.ST_STORE.setViewAs(null); return; }
     if (line.action === "reload") { window.location.reload(); return; }
     // Busy, not disabled: the focus stays on the button, and a second press waits for the first read.
     if (line.action === "retry" && window.__shell && !busy) {

@@ -19,7 +19,7 @@
  * (window.__DEMO_MODE). Flipping a surface to real later is a one-line change
  * here, made in the same directory as the override that makes it true.
  */
-import { FIRST_RUN_ROUTE } from "@chanlytics/contracts";
+import { FIRST_RUN_ROUTE, reportsParamParts } from "@chanlytics/contracts";
 
 import { getSurfaceStatuses, isSurfaceFailed, isSurfaceReady, onSurfaceStatusChange } from "./surface-status";
 import { hearAddress, routeOnScreen } from "./workspace";
@@ -195,20 +195,26 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // A reach-out's chains are Playbooks' rows, and their emails Templates' email rows (Part 4 PR 8): the reach-outs
   // surface, read beside each page's own.
   outbound: ["reach_outs"],
-  // Campaigns' home draws who can hear you, what is coming and what came back from the broadcasts, the call's text and the library's count
-  // from Settings' templates, and the reach-outs as lines under the moments.
-  campaigns: ["broadcasts", "settings", "reach_outs"],
+  // Campaigns' home draws Sent's runs (Coming up, a row's waiting run, who can hear you) from the broadcasts, its own 30
+  // days from campaign_results (read on demand: no other page's boot pays for them), and the reach-outs as rows. The call's
+  // text and the Library's count are the playbooks surface's own read of the templates, so Settings is not drawn here.
+  campaigns: ["broadcasts", "campaign_results", "reach_outs"],
   // Templates says which playbooks send each template (messages.jsx), and Broadcasts names a run's playbook.
   messages: ["reach_outs", "playbooks"],
   broadcasts: ["playbooks"],
   // A search's reach-out sheet (Part 4 PR 6) sends from Setup's sending domains and checks Settings' booking link: both
   // read next on Leads, so a sheet opened on a cold boot is not left saying it is reading them.
   leads: ["setup", "settings"],
-  // The Reviews lens draws its own read beside Reports' (surfaces/reports/reviews-surface.ts): no other lens of Reports does.
+  // The Reviews, Receptionist and People lenses draw their own reads beside Reports' (surfaces/reports/reviews-surface.ts,
+  // receptionist-surface.ts, people-surface.ts): no other lens of Reports does.
   "reports/reviews": ["reports_reviews"],
+  "reports/receptionist": ["reports_receptionist"],
+  "reports/people": ["reports_people"],
   // Settings' Connections pane draws Google's listing and its connection beside the settings read, as Today's card draws its
   // review line (`google` is read where one of the two is on screen, legacy-bridge/google.ts): no other pane of Settings does.
   "admin/integrations": ["google"],
+  // Settings' Notifications pane draws what reaches the member's own phones beside the settings read (decision 0040).
+  "admin/notifications": ["alerts"],
 };
 
 /**
@@ -233,12 +239,19 @@ export const ROUTE_WAIT_MS = 3000;
  * would not have waited for the settings read at all.
  */
 function paneOf(page: string, param?: string | null): string | null | undefined {
+  // Reports' param may say the days a member picked, alone or after its lens (`reviews:2026-09-01~2026-09-20`, contracts
+  // lensRoute): the lens is what is classified and fed, and days alone are the Overview, which is the bare page.
+  if (page === "reports" && param) {
+    const at = reportsParamParts(param);
+    if (at) return at.lens === "overview" ? null : at.lens;
+  }
   return page === "admin" && param && param.includes("/") ? param.slice(0, param.indexOf("/")) : param;
 }
 
 /**
  * What a route draws beside its own surface: a person's page is one route of its own, whatever its id, and a lens or a pane
- * that names its draws (`reports/reviews`, `admin/integrations`) is asked about before its page, as routeSurfaceFor asks it.
+ * that names its draws (`reports/reviews`, `reports/receptionist`, `reports/people`, `admin/integrations`) is asked about before its page, as
+ * routeSurfaceFor asks it.
  */
 export function routeDrawsFor(page: string, at?: string | null): readonly string[] {
   const param = paneOf(page, at);
@@ -269,23 +282,37 @@ function pageOfRoute(route: string): { page: string; param: string | null } {
 
 /**
  * The pages that own the refreshes of what they draw beside their own surface. Campaigns' home is one page of four surfaces (the
- * playbooks' moments, the broadcasts' runs and numbers, Settings' library, the reach-outs' chains), and a message moves the
- * replies it says under "What came back" and the runs it lists: left to the broadcasts' own page, its numbers stood where they
- * were read for as long as the home was open. Today draws more (People, Reports, the Calendar) and does not own them, for a
+ * playbooks' moments, Sent's runs, its own 30 days, the reach-outs' chains), and a message moves the replies its rows and "What
+ * came back" say: left to another page, its numbers stood where they were read for as long as the home was open. Today draws more (People, Reports, the Calendar) and does not own them, for a
  * message re-reads the three that draw messages and Today, and People's pages of contacts are the heaviest read there is
- * (shell/surfaces/message-fan-out.test.mjs). Reports owns the one it names for a lens (`reports/reviews`): a review seen for the first
- * time moves the Reviews lens's read, heard while that lens is on screen and not on Reports' other lenses or pages.
+ * (shell/surfaces/message-fan-out.test.mjs). Reports owns the one it names for a lens (`reports/reviews`, `reports/receptionist`,
+ * `reports/people`): a review seen for the first time moves the Reviews lens's read, a message, an escalation or a call the
+ * Receptionist lens's, and a message, a call or a note the People lens's, each heard while that lens is on screen and not on
+ * Reports' other lenses or pages.
  */
 const OWNS_WHAT_IT_DRAWS: ReadonlySet<string> = new Set(["campaigns", "reports"]);
 
 /**
+ * What a page that owns what it draws still leaves to the surface's own page. Campaigns draws Sent's runs for Coming up
+ * and a row's waiting run, and what a message moves of them (a run's replies) it reads from its own 30 days now
+ * (campaign_results, spec 2026-10-09 §4.5): so a message on Campaigns no longer re-reads the broadcasts and every page of
+ * People behind them. They are heard on Sent, their own page, and read once as Sent comes back.
+ */
+const LEFT_TO_THEIR_PAGE: Readonly<Partial<Record<string, readonly string[]>>> = { campaigns: ["broadcasts"] };
+
+/**
  * Whether this surface is the one the page on screen is of: its own surface, and, on a page that owns what it draws
- * (OWNS_WHAT_IT_DRAWS), the surfaces it draws beside it (ROUTE_DRAWS).
+ * (OWNS_WHAT_IT_DRAWS), the surfaces it draws beside it (ROUTE_DRAWS), but those it leaves to their own page
+ * (LEFT_TO_THEIR_PAGE).
  */
 export function ownsTheScreen(key: string, route: string): boolean {
   const { page, param } = pageOfRoute(route);
   if (routeSurfaceFor(page, param) === key) return true;
-  return OWNS_WHAT_IT_DRAWS.has(page) && routeDrawsFor(page, param).includes(key);
+  return (
+    OWNS_WHAT_IT_DRAWS.has(page) &&
+    routeDrawsFor(page, param).includes(key) &&
+    !(LEFT_TO_THEIR_PAGE[page] ?? []).includes(key)
+  );
 }
 
 /**
@@ -348,6 +375,38 @@ export function readWhatWasMissed(
     if (due.length) read(due.map((o) => o.key));
   };
   return hearAddress(onMove, win);
+}
+
+/**
+ * A page somebody is reaching for (a pointer over its row in the sidebar, a thumb on it, the phone's drawer opening over
+ * the pages only it leads to): what that page draws and reads only where it is drawn (`onDemand`), and has not read this
+ * session, is read now through the runner, so the move that follows finds it in or on its way. Reports is read on no
+ * other page's boot (6 Oct 2026: three reads Today never drew), so its first press in a session read all three behind
+ * "Reading…": 470 to 700 ms on a desk, where every page read at boot answered in under 60 (9 Oct 2026, production).
+ * One never read is asked for once a session: a warm that failed leaves it unread, and its page reads it as it comes
+ * on screen (readWhatWasMissed), as it always did. One a pass left for its page (keepForItsPage) is read as its page
+ * is reached for, and is no longer owed when the page arrives, or the press would read it twice. Answers the function
+ * a reach calls with the route reached for.
+ */
+export function warmWhatItDraws(
+  overrides: readonly { key: string; onDemand?: boolean }[],
+  read: (keys: string[]) => void,
+): (route: string) => void {
+  const asked = new Set<string>();
+  return (route) => {
+    const { page, param } = pageOfRoute(route);
+    const drawn = routeSurfaces(page, param);
+    const due = overrides.filter((o) => {
+      if (!o.onDemand || !drawn.includes(o.key)) return false;
+      if (missedWhileAway.has(o.key)) return true;
+      return !asked.has(o.key) && getSurfaceStatuses().get(o.key) !== "live";
+    });
+    for (const o of due) {
+      asked.add(o.key);
+      missedWhileAway.delete(o.key);
+    }
+    if (due.length) read(due.map((o) => o.key));
+  };
 }
 
 /**

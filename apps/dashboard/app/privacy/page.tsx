@@ -15,13 +15,13 @@ export default function PrivacyPage() {
   return (
     <main className="legal">
       <h1>Privacy policy</h1>
-      <p className="legal-meta">Chanlytics OS · last updated September 7, 2026</p>
+      <p className="legal-meta">Chanlytics · last updated September 7, 2026</p>
 
       <p>
-        Chanlytics OS is a receptionist for small businesses: it answers a business's customers on WhatsApp, by phone
-        and by text, keeps the conversations where the owner can read them, and helps the owner reply to reviews and
-        reach customers who asked to hear from them. This policy says what we hold to do that, why, who else touches it,
-        and what you can do about it.
+        Chanlytics is a receptionist for small businesses: it answers a business's customers on WhatsApp, by phone and
+        by text, keeps the conversations where the owner can read them, and helps the owner reply to reviews and reach
+        customers who asked to hear from them. This policy says what we hold to do that, why, who else touches it, and
+        what you can do about it.
       </p>
 
       {/*
@@ -36,9 +36,9 @@ export default function PrivacyPage() {
       */}
       <h2>Who we are</h2>
       <p>
-        Chanlytics ("we", "us") operates Chanlytics OS at app.chanlytics.com, and the site at chanlytics.com. When a
-        business ("the workspace owner") signs up, it is the controller of its customers' data; we process that data on
-        its behalf and under its instructions.
+        Chanlytics ("we", "us") operates the Chanlytics app at app.chanlytics.com, and the site at chanlytics.com. When
+        a business ("the workspace owner") signs up, it is the controller of its customers' data; we process that data
+        on its behalf and under its instructions.
       </p>
       <ul>
         <li>
@@ -176,7 +176,7 @@ export default function PrivacyPage() {
       <p>When this policy changes, the date above changes with it and workspace owners are told in the product.</p>
 
       <p className="legal-foot">
-        Chanlytics OS · <a href="/data-deletion">Deleting your data</a> · <a href="/terms">Terms of service</a> ·{" "}
+        Chanlytics · <a href="/data-deletion">Deleting your data</a> · <a href="/terms">Terms of service</a> ·{" "}
         <a href="/login">Sign in</a> ·{" "}
         <a href="https://www.chanlytics.com" target="_blank" rel="noreferrer">
           chanlytics.com

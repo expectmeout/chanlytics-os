@@ -13,7 +13,13 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ROLE_PERMS, parseTenantConfigResult, NOTIFICATION_KIND_GROUPS } from "@chanlytics/contracts";
+import {
+  ROLE_PERMS,
+  parseTenantConfigResult,
+  ALERT_TOPICS,
+  ALERT_PANE_WORDS,
+  BELL_LINE_KINDS,
+} from "@chanlytics/contracts";
 import { readCode, readRaw, importSrc } from "../_source.mjs";
 
 // Settings' frame is TSX (surfaces/settings/frame, decision 0015 step 11): the page, its tabs and the Business pane.
@@ -94,31 +100,36 @@ test("F35: every pause reads the workspace's own pause_hours, not a hard-coded d
   // promise the pause unconditionally, so nine of the eleven handoffs told the
   // owner the receptionist was out of a thread it was still answering.
   assert.ok(alerts.includes("ctx.pausedHours\n        ? `Reply from the Inbox"), "and only when this branch paused it");
+  // The notice's words are named (tell(asked, { said, answered, why, pausedHours }), #1547), so each branch's pause is
+  // read by its name.
   assert.ok(
-    inbound.includes('"non-text message", pausedUntil ? pauseHours : null)'),
+    /why: "non-text message",\s*pausedHours: pausedUntil \? pauseHours : null,/.test(inbound),
     "the acknowledgement states it only when it actually acknowledged",
   );
   assert.equal(
-    (inbound.match(/,\s*pauseHours,?\s*\),?\s*\)/g) ?? []).length,
+    (inbound.match(/\bpausedHours: pauseHours,/g) ?? []).length,
     3,
     "and the escalating reply does, held, sent, or kept unsent because its hold could not be written",
   );
   assert.ok(
-    inbound.includes(
-      "const tell = (userText: string, botText: string, reason: string, pausedHours: number | null = null) =>",
-    ),
+    inbound.includes("{ said, answered, why, pausedHours = null }: HoldWords"),
     "and the rest default to promising nothing",
   );
 });
 
-test("F36/F37: alerts that go to Chanlytics say so; switching a number off is described as it is", () => {
-  // The kinds are contracts' (notification-kinds.ts, Reach out Part 5 PR 8), drawn by the pane in their groups.
-  const rows = NOTIFICATION_KIND_GROUPS.flatMap((g) => g.rows);
-  const platform = rows.filter((r) => r.platform);
-  assert.equal(platform.length, 2, "exactly the two platform alerts");
-  for (const r of platform) assert.ok(r.what.includes("Goes to Chanlytics, not to the addresses above"), r.title);
-  // The card above them says so, drawn: settings-owner-panes.test.mjs, "Notifications lists what is sent in contracts'
-  // groups" (surfaces/settings/notifications/pane.tsx).
+test("F36/F37: no alert the workspace is offered is Chanlytics' own; switching a number off is described as it is", () => {
+  // The topics are contracts' (notification-kinds.ts, decision 0040). The platform's alerts (a switched-off number's
+  // messages, the sweeps' health) reach no workspace's addresses and keep no workspace's row, so they are no topic:
+  // the page listed them beside "goes to each of these addresses" and had to say they did not. A workspace's own rows
+  // of that kind (a line's trouble) are the bell's line.
+  assert.ok(!ALERT_TOPICS.some((t) => t.kinds.includes("alert")), "no topic is the platform's");
+  assert.ok(BELL_LINE_KINDS.includes("alert"));
+  assert.ok(ALERT_PANE_WORDS.bellLine([]).includes("a problem with a line"));
+  // A campaign's run, to the person choosing what reaches them, never a playbook's (decision 19).
+  const runs = ALERT_TOPICS.find((t) => t.kinds.includes("playbook"));
+  assert.equal(runs.title, "A campaign or reach-out waits for your yes");
+  assert.match(runs.what, /or a campaign could not run today/);
+  for (const t of ALERT_TOPICS) assert.doesNotMatch(`${t.title} ${t.what}`, /playbook/i, t.title);
   assert.ok(
     !Object.values(frame).some((t) => t.includes("emails you every message instead")),
     "REGRESSION: promised an email nothing sends",

@@ -351,16 +351,42 @@ test("People resolves to its override for the list; a profile deep link waits on
   assert.equal(registry.routeSurfaceFor("clients", "3f8b2c1a-4d5e-4f6a-8b9c-0d1e2f3a4b5c"), "workspace");
 });
 
-test("a lens that names its draws is asked before its page, as the gate asks for a pane: Reviews draws its own read, no other lens of Reports does", () => {
+test("a lens that names its draws is asked before its page, as the gate asks for a pane: Reviews, Receptionist and People draw their own reads, no other lens of Reports does", () => {
   const ID = "3f8b2c1a-4d5e-4f6a-8b9c-0d1e2f3a4b5c";
   assert.deepEqual(registry.routeDrawsFor("reports", "reviews"), ["reports_reviews"]);
   assert.deepEqual(registry.ROUTE_DRAWS["reports/reviews"], ["reports_reviews"], "the one row that says it");
+  assert.deepEqual(registry.routeDrawsFor("reports", "receptionist"), ["reports_receptionist"]);
+  assert.deepEqual(registry.ROUTE_DRAWS["reports/receptionist"], ["reports_receptionist"], "the one row that says it");
+  assert.deepEqual(registry.routeDrawsFor("reports", "people"), ["reports_people"]);
+  assert.deepEqual(registry.ROUTE_DRAWS["reports/people"], ["reports_people"], "the one row that says it");
   // Reports' other lenses, and the Overview, draw nothing beside the page's own read; the gate still waits for that one.
-  for (const lens of [undefined, null, "people", "pipeline", "campaigns", "receptionist"])
+  for (const lens of [undefined, null, "pipeline", "campaigns"])
     assert.deepEqual(registry.routeDrawsFor("reports", lens), [], String(lens));
   assert.equal(registry.routeSurfaceFor("reports", "reviews"), "reports");
+  assert.equal(registry.routeSurfaceFor("reports", "receptionist"), "reports");
+  assert.equal(registry.routeSurfaceFor("reports", "people"), "reports");
   assert.deepEqual(registry.routeSurfaces("reports", "reviews"), ["workspace", "reports", "reports_reviews"]);
+  assert.deepEqual(registry.routeSurfaces("reports", "receptionist"), ["workspace", "reports", "reports_receptionist"]);
+  assert.deepEqual(registry.routeSurfaces("reports", "people"), ["workspace", "reports", "reports_people"]);
   assert.deepEqual(registry.routeSurfaces("reports"), ["workspace", "reports"]);
+  // The days a member picked ride in the param (contracts lensRoute): the lens is what is classified and fed, whatever
+  // days it is over, and days alone are the Overview's.
+  const DAYS = "2026-09-01~2026-09-20";
+  assert.deepEqual(registry.routeDrawsFor("reports", `reviews:${DAYS}`), ["reports_reviews"]);
+  assert.deepEqual(registry.routeSurfaces("reports", `reviews:${DAYS}`), ["workspace", "reports", "reports_reviews"]);
+  assert.deepEqual(registry.routeDrawsFor("reports", `receptionist:${DAYS}`), ["reports_receptionist"]);
+  assert.deepEqual(registry.routeSurfaces("reports", `receptionist:${DAYS}`), [
+    "workspace",
+    "reports",
+    "reports_receptionist",
+  ]);
+  assert.deepEqual(registry.routeDrawsFor("reports", `people:${DAYS}`), ["reports_people"]);
+  assert.deepEqual(registry.routeSurfaces("reports", `people:${DAYS}`), ["workspace", "reports", "reports_people"]);
+  for (const param of [DAYS, `pipeline:${DAYS}`, `campaigns:${DAYS}`]) {
+    assert.equal(registry.routeSurfaceFor("reports", param), "reports", param);
+    assert.deepEqual(registry.routeDrawsFor("reports", param), [], param);
+    assert.deepEqual(registry.routeSurfaces("reports", param), ["workspace", "reports"], param);
+  }
   // What was asked of the page alone is asked as it was: a param that names no row of its own falls to the page's.
   assert.deepEqual(registry.routeDrawsFor("today"), registry.ROUTE_DRAWS.today);
   assert.deepEqual(registry.routeDrawsFor("today", "anything"), registry.ROUTE_DRAWS.today);
@@ -369,7 +395,7 @@ test("a lens that names its draws is asked before its page, as the gate asks for
   assert.deepEqual(registry.routeDrawsFor("clients"), []);
 });
 
-test("a pane that names its draws is asked before its page too: Settings' Connections pane draws Google's read, no other pane of Settings does", async () => {
+test("a pane that names its draws is asked before its page too: Settings' Connections pane draws Google's read, Notifications the member's own alerts, no other pane of Settings anything", async () => {
   const { routeOfPath } = await import("@chanlytics/contracts");
   // The pane's own address, the one a person opens, is the route the table names.
   assert.equal(routeOfPath("/w/acme/settings/integrations"), "admin/integrations");
@@ -377,7 +403,10 @@ test("a pane that names its draws is asked before its page too: Settings' Connec
   assert.deepEqual(registry.routeDrawsFor("admin", "integrations"), ["google"]);
   assert.equal(registry.routeSurfaceFor("admin", "integrations"), "settings", "its own surface is still Settings'");
   assert.deepEqual(registry.routeSurfaces("admin", "integrations"), ["workspace", "settings", "google"]);
-  for (const pane of [undefined, null, "workspace", "profile", "team", "autonomy", "notifications", "billing"])
+  // What reaches the member's own phones (decision 0040), read where the Notifications pane is drawn and nowhere else.
+  assert.deepEqual(registry.routeDrawsFor("admin", "notifications"), ["alerts"]);
+  assert.deepEqual(registry.routeSurfaces("admin", "notifications"), ["workspace", "settings", "alerts"]);
+  for (const pane of [undefined, null, "workspace", "profile", "team", "autonomy", "billing"])
     assert.deepEqual(registry.routeDrawsFor("admin", pane), [], String(pane));
   assert.deepEqual(registry.routeSurfaces("admin", "team"), ["workspace", "settings"]);
 });

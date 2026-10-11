@@ -10,7 +10,7 @@ import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
 import { PeopleBulkBar } from "../bulk/bulk-bar";
 import { plCardRowClass } from "../cells/columns";
-import { PeopleImportSheet } from "../import/import-sheet";
+import { PeopleAddSheet } from "../import/import-sheet";
 import { DeleteListButton, ListTitle } from "../lists/list-title";
 import { plArchivedWords } from "../lists/doors";
 import { RuleEditor } from "../lists/rule-editor";
@@ -19,25 +19,16 @@ import { PeopleRail } from "../rail/people-rail";
 import { PeopleListsSheet } from "../rail/lists-sheet";
 import { PeoplePhoneBar } from "../rail/phone-bar";
 import { PeopleStanding } from "../rail/standing";
-import { PeopleAddSheet, PeopleListActSheet } from "../sheets/list-sheets";
-import { AddPersonButton } from "../sheets/add-person";
+import { PeopleListActSheet } from "../sheets/list-sheets";
+import { PhoneSheetRow } from "../sheets/phone-sheet";
 import { PeopleColumnsMenu } from "../table/columns-menu";
 import { PeopleFileActs } from "./file-acts";
 import { PeopleTable } from "../table/table";
 import type { TableEmpty } from "../types";
-import {
-  PL_ADD_EMPTY,
-  PL_DEFAULT_GROUPS,
-  PL_NO_LISTS,
-  PL_SEARCH_LABEL,
-  PL_TAB_LABEL,
-  plLoadedWords,
-  plSortedBy,
-} from "../words";
+import { PL_DEFAULT_GROUPS, PL_NO_LISTS, PL_SEARCH_LABEL, PL_TAB_LABEL, plLoadedWords, plSortedBy } from "../words";
 import type { PeopleState } from "./state";
-import { peoplePhoneMenu } from "./phone-menu";
-import { menuGroups, moreButton } from "../menu-groups";
-import type { PeopleMenuItem } from "../menu-groups";
+import { peopleListActs, peopleSortItems } from "./phone-menu";
+import { menuGroups } from "../menu-groups";
 
 /** Nobody to show: a list that isn't here, or one of the member's own with nobody on it. */
 function peopleTableEmpty(s: PeopleState): TableEmpty | null {
@@ -236,47 +227,25 @@ function peopleListSection(s: PeopleState) {
 }
 
 /**
- * The page's act: Add a person, the frame's act, said through its head (people-head.tsx). On a desk it stands at the right of
- * the strip of scopes over the list, where Campaigns' Library and New message stand, and opens into its two fields there
- * (Ruben, 6 Oct 2026: it stood in the list's controls row, inside the pane). On a phone it stands beside the page's name and
- * opens the phone's sheet, as the more-menu's item does (phone-menu.ts): it was the more-menu's alone, and a phone showed no
- * way to add a person (Ruben, 7 Oct 2026). A role that may not change lists has none.
+ * The page's act: Add people, the frame's act, said through its head (people-head.tsx), the page's one filled button at
+ * every width. It opens one sheet with both ways in: one person, or a list as a file for the owner (Ruben, 10 Oct 2026:
+ * Add a person and Import were two doors to one job). On a desk it stands at the right of the strip of scopes over the
+ * list, where Campaigns' Library and New message stand (6 Oct 2026); on a phone beside the page's name (7 Oct). A role
+ * that may not change lists has none.
  */
 export function peopleAct(s: PeopleState) {
-  const { phone, canEditLists, onOpenProfile, plFlash, setAddDraft, setAddOpen } = s;
+  const { canEditLists, setAddOpen } = s;
   if (!canEditLists) return null;
-  if (!phone) return <AddPersonButton onAdded={onOpenProfile} flash={plFlash} />;
   return (
-    <Button
-      variant="primary"
-      size="sm"
-      onClick={() => {
-        setAddDraft(PL_ADD_EMPTY);
-        setAddOpen(true);
-      }}
-      data-testid="add-person-open"
-    >
-      <ActWords icon={<Icon name="plus" size={12} />} words="Add a person" />
+    <Button variant="primary" size="sm" onClick={() => setAddOpen(true)} data-testid="add-people">
+      <ActWords icon={<Icon name="plus" size={12} />} words="Add people" />
     </Button>
   );
 }
 
-/** A desktop's controls: the search, the Columns menu, and Import and Export as words (Add a person is the page's act). */
+/** A desktop's controls: the search, the Columns menu, and Export as a word (adding people is the page's act). */
 function peopleDeskControls(s: PeopleState) {
-  const {
-    searchRef,
-    q,
-    setQ,
-    plFlash,
-    canExport,
-    setImportOpen,
-    exportBlocked,
-    exportHref,
-    exportName,
-    colOptions,
-    pickColumn,
-    layout,
-  } = s;
+  const { searchRef, q, setQ, plFlash, exportBlocked, exportHref, exportName, colOptions, pickColumn, layout } = s;
   return (
     <div className="cl-controls">
       <div className="cl-search-wrap">
@@ -287,15 +256,8 @@ function peopleDeskControls(s: PeopleState) {
         {/* No sort button: every heading that sorts is a button with its arrow (cl-th-sort), so "Z → A" beside them only
             turned round an order the table already shows and changes. */}
         <PeopleColumnsMenu options={colOptions} onPick={pickColumn} layout={layout} />
-        {/* The file acts stand beside Columns as words: Import and Export (file-acts.tsx). */}
-        <PeopleFileActs
-          canImport={canExport}
-          onImport={() => setImportOpen(true)}
-          exportBlocked={exportBlocked}
-          exportHref={exportHref}
-          exportName={exportName}
-          flash={plFlash}
-        />
+        {/* Export stands beside Columns as a word (file-acts.tsx). */}
+        <PeopleFileActs exportBlocked={exportBlocked} exportHref={exportHref} exportName={exportName} flash={plFlash} />
       </div>
     </div>
   );
@@ -420,8 +382,12 @@ function peopleScroll(s: PeopleState) {
   );
 }
 
-/** A phone's one bar: the list, search and the more-menu (PeoplePhoneBar). */
-function phoneBar(s: PeopleState, phoneMenu: ReturnType<typeof peoplePhoneMenu>) {
+/**
+ * A phone's one bar (PeoplePhoneBar): the list, its acts as words, and search. Select, Sort and Export stand as words
+ * where a ⋯ folded them away (Ruben, 10 Oct 2026); Sort opens the phone's action sheet of sorts, a desktop's headings'
+ * own, and the open list's acts are at the foot of the Lists sheet. A word nobody may use here is not drawn.
+ */
+function phoneBar(s: PeopleState) {
   const { activeSaved, activeList, listGone, setListsOpen, listsOpen, q, setQ, searchRef, searchOpen, setSearchOpen } =
     s;
   return (
@@ -438,14 +404,32 @@ function phoneBar(s: PeopleState, phoneMenu: ReturnType<typeof peoplePhoneMenu>)
       onSearchOpen={setSearchOpen}
       searchLabel={PL_SEARCH_LABEL}
       testid="people"
-      trailing={
-        <Menu
-          label="More"
-          groups={menuGroups(phoneMenu)}
-          trigger={moreButton({ title: "More", className: "pp-bar-icon", size: 18, big: true })}
-        />
-      }
+      trailing={phoneBarActs(s)}
     />
+  );
+}
+
+/** The bar's words: Select, where a selection could do something; Sort; and Export, as a desktop's controls say it. */
+function phoneBarActs(s: PeopleState) {
+  const { canEditLists, canExport, shown, setSelectMode, exportBlocked, exportHref, exportName, plFlash } = s;
+  return (
+    <div className="pp-bar-acts">
+      {(canEditLists || canExport) && shown.length > 0 ? (
+        <Button variant="quiet" size="sm" onClick={() => setSelectMode(true)} data-testid="people-phone-select">
+          Select
+        </Button>
+      ) : null}
+      <Menu
+        label="Sort"
+        groups={menuGroups(peopleSortItems(s))}
+        trigger={
+          <Button variant="quiet" size="sm" data-testid="people-phone-sort">
+            Sort
+          </Button>
+        }
+      />
+      <PeopleFileActs exportBlocked={exportBlocked} exportHref={exportHref} exportName={exportName} flash={plFlash} />
+    </div>
   );
 }
 
@@ -506,7 +490,37 @@ function listsSheet(s: PeopleState) {
           newListSignal={newListSignal}
         />
       ) : null}
+      {listsOpen ? listActRows(s) : null}
     </PeopleListsSheet>
+  );
+}
+
+/**
+ * The open list's own acts, at the foot of the Lists sheet (Ruben, 10 Oct 2026): a desktop does them on the list's title
+ * line, which a phone does not draw, and they stood in the ⋯ the bar no longer has. A press closes the Lists sheet and
+ * opens the act's own (PeopleListActSheet), or pins the list to Today.
+ */
+function listActRows(s: PeopleState) {
+  const { setListsOpen, activeSaved, activeList } = s;
+  const acts = peopleListActs(s);
+  if (!acts.length) return null;
+  return (
+    <section className="pl-lists-acts" aria-label="This list" data-testid="people-list-acts">
+      <h3 className="cl-rail-label">{activeSaved ? activeSaved.name : activeList ? activeList.label : "This view"}</h3>
+      {acts.map((a) => (
+        <PhoneSheetRow
+          key={a.label}
+          icon={a.icon ?? null}
+          label={a.label}
+          danger={!!a.danger}
+          onClick={() => {
+            setListsOpen(false);
+            if (a.onClick) a.onClick();
+          }}
+          testid={`people-list-act-${(a.icon ?? "act").replace(/[^a-z]/g, "")}`}
+        />
+      ))}
+    </section>
   );
 }
 
@@ -537,23 +551,19 @@ export function peopleScreen(s: PeopleState) {
     shownIds,
     fileColumns,
     addOpen,
-    addDraft,
-    setAddDraft,
-    addOnPhone,
+    setAddOpen,
+    onOpenProfile,
     closePhoneSheet,
     listAct,
     viewRule,
     listDraft,
     setListDraft,
     listActGo,
-    importOpen,
-    setImportOpen,
     toastNode,
     agg,
     setListId,
     setSavedId,
   } = s;
-  const phoneMenu: PeopleMenuItem[] = peoplePhoneMenu(s);
   return (
     <div className="clients">
       {/* The switch between the scopes is the frame's strip of views, over this page (surfaces/people/chrome.ts). */}
@@ -586,7 +596,7 @@ export function peopleScreen(s: PeopleState) {
       <div className="cl-main">
         {/* A phone's one bar: the switch, the list, search and the more-menu (PeoplePhoneBar). It stands over the scroller, as
             the Inbox's strip does: the rows scroll and bounce under it, and a pull down never takes it. */}
-        {phone && phoneBar(s, phoneMenu)}
+        {phone && phoneBar(s)}
         {peopleScroll(s)}
         {/* The bar counts, and acts on, the people shown and selected. */}
         {selecting && (
@@ -611,14 +621,7 @@ export function peopleScreen(s: PeopleState) {
         {/* The phone's rail, as a sheet (the rail itself is not drawn at 900px and under), last in the tree. Its switch is
             the bar's; its first row is Everyone. */}
         {phone ? listsSheet(s) : null}
-        {/* People's own two sheets on a phone, the kit's: drawn while open, and on their way out. */}
-        <PeopleAddSheet
-          open={phone && addOpen}
-          draft={addDraft}
-          onDraft={(patch) => setAddDraft((d) => ({ ...d, ...patch }))}
-          onAdd={addOnPhone}
-          onClose={closePhoneSheet}
-        />
+        {/* The open list's acts on a phone, the kit's sheet: drawn while open, and on their way out. */}
         <PeopleListActSheet
           open={phone && !!listAct && (listAct === "save" || !!activeSaved)}
           act={listAct}
@@ -631,9 +634,18 @@ export function peopleScreen(s: PeopleState) {
           onGo={listActGo}
           onClose={closePhoneSheet}
         />
-        {/* Import people, at every width: the record kit's sheet, drawn in .app-root, where the page's keys hold still
-            while it is open (PL_OVERLAY) and it closes on its own Esc. */}
-        {importOpen && <PeopleImportSheet onClose={() => setImportOpen(false)} flash={plFlash} />}
+        {/* Add people, at every width: the record kit's sheet, drawn in .app-root, where the page's keys hold still while it
+            is open (PL_OVERLAY) and it closes on its own Esc. One person for whoever may change lists, a file for the owner. */}
+        {addOpen && (
+          <PeopleAddSheet
+            onClose={() => setAddOpen(false)}
+            onAdded={onOpenProfile}
+            canImport={canExport}
+            // A list a rule keeps takes nobody by hand: the ones kept by hand are offered.
+            lists={saved.filter((l) => !l.rule).map((l) => ({ id: l.id, name: l.name }))}
+            flash={plFlash}
+          />
+        )}
         {toastNode}
       </div>
     </div>

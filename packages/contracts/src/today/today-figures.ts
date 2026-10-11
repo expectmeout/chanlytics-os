@@ -6,6 +6,7 @@
 import { reachedVoicemail, type CallDto } from "../conversations/call-dto";
 import { toCallVM } from "../conversations/call-vm";
 import { reasonWhy, type EscalationDto } from "../conversations/escalations";
+import { isPersonsWords } from "../conversations/message-author";
 import { threadChannelWords } from "../conversations/thread-channel";
 import { contactName } from "../conversations/thread-contact";
 import type { ConversationDto } from "../conversations/thread-dto";
@@ -72,6 +73,14 @@ export function todayProof(
 }
 
 /**
+ * A message the day's "customer messages" figure counts, as the page holds it: inbound, from the customer, and a
+ * person's own words (00379). An automatic reply, a list's mail or a delivery report the Inbox also holds is not one;
+ * isPersonsWords is the twin of the SQL's message_is_a_persons_words, which metrics_summary counts messages_in by.
+ */
+const isCustomerMessage = (x: ConversationDto["messages"][number]): boolean =>
+  x.direction === "inbound" && x.sender === "customer" && isPersonsWords(x.meta);
+
+/**
  * The day's four figures, from the fields Today has fetched on every load and never read (period.new_contacts,
  * call_sentiments, calls_voicemail, messages_out_ai) and from the threads, calls and escalations the page holds.
  * Null on a day with nothing at all: a row of zeros is a product that died overnight, not a fact.
@@ -99,13 +108,13 @@ export function figuresOf(
   // Customer messages: the proof as the clause, the wires as the why. A message with no wire named is WhatsApp, which
   // is what every row was before the column said (viewmodels.ts writtenChannelOf). The receipt says nothing when the
   // read holds none of today's messages, and says what it counted when the read holds fewer than the figure.
+  // What it counts is what the figure counts: a person's words (isCustomerMessage, 00379), never an out-of-office
+  // the Inbox also holds.
   const gap = replyGapSeconds(live);
   const lastAt = tzClock(live.last_inbound_at, tz, now);
   const wires = tally(
     conversations.flatMap((c) =>
-      c.messages
-        .filter((x) => x.direction === "inbound" && x.sender === "customer" && fresh(x))
-        .map((x) => threadChannelWords([x])),
+      c.messages.filter((x) => isCustomerMessage(x) && fresh(x)).map((x) => threadChannelWords([x])),
     ),
   );
   const held = wires.reduce((s, [, n]) => s + n, 0);
@@ -238,9 +247,9 @@ export function figuresOf(
   };
 
   // New people: the threads whose first real message is the customer's and today. The figure is the SQL's count of
-  // people whose first word or call came today (00254: never one who has had neither); the threads the page holds may
-  // be fewer (a name is said only for a person the figure counts) or more (someone who existed before and wrote for
-  // the first time today is not new), so a wire or a name is said only when the two agree.
+  // people whose first message of their own, or first call to us, came today (00394; 00254: never one with neither);
+  // the threads the page holds may be fewer (a name is said only for a person the figure counts) or more (someone who
+  // existed before and first wrote today is not new), so a wire or a name is said only when the two agree.
   const newThreads = conversations.filter((c) => {
     const first = [...c.messages]
       .filter((x) => x.meta?.backfill !== true)
@@ -262,10 +271,10 @@ export function figuresOf(
         : newWires.length === 1
           ? `${p.new_contacts === 1 ? "on" : p.new_contacts === 2 ? "both on" : "all on"} ${wireWord(newWires[0][0])}`
           : `on ${andList(newWires.map(([w]) => wireWord(w)))}`,
-    // Named when the two counts agree. When they do not, the figure still opens: the reason they disagree IS
-    // the answer to what an owner is asking -- the count is everyone whose first word or call came today, and the
-    // page only holds the ones who wrote. Without this the fourth figure was the one stat on the card with nothing
-    // under it, so a hover that worked three times in a row did nothing on the fourth.
+    // Named when the two counts agree. When they do not, the figure still opens: the reason they disagree IS the answer
+    // to what an owner is asking -- the count is everyone whose first message of their own, or first call to us, came
+    // today (00394), and the page only holds the ones who wrote. Without this the fourth figure was the one stat on the
+    // card with nothing under it, so a hover that worked three times in a row did nothing on the fourth.
     receipt: said.length
       ? {
           text: `${andList(names.length > 3 ? [...said, `${names.length - 3} more`] : said)} wrote for the first time today.`,

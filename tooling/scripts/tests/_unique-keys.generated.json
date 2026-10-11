@@ -1593,6 +1593,22 @@
       "where": null
     },
     {
+      "table": "notifications",
+      "name": "notifications_source_event",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "source_event"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "source_event"
+        }
+      }
+    },
+    {
       "table": "operator_pages",
       "name": "operator_pages_pkey",
       "primary": true,

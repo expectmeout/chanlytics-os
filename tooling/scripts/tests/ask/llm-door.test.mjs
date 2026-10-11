@@ -518,9 +518,67 @@ test("a warm is Ask's own request under a purpose of its own (ask_warm): asked o
   );
 });
 
+test("a round cut short is counted all the same: the dashboard abandoning the answer (its turn's budget) or the model's stream breaking (the try's bound, the network) writes the round's usage row and its ledger row once, with what had been read, before the cut is answered; and the model's stream is let go", async () => {
+  // The round was written only when its stream ended cleanly, and a cut stream never does: Ask's day and the ledger
+  // lost every round the dashboard abandoned at forty-five seconds, and every one the network broke.
+  const enc = new TextEncoder();
+  const head = sse(TURN.slice(0, 3)); // message_start, the text's block, its first words; the output side comes last
+  for (const [n, cut] of [
+    [22, "the dashboard's abort"],
+    [23, "the stream breaks"],
+  ]) {
+    const ws = T(n);
+    const tables = { events: [] };
+    use(tables);
+    let letGo = false;
+    let pulls = 0;
+    wired(
+      () =>
+        new Response(
+          new ReadableStream({
+            pull(c) {
+              if (pulls++ === 0) c.enqueue(enc.encode(head));
+              else if (cut === "the stream breaks") c.error(new TypeError("terminated"));
+              // Otherwise nothing more for now: the model is still writing.
+            },
+            cancel() {
+              letGo = true;
+            },
+          }),
+          { status: 200, headers: { "content-type": "text/event-stream" } },
+        ),
+    );
+    const t0 = Date.now();
+    const res = await knock(ws, turn());
+    assert.equal(res.status, 200, cut);
+    const reader = res.body.getReader();
+    assert.equal(new TextDecoder().decode((await reader.read()).value), head, `${cut}: the first words went out`);
+    if (cut === "the stream breaks") await assert.rejects(reader.read(), /terminated/, `${cut}: the palette is told`);
+    else await reader.cancel(new DOMException("This operation was aborted", "AbortError"));
+    const written = tables.events.filter((e) => e.tenant_id === ws && Date.parse(e.created_at) >= t0);
+    assert.deepEqual(
+      written.map((e) => [
+        e.kind,
+        e.data.input_tokens,
+        e.data.cache_read_input_tokens,
+        e.data.output_tokens,
+        e.data.stop_reason,
+      ]),
+      [[ASK_USAGE_KIND, 1200, 900, 0, null]],
+      `${cut}: one usage row for Ask's day, with the input side message_start said, written before the cut was answered`,
+    );
+    assert.deepEqual(
+      tables.ai_usage.map((r) => [r.purpose, r.input_tokens, r.cache_read_tokens, r.usd > 0]),
+      [["ask", 1200, 900, true]],
+      `${cut}: and one row of the ledger, with its dollars`,
+    );
+    if (cut === "the dashboard's abort") assert.ok(letGo, `${cut}: the model's stream is let go`);
+  }
+});
+
 test("the budget spent: the day's rows add up to the cap, so the knock is refused with 429 before the key is spent -- no request to the model, no row written -- and stays refused within the minute even once the rows are gone: the count kept is the count believed; another workspace is another count", async () => {
   const ws = T(2);
-  const tables = { events: [usage(ws, 1_000_000, 400_000, 3 * HOUR), usage(ws, 100_000, 0, 10 * HOUR)] };
+  const tables = { events: [usage(ws, 2_000_000, 900_000, 3 * HOUR), usage(ws, 100_000, 0, 10 * HOUR)] };
   const db = use(tables);
   const net = silent("a spent budget costs no model call");
   assert.deepEqual(
@@ -530,7 +588,7 @@ test("the budget spent: the day's rows add up to the cap, so the knock is refuse
   );
   assert.equal(net.calls.length, 0);
   assert.equal(tables.events.length, 2, "no usage row for a turn that did not happen");
-  assert.equal(ASK_TOKENS_DAY, 1_500_000, "sized for a workspace's day with the page's context in every round");
+  assert.equal(ASK_TOKENS_DAY, 3_000_000, "sized for a workspace's day with its cache writes counted");
 
   tables.events.length = 0;
   assert.deepEqual(
@@ -681,6 +739,35 @@ test("the line is the cap: a workspace one token under it is served, one at it i
     "at the cap: refused before the key is spent",
   );
   assert.equal(net.calls.length, 1, "only the round under the cap reached the model");
+});
+
+test("what a round writes to the cache is counted and what it reads is not (00368): a day spent by warms writing a turn's head is refused, a day of reading the same head is served", async () => {
+  const warmed = T(11);
+  const read = T(12);
+  const HEAD = 30_000;
+  const heads = Math.ceil(ASK_TOKENS_DAY / HEAD);
+  /** A round of next to nothing but the head, written (a warm) or read. */
+  const round = (ws, cache) => {
+    const u = usage(ws, 8, 1, HOUR);
+    return { ...u, data: { ...u.data, ...cache } };
+  };
+  use({
+    events: [
+      ...Array.from({ length: heads }, () => round(warmed, { cache_creation_input_tokens: HEAD, purpose: "ask_warm" })),
+      ...Array.from({ length: heads }, () => round(read, { cache_read_input_tokens: HEAD })),
+    ],
+  });
+  const net = model();
+  const no = await knock(warmed, turn());
+  assert.deepEqual(
+    [no.status, (await no.json()).error],
+    [429, "ask_budget"],
+    "REGRESSION: a warm counted under a hundred tokens, so a day of heads written never spent the budget",
+  );
+  const ok = await knock(read, turn());
+  assert.equal(ok.status, 200, "the same heads read: a cache read is not counted");
+  await ok.text();
+  assert.equal(net.calls.length, 1, "only the day of reads reached the model");
 });
 
 test("the cache diagnostics ride through (the Phase 6 plan, D2): an id the API wrote or null passes; anything else is dropped, never refused; and the answer says in server-timing what this edge took and what the model took to its headers (D3)", async () => {

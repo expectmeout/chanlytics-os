@@ -45,12 +45,12 @@
     "depth": 0
   },
   "apps/dashboard/src/legacy/components/topbar.jsx::NotifPopover#1": {
-    "lines": 156,
+    "lines": 154,
     "branches": 11,
     "depth": 0
   },
   "apps/dashboard/src/legacy/components/topbar.jsx::Topbar#1": {
-    "lines": 371,
+    "lines": 366,
     "branches": 40,
     "depth": 0
   },
@@ -129,11 +129,6 @@
     "branches": 66,
     "depth": 2
   },
-  "apps/dashboard/src/server/ask/tools/act/playbook.ts::proposePlaybook#1": {
-    "lines": 138,
-    "branches": 33,
-    "depth": 2
-  },
   "apps/dashboard/src/server/campaigns/broadcasts.ts::getBroadcast/map(fn)#1": {
     "lines": 23,
     "branches": 35,
@@ -179,20 +174,15 @@
     "branches": 32,
     "depth": 2
   },
-  "apps/edge/lib/playbooks.ts::loadTenantRunContext#1": {
-    "lines": 135,
-    "branches": 35,
-    "depth": 2
-  },
   "apps/edge/lib/reach-out/check.ts::checkSends#1": {
     "lines": 188,
     "branches": 13,
     "depth": 3
   },
   "apps/edge/lib/reach-out/clock.ts::reachOutClock#1": {
-    "lines": 152,
-    "branches": 56,
-    "depth": 5
+    "lines": 130,
+    "branches": 48,
+    "depth": 4
   },
   "apps/edge/lib/reach-out/replan.ts::replanSends#1": {
     "lines": 122,
@@ -205,19 +195,14 @@
     "depth": 3
   },
   "apps/edge/lib/receptionist/eval.ts::evaluateCases#1": {
-    "lines": 95,
+    "lines": 79,
     "branches": 34,
     "depth": 2
   },
   "apps/edge/lib/receptionist/steer.ts::steerHeldDraft#1": {
-    "lines": 164,
-    "branches": 42,
-    "depth": 1
-  },
-  "apps/edge/lib/receptionist/unfinished.ts::sweepUnfinished#1": {
-    "lines": 144,
+    "lines": 128,
     "branches": 35,
-    "depth": 5
+    "depth": 1
   },
   "apps/edge/lib/tenant-runtime.ts::loadTenantRuntime#1": {
     "lines": 114,
@@ -230,8 +215,8 @@
     "depth": 3
   },
   "apps/edge/lib/voice/call-start.ts::planCallStart#1": {
-    "lines": 150,
-    "branches": 35,
+    "lines": 149,
+    "branches": 34,
     "depth": 6
   },
   "apps/edge/lib/whatsapp/connect-number.ts::connectWhatsAppNumber#1": {
@@ -250,9 +235,9 @@
     "depth": 2
   },
   "apps/edge/lib/whatsapp/webhook.ts::receiveWhatsappEvent#1": {
-    "lines": 157,
-    "branches": 48,
-    "depth": 8
+    "lines": 135,
+    "branches": 47,
+    "depth": 7
   },
   "packages/channels/src/lines/a2p-saga.ts::runA2PSaga#1": {
     "lines": 181,
@@ -265,9 +250,9 @@
     "depth": 0
   },
   "packages/contracts/src/ask/ask-suggestions.ts::buildAskSuggestions#1": {
-    "lines": 59,
-    "branches": 45,
-    "depth": 3
+    "lines": 51,
+    "branches": 40,
+    "depth": 2
   },
   "packages/contracts/src/calendar/calendar.ts::toCalendarVM#1": {
     "lines": 180,
@@ -320,13 +305,13 @@
     "depth": 0
   },
   "packages/contracts/src/people/lists/list-rules.ts::listFactWords#1": {
-    "lines": 60,
-    "branches": 49,
+    "lines": 53,
+    "branches": 46,
     "depth": 1
   },
   "packages/contracts/src/people/person-row.ts::toPersonRowVM#1": {
-    "lines": 124,
-    "branches": 57,
+    "lines": 117,
+    "branches": 53,
     "depth": 0
   },
   "packages/contracts/src/setup/capabilities.ts::capabilityStatus#1": {
@@ -384,11 +369,6 @@
     "branches": 34,
     "depth": 2
   },
-  "packages/core/src/deliver.ts::deliver#1": {
-    "lines": 154,
-    "branches": 29,
-    "depth": 2
-  },
   "packages/core/src/leads/runner/collect.ts::collectHeld#1": {
     "lines": 175,
     "branches": 48,
@@ -398,11 +378,6 @@
     "lines": 109,
     "branches": 31,
     "depth": 1
-  },
-  "packages/core/src/leads/runner/start.ts::startRound#1": {
-    "lines": 93,
-    "branches": 32,
-    "depth": 2
   },
   "packages/jobs/src/settle.ts::settleJob#1": {
     "lines": 151,

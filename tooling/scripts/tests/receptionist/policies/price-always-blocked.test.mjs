@@ -61,5 +61,6 @@ test("a call's price is caught whether the switch is on or off -- the detector t
 
 test("what the Business tab says about it matches what the edge does", () => {
   // If this and the two tests above ever disagree, the page is saying something that is not true.
-  assert.match(ruleStrength("never_quote_prices").sentence, /whether this switch is on or off/);
+  // The tip by the switch says the reply is checked with the switch off, as the two tests above prove.
+  assert.match(ruleStrength("never_quote_prices").sentence, /checked for a price .*even with this off/);
 });

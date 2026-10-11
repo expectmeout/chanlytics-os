@@ -565,19 +565,30 @@ test("several templates at once are one row each way -- a sync can approve a bat
     unread: true,
     about: null,
   });
-  // A run the queue holds for a word is not said again here; a run it does not hold is news.
-  const readyRun = (id, name) => t(id, "playbook", `Playbook “${name}” is ready: 1 person`);
+  // A run the queue holds for a word is not said again here; a run it does not hold is news. The bell says "Campaign"
+  // (decision 19); a row kept before that says "Playbook", and production keeps such rows: both are the queue's.
+  const readyRun = (id, name) => t(id, "playbook", `Campaign “${name}” is ready: 1 person`);
+  const keptRun = (id, name) => t(id, "playbook", `Playbook “${name}” is ready: 1 person`);
   const withRun = todayAwayGrouped(
-    [readyRun("r1", "Win-back · quiet 30 days"), readyRun("r2", "Birthday offer")],
+    [
+      readyRun("r1", "Win-back · quiet 30 days"),
+      keptRun("r0", "Win-back · quiet 30 days"),
+      readyRun("r2", "Birthday offer"),
+    ],
     [{ runLabel: "Win-back · quiet 30 days" }],
     5,
   );
   assert.deepEqual(
     withRun.groups.map((g) => g.row.id),
     ["r2"],
-    "the queued run's row is the queue's; the other stands",
+    "the queued run's rows are the queue's, in either word; the other stands",
   );
-  assert.equal(withRun.queued, 1);
+  assert.equal(withRun.queued, 2);
+  assert.equal(
+    todayAwayGrouped([readyRun("r3", "Birthday offer"), readyRun("r4", "Welcome")], [], 5).groups[0].title,
+    "2 campaigns are ready",
+    "a group says campaigns, never playbooks (decision 19)",
+  );
   assert.equal(
     todayAwayGrouped([readyRun("r1", "Win-back · quiet 30 days")], [], 5).groups.length,
     1,
@@ -872,7 +883,7 @@ test("the sentences the queue and the card say about a playbook's run come from 
   const w = todayRunWords(run);
   assert.equal(w.people, "3 people");
   assert.deepEqual(w.waiting, {
-    meta: "Playbook · ready",
+    meta: "Campaign · ready",
     sentence: "3 people. Nothing sends until you say so.",
     status: ["Waiting for your approval"],
   });
@@ -883,7 +894,7 @@ test("the sentences the queue and the card say about a playbook's run come from 
   assert.equal(reach.soon.meta, "Reach-out · sends today 9:00 AM");
   assert.equal(todayRunWords({ ...run, recipient_count: 1, audience: { kind: "reach_out" } }).people, "1 business");
   assert.deepEqual(w.soon, {
-    meta: "Playbook · sends today 9:00 AM",
+    meta: "Campaign · sends today 9:00 AM",
     sentence: "3 people. Stop it if you'd rather not.",
     status: ["Scheduled", "sends today 9:00 AM"],
   });
@@ -931,7 +942,7 @@ test("the runs' words read a real broadcast view model: a round trip through toB
   const vm = toBroadcastVM(dto, "America/New_York", new Date("2026-09-18T15:30:00Z"));
   assert.match(vm.when, /^today .*1:00 PM$/, "the business's clock, as toBroadcastVM says it");
   const w = todayRunWords(vm);
-  assert.equal(w.soon.meta, `Playbook · sends ${vm.when}`);
+  assert.equal(w.soon.meta, `Campaign · sends ${vm.when}`);
   assert.deepEqual(w.soon.status, ["Scheduled", `sends ${vm.when}`]);
   assert.equal(w.people, "3 people");
 });

@@ -4,6 +4,7 @@
  */
 import {
   PLAYBOOK_REACH_WORDS,
+  appointmentWords,
   clockHour,
   consentGuardWords,
   heldBackWords,
@@ -13,6 +14,7 @@ import {
   playbookReachDoor,
 } from "@chanlytics/contracts";
 import type {
+  AppointmentWord,
   AskedPurpose,
   ConsentChannel,
   MessageAbout,
@@ -190,16 +192,17 @@ export const pbLabel = (id: string) => starters.langLabel(id);
 
 // The composer's numbers, a few sensible ones each, chosen in place; a playbook
 // made before them keeps its own among them (pbWith). The route takes any whole
-// number in its range: 1-500 a run, a gap of 7-365 days, a cadence of 1-90.
-export const PB_CAPS = [5, 10, 25, 50, 100, 250, 500];
-
+// number in its range: 1-500 a run, a gap of 7-365 days, a cadence of 1-90. The
+// caps are contracts' (PLAYBOOK_CAP_CHOICES), which GET playbooks counts one
+// run's split at.
 export const PB_GAPS = [7, 14, 30, 60, 90, 180, 365];
 
 export const PB_CADENCES = [7, 14, 30, 60, 90];
 
 export const PB_TEXT: ParamSourceKind[] = ["text"];
 
-export const pbWith = (list: number[], n: number) => (list.includes(n) ? list : [...list, n].sort((a, b) => a - b));
+export const pbWith = (list: readonly number[], n: number) =>
+  list.includes(n) ? list : [...list, n].sort((a, b) => a - b);
 
 // The moments nothing is doing yet, among the ones a new playbook may start from (`offered`: none retired, one win-back).
 // The win-backs are one moment, read the one way the workspace can, so a playbook on either leaves none to set up.
@@ -232,17 +235,19 @@ const pbSentence = (clause: string) => `${clause.charAt(0).toUpperCase()}${claus
 // What every run keeps to, behind the shield: who it reaches (pbWhoWords), the moment's own rule, and who the wire holds back
 // (contracts heldBackWords) for the channels it goes by.
 // `about` is the moment's (contracts messageAboutOfTrigger): a visit's or a follow-up's message is theirs (decision D1).
+// `on` is the moment's kind and what the workspace calls an appointment: a reminder's rule says the page's one word.
 export const pbGuardWords = (
-  kind: string,
+  on: { kind: string; word: AppointmentWord },
   channels: readonly ConsentChannel[],
   purpose: AskedPurpose,
   about: MessageAbout,
 ) => {
+  const { kind } = on;
   const moment =
     kind === "visit"
-      ? "One message per visit."
+      ? `One message per ${appointmentWords(on.word).one}.`
       : kind === "deal"
-        ? "Their proposal has its link and nothing back. One message per proposal, and one playbook message per person a week, across every playbook."
-        : "Never twice within its gap, and one playbook message per person a week, across every playbook.";
+        ? "Their proposal has its link and nothing back. One message per proposal, and one campaign message per person a week, across every campaign."
+        : "Never twice within its gap, and one campaign message per person a week, across every campaign.";
   return [pbWhoWords(channels, purpose, about), moment, pbSentence(heldBackWords(channels))].filter(Boolean).join(" ");
 };

@@ -191,8 +191,9 @@ test("the broadcast composer: the rows To, Send by, Says, When in one pane", () 
   };
   const glass = open();
   const rows = all(glass, (n) => String(n.props?.className || "") === "bc-grow");
-  // Send by is the row under To (8 Oct 2026; One message, every channel, step 3 drew it between Says and When).
-  assert.deepEqual(rows.map(wordOf), ["To", "Send by", "Says", "When"]);
+  // Send by is the row under To (8 Oct 2026; One message, every channel, step 3 drew it between Says and When). The
+  // send's name is the last row, out of the foot, which holds the acts (10 Oct 2026).
+  assert.deepEqual(rows.map(wordOf), ["To", "Send by", "Says", "When", "Name"]);
   assert.ok(within(glass, "bc-composer", "bc-col-who") && within(glass, "bc-composer", "bc-col-what"));
   assert.ok(within(glass, "bc-composer", "bc-col-when"), "each column keeps its testid");
   assert.ok(within(glass, "bc-composer", "bc-col-via"), "Send by keeps its testid");

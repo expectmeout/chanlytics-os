@@ -7,6 +7,7 @@
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import { receptionistOn, type BillingStatus } from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
+import { isMissingDoor } from "./templates";
 
 type Db = SupabaseClient<Database>;
 
@@ -29,6 +30,27 @@ export async function getTenantConfig(db: Db, tenantId: string): Promise<TenantC
   return data;
 }
 
+/**
+ * The configuration row on a member's session. The calendar feed's address in it grants read access to the owner's
+ * calendar, so from 00366 only the owner reads the table; every other member reads the row through tenant_config_read
+ * (00365), which masks the address and says so (`feed_hidden`). The table is asked first, so the owner's read, and
+ * every read on a database before 00366, is the one query it always was; the door is asked only where the table
+ * answered nothing: no row, not a member, or a member who is not the owner. Null: no row, or not a member. A database
+ * before 00365 has no door (PGRST202), and the table's answer stands. `feed_hidden`: the feed's address in the row is
+ * masked.
+ */
+export async function getTenantConfigAsMember(
+  db: Db,
+  tenantId: string,
+): Promise<(TenantConfigRow & { feed_hidden: boolean }) | null> {
+  const row = await getTenantConfig(db, tenantId);
+  if (row) return { ...row, feed_hidden: false };
+  const { data, error } = await db.rpc("tenant_config_read", { p_tenant_id: tenantId }).maybeSingle();
+  if (error && isMissingDoor(error)) return null;
+  if (error) throw new Error(`getTenantConfigAsMember: ${error.message}`);
+  return data;
+}
+
 export type PutTenantConfigResult =
   | { ok: true; row: TenantConfigRow }
   /** Someone else saved between the read and the write. A real conflict. */
@@ -46,13 +68,19 @@ export type PutTenantConfigResult =
  * after you loaded them". For a tenant with no config row that sentence is
  * false in every particular — nobody saved anything, no colleague exists, and
  * reloading changes nothing.
+ *
+ * Zero rows has a third cause from 00366: an update reads the row it changes, and only the owner reads the table, so a
+ * partner's update finds nothing. So zero rows asks tenant_config_write (00365), a session's versioned write under the
+ * permission the table's update policy names, recorded as the caller's: it writes the row where it can, and says
+ * stale or missing where it cannot. A database before 00365 has no door, and the row is looked for as it always was.
  */
 export async function putTenantConfig(
   db: Db,
   tenantId: string,
   config: unknown,
   expectedVersion: number,
-  /** Who wrote it. This config IS what customers hear, so the row records its author (00085). */
+  /** Who wrote it. This config IS what customers hear, so the row records its author (00085). The door records the
+   *  caller, who is this person on every session that writes it. */
   updatedBy?: string | null,
 ): Promise<PutTenantConfigResult> {
   const { data, error } = await db
@@ -65,8 +93,22 @@ export async function putTenantConfig(
   if (error) throw new Error(`putTenantConfig: ${error.message}`);
   if (data) return { ok: true, row: data };
 
-  // Zero rows. Distinguish an absent row from a losing race — one query, only
-  // on the failure path.
+  // Zero rows: the door writes what the table would not show this member, and tells an absent row from a losing race.
+  const door = await db
+    .rpc("tenant_config_write", { p_tenant_id: tenantId, p_config: config as Json, p_version: expectedVersion })
+    .maybeSingle();
+  if (!door.error) {
+    const w = door.data;
+    if (w?.outcome === "saved")
+      return {
+        ok: true,
+        row: { tenant_id: tenantId, config, version: w.version, updated_at: w.updated_at, updated_by: w.updated_by },
+      };
+    if (w?.outcome === "stale" || w?.outcome === "missing") return { ok: false, reason: w.outcome };
+    throw new Error("putTenantConfig: the door answered without an outcome");
+  }
+  if (!isMissingDoor(door.error)) throw new Error(`putTenantConfig: ${door.error.message}`);
+  // Before 00365. Distinguish an absent row from a losing race — one query, only on the failure path.
   const existing = await getTenantConfig(db, tenantId);
   return { ok: false, reason: existing ? "stale" : "missing" };
 }
@@ -216,6 +258,13 @@ export async function workspaceAnswersOnItsOwn(db: Db, tenantId: string): Promis
   return !(billing.data?.mode === "stripe" && !receptionistOn(billing.data.status as BillingStatus));
 }
 
+/** The workspace's name and its address, for a message that names it and links to it; null when there is no such workspace. A read that fails throws. */
+export async function workspaceNamed(db: Db, tenantId: string): Promise<{ name: string; slug: string } | null> {
+  const { data, error } = await db.from("tenants").select("name, slug").eq("id", tenantId).maybeSingle();
+  if (error) throw new Error(`cannot read the workspace: ${error.message}`);
+  return data ? { name: data.name, slug: data.slug } : null;
+}
+
 // ---- setup acts a member makes from the dashboard: the caller decides what a refusal means; what comes back is the
 // database's own answer, the error untouched, since the words for what it raises are theirs.
 
@@ -257,12 +306,6 @@ export async function lineForwardingSet(db: Db, args: LineForwardingArgs) {
 
 /** The columns an edit may write, as the table types them. */
 export type PlaybookPatch = Database["public"]["Tables"]["playbooks"]["Update"];
-
-/** Set a playbook's state (running or paused). */
-export async function setPlaybookState(db: Db, id: string, state: string): Promise<{ error: PostgrestError | null }> {
-  const { error } = await db.from("playbooks").update({ state }).eq("id", id);
-  return { error };
-}
 
 /** Write the edited fields of a playbook. */
 export async function updatePlaybook(
@@ -326,4 +369,42 @@ export async function startPlaybook(
   if (typeof made.id !== "string" || typeof made.decision_id !== "string")
     throw new Error("start_playbook: the door answered without its row and its decision");
   return { data: { id: made.id, decisionId: made.decision_id }, error: null };
+}
+
+/**
+ * Change a playbook in place with its line in the ledger (the change_playbook door), on the member's own session:
+ * the row locked, only the columns `set` names written, then the decision (start_playbook, pause_playbook or
+ * change_playbook) as theirs, in one transaction. What each written column held comes back as `was`; where nothing
+ * named differs from the row, nothing is written and `was` is empty with no decision (two presses of Pause at once). A
+ * playbook the caller cannot see or change is the database's P0002, which the caller words; an answer without its row,
+ * or with a change and no decision, is a door that is not this one, and throws. `"missing"` on a database before the
+ * door's migration
+ * (isMissingDoor), where the dashboard writes the change the way it did before, for one release, so either deploy order
+ * works (the counts doors' rule, reports/report-series.ts answerOrMissing).
+ */
+export async function writePlaybookChange(
+  db: Db,
+  p: { tenantId: string; playbookId: string; set: Json; decision: Json; via: string | null; undoOf: string | null },
+): Promise<
+  | {
+      data: { id: string; was: Record<string, unknown>; decisionId: string | null } | null;
+      error: PostgrestError | null;
+    }
+  | "missing"
+> {
+  const { data, error } = await db.rpc("change_playbook", {
+    p_tenant_id: p.tenantId,
+    p_playbook_id: p.playbookId,
+    p_set: p.set,
+    p_decision: p.decision,
+    ...(p.via ? { p_via: p.via } : {}),
+    ...(p.undoOf ? { p_undo_of: p.undoOf } : {}),
+  });
+  if (error) return isMissingDoor(error) ? "missing" : { data: null, error };
+  const made = data !== null && typeof data === "object" && !Array.isArray(data) ? data : {};
+  const was = made.was !== null && typeof made.was === "object" && !Array.isArray(made.was) ? made.was : {};
+  const decisionId = typeof made.decision_id === "string" ? made.decision_id : null;
+  if (typeof made.id !== "string" || (decisionId === null && Object.keys(was).length > 0))
+    throw new Error("change_playbook: the door answered without its row, or a change without its decision");
+  return { data: { id: made.id, was, decisionId }, error: null };
 }

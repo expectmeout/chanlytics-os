@@ -7,6 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  LIFECYCLE_WORDS,
   MOMENT_TRIGGERS,
   momentOffered,
   PLAYBOOK_CLASS_LABEL,
@@ -139,6 +140,8 @@ const playbooksVM = (over = {}) => {
     timezone: TZ,
     countsRead: true,
     calendar: "ok",
+    // How the business works (the surface's shape, 9 Oct 2026): the words this file pins are the word "visit"'s.
+    shape: { calendar: "feed", dealsOn: true, word: "visit" },
     triggers: MOMENT_TRIGGERS.map((t) => ({
       id: t.id,
       label: t.label,
@@ -215,15 +218,15 @@ test("the moments: People's lists and a cadence, two the calendar makes possible
   assert.equal(triggerOf("visited").cls, "booking");
   assert.equal(PLAYBOOK_CLASS_LABEL.booking, "Bookings");
   assert.equal(
-    scheduleLine({ trigger: "visit_tomorrow", run_hour: 10, cap_per_run: 25, gap_days: 90, cadence_days: 30 }),
+    scheduleLine({ trigger: "visit_tomorrow", run_hour: 10, cap_per_run: 25, gap_days: 90, cadence_days: 30 }, "visit"),
     "Daily 10:00 AM · everyone with a visit tomorrow · up to 25",
   );
   assert.equal(
-    scheduleLine({ trigger: "visited", run_hour: 18, cap_per_run: 25, gap_days: 90, cadence_days: 30 }),
+    scheduleLine({ trigger: "visited", run_hour: 18, cap_per_run: 25, gap_days: 90, cadence_days: 30 }, "visit"),
     "Daily 6:00 PM · everyone who visited yesterday · up to 25",
   );
   assert.equal(
-    scheduleLine({ trigger: "quiet_30", run_hour: 10, cap_per_run: 25, gap_days: 90, cadence_days: 30 }),
+    scheduleLine({ trigger: "quiet_30", run_hour: 10, cap_per_run: 25, gap_days: 90, cadence_days: 30 }, "visit"),
     "Daily 10:00 AM · up to 25 · once per person, again after 90 days",
     "the old lines are the old lines",
   );
@@ -479,7 +482,7 @@ test("the visit's own words: when and what for, from the visit the run read", ()
   assert.equal(visitDateKey("2026-09-08T03:00:00Z", TZ), "2026-09-07");
   assert.deepEqual(parseParamSpec("@visit_when"), { kind: "visit_when" });
   assert.deepEqual(parseParamSpec({ kind: "visit_service" }), { kind: "visit_service" });
-  assert.equal(PARAM_SOURCE_LABELS.visit_when, "Their visit's time");
+  assert.equal(PARAM_SOURCE_LABELS.visit_when, "Their booked time");
   const specs = [{ kind: "first_name" }, { kind: "business_name" }, { kind: "visit_when" }, { kind: "visit_service" }];
   assert.deepEqual(
     resolveParams(specs, {
@@ -554,8 +557,8 @@ test("the wiring: the CHECKs, the facts column, the runner attaching the calenda
   // The composer is composer*.tsx (moved whole from outbound-real.jsx, Reach out Part 2.5), drawn on the visit moment.
   const composer = composingVisit("none");
   assert.ok(
-    textOf(byTestId(composer, "pb-calendar")).includes("A visit moment reads the calendar"),
-    "the composer says it plainly where there is no calendar",
+    textOf(byTestId(composer, "pb-calendar")).includes(LIFECYCLE_WORDS.compose.calendar.words),
+    "the composer says it plainly where there is no calendar, with its door (playbook-composer.test.mjs)",
   );
   assert.equal(byTestId(composingVisit("ok"), "pb-calendar"), null, "and says nothing where the calendar is connected");
   const runsUnder = find(byTestId(composer, "pb-runs-under"), (n) => n.type === globalThis.PolicyChip);
@@ -571,7 +574,7 @@ test("the wiring: the CHECKs, the facts column, the runner attaching the calenda
 
 /* ---- the run context: one workspace's bad read is one workspace's problem ---- */
 
-const ctxDb = (over = {}, faults = {}) =>
+const ctxDb = (over = {}, faults = {}, people = []) =>
   fakeDb(
     {
       tenants: [{ id: "t1", timezone: "America/New_York", status: "active" }],
@@ -594,7 +597,7 @@ const ctxDb = (over = {}, faults = {}) =>
       ...over,
     },
     faults,
-    { people_list: () => [] },
+    { people_list: () => people },
   );
 
 test("the touch history is read whole, and a workspace that cannot be read is RETURNED as an error, not thrown", async () => {
@@ -764,4 +767,144 @@ test("the day a visit moment is about is the calendar's own tomorrow and yesterd
   assert.equal(visitMomentDay("visit_tomorrow", NY, Date.parse("2026-11-01T04:30:00Z")), "2026-11-02");
   // 2 Nov 2026, 1:00 AM EST, the morning after the 25-hour day: yesterday is the 1st.
   assert.equal(visitMomentDay("visited", NY, Date.parse("2026-11-02T06:00:00Z")), "2026-11-01");
+});
+
+test("a run reads the record with the feed (0002's readers): a visit a member said missed is no last visit, a booking a notice stated is a next one, and a list's missed_visit finds who missed", async () => {
+  const { loadTenantRunContext } = await import("../../../../apps/edge/lib/playbooks.ts");
+  const { forgetFeeds } = await import("../../../../apps/edge/lib/calendar/availability.ts");
+  const now = new Date("2026-09-12T15:00:00Z");
+  const CAL = "+13055550133";
+  const ANA = "+13055550111";
+  const ics = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "BEGIN:VEVENT",
+    "UID:ev-came",
+    "DTSTART:20260820T140000Z",
+    "DTEND:20260820T150000Z",
+    "SUMMARY:Colour",
+    `DESCRIPTION:${CAL}`,
+    "END:VEVENT",
+    "BEGIN:VEVENT",
+    "UID:ev-missed",
+    "DTSTART:20260910T140000Z",
+    "DTEND:20260910T150000Z",
+    "SUMMARY:Colour",
+    `DESCRIPTION:${CAL}`,
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(ics, { status: 200, headers: { "content-type": "text/calendar" } });
+  const person = (id, phone) => ({
+    id,
+    display_name: id,
+    phone_e164: phone,
+    consent: "opted_in",
+    marketing_consent: "opted_in",
+    dnc: false,
+    channels: ["sms"],
+    conversation_count: 1,
+    has_chat: true,
+    has_backfill: false,
+  });
+  const appt = (over) => ({
+    tenant_id: "t1",
+    vanished_at: null,
+    all_day: false,
+    title: null,
+    service: null,
+    staff: null,
+    price: null,
+    note: null,
+    client_name: null,
+    client_phone: null,
+    client_email: null,
+    contact_id: null,
+    ...over,
+  });
+  try {
+    const ctx = await loadTenantRunContext(
+      ctxDb(
+        {
+          tenant_config: [
+            { tenant_id: "t1", config: { calendar: { ical_url: "https://calendar.example.com/run-record.ics" } } },
+          ],
+          appointments: [
+            // The feed's row for Cal's visit on the 10th, a member's "missed" on it.
+            appt({
+              id: "f1",
+              source: "calendar_feed",
+              tool: "calendar",
+              status: "missed",
+              external_id: "ev-missed",
+              starts_at: "2026-09-10T14:00:00Z",
+              ends_at: "2026-09-10T15:00:00Z",
+            }),
+            // Ana's booking, from a tool's emailed notice: on no calendar.
+            appt({
+              id: "n1",
+              source: "booking_email",
+              tool: "booksy",
+              status: "booked",
+              external_id: "bk-1",
+              service: "Balayage",
+              client_name: "Ana Ruiz",
+              client_phone: ANA,
+              starts_at: "2026-09-14T14:00:00Z",
+              ends_at: "2026-09-14T15:00:00Z",
+            }),
+          ],
+          segments: [
+            {
+              id: "l-missed",
+              tenant_id: "t1",
+              name: "Missed lately",
+              rule: { all: [{ field: "missed_visit", op: "within", days: 7 }] },
+            },
+          ],
+          segment_members: [],
+        },
+        {},
+        [person("p-cal", CAL), person("p-ana", ANA)],
+      ),
+      "t1",
+      now,
+    );
+    assert.ok(!("error" in ctx), JSON.stringify(ctx));
+    assert.equal(ctx.calendar, "ok");
+    const cal = ctx.visits.get("p-cal");
+    assert.equal(cal?.last?.start, "2026-08-20T14:00:00.000Z", "the last visit Cal came to, not the one they missed");
+    assert.equal(cal?.missed?.start, "2026-09-10T14:00:00.000Z");
+    assert.equal(
+      ctx.visits.get("p-ana")?.next?.start,
+      "2026-09-14T14:00:00.000Z",
+      "the notice's booking is Ana's next",
+    );
+    const members = ctx.listMembers({ kind: "saved", id: "l-missed" });
+    assert.deepEqual(members?.state === "ok" ? [...members.ids] : members, ["p-cal"]);
+    // A record that cannot be read is the calendar unavailable, as a feed is: a visit a member cancelled could not be
+    // told from one that stands, so no visit's message goes that hour, and a list on the calendar cannot be counted.
+    const blind = await loadTenantRunContext(
+      ctxDb(
+        {
+          tenant_config: [
+            { tenant_id: "t1", config: { calendar: { ical_url: "https://calendar.example.com/run-record.ics" } } },
+          ],
+          segments: [],
+          segment_members: [],
+        },
+        { "appointments.select": { message: "statement timeout" } },
+        [person("p-cal", CAL)],
+      ),
+      "t1",
+      now,
+    );
+    assert.ok(!("error" in blind), JSON.stringify(blind));
+    assert.equal(blind.calendar, "unavailable");
+    assert.equal(blind.visits.size, 0);
+  } finally {
+    globalThis.fetch = realFetch;
+    forgetFeeds();
+  }
 });

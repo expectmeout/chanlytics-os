@@ -77,6 +77,7 @@ const VERB_FAMILY: Record<DecisionVerb, ActivityFamily> = {
   cancel_broadcast: "campaigns",
   start_playbook: "campaigns",
   pause_playbook: "campaigns",
+  change_playbook: "campaigns",
   reply_review: "google",
   export: "settings",
   end_call: "calls",
@@ -91,6 +92,7 @@ const VERB_FAMILY: Record<DecisionVerb, ActivityFamily> = {
   delete_list: "lists",
   import: "people",
   open_recording: "calls",
+  mark_visit: "calendar",
 };
 
 /** The word an event kind is filed under: `message` of `message.sent`. */

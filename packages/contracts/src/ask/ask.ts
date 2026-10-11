@@ -25,6 +25,7 @@ import { parseLeadsRoute } from "../leads/lead-plan";
 import { parsePipelineRoute } from "../deals/pipeline/pipeline-views";
 import { pipelinePersonOf } from "../deals/pipeline/pipeline-vm";
 import type { AskLanguage } from "./ask-language";
+import type { ReachOutChainDto } from "../reach-out/reach-out-dtos";
 
 /* ------------------------------------------------------------------ limits */
 
@@ -116,14 +117,22 @@ export const ASK_MAX_TOKENS = 4000;
 export const ASK_WARM_MAX_TOKENS = 64;
 /**
  * Ask's own daily token budget per workspace, apart from the receptionist's.
- * Counted on uncached input plus output. With the page's context riding into
- * every round behind its own cache breakpoint (a cache read is not counted),
- * a turn costs two to eight thousand such tokens; a busy owner
- * asking sixty questions stays well under this, and an eval run of the whole
- * case set fits several times over. The first cap (400k) was spent by a day
- * of eval runs and refused the palette until the window rolled.
+ * Counted on uncached input, cache writes and output (ask_tokens_day, 00368);
+ * a cache read is not counted. A write is counted because it is input the
+ * model was sent, billed above uncached input: a warm (`ask_warm`) writes a
+ * turn's head, some thirty thousand tokens, and counted under a hundred while
+ * writes were not, so warms were the one thing the day did not bound.
+ *
+ * Counting them, the number doubled with them (1.5M before). A turn costs two
+ * to eight thousand uncached input and output tokens, and about one question
+ * in three misses the head and writes it again (the fortnight to 5 October):
+ * a busy owner's sixty questions come to some 1.1M to 1.6M counted, and 1.8M
+ * when every one is more than the cache's five minutes from the last. The cap
+ * keeps that day inside it with room, and still stops a loop of warms at a
+ * hundred heads. The first cap (400k) was spent by a day of eval runs and
+ * refused the palette until the window rolled.
  */
-export const ASK_TOKENS_DAY = 1_500_000;
+export const ASK_TOKENS_DAY = 3_000_000;
 /** How much of the workspace one read may return. The words stay the pages' words. */
 export const ASK_CAPS = {
   threads: 20,
@@ -169,7 +178,8 @@ export interface AskProposal {
     | "person_details"
     | "list"
     | "run"
-    | "playbook_channels";
+    | "playbook_channels"
+    | "playbook_change";
   /** The lowest role that may commit it, its spec's (ask-proposals/); the route re-checks on Approve. */
   needs: ProposalNeeds;
   title: string;
@@ -254,9 +264,21 @@ export interface AskThreadVM {
 /**
  * The kinds a scope may have: a page and the rows a page opens, each a kind a citation names (citations.ts) but the
  * run, a Broadcasts row, which its address spells so and a citation names a broadcast. A scope is what the person was
- * looking at, a fact about the turn; a citation is a claim about a row read, and builds the answer's grammar.
+ * looking at, a fact about the turn; a citation is a claim about a row read, and builds the answer's grammar. A
+ * playbook is a campaign open in its drawer on Campaigns (the moment spec, A1); a reach-out open there is the page at
+ * that address (scopeFromRoute).
  */
-export const ASK_SCOPE_KINDS = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"] as const;
+export const ASK_SCOPE_KINDS = [
+  "thread",
+  "conversation",
+  "call",
+  "person",
+  "page",
+  "lead",
+  "search",
+  "run",
+  "playbook",
+] as const;
 export type AskScopeKind = (typeof ASK_SCOPE_KINDS)[number];
 
 /** What the person was looking at when they asked. Carried into the turn as a fact. */
@@ -269,11 +291,43 @@ export interface AskScope {
 const UUID = /^[0-9a-f-]{36}$/;
 
 /**
- * The scope a route implies, when it names a row: every address a page opens a row at. Conversations writes
- * `<tab>:<id>` as a row opens (pages/conversations.jsx cvRoute), Live `live/<callId>`, a run `broadcasts/run:<id>`;
- * the Leads and Pipeline peeks are read by their own pages' parsers (lead-plan.ts, pipeline.ts), never a second one.
+ * The row People's address names (`clients/<param>`): a lead or a search on Leads, a person in the Pipeline's peek or on
+ * their own page. The Leads and Pipeline peeks are read by their own pages' parsers (lead-plan.ts, pipeline.ts).
  */
-export function scopeFromRoute(page: string, param: string | null | undefined, label?: string | null): AskScope | null {
+function clientsScope(param: string, label: string | null | undefined): AskScope | null {
+  const leads = parseLeadsRoute(`clients/${param}`);
+  if (leads) {
+    if (leads.peek) return { kind: "lead", id: leads.peek, label: label || "this lead" };
+    if (leads.searchId) return { kind: "search", id: leads.searchId, label: label || "this search" };
+    return null;
+  }
+  const pipeline = parsePipelineRoute(`clients/${param}`);
+  // The peek names a row, and a further deal of theirs is a row of its own (0029): the person is whose it is.
+  if (pipeline)
+    return pipeline.peek
+      ? { kind: "person", id: pipelinePersonOf(pipeline.peek), label: label || "this person" }
+      : null;
+  if (UUID.test(param)) return { kind: "person", id: param, label: label || "this person" };
+  return null;
+}
+
+/** A reach-out as the page read it (GET reach-outs' chains): its first step's id, which its drawer's address names, and its name. */
+type ChainRead = Pick<ReachOutChainDto, "root_id" | "name">;
+
+/**
+ * The scope a route implies, when it names a row: every address a page opens a row at. Conversations writes
+ * `<tab>:<id>` as a row opens (pages/conversations.jsx cvRoute), Live `live/<callId>`, a run `broadcasts/run:<id>`,
+ * a campaign `campaigns/moment:<id>`; People's, its Leads and Pipeline peeks among them, are clientsScope's, never a
+ * second reading. A reach-out opens in a campaign's drawer at the same address, and no campaigns read holds it: where
+ * the chains the page read (`chains`) name it, its scope is the page at that address, named for it, whose row the page's
+ * context carries (the moment spec, A2), never a campaign nothing reads.
+ */
+export function scopeFromRoute(
+  page: string,
+  param: string | null | undefined,
+  label?: string | null,
+  chains?: readonly ChainRead[] | null,
+): AskScope | null {
   if (!param) return null;
   if (page === "inbox" && param.startsWith("th-"))
     return { kind: "thread", id: param.slice(3), label: label || "this thread" };
@@ -287,21 +341,15 @@ export function scopeFromRoute(page: string, param: string | null | undefined, l
   if (page === "live" && UUID.test(param)) return { kind: "call", id: param, label: label || "this call" };
   if (page === "broadcasts" && param.startsWith("run:") && UUID.test(param.slice(4)))
     return { kind: "run", id: param.slice(4), label: label || "this run" };
-  if (page === "clients") {
-    const leads = parseLeadsRoute(`clients/${param}`);
-    if (leads) {
-      if (leads.peek) return { kind: "lead", id: leads.peek, label: label || "this lead" };
-      if (leads.searchId) return { kind: "search", id: leads.searchId, label: label || "this search" };
-      return null;
-    }
-    const pipeline = parsePipelineRoute(`clients/${param}`);
-    // The peek names a row, and a further deal of theirs is a row of its own (0029): the person is whose it is.
-    if (pipeline)
-      return pipeline.peek
-        ? { kind: "person", id: pipelinePersonOf(pipeline.peek), label: label || "this person" }
-        : null;
-    if (UUID.test(param)) return { kind: "person", id: param, label: label || "this person" };
+  // A campaign open in its drawer on Campaigns' home (surfaces/campaigns/home/address.ts), and the old Playbooks address
+  // it replaced; or a reach-out open in the same drawer.
+  if ((page === "campaigns" || page === "outbound") && param.startsWith("moment:") && UUID.test(param.slice(7))) {
+    const id = param.slice(7);
+    const chain = chains?.find((c) => c.root_id === id);
+    if (chain) return { kind: "page", id: `campaigns/moment:${id}`, label: label || chain.name || "this reach-out" };
+    return { kind: "playbook", id, label: label || "this campaign" };
   }
+  if (page === "clients") return clientsScope(param, label);
   return null;
 }
 

@@ -193,7 +193,7 @@ export const BtCreateCard = ({ flash = () => {} }: { flash?: (flash: LegacyFlash
       <BtFold<CreateDraft>
         id="receptionist"
         label="Set up your receptionist"
-        hint="Its name, the number it gives out, and the booking link where customers book one."
+        hint="Name, number and booking link"
         // No preview is composed for a workspace with no receptionist, so nothing is said it will be told.
         channel={null}
         said={<>Saved — the receptionist picks these up within a minute</>}

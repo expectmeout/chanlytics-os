@@ -4,7 +4,10 @@
  * page per condition key per six hours, stamped only after delivery -- a page
  * that did not send earns no quiet, so the next tick tries again.
  *
- * Who calls it: the heartbeat failing many jobs in one run (api/jobs/tick.ts);
+ * Who calls it: the heartbeat failing many jobs in one run (api/jobs/tick.ts),
+ * and a change's delivery to a subscriber that failed for good, whichever way
+ * (packages/jobs tick.ts and handlers.ts, through the tick's page port: the
+ * owner is never told of that one, ledger PAGES_THE_PLATFORM);
  * a provider refusing a send with 401 or 403 -- credentials, not content -- a
  * workspace's credentials that could not be READ, the reply left queued for a
  * fresh job, and the mail provider's day or month used up (core/messages/send.ts); due jobs
@@ -16,8 +19,9 @@
  * workspace holds, one the cold account already holds verified with no
  * workspace's row, or one the provider no longer knows (lib/email/sending-domains.ts, sending-domain-holds.ts),
  * receipts that never arrive (lib/email/cold-receipts.ts), and unsubscribe links
- * that do not open (lib/email/unsubscribe-probe.ts). Each reaches the platform,
- * never an owner.
+ * that do not open (lib/email/unsubscribe-probe.ts); and a carrier's report on a
+ * text that the database would not take, which Twilio never sends again
+ * (lib/sms/sms-status.ts). Each reaches the platform, never an owner.
  *
  * A page is mail, sent with the platform's own provider key. So a condition
  * that IS that key failing -- its 401, its used-up quota -- is recorded here

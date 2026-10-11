@@ -1408,7 +1408,7 @@ test("a new message asks where it is sent first -- Email, Text, WhatsApp -- and 
   );
   assert.equal(
     textOf(byTestId(tree, "tpl-own-note")),
-    "A message you write here is an offer or news. Visit reminders and follow-ups come from the starter set.",
+    "A message you write here is an offer or news. Reminders and follow-ups come from the starter set.",
     "one quiet line, in contracts' words",
   );
 
@@ -1511,7 +1511,7 @@ test("the form for an email names the message from its title, refuses a title th
   byTestId(tree, "tpl-own-value-2-name").props.onValueChange("Date");
   byTestId(redraw(), "tpl-own-value-2-example").props.onValueChange("Oct 1");
   tree = redraw();
-  assert.equal(textOf(byTestId(tree, "tpl-own-value-2-name").props.label), "Name of value 2");
+  assert.equal(textOf(byTestId(tree, "tpl-own-value-2-name").props.label), "Value 2");
   assert.equal(byTestId(tree, "tpl-own-value-1-name").props.maxLength, contracts.TEMPLATE_LABEL_MAX);
   assert.equal(byTestId(tree, "tpl-own-value-1-example").props.maxLength, contracts.TEMPLATE_EXAMPLE_MAX);
   const editor = editorIn(tree);

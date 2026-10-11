@@ -64,6 +64,31 @@
   color: var(--ink-muted);
   overflow-wrap: anywhere;
 }
+/* The ways a message cannot go, folded under the way it goes: the question is a quiet link, the reasons under it. */
+.ix-new-held {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.ix-new-held-why {
+  width: fit-content;
+  list-style: none;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.ix-new-held-why::-webkit-details-marker {
+  display: none;
+}
+.ix-new-held-why:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-xs);
+}
 .ix-new-quote {
   margin: 0;
   min-width: 0;

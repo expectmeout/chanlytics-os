@@ -158,7 +158,7 @@ export const PkHint = ({ id, label, mark, testid, card = false, children }: PkHi
     >
       {mark || <Icon name="info" size={12} />}
     </button>
-    <span className={`pk-hint-tip${card ? " card" : ""}`} role="tooltip" id={id}>
+    <span className={`pk-hint-tip${card ? " card panel panel-pop" : ""}`} role="tooltip" id={id}>
       {children}
     </span>
   </span>

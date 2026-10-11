@@ -96,13 +96,14 @@ test("a workspace the database answers nothing for is the page's 404, in its wor
     kernel.load(rc, reportHeadline, { period: "7d" }),
     (e) => [e.code, e.status, e.message].join("|") === "not_found|404|No workspace found for this report.",
   );
-  for (const bad of [{ period: "14d" }, { period: "" }, { days: "45" }])
+  for (const bad of [{ period: "14d" }, { period: "" }])
     assert.throws(
       () => reportPeriodAsked(bad),
       (e) => e.status === 400 && e.message === "period must be 7d, 30d, 90d or month.",
       JSON.stringify(bad),
     );
   assert.equal(reportPeriodAsked({}), "30d", "none named is thirty days");
+  assert.equal(reportPeriodAsked({ days: "45" }), "30d", "`days` is no longer read: none named");
 });
 
 test("the route declares its policy as its siblings do: a member's read, counted with the aggregate reads", () => {

@@ -3,7 +3,7 @@
  *
  * The timezone is saved through its own route (PATCH workspaces, window.__workspace.setTimezone), not through the
  * settings save, and nothing re-read settings after it. So the settings read's prompt preview, which carries the zone
- * every fold's "Your receptionist will be told" is resolved with, kept the old zone until something else was saved:
+ * every fold's "Preview what it's told" is resolved with, kept the old zone until something else was saved:
  * the hours fold would have shown "all times America/New_York" to an owner who had just moved the business to Chicago.
  *
  * RUN, never read: the real courier (identity.ts), the real typed client and its refresh map, the real runner and the
@@ -107,8 +107,8 @@ test("saving a timezone re-reads settings, so the preview's zone and what the ho
   // read, which counts a review on the day it was written in the zone, is forgotten, not read from Settings.
   assert.deepEqual(
     AFTER["PATCH workspaces"]().map((o) => o.key),
-    ["settings", "people", "reports", "reports_headline", "today"],
-    "the refresh map names the surfaces the workspace's own fields ride on",
+    ["settings", "people", "reports", "reports_headline", "today", "playbooks"],
+    "the refresh map names the surfaces the workspace's own fields ride on, Campaigns' moments among them (how customers buy shapes them)",
   );
 
   const was = { fetch: W.fetch, settings: W.__SETTINGS, ws: W.__WORKSPACES, active: W.__ACTIVE_WORKSPACE };

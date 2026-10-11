@@ -25,8 +25,17 @@ export {
   pauseMsOf,
 } from "./policy";
 export type { SpokenRule, SpokenBreach, SpokenTurn, SpokenGuardVerdict, WaWindow, HeldLineKind } from "./policy";
-export { ROLES, ROLE_PERMS, TEAM_ROLES } from "./workspace-config/role-perms";
-export type { Role } from "./workspace-config/role-perms";
+export { ROLES, ROLE_PERMS, ROLE_SAYS, TEAM_ROLES, roleSays, roleTable } from "./workspace-config/role-perms";
+export type { Role, RoleSays, RoleTableRow } from "./workspace-config/role-perms";
+export {
+  ALERT_ADDRESSES_MAX,
+  ALERT_ADDRESSES_MIN,
+  ALERT_REFUSED_WORDS,
+  alertAddressesOf,
+  memberGetsAlerts,
+  withAlertAddress,
+} from "./workspace-config/alerts";
+export type { AlertRefusal } from "./workspace-config/alerts";
 export {
   policyClassOfIntent,
   policyClassLabel,
@@ -147,7 +156,9 @@ export {
   servicesToldWords,
   serviceUndoName,
   servicesFoundWords,
-  servicesSaveWords,
+  serviceLineWords,
+  lengthWords,
+  SERVICE_PRICE_EMPTY,
 } from "./business-tab/services-words";
 export type { ServiceWordsInput, ServicesWordsVM } from "./business-tab/services-words";
 export {
@@ -169,7 +180,15 @@ export {
   TONE_PRESETS,
 } from "./business-tab/how-it-answers";
 export type { NotesWordsVM, InstructionsWordsVM, FallbacksWordsVM } from "./business-tab/how-it-answers";
-export { handoffChatWords, handoffCallWords, handoffWords } from "./business-tab/handoff-words";
+export {
+  handoffChatWords,
+  handoffChatRow,
+  handoffCallRow,
+  HANDOFF_ANYWAY,
+  handoffWords,
+  type HandoffRowVM,
+  type HandoffCallRowVM,
+} from "./business-tab/handoff-words";
 export type { HandoffWordsVM } from "./business-tab/handoff-words";
 export { abilityRows, cannotRows } from "./business-tab/abilities";
 export type { AbilityInputs, AbilityRowVM, AbilitiesVM, CannotRowVM } from "./business-tab/abilities";
@@ -178,11 +197,11 @@ export {
   brainMetaOf,
   replyWhy,
   BRAIN_INTENTS,
-  INTENT_LABELS,
   BRAIN_LANGUAGES,
   BRAIN_OUTPUT_JSON_SCHEMA,
   CONFIDENCE_STEPS,
 } from "./brain";
+export { INTENT_LABELS } from "./intent-labels";
 export { parseBrainOutput, BrainOutputSchema } from "./brain-schema";
 export type { BrainIntent, BrainMeta, BrainStamp, ReplyWhyVM } from "./brain";
 export type { BrainOutput } from "./brain-schema";

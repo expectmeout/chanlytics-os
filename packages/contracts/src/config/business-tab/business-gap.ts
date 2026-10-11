@@ -15,9 +15,9 @@ export function bookingLinkRowWords(sellsBy: string | null | undefined): { empty
   return bookingLinkOptional(sellsBy)
     ? {
         empty: "None — it takes their details instead",
-        hint: "Optional for a business that quotes: without one, it takes their details instead.",
+        hint: "Optional. Without one, it takes their details.",
       }
-    : { empty: "Not set", hint: "Sent instead of confirming an appointment itself." };
+    : { empty: "Not set", hint: "Sent so customers book themselves." };
 }
 
 /** The subset of the brain the gap line reads. */

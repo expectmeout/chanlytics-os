@@ -1,7 +1,7 @@
 # 0039 · A reply keeps what the receptionist was told
 
 **Status:** Decided on 9 October 2026 (Ruben: "all approved as you best suggest"). Steps 1 to 4 built with this note
-(00359, 00360), step 4 as far as it goes without asking a model. Steps 5 and 6 to come: 5 waits on a model key for the
+(00401, 00402), step 4 as far as it goes without asking a model. Steps 5 and 6 to come: 5 waits on a model key for the
 evals, which is Ruben's to set, and 6 on a month of kept turns.
 
 Written against commit `d09bed1c9` (main, 9 October 2026), and every file and line below was read at it.
@@ -101,7 +101,7 @@ here.
 
 Each ships in either deploy order.
 
-1. **The tables** (00359): `model_prompts`, `model_turns`, the write (`model_turn_keep`), the two clocks on one nightly
+1. **The tables** (00401): `model_prompts`, `model_turns`, the write (`model_turn_keep`), the two clocks on one nightly
    job (`purge_model_turns`, `purge_model_prompts`; `sweep_status` `purge_model_turns`), an erasure's hand
    (`model_turns_scrub`), the erasure registry, the workspace-delete backup, the tenancy suite. **Built.**
 2. **The port writes them.** `generateReply` keeps the prompt and the turn where it is given a conversation and stamps
@@ -110,7 +110,7 @@ Each ships in either deploy order.
    `model_turn_write_failed` once a turn and answers as before; a dashboard deployed before it erases as before (a
    database with no turns has none to scrub); a dashboard older than the edge reads a meta with one more key.
    **Built.**
-3. **The settings keep what they said** (00360). Read at this commit: a save already writes `settings.changed` with
+3. **The settings keep what they said** (00402). Read at this commit: a save already writes `settings.changed` with
    the names of the fields that moved and who moved them, and Settings › Activity says so
    (`apps/dashboard/src/server/workspace/settings-write.ts:41`, `packages/contracts/src/workspace/activity.ts:635`). It
    is written after the save, best effort, by two of the three callers, and it carries no value. Added: the values.

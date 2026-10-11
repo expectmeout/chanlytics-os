@@ -676,7 +676,10 @@ test("(0008) the peek says the person's deal stage beside their name, in the one
     assert.ok(byTestId(byTestId(tree, "cal-panel-person"), "cal-panel-deal"), "beside the person");
     assert.ok(startAct(tree));
     // Its controls, drawn in the order Tab walks them, are the pinned order.
-    const controls = all(byTestId(tree, "cal-panel"), (n) => n.type === "button").map((b) => textOf(b).trim());
+    // A glyph's press is heard by its name (the copy is a glyph with its name and its tip, 10 Oct 2026).
+    const controls = all(byTestId(tree, "cal-panel"), (n) => n.type === "button").map(
+      (b) => b.props["aria-label"] || textOf(b).trim(),
+    );
     assert.deepEqual(controls, PEEK_FOCUS_ORDER);
     // Passed after it: the proposal that followed it was answered.
     tree = peek({ people: peopleWith("lost", true, END + HOUR) });
@@ -1527,9 +1530,11 @@ test("a window the board has read paints at once on the way back, and is read ag
     __ACTIVE_WORKSPACE: "t1",
     fetch: async (url) => {
       const q = Object.fromEntries(new URL(String(url), "https://app.chanlytics.com").searchParams);
-      seen.push(q.from);
+      // The weeks around today are the route's to work out (`around`), as the board's first read asks for them.
+      const w = q.around === "today" ? windowFor(zoneDayKey(Date.now(), TZ)) : { from: q.from, days: Number(q.days) };
+      seen.push(w.from);
       await new Promise((r) => parked.push(r));
-      return new Response(JSON.stringify({ ok: true, data: { calendar: span(q.from, Number(q.days)) } }), {
+      return new Response(JSON.stringify({ ok: true, data: { calendar: span(w.from, w.days) } }), {
         status: 200,
         headers: { "content-type": "application/json" },
       });
@@ -1573,6 +1578,72 @@ test("a window the board has read paints at once on the way back, and is read ag
   } finally {
     stop();
     await release();
+    Object.assign(globalThis.window, {
+      location: was.location,
+      fetch: was.fetch,
+      __WORKSPACES: was.ws,
+      __ACTIVE_WORKSPACE: was.active,
+      __CALENDAR: was.cal,
+    });
+  }
+});
+
+test("REGRESSION: two moves whose reads overlap land as the second, and neither says it could not read the days -- the first, its answer dropped, put the span back under the second, whose own answer was then dropped too", async () => {
+  const { startSurfaces } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
+  const { calendarOverride, getCalendarSpan, setCalendarSpan } = await import(`${S}/calendar/surface.ts`);
+  const { windowFor, zoneDayKey } = await import("@chanlytics/contracts");
+  setCalendarSpan(null);
+  const parked = [];
+  const was = {
+    location: globalThis.window.location,
+    fetch: globalThis.window.fetch,
+    ws: globalThis.window.__WORKSPACES,
+    active: globalThis.window.__ACTIVE_WORKSPACE,
+    cal: globalThis.window.__CALENDAR,
+  };
+  Object.assign(globalThis.window, {
+    location: { pathname: "/w/harbor", hash: "", origin: "https://app.chanlytics.com", reload() {}, assign() {} },
+    __WORKSPACES: [{ id: "t1", timezone: TZ }],
+    __ACTIVE_WORKSPACE: "t1",
+    fetch: async (url) => {
+      const q = Object.fromEntries(new URL(String(url), "https://app.chanlytics.com").searchParams);
+      const w = q.around === "today" ? windowFor(zoneDayKey(Date.now(), TZ)) : { from: q.from, days: Number(q.days) };
+      await new Promise((r) => parked.push(r));
+      return new Response(JSON.stringify({ ok: true, data: { calendar: span(w.from, w.days) } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    },
+  });
+  const pause = () => new Promise((r) => setTimeout(r, 5));
+  const release = async () => {
+    for (let i = 0; i < 40; i += 1) {
+      while (parked.length) parked.shift()();
+      await pause();
+    }
+  };
+  const shown = () => globalThis.window.__CALENDAR?.vm?.from;
+  // The board watches the record's rows (00345), so the runner wants a feed to join: none of these cases exercises it.
+  const stop = startSurfaces([calendarOverride], () => () => {});
+  try {
+    await release();
+    // Two windows this tab has never read, so each move waits on its read; the second asked while the first is out.
+    const first = "2027-03-01";
+    const second = "2027-05-03";
+    const toFirst = realVerbs.goTo(first, 63);
+    await pause();
+    const toSecond = realVerbs.goTo(second, 63);
+    await pause();
+    assert.equal(parked.length, 2, "both reads are out at once");
+    await release();
+    assert.equal(await toFirst, true, "REGRESSION: the first move said its days could not be read");
+    assert.equal(await toSecond, true, "REGRESSION: and so did the second, though every read landed");
+    assert.equal(getCalendarSpan().from, second, "REGRESSION: the first move put the span back under the second");
+    assert.equal(shown(), second, "the board shows the weeks asked for last");
+  } finally {
+    stop();
+    await release();
+    setCalendarSpan(null);
     Object.assign(globalThis.window, {
       location: was.location,
       fetch: was.fetch,
@@ -1651,9 +1722,11 @@ test("a window read ahead is held and paints at once when the board gets there; 
     __ACTIVE_WORKSPACE: "t1",
     fetch: async (url) => {
       const q = Object.fromEntries(new URL(String(url), "https://app.chanlytics.com").searchParams);
-      seen.push(q.from);
+      // The weeks around today are the route's to work out (`around`), as the board's first read asks for them.
+      const w = q.around === "today" ? windowFor(zoneDayKey(Date.now(), TZ)) : { from: q.from, days: Number(q.days) };
+      seen.push(w.from);
       await new Promise((r) => parked.push(r));
-      return new Response(JSON.stringify({ ok: true, data: { calendar: span(q.from, Number(q.days)) } }), {
+      return new Response(JSON.stringify({ ok: true, data: { calendar: span(w.from, w.days) } }), {
         status: 200,
         headers: { "content-type": "application/json" },
       });
@@ -2445,4 +2518,83 @@ test("every testid the page is known by is drawn in its view, the date picker fo
     /drag|Move |cancel\(|Waitlist|two-way|Two-way|Apple iCal|Utilization|\$\d/,
     "a viewer: nothing moved, cancelled, synced two ways, or priced",
   );
+});
+
+test("what became of a visit (0002 step 8): a past one says Past, never Done, and offers Kept and Missed on its row; a word said shows on the block and in the panel, with its correction", () => {
+  const withVisit = (status) => {
+    const week = dto();
+    week.days[1].items[0].visit = { id: "a1", status };
+    return week;
+  };
+  // Booked and over (the fixture's Tuesday is behind any clock this runs on): whether they came is the member's to say.
+  fresh(withVisit("booked"));
+  let tree = page();
+  byTestId(tree, "cal-block").props.onClick();
+  tree = page();
+  assert.equal(
+    textOf(byTestId(tree, "cal-panel-state")),
+    "Past",
+    "REGRESSION: an ended visit said Done, as if they came",
+  );
+  const acts = byTestId(tree, "cal-panel-visit");
+  assert.ok(acts, "the acts are drawn on the record's row");
+  assert.ok(byTestId(acts, "cal-panel-visit-kept") && byTestId(acts, "cal-panel-visit-missed"));
+  assert.equal(byTestId(acts, "cal-panel-visit-cancelled"), null, "an ended visit is not cancelled now");
+  leave();
+
+  // Said missed: the block says it, the panel says it, and offers the one correction.
+  fresh(withVisit("missed"));
+  tree = page();
+  const block = byTestId(tree, "cal-block");
+  assert.equal(block.props["data-visit"], "missed");
+  assert.match(block.props["aria-label"], /, missed$/);
+  block.props.onClick();
+  tree = page();
+  assert.equal(textOf(byTestId(tree, "cal-panel-state")), "Missed");
+  const correct = byTestId(tree, "cal-panel-visit");
+  assert.ok(byTestId(correct, "cal-panel-visit-kept"));
+  assert.equal(byTestId(correct, "cal-panel-visit-missed"), null);
+  leave();
+
+  // An event the record has not kept yet: nothing to say it on, and nothing offered.
+  fresh();
+  tree = page();
+  byTestId(tree, "cal-block").props.onClick();
+  tree = page();
+  assert.equal(byTestId(tree, "cal-panel-visit"), null);
+  assert.equal(textOf(byTestId(tree, "cal-panel-state")), "Past");
+  leave();
+});
+
+test("the word is said on every view: the agenda (a phone's own) says it under the name, and the month counts a cancelled visit as no time taken", () => {
+  const week = dto();
+  week.days[1].items[0].visit = { id: "a1", status: "missed" };
+  week.days[3].items[0].visit = { id: "a2", status: "cancelled" };
+  fresh(week);
+  globalThis.window.matchMedia = (q) => ({ matches: /max-width:\s*720px/.test(q) });
+  let tree;
+  try {
+    tree = page();
+  } finally {
+    delete globalThis.window.matchMedia;
+  }
+  const cls = (n) => String((n && (n.rendered || n).props?.className) || "");
+  const rows = all(tree, (n) => n.props?.["data-testid"] === "cal-agenda-item");
+  const ana = rows.find((n) => textOf(n).includes("Ana Ruiz"));
+  assert.equal(
+    textOf(find(ana, (n) => cls(n).split(" ").includes("ag-item-sub"))),
+    "Color · Missed · 1h 30m",
+    "REGRESSION: the agenda, a phone's default, never said what became of a visit",
+  );
+  assert.ok(textOf(rows.find((n) => textOf(n).includes("Team training"))).includes("Cancelled"));
+
+  fresh(week);
+  tree = page();
+  pickView(tree, "month");
+  tree = page();
+  const thursday = all(tree, (n) => n.props?.["data-testid"] === "cal-month-cell").find((n) =>
+    String(n.props["aria-label"]).includes("September 10"),
+  );
+  assert.ok(thursday, "the month draws the day");
+  assert.doesNotMatch(String(thursday.props["aria-label"]), /taken/, "a cancelled visit is no time taken");
 });

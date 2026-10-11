@@ -332,12 +332,12 @@ export const setupVerbs: SetupApi = {
       return { ok: r.ok, message: r.ok ? "" : r.message };
     },
     async test(lineId) {
-      const r = await api()("POST lines/forwarding/test", { body: { line_id: lineId } });
+      const r = await api()("POST lines/forwarding/test", { body: { line_id: lineId }, once: true });
       return { ok: r.ok, message: r.ok ? "" : r.message };
     },
   },
   async request(what) {
-    const r = await api()("POST setup/request", { body: { what } });
+    const r = await api()("POST setup/request", { body: { what }, once: true });
     if (!r.ok) return { ok: false, already: false, message: r.message };
     const req = r.data.request;
     const already =

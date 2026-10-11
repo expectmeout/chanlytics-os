@@ -70,13 +70,13 @@ export const PROMPT_READERS = {
  */
 export const PROMPT_NOW = {
   label: {
-    whatsapp: "Sent alongside it, rebuilt for every message",
-    voice: "Sent alongside it, rebuilt for every call",
+    whatsapp: "Today's date and time",
+    voice: "Today's date and time",
   },
+  // Sent apart from the prompt so the prompt stays the same from one message to the next (its cache holds), which is
+  // why the sheet draws it apart; what an owner needs of that is when it is rebuilt.
   why: {
-    whatsapp:
-      "Shown separately because it is sent separately — folding a value that changes every minute into the block above would throw away the prompt cache on every message.",
-    voice:
-      "Shown separately because it is sent separately — folding a value that changes every minute into the block above would throw away the prompt cache on every call.",
+    whatsapp: "Added to every message",
+    voice: "Added to every call",
   },
 } as const;

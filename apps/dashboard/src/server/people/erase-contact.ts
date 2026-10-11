@@ -216,7 +216,7 @@ async function scrubCopiesFirst(ctx: RouteContext, contact: ErasedContact, keys:
       500,
     );
   }
-  // The receptionist's kept turns (00359, decision 0039) that quote them from someone else's thread or notes: deleted
+  // The receptionist's kept turns (00401, decision 0039) that quote them from someone else's thread or notes: deleted
   // by the same spellings, while they are in hand. Their own turns go with their conversations in step 4.
   try {
     await scrubModelTurns(serviceDb(), contact.tenant_id, keys.needles);

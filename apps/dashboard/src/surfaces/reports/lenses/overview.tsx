@@ -14,7 +14,7 @@ export function OverviewLens({ R, pick, phone }: LensProps) {
         {!vm.empty && <RptFacts facts={R.facts || []} />}
       </section>
       <RptTiles vm={vm} booking={R.booking || null} />
-      {vm.empty ? nothingCameIn(vm, R.period, pick) : null}
+      {vm.empty ? nothingCameIn(vm, R.range, pick) : null}
     </>
   );
 }

@@ -47,10 +47,7 @@ test("who gets it: the count, the held with its door, the phone-only kept for ca
   // One is one address, never "1 unconfirmed addresses" (seen on a real search, 27 Sep 2026).
   assert.equal(reachLineOf({ ...REACH, with_unconfirmed: 45 }, false).why[0].text, "1 unconfirmed address, held");
   assert.equal(reachLineOf({ ...REACH, with_unconfirmed: 45 }, true).why[0].text, "1 unconfirmed address, included");
-  assert.equal(
-    REACH_OUT_SHEET_WORDS.who,
-    "Ready, with a checked address, never written to. Keeps itself current as the search grows.",
-  );
+  assert.equal(REACH_OUT_SHEET_WORDS.who, "Ready, with a checked address, never written to. Keeps itself current.");
 });
 
 test("the pace: the domain's day and the gap, why it is recommended, and the foot", () => {
@@ -413,7 +410,7 @@ test("the Playbooks row and its open row say what the database holds, no more (R
   );
   assert.deepEqual(w.history[0], { id: "b", text: "Sep 24 · 30 written" });
   assert.deepEqual([w.canRemove, w.remove], [false, null], "one that wrote is paused, never removed");
-  assert.equal(w.stopOne, "To stop writing to one business, open its lead and press Stop writing to them.");
+  assert.equal(w.stopOne, "To stop one business, press Stop writing to them on its lead.");
   const fresh = chainReportWordsOf(
     CHAIN,
     {

@@ -120,7 +120,7 @@ const TABLES = [
   "mailboxes",
   "memberships",
   "messages",
-  // A receptionist's turns as the model read them, and the prompts they read (00359, decision 0039).
+  // A receptionist's turns as the model read them, and the prompts they read (00401, decision 0039).
   "model_prompts",
   "model_turns",
   "notification_reads",
@@ -151,7 +151,7 @@ const TABLES = [
   "templates",
   "tenant_channels",
   "tenant_config",
-  // The settings as they stood at each version (00360, decision 0039).
+  // The settings as they stood at each version (00402, decision 0039).
   "tenant_config_versions",
 ];
 

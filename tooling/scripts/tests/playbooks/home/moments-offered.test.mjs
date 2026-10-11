@@ -13,10 +13,12 @@ import assert from "node:assert/strict";
 import {
   MOMENTS_RETIRED,
   PLAYBOOK_TRIGGERS,
-  WIN_BACK_WORDS,
+  triggerWords,
+  winBackWords,
   campaignsHomeOf,
   isWinBack,
   momentOffered,
+  momentReadsCalendar,
   channelsReady,
   numberHealth,
   playbookPoolKey,
@@ -39,8 +41,8 @@ const OFFERED = (calendarOn, dealsOn = false) =>
   PLAYBOOK_TRIGGERS.filter((t) => momentOffered(t, { dealsOn, calendarOn })).map((t) => t.id);
 
 test("which moments a new playbook may start from: none retired, the proposal's only where deals are on, and of the two win-backs the one the workspace can read -- while a playbook already on any of them may exist and run (triggerOffered)", () => {
-  // Without a calendar: the win-back by silence. With one: by visits.
-  assert.deepEqual(OFFERED(false), ["quiet_30", "everyone_monthly", "visit_tomorrow", "visited", "saved_list"]);
+  // Without a calendar: the win-back by silence, and no appointment moment (D44). With one: by visits, and both.
+  assert.deepEqual(OFFERED(false), ["quiet_30", "everyone_monthly", "saved_list"]);
   assert.deepEqual(OFFERED(true), ["everyone_monthly", "visit_tomorrow", "visited", "lapsed", "saved_list"]);
   // Deals on add the proposal follow-up, in its place; a reach-out's two steps are never moments.
   assert.deepEqual(
@@ -60,7 +62,7 @@ test("which moments a new playbook may start from: none retired, the proposal's 
   // The two retired moments each carry their words, and are the whole set retired.
   assert.deepEqual(Object.keys(MOMENTS_RETIRED).sort(), ["new_week", "phoned_only"]);
   for (const words of Object.values(MOMENTS_RETIRED)) assert.ok(words.length > 40, words);
-  assert.deepEqual(Object.keys(WIN_BACK_WORDS).sort(), ["lapsed", "quiet_30"]);
+  assert.deepEqual(Object.keys(winBackWords("appointment")).sort(), ["lapsed", "quiet_30"]);
   // May exist and run is a wider question: a retired moment and the other win-back keep running.
   for (const id of ["new_week", "phoned_only", "quiet_30", "lapsed"])
     assert.equal(triggerOffered(triggerOf(id), false), true, `${id}: a playbook on it still runs`);
@@ -73,6 +75,67 @@ test("which moments a new playbook may start from: none retired, the proposal's 
     PLAYBOOK_TRIGGERS.filter((t) => triggerOf(t.id).label === "Win-back").map((t) => t.id),
     ["quiet_30", "lapsed"],
     "both are called Win-back: one moment, read two ways",
+  );
+});
+
+test("an appointment moment is offered only where a calendar is connected: without one it would skip every day (D44)", () => {
+  for (const dealsOn of [false, true]) {
+    assert.equal(
+      OFFERED(false, dealsOn).some((id) => triggerOf(id).kind === "visit"),
+      false,
+      `deals ${dealsOn}: no calendar, no appointment moment`,
+    );
+    assert.deepEqual(
+      OFFERED(true, dealsOn).filter((id) => triggerOf(id).kind === "visit"),
+      ["visit_tomorrow", "visited"],
+    );
+  }
+  assert.equal(
+    triggerOffered(triggerOf("visit_tomorrow"), false),
+    true,
+    "one made before keeps running: the run never asks",
+  );
+});
+
+test("the moments a calendar decides are one set: the two win-backs and the appointment moments, and no other moment's offer turns on it", () => {
+  assert.deepEqual(
+    PLAYBOOK_TRIGGERS.filter(momentReadsCalendar).map((t) => t.id),
+    ["quiet_30", "visit_tomorrow", "visited", "lapsed"],
+  );
+  for (const dealsOn of [false, true]) {
+    const outside = (calendarOn) => OFFERED(calendarOn, dealsOn).filter((id) => !momentReadsCalendar(triggerOf(id)));
+    assert.deepEqual(outside(false), outside(true), `deals ${dealsOn}: the calendar changes nothing else`);
+  }
+});
+
+test("a trigger says its label and hint in the workspace's word, and so do the win-back's refusals", () => {
+  const t = (id) => triggerOf(id);
+  assert.deepEqual(triggerWords(t("visit_tomorrow"), "meeting"), {
+    label: "Meeting reminder",
+    hint: "The day before a meeting on the calendar",
+  });
+  assert.deepEqual(triggerWords(t("visited"), "lesson"), {
+    label: "After the lesson",
+    hint: "The day after a lesson, when nothing is booked next",
+  });
+  assert.deepEqual(triggerWords(t("lapsed"), "session"), {
+    label: "Win-back",
+    hint: "No session in 45 days, and nothing booked",
+  });
+  assert.deepEqual(triggerWords(t("quiet_30"), "session"), { label: "Win-back", hint: "Nothing heard in 30 days" });
+  assert.deepEqual(
+    [t("visit_tomorrow").label, t("visited").label, t("lapsed").hint],
+    ["Appointment reminder", "After the appointment", "No appointment in 45 days, and nothing booked"],
+    "the constant says the default word: a workspace that never picked reads appointment (D42)",
+  );
+  const visits = winBackWords("visit");
+  assert.equal(
+    visits.lapsed,
+    "The win-back by visits needs your calendar, and none is connected. Start the one that goes by silence: nothing heard in 30 days.",
+  );
+  assert.equal(
+    visits.quiet_30,
+    "A calendar is connected here, so the win-back goes by visits: no visit in 45 days, and nothing booked. Start that one.",
   );
 });
 
@@ -119,8 +182,19 @@ const row = (id, trigger, over = {}) => ({
 const answer = (data) =>
   new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { "content-type": "application/json" } });
 
-/** The surface the bridge builds from what GET playbooks answers for a workspace whose calendar is `calendar`. */
-async function surfaceFor({ calendar, playbooks = [], pools = {}, dealsOn = false }) {
+/**
+ * The surface the bridge builds from what GET playbooks answers for a workspace whose calendar is `calendar`; `shape` is
+ * what the answer says of the business beside it (its word and its booking tool), absent from a server from before them.
+ * `templates` is GET templates' answer: by default one from before it named the call's text (`booking`).
+ */
+async function surfaceFor({
+  calendar,
+  playbooks = [],
+  pools = {},
+  dealsOn = false,
+  shape = {},
+  templates = { templates: [] },
+}) {
   const kept = globalThis.fetch;
   globalThis.fetch = async (url) => {
     const path = new URL(String(url), "https://app.chanlytics.com").pathname;
@@ -133,8 +207,9 @@ async function surfaceFor({ calendar, playbooks = [], pools = {}, dealsOn = fals
         deals_on: dealsOn,
         lists: [],
         people_lists: [],
+        ...shape,
       });
-    if (path === "/api/v1/templates") return answer({ templates: [] });
+    if (path === "/api/v1/templates") return answer(templates);
     if (path === "/api/v1/channels") return answer({ channels: [] });
     return answer({ config: { brain: { business_name: "Northside Studio" } }, version: 1 });
   };
@@ -147,14 +222,20 @@ async function surfaceFor({ calendar, playbooks = [], pools = {}, dealsOn = fals
 }
 /**
  * The home over a surface (what its page draws, from the view model alone: campaigns-home.test.mjs draws the page), and the
- * moments it offers a Turn on for: a moment of its rail that is off, and a line under it that is (the month's offer), in the
- * order the home draws them. A moment to turn on is what a person is offered, so a playbook already on it leaves it out.
+ * moments it offers a Turn on for: a moment of its rail that is off, and a row of its ledger that is (the month's offer), in
+ * the order the home draws them. A moment to turn on is what a person is offered, so a playbook already on it leaves it out.
+ * A group's own add (another campaign on a moment that holds many, a list's in Lists & offers) is `addOf`'s.
  */
-const homeOf = (surface) => campaignsHomeOf({ nowMs: NOW, tz: ZONE, playbooks: surface });
+const homeOf = (surface) => campaignsHomeOf({ nowMs: NOW, tz: ZONE, playbooks: surface, shape: surface.shape });
 const turnOns = (home) =>
-  [...home.rail.stages.map((s) => s.act), ...home.strips.map((s) => s.act)]
+  [...home.rail.stages.map((s) => s.act), ...home.ledger.groups.flatMap((g) => g.rows.map((r) => r.act))]
     .filter((a) => a?.kind === "turn_on")
     .map((a) => a.moment);
+/** The moment a ledger group's Turn on adds a campaign on, or null where it adds none. */
+const addOf = (home, id) => {
+  const add = home.ledger.groups.find((g) => g.id === id)?.add;
+  return add?.kind === "turn_on" ? add.moment : null;
+};
 const stageOf = (home, id) => home.rail.stages.find((s) => s.id === id);
 /** The moments in the product's order, as the picker and the surface list them. */
 const inOrder = (ids) => [...ids].sort((a, b) => IDS.indexOf(a) - IDS.indexOf(b));
@@ -184,6 +265,73 @@ test("the surface says which moments a new playbook may start from, by the works
   assert.ok(deals.triggers.find((t) => t.id === "proposal_waiting").offered, "deals on: the proposal follow-up");
 });
 
+test("the surface publishes the business's shape and says every appointment moment in its word: the one GET playbooks answers, else the one derivation over how its customers buy (a server from before the word)", async () => {
+  const reminder = row("pb-r", "visit_tomorrow");
+  const after = row("pb-a", "visited", { run_hour: 18 });
+  // The word the server answers is the one said, on the cards, their schedules and the moments offered.
+  const session = await surfaceFor({
+    calendar: "ok",
+    playbooks: [reminder, after],
+    shape: { appointment_word: "session", bookings_by_email: false },
+  });
+  assert.deepEqual(session.shape, { calendar: "feed", dealsOn: false, word: "session" });
+  assert.deepEqual(
+    session.rows.map((p) => [p.triggerLabel, p.triggerHint, p.schedule]),
+    [
+      [
+        "Session reminder",
+        "The day before a session on the calendar",
+        "Daily 10:00 AM · everyone with a session tomorrow · up to 25",
+      ],
+      [
+        "After the session",
+        "The day after a session, when nothing is booked next",
+        "Daily 6:00 PM · everyone who had a session yesterday · up to 25",
+      ],
+    ],
+  );
+  assert.deepEqual(
+    session.triggers.filter((t) => t.kind === "visit").map((t) => [t.label, t.hint]),
+    [
+      ["Session reminder", "The day before a session on the calendar"],
+      ["After the session", "The day after a session, when nothing is booked next"],
+    ],
+  );
+  assert.equal(session.triggers.find((t) => t.id === "lapsed").hint, "No session in 45 days, and nothing booked");
+  // A server from before the word: a workspace whose customers get a proposal first says meeting, and one that books says
+  // appointment, as the server would (contracts appointmentWordOf); no calendar, bookings by email, is said so.
+  const before = await surfaceFor({ calendar: "none", dealsOn: true, playbooks: [reminder] });
+  assert.deepEqual(before.shape, { calendar: "none", dealsOn: true, word: "meeting" });
+  assert.equal(before.rows[0].triggerLabel, "Meeting reminder");
+  const byEmail = await surfaceFor({
+    calendar: "none",
+    shape: { appointment_word: "appointment", bookings_by_email: true },
+  });
+  assert.deepEqual(byEmail.shape, { calendar: "email", dealsOn: false, word: "appointment" });
+  // Every other moment says its own words, whatever the word.
+  assert.equal(session.triggers.find((t) => t.id === "quiet_30").label, triggerOf("quiet_30").label);
+});
+
+test("the call's text is said only where GET templates says whether there is one: an answer from before `booking` says nothing, never 'No message for it yet'", async () => {
+  const callText = (s) =>
+    campaignsHomeOf({ nowMs: NOW, tz: ZONE, playbooks: s, shape: s.shape, library: s.library })
+      .ledger.groups.flatMap((g) => g.rows)
+      .find((r) => r.id === "call_text");
+  // A server from before the call's text was named (a tab open across a rollback): not known, so not said, and not failed.
+  const before = await surfaceFor({ calendar: "ok", templates: { templates: [], messages: [] } });
+  assert.equal(before.library, undefined);
+  assert.deepEqual([callText(before).stateWords, callText(before).tone], ["", "plain"]);
+  assert.equal(
+    campaignsHomeOf({ nowMs: NOW, tz: ZONE, playbooks: before, shape: before.shape, library: before.library }).failed
+      .templates,
+    null,
+  );
+  // The reader found none (`booking: null`): that is a fact, and the row says it.
+  const none = await surfaceFor({ calendar: "ok", templates: { templates: [], messages: [], booking: null } });
+  assert.deepEqual(none.library, []);
+  assert.deepEqual([callText(none).stateWords, callText(none).tone], ["No message for it yet", "warn"]);
+});
+
 test("the home's moments to turn on: none retired, and one win-back -- the one the workspace can read, and none at all when a playbook is on either", async () => {
   // A first day, no calendar: the win-back by silence among the moments, neither welcome nor save our number.
   assert.deepEqual(inOrder(turnOns(homeOf(await surfaceFor({ calendar: "none" })))), ONHOME(false));
@@ -205,7 +353,10 @@ test("the home's moments to turn on: none retired, and one win-back -- the one t
     }),
   );
   assert.deepEqual(
-    welcome.strips.filter((l) => l.id.startsWith("pb-")).map((l) => [l.id, l.name, l.act.kind]),
+    welcome.ledger.groups
+      .flatMap((g) => g.rows)
+      .filter((r) => r.id.startsWith("pb-"))
+      .map((r) => [r.id, r.name, (r.act ?? r.open).kind]),
     [
       ["pb-welcome", "Welcome", "open"],
       ["pb-save", "Save our number", "open"],
@@ -233,6 +384,11 @@ test("the home's moments to turn on: none retired, and one win-back -- the one t
   // And with none made, exactly one of them is there: the one the workspace can read.
   assert.deepEqual(turnOns(homeOf(await surfaceFor({ calendar: "none" }))).filter(isWinBack), ["quiet_30"]);
   assert.deepEqual(turnOns(homeOf(await surfaceFor({ calendar: "ok" }))).filter(isWinBack), ["lapsed"]);
+  // A moment holds many campaigns: its group adds another, and only on the win-back the workspace can read now, whichever
+  // the one made stands on.
+  const addOn = async (trigger, calendar) =>
+    addOf(homeOf(await surfaceFor({ calendar, playbooks: [row("pb-win", trigger)] })), "quiet");
+  assert.deepEqual([await addOn("lapsed", "none"), await addOn("quiet_30", "ok")], ["quiet_30", "lapsed"]);
 });
 
 test("a playbook whose message makes it stricter than its moment is counted on its own key: the card reads its own count, and every other card the moment's", async () => {
@@ -390,9 +546,8 @@ const run = async (playbook, ctx, category) => {
       record: async () => {},
       assemble: async (_run, recipients) => {
         assembled.push(recipients.map((r) => r.contact_id).sort());
-        return "b1";
+        return { id: "b1", decisionId: null };
       },
-      decide: async () => {},
       notify: async () => {},
     },
     { playbook, ctx, runFor: dayOf(NOW), by: { kind: "system" } },

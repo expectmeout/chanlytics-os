@@ -277,9 +277,20 @@ test("Meta refused the draft: queued -> failed, and a person is asked to look", 
     await db.from("escalations").select("reason, state").eq("conversation_id", c.ing.conversation_id).single(),
   );
   assert.deepEqual([esc.reason, esc.state], ["send_failed", "open"]);
+  // The hold is written, so its event tells the owner, once, after the commit (decision 0043, owner_notice).
+  const told = ok(
+    await db
+      .from("events")
+      .select("kind")
+      .eq("subject_type", "conversation")
+      .eq("subject_id", c.ing.conversation_id)
+      .eq("kind", "escalation.opened"),
+  );
+  assert.equal(told.length, 1, "the hold's event, owed to owner_notice");
   assert.deepEqual(
-    alerts.filter((a) => a.job === jobId).map((a) => a.kind),
-    ["handoff"],
+    alerts.filter((a) => a.job === jobId),
+    [],
+    "and the send tells nobody beside it",
   );
   assert.deepEqual(swallowed, []);
 });

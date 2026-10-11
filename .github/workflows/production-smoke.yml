@@ -1,0 +1,107 @@
+name: Production smoke
+
+# After each production deployment, the deployed build is asked whether it
+# answers: the edge's /api/health, and /api/version on both hosts, which must
+# name the deployed commit (tooling/scripts/checks/smoke.mjs). Nothing checked
+# production after a deploy before this (October 2026): the runbook's Deploy
+# step 4 was a command a person ran, or did not. Vercel posts a
+# deployment_status for each project, the edge's (chanlytics-messaging) about
+# three minutes after the dashboard's (chanlytics-os) on 10 October 2026, so the
+# smoke runs on the edge's event alone, once per merge, and asks again, up to
+# ten times over five minutes, before it fails. A commit main has already moved
+# past is not smoked: the newer commit's own deploy is, and both hosts would
+# rightly name it instead. A failure opens one issue per
+# commit, or comments on the one open, the way ci.yml's landed job does: what
+# deployed cannot be undone here, and the next merger reads it (docs/runbook.md,
+# Roll back, says how to promote the previous deployment).
+on:
+  deployment_status:
+
+permissions:
+  contents: read
+  issues: write
+
+# One run per deployed commit and state: the second project's event queues
+# behind the first's run rather than cancelling it, and each run asks both
+# hosts. The `inactive` status GitHub adds to the previous deployment is another
+# group, and the job's `if:` leaves it alone.
+concurrency:
+  group: production-smoke-${{ github.event.deployment.sha }}-${{ github.event.deployment_status.state }}
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    name: The deployed build answers on both hosts
+    # The edge's production deployment, ready: Vercel names each project's production environment "Production –
+    # <project>", and only main deploys to it. Its `ref` is the commit's sha, never a branch's name.
+    if: >-
+      github.event.deployment_status.state == 'success' &&
+      contains(github.event.deployment.environment, 'Production') &&
+      contains(github.event.deployment.environment, 'chanlytics-messaging')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.deployment.sha }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - id: current
+        name: The deployed commit is still main's newest
+        shell: bash
+        env:
+          SHA: ${{ github.event.deployment.sha }}
+        run: |
+          head="$(git ls-remote origin refs/heads/main | cut -f1)"
+          if [ -n "$head" ] && [ "$head" != "$SHA" ]; then
+            echo "main is at ${head:0:9} now, past ${SHA:0:9}: that commit's deploy is smoked instead."
+            echo "smoke=no" >> "$GITHUB_OUTPUT"
+          else
+            echo "smoke=yes" >> "$GITHUB_OUTPUT"
+          fi
+      - id: smoke
+        if: steps.current.outputs.smoke == 'yes'
+        name: Both hosts answer with the deployed build
+        shell: bash
+        env:
+          SHA: ${{ github.event.deployment.sha }}
+        run: |
+          set +e
+          code=1
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            node tooling/scripts/checks/smoke.mjs --edge https://chanlytics-messaging.vercel.app --dashboard https://app.chanlytics.com --sha "$SHA" > smoke.txt 2>&1
+            code=$?
+            echo "attempt $attempt of 10:"
+            cat smoke.txt
+            if [ "$code" -eq 0 ]; then break; fi
+            if [ "$attempt" -lt 10 ]; then sleep 30; fi
+          done
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+      - if: steps.current.outputs.smoke == 'yes' && steps.smoke.outputs.code != '0'
+        name: Say so where the next merger will see it
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ github.event.deployment.sha }}
+          ENVIRONMENT: ${{ github.event.deployment.environment }}
+        run: |
+          {
+            echo "After the deployment of $SHA ($ENVIRONMENT), the smoke failed ten times over five minutes. The last answer:"
+            echo
+            echo '```'
+            cat smoke.txt
+            echo '```'
+            echo
+            echo "docs/runbook.md, Deploy, says what each door must answer, and Roll back how to promote the previous deployment."
+            echo "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          } > issue.md
+          title="Production smoke failed (${SHA:0:9})"
+          # The second project's event, or a re-run, finds the commit's issue open and adds to it.
+          number="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json number,title --jq ".[] | select(.title == \"$title\") | .number" | head -n 1)"
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body-file issue.md --repo "$GITHUB_REPOSITORY"
+          else
+            gh issue create --title "$title" --body-file issue.md --repo "$GITHUB_REPOSITORY"
+          fi
+          exit 1

@@ -130,15 +130,15 @@ Order: A first (small, independent). B next. D runs beside B and C, lowest-numbe
 
 ### 6.4 One read per lens
 
-For each lens, as it is built (7 Oct 2026; Reviews, the first lens of phase C, is the one that fits all of it, and Campaigns has its function and its reader but is still read through the frame):
+For each lens, as it is built (7 Oct 2026; Reviews, the first lens of phase C, is the one that fits all of it, and Campaigns has its function and its reader but is still read through the frame; the Receptionist lens, C2, fits it too since 10 Oct 2026, and so does the People lens, C3, built the same day in the uncommitted lane `reports/c3-people`):
 
 | Layer | Where | Rule |
 | --- | --- | --- |
-| SQL | A function for the lens's own read, in a migration named for what it adds: `report_series` (00304, the Overview, Receptionist and People lenses), `campaign_series` (00329), `reviews_ledger(p_tenant_id, p_days)` (00350) | SECURITY INVOKER, so the caller's RLS decides; one statement, so one snapshot; the window said once, in the tenant's own time zone (`p_days` is the days of the period, which the route works out: Month is the days since the 1st); capped at 90 days of daily rows until the rollup (K10); 00251 is the pattern. Called from a `packages/db` repository function (`packages/db/src/repositories/reports/report-series.ts`), never by name from the dashboard. |
-| Route | `GET /api/v1/reports/<lens>?period=` | `read({ scope: workspace, rate: "aggregate" })`; the period parsed by one shared zod schema (`ReportQuery`); a row in `tooling/scripts/tests/route-policy.json`, the typed client regenerated (`route-types.mjs`), `docs/api.md` regenerated. Built: `reports` (the Receptionist lens's read, and the Overview's), `reports/campaigns`, `reports/reach-outs`, `reports/headline` and `reports/reviews`. `days`, which the pages sent before there was a Month, is read by the first three until 19 October 2026; the headline's and Reviews' routes take `period` alone. |
-| Reader | `dashboard/src/server/readers/report.ts` (`report`, `reportHeadline`, `reviewsReport`) and `campaign-report.ts` | The one reader for the page and for Ask's tool; a turn reads Google once (`readers/connections.ts`). Booking and deals are still counted in TypeScript from People and the calendar: moving them into SQL is phase C's later work. |
-| Contracts | `packages/contracts/src/reports/`, one folder, a module to a concern | The DTO type, `to<Lens>VM` and the sentence builders: Reviews' are `review-report.ts` (its figures and every sentence) over `review-record.ts` (its counts). Every sentence the page draws is in the view model. The demo sample is the surface's (`dashboard/src/surfaces/reports/sample.ts`: `reportsSample`, and `reviewsSample` for Reviews), made through the real fold. Every figure carries a registry id (§7). |
-| Surface | `dashboard/src/surfaces/reports/`: `surface.ts` (`reports`, read for every lens by the frame), `reviews-surface.ts` (`reports_reviews`, Reviews' own), both over `periodSurface` (`period-surface.ts`) for what a period's read needs | Held views keyed by period (`heldViews(4)`): going back to a period paints at once and reads behind. A lens with a surface of its own is read where the lens is drawn and nowhere else, and forgotten, not re-read, by a write made on another page. |
+| SQL | A function for the lens's own read, in a migration named for what it adds: `report_series` (00304, the Overview, Receptionist and People lenses), `campaign_series` (00329), `reviews_ledger(p_tenant_id, p_days)` (00350), `receptionist_series(p_tenant_id, p_days, p_end)` (00380, the Receptionist lens's own read: what `report_series` does not hold, over the window and, for the parts set against before, the one before it), `people_series(p_tenant_id, p_days, p_end)` (00395, the People lens's own read: people and not messages, over the window and the same number of days before it; with it `contact_first_moments` (00394) became a person's first inbound message in their own words or first inbound call that connected, the one rule `report_series`, `metrics_summary` and `people_series` read) | SECURITY INVOKER, so the caller's RLS decides; one statement, so one snapshot; the window said once, in the tenant's own time zone (`p_days` is the days of the period, which the route works out: Month is the days since the 1st); capped at 90 days of daily rows until the rollup (K10); 00251 is the pattern. Called from a `packages/db` repository function (`packages/db/src/repositories/reports/report-series.ts`), never by name from the dashboard. |
+| Route | `GET /api/v1/reports/<lens>?period=` | `read({ scope: workspace, rate: "aggregate" })`; the period parsed by one shared zod schema (`ReportQuery`); a row in `tooling/scripts/tests/route-policy.json`, the typed client regenerated (`route-types.mjs`), `docs/api.md` regenerated. Built: `reports` (the Receptionist lens's read, and the Overview's), `reports/campaigns`, `reports/reach-outs`, `reports/headline`, `reports/people`, `reports/receptionist` and `reports/reviews`. `days`, which the pages sent before there was a Month, is read by no report route since 10 October 2026 (a request that still sends it is read as one that did not: thirty days); the headline's and Reviews' routes take `period` alone. |
+| Reader | `dashboard/src/server/readers/report.ts` (`report`, `reportHeadline`, `reviewsReport`, `receptionistReport`, `peopleReport`) and `campaign-report.ts` | The one reader for the page and for Ask's tool; a turn reads Google once (`readers/connections.ts`). `peopleReport` answers the window from `people_series` and the book as of now counted in the reader over the people pool (`peopleNowOf`, by People's own rules and never restated: a turn shares the pool), each half failing alone. Booking and deals are still counted in TypeScript from People and the calendar: moving them into SQL is phase C's later work. |
+| Contracts | `packages/contracts/src/reports/`, one folder, a module to a concern | The DTO type, `to<Lens>VM` and the sentence builders: Reviews' are `review-report.ts` (its figures and every sentence) over `review-record.ts` (its counts); the Receptionist's are `receptionist/receptionist-report.ts` (its figures and every sentence) over `receptionist/receptionist-record.ts` (the DTO, its guard and builder, which the server reads); the People lens's are `people/people-report.ts` (its figures and every sentence) over `people/people-words.ts` (its words), `people/people-now.ts` (the book counted from the pool, `peopleNowOf`) and `people/people-record.ts` (the DTO, its guard and builder, which the server reads). A lens's fold and its words are a page-only entry, `@chanlytics/contracts/report-lens` (`PAGE_ONLY` in `tooling/scripts/gen/contracts-browser-entry.mjs`, with `report-window`): the browser entry every page's route loads leaves them out, so a word only Reports draws is not paid for by every page. Every sentence the page draws is in the view model. The demo sample is the surface's (`dashboard/src/surfaces/reports/sample.ts`: `reportsSample`, `reviewsSample` for Reviews, `receptionistSample` for the Receptionist and `peopleSample` for People), made through the real fold. Every figure carries a registry id (§7). |
+| Surface | `dashboard/src/surfaces/reports/`: `surface.ts` (`reports`, read for every lens by the frame), `reviews-surface.ts` (`reports_reviews`, Reviews' own), `receptionist-surface.ts` (`reports_receptionist`, the Receptionist's own: the DTO as the route gave it and when it was read, which the page folds) and `people-surface.ts` (`reports_people`, People's own, the same way), all four over `periodSurface` (`period-surface.ts`) for what a period's read needs | Held views keyed by period (`heldViews(4)`): going back to a period paints at once and reads behind. A lens with a surface of its own is read where the lens is drawn and nowhere else, and forgotten, not re-read, by a write made on another page. |
 | Page | `dashboard/surfaces/reports/lenses/<lens>.tsx` | Kit parts only; the page's stylesheet holds layout alone. |
 
 ### 6.5 The headline read, and Today
@@ -154,7 +154,7 @@ Each lens names the tables it repaints on from the workspace topic (00265; `pack
 | Lens | Tables |
 | --- | --- |
 | Overview, Receptionist | messages, conversations, escalations, calls |
-| People | messages, calls, segment_members |
+| People | messages, calls, person_notes (built 10 Oct 2026; `segment_members` is not read: the book is counted from the people pool, and the writes that move it forget the lens's read instead) |
 | Pipeline | deals |
 | Campaigns | messages, reach_out_replies |
 | Reviews | google_reviews (a review seen for the first time), google_listings, google_connections; the daily readings and the reply events are not on the topic: read with the rest, and again after a reply posted from the page |
@@ -222,7 +222,8 @@ The first Base UI part a surface draws raises the route's JS budget in that chan
 ## 9. The lenses
 
 The canvas draws each lens; the catalog lists every source. Status: **Moved** (today's section, unchanged, in phase B),
-**Now** (phase C), **K#** (needs that capture first, §10), **E** (needs the appointments record).
+**Now** (phase C), **K#** (needs that capture first, §10), **E** (needs the appointments record), **Built** (a phase C
+lens draws it, from what is stored) and **Struck** (decided against: the phase C review's avoid list).
 
 ### Overview
 
@@ -237,30 +238,39 @@ The canvas draws each lens; the catalog lists every source. Status: **Moved** (t
 
 ### Receptionist
 
+Built 10 Oct 2026 (C2, lane `reports/c2-receptionist`, `GET reports/receptionist`, `receptionist_series` 00380), from what is stored.
+
 | Tile | Status |
 | --- | --- |
-| Who answered, day by day; why it stopped; calls and their mood; asked then booked | Moved |
-| How fast, against the hold (dot plot) | A (the fix), C1 (the plot) |
-| In the hold: as it ended, sooner, you cancelled, you changed | Now |
-| What they asked about; languages; sure and unsure | Now (texts); K2 for calls |
-| Replies it held back, by reason | Now (`message.send_blocked`) |
-| How calls ended; calls that want a call back | Now |
-| You, after a handover: first reply, time to settle | K4 |
-| While you were closed (heat grid with your hours) | Now (A fixes the hours) |
-| Missed-call recovery; reopened conversations; handling time | Now |
+| Who answered, day by day; why it stopped; calls and their mood; asked then booked | Built (the head says the lens's answer; "why it stopped" is no door; the mood is not red or green; Booked says "not counted for days that have ended" for a picked past day, not that there is no calendar link; an automatic email is no customer message, 00379) |
+| How fast, against the hold (dot plot) | Built (the DotPlot, one dot to a reply) |
+| In the hold: as it ended, you cancelled, you changed, overtaken, a person first | Built. "Sooner" is struck: no "send now" exists for a held reply |
+| What they asked about; languages; sure and unsure | Built for texts and WhatsApp (topics; languages shown with two or more). Sure and unsure is not drawn as a score (D13): the replies held as not sure enough to send alone are counted in the hold's line. K2 for calls |
+| Replies it held back, by reason | Built (`message.send_blocked`, conversational only; a door to the Inbox) |
+| How calls ended; calls that want a call back | Built (call-backs are a door to Today) |
+| You, after a handover: first reply, time to settle | Built (K4) |
+| While you were closed (heat grid with your hours) | Built as one figure, not a heat grid: how many of the messages that came while your hours said you were closed it answered first; a dash with words until the hours are set |
+| Missed-call recovery | Built (a person who rang and found nobody, reached within an hour by a message that left or a call that got through; a campaign's text-back counts) |
+| Reopened conversations; handling time | Struck (the review's avoid list: a snooze doing its job counts as a reopening, and handling time is latency) |
 
 ### People
 
+Built 10 Oct 2026 (C3, lane `reports/c3-people`, uncommitted, no pull request yet; `GET reports/people`, `people_series` 00395 and `contact_first_moments` 00394), from what is stored, in the lenses' five parts: people and not messages, how they first came, the yeses and stops, how fresh the book is, the steps and the email that stopped working.
+
 | Tile | Status |
 | --- | --- |
-| New people, adding up; where they first reached you | Moved; K3 makes the source exact |
-| Who you can reach, and how the yeses were won | Now |
-| Where they stand, as of now (People's own lists) | Now |
-| When they reach you | Moved |
-| How fresh your book is | Now (`person_moments.in_touch_at`) |
-| Repeat contact; channels per person; steps owed; email that bounced | Now |
+| New people, adding up; where they first reached you | Built (people, new and known, against before: a new person is one who reached the business in their own words or on a call they placed to it, 00394; how the new ones first came is `acquired_via`, K3, and "not recorded" before it). The donut is gone, because it added messages and calls and said people: the channels are people now, a person who reached you two ways is in each, and the card says so |
+| Who you can reach, and how the yeses were won | Built (the yeses and stops recorded in the window and how: the source of each and the kind of message, against before; a share says how many it is of and greys under five) |
+| Where they stand, as of now (People's own lists) | Built (the book as it stands now, whatever days are picked and said so, counted in the reader from the people pool by People's own lists and equal to People's rail, each with a door) |
+| When they reach you | Moved (the frame's rhythm card, kept; its hours count messages and calls, and its unit says so) |
+| How fresh your book is | Built (People's Quiet rule, the days since they were last heard in the workspace's days, with a door to the ones gone quiet; not `person_moments.in_touch_at`) |
+| Channels per person; steps owed | Built (the ways in each person has, counted as people; steps done on their day or late in the window, and steps overdue and due today now, with a door) |
+| Email that bounced | Built as email that stopped working (addresses that stopped, by the reason; the phone has no equivalent) |
+| Repeat contact | Not drawn (`conversation_count` is 0 or 1 and no count of the days a person reached you is kept) |
 | New, returning and rebooked; the usual gap; at risk; lifetime | E |
-| Coming back after a win-back | Now |
+| Coming back after a win-back | C4 (it waits for the Campaigns lens) |
+| List sizes over time | K10 (no nightly snapshot of a list's size is kept) |
+| Where they live | Needs capture (no postal code is kept) |
 
 ### Calendar
 
@@ -359,7 +369,7 @@ Writers: `packages/contracts/src/calendar/feed.ts:22-37,248-250`, `apps/edge/api
 | A3 | Automated sends count as "you" (`out_you` counts `sender = 'human'`; the reach-out sender writes `'human'`; 8 of the salon's 10 were playbook sends). | Count a member's sends by `sent_by`; never a playbook's, broadcast's or reach-out's; `first_replies` treats them as not a reply. | `supabase/migrations/00251_*:125`, `first_replies` (00250:310), `apps/edge/lib/reach-out/sender.ts:391` |
 | A4 | A call that errored before connecting is counted. | Count connected calls only. | 00251:67-71 |
 | A5 | "SMS" where the product says "Text"; "1m 05s" against Today's "1m 5s"; an Instagram channel that is always 0. (Why it stopped already reads People's row words, `reasonShort`.) | One word per channel; one duration helper for Reports and Today; Instagram removed. | `reports.ts:43,241-249`; `today/today-bands.ts:24-29`; 00251:189,195 |
-| A6 | Three rules for "new person": Reports counts an erased person, Today does not; People's `new_at` falls back to the row's own time. | Reports and Today read one SQL rule (`contact_first_moments`). People's `new_at` is a stored column People pages by (00276), so it joins the rule in phase B's registry work. | 00251, 00254; 00259 in phase B |
+| A6 | Three rules for "new person": Reports counts an erased person, Today does not; People's `new_at` falls back to the row's own time. | Reports and Today read one SQL rule (`contact_first_moments`). Since 00394 (10 Oct 2026, the People lens's lane) that rule is a person's first inbound message in their own words or first inbound call that connected, and Reports, Today, Ask and the People lens share it. People's `new_at` is a stored column People pages by (00276), and it is still its own rule (7 days, either direction), as is People's New this week, until the People surface's lane. | 00251, 00254; 00259 in phase B |
 
 ## 13. Testing and proof
 

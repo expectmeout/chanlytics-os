@@ -109,7 +109,7 @@ test("an erasure runs its legs in the design's order: the block, the copies, Sto
     "jobs.update", // the finished job only
     "rpc:provider_events_scrub", // the deliveries the intake ledger keeps a week, by the same identifiers (00336)
     "rpc:person_notes_scrub", // other people's notes, the needle overwritten in place (00341)
-    "rpc:model_turns_scrub", // the receptionist's kept turns that name them, in anyone's thread (00359)
+    "rpc:model_turns_scrub", // the receptionist's kept turns that name them, in anyone's thread (00401)
     "rpc:erase_contact", // the rows, after Storage
     "policies.delete",
     "rpc:scrub_ask_for_contact",
@@ -275,8 +275,8 @@ test("past the rows every leg is best effort, and a late recording is swept and 
   });
   assert.equal(older.value.erased, true, "no scrub yet leaves the notes as they were, never a refused erasure");
 
-  // The receptionist's kept turns (00359), on the same terms: refused on the second pass, or on a database before
-  // 00359 with no turns to scrub, the erasure stands.
+  // The receptionist's kept turns (00401), on the same terms: refused on the second pass, or on a database before
+  // 00401 with no turns to scrub, the erasure stands.
   let turnPasses = 0;
   const turns = await erase({
     rpcs: {

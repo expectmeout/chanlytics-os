@@ -40,6 +40,11 @@ export interface FeedItem extends BusyBlock {
    * keys the appointment (appointment-key.ts), so a moved occurrence keeps its row.
    */
   occurrence?: number;
+  /**
+   * What a member said became of this visit (decision 0002 step 8), as the record's row holds it: kept or missed. Never
+   * read from a calendar; set only where the record joins the feed (feedWithRecord). Absent while it stands.
+   */
+  said?: "kept" | "missed";
 }
 
 export interface ParsedFeed {

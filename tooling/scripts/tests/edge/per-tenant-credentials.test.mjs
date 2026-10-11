@@ -20,9 +20,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-const { waCfgFor, waCredentialsForTenant, loadTenantNotifications } = await import(
-  pathToFileURL(path.join(ROOT, "apps/edge/lib/tenant-runtime.ts")).href
-);
+const { waCfgFor, waCredentialsForTenant, loadTenantNotifications, loadTenantRuntime, whatsappWireForTenant } =
+  await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/tenant-runtime.ts")).href);
 
 const ENV = { WHATSAPP_PHONE_ID: "111000", WHATSAPP_ACCESS_TOKEN: "env-token" };
 async function withEnv(env, fn) {
@@ -161,11 +160,251 @@ test("no active WhatsApp channel is ABSENT; a channel that cannot be read is UNA
       { tenant_channels: [channel()] },
       { "tenant_channels.select": { message: "connection reset" } },
     );
+    // The numbers are read in packages/db (activeWhatsappNumbers), whose error says what it could not read.
     assert.deepEqual(
       await waCredentialsForTenant(broken, "t2"),
-      { outcome: "unavailable", error: "connection reset" },
+      { outcome: "unavailable", error: "cannot read the workspace's WhatsApp numbers: connection reset" },
       '"we could not check" is not "send on the pilot\'s token", and not "nothing on file" either',
     );
+  }));
+
+/* ---- a workspace with two active WhatsApp numbers ---- */
+
+/**
+ * Connecting a second number writes its row and turns it on, and leaves the first one on: nothing holds a workspace
+ * to one active WhatsApp row (connect-number.ts; tenant_channels is unique on the number alone). Both route.
+ */
+function twoNumbers() {
+  const T = "aaaaaaaa-2222-4222-8222-aaaaaaaaaaaa";
+  const number = (id, external, created) => ({
+    id,
+    tenant_id: T,
+    kind: "whatsapp",
+    status: "active",
+    credentials_ref: `ref-${id}`,
+    external_id: external,
+    number_e164: `+1305555${external.slice(0, 4)}`,
+    config: {},
+    created_at: created,
+  });
+  const db = fakeDb(
+    {
+      tenants: [{ id: T, name: "Harbor Nails", timezone: "America/New_York", status: "active" }],
+      tenant_config: [],
+      policies: [],
+      google_listings: [],
+      // The newer row first, as Postgres may return it to a read that names no order.
+      tenant_channels: [
+        number("wa-new", "555000", "2026-10-01T09:00:00.000Z"),
+        number("wa-old", "111000", "2026-09-01T09:00:00.000Z"),
+      ],
+    },
+    {},
+    {
+      runtime_stamp: () => "stamp-two-numbers",
+      get_channel_credentials: ({ p_channel_id }) =>
+        ({
+          "wa-old": { access_token: "token-old", phone_id: "111000" },
+          "wa-new": { access_token: "token-new", phone_id: "555000" },
+        })[p_channel_id] ?? null,
+    },
+  );
+  const routed = (channelId, externalId, kind = "whatsapp") => ({
+    tenantId: T,
+    channelId,
+    kind,
+    externalId,
+    numberE164: null,
+    credentialsRef: kind === "whatsapp" ? `ref-${channelId}` : null,
+    config: {},
+  });
+  return { T, db, routed };
+}
+
+test("a workspace with two active WhatsApp numbers answers each customer from the number they wrote to, whichever warmed the runtime first", () =>
+  withEnv(ENV, async () => {
+    const { db, routed } = twoNumbers();
+    const onNew = await loadTenantRuntime(db, routed("wa-new", "555000"));
+    assert.deepEqual(onNew.waCreds, { accessToken: "token-new", phoneId: "555000" });
+    const onOld = await loadTenantRuntime(db, routed("wa-old", "111000"));
+    assert.deepEqual(
+      [onOld.waCreds, onOld.envNumber],
+      [{ accessToken: "token-old", phoneId: "111000" }, true],
+      "REGRESSION: the runtime cached for the workspace answered from the number that warmed the instance first",
+    );
+    assert.equal(await loadTenantRuntime(db, routed("wa-new", "555000")), onNew, "and each is served from the cache");
+  }));
+
+test("a caller that knows no number the customer wrote to is given the workspace's oldest active WhatsApp number, every time", () =>
+  withEnv(ENV, async () => {
+    const { T, db, routed } = twoNumbers();
+    // A call: the voice channel routed it, and its booking link goes by WhatsApp.
+    const viaCall = await loadTenantRuntime(db, routed("voice-1", "agent_1", "voice"));
+    assert.deepEqual(viaCall.waCreds, { accessToken: "token-old", phoneId: "111000" }, "not whichever row came first");
+    // The job runner and the template doors.
+    assert.deepEqual(await waCredentialsForTenant(db, T), {
+      outcome: "present",
+      credentials: { phoneId: "111000", accessToken: "token-old" },
+    });
+    // And whether the workspace is the environment's own is asked of the same row.
+    assert.equal((await loadTenantNotifications(db, T)).isEnvDefault, true);
+  }));
+
+/* ---- the job runner's wire: from the number the person wrote to ---- */
+
+const JT = "aaaaaaaa-3333-4333-8333-aaaaaaaaaaaa";
+/** A WhatsApp number of the job's workspace, connected on `created`. */
+const waNumber = (id, external, created, over = {}) => ({
+  id,
+  tenant_id: JT,
+  kind: "whatsapp",
+  status: "active",
+  credentials_ref: `ref-${id}`,
+  external_id: external,
+  number_e164: `+1305555${external.slice(0, 4)}`,
+  config: {},
+  created_at: created,
+  ...over,
+});
+const OLD = waNumber("wa-old", "111100", "2026-09-01T09:00:00.000Z");
+const NEW = waNumber("wa-new", "555500", "2026-10-01T09:00:00.000Z");
+/** A message the person wrote on WhatsApp, kept with the line it came in on, `minutes` ago. */
+const wroteOn = (conversation, line, minutes) => ({
+  id: `in-${conversation}-${minutes}`,
+  tenant_id: JT,
+  conversation_id: conversation,
+  channel: "whatsapp",
+  direction: "inbound",
+  sender: "customer",
+  status: "received",
+  meta: { raw_type: "text", ...(line ? { line } : {}) },
+  created_at: new Date(Date.now() - minutes * 60_000).toISOString(),
+});
+
+/**
+ * The job runner's WhatsApp wire over a workspace's numbers (the newer row first, as a read that names no order may
+ * find it) and its people's messages, with every vault read counted and every request to Graph caught.
+ */
+async function jobWire({ numbers = [NEW, OLD], messages = [], vault = {}, faults = {} } = {}) {
+  const reads = [];
+  const db = fakeDb({ tenant_channels: numbers, messages }, faults, {
+    get_channel_credentials: ({ p_channel_id }) => {
+      reads.push(p_channel_id);
+      const v =
+        vault[p_channel_id] ?? { "wa-old": ["token-old", "111100"], "wa-new": ["token-new", "555500"] }[p_channel_id];
+      if (typeof v === "function") return v();
+      return Array.isArray(v) ? { access_token: v[0], phone_id: v[1] } : (v ?? null);
+    },
+  });
+  const wire = await whatsappWireForTenant(db, JT);
+  const posted = [];
+  const send = async (conversationId) => {
+    const real = globalThis.fetch;
+    globalThis.fetch = async (url, init) => {
+      posted.push([String(url), init.headers.Authorization]);
+      return new Response(JSON.stringify({ messages: [{ id: `wamid.${posted.length}` }] }), { status: 200 });
+    };
+    try {
+      return await wire("+13055550199", { body: "See you at 3", ...(conversationId ? { conversationId } : {}) });
+    } finally {
+      globalThis.fetch = real;
+    }
+  };
+  return { db, reads, wire, send, posted };
+}
+const fromOld = ["https://graph.facebook.com/v25.0/111100/messages", "Bearer token-old"];
+const fromNew = ["https://graph.facebook.com/v25.0/555500/messages", "Bearer token-new"];
+
+test("the job runner's wire sends each thread's words from the number its person last wrote to, the oldest when nothing says, and reads each number's credentials once", () =>
+  withEnv(ENV, async () => {
+    const j = await jobWire({
+      messages: [
+        // Wrote to the old number, then to the new one: the newest message says which.
+        wroteOn("cv-a", "wa-old", 30),
+        wroteOn("cv-a", "wa-new", 5),
+        // The other way round.
+        wroteOn("cv-b", "wa-new", 30),
+        wroteOn("cv-b", "wa-old", 5),
+        // A number since turned off, a message kept before lines were, and one that is a text's: none says which.
+        wroteOn("cv-c", "wa-gone", 5),
+        wroteOn("cv-d", null, 5),
+        { ...wroteOn("cv-e", "line-sms", 5), channel: "sms" },
+      ],
+    });
+    for (const thread of ["cv-a", "cv-b", "cv-c", "cv-d", "cv-e", "cv-none", null]) {
+      assert.equal((await j.send(thread)).ok, true, String(thread));
+    }
+    assert.deepEqual(
+      j.posted,
+      [fromNew, fromOld, fromOld, fromOld, fromOld, fromOld, fromOld],
+      "the newer number for the one who wrote to it last; the oldest for everyone nothing names",
+    );
+    assert.deepEqual(j.reads, ["wa-old", "wa-new"], "the vault asked once per number, however many sends");
+  }));
+
+test("a workspace with one WhatsApp number reads no thread: its wire is the number's, as it was", () =>
+  withEnv(ENV, async () => {
+    const j = await jobWire({ numbers: [OLD], messages: [wroteOn("cv-a", "wa-new", 5)] });
+    assert.equal((await j.send("cv-a")).ok, true);
+    assert.deepEqual(j.posted, [fromOld]);
+    assert.deepEqual(
+      j.db.seen.filter((q) => q.table === "messages"),
+      [],
+      "nothing more is read than before there were two",
+    );
+  }));
+
+test("the job runner's wire refuses rather than falls back: a thread or a vault it could not read holds the send, and a number with no credentials is no credentials", () =>
+  withEnv(ENV, async () => {
+    // The thread could not be read: which number is not known, so nothing leaves (the door's wire that could not be bound).
+    const blind = await jobWire({ faults: { "messages.select": { message: "statement timeout" } } });
+    await assert.rejects(
+      blind.send("cv-a"),
+      (e) => e.name === "WireUnavailableError" && /statement timeout/.test(e.message),
+    );
+    assert.deepEqual(blind.posted, [], "never the oldest in its stead");
+
+    // The number they wrote to has credentials the vault did not answer for: held; the old number's people still go.
+    const blip = await jobWire({
+      messages: [wroteOn("cv-a", "wa-new", 5), wroteOn("cv-b", "wa-old", 5)],
+      vault: {
+        "wa-new": () => {
+          throw new Error("vault unavailable");
+        },
+      },
+    });
+    await assert.rejects(
+      blip.send("cv-a"),
+      (e) => e.name === "WireUnavailableError" && /vault unavailable/.test(e.message),
+    );
+    assert.equal((await blip.send("cv-b")).ok, true);
+    assert.deepEqual(blip.posted, [fromOld]);
+
+    // The number they wrote to carries none: the door's "no credentials", never the other number's and never the pilot's.
+    const bare = await jobWire({
+      numbers: [NEW, OLD].map((n) => (n.id === "wa-new" ? { ...n, credentials_ref: null } : n)),
+      messages: [wroteOn("cv-a", "wa-new", 5)],
+    });
+    assert.deepEqual(await bare.send("cv-a"), {
+      ok: false,
+      wamid: null,
+      status: 503,
+      errorBody: "no_credentials",
+      reason: "no_credentials",
+    });
+    assert.deepEqual(bare.posted, []);
+
+    // The oldest number's vault did not answer as the wire was bound: the whole wire could not be bound, as before.
+    const unbound = await jobWire({
+      vault: {
+        "wa-old": () => {
+          throw new Error("vault unavailable");
+        },
+      },
+    });
+    assert.deepEqual(unbound.wire, { unavailable: true, error: "vault unavailable" });
+    // No active number at all: none, the door's refusal.
+    assert.equal((await jobWire({ numbers: [] })).wire, null);
   }));
 
 /* ---- who a tenant known only by id is addressed as ---- */

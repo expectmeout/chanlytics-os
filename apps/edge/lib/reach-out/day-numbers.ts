@@ -10,7 +10,7 @@
  * day's 6 PM, since at the next sweep it is 7 PM there, and the line is a summary, never the only word of anything.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { reachOutDayWords } from "../packages/contracts.js";
+import { REACH_OUT_DAY_ROUTE, reachOutDayWords } from "../packages/contracts.js";
 import { reachOutDayDue, type Database } from "../packages/db.js";
 import { recordNotification } from "../ops/notify.js";
 import type { Logger } from "../log.js";
@@ -43,7 +43,7 @@ export async function tellReachOutDays(db: Db, now: Date, log: Logger, deadlineM
           kind: "reach_out_day",
           title: words.title,
           body: words.body,
-          route: "outbound",
+          route: REACH_OUT_DAY_ROUTE,
           about: { type: "reach_out_day", id: d.day },
         },
         db,

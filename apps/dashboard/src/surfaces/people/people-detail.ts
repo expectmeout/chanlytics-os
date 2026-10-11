@@ -320,7 +320,8 @@ export async function appendPersonNotesMany(ids: string[], line: string): Promis
  * were already here; the People surface re-reads after it.
  */
 export async function addPerson(body: {
-  phone: string;
+  phone?: string;
+  email?: string;
   name?: string;
 }): Promise<ApiResult<{ contact_id: string; existed: boolean }>> {
   return api()("POST contacts", { body });
@@ -413,6 +414,7 @@ export async function recordDeal(
   return api()("POST contacts/[id]/deal", {
     params: { id },
     body,
+    once: true,
     // The row moves as the door answers (0008): the door answers the deal the person's People row shows now (`current`,
     // people_list's rule), which goes onto the row at once, and People and Reports are read again behind it, so the
     // sheet closes when the server takes the move rather than once every person has been read again. Not the deal it

@@ -352,7 +352,7 @@ before(async () => {
   await seed("reach_out_check_spend", { tenant_id: A, day: "2026-09-26", attempts: 1 }, null);
   // A thread's reply turn (00284): the inbound path's bookkeeping, the service role's alone.
   await seed("reply_turns", { conversation_id: ctx.conversation, tenant_id: A, message_id: ctx.message }, null);
-  // A turn the receptionist took and the prompt it read (00359): the model port's, the service role's alone.
+  // A turn the receptionist took and the prompt it read (00401): the model port's, the service role's alone.
   await seed("model_prompts", { tenant_id: A, prompt_hash: "0123456789abcdef", text: "tenancy" }, null);
   await seed(
     "model_turns",
@@ -524,6 +524,8 @@ after(async () => {
  * What a member may read of each tenant table:
  *   member  the workspace's rows
  *   acting  the workspace's rows, for an operator or an owner; a viewer reads nothing
+ *   owner   the workspace's rows, for its owner alone; a viewer and a partner read nothing (00366: the configuration,
+ *           which holds the calendar feed's address; every other member reads it through tenant_config_read)
  *   own     their own rows only (user_id = auth.uid()); another member of the same workspace sees none of theirs
  *   partner the partner who brought the workspace; no member else, its owner included
  *   brought the partner who brought the workspace, and its owner; a viewer reads nothing
@@ -703,8 +705,8 @@ const TENANT_TABLES = {
     "member",
     () => ({ tenant_id: A, class: "faq", mode: "auto", subject_type: "contact", subject_id: ctx.contact2 }),
   ],
-  tenant_config: ["member", () => ({ tenant_id: A })],
-  // The settings as they stood at each version (00360, decision 0039): written by the trigger on tenant_config, so a
+  tenant_config: ["owner", () => ({ tenant_id: A })],
+  // The settings as they stood at each version (00402, decision 0039): written by the trigger on tenant_config, so a
   // workspace has its first from the day it is made; read by no session.
   tenant_config_versions: [
     "none",
@@ -771,7 +773,7 @@ const TENANT_TABLES = {
   jobs: ["none", () => ({ tenant_id: A, kind: "line_provision", due_at: new Date().toISOString(), payload: {} })],
   // A thread's reply turn (00284): read and written by the inbound path's service role, by no member.
   reply_turns: ["none", () => ({ conversation_id: ctx.conversation, tenant_id: A, message_id: ctx.message })],
-  // A receptionist's turn as the model read it, and the prompt it read (00359, decision 0039): written by the model
+  // A receptionist's turn as the model read it, and the prompt it read (00401, decision 0039): written by the model
   // port's service role through model_turn_keep, read by no session.
   model_prompts: [
     "none",
@@ -1007,6 +1009,13 @@ test(
       const asStranger = await seen(stranger.client, table, [["tenant_id", A]]);
       if (mode === "member" && !(asViewer >= 1))
         note(table, `a member (viewer) should read the workspace's rows, read ${asViewer}`);
+      if (mode === "owner") {
+        const asOwner = await seen(owner.client, table, [["tenant_id", A]]);
+        const asPartner = await seen(partner.client, table, [["tenant_id", A]]);
+        if (!(asOwner >= 1)) note(table, `the owner should read the workspace's rows, read ${asOwner}`);
+        if (!nothing(asViewer)) note(table, `a viewer read the owner's table (${asViewer})`);
+        if (!nothing(asPartner)) note(table, `a partner read the owner's table (${asPartner})`);
+      }
       if (mode === "acting") {
         const asOwner = await seen(owner.client, table, [["tenant_id", A]]);
         if (!(asOwner >= 1)) note(table, `an acting member (owner) should read the workspace's rows, read ${asOwner}`);

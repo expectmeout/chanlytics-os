@@ -242,7 +242,7 @@ test("the box and the prompt view agree on whose words these are", () => {
 });
 
 test("a workspace whose fields compose nothing is told its prompt is read as it stands", () => {
-  // The carried note says the prompt is the one it "had before it had fields" -- not true of a
+  // The carried note says the prompt is its "earlier instructions", from before it had fields -- not true of a
   // workspace that has none, whose prompt the resolver hands back exactly as stored.
   for (const stored of [
     { ...brain, system_prompt: OLD },
@@ -253,10 +253,10 @@ test("a workspace whose fields compose nothing is told its prompt is read as it 
         (b) => b.row === "extra_instructions",
       );
       assert.equal(mine.text, OLD.trim(), `${channel}: the prompt, word for word`);
-      assert.doesNotMatch(mine.note ?? "", /before it had fields/, channel);
+      assert.doesNotMatch(mine.note ?? "", /earlier instructions/, channel);
       // The second sentence is the rules fold's own, not a near-miss of it: one sentence, in contracts, built
       // into both notes on this page (the plan's M-2).
-      assert.equal(mine.note, `This workspace's own prompt, read as it stands. ${NO_FIELDS_COMPOSED_WORDS}`, channel);
+      assert.equal(mine.note, `Its own instructions, as they stand. ${NO_FIELDS_COMPOSED_WORDS}`, channel);
       assert.ok(RULES_WITHOUT_FIELDS_WORDS.startsWith(NO_FIELDS_COMPOSED_WORDS), "and the rules fold opens with it");
     }
   }
@@ -761,7 +761,7 @@ test("the prompt the resolver carries is found where the owner's words go, not c
     assert.ok(!blocks.some((b) => b.row === "services"), `${channel}: a row with nothing in it writes nothing`);
     assert.doesNotMatch(blocks.find((b) => b.row === "hours").text, /9 to 6/);
     // The owner's box shows these words as carried, not typed, and so does the block.
-    assert.match(mine[0].note ?? "", /before it had fields/i);
+    assert.match(mine[0].note ?? "", /earlier instructions/i);
   }
 });
 
@@ -822,7 +822,7 @@ test("text no row wrote is named as the platform's, and never folded into a row"
     "the tools are the platform's",
   );
   assert.ok(platform.some((b) => /speaking aloud/.test(b.text)));
-  for (const b of platform) assert.match(b.note ?? "", /every workspace/i);
+  for (const b of platform) assert.match(b.note ?? "", /every business/i);
 });
 
 test("with no fields, the prompt is the workspace's own, and the only rules are Autonomy's", () => {
@@ -876,7 +876,7 @@ test("the rules block says which of its lines are not the owner's", () => {
     );
     assert.equal(
       rules.note,
-      "Beside the rules on this row: a line Chanlytics writes for every workspace, for a customer who replies YES OFFERS; where there is a WhatsApp number, a line that asks each customer once for that yes; and any rule your Autonomy tab adds.",
+      "Also here: Chanlytics' own lines about offers and news, and any rule from Autonomy.",
       channel,
     );
   }

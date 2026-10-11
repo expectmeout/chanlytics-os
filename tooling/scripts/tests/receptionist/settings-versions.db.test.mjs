@@ -1,5 +1,5 @@
 /**
- * A settings change keeps what the settings said (00360; decision 0039, step 3), on the database, with a real session:
+ * A settings change keeps what the settings said (00402; decision 0039, step 3), on the database, with a real session:
  * the version is the database's (a config that changed takes the next number whatever its writer sent, and a number
  * never goes back), every version is kept in the save's own transaction with who brought it, the version before is
  * marked replaced, nobody signed in reads the record, and the clock, run with its DEFAULT, takes a version 400 days

@@ -44,7 +44,13 @@
       "entry": ["src/**/*.ios.{ts,tsx}"]
     },
     "packages/*": {
-      "entry": ["src/index.ts", "src/write-rules.ts", "src/**/*.type-test.ts"],
+      "entry": [
+        "src/index.ts",
+        "src/write-rules.ts",
+        "src/reports/report-window.ts",
+        "src/reports/report-lens.ts",
+        "src/**/*.type-test.ts"
+      ],
       "project": ["src/**/*.ts"]
     },
     "tooling/scripts": {

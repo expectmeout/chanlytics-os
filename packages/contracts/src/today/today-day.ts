@@ -1,9 +1,10 @@
 /**
  * The day's card: today and tomorrow as the calendar reads them, who is coming and when, what is open, and the
- * visit playbooks' line. Its foot line is today-period.ts's.
+ * appointment playbooks' line, in the workspace's word. Its foot line is today-period.ts's.
  */
 import { clockLabel } from "../calendar/calendar-words";
-import { triggerOf } from "../playbooks/playbook-triggers";
+import { appointmentWords, type AppointmentWord } from "../journey/appointment-word";
+import { triggerOf, triggerWords } from "../playbooks/playbook-triggers";
 
 /* ------------------------------ the day ---------------------------------- */
 
@@ -106,7 +107,10 @@ export interface TodayDayVM {
   feed: "ok" | "unavailable" | "none";
   frames: TodayDayFrameVM[];
   nextOpening: string | null;
-  /** The visit playbooks' line — what goes out and when — or the offer to start one. */
+  /**
+   * The appointment playbooks' line — what goes out and when — or the offer to start one, in the workspace's word; null
+   * without a feed, or while the playbooks are unread.
+   */
   reminders: { text: string; to: string } | null;
 }
 
@@ -127,13 +131,17 @@ function capDay(items: TodayDayItemVM[], max: number): TodayDayItemVM[] {
 
 /**
  * Today and tomorrow, as the calendar reads them: who is coming and when,
- * what is open, what is closed — and the visit playbooks' line. Nothing here
+ * what is open, what is closed — and the appointment playbooks' line. Nothing here
  * is derived from a message; the calendar is the source, the playbooks say
- * what they will do about it.
+ * what they will do about it, in the word Campaigns says (spec 2026-10-09 §4.8, "One page, one word").
  */
 export function todayDay(
   cal: CalendarLike | null,
-  playbooks: PlaybookCardLike[] | null,
+  /**
+   * The playbooks surface as the page already holds it: its cards, and what the workspace calls an appointment (its
+   * shape's word, from GET playbooks). Null while it is unread: no read of its own is made for the word.
+   */
+  playbooks: { rows: PlaybookCardLike[]; word: AppointmentWord } | null,
   /** People's rows, for the red line: a person on the day whose thread needs someone. */
   people: { rows: Array<{ id: string; state: string }> } | null = null,
   max = TODAY_DAY_MAX,
@@ -202,25 +210,30 @@ export function todayDay(
     };
   });
   let reminders: TodayDayVM["reminders"] = null;
-  if (feed === "ok") {
-    const visit = (playbooks ?? []).filter(
+  // While the playbooks are unread the day does not know whether a reminder runs, or what the workspace calls one.
+  if (feed === "ok" && playbooks) {
+    const { word } = playbooks;
+    const visit = playbooks.rows.filter(
       (p) => (p.trigger === "visit_tomorrow" || p.trigger === "visited") && p.state === "running",
     );
+    const W = appointmentWords(word);
     reminders =
       visit.length === 0
         ? {
-            // "Write", not "text": a playbook goes by WhatsApp, text or email, whichever each person is reached on.
-            text: "No visit reminders yet — a playbook can write the day before an appointment and the day after a visit.",
+            // "Write", not "text": a campaign goes by WhatsApp, text or email, whichever each person is reached on. A
+            // person reads "campaign", never "playbook" (decision 19 of 9 Oct 2026).
+            text: `No ${W.one} reminders yet — a campaign can write the day before ${W.a} and the day after.`,
             to: "outbound",
           }
         : {
             text: visit
-              .map(
-                (p) =>
-                  // The playbook's kind in its moment's own label (playbook-triggers.ts), never spelled again here.
-                  // A count that could not be read is left out, never said as "null people".
-                  `${triggerOf(p.trigger)?.label ?? p.trigger}: ${p.candidates == null ? "" : `${p.candidates} ${p.candidates === 1 ? "person" : "people"} · `}next run ${p.next}`,
-              )
+              .map((p) => {
+                // The playbook's kind in its moment's own label in the workspace's word (playbook-triggers.ts
+                // triggerWords), never spelled again here. A count that could not be read is left out, never said as
+                // "null people".
+                const t = triggerOf(p.trigger);
+                return `${t ? triggerWords(t, word).label : p.trigger}: ${p.candidates == null ? "" : `${p.candidates} ${p.candidates === 1 ? "person" : "people"} · `}next run ${p.next}`;
+              })
               .join(" · "),
             to: "outbound",
           };

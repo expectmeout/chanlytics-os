@@ -75,7 +75,22 @@ function limitsOf(s) {
 /** A table cell: one line, no pipe that would end it. */
 const cell = (text) => String(text).replace(/\r?\n/g, " ").replace(/\|/g, "\\|");
 
-/** The fields a route's input takes, as table rows; a schema that is no object is said in one row. */
+/** One object's fields, as table rows. */
+function objectRows(json) {
+  const required = new Set(json.required ?? []);
+  return Object.entries(json.properties).map(
+    ([name, s]) => `| \`${name}\` | ${cell(typeOf(s))} | ${required.has(name) ? "yes" : "no"} | ${cell(limitsOf(s))} |`,
+  );
+}
+
+/** A body's table head, as the page writes it above a body's fields. */
+const BODY_HEAD = ["| Body field | Type | Required | Limits |", "| --- | --- | --- | --- |"];
+
+/**
+ * The fields a route's input takes, as table rows; a schema that is no object is said in one row. A body that is one of
+ * several objects (PUT playbooks/:id's three) is said body by body, each with its own table head, since "object or
+ * object" says nothing: those lines are the whole of what the page prints for it (generate).
+ */
 export function fieldRows(schema) {
   if (!schema) return [];
   let json;
@@ -84,13 +99,19 @@ export function fieldRows(schema) {
   } catch (e) {
     return [`| (input) | not describable as JSON: ${cell(e instanceof Error ? e.message : e)} | | |`];
   }
+  const bodies = json.anyOf ?? json.oneOf;
+  if (Array.isArray(bodies) && bodies.length > 1 && bodies.every((b) => b?.type === "object" && b.properties))
+    return [
+      `One of ${bodies.length} bodies.`,
+      ...bodies.flatMap((b, i) => ["", `Body ${i + 1}:`, "", ...BODY_HEAD, ...objectRows(b)]),
+    ];
   if (json.type !== "object" || !json.properties)
     return [`| (input) | ${cell(typeOf(json))} | yes | ${cell(limitsOf(json))} |`];
-  const required = new Set(json.required ?? []);
-  return Object.entries(json.properties).map(
-    ([name, s]) => `| \`${name}\` | ${cell(typeOf(s))} | ${required.has(name) ? "yes" : "no"} | ${cell(limitsOf(s))} |`,
-  );
+  return objectRows(json);
 }
+
+/** Whether fieldRows' lines are whole tables of their own (a body of several shapes), not one table's rows. */
+const saysItsOwnTables = (rows) => rows.length > 0 && !rows[0].startsWith("|");
 
 /** Every route file under /api/v1, as its key's path ("conversations/[id]/snooze") and its file. */
 function routeFiles(root) {
@@ -134,7 +155,8 @@ export async function generate(root) {
         "",
       ];
       const rows = fieldRows(handler.input);
-      if (rows.length)
+      if (saysItsOwnTables(rows)) lines.push(...rows, "");
+      else if (rows.length)
         lines.push(
           `| ${p.kind === "read" ? "Query" : "Body"} field | Type | Required | Limits |`,
           "| --- | --- | --- | --- |",

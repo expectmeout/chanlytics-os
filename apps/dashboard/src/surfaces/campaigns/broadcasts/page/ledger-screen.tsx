@@ -159,7 +159,7 @@ export function bcLedger(v: BcV) {
             kind="line"
             title={
               origin === "playbook"
-                ? "No playbook has run yet."
+                ? "No campaign has run yet."
                 : origin === "hand"
                   ? "Nothing sent by hand yet."
                   : "Nothing here."
@@ -173,7 +173,7 @@ export function bcLedger(v: BcV) {
           kind="card"
           glyph="send"
           title="Nothing sent or queued yet"
-          body="Every run lands here — the ones you send, and the ones your playbooks send."
+          body="Every run lands here — the ones you send, and the ones your campaigns send."
           testid="bc-empty"
         />
       )}

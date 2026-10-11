@@ -67,19 +67,19 @@ const SAYS: Record<SenderLanguage, OfferPageSays> = {
       title: "Unsubscribe",
       lead: (b) => `Stop offers from ${b}?`,
       body: (b) =>
-        `Press the button and ${b} won't send you offers by email again. You'll still get messages about your visits.`,
+        `Press the button and ${b} won't send you offers by email again. You'll still get messages about your appointments.`,
       button: "Unsubscribe from offers",
     },
     done: {
       title: "Unsubscribed",
       lead: (b) => `You're unsubscribed from offers from ${b}.`,
-      body: "You'll still get messages about your visits.",
+      body: "You'll still get messages about your appointments.",
       button: "Stop all messages",
     },
     stopAsk: {
       title: "Stop all messages",
       lead: (b) => `Stop every message from ${b}?`,
-      body: "That includes reminders and confirmations about your visits. Nothing more will go to you by email, text or WhatsApp.",
+      body: "That includes reminders and confirmations about your appointments. Nothing more will go to you by email, text or WhatsApp.",
       button: "Yes, stop all messages",
     },
     stopped: {
@@ -95,19 +95,19 @@ const SAYS: Record<SenderLanguage, OfferPageSays> = {
       title: "Darme de baja",
       lead: (b) => `¿Dejar de recibir ofertas de ${b}?`,
       body: (b) =>
-        `Pulsa el botón y ${b} no volverá a enviarte ofertas por correo. Seguirás recibiendo mensajes sobre tus visitas.`,
+        `Pulsa el botón y ${b} no volverá a enviarte ofertas por correo. Seguirás recibiendo mensajes sobre tus citas.`,
       button: "Darme de baja de las ofertas",
     },
     done: {
       title: "Te diste de baja",
       lead: (b) => `Te diste de baja de las ofertas de ${b}.`,
-      body: "Seguirás recibiendo mensajes sobre tus visitas.",
+      body: "Seguirás recibiendo mensajes sobre tus citas.",
       button: "Dejar de recibir todos los mensajes",
     },
     stopAsk: {
       title: "Dejar de recibir todos los mensajes",
       lead: (b) => `¿Dejar de recibir todos los mensajes de ${b}?`,
-      body: "Eso incluye los recordatorios y las confirmaciones de tus visitas. No recibirás nada más por correo, mensaje de texto ni WhatsApp.",
+      body: "Eso incluye los recordatorios y las confirmaciones de tus citas. No recibirás nada más por correo, mensaje de texto ni WhatsApp.",
       button: "Sí, dejar de recibir todos los mensajes",
     },
     stopped: {

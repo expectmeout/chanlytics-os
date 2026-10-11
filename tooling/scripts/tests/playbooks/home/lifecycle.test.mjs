@@ -1,8 +1,8 @@
 /**
  * Campaigns' home, the lifecycle (canvas A): the view model the page draws, EXECUTED over fixtures in the real surfaces' shape.
  *
- * Five moments around a customer, each covered or not, with the campaigns that are not one of them in quiet lines under
- * them; and three tiles: who can hear the workspace, what goes out in the next seven days, what came back in the last
+ * Five moments around a customer, each covered or not, with every campaign in a ledger under them (ledger.test.mjs proves
+ * its rows); and three tiles: who can hear the workspace, what goes out in the next seven days, what came back in the last
  * thirty. Every word and number the page says is made by `campaignsHomeOf`, so the page composes and never derives; a
  * number the workspace could not count is null and never a zero, a surface not read leaves its sections out, and a zero is
  * shown as zero.
@@ -70,9 +70,11 @@ const run = (over = {}) => ({
 });
 
 const reach = { people: 29, canHear: 7, saidMessages: 7, saidOffers: 0 };
+/** Campaigns' own 30 days (the campaign_results surface's report), each campaign's own among them (none here). */
 const report = (over = {}) => ({
   days: 30,
   totals: { sent: 8, delivered: 8, read: 5, replied: 3, optIns: 3, optOuts: 2, ...over },
+  sources: [],
 });
 const broadcasts = (over = {}) => ({
   rows: [
@@ -92,7 +94,6 @@ const broadcasts = (over = {}) => ({
   number: { present: true },
   optIn: { phrase: "YES OFFERS", link: "https://wa.me/15550100?text=YES%20OFFERS" },
   reach,
-  report: report(),
   ...over,
 });
 
@@ -134,6 +135,11 @@ const input = (over = {}) => ({
   // The workspace's messages (the settings surface's `messages`): the Library's count reads these.
   messages: C.campaignMessagesOf(LIBRARY),
   reachOuts: [],
+  // How the business works (the playbooks surface's shape): a calendar connected, deals on, and "visit", the word every
+  // sentence here was first written in, so the words stay; a test that is about the shape names its own.
+  shape: { calendar: "feed", dealsOn: true, word: "visit" },
+  chains: undefined,
+  report: report(),
   ...over,
 });
 const home = (over = {}) => C.campaignsHomeOf(input(over));
@@ -147,10 +153,10 @@ test("five moments in order, each with its caps, name, people, state and the yes
     h.rail.stages.map((s) => [s.id, s.caps, s.name]),
     [
       ["first_contact", "First contact", "Your receptionist"],
-      ["visit", "Visit tomorrow", "Visit reminder"],
-      ["after", "After a visit", "How did it go"],
+      ["before", "Visit tomorrow", "Visit reminder"],
+      ["after", "After the visit", "How did it go"],
+      ["proposal", "Proposal waiting", "Proposal follow-up"],
       ["quiet", "Quiet or lapsed", "Win-back"],
-      ["proposal", "Proposal out", "Proposal follow-up"],
     ],
   );
   assert.deepEqual(
@@ -159,8 +165,8 @@ test("five moments in order, each with its caps, name, people, state and the yes
       [0, "this week"],
       [3, "people"],
       [0, "yesterday"],
-      [5, "people"],
       [0, "waiting"],
+      [5, "people"],
     ],
     "the people at each moment now, from the surface's pools",
   );
@@ -170,13 +176,13 @@ test("five moments in order, each with its caps, name, people, state and the yes
       "Answers whoever writes",
       "Reaches a yes to messages",
       "Reaches a yes to messages",
-      "Needs a yes to offers",
       "Reaches a yes to messages",
+      "Needs a yes to offers",
     ],
   );
   assert.deepEqual(
     h.rail.stages.map((s) => s.needs),
-    ["none", "messages", "messages", "offers", "messages"],
+    ["none", "messages", "messages", "messages", "offers"],
     "a moment needs what its message's kind asks (purposeOfPlaybook): a visit or a proposal is about their own, a win-back is an offer",
   );
 });
@@ -189,8 +195,8 @@ test("the receptionist is always on; a running playbook is on with its clock; th
       ["always", "Answers · asks for the yes", true],
       ["off", "Off", false],
       ["off", "Off", false],
-      ["on", "On · daily 10:00 AM", true],
       ["off", "Off", false],
+      ["on", "On · daily 10:00 AM", true],
     ],
   );
   assert.equal(h.rail.coveredWords, "2 of 5 moments covered", "the board's two of five");
@@ -284,8 +290,12 @@ test("the head says offers by email are paused while the email channel's own rea
 
 test("one off moment with people it would reach is the hint: Turn on · 3 tomorrow", () => {
   const h = home();
-  assert.equal(stage(h, "visit").hint, "Turn on · 3 tomorrow");
-  assert.deepEqual(stage(h, "visit").act, { kind: "turn_on", label: "Turn on · 3 tomorrow", moment: "visit_tomorrow" });
+  assert.equal(stage(h, "before").hint, "Turn on · 3 tomorrow");
+  assert.deepEqual(stage(h, "before").act, {
+    kind: "turn_on",
+    label: "Turn on · 3 tomorrow",
+    moment: "visit_tomorrow",
+  });
   assert.equal(stage(h, "after").hint, null, "only one is the hint");
   // The first off moment that reaches somebody, in the stages' order; a pool of people nobody can reach is no hint.
   const two = home({
@@ -294,7 +304,7 @@ test("one off moment with people it would reach is the hint: Turn on · 3 tomorr
     }),
   });
   assert.equal(
-    stage(two, "visit").hint,
+    stage(two, "before").hint,
     null,
     "three visit tomorrow, none of whom a run would reach: nothing to promise",
   );
@@ -304,9 +314,9 @@ test("one off moment with people it would reach is the hint: Turn on · 3 tomorr
 
 test("a moment that was not counted says no number, never a zero it did not count", () => {
   const h = home({ playbooks: playbooks({ pools: { quiet_30: null, visit_tomorrow: null } }) });
-  assert.equal(stage(h, "visit").people, null);
+  assert.equal(stage(h, "before").people, null);
   assert.equal(stage(h, "quiet").people, null);
-  assert.equal(stage(h, "visit").hint, null, "and no hint over a count that was not made");
+  assert.equal(stage(h, "before").hint, null, "and no hint over a count that was not made");
   assert.equal(stage(h, "after").people, null, "a moment the pools do not hold at all");
 });
 
@@ -339,18 +349,81 @@ test("a paused playbook is paused and not covered; a run waiting on you says so;
   });
   assert.deepEqual(
     [stage(nodeals, "proposal").state, stage(nodeals, "proposal").covered, stage(nodeals, "proposal").act],
-    ["not_here", false, null],
+    ["not_here", false, { kind: "open", label: "Open", playbookId: "pb-9" }],
   );
+});
+
+test("without a calendar the appointment moments say they need one: no figure, no Turn on, never covered; one made before runs nothing here (D44)", () => {
+  const none = home({ shape: { calendar: "none", dealsOn: true, word: "visit" } });
+  for (const id of ["before", "after"]) {
+    const s = stage(none, id);
+    assert.deepEqual(
+      [s.state, s.stateWords, s.people, s.covered, s.hint],
+      ["not_here", "Needs your calendar", null, false, null],
+      id,
+    );
+    assert.deepEqual(s.act, { kind: "route", label: "Connect your calendar", route: "admin/workspace/calendar" }, id);
+  }
+  assert.equal(none.rail.coveredWords, "2 of 5 moments covered", "drawn, and never covered");
+  assert.equal(
+    none.coming.rows.some((r) => r.id === "off:before"),
+    false,
+    "no Turn on in Coming up for a moment that cannot run",
+  );
+  const email = home({ shape: { calendar: "email", dealsOn: true, word: "visit" } });
+  assert.equal(stage(email, "before").stateWords, "Needs your calendar feed", "bookings arrive by email, and no feed");
+  const made = home({
+    shape: { calendar: "none", dealsOn: true, word: "visit" },
+    playbooks: playbooks({ rows: [playbook(), playbook({ id: "pb-r", name: "Reminder", trigger: "visit_tomorrow" })] }),
+  });
+  const before = stage(made, "before");
+  assert.deepEqual([before.playbookId, before.stateWords, before.covered], ["pb-r", "Needs your calendar", false]);
+  assert.deepEqual(
+    before.act,
+    { kind: "open", label: "Open", playbookId: "pb-r" },
+    "its drawer opens, to pause or delete it",
+  );
+  assert.equal(before.summary, "Reminder · not running here");
+  assert.equal(
+    made.coming.rows.some((r) => r.id === "moment:pb-r"),
+    false,
+    "Coming up promises no run of it",
+  );
+});
+
+test("a moment that holds several campaigns is led by the running one, says how they stand and carries a meter; one alone says its name and clock", () => {
+  const rows = [
+    playbook({ id: "pb-a", name: "Win-back · paused", state: "paused", next: "paused" }),
+    playbook({ id: "pb-b", name: "Win-back · by visits", trigger: "lapsed" }),
+    playbook({ id: "pb-c", name: "Win-back · spring" }),
+  ];
+  const quiet = stage(home({ playbooks: playbooks({ rows }) }), "quiet");
+  assert.equal(quiet.playbookId, "pb-b", "a running one first, the newest of them (the rows come newest first)");
+  assert.equal(quiet.summary, "3 campaigns · 2 on · 1 paused");
+  assert.deepEqual(quiet.bar, { on: 2, waiting: 0, paused: 1, of: 3 });
+  const one = stage(home(), "quiet");
+  assert.equal(one.summary, "Win-back · daily 10:00 AM");
+  assert.equal(one.bar, null, "a meter only where a moment holds two or more");
+  assert.equal(stage(home(), "after").summary, null, "nothing stands on it");
+});
+
+test("a paused campaign rests: plain, not amber; a run waiting on you is the one amber (D13)", () => {
+  const paused = home({ playbooks: playbooks({ rows: [playbook({ state: "paused", next: "paused" })] }) });
+  assert.deepEqual([stage(paused, "quiet").state, stage(paused, "quiet").tone], ["paused", "plain"]);
+  assert.equal(C.stateTone("playbook", "paused"), "plain");
+  assert.equal(C.stateTone("playbook", "approval"), "warn");
+  assert.deepEqual(C.LIFECYCLE_TOAST.paused("Win-back"), [{ b: "Win-back" }, " paused"]);
 });
 
 test("where deals are off and nothing was made on the follow-up, the rail has four moments", () => {
   const pb = playbooks();
   const h = home({
     playbooks: { ...pb, triggers: pb.triggers.filter((t) => t.id !== "proposal_waiting") },
+    shape: { calendar: "feed", dealsOn: false, word: "visit" },
   });
   assert.deepEqual(
     h.rail.stages.map((s) => s.id),
-    ["first_contact", "visit", "after", "quiet"],
+    ["first_contact", "before", "after", "quiet"],
   );
   assert.equal(h.rail.coveredWords, "2 of 4 moments covered");
   assert.ok(h.head.sentence.some((p) => typeof p === "object" && p.b === "2 of 4"));
@@ -388,118 +461,7 @@ test("the win-back is one moment by visits or by silence: a playbook on either i
 test("the stage names the playbook the owner made when there is one, and the moment's own words when not", () => {
   const h = home({ playbooks: playbooks({ rows: [playbook({ name: "Come back soon" })] }) });
   assert.equal(stage(h, "quiet").name, "Come back soon");
-  assert.equal(stage(h, "visit").name, "Visit reminder");
-});
-
-/* ------------------------------------------------ the strips ------------------------------------------------- */
-
-const strip = (h, id) => h.strips.find((s) => s.id === id);
-
-test("the call's text: on while the phone agent has a message to text a caller who asks to book, said otherwise", () => {
-  const on = strip(home(), "call_text");
-  assert.deepEqual(
-    [on.stateWords, on.tone, on.act],
-    ["When a caller asks", "ok", { kind: "route", label: "Open", route: "messages" }],
-  );
-  const none = strip(home({ library: [template("visit_reminder", { variables: [] })] }), "call_text");
-  assert.deepEqual([none.stateWords, none.tone], ["No message for it yet", "warn"]);
-  assert.equal(
-    strip(home({ library: null }), "call_text").stateWords,
-    "",
-    "a library that failed is the page's failed read",
-  );
-  assert.equal(strip(home({ library: undefined }), "call_text").stateWords, "", "not read yet: nothing said");
-  const unapproved = strip(home({ library: [template("call_text", { meta_status: "pending" })] }), "call_text");
-  assert.equal(
-    unapproved.stateWords,
-    "No message for it yet",
-    "one WhatsApp has not approved cannot be texted (bookingTemplate)",
-  );
-});
-
-test("the month's offer: its playbook's state and act, or a line that turns it on", () => {
-  const month = (over) => playbook({ id: "pb-m", name: "The month's offer", trigger: "everyone_monthly", ...over });
-  const running = strip(home({ playbooks: playbooks({ rows: [playbook(), month()] }) }), "pb-m");
-  assert.deepEqual(
-    [running.stateWords, running.act.kind, running.words],
-    ["On · every 30 days", "open", "Every 30 days, to a yes to offers"],
-  );
-  const paused = strip(home({ playbooks: playbooks({ rows: [playbook(), month({ state: "paused" })] }) }), "pb-m");
-  assert.deepEqual(
-    [paused.stateWords, paused.tone, paused.act],
-    ["Paused", "warn", { kind: "resume", label: "Resume", playbookId: "pb-m" }],
-  );
-  const off = strip(home(), "everyone_monthly");
-  assert.deepEqual(
-    [off.stateWords, off.act],
-    ["Off", { kind: "turn_on", label: "Turn on", moment: "everyone_monthly" }],
-  );
-  const pb = playbooks();
-  const gone = home({ playbooks: { ...pb, triggers: pb.triggers.filter((t) => t.id !== "everyone_monthly") } });
-  assert.equal(strip(gone, "everyone_monthly"), undefined, "a moment the workspace is not offered is no line");
-});
-
-test("playbooks on a list, and any other that still runs, are lines of their own; a stage's playbook is not said twice", () => {
-  const h = home({
-    playbooks: playbooks({
-      rows: [
-        playbook(),
-        playbook({ id: "pb-l", name: "Regulars", trigger: "saved_list", triggerLabel: "VIP regulars" }),
-        playbook({ id: "pb-w", name: "Welcome", trigger: "new_week", triggerLabel: "Welcome" }),
-        playbook({
-          id: "pb-a",
-          name: "Old list",
-          trigger: "saved_list",
-          triggerLabel: "Bridal",
-          state: "paused",
-          listArchived: true,
-        }),
-      ],
-    }),
-  });
-  assert.deepEqual(
-    h.strips.map((s) => s.id),
-    ["call_text", "everyone_monthly", "pb-l", "pb-a", "pb-w"],
-    "the call's text, the month's offer, the lists, then any other moment",
-  );
-  assert.equal(strip(h, "pb-l").words, "On a list · VIP regulars");
-  assert.deepEqual(
-    [strip(h, "pb-a").stateWords, strip(h, "pb-a").tone, strip(h, "pb-a").act.kind],
-    ["Its list is archived", "warn", "open"],
-  );
-  assert.equal(strip(h, "pb-w").kind, "moment");
-  assert.equal(strip(h, "pb-1"), undefined, "the win-back is the rail's");
-});
-
-test("a reach-out is a line: on, waiting on you, or paused with Resume", () => {
-  const chain = (over = {}) => ({
-    root_id: "ch-1",
-    name: "Cold email to studios",
-    search: { id: "s-1", name: "Studios near us" },
-    state: "running",
-    steps: [{}, {}],
-    next: { waiting_run_id: null },
-    ...over,
-  });
-  const on = strip(home({ reachOuts: [chain()] }), "ch-1");
-  assert.deepEqual(
-    [on.kind, on.words, on.stateWords, on.tone],
-    ["reach_out", "Cold email to Studios near us · 2 steps", "On", "ok"],
-  );
-  assert.equal(
-    strip(home({ reachOuts: [chain({ next: { waiting_run_id: "r-3" } })] }), "ch-1").stateWords,
-    "Waiting on you",
-  );
-  const paused = strip(home({ reachOuts: [chain({ state: "paused" })] }), "ch-1");
-  assert.deepEqual(
-    [paused.stateWords, paused.act],
-    ["Paused", { kind: "resume", label: "Resume", playbookId: "ch-1" }],
-  );
-  assert.equal(
-    home({ reachOuts: null }).strips.some((s) => s.kind === "reach_out"),
-    false,
-    "a read that failed draws none",
-  );
+  assert.equal(stage(h, "before").name, "Visit reminder");
 });
 
 /* ------------------------------------------------- the head -------------------------------------------------- */
@@ -1166,7 +1128,7 @@ test("what came back: the funnel from what was sent, who said yes and who asked 
 });
 
 test("where a text or an email went too (0030), the funnel's read is a share of WhatsApp's own sends and a line says so; with nothing by WhatsApp there is no read to show", () => {
-  const mixed = results({ broadcasts: broadcasts({ report: report({ readOf: 6 }) }) });
+  const mixed = results({ report: report({ readOf: 6 }) });
   assert.deepEqual(
     mixed.funnel.map((f) => [f.id, f.n, f.share]),
     [
@@ -1178,32 +1140,27 @@ test("where a text or an email went too (0030), the funnel's read is a share of 
   );
   assert.equal(mixed.funnel.find((f) => f.id === "read").meter, "Read: 5 of WhatsApp's 6");
   assert.equal(mixed.readNote, "Read is of WhatsApp's 6: a text or an email keeps no read receipt.");
-  const noWhatsApp = results({ broadcasts: broadcasts({ report: report({ read: 0, readOf: 0 }) }) });
+  const noWhatsApp = results({ report: report({ read: 0, readOf: 0 }) });
   assert.deepEqual(
     noWhatsApp.funnel.map((f) => f.id),
     ["sent", "delivered", "replied"],
   );
   assert.equal(noWhatsApp.readNote, "These went by text or email, which keep no read receipt.");
   // WhatsApp alone, or a report from before the channels were counted: as it always was, and no line.
-  assert.deepEqual(
-    [results().readNote, results({ broadcasts: broadcasts({ report: report({ readOf: 8 }) }) }).readNote],
-    [null, null],
-  );
+  assert.deepEqual([results().readNote, results({ report: report({ readOf: 8 }) }).readNote], [null, null]);
   assert.equal(results().funnel.find((f) => f.id === "read").meter, "Read: 5");
   // What a screen reader hears the list as: its steps, a read where there is one.
   assert.deepEqual(
     [results().funnelLabel, noWhatsApp.funnelLabel],
     ["Sent, delivered, read and replied", "Sent, delivered and replied"],
   );
-  assert.equal(results({ broadcasts: broadcasts({ report: null }) }).funnelLabel, null, "no funnel, no label");
+  assert.equal(results({ report: null }).funnelLabel, null, "no funnel, no label");
 });
 
 test("a zero is shown as zero, and a period with nothing in it is said once", () => {
   const zero = results({
-    broadcasts: broadcasts({
-      rows: [],
-      report: report({ sent: 0, delivered: 0, read: 0, replied: 0, optIns: 0, optOuts: 0 }),
-    }),
+    broadcasts: broadcasts({ rows: [] }),
+    report: report({ sent: 0, delivered: 0, read: 0, replied: 0, optIns: 0, optOuts: 0 }),
   });
   assert.deepEqual(zero.headline, { n: 0, words: "messages sent in 30 days" });
   assert.equal(zero.funnel, null, "no bars over nothing sent");
@@ -1214,11 +1171,15 @@ test("a zero is shown as zero, and a period with nothing in it is said once", ()
 });
 
 test("a report that could not be read leaves its numbers out and the runs stand; the home says so in `failed`", () => {
-  const t = results({ broadcasts: broadcasts({ report: null }) });
+  const t = results({ report: null });
   assert.deepEqual([t.headline, t.funnel, t.yes, t.quiet], [null, null, null, false]);
   assert.equal(t.runs.length, 2);
   assert.equal(t.read, "read", "the tile was read: only its numbers could not be");
-  assert.equal(home({ broadcasts: broadcasts({ report: null }) }).failed.results, null, "the broadcasts were read");
+  assert.equal(home({ report: null }).failed.results, null, "the broadcasts were read");
+  // Campaigns' own 30 days not read yet: the runs stand, the numbers are not said, and nothing failed.
+  const coming = results({ report: undefined });
+  assert.deepEqual([coming.read, coming.headline, coming.funnel, coming.runs.length], ["read", null, null, 2]);
+  assert.equal(home({ report: undefined }).failed.report, null, "unread has not failed");
 });
 
 test("what came back says it is reading before the broadcasts are read, and that it could not when they failed, with the period in words", () => {
@@ -1237,9 +1198,9 @@ test("what came back says it is reading before the broadcasts are read, and that
   });
   assert.equal(home({ broadcasts: undefined }).failed.results, null);
   assert.equal(results().note, "30 days");
-  assert.equal(results({ broadcasts: broadcasts({ report: report({}) }) }).read, "read");
+  assert.equal(results({ report: report({}) }).read, "read");
   assert.equal(
-    results({ broadcasts: broadcasts({ report: { days: 1, totals: report().totals } }) }).note,
+    results({ report: { days: 1, totals: report().totals, sources: [] } }).note,
     "1 day",
     "the period is counted in its own words",
   );
@@ -1251,14 +1212,16 @@ test("a read that failed is said where its data would be, in contracts' words, w
   const none = { templates: null, counts: null, chains: null, report: null, reach: null, coming: null, results: null };
   assert.deepEqual(home().failed, none, "everything read: nothing to say");
   assert.deepEqual(
-    home({ playbooks: undefined, broadcasts: undefined, library: undefined, reachOuts: undefined }).failed,
+    home({ playbooks: undefined, broadcasts: undefined, library: undefined, reachOuts: undefined, report: undefined })
+      .failed,
     none,
     "a surface not read yet has not failed",
   );
+  // The library is the playbooks surface's own read of the templates (Settings is not drawn on Campaigns): its Retry.
   assert.deepEqual(home({ library: null }).failed.templates, {
     what: "your templates",
     body: "The call's text and the Library's count show once they read. Everything else here is current.",
-    surface: "settings",
+    surface: "playbooks",
   });
   assert.deepEqual(home({ playbooks: playbooks({ countsRead: false }) }).failed.counts, {
     what: "who each moment reaches",
@@ -1270,10 +1233,11 @@ test("a read that failed is said where its data would be, in contracts' words, w
     body: "The moments above are current.",
     surface: "reach_outs",
   });
-  assert.deepEqual(home({ broadcasts: broadcasts({ report: null }) }).failed.report, {
+  // Campaigns' own 30 days are their own surface's (campaign_results): its Retry reads them alone.
+  assert.deepEqual(home({ report: null }).failed.report, {
     what: "this period's numbers",
     body: "The runs below stand.",
-    surface: "broadcasts",
+    surface: "campaign_results",
   });
   // One failing leaves the others alone: a failed library is not a failed report.
   const one = home({ library: null }).failed;

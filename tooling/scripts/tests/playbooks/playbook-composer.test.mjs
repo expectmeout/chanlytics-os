@@ -118,6 +118,8 @@ const surface = (over = {}) => ({
   triggers: contracts.PLAYBOOK_TRIGGERS.map((t) => trig(t.id)),
   timezone: ZONE,
   calendar: "ok",
+  // How the business works (the surface's shape, 9 Oct 2026): the words this file pins are the word "visit"'s.
+  shape: { calendar: "feed", dealsOn: false, word: "visit" },
   number: { present: true, health: { canSend: true } },
   businessName: "Northside Studio",
   bookingLink: true,
@@ -337,7 +339,7 @@ test("REGRESSION: a visit's reminder is not offered to a list moment, and is to 
     ],
     "the visit reminder, its visit's words each visit's own",
   );
-  assert.ok(slotsOf(tree)[2].props.offers[0].label.includes("Their visit's time"));
+  assert.ok(slotsOf(tree)[2].props.offers[0].label.includes("Their booked time"));
   assert.ok(
     textOf(byTestId(tree, "pb-clock")).includes("one message per visit"),
     "no cap and no gap: a reminder is owed to every visit",
@@ -482,16 +484,17 @@ test("a playbook whose message has no version a run can send says so when change
 
 /* ---------------------------------- the page under it ---------------------------------- */
 
-test("REGRESSION: opening the composer moves nothing on the page -- the unset moments stood down and the cards moved down under a panel; on the home it is a sheet over a rail that stays", () => {
+test("REGRESSION: opening the composer moves nothing on the page -- the unset moments stood down and the cards moved down under a panel; on the home it is a sheet over a rail and a ledger that stay", () => {
   setSurfaceValue("playbooks", playbooksSample(new Date(NOW)));
   const home = (param) => {
     fresh();
     return again(() => CampaignsHome({ param, nowMs: NOW }));
   };
   const rail = (t) => allByTestId(t, "cmh-stage").map((s) => [s.props["data-stage"], s.props["data-state"]]);
-  const lines = (t) => allByTestId(t, "cmh-strip").map((s) => s.props["data-strip"]);
+  const lines = (t) => allByTestId(t, "cmh-row").map((s) => s.props["data-row"]);
   const before = home(null);
   assert.ok(rail(before).length >= 4, "the moments are on the rail");
+  assert.ok(lines(before).length >= 3, "and every campaign is a row of the ledger under them");
   assert.equal(
     find(before, (n) => n.type === PlaybookComposer),
     null,
@@ -503,7 +506,7 @@ test("REGRESSION: opening the composer moves nothing on the page -- the unset mo
     "the sheet is open",
   );
   assert.deepEqual(rail(after), rail(before), "every moment is where it was, in the state it was");
-  assert.deepEqual(lines(after), lines(before), "and every line under them");
+  assert.deepEqual(lines(after), lines(before), "and every row of the ledger under them");
   // The composer is hosted in the kit's sheet over the page (home/pane-sheet.tsx): the page behind it stays drawn, and
   // Cancel is the composer's own, which asks first where there are words, then closes the sheet to the home.
   const sheet = find(after, (n) => n.type === PaneSheet);
@@ -582,23 +585,23 @@ test("the detail says what it keeps to: the workspace's mode for its class, and 
 
   // The guardrails: who it reaches for the channels it goes by (contracts consentGuardWords), the moment's own rule, and
   // who the wire holds back (contracts heldBackWords). WhatsApp's reach is a recorded yes and a phone number.
-  const guard = pbGuardWords("visit", ["whatsapp"], "conversational");
+  const guard = pbGuardWords({ kind: "visit", word: "visit" }, ["whatsapp"], "conversational");
   assert.equal(
     guard,
     "Only people with a recorded yes to hearing from you and a phone number. One message per visit. People who asked to stop, have no phone number, or are mid-thread with a person are held back at the wire.",
   );
   assert.doesNotMatch(guard, /gap|a week/, "no gap and no breath are promised for a visit trigger");
   assert.match(
-    pbGuardWords("list", ["whatsapp"], "marketing"),
-    /^Only people with a recorded yes to offers and a phone number\. Never twice within its gap/,
+    pbGuardWords({ kind: "list", word: "visit" }, ["whatsapp"], "marketing"),
+    /^Only people with a recorded yes to offers and a phone number\. Never twice within its gap, and one campaign message per person a week, across every campaign\./,
   );
   assert.match(
-    pbGuardWords("deal", ["whatsapp"], "conversational"),
-    /Their proposal has its link and nothing back\. One message per proposal/,
+    pbGuardWords({ kind: "deal", word: "visit" }, ["whatsapp"], "conversational"),
+    /Their proposal has its link and nothing back\. One message per proposal, and one campaign message per person a week, across every campaign\./,
   );
   // An offer by email asks no recorded yes and no number: a yes to offers by email or a relationship on record, and an
   // address that works, and the wire's holds name an address, not a number.
-  const byMail = pbGuardWords("list", ["email"], "marketing");
+  const byMail = pbGuardWords({ kind: "list", word: "visit" }, ["email"], "marketing");
   assert.ok(
     byMail.startsWith(
       "Only people with a yes to offers by email or a relationship with you on record, and an email address that works.",
@@ -607,6 +610,32 @@ test("the detail says what it keeps to: the workspace's mode for its class, and 
   );
   assert.doesNotMatch(byMail, /phone number|a number/);
   assert.match(byMail, /have no email address that works/);
+});
+
+test("the drawer and the composer say the workspace's own word for an appointment, never a visit written in (spec §4.8)", () => {
+  const session = { shape: { calendar: "feed", dealsOn: false, word: "session" } };
+  const W = contracts.appointmentWords("session");
+  // The composer's clock, on each moment of the appointment.
+  const before = textOf(byTestId(composing(session, "visit_tomorrow"), "pb-clock"));
+  assert.ok(before.includes(`to ${W.tomorrowWho} — one message per ${W.one}.`), before);
+  assert.ok(before.includes("everyone with a session tomorrow — one message per session."), before);
+  const after = textOf(byTestId(composing(session, "visited"), "pb-clock"));
+  assert.ok(after.includes(`to ${W.yesterdayWho} — one message per ${W.one}.`), after);
+  assert.doesNotMatch(before + after, /\bvisit/i);
+  // Its guardrails, behind the shield.
+  const guard = byTestId(composing(session, "visit_tomorrow"), "pb-guard").props["data-tip"];
+  assert.match(guard, /One message per session\./);
+  assert.equal(
+    pbGuardWords({ kind: "visit", word: "session" }, ["whatsapp"], "conversational"),
+    "Only people with a recorded yes to hearing from you and a phone number. One message per session. People who asked to stop, have no phone number, or are mid-thread with a person are held back at the wire.",
+  );
+  // The drawer's count: the day's sessions are picked from the people who said yes.
+  const pane = paneOf(
+    playbook({ id: "pb-v", name: "The day before", trigger: "visit_tomorrow", policy_class: "booking" }),
+    session,
+  );
+  const tip = find(pane, (n) => n.props?.["data-testid"] === "pb-audience");
+  assert.match(tip.props["data-tip"], /^Everyone with a recorded yes — the day's sessions are picked from them/);
 });
 
 /* ------------------------------- Send by (One message, every channel, step 3) ------------------------------- */
@@ -945,7 +974,7 @@ test("a workspace that cannot send on any channel the playbook ticks still saves
   assert.equal(viaOf(tree).whatsapp.props.checked, true, "WhatsApp stays ticked: it waits for a number");
   assert.equal(
     reasonsOf(tree).whatsapp,
-    `${contracts.CHANNEL_WORDS.noWhatsApp} It goes by it once it can. A campaign goes by at least one channel.`,
+    `${contracts.CHANNEL_WORDS.noWhatsApp} It sends once it can. Keep at least one on.`,
     "and says why it waits, and why it stays",
   );
   // It is all the playbook keeps: switched off it would keep none, and a save that names none keeps what it had, so the
@@ -974,7 +1003,7 @@ test("where the workspace can send on nothing, Send by says so once with a door 
   for (const door of doors) assert.match(String(door.props.href), /admin\/integrations$/);
   // In place of the reasons a thumb reads, which the line has just given: what is left under the row is the promise
   // to the channel the playbook keeps, without its reason a second time.
-  assert.equal(textOf(byTestId(tree, "pb-via-whys")), "WhatsApp It goes by it once it can.");
+  assert.equal(textOf(byTestId(tree, "pb-via-whys")), "WhatsApp It sends once it can.");
   assert.equal(byTestId(tree, "pb-number"), null, "the number's own warning would be the same thing said twice");
   assert.equal(viaOf(tree).whatsapp.props.checked, true, "and the playbook still keeps the channel it ticks, waiting");
   // A workspace paused for billing is not one that can send on nothing: the sheet says the pause where Save is, and
@@ -1017,7 +1046,7 @@ test("a channel a playbook ticks that closes later stays ticked, says it waits, 
   });
   const tree = composing(viaSurface({ rows: [mine], ready: noMailbox }), null, "pb-visit");
   assert.equal(viaOf(tree).email.props.checked, true, "email stays ticked while the mailbox is missing");
-  assert.equal(reasonsOf(tree).email, `${contracts.CHANNEL_WORDS.noMailbox} It goes by it once it can.`);
+  assert.equal(reasonsOf(tree).email, `${contracts.CHANNEL_WORDS.noMailbox} It sends once it can.`);
   await press(byTestId(tree, "pb-save"));
   assert.deepEqual(said.at(-1)[2].channels, ["whatsapp", "email"], "and is saved with the playbook");
 });
@@ -1063,7 +1092,7 @@ test("the drawer's Goes by row: a press sends the channels it keeps, alone; one 
     "named to a screen reader as it is labelled",
   );
   assert.deepEqual(checkedOf(pane), [true, true, true]);
-  assert.equal(reasonsOf(pane).sms, `${contracts.CHANNEL_WORDS.noTextLine} It goes by it once it can.`);
+  assert.equal(reasonsOf(pane).sms, `${contracts.CHANNEL_WORDS.noTextLine} It sends once it can.`);
   viaOf(pane).email.props.onCheckedChange(false);
   await settled();
   assert.deepEqual(said.at(-1), ["channels", "pb-visit", ["whatsapp", "sms"]], "the channels, and nothing else of it");
@@ -1223,7 +1252,7 @@ test("the preview steps through the channels the playbook goes by, each as that 
     ),
     "the foot is the one the run sends (contracts emailFoot), with a visit's reason",
   );
-  assert.ok(now.foot.startsWith("You're getting this because of your visit with Northside Studio."));
+  assert.ok(now.foot.startsWith("You're getting this because of your appointment with Northside Studio."));
   assert.ok(now.foot.includes("Reply STOP to stop these emails."));
   // Back to the first, from the last: the walk wraps.
   nextChannel();
@@ -1461,7 +1490,7 @@ test("the words for a message no run can send are contracts', said once, in the 
   // The same words in the composer and on the card, from contracts, true of an email's message as of a WhatsApp one.
   assert.equal(
     contracts.MESSAGE_GONE_WORDS.card,
-    "Its message has no version its runs can send, so they are skipped until it has one again or the playbook sends another.",
+    "Its message has no version its runs can send, so they are skipped until it has one again or the campaign sends another.",
   );
   assert.equal(
     contracts.MESSAGE_GONE_WORDS.composer("Autumn offer"),
@@ -1506,4 +1535,120 @@ test("the moment's own message waiting on WhatsApp says where its WhatsApp versi
     "it does not say that WhatsApp alone reviews it",
   );
   setSurfaceValue("settings", undefined);
+});
+
+/* ---------------------------------- decision 20: the title, the doors, the notice ---------------------------------- */
+
+test("a Turn on opens a sheet titled for its moment, with no kind switch; New message keeps its title and its choice", () => {
+  setSurfaceValue("playbooks", playbooksSample(new Date(NOW)));
+  fresh();
+  // The sample holds no campaign on the day after: its Turn on names the campaign it would start.
+  const turnOn = find(
+    again(() => CampaignsHome({ param: "new:moment:visited", nowMs: NOW })),
+    (n) => n.type === PaneSheet,
+  );
+  assert.equal(turnOn.props.title, contracts.LIFECYCLE_WORDS.compose.turnOn("How did it go"));
+  assert.match(String(turnOn.props.title), /^Turn on \S/, "Turn on, and the moment's campaign by name");
+  assert.equal(turnOn.props.tools, undefined, "a Turn on is no choice of kind");
+  fresh();
+  // A moment that already holds one (the sample's Win-back): no second campaign's title is its name.
+  const holding = find(
+    again(() => CampaignsHome({ param: "new:moment:quiet_30", nowMs: NOW })),
+    (n) => n.type === PaneSheet,
+  );
+  assert.equal(holding.props.title, "New message");
+  fresh();
+  const plain = find(
+    again(() => CampaignsHome({ param: "new", nowMs: NOW })),
+    (n) => n.type === PaneSheet,
+  );
+  assert.equal(plain.props.title, "New message");
+  assert.ok(plain.props.tools, "New message chooses between Send once and Every time a moment comes");
+});
+
+test("a Turn on's title follows the moment its field holds: another moment chosen in the sheet is the title's", () => {
+  setSurfaceValue("playbooks", playbooksSample(new Date(NOW)));
+  fresh();
+  const draw = () => again(() => CampaignsHome({ param: "new:moment:visited", nowMs: NOW }));
+  const titleOf = (tree) => find(tree, (n) => n.type === PaneSheet).props.title;
+  let tree = draw();
+  assert.equal(titleOf(tree), contracts.LIFECYCLE_WORDS.compose.turnOn("How did it go"));
+  // The win-back's moment (by visits: the sample has a calendar), whose stage already runs the sample's Win-back: no
+  // second campaign's title is its name.
+  const moment = pickerOf(tree, "pb-moment");
+  assert.ok(
+    offered(moment).some((o) => o.value === "lapsed"),
+    "the field offers the win-back's moment",
+  );
+  moment.props.onValueChange("lapsed");
+  tree = draw();
+  assert.equal(titleOf(tree), "New message", "not 'Turn on How did it go' over a Win-back");
+  // Back to the day after: its Turn on again, the address never moved.
+  pickerOf(tree, "pb-moment").props.onValueChange("visited");
+  tree = draw();
+  assert.equal(titleOf(tree), contracts.LIFECYCLE_WORDS.compose.turnOn("How did it go"));
+  assert.equal(find(tree, (n) => n.type === PlaybookComposer).props.initialTrigger, "visited", "the sheet stays open");
+  // A choice is the sheet's it was made in: closed and opened again by the same Turn on, it is titled for its moment.
+  pickerOf(tree, "pb-moment").props.onValueChange("lapsed");
+  again(() => CampaignsHome({ param: null, nowMs: NOW }));
+  again(() => CampaignsHome({ param: null, nowMs: NOW }));
+  assert.equal(titleOf(draw()), contracts.LIFECYCLE_WORDS.compose.turnOn("How did it go"));
+});
+
+test("a moment that already holds a campaign says so as the composer opens on it; the one being changed is not news", () => {
+  // The harness's surface holds no campaign (`surface()`, rows []): this one holds the file's own Win-back (`playbook()`).
+  const holds = { rows: [playbook()] };
+  const winback = composing(holds, "quiet_30");
+  assert.equal(textOf(byTestId(winback, "pb-holds")), contracts.LIFECYCLE_WORDS.compose.holds("Win-back", false));
+  assert.match(textOf(byTestId(winback, "pb-holds")), /Win-back · On/);
+  const paused = composing({ rows: [playbook({ state: "paused" })] }, "lapsed");
+  assert.match(textOf(byTestId(paused, "pb-holds")), /Win-back · Paused/, "the win-back's two moments are one");
+  assert.equal(byTestId(composing(holds, "visited"), "pb-holds"), null, "a moment holding none says nothing");
+  assert.equal(
+    byTestId(composing(holds, null, "pb-1"), "pb-holds"),
+    null,
+    "changing the Win-back says nothing of itself",
+  );
+});
+
+test("the composer's calendar and number sentences are doors to where they are mended", () => {
+  // A reminder being changed: a moment of the appointment, no calendar, no WhatsApp number, and it goes by WhatsApp.
+  const reminder = playbook({
+    id: "pb-r",
+    name: "Reminder",
+    trigger: "visit_tomorrow",
+    template_id: "tpl-visit_reminder",
+    template_name: "visit_reminder",
+    policy_class: "booking",
+    channels: ["whatsapp"],
+  });
+  const tree = composing(
+    { rows: [reminder], calendar: "none", number: { present: false, health: { canSend: false, refusal: null } } },
+    null,
+    "pb-r",
+  );
+  const W = contracts.LIFECYCLE_WORDS.compose;
+  const cal = byTestId(tree, "pb-calendar");
+  assert.ok(cal, "a moment of the appointment, with no calendar");
+  assert.ok(textOf(cal).startsWith(W.calendar.words), "contracts' sentence");
+  const calDoor = byTestId(cal, "pb-calendar-door");
+  assert.match(String(calDoor.props.href), /admin\/workspace\/calendar$/, "the calendar's own row");
+  assert.equal(textOf(calDoor), W.calendar.door.label);
+  const num = byTestId(tree, "pb-number");
+  assert.ok(num, "no WhatsApp number, and the campaign goes by WhatsApp");
+  assert.ok(textOf(num).startsWith(W.number.words), "contracts' sentence");
+  const numDoor = byTestId(num, "pb-number-door");
+  assert.match(String(numDoor.props.href), /admin\/integrations$/);
+  assert.equal(textOf(numDoor), W.number.door.label);
+  // A number that cannot send says its own refusal, with the same door.
+  const flagged = composing(
+    {
+      rows: [reminder],
+      number: { present: true, health: { canSend: false, refusal: "The number is flagged by WhatsApp." } },
+    },
+    null,
+    "pb-r",
+  );
+  assert.ok(textOf(byTestId(flagged, "pb-number")).startsWith("The number is flagged by WhatsApp."));
+  assert.ok(byTestId(byTestId(flagged, "pb-number"), "pb-number-door"));
 });

@@ -228,7 +228,7 @@ async function runVerb(
 
 /** The text whisper: one line, and the held draft is written again with it in mind. */
 export async function steerDraft(messageId: string, text: string): Promise<VerbResult> {
-  return api()("POST messages/[id]/steer", { params: { id: messageId }, body: { text } });
+  return api()("POST messages/[id]/steer", { params: { id: messageId }, body: { text }, once: true });
 }
 
 /** The honest undo: cancel a queued send inside its grace window. */

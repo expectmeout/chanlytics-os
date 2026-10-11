@@ -32,7 +32,7 @@ import {
   type AskedPurpose,
   type MessageAbout,
 } from "@chanlytics/contracts";
-import { speaksUnattended } from "../inbound/reply-posture";
+import { unattendedHold } from "../inbound/reply-posture";
 
 interface OutboundFacts {
   /**
@@ -116,35 +116,25 @@ export function outboundGate(f: OutboundFacts): OutboundDecision {
   const may = mayMessageFor(f.contact, f.purpose, { proactive: f.proactive, channel: f.channel, about: f.about });
   if (!may.ok) return { allowed: false, refusal: may.reason };
 
-  // 1b. The workspace is paused: billing stopped, and with it everything
-  //     automated. Before the policy, which a paused workspace may still have set to auto.
-  if (f.paused) return { allowed: false, refusal: "paused" };
-
-  // 2. A human is mid-conversation on this thread. An automated template
-  //    arriving underneath them is precisely what pause is for — and the
-  //    customer cannot tell it apart from the person they are talking to.
-  if (f.pausedUntilMs !== null && f.nowMs < f.pausedUntilMs) {
-    return { allowed: false, refusal: "human_has_it" };
-  }
-
-  // 3. A booking the workspace confirms itself. Asked before the reply dial:
-  //    "a person confirms your booking" is the true thing to say, and it is
-  //    true even where the receptionist is otherwise free to speak.
-  if (f.bookingHeld) return { allowed: false, refusal: "booking_needs_a_person" };
-
-  // 4. The workspace turned automation off. 'ask' means a human approves
-  //    everything, and a send triggered from a phone call is no less automatic
-  //    for having been requested out loud. 'veto' is NOT off: it holds a reply
-  //    the receptionist composed so a person can redirect it, and a booking
-  //    link the caller just asked for has nothing to redirect — refusing it
-  //    silently punished the workspaces that chose the middle setting.
-  if (!speaksUnattended(f.replyMode)) return { allowed: false, refusal: "policy_hold" };
-
-  // 5. Runaway guard. The conversational path caps bot replies per thread per
-  //    day; nothing capped this one, so a caller who phoned thirty times — or a
-  //    voice agent that called its own tool in a loop — sent thirty billable
-  //    templates to one person.
-  if (f.sentToday >= f.dailyCap) return { allowed: false, refusal: "daily_cap" };
+  // 2. Then what every sender that speaks without a person asks, in the one order the text receptionist asks it too
+  //    (../inbound/reply-posture.ts unattendedHold): a person holding the thread (an automated template arriving
+  //    underneath them is precisely what the pause is for, and the customer cannot tell it apart from the person),
+  //    the day's cap on these sends to the thread (the conversational path caps its replies; nothing capped this one,
+  //    so a caller who phoned thirty times, or an agent calling its own tool in a loop, sent thirty billable
+  //    templates), the workspace paused for billing, a booking the workspace confirms itself ("a person confirms your
+  //    booking" is the true thing to say, even where the receptionist is otherwise free to speak), and the mode: 'ask'
+  //    means a person approves everything, and a send asked for out loud on a call is no less automatic; 'veto' is
+  //    NOT off, since a booking link the caller just asked for has nothing to redirect.
+  const hold = unattendedHold({
+    pausedUntilMs: f.pausedUntilMs,
+    nowMs: f.nowMs,
+    sentToday: f.sentToday,
+    dailyCap: f.dailyCap,
+    workspacePaused: f.paused === true,
+    bookingHeld: f.bookingHeld,
+    mode: f.replyMode,
+  });
+  if (hold) return { allowed: false, refusal: hold };
 
   return { allowed: true, refusal: null };
 }

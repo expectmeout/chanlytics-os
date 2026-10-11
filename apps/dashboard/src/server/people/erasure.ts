@@ -196,9 +196,10 @@ export async function scrubErasedJobs(
     return !!address && addresses.has(address);
   });
   for (const j of hit) {
+    // Its error too: a provider's refusal can quote the number or the address it refused.
     const { error: uerr } = await db
       .from("jobs")
-      .update({ payload: { scrubbed_at: new Date().toISOString(), reason: "contact erased" } })
+      .update({ payload: { scrubbed_at: new Date().toISOString(), reason: "contact erased" }, last_error: null })
       .eq("id", j.id);
     if (uerr) throw new Error(`scrub_jobs_update: ${uerr.message}`);
   }

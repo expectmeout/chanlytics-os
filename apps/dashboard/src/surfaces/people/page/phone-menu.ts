@@ -1,33 +1,45 @@
 /**
- * People's more-menu on a phone, the bar's last control (moved whole from legacy/pages/people.jsx, decision 0015): the
- * acts a desktop spreads over its controls row and a list's title line. Add a person; the sorts a desktop's headings give
- * (a phone draws none); everyone as a file; and with a list open, that list's own acts.
+ * What a phone's People offers beyond its bar's words (moved whole from legacy/pages/people.jsx, decision 0015). The bar
+ * says Select, Sort and Export as words (screen.tsx, Ruben, 10 Oct 2026: a ⋯ hid them), and adding someone is the
+ * page's act, Add people. What is left here is the two lists those words and the Lists sheet draw: the sorts a desktop's
+ * headings give (a phone draws none), which Sort opens as the phone's action sheet; and the open list's own acts, which
+ * a desktop does on the list's title line and a phone does at the foot of the Lists sheet.
  */
 import type { Dispatch, SetStateAction } from "react";
 import type { ListRule, PersonRowVM } from "@chanlytics/contracts";
-import { gate } from "../../legacy-verbs";
 import type { SavedList, SmartList } from "../types";
-import { PL_ADD_EMPTY, PL_LIST_EMPTY, PL_PHONE_SORTS, PL_TAB_LABEL } from "../words";
-import type { AddDraft, ListDraft } from "../words";
+import { PL_LIST_EMPTY, PL_PHONE_SORTS, PL_TAB_LABEL } from "../words";
+import type { ListDraft } from "../words";
 import type { PeopleMenuItem } from "../menu-groups";
 
 type Setter<T> = Dispatch<SetStateAction<T>>;
 
-export function peoplePhoneMenu({
-  canEditLists,
-  canExport,
-  shown,
-  setSelectMode,
-  setAddDraft,
-  setAddOpen,
-  setImportOpen,
+/** The sorts a phone offers: each checked when it is the one in use. */
+export function peopleSortItems({
   withCalendar,
   sortBy,
   sortDir,
   pickSort,
-  exportBlocked,
-  exportName,
-  exportHref,
+}: {
+  withCalendar: boolean;
+  sortBy: string;
+  sortDir: string;
+  pickSort: (by: string, dir: string) => void;
+}): PeopleMenuItem[] {
+  return PL_PHONE_SORTS.filter((s) => !s.needs || s.needs({ withCalendar })).map((s) => ({
+    label: s.label,
+    checked: sortBy === s.by && sortDir === s.dir,
+    onClick: () => pickSort(s.by, s.dir),
+  }));
+}
+
+/**
+ * The open list's own acts, for the Lists sheet: pin it to Today; a kept list's rename, its rule and its deletion; or
+ * what is shown kept as a list. None for a view with nothing of its own to do.
+ */
+export function peopleListActs({
+  canEditLists,
+  shown,
   canPin,
   pinned,
   togglePin,
@@ -40,19 +52,7 @@ export function peoplePhoneMenu({
   tab,
 }: {
   canEditLists: boolean;
-  canExport: boolean;
   shown: readonly PersonRowVM[];
-  setSelectMode: Setter<boolean>;
-  setAddDraft: Setter<AddDraft>;
-  setAddOpen: Setter<boolean>;
-  setImportOpen: Setter<boolean>;
-  withCalendar: boolean;
-  sortBy: string;
-  sortDir: string;
-  pickSort: (by: string, dir: string) => void;
-  exportBlocked: string | null;
-  exportName: string | null;
-  exportHref: string;
   canPin: boolean;
   pinned: boolean;
   togglePin: () => Promise<void>;
@@ -65,54 +65,11 @@ export function peoplePhoneMenu({
   tab: string;
 }): PeopleMenuItem[] {
   return [
-    // A selection begun from here, with nobody picked yet, for whoever a selection could do something for.
-    ...((canEditLists || canExport) && shown.length > 0
-      ? [{ label: "Select people", icon: "check", onClick: () => setSelectMode(true) }]
-      : []),
-    ...(canEditLists
-      ? [
-          {
-            label: "Add a person",
-            icon: "plus",
-            onClick: () => {
-              setAddDraft(PL_ADD_EMPTY);
-              setAddOpen(true);
-            },
-          },
-        ]
-      : []),
-    // A client list as a file, for the owner (the import door is the owner's, as the export is).
-    ...(canExport
-      ? [{ label: "Import people", icon: "download", meta: "CSV", onClick: () => setImportOpen(true) }]
-      : []),
-    { header: "Sort" },
-    ...PL_PHONE_SORTS.filter((s) => !s.needs || s.needs({ withCalendar })).map((s) => ({
-      label: s.label,
-      checked: sortBy === s.by && sortDir === s.dir,
-      onClick: () => pickSort(s.by, s.dir),
-    })),
-    // The route's file of everyone: a download (it answers as an attachment), so the page stays where it is.
-    ...(!exportBlocked
-      ? [
-          { divider: true },
-          {
-            label: exportName ? `Export ${exportName}` : "Export everyone",
-            icon: "external",
-            meta: "CSV",
-            onClick: () => window.location.assign(exportHref),
-            ...(canExport ? {} : { gate: gate("export") }),
-          },
-        ]
-      : []),
     ...(canPin
-      ? [
-          { divider: true },
-          { label: pinned ? "Take off Today" : "Pin to Today", icon: "pin", onClick: () => void togglePin() },
-        ]
+      ? [{ label: pinned ? "Take off Today" : "Pin to Today", icon: "pin", onClick: () => void togglePin() }]
       : []),
     ...(activeSaved && canEditLists
       ? [
-          { divider: true },
           {
             label: "Rename this list",
             icon: "edit",
@@ -147,7 +104,6 @@ export function peoplePhoneMenu({
       : []),
     ...(!activeSaved && filtered && (shown.length > 0 || viewRule) && canEditLists
       ? [
-          { divider: true },
           {
             label: shown.length ? `Save these ${shown.length} as a list` : "Keep this list as yours",
             icon: "filter",

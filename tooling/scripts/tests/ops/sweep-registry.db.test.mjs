@@ -4,7 +4,8 @@
  * judged that way, a name that arrives without its job is refused, the
  * upserts the sweeps themselves make still land, the alert stamp works on
  * the new rows, and the calls clock records what it asks, so the register's
- * word that it is judged on its answers is true (00149).
+ * word that it is judged on its answers is true (00149); and every clock that
+ * asks the edge waits past the sweep's own minute for the answer (00363).
  *
  * Runs the way jobs-outbox.db.test.mjs does: against the database
  * `supabase start` builds on this machine, never production. The calls clock
@@ -110,9 +111,12 @@ const EVERY_CLOCK = {
   purge_provider_events: "purge-provider-events",
   // The keys writes were answered under (00340): nightly, a day on, judged by its run.
   purge_idempotency_keys: "purge-idempotency-keys",
-  // The receptionist's kept turns and the prompts they read (00359): nightly, thirty days on, judged by its run.
+  // A review the mirror has not seen for its days, and a closed invitation (00392): nightly, judged by their runs.
+  purge_google_reviews: "purge-google-reviews",
+  purge_invitations: "purge-invitations",
+  // The receptionist's kept turns and the prompts they read (00401): nightly, thirty days on, judged by its run.
   purge_model_turns: "purge-model-turns",
-  // A workspace's old settings (00360): nightly, 400 days after a version is replaced, judged by its run.
+  // A workspace's old settings (00402): nightly, 400 days after a version is replaced, judged by its run.
   purge_config_versions: "purge-config-versions",
 };
 const RUN_JUDGED = [
@@ -123,7 +127,9 @@ const RUN_JUDGED = [
   "purge_config_versions",
   "purge_cron_history",
   "purge_events",
+  "purge_google_reviews",
   "purge_idempotency_keys",
+  "purge_invitations",
   "purge_jobs",
   "purge_leads",
   "purge_model_turns",
@@ -299,5 +305,83 @@ test(
       { healthy: false, detail: 'the edge answered 503: {"ok":false,"error":"no_provider_credentials"}' },
       "the edge's answer is judged, in its own words",
     );
+  },
+);
+
+test(
+  "every clock that asks the edge waits past the sweep's own 60 s, so a tick that finishes slowly and well is never read as a timeout",
+  { skip },
+  () => {
+    // Each clock is run as pg_cron runs it (its job's command), with something owed to each one that asks only when
+    // something is: the deadman and health clocks called pg_net with 20 s and the rest took request_sweep's 55, so a
+    // healthy sweep that ran its minute was judged "the request timed out before the edge answered" (00363).
+    const seen = rolledBack(`
+    declare
+      t uuid; c uuid; p uuid; s uuid; tpl uuid; pb uuid; b uuid; l uuid;
+      tag text := substr(md5(random()::text), 1, 8);
+      r record;
+      cmd text;
+      st record;
+    begin
+      delete from vault.secrets where name = 'edge_base_url';
+      perform vault.create_secret('http://edge.invalid', 'edge_base_url');
+      insert into public.tenants (slug, name) values ('every-clock-' || tag, 'Every clock') returning id into t;
+      -- calls: a call still marked ongoing half an hour after it began.
+      insert into public.calls (tenant_id, retell_call_id, status, started_at)
+           values (t, 'every-clock-' || tag, 'ongoing', now() - interval '31 minutes');
+      -- channel quality: a connected WhatsApp number.
+      insert into public.tenant_channels (tenant_id, kind, status, external_id)
+           values (t, 'whatsapp', 'active', 'every-clock-' || tag);
+      -- domains: a domain being checked.
+      insert into public.sending_domains (tenant_id, host, from_local, from_name, state)
+           values (t, 'every-clock-' || tag || '.example.com', 'hello', 'Every clock', 'verifying');
+      -- jobs: one due.
+      insert into public.jobs (tenant_id, kind, due_at) values (t, 'push_receipts', now() - interval '1 minute');
+      -- notes: a conversation quiet for seven hours.
+      insert into public.contacts (tenant_id) values (t) returning id into c;
+      insert into public.conversations (tenant_id, contact_id, last_inbound_at) values (t, c, now() - interval '7 hours');
+      -- leads: a round that has not ended.
+      insert into public.lead_searches (tenant_id, via, card, name, asked, plan)
+           values (t, 'people', 'every clock', 'Every clock', 'every clock', '{}') returning id into s;
+      insert into public.lead_rounds (tenant_id, search_id, seq, purpose, plan, plan_version, target, month, day)
+           values (t, s, 1, 'main', '{}', 1, 0, to_char(now(), 'YYYY-MM'), to_char(now(), 'YYYY-MM-DD'));
+      -- partners: a workspace that awaits its standing and has earned its partner something.
+      insert into public.partners (code) values ('clock-' || tag) returning id into p;
+      insert into public.partner_tenants (tenant_id, partner_id, code_used) values (t, p, 'clock-' || tag);
+      insert into public.partner_earnings (partner_id, tenant_id, stripe_invoice_id, stripe_event_id, kind, amount_cents,
+                                           currency, share_bp, earned_cents, paid_at, payable_at)
+           values (p, t, 'in_' || tag, 'evt_' || tag, 'share', 1000, 'usd', 2000, 200, now(), now() + interval '30 days');
+      -- reach-out and its check: a send held two weeks, for a check that could not be made.
+      insert into public.templates (tenant_id, channel, name, language)
+           values (t, 'whatsapp', 'every_clock', 'en') returning id into tpl;
+      insert into public.playbooks (tenant_id, name, trigger, policy_class, template_id, template_name, template_language)
+           values (t, 'Every clock', 'quiet_30', 'reengage', tpl, 'every_clock', 'en') returning id into pb;
+      insert into public.broadcasts (tenant_id, name, scheduled_for, state, audience)
+           values (t, 'Every clock', now(), 'scheduled', '{"kind":"reach_out","hand":"note"}') returning id into b;
+      insert into public.leads (tenant_id) values (t) returning id into l;
+      insert into public.reach_out_sends (id, tenant_id, broadcast_id, root_id, lead_id, state, reason, created_at, updated_at)
+           values (gen_random_uuid(), t, b, pb, l, 'held', 'check_unavailable', now() - interval '15 days',
+                   now() - interval '2 hours');
+      for r in select e.sweep, e.jobname from public.sweep_status e where e.judged_by = 'request' order by e.sweep loop
+        select j.command into cmd from cron.job j where j.jobname = r.jobname;
+        execute cmd;
+        select e.request_id, e.requested_at = now() as asked_now, e.note into st
+          from public.sweep_status e where e.sweep = r.sweep;
+        seen := seen || jsonb_build_object(r.sweep, jsonb_build_object(
+          'asked', st.request_id is not null and st.asked_now and st.note is null,
+          'timeout_ms', (select q.timeout_milliseconds from net.http_request_queue q where q.id = st.request_id)));
+      end loop;
+    end;
+  `);
+    const asking = Object.keys(EVERY_CLOCK)
+      .filter((sweep) => !RUN_JUDGED.includes(sweep))
+      .sort();
+    assert.deepEqual(Object.keys(seen).sort(), asking, "every clock judged by its request, and only those");
+    for (const sweep of asking)
+      assert.deepEqual(
+        seen[sweep],
+        { asked: true, timeout_ms: 65000 },
+        `${sweep}: asked the edge, and pg_net waits past the sweep's own 60 s`,
+      );
   },
 );

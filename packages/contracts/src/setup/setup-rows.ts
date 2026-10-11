@@ -631,6 +631,7 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
     findable: !!i.google?.ready && i.google.places !== false && !i.google.listing,
     trySkipped: later.has(TRY_SKIPPED),
     forwardingOwed: forwardingOwedOf(i, later),
+    calendarLinked: i.calendar.state !== "none",
     check: checkFactsOf(i),
   };
 }

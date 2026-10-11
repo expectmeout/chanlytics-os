@@ -183,8 +183,15 @@ function edge(doors = {}) {
   return calls;
 }
 
-/** The service role's save, as the door answers it: what it was asked, recorded. */
-function serviceSave(answer = () => ({ root_id: ROOT_ID, step_ids: [ROOT_ID, STEP2], rechecked: 0 })) {
+/** The service role's save, as the door answers it: what it was asked, recorded; a new chain's start with its line (00381). */
+function serviceSave(
+  answer = (a) => ({
+    root_id: ROOT_ID,
+    step_ids: [ROOT_ID, STEP2],
+    rechecked: 0,
+    ...(a.p_decision ? { decision_id: "d-1", undo_dropped: false } : {}),
+  }),
+) {
   const asked = [];
   setServiceClient(
     fakeDb(
@@ -281,6 +288,24 @@ test("GET reach-outs lists each chain, steps in order, with what decides its nex
   );
 });
 
+test("GET reach-outs answers its reader's payload (readers/playbooks.ts reachOutChains), each chain a row a citation names", async () => {
+  const { load, readerContext } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+  const { reachOutChains } = await import(at("apps/dashboard/src/server/readers/playbooks.ts"));
+  const page = await chains.GET.run(get(), ctxFor(tables("viewer")));
+  const read = await load(
+    readerContext(ctxFor(tables("viewer")), { tenantId: A, role: "viewer" }),
+    reachOutChains,
+    undefined,
+  );
+  assert.deepEqual(read.data, page, "the route's payload is the reader's");
+  assert.deepEqual(
+    read.rows.map((r) => [r.kind, r.id, r.route, r.label]),
+    page.chains.map((c) => ["playbook", c.root_id, `outbound/${c.root_id}`, c.name]),
+    "each chain is a row a citation names, opened where its row opens",
+  );
+  assert.equal(read.rows.length, 1);
+});
+
 test("POST reach-outs: an operator's chain is validated, saved by the service role with the member's id, then started through the run-now door; its answer is said (R13–R15)", async () => {
   const asked = serviceSave();
   const calls = edge({
@@ -295,6 +320,8 @@ test("POST reach-outs: an operator's chain is validated, saved by the service ro
     p_tenant_id: A,
     p_user_id: USER,
     p_chain: { ...CHAIN(), root_id: null },
+    // The start's line in the ledger rides with the chain (00381): the door writes it, the route no longer does.
+    p_decision: { name: CHAIN().name },
   });
   assert.deepEqual(
     calls.map((c) => [c.path, c.body]),
@@ -308,7 +335,11 @@ test("POST reach-outs: an operator's chain is validated, saved by the service ro
     start: { outcome: "held", reason: "waiting_for_you", planned: 30, run_id: RUN },
   });
   assert.equal(startWords(out.start).text, "Planned 30 emails. The first run waits on you: open it to approve.");
-  assert.equal(ctx.supabase.seen.filter((s) => s.table === "decisions" && s.op === "insert").length, 1);
+  assert.equal(
+    ctx.supabase.seen.filter((s) => s.table === "decisions" && s.op === "insert").length,
+    0,
+    "the start's line is the door's own write, never the route's",
+  );
 
   // Held for billing: said as it is, never "within the hour" (R14).
   edge({

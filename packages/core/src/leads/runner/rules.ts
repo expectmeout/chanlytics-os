@@ -90,4 +90,15 @@ const wasJudged = (m: LeadMemberRow): boolean => {
   return !!j && typeof j === "object" && j.answer !== null && j.answer !== undefined;
 };
 
-export { iso, isRefused, isRetryable, minute, outOfTime, webhookUrl, wasJudged };
+/**
+ * Why nothing new may reach the provider for this workspace now, or null when it may: searching is switched off for it
+ * (§0.5), or it may not spend (contracts maySpend: a plan that lapsed, a card that failed, since the door reserved).
+ * The doors ask both before they reserve; a round runs for minutes to a day after, so a start and a check ask again.
+ */
+async function heldBack(p: LeadPorts, tenantId: LeadRoundRow["tenant_id"]): Promise<"paused" | "may_not_spend" | null> {
+  if (!(await p.db.leadSearchesOn(tenantId))) return "paused";
+  if (!(await p.db.maySpend(tenantId))) return "may_not_spend";
+  return null;
+}
+
+export { heldBack, iso, isRefused, isRetryable, minute, outOfTime, webhookUrl, wasJudged };

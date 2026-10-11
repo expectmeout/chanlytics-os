@@ -13,8 +13,8 @@ import type { subscribeWorkspaceChanges, SubscribeOptions } from "@chanlytics/db
 import { MIN_MS } from "@chanlytics/contracts";
 import { activateOverride, type SurfaceOverride } from "./surface-data";
 import { ApiError } from "../client/api";
-import { api } from "./api";
-import { cachedTenant, clearSurfaceCache, snapshotSurface } from "./surface-cache";
+import { api, dropPrefetched } from "./api";
+import { cachedTenant, sealSurfaceCache, snapshotSurface } from "./surface-cache";
 import { getConnection, getSurfaceStatuses, isSurfaceReady, setConnection, setStatus } from "./surface-status";
 import { ROUTE_WAIT_MS, keepForItsPage, routeDrawsFor, routeSurfaceFor } from "./surface-registry";
 import { feedWatch, REALTIME_GRACE_MS, subscribesToRealtime, wantsRefresh, type FeedWatch } from "./surface-realtime";
@@ -260,8 +260,9 @@ function newSurfaceRun(overrides: SurfaceOverride[]): SurfaceRun {
 const viewedWorkspace = () => (window as unknown as { __ACTIVE_WORKSPACE?: string }).__ACTIVE_WORKSPACE ?? null;
 
 function signOutOnUnauthorized(run: SurfaceRun): void {
-  // Cached customer data must never outlive the session allowed to see it.
-  clearSurfaceCache();
+  // Cached customer data must never outlive the session allowed to see it, and a read landing before the page unloads
+  // must not write it back (surface-cache.ts sealSurfaceCache).
+  sealSurfaceCache();
   // The page's hash goes along, so signing in again lands where they were.
   if (!run.cancelled) window.location.assign(signInHref(window.location));
 }
@@ -338,8 +339,15 @@ function scheduleSurfaceRefresh(run: SurfaceRun, o: SurfaceOverride): void {
  * boot is answered from what the boot holds (holdAnswers), which may be from before the change.
  */
 function refreshSoon(run: SurfaceRun, o: SurfaceOverride): void {
-  if (run.held) run.held.add(o);
-  else scheduleSurfaceRefresh(run, o);
+  if (run.held) {
+    run.held.add(o);
+    return;
+  }
+  // A read already out was sent before this change: the refresh it asks for must not share it, as a write's must not
+  // (client/api.ts forget). Today and the Inbox both read the conversations, and the Inbox's refresh after a message
+  // could be answered by Today's read from a moment before it, the message missing until the next.
+  api().forget();
+  scheduleSurfaceRefresh(run, o);
 }
 
 /**
@@ -365,7 +373,9 @@ function tenantChangedSinceCache(run: SurfaceRun): boolean {
   const cached = run.cachedAtBoot;
   const actual = viewedWorkspace();
   if (cached && actual && cached !== actual) {
-    clearSurfaceCache();
+    // Sealed, not only cleared: what the other reads land with before the reload is this workspace's, never to be
+    // written into the tab under the one that was cached.
+    sealSurfaceCache();
     window.location.reload();
     return true;
   }
@@ -433,7 +443,11 @@ function bootInPasses(run: SurfaceRun): SurfaceBoot {
     : inLanes(pagesOwn, BOOT_LANES, boot);
   const booted = firstPass
     .then(() => (run.cancelled ? undefined : pageReadsIn(window)))
-    .then(() => (run.cancelled ? undefined : inLanes(strangers, BOOT_LANES, boot)));
+    .then(() => {
+      // The page's own reads are in: what the document's head started for them and they did not take is nobody's.
+      dropPrefetched(window);
+      return run.cancelled ? undefined : inLanes(strangers, BOOT_LANES, boot);
+    });
   activeBoot = booted.then(
     () => undefined,
     () => undefined,
@@ -456,6 +470,8 @@ function joinFeedEarly(run: SurfaceRun, boot: SurfaceBoot, joinFeed: JoinLiveFee
     const due = run.held;
     run.held = null;
     if (run.cancelled || !due) return;
+    // A boot read still out may have been sent before what the feed said: the reads it asks for share none (refreshSoon).
+    if (due.size) api().forget();
     for (const o of due) scheduleSurfaceRefresh(run, o);
   });
   void boot.whoIsLooking.then(() => {

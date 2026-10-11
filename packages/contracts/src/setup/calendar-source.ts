@@ -341,7 +341,6 @@ export function booksWithName(withWhat: string): string | null {
 /** The row and its fold, in the words the product says them. */
 export const BOOKING_TOOL_WORDS = {
   label: "Booking tool",
-  hint: "What you book with. It fills your calendar and tells the receptionist what is taken.",
   empty: "Not set up",
   placeholder: "What do you book with?",
   link: {

@@ -408,6 +408,7 @@ test(
     assert.ok(isReviewsLedgerDto(out), "contracts' guard takes it");
     assert.deepEqual(Object.keys(out).sort(), [
       "days",
+      "end",
       "on_record",
       "timezone",
       "today",
@@ -415,6 +416,7 @@ test(
       "waiting_total",
       "written",
     ]);
+    assert.equal(out.end, out.today, "a window that names no last day ends on the workspace's today (00359)");
     assert.deepEqual(Object.keys(out.on_record).sort(), ["complete", "places", "profile"]);
     assert.ok(out.written.length > 0 && out.waiting.length > 0, "a review written and one that waits are both in it");
     for (const w of out.written)

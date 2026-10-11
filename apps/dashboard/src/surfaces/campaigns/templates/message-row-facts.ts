@@ -149,7 +149,7 @@ function usageOf(p: { g: TemplateGroup; onFile: TemplateRow[]; row: TemplateDto 
   const paused = users.filter((p) => p.state !== "running").map((p) => p.name);
   const quoted = (names: string[]) => names.map((n) => `“${n}”`).join(", ");
   const pausedWords = !pbRows
-    ? " Chanlytics couldn't check which playbooks send it."
+    ? " Chanlytics couldn't check which campaigns send it."
     : paused.length === 1
       ? ` ${quoted(paused)} is paused and sends it: if it resumes, its runs skip until it has another template.`
       : paused.length > 1

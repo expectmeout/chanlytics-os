@@ -1,7 +1,8 @@
 /**
  * The rules an answer's text passes before the Line draws it: tag-shaped junk out (cleanAnswer), a figure with nothing
- * read behind it (isUngrounded), whether two questions are one thread, the Open button's words, and a next question
- * that echoes a place already offered. The answer's shape and its normaliser are ask-answer.ts's.
+ * read behind it (isUngrounded), whether two questions are one thread, the Open button's words, a next question that
+ * echoes a place already offered, and whether its own words claim a write (claimsWrite). The answer's shape and its
+ * normaliser are ask-answer.ts's.
  */
 import type { AskLanguage } from "./ask-language";
 
@@ -67,3 +68,34 @@ export const FOLLOWUP_ECHO: Array<[RegExp, RegExp]> = [
   [/transcript|recording|grabaci|transcripci|the call|la llamada/i, /^conversations\/cv-/],
   [/thread|hilo|conversation/i, /^inbox\/th-/],
 ];
+
+/* ---------------------------------------------------------- a write claimed */
+
+/**
+ * An answer's own words, what it quotes set aside: a span in quotes (“…”, "…", «…», or '…' opened after a space, a
+ * colon or a bracket and holding a space, which is never an apostrophe) is someone else's -- a draft to approve, a
+ * message received -- never a sentence the answer says. The eval's headline check (one sentence) and the write claims
+ * read only this. Moved from the eval (tooling/scripts/eval-ask-context.mjs), which reads it from here.
+ */
+export const unquoted = (s: string | null | undefined): string =>
+  (s ?? "").replace(/“[^”]*”|"[^"]*"|«[^»]*»/g, "…").replace(/(^|[\s:(])'[^']*\s[^']*'/g, "$1…");
+
+/**
+ * What an answer may never say: that it did something. Ask proposes and a person approves (spec §7), so a sentence
+ * that says a message went, a setting changed, a card was approved or a campaign was set up, started, paused or
+ * renamed is a claim no turn can make true. "I", "I have" and "I've" alike; the Spanish "he …" and "aprobé".
+ */
+const WRITE_CLAIMS = [
+  /\bI(?: have|['’]ve)? (?:sent|changed|updated|closed|snoozed|resolved|archived|invited|paused|deleted|approved|resumed|renamed|started|set up|turned on|scheduled)\b/i,
+  /\bhe (?:enviado|cambiado|actualizado|cerrado|aprobado|pausado|iniciado|configurado|programado)\b/i,
+  /(?<![\p{L}\p{N}])aprob[eé](?![\p{L}\p{N}])/iu,
+  /\bdone[,.!]/i,
+];
+
+/**
+ * Whether an answer's own words claim a write (WRITE_CLAIMS): a draft it quotes claims nothing. The eval's `no_write`
+ * and `names_card` read it, and the turn's loop, which says a claiming headline beside cards as the cards' own sentence
+ * (apps/dashboard/src/server/ask/loop.ts).
+ */
+export const claimsWrite = (text: string | null | undefined): boolean =>
+  WRITE_CLAIMS.some((re) => re.test(unquoted(text)));

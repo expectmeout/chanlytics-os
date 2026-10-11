@@ -14,7 +14,7 @@
  *   usageMonth            a workspace's month of metered use by meter, purpose and model (ai_usage_month), on the
  *                         caller's client: RLS decides whose rows it sums.
  *
- * And what a row of it names (decision 0039; 00359 model_prompts, model_turns):
+ * And what a row of it names (decision 0039; 00401 model_prompts, model_turns):
  *
  *   keepModelTurn         one receptionist turn as the model read it, and the text of the prompt it read, in one
  *                         write (model_turn_keep). A write that fails throws; the model port logs it and keeps the answer.
@@ -111,7 +111,7 @@ export async function keepModelTurn(db: Db, turn: ModelTurnKept): Promise<void> 
 /** An erasure's hand: the workspace's kept turns that name any of the person's identifiers, deleted; how many went. */
 export async function scrubModelTurns(db: Db, tenantId: string, needles: readonly string[]): Promise<number> {
   const { data, error } = await db.rpc("model_turns_scrub", { p_tenant_id: tenantId, p_needles: [...needles] });
-  // A database before 00359 keeps no turn, so nothing is there to scrub: the dashboard may deploy first (either order).
+  // A database before 00401 keeps no turn, so nothing is there to scrub: the dashboard may deploy first (either order).
   if (error && (error.code === "PGRST202" || error.code === "42883")) return 0;
   if (error) throw new Error(`model_turns_scrub: ${error.message}`);
   return data ?? 0;

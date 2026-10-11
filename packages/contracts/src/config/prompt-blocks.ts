@@ -86,7 +86,7 @@ type BlockMark = { row: string; label: string; startsWith: string; channel?: "wh
 // Plain literals, never a spread: a top-level spread is a side effect to the bundler,
 // and every package that bundles contracts would then carry these tables unused.
 const PLATFORM_LABEL = "Chanlytics' own instructions";
-const PLATFORM_NOTE = "Written by Chanlytics for every workspace, not by you.";
+const PLATFORM_NOTE = "The same for every business";
 
 /**
  * The openings `composeSystemPrompt` writes, from the one place it writes them
@@ -111,14 +111,14 @@ const BLOCK_MARKS: readonly BlockMark[] = /* @__PURE__ */ (() => [
     label: "Hand-off",
     startsWith: O.handoffChat,
     channel: "whatsapp",
-    note: "Always sent, whether or not you give reasons — it is how anything it should not decide reaches you. On WhatsApp it hands you the thread.",
+    note: "Always sent, reasons or not: it's how anything it shouldn't decide reaches you.",
   },
   {
     row: "handoff",
     label: "Hand-off",
     startsWith: O.handoffCall,
     channel: "voice",
-    note: "Always sent, whether or not you give reasons — it is how a caller who needs a person reaches one. On a call it transfers to your number in opening hours if you gave one, and takes a message otherwise.",
+    note: "Always sent, reasons or not: it's how a caller who needs a person reaches one, or leaves a message.",
   },
   { row: "platform", label: PLATFORM_LABEL, startsWith: O.callTools, channel: "voice", note: PLATFORM_NOTE },
   { row: "platform", label: PLATFORM_LABEL, startsWith: O.callMedium, channel: "voice", note: PLATFORM_NOTE },
@@ -128,7 +128,7 @@ const BLOCK_MARKS: readonly BlockMark[] = /* @__PURE__ */ (() => [
     row: "guardrails",
     label: "Rules it always keeps",
     startsWith: O.rules,
-    note: "Beside the rules on this row: a line Chanlytics writes for every workspace, for a customer who replies YES OFFERS; where there is a WhatsApp number, a line that asks each customer once for that yes; and any rule your Autonomy tab adds.",
+    note: "Also here: Chanlytics' own lines about offers and news, and any rule from Autonomy.",
   },
 ])();
 
@@ -140,7 +140,7 @@ const CARRIED: BlockMark = {
   row: "extra_instructions",
   label: "In your own words",
   startsWith: "",
-  note: "The prompt this workspace had before it had fields. It is read until you write your own.",
+  note: "Its earlier instructions, read until you write your own.",
 };
 // A workspace whose fields compose nothing: the resolver hands its prompt back as
 // stored, and none of the page's details are in it. It never "had fields", so the
@@ -154,14 +154,14 @@ const PROMPT: BlockMark = {
   //
   // Marked pure for the reason rule-strengths.ts gives beside STRENGTHS: a substitution makes this an expression
   // the bundler keeps at the top level, and the prompt view is drawn on one tab of the dashboard and nowhere else.
-  note: /* @__PURE__ */ (() => `This workspace's own prompt, read as it stands. ${NO_FIELDS_COMPOSED_WORDS}`)(),
+  note: /* @__PURE__ */ (() => `Its own instructions, as they stand. ${NO_FIELDS_COMPOSED_WORDS}`)(),
 };
 const BASELINE: BlockMark = { row: "platform", label: PLATFORM_LABEL, startsWith: "", note: PLATFORM_NOTE };
 const AUTONOMY: BlockMark = {
   row: "autonomy",
   label: "Autonomy's rules",
   startsWith: "",
-  note: "Set on the Autonomy tab, not on this page.",
+  note: "Set on Autonomy",
 };
 
 /** Whose words these are, as whoseWords decides it for the form's box too, and the mark that says so. */

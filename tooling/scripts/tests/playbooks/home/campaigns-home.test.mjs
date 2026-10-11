@@ -19,6 +19,7 @@ import {
   textOf,
   press,
   settle,
+  unmount,
 } from "../../_legacy-react.mjs";
 
 const TID = "t-studio";
@@ -59,6 +60,10 @@ Object.assign(globalThis, {
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
 });
 const { CampaignsHome } = await import(`${SRC}/surfaces/campaigns/home/home-page.tsx`);
+const { useLedgerOnScreen } = await import(`${SRC}/surfaces/campaigns/home/ask-on-campaigns.tsx`);
+const { Menu } = await import(`${SRC}/surfaces/kit/menu/menu.tsx`);
+const { Icon } = await import(`${SRC}/surfaces/kit/icon/icon.tsx`);
+const { Button } = await import(`${SRC}/surfaces/kit/button/button.tsx`);
 const { playbooksSample } = await import(`${SRC}/surfaces/campaigns/playbooks/sample.ts`);
 const { broadcastsSample } = await import(`${SRC}/surfaces/campaigns/broadcasts/sample.ts`);
 const { playbooks: verbs } = await import(`${SRC}/surfaces/campaigns/playbooks/verbs.ts`);
@@ -90,6 +95,9 @@ function surfaces(over = {}) {
     noNumber: 0,
     saidYes,
   });
+  // The call's text and the Library's count are the playbooks surface's own read of the templates (Settings is no longer
+  // drawn on Campaigns): a test that hands Settings a library hands it here.
+  const lib = over.settings && "templatesAll" in over.settings ? over.settings.templatesAll : pb.templates;
   setSurfaceValue("playbooks", {
     ...pb,
     pools: {
@@ -99,13 +107,30 @@ function surfaces(over = {}) {
       quiet_30: pool(5, 0, 0),
       ...(over.pools ?? {}),
     },
+    library: lib,
+    messages:
+      over.settings && "messages" in over.settings
+        ? over.settings.messages
+        : lib
+          ? contracts.campaignMessagesOf(lib)
+          : null,
     ...(over.playbooks ?? {}),
   });
+  // A report a test hands the broadcasts surface is Campaigns' own 30 days now (campaign_results), drawn from there.
+  const { report: handed, ...broadcastsOver } = over.broadcasts ?? {};
   setSurfaceValue("broadcasts", {
     ...bc,
     reach: { people: 29, canHear: 7, saidMessages: 7, saidOffers: 0 },
-    report: { days: 30, totals: { sent: 8, delivered: 8, read: 5, replied: 3, optIns: 3, optOuts: 2 } },
-    ...(over.broadcasts ?? {}),
+    ...broadcastsOver,
+  });
+  setSurfaceValue("campaign_results", {
+    period: "30d",
+    report:
+      over.broadcasts && "report" in over.broadcasts
+        ? handed
+        : { days: 30, totals: { sent: 8, delivered: 8, read: 5, replied: 3, optIns: 3, optOuts: 2 }, sources: [] },
+    chains: null,
+    fetchedAt: 0,
   });
   setSurfaceValue("reach_outs", over.reachOuts ?? []);
   setSurfaceValue("settings", {
@@ -116,7 +141,8 @@ function surfaces(over = {}) {
 }
 
 afterEach(() => {
-  for (const k of ["playbooks", "broadcasts", "reach_outs", "settings"]) setSurfaceValue(k, undefined);
+  for (const k of ["playbooks", "broadcasts", "campaign_results", "reach_outs", "settings"])
+    setSurfaceValue(k, undefined);
   globalThis.__DEMO_MODE = false;
   globalThis.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
 });
@@ -146,7 +172,7 @@ test("the home draws the rail's moments in order, the lines under it, and the th
   assert.ok(byTestId(tree, "campaigns-home"));
   assert.deepEqual(
     allBy(tree, "cmh-stage").map((s) => s.props["data-stage"]),
-    ["first_contact", "visit", "after", "quiet"],
+    ["first_contact", "before", "after", "quiet"],
     "the sample workspace has no deals, so no proposal follow-up",
   );
   assert.equal(allBy(tree, "cmh-people").length, 4);
@@ -157,7 +183,7 @@ test("the home draws the rail's moments in order, the lines under it, and the th
     allBy(tree, "cmh-rung").map((r) => r.props["data-rung"]),
     ["people", "messages", "offers"],
   );
-  assert.ok(allBy(tree, "cmh-strip").length >= 1, "the call's text, at the least");
+  assert.ok(allBy(tree, "cmh-row").length >= 3, "every campaign is a row of the ledger under the moments");
 });
 
 test("a rung's bar is its share of the whole: everyone in People fills it, and the rest is a part of its own (3 Oct: a whole share drew as half)", async () => {
@@ -220,10 +246,14 @@ test("the page draws nothing before the playbooks have landed, and a demo sessio
   fresh();
   const tree = page();
   assert.ok(byTestId(tree, "campaigns-home"), "a demo draws the Playbooks and Broadcasts samples");
-  assert.equal(allBy(tree, "cmh-stage")[3].props["data-state"], "on", "the sample's win-back is running");
+  assert.equal(
+    allBy(tree, "cmh-stage").find((s) => s.props["data-stage"] === "quiet").props["data-state"],
+    "on",
+    "the sample's win-back is running",
+  );
 });
 
-test("the phone opens on the moments, who can hear you a line in their head, and the lines under them as one list", () => {
+test("the phone opens on the moments: who can hear you one line in their head, and every campaign under them on the journey's line", () => {
   surfaces();
   globalThis.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
   fresh();
@@ -231,28 +261,25 @@ test("the phone opens on the moments, who can hear you a line in their head, and
   const home = byTestId(tree, "campaigns-home");
   assert.equal(home.props["data-phone"], "true");
   assert.equal(allBy(tree, "cmh-rung").length, 0, "no ladder on a phone: one line");
-  assert.ok(byTestId(tree, "cmh-also"), "the lines under the rail are one tile, Also");
-  // Who can hear you is a line in the Moments head (8 Oct 2026): it was a tile of its own over them, a figure, a bar and a
-  // note that pressed nothing, and the work stood a screen below it.
+  assert.equal(
+    byTestId(tree, "cmh-also"),
+    null,
+    "no Also tile: the lists and the reach-outs are groups of the one list",
+  );
   const rail = byTestId(tree, "cmh-rail");
   const reach = byTestId(rail, "cmh-reach");
-  assert.ok(reach, "the reach is said inside the moments' tile");
-  assert.equal(
-    allBy(tree, "cmh-reach").filter((n) => typeof n.type === "string").length,
-    1,
-    "once: no tile of its own beside it",
-  );
+  assert.ok(reach, "the reach is said inside the moments' pane");
+  assert.equal(allBy(tree, "cmh-reach").filter((n) => typeof n.type === "string").length, 1, "once");
   assert.match(textOf(reach), /7 of 29 can hear you/);
   assert.match(textOf(reach), /0 to offers/);
   assert.equal(all(reach, (n) => n.type === Meter).length, 0, "no bar: the figure says it");
-  assert.ok(byTestId(reach, "cmh-channels"), "and where the workspace stands on its channels, under it");
-  // How the yes to offers is got is a door on the line (the desk's tile has "Show the code"): the tile this line
-  // replaced said the receptionist asks, and opened nothing.
+  // The sample has no texting line: a channel is closed, so where the workspace stands is said, with its door.
+  assert.ok(byTestId(reach, "cmh-channels"));
   const yes = all(reach, (n) => n.type === "a" && n.props?.["data-testid"] === "cmh-phone-yes")[0];
   assert.ok(yes, "the door is a link");
   assert.equal(textOf(yes), "Get their yes");
   assert.match(String(yes.props.href), /broadcasts\/get-yes$/);
-  // The first thing the page draws is the moments: nothing of the page's own stands before their tile.
+  assert.ok(byTestId(rail, "cmh-ledger"), "the campaigns stand in the same pane, under the line");
   const blocks = all(
     home,
     (n) =>
@@ -261,7 +288,7 @@ test("the phone opens on the moments, who can hear you a line in their head, and
         .split(" ")
         .includes("cmh-block"),
   );
-  assert.equal(blocks[0].props["data-testid"], "cmh-rail", "the moments are the page's first tile");
+  assert.equal(blocks[0].props["data-testid"], "cmh-rail", "the moments are the page's first pane");
   assert.ok(
     byTestId(tree, "cmh-coming") && byTestId(tree, "cmh-results"),
     "what is coming and what came back stand below",
@@ -287,7 +314,7 @@ test("a Turn on opens the composer on the moment it was pressed for", () => {
   pressed(find(after, (n) => n.props?.["data-testid"] === "cmh-turn-on"));
   assert.deepEqual(went, ["campaigns/new:moment:visited"]);
   fresh();
-  const visit = allBy(page(), "cmh-stage").find((s) => s.props["data-stage"] === "visit");
+  const visit = allBy(page(), "cmh-stage").find((s) => s.props["data-stage"] === "before");
   assert.equal(
     find(visit, (n) => n.props?.["data-testid"] === "cmh-open")?.props["data-testid"],
     "cmh-open",
@@ -303,7 +330,7 @@ test("New message opens the composer on Send once", () => {
   assert.deepEqual(went, ["campaigns/new"]);
 });
 
-test("a line that is paused resumes in place, through the playbooks' own verb, and says so", async () => {
+test("a paused campaign resumes from its row, asked in place, through the playbooks' own verb, and says so", async () => {
   surfaces({
     playbooks: {
       rows: playbooksSample(new Date(NOW)).rows.map((p) => (p.trigger === "quiet_30" ? p : p)),
@@ -328,13 +355,18 @@ test("a line that is paused resumes in place, through the playbooks' own verb, a
     opts.onAccepted({});
     return { ok: true, data: {} };
   };
-  const line = allBy(page(), "cmh-strip").find((s) => s.props["data-strip"] === "pb-month");
-  assert.ok(line, "the month's offer is a line");
-  const act = find(line, (n) => n.props?.["data-testid"] === "cmh-strip-act");
-  assert.match(textOf(act), /Resume/);
-  await act.props.onClick();
+  const monthRow = (t) => allBy(t, "cmh-row").find((r) => r.props["data-row"] === "pb-month");
+  assert.ok(monthRow(page()), "the month's offer is a row of the ledger");
+  pressed(byTestId(monthRow(page()), "cmh-resume"));
+  const ask = byTestId(monthRow(page()), "cmh-resume-confirm");
+  assert.ok(ask, "Resume asks first, in place (decision 7)");
+  assert.match(textOf(ask), /The month's offer/);
+  assert.deepEqual(said, [], "nothing resumes on the first press");
+  pressed(byTestId(monthRow(page()), "cmh-resume-yes"));
+  await settle();
   assert.deepEqual(said, [["resume", "pb-month"]]);
   assert.match(textOf(toasts[0].msg), /The month's offer resumed/);
+  assert.equal(monthRow(page()).props["data-settled"], "true", "it keeps its place and settles once");
 });
 
 test("Copy the phrase copies the words a customer sends to say yes to offers; Show the code is the get-yes address", async () => {
@@ -372,7 +404,7 @@ const waitingRows = (over = {}) =>
   broadcastsSample(new Date(NOW)).rows.map((r) =>
     r.state === "pending_approval" ? { ...r, run_for: "2026-10-02", ...over } : r,
   );
-const waitingLine = (tree) => allBy(tree, "cmh-coming-line").find((l) => l.props["data-kind"] === "run");
+const waitingLine = (tree) => allBy(tree, "cmh-row").find((r) => r.props["data-state"] === "waiting");
 /** One of the playbooks' verbs answered by the test for as long as `during` runs, then put back. */
 async function withVerb(name, answer, during) {
   const real = verbs[name];
@@ -390,27 +422,32 @@ async function withVerb(name, answer, during) {
   }
 }
 
-test("a run waiting on you is approved on its line in Coming up, through the broadcast's own door, and says how many and when", async () => {
+test("a run waiting on you is approved on its row, through the broadcast's own door, and says how many and when", async () => {
   surfaces({ broadcasts: { rows: waitingRows() } });
   fresh();
   const answer = () => ({ ok: true, data: { recipient_count: 4, scheduled_for: null, moved_from: null } });
   await withVerb("approveRun", answer, async (calls) => {
     const line = waitingLine(page());
-    assert.equal(line.props["data-kind"], "run");
+    assert.equal(line.props["data-state"], "waiting");
     assert.match(textOf(line), /Welcome/);
-    assert.match(textOf(line), /4 people\. Nothing sends until you say so\./);
     assert.match(textOf(line), /Waiting on you/);
     const approve = byTestId(line, "cmh-approve");
-    assert.match(textOf(approve), /Approve/);
+    assert.match(textOf(approve), /Approve · 4 people/);
     assert.equal(textOf(byTestId(line, "cmh-skip")).trim(), "Skip");
     await approve.props.onClick();
     assert.deepEqual(calls, ["b-sample-2"], "the run's own id, once");
     assert.equal(toasts.length, 1);
     assert.equal(toasts[0].tone, "ok");
     assert.equal(textOf(toasts[0].msg), "Welcome approved — 4 people, sending now");
-    // The name stays the door to the run's sheet, for who and what.
-    pressed(byTestId(line, "cmh-coming-open"));
-    assert.match(went.at(-1), /^broadcasts\/run:b-sample-2$/);
+    const after = allBy(page(), "cmh-row").find((r) => r.props["data-row"] === line.props["data-row"]);
+    assert.equal(after.props["data-settled"], "true", "the row keeps its place and settles once");
+    // Coming up keeps the run's time and says it waits; it decides nothing (one decision per run per screen).
+    const coming = allBy(page(), "cmh-coming-line").find((l) => l.props["data-kind"] === "run");
+    assert.match(textOf(coming), /4 people\. Nothing sends until you say so\./);
+    assert.equal(byTestId(coming, "cmh-waiting-acts"), null);
+    // The name is the door to the campaign's drawer, which shows the run and its door to Sent.
+    pressed(byTestId(line, "cmh-row-open"));
+    assert.equal(went.at(-1), `campaigns/moment:${line.props["data-row"]}`);
   });
 });
 
@@ -425,6 +462,11 @@ test("an approval the server refuses is said in the server's words, and the line
       assert.equal(toasts[0].tone, "danger");
       assert.equal(textOf(toasts[0].msg), "That run was already approved.");
       assert.equal(byTestId(waitingLine(page()), "cmh-approve").props.disabled, false, "nothing stays busy");
+      assert.equal(
+        waitingLine(page()).props["data-settled"],
+        undefined,
+        "a refused act settles no row: nothing changed",
+      );
     },
   );
 });
@@ -465,23 +507,28 @@ test("the demo's waiting run is made for the demo's own day: at 9:44 PM in New Y
   assert.ok(byTestId(waitingLine(page()), "cmh-approve"), "the sample's own run, untouched, is offered its Approve");
 });
 
-test("a run that is decided on its sheet has no acts on its line: a reach-out's, and one whose playbook is gone; its name opens it", () => {
-  // A reach-out's run as core makes it: no playbook, and its audience says what it is (decision D6).
+test("a run that is decided on its sheet has no acts anywhere on the page: a reach-out's, and one whose playbook is gone", () => {
+  const noneWaiting = playbooksSample(new Date(NOW)).rows.map((p) => ({
+    ...p,
+    totals: { ...p.totals, waiting: null },
+  }));
   surfaces({
+    playbooks: { rows: noneWaiting },
     broadcasts: { rows: waitingRows({ playbook_id: null, audience: { kind: "reach_out" }, recipient_count: 12 }) },
   });
   fresh();
-  let line = waitingLine(page());
-  assert.equal(byTestId(line, "cmh-waiting-acts"), null, "no one-tap approval of first cold emails");
+  let tree = page();
+  assert.equal(allBy(tree, "cmh-waiting-acts").length, 0, "no one-tap approval of first cold emails");
+  let line = allBy(tree, "cmh-coming-line").find((l) => l.props["data-kind"] === "run");
   assert.match(textOf(line), /12 businesses\. Nothing sends until you say so\./);
   pressed(byTestId(line, "cmh-coming-open"));
   assert.match(went.at(-1), /^broadcasts\/run:b-sample-2$/);
-  // A playbook deleted while its run waited: the page holds nothing that says what the run sends.
-  surfaces({ broadcasts: { rows: waitingRows({ playbook_id: "pb-gone" }) } });
+  surfaces({ playbooks: { rows: noneWaiting }, broadcasts: { rows: waitingRows({ playbook_id: "pb-gone" }) } });
   fresh();
-  line = waitingLine(page());
-  assert.equal(byTestId(line, "cmh-waiting-acts"), null);
-  assert.ok(byTestId(line, "cmh-coming-open"), "the name is the door to its sheet");
+  tree = page();
+  assert.equal(allBy(tree, "cmh-waiting-acts").length, 0);
+  line = allBy(tree, "cmh-coming-line").find((l) => l.props["data-kind"] === "run");
+  assert.ok(byTestId(line, "cmh-coming-open"), "Coming up's name is the door to its sheet");
 });
 
 test("while the workspace is paused a waiting run says the pause and offers Skip alone: the approve door would answer 402", () => {
@@ -518,10 +565,15 @@ test("two runs wait: each act names its run, and while one press is with the ser
     audience: { kind: "playbook", id: "pb-sample-winback", label: "Win-back" },
     recipient_count: 6,
   };
-  surfaces({ broadcasts: { rows: [...waitingRows(), second] } });
+  const rows = playbooksSample(new Date(NOW)).rows.map((p) =>
+    p.id === "pb-sample-winback"
+      ? { ...p, totals: { ...p.totals, waiting: { id: "b-second", recipient_count: 6 } } }
+      : p,
+  );
+  surfaces({ playbooks: { rows }, broadcasts: { rows: [...waitingRows(), second] } });
   fresh();
   const lineOf = (name) =>
-    allBy(page(), "cmh-coming-line").find((l) => l.props["data-kind"] === "run" && textOf(l).includes(name));
+    allBy(page(), "cmh-row").find((r) => r.props["data-state"] === "waiting" && textOf(r).includes(name));
   // To a screen reader "Approve" twice says nothing of which: each act carries its run's name.
   assert.equal(byTestId(lineOf("Welcome"), "cmh-approve").props["aria-label"], "Approve this run of Welcome");
   assert.equal(byTestId(lineOf("Welcome"), "cmh-skip").props["aria-label"], "Skip this run of Welcome");
@@ -622,7 +674,9 @@ test("a moment whose playbook has a run waiting wears a clock on its node, on a 
     p.id === winBack.id ? { ...p, state: "running", totals: { waiting: { id: "r-9", recipient_count: 4 } } } : p,
   );
   const nodeOf = (tree, id) => {
-    const stage = allBy(tree, "cmh-stage").find((s) => s.props["data-stage"] === id);
+    const stage = [...allBy(tree, "cmh-stage"), ...allBy(tree, "cmh-group-head")].find(
+      (s) => s.props["data-stage"] === id,
+    );
     // The node's glyph: the kit's Icon, drawn as the real one here, named by its `name`.
     const node = find(stage, (n) => n.props?.className === "cmh-node");
     return [stage.props["data-waits"], find(node, (n) => typeof n.props?.name === "string").props.name];
@@ -637,7 +691,7 @@ test("a moment whose playbook has a run waiting wears a clock on its node, on a 
   );
   globalThis.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
   fresh();
-  assert.deepEqual(nodeOf(page(), "quiet"), ["true", "clock"], "the phone's rail says it too");
+  assert.deepEqual(nodeOf(page(), "quiet"), ["true", "clock"], "the phone's head on the line says it too");
 });
 
 /* ----------------------------------------- the drawer and the composer ----------------------------------------- */
@@ -692,9 +746,10 @@ test("a link to a playbook that is gone says so once the chains were read, and a
   surfaces();
   fresh();
   const gone = page("moment:pb-nothing");
-  assert.ok(
-    byTestId(gone, "pb-gone") || find(gone, (n) => n.props?.testid === "pb-gone"),
-    "That playbook isn't here any more",
+  assert.equal(
+    find(gone, (n) => n.props?.testid === "pb-gone")?.props.title,
+    "That campaign isn't here any more.",
+    "a campaign to its reader, never a playbook (decision 19)",
   );
   setSurfaceValue("reach_outs", undefined);
   fresh();
@@ -710,7 +765,7 @@ test("a link to a playbook that is gone says so once the chains were read, and a
     find(tree, (n) => n.type === ReachOutPane),
     "a chain's own pane",
   );
-  assert.equal(sheet(tree).props.title, "Reach-out");
+  assert.equal(sheet(tree).props.title, "Reach-outs", "the drawer's kicker is the campaign's group");
 });
 
 test("New message hosts the send screen under Send once and the playbook composer under Every time a moment comes", () => {
@@ -790,7 +845,7 @@ const failedAt = (tree, id) => {
   return node ? { node, words: textOf(node), retry: byTestId(tree, `${id}-retry`) } : null;
 };
 
-test("a templates read that failed is said in the call's text's place, with a Retry that reads the settings again", () => {
+test("a templates read that failed is said in the call's text's place, with a Retry that reads the playbooks surface again", () => {
   surfaces({ settings: { templatesAll: null } });
   fresh();
   refreshed.length = 0;
@@ -802,15 +857,25 @@ test("a templates read that failed is said in the call's text's place, with a Re
     failed.words,
     /The call's text and the Library's count show once they read\. Everything else here is current\./,
   );
+  // The call's text keeps its row and says nothing of its state (lane 2's view model: a library unread or failed says
+  // nothing, ledger.test.mjs); what failed is said in its group, First contact, under it.
+  const firstContact = allBy(tree, "cmh-group").find((g) => g.props["data-group"] === "first_contact");
+  assert.ok(byTestId(firstContact, "cmh-templates-failed"), "in First contact, where the call's text stands");
+  const callText = allBy(firstContact, "cmh-row").find((r) => r.props["data-kind"] === "call_text");
   assert.equal(
-    allBy(tree, "cmh-strip").filter((s) => s.props["data-strip"] === "call_text").length,
-    0,
-    "it stands where the call's text would, not beside it",
+    find(callText, (n) => n.props?.className === "cmh-row-dot").props["data-tone"],
+    "plain",
+    "and its row wears no amber for a library it did not read",
   );
+  assert.doesNotMatch(textOf(callText), /No message/, "nor says the message is missing, which nobody read");
   assert.equal(textOf(byTestId(tree, "cmh-library")).includes("0"), false, "no Library count it did not read");
   assert.equal(allBy(tree, "cmh-stage").length, 4, "the rest of the page is drawn, and current");
   pressed(failed.retry);
-  assert.deepEqual(refreshed, ["settings"], "its Retry reads the templates' surface, not the moments'");
+  assert.deepEqual(
+    refreshed,
+    ["playbooks"],
+    "its Retry reads the playbooks surface, whose own read of the templates it is (Settings is not drawn on Campaigns)",
+  );
   surfaces();
   fresh();
   assert.equal(byTestId(page(), "cmh-templates-failed"), null, "read again: nothing to say");
@@ -848,7 +913,7 @@ test("a reach-outs read that failed is said where the chains would follow, and a
   assert.ok(failed, "a chains read that failed is said, not an empty list");
   assert.match(failed.words, /Couldn't read your reach-outs/);
   assert.match(failed.words, /The moments above are current\./);
-  assert.equal(allBy(tree, "cmh-strip").filter((s) => s.props["data-kind"] === "reach_out").length, 0);
+  assert.equal(allBy(tree, "cmh-row").filter((r) => r.props["data-kind"] === "chain").length, 0);
   pressed(failed.retry);
   assert.deepEqual(refreshed, ["reach_outs"], "its Retry reads the reach-outs, not the moments");
   setSurfaceValue("reach_outs", []);
@@ -881,13 +946,17 @@ test("a campaign report that failed is said in the numbers' place, with a Retry;
   );
   assert.ok(allBy(tree, "cmh-run").length > 0, "the runs, which are the surface's own, stand");
   pressed(failed.retry);
-  assert.deepEqual(refreshed, ["broadcasts"], "its Retry reads the broadcasts, where the report is read");
+  assert.deepEqual(refreshed, ["campaign_results"], "its Retry reads Campaigns' own 30 days, where the report is read");
 });
 
 test("what came back says what a read is where a text or an email went too (0030), under the funnel, and nothing where WhatsApp alone sent", () => {
   surfaces({
     broadcasts: {
-      report: { days: 30, totals: { sent: 8, delivered: 8, read: 5, replied: 3, optIns: 3, optOuts: 2, readOf: 6 } },
+      report: {
+        days: 30,
+        totals: { sent: 8, delivered: 8, read: 5, replied: 3, optIns: 3, optOuts: 2, readOf: 6 },
+        sources: [],
+      },
     },
   });
   let tree = page();
@@ -900,7 +969,7 @@ test("what came back says what a read is where a text or an email went too (0030
   assert.equal(byTestId(tree, "cmh-read-note"), null);
 });
 
-test("on a phone a failed read is said in the same places: over the moments, in the Also lines, and in what came back", () => {
+test("on a phone a failed read is said in the same places: over the moments, in the list, and in what came back", () => {
   surfaces({
     playbooks: { countsRead: false },
     reachOuts: null,
@@ -914,8 +983,8 @@ test("on a phone a failed read is said in the same places: over the moments, in 
   for (const id of ["pb-counts-failed", "pb-chains-failed", "cmh-templates-failed", "cmh-report-failed"])
     assert.ok(byTestId(tree, id), `${id} on a phone too`);
   assert.ok(
-    find(byTestId(tree, "cmh-also"), (n) => n.props?.["data-testid"] === "pb-chains-failed"),
-    "in the Also tile",
+    find(byTestId(tree, "cmh-rail"), (n) => n.props?.["data-testid"] === "pb-chains-failed"),
+    "in the one list, where the reach-outs would stand",
   );
 });
 
@@ -1065,19 +1134,23 @@ test("a broadcasts read that failed is said in each tile made from it, in the se
   }
 });
 
-test("a settings read that failed leaves the Library with no count and the call's text with its Retry", () => {
+test("a templates read the playbooks surface could not make leaves the Library with no count and the call's text with its Retry", () => {
+  surfaces({ playbooks: { library: null, messages: null } });
+  fresh();
+  refreshed.length = 0;
+  const tree = page();
+  const failed = failedAt(tree, "cmh-templates-failed");
+  assert.ok(failed, "a templates read that failed is said, as a null `library` is");
+  pressed(failed.retry);
+  assert.deepEqual(refreshed, ["playbooks"]);
+  assert.equal(textOf(byTestId(tree, "cmh-library")).includes("0"), false, "no Library count it did not read");
+  // Settings is no longer what the home reads its library from: a Settings read that failed says nothing here.
   surfaces();
   setSurfaceValue("settings", undefined);
   status.setStatus("settings", "seeded");
   try {
     fresh();
-    refreshed.length = 0;
-    const tree = page();
-    const failed = failedAt(tree, "cmh-templates-failed");
-    assert.ok(failed, "no settings at all is a read that failed, as a null `templatesAll` is");
-    pressed(failed.retry);
-    assert.deepEqual(refreshed, ["settings"]);
-    assert.equal(textOf(byTestId(tree, "cmh-library")).includes("0"), false, "no Library count it did not read");
+    assert.equal(byTestId(page(), "cmh-templates-failed"), null, "the playbooks surface's own read stands");
   } finally {
     status.setStatus("settings", "live");
   }
@@ -1318,4 +1391,315 @@ test("the Library's count and the home's count both take a message written for e
     pb.templates.length + 3,
     "and it is contracts' libraryCount that says it",
   );
+});
+
+test("Campaigns' own 30 days are one read of each report over its own period, each failing alone: a report that could not be read leaves the chains standing, and a chains' answer is each root's own", async () => {
+  const { campaignResultsOverride } = await import(`${SRC}/surfaces/campaigns/home/results-surface.ts`);
+  const { surfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
+  const answer = (data) =>
+    new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { "content-type": "application/json" } });
+  const refused = () =>
+    new Response(JSON.stringify({ ok: false, error: { code: "unavailable", message: "not read here" } }), {
+      status: 503,
+      headers: { "content-type": "application/json" },
+    });
+  const campaigns = {
+    timezone: ZONE,
+    days: 30,
+    span_days: 60,
+    today: "2026-10-02",
+    series: [],
+    sources: [
+      {
+        id: "pb-1",
+        kind: "playbook",
+        name: "Win-back",
+        template_name: "winback_offer",
+        runs: 2,
+        sent: 14,
+        delivered: 12,
+        read: 7,
+        replied: 3,
+        last_at: "2026-10-01T14:05:00Z",
+      },
+    ],
+  };
+  const chains = { complete: true, by_root: { "ro-1": { written: 9, wrote_back: 2 } } };
+  const asked = [];
+  const read = async (fail) => {
+    const kept = globalThis.fetch;
+    globalThis.fetch = async (url) => {
+      const u = new URL(String(url), "https://app.chanlytics.com");
+      asked.push(`${u.pathname}?period=${u.searchParams.get("period")}`);
+      if (u.pathname === "/api/v1/reports/campaigns")
+        return fail === "campaigns" ? refused() : answer({ report: campaigns });
+      if (u.pathname === "/api/v1/reports/reach-outs")
+        return fail === "reach-outs" ? refused() : answer({ report: { chains: [] }, chains });
+      return refused();
+    };
+    try {
+      await campaignResultsOverride.apply();
+      return surfaceValue("campaign_results");
+    } finally {
+      globalThis.fetch = kept;
+    }
+  };
+  const errorWas = console.error;
+  console.error = () => {};
+  try {
+    const both = await read(null);
+    assert.equal(both.period, "30d");
+    assert.deepEqual(
+      both.report.sources,
+      [{ id: "pb-1", kind: "playbook", name: "Win-back", sent: 14, replied: 3, lastAt: "2026-10-01T14:05:00Z" }],
+      "each campaign's own, as the ledger's rows read them",
+    );
+    assert.deepEqual(both.chains, { complete: true, byRoot: { "ro-1": { written: 9, wroteBack: 2 } } });
+    assert.deepEqual(
+      [...new Set(asked)].sort(),
+      ["/api/v1/reports/campaigns?period=30d", "/api/v1/reports/reach-outs?period=30d"],
+      "both over Campaigns' one period, naming no last day",
+    );
+    const noReport = await read("campaigns");
+    assert.deepEqual([noReport.report, noReport.chains.byRoot["ro-1"].written], [null, 9], "the chains stand");
+    const noChains = await read("reach-outs");
+    assert.deepEqual([noChains.report.sources.length, noChains.chains], [1, null], "the report stands");
+  } finally {
+    console.error = errorWas;
+    setSurfaceValue("campaign_results", undefined);
+  }
+});
+
+test("what Ask is told the ledger shows (the moment spec, A2): its rows in order, forty at most, a one-off send as its run, a reach-out as one, the receptionist, the call's text and an offer not made left out, and the view they are under", () => {
+  const row = (id, kind, name, status = "on") => ({ id, kind, name, status });
+  const rows = [
+    row("receptionist", "receptionist", "The receptionist", "always"),
+    row("call_text", "call_text", "The call's text", "always"),
+    row("p1", "playbook", "Win-back"),
+    row("c1", "chain", "Movers in Austin"),
+    row("everyone_monthly", "offer", "The month's offer", "off"),
+    row("b1", "sent_once", "Monday offer", "off"),
+    row("l1", "list", "Past clients", "paused"),
+    ...Array.from({ length: 45 }, (_, i) => row(`p${i + 2}`, "playbook", `Campaign ${i + 2}`)),
+  ];
+  const told = (view) => {
+    delete globalThis.window.__askOnScreen;
+    again(() => useLedgerOnScreen(view));
+    return globalThis.window.__askOnScreen;
+  };
+  const said = told({ status: "needs", group: "quiet", query: "win", visibleRows: rows });
+  assert.equal(said.key, "campaigns");
+  assert.deepEqual(said.ids.slice(0, 5), ["p1", "reach_out:c1", "run:b1", "l1", "p2"]);
+  assert.equal(said.ids.length, contracts.ASK_CONTEXT_MAX_ROWS);
+  assert.deepEqual(said.labels.slice(0, 4), ["Win-back", "Movers in Austin", "Monday offer", "Past clients"]);
+  assert.equal(said.view, "playbooks:needs:in:quiet:search");
+  assert.equal(told({ status: "all", group: null, query: "  ", visibleRows: [] }).view, "playbooks:all");
+  assert.deepEqual(
+    told({ status: "paused", group: "lists", query: "", visibleRows: [] }).view,
+    "playbooks:paused:in:lists",
+  );
+});
+
+test("the page tells Ask the rows its ledger draws, in its order, under the group its address names; taken back when it goes", () => {
+  fresh();
+  surfaces();
+  delete globalThis.window.__askOnScreen;
+  const drawnIds = (tree) => allBy(tree, "cmh-row").map((r) => r.props["data-row"]);
+  const plain = (id) => id.replace(/^run:/, "");
+  const check = (tree, view) => {
+    const s = globalThis.window.__askOnScreen;
+    assert.equal(s.key, "campaigns");
+    assert.equal(s.view, view);
+    const drawn = drawnIds(tree);
+    assert.ok(s.ids.length > 0, "the ledger's campaigns are told");
+    assert.deepEqual(
+      s.ids.map(plain),
+      drawn.filter((id) => s.ids.map(plain).includes(id)),
+      "only rows the ledger draws, in its order",
+    );
+    for (const r of allBy(tree, "cmh-row").filter((n) => n.props["data-kind"] === "playbook"))
+      assert.ok(s.ids.includes(r.props["data-row"]), `the drawn campaign ${r.props["data-row"]} is told`);
+  };
+  check(page(), "playbooks:all");
+  fresh();
+  surfaces();
+  check(page("in:quiet"), "playbooks:all:in:quiet");
+  unmount();
+  assert.equal(globalThis.window.__askOnScreen, null, "taken back when the ledger goes");
+});
+
+test("under Reach-outs Ask is told every row the screen shows (A2): each reach-out by its first step, spelled as one, in the ledger's order", () => {
+  fresh();
+  surfaces({ reachOuts: [chainOf(), chainOf({ root_id: "ch-2", name: "Cold email to gyms", state: "paused" })] });
+  delete globalThis.window.__askOnScreen;
+  const tree = page("in:reach_out");
+  const drawn = allBy(tree, "cmh-row").map((r) => [r.props["data-kind"], r.props["data-row"]]);
+  assert.deepEqual(
+    drawn,
+    [
+      ["chain", "ch-1"],
+      ["chain", "ch-2"],
+    ],
+    "the group draws its two reach-outs",
+  );
+  const s = globalThis.window.__askOnScreen;
+  assert.equal(s.view, "playbooks:all:in:reach_out");
+  assert.deepEqual(s.ids, ["reach_out:ch-1", "reach_out:ch-2"], "the screen's rows, every one");
+  assert.deepEqual(s.labels, ["Cold email to studios", "Cold email to gyms"]);
+  unmount();
+});
+
+/* ------------------------------------------------- Ask's doors ------------------------------------------------- */
+
+test("Ask's doors on Campaigns (the moment spec, A1): Ask in the head between the Library and New message, wearing the three; the drawer's More asks about its campaign; the first day's 'Set up my campaigns' asks it", () => {
+  const asked = [];
+  const askWas = globalThis.askAbout;
+  const matchWas = globalThis.matchMedia;
+  globalThis.askAbout = (about) => asked.push(about);
+  try {
+    surfaces();
+    fresh();
+    page();
+    const head = headSaid();
+    const door = byTestId(head, "cmh-ask");
+    assert.ok(door, "the head's door");
+    assert.match(String(door.props.className), /\bcmh-ask\b/, "the class the phone's width hides");
+    assert.match(textOf(door), /Ask/);
+    assert.equal(find(door, (n) => n.type === Icon)?.props.name, "three", "it wears Ask's three");
+    // The kit's Button and what it draws carry the same testid: each door once, as the page drew it, a kit Button.
+    const acts = all(
+      head,
+      (n) => n.type === Button && ["cmh-library", "cmh-ask", "cmh-new"].includes(n.props?.["data-testid"]),
+    );
+    assert.deepEqual(
+      acts.map((n) => n.props["data-testid"]),
+      ["cmh-library", "cmh-ask", "cmh-new"],
+    );
+    pressed(door);
+    assert.deepEqual(asked.at(-1), {}, "Ask opens on the page, its scope the address's");
+    // The drawer's More starts with it on a desk; on a phone it follows the menu's own acts (Pause or Resume, Edit).
+    // What it does is the next test's.
+    const moreOf = (tree) =>
+      find(tree, (n) => n.type === Menu && /More for Win-back/.test(n.props.label ?? "")).props.groups[0].items.map(
+        (i) => i.label,
+      );
+    fresh();
+    assert.equal(moreOf(page("moment:pb-sample-winback"))[0], "Ask about this campaign", "first on a desk");
+    globalThis.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
+    fresh();
+    const onPhone = moreOf(page("moment:pb-sample-winback"));
+    assert.equal(
+      onPhone[onPhone.indexOf("Edit") + 1],
+      "Ask about this campaign",
+      "after the drawer's own acts on a phone",
+    );
+    globalThis.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+    // The first day: no campaign yet. "Set up my campaigns" stands beside the hinted Turn on and asks it as a sentence.
+    surfaces({ playbooks: { rows: [] } });
+    fresh();
+    const first = page();
+    const setUp = byTestId(first, "cmh-setup-ask");
+    assert.ok(setUp, "beside the first day's Turn on");
+    const hinted = allBy(first, "cmh-stage").find((s) => s.props["data-hint"] === "true");
+    assert.ok(byTestId(hinted, "cmh-setup-ask"), "in the hinted moment, after its Turn on");
+    assert.equal(allBy(first, "cmh-setup-ask").filter((n) => n.type === Button).length, 1, "one door");
+    pressed(setUp);
+    assert.deepEqual(asked.at(-1), { prompt: "Set up my campaigns" });
+    // A new workspace's quietest day, nobody yet to reach at any moment, hints no Turn on: the door stands by the first.
+    const nobody = (n) => ({ candidates: 0, held: 0, pool: n, noYes: 0, stopped: 0, noNumber: 0, saidYes: n });
+    surfaces({ playbooks: { rows: [] }, pools: { visit_tomorrow: nobody(3), visited: nobody(2) } });
+    fresh();
+    const quiet = page();
+    assert.equal(allBy(quiet, "cmh-stage").filter((s) => s.props["data-hint"] === "true").length, 0, "no hint");
+    const firstOff = allBy(quiet, "cmh-stage").find((s) => byTestId(s, "cmh-turn-on"));
+    assert.ok(byTestId(firstOff, "cmh-setup-ask"), "beside the first Turn on");
+    // On a phone (≤900px, no rail): the same door, under the hinted moment's Turn on, with its mark and its words.
+    surfaces({ playbooks: { rows: [] } });
+    globalThis.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
+    fresh();
+    const phone = page();
+    const onPhoneDoor = byTestId(phone, "cmh-setup-ask");
+    assert.ok(onPhoneDoor, "the phone's first day has its door too");
+    assert.match(textOf(onPhoneDoor), /Set up my campaigns/);
+    assert.equal(find(onPhoneDoor, (n) => n.type === Icon)?.props.name, "three", "its mark, never a bare glyph");
+    const hintedGroup = allBy(phone, "cmh-group").find((g) => byTestId(g, "cmh-group-head")?.props["data-hint"]);
+    assert.ok(byTestId(hintedGroup, "cmh-setup-ask"), "under the hinted moment's Turn on");
+    globalThis.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+    surfaces();
+    fresh();
+    assert.equal(
+      byTestId(page(), "cmh-setup-ask"),
+      null,
+      "a workspace with campaigns has its ledger, not the first day's door",
+    );
+  } finally {
+    globalThis.askAbout = askWas;
+    globalThis.matchMedia = matchWas;
+  }
+});
+
+test("'Ask about this campaign' (A1) closes the drawer the way the drawer closes, then opens Ask over the home on that campaign, by its id and its name, once the address has left the drawer: on a phone the drawer is a modal sheet Ask would open under", () => {
+  const asked = [];
+  const heard = [];
+  const askWas = globalThis.askAbout;
+  const chanlyWas = globalThis.CHANLY;
+  const matchWas = globalThis.matchMedia;
+  globalThis.askAbout = (about) => asked.push(about);
+  // The frame's address (legacy-bridge/workspace.ts hearAddress): each listener until it stops, told when the route moves.
+  const hear = (fn) => {
+    heard.push(fn);
+    return () => heard.splice(heard.indexOf(fn), 1);
+  };
+  globalThis.CHANLY = { ...chanlyWas, address: { hear, href: (route) => `/w/studio/${route}` } };
+  const moved = () => {
+    for (const fn of [...heard]) fn();
+  };
+  // The item the drawer's More draws, as a press reaches it.
+  const askItem = (tree) =>
+    find(tree, (n) => n.type === Menu && /More for Win-back/.test(n.props.label ?? ""))
+      .props.groups.flatMap((g) => g.items)
+      .find((i) => i.label === "Ask about this campaign");
+  const winBack = { about: { kind: "playbook", id: "pb-sample-winback", label: "Win-back" } };
+  try {
+    surfaces();
+    // Arrived at by a link: the drawer closes by putting the home's address in its place.
+    fresh();
+    askItem(page("moment:pb-sample-winback")).onSelect();
+    assert.deepEqual(replaced, ["campaigns"], "the drawer closed, the way it closes");
+    assert.deepEqual(asked, [], "Ask waits until the address has left the drawer");
+    moved();
+    assert.deepEqual(asked, [winBack], "then opens on that campaign, named: the chip says it");
+    assert.equal(heard.length, 0, "and stops listening");
+    moved();
+    assert.equal(asked.length, 1, "once");
+    // Opened by a press: the drawer closes by Back, and Ask opens once the Back has landed, so a phone's Back entry of
+    // Ask's own (ask-real.jsx useArClose) stands over the home and that Back is never taken for Ask's.
+    fresh();
+    asked.length = 0;
+    const home = page();
+    const quiet = allBy(home, "cmh-stage").find((s) => s.props["data-stage"] === "quiet");
+    pressed(find(quiet, (n) => n.props?.["data-testid"] === "cmh-open"));
+    askItem(page("moment:pb-sample-winback")).onSelect();
+    assert.deepEqual([said, replaced, asked], [[["back"]], [], []]);
+    moved();
+    assert.deepEqual(asked, [winBack]);
+    // On a phone, the item its menu draws after the drawer's own acts does the same.
+    globalThis.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
+    fresh();
+    asked.length = 0;
+    askItem(page("moment:pb-sample-winback")).onSelect();
+    assert.deepEqual([replaced, asked], [["campaigns"], []]);
+    moved();
+    assert.deepEqual(asked, [winBack]);
+    // Where the frame hears no address (the standalone mockup), Ask opens as the drawer closes.
+    globalThis.CHANLY = chanlyWas;
+    fresh();
+    asked.length = 0;
+    askItem(page("moment:pb-sample-winback")).onSelect();
+    assert.deepEqual([replaced, asked], [["campaigns"], [winBack]]);
+  } finally {
+    globalThis.askAbout = askWas;
+    globalThis.CHANLY = chanlyWas;
+    globalThis.matchMedia = matchWas;
+  }
 });

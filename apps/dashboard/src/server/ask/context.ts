@@ -1,5 +1,5 @@
 import "server-only";
-import { fenced, type AskSurface, type PageContext } from "@chanlytics/contracts";
+import { fenced, promptSafeName, type AskSurface, type PageContext } from "@chanlytics/contracts";
 import { stableJson, type ReaderContext, type RowRef } from "../readers";
 import type { WorkspaceShape } from "../readers/shape";
 import {
@@ -99,6 +99,12 @@ const block = (source: string, title: string, text: string): SearchResultBlock =
   citations: { enabled: false },
 });
 const size = (b: SearchResultBlock): number => b.source.length + b.title.length + b.content[0].text.length;
+/**
+ * A row's title as its block carries it. The name the page shows is often one someone gave themselves (a WhatsApp
+ * profile, a caller's name, a lead's listing), and a title is outside the block's fence: so it is a name as a prompt
+ * may show one (contracts promptSafeName: one line, no tag, at most CONTEXT_CAPS.title characters).
+ */
+const blockTitle = (title: string): string => promptSafeName(title) ?? "";
 
 /** The page as a citation names it: its route, where the route names no row; else the page the route is on. */
 function pageRef(ctx: PageContext, label: string): RowRef {
@@ -115,7 +121,7 @@ function assemble(ctx: PageContext, got: Provided): Built {
   let used = size(block(`page://${ctx.surface}`, title, base)) + CUT_ROOM;
   const taken: Array<{ b: SearchResultBlock; r: ContextRow }> = [];
   for (const r of rows.slice(0, CONTEXT_CAPS.rows)) {
-    const b = block(r.source, clip(oneLine(r.title), CONTEXT_CAPS.title), clip(oneLine(r.text), CONTEXT_CAPS.text));
+    const b = block(r.source, blockTitle(r.title), clip(oneLine(r.text), CONTEXT_CAPS.text));
     if (used + size(b) > CONTEXT_CAPS.total) break;
     used += size(b);
     taken.push({ b, r });
@@ -200,6 +206,7 @@ export function shapeBlock(shape: WorkspaceShape): string {
     `Lines: ${channels.length ? channels.map((c) => `${c.kind} ${c.status}`).join(", ") : "none"}`,
     [
       `Deals ${shape.deals_on ? "on" : "off"}`,
+      `the appointment word: ${shape.appointment_word}`,
       `calendar feed ${yes(shape.calendar_feed, "set")}`,
       `booking link ${yes(shape.booking_link, "set")}`,
       `mailbox ${yes(shape.mailbox, "connected")}`,

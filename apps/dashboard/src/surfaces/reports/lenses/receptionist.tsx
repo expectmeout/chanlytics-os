@@ -1,15 +1,35 @@
-/** The Receptionist lens: who answered, how fast, why it stopped, the calls, and who booked. */
-import { plural, type ReportVM } from "@chanlytics/contracts";
-import { navigate } from "../../legacy-verbs";
+/**
+ * The Receptionist lens, in the spec's five parts (the lenses spec, D7): the sentence at its head (the frame's, head.ts), the figures
+ * against the period before, the mix (who answered, why it stopped, what became of the held replies, what customers asked about, the
+ * language it wrote in, the calls and how they ended, asked then booked and the link), the time between steps (how fast it answers
+ * past the hold, then the steps after it), and what is stuck now.
+ *
+ * It draws from two reads that fail alone. The frame's (`reports`) draws who answered, why it stopped, the calls, asked then booked and
+ * how fast it answers, and the figures against before; the lens's own (`reports_receptionist`, folded here once by the real
+ * `toReceptionistReportVM`) draws the rest. While the own read is out, or is of a period the strip no longer shows, the frame's cards
+ * stand and the rest are absent; when it could not be made one failed read stands in their place with its Retry; a database that has
+ * no function for it yet draws neither. Why it stopped is not a door: the Inbox takes no reason, and the way there is part five's
+ * "Waiting on you".
+ */
+import { useMemo } from "react";
+import { plural, type ReportStripTile, type ReportVM } from "@chanlytics/contracts";
+import { toReceptionistReportVM, type ReceptionistReportVM } from "@chanlytics/contracts/report-lens";
 import { BarChart, BarList } from "../../kit/charts/bar";
 import { ChartCard, SegmentBar } from "../../kit/charts/card";
-import { ckSecondsLabel } from "../../kit/charts/geometry";
-import { LineChart } from "../../kit/charts/line";
-import { EmptyState } from "../../kit/empty/empty";
-import { RptBooked, RptSection } from "../blocks";
-import { RPT_ANSWERED, RPT_CALLS, RPT_REPLY, rptMood, rptSpread } from "../series";
+import { EmptyState, FailedRead } from "../../kit/empty/empty";
+import type { Follower } from "../../use-surface";
+import { RptBooked, RptSection, RptStrip } from "../blocks";
+import type { ReceptionistSurface } from "../receptionist-surface";
+import { RPT_ANSWERED, RPT_CALLS, rptSpread } from "../series";
 import type { ReportsSurface } from "../surface";
+import { callEndingsCard, holdCard, languagesCard, linkLine, topicsCard } from "./receptionist-mix";
+import { speedCard, stuckFigures, timeFigures } from "./receptionist-time";
 import { nothingCameIn, type LensProps } from "./shared";
+
+/** The frame's figures the lens opens on, in the order it reads them: the messages, how many it answered, how fast, and how often it needed you. */
+const STRIP_IDS = ["messages", "answered", "reply", "needed"];
+
+const stripTiles = (vm: ReportVM): ReportStripTile[] => STRIP_IDS.flatMap((id) => vm.tiles.filter((t) => t.id === id));
 
 /** Who answered, day by day: the receptionist, you, and nobody, as one stack a day. */
 function answeredCard(vm: ReportVM, days: number) {
@@ -47,88 +67,7 @@ function answeredCard(vm: ReportVM, days: number) {
   );
 }
 
-/** The reply-time table a card offers beside its chart: a day (or week) at a time where the payload has speed, else the spread. */
-function replyTable(vm: ReportVM) {
-  const speed = vm.speed;
-  return speed
-    ? {
-        columns: [speed.unit === "week" ? "Week of" : "Day", "Median reply", "Slowest tenth", "Replies"],
-        rows: speed.points.map((p) => [
-          p.label,
-          p.p50 == null ? null : p.p50Label,
-          p.p90 == null ? null : p.p90Label,
-          p.count,
-        ]),
-      }
-    : { columns: ["Reply time", "Replies"], rows: vm.replyTime.buckets.map((b) => [b.label, b.value]) };
-}
-
-/** The median reply a day (or week) at a time, with the owner's hold drawn where replies waited one, over every reply. */
-function replyBody(vm: ReportVM, days: number) {
-  const speed = vm.speed;
-  const hold = vm.replyTime.hold;
-  return (
-    <>
-      {speed && (
-        <LineChart
-          data={speed.points}
-          keys={[{ key: "p50" }]}
-          config={RPT_REPLY}
-          scale="seconds"
-          yFormat={ckSecondsLabel}
-          reference={hold ? { value: hold.seconds, label: `${hold.label} hold` } : null}
-          height={122}
-          animKey={days}
-          ariaLabel={`The receptionist's median reply, a ${speed.unit} at a time. The arrow keys read each ${speed.unit}.`}
-          tip={(d) => ({
-            title: speed.unit === "week" ? `Week of ${d.label}` : d.label,
-            rows:
-              d.p50 == null
-                ? []
-                : [
-                    { key: "p50", label: "median reply", value: d.p50Label },
-                    { key: "p90", color: "var(--chart-prior)", label: "slowest tenth", value: d.p90Label },
-                  ],
-            note: d.p50 == null ? "No replies" : plural(d.count, "reply", "replies"),
-          })}
-          describe={(d) =>
-            d.p50 == null
-              ? `${d.label}: no replies`
-              : `${d.label}: median reply ${d.p50Label}, slowest tenth ${d.p90Label}`
-          }
-        />
-      )}
-      <SegmentBar
-        title={hold ? "Every reply, against your hold" : "Every reply, by how long it took"}
-        testid="reply-spread"
-        rows={vm.replyTime.buckets.map((b) => ({ key: b.id, value: b.value }))}
-        config={rptSpread(vm.replyTime.buckets)}
-      />
-    </>
-  );
-}
-
-/** How fast it answers. */
-function replyCard(vm: ReportVM, days: number) {
-  return (
-    <ChartCard
-      className="rpt-span-4"
-      title="How fast it answers"
-      testid="chart-reply"
-      takeaway={vm.lines.reply}
-      config={RPT_REPLY}
-      table={replyTable(vm)}
-    >
-      {vm.replyTime.count ? (
-        replyBody(vm, days)
-      ) : (
-        <EmptyState kind="line" title="No receptionist replies in this period to time." />
-      )}
-    </ChartCard>
-  );
-}
-
-/** Why it stopped: each handover's reason, a row a door to the Inbox. */
+/** Why it stopped: each handover's reason. The Inbox takes no reason, so a row is no door; "Waiting on you" is the way there. */
 function reasonsCard(vm: ReportVM) {
   const t = vm.answered.totals;
   return (
@@ -139,10 +78,7 @@ function reasonsCard(vm: ReportVM) {
       table={{ columns: ["Reason", "Times"], rows: vm.reasons.map((r) => [r.label, r.value]) }}
     >
       {vm.reasons.length ? (
-        <BarList
-          rows={vm.reasons.map((r) => ({ id: r.id, label: r.label, value: r.value }))}
-          onPick={() => navigate("inbox")}
-        />
+        <BarList rows={vm.reasons.map((r) => ({ id: r.id, label: r.label, value: r.value }))} />
       ) : (
         <EmptyState
           kind="line"
@@ -189,7 +125,7 @@ function callsCard(vm: ReportVM, days: number) {
             testid="caller-mood"
             small
             rows={vm.calls.sentiments.map((r) => ({ key: r.id, value: r.value }))}
-            config={rptMood(vm.calls.sentiments)}
+            config={rptSpread(vm.calls.sentiments)}
           />
         </>
       ) : (
@@ -199,26 +135,92 @@ function callsCard(vm: ReportVM, days: number) {
   );
 }
 
-/** The receptionist's section: who answered, how fast, why it stopped, the calls, and who booked. */
-function receptionistSection(R: ReportsSurface, phone: boolean) {
-  const { vm, days } = R;
-  return (
-    <RptSection title="The receptionist">
-      <div className="rpt-grid">
-        {answeredCard(vm, days)}
-        {replyCard(vm, days)}
-      </div>
-      <div className="rpt-grid">
-        {reasonsCard(vm)}
-        {callsCard(vm, days)}
-        <ChartCard className="rpt-span-4" title="Asked, then booked" testid="chart-booking">
-          <RptBooked bk={R.booking || null} phone={phone} />
-        </ChartCard>
-      </div>
-    </RptSection>
+/** The fold of the lens's own read, once per read: nothing while the read is out, of a period left, or failed. */
+function useOwnFold(own: Follower<ReceptionistSurface>): ReceptionistReportVM | null {
+  const read = own.state === "current" ? own.value : undefined;
+  const dto = read?.dto;
+  const readAt = read?.readAt;
+  return useMemo(
+    () => (dto !== undefined && readAt !== undefined ? toReceptionistReportVM(dto, { nowMs: readAt }) : null),
+    [dto, readAt],
   );
 }
 
-export function ReceptionistLens({ R, pick, phone }: LensProps) {
-  return R.vm.empty ? nothingCameIn(R.vm, R.period, pick) : receptionistSection(R, phone);
+/** The lens's own cards of the mix, in their row; the failed read that stands in their place where it could not be made. */
+function ownRow(fold: ReceptionistReportVM | null, failed: boolean) {
+  if (failed)
+    return (
+      <div className="rpt-grid">
+        <FailedRead
+          className="rpt-span-12"
+          kind="card"
+          what="the receptionist's other numbers"
+          surface="reports_receptionist"
+          testid="receptionist-failed"
+        />
+      </div>
+    );
+  if (!fold) return null;
+  // Three across; two only where it wrote in one language, and then they share the row.
+  const third = fold.languages !== null;
+  return (
+    <div className="rpt-grid">
+      {holdCard(fold, third ? "rpt-span-4" : "rpt-span-5")}
+      {topicsCard(fold, third ? "rpt-span-4" : "rpt-span-7")}
+      {languagesCard(fold, "rpt-span-4")}
+    </div>
+  );
+}
+
+/** The receptionist's section: the figures against before, the mix, the time between steps, and what is stuck now. */
+function receptionistSection(
+  R: ReportsSurface,
+  phone: boolean,
+  own: Follower<ReceptionistSurface>,
+  fold: ReceptionistReportVM | null,
+) {
+  const { vm, days } = R;
+  const more = fold !== null && fold.available ? fold : null;
+  return (
+    <>
+      <RptSection title="The receptionist" bare>
+        <RptStrip tiles={stripTiles(vm)} className="quad" testid="receptionist-strip" />
+        <div className="rpt-grid">
+          {answeredCard(vm, days)}
+          {reasonsCard(vm)}
+        </div>
+        {ownRow(more, own.state === "failed")}
+        <div className="rpt-grid">
+          {callsCard(vm, days)}
+          {more && callEndingsCard(more, "rpt-span-4")}
+          <ChartCard className="rpt-span-4" title="Asked, then booked" testid="chart-booking">
+            <RptBooked bk={R.booking || null} phone={phone} />
+            {linkLine(more)}
+          </ChartCard>
+        </div>
+      </RptSection>
+      <RptSection title="Time between steps" bare testid="receptionist-time">
+        <div className="rpt-grid">{speedCard(vm, days)}</div>
+        {more && timeFigures(more)}
+      </RptSection>
+      {more && (
+        <RptSection title="Stuck now" bare>
+          {stuckFigures(more)}
+        </RptSection>
+      )}
+    </>
+  );
+}
+
+export function ReceptionistLens({
+  R,
+  pick,
+  phone,
+  own,
+}: LensProps & {
+  /** The lens's own read, and where it stands against the period shown. */
+  own: Follower<ReceptionistSurface>;
+}) {
+  const fold = useOwnFold(own);
+  return R.vm.empty ? nothingCameIn(R.vm, R.range, pick) : receptionistSection(R, phone, own, fold);
 }

@@ -427,7 +427,8 @@ function runPorts() {
     body_preview: null,
     rejected_reason: null,
   };
-  const answer = { message: [row], alreadyRan: false, create: "b1" };
+  // The run, its people, its job and its decision, whole (00381): the run's id with the decision's.
+  const answer = { message: [row], alreadyRan: false, assemble: { id: "b1", decisionId: "d1" } };
   const ports = new Proxy(
     {},
     {
@@ -587,7 +588,7 @@ test("a playbook on a list names it, the workspace's own, and takes its name whe
   // A list about whoever is looking is never one a run can count: a run has no one looking.
   await assert.rejects(
     checkPlaybook(ports, { ...body, list_key: "waiting_on_you" }),
-    /about whoever is looking, and a playbook runs with no one looking/,
+    /about whoever is looking, and a campaign runs with no one looking/,
   );
 });
 

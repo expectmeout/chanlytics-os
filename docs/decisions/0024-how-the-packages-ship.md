@@ -142,3 +142,14 @@ wire changes.
   (`config/workspace-config/config-rules.ts`), and the schemas are built from them. The route's JS fell from 847.6 to
   778.6 KB gzipped. `shipping/browser-entry.test.mjs` holds the entry current, every value a page imports from
   contracts to a name the entry exports, and the built entry free of the classic API.
+
+  **An exception since 10 October 2026: the page-only entries.** The browser's entry is one module every page's route
+  loads, so a value any page imports from it is on every page, whichever page draws it. What only Reports draws is left
+  out of it and built as an entry of its own, which the Reports page imports by subpath: `@chanlytics/contracts/report-window`
+  (the date control's words) and `@chanlytics/contracts/report-lens` (the metric definitions and the Receptionist lens's
+  fold and words). The generator's `PAGE_ONLY` list (`tooling/scripts/gen/contracts-browser-entry.mjs`) names the modules
+  whose values the entry leaves out while the barrels keep naming them, so the server, the edge and the tests read them
+  from the index as before; a path in it that names no file under `src` fails the generator, since it would filter
+  nothing. `shipping/browser-entry.test.mjs` holds the list, each path to a file, the names out of the entry and into their
+  own, and the page-only entry free of the classic API. With the Receptionist lens added the workspace route's JS fell
+  from 769,653 to 768,870 bytes gzipped, and the Reports page's own grew by 8,518.

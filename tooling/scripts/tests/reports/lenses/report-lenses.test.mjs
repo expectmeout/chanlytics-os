@@ -40,9 +40,19 @@ test("six lenses in the strip's order, each with its words, and none for a lens 
     assert.ok(empty.title && empty.body, `${l.id}: its empty state's words`);
   }
   assert.equal(
+    REPORT_LENSES.find((l) => l.id === "people")?.sub,
+    "who reached you, whether you can reach them, and who is slipping away",
+    "People's sub-line says the four questions the lens answers",
+  );
+  assert.equal(
     lensEmpty("overview", { since: "Aug 29", until: "Sep 4" }).body,
     "Nobody wrote or called between Aug 29 and Sep 4.",
     "the words the page said, unchanged",
+  );
+  assert.equal(
+    lensEmpty("campaigns", { since: "Aug 29", until: "Sep 4" }).body,
+    "No broadcast or campaign run reached anyone between Aug 29 and Sep 4, and nobody said yes or asked to stop.",
+    "a campaign to its reader, never a playbook (decision 19)",
   );
 });
 
@@ -171,12 +181,38 @@ test("the head says the lens's own sentence, from the view models that hold it",
       sources: [],
       reasons: [],
     },
-    "1 day",
+    "in the last 1 day",
   );
-  const parts = { vm, campaigns, deals, reviews: null };
+  const parts = { vm, campaigns, deals, reviews: null, people: null };
   assert.equal(lensAnswerOf("overview", parts), vm.lines.hero);
-  assert.equal(lensAnswerOf("receptionist", parts), vm.lines.answered ?? undefined);
-  assert.equal(lensAnswerOf("people", parts), vm.lines.channels ?? undefined);
+  assert.equal(lensAnswerOf("receptionist", parts), vm.lines.receptionist ?? undefined);
+  assert.equal(
+    lensAnswerOf("receptionist", parts),
+    "2 of 2 messages answered without you.",
+    "the Receptionist's head is how many of how many, not the busiest day",
+  );
+  assert.equal(
+    lensAnswerOf("receptionist", { ...parts, vm: quiet }),
+    undefined,
+    "a period nobody wrote in says nothing",
+  );
+  assert.equal(lensAnswerOf("people", parts), vm.lines.people);
+  assert.equal(
+    lensAnswerOf("people", { ...parts, people: { head: "40 people reached you, 12 new." } }),
+    "40 people reached you, 12 new.",
+    "the lens's own sentence, once its read has landed",
+  );
+  assert.equal(
+    lensAnswerOf("people", { ...parts, people: { head: null } }),
+    vm.lines.people,
+    "a read that said nothing leaves the frame's sentence",
+  );
+  assert.equal(
+    lensAnswerOf("people", { ...parts, vm: quiet }),
+    quiet.lines.people,
+    "a quiet period still has the frame's sentence: never undefined",
+  );
+  assert.equal(typeof lensAnswerOf("people", { ...parts, vm: quiet }), "string");
   assert.equal(lensAnswerOf("pipeline", parts), deals.headline);
   assert.equal(lensAnswerOf("campaigns", parts), campaigns.lines.funnel);
   assert.equal(lensAnswerOf("reviews", parts), undefined, "Reviews says nothing until its own read has landed");
@@ -197,5 +233,5 @@ test("the head says the lens's own sentence, from the view models that hold it",
     undefined,
     "a campaign read that failed says nothing",
   );
-  assert.equal(lensAnswerOf("pipeline", { ...parts, deals: toDealReportVM(null, "1 day") }), undefined);
+  assert.equal(lensAnswerOf("pipeline", { ...parts, deals: toDealReportVM(null, "in the last 1 day") }), undefined);
 });

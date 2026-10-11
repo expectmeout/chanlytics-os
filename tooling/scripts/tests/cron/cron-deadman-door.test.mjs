@@ -56,7 +56,15 @@ const waiting = (id, tenant, over = {}) => ({
 
 function world(
   candidates,
-  { deadman_candidates = () => candidates, messages = [], jobs = [], broadcasts = [], fail = {} } = {},
+  {
+    deadman_candidates = () => candidates,
+    messages = [],
+    jobs = [],
+    broadcasts = [],
+    fail = {},
+    // Each message the sweep stamps handled, as it is stamped: where a case spends the function's time.
+    stamped = () => {},
+  } = {},
 ) {
   const tables = {
     tenant_config: [
@@ -86,6 +94,7 @@ function world(
     mark_processed: (a) => {
       const m = tables.messages.find((x) => x.id === a.p_message_id && x.tenant_id === a.p_tenant_id);
       if (m) m.meta = { ...(m.meta ?? {}), processed_at: new Date().toISOString() };
+      stamped(a.p_message_id);
       return null;
     },
   });
@@ -93,6 +102,11 @@ function world(
   return { db, tables, marks, tick: () => knock(POST, "deadman") };
 }
 const bell = (w, tenant) => w.tables.notifications.filter((n) => n.tenant_id === tenant);
+/** The holds' events: owner_notice tells the owner of each, once, after the commit (decision 0043). */
+const told = (w) =>
+  (w.tables.events ?? [])
+    .filter((e) => e.kind === "escalation.opened" || e.kind === "escalation.changed")
+    .map((e) => e.subject_id);
 /** The two newer questions the tick asks (lib/unfinished.ts), finding nothing. */
 const quiet = { unanswered: 0, orphaned: 0, told: 0, stranded: 0 };
 
@@ -244,6 +258,55 @@ test("both in one tick: the reachable workspace is warned and stamped, the unrea
   }
 });
 
+/* ------------------------------------------------------- the minute */
+
+test("each delivered warning is stamped the moment it is delivered, before the next is started: a tick the platform kills part way warns nobody twice", async () => {
+  // Stamped all at once after the last of up to fifty warnings, a tick killed at the function's minute stamped nothing,
+  // and every owner was warned again ten minutes later.
+  const w = world([waiting("e-a1", A), waiting("e-a2", A, { conversation_id: "cv-other" })]);
+  const stampedBeforeEachMail = [];
+  const line = wire((url) => {
+    if (url.includes("api.resend.com")) stampedBeforeEachMail.push(w.marks.flat());
+    return new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
+  });
+  try {
+    assert.deepEqual(await answer(await w.tick()), [200, { ok: true, candidates: 2, flagged: 2, ...quiet }]);
+    assert.deepEqual(
+      stampedBeforeEachMail,
+      [[], ["e-a1"]],
+      "the first warning was stamped before the second one's mail left",
+    );
+    assert.deepEqual(w.marks, [["e-a1"], ["e-a2"]]);
+  } finally {
+    line.restore();
+  }
+});
+
+test("past the tick's budget no warning is started: the rest wait, unstamped and oldest first, and the next tick warns them once", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
+  const all = [waiting("e-a1", A), waiting("e-a2", A, { conversation_id: "cv-2" }), waiting("e-a3", A)];
+  // deadman_candidates as the database answers it: the open escalations nobody has stamped.
+  const w = world(null, { deadman_candidates: () => all.filter((c) => !w.marks.flat().includes(c.escalation_id)) });
+  let mails = 0;
+  // The first warning's mail takes the rest of the function's minute.
+  const line = wire(() => {
+    mails += 1;
+    if (mails === 1) t.mock.timers.tick(60_000);
+    return new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
+  });
+  try {
+    assert.deepEqual(await answer(await w.tick()), [200, { ok: true, candidates: 3, flagged: 1, ...quiet }]);
+    assert.deepEqual(w.marks, [["e-a1"]], "the one delivered is stamped; the two never started are not");
+    assert.equal(bell(w, A).length, 1, "and nobody was told of them yet");
+
+    assert.deepEqual(await answer(await w.tick()), [200, { ok: true, candidates: 2, flagged: 2, ...quiet }]);
+    assert.deepEqual(w.marks, [["e-a1"], ["e-a2"], ["e-a3"]], "each warned once, in turn");
+    assert.equal(bell(w, A).length, 3);
+  } finally {
+    line.restore();
+  }
+});
+
 /* ------------------------------------------------------- cannot be read */
 
 /* ------------------------------------------------- the unfinished */
@@ -282,13 +345,13 @@ const outbound = (id, conversation_id, over = {}) => ({
   ...over,
 });
 
-test("a customer's message the handler never finished with: flagged for a person with the customer's words, the owner told, stamped handled so it is raised once; a fresh one is left for the handler", async () => {
+test("a customer's message the handler never finished with: flagged for a person with the customer's words, told by its hold's event, stamped handled so it is raised once; a fresh one is left for the handler", async () => {
   const w = world([], { messages: [inbound("m-old"), inbound("m-fresh", { created_at: ago(1 * M) })] });
   const line = wire();
   try {
     assert.deepEqual(await answer(await w.tick()), [
       200,
-      { ok: true, flagged: 0, unanswered: 1, orphaned: 0, told: 1, stranded: 0 },
+      { ok: true, flagged: 0, unanswered: 1, orphaned: 0, told: 0, stranded: 0 },
     ]);
     assert.equal(w.tables.escalations.length, 1);
     assert.equal(w.tables.escalations[0].conversation_id, "cv-m-old");
@@ -299,13 +362,9 @@ test("a customer's message the handler never finished with: flagged for a person
     );
     assert.match(w.tables.escalations[0].details, /never answered this/);
     assert.match(w.tables.escalations[0].details, /are you open tomorrow\?/, "the customer's words travel with it");
-    assert.match(w.tables.escalations[0].details, /Nothing has been sent/);
-    const rows = bell(w, A);
-    assert.equal(rows.length, 1);
-    assert.equal(rows[0].title, "A customer wrote and nothing answered");
-    assert.match(rows[0].body, /are you open tomorrow\?/);
-    assert.match(rows[0].body, /nothing will be sent on its own/);
-    assert.equal(line.mail().length, 1, "the owner's mail");
+    assert.match(w.tables.escalations[0].details, /No reply has been sent/);
+    assert.deepEqual(told(w), ["cv-m-old"], "the hold's event, which tells the owner after the commit");
+    assert.deepEqual([bell(w, A), line.mail()], [[], []], "and the sweep tells nobody itself");
     assert.ok(w.tables.messages.find((m) => m.id === "m-old").meta.processed_at, "stamped handled");
     assert.ok(
       !w.tables.messages.find((m) => m.id === "m-fresh").meta.processed_at,
@@ -317,6 +376,43 @@ test("a customer's message the handler never finished with: flagged for a person
       { ok: true, flagged: 0, unanswered: 0, orphaned: 0, told: 0, stranded: 0 },
     ]);
     assert.equal(w.tables.escalations.length, 1);
+  } finally {
+    line.restore();
+  }
+});
+
+test("a hold the database refused is told by the sweep itself, in its own words: the customer with no answer, and the reply that never left", async () => {
+  const orphan = {
+    id: "q-orphan",
+    tenant_id: A,
+    conversation_id: "cv-q",
+    direction: "outbound",
+    sender: "human",
+    body: "See you at 3",
+    status: "queued",
+    created_at: ago(15 * M),
+    meta: {},
+  };
+  const w = world([], {
+    messages: [inbound("m-old"), orphan],
+    fail: { "escalations.insert": { message: "the database is down" } },
+  });
+  const line = wire();
+  try {
+    assert.deepEqual(await answer(await w.tick()), [
+      200,
+      { ok: true, flagged: 0, unanswered: 1, orphaned: 1, told: 2, stranded: 0 },
+    ]);
+    assert.deepEqual([w.tables.escalations, told(w)], [[], []], "no hold was kept, so no event will tell");
+    const rows = bell(w, A);
+    assert.deepEqual(
+      rows.map((r) => r.title),
+      ["A customer wrote and nothing answered", "A reply never left"],
+    );
+    assert.match(rows[0].body, /are you open tomorrow\?/);
+    assert.match(rows[0].body, /nothing will be sent on its own/);
+    assert.match(rows[1].body, /no job was left to send this/);
+    assert.equal(line.mail().length, 2, "the owner's mail, for each");
   } finally {
     line.restore();
   }
@@ -346,7 +442,7 @@ test("a text whose answer is a job still waiting or running is that job's, not a
   try {
     assert.deepEqual(await answer(await w.tick()), [
       200,
-      { ok: true, flagged: 0, unanswered: 2, orphaned: 0, told: 2, stranded: 0 },
+      { ok: true, flagged: 0, unanswered: 2, orphaned: 0, told: 0, stranded: 0 },
     ]);
     assert.deepEqual(
       w.tables.escalations.map((e) => [e.conversation_id, e.reason]).sort(),
@@ -382,6 +478,95 @@ test("a reply that went out before the stamp is not a customer with no answer: s
   }
 });
 
+test("a broadcast, a playbook's reminder, a reach-out's email, and a reply that failed or was withdrawn are nobody's answer: the customer is still raised; a held draft is an answer in hand", async () => {
+  // Every outbound row after the message counted as a reply, so a reminder that went out in the same hour marked the
+  // customer answered, and nobody was told they had had no reply.
+  const w = world([], {
+    messages: [
+      inbound("m-b"),
+      outbound("o-b", "cv-m-b", {
+        sender: "human",
+        meta: { source: "broadcast", broadcast_id: "b-1", broadcast_name: "Spring" },
+      }),
+      inbound("m-p"),
+      outbound("o-p", "cv-m-p", {
+        sender: "human",
+        status: "delivered",
+        meta: { source: "broadcast", broadcast_id: "b-2", playbook_id: "pb-1", playbook_name: "Visit tomorrow" },
+      }),
+      inbound("m-r", { channel: "sms" }),
+      outbound("o-r", "cv-m-r", { channel: "email", sender: "human", meta: { source: "reach_out" } }),
+      inbound("m-f"),
+      outbound("o-f", "cv-m-f", { status: "failed" }),
+      inbound("m-c"),
+      outbound("o-c", "cv-m-c", { status: "canceled" }),
+      // Written in the veto window and sent by its own job: the customer's answer is in hand.
+      inbound("m-q"),
+      outbound("o-q", "cv-m-q", { status: "queued", meta: { source: "veto_window", delay_ms: 600_000 } }),
+    ],
+  });
+  const line = wire();
+  try {
+    assert.deepEqual(await answer(await w.tick()), [
+      200,
+      { ok: true, flagged: 0, unanswered: 5, orphaned: 0, told: 0, stranded: 0 },
+    ]);
+    assert.deepEqual(w.tables.escalations.map((e) => [e.conversation_id, e.reason]).sort(), [
+      ["cv-m-b", "brain_error"],
+      ["cv-m-c", "brain_error"],
+      ["cv-m-f", "brain_error"],
+      ["cv-m-p", "brain_error"],
+      ["cv-m-r", "brain_error"],
+    ]);
+    assert.match(
+      w.tables.escalations.find((e) => e.conversation_id === "cv-m-b").details,
+      /No reply has been sent/,
+      "true with a broadcast on the thread: it was sent, and it was no reply",
+    );
+    for (const id of ["m-b", "m-p", "m-r", "m-f", "m-c", "m-q"])
+      assert.ok(w.tables.messages.find((m) => m.id === id).meta.processed_at, `${id}: stamped handled`);
+    assert.equal(w.tables.messages.find((m) => m.id === "o-q").status, "queued", "the draft is its job's to send");
+  } finally {
+    line.restore();
+  }
+});
+
+test("past its budget the unfinished question raises no more: the rest keep no stamp, and the next tick raises them", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
+  let stamps = 0;
+  const w = world([], {
+    messages: [inbound("m-1", { created_at: ago(6 * M) }), inbound("m-2")],
+    // The first question raised takes the rest of the function's minute.
+    stamped: () => {
+      stamps += 1;
+      if (stamps === 1) t.mock.timers.tick(60_000);
+    },
+  });
+  const line = wire();
+  try {
+    assert.deepEqual(await answer(await w.tick()), [
+      200,
+      { ok: true, flagged: 0, unanswered: 1, orphaned: 0, told: 0, stranded: 0 },
+    ]);
+    assert.deepEqual(
+      w.tables.escalations.map((e) => e.conversation_id),
+      ["cv-m-1"],
+    );
+    assert.ok(!w.tables.messages.find((m) => m.id === "m-2").meta.processed_at, "left for the next tick, unstamped");
+
+    assert.deepEqual(await answer(await w.tick()), [
+      200,
+      { ok: true, flagged: 0, unanswered: 1, orphaned: 0, told: 0, stranded: 0 },
+    ]);
+    assert.deepEqual(
+      w.tables.escalations.map((e) => e.conversation_id),
+      ["cv-m-1", "cv-m-2"],
+    );
+  } finally {
+    line.restore();
+  }
+});
+
 test("a queued reply with no job to send it is failed with an honest note and the thread flagged; one with a live job, and a fresh one, are left alone", async () => {
   const orphan = {
     id: "q-orphan",
@@ -404,7 +589,7 @@ test("a queued reply with no job to send it is failed with an honest note and th
   try {
     assert.deepEqual(await answer(await w.tick()), [
       200,
-      { ok: true, flagged: 0, unanswered: 0, orphaned: 1, told: 1, stranded: 0 },
+      { ok: true, flagged: 0, unanswered: 0, orphaned: 1, told: 0, stranded: 0 },
     ]);
     const row = w.tables.messages.find((m) => m.id === "q-orphan");
     assert.equal(row.status, "failed");
@@ -418,7 +603,7 @@ test("a queued reply with no job to send it is failed with an honest note and th
     assert.equal(w.tables.escalations.length, 1);
     assert.equal(w.tables.escalations[0].reason, "send_failed");
     assert.match(w.tables.escalations[0].details, /A reply never left: no job was left to send this/);
-    assert.equal(bell(w, A)[0].title, "A reply never left");
+    assert.deepEqual([told(w), bell(w, A)], [["cv-q"], []], "told by the hold's event, not by the sweep");
   } finally {
     line.restore();
   }

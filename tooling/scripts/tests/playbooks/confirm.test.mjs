@@ -13,7 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, find, byTestId, textOf, classes } from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, find, byTestId, textOf, classes, settle } from "../_legacy-react.mjs";
 
 /* ------------------------------ the harness ------------------------------ */
 
@@ -57,7 +57,12 @@ const moreItem = (tree, label) => {
 };
 const { playbooks } = await import(`${S}/surfaces/campaigns/playbooks/verbs.ts`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
-setSurfaceValue("playbooks", { rows: [], triggers: [] });
+setSurfaceValue("playbooks", {
+  rows: [],
+  triggers: [],
+  // How the business works (the surface's shape, 9 Oct 2026), which the playbook's drawer says its word from.
+  shape: { calendar: "none", dealsOn: false, word: "appointment" },
+});
 playbooks.remove = async (id) => {
   calls.pbRemove.push(id);
   return { ok: true, data: {} };
@@ -260,9 +265,9 @@ test("REGRESSION (D13): removing a teammate asks first -- the menu item arms, th
   fresh();
   let tree = drawTeam();
   assert.equal(byTestId(tree, "team-remove-confirm"), null, "nothing is asked until the menu is used");
-  const menu = menuFor(tree, "Remove");
+  const menu = menuFor(tree, "Remove from team…");
   assert.ok(menu, "Lena's row has the menu with Remove");
-  menu.props.items.find((i) => i.label === "Remove").onClick();
+  menu.props.items.find((i) => i.label === "Remove from team…").onClick();
   assert.deepEqual(calls.remove, [], "REGRESSION: the menu item used to remove on the spot");
   tree = drawTeam();
   const ask = byTestId(tree, "team-remove-confirm");
@@ -275,8 +280,8 @@ test("REGRESSION (D13): removing a teammate asks first -- the menu item arms, th
   byTestId(tree, "team-remove-no").props.onClick();
   tree = drawTeam();
   assert.equal(byTestId(tree, "team-remove-confirm"), null, "No disarms");
-  menuFor(tree, "Remove")
-    .props.items.find((i) => i.label === "Remove")
+  menuFor(tree, "Remove from team…")
+    .props.items.find((i) => i.label === "Remove from team…")
     .onClick();
   tree = drawTeam();
   await byTestId(tree, "team-remove-yes").props.onClick();
@@ -291,8 +296,8 @@ test("REGRESSION (D13): removing a teammate asks first -- the menu item arms, th
 test("revoking an invitation asks in its own words", () => {
   fresh();
   let tree = drawTeam();
-  menuFor(tree, "Revoke invite")
-    .props.items.find((i) => i.label === "Revoke invite")
+  menuFor(tree, "Revoke invitation…")
+    .props.items.find((i) => i.label === "Revoke invitation…")
     .onClick();
   tree = drawTeam();
   const ask = byTestId(tree, "team-remove-confirm");
@@ -431,6 +436,8 @@ test("a playbook's delete asks through the one Confirm -- it used to relabel its
   moreItem(tree, "Delete…").onSelect();
   tree = draw();
   await byTestId(tree, "pb-delete-yes").props.onClick();
+  // Said once the server has taken it and the rows are read again (card-detail.tsx `remove`): after the drawer closes.
+  await settle();
   assert.deepEqual(calls.pbRemove, ["pb-1"]);
   tree = draw();
   assert.equal(byTestId(tree, "pb-delete-confirm"), null, "disarmed after the act");

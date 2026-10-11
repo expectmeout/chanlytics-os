@@ -66,7 +66,7 @@ export interface PgThreadState {
 /** Outbound rows only count as memory once they actually left. A canceled or
  *  failed send was never seen by the customer, so it must not appear in the
  *  model's context as something "we said". */
-const DELIVERED = ["sent", "delivered", "read"];
+export const DELIVERED = ["sent", "delivered", "read"];
 
 /**
  * Voice notes moved in from before the database, as ordinary assistant turns.

@@ -147,8 +147,8 @@ test("the hours fold is the week on one scale: a switch, the bars and the times 
   // The zone by the name the card above it already uses (openWeekWords: "in New York time"), never the IANA id: an
   // owner setting their opening hours has no use for "America/New_York", and it is the machine's name for the place.
   assert.equal(textOf(find(fold, (n) => classes(n).includes("rec-sheet-sub"))), hoursZoneWords("America/New_York"));
-  assert.equal(hoursZoneWords("America/New_York"), "All times in New York time, as the receptionist states them.");
-  assert.equal(textOf(byTestId(tree, "rec-fold-save-hours")), "Save the week");
+  assert.equal(hoursZoneWords("America/New_York"), "In New York time");
+  assert.equal(textOf(byTestId(tree, "rec-fold-save-hours")), "Save", "every sheet's Save says Save");
   assert.deepEqual(
     all(fold, (n) => n.props?.role === "switch").map((s) => [s.props["aria-label"], s.props["aria-checked"]]),
     [
@@ -165,9 +165,9 @@ test("the hours fold is the week on one scale: a switch, the bars and the times 
     [
       labelled(fold, "Monday opens").props.value,
       labelled(fold, "Monday closes").props.value,
-      labelled(fold, "Monday opens").props.type,
+      labelled(fold, "Monday opens").props["aria-haspopup"],
     ],
-    ["09:30", "18:00", "time"],
+    ["09:30", "18:00", "menu"],
   );
   assert.deepEqual(
     ["mon", "sun"].map((d) => dayOf(tree, d).props["data-open"]),
@@ -183,7 +183,7 @@ test("the hours fold is the week on one scale: a switch, the bars and the times 
     textOf(find(foldOf(tree, "hours"), (n) => classes(n).includes("rec-fold-hint"))),
     hoursZoneWords("America/Chicago"),
   );
-  assert.equal(hoursZoneWords("America/Chicago"), "All times in Chicago time, as the receptionist states them.");
+  assert.equal(hoursZoneWords("America/Chicago"), "In Chicago time");
 });
 
 test("an hours save sends the stored config with the week changed, and everything else as it was", () => {
@@ -247,7 +247,7 @@ test("an unchanged fold's Save sends nothing and closes it, and Cancel with chan
   cancelFoldOf(tree, "hours");
   tree = redrawTab();
   assert.deepEqual(openFolds(tree), ["hours"], "not thrown away yet");
-  assert.match(textOf(byTestId(tree, "rec-fold-hours-cancel-confirm")), /Discard your changes\?/);
+  assert.match(textOf(byTestId(tree, "rec-fold-hours-cancel-confirm")), /Discard changes\?/);
   press(byTestId(tree, "rec-fold-hours-cancel-yes"));
   tree = redrawTab();
   assert.deepEqual(openFolds(tree), []);
@@ -365,9 +365,10 @@ test("a day takes shifts up to the cap the save's schema keeps, and a removed sh
     "the first shift has no remove: the switch already means closed",
   );
   const opens = () =>
-    all(dayOf(tree, "mon"), (n) => n.type === "input" && / opens(,|$)/.test(n.props["aria-label"])).map(
-      (n) => n.props.value,
-    );
+    all(
+      dayOf(tree, "mon"),
+      (n) => n.props?.["aria-haspopup"] === "menu" && / opens(,|:|$)/.test(n.props["aria-label"] || ""),
+    ).map((n) => n.props.value);
   assert.deepEqual(opens(), ["09:30", "12:00", "13:00", "14:00"]);
   press(byTestId(tree, "rec-hours-remove-mon-1"));
   tree = redrawTab(flash);
@@ -392,7 +393,11 @@ test("copying a day says what it opened and what it overwrote, and puts it all b
   assert.match(textOf(trigger), /^Copy Monday to…/);
   // One in the week: the voice's starting points are a menu of their own, in their own fold (23 Sep).
   assert.equal(
-    all(byTestId(tree, "rec-fold-hours"), (n) => n.type === "button" && n.props["aria-haspopup"] === "menu").length,
+    // The times are menus too (each a time's, open-week.tsx BtoTime), told apart by the value each holds.
+    all(
+      byTestId(tree, "rec-fold-hours"),
+      (n) => n.type === "button" && n.props["aria-haspopup"] === "menu" && !("value" in n.props),
+    ).length,
     1,
   );
   tree = copyTo(tree, flash, "Every day");
@@ -480,7 +485,7 @@ test("the hours fold says what the receptionist will be told as the draft stands
   let says = byTestId(tree, "rec-fold-says-hours");
   assert.deepEqual(
     partsOf(says),
-    [["Your receptionist will be told", composed("hours", stored).join("\n")]],
+    [["Preview what it's told", composed("hours", stored).join("\n")]],
     "unchanged: the block as it stands, under the canvas's eyebrow",
   );
   typeAt(tree, "Monday closes", "17:00");
@@ -493,7 +498,7 @@ test("the hours fold says what the receptionist will be told as the draft stands
   // The hours block's lines are runs of days: a changed Monday re-cuts them, and the lines that fall out of the old
   // block are about days nobody changed. So nothing is said to go while the block stays (the folds test holds the
   // rule); the whole new block says what Monday becomes.
-  assert.deepEqual(partsOf(says), [["Your receptionist will be told", composed("hours", next).join("\n")]]);
+  assert.deepEqual(partsOf(says), [["Preview what it's told", composed("hours", next).join("\n")]]);
   assert.match(textOf(says), /17:00/, "it follows the draft");
 
   // Every day closed, on a record that still composes: the block goes whole, line by line.
@@ -502,7 +507,7 @@ test("the hours fold says what the receptionist will be told as the draft stands
     tree = redrawTab();
   }
   assert.deepEqual(partsOf(byTestId(tree, "rec-fold-says-hours")), [
-    ["It will no longer be told", composed("hours", stored).join("\n")],
+    ["No longer told", composed("hours", stored).join("\n")],
   ]);
   assert.equal(
     byTestId(tree, "rec-fold-says-hours-note"),
@@ -568,7 +573,7 @@ test("the gap line's hours door opens the fold, and the fold asks before its cha
     [["hours"], []],
     "another row's act does not throw the week away",
   );
-  assert.match(textOf(byTestId(tree, "rec-fold-hours-ask-confirm")), /Discard your changes\?/);
+  assert.match(textOf(byTestId(tree, "rec-fold-hours-ask-confirm")), /Discard changes\?/);
   press(byTestId(tree, "rec-fold-hours-ask-no"));
   tree = redrawTab();
   assert.equal(labelled(tree, "Monday opens").props.value, "09:00", "keep editing keeps what was typed");
@@ -602,7 +607,10 @@ test("while the week saves its boxes and switches take nothing, and what is aske
     [true, "Saving…"],
   );
   assert.deepEqual(
-    [labelled(tree, "Monday closes").props.readOnly, byTestId(tree, "rec-hours-switch-mon").props["aria-disabled"]],
+    [
+      labelled(tree, "Monday closes").props["aria-disabled"],
+      byTestId(tree, "rec-hours-switch-mon").props["aria-disabled"],
+    ],
     [true, true],
   );
   typeAt(tree, "Monday closes", "16:00");
@@ -813,9 +821,10 @@ test("the closures fold adds, edits and removes a closed day, puts a removed one
     all(rows()[0], (n) => n.type === "input").map((n) => n.props["aria-label"]),
     ["Closed from, 2099-12-24", "Closed until, 2099-12-24", "Reason, 2099-12-24"],
   );
+  // The one case this cannot express is the tip beside Add, never a paragraph under the list (Ruben, 10 Oct 2026).
   assert.match(
-    textOf(foldOf(tree, "closures")),
-    /Closing early rather than all day\? Leave it out of this list and set that day's hours above instead\./,
+    byTestId(tree, "rec-closures-tip").props["data-tip"],
+    /^Closing early\? Set that day's hours instead\./,
     "the old form's note, for the one case this cannot express",
   );
   assert.match(textOf(byTestId(tree, "rec-fold-says-closures")), /Christmas/, "the closures block, as it stands");
@@ -1027,12 +1036,16 @@ test("the booking tool row states what the owner books with, and under it one ma
   const lineOf = (row) => byTestId(row, "bt-bookings-read");
   const booksy = { calendar: undefined, bookings: { tool: "booksy" } };
   try {
-    // Nothing said and nothing arrived: an empty row with its hint, and no line under it.
+    // Nothing said and nothing arrived: an empty row, its value alone (Ruben, 10 Oct 2026: a row says its value and
+    // stops), and no line under it.
     W.__CALENDAR = calendarRead(readOk(nothing));
     let row = byTestId(drawTab({ config: { calendar: undefined } }), "rec-row-calendar");
     assert.equal(row.props["data-empty"], "true");
     assert.equal(textOf(find(row, (n) => classes(n).includes("rec-row-empty"))), "Not set up");
-    assert.match(textOf(row), /What you book with\. It fills your calendar and tells the receptionist what is taken\./);
+    assert.equal(
+      find(row, (n) => classes(n).includes("rec-row-hint")),
+      null,
+    );
     assert.equal(lineOf(row), null);
     assert.equal(byTestId(row, "rec-calendar-read"), null, "and no read is stated of a link there is not");
     // A tool named: the row states it as the product says it, and the line says it waits for the first email. The
@@ -1740,7 +1753,7 @@ test("Cancel, another row and the rail ask before throwing away anything typed, 
   cancelFoldOf(tree, "hours");
   tree = redrawTab();
   assert.deepEqual(openFolds(tree), ["hours"], "not thrown away");
-  assert.match(textOf(byTestId(tree, "rec-fold-hours-cancel-confirm")), /Discard your changes\?/);
+  assert.match(textOf(byTestId(tree, "rec-fold-hours-cancel-confirm")), /Discard changes\?/);
   press(byTestId(tree, "rec-fold-hours-cancel-no"));
   tree = redrawTab();
   assert.equal(labelled(tree, "Sunday opens").props.value, "10:00", "keep editing keeps it");
@@ -1754,12 +1767,10 @@ test("Cancel, another row and the rail ask before throwing away anything typed, 
   );
   press(byTestId(tree, "rec-fold-hours-ask-no"));
   tree = redrawTab();
-  // Put back as it opened, it holds nothing again: Cancel closes at once.
-  typeAt(tree, "Sunday opens", "");
-  tree = redrawTab();
+  // Switched off again, the day keeps the time picked (a switch never drops times), which is not how it opened.
   press(byTestId(tree, "rec-hours-switch-sun"));
   tree = redrawTab();
-  assert.equal(W.__settingsUnsaved(), true, "a closed day keeps its one empty shift, which is not how it opened");
+  assert.equal(W.__settingsUnsaved(), true, "a closed day keeps the time picked, which is not how it opened");
   cancelFoldOf(tree, "hours");
   tree = redrawTab();
   press(byTestId(tree, "rec-fold-hours-cancel-yes"));
@@ -2127,9 +2138,10 @@ test("a list inside a fold keeps its cap through an Undo too: a removed row is p
     tree = redrawTab(flash);
   }
   const opens = () =>
-    all(dayOf(tree, "mon"), (n) => n.type === "input" && / opens(,|$)/.test(n.props["aria-label"])).map(
-      (n) => n.props.value,
-    );
+    all(
+      dayOf(tree, "mon"),
+      (n) => n.props?.["aria-haspopup"] === "menu" && / opens(,|:|$)/.test(n.props["aria-label"] || ""),
+    ).map((n) => n.props.value);
   press(byTestId(tree, "rec-hours-remove-mon-1"));
   tree = redrawTab(flash);
   const undo = flashes.at(-1).undo;
@@ -2193,7 +2205,10 @@ test("a list inside a fold keeps its cap through an Undo too: a removed row is p
   press(byTestId(tree, "rec-hours-add-tue"));
   tree = redrawTab(flash);
   assert.equal(
-    all(dayOf(tree, "tue"), (n) => n.type === "input" && / opens(,|$)/.test(n.props["aria-label"])).length,
+    all(
+      dayOf(tree, "tue"),
+      (n) => n.props?.["aria-haspopup"] === "menu" && / opens(,|:|$)/.test(n.props["aria-label"] || ""),
+    ).length,
     MAX_INTERVALS_PER_DAY,
   );
 });
@@ -2405,9 +2420,10 @@ test("a shift taken out of one day goes back into that day, whatever another day
   openFold(tree, "hours");
   tree = redrawTab(flash);
   const opens = (d) =>
-    all(dayOf(tree, d), (n) => n.type === "input" && / opens(,|$)/.test(n.props["aria-label"] || "")).map(
-      (n) => n.props.value,
-    );
+    all(
+      dayOf(tree, d),
+      (n) => n.props?.["aria-haspopup"] === "menu" && / opens(,|:|$)/.test(n.props["aria-label"] || ""),
+    ).map((n) => n.props.value);
   press(byTestId(tree, "rec-hours-remove-tue-2"));
   tree = redrawTab(flash);
   const tuesday = flashes.at(-1).undo;
@@ -2442,9 +2458,10 @@ test("a day's hours replaced whole by a copy leave its waiting shift nowhere to 
   openFold(tree, "hours");
   tree = redrawTab(flash);
   const opens = (d) =>
-    all(dayOf(tree, d), (n) => n.type === "input" && / opens(,|$)/.test(n.props["aria-label"] || "")).map(
-      (n) => n.props.value,
-    );
+    all(
+      dayOf(tree, d),
+      (n) => n.props?.["aria-haspopup"] === "menu" && / opens(,|:|$)/.test(n.props["aria-label"] || ""),
+    ).map((n) => n.props.value);
   press(byTestId(tree, "rec-hours-remove-tue-1"));
   tree = redrawTab(flash);
   const tuesday = flashes.at(-1).undo;
@@ -2533,7 +2550,7 @@ test("a fold of one value closes on its own Cancel without asking, and still ask
   type("https://calendar.example/feed.ics");
   openFold(tree, "website");
   tree = redrawTab();
-  assert.match(textOf(byTestId(tree, "rec-fold-calendar-ask-confirm")), /Discard your changes\?/);
+  assert.match(textOf(byTestId(tree, "rec-fold-calendar-ask-confirm")), /Discard changes\?/);
   press(byTestId(tree, "rec-fold-calendar-ask-no"));
   tree = redrawTab();
   assert.deepEqual(openFolds(tree), ["calendar"], "keep editing keeps it open");

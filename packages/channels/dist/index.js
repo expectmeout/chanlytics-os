@@ -884,13 +884,13 @@ function waStoppedMarketing(errors) {
     (e) => e !== null && typeof e === "object" && Number(e.code) === WA_STOPPED_MARKETING
   );
 }
-var SEND_TIMEOUT_MS = 15e3;
+var WHATSAPP_SEND_TIMEOUT_MS = 15e3;
 async function postGraph(cfg, payload) {
   const a = await providerFetch("meta", `${GRAPH}/${cfg.phoneId}/messages`, {
     method: "POST",
     headers: { Authorization: `Bearer ${cfg.accessToken}`, "Content-Type": "application/json" },
     body: JSON.stringify(payload),
-    timeoutMs: SEND_TIMEOUT_MS,
+    timeoutMs: WHATSAPP_SEND_TIMEOUT_MS,
     // A reply is always put on the wire: another call's timeouts never fail it (provider-fetch's breaker).
     breaker: "count"
   });
@@ -1722,7 +1722,12 @@ async function speakText(cfg, input, deps) {
     {
       method: "POST",
       headers: { "xi-api-key": cfg.apiKey, "content-type": "application/json", accept: "audio/mpeg" },
-      body: JSON.stringify({ text: input.text, model_id: input.modelId, apply_text_normalization: "on" }),
+      body: JSON.stringify({
+        text: input.text,
+        model_id: input.modelId,
+        apply_text_normalization: "on",
+        ...input.previousText ? { previous_text: input.previousText } : {}
+      }),
       timeoutMs: ELEVENLABS_SPEECH_TIMEOUT_MS,
       stream: true
     },
@@ -3172,7 +3177,7 @@ function emailPlainText(e) {
 
 // src/email/email-resend.ts
 var RESEND_API = "https://api.resend.com";
-var SEND_TIMEOUT_MS2 = 15e3;
+var SEND_TIMEOUT_MS = 15e3;
 var SEND_DEADLINE_MS = 32e3;
 var SEND_MIN_MS = 3e3;
 var RETRY_NEEDS_MS = 5e3;
@@ -3196,7 +3201,7 @@ async function resendRequest(cfg, method, path, opts = {}) {
       ...opts.idempotencyKey ? { "Idempotency-Key": opts.idempotencyKey } : {}
     },
     ...opts.body !== void 0 ? { body: JSON.stringify(opts.body) } : {},
-    timeoutMs: opts.timeoutMs ?? SEND_TIMEOUT_MS2,
+    timeoutMs: opts.timeoutMs ?? SEND_TIMEOUT_MS,
     breaker: opts.breaker ?? "hold"
   });
   return {
@@ -3261,10 +3266,10 @@ async function sendEmail(cfg, request, opts = {}) {
     if (p.result.ok && p.paceMs) await wait(Math.min(p.paceMs, LIMIT_WAIT_MAX_MS, left()));
     return p.result;
   };
-  const first = await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS2, left()));
+  const first = await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS, left()));
   if (first.timedOut) {
     if (left() < RETRY_NEEDS_MS) return first.result;
-    const second = await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS2, left()));
+    const second = await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS, left()));
     const s = second.result;
     if (!s.ok && (s.status === 0 || s.status >= 500 || resendLimitOf(s) === "in_flight"))
       return { ok: false, wamid: null, status: 0, errorBody: "timeout", outcome: "unknown" };
@@ -3275,7 +3280,7 @@ async function sendEmail(cfg, request, opts = {}) {
   const ms = first.waitMs ?? LIMIT_WAIT_DEFAULT_MS;
   if (ms > LIMIT_WAIT_MAX_MS || ms >= left()) return first.result;
   await wait(ms);
-  return paced(await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS2, left())));
+  return paced(await postEmail(cfg, request, Math.min(SEND_TIMEOUT_MS, left())));
 }
 var RESEND_RECEIVED = `${RESEND_API}/emails/receiving`;
 var FETCH_TIMEOUT_MS = 15e3;
@@ -4299,7 +4304,8 @@ function planProfileSync(before, known, page, day, nowMs) {
     replied,
     bells: reviewBells(news, 0, { rating: listing?.rating ?? null, review_count: count }),
     synced_at: now,
-    complete: page.next_page_token === null
+    complete: page.next_page_token === null,
+    prune: page.next_page_token === null && (page.total_count === 0 || page.reviews.length > 0 && (page.total_count === null || page.reviews.length >= page.total_count))
   };
 }
 
@@ -5004,7 +5010,7 @@ export {
   REVIEW_BELL_MAX,
   SEND_DEADLINE_MS,
   SEND_MIN_MS,
-  SEND_TIMEOUT_MS2 as SEND_TIMEOUT_MS,
+  SEND_TIMEOUT_MS,
   SMS_FOOTER,
   SMS_HELD_DETAILS,
   SMS_HELD_REASON,
@@ -5013,6 +5019,7 @@ export {
   STATE_TTL_MS,
   SYSTEM_ONE_URL,
   TRUSTHUB,
+  TWILIO_TIMEOUT_MS,
   TwilioError,
   UNSUBSCRIBE_PATH,
   VOICE_AGENT_DEFAULTS,
@@ -5023,6 +5030,7 @@ export {
   VOICE_WEBHOOK_EVENTS,
   VOICE_WEBHOOK_TIMEOUT_MS,
   WEBHOOK_TOLERANCE_S,
+  WHATSAPP_SEND_TIMEOUT_MS,
   a2pProfileEndUserRequest,
   a2pProfileRequest,
   accountsRequest,

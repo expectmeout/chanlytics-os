@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
+import { fieldsOf, logLineOf } from "../_log-lines.mjs";
 import { REACH_OUT_REFUSALS } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -52,6 +53,8 @@ const doors = (over = {}) => {
     asked,
     rpcs: {
       reach_out_report: rec("reach_out_report", { days: 30, has_reach_out: true, chains: [] }),
+      // 00375: each chain's own totals over the report's window, by its root: none wrote here.
+      reach_out_chain_totals: rec("reach_out_chain_totals", {}),
       reach_out_search_lines: rec("reach_out_search_lines", null),
       reach_out_lead_timeline: rec("reach_out_lead_timeline", { lead_id: LEAD, sends: [], readings: [] }),
       reach_out_lead_stop: rec("reach_out_lead_stop", { stopped: true, already: false, skipped: 2, leaving: 0 }),
@@ -96,14 +99,148 @@ test("each route declares its policy: every member reads, an operator stops, the
   });
 });
 
-test("GET reports/reach-outs asks its function for the workspace's period, and refuses any other", async () => {
+/** What a set of doors was asked, by the function's name: the report and the chains' totals are asked together. */
+const byName = (asked) => [...asked].sort((a, b) => a[0].localeCompare(b[0]));
+/** The lines `event` was logged with while `fn` ran, by their fields, and what `fn` answered. */
+async function logged(event, fn) {
+  const lines = [];
+  const was = { error: console.error, warn: console.warn };
+  console.error = console.warn = (...args) => {
+    const line = logLineOf(args);
+    if (line?.event === event) lines.push(fieldsOf(line));
+  };
+  try {
+    return { result: await fn(), lines };
+  } finally {
+    console.error = was.error;
+    console.warn = was.warn;
+  }
+}
+/** A report with one chain of its own, whose one step wrote to three businesses and heard back from one. */
+const ONE_CHAIN = {
+  days: 30,
+  has_reach_out: true,
+  chains: [
+    {
+      root_id: "r1",
+      name: "A",
+      state: "running",
+      search: null,
+      last_at: null,
+      runs: 1,
+      steps: [{ id: "r1", n: 0, written: 3, wrote_back: 1 }],
+    },
+  ],
+};
+
+test("GET reports/reach-outs reads the report and every chain's totals over one window: a period ends today and names no day, days a member picked name their last day to both, and a window it cannot read is refused in its words before either is asked", async () => {
   const d = doors();
-  const out = await report.GET.run(get("&days=7"), ctxFor(tables("viewer"), {}, d.rpcs));
-  assert.deepEqual(out.report, { days: 30, has_reach_out: true, chains: [] });
-  assert.deepEqual(d.asked, [["reach_out_report", { p_tenant_id: A, p_days: 7 }]]);
-  await report.GET.run(get(), ctxFor(tables("viewer"), {}, d.rpcs));
-  assert.deepEqual(d.asked.at(-1)[1], { p_tenant_id: A, p_days: 30 }, "thirty by default");
-  await refused(report.GET.run(get("&days=14"), ctxFor(tables("viewer"), {}, d.rpcs)), "validation", 400);
+  const out = await report.GET.run(get("&period=7d"), ctxFor(tables("viewer"), {}, d.rpcs));
+  assert.deepEqual(out, {
+    report: { days: 30, has_reach_out: true, chains: [] },
+    chains: { complete: true, by_root: {} },
+  });
+  assert.deepEqual(byName(d.asked), [
+    ["reach_out_chain_totals", { p_tenant_id: A, p_days: 7 }],
+    ["reach_out_report", { p_tenant_id: A, p_days: 7 }],
+  ]);
+  const thirty = doors();
+  await report.GET.run(get(), ctxFor(tables("viewer"), {}, thirty.rpcs));
+  assert.deepEqual(
+    byName(thirty.asked),
+    [
+      ["reach_out_chain_totals", { p_tenant_id: A, p_days: 30 }],
+      ["reach_out_report", { p_tenant_id: A, p_days: 30 }],
+    ],
+    "thirty days by default, to both",
+  );
+  // Days long past, whatever today is: twenty of them, to the 20th, so the chains count the report's own days.
+  const picked = doors();
+  await report.GET.run(get("&from=2026-01-01&to=2026-01-20"), ctxFor(tables("viewer"), {}, picked.rpcs));
+  assert.deepEqual(byName(picked.asked), [
+    ["reach_out_chain_totals", { p_tenant_id: A, p_days: 20, p_end: "2026-01-20" }],
+    ["reach_out_report", { p_tenant_id: A, p_days: 20, p_end: "2026-01-20" }],
+  ]);
+  const none = doors();
+  const over = (q) => report.GET.run(get(q), ctxFor(tables("viewer"), {}, none.rpcs));
+  await refused(over("&period=14d"), "validation", 400);
+  await refused(over("&from=2999-01-01&to=2999-01-05"), "validation", 400, "A report ends today at the latest.");
+  await refused(
+    over("&from=2026-01-01"),
+    "validation",
+    400,
+    "from and to are a first and a last day together, written YYYY-MM-DD, with no period beside them.",
+  );
+  assert.deepEqual(none.asked, [], "nothing asked of the database for a window it would not read");
+});
+
+test("GET reports/reach-outs answers its reader's payload; where the chains' totals cannot be read the report's own chains stand in, as not every chain: a database without the function quietly, a read that fails said in the log; only the report's own failure is the route's", async () => {
+  const { load, readerContext } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+  const { reachOutReport } = await import(at("apps/dashboard/src/server/readers/campaign-report.ts"));
+  const d = doors({
+    reach_out_report: () => ONE_CHAIN,
+    reach_out_chain_totals: () => ({
+      r1: { written: 3, wrote_back: 1, last_at: null },
+      r2: { written: 0, wrote_back: 0, last_at: null },
+    }),
+  });
+  const page = await report.GET.run(get("&period=30d"), ctxFor(tables("viewer"), {}, d.rpcs));
+  const read = await load(
+    readerContext(ctxFor(tables("viewer"), {}, d.rpcs), { tenantId: A, role: "viewer" }),
+    reachOutReport,
+    {
+      days: 30,
+      end: null,
+    },
+  );
+  assert.deepEqual(read.data, page, "the route's payload is the reader's");
+  assert.deepEqual(read.rows, [], "no row of its own: it is drawn on Reports");
+  assert.deepEqual(
+    page.chains,
+    { complete: true, by_root: { r1: { written: 3, wrote_back: 1 }, r2: { written: 0, wrote_back: 0 } } },
+    "every chain, the one past the report's own among them",
+  );
+  // A database before 00375: PostgREST does not know the function. The report's own chains, summed, and no line.
+  const missing = doors({
+    reach_out_report: () => ONE_CHAIN,
+    reach_out_chain_totals: () => {
+      throw Object.assign(new Error("Could not find the function public.reach_out_chain_totals"), { code: "PGRST202" });
+    },
+  });
+  const old = await logged("reach_out_chain_totals_read_failed", () =>
+    report.GET.run(get("&period=30d"), ctxFor(tables("viewer"), {}, missing.rpcs)),
+  );
+  assert.deepEqual(old.result.chains, { complete: false, by_root: { r1: { written: 3, wrote_back: 1 } } });
+  assert.deepEqual(old.lines, [], "a function not there yet is no failure");
+  // A chains' read that fails (a member's statement past its 8 seconds) is no missing function: the report still answers,
+  // its own chains said as not every chain, and the failure is logged, never thrown at the section.
+  const slow = doors({
+    reach_out_report: () => ONE_CHAIN,
+    reach_out_chain_totals: () => {
+      throw Object.assign(new Error("canceling statement due to statement timeout"), { code: "57014" });
+    },
+  });
+  const timedOut = await logged("reach_out_chain_totals_read_failed", () =>
+    report.GET.run(get("&period=30d"), ctxFor(tables("viewer"), {}, slow.rpcs)),
+  );
+  assert.deepEqual(timedOut.result.report, ONE_CHAIN, "the report answers whatever the totals do");
+  assert.deepEqual(timedOut.result.chains, { complete: false, by_root: { r1: { written: 3, wrote_back: 1 } } });
+  assert.deepEqual(timedOut.lines, [
+    { tenant_id: A, error: "reach_out_chain_totals: canceling statement due to statement timeout" },
+  ]);
+  // An answer of the wrong shape is no count: every chain says "—" rather than a number nobody counted.
+  const odd = doors({ reach_out_report: () => ONE_CHAIN, reach_out_chain_totals: () => ({ r1: { written: "3" } }) });
+  assert.equal((await report.GET.run(get("&period=30d"), ctxFor(tables("viewer"), {}, odd.rpcs))).chains, null);
+  // The report's own read is the section: its failure is the route's, whatever the totals answered.
+  const down = doors({
+    reach_out_report: () => {
+      throw Object.assign(new Error("canceling statement due to statement timeout"), { code: "57014" });
+    },
+  });
+  await assert.rejects(
+    report.GET.run(get("&period=30d"), ctxFor(tables("viewer"), {}, down.rpcs)),
+    /canceling statement/,
+  );
 });
 
 test("GET reach-outs/leads answers a search's lines, or one lead's story, and asks for exactly one", async () => {

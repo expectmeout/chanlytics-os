@@ -208,15 +208,17 @@ function schemaTables(sql) {
 /**
  * The tables a SQL function's body writes, read from its tokens: `insert into`, `delete from`, and `update` that is not
  * an upsert's `do update` or a lock's `for update` / `for no key update`. A name the schema has no table for (a CTE,
- * `set`) is not one. A statement built as a string (`execute format(…)`) is not seen.
+ * `set`) is not one. A statement built as a string (`execute format(…)`) is not seen. With `inserts`, only the tables
+ * it inserts into.
  */
-export function tablesWrittenBy(body, tables) {
+export function tablesWrittenBy(body, tables, { inserts = false } = {}) {
   const out = new Set();
   const toks = statementsOf(body).flatMap((x) => x.tokens);
   const nameAt = (k) => (isSqlWord(toks[k], "public") && toks[k + 1]?.value === "." ? toks[k + 2] : toks[k]);
   for (let k = 0; k < toks.length; k++) {
     let t = null;
     if (isSqlWord(toks[k], "insert") && isSqlWord(toks[k + 1], "into")) t = nameAt(k + 2);
+    else if (inserts) continue;
     else if (isSqlWord(toks[k], "delete") && isSqlWord(toks[k + 1], "from")) t = nameAt(k + 2);
     else if (isSqlWord(toks[k], "update") && !["do", "for", "key"].some((w) => isSqlWord(toks[k - 1], w)))
       t = nameAt(isSqlWord(toks[k + 1], "only") ? k + 2 : k + 1);
@@ -235,29 +237,98 @@ const MANY_WRITERS_BY_DESIGN = new Set(["events", "decisions", "sweep_status"]);
 
 /**
  * A writer that only removes what age or an erasure takes, which reaches its tables by design: a purge, a scrub, the
- * erasure's own legs. 0036's registry is what holds those, not this count.
+ * erasure's own legs (erase_contact, and the triggers its tombstone fires, `<table>_erase_on_contact` and
+ * `<column>_on_erase`), and lead_blank, the one function retention and erasure blank a lead through. 0036's registry is
+ * what holds those, not this count. Waived for what such a writer updates and deletes, never for a table it inserts into:
+ * a row it adds (a suppression an erasure leaves, say) is a writer of that table like any other.
  */
 const takesAway = (who) =>
-  /^(purge_|erase_)|scrub/.test(who) || /^apps\/dashboard\/src\/server\/people\/(erasure|erase-contact)\.ts$/.test(who);
+  /^(purge_|erase_)|scrub|(_erase_on_contact|_on_erase)\(\)$|^lead_blank\(\)$/.test(who) ||
+  /^apps\/dashboard\/src\/server\/people\/(erasure|erase-contact)\.ts$/.test(who);
 
 /**
  * Each table and who writes it: every source module whose supabase-js chain writes it (_ast.mjs tablesWrittenIn), and
  * every live SQL function whose body does, as supabase/schema.sql holds the functions the migrations leave standing.
- * A table written from many places by design, and a writer that only takes rows away, are left out.
+ * A table written from many places by design, and what a writer that takes away updates or deletes, are left out.
  */
 export function writersByTable() {
   const sql = readRaw(SCHEMA_SQL);
   const tables = schemaTables(sql);
   const writers = new Map();
-  const add = (table, who) => {
-    if (!tables.has(table) || MANY_WRITERS_BY_DESIGN.has(table) || takesAway(who)) return;
+  const add = (table, who, inserted = false) => {
+    if (!tables.has(table) || MANY_WRITERS_BY_DESIGN.has(table) || (takesAway(who) && !inserted)) return;
     if (!writers.has(table)) writers.set(table, new Set());
     writers.get(table).add(who);
   };
   for (const f of SRC) for (const t of tablesWrittenIn(parse(f))) add(t, f);
   for (const c of functionChangesIn(sql))
-    if (c.kind === "create" && c.body) for (const t of tablesWrittenBy(c.body, tables)) add(t, `${c.name}()`);
+    if (c.kind === "create" && c.body) {
+      const inserted = tablesWrittenBy(c.body, tables, { inserts: true });
+      for (const t of tablesWrittenBy(c.body, tables)) add(t, `${c.name}()`, inserted.has(t));
+    }
   return writers;
+}
+
+/* ---- Doors writing a record with no event (decision 0031, invariant 2: a fact and its event share a transaction) ---- */
+
+/** The spine's own rows: an event's outbox row and its deliveries, and the jobs that carry reactions. What a fact causes. */
+const SPINE = new Set(["event_outbox", "event_deliveries", "jobs"]);
+
+/** A statement of the snapshot that does not run on past a blank line, which ends every statement it writes. */
+const ONE_STATEMENT = String.raw`(?:(?!\n\n)[\s\S])*?`;
+
+/**
+ * Each `security definer` function of the schema, a door (0031), that writes a record and writes no event, with the
+ * number of records it writes: `{ "name()": n }`. A door writes its event when its body inserts into `events`, when it
+ * calls a function that does, or when it writes a table a trigger of which does, each followed to the end. The tables
+ * many places write by design, the spine's own rows and the writers that only take away (the writers measure's) are no
+ * record here. A statement built as a string (`execute format(…)`) is not seen.
+ */
+export function doorsWithoutEventsIn(sql) {
+  const tables = schemaTables(sql);
+  const definer = new Set(
+    [...sql.matchAll(new RegExp(String.raw`^CREATE FUNCTION public\.(\w+)\(${ONE_STATEMENT}\n {4}AS `, "gm"))]
+      .filter((m) => /\bSECURITY DEFINER\b/.test(m[0]))
+      .map((m) => m[1].toLowerCase()),
+  );
+  const bodies = new Map();
+  for (const c of functionChangesIn(sql)) if (c.kind === "create" && c.body) bodies.set(c.name, c.body);
+  const writes = new Map([...bodies].map(([n, b]) => [n, tablesWrittenBy(b, tables)]));
+  const calls = new Map(
+    [...bodies].map(([n, b]) => [
+      n,
+      [...b.matchAll(/\b(?:public\.)?(\w+)\s*\(/g)]
+        .map((m) => m[1].toLowerCase())
+        .filter((f) => f !== n && bodies.has(f)),
+    ]),
+  );
+  const fired = new Map();
+  const trigger = String.raw`^CREATE TRIGGER \w+ ${ONE_STATEMENT} ON public\.(\w+) ${ONE_STATEMENT}EXECUTE FUNCTION public\.(\w+)\(`;
+  for (const [, table, fn] of sql.matchAll(new RegExp(trigger, "gm")))
+    fired.set(table, [...(fired.get(table) ?? []), fn.toLowerCase()]);
+  const evented = new Set([...writes].filter(([, w]) => w.has("events")).map(([n]) => n));
+  const writesItsEvent = (n) =>
+    calls.get(n).some((f) => evented.has(f)) ||
+    [...writes.get(n)].some((t) => (fired.get(t) ?? []).some((f) => evented.has(f)));
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const n of writes.keys())
+      if (!evented.has(n) && writesItsEvent(n)) {
+        evented.add(n);
+        grew = true;
+      }
+  }
+  const out = {};
+  for (const n of [...definer].sort()) {
+    if (evented.has(n)) continue;
+    // A writer that takes away is waived for what it updates and deletes, as the writers measure waives it.
+    const inserted = takesAway(`${n}()`) ? tablesWrittenBy(bodies.get(n), tables, { inserts: true }) : null;
+    const records = [...(writes.get(n) ?? [])].filter(
+      (t) => !MANY_WRITERS_BY_DESIGN.has(t) && !SPINE.has(t) && (!inserted || inserted.has(t)),
+    );
+    if (records.length) out[`${n}()`] = records.length;
+  }
+  return out;
 }
 
 export const MEASURES = [
@@ -477,6 +548,13 @@ export const MEASURES = [
       ),
     advice:
       "One record, one door writes it (decision 0031, invariant 1): write the table through the door that already writes it, the SQL function or the repository in packages/db, rather than adding a writer.",
+  },
+  {
+    name: "doors writing a record with no event",
+    file: "doors-without-events.json",
+    measure: () => doorsWithoutEventsIn(readRaw(SCHEMA_SQL)),
+    advice:
+      "A fact and its event share a transaction (decision 0031, invariant 2): write the record's event in the door, beside the write (insert into public.events, or a trigger on the table that does), or argue under Rises in docs/debt.md why the write is no fact.",
   },
   {
     // Each column's strategy is packages/db's ERASURE_STRATEGIES; people/erasure/erasure-registry.test.mjs holds it to

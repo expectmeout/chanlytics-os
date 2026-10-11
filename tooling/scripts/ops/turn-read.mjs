@@ -2,12 +2,12 @@
  * What the receptionist was told when it wrote a reply (decision 0039).
  *
  * A reply's row names the turn it was written in (messages.meta.turn_id). The turn is kept for thirty days as the
- * model read it (model_turns, 00359): the clock, who the person was, an owner's steer, the thread, and what the model
+ * model read it (model_turns, 00401): the clock, who the person was, an owner's steer, the thread, and what the model
  * answered before anything replaced it; the text of the prompt it read is kept under its hash (model_prompts). This
  * prints one turn, by the reply, by the turn, or the turns of a conversation to pick from. Read-only; the service role,
  * because no session reads these tables. What it shows as the answer is the record the platform read (which the reply
  * was made from); where the model's own words said more, it says so, and --json has them whole. Asked by the reply,
- * it also says the settings the reply was written under (meta.config_version, kept by 00360 for 400 days after they
+ * it also says the settings the reply was written under (meta.config_version, kept by 00402 for 400 days after they
  * were replaced), and --json has those whole too.
  *
  *   NEXT_PUBLIC_SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… node tooling/scripts/ops/turn-read.mjs --message <uuid>

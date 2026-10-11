@@ -34,9 +34,10 @@ export interface ScheduleParams {
  * What makes a row once-only while it is scheduled or fired (jobs.dedupe_key, 00333, decision 0033): the three kinds the
  * ledger held once per subject by an index of their own carry the same subject as their key, so one index holds every
  * kind once the three retire. A text's answer (inbound_answer, 00347) is held once per message the same way. A kind with
- * no rule has no key.
+ * no rule has no key. The key is unique across every workspace (jobs_dedupe_live), so a subject that is not one
+ * workspace's alone carries the workspace in its key.
  */
-function dedupeKeyOf(kind: JobKind, payload: Json): string | null {
+function dedupeKeyOf({ tenantId, kind, payload }: ScheduleParams): string | null {
   const p = payload !== null && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
   const field = (name: string): string | null => (typeof p[name] === "string" ? p[name] : null);
   switch (kind) {
@@ -48,10 +49,12 @@ function dedupeKeyOf(kind: JobKind, payload: Json): string | null {
       return field("run_id") && field("seq") ? `lead_collect:${field("run_id")}:${field("seq")}` : null;
     case "reply_read":
       return field("message_id") ? `reply_read:${field("message_id")}:${field("stage") ?? "read"}` : null;
-    // One read per delivery (docs/plans/2026-10-07-bookings-arrive-by-email.md): the intake run again, or the
-    // provider's webhook replayed, finds the read already on the ledger.
+    // One read per delivery in each workspace (docs/plans/2026-10-07-bookings-arrive-by-email.md): the intake run again,
+    // or the provider's webhook replayed, finds the read already on the ledger. One delivery addressed to two
+    // workspaces' mailboxes is an intake for each (edge resend-event.ts), and each reads it into its own appointments:
+    // keyed by the delivery alone, the second workspace's read was already_scheduled, and its booking never read.
     case "booking_read":
-      return field("received_id") ? `booking_read:${field("received_id")}` : null;
+      return field("received_id") ? `booking_read:${tenantId}:${field("received_id")}` : null;
     case "inbound_answer":
       return field("message_id") ? `inbound_answer:${field("message_id")}` : null;
     default:
@@ -87,7 +90,7 @@ export async function scheduleJob(db: Db, p: ScheduleParams): Promise<{ jobId: s
  * as the fact it is rather than thrown: the work is already on the ledger.
  */
 export async function scheduleJobOnce(db: Db, p: ScheduleParams): Promise<"scheduled" | "already_scheduled"> {
-  const key = dedupeKeyOf(p.kind, p.payload);
+  const key = dedupeKeyOf(p);
   const insert = (dedupeKey: string | null) => db.from("jobs").insert(rowToInsert(p, dedupeKey));
   let { error } = await insert(key);
   // A database 00333 has not reached has no dedupe_key column (PostgREST: PGRST204): the row is written without the
@@ -138,6 +141,7 @@ export type Requeued =
   | { outcome: "not_found" }
   | { outcome: "not_failed"; state: string }
   | { outcome: "speaks_to_a_person"; kind: string }
+  | { outcome: "redrive"; subscriber: string }
   | { outcome: "unknown_kind"; kind: string }
   | { outcome: "already_scheduled" };
 
@@ -147,8 +151,14 @@ export type Requeued =
  * The back office's door, on the platform scope: `record` writes who asked, after the checks and before the row, and a
  * record that throws leaves nothing done. A kind that speaks to a person is never requeued: its failure may be a send
  * whose outcome nobody knows, and it goes again from its thread or its broadcast, where a person sees whether it left.
+ * Nor is a job of any kind whose run said it was about to speak (spoke_at, ledger markSpoke): a text's answer that put
+ * its words on the wire and then threw may have reached the customer, and a fresh row would answer them twice.
  * A job already run again (a copy of its kind and payload made after it, not itself failed) answers
  * `already_scheduled`, and so does a kind the ledger holds once per subject when the subject is on the ledger again.
+ * An event's delivery is not run again here: its row is the delivery's, which a fresh job would leave failed and naming
+ * the old one, and its one way back is `event_deliveries_redrive` (00334, 00390), which replays every failed or paused
+ * delivery of its subscriber once the subscriber is mended, each with a job of its own (decision 0031's review of
+ * 9 October: one of the two re-drive paths goes).
  */
 export async function requeueFailedJob(
   db: Db,
@@ -159,7 +169,11 @@ export async function requeueFailedJob(
   const row = await readJobToRequeue(db, tenantId, jobId);
   if (!row) return { outcome: "not_found" };
   if (row.state !== "failed") return { outcome: "not_failed", state: row.state };
-  if (SPEAKS_TO_A_PERSON.has(row.kind)) return { outcome: "speaks_to_a_person", kind: row.kind };
+  if (row.kind === "event_deliver") {
+    const subscriber = (row.payload as { subscriber?: unknown } | null)?.subscriber;
+    return { outcome: "redrive", subscriber: typeof subscriber === "string" ? subscriber : "" };
+  }
+  if (SPEAKS_TO_A_PERSON.has(row.kind) || row.spoke_at) return { outcome: "speaks_to_a_person", kind: row.kind };
   // Run again once: a second press, or a second person, finds the copy the first left and does not make another.
   if (await hasNewerCopy(db, tenantId, row)) return { outcome: "already_scheduled" };
   // A kind a newer deploy wrote and this one does not know (failed after a day unknown) waits for the deploy that does.

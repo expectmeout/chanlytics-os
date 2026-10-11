@@ -366,7 +366,12 @@ test("a snapshot after the write builds on the copy the tab keeps parsed: each o
     // A slot written by anything else is read as it is: parsed again, never the copy.
     globalThis.sessionStorage.setItem(
       CACHE,
-      JSON.stringify({ build: process.env.NEXT_PUBLIC_BUILD_SHA || "dev", tenant: "t-other", surfaces: {} }),
+      JSON.stringify({
+        build: process.env.NEXT_PUBLIC_BUILD_SHA || "dev",
+        at: "salon",
+        tenant: "t-other",
+        surfaces: {},
+      }),
     );
     assert.equal(cachedTenantNow(), "t-other");
   } finally {
@@ -375,4 +380,103 @@ test("a snapshot after the write builds on the copy the tab keeps parsed: each o
     mock.timers.reset();
     clearSurfaceCache();
   }
+});
+
+test("REGRESSION: a load at another workspace's address draws none of the rows cached at this one -- a phone's push for another workspace opened its address and drew this one's Inbox and name until the workspaces read landed", () => {
+  clearSurfaceCache();
+  const w = globalThis.window;
+  w.__INBOX_PROBE = { THREADS: [{ id: "t1", who: "A customer of the salon's" }] };
+  // The workspace surface's globals ride in the same cache: the name on the sidebar, and the id every guard reads.
+  snapshotSurface("inbox", ["__INBOX_PROBE"], TID);
+  snapshotSurface("workspace", ["__WORKSPACES", "__ACTIVE_WORKSPACE"], TID);
+  flushSurfaceCache();
+  const ws = w.__WORKSPACES;
+  delete w.__INBOX_PROBE;
+  delete w.__WORKSPACES;
+  delete w.__ACTIVE_WORKSPACE;
+  // The tab is sent to another workspace's address, and loads: the cache is restored before React draws anything.
+  w.location.pathname = "/w/bayside/inbox";
+  try {
+    assert.deepEqual(
+      [...hydrateSurfaceCache()],
+      [],
+      "REGRESSION: the salon's surfaces were drawn under bayside's address",
+    );
+    assert.equal(w.__INBOX_PROBE, undefined, "none of its rows");
+    assert.equal(w.__WORKSPACES, undefined, "nor its name");
+    assert.equal(w.__ACTIVE_WORKSPACE, undefined, "nor its id, which every read after would have taken as bayside's");
+    assert.equal(
+      globalThis.sessionStorage.getItem(CACHE),
+      null,
+      "and dropped: nothing at this address may build on it",
+    );
+    assert.equal(cachedTenantNow(), null, "so the runner's guard has no other workspace to reload the tab for");
+  } finally {
+    w.location.pathname = "/w/salon";
+    w.__WORKSPACES = ws;
+    w.__ACTIVE_WORKSPACE = TID;
+  }
+});
+
+test("off a workspace page (the home, on its way to one) the cache is drawn nowhere and left for its workspace's own load", () => {
+  clearSurfaceCache();
+  const w = globalThis.window;
+  w.__TODAY_PROBE = { n: 1 };
+  snapshotSurface("today", ["__TODAY_PROBE"], TID);
+  flushSurfaceCache();
+  delete w.__TODAY_PROBE;
+  w.location.pathname = "/";
+  try {
+    assert.deepEqual([...hydrateSurfaceCache()], [], "the home draws none of a workspace's rows");
+    assert.ok(globalThis.sessionStorage.getItem(CACHE), "and keeps them for the address it sends the tab to");
+  } finally {
+    w.location.pathname = "/w/salon";
+  }
+  assert.deepEqual([...hydrateSurfaceCache()], ["today"], "which draws them at once");
+  delete w.__TODAY_PROBE;
+  clearSurfaceCache();
+});
+
+test("REGRESSION: rows read at one workspace's address never join the cache of another -- with the workspaces read failed, the last workspace's id stayed, and the new one's rows were written under it", () => {
+  clearSurfaceCache();
+  const w = globalThis.window;
+  w.__TODAY_PROBE = { whose: "the salon's" };
+  snapshotSurface("today", ["__TODAY_PROBE"], TID);
+  flushSurfaceCache();
+  // At bayside's address, the id the page holds still says the salon (its workspaces read failed both tries).
+  w.location.pathname = "/w/bayside";
+  w.__INBOX_PROBE = { whose: "bayside's" };
+  try {
+    snapshotSurface("inbox", ["__INBOX_PROBE"], TID);
+    const kept = JSON.parse(stored());
+    assert.deepEqual(
+      Object.keys(kept.surfaces),
+      ["inbox"],
+      "REGRESSION: bayside's Inbox was written into the salon's cache, beside the salon's Today",
+    );
+    assert.equal(kept.at, "bayside", "the cache says whose address its rows were read at");
+  } finally {
+    w.location.pathname = "/w/salon";
+  }
+  // Back at the salon's address: nothing of bayside's is drawn there.
+  delete w.__INBOX_PROBE;
+  delete w.__TODAY_PROBE;
+  assert.deepEqual([...hydrateSurfaceCache()], []);
+  assert.equal(w.__INBOX_PROBE, undefined);
+  clearSurfaceCache();
+});
+
+test("a cache the server resolved for another workspace is not added to, even at the same address", () => {
+  clearSurfaceCache();
+  const w = globalThis.window;
+  w.__TODAY_PROBE = { n: 1 };
+  snapshotSurface("today", ["__TODAY_PROBE"], "t-other");
+  w.__INBOX_PROBE = { n: 2 };
+  snapshotSurface("inbox", ["__INBOX_PROBE"], TID);
+  const kept = JSON.parse(stored());
+  assert.deepEqual(Object.keys(kept.surfaces), ["inbox"], "the rows start a cache of their own workspace");
+  assert.equal(kept.tenant, TID);
+  delete w.__TODAY_PROBE;
+  delete w.__INBOX_PROBE;
+  clearSurfaceCache();
 });

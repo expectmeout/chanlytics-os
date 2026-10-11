@@ -77,7 +77,7 @@ export const NEW_MESSAGE_WORDS = {
   /** Under the pane's name while the message is an email's or a text's: what is not WhatsApp's. */
   sub: "Email is written here and ready the moment it is saved; no one reviews it first.",
   /** The one quiet line over the form: what a message written here is, and where the other kind comes from. */
-  own: "A message you write here is an offer or news. Visit reminders and follow-ups come from the starter set.",
+  own: "A message you write here is an offer or news. Reminders and follow-ups come from the starter set.",
   /** What a text says after the carriers' sentence: the way out. */
   textGoesByEmail: "This one can go by email.",
   writeAsEmail: "Write it as an email",
@@ -111,6 +111,51 @@ export const LIBRARY_STARTER_WORDS = {
   waitsForNumber: "WhatsApp versions wait for a number",
   /** The route's refusal when the channels it is asked for are none it knows. */
   pickAChannel: "Pick at least one channel: WhatsApp, email or text.",
+  /** A new campaign named by a starter that is not its moment's own, or by no starter the set has (A0). */
+  notThisMoment: (moment: string): string =>
+    `That starter is not one “${moment}” goes by: name the moment's own starter, or a message from the Library.`,
+  /** A starter whose words are the owner's to write (the month's offer): it is started from the composer. */
+  takesOwnWords: (title: string): string =>
+    `The “${title}” starter takes words of its own: write them in the composer and start it there.`,
+  /**
+   * A starter the workspace hid in its Library: it has a version, and no card adds it back, so the way out is to show it
+   * again or to go by another message, never the starter set, which leaves a hidden one hidden.
+   */
+  hiddenInLibrary: (title: string): string =>
+    `The “${title}” starter is hidden in this workspace's ${library}: show it again under ${CAMPAIGN_ROOMS.home} › ${library}, or name another message.`,
+  /** What a new campaign's card does first where the workspace does not hold its moment's starter (A0). */
+  addsFirst: (title: string): string => `adds the “${title}” starter first`,
+  /**
+   * The card's WhatsApp clause where no WhatsApp version of the starter is on file: the filing sends one for review at
+   * Approve, which cannot be taken back, and the campaign's people there wait for WhatsApp's answer. No time is promised:
+   * nothing on record says how long a review takes. A version already on file is said as it stands (messageWhyNot).
+   */
+  whatsappForReview:
+    "WhatsApp waits: its WhatsApp version goes to WhatsApp for review when you approve, and that cannot be taken back. Its runs hold those people until WhatsApp approves it.",
+  /**
+   * The same review, said beside the workspace's own reason WhatsApp waits (a number WhatsApp flagged): there, WhatsApp's
+   * approval of the version releases nobody, so the reason stands and the review is a clause of its own.
+   */
+  whatsappSentForReview:
+    "Its WhatsApp version goes to WhatsApp for review when you approve, and that cannot be taken back.",
+  /**
+   * A new campaign named by a starter, on channels none of which its message holds at once: a WhatsApp version in
+   * review carries nothing until WhatsApp approves it, and once sent it cannot be taken back, so nothing is filed.
+   * `on` is where it was asked to go, `could` where the starter would carry it at once (null: nowhere).
+   */
+  waitsForWhatsApp: (title: string, on: string, could: string | null): string =>
+    could
+      ? `The “${title}” starter can send nothing ${on} until WhatsApp approves its WhatsApp version: let the campaign go ${could} too, or start it once WhatsApp has.`
+      : `The “${title}” starter can send nothing ${on} until WhatsApp approves its WhatsApp version: start the campaign once WhatsApp has.`,
+  /** The starter was judged and filing it failed, so no campaign was started (a version refused, or none to send). */
+  notAdded:
+    "The starter message could not be added just now, so nothing was started. Try again, or add it from the Library.",
+  /**
+   * The same, where its WhatsApp version did reach WhatsApp (sent for review, or found in the number's account): that
+   * version is in the Library and stays there, and a second press sends nothing to WhatsApp again.
+   */
+  notAddedSentForReview:
+    "The starter's WhatsApp version went to WhatsApp for review and is in the Library, but the campaign could not be started just now. Try again: nothing is sent to WhatsApp twice.",
 } as const;
 
 /** What a broadcast is, said where a page defines it (the Sent room's standing line, on hover): one message, and where it goes. */

@@ -215,7 +215,7 @@ test("the words beside the source, and the view model carrying the mode", () => 
     reply_mode: "ask",
     role: "owner",
   };
-  assert.deepEqual(toGoogleVM(dto, 30, NOW, "UTC").reply, { mode: "ask", words: "" });
+  assert.deepEqual(toGoogleVM(dto, { days: 30, until: null }, NOW, "UTC").reply, { mode: "ask", words: "" });
   const conn = {
     google_email: "o@x.com",
     account_title: "A",
@@ -225,10 +225,13 @@ test("the words beside the source, and the view model carrying the mode", () => 
     last_synced_at: "2026-09-07T14:00:00Z",
     sync_error: null,
   };
-  assert.deepEqual(toGoogleVM({ ...dto, connection: conn, reply_mode: "auto" }, 30, NOW, "UTC").reply, {
-    mode: "auto",
-    words: "new ones are answered by the receptionist within the hour",
-  });
+  assert.deepEqual(
+    toGoogleVM({ ...dto, connection: conn, reply_mode: "auto" }, { days: 30, until: null }, NOW, "UTC").reply,
+    {
+      mode: "auto",
+      words: "new ones are answered by the receptionist within the hour",
+    },
+  );
 });
 
 test("the wiring: the migration, the edge, the routes, the bridge, the pane and the composer", () => {
@@ -260,7 +263,7 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
     "the first sync is history, never answered",
   );
   assert.ok(lib.includes('if ((await reviewReplyMode(db, conn.tenant_id)) !== "auto") return [];'));
-  assert.ok(lib.includes("autoReplyCandidates(unreplied.data ?? [], conn.connected_at, now.getTime())"));
+  assert.ok(lib.includes("autoReplyCandidates(waiting, conn.connected_at, now.getTime(), REVIEW_DRAFTS_PER_SYNC)"));
   // The reply's `by` and the bell it rings, and the reply held back for a price, are run in google-door.test.mjs.
   assert.ok(
     lib.includes("business_name || t.data?.name") && lib.includes("phone: brain?.phone_display || null"),
@@ -293,7 +296,8 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
   // The Autonomy row rides on the Google reader's read, which GET google (google-actions.ts) answers: google-routes.test.mjs
   // runs it for each mode.
   const bridge = readCode("apps/dashboard/src/legacy-bridge/google.ts");
-  assert.ok(bridge.includes('"POST google/reviews/[id]/draft", { params: { id }, body: {} }'));
+  // Keyed (decision 0035): a second press while the first is in flight is the same draft, not a second model call.
+  assert.ok(bridge.includes('"POST google/reviews/[id]/draft", { params: { id }, body: {}, once: true }'));
 
   // The pane's row, as it is drawn: Auto, Ask and Never, no countdown to hold.
   assert.deepEqual(UI_ROWS.find((r) => r.id === "reviews").modes, ["Auto", "Ask", "Never"]);

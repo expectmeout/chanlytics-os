@@ -6,7 +6,7 @@
  */
 
 import { read } from "@/legacy-bridge/api";
-import { DEFAULT_REFRESH_TABLES } from "@/legacy-bridge/surface-realtime";
+import { DEFAULT_REFRESH_TABLES, isLiveCallTurn } from "@/legacy-bridge/surface-realtime";
 import { threadsWaitingOnYou, toTodayVM, type CallDto, type LeadSearchDto } from "@chanlytics/contracts";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { declareSurfaceValue, setSurfaceValue } from "../surface-values";
@@ -42,7 +42,7 @@ export const todayOverride: SurfaceOverride = {
   // message update Today is read again for. A receipt's ticks are the threads', and the day's figures do not move
   // with them.
   refreshOnMessageStatuses: ["failed"],
-  refreshWhen: (c) => c.table !== "calls" || c.event !== "UPDATE" || c.row.status !== "ongoing",
+  refreshWhen: (c) => !isLiveCallTurn(c),
   debounceMs: 800, // the recap is aggregate, not per-thread — no need to be twitchy
   apply: async () => {
     // Calls are additive context, not a precondition — a voice outage must not

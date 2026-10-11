@@ -20,6 +20,7 @@ import {
   textLineFacts,
   touchIndex,
   touchesSince,
+  recordOver,
   whatsappChannelFacts,
   yesesSince,
   type Database,
@@ -50,6 +51,8 @@ import {
   parseTenantConfig,
   standingFromConfig,
   peopleVisitsOf,
+  feedMarksOf,
+  seasonHorizon,
   poolListContext,
   consultFirstOf,
   poolRowsOf,
@@ -173,6 +176,67 @@ function numberHealthOf(cfg: Record<string, unknown>, s: (k: string) => string |
   );
 }
 
+/**
+ * Everyone's visits for a run, as the People page reads them (contracts peopleVisitsOf): the feed over the workspace's
+ * own horizon, and the record beside it over the same season (0002's readers), where a booking's visits join the feed's,
+ * a cancelled one leaves, and a member's kept or missed rides on each. A feed or a record that could not be read is
+ * "unavailable" (the record's logged): a visit the record cancelled or a member said missed cannot be told from one
+ * that stands, and a run that cannot tell them apart sends no visit's message that hour. No calendar is "none".
+ */
+async function runVisits(
+  db: Db,
+  tenantId: string,
+  {
+    url,
+    tz,
+    now,
+    daysAhead,
+    rows,
+    cfg,
+  }: {
+    url: string | null;
+    tz: string;
+    now: Date;
+    daysAhead: number;
+    rows: Parameters<typeof peopleVisitsOf>[1];
+    cfg: ReturnType<typeof parseTenantConfig>;
+  },
+): Promise<{ calendar: TenantRunContext["calendar"]; visits: Map<string, PersonVisitsDto> }> {
+  if (!url) return { calendar: "none", visits: new Map() };
+  const season = seasonHorizon(now, daysAhead);
+  const [items, record] = await Promise.all([
+    feedItemsFor(tenantId, url, tz, now, daysAhead),
+    recordOver(db, tenantId, new Date(season.from).toISOString(), new Date(season.to).toISOString()).then(
+      (r) => ({ noted: r.noted, marks: feedMarksOf(r.feed) }),
+      (e: unknown) => {
+        logger({ tenant_id: tenantId }).error("visits_record_read_failed", {
+          error: e instanceof Error ? e.message : String(e),
+        });
+        return null;
+      },
+    ),
+  ]);
+  if (!items || !record) return { calendar: "unavailable", visits: new Map() };
+  const profile = cfg?.brain?.profile;
+  // The pool's one reading (contracts audience-pool.ts), as the dashboard reads it: the business's own addresses are
+  // never a customer's (ownAddressesOf) -- without them a visit playbook could thank the owner, as a customer, for a
+  // meeting on their own calendar -- and each visit says whether it is a consultation (0004).
+  const visits = peopleVisitsOf(
+    items,
+    rows,
+    {
+      timezone: tz,
+      source: "calendar",
+      own: ownAddressesOf(cfg),
+      services: profile?.services ?? [],
+      rules: profile?.booking_rules ?? null,
+      record,
+    },
+    now.getTime(),
+  );
+  return { calendar: "ok", visits };
+}
+
 /** Read once per tenant: the people, the modes, the number, the touches. */
 export async function loadTenantRunContext(
   db: Db,
@@ -238,32 +302,8 @@ export async function loadTenantRunContext(
   // (api/cron/calendar.ts). Left to the default, a workspace that books three
   // months out had its visit playbooks reading a fortnight of calendar.
   const daysAhead = cfgParsed?.brain?.profile?.booking_rules?.max_days_ahead ?? BOOKING_DEFAULTS.max_days_ahead;
-  let calendar: TenantRunContext["calendar"] = "none";
-  let visits = new Map<string, PersonVisitsDto>();
   const profile = cfgParsed?.brain?.profile;
-  if (url) {
-    const items = await feedItemsFor(tenantId, url, tz, now, daysAhead);
-    if (items) {
-      calendar = "ok";
-      // The pool's one reading (contracts audience-pool.ts), as the dashboard reads it: the business's own addresses
-      // are never a customer's (ownAddressesOf) -- without them a visit playbook could thank the owner, as a customer,
-      // for a meeting on their own calendar -- and each visit says whether it is a consultation (0004).
-      visits = peopleVisitsOf(
-        items,
-        rows,
-        {
-          timezone: tz,
-          source: "calendar",
-          own: ownAddressesOf(cfgParsed),
-          services: profile?.services ?? [],
-          rules: profile?.booking_rules ?? null,
-        },
-        now.getTime(),
-      );
-    } else {
-      calendar = "unavailable";
-    }
-  }
+  const { calendar, visits } = await runVisits(db, tenantId, { url, tz, now, daysAhead, rows, cfg: cfgParsed });
   const dealsOn = dealsAreOn(isSellsBy(tenant?.sells_by) ? tenant.sells_by : null);
   // Everyone as the pool reads them: no one looking (a run has no viewer), no deal where deals are off, and their
   // visits attached the one way (withVisitsOf), as the People list and the Playbooks page attach them.
@@ -344,8 +384,10 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
           .eq("id", playbookId)
           .eq("tenant_id", tenantId);
       },
-      // The run, its people and its job, whole (00282 assemble_broadcast): a sweep that dies halfway leaves nothing.
-      assemble: (row, recipients, sendAt) =>
+      // The run, its people, its job and its decision, whole (00282 assemble_broadcast, with its decision since 00381):
+      // a sweep that dies halfway leaves nothing. A run the sweep sends is the system's decision under the mode the
+      // owner chose; a run a person asked for is theirs.
+      assemble: (row, recipients, sendAt, decision) =>
         assembleBroadcast(db, {
           tenantId,
           run: {
@@ -365,25 +407,20 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
           },
           recipients: recipients.map((r) => ({ contact_id: r.contact_id, facts: r.facts, channel: r.channel })),
           sendAt,
+          decision: decision
+            ? {
+                actor: decision.by.kind === "user" ? decision.by.userId : null,
+                payload: decision.payload,
+                via: null,
+                undoOf: null,
+              }
+            : null,
         }),
       // The month's allowance, counted before anyone is enrolled, and those past it held the moment the run exists (core
       // campaigns/allowance.ts): the send's own check at the wire stays as the backstop.
       monthSent: (channel, at) => campaignMonthSent(db, tenantId, channel, at),
       holdRecipients: (broadcastId, contactIds, reason) =>
         holdRecipients(db, { tenantId, broadcastId, contactIds, reason }),
-      // The ledger: a run the sweep sends is the system's decision under the
-      // mode the owner chose; a run a person asked for is theirs.
-      decide: async ({ broadcastId, by, payload }) => {
-        await db.from("decisions").insert({
-          tenant_id: tenantId,
-          subject_type: "broadcast",
-          subject_id: broadcastId,
-          verb: "send_broadcast",
-          actor_type: by.kind === "user" ? "user" : "system",
-          actor_user_id: by.kind === "user" ? by.userId : null,
-          payload: payload as unknown as Json,
-        });
-      },
       // The row opens the run it is about, as a reach-out's does (run-context.ts notifyWaiting): it opened Campaigns' home.
       notify: async (subject, body, runId) => {
         const target = await loadTenantNotifications(db, tenantId);

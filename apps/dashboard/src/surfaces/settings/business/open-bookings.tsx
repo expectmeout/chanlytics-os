@@ -132,6 +132,7 @@ const BtoBookingsNoAddress = ({ suggested, name }: { suggested: string | null; n
     try {
       const r = await api()("POST mailboxes", {
         body: { local_part: suggested.slice(0, suggested.indexOf("@")), from_name: name },
+        once: true,
       });
       // Made: the Calendar is read again (refresh-map.ts), and the address stands here with its Copy.
       if (!r.ok) setProblem(r.message);
@@ -473,17 +474,13 @@ export const BtBookingTool = ({
       id={BOOKING_TOOL_FOLD}
       light
       label={BOOKING_TOOL_WORDS.label}
-      hint={BOOKING_TOOL_WORDS.hint}
       channel={null}
       gate={gate("settings", "change what you book with")}
       row={{
         value: booksWith ? <BtoBooksWith withWhat={booksWith} feed={feed} /> : null,
         empty: BOOKING_TOOL_WORDS.empty,
-        hint: booksWith
-          ? null
-          : guess
-            ? `Your booking link is on ${guess}. Set it up to fill your calendar.`
-            : BOOKING_TOOL_WORDS.hint,
+        // A line under it only where there is something to act on: the tool the booking link was found on.
+        hint: !booksWith && guess ? `Your booking link is on ${guess}. Set it up to fill your calendar.` : null,
         children: (
           <>
             <BtoFeedRead stored={!!feed} whole={!canEdit} />

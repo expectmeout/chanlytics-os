@@ -136,7 +136,7 @@ function campaignsBody(vm: ReportVM, cm: CampaignReportVM | null, days: number) 
       {channelsCard(cm)}
       <ChartCard
         className="rpt-span-12"
-        title="By playbook and broadcast"
+        title="By campaign and broadcast"
         testid="chart-sources"
         switchable={false}
         table={{
@@ -153,7 +153,7 @@ function campaignsBody(vm: ReportVM, cm: CampaignReportVM | null, days: number) 
 export function CampaignsLens({ R }: LensProps) {
   return (
     <>
-      <RptSection title="Campaigns" meta="what your broadcasts and playbooks sent">
+      <RptSection title="Campaigns" bare>
         {campaignsBody(R.vm, R.campaigns || null, R.days)}
       </RptSection>
       {/* What the reach-outs wrote and what came back (Reach out Part 6, H3): a section of its own, after Campaigns. */}

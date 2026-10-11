@@ -321,6 +321,13 @@
       "rate": "consent",
       "spend": false
     },
+    "POST calendar/visits/[id]": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "person_edit",
+      "spend": false
+    },
     "POST contacts/[id]/deal": {
       "kind": "write",
       "scope": "row",
@@ -910,6 +917,20 @@
       "rate": "settings",
       "spend": false
     },
+    "GET me/alerts": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "PUT me/alerts": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "viewer",
+      "rate": "alert_choice",
+      "spend": false
+    },
     "PUT me/devices": {
       "kind": "write",
       "scope": "account",
@@ -979,6 +1000,13 @@
       "scope": "workspace",
       "role": "viewer",
       "rate": "notify_mark",
+      "spend": false
+    },
+    "POST notifications/test": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "alert_test",
       "spend": false
     },
     "POST partner/invitations/[id]/accept": {
@@ -1177,7 +1205,7 @@
       "kind": "read",
       "scope": "workspace",
       "role": null,
-      "rate": null,
+      "rate": "aggregate",
       "spend": false
     },
     "POST playbooks": {
@@ -1299,7 +1327,21 @@
       "rate": "aggregate",
       "spend": false
     },
+    "GET reports/people": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": "aggregate",
+      "spend": false
+    },
     "GET reports/reach-outs": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": "aggregate",
+      "spend": false
+    },
+    "GET reports/receptionist": {
       "kind": "read",
       "scope": "workspace",
       "role": null,
@@ -1440,6 +1482,22 @@
       "scope": "workspace",
       "role": "owner",
       "rate": "invite",
+      "spend": false
+    },
+    "POST team/invite/[id]/resend": {
+      "kind": "write",
+      "fresh": true,
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "invite",
+      "spend": false
+    },
+    "POST team/leave": {
+      "kind": "write",
+      "fresh": true,
+      "scope": "workspace",
+      "role": "viewer",
+      "rate": "team",
       "spend": false
     },
     "GET team/partner": {

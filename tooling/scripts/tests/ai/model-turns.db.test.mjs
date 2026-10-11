@@ -1,5 +1,5 @@
 /**
- * A reply keeps what the receptionist was told, on the database (00359; decision 0039), with real sessions: the one
+ * A reply keeps what the receptionist was told, on the database (00401; decision 0039), with real sessions: the one
  * write that keeps a turn and the prompt it read, the fence that holds a turn to a conversation of its own workspace,
  * what the tables refuse, who reads them (nobody signed in), how a turn leaves with its conversation, and the two
  * clocks run with their DEFAULTS, so a default that drifts from contracts' RETENTION_DAYS fails here.

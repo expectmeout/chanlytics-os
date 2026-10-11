@@ -44,6 +44,8 @@ import { peopleOverride } from "@/surfaces/people/surface";
 import { reportsOverride } from "@/surfaces/reports/surface";
 import { reportsHeadlineOverride } from "@/surfaces/reports/headline";
 import { reviewsOverride } from "@/surfaces/reports/reviews-surface";
+import { receptionistOverride } from "@/surfaces/reports/receptionist-surface";
+import { reportsPeopleOverride } from "@/surfaces/reports/people-surface";
 import { SURFACE_ROUTES } from "@/surfaces/routes";
 import { liveOverride } from "@/surfaces/live/surface";
 import { broadcastsOverride } from "@/surfaces/campaigns/broadcasts/surface";
@@ -74,6 +76,7 @@ import { installAsk } from "./ask";
 import { installBroadcasts } from "@/surfaces/campaigns/broadcasts/verbs";
 import { installPlaybooks } from "@/surfaces/campaigns/playbooks/verbs";
 import { reachOutsOverride } from "@/surfaces/campaigns/reach-out/surface";
+import { campaignResultsOverride } from "@/surfaces/campaigns/home/results-surface";
 import { installReplies, repliesOverride } from "./reach-out/replies";
 import { installCalendar } from "@/surfaces/calendar/verbs";
 import { installToday } from "@/surfaces/today/helpers";
@@ -84,6 +87,7 @@ import { installBusinessTab } from "./business-tab";
 import { installSetup, setupOverride } from "@/surfaces/setup/surface";
 import { googleOverride } from "./google";
 import { installBilling, billingOverride } from "@/surfaces/settings/billing/surface";
+import { alertsOverride } from "@/surfaces/settings/notifications/surface";
 import { installPlatform } from "./platform";
 import { partnerOverride } from "@/surfaces/settings/partner/surface";
 import { installActivity } from "./activity";
@@ -165,14 +169,22 @@ const SURFACES = [
   reportsHeadlineOverride,
   // The Reviews lens's own read, folded once: its figures, its cards and its head (surfaces/reports/reviews-surface.ts).
   reviewsOverride,
+  // The Receptionist lens's own read, as the route gave it: the page folds it (surfaces/reports/receptionist-surface.ts).
+  receptionistOverride,
+  // The People lens's own read, as the route gave it: the page folds it (surfaces/reports/people-surface.ts).
+  reportsPeopleOverride,
   liveOverride,
   broadcastsOverride,
   playbooksOverride,
   // A reach-out's chains and their emails (Part 4 PR 8): Playbooks' rows and Templates' email rows.
   reachOutsOverride,
+  // Campaigns' own 30 days, read where Campaigns is drawn and nowhere else (surfaces/campaigns/home/results-surface.ts).
+  campaignResultsOverride,
   repliesOverride,
   // The partner's account (0012): on the person, read once, beside the rest.
   partnerOverride,
+  // What reaches this member's phones: read where Settings › Notifications is drawn (ROUTE_DRAWS).
+  alertsOverride,
   calendarOverride,
   notificationsOverride,
   setupOverride,
@@ -189,6 +201,11 @@ const useSurface = surfaceHook({ useCallback, useSyncExternalStore });
 // let a message pass while its page was elsewhere (onlyOnItsPage) or that a pass left for its page (keepForItsPage), and one read
 // only where it is drawn (onDemand) that was never read or has aged.
 readWhatWasMissed(SURFACES, (keys) => void refreshSurfaces(SURFACES.filter((o) => keys.includes(o.key))));
+// And one somebody is reaching for (a pointer at its row, the phone's drawer opening) reads the same now, so the press finds
+// it in or on its way (surface-registry.ts warmWhatItDraws): Reports, which no other page's boot reads.
+onRouteReachedFor(
+  warmWhatItDraws(SURFACES, (keys) => void refreshSurfaces(SURFACES.filter((o) => keys.includes(o.key)))),
+);
 /** The runner's live feed: the workspace's topic, over this browser's Supabase client. */
 const joinLiveFeed: JoinLiveFeed = (onChange, opts) => subscribeWorkspaceChanges(createClient(), onChange, opts);
 const SURFACE_LABELS: Record<string, string> = {
@@ -199,6 +216,8 @@ const SURFACE_LABELS: Record<string, string> = {
   reports: "Reports",
   reports_headline: "Today's period",
   reports_reviews: "Reviews",
+  reports_receptionist: "Receptionist",
+  reports_people: "People report",
   live: "Calls",
   calendar: "Calendar",
 };
@@ -207,7 +226,8 @@ const SURFACE_LABELS: Record<string, string> = {
 // both live in surface-registry.ts so the classification and the wiring cannot
 // drift apart. Routes absent from ROUTE_SURFACE are seeded by design and are
 // always "ready" — the registry decides separately whether they may RENDER.
-import { installRouteGate, installSurfaceRegistry, readWhatWasMissed } from "./surface-registry";
+import { installRouteGate, installSurfaceRegistry, readWhatWasMissed, warmWhatItDraws } from "./surface-registry";
+import { onRouteReachedFor } from "./workspace";
 
 /**
  * The shell's route gate, installed at MODULE SCOPE — not in an effect.

@@ -136,15 +136,18 @@ function setMode(c: PageCtx) {
   };
 }
 
-/** What the person's own setting says, in a sentence: set for them alone, or following the workspace. */
+/**
+ * What the person's own setting says, in a short sentence: set for them alone, or following the workspace. Each says what
+ * changes for this person and stops (Ruben, 10 Oct 2026: the sheets said each thing at length).
+ */
 function modeHint(c: PageCtx): string {
   const { p } = c;
   const rmPerson = p.receptionistMode.person;
   if (!rmPerson)
     return `Following the workspace${p.receptionistMode.workspace ? ` (${rmWord(p.receptionistMode.workspace)})` : ""}.`;
-  if (rmPerson === "auto") return "Answers this person automatically — set for them alone.";
-  if (rmPerson === "ask") return "Every message from this person waits for you before anything is sent.";
-  return "The receptionist stays out of their WhatsApp thread — their messages come straight to you, and it won't text them after a call. It still answers the phone.";
+  if (rmPerson === "auto") return "Answers them by itself. Set for them alone.";
+  if (rmPerson === "ask") return "Each reply waits for your OK.";
+  return "Stays out of their messages, which come to you. It still answers the phone.";
 }
 
 /** The receptionist's mode: the three answers, what stands, and the way back to following the workspace. */
@@ -199,13 +202,12 @@ function receptionistFold(c: PageCtx, row: ReactNode) {
 /** What is on record about messages for their visit, in a sentence. */
 function visitHint(c: PageCtx): string {
   const { consent } = c.p;
-  if (consent.state === "opted_in")
-    return `Yes — ${consent.sub}. Reminders and confirmations about their own visit may go to them.`;
+  if (consent.state === "opted_in") return `Yes — ${consent.sub}. Reminders about their visit may go to them.`;
   if (consent.state === "opted_out")
     return consent.source === "customer_message"
-      ? `${consent.sub}. This stops everything, offers included. Record a yes only if they have asked again themselves.`
-      : `No — ${consent.sub}. Nothing goes out to them, offers included.`;
-  return "No answer recorded. A reply to something they wrote is always fine; anything we start needs their yes.";
+      ? `${consent.sub}. Nothing goes out. Record a yes only if they ask again.`
+      : `No — ${consent.sub}. Nothing goes out to them.`;
+  return "No answer yet. Replying to them is fine; anything we start needs their yes.";
 }
 
 /** Messages about their visit: the ask, with the words a yes is asked for in person. */
@@ -229,9 +231,7 @@ function visitFold(c: PageCtx, row: ReactNode) {
         label="Messages about their visit"
         value={p.consent.state}
         sources={CONSENT_SOURCES}
-        yesHow={
-          askScript ? `How did they tell you? In person or on the phone, ask in these words: “${askScript}”` : undefined
-        }
+        yesHow={askScript ? `Asking in person or on the phone? Say: “${askScript}”` : undefined}
         canRecord={canRecord}
         lockedNote={null}
         messages={p.ownMessages}
@@ -245,14 +245,12 @@ function visitFold(c: PageCtx, row: ReactNode) {
 /** What is on record about offers and news, in a sentence. */
 function offersHint(c: PageCtx): string {
   const { consent } = c.p;
-  if (consent.state === "opted_out")
-    return "They asked us to stop, which stops offers too. Nothing to record here until that changes.";
-  if (consent.marketing === "opted_in") return `Yes — ${consent.marketingSub}. This is the answer a broadcast needs.`;
-  if (consent.marketing === "opted_out")
-    return `No — ${consent.marketingSub}. Messages about their own visit still reach them.`;
+  if (consent.state === "opted_out") return "They asked us to stop, offers included.";
+  if (consent.marketing === "opted_in") return `Yes — ${consent.marketingSub}.`;
+  if (consent.marketing === "opted_out") return `No — ${consent.marketingSub}. Visit messages still reach them.`;
   if (consent.marketingSource === STOP_ENDED_OFFERS_SOURCE)
-    return `Not asked — ${consent.marketingSub}. A new yes has to come from them, in writing.`;
-  return "Not asked. Separate and optional — the one answer a broadcast may be sent on.";
+    return `Not asked — ${consent.marketingSub}. A new yes must come in writing.`;
+  return "Not asked. Offers go only to a yes in writing.";
 }
 
 /** Offers and news: the ask, in writing only, and why. */
@@ -274,7 +272,7 @@ function offersFold(c: PageCtx, row: ReactNode) {
         value={p.consent.marketing}
         sources={CONSENT_SOURCES}
         yesSources={OFFERS_YES}
-        yesHow="How did they give it in writing? A spoken yes is not enough for offers."
+        yesHow="How did they say yes in writing?"
         canRecord={canRecord && p.consent.state !== "opted_out"}
         lockedNote={null}
         messages={p.ownMessages}

@@ -21,6 +21,7 @@ import { clearReadCaches } from "./read-cache";
 import { restoreSurfaceValue, surfaceValue } from "../surfaces/surface-values";
 import type { SurfaceKey } from "../surfaces/surface-values";
 import { clearTabMemory } from "./tab-memory";
+import { getActiveWorkspace } from "./workspace";
 import { publicEnv } from "@/lib/public-env";
 
 // Storage slot name (not a credential — the secret scanner reads "KEY" as one).
@@ -46,6 +47,13 @@ const MAX_WAIT_MS = 5000;
 
 interface CacheBlob {
   build: string;
+  /**
+   * The workspace the address named when these rows were read (`/w/<slug>`, as written there; null off a workspace
+   * page): every read names the address's workspace (client/api.ts), so it is the workspace the rows are of. A load at
+   * another address draws none of them (hydrateSurfaceCache), and a read there starts a cache of its own rather than
+   * adding to this one (snapshotSurface).
+   */
+  at: string | null;
   tenant: string | null;
   surfaces: Record<string, Record<string, unknown>>;
 }
@@ -119,6 +127,25 @@ function current(): CacheBlob | null {
   return pending ?? readCacheBlob();
 }
 
+/** The workspace the address names now: the one every read this page makes is about. */
+const addressed = (): string | null => getActiveWorkspace();
+
+/** Whether a cache is of the workspace the address names: the only one whose rows this page may draw or add to. */
+const ofThisAddress = (blob: CacheBlob | null): blob is CacheBlob => !!blob && blob.at === addressed();
+
+/** Drop the slot and what waits for it, and nothing else the tab keeps: what it held is another workspace's. */
+function dropSlot(): void {
+  if (writeTimer) clearTimeout(writeTimer);
+  writeTimer = null;
+  pending = null;
+  parsedCopy = null;
+  try {
+    sessionStorage.removeItem(CACHE_NAME);
+  } catch {
+    /* nothing to drop */
+  }
+}
+
 /** Write what waits, now. The page's hide calls it; a test reading the tab's storage calls it first. */
 export function flushSurfaceCache(): void {
   if (writeTimer) clearTimeout(writeTimer);
@@ -155,6 +182,14 @@ export function hydrateSurfaceCache(): Set<string> {
   // A copy of its own: the pages change what they are handed in place, and the kept copy stays what was written.
   const blob = pending ?? readCacheBlob(true);
   if (!blob) return restored;
+  // Rows read for another workspace are never drawn under this one's address: a phone's push for workspace B opened
+  // /w/b on a tab holding A's, and B's address drew A's Inbox, People, Today and name until the workspaces read landed
+  // (the runner's tenant guard looks only then). On a workspace page they are dropped, since nothing here may build on
+  // them; off one (the home, which sends the tab on to its workspace) they are left for that workspace's own load.
+  if (!ofThisAddress(blob)) {
+    if (addressed()) dropSlot();
+    return restored;
+  }
   const w = window as unknown as Record<string, unknown>;
   for (const [key, globals] of Object.entries(blob.surfaces)) {
     try {
@@ -193,13 +228,17 @@ export function snapshotSurface(
   value?: SurfaceKey,
 ): void {
   if ((!globals.length && !value) || sealed) return;
-  const was = current();
+  const kept = current();
+  // Rows join only a cache of the same workspace, by both its names: the address's, and the one the server resolved
+  // where both have said it. Any other cache is another workspace's, and these rows start one of their own.
+  const was = ofThisAddress(kept) && (!tenant || !kept.tenant || kept.tenant === tenant) ? kept : null;
   const snap = globalsNow(globals);
   const typed = value ? surfaceValue(value) : undefined;
   if (typed !== undefined) snap[VALUE_SLOT] = typed;
   // A new object over the one kept, never the kept one changed: what was written stays what it says.
   keep({
     build: BUILD,
+    at: addressed(),
     tenant: tenant || (was?.tenant ?? tenant),
     surfaces: { ...was?.surfaces, [key]: trim ? trim(snap) : snap },
   });
@@ -208,15 +247,17 @@ export function snapshotSurface(
 // Only into an entry already cached for this tenant: a new one could carry no tenant, and the runner's guard skips those.
 export function resnapshotSurface(key: string, globals: string[], tenant: string | null, value?: SurfaceKey): void {
   const blob = current();
-  if (sealed || !blob || !tenant || blob.tenant !== tenant || !blob.surfaces[key]) return;
+  if (sealed || !ofThisAddress(blob) || !tenant || blob.tenant !== tenant || !blob.surfaces[key]) return;
   const snap = globalsNow(globals);
   const typed = value ? surfaceValue(value) : undefined;
   if (typed !== undefined) snap[VALUE_SLOT] = typed;
   keep({ ...blob, surfaces: { ...blob.surfaces, [key]: snap } });
 }
 
+/** The workspace the server resolved for the rows cached at this address; null where nothing is cached for it. */
 export function cachedTenant(): string | null {
-  return current()?.tenant ?? null;
+  const blob = current();
+  return ofThisAddress(blob) ? blob.tenant : null;
 }
 
 /** Sign-out, 401, and tenant mismatch all clear it — cached customer data must
@@ -238,7 +279,12 @@ export function clearSurfaceCache(): void {
   clearReadCaches();
 }
 
-/** Signing out: the cache cleared, and closed for the rest of this page's life, so no read can put rows back. */
+/**
+ * Leaving the page as someone else, or for another workspace: the cache cleared, and closed for the rest of this page's
+ * life, so no read can put rows back. A read landing between a clear and the page's unload was written back by the next
+ * second's write or the page's hide, so every way out that changes who is looking or what they look at seals it: a
+ * sign-out, a 401, a switch, the second step, a phone's push for another workspace, an account deleted.
+ */
 export function sealSurfaceCache(): void {
   clearSurfaceCache();
   sealed = true;

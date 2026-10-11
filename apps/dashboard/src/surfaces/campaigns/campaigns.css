@@ -280,10 +280,6 @@
   padding-top: 12px;
   border-top: 1px solid var(--line);
 }
-.bc-foot .bc-foot-name {
-  flex: 1 1 200px;
-  min-width: 0;
-}
 /* What keeps the send from going, on a line of its own over the name and the acts: the first thing, in one sentence. */
 .bc-foot .bc-foot-say {
   flex: 1 1 100%;
@@ -1374,6 +1370,15 @@ html.legacy-on .tpl-fresh {
   font-size: var(--text-sm);
   line-height: 1.5;
   color: var(--warn-ink);
+}
+/* What the moment already holds (decision 20): one quiet line per campaign under the moment's choice. */
+.pb-holds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
 }
 /* The reach-out sheet (Reach out Part 4 PR 6): the composer's parts, with a chain of steps and a preview of one email. */
 .pb-note {
@@ -4682,7 +4687,7 @@ div.tpl-slotbox:not([data-lines="1"]) {
 }
 .tpl-own-value {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
   gap: var(--space-2);
 }
 .tpl-own-acts {
@@ -4775,30 +4780,30 @@ div.tpl-slotbox:not([data-lines="1"]) {
   margin: 0;
   padding: 14px 22px;
 }
-/* A read that failed, the kit's failed read as a line: at the tile's gutter, and across both of the strips' columns. */
+/* A read that failed, the kit's failed read as a line: at the tile's gutter. */
 .cmh-failed {
   margin: 0 22px;
 }
-.cmh-strips .cmh-failed {
-  margin: 0;
-}
-.cmh-strips > .cmh-strip-failed {
-  grid-column: 1 / -1;
-}
 
 /* The rail: five moments on a line, each a column. A workspace without deals has four. */
+/* Three rows the moments share, their figures, their nodes on the line and their cards, each moment a subgrid of them, so
+   the nodes stand on one line and the cards are one height whatever a moment's figure says (seen on the rig, 10 Oct:
+   a moment holding many says its summary under its figure, in one line or two, and its node stood 21px or 38px lower
+   than a moment with none, the line between them stepping down). */
 .cmh-rail {
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto auto;
   margin: 0;
   padding: 8px 14px 0;
   list-style: none;
 }
 .cmh-stage {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  display: grid;
+  grid-row: span 3;
+  grid-template-rows: subgrid;
+  justify-items: center;
   min-width: 0;
   padding: 0 6px;
   text-align: center;
@@ -4814,8 +4819,12 @@ div.tpl-slotbox:not([data-lines="1"]) {
   text-transform: uppercase;
   color: var(--ink-dim);
 }
-.cmh-stage > .cmh-figure {
+.cmh-stage-press > .cmh-figure {
   margin-top: var(--space-2);
+}
+/* The rail's figures a step down (spec §4.2): the page's figure scale's next step, so the rail stands about 170px. */
+.cmh-stage .cmh-figure {
+  font-size: var(--text-hero);
 }
 .cmh-unit {
   height: 16px;
@@ -4823,13 +4832,36 @@ div.tpl-slotbox:not([data-lines="1"]) {
   font-size: var(--text-sm);
   color: var(--ink-dim);
 }
+/* A card's caps, figure, unit and summary are one press (rail.tsx Stage): a quiet button the width of the column, its
+   words standing as they stood, that narrows the ledger to its moment. Chosen, it wears the kit's selected ground, and so
+   does the card under it. The words keep their own type, weight and tracking, not a button's: the kit's press drawn as
+   text (kit.css .btn-text); the page lays them out in a column alone. */
+.cmh .cmh-stage-press {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  padding: 0 0 var(--space-1);
+}
+.cmh-stage[data-chosen="true"] > .cmh-stage-press,
+.cmh-stage[data-chosen="true"] > .cmh-moment {
+  background: var(--selected-fill);
+}
+.cmh-summary {
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.cmh-stage-bar {
+  align-self: stretch;
+}
 .cmh-track {
   position: relative;
   display: grid;
   place-items: center;
   width: 100%;
-  height: 34px;
-  margin: var(--space-3) 0 10px;
+  height: 30px;
+  margin: var(--space-2) 0;
 }
 .cmh-track::before {
   content: "";
@@ -4862,31 +4894,35 @@ div.tpl-slotbox:not([data-lines="1"]) {
   background: var(--bg-raised);
   color: var(--ink-dim);
 }
-:is(.cmh-stage, .cmh-vstage):is([data-state="always"], [data-state="on"]) .cmh-node {
+/* The desk's card and the phone's spine head (ledger-phone.tsx). */
+:is(.cmh-stage, .cmh-spine-head):is([data-state="always"], [data-state="on"]) .cmh-node {
   border-color: var(--ink);
   background: var(--ink);
   color: var(--bg-raised);
 }
-:is(.cmh-stage, .cmh-vstage)[data-hint] .cmh-node {
+:is(.cmh-stage, .cmh-spine-head)[data-hint] .cmh-node {
   border-color: var(--accent);
   color: var(--accent-ink);
 }
 /* A moment whose run waits for the owner: the node gives up its filled ground and wears the amber, a clock where the
    check stood ("needs you" is amber on every badge, the badges' rule). */
-:is(.cmh-stage, .cmh-vstage)[data-waits] .cmh-node {
+:is(.cmh-stage, .cmh-spine-head)[data-waits] .cmh-node {
   border-color: var(--warn);
   background: var(--bg-raised);
   color: var(--warn-ink);
 }
+/* No floor of its own (it was 104px, which kept the cards one height): each card fills its column's height instead, so a
+   card with Turn on stands as tall as one with its marks and its bar. */
 .cmh-moment {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1);
   box-sizing: border-box;
   width: 100%;
-  min-height: 104px;
-  padding: var(--space-3) 10px;
+  min-height: 0;
+  padding: var(--space-2) 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius-xl);
 }
@@ -4961,10 +4997,6 @@ div.tpl-slotbox:not([data-lines="1"]) {
 }
 .cmh-chan-waits {
   color: var(--warn-ink);
-}
-/* After a line's words on the desk, with the space the words have between them. */
-.cmh-strip-words > .cmh-chans {
-  margin-left: var(--space-2);
 }
 /* On a phone the marks take a line of their own, under the moment's count or the line's words. */
 .cmh[data-phone] .cmh-chans {
@@ -5068,8 +5100,10 @@ div.tpl-slotbox:not([data-lines="1"]) {
 }
 
 /* A Turn on that carries its hint ("Turn on · 3 tomorrow") is wider than a column of five: it wraps inside the moment's card
-   rather than run out of it (the kit's button keeps its words on one line, so the page's placement class lets them wrap). */
-.cmh .cmh-turn-on {
+   rather than run out of it (the kit's button keeps its words on one line, so the page's placement class lets them wrap).
+   The first day's "Set up my campaigns" under it in the same card wraps the same way. */
+.cmh .cmh-turn-on,
+.cmh .cmh-first-ask {
   box-sizing: border-box;
   max-width: 100%;
   height: auto;
@@ -5080,113 +5114,360 @@ div.tpl-slotbox:not([data-lines="1"]) {
   white-space: normal;
 }
 
-/* Under 1100px of page the five moments no longer fit side by side, and they stand down the line instead: the phone's vertical
-   rail, drawn from the desk's own markup (a moment's people on the left of its card, its node on the line between). */
+/* Under 1100px of page the moments keep their one line and the rail scrolls across (J3), a moment snapping to its start.
+   It stood down a line under 1100px, which put the ledger a screen below the moments. */
 @container cmh (max-width: 1100px) {
   .cmh-rail {
-    grid-auto-flow: row;
-    grid-auto-columns: auto;
-    grid-template-columns: minmax(0, 1fr);
-    padding: var(--space-2) 22px 0;
+    grid-auto-columns: minmax(168px, 1fr);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
   }
   .cmh-stage {
-    display: grid;
-    grid-template-columns: 30px minmax(5.5rem, auto) minmax(0, 1fr);
-    grid-template-areas:
-      "track caps moment"
-      "track figure moment"
-      "track unit moment";
-    align-items: center;
-    column-gap: var(--space-3);
-    padding: var(--space-2) 0;
-    text-align: start;
+    scroll-snap-align: start;
   }
-  .cmh-caps {
-    grid-area: caps;
-    justify-content: flex-start;
-    height: auto;
-  }
-  .cmh-stage > .cmh-figure {
-    grid-area: figure;
-    margin: 0;
-  }
-  .cmh-unit {
-    grid-area: unit;
-    height: auto;
-    margin: 0;
-  }
-  .cmh-track {
-    grid-area: track;
-    align-self: stretch;
-    width: 30px;
-    height: auto;
-    margin: calc(-1 * var(--space-2)) 0;
-  }
-  .cmh-track::before {
-    top: 0;
-    right: auto;
-    bottom: 0;
-    left: 50%;
-    border-top: 0;
-    border-left: 2px dashed var(--line-strong);
-  }
-  .cmh-stage:is([data-state="always"], [data-state="on"]) .cmh-track::before {
-    border-top: 0;
-    border-left-style: solid;
-    border-left-color: var(--ink);
-  }
-  .cmh-stage:first-child .cmh-track::before {
-    top: 50%;
-    left: 50%;
-  }
-  .cmh-stage:last-child .cmh-track::before {
-    right: auto;
-    bottom: 50%;
-  }
-  .cmh-moment {
-    grid-area: moment;
-    flex-flow: row wrap;
-    justify-content: space-between;
-    min-height: 0;
-    padding: var(--space-3) var(--space-4);
-    text-align: start;
-  }
-  .cmh-moment > .cmh-needs {
-    flex-basis: 100%;
-  }
+}
+/* The edges fade only while more stands past them (rail.tsx useOverflows): a rail that fits draws its first and last
+   card whole, at whatever width. */
+.cmh-rail[data-overflows="true"] {
+  mask-image: linear-gradient(
+    90deg,
+    transparent,
+    var(--ink) var(--space-5),
+    var(--ink) calc(100% - var(--space-5)),
+    transparent
+  );
 }
 
-/* Under the rail: one quiet line for every other playbook or campaign, two to a row. */
-.cmh-strips {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3);
-  margin: var(--space-4) 22px 18px;
-  padding: 0;
-  list-style: none;
+/* The ledger (home/ledger/ledger.tsx; spec 2026-10-09 §4.3): every campaign in the rail's pane, under the moments. One
+   grid for the whole list, and each group, row and line a subgrid of it, as Sent's runs are (.bc-runs, above), so a
+   column is one width down the list whatever a row holds. The columns: the campaign (its dot, name and hint), what it
+   goes by, who is at it now, the last 30 days, the next run, its act (fit to it, as Sent's acts' track is: "Approve ·
+   7 people" and Skip side by side). The tool line sticks at the page's top past seven rows, at a height of its own so
+   the groups' heads can stick under it. The pane is clipped, not hidden, so the page's scroll is the one they stick to. */
+.cmh .cmh-rail-block {
+  overflow: clip;
 }
-.cmh-strip {
+.cmh-ledger {
+  --cmh-tools-h: 52px;
+  /* A group's head at its tallest: its padding round its add, a small control (.cmh-group-head). */
+  --cmh-group-h: calc(var(--space-3) + var(--control-h-sm) + var(--space-1));
+  display: grid;
+  /* Sent's track shape (.bc-runs): every column but the act's may give way to nothing, so the grid never runs past the
+     clipped pane and never clips a row's acts. The columns give way together, each by its share: a track with a fixed
+     most is filled before any fr track is, so beside 150px, 96px, 190px and 168px most the campaign's name was what gave
+     way, to under 100px between the fold below (1000px of page) and about 1,130px. */
+  grid-template-columns:
+    minmax(0, 1.7fr) minmax(0, 0.8fr) minmax(0, 0.5fr) minmax(0, 1fr) minmax(0, 0.9fr)
+    fit-content(240px);
+  column-gap: 14px;
+  margin-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.cmh-ledger > *,
+.cmh-group > *,
+.cmh-row-line {
+  grid-column: 1 / -1;
+}
+.cmh-group,
+.cmh-row,
+.cmh-row-line,
+.cmh-ledger-heads {
+  display: grid;
+  grid-template-columns: subgrid;
+}
+.cmh-ledger-line {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  min-width: 0;
-  padding: var(--space-3) 14px var(--space-3) var(--space-4);
-  border-radius: var(--radius-xl);
-  background: var(--surface-inset-fill);
+  box-sizing: border-box;
+  min-height: var(--cmh-tools-h);
+  padding: var(--space-2) 22px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+  /* The pane's own fill, laid opaque over what it sits on (tokens.css, the glass's solids): the rows do not show through
+     the band, and the band reads as the clear pane it stands in. */
+  background: var(--surface-pane-solid);
 }
-.cmh-strip-words {
+.cmh-ledger-find {
+  flex: 0 1 240px;
+  min-width: 160px;
+}
+.cmh-ledger-states {
   flex: 1 1 auto;
   min-width: 0;
-  font-size: var(--text-base);
 }
-.cmh .cmh-strip-name {
-  font-size: var(--text-base);
-  font-weight: var(--weight-semibold);
+.cmh-ledger-say {
+  flex: none;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+.cmh-ledger-heads {
+  padding: var(--space-2) 22px;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.cmh-ledger-head {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cmh-ledger-head[data-sorted="true"] {
   color: var(--ink);
 }
-.cmh-strip-more::before {
-  content: " · ";
+.cmh-ledger-none {
+  padding: var(--space-4) 22px;
 }
+/* A group's head: its glyph in a 22px ring, its caps, what it says of itself, its add at the right. It sticks under the
+   tool line where there is one, at the page's top where there is not. */
+.cmh-group-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 22px auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) 22px var(--space-1);
+  background: var(--surface-pane-solid);
+}
+.cmh-ledger[data-tools="true"] .cmh-group-head {
+  top: var(--cmh-tools-h);
+}
+.cmh-group-ring {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius-circle);
+  color: var(--ink-dim);
+}
+.cmh-group-caps {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-regular);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.cmh-group-meta {
+  min-width: 0;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* A row: 44px, a hairline between two, no zebra; the hover's grey, and the keys' cursor wearing it too. A row that opens
+   nothing (the receptionist) wears no pointer and no hover. */
+.cmh-row + .cmh-row {
+  border-top: 1px solid var(--line);
+}
+/* A row the keys walk to, or a campaign just made, is brought into view by the least scroll that shows it
+   (ledger-keys.ts): what sticks over it is its margin, the group's head and the tool line where there is one, so no row
+   stops under them. */
+.cmh-row {
+  scroll-margin-top: var(--cmh-group-h);
+}
+.cmh-ledger[data-tools="true"] .cmh-row {
+  scroll-margin-top: calc(var(--cmh-tools-h) + var(--cmh-group-h));
+}
+.cmh-row-line {
+  align-items: center;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: var(--space-1) 22px;
+}
+.cmh-row[data-opens="true"] > .cmh-row-line {
+  cursor: pointer;
+}
+.cmh-row[data-cursor="true"] > .cmh-row-line {
+  background: var(--bg-hover);
+}
+/* A pointer's hover alone: a touch screen keeps :hover on the last row tapped (memory reference_touch_hover_sticks). */
+@media (hover: hover) {
+  .cmh-row[data-opens="true"] > .cmh-row-line:hover {
+    background: var(--bg-hover);
+  }
+  .cmh a.cmh-row-name:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+}
+.cmh-row-what {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.cmh-row-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-circle);
+  background: var(--line-strong);
+}
+.cmh-row-dot[data-tone="ok"] {
+  background: var(--ok);
+}
+.cmh-row-dot[data-tone="warn"] {
+  background: var(--warn);
+}
+/* A desk row's name, in the line's small size and the desk's weight and ink. Its door is the kit's link that takes where
+   it stands (kit.css .link-btn-inherit: a block, no underline, a long name ending in an ellipsis). The name keeps its
+   width and the hint beside it gives way first (seen on the rig, 10 Oct: "The call's text" drawn as "The ca…" beside a
+   long hint, both shrinking alike); only a name longer than the whole cell ends in an ellipsis. */
+.cmh-row-what .cmh-row-name {
+  min-width: 0;
+  flex-shrink: 0;
+  max-width: 100%;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+/* A name that opens nothing (the receptionist's) is no link, and ends in an ellipsis of its own; a flex item, it is
+   a block already. */
+.cmh-row-what span.cmh-row-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cmh-row-hint {
+  flex: 1 1 0%;
+  min-width: 0;
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cmh-row-fold {
+  display: none;
+}
+.cmh-row-people,
+.cmh-row-results,
+.cmh-row-next {
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cmh-row-results[data-dim="true"] {
+  color: var(--ink-faint);
+}
+.cmh-row[data-state="waiting"] .cmh-row-next {
+  color: var(--warn-ink);
+}
+.cmh-row-acts {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+}
+.cmh-row-decide {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+.cmh-row-why {
+  font-size: var(--text-xs);
+}
+.cmh-once {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-3) 22px;
+  border-top: 1px solid var(--line);
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+/* Its door to Sent, and the ledger's Clear, are small words: under a finger each takes 44px from the line's padding round
+   it, as a tile's door does. */
+.cmh-once-open,
+.cmh-say-clear {
+  position: relative;
+}
+@media (pointer: coarse) {
+  .cmh-once-open::after,
+  .cmh-say-clear::after {
+    content: "";
+    position: absolute;
+    inset: -14px -8px;
+  }
+}
+/* A row decided where it stands (Approve, Skip, Resume) keeps its place and settles once: its next run arrives on the
+   kit's own rise-in, as a record row's value does after its editor's save (kit.css, the save settle). */
+.cmh-row[data-settled="true"] .cmh-row-next {
+  animation: rise-in var(--duration-base) var(--ease-out) backwards;
+}
+/* A campaign just made or changed is scrolled to and washed once in the kit's on-and-ok tint, let go over 400ms, as the
+   kit washes the line a draft changed (kit.css, .rec-says-line[data-changed]): the row is a new element as it arrives
+   (keyed by its mark, ledger.tsx), so the transition from where it starts plays once. Its ground alone moves. */
+.cmh-row[data-arrived="true"] > .cmh-row-line {
+  transition: background-color calc(2 * var(--duration-base)) var(--ease-out);
+}
+@starting-style {
+  .cmh-row[data-arrived="true"] > .cmh-row-line {
+    background-color: var(--ok-soft);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cmh-row[data-settled="true"] .cmh-row-next {
+    animation: none;
+  }
+  .cmh-row[data-arrived="true"] > .cmh-row-line {
+    transition: none;
+  }
+}
+/* Under 1000px of page the channels and the people fold under the campaign's name, and their columns leave; the rest
+   give way by their shares, as above. */
+@container cmh (max-width: 1000px) {
+  .cmh-ledger {
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 0.9fr) fit-content(220px);
+  }
+  .cmh-row-by,
+  .cmh-row-people,
+  .cmh-ledger-head:is([data-col="goesBy"], [data-col="people"]) {
+    display: none;
+  }
+  .cmh-row-what {
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+  /* Each of the fold's parts keeps its own line, and the fold wraps whole parts when the name's cell is narrow (seen on
+     the rig at 1000px, 10 Oct: both parts shrank, so "WhatsApp" stood over "Email" and "7" over "people"). */
+  .cmh-row-fold {
+    display: flex;
+    flex-basis: 100%;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px var(--space-2);
+    font-size: var(--text-xs);
+    color: var(--ink-dim);
+  }
+  .cmh-row-fold > * {
+    flex: none;
+    white-space: nowrap;
+  }
+  .cmh-row-fold .cmh-chans {
+    flex-wrap: nowrap;
+  }
+}
+/* A thumb needs no more of the name than its row: the whole 44px line presses the name (cmRowPress), and a margin round
+   the name would be cut by the ellipsis's own clip. */
 
 /* The three tiles. */
 .cmh-grid {
@@ -5204,9 +5485,6 @@ div.tpl-slotbox:not([data-lines="1"]) {
 }
 @container cmh (max-width: 720px) {
   .cmh-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .cmh-strips {
     grid-template-columns: minmax(0, 1fr);
   }
 }
@@ -5307,20 +5585,8 @@ div.tpl-slotbox:not([data-lines="1"]) {
   font-weight: var(--weight-semibold);
   color: var(--ink);
 }
-/* A waiting run's two acts, or the question Skip asks, stand under its words on a desk and a phone alike: the tile is a
-   third of the page, and two buttons beside the state would squeeze the name they act on. */
-.cmh-coming-acts {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  grid-column: 2 / -1;
-  min-width: 0;
-}
-.cmh[data-phone] .cmh-coming-line > .cmh-coming-acts {
-  justify-self: stretch;
-}
-/* Why a waiting run cannot be approved, the verb's whole sentence: across the line under its name, where the acts stand. */
+/* Why a waiting run cannot be approved, the verb's whole sentence: across the line under its name, since the tile is a
+   third of the page and beside the state it would squeeze into a narrow column. */
 .cmh-coming-why {
   grid-column: 2 / -1;
   min-width: 0;
@@ -5404,9 +5670,16 @@ div.tpl-slotbox:not([data-lines="1"]) {
   gap: var(--space-3);
   padding: 0 var(--space-3) 120px;
 }
-/* Who can hear you, a line in the Moments head (8 Oct 2026; it was a tile of its own over them): the figure in words with
-   the yes to offers at its right, and the channels' standing under it, in the head's own quiet size. */
-.cmh-vrail-reach {
+/* The phone's list on the journey's line (home/ledger/ledger-phone.tsx; spec 2026-10-09 §4.4): the Moments head's one
+   meta line, the strip of chips past seven rows (sticky, scrolling across under a thumb), then the groups, each moment's
+   head its node on a line down the left that runs through its rows, the groups off the line after them. The pane is
+   clipped, not hidden (the kit's flush panel hides), so the page's scroll is the one the strip sticks to. */
+.cmh .cmh-spine-block {
+  /* The strip's height: a thumb's 44px control, its padding and its hairline (.cmh-phone-strip). */
+  --cmh-phone-strip-h: 53px;
+  overflow: clip;
+}
+.cmh-meta {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
@@ -5414,113 +5687,190 @@ div.tpl-slotbox:not([data-lines="1"]) {
   font-size: var(--text-sm);
   color: var(--ink-muted);
 }
-.cmh-vrail-hear {
+.cmh-meta-line {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-1) var(--space-3);
+  gap: var(--space-1) var(--space-2);
   margin: 0;
 }
-.cmh-vrail-reach > .cmh-channels {
+.cmh-meta > .cmh-channels {
   margin-top: 0;
 }
-/* Its reading and its failed read stand at the line's own gutter: each carries a tile's gutter of its own, which here
-   was a second one inside the first. */
-.cmh-vrail-reach > .route-reading.cmh-reading {
+/* Its reading and its failed read stand at the line's own gutter: each carries a tile's gutter of its own. */
+.cmh-meta > .route-reading.cmh-reading {
   padding: 0;
 }
-.cmh-vrail-reach > .cmh-failed {
+.cmh-meta > .cmh-failed {
   margin: 0;
 }
-/* The door to how the yes to offers is got, under the line that counts it, at the line's edge: a thumb's height to
-   press, and a line's height in the head, so the moments stay the first thing on the screen (its box reaches into the
-   gaps over and under it, where nothing else is pressed). */
-.cmh-vrail-yes {
+/* The door to how the yes to offers is got: a thumb's height to press, and a line's height in the head (its box reaches
+   into the gaps over and under it, where nothing else is pressed). */
+.cmh-meta-yes {
   display: inline-flex;
   align-items: center;
   align-self: flex-start;
   min-height: 44px;
   margin-block: calc(var(--space-3) * -1);
 }
-.cmh-vrail {
-  margin: 0;
-  padding: var(--space-1) 10px 10px;
-  list-style: none;
-}
-.cmh-vstage {
-  position: relative;
-  display: grid;
-  grid-template-columns: 30px minmax(0, 1fr) auto;
-  gap: var(--space-3);
+.cmh-phone-strip {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
   align-items: center;
-  min-height: 62px;
-  padding: var(--space-2) 6px;
+  gap: var(--space-2);
+  box-sizing: border-box;
+  min-height: var(--cmh-phone-strip-h);
+  padding: var(--space-1) var(--space-3);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-pane-solid);
 }
-.cmh-vstage::before {
+/* Under seven rows, a group the address names: said, with how many and its Clear, where the strip would stand, a thumb's
+   44px tall so Clear's press area stays inside it. */
+.cmh-phone-say {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 0 22px;
+}
+/* The strip's parts keep their size (the search circle was squeezed to 16px, under a thumb's 44), but the chips' box,
+   which takes the rest and scrolls across; its 5px above and below keep the chips' 44px press areas inside the box,
+   which a scroller clips. */
+.cmh-phone-strip > * {
+  flex: none;
+}
+.cmh-phone-strip > :first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.cmh-phone-scroll {
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin-block: -5px;
+  padding-block: 5px;
+}
+.cmh-phone-scroll::-webkit-scrollbar {
+  display: none;
+}
+.cmh-phone-find {
+  flex: 0 1 160px;
+  min-width: 0;
+}
+.cmh-spine {
+  padding: var(--space-1) 0 var(--space-2);
+}
+/* A moment's head on the phone: its node, its caps, its figure or its words, and at its end a state or a door. The end
+   stands on the head's line where it fits and takes a line of its own, at the right, where it does not (seen on the rig
+   at 375px, 10 Oct: Reach-outs' "Find businesses to write to" left "No campaign yet" 33px, its words running into the
+   door), so the words between keep one line. */
+.cmh-spine-head {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px var(--space-2);
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+}
+.cmh-spine-head > * {
+  flex: none;
+}
+.cmh-spine-head > :nth-child(3) {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+}
+.cmh-spine-head > :last-child {
+  margin-left: auto;
+}
+.cmh-spine-head > .cmh-node {
+  width: 28px;
+  height: 28px;
+}
+.cmh-spine-head > .cmh-figure {
+  font-size: var(--text-lg);
+}
+/* The line down the left, through a moment's head and its rows, solid where the moment is on (the section's own
+   data-on, which LedgerPhone writes: no :has() over its head), dashed where it is not; a group off the line draws none. */
+.cmh-group[data-line="true"] {
+  position: relative;
+}
+.cmh-group[data-line="true"]::before {
   content: "";
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 20px;
+  left: calc(var(--space-3) + 13px);
   border-left: 2px dashed var(--line-strong);
 }
-.cmh-vstage:is([data-state="always"], [data-state="on"])::before {
+.cmh-group[data-on="true"]::before {
   border-left-style: solid;
   border-left-color: var(--ink);
 }
-.cmh-vstage:first-child::before {
-  top: 50%;
+.cmh-phone-row {
+  position: relative;
+  padding-left: calc(var(--space-3) + 28px);
 }
-.cmh-vstage:last-child::before {
-  bottom: 50%;
+/* A row brought into view (ledger-keys.ts) stops under the strip where the strip sticks, never beneath it. */
+.cmh-spine[data-tools="true"] .cmh-phone-row {
+  scroll-margin-top: var(--cmh-phone-strip-h);
 }
-.cmh-vstage > .cmh-node {
-  width: 28px;
-  height: 28px;
+.cmh-phone-row + .cmh-phone-row {
+  border-top: 1px solid var(--line);
 }
-.cmh-vwords {
+.cmh-phone-row[data-opens="true"] > .cmh-phone-line {
+  cursor: pointer;
+}
+.cmh-phone-row > .cmh-row-decide,
+.cmh-phone-row > .cmh-row-why,
+.cmh-phone-row > .cmh-row-door {
   display: flex;
-  flex-direction: column;
-  min-width: 0;
-  font-size: var(--text-sm);
+  justify-content: flex-start;
+  padding: 0 var(--space-3) var(--space-2);
 }
-.cmh[data-phone] .cmh-strip-words {
-  display: flex;
-  flex-direction: column;
-  font-size: var(--text-sm);
+/* Resume's question under the row, at its whole width, as a waiting run's acts stand. */
+.cmh-phone-row > .cmh-row-ask {
+  margin: 0 var(--space-3) var(--space-2);
 }
-.cmh[data-phone] .cmh-strip-more::before {
-  content: none;
+/* Resume's press at the row's end is a small control: drawn at its height on a touch screen too (legacy.css gives every
+   button 44px there, and a floor outranks a height), its thumb's 44px an invisible margin (memory
+   reference_touch_floor_outranks_height). */
+.cmh .cmh-row-resume {
+  height: var(--control-h-sm);
+  min-height: var(--control-h-sm);
 }
-.cmh-also-block .cmh-strips {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  margin: 0;
-  padding: 6px var(--space-2);
+@media (pointer: coarse) {
+  .cmh .cmh-row-resume {
+    position: relative;
+  }
+  .cmh .cmh-row-resume::after {
+    content: "";
+    position: absolute;
+    inset: -8px 0;
+  }
 }
-.cmh-also-block .cmh-strip {
-  background: none;
+.cmh-phone-row[data-settled="true"] .cmh-phone-line {
+  animation: rise-in var(--duration-base) var(--ease-out) backwards;
 }
-/* A strip's glyph keeps its size beside words that wrap (on a phone it shrank to a dot), and its name reads from the left. */
-.cmh-strip > svg {
-  flex: none;
+.cmh-phone-row[data-arrived="true"] > .cmh-phone-line {
+  transition: background-color calc(2 * var(--duration-base)) var(--ease-out);
 }
-.cmh .cmh-strip-name {
-  text-align: start;
+@starting-style {
+  .cmh-phone-row[data-arrived="true"] > .cmh-phone-line {
+    background-color: var(--ok-soft);
+  }
 }
-/* On a phone a strip is two rows: what it is across the line, then its state and its act at the right (3 Oct: the words
-   were squeezed into a column a word wide beside them). */
-.cmh[data-phone] .cmh-strip {
-  flex-wrap: wrap;
-  row-gap: var(--space-2);
-}
-.cmh[data-phone] .cmh-strip-words {
-  flex-basis: calc(100% - 40px);
-}
-.cmh[data-phone] .cmh-strip-words + * {
-  margin-inline-start: auto;
+@media (prefers-reduced-motion: reduce) {
+  .cmh-phone-row[data-settled="true"] .cmh-phone-line {
+    animation: none;
+  }
+  .cmh-phone-row[data-arrived="true"] > .cmh-phone-line {
+    transition: none;
+  }
 }
 /* The Library keeps its icon and its count where the page is a phone's (useCmPhone's 900px), and its word goes to a screen
    reader alone: the act beside it is New. Hidden by size, never display: none, which left the link named by its count; and
@@ -5553,6 +5903,24 @@ div.tpl-slotbox:not([data-lines="1"]) {
     background: var(--selected-fill);
     color: var(--ink);
   }
+}
+/* Ask's door in the head stands from 721px up (the Leads finder's band rule): under it the shell's ✦ is Ask's door. By the
+   width, as the Library's word is, since in Glass the act stands in the frame's head, outside .cmh; on the element, so the
+   kit's own display never outranks it whichever sheet comes last. */
+@media (max-width: 720px) {
+  button.cmh-ask {
+    display: none;
+  }
+}
+/* The first day's "Set up my campaigns" on a phone (home/ask-on-campaigns.tsx SetUpAsk): under the hinted moment's head, at
+   the list's width past its line, as a row's acts stand under it; legacy.css's touch floor (`html.legacy-on .btn` under
+   a coarse pointer) gives it its 44px. */
+.cmh-first-ask-row {
+  display: flex;
+  padding: 0 var(--space-3) var(--space-2) calc(var(--space-3) + 28px);
+}
+.cmh-first-ask-row > .cmh-first-ask {
+  flex: 1 1 auto;
 }
 
 /* A moment and the composer, in the kit's sheet from the side (home/pane-sheet.tsx). The pane is the page's own CmPane and
@@ -5605,16 +5973,14 @@ div.tpl-slotbox:not([data-lines="1"]) {
   }
 }
 
-/* A thumb's press area where the home's words are small (as mobile.css gives a playbook's name its own): the moments' and
-   the lines' names, a run's and a coming-up line's, keep the size they are drawn at and answer a press toward 44px. */
+/* A thumb's press area where the home's words are small (as mobile.css gives a playbook's name its own): the moments'
+   names and a coming-up line's keep the size they are drawn at and answer a press toward 44px. */
 @media (pointer: coarse) {
   .cmh .cmh-moment-name,
-  .cmh .cmh-strip-name,
   .cmh .cmh-what-name {
     position: relative;
   }
   .cmh .cmh-moment-name::after,
-  .cmh .cmh-strip-name::after,
   .cmh .cmh-what-name::after {
     content: "";
     position: absolute;

@@ -31,7 +31,6 @@ import {
   closuresAheadWords,
   servicesWords,
   servicesToldWords,
-  servicesSaveWords,
   blockShareWords,
   bookingRulesWords,
   BOOKING_RULE_HINTS,
@@ -39,6 +38,9 @@ import {
   foldName,
   serviceUndoName,
   servicesFoundWords,
+  serviceLineWords,
+  lengthWords,
+  SERVICE_PRICE_EMPTY,
   bookingRuleRefusal,
   TONE_PRESETS,
   PROMPT_READERS,
@@ -46,6 +48,9 @@ import {
   promptCostWords,
   promptTotalWords,
   handoffWords,
+  handoffChatRow,
+  handoffCallRow,
+  HANDOFF_ANYWAY,
   fallbacksWords,
   guardrailsInForce,
   rulesKept,
@@ -158,10 +163,12 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "FEED_CHECK_WORDS",
     "FEED_GUIDES",
     "GUARDRAIL_KEYS",
+    "HANDOFF_ANYWAY",
     "POLICY_MODES",
     "PROFILE_LIMITS",
     "PROMPT_NOW",
     "PROMPT_READERS",
+    "SERVICE_PRICE_EMPTY",
     "TONE_PRESETS",
     "VISION_STRENGTH",
     "abilityRows",
@@ -182,13 +189,15 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "feedUrlOk",
     "foldName",
     "guardrailsInForce",
-    "handoffCallWords",
+    "handoffCallRow",
+    "handoffChatRow",
     "handoffChatWords",
     "handoffWords",
     "hasProfile",
     "hoursZoneWords",
     "instructionsWords",
     "isProductFallback",
+    "lengthWords",
     "loadSaveRules",
     "needsConsultation",
     "notesWords",
@@ -206,9 +215,9 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "saveIssues",
     "sellsBySaved",
     "sellsByVM",
+    "serviceLineWords",
     "serviceUndoName",
     "servicesFoundWords",
-    "servicesSaveWords",
     "servicesToldWords",
     "servicesWords",
     "writtenOutDetail",
@@ -276,9 +285,18 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     tab.servicesToldWords({ count: 33, chars: 1190, total: 4345 }),
     servicesToldWords({ count: 33, chars: 1190, total: 4345 }),
   );
-  assert.equal(tab.servicesSaveWords(33), servicesSaveWords(33));
+  // How it answers' hand-off sheet: its two rows and its tip, contracts' each.
+  assert.deepEqual(tab.handoffChatRow(24), handoffChatRow(24));
+  assert.deepEqual(tab.handoffCallRow("+1 (212) 555-0142"), handoffCallRow("+1 (212) 555-0142"));
+  assert.equal(tab.HANDOFF_ANYWAY, HANDOFF_ANYWAY);
   assert.equal(tab.serviceUndoName("Balayage"), serviceUndoName("Balayage"));
   assert.equal(tab.servicesFoundWords(11, 33), servicesFoundWords(11, 33));
+  assert.equal(
+    tab.serviceLineWords({ duration_min: 90, price_note: "" }, true),
+    serviceLineWords({ duration_min: 90, price_note: "" }, true),
+  );
+  assert.equal(tab.SERVICE_PRICE_EMPTY, SERVICE_PRICE_EMPTY);
+  assert.equal(tab.lengthWords(510), lengthWords(510));
   assert.equal(tab.blockShareWords(1190, 4345), blockShareWords(1190, 4345));
   assert.deepEqual(
     tab.bookingRulesWords(STORED.profile.booking_rules),
@@ -420,7 +438,7 @@ test("for the record as stored, every fold shows the block the server's preview 
     carried.text.endsWith(STORED.system_prompt),
     "an empty box holds the stored prompt the resolver carries in",
   );
-  assert.match(carried.note, /before it had fields/);
+  assert.match(carried.note, /earlier instructions/);
 });
 
 /** A change only that fold makes, the line its block then holds, and the channel it is read on. */
@@ -583,7 +601,7 @@ test("an owner who clears their box is shown the stored prompt the resolver carr
       assert.deepEqual(block, served(cleared, channel, "extra_instructions"), channel);
       assert.ok(block.text.endsWith(STORED.system_prompt), block.text);
       assert.doesNotMatch(block.text, /competitors/, "their old words are gone with the box");
-      assert.match(block.note, /before it had fields/);
+      assert.match(block.note, /earlier instructions/);
     }
   }
 });

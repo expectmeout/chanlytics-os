@@ -18,10 +18,8 @@ import { count, pluralGrouped } from "./counts";
  * profile and the next one's; these are the words.
  */
 export const PROFILE_CROSSING_WORDS = {
-  stops:
-    "Saved like this, the receptionist stops being given the details on this page and answers from its stored instructions.",
-  starts:
-    "Saved like this, the receptionist starts being given the details on this page, and the instructions it follows today are carried in beneath them.",
+  stops: "Saved like this, it stops being given your details and answers from its stored instructions.",
+  starts: "Saved like this, it starts being given your details, with today's instructions kept beneath them.",
 } as const;
 
 export type ProfileCrossing = keyof typeof PROFILE_CROSSING_WORDS;

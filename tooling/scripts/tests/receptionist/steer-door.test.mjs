@@ -32,7 +32,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { signEdgeToken } from "@chanlytics/channels";
+import { signEdgeToken, SMS_FOOTER, SMS_MAX_CHARS } from "@chanlytics/channels";
 import {
   resolveSystemPrompt,
   frameSteer,
@@ -644,16 +644,15 @@ test("the rewrite: the brain is handed the thread without the held draft, the cu
   assert.ok(due > 40_000 && due <= 45_000, `due in ${due}ms: the old draft's own delay`);
   // The order is the safety: queued first, retired second, so a failure between the two leaves ONE draft standing, never none.
   const inserted = db.seen.findIndex((s) => s.table === "messages" && s.op === "insert");
-  const retired = db.seen.findIndex(
-    (s) => s.table === "messages" && s.op === "update" && s.values.status === "canceled",
-  );
+  const retired = db.seen.findIndex((s) => s.rpc === "withdraw_queued" && s.args.p_message_ids.includes(w.M));
   assert.ok(inserted >= 0 && retired > inserted, "the new draft is queued before the old one is retired");
-  const retire = db.seen[retired];
-  assert.ok(
-    retire.filters.some(([op, col, val]) => op === "eq" && col === "status" && val === "queued"),
-    "retired only while still queued: the count is the guard",
-  );
-  assert.equal(retire.columns, "id", "and the rows touched are read back, so zero can be told from one");
+  // Retired through the one door (00387): only while still queued and claimed by no run, and the ids it withdrew are
+  // the count, so zero can be told from one.
+  assert.deepEqual(db.seen[retired].args, {
+    p_tenant_id: w.T,
+    p_message_ids: [w.M],
+    p_reason: { reason: "steered", replaced_by: draft.id },
+  });
   // The log carries the shape of what happened, never the words.
   const line = log.lines.find((l) => l.includes('"event":"admin_steer"'));
   assert.ok(line, "one line");
@@ -705,7 +704,69 @@ test("a held reply to a text goes out again as a text: the tenant's channel is r
   assert.equal(tables.messages.find((m) => m.id === w.M).status, "canceled");
 });
 
+test("a steered text is shaped as the draft it replaces was: the first text to a person carries the rates, STOP and HELP line, a later one does not, and none runs past the carrier's ceiling", async () => {
+  // Nobody has had a text from the business on this thread: its sent reply went by WhatsApp.
+  const w = fresh();
+  const first = world(w, { channels: [smsChannel(w)], draft: { channel: "sms" } });
+  const [status, body] = await answer(
+    await knock({ message_id: w.M, text: OWNER_SAYS }, { workspace: w.T, brain: brain().port }),
+  );
+  assert.equal(status, 200, JSON.stringify(body));
+  const draft = first.tables.messages.find((m) => m.id === body.message_id);
+  assert.equal(
+    draft.body,
+    `${ANSWER.text}\n${SMS_FOOTER}`,
+    "REGRESSION: the rewrite was queued as the model wrote it, and a first text went out without the line the carriers' filing promises",
+  );
+  const send = first.tables.jobs.find((j) => j.payload?.message_id === draft.id);
+  assert.equal(send.payload.body, draft.body, "the job sends the words the row holds");
+  assert.equal(body.text, draft.body, "and the dashboard is told the words that wait");
+
+  // A text of ours has reached them already: the line went with it, and is not said twice.
+  const v = fresh();
+  const texted = thread(v).map((m) => (m.direction === "outbound" ? { ...m, channel: "sms" } : m));
+  const later = world(v, { channels: [smsChannel(v)], messages: [...texted, heldDraft(v, { channel: "sms" })] });
+  const [, again] = await answer(
+    await knock({ message_id: v.M, text: OWNER_SAYS }, { workspace: v.T, brain: brain().port }),
+  );
+  assert.equal(later.tables.messages.find((m) => m.id === again.message_id).body, ANSWER.text);
+
+  // The carrier's ceiling, as the answer to the message itself is held to it.
+  const u = fresh();
+  const long = world(u, { channels: [smsChannel(u)], draft: { channel: "sms" } });
+  const [, cut] = await answer(
+    await knock(
+      { message_id: u.M, text: OWNER_SAYS },
+      { workspace: u.T, brain: brain({ ...ANSWER, text: "Saturday is full. ".repeat(120) }).port },
+    ),
+  );
+  const shaped = long.tables.messages.find((m) => m.id === cut.message_id).body;
+  assert.equal(shaped.length, SMS_MAX_CHARS, "never past what one text can carry");
+  assert.ok(shaped.endsWith("…"), "and cut where the reader can see it was");
+
+  // WhatsApp has no footer: its draft is the model's words, as before.
+  const x = fresh();
+  const wa = world(x);
+  const [, plain] = await answer(
+    await knock({ message_id: x.M, text: OWNER_SAYS }, { workspace: x.T, brain: brain().port }),
+  );
+  assert.equal(wa.tables.messages.find((m) => m.id === plain.message_id).body, ANSWER.text);
+});
+
 /* -------------------------------- the guards ------------------------------ */
+
+test("a draft its send job has already claimed is on its way: 409 already_sent, the model unasked, nothing written", async () => {
+  const w = fresh();
+  const { tables, db } = world(w, { draft: { sending_at: new Date().toISOString() } });
+  const b = unasked();
+  assert.deepEqual(
+    await answer(await knock({ message_id: w.M, text: OWNER_SAYS }, { workspace: w.T, brain: b.port })),
+    [409, { ok: false, error: "already_sent" }],
+  );
+  assert.equal(b.asked.length, 0, "nothing left to rewrite, so the model is not asked");
+  assert.equal(writes(db, "messages").length + writes(db, "jobs").length, 0);
+  assert.equal(tables.messages.find((m) => m.id === w.M).status, "queued", "left for its run to say what became of it");
+});
 
 test("a rewrite that would quote a price is refused, and the original draft and its send are left exactly where they were", async () => {
   const w = fresh();
@@ -757,7 +818,7 @@ test("a rewrite that would name money a person decides is refused the same way, 
 
 test("the race: the tick sent the old draft while the model was thinking, so the retire counts zero rows -- the rewrite is taken back with 409 already_sent and its send withdrawn, and the sent reply is not touched", async () => {
   const w = fresh();
-  const { tables, db } = world(w);
+  const { tables } = world(w);
   // The seconds the model takes are where the tick claims the old draft's job and sends it.
   const b = brain(() => {
     Object.assign(
@@ -785,13 +846,49 @@ test("the race: the tick sent the old draft while the model was thinking, so the
   const draft = tables.messages.find((m) => m.meta?.source === "steered");
   assert.ok(draft, "the rewrite was queued first --");
   assert.deepEqual([draft.status, draft.error], ["canceled", { reason: "steer_lost_race" }], "-- and taken back");
-  const withdrawn = writes(db, "jobs").filter((s) => s.op === "update" && s.values.state === "canceled");
   assert.deepEqual(
-    withdrawn.map((s) => s.filters.find(([, c]) => c === "payload->>message_id")[2]),
+    tables.jobs.filter((j) => j.state === "canceled").map((j) => j.payload?.message_id),
     [draft.id],
-    "the rewrite's send is withdrawn; the old job, already claimed, is nobody's to cancel",
+    "the rewrite's send is withdrawn with it (00387); the old job, already claimed, is nobody's to cancel",
   );
   assert.equal(tables.jobs.find((j) => j.id === w.J).state, "done");
+});
+
+test("the race, mid-send: the tick claimed the old draft while the model was thinking and the provider has not answered -- the old row is not retired under the send, the rewrite is taken back with 409 already_sent", async () => {
+  const w = fresh();
+  const { tables } = world(w);
+  // The tick has claimed the old draft's job (sending_at) and is on the wire: the row is still queued until Meta answers.
+  const b = brain(() => {
+    tables.messages.find((m) => m.id === w.M).sending_at = new Date().toISOString();
+    tables.jobs.find((j) => j.id === w.J).state = "fired";
+    return ANSWER;
+  });
+  const net = unreachable("a lost race must not put the rewrite on the wire behind the reply already on its way");
+  let lost;
+  try {
+    lost = await answer(await knock({ message_id: w.M, text: OWNER_SAYS }, { workspace: w.T, brain: b.port }));
+  } finally {
+    net.restore();
+  }
+  assert.deepEqual(lost, [409, { ok: false, error: "already_sent" }]);
+  const old = tables.messages.find((m) => m.id === w.M);
+  assert.deepEqual(
+    [old.status, old.error],
+    ["queued", undefined],
+    "REGRESSION: the draft was retired under its own send, and the customer got it and the rewrite both, under a row that said canceled",
+  );
+  const draft = tables.messages.find((m) => m.meta?.source === "steered");
+  assert.deepEqual(
+    [draft.status, draft.error],
+    ["canceled", { reason: "steer_lost_race" }],
+    "the rewrite is taken back",
+  );
+  assert.deepEqual(
+    tables.jobs.filter((j) => j.state === "canceled").map((j) => j.payload?.message_id),
+    [draft.id],
+    "with its send (00387); the old job, already claimed, is its run's",
+  );
+  assert.equal(tables.jobs.find((j) => j.id === w.J).state, "fired");
 });
 
 test("a brain that fails is a 502 with nothing written; a draft that cannot be queued leaves the old one standing; an old draft that cannot be retired takes the new one back", async () => {
@@ -843,9 +940,8 @@ test("a brain that fails is a 502 with nothing written; a draft that cannot be q
     ["canceled", { reason: "steer_rolled_back" }],
     "if the old one cannot be retired the new one is taken back, so two drafts never race to the customer",
   );
-  const withdrawn = writes(unretired.db, "jobs").filter((s) => s.op === "update" && s.values.state === "canceled");
   assert.deepEqual(
-    withdrawn.map((s) => s.filters.find(([, c]) => c === "payload->>message_id")[2]),
+    unretired.tables.jobs.filter((j) => j.state === "canceled").map((j) => j.payload?.message_id),
     [draft.id],
   );
   assert.equal(

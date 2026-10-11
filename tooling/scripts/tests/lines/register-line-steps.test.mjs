@@ -53,6 +53,7 @@ const unfiled = (over = {}) => ({
   campaign_sid: null,
   reg_step: null,
   facts: { trunk_ready: true },
+  updated_at: "2026-10-01T12:00:00.123456+00:00",
   ...over,
 });
 const FILING_ENV = {
@@ -62,8 +63,11 @@ const FILING_ENV = {
   LEAD_TO: "platform@chanlytics.example",
 };
 
-/** Runs one filing: `answer(req, n)` is Twilio; `seen` is each request with the row as it stood when it was made. */
-async function file({ env = FILING_ENV, line = unfiled(), answer = () => null } = {}) {
+/**
+ * Runs one filing, or `times` of them at once over the same row as each read it: `answer(req, n)` is Twilio; `seen` is
+ * each request with the row as it stood when it was made.
+ */
+async function file({ env = FILING_ENV, line = unfiled(), answer = () => null, times = 1 } = {}) {
   const saved = { ...process.env };
   for (const k of [...Object.keys(FILING_ENV), "LINES_DRY_RUN"]) delete process.env[k];
   Object.assign(process.env, env);
@@ -78,16 +82,20 @@ async function file({ env = FILING_ENV, line = unfiled(), answer = () => null } 
     return new Response(JSON.stringify(a.body), { status: a.status });
   };
   try {
-    const out = await registerLine(db, {
-      line,
-      record: RECORD,
-      workspaceName: "Harbor Moving",
-      optInUrl: "https://app.example.com/yes/harbor-moving",
-      privacyUrl: "https://app.example.com/privacy",
-      termsUrl: "https://app.example.com/terms",
-      mock: false,
-    });
-    return { out, row: rows[0], seen, credentials };
+    const outs = await Promise.all(
+      Array.from({ length: times }, () =>
+        registerLine(db, {
+          line,
+          record: RECORD,
+          workspaceName: "Harbor Moving",
+          optInUrl: "https://app.example.com/yes/harbor-moving",
+          privacyUrl: "https://app.example.com/privacy",
+          termsUrl: "https://app.example.com/terms",
+          mock: false,
+        }),
+      ),
+    );
+    return { out: outs[0], outs, row: rows[0], seen, credentials };
   } finally {
     globalThis.fetch = realFetch;
     process.env = saved;
@@ -161,4 +169,42 @@ test("a campaign held for the brand leaves a wait on the row, not the carrier's 
     ["failed", "campaign", "registering the campaign: Invalid parameter (Twilio 21601)"],
     "a refusal is written as one",
   );
+});
+
+const IN_PROGRESS = {
+  ok: false,
+  pending: true,
+  error: "registration_pending",
+  detail: "This line's registration is being filed right now. It shows here as soon as the carriers have it.",
+  smsState: "registering",
+};
+
+test("two filings of one line at once (a double press, or a press beside the sweep) file once; the other says it is under way", async () => {
+  const once = await file();
+  const twice = await file({ times: 2 });
+  const [filed, other] = twice.outs[0].ok ? twice.outs : [...twice.outs].reverse();
+  assert.equal(filed.ok, true, "one filing ran");
+  assert.deepEqual({ ...other, state: undefined }, { ...IN_PROGRESS, state: undefined }, "the other wrote nothing");
+  assert.equal(twice.seen.length, once.seen.length, "one profile and one brand: the fees are paid once");
+  assert.deepEqual(
+    [twice.row.sms_state, twice.row.campaign_sid, twice.row.last_error],
+    ["registering", "SID21", null],
+    "and nothing was written over the filing that ran",
+  );
+  assert.equal("a2p_filing_until" in twice.row.facts, false, "its hold on the line is given back as it settles");
+  assert.deepEqual(twice.row.facts, once.row.facts, "with every receipt kept");
+});
+
+test("a line another filing holds is answered as under way, and one whose hold lapsed is filed", async () => {
+  const until = (ms) => new Date(Date.now() + ms).toISOString();
+  const held = unfiled({ sms_state: "registering", facts: { trunk_ready: true, a2p_filing_until: until(60_000) } });
+  const waiting = await file({ line: held });
+  assert.deepEqual({ ...waiting.out, state: undefined }, { ...IN_PROGRESS, state: undefined });
+  assert.deepEqual([waiting.seen.length, waiting.credentials.length], [0, 0], "neither the vault nor the wire");
+  assert.deepEqual(waiting.row, { ...held, facts: held.facts }, "and the row as it was");
+
+  const lapsed = unfiled({ facts: { trunk_ready: true, a2p_filing_until: until(-60_000) } });
+  const filed = await file({ line: lapsed });
+  assert.equal(filed.out.ok, true, "a filing that died holding the line frees it when its hold runs out");
+  assert.equal("a2p_filing_until" in filed.row.facts, false);
 });

@@ -1,7 +1,11 @@
 /**
  * Settings › Team: who has access to this workspace, and as what (moved from legacy/pages/settings.jsx, decision 0015
- * step 11). Settings' page draws it as the Partner pane's Team (partner/team-card.tsx), above the workspace's partner
- * card.
+ * step 11; redesigned 9 Oct 2026). Settings' page draws it as the Partner pane's Team (partner/team-card.tsx).
+ *
+ * The people first: the members, you at the top, then the invitations waiting to be taken, then the workspace's partner,
+ * a group of its own, so one card says who has access. At the foot, what each role can do (roles.tsx). The head is the
+ * card's name, its count and Invite: Activity stood beside Invite and Preview as on the roles' row, and both are gone
+ * from the card (Ruben, 10 Oct 2026; Settings › Activity keeps the team's changes).
  *
  * The real roster and its open invitations, from the settings read (the seam's `team` and `invites`). It rendered four
  * invented colleagues once -- and put YOU beside one of them, on a real owner's own settings page -- and a failed read
@@ -12,298 +16,52 @@
  * Every write goes to the server and the card shows what the server says afterwards. These handlers once mutated the
  * seeded roster and toasted success on a pane fed by live data: an owner read "Invite sent to x as Operator" and nothing
  * was sent, stored or audited. There is no optimistic update and no undo: an invitation email cannot be recalled, and a
- * role change is the power to message customers.
+ * role change is the power to message customers. What each press does is acts.tsx.
  */
 import { useEffect, useState, type ReactNode } from "react";
-import { inviteState, memberWords, personInitials, stateOf } from "@chanlytics/contracts";
-import { teamVerbs } from "@/legacy-bridge/inbox-verbs";
-import type { TeamInvite, TeamMember } from "@/legacy-bridge/surfaces/settings";
+import { pageClock } from "@/legacy-bridge/zone";
 import { Button } from "../../kit/button/button";
-import { Confirm } from "../../kit/confirm/confirm";
 import { FailedRead } from "../../kit/empty/empty";
-import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
-import { MoreMenu } from "../../kit/more-menu/more-menu";
-import { RecordField } from "../../kit/record/field";
-import { RecordRow } from "../../kit/record/row";
-import { Segmented } from "../../kit/segmented/segmented";
 import {
-  actingRole,
   canDo,
-  editorBox,
-  focusAsDrawn,
   gate,
   gateTitle,
   meNow,
+  navigate,
   onRolesChanged,
-  setViewAs,
   viewAsRole,
   type LegacyFlash,
 } from "../../legacy-verbs";
 import { useSurface } from "../../use-surface";
-import { EMAIL_SHAPE, roleWords } from "../shared";
+import { alertsHeldFor, saveAlerts, teamActs, teamConfigOf } from "./acts";
+import { TeamInvite } from "./invite";
+import { PartnerRow } from "./partner";
+import { isLastOwner, ownersOf, teamPeopleOf } from "./people";
+import { RolesFoot } from "./roles";
+import { inviteRow, memberRow, type RowActs, type TeamAsk } from "./rows";
+import { PersonSheet } from "./sheet";
 
 type Flash = (f: LegacyFlash) => void;
 
-/** A row of the card: a member, or an invitation nobody has taken yet. */
-interface Person {
-  id: string;
-  name: string;
-  sub: string | null;
-  email: string;
-  displayName: string;
-  role: string;
-  status: "active" | "invited";
-  expiresAt?: string | null;
-  isMe: boolean;
-}
-
-/** A teammate's role is a name, not a state (tone.ts `role` is plain): the one chip, in the words contracts keeps. */
-function RolePill({ role }: { role: string }) {
-  return (
-    <span className="chip" data-role={role}>
-      {stateOf("role", role).label}
-    </span>
-  );
-}
-
-/** The members, then the invitations: the card's whole job is saying who has access to this workspace. */
-function peopleOf(team: TeamMember[], invites: TeamInvite[], me: string | null): Person[] {
-  return [
-    ...team.map((m) => {
-      const w = memberWords({ email: m.email, display_name: m.displayName });
-      return {
-        id: m.membershipId,
-        name: w.name,
-        sub: w.sub,
-        // An address the roster lacks draws as one that is empty: the face, the duplicate check and "You" read it alike.
-        email: m.email ?? "",
-        displayName: m.displayName || "",
-        role: m.role,
-        status: "active" as const,
-        isMe: !!me && m.email === me,
-      };
-    }),
-    // When an invitation stops working, the card says so, instead of "pending" for ever over a door that has closed.
-    ...invites.map((i) => ({
-      id: i.id,
-      name: i.email,
-      sub: null,
-      email: i.email,
-      displayName: "",
-      role: i.role,
-      status: "invited" as const,
-      expiresAt: i.expires_at || null,
-      isMe: false,
-    })),
-  ];
-}
-
-/** An owner's preview of a narrower role: View-as, the role store's, which every gate reads and which only narrows. */
-function viewAs(myRole: string, previewing: boolean): ReactNode {
-  return (
-    <RecordRow
-      id="team-viewas"
-      testid="team-viewas"
-      label="View as"
-      value={
-        <Segmented
-          labelledBy="rec-row-team-viewas-key"
-          value={myRole}
-          onValueChange={(r) => setViewAs(r === "owner" ? null : r)}
-          options={["owner", "operator", "viewer"].map((r) => ({ value: r, label: roleWords(r).label }))}
-        />
-      }
-      hint={previewing ? `Previewing — controls a ${roleWords(myRole).label} wouldn't have are hidden` : null}
-    />
-  );
-}
-
-/** What a row is handed: who may manage, the row armed for removal, and the card's acts. */
-interface RowKit {
-  canManage: boolean;
-  armRemove: string | null;
-  setArmRemove: (id: string | null) => void;
-  teamBusy: boolean;
-  remove: (m: Person) => void;
-  changeRole: (m: Person, role: string) => void;
-}
-
-/** One person: their face, their name and address, Remove asked on the row, their role, and the menu that changes it. */
-function personRow(m: Person, k: RowKit): ReactNode {
-  const pending = m.status === "invited";
-  const invite = pending ? inviteState(m.expiresAt, Date.now()) : { expired: false, words: "invite pending" };
-  // An open invitation has no membership row to change a role on: the server looks the id up among members and
-  // answers "not on this team". The role was chosen when the invite was sent — revoke and re-invite to change it.
-  const items = [
-    ...(pending
-      ? []
-      : [
-          { header: "Role" },
-          ...["owner", "operator", "viewer"].map((r) => ({
-            label: roleWords(r).label + (m.role === r ? "  ✓" : ""),
-            icon: r === "owner" ? "shield" : r === "operator" ? "agents" : "users",
-            onClick: () => k.changeRole(m, r),
-          })),
-          { divider: true },
-        ]),
-    { label: pending ? "Revoke invite" : "Remove", icon: "x", danger: true, onClick: () => k.setArmRemove(m.id) },
-  ];
-  return (
-    <div
-      key={m.id}
-      className={`set-team-row ${pending ? "pending" : ""} ${invite.expired ? "expired" : ""}`}
-      data-asking={k.armRemove === m.id ? "true" : undefined}
-    >
-      <Face className="set-team-face" initials={personInitials(m.displayName, m.email)} />
-      <span className="set-team-body">
-        <span className="set-team-name">
-          {m.name}
-          {m.isMe && (
-            <>
-              {" "}
-              <span className="chip set-team-you">You</span>
-            </>
-          )}
-        </span>
-        <span className="set-team-mail">{[m.sub, pending ? invite.words : ""].filter(Boolean).join(" · ")}</span>
-      </span>
-      <RolePill role={m.role} />
-      {k.canManage && !m.isMe ? (
-        <MoreMenu btnClass="btn btn-icon btn-sm" items={items} />
-      ) : (
-        <span className="set-team-spacer" />
-      )}
-      {/* The question takes a line of its own under the row (settings.css, .set-row-ask): in the body's column it
-          stood in what a phone leaves between the face and the role, its two answers pinched (Ruben, 7 Oct 2026). */}
-      {k.armRemove === m.id && (
-        <Confirm
-          className="set-row-ask"
-          question={pending ? `Revoke the invitation to ${m.email}?` : `Remove ${m.name} from the team?`}
-          detail={
-            pending
-              ? "The link in their email stops working."
-              : "They lose access at once; what they decided stays on the record."
-          }
-          yes={pending ? "Yes, revoke" : "Yes, remove"}
-          danger
-          busy={k.teamBusy}
-          onYes={() => k.remove(m)}
-          onNo={() => k.setArmRemove(null)}
-          testid="team-remove"
-        />
-      )}
-    </div>
-  );
-}
-
-/** What each role may do, under the roster: a partner's only where one is on it. */
-function rolesLegend(people: Person[]): ReactNode {
-  return (
-    <div className="set-roles-legend">
-      {["owner", "operator", ...(people.some((m) => m.role === "partner") ? ["partner"] : []), "viewer"].map((r) => (
-        <div key={r} className="set-role-def">
-          <RolePill role={r} />
-          <span className="set-role-can">{roleWords(r).can}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/** What an invitation's answer said happened: added, already there, already invited, or emailed. */
-function invitedWords(
-  mail: string,
-  role: string,
-  d: { alreadyMember?: boolean; added?: boolean; alreadyInvited?: boolean },
-) {
-  // The server distinguishes these; saying "invite sent" for an account that was simply added would promise an email
-  // nobody receives.
-  if (d.alreadyMember)
-    return (
-      <>
-        <b>{mail}</b> is already on the team
-      </>
-    );
-  if (d.added)
-    return (
-      <>
-        <b>{mail}</b> already had an account and was added as {roleWords(role).label}
-      </>
-    );
-  if (d.alreadyInvited)
-    return (
-      <>
-        <b>{mail}</b> already has an invitation waiting
-      </>
-    );
-  return (
-    <>
-      Invitation emailed to <b>{mail}</b> as {roleWords(role).label}
-    </>
-  );
-}
-
-/** The card's head: its name, how many people (or that they could not be read), and Invite, the card's act. */
-function teamHead(realTeam: TeamMember[] | null, inviting: boolean, open: () => void): ReactNode {
+/** The card's head: its name, how many people (or that they could not be read), and Invite. */
+function teamHead(o: { count: string; invite: ReactNode }): ReactNode {
   return (
     <div className="rec-card-head">
       <h2 className="rec-card-title" id="set-team-title">
         Team
       </h2>
-      <span className="rec-card-sub">
-        {realTeam === null ? "Couldn't be loaded" : `${realTeam.length} ${realTeam.length === 1 ? "person" : "people"}`}
-      </span>
-      {/* Invite is the card's act, so a role that may not invite sees it gated, saying why when pressed, instead of a
-          card with no act at all. */}
-      {realTeam !== null && !inviting && (
-        <Button size="sm" onClick={open} {...gate("team", "invite a teammate")}>
-          <Icon name="plus" size={12} /> Invite
-        </Button>
-      )}
+      <span className="rec-card-sub">{o.count}</span>
+      {o.invite}
     </div>
   );
 }
 
-/** The invitation being written: the address, the role it gives, Send and Cancel. */
-function inviteRow(o: {
-  email: string;
-  setEmail: (v: string) => void;
-  inviteRole: string;
-  setInviteRole: (r: string) => void;
-  teamBusy: boolean;
-  invite: () => void;
-  cancel: () => void;
-}): ReactNode {
-  return (
-    <div className="set-invite" {...editorBox}>
-      <RecordField
-        id="team-invite-email"
-        label={null}
-        aria-label="Teammate's email"
-        type="email"
-        placeholder="teammate@email.com"
-        value={o.email}
-        onChange={o.setEmail}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") o.invite();
-        }}
-        autoFocus={focusAsDrawn()}
-      />
-      <Segmented
-        label="Invite as"
-        value={o.inviteRole}
-        onValueChange={o.setInviteRole}
-        options={["operator", "viewer"].map((r) => ({ value: r, label: roleWords(r).label }))}
-      />
-      <Button size="sm" variant="primary" onClick={o.invite} disabled={o.teamBusy}>
-        {o.teamBusy ? "Sending…" : "Send invite"}
-      </Button>
-      <Button size="sm" variant="quiet" iconOnly onClick={o.cancel} aria-label="Cancel">
-        <Icon name="x" size={12} />
-      </Button>
-    </div>
-  );
+/** "3 people · 2 waiting", or that the roster could not be read. */
+function countWords(members: number, waiting: number, failed: boolean): string {
+  if (failed) return "Couldn't be loaded";
+  const people = `${members} ${members === 1 ? "person" : "people"}`;
+  return waiting ? `${people} · ${waiting} waiting` : people;
 }
 
 export const TeamSection = ({ flash }: { flash: Flash }) => {
@@ -312,120 +70,97 @@ export const TeamSection = ({ flash }: { flash: Flash }) => {
   const [, setTick] = useState(0);
   useEffect(() => onRolesChanged(() => setTick((n) => n + 1)), []);
   const [inviting, setInviting] = useState(false);
-  const [email, setEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState("operator");
-  const [teamBusy, setTeamBusy] = useState(false);
-  // Removing a teammate, or revoking an invitation, is armed first (the audit's D13: it fired straight from a menu
-  // item). The row asks.
-  const [armRemove, setArmRemove] = useState<string | null>(null);
+  const [ask, setAsk] = useState<TeamAsk | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [resending, setResending] = useState<string | null>(null);
+  const [sheet, setSheet] = useState<string | null>(null);
   // Before the settings read there is nothing of this workspace's team to say; the route waits for it.
   if (!read || read.team === undefined) return null;
   const realTeam = read.team;
-  const teamUnavailable = realTeam === null;
-  const me = meNow()?.email || null;
-  const people = realTeam ? peopleOf(realTeam, Array.isArray(read.invites) ? read.invites : [], me) : [];
-  // The caller's REAL role decides what they may do; View-as previews a narrower one, and can only ever narrow. When
-  // only the TEAM read failed, the settings read still gave the caller's real role.
-  const serverRole = (read.settings && read.settings.role) || null;
-  const myRole = realTeam ? viewAsRole() || serverRole || actingRole() : serverRole || actingRole();
+  const failed = realTeam === null;
+  const clock = pageClock();
+  const cfg = teamConfigOf(read);
+  const { members, waiting } = teamPeopleOf({
+    team: realTeam ?? [],
+    invites: Array.isArray(read.invites) ? read.invites : [],
+    me: meNow()?.email || null,
+    notifications: cfg && cfg.notifications,
+    tz: clock.zone(),
+    now: Date.now(),
+  });
+  const everyone = [...members, ...waiting];
+  // A preview the role store holds narrows what the card offers, as every gate reads it.
+  const previewing = viewAsRole();
   const canManage = canDo("team");
-  const isOwner = serverRole === "owner";
-  const previewing = !!viewAsRole();
-
-  const invite = async () => {
-    const mail = email.trim().toLowerCase();
-    if (!EMAIL_SHAPE.test(mail)) {
-      flash({ tone: "warn", msg: <>That doesn&apos;t look like an email — check the address</> });
-      return;
-    }
-    if (people.some((m) => m.email.toLowerCase() === mail)) {
-      flash({
-        tone: "warn",
-        msg: (
-          <>
-            <b>{mail}</b> is already on the team
-          </>
-        ),
-      });
-      return;
-    }
-    setTeamBusy(true);
-    const r = await teamVerbs.invite(mail, inviteRole === "viewer" ? "viewer" : "operator");
-    setTeamBusy(false);
-    if (!r.ok) {
-      flash({ tone: "danger", msg: <>{r.message}</> });
-      return;
-    }
-    setEmail("");
-    setInviting(false);
-    flash({ msg: invitedWords(mail, inviteRole, r.data || {}) });
-  };
-  // The last-owner rule is enforced in the database and its message comes back from there.
-  const changeRole = async (m: Person, role: string) => {
-    if (m.role === role) return;
-    setTeamBusy(true);
-    const r = await teamVerbs.setRole(m.id, role);
-    setTeamBusy(false);
-    flash({
-      tone: r.ok ? "ok" : "danger",
-      msg: r.ok ? (
-        <>
-          <b>{m.name}</b> is now {roleWords(role).label}
-        </>
-      ) : (
-        <>{r.message}</>
-      ),
-    });
-  };
-  const remove = async (m: Person) => {
-    setTeamBusy(true);
-    const r = await teamVerbs.remove(m.id);
-    setTeamBusy(false);
-    setArmRemove(null);
-    const revoked = r.ok && !!(r.data as { revokedInvite?: boolean } | null)?.revokedInvite;
-    flash({
-      tone: r.ok ? "ok" : "danger",
-      msg: r.ok ? (
-        <>
-          <b>{m.name}</b> {revoked ? "invitation revoked" : "removed from the team"}
-        </>
-      ) : (
-        <>{r.message}</>
-      ),
-    });
-  };
-  const kit: RowKit = {
+  const acts = teamActs({ read, flash, everyone, ask, setAsk, setBusy, resending, setResending });
+  const k: RowActs = {
     canManage,
-    armRemove,
-    setArmRemove,
-    teamBusy,
-    remove: (m) => void remove(m),
-    changeRole: (m, role) => void changeRole(m, role),
+    mayAlerts: canDo("settings") && !!cfg,
+    ask,
+    busy,
+    resending,
+    lastOwner: (m) => isLastOwner(members, m),
+    alertsHeld: (m) => alertsHeldFor(cfg, m),
+    pickRole: (m, role) => {
+      if (role === m.role) return;
+      // Owner is billing, the team and the power to remove anyone, the caller included: asked first, on the row.
+      if (role === "owner") setAsk({ kind: "promote", id: m.id });
+      else void acts.changeRole(m, role);
+    },
+    // One alerts save at a time: a second goes out on the version read before the first landed, and is refused as
+    // somebody else's change (the settings save re-reads the version before it answers).
+    setAlerts: (m, on) => {
+      if (busy) return;
+      setBusy(true);
+      void saveAlerts(read, m, on, { flash }).finally(() => setBusy(false));
+    },
+    arm: (a) => setAsk(a),
+    answer: (yes) => void acts.answer(yes),
+    setStopAlerts: (on) => setAsk((a) => (a && a.kind === "remove" ? { ...a, stopAlerts: on } : a)),
+    resend: (i) => void acts.resend(i),
+    toProfile: () => navigate("admin/profile"),
+    open: (p) => setSheet(p.id),
   };
 
+  // Whom to ask, by name: the gate's sentence says only an owner may, and a member should not have to find out who.
+  const askWho = ownersOf(members)
+    .filter((o) => !o.isMe)
+    .map((o) => o.name)
+    .join(" or ");
+  const open = sheet ? everyone.find((p) => p.id === sheet) : undefined;
   return (
-    <section className="rec-card set-card" data-testid="set-team" aria-labelledby="set-team-title">
-      {teamHead(realTeam, inviting, () => setInviting(true))}
+    <section className="rec-card set-card set-team" data-testid="set-team" aria-labelledby="set-team-title">
+      {teamHead({
+        count: countWords(members.length, waiting.length, failed),
+        // Invite is the card's act, so a role that may not invite sees it gated, saying why when pressed, instead of a
+        // card with no act at all.
+        invite:
+          !failed && !inviting ? (
+            <Button
+              size="sm"
+              onClick={() => setInviting(true)}
+              data-testid="team-invite-open"
+              {...gate("team", "invite a teammate")}
+            >
+              <Icon name="plus" size={12} /> Invite
+            </Button>
+          ) : null,
+      })}
 
-      {isOwner && viewAs(myRole, previewing)}
-
-      {inviting &&
-        canManage &&
-        inviteRow({
-          email,
-          setEmail,
-          inviteRole,
-          setInviteRole,
-          teamBusy,
-          invite: () => void invite(),
-          cancel: () => {
-            setInviting(false);
-            setEmail("");
-          },
-        })}
+      {inviting && canManage && (
+        <TeamInvite
+          people={everyone}
+          flash={flash}
+          onResend={(id) => {
+            const i = waiting.find((w) => w.id === id);
+            if (i) void acts.resend(i);
+          }}
+          onClose={() => setInviting(false)}
+        />
+      )}
 
       {/* A team we could not read is not a team of four strangers. */}
-      {teamUnavailable && (
+      {failed && (
         <FailedRead
           kind="card"
           what="your team"
@@ -435,18 +170,32 @@ export const TeamSection = ({ flash }: { flash: Flash }) => {
         />
       )}
 
-      {!teamUnavailable && people.map((m) => personRow(m, kit))}
+      {members.map((m) => memberRow(m, k))}
 
-      <RecordRow id="team-roles" testid="team-roles" label="Roles" value={rolesLegend(people)} />
-
-      {!canManage && (
-        <RecordRow
-          id="team-gated"
-          testid="team-gated"
-          label="Who can change this"
-          value={gateTitle("team", "change the team")}
-        />
+      {waiting.length > 0 && (
+        <>
+          <h3 className="set-team-group" data-testid="team-waiting">
+            Waiting to join
+          </h3>
+          {waiting.map((i) => inviteRow(i, k))}
+        </>
       )}
+
+      <PartnerRow flash={flash} previewing={!!previewing && previewing !== "owner"} />
+
+      <RolesFoot
+        withPartner={members.some((m) => m.role === "partner")}
+        note={
+          !canManage && !failed ? (
+            <p className="set-team-ask-owner" data-testid="team-gated">
+              {gateTitle("team", "change the team")}
+              {askWho ? ` Ask ${askWho}.` : null}
+            </p>
+          ) : null
+        }
+      />
+
+      {open && <PersonSheet person={open} k={k} onClose={() => setSheet(null)} />}
     </section>
   );
 };

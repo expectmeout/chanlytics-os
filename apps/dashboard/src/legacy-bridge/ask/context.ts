@@ -32,7 +32,7 @@ type Provider = (w: ContextGlobals, route: Route) => Provided;
 
 /** What a page that holds its rows in state says it drew (D3): its key, the ids in its order, and its view. */
 export interface OnScreen {
-  key: "inbox" | "people" | "pipeline" | "calendar";
+  key: "inbox" | "people" | "pipeline" | "calendar" | "campaigns";
   ids: string[];
   view?: string | null;
   /** The names the rows show, beside their ids, so the words can name one; kept in the tab. */
@@ -132,15 +132,35 @@ const pipeline: Provider = (w, route) => {
 
 const calendar: Provider = (w) => drawn(w, "calendar", "person");
 
-/** Reports' view is the days it shows, read through the seam (the surface's value), as the server's context provider describes them. */
+/**
+ * Reports' view is what it shows, read through the seam (the surface's value), as the server's context provider describes
+ * it: the days a period is, as a count, or the days a member picked, by their one name (`2026-09-01~2026-09-20`), so Ask
+ * reads the numbers of the days on screen and not of the days up to today.
+ */
 const reports: Provider = () => {
-  const days = surfaceValue("reports")?.days;
-  return { view: typeof days === "number" ? String(days) : null, rows: [] };
+  const shown = surfaceValue("reports");
+  if (!shown) return { view: null, rows: [] };
+  return { view: shown.period === null ? shown.key : String(shown.days), rows: [] };
 };
 
-/** Campaigns is its home, whose rows are the playbooks, and two rooms, Sent and the Library: the page is the view, and its rows are that page's. */
+/**
+ * Campaigns is its home, whose rows are the ledger's (or, before it draws, the playbooks), and two rooms, Sent and the
+ * Library: the page is the view, and its rows are that page's.
+ */
 const campaigns: Provider = (w, route) => {
-  if (route.page === "outbound" || route.page === "campaigns")
+  if (route.page === "outbound" || route.page === "campaigns") {
+    // The ledger says what it shows (surfaces/campaigns/home/ask-on-campaigns.tsx): its rows in its order, forty at most,
+    // a one-off send's run spelled `run:<id>` and a reach-out `reach_out:<id>`, under the view it is set to. Before it has
+    // drawn, the playbooks the surface read.
+    if (w.__askOnScreen?.key === "campaigns") {
+      const got = drawn(w, "campaigns", "playbook");
+      const spelled = (r: Row): Row => {
+        for (const kind of ["run", "reach_out"] as const)
+          if (r.id.startsWith(`${kind}:`)) return { ...r, kind, id: r.id.slice(kind.length + 1) };
+        return r;
+      };
+      return { view: got.view ?? "playbooks", rows: got.rows.map(spelled) };
+    }
     return {
       view: "playbooks",
       rows: arr<{ id: string; name?: string }>(w.__PLAYBOOKS?.rows).map((p) => ({
@@ -149,6 +169,7 @@ const campaigns: Provider = (w, route) => {
         label: p.name,
       })),
     };
+  }
   if (route.page === "broadcasts")
     return {
       view: "broadcasts",
@@ -319,8 +340,11 @@ export function pageContext(
   // Words that name no row -- an answer's item of a kind no focus may be among them -- leave the page's own focus, then
   // the route's; never the page's row at that place. Paired with the eval (tooling/scripts/eval-ask-context.mjs
   // resolveContext, `item ?? scope`): change one, change the other.
+  // A reach-out's drawer is told from a campaign's by the chains the page read (contracts scopeFromRoute).
   const focus =
-    (words ? wordsFocus(words, rows, thread) : null) ?? got.focus ?? scopeFromRoute(route.page, route.param);
+    (words ? wordsFocus(words, rows, thread) : null) ??
+    got.focus ??
+    scopeFromRoute(route.page, route.param, null, surfaceValue("reach_outs"));
   return {
     v: 1,
     surface,

@@ -36,6 +36,7 @@ import {
   templatePurpose,
   type SendQueuedCommand,
   SUBSCRIBERS,
+  type SubscriberPorts,
 } from "@chanlytics/core";
 import {
   ingestInboundEmail,
@@ -54,11 +55,16 @@ import {
   getTenantConfig,
   claimQueuedSend,
   releaseQueuedSend,
+  membersPushedFor,
+  reachOutBookedFrom,
+  holdFactsOf,
+  holdTold,
 } from "@chanlytics/db";
 import { upsertEscalation, type EscalationOutcome } from "./escalate";
 import { broadcastSend } from "./broadcast-send";
 import { replyRead } from "./reply-read";
 import { bookingRead } from "./booking-read";
+import { deliveryPage, deliveryPageKey } from "./delivery-page";
 import { type ClaimedJob, type JobContext, must, type PushTicket } from "./context";
 export type { PushReceipt, PushPort, JobContext, ClaimedJob } from "./context";
 
@@ -185,9 +191,9 @@ async function emailIngest(ctx: JobContext, job: ClaimedJob): Promise<void> {
         senderChecks = e?.authentication ?? null;
         return e ? incomingEmailOf(e) : null;
       },
-      // A booking tool's notice is read into an appointment by its own job, once per delivery (dedupe_key), as this
-      // job's own tenant: the intake run again finds it already on the ledger. The tool rides along, so a delivery the
-      // provider no longer has when the read runs is still kept on the ledger as the tool's.
+      // A booking tool's notice is read into an appointment by its own job, once per delivery and workspace
+      // (dedupe_key), as this job's own tenant: the intake run again finds it already on the ledger. The tool rides
+      // along, so a delivery the provider no longer has when the read runs is still kept on the ledger as the tool's.
       readBooking: async (_tenantId, mailboxId, receivedId, tool) => {
         await ctx.scheduleOnce("booking_read", new Date(), { received_id: receivedId, mailbox_id: mailboxId, tool });
       },
@@ -246,10 +252,11 @@ async function leadCheck(ctx: JobContext, job: ClaimedJob): Promise<void> {
 }
 
 /**
- * push_send: one kept notification to every phone of the people it is for.
- * payload: { notification_id }. The row it names may be gone (purged, or the
- * workspace erased): that is a job done, not a failure. A phone the service
- * says is gone is forgotten here, where the answer is.
+ * push_send: one kept notification to every phone of the people it is for,
+ * less those who turned its kind off for their phones (memberships.push_off,
+ * 00372; decision 0040). payload: { notification_id }. The row it names may be
+ * gone (purged, or the workspace erased): that is a job done, not a failure. A
+ * phone the service says is gone is forgotten here, where the answer is.
  */
 async function pushSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   if (!ctx.push) throw new Error("push_send: this runtime holds no push transport");
@@ -259,20 +266,18 @@ async function pushSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
     "push_send: cannot read the notification",
     await ctx.db
       .from("notifications")
-      .select("id, tenant_id, title, body, route, recipient_user_id")
+      .select("id, tenant_id, kind, title, body, route, recipient_user_id")
       .eq("id", id)
       .eq("tenant_id", job.tenant_id)
       .maybeSingle(),
   );
   if (!n) return;
-  const readers = n.recipient_user_id
-    ? [n.recipient_user_id]
-    : (
-        must(
-          "push_send: cannot read who is in the workspace",
-          await ctx.db.from("memberships").select("user_id").eq("tenant_id", job.tenant_id),
-        ) ?? []
-      ).map((m) => m.user_id);
+  // A note's one reader, or everyone in the workspace; less whoever turned this kind off for their phones.
+  const readers = await membersPushedFor(ctx.db, {
+    tenantId: job.tenant_id,
+    userIds: n.recipient_user_id ? [n.recipient_user_id] : null,
+    kind: n.kind,
+  });
   if (!readers.length) return;
   const devices =
     must(
@@ -304,10 +309,16 @@ async function pushSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
       await ctx.schedule("push_receipts", new Date(Date.now() + PUSH_RECEIPTS_AFTER_MS), {
         tickets: tickets.map((t) => ({ id: t.id, to: t.to })),
       });
-    } catch {
+    } catch (e) {
       // The alert has left; a receipts job that cannot be written (a ledger whose CHECK predates 00189, in the
       // window between the edge's deploy and the migration) is a dead phone forgotten a send later, not a reason
-      // to throw and have the ledger send the alert again.
+      // to throw and have the ledger send the alert again. Said, so it is not forgotten in silence.
+      logger().error("push_receipts_schedule_failed", {
+        tenant_id: job.tenant_id,
+        job: job.id,
+        tickets: tickets.length,
+        error: e instanceof Error ? e.message : String(e),
+      });
     }
   }
 }
@@ -437,7 +448,8 @@ function subscriberNamed(s: unknown): s is EventSubscriber {
  * subscriber runs over the event as the ledger holds it, and the row takes the verdict: done, paused when the
  * subscription was paused as it ran (a re-drive brings it back), failed with why when the subscriber threw or the
  * ledger no longer holds the event. A throw is thrown on, so the ledger tries again (RETRY_WAITS_MS) and the last try
- * fails the job and tells the owner; every subscriber may run twice on one delivery and leaves the same rows.
+ * fails the job and pages the operator (ledger PAGES_THE_PLATFORM: the fault is the platform's, never an owner's);
+ * every subscriber may run twice on one delivery and leaves the same rows.
  */
 async function eventDeliver(ctx: JobContext, job: ClaimedJob): Promise<void> {
   const named = deliveryNamed(job.payload);
@@ -452,14 +464,47 @@ async function eventDeliver(ctx: JobContext, job: ClaimedJob): Promise<void> {
   }
   const event = await eventOfDelivery(ctx.db, job.tenant_id, named.eventId);
   if (!event) {
-    await settle("failed", "the ledger no longer holds the event");
+    // Purged before its delivery ran (the evidence kinds, 00115): the delivery fails with why and the job is done,
+    // since no try could change it. Nobody's bell: the miss is the platform's, said under its own name and paged on
+    // the same condition a delivery that fails for good is (tick.ts), with the job named, so it is counted and read
+    // where the rest are.
+    const why = "the ledger no longer holds the event";
+    await settle("failed", why);
+    logger().error("event_deliver_event_gone", {
+      tenant_id: job.tenant_id,
+      job: job.id,
+      event_id: named.eventId,
+      subscriber: named.subscriber,
+      kind: named.kind,
+    });
+    if (ctx.page) {
+      try {
+        const page = deliveryPage(job, why);
+        await ctx.page(deliveryPageKey(job), page.subject, page.body);
+      } catch (e) {
+        logger().error("job_page_failed", {
+          tenant_id: job.tenant_id,
+          job: job.id,
+          kind: job.kind,
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }
     return;
   }
   // dispatchJob let the job through only for a subscriber this build knows.
   if (!subscriberNamed(named.subscriber)) throw new Error(`event_deliver: no subscriber named ${named.subscriber}`);
   const subscriber = SUBSCRIBERS[named.subscriber];
+  // What a subscriber acts through: this job's database, behind the verbs it needs.
+  const ports: SubscriberPorts = {
+    bookedFromAppointment: (tenantId, appointmentId) => reachOutBookedFrom(ctx.db, tenantId, appointmentId),
+    holdFacts: (tenantId, ref) => holdFactsOf(ctx.db, tenantId, ref, Date.now()),
+    holdTold: (tenantId, p) => holdTold(ctx.db, { tenantId, ...p }),
+    // The delivery is the event's workspace's job, so the runtime addresses the notice to it (job-alert.ts).
+    tell: (news) => ctx.alert(news),
+  };
   try {
-    await subscriber(event);
+    await subscriber(event, ports);
   } catch (e) {
     await settle("failed", e instanceof Error ? e.message : String(e));
     throw e;

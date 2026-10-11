@@ -280,7 +280,7 @@ lane's plan is `docs/plans/2026-09-29-s10-ai.md`).
   model that answered, four kinds of tokens and the price at list (`contracts/ai/usage.ts`), kept 400 days. A member
   reads their workspace's (`GET usage` rolls the month up for an owner), the health sweep pages on its failures
   (`apps/edge/lib/ops/model-watch.ts`), and a new workspace starts with a day's budget (00274).
-- **A turn, kept as the model read it** (`model_turns` and `model_prompts`, 00359; decision 0039): where the
+- **A turn, kept as the model read it** (`model_turns` and `model_prompts`, 00401; decision 0039): where the
   receptionist's door is told the conversation it answers, it keeps what the model read beside its prompt (the clock,
   who the person is, an owner's steer, the thread) and what it answered before layer two, for thirty days, and the
   prompt's text once under its hash; the reply's record names the turn (`meta.turn_id`). Keeping it is the door's last
@@ -288,7 +288,7 @@ lane's plan is `docs/plans/2026-09-29-s10-ai.md`).
   reads a turn with `tooling/scripts/ops/turn-read.mjs`. An erasure takes a person's turns with their conversation and
   any other turn that names them (`model_turns_scrub`), and both keeps are the database's own nightly clock
   (`purge_model_turns` in `sweep_status`).
-- **The settings, at each version** (`tenant_config_versions`, 00360; decision 0039): a trigger on `tenant_config`
+- **The settings, at each version** (`tenant_config_versions`, 00402; decision 0039): a trigger on `tenant_config`
   keeps the settings as they stand under every version, in the save's own transaction, and holds the version to the
   database (a changed config takes the next number, and a number never goes back), so the `config_version` a reply is
   stamped with opens the settings it was written under. Kept while in force and 400 days after; read by no session.
@@ -402,6 +402,28 @@ Today, the Inbox and People are on it. The hand-written `surface:*` listeners th
 `addEventListener("surface:…")` sites in 22 of the shell's files on 29 September 2026, and the few that loop over a list of
 names) either do something a redraw does not (reseed a list and keep a thread open, say what a re-read did to it) or wait
 for their page to move to `useSurface`; a new page names its surfaces.
+
+**How a page opens.** Five things decide how soon a page has its rows, each with one owner, and a new page takes all
+five. Measured on production, 9 October 2026: the Inbox had its rows 350 ms into a load and the Calendar its weeks at
+900, with the same page code drawing in 30 ms once the rows were in; the difference was when each was asked for.
+
+- _Its first reads leave from the document's head._ `packages/contracts/src/shell/route-prefetch.ts` (`PREFETCH_READS`)
+  names what each page opens on, spelled as the client spells it; the head starts them before a script has loaded, and the
+  page's own read takes the answer in place of a fetch (`apps/dashboard/src/client/api.ts`). A read that needs something
+  only the server knows is made sayable by its route, never left out: the Calendar asks for `around=today` and the route
+  works out the weeks by the business's clock. `tooling/scripts/tests/shell/surfaces/route-prefetch.test.mjs` runs each
+  page's surfaces against the list, and fails a page that has no entry.
+- _The boot reads the page's own first._ Who is looking, the page's surface and what it draws beside it
+  (`apps/dashboard/src/legacy-bridge/surface-registry.ts`, `ROUTE_DRAWS`), then everyone else's
+  (`apps/dashboard/src/legacy-bridge/surface-runner.ts`).
+- _What is read only where it is drawn is read as its page is reached for._ A surface marked `onDemand` (Reports) is on
+  no other page's boot; a pointer at its row in the sidebar, or the phone's drawer opening, starts its reads
+  (`surface-registry.ts` `warmWhatItDraws`), so the press finds them in or on their way.
+- _The tab keeps what it read._ The last read of every surface paints before React draws (`surface-cache.ts`), and a
+  view the tab has held paints at once and is read again behind (`apps/dashboard/src/legacy-bridge/held-views.ts`).
+- _Round trips that need nothing of each other go together._ A reader asks for them at once and waits for all
+  (`apps/dashboard/src/server/readers/`): one after the other, the Calendar's read spent 180 ms on the server for a
+  workspace with no calendar.
 
 ## The interface
 
@@ -631,6 +653,7 @@ packages/contracts/src/
   deals/
   email/
   google/
+  journey/
   leads/
   lines/
   mobile/
@@ -655,6 +678,7 @@ packages/core/src/
   leads/
   messages/
 packages/db/src/
+  billing/
   repositories/
 packages/jobs/src/
 tooling/scripts/

@@ -1,21 +1,25 @@
 #!/usr/bin/env node
 /**
- * The tests of what a change touched. ci.yml runs it on every pull request; the whole suite stays on the `suite` label
- * and in the nightly (Ruben, 1 Oct 2026: the suite took 27 minutes of every push), so before this a pull request ran no
- * test at all, and five ratchets went red on main between 29 Sep and 3 Oct with nothing to stop them.
+ * The tests of what a change touched. ci.yml runs it on every pull request, database.yml runs its database suites, and
+ * `corepack pnpm check:local` runs it against origin/main before it stamps a tree; the whole suite stays on the `suite`
+ * label and in the nightly (Ruben, 1 Oct 2026: the suite took 27 minutes of every push). Before this a pull request ran
+ * no test at all, and five ratchets went red on main between 29 Sep and 3 Oct with nothing to stop them.
  *
  * What a change runs:
  *   - a changed test file, itself;
  *   - any other changed file, every folder of tooling/scripts/tests named like one of its path's parts
  *     (packages/core/src/leads/cards.ts runs tests/leads; apps/edge/lib/receptionist/steer.ts runs tests/edge and
  *     tests/receptionist); supabase/ runs tests/database, and docs/ tests/history (the decisions' index);
- *   - the folders that hold the repository's own rules and ratchets, always (ALWAYS): the five reds were all there;
- *   - the whole suite, when the runner or something every test loads changed (WHOLE): a root helper, a stand-in.
- * A dependency bump touches no folder of its own, so it runs ALWAYS on top of the job's build, typecheck and lint;
- * the nightly runs the whole suite, and a risky bump asks for it with the label.
+ *   - the folders that hold the repository's own rules and ratchets, always (ALWAYS): the five reds were all there.
+ * A helper every test loads (the runner, a root helper, a stand-in) used to run the whole suite, which took 21 to 40
+ * minutes on 6-9 Oct 2026 and ran #1535's and #1539's CI past its cap. Ruben, 10 Oct 2026: a push is through CI in
+ * under ten minutes, so it runs ALWAYS and what else the change names; the nightly runs everything, and a pull request
+ * that wants the whole suite asks for it with the label.
  *
  *   node tooling/scripts/checks/changed-tests.mjs <base> <head>          run them (ci.yml: HEAD^1 HEAD, the merge commit)
  *   node tooling/scripts/checks/changed-tests.mjs --list <base> <head>   say what would run
+ *   node tooling/scripts/checks/changed-tests.mjs --db <base> <head>     their database suites, against the stack
+ *                                                                        (database.yml, on a pull request)
  */
 import { execFileSync, spawn } from "node:child_process";
 import path from "node:path";
@@ -27,19 +31,11 @@ const TESTS = "tooling/scripts/tests";
 /** Run on every change: the repository's rules, the ratchets and the docs' truth, where the five reds of 3 Oct were. */
 export const ALWAYS = [`${TESTS}/repo`, `${TESTS}/types`, `${TESTS}/docs`, `${TESTS}/routes/wire-casing.test.mjs`];
 
-/** A change to one of these can break any test, so it runs the whole suite. */
-const WHOLE = [
-  /^tooling\/scripts\/checks\/(test|coverage)\.mjs$/,
-  new RegExp(`^${TESTS}/_[^/]+\\.mjs$`),
-  new RegExp(`^${TESTS}/[^/]+/_stand-in-[^/]+\\.mjs$`),
-];
-
 /**
- * What to run for a set of changed paths, given the folders of tooling/scripts/tests that hold tests. `whole` means the
- * suite; otherwise `targets` are the files and folders to hand the runner, ALWAYS first.
+ * What to run for a set of changed paths, given the folders of tooling/scripts/tests that hold tests: the files and
+ * folders to hand the runner, ALWAYS first.
  */
 export function testTargets(changed, testFolders) {
-  if (changed.some((f) => WHOLE.some((re) => re.test(f)))) return { whole: true, targets: [] };
   const targets = new Set(ALWAYS);
   for (const file of changed) {
     if (file.startsWith(`${TESTS}/`)) {
@@ -58,10 +54,15 @@ export function testTargets(changed, testFolders) {
   }
   // A folder already asked for covers a file inside it.
   const folders = [...targets].filter((t) => !t.endsWith(".mjs"));
-  return {
-    whole: false,
-    targets: [...targets].filter((t) => !t.endsWith(".mjs") || !folders.some((d) => t.startsWith(`${d}/`))),
-  };
+  return [...targets].filter((t) => !t.endsWith(".mjs") || !folders.some((d) => t.startsWith(`${d}/`)));
+}
+
+/** A suite that needs the stack: `pnpm test:db`'s own two globs (tooling/scripts/checks/test.mjs SUITES.db). */
+export const isDatabaseSuite = (file) => /\.(db|integration)\.test\.mjs$/.test(file);
+
+/** Of the targets, the database suites: a folder's that lie in it, and a file that is one. */
+export function databaseSuitesOf(targets, suites) {
+  return suites.filter((f) => targets.some((t) => f === t || f.startsWith(`${t}/`)));
 }
 
 const git = (...args) => execFileSync("git", args, { cwd: ROOT, encoding: "utf8" });
@@ -78,25 +79,28 @@ function foldersWithTests() {
 
 function main() {
   const args = process.argv.slice(2);
-  const list = args[0] === "--list";
-  const [base, head] = list ? args.slice(1) : args;
+  const list = args.includes("--list");
+  const db = args.includes("--db");
+  const [base, head] = args.filter((a) => !a.startsWith("--"));
   if (!base || !head) {
-    console.error("usage: node tooling/scripts/checks/changed-tests.mjs [--list] <base> <head>");
+    console.error("usage: node tooling/scripts/checks/changed-tests.mjs [--list | --db] <base> <head>");
     process.exit(2);
   }
   const changed = git("diff", "--name-only", base, head).split("\n").filter(Boolean);
-  const { whole, targets } = testTargets(changed, foldersWithTests());
-  console.log(
-    `${changed.length} files changed; ${whole ? "the whole suite (the runner or a shared helper changed)" : `running ${targets.join(" ")}`}`,
-  );
+  let targets = testTargets(changed, foldersWithTests());
+  if (db) {
+    targets = databaseSuitesOf(targets, git("ls-files", `${TESTS}/**.test.mjs`).split("\n").filter(isDatabaseSuite));
+    if (!targets.length) {
+      console.log(`${changed.length} files changed; no database suite lies where they name`);
+      return;
+    }
+  }
+  console.log(`${changed.length} files changed; running ${targets.join(" ")}`);
   if (list) return;
   const child = spawn(
     process.execPath,
-    [path.join(ROOT, "tooling/scripts/checks/test.mjs"), ...(whole ? [] : targets)],
-    {
-      cwd: ROOT,
-      stdio: "inherit",
-    },
+    [path.join(ROOT, "tooling/scripts/checks/test.mjs"), ...(db ? ["--db"] : []), ...targets],
+    { cwd: ROOT, stdio: "inherit" },
   );
   child.on("exit", (code, signal) => process.exit(signal ? 1 : (code ?? 1)));
 }

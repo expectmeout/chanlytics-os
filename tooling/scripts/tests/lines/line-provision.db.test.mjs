@@ -2,11 +2,13 @@
  * The ledger admits a line's provisioning (00109), proved on a real Postgres:
  * a line_provision row is accepted by the kind CHECK, claimed by
  * claim_due_jobs like any other, and the guard still refuses a kind nobody
- * declared.
+ * declared. It claims from the one queue every database suite shares, so it
+ * takes the ledger's lock for the whole file (_file-lock.mjs).
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
+import { takeLock } from "../_file-lock.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -19,8 +21,13 @@ const skip =
 
 let db;
 let tenantId;
+// The jobs ledger is one queue the whole database suite shares: claim_due_jobs takes the oldest due row of all of it,
+// so a suite claiming beside this one carries its row off. The suites that claim take a lock for the whole file
+// (_file-lock.mjs) and run one after the other.
+let releaseLedger;
 before(async () => {
   if (skip) return;
+  releaseLedger = await takeLock("jobs-ledger");
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   const t = await db
     .from("tenants")
@@ -31,9 +38,13 @@ before(async () => {
   tenantId = t.data.id;
 });
 after(async () => {
-  if (skip || !tenantId) return;
-  await db.from("jobs").delete().eq("tenant_id", tenantId);
-  await db.from("tenants").delete().eq("id", tenantId);
+  try {
+    if (skip || !tenantId) return;
+    await db.from("jobs").delete().eq("tenant_id", tenantId);
+    await db.from("tenants").delete().eq("id", tenantId);
+  } finally {
+    await releaseLedger?.();
+  }
 });
 
 test("a line_provision job is accepted, due now, and claimed like any other", { skip }, async () => {

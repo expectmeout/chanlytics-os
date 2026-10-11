@@ -1,14 +1,14 @@
 /**
  * Reach out's sends and the doors they go through (Part 3): the one place `reach_out_sends` is typed, and the doors of
  * 00184. The service role asks every one of them (the edge's clock and run); a read or a door that fails throws,
- * because "we could not check" is not "yes".
- *
- * Cross-workspace: the reach-out clock's sweeps read every workspace; each door given a tenant keeps to it.
+ * because "we could not check" is not "yes". Cross-workspace: the reach-out clock's sweeps read every workspace; each
+ * door given a tenant keeps to it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { maySpend, type BillingMode, type BillingStatus } from "@chanlytics/contracts";
-import type { Database, Json } from "../database.types";
+import type { Database } from "../database.types";
 import { emailWordsFrom } from "./reach-out-sheet";
+import { withdrawQueued } from "./control";
 import { recordEvent } from "../events";
 
 type Db = SupabaseClient<Database>;
@@ -259,18 +259,15 @@ export async function writtenEmails(db: Db, ids: string[]): Promise<Set<string>>
   return out;
 }
 
-/** An email the clock withdraws while it is still queued (its run was closed): its job then sends nothing. */
+/** An email withdrawn while it is still queued and no run has begun to send it, through the one door (00387): its job
+ *  then sends nothing. False when it was not: it had moved on, or it is on its way, and what became of it is its job's. */
 export async function withdrawEmail(db: Db, p: { tenantId: string; id: string; reason: string }): Promise<boolean> {
-  const why = { reason: p.reason } as unknown as Json;
-  const { data, error } = await db
-    .from("messages")
-    .update({ status: "canceled", error: why })
-    .eq("tenant_id", p.tenantId)
-    .eq("id", p.id)
-    .eq("status", "queued")
-    .select("id");
-  if (error) throw new Error(`cannot withdraw the email: ${error.message}`);
-  return (data ?? []).length > 0;
+  const withdrawn = await withdrawQueued(db, {
+    tenantId: p.tenantId,
+    messageIds: [p.id],
+    reason: { reason: p.reason },
+  });
+  return withdrawn.length > 0;
 }
 
 /* ------------------------------------------------------------ the sender -- */

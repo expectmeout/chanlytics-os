@@ -625,6 +625,12 @@
 /* A time that has gone says so, quietly: nothing here is a decision any more. */
 .cal-ev-state { font-size: var(--text-xs); padding: 1px 7px; border-radius: var(--radius-full); background: var(--bg-sunken); color: var(--ink-muted); border: 1px solid var(--line); }
 .cal-ev-state::before { content: none; }
+/* What a member said became of a visit (0002 step 8): the acts in a row, the door's refusal under them. */
+.cal-ev-visit-acts { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.cal-ev-visit-refused { flex-basis: 100%; color: var(--ink-muted); font-size: var(--text-xs); }
+/* A visit said cancelled is struck on the board; the time stays the calendar's until it is edited there. */
+.cal-appt[data-visit="cancelled"] .cal-appt-who,
+.cal-allday[data-visit="cancelled"] { text-decoration: line-through; }
 
 /* The notes wear the same key and value as Where, because they are the same
    kind of thing: something the event carried. A border and a fill made them a
@@ -763,10 +769,15 @@
   box-shadow: var(--surface-pane-depth);
   overflow: hidden;
 }
+/* The rim stands over everything in the pane: the day heads are sticky at its top edge (z-index 3) and blur what is
+   behind them, so a rim under them was blurred away along the top once the board's entrance ended (Ruben, 10 Oct
+   2026: right for a split second on a refresh, then the heads over the outline). Above them, and above an
+   appointment being dragged (5) and its time tag (6). */
 .main-scroll > .calendar .cal-body:has(> .cal-scroll)::after {
   content: "";
   position: absolute;
   inset: 0;
+  z-index: 7;
   padding: 1px;
   border-radius: inherit;
   background: var(--surface-pane-rim);
@@ -781,6 +792,12 @@
 /* The day heads and the hours stand over the days as clear glass, not a solid band: what scrolls under them blurs. */
 .main-scroll > .calendar :is(.cal-corner, .cal-dayhead, .cal-gutter) {
   background: transparent;
+}
+/* The heads leave the pane's top pixel to the pane: its specular edge is an inset shadow, drawn under what the pane holds,
+   so the heads' blur (and on a phone their solid) took it, and the outline over week and day read thinner than over the
+   month and the agenda, whose heads are clear (Ruben, 10 Oct 2026). That pixel of a head is padding, never words. */
+.main-scroll > .calendar :is(.cal-corner, .cal-dayhead) {
+  clip-path: inset(1px 0 0);
 }
 /* On a desk alone: a phone scrolls its days sideways under the heads, and a blur redrawn on every frame of that is the
    one cost the board's motion could not spare, so there they take the pane's solid (the phone block below). */

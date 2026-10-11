@@ -897,10 +897,7 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
   // sent the owner to record a consent that message does not need.
   const nobody = { audiences: [NOBODY] };
   const offers = textOf(byTestId(drawn({ initialSegment: "s-nobody" }, nobody), "bc-nobody"));
-  assert.ok(
-    offers.includes("has said yes to offers yet — that is a separate answer from saying yes to messages"),
-    offers,
-  );
+  assert.ok(offers.includes("has said yes to offers yet. Record it under “Offers and news”"), offers);
   const messages = textOf(
     byTestId(drawn({ initialSegment: "s-nobody" }, { ...nobody, templates: [utility] }), "bc-nobody"),
   );
@@ -990,8 +987,8 @@ test("the detail: every person on a broadcast, with what happened to them; the s
   );
   assert.ok(
     readCode("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx").includes("`a broadcast (${entry.via.name})`") &&
-      readCode("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx").includes("`the ${entry.via.name} playbook`"),
-    "the thread says which broadcast, or which playbook",
+      readCode("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx").includes("`the ${entry.via.name} campaign`"),
+    "the thread says which broadcast, or which campaign",
   );
   assert.ok(
     readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/verbs.ts").includes(

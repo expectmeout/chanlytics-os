@@ -55,11 +55,11 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
     );
     await Promise.all([
       asked,
-      tell(
-        n.body ?? `[${raw.type}]`,
-        "(no reply sent — the receptionist could not read the thread state)",
-        "state unavailable",
-      ),
+      tell(asked, {
+        said: n.body ?? `[${raw.type}]`,
+        answered: "(no reply sent — the receptionist could not read the thread state)",
+        why: "state unavailable",
+      }),
       processedAfter(sink, asked, "none"),
     ]);
     return;
@@ -87,6 +87,8 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
     // on record', never as a block" — and a row carrying neither read as
     // `false`, an affirmative "they are opted in".
     recorded: ing && (ing.consent !== undefined || ing.dnc !== undefined) ? isOptedOutContact(ing) : null,
+    // A message already held (a text's answer job, a redelivery) said its START when it was first taken in.
+    takenAgain: ing?.is_new === false,
   });
   const optedOut = consent.optedOut;
 
@@ -103,7 +105,16 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
       : null;
     await Promise.all([
       processedAfter(sink, asked, "none"),
-      ...(asked ? [asked, tell(n.body ?? `[${raw.type}]`, "(no reply sent — the customer opted out)", "opt-out")] : []),
+      ...(asked
+        ? [
+            asked,
+            tell(asked, {
+              said: n.body ?? `[${raw.type}]`,
+              answered: "(no reply sent — the customer opted out)",
+              why: "opt-out",
+            }),
+          ]
+        : []),
     ]);
     // `decided_by` matters after the fact: which of the two sources held them out.
     L.info("wa_skip_opt_out", {
@@ -122,11 +133,11 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
     const asked = sink.escalate(carrier.held.reason, carrier.held.details);
     await Promise.all([
       asked,
-      tell(
-        n.body ?? `[${raw.type}]`,
-        "(no reply sent — the carriers have not approved this line for texting yet)",
-        "carriers",
-      ),
+      tell(asked, {
+        said: n.body ?? `[${raw.type}]`,
+        answered: "(no reply sent — the carriers have not approved this line for texting yet)",
+        why: "carriers",
+      }),
       processedAfter(sink, asked, "none"),
     ]);
     L.info("sms_held_for_carriers");
@@ -160,7 +171,7 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
     const asked = sink.escalate("non_text", `${n.body} — needs a person.`);
     await Promise.all([
       asked,
-      tell(n.body ?? `[${raw.type}]`, "(no reply sent — passed to a human)", n.kind),
+      tell(asked, { said: n.body ?? `[${raw.type}]`, answered: "(no reply sent — passed to a human)", why: n.kind }),
       processedAfter(sink, asked, "none"),
     ]);
     L.info("wa_escalate_readable_nontext", { kind: n.kind });

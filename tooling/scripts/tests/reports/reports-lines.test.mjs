@@ -6,7 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toReportVM } from "@chanlytics/contracts";
+import { lensAnswerOf, toReportVM } from "@chanlytics/contracts";
 
 const day = (d, over = {}) => ({
   day: d,
@@ -62,8 +62,8 @@ const thirty = (per, over = {}) =>
     ...over,
   }).lines;
 
-test("the headline: how many of how many without you, how fast half the replies went, and the share the period before", () => {
-  // Seven answered by the receptionist the week before; this week 13 of 17 (3 by you, 1 with no reply yet).
+/** Seven answered by the receptionist the week before; this week 13 of 17 (3 by you, 1 with no reply yet). */
+function busyWeek() {
   const busy = { ...weekDto([0, 7, 1, 3, 2, 5, 2]), reply_seconds: [4, 8, 12, 15, 40, 70, 400, 2000] };
   busy.series = busy.series.map((d, i) => (i < 7 ? { ...d, answered_ai: 1 } : d));
   const answers = [
@@ -86,6 +86,11 @@ test("the headline: how many of how many without you, how fast half the replies 
           unanswered: answers[i - 7][2],
         },
   );
+  return busy;
+}
+
+test("the headline: how many of how many without you, how fast half the replies went, and the share the period before", () => {
+  const busy = busyWeek();
   const vm = toReportVM(busy);
   // The median of the eight replies sits between 15 and 40: 27.5, said as 28s.
   assert.equal(vm.lines.hero, "13 of 17 customer messages, without you. Half of its replies went out within 28s.");
@@ -98,6 +103,77 @@ test("the headline: how many of how many without you, how fast half the replies 
   const quiet = toReportVM(weekDto([0, 0, 0, 0, 0, 0, 0]));
   assert.equal(quiet.lines.hero, "No customer wrote in this period.");
   assert.equal(quiet.lines.heroBefore, null, "the week before had messages but nothing answered in this fixture");
+});
+
+test("the head: how many of how many without you, and how many went out as the hold ended", () => {
+  const busy = busyWeek();
+  const held = (n, s, hold = 60) => Array.from({ length: n }, () => ({ day: "2026-09-04", s, hold }));
+  const head = (replies) => toReportVM({ ...busy, replies }).lines.receptionist;
+  assert.equal(head(undefined), "13 of 17 messages answered without you.");
+  assert.equal(head(held(8, 61)), "13 of 17 messages answered without you, 8 as your 1-minute hold ended.");
+  assert.equal(
+    head([...held(6, 61), ...held(2, 200)]),
+    "13 of 17 messages answered without you, 6 as your 1-minute hold ended.",
+  );
+  assert.equal(
+    head([...held(2, 61), ...held(6, 200)]),
+    "13 of 17 messages answered without you, 6 later than your 1-minute hold.",
+  );
+  assert.equal(
+    head(held(8, 30, 0)),
+    "13 of 17 messages answered without you.",
+    "most had no hold: it says nothing of one",
+  );
+  assert.equal(toReportVM(weekDto([0, 0, 0, 0, 0, 0, 0])).lines.receptionist, null, "nobody wrote");
+  assert.equal(
+    lensAnswerOf("receptionist", { vm: toReportVM({ ...busy }), campaigns: null, deals: null, reviews: null }),
+    "13 of 17 messages answered without you.",
+  );
+  assert.equal(
+    toReportVM(busy).lines.answered,
+    "Most messages on Sep 1: 5.",
+    "the busiest day stays the answered card's own line, no longer the head",
+  );
+});
+
+test("the reply dots: each reply's seconds past its own hold, in the order given, the last five hundred at most", () => {
+  const busy = busyWeek();
+  const dots = (replies) => toReportVM({ ...busy, replies }).replyTime.dots;
+  assert.deepEqual(
+    dots([
+      { day: "d1", s: 61, hold: 60 },
+      { day: "d1", s: 30, hold: 60 },
+      { day: "d2", s: 200 },
+      { day: "d2", s: Number.NaN, hold: 0 },
+    ]),
+    [
+      { day: "d1", past: 1, held: true },
+      { day: "d1", past: 0, held: true },
+      { day: "d2", past: 200, held: false },
+    ],
+    "a reply before its hold ended is on the line (0), a reply with no hold counts from the question, a NaN is no dot",
+  );
+  assert.deepEqual(
+    dots([
+      { day: "d1", s: 40, hold: 0 },
+      { day: "d1", s: 41, hold: -5 },
+      { day: "d1", s: 42, hold: Number.NaN },
+      { day: "d1", s: 43, hold: 60 },
+    ]).map((d) => [d.past, d.held]),
+    [
+      [40, false],
+      [41, false],
+      [42, false],
+      [0, true],
+    ],
+    "held is the hold's one reading: a hold above nothing; a zero, a negative or a hold that is no number is none, and its dot is the whole time",
+  );
+  assert.deepEqual(dots([{ day: "d1", s: 90.6, hold: 60 }]), [{ day: "d1", past: 31, held: true }], "whole seconds");
+  const many = dots(Array.from({ length: 600 }, (_, i) => ({ day: "d1", s: i + 1 })));
+  assert.equal(many.length, 500);
+  assert.equal(many[0].past, 101, "the last 500: the first dot is the 101st reply");
+  assert.equal(many.at(-1)?.past, 600);
+  assert.deepEqual(dots(undefined), []);
 });
 
 test("who answered: the date with the most customer messages, the first of a tie; none in a quiet period", () => {
@@ -132,26 +208,40 @@ test("calls: about how long a call lasts, said by fmtSeconds; nothing with no ca
   assert.equal(lines().calls, null);
 });
 
-test("where: mostly one channel or one leading, as before or taking over, with calls and email said as nouns", () => {
-  const where = (current, previous = ZEROS) =>
-    lines({ channels: { current: { ...ZEROS, ...current }, previous: { ...ZEROS, ...previous } } }).channels;
-  assert.equal(
-    where({ whatsapp: 12, voice: 3, email: 4, sms: 1 }, { whatsapp: 7 }),
-    "Mostly WhatsApp, as the 7 days before.",
+test("the donut's sentence went with the donut: the lines say nothing of channels, counted or not", () => {
+  const counted = lines({ channels: { current: { ...ZEROS, whatsapp: 12 }, previous: { ...ZEROS, whatsapp: 7 } } });
+  assert.ok(!("channels" in counted), "the lens that draws the split says its own sentence (the fold's)");
+  assert.ok(!("channels" in lines()));
+});
+
+/** The week of `weekDto`, whose new people are `now` spread over its last seven days and `before` over the seven before. */
+function withNewPeople(now, before, { lived = true } = {}) {
+  const dto = weekDto([0, 7, 1, 3, 2, 5, 2]);
+  const spread = (n, i) => Math.floor(n / 7) + (i < n % 7 ? 1 : 0);
+  dto.series = dto.series.map((d, i) =>
+    i < 7
+      ? { ...d, messages_in: lived ? d.messages_in : 0, new_contacts: spread(before, i) }
+      : { ...d, new_contacts: spread(now, i - 7) },
   );
+  return dto;
+}
+
+test("the People head's fallback: how many new people reached you, against the period before when there was one", () => {
+  const said = (now, before, opts) => toReportVM(withNewPeople(now, before, opts)).lines.people;
+  assert.equal(said(12, 8), "12 new people reached you (8 the 7 days before).");
+  assert.equal(said(1, 0), "1 new person reached you (none the 7 days before).");
+  assert.equal(said(0, 3), "Nobody new reached you in this period.");
   assert.equal(
-    where({ whatsapp: 4, voice: 3, email: 3 }),
-    "WhatsApp leads.",
-    "four of ten is no majority; nothing before",
+    said(5, 0, { lived: false }),
+    "5 new people reached you.",
+    "nobody lived in the period before: no comparison",
   );
-  assert.equal(where({ voice: 4, whatsapp: 3, email: 3 }), "Calls lead.");
-  assert.equal(where({ email: 6, whatsapp: 2 }), "Mostly email.");
-  assert.equal(where({ sms: 4, whatsapp: 3, email: 3 }), "Texts lead.", "a text is a common noun, and plural");
-  assert.equal(where({ email: 6, whatsapp: 2 }, { whatsapp: 8, email: 1 }), "Email took over from WhatsApp.");
-  assert.equal(where({ whatsapp: 6, voice: 2 }, { voice: 5, whatsapp: 1 }), "WhatsApp took over from calls.");
-  assert.equal(where({ sms: 6, voice: 1 }, { voice: 5, sms: 1 }), "Texts took over from calls.");
-  assert.equal(where({}, { whatsapp: 3 }), null, "nobody reached it this period");
-  assert.equal(lines().channels, null, "a v2 payload counted no channel");
+  assert.equal(typeof lines().people, "string");
+  assert.equal(
+    typeof toReportVM(weekDto([0, 0, 0, 0, 0, 0, 0])).lines.people,
+    "string",
+    "a quiet week has a sentence too, never null",
+  );
 });
 
 test("when, over a week: the days nothing came in, or the one quietest day, as days", () => {

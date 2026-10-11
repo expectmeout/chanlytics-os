@@ -4,6 +4,10 @@
  * act), and the page's class and ids. A label or a number missing, a number that is not said, a definition that is an
  * element, and a door whose address is not words stop compiling.
  *
+ * A ratio's count (`n`) is a number or none, and so is the fewest that say anything (`minN`): words stop compiling.
+ *
+ * A tone (what needs you, or what failed) is the kit's two words or none: a third word, or a colour, stops compiling.
+ *
  * A type test: the positives are `Holds<Exactly<…>>` (contracts' schema-sets.ts) and calls that compile, and each line under
  * `@ts-expect-error <why>` must not compile. One that starts to compile is TS2578, an unused directive, so the dashboard's
  * `tsc --noEmit` fails. It imports through the kit's index, as a surface does; nothing imports it, so no bundle reaches it,
@@ -21,6 +25,9 @@ function _figureTakes(now: { door: PressAct | PressDoor | undefined; change: str
     Holds<Exactly<ComponentProps<typeof Figure>, FigureProps>>,
     Holds<Exactly<FigureProps["door"], PressAct | PressDoor | undefined>>,
     Holds<Exactly<FigureProps["change"], string | null | undefined>>,
+    Holds<Exactly<FigureProps["n"], number | null | undefined>>,
+    Holds<Exactly<FigureProps["minN"], number | undefined>>,
+    Holds<Exactly<FigureProps["tone"], "warn" | "fail" | undefined>>,
   ];
   Figure({ label: "Customer messages", value: "17" });
   Figure({
@@ -40,6 +47,12 @@ function _figureTakes(now: { door: PressAct | PressDoor | undefined; change: str
   Figure({ label: "Needed you", value: "3", door: { onClick: () => undefined } });
   // Chosen as the page runs: a door or none, and a change or none.
   Figure({ label: "Needed you", value: "3", door: now.door, change: now.change });
+  // A ratio says what it is of (`n`) and the fewest that say anything (`minN`); a count that is not known is null.
+  Figure({ label: "Answered without you", value: "62%", n: 17, minN: 5 });
+  Figure({ label: "Answered without you", value: "—", n: null, minN: 5 });
+  // A tone is for what needs you (warn) or what failed (fail), on the number alone.
+  Figure({ label: "Steps overdue", value: "6", tone: "warn" });
+  Figure({ label: "Email that stopped working", value: "2", tone: "fail" });
 
   // @ts-expect-error a figure says what it counts: its label
   Figure({ value: "17" });
@@ -51,4 +64,12 @@ function _figureTakes(now: { door: PressAct | PressDoor | undefined; change: str
   Figure({ label: "Calls", value: "3", door: { href: 3 } });
   // @ts-expect-error the label is words: a glyph or markup beside it is the page's, not the figure's
   Figure({ label: { words: "Calls" }, value: "3" });
+  // @ts-expect-error a count is a number, never words
+  Figure({ label: "Calls", value: "3", n: "17" });
+  // @ts-expect-error a count is a number, never words
+  Figure({ label: "Calls", value: "3", minN: "5" });
+  // @ts-expect-error a tone is warn or fail, nothing else
+  Figure({ label: "Calls", value: "3", tone: "ok" });
+  // @ts-expect-error a tone is the kit's two, never a colour
+  Figure({ label: "Calls", value: "3", tone: "var(--warn)" });
 }

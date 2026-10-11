@@ -204,6 +204,13 @@ function waysFor(f: ConsentPageFacts, phrase: string): ConsentWay[] {
 }
 
 /**
+ * The heading of the ask for messages about a person's own appointments, on the public page and its paper form, and in
+ * the A2P campaign's facts, which quote the page word for word (apps/edge/lib/lines/a2p-campaign-facts.ts): the glossary's
+ * word, appointment, whatever the trade (decision 6 of the spec of 9 October 2026).
+ */
+export const CONVERSATIONAL_ASK_TITLE = "Messages about your appointment";
+
+/**
  * The words of each ask, said ONCE for the page and for its paper form. Two copies
  * of a disclosure are one that will be edited and one that will not -- and the
  * paper form is the version a customer signs, so it may not drift from the page a
@@ -214,7 +221,7 @@ function askWords(
 ): Record<AskedPurpose, { title: string; lead: string; optional: string | null; terms: string[] }> {
   return {
     conversational: {
-      title: "Messages about your visit",
+      title: CONVERSATIONAL_ASK_TITLE,
       lead: `Appointment reminders and confirmations from ${name}, and a reply when you write to them.`,
       optional: null,
       terms: [
@@ -272,7 +279,7 @@ export function consentPageVM(f: ConsentPageFacts): ConsentPageVM {
       ? `${name} is not set up to take sign-ups here yet.`
       : asks.length > 1
         ? `Two separate things you can say yes to, in your own message from your own phone. ${name} never sells or shares your number.`
-        : `One thing you can say yes to, in your own message from your own phone: messages about your visit. ${name} never sells or shares your number.`,
+        : `One thing you can say yes to, in your own message from your own phone: messages about your appointment. ${name} never sells or shares your number.`,
     asks,
     qrLink: optInLink(f.whatsappE164, CONSENT_PHRASE),
     terms: bothTerms(name),
