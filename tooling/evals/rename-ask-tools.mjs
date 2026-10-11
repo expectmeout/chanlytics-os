@@ -19,10 +19,11 @@ import { pathToFileURL } from "node:url";
 export const TOOL_NAMES = JSON.parse(readFileSync(new URL("./tool-names.json", import.meta.url), "utf8"));
 /**
  * The actions added since the rename (Ask Rewired, PRs 4.3, 4.5, 4.6 and 4.7, the Phase 4 plan's D1), and PR 4.7's new
- * tool, 9 Oct 2026's action change and 10 Oct 2026's campaigns.messages and campaigns.journey: no old tool was any of
- * them, so the table has no row for them, and a case may name them as they are.
+ * tool, 9 Oct 2026's action change and 10 Oct 2026's campaigns.messages, campaigns.journey and calendar.room: no old
+ * tool was any of them, so the table has no row for them, and a case may name them as they are.
  */
 export const ADDED_SINCE = [
+  "calendar.room",
   "campaigns.broadcast",
   "campaigns.broadcasts",
   "campaigns.journey",

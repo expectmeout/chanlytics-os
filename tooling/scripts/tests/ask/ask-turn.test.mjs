@@ -1887,6 +1887,7 @@ test("the fourteen reads, each an action of the nine read tools, run against the
     Object.keys(out).sort(),
     [
       "calendar.openings",
+      "calendar.room",
       "calendar.week",
       "calls.get",
       "calls.list",
@@ -1914,7 +1915,7 @@ test("the fourteen reads, each an action of the nine read tools, run against the
       "workspace.notifications",
       "workspace.settings",
     ],
-    "the reads the loop offers: the fourteen old tools, each an action now, PR 4.3's ten, PR 4.5's search, the library and the journey",
+    "the reads the loop offers: the fourteen old tools, each an action now, PR 4.3's ten, PR 4.5's search, the library, the journey and the room",
   );
   const found = JSON.parse(out["inbox.search"].result);
   assert.equal(out["inbox.search"].isError, false, out["inbox.search"].result);
@@ -1951,6 +1952,12 @@ test("the fourteen reads, each an action of the nine read tools, run against the
   assert.ok(out["workspace.settings"].result.includes("Harbor Moving"));
   assert.equal(out["calendar.openings"].isError, false, out["calendar.openings"].result);
   assert.ok(out["calendar.openings"].result.includes("No calendar feed"), "no feed, said plainly");
+  assert.equal(out["calendar.room"].isError, false, out["calendar.room"].result);
+  assert.deepEqual(
+    JSON.parse(out["calendar.room"].result),
+    { days: 14, open: 0, taken: 0, by_day: [], none: "no_calendar" },
+    "no feed, no room counted, and said so",
+  );
   assert.equal(out["calendar.week"].isError, false, out["calendar.week"].result);
   assert.equal(out["campaigns.audiences"].isError, false, out["campaigns.audiences"].result);
   assert.equal(out["campaigns.playbooks"].isError, false, out["campaigns.playbooks"].result);

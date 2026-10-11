@@ -14,6 +14,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   callerName,
   describeNow,
+  freeWindows,
   journeyGuide,
   newReceptionistDefaults,
   personName,
@@ -5520,4 +5521,144 @@ test("campaigns.journey says the journey as Campaigns' home draws it: 2 of 4 mom
     );
     assert.deepEqual([...tc.read.playbook.keys()], [PB1], "the campaign it names, a row a citation names");
   });
+});
+
+/**
+ * 10 Oct 2026 (Ask, the marketing manager, task 5): how full the book is, for pacing an offer to what the business can
+ * take, is the openings reader's own answer counted in slots over the next fourteen days, so the room Ask says is the
+ * time the receptionist would offer. Harbor here opens nine to five on weekdays; its feed holds two hours tomorrow and
+ * a booking that arrived by email takes an hour the day after. The clock is late on a Tuesday in New York, already
+ * Wednesday in UTC, so today offers nothing and the first day with room is tomorrow on the business's clock.
+ */
+const ROOM_NOW = new Date("2026-09-09T03:30:00.000Z");
+const ROOM_ICS = [
+  "BEGIN:VCALENDAR",
+  "BEGIN:VEVENT",
+  "UID:r1",
+  "SUMMARY:Taken",
+  "DTSTART;TZID=America/New_York:20260909T100000",
+  "DTEND;TZID=America/New_York:20260909T120000",
+  "END:VEVENT",
+  "END:VCALENDAR",
+].join("\r\n");
+const NINE_TO_FIVE = { open: "09:00", close: "17:00" };
+const ROOM_HOURS = {
+  mon: NINE_TO_FIVE,
+  tue: NINE_TO_FIVE,
+  wed: NINE_TO_FIVE,
+  thu: NINE_TO_FIVE,
+  fri: NINE_TO_FIVE,
+  sat: {},
+  sun: {},
+};
+/**
+ * calTables(url), open nine to five and booking by `rules`, with one booking on record: Thursday two to three in the
+ * afternoon, New York.
+ */
+const roomTables = (url, rules = calProfile.booking_rules) => {
+  const t = calTables(url);
+  const [row] = t.tenant_config;
+  const brain = { ...row.config.brain, profile: { ...calProfile, hours: ROOM_HOURS, booking_rules: rules } };
+  return {
+    ...t,
+    tenant_config: [{ ...row, config: { ...row.config, brain } }],
+    appointments: [
+      {
+        id: "appt-room",
+        tenant_id: A,
+        source: "booking_email",
+        tool: "booksy",
+        external_id: "booksy:appt-room",
+        status: "booked",
+        starts_at: "2026-09-10T18:00:00.000Z",
+        ends_at: "2026-09-10T19:00:00.000Z",
+        all_day: false,
+        timezone: "America/New_York",
+      },
+    ],
+  };
+};
+/** The open slots of half an hour in each day's windows, as freeWindows gives them. */
+const slotsOf = (openings) =>
+  openings.map((o) => ({
+    day: o.key,
+    open: o.windows.reduce((n, w) => n + Math.floor((w.end - w.start) / (30 * 60_000)), 0),
+  }));
+const sumOpen = (days) => days.reduce((n, d) => n + d.open, 0);
+
+test("calendar.room says how full the book is over the next fourteen days, or the fewer a business offers: the open slots freeWindows gives at half an hour, after the feed's two hours tomorrow and the hour on record the day after, by day from tomorrow on the business's clock, and the slots those take out of the hours; with no calendar, none says so and nothing is read; a calendar that cannot be read says unavailable", async () => {
+  const room = async (t) => {
+    const tc = newToolContext(calCtx(t), A, "viewer", "America/New_York", ROOM_NOW);
+    const out = await runTool(tc, { name: "calendar", input: { action: "room" } });
+    assert.equal(out.isError, false, out.result);
+    return JSON.parse(out.result);
+  };
+  await withFeed({ body: ROOM_ICS }, async (fetched) => {
+    const said = await room(roomTables("https://cal.example/room.ics"));
+    const free = {
+      hours: ROOM_HOURS,
+      closures: [],
+      tz: "America/New_York",
+      rules: { lead_hours: 2, max_days_ahead: 14, slot_min: 30 },
+      now: ROOM_NOW,
+    };
+    const busy = [
+      { start: Date.parse("2026-09-09T14:00:00.000Z"), end: Date.parse("2026-09-09T16:00:00.000Z") },
+      { start: Date.parse("2026-09-10T18:00:00.000Z"), end: Date.parse("2026-09-10T19:00:00.000Z") },
+    ];
+    const open = slotsOf(freeWindows({ ...free, busy }));
+    const hours = slotsOf(freeWindows({ ...free, busy: [] }));
+    assert.equal(said.days, 14);
+    assert.deepEqual(said.by_day, open, "each day with room, as freeWindows gives it");
+    assert.equal(said.open, sumOpen(open));
+    assert.equal(said.open, 138, "nine weekdays of sixteen half hours, less four tomorrow and two the day after");
+    assert.deepEqual(
+      said.by_day[0],
+      { day: "2026-09-09", open: 12 },
+      "tomorrow on the business's clock, where UTC says today",
+    );
+    assert.equal(said.taken, sumOpen(hours) - sumOpen(open));
+    assert.equal(said.taken, 6, "the feed's two hours and the record's one, in half hours");
+    assert.deepEqual(Object.keys(said), ["days", "open", "taken", "by_day"], "nothing is missing: no none");
+    assert.equal(fetched.length, 1, "one read of the feed");
+  });
+
+  // The room is the first fourteen days on offer: a business that offers a month ahead is counted over fourteen, and one
+  // that offers a week over its week -- Wednesday to Friday and the Monday, less the same six half hours.
+  for (const [ahead, days, open, last] of [
+    [30, 14, 138, "2026-09-21"],
+    [7, 7, 58, "2026-09-14"],
+  ])
+    await withFeed({ body: ROOM_ICS }, async () => {
+      const rules = { ...calProfile.booking_rules, max_days_ahead: ahead };
+      const said = await room(roomTables("https://cal.example/room.ics", rules));
+      assert.deepEqual(
+        [said.days, said.open, said.taken, said.by_day.at(-1).day],
+        [days, open, 6, last],
+        `${ahead} days ahead`,
+      );
+    });
+
+  await withFeed({ body: ROOM_ICS }, async (fetched) => {
+    assert.deepEqual(await room(roomTables(null)), {
+      days: 14,
+      open: 0,
+      taken: 0,
+      by_day: [],
+      none: "no_calendar",
+    });
+    assert.deepEqual(fetched, [], "no calendar, no read");
+  });
+
+  await logged("ask_feed_fetch_failed", () =>
+    withFeed({ body: "nope", status: 503 }, async () => {
+      assert.deepEqual(await room(roomTables("https://cal.example/down.ics")), {
+        days: 14,
+        open: 0,
+        taken: 0,
+        by_day: [],
+        none: "unavailable",
+      });
+    }),
+  );
 });

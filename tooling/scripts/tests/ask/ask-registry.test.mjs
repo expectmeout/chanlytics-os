@@ -78,7 +78,15 @@ const PR_4_3 = fixture("ask-tools-4-3.json");
  * schema and examples); propose_thread_verb no longer points every role to a person's mode, which only an owner is
  * offered since PR 4.6.
  */
-const CHANGED = ["campaigns", "propose_autonomy", "propose_campaign", "propose_list", "propose_thread_verb", "report"];
+const CHANGED = [
+  "calendar",
+  "campaigns",
+  "propose_autonomy",
+  "propose_campaign",
+  "propose_list",
+  "propose_thread_verb",
+  "report",
+];
 /**
  * 6 Oct 2026 (decision 0030, a campaign counted by its channel): report says the Campaigns lens beside the Deals
  * section, and campaigns says a run's channels and that its read is a share of what went by WhatsApp. The one sentence
@@ -171,12 +179,14 @@ const MESSAGE_WORDS = [
   ],
 ];
 /**
- * 10 Oct 2026 (Ask, the marketing manager): campaigns gained two actions, each taking nothing more, in this order after
- * broadcast: messages, the library whole, a version in review included (task 3); and journey, the journey as Campaigns'
- * home draws it, with the guide (task 4). Their words stand between broadcast's and the tail, their names close the enum
- * and their one example each closes the examples, and nothing else campaigns says, takes or shows moved.
+ * 10 Oct 2026 (Ask, the marketing manager): the actions the lane gave a read tool, each taking nothing more, by tool in
+ * the order added. campaigns, after broadcast: messages, the library whole, a version in review included (task 3); and
+ * journey, the journey as Campaigns' home draws it, with the guide (task 4). calendar, after openings: room, how full the
+ * book is over the next fourteen days (task 5). On each tool their words stand between its last action's and the tail,
+ * their names close the enum and their one example each closes the examples, and nothing else it says, takes or shows
+ * moved.
  */
-const LANE_ACTIONS = ["messages", "journey"];
+const LANE_ACTIONS = { calendar: ["room"], campaigns: ["messages", "journey"] };
 /**
  * 9 Oct 2026 (the moment spec, A7): propose_autonomy is judged by the Autonomy page's rule (policyModeRefusal), so its
  * words say each class takes the modes its row offers, where they said veto is for replies only. The one sentence.
@@ -376,7 +386,7 @@ test("every role is offered exactly the actions it may use (D2): a tool with non
         assert.ok(usable(name, ROLES[i]).includes(a), `${name}.${a}: ${ROLES[i - 1]}'s, so ${ROLES[i]}'s`);
 });
 
-test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, propose_thread_verb, propose_autonomy (the modes a class takes), report (its reply times say the hold, and it says the Campaigns lens, the Reviews lens and the Receptionist lens) and campaigns (a run's channels, a message where it said a template, the library whole and the journey) reads to every role byte for byte as PR 4.6 and PR 4.5 sent it -- per tool, per role, with its examples and without -- and every tool they offered a role is offered it still", () => {
+test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, propose_thread_verb, propose_autonomy (the modes a class takes), report (its reply times say the hold, and it says the Campaigns lens, the Reviews lens and the Receptionist lens), campaigns (a run's channels, a message where it said a template, the library whole and the journey) and calendar (the room in the book) reads to every role byte for byte as PR 4.6 and PR 4.5 sent it -- per tool, per role, with its examples and without -- and every tool they offered a role is offered it still", () => {
   const bare = ({ input_examples: _, ...t }) => t;
   for (const role of ROLES) {
     const was = new Map(TODAY[role].map((t) => [t.name, t]));
@@ -414,6 +424,40 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
   );
   const was = (role, name) => TODAY[role].find((t) => t.name === name);
   const words = ({ description: _, ...rest }) => rest;
+  /**
+   * A tool the lane gave actions (LANE_ACTIONS), to one role: what it said before, `said`, with their words before its
+   * tail; their names closing its enum and their one example each closing its examples; and, less those, what it takes
+   * and shows PR 4.6's and PR 4.5's.
+   */
+  const laneAdded = (role, name, said) => {
+    const d = DEFS.get(name);
+    const lane = LANE_ACTIONS[name];
+    const added = lane.map((a) => d.actions[a].words).join(" ");
+    assert.equal(tool(role, name).description, said.replace(` ${d.tail}`, ` ${added} ${d.tail}`), `${role} ${name}`);
+    const now = words(tool(role, name));
+    const n = lane.length;
+    assert.deepEqual(now.input_schema.properties.action.enum.slice(-n), lane, `${role} ${name}: the lane's, last`);
+    assert.deepEqual(
+      now.input_examples.slice(-n),
+      lane.map((action) => ({ action })),
+      `${role} ${name}: their one example each, last`,
+    );
+    assert.deepEqual(
+      {
+        ...now,
+        input_schema: {
+          ...now.input_schema,
+          properties: {
+            ...now.input_schema.properties,
+            action: { type: "string", enum: now.input_schema.properties.action.enum.slice(0, -n) },
+          },
+        },
+        input_examples: now.input_examples.slice(0, -n),
+      },
+      words(was(role, name)),
+      `${role} ${name}`,
+    );
+  };
   // report (spec D14): the sentence about the reply times says the hold is in them, and nothing else it says moved.
   for (const role of ROLES) {
     assert.equal(
@@ -437,10 +481,9 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
     // an approved WhatsApp template; (8 Oct 2026) a waiting run's one name, and the channels each playbook goes by; (10
     // Oct 2026) a broadcast sent by a campaign, and the library whole and the journey (LANE_ACTIONS); nothing else it
     // says moved.
-    const campaigns = DEFS.get("campaigns");
-    const added = LANE_ACTIONS.map((a) => campaigns.actions[a].words).join(" ");
-    assert.equal(
-      tool(role, "campaigns").description,
+    laneAdded(
+      role,
+      "campaigns",
       MESSAGE_WORDS.reduce(
         (said, [from, to]) => said.replace(from, to),
         was(role, "campaigns")
@@ -450,33 +493,10 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
       )
         .replace(...PLAYBOOK_CHANNELS_WORDS)
         .replace(...PLAYBOOK_RESULTS_WORDS)
-        .replace(...BROADCAST_BY_WORDS)
-        .replace(` ${campaigns.tail}`, ` ${added} ${campaigns.tail}`),
-      role,
+        .replace(...BROADCAST_BY_WORDS),
     );
-    const now = words(tool(role, "campaigns"));
-    const n = LANE_ACTIONS.length;
-    assert.deepEqual(now.input_schema.properties.action.enum.slice(-n), LANE_ACTIONS, `${role}: the lane's, last`);
-    assert.deepEqual(
-      now.input_examples.slice(-n),
-      LANE_ACTIONS.map((action) => ({ action })),
-      `${role}: their one example each, last`,
-    );
-    assert.deepEqual(
-      {
-        ...now,
-        input_schema: {
-          ...now.input_schema,
-          properties: {
-            ...now.input_schema.properties,
-            action: { type: "string", enum: now.input_schema.properties.action.enum.slice(0, -n) },
-          },
-        },
-        input_examples: now.input_examples.slice(0, -n),
-      },
-      words(was(role, "campaigns")),
-      role,
-    );
+    // calendar (10 Oct 2026): the room in the book (LANE_ACTIONS), and nothing else it says moved.
+    laneAdded(role, "calendar", was(role, "calendar").description);
   }
   for (const role of ["operator", "partner", "owner"]) {
     // propose_thread_verb: the sentence that sent every role to an owner's action now says whose it is, which is true for

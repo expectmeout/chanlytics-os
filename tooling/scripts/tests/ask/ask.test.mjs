@@ -924,7 +924,7 @@ test("the loop and its reads: several at once, the stable block cached, through 
   assert.deepEqual(
     READ_TOOLS.map((t) => [t.name, t.input_schema.properties.action?.enum ?? []]),
     [
-      ["calendar", ["week", "openings"]],
+      ["calendar", ["week", "openings", "room"]],
       ["calls", ["list", "get"]],
       ["campaigns", ["audiences", "playbooks", "broadcasts", "broadcast", "messages", "journey"]],
       ["inbox", ["list", "thread", "search"]],
