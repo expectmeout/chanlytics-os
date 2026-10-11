@@ -42,16 +42,22 @@ const {
   calledName,
   newToolContext,
 } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
-const { MOMENTS_RETIRED, PLAYBOOK_VETO_DELAY_WORDS, PROPOSAL_SPECS, roleAtLeast } =
+const { MOMENT_TRIGGERS, MOMENTS_RETIRED, PLAYBOOK_VETO_DELAY_WORDS, PROPOSAL_SPECS, roleAtLeast } =
   await import("@chanlytics/contracts");
 /**
  * 2 Oct 2026: the two moments no longer offered for a new playbook (contracts MOMENTS_RETIRED) leave the playbook's
- * trigger enum, so a schema frozen before it is held to its own less those two: the one change to its fields.
+ * trigger enum; 11 Oct 2026 (D2 of the marketing manager's spec): the two appointment moments join it, the reminder the
+ * day before and the check after, proposed where a calendar is connected (the handler judges that per workspace, as the
+ * route does). So a schema frozen before is held to its own less those two and with these two, in the moments' order:
+ * the one change to its fields.
  */
-const lessRetired = (schema) => {
+const asProposableNow = (schema) => {
   const out = structuredClone(schema);
   const t = out.properties.trigger;
-  if (t) t.enum = t.enum.filter((id) => !(id in MOMENTS_RETIRED));
+  if (t)
+    t.enum = MOMENT_TRIGGERS.filter(
+      (m) => (t.enum.includes(m.id) || m.kind === "visit") && !(m.id in MOMENTS_RETIRED),
+    ).map((m) => m.id);
   return out;
 };
 
@@ -534,6 +540,8 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
       state: _s,
       gap_days: _g,
       cadence_days: _c,
+      until: _u,
+      trial_until: _t,
       language: _l,
       category: _k,
       versions: _w,
@@ -545,6 +553,13 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
       [_s, _g, _c].map(shapeOf),
       [{ type: "string", enum: ["running", "paused"] }, { type: "number" }, { type: "number" }],
       `${role}: change's own three fields`,
+    );
+    // 11 Oct 2026 (00395): and its last day and its trial's end, a null ending the trial; its words are params, the
+    // broadcast's and the playbook's, one shape.
+    assert.deepEqual(
+      [_u, _t].map(shapeOf),
+      [{ type: "string" }, { type: ["string", "null"] }],
+      `${role}: change's until and trial_until`,
     );
     // 10 Oct 2026: the message action's own four fields; its name is the broadcast's and the playbook's, one shape.
     const versionOf = (props) => ({
@@ -596,7 +611,7 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
     assert.equal(now.input_schema.required.includes("channels"), false, `${role}: and never required`);
     assert.deepEqual(
       { ...fields, action: { type: "string", enum: ["broadcast", "playbook"] } },
-      lessRetired(before.input_schema).properties,
+      asProposableNow(before.input_schema).properties,
     );
     assert.deepEqual(
       now.input_examples.filter((ex) => !["run", "channels", "change", "message"].includes(ex.action)),
@@ -661,7 +676,7 @@ test("the rename is a bijection: every old tool is one tool and action of the re
     const gainedChannels = old === "propose_broadcast" || old === "propose_playbook";
     assert.deepEqual(
       shapeOf(gainedChannels ? lessChannels(toolSchema(def.input)) : toolSchema(def.input)),
-      shapeOf(old === "propose_playbook" ? lessRetired(was.input_schema) : was.input_schema),
+      shapeOf(old === "propose_playbook" ? asProposableNow(was.input_schema) : was.input_schema),
       `${old} -> ${to}: the same fields`,
     );
     if (gainedChannels)
@@ -848,8 +863,9 @@ test("an input a schema refuses comes back in the zod's words, under the tool's 
   );
   assert.equal(
     await words("propose_campaign", { action: "playbook", trigger: "never" }),
-    // 2 Oct 2026: the moments a new playbook may start from; welcome and save our number are no longer among them.
-    'propose_campaign: trigger Invalid option: expected one of "quiet_30"|"everyone_monthly"|"lapsed"|"saved_list"|"proposal_waiting"',
+    // 2 Oct 2026: the moments a new playbook may start from; welcome and save our number are no longer among them. 11
+    // Oct 2026 (D2): the reminder the day before and the check after an appointment are, where a calendar is connected.
+    'propose_campaign: trigger Invalid option: expected one of "quiet_30"|"everyone_monthly"|"visit_tomorrow"|"visited"|"lapsed"|"saved_list"|"proposal_waiting"',
   );
   // An owner's action, asked by an owner: past the role (D2), to the zod.
   const invite = await buildProposal(contextFor("owner").t, "propose_team", {

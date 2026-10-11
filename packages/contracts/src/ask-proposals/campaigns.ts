@@ -64,7 +64,7 @@ export const PLAYBOOK_CARD_REFUSALS = {
   typedSlot: (label: string): string =>
     `this template takes typed words for “${label}”; ask the person what to say there, then propose again with params`,
   value:
-    "each value is text, or @first_name, @business_name or @booking_link, or @proposal_link on the proposal follow-up",
+    "each value is text, or @first_name, @business_name, @booking_link or @review_link, or @visit_when or @visit_service on a reminder or a check after an appointment, or @proposal_link on the proposal follow-up",
   plainText: "every typed value must be plain text under 1024 characters, without line breaks",
   /** The moment's starter, hidden in this workspace's Library: no card adds it back. */
   starterHidden: (title: string, from: string): string =>
@@ -86,6 +86,21 @@ export const PLAYBOOK_CARD_REFUSALS = {
     `a playbook on a list needs list: the list's token from ${from} (seg:<id> or list:<id>)`,
   templateId: (from: string): string =>
     `template_id must be an id ${from} returned, or omitted for the trigger's starter`,
+} as const;
+
+/** What a new campaign's card says beside its moment, its reach and its class's mode (propose_campaign.playbook). */
+export const PLAYBOOK_CARD_WORDS = {
+  /**
+   * A campaign that starts on trial (D5, contracts newCampaignTrialUntil: under an auto class only): for its first week
+   * each run waits half an hour for a Stop, as veto's do, whatever its class says.
+   */
+  trial: "on trial for a week: for seven days each run waits half an hour with a Stop",
+  /**
+   * A reminder the day before or a check after an appointment (D2): one message per appointment, sent whatever else
+   * the person heard this week, since the run is daily and the appointment is on one day (contracts playbookRunReach),
+   * so the week's breath, which holds every other moment, does not hold it.
+   */
+  appointmentBreath: "exempt from one a week per person: each goes whatever else they heard this week",
 } as const;
 
 /**
@@ -152,6 +167,8 @@ export const playbookSpec: ProposalSpec = {
       gap_days: pl.gap_days,
       cadence_days: pl.cadence_days,
       ...channelsNamed(pl),
+      // The end of the trial it starts on (D5), where the card set one: the route judges it as a change's (00395).
+      ...(typeof pl.trial_until === "string" ? { trial_until: pl.trial_until } : {}),
     },
   }),
   // "Campaign", the word a person reads; and, where the route says it sent the starter's WhatsApp version for review, so.

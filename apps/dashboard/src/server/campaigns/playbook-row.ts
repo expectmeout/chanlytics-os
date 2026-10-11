@@ -138,6 +138,8 @@ export async function startNewPlaybook(ctx: RouteContext, req: Request, member: 
       gap_days: v.gap_days,
       cadence_days: v.cadence_days,
       channels: v.channels,
+      // The end of the trial it starts on (00395, D5): Ask's card names one under an auto class, the composer none.
+      trial_until: v.trial_until,
     },
     decision: {
       name: v.name,
@@ -147,6 +149,7 @@ export async function startNewPlaybook(ctx: RouteContext, req: Request, member: 
       run_hour: v.run_hour,
       cap_per_run: v.cap_per_run,
       channels: v.channels,
+      ...(v.trial_until ? { trial_until: v.trial_until } : {}),
     },
     via: ctx.via ?? null,
     undoOf: ctx.undoOf ?? null,

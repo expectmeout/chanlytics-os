@@ -19,7 +19,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const { MODE_WORDS } = await import(at("apps/dashboard/src/server/ask/tools/act/playbook.ts"));
-const { LIFECYCLE_WORDS, PROPOSAL_SPECS, PLAYBOOK_PATCH_WORDS, REACH_OUT_IS_NOT_A_MOMENT } =
+const { LIFECYCLE_WORDS, PLAYBOOK_CARD_REFUSALS, PROPOSAL_SPECS, PLAYBOOK_PATCH_WORDS, REACH_OUT_IS_NOT_A_MOMENT } =
   await import("@chanlytics/contracts");
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
@@ -247,4 +247,104 @@ test("a card approved after somebody else made the same change writes nothing, a
     was: { state: "running" },
     decision_id: rows.decisions[0].id,
   });
+});
+
+/** The campaign's message as the workspace holds it: WhatsApp's approved version, which takes two values. */
+const MONTH_OFFER = {
+  id: "dddddddd-dddd-4ddd-8ddd-ddddddddddd2",
+  tenant_id: A,
+  channel: "whatsapp",
+  name: "month_offer",
+  language: "en",
+  meta_status: "approved",
+  category: "marketing",
+  variables: ["1", "2"],
+  hidden_at: null,
+  title: null,
+  components: null,
+  body_preview: null,
+};
+/** Its words as the route stored them when it was made. */
+const HELD = [{ kind: "first_name" }, { kind: "text", value: "10% off" }];
+
+test("its words (00395 params): the model's slot text becomes the specs the route stores, as a new campaign's does, judged against its message; the card quotes them, and its Approve and Undo are the playbook's own PUT", async () => {
+  const rows = tables({ templates: [MONTH_OFFER], playbooks: [playbookRow({ params: HELD })] });
+  const made = await change({ params: ["@first_name", "15% off a colour"] }, rows);
+  assert.equal(made.isError, false, made.result);
+  const specs = [{ kind: "first_name" }, { kind: "text", value: "15% off a colour" }];
+  const p = made.proposal;
+  assert.deepEqual([p.title, p.undo], ["Change: Win-back", "Put it back"]);
+  assert.equal(p.summary, PLAYBOOK_PATCH_WORDS.params(specs));
+  assert.equal(p.summary, "Its words changed: their first name, “15% off a colour”");
+  assert.deepEqual([p.payload.params, p.payload.was], [specs, { params: HELD }]);
+  assert.deepEqual(rows.decisions, [], "a card writes nothing");
+  const spec = PROPOSAL_SPECS.playbook_change;
+  const approved = await sendTo(rows, spec.commit(p, { settings: null }));
+  assert.deepEqual(rows.playbooks[0].params, specs);
+  await sendTo(rows, spec.undo.call(spec.undo.record(p, approved, { settings: null }), { settings: null }));
+  assert.deepEqual(rows.playbooks[0].params, HELD);
+  // A typed value is plain text, as a new campaign's is: refused in the playbook action's own words.
+  assert.equal(said(await change({ params: ["@first_name", "two\nlines"] }, rows)), PLAYBOOK_CARD_REFUSALS.plainText);
+  // Its message takes two values: one is refused in the PUT's own words (core checkPlaybookPatch).
+  assert.equal(said(await change({ params: ["@first_name"] }, rows)), "This template takes 2 values.");
+  // The words it already says are no change.
+  assert.equal(said(await change({ params: ["@first_name", "10% off"] }, rows)), PLAYBOOK_PATCH_WORDS.same("Win-back"));
+});
+
+test("its end (00395 until): a day by the business's clock, said as the product says a date (“Ends Nov 30”), its undo no end; a day already past is refused in the PUT's words", async () => {
+  const rows = tables();
+  const made = await change({ until: "2026-11-30" }, rows);
+  assert.equal(made.isError, false, made.result);
+  const p = made.proposal;
+  assert.equal(p.summary, "Ends Nov 30");
+  assert.equal(p.summary, PLAYBOOK_PATCH_WORDS.until("Nov 30"));
+  assert.deepEqual([p.payload.until, p.payload.was], ["2026-11-30", { until: null }]);
+  const spec = PROPOSAL_SPECS.playbook_change;
+  const approved = await sendTo(rows, spec.commit(p, { settings: null }));
+  assert.equal(rows.playbooks[0].until, "2026-11-30");
+  // Its undo writes "no end" back: a null clears the date.
+  await sendTo(rows, spec.undo.call(spec.undo.record(p, approved, { settings: null }), { settings: null }));
+  assert.equal(rows.playbooks[0].until, null);
+  // The 14th in New York: the 13th has passed.
+  assert.equal(said(await change({ until: "2026-09-13" })), PLAYBOOK_PATCH_WORDS.untilPast("Sep 14"));
+  assert.equal(said(await change({ until: "the end of November" })), PLAYBOOK_PATCH_WORDS.untilDay);
+});
+
+test("its trial (00395 trial_until): an instant says its last day; null ends it, said in the change's words and committed as the null that clears it; a resume on a trial the card ends says its class's own mode", async () => {
+  const set = await change({ trial_until: "2026-09-21T14:00:00Z" });
+  assert.equal(set.isError, false, set.result);
+  assert.equal(set.proposal.summary, PLAYBOOK_PATCH_WORDS.trial_until("Sep 21"));
+  assert.equal(set.proposal.summary, "On trial until Sep 21: each run waits 30 minutes for you to stop it");
+  assert.deepEqual(
+    [set.proposal.payload.trial_until, set.proposal.payload.was],
+    ["2026-09-21T14:00:00.000Z", { trial_until: null }],
+  );
+  const onTrial = { trial_until: "2026-09-21T14:00:00Z" };
+  const rows = tables({ playbooks: [playbookRow(onTrial)] });
+  const ended = await change({ trial_until: null }, rows);
+  assert.equal(ended.isError, false, ended.result);
+  const p = ended.proposal;
+  assert.equal(p.summary, PLAYBOOK_PATCH_WORDS.trial_until(null));
+  assert.deepEqual([p.payload.trial_until, p.payload.was], [null, onTrial]);
+  const spec = PROPOSAL_SPECS.playbook_change;
+  const commit = spec.commit(p, { settings: null });
+  assert.deepEqual(commit.body, { trial_until: null }, "the null that clears it, and nothing else");
+  const approved = await sendTo(rows, commit);
+  assert.equal(rows.playbooks[0].trial_until, null);
+  await sendTo(rows, spec.undo.call(spec.undo.record(p, approved, { settings: null }), { settings: null }));
+  // The same instant, kept in the one spelling a change writes (core trialUntilOf).
+  assert.equal(rows.playbooks[0].trial_until, "2026-09-21T14:00:00.000Z");
+  // A resume that ends the trial too goes under its auto class at once, and says so in full.
+  const resume = await change(
+    { state: "running", trial_until: null },
+    tables({ playbooks: [playbookRow({ state: "paused", ...onTrial })] }),
+  );
+  assert.equal(
+    resume.proposal.summary,
+    [
+      PLAYBOOK_PATCH_WORDS.resumed("Re-engage", "auto", LIFECYCLE_WORDS.ledger.resume.auto),
+      PLAYBOOK_PATCH_WORDS.trial_until(null),
+    ].join(" · "),
+  );
+  assert.equal(said(await change({ trial_until: "next week" })), PLAYBOOK_PATCH_WORDS.trialWhen);
 });

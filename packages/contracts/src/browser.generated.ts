@@ -15,7 +15,7 @@ export { DATA_NOT_INSTRUCTIONS, PROFILE_NAME_MAX, fenceActed, fenced, fencedInli
 export { FLAGS, FLAG_MECHANISMS, daysToSunset } from "./ai/flags";
 export { MODELS, MODEL_IDS, MODEL_EFFORTS, MODEL_PURPOSES, MODEL_ROUTES, MODEL_PORTS, RETELL_MODELS, modelRoute, fallbackModel, shadowPortOf, isModelId, readsAsModel } from "./ai/models";
 export { MODEL_PRICES, MODEL_CALL_OUTCOMES, NO_USAGE, priceOf, usageDollars, usageTokens, usageOf, aiUsageBodyOf, usageMonthOf } from "./ai/usage";
-export { RUN_VERBS, PLAYBOOK_CARD_REFUSALS, MESSAGE_WORDS, proposalChannelsWords } from "./ask-proposals/campaigns";
+export { RUN_VERBS, PLAYBOOK_CARD_REFUSALS, PLAYBOOK_CARD_WORDS, MESSAGE_WORDS, proposalChannelsWords } from "./ask-proposals/campaigns";
 export { ASK_THREAD_ROUTES } from "./ask-proposals/inbox";
 export { PERSON_DETAIL_WORDS } from "./ask-proposals/person";
 export { PROPOSAL_SPECS, proposalSpec, proposalBelowNeeds, PROPOSAL_GATE, askUndoOpen } from "./ask-proposals/proposals";
@@ -210,7 +210,7 @@ export { PLAYBOOK_PATCH_KEYS, PLAYBOOK_PATCH_WORDS } from "./playbooks/playbook-
 export { MESSAGE_MOMENT_WORDS, messageFitsMoment, enrolPurpose, messageAboutOfTrigger, passesHandoverPause } from "./playbooks/playbook-purpose";
 export { eligibleForPlaybook, playbookRunReach, touchesAfterRun, theirVisitTest, visitMomentDay, visitOnDay, playbookReach, playbookReachDoor, playbookNoNumberWords, playbookPoolKey, PLAYBOOK_REACH_WORDS, PLAYBOOK_CLASS_LABEL } from "./playbooks/playbook-reach";
 export { heldBackOfOneRun, runReadingOf } from "./playbooks/playbook-run-split";
-export { planRun, localDate, localHour, nextOpenMoment, runDueNow, inLastSendingHour, scheduleLine, runsWords, nextRunLabel, campaignDayWords, campaignEnded, effectiveMode, trialDayWords } from "./playbooks/playbook-schedule";
+export { planRun, localDate, localHour, nextOpenMoment, runDueNow, inLastSendingHour, scheduleLine, runsWords, nextRunLabel, campaignDayWords, campaignEnded, effectiveMode, newCampaignTrialUntil, trialDayWords } from "./playbooks/playbook-schedule";
 export { isPlaybookTotalsDto } from "./playbooks/playbook-totals";
 export { triggerOf, triggerOffered, momentOffered, momentReadsCalendar, MOMENTS_RETIRED, isWinBack, triggerWords, winBackWords, policyClassOffered, PLAYBOOK_TRIGGERS, MOMENT_TRIGGERS, PLAYBOOK_STATES, isPlaybookState, PLAYBOOK_DEFAULTS, PLAYBOOK_HOURS, PLAYBOOK_LIMITS, PLAYBOOK_CAP_CHOICES, SENDING_HOURS_WORDS, sendsWaitWords, PLAYBOOK_BREATH_MS, PLAYBOOK_VETO_DELAY_MS, PLAYBOOK_VETO_DELAY_WORDS, delayWords, vetoRunNotice, PLAYBOOK_NAME_MAX, CAMPAIGN_NOT_FOUND, REACH_OUT_IS_NOT_A_MOMENT } from "./playbooks/playbook-triggers";
 export { playbookListRef, proposalFactsFor, visitFactsFor, visitDayWord, LIST_PLAYBOOK_CLASSES } from "./playbooks/playbooks";

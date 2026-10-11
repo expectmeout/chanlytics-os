@@ -87,7 +87,13 @@ export type { RunReading, RunSplit } from "./playbook-run-split";
 export { WHATSAPP_VERSION_ALONE, campaignChannelsOf, playbookChannelsRead } from "./playbook-channels";
 export type { ChannelStand, PlaybookChannelsRead, PlaybookMessage } from "./playbook-channels";
 export { PLAYBOOK_PATCH_KEYS, PLAYBOOK_PATCH_WORDS } from "./playbook-patch";
-export { campaignDayWords, campaignEnded, effectiveMode, trialDayWords } from "./playbook-schedule";
+export {
+  campaignDayWords,
+  campaignEnded,
+  effectiveMode,
+  newCampaignTrialUntil,
+  trialDayWords,
+} from "./playbook-schedule";
 export type { PlaybookPatch, PlaybookPatchKey } from "./playbook-patch";
 export { campaignsHomeOf, lifecycleKicker } from "./lifecycle/lifecycle";
 export { lifecyclePlaybooksOf, whatsappLineOf } from "./lifecycle/lifecycle-inputs";

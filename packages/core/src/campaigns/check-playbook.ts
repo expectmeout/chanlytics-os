@@ -65,6 +65,11 @@ export interface PlaybookInput {
   cadence_days: number;
   /** The channels it may go by: WhatsApp alone when none is named (an edit that names none keeps the ones it has). */
   channels: ConsentChannel[];
+  /**
+   * Until when a new campaign runs on trial (00395, D5), an instant, as Ask's card names it under an auto class; null
+   * where the body names none. A whole rewrite never writes it: its trial is a change's (checkPlaybookPatch).
+   */
+  trial_until: string | null;
 }
 
 /**
@@ -314,8 +319,12 @@ async function patchUntil(
 /** An instant with its zone, as a trial's end is written: a date, a time, and Z or an offset. */
 const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/;
 
-/** The end of its trial a change names (00395 `trial_until`): an instant, kept in one spelling (UTC); null ends it. */
-function patchTrialUntil(v: unknown): string | null | undefined {
+/**
+ * The end of its trial a change or a new campaign names (00395 `trial_until`): an instant, kept in one spelling (UTC);
+ * null ends it, or starts none. The one judgement checkPlaybookPatch, checkPlaybook and a starter card's check (the
+ * dashboard's checkStarterPlaybook, before anything is filed) ask.
+ */
+export function trialUntilOf(v: unknown): string | null | undefined {
   if (v === undefined || v === null) return v;
   const at = typeof v === "string" && INSTANT.test(v) ? Date.parse(v) : Number.NaN;
   if (!Number.isFinite(at)) throw new AppError("validation", PLAYBOOK_PATCH_WORDS.trialWhen);
@@ -379,7 +388,7 @@ export async function checkPlaybookPatch(
     cadence_days: patchNumber("cadence_days", asked.cadence_days, row.cadence_days),
     params: await patchParams(ports, row, asked.params),
     until: await patchUntil(ports, asked.until, now),
-    trial_until: patchTrialUntil(asked.trial_until),
+    trial_until: trialUntilOf(asked.trial_until),
   };
   const held = patchHeldOf(row);
   const set: PlaybookPatch = {};
@@ -480,5 +489,6 @@ export async function checkPlaybook(
     gap_days: playbookNumber("gap_days", body?.gap_days, PLAYBOOK_DEFAULTS.gapDays),
     cadence_days: playbookNumber("cadence_days", body?.cadence_days, PLAYBOOK_DEFAULTS.cadenceDays),
     channels,
+    trial_until: trialUntilOf(body?.trial_until) ?? null,
   };
 }

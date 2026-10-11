@@ -11,6 +11,8 @@
  *      null, whose elements are core's to judge (the ParamSpecs the route builds, contracts parseParamSpecs), so what a
  *      campaign's params held is written back by an undo. A key outside the nine is refused as before, and nothing is
  *      written.
+ *   3. The start_playbook door writes both columns where a new campaign names them (Ask's card starts one on trial
+ *      under an auto class), each as the instant or day it is, and null where it names neither.
  *
  * Local stack only: it makes workspaces, members and playbooks with the service key and removes them after, and runs
  * the migration through ../../google/_db-stack.mjs, which first holds the stack under SUPABASE_WORKDIR to the one
@@ -151,14 +153,15 @@ const columns = () =>
       where c.table_schema = 'public' and c.table_name = 'playbooks' and c.column_name in ('until', 'trial_until')
       order by c.column_name`,
   );
-/** The door as the catalog holds it: its whole definition, hashed, and who may call it. */
-const door = () =>
+/** A door as the catalog holds it: its whole definition, hashed, and who may call it. */
+const door = (signature = "public.change_playbook(uuid, uuid, jsonb, jsonb, text, uuid)") =>
   query(
     `select md5(pg_get_functiondef(f)) as definition,
             has_function_privilege('authenticated', f, 'EXECUTE') as member,
             has_function_privilege('anon', f, 'EXECUTE') as anon
-       from (select 'public.change_playbook(uuid, uuid, jsonb, jsonb, text, uuid)'::regprocedure as f) d`,
+       from (select '${signature}'::regprocedure as f) d`,
   );
+const START = "public.start_playbook(uuid, jsonb, jsonb, text, uuid)";
 
 test(
   "00395 runs again, twice, and changes nothing: until is a date and trial_until a timestamptz, null, with no default, each saying what it is and written by a member's session, and the door is the same",
@@ -176,10 +179,13 @@ test(
     assert.match(once[1].comment, /^The last day this campaign runs/);
     const doorOnce = door();
     assert.deepEqual([doorOnce[0].member, doorOnce[0].anon], [true, false]);
+    const startOnce = door(START);
+    assert.deepEqual([startOnce[0].member, startOnce[0].anon], [true, false]);
     runMigration(migrationNamed(MIGRATION));
     runMigration(migrationNamed(MIGRATION));
     assert.deepEqual(columns(), once);
     assert.deepEqual(door(), doorOnce);
+    assert.deepEqual(door(START), startOnce);
   },
 );
 
@@ -313,5 +319,50 @@ test(
     }
     assert.deepEqual(await row(id), before_);
     assert.deepEqual(await decisions(id), []);
+  },
+);
+
+test(
+  "start_playbook writes the end of a trial and a last day a new campaign names, as the instant and the day they are, its line the member's; one naming neither has neither; a trial's end that is no instant starts nothing",
+  { skip },
+  async () => {
+    const who = await operator();
+    /** A new win-back as the route names it (startNewPlaybook), with `over` laid on. */
+    const start = (over) =>
+      who.client.rpc("start_playbook", {
+        p_tenant_id: tenantId,
+        p_playbook: {
+          name: "Win-back",
+          trigger: "quiet_30",
+          list_id: null,
+          list_key: null,
+          template_id: templateId,
+          template_name: "winback_offer",
+          template_language: "en_US",
+          params: [],
+          policy_class: "reengage",
+          run_hour: 10,
+          cap_per_run: 25,
+          gap_days: 90,
+          cadence_days: 30,
+          channels: ["whatsapp"],
+          trial_until: null,
+          ...over,
+        },
+        p_decision: { name: over.name ?? "Win-back" },
+      });
+    const week = "2026-10-17T11:00:00-04:00";
+    const onTrial = ok(await start({ name: "On trial", trial_until: week, until: "2026-11-30" }));
+    const made = await row(onTrial.id);
+    assert.deepEqual([made.state, at(made.trial_until), made.until], ["running", at(week), "2026-11-30"]);
+    const [line] = await decisions(onTrial.id);
+    assert.deepEqual([line.verb, line.actor_user_id], ["start_playbook", who.id]);
+    const plain = ok(await start({ name: "No trial" }));
+    const none = await row(plain.id);
+    assert.deepEqual([none.trial_until, none.until], [null, null]);
+    const bad = await start({ name: "Never started", trial_until: "next week" });
+    assert.equal(bad.error?.code, "22007", bad.error?.message);
+    const named = ok(await db.from("playbooks").select("name").eq("tenant_id", tenantId).eq("name", "Never started"));
+    assert.deepEqual(named, []);
   },
 );

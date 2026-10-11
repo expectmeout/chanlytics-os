@@ -10398,7 +10398,7 @@ function proposalChannelsWords(channels, byChannel) {
 var PLAYBOOK_CARD_REFUSALS = {
   /** A typed slot the proposal gave no words for: a question for the person. */
   typedSlot: (label) => `this template takes typed words for \u201C${label}\u201D; ask the person what to say there, then propose again with params`,
-  value: "each value is text, or @first_name, @business_name or @booking_link, or @proposal_link on the proposal follow-up",
+  value: "each value is text, or @first_name, @business_name, @booking_link or @review_link, or @visit_when or @visit_service on a reminder or a check after an appointment, or @proposal_link on the proposal follow-up",
   plainText: "every typed value must be plain text under 1024 characters, without line breaks",
   /** The moment's starter, hidden in this workspace's Library: no card adds it back. */
   starterHidden: (title, from) => `${LIBRARY_STARTER_WORDS.hiddenInLibrary(title)} Say so; ${from} names the messages that may send.`,
@@ -10414,6 +10414,19 @@ var PLAYBOOK_CARD_REFUSALS = {
   trigger: (triggers) => `trigger must be one of ${triggers.join(", ")}`,
   listToken: (from) => `a playbook on a list needs list: the list's token from ${from} (seg:<id> or list:<id>)`,
   templateId: (from) => `template_id must be an id ${from} returned, or omitted for the trigger's starter`
+};
+var PLAYBOOK_CARD_WORDS = {
+  /**
+   * A campaign that starts on trial (D5, contracts newCampaignTrialUntil: under an auto class only): for its first week
+   * each run waits half an hour for a Stop, as veto's do, whatever its class says.
+   */
+  trial: "on trial for a week: for seven days each run waits half an hour with a Stop",
+  /**
+   * A reminder the day before or a check after an appointment (D2): one message per appointment, sent whatever else
+   * the person heard this week, since the run is daily and the appointment is on one day (contracts playbookRunReach),
+   * so the week's breath, which holds every other moment, does not hold it.
+   */
+  appointmentBreath: "exempt from one a week per person: each goes whatever else they heard this week"
 };
 var channelsNamed = (pl) => Array.isArray(pl.channels) ? { channels: pl.channels } : {};
 var cancelCall = (u) => ({
@@ -10467,7 +10480,9 @@ var playbookSpec = {
       cap_per_run: pl.cap_per_run,
       gap_days: pl.gap_days,
       cadence_days: pl.cadence_days,
-      ...channelsNamed(pl)
+      ...channelsNamed(pl),
+      // The end of the trial it starts on (D5), where the card set one: the route judges it as a change's (00395).
+      ...typeof pl.trial_until === "string" ? { trial_until: pl.trial_until } : {}
     }
   }),
   // "Campaign", the word a person reads; and, where the route says it sent the starter's WhatsApp version for review, so.
@@ -22148,6 +22163,9 @@ function onTrialAt(p, now) {
 }
 function effectiveMode(p, mode, now) {
   return mode === "auto" && onTrialAt(p, now) ? "veto" : mode;
+}
+function newCampaignTrialUntil(mode, now) {
+  return mode === "auto" ? new Date(now.getTime() + WEEK_MS).toISOString() : null;
 }
 function campaignEnded(p, day) {
   return p.until && day > p.until ? p.until : null;
@@ -40212,6 +40230,7 @@ export {
   PLAYBOOK_CALENDAR_UNREAD,
   PLAYBOOK_CAP_CHOICES,
   PLAYBOOK_CARD_REFUSALS,
+  PLAYBOOK_CARD_WORDS,
   PLAYBOOK_CLASS_LABEL,
   PLAYBOOK_DEFAULTS,
   PLAYBOOK_DELETE_WORDS,
@@ -41259,6 +41278,7 @@ export {
   needsAnswer,
   needsConsultation,
   newCampaignChannels,
+  newCampaignTrialUntil,
   newConversationOf,
   newReceptionistDefaults,
   nextMonthStart,

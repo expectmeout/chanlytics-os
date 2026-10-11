@@ -20361,13 +20361,14 @@ begin
   end if;
   -- On the caller's rights: the table's insert policy judges the row (an acting member, as themselves, a moment, a
   -- list and a message of this workspace), and its checks and unique indexes refuse what they refuse. The workspace,
-  -- who made it and that it runs are said here, never by the caller; `kind` is the table's default, a moment.
+  -- who made it and that it runs are said here, never by the caller; `kind` is the table's default, a moment. Its last
+  -- day and its trial's end are the caller's (00395), each null where it names none.
   insert into public.playbooks (tenant_id, name, trigger, list_id, list_key, template_id, template_name,
                                 template_language, params, policy_class, state, run_hour, cap_per_run, gap_days,
-                                cadence_days, channels, created_by)
+                                cadence_days, channels, until, trial_until, created_by)
   select p_tenant_id, r.name, r.trigger, r.list_id, r.list_key, r.template_id, r.template_name,
          r.template_language, r.params, r.policy_class, 'running', r.run_hour, r.cap_per_run, r.gap_days,
-         r.cadence_days, r.channels, v_actor
+         r.cadence_days, r.channels, r.until, r.trial_until, v_actor
     from jsonb_populate_record(null::public.playbooks, p_playbook) r
   returning id into v_id;
   return jsonb_build_object('id', v_id)
@@ -20379,7 +20380,7 @@ end $$;
 -- Name: FUNCTION start_playbook(p_tenant_id uuid, p_playbook jsonb, p_decision jsonb, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.start_playbook(p_tenant_id uuid, p_playbook jsonb, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A member starts a playbook and its line in the ledger together (00357): the row, running, then the start_playbook decision as theirs (member_decision), in one transaction. Security invoker: the insert is judged by the table''s own policy, checks and unique indexes, as the route''s insert was. Returns id, decision_id and undo_dropped.';
+COMMENT ON FUNCTION public.start_playbook(p_tenant_id uuid, p_playbook jsonb, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A member starts a playbook and its line in the ledger together (00357): the row, running, then the start_playbook decision as theirs (member_decision), in one transaction. Security invoker: the insert is judged by the table''s own policy, checks and unique indexes, as the route''s insert was. Its last day (until) and its trial''s end (trial_until) are written where p_playbook names them, null where it does not (00395). Returns id, decision_id and undo_dropped.';
 
 
 --

@@ -8,9 +8,11 @@
 -- dates take null, which clears them, so an undo can put back what was there; the seven others are never empty. A key
 -- outside the nine is refused, as before. The decision is the caller's, naming what it changes (core checkPlaybookPatch
 -- judges each value first). A member's session writes both columns, as it writes the rest of a campaign's settings.
+-- The start_playbook door (00357) is replaced whole too, its signature, rights and answer the same, to write both
+-- columns where a new campaign names them (Ask's card starts one on trial under an auto class); null where it does not.
 --
 -- Deploy order: either. Applied before the merge (runbook, "Apply a migration"): a run before it reads no end and no
--- trial, and a dashboard that names the three keys needs this door. Re-runnable.
+-- trial, a dashboard that names the three keys needs this door, and a start before it writes no trial. Re-runnable.
 
 set local lock_timeout = '3s';
 
@@ -137,3 +139,47 @@ revoke execute on function public.change_playbook(uuid, uuid, jsonb, jsonb, text
 grant execute on function public.change_playbook(uuid, uuid, jsonb, jsonb, text, uuid) to authenticated, service_role;
 comment on function public.change_playbook(uuid, uuid, jsonb, jsonb, text, uuid) is
   'A member changes a playbook in place and its line in the ledger together (the change_playbook door): the row locked on the caller''s rights, of the columns p_set names (state, name, run_hour, cap_per_run, gap_days, cadence_days, params, until, trial_until) only those that differ from the row written, then start_playbook or pause_playbook where the state moved, else change_playbook, as theirs (member_decision), in one transaction. A key outside the nine is refused (22023); so is a null, but for until and trial_until, which it clears, and a params that is not an array. Security invoker: the update policy (is_acting_member: an owner, an operator, or a partner on a session that showed its second factor) and the column grants judge it. P0002 where the caller cannot see or change the row. Returns id, was (what each written column held), decision_id and undo_dropped; where nothing differs, nothing is written and no line: was is empty and decision_id null (00377, 00395).';
+
+/* ------------------------------------------------------------------------------------------- the start -- */
+
+create or replace function public.start_playbook(
+  p_tenant_id uuid,
+  p_playbook jsonb,
+  p_decision jsonb default '{}'::jsonb,
+  p_via text default null,
+  p_undo_of uuid default null
+) returns jsonb
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_actor uuid := auth.uid();
+  v_id    uuid;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or jsonb_typeof(p_playbook) is distinct from 'object' then
+    raise exception 'start_playbook: a playbook is named whole' using errcode = '22004';
+  end if;
+  -- On the caller's rights: the table's insert policy judges the row (an acting member, as themselves, a moment, a
+  -- list and a message of this workspace), and its checks and unique indexes refuse what they refuse. The workspace,
+  -- who made it and that it runs are said here, never by the caller; `kind` is the table's default, a moment. Its last
+  -- day and its trial's end are the caller's (00395), each null where it names none.
+  insert into public.playbooks (tenant_id, name, trigger, list_id, list_key, template_id, template_name,
+                                template_language, params, policy_class, state, run_hour, cap_per_run, gap_days,
+                                cadence_days, channels, until, trial_until, created_by)
+  select p_tenant_id, r.name, r.trigger, r.list_id, r.list_key, r.template_id, r.template_name,
+         r.template_language, r.params, r.policy_class, 'running', r.run_hour, r.cap_per_run, r.gap_days,
+         r.cadence_days, r.channels, r.until, r.trial_until, v_actor
+    from jsonb_populate_record(null::public.playbooks, p_playbook) r
+  returning id into v_id;
+  return jsonb_build_object('id', v_id)
+      || public.member_decision(p_tenant_id, 'playbook', v_id, 'start_playbook', p_decision, p_via, p_undo_of);
+end $$;
+
+revoke execute on function public.start_playbook(uuid, jsonb, jsonb, text, uuid) from public, anon;
+grant execute on function public.start_playbook(uuid, jsonb, jsonb, text, uuid) to authenticated, service_role;
+comment on function public.start_playbook(uuid, jsonb, jsonb, text, uuid) is
+  'A member starts a playbook and its line in the ledger together (00357): the row, running, then the start_playbook decision as theirs (member_decision), in one transaction. Security invoker: the insert is judged by the table''s own policy, checks and unique indexes, as the route''s insert was. Its last day (until) and its trial''s end (trial_until) are written where p_playbook names them, null where it does not (00395). Returns id, decision_id and undo_dropped.';

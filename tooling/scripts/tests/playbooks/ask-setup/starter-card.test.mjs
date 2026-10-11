@@ -26,8 +26,10 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const {
   LIBRARY_STARTER_WORDS,
+  PLAYBOOK_CARD_WORDS,
   PROPOSAL_SPECS,
   appointmentWordOf,
+  appointmentWords,
   channelsWords,
   defaultParamSpecs,
   startersForTrigger,
@@ -369,4 +371,79 @@ test("a starter that takes words of its own (the month's offer) is not proposed 
   const r = await propose({ trigger: "everyone_monthly" }).made;
   assert.equal(r.isError, true);
   assert.match(said(r), /takes words of its own/);
+});
+
+/** Each class's Autonomy row: the win-back's (reengage) and the appointment moments' (booking) at `mode`. */
+const modes = (mode) =>
+  ["reengage", "booking"].map((cls) => ({ tenant_id: A, class: cls, mode, subject_type: null, limits: null }));
+/** A week from NOW: the end of the trial a new campaign Ask proposes starts on (D5). */
+const WEEK_ON = new Date(NOW.getTime() + 7 * DAY).toISOString();
+
+test("a new campaign under an auto class starts on trial for a week (D5): its payload's trial_until is seven days out, its card says so and its commit carries it, on a starter and on a message on file; under ask or veto there is no trial and nothing said of one", async () => {
+  assert.equal(
+    PLAYBOOK_CARD_WORDS.trial,
+    "on trial for a week: for seven days each run waits half an hour with a Stop",
+  );
+  const onStarter = await propose({ trigger: "quiet_30" }, { policies: modes("auto") }).made;
+  // Its WhatsApp version approved, with the starter's two values: the message-on-file path.
+  const approved = onFile("approved", { variables: ["1", "2"] });
+  const onFile_ = await propose({ trigger: "quiet_30" }, { policies: modes("auto"), templates: [approved] }).made;
+  for (const r of [onStarter, onFile_]) {
+    assert.equal(r.isError, false, r.result);
+    const p = r.proposal;
+    assert.deepEqual([p.payload.mode, p.payload.trial_until], ["auto", WEEK_ON]);
+    assert.ok(p.summary.includes(` · ${PLAYBOOK_CARD_WORDS.trial} · `), p.summary);
+    // Its class's mode is still said: the trial is this campaign's first week, never a change to the class.
+    assert.ok(p.summary.includes("(auto): each run sends on its own."), p.summary);
+    assert.equal(PROPOSAL_SPECS.playbook.commit(p, { settings: null }).body.trial_until, WEEK_ON);
+  }
+  assert.equal(onStarter.proposal.payload.starter_key, STARTER.key, "the starter path");
+  assert.ok(onFile_.proposal.payload.template_id, "the message-on-file path");
+  // Under ask each run waits for a person anyway, and under veto each already waits half an hour: no trial.
+  for (const policies of [[], modes("ask"), modes("veto")]) {
+    const r = await propose({ trigger: "quiet_30" }, { policies }).made;
+    assert.equal(r.isError, false, r.result);
+    assert.equal("trial_until" in r.proposal.payload, false, JSON.stringify(policies));
+    assert.ok(!r.proposal.summary.includes("on trial"), r.proposal.summary);
+    assert.equal("trial_until" in PROPOSAL_SPECS.playbook.commit(r.proposal, { settings: null }).body, false);
+  }
+});
+
+/** The workspace's settings with a calendar connected (the feed's address on file). */
+const withCalendar = () => {
+  const [row] = tables().tenant_config;
+  return [{ ...row, config: { ...row.config, calendar: { ical_url: "https://calendar.example/harbor.ics" } } }];
+};
+
+test("an appointment moment is proposed where a calendar is connected (D2): the reminder the day before is a card on its starter that says it goes whatever else they heard this week; with none connected it is refused in the check's own words, and nothing is filed", async () => {
+  const REMINDER = startersForTrigger("visit_tomorrow").find((s) => !s.retired);
+  const { made, rows } = propose({ trigger: "visit_tomorrow" }, { tenant_config: withCalendar() });
+  const r = await made;
+  assert.equal(r.isError, false, r.result);
+  const p = r.proposal;
+  // What the eval's remind_day_before reads off the card (ask-cases.json card_fields).
+  assert.deepEqual([p.kind, p.payload.trigger, p.payload.starter_key], ["playbook", "visit_tomorrow", REMINDER.key]);
+  assert.equal(
+    PLAYBOOK_CARD_WORDS.appointmentBreath,
+    "exempt from one a week per person: each goes whatever else they heard this week",
+  );
+  assert.ok(p.summary.includes(` · ${PLAYBOOK_CARD_WORDS.appointmentBreath} · `), p.summary);
+  assert.deepEqual([rows.templates, rows.playbooks], [[], []], "nothing is filed at the card");
+  // The check after one, likewise, and only an appointment moment says it: a win-back is held to the week.
+  const after = await propose({ trigger: "visited" }, { tenant_config: withCalendar() }).made;
+  assert.equal(after.isError, false, after.result);
+  assert.ok(after.proposal.summary.includes(PLAYBOOK_CARD_WORDS.appointmentBreath), after.proposal.summary);
+  const winBack = await propose({ trigger: "lapsed" }, { tenant_config: withCalendar() }).made;
+  assert.equal(winBack.isError, false, winBack.result);
+  assert.ok(!winBack.proposal.summary.includes(PLAYBOOK_CARD_WORDS.appointmentBreath), winBack.proposal.summary);
+  // No calendar: refused in core checkPlaybook's own words, in the workspace's word for an appointment.
+  const needs = appointmentWords(appointmentWordOf({ stored: null, sellsBy: "proposal" })).needsCalendar;
+  for (const trigger of ["visit_tomorrow", "visited"]) {
+    const none = propose({ trigger });
+    assert.equal(said(await none.made), needs, trigger);
+    assert.deepEqual([none.rows.templates, none.rows.playbooks], [[], []]);
+  }
+  // A message on file for it changes nothing: the moment is judged first, before its message or its channels.
+  const held = template("dddddddd-dddd-4ddd-8ddd-ddddddddddd8", REMINDER.name, { language: "en_US" });
+  assert.equal(said(await propose({ trigger: "visit_tomorrow" }, { templates: [held] }).made), needs);
 });

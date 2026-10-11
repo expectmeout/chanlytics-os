@@ -7,7 +7,7 @@ import { appointmentWords, type AppointmentWord } from "../journey/appointment-w
 import { PLAYBOOK_HOURS, PLAYBOOK_VETO_DELAY_MS, triggerOf } from "./playbook-triggers";
 import type { PlaybookDto } from "./playbooks";
 import { clockDate, clockHour } from "../shared/clock";
-import { dateFormat, HOUR_MS } from "../shared/time";
+import { dateFormat, HOUR_MS, WEEK_MS } from "../shared/time";
 
 export type RunPlan =
   { kind: "send"; state: "scheduled"; at: Date } | { kind: "hold"; state: "pending_approval" } | { kind: "off" };
@@ -27,6 +27,16 @@ function onTrialAt(p: { trial_until?: string | null }, now: Date): boolean {
  */
 export function effectiveMode<M extends string>(p: { trial_until?: string | null }, mode: M, now: Date): M | "veto" {
   return mode === "auto" && onTrialAt(p, now) ? "veto" : mode;
+}
+
+/**
+ * Until when a new campaign Ask proposes runs on trial (D5 of the 10 October 2026 spec): a week from `now` where its
+ * class's mode is auto, so for its first seven days each run waits for a Stop as veto's does (effectiveMode). Null under
+ * ask, veto or never, where a trial would change nothing: a run there waits for a person already, or runs nothing. The
+ * composer's own campaigns start on none.
+ */
+export function newCampaignTrialUntil(mode: string, now: Date): string | null {
+  return mode === "auto" ? new Date(now.getTime() + WEEK_MS).toISOString() : null;
 }
 
 /**
