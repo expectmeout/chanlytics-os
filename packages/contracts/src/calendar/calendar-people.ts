@@ -709,28 +709,34 @@ export function afterPersonRefused(code: string | null | undefined): "skip" | "s
  * member said they missed answers it too: they booked (0002's readers).
  */
 export function bookedAfterAsk(
-  visits: Pick<Visits, "next" | "last" | "missed"> | null | undefined,
+  visits: { next: Started | null; last: Started | null; missed?: Started | null } | null | undefined,
   askedMs: number,
 ): boolean {
   if (!visits) return false;
-  return visitAnswersAsk(visits.next ? visits.next.start : null, begunOf(visits.last, visits.missed), askedMs);
+  return visitAnswersAsk(visitStartOf(visits.next), begunOf(visits.last, visits.missed), askedMs);
+}
+
+/** A visit as a parse (ms) or the wire (ISO) carries it: its start is all the ask's rule reads. */
+type Started = { start: number | string };
+
+/** A visit's start in ms; null for none, or one that is not a time. */
+function visitStartOf(v: Started | null | undefined): number | null {
+  const t = v ? ms(v.start) : NaN;
+  return Number.isFinite(t) ? t : null;
 }
 
 /** The start of the latest visit begun, kept or missed or neither (null: none): what an ask is answered by since. */
-export function begunOf(
-  last: { start: number | string } | null | undefined,
-  missed: { start: number | string } | null | undefined,
-): number | null {
-  const starts = [last, missed].flatMap((v) => (v ? [ms(v.start)] : [])).filter((t) => Number.isFinite(t));
+function begunOf(last: Started | null | undefined, missed: Started | null | undefined): number | null {
+  const starts = [visitStartOf(last), visitStartOf(missed)].filter((t): t is number => t !== null);
   return starts.length ? Math.max(...starts) : null;
 }
 
 /**
- * The same rule over the moments a person's row keeps (people.ts): a visit ahead, or a last visit that began no more
- * than a day before they asked. Reports' booking line and People's "Asked, never booked" both read it, so Today's line
- * that prints the two numbers side by side counts one rule twice, never two rules once (decision 0009).
+ * The rule over the moments: a visit ahead, or one begun no more than a day before they asked. Reports' booking line
+ * and People's "Asked, never booked" both read it through bookedAfterAsk, so Today's line that prints the two numbers
+ * side by side counts one rule twice, never two rules once (decision 0009).
  */
-export function visitAnswersAsk(nextStartMs: number | null, lastStartMs: number | null, askedMs: number): boolean {
+function visitAnswersAsk(nextStartMs: number | null, lastStartMs: number | null, askedMs: number): boolean {
   if (nextStartMs !== null) return true;
   return lastStartMs !== null && lastStartMs >= askedMs - DAY_MS;
 }

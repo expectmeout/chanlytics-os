@@ -151,7 +151,6 @@ export {
   peopleFromItems,
   afterPersonRefused,
   bookedAfterAsk,
-  visitAnswersAsk,
 } from "./calendar-people";
 export type {
   EventContacts,

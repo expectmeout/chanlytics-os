@@ -16205,10 +16205,14 @@ function afterPersonRefused(code2) {
 }
 function bookedAfterAsk(visits, askedMs) {
   if (!visits) return false;
-  return visitAnswersAsk(visits.next ? visits.next.start : null, begunOf(visits.last, visits.missed), askedMs);
+  return visitAnswersAsk(visitStartOf(visits.next), begunOf(visits.last, visits.missed), askedMs);
+}
+function visitStartOf(v) {
+  const t = v ? ms(v.start) : NaN;
+  return Number.isFinite(t) ? t : null;
 }
 function begunOf(last, missed) {
-  const starts = [last, missed].flatMap((v) => v ? [ms(v.start)] : []).filter((t) => Number.isFinite(t));
+  const starts = [visitStartOf(last), visitStartOf(missed)].filter((t) => t !== null);
   return starts.length ? Math.max(...starts) : null;
 }
 function visitAnswersAsk(nextStartMs, lastStartMs, askedMs) {
@@ -25970,11 +25974,7 @@ function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null
   const booked = !!v?.next;
   const nextVisitMs = v?.next ? Date.parse(v.next.start) : null;
   const lastVisitMs = v?.last ? Date.parse(v.last.start) : null;
-  const askedNotBooked = calendar === "ok" && askedMs !== null && nowMs - askedMs <= MONTH_MS && !visitAnswersAsk(
-    nextVisitMs !== null && Number.isFinite(nextVisitMs) ? nextVisitMs : null,
-    begunOf(v?.last, v?.missed),
-    askedMs
-  );
+  const askedNotBooked = calendar === "ok" && askedMs !== null && nowMs - askedMs <= MONTH_MS && !bookedAfterAsk(v, askedMs);
   const stateDetail = state === "needs_you" ? r2.open_escalation_reason ? reasonShort(r2.open_escalation_reason) : r2.queued_reply_at && personStanding(r2, nowMs).standing !== "needs_you" ? "a reply is about to send \u2014 you can still stop it" : "waiting for a person" : state === "waiting_on_you" ? [HELD_WORDS.yours.pill.toLowerCase(), theirTurnWords(last)].filter(Boolean).join(", and ") : state === "opted_out" ? consent.sub : state === "new" ? `first contact ${first.label}` : state === "quiet" ? `last heard from ${ago(askedMs, tz, nowMs)}` : state === "unheard" ? last.ts === null ? "no contact recorded" : "they have not written or called" : "";
   const vm = {
     id: r2.id,
@@ -42292,7 +42292,6 @@ export {
   viewerListWords,
   violatesNoPrices,
   visitActsOf,
-  visitAnswersAsk,
   visitDateKey,
   visitDay,
   visitDayWord,

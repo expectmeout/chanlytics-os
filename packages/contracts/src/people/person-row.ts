@@ -30,14 +30,7 @@ import {
 import { isOptedOutContact } from "../consent/consent";
 import { replyWindow } from "../config/policy";
 import type { FollowUpStand } from "../playbooks/playbooks";
-import {
-  begunOf,
-  visitAnswersAsk,
-  visitDateKey,
-  visitDay,
-  visitLine,
-  type MatchVia,
-} from "../calendar/calendar-people";
+import { bookedAfterAsk, visitDateKey, visitDay, visitLine, type MatchVia } from "../calendar/calendar-people";
 import { nextStepOf, stepIsDue, type PersonNextStepVM } from "../notes/steps";
 import { initialsOf, isEmailStopped, isIdentifierName } from "../conversations/thread-contact";
 import { dealOf, openDealsOf, type DealVM } from "../deals/deal-vm";
@@ -452,14 +445,7 @@ export function toPersonRowVM(
   const nextVisitMs = v?.next ? Date.parse(v.next.start) : null;
   const lastVisitMs = v?.last ? Date.parse(v.last.start) : null;
   const askedNotBooked =
-    calendar === "ok" &&
-    askedMs !== null &&
-    nowMs - askedMs <= MONTH_MS &&
-    !visitAnswersAsk(
-      nextVisitMs !== null && Number.isFinite(nextVisitMs) ? nextVisitMs : null,
-      begunOf(v?.last, v?.missed),
-      askedMs,
-    );
+    calendar === "ok" && askedMs !== null && nowMs - askedMs <= MONTH_MS && !bookedAfterAsk(v, askedMs);
   const stateDetail =
     state === "needs_you"
       ? r.open_escalation_reason

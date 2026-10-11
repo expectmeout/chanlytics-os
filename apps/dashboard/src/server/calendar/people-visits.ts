@@ -207,15 +207,7 @@ export async function withVisits(
  * the same way in each.
  */
 function bookedSince(visits: PersonVisitsDto | undefined, askedMs: number): boolean {
-  if (!visits) return false;
-  const { next, last } = visits;
-  return bookedAfterAsk(
-    {
-      next: next ? { ...next, start: Date.parse(next.start), end: Date.parse(next.end), allDay: next.all_day } : null,
-      last: last ? { ...last, start: Date.parse(last.start), end: Date.parse(last.end), allDay: last.all_day } : null,
-    },
-    askedMs,
-  );
+  return bookedAfterAsk(visits, askedMs);
 }
 
 /**

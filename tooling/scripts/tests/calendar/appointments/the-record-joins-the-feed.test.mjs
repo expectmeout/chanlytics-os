@@ -243,6 +243,10 @@ test("asked, then booked: a visit since they asked answers it, kept, missed or n
   );
   assert.equal(bookedAfterAsk({ next: null, last: v(NOW - 2 * D), missed: null }, asked), true);
   assert.equal(bookedAfterAsk({ next: null, last: null, missed: null }, asked), false);
+  // As the wire carries them (PersonVisitsDto, ISO), which Reports's booking line and People's row both hand it.
+  const iso = (t) => ({ start: new Date(t).toISOString() });
+  assert.equal(bookedAfterAsk({ next: null, last: null, missed: iso(NOW - 3 * D) }, asked), true);
+  assert.equal(bookedAfterAsk({ next: iso(NOW + D), last: null }, asked), true);
 });
 
 test("a reminder drawn for a booking from a notice asks that booking again at the send: cancelled or missed since, it is held", async () => {
