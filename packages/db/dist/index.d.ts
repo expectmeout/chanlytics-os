@@ -4865,7 +4865,9 @@ type Database = {
                     template_language: string | null;
                     template_name: string | null;
                     tenant_id: string;
+                    trial_until: string | null;
                     trigger: string;
+                    until: string | null;
                     updated_at: string;
                 };
                 Insert: {
@@ -4898,7 +4900,9 @@ type Database = {
                     template_language?: string | null;
                     template_name?: string | null;
                     tenant_id: string;
+                    trial_until?: string | null;
                     trigger: string;
+                    until?: string | null;
                     updated_at?: string;
                 };
                 Update: {
@@ -4931,7 +4935,9 @@ type Database = {
                     template_language?: string | null;
                     template_name?: string | null;
                     tenant_id?: string;
+                    trial_until?: string | null;
                     trigger?: string;
+                    until?: string | null;
                     updated_at?: string;
                 };
                 Relationships: [
@@ -14988,7 +14994,9 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
                 template_language: string | null;
                 template_name: string | null;
                 tenant_id: string;
+                trial_until: string | null;
                 trigger: string;
+                until: string | null;
                 updated_at: string;
             };
             Insert: {
@@ -15021,7 +15029,9 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
                 template_language?: string | null;
                 template_name?: string | null;
                 tenant_id: string;
+                trial_until?: string | null;
                 trigger: string;
+                until?: string | null;
                 updated_at?: string;
             };
             Update: {
@@ -15054,7 +15064,9 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
                 template_language?: string | null;
                 template_name?: string | null;
                 tenant_id?: string;
+                trial_until?: string | null;
                 trigger?: string;
+                until?: string | null;
                 updated_at?: string;
             };
             Relationships: [{
@@ -24324,7 +24336,9 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             template_language: string | null;
             template_name: string | null;
             tenant_id: string;
+            trial_until: string | null;
             trigger: string;
+            until: string | null;
             updated_at: string;
         };
         Insert: {
@@ -24357,7 +24371,9 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             template_language?: string | null;
             template_name?: string | null;
             tenant_id: string;
+            trial_until?: string | null;
             trigger: string;
+            until?: string | null;
             updated_at?: string;
         };
         Update: {
@@ -24390,7 +24406,9 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             template_language?: string | null;
             template_name?: string | null;
             tenant_id?: string;
+            trial_until?: string | null;
             trigger?: string;
+            until?: string | null;
             updated_at?: string;
         };
         Relationships: [{
@@ -30073,7 +30091,9 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             template_language: string | null;
             template_name: string | null;
             tenant_id: string;
+            trial_until: string | null;
             trigger: string;
+            until: string | null;
             updated_at: string;
         };
         Insert: {
@@ -30106,7 +30126,9 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             template_language?: string | null;
             template_name?: string | null;
             tenant_id: string;
+            trial_until?: string | null;
             trigger: string;
+            until?: string | null;
             updated_at?: string;
         };
         Update: {
@@ -30139,7 +30161,9 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             template_language?: string | null;
             template_name?: string | null;
             tenant_id?: string;
+            trial_until?: string | null;
             trigger?: string;
+            until?: string | null;
             updated_at?: string;
         };
         Relationships: [{
@@ -35822,7 +35846,9 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             template_language: string | null;
             template_name: string | null;
             tenant_id: string;
+            trial_until: string | null;
             trigger: string;
+            until: string | null;
             updated_at: string;
         };
         Insert: {
@@ -35855,7 +35881,9 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             template_language?: string | null;
             template_name?: string | null;
             tenant_id: string;
+            trial_until?: string | null;
             trigger: string;
+            until?: string | null;
             updated_at?: string;
         };
         Update: {
@@ -35888,7 +35916,9 @@ declare function builderOf<T extends TenantTable>(db: Db$w, table: T): _supabase
             template_language?: string | null;
             template_name?: string | null;
             tenant_id?: string;
+            trial_until?: string | null;
             trigger?: string;
+            until?: string | null;
             updated_at?: string;
         };
         Relationships: [{

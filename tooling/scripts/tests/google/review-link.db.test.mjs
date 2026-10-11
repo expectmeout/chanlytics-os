@@ -11,17 +11,14 @@
  * catalog through the CLI (SUPABASE_CLI names it), as lead-lists.db.test.mjs does, and runs the migration as the CLI's
  * runner runs a file, in one transaction, through psql in the stack's database container (the one supabase/config.toml's
  * project_id names, under SUPABASE_WORKDIR when it is set, as schema-snapshot.db.test.mjs reaches it): `db query` takes
- * one statement, and a migration is several.
+ * one statement, and a migration is several. Both go through ./_db-stack.mjs, which first holds that stack to the one
+ * SUPABASE_URL names and fails the suite where they differ, so the migration never lands on another stack.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
-import { spawnSync } from "node:child_process";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { reviewLinkOf } from "@chanlytics/db";
-import { containerOf } from "../../gen/schema-snapshot.mjs";
+import { migrationNamed, query, runMigration } from "./_db-stack.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -35,53 +32,7 @@ const skip =
         ? "no SUPABASE_ANON_KEY in env: the member this suite reads as needs it"
         : false;
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-const CLI = process.env.SUPABASE_CLI || "supabase";
-/** One statement through `supabase db query --local`, and its rows. */
-function query(sql) {
-  const r = spawnSync(CLI, ["db", "query", "--local", "--output-format", "json", sql], {
-    cwd: ROOT,
-    encoding: "utf8",
-    maxBuffer: 16 * 1024 * 1024,
-  });
-  if (r.error) throw new Error(`could not run ${CLI} (${r.error.message}); set SUPABASE_CLI to the supabase binary`);
-  if (r.status !== 0) throw new Error(`${CLI} db query failed: ${[r.stderr, r.stdout].join("\n").trim().slice(-800)}`);
-  const out = r.stdout;
-  const start = out.search(/[[{]/);
-  if (start < 0) return [];
-  const parsed = JSON.parse(out.slice(start, out.lastIndexOf(out[start] === "{" ? "}" : "]") + 1));
-  return Array.isArray(parsed) ? parsed : (parsed.rows ?? []);
-}
-/** A migration's text by its name, whatever number it lands at, its lines ended as git keeps them. */
-const migrationNamed = (name) => {
-  const dir = path.join(ROOT, "supabase/migrations");
-  const file = fs.readdirSync(dir).find((f) => f.endsWith(`_${name}.sql`));
-  assert.ok(file, `no migration is named ${name}`);
-  return fs.readFileSync(path.join(dir, file), "utf8").split("\r\n").join("\n");
-};
 const REVIEW_LINK = "a_listing_keeps_its_review_link";
-/** A migration's whole text, run once as the CLI's runner runs a file: one transaction, stopped at the first error. */
-function runMigration(sql) {
-  const workdir = process.env.SUPABASE_WORKDIR || ROOT;
-  const container = containerOf(fs.readFileSync(path.join(workdir, "supabase", "config.toml"), "utf8"));
-  assert.ok(container, "supabase/config.toml names no project_id, so no stack to run it in");
-  const r = spawnSync(
-    "docker",
-    [
-      "exec",
-      "-i",
-      container,
-      "psql",
-      "--username=postgres",
-      "--single-transaction",
-      "--set=ON_ERROR_STOP=1",
-      "--quiet",
-    ],
-    { input: sql, encoding: "utf8" },
-  );
-  if (r.error) throw new Error(`could not run docker (${r.error.message})`);
-  if (r.status !== 0) throw new Error(`the migration failed in ${container}: ${r.stderr.trim().slice(-800)}`);
-}
 
 /** The column as the catalog says it, and its comment. */
 const column = () =>

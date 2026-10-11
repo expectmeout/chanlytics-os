@@ -4865,7 +4865,9 @@ export type Database = {
           template_language: string | null
           template_name: string | null
           tenant_id: string
+          trial_until: string | null
           trigger: string
+          until: string | null
           updated_at: string
         }
         Insert: {
@@ -4898,7 +4900,9 @@ export type Database = {
           template_language?: string | null
           template_name?: string | null
           tenant_id: string
+          trial_until?: string | null
           trigger: string
+          until?: string | null
           updated_at?: string
         }
         Update: {
@@ -4931,7 +4935,9 @@ export type Database = {
           template_language?: string | null
           template_name?: string | null
           tenant_id?: string
+          trial_until?: string | null
           trigger?: string
+          until?: string | null
           updated_at?: string
         }
         Relationships: [

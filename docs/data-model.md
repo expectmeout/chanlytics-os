@@ -2307,6 +2307,8 @@ Foreign keys:
 | `include_unconfirmed` | boolean | no | `false` |  |
 | `hand` | jsonb | yes |  | A reach-out's last step that hands each lead it reaches to the team (Reach out Part 5, G20): {kind: call \| note, words}. Such a step has no template. |
 | `channels` | text[] | no | `'{whatsapp}'::text[]` | The channels this campaign may go by (whatsapp, sms, email, each once, at least one): the composer's ticks. Each person is reached once, on one of them (contracts' reachFor). WhatsApp alone by default, as every campaign was before (00298). |
+| `until` | date | yes |  | The last day this campaign runs, on the business's clock: a run on a day past it sends nothing. Null: it runs until it is paused (00395). |
+| `trial_until` | timestamp with time zone | yes |  | Until when this campaign runs on trial: before it, a run its policy would send by itself (auto) waits for a person (veto). Null: no trial (00395). |
 
 Foreign keys:
 
