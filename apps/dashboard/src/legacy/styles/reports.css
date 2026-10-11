@@ -155,11 +155,11 @@
 .rpt-section-title { margin: 0; font-size: var(--text-md); font-weight: 500; color: var(--ink); letter-spacing: -0.01em; }
 .rpt-section-meta { font-size: var(--text-sm); color: var(--ink-dim); }
 
-/* A part-bar under a plot or a donut in the same card is a second reading: a hairline sets it apart. It follows
+/* A part-bar under a plot in the same card is a second reading: a hairline sets it apart. It follows
    what it reads a second time and is never pushed to the card's foot -- the plot above it fills instead, so there is
    no gap between the two to push across. (It was pushed for one release, and a row made tall by six handover
    reasons opened a hole through the middle of Calls.) */
-.rpt .ck-card-body > .ck-plot + .ck-segbar, .rpt .ck-card-body > .ck-pie + .ck-segbar { padding-top: 12px; border-top: 1px solid var(--line); }
+.rpt .ck-card-body > .ck-plot + .ck-segbar { padding-top: 12px; border-top: 1px solid var(--line); }
 
 /* ---------- the headline ---------- */
 .rpt-hero { grid-column: span 5; flex-direction: row; align-items: center; gap: 20px; padding: 16px 20px; }
@@ -217,6 +217,8 @@ a.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: var(--
 .rpt-booked-rest .icon { flex: none; margin-top: 1px; color: var(--ink-dim); }
 .rpt-booked-rest .cl-bucket-link { margin-left: 6px; }
 .rpt-booked-rest.is-done .icon { color: var(--ok); }
+/* The People lens's fresh book: how many have been quiet and the door to them, on a hairline at the card's foot, as the booked rest's. */
+.rpt-door-line { margin: 0; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); font-size: var(--text-sm); line-height: 1.45; color: var(--ink-muted); }
 
 /* Deals: the headline, the cohort's bars in the kit's card with the lines beside it (under it below 1180px), and the
    stock under the one hairline (.rpt-booked-rest). The kit's own type and ink; figures keep their width. */
@@ -286,8 +288,6 @@ a.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: var(--
   .rpt-figures.quad .rpt-cell:last-child { grid-column: auto; }
   .rpt-figures.trio { --cells: 2; }
   .rpt .ck-card:not(.rpt-hero) { padding: 16px; }
-  .rpt .ck-pie { flex-direction: column; align-items: stretch; }
-  .rpt .ck-pie-figure { align-self: center; }
   /* When a source last ran folds away on a phone; the row keeps its name, its counts and its door. */
   .rpt-sources th:last-child, .rpt-sources td:last-child { display: none; }
 }

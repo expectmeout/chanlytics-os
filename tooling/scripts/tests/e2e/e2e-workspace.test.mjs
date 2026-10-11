@@ -8,7 +8,9 @@
  * writes nothing there. The rows it writes are checked against the states the
  * production sweeps leave alone, and its one alert address against the edge's
  * own rule for who is told. The Receptionist lens's rows (convergeReceptionist)
- * are held to the same bar, and to what the lens reads of them.
+ * are held to the same bar, and to what the lens reads of them; so are the People
+ * lens's (convergePeople: a yes on the ledger for each person, three steps done,
+ * and no step open).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -17,6 +19,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 import {
   TenantConfigWriteSchema,
+  SHARED_EVENT_VERSIONS,
   reviewIsNew,
   starterByName,
   closedOf,
@@ -86,6 +89,8 @@ const { sweepUnfinished } = await import(
 
 // The Receptionist lens's rows (convergeReceptionist), named by what the seed exports.
 const { RECEPTIONIST_PREFIX, MISSED_CALL_ID } = seed;
+// The People lens's rows (convergePeople): the prefix of each step's words and the note on each yes's event.
+const { PEOPLE_PREFIX, PEOPLE_NOTE } = seed;
 
 const OWNER = "e2e-owner@example.com";
 const MATE = "e2e-member@example.com";
@@ -671,6 +676,16 @@ test("a run backs the workspace up before it writes", async () => {
   assert.ok(
     backedUp.some((r) => r.table === "tenant_config"),
     "the config, alert address and all, is in the backup",
+  );
+  assert.equal(
+    backedUp.filter((r) => r.table === "person_notes" && String(r.row.body).startsWith(PEOPLE_PREFIX)).length,
+    3,
+    "and so are the steps the run deletes and writes again",
+  );
+  assert.equal(
+    backedUp.some((r) => r.table === "events"),
+    false,
+    "the ledger's rows a run replaces are not: they are the seed's own, written afresh",
   );
 });
 
@@ -1491,4 +1506,338 @@ test("the eval's Win-back (the moment spec, A8): written only under --seed-win-b
   );
   assert.equal(of(w.t, "templates", T).length, 1, "and no second message");
   assert.deepEqual(await due(), []);
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// The People lens's rows (convergePeople): a yes for each seeded person on the ledger, and three steps the team finished.
+// ---------------------------------------------------------------------------------------------------------------------
+
+/** The yes events of the workspace, the seed's own and anyone's. */
+const yesEvents = (t, tenantId) => of(t, "events", tenantId).filter((e) => e.kind === "contact.consent_changed");
+/** The steps the seed wrote: the notes whose words start with its prefix. */
+const seededSteps = (t, tenantId) =>
+  of(t, "person_notes", tenantId).filter((n) => String(n.body).startsWith(PEOPLE_PREFIX));
+/** The workspace's own day `n` days before the run at NOW (which is 05:00 in New York, so no clock change is near it). */
+const dayBack = (n) => localOf(NOW - n * DAY_MS).day;
+
+test("the People lens's rows: each seeded person's yes on the ledger a week back, and three steps the owner finished, two on their day or before and one a day late", async () => {
+  const w = world();
+  const { tenantId: T } = await run(w);
+  const ownerId = w.users.find((u) => u.email === OWNER).id;
+  assert.equal(PEOPLE_NOTE, "e2e-seed-p");
+  assert.equal(PEOPLE_PREFIX, "e2e seed step: ");
+
+  // Three yeses, one for each seeded person, carrying the date of the yes their own column keeps.
+  const people = of(w.t, "contacts", T);
+  const yeses = yesEvents(w.t, T);
+  assert.deepEqual(yeses.map((e) => e.subject_id).sort(), people.map((p) => p.id).sort(), "one for each of the three");
+  for (const e of yeses) {
+    assert.deepEqual(
+      [e.subject_type, e.category, e.version],
+      ["contact", "contact", SHARED_EVENT_VERSIONS["contact.consent_changed"]],
+    );
+    assert.deepEqual(e.data, {
+      consent: "opted_in",
+      source: "customer_message",
+      channel: "whatsapp",
+      note: PEOPLE_NOTE,
+    });
+    assert.equal(
+      e.created_at,
+      people.find((p) => p.id === e.subject_id).consent_updated_at,
+      "dated as their own column's yes is: seven days before the run",
+    );
+    assert.equal(e.created_at, new Date(NOW - 7 * DAY_MS).toISOString());
+  }
+
+  // Three steps, all done by the owner: Casey's twice and Robin's once.
+  const casey = personAt(w.t, T, CASEY.phone);
+  const robin = personAt(w.t, T, ROBIN.phone);
+  const steps = seededSteps(w.t, T);
+  assert.deepEqual(
+    steps.map((s) => [s.contact_id, s.due_on, localOf(s.done_at).day]).sort(),
+    [
+      [casey.id, dayBack(5), dayBack(5)],
+      [casey.id, dayBack(9), dayBack(8)],
+      [robin.id, dayBack(3), dayBack(6)],
+    ].sort(),
+    "Casey's on its day and a day late, Robin's three days before it was due",
+  );
+  for (const s of steps) {
+    assert.deepEqual(
+      [s.team_only, s.author_kind, s.state, s.author_user_id, s.done_by],
+      [true, "member", "kept", ownerId, ownerId],
+      "a step is the team's, written and done by a member",
+    );
+    assert.ok(
+      s.body.length > PEOPLE_PREFIX.length && s.body.length <= 600,
+      "words after the prefix, within the note's limit",
+    );
+    assert.ok(Date.parse(s.done_at) < NOW, "done in the past");
+    assert.ok(Date.parse(s.created_at) < Date.parse(s.done_at), "and written before it was done");
+  }
+  assert.deepEqual(await verify(w.db, T, ownerId), []);
+});
+
+test("what the lens will make of the People rows: three yeses won, three steps done and two of them on their day", async () => {
+  const w = world();
+  const { tenantId: T } = await run(w);
+  const windowStart = NOW - 30 * DAY_MS;
+  const inWindow = (at) => Date.parse(at) >= windowStart && Date.parse(at) <= NOW;
+
+  // people_series counts a yes once for each person, kind of message and answer, leaving out a merge and a STOP's own reset,
+  // an event whose purpose it does not know and one that names no live person.
+  const live = new Set(of(w.t, "contacts", T).map((c) => c.id));
+  const counted = new Set(
+    yesEvents(w.t, T)
+      .filter(
+        (e) =>
+          inWindow(e.created_at) &&
+          live.has(e.subject_id) &&
+          ["opted_in", "opted_out"].includes(e.data.consent) &&
+          !["merge", "stop"].includes(e.data.source ?? "") &&
+          ["", "marketing", "email_marketing"].includes(e.data.purpose ?? ""),
+      )
+      .map((e) => `${e.subject_id} ${e.data.purpose ?? "messages"} ${e.data.consent}`),
+  );
+  assert.equal(counted.size, 3, "yeses won: all three, to messages");
+
+  // And a step counts when it is done in the window, on time when it was done on its day or before, by the workspace's day.
+  const done = seededSteps(w.t, T).filter((s) => s.due_on && s.done_at && inWindow(s.done_at));
+  assert.equal(done.length, 3);
+  assert.equal(done.filter((s) => localOf(s.done_at).day <= s.due_on).length, 2);
+});
+
+test("a second run changes nothing but the dates: the People rows move a day with the run, and none is added", async () => {
+  const w = world();
+  const { tenantId: T } = await run(w);
+  const undated = (rows) =>
+    JSON.stringify(rows)
+      .replace(/"\d{4}-\d{2}-\d{2}T[\d:.]+Z"/g, '"<date>"')
+      .replace(/"\d{4}-\d{2}-\d{2}"/g, '"<day>"')
+      .replace(/"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"/g, '"<id>"');
+  const byKey = (key) => (a, b) => (String(key(a)) < String(key(b)) ? -1 : 1);
+  const picture = () => ({
+    yeses: yesEvents(w.t, T).sort(byKey((e) => e.subject_id)),
+    steps: seededSteps(w.t, T).sort(byKey((n) => n.body)),
+    notes: of(w.t, "person_notes", T).length,
+  });
+  const dates = () => ({
+    yeses: Object.fromEntries(yesEvents(w.t, T).map((e) => [e.subject_id, Date.parse(e.created_at)])),
+    steps: Object.fromEntries(
+      seededSteps(w.t, T).map((n) => [n.body, [Date.parse(`${n.due_on}T00:00:00Z`), Date.parse(n.done_at)]]),
+    ),
+  });
+  const first = { shape: undated(picture()), dates: dates() };
+  assert.deepEqual(
+    [Object.keys(first.dates.yeses).length, Object.keys(first.dates.steps).length],
+    [3, 3],
+    "there is something to compare",
+  );
+  await run(w, { now: NOW + DAY_MS });
+  assert.equal(undated(picture()), first.shape, "the same rows, but for their dates and their ids");
+  const next = dates();
+  for (const [person, at] of Object.entries(first.dates.yeses))
+    assert.equal(next.yeses[person] - at, DAY_MS, "a yes moved a day, with the column that dates it");
+  for (const [words, pair] of Object.entries(first.dates.steps))
+    assert.deepEqual(
+      next.steps[words].map((at, i) => at - pair[i]),
+      [DAY_MS, DAY_MS],
+      `${words}: its day and the time it was done moved a day`,
+    );
+});
+
+test("the People rows are all terminal: no open step, no suppressed address, no queued message, no job, nothing a sweep selects", async () => {
+  const w = world();
+  const { tenantId: T } = await run(w);
+  const notes = of(w.t, "person_notes", T);
+  assert.equal(notes.length, 3, "the three done steps and no other note");
+  assert.deepEqual(
+    notes.filter((n) => n.due_on && !n.done_at),
+    [],
+    "no open step: it would be a row in Today and a person on the Steps due list, which other specs count",
+  );
+  assert.ok(
+    notes.every((n) => n.done_at && n.done_by && n.due_on),
+    "each is done, by a member, and has a day",
+  );
+  assert.ok(
+    of(w.t, "contacts", T).every((c) => !c.email_suppressed_at && !c.email),
+    "no address, so none stopped",
+  );
+  assert.deepEqual(
+    of(w.t, "events", T).filter((e) => e.kind === "contact.email_suppressed"),
+    [],
+  );
+  assert.equal(of(w.t, "messages", T).filter((m) => m.status === "queued").length, 0);
+  assert.equal(of(w.t, "jobs", T).length, 0);
+  // The yeses are history: a person's own column says the same, and nothing in the workspace is a stop.
+  assert.ok(of(w.t, "contacts", T).every((c) => c.consent === "opted_in"));
+  assert.equal(yesEvents(w.t, T).filter((e) => e.data.consent !== "opted_in").length, 0, "no stop event");
+});
+
+test("the People rows delete their own last night's before they are written, and only theirs: a person's step, a real yes, another kind of event and another workspace's rows stay", async () => {
+  const w = world();
+  const { tenantId: T } = await run(w);
+  const ownerId = w.users.find((u) => u.email === OWNER).id;
+  const casey = personAt(w.t, T, CASEY.phone);
+  const planted = (table, row) => w.t[table].push({ tenant_id: T, ...row });
+  // Another workspace's rows that look exactly like the seed's (its note, its prefix): both deletes are the workspace's own.
+  const elsewhere = crypto.randomUUID();
+  w.t.events.push({
+    id: "elsewhere-yes",
+    tenant_id: elsewhere,
+    kind: "contact.consent_changed",
+    subject_type: "contact",
+    subject_id: crypto.randomUUID(),
+    data: { consent: "opted_in", source: "customer_message", channel: "whatsapp", note: PEOPLE_NOTE },
+    created_at: new Date(NOW).toISOString(),
+  });
+  w.t.person_notes.push({
+    id: "elsewhere-step",
+    tenant_id: elsewhere,
+    contact_id: crypto.randomUUID(),
+    body: `${PEOPLE_PREFIX}done in another workspace`,
+    author_kind: "member",
+    author_user_id: ownerId,
+    team_only: true,
+    due_on: dayBack(4),
+    done_at: new Date(NOW - 4 * DAY_MS).toISOString(),
+  });
+  // What a person or a spec could have left: a step of their own, a real yes (no note), an event of another kind that
+  // happens to carry the note, and a step under the seed's prefix that was left open.
+  planted("person_notes", {
+    id: "their-step",
+    contact_id: casey.id,
+    body: "Call back about the quote",
+    author_kind: "member",
+    author_user_id: ownerId,
+    team_only: true,
+    due_on: dayBack(-3),
+    done_at: null,
+  });
+  planted("events", {
+    id: "their-yes",
+    kind: "contact.consent_changed",
+    subject_type: "contact",
+    subject_id: casey.id,
+    data: { consent: "opted_in", source: "customer_message", channel: "sms" },
+    created_at: new Date(NOW).toISOString(),
+  });
+  planted("events", {
+    id: "other-kind",
+    kind: "contact.noted",
+    subject_type: "contact",
+    subject_id: casey.id,
+    data: { note: PEOPLE_NOTE },
+    created_at: new Date(NOW).toISOString(),
+  });
+  planted("person_notes", {
+    id: "left-open",
+    contact_id: casey.id,
+    body: `${PEOPLE_PREFIX}left open by a spec`,
+    author_kind: "member",
+    author_user_id: ownerId,
+    team_only: true,
+    due_on: dayBack(2),
+    done_at: null,
+  });
+
+  await seed.convergePeople(w.db, T, ownerId, NOW + DAY_MS);
+
+  const ids = (rows) => rows.map((r) => r.id);
+  assert.equal(ids(of(w.t, "person_notes", T)).includes("left-open"), false, "an open step under the prefix goes");
+  assert.equal(ids(of(w.t, "person_notes", T)).includes("their-step"), true, "a step without the prefix stays");
+  assert.deepEqual(
+    [of(w.t, "person_notes", T).length, seededSteps(w.t, T).length],
+    [4, 3],
+    "the person's step and the seed's three again, none added to",
+  );
+  const seeded = yesEvents(w.t, T).filter((e) => e.data.note === PEOPLE_NOTE);
+  assert.equal(ids(yesEvents(w.t, T)).includes("their-yes"), true, "a yes without the note stays");
+  assert.equal(seeded.length, 3, "and the seed's three again");
+  assert.equal(
+    ids(of(w.t, "events", T)).includes("other-kind"),
+    true,
+    "another kind of event is not the seed's to delete",
+  );
+  assert.deepEqual(
+    [...new Set(seeded.map((e) => e.created_at))],
+    [new Date(NOW + DAY_MS - 7 * DAY_MS).toISOString()],
+    "all dated from the new run",
+  );
+  assert.equal(
+    w.t.events.some((e) => e.id === "elsewhere-yes"),
+    true,
+    "another workspace's yes, with the seed's note, stays",
+  );
+  assert.equal(
+    w.t.person_notes.some((n) => n.id === "elsewhere-step"),
+    true,
+    "and so does its step, with the seed's prefix",
+  );
+});
+
+test("verify() names a step left open under the prefix, one with no day, a yes that is gone or doubled, a step that is gone and a queued message", async () => {
+  const w = world();
+  const { tenantId: T } = await run(w);
+  const ownerId = w.users.find((u) => u.email === OWNER).id;
+  assert.deepEqual(await verify(w.db, T, ownerId), []);
+  const said = async () => (await verify(w.db, T, ownerId)).join(" | ");
+  const casey = personAt(w.t, T, CASEY.phone);
+  const step = (over) => ({
+    id: crypto.randomUUID(),
+    tenant_id: T,
+    contact_id: casey.id,
+    body: `${PEOPLE_PREFIX}planted`,
+    author_kind: "member",
+    author_user_id: ownerId,
+    team_only: true,
+    ...over,
+  });
+
+  // An open step: a row in Today and a person on the Steps due list.
+  const open = step({ due_on: dayBack(1), done_at: null });
+  w.t.person_notes.push(open);
+  assert.match(await said(), /open or have no day/, "an open step is named");
+  w.t.person_notes.splice(w.t.person_notes.indexOf(open), 1);
+  assert.equal(await said(), "");
+
+  // A seeded note with no day is no step at all: the lens counts none of it, and nothing says it was meant to.
+  const dayless = step({ due_on: null, done_at: null, team_only: false });
+  w.t.person_notes.push(dayless);
+  assert.match(await said(), /open or have no day/, "and so is one with no day");
+  w.t.person_notes.splice(w.t.person_notes.indexOf(dayless), 1);
+
+  // A step that is gone.
+  const [gone] = seededSteps(w.t, T);
+  w.t.person_notes.splice(w.t.person_notes.indexOf(gone), 1);
+  assert.match(await said(), /done steps/, "a missing step is named");
+  w.t.person_notes.push(gone);
+  assert.equal(await said(), "");
+
+  // A yes that is gone, and one that is doubled.
+  const [lost] = yesEvents(w.t, T).filter((e) => e.data.note === PEOPLE_NOTE);
+  w.t.events.splice(w.t.events.indexOf(lost), 1);
+  assert.match(await said(), /yes event/, "a missing yes is named");
+  w.t.events.push(lost);
+  assert.equal(await said(), "");
+  const twin = { ...lost, id: crypto.randomUUID() };
+  w.t.events.push(twin);
+  assert.match(await said(), /yes event/, "and a doubled one");
+  w.t.events.splice(w.t.events.indexOf(twin), 1);
+  assert.equal(await said(), "");
+
+  // A queued message, which a send job would pick up (as the Receptionist's rows hold it).
+  w.t.messages.push({ id: "queued-by-hand", tenant_id: T, sender: "ai", direction: "outbound", status: "queued" });
+  assert.match(await said(), /queued/);
+  w.t.messages.pop();
+  assert.equal(await said(), "");
+
+  // All of it put back by the next run.
+  w.t.person_notes.push(open);
+  w.t.events.splice(w.t.events.indexOf(lost), 1);
+  assert.notEqual(await said(), "");
+  await run(w, { now: NOW + DAY_MS });
+  assert.deepEqual(await verify(w.db, T, ownerId), [], "the next run puts it back");
 });

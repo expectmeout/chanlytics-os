@@ -1,11 +1,11 @@
 /**
- * The report functions Reports reads (00251, 00304, 00241, 00350, 00380): the receptionist's series, the campaigns', the
- * reviews', the Receptionist lens's and the reach-outs', each over a period of days and the period before it; and the
- * counts Campaigns reads (00374, 00375): a playbook's totals, a run's counts, a message's sends and every chain's numbers.
- * The one place they are called by name; the dashboard asks on the session client, so RLS decides what a member reads
- * (`report_series`, `campaign_series`, `reviews_ledger` and `receptionist_series` are SECURITY INVOKER;
- * `reach_out_report` is a definer that checks the member again). A read that fails throws: "we could not read" is never
- * "none".
+ * The report functions Reports reads (00251, 00304, 00241, 00350, 00380, 00395): the receptionist's series, the campaigns',
+ * the reviews', the Receptionist lens's, the People lens's and the reach-outs', each over a period of days and the period
+ * before it; and the counts Campaigns reads (00374, 00375): a playbook's totals, a run's counts, a message's sends and
+ * every chain's numbers. The one place they are called by name; the dashboard asks on the session client, so RLS decides
+ * what a member reads (`report_series`, `campaign_series`, `reviews_ledger`, `receptionist_series` and `people_series` are
+ * SECURITY INVOKER; `reach_out_report` is a definer that checks the member again). A read that fails throws: "we could
+ * not read" is never "none".
  *
  * Each reads a WINDOW (00360): a count of days, and the day they end on. A period by name ends on the workspace's today
  * and names no day, which is the call every one of these was before 00360, so a database that has not run it yet reads a
@@ -93,6 +93,25 @@ export async function receptionistSeries(db: Db, tenantId: string, window: Repor
   if (error) {
     if (isMissingDoor(error)) return null;
     throw new Error(`receptionist_series: ${error.message}`);
+  }
+  return data;
+}
+
+/**
+ * The People lens's numbers, over the window and the period before it (`people_series`, 00395): the people who reached
+ * the business and how many of them were new, by the way they came in and the way they first came, the answers recorded
+ * about being written to, the email addresses that stopped working and the steps done and done on time. Counts only.
+ * Null is a database that does not have the function yet: the dashboard deploys at the merge and 00395 goes to production
+ * on the owner's word (either order works), so for that window every read answers it, and the lens draws the book
+ * (People's own pool) and its kept cards and none of its series parts (the function itself never answers null). A window
+ * that names its last day is the same answer, for the same reason: the one function takes the last day, so a database
+ * without it has no function at all. Any other failure throws.
+ */
+export async function peopleSeries(db: Db, tenantId: string, window: ReportWindow): Promise<Json | null> {
+  const { data, error } = await db.rpc("people_series", windowArgs(tenantId, window));
+  if (error) {
+    if (isMissingDoor(error)) return null;
+    throw new Error(`people_series: ${error.message}`);
   }
   return data;
 }

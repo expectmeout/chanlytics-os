@@ -4301,9 +4301,10 @@ textarea.rec-input,
 /* ---------- Figure: a number, what it counts, the period before beside it, one line under ----------
    The reports lenses spec, §8. A term and its definitions in the page's <dl> (the figure draws the <div> that holds them):
    the label in the muted ink, the number at the large step in the medium weight, the period before beside it in the dim ink
-   and never a tone (the badge rules: a change is plain ink), and one line under it, at two lines at most. A definition rides
-   on the label as the kit's tooltip (the label is its stop); the number is a door where it opens something. The page places
-   the figure (a strip's grid, its dividers and its padding are the page's): the kit knows no grid. */
+   and never a tone (the badge rules: a change is plain ink; only the number may wear one, below), and one line under it, at
+   two lines at most. A definition rides on the label as the kit's tooltip (the label is its stop); the number is a door
+   where it opens something. The page places the figure (a strip's grid, its dividers and its padding are the page's): the
+   kit knows no grid. */
 .figure {
   display: flex;
   flex-direction: column;
@@ -4361,8 +4362,18 @@ textarea.rec-input,
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
+/* A tone is on the number alone (the reports lenses spec, D10): amber for what needs you (steps overdue), red for what
+   failed (email that stopped working), never green. The period before beside it keeps its own plain ink (.figure-change
+   sets its colour, so it does not inherit the number's), and these come before the thin rule below, so a ratio of too few
+   stays dim whatever it would be. */
+.figure.is-warn .figure-value {
+  color: var(--warn-ink);
+}
+.figure.is-fail .figure-value {
+  color: var(--danger-ink);
+}
 /* A ratio of some, but too few (its count above none and under the minimum, the reports lenses spec D9) is read in the dim
-   ink, and says how few under the line under it: the number is still said, never hidden, and a thin figure is not a tone.
+   ink, and says how few under the line under it: the number is still said, never hidden, and it outranks a tone.
    Of none there is no ratio to grey: the figure's own line says why. */
 .figure.is-thin .figure-value {
   color: var(--ink-dim);

@@ -416,8 +416,9 @@ test("a period pick made anywhere but on the lens reads nothing of it: a held pe
     reset("30d");
     onLens();
     await receptionistOverride.apply();
-    // (The Reviews lens is another lens that reads a surface of its own when it is on screen: reviews-surface.test.mjs.)
-    for (const route of ["reports", "reports/people", "reports/campaigns"]) {
+    // (The Reviews and People lenses are other lenses that read a surface of their own when on screen: reviews-surface.test.mjs,
+    // people-surface.test.mjs.)
+    for (const route of ["reports", "reports/pipeline", "reports/campaigns"]) {
       elsewhere(route);
       asked.length = 0;
       await setReportRange("7d");

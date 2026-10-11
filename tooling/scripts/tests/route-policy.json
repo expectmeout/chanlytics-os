@@ -1320,6 +1320,13 @@
       "rate": "aggregate",
       "spend": false
     },
+    "GET reports/people": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": "aggregate",
+      "spend": false
+    },
     "GET reports/reach-outs": {
       "kind": "read",
       "scope": "workspace",

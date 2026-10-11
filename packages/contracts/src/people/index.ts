@@ -66,7 +66,6 @@ export {
   noChannelWords,
   saidYesWords,
   peopleAggregates,
-  recencyCells,
   GET_YES_ROUTE,
   NO_NUMBER_REACH,
   NO_CHANNEL_REACH,

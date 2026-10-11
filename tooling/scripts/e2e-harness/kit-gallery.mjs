@@ -602,6 +602,7 @@ const figure = ({
   meta = "on 6 of 7 days",
   door = null,
   thin = null,
+  tone = null,
 } = {}) => {
   const number =
     door === "a"
@@ -610,7 +611,7 @@ const figure = ({
         ? `<button type="button" class="figure-door">${value}</button>`
         : value;
   return (
-    `<dl class="gx-figs"><div class="figure${thin === null ? "" : " is-thin"}"><dt class="figure-label">${term}</dt>` +
+    `<dl class="gx-figs"><div class="figure${thin === null ? "" : " is-thin"}${tone === null ? "" : ` is-${tone}`}"><dt class="figure-label">${term}</dt>` +
     `<dd class="figure-value">${number}${change ? `<span class="figure-change">${change}</span>` : ""}</dd>` +
     `${meta ? `<dd class="figure-meta">${meta}</dd>` : ""}` +
     `${thin === null ? "" : `<dd class="figure-n">only ${thin}, too few to read</dd>`}</div></dl>`
@@ -1828,13 +1829,16 @@ export const FAMILIES = [
       "the number at the large step, the period before beside it in plain ink, one line under it. The number a link where " +
       "it has an address and a button where it acts. A ratio of some, but too few (its count above none and under the " +
       "minimum) is greyed and says how few, under the line under it; of none there is no ratio, and nothing is greyed. " +
-      "Reports' strip is drawn with it.",
+      "A tone is on the number alone: amber for what needs you, red for what failed, never green, and never the period " +
+      "before beside it, which stays in plain ink. Reports' strip is drawn with it.",
     entries: [
       { id: "figure", html: figure() },
       { id: "figure-change", html: figure({ change: "up from 7" }) },
       { id: "figure-door", html: figure({ door: "a" }) },
       { id: "figure-door-act", html: figure({ door: "button" }) },
       { id: "figure-thin", html: figure({ value: "62%", thin: 3 }) },
+      { id: "figure-warn", html: figure({ tone: "warn" }) },
+      { id: "figure-fail", html: figure({ tone: "fail" }) },
     ],
   },
   {

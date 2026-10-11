@@ -28,8 +28,8 @@
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/charts.css": {
-    "font": 11,
-    "radius": 4,
+    "font": 9,
+    "radius": 3,
     "shadow": 0,
     "colour": 30,
     "blur": 0

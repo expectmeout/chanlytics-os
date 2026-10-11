@@ -3,7 +3,7 @@
  * data hue; unanswered wears the warn status with its icon; a channel keeps its colour whatever its rank (moved from
  * legacy/pages/reports-sections.jsx, decision 0015).
  */
-import { REPORT_CHANNELS, type ReportBarVM, type ReportChannelKey, type ReportVM } from "@chanlytics/contracts";
+import type { ReportBarVM, ReportChannelKey, ReportVM } from "@chanlytics/contracts";
 import type { ChartConfig } from "../kit/charts/geometry";
 
 export const RPT_ANSWERED: ChartConfig = {
@@ -14,7 +14,8 @@ export const RPT_ANSWERED: ChartConfig = {
 
 /**
  * A channel's colour, by the channel and never its place in a list, so the colour follows it whatever its rank. Campaigns'
- * split bar (campaigns/parts/channels.ts) reads the same ones, so a channel is one colour wherever it is drawn.
+ * split bar (campaigns/parts/channels.ts) and the People lens's bars by channel (lenses/people-mix.tsx) read the same ones, so a
+ * channel is one colour wherever it is drawn.
  */
 export const RPT_CHANNEL_COLORS: Record<ReportChannelKey, string> = {
   whatsapp: "var(--chart-cat-1)",
@@ -22,11 +23,6 @@ export const RPT_CHANNEL_COLORS: Record<ReportChannelKey, string> = {
   email: "var(--chart-cat-3)",
   sms: "var(--chart-cat-4)",
 };
-
-/** The channels as the chart kit draws them: each one's words are contracts' (REPORT_CHANNELS), its colour is above. */
-export const RPT_CHANNELS: ChartConfig = Object.fromEntries(
-  REPORT_CHANNELS.map(({ key, label }) => [key, { label, color: RPT_CHANNEL_COLORS[key] }]),
-);
 
 export const RPT_CALLS: ChartConfig = { calls: { label: "Calls", color: "var(--chart-1)" } };
 export const RPT_SENT: ChartConfig = { sent: { label: "Sent", color: "var(--chart-1)" } };
