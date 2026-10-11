@@ -159,31 +159,55 @@ interface CmReachLineProps {
 const reachTone = (will: number, pool: number, reasons: number): "ok" | "warn" | "plain" =>
   pool === 0 ? "plain" : will < pool || reasons > 0 ? "warn" : "ok";
 
+/** What the line opens: who it reaches on which channel and its bar, every reason (or the page's own list), the month's allowance, and the rules every run keeps. */
+function CmReachBox(p: CmReachLineProps) {
+  const { by = null, split = null, reasons = [], box = null, allowance = null, guard = null, testid } = p;
+  return (
+    <>
+      {by ? (
+        <p className="cm-reach-by" data-testid={`${testid}-by`}>
+          {by}
+        </p>
+      ) : null}
+      {by && split ? <CmSplitBar split={split} className="cm-who-bar" testid={`${testid}-bar`} /> : null}
+      {box ?? (reasons.length > 0 && <CmReachWhy reasons={reasons} testid={testid} />)}
+      {allowance ? (
+        <p className="cm-who-allowance" data-testid={`${testid}-allowance`}>
+          {allowance}
+        </p>
+      ) : null}
+      {guard ? (
+        <p className="cm-reach-guard" data-testid={`${testid}-guard`}>
+          <Icon name="shield" size={11} />
+          <span>{guard}</span>
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+/** The line's own words: its dot, "2 of 6 can hear it", and the first reason anybody waits. */
+function reachSaid(p: CmReachLineProps) {
+  const { will, pool, of = null, held = 0, reasons = [], first = null } = p;
+  const S = LIFECYCLE_WORDS.compose.sentence;
+  const total = pool === null ? null : Math.max(pool, will + held);
+  const lead = first ?? reasons[0]?.t ?? null;
+  return {
+    tone: reachTone(will, total ?? will, lead ? 1 : 0),
+    said: total === 0 ? S.nobody(of ?? "") : S.hear(will, total),
+    lead,
+  };
+}
+
 /**
  * Who it reaches now, as one quiet line under a campaign's sentence (Ruben, 11 Oct 2026, "Option B"): a dot, "2 of 6 can
  * hear it", and the first reason anybody is held back ("4 never said yes to offers"); the line is the press that opens the
  * rest in the kit's popover -- every reason with its door, who it reaches on which channel and its bar, and the month's
  * allowance. It stood as a count, a clause by channel, a link and a bar on two lines, between the sentence and the message.
  */
-export function CmReachLine({
-  will,
-  pool,
-  of = null,
-  held = 0,
-  reasons = [],
-  by = null,
-  split = null,
-  allowance = null,
-  guard = null,
-  first = null,
-  box = null,
-  testid,
-}: CmReachLineProps) {
-  const S = LIFECYCLE_WORDS.compose.sentence;
-  const total = pool === null ? null : Math.max(pool, will + held);
-  const lead = first ?? reasons[0]?.t ?? null;
-  const tone = reachTone(will, total ?? will, lead ? 1 : 0);
-  const said = total === 0 ? S.nobody(of ?? "") : S.hear(will, total);
+export function CmReachLine(props: CmReachLineProps) {
+  const { reasons = [], by, allowance, guard, box, testid } = props;
+  const { tone, said, lead } = reachSaid(props);
   const more = reasons.length > 0 || !!by || !!allowance || !!guard || !!box;
   const line = (
     <>
@@ -208,24 +232,7 @@ export function CmReachLine({
             </LinkButton>
           }
         >
-          {by ? (
-            <p className="cm-reach-by" data-testid={`${testid}-by`}>
-              {by}
-            </p>
-          ) : null}
-          {by && split ? <CmSplitBar split={split} className="cm-who-bar" testid={`${testid}-bar`} /> : null}
-          {box ?? (reasons.length > 0 && <CmReachWhy reasons={reasons} testid={testid} />)}
-          {allowance ? (
-            <p className="cm-who-allowance" data-testid={`${testid}-allowance`}>
-              {allowance}
-            </p>
-          ) : null}
-          {guard ? (
-            <p className="cm-reach-guard" data-testid={`${testid}-guard`}>
-              <Icon name="shield" size={11} />
-              <span>{guard}</span>
-            </p>
-          ) : null}
+          <CmReachBox {...props} />
         </Popover>
       ) : (
         <span className="cm-reach-press">{line}</span>
