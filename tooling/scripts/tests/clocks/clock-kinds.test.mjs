@@ -8,6 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { CLOCKS, CLOCK_KINDS } from "./_clocks.mjs";
+import { schemaOf } from "../_schema.mjs";
 
 test("every clock is one of the kinds, and says why", () => {
   for (const [name, c] of Object.entries(CLOCKS)) {
@@ -16,4 +17,19 @@ test("every clock is one of the kinds, and says why", () => {
     if (c.kind === "event-shaped")
       assert.match(c.why, /replaces? it/, `${name}: an event-shaped clock says what replaces it`);
   }
+});
+
+test("a due clock carries out a time its rows hold: it names the columns, and the schema has each", async () => {
+  const schema = await schemaOf();
+  const due = Object.entries(CLOCKS).filter(([, c]) => c.kind === "due");
+  assert.ok(due.length > 0);
+  for (const [name, c] of due) {
+    assert.ok(Array.isArray(c.times) && c.times.length > 0, `${name}: a due clock names the columns its time is in`);
+    for (const t of c.times) {
+      const [table, column] = t.split(".");
+      assert.ok(schema.relations[table]?.columns[column], `${name}: ${t} is not a column the schema has`);
+    }
+  }
+  for (const [name, c] of Object.entries(CLOCKS))
+    if (c.kind !== "due") assert.equal(c.times, undefined, `${name}: only a due clock names its times`);
 });
