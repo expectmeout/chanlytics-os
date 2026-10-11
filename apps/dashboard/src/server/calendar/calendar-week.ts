@@ -44,8 +44,8 @@ import {
   type CalendarFeedDto,
   type CalendarNoticesDto,
   type TenantConfig,
-  appointmentKeyOf,
-  type VisitMark,
+  markOn,
+  type FeedMark,
   feedMarksOf,
 } from "@chanlytics/contracts";
 import {
@@ -129,8 +129,8 @@ export function itemsToDays(
   consult: {
     services: readonly { name: string }[];
     rules: ConsultRules | null;
-    /** The record's row for each event the sync keeps, by its key (appointmentKeyOf): what a member's word is said on. */
-    marks?: ReadonlyMap<string, VisitMark>;
+    /** The record's row for each event the sync keeps, by its key and start (markOn): what a member's word is said on. */
+    marks?: ReadonlyMap<string, FeedMark>;
   },
 ): { days: Array<Pick<CalendarDayDto, "key" | "items">>; dropped: number } {
   const out: Array<Pick<CalendarDayDto, "key" | "items">> = [];
@@ -156,7 +156,7 @@ export function itemsToDays(
         guess: guessName(it, services),
         consultation: isConsultationTitle(it.title, consult.services, consult.rules),
         consult_service: consultServiceOf(it.title, consult.services, consult.rules),
-        visit: consult.marks?.get(appointmentKeyOf(it)) ?? null,
+        visit: markOn(consult.marks, it),
       };
     });
     out.push({ key, items: rows });
@@ -190,7 +190,7 @@ export type CalendarSources = {
    */
   rows: AppointmentLike[];
   /** The record's row for each feed event the hourly sync keeps, by its key, with how it stands (feedMarksOf). */
-  marks: ReadonlyMap<string, VisitMark>;
+  marks: ReadonlyMap<string, FeedMark>;
   /**
    * The record's taken time over the days the receptionist may offer, read beside a feed that reads (record-busy.ts):
    * what the open times subtract with the feed's own, whichever span the page shows. Empty with no readable feed,
@@ -227,7 +227,7 @@ async function recordOverSpan(
   from: string,
   to: string,
   by: { tool: string | null; name: string | null },
-): Promise<{ rows: AppointmentLike[]; marks: Map<string, VisitMark>; notices: Omit<CalendarNoticesDto, "count"> }> {
+): Promise<{ rows: AppointmentLike[]; marks: Map<string, FeedMark>; notices: Omit<CalendarNoticesDto, "count"> }> {
   const spanFrom = new Date(zoneMidnight(tz, from)).toISOString();
   const spanTo = new Date(zoneMidnight(tz, shiftKey(to, 1))).toISOString();
   const failed = (e: unknown) =>
@@ -421,7 +421,7 @@ export async function calendarSources(
 /** A read that asks nothing of the record: no rows over the span, no notice's health line, no address. */
 const NO_RECORD: {
   rows: AppointmentLike[];
-  marks: Map<string, VisitMark>;
+  marks: Map<string, FeedMark>;
   notices: Omit<CalendarNoticesDto, "count">;
 } = {
   rows: [],

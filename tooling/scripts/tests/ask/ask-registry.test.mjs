@@ -8,7 +8,8 @@
  * the ACTIONS it may use, each tool built per role from them; PR 4.6 gave propose_person a note and a person's details
  * beside its mode, an operator's two beside an owner's one; PR 4.5 gave inbox its search; PR 4.7 added propose_list,
  * an operator's (twenty for an owner), gave propose_campaign a waiting run's approval (run), and made
- * propose_thread_verb's words true for every role; 9 Oct 2026 gave propose_campaign a change in place (change). What the model is sent is frozen per role in
+ * propose_thread_verb's words true for every role; 9 Oct 2026 gave propose_campaign a change in place (change), and 11 Oct
+ * 2026 a list's rule a missed visit (missed_visit, decision 0002). What the model is sent is frozen per role in
  * fixtures/ask-tools-4-7.json, and every other tool reads to every role as fixtures/ask-tools-4-6.json froze it (which
  * PR 4.6 and PR 4.5 held to fixtures/ask-tools-4-3.json, and PR 4.3 to PR 3.4's, for the tools each did not change --
  * inbox too, less its search); the rest is held as structure: the order, the four prefixes, the flattened

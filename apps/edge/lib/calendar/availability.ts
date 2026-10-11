@@ -30,18 +30,20 @@ import {
   visitsOf,
   ownAddressesOf,
   offersBookingLink,
-  feedItemOfAppointment,
+  feedMarksOf,
+  feedWithRecord,
   busyOfAppointments,
   type BusyBlock,
   type FeedItem,
   type Opening,
   type ParsedFeed,
+  type PoolRecord,
   BOOKING_DEFAULTS,
   DAY_MS,
   MIN_MS,
 } from "../packages/contracts.js";
 import { publicFetcher } from "../packages/channels.js";
-import { appointmentsBetween, appointmentsForClient } from "../packages/db.js";
+import { appointmentsBetween, appointmentsForClient, feedWordsOver } from "../packages/db.js";
 import { pg } from "../pg.js";
 import type { TenantRuntime } from "../tenant-runtime.js";
 import { logger, errField } from "../log.js";
@@ -154,9 +156,12 @@ async function parsedFeedOf(
   return parsed;
 }
 
+/** How far ahead the workspace books: what its feed is parsed to (seasonHorizon), and the record read beside it. */
+const daysAheadOf = (rt: TenantRuntime): number =>
+  rt.brain?.profile?.booking_rules?.max_days_ahead ?? BOOKING_DEFAULTS.max_days_ahead;
+
 async function parsedFeed(rt: TenantRuntime, url: string, now: Date): Promise<ParsedFeed | null> {
-  const daysAhead = rt.brain?.profile?.booking_rules?.max_days_ahead ?? BOOKING_DEFAULTS.max_days_ahead;
-  return parsedFeedOf(rt.tenantId, url, rt.timezone ?? "", daysAhead, now);
+  return parsedFeedOf(rt.tenantId, url, rt.timezone ?? "", daysAheadOf(rt), now);
 }
 
 /** The feed's appointments for one workspace, for the sweep that puts the people they name in People. Null when the feed cannot be read. */
@@ -269,16 +274,20 @@ export async function visitsFor(
   const url = rt.calendar?.ical_url;
   if (!rt.timezone || (!who.phone && !who.name)) return null;
   try {
-    // The feed's events, when there is a feed, and beside them the record's rows for this caller (00345): a booking
-    // that arrived by email is theirs by their number, so a workspace with no calendar still knows their next visit.
-    const feed = url ? await parsedFeed(rt, url, now) : null;
-    const rows = await rowsFor(rt.tenantId, who, now);
-    const items = [...(feed?.items ?? []), ...rows];
-    if (!items.length) return null;
+    // The feed's events, when there is a feed, and the record joined to them as People and the playbooks join it
+    // (0002's readers): a booking that arrived by email is theirs by their number, so a workspace with no calendar still
+    // knows their next visit (00345), and a visit a member cancelled or said missed is never confirmed to them.
+    const [feed, record] = await Promise.all([
+      url ? parsedFeed(rt, url, now) : null,
+      recordFor(rt.tenantId, who, now, url ? seasonHorizon(now, daysAheadOf(rt)).to : null),
+    ]);
+    if (record === "failed") return null;
     // The caller is known by their number, so the business's own ADDRESSES
     // cannot be theirs -- but they still come off every event, so an owner's
     // address on an appointment never makes it read as somebody else's.
     const own = ownAddressesOf({ notifications: rt.notifications, calendar: rt.calendar });
+    const items = feedWithRecord(feed?.items ?? [], record, own);
+    if (!items.length) return null;
     return describeVisits(
       visitsOf(items, { id: "caller", name: who.name ?? "", phone: who.phone, email: null }, now.getTime(), own),
       rt.timezone,
@@ -292,24 +301,30 @@ export async function visitsFor(
 }
 
 /**
- * The record's rows for one caller, as the visits index reads them: by their number (a name alone names no row). A
- * month back, so a last visit is said too. A runtime with no database, or a read that fails, is none: the feed's
- * visits are still said, and the failure is logged where the diagnostic finds it.
+ * The record for one caller, as the visits index joins it to the feed (contracts feedWithRecord): their rows by their
+ * number (a name alone names no row), however each stands, and the word members said of the feed's events up to the
+ * feed's horizon (`feedTo`; null with no feed). A month back, so a last visit is said too. A runtime with no database
+ * is none: the feed alone. A read that fails is "failed", logged where the diagnostic finds it, and the caller's visits
+ * go unsaid: one a member cancelled could not be told from one that stands.
  */
-async function rowsFor(tenantId: string, who: { phone: string | null }, now: Date): Promise<FeedItem[]> {
+async function recordFor(
+  tenantId: string,
+  who: { phone: string | null },
+  now: Date,
+  feedTo: number | null,
+): Promise<PoolRecord | null | "failed"> {
   const db = pg();
-  if (!db || !who.phone) return [];
+  if (!db) return null;
+  const from = new Date(now.getTime() - VISITS_BACK_MS).toISOString();
   try {
-    const rows = await appointmentsForClient(
-      db,
-      tenantId,
-      { phone: who.phone, email: null },
-      new Date(now.getTime() - VISITS_BACK_MS).toISOString(),
-    );
-    return rows.map(feedItemOfAppointment);
+    const [noted, words] = await Promise.all([
+      who.phone ? appointmentsForClient(db, tenantId, { phone: who.phone, email: null }, from) : [],
+      feedTo !== null ? feedWordsOver(db, tenantId, from, new Date(feedTo).toISOString()) : [],
+    ]);
+    return { noted, marks: feedMarksOf(words) };
   } catch (e) {
     logger({ tenant_id: tenantId }).error("availability_visits_failed", { error: errField(e), source: "record" });
-    return [];
+    return "failed";
   }
 }
 

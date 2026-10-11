@@ -517,6 +517,8 @@ export {
   updateAppointment,
   appointmentsBetween,
   visitsOver,
+  recordOver,
+  feedWordsOver,
   markVisit,
   appointmentWorkspace,
   appointmentsForClient,

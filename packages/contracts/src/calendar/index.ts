@@ -1,7 +1,7 @@
 /** The owner's calendar as the receptionist reads it: the feed's address, what is open, and the people in it. */
 export { zoneOffsetMs, localToUtcMs, clockInZone, dayInZone, dayPlusInZone, WEEKDAY_KEYS } from "./zone-math";
 export { parseIcs } from "./feed";
-export { appointmentKeyOf } from "./appointment-key";
+export { appointmentKeyOf, recordKeyOf, recordIdOf } from "./appointment-key";
 export {
   APPOINTMENT_SOURCES,
   APPOINTMENT_STATUSES,
@@ -85,8 +85,10 @@ export {
   withoutVisitsRowsDraw,
   daysWithAppointments,
   feedMarksOf,
+  feedWithRecord,
+  markOn,
 } from "./appointment-item";
-export type { AppointmentLike } from "./appointment-item";
+export type { AppointmentLike, FeedMark, PoolRecord } from "./appointment-item";
 export type {
   CalendarItemDto,
   CalendarDayDto,
@@ -149,7 +151,6 @@ export {
   peopleFromItems,
   afterPersonRefused,
   bookedAfterAsk,
-  visitAnswersAsk,
 } from "./calendar-people";
 export type {
   EventContacts,

@@ -3686,7 +3686,10 @@ test("report reads what the Reports page reads (ledger #1): the series, then the
         "lines.select",
         "policies.select",
         // The calendar's zone and settings for the booking line, and how the workspace's customers buy, are the
-        // turn's: none read again. The deals.
+        // turn's: none read again. The record over the feed's season, joined to it (0002's readers): a booking's rows,
+        // and the feed's rows by key. The deals.
+        "appointments.select",
+        "appointments.select",
         "deals.select",
       ].sort(),
     );

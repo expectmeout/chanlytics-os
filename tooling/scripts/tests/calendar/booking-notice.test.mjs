@@ -31,6 +31,7 @@ const {
   personOfAppointment,
   withoutVisitsRowsDraw,
 } = await importSrc("packages/contracts/src/calendar/appointment-item.ts");
+const { visitsOf } = await importSrc("packages/contracts/src/calendar/calendar-people.ts");
 
 test("a row is taken time from its start to its end, the one rule every reader that names an open time subtracts by", () => {
   // The board, Ask, the prompt's preview and the receptionist each hand their rows here (00345), so none offers a
@@ -340,6 +341,17 @@ test("a row is drawn with the notice's words, its person by the number or the ad
   const feedItem = feedItemOfAppointment(row());
   assert.equal(feedItem.uid, "appt:a1");
   assert.deepEqual(feedItem.attendees, [{ name: "Dana Rivera", email: "dana.rivera@example.com" }]);
+  // The number where an event carries one: the visits index finds a notice that gave a number alone (0002's readers;
+  // the receptionist's caller, by their number, 00345).
+  assert.ok(
+    visitsOf(
+      [feedItemOfAppointment(row({ client_email: null }))],
+      { id: "p", name: "", phone: "+13055550144", email: null },
+      Date.parse("2026-10-01T12:00:00Z"),
+      new Set(),
+    ).next,
+    "found by the number alone",
+  );
 });
 
 test("a feed event that is a row's visit is left to the row: same client, a start within fifteen minutes", () => {

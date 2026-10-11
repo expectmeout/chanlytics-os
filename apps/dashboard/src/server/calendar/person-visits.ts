@@ -11,10 +11,12 @@ import {
   type VisitDto,
   allVisitsIn,
   visitsIn,
+  feedWithRecord,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "@/server/with-route";
 import { calendarOf } from "./calendar-settings";
 import { parsedFeedFor, type ParsedRead } from "./parsed-feed";
+import { poolRecordOf } from "./people-visits";
 import { log } from "@/server/log";
 
 /* ---- One person's appointments, for their profile ---- */
@@ -46,16 +48,33 @@ export async function personVisits(
       return { parsed: null, at: null, reason: "not_ical", status: null, checkedAt: null };
     }
   });
-  const [{ url, lostCalendar, timezone, source, own }, feed, person] = await Promise.all([calendar, feedRead, who]);
+  // The record beside the feed (0002's readers): a booking's visits join theirs, a cancelled one leaves, a word rides.
+  const recordRead = calendar.then(({ url }) => (url ? poolRecordOf(ctx, tenantId, now) : null));
+  const [{ url, lostCalendar, timezone, source, own }, feed, person, record] = await Promise.all([
+    calendar,
+    feedRead,
+    who,
+    recordRead,
+  ]);
   // No calendar: nothing to say about this person's visits. A calendar the settings hid: say that, not nothing.
   if (!url) return lostCalendar ? { timezone, source, state: "unavailable", next: null, last: null } : null;
   if (!person) return null;
-  if (!feed?.parsed) return { timezone, source, state: "unavailable", next: null, last: null };
-  const index = indexFeed(feed.parsed.items, own);
+  // A record that could not be read is the calendar unavailable too: a visit it cancelled, or a member said missed, could
+  // not be told from one that stands.
+  if (!feed?.parsed || !record) return { timezone, source, state: "unavailable", next: null, last: null };
+  const index = indexFeed(feedWithRecord(feed.parsed.items, record, own), own);
   const v = visitsIn(index, person, now.getTime());
   // The timeline wants them all; a season either side is what the parse holds.
   const all = allVisitsIn(index, person)
     .map((x) => toVisitDto(x) as VisitDto)
     .slice(-60);
-  return { timezone, source, state: "ok", next: toVisitDto(v.next), last: toVisitDto(v.last), all };
+  return {
+    timezone,
+    source,
+    state: "ok",
+    next: toVisitDto(v.next),
+    last: toVisitDto(v.last),
+    missed: toVisitDto(v.missed ?? null),
+    all,
+  };
 }

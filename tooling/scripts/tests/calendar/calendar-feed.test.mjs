@@ -842,19 +842,20 @@ test("the people are read beside the calendar's feed, not after it: a slow feed 
 const post = (body) =>
   new Request("http://localhost/api/v1/calendar/visits/x", { method: "POST", body: JSON.stringify(body) });
 
-test("each feed event finds its record's row by its key, with how it stands", () => {
+test("each feed event finds its record's row by its key, with how it stands, while it stands where the row does", () => {
+  const T = "2026-09-08T13:00:00.000Z";
   assert.deepEqual(
     [
       ...feedMarksOf([
-        { id: "f1", status: "booked", external_id: "k-f1" },
-        { id: "f2", status: "missed", external_id: "k-f2" },
-        { id: "f3", status: "rescheduled", external_id: "k-f3" },
-        { id: "f4", status: "booked", external_id: null },
+        { id: "f1", status: "booked", external_id: "k-f1", starts_at: T },
+        { id: "f2", status: "missed", external_id: "k-f2", starts_at: T },
+        { id: "f3", status: "rescheduled", external_id: "k-f3", starts_at: T },
+        { id: "f4", status: "booked", external_id: null, starts_at: T },
       ]),
     ],
     [
-      ["k-f1", { id: "f1", status: "booked" }],
-      ["k-f2", { id: "f2", status: "missed" }],
+      ["k-f1", { id: "f1", status: "booked", start: Date.parse(T) }],
+      ["k-f2", { id: "f2", status: "missed", start: Date.parse(T) }],
     ],
     "a status the record does not hold, and a row with no key, are no event's",
   );
@@ -883,8 +884,10 @@ test("each feed event finds its record's row by its key, with how it stands", ()
       services: [],
       rules: null,
       marks: new Map([
-        ["ev-a", { id: "f1", status: "missed" }],
-        ["ev-b:1757000000000", { id: "f2", status: "booked" }],
+        ["ev-a", { id: "f1", status: "missed", start: at9 }],
+        ["ev-b:1757000000000", { id: "f2", status: "booked", start: at9 + 3_600_000 }],
+        // Moved on the calendar since the sync kept it at nine: until the sync sets the row aside (00397), no word.
+        ["ev-d", { id: "f4", status: "missed", start: at9 }],
       ]),
     },
   );
@@ -893,6 +896,12 @@ test("each feed event finds its record's row by its key, with how it stands", ()
     [{ id: "f1", status: "missed" }, { id: "f2", status: "booked" }, null],
     "an occurrence by its own key; an event the sync has not kept has no row to say anything on",
   );
+  const { days: moved } = itemsToDays([event("ev-d", at9 + 3 * 3_600_000)], "2026-09-08", 1, TZ, [], new Set(), [], {
+    services: [],
+    rules: null,
+    marks: new Map([["ev-d", { id: "f4", status: "missed", start: at9 }]]),
+  });
+  assert.equal(moved[0].items[0].visit, null, "a word said of nine o'clock is not said of noon");
 });
 
 test("POST calendar/visits/:id: an operator's word reaches the door with what they said; a viewer, a stranger's visit and a word that is not one of the three are refused before it; its refusal is a sentence", async () => {
