@@ -14,6 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   NO_WAY_TO_SEND_LINK,
+  GREETING_TEMPLATE,
   newReceptionistDefaults,
   instructionsDraft,
   FALLBACK_DEFAULTS,
@@ -157,6 +158,12 @@ const EDITS = {
     () => "Bright, and quick to the point.",
     (next) => assert.equal(next.brain.profile.tone, "Bright, and quick to the point."),
   ],
+  // The phone greeting (decision 0051): the owner's line, stored with {business} for the name; the standard line stores nothing.
+  phone_greeting: [
+    () => "  Hi, {business}! I'm the virtual assistant. How can I help?  ",
+    (next) =>
+      assert.equal(next.brain.profile.phone_greeting, "Hi, {business}! I'm the virtual assistant. How can I help?"),
+  ],
   hours: [
     (d) => ({ ...d, sun: { isOpen: true, shifts: [{ open: "10:00", close: "16:00" }] } }),
     (next) => assert.deepEqual(next.brain.profile.hours.sun, { open: "10:00", close: "16:00" }),
@@ -294,6 +301,7 @@ test("every fold is named once, owns exactly its paths, and is a fold the bridge
   assert.deepEqual(Object.keys(S.PATHS_OF).sort(), [...FOLDS].sort());
   assert.deepEqual(S.KEYS_OF, {
     tone: ["tone"],
+    phone_greeting: ["phone_greeting"],
     hours: ["hours"],
     closures: ["closures"],
     services: ["services"],
@@ -429,6 +437,11 @@ test("a draft is the fold's own: changing it in place changes nothing stored", (
 test("each fold opens with its stored values, as the form it replaces opened them", () => {
   const s = stored();
   assert.equal(S.draftOf("tone", s), "Warm and unhurried.");
+  assert.equal(
+    S.draftOf("phone_greeting", s),
+    GREETING_TEMPLATE,
+    "nothing stored: the standard line, to be made their own",
+  );
   assert.deepEqual(S.draftOf("languages", s), ["English", "Spanish"]);
   assert.equal(S.draftOf("escalate_when", s), "They ask for Marisa\nThey are upset, or have a complaint");
   assert.equal(S.draftOf("consult_first", s), "Color correction\nExtensions");
@@ -520,6 +533,8 @@ test("each fold opens with its stored values, as the form it replaces opened the
     FOLDS.map((f) => [f, S.draftOf(f, none)]),
     [
       ["tone", ""],
+      // The greeting opens on the standard line, the slot where the name goes (decision 0051).
+      ["phone_greeting", GREETING_TEMPLATE],
       ["hours", Object.fromEntries(DAYS.map((d) => [d, { isOpen: false, shifts: [] }]))],
       ["closures", []],
       ["services", []],

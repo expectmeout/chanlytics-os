@@ -34,6 +34,7 @@ import {
   fallbackMessages,
   parseBrainOutput,
   parseTenantConfigResult,
+  priceAllowance,
   resolveSystemPrompt,
 } from "@chanlytics/contracts";
 import { judgeCase, validateCases } from "../eval-judge.mjs";
@@ -180,7 +181,7 @@ export async function runAll(key, workspace, cases, repeats, over = {}) {
       } catch (e) {
         result = { id: c.id, ok: false, error: e instanceof Error ? e.message : String(e), ms: 0 };
       }
-      results.push({ case: c, result, ...judgeCase(c, result) });
+      results.push({ case: c, result, ...judgeCase(c, result, priceAllowance(workspace.brain)) });
     }
   }
   return results;

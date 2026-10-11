@@ -125,18 +125,18 @@ test("an answer that is a fact of the business names the fact it relied on: a ri
     meta: { intent: "hours", confidence: 0.9, language: "en", facts_used: ["Tuesday hours"] },
     ...over,
   });
-  assert.deepEqual(judgeCase(c, said()), { pass: true, failures: [] });
+  assert.deepEqual(judgeCase(c, said(), null), { pass: true, failures: [] });
   for (const none of [[], ["  "], undefined])
     assert.deepEqual(
-      judgeCase(c, said({ meta: { ...said().meta, facts_used: none } })).failures,
+      judgeCase(c, said({ meta: { ...said().meta, facts_used: none } }), null).failures,
       ["named no fact it relied on"],
       JSON.stringify(none),
     );
-  assert.deepEqual(judgeCase(c, said({ text: "We open at 10 AM on Tuesdays." })).failures, [
+  assert.deepEqual(judgeCase(c, said({ text: "We open at 10 AM on Tuesdays." }), null).failures, [
     "missing /\\b9\\b|09:00|nine/",
   ]);
   assert.deepEqual(
-    judgeCase(c, said({ text: "A member of our team will follow up shortly.", escalate: true })).failures,
+    judgeCase(c, said({ text: "A member of our team will follow up shortly.", escalate: true }), null).failures,
     ["escalate true, wanted false", "missing /\\b9\\b|09:00|nine/"],
     "handing the customer over answers nothing",
   );

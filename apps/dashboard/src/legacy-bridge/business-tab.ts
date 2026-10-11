@@ -18,6 +18,14 @@ import {
   capabilityStatus,
   POLICY_MODES,
   ruleStrength,
+  ALWAYS_TOLD,
+  allowedPrices,
+  pricesWrittenWords,
+  greetingNotes,
+  greetingOf,
+  GREETING_TEMPLATE,
+  namesMoney,
+  violatesNoPrices,
   VISION_STRENGTH,
   rulesKept,
   GUARDRAIL_KEYS,
@@ -148,6 +156,8 @@ export const FOLD_BLOCK = {
   system_prompt: "platform",
   // Sent in the business's name in place of a reply the model wrote (no model, a failed call, a voice note), never part of the prompt.
   fallbacks: null,
+  // Spoken by the phone as a call's first words, word for word (call-start's greeting variable), never part of the prompt.
+  phone_greeting: null,
   // The feed's openings follow the prompt, in the block rebuilt for every message and call (prompt-preview.ts `now`);
   // and what the owner books with (00345) is where the bookings come from, never a word of the prompt.
   calendar: null,
@@ -348,6 +358,14 @@ export const BUSINESS_TAB = {
   capabilityStatus,
   POLICY_MODES,
   ruleStrength,
+  ALWAYS_TOLD,
+  allowedPrices,
+  pricesWrittenWords,
+  greetingNotes,
+  greetingOf,
+  GREETING_TEMPLATE,
+  namesMoney,
+  violatesNoPrices,
   GUARDRAIL_KEYS,
   promptBlocks,
   consequenceOf,

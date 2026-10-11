@@ -191,7 +191,7 @@ test("the frames: the hand-over is the platform's and names the one tool; an inj
   });
   assert.deepEqual(injectedTurn(frameGuardrail("price", { hasBookingLink: true })), {
     speaker: "platform",
-    text: "You quoted or confirmed a price, and your standing rules do not allow that.",
+    text: "You said a price your instructions do not let you give.",
   });
   assert.deepEqual(injectedTurn(ours), {
     speaker: "platform",

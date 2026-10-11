@@ -20,6 +20,7 @@ import {
   RULES_WITHOUT_FIELDS_WORDS,
   DATA_NOT_INSTRUCTIONS,
 } from "@chanlytics/contracts";
+import { ASSISTANT_LINES, RULES_WIN } from "../_prompt-rules.mjs";
 
 const brain = {
   business_name: "Marisa's Beauty Salon",
@@ -320,7 +321,13 @@ test("the resolver composes the typed details with the owner's words as ownWords
                 // The Autonomy rows in force, then the standing rules (the money row, the fence): never none. A call with a
                 // link and no WhatsApp line to send it by (known is null here) is told so first (contracts offersLinkOn).
                 const cannotSend = channel === "voice" && b.booking_link ? [NO_WAY_TO_SEND_LINK] : [];
-                const rules = [...cannotSend, ...policyRules(policy, channel), DATA_NOT_INSTRUCTIONS];
+                const rules = [
+                  ...cannotSend,
+                  ...policyRules(policy, channel),
+                  ...ASSISTANT_LINES[channel],
+                  RULES_WIN,
+                  DATA_NOT_INSTRUCTIONS,
+                ];
                 want = `${system_prompt}\n\n${PROMPT_OPENINGS.rules}\n${rules.map((r) => `- ${r}`).join("\n")}`;
               }
               assert.equal(

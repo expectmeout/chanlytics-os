@@ -48,9 +48,114 @@ export function violatesNoPrices(text: string): boolean {
 }
 
 /**
- * Each price a text names, as the figure it states: "45" of "$45" and of "45 dollars", "20" of "20% off", and the
- * words themselves where a price is written with none ("half price", "forty-five dollars"). So two texts can be asked
- * whether one names a price the other does not (a draft and what its author gave it: the dashboard's person-draft.ts),
+ * A run of digits as one figure: thousands separators gone ("1,200" and "1.200" are 1200), the decimal mark unified
+ * and trailing zeros dropped ("45.50" is "45.5", "45,00" is "45"). A group of exactly three digits after a separator is
+ * thousands; one or two after the last separator are cents.
+ */
+function canonicalNumber(run: string): string {
+  const m = /^(\d{1,3}(?:[.,]\d{3})+|\d+)(?:[.,](\d{1,2}))?$/.exec(run);
+  if (!m) return run.replace(/[.,]0+$/, "");
+  const [, whole = "", cents = ""] = m;
+  const int = String(Number(whole.replace(/[.,]/g, "")));
+  const dec = cents.replace(/0+$/, "");
+  return dec ? `${int}.${dec}` : int;
+}
+
+/** The number words a price is spelled with, English and Spanish (accents folded), and what each is worth. */
+const NUMBER_WORDS: Readonly<Record<string, number>> = /* @__PURE__ */ (() => {
+  const w: Record<string, number> = {};
+  const units = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven"];
+  const teens = ["twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
+  const tens = ["twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+  units.forEach((u, i) => (w[u] = i));
+  teens.forEach((t, i) => (w[t] = 12 + i));
+  tens.forEach((t, i) => (w[t] = 20 + 10 * i));
+  const es = "un uno una dos tres cuatro cinco seis siete ocho nueve diez once doce trece catorce quince".split(" ");
+  es.forEach((u, i) => (w[u] = i < 3 ? 1 : i - 1));
+  ["dieciseis", "diecisiete", "dieciocho", "diecinueve"].forEach((t, i) => (w[t] = 16 + i));
+  w.veinte = 20;
+  ["veintiun", "veintiuno", "veintiuna"].forEach((t) => (w[t] = 21));
+  "veintidos veintitres veinticuatro veinticinco veintiseis veintisiete veintiocho veintinueve"
+    .split(" ")
+    .forEach((t, i) => (w[t] = 22 + i));
+  ["treinta", "cuarenta", "cincuenta", "sesenta", "setenta", "ochenta", "noventa"].forEach(
+    (t, i) => (w[t] = 30 + 10 * i),
+  );
+  w.cien = 100;
+  w.ciento = 100;
+  "doscientos trescientos cuatrocientos quinientos seiscientos setecientos ochocientos novecientos"
+    .split(" ")
+    .forEach((t, i) => (w[t] = [200, 300, 400, 500, 600, 700, 800, 900][i] ?? 0));
+  return w;
+})();
+
+/** "forty-five", "two hundred and fifty", "cuarenta y cinco", "mil quinientos" as a number, or null where a word is not one. */
+function numberOfWords(words: string): number | null {
+  const tokens = words
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .split(/[\s-]+/)
+    .filter((t) => t && t !== "and" && t !== "y");
+  if (!tokens.length) return null;
+  let total = 0;
+  let current = 0;
+  for (const t of tokens) {
+    if (t === "hundred") current = (current || 1) * 100;
+    else if (t === "thousand" || t === "mil") {
+      total += (current || 1) * 1000;
+      current = 0;
+    } else if (t in NUMBER_WORDS) current += NUMBER_WORDS[t] ?? 0;
+    else return null;
+  }
+  return total + current;
+}
+
+const CURRENCY_WORDS = new RegExp(String.raw`\b${COUNTRY}(?:${CODES}|${NAMES}|quid)\b`, "gi");
+const PERCENT_SIGN = new RegExp(PERCENT, "i");
+
+/** A deal written with digits that are no price: "2x1" is two for one, never a price of 2. */
+const DEAL = /\b(?:2\s?x\s?1|dos por uno)\b/i;
+
+/** One matched price as its figure: the canonical number, "%" after a share, and the words where none can be read. */
+function figureOf(whole: string): string {
+  if (DEAL.test(whole)) return "2x1";
+  const percent = PERCENT_SIGN.test(whole) ? "%" : "";
+  const run = /\d+(?:[.,]\d+)*/.exec(whole)?.[0];
+  if (run) return `${canonicalNumber(run)}${percent}`;
+  const spelled = numberOfWords(
+    whole
+      .replace(CURRENCY_WORDS, " ")
+      .replace(PERCENT_SIGN, " ")
+      .replace(/\b(?:off|discount)\b/gi, " "),
+  );
+  return spelled !== null ? `${spelled}${percent}` : whole.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+/** What a number after a price may be instead of a second price: a time, a duration, a count, a phone number. */
+const NOT_A_PRICE_AFTER = String.raw`(?!\d|[.,]\d|-\d|\s*(?::|%|-?\s*(?:am|pm|a\.m|p\.m|o'clock|min|mins|minutes?|hours?|hrs?|people|persons?|guests?|days?|weeks?|months?|years?|minutos?|horas?|personas?|d[ií]as?|semanas?|meses|años?)\b))`;
+/** The top of a range written after a price: "$45-60", "$45 to 60", "$45 a 60", "$45 hasta 60". */
+const RANGE_TOP = new RegExp(
+  String.raw`^\s*(?:-|–|—|to|a|hasta)\s*[$€£]?\s*(\d+(?:[.,]\d+)*)${NOT_A_PRICE_AFTER}`,
+  "i",
+);
+/** The top of a range opened by "between" or "entre": "between $45 and 60", "entre $45 y 60". */
+const BETWEEN_TOP = new RegExp(String.raw`^\s*(?:and|y)\s*[$€£]?\s*(\d+(?:[.,]\d+)*)${NOT_A_PRICE_AFTER}`, "i");
+
+/** The second figure of a range that starts with a price ending at `to`, or null: "60" of "$45-60". */
+function rangeTopAfter(text: string, from: number, to: number): string | null {
+  const tail = text.slice(to);
+  const top =
+    RANGE_TOP.exec(tail) ?? (/\b(?:between|entre)\s+$/i.test(text.slice(0, from)) ? BETWEEN_TOP.exec(tail) : null);
+  return top?.[1] ? canonicalNumber(top[1].replace(/[.,]$/, "")) : null;
+}
+
+/**
+ * Each price a text names, as the figure it states: "45" of "$45", of "45 dollars" and of "forty-five dollars";
+ * "1200" of "$1,200"; "20%" of "20% off", so a share never reads as a price of the same number; and the words
+ * themselves where a price is written with no number to read ("half price"); and the top of a range ("60" of "$45-60",
+ * "$45 to 60", "between $45 and 60"), which a pattern stops short of. So two texts can be asked whether one
+ * names a price the other does not (priceBreach; a draft and what its author gave it, the dashboard's person-draft.ts),
  * where violatesNoPrices can only say whether a price is named at all.
  */
 export function priceFigures(text: string): string[] {
@@ -62,12 +167,24 @@ export function priceFigures(text: string): string[] {
       let to = m.index + m[0].length;
       while (from > 0 && /[\d.,]/.test(text.charAt(from - 1))) from -= 1;
       while (to < text.length && /[\d.,]/.test(text.charAt(to))) to += 1;
-      const whole = text.slice(from, to);
-      const figure = /\d+(?:[.,]\d+)*/.exec(whole)?.[0].replace(/[.,]0+$/, "");
-      found.push(figure ?? whole.toLowerCase().replace(/\s+/g, " ").trim());
+      const figure = figureOf(text.slice(from, to).replace(/[.,]$/, ""));
+      found.push(figure);
+      const top = /^\d/.test(figure) && !figure.endsWith("%") ? rangeTopAfter(text, from, to) : null;
+      if (top) found.push(top);
     }
   }
-  return found;
+  return [...new Set(found)];
+}
+
+/**
+ * Whether a text names a price it may not (decision 0051). With no allowance, any price at all (violatesNoPrices: the
+ * strict rule, and every workspace's while "Never quote a price" is on). With one (price-allowance.ts: the amounts the
+ * owner wrote, while the switch is off), any figure outside it: a price it worked out, a share, or words it cannot
+ * read as a number. ONE predicate for a chat reply (layerTwo), a call (spokenBreach), a steer and the eval judge.
+ */
+export function priceBreach(text: string, allowed: ReadonlySet<string> | null): boolean {
+  if (!allowed) return violatesNoPrices(text);
+  return priceFigures(text).some((f) => !allowed.has(f));
 }
 
 // Money the receptionist never decides, in English and Spanish: a refund, a
@@ -206,15 +323,30 @@ export interface SpokenTurn {
  * "injected" — so a check that scanned every turn would find the rule it had
  * just quoted, correct the call again, and keep doing it for the length of
  * the call.
+ *
+ * The greeting is not read: the agent's first turn, before the caller has said a word, is the owner's own line spoken as
+ * written (contracts voice/greeting-owner.ts, decision 0051), never the receptionist's choice, so a price in it is
+ * theirs to say whatever the switch is ("Callers hear this one anyway"). Exempting the turn, never its figures, keeps
+ * "Never quote a price" whole for everything the receptionist says after it.
+ *
+ * `allowed` is the workspace's allowance (price-allowance.ts priceAllowance): null for the strict rule, any price at
+ * all; otherwise the amounts the owner wrote, which may be said (priceBreach, the one predicate). Required, so every
+ * caller says which: a defaulted one would let a caller forget, and nothing would fail.
  */
-export function spokenBreach(turns: ReadonlyArray<SpokenTurn> | null | undefined): SpokenBreach | null {
+export function spokenBreach(
+  turns: ReadonlyArray<SpokenTurn> | null | undefined,
+  allowed: ReadonlySet<string> | null,
+): SpokenBreach | null {
   if (!turns?.length) return null;
   let n = 0;
+  let callerSpoke = false;
   for (const t of turns) {
+    if (t?.role === "user") callerSpoke = true;
     if (t?.role !== "agent") continue;
     n += 1;
+    if (n === 1 && !callerSpoke) continue;
     const said = (t.content ?? "").trim();
-    if (said && violatesNoPrices(said)) return { rule: "price", said: said.slice(0, 300), turn: n };
+    if (said && priceBreach(said, allowed)) return { rule: "price", said: said.slice(0, 300), turn: n };
   }
   return null;
 }
@@ -222,7 +354,7 @@ export function spokenBreach(turns: ReadonlyArray<SpokenTurn> | null | undefined
 /** What the owner reads in the Inbox. Names the words, and what they cost. */
 export function spokenBreachDetails(b: SpokenBreach): string {
   return (
-    "The phone receptionist quoted a price out loud, which its standing rules do not allow. " +
+    "The phone receptionist said a price out loud that it may not give: none while “Never quote a price” is on, and otherwise one you haven't written. " +
     `It said: "${b.said}" ` +
     "A call cannot be taken back the way a draft can, so check what the caller was told before confirming anything."
   );
@@ -249,8 +381,10 @@ export function guardSpokenTurns(o: {
   /** The call is still in progress. */
   live: boolean;
   alreadyCorrected: boolean;
+  /** The phone allowance, or null for the strict rule (spokenBreach). */
+  allowed: ReadonlySet<string> | null;
 }): SpokenGuardVerdict {
-  const breach = spokenBreach(o.turns);
+  const breach = spokenBreach(o.turns, o.allowed);
   if (!breach) return { breach: null, escalate: null, correct: false };
   return {
     breach,

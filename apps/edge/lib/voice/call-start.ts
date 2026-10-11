@@ -36,7 +36,8 @@ import {
   resolveSystemPrompt,
   describeNow,
   pausedVoiceFacts,
-  pausedGreetingFor,
+  greetingOf,
+  type GreetingSource,
 } from "../packages/contracts.js";
 import { FACTS_UNAVAILABLE, CALLER_UNKNOWN, greetingFor } from "../packages/channels.js";
 
@@ -83,6 +84,8 @@ type MemoryOutcome =
 
 interface CallStart {
   variables: CallVariables;
+  /** Where the greeting came from (contracts greetingOf), or "late" past the plan's budget: the log line says it. */
+  greetingSource: GreetingSource | "late";
   facts: FactsOutcome;
   memory: MemoryOutcome;
   /** Calls are arriving for a channel nobody routes: the platform is told. Sent by the door, where the suppression lives. */
@@ -173,6 +176,7 @@ export async function planCallStartWithin(o: CallStartInput): Promise<CallStart 
   if (planned) return { ...planned, late: false };
   return {
     variables: { caller_context: CALLER_UNKNOWN, business_facts: FACTS_UNAVAILABLE, greeting: greetingFor(null) },
+    greetingSource: "late",
     facts: "unreadable",
     memory: "none",
     alert: false,
@@ -180,6 +184,22 @@ export async function planCallStartWithin(o: CallStartInput): Promise<CallStart 
     conversationId: null,
     tenantId: null,
     late: true,
+  };
+}
+
+/**
+ * Retell's variables for the call. Never omitted and never empty: Retell leaves an unsupplied variable in the prompt AS
+ * the literal `{{business_facts}}`, and treats "" as a real value that also skips the shell's default. The constants
+ * are the shell's own, so the fallback here and the default there cannot drift. The greeting is the business's own
+ * line where it wrote one, else the standard one composed from its name (a rename never leaves the phone saying the old
+ * one), nameless when the business is unknown, and paused, the take-a-message line (contracts greetingOf).
+ */
+function callVariables(v: { context: string; businessFacts: string; handoff: string | null; greeting: string }) {
+  return {
+    caller_context: v.context || CALLER_UNKNOWN,
+    business_facts: v.businessFacts || FACTS_UNAVAILABLE,
+    ...(v.handoff ? { handoff_number: v.handoff } : {}),
+    greeting: v.greeting,
   };
 }
 
@@ -194,6 +214,7 @@ async function planCallStart(o: CallStartInput, calendar: Calendar): Promise<Cal
   let businessFacts = "";
   let context = "";
   let businessName: string | null = null;
+  let ownGreeting: string | undefined;
   let handoff: string | null = null;
   let conversationId: string | null = null;
   let tenantId: string | null = null;
@@ -242,6 +263,7 @@ async function planCallStart(o: CallStartInput, calendar: Calendar): Promise<Cal
         } else {
           rt = rtR.value;
           businessName = rt.brain?.business_name ?? null;
+          ownGreeting = rt.brain?.profile?.phone_greeting;
           handoff = rt.brain?.profile?.handoff_number ?? null;
           if (rt.loadFailed) {
             fail("the workspace's runtime could not be loaded");
@@ -308,21 +330,10 @@ async function planCallStart(o: CallStartInput, calendar: Calendar): Promise<Cal
     fail(e);
   }
 
+  const opening = greetingOf({ name: businessName, stored: ownGreeting, paused: facts === "paused" });
   return {
-    variables: {
-      caller_context: context || CALLER_UNKNOWN,
-      // Never omitted and never empty: Retell leaves an unsupplied variable in
-      // the prompt AS the literal `{{business_facts}}`, and treats "" as a real
-      // value that also skips the shell's default. The constant is the shell's
-      // own, so the fallback here and the default there cannot drift.
-      business_facts: businessFacts || FACTS_UNAVAILABLE,
-      ...(handoff ? { handoff_number: handoff } : {}),
-      // The first sentence of the call, composed from the business's name so
-      // a rename never leaves the phone greeting saying the old one; nameless
-      // when the business is unknown, which is never wrong.
-      // Paused, it says before anything else that it only takes a message today.
-      greeting: facts === "paused" ? pausedGreetingFor(businessName) : greetingFor(businessName),
-    },
+    variables: callVariables({ context, businessFacts, handoff, greeting: opening.text }),
+    greetingSource: opening.source,
     facts,
     memory,
     alert,

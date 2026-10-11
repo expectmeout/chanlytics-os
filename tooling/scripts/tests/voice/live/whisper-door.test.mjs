@@ -216,7 +216,7 @@ test("the whisper: the owner's words reach the provider framed as the owner's in
       "the agent is told whose words these are",
     );
     assert.ok(
-      framed.includes(`Owner: "${WORDS}"`) && framed.includes("Your standing rules still hold"),
+      framed.includes(`Owner: "${WORDS}"`) && framed.includes("The rules in your instructions still hold"),
       "influence, never override: a whisper is not the way around the price rule",
     );
     assert.notEqual(framed, WORDS, "REGRESSION: the first real whisper went in bare and lost to a direct question");

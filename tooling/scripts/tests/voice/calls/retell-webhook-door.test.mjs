@@ -1318,6 +1318,61 @@ test("a price spoken aloud: the owner is told (policy_block), and the live call 
   }
 });
 
+test("a price the owner wrote, with Never quote a price off, is no breach on a call; one they did not write still is (decision 0051)", async () => {
+  const w = world();
+  // The switch off, a price written in a service's box, and details that compose a prompt (the hours).
+  w.tables.tenant_config.push({
+    tenant_id: w.T,
+    config: {
+      brain: {
+        business_name: "Harbor Moving",
+        system_prompt: "Answer as the front desk of Harbor Moving: brief and warm, and never guess a price.",
+        fallbacks: { greeting: "g", error: "e", non_text: "n" },
+        profile: {
+          hours: { mon: { open: "09:00", close: "17:00" } },
+          services: [{ name: "One-bedroom move", price_note: "$450" }],
+          guardrails: { never_quote_prices: false },
+        },
+      },
+    },
+  });
+  w.open();
+  const line = wire();
+  try {
+    const id = w.callId("listed");
+    await deliver("call_started", w.call(id, { call_status: "ongoing", start_timestamp: NOW - 20_000 }));
+    const turns = [
+      { role: "agent", content: "Thanks for calling Harbor Moving!" },
+      { role: "user", content: "How much for a one-bedroom?" },
+      { role: "agent", content: "A one-bedroom move is $450." },
+    ];
+    const listed = await deliver(
+      "transcript_updated",
+      w.call(id, { call_status: "ongoing", transcript_with_tool_calls: turns }),
+    );
+    assert.equal(listed.status, 200);
+    assert.equal(w.tables.escalations.length, 0, "the owner's own price: nothing to tell them");
+    assert.equal(line.to("update-live-call").length, 0, "and nothing to correct");
+    const invented = await deliver(
+      "transcript_updated",
+      w.call(id, {
+        call_status: "ongoing",
+        transcript_with_tool_calls: [
+          ...turns,
+          { role: "user", content: "And a two-bedroom?" },
+          { role: "agent", content: "A two-bedroom is about $700." },
+        ],
+      }),
+    );
+    assert.equal(invented.status, 200);
+    assert.equal(w.tables.escalations.length, 1, "a price nobody wrote is still the owner's to hear about");
+    assert.equal(w.tables.escalations[0].reason, "policy_block");
+    assert.ok(w.tables.escalations[0].details.includes('It said: "A two-bedroom is about $700."'));
+  } finally {
+    line.restore();
+  }
+});
+
 test("an ingest the database refuses is a 503, so the provider retries: nothing downstream happens, and the retry lands", async () => {
   const w = world();
   const line = wire();

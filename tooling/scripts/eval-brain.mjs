@@ -43,6 +43,9 @@ if (problems.length) {
 
 const BATCH = 6;
 const results = [];
+// The prices the workspace may say, as the edge read them (contracts priceAllowance); an edge older than the field
+// sends none, and the judge takes the strict rule.
+let allowed = null;
 for (let i = 0; i < cases.length; i += BATCH) {
   const batch = cases
     .slice(i, i + BATCH)
@@ -58,10 +61,11 @@ for (let i = 0; i < cases.length; i += BATCH) {
     process.exit(2);
   }
   results.push(...data.results);
+  if (Array.isArray(data.allowed_prices)) allowed = new Set(data.allowed_prices);
   process.stderr.write(`batch ${i / BATCH + 1}: ${batch.length} cases, prompt ${data.prompt_chars} chars\n`);
 }
 
-const report = formatReport(cases, results);
+const report = formatReport(cases, results, allowed);
 console.log(report.text);
 mkdirSync("tooling/backups", { recursive: true });
 const out = `tooling/backups/eval-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
@@ -72,6 +76,7 @@ writeFileSync(
       base: BASE,
       tenant: TENANT,
       file,
+      allowed_prices: allowed ? [...allowed] : null,
       at: new Date().toISOString(),
       cases,
       results,
@@ -80,6 +85,7 @@ writeFileSync(
         ...judgeCase(
           c,
           results.find((r) => r.id === c.id),
+          allowed,
         ),
       })),
     },

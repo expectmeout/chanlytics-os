@@ -68,7 +68,7 @@ import { tellPhonesCallStarted } from "./call-activity.js";
 import { apns, apnsKeys } from "../ops/apns.js";
 import { erasedBeforeCall } from "../erased.js";
 import { upsertEscalation } from "../packages/jobs.js";
-import { frameGuardrail, pauseMsOf, MIN_MS } from "../packages/contracts.js";
+import { frameGuardrail, pauseMsOf, MIN_MS, priceAllowance, spokenBreach } from "../packages/contracts.js";
 import { linkOfferedOn } from "../calendar/availability.js";
 import { env } from "../env.js";
 import { keptUrl, retellSigned } from "./voice-door-auth.js";
@@ -457,6 +457,21 @@ async function correctReceptionist(
   L.info("voice_guardrail_correction", { call: s.retellCallId, rule: s.rule, ok: put.ok, status: put.status });
 }
 
+/**
+ * The prices the receptionist may say on this call (contracts priceAllowance), read only when the turns name one:
+ * a strict check that finds nothing has nothing an allowance could change, and a warm runtime read still costs a stamp
+ * round trip on every delivery. A workspace that cannot be read is strict, never a failed delivery (decision 0051).
+ */
+async function allowedOnCall(db: Db, routed: RoutedChannel, n: NormalizedCall): Promise<ReadonlySet<string> | null> {
+  if (!spokenBreach(n.transcriptObject, null)) return null;
+  try {
+    const rt = await loadTenantRuntime(db, routed);
+    return rt.loadFailed ? null : priceAllowance(rt.brain);
+  } catch {
+    return null;
+  }
+}
+
 /** One step of the plan, made real. The claim is the door's own (applyPlan), because its answer decides the response. */
 async function applyStep(
   db: Db,
@@ -622,7 +637,12 @@ export async function receiveCallEvent(request: Request): Promise<Response> {
       const res = await ingestCall(db, routed.tenantId, n, call);
       const plan = planCallEvent(
         { ...delivery, n },
-        { ingest: res, alreadyCorrected: corrected.has(n.retellCallId), canCorrect: !!env.RETELL_API_KEY },
+        {
+          ingest: res,
+          alreadyCorrected: corrected.has(n.retellCallId),
+          canCorrect: !!env.RETELL_API_KEY,
+          allowed: await allowedOnCall(db, routed, n),
+        },
       );
       callAbout = plan.about;
       callerId = res.contact_id;

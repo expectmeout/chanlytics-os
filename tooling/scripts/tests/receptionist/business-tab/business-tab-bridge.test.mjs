@@ -151,17 +151,19 @@ const served = (brain, channel, row) => {
 // And the create fold of a workspace with no receptionist, which the settings read composes no preview for, and how
 // customers buy (0008), which is the workspace's and no part of the brain. And where the bookings come from (00345):
 // the tool the owner names, which the intake and the board read and the receptionist is told nothing of.
-const NOWHERE = ["fallbacks", "calendar", "vision", "timezone", "receptionist", "sells_by"];
+const NOWHERE = ["fallbacks", "phone_greeting", "calendar", "vision", "timezone", "receptionist", "sells_by"];
 
 test("the bridge publishes the tab's view models, and each says what contracts says", () => {
   assert.deepEqual(Object.keys(tab).sort(), [
     "ABILITY_CHANNEL_WORDS",
+    "ALWAYS_TOLD",
     "BOOKING_LINK_NEEDED",
     "BOOKING_RULE_HINTS",
     "CHIPS_SHOWN",
     "COMMON_LANGUAGES",
     "FEED_CHECK_WORDS",
     "FEED_GUIDES",
+    "GREETING_TEMPLATE",
     "GUARDRAIL_KEYS",
     "HANDOFF_ANYWAY",
     "POLICY_MODES",
@@ -172,6 +174,7 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "TONE_PRESETS",
     "VISION_STRENGTH",
     "abilityRows",
+    "allowedPrices",
     "blockShareWords",
     "bookingHeld",
     "bookingLinkOptional",
@@ -188,6 +191,8 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "fallbacksWords",
     "feedUrlOk",
     "foldName",
+    "greetingNotes",
+    "greetingOf",
     "guardrailsInForce",
     "handoffCallRow",
     "handoffChatRow",
@@ -199,10 +204,12 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "isProductFallback",
     "lengthWords",
     "loadSaveRules",
+    "namesMoney",
     "needsConsultation",
     "notesWords",
     "offersBookingLink",
     "openWeekWords",
+    "pricesWrittenWords",
     "profileCrossing",
     "profileRefusal",
     "promptBlocks",
@@ -220,6 +227,7 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "servicesFoundWords",
     "servicesToldWords",
     "servicesWords",
+    "violatesNoPrices",
     "writtenOutDetail",
   ]);
   // How it answers': contracts' own, and the resolver's test of whether a record composes, never a copy of it.

@@ -38155,11 +38155,12 @@ function isVisionMime(mime) {
   if (!mime) return false;
   return VISION_MIMES.has(mime.toLowerCase().split(";")[0].trim());
 }
-function photoUserText(caption) {
+function photoUserText(caption, prices) {
   const said = (caption ?? "").trim();
+  const price = prices === "written" ? "no price the business has not written" : "no price";
   return [
     said ? `The customer sent this photo with the message: "${said}"` : "The customer sent this photo, with no words.",
-    "Answer as the receptionist would to a customer who has just shown you a picture: say what you notice that matters for this business \u2014 what it shows, its style, colour, size or condition, or the product \u2014 and what the next step is. Every rule you were given still holds: no price, no promised result, no health or skin advice, and never a confirmed appointment. If the picture is not something the business can help with, say so kindly."
+    `Answer as the receptionist would to a customer who has just shown you a picture: say what you notice that matters for this business \u2014 what it shows, its style, colour, size or condition, or the product \u2014 and what the next step is. Every rule you were given still holds: ${price}, no promised result, no health or skin advice, and never a confirmed appointment. If the picture is not something the business can help with, say so kindly.`
   ].join("\n\n");
 }
 function toBase64(bytes) {
@@ -38169,7 +38170,8 @@ function toBase64(bytes) {
 // src/inbound/steps.ts
 import {
   replyDelayMs,
-  violatesNoPrices,
+  priceBreach,
+  priceAllowance,
   namesMoney,
   heldLine,
   policyAskClass,
@@ -38197,7 +38199,7 @@ function layerTwo(x) {
   const phone = urgentPhone(x);
   let priceBlocked = false;
   const moneyHeld = x.intent === "money" || namesMoney(replyText);
-  if (violatesNoPrices(replyText)) {
+  if (priceBreach(replyText, priceAllowance(x.brainCfg))) {
     priceBlocked = true;
     replyText = heldLine("price", x.language, phone);
     escalate = true;
@@ -38793,7 +38795,7 @@ async function heldForThePerson(at, bodyText) {
 }
 
 // src/inbound/model-turn.ts
-import { resolveSystemPrompt, describeNow, shadowWordsOf } from "../../contracts/dist/index.js";
+import { resolveSystemPrompt, describeNow, shadowWordsOf, priceAllowance as priceAllowance2 } from "../../contracts/dist/index.js";
 import { errField as errField9 } from "../../channels/dist/index.js";
 async function leadNoteFor(at) {
   const { db, tenantId, from, ports, rt, L, channel, ing } = at;
@@ -38848,7 +38850,7 @@ async function modelTurn(at, bodyText, photo) {
       const tBrain = Date.now();
       const r = await generateReply(
         thread.history,
-        photo ? photoUserText(n.media?.caption) : bodyText,
+        photo ? photoUserText(n.media?.caption, priceAllowance2(brainCfg) ? "written" : "none") : bodyText,
         // Composed from the workspace's structured facts when it has them,
         // and its hand-written prompt when it does not. lib/call-start.ts
         // composes the SAME thing for the voice agent, which is the point:

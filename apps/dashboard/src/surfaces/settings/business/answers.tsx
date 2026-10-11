@@ -36,6 +36,7 @@ import { RecordChips } from "../../kit/record/row";
 import { BtaHandoff, BtaLanguages, BtaRules, BtaVoice } from "./answers-fields";
 import type { Fields, HandoffWords } from "./answers-fields";
 import { BtFold } from "./gestures/fold";
+import { greetingFold } from "./phone/greeting";
 import { phoneShown } from "./save";
 import type { Brain, Config, Profile } from "./save";
 import { businessTabSave } from "./saver";
@@ -547,7 +548,14 @@ export const BtRulesRow = ({
         ) : null,
         name: "Change the rules it always keeps",
       }}
-      body={(f) => <BtaRules {...f} unread={composes ? null : BUSINESS_TAB.rulesWithoutFieldsWords()} />}
+      body={(f) => (
+        <BtaRules
+          {...f}
+          unread={composes ? null : BUSINESS_TAB.rulesWithoutFieldsWords()}
+          profile={(on.profile || null) as BusinessProfile | null}
+          name={on.business_name ?? null}
+        />
+      )}
     />
   );
 };
@@ -703,7 +711,8 @@ const fallbacksFold = (shared: Shared, a: AnswersFacts) => (
 );
 
 /**
- * How it answers (spec §4.5): seven rows in the canvas's order, each a fold. `brain` and `config` are the settings
+ * How it answers (spec §4.5): seven rows in the canvas's order, each a fold, and an eighth after the voice where the
+ * workspace answers calls: what callers hear first (decision 0051). `brain` and `config` are the settings
  * read's, which the rows state; `base` is the config the next save goes on (the saver's base), which is what the rules
  * fold judges "composes nothing" by, as its save will be; what a fold opens with and saves onto is the saver's base,
  * which BtFold asks for itself.
@@ -728,6 +737,8 @@ export const BtAnswersCard = ({
       </div>
 
       {toneFold(shared, a.tone)}
+
+      {a.calls ? greetingFold(shared, brain) : null}
 
       <BtLanguagesRow brain={brain} {...shared} />
 

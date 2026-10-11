@@ -33,6 +33,7 @@ import {
   dealSentence,
   dealsAreOn,
   offersFacts,
+  disclosureFacts,
   pickCurrentDeal,
   proposalLinkOf,
 } from "@chanlytics/contracts";
@@ -535,20 +536,12 @@ export function describeLead(
   // a reader that never learned it (undefined) says nothing rather than a guess.
   if (lead.hasEmail === true) bits.push("Their email address is on file.");
   else if (lead.hasEmail === false) bits.push("No email address on file.");
-  // What they answered about offers, whether they were asked for the yes, and a text conversation said to be one: the
-  // rule that asks for it once reads these (contracts offers-ask.ts), and a reader that never learned them says nothing.
+  // What they answered about offers, whether they were asked for the yes, a text conversation said to be one, and one
+  // already under way: the rules that ask for the yes once (contracts offers-ask.ts) and open by saying it is an
+  // automated assistant (assistant-disclosure.ts) read these; a reader that never learned them says nothing.
   bits.push(
-    ...offersFacts(
-      {
-        marketingConsent: lead.marketingConsent,
-        marketingChannels: lead.marketingChannels,
-        offersAskedAt: lead.offersAskedAt,
-        optedOut: lead.optedOut,
-      },
-      channel,
-      now,
-      tz,
-    ),
+    ...offersFacts(lead, channel, now, tz),
+    ...disclosureFacts({ returning: lead.returning, lastTurnAt: lead.lastSeenAt }, channel, now),
   );
   if (lead.returning) {
     const days = lead.lastSeenAt ? Math.floor((now.getTime() - new Date(lead.lastSeenAt).getTime()) / DAY_MS) : null;

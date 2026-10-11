@@ -294,6 +294,15 @@ var BusinessProfileSchema = z.object({
    * receptionist's own line — that would ring itself.
    */
   handoff_number: z.string().regex(E164, "E.164, like +12125550143").optional(),
+  /**
+   * The first thing a caller hears, in the owner's words, with {business} for the name (decision 0051): no cap and
+   * nothing refused, only notes (voice/greeting-owner.ts greetingNotes). Absent is the standard greeting. The one
+   * thing the product holds is said where the line is spoken, not here: a line that never says it is automated has
+   * the product's clause added (greetingOf). Never part of the composed prompt, so not in hasProfile.
+   */
+  // `.catch`: a stored value that is not a string reads as none (the standard greeting), never as a config that cannot
+  // be parsed, which would leave the receptionist silent.
+  phone_greeting: z.string().optional().catch(void 0),
   website: z.string().url().max(500).optional(),
   notes: z.array(NoteSchema).max(PROFILE_LIMITS.notes).optional(),
   booking_rules: BookingRulesSchema.optional(),

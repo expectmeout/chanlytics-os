@@ -82,7 +82,7 @@ evaluate and will turn until the agent is worse.
 
 **Expose (a tenant can judge the result):**
 
-- Greeting — `begin_message` on the LLM
+- Greeting — the business's own line, `brain.profile.phone_greeting`, spoken per call as the `{{greeting}}` variable call-start sends (Retell's `begin_message` is that variable; no LLM write). Built 11 Oct 2026 (decision 0051): no cap, notes only, and the AI disclosure held where the line is spoken.
 - What it should and shouldn't say — a bounded section of `general_prompt`
 - Business facts — hours, booking link, transfer number, languages
 - Voice — `voice_id`, from a curated shortlist we have actually listened to
@@ -103,6 +103,8 @@ evaluate and will turn until the agent is worse.
 template we own. A free-text prompt box hands tenants the ability to remove the
 guardrails — the price policy, the "never confirm a booking yourself" rule, the
 bot-disclosure line — and we would have no way to tell that they had.
+
+> **Amended 11 Oct 2026 (decision 0051).** The owner's words now decide the rules' reach: the price switch does what it says, and the greeting is theirs. What stays out of their hands is the one line the usage policy of the model asks for, that it is an automated assistant, which is said in every prompt and held where the greeting is spoken; and every change is kept with who made it (`tenant_config_versions`, 00402), so there is a way to tell.
 
 ---
 

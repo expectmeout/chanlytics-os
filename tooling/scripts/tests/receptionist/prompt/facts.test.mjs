@@ -229,7 +229,7 @@ test("the resolver is the ONE place facts are decided, on every surface that sta
   const cfg = readRaw("packages/contracts/src/config/workspace-config/resolve.ts");
   assert.ok(cfg.includes("const facts = resolveFacts(brain, known);"), "the prompt resolves before it speaks");
   assert.ok(
-    cfg.includes("return composeSystemPrompt(resolved, carried, wire, tz, now, policy);"),
+    cfg.includes("return composeSystemPrompt(resolved, carried, wire, tz, now, policy, audience);"),
     "and composes from the resolved values, not the raw document",
   );
 

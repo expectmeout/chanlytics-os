@@ -4205,7 +4205,9 @@ declare function isVisionMime(mime: string | null | undefined): mime is string;
  * out loud that the standing rules still hold — a photo is the easiest way to
  * be asked "how much would this be?".
  */
-declare function photoUserText(caption: string | null | undefined): string;
+declare function photoUserText(caption: string | null | undefined, 
+/** "none" while "Never quote a price" is on; "written" when the business lets it say the prices it wrote (0051). */
+prices: "none" | "written"): string;
 declare function toBase64(bytes: ArrayBuffer): string;
 
 declare const MAX_REPLIES_PER_DAY = 20;
@@ -4268,7 +4270,9 @@ interface LayerTwoOut {
 }
 /**
  * Layer-2 policy enforcement (Blueprint §6): prompt text is never the only
- * defense. A price in the draft blocks the send outright. Money -- a refund, a
+ * defense. A price it may not say blocks the send outright: any price while
+ * "Never quote a price" is on, and with it off any amount the owner did not
+ * write (priceAllowance, decision 0051). Money -- a refund, a
  * discount, a deposit, a payment term, named in the draft or read as the
  * model's intent -- is a person's, whatever the model's record says (the
  * charter's locked row). Under "ask", a booking or a service/pricing question

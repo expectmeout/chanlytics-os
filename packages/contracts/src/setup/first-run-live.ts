@@ -5,7 +5,7 @@
  * card (business-can.jsx), drawn as it is there. Every sentence is here; the page and the edge compose.
  */
 import { formatPhoneDisplay } from "../shared/phone";
-import { greetingFor } from "../voice/greeting";
+import { greetingOf } from "../voice/greeting-owner";
 import { forwardedLineOf, type SetupDto } from "./setup";
 
 export interface FirstRunLiveVM {
@@ -126,7 +126,7 @@ export function firstRunLiveOf({ dto, emails, business, owner }: FirstRunLiveInp
         change: { label: W.change, to: "admin/workspace" },
       },
     ],
-    greeting: W.greeting(greetingFor(business)),
+    greeting: W.greeting(greetingOf({ name: business, stored: dto.business.phone_greeting, paused: false }).text),
     // The email goes with the first run's first activation of calls (the capability route, first_run): said only
     // where it will go.
     finish: {

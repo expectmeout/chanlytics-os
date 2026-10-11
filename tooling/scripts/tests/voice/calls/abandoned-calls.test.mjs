@@ -193,3 +193,28 @@ test("a dial that never connected stays out of Today, as it always has", () => {
     "an attempt is not a call worth an ear",
   );
 });
+
+test("hung up means the caller never spoke, where the row carries its transcript: an owner's greeting may run any length (decision 0051)", () => {
+  const silent = [{ role: "agent", content: "Hi, Harbor Moving. A long greeting of the owner's own. How can I help?" }];
+  // Twenty seconds in, past the old fifteen: still a caller who left with nothing.
+  assert.equal(abandonedCall(call({ duration_ms: 20_000, transcript_object: silent })), true);
+  // Four seconds in, but they spoke: not abandoned.
+  const spoke = [...silent, { role: "user", content: "Do you move pianos?" }];
+  assert.equal(abandonedCall(call({ duration_ms: 4_000, transcript_object: spoke })), false);
+  // A user turn with nothing in it is not speech.
+  assert.equal(
+    abandonedCall(call({ duration_ms: 20_000, transcript_object: [...silent, { role: "user", content: " " }] })),
+    true,
+  );
+  // An empty transcript says nothing either way, as a missing one does: the duration rule decides.
+  assert.equal(abandonedCall(call({ duration_ms: 3_000, transcript_object: [] })), true);
+  assert.equal(abandonedCall(call({ duration_ms: 200_000, transcript_object: [] })), false);
+  // The ending still has to be theirs.
+  assert.equal(
+    abandonedCall(call({ duration_ms: 20_000, transcript_object: silent, disconnection_reason: "agent_hangup" })),
+    false,
+  );
+  // A row read without its transcript keeps the duration rule.
+  assert.equal(abandonedCall(call({ duration_ms: 20_000, transcript_object: null })), false);
+  assert.equal(abandonedCall(call({ duration_ms: ABANDONED_MS - 1, transcript_object: null })), true);
+});

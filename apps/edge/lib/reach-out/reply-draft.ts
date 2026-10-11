@@ -88,7 +88,8 @@ export function replyDrafter(db: Db, over: { brain?: typeof generateReply; now?:
       brain(
         thread.history,
         ask.text,
-        resolveSystemPrompt(rt.brain, "whatsapp", rt.timezone, at, rt.policy, rt.known),
+        // A draft the owner sends as themselves: never told to say it is an automated assistant (decision 0051).
+        resolveSystemPrompt(rt.brain, "whatsapp", rt.timezone, at, rt.policy, rt.known, "draft"),
         // No holding words: an answer the brain could not give is not drafted, never drafted as the fallback.
         "",
         ask.note,
