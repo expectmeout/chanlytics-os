@@ -92,6 +92,7 @@ const VERB_FAMILY: Record<DecisionVerb, ActivityFamily> = {
   delete_list: "lists",
   import: "people",
   open_recording: "calls",
+  mark_visit: "calendar",
 };
 
 /** The word an event kind is filed under: `message` of `message.sent`. */

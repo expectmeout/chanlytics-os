@@ -286,6 +286,21 @@ begin
       returning id into v_id;
       v_change := 'added';
       v_added := v_added + 1;
+    elsif v_row.status in ('kept', 'missed', 'cancelled') and v_row.starts_at is distinct from v_in.starts_at then
+      -- A person's word was about the visit at its old time (00397): the event moved since is a new visit. The marked
+      -- row is set aside under the key and its old start, gone from the feed as it stood, and a fresh one is booked.
+      update appointments
+         set external_id = left(v_row.external_id, 512) || '@' || extract(epoch from v_row.starts_at)::bigint::text,
+             vanished_at = coalesce(vanished_at, v_now)
+       where id = v_row.id;
+      insert into appointments (tenant_id, contact_id, source, external_id, status, starts_at, ends_at, all_day,
+                                service, consultation, timezone)
+      values (p_tenant_id, v_contact, 'calendar_feed', v_in.external_id, 'booked', v_in.starts_at, v_in.ends_at,
+              coalesce(v_in.all_day, false), left(nullif(btrim(v_in.service), ''), 200),
+              coalesce(v_in.consultation, false), v_tz)
+      returning id into v_id;
+      v_change := 'moved';
+      v_moved := v_moved + 1;
     else
       v_id := v_row.id;
       if v_row.vanished_at is not null then
@@ -350,12 +365,21 @@ CREATE FUNCTION public.appointments_guard() RETURNS trigger
     AS $$
 begin
   if NEW.status is distinct from OLD.status then
+    -- A person's correction of their own word, through mark_visit alone: kept and missed may trade places.
+    if OLD.status in ('kept', 'missed') and NEW.status in ('kept', 'missed')
+       and current_setting('chanlytics.visit_correction', true) = 'on' then
+      return NEW;
+    end if;
     if OLD.status in ('kept', 'missed', 'cancelled') then
       raise exception 'appointments.status is terminal (% -> % refused)', OLD.status, NEW.status
         using errcode = 'check_violation';
     end if;
     if OLD.status = 'proposed' and NEW.status not in ('booked', 'cancelled') then
       raise exception 'a proposed appointment may only be booked or cancelled (% refused)', NEW.status
+        using errcode = 'check_violation';
+    end if;
+    if OLD.status = 'booked' and NEW.status = 'proposed' then
+      raise exception 'a booked appointment is not proposed again (booked -> proposed refused)'
         using errcode = 'check_violation';
     end if;
   end if;
@@ -380,6 +404,8 @@ begin
     v_change := 'cancelled';
   elsif old.status = 'proposed' and new.status = 'booked' then
     v_change := 'confirmed';
+  elsif new.status in ('kept', 'missed') and old.status is distinct from new.status then
+    v_change := new.status;
   elsif new.starts_at is distinct from old.starts_at then
     v_change := 'moved';
   else
@@ -396,7 +422,7 @@ end $$;
 -- Name: FUNCTION appointments_note_change(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.appointments_note_change() IS 'appointment.changed {change, source, starts_at} for each write of an appointment''s status or start the feed''s door did not make (00389), in the same transaction: added, confirmed, cancelled or moved, and nothing for a write that changes none of those. The feed''s door writes its own (00348).';
+COMMENT ON FUNCTION public.appointments_note_change() IS 'appointment.changed {change, source, starts_at} in the same transaction as the write (00389, 00397): added, confirmed, cancelled, kept, missed or moved, and nothing for a write that changes none of those. On a feed''s row only a moved status is said (appointments_note_status): the feed''s door writes its own events (00348) and never moves a status, so that is a person''s word.';
 
 
 --
@@ -8922,6 +8948,77 @@ CREATE FUNCTION public.mark_processed(p_tenant_id uuid, p_message_id uuid) RETUR
      set meta = meta || jsonb_build_object('processed_at', now())
    where id = p_message_id and tenant_id = p_tenant_id;
 $$;
+
+
+--
+-- Name: mark_visit(uuid, text, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.mark_visit(p_appointment_id uuid, p_status text, p_via text DEFAULT NULL::text, p_undo_of uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+  v_row   public.appointments%rowtype;
+begin
+  -- The caller is auth.uid(), read here, never a parameter (00021's rule): the word is theirs.
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_status is null or p_status not in ('kept', 'missed', 'cancelled') then
+    raise exception 'mark_visit: kept, missed or cancelled (% refused)', p_status using errcode = '22023';
+  end if;
+  select * into v_row from public.appointments where id = p_appointment_id for update;
+  -- One the caller does not act in is one they cannot see: a stranger learns nothing.
+  if not found or not public.is_acting_member(v_row.tenant_id) then
+    raise exception 'Appointment not found.' using errcode = 'P0002';
+  end if;
+  if v_row.status = p_status then
+    return jsonb_build_object('appointment', jsonb_build_object('id', v_row.id, 'status', v_row.status),
+                              'from', v_row.status, 'unchanged', true);
+  end if;
+  if p_status in ('kept', 'missed') then
+    if v_row.status = 'proposed' then
+      return jsonb_build_object('error', 'never_booked');
+    end if;
+    if v_row.status = 'cancelled' then
+      return jsonb_build_object('error', 'cancelled');
+    end if;
+    if v_row.starts_at > now() then
+      return jsonb_build_object('error', 'not_begun');
+    end if;
+  else
+    if v_row.status = 'cancelled' then
+      return jsonb_build_object('error', 'cancelled');
+    end if;
+    if v_row.status in ('kept', 'missed') then
+      return jsonb_build_object('error', 'already_said');
+    end if;
+    if v_row.ends_at <= now() then
+      return jsonb_build_object('error', 'over');
+    end if;
+  end if;
+  -- Kept and missed trade places only here: the guard reads this for the transaction, and nothing else raises it.
+  if v_row.status in ('kept', 'missed') then
+    perform set_config('chanlytics.visit_correction', 'on', true);
+  end if;
+  update public.appointments set status = p_status where id = v_row.id;
+  perform set_config('chanlytics.visit_correction', 'off', true);
+  return jsonb_build_object('appointment', jsonb_build_object('id', v_row.id, 'status', p_status),
+                            'from', v_row.status)
+      || public.team_decision(v_row.tenant_id, v_actor, 'appointment', v_row.id, 'mark_visit',
+                              jsonb_build_object('from', v_row.status, 'to', p_status, 'source', v_row.source,
+                                                 'starts_at', v_row.starts_at, 'contact_id', v_row.contact_id),
+                              p_via, p_undo_of);
+end $$;
+
+
+--
+-- Name: FUNCTION mark_visit(p_appointment_id uuid, p_status text, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.mark_visit(p_appointment_id uuid, p_status text, p_via text, p_undo_of uuid) IS 'A member says what became of a visit (00397, decision 0002 step 8): kept or missed once it has begun, cancelled until it has ended, kept and missed correctable one into the other, every other end final; the mark_visit decision as theirs in the same transaction, and appointment.changed by the triggers. A refusal is answered as {error}: never_booked, cancelled, not_begun, already_said or over. Returns the appointment''s id and status, from, and the decision''s id.';
 
 
 --
@@ -23147,8 +23244,8 @@ CREATE TABLE public.decisions (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT decisions_actor_type_check CHECK ((actor_type = ANY (ARRAY['user'::text, 'ai'::text, 'system'::text, 'owner_phone'::text]))),
     CONSTRAINT decisions_actor_user_id_check CHECK (((actor_type = 'user'::text) OR (actor_user_id IS NULL))),
-    CONSTRAINT decisions_subject_type_check CHECK ((subject_type = ANY (ARRAY['conversation'::text, 'escalation'::text, 'draft'::text, 'lead'::text, 'message'::text, 'agent'::text, 'membership'::text, 'invitation'::text, 'contact'::text, 'call'::text, 'channel'::text, 'broadcast'::text, 'playbook'::text, 'review'::text, 'workspace'::text, 'deal'::text, 'list'::text]))),
-    CONSTRAINT decisions_verb_check CHECK ((verb = ANY (ARRAY['approve'::text, 'edit'::text, 'decline'::text, 'snooze'::text, 'wake'::text, 'take_over'::text, 'hand_back'::text, 'resolve'::text, 'archive'::text, 'reply'::text, 'cancel_send'::text, 'pause_agent'::text, 'resume_agent'::text, 'invite'::text, 'revoke_invite'::text, 'change_role'::text, 'remove_member'::text, 'erase'::text, 'whisper'::text, 'connect_channel'::text, 'consent_change'::text, 'send_broadcast'::text, 'cancel_broadcast'::text, 'start_playbook'::text, 'pause_playbook'::text, 'reply_review'::text, 'export'::text, 'end_call'::text, 'record_deal'::text, 'make_list'::text, 'rename_list'::text, 'change_list_rule'::text, 'add_to_list'::text, 'drop_from_list'::text, 'archive_list'::text, 'restore_list'::text, 'delete_list'::text, 'import'::text, 'open_recording'::text, 'merge'::text, 'change_playbook'::text])))
+    CONSTRAINT decisions_subject_type_check CHECK ((subject_type = ANY (ARRAY['conversation'::text, 'escalation'::text, 'draft'::text, 'lead'::text, 'message'::text, 'agent'::text, 'membership'::text, 'invitation'::text, 'contact'::text, 'call'::text, 'channel'::text, 'broadcast'::text, 'playbook'::text, 'review'::text, 'workspace'::text, 'deal'::text, 'list'::text, 'appointment'::text]))),
+    CONSTRAINT decisions_verb_check CHECK ((verb = ANY (ARRAY['approve'::text, 'edit'::text, 'decline'::text, 'snooze'::text, 'wake'::text, 'take_over'::text, 'hand_back'::text, 'resolve'::text, 'archive'::text, 'reply'::text, 'cancel_send'::text, 'pause_agent'::text, 'resume_agent'::text, 'invite'::text, 'revoke_invite'::text, 'change_role'::text, 'remove_member'::text, 'erase'::text, 'whisper'::text, 'connect_channel'::text, 'consent_change'::text, 'send_broadcast'::text, 'cancel_broadcast'::text, 'start_playbook'::text, 'pause_playbook'::text, 'reply_review'::text, 'export'::text, 'end_call'::text, 'record_deal'::text, 'make_list'::text, 'rename_list'::text, 'change_list_rule'::text, 'add_to_list'::text, 'drop_from_list'::text, 'archive_list'::text, 'restore_list'::text, 'delete_list'::text, 'import'::text, 'open_recording'::text, 'merge'::text, 'change_playbook'::text, 'mark_visit'::text])))
 );
 
 
@@ -28201,6 +28298,13 @@ CREATE TRIGGER appointments_guard BEFORE UPDATE ON public.appointments FOR EACH 
 --
 
 CREATE TRIGGER appointments_note_change AFTER INSERT OR UPDATE OF status, starts_at ON public.appointments FOR EACH ROW WHEN ((new.source <> 'calendar_feed'::text)) EXECUTE FUNCTION public.appointments_note_change();
+
+
+--
+-- Name: appointments appointments_note_status; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER appointments_note_status AFTER UPDATE OF status ON public.appointments FOR EACH ROW WHEN (((new.source = 'calendar_feed'::text) AND (old.status IS DISTINCT FROM new.status))) EXECUTE FUNCTION public.appointments_note_change();
 
 
 --
@@ -33789,6 +33893,15 @@ GRANT ALL ON FUNCTION public.lookup_user_for_invite(p_tenant_id uuid, p_email te
 
 REVOKE ALL ON FUNCTION public.mark_processed(p_tenant_id uuid, p_message_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.mark_processed(p_tenant_id uuid, p_message_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION mark_visit(p_appointment_id uuid, p_status text, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.mark_visit(p_appointment_id uuid, p_status text, p_via text, p_undo_of uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.mark_visit(p_appointment_id uuid, p_status text, p_via text, p_undo_of uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.mark_visit(p_appointment_id uuid, p_status text, p_via text, p_undo_of uuid) TO service_role;
 
 
 --

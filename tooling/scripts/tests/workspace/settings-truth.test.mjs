@@ -100,19 +100,19 @@ test("F35: every pause reads the workspace's own pause_hours, not a hard-coded d
   // promise the pause unconditionally, so nine of the eleven handoffs told the
   // owner the receptionist was out of a thread it was still answering.
   assert.ok(alerts.includes("ctx.pausedHours\n        ? `Reply from the Inbox"), "and only when this branch paused it");
+  // The notice's words are named (tell(asked, { said, answered, why, pausedHours }), #1547), so each branch's pause is
+  // read by its name.
   assert.ok(
-    inbound.includes('"non-text message", pausedUntil ? pauseHours : null)'),
+    /why: "non-text message",\s*pausedHours: pausedUntil \? pauseHours : null,/.test(inbound),
     "the acknowledgement states it only when it actually acknowledged",
   );
   assert.equal(
-    (inbound.match(/,\s*pauseHours,?\s*\),?\s*\)/g) ?? []).length,
+    (inbound.match(/\bpausedHours: pauseHours,/g) ?? []).length,
     3,
     "and the escalating reply does, held, sent, or kept unsent because its hold could not be written",
   );
   assert.ok(
-    inbound.includes(
-      "const tell = (userText: string, botText: string, reason: string, pausedHours: number | null = null) =>",
-    ),
+    inbound.includes("{ said, answered, why, pausedHours = null }: HoldWords"),
     "and the rest default to promising nothing",
   );
 });

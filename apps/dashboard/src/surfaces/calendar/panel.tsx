@@ -1,12 +1,15 @@
 /**
  * One appointment, opened (moved from legacy/pages/calendar.jsx CrPanel, decision 0015): who it is for (by a phone in the
- * event, else a whole name), what the calendar wrote, and the one rule: nothing changes here. A person is never added from
- * here by hand: an appointment that carries a phone puts its person in People on its own, when an owner opens this board
- * and every hour by the sweep, and a person nobody wants is deleted from their profile.
+ * event, else a whole name), what the calendar wrote, and the one rule: nothing about the booking changes here. A person
+ * is never added from here by hand: an appointment that carries a phone puts its person in People on its own, when an
+ * owner opens this board and every hour by the sweep, and a person nobody wants is deleted from their profile. What a
+ * member may say here is what became of the visit (decision 0002 step 8): kept, missed or cancelled, on the record's row.
  */
-import { useEffect, useReducer, useRef } from "react";
-import type { CalendarBlockVM } from "@chanlytics/contracts";
+import { useEffect, useReducer, useRef, useState } from "react";
+import { VISIT_WORDS, visitActsOf, visitStateOf, type CalendarBlockVM, type VisitWord } from "@chanlytics/contracts";
+import { api } from "@/legacy-bridge/api";
 import { Button } from "../kit/button/button";
+import { Confirm } from "../kit/confirm/confirm";
 import { Icon } from "../kit/icon/icon";
 import { gate, leaving, navigate, touchSwipe, trapFocus } from "../legacy-verbs";
 import { crPhone } from "./board-dom";
@@ -18,11 +21,13 @@ import { crDur, crNotesWorth, crWhen } from "./words";
 type Person = CalendarBlockVM["person"];
 type Deal = ReturnType<typeof calendar.peekDeal>;
 
-/** When it is: the day relative to now first, then the date and the time, how long, and that it is done when its day has gone. */
+/**
+ * When it is: the day relative to now first, then the date and the time, how long, and how it stands: what a member said
+ * became of it, else that it is past once it has ended. Never "done": the record does not know they came (0002's answer 3).
+ */
 function whenLine(p: { b: CalendarBlockVM; day: CalendarFrame; when: string | null }) {
   const { b, day, when } = p;
-  // A time that has gone is said so: an owner reading a finished appointment should not be deciding about it.
-  const state = day.past ? { text: "Done", tone: "past" } : null;
+  const state = visitStateOf(b.visit, Date.parse(b.end), Date.now());
   return (
     <div className="cal-ev-when" data-testid="cal-panel-when">
       {when && <b className="cal-ev-when-rel">{when}</b>}
@@ -81,6 +86,72 @@ function whoLine(p: { b: CalendarBlockVM; person: Person; deal: Deal; e164: stri
       People
     </div>
   ) : null;
+}
+
+/**
+ * What became of the visit, said by a member (decision 0002 step 8): the acts contracts allows now (visitActsOf, the
+ * door's own rules), each gated as a deal's is, and the door's refusal in its own sentence. The board reads again when it
+ * answers (refresh-map.ts), and the state beside the time says the new word.
+ */
+function VisitActs({ b }: { b: CalendarBlockVM }) {
+  const [busy, setBusy] = useState<VisitWord | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  // Cancelled is final (the door keeps it so), so it is asked first, in the kit's one shape; kept and missed correct.
+  const [asking, setAsking] = useState(false);
+  const acts = visitActsOf(b.visit, Date.parse(b.start), Date.parse(b.end), Date.now());
+  if (!b.visit || acts.length === 0) return null;
+  const visit = b.visit;
+  const say = async (status: VisitWord) => {
+    setBusy(status);
+    setProblem(null);
+    try {
+      const r = await api()("POST calendar/visits/[id]", { params: { id: visit.id }, body: { status } });
+      if (!r.ok) setProblem(r.message);
+    } finally {
+      setBusy(null);
+      setAsking(false);
+    }
+  };
+  return (
+    <div className="cal-ev-detail" data-testid="cal-panel-visit">
+      <span className="cal-ev-detail-key">
+        {visit.status === "kept" || visit.status === "missed" ? "Correct it" : "What happened"}
+      </span>
+      <span className="cal-ev-visit-acts">
+        {acts.map((status) => (
+          <Button
+            key={status}
+            variant="quiet"
+            size="sm"
+            data-testid={`cal-panel-visit-${status}`}
+            disabled={busy !== null || asking}
+            onClick={() => (status === "cancelled" ? setAsking(true) : void say(status))}
+            {...gate("approve", "say what became of a visit")}
+          >
+            {VISIT_WORDS[status]}
+          </Button>
+        ))}
+      </span>
+      {asking && (
+        <Confirm
+          question="Cancel this visit?"
+          detail="It can't be undone here. Its reminders stop; the calendar keeps the time until it is changed there."
+          yes="Yes, cancelled"
+          no="Keep it"
+          danger
+          busy={busy === "cancelled"}
+          onYes={() => void say("cancelled")}
+          onNo={() => setAsking(false)}
+          testid="cal-panel-visit-cancel"
+        />
+      )}
+      {problem && (
+        <span className="cal-ev-visit-refused" role="alert" data-testid="cal-panel-visit-refused">
+          {problem}
+        </span>
+      )}
+    </div>
+  );
 }
 
 /** The dialog's foot: the way on to People and to their thread, the booking link, the deal sheet's own act, and Close. */
@@ -266,6 +337,7 @@ export function CrPanel({
               <span className="cal-ev-desc">{notes}</span>
             </div>
           )}
+          <VisitActs b={b} />
           {/* Where it came from, and where it changes: the receptionist treats every time here as taken, which the
               calendar itself says by drawing it (Ruben, 10 Oct 2026: a sentence of what the page already shows). */}
           <div className="cal-ev-note">

@@ -48,14 +48,14 @@ export { consentAnswerWords, receiptWords, toRunReportVM, RUN_REPORT_STEPS, RUN_
 export { REPLY_WINDOW_HOURS, REPLY_WINDOW_MS, REPLY_WINDOW_WORDS, HELD_REASONS, EMAIL_HOLDS, DELIVERY_RECEIPTS_TIP, DELIVERY_RECEIPTS_WORDS, finishedRunHeldWhy, isReplyTo } from "./broadcasts/run-words";
 export { SEND_WHEN_WORDS } from "./broadcasts/send-when-words";
 export { whatsappOffersOpen } from "./broadcasts/whatsapp-offers";
-export { appointmentTitle, busyOfAppointments, feedItemOfAppointment, personOfAppointment, itemOfAppointment, withoutVisitsRowsDraw, daysWithAppointments } from "./calendar/appointment-item";
+export { appointmentTitle, busyOfAppointments, feedItemOfAppointment, personOfAppointment, itemOfAppointment, withoutVisitsRowsDraw, daysWithAppointments, feedMarksOf } from "./calendar/appointment-item";
 export { appointmentKeyOf } from "./calendar/appointment-key";
 export { dayIntervals, closedOn, openAt, hasHours, freeWindows, filterOpenings, describeOpenings, BOOKING_DEFAULTS } from "./calendar/availability";
 export { isBookingTool, bookingToolName, bookingToolOfAddress, bookingNoticeOf, NOTICE_SCHEMA, NOTICE_READ_MAX_TOKENS, noticePrompt, isNoticeHold, NOTICE_DEFAULT_LENGTH_MS, noticeAnswerOf, clientKeyOf, appointmentKey, SAME_VISIT_MS, BOOKING_TOOL_IDS, bookingToolCalendar, bookingToolOptions, BOOKING_TOOL_STEPS, GMAIL_FORWARD_NOTE, BOOKING_TRY_NOTE, NOTICE_HOLD_WORDS, forwardingConfirmationOf } from "./calendar/booking-notice";
 export { serviceOf, toCalendarVM } from "./calendar/calendar";
 export { calendarOwnerOf, ownAddressesOf, extractContacts, personInText, matchPerson, indexFeed, allVisitsIn, visitsIn, visitsOf, visitDay, visitTime, visitDateKey, visitStartTime, visitLine, describeVisits, feedSourceLabel, eventText, toVisitDto, guessName, peopleFromItems, afterPersonRefused, bookedAfterAsk, visitAnswersAsk } from "./calendar/calendar-people";
 export { spanForView, windowFor, coversSpan, frameOf } from "./calendar/calendar-views";
-export { clockLabel, closureDatesLabel, closuresFrom, readAgoLabel, ruleParts, rulesLine, feedNotes, hoursLines, CALENDAR_FEED_WORDS } from "./calendar/calendar-words";
+export { clockLabel, closureDatesLabel, closuresFrom, readAgoLabel, ruleParts, rulesLine, feedNotes, hoursLines, CALENDAR_FEED_WORDS, VISIT_WORDS, VISIT_REFUSALS, visitStateOf, visitActsOf } from "./calendar/calendar-words";
 export { shiftKey, mondayOf, isDayKey, monthSpan, shiftMonth, monthLabelOf, zoneMidnight } from "./calendar/day-keys";
 export { parseIcs } from "./calendar/feed";
 export { APPOINTMENT_SOURCES, APPOINTMENT_STATUSES, appointmentHolds, appointmentKeysOf, feedAppointmentRows } from "./calendar/feed-appointments";

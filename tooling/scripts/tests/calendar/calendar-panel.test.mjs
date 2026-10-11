@@ -75,3 +75,33 @@ test("the notes are shown only when they say something the panel has not", () =>
   // Punctuation alone is not something to read.
   assert.equal(W.crNotesWorth("Priya Nair ·  —  ", person, contacts), null);
 });
+
+test("what may be said of a visit, and when, by mark_visit's own rules (00397): the panel offers no act the door would refuse", async () => {
+  const { visitActsOf, visitStateOf } = await import("@chanlytics/contracts");
+  const H = 3_600_000;
+  const now = Date.parse("2026-10-11T15:00:00Z");
+  const at = (fromH) => [now + fromH * H, now + (fromH + 1) * H];
+  const acts = (status, fromH) => visitActsOf({ id: "a1", status }, ...at(fromH), now);
+  assert.deepEqual(acts("booked", 5), ["cancelled"], "ahead: only cancelled");
+  assert.deepEqual(acts("booked", -0.5), ["kept", "missed", "cancelled"], "under way: any of the three");
+  assert.deepEqual(acts("booked", -3), ["kept", "missed"], "over: whether they came, never cancelled");
+  assert.deepEqual(acts("kept", -3), ["missed"], "a kept visit corrected to missed");
+  assert.deepEqual(acts("missed", -3), ["kept"], "and back");
+  assert.deepEqual(acts("missed", 5), [], "never of a visit that has not begun: the door refuses it");
+  assert.deepEqual(acts("cancelled", 5), [], "a cancelled one is said nothing more of");
+  assert.deepEqual(acts("proposed", 5), ["cancelled"], "a request may be cancelled");
+  assert.deepEqual(acts("proposed", -3), [], "and never kept or missed: it was not booked");
+  assert.deepEqual(visitActsOf(null, ...at(-3), now), [], "an event the record has not kept: nothing to say it on");
+
+  const state = (visit, fromH) => visitStateOf(visit, at(fromH)[1], now)?.text ?? null;
+  assert.equal(
+    state({ id: "a1", status: "booked" }, -3),
+    "Past",
+    "REGRESSION: an ended visit said 'Done', as if they came",
+  );
+  assert.equal(state(null, -3), "Past");
+  assert.equal(state({ id: "a1", status: "booked" }, 5), null, "nothing ahead");
+  assert.equal(state({ id: "a1", status: "missed" }, -3), "Missed");
+  assert.equal(state({ id: "a1", status: "kept" }, -3), "Kept");
+  assert.equal(state({ id: "a1", status: "cancelled" }, 5), "Cancelled");
+});

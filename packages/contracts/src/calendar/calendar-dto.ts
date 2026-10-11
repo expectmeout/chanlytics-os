@@ -7,6 +7,13 @@ import type { BookingRules, Closure, Hours } from "../config/workspace-config/bu
 import type { MatchVia } from "./calendar-people";
 import type { FeedFailure } from "./feed-url";
 import type { NoticeHold } from "./booking-notice";
+import type { AppointmentStatus } from "./feed-appointments";
+
+/** The record's row for a visit the board draws, and how it stands (decision 0002): what a member's word is said on. */
+export interface VisitMark {
+  id: string;
+  status: AppointmentStatus;
+}
 
 export interface CalendarItemDto {
   id: string;
@@ -41,6 +48,12 @@ export interface CalendarItemDto {
   service?: string | null;
   staff?: string | null;
   price?: string | null;
+  /**
+   * The record's row for this visit (00345), a booking's or the one the hourly sync keeps for a feed's event (by its
+   * key), with how it stands: what a member says became of it (00397) is said on it. Null for an event the sync has not
+   * kept yet; absent on an older read.
+   */
+  visit?: VisitMark | null;
 }
 
 export interface CalendarDayDto {

@@ -190,6 +190,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "unsubscribe_language_unread",
   "unsubscribe_not_recorded",
   "unsubscribe_unavailable",
+  "visit_door_unknown_answer",
   "waitlist_join",
   "waitlist_repeat_not_updated",
   "write_receipt_unkept",

@@ -84,6 +84,7 @@ export {
   itemOfAppointment,
   withoutVisitsRowsDraw,
   daysWithAppointments,
+  feedMarksOf,
 } from "./appointment-item";
 export type { AppointmentLike } from "./appointment-item";
 export type {
@@ -94,6 +95,7 @@ export type {
   HeldNoticeDto,
   CalendarServiceDto,
   CalendarWeekDto,
+  VisitMark,
 } from "./calendar-dto";
 export { shiftKey, mondayOf, isDayKey, monthSpan, shiftMonth, monthLabelOf, zoneMidnight } from "./day-keys";
 export {
@@ -106,8 +108,12 @@ export {
   feedNotes,
   hoursLines,
   CALENDAR_FEED_WORDS,
+  VISIT_WORDS,
+  VISIT_REFUSALS,
+  visitStateOf,
+  visitActsOf,
 } from "./calendar-words";
-export type { CalendarFeedNoteVM, CalendarFeedHealth } from "./calendar-words";
+export type { CalendarFeedNoteVM, CalendarFeedHealth, VisitWord } from "./calendar-words";
 export type {
   CalendarBlockVM,
   CalendarBandVM,

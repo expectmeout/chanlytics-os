@@ -6982,6 +6982,15 @@ export type Database = {
         Args: { p_message_id: string; p_tenant_id: string }
         Returns: undefined
       }
+      mark_visit: {
+        Args: {
+          p_appointment_id: string
+          p_status: string
+          p_undo_of?: string
+          p_via?: string
+        }
+        Returns: Json
+      }
       may_read_workspace: { Args: { p_tenant: string }; Returns: boolean }
       member_decision: {
         Args: {
