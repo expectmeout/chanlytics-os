@@ -401,6 +401,8 @@ export const LIFECYCLE_WORDS = {
   results: {
     title: "What came back",
     link: "All runs",
+    /** The tile's second door: Reports › Campaigns over the same days. */
+    fullReport: "Full report",
     quiet: "Nothing went out, and nobody said yes or asked to stop.",
     funnel: { sent: "Sent", delivered: "Delivered", read: "Read", replied: "Replied" },
     funnelLabel: "Sent, delivered, read and replied",

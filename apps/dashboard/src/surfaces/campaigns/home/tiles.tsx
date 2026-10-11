@@ -5,7 +5,7 @@
  * number that could not be counted is not drawn, and a zero is a zero. The phone says the first as a line in its Moments
  * head (ledger/ledger-phone.tsx PhoneMeta) and draws the other two the same as the desk.
  */
-import { LIFECYCLE_WORDS } from "@chanlytics/contracts";
+import { LIFECYCLE_WORDS, lensRoute, shiftKey, zoneDayKey } from "@chanlytics/contracts";
 import type {
   LifecycleComing,
   LifecycleComingTile,
@@ -16,6 +16,7 @@ import type {
   LifecycleRung,
   LifecycleTileRead,
 } from "@chanlytics/contracts";
+import { workspaceOverride } from "@/legacy-bridge/surface-data";
 import { routeDoor } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
@@ -68,19 +69,45 @@ function RungBar({ r }: { r: LifecycleRung }) {
   );
 }
 
-/** A tile's head: its name, what it covers, and the door to where it goes on. */
-function BlockHead({ title, note, door }: { title: string; note?: string; door?: { label: string; to: string } }) {
+type Door = { label: string; to: string };
+
+/** A tile's door ("All runs ›"): its words and its chevron. */
+function MoreDoor({ door, testid }: { door: Door; testid?: string }) {
+  return (
+    <LinkButton className="cmh-more" {...routeDoor(door.to)} data-testid={testid}>
+      {door.label} <Icon name="chevron" size={12} />
+    </LinkButton>
+  );
+}
+
+/** A tile's head: its name, what it covers, and the door to where it goes on, and a second where it has one. */
+function BlockHead({ title, note, door, also }: { title: string; note?: string; door?: Door; also?: Door }) {
   return (
     <header className="cmh-block-head">
       <h2 className="cmh-h">{title}</h2>
       {note ? <span className="cmh-dim">{note}</span> : null}
-      {door ? (
-        <LinkButton className="cmh-more" {...routeDoor(door.to)}>
-          {door.label} <Icon name="chevron" size={12} />
-        </LinkButton>
+      {door && also ? (
+        <span className="cmh-doors">
+          <MoreDoor door={door} />
+          <MoreDoor door={also} testid="cmh-full-report" />
+        </span>
+      ) : door ? (
+        <MoreDoor door={door} />
       ) : null}
     </header>
   );
+}
+
+/**
+ * Where "Full report" goes: Reports › Campaigns over the days this tile counts (the last `days` days, ending today, in the
+ * workspace's own time), so the report says the numbers the tile does. Before the workspace list is held there is no today to
+ * count from, and the lens opens on whatever period its reader keeps.
+ */
+function fullReportRoute(days: number): string {
+  const ws = workspaceOverride.current();
+  if (!ws) return lensRoute("campaigns");
+  const to = zoneDayKey(Date.now(), ws.timezone);
+  return lensRoute("campaigns", { from: shiftKey(to, -(days - 1)), to });
 }
 
 /**
@@ -266,7 +293,12 @@ export function ResultsBlock({ tile, failed, onOpen }: ResultsProps) {
   const W = LIFECYCLE_WORDS.results;
   return (
     <Panel as="section" size="flush" className="cmh-block" aria-label={W.title} data-testid="cmh-results">
-      <BlockHead title={W.title} note={tile.note} door={{ label: W.link, to: "broadcasts" }} />
+      <BlockHead
+        title={W.title}
+        note={tile.note}
+        door={{ label: W.link, to: "broadcasts" }}
+        also={{ label: W.fullReport, to: fullReportRoute(tile.days) }}
+      />
       <TileRead read={tile.read} failed={failed.results} testid="cmh-results" />
       {tile.headline ? (
         <p className="cmh-headline">

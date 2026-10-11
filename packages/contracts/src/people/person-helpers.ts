@@ -7,7 +7,8 @@ import { clockDate } from "../shared/clock";
 import { DAY_MS } from "../shared/time";
 import type { PersonDetailDto } from "./person-dto";
 import type { PersonProposalVM } from "./person-reach";
-import { PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, type PersonChannel } from "./person-words";
+import { adRoute } from "../ads/address";
+import { PERSON_AD_ON, PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, type PersonChannel } from "./person-words";
 import type { ConversationDto } from "../conversations/thread-dto";
 import { isChatMessage, isFromTheirSide, isTheirOwnWords, writtenChannelOf } from "../conversations/thread-channel";
 
@@ -106,19 +107,34 @@ export function proposalSending(conversations: ReadonlyArray<ConversationDto>, u
 /**
  * Who added a person and how, from their first contact.added event (PersonDetailDto.added), read as
  * people_list reads it for came_from (00138): 'calendar' is the calendar sweep, 'lead' the lead finder
- * (00140, 00142), 'import' a client list the owner brought in (00170), and any other source -- 'manual',
- * or whatever POST contacts was given -- a hand. In came_from's words, once: History's row says who and
- * "Added" how, About's Added row the day and how.
+ * (00140, 00142), 'import' a client list the owner brought in (00170), 'ad' an ad (the ad by name and platform, with
+ * the address that opens it, `to`, where it is known), and any other source -- 'manual', or whatever POST contacts was
+ * given -- a hand. In came_from's words, once: History's row says who and "Added" how, About's Added row the day and
+ * how.
  */
-export function addedBy(added: Pick<NonNullable<PersonDetailDto["added"]>, "source" | "title">): {
+export function addedBy(added: Pick<NonNullable<PersonDetailDto["added"]>, "source" | "title" | "ad">): {
   who: string;
   how: string;
+  to: string | null;
 } {
-  if (added.source === "import") return { who: "You", how: "from a spreadsheet" };
-  if (added.source !== "calendar" && added.source !== "lead") return { who: "You", how: "by hand" };
+  if (added.source === "import") return { who: "You", how: "from a spreadsheet", to: null };
+  if (added.source === "ad") return addedByAd(added.ad ?? null);
+  if (added.source !== "calendar" && added.source !== "lead") return { who: "You", how: "by hand", to: null };
   const from = PERSON_CAME_FROM_WORDS[added.source];
   return {
     who: added.source === "calendar" ? "Calendar" : "Leads",
     how: `from ${from.charAt(0).toLowerCase()}${from.slice(1)}${added.source === "calendar" && added.title ? ` (${added.title})` : ""}`,
+    to: null,
   };
+}
+
+/** An ad that brought someone: `from an ad (Spring offer, on Facebook and Instagram)`, and the door to it where the ad is known. */
+function addedByAd(ad: NonNullable<PersonDetailDto["added"]>["ad"] | null): {
+  who: string;
+  how: string;
+  to: string | null;
+} {
+  const from = PERSON_CAME_FROM_WORDS.ad.toLowerCase();
+  if (!ad) return { who: "Ads", how: `from ${from}`, to: null };
+  return { who: "Ads", how: `from ${from} (${ad.name}, on ${PERSON_AD_ON[ad.platform]})`, to: adRoute(ad.id) };
 }

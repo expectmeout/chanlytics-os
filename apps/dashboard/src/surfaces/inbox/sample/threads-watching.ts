@@ -2,6 +2,7 @@
  * The demo's threads the agents are handling: a reschedule, a nurture, two drafts counting down, a win-back draft and an
  * escalation nobody has answered (moved from data/inbox-data.jsx, decision 0015, step 3).
  */
+import { DEMO_ADS } from "../../demo-ads";
 import type { SeededThread } from "../types";
 
 export const WATCHING: SeededThread[] = [
@@ -13,6 +14,7 @@ export const WATCHING: SeededThread[] = [
     avatar: "MR",
     state: "watching",
     clientId: "c-maya",
+    fromAd: DEMO_ADS.spring,
     channels: ["sms"],
     primaryChannel: "sms",
     agent: {
@@ -261,6 +263,7 @@ export const WATCHING: SeededThread[] = [
     avatar: "DC",
     state: "escalated",
     clientId: "c-david-chen",
+    fromAd: DEMO_ADS.saturday,
     waitingMin: 58,
     channels: ["mail", "phone"],
     primaryChannel: "mail",

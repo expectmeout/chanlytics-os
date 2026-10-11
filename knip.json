@@ -49,6 +49,7 @@
         "src/write-rules.ts",
         "src/reports/report-window.ts",
         "src/reports/report-lens.ts",
+        "src/ads/ads-page.ts",
         "src/**/*.type-test.ts"
       ],
       "project": ["src/**/*.ts"]

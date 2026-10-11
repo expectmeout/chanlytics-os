@@ -156,15 +156,18 @@ interface BarListRow {
 // Horizontal bars for categories. A label and its value read as one line with the bar under them, so a narrow card
 // never cuts a label short; no track behind the bar. A row with a door is a button.
 // rows: [{ id, label, value, display?, color? }] · onPick(row) opens its door · max: what a full bar is (the largest by default)
+// isDoor(row): which rows have a door, where only some do (the rest are plain rows); every row, when none is given
 export function BarList({
   rows,
   color = "var(--chart-1)",
   onPick = null,
+  isDoor = null,
   max = null,
 }: {
   rows: BarListRow[];
   color?: string;
   onPick?: ((row: BarListRow) => void) | null;
+  isDoor?: ((row: BarListRow) => boolean) | null;
   max?: number | null;
 }) {
   const top = max || Math.max(1, ...rows.map((r) => r.value));
@@ -172,13 +175,14 @@ export function BarList({
     <ul className="ck-barlist">
       {rows.map((r, i) => {
         const pct = Math.max(r.value ? 1.5 : 0, (r.value / top) * 100);
-        const Row = onPick ? "button" : "div";
+        const pick = onPick && (!isDoor || isDoor(r)) ? onPick : null;
+        const Row = pick ? "button" : "div";
         return (
           <li key={r.id} style={{ "--i": i } as CSSProperties}>
             <Row
-              type={onPick ? "button" : undefined}
-              className={`ck-barlist-row${onPick ? " door" : ""}`}
-              onClick={onPick ? () => onPick(r) : undefined}
+              type={pick ? "button" : undefined}
+              className={`ck-barlist-row${pick ? " door" : ""}`}
+              onClick={pick ? () => pick(r) : undefined}
             >
               <span className="ck-barlist-head">
                 <span className="ck-barlist-label">{r.label}</span>

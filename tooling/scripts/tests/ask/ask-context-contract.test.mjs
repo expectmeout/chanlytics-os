@@ -191,7 +191,8 @@ test("a scope has kinds of its own, and so do the context's rows; each is a kind
     assert.ok(ASK_CONTEXT_ROW_KINDS.includes(k));
   assert.ok(!ASK_SCOPE_KINDS.includes("reach_out"), "a reach-out open is the page over its row");
   assert.equal(ASK_CITATION_KINDS.length, 13, "thirteen names: a page and twelve kinds of row");
-  const cited = (k) => (k === "run" ? "broadcast" : k === "reach_out" ? "playbook" : k);
+  // An ad has no read of its own until the Ads read lands (decision 0049): a turn about one cites the page it is on.
+  const cited = (k) => (k === "run" ? "broadcast" : k === "reach_out" ? "playbook" : k === "ad" ? "page" : k);
   for (const k of [...ASK_SCOPE_KINDS, ...ASK_CONTEXT_ROW_KINDS])
     assert.ok(ASK_CITATION_KINDS.includes(cited(k)), `a ${k} is cited as a ${cited(k)}`);
   assert.ok(!ASK_CITATION_KINDS.includes("run"), "run is the address's word, never a citation's");
@@ -250,6 +251,17 @@ test("a campaign's drawer is a scope of its own (the moment spec, A1): campaigns
   assert.equal(scopeFromRoute("campaigns", `new:edit:${RUN}`), null, "a change in the composer is no scope either");
   assert.equal(scopeFromRoute("campaigns", "in:before"), null, "a group is a view, not a row");
   assert.equal(scopeFromRoute("campaigns", null), null);
+  // A paid ad open in its drawer on Campaigns › Ads (decision 0049) is a scope of its own; the page and New ad are not.
+  assert.ok(ASK_SCOPE_KINDS.includes("ad"));
+  assert.deepEqual(scopeFromRoute("campaigns", `ads:ad:${RUN}`, "Spring offer"), {
+    kind: "ad",
+    id: RUN,
+    label: "Spring offer",
+  });
+  assert.deepEqual(scopeFromRoute("campaigns", `ads:ad:${RUN}`), { kind: "ad", id: RUN, label: "this ad" });
+  assert.equal(scopeFromRoute("campaigns", "ads"), null);
+  assert.equal(scopeFromRoute("campaigns", "ads:new:call"), null);
+  assert.equal(scopeFromRoute("campaigns", "ads:ad:spring-offer"), null, "an id that is no uuid names nothing");
   // The tab sends it, and the one schema takes it.
   const sent = PageContextSchema.safeParse({
     ...ok,

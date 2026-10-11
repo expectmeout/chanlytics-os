@@ -194,8 +194,16 @@ export interface PersonDetailDto {
   workspace_reply_mode?: string | null;
   /** Their appointments on the owner's calendar, when the workspace has one connected. */
   visits?: PersonVisitsDto;
-  /** How they came to be in People when it was not by writing or calling: the calendar sweep, or a hand. */
-  added?: { at: string; source: string; title: string | null };
+  /**
+   * How they came to be in People when it was not by writing or calling: the calendar sweep, or a hand. `ad` names the ad
+   * when the source is one: its Chanlytics id (the address `campaigns/ads:ad:<id>` opens it), its name and its platform.
+   */
+  added?: {
+    at: string;
+    source: string;
+    title: string | null;
+    ad?: { id: string; name: string; platform: "meta" | "google" | "tiktok" } | null;
+  };
   /** The owner's notes on this person: the field 00157 superseded, still sent for a page loaded before it. */
   notes?: string | null;
   /** Their notes (0007), newest first; absent on a read before the table existed. */

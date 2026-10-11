@@ -419,12 +419,15 @@ function dealItems({ profile, dealsOn, stamp }: PersonCardContext): PersonTimeli
   return items;
 }
 
-/** How they came to be in People, when a door other than their own words added them (addedBy). */
+/** How they came to be in People, when a door other than their own words added them (addedBy); an ad that did is a door to it. */
 function addedItems({ profile, stamp }: PersonCardContext): PersonTimelineItemVM[] {
   if (!profile.added) return [];
   const t = ts(profile.added.at);
   const by = addedBy(profile.added);
-  return t !== null ? [{ id: "added", ts: t, ...stamp(t), kind: "system", who: by.who, text: `Added ${by.how}` }] : [];
+  const door = by.to ? { link: { label: "Open the ad", to: by.to } } : {};
+  return t !== null
+    ? [{ id: "added", ts: t, ...stamp(t), kind: "system", who: by.who, text: `Added ${by.how}`, ...door }]
+    : [];
 }
 
 /** Where the reach-out's lead was found, with the door to it on Leads (Part 6, H11). */

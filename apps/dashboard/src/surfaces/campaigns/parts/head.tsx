@@ -22,6 +22,8 @@ interface CmHeadProps {
   right?: ReactNode;
   quiet?: boolean;
   testid?: string | null;
+  /** Whether the line says the month's email allowance once half of it is used: Messages' pages do, Ads' does not. */
+  allowance?: boolean;
 }
 
 /**
@@ -40,16 +42,23 @@ interface CmHeadProps {
  * opened run, the send screen) opens on that name. This says the head's parts to the frame and draws nothing of its
  * own there; the strip above still says which door this is.
  *
- * Every tab's line also says the month's allowance, quietly, once half of it is used and not before (contracts
+ * Every Messages tab's line also says the month's allowance, quietly, once half of it is used and not before (contracts
  * allowanceLine: "1,240 of 2,000 emails used this month"): the same words after the page's own, in the same quiet text,
  * never a banner. It is read from whichever of Broadcasts and Playbooks has the month (`month_sent`), which the frame loads for
- * its tab counts; a month that could not be read says nothing.
+ * its tab counts; a month that could not be read says nothing. Ads is no email and leaves it out (`allowance={false}`).
  */
-export function CmHead({ title, badge = null, sub: said = null, right = null, quiet = false }: CmHeadProps) {
+export function CmHead({
+  title,
+  badge = null,
+  sub: said = null,
+  right = null,
+  quiet = false,
+  allowance = true,
+}: CmHeadProps) {
   // Both are read, never one only when the other has nothing: a hook is called every time.
   const broadcasts = useSurface("broadcasts");
   const playbooks = useSurface("playbooks");
-  const used = allowanceLines(broadcasts?.month_sent ?? playbooks?.month_sent ?? null);
+  const used = allowance ? allowanceLines(broadcasts?.month_sent ?? playbooks?.month_sent ?? null) : [];
   const sub =
     used.length === 0 ? (
       said

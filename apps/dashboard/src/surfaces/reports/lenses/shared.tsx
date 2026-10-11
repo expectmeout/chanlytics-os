@@ -42,6 +42,8 @@ interface MixCard {
   colors?: Readonly<Record<string, string>>;
   /** What stands under the bars, at the card's foot (the fresh book's door to those who have been quiet). */
   foot?: ReactNode;
+  /** The one row that is a door, where only one is (the People lens's "An ad" opens Ads over the same days): its id, and its press. */
+  door?: { id: string; open: () => void };
 }
 
 /** The colour kept for a row, as the bar list reads it; no property at all where the mix keeps none. */
@@ -59,7 +61,15 @@ export function mixCard(part: MixPartVM, card: MixCard) {
       takeaway={part.line}
       table={rows.length ? { columns: card.columns, rows: rows.map((r) => [r.label, r.value]) } : null}
     >
-      {rows.length ? <BarList rows={rows} /> : part.empty ? <EmptyState kind="line" title={part.empty} /> : null}
+      {rows.length ? (
+        <BarList
+          rows={rows}
+          onPick={card.door ? card.door.open : null}
+          isDoor={card.door ? (r) => r.id === card.door?.id : null}
+        />
+      ) : part.empty ? (
+        <EmptyState kind="line" title={part.empty} />
+      ) : null}
       {card.foot}
     </ChartCard>
   );

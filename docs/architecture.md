@@ -642,6 +642,7 @@ packages/channels/src/
   voice/
 packages/contracts/src/
   activity/
+  ads/
   ai/
   ask/
   ask-proposals/

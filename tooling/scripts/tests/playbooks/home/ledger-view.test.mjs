@@ -269,7 +269,7 @@ test("Escape lets go of the words first, then of the filter; Clear lets go of al
 /* ------------------------------------------------------- the keys ------------------------------------------------------- */
 
 const { onLedgerKey, rowOpener, useArrivalLands, useFocusComesHome, useLedgerCursor, useRowMarks } =
-  await import("../../../../../apps/dashboard/src/surfaces/campaigns/home/ledger/ledger-keys.ts");
+  await import("../../../../../apps/dashboard/src/surfaces/campaigns/parts/ledger-keys.ts");
 
 /** A key event as the window hears it, pressed on the page (a div), unless a test says where. */
 const key = (k, over = {}) => ({

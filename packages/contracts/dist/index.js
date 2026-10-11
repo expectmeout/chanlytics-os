@@ -2,6 +2,6384 @@
 import { config } from "zod/v4/core";
 config({ jitless: true });
 
+// src/shared/time.ts
+var MIN_MS = 6e4;
+var HOUR_MS = 36e5;
+var DAY_MS = 864e5;
+var WEEK_MS = 7 * DAY_MS;
+var JITTER_SPREAD = 0.2;
+function jittered(ms2, random = Math.random) {
+  return Math.round(ms2 * (1 + JITTER_SPREAD * Math.min(1, Math.max(0, random()))));
+}
+function formatterOnUse(locales, options) {
+  let built = null;
+  return { format: (date) => (built ??= new Intl.DateTimeFormat(locales, options)).format(date) };
+}
+var FORMATS_KEPT = 256;
+var DATE_FORMATS = /* @__PURE__ */ new Map();
+var NUMBER_FORMATS = /* @__PURE__ */ new Map();
+function formatterKept(cache, key, make) {
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const made = make();
+  if (cache.size >= FORMATS_KEPT) cache.clear();
+  cache.set(key, made);
+  return made;
+}
+function dateFormat(locales, options) {
+  return formatterKept(
+    DATE_FORMATS,
+    `${locales}|${JSON.stringify(options)}`,
+    () => new Intl.DateTimeFormat(locales, options)
+  );
+}
+function numberFormat(locales, options) {
+  return formatterKept(
+    NUMBER_FORMATS,
+    `${locales}|${JSON.stringify(options)}`,
+    () => new Intl.NumberFormat(locales, options)
+  );
+}
+var DATE_FMT = formatterOnUse([], { month: "short", day: "numeric" });
+function isoMs(iso) {
+  if (!iso) return null;
+  const ms2 = Date.parse(iso);
+  return Number.isNaN(ms2) ? null : ms2;
+}
+function spanUnits(ms2) {
+  const gap = Math.max(0, ms2);
+  if (gap < MIN_MS) return { n: Math.round(gap / 1e3), unit: "s" };
+  const minutes = Math.round(gap / MIN_MS);
+  if (minutes < 60) return { n: minutes, unit: "m" };
+  const hours = Math.round(gap / HOUR_MS);
+  if (hours < 24) return { n: hours, unit: "h" };
+  return { n: Math.round(gap / DAY_MS), unit: "d" };
+}
+function spanLabel(ms2) {
+  const u = spanUnits(ms2);
+  return u.unit === "s" ? "now" : `${u.n}${u.unit}`;
+}
+function waitedLabel(ms2) {
+  const u = spanUnits(ms2);
+  return u.unit === "s" ? "1m" : `${u.n}${u.unit}`;
+}
+function agoShort(atMs, nowMs) {
+  return spanLabel(nowMs - atMs);
+}
+function agoWords(atMs, nowMs, opts = {}) {
+  const gap = Math.max(0, nowMs - atMs);
+  const dateAfter = opts.dateAfterMs ?? WEEK_MS;
+  if (gap >= dateAfter && opts.date) return opts.date(atMs);
+  const u = spanUnits(gap);
+  return u.unit === "s" ? "just now" : `${u.n}${u.unit} ago`;
+}
+function timezoneCity(tz) {
+  const tail = tz.split("/").pop() || tz;
+  return tail.replace(/_/g, " ");
+}
+
+// src/ads/ads.ts
+var MINOR_PER_UNIT = 100;
+var atNoon = (iso) => Date.parse(`${iso}T12:00:00Z`);
+function addDays(iso, n) {
+  return new Date(atNoon(iso) + n * DAY_MS).toISOString().slice(0, 10);
+}
+var daysBetween = (a, b) => Math.round((atNoon(b) - atNoon(a)) / DAY_MS);
+function aboutADayAfter(o) {
+  const { ad, amountMinor, endDay, today } = o;
+  if (ad.budget.mode === "daily") return amountMinor;
+  const spent = ad.days.reduce((all, d) => all + d.spendMinor, 0);
+  const daysLeft = Math.max(1, daysBetween(today, endDay) + 1);
+  const units = Math.max(0, Math.round((amountMinor - spent) / daysLeft / MINOR_PER_UNIT));
+  return units * MINOR_PER_UNIT;
+}
+function sameArea(a, b) {
+  if (a.kind === "radius" && b.kind === "radius") return a.miles === b.miles;
+  return a.kind === "zips" && b.kind === "zips" && a.zips.join(",") === b.zips.join(",");
+}
+var saidWords = (c) => JSON.stringify([c.headline, c.text, c.headlines, c.lines]);
+function patchRestarts(ad, patch) {
+  const offer = patch.serviceId !== void 0 && patch.serviceId !== ad.serviceId;
+  const area = patch.area !== void 0 && !sameArea(patch.area, ad.area);
+  const words3 = patch.copy !== void 0 && saidWords(patch.copy) !== saidWords(ad.copy);
+  return offer || area || words3 || patch.photo === true || ad.needs?.code === "rejected";
+}
+function adWith(ad, read, patch) {
+  const service = patch.serviceId === void 0 ? void 0 : read.services.find((s) => s.id === patch.serviceId);
+  let next = service ? { ...ad, offer: service.name, serviceId: service.id } : ad;
+  if (patch.area) next = { ...next, area: patch.area };
+  if (patch.copy) next = { ...next, copy: patch.copy };
+  if (patch.amountMinor === void 0 && patch.endDay === void 0) return next;
+  const amountMinor = patch.amountMinor ?? ad.budget.amountMinor;
+  const endDay = patch.endDay ?? ad.endDay;
+  const aboutADayMinor = aboutADayAfter({ ad, amountMinor, endDay, today: read.today });
+  return { ...next, endDay, budget: { ...ad.budget, amountMinor }, aboutADayMinor };
+}
+
+// src/ads/address.ts
+var ADS_ROUTE = "campaigns/ads";
+var DOORS = ["whatsapp", "call", "form"];
+var STARTS = ["copy", "again", "google"];
+var NONE = { ad: null, compose: null, results: false };
+var isAdsParam = (param) => /^ads(:|$)/.test(param);
+var adStartOf = (word) => STARTS.find((s) => s === word);
+function composeOf(rest) {
+  const [first = "", ...more] = rest.split(":");
+  const how = adStartOf(first);
+  const id = more.join(":");
+  if (how && id) return { door: how === "google" ? "call" : "whatsapp", from: { how, id } };
+  return { door: DOORS.find((d) => d === first) ?? "whatsapp", from: null };
+}
+function parseAds(param) {
+  const rest = param.replace(/^ads:?/, "");
+  if (rest.startsWith("ad:")) {
+    const id = rest.slice("ad:".length);
+    return id ? { ...NONE, ad: id } : NONE;
+  }
+  if (rest === "results") return { ...NONE, results: true };
+  if (rest === "new") return { ...NONE, compose: composeOf("") };
+  if (rest.startsWith("new:")) return { ...NONE, compose: composeOf(rest.slice("new:".length)) };
+  return NONE;
+}
+var adRoute = (id) => `${ADS_ROUTE}:ad:${id}`;
+var newAdRoute = (door = "whatsapp") => door === "whatsapp" ? `${ADS_ROUTE}:new` : `${ADS_ROUTE}:new:${door}`;
+var newAdFromRoute = (how, id) => `${ADS_ROUTE}:new:${how}:${id}`;
+var adsResultsRoute = () => `${ADS_ROUTE}:results`;
+var ADS_SCOPE_ALL = { kind: "all" };
+var SCOPE_PLATFORMS = ["meta", "google", "tiktok"];
+function adsScopeKey(scope) {
+  if (scope.kind === "all") return "all";
+  return scope.kind === "platform" ? `platform:${scope.platform}` : `ad:${scope.id}`;
+}
+function adsScopeOfKey(key) {
+  if (key === "all") return ADS_SCOPE_ALL;
+  if (key.startsWith("platform:")) {
+    const platform = SCOPE_PLATFORMS.find((p) => p === key.slice("platform:".length));
+    return platform ? { kind: "platform", platform } : null;
+  }
+  const id = key.startsWith("ad:") ? key.slice("ad:".length) : "";
+  return id ? { kind: "ad", id } : null;
+}
+var ADS_WORDS = {
+  viewsLabel: "Which campaigns",
+  messagesTab: "Messages",
+  adsTab: "Ads",
+  newAd: "New ad"
+};
+
+// src/ads/rules.ts
+var ADS_WINDOW_DAYS = 30;
+var ADS_FRESH_DAYS = 3;
+var ADS_SETTLE_DAYS = 14;
+var TOO_EARLY_DAYS = 7;
+var ADS_ASK_MIN = 10;
+var ADS_ASK_MIN_CALLS = 20;
+var ADS_ASK_SOON_DAYS = 3;
+var ADS_EXTEND_MAX_DAYS = 30;
+var ADS_MOVE_DAYS = 14;
+var ADS_MOVE_STEP_MINOR = 500;
+var ADS_CHANCE_Z = 1.96;
+var ADS_OWN_DAYS = 14;
+var ADS_OWN_START_MINOR = 1e3;
+var ADS_DEFAULT_MILES = 5;
+var ADS_TOTAL_STEPS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+var ADS_DAILY_CHOICES_MINOR = [500, 1e3, 1500, 2500, 4e3];
+var ADS_END_SHIFTS = [-7, 7, 14, 30];
+var ADS_SPECIAL_MILES = 15;
+var ADS_DISPLAY_NAME_MAX = 20;
+var ADS_ZIP_DIGITS = 5;
+var ADS_COPY_LIMITS = { headlineFacebook: 27, headlineInstagram: 40, textInstagram: 125, near: 0.8 };
+var BUDGET_RULES = {
+  meta: { maxStep: null, waitDays: 0, totalMaxDays: null, dailyIsAverage: true, changeRelearns: true },
+  google: { maxStep: null, waitDays: 0, totalMaxDays: 90, dailyIsAverage: true, changeRelearns: true },
+  tiktok: { maxStep: 0.3, waitDays: 2, totalMaxDays: null, dailyIsAverage: false, changeRelearns: true }
+};
+var SCHEDULE_NEEDS_TOTAL = { meta: true, google: false, tiktok: false };
+var DOOR_NEEDS = {
+  whatsapp: { meta: ["page-linked", "whatsapp-linked", "payment", "chanlytics-whatsapp"] },
+  call: { google: ["account-active", "payment", "number-on-page", "call-reporting", "verification"] },
+  form: {
+    meta: ["page-linked", "payment", "lead-terms", "privacy-link", "yes-line"],
+    tiktok: ["tiktok-linked", "payment", "identity", "privacy-link", "yes-line"]
+  }
+};
+var STANDING_CHECKS = {
+  meta: ["account-active", "payment", "page-linked", "whatsapp-linked", "instagram-linked", "chanlytics-whatsapp"],
+  google: ["account-active", "payment", "number-on-page", "call-reporting"],
+  tiktok: ["tiktok-linked", "payment", "privacy-link"]
+};
+var ADS_PERMISSION_WARN_DAYS = 7;
+var ADS_SOFT_NEEDS = ["price-changed", "permission-lapsing"];
+var countedDoor = (door) => door !== "call";
+var ADS_GROUP_FROM = 7;
+var ADS_AGE_FLOOR = 18;
+var ADS_AGE_FLOOR_COSMETIC = 25;
+var ADS_GOOGLE_HEADLINE_MAX = 30;
+var ADS_GOOGLE_DESCRIPTION_MAX = 90;
+var ADS_GOOGLE_NAME_MAX = 25;
+var ADS_GOOGLE_DAILY = { day: 2, month: 30.4 };
+var ADS_CALL_SECONDS = 60;
+var ADS_LEAD_DAYS = 7;
+
+// src/ads/money.ts
+var ADS_DEFAULT_CURRENCY = "USD";
+function shown(units, currency, digits2) {
+  return numberFormat("en-US", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: digits2,
+    maximumFractionDigits: digits2
+  }).format(units);
+}
+function moneyOf(minor, currency) {
+  const units = minor / MINOR_PER_UNIT;
+  if (Number.isInteger(units) || units >= 10) return shown(Math.round(units), currency, 0);
+  return shown(units, currency, 2);
+}
+var perDayOf = (minor, currency) => `${moneyOf(minor, currency)} a day`;
+var leftOfMoney = (left, total, currency) => `${moneyOf(left, currency)} left of ${moneyOf(total, currency)}`;
+function currencySymbol(currency) {
+  const parts2 = numberFormat("en-US", { style: "currency", currency, currencyDisplay: "narrowSymbol" }).formatToParts(
+    0
+  );
+  return parts2.find((p) => p.type === "currency")?.value ?? currency;
+}
+var minorOfUnits = (units) => units * MINOR_PER_UNIT;
+function sumsOf(items) {
+  const sums = /* @__PURE__ */ new Map();
+  for (const i of items) sums.set(i.currency, (sums.get(i.currency) ?? 0) + i.minor);
+  return [...sums].map(([currency, minor]) => ({ currency, minor }));
+}
+function sumMoney(items) {
+  const sums = sumsOf(items);
+  if (sums.length === 0) return moneyOf(0, ADS_DEFAULT_CURRENCY);
+  return sums.map((s) => moneyOf(s.minor, s.currency)).join(" + ");
+}
+
+// src/shared/words.ts
+var plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+var capitalize = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
+var joinWords = (items) => items.length <= 1 ? items[0] ?? "" : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+
+// src/ads/words.ts
+var DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+var MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+var dayParts = (iso) => {
+  const d = /* @__PURE__ */ new Date(`${iso}T12:00:00Z`);
+  return { dow: DOW[d.getUTCDay()] ?? "", mon: MON[d.getUTCMonth()] ?? "", date: d.getUTCDate() };
+};
+function dayWord(iso) {
+  const p = dayParts(iso);
+  return `${p.dow} ${p.date} ${p.mon}`;
+}
+function dayLines(iso) {
+  const p = dayParts(iso);
+  return [p.dow, `${p.date} ${p.mon}`];
+}
+function dayShort(iso) {
+  const p = dayParts(iso);
+  return `${p.date} ${p.mon}`;
+}
+var daysWord = (n) => n <= 0 ? "today" : plural(n, "day");
+var peopleWord = (n) => plural(n, "person", "people");
+var allWord = (n) => `All ${n}`;
+function adPersonInitials(name) {
+  return name.split(" ").filter(Boolean).slice(0, 2).map((w) => w.charAt(0).toUpperCase()).join("");
+}
+var ADS_DOORS = { accounts: "admin/integrations", people: "reports/people" };
+var SETTINGS_DOOR = "Open Settings \u203A Connections";
+var PLATFORM_WORD = {
+  meta: "Facebook and Instagram",
+  google: "Google",
+  tiktok: "TikTok"
+};
+var PLATFORM_OWNER = { meta: "Meta", google: "Google", tiktok: "TikTok" };
+var PLATFORM_SURFACE = {
+  meta: "Facebook and Instagram",
+  google: "Google Search",
+  tiktok: "TikTok"
+};
+var REVIEW_WITHIN = {
+  meta: "usually within a day",
+  google: "usually within a business day",
+  tiktok: "usually within a day"
+};
+var DOOR = {
+  whatsapp: {
+    label: "Message you on WhatsApp",
+    line: "They tap the ad and a chat opens with your receptionist.",
+    runsOn: "Runs on Facebook and Instagram.",
+    glyph: "chat",
+    unit: "wrote",
+    did: "wrote",
+    short: "WhatsApp",
+    chip: "message you on WhatsApp"
+  },
+  call: {
+    label: "Call you",
+    line: "They tap Call and your phone rings. Your receptionist answers.",
+    runsOn: "Runs on Google.",
+    glyph: "phone",
+    unit: "calls \xB7 Google's count",
+    did: "called",
+    short: "calls",
+    chip: "call you"
+  },
+  form: {
+    label: "Leave their number",
+    line: "They fill in a short form. You get a name and a number to call back.",
+    runsOn: "Runs on Facebook, Instagram or TikTok.",
+    glyph: "list",
+    unit: "left a number",
+    did: "left a number",
+    short: "a form",
+    chip: "leave their number"
+  }
+};
+var DOOR_ORDER = ["whatsapp", "call", "form"];
+var CHECK_LABEL = {
+  "account-active": "Ad account active",
+  payment: "Payment method",
+  "page-linked": "Facebook Page linked",
+  "whatsapp-linked": "WhatsApp number linked to the Page",
+  "instagram-linked": "Instagram account linked",
+  "chanlytics-whatsapp": "Chanlytics WhatsApp connected",
+  "number-on-page": "Your number is on your website as text",
+  "call-reporting": "Call reporting on",
+  verification: "Advertiser verification",
+  "tiktok-linked": "TikTok account linked",
+  "privacy-link": "Privacy page link added",
+  "yes-line": "Your yes line approved",
+  "lead-terms": "Lead ads terms accepted",
+  identity: "TikTok identity linked",
+  "post-permission": "Post permission",
+  "manager-link": "Chanlytics linked as your manager"
+};
+var CHECK_LABEL_ON = {
+  meta: { payment: "Payment method in Meta" },
+  google: { "account-active": "Google Ads account active", payment: "A card added in Google Ads" },
+  tiktok: { "account-active": "TikTok ad account active", payment: "Payment method in TikTok" }
+};
+function checkWords(id, platform) {
+  return CHECK_LABEL_ON[platform][id] ?? CHECK_LABEL[id];
+}
+var CHECK_FIX = {
+  "account-active": "Get your ad account active again",
+  payment: "Add a payment method",
+  "page-linked": "Link your Facebook Page",
+  "whatsapp-linked": "Link your WhatsApp number to the Page",
+  "instagram-linked": "Link your Instagram account",
+  "chanlytics-whatsapp": "Connect Chanlytics WhatsApp",
+  "number-on-page": "Put your number on your website as text",
+  "call-reporting": "Turn call reporting on",
+  verification: "Finish Google's advertiser verification",
+  "tiktok-linked": "Link your TikTok account",
+  "privacy-link": "Add your privacy page link",
+  "yes-line": "Get your yes line approved",
+  "lead-terms": "Accept the lead ads terms",
+  identity: "Link your TikTok identity",
+  "post-permission": "Renew your post permission",
+  "manager-link": "Accept Chanlytics as your manager"
+};
+var PAYMENT_FIX = {
+  meta: "Add a payment method in Meta",
+  google: "Add a card in Google Ads",
+  tiktok: "Add balance in TikTok"
+};
+var checkFix = (id, platform) => id === "payment" ? PAYMENT_FIX[platform] : CHECK_FIX[id];
+var REACH_NOTE = {
+  whatsapp: "WhatsApp linked",
+  callChecking: "your number is being checked",
+  callApproved: "your number is approved",
+  form: { meta: "Page and number linked", google: "number linked", tiktok: "TikTok account linked" },
+  /** When the last person got in touch, said by its day (`9:02 AM today`, `Fri 9 Oct`): a number on a form, a message on WhatsApp. */
+  lastNumber: (when) => `last number arrived ${when}`,
+  lastMessage: (when) => `last message arrived ${when}`
+};
+var STATE_WORD = {
+  "setting-up": "Setting up",
+  "couldnt-finish": "Couldn't finish",
+  review: "In review",
+  on: "On",
+  paused: "Paused",
+  "too-early": "Too early to judge",
+  "needs-you": "Needs you",
+  ended: "Ended",
+  finished: "Finished"
+};
+var STATE = {
+  reviewSecond: (p) => `${PLATFORM_OWNER[p]} is checking it, ${REVIEW_WITHIN[p]}`,
+  settingUpSecond: (p) => `Chanlytics is making it on ${PLATFORM_OWNER[p]}, paused`,
+  couldntSecond: (p) => `Paused on ${PLATFORM_OWNER[p]} \xB7 nothing spent`,
+  /** When it ends: today, tomorrow (in the evening where the platform ends it at a time), or the day. */
+  endsWhen: (o) => {
+    if (o.kind === "later") return o.day;
+    if (o.kind === "today") return o.evening ? "this evening" : "today";
+    return o.evening ? "tomorrow evening" : "tomorrow";
+  },
+  ends: (when) => `Ends ${when}`,
+  daily: (perDayText) => `No end date \xB7 about ${perDayText}`,
+  endedSecond: (day, booked, each) => `Ended ${day} \xB7 ${booked} booked${each ? `, ${each} each` : ""}`,
+  finishedSecond: (total) => `Spent its ${total}`,
+  needsPayment: (p) => PAYMENT_FIX[p],
+  needsRejected: (p) => `${PLATFORM_OWNER[p]} turned it down`,
+  needsDefault: (p) => `${PLATFORM_OWNER[p]} needs something from you`,
+  needsPaused: (p) => `Paused in ${PLATFORM_OWNER[p]}, not here`,
+  needsPrice: "Your price changed in Services",
+  needsPermission: (p) => `${PLATFORM_OWNER[p]}'s permission to use the post is ending`
+};
+var GATE = {
+  turnOn: "turn on an ad",
+  change: "change an ad",
+  end: "end an ad",
+  again: "run an ad again",
+  resume: "turn an ad back on",
+  pause: "pause an ad"
+};
+var REFUSED = {
+  stale: "This ad changed since you opened it. Look again.",
+  gone: "This ad isn't here any more.",
+  adopted: "This ad was made on the platform itself. Here you can pause it and turn it back on.",
+  maximum: "The most this can spend changed. Look again."
+};
+var SENTENCE = {
+  show: "Show ",
+  /** An ad that has ended reads in the past. */
+  showed: "Showed ",
+  soPast: {
+    whatsapp: "messaged you on WhatsApp",
+    call: "called you",
+    form: "left their number"
+  },
+  on: " on ",
+  /** What comes before the area chip. */
+  reach: {
+    meta: " to people within ",
+    google: " to people who live or are within ",
+    tiktok: " to people in "
+  },
+  of: (street) => ` of ${street}`,
+  so: "so they ",
+  upTo: "up to ",
+  inAllUntil: " in all until ",
+  about: "about ",
+  untilStop: ", until you stop it",
+  blank: "___",
+  /** Shown once, above the sentence, the first time it is opened. */
+  tapHint: "Tap any highlighted word to change it"
+};
+var ADS_EXAMPLES = [
+  "running",
+  "needs-you",
+  "finished",
+  "no-calendar",
+  "setting-up",
+  "no-ads",
+  "choose",
+  "v0",
+  "reading",
+  "failed"
+];
+var EXAMPLE = {
+  /** The pill's word. */
+  pill: "Example",
+  note: "Example data. Nothing here is real.",
+  label: "Choose the example",
+  choices: {
+    running: "Ads running",
+    "needs-you": "Some ads need you",
+    finished: "Finished and ended",
+    "no-calendar": "No calendar link",
+    "setting-up": "Turning on, and one that couldn't finish",
+    "no-ads": "Connected, no ads yet",
+    choose: "Choosing an ad account",
+    v0: "Today, nothing connected (v0)",
+    reading: "Reading the accounts",
+    failed: "Could not read Meta"
+  }
+};
+
+// src/ads/words-page.ts
+var HEAD = {
+  window: "Last 30 days",
+  /** Under the head, desk and phone. */
+  money: "Charged to your card by each platform, never through Chanlytics. Pause an ad and nothing more is spent.",
+  noAds: "No ads yet.",
+  v0Strong: "Ads",
+  v0Rest: " bring new people to your receptionist.",
+  booked: (booked, of) => ({
+    strong: `${booked} of ${of}`,
+    rest: " new people from your ads have booked."
+  }),
+  /** With no calendar link, the booked half waits. */
+  touchOnly: (n) => ({ strong: `${n}`, rest: " new people got in touch through your ads." }),
+  read: (time) => `Last 30 days \xB7 read ${time}`,
+  v0Read: (since) => `Last 30 days \xB7 counted from ${since}`,
+  /** The pane line while an account is being read: `Reading Meta and Google…`. */
+  reading: (list2) => `Reading ${list2}\u2026`,
+  accounts: "Accounts",
+  newAd: "New ad",
+  ask: "Ask"
+};
+var ADS_READ = {
+  failed: (owner, when) => when === null ? `${owner}'s numbers could not be read` : `${owner}'s numbers could not be read \xB7 as of ${when}`,
+  again: "Try again"
+};
+var STANDING = {
+  connected: "Connected",
+  needsYou: "Needs you",
+  off: "Not connected yet",
+  /** An account that has to be chosen, and one whose access has lapsed. */
+  choose: "Choose an account",
+  lapsed: "Needs connecting again",
+  account: (name, time) => `${name} \xB7 read ${time}`,
+  reading: (name) => `${name} \xB7 reading now`,
+  failed: (name, when) => `${name} \xB7 could not be read, last read ${when}`,
+  charged: (p) => `Charged to your card by ${PLATFORM_OWNER[p]}. Chanlytics never holds your ad money.`,
+  door: "Open in Settings \u203A Connections",
+  /** The post permission turns amber 7 days before it lapses. */
+  permission: (day) => `Post permission runs to ${day}`,
+  /** An account that is connected but whose last read failed. */
+  unread: "Could not be read"
+};
+function figureWords(c) {
+  return {
+    spent: {
+      label: "Spent",
+      def: `What Facebook and Instagram, Google and TikTok charged for these ads, as they report it. Read ${c.readAt}. Can change for a day or two.`
+    },
+    touch: {
+      label: "Got in touch",
+      def: "New people who first wrote or left a number through one of these ads. A person is counted once, for the ad they first got in touch through. People you already knew are not counted. Calls are Google's count and are not included."
+    },
+    booked: {
+      label: "Booked",
+      def: `Of those people, how many have ${c.a} on your calendar that starts after they first got in touch and is not cancelled (ahead, kept, missed or past). A later message never un-books them. Calendar read ${c.calendarRead}.`
+    },
+    each: {
+      label: "For each person who booked",
+      def: `What the platforms charged on the days those people first got in touch, divided by the people who have since booked. Shown from 5 booked. Not counted: calls (Google's count, not matched to people yet), people you already knew, ${c.many} Chanlytics could not match to a person, and WhatsApp message fees, which WhatsApp bills you separately. The last two weeks are still settling, so this can only come down.`
+    }
+  };
+}
+var FIGURES = {
+  /** After the cost, while the last two weeks settle. */
+  soFar: "so far",
+  spentMeta: (ads) => `across ${plural(ads, "ad")} \xB7 as the platforms report it`,
+  touchMeta: (wrote, left) => `${wrote} wrote \xB7 ${left} left a number`,
+  bookedMeta: (of) => `of ${of} \xB7 counted by Chanlytics`,
+  eachMeta: (spent, n) => `${spent} / ${peopleWord(n)} \xB7 calls not included`,
+  /** No calendar link: Booked waits, and the cost falls back to people in touch. */
+  needsLink: "Add a calendar link under Settings \u203A Business to see who booked.",
+  eachInTouchLabel: "For each person in touch",
+  eachInTouchMeta: (spent, n) => `${spent} / ${peopleWord(n)}`,
+  callsNotMatched: "Calls aren't matched to people yet",
+  /** Under a dash of Spent or of the cost for each person while a platform is read: `reading Meta and Google`. */
+  reading: (list2) => `reading ${list2}`,
+  /** Under Spent while a platform's last read failed: the sum holds its last numbers. */
+  spentMetaStale: (ads, owner, when) => `across ${plural(ads, "ad")} \xB7 ${owner}${when === null ? "" : ` as of ${when}`}`,
+  /** The door that mends a missing calendar link: the calendar is set under Settings › Business. */
+  linkDoor: "Open Settings \u203A Business"
+};
+var COUNTED = {
+  quiet: (time) => `Spend is as each platform reports it, read ${time}, and can change for a day or two.`,
+  door: "How this is counted",
+  title: "How this is counted",
+  fees: "WhatsApp message fees are billed separately by WhatsApp and are not in these numbers.",
+  calls: "Calls are Google's count and nothing more. They are left out of Got in touch, Booked and the cost for each person, because Chanlytics can't tell which calls came from an ad yet.",
+  /** How long what is counted here is kept (decision 0049). */
+  kept: "Chanlytics keeps each platform's daily numbers for 25 months, and the click that brought a person for 90 days.",
+  /** While a platform is read, the line under the figures says so. */
+  reading: "Spend and the cost for each person appear as each platform is read.",
+  /** The door beside "How this is counted" that opens the Results sheet. */
+  results: "Results"
+};
+var LEDGER = {
+  heads: { ad: "Ad", spent: "Spent", touch: "In touch", booked: "Booked", each: "Each", state: "State" },
+  none: "\u2014",
+  /** Why a review ad's numbers are dashes. */
+  notStarted: "Nothing is spent until it is approved.",
+  notMatched: "not matched yet",
+  only: (n) => `only ${n}`,
+  noneYet: "none yet",
+  tooFew: "too few to read a cost",
+  hint: (o) => `${o.lead} \xB7 about ${o.perDay} \xB7 ${o.tail}`,
+  since: (day) => `since ${day}`,
+  /** Under an ad that has not run yet and is not in review: when it would start. */
+  starts: (day) => `starts ${day}`,
+  /** Under an ad the platform has: who it was sent to, and when (`today`, or the day). */
+  sentTo: (owner, when) => `sent to ${owner} ${when}`,
+  each: (cost) => `${cost} each`,
+  booked: (n) => `${n} booked`,
+  calls: (n) => plural(n, "call"),
+  googleCount: "Google's count",
+  waiting: (n) => `${peopleWord(n)} from your ads ${n === 1 ? "is" : "are"} waiting on you`,
+  /** Under the spend of an ad on a platform whose last read failed: the number is the last one read. */
+  asOf: (when) => `as of ${when}`,
+  /** Why a number waits while its platform is read, and the short word under the dash. */
+  reading: (owner) => `Reading ${owner} now.`,
+  readingUnit: "reading",
+  /** An ad the owner made on the platform itself leads its hint with where. */
+  madeIn: {
+    meta: "Made in Meta Ads Manager",
+    google: "Made in Google Ads",
+    tiktok: "Made in TikTok Ads Manager"
+  }
+};
+var GROUP = {
+  label: "Group",
+  door: "By what they ask",
+  platform: "By platform"
+};
+function groupMeta(o) {
+  const ads = plural(o.ads, "ad");
+  if (o.people === null || o.people === 0) return ads;
+  if (o.door === "whatsapp") return `${ads} \xB7 ${o.people} new people wrote`;
+  if (o.door === "call") return `${ads} \xB7 ${plural(o.people, "call")} \xB7 Google's count`;
+  return `${ads} \xB7 ${o.people} left a number`;
+}
+function platformMeta(o) {
+  const ads = plural(o.ads, "ad");
+  if (o.people === null || o.people === 0) return ads;
+  if (o.platform === "google") return `${ads} \xB7 ${plural(o.people, "call")} \xB7 Google's count`;
+  return `${ads} \xB7 ${o.people} new people in touch`;
+}
+var ASK = {
+  not: "Not now",
+  /** The press on an ad that needs fixing opens it. */
+  open: "Fix it",
+  extendPress: (more) => `Keep it going \xB7 ${more} more`,
+  extend: (o) => `${o.name} ends ${o.when}. ${o.brought} Keep it going to ${o.end}? ${o.owner}'s total for it goes from ${o.from} to ${o.to}.`,
+  extendShort: (name, when) => `${name} ends ${when}. Keep it going?`,
+  broughtPeople: (n) => `${peopleWord(n)} ${n === 1 ? "has" : "have"} booked from it.`,
+  broughtCalls: (n) => `Google counted ${plural(n, "call")} from it.`,
+  extendConfirm: (o) => `Keeps ${o.name} running to ${o.end}, about ${o.perDay}. ${o.owner}'s total for this ad goes from ${o.from} to ${o.to}, so up to ${o.more} more can be spent. Nothing else changes.`,
+  extendToast: (name, end) => `${name} now runs to ${end}`,
+  /** The ad's name, then what is wrong with it, said as the rest of a sentence (`ASK_WHY`). */
+  fix: (name, why) => `${name} ${why}.`,
+  fixShort: (name, why) => `${name} ${why}. Fix it?`,
+  movePress: (amount) => `Move ${amount} a day`,
+  move: (o) => `${o.cheap} books at ${o.cheapEach} (${o.cheapN} people), ${o.dear} at ${o.dearEach} (${o.dearN} people), a gap larger than chance would give. Move ${o.amount} a day to ${o.cheap} until ${o.end}? Your total stays ${o.all} a day.`,
+  /** `one` is the workspace's appointment word: `appointment`. */
+  moveShort: (cheap, one) => `${cheap} costs less for each ${one}. Move some money to it?`,
+  moveConfirm: (o) => `Moves ${o.amount} a day from ${o.dear} to ${o.cheap} until ${o.end}. Neither ad's end date changes, and together they still spend the same each day.`,
+  moveToast: (cheap, amount) => `Moved ${amount} a day to ${cheap}`
+};
+var ASK_WHY = {
+  rejected: (owner) => `was turned down by ${owner}`,
+  payment: (owner) => `stopped: ${owner} couldn't charge your card`,
+  "paused-in-platform": (owner) => `is paused in ${owner}, not here`,
+  "price-changed": () => "still says an old price",
+  "permission-lapsing": (owner) => `will lose ${owner}'s permission to use its post`,
+  "number-check": (owner) => `waits for ${owner} to check the number`,
+  verification: (owner) => `waits for ${owner} to verify your business`,
+  "lead-terms": (owner) => `needs ${owner}'s lead form terms accepted`,
+  identity: () => "needs a name to be shown as",
+  "out-of-budget": () => "has spent everything it was given"
+};
+var askWhy = (code2, owner) => code2 === null ? `needs something from you in ${owner}` : ASK_WHY[code2](owner);
+var TILES = {
+  waiting: {
+    title: "Waiting on you",
+    empty: "Nobody from an ad is waiting on you.",
+    line: (o) => `${o.ad} \xB7 ${o.what}${o.note ? ` \xB7 ${o.note}` : ""}`,
+    wrote: (day) => `wrote ${day}`,
+    number: (day) => `left a number ${day}`,
+    callNote: "a number to call",
+    /** Where a row goes: their conversation where there is one, else their page. */
+    toThread: "Open the conversation",
+    toPerson: "Open their page"
+  },
+  coming: {
+    title: "Coming",
+    endsEvening: "ends that evening",
+    ends: "ends",
+    today: "Today",
+    /** What is left of an ad's total waits while its platform is read. */
+    reading: (owner) => `Reading what ${owner} has left`,
+    totalReading: "Reading what is left to spend",
+    /** The total across ads that stop at a platform total. */
+    total: (o) => o.ads === 1 ? `Up to ${o.sum} more on this ad \xB7 stopped by a total set at its platform` : `Up to ${o.sum} more across the ${o.ads} ads \xB7 each stopped by a total set at its platform`,
+    plus: (daily) => `plus about ${daily}, no end`
+  },
+  cameBack: {
+    title: "What came back",
+    window: "Last 30 days",
+    /** The headline is this word and the number it counts, which stands large. */
+    headline: "Booked",
+    ahead: "Ahead on your calendar",
+    kept: "Kept",
+    missed: "Missed",
+    past: "Past, not marked",
+    marked: "marked by your team",
+    nudge: (one) => `Mark who came to see what each ${one} cost.`,
+    unmatched: (n, many) => `${n} ${many} couldn't be matched to a person, so they're in no ad's number.`,
+    line: (o) => `Ahead ${o.ahead} \xB7 Kept ${o.kept} \xB7 Missed ${o.missed} \xB7 Past ${o.past}`
+  }
+};
+var PHONE = {
+  line1: (spent, each) => each ? `${spent} spent \xB7 ${each} for each person who booked so far` : `${spent} spent`,
+  line1NoCalendar: (touch, spent) => `${touch} new people got in touch \xB7 ${spent} spent`,
+  /** While a platform is read, the muted line says what waits instead of a spend it does not know. */
+  line1Reading: (touch, list2) => `${touch} new people got in touch \xB7 reading ${list2}`,
+  footnote: "Spend is as each platform reports it and can change for a day or two.",
+  row: (platform, door) => `${platform} \xB7 ${door}`,
+  /** The ad's line, with where its numbers were last read when the platform could not be read. */
+  rowAsOf: (platform, door, when) => `${platform} \xB7 ${door} \xB7 as of ${when}`,
+  /** The people waiting on the owner, said by name: two, then how many more. */
+  names: (names3) => names3.length <= 2 ? names3.join(" \xB7 ") : `${names3.slice(0, 2).join(" \xB7 ")} \xB7 ${names3.length - 2} more`,
+  /** The door to the Results sheet, which the phone has no figures strip to carry. */
+  results: "Results"
+};
+var V0 = {
+  lead: (ad, of) => ({
+    strong: `${ad} of the ${of}`,
+    rest: " new people with a recorded way in first wrote from a WhatsApp ad."
+  }),
+  more: (n) => `${n} more have no way in recorded.`,
+  emptyLead: "No one has written from an ad yet.",
+  emptyLine: "When Meta names the ad in someone's first message, your receptionist answers and they are counted here.",
+  notes: [
+    "Ads that open WhatsApp are counted under An ad, not WhatsApp.",
+    "When Meta names the ad in someone's first message, they're counted here. Calls and other ads aren't counted yet."
+  ],
+  door: "See them in Reports \u203A People",
+  platforms: {
+    meta: "Ads that open WhatsApp, and forms",
+    google: "Ads that ring your phone",
+    tiktok: "Short videos, with forms that collect a number"
+  },
+  next: "Connecting an ad account comes next, Facebook and Instagram first."
+};
+var NO_ADS = {
+  title: "Your first ad",
+  /** `Message you on WhatsApp · about $10 a day for 7 days · up to $70`. */
+  line: (o) => `${o.door} \xB7 about ${o.perDay} for ${o.days} days \xB7 up to ${o.total}`,
+  press: "Set up",
+  /** What stops the first ad, said as a step. The press waits for it. */
+  needs: (fix) => `${fix} to set up your first ad`,
+  connect: (owner) => `Connect your ${owner} account to set up your first ad`,
+  lapsed: (owner) => `Connect your ${owner} account again to set up your first ad`
+};
+var CHOOSE = {
+  title: (owner) => `Choose your ${owner} ad account`,
+  line: "Each account is in one currency, and ads on it are charged in that currency.",
+  choice: (name, currency) => `${name} \xB7 ${currency}`,
+  use: "Use this one",
+  done: (name) => `Using ${name} for your ads`,
+  /** The account was taken off the list (or never was) between the card being drawn and the press. */
+  gone: "That account isn't on the list any more. Look again."
+};
+
+// src/ads/words-drawer.ts
+var moreSpent = (more) => `Up to ${more} more can be spent`;
+var LIST = {
+  /** What a chip is, to a screen reader: "The area: 5 miles". */
+  chip: {
+    offer: "The offer",
+    area: "The area",
+    amount: "The amount",
+    end: "The end date",
+    door: "What people do",
+    platform: "Where it runs"
+  },
+  chipSaid: (what, value) => `${what}: ${value}`,
+  /** A dashed blank, to a screen reader. */
+  blank: "not chosen yet",
+  amountDaily: "Change the daily amount",
+  inAll: (total) => `${total} in all`,
+  /** The unit beside the box of "Your own amount": a daily amount, or a total. */
+  unitDaily: "a day",
+  unitTotal: "in all",
+  /** A daily amount, said as the platform spends it: an average where it spends one (`about $15 a day, an average`). */
+  dailyRow: (perDay, average) => average ? `about ${perDay}, an average` : perDay,
+  raiseDaily: (perDay, average) => `Raise to about ${perDay}${average ? ", an average" : ""}`,
+  moreSpent,
+  /** What a daily amount that moves does to a day (`about $10 a day more`): no most, so it says about. */
+  dailyMore: (perDay) => `about ${perDay} more`,
+  dailyMoreHead: (perDay) => `About ${perDay} more`,
+  dailyLess: (perDay) => `about ${perDay} less`,
+  /** What a choice does to a day, over the days left to the end. */
+  perDayLeft: (perDay) => `About ${perDay} for the days left`,
+  asItIs: (perDay) => `As it is: about ${perDay}`,
+  endsSooner: (perDay) => `Ends sooner: about ${perDay} for the days left`,
+  endsLater: (perDay) => `Ends later: about ${perDay} for the days left`,
+  /** A raise's two facts on a line: the most it can spend, and what a day becomes. */
+  raiseSub: (o) => `${moreSpent(o.more)} \xB7 about ${o.perDay}`,
+  pickDay: "Pick another day",
+  pickDayLabel: "Pick the day it ends",
+  set: "Set"
+};
+var CHIPS = {
+  offer: (p) => `Changing the offer, photo or words sends the ad back to ${PLATFORM_OWNER[p]} for checking, ${REVIEW_WITHIN[p]}.`,
+  areaMiles: "Miles around your address",
+  areaPeople: (lo, hi) => `About ${lo.toLocaleString("en-US")} to ${hi.toLocaleString("en-US")} people \xB7 Meta's estimate`,
+  areaSmall: "Small areas can be slow to start.",
+  areaMeta: "Changing the area sends the ad back for checking.",
+  areaGoogle: "People who live or are in this area. People who only search about it won't see it. Fewer people, a better fit.",
+  areaTiktok: "TikTok targets these ZIP codes. There is no radius.",
+  amountTitle: "Change the total",
+  own: "Your own amount",
+  /** What a platform needs a day (`floor`, already said), or for Google's total how long it may run. */
+  floor: (p, floor, totalMaxDays) => {
+    if (p === "google") return `Google total budgets run 3 to ${totalMaxDays ?? 90} days.`;
+    return `${PLATFORM_OWNER[p]} needs at least ${floor} a day for this.`;
+  },
+  belowSpent: (spent) => `It can't go below what is spent, ${spent}.`,
+  stops: (p) => p === "google" ? "Google will not charge more than the total." : `${PLATFORM_OWNER[p]} stops at this amount itself, even if Chanlytics is offline.`,
+  noRestart: "A change of amount does not send it back for checking.",
+  dailyOver: "Some days Meta spends up to a quarter more. Over a week it never goes above 7 times the daily amount.",
+  dailyOverGoogle: "Google spends a daily amount as an average: some days up to twice it.",
+  /** A change of TikTok's amount: at most this share, and not within this many days of the last. */
+  tiktokChange: (maxStep, waitDays) => `A change can be ${Math.round(maxStep * 100)}% at most, and not within ${waitDays} days of the last.`,
+  /** Why TikTok will not take an amount: too far from the one now, or too soon after the last change. */
+  tiktokStepOut: (maxStep) => `TikTok lets you change it by up to ${Math.round(maxStep * 100)}% at a time`,
+  tiktokWait: (day) => `TikTok lets you change it again on ${day}`,
+  tiktokRange: (o) => `Between ${o.lo} and ${o.hi}: TikTok lets you change it by up to ${Math.round(o.maxStep * 100)}% at a time.`,
+  endTitle: "Change the end date",
+  endLater: "A later end date lets it spend up to the total. It does not go back for checking.",
+  endGoogle: (day, at3) => `Ends the evening of ${day} (${at3}, your account's time zone).`,
+  /** Google's total budgets run this many days at most: the date list stops at the last day. */
+  googleLastDay: (o) => `Google total budgets run up to ${o.days} days, so the last day for this ad is ${o.day}.`,
+  /** A raise of spend is the only press that names its maximum; lowering, pausing and renaming are free. */
+  raise: (total) => `Raise to ${total} in all`,
+  lockedWhy: "To change how the chat starts, Chanlytics makes a copy of the ad.",
+  formNew: "Changing the form makes a new form.",
+  googleWait: "Changing it now restarts the wait."
+};
+var ZIPS = {
+  title: "ZIP codes",
+  add: "Add a ZIP code",
+  addPress: "Add",
+  placeholder: (digits2) => `${digits2} digits`,
+  remove: (zip) => `Take out ${zip}`,
+  bad: (digits2) => `A ZIP code is ${digits2} digits.`,
+  already: (zip) => `${zip} is already in the list.`,
+  none: "Keep at least one ZIP code.",
+  save: "Save ZIP codes",
+  /** What the list says it holds, to a screen reader. */
+  held: (n) => `${plural(n, "ZIP code")} in the area`
+};
+var EDIT = {
+  title: "Photo and words",
+  photo: "Photo",
+  changePhoto: "Change photo",
+  photoNew: "A new photo is chosen",
+  headlineN: (n) => `Headline ${n}`,
+  descriptionN: (n) => `Description ${n}`,
+  noChanges: "Nothing changed yet",
+  /** How the chat starts, fixed on a running ad: `How the chat starts: They send a message you wrote for them`. */
+  chatNow: (what, now) => `${what}: ${now}`,
+  /** The foot's line while the changes are being made. */
+  tapHint: "Tap a highlighted word to change it"
+};
+var CHANGED = {
+  ends: (name, day) => `${name} now ends ${day}`,
+  total: (name, total) => `${name}'s total is now ${total}`,
+  daily: (name, amount) => `${name}'s daily amount is now ${amount}`,
+  area: (name, area, owner) => `${name} now reaches ${area}. Back with ${owner} for checking.`,
+  renamed: (name) => `Renamed to ${name}`,
+  saved: (name) => `${name} saved`,
+  savedChecking: (o) => `${o.name} saved. Back with ${o.owner} for checking, ${o.within}.`,
+  updated: (o) => `${o.name} is back with ${o.owner} with your new price, ${o.within}.`,
+  /** A second look is asked of the platform; the ad stays as it is until it answers. */
+  asked: (o) => `Asked ${o.owner} to look again. ${o.within.charAt(0).toUpperCase()}${o.within.slice(1)}.`,
+  retrying: (owner) => `Trying again on ${owner}. This takes a minute.`,
+  removing: (owner) => `Removing what was made on ${owner}.`,
+  pausedTotal: (name, day) => `${name} paused. Nothing more is spent while it is paused. It still ends ${day}.`
+};
+var NO_AD = {
+  title: "This ad isn't here any more",
+  body: "It may have been ended and cleared away."
+};
+var PEOPLE_TAB = { everyone: "Everyone", none: "Nobody yet." };
+var SHOWN = {
+  frameLabel: "Where it shows",
+  photo: "Your photo goes here",
+  video: "Your video goes here",
+  adWord: "Ad",
+  consentBox: "Not ticked",
+  formRows: "What they fill in",
+  reach: "What this ad runs on"
+};
+var MADE_IN = {
+  meta: "Meta Ads Manager",
+  google: "Google Ads",
+  tiktok: "TikTok Ads Manager"
+};
+var CHANGE_IN = { meta: "Meta", google: "Google Ads", tiktok: "TikTok" };
+var MADE_PARTS = "the campaign and who it shows to";
+var paymentLead = (p) => p === "meta" ? "Meta couldn't charge your card. Update it in Meta" : checkFix("payment", p);
+var DRAWER = {
+  /** The kicker: `Facebook and Instagram · Message you on WhatsApp`. */
+  kicker: (platform, door) => `${platform} \xB7 ${door}`,
+  next: {
+    runs: (o) => `Runs to ${o.day} \xB7 ${o.left}${o.perDay ? ` \xB7 about ${o.perDay}` : ""}`,
+    runsDaily: (perDayText) => `Runs until you stop it \xB7 about ${perDayText}`,
+    review: (o) => `Would run ${o.from} to ${o.to} \xB7 up to ${o.total} in all \xB7 about ${o.perDay}`,
+    reviewDaily: (o) => `Would start ${o.from} \xB7 about ${o.perDay} until you stop it`,
+    paused: (o) => `Paused \xB7 it still ends ${o.day} \xB7 ${o.left}`,
+    pausedDaily: (perDayText) => `Paused \xB7 about ${perDayText} when it runs`,
+    ended: (o) => `Ended ${o.day} \xB7 ${o.spent} spent`,
+    finished: (total) => `Spent its ${total} and stopped`
+  },
+  reach: {
+    running: (o) => ({
+      state: "On",
+      parts: [`${o.owner} approved it ${o.day}`, o.note]
+    }),
+    review: (o) => ({
+      state: "In review",
+      parts: [`sent to ${o.owner} ${o.when}`, o.note]
+    }),
+    /** When it was sent: `today 9:02 AM` on the day, else the day. */
+    sentWhen: (o) => o.today ? `today ${o.time}` : `${o.day} ${o.time}`,
+    paused: (note) => ({ state: "Paused", parts: [note] }),
+    needs: (first) => ({ state: "Needs you", parts: [first] }),
+    ended: (day) => ({ state: `Ended ${day}`, parts: [] }),
+    read: (time) => `Read ${time}`
+  },
+  results: {
+    header: "Last 30 days",
+    /** The door to this ad's numbers in Reports. */
+    report: "Report",
+    wrote: "Wrote",
+    calls: "Calls",
+    leftNumber: "Left a number",
+    defWrote: "People who first wrote through this ad. A person is counted once, for the ad they first got in touch through.",
+    defCalls: "Calls Google counted from this ad, by the day of the click. Google's count, not Chanlytics'.",
+    defNumber: "People who left a number through this ad's form. A person is counted once.",
+    countWrote: (wrote, booked) => `${wrote} wrote \xB7 ${booked} booked`,
+    countCalls: (calls) => `${plural(calls, "call")} \xB7 Google's count`,
+    countNumber: (n, booked) => `${n} left a number \xB7 ${booked} booked`,
+    perPerson: (spent, n) => `${spent} / ${peopleWord(n)}`,
+    /** A counted zero is said in words. */
+    zero: (o) => `${o.inTouch} ${o.did} so far, nobody has booked yet. ${o.spent} spent.`,
+    quietStart: (spent) => `${spent} spent, nobody has written yet.`,
+    /** Its first words are the word that opens what each platform says about it (`many` is the appointment word, plural). */
+    tooEarly: (many) => ({
+      word: "Too early to judge",
+      rest: `. Most ads need about a week and a handful of ${many} before the cost means anything.`
+    }),
+    tooEarlySheet: {
+      meta: "This is Chanlytics' reading, not a Meta status. Meta usually needs about 50 results after your last big change.",
+      tiktok: "This is Chanlytics' reading, not a TikTok status. TikTok says its ads settle after about 25 results or a week.",
+      google: "This is Chanlytics' reading, not a Google status. Google needs a few days of calls."
+    },
+    soFarToday: (time) => `so far today, ${time}`
+  },
+  bars: {
+    legend: (did) => `Each bar is a day: people who first ${did}. Dark part: booked since. Lighter days are still counting.`,
+    legendCalls: "Each bar is a day: calls Google counted, by the day of the click. Lighter days are still counting.",
+    aria: (o) => `${peopleWord(o.n)} first ${o.did} over ${plural(o.days, "day")}; ${o.booked} ${o.booked === 1 ? "has" : "have"} booked.`,
+    ariaCalls: (o) => `${plural(o.n, "call")} over ${plural(o.days, "day")}, Google's count.`,
+    ariaNone: "Nothing yet: it has not started."
+  },
+  quiet: {
+    reply: (median, n) => `Median first reply ${median} \xB7 ${plural(n, "reply", "replies")}`,
+    provenance: (owner) => `Counted by Chanlytics, not by ${owner}. ${owner}'s own numbers can differ and settle after a day or two.`,
+    provenanceCalls: "Calls are Google's count, not Chanlytics'. Google's own numbers can differ and settle after a day or two.",
+    /** The platform's own numbers, one press away: a list by name, each "not read yet" where the platform returned none. */
+    theirsDoor: (owner) => `${owner}'s numbers`,
+    theirsNote: (owner) => `These are ${owner}'s counts. Chanlytics counts people once.`,
+    notRead: "Not read yet",
+    theirs: {
+      saw: "People who saw it",
+      reached: "People reached",
+      impressions: "Impressions",
+      taps: "Taps",
+      clicks: "Clicks",
+      chats: "Chats started",
+      numbers: "Numbers left",
+      calls: "Calls",
+      longCalls: "Calls over 60 seconds"
+    },
+    googleExtra: "Google counts calls by the day of the click, so recent days can still change.",
+    /** What people searched on Google, as it groups them, and the searches left out for the owner. */
+    typedDoor: "What people typed",
+    typedNote: "Google groups what people searched into themes and shows these.",
+    leftOut: {
+      title: "Left out for you",
+      note: "Google won't show the ad for searches with these words."
+    }
+  },
+  people: {
+    title: "People it brought",
+    booked: "Booked",
+    notYet: "Not yet",
+    /** The door to everyone it brought: People cannot be cut by ad yet, so it says where it goes. */
+    all: (n) => `${allWord(n)} in Reports \u203A People`,
+    wrote: (day) => `Wrote ${day}`,
+    wroteToday: (time) => `Wrote today ${time}`,
+    number: (day) => `Left a number ${day}`,
+    waiting: (days) => `Waiting for you \xB7 ${days}`,
+    callNumber: "A number to call",
+    talking: "Talking",
+    quietSince: (day) => `Quiet since ${day}`,
+    nothing: "Nothing on your calendar",
+    ahead: (day, time) => `Booked ${day}, ${time}`,
+    kept: (day) => `Kept ${day}`,
+    missed: (day) => `Missed ${day}`,
+    past: (day) => `Was booked ${day}`,
+    marked: "Marked by your team",
+    notMarked: "Not marked yet",
+    emptyCalls: "Calls aren't matched to people yet.",
+    emptyReview: "Nobody yet. Nothing is spent until the platform approves it.",
+    emptyQuiet: "Nobody yet.",
+    /** Where a row goes, said in its tip: the person's page, or the conversation that waits on the owner. */
+    tipPerson: (name) => `Opens ${name}`,
+    tipConversation: (name) => `Opens your conversation with ${name}`
+  },
+  foot: {
+    pause: "Pause",
+    resume: "Resume",
+    edit: "Edit",
+    again: "Run it again",
+    cancel: "Cancel",
+    save: "Save changes",
+    /** The one press that raises what can be spent names its most. */
+    saveRaise: (total) => `Save \xB7 raise to ${total}`,
+    saveRaiseDaily: (perDay) => `Save \xB7 raise to about ${perDay}`,
+    paused: (name, day) => `${name} paused. Nothing more is spent while it is paused. It still ends ${day}. Meta may need a few days to find people again when you turn it back on.`,
+    pausedDaily: (name) => `${name} paused. Nothing more is spent while it is paused.`,
+    resumed: (name) => `${name} is on again`,
+    /** The edit foot: what the changes do. */
+    changes: (o) => o.restarts ? `${plural(o.n, "change")} \xB7 back with ${o.owner} for checking, ${o.within}` : `${plural(o.n, "change")} \xB7 starts right away`
+  },
+  menu: {
+    label: "More about this ad",
+    ask: "Ask about this ad",
+    copy: "Make a copy",
+    end: "End this ad",
+    endConfirm: (name) => `End ${name}? It stops today. What was spent stays spent.`,
+    endPress: "End it",
+    keep: "Keep it",
+    ended: (name) => `${name} ended`,
+    copied: (name) => `A copy of ${name} is ready to turn on`
+  },
+  /** The questions a callout's press asks first, in the foot. */
+  confirm: {
+    update: (o) => `Update the ad? Its words are drafted again from Services with the new price, and it goes back to ${o.owner} for checking, ${o.within}.`,
+    updateYes: "Update it",
+    updateNo: "Not now",
+    remove: (owner) => `Remove what was made on ${owner}? It is deleted there. Nothing was spent.`,
+    removeYes: "Remove it",
+    removeNo: "Keep it"
+  },
+  /** An ad the owner made on the platform itself: Chanlytics can pause and resume it, and nothing else. */
+  adopted: (p) => `Made in ${MADE_IN[p]}. Chanlytics can pause and resume it; change it in ${CHANGE_IN[p]}.`,
+  callout: {
+    review: (p) => `${PLATFORM_OWNER[p]} is checking your ad, ${REVIEW_WITHIN[p]}. Nothing is spent until it is approved. We'll tell you here.`,
+    /** An ad sent back for checking after a change: its results stay where they are. */
+    recheck: (o) => `${o.owner} is checking your changes, ${o.within}. Your results stay here.`,
+    settingUp: (p) => `Setting it up on ${PLATFORM_OWNER[p]}, paused. This takes a minute.`,
+    couldntFinish: (p) => `Chanlytics couldn't finish setting this up. What was made is paused on ${PLATFORM_OWNER[p]}: ${MADE_PARTS}. Nothing was spent.`,
+    couldntExits: { retry: "Try again", remove: "Remove what was made" },
+    pausedInPlatform: (p) => `Paused in ${PLATFORM_OWNER[p]}, not here. Turn it back on?`,
+    resume: "Resume",
+    /** The price the ad says and the one Services says now; either may be missing from what was read. */
+    priceChanged: (o) => {
+      if (o.was && o.now) return `Your price changed in Services: the ad says ${o.was}, Services now say ${o.now}.`;
+      return o.was ? `Your price changed in Services. This ad still says ${o.was}.` : "Your price changed in Services.";
+    },
+    updateAd: "Update the ad",
+    /** The platform's own words, verbatim, in quotes. */
+    rejected: (o) => `${o.owner} turned this ad down: \u201C${o.why}\u201D`,
+    rejectedExits: {
+      fix: "Fix it",
+      again: (owner) => `Ask ${owner} to look again`,
+      fresh: "Make a new one"
+    },
+    /** The line is the platform's own payment step: `Add a card in Google Ads`. */
+    payment: (p) => `${paymentLead(p)} so your ad can run. Chanlytics never holds your ad money.`,
+    lapsing: (day) => day ? `TikTok's permission to use this post ends ${day}.` : "TikTok's permission to use this post ends soon.",
+    renew: "Renew in Settings \u203A Connections",
+    /** After a press, until the platform answers: the press says what it did and cannot be pressed again. */
+    done: { again: (owner) => `Asked ${owner}`, retry: "Trying again", remove: "Removing" },
+    ended: (day) => `Ended ${day}.`,
+    settling: (days) => `Numbers settle for ${days} days: these may still change.`,
+    settled: (days) => `Settled: ${days} days have passed.`,
+    finished: (o) => `${o.name} spent its ${o.total} and stopped.`,
+    finishedBooked: (booked) => `${peopleWord(booked)} booked from it.`,
+    finishedCalls: (calls) => `Google counted ${plural(calls, "call")} from it.`,
+    quiet: "Quiet so far is normal. Give it about a week before you judge it."
+  },
+  edit: { pen: "Rename this ad", namePlaceholder: "Name this ad" }
+};
+var PREVIEW = {
+  fold: "How it reads",
+  frames: ["Feed", "Story", "Reel"],
+  /** The capsule under the ad, in the platform's wording where it can differ by locale. */
+  cta: { whatsapp: "Send WhatsApp message", call: "Call us", form: "Sign up" },
+  tap: "When they tap",
+  call: "When they call",
+  form: "When they send the form",
+  drawn: (owner) => `Drawn by Chanlytics. When you turn it on, ${owner} also shows its own preview.`,
+  receptionistWrites: "Your receptionist writes the real reply when someone writes.",
+  replyLabel: "Example reply, written from your Services and Hours:",
+  googleCaption: (line) => `Google shows its own number on the ad and passes the call to ${line}. On phones the button calls; on computers it shows the number.`,
+  answers: (business) => `Your receptionist answers, starting with: ${business}, how can I help?`,
+  formFilled: "Filled in for them",
+  formName: "Name",
+  formPhone: "Phone",
+  consentTitle: "Draft for counsel, not final wording",
+  consent: (business) => `Yes, ${business} may text or WhatsApp me at this number, using automated technology, with offers and reminders. Not required to book. Message frequency varies. Message and data rates may apply. Reply STOP to opt out.`,
+  privacy: (site) => `Privacy policy: ${site}/privacy`,
+  formNotice: "We'll message you about this request.",
+  layout: "A standard form: the card layout is not available with a consent line",
+  /** Drawn by the drawer and New ad's thank-you switch (owed). */
+  thanksOn: "We'll message you within a few minutes",
+  thanksOff: "We'll get back to you",
+  neverQuote: "Your receptionist is set to never quote prices, so it will say the price is quoted at a consult. Take the price out of the ad, or change that setting.",
+  excerpt: (text, cta) => `${text} \xB7 ${cta}`
+};
+
+// src/ads/words-new.ts
+var NEW_AD = {
+  kicker: "New ad",
+  stepOf: (n) => `${n} of 5`,
+  stepLabel: (n) => `Step ${n} of 5`,
+  review: "Review",
+  reviewTitle: "Everything is filled in. Skip to the last step.",
+  /** The ad's name, to a screen reader. */
+  nameLabel: "The ad's name",
+  zip: "these ZIP codes",
+  miles: (n) => `${n} miles`,
+  endsAtGoogle: "11:59 pm",
+  /** The name, drafted once the offer is chosen: `First appointment · 12 Oct`. */
+  name: (offer, day) => `${offer} \xB7 ${day}`,
+  /** The phone's sentence is clamped to two lines; this opens it. */
+  sentenceMore: "Show the whole sentence",
+  sentenceLess: "Show less",
+  steps: ["What should people do?", "The ad", "Where and who", "Budget", "Review"],
+  back: "Back",
+  cancel: "Cancel",
+  next: ["Next: the ad", "Next: where and who", "Next: budget", "Next: review"],
+  say: "Nothing runs until you press Turn on.",
+  sayFirst: "Nothing runs until you press Turn on in step 5.",
+  turnOnTotal: (total) => `Turn on \xB7 up to ${total}`,
+  turnOnDaily: (perDayText) => `Turn on \xB7 about ${perDayText}`,
+  /** After the press: the toast, and what Undo does. */
+  turnOnToast: (o) => `Sent to ${o.owner} to check, ${o.within}. It starts when ${o.owner} approves it.`,
+  undone: "Paused. Nothing is spent.",
+  /** What stops Turn on, said as a step; the door is Settings › Connections. */
+  blocked: {
+    need: (fix) => `${fix} to continue`,
+    notConnected: (owner) => `Connect your ${owner} account to continue`,
+    choose: (owner) => `Choose your ${owner} ad account to continue`,
+    lapsed: (owner) => `Connect your ${owner} account again to continue`
+  },
+  needs: "What this needs",
+  /** New ad opened from an ad: the name it opens with says so. */
+  from: {
+    copy: (name) => `A copy of ${name}`,
+    again: (name) => `${name}, again`,
+    google: (name) => `${name} on Google`
+  },
+  /** A member who is not the owner can draft an ad; the owner turns it on. */
+  askOwner: "Ask the owner to turn it on",
+  askOwnerSent: "Sent to the owner. They'll see it in their bell.",
+  /** Google: the page the ad opens. */
+  opens: {
+    label: "The ad opens",
+    group: "Where the ad opens",
+    page: "Your Chanlytics page",
+    site: "Your website",
+    pageNote: "Chanlytics puts your number on it, as text. There is nothing to do.",
+    siteNote: "Your number has to be on that page as text, or the call button will not run.",
+    numberOnPage: "Your number is on the page it opens, as text",
+    hostedNote: "Chanlytics puts it there",
+    /** The display path under the headline: the page's address, then where on it. */
+    path: (host) => `${host} \u203A book`
+  },
+  step1: {
+    formNote: "To text or WhatsApp them first, they must tick the yes box on the form."
+  },
+  step2: {
+    about: "What it's about",
+    aboutLabel: "What the ad is about",
+    aboutCaption: "From your Services. Change it, or pick another.",
+    quoted: "Quoted at a consult",
+    photo: "The photo or post",
+    postsLabel: { meta: "Use one of my Instagram posts", tiktok: "Use one of my TikTok videos" },
+    addPhoto: "Add a photo",
+    addVideo: "Add a video",
+    photoHint: "Upright 4:5, at least 1440 x 1800 suggested",
+    postUse: "How the post is used",
+    asIs: "Use the post as it is",
+    newWords: "Use its photo with new words",
+    words: "The words",
+    headline: "Headline",
+    text: "Text",
+    limit: (n, max, where) => `${n} of ${max} on ${where}`,
+    /** The names the limit lines use for where Meta shows the words. */
+    where: { facebook: "Facebook", instagram: "Instagram" },
+    chat: "How the chat starts",
+    chatReady: "They send a message you wrote for them",
+    chatQuestions: "They pick a question",
+    chatLocked: "They can't have both. To change this later, Chanlytics makes a copy of the ad.",
+    chatShort: "About 80 characters",
+    adjust: "Let Meta adjust my photo and wording",
+    adjustWhat: "Crop, wording variations, relevant comments",
+    adjustOff: "Off: the photo and words stay yours.",
+    frameLabel: "How the ad is shown",
+    headlines: "Headlines",
+    descriptions: "Descriptions",
+    googleFold: "We wrote 10 headlines and 3 descriptions so Google can try different wordings",
+    googleShown: "As Google will show them",
+    /** The other wordings Google tries, so the fold's "10 headlines and 3 descriptions" are all there. */
+    googleMore: (o) => ({
+      headlines: [
+        `Book ${o.offer}`,
+        "Open times this week",
+        `Call ${o.business}`,
+        `Ask about ${o.offer}`,
+        "Open Mon to Sat",
+        `${o.offer} ${o.price}`.trim(),
+        "Call to ask about times"
+      ],
+      descriptions: [`Call ${o.business} for open times. We'll go through them with you.`]
+    }),
+    count: (n, max) => `${n} of ${max}`,
+    video: "A short vertical video, 5 to 60 seconds. A still photo alone will not run on TikTok.",
+    /** A TikTok post used as an ad: its music has to be cleared for ads. */
+    sound: "If this video has a song in it, TikTok may turn the ad down unless the song is cleared for ads.",
+    newWordsVideo: "Use its video with new words",
+    formFields: "The form",
+    formFilled: "Name and phone, filled in for them.",
+    askService: "Let them pick a service",
+    askServiceHint: "A short list of your own services.",
+    doubleCheck: "Ask them to double-check before sending",
+    privacyLink: "Privacy page link",
+    privacyHint: "Your own page. If you have none, Chanlytics hosts one for your business.",
+    privacyPlaceholder: "https://",
+    privacyNeeded: "Add your privacy page link to continue",
+    completion: "When they send it",
+    completions: ["We'll message you on WhatsApp", "Call us", "Nothing more"],
+    consentOn: "The yes box is on the form, unticked.",
+    consentCounsel: "The yes line is counsel's wording. Chanlytics keeps it as it is.",
+    /** The thank-you line a form ends on: whether it promises a message within minutes. */
+    thanks: "Promise a message within minutes",
+    thanksHint: (said) => `They read: ${said}`,
+    thanksOnNote: "Chanlytics sends no first text yet. You would write to them yourself.",
+    /** Who the ad is shown as: read from the connection, changed in Settings. */
+    shownAs: {
+      label: "Shown as",
+      line: (name, handle) => handle ? `${name} \xB7 ${handle}` : name,
+      limit: (max) => `Up to ${max} characters`,
+      door: "Change in Settings \u203A Connections"
+    },
+    /** Meta: a photo or a vertical video. */
+    media: {
+      label: "What the ad shows",
+      photo: "Photo",
+      video: "Video",
+      videoNote: "Vertical, for Reels and Stories",
+      postsVideo: "Use one of my Instagram videos"
+    },
+    /** Google: what people search, grouped by Google. */
+    search: {
+      label: "What people search",
+      note: "Google groups searches; you will see what people typed in the ad's Results.",
+      leftOut: (list2) => `Left out for you: ${list2.join(", ")}`
+    }
+  },
+  step3: {
+    runsOn: "Runs on",
+    platformLabel: "Where it runs",
+    alsoGoogle: "Also run on Google",
+    placementsMeta: "Facebook and Instagram feeds, stories and reels.",
+    placementsOff: "Chats from Status ads can't be tied back to the ad.",
+    placementsTiktok: "TikTok and its partner apps",
+    placementsGoogle: "Google Search results.",
+    area: "People within",
+    areaGoogle: "People who live or are within",
+    areaTiktok: (zip) => `People in ${zip}`,
+    areaPicker: "How far around your address",
+    of: "of",
+    regulars: "It may also show to people who already know you. Anyone already in People who writes is not counted as new.",
+    /** Drawn by New ad's area step (owed). */
+    googleSmall: "The ad may show only now and then.",
+    special: "Is this ad about a job you're hiring for, a loan or financing offer, or a home to sell or rent?",
+    no: "No",
+    yes: "Yes",
+    yesNote: "Meta limits this: an area of at least 15 miles (25 km), no age or gender choice.",
+    /** Drawn by New ad's area step (owed): the age lock a special category brings. */
+    ages: "Ages 18 and over",
+    agesWhy: "Meta limits this kind of ad to adults.",
+    agesLabel: "Ages",
+    ageLine: (floor) => `${floor} and over`,
+    agesWhyDefault: (owner) => `${owner} shows ads like this to adults only.`,
+    agesWhyCosmetic: "TikTok shows cosmetic ads to people 25 and over.",
+    alsoGoogleNote: "After this one is on, you'll set up the Google one: same offer, its own amount.",
+    /** What the platform looks for, by door. */
+    who: (platform, door) => {
+      if (platform === "google") return "Google shows it to people searching for what you offer.";
+      const owner = platform === "tiktok" ? "TikTok" : "Meta";
+      return door === "whatsapp" ? `${owner} looks for people likely to message you.` : `${owner} looks for people likely to leave a number.`;
+    }
+  },
+  step4: {
+    mode: ["For a set number of days", "Until I stop it"],
+    modeLabel: "How the money runs",
+    presetsLabel: "How much",
+    /** `Steady · about $15 a day for 20 days · up to $300 · ends Sat 31 Oct`: the label, then the rest. */
+    preset: (o) => `about ${o.perDay} for ${o.days} days \xB7 up to ${o.total} \xB7 ends ${o.end}`,
+    presetDaily: (o) => `about ${o.perDay}`,
+    own: "Your own amount",
+    ownLabel: "Amount a day",
+    /** The unit beside the box: the currency's symbol, then a day. */
+    ownUnit: (symbol) => `${symbol} a day`,
+    ownNeeds: "Enter an amount a day.",
+    fees: "WhatsApp message fees, if any, are billed by WhatsApp and are not in this number.",
+    dailyAbout: (perDayText) => `About ${perDayText}`,
+    estimate: (o) => `About ${o.lo} to ${o.hi} chats over the ${o.days} days \xB7 Meta's estimate, not a promise.`,
+    noEstimate: "Meta can't estimate this yet. The first days will tell us.",
+    googleEstimate: (o) => `About ${o.clicks[0]} to ${o.clicks[1]} clicks a month at this amount, usually ${o.from} to ${o.to} a click \xB7 Google's estimate`,
+    history: (each, people) => `Your earlier ads cost about ${each} for each person who booked (${people} people).`,
+    more: "More choices",
+    /** Only while the business is open: the switch, and why it is off or not a switch. */
+    openOnly: (hours) => `Only while you're open (${hours})`,
+    openOnlyOn: "It shows only in those hours.",
+    openOnlyOff: "Off: it can show at any hour.",
+    openOnlyMeta: "Meta can keep to your hours only with a set number of days.",
+    openOnlyGoogle: "The call button follows your hours anyway.",
+    /** What each platform says about changing the amount once the ad is on. */
+    tiktokChange: (maxStep, waitDays) => `After it is on, TikTok lets you change the amount by up to ${Math.round(maxStep * 100)}% at a time, once every ${waitDays} days.`,
+    googleAverage: (o) => `A Google daily amount is an average: a day can spend up to ${o.day === 2 ? "twice" : `${o.day} times`} it, never more than ${o.month} times it in a month.`,
+    relearn: "Changing the amount sends it back to learning for a few days."
+  },
+  step5: {
+    kicker: (door) => `New ad \xB7 ${door}`,
+    readyLabel: "What the account stands on",
+    ready: (parts2) => `Ready \xB7 ${parts2}`,
+    /**
+     * What the account stands on, in the words of each platform. The number on the page an ad opens is the ad's own check
+     * (it follows "The ad opens", in Checked before turning on), never the account's.
+     */
+    readyParts: {
+      meta: ["account active", "payment method in Meta", "Page and WhatsApp number linked"],
+      google: ["Google Ads account active", "a card added in Google Ads", "call reporting on"],
+      tiktok: ["TikTok account linked", "payment method in TikTok", "privacy page link added"]
+    },
+    forecast: (o) => `${o.owner} checks it first, ${o.within}, then it starts. About ${o.perDay} \xB7 up to ${o.total} in all \xB7 ends ${o.end}.`,
+    forecastDaily: (o) => `${o.owner} checks it first, ${o.within}, then it starts. About ${o.perDay} until you stop it.`,
+    checked: "Checked before turning on",
+    quiet: (owner) => `Counted by Chanlytics, not by ${owner}.`,
+    quietCalls: "Calls are Google's count, not Chanlytics'.",
+    fix: "Add it",
+    noCalendar: "You will see who wrote, not who booked, until your calendar is connected.",
+    /** "Checked before turning on" counts what is ready: `7 of 7 ready`. */
+    count: (met, of) => `${met} of ${of} ready`,
+    setFor: "What Chanlytics set for you",
+    /** What each door's result is called in the lowest-cost line. */
+    result: { whatsapp: "chat", call: "call", form: "number" }
+  }
+};
+var GOOGLE_SEARCH = {
+  themes: (o) => [
+    `${o.offer.toLowerCase()} near me`,
+    `book ${o.a}`,
+    "open times this week"
+  ],
+  leftOut: ["jobs", "free", "courses", "how to"]
+};
+var SET_FOR_YOU = {
+  meta: (o) => [
+    "Feeds, Stories and Reels, not WhatsApp Status or the Audience Network",
+    `People who live in or were recently in the area, ${o.age} and over`,
+    o.adjust ? "Meta may adjust your photo and wording, as you chose" : "Meta's automatic style changes are off",
+    `The lowest cost for each ${o.result}`,
+    o.hours === null ? "All hours" : `Only while you're open (${o.hours})`
+  ],
+  google: (o) => [
+    "Search only, with search partners off",
+    "People in the area",
+    `${o.headlines} headlines and ${o.descriptions} descriptions, written from your Services`,
+    `The call button follows your hours (${o.hours})`,
+    `A call counts past ${o.seconds} seconds`,
+    "Most clicks to start",
+    `Searches for ${joinWords(o.leftOut)} left out`
+  ],
+  tiktok: (o) => [
+    "TikTok and its partner apps",
+    `${o.age} and over`,
+    o.confirm ? "Name and phone, with a confirm step" : "Name and phone",
+    "The most results for the amount",
+    `A lead counts within ${o.days} days of a tap, and views are not counted`,
+    ...o.hours === null ? [] : [`Only while you're open (${o.hours})`]
+  ]
+};
+var BOOK_ONLINE = "Book online comes later. Chanlytics can't see inside your booking tool, so it couldn't count who booked.";
+var CHECKS = {
+  words: "Your words say what you offer, not something about the reader",
+  promises: "No promises like guaranteed or in 3 days",
+  price: "Price and hours match your Services and Hours",
+  priceQuote: "The ad quotes a price and your receptionist is set to never quote prices",
+  rating: (line) => `Rating line: ${line}`,
+  post: "The caption of the post was checked as ad words",
+  special: "Not a job, loan or home ad",
+  privacy: "Privacy page link added",
+  yes: "Your yes line saved with each number",
+  noHealth: "No health question",
+  businessName: "The first words of the call are your business name",
+  /** The words fit the platform's limits, or which one does not. */
+  fits: "Your words fit the platform's limits",
+  headlineLong: (o) => `The headline is ${o.n} characters. ${o.where} shows the first ${o.max}.`,
+  textLong: (o) => `The text is ${o.n} characters. ${o.where} shows the first ${o.max}.`,
+  googleLong: (o) => `A Google ${o.what} is ${o.n} characters. Google allows ${o.max}.`,
+  /** The ad says a price that Services does not. */
+  priceDiffers: (o) => `The ad says ${o.said}. Services says ${o.note}.`,
+  /** A platform account that is not ready, as a row: it stops Turn on until it is. */
+  account: {
+    "not-connected": (owner) => `${owner} account connected`,
+    choose: (owner) => `${owner} ad account chosen`,
+    lapsed: (owner) => `${owner} account connected again`
+  }
+};
+var ratingLine = (o) => `${o.stars} on Google \xB7 ${o.reviews} reviews \xB7 as of ${o.day}`;
+
+// src/deals/sells-by.ts
+var SELLS_BY = ["booking", "proposal"];
+var SELLS_BY_QUESTION = "How customers buy";
+var SELLS_BY_WORDS = {
+  booking: { label: "They book an appointment", sentence: "Bookings and reminders." },
+  proposal: { label: "Some get a proposal first", sentence: "Adds proposals, a Pipeline and Deals in Reports." }
+};
+function isSellsBy(s) {
+  return typeof s === "string" && SELLS_BY.includes(s);
+}
+var SELLS_BY_REFUSAL = "How customers buy: they book an appointment, or some get a proposal first.";
+function dealsAreOn(sellsBy) {
+  return sellsBy === "proposal";
+}
+function bookingLinkOptional(sellsBy) {
+  return dealsAreOn(sellsBy);
+}
+var BOOKING_LINK_NEEDED = "The receptionist needs a booking link to send anyone who wants to book.";
+var SELLS_BY_FIRST = "booking";
+var CONSULT_FIRST_DEAL_HINT = "A consultation for these is the first step of a deal.";
+function sellsByVM(answer) {
+  const said = isSellsBy(answer) ? answer : null;
+  const on = dealsAreOn(said);
+  const verb = said ? "Change" : "Choose";
+  return {
+    question: SELLS_BY_QUESTION,
+    value: said ? SELLS_BY_WORDS[said].label : null,
+    empty: "Not said yet",
+    act: said ? "Change" : "Choose one",
+    name: `${verb} ${SELLS_BY_QUESTION.toLowerCase()}`,
+    choices: SELLS_BY.map((a) => ({ value: a, label: SELLS_BY_WORDS[a].label, hint: SELLS_BY_WORDS[a].sentence })),
+    refusal: SELLS_BY_REFUSAL,
+    first: said ?? SELLS_BY_FIRST,
+    dealsOn: on,
+    consultHint: on ? CONSULT_FIRST_DEAL_HINT : null
+  };
+}
+function sellsBySaved(was, now) {
+  if (dealsAreOn(now)) return "Saved \u2014 deals are on.";
+  return dealsAreOn(was) ? "Saved \u2014 deals are off. Any already recorded are kept." : "Saved \u2014 customers book an appointment.";
+}
+
+// src/journey/appointment-word.ts
+var APPOINTMENT_WORDS = ["appointment", "visit", "meeting", "session", "lesson"];
+function isAppointmentWord(value) {
+  return typeof value === "string" && APPOINTMENT_WORDS.includes(value);
+}
+function appointmentWordOf(o) {
+  if (isAppointmentWord(o.stored)) return o.stored;
+  return dealsAreOn(o.sellsBy) ? "meeting" : "appointment";
+}
+var FORMS = {
+  appointment: {
+    a: "an appointment",
+    has: "has an appointment",
+    have: "have an appointment",
+    had: "had an appointment"
+  },
+  visit: { a: "a visit", has: "visits", have: "visit", had: "visited" },
+  // trade-word: the word's own forms, said once
+  meeting: { a: "a meeting", has: "has a meeting", have: "have a meeting", had: "had a meeting" },
+  session: { a: "a session", has: "has a session", have: "have a session", had: "had a session" },
+  lesson: { a: "a lesson", has: "has a lesson", have: "have a lesson", had: "had a lesson" }
+};
+function appointmentWords(word) {
+  const f = FORMS[word];
+  const Title = capitalize(word);
+  const many = `${word}s`;
+  const people = (n) => plural(n, "person", "people");
+  return {
+    word,
+    one: word,
+    many,
+    a: f.a,
+    Title,
+    before: { caps: `${Title} tomorrow`, name: `${Title} reminder`, hint: `The day before ${f.a} on the calendar` },
+    after: { caps: `After the ${word}`, hint: `The day after ${f.a}, when nothing is booked next` },
+    lapsedHint: `No ${word} in 45 days, and nothing booked`,
+    tomorrowWho: `everyone with ${f.a} tomorrow`,
+    yesterdayWho: `everyone who ${f.had} yesterday`,
+    withTomorrow: `with ${f.a} tomorrow`,
+    whoYesterday: `who ${f.had} yesterday`,
+    eachTomorrow: `each has ${f.a} tomorrow on the calendar`,
+    eachYesterday: `each ${f.had} yesterday and has nothing booked next`,
+    offTomorrow: (n) => `Off \xB7 ${people(n)} ${n === 1 ? f.has : f.have} tomorrow`,
+    offYesterday: (n) => `Off \xB7 ${people(n)} ${f.had} yesterday`,
+    startsWith: `${f.a} tomorrow, ${f.a} yesterday`,
+    byMany: `by ${many}`,
+    needsCalendar: `${capitalize(many)} are read from your calendar, and none is connected. Connect one under Settings \u203A Business.`
+  };
+}
+
+// src/calendar/zone-math.ts
+function zoneParts(tz, at3) {
+  const parts2 = dateFormat("en-US", {
+    timeZone: tz,
+    hourCycle: "h23",
+    weekday: "short",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  }).formatToParts(at3);
+  const get = (t) => parts2.find((p) => p.type === t)?.value ?? "";
+  return {
+    y: Number(get("year")),
+    m: Number(get("month")),
+    d: Number(get("day")),
+    hh: Number(get("hour")) % 24,
+    mm: Number(get("minute")),
+    ss: Number(get("second")),
+    weekday: get("weekday").toLowerCase().slice(0, 3)
+  };
+}
+function zoneOffsetMs(tz, atMs) {
+  const p = zoneParts(tz, new Date(atMs));
+  return Date.UTC(p.y, p.m - 1, p.d, p.hh, p.mm, p.ss) - Math.floor(atMs / 1e3) * 1e3;
+}
+function localToUtcMs(tz, y, m, d, hh, mm) {
+  const guess = Date.UTC(y, m - 1, d, hh, mm);
+  const first = guess - zoneOffsetMs(tz, guess);
+  const second = guess - zoneOffsetMs(tz, first);
+  return second;
+}
+function clockInZone(tz, atMs) {
+  const p = zoneParts(tz, new Date(atMs));
+  return { hh: p.hh, mm: p.mm, ss: p.ss };
+}
+function dayInZone(tz, atMs) {
+  const p = zoneParts(tz, new Date(atMs));
+  const pad = (n) => String(n).padStart(2, "0");
+  return { key: `${p.y}-${pad(p.m)}-${pad(p.d)}`, weekday: p.weekday, y: p.y, m: p.m, d: p.d };
+}
+var dayNumber = (y, m, d) => Math.floor(Date.UTC(y, m - 1, d) / 864e5);
+var WEEKDAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+function dayPlusInZone(tz, atMs, days) {
+  const from = dayInZone(tz, atMs);
+  if (days === 0) return from;
+  const at3 = new Date((dayNumber(from.y, from.m, from.d) + days) * 864e5);
+  const pad = (n) => String(n).padStart(2, "0");
+  const y = at3.getUTCFullYear(), m = at3.getUTCMonth() + 1, d = at3.getUTCDate();
+  return { key: `${y}-${pad(m)}-${pad(d)}`, weekday: WEEKDAY_KEYS[at3.getUTCDay()], y, m, d };
+}
+
+// src/shared/clock.ts
+var FORMATS = /* @__PURE__ */ new Map();
+function formatsFor(tz) {
+  const hit = FORMATS.get(tz);
+  if (hit) return hit;
+  let zone = tz || "UTC";
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: zone });
+  } catch {
+    zone = "UTC";
+  }
+  const made = {
+    zone,
+    time: new Intl.DateTimeFormat("en-US", { timeZone: zone, hour: "numeric", minute: "2-digit" }),
+    date: new Intl.DateTimeFormat("en-US", { timeZone: zone, month: "short", day: "numeric" }),
+    dateYear: new Intl.DateTimeFormat("en-US", { timeZone: zone, month: "short", day: "numeric", year: "numeric" }),
+    weekday: new Intl.DateTimeFormat("en-US", { timeZone: zone, weekday: "short" }),
+    parts: new Intl.DateTimeFormat("en-US", {
+      timeZone: zone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit"
+    })
+  };
+  FORMATS.set(tz, made);
+  return made;
+}
+var WALLS = /* @__PURE__ */ new Map();
+var WALLS_MAX = 2048;
+function wall(atMs, tz) {
+  const id = `${tz}|${atMs}`;
+  const hit = WALLS.get(id);
+  if (hit) return hit;
+  const p = {};
+  for (const x of formatsFor(tz).parts.formatToParts(new Date(atMs))) p[x.type] = x.value;
+  const made = {
+    key: `${p.year}-${p.month}-${p.day}`,
+    year: Number(p.year),
+    hh: Number(p.hour) % 24,
+    mm: Number(p.minute)
+  };
+  if (WALLS.size >= WALLS_MAX) WALLS.clear();
+  WALLS.set(id, made);
+  return made;
+}
+function shiftDay(key, days) {
+  return new Date(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, Number(key.slice(8, 10)) + days)).toISOString().slice(0, 10);
+}
+function dayOfWeek(key) {
+  return new Date(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, Number(key.slice(8, 10)))).getUTCDay();
+}
+function zoneDayKey(atMs, tz) {
+  return wall(atMs, tz).key;
+}
+function clockTime(atMs, tz) {
+  return formatsFor(tz).time.format(new Date(atMs));
+}
+function clockHour(hour) {
+  const h = Number.isFinite(hour) ? (Math.floor(hour) % 24 + 24) % 24 : 0;
+  return `${h % 12 === 0 ? 12 : h % 12}:00 ${h < 12 ? "AM" : "PM"}`;
+}
+function clockDate(atMs, tz, nowMs) {
+  const f = formatsFor(tz);
+  return wall(atMs, tz).year === wall(nowMs, tz).year ? f.date.format(new Date(atMs)) : f.dateYear.format(new Date(atMs));
+}
+function clockDateYear(atMs, tz) {
+  return formatsFor(tz).dateYear.format(new Date(atMs));
+}
+function clockShort(atMs, tz, nowMs) {
+  return zoneDayKey(atMs, tz) === zoneDayKey(nowMs, tz) ? clockTime(atMs, tz) : clockDate(atMs, tz, nowMs);
+}
+function clockStamp(atMs, tz, nowMs) {
+  const time = clockTime(atMs, tz);
+  return zoneDayKey(atMs, tz) === zoneDayKey(nowMs, tz) ? time : `${clockDate(atMs, tz, nowMs)} \xB7 ${time}`;
+}
+function clockWhen(atMs, tz, nowMs) {
+  const time = clockTime(atMs, tz);
+  const day = zoneDayKey(atMs, tz);
+  const today = zoneDayKey(nowMs, tz);
+  if (day === today) return `today ${time}`;
+  if (day === shiftDay(today, 1)) return `tomorrow ${time}`;
+  return `${clockDate(atMs, tz, nowMs)} \xB7 ${time}`;
+}
+function daysBetween2(fromKey, toKey) {
+  const at3 = (key) => Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, Number(key.slice(8, 10)));
+  return Math.round((at3(toKey) - at3(fromKey)) / DAY_MS);
+}
+function daysFromToday(atMs, tz, nowMs) {
+  return daysBetween2(zoneDayKey(nowMs, tz), zoneDayKey(atMs, tz));
+}
+function localDaysBetween(fromMs, toMs2, tz) {
+  return daysBetween2(zoneDayKey(fromMs, tz), zoneDayKey(toMs2, tz));
+}
+function inLocalWeek(atMs, tz, nowMs) {
+  const today = zoneDayKey(nowMs, tz);
+  const monday = shiftDay(today, -((dayOfWeek(today) + 6) % 7));
+  const d = daysBetween2(monday, zoneDayKey(atMs, tz));
+  return d >= 0 && d <= 6;
+}
+function clockNear(atMs, tz, nowMs) {
+  const gap = daysFromToday(atMs, tz, nowMs);
+  if (gap === 0) return "today";
+  if (gap === -1) return "yesterday";
+  if (gap === 1) return "tomorrow";
+  if (Math.abs(gap) <= 6) return formatsFor(tz).weekday.format(new Date(atMs));
+  return clockDate(atMs, tz, nowMs);
+}
+function clockNearWhen(atMs, tz, nowMs) {
+  const time = clockTime(atMs, tz);
+  return Math.abs(daysFromToday(atMs, tz, nowMs)) <= 6 ? `${clockNear(atMs, tz, nowMs)} ${time}` : `${clockDate(atMs, tz, nowMs)} \xB7 ${time}`;
+}
+function clockDayLabel(atMs, tz, nowMs) {
+  const day = zoneDayKey(atMs, tz);
+  const today = zoneDayKey(nowMs, tz);
+  const date = clockDate(atMs, tz, nowMs);
+  if (day === today) return `Today \xB7 ${date}`;
+  if (day === shiftDay(today, -1)) return `Yesterday \xB7 ${date}`;
+  return date;
+}
+function wallClockAt(tz, dayKey2, hh, mm) {
+  return localToUtcMs(
+    formatsFor(tz).zone,
+    Number(dayKey2.slice(0, 4)),
+    Number(dayKey2.slice(5, 7)),
+    Number(dayKey2.slice(8, 10)),
+    hh,
+    mm
+  );
+}
+function tomorrowAtIn(tz, nowMs, hh, mm = 0) {
+  return wallClockAt(tz, shiftDay(zoneDayKey(nowMs, tz), 1), hh, mm);
+}
+var two = (n) => String(n).padStart(2, "0");
+function zonedInputValue(atMs, tz) {
+  const w = wall(atMs, tz);
+  return `${w.key}T${two(w.hh)}:${two(w.mm)}`;
+}
+function fromZonedInput(value, tz) {
+  const m = /^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2})(?::[0-9]{2})?$/.exec(String(value ?? "").trim());
+  if (!m) return null;
+  const ms2 = localToUtcMs(formatsFor(tz).zone, Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4]), Number(m[5]));
+  return Number.isFinite(ms2) ? ms2 : null;
+}
+function mmss(ms2) {
+  const total = Number.isFinite(ms2) ? Math.max(0, Math.round(ms2 / 1e3)) : 0;
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
+function callLength(ms2) {
+  return ms2 != null && Number.isFinite(ms2) && ms2 > 0 ? mmss(ms2) : void 0;
+}
+function durationWords(seconds2) {
+  const v = Math.max(0, Math.round(seconds2));
+  if (v < 60) return `${v}s`;
+  if (v < 600) {
+    const m2 = Math.floor(v / 60);
+    const r2 = v % 60;
+    return r2 ? `${m2}m ${r2}s` : `${m2}m`;
+  }
+  const minutes = Math.round(v / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m ? `${h}h ${m}m` : `${h}h`;
+}
+
+// src/shared/numbers.ts
+var sumOf = (xs) => xs.reduce((a, b) => a + b, 0);
+var pct = (n, of) => of > 0 ? Math.round(n / of * 100) : null;
+
+// src/reports/report-speed.ts
+var REPLY_BUCKETS = [
+  { id: "lt15", label: "under 15s", max: 14 },
+  { id: "lt60", label: "15s \u2013 1m", max: 60 },
+  { id: "lt300", label: "1 \u2013 5m", max: 300 },
+  { id: "lt1800", label: "5 \u2013 30m", max: 1800 },
+  { id: "gte1800", label: "over 30m", max: Infinity }
+];
+var LATER_BUCKETS = [
+  { id: "lt60", label: "up to 1m later", max: 60 },
+  { id: "lt300", label: "1 \u2013 5m later", max: 300 },
+  { id: "gte300", label: "over 5m later", max: Infinity }
+];
+var HOLD_SLACK_S = 10;
+var holdWords = (s) => s < 60 ? `${s}-second` : s % 60 === 0 && s < 3600 ? `${s / 60}-minute` : durationWords(s);
+var heldSeconds = (r2) => r2.hold !== void 0 && r2.hold > 0 ? r2.hold : 0;
+function classOf(r2) {
+  const hold = heldSeconds(r2);
+  if (!hold) return { kind: "unheld" };
+  const past = r2.s - hold;
+  return past > HOLD_SLACK_S ? { kind: "later", past } : { kind: "atEnd" };
+}
+function classified(replies) {
+  const rs = (replies ?? []).filter((r2) => Number.isFinite(r2.s));
+  if (!rs.some((r2) => r2.hold !== void 0)) return null;
+  const all = rs.map((r2) => ({ hold: r2.hold ?? 0, c: classOf(r2) }));
+  return all.some((x) => x.c.kind !== "unheld") ? all : null;
+}
+var countOf = (all, kind) => all.filter((x) => x.c.kind === kind).length;
+var pastOf = (all) => all.flatMap((x) => x.c.kind === "later" ? [x.c.past] : []);
+function holdOf(replies) {
+  const all = classified(replies);
+  if (!all) return null;
+  const counts = /* @__PURE__ */ new Map();
+  for (const x of all) if (x.c.kind !== "unheld") counts.set(x.hold, (counts.get(x.hold) ?? 0) + 1);
+  const [seconds2] = [...counts].reduce((a, b) => b[1] > a[1] || b[1] === a[1] && b[0] < a[0] ? b : a);
+  const past = pastOf(all);
+  return {
+    seconds: seconds2,
+    label: holdWords(seconds2),
+    atEnd: countOf(all, "atEnd"),
+    unheld: countOf(all, "unheld"),
+    later: past.length,
+    laterMost: past.length ? Math.max(...past) : null
+  };
+}
+function spanCounts(spans, seconds2) {
+  const rounded = seconds2.map(Math.round);
+  const rows2 = [];
+  let lo = -Infinity;
+  for (const { id, label, max } of spans) {
+    rows2.push([id, label, rounded.filter((s) => s > lo && s <= max).length]);
+    lo = max;
+  }
+  return rows2;
+}
+function holdBuckets(replies) {
+  const all = classified(replies);
+  if (!all) return null;
+  return [
+    ["unheld", "with no hold", countOf(all, "unheld")],
+    ["atEnd", "as the hold ended", countOf(all, "atEnd")],
+    ...spanCounts(LATER_BUCKETS, pastOf(all))
+  ];
+}
+var absoluteBuckets = (sortedReply) => spanCounts(REPLY_BUCKETS, sortedReply);
+var replyHoldDtoOf = (hold) => hold ? { label: hold.label, at_end: hold.atEnd, later: hold.later, unheld: hold.unheld } : null;
+var repliesSeen = (hold) => hold.unheld + hold.atEnd + hold.later;
+var waitedHold = (hold) => (hold.atEnd + hold.later) * 2 > repliesSeen(hold);
+var endedWithHold = (hold) => hold.atEnd >= hold.later;
+var againstHold = (hold) => endedWithHold(hold) ? `as your ${hold.label} hold ended` : `later than your ${hold.label} hold`;
+var heldCount = (hold) => endedWithHold(hold) ? hold.atEnd : hold.later;
+function heroSpeed(replies, medianLabel, hold) {
+  if (!replies) return "";
+  if (!hold || !waitedHold(hold)) return ` Half of its replies went out within ${medianLabel}.`;
+  return ` ${heldCount(hold)} of ${repliesSeen(hold)} went out ${againstHold(hold)}.`;
+}
+function receptionistSpeed(hold) {
+  return hold && waitedHold(hold) ? `, ${heldCount(hold)} ${againstHold(hold)}` : "";
+}
+var REPLY_DOTS_MOST = 500;
+function replyDotsOf(replies, most = REPLY_DOTS_MOST) {
+  const dots = (replies ?? []).filter((r2) => Number.isFinite(r2.s)).map((r2) => ({
+    day: r2.day,
+    past: Math.round(Math.max(0, r2.s - heldSeconds(r2))),
+    held: heldSeconds(r2) > 0
+  }));
+  return dots.slice(Math.max(0, dots.length - most));
+}
+function replySpeedOf(median, hold) {
+  if (median === null) return null;
+  const counts = hold && {
+    label: hold.label,
+    atEnd: hold.at_end,
+    later: hold.later,
+    unheld: hold.unheld
+  };
+  if (!counts || !waitedHold(counts)) return { held: false, seconds: median };
+  return {
+    held: true,
+    words: againstHold(counts)
+  };
+}
+function holdLine(hold) {
+  if (hold.laterMost !== null) {
+    const more = durationWords(hold.laterMost);
+    return `${hold.later} ${hold.later === 1 ? "reply" : "replies"} took longer than the hold, at most ${more} more.`;
+  }
+  return hold.unheld ? `None waited longer than your hold; ${hold.unheld} had no hold.` : "None waited longer than your hold.";
+}
+var holdNote = (hold) => hold ? ` \xB7 includes your ${hold.label} hold` : "";
+
+// src/reports/report-tiles.ts
+var REPORT_MIN_N = 5;
+var isThinShare = (n, minN) => n > 0 && n < minN;
+var shareSaid = (share, count2, of) => share === null ? null : of >= REPORT_MIN_N ? `${share}%` : `${count2} of ${of}`;
+function fmtSeconds(s) {
+  if (s == null || !Number.isFinite(s)) return "\u2014";
+  return durationWords(s);
+}
+function deltaOf(current, previous, upIsGood, noun) {
+  if (!previous) return null;
+  const pct2 = Math.round((current - previous) / previous * 100);
+  if (pct2 === 0) return { text: `same as the prior ${noun}`, tone: "" };
+  const up = pct2 > 0;
+  return { text: `${up ? "+" : ""}${pct2}% vs prior ${noun}`, tone: up === upIsGood ? "pos" : "neg" };
+}
+function pointsDelta(current, previous, noun) {
+  if (current === null || previous === null) return null;
+  const pts = current - previous;
+  if (pts === 0) return { text: `same share as the prior ${noun}`, tone: "" };
+  return { text: `${pts > 0 ? "+" : ""}${pts} pts vs prior ${noun}`, tone: pts > 0 ? "pos" : "neg" };
+}
+var beforeWords = (rangeLabel) => `the ${rangeLabel === plural(1, "day") ? "day" : rangeLabel} before`;
+function compareWords(current, previous, rangeLabel, priorHadAny) {
+  if (!priorHadAny || current === 0 && previous === 0) return null;
+  if (previous === 0) return `none ${beforeWords(rangeLabel)}`;
+  if (current === previous) return `same as ${beforeWords(rangeLabel)}`;
+  return `${current > previous ? "up" : "down"} from ${previous}`;
+}
+function shareWasWords(nowOf, was, rangeLabel) {
+  if (nowOf === 0) return null;
+  const said = shareSaid(pct(was.part, was.of), was.part, was.of);
+  return said === null ? null : `was ${said} ${beforeWords(rangeLabel)}`;
+}
+var messagesAnsweredWords = (answered, of) => `${answered} of ${of} ${answered === 1 ? "was" : "were"} answered`;
+function newPeopleLine(newNow, newBefore, rangeLabel, priorHadAny) {
+  if (newNow === 0) return "Nobody new reached you in this period.";
+  const reached = `${plural(newNow, "new person", "new people")} reached you`;
+  if (!priorHadAny) return `${reached}.`;
+  return `${reached} (${newBefore === 0 ? "none" : newBefore} ${beforeWords(rangeLabel)}).`;
+}
+var messagesTile = ({ days, current, points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
+  id: "messages",
+  metric: "customer_messages",
+  label: "Customer messages",
+  value: String(tot.in),
+  meta: tot.in ? `on ${current.filter((d) => d.messages_in > 0).length} of ${plural(days, "day")}` : "none in this period",
+  delta: deltaOf(tot.in, prev.in, true, noun),
+  spark: points.map((p) => p.in),
+  compare: compareWords(tot.in, prev.in, rangeLabel, priorHadAny),
+  door: "conversations"
+});
+var answeredTile = ({ points, tot, noun, answeredTotal, aiShare, prevShare }) => ({
+  id: "answered",
+  metric: "answered_share",
+  label: "Receptionist answered",
+  value: aiShare === null ? "\u2014" : `${aiShare}%`,
+  meta: answeredTotal ? `${tot.ai} of ${answeredTotal} \xB7 ${tot.you} by you \xB7 ${tot.none} unanswered` : "nothing to answer",
+  // A share compares in POINTS. Against counts, the share could fall from
+  // 100% to 60% while the delta read +20% in green.
+  delta: pointsDelta(aiShare, prevShare, noun),
+  spark: points.map((p) => p.ai),
+  compare: null,
+  // A share of the messages that wanted an answer: of few, it says nothing (the page greys it).
+  n: answeredTotal,
+  minN: REPORT_MIN_N
+});
+var replyTile = ({ sortedReply, median, p90, hold }) => ({
+  id: "reply",
+  metric: "reply_median",
+  label: "Median reply time",
+  value: fmtSeconds(median),
+  // The reply time includes the hold the owner set, and says so where replies waited one (spec D14).
+  meta: sortedReply.length ? `slowest tenth ${fmtSeconds(p90)} \xB7 ${sortedReply.length} replies${holdNote(hold)}` : "no receptionist replies yet",
+  delta: null,
+  spark: [],
+  compare: null,
+  // A median of the replies counted: of few, it says nothing (the page greys it).
+  n: sortedReply.length,
+  minN: REPORT_MIN_N
+});
+var neededTile = ({ points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
+  id: "needed",
+  metric: "handovers",
+  label: "Needed you",
+  value: String(tot.escalations),
+  meta: tot.escalations ? "times the receptionist stopped" : "the receptionist never stopped",
+  delta: deltaOf(tot.escalations, prev.escalations, false, noun),
+  spark: points.map((p) => p.escalations),
+  compare: compareWords(tot.escalations, prev.escalations, rangeLabel, priorHadAny),
+  door: "inbox"
+});
+var callsTile = ({ dto, points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
+  id: "calls",
+  metric: "calls",
+  label: "Calls",
+  value: String(tot.calls),
+  meta: tot.calls ? `${Math.max(1, Math.round(tot.callSeconds / 60))} min on the phone \xB7 ${dto.voicemail ?? 0} to voicemail` : "no calls",
+  delta: deltaOf(tot.calls, prev.calls, true, noun),
+  spark: points.map((p) => p.calls),
+  compare: compareWords(tot.calls, prev.calls, rangeLabel, priorHadAny)
+});
+var peopleTile = ({ points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
+  id: "people",
+  metric: "new_people",
+  label: "New people",
+  value: String(tot.newPeople),
+  meta: tot.newPeople ? "first contact in this period, by evidence" : "nobody new",
+  delta: deltaOf(tot.newPeople, prev.newPeople, true, noun),
+  spark: points.map((p) => p.newPeople),
+  compare: compareWords(tot.newPeople, prev.newPeople, rangeLabel, priorHadAny)
+});
+var REPORT_TILES = [
+  messagesTile,
+  answeredTile,
+  replyTile,
+  neededTile,
+  callsTile,
+  peopleTile
+];
+var BOOKED_ENDED_META = "not counted for days that have ended: it follows people as they stand today";
+function bookedTileOf(booking) {
+  const tile = { id: "booked", metric: "booked", label: "Booked", compare: null };
+  if (booking?.calendar === "ended") return { ...tile, value: "\u2014", meta: BOOKED_ENDED_META };
+  if (booking && booking.present)
+    return {
+      ...tile,
+      value: String(booking.booked),
+      meta: booking.asked ? `of ${booking.asked} who asked` : "nobody asked"
+    };
+  return {
+    ...tile,
+    value: "\u2014",
+    meta: booking && booking.calendar === "unavailable" ? "the calendar could not be read" : "no calendar link"
+  };
+}
+
+// src/ads/vm-base.ts
+var DASH = LEDGER.none;
+var PLATFORMS = ["meta", "google", "tiktok"];
+var sum = (xs) => xs.reduce((a, b) => a + b, 0);
+var adAccountOf = (read, platform) => read.accounts.find((a) => a.platform === platform);
+var isConnected = (read, platform) => adAccountOf(read, platform)?.status === "connected";
+var checkOk = (acct, id) => acct !== void 0 && acct.checks.some((c) => c.id === id && c.ok);
+var counted = (ad) => countedDoor(ad.door);
+var started = (ad) => ad.approvedDay !== null;
+function viewState(ad, today) {
+  return ad.state === "on" && daysBetween(ad.startDay, today) < TOO_EARLY_DAYS ? "too-early" : ad.state;
+}
+var plainSpaces = (text) => text.replace(/\s/g, " ");
+function timeOf(iso, timezone) {
+  const ms2 = isoMs(iso);
+  return ms2 === null ? "" : plainSpaces(clockTime(ms2, timezone));
+}
+function dayOfIso(iso, timezone) {
+  const ms2 = isoMs(iso);
+  return ms2 === null ? "" : zoneDayKey(ms2, timezone);
+}
+var readTime = (read) => timeOf(read.readAt, read.timezone);
+var adPersonWho = (name) => ({
+  name,
+  initials: adPersonInitials(name)
+});
+var adServiceOf = (read, id) => read.services.find((s) => s.id === id);
+var areaWord = (area) => area.kind === "radius" ? NEW_AD.miles(area.miles) : NEW_AD.zip;
+var platformsFor = (door) => door === "whatsapp" ? ["meta"] : door === "call" ? ["google"] : ["meta", "tiktok"];
+function leadOf(o) {
+  if (o.platform === "google") return `${PLATFORM_SURFACE.google} within ${areaWord(o.area)}`;
+  const form = o.door === "form" ? ` \xB7 ${DOOR.form.short}` : "";
+  return `${PLATFORM_WORD[o.platform]}${form}`;
+}
+var totalOf = (ad) => ad.budget.mode === "total" ? ad.budget.amountMinor : null;
+var costEach = (spentMinor, booked) => booked >= REPORT_MIN_N ? spentMinor / booked : null;
+function totalsOf(ad, read) {
+  const { from, to } = read.window;
+  const rows2 = ad.days.filter((d) => d.day >= from && d.day <= to);
+  return {
+    spentMinor: sum(rows2.map((d) => d.spendMinor)),
+    inTouch: sum(rows2.map((d) => d.inTouch)),
+    booked: counted(ad) ? sum(rows2.map((d) => d.booked)) : 0,
+    days: rows2.length,
+    lifetimeMinor: sum(ad.days.filter((d) => d.day < read.today).map((d) => d.spendMinor))
+  };
+}
+var leftOfAd = (ad, t) => {
+  const total = totalOf(ad);
+  return total === null ? null : Math.max(0, total - t.lifetimeMinor);
+};
+var settling = (ads, today) => ads.some((ad) => ad.days.some((d) => d.day >= addDays(today, -ADS_SETTLE_DAYS)));
+function endsKind(ad, today) {
+  const d = daysBetween(today, ad.endDay);
+  if (d <= 0) return "today";
+  return d === 1 ? "tomorrow" : "later";
+}
+var endsWhenOf = (ad, today) => STATE.endsWhen({ kind: endsKind(ad, today), evening: ad.endsAt !== null, day: dayWord(ad.endDay) });
+function endsLine(ad, t, today) {
+  const left = leftOfAd(ad, t);
+  const total = totalOf(ad);
+  if (left === null || total === null) return STATE.daily(perDayOf(ad.aboutADayMinor, ad.currency));
+  return `${STATE.ends(endsWhenOf(ad, today))} \xB7 ${leftOfMoney(left, total, ad.currency)}`;
+}
+function needsSecond(ad) {
+  const code2 = ad.needs ? ad.needs.code : null;
+  if (code2 === "payment") return STATE.needsPayment(ad.platform);
+  if (code2 === "paused-in-platform") return STATE.needsPaused(ad.platform);
+  if (code2 === "price-changed") return STATE.needsPrice;
+  if (code2 === "permission-lapsing") return STATE.needsPermission(ad.platform);
+  return code2 === "rejected" ? STATE.needsRejected(ad.platform) : STATE.needsDefault(ad.platform);
+}
+function secondOf(ad, t, read) {
+  switch (ad.state) {
+    case "setting-up":
+      return STATE.settingUpSecond(ad.platform);
+    case "couldnt-finish":
+      return STATE.couldntSecond(ad.platform);
+    case "review":
+      return STATE.reviewSecond(ad.platform);
+    case "needs-you":
+      return needsSecond(ad);
+    case "ended": {
+      const cost = counted(ad) ? costEach(t.spentMinor, t.booked) : null;
+      return STATE.endedSecond(dayWord(ad.endDay), t.booked, cost === null ? null : moneyOf(cost, ad.currency));
+    }
+    case "finished":
+      return STATE.finishedSecond(moneyOf(totalOf(ad) ?? t.lifetimeMinor, ad.currency));
+    default:
+      return endsLine(ad, t, read.today);
+  }
+}
+function adStateOf(ad, t, read) {
+  const state = viewState(ad, read.today);
+  const warn = state === "needs-you" || state === "couldnt-finish";
+  return {
+    word: STATE_WORD[state],
+    tone: state === "on" ? "ok" : warn ? "warn" : "plain",
+    second: secondOf(ad, t, read)
+  };
+}
+function countCtx(read) {
+  const w = appointmentWords(read.appointmentWord);
+  const calendarRead2 = read.calendar.readAt ? timeOf(read.calendar.readAt, read.timezone) : "";
+  return { readAt: readTime(read), calendarRead: calendarRead2, a: w.a, one: w.one, many: w.many };
+}
+var fixDoor = () => ({ words: SETTINGS_DOOR, to: ADS_DOORS.accounts });
+function checkRow(acct, id, platform) {
+  const ok2 = checkOk(acct, id);
+  return {
+    text: checkWords(id, platform),
+    tone: ok2 ? "ok" : "warn",
+    door: ok2 ? null : fixDoor(),
+    fix: ok2 ? null : checkFix(id, platform)
+  };
+}
+function permissionRow(acct, today) {
+  if (!acct || !acct.permissionEnd) return null;
+  const soon = daysBetween(today, acct.permissionEnd) <= ADS_PERMISSION_WARN_DAYS;
+  return { text: STANDING.permission(dayWord(acct.permissionEnd)), tone: soon ? "warn" : "ok", door: null };
+}
+function accountRows(read, platform) {
+  const acct = adAccountOf(read, platform);
+  if (!acct || acct.status !== "connected") return [];
+  const rows2 = STANDING_CHECKS[platform].map((id) => checkRow(acct, id, platform));
+  const permission = permissionRow(acct, read.today);
+  return permission ? [...rows2, permission] : rows2;
+}
+function needIds(door, platform, choice) {
+  const ids = [...DOOR_NEEDS[door][platform] ?? []];
+  if (!choice.post || platform !== "tiktok" || ids.includes("post-permission")) return ids;
+  const at3 = ids.indexOf("identity");
+  ids.splice(at3 < 0 ? ids.length : at3 + 1, 0, "post-permission");
+  return ids;
+}
+function numberRow(acct, opens) {
+  const text = NEW_AD.opens.numberOnPage;
+  if (opens === "page") return { text, tone: "ok", door: null, note: NEW_AD.opens.hostedNote };
+  const ok2 = checkOk(acct, "number-on-page");
+  return {
+    text,
+    tone: ok2 ? "ok" : "warn",
+    door: ok2 ? null : fixDoor(),
+    fix: ok2 ? null : checkFix("number-on-page", "google")
+  };
+}
+function doorNeeds(read, door, platform, choice = {}) {
+  const acct = adAccountOf(read, platform);
+  const opens = choice.opens;
+  const rows2 = needIds(door, platform, choice).map(
+    (id) => id === "number-on-page" && opens !== void 0 ? numberRow(acct, opens) : checkRow(acct, id, platform)
+  );
+  const permission = door === "form" && platform === "tiktok" && choice.post !== false ? permissionRow(acct, read.today) : null;
+  return permission ? [...rows2, permission] : rows2;
+}
+function firstMissing(acct, door, platform) {
+  return (DOOR_NEEDS[door][platform] ?? []).find((id) => !checkOk(acct, id)) ?? null;
+}
+var doorReady = (read, door) => platformsFor(door).some((p) => isConnected(read, p) && firstMissing(adAccountOf(read, p), door, p) === null);
+var firstReadyDoor = (read) => DOOR_ORDER.find((d) => doorReady(read, d)) ?? "whatsapp";
+var smallestPreset = (config2) => [...config2.presets].sort((a, b) => a.perDayMinor * a.days - b.perDayMinor * b.days).at(0);
+function reachNoteOf(ad, read) {
+  if (ad.door === "call") return ad.state === "review" ? REACH_NOTE.callChecking : REACH_NOTE.callApproved;
+  const at3 = ad.lastArrivalAt;
+  const day = at3 === null ? "" : dayOfIso(at3, read.timezone);
+  const when = at3 === null || day === "" ? null : day === read.today ? `${timeOf(at3, read.timezone)} today` : dayWord(day);
+  if (ad.door === "whatsapp") return when === null ? REACH_NOTE.whatsapp : REACH_NOTE.lastMessage(when);
+  return when === null ? REACH_NOTE.form[ad.platform] : REACH_NOTE.lastNumber(when);
+}
+var quotesPrice = (text) => /[$£€]\s?\d/.test(text);
+function adQuotes(copy, priceNote) {
+  const named = priceNote !== "" && (copy.headline.includes(priceNote) || copy.text.includes(priceNote));
+  return named || quotesPrice(copy.headline);
+}
+var chipOf = (chip, id, value) => ({ chip, id, value, blank: false });
+function platformParts(i) {
+  if (i.platform === null) return [];
+  if (i.chips === "running") return [{ text: SENTENCE.on + PLATFORM_SURFACE[i.platform] }];
+  return [{ text: SENTENCE.on }, chipOf(PLATFORM_SURFACE[i.platform], "platform", i.platform)];
+}
+function areaParts(i) {
+  if (i.platform === null || i.area === null) return [];
+  const parts2 = [{ text: SENTENCE.reach[i.platform] }, chipOf(i.area, "area", i.area)];
+  return i.platform === "google" ? [...parts2, { text: SENTENCE.of(i.street) }] : parts2;
+}
+function doorParts(i) {
+  const lead = { text: `${i.platform === null ? " " : ", "}${SENTENCE.so}` };
+  const word = i.past === true ? SENTENCE.soPast[i.door] : DOOR[i.door].chip;
+  return [lead, i.chips === "running" ? { text: word } : chipOf(word, "door", i.door)];
+}
+function budgetParts(i) {
+  const b = i.budget;
+  if (b === null) return [{ text: "." }];
+  const amount = String(b.amountMinor);
+  if (b.mode === "daily") {
+    return [
+      { text: `, ${SENTENCE.about}` },
+      chipOf(perDayOf(b.amountMinor, i.currency), "amount", amount),
+      { text: i.past === true ? "." : `${SENTENCE.untilStop}.` }
+    ];
+  }
+  const parts2 = [
+    { text: `, ${SENTENCE.upTo}` },
+    chipOf(moneyOf(b.amountMinor, i.currency), "amount", amount)
+  ];
+  if (i.endDay === null) return [...parts2, { text: "." }];
+  return [...parts2, { text: SENTENCE.inAllUntil }, chipOf(dayWord(i.endDay), "end", i.endDay), { text: "." }];
+}
+function sentenceParts(i) {
+  const offer = i.offer === null ? { chip: SENTENCE.blank, id: "offer", value: "", blank: true } : chipOf(i.offer, "offer", i.offer);
+  const show = { text: i.past === true ? SENTENCE.showed : SENTENCE.show };
+  return [show, offer, ...platformParts(i), ...areaParts(i), ...doorParts(i), ...budgetParts(i)];
+}
+
+// src/ads/words-connect.ts
+var MANAGER = {
+  meta: "Meta Ads Manager",
+  google: "Google Ads",
+  tiktok: "TikTok Ads Manager"
+};
+var ICON = { meta: "globe", google: "search", tiktok: "video" };
+var zoneCity = (zone) => (zone.split("/").at(-1) ?? zone).replace(/_/g, " ");
+var CONNECT = {
+  title: "Ad accounts",
+  /** The card's second line while the page draws the Ads fixtures. */
+  sub: EXAMPLE.note,
+  off: "Not connected",
+  connect: "Connect",
+  disconnect: "Disconnect",
+  change: "Change account",
+  use: "Use this account",
+  cancel: "Cancel",
+  /** Not connected: what connecting does, and who bills. */
+  line: (p) => `Chanlytics reads your ads and can make new ones. ${PLATFORM_OWNER[p]} bills you; Chanlytics never holds your ad money.`,
+  /** The press of Connect in the demo: it says nothing was connected. */
+  signIn: (p) => `This opens ${PLATFORM_OWNER[p]}'s sign-in in the real app. Nothing was connected.`,
+  /** `USD · New York time · set by the account`: the account's own, which Chanlytics follows and cannot change. */
+  facts: (currency, zone) => `${currency} \xB7 ${zoneCity(zone)} time \xB7 set by the account`,
+  read: (time) => `Read ${time}`,
+  reading: "Reading now",
+  readFailed: (when) => `Could not be read \xB7 last read ${when}`,
+  ready: "What's ready",
+  allReady: "all in order",
+  needYou: (n) => `${n} ${n === 1 ? "needs" : "need"} you`,
+  managerOk: "Chanlytics' access: accepted",
+  managerNot: "Chanlytics' access: not accepted yet",
+  /** TikTok's post permission, a day it runs until. */
+  permission: (day) => `Post permission until ${day}`,
+  /** Ads the owner made on the platform itself, shown in Ads and read-only there (decision 7). */
+  adopted: (p, n) => `${plural(n, "ad")} made in ${MANAGER[p]} ${n === 1 ? "is" : "are"} shown in Ads, read-only.`,
+  /** Disconnect while an ad runs is refused (decision 8). */
+  refused: (n) => `Pause or end your ads first: ${n} ${n === 1 ? "is" : "are"} on.`,
+  refusedDoor: "See your ads",
+  refusedOk: "Ok",
+  disconnectQ: (p) => `Disconnect ${PLATFORM_WORD[p]}?`,
+  disconnectDetail: "Chanlytics stops reading your ads and can't make new ones.",
+  disconnectYes: "Yes, disconnect",
+  disconnectNo: "Keep it connected",
+  disconnected: (p) => `${PLATFORM_WORD[p]} is disconnected.`,
+  /** The choice of an account: its question, and the toast of choosing one. */
+  which: (p) => `Which ${PLATFORM_OWNER[p]} account should Chanlytics use?`,
+  using: (p, name) => `${PLATFORM_WORD[p]} now uses ${name}.`,
+  /** Decision 9: the owner's setting that pauses ads, off unless chosen. */
+  pause: {
+    label: "Pause my ads when the way in closes",
+    line: "If WhatsApp or your line stops working, Chanlytics pauses your ads instead of only telling you.",
+    on: "If the way in closes, Chanlytics will pause your ads.",
+    off: "If the way in closes, Chanlytics will tell you."
+  },
+  /** What a role that may not press says it would have done. */
+  gate: {
+    connect: "connect an ad account",
+    change: "change the ad account",
+    disconnect: "disconnect an ad account",
+    pause: "change when ads pause"
+  }
+};
+var RUNNING = ["on", "review", "setting-up"];
+var CHECKS2 = {
+  meta: STANDING_CHECKS.meta,
+  google: ["manager-link", ...STANDING_CHECKS.google],
+  tiktok: STANDING_CHECKS.tiktok
+};
+function readyRow(acct, id) {
+  const ok2 = checkOk(acct, id);
+  const manager = id === "manager-link";
+  const text = manager ? ok2 ? CONNECT.managerOk : CONNECT.managerNot : checkWords(id, acct.platform);
+  return { id, text, tone: ok2 ? "ok" : "warn", fix: ok2 ? null : checkFix(id, acct.platform) };
+}
+function permissionRow2(acct, today) {
+  if (!acct.permissionEnd) return null;
+  const soon = daysBetween(today, acct.permissionEnd) <= ADS_PERMISSION_WARN_DAYS;
+  const id = "post-permission";
+  return {
+    id,
+    text: CONNECT.permission(dayWord(acct.permissionEnd)),
+    tone: soon ? "warn" : "ok",
+    fix: soon ? checkFix(id, acct.platform) : null
+  };
+}
+function connectReadyOf(acct, today) {
+  const rows2 = CHECKS2[acct.platform].map((id) => readyRow(acct, id));
+  const permission = permissionRow2(acct, today);
+  return permission ? [...rows2, permission] : rows2;
+}
+function readOf(acct) {
+  if (acct.read === "reading") return CONNECT.reading;
+  if (acct.read === "failed") {
+    const at3 = acct.readAt ? `${dayWord(dayOfIso(acct.readAt, acct.timezone))}, ${timeOf(acct.readAt, acct.timezone)}` : "";
+    return CONNECT.readFailed(at3);
+  }
+  return acct.readAt ? CONNECT.read(timeOf(acct.readAt, acct.timezone)) : null;
+}
+function connectStateOf(status, ready) {
+  if (status === "choose") return { tone: "info", words: STANDING.choose };
+  if (status === "lapsed") return { tone: "warn", words: STANDING.lapsed };
+  if (status === "not-connected") return { tone: "plain", words: CONNECT.off };
+  return ready.some((r2) => r2.tone === "warn") ? { tone: "warn", words: STANDING.needsYou } : { tone: "ok", words: STANDING.connected };
+}
+function connectRowOf(platform, acct, ads, today) {
+  const status = acct?.status ?? "not-connected";
+  const connected = acct !== void 0 && status === "connected";
+  const ready = connected ? connectReadyOf(acct, today) : [];
+  const here = ads.filter((ad) => ad.platform === platform);
+  const adopted = here.filter((ad) => !ad.madeHere).length;
+  const state = connectStateOf(status, ready);
+  const bad = ready.filter((r2) => r2.tone === "warn").length;
+  return {
+    id: platform,
+    title: PLATFORM_WORD[platform],
+    detail: acct?.name ?? null,
+    icon: ICON[platform],
+    status,
+    tone: state.tone,
+    stateWords: state.words,
+    facts: connected ? CONNECT.facts(acct.currency, acct.timezone) : null,
+    read: connected ? readOf(acct) : null,
+    ready,
+    readyMark: bad > 0 ? CONNECT.needYou(bad) : CONNECT.allReady,
+    line: status === "not-connected" || status === "lapsed" ? CONNECT.line(platform) : null,
+    adopted: connected && adopted > 0 ? CONNECT.adopted(platform, adopted) : null,
+    choices: (acct?.choices ?? []).map((c) => ({ value: c.externalId, label: c.name, hint: c.currency })),
+    chosen: acct?.externalId ?? null,
+    running: here.filter((ad) => RUNNING.includes(ad.state)).length
+  };
+}
+function connectModel(input) {
+  return PLATFORMS.map(
+    (platform) => connectRowOf(
+      platform,
+      input.accounts.find((a) => a.platform === platform),
+      input.ads,
+      input.today
+    )
+  );
+}
+
+// src/shared/email-address.ts
+var MAX_ADDRESS = 254;
+var MAX_LOCAL = 64;
+var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
+var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
+var SHAPE = new RegExp(`^(${LOCAL})@(${LABEL}(?:\\.${LABEL})+)$`);
+function normalizeEmail(raw) {
+  if (raw == null) return null;
+  const s = String(raw).trim().toLowerCase();
+  if (!s || s.length > MAX_ADDRESS) return null;
+  const m = SHAPE.exec(s);
+  if (!m || m[1].length > MAX_LOCAL) return null;
+  return s;
+}
+function whyNotAnEmail(raw) {
+  if (normalizeEmail(raw)) return null;
+  const s = String(raw ?? "").trim();
+  if (!s) return "An email address is needed.";
+  if (/[<>]/.test(s) || /\s/.test(s))
+    return "Only the address itself, like name@example.com, with no name or spaces around it.";
+  const at3 = s.split("@").length - 1;
+  if (at3 === 0) return "That is missing the @.";
+  if (at3 > 1) return "An address has one @.";
+  if (!/@[^@]*\./.test(s)) return "That needs a full domain after the @, like name@example.com.";
+  return "That is not an email address anyone can be reached at.";
+}
+var OWN_ADDRESS_WORDS = /\b(my|mine|it'?s|is|email|e-mail|mail|correo|mi|es|sure|here|aqu[ií])\b/i;
+function addressInMessage(body) {
+  const s = String(body ?? "").trim();
+  if (!s || s.length > 160) return null;
+  const tokens = s.split(/\s+/);
+  const found = /* @__PURE__ */ new Set();
+  for (const raw of tokens) {
+    const t = raw.replace(/^[("'<[]+|[)"'>\].,;:!?]+$/g, "");
+    if (!t.includes("@")) continue;
+    const e = normalizeEmail(t);
+    if (!e) return null;
+    found.add(e);
+  }
+  if (found.size !== 1) return null;
+  const alone = tokens.length === 1;
+  const theirs = tokens.length <= 8 && OWN_ADDRESS_WORDS.test(s);
+  return alone || theirs ? [...found][0] : null;
+}
+
+// src/shared/phone.ts
+function normalizePhone(raw) {
+  if (raw == null) return null;
+  const typed = String(raw).trim();
+  const digits2 = typed.replace(/[^\d]/g, "");
+  if (!digits2) return null;
+  if (!typed.startsWith("+") && digits2.length === 10) return `+1${digits2}`;
+  if (digits2.length >= 8 && digits2.length <= 15) return `+${digits2}`;
+  return null;
+}
+function samePhone(a, b) {
+  const x = normalizePhone(a);
+  const y = normalizePhone(b);
+  return !!x && !!y && x === y;
+}
+function shortCode(raw) {
+  const digits2 = String(raw ?? "").replace(/[^\d]/g, "");
+  return digits2.length >= 3 && digits2.length <= 6;
+}
+function phoneDialable(raw) {
+  const e164 = normalizePhone(raw);
+  if (!e164) return false;
+  if (!e164.startsWith("+1")) return true;
+  const d = e164.slice(2);
+  if (d.length !== 10) return false;
+  const [area, exchange] = [d.slice(0, 3), d.slice(3, 6)];
+  const n11 = (x) => x[1] === "1" && x[2] === "1";
+  return /^[2-9]/.test(area) && /^[2-9]/.test(exchange) && !n11(area) && !n11(exchange);
+}
+function whyNotAPhone(raw) {
+  if (normalizePhone(raw)) return null;
+  const digits2 = String(raw ?? "").replace(/[^\d]/g, "");
+  if (!digits2) return "A phone number is needed to add a person.";
+  if (shortCode(digits2)) {
+    return "That is a short code, not a phone number \u2014 nobody can be reached on one.";
+  }
+  if (digits2.length === 7) return "That looks like a local number. Add the area code.";
+  return "That is not a phone number anyone can be reached on.";
+}
+function whyNotAHandoff(raw, ownLine, keptLine) {
+  const typed = String(raw ?? "").trim();
+  if (!typed) return null;
+  const norm2 = "+" + typed.replace(/[^0-9]/g, "");
+  if (!(/^\+/.test(typed) && /^\+[1-9][0-9]{6,14}$/.test(norm2))) {
+    return "The transfer number needs the country code, like +1 212 555 0143.";
+  }
+  if (samePhone(norm2, ownLine)) {
+    return "That is the receptionist's own line \u2014 it would ring itself. Use a line a person answers.";
+  }
+  if (samePhone(norm2, keptLine)) return HANDOFF_FORWARDS_BACK;
+  return null;
+}
+var HANDOFF_FORWARDS_BACK = "That number sends the calls nobody picks up to your receptionist, so a caller put through to it would come straight back. Use a mobile or another line a person answers.";
+var FORWARD_IS_HANDOFF = "Your receptionist puts callers through to this number. Change the transfer number in Settings \u203A Business first \u2014 once this number forwards to the receptionist, a caller put through to it would come straight back.";
+function whyNotForward(number2, handoff) {
+  return samePhone(number2, handoff) ? FORWARD_IS_HANDOFF : null;
+}
+function handoffE164(raw) {
+  const typed = String(raw ?? "").trim();
+  if (!typed) return null;
+  return "+" + typed.replace(/[^0-9]/g, "");
+}
+function phoneTail(raw) {
+  const digits2 = (raw ?? "").replace(/\D/g, "");
+  return digits2 ? digits2.slice(-4) : null;
+}
+function formatPhoneDisplay(e164) {
+  if (!e164) return null;
+  const digits2 = String(e164).replace(/[^\d]/g, "");
+  if (digits2.length === 11 && digits2.startsWith("1")) {
+    return `+1 (${digits2.slice(1, 4)}) ${digits2.slice(4, 7)}-${digits2.slice(7)}`;
+  }
+  if (digits2.length < 7) return `+${digits2}`;
+  return `+${digits2.replace(/(\d{1,3})(?=(\d{3})+$)/g, "$1 ").trim()}`;
+}
+
+// src/calendar/booking-notice.ts
+var BOOKING_TOOL_IDS = [
+  "booksy",
+  "acuity",
+  "fresha",
+  "square",
+  "vagaro",
+  "glossgenius",
+  "calendly",
+  "setmore",
+  "mindbody",
+  "simplybook",
+  "schedulicity",
+  "styleseat"
+];
+var BOOKING_TOOLS = [
+  { tool: "booksy", name: "Booksy", domains: ["booksy.com"], calendar: "none" },
+  { tool: "acuity", name: "Acuity", domains: ["acuityscheduling.com", "squarespacescheduling.com"], calendar: "own" },
+  { tool: "fresha", name: "Fresha", domains: ["fresha.com"], calendar: "own" },
+  { tool: "square", name: "Square", domains: ["squareup.com", "square.com"], calendar: "writes" },
+  { tool: "vagaro", name: "Vagaro", domains: ["vagaro.com"], calendar: "writes" },
+  { tool: "glossgenius", name: "GlossGenius", domains: ["glossgenius.com"], calendar: "own" },
+  { tool: "calendly", name: "Calendly", domains: ["calendly.com"], calendar: "writes" },
+  { tool: "setmore", name: "Setmore", domains: ["setmore.com"], calendar: null },
+  { tool: "mindbody", name: "Mindbody", domains: ["mindbodyonline.com"], calendar: null },
+  { tool: "simplybook", name: "SimplyBook", domains: ["simplybook.me"], calendar: null },
+  { tool: "schedulicity", name: "Schedulicity", domains: ["schedulicity.com"], calendar: null },
+  { tool: "styleseat", name: "StyleSeat", domains: ["styleseat.com"], calendar: null }
+];
+var isBookingTool = (v) => BOOKING_TOOLS.some((t) => t.tool === v);
+function bookingToolName(tool) {
+  if (!tool) return null;
+  return BOOKING_TOOLS.find((t) => t.tool === tool)?.name ?? tool;
+}
+function bookingToolCalendar(tool) {
+  return BOOKING_TOOLS.find((t) => t.tool === tool)?.calendar ?? null;
+}
+function bookingToolOfAddress(address) {
+  const a = (address ?? "").trim().toLowerCase();
+  const at3 = a.lastIndexOf("@");
+  if (at3 < 1) return null;
+  const host = a.slice(at3 + 1);
+  for (const t of BOOKING_TOOLS) for (const d of t.domains) if (host === d || host.endsWith(`.${d}`)) return t.tool;
+  return null;
+}
+var FORWARD_SUBJECT = /^\s*(fwd?|fw|tr|wg|rv)\s*:/i;
+function bookingNoticeOf(e) {
+  const direct = bookingToolOfAddress(e.from?.address);
+  if (direct) return { tool: direct, forwarded: false };
+  if (!e.from || !FORWARD_SUBJECT.test(e.subject ?? "") || !e.text) return null;
+  const head = e.text.slice(0, 4e3);
+  const m = /^\s*(?:>\s*)?(?:from|de|von)\s*:\s*(?:"?[^<\n]*"?\s*<)?([^\s<>]+@[^\s<>]+)>?/im.exec(head);
+  const quoted = m ? bookingToolOfAddress(m[1]) : null;
+  return quoted ? { tool: quoted, forwarded: true } : null;
+}
+var NOTICE_KINDS = ["booked", "changed", "cancelled", "other"];
+var LOCAL_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
+var NOTICE_SCHEMA = /* @__PURE__ */ (() => ({
+  type: "object",
+  properties: {
+    kind: { type: "string", enum: [...NOTICE_KINDS] },
+    client_name: { anyOf: [{ type: "string" }, { type: "null" }] },
+    client_phone: { anyOf: [{ type: "string" }, { type: "null" }] },
+    client_email: { anyOf: [{ type: "string" }, { type: "null" }] },
+    service: { anyOf: [{ type: "string" }, { type: "null" }] },
+    staff: { anyOf: [{ type: "string" }, { type: "null" }] },
+    starts_at: {
+      anyOf: [
+        { type: "string", description: "YYYY-MM-DDTHH:MM, the business's own clock, no zone." },
+        { type: "null" }
+      ]
+    },
+    ends_at: {
+      anyOf: [
+        { type: "string", description: "YYYY-MM-DDTHH:MM, the business's own clock, no zone." },
+        { type: "null" }
+      ]
+    },
+    previous_starts_at: {
+      anyOf: [
+        { type: "string", description: "For a change only: the time it was before, YYYY-MM-DDTHH:MM." },
+        { type: "null" }
+      ]
+    },
+    price: { anyOf: [{ type: "string" }, { type: "null" }] },
+    note: { anyOf: [{ type: "string" }, { type: "null" }] }
+  },
+  required: [
+    "kind",
+    "client_name",
+    "client_phone",
+    "client_email",
+    "service",
+    "staff",
+    "starts_at",
+    "ends_at",
+    "previous_starts_at",
+    "price",
+    "note"
+  ],
+  additionalProperties: false
+}))();
+var NOTICE_TEXT_MAX = 6e3;
+var NOTICE_READ_MAX_TOKENS = 600;
+function noticePrompt(p) {
+  const system = [
+    "You read one email a booking tool sent a business about one of its appointments, and answer in the JSON shape asked.",
+    `kind: booked when a client booked or the tool confirms a booking; changed when a booking moved to another time; cancelled when it was cancelled or the client did not show; other when the email is not about one booking (a receipt, a digest, a reminder to the business, marketing), and other when it is written TO THE CLIENT about a booking of their own at a business ('Your appointment at Harbor Studio is confirmed', 'See you tomorrow at 3'): the business's notice names its client as someone else, it never speaks to them.`,
+    "client_name, client_phone, client_email: the CLIENT's, as written; never the business's, the staff member's or the tool's own.",
+    "service: the service booked, as written (with its category if the tool writes one: 'Hair Color: Partial highlight'). staff: who it is with, as written.",
+    "starts_at, ends_at: the appointment's start and end on the business's own clock as YYYY-MM-DDTHH:MM, from the date and the time range the email states. For a change, the NEW time; previous_starts_at is the old one. ends_at null when no end is stated.",
+    "price: as written ('$55.00+', 'Varies'), null when none. note: the client's own note, null when none.",
+    "Take only what the email states. Invent nothing; a field the email does not state is null."
+  ].join("\n");
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: p.tz, year: "numeric", month: "2-digit", day: "2-digit" });
+  const user = [
+    `Booking tool: ${bookingToolName(p.tool)}.`,
+    `Received on ${day.format(new Date(p.receivedAtMs))}; the business's zone is ${p.tz}.`,
+    `Subject: ${p.subject ?? "(none)"}`,
+    "",
+    p.text.slice(0, NOTICE_TEXT_MAX)
+  ].join("\n");
+  return { system, user };
+}
+var NOTICE_HOLDS = [
+  "no_model",
+  "may_not_spend",
+  "unreadable",
+  "not_a_booking",
+  "no_time",
+  "no_client",
+  // The provider no longer had the email when the read ran: nothing could be read, and the delivery is still on the ledger.
+  "gone"
+];
+var isNoticeHold = (v) => NOTICE_HOLDS.includes(v);
+var NOTICE_DEFAULT_LENGTH_MS = HOUR_MS;
+var NOTICE_LENGTH_MAX_MS = 12 * HOUR_MS;
+var E164 = /^\+[1-9][0-9]{6,14}$/;
+var NOTICE_TIME_REACH_MS = 400 * DAY_MS;
+var NOTICE_FIELD_MAX = 200;
+var NOTICE_NOTE_MAX = 1e3;
+function localMs(tz, v) {
+  if (typeof v !== "string") return null;
+  const m = LOCAL_TIME.exec(v.trim());
+  if (!m) return null;
+  const part = (i) => Number(m[i]);
+  const y = part(1);
+  const mo = part(2);
+  const d = part(3);
+  const hh = part(4);
+  const mm = part(5);
+  if (!(mo >= 1 && mo <= 12 && d >= 1 && d <= 31 && hh <= 23 && mm <= 59)) return null;
+  const day = new Date(Date.UTC(y, mo - 1, d));
+  if (day.getUTCMonth() !== mo - 1 || day.getUTCDate() !== d) return null;
+  const ms2 = localToUtcMs(tz, y, mo, d, hh, mm);
+  return Number.isFinite(ms2) ? ms2 : null;
+}
+function trimmedText(v, max) {
+  if (typeof v !== "string") return null;
+  const t = v.replace(/\s+/g, " ").trim();
+  return t ? t.slice(0, max) : null;
+}
+function noticeAnswerOf(answer, tz, nowMs) {
+  if (!answer || typeof answer !== "object" || Array.isArray(answer)) return { reading: null, hold: "unreadable" };
+  const a = answer;
+  const kind = a.kind;
+  if (kind === "other") return { reading: null, hold: "not_a_booking" };
+  if (kind !== "booked" && kind !== "changed" && kind !== "cancelled") return { reading: null, hold: "unreadable" };
+  const start = localMs(tz, a.starts_at);
+  if (start === null || Math.abs(start - nowMs) > NOTICE_TIME_REACH_MS) return { reading: null, hold: "no_time" };
+  const endRead = localMs(tz, a.ends_at);
+  const end = endRead !== null && endRead > start && endRead - start <= NOTICE_LENGTH_MAX_MS ? endRead : start + NOTICE_DEFAULT_LENGTH_MS;
+  const phone = normalizePhone(typeof a.client_phone === "string" ? a.client_phone : null);
+  const client = {
+    name: trimmedText(a.client_name, NOTICE_FIELD_MAX),
+    phone: phone && E164.test(phone) ? phone : null,
+    email: normalizeEmail(typeof a.client_email === "string" ? a.client_email : null)
+  };
+  if (!client.name && !client.phone && !client.email) return { reading: null, hold: "no_client" };
+  const previous = kind === "changed" ? localMs(tz, a.previous_starts_at) : null;
+  return {
+    reading: {
+      kind,
+      client,
+      service: trimmedText(a.service, NOTICE_FIELD_MAX),
+      staff: trimmedText(a.staff, NOTICE_FIELD_MAX),
+      start,
+      end,
+      previousStart: previous !== null && Math.abs(previous - nowMs) <= NOTICE_TIME_REACH_MS ? previous : null,
+      price: trimmedText(a.price, NOTICE_FIELD_MAX),
+      note: trimmedText(a.note, NOTICE_NOTE_MAX)
+    },
+    hold: null
+  };
+}
+function clientKeyOf(client) {
+  if (client.phone) return client.phone;
+  if (client.email) return client.email.toLowerCase();
+  return (client.name ?? "").normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+function appointmentKey(tool, client, startMs) {
+  return `${tool}:${clientKeyOf(client)}:${Math.floor(startMs / MIN_MS) * MIN_MS}`;
+}
+var SAME_VISIT_MS = 15 * MIN_MS;
+function bookingToolOptions() {
+  return BOOKING_TOOLS.map((t) => ({ value: t.tool, label: t.name }));
+}
+var BOOKING_TOOL_STEPS = {
+  acuity: {
+    way: "recipient",
+    steps: [
+      "In Acuity, open the calendar your appointments land on, then Calendar notifications.",
+      "Under \u201CSend booking notifications to\u201D, add the address above beside your own."
+    ]
+  },
+  fresha: {
+    way: "recipient",
+    steps: [
+      "In Fresha, open Settings \u203A Scheduling \u203A Online bookings \u203A Notifications, then Edit.",
+      "Add the address above to the emails that get booked, rescheduled and cancelled bookings."
+    ]
+  },
+  booksy: {
+    way: "forward",
+    steps: [
+      "Open the inbox your Booksy account emails: its booking emails arrive there.",
+      "Make a filter for mail from no-reply@booksy.com that forwards to the address above."
+    ]
+  },
+  square: {
+    way: "forward",
+    steps: [
+      "In Square, under Team members \u203A your name \u203A Booking notifications, keep email on.",
+      "In that inbox, make a filter for Square's booking emails that forwards to the address above."
+    ]
+  },
+  vagaro: {
+    way: "forward",
+    steps: [
+      "In Vagaro, under Settings \u203A Booking \u203A Email & Text Notifications, keep employee email notifications on.",
+      "In that inbox, make a filter for mail from vagaro.com that forwards to the address above."
+    ]
+  },
+  glossgenius: {
+    way: "forward",
+    steps: [
+      "In GlossGenius, under your personal notifications, keep booking emails on (they go to whoever is booked).",
+      "In that inbox, make a filter for mail from glossgenius.com that forwards to the address above."
+    ]
+  },
+  calendly: {
+    way: "forward",
+    steps: [
+      "Open the inbox Calendly emails your bookings to (each host gets their own).",
+      "Make a filter for mail from calendly.com that forwards to the address above."
+    ]
+  },
+  setmore: {
+    way: "forward",
+    steps: ["In the inbox Setmore emails, make a filter for mail from setmore.com that forwards to the address above."]
+  },
+  mindbody: {
+    way: "forward",
+    steps: [
+      "In the inbox Mindbody emails, make a filter for mail from mindbodyonline.com that forwards to the address above."
+    ]
+  },
+  simplybook: {
+    way: "forward",
+    steps: [
+      "In the inbox SimplyBook emails, make a filter for mail from simplybook.me that forwards to the address above."
+    ]
+  },
+  schedulicity: {
+    way: "forward",
+    steps: [
+      "In the inbox Schedulicity emails, make a filter for mail from schedulicity.com that forwards to the address above."
+    ]
+  },
+  styleseat: {
+    way: "forward",
+    steps: [
+      "In the inbox StyleSeat emails, make a filter for mail from styleseat.com that forwards to the address above."
+    ]
+  }
+};
+var GMAIL_FORWARD_NOTE = "If that inbox is Gmail, it asks once to confirm the forward: the code and a one-press confirm appear here.";
+var BOOKING_TRY_NOTE = "To try it now, forward any past booking email to the address above, from the email you sign in with.";
+var NOTICE_HOLD_WORDS = {
+  no_model: "The reader was unavailable. Press Read again.",
+  may_not_spend: "The workspace's AI spend is paused. Read again once it is on.",
+  unreadable: "It could not be read as a booking.",
+  // Kept on the ledger and set aside, never held: nobody is asked to look at a tool's receipt or its newsletter.
+  not_a_booking: "It is from your booking tool, but not about one booking.",
+  no_time: "No appointment time could be read from it.",
+  no_client: "No client could be read from it.",
+  gone: "The email was gone before it could be read."
+};
+var GMAIL_FORWARDING_SENDER = /^forwarding-noreply@google\.com$/i;
+function forwardingConfirmationOf(e) {
+  if (!e.from || !GMAIL_FORWARDING_SENDER.test(e.from.address.trim())) return null;
+  const subject = e.subject ?? "";
+  if (!/forwarding confirmation/i.test(subject)) return null;
+  const text = e.text ?? "";
+  const code2 = /\(#(\d{5,12})\)/.exec(subject)?.[1] ?? /confirmation code:\s*(\d{5,12})/i.exec(text)?.[1] ?? null;
+  const account = /receive mail from\s+([^\s<>]+@[^\s<>]+)/i.exec(subject)?.[1] ?? /([^\s<>]+@[^\s<>]+)\s+has requested to automatically forward/i.exec(text)?.[1] ?? null;
+  if (!code2 || !account) return null;
+  const link = /https:\/\/[a-z0-9.-]*\.google\.com\/mail\/vf-[^\s<>")]+/i.exec(text)?.[0] ?? null;
+  return { account: account.toLowerCase(), code: code2, link };
+}
+
+// src/config/workspace-config/config-rules.ts
+var DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+var DAY_NAMES = {
+  mon: "Monday",
+  tue: "Tuesday",
+  wed: "Wednesday",
+  thu: "Thursday",
+  fri: "Friday",
+  sat: "Saturday",
+  sun: "Sunday"
+};
+var DAY_NAME = DAY_NAMES;
+function isRealDate(key) {
+  const at3 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
+  return !Number.isNaN(at3.getTime()) && at3.toISOString().slice(0, 10) === key;
+}
+var MAX_INTERVALS_PER_DAY = 4;
+var MAX_CLOSURES = 60;
+function dayProblems(h, day) {
+  const name = DAY_NAME[day] ?? day;
+  const out = [];
+  const open = h.open ?? void 0;
+  const close = h.close ?? void 0;
+  if (!!open !== !!close) {
+    out.push({
+      path: [open ? "close" : "open"],
+      message: `${name} needs both an opening and a closing time, or neither.`
+    });
+  }
+  if (open && close && close <= open) {
+    out.push({ path: ["close"], message: `${name} closes at or before it opens.` });
+  }
+  const iv = h.intervals ?? [];
+  if (iv.length > MAX_INTERVALS_PER_DAY) {
+    out.push({ path: ["intervals"], message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.` });
+  }
+  iv.forEach((x, n) => {
+    if (x.close <= x.open) {
+      out.push({ path: ["intervals", n, "close"], message: `${name}: a shift has to close after it opens.` });
+    }
+  });
+  const sorted = [...iv].sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
+  for (let n = 1; n < sorted.length; n++) {
+    if (sorted[n].open < sorted[n - 1].close) {
+      out.push({ path: ["intervals", n, "open"], message: `${name}: two shifts overlap.` });
+    }
+  }
+  return out;
+}
+var E1642 = /^\+[1-9]\d{6,14}$/;
+var isE164 = (s) => typeof s === "string" && E1642.test(s);
+var INSTRUCTIONS_MAX = 2e4;
+var BOOKING_LINK_MAX = 500;
+var PROFILE_LIMITS = {
+  tone: 200,
+  services: 60,
+  serviceName: 80,
+  serviceMinutes: 1440,
+  servicePrice: 120,
+  languages: 8,
+  languageMin: 2,
+  languageMax: 40,
+  reasons: 20,
+  reason: 200,
+  consultFirst: 20,
+  consultFirstLine: 80,
+  ruleNotes: 10,
+  ruleNote: 200,
+  notes: 10,
+  noteTitle: 80,
+  noteText: 1200,
+  closureNote: 200,
+  closures: MAX_CLOSURES,
+  shifts: MAX_INTERVALS_PER_DAY,
+  instructions: INSTRUCTIONS_MAX,
+  message: 2e3
+};
+var BOOKING_RULE_BOUNDS = {
+  /** Least notice for a slot, in hours. */
+  lead_hours: { min: 0, max: 168 },
+  /** The shortest window worth naming, in minutes. */
+  slot_min: { min: 15, max: 240 },
+  /** Gap kept around each existing appointment, in minutes. */
+  buffer_min: { min: 0, max: 120 },
+  /** How far ahead open times are offered, in days. */
+  max_days_ahead: { min: 1, max: 90 },
+  party_max: { min: 1, max: 20 }
+};
+var GUARDRAIL_KEYS = [
+  "never_quote_prices",
+  "never_confirm_booking",
+  "disclose_ai",
+  "no_health_advice"
+];
+function guardrailsInForce(g) {
+  return {
+    never_quote_prices: g?.never_quote_prices !== false,
+    never_confirm_booking: g?.never_confirm_booking !== false,
+    disclose_ai: g?.disclose_ai !== false,
+    no_health_advice: g?.no_health_advice === true
+  };
+}
+
+// src/config/no-booking-link.ts
+var NO_LINK_DETAILS = "their name, what they need, and where and when";
+function offersBookingLink(brain) {
+  return !brain || !!brain.booking_link;
+}
+function offersLinkOn(on, brain, whatsappLine) {
+  return offersBookingLink(brain) && (on === "chat" || !!whatsappLine);
+}
+var NO_WAY_TO_SEND_LINK = `Booking: the booking link can only be sent by WhatsApp, and this business has no WhatsApp line, so never use send_booking_link and never promise a link or a message. When the caller wants to book, change or cancel a booking, take ${NO_LINK_DETAILS}, and say the team will follow up. If they would rather book themselves and a website is listed above, they can book there.`;
+function priceNextStep(hasBookingLink) {
+  return hasBookingLink ? "offer the booking link" : `take ${NO_LINK_DETAILS}`;
+}
+
+// src/calendar/day-keys.ts
+var DOW2 = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+var DAY_SHORT = {
+  mon: "Mon",
+  tue: "Tue",
+  wed: "Wed",
+  thu: "Thu",
+  fri: "Fri",
+  sat: "Sat",
+  sun: "Sun"
+};
+function keyParts(key) {
+  const [y, m, d] = key.split("-").map(Number);
+  return { y, m: m ?? 1, d: d ?? 1 };
+}
+function shiftKey(key, n) {
+  const { y, m, d } = keyParts(key);
+  const at3 = new Date(Date.UTC(y, m - 1, d + n));
+  return `${at3.getUTCFullYear()}-${String(at3.getUTCMonth() + 1).padStart(2, "0")}-${String(at3.getUTCDate()).padStart(2, "0")}`;
+}
+function mondayOf(key) {
+  const { y, m, d } = keyParts(key);
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  return shiftKey(key, -((dow + 6) % 7));
+}
+function isDayKey(s) {
+  return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`));
+}
+function monthSpan(key) {
+  return { from: mondayOf(`${key.slice(0, 7)}-01`), days: 42 };
+}
+function shiftMonth(key, n) {
+  const { y, m } = keyParts(key);
+  const at3 = new Date(Date.UTC(y, m - 1 + n, 1));
+  return `${at3.getUTCFullYear()}-${String(at3.getUTCMonth() + 1).padStart(2, "0")}-01`;
+}
+function monthLabelOf(key) {
+  const { y, m } = keyParts(key);
+  return dateFormat("en-US", { timeZone: "UTC", month: "long", year: "numeric" }).format(
+    new Date(Date.UTC(y, m - 1, 1, 12))
+  );
+}
+function zoneMidnight(tz, key) {
+  const { y, m, d } = keyParts(key);
+  return localToUtcMs(tz, y, m, d, 0, 0);
+}
+
+// src/calendar/availability.ts
+var BOOKING_DEFAULTS = { lead_hours: 2, buffer_min: 0, max_days_ahead: 14, slot_min: 30 };
+function hhmm(s) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(s.trim());
+  return m ? [Number(m[1]), Number(m[2])] : null;
+}
+function dayIntervals(h) {
+  const raw = [];
+  if (h?.open && h?.close) raw.push([h.open, h.close]);
+  for (const iv of h?.intervals ?? []) if (iv?.open && iv?.close) raw.push([iv.open, iv.close]);
+  const usable = raw.filter(([o, c]) => c > o).sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
+  const merged = [];
+  for (const [o, c] of usable) {
+    const last = merged[merged.length - 1];
+    if (last && o <= last[1]) {
+      if (c > last[1]) last[1] = c;
+    } else {
+      merged.push([o, c]);
+    }
+  }
+  return merged;
+}
+function closedOn(closures, key) {
+  return !!closures?.some((c) => c.date <= key && key <= (c.until && c.until >= c.date ? c.until : c.date));
+}
+var minutesOf = (s) => {
+  const t = hhmm(s);
+  return t ? t[0] * 60 + t[1] : null;
+};
+function openAt(hours, closures, dateKey, minute) {
+  if (closedOn(closures, dateKey)) return false;
+  const { y, m, d } = keyParts(dateKey);
+  const weekday = WEEKDAY_KEYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+  if (!weekday) return false;
+  return dayIntervals(hours?.[weekday]).some(([o, c]) => {
+    const from = minutesOf(o);
+    const to = minutesOf(c);
+    return from !== null && to !== null && from <= minute && minute < to;
+  });
+}
+function hasHours(hours) {
+  return DAYS.some((d) => dayIntervals(hours?.[d]).length > 0);
+}
+function onTheGrid(tz, atMs, slotMin) {
+  const grid = slotMin > 0 && 60 % slotMin === 0 ? slotMin : 15;
+  const c = clockInZone(tz, atMs);
+  const into = (c.mm % grid * 60 + c.ss) * 1e3 + (atMs % 1e3 + 1e3) % 1e3;
+  return into === 0 ? atMs : atMs - into + grid * 6e4;
+}
+function freeWindows(input) {
+  const rules = { ...BOOKING_DEFAULTS, ...input.rules ?? {} };
+  const leadMs = rules.lead_hours * 36e5;
+  const bufferMs = rules.buffer_min * 6e4;
+  const slotMs = rules.slot_min * 6e4;
+  const earliest2 = onTheGrid(input.tz, input.now.getTime() + leadMs, rules.slot_min);
+  const busy = input.busy.map((b) => ({ start: b.start - bufferMs, end: b.end + bufferMs })).sort((a, b) => a.start - b.start);
+  const out = [];
+  for (let offset = 0; offset < rules.max_days_ahead; offset++) {
+    const day = dayPlusInZone(input.tz, input.now.getTime(), offset);
+    if (closedOn(input.closures, day.key)) continue;
+    const ranges = dayIntervals(input.hours?.[day.weekday]);
+    const windows = [];
+    for (const [open, close] of ranges) {
+      const o = hhmm(open), c = hhmm(close);
+      if (!o || !c) continue;
+      let start = Math.max(localToUtcMs(input.tz, day.y, day.m, day.d, o[0], o[1]), earliest2);
+      const end = localToUtcMs(input.tz, day.y, day.m, day.d, c[0], c[1]);
+      for (const b of busy) {
+        if (b.end <= start) continue;
+        if (b.start >= end) break;
+        if (b.start > start && b.start - start >= slotMs) windows.push({ start, end: b.start });
+        start = Math.max(start, b.end);
+      }
+      if (end - start >= slotMs) windows.push({ start, end });
+    }
+    if (windows.length) {
+      out.push({
+        key: day.key,
+        weekday: day.weekday,
+        // Noon on that local day: an instant the day owns whichever way the
+        // clock moved, where midnight on a spring-forward day may not exist
+        // and 1 AM on an autumn one happens twice.
+        label: dateFormat("en-US", {
+          timeZone: input.tz,
+          weekday: "long",
+          month: "long",
+          day: "numeric"
+        }).format(new Date(localToUtcMs(input.tz, day.y, day.m, day.d, 12, 0))),
+        windows
+      });
+    }
+  }
+  return out;
+}
+var DAY_NAMES2 = {
+  mon: "mon",
+  monday: "mon",
+  tue: "tue",
+  tues: "tue",
+  tuesday: "tue",
+  wed: "wed",
+  wednesday: "wed",
+  thu: "thu",
+  thur: "thu",
+  thurs: "thu",
+  thursday: "thu",
+  fri: "fri",
+  friday: "fri",
+  sat: "sat",
+  saturday: "sat",
+  sun: "sun",
+  sunday: "sun"
+};
+function filterOpenings(openings, by) {
+  const day = (by.day ?? "").trim().toLowerCase();
+  const weekday = day ? DAY_NAMES2[day] : void 0;
+  const key = /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : void 0;
+  const minMs = by.minMinutes && by.minMinutes > 0 ? by.minMinutes * 6e4 : 0;
+  const picked = openings.filter((o) => key ? o.key === key : weekday ? o.weekday === weekday : true);
+  const first = weekday && !key ? picked.slice(0, 1) : picked;
+  return first.map((o) => ({ ...o, windows: o.windows.filter((w) => w.end - w.start >= minMs) })).filter((o) => o.windows.length > 0);
+}
+function span(tz, start, end) {
+  const f = dateFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
+  return `${f.format(new Date(start))} \u2013 ${f.format(new Date(end))}`;
+}
+function describeOpenings(openings, tz, opts) {
+  const maxDays = opts.maxDays ?? 5;
+  const ahead = opts.daysAhead ?? BOOKING_DEFAULTS.max_days_ahead;
+  const hasLink = opts.hasBookingLink;
+  const held = hasLink && opts.bookingHeld === true;
+  if (!openings.length) {
+    const instead = held ? "Offer to have a member of the team call or text them when a slot frees up, and take their name. This business confirms its own bookings: never send or promise the booking link." : `Offer to have someone call back${hasLink ? ", and send the booking link so they are told when a slot frees up" : ""}.`;
+    return `Open times (from the calendar): nothing is open in the next ${ahead} days. ${instead}`;
+  }
+  const lines = openings.slice(0, maxDays).map((o) => `- ${o.label}: ${o.windows.map((w) => span(tz, w.start, w.end)).join(", ")}`);
+  return `Open times (from the calendar, checked just now \u2014 these change as bookings come in):
+${lines.join("\n")}
+` + (held ? "Offer up to three of these that fit what they want, then say a member of the team will call or text them to confirm, and take their name. This business confirms its own bookings: never send or promise the booking link, and never confirm a slot yourself." : hasLink ? "Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides." : `Offer up to three of these that fit what they want, then take ${NO_LINK_DETAILS} so the team can confirm one. Never confirm a slot yourself; the calendar decides.`);
+}
+
+// src/config/workspace-config/prompt-hours.ts
+var DAY_LABEL = DAY_NAMES;
+function dayIntervals2(h) {
+  return dayIntervals(h).map(([open, close]) => ({ open, close }));
+}
+function joinList(parts2) {
+  if (parts2.length < 3) return parts2.join(" and ");
+  return `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
+}
+function dayText(h) {
+  const spans = dayIntervals2(h);
+  if (spans.length) {
+    const open = joinList(spans.map((x) => `${x.open}\u2013${x.close}`));
+    const gaps = spans.slice(1).map((x, i) => `${spans[i].close}\u2013${x.open}`);
+    return gaps.length ? `${open} (closed ${joinList(gaps)})` : open;
+  }
+  const saidSomething = !!(h?.open || h?.close || h?.intervals?.length);
+  return saidSomething ? "Hours not confirmed \u2014 ask them to call" : "Closed";
+}
+function hoursRuns(hours) {
+  if (!hours) return [];
+  const spans = DAYS.map((d) => ({ day: d, text: dayText(hours[d]) }));
+  const out = [];
+  let i = 0;
+  while (i < spans.length) {
+    let j = i;
+    while (j + 1 < spans.length && spans[j + 1].text === spans[i].text) j++;
+    out.push({ from: spans[i].day, to: spans[j].day, text: spans[i].text });
+    i = j + 1;
+  }
+  return out;
+}
+function hoursLines(hours) {
+  return hoursRuns(hours).map((r2) => {
+    const label = r2.from === r2.to ? DAY_LABEL[r2.from] : `${DAY_LABEL[r2.from]}\u2013${DAY_LABEL[r2.to]}`;
+    return `${label}: ${r2.text}`;
+  });
+}
+
+// src/calendar/calendar-words.ts
+var VISIT_WORDS = { kept: "Kept", missed: "Missed", cancelled: "Cancelled" };
+var VISIT_REFUSALS = {
+  never_booked: "It was only requested, never booked: it can be cancelled, but not kept or missed.",
+  cancelled: "It was cancelled already.",
+  not_begun: "It hasn't begun yet: whether they came is said once it has.",
+  already_said: "It's marked kept or missed already: say the other if that was wrong.",
+  over: "It has ended: say whether they came instead."
+};
+function visitStateOf(visit, endMs, nowMs) {
+  const said = visit?.status;
+  if (said === "kept" || said === "missed" || said === "cancelled") return { text: VISIT_WORDS[said], tone: said };
+  return endMs <= nowMs ? { text: "Past", tone: "past" } : null;
+}
+function visitActsOf(visit, startMs, endMs, nowMs) {
+  if (!visit) return [];
+  switch (visit.status) {
+    // A correction is a word about a visit that has begun, as the door holds it (not_begun).
+    case "kept":
+      return startMs <= nowMs ? ["missed"] : [];
+    case "missed":
+      return startMs <= nowMs ? ["kept"] : [];
+    case "cancelled":
+      return [];
+    case "proposed":
+      return endMs > nowMs ? ["cancelled"] : [];
+    case "booked": {
+      const out = startMs <= nowMs ? ["kept", "missed"] : [];
+      if (endMs > nowMs) out.push("cancelled");
+      return out;
+    }
+  }
+}
+function clockLabel(t) {
+  const h = Math.floor(t);
+  const m = Math.round((t - h) * 60);
+  const ap = h >= 12 && h < 24 ? "PM" : "AM";
+  const hh = (h + 11) % 12 + 1;
+  return `${hh}${m ? `:${String(m).padStart(2, "0")}` : ""} ${ap}`;
+}
+var SHORT = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
+var LONG = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
+function shortDate(key) {
+  const { y, m, d } = keyParts(key);
+  return SHORT.format(new Date(Date.UTC(y, m - 1, d, 12)));
+}
+function longDate(key) {
+  const { y, m, d } = keyParts(key);
+  return LONG.format(new Date(Date.UTC(y, m - 1, d, 12)));
+}
+function closureDatesLabel(c) {
+  if (!(c.until && c.until > c.date)) return shortDate(c.date);
+  return `${shortDate(c.date)} \u2013 ${c.until.slice(0, 7) === c.date.slice(0, 7) ? c.until.slice(8).replace(/^0/, "") : shortDate(c.until)}`;
+}
+function closuresFrom(closures, todayKey) {
+  return closures.filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= todayKey).sort((a, b) => a.date.localeCompare(b.date));
+}
+function readAgoLabel(iso, now) {
+  if (!iso) return null;
+  return agoWords(Date.parse(iso), now.getTime(), { dateAfterMs: Number.POSITIVE_INFINITY });
+}
+function ruleParts(rules) {
+  const r2 = { ...BOOKING_DEFAULTS, ...rules ?? {} };
+  const parts2 = [`at least ${r2.lead_hours}h notice`];
+  if (r2.buffer_min > 0) parts2.push(`${r2.buffer_min} min between appointments`);
+  parts2.push(`up to ${r2.max_days_ahead} days ahead`, `${r2.slot_min}-min slots`);
+  if (rules?.party_max)
+    parts2.push(`up to ${rules.party_max} ${rules.party_max === 1 ? "person" : "people"} per booking`);
+  return parts2;
+}
+function rulesLine(rules) {
+  return `Offers times with ${ruleParts(rules).join(" \xB7 ")}`;
+}
+function feedNotes(feed) {
+  if (feed.state !== "ok") return [];
+  const notes = [];
+  const repeats = feed.skipped_recurring || 0;
+  if (repeats > 0) {
+    const one = repeats === 1;
+    notes.push({
+      id: "repeats",
+      title: `${repeats} repeating event${one ? " counts" : "s count"} only once.`,
+      body: `${one ? "It repeats" : "They repeat"} in a pattern the receptionist can't follow, like the second Tuesday of each month, so only the first date is treated as taken, and a caller could be offered a time on a later one. Repeating daily, weekly on set days, or monthly on one date fixes it.`
+    });
+  }
+  const undrawn = feed.dropped || 0;
+  if (undrawn > 0) {
+    const one = undrawn === 1;
+    notes.push({
+      id: "undrawn",
+      title: `${undrawn} more event${one ? " isn't" : "s aren't"} drawn.`,
+      body: `${one ? "It falls" : "They fall"} on a day holding more events than the board draws; the receptionist still treats ${one ? "its time" : "their times"} as taken.`
+    });
+  }
+  return notes;
+}
+function hoursLines2(hours) {
+  if (!hours) return [];
+  const clean3 = {};
+  for (const d of DAYS) if (hours[d]) clean3[d] = hours[d];
+  return hoursRuns(clean3).map(
+    (r2) => `${DAY_SHORT[r2.from] ?? r2.from}${r2.to !== r2.from ? `\u2013${DAY_SHORT[r2.to] ?? r2.to}` : ""} ${dayHoursWords(clean3[r2.from])}`
+  );
+}
+function dayHoursWords(h) {
+  const at3 = (s) => Number(s.split(":")[0]) + Number(s.split(":")[1]) / 60;
+  const parts2 = dayIntervals(h).map(([o, c]) => spanLabel2(at3(o), at3(c)));
+  if (!parts2.length) return h?.open || h?.close || h?.intervals?.length ? "hours incomplete" : "closed";
+  return parts2.length < 3 ? parts2.join(" and ") : `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
+}
+var CALENDAR_FEED_WORDS = {
+  ok: "Readable",
+  stale: "Last good read",
+  unavailable: "Could not be read",
+  none: "Not connected"
+};
+function spanLabel2(t1, t2) {
+  const a = clockLabel(t1);
+  const b = clockLabel(t2);
+  const sameHalf = t2 < 24 && t1 < 12 === t2 < 12;
+  return `${sameHalf ? a.slice(0, -3) : a} \u2013 ${b}`;
+}
+
+// src/setup/calendar-source.ts
+var CALENDAR_SETTING_ROUTE = "admin/workspace/calendar";
+var FORWARD_CONFIRM_SHOWN_MS = 3 * DAY_MS;
+function forwardStillAsked(at3, now) {
+  return !!at3 && now.getTime() - Date.parse(at3) <= FORWARD_CONFIRM_SHOWN_MS;
+}
+function bookingEmailsStep(e) {
+  if (!e.address) return "address";
+  if (e.forwarding) return "forwarding";
+  if (e.held > 0) return "held";
+  return e.lastAt ? "working" : "waiting";
+}
+var TO_THE_ROW = (label) => ({ label, to: CALENDAR_SETTING_ROUTE });
+var TO_THE_BOARD = { label: "Open Calendar", to: "calendar" };
+var leadAndRest = (lead, rest = "") => {
+  const after = rest.trim();
+  return { lead, rest: after, sentence: after ? `${lead} ${after}` : lead };
+};
+var bookingEmailsHeldWords = (n) => n === 1 ? "One booking email needs a look." : `${n} booking emails need a look.`;
+var noTimesWords = (bookingLink) => bookingLink ? "The receptionist sends your booking link instead of naming open times." : "The receptionist does not name open times.";
+function unreadLink(f, by, emailsWork) {
+  return {
+    by,
+    state: "attention",
+    tone: "warn",
+    words: CALENDAR_FEED_WORDS.unavailable,
+    ...leadAndRest(
+      "Your calendar could not be read.",
+      `${f.problem ?? ""}${emailsWork ? " Booking emails still arrive." : ""}`
+    ),
+    times: false,
+    next: TO_THE_ROW("Check the link")
+  };
+}
+function emailsNeedYou(step2, f, e, by, times) {
+  const tool = bookingToolName(f.tool) ?? "Your booking tool";
+  if (step2 === "address")
+    return {
+      by,
+      state: "needs_you",
+      tone: "warn",
+      words: "Needs you",
+      ...leadAndRest(`${tool} needs an address to send its booking emails to.`),
+      times,
+      next: TO_THE_ROW("Finish setting up")
+    };
+  if (step2 === "forwarding")
+    return {
+      by,
+      state: "needs_you",
+      tone: "warn",
+      words: "Needs you",
+      ...leadAndRest("Gmail is waiting for you to confirm the forward."),
+      times,
+      next: TO_THE_ROW("Confirm the forward")
+    };
+  if (step2 === "held")
+    return {
+      by,
+      // Held before any became an appointment is setting up still; held after is a thing that works asking for a look.
+      state: e.lastAt || times ? "attention" : "needs_you",
+      tone: "warn",
+      words: `${e.held} to look at`,
+      ...leadAndRest(bookingEmailsHeldWords(e.held)),
+      times,
+      next: TO_THE_ROW(e.held === 1 ? "Look at it" : "Look at them")
+    };
+  return null;
+}
+function readLink(f, step2) {
+  const tool = bookingToolName(f.tool);
+  if (f.link === "stale")
+    return {
+      by: tool ? "both" : "link",
+      state: "ready",
+      tone: "ok",
+      words: CALENDAR_FEED_WORDS.stale,
+      ...leadAndRest("The latest read failed, so this is the last good one."),
+      times: true,
+      next: TO_THE_BOARD
+    };
+  const emails = tool && step2 === "working" ? ` Booking emails from ${tool} add the client and the service.` : tool && step2 === "waiting" ? ` Waiting for the first booking email from ${tool}.` : "";
+  return {
+    by: tool ? "both" : "link",
+    state: "ready",
+    tone: "ok",
+    words: CALENDAR_FEED_WORDS.ok,
+    ...leadAndRest("The receptionist offers open times from it.", emails),
+    times: true,
+    next: TO_THE_BOARD
+  };
+}
+function emailsAlone(f, step2) {
+  const tool = bookingToolName(f.tool) ?? "your booking tool";
+  if (step2 === "waiting")
+    return {
+      by: "emails",
+      state: "waiting",
+      tone: "plain",
+      words: "Waiting for the first email",
+      ...leadAndRest(`Waiting for the first booking email from ${tool}.`),
+      times: false,
+      next: TO_THE_ROW("See the steps")
+    };
+  return {
+    by: "emails",
+    state: "ready",
+    tone: "ok",
+    words: "By email",
+    ...leadAndRest(`Bookings arrive by email from ${tool}.`, noTimesWords(f.bookingLink)),
+    times: false,
+    next: TO_THE_BOARD
+  };
+}
+function calendarSourceOf(f) {
+  const linked = f.link !== "none";
+  const named = !!f.tool;
+  const by = linked && named ? "both" : linked ? "link" : named ? "emails" : "nothing";
+  const step2 = named && f.emails ? bookingEmailsStep(f.emails) : null;
+  if (f.link === "unavailable") return unreadLink(f, by, step2 === "working" || step2 === "held");
+  const times = f.link === "ok" || f.link === "stale";
+  if (step2 && f.emails) {
+    const owed = emailsNeedYou(step2, f, f.emails, by, times);
+    if (owed) return owed;
+  }
+  if (linked) return readLink(f, step2);
+  if (named) return emailsAlone(f, step2);
+  if (f.byHand)
+    return {
+      by: "hand",
+      state: "hand",
+      tone: "plain",
+      words: "Booked by hand",
+      ...leadAndRest("You take bookings yourself, so there is nothing to connect.", noTimesWords(f.bookingLink)),
+      times: false,
+      next: TO_THE_ROW("Change")
+    };
+  return {
+    by: "nothing",
+    state: "none",
+    tone: "plain",
+    words: CALENDAR_FEED_WORDS.none,
+    ...leadAndRest(
+      "No calendar connected.",
+      "Say what you book with, so your calendar fills and the receptionist knows what is taken."
+    ),
+    times: false,
+    next: TO_THE_ROW("Connect your calendar")
+  };
+}
+function calendarSourceFacts(c) {
+  return {
+    link: c.state === "ok" ? c.stale ? "stale" : "ok" : c.state,
+    problem: c.problem ?? null,
+    tool: c.tool ?? null,
+    byHand: !!c.by_hand,
+    emails: c.emails ? { address: c.emails.address, forwarding: c.emails.forwarding, lastAt: c.emails.last_at, held: c.emails.held } : null,
+    bookingLink: !!c.booking_link
+  };
+}
+var BOOKED_NEEDS_A_LINK = "Add a calendar link under Settings \u203A Business to see who booked.";
+var BOOKS_WITH_CALENDAR = "calendar";
+var BOOKS_BY_HAND = "hand";
+function booksWithOptions() {
+  return [
+    ...bookingToolOptions(),
+    { value: BOOKS_WITH_CALENDAR, label: "Google, Apple or Outlook calendar" },
+    { value: BOOKS_BY_HAND, label: "I book by hand" }
+  ];
+}
+function booksWithOf(c) {
+  return c.tool || (c.ical_url ? BOOKS_WITH_CALENDAR : c.by_hand ? BOOKS_BY_HAND : "");
+}
+function booksWithName(withWhat) {
+  if (!withWhat) return null;
+  if (withWhat === BOOKS_WITH_CALENDAR) return "Calendar link";
+  if (withWhat === BOOKS_BY_HAND) return "Booked by hand";
+  return bookingToolName(withWhat);
+}
+var BOOKING_TOOL_WORDS = {
+  label: "Booking tool",
+  empty: "Not set up",
+  placeholder: "What do you book with?",
+  link: {
+    title: "Calendar link",
+    why: "So the receptionist can offer open times.",
+    anyway: "I have a calendar link",
+    /** Under "I book by hand", where a link is kept: that answer has none, so saving it takes the link away. */
+    goes: "Saving this removes your calendar link."
+  },
+  emails: {
+    title: "Booking emails",
+    why: "So each booking shows who it is and what for."
+  }
+};
+function calendarLinkShown(withWhat, held) {
+  if (withWhat === BOOKS_BY_HAND) return "hidden";
+  if (held) return "shown";
+  if (!withWhat) return "hidden";
+  return bookingToolCalendar(withWhat) === "none" ? "offered" : "shown";
+}
+function calendarLinkNote(withWhat, bookingLink) {
+  if (!withWhat) return "";
+  if (withWhat === BOOKS_BY_HAND) return `Nothing to connect. ${noTimesWords(bookingLink)}`;
+  if (withWhat === BOOKS_WITH_CALENDAR) return "Paste the private address of the calendar your appointments land in.";
+  const tool = bookingToolName(withWhat) ?? "Your tool";
+  const kind = bookingToolCalendar(withWhat);
+  if (kind === "none") return `${tool} offers no calendar link. ${noTimesWords(bookingLink)}`;
+  if (kind === "own") return `${tool} offers a calendar link of its own. Paste it here.`;
+  if (kind === "writes")
+    return `${tool} writes your appointments into your own calendar. Paste that calendar's private address here.`;
+  return `If ${tool} offers a calendar link, or writes into your own calendar, paste that address here.`;
+}
+
+// src/ads/page-parts.ts
+var platformsRead = (read, how) => PLATFORMS.filter((p) => {
+  const acct = adAccountOf(read, p);
+  return acct !== void 0 && acct.status === "connected" && acct.read === how;
+});
+var ownersOf = (platforms) => joinWords(platforms.map((p) => PLATFORM_OWNER[p]));
+function perHead(items, n, enough) {
+  const sums = sumsOf(items);
+  const one = sums.length === 1 ? sums[0] : void 0;
+  if (!one || n <= 0 || !enough(n)) return null;
+  return { minor: one.minor / n, currency: one.currency };
+}
+function pageTotals(read) {
+  const rows2 = read.ads.map((ad) => ({ ad, t: totalsOf(ad, read) }));
+  const mine = rows2.filter((r2) => counted(r2.ad));
+  const byDoor = (door) => sum(mine.filter((r2) => r2.ad.door === door).map((r2) => r2.t.inTouch));
+  const booked = sum(mine.map((r2) => r2.t.booked));
+  const eachSpend = mine.map((r2) => ({ minor: r2.t.spentMinor, currency: r2.ad.currency }));
+  const cost = costEach(sum(eachSpend.map((i) => i.minor)), booked);
+  return {
+    spent: rows2.map((r2) => ({ minor: r2.t.spentMinor, currency: r2.ad.currency })),
+    spentAds: rows2.filter((r2) => r2.t.spentMinor > 0).length,
+    touch: sum(mine.map((r2) => r2.t.inTouch)),
+    wrote: byDoor("whatsapp"),
+    left: byDoor("form"),
+    booked,
+    eachSpend,
+    each: cost === null ? null : perHead(eachSpend, booked, () => true)
+  };
+}
+var eachInTouch = (p) => perHead(p.eachSpend, p.touch, () => true);
+function waitingRows(read) {
+  const byId = new Map(read.ads.map((ad) => [ad.id, ad]));
+  return read.people.filter((p) => (p.talk === "waiting" || p.talk === "call") && byId.has(p.adId)).sort((a, b) => a.day.localeCompare(b.day)).map((p) => {
+    const ad = byId.get(p.adId);
+    const day = dayWord(p.day);
+    const what = p.how === "wrote" ? TILES.waiting.wrote(day) : TILES.waiting.number(day);
+    return {
+      personId: p.personId,
+      threadId: p.threadId,
+      adId: p.adId,
+      ...adPersonWho(p.name),
+      line: TILES.waiting.line({
+        ad: ad ? ad.name : "",
+        what,
+        note: p.talk === "call" ? TILES.waiting.callNote : null
+      }),
+      since: daysWord(daysBetween(p.day, read.today)),
+      open: p.threadId ? `inbox/${p.threadId}` : `clients/${p.personId}`,
+      tip: p.threadId ? TILES.waiting.toThread : TILES.waiting.toPerson
+    };
+  });
+}
+function startingRow(ad, read) {
+  const sentToday = ad.sentAt !== null && dayOfIso(ad.sentAt, read.timezone) === read.today;
+  const why = ad.state === "setting-up" ? STATE.settingUpSecond(ad.platform) : ad.state === "couldnt-finish" ? STATE.couldntSecond(ad.platform) : ad.state === "needs-you" ? needsSecond(ad) : STATE.reviewSecond(ad.platform);
+  return { adId: ad.id, when: sentToday ? [TILES.coming.today] : dayLines(ad.startDay), name: ad.name, said: "", why };
+}
+function leftWhy(ad, read, waits) {
+  const left = leftOfAd(ad, totalsOf(ad, read));
+  const total = totalOf(ad);
+  if (left === null || total === null) return STATE.daily(perDayOf(ad.aboutADayMinor, ad.currency));
+  if (waits) return TILES.coming.reading(PLATFORM_OWNER[ad.platform]);
+  return `${moneyOf(left, ad.currency)} left of ${moneyOf(total, ad.currency)}`;
+}
+function endingRow(ad, read, waits) {
+  const evening = ad.endsAt !== null && daysBetween(read.today, ad.endDay) <= 1;
+  const why = leftWhy(ad, read, waits);
+  return {
+    adId: ad.id,
+    when: dayLines(ad.endDay),
+    name: ad.name,
+    said: evening ? TILES.coming.endsEvening : TILES.coming.ends,
+    why
+  };
+}
+function comingOf(read, reading) {
+  const waits = (ad) => reading.includes(ad.platform);
+  const live = read.ads.filter((ad) => ad.state !== "ended" && ad.state !== "finished");
+  const rows2 = live.map((ad, i) => ({ ad, i, key: started(ad) ? ad.endDay : ad.startDay })).sort((a, b) => a.key.localeCompare(b.key) || a.i - b.i).map(({ ad }) => started(ad) ? endingRow(ad, read, waits(ad)) : startingRow(ad, read));
+  const capped = live.filter((ad) => totalOf(ad) !== null);
+  const left = capped.map((ad) => ({
+    minor: leftOfAd(ad, totalsOf(ad, read)) ?? 0,
+    currency: ad.currency
+  }));
+  const daily = live.filter((ad) => totalOf(ad) === null).map((ad) => ({ minor: ad.aboutADayMinor, currency: ad.currency }));
+  return {
+    title: TILES.coming.title,
+    rows: rows2,
+    total: capped.some(waits) ? TILES.coming.totalReading : TILES.coming.total({ sum: sumMoney(left), ads: capped.length }),
+    plus: daily.length > 0 ? TILES.coming.plus(`${sumMoney(daily)} a day`) : null
+  };
+}
+function cameBackOf(read) {
+  const c = read.cameBack;
+  const w = appointmentWords(read.appointmentWord);
+  const marked = TILES.cameBack.marked;
+  const head = { title: TILES.cameBack.title, window: TILES.cameBack.window };
+  if (!read.calendar.linked) {
+    return {
+      ...head,
+      linked: false,
+      headline: { label: TILES.cameBack.headline, n: 0 },
+      rows: [],
+      nudge: FIGURES.needsLink,
+      unmatched: null,
+      line: null
+    };
+  }
+  return {
+    ...head,
+    linked: true,
+    headline: { label: TILES.cameBack.headline, n: c.ahead + c.kept + c.missed + c.past },
+    rows: [
+      { id: "ahead", label: TILES.cameBack.ahead, n: c.ahead, note: null },
+      { id: "kept", label: TILES.cameBack.kept, n: c.kept, note: marked },
+      { id: "missed", label: TILES.cameBack.missed, n: c.missed, note: marked },
+      { id: "past", label: TILES.cameBack.past, n: c.past, note: null }
+    ],
+    nudge: TILES.cameBack.nudge(w.one),
+    unmatched: c.unmatched > 0 ? TILES.cameBack.unmatched(c.unmatched, w.many) : null,
+    line: TILES.cameBack.line(c)
+  };
+}
+function tilesOf(read, reading = []) {
+  return {
+    waiting: { title: TILES.waiting.title, rows: waitingRows(read), empty: TILES.waiting.empty },
+    coming: comingOf(read, reading),
+    cameBack: cameBackOf(read)
+  };
+}
+function phoneOf(p, read, waiting, reading = []) {
+  const spent = sumMoney(p.spent);
+  const each = p.each === null ? null : moneyOf(p.each.minor, p.each.currency);
+  const line1 = reading.length > 0 ? PHONE.line1Reading(p.touch, ownersOf(reading)) : read.calendar.linked ? PHONE.line1(spent, each) : PHONE.line1NoCalendar(p.touch, spent);
+  const first = waiting.at(0);
+  return {
+    line1,
+    needs: first ? LEDGER.waiting(waiting.length) : null,
+    names: first ? PHONE.names(waiting.map((w) => w.name)) : null,
+    since: first ? first.since : null,
+    footnote: PHONE.footnote
+  };
+}
+function v0Of(read) {
+  const rows2 = read.firstTouch ? read.firstTouch.rows : [];
+  const unrecorded = rows2.at(-1);
+  const recorded = sum(rows2.slice(0, -1).map((r2) => r2.n));
+  const own = sum(rows2.filter((r2) => r2.own).map((r2) => r2.n));
+  const nobody = own === 0;
+  return {
+    lead: nobody ? null : V0.lead(own, recorded),
+    muted: unrecorded && unrecorded.n > 0 && !nobody ? V0.more(unrecorded.n) : null,
+    empty: nobody ? { lead: V0.emptyLead, line: V0.emptyLine } : null,
+    rows: nobody ? [] : rows2,
+    notes: V0.notes,
+    door: { words: V0.door, to: ADS_DOORS.people },
+    platforms: PLATFORMS.map((id) => ({
+      id,
+      name: PLATFORM_WORD[id],
+      line: V0.platforms[id],
+      word: STANDING.off
+    })),
+    next: V0.next
+  };
+}
+function blockedOf(read, door, platform) {
+  const acct = adAccountOf(read, platform);
+  const owner = PLATFORM_OWNER[platform];
+  const mend = { words: SETTINGS_DOOR, to: ADS_DOORS.accounts };
+  if (acct?.status === "choose") return null;
+  if (!acct || acct.status === "not-connected") return { text: NO_ADS.connect(owner), door: mend };
+  if (acct.status === "lapsed") return { text: NO_ADS.lapsed(owner), door: mend };
+  const missing = firstMissing(acct, door, platform);
+  return missing === null ? null : { text: NO_ADS.needs(checkFix(missing, platform)), door: mend };
+}
+function chooseOf(read) {
+  return read.accounts.filter((a) => a.status === "choose").map((a) => ({
+    platform: a.platform,
+    title: CHOOSE.title(PLATFORM_OWNER[a.platform]),
+    line: CHOOSE.line,
+    use: CHOOSE.use,
+    choices: a.choices.map((c) => ({
+      externalId: c.externalId,
+      label: CHOOSE.choice(c.name, c.currency),
+      name: c.name
+    }))
+  }));
+}
+function noAdsOf(read, config2) {
+  const door = firstReadyDoor(read);
+  const platform = platformsFor(door).at(0) ?? "meta";
+  const preset = smallestPreset(config2);
+  const currency = read.accounts.find((a) => a.platform === platform)?.currency ?? ADS_DEFAULT_CURRENCY;
+  const line = preset ? NO_ADS.line({
+    door: DOOR[door].label,
+    perDay: perDayOf(preset.perDayMinor, currency),
+    days: preset.days,
+    total: moneyOf(preset.perDayMinor * preset.days, currency)
+  }) : "";
+  return {
+    title: NO_ADS.title,
+    line,
+    press: NO_ADS.press,
+    checklist: doorNeeds(read, door, platform),
+    blocked: blockedOf(read, door, platform),
+    choose: chooseOf(read)
+  };
+}
+var runDays = (ad) => daysBetween(ad.startDay, ad.endDay) + 1;
+function broughtEnough(ad, t) {
+  return counted(ad) ? t.booked >= ADS_ASK_MIN : t.inTouch >= ADS_ASK_MIN_CALLS;
+}
+var running = (ad, today) => {
+  const state = viewState(ad, today);
+  return ad.madeHere && (state === "on" || state === "too-early");
+};
+function extendPlan(ad, total) {
+  const rule2 = BUDGET_RULES[ad.platform];
+  let days = Math.min(ADS_EXTEND_MAX_DAYS, runDays(ad));
+  if (rule2.totalMaxDays !== null) days = Math.min(days, rule2.totalMaxDays - runDays(ad));
+  if (rule2.maxStep !== null && ad.aboutADayMinor > 0) {
+    days = Math.min(days, Math.floor(total * rule2.maxStep / ad.aboutADayMinor));
+  }
+  return days >= 1 ? { days, more: ad.aboutADayMinor * days } : null;
+}
+function extendAsk(ad, t, read) {
+  const total = totalOf(ad);
+  if (total === null) return null;
+  const soon = daysBetween(read.today, ad.endDay);
+  const plan = extendPlan(ad, total);
+  if (soon < 0 || soon > ADS_ASK_SOON_DAYS || !broughtEnough(ad, t) || plan === null) return null;
+  const end = addDays(ad.endDay, plan.days);
+  const more = plan.more;
+  const to = total + more;
+  const owner = PLATFORM_OWNER[ad.platform];
+  const when = endsWhenOf(ad, read.today);
+  const brought = counted(ad) ? ASK.broughtPeople(t.booked) : ASK.broughtCalls(t.inTouch);
+  const say2 = (minor) => moneyOf(minor, ad.currency);
+  return {
+    kind: "extend",
+    adId: ad.id,
+    text: ASK.extend({ name: ad.name, when, brought, end: dayWord(end), owner, from: say2(total), to: say2(to) }),
+    short: ASK.extendShort(ad.name, when),
+    press: ASK.extendPress(say2(more)),
+    dismiss: ASK.not,
+    confirm: ASK.extendConfirm({
+      name: ad.name,
+      end: dayWord(end),
+      perDay: perDayOf(ad.aboutADayMinor, ad.currency),
+      owner,
+      from: say2(total),
+      to: say2(to),
+      more: say2(to - t.lifetimeMinor)
+    }),
+    toast: ASK.extendToast(ad.name, dayWord(end)),
+    apply: { kind: "extend", adId: ad.id, endDay: end, totalMinor: to }
+  };
+}
+function fixAsk(ad) {
+  const why = askWhy(ad.needs ? ad.needs.code : null, PLATFORM_OWNER[ad.platform]);
+  return {
+    kind: "fix",
+    adId: ad.id,
+    text: ASK.fix(ad.name, why),
+    short: ASK.fixShort(ad.name, why),
+    press: ASK.open,
+    dismiss: ASK.not,
+    confirm: null,
+    toast: "",
+    apply: null
+  };
+}
+function stepAllowed(ad) {
+  const { maxStep } = BUDGET_RULES[ad.platform];
+  return maxStep === null || ADS_MOVE_STEP_MINOR <= ad.aboutADayMinor * maxStep;
+}
+function moveAsk(read) {
+  const pool = read.ads.filter((ad) => counted(ad) && running(ad, read.today) && runDays(ad) >= ADS_MOVE_DAYS).map((ad) => ({ ad, t: totalsOf(ad, read) })).filter((r2) => r2.t.booked >= ADS_ASK_MIN).map((r2) => ({ ...r2, cost: r2.t.spentMinor / r2.t.booked })).sort((a, b) => a.cost - b.cost);
+  const cheap = pool.at(0);
+  const dear = pool.at(-1);
+  if (!cheap || !dear || cheap.ad.id === dear.ad.id || cheap.ad.currency !== dear.ad.currency) return null;
+  const gap = Math.log(dear.cost / cheap.cost);
+  if (gap <= ADS_CHANCE_Z * Math.sqrt(1 / cheap.t.booked + 1 / dear.t.booked)) return null;
+  if (!stepAllowed(cheap.ad) || !stepAllowed(dear.ad) || dear.ad.aboutADayMinor <= ADS_MOVE_STEP_MINOR) return null;
+  const currency = cheap.ad.currency;
+  const say2 = (minor) => moneyOf(minor, currency);
+  const amount = say2(ADS_MOVE_STEP_MINOR);
+  const end = dayShort(cheap.ad.endDay);
+  return {
+    kind: "move",
+    adId: cheap.ad.id,
+    text: ASK.move({
+      cheap: cheap.ad.name,
+      cheapEach: say2(cheap.cost),
+      cheapN: cheap.t.booked,
+      dear: dear.ad.name,
+      dearEach: say2(dear.cost),
+      dearN: dear.t.booked,
+      amount,
+      end,
+      all: say2(cheap.ad.aboutADayMinor + dear.ad.aboutADayMinor)
+    }),
+    short: ASK.moveShort(cheap.ad.name, countCtx(read).one),
+    press: ASK.movePress(amount),
+    dismiss: ASK.not,
+    confirm: ASK.moveConfirm({ amount, dear: dear.ad.name, cheap: cheap.ad.name, end }),
+    toast: ASK.moveToast(cheap.ad.name, amount),
+    apply: {
+      kind: "move",
+      fromId: dear.ad.id,
+      toId: cheap.ad.id,
+      perDayMinor: ADS_MOVE_STEP_MINOR,
+      untilDay: cheap.ad.endDay
+    }
+  };
+}
+function pageAsk(read, reading) {
+  const blocked = read.ads.find((ad) => ad.state === "needs-you");
+  if (blocked) return fixAsk(blocked);
+  if (reading) return null;
+  const soon = read.ads.filter((ad) => running(ad, read.today)).map((ad) => extendAsk(ad, totalsOf(ad, read), read)).filter((a) => a !== null);
+  return soon.at(0) ?? moveAsk(read);
+}
+
+// src/ads/page.ts
+var cell = (value, unit = null, why = null) => ({ value, unit, why });
+function eachCell(t, ad) {
+  const cost = costEach(t.spentMinor, t.booked);
+  if (cost !== null) return cell(moneyOf(cost, ad.currency));
+  return cell(DASH, t.booked === 0 ? LEDGER.noneYet : LEDGER.only(t.booked), LEDGER.tooFew);
+}
+function stampOf(acct, today) {
+  if (acct.readAt === null) return null;
+  const day = dayOfIso(acct.readAt, acct.timezone);
+  const time = timeOf(acct.readAt, acct.timezone).replace(/:00(?= [AP]M$)/, "");
+  const ago3 = daysBetween(day, today);
+  const when = ago3 <= 0 ? "today" : ago3 < 7 ? dayLines(day).at(0) ?? day : dayShort(day);
+  return `${when} ${time}`;
+}
+function readViewOf(read) {
+  const failed = platformsRead(read, "failed");
+  const asOf = {};
+  for (const platform of failed) {
+    const acct = adAccountOf(read, platform);
+    asOf[platform] = acct ? stampOf(acct, read.today) : null;
+  }
+  return { reading: platformsRead(read, "reading"), failed, asOf };
+}
+var waitingOn = (read, rv, only = () => true) => rv.reading.filter((platform) => read.ads.some((ad) => ad.platform === platform && only(ad)));
+function cellsOf(ad, t, read, rv) {
+  if (!started(ad)) {
+    const none = cell(DASH, null, LEDGER.notStarted);
+    return { spent: none, inTouch: none, booked: none, each: none };
+  }
+  const waits = cell(DASH, LEDGER.readingUnit, LEDGER.reading(PLATFORM_OWNER[ad.platform]));
+  const reading = rv.reading.includes(ad.platform);
+  const stamp = rv.asOf[ad.platform];
+  const spent = reading ? waits : cell(moneyOf(t.spentMinor, ad.currency), stamp ? LEDGER.asOf(stamp) : null);
+  if (!counted(ad)) {
+    const why = FIGURES.callsNotMatched;
+    const calls = reading ? waits : cell(String(t.inTouch), DOOR[ad.door].unit);
+    return { spent, inTouch: calls, booked: cell(DASH, LEDGER.notMatched, why), each: cell(DASH, null, why) };
+  }
+  const inTouch = cell(String(t.inTouch), DOOR[ad.door].unit);
+  if (!read.calendar.linked) {
+    const why = FIGURES.needsLink;
+    return { spent, inTouch, booked: cell(DASH, null, why), each: cell(DASH, null, why) };
+  }
+  const costWaits = reading && costEach(t.spentMinor, t.booked) !== null;
+  return { spent, inTouch, booked: cell(String(t.booked)), each: costWaits ? waits : eachCell(t, ad) };
+}
+function phoneEndOf(ad, t, read, rv) {
+  if (!started(ad) || counted(ad) && !read.calendar.linked) return { endTop: DASH, endSub: null };
+  const reading = rv.reading.includes(ad.platform);
+  if (!counted(ad)) {
+    return reading ? { endTop: DASH, endSub: LEDGER.readingUnit } : { endTop: LEDGER.calls(t.inTouch), endSub: LEDGER.googleCount };
+  }
+  const cost = costEach(t.spentMinor, t.booked);
+  const sub = cost !== null ? LEDGER.each(moneyOf(cost, ad.currency)) : t.booked === 0 ? LEDGER.noneYet : LEDGER.only(t.booked);
+  return { endTop: LEDGER.booked(t.booked), endSub: reading && cost !== null ? LEDGER.readingUnit : sub };
+}
+function hintTail(ad, read) {
+  if (started(ad)) return LEDGER.since(dayShort(ad.startDay));
+  const waiting = ad.state === "review" || ad.state === "needs-you";
+  if (!waiting || ad.sentAt === null) return LEDGER.starts(dayShort(ad.startDay));
+  const day = dayOfIso(ad.sentAt, read.timezone);
+  return LEDGER.sentTo(PLATFORM_OWNER[ad.platform], day === read.today ? "today" : dayShort(day));
+}
+var leadFor = (ad) => ad.madeHere ? leadOf({ platform: ad.platform, door: ad.door, area: ad.area }) : LEDGER.madeIn[ad.platform];
+function hintOf(ad, read) {
+  const tail = hintTail(ad, read);
+  return LEDGER.hint({ lead: leadFor(ad), perDay: perDayOf(ad.aboutADayMinor, ad.currency), tail });
+}
+function phoneLineOf(ad, rv) {
+  const where = ad.madeHere ? PLATFORM_WORD[ad.platform] : LEDGER.madeIn[ad.platform];
+  const stamp = started(ad) ? rv.asOf[ad.platform] : null;
+  return stamp ? PHONE.rowAsOf(where, DOOR[ad.door].short, stamp) : PHONE.row(where, DOOR[ad.door].short);
+}
+function adRowOf(ad, read, rv) {
+  const t = totalsOf(ad, read);
+  const base = adStateOf(ad, t, read);
+  const alert = ad.state === "on" && ad.needs !== null;
+  const state = alert ? { ...base, second: needsSecond(ad) } : base;
+  const cells = cellsOf(ad, t, read, rv);
+  const end = phoneEndOf(ad, t, read, rv);
+  return {
+    id: ad.id,
+    name: ad.name,
+    hint: hintOf(ad, read),
+    door: ad.door,
+    glyph: DOOR[ad.door].glyph,
+    tone: state.tone,
+    ...cells,
+    state,
+    alert,
+    fold: cells.inTouch.unit ? { value: cells.inTouch.value, unit: cells.inTouch.unit } : null,
+    open: adRoute(ad.id),
+    phone: { line: phoneLineOf(ad, rv), ...end }
+  };
+}
+var RANK = {
+  "couldnt-finish": 0,
+  "needs-you": 0,
+  on: 1,
+  "too-early": 1,
+  "setting-up": 2,
+  review: 2,
+  paused: 3,
+  finished: 4,
+  ended: 5
+};
+var PLATFORM_GLYPH = { meta: "users", google: "search", tiktok: "video" };
+function peopleIn(list2, rv) {
+  if (list2.some((e) => !counted(e.ad) && rv.reading.includes(e.ad.platform))) return null;
+  return sum(list2.map((e) => e.t.inTouch));
+}
+function groupsOf(read, by, rv) {
+  const entries = read.ads.map((ad) => ({ ad, t: totalsOf(ad, read) })).sort(
+    (a, b) => RANK[viewState(a.ad, read.today)] - RANK[viewState(b.ad, read.today)] || b.t.spentMinor - a.t.spentMinor
+  );
+  const rowsOf = (list2) => list2.map((e) => adRowOf(e.ad, read, rv));
+  if (by === "platform") {
+    return PLATFORMS.flatMap((platform) => {
+      const mine = entries.filter((e) => e.ad.platform === platform);
+      if (mine.length === 0) return [];
+      const people = peopleIn(mine, rv);
+      const meta = platformMeta({ platform, ads: mine.length, people });
+      return [
+        { key: platform, glyph: PLATFORM_GLYPH[platform], caps: PLATFORM_WORD[platform], meta, rows: rowsOf(mine) }
+      ];
+    });
+  }
+  return DOOR_ORDER.flatMap((door) => {
+    const mine = entries.filter((e) => e.ad.door === door);
+    if (mine.length === 0) return [];
+    const meta = groupMeta({ door, ads: mine.length, people: peopleIn(mine, rv) });
+    return [{ key: door, glyph: DOOR[door].glyph, caps: DOOR[door].label, meta, rows: rowsOf(mine) }];
+  });
+}
+function waitingFigure(id, label, def, waits) {
+  return {
+    id,
+    label,
+    value: DASH,
+    change: null,
+    meta: FIGURES.reading(ownersOf(waits)),
+    definition: def,
+    n: null,
+    minN: REPORT_MIN_N
+  };
+}
+function eachFigure(p, read, def, waits) {
+  const so = settling(read.ads, read.today);
+  if (!read.calendar.linked) {
+    const cost = eachInTouch(p);
+    if (cost !== null && waits.length > 0) return waitingFigure("each", FIGURES.eachInTouchLabel, def, waits);
+    return {
+      id: "each",
+      label: FIGURES.eachInTouchLabel,
+      value: cost === null ? DASH : moneyOf(cost.minor, cost.currency),
+      change: so ? FIGURES.soFar : null,
+      meta: FIGURES.eachInTouchMeta(sumMoney(p.eachSpend), p.touch),
+      definition: def,
+      n: p.touch,
+      minN: REPORT_MIN_N
+    };
+  }
+  const label = figureWords(countCtx(read)).each.label;
+  if (p.each !== null && waits.length > 0) return waitingFigure("each", label, def, waits);
+  return {
+    id: "each",
+    label,
+    value: p.each === null ? DASH : moneyOf(p.each.minor, p.each.currency),
+    change: p.each !== null && so ? FIGURES.soFar : null,
+    meta: p.each === null ? null : FIGURES.eachMeta(sumMoney(p.eachSpend), p.booked),
+    definition: def,
+    n: p.booked,
+    minN: REPORT_MIN_N
+  };
+}
+function spentFigure(p, read, rv, def) {
+  const waits = waitingOn(read, rv);
+  if (waits.length > 0) return waitingFigure("spent", def.label, def.def, waits);
+  const stale = rv.failed.find((platform) => read.ads.some((ad) => ad.platform === platform));
+  return {
+    id: "spent",
+    label: def.label,
+    value: sumMoney(p.spent),
+    change: null,
+    meta: stale === void 0 ? FIGURES.spentMeta(p.spentAds) : FIGURES.spentMetaStale(p.spentAds, PLATFORM_OWNER[stale], rv.asOf[stale] ?? null),
+    definition: def.def,
+    n: null,
+    minN: REPORT_MIN_N
+  };
+}
+function figuresOf(p, read, rv) {
+  const w = figureWords(countCtx(read));
+  const linked = read.calendar.linked;
+  const plain2 = { change: null, n: null, minN: REPORT_MIN_N };
+  return [
+    spentFigure(p, read, rv, w.spent),
+    {
+      ...plain2,
+      id: "touch",
+      label: w.touch.label,
+      value: String(p.touch),
+      meta: FIGURES.touchMeta(p.wrote, p.left),
+      definition: w.touch.def
+    },
+    {
+      ...plain2,
+      id: "booked",
+      label: w.booked.label,
+      value: linked ? String(p.booked) : DASH,
+      meta: linked ? FIGURES.bookedMeta(p.touch) : FIGURES.needsLink,
+      definition: w.booked.def
+    },
+    eachFigure(p, read, w.each.def, waitingOn(read, rv, counted))
+  ];
+}
+function countedOf(read, reading) {
+  const w = figureWords(countCtx(read));
+  return {
+    quiet: reading ? COUNTED.reading : COUNTED.quiet(readTime(read)),
+    door: COUNTED.door,
+    title: COUNTED.title,
+    items: [
+      { label: w.spent.label, text: w.spent.def },
+      { label: w.touch.label, text: w.touch.def },
+      { label: w.booked.label, text: w.booked.def },
+      { label: w.each.label, text: w.each.def },
+      { label: null, text: COUNTED.fees },
+      { label: null, text: COUNTED.calls },
+      { label: null, text: COUNTED.kept }
+    ]
+  };
+}
+function pageModeOf(read) {
+  if (read.ads.length > 0) return "ads";
+  return read.accounts.some((a) => a.status !== "not-connected") ? "none" : "v0";
+}
+function pageHead(mode, p, read) {
+  if (mode === "v0") return { strong: HEAD.v0Strong, rest: HEAD.v0Rest, money: null };
+  if (mode === "none") return { strong: "", rest: HEAD.noAds, money: HEAD.money };
+  const said = read.calendar.linked ? HEAD.booked(p.booked, p.touch) : HEAD.touchOnly(p.touch);
+  return { ...said, money: HEAD.money };
+}
+function accountLine(read, platform) {
+  const acct = adAccountOf(read, platform);
+  if (!acct || acct.name === null || acct.status === "not-connected" || acct.status === "choose") return null;
+  const at3 = acct.readAt ? `${dayWord(dayOfIso(acct.readAt, acct.timezone))}, ${timeOf(acct.readAt, acct.timezone)}` : "";
+  if (acct.read === "reading") return STANDING.reading(acct.name);
+  if (acct.read === "failed") return STANDING.failed(acct.name, at3);
+  return acct.readAt ? STANDING.account(acct.name, timeOf(acct.readAt, acct.timezone)) : acct.name;
+}
+function standingState(read, platform, rows2) {
+  const acct = adAccountOf(read, platform);
+  const status = acct?.status ?? "not-connected";
+  if (status === "not-connected") return "off";
+  if (status !== "connected" || acct?.read === "failed") return "warn";
+  return rows2.some((r2) => r2.tone === "warn") ? "warn" : "ok";
+}
+function standingWord(acct, state) {
+  const status = acct?.status ?? "not-connected";
+  if (status === "choose") return STANDING.choose;
+  if (status === "lapsed") return STANDING.lapsed;
+  if (status === "connected" && acct?.read === "failed") return STANDING.unread;
+  return state === "off" ? STANDING.off : state === "warn" ? STANDING.needsYou : STANDING.connected;
+}
+function pageStanding(read) {
+  return PLATFORMS.map((id) => {
+    const rows2 = accountRows(read, id);
+    const state = standingState(read, id, rows2);
+    const door = { words: STANDING.door, to: ADS_DOORS.accounts };
+    return {
+      id,
+      name: PLATFORM_WORD[id],
+      state,
+      word: standingWord(adAccountOf(read, id), state),
+      account: accountLine(read, id),
+      rows: rows2,
+      note: STANDING.charged(id),
+      door
+    };
+  });
+}
+function earlierCost(read) {
+  const p = pageTotals(read);
+  return p.each !== null && p.booked >= ADS_ASK_MIN ? { each: moneyOf(p.each.minor, p.each.currency), people: p.booked } : null;
+}
+var failedOf = (rv) => rv.failed.map((platform) => ({
+  platform,
+  line: ADS_READ.failed(PLATFORM_OWNER[platform], rv.asOf[platform] ?? null),
+  again: ADS_READ.again
+}));
+var groupByOf = (read, by) => read.ads.length < ADS_GROUP_FROM ? null : {
+  label: GROUP.label,
+  value: by,
+  options: [
+    { value: "door", label: GROUP.door },
+    { value: "platform", label: GROUP.platform }
+  ]
+};
+function adsModel(read, config2, by = "door") {
+  const mode = pageModeOf(read);
+  const p = pageTotals(read);
+  const rv = readViewOf(read);
+  const reading = rv.reading.length > 0;
+  const since = read.firstTouch ? dayShort(read.firstTouch.since) : null;
+  const groupBy = groupByOf(read, by);
+  const base = {
+    mode,
+    head: pageHead(mode, p, read),
+    pane: reading ? HEAD.reading(ownersOf(rv.reading)) : mode === "v0" && since !== null ? HEAD.v0Read(since) : HEAD.read(readTime(read)),
+    standing: pageStanding(read),
+    figures: [],
+    counted: null,
+    ask: null,
+    failed: failedOf(rv),
+    reading,
+    link: null,
+    groupBy: null,
+    groups: [],
+    tiles: null,
+    phone: null,
+    v0: null,
+    noAds: null
+  };
+  if (mode === "v0") return { ...base, v0: v0Of(read) };
+  if (mode === "none") return { ...base, noAds: noAdsOf(read, config2) };
+  const tiles = tilesOf(read, rv.reading);
+  return {
+    ...base,
+    figures: figuresOf(p, read, rv),
+    counted: countedOf(read, reading),
+    ask: pageAsk(read, reading),
+    link: read.calendar.linked ? null : { words: FIGURES.linkDoor, to: CALENDAR_SETTING_ROUTE },
+    groupBy,
+    groups: groupsOf(read, groupBy ? by : "door", rv),
+    tiles,
+    phone: phoneOf(p, read, tiles.waiting.rows, rv.reading)
+  };
+}
+
+// src/ads/drawer-parts.ts
+var FACT_LABEL = {
+  whatsapp: DRAWER.results.wrote,
+  call: DRAWER.results.calls,
+  form: DRAWER.results.leftNumber
+};
+var FACT_DEF = {
+  whatsapp: DRAWER.results.defWrote,
+  call: DRAWER.results.defCalls,
+  form: DRAWER.results.defNumber
+};
+function drawerFacts(ad, t, read) {
+  const w = figureWords(countCtx(read));
+  const cost = counted(ad) ? costEach(t.spentMinor, t.booked) : null;
+  const dash = (id, label, def, meta = null) => ({
+    id,
+    label,
+    value: DASH,
+    change: null,
+    meta,
+    definition: def,
+    n: null,
+    minN: REPORT_MIN_N
+  });
+  if (!started(ad)) {
+    return [
+      dash("spent", w.spent.label, w.spent.def),
+      dash("touch", FACT_LABEL[ad.door], FACT_DEF[ad.door]),
+      dash("booked", w.booked.label, w.booked.def),
+      dash("each", w.each.label, w.each.def)
+    ];
+  }
+  const spent = { ...dash("spent", w.spent.label, w.spent.def), value: moneyOf(t.spentMinor, ad.currency) };
+  const touch = {
+    ...dash("touch", FACT_LABEL[ad.door], FACT_DEF[ad.door], counted(ad) ? null : LEDGER.googleCount),
+    value: String(t.inTouch)
+  };
+  if (!counted(ad)) {
+    return [
+      spent,
+      touch,
+      dash("booked", w.booked.label, w.booked.def, FIGURES.callsNotMatched),
+      dash("each", w.each.label, w.each.def, FIGURES.callsNotMatched)
+    ];
+  }
+  const each = {
+    ...dash("each", w.each.label, w.each.def),
+    value: cost === null ? DASH : moneyOf(cost, ad.currency),
+    change: cost !== null && settling([ad], read.today) ? FIGURES.soFar : null,
+    meta: cost === null ? null : DRAWER.results.perPerson(moneyOf(t.spentMinor, ad.currency), t.booked),
+    n: t.booked
+  };
+  return [spent, touch, { ...dash("booked", w.booked.label, w.booked.def), value: String(t.booked) }, each];
+}
+function drawerCount(ad, t) {
+  if (ad.door === "call") return DRAWER.results.countCalls(t.inTouch);
+  return ad.door === "form" ? DRAWER.results.countNumber(t.inTouch, t.booked) : DRAWER.results.countWrote(t.inTouch, t.booked);
+}
+function judgeOf(ad, t, o) {
+  if (!started(ad)) return null;
+  if (o.tooEarly) {
+    const line = DRAWER.results.tooEarly(o.many);
+    return { word: line.word, rest: line.rest, sheet: DRAWER.results.tooEarlySheet[ad.platform] };
+  }
+  const plain2 = (rest) => ({ word: null, rest, sheet: null });
+  if (ad.state === "on" && t.spentMinor > 0 && t.inTouch === 0) {
+    return plain2(DRAWER.results.quietStart(moneyOf(t.spentMinor, ad.currency)));
+  }
+  if (counted(ad) && t.inTouch > 0 && t.booked === 0) {
+    return plain2(
+      DRAWER.results.zero({ inTouch: t.inTouch, did: DOOR[ad.door].did, spent: moneyOf(t.spentMinor, ad.currency) })
+    );
+  }
+  return null;
+}
+function resultsOf(ad, t, o) {
+  const on = started(ad);
+  return {
+    header: DRAWER.results.header,
+    count: on ? drawerCount(ad, t) : "",
+    // The door to this ad's numbers in Reports: nothing has been counted until the platform has approved it.
+    all: on ? { words: DRAWER.results.report, to: o.reportTo } : null,
+    facts: drawerFacts(ad, t, o.read),
+    line: judgeOf(ad, t, { tooEarly: o.tooEarly, many: appointmentWords(o.read.appointmentWord).many })
+  };
+}
+function drawerDays(ad, today) {
+  const first = addDays(today, -ADS_WINDOW_DAYS);
+  const byDay = new Map(ad.days.map((d) => [d.day, d]));
+  const cols = Array.from({ length: ADS_WINDOW_DAYS + 1 }, (_, i) => addDays(first, i));
+  const busiest = Math.max(1, ad.todaySoFar, ...ad.days.map((d) => d.inTouch));
+  return cols.map((day) => {
+    const row2 = byDay.get(day);
+    const isToday = day === today;
+    const inTouch = isToday ? ad.todaySoFar : row2 ? row2.inTouch : 0;
+    const booked = row2 && counted(ad) ? row2.booked : 0;
+    return {
+      day,
+      label: dayWord(day),
+      inTouch,
+      booked,
+      before: day < ad.startDay,
+      fresh: !isToday && day >= addDays(today, -ADS_FRESH_DAYS),
+      today: isToday,
+      h: inTouch / busiest,
+      f: inTouch > 0 ? booked / inTouch : 0
+    };
+  });
+}
+function adBarsOf(ad, t, read) {
+  const did = DOOR[ad.door].did;
+  let aria = DRAWER.bars.ariaNone;
+  if (started(ad)) {
+    aria = ad.door === "call" ? DRAWER.bars.ariaCalls({ n: t.inTouch, days: t.days }) : DRAWER.bars.aria({ n: t.inTouch, did, days: t.days, booked: t.booked });
+  }
+  return {
+    days: drawerDays(ad, read.today),
+    legend: ad.door === "call" ? DRAWER.bars.legendCalls : DRAWER.bars.legend(did),
+    aria,
+    todayNote: DRAWER.results.soFarToday(timeOf(read.readAt, read.timezone))
+  };
+}
+var drawerGrouped = (n) => n.toLocaleString("en-US");
+function theirCounts(ad) {
+  const x = ad.theirs;
+  const L2 = DRAWER.quiet.theirs;
+  switch (x.platform) {
+    case "meta":
+      return [[L2.saw, x.reach], [L2.taps, x.taps], ad.door === "form" ? [L2.numbers, x.leads] : [L2.chats, x.chats]];
+    case "google":
+      return [
+        [L2.impressions, x.impressions],
+        [L2.clicks, x.clicks],
+        [L2.calls, x.calls],
+        [L2.longCalls, x.longCalls]
+      ];
+    default:
+      return [
+        [L2.impressions, x.impressions],
+        [L2.reached, x.reach],
+        [L2.clicks, x.clicks],
+        [L2.numbers, x.leads]
+      ];
+  }
+}
+function drawerTheirsOf(ad) {
+  if (!started(ad)) return null;
+  const owner = PLATFORM_OWNER[ad.platform];
+  return {
+    door: DRAWER.quiet.theirsDoor(owner),
+    rows: theirCounts(ad).map(([label, n]) => ({
+      label,
+      value: n === null ? DRAWER.quiet.notRead : drawerGrouped(n),
+      known: n !== null
+    })),
+    note: DRAWER.quiet.theirsNote(owner)
+  };
+}
+function typedOf(ad) {
+  if (ad.platform !== "google" || !started(ad) || ad.searchThemes.length === 0) return null;
+  const out = DRAWER.quiet.leftOut;
+  return {
+    door: DRAWER.quiet.typedDoor,
+    themes: [...ad.searchThemes],
+    note: DRAWER.quiet.typedNote,
+    left: ad.leftOut.length > 0 ? { title: out.title, terms: [...ad.leftOut], note: out.note } : null
+  };
+}
+function replyTime(seconds2) {
+  return seconds2 < 60 ? `${seconds2} seconds` : durationWords(seconds2);
+}
+function quietOf(ad) {
+  const owner = PLATFORM_OWNER[ad.platform];
+  return {
+    reply: ad.reply ? DRAWER.quiet.reply(replyTime(ad.reply.medianSeconds), ad.reply.n) : null,
+    replyGrey: ad.reply !== null && ad.reply.n < REPORT_MIN_N,
+    provenance: ad.door === "call" ? DRAWER.quiet.provenanceCalls : DRAWER.quiet.provenance(owner),
+    theirs: drawerTheirsOf(ad),
+    typed: typedOf(ad),
+    extra: ad.platform === "google" ? DRAWER.quiet.googleExtra : null
+  };
+}
+function adThreadOf(ad, read) {
+  const b = read.business;
+  const c = ad.copy;
+  if (ad.door === "call") return { kind: "call", title: PREVIEW.call, line: PREVIEW.answers(b.name) };
+  if (ad.door === "whatsapp") {
+    const asks = c.startWith === "questions";
+    return {
+      kind: "chat",
+      title: PREVIEW.tap,
+      greeting: c.greeting,
+      ready: asks ? null : c.ready,
+      questions: asks ? c.questions : [],
+      reply: c.reply,
+      replyLabel: PREVIEW.replyLabel,
+      note: PREVIEW.receptionistWrites
+    };
+  }
+  return {
+    kind: "form",
+    title: PREVIEW.form,
+    fields: [
+      { label: PREVIEW.formName, note: PREVIEW.formFilled },
+      { label: PREVIEW.formPhone, note: PREVIEW.formFilled }
+    ],
+    consent: { title: PREVIEW.consentTitle, text: PREVIEW.consent(b.name) },
+    privacy: PREVIEW.privacy(b.site),
+    notice: PREVIEW.formNotice,
+    layout: ad.platform === "tiktok" ? PREVIEW.layout : null,
+    thanks: c.thanks
+  };
+}
+function adPreviewOf(ad, read) {
+  const b = read.business;
+  const c = ad.copy;
+  const cta = PREVIEW.cta[ad.door];
+  const search = ad.platform === "google";
+  const frame = search ? "search" : ad.platform === "tiktok" ? "video" : "feed";
+  const headline = search ? c.headlines.join(" | ") : c.headline;
+  const note = adServiceOf(read, ad.serviceId)?.note ?? "";
+  return {
+    frame,
+    platform: ad.platform,
+    door: ad.door,
+    fold: PREVIEW.fold,
+    excerpt: PREVIEW.excerpt(search ? c.lines.at(0) ?? headline : c.text, cta),
+    business: ad.shownAs.name,
+    headline,
+    headlines: c.headlines,
+    text: c.text,
+    lines: c.lines,
+    path: c.path,
+    cta,
+    caption: search ? PREVIEW.googleCaption(b.line) : PREVIEW.drawn(PLATFORM_OWNER[ad.platform]),
+    frames: frame === "feed" ? [...PREVIEW.frames] : [],
+    thread: adThreadOf(ad, read),
+    warn: read.neverQuotePrices && adQuotes({ ...c, headline }, note) ? PREVIEW.neverQuote : null
+  };
+}
+function personRank(p) {
+  if (p.talk === "waiting" || p.talk === "call") return 0;
+  if (p.cal.kind !== "none") return 1;
+  return p.talk === "talking" ? 2 : 3;
+}
+function talkOf(p, today) {
+  switch (p.talk) {
+    case "waiting":
+      return { text: DRAWER.people.waiting(daysWord(daysBetween(p.day, today))), tone: "warn" };
+    case "call":
+      return { text: DRAWER.people.callNumber, tone: "warn" };
+    case "talking":
+      return { text: DRAWER.people.talking, tone: "plain" };
+    default:
+      return { text: DRAWER.people.quietSince(dayShort(p.quietSince ?? p.day)), tone: "plain" };
+  }
+}
+function calOf(p) {
+  const c = p.cal;
+  switch (c.kind) {
+    case "ahead":
+      return { text: DRAWER.people.ahead(dayWord(c.day), c.time), tone: "plain", note: null };
+    case "kept":
+      return { text: DRAWER.people.kept(dayWord(c.day)), tone: "plain", note: DRAWER.people.marked };
+    case "missed":
+      return { text: DRAWER.people.missed(dayWord(c.day)), tone: "plain", note: DRAWER.people.marked };
+    case "past":
+      return { text: DRAWER.people.past(dayWord(c.day)), tone: "plain", note: DRAWER.people.notMarked };
+    default:
+      return { text: DRAWER.people.nothing, tone: "plain", note: null };
+  }
+}
+function drawerDoorOf(p) {
+  const waits = p.talk === "waiting" || p.talk === "call";
+  if (waits && p.threadId !== null) return { to: `inbox/${p.threadId}`, tip: DRAWER.people.tipConversation(p.name) };
+  return { to: `clients/${p.personId}`, tip: DRAWER.people.tipPerson(p.name) };
+}
+function personRow(p, read) {
+  const booked = p.cal.kind !== "none";
+  const wrote = p.at !== null && p.day === read.today ? DRAWER.people.wroteToday(timeOf(p.at, read.timezone)) : null;
+  const day = dayWord(p.day);
+  return {
+    personId: p.personId,
+    threadId: p.threadId,
+    ...adPersonWho(p.name),
+    when: wrote ?? (p.how === "wrote" ? DRAWER.people.wrote(day) : DRAWER.people.number(day)),
+    said: p.said,
+    talk: booked ? null : talkOf(p, read.today),
+    cal: calOf(p),
+    booked,
+    door: drawerDoorOf(p)
+  };
+}
+function adPeopleOf(ad, t, o) {
+  const mine = o.read.people.filter((p) => p.adId === ad.id);
+  const rows2 = mine.map((p, i) => ({ p, i })).sort((a, b) => personRank(a.p) - personRank(b.p) || a.i - b.i).map(({ p }) => personRow(p, o.read));
+  const total = counted(ad) ? t.inTouch : 0;
+  let empty = null;
+  if (!counted(ad)) empty = DRAWER.people.emptyCalls;
+  else if (!started(ad)) empty = DRAWER.people.emptyReview;
+  else if (rows2.length === 0) empty = DRAWER.people.emptyQuiet;
+  return {
+    title: DRAWER.people.title,
+    total,
+    filters: [
+      { id: "booked", label: DRAWER.people.booked, n: t.booked },
+      { id: "not-yet", label: DRAWER.people.notYet, n: Math.max(0, total - t.booked) }
+    ],
+    rows: rows2,
+    all: total > 0 ? { words: DRAWER.people.all(total), to: o.peopleTo } : null,
+    empty
+  };
+}
+
+// src/ads/drawer-edit.ts
+var ZIPS_PREFIX = "zips:";
+var areaValueOf = (area) => area.kind === "radius" ? String(area.miles) : `${ZIPS_PREFIX}${area.zips.join(",")}`;
+function areaOfValue(value) {
+  if (value.startsWith(ZIPS_PREFIX)) {
+    return { kind: "zips", zips: value.slice(ZIPS_PREFIX.length).split(",").filter(Boolean) };
+  }
+  return { kind: "radius", miles: Number(value) };
+}
+function zipIssue(text, have) {
+  const zip = text.trim();
+  if (!new RegExp(`^\\d{${ADS_ZIP_DIGITS}}$`).test(zip)) return ZIPS.bad(ADS_ZIP_DIGITS);
+  return have.includes(zip) ? ZIPS.already(zip) : null;
+}
+var ROUND_TO_MINOR = 10 * MINOR_PER_UNIT;
+function amountChoices(ad, spentMinor, floorMinor) {
+  const now = ad.budget.amountMinor;
+  const round = (n) => Math.round(n / ROUND_TO_MINOR) * ROUND_TO_MINOR;
+  const steps = ad.budget.mode === "total" ? ADS_TOTAL_STEPS.map((k) => round(now * k)) : ADS_DAILY_CHOICES_MINOR;
+  const min = ad.budget.mode === "total" ? spentMinor : floorMinor ?? 0;
+  return [.../* @__PURE__ */ new Set([...steps, now])].filter((n) => n >= min).sort((a, b) => a - b);
+}
+function limitsOf(saved, today) {
+  const rule2 = BUDGET_RULES[saved.platform];
+  const now = saved.budget.amountMinor;
+  const pct2 = rule2.maxStep === null ? 0 : Math.round(rule2.maxStep * 100);
+  const last = saved.budgetChangedDay ?? null;
+  const next = rule2.waitDays > 0 && last !== null ? addDays(last, rule2.waitDays) : null;
+  return {
+    savedMinor: now,
+    step: rule2.maxStep === null ? null : { lo: Math.ceil(now * (100 - pct2) / 100), hi: Math.floor(now * (100 + pct2) / 100), share: rule2.maxStep },
+    again: next !== null && today < next ? next : null
+  };
+}
+function editRefusalOf(n, limits) {
+  if (n === limits.savedMinor) return null;
+  if (limits.again !== null) return CHIPS.tiktokWait(dayWord(limits.again));
+  const { step: step2 } = limits;
+  return step2 !== null && (n < step2.lo || n > step2.hi) ? CHIPS.tiktokStepOut(step2.share) : null;
+}
+function amountOption(ad, n, o) {
+  const now = ad.budget.amountMinor;
+  const cur = ad.currency;
+  const current = n === now;
+  const raise = n > now;
+  const refused = editRefusalOf(n, o.limits);
+  if (ad.budget.mode === "total") {
+    const perDay = perDayOf(aboutADayAfter({ ad, amountMinor: n, endDay: ad.endDay, today: o.today }), cur);
+    const label2 = raise ? CHIPS.raise(moneyOf(n, cur)) : LIST.inAll(moneyOf(n, cur));
+    const sub = current ? LIST.asItIs(perDay) : raise ? LIST.raiseSub({ more: moneyOf(n - now, cur), perDay }) : LIST.perDayLeft(perDay);
+    return { minor: n, label: label2, sub: refused ?? sub, current, raise, refused };
+  }
+  const average = BUDGET_RULES[ad.platform].dailyIsAverage;
+  const day = perDayOf(n, cur);
+  const label = raise ? LIST.raiseDaily(day, average) : LIST.dailyRow(day, average);
+  const diff = current ? null : raise ? LIST.dailyMore(perDayOf(n - now, cur)) : LIST.dailyLess(perDayOf(now - n, cur));
+  return { minor: n, label, sub: refused ?? diff, current, raise, refused };
+}
+function ownOf(ad, o) {
+  const total = ad.budget.mode === "total";
+  const least = total ? Math.max(o.spentMinor, MINOR_PER_UNIT) : o.floorMinor ?? MINOR_PER_UNIT;
+  const { step: step2, again } = o.limits;
+  const refused = again === null ? null : CHIPS.tiktokWait(dayWord(again));
+  if (step2 === null) return { minMinor: least, maxMinor: null, refused, hint: refused };
+  const minMinor = Math.max(least, step2.lo);
+  const range = CHIPS.tiktokRange({
+    lo: moneyOf(minMinor, ad.currency),
+    hi: moneyOf(step2.hi, ad.currency),
+    maxStep: step2.share
+  });
+  return { minMinor, maxMinor: step2.hi, refused, hint: refused ?? range };
+}
+function endOptions(ad, today, lastEnd) {
+  if (ad.budget.mode !== "total") return [];
+  const tomorrow = addDays(today, 1);
+  const moved = ADS_END_SHIFTS.map((n) => addDays(ad.endDay, n)).filter(
+    (d) => d >= tomorrow && (lastEnd === null || d <= lastEnd)
+  );
+  const days = [.../* @__PURE__ */ new Set([...moved, ad.endDay])].sort((a, b) => a.localeCompare(b));
+  return days.map((day) => {
+    const left = aboutADayAfter({ ad, amountMinor: ad.budget.amountMinor, endDay: day, today });
+    const perDay = perDayOf(left, ad.currency);
+    const sub = day === ad.endDay ? LIST.asItIs(perDay) : day < ad.endDay ? LIST.endsSooner(perDay) : LIST.endsLater(perDay);
+    return { day, label: dayWord(day), sub, current: day === ad.endDay };
+  });
+}
+function notesOf(ad, o) {
+  const p = ad.platform;
+  const rule2 = BUDGET_RULES[p];
+  const total = ad.budget.mode === "total";
+  const amount = [];
+  if (o.floorMinor !== null || p === "google") {
+    amount.push(CHIPS.floor(p, o.floorMinor === null ? null : moneyOf(o.floorMinor, ad.currency), rule2.totalMaxDays));
+  }
+  if (total) amount.push(CHIPS.belowSpent(moneyOf(o.spentMinor, ad.currency)));
+  amount.push(CHIPS.stops(p), CHIPS.noRestart);
+  if (!total && p === "meta" && rule2.dailyIsAverage) amount.push(CHIPS.dailyOver);
+  if (!total && p === "google" && rule2.dailyIsAverage) amount.push(CHIPS.dailyOverGoogle);
+  if (rule2.maxStep !== null) amount.push(CHIPS.tiktokChange(rule2.maxStep, rule2.waitDays));
+  const area = [p === "meta" ? CHIPS.areaSmall : p === "google" ? CHIPS.areaGoogle : CHIPS.areaTiktok, CHIPS.areaMeta];
+  const evening = p === "google" && ad.endsAt ? CHIPS.endGoogle(dayWord(ad.endDay), ad.endsAt) : CHIPS.endLater;
+  const end = o.lastEnd !== null && rule2.totalMaxDays !== null ? [evening, CHIPS.googleLastDay({ days: rule2.totalMaxDays, day: dayWord(o.lastEnd) })] : [evening];
+  return { offer: [CHIPS.offer(p)], area, amount, end };
+}
+function areaOptions(ad, config2) {
+  if (ad.platform === "tiktok") return [];
+  return config2.areas.map((a) => ({
+    miles: a.miles,
+    label: areaWord({ kind: "radius", miles: a.miles }),
+    people: a.people && ad.platform === "meta" ? CHIPS.areaPeople(a.people[0], a.people[1]) : null
+  }));
+}
+function editOf(ad, t, o) {
+  const floorMinor = o.config.minPerDayMinor[ad.platform];
+  const today = o.read.today;
+  const days = BUDGET_RULES[ad.platform].totalMaxDays;
+  const lastEnd = ad.budget.mode === "total" && days !== null ? addDays(ad.startDay, days) : null;
+  const limits = limitsOf(o.saved ?? ad, today);
+  const spentMinor = t.lifetimeMinor;
+  return {
+    areas: areaOptions(ad, o.config),
+    zips: ad.area.kind === "zips" ? [...ad.area.zips] : null,
+    daily: ad.budget.mode === "daily",
+    amounts: amountChoices(ad, spentMinor, floorMinor).map((n) => amountOption(ad, n, { today, limits })),
+    currentMinor: ad.budget.amountMinor,
+    floorMinor,
+    spentMinor,
+    currency: ad.currency,
+    own: ownOf(ad, { spentMinor, floorMinor, limits }),
+    minEnd: today,
+    endDay: ad.endDay,
+    ends: endOptions(ad, today, lastEnd),
+    lastEnd,
+    notes: notesOf(ad, { spentMinor, floorMinor, lastEnd })
+  };
+}
+function raiseOf(ad, next) {
+  const by = next.budget.amountMinor - ad.budget.amountMinor;
+  return by > 0 ? { total: ad.budget.mode === "total", to: next.budget.amountMinor, by } : null;
+}
+function editFootOf(o) {
+  const { ad, next, patch, n } = o;
+  if (n === 0) return { say: EDIT.noChanges, save: DRAWER.foot.save };
+  const owner = PLATFORM_OWNER[ad.platform];
+  const within2 = REVIEW_WITHIN[ad.platform];
+  const changes = DRAWER.foot.changes({ n, restarts: patchRestarts(ad, patch), owner, within: within2 });
+  const raise = raiseOf(ad, next);
+  if (raise === null) return { say: changes, save: DRAWER.foot.save };
+  const cur = ad.currency;
+  if (raise.total) {
+    return {
+      say: `${LIST.moreSpent(moneyOf(raise.by, cur))} \xB7 ${changes}`,
+      save: DRAWER.foot.saveRaise(moneyOf(raise.to, cur))
+    };
+  }
+  return {
+    say: `${LIST.dailyMoreHead(perDayOf(raise.by, cur))} \xB7 ${changes}`,
+    save: DRAWER.foot.saveRaiseDaily(perDayOf(raise.to, cur))
+  };
+}
+
+// src/ads/drawer.ts
+var connectionsDoor = () => ({ words: SETTINGS_DOOR, to: ADS_DOORS.accounts });
+var renewDoor = () => ({ words: DRAWER.callout.renew, to: ADS_DOORS.accounts });
+var plainPart = (text) => ({ tone: "plain", text, door: null, acts: [] });
+function lapsingDay(ad, read) {
+  const end = adAccountOf(read, ad.platform)?.permissionEnd ?? null;
+  if (ad.platform !== "tiktok" || ad.media.kind !== "post" || end === null) return null;
+  return daysBetween(read.today, end) <= ADS_PERMISSION_WARN_DAYS ? end : null;
+}
+function lapsingCallout(day) {
+  return {
+    tone: "plain",
+    text: DRAWER.callout.lapsing(day === null ? null : dayWord(day)),
+    door: renewDoor(),
+    acts: []
+  };
+}
+function rejectedCallout(ad, needs2) {
+  const owner = PLATFORM_OWNER[ad.platform];
+  const x = DRAWER.callout.rejectedExits;
+  return {
+    tone: "warn",
+    text: DRAWER.callout.rejected({ owner, why: needs2.platformWords ?? "" }),
+    door: null,
+    acts: [
+      { id: "fix", label: x.fix, done: x.fix },
+      { id: "again", label: x.again(owner), done: DRAWER.callout.done.again(owner) },
+      { id: "fresh", label: x.fresh, done: x.fresh }
+    ]
+  };
+}
+function needsCallout(ad, needs2, read) {
+  switch (needs2.code) {
+    case "paused-in-platform": {
+      const resume = DRAWER.callout.resume;
+      return {
+        ...plainPart(DRAWER.callout.pausedInPlatform(ad.platform)),
+        acts: [{ id: "resume", label: resume, done: resume }]
+      };
+    }
+    case "price-changed": {
+      const update = DRAWER.callout.updateAd;
+      return {
+        ...plainPart(DRAWER.callout.priceChanged({ was: needs2.was, now: needs2.now })),
+        acts: [{ id: "update", label: update, done: update }]
+      };
+    }
+    case "rejected":
+      return rejectedCallout(ad, needs2);
+    case "payment":
+      return { tone: "warn", text: DRAWER.callout.payment(ad.platform), door: connectionsDoor(), acts: [] };
+    case "permission-lapsing":
+      return lapsingCallout(adAccountOf(read, ad.platform)?.permissionEnd ?? null);
+    default:
+      return {
+        tone: ADS_SOFT_NEEDS.includes(needs2.code) ? "plain" : "warn",
+        text: needs2.platformWords ?? STATE.needsDefault(ad.platform),
+        door: connectionsDoor(),
+        acts: []
+      };
+  }
+}
+function couldntFinishCallout(ad) {
+  const x = DRAWER.callout.couldntExits;
+  const d = DRAWER.callout.done;
+  return {
+    tone: "warn",
+    text: DRAWER.callout.couldntFinish(ad.platform),
+    door: null,
+    acts: [
+      { id: "retry", label: x.retry, done: d.retry },
+      { id: "remove", label: x.remove, done: d.remove }
+    ]
+  };
+}
+function settleWords(ad, read) {
+  return settling([ad], read.today) ? DRAWER.callout.settling(ADS_SETTLE_DAYS) : DRAWER.callout.settled(ADS_SETTLE_DAYS);
+}
+function finishedCallout(ad, t, read) {
+  const said = DRAWER.callout.finished({ name: ad.name, total: moneyOf(totalOf(ad) ?? t.lifetimeMinor, ad.currency) });
+  const brought = ad.door === "call" ? DRAWER.callout.finishedCalls(t.inTouch) : DRAWER.callout.finishedBooked(t.booked);
+  return plainPart(`${said} ${brought} ${settleWords(ad, read)}`);
+}
+function stateCallout(ad, t, read) {
+  switch (ad.state) {
+    case "setting-up":
+      return plainPart(DRAWER.callout.settingUp(ad.platform));
+    case "couldnt-finish":
+      return couldntFinishCallout(ad);
+    case "review":
+      return started(ad) ? plainPart(DRAWER.callout.recheck({ owner: PLATFORM_OWNER[ad.platform], within: REVIEW_WITHIN[ad.platform] })) : plainPart(DRAWER.callout.review(ad.platform));
+    case "ended":
+      return plainPart(`${DRAWER.callout.ended(dayWord(ad.endDay))} ${settleWords(ad, read)}`);
+    case "finished":
+      return finishedCallout(ad, t, read);
+    case "on":
+    case "paused": {
+      const lapsing = lapsingDay(ad, read);
+      if (lapsing !== null) return lapsingCallout(lapsing);
+      return ad.state === "on" && t.spentMinor > 0 && t.inTouch === 0 ? plainPart(DRAWER.callout.quiet) : null;
+    }
+    default:
+      return null;
+  }
+}
+function calloutOf(ad, t, read) {
+  const callout = ad.needs ? needsCallout(ad, ad.needs, read) : stateCallout(ad, t, read);
+  if (callout === null || ad.madeHere) return callout;
+  return { ...callout, acts: callout.acts.filter((a) => a.id === "resume" || a.id === "again") };
+}
+function drawerNext(ad, t) {
+  const total = totalOf(ad);
+  const left = total === null ? null : Math.max(0, total - t.lifetimeMinor);
+  const day = dayWord(ad.endDay);
+  const pd = perDayOf(ad.aboutADayMinor, ad.currency);
+  const unmade = ad.state === "setting-up" || ad.state === "couldnt-finish" || ad.state === "review" && !started(ad);
+  if (unmade) {
+    return total === null ? DRAWER.next.reviewDaily({ from: dayWord(ad.startDay), perDay: pd }) : DRAWER.next.review({ from: dayWord(ad.startDay), to: day, total: moneyOf(total, ad.currency), perDay: pd });
+  }
+  if (ad.state === "ended") return DRAWER.next.ended({ day, spent: moneyOf(t.lifetimeMinor, ad.currency) });
+  if (ad.state === "finished") return DRAWER.next.finished(moneyOf(total ?? t.lifetimeMinor, ad.currency));
+  if (total === null || left === null) {
+    return ad.state === "paused" ? DRAWER.next.pausedDaily(pd) : DRAWER.next.runsDaily(pd);
+  }
+  const leftSaid = leftOfMoney(left, total, ad.currency);
+  if (ad.state === "paused") return DRAWER.next.paused({ day, left: leftSaid });
+  return DRAWER.next.runs({ day, left: leftSaid, perDay: pd });
+}
+function sentWhen(sentAt, read) {
+  if (sentAt === null) return "";
+  const day = dayOfIso(sentAt, read.timezone);
+  return DRAWER.reach.sentWhen({
+    today: day === read.today,
+    day: day === "" ? "" : dayWord(day),
+    time: timeOf(sentAt, read.timezone)
+  });
+}
+function reachSaid(ad, read, firstBad) {
+  const owner = PLATFORM_OWNER[ad.platform];
+  const note = reachNoteOf(ad, read);
+  switch (ad.state) {
+    case "review":
+      return { tone: "plain", said: DRAWER.reach.review({ owner, when: sentWhen(ad.sentAt, read), note }) };
+    case "needs-you":
+      return { tone: "warn", said: DRAWER.reach.needs(firstBad ?? needsSecond(ad)) };
+    case "paused":
+    case "setting-up":
+    case "couldnt-finish":
+      return { tone: "plain", said: DRAWER.reach.paused(note) };
+    case "ended":
+    case "finished":
+      return { tone: "plain", said: DRAWER.reach.ended(dayWord(ad.endDay)) };
+    default:
+      return {
+        tone: firstBad ? "warn" : "ok",
+        said: DRAWER.reach.running({ owner, day: ad.approvedDay ? dayWord(ad.approvedDay) : "", note })
+      };
+  }
+}
+function drawerReach(ad, read) {
+  const rows2 = accountRows(read, ad.platform);
+  const bad = rows2.find((r2) => r2.tone === "warn");
+  const { tone, said } = reachSaid(ad, read, bad ? bad.text : null);
+  return { tone, state: said.state, parts: said.parts, rows: rows2, read: DRAWER.reach.read(readTime(read)) };
+}
+function drawerModeOf(ad) {
+  if (ad.state === "ended" || ad.state === "finished") return "done";
+  return ad.state === "paused" || ad.needs?.code === "paused-in-platform" ? "paused" : "running";
+}
+function footOf(ad, mode) {
+  if (ad.state === "setting-up" || ad.state === "couldnt-finish") return [];
+  if (mode === "done") return ad.madeHere ? ["again"] : [];
+  const first = mode === "paused" ? "resume" : "pause";
+  return ad.madeHere ? [first, "edit"] : [first];
+}
+var reportRoute = (ad, read) => `reports/ads:${read.window.from}~${read.window.to}:ad:${ad.id}`;
+function adModel(ad, read, config2, saved) {
+  const t = totalsOf(ad, read);
+  const state = viewState(ad, read.today);
+  const mode = drawerModeOf(ad);
+  const owner = PLATFORM_OWNER[ad.platform];
+  const sentence2 = {
+    offer: ad.offer,
+    platform: ad.platform,
+    door: ad.door,
+    area: areaWord(ad.area),
+    street: read.business.street,
+    budget: ad.budget,
+    currency: ad.currency,
+    endDay: ad.budget.mode === "total" ? ad.endDay : null,
+    chips: "running",
+    past: mode === "done"
+  };
+  return {
+    id: ad.id,
+    kicker: DRAWER.kicker(PLATFORM_WORD[ad.platform], DOOR[ad.door].label),
+    name: ad.name,
+    state: adStateOf(ad, t, read),
+    platform: ad.platform,
+    door: ad.door,
+    owner,
+    within: REVIEW_WITHIN[ad.platform],
+    madeHere: ad.madeHere,
+    adopted: ad.madeHere ? null : DRAWER.adopted(ad.platform),
+    mode,
+    foot: footOf(ad, mode),
+    callout: calloutOf(ad, t, read),
+    next: drawerNext(ad, t),
+    sentence: sentenceParts(sentence2),
+    reach: drawerReach(ad, read),
+    results: resultsOf(ad, t, { read, tooEarly: state === "too-early", reportTo: reportRoute(ad, read) }),
+    bars: adBarsOf(ad, t, read),
+    quiet: quietOf(ad),
+    preview: adPreviewOf(ad, read),
+    people: adPeopleOf(ad, t, { read, peopleTo: ADS_DOORS.people }),
+    edit: editOf(ad, t, { read, config: config2, saved }),
+    endConfirm: DRAWER.menu.endConfirm(ad.name),
+    confirm: {
+      update: DRAWER.confirm.update({ owner, within: REVIEW_WITHIN[ad.platform] }),
+      remove: DRAWER.confirm.remove(owner)
+    },
+    go: { copy: newAdFromRoute("copy", ad.id), again: newAdFromRoute("again", ad.id) }
+  };
+}
+
+// src/ads/new-ad-parts.ts
+var settingsDoor = () => ({ words: SETTINGS_DOOR, to: ADS_DOORS.accounts });
+var NAME_MAX = {
+  meta: null,
+  google: ADS_GOOGLE_NAME_MAX,
+  tiktok: ADS_DISPLAY_NAME_MAX
+};
+function shownAsFor(read, platform) {
+  const last = read.ads.filter((a) => a.platform === platform && a.madeHere).sort((a, b) => b.startDay.localeCompare(a.startDay)).at(0);
+  const max = NAME_MAX[platform];
+  const name = last ? last.shownAs.name : read.business.name;
+  return {
+    name: max === null ? name : name.slice(0, max).trimEnd(),
+    handle: platform === "meta" && last ? last.shownAs.handle : null
+  };
+}
+function shownAsOf(read, platform) {
+  const s = shownAsFor(read, platform);
+  const max = NAME_MAX[platform];
+  const w = NEW_AD.step2.shownAs;
+  return {
+    label: w.label,
+    line: w.line(s.name, s.handle),
+    limit: max === null ? null : w.limit(max),
+    door: { words: w.door, to: ADS_DOORS.accounts }
+  };
+}
+var opensUrlOf = (read, opens) => opens === "page" ? read.business.page : read.business.site;
+var hostOf = (url) => url.replace(/^[a-z]+:\/\//i, "").split("/")[0] ?? url;
+var pathOf = (url) => NEW_AD.opens.path(hostOf(url));
+function opensOf(draft, read) {
+  if (draft.platform !== "google") return null;
+  const w = NEW_AD.opens;
+  return {
+    label: w.label,
+    group: w.group,
+    picked: draft.opens,
+    choices: [
+      { id: "page", label: w.page, address: read.business.page },
+      { id: "site", label: w.site, address: read.business.site }
+    ],
+    note: draft.opens === "page" ? w.pageNote : w.siteNote
+  };
+}
+var searchThemesFor = (offer, word) => GOOGLE_SEARCH.themes({ offer, a: appointmentWords(word).a });
+function searchOf(ad, platform) {
+  if (platform !== "google") return null;
+  const w = NEW_AD.step2.search;
+  return { label: w.label, themes: ad.searchThemes, leftOut: w.leftOut(ad.leftOut), note: w.note };
+}
+var scheduleAllowed = (draft) => !SCHEDULE_NEEDS_TOTAL[draft.platform] || draft.mode === "total";
+var scheduleOf = (draft) => draft.platform !== "google" && scheduleAllowed(draft) ? draft.schedule : "always";
+function scheduleVM(draft, read) {
+  if (draft.platform === "google") return { kind: "line", text: NEW_AD.step4.openOnlyGoogle };
+  const allowed = scheduleAllowed(draft);
+  const on = scheduleOf(draft) === "open-hours";
+  const hint = !allowed ? NEW_AD.step4.openOnlyMeta : on ? NEW_AD.step4.openOnlyOn : NEW_AD.step4.openOnlyOff;
+  return { kind: "switch", label: NEW_AD.step4.openOnly(read.business.hours), hint, on, locked: !allowed };
+}
+function budgetLines(draft, config2, o) {
+  const p = draft.platform;
+  const rule2 = BUDGET_RULES[p];
+  const floor = config2.minPerDayMinor[p];
+  const floorSaid = CHIPS.floor(p, floor === null ? null : moneyOf(floor, o.currency), rule2.totalMaxDays);
+  const lines = [];
+  if (draft.mode === "total") {
+    lines.push(floorSaid, CHIPS.stops(p));
+  } else {
+    lines.push(NEW_AD.step4.dailyAbout(o.perDay));
+    if (floor !== null) lines.push(floorSaid);
+    if (p === "meta") lines.push(CHIPS.dailyOver);
+    if (p === "google" && rule2.dailyIsAverage) lines.push(NEW_AD.step4.googleAverage(ADS_GOOGLE_DAILY));
+  }
+  if (p === "meta" && rule2.changeRelearns) lines.push(NEW_AD.step4.relearn);
+  if (rule2.maxStep !== null) lines.push(NEW_AD.step4.tiktokChange(rule2.maxStep, rule2.waitDays));
+  if (draft.door === "whatsapp") lines.push(NEW_AD.step4.fees);
+  return lines;
+}
+var COSMETIC = /\bcosmetic/i;
+var isCosmetic = (service) => service !== void 0 && (service.cosmetic === true || COSMETIC.test(service.name));
+function agesOf(draft, service) {
+  const p = draft.platform;
+  if (p === "google") return null;
+  const cosmetic = p === "tiktok" && isCosmetic(service);
+  const w = NEW_AD.step3;
+  let why = w.agesWhyDefault(PLATFORM_OWNER[p]);
+  if (cosmetic) why = w.agesWhyCosmetic;
+  else if (draft.special && p === "meta") why = w.agesWhy;
+  const floor = cosmetic ? ADS_AGE_FLOOR_COSMETIC : ADS_AGE_FLOOR;
+  return { label: w.agesLabel, line: w.ageLine(floor), why, floor };
+}
+function setForOf(o) {
+  const { draft, ad, read } = o;
+  const age = o.ages ? o.ages.floor : ADS_AGE_FLOOR;
+  const hours = ad.schedule === "open-hours" ? read.business.hours : null;
+  let rows2;
+  if (draft.platform === "google") {
+    const more = NEW_AD.step2.googleMore({
+      offer: ad.offer,
+      business: read.business.name,
+      price: adServiceOf(read, ad.serviceId)?.note ?? ""
+    });
+    rows2 = SET_FOR_YOU.google({
+      headlines: ad.copy.headlines.length + more.headlines.length,
+      descriptions: ad.copy.lines.length + more.descriptions.length,
+      hours: read.business.hours,
+      seconds: ADS_CALL_SECONDS,
+      leftOut: ad.leftOut
+    });
+  } else if (draft.platform === "tiktok") {
+    rows2 = SET_FOR_YOU.tiktok({ age, confirm: draft.doubleCheck, days: ADS_LEAD_DAYS, hours });
+  } else {
+    rows2 = SET_FOR_YOU.meta({ age, result: NEW_AD.step5.result[draft.door], hours, adjust: draft.adjust });
+  }
+  return { label: NEW_AD.step5.setFor, rows: rows2 };
+}
+var plainRow = (text, tone = "ok") => ({
+  text,
+  tone,
+  note: null,
+  door: null,
+  block: null
+});
+var AD_NOT_READY = { "not-connected": "notConnected", choose: "choose", lapsed: "lapsed" };
+function needRow(r2) {
+  const unmet = r2.tone === "warn" && r2.door !== null;
+  return {
+    text: r2.text,
+    tone: unmet ? "fail" : r2.tone,
+    note: r2.note ?? null,
+    door: r2.door,
+    block: unmet ? NEW_AD.blocked.need(r2.fix ?? r2.text) : null
+  };
+}
+function accountRowsOf(draft, read, needs2) {
+  const status = adAccountOf(read, draft.platform)?.status ?? "not-connected";
+  if (status === "connected") return needs2.map(needRow);
+  const owner = PLATFORM_OWNER[draft.platform];
+  return [
+    {
+      text: CHECKS.account[status](owner),
+      tone: "fail",
+      note: null,
+      door: settingsDoor(),
+      block: NEW_AD.blocked[AD_NOT_READY[status]](owner)
+    }
+  ];
+}
+var PRICE = /[$£€]\s?\d+(?:,\d{3})*(?:\.\d+)?/g;
+var pricesIn = (text) => text.match(PRICE) ?? [];
+function fitRows(ad, read) {
+  const w = NEW_AD.step2.where;
+  const rows2 = [];
+  if (ad.platform === "meta") {
+    const { headline, text } = ad.copy;
+    if (headline.length > ADS_COPY_LIMITS.headlineFacebook) {
+      const n = headline.length;
+      rows2.push(plainRow(CHECKS.headlineLong({ n, max: ADS_COPY_LIMITS.headlineFacebook, where: w.facebook }), "warn"));
+    }
+    if (text.length > ADS_COPY_LIMITS.textInstagram) {
+      const n = text.length;
+      rows2.push(plainRow(CHECKS.textLong({ n, max: ADS_COPY_LIMITS.textInstagram, where: w.instagram }), "warn"));
+    }
+  }
+  if (ad.platform === "google") {
+    const price = adServiceOf(read, ad.serviceId)?.note ?? "";
+    const more = NEW_AD.step2.googleMore({ offer: ad.offer, business: read.business.name, price });
+    const heads = [...ad.copy.headlines, ...more.headlines];
+    const descs = [...ad.copy.lines, ...more.descriptions];
+    const longHead = heads.find((h) => h.length > ADS_GOOGLE_HEADLINE_MAX);
+    const longDesc = descs.find((d) => d.length > ADS_GOOGLE_DESCRIPTION_MAX);
+    if (longHead !== void 0) {
+      const o = { n: longHead.length, max: ADS_GOOGLE_HEADLINE_MAX, what: "headline" };
+      rows2.push(plainRow(CHECKS.googleLong(o), "warn"));
+    }
+    if (longDesc !== void 0) {
+      const o = { n: longDesc.length, max: ADS_GOOGLE_DESCRIPTION_MAX, what: "description" };
+      rows2.push(plainRow(CHECKS.googleLong(o), "warn"));
+    }
+  }
+  return rows2.length > 0 ? rows2 : [plainRow(CHECKS.fits)];
+}
+function priceRows(ad, read) {
+  const note = adServiceOf(read, ad.serviceId)?.note ?? "";
+  const known = pricesIn(note);
+  const wrong = pricesIn(`${ad.copy.headline} ${ad.copy.text}`).filter((p) => !known.includes(p));
+  const rows2 = [];
+  if (read.neverQuotePrices && adQuotes(ad.copy, note)) rows2.push(plainRow(CHECKS.priceQuote, "warn"));
+  const first = wrong.at(0);
+  if (first !== void 0) {
+    rows2.push(plainRow(CHECKS.priceDiffers({ said: first, note: note || NEW_AD.step2.quoted }), "warn"));
+  }
+  return rows2.length > 0 ? rows2 : [plainRow(CHECKS.price)];
+}
+function adRowsOf(draft, ad, read) {
+  const rows2 = [plainRow(CHECKS.words), plainRow(CHECKS.promises)];
+  rows2.push(...fitRows(ad, read), ...priceRows(ad, read));
+  if (read.rating && draft.door === "whatsapp") {
+    const r2 = read.rating;
+    rows2.push(plainRow(CHECKS.rating(ratingLine({ stars: r2.stars, reviews: r2.reviews, day: dayShort(r2.asOf) }))));
+  }
+  if (draft.postId !== null && draft.postMode === "as-is") rows2.push(plainRow(CHECKS.post));
+  if (!draft.special) rows2.push(plainRow(CHECKS.special));
+  if (draft.door === "form") rows2.push(plainRow(CHECKS.privacy), plainRow(CHECKS.yes), plainRow(CHECKS.noHealth));
+  if (draft.door === "call") rows2.push(plainRow(CHECKS.businessName));
+  return rows2;
+}
+function checkedOf(o) {
+  const rows2 = [...accountRowsOf(o.draft, o.read, o.needs), ...adRowsOf(o.draft, o.ad, o.read)];
+  const met = rows2.filter((r2) => r2.tone === "ok").length;
+  return { said: NEW_AD.step5.count(met, rows2.length), met, of: rows2.length, rows: rows2 };
+}
+function blockedFrom(rows2) {
+  const bad = rows2.find((r2) => r2.tone === "fail");
+  return bad && bad.block !== null && bad.door !== null ? { text: bad.block, door: bad.door } : null;
+}
+var adFollowOn = (draft, id) => draft.alsoGoogle && draft.platform === "meta" ? newAdFromRoute("google", id) : null;
+
+// src/ads/new-ad.ts
+function newestPostFor(posts, platform, kind) {
+  if (platform === "google") return void 0;
+  return posts.filter((p) => p.platform === platform && (kind === void 0 || p.kind === kind)).sort((a, b) => b.day.localeCompare(a.day)).at(0);
+}
+var formatFor = (platform) => platform === "tiktok" ? "video" : "photo";
+function baseDraft(read) {
+  const door = firstReadyDoor(read);
+  const platform = platformsFor(door).at(0) ?? "meta";
+  const format = formatFor(platform);
+  const post = newestPostFor(read.posts, platform, format);
+  return {
+    door,
+    platform,
+    serviceId: read.services.at(0)?.id ?? "",
+    postId: post ? post.id : null,
+    postMode: "as-is",
+    format,
+    areaMiles: ADS_DEFAULT_MILES,
+    special: false,
+    mode: "total",
+    presetId: "own",
+    ownPerDayMinor: ADS_OWN_START_MINOR,
+    startWith: "ready",
+    headline: null,
+    text: null,
+    name: null,
+    opens: "page",
+    schedule: "always",
+    adjust: false,
+    doubleCheck: true,
+    thanks: false,
+    alsoGoogle: false
+  };
+}
+function newAdDefaults(read, config2) {
+  const smallest = smallestPreset(config2);
+  return { ...baseDraft(read), presetId: smallest ? smallest.id : "own" };
+}
+var milesOf = (ad, fallback) => ad.area.kind === "radius" ? ad.area.miles : fallback;
+function formatOf(ad, platform, read) {
+  if (platform === "tiktok" || ad.media.kind === "video") return "video";
+  const postId = ad.media.kind === "post" ? ad.media.postId : null;
+  return read.posts.find((p) => p.id === postId)?.kind ?? "photo";
+}
+function newAdFrom(ad, how, read) {
+  const base = baseDraft(read);
+  const service = adServiceOf(read, ad.serviceId);
+  const onGoogle = how === "google";
+  const platform = onGoogle ? "google" : ad.platform;
+  const postId = !onGoogle && ad.media.kind === "post" ? ad.media.postId : null;
+  return {
+    ...base,
+    door: onGoogle ? "call" : ad.door,
+    platform,
+    serviceId: service ? service.id : base.serviceId,
+    postId,
+    format: onGoogle ? "photo" : formatOf(ad, platform, read),
+    areaMiles: milesOf(ad, base.areaMiles),
+    mode: onGoogle ? "total" : ad.budget.mode,
+    presetId: "own",
+    ownPerDayMinor: ad.aboutADayMinor,
+    startWith: ad.copy.startWith,
+    headline: onGoogle ? null : ad.copy.headline,
+    text: onGoogle ? null : ad.copy.text,
+    name: NEW_AD.from[how](ad.name),
+    opens: ad.opensUrl !== null && ad.opensUrl === read.business.site ? "site" : "page",
+    schedule: onGoogle ? "always" : ad.schedule,
+    thanks: ad.copy.thanks === PREVIEW.thanksOn
+  };
+}
+function starterCopy(o) {
+  const { service, price, business, door } = o;
+  const w = appointmentWords(o.word);
+  const priced = `${service}, ${price}`;
+  const text = {
+    whatsapp: `Book your first ${w.one} at ${business.name}. Message us on WhatsApp and we'll send you open times.`,
+    call: `Call ${business.name} and we'll go through the open times.`,
+    form: `Leave your number and ${business.name} will call you back with open times.`
+  };
+  return {
+    headline: priced,
+    text: text[door],
+    headlines: [priced, business.name, "Call to book"],
+    lines: [
+      `${service} at ${business.name}. Call and we'll go through the open times.`,
+      `Open ${business.hours}. ${business.address}.`
+    ],
+    path: `${business.site} \u203A book`,
+    greeting: `Hi! Thanks for getting in touch with ${business.name}. How can we help?`,
+    ready: `Hi, I'd like to know more about ${service}`,
+    questions: ["What is open this week?", `How much is ${service}?`, "Where are you?"],
+    startWith: "ready",
+    reply: `Hi, thanks for writing. First ${w.many} are open this week. Would Thursday or Friday suit you?`,
+    thanks: PREVIEW.thanksOn
+  };
+}
+function draftPlan(draft, read, config2) {
+  const preset = config2.presets.find((p) => p.id === draft.presetId);
+  const daily = preset ? preset.perDayMinor : draft.ownPerDayMinor;
+  const days = preset ? preset.days : ADS_OWN_DAYS;
+  const startDay = addDays(read.today, 1);
+  const budget = draft.mode === "total" ? { mode: "total", amountMinor: daily * days } : { mode: "daily", amountMinor: daily };
+  return { budget, perDayMinor: daily, days, startDay, endDay: addDays(startDay, days - 1) };
+}
+var draftService = (draft, read) => adServiceOf(read, draft.serviceId) ?? read.services.at(0) ?? { id: "", name: "", note: "" };
+function copyOf(draft, read, service) {
+  const base = starterCopy({
+    service: service.name,
+    price: service.note,
+    business: read.business,
+    door: draft.door,
+    word: read.appointmentWord
+  });
+  const post = read.posts.find((p) => p.id === draft.postId);
+  const caption = post && draft.postMode === "as-is" ? post.caption : null;
+  return {
+    ...base,
+    headline: draft.headline ?? base.headline,
+    text: caption ?? draft.text ?? base.text,
+    path: draft.platform === "google" ? pathOf(opensUrlOf(read, draft.opens)) : base.path,
+    startWith: draft.startWith,
+    thanks: draft.thanks ? PREVIEW.thanksOn : PREVIEW.thanksOff
+  };
+}
+function noTheirs(platform) {
+  if (platform === "google") return { platform, impressions: null, clicks: null, calls: null, longCalls: null };
+  if (platform === "tiktok") return { platform, impressions: null, reach: null, clicks: null, leads: null };
+  return { platform, impressions: null, reach: null, taps: null, chats: null, leads: null };
+}
+function mediaOf(draft) {
+  if (draft.platform === "google") return { kind: "none" };
+  if (draft.postId !== null) return { kind: "post", postId: draft.postId };
+  return draft.format === "video" ? { kind: "video", label: "", vertical: true } : { kind: "photo", label: "" };
+}
+function draftAd(draft, read, config2, id) {
+  const plan = draftPlan(draft, read, config2);
+  const service = draftService(draft, read);
+  const account = adAccountOf(read, draft.platform);
+  const typed = draft.name === null ? "" : draft.name.trim();
+  const google = draft.platform === "google";
+  return {
+    id,
+    externalId: null,
+    version: 1,
+    name: typed || NEW_AD.name(service.name, dayShort(plan.startDay)),
+    offer: service.name,
+    serviceId: service.id,
+    platform: draft.platform,
+    door: draft.door,
+    state: "review",
+    needs: null,
+    madeHere: true,
+    startDay: plan.startDay,
+    endDay: plan.endDay,
+    endsAt: google ? NEW_AD.endsAtGoogle : null,
+    budget: plan.budget,
+    currency: account ? account.currency : ADS_DEFAULT_CURRENCY,
+    aboutADayMinor: plan.perDayMinor,
+    area: draft.platform === "tiktok" ? { kind: "zips", zips: [] } : { kind: "radius", miles: draft.areaMiles },
+    schedule: scheduleOf(draft),
+    shownAs: shownAsFor(read, draft.platform),
+    media: mediaOf(draft),
+    opensUrl: google ? opensUrlOf(read, draft.opens) : null,
+    searchThemes: google ? searchThemesFor(service.name, read.appointmentWord) : [],
+    leftOut: google ? [...GOOGLE_SEARCH.leftOut] : [],
+    approvedDay: null,
+    sentAt: read.readAt,
+    theirs: noTheirs(draft.platform),
+    reply: null,
+    todaySoFar: 0,
+    lastArrivalAt: null,
+    copy: copyOf(draft, read, service),
+    days: []
+  };
+}
+function presetsOf(draft, config2, o) {
+  return config2.presets.map((p) => {
+    const totalMinor = p.perDayMinor * p.days;
+    const endDay = addDays(o.startDay, p.days - 1);
+    const perDay = perDayOf(p.perDayMinor, o.currency);
+    const rest = draft.mode === "total" ? NEW_AD.step4.preset({ perDay, days: p.days, total: moneyOf(totalMinor, o.currency), end: dayWord(endDay) }) : NEW_AD.step4.presetDaily({ perDay });
+    return { id: p.id, label: p.label, rest, perDayMinor: p.perDayMinor, days: p.days, totalMinor, endDay };
+  });
+}
+function ownRestOf(plan, currency) {
+  if (plan.perDayMinor <= 0) return null;
+  const perDay = perDayOf(plan.perDayMinor, currency);
+  if (plan.budget.mode === "daily") return NEW_AD.step4.presetDaily({ perDay });
+  const total = moneyOf(plan.budget.amountMinor, currency);
+  return NEW_AD.step4.preset({ perDay, days: plan.days, total, end: dayWord(plan.endDay) });
+}
+function estimateOf(draft, config2, currency) {
+  if (draft.platform === "tiktok") return null;
+  if (draft.platform === "google") {
+    const g = config2.googleEstimate;
+    const [from, to] = g.perClickMinor;
+    return NEW_AD.step4.googleEstimate({ clicks: g.clicks, from: moneyOf(from, currency), to: moneyOf(to, currency) });
+  }
+  const preset = config2.presets.find((p) => p.id === draft.presetId);
+  if (draft.mode !== "total" || !preset || !preset.estimate) return NEW_AD.step4.noEstimate;
+  return NEW_AD.step4.estimate({ lo: preset.estimate[0], hi: preset.estimate[1], days: preset.days });
+}
+var reachLine = (said) => [said.state, ...said.parts].join(" \xB7 ");
+function draftReady(draft, read, needs2) {
+  const rows2 = accountRows(read, draft.platform);
+  const bad = needs2.find((r2) => r2.tone === "warn") ?? rows2.find((r2) => r2.tone === "warn");
+  if (bad) return { tone: "warn", said: reachLine(DRAWER.reach.needs(bad.text)), rows: rows2 };
+  return { tone: "ok", said: NEW_AD.step5.ready(NEW_AD.step5.readyParts[draft.platform].join(" \xB7 ")), rows: rows2 };
+}
+function drawerOf(draft, ad, read, config2) {
+  const drawer = adModel(ad, read, config2);
+  if (draft.platform !== "meta" || draft.format !== "video") return drawer;
+  return { ...drawer, preview: { ...drawer.preview, frame: "video", frames: [] } };
+}
+function newAdModel(draft, read, config2) {
+  const plan = draftPlan(draft, read, config2);
+  const ad = draftAd(draft, read, config2, "new-ad");
+  const owner = PLATFORM_OWNER[draft.platform];
+  const within2 = REVIEW_WITHIN[draft.platform];
+  const totalMinor = plan.budget.mode === "total" ? plan.budget.amountMinor : null;
+  const say2 = (minor) => moneyOf(minor, ad.currency);
+  const perDay = perDayOf(plan.perDayMinor, ad.currency);
+  const earlier = earlierCost(read);
+  const needs2 = doorNeeds(read, draft.door, draft.platform, {
+    opens: draft.platform === "google" ? draft.opens : void 0,
+    post: draft.platform === "tiktok" ? draft.postId !== null : void 0
+  });
+  const ages = agesOf(draft, draftService(draft, read));
+  const checked = checkedOf({ draft, ad, read, needs: needs2 });
+  return {
+    ad,
+    drawer: drawerOf(draft, ad, read, config2),
+    name: NEW_AD.name(ad.offer, dayShort(plan.startDay)),
+    sentence: sentenceParts({
+      offer: ad.offer,
+      platform: draft.platform,
+      door: draft.door,
+      area: areaWord(ad.area),
+      street: read.business.street,
+      budget: plan.budget,
+      currency: ad.currency,
+      endDay: totalMinor === null ? null : plan.endDay,
+      chips: "new"
+    }),
+    presets: presetsOf(draft, config2, { startDay: plan.startDay, currency: ad.currency }),
+    ownRest: ownRestOf(plan, ad.currency),
+    ownUnit: NEW_AD.step4.ownUnit(currencySymbol(ad.currency)),
+    estimate: estimateOf(draft, config2, ad.currency),
+    history: earlier ? NEW_AD.step4.history(earlier.each, earlier.people) : null,
+    lines: budgetLines(draft, config2, { perDay, currency: ad.currency }),
+    forecast: totalMinor === null ? NEW_AD.step5.forecastDaily({ owner, within: within2, perDay }) : NEW_AD.step5.forecast({ owner, within: within2, perDay, total: say2(totalMinor), end: dayWord(plan.endDay) }),
+    turnOn: totalMinor === null ? NEW_AD.turnOnDaily(perDay) : NEW_AD.turnOnTotal(say2(totalMinor)),
+    needs: needs2,
+    opens: opensOf(draft, read),
+    shownAs: shownAsOf(read, draft.platform),
+    search: searchOf(ad, draft.platform),
+    ages,
+    schedule: scheduleVM(draft, read),
+    blocked: blockedFrom(checked.rows),
+    ready: draftReady(draft, read, needs2),
+    checked,
+    setFor: setForOf({ draft, ad, read, ages }),
+    totalMinor,
+    perDayMinor: plan.perDayMinor,
+    currency: ad.currency,
+    days: plan.days,
+    startDay: plan.startDay,
+    endDay: plan.endDay
+  };
+}
+
+// src/config/roles.ts
+var ROLE_RANK = { viewer: 0, operator: 1, partner: 2, owner: 3 };
+function roleAtLeast(role, atLeast) {
+  const have = Object.prototype.hasOwnProperty.call(ROLE_RANK, role) ? ROLE_RANK[role] : void 0;
+  return have !== void 0 && have >= ROLE_RANK[atLeast];
+}
+
+// src/conversations/escalations.ts
+var ESCALATION_REASON_LABELS = {
+  human_token: "Customer asked for a person",
+  refusal: "Assistant declined to answer",
+  brain_error: "The receptionist hit an error \u2014 a holding message went out",
+  non_text: "Sent a voice note / photo",
+  send_failed: "Reply failed to deliver",
+  policy_block: "Held by your reply setting \u2014 nothing was sent",
+  policy_ask: "Set to Ask me first \u2014 a person answers this one",
+  person_hold: "You handle this person \u2014 the receptionist stays out",
+  rate_cap: "Too many replies too fast \u2014 the receptionist paused itself",
+  deadman: "Nobody picked this up \u2014 flagged after silence",
+  manual: "Flagged manually",
+  opt_out: "Asked to stop receiving messages",
+  state_unavailable: "The receptionist could not read this thread \u2014 needs a human",
+  stale: "Arrived hours late \u2014 too old to answer automatically",
+  budget: "The day's model budget is used up \u2014 the receptionist paused itself",
+  callback: "Needs a call back \u2014 the phone receptionist could not finish it",
+  paused: "Held \u2014 the workspace is paused until billing resumes",
+  carriers: "Held \u2014 the carriers have not approved this line for texting yet",
+  email_review: "Wrote by email \u2014 a person answers"
+};
+var ESCALATION_REASON_SHORT = {
+  human_token: "asked for a person",
+  refusal: "the receptionist declined to answer",
+  brain_error: "the receptionist hit an error",
+  non_text: "sent a voice note or photo",
+  send_failed: "reply failed to deliver",
+  policy_block: "held by your reply setting",
+  policy_ask: "set to Ask me first",
+  person_hold: "you handle this person",
+  rate_cap: "too many replies too fast",
+  deadman: "nobody picked this up",
+  manual: "flagged by hand",
+  opt_out: "asked to stop",
+  state_unavailable: "the receptionist could not read this thread",
+  stale: "arrived hours late",
+  budget: "the day's model budget is used up",
+  callback: "needs a call back",
+  paused: "the workspace is paused until billing resumes",
+  carriers: "the carriers have not approved this line",
+  email_review: "wrote by email"
+};
+function reasonShort(reason) {
+  if (!reason) return "";
+  return ESCALATION_REASON_SHORT[reason] ?? reason.replace(/_/g, " ");
+}
+var ESCALATION_REASON_WHY = {
+  human_token: "because a customer asked for a person",
+  refusal: "because it declined to answer",
+  brain_error: "because it hit an error",
+  non_text: "for something it can't read",
+  send_failed: "because a reply failed to send",
+  policy_block: "because your reply setting held it",
+  policy_ask: "for a booking or a question set to Ask me first",
+  person_hold: "because you handle this person",
+  rate_cap: "because the reply limit was reached",
+  deadman: "because no answer came in time",
+  manual: "because it was flagged by hand",
+  opt_out: "because they asked to stop",
+  state_unavailable: "because it could not read the thread",
+  stale: "because a message arrived too late to answer",
+  budget: "because the day's model budget ran out",
+  callback: "because they need a call back",
+  paused: "because the workspace is paused",
+  carriers: "while waiting on carriers",
+  email_review: "because they wrote by email"
+};
+function reasonWhy(reason) {
+  return ESCALATION_REASON_WHY[reason] ?? `because ${reasonShort(reason)}`;
+}
+var ESCALATION_SUMMARIES = {
+  human_token: "They asked for a person. A holding message went out \u2014 they're waiting on you.",
+  refusal: "The receptionist wouldn't answer this one. A holding message went out.",
+  brain_error: "The receptionist errored and sent a holding message. They're waiting on a real answer.",
+  non_text: "They sent a voice note or photo the receptionist can't read. Open it and reply yourself.",
+  send_failed: "The reply never reached them \u2014 as far as the customer knows, nobody answered.",
+  policy_block: "Your reply setting holds every message for a person. Nothing was sent \u2014 answer them yourself.",
+  policy_ask: "Your Autonomy setting hands bookings or service questions to a person. The receptionist told them someone will follow up \u2014 that someone is you.",
+  person_hold: "You set the receptionist to stay out of this person's thread. Nothing was sent \u2014 answer them yourself.",
+  rate_cap: "The receptionist hit its daily reply limit and stopped. NOTHING was sent \u2014 they're waiting in silence.",
+  deadman: "This sat unanswered long enough to flag. Nobody has replied.",
+  manual: "Flagged by hand for a human.",
+  opt_out: "They asked to stop receiving messages. Nothing was sent, and nothing may be.",
+  state_unavailable: "The receptionist couldn't read this thread, so it stayed quiet. No reply went out.",
+  stale: "This reached us hours after they sent it, too late to answer automatically. NOTHING was sent \u2014 they have been waiting since.",
+  budget: "The day's model budget is used up, so the receptionist paused itself. NOTHING was sent \u2014 answer them yourself, or raise the budget under Settings \u203A Autonomy.",
+  callback: "They phoned and the receptionist couldn't finish it.",
+  paused: "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings \u203A Billing, or answer this one yourself.",
+  carriers: "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup.",
+  email_review: "They wrote by email. The receptionist does not answer email yet, so nothing was sent. Read it and reply from here."
+};
+function reasonLabelOf(reason) {
+  return ESCALATION_REASON_LABELS[reason] ?? reason;
+}
+function reasonSummaryOf(reason) {
+  return ESCALATION_SUMMARIES[reason] ?? `${reasonLabelOf(reason)}. Needs a human.`;
+}
+
+// src/reports/report-closed.ts
+function closedOf(arrivals, profile) {
+  if (!arrivals || !profile || !hasHours(profile.hours)) return null;
+  return arrivals.reduce((s, a) => s + (openAt(profile.hours, profile.closures, a.d, a.q * 15) ? 0 : a.n), 0);
+}
+function hoursUnsetOf(arrivals, profile) {
+  return arrivals !== void 0 && profile != null && !hasHours(profile.hours);
+}
+
+// src/reports/reports.ts
+var REPORT_CHANNELS = [
+  { key: "whatsapp", label: "WhatsApp" },
+  { key: "voice", label: "Calls" },
+  { key: "email", label: "Email" },
+  { key: "sms", label: "Text" }
+];
+var REPORT_RANGES = [
+  { days: 7, id: "7d", label: "7 days" },
+  { days: 30, id: "30d", label: "30 days" },
+  { days: 90, id: "90d", label: "90 days" },
+  { days: null, id: "month", label: "Month" }
+];
+function dayDate(day) {
+  const [y, m, d] = day.split("-").map(Number);
+  return new Date(y, (m ?? 1) - 1, d ?? 1);
+}
+function fmtDay(day) {
+  return DATE_FMT.format(dayDate(day));
+}
+var daysWords = (from, to) => from === to ? fmtDay(to) : `${fmtDay(from)} \u2013 ${fmtDay(to)}`;
+var endedOn = (report) => report.end && report.end < report.today ? report.end : null;
+function dayPointOf(day) {
+  return { day, label: fmtDay(day), short: String(dayDate(day).getDate()) };
+}
+function quantile(sorted, q) {
+  if (!sorted.length) return null;
+  const pos = (sorted.length - 1) * q;
+  const lo = Math.floor(pos);
+  const hi = Math.ceil(pos);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
+}
+function bars(entries) {
+  const max = Math.max(1, ...entries.map((e) => e[2]));
+  return entries.map(([id, label, value]) => ({ id, label, value, share: value / max }));
+}
+function priorOf(n, previous, pick) {
+  return Array.from({ length: n }, (_, i) => {
+    const j = previous.length - n + i;
+    return j >= 0 ? pick(previous[j]) : null;
+  });
+}
+var REPORT_WEEK_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+var REPORT_WEEK_LONG = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+var weekdayOf = (day) => (dayDate(day).getDay() + 6) % 7;
+function weekOf(series) {
+  const total = [0, 0, 0, 0, 0, 0, 0];
+  const seen = [0, 0, 0, 0, 0, 0, 0];
+  for (const d of series) {
+    const w = weekdayOf(d.day);
+    total[w] += (d.messages_in || 0) + (d.calls || 0);
+    seen[w] += 1;
+  }
+  return total.map((t, w) => seen[w] ? Math.round(t / seen[w] * 10) / 10 : 0);
+}
+function onlyIndex(values, wins) {
+  if (!values.some((v) => v > 0)) return null;
+  let at3 = 0;
+  for (let i = 1; i < values.length; i++) if (wins(values[i], values[at3])) at3 = i;
+  return values.filter((v) => v === values[at3]).length === 1 ? at3 : null;
+}
+function reportHourWords(h) {
+  const x = (h % 24 + 24) % 24;
+  return x === 0 ? "12am" : x < 12 ? `${x}am` : x === 12 ? "12pm" : `${x - 12}pm`;
+}
+function hoursOf(grid, closed = null) {
+  if (!grid || !grid.length) return null;
+  const values = Array.from({ length: 24 }, (_, h) => grid.reduce((s, row2) => s + (Number(row2?.[h]) || 0), 0));
+  const total = values.reduce((a, b) => a + b, 0);
+  let peak = null;
+  if (total > 0) {
+    peak = 0;
+    for (let h = 1; h < 23; h++) if (values[h] + values[h + 1] > values[peak] + values[peak + 1]) peak = h;
+  }
+  return { values, peak, closed, labels: values.map((_, h) => reportHourWords(h)) };
+}
+function channelsOf(ch) {
+  if (!ch) return null;
+  return REPORT_CHANNELS.map(({ key, label }) => ({
+    key,
+    label,
+    value: Number(ch.current?.[key]) || 0,
+    prior: Number(ch.previous?.[key]) || 0
+  })).filter((c) => c.value > 0 || c.prior > 0);
+}
+function runningTotal(values) {
+  let t = 0;
+  return values.map((v) => t += v || 0);
+}
+function speedOf(replies, days) {
+  const byDay = /* @__PURE__ */ new Map();
+  for (const r2 of replies) {
+    if (!Number.isFinite(r2.s)) continue;
+    const xs = byDay.get(r2.day) ?? [];
+    xs.push(r2.s);
+    byDay.set(r2.day, xs);
+  }
+  const point = (chunk) => {
+    const s = chunk.flatMap((d) => byDay.get(d) ?? []).sort((a, b) => a - b);
+    const first = chunk[0];
+    const p50 = quantile(s, 0.5);
+    const p90 = quantile(s, 0.9);
+    return {
+      day: first,
+      label: fmtDay(first),
+      short: chunk.length > 1 ? fmtDay(first) : String(dayDate(first).getDate()),
+      p50,
+      p90,
+      p50Label: fmtSeconds(p50),
+      p90Label: fmtSeconds(p90),
+      count: s.length
+    };
+  };
+  if (days.length <= 14) return { unit: "day", points: days.map((d) => point([d])) };
+  const weeks = [];
+  for (let end = days.length; end > 0; end -= 7) weeks.unshift(days.slice(Math.max(0, end - 7), end));
+  if (weeks.length > 1 && weeks[0].length < 4) weeks.splice(0, 2, [...weeks[0], ...weeks[1]]);
+  return { unit: "week", points: weeks.map(point) };
+}
+var moodRank = (s) => s === "Positive" ? 0 : s === "Negative" ? 2 : 1;
+var listWords = (names3, last) => names3.length <= 1 ? names3.join("") : `${names3.slice(0, -1).join(", ")} ${last} ${names3[names3.length - 1]}`;
+function rhythmLine(week) {
+  if (!week.current.some((v) => v > 0)) return null;
+  const avg = week.unit === "average";
+  const name = (i) => avg ? `${week.long[i]}s` : week.long[i];
+  const idle = week.current.flatMap((v, i) => v === 0 ? [i] : []);
+  if (idle.length >= 4)
+    return `Only on ${listWords(
+      week.current.flatMap((v, i) => v > 0 ? [name(i)] : []),
+      "and"
+    )}.`;
+  if (idle.length) return `Nothing on ${listWords(idle.map(name), "or")}.`;
+  if (week.quietest === null) return null;
+  return avg ? `Quietest on ${name(week.quietest)}.` : `${week.long[week.quietest]} was the quietest day.`;
+}
+var rangeLabelOf = (days) => REPORT_RANGES.find((r2) => r2.days === days)?.label ?? plural(days, "day");
+var periodWords = (days, until) => {
+  const rangeLabel = rangeLabelOf(days);
+  const before = capitalize(beforeWords(rangeLabel));
+  if (until === null) return { now: `Last ${rangeLabel}`, before, within: `in the last ${rangeLabel}` };
+  return {
+    now: daysWords(shiftKey(until, -(days - 1)), until),
+    before,
+    within: days === 1 ? `on ${fmtDay(until)}` : `in the ${rangeLabel} to ${fmtDay(until)}`
+  };
+};
+var withinWords = (days, until) => days === 1 && until === null ? "today" : periodWords(days, until).within;
+function periodFactsOf(dto) {
+  const days = dto.days;
+  const series = dto.series ?? [];
+  const current = series.slice(-days);
+  const previous = series.slice(0, Math.max(0, series.length - days));
+  const points = current.map((d) => ({
+    ...dayPointOf(d.day),
+    in: d.messages_in,
+    ai: d.answered_ai,
+    you: d.answered_you,
+    none: d.unanswered,
+    calls: d.calls,
+    callSeconds: d.call_seconds,
+    escalations: d.escalations,
+    newPeople: d.new_contacts
+  }));
+  const tot = {
+    in: sumOf(current.map((d) => d.messages_in)),
+    ai: sumOf(current.map((d) => d.answered_ai)),
+    you: sumOf(current.map((d) => d.answered_you)),
+    none: sumOf(current.map((d) => d.unanswered)),
+    escalations: sumOf(current.map((d) => d.escalations)),
+    calls: sumOf(current.map((d) => d.calls)),
+    callSeconds: sumOf(current.map((d) => d.call_seconds)),
+    newPeople: sumOf(current.map((d) => d.new_contacts))
+  };
+  const prev = {
+    in: sumOf(previous.map((d) => d.messages_in)),
+    ai: sumOf(previous.map((d) => d.answered_ai)),
+    you: sumOf(previous.map((d) => d.answered_you)),
+    none: sumOf(previous.map((d) => d.unanswered)),
+    escalations: sumOf(previous.map((d) => d.escalations)),
+    calls: sumOf(previous.map((d) => d.calls)),
+    newPeople: sumOf(previous.map((d) => d.new_contacts))
+  };
+  const noun = plural(days, "day");
+  const until = endedOn(dto);
+  const answeredTotal = tot.ai + tot.you + tot.none;
+  const prevAnsweredTotal = prev.ai + prev.you + prev.none;
+  const sortedReply = [...dto.reply_seconds ?? []].filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
+  return {
+    dto,
+    days,
+    current,
+    previous,
+    points,
+    tot,
+    prev,
+    noun,
+    /** The day the period ended, where that was before today; null for one that ends today (endedOn). */
+    until,
+    rangeLabel: rangeLabelOf(days),
+    // A comparison needs a period before that was lived in: its zeros are a count only if someone reached the business.
+    priorHadAny: prev.in + prev.calls > 0,
+    /** Nobody wrote or called in the period: no customer message and no call. */
+    empty: tot.in === 0 && tot.calls === 0,
+    answeredTotal,
+    aiShare: pct(tot.ai, answeredTotal),
+    prevAnsweredTotal,
+    prevShare: pct(prev.ai, prevAnsweredTotal),
+    sortedReply,
+    median: quantile(sortedReply, 0.5),
+    p90: quantile(sortedReply, 0.9),
+    // The replies against their holds, said once for the tile, the bars, the hero and the line (holdOf).
+    hold: holdOf(dto.replies)
+  };
+}
+var reasonBarsOf = (reasons) => bars(
+  Object.entries(reasons ?? {}).sort((a, b) => b[1] - a[1]).map(([r2, n]) => [r2, capitalize(reasonShort(r2)) || r2, n])
+);
+var moodBarsOf = (sentiments) => bars(
+  Object.entries(sentiments ?? {}).sort((a, b) => moodRank(a[0]) - moodRank(b[0]) || b[1] - a[1]).map(([s, n]) => [s, s, n])
+);
+function weekShapeOf({ current, previous }) {
+  const weekNow = weekOf(current);
+  const weekBefore = weekOf(previous);
+  return {
+    axes: [...REPORT_WEEK_SHORT],
+    long: [...REPORT_WEEK_LONG],
+    current: weekNow,
+    prior: weekBefore.some((v) => v > 0) ? weekBefore : null,
+    busiest: onlyIndex(weekNow, (a, b) => a > b),
+    quietest: onlyIndex(weekNow, (a, b) => a < b),
+    unit: current.length > 7 ? "average" : "count"
+  };
+}
+function answeredOf(f) {
+  const { current, previous, points, tot, prev, answeredTotal, prevAnsweredTotal } = f;
+  return {
+    points,
+    totals: { in: tot.in, ai: tot.ai, you: tot.you, none: tot.none },
+    max: Math.max(1, ...points.map((p) => p.ai + p.you + p.none)),
+    prior: priorOf(current.length, previous, (d) => d.messages_in),
+    share: answeredTotal ? tot.ai / answeredTotal : null,
+    priorShare: prevAnsweredTotal ? prev.ai / prevAnsweredTotal : null
+  };
+}
+function replyTimeOf({ dto, sortedReply, median, p90, hold }) {
+  return {
+    count: sortedReply.length,
+    median,
+    p90,
+    medianLabel: fmtSeconds(median),
+    p90Label: fmtSeconds(p90),
+    buckets: bars(holdBuckets(dto.replies) ?? absoluteBuckets(sortedReply)),
+    hold,
+    dots: replyDotsOf(dto.replies)
+  };
+}
+function callsOf({ dto, current, previous, points, tot }, sentiments) {
+  return {
+    points,
+    total: tot.calls,
+    minutes: Math.round(tot.callSeconds / 60),
+    voicemail: dto.voicemail ?? 0,
+    sentiments,
+    max: Math.max(1, ...points.map((p) => p.calls)),
+    prior: priorOf(current.length, previous, (d) => d.calls)
+  };
+}
+function peopleOf({ current, previous, points, tot, prev }) {
+  const peopleBefore = priorOf(current.length, previous, (d) => d.new_contacts);
+  const peopleRun = runningTotal(points.map((p) => p.newPeople));
+  return {
+    points,
+    total: tot.newPeople,
+    max: Math.max(1, ...points.map((p) => p.newPeople)),
+    prior: peopleBefore,
+    cumulative: {
+      points: points.map((p, i) => ({ ...p, total: peopleRun[i] })),
+      prior: prev.newPeople > 0 ? runningTotal(peopleBefore) : null
+    }
+  };
+}
+function replyLine({ sortedReply, p90, hold }) {
+  if (hold) return holdLine(hold);
+  if (sortedReply.length >= 10) return `Nine in ten within ${fmtSeconds(p90)}.`;
+  return sortedReply.length ? `The slowest took ${fmtSeconds(sortedReply[sortedReply.length - 1])}.` : null;
+}
+function linesOf(f, week) {
+  const { points, tot, prev, rangeLabel, answeredTotal, prevAnsweredTotal } = f;
+  const busiestDay = tot.in ? points.reduce((b, p) => p.in > b.in ? p : b) : null;
+  return {
+    hero: answeredTotal ? `${tot.ai} of ${answeredTotal} customer messages, without you.${heroSpeed(f.sortedReply.length, fmtSeconds(f.median), f.hold)}` : "No customer wrote in this period.",
+    heroBefore: prevAnsweredTotal ? `${pct(prev.ai, prevAnsweredTotal)}% ${beforeWords(rangeLabel)}` : null,
+    receptionist: answeredTotal ? `${tot.ai} of ${answeredTotal} messages answered without you${receptionistSpeed(f.hold)}.` : null,
+    answered: busiestDay ? `Most messages on ${busiestDay.label}: ${busiestDay.in}.` : null,
+    reply: replyLine(f),
+    calls: tot.calls ? `About ${fmtSeconds(tot.callSeconds / tot.calls)} a call.` : null,
+    people: newPeopleLine(tot.newPeople, prev.newPeople, rangeLabel, f.priorHadAny),
+    rhythm: rhythmLine(week)
+  };
+}
+function headlineOf(dto, period, booking) {
+  const f = periodFactsOf(dto);
+  return {
+    period,
+    days: f.days,
+    empty: f.empty,
+    messages_in: f.tot.in,
+    // Nothing to compare with where the period before had no customer message and no call at all (compareWords).
+    messages_before: f.priorHadAny ? f.prev.in : null,
+    answered_ai: f.tot.ai,
+    answered_you: f.tot.you,
+    unanswered: f.tot.none,
+    answered_share: answeredOf(f).share,
+    calls: f.tot.calls,
+    booking
+  };
+}
+function toReportVM(dto, opts) {
+  const f = periodFactsOf(dto);
+  const tiles = REPORT_TILES.map((tile) => tile(f));
+  const reasons = reasonBarsOf(dto.reasons);
+  const sentiments = moodBarsOf(dto.sentiments);
+  const week = weekShapeOf(f);
+  const channels = channelsOf(dto.channels);
+  const first = f.current[0]?.day;
+  const last = f.current[f.current.length - 1]?.day;
+  return {
+    days: f.days,
+    rangeLabel: f.rangeLabel,
+    since: first ? fmtDay(first) : "",
+    until: last ? fmtDay(last) : "",
+    timezone: dto.timezone,
+    today: dto.today,
+    end: dto.end ?? dto.today,
+    live: f.until === null,
+    empty: f.empty,
+    tiles,
+    answered: answeredOf(f),
+    reasons,
+    replyTime: replyTimeOf(f),
+    calls: callsOf(f, sentiments),
+    people: peopleOf(f),
+    speed: dto.replies ? speedOf(
+      dto.replies,
+      f.current.map((d) => d.day)
+    ) : null,
+    week,
+    hours: hoursOf(dto.hours, closedOf(dto.arrivals, opts?.profile)),
+    hoursUnset: hoursUnsetOf(dto.arrivals, opts?.profile),
+    channels,
+    period: periodWords(f.days, f.until),
+    lines: linesOf(f, week),
+    table: {
+      columns: [
+        "Day",
+        "Customer messages",
+        "Answered by receptionist",
+        "Answered by you",
+        "Unanswered",
+        "Calls",
+        "Needed you",
+        "New people"
+      ],
+      rows: f.points.map((p) => [p.label, p.in, p.ai, p.you, p.none, p.calls, p.escalations, p.newPeople])
+    }
+  };
+}
+
+// src/reports/report-periods.ts
+var REPORT_PERIOD_IDS = REPORT_RANGES.map((r2) => r2.id);
+var REPORT_PERIOD_DEFAULT = "30d";
+var CAMPAIGNS_RESULTS_PERIOD = "30d";
+var REPORT_PERIOD_STORAGE = "chanlytics.report.period";
+var MOST_DAYS = Math.max(...REPORT_RANGES.map((r2) => r2.days ?? 0));
+var isReportPeriod = (value) => REPORT_RANGES.some((r2) => r2.id === value);
+function fixedDaysOf(period) {
+  return REPORT_RANGES.find((r2) => r2.id === period)?.days ?? null;
+}
+var monthDaysAt = (dayKey2) => Number(dayKey2.slice(8, 10));
+var periodSince = (today, days) => shiftKey(today, -(days - 1));
+function reportPeriodOf(asked) {
+  if (asked.period !== void 0) return isReportPeriod(asked.period) ? asked.period : null;
+  return REPORT_PERIOD_DEFAULT;
+}
+function reportDaysAsked(view) {
+  const asked = Number(view);
+  return Number.isInteger(asked) && asked >= 1 && asked <= MOST_DAYS ? asked : null;
+}
+var REPORT_MOST_DAYS = MOST_DAYS;
+var isRealDay = (value) => isDayKey(value) && shiftKey(value, 0) === value;
+var isReportDays = (value) => typeof value === "object" && value !== null && isRealDay(value.from) && isRealDay(value.to);
+var dayOrdinal = (day) => {
+  const { y, m, d } = keyParts(day);
+  return Math.round(Date.UTC(y, m - 1, d) / DAY_MS);
+};
+var reportDaysCount = (days) => dayOrdinal(days.to) - dayOrdinal(days.from) + 1;
+var reportRangeKey = (range) => typeof range === "string" ? range : `${range.from}~${range.to}`;
+function reportRangeOfKey(key) {
+  if (isReportPeriod(key)) return key;
+  const [from, to, more] = String(key ?? "").split("~");
+  return more === void 0 && isRealDay(from) && isRealDay(to) && from <= to ? { from, to } : null;
+}
+var sameReportRange = (a, b) => reportRangeKey(a) === reportRangeKey(b);
+function reportDaysRefusal(days, today) {
+  if (!isReportDays(days)) return "from and to are days, written YYYY-MM-DD.";
+  if (days.from > days.to) return "from is after to.";
+  if (days.to > today) return "A report ends today at the latest.";
+  if (reportDaysCount(days) > MOST_DAYS) return `A report covers ${MOST_DAYS} days at most.`;
+  return null;
+}
+function reportRangeAsked(asked) {
+  if (asked.from === void 0 && asked.to === void 0) return reportPeriodOf(asked);
+  if (asked.period !== void 0) return null;
+  return isRealDay(asked.from) && isRealDay(asked.to) ? { from: asked.from, to: asked.to } : null;
+}
+
+// src/reports/lenses.ts
+var NOTHING_CAME_IN = (r2) => ({
+  title: "Nothing came in",
+  body: `Nobody wrote or called between ${r2.since} and ${r2.until}.`,
+  door: null
+});
+var REPORT_LENSES = [
+  {
+    id: "overview",
+    label: "Overview",
+    sub: "how the period went, and what needs a look",
+    shownWhen: "always",
+    role: "viewer",
+    empty: NOTHING_CAME_IN
+  },
+  {
+    id: "receptionist",
+    label: "Receptionist",
+    sub: "who answered, how fast, and why it stopped",
+    shownWhen: "always",
+    role: "viewer",
+    empty: NOTHING_CAME_IN
+  },
+  {
+    id: "people",
+    label: "People",
+    sub: "who reached you, whether you can reach them, and who is slipping away",
+    shownWhen: "always",
+    role: "viewer",
+    empty: NOTHING_CAME_IN
+  },
+  {
+    id: "pipeline",
+    label: "Pipeline",
+    sub: "proposals, and what became of them",
+    shownWhen: "deals_on",
+    role: "viewer",
+    empty: () => ({
+      title: "No proposals to report",
+      body: "Proposals you send, and what became of them, show here. Where your customers book directly, there is nothing to report.",
+      door: { label: "Open Settings", to: "admin/workspace" }
+    })
+  },
+  {
+    id: "campaigns",
+    label: "Campaigns",
+    sub: "did your messages reach people, did they answer, and what is stuck",
+    shownWhen: "always",
+    role: "viewer",
+    empty: (r2) => ({
+      title: "Nothing went out",
+      body: `No broadcast or campaign run reached anyone between ${r2.since} and ${r2.until}, and nobody said yes or asked to stop.`,
+      door: { label: "Open Sent", to: "broadcasts" }
+    })
+  },
+  {
+    id: "ads",
+    label: "Ads",
+    sub: "what your ads cost, who they brought, and who booked",
+    shownWhen: "ads_on",
+    role: "viewer",
+    empty: (r2) => ({
+      title: "No ads in this period",
+      body: `Nothing was spent on ads, and nobody got in touch through one, between ${r2.since} and ${r2.until}.`,
+      door: { label: "Open Ads", to: ADS_ROUTE }
+    })
+  },
+  {
+    id: "reviews",
+    label: "Reviews",
+    sub: "what customers say on Google",
+    shownWhen: "always",
+    role: "viewer",
+    empty: () => ({
+      title: "Find your business on Google once.",
+      body: "Its rating, its count and its newest reviews show here for the period, with a line on Today and a row on the bell when one lands.",
+      door: { label: "Find it", to: "start/find" }
+    })
+  }
+];
+var lensRoute = (id, days = null, scope = null) => {
+  const narrowed = id === "ads" && scope !== null && scope.kind !== "all" ? adsScopeKey(scope) : null;
+  if (days === null && narrowed === null) return id === "overview" ? "reports" : `reports/${id}`;
+  const rest = [days === null ? null : reportRangeKey(days), narrowed].filter((w) => w !== null).join(":");
+  return id === "overview" ? `reports/${rest}` : `reports/${id}:${rest}`;
+};
+var adsReportRoute = (days, scope = ADS_SCOPE_ALL) => lensRoute("ads", days, scope);
+var LENS_ROUTES = REPORT_LENSES.map((l) => lensRoute(l.id));
+var isLensParam = (param) => REPORT_LENSES.some((l) => l.id === param && l.id !== "overview");
+var daysOfKey = (key) => {
+  const range = reportRangeOfKey(key);
+  return range !== null && typeof range !== "string" ? range : null;
+};
+function adsParts(rest) {
+  const at3 = rest.indexOf(":");
+  const days = daysOfKey(at3 < 0 ? rest : rest.slice(0, at3));
+  if (days && at3 < 0) return { days };
+  const words3 = days ? rest.slice(at3 + 1) : rest;
+  const scope = words3 === "all" ? null : adsScopeOfKey(words3);
+  return scope ? { days, scope } : null;
+}
+function reportsParamParts(param) {
+  if (param === "") return { lens: "overview", days: null };
+  const alone = daysOfKey(param);
+  if (alone) return { lens: "overview", days: alone };
+  const at3 = param.indexOf(":");
+  const word = at3 < 0 ? param : param.slice(0, at3);
+  if (!isLensParam(word)) return null;
+  if (at3 < 0) return { lens: word, days: null };
+  if (word === "ads") {
+    const ads = adsParts(param.slice(at3 + 1));
+    return ads ? { lens: word, ...ads } : null;
+  }
+  const days = daysOfKey(param.slice(at3 + 1));
+  return days ? { lens: word, days } : null;
+}
+function reportsRouteParts(route) {
+  if (route === "reports") return reportsParamParts("");
+  const param = route.startsWith("reports/") ? route.slice("reports/".length) : "";
+  return param === "" ? null : reportsParamParts(param);
+}
+function lensOfRoute(route) {
+  return reportsRouteParts(route)?.lens ?? null;
+}
+var shownTo = (l, who) => l.shownWhen === "always" || l.shownWhen === "deals_on" && dealsAreOn(who.sellsBy) || l.shownWhen === "ads_on" && who.adsOn;
+function lensesFor(who) {
+  return REPORT_LENSES.filter((l) => shownTo(l, who) && roleAtLeast(who.role ?? "viewer", l.role));
+}
+var lensIsShown = (id, who) => lensesFor(who).some((l) => l.id === id);
+function lensOf(id) {
+  const found = REPORT_LENSES.find((l) => l.id === id);
+  if (!found) throw new Error(`Reports has no lens ${id}`);
+  return found;
+}
+var lensEmpty = (id, range) => lensOf(id).empty(range);
+
+// src/ads/results/words-results.ts
+var RESULTS = {
+  /** The sheet: the quiet line it opens under, and its name. */
+  kicker: "Your ads \xB7 last 30 days",
+  title: "What your ads brought",
+  scope: { label: "Which ads", all: "All ads", platforms: "Where they run", ads: "One ad" },
+  /** The foot's door, and the empty lens's door. */
+  fullReport: "Full report",
+  openAds: "Open Ads",
+  /** Under the head: what the days cover, and when the numbers were read. */
+  pane: (o) => `${o.dates} \xB7 ${plural(o.days, "day")}${o.readAt ? ` \xB7 read ${o.readAt}` : ""}`,
+  /** What the head says the results are of: `your ads`, `your Google ads`, an ad's own name. */
+  of: { all: "your ads", platform: (platform) => `your ${platform} ads`, ad: (name) => name },
+  /** The head: the page's sentence, said of whatever the results are narrowed to. */
+  head: {
+    booked: (o) => ({
+      strong: `${o.booked} of ${o.touch}`,
+      rest: ` new people from ${o.of} have booked.`
+    }),
+    touchOnly: (o) => ({
+      strong: `${o.touch}`,
+      rest: ` new people got in touch through ${o.of}.`
+    }),
+    /** Only Google's calls stand here: its count, and not people. */
+    calls: (o) => ({
+      strong: `${o.calls}`,
+      rest: ` ${o.calls === 1 ? "call" : "calls"} from ${o.of}, Google's count. Calls aren't matched to people yet.`
+    }),
+    quiet: (o) => ({ strong: "", rest: `Nobody new has got in touch through ${o.of} yet.` })
+  },
+  /** By day: two small charts, what was spent and who it brought. */
+  days: {
+    title: "By day",
+    spent: "Spent",
+    spentTitle: "Spent a day",
+    peopleTitle: "New people a day",
+    booked: "Booked since",
+    waiting: "Not booked yet",
+    peopleLine: "Dark part: booked since. People only: calls are Google's count and are left out.",
+    spentAria: (o) => `${o.total} spent over ${plural(o.days, "day")}.`,
+    peopleAria: (o) => `${peopleWord(o.people)} got in touch over ${plural(o.days, "day")}; ${o.booked} ${o.booked === 1 ? "has" : "have"} booked.`,
+    /** A tooltip's line for a day still settling. */
+    settlingDay: "Still settling: a person can still book.",
+    /** `a` is the workspace's appointment word with its article: `an appointment`. */
+    settling: (days, a) => `The last ${days} days are still settling, so ${a} can still land on them.`,
+    callsNote: (n) => `${plural(n, "call")} Google counted aren't in the people chart: its count, not people.`,
+    severalCurrencies: "These ads are paid in more than one currency, so what was spent isn't drawn as one chart. Each total is in its own currency.",
+    columns: { day: "Day", spent: "Spent", people: "Got in touch", booked: "Booked", calls: "Calls (Google's count)" }
+  },
+  /** From first contact to booked: people only. */
+  funnel: {
+    title: "From got in touch to booked",
+    line: "People only. Calls are Google's count and aren't in it.",
+    touch: "Got in touch",
+    reply: "Got a reply",
+    booked: "Booked",
+    columns: ["Step", "People"],
+    /** The middle step is the receptionist's first reply, which is counted over the last 30 days. */
+    replyWindow: "Replies are counted for the last 30 days only.",
+    replyOf: "Your receptionist's first reply, to the people who wrote. A form leaves a number to call back instead."
+  },
+  /** What came of the appointments: the page's own rows, when they are of the same people. */
+  cameBack: {
+    /** `many` is the workspace's appointment word, plural. */
+    title: (many) => `What came of the ${many}`,
+    forAll: "Counted for all your ads together, so it isn't split by platform or by ad.",
+    forThirty: "Counted for the last 30 days, so it isn't shown for other days.",
+    columns: ["What came of it", "Count"]
+  },
+  /** The tables. */
+  byPlatform: { title: "By platform", line: "Each platform's own account, in its own currency." },
+  byDoor: {
+    title: "By what the ad asks",
+    line: "A chat, a call and a form are counted in their own ways, so these are not set side by side in bars."
+  },
+  byAd: { title: "By ad" },
+  heads: {
+    platform: "Platform",
+    door: "Ask",
+    ad: "Ad",
+    ads: "Ads",
+    spent: "Spent",
+    touch: "In touch",
+    booked: "Booked",
+    each: "Each",
+    state: "State"
+  },
+  /** The ads a row of the platform and door tables stands for. */
+  adsCount: (n) => plural(n, "ad"),
+  /** What the platforms say: one card each, never added together. */
+  theirs: {
+    title: "What the platforms say",
+    line: "Each platform counts in its own way, so these are never added together or set against Chanlytics' count.",
+    card: (owner) => `${owner}'s own numbers`,
+    read: (time) => `Read ${time}.`,
+    dash: "A dash is a number the platform didn't give.",
+    window: "The platforms' own numbers are read for the last 30 days only.",
+    ad: "Ad",
+    columns: {
+      meta: { seen: "Seen by", taps: "Taps", chats: "Chats started", leads: "Forms sent" },
+      google: { clicks: "Clicks", calls: "Calls", longCalls: "Over 60 seconds" },
+      tiktok: { seen: "Seen by", taps: "Taps", leads: "Forms sent" }
+    }
+  },
+  /** Where there is nothing to draw (days with nothing in them say it in the lens registry's words). */
+  empty: {
+    noAds: { title: "No ads yet", body: "When you turn an ad on, what it spent and who it brought show here." }
+  },
+  /** The Overview's one fact: what the ads brought over the same days, and the door to them. */
+  fact: {
+    brought: (n) => `Your ads brought ${n === 1 ? "1 new person" : `${n} new people`}`,
+    nobody: "Your ads haven't brought anyone new yet",
+    sub: (o) => o.booked === null ? `${o.spent} spent` : `${o.booked} ${o.booked === 1 ? "has" : "have"} booked \xB7 ${o.spent} spent`,
+    door: "Open Ads"
+  }
+};
+
+// src/ads/results/results.ts
+function adsOf(read, scope) {
+  if (scope.kind === "all") return read.ads;
+  if (scope.kind === "platform") return read.ads.filter((ad) => ad.platform === scope.platform);
+  const one = read.ads.find((ad) => ad.id === scope.id);
+  return one ? [one] : null;
+}
+function scopesOf(read) {
+  const choice = (scope, label) => ({
+    key: adsScopeKey(scope),
+    kind: scope.kind,
+    scope,
+    label
+  });
+  return [
+    choice(ADS_SCOPE_ALL, RESULTS.scope.all),
+    ...PLATFORMS.filter((p) => read.ads.some((ad) => ad.platform === p)).map(
+      (p) => choice({ kind: "platform", platform: p }, PLATFORM_WORD[p])
+    ),
+    ...read.ads.map((ad) => choice({ kind: "ad", id: ad.id }, ad.name))
+  ];
+}
+function ofWords(scope, ads) {
+  if (scope.kind === "all") return RESULTS.of.all;
+  return scope.kind === "platform" ? RESULTS.of.platform(PLATFORM_WORD[scope.platform]) : RESULTS.of.ad(ads[0]?.name ?? "");
+}
+function scopeWordOf(scope, ads) {
+  if (scope.kind === "all") return RESULTS.scope.all;
+  return scope.kind === "platform" ? PLATFORM_WORD[scope.platform] : ads[0]?.name ?? NO_AD.title;
+}
+var unitsOf = (minor) => minor / 100;
+function resultDaysOf(ads, o) {
+  const currencies = [...new Set(ads.map((ad) => ad.currency))];
+  const one = currencies.length === 1 ? currencies[0] ?? null : null;
+  const settleFrom = addDays(o.today, -ADS_SETTLE_DAYS);
+  const rows2 = [];
+  for (let day = o.from; day <= o.to; day = addDays(day, 1)) {
+    const mine = ads.flatMap(
+      (ad) => ad.days.filter((d) => d.day === day).map((d) => ({ ad, spendMinor: d.spendMinor, inTouch: d.inTouch, booked: d.booked }))
+    );
+    const people2 = mine.filter((r2) => counted(r2.ad));
+    const inTouch = sum(people2.map((r2) => r2.inTouch));
+    const booked = sum(people2.map((r2) => r2.booked));
+    rows2.push({
+      day,
+      label: dayWord(day),
+      short: String(Number(day.slice(8, 10))),
+      spent: one === null ? null : unitsOf(sum(mine.map((r2) => r2.spendMinor))),
+      spentWords: sumMoney(mine.map((r2) => ({ minor: r2.spendMinor, currency: r2.ad.currency }))),
+      inTouch,
+      booked,
+      waiting: Math.max(0, inTouch - booked),
+      calls: sum(mine.filter((r2) => !counted(r2.ad)).map((r2) => r2.inTouch)),
+      settling: day >= settleFrom
+    });
+  }
+  const calls = sum(rows2.map((r2) => r2.calls));
+  const settles = rows2.some((r2) => r2.settling);
+  const spent = sumMoney(
+    ads.flatMap(
+      (ad) => ad.days.filter((d) => d.day >= o.from && d.day <= o.to).map((d) => ({ minor: d.spendMinor, currency: ad.currency }))
+    )
+  );
+  const people = sum(rows2.map((r2) => r2.inTouch));
+  return {
+    rows: rows2,
+    currency: one,
+    spentAria: RESULTS.days.spentAria({ total: spent, days: rows2.length }),
+    peopleAria: RESULTS.days.peopleAria({ people, booked: sum(rows2.map((r2) => r2.booked)), days: rows2.length }),
+    notes: [
+      ...settles ? [RESULTS.days.settling(ADS_SETTLE_DAYS, o.a)] : [],
+      ...calls > 0 ? [RESULTS.days.callsNote(calls)] : [],
+      ...one === null ? [RESULTS.days.severalCurrencies] : []
+    ]
+  };
+}
+function funnelOf(o) {
+  const { scoped } = o;
+  const written = scoped.ads.filter((ad) => counted(ad) && ad.reply !== null);
+  const replied = sum(written.map((ad) => ad.reply?.n ?? 0));
+  const linked = scoped.calendar.linked;
+  const step2 = (id, label, n, why) => ({
+    id,
+    label,
+    n,
+    display: n === null ? DASH : String(n),
+    why
+  });
+  return [
+    step2("touch", RESULTS.funnel.touch, o.touch, null),
+    ...written.length === 0 ? [] : [
+      o.windowRead ? step2("reply", RESULTS.funnel.reply, replied, RESULTS.funnel.replyOf) : step2("reply", RESULTS.funnel.reply, null, RESULTS.funnel.replyWindow)
+    ],
+    linked ? step2("booked", RESULTS.funnel.booked, o.booked, null) : step2("booked", RESULTS.funnel.booked, null, FIGURES.needsLink)
+  ];
+}
+function cameBackOf2(o) {
+  const { read } = o;
+  const title = RESULTS.cameBack.title(appointmentWords(read.appointmentWord).many);
+  if (!read.calendar.linked) return { title, why: FIGURES.needsLink };
+  if (o.scope.kind !== "all") return { title, why: RESULTS.cameBack.forAll };
+  return o.windowRead ? { title, tile: tilesOf(read).cameBack } : { title, why: RESULTS.cameBack.forThirty };
+}
+var cell2 = (value, unit = null, why = null) => ({ value, unit, why });
+function unitOf(ads) {
+  const doors = new Set(ads.map((ad) => ad.door));
+  const only = doors.size === 1 ? [...doors][0] : void 0;
+  return only ? DOOR[only].unit : null;
+}
+function resultsRowOf(subset, scoped, id, label) {
+  const here = { ...scoped, ads: [...subset] };
+  const p = pageTotals(here);
+  const people = subset.filter(counted);
+  const calls = sum(subset.filter((ad) => !counted(ad)).map((ad) => totalsOf(ad, here).inTouch));
+  const base = { id, label, ads: subset.length, spent: sumMoney(p.spent) };
+  if (!subset.some(started)) {
+    const none = cell2(DASH, null, LEDGER.notStarted);
+    return { ...base, inTouch: none, booked: none, each: none };
+  }
+  const inTouch = people.length === 0 ? cell2(String(calls), DOOR.call.unit) : cell2(String(p.touch), unitOf(people));
+  if (people.length === 0) {
+    return {
+      ...base,
+      inTouch,
+      booked: cell2(DASH, LEDGER.notMatched, FIGURES.callsNotMatched),
+      each: cell2(DASH, null, FIGURES.callsNotMatched)
+    };
+  }
+  if (!scoped.calendar.linked) {
+    const why = FIGURES.needsLink;
+    return { ...base, inTouch, booked: cell2(DASH, null, why), each: cell2(DASH, null, why) };
+  }
+  const each = p.each === null ? cell2(DASH, p.booked === 0 ? LEDGER.noneYet : LEDGER.only(p.booked), LEDGER.tooFew) : cell2(moneyOf(p.each.minor, p.each.currency));
+  return { ...base, inTouch, booked: cell2(String(p.booked)), each };
+}
+var byPlatformOf = (ads, scoped) => PLATFORMS.flatMap((p) => {
+  const mine = ads.filter((ad) => ad.platform === p);
+  return mine.length === 0 ? [] : [resultsRowOf(mine, scoped, p, PLATFORM_WORD[p])];
+});
+var byDoorOf = (ads, scoped) => DOOR_ORDER.flatMap((d) => {
+  const mine = ads.filter((ad) => ad.door === d);
+  return mine.length === 0 ? [] : [resultsRowOf(mine, scoped, d, DOOR[d].label)];
+});
+var resultsGrouped = (n) => n === null ? DASH : n.toLocaleString("en-US");
+function theirsCells(t) {
+  if (t.platform === "meta")
+    return [resultsGrouped(t.reach), resultsGrouped(t.taps), resultsGrouped(t.chats), resultsGrouped(t.leads)];
+  if (t.platform === "google") return [resultsGrouped(t.clicks), resultsGrouped(t.calls), resultsGrouped(t.longCalls)];
+  return [resultsGrouped(t.reach), resultsGrouped(t.clicks), resultsGrouped(t.leads)];
+}
+var theirsColumns = (platform) => Object.values(RESULTS.theirs.columns[platform]);
+function resultsTheirsOf(ads, read) {
+  return PLATFORMS.flatMap((platform) => {
+    const mine = ads.filter((ad) => ad.platform === platform && started(ad));
+    if (mine.length === 0) return [];
+    const acct = adAccountOf(read, platform);
+    return [
+      {
+        platform,
+        title: RESULTS.theirs.card(PLATFORM_OWNER[platform]),
+        columns: theirsColumns(platform),
+        rows: mine.map((ad) => ({ id: ad.id, name: ad.name, cells: theirsCells(ad.theirs) })),
+        read: acct?.readAt ? RESULTS.theirs.read(timeOf(acct.readAt, acct.timezone)) : null
+      }
+    ];
+  });
+}
+function resultsHeadOf(o) {
+  if (o.peopleAds === 0 && o.calls > 0) return RESULTS.head.calls({ calls: o.calls, of: o.of });
+  if (o.touch === 0) return RESULTS.head.quiet({ of: o.of });
+  return o.linked ? RESULTS.head.booked({ booked: o.booked, touch: o.touch, of: o.of }) : RESULTS.head.touchOnly({ touch: o.touch, of: o.of });
+}
+var RESULTS_NOTHING = {
+  days: null,
+  funnel: null,
+  cameBack: null,
+  byPlatform: [],
+  byDoor: [],
+  byAd: [],
+  figures: [],
+  quiet: null
+};
+function resultsWindowOf(read, at3) {
+  const to = at3.to < read.today ? at3.to : addDays(read.today, -1);
+  return { from: at3.from, to, days: Math.max(0, daysBetween(at3.from, to) + 1) };
+}
+function emptyOf(o) {
+  if (o.read.ads.length === 0) return RESULTS.empty.noAds;
+  if (o.ads === null) return { title: NO_AD.title, body: NO_AD.body };
+  if (!o.quiet && o.window.days > 0) return null;
+  const words3 = lensEmpty("ads", { since: dayShort(o.window.from), until: dayShort(o.window.to) });
+  return { title: words3.title, body: words3.body };
+}
+function adsResultsOf(read, config2, at3) {
+  const window = resultsWindowOf(read, at3);
+  const ads = adsOf(read, at3.scope);
+  const scoped = {
+    ...read,
+    ads: ads ?? [],
+    people: read.people.filter((p2) => ads?.some((ad) => ad.id === p2.adId)),
+    window: { from: window.from, to: window.to }
+  };
+  const p = pageTotals(scoped);
+  const people = scoped.ads.filter(counted);
+  const calls = sum(scoped.ads.filter((ad) => !counted(ad)).map((ad) => totalsOf(ad, scoped).inTouch));
+  const linked = read.calendar.linked;
+  const quiet = p.touch === 0 && calls === 0 && sum(p.spent.map((m) => m.minor)) === 0;
+  const windowRead = window.from === read.window.from && window.to === read.window.to;
+  const unread2 = windowRead ? null : RESULTS.theirs.window;
+  const base = {
+    scope: at3.scope,
+    scopeKey: adsScopeKey(at3.scope),
+    scopeWord: scopeWordOf(at3.scope, ads ?? []),
+    scopes: scopesOf(read),
+    window,
+    pane: RESULTS.pane({
+      dates: `${dayShort(window.from)} \u2013 ${dayShort(window.to)}`,
+      days: window.days,
+      readAt: readTime(read)
+    }),
+    totals: {
+      spent: sumMoney(p.spent),
+      spentAny: p.spent.some((m) => m.minor > 0),
+      touch: p.touch,
+      booked: linked ? p.booked : null,
+      calls
+    }
+  };
+  const empty = emptyOf({ read, ads, window, quiet });
+  if (empty) return { ...base, ...RESULTS_NOTHING, empty, head: null, theirs: { cards: [], why: null } };
+  const model = adsModel(scoped, config2);
+  return {
+    ...base,
+    empty: null,
+    head: resultsHeadOf({
+      of: ofWords(at3.scope, scoped.ads),
+      touch: p.touch,
+      booked: p.booked,
+      calls,
+      peopleAds: people.length,
+      linked
+    }),
+    figures: model.figures,
+    quiet: model.counted?.quiet ?? null,
+    days: resultDaysOf(scoped.ads, {
+      from: window.from,
+      to: window.to,
+      today: read.today,
+      a: appointmentWords(read.appointmentWord).a
+    }),
+    funnel: p.touch === 0 ? null : funnelOf({ scoped, touch: p.touch, booked: p.booked, windowRead }),
+    cameBack: cameBackOf2({ read, scope: at3.scope, windowRead }),
+    byPlatform: byPlatformOf(scoped.ads, scoped),
+    byDoor: byDoorOf(scoped.ads, scoped),
+    byAd: model.groups.flatMap((g) => g.rows),
+    theirs: { cards: windowRead ? resultsTheirsOf(scoped.ads, read) : [], why: unread2 }
+  };
+}
+function adsFactOf(vm) {
+  const t = vm.totals;
+  if (vm.empty !== null || t.touch === 0 && !t.spentAny) return null;
+  return {
+    text: t.touch === 0 ? RESULTS.fact.nobody : RESULTS.fact.brought(t.touch),
+    sub: RESULTS.fact.sub({ booked: t.touch === 0 ? null : t.booked, spent: t.spent })
+  };
+}
+
 // src/ai/models.ts
 var MODELS = {
   OPUS_5_5: "claude-opus-5-5",
@@ -176,183 +6554,10 @@ function promptSafeName(name) {
   return flat.length > PROFILE_NAME_MAX ? `${flat.slice(0, PROFILE_NAME_MAX - 1).trimEnd()}\u2026` : flat;
 }
 
-// src/shared/time.ts
-var MIN_MS = 6e4;
-var HOUR_MS = 36e5;
-var DAY_MS = 864e5;
-var WEEK_MS = 7 * DAY_MS;
-var JITTER_SPREAD = 0.2;
-function jittered(ms2, random = Math.random) {
-  return Math.round(ms2 * (1 + JITTER_SPREAD * Math.min(1, Math.max(0, random()))));
-}
-function formatterOnUse(locales, options) {
-  let built = null;
-  return { format: (date) => (built ??= new Intl.DateTimeFormat(locales, options)).format(date) };
-}
-var FORMATS_KEPT = 256;
-var DATE_FORMATS = /* @__PURE__ */ new Map();
-var NUMBER_FORMATS = /* @__PURE__ */ new Map();
-function formatterKept(cache, key, make) {
-  const hit = cache.get(key);
-  if (hit) return hit;
-  const made = make();
-  if (cache.size >= FORMATS_KEPT) cache.clear();
-  cache.set(key, made);
-  return made;
-}
-function dateFormat(locales, options) {
-  return formatterKept(
-    DATE_FORMATS,
-    `${locales}|${JSON.stringify(options)}`,
-    () => new Intl.DateTimeFormat(locales, options)
-  );
-}
-function numberFormat(locales, options) {
-  return formatterKept(
-    NUMBER_FORMATS,
-    `${locales}|${JSON.stringify(options)}`,
-    () => new Intl.NumberFormat(locales, options)
-  );
-}
-var DATE_FMT = formatterOnUse([], { month: "short", day: "numeric" });
-function isoMs(iso) {
-  if (!iso) return null;
-  const ms2 = Date.parse(iso);
-  return Number.isNaN(ms2) ? null : ms2;
-}
-function spanUnits(ms2) {
-  const gap = Math.max(0, ms2);
-  if (gap < MIN_MS) return { n: Math.round(gap / 1e3), unit: "s" };
-  const minutes = Math.round(gap / MIN_MS);
-  if (minutes < 60) return { n: minutes, unit: "m" };
-  const hours = Math.round(gap / HOUR_MS);
-  if (hours < 24) return { n: hours, unit: "h" };
-  return { n: Math.round(gap / DAY_MS), unit: "d" };
-}
-function spanLabel(ms2) {
-  const u = spanUnits(ms2);
-  return u.unit === "s" ? "now" : `${u.n}${u.unit}`;
-}
-function waitedLabel(ms2) {
-  const u = spanUnits(ms2);
-  return u.unit === "s" ? "1m" : `${u.n}${u.unit}`;
-}
-function agoShort(atMs, nowMs) {
-  return spanLabel(nowMs - atMs);
-}
-function agoWords(atMs, nowMs, opts = {}) {
-  const gap = Math.max(0, nowMs - atMs);
-  const dateAfter = opts.dateAfterMs ?? WEEK_MS;
-  if (gap >= dateAfter && opts.date) return opts.date(atMs);
-  const u = spanUnits(gap);
-  return u.unit === "s" ? "just now" : `${u.n}${u.unit} ago`;
-}
-function timezoneCity(tz) {
-  const tail = tz.split("/").pop() || tz;
-  return tail.replace(/_/g, " ");
-}
-
 // src/playbooks/playbook-time.ts
 var SWEEP_TICK_MS = 5 * MIN_MS;
 function sweepTickAtOrAfter(ms2) {
   return Math.ceil((ms2 - SWEEP_TICK_MS) / HOUR_MS) * HOUR_MS + SWEEP_TICK_MS;
-}
-
-// src/deals/sells-by.ts
-var SELLS_BY = ["booking", "proposal"];
-var SELLS_BY_QUESTION = "How customers buy";
-var SELLS_BY_WORDS = {
-  booking: { label: "They book an appointment", sentence: "Bookings and reminders." },
-  proposal: { label: "Some get a proposal first", sentence: "Adds proposals, a Pipeline and Deals in Reports." }
-};
-function isSellsBy(s) {
-  return typeof s === "string" && SELLS_BY.includes(s);
-}
-var SELLS_BY_REFUSAL = "How customers buy: they book an appointment, or some get a proposal first.";
-function dealsAreOn(sellsBy) {
-  return sellsBy === "proposal";
-}
-function bookingLinkOptional(sellsBy) {
-  return dealsAreOn(sellsBy);
-}
-var BOOKING_LINK_NEEDED = "The receptionist needs a booking link to send anyone who wants to book.";
-var SELLS_BY_FIRST = "booking";
-var CONSULT_FIRST_DEAL_HINT = "A consultation for these is the first step of a deal.";
-function sellsByVM(answer) {
-  const said = isSellsBy(answer) ? answer : null;
-  const on = dealsAreOn(said);
-  const verb = said ? "Change" : "Choose";
-  return {
-    question: SELLS_BY_QUESTION,
-    value: said ? SELLS_BY_WORDS[said].label : null,
-    empty: "Not said yet",
-    act: said ? "Change" : "Choose one",
-    name: `${verb} ${SELLS_BY_QUESTION.toLowerCase()}`,
-    choices: SELLS_BY.map((a) => ({ value: a, label: SELLS_BY_WORDS[a].label, hint: SELLS_BY_WORDS[a].sentence })),
-    refusal: SELLS_BY_REFUSAL,
-    first: said ?? SELLS_BY_FIRST,
-    dealsOn: on,
-    consultHint: on ? CONSULT_FIRST_DEAL_HINT : null
-  };
-}
-function sellsBySaved(was, now) {
-  if (dealsAreOn(now)) return "Saved \u2014 deals are on.";
-  return dealsAreOn(was) ? "Saved \u2014 deals are off. Any already recorded are kept." : "Saved \u2014 customers book an appointment.";
-}
-
-// src/shared/words.ts
-var plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-var capitalize = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
-var joinWords = (items) => items.length <= 1 ? items[0] ?? "" : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
-
-// src/journey/appointment-word.ts
-var APPOINTMENT_WORDS = ["appointment", "visit", "meeting", "session", "lesson"];
-function isAppointmentWord(value) {
-  return typeof value === "string" && APPOINTMENT_WORDS.includes(value);
-}
-function appointmentWordOf(o) {
-  if (isAppointmentWord(o.stored)) return o.stored;
-  return dealsAreOn(o.sellsBy) ? "meeting" : "appointment";
-}
-var FORMS = {
-  appointment: {
-    a: "an appointment",
-    has: "has an appointment",
-    have: "have an appointment",
-    had: "had an appointment"
-  },
-  visit: { a: "a visit", has: "visits", have: "visit", had: "visited" },
-  // trade-word: the word's own forms, said once
-  meeting: { a: "a meeting", has: "has a meeting", have: "have a meeting", had: "had a meeting" },
-  session: { a: "a session", has: "has a session", have: "have a session", had: "had a session" },
-  lesson: { a: "a lesson", has: "has a lesson", have: "have a lesson", had: "had a lesson" }
-};
-function appointmentWords(word) {
-  const f = FORMS[word];
-  const Title = capitalize(word);
-  const many = `${word}s`;
-  const people = (n) => plural(n, "person", "people");
-  return {
-    word,
-    one: word,
-    many,
-    a: f.a,
-    Title,
-    before: { caps: `${Title} tomorrow`, name: `${Title} reminder`, hint: `The day before ${f.a} on the calendar` },
-    after: { caps: `After the ${word}`, hint: `The day after ${f.a}, when nothing is booked next` },
-    lapsedHint: `No ${word} in 45 days, and nothing booked`,
-    tomorrowWho: `everyone with ${f.a} tomorrow`,
-    yesterdayWho: `everyone who ${f.had} yesterday`,
-    withTomorrow: `with ${f.a} tomorrow`,
-    whoYesterday: `who ${f.had} yesterday`,
-    eachTomorrow: `each has ${f.a} tomorrow on the calendar`,
-    eachYesterday: `each ${f.had} yesterday and has nothing booked next`,
-    offTomorrow: (n) => `Off \xB7 ${people(n)} ${n === 1 ? f.has : f.have} tomorrow`,
-    offYesterday: (n) => `Off \xB7 ${people(n)} ${f.had} yesterday`,
-    startsWith: `${f.a} tomorrow, ${f.a} yesterday`,
-    byMany: `by ${many}`,
-    needsCalendar: `${capitalize(many)} are read from your calendar, and none is connected. Connect one under Settings \u203A Business.`
-  };
 }
 
 // src/playbooks/playbook-triggers.ts
@@ -859,210 +7064,6 @@ function purposeOfPlaybook(policyClass) {
   return policyClass === "booking" || policyClass === "follow_up" ? "conversational" : "marketing";
 }
 
-// src/config/workspace-config/config-rules.ts
-var DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-var DAY_NAMES = {
-  mon: "Monday",
-  tue: "Tuesday",
-  wed: "Wednesday",
-  thu: "Thursday",
-  fri: "Friday",
-  sat: "Saturday",
-  sun: "Sunday"
-};
-var DAY_NAME = DAY_NAMES;
-function isRealDate(key) {
-  const at3 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
-  return !Number.isNaN(at3.getTime()) && at3.toISOString().slice(0, 10) === key;
-}
-var MAX_INTERVALS_PER_DAY = 4;
-var MAX_CLOSURES = 60;
-function dayProblems(h, day) {
-  const name = DAY_NAME[day] ?? day;
-  const out = [];
-  const open = h.open ?? void 0;
-  const close = h.close ?? void 0;
-  if (!!open !== !!close) {
-    out.push({
-      path: [open ? "close" : "open"],
-      message: `${name} needs both an opening and a closing time, or neither.`
-    });
-  }
-  if (open && close && close <= open) {
-    out.push({ path: ["close"], message: `${name} closes at or before it opens.` });
-  }
-  const iv = h.intervals ?? [];
-  if (iv.length > MAX_INTERVALS_PER_DAY) {
-    out.push({ path: ["intervals"], message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.` });
-  }
-  iv.forEach((x, n) => {
-    if (x.close <= x.open) {
-      out.push({ path: ["intervals", n, "close"], message: `${name}: a shift has to close after it opens.` });
-    }
-  });
-  const sorted = [...iv].sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
-  for (let n = 1; n < sorted.length; n++) {
-    if (sorted[n].open < sorted[n - 1].close) {
-      out.push({ path: ["intervals", n, "open"], message: `${name}: two shifts overlap.` });
-    }
-  }
-  return out;
-}
-var E164 = /^\+[1-9]\d{6,14}$/;
-var isE164 = (s) => typeof s === "string" && E164.test(s);
-var INSTRUCTIONS_MAX = 2e4;
-var BOOKING_LINK_MAX = 500;
-var PROFILE_LIMITS = {
-  tone: 200,
-  services: 60,
-  serviceName: 80,
-  serviceMinutes: 1440,
-  servicePrice: 120,
-  languages: 8,
-  languageMin: 2,
-  languageMax: 40,
-  reasons: 20,
-  reason: 200,
-  consultFirst: 20,
-  consultFirstLine: 80,
-  ruleNotes: 10,
-  ruleNote: 200,
-  notes: 10,
-  noteTitle: 80,
-  noteText: 1200,
-  closureNote: 200,
-  closures: MAX_CLOSURES,
-  shifts: MAX_INTERVALS_PER_DAY,
-  instructions: INSTRUCTIONS_MAX,
-  message: 2e3
-};
-var BOOKING_RULE_BOUNDS = {
-  /** Least notice for a slot, in hours. */
-  lead_hours: { min: 0, max: 168 },
-  /** The shortest window worth naming, in minutes. */
-  slot_min: { min: 15, max: 240 },
-  /** Gap kept around each existing appointment, in minutes. */
-  buffer_min: { min: 0, max: 120 },
-  /** How far ahead open times are offered, in days. */
-  max_days_ahead: { min: 1, max: 90 },
-  party_max: { min: 1, max: 20 }
-};
-var GUARDRAIL_KEYS = [
-  "never_quote_prices",
-  "never_confirm_booking",
-  "disclose_ai",
-  "no_health_advice"
-];
-function guardrailsInForce(g) {
-  return {
-    never_quote_prices: g?.never_quote_prices !== false,
-    never_confirm_booking: g?.never_confirm_booking !== false,
-    disclose_ai: g?.disclose_ai !== false,
-    no_health_advice: g?.no_health_advice === true
-  };
-}
-
-// src/calendar/zone-math.ts
-function zoneParts(tz, at3) {
-  const parts2 = dateFormat("en-US", {
-    timeZone: tz,
-    hourCycle: "h23",
-    weekday: "short",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit"
-  }).formatToParts(at3);
-  const get = (t) => parts2.find((p) => p.type === t)?.value ?? "";
-  return {
-    y: Number(get("year")),
-    m: Number(get("month")),
-    d: Number(get("day")),
-    hh: Number(get("hour")) % 24,
-    mm: Number(get("minute")),
-    ss: Number(get("second")),
-    weekday: get("weekday").toLowerCase().slice(0, 3)
-  };
-}
-function zoneOffsetMs(tz, atMs) {
-  const p = zoneParts(tz, new Date(atMs));
-  return Date.UTC(p.y, p.m - 1, p.d, p.hh, p.mm, p.ss) - Math.floor(atMs / 1e3) * 1e3;
-}
-function localToUtcMs(tz, y, m, d, hh, mm) {
-  const guess = Date.UTC(y, m - 1, d, hh, mm);
-  const first = guess - zoneOffsetMs(tz, guess);
-  const second = guess - zoneOffsetMs(tz, first);
-  return second;
-}
-function clockInZone(tz, atMs) {
-  const p = zoneParts(tz, new Date(atMs));
-  return { hh: p.hh, mm: p.mm, ss: p.ss };
-}
-function dayInZone(tz, atMs) {
-  const p = zoneParts(tz, new Date(atMs));
-  const pad = (n) => String(n).padStart(2, "0");
-  return { key: `${p.y}-${pad(p.m)}-${pad(p.d)}`, weekday: p.weekday, y: p.y, m: p.m, d: p.d };
-}
-var dayNumber = (y, m, d) => Math.floor(Date.UTC(y, m - 1, d) / 864e5);
-var WEEKDAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
-function dayPlusInZone(tz, atMs, days) {
-  const from = dayInZone(tz, atMs);
-  if (days === 0) return from;
-  const at3 = new Date((dayNumber(from.y, from.m, from.d) + days) * 864e5);
-  const pad = (n) => String(n).padStart(2, "0");
-  const y = at3.getUTCFullYear(), m = at3.getUTCMonth() + 1, d = at3.getUTCDate();
-  return { key: `${y}-${pad(m)}-${pad(d)}`, weekday: WEEKDAY_KEYS[at3.getUTCDay()], y, m, d };
-}
-
-// src/calendar/day-keys.ts
-var DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-var DAY_SHORT = {
-  mon: "Mon",
-  tue: "Tue",
-  wed: "Wed",
-  thu: "Thu",
-  fri: "Fri",
-  sat: "Sat",
-  sun: "Sun"
-};
-function keyParts(key) {
-  const [y, m, d] = key.split("-").map(Number);
-  return { y, m: m ?? 1, d: d ?? 1 };
-}
-function shiftKey(key, n) {
-  const { y, m, d } = keyParts(key);
-  const at3 = new Date(Date.UTC(y, m - 1, d + n));
-  return `${at3.getUTCFullYear()}-${String(at3.getUTCMonth() + 1).padStart(2, "0")}-${String(at3.getUTCDate()).padStart(2, "0")}`;
-}
-function mondayOf(key) {
-  const { y, m, d } = keyParts(key);
-  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
-  return shiftKey(key, -((dow + 6) % 7));
-}
-function isDayKey(s) {
-  return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`));
-}
-function monthSpan(key) {
-  return { from: mondayOf(`${key.slice(0, 7)}-01`), days: 42 };
-}
-function shiftMonth(key, n) {
-  const { y, m } = keyParts(key);
-  const at3 = new Date(Date.UTC(y, m - 1 + n, 1));
-  return `${at3.getUTCFullYear()}-${String(at3.getUTCMonth() + 1).padStart(2, "0")}-01`;
-}
-function monthLabelOf(key) {
-  const { y, m } = keyParts(key);
-  return dateFormat("en-US", { timeZone: "UTC", month: "long", year: "numeric" }).format(
-    new Date(Date.UTC(y, m - 1, 1, 12))
-  );
-}
-function zoneMidnight(tz, key) {
-  const { y, m, d } = keyParts(key);
-  return localToUtcMs(tz, y, m, d, 0, 0);
-}
-
 // src/conversations/message-media.ts
 var MEDIA_LABEL = {
   image: "Photo",
@@ -1524,127 +7525,6 @@ function isFreeMail(host) {
   return !!host && FREE_MAIL_DOMAINS.has(host.trim().toLowerCase());
 }
 
-// src/shared/email-address.ts
-var MAX_ADDRESS = 254;
-var MAX_LOCAL = 64;
-var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
-var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
-var SHAPE = new RegExp(`^(${LOCAL})@(${LABEL}(?:\\.${LABEL})+)$`);
-function normalizeEmail(raw) {
-  if (raw == null) return null;
-  const s = String(raw).trim().toLowerCase();
-  if (!s || s.length > MAX_ADDRESS) return null;
-  const m = SHAPE.exec(s);
-  if (!m || m[1].length > MAX_LOCAL) return null;
-  return s;
-}
-function whyNotAnEmail(raw) {
-  if (normalizeEmail(raw)) return null;
-  const s = String(raw ?? "").trim();
-  if (!s) return "An email address is needed.";
-  if (/[<>]/.test(s) || /\s/.test(s))
-    return "Only the address itself, like name@example.com, with no name or spaces around it.";
-  const at3 = s.split("@").length - 1;
-  if (at3 === 0) return "That is missing the @.";
-  if (at3 > 1) return "An address has one @.";
-  if (!/@[^@]*\./.test(s)) return "That needs a full domain after the @, like name@example.com.";
-  return "That is not an email address anyone can be reached at.";
-}
-var OWN_ADDRESS_WORDS = /\b(my|mine|it'?s|is|email|e-mail|mail|correo|mi|es|sure|here|aqu[ií])\b/i;
-function addressInMessage(body) {
-  const s = String(body ?? "").trim();
-  if (!s || s.length > 160) return null;
-  const tokens = s.split(/\s+/);
-  const found = /* @__PURE__ */ new Set();
-  for (const raw of tokens) {
-    const t = raw.replace(/^[("'<[]+|[)"'>\].,;:!?]+$/g, "");
-    if (!t.includes("@")) continue;
-    const e = normalizeEmail(t);
-    if (!e) return null;
-    found.add(e);
-  }
-  if (found.size !== 1) return null;
-  const alone = tokens.length === 1;
-  const theirs = tokens.length <= 8 && OWN_ADDRESS_WORDS.test(s);
-  return alone || theirs ? [...found][0] : null;
-}
-
-// src/shared/phone.ts
-function normalizePhone(raw) {
-  if (raw == null) return null;
-  const typed = String(raw).trim();
-  const digits2 = typed.replace(/[^\d]/g, "");
-  if (!digits2) return null;
-  if (!typed.startsWith("+") && digits2.length === 10) return `+1${digits2}`;
-  if (digits2.length >= 8 && digits2.length <= 15) return `+${digits2}`;
-  return null;
-}
-function samePhone(a, b) {
-  const x = normalizePhone(a);
-  const y = normalizePhone(b);
-  return !!x && !!y && x === y;
-}
-function shortCode(raw) {
-  const digits2 = String(raw ?? "").replace(/[^\d]/g, "");
-  return digits2.length >= 3 && digits2.length <= 6;
-}
-function phoneDialable(raw) {
-  const e164 = normalizePhone(raw);
-  if (!e164) return false;
-  if (!e164.startsWith("+1")) return true;
-  const d = e164.slice(2);
-  if (d.length !== 10) return false;
-  const [area, exchange] = [d.slice(0, 3), d.slice(3, 6)];
-  const n11 = (x) => x[1] === "1" && x[2] === "1";
-  return /^[2-9]/.test(area) && /^[2-9]/.test(exchange) && !n11(area) && !n11(exchange);
-}
-function whyNotAPhone(raw) {
-  if (normalizePhone(raw)) return null;
-  const digits2 = String(raw ?? "").replace(/[^\d]/g, "");
-  if (!digits2) return "A phone number is needed to add a person.";
-  if (shortCode(digits2)) {
-    return "That is a short code, not a phone number \u2014 nobody can be reached on one.";
-  }
-  if (digits2.length === 7) return "That looks like a local number. Add the area code.";
-  return "That is not a phone number anyone can be reached on.";
-}
-function whyNotAHandoff(raw, ownLine, keptLine) {
-  const typed = String(raw ?? "").trim();
-  if (!typed) return null;
-  const norm2 = "+" + typed.replace(/[^0-9]/g, "");
-  if (!(/^\+/.test(typed) && /^\+[1-9][0-9]{6,14}$/.test(norm2))) {
-    return "The transfer number needs the country code, like +1 212 555 0143.";
-  }
-  if (samePhone(norm2, ownLine)) {
-    return "That is the receptionist's own line \u2014 it would ring itself. Use a line a person answers.";
-  }
-  if (samePhone(norm2, keptLine)) return HANDOFF_FORWARDS_BACK;
-  return null;
-}
-var HANDOFF_FORWARDS_BACK = "That number sends the calls nobody picks up to your receptionist, so a caller put through to it would come straight back. Use a mobile or another line a person answers.";
-var FORWARD_IS_HANDOFF = "Your receptionist puts callers through to this number. Change the transfer number in Settings \u203A Business first \u2014 once this number forwards to the receptionist, a caller put through to it would come straight back.";
-function whyNotForward(number2, handoff) {
-  return samePhone(number2, handoff) ? FORWARD_IS_HANDOFF : null;
-}
-function handoffE164(raw) {
-  const typed = String(raw ?? "").trim();
-  if (!typed) return null;
-  return "+" + typed.replace(/[^0-9]/g, "");
-}
-function phoneTail(raw) {
-  const digits2 = (raw ?? "").replace(/\D/g, "");
-  return digits2 ? digits2.slice(-4) : null;
-}
-function formatPhoneDisplay(e164) {
-  if (!e164) return null;
-  const digits2 = String(e164).replace(/[^\d]/g, "");
-  if (digits2.length === 11 && digits2.startsWith("1")) {
-    return `+1 (${digits2.slice(1, 4)}) ${digits2.slice(4, 7)}-${digits2.slice(7)}`;
-  }
-  if (digits2.length < 7) return `+${digits2}`;
-  return `+${digits2.replace(/(\d{1,3})(?=(\d{3})+$)/g, "$1 ").trim()}`;
-}
-
 // src/google/booking-page.ts
 function onDomain(host, domain) {
   return host === domain || host.endsWith(`.${domain}`);
@@ -1985,174 +7865,6 @@ var oneOf = (w) => /ies$/.test(w) ? w.replace(/ies$/, "y") : /(sses|ches|shes|xe
 function leadKindKey(words3) {
   const k = words3.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^[^a-z]+/, "").replace(/_+$/, "").slice(0, 40).replace(/_+$/, "").replace(/[a-z]+$/, oneOf);
   return k.length >= 2 ? k : "business";
-}
-
-// src/shared/clock.ts
-var FORMATS = /* @__PURE__ */ new Map();
-function formatsFor(tz) {
-  const hit = FORMATS.get(tz);
-  if (hit) return hit;
-  let zone = tz || "UTC";
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: zone });
-  } catch {
-    zone = "UTC";
-  }
-  const made = {
-    zone,
-    time: new Intl.DateTimeFormat("en-US", { timeZone: zone, hour: "numeric", minute: "2-digit" }),
-    date: new Intl.DateTimeFormat("en-US", { timeZone: zone, month: "short", day: "numeric" }),
-    dateYear: new Intl.DateTimeFormat("en-US", { timeZone: zone, month: "short", day: "numeric", year: "numeric" }),
-    weekday: new Intl.DateTimeFormat("en-US", { timeZone: zone, weekday: "short" }),
-    parts: new Intl.DateTimeFormat("en-US", {
-      timeZone: zone,
-      hourCycle: "h23",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit"
-    })
-  };
-  FORMATS.set(tz, made);
-  return made;
-}
-var WALLS = /* @__PURE__ */ new Map();
-var WALLS_MAX = 2048;
-function wall(atMs, tz) {
-  const id = `${tz}|${atMs}`;
-  const hit = WALLS.get(id);
-  if (hit) return hit;
-  const p = {};
-  for (const x of formatsFor(tz).parts.formatToParts(new Date(atMs))) p[x.type] = x.value;
-  const made = {
-    key: `${p.year}-${p.month}-${p.day}`,
-    year: Number(p.year),
-    hh: Number(p.hour) % 24,
-    mm: Number(p.minute)
-  };
-  if (WALLS.size >= WALLS_MAX) WALLS.clear();
-  WALLS.set(id, made);
-  return made;
-}
-function shiftDay(key, days) {
-  return new Date(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, Number(key.slice(8, 10)) + days)).toISOString().slice(0, 10);
-}
-function dayOfWeek(key) {
-  return new Date(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, Number(key.slice(8, 10)))).getUTCDay();
-}
-function zoneDayKey(atMs, tz) {
-  return wall(atMs, tz).key;
-}
-function clockTime(atMs, tz) {
-  return formatsFor(tz).time.format(new Date(atMs));
-}
-function clockHour(hour) {
-  const h = Number.isFinite(hour) ? (Math.floor(hour) % 24 + 24) % 24 : 0;
-  return `${h % 12 === 0 ? 12 : h % 12}:00 ${h < 12 ? "AM" : "PM"}`;
-}
-function clockDate(atMs, tz, nowMs) {
-  const f = formatsFor(tz);
-  return wall(atMs, tz).year === wall(nowMs, tz).year ? f.date.format(new Date(atMs)) : f.dateYear.format(new Date(atMs));
-}
-function clockDateYear(atMs, tz) {
-  return formatsFor(tz).dateYear.format(new Date(atMs));
-}
-function clockShort(atMs, tz, nowMs) {
-  return zoneDayKey(atMs, tz) === zoneDayKey(nowMs, tz) ? clockTime(atMs, tz) : clockDate(atMs, tz, nowMs);
-}
-function clockStamp(atMs, tz, nowMs) {
-  const time = clockTime(atMs, tz);
-  return zoneDayKey(atMs, tz) === zoneDayKey(nowMs, tz) ? time : `${clockDate(atMs, tz, nowMs)} \xB7 ${time}`;
-}
-function clockWhen(atMs, tz, nowMs) {
-  const time = clockTime(atMs, tz);
-  const day = zoneDayKey(atMs, tz);
-  const today = zoneDayKey(nowMs, tz);
-  if (day === today) return `today ${time}`;
-  if (day === shiftDay(today, 1)) return `tomorrow ${time}`;
-  return `${clockDate(atMs, tz, nowMs)} \xB7 ${time}`;
-}
-function daysBetween(fromKey, toKey) {
-  const at3 = (key) => Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, Number(key.slice(8, 10)));
-  return Math.round((at3(toKey) - at3(fromKey)) / DAY_MS);
-}
-function daysFromToday(atMs, tz, nowMs) {
-  return daysBetween(zoneDayKey(nowMs, tz), zoneDayKey(atMs, tz));
-}
-function localDaysBetween(fromMs, toMs2, tz) {
-  return daysBetween(zoneDayKey(fromMs, tz), zoneDayKey(toMs2, tz));
-}
-function inLocalWeek(atMs, tz, nowMs) {
-  const today = zoneDayKey(nowMs, tz);
-  const monday = shiftDay(today, -((dayOfWeek(today) + 6) % 7));
-  const d = daysBetween(monday, zoneDayKey(atMs, tz));
-  return d >= 0 && d <= 6;
-}
-function clockNear(atMs, tz, nowMs) {
-  const gap = daysFromToday(atMs, tz, nowMs);
-  if (gap === 0) return "today";
-  if (gap === -1) return "yesterday";
-  if (gap === 1) return "tomorrow";
-  if (Math.abs(gap) <= 6) return formatsFor(tz).weekday.format(new Date(atMs));
-  return clockDate(atMs, tz, nowMs);
-}
-function clockNearWhen(atMs, tz, nowMs) {
-  const time = clockTime(atMs, tz);
-  return Math.abs(daysFromToday(atMs, tz, nowMs)) <= 6 ? `${clockNear(atMs, tz, nowMs)} ${time}` : `${clockDate(atMs, tz, nowMs)} \xB7 ${time}`;
-}
-function clockDayLabel(atMs, tz, nowMs) {
-  const day = zoneDayKey(atMs, tz);
-  const today = zoneDayKey(nowMs, tz);
-  const date = clockDate(atMs, tz, nowMs);
-  if (day === today) return `Today \xB7 ${date}`;
-  if (day === shiftDay(today, -1)) return `Yesterday \xB7 ${date}`;
-  return date;
-}
-function wallClockAt(tz, dayKey2, hh, mm) {
-  return localToUtcMs(
-    formatsFor(tz).zone,
-    Number(dayKey2.slice(0, 4)),
-    Number(dayKey2.slice(5, 7)),
-    Number(dayKey2.slice(8, 10)),
-    hh,
-    mm
-  );
-}
-function tomorrowAtIn(tz, nowMs, hh, mm = 0) {
-  return wallClockAt(tz, shiftDay(zoneDayKey(nowMs, tz), 1), hh, mm);
-}
-var two = (n) => String(n).padStart(2, "0");
-function zonedInputValue(atMs, tz) {
-  const w = wall(atMs, tz);
-  return `${w.key}T${two(w.hh)}:${two(w.mm)}`;
-}
-function fromZonedInput(value, tz) {
-  const m = /^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2})(?::[0-9]{2})?$/.exec(String(value ?? "").trim());
-  if (!m) return null;
-  const ms2 = localToUtcMs(formatsFor(tz).zone, Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4]), Number(m[5]));
-  return Number.isFinite(ms2) ? ms2 : null;
-}
-function mmss(ms2) {
-  const total = Number.isFinite(ms2) ? Math.max(0, Math.round(ms2 / 1e3)) : 0;
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
-}
-function callLength(ms2) {
-  return ms2 != null && Number.isFinite(ms2) && ms2 > 0 ? mmss(ms2) : void 0;
-}
-function durationWords(seconds2) {
-  const v = Math.max(0, Math.round(seconds2));
-  if (v < 60) return `${v}s`;
-  if (v < 600) {
-    const m2 = Math.floor(v / 60);
-    const r2 = v % 60;
-    return r2 ? `${m2}m ${r2}s` : `${m2}m`;
-  }
-  const minutes = Math.round(v / 60);
-  if (minutes < 60) return `${minutes}m`;
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return m ? `${h}h ${m}m` : `${h}h`;
 }
 
 // src/email/email-subject.ts
@@ -2630,7 +8342,7 @@ var GSM7 = /^[@£$¥èéùìòÇ\nØø\r\fÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !"#�
 var GSM7_EXTENSION = /^[\f^{}\\[~\]|€]$/;
 function gsm7Segments(text) {
   const costs = [...text].map((c) => GSM7_EXTENSION.test(c) ? 2 : 1);
-  const septets = costs.reduce((sum2, n) => sum2 + n, 0);
+  const septets = costs.reduce((sum3, n) => sum3 + n, 0);
   if (septets <= 160) return { septets, segments: septets === 0 ? 0 : 1 };
   let segments = 1;
   let room = 153;
@@ -3112,7 +8824,7 @@ var REACH_OUT_HOLDS = [
 function isReachOutHold(r2) {
   return REACH_OUT_HOLDS.includes(r2 ?? "");
 }
-function holdWords(h, detail, stepLanguage = "en") {
+function holdWords2(h, detail, stepLanguage = "en") {
   switch (h) {
     case "customer_domain":
       return `a person in People writes from ${detail || "their domain"}`;
@@ -4205,18 +9917,18 @@ function aiUsageBodyOf(call) {
 function usageMonthOf(month, lines) {
   const models = lines.filter((l) => l.meter === "model");
   const priced = models.filter((l) => l.usd !== null);
-  const sum2 = (xs, f) => xs.reduce((n, l) => n + f(l), 0);
+  const sum3 = (xs, f) => xs.reduce((n, l) => n + f(l), 0);
   return {
     month,
     lines,
-    model_usd: priced.length ? Math.round(sum2(priced, (l) => l.usd ?? 0) * 1e4) / 1e4 : null,
-    model_calls: sum2(models, (l) => l.uses),
-    model_tokens: sum2(models, (l) => l.quantity),
-    voice_seconds: sum2(
+    model_usd: priced.length ? Math.round(sum3(priced, (l) => l.usd ?? 0) * 1e4) / 1e4 : null,
+    model_calls: sum3(models, (l) => l.uses),
+    model_tokens: sum3(models, (l) => l.quantity),
+    voice_seconds: sum3(
       lines.filter((l) => l.meter === "voice_seconds"),
       (l) => l.quantity
     ),
-    wa_conversations: sum2(
+    wa_conversations: sum3(
       lines.filter((l) => l.meter === "wa_conversation"),
       (l) => l.uses
     )
@@ -5121,23 +10833,23 @@ function nextStepOf(r2, tz, nowMs) {
 function dayPlus(key, n) {
   return new Date(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, Number(key.slice(8, 10)) + n)).toISOString().slice(0, 10);
 }
-function weekdayOf(key) {
+function weekdayOf2(key) {
   return new Date(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, Number(key.slice(8, 10)))).getUTCDay();
 }
 var WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 function stepDays(nowMs, tz) {
   const today = zoneDayKey(nowMs, tz);
-  const wd = weekdayOf(today);
+  const wd = weekdayOf2(today);
   const out = [];
   const add = (key, label) => {
     if (out.some((c) => c.key === key)) return;
-    const long = WEEKDAYS[weekdayOf(key)];
+    const long = WEEKDAYS[weekdayOf2(key)];
     out.push({ key, label, title: `${long}, ${clockDate(wallClockAt(tz, key, 12, 0), tz, nowMs)}` });
   };
   add(today, "Today");
   add(dayPlus(today, 1), "Tomorrow");
   const toFriday = wd >= 1 && wd <= 5 ? 5 - wd : -1;
-  for (let i = 2; i <= toFriday; i++) add(dayPlus(today, i), WEEKDAYS[weekdayOf(dayPlus(today, i))].slice(0, 3));
+  for (let i = 2; i <= toFriday; i++) add(dayPlus(today, i), WEEKDAYS[weekdayOf2(dayPlus(today, i))].slice(0, 3));
   add(dayPlus(today, wd === 0 ? 1 : 8 - wd), "Next week");
   out.push({ key: "pick", label: "Pick a day", title: "Choose any day" });
   return out;
@@ -5527,7 +11239,8 @@ var ASK_SCOPE_KINDS = [
   "lead",
   "search",
   "run",
-  "playbook"
+  "playbook",
+  "ad"
 ];
 var UUID = /^[0-9a-f-]{36}$/;
 function clientsScope(param, label) {
@@ -5556,13 +11269,19 @@ function scopeFromRoute(page, param, label, chains) {
   if (page === "live" && UUID.test(param)) return { kind: "call", id: param, label: label || "this call" };
   if (page === "broadcasts" && param.startsWith("run:") && UUID.test(param.slice(4)))
     return { kind: "run", id: param.slice(4), label: label || "this run" };
-  if ((page === "campaigns" || page === "outbound") && param.startsWith("moment:") && UUID.test(param.slice(7))) {
+  if (page === "campaigns" || page === "outbound") return campaignsScope(page, param, label, chains);
+  if (page === "clients") return clientsScope(param, label);
+  return null;
+}
+function campaignsScope(page, param, label, chains) {
+  if (param.startsWith("moment:") && UUID.test(param.slice(7))) {
     const id = param.slice(7);
     const chain = chains?.find((c) => c.root_id === id);
     if (chain) return { kind: "page", id: `campaigns/moment:${id}`, label: label || chain.name || "this reach-out" };
     return { kind: "playbook", id, label: label || "this campaign" };
   }
-  if (page === "clients") return clientsScope(param, label);
+  if (page === "campaigns" && param.startsWith("ads:ad:") && UUID.test(param.slice(7)))
+    return { kind: "ad", id: param.slice(7), label: label || "this ad" };
   return null;
 }
 var ASK_SURFACES = [
@@ -5621,1740 +11340,6 @@ var WRITE_CLAIMS = [
   /\bdone[,.!]/i
 ];
 var claimsWrite = (text) => WRITE_CLAIMS.some((re) => re.test(unquoted(text)));
-
-// src/calendar/booking-notice.ts
-var BOOKING_TOOL_IDS = [
-  "booksy",
-  "acuity",
-  "fresha",
-  "square",
-  "vagaro",
-  "glossgenius",
-  "calendly",
-  "setmore",
-  "mindbody",
-  "simplybook",
-  "schedulicity",
-  "styleseat"
-];
-var BOOKING_TOOLS = [
-  { tool: "booksy", name: "Booksy", domains: ["booksy.com"], calendar: "none" },
-  { tool: "acuity", name: "Acuity", domains: ["acuityscheduling.com", "squarespacescheduling.com"], calendar: "own" },
-  { tool: "fresha", name: "Fresha", domains: ["fresha.com"], calendar: "own" },
-  { tool: "square", name: "Square", domains: ["squareup.com", "square.com"], calendar: "writes" },
-  { tool: "vagaro", name: "Vagaro", domains: ["vagaro.com"], calendar: "writes" },
-  { tool: "glossgenius", name: "GlossGenius", domains: ["glossgenius.com"], calendar: "own" },
-  { tool: "calendly", name: "Calendly", domains: ["calendly.com"], calendar: "writes" },
-  { tool: "setmore", name: "Setmore", domains: ["setmore.com"], calendar: null },
-  { tool: "mindbody", name: "Mindbody", domains: ["mindbodyonline.com"], calendar: null },
-  { tool: "simplybook", name: "SimplyBook", domains: ["simplybook.me"], calendar: null },
-  { tool: "schedulicity", name: "Schedulicity", domains: ["schedulicity.com"], calendar: null },
-  { tool: "styleseat", name: "StyleSeat", domains: ["styleseat.com"], calendar: null }
-];
-var isBookingTool = (v) => BOOKING_TOOLS.some((t) => t.tool === v);
-function bookingToolName(tool) {
-  if (!tool) return null;
-  return BOOKING_TOOLS.find((t) => t.tool === tool)?.name ?? tool;
-}
-function bookingToolCalendar(tool) {
-  return BOOKING_TOOLS.find((t) => t.tool === tool)?.calendar ?? null;
-}
-function bookingToolOfAddress(address) {
-  const a = (address ?? "").trim().toLowerCase();
-  const at3 = a.lastIndexOf("@");
-  if (at3 < 1) return null;
-  const host = a.slice(at3 + 1);
-  for (const t of BOOKING_TOOLS) for (const d of t.domains) if (host === d || host.endsWith(`.${d}`)) return t.tool;
-  return null;
-}
-var FORWARD_SUBJECT = /^\s*(fwd?|fw|tr|wg|rv)\s*:/i;
-function bookingNoticeOf(e) {
-  const direct = bookingToolOfAddress(e.from?.address);
-  if (direct) return { tool: direct, forwarded: false };
-  if (!e.from || !FORWARD_SUBJECT.test(e.subject ?? "") || !e.text) return null;
-  const head = e.text.slice(0, 4e3);
-  const m = /^\s*(?:>\s*)?(?:from|de|von)\s*:\s*(?:"?[^<\n]*"?\s*<)?([^\s<>]+@[^\s<>]+)>?/im.exec(head);
-  const quoted = m ? bookingToolOfAddress(m[1]) : null;
-  return quoted ? { tool: quoted, forwarded: true } : null;
-}
-var NOTICE_KINDS = ["booked", "changed", "cancelled", "other"];
-var LOCAL_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
-var NOTICE_SCHEMA = /* @__PURE__ */ (() => ({
-  type: "object",
-  properties: {
-    kind: { type: "string", enum: [...NOTICE_KINDS] },
-    client_name: { anyOf: [{ type: "string" }, { type: "null" }] },
-    client_phone: { anyOf: [{ type: "string" }, { type: "null" }] },
-    client_email: { anyOf: [{ type: "string" }, { type: "null" }] },
-    service: { anyOf: [{ type: "string" }, { type: "null" }] },
-    staff: { anyOf: [{ type: "string" }, { type: "null" }] },
-    starts_at: {
-      anyOf: [
-        { type: "string", description: "YYYY-MM-DDTHH:MM, the business's own clock, no zone." },
-        { type: "null" }
-      ]
-    },
-    ends_at: {
-      anyOf: [
-        { type: "string", description: "YYYY-MM-DDTHH:MM, the business's own clock, no zone." },
-        { type: "null" }
-      ]
-    },
-    previous_starts_at: {
-      anyOf: [
-        { type: "string", description: "For a change only: the time it was before, YYYY-MM-DDTHH:MM." },
-        { type: "null" }
-      ]
-    },
-    price: { anyOf: [{ type: "string" }, { type: "null" }] },
-    note: { anyOf: [{ type: "string" }, { type: "null" }] }
-  },
-  required: [
-    "kind",
-    "client_name",
-    "client_phone",
-    "client_email",
-    "service",
-    "staff",
-    "starts_at",
-    "ends_at",
-    "previous_starts_at",
-    "price",
-    "note"
-  ],
-  additionalProperties: false
-}))();
-var NOTICE_TEXT_MAX = 6e3;
-var NOTICE_READ_MAX_TOKENS = 600;
-function noticePrompt(p) {
-  const system = [
-    "You read one email a booking tool sent a business about one of its appointments, and answer in the JSON shape asked.",
-    `kind: booked when a client booked or the tool confirms a booking; changed when a booking moved to another time; cancelled when it was cancelled or the client did not show; other when the email is not about one booking (a receipt, a digest, a reminder to the business, marketing), and other when it is written TO THE CLIENT about a booking of their own at a business ('Your appointment at Harbor Studio is confirmed', 'See you tomorrow at 3'): the business's notice names its client as someone else, it never speaks to them.`,
-    "client_name, client_phone, client_email: the CLIENT's, as written; never the business's, the staff member's or the tool's own.",
-    "service: the service booked, as written (with its category if the tool writes one: 'Hair Color: Partial highlight'). staff: who it is with, as written.",
-    "starts_at, ends_at: the appointment's start and end on the business's own clock as YYYY-MM-DDTHH:MM, from the date and the time range the email states. For a change, the NEW time; previous_starts_at is the old one. ends_at null when no end is stated.",
-    "price: as written ('$55.00+', 'Varies'), null when none. note: the client's own note, null when none.",
-    "Take only what the email states. Invent nothing; a field the email does not state is null."
-  ].join("\n");
-  const day = new Intl.DateTimeFormat("en-CA", { timeZone: p.tz, year: "numeric", month: "2-digit", day: "2-digit" });
-  const user = [
-    `Booking tool: ${bookingToolName(p.tool)}.`,
-    `Received on ${day.format(new Date(p.receivedAtMs))}; the business's zone is ${p.tz}.`,
-    `Subject: ${p.subject ?? "(none)"}`,
-    "",
-    p.text.slice(0, NOTICE_TEXT_MAX)
-  ].join("\n");
-  return { system, user };
-}
-var NOTICE_HOLDS = [
-  "no_model",
-  "may_not_spend",
-  "unreadable",
-  "not_a_booking",
-  "no_time",
-  "no_client",
-  // The provider no longer had the email when the read ran: nothing could be read, and the delivery is still on the ledger.
-  "gone"
-];
-var isNoticeHold = (v) => NOTICE_HOLDS.includes(v);
-var NOTICE_DEFAULT_LENGTH_MS = HOUR_MS;
-var NOTICE_LENGTH_MAX_MS = 12 * HOUR_MS;
-var E1642 = /^\+[1-9][0-9]{6,14}$/;
-var NOTICE_TIME_REACH_MS = 400 * DAY_MS;
-var NOTICE_FIELD_MAX = 200;
-var NOTICE_NOTE_MAX = 1e3;
-function localMs(tz, v) {
-  if (typeof v !== "string") return null;
-  const m = LOCAL_TIME.exec(v.trim());
-  if (!m) return null;
-  const part = (i) => Number(m[i]);
-  const y = part(1);
-  const mo = part(2);
-  const d = part(3);
-  const hh = part(4);
-  const mm = part(5);
-  if (!(mo >= 1 && mo <= 12 && d >= 1 && d <= 31 && hh <= 23 && mm <= 59)) return null;
-  const day = new Date(Date.UTC(y, mo - 1, d));
-  if (day.getUTCMonth() !== mo - 1 || day.getUTCDate() !== d) return null;
-  const ms2 = localToUtcMs(tz, y, mo, d, hh, mm);
-  return Number.isFinite(ms2) ? ms2 : null;
-}
-function trimmedText(v, max) {
-  if (typeof v !== "string") return null;
-  const t = v.replace(/\s+/g, " ").trim();
-  return t ? t.slice(0, max) : null;
-}
-function noticeAnswerOf(answer, tz, nowMs) {
-  if (!answer || typeof answer !== "object" || Array.isArray(answer)) return { reading: null, hold: "unreadable" };
-  const a = answer;
-  const kind = a.kind;
-  if (kind === "other") return { reading: null, hold: "not_a_booking" };
-  if (kind !== "booked" && kind !== "changed" && kind !== "cancelled") return { reading: null, hold: "unreadable" };
-  const start = localMs(tz, a.starts_at);
-  if (start === null || Math.abs(start - nowMs) > NOTICE_TIME_REACH_MS) return { reading: null, hold: "no_time" };
-  const endRead = localMs(tz, a.ends_at);
-  const end = endRead !== null && endRead > start && endRead - start <= NOTICE_LENGTH_MAX_MS ? endRead : start + NOTICE_DEFAULT_LENGTH_MS;
-  const phone = normalizePhone(typeof a.client_phone === "string" ? a.client_phone : null);
-  const client = {
-    name: trimmedText(a.client_name, NOTICE_FIELD_MAX),
-    phone: phone && E1642.test(phone) ? phone : null,
-    email: normalizeEmail(typeof a.client_email === "string" ? a.client_email : null)
-  };
-  if (!client.name && !client.phone && !client.email) return { reading: null, hold: "no_client" };
-  const previous = kind === "changed" ? localMs(tz, a.previous_starts_at) : null;
-  return {
-    reading: {
-      kind,
-      client,
-      service: trimmedText(a.service, NOTICE_FIELD_MAX),
-      staff: trimmedText(a.staff, NOTICE_FIELD_MAX),
-      start,
-      end,
-      previousStart: previous !== null && Math.abs(previous - nowMs) <= NOTICE_TIME_REACH_MS ? previous : null,
-      price: trimmedText(a.price, NOTICE_FIELD_MAX),
-      note: trimmedText(a.note, NOTICE_NOTE_MAX)
-    },
-    hold: null
-  };
-}
-function clientKeyOf(client) {
-  if (client.phone) return client.phone;
-  if (client.email) return client.email.toLowerCase();
-  return (client.name ?? "").normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-}
-function appointmentKey(tool, client, startMs) {
-  return `${tool}:${clientKeyOf(client)}:${Math.floor(startMs / MIN_MS) * MIN_MS}`;
-}
-var SAME_VISIT_MS = 15 * MIN_MS;
-function bookingToolOptions() {
-  return BOOKING_TOOLS.map((t) => ({ value: t.tool, label: t.name }));
-}
-var BOOKING_TOOL_STEPS = {
-  acuity: {
-    way: "recipient",
-    steps: [
-      "In Acuity, open the calendar your appointments land on, then Calendar notifications.",
-      "Under \u201CSend booking notifications to\u201D, add the address above beside your own."
-    ]
-  },
-  fresha: {
-    way: "recipient",
-    steps: [
-      "In Fresha, open Settings \u203A Scheduling \u203A Online bookings \u203A Notifications, then Edit.",
-      "Add the address above to the emails that get booked, rescheduled and cancelled bookings."
-    ]
-  },
-  booksy: {
-    way: "forward",
-    steps: [
-      "Open the inbox your Booksy account emails: its booking emails arrive there.",
-      "Make a filter for mail from no-reply@booksy.com that forwards to the address above."
-    ]
-  },
-  square: {
-    way: "forward",
-    steps: [
-      "In Square, under Team members \u203A your name \u203A Booking notifications, keep email on.",
-      "In that inbox, make a filter for Square's booking emails that forwards to the address above."
-    ]
-  },
-  vagaro: {
-    way: "forward",
-    steps: [
-      "In Vagaro, under Settings \u203A Booking \u203A Email & Text Notifications, keep employee email notifications on.",
-      "In that inbox, make a filter for mail from vagaro.com that forwards to the address above."
-    ]
-  },
-  glossgenius: {
-    way: "forward",
-    steps: [
-      "In GlossGenius, under your personal notifications, keep booking emails on (they go to whoever is booked).",
-      "In that inbox, make a filter for mail from glossgenius.com that forwards to the address above."
-    ]
-  },
-  calendly: {
-    way: "forward",
-    steps: [
-      "Open the inbox Calendly emails your bookings to (each host gets their own).",
-      "Make a filter for mail from calendly.com that forwards to the address above."
-    ]
-  },
-  setmore: {
-    way: "forward",
-    steps: ["In the inbox Setmore emails, make a filter for mail from setmore.com that forwards to the address above."]
-  },
-  mindbody: {
-    way: "forward",
-    steps: [
-      "In the inbox Mindbody emails, make a filter for mail from mindbodyonline.com that forwards to the address above."
-    ]
-  },
-  simplybook: {
-    way: "forward",
-    steps: [
-      "In the inbox SimplyBook emails, make a filter for mail from simplybook.me that forwards to the address above."
-    ]
-  },
-  schedulicity: {
-    way: "forward",
-    steps: [
-      "In the inbox Schedulicity emails, make a filter for mail from schedulicity.com that forwards to the address above."
-    ]
-  },
-  styleseat: {
-    way: "forward",
-    steps: [
-      "In the inbox StyleSeat emails, make a filter for mail from styleseat.com that forwards to the address above."
-    ]
-  }
-};
-var GMAIL_FORWARD_NOTE = "If that inbox is Gmail, it asks once to confirm the forward: the code and a one-press confirm appear here.";
-var BOOKING_TRY_NOTE = "To try it now, forward any past booking email to the address above, from the email you sign in with.";
-var NOTICE_HOLD_WORDS = {
-  no_model: "The reader was unavailable. Press Read again.",
-  may_not_spend: "The workspace's AI spend is paused. Read again once it is on.",
-  unreadable: "It could not be read as a booking.",
-  // Kept on the ledger and set aside, never held: nobody is asked to look at a tool's receipt or its newsletter.
-  not_a_booking: "It is from your booking tool, but not about one booking.",
-  no_time: "No appointment time could be read from it.",
-  no_client: "No client could be read from it.",
-  gone: "The email was gone before it could be read."
-};
-var GMAIL_FORWARDING_SENDER = /^forwarding-noreply@google\.com$/i;
-function forwardingConfirmationOf(e) {
-  if (!e.from || !GMAIL_FORWARDING_SENDER.test(e.from.address.trim())) return null;
-  const subject = e.subject ?? "";
-  if (!/forwarding confirmation/i.test(subject)) return null;
-  const text = e.text ?? "";
-  const code2 = /\(#(\d{5,12})\)/.exec(subject)?.[1] ?? /confirmation code:\s*(\d{5,12})/i.exec(text)?.[1] ?? null;
-  const account = /receive mail from\s+([^\s<>]+@[^\s<>]+)/i.exec(subject)?.[1] ?? /([^\s<>]+@[^\s<>]+)\s+has requested to automatically forward/i.exec(text)?.[1] ?? null;
-  if (!code2 || !account) return null;
-  const link = /https:\/\/[a-z0-9.-]*\.google\.com\/mail\/vf-[^\s<>")]+/i.exec(text)?.[0] ?? null;
-  return { account: account.toLowerCase(), code: code2, link };
-}
-
-// src/config/no-booking-link.ts
-var NO_LINK_DETAILS = "their name, what they need, and where and when";
-function offersBookingLink(brain) {
-  return !brain || !!brain.booking_link;
-}
-function offersLinkOn(on, brain, whatsappLine) {
-  return offersBookingLink(brain) && (on === "chat" || !!whatsappLine);
-}
-var NO_WAY_TO_SEND_LINK = `Booking: the booking link can only be sent by WhatsApp, and this business has no WhatsApp line, so never use send_booking_link and never promise a link or a message. When the caller wants to book, change or cancel a booking, take ${NO_LINK_DETAILS}, and say the team will follow up. If they would rather book themselves and a website is listed above, they can book there.`;
-function priceNextStep(hasBookingLink) {
-  return hasBookingLink ? "offer the booking link" : `take ${NO_LINK_DETAILS}`;
-}
-
-// src/calendar/availability.ts
-var BOOKING_DEFAULTS = { lead_hours: 2, buffer_min: 0, max_days_ahead: 14, slot_min: 30 };
-function hhmm(s) {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(s.trim());
-  return m ? [Number(m[1]), Number(m[2])] : null;
-}
-function dayIntervals(h) {
-  const raw = [];
-  if (h?.open && h?.close) raw.push([h.open, h.close]);
-  for (const iv of h?.intervals ?? []) if (iv?.open && iv?.close) raw.push([iv.open, iv.close]);
-  const usable = raw.filter(([o, c]) => c > o).sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
-  const merged = [];
-  for (const [o, c] of usable) {
-    const last = merged[merged.length - 1];
-    if (last && o <= last[1]) {
-      if (c > last[1]) last[1] = c;
-    } else {
-      merged.push([o, c]);
-    }
-  }
-  return merged;
-}
-function closedOn(closures, key) {
-  return !!closures?.some((c) => c.date <= key && key <= (c.until && c.until >= c.date ? c.until : c.date));
-}
-var minutesOf = (s) => {
-  const t = hhmm(s);
-  return t ? t[0] * 60 + t[1] : null;
-};
-function openAt(hours, closures, dateKey, minute) {
-  if (closedOn(closures, dateKey)) return false;
-  const { y, m, d } = keyParts(dateKey);
-  const weekday = WEEKDAY_KEYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
-  if (!weekday) return false;
-  return dayIntervals(hours?.[weekday]).some(([o, c]) => {
-    const from = minutesOf(o);
-    const to = minutesOf(c);
-    return from !== null && to !== null && from <= minute && minute < to;
-  });
-}
-function hasHours(hours) {
-  return DAYS.some((d) => dayIntervals(hours?.[d]).length > 0);
-}
-function onTheGrid(tz, atMs, slotMin) {
-  const grid = slotMin > 0 && 60 % slotMin === 0 ? slotMin : 15;
-  const c = clockInZone(tz, atMs);
-  const into = (c.mm % grid * 60 + c.ss) * 1e3 + (atMs % 1e3 + 1e3) % 1e3;
-  return into === 0 ? atMs : atMs - into + grid * 6e4;
-}
-function freeWindows(input) {
-  const rules = { ...BOOKING_DEFAULTS, ...input.rules ?? {} };
-  const leadMs = rules.lead_hours * 36e5;
-  const bufferMs = rules.buffer_min * 6e4;
-  const slotMs = rules.slot_min * 6e4;
-  const earliest2 = onTheGrid(input.tz, input.now.getTime() + leadMs, rules.slot_min);
-  const busy = input.busy.map((b) => ({ start: b.start - bufferMs, end: b.end + bufferMs })).sort((a, b) => a.start - b.start);
-  const out = [];
-  for (let offset = 0; offset < rules.max_days_ahead; offset++) {
-    const day = dayPlusInZone(input.tz, input.now.getTime(), offset);
-    if (closedOn(input.closures, day.key)) continue;
-    const ranges = dayIntervals(input.hours?.[day.weekday]);
-    const windows = [];
-    for (const [open, close] of ranges) {
-      const o = hhmm(open), c = hhmm(close);
-      if (!o || !c) continue;
-      let start = Math.max(localToUtcMs(input.tz, day.y, day.m, day.d, o[0], o[1]), earliest2);
-      const end = localToUtcMs(input.tz, day.y, day.m, day.d, c[0], c[1]);
-      for (const b of busy) {
-        if (b.end <= start) continue;
-        if (b.start >= end) break;
-        if (b.start > start && b.start - start >= slotMs) windows.push({ start, end: b.start });
-        start = Math.max(start, b.end);
-      }
-      if (end - start >= slotMs) windows.push({ start, end });
-    }
-    if (windows.length) {
-      out.push({
-        key: day.key,
-        weekday: day.weekday,
-        // Noon on that local day: an instant the day owns whichever way the
-        // clock moved, where midnight on a spring-forward day may not exist
-        // and 1 AM on an autumn one happens twice.
-        label: dateFormat("en-US", {
-          timeZone: input.tz,
-          weekday: "long",
-          month: "long",
-          day: "numeric"
-        }).format(new Date(localToUtcMs(input.tz, day.y, day.m, day.d, 12, 0))),
-        windows
-      });
-    }
-  }
-  return out;
-}
-var DAY_NAMES2 = {
-  mon: "mon",
-  monday: "mon",
-  tue: "tue",
-  tues: "tue",
-  tuesday: "tue",
-  wed: "wed",
-  wednesday: "wed",
-  thu: "thu",
-  thur: "thu",
-  thurs: "thu",
-  thursday: "thu",
-  fri: "fri",
-  friday: "fri",
-  sat: "sat",
-  saturday: "sat",
-  sun: "sun",
-  sunday: "sun"
-};
-function filterOpenings(openings, by) {
-  const day = (by.day ?? "").trim().toLowerCase();
-  const weekday = day ? DAY_NAMES2[day] : void 0;
-  const key = /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : void 0;
-  const minMs = by.minMinutes && by.minMinutes > 0 ? by.minMinutes * 6e4 : 0;
-  const picked = openings.filter((o) => key ? o.key === key : weekday ? o.weekday === weekday : true);
-  const first = weekday && !key ? picked.slice(0, 1) : picked;
-  return first.map((o) => ({ ...o, windows: o.windows.filter((w) => w.end - w.start >= minMs) })).filter((o) => o.windows.length > 0);
-}
-function span(tz, start, end) {
-  const f = dateFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
-  return `${f.format(new Date(start))} \u2013 ${f.format(new Date(end))}`;
-}
-function describeOpenings(openings, tz, opts) {
-  const maxDays = opts.maxDays ?? 5;
-  const ahead = opts.daysAhead ?? BOOKING_DEFAULTS.max_days_ahead;
-  const hasLink = opts.hasBookingLink;
-  const held = hasLink && opts.bookingHeld === true;
-  if (!openings.length) {
-    const instead = held ? "Offer to have a member of the team call or text them when a slot frees up, and take their name. This business confirms its own bookings: never send or promise the booking link." : `Offer to have someone call back${hasLink ? ", and send the booking link so they are told when a slot frees up" : ""}.`;
-    return `Open times (from the calendar): nothing is open in the next ${ahead} days. ${instead}`;
-  }
-  const lines = openings.slice(0, maxDays).map((o) => `- ${o.label}: ${o.windows.map((w) => span(tz, w.start, w.end)).join(", ")}`);
-  return `Open times (from the calendar, checked just now \u2014 these change as bookings come in):
-${lines.join("\n")}
-` + (held ? "Offer up to three of these that fit what they want, then say a member of the team will call or text them to confirm, and take their name. This business confirms its own bookings: never send or promise the booking link, and never confirm a slot yourself." : hasLink ? "Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides." : `Offer up to three of these that fit what they want, then take ${NO_LINK_DETAILS} so the team can confirm one. Never confirm a slot yourself; the calendar decides.`);
-}
-
-// src/config/workspace-config/prompt-hours.ts
-var DAY_LABEL = DAY_NAMES;
-function dayIntervals2(h) {
-  return dayIntervals(h).map(([open, close]) => ({ open, close }));
-}
-function joinList(parts2) {
-  if (parts2.length < 3) return parts2.join(" and ");
-  return `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
-}
-function dayText(h) {
-  const spans = dayIntervals2(h);
-  if (spans.length) {
-    const open = joinList(spans.map((x) => `${x.open}\u2013${x.close}`));
-    const gaps = spans.slice(1).map((x, i) => `${spans[i].close}\u2013${x.open}`);
-    return gaps.length ? `${open} (closed ${joinList(gaps)})` : open;
-  }
-  const saidSomething = !!(h?.open || h?.close || h?.intervals?.length);
-  return saidSomething ? "Hours not confirmed \u2014 ask them to call" : "Closed";
-}
-function hoursRuns(hours) {
-  if (!hours) return [];
-  const spans = DAYS.map((d) => ({ day: d, text: dayText(hours[d]) }));
-  const out = [];
-  let i = 0;
-  while (i < spans.length) {
-    let j = i;
-    while (j + 1 < spans.length && spans[j + 1].text === spans[i].text) j++;
-    out.push({ from: spans[i].day, to: spans[j].day, text: spans[i].text });
-    i = j + 1;
-  }
-  return out;
-}
-function hoursLines(hours) {
-  return hoursRuns(hours).map((r2) => {
-    const label = r2.from === r2.to ? DAY_LABEL[r2.from] : `${DAY_LABEL[r2.from]}\u2013${DAY_LABEL[r2.to]}`;
-    return `${label}: ${r2.text}`;
-  });
-}
-
-// src/calendar/calendar-words.ts
-var VISIT_WORDS = { kept: "Kept", missed: "Missed", cancelled: "Cancelled" };
-var VISIT_REFUSALS = {
-  never_booked: "It was only requested, never booked: it can be cancelled, but not kept or missed.",
-  cancelled: "It was cancelled already.",
-  not_begun: "It hasn't begun yet: whether they came is said once it has.",
-  already_said: "It's marked kept or missed already: say the other if that was wrong.",
-  over: "It has ended: say whether they came instead."
-};
-function visitStateOf(visit, endMs, nowMs) {
-  const said = visit?.status;
-  if (said === "kept" || said === "missed" || said === "cancelled") return { text: VISIT_WORDS[said], tone: said };
-  return endMs <= nowMs ? { text: "Past", tone: "past" } : null;
-}
-function visitActsOf(visit, startMs, endMs, nowMs) {
-  if (!visit) return [];
-  switch (visit.status) {
-    // A correction is a word about a visit that has begun, as the door holds it (not_begun).
-    case "kept":
-      return startMs <= nowMs ? ["missed"] : [];
-    case "missed":
-      return startMs <= nowMs ? ["kept"] : [];
-    case "cancelled":
-      return [];
-    case "proposed":
-      return endMs > nowMs ? ["cancelled"] : [];
-    case "booked": {
-      const out = startMs <= nowMs ? ["kept", "missed"] : [];
-      if (endMs > nowMs) out.push("cancelled");
-      return out;
-    }
-  }
-}
-function clockLabel(t) {
-  const h = Math.floor(t);
-  const m = Math.round((t - h) * 60);
-  const ap = h >= 12 && h < 24 ? "PM" : "AM";
-  const hh = (h + 11) % 12 + 1;
-  return `${hh}${m ? `:${String(m).padStart(2, "0")}` : ""} ${ap}`;
-}
-var SHORT = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
-var LONG = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
-function shortDate(key) {
-  const { y, m, d } = keyParts(key);
-  return SHORT.format(new Date(Date.UTC(y, m - 1, d, 12)));
-}
-function longDate(key) {
-  const { y, m, d } = keyParts(key);
-  return LONG.format(new Date(Date.UTC(y, m - 1, d, 12)));
-}
-function closureDatesLabel(c) {
-  if (!(c.until && c.until > c.date)) return shortDate(c.date);
-  return `${shortDate(c.date)} \u2013 ${c.until.slice(0, 7) === c.date.slice(0, 7) ? c.until.slice(8).replace(/^0/, "") : shortDate(c.until)}`;
-}
-function closuresFrom(closures, todayKey) {
-  return closures.filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= todayKey).sort((a, b) => a.date.localeCompare(b.date));
-}
-function readAgoLabel(iso, now) {
-  if (!iso) return null;
-  return agoWords(Date.parse(iso), now.getTime(), { dateAfterMs: Number.POSITIVE_INFINITY });
-}
-function ruleParts(rules) {
-  const r2 = { ...BOOKING_DEFAULTS, ...rules ?? {} };
-  const parts2 = [`at least ${r2.lead_hours}h notice`];
-  if (r2.buffer_min > 0) parts2.push(`${r2.buffer_min} min between appointments`);
-  parts2.push(`up to ${r2.max_days_ahead} days ahead`, `${r2.slot_min}-min slots`);
-  if (rules?.party_max)
-    parts2.push(`up to ${rules.party_max} ${rules.party_max === 1 ? "person" : "people"} per booking`);
-  return parts2;
-}
-function rulesLine(rules) {
-  return `Offers times with ${ruleParts(rules).join(" \xB7 ")}`;
-}
-function feedNotes(feed) {
-  if (feed.state !== "ok") return [];
-  const notes = [];
-  const repeats = feed.skipped_recurring || 0;
-  if (repeats > 0) {
-    const one = repeats === 1;
-    notes.push({
-      id: "repeats",
-      title: `${repeats} repeating event${one ? " counts" : "s count"} only once.`,
-      body: `${one ? "It repeats" : "They repeat"} in a pattern the receptionist can't follow, like the second Tuesday of each month, so only the first date is treated as taken, and a caller could be offered a time on a later one. Repeating daily, weekly on set days, or monthly on one date fixes it.`
-    });
-  }
-  const undrawn = feed.dropped || 0;
-  if (undrawn > 0) {
-    const one = undrawn === 1;
-    notes.push({
-      id: "undrawn",
-      title: `${undrawn} more event${one ? " isn't" : "s aren't"} drawn.`,
-      body: `${one ? "It falls" : "They fall"} on a day holding more events than the board draws; the receptionist still treats ${one ? "its time" : "their times"} as taken.`
-    });
-  }
-  return notes;
-}
-function hoursLines2(hours) {
-  if (!hours) return [];
-  const clean3 = {};
-  for (const d of DAYS) if (hours[d]) clean3[d] = hours[d];
-  return hoursRuns(clean3).map(
-    (r2) => `${DAY_SHORT[r2.from] ?? r2.from}${r2.to !== r2.from ? `\u2013${DAY_SHORT[r2.to] ?? r2.to}` : ""} ${dayHoursWords(clean3[r2.from])}`
-  );
-}
-function dayHoursWords(h) {
-  const at3 = (s) => Number(s.split(":")[0]) + Number(s.split(":")[1]) / 60;
-  const parts2 = dayIntervals(h).map(([o, c]) => spanLabel2(at3(o), at3(c)));
-  if (!parts2.length) return h?.open || h?.close || h?.intervals?.length ? "hours incomplete" : "closed";
-  return parts2.length < 3 ? parts2.join(" and ") : `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
-}
-var CALENDAR_FEED_WORDS = {
-  ok: "Readable",
-  stale: "Last good read",
-  unavailable: "Could not be read",
-  none: "Not connected"
-};
-function spanLabel2(t1, t2) {
-  const a = clockLabel(t1);
-  const b = clockLabel(t2);
-  const sameHalf = t2 < 24 && t1 < 12 === t2 < 12;
-  return `${sameHalf ? a.slice(0, -3) : a} \u2013 ${b}`;
-}
-
-// src/setup/calendar-source.ts
-var CALENDAR_SETTING_ROUTE = "admin/workspace/calendar";
-var FORWARD_CONFIRM_SHOWN_MS = 3 * DAY_MS;
-function forwardStillAsked(at3, now) {
-  return !!at3 && now.getTime() - Date.parse(at3) <= FORWARD_CONFIRM_SHOWN_MS;
-}
-function bookingEmailsStep(e) {
-  if (!e.address) return "address";
-  if (e.forwarding) return "forwarding";
-  if (e.held > 0) return "held";
-  return e.lastAt ? "working" : "waiting";
-}
-var TO_THE_ROW = (label) => ({ label, to: CALENDAR_SETTING_ROUTE });
-var TO_THE_BOARD = { label: "Open Calendar", to: "calendar" };
-var leadAndRest = (lead, rest = "") => {
-  const after = rest.trim();
-  return { lead, rest: after, sentence: after ? `${lead} ${after}` : lead };
-};
-var bookingEmailsHeldWords = (n) => n === 1 ? "One booking email needs a look." : `${n} booking emails need a look.`;
-var noTimesWords = (bookingLink) => bookingLink ? "The receptionist sends your booking link instead of naming open times." : "The receptionist does not name open times.";
-function unreadLink(f, by, emailsWork) {
-  return {
-    by,
-    state: "attention",
-    tone: "warn",
-    words: CALENDAR_FEED_WORDS.unavailable,
-    ...leadAndRest(
-      "Your calendar could not be read.",
-      `${f.problem ?? ""}${emailsWork ? " Booking emails still arrive." : ""}`
-    ),
-    times: false,
-    next: TO_THE_ROW("Check the link")
-  };
-}
-function emailsNeedYou(step2, f, e, by, times) {
-  const tool = bookingToolName(f.tool) ?? "Your booking tool";
-  if (step2 === "address")
-    return {
-      by,
-      state: "needs_you",
-      tone: "warn",
-      words: "Needs you",
-      ...leadAndRest(`${tool} needs an address to send its booking emails to.`),
-      times,
-      next: TO_THE_ROW("Finish setting up")
-    };
-  if (step2 === "forwarding")
-    return {
-      by,
-      state: "needs_you",
-      tone: "warn",
-      words: "Needs you",
-      ...leadAndRest("Gmail is waiting for you to confirm the forward."),
-      times,
-      next: TO_THE_ROW("Confirm the forward")
-    };
-  if (step2 === "held")
-    return {
-      by,
-      // Held before any became an appointment is setting up still; held after is a thing that works asking for a look.
-      state: e.lastAt || times ? "attention" : "needs_you",
-      tone: "warn",
-      words: `${e.held} to look at`,
-      ...leadAndRest(bookingEmailsHeldWords(e.held)),
-      times,
-      next: TO_THE_ROW(e.held === 1 ? "Look at it" : "Look at them")
-    };
-  return null;
-}
-function readLink(f, step2) {
-  const tool = bookingToolName(f.tool);
-  if (f.link === "stale")
-    return {
-      by: tool ? "both" : "link",
-      state: "ready",
-      tone: "ok",
-      words: CALENDAR_FEED_WORDS.stale,
-      ...leadAndRest("The latest read failed, so this is the last good one."),
-      times: true,
-      next: TO_THE_BOARD
-    };
-  const emails = tool && step2 === "working" ? ` Booking emails from ${tool} add the client and the service.` : tool && step2 === "waiting" ? ` Waiting for the first booking email from ${tool}.` : "";
-  return {
-    by: tool ? "both" : "link",
-    state: "ready",
-    tone: "ok",
-    words: CALENDAR_FEED_WORDS.ok,
-    ...leadAndRest("The receptionist offers open times from it.", emails),
-    times: true,
-    next: TO_THE_BOARD
-  };
-}
-function emailsAlone(f, step2) {
-  const tool = bookingToolName(f.tool) ?? "your booking tool";
-  if (step2 === "waiting")
-    return {
-      by: "emails",
-      state: "waiting",
-      tone: "plain",
-      words: "Waiting for the first email",
-      ...leadAndRest(`Waiting for the first booking email from ${tool}.`),
-      times: false,
-      next: TO_THE_ROW("See the steps")
-    };
-  return {
-    by: "emails",
-    state: "ready",
-    tone: "ok",
-    words: "By email",
-    ...leadAndRest(`Bookings arrive by email from ${tool}.`, noTimesWords(f.bookingLink)),
-    times: false,
-    next: TO_THE_BOARD
-  };
-}
-function calendarSourceOf(f) {
-  const linked = f.link !== "none";
-  const named = !!f.tool;
-  const by = linked && named ? "both" : linked ? "link" : named ? "emails" : "nothing";
-  const step2 = named && f.emails ? bookingEmailsStep(f.emails) : null;
-  if (f.link === "unavailable") return unreadLink(f, by, step2 === "working" || step2 === "held");
-  const times = f.link === "ok" || f.link === "stale";
-  if (step2 && f.emails) {
-    const owed = emailsNeedYou(step2, f, f.emails, by, times);
-    if (owed) return owed;
-  }
-  if (linked) return readLink(f, step2);
-  if (named) return emailsAlone(f, step2);
-  if (f.byHand)
-    return {
-      by: "hand",
-      state: "hand",
-      tone: "plain",
-      words: "Booked by hand",
-      ...leadAndRest("You take bookings yourself, so there is nothing to connect.", noTimesWords(f.bookingLink)),
-      times: false,
-      next: TO_THE_ROW("Change")
-    };
-  return {
-    by: "nothing",
-    state: "none",
-    tone: "plain",
-    words: CALENDAR_FEED_WORDS.none,
-    ...leadAndRest(
-      "No calendar connected.",
-      "Say what you book with, so your calendar fills and the receptionist knows what is taken."
-    ),
-    times: false,
-    next: TO_THE_ROW("Connect your calendar")
-  };
-}
-function calendarSourceFacts(c) {
-  return {
-    link: c.state === "ok" ? c.stale ? "stale" : "ok" : c.state,
-    problem: c.problem ?? null,
-    tool: c.tool ?? null,
-    byHand: !!c.by_hand,
-    emails: c.emails ? { address: c.emails.address, forwarding: c.emails.forwarding, lastAt: c.emails.last_at, held: c.emails.held } : null,
-    bookingLink: !!c.booking_link
-  };
-}
-var BOOKED_NEEDS_A_LINK = "Add a calendar link under Settings \u203A Business to see who booked.";
-var BOOKS_WITH_CALENDAR = "calendar";
-var BOOKS_BY_HAND = "hand";
-function booksWithOptions() {
-  return [
-    ...bookingToolOptions(),
-    { value: BOOKS_WITH_CALENDAR, label: "Google, Apple or Outlook calendar" },
-    { value: BOOKS_BY_HAND, label: "I book by hand" }
-  ];
-}
-function booksWithOf(c) {
-  return c.tool || (c.ical_url ? BOOKS_WITH_CALENDAR : c.by_hand ? BOOKS_BY_HAND : "");
-}
-function booksWithName(withWhat) {
-  if (!withWhat) return null;
-  if (withWhat === BOOKS_WITH_CALENDAR) return "Calendar link";
-  if (withWhat === BOOKS_BY_HAND) return "Booked by hand";
-  return bookingToolName(withWhat);
-}
-var BOOKING_TOOL_WORDS = {
-  label: "Booking tool",
-  empty: "Not set up",
-  placeholder: "What do you book with?",
-  link: {
-    title: "Calendar link",
-    why: "So the receptionist can offer open times.",
-    anyway: "I have a calendar link",
-    /** Under "I book by hand", where a link is kept: that answer has none, so saving it takes the link away. */
-    goes: "Saving this removes your calendar link."
-  },
-  emails: {
-    title: "Booking emails",
-    why: "So each booking shows who it is and what for."
-  }
-};
-function calendarLinkShown(withWhat, held) {
-  if (withWhat === BOOKS_BY_HAND) return "hidden";
-  if (held) return "shown";
-  if (!withWhat) return "hidden";
-  return bookingToolCalendar(withWhat) === "none" ? "offered" : "shown";
-}
-function calendarLinkNote(withWhat, bookingLink) {
-  if (!withWhat) return "";
-  if (withWhat === BOOKS_BY_HAND) return `Nothing to connect. ${noTimesWords(bookingLink)}`;
-  if (withWhat === BOOKS_WITH_CALENDAR) return "Paste the private address of the calendar your appointments land in.";
-  const tool = bookingToolName(withWhat) ?? "Your tool";
-  const kind = bookingToolCalendar(withWhat);
-  if (kind === "none") return `${tool} offers no calendar link. ${noTimesWords(bookingLink)}`;
-  if (kind === "own") return `${tool} offers a calendar link of its own. Paste it here.`;
-  if (kind === "writes")
-    return `${tool} writes your appointments into your own calendar. Paste that calendar's private address here.`;
-  return `If ${tool} offers a calendar link, or writes into your own calendar, paste that address here.`;
-}
-
-// src/config/roles.ts
-var ROLE_RANK = { viewer: 0, operator: 1, partner: 2, owner: 3 };
-function roleAtLeast(role, atLeast) {
-  const have = Object.prototype.hasOwnProperty.call(ROLE_RANK, role) ? ROLE_RANK[role] : void 0;
-  return have !== void 0 && have >= ROLE_RANK[atLeast];
-}
-
-// src/conversations/escalations.ts
-var ESCALATION_REASON_LABELS = {
-  human_token: "Customer asked for a person",
-  refusal: "Assistant declined to answer",
-  brain_error: "The receptionist hit an error \u2014 a holding message went out",
-  non_text: "Sent a voice note / photo",
-  send_failed: "Reply failed to deliver",
-  policy_block: "Held by your reply setting \u2014 nothing was sent",
-  policy_ask: "Set to Ask me first \u2014 a person answers this one",
-  person_hold: "You handle this person \u2014 the receptionist stays out",
-  rate_cap: "Too many replies too fast \u2014 the receptionist paused itself",
-  deadman: "Nobody picked this up \u2014 flagged after silence",
-  manual: "Flagged manually",
-  opt_out: "Asked to stop receiving messages",
-  state_unavailable: "The receptionist could not read this thread \u2014 needs a human",
-  stale: "Arrived hours late \u2014 too old to answer automatically",
-  budget: "The day's model budget is used up \u2014 the receptionist paused itself",
-  callback: "Needs a call back \u2014 the phone receptionist could not finish it",
-  paused: "Held \u2014 the workspace is paused until billing resumes",
-  carriers: "Held \u2014 the carriers have not approved this line for texting yet",
-  email_review: "Wrote by email \u2014 a person answers"
-};
-var ESCALATION_REASON_SHORT = {
-  human_token: "asked for a person",
-  refusal: "the receptionist declined to answer",
-  brain_error: "the receptionist hit an error",
-  non_text: "sent a voice note or photo",
-  send_failed: "reply failed to deliver",
-  policy_block: "held by your reply setting",
-  policy_ask: "set to Ask me first",
-  person_hold: "you handle this person",
-  rate_cap: "too many replies too fast",
-  deadman: "nobody picked this up",
-  manual: "flagged by hand",
-  opt_out: "asked to stop",
-  state_unavailable: "the receptionist could not read this thread",
-  stale: "arrived hours late",
-  budget: "the day's model budget is used up",
-  callback: "needs a call back",
-  paused: "the workspace is paused until billing resumes",
-  carriers: "the carriers have not approved this line",
-  email_review: "wrote by email"
-};
-function reasonShort(reason) {
-  if (!reason) return "";
-  return ESCALATION_REASON_SHORT[reason] ?? reason.replace(/_/g, " ");
-}
-var ESCALATION_REASON_WHY = {
-  human_token: "because a customer asked for a person",
-  refusal: "because it declined to answer",
-  brain_error: "because it hit an error",
-  non_text: "for something it can't read",
-  send_failed: "because a reply failed to send",
-  policy_block: "because your reply setting held it",
-  policy_ask: "for a booking or a question set to Ask me first",
-  person_hold: "because you handle this person",
-  rate_cap: "because the reply limit was reached",
-  deadman: "because no answer came in time",
-  manual: "because it was flagged by hand",
-  opt_out: "because they asked to stop",
-  state_unavailable: "because it could not read the thread",
-  stale: "because a message arrived too late to answer",
-  budget: "because the day's model budget ran out",
-  callback: "because they need a call back",
-  paused: "because the workspace is paused",
-  carriers: "while waiting on carriers",
-  email_review: "because they wrote by email"
-};
-function reasonWhy(reason) {
-  return ESCALATION_REASON_WHY[reason] ?? `because ${reasonShort(reason)}`;
-}
-var ESCALATION_SUMMARIES = {
-  human_token: "They asked for a person. A holding message went out \u2014 they're waiting on you.",
-  refusal: "The receptionist wouldn't answer this one. A holding message went out.",
-  brain_error: "The receptionist errored and sent a holding message. They're waiting on a real answer.",
-  non_text: "They sent a voice note or photo the receptionist can't read. Open it and reply yourself.",
-  send_failed: "The reply never reached them \u2014 as far as the customer knows, nobody answered.",
-  policy_block: "Your reply setting holds every message for a person. Nothing was sent \u2014 answer them yourself.",
-  policy_ask: "Your Autonomy setting hands bookings or service questions to a person. The receptionist told them someone will follow up \u2014 that someone is you.",
-  person_hold: "You set the receptionist to stay out of this person's thread. Nothing was sent \u2014 answer them yourself.",
-  rate_cap: "The receptionist hit its daily reply limit and stopped. NOTHING was sent \u2014 they're waiting in silence.",
-  deadman: "This sat unanswered long enough to flag. Nobody has replied.",
-  manual: "Flagged by hand for a human.",
-  opt_out: "They asked to stop receiving messages. Nothing was sent, and nothing may be.",
-  state_unavailable: "The receptionist couldn't read this thread, so it stayed quiet. No reply went out.",
-  stale: "This reached us hours after they sent it, too late to answer automatically. NOTHING was sent \u2014 they have been waiting since.",
-  budget: "The day's model budget is used up, so the receptionist paused itself. NOTHING was sent \u2014 answer them yourself, or raise the budget under Settings \u203A Autonomy.",
-  callback: "They phoned and the receptionist couldn't finish it.",
-  paused: "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings \u203A Billing, or answer this one yourself.",
-  carriers: "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup.",
-  email_review: "They wrote by email. The receptionist does not answer email yet, so nothing was sent. Read it and reply from here."
-};
-function reasonLabelOf(reason) {
-  return ESCALATION_REASON_LABELS[reason] ?? reason;
-}
-function reasonSummaryOf(reason) {
-  return ESCALATION_SUMMARIES[reason] ?? `${reasonLabelOf(reason)}. Needs a human.`;
-}
-
-// src/reports/report-speed.ts
-var REPLY_BUCKETS = [
-  { id: "lt15", label: "under 15s", max: 14 },
-  { id: "lt60", label: "15s \u2013 1m", max: 60 },
-  { id: "lt300", label: "1 \u2013 5m", max: 300 },
-  { id: "lt1800", label: "5 \u2013 30m", max: 1800 },
-  { id: "gte1800", label: "over 30m", max: Infinity }
-];
-var LATER_BUCKETS = [
-  { id: "lt60", label: "up to 1m later", max: 60 },
-  { id: "lt300", label: "1 \u2013 5m later", max: 300 },
-  { id: "gte300", label: "over 5m later", max: Infinity }
-];
-var HOLD_SLACK_S = 10;
-var holdWords2 = (s) => s < 60 ? `${s}-second` : s % 60 === 0 && s < 3600 ? `${s / 60}-minute` : durationWords(s);
-var heldSeconds = (r2) => r2.hold !== void 0 && r2.hold > 0 ? r2.hold : 0;
-function classOf(r2) {
-  const hold = heldSeconds(r2);
-  if (!hold) return { kind: "unheld" };
-  const past = r2.s - hold;
-  return past > HOLD_SLACK_S ? { kind: "later", past } : { kind: "atEnd" };
-}
-function classified(replies) {
-  const rs = (replies ?? []).filter((r2) => Number.isFinite(r2.s));
-  if (!rs.some((r2) => r2.hold !== void 0)) return null;
-  const all = rs.map((r2) => ({ hold: r2.hold ?? 0, c: classOf(r2) }));
-  return all.some((x) => x.c.kind !== "unheld") ? all : null;
-}
-var countOf = (all, kind) => all.filter((x) => x.c.kind === kind).length;
-var pastOf = (all) => all.flatMap((x) => x.c.kind === "later" ? [x.c.past] : []);
-function holdOf(replies) {
-  const all = classified(replies);
-  if (!all) return null;
-  const counts = /* @__PURE__ */ new Map();
-  for (const x of all) if (x.c.kind !== "unheld") counts.set(x.hold, (counts.get(x.hold) ?? 0) + 1);
-  const [seconds2] = [...counts].reduce((a, b) => b[1] > a[1] || b[1] === a[1] && b[0] < a[0] ? b : a);
-  const past = pastOf(all);
-  return {
-    seconds: seconds2,
-    label: holdWords2(seconds2),
-    atEnd: countOf(all, "atEnd"),
-    unheld: countOf(all, "unheld"),
-    later: past.length,
-    laterMost: past.length ? Math.max(...past) : null
-  };
-}
-function spanCounts(spans, seconds2) {
-  const rounded = seconds2.map(Math.round);
-  const rows2 = [];
-  let lo = -Infinity;
-  for (const { id, label, max } of spans) {
-    rows2.push([id, label, rounded.filter((s) => s > lo && s <= max).length]);
-    lo = max;
-  }
-  return rows2;
-}
-function holdBuckets(replies) {
-  const all = classified(replies);
-  if (!all) return null;
-  return [
-    ["unheld", "with no hold", countOf(all, "unheld")],
-    ["atEnd", "as the hold ended", countOf(all, "atEnd")],
-    ...spanCounts(LATER_BUCKETS, pastOf(all))
-  ];
-}
-var absoluteBuckets = (sortedReply) => spanCounts(REPLY_BUCKETS, sortedReply);
-var replyHoldDtoOf = (hold) => hold ? { label: hold.label, at_end: hold.atEnd, later: hold.later, unheld: hold.unheld } : null;
-var repliesSeen = (hold) => hold.unheld + hold.atEnd + hold.later;
-var waitedHold = (hold) => (hold.atEnd + hold.later) * 2 > repliesSeen(hold);
-var endedWithHold = (hold) => hold.atEnd >= hold.later;
-var againstHold = (hold) => endedWithHold(hold) ? `as your ${hold.label} hold ended` : `later than your ${hold.label} hold`;
-var heldCount = (hold) => endedWithHold(hold) ? hold.atEnd : hold.later;
-function heroSpeed(replies, medianLabel, hold) {
-  if (!replies) return "";
-  if (!hold || !waitedHold(hold)) return ` Half of its replies went out within ${medianLabel}.`;
-  return ` ${heldCount(hold)} of ${repliesSeen(hold)} went out ${againstHold(hold)}.`;
-}
-function receptionistSpeed(hold) {
-  return hold && waitedHold(hold) ? `, ${heldCount(hold)} ${againstHold(hold)}` : "";
-}
-var REPLY_DOTS_MOST = 500;
-function replyDotsOf(replies, most = REPLY_DOTS_MOST) {
-  const dots = (replies ?? []).filter((r2) => Number.isFinite(r2.s)).map((r2) => ({
-    day: r2.day,
-    past: Math.round(Math.max(0, r2.s - heldSeconds(r2))),
-    held: heldSeconds(r2) > 0
-  }));
-  return dots.slice(Math.max(0, dots.length - most));
-}
-function replySpeedOf(median, hold) {
-  if (median === null) return null;
-  const counts = hold && {
-    label: hold.label,
-    atEnd: hold.at_end,
-    later: hold.later,
-    unheld: hold.unheld
-  };
-  if (!counts || !waitedHold(counts)) return { held: false, seconds: median };
-  return {
-    held: true,
-    words: againstHold(counts)
-  };
-}
-function holdLine(hold) {
-  if (hold.laterMost !== null) {
-    const more = durationWords(hold.laterMost);
-    return `${hold.later} ${hold.later === 1 ? "reply" : "replies"} took longer than the hold, at most ${more} more.`;
-  }
-  return hold.unheld ? `None waited longer than your hold; ${hold.unheld} had no hold.` : "None waited longer than your hold.";
-}
-var holdNote = (hold) => hold ? ` \xB7 includes your ${hold.label} hold` : "";
-
-// src/reports/report-closed.ts
-function closedOf(arrivals, profile) {
-  if (!arrivals || !profile || !hasHours(profile.hours)) return null;
-  return arrivals.reduce((s, a) => s + (openAt(profile.hours, profile.closures, a.d, a.q * 15) ? 0 : a.n), 0);
-}
-function hoursUnsetOf(arrivals, profile) {
-  return arrivals !== void 0 && profile != null && !hasHours(profile.hours);
-}
-
-// src/shared/numbers.ts
-var sumOf = (xs) => xs.reduce((a, b) => a + b, 0);
-var pct = (n, of) => of > 0 ? Math.round(n / of * 100) : null;
-
-// src/reports/report-tiles.ts
-var REPORT_MIN_N = 5;
-var isThinShare = (n, minN) => n > 0 && n < minN;
-var shareSaid = (share, count2, of) => share === null ? null : of >= REPORT_MIN_N ? `${share}%` : `${count2} of ${of}`;
-function fmtSeconds(s) {
-  if (s == null || !Number.isFinite(s)) return "\u2014";
-  return durationWords(s);
-}
-function deltaOf(current, previous, upIsGood, noun) {
-  if (!previous) return null;
-  const pct2 = Math.round((current - previous) / previous * 100);
-  if (pct2 === 0) return { text: `same as the prior ${noun}`, tone: "" };
-  const up = pct2 > 0;
-  return { text: `${up ? "+" : ""}${pct2}% vs prior ${noun}`, tone: up === upIsGood ? "pos" : "neg" };
-}
-function pointsDelta(current, previous, noun) {
-  if (current === null || previous === null) return null;
-  const pts = current - previous;
-  if (pts === 0) return { text: `same share as the prior ${noun}`, tone: "" };
-  return { text: `${pts > 0 ? "+" : ""}${pts} pts vs prior ${noun}`, tone: pts > 0 ? "pos" : "neg" };
-}
-var beforeWords = (rangeLabel) => `the ${rangeLabel === plural(1, "day") ? "day" : rangeLabel} before`;
-function compareWords(current, previous, rangeLabel, priorHadAny) {
-  if (!priorHadAny || current === 0 && previous === 0) return null;
-  if (previous === 0) return `none ${beforeWords(rangeLabel)}`;
-  if (current === previous) return `same as ${beforeWords(rangeLabel)}`;
-  return `${current > previous ? "up" : "down"} from ${previous}`;
-}
-function shareWasWords(nowOf, was, rangeLabel) {
-  if (nowOf === 0) return null;
-  const said = shareSaid(pct(was.part, was.of), was.part, was.of);
-  return said === null ? null : `was ${said} ${beforeWords(rangeLabel)}`;
-}
-var messagesAnsweredWords = (answered, of) => `${answered} of ${of} ${answered === 1 ? "was" : "were"} answered`;
-function newPeopleLine(newNow, newBefore, rangeLabel, priorHadAny) {
-  if (newNow === 0) return "Nobody new reached you in this period.";
-  const reached = `${plural(newNow, "new person", "new people")} reached you`;
-  if (!priorHadAny) return `${reached}.`;
-  return `${reached} (${newBefore === 0 ? "none" : newBefore} ${beforeWords(rangeLabel)}).`;
-}
-var messagesTile = ({ days, current, points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
-  id: "messages",
-  metric: "customer_messages",
-  label: "Customer messages",
-  value: String(tot.in),
-  meta: tot.in ? `on ${current.filter((d) => d.messages_in > 0).length} of ${plural(days, "day")}` : "none in this period",
-  delta: deltaOf(tot.in, prev.in, true, noun),
-  spark: points.map((p) => p.in),
-  compare: compareWords(tot.in, prev.in, rangeLabel, priorHadAny),
-  door: "conversations"
-});
-var answeredTile = ({ points, tot, noun, answeredTotal, aiShare, prevShare }) => ({
-  id: "answered",
-  metric: "answered_share",
-  label: "Receptionist answered",
-  value: aiShare === null ? "\u2014" : `${aiShare}%`,
-  meta: answeredTotal ? `${tot.ai} of ${answeredTotal} \xB7 ${tot.you} by you \xB7 ${tot.none} unanswered` : "nothing to answer",
-  // A share compares in POINTS. Against counts, the share could fall from
-  // 100% to 60% while the delta read +20% in green.
-  delta: pointsDelta(aiShare, prevShare, noun),
-  spark: points.map((p) => p.ai),
-  compare: null,
-  // A share of the messages that wanted an answer: of few, it says nothing (the page greys it).
-  n: answeredTotal,
-  minN: REPORT_MIN_N
-});
-var replyTile = ({ sortedReply, median, p90, hold }) => ({
-  id: "reply",
-  metric: "reply_median",
-  label: "Median reply time",
-  value: fmtSeconds(median),
-  // The reply time includes the hold the owner set, and says so where replies waited one (spec D14).
-  meta: sortedReply.length ? `slowest tenth ${fmtSeconds(p90)} \xB7 ${sortedReply.length} replies${holdNote(hold)}` : "no receptionist replies yet",
-  delta: null,
-  spark: [],
-  compare: null,
-  // A median of the replies counted: of few, it says nothing (the page greys it).
-  n: sortedReply.length,
-  minN: REPORT_MIN_N
-});
-var neededTile = ({ points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
-  id: "needed",
-  metric: "handovers",
-  label: "Needed you",
-  value: String(tot.escalations),
-  meta: tot.escalations ? "times the receptionist stopped" : "the receptionist never stopped",
-  delta: deltaOf(tot.escalations, prev.escalations, false, noun),
-  spark: points.map((p) => p.escalations),
-  compare: compareWords(tot.escalations, prev.escalations, rangeLabel, priorHadAny),
-  door: "inbox"
-});
-var callsTile = ({ dto, points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
-  id: "calls",
-  metric: "calls",
-  label: "Calls",
-  value: String(tot.calls),
-  meta: tot.calls ? `${Math.max(1, Math.round(tot.callSeconds / 60))} min on the phone \xB7 ${dto.voicemail ?? 0} to voicemail` : "no calls",
-  delta: deltaOf(tot.calls, prev.calls, true, noun),
-  spark: points.map((p) => p.calls),
-  compare: compareWords(tot.calls, prev.calls, rangeLabel, priorHadAny)
-});
-var peopleTile = ({ points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
-  id: "people",
-  metric: "new_people",
-  label: "New people",
-  value: String(tot.newPeople),
-  meta: tot.newPeople ? "first contact in this period, by evidence" : "nobody new",
-  delta: deltaOf(tot.newPeople, prev.newPeople, true, noun),
-  spark: points.map((p) => p.newPeople),
-  compare: compareWords(tot.newPeople, prev.newPeople, rangeLabel, priorHadAny)
-});
-var REPORT_TILES = [
-  messagesTile,
-  answeredTile,
-  replyTile,
-  neededTile,
-  callsTile,
-  peopleTile
-];
-var BOOKED_ENDED_META = "not counted for days that have ended: it follows people as they stand today";
-function bookedTileOf(booking) {
-  const tile = { id: "booked", metric: "booked", label: "Booked", compare: null };
-  if (booking?.calendar === "ended") return { ...tile, value: "\u2014", meta: BOOKED_ENDED_META };
-  if (booking && booking.present)
-    return {
-      ...tile,
-      value: String(booking.booked),
-      meta: booking.asked ? `of ${booking.asked} who asked` : "nobody asked"
-    };
-  return {
-    ...tile,
-    value: "\u2014",
-    meta: booking && booking.calendar === "unavailable" ? "the calendar could not be read" : "no calendar link"
-  };
-}
-
-// src/reports/reports.ts
-var REPORT_CHANNELS = [
-  { key: "whatsapp", label: "WhatsApp" },
-  { key: "voice", label: "Calls" },
-  { key: "email", label: "Email" },
-  { key: "sms", label: "Text" }
-];
-var REPORT_RANGES = [
-  { days: 7, id: "7d", label: "7 days" },
-  { days: 30, id: "30d", label: "30 days" },
-  { days: 90, id: "90d", label: "90 days" },
-  { days: null, id: "month", label: "Month" }
-];
-function dayDate(day) {
-  const [y, m, d] = day.split("-").map(Number);
-  return new Date(y, (m ?? 1) - 1, d ?? 1);
-}
-function fmtDay(day) {
-  return DATE_FMT.format(dayDate(day));
-}
-var daysWords = (from, to) => from === to ? fmtDay(to) : `${fmtDay(from)} \u2013 ${fmtDay(to)}`;
-var endedOn = (report) => report.end && report.end < report.today ? report.end : null;
-function dayPointOf(day) {
-  return { day, label: fmtDay(day), short: String(dayDate(day).getDate()) };
-}
-function quantile(sorted, q) {
-  if (!sorted.length) return null;
-  const pos = (sorted.length - 1) * q;
-  const lo = Math.floor(pos);
-  const hi = Math.ceil(pos);
-  return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
-}
-function bars(entries) {
-  const max = Math.max(1, ...entries.map((e) => e[2]));
-  return entries.map(([id, label, value]) => ({ id, label, value, share: value / max }));
-}
-function priorOf(n, previous, pick) {
-  return Array.from({ length: n }, (_, i) => {
-    const j = previous.length - n + i;
-    return j >= 0 ? pick(previous[j]) : null;
-  });
-}
-var REPORT_WEEK_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-var REPORT_WEEK_LONG = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-var weekdayOf2 = (day) => (dayDate(day).getDay() + 6) % 7;
-function weekOf(series) {
-  const total = [0, 0, 0, 0, 0, 0, 0];
-  const seen = [0, 0, 0, 0, 0, 0, 0];
-  for (const d of series) {
-    const w = weekdayOf2(d.day);
-    total[w] += (d.messages_in || 0) + (d.calls || 0);
-    seen[w] += 1;
-  }
-  return total.map((t, w) => seen[w] ? Math.round(t / seen[w] * 10) / 10 : 0);
-}
-function onlyIndex(values, wins) {
-  if (!values.some((v) => v > 0)) return null;
-  let at3 = 0;
-  for (let i = 1; i < values.length; i++) if (wins(values[i], values[at3])) at3 = i;
-  return values.filter((v) => v === values[at3]).length === 1 ? at3 : null;
-}
-function reportHourWords(h) {
-  const x = (h % 24 + 24) % 24;
-  return x === 0 ? "12am" : x < 12 ? `${x}am` : x === 12 ? "12pm" : `${x - 12}pm`;
-}
-function hoursOf(grid, closed = null) {
-  if (!grid || !grid.length) return null;
-  const values = Array.from({ length: 24 }, (_, h) => grid.reduce((s, row2) => s + (Number(row2?.[h]) || 0), 0));
-  const total = values.reduce((a, b) => a + b, 0);
-  let peak = null;
-  if (total > 0) {
-    peak = 0;
-    for (let h = 1; h < 23; h++) if (values[h] + values[h + 1] > values[peak] + values[peak + 1]) peak = h;
-  }
-  return { values, peak, closed, labels: values.map((_, h) => reportHourWords(h)) };
-}
-function channelsOf(ch) {
-  if (!ch) return null;
-  return REPORT_CHANNELS.map(({ key, label }) => ({
-    key,
-    label,
-    value: Number(ch.current?.[key]) || 0,
-    prior: Number(ch.previous?.[key]) || 0
-  })).filter((c) => c.value > 0 || c.prior > 0);
-}
-function runningTotal(values) {
-  let t = 0;
-  return values.map((v) => t += v || 0);
-}
-function speedOf(replies, days) {
-  const byDay = /* @__PURE__ */ new Map();
-  for (const r2 of replies) {
-    if (!Number.isFinite(r2.s)) continue;
-    const xs = byDay.get(r2.day) ?? [];
-    xs.push(r2.s);
-    byDay.set(r2.day, xs);
-  }
-  const point = (chunk) => {
-    const s = chunk.flatMap((d) => byDay.get(d) ?? []).sort((a, b) => a - b);
-    const first = chunk[0];
-    const p50 = quantile(s, 0.5);
-    const p90 = quantile(s, 0.9);
-    return {
-      day: first,
-      label: fmtDay(first),
-      short: chunk.length > 1 ? fmtDay(first) : String(dayDate(first).getDate()),
-      p50,
-      p90,
-      p50Label: fmtSeconds(p50),
-      p90Label: fmtSeconds(p90),
-      count: s.length
-    };
-  };
-  if (days.length <= 14) return { unit: "day", points: days.map((d) => point([d])) };
-  const weeks = [];
-  for (let end = days.length; end > 0; end -= 7) weeks.unshift(days.slice(Math.max(0, end - 7), end));
-  if (weeks.length > 1 && weeks[0].length < 4) weeks.splice(0, 2, [...weeks[0], ...weeks[1]]);
-  return { unit: "week", points: weeks.map(point) };
-}
-var moodRank = (s) => s === "Positive" ? 0 : s === "Negative" ? 2 : 1;
-var listWords = (names3, last) => names3.length <= 1 ? names3.join("") : `${names3.slice(0, -1).join(", ")} ${last} ${names3[names3.length - 1]}`;
-function rhythmLine(week) {
-  if (!week.current.some((v) => v > 0)) return null;
-  const avg = week.unit === "average";
-  const name = (i) => avg ? `${week.long[i]}s` : week.long[i];
-  const idle = week.current.flatMap((v, i) => v === 0 ? [i] : []);
-  if (idle.length >= 4)
-    return `Only on ${listWords(
-      week.current.flatMap((v, i) => v > 0 ? [name(i)] : []),
-      "and"
-    )}.`;
-  if (idle.length) return `Nothing on ${listWords(idle.map(name), "or")}.`;
-  if (week.quietest === null) return null;
-  return avg ? `Quietest on ${name(week.quietest)}.` : `${week.long[week.quietest]} was the quietest day.`;
-}
-var rangeLabelOf = (days) => REPORT_RANGES.find((r2) => r2.days === days)?.label ?? plural(days, "day");
-var periodWords = (days, until) => {
-  const rangeLabel = rangeLabelOf(days);
-  const before = capitalize(beforeWords(rangeLabel));
-  if (until === null) return { now: `Last ${rangeLabel}`, before, within: `in the last ${rangeLabel}` };
-  return {
-    now: daysWords(shiftKey(until, -(days - 1)), until),
-    before,
-    within: days === 1 ? `on ${fmtDay(until)}` : `in the ${rangeLabel} to ${fmtDay(until)}`
-  };
-};
-var withinWords = (days, until) => days === 1 && until === null ? "today" : periodWords(days, until).within;
-function periodFactsOf(dto) {
-  const days = dto.days;
-  const series = dto.series ?? [];
-  const current = series.slice(-days);
-  const previous = series.slice(0, Math.max(0, series.length - days));
-  const points = current.map((d) => ({
-    ...dayPointOf(d.day),
-    in: d.messages_in,
-    ai: d.answered_ai,
-    you: d.answered_you,
-    none: d.unanswered,
-    calls: d.calls,
-    callSeconds: d.call_seconds,
-    escalations: d.escalations,
-    newPeople: d.new_contacts
-  }));
-  const tot = {
-    in: sumOf(current.map((d) => d.messages_in)),
-    ai: sumOf(current.map((d) => d.answered_ai)),
-    you: sumOf(current.map((d) => d.answered_you)),
-    none: sumOf(current.map((d) => d.unanswered)),
-    escalations: sumOf(current.map((d) => d.escalations)),
-    calls: sumOf(current.map((d) => d.calls)),
-    callSeconds: sumOf(current.map((d) => d.call_seconds)),
-    newPeople: sumOf(current.map((d) => d.new_contacts))
-  };
-  const prev = {
-    in: sumOf(previous.map((d) => d.messages_in)),
-    ai: sumOf(previous.map((d) => d.answered_ai)),
-    you: sumOf(previous.map((d) => d.answered_you)),
-    none: sumOf(previous.map((d) => d.unanswered)),
-    escalations: sumOf(previous.map((d) => d.escalations)),
-    calls: sumOf(previous.map((d) => d.calls)),
-    newPeople: sumOf(previous.map((d) => d.new_contacts))
-  };
-  const noun = plural(days, "day");
-  const until = endedOn(dto);
-  const answeredTotal = tot.ai + tot.you + tot.none;
-  const prevAnsweredTotal = prev.ai + prev.you + prev.none;
-  const sortedReply = [...dto.reply_seconds ?? []].filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
-  return {
-    dto,
-    days,
-    current,
-    previous,
-    points,
-    tot,
-    prev,
-    noun,
-    /** The day the period ended, where that was before today; null for one that ends today (endedOn). */
-    until,
-    rangeLabel: rangeLabelOf(days),
-    // A comparison needs a period before that was lived in: its zeros are a count only if someone reached the business.
-    priorHadAny: prev.in + prev.calls > 0,
-    /** Nobody wrote or called in the period: no customer message and no call. */
-    empty: tot.in === 0 && tot.calls === 0,
-    answeredTotal,
-    aiShare: pct(tot.ai, answeredTotal),
-    prevAnsweredTotal,
-    prevShare: pct(prev.ai, prevAnsweredTotal),
-    sortedReply,
-    median: quantile(sortedReply, 0.5),
-    p90: quantile(sortedReply, 0.9),
-    // The replies against their holds, said once for the tile, the bars, the hero and the line (holdOf).
-    hold: holdOf(dto.replies)
-  };
-}
-var reasonBarsOf = (reasons) => bars(
-  Object.entries(reasons ?? {}).sort((a, b) => b[1] - a[1]).map(([r2, n]) => [r2, capitalize(reasonShort(r2)) || r2, n])
-);
-var moodBarsOf = (sentiments) => bars(
-  Object.entries(sentiments ?? {}).sort((a, b) => moodRank(a[0]) - moodRank(b[0]) || b[1] - a[1]).map(([s, n]) => [s, s, n])
-);
-function weekShapeOf({ current, previous }) {
-  const weekNow = weekOf(current);
-  const weekBefore = weekOf(previous);
-  return {
-    axes: [...REPORT_WEEK_SHORT],
-    long: [...REPORT_WEEK_LONG],
-    current: weekNow,
-    prior: weekBefore.some((v) => v > 0) ? weekBefore : null,
-    busiest: onlyIndex(weekNow, (a, b) => a > b),
-    quietest: onlyIndex(weekNow, (a, b) => a < b),
-    unit: current.length > 7 ? "average" : "count"
-  };
-}
-function answeredOf(f) {
-  const { current, previous, points, tot, prev, answeredTotal, prevAnsweredTotal } = f;
-  return {
-    points,
-    totals: { in: tot.in, ai: tot.ai, you: tot.you, none: tot.none },
-    max: Math.max(1, ...points.map((p) => p.ai + p.you + p.none)),
-    prior: priorOf(current.length, previous, (d) => d.messages_in),
-    share: answeredTotal ? tot.ai / answeredTotal : null,
-    priorShare: prevAnsweredTotal ? prev.ai / prevAnsweredTotal : null
-  };
-}
-function replyTimeOf({ dto, sortedReply, median, p90, hold }) {
-  return {
-    count: sortedReply.length,
-    median,
-    p90,
-    medianLabel: fmtSeconds(median),
-    p90Label: fmtSeconds(p90),
-    buckets: bars(holdBuckets(dto.replies) ?? absoluteBuckets(sortedReply)),
-    hold,
-    dots: replyDotsOf(dto.replies)
-  };
-}
-function callsOf({ dto, current, previous, points, tot }, sentiments) {
-  return {
-    points,
-    total: tot.calls,
-    minutes: Math.round(tot.callSeconds / 60),
-    voicemail: dto.voicemail ?? 0,
-    sentiments,
-    max: Math.max(1, ...points.map((p) => p.calls)),
-    prior: priorOf(current.length, previous, (d) => d.calls)
-  };
-}
-function peopleOf({ current, previous, points, tot, prev }) {
-  const peopleBefore = priorOf(current.length, previous, (d) => d.new_contacts);
-  const peopleRun = runningTotal(points.map((p) => p.newPeople));
-  return {
-    points,
-    total: tot.newPeople,
-    max: Math.max(1, ...points.map((p) => p.newPeople)),
-    prior: peopleBefore,
-    cumulative: {
-      points: points.map((p, i) => ({ ...p, total: peopleRun[i] })),
-      prior: prev.newPeople > 0 ? runningTotal(peopleBefore) : null
-    }
-  };
-}
-function replyLine({ sortedReply, p90, hold }) {
-  if (hold) return holdLine(hold);
-  if (sortedReply.length >= 10) return `Nine in ten within ${fmtSeconds(p90)}.`;
-  return sortedReply.length ? `The slowest took ${fmtSeconds(sortedReply[sortedReply.length - 1])}.` : null;
-}
-function linesOf(f, week) {
-  const { points, tot, prev, rangeLabel, answeredTotal, prevAnsweredTotal } = f;
-  const busiestDay = tot.in ? points.reduce((b, p) => p.in > b.in ? p : b) : null;
-  return {
-    hero: answeredTotal ? `${tot.ai} of ${answeredTotal} customer messages, without you.${heroSpeed(f.sortedReply.length, fmtSeconds(f.median), f.hold)}` : "No customer wrote in this period.",
-    heroBefore: prevAnsweredTotal ? `${pct(prev.ai, prevAnsweredTotal)}% ${beforeWords(rangeLabel)}` : null,
-    receptionist: answeredTotal ? `${tot.ai} of ${answeredTotal} messages answered without you${receptionistSpeed(f.hold)}.` : null,
-    answered: busiestDay ? `Most messages on ${busiestDay.label}: ${busiestDay.in}.` : null,
-    reply: replyLine(f),
-    calls: tot.calls ? `About ${fmtSeconds(tot.callSeconds / tot.calls)} a call.` : null,
-    people: newPeopleLine(tot.newPeople, prev.newPeople, rangeLabel, f.priorHadAny),
-    rhythm: rhythmLine(week)
-  };
-}
-function headlineOf(dto, period, booking) {
-  const f = periodFactsOf(dto);
-  return {
-    period,
-    days: f.days,
-    empty: f.empty,
-    messages_in: f.tot.in,
-    // Nothing to compare with where the period before had no customer message and no call at all (compareWords).
-    messages_before: f.priorHadAny ? f.prev.in : null,
-    answered_ai: f.tot.ai,
-    answered_you: f.tot.you,
-    unanswered: f.tot.none,
-    answered_share: answeredOf(f).share,
-    calls: f.tot.calls,
-    booking
-  };
-}
-function toReportVM(dto, opts) {
-  const f = periodFactsOf(dto);
-  const tiles = REPORT_TILES.map((tile) => tile(f));
-  const reasons = reasonBarsOf(dto.reasons);
-  const sentiments = moodBarsOf(dto.sentiments);
-  const week = weekShapeOf(f);
-  const channels = channelsOf(dto.channels);
-  const first = f.current[0]?.day;
-  const last = f.current[f.current.length - 1]?.day;
-  return {
-    days: f.days,
-    rangeLabel: f.rangeLabel,
-    since: first ? fmtDay(first) : "",
-    until: last ? fmtDay(last) : "",
-    timezone: dto.timezone,
-    today: dto.today,
-    end: dto.end ?? dto.today,
-    live: f.until === null,
-    empty: f.empty,
-    tiles,
-    answered: answeredOf(f),
-    reasons,
-    replyTime: replyTimeOf(f),
-    calls: callsOf(f, sentiments),
-    people: peopleOf(f),
-    speed: dto.replies ? speedOf(
-      dto.replies,
-      f.current.map((d) => d.day)
-    ) : null,
-    week,
-    hours: hoursOf(dto.hours, closedOf(dto.arrivals, opts?.profile)),
-    hoursUnset: hoursUnsetOf(dto.arrivals, opts?.profile),
-    channels,
-    period: periodWords(f.days, f.until),
-    lines: linesOf(f, week),
-    table: {
-      columns: [
-        "Day",
-        "Customer messages",
-        "Answered by receptionist",
-        "Answered by you",
-        "Unanswered",
-        "Calls",
-        "Needed you",
-        "New people"
-      ],
-      rows: f.points.map((p) => [p.label, p.in, p.ai, p.you, p.none, p.calls, p.escalations, p.newPeople])
-    }
-  };
-}
-
-// src/reports/report-periods.ts
-var REPORT_PERIOD_IDS = REPORT_RANGES.map((r2) => r2.id);
-var REPORT_PERIOD_DEFAULT = "30d";
-var CAMPAIGNS_RESULTS_PERIOD = "30d";
-var REPORT_PERIOD_STORAGE = "chanlytics.report.period";
-var MOST_DAYS = Math.max(...REPORT_RANGES.map((r2) => r2.days ?? 0));
-var isReportPeriod = (value) => REPORT_RANGES.some((r2) => r2.id === value);
-function fixedDaysOf(period) {
-  return REPORT_RANGES.find((r2) => r2.id === period)?.days ?? null;
-}
-var monthDaysAt = (dayKey2) => Number(dayKey2.slice(8, 10));
-var periodSince = (today, days) => shiftKey(today, -(days - 1));
-function reportPeriodOf(asked) {
-  if (asked.period !== void 0) return isReportPeriod(asked.period) ? asked.period : null;
-  return REPORT_PERIOD_DEFAULT;
-}
-function reportDaysAsked(view) {
-  const asked = Number(view);
-  return Number.isInteger(asked) && asked >= 1 && asked <= MOST_DAYS ? asked : null;
-}
-var REPORT_MOST_DAYS = MOST_DAYS;
-var isRealDay = (value) => isDayKey(value) && shiftKey(value, 0) === value;
-var isReportDays = (value) => typeof value === "object" && value !== null && isRealDay(value.from) && isRealDay(value.to);
-var dayOrdinal = (day) => {
-  const { y, m, d } = keyParts(day);
-  return Math.round(Date.UTC(y, m - 1, d) / DAY_MS);
-};
-var reportDaysCount = (days) => dayOrdinal(days.to) - dayOrdinal(days.from) + 1;
-var reportRangeKey = (range) => typeof range === "string" ? range : `${range.from}~${range.to}`;
-function reportRangeOfKey(key) {
-  if (isReportPeriod(key)) return key;
-  const [from, to, more] = String(key ?? "").split("~");
-  return more === void 0 && isRealDay(from) && isRealDay(to) && from <= to ? { from, to } : null;
-}
-var sameReportRange = (a, b) => reportRangeKey(a) === reportRangeKey(b);
-function reportDaysRefusal(days, today) {
-  if (!isReportDays(days)) return "from and to are days, written YYYY-MM-DD.";
-  if (days.from > days.to) return "from is after to.";
-  if (days.to > today) return "A report ends today at the latest.";
-  if (reportDaysCount(days) > MOST_DAYS) return `A report covers ${MOST_DAYS} days at most.`;
-  return null;
-}
-function reportRangeAsked(asked) {
-  if (asked.from === void 0 && asked.to === void 0) return reportPeriodOf(asked);
-  if (asked.period !== void 0) return null;
-  return isRealDay(asked.from) && isRealDay(asked.to) ? { from: asked.from, to: asked.to } : null;
-}
-
-// src/reports/lenses.ts
-var NOTHING_CAME_IN = (r2) => ({
-  title: "Nothing came in",
-  body: `Nobody wrote or called between ${r2.since} and ${r2.until}.`,
-  door: null
-});
-var REPORT_LENSES = [
-  {
-    id: "overview",
-    label: "Overview",
-    sub: "how the period went, and what needs a look",
-    shownWhen: "always",
-    role: "viewer",
-    empty: NOTHING_CAME_IN
-  },
-  {
-    id: "receptionist",
-    label: "Receptionist",
-    sub: "who answered, how fast, and why it stopped",
-    shownWhen: "always",
-    role: "viewer",
-    empty: NOTHING_CAME_IN
-  },
-  {
-    id: "people",
-    label: "People",
-    sub: "who reached you, whether you can reach them, and who is slipping away",
-    shownWhen: "always",
-    role: "viewer",
-    empty: NOTHING_CAME_IN
-  },
-  {
-    id: "pipeline",
-    label: "Pipeline",
-    sub: "proposals, and what became of them",
-    shownWhen: "deals_on",
-    role: "viewer",
-    empty: () => ({
-      title: "No proposals to report",
-      body: "Proposals you send, and what became of them, show here. Where your customers book directly, there is nothing to report.",
-      door: { label: "Open Settings", to: "admin/workspace" }
-    })
-  },
-  {
-    id: "campaigns",
-    label: "Campaigns",
-    sub: "did your messages reach people, did they answer, and what is stuck",
-    shownWhen: "always",
-    role: "viewer",
-    empty: (r2) => ({
-      title: "Nothing went out",
-      body: `No broadcast or campaign run reached anyone between ${r2.since} and ${r2.until}, and nobody said yes or asked to stop.`,
-      door: { label: "Open Sent", to: "broadcasts" }
-    })
-  },
-  {
-    id: "reviews",
-    label: "Reviews",
-    sub: "what customers say on Google",
-    shownWhen: "always",
-    role: "viewer",
-    empty: () => ({
-      title: "Find your business on Google once.",
-      body: "Its rating, its count and its newest reviews show here for the period, with a line on Today and a row on the bell when one lands.",
-      door: { label: "Find it", to: "start/find" }
-    })
-  }
-];
-var lensRoute = (id, days = null) => {
-  if (days === null) return id === "overview" ? "reports" : `reports/${id}`;
-  return id === "overview" ? `reports/${reportRangeKey(days)}` : `reports/${id}:${reportRangeKey(days)}`;
-};
-var LENS_ROUTES = REPORT_LENSES.map((l) => lensRoute(l.id));
-var isLensParam = (param) => REPORT_LENSES.some((l) => l.id === param && l.id !== "overview");
-var daysOfKey = (key) => {
-  const range = reportRangeOfKey(key);
-  return range !== null && typeof range !== "string" ? range : null;
-};
-function reportsParamParts(param) {
-  if (param === "") return { lens: "overview", days: null };
-  const alone = daysOfKey(param);
-  if (alone) return { lens: "overview", days: alone };
-  const at3 = param.indexOf(":");
-  const word = at3 < 0 ? param : param.slice(0, at3);
-  if (!isLensParam(word)) return null;
-  if (at3 < 0) return { lens: word, days: null };
-  const days = daysOfKey(param.slice(at3 + 1));
-  return days ? { lens: word, days } : null;
-}
-function reportsRouteParts(route) {
-  if (route === "reports") return reportsParamParts("");
-  const param = route.startsWith("reports/") ? route.slice("reports/".length) : "";
-  return param === "" ? null : reportsParamParts(param);
-}
-function lensOfRoute(route) {
-  return reportsRouteParts(route)?.lens ?? null;
-}
-function lensesFor(who) {
-  return REPORT_LENSES.filter(
-    (l) => (l.shownWhen === "always" || dealsAreOn(who.sellsBy)) && roleAtLeast(who.role ?? "viewer", l.role)
-  );
-}
-var lensIsShown = (id, who) => lensesFor(who).some((l) => l.id === id);
-function lensOf(id) {
-  const found = REPORT_LENSES.find((l) => l.id === id);
-  if (!found) throw new Error(`Reports has no lens ${id}`);
-  return found;
-}
-var lensEmpty = (id, range) => lensOf(id).empty(range);
 
 // src/ask/citations.ts
 var ASK_CITATION_KINDS = [
@@ -8251,7 +12236,7 @@ function sends(channel, n) {
   const one = channel === "email" ? "email" : "text";
   return `${n.toLocaleString("en-US")} ${n === 1 ? one : `${one}s`}`;
 }
-var peopleWord = (n) => `${n.toLocaleString("en-US")} ${n === 1 ? "person" : "people"}`;
+var peopleWord2 = (n) => `${n.toLocaleString("en-US")} ${n === 1 ? "person" : "people"}`;
 function allowanceBeforeSend(byChannel, sent2, trigger, purpose) {
   if (!sent2 || !heldByAllowance(trigger, purpose)) return null;
   const lines = [];
@@ -8260,7 +12245,7 @@ function allowanceBeforeSend(byChannel, sent2, trigger, purpose) {
     const past = byChannel[channel] - room;
     if (past <= 0) continue;
     lines.push(
-      room === 0 ? `This month's ${sends(channel, CAMPAIGN_MONTH_ALLOWANCE[channel])} are used up: ${peopleWord(past)} will be held back.` : `Only ${sends(channel, room)} ${room === 1 ? "is" : "are"} left this month: ${past.toLocaleString("en-US")} of these people will be held back.`
+      room === 0 ? `This month's ${sends(channel, CAMPAIGN_MONTH_ALLOWANCE[channel])} are used up: ${peopleWord2(past)} will be held back.` : `Only ${sends(channel, room)} ${room === 1 ? "is" : "are"} left this month: ${past.toLocaleString("en-US")} of these people will be held back.`
     );
   }
   return lines.length > 0 ? lines.join(" ") : null;
@@ -8793,6 +12778,8 @@ var LIFECYCLE_WORDS = {
   results: {
     title: "What came back",
     link: "All runs",
+    /** The tile's second door: Reports › Campaigns over the same days. */
+    fullReport: "Full report",
     quiet: "Nothing went out, and nobody said yes or asked to stop.",
     funnel: { sent: "Sent", delivered: "Delivered", read: "Read", replied: "Replied" },
     funnelLabel: "Sent, delivered, read and replied",
@@ -9882,7 +13869,7 @@ function parseCsv(text) {
   const sep = delimiterOf(s);
   const rows2 = [];
   let row2 = [];
-  let cell = "";
+  let cell3 = "";
   let quoted = false;
   let lineNo = 1;
   let rowStartLine = 1;
@@ -9895,42 +13882,42 @@ function parseCsv(text) {
     if (quoted) {
       if (ch === '"') {
         if (s[i + 1] === '"') {
-          cell += '"';
+          cell3 += '"';
           i++;
         } else quoted = false;
       } else {
         if (ch === "\n") lineNo++;
-        cell += ch;
+        cell3 += ch;
       }
       continue;
     }
     if (ch === '"') {
-      if (cell === "") {
+      if (cell3 === "") {
         quoted = true;
         continue;
       }
-      cell += ch;
+      cell3 += ch;
       continue;
     }
     if (ch === sep) {
-      row2.push(cell);
-      cell = "";
+      row2.push(cell3);
+      cell3 = "";
       continue;
     }
     if (ch === "\r") continue;
     if (ch === "\n") {
-      row2.push(cell);
+      row2.push(cell3);
       pushRow();
       row2 = [];
-      cell = "";
+      cell3 = "";
       lineNo++;
       rowStartLine = lineNo;
       continue;
     }
-    cell += ch;
+    cell3 += ch;
   }
-  if (cell !== "" || row2.length) {
-    row2.push(cell);
+  if (cell3 !== "" || row2.length) {
+    row2.push(cell3);
     pushRow();
   }
   return rows2.filter((r2) => r2.some((c) => c.trim() !== ""));
@@ -9991,17 +13978,17 @@ function matchColumns(rows2) {
   return { columns, header };
 }
 function importRowsOf(rows2, columns, header) {
-  const cell = (r2, i) => i === null ? "" : (r2[i] ?? "").trim();
+  const cell3 = (r2, i) => i === null ? "" : (r2[i] ?? "").trim();
   return (header ? rows2.slice(1) : rows2).map((r2, n) => {
     const name = Array.from(
-      [cell(r2, columns.name), cell(r2, columns.last)].filter(Boolean).join(" ").replace(/\s+/g, " ")
+      [cell3(r2, columns.name), cell3(r2, columns.last)].filter(Boolean).join(" ").replace(/\s+/g, " ")
     ).slice(0, 80).join("").trim();
     const carried = r2.line;
     return {
       line: carried ?? n + (header ? 2 : 1),
       name: name || null,
-      phone: normalizePhone(cell(r2, columns.phone)),
-      email: normalizeEmail(cell(r2, columns.email))
+      phone: normalizePhone(cell3(r2, columns.phone)),
+      email: normalizeEmail(cell3(r2, columns.email))
     };
   });
 }
@@ -10084,19 +14071,19 @@ var leadImportReady = (r2) => !!r2.name && !!r2.email;
 function leadImportPlanOf(text) {
   const cells = parseCsv(text || "");
   const { columns, header } = leadImportColumns(cells);
-  const cell = (r2, i) => i === null ? "" : (r2[i] ?? "").trim();
+  const cell3 = (r2, i) => i === null ? "" : (r2[i] ?? "").trim();
   const words3 = (v, max) => Array.from(v.replace(/\s+/g, " ")).slice(0, max).join("").trim() || null;
   const rows2 = (header ? cells.slice(1) : cells).map((r2, n) => {
     const carried = r2.line;
     return {
       line: carried ?? n + (header ? 2 : 1),
-      name: words3(cell(r2, columns.name), 200),
-      email: normalizeEmail(cell(r2, columns.email)),
-      phone: normalizePhone(cell(r2, columns.phone)),
-      website_host: websiteHostOf(cell(r2, columns.website)),
-      city: words3(cell(r2, columns.city), 120),
-      region: regionOf(cell(r2, columns.region)),
-      category: words3(cell(r2, columns.category), 120)
+      name: words3(cell3(r2, columns.name), 200),
+      email: normalizeEmail(cell3(r2, columns.email)),
+      phone: normalizePhone(cell3(r2, columns.phone)),
+      website_host: websiteHostOf(cell3(r2, columns.website)),
+      city: words3(cell3(r2, columns.city), 120),
+      region: regionOf(cell3(r2, columns.region)),
+      category: words3(cell3(r2, columns.category), 120)
     };
   });
   return {
@@ -10624,8 +14611,15 @@ var PERSON_CAME_FROM_WORDS = {
   calendar: "Your calendar",
   manual: "Added by hand",
   import: "Imported",
-  lead: "A lead you found"
+  lead: "A lead you found",
+  ad: "An ad"
 };
+var PERSON_AD_ON = {
+  meta: "Facebook and Instagram",
+  google: "Google",
+  tiktok: "TikTok"
+};
+var fromAdWords = (name) => name ? `From an ad \xB7 ${name}` : "From an ad";
 
 // src/people/lists/list-rules.ts
 var LIST_NEEDS = ["calendar", "consult", "deals", "viewer"];
@@ -11591,13 +15585,20 @@ function proposalSending(conversations, url) {
   );
 }
 function addedBy(added) {
-  if (added.source === "import") return { who: "You", how: "from a spreadsheet" };
-  if (added.source !== "calendar" && added.source !== "lead") return { who: "You", how: "by hand" };
+  if (added.source === "import") return { who: "You", how: "from a spreadsheet", to: null };
+  if (added.source === "ad") return addedByAd(added.ad ?? null);
+  if (added.source !== "calendar" && added.source !== "lead") return { who: "You", how: "by hand", to: null };
   const from = PERSON_CAME_FROM_WORDS[added.source];
   return {
     who: added.source === "calendar" ? "Calendar" : "Leads",
-    how: `from ${from.charAt(0).toLowerCase()}${from.slice(1)}${added.source === "calendar" && added.title ? ` (${added.title})` : ""}`
+    how: `from ${from.charAt(0).toLowerCase()}${from.slice(1)}${added.source === "calendar" && added.title ? ` (${added.title})` : ""}`,
+    to: null
   };
+}
+function addedByAd(ad) {
+  const from = PERSON_CAME_FROM_WORDS.ad.toLowerCase();
+  if (!ad) return { who: "Ads", how: `from ${from}`, to: null };
+  return { who: "Ads", how: `from ${from} (${ad.name}, on ${PERSON_AD_ON[ad.platform]})`, to: adRoute(ad.id) };
 }
 
 // src/people/person-row-facts.ts
@@ -15547,7 +19548,7 @@ function keyOfEvent(data, consent, purpose) {
   const send = isIn(NAMES_THE_SEND, data.source) ? wordOrNull(data.message_external_id) : null;
   return send ? { field: "messageExternalId", value: send } : null;
 }
-function countedOf(e) {
+function countedOf2(e) {
   const data = recordOrNull(e.data);
   const atMs = Date.parse(e.at);
   if (!data || !Number.isFinite(atMs) || isIn(NOT_ANSWERS, data.source)) return null;
@@ -15583,7 +19584,7 @@ function answersToRuns(sends2, events) {
   }
   const standing = /* @__PURE__ */ new Map();
   for (const raw of events) {
-    const e = countedOf(raw);
+    const e = countedOf2(raw);
     const theirs = e ? sendsOf.get(e.contactId) : void 0;
     if (!e || !theirs) continue;
     const exact = e.key !== null;
@@ -17234,7 +21235,7 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
   }
   const days = dto.days.map((d) => {
     const { y, m, d: dd } = keyParts(d.key);
-    const weekday = DOW[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()].toLowerCase();
+    const weekday = DOW2[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()].toLowerCase();
     const closure = dto.closures.find((c) => c.date <= d.key && d.key <= (c.until && c.until >= c.date ? c.until : c.date)) ?? null;
     const intervals = dayIntervals(dto.hours?.[weekday]);
     const closedDay = closedOn(dto.closures, d.key) || intervals.length === 0;
@@ -17273,7 +21274,7 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
     });
     return {
       key: d.key,
-      dow: DOW[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()],
+      dow: DOW2[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()],
       date: shortDate(d.key),
       long: longDate(d.key),
       dayNum: String(dd),
@@ -17371,7 +21372,7 @@ function frameOf(key, todayKey) {
   const { y, m, d } = keyParts(key);
   return {
     key,
-    dow: DOW[new Date(Date.UTC(y, m - 1, d)).getUTCDay()],
+    dow: DOW2[new Date(Date.UTC(y, m - 1, d)).getUTCDay()],
     date: shortDate(key),
     long: longDate(key),
     dayNum: String(d),
@@ -18153,7 +22154,7 @@ var BusinessProfileSchema = z6.object({
    * during opening hours; absent, it takes a message instead. Never the
    * receptionist's own line — that would ring itself.
    */
-  handoff_number: z6.string().regex(E164, "E.164, like +12125550143").optional(),
+  handoff_number: z6.string().regex(E1642, "E.164, like +12125550143").optional(),
   website: z6.string().url().max(500).optional(),
   notes: z6.array(NoteSchema).max(PROFILE_LIMITS.notes).optional(),
   booking_rules: BookingRulesSchema.optional(),
@@ -19295,10 +23296,10 @@ function serviceUndoName(name) {
   const n = typeof name === "string" ? name.trim() : "";
   return n ? `Undo removing ${n}` : "Undo removing a service";
 }
-function servicesFoundWords(shown, total) {
+function servicesFoundWords(shown2, total) {
   if (!total) return "No services yet.";
-  if (!shown) return "No service is called that.";
-  return `${count(shown)} of ${count(total)} ${total === 1 ? "service" : "services"}`;
+  if (!shown2) return "No service is called that.";
+  return `${count(shown2)} of ${count(total)} ${total === 1 ? "service" : "services"}`;
 }
 
 // src/config/business-tab/booking-rules-words.ts
@@ -20255,7 +24256,7 @@ function toGoogleVM(dto, period, nowMs, tz) {
 }
 
 // src/config/first-receptionist.ts
-var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
+var NAME_MAX2 = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
 function googleProfileOf(listing) {
   const facts = listing?.facts ?? null;
   const profile = {};
@@ -20279,7 +24280,7 @@ function firstReceptionistOf(known) {
     workspace: { name: known.workspaceName },
     listing: known.listing ? { name: known.listing.name, address: known.listing.address } : null
   }).business_name.value;
-  const name = (resolved ?? "").slice(0, NAME_MAX).trim();
+  const name = (resolved ?? "").slice(0, NAME_MAX2).trim();
   if (!name) return null;
   const profile = googleProfileOf(known.listing);
   return {
@@ -20874,7 +24875,7 @@ function replyStripOf(r2, now, tz) {
     doors
   };
 }
-var CHIPS = {
+var CHIPS2 = {
   interested: "Interested",
   question: "Question",
   not_now: "Not now",
@@ -20884,7 +24885,7 @@ var CHIPS = {
   other: "Wrote back"
 };
 function replyChipOf(r2) {
-  return r2.unread || r2.undone ? CHIPS.other : CHIPS[r2.intent];
+  return r2.unread || r2.undone ? CHIPS2.other : CHIPS2[r2.intent];
 }
 function replyFromLineOf(from, mailbox) {
   if (from.from === "own") return `Goes from ${from.address}.`;
@@ -21277,6 +25278,8 @@ function cameFromSaid(key, n) {
       return "came from your imported history";
     case "lead":
       return "came from Leads";
+    case "ad":
+      return "came from an ad";
     default:
       return null;
   }
@@ -22857,7 +26860,7 @@ function dealStepOf(notes, dealId) {
     mine: first.n.mine
   };
 }
-function quietOf(p, nowMs, tz) {
+function quietOf2(p, nowMs, tz) {
   const deals = p.deals ?? (p.deal ? [p.deal] : []);
   const closed = [...deals].filter((d) => d.stage === "lost" || d.stage === "ended").sort((a, b) => (b.sinceMs ?? 0) - (a.sinceMs ?? 0))[0] ?? null;
   const consulted = p.consultedMs ?? null;
@@ -22885,7 +26888,7 @@ function quietOf(p, nowMs, tz) {
 function dealCardsOf(p, nowMs, tz) {
   const deals = p.deals ?? (p.deal ? [p.deal] : []);
   const open = deals.filter((d) => d.stage === "proposed" || d.stage === "won");
-  if (!open.length) return { cards: [], quiet: quietOf(p, nowMs, tz) };
+  if (!open.length) return { cards: [], quiet: quietOf2(p, nowMs, tz) };
   const consulted = consultedDealOf(p, open);
   return { cards: open.map((d) => cardOf2(p, d, nowMs, tz, d === consulted)), quiet: null };
 }
@@ -24373,7 +28376,7 @@ function areaOf(v) {
   return { kind, label, state, center, radius_m: radius, ...zip ? { zip } : {}, query };
 }
 var keyed = (v) => arr(v).map((x) => ({ key: fieldText(obj(x).key), text: fieldText(obj(x).text) })).filter((x) => x.key && x.text);
-function searchOf(v) {
+function searchOf2(v) {
   const s = obj(v);
   const name = fieldText(s.name);
   if (!name) return null;
@@ -24435,7 +28438,7 @@ function ideaHistoryOf(raw) {
       zip: /^\d{5}/.test(fieldText(home.zip)) ? fieldText(home.zip).slice(0, 5) : null
     } : null,
     listing: fieldText(listing.address) ? { address: fieldText(listing.address), type: fieldText(listing.type) } : null,
-    searches: arr(h.searches).map(searchOf).filter((s) => !!s)
+    searches: arr(h.searches).map(searchOf2).filter((s) => !!s)
   };
 }
 function ideaBasisOf(v) {
@@ -25543,7 +29546,7 @@ function businessRecordProblems(r2, path, facts = {}) {
   if (has3("ein") && !EIN.test(String(r2.ein).trim())) out.ein = "A tax ID is nine digits, like 12-3456789.";
   if (has3("contact_email") && !EMAIL.test(String(r2.contact_email).trim()))
     out.contact_email = "That does not look like an email address.";
-  if (has3("contact_phone") && !E164.test(String(r2.contact_phone).replace(/[\s()-]/g, "")))
+  if (has3("contact_phone") && !E1642.test(String(r2.contact_phone).replace(/[\s()-]/g, "")))
     out.contact_phone = "Write it with the country code, like +1 646 555 0123.";
   if (has3("about") && String(r2.about).trim().length < ABOUT_MIN)
     out.about = "Say a little more: what you sell, and who buys it.";
@@ -27439,7 +31442,7 @@ function approvalWordsOf(r2, p) {
     held: r2.held.map((h) => ({
       id: h.send_id,
       name: h.business_name,
-      why: holdWords(h.reason, h.detail),
+      why: holdWords2(h.reason, h.detail),
       doors: holdDoors(h.reason).map((d) => [d, HOLD_DOOR_WORDS[d]])
     }))
   };
@@ -27498,13 +31501,13 @@ function reportRowOf(s, step2) {
   ];
 }
 function chainReportWordsOf(c, report, reach, p) {
-  const sum2 = (k) => report.steps.reduce((t, s) => t + (s[k] ?? 0), 0);
-  const written = sum2("written");
-  const wroteBack = sum2("wrote_back");
-  const saidNo = sum2("said_no");
-  const bounced = sum2("bounced");
-  const held = sum2("held");
-  const handed = sum2("handed");
+  const sum3 = (k) => report.steps.reduce((t, s) => t + (s[k] ?? 0), 0);
+  const written = sum3("written");
+  const wroteBack = sum3("wrote_back");
+  const saidNo = sum3("said_no");
+  const bounced = sum3("bounced");
+  const held = sum3("held");
+  const handed = sum3("handed");
   const clauses = [`${written} written`];
   if (handed > 0) clauses.push(`${handed} handed to you`);
   if (wroteBack > 0) clauses.push(`${wroteBack} wrote back`);
@@ -27701,11 +31704,11 @@ function reachOutLineOf(l, nowMs, tz) {
   return null;
 }
 function reachOutStripOf(s, chain, nowMs, tz) {
-  const running = s.chain.state === "running";
+  const running2 = s.chain.state === "running";
   const share = chain ? chainPaceOf(chain).share : 0;
   const parts2 = [share > 0 ? `${s.today} of ${share} today` : `${s.today} today`];
   const next = s.next ? at(s.next.at) : null;
-  if (!running) parts2.push("nothing goes while it is paused");
+  if (!running2) parts2.push("nothing goes while it is paused");
   else if (s.next && next !== null) {
     const when = zoneDayKey(next, tz) === zoneDayKey(nowMs, tz) ? clockTime(next, tz) : clockNearWhen(next, tz, nowMs);
     parts2.push(`next ${when}${s.next.business ? `, ${s.next.business}` : ""}`);
@@ -27713,12 +31716,12 @@ function reachOutStripOf(s, chain, nowMs, tz) {
   } else parts2.push("nothing more planned yet");
   if (s.held > 0) parts2.push(`${s.held} held for your say`);
   return {
-    title: running ? `Writing to ${plural(s.written_to, "business", "businesses")}` : `Paused \xB7 ${plural(s.written_to, "business", "businesses")} written to`,
+    title: running2 ? `Writing to ${plural(s.written_to, "business", "businesses")}` : `Paused \xB7 ${plural(s.written_to, "business", "businesses")} written to`,
     parts: parts2,
-    running,
+    running: running2,
     progress: share > 0 ? Math.min(1, s.today / share) : null,
     going: { label: "How it's going", to: `outbound/${s.chain.root_id}` },
-    toggle: running ? { label: "Pause", pause: true } : { label: "Resume", pause: false },
+    toggle: running2 ? { label: "Pause", pause: true } : { label: "Resume", pause: false },
     waiting: s.waiting_run_id ? { label: "A run waits for you", to: `broadcasts/run:${s.waiting_run_id}` } : null
   };
 }
@@ -28129,7 +32132,7 @@ function smartListsOf(d, base) {
     (l) => l.onProfile !== false && (!l.needsCalendar || d.visits?.state === "ok") && l.test(base)
   ).map((l) => ({ id: l.id, label: l.label, why: listRuleWhy(l.rule, base) }));
 }
-function leadOf(d, base, tz, nowMs) {
+function leadOf2(d, base, tz, nowMs) {
   return d.lead ? {
     id: d.lead.id,
     name: d.lead.business_name || base.name,
@@ -28363,7 +32366,8 @@ function addedItems({ profile, stamp }) {
   if (!profile.added) return [];
   const t = ts(profile.added.at);
   const by = addedBy(profile.added);
-  return t !== null ? [{ id: "added", ts: t, ...stamp(t), kind: "system", who: by.who, text: `Added ${by.how}` }] : [];
+  const door = by.to ? { link: { label: "Open the ad", to: by.to } } : {};
+  return t !== null ? [{ id: "added", ts: t, ...stamp(t), kind: "system", who: by.who, text: `Added ${by.how}`, ...door }] : [];
 }
 function foundItems(ctx) {
   const found = reachOutOf(ctx)?.found;
@@ -28530,7 +32534,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = null) {
     ownMessages: ownMessagesOf(d, ctx.stamp),
     smartLists: smartListsOf(d, base),
     campaigns: campaignsOf(d, tz, nowMs),
-    lead: leadOf(d, base, tz, nowMs),
+    lead: leadOf2(d, base, tz, nowMs),
     doubts: doubtsOf(d),
     deal: ctx.current,
     deals: ctx.deals,
@@ -29011,7 +33015,7 @@ function reachCountsOf(rows2) {
     ...rows2.some((r2) => r2.reachedOn !== void 0) ? { byChannel } : {}
   };
 }
-function opensOf(stages, needs2, more) {
+function opensOf2(stages, needs2, more) {
   const names3 = stages.filter((s) => s.needs === needs2 && s.state !== "not_here").map((s) => s.name.toLowerCase());
   return `${LIFECYCLE_WORDS.reach.opensMessages} ${[...names3, ...more].join(", ")}`;
 }
@@ -29037,8 +33041,8 @@ function lifecycleReach(input, stages) {
   const W = LIFECYCLE_WORDS.reach;
   const rungs = [
     rung("people", W.people, reach.people, reach.people, null),
-    rung("messages", W.messages, reach.canHear, reach.people, opensOf(stages, "messages", []), reach.byChannel),
-    rung("offers", W.offers, reach.saidOffers, reach.people, opensOf(stages, "offers", W.ownOffers))
+    rung("messages", W.messages, reach.canHear, reach.people, opensOf2(stages, "messages", []), reach.byChannel),
+    rung("offers", W.offers, reach.saidOffers, reach.people, opensOf2(stages, "offers", W.ownOffers))
   ];
   const door = { kind: "route", label: W.code, route: GET_YES_ROUTE };
   const asks = b.number.present && b.optIn.link !== null;
@@ -29258,7 +33262,7 @@ function lifecycleResults(input) {
     };
   const t = report.totals;
   const W = LIFECYCLE_WORDS.results.funnel;
-  const readOf = t.readOf ?? t.sent;
+  const readOf2 = t.readOf ?? t.sent;
   const step2 = (id, n, of = t.sent) => ({
     id,
     label: W[id],
@@ -29266,7 +33270,7 @@ function lifecycleResults(input) {
     n,
     share: id === "sent" ? 1 : of > 0 ? n / of : 0
   });
-  const readNote = t.sent === 0 || readOf === t.sent ? null : readOf > 0 ? LIFECYCLE_WORDS.results.readOf(readOf) : LIFECYCLE_WORDS.results.noRead;
+  const readNote = t.sent === 0 || readOf2 === t.sent ? null : readOf2 > 0 ? LIFECYCLE_WORDS.results.readOf(readOf2) : LIFECYCLE_WORDS.results.noRead;
   return {
     read: "read",
     days,
@@ -29276,10 +33280,10 @@ function lifecycleResults(input) {
       step2("sent", t.sent),
       step2("delivered", t.delivered),
       // No WhatsApp sent, no read to count: the step is left out, and the note says why.
-      ...readOf > 0 ? [step2("read", t.read, readOf)] : [],
+      ...readOf2 > 0 ? [step2("read", t.read, readOf2)] : [],
       step2("replied", t.replied)
     ] : null,
-    funnelLabel: t.sent > 0 ? readOf > 0 ? LIFECYCLE_WORDS.results.funnelLabel : LIFECYCLE_WORDS.results.funnelLabelNoRead : null,
+    funnelLabel: t.sent > 0 ? readOf2 > 0 ? LIFECYCLE_WORDS.results.funnelLabel : LIFECYCLE_WORDS.results.funnelLabelNoRead : null,
     yes: `${t.optIns} said yes \xB7 ${t.optOuts} asked to stop`,
     readNote,
     // What went by each channel (0030), where more than one sent: a line under the funnel in the channels' own words.
@@ -29924,7 +33928,7 @@ function lifecycleKicker(home, id) {
   const group = home.ledger.groups.find((g) => g.rows.some((r2) => r2.id === id));
   return group ? group.caps : LIFECYCLE_WORDS.ledger.kicker;
 }
-function failedOf(input) {
+function failedOf2(input) {
   const F = LIFECYCLE_WORDS.failed;
   const b = input.broadcasts;
   return {
@@ -29954,7 +33958,7 @@ function campaignsHomeOf(input) {
     reach: lifecycleReach(at3, stages),
     coming: lifecycleComing(at3, stages, defs),
     results: lifecycleResults(at3),
-    failed: failedOf(at3)
+    failed: failedOf2(at3)
   };
 }
 
@@ -30156,7 +34160,7 @@ var DAY_OF = {
   su: "sun"
 };
 var dayNameOf = (raw) => DAY_OF[String(raw ?? "").replace(/\([^)]*\)/g, "").replace(/\./g, "").trim().toLowerCase()] ?? null;
-function timeOf(s) {
+function timeOf2(s) {
   const t = s.trim().toLowerCase().replace(/\./g, "");
   if (t === "noon") return { min: 0, meridiem: "pm" };
   if (t === "midnight") return { min: 0, meridiem: "am" };
@@ -30173,8 +34177,8 @@ var withMeridiem = (min, meridiem) => meridiem === "pm" ? min + 12 * 60 : min;
 function rangeOf(s) {
   const parts2 = s.split(/\s*(?:to|–|—|-)\s*/i);
   if (parts2.length !== 2) return null;
-  const a = timeOf(parts2[0]);
-  const b = timeOf(parts2[1]);
+  const a = timeOf2(parts2[0]);
+  const b = timeOf2(parts2[1]);
   if (!a || !b || !b.meridiem) return null;
   const to0 = withMeridiem(b.min, b.meridiem);
   let from = a.meridiem ? withMeridiem(a.min, a.meridiem) : withMeridiem(a.min, b.meridiem);
@@ -30507,7 +34511,7 @@ function previewLinesOf(p) {
   return {
     reader: v.lead ? `as ${v.lead.business_name} reads it \xB7 ${p.index + 1} of ${p.of}` : null,
     nobody: v.lead ? null : "Nobody on this search can be written to yet.",
-    hold: v.hold && isReachOutHold(v.hold) ? `The check would hold this one: ${holdWords(v.hold, v.detail)}.` : null,
+    hold: v.hold && isReachOutHold(v.hold) ? `The check would hold this one: ${holdWords2(v.hold, v.detail)}.` : null,
     refused: v.refused ? previewRefusedWords(v.refused) : null,
     unavailable: v.unavailable ? "The opening couldn't be written just now. Rewrite the opening to ask again." : null,
     first: p.index <= 0,
@@ -30792,7 +34796,7 @@ function toCampaignReportVM(dto) {
   const channels = campaignChannelsOf2(dto.by_channel);
   const whatsapp = channels.find((c) => c.channel === "whatsapp");
   const read = dto.by_channel ? whatsapp?.read ?? 0 : tot.read;
-  const readOf = dto.by_channel ? whatsapp?.sent ?? 0 : tot.sent;
+  const readOf2 = dto.by_channel ? whatsapp?.sent ?? 0 : tot.sent;
   const rawSources = dto.sources ?? [];
   const sends2 = sumOf(rawSources.map((s) => s.runs));
   const sources = rawSources.map((s) => ({
@@ -30815,7 +34819,7 @@ function toCampaignReportVM(dto) {
   return {
     days,
     points,
-    totals: { ...tot, read, readOf, sends: sends2 },
+    totals: { ...tot, read, readOf: readOf2, sends: sends2 },
     before: prev,
     sources,
     empty: tot.sent === 0 && tot.optIns === 0 && tot.optOuts === 0,
@@ -30837,7 +34841,7 @@ function toCampaignReportVM(dto) {
 
 // src/reports/lens-answer.ts
 function lensAnswerOf(lens, parts2) {
-  const { vm, campaigns, deals, reviews, people } = parts2;
+  const { vm, campaigns, deals, reviews, people, ads } = parts2;
   switch (lens) {
     case "overview":
       return vm.empty ? void 0 : vm.lines.hero;
@@ -30849,6 +34853,8 @@ function lensAnswerOf(lens, parts2) {
       return deals?.present ? deals.headline : void 0;
     case "campaigns":
       return campaigns?.head ?? void 0;
+    case "ads":
+      return ads?.head ?? void 0;
     case "reviews":
       return reviews && !reviews.empty ? reviews.lines.head ?? void 0 : void 0;
   }
@@ -30991,7 +34997,7 @@ function reviewsProfileTiles(google, p) {
       figureOf("reply_time", "review_reply_time", "Time to reply", { value: "\u2014", meta })
     ];
   }
-  const counted2 = p.written > 0;
+  const counted3 = p.written > 0;
   return [
     ...own,
     figureOf("written", "reviews_written", label, {
@@ -31001,12 +35007,12 @@ function reviewsProfileTiles(google, p) {
       compare: p.prior === null ? null : compareWords(p.written, p.prior, rangeLabelOf(p.days), true)
     }),
     figureOf("answered", "reviews_answered", "Answered", {
-      value: counted2 ? `${p.answered} of ${p.written}` : "\u2014",
-      meta: counted2 ? whoAnsweredWords(p.answered, p.receptionist) : "nothing to answer"
+      value: counted3 ? `${p.answered} of ${p.written}` : "\u2014",
+      meta: counted3 ? whoAnsweredWords(p.answered, p.receptionist) : "nothing to answer"
     }),
     figureOf("reply_time", "review_reply_time", "Time to reply", {
-      value: counted2 ? fmtSeconds(p.replySeconds) : "\u2014",
-      meta: counted2 ? replyTimeMeta(p) : "nothing to answer"
+      value: counted3 ? fmtSeconds(p.replySeconds) : "\u2014",
+      meta: counted3 ? replyTimeMeta(p) : "nothing to answer"
     })
   ];
 }
@@ -31961,7 +35967,7 @@ function toHeadlineVM(dto) {
 
 // src/reports/report-facts.ts
 var lowerFirst2 = (s) => s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
-function reportFacts(vm, campaigns) {
+function reportFacts(vm, campaigns, ads = null) {
   const out = [];
   const none = vm.answered.totals.none;
   if (none > 0) {
@@ -32049,7 +36055,7 @@ function reportFacts(vm, campaigns) {
       }
     }
   }
-  return out.slice(0, 3);
+  return ads ? [...out.slice(0, 2), ads] : out.slice(0, 3);
 }
 
 // src/reports/campaigns/campaign-record.ts
@@ -32162,7 +36168,7 @@ var NO_BUSINESSES = "This database does not count businesses yet.";
 var DOMAINS_LINE = "Where it left from, and how it landed. Past 2% bounced, a domain holds itself.";
 var STANDS_NOW = "as they stand now";
 var SOURCES_LINE = "A business counts once, at the last email that wrote to it. What came of each is as it stands now.";
-var DASH = "\u2014";
+var DASH2 = "\u2014";
 var NO_EMAILS = {
   written: 0,
   delivered: 0,
@@ -32175,7 +36181,7 @@ var NO_EMAILS = {
 };
 var pctText = (n, d) => {
   const share = pct(n, d);
-  return share === null ? DASH : `${share}%`;
+  return share === null ? DASH2 : `${share}%`;
 };
 var tenthOf = (n, d) => d > 0 ? Math.round(n / d * 1e3) / 10 : null;
 var countedBusinesses = (c) => isCount(c.businesses) ? c.businesses : void 0;
@@ -32276,7 +36282,7 @@ function businessesPart(dto, when) {
 }
 function angleRow(id, label, businesses, wroteBack) {
   const of = `${wroteBack} of ${businesses}`;
-  const display = businesses === 0 ? DASH : businesses >= REPORT_MIN_N ? `${of}  ${pctText(wroteBack, businesses)}` : of;
+  const display = businesses === 0 ? DASH2 : businesses >= REPORT_MIN_N ? `${of}  ${pctText(wroteBack, businesses)}` : of;
   return { id, label, value: pct(wroteBack, businesses) ?? 0, display, n: businesses, minN: REPORT_MIN_N };
 }
 function anglesPart(dto, when) {
@@ -32313,13 +36319,13 @@ function answeredCell(wroteBack, businesses) {
   const said = shareSaid(pct(wroteBack, businesses), wroteBack, businesses) ?? String(wroteBack);
   return isThinShare(businesses, REPORT_MIN_N) ? said : `${said} (${wroteBack})`;
 }
-function cellsOf(c, businesses) {
-  const landed = shareSaid(pct(c.delivered, c.written), c.delivered, c.written) ?? DASH;
+function cellsOf2(c, businesses) {
+  const landed = shareSaid(pct(c.delivered, c.written), c.delivered, c.written) ?? DASH2;
   const answered = answeredCell(c.wrote_back, businesses);
   return {
     written: String(c.written),
     delivered: landed,
-    businesses: businesses === void 0 ? DASH : String(businesses),
+    businesses: businesses === void 0 ? DASH2 : String(businesses),
     wroteBack: answered,
     interested: String(c.interested),
     booked: String(c.booked),
@@ -32328,14 +36334,14 @@ function cellsOf(c, businesses) {
   };
 }
 var HAND_CELLS = {
-  written: DASH,
-  delivered: DASH,
-  businesses: DASH,
-  wroteBack: DASH,
-  interested: DASH,
-  booked: DASH,
-  saidNo: DASH,
-  bounced: DASH
+  written: DASH2,
+  delivered: DASH2,
+  businesses: DASH2,
+  wroteBack: DASH2,
+  interested: DASH2,
+  booked: DASH2,
+  saidNo: DASH2,
+  bounced: DASH2
 };
 function summed(steps) {
   const total = { ...NO_EMAILS };
@@ -32370,7 +36376,7 @@ function chainSourceLine(c, nowMs, tz) {
     name: c.name,
     meta: meta.filter(Boolean).join(" \xB7 "),
     to: `outbound/${c.root_id}`,
-    ...cellsOf(summed(c.steps), chainBusinesses(c.steps)),
+    ...cellsOf2(summed(c.steps), chainBusinesses(c.steps)),
     last: Number.isFinite(last) ? clockDate(last, tz, nowMs) : ""
   };
 }
@@ -32383,7 +36389,7 @@ function stepSourceLine(root, s) {
     last: ""
   };
   if (s.hand) return { ...line, meta: `${s.handed} handed to you`, ...HAND_CELLS };
-  return { ...line, meta: "", ...cellsOf(s, countedBusinesses(s)) };
+  return { ...line, meta: "", ...cellsOf2(s, countedBusinesses(s)) };
 }
 function sourceLines(dto, nowMs) {
   return dto.chains.flatMap((c) => [
@@ -32402,7 +36408,7 @@ function domainStateWords(d, nowMs, tz) {
   return "Not sending yet";
 }
 function domainCell(n, sent2, share) {
-  return shareSaid(share(n, sent2), n, sent2) ?? DASH;
+  return shareSaid(share(n, sent2), n, sent2) ?? DASH2;
 }
 function domainRows(dto, nowMs) {
   return dto.domains.map((d) => ({
@@ -32759,15 +36765,15 @@ function sumUnder(counts, keyOf2) {
 }
 function funnelPart(report) {
   if (report === null) return noMix(null);
-  const { sent: sent2, delivered, read, readOf, replied } = report.totals;
+  const { sent: sent2, delivered, read, readOf: readOf2, replied } = report.totals;
   if (sent2 === 0) return noMix(NO_MESSAGE_WENT_OUT);
   const entries = [
     ["sent", "Sent", sent2],
     ["delivered", "Delivered", delivered]
   ];
-  if (readOf > 0) entries.push(["read", "Read", read]);
+  if (readOf2 > 0) entries.push(["read", "Read", read]);
   entries.push(["replied", "Answered", replied]);
-  return { rows: barsOf2(entries), line: funnelLine({ sent: sent2, delivered, read, readOf, replied }), empty: null };
+  return { rows: barsOf2(entries), line: funnelLine({ sent: sent2, delivered, read, readOf: readOf2, replied }), empty: null };
 }
 function heldPart(report, series) {
   if (series === null) return noMix(null);
@@ -32952,10 +36958,10 @@ function chainTotalsOf(answer) {
 function chainTotalsFromReport(report) {
   const by_root = {};
   for (const c of report.chains) {
-    const written = c.steps.reduce((sum2, s) => sum2 + s.written, 0);
-    const wrote_back = c.steps.reduce((sum2, s) => sum2 + s.wrote_back, 0);
+    const written = c.steps.reduce((sum3, s) => sum3 + s.written, 0);
+    const wrote_back = c.steps.reduce((sum3, s) => sum3 + s.wrote_back, 0);
     const businesses = c.steps.reduce(
-      (sum2, s) => sum2 === null || s.businesses === void 0 ? null : sum2 + s.businesses,
+      (sum3, s) => sum3 === null || s.businesses === void 0 ? null : sum3 + s.businesses,
       0
     );
     by_root[c.root_id] = businesses === null ? { written, wrote_back } : { written, businesses, wrote_back };
@@ -33127,11 +37133,11 @@ function forwardingCodes(carrier, mode, destinationE164) {
 var isCarrier = (v) => typeof v === "string" && CARRIERS.includes(v);
 var isForwardingMode = (v) => typeof v === "string" && FORWARDING_MODES.includes(v);
 function forwardingMatch(facts, call, nowMs = Date.now()) {
-  const started = call.startedAtIso ? Date.parse(call.startedAtIso) : nowMs;
+  const started2 = call.startedAtIso ? Date.parse(call.startedAtIso) : nowMs;
   const from = typeof facts.test_started_at === "string" ? Date.parse(facts.test_started_at) : NaN;
   const until = typeof facts.test_until === "string" ? Date.parse(facts.test_until) : NaN;
-  if (Number.isNaN(started) || Number.isNaN(from) || Number.isNaN(until)) return false;
-  if (started < from - MIN_MS || started > until) return false;
+  if (Number.isNaN(started2) || Number.isNaN(from) || Number.isNaN(until)) return false;
+  if (started2 < from - MIN_MS || started2 > until) return false;
   const dest = typeof facts.destination_e164 === "string" ? normalizePhone(facts.destination_e164) : null;
   if (dest && call.toE164 && normalizePhone(call.toE164) !== dest) return false;
   return true;
@@ -34283,12 +38289,12 @@ var FIRST_RUN_TRY_WORDS = {
   stay: "OK, I'll call",
   anyway: "Skip anyway"
 };
-function dialOf(toCall, shown, rings) {
-  return toCall && shown && rings !== "mobile" ? { label: FIRST_RUN_TRY_WORDS.dial(shown), tel: `tel:${toCall}` } : null;
+function dialOf(toCall, shown2, rings) {
+  return toCall && shown2 && rings !== "mobile" ? { label: FIRST_RUN_TRY_WORDS.dial(shown2), tel: `tel:${toCall}` } : null;
 }
-function listenWordsOf(rings, shown, quiet) {
+function listenWordsOf(rings, shown2, quiet) {
   const W = FIRST_RUN_TRY_WORDS;
-  const number2 = shown ?? "";
+  const number2 = shown2 ?? "";
   const said = rings === null ? { heading: W.listenOwn, lead: W.lead, route: null } : rings === "office" ? { heading: W.listenForwarded, lead: W.lead, route: W.route(number2) } : { heading: W.listenForwardedOther, lead: W.leadOther, route: W.routeOther(number2) };
   return quiet ? { heading: W.quietHeading, lead: "", route: said.route } : said;
 }
@@ -34300,13 +38306,13 @@ function firstRunTryOf({ dto, calls, since, nowMs }) {
   const kept = fw ? normalizePhone(fw.e164) : null;
   const forwarded = !!kept;
   const proven = forwarded && fw.forwarding_state === "verified";
-  const shown = formatPhoneDisplay(kept ?? own);
+  const shown2 = formatPhoneDisplay(kept ?? own);
   const f0 = fw?.forwarding ?? null;
   const openTest = fw && f0 && fw.forwarding_state !== "verified" && !forwardingTestOpen(f0, nowMs) ? fw.id : null;
   const base = {
-    number: shown,
+    number: shown2,
     forwarded,
-    dial: dialOf(kept ?? own, shown, keptPhoneKind(fw)),
+    dial: dialOf(kept ?? own, shown2, keptPhoneKind(fw)),
     help: forwarded ? W.help : null,
     openTest,
     listening: null,
@@ -34323,7 +38329,7 @@ function firstRunTryOf({ dto, calls, since, nowMs }) {
     const open = !!f0 && fw.forwarding_state !== "verified" && forwardingTestOpen(f0, nowMs);
     const left = open && f0.test_until ? Math.max(1, Math.ceil((Date.parse(f0.test_until) - nowMs) / MIN_MS)) : null;
     const quiet = nowMs - since >= TRY_QUIET_AFTER_MS;
-    const said = listenWordsOf(keptPhoneKind(fw), shown, quiet);
+    const said = listenWordsOf(keptPhoneKind(fw), shown2, quiet);
     return {
       ...base,
       stage: quiet ? "quiet" : "listen",
@@ -34381,7 +38387,7 @@ function firstRunTryOf({ dto, calls, since, nowMs }) {
   const line = [
     call.duration ?? call.lengthWords,
     call.number ? W.from(call.number) : null,
-    proven && shown ? W.through(shown) : null,
+    proven && shown2 ? W.through(shown2) : null,
     call.startedLabel
   ].filter(Boolean).join(" \xB7 ");
   return {
@@ -34394,7 +38400,7 @@ function firstRunTryOf({ dto, calls, since, nowMs }) {
       label: W.transferLabel,
       options,
       value,
-      note: forwarded && shown ? W.notKept(shown) : null
+      note: forwarded && shown2 ? W.notKept(shown2) : null
     }
   };
 }
@@ -34793,7 +38799,7 @@ function planOf(billing, onTrial) {
 }
 function startingStageOf(s) {
   const W = FIRST_RUN_PHONE_WORDS;
-  return { ...s.base, ...s.ready, stage: "starting", status: waitingOn(W.starting, W.startingDetail) };
+  return { ...s.base, ...s.ready, stage: "starting", status: waitingOn2(W.starting, W.startingDetail) };
 }
 function buyingStageOf(s) {
   const W = FIRST_RUN_PHONE_WORDS;
@@ -34801,7 +38807,7 @@ function buyingStageOf(s) {
     ...s.base,
     ...s.ready,
     stage: "buying",
-    status: waitingOn(
+    status: waitingOn2(
       s.way === "new" && s.picked ? W.buyingNew(s.picked) : W.buyingIn(s.forwarded ? s.area : null),
       W.usually
     ),
@@ -34809,7 +38815,7 @@ function buyingStageOf(s) {
     cta: s.questions ? showCtaOf(s, false) : null
   };
 }
-function waitingOn(sentence2, detail) {
+function waitingOn2(sentence2, detail) {
   return { state: "waiting_them", words: SETUP_STATE_WORDS.waiting_them, sentence: sentence2, detail };
 }
 function chooseStageOf(s, plan, onTrial) {
@@ -35023,13 +39029,13 @@ function firstRunOf(vm, at3, who) {
   }));
   const findAsked = at3 === FIND_PARAM;
   const asked = findAsked ? "business" : firstRunStepOf(at3);
-  const shown = steps.find((s) => s.key === asked && s.state !== "ahead") ?? steps.find((s) => s.key === current) ?? steps[0];
-  const def = FIRST_RUN_STEPS[shown.number - 1];
+  const shown2 = steps.find((s) => s.key === asked && s.state !== "ahead") ?? steps.find((s) => s.key === current) ?? steps[0];
+  const def = FIRST_RUN_STEPS[shown2.number - 1];
   const final = def === last;
   const google = rowOf(vm, "google");
-  const find = shown.key === "business" && !!who?.owner && vm.findable && !!google && (findAsked || !google.later);
+  const find = shown2.key === "business" && !!who?.owner && vm.findable && !!google && (findAsked || !google.later);
   const C2 = FIRST_RUN_WORDS.check;
-  const onCheck = shown.key === "business" && !find && vm.check.receptionist !== "broken";
+  const onCheck = shown2.key === "business" && !find && vm.check.receptionist !== "broken";
   const made = vm.check.receptionist === "set";
   const check = onCheck ? {
     made,
@@ -35057,7 +39063,7 @@ function firstRunOf(vm, at3, who) {
       label: C2.looksRight,
       to: FIRST_RUN_ROUTE,
       leaves: false,
-      held: shown.state === "done" ? null : facts?.sentence ?? null
+      held: shown2.state === "done" ? null : facts?.sentence ?? null
     } : null
   } : final ? {
     heading: FIRST_RUN_WORDS.liveHeading,
@@ -35066,24 +39072,24 @@ function firstRunOf(vm, at3, who) {
   } : {
     heading: def.name,
     lead: def.lead,
-    onward: shown.state === "done" ? { label: FIRST_RUN_WORDS.continue, to: FIRST_RUN_ROUTE, leaves: false, held: null } : null
+    onward: shown2.state === "done" ? { label: FIRST_RUN_WORDS.continue, to: FIRST_RUN_ROUTE, leaves: false, held: null } : null
   };
   const onward = face.onward;
-  const primary = onward || find || check ? null : shown.rows.find((r2) => r2.state !== "ready" && !r2.later && r2.verb) ?? null;
+  const primary = onward || find || check ? null : shown2.rows.find((r2) => r2.state !== "ready" && !r2.later && r2.verb) ?? null;
   return {
     steps,
     current,
     complete: !open,
-    shown,
+    shown: shown2,
     heading: face.heading,
     lead: face.lead,
-    phoneLine: firstRunKicker(shown.key),
-    progress: Math.round(shown.number / FIRST_RUN_STEPS.length * 100),
+    phoneLine: firstRunKicker(shown2.key),
+    progress: Math.round(shown2.number / FIRST_RUN_STEPS.length * 100),
     primaryRow: primary ? primary.id : null,
-    back: shown.number > 1 ? steps[shown.number - 2].to : null,
+    back: shown2.number > 1 ? steps[shown2.number - 2].to : null,
     onward,
     find,
-    findDone: find && findAsked ? shown.to : null,
+    findDone: find && findAsked ? shown2.to : null,
     check
   };
 }
@@ -35235,7 +39241,7 @@ var TONE = {
   none: "plain",
   later: "plain"
 };
-var GROUP = {
+var GROUP2 = {
   connected: "connected",
   attention: "connected",
   off: "connected",
@@ -35256,7 +39262,7 @@ var ORDER2 = {
   deposits: 8
 };
 function row(d) {
-  return { ...d, group: GROUP[d.state], tone: TONE[d.state], body: d.body ?? null, notes: d.notes ?? [] };
+  return { ...d, group: GROUP2[d.state], tone: TONE[d.state], body: d.body ?? null, notes: d.notes ?? [] };
 }
 function googleAudienceWords(a) {
   if (a === "testing")
@@ -36613,8 +40619,8 @@ function waitWords(seconds2) {
   return `${m} minute${m === 1 ? "" : "s"}`;
 }
 function retryAfterOf(details, header, nowMs) {
-  const counted2 = details && typeof details === "object" ? details.retry_after_s : void 0;
-  if (typeof counted2 === "number" && Number.isFinite(counted2) && counted2 >= 0) return Math.max(1, Math.ceil(counted2));
+  const counted3 = details && typeof details === "object" ? details.retry_after_s : void 0;
+  if (typeof counted3 === "number" && Number.isFinite(counted3) && counted3 >= 0) return Math.max(1, Math.ceil(counted3));
   const h = typeof header === "string" ? header.trim() : "";
   if (!h) return null;
   if (/^[0-9]+$/.test(h)) return Math.max(1, Number(h));
@@ -36921,7 +40927,7 @@ function vitalLinesOf(overall) {
     if (!r2) return [];
     const verdict = vitalVerdict(metric, r2.p75);
     const value = vitalValueWords(metric, r2.p75);
-    const counted2 = `${loadsWords(r2.samples)}${metric === "INP" ? " with a tap" : ""}`;
+    const counted3 = `${loadsWords(r2.samples)}${metric === "INP" ? " with a tap" : ""}`;
     return [
       {
         metric,
@@ -36930,21 +40936,21 @@ function vitalLinesOf(overall) {
         verdict,
         tone: VERDICT_TONES[verdict],
         samples: r2.samples,
-        hint: `${value} \xB7 ${verdict} \xB7 ${counted2}`
+        hint: `${value} \xB7 ${verdict} \xB7 ${counted3}`
       }
     ];
   });
 }
 function sentenceOf(overall) {
   const loads = Math.max(...[...overall.values()].map((r2) => r2.samples));
-  const counted2 = `${loads.toLocaleString("en-US")} page load${loads === 1 ? "" : "s"} in the last ${PAGE_VITALS_READ.days} days`;
+  const counted3 = `${loads.toLocaleString("en-US")} page load${loads === 1 ? "" : "s"} in the last ${PAGE_VITALS_READ.days} days`;
   const drawn = overall.get("LCP");
   const tap = overall.get("INP");
   const said = [
     drawn ? `drew the page within ${vitalValueWords("LCP", drawn.p75)}` : null,
     tap ? `answered a tap within ${vitalValueWords("INP", tap.p75)}` : null
   ].filter(Boolean);
-  return said.length ? `Of ${counted2}, three in four ${said.join(" and ")}.` : `${counted2}; none has drawn its page yet.`;
+  return said.length ? `Of ${counted3}, three in four ${said.join(" and ")}.` : `${counted3}; none has drawn its page yet.`;
 }
 function pagesOf(rows2) {
   const byPage = /* @__PURE__ */ new Map();
@@ -37567,8 +41573,8 @@ var COUNT_WORDS2 = {
 var countWord = (n) => COUNT_WORDS2[n] ?? String(n);
 var timesWords = (n) => n === 1 ? "once" : n === 2 ? "twice" : `${countWord(n)} times`;
 var wireWord = (w) => w === "WhatsApp" ? w : w.toLowerCase();
-var counted = (o) => Object.entries(o ?? {}).map(([k, v]) => [k, Math.max(0, Math.round(Number(v) || 0))]).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-var tally = (xs) => counted(xs.reduce((o, x) => ({ ...o, [x]: (o[x] ?? 0) + 1 }), {}));
+var counted2 = (o) => Object.entries(o ?? {}).map(([k, v]) => [k, Math.max(0, Math.round(Number(v) || 0))]).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+var tally = (xs) => counted2(xs.reduce((o, x) => ({ ...o, [x]: (o[x] ?? 0) + 1 }), {}));
 var UNNAMED_CALLER = /* @__PURE__ */ new Set(["Caller ID withheld", "Unknown caller", "Unknown"]);
 function replyGapSeconds(live) {
   if (!live.last_outbound_at || !live.last_inbound_at) return null;
@@ -37582,7 +41588,7 @@ function todayProof(live, tz, now) {
   return `The last message arrived ${lastIn}${gap !== null ? `, and the receptionist answered ${secondsPhrase(gap)} later` : ""}.`;
 }
 var isCustomerMessage = (x) => x.direction === "inbound" && x.sender === "customer" && isPersonsWords(x.meta);
-function figuresOf(m, conversations, callsInWindow, escalations, tz, now) {
+function figuresOf2(m, conversations, callsInWindow, escalations, tz, now) {
   const p = m.period;
   const live = m.now;
   if (p.messages_in + p.calls + p.new_contacts === 0) return null;
@@ -37641,7 +41647,7 @@ function figuresOf(m, conversations, callsInWindow, escalations, tz, now) {
     meta: answeredMeta,
     receipt: answeredWhy.length ? { text: answeredWhy.join(" "), door: p.escalations_new ? { label: "See the handovers", to: "inbox" } : null } : null
   };
-  const moods = counted(p.call_sentiments);
+  const moods = counted2(p.call_sentiments);
   const moodOf = ([mood, n]) => n === p.calls ? p.calls === 1 ? `it as ${mood.toLowerCase()}` : `all of them as ${mood.toLowerCase()}` : `${n} as ${mood.toLowerCase()}`;
   const moodWords = moods.length ? `The voice provider read ${andList(moods.map(moodOf))}.` : "";
   const voicemail = [
@@ -38041,7 +42047,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     needsYou.rows,
     todayAlsoWaiting({ windows: f.closingConvs.length, calls: queue.calls, searches: queue.searches })
   );
-  const figures = figuresOf(m, conversations, f.callsInWindow, escalations, f.tz, now);
+  const figures = figuresOf2(m, conversations, f.callsInWindow, escalations, f.tz, now);
   return {
     standing: { chips, lines, alert, headline, detail, tone },
     needsYou,
@@ -38201,15 +42207,15 @@ function todayDay(cal, playbooks, people = null, max = TODAY_DAY_MAX) {
     });
     const items = [...d.allDay.map((b) => item(b, true, "later")), ...timed];
     const flagged = items.filter((i) => i.flag).length;
-    const shown = capDay(items, max);
-    const more = items.length - shown.length;
+    const shown2 = capDay(items, max);
+    const more = items.length - shown2.length;
     return {
       key: d.key,
       label: `${d.today ? "Today" : "Tomorrow"} \xB7 ${d.long}`,
       today: d.today,
       past: d.past,
       closed: d.closed,
-      items: shown,
+      items: shown2,
       more,
       moreLine: more ? `${more} more on the Calendar` : null,
       summary: items.length ? {
@@ -38264,7 +42270,7 @@ var LEAK_ORDER = [
   "unreachable",
   "quiet"
 ];
-var askWhy = (text, math) => `${text} ${capitalize(math)}. Why is that?`;
+var askWhy2 = (text, math) => `${text} ${capitalize(math)}. Why is that?`;
 function leakFactsOf(reports, people, noReply, nowMs) {
   const list2 = (id) => people ? people.lists.find((l) => l.id === id) ?? null : null;
   const step2 = (id) => {
@@ -38294,7 +42300,7 @@ function neverBookedLeak({ reports, list: list2, step: step2 }) {
     math,
     people: [],
     peopleLead: null,
-    ask: askWhy(text, math),
+    ask: askWhy2(text, math),
     cta: { label: "See who", to: never ? `clients/seg:${never.id}` : "clients" },
     also: step2("asked_never_booked")
   };
@@ -38313,7 +42319,7 @@ function unansweredLeak({ reports, noReply }) {
     math,
     people: noReply.slice(0, 2).map((r2) => ({ id: r2.conversationId, name: r2.who, to: r2.to, title: `Open ${r2.who}'s thread` })),
     peopleLead: "Waiting now",
-    ask: askWhy(text, math),
+    ask: askWhy2(text, math),
     cta: { label: "Open Reports", to: "reports" },
     also: null
   };
@@ -38337,7 +42343,7 @@ function consultsWaitingLeak({ people, dealsAt }) {
     math,
     people: held.slice(0, 2).map((r2) => ({ id: r2.id, name: r2.name, to: `clients/${r2.id}`, title: `Open ${r2.name} in People` })),
     peopleLead: "Held with",
-    ask: askWhy(text, math),
+    ask: askWhy2(text, math),
     cta: { label: "See who", to: "clients/pipeline" },
     also: null
   };
@@ -38346,8 +42352,8 @@ function proposalsWaitingWords(n, pace, po, inHand) {
   const ago3 = pace ? `${pace.waitDays} days` : "a week";
   const text = pace?.longerThanUsual ? `${n} proposal${n === 1 ? " has" : "s have"} waited longer than usual with nothing back.` : `${n} proposal${n === 1 ? "" : "s"} went out more than ${ago3} ago with nothing back.`;
   const since = pace ? `${pace.words.charAt(0).toLowerCase()}${pace.words.slice(1)} \xB7 nothing heard since it went` : "nothing heard since it went";
-  const counted2 = po ? `${po.count} on Proposal out \xB7 ${since}` : since;
-  const math = inHand ? `${counted2} \xB7 the follow-up has ${inHand} more` : counted2;
+  const counted3 = po ? `${po.count} on Proposal out \xB7 ${since}` : since;
+  const math = inHand ? `${counted3} \xB7 the follow-up has ${inHand} more` : counted3;
   return { text, math };
 }
 function yoursToFollowUp(waiting) {
@@ -38360,8 +42366,8 @@ function proposalsWaitingLeak({ people, list: list2, dealsAt }) {
   const pace = people?.dealPace ?? null;
   const shownDeal = new Map(dealRows.map((r2) => [r2.id, r2.deal]));
   const proposals = eachOpenProposal(dealRows).map((r2) => {
-    const shown = shownDeal.get(r2.id) ?? null;
-    const same2 = !!shown && !!r2.deal && (r2.deal === shown || r2.deal.id !== null && r2.deal.id === shown.id);
+    const shown2 = shownDeal.get(r2.id) ?? null;
+    const same2 = !!shown2 && !!r2.deal && (r2.deal === shown2 || r2.deal.id !== null && r2.deal.id === shown2.id);
     return same2 ? r2 : { ...r2, followUp: null };
   });
   const out = proposalsWaiting(proposals, dealsAt(), pace);
@@ -38379,7 +42385,7 @@ function proposalsWaitingLeak({ people, list: list2, dealsAt }) {
     math,
     people: inHand ? yoursToFollowUp(waiting) : [],
     peopleLead: inHand ? "Yours to follow up" : null,
-    ask: askWhy(text, math),
+    ask: askWhy2(text, math),
     cta: {
       label: "See who",
       to: inHand ? pipelineRoute({ view: "waiting" }) : po ? `clients/seg:${po.id}` : "clients"
@@ -38405,7 +42411,7 @@ function unreachableLeak({ people, list: list2 }) {
     math,
     people: [],
     peopleLead: null,
-    ask: askWhy(text, math),
+    ask: askWhy2(text, math),
     cta: { label: "Open People", to: `clients/seg:${yes.id}` },
     also: !noNumber && yes.action && yes.action.enabled ? { label: yes.action.cta, to: yes.action.to } : null
   };
@@ -38424,7 +42430,7 @@ function quietLeak({ people, list: list2, step: step2 }) {
     math,
     people: [],
     peopleLead: null,
-    ask: askWhy(text, math),
+    ask: askWhy2(text, math),
     cta: { label: "See who", to: `clients/seg:${quiet.id}` },
     also: step2("quiet")
   };
@@ -38868,8 +42874,8 @@ var clipped = (s, max) => {
 function holdNotice(f) {
   const why = HOLD_REASON_WORDS[f.reason] ?? "needs a person";
   const where = HOLD_CHANNEL_WORDS[f.channel ?? ""] ?? "The";
-  const shown = f.erased ? null : f.address?.startsWith("+") ? formatPhoneDisplay(f.address) ?? f.address : f.address;
-  const name = !f.erased && f.who?.trim() || shown || "A customer";
+  const shown2 = f.erased ? null : f.address?.startsWith("+") ? formatPhoneDisplay(f.address) ?? f.address : f.address;
+  const name = !f.erased && f.who?.trim() || shown2 || "A customer";
   const lines = f.erased ? [] : [
     ...f.customerWords ? [`They wrote: \u201C${clipped(f.customerWords, 600)}\u201D`] : [],
     ...f.replyWords ? [`The receptionist: \u201C${clipped(f.replyWords, 600)}\u201D`] : [],
@@ -38881,7 +42887,7 @@ function holdNotice(f) {
     route: `inbox/th-${f.conversationId}`,
     about: { type: "conversation", id: f.conversationId },
     subject: clipped(`${name} needs a person \u2014 ${why}`, 200),
-    body: [...lines, "", `${where} conversation${shown ? ` \xB7 ${shown}` : ""}`, pause].join("\n").replace(/^\n/, ""),
+    body: [...lines, "", `${where} conversation${shown2 ? ` \xB7 ${shown2}` : ""}`, pause].join("\n").replace(/^\n/, ""),
     redactedBody: `A ${where === "The" ? "" : `${where} `}conversation needed a person (${why}), and nobody could be told.`
   };
 }
@@ -38981,13 +42987,13 @@ function todayAwayGrouped(rows2, inQueue = [], max = 5) {
   }
   const rank = (g) => AWAY_TONE_RANK[g.row.tone] ?? 1;
   const sorted = groups.map((g, i) => ({ g, i })).sort((x, y) => rank(x.g) - rank(y.g) || x.i - y.i).map((x) => x.g);
-  const shown = sorted.slice(0, max);
-  const stoodFor = shown.reduce((n, g) => n + g.count, 0);
+  const shown2 = sorted.slice(0, max);
+  const stoodFor = shown2.reduce((n, g) => n + g.count, 0);
   const total = unreadCount(rows2);
   const queued = total - fresh.length;
   const more = Math.max(0, total - stoodFor);
   const empty = fresh.length ? null : total === 0 ? { icon: "check", text: AWAY_EMPTY_CLEAR } : { icon: "arrow-up", text: AWAY_EMPTY_QUEUED };
-  return { groups: shown, total, more, queued, foot: awayFoot(more, queued, shown.length > 0), empty };
+  return { groups: shown2, total, more, queued, foot: awayFoot(more, queued, shown2.length > 0), empty };
 }
 function bellSections(rows2) {
   const idOf = (r2) => r2.id ?? r2.key ?? "";
@@ -39881,8 +43887,8 @@ var PARTNER_WORDS = {
 };
 function shareWords(shareBp) {
   const pct2 = shareBp / 100;
-  const shown = Number.isInteger(pct2) ? String(pct2) : pct2.toFixed(1).replace(/\.0$/, "");
-  return `${shown}% of what it pays for its plan`;
+  const shown2 = Number.isInteger(pct2) ? String(pct2) : pct2.toFixed(1).replace(/\.0$/, "");
+  return `${shown2}% of what it pays for its plan`;
 }
 function broughtWords(count2) {
   if (count2 <= 0) return "No workspace has you as its partner yet.";
@@ -39942,9 +43948,9 @@ function moneyLine(lines) {
 }
 function partnerWorkspacesVM(overview, money2, nowMs = Date.now(), status = "active") {
   const judged = platformRows(overview, nowMs);
-  const moneyOf = (id) => money2.filter((m) => m.tenant_id === id);
+  const moneyOf2 = (id) => money2.filter((m) => m.tenant_id === id);
   const standingOf2 = (id) => {
-    const s = moneyOf(id)[0]?.standing ?? "pending";
+    const s = moneyOf2(id)[0]?.standing ?? "pending";
     return PARTNER_STANDING_WORDS[s] ?? null;
   };
   const rows2 = judged.map((r2) => {
@@ -39959,7 +43965,7 @@ function partnerWorkspacesVM(overview, money2, nowMs = Date.now(), status = "act
       sentence: r2.sentence,
       facts: [r2.facts.paying, r2.facts.answering, `texting ${r2.facts.texting}`, `heard ${r2.facts.heard}`].join(" \xB7 "),
       standing: standingOf2(r2.tenantId),
-      money: moneyLine(moneyOf(r2.tenantId)),
+      money: moneyLine(moneyOf2(r2.tenantId)),
       onTeam: true
     };
   });
@@ -39976,7 +43982,7 @@ function partnerWorkspacesVM(overview, money2, nowMs = Date.now(), status = "act
       sentence: status === "paused" ? "Your partner account is paused, so you are a viewer on its team until it is looked at." : status === "closed" ? "Your partner account is closed. Its details are its owner's." : m.on_team ? "Its details could not be read just now." : "Its owner took you off its team. Your share goes on while it pays; its details are theirs.",
       facts: null,
       standing: standingOf2(m.tenant_id),
-      money: moneyLine(moneyOf(m.tenant_id)),
+      money: moneyLine(moneyOf2(m.tenant_id)),
       onTeam: m.on_team
     });
   }
@@ -40699,8 +44705,8 @@ function activityWords(kind, payload) {
         bits2.push("finished");
         const ending = textAt(p, "ending");
         if (ending && ending in LEAD_ENDING_WORDS) bits2.push(LEAD_ENDING_WORDS[ending]);
-        const counted2 = numberAt(p, "counted");
-        if (counted2 !== null) bits2.push(`${counted2} found`);
+        const counted3 = numberAt(p, "counted");
+        if (counted3 !== null) bits2.push(`${counted3} found`);
       } else if (state) {
         bits2.push(
           state === "queued" ? "started" : state === "waiting_on_owner" ? "waiting on your answer" : state.replace(/_/g, " ")
@@ -41160,7 +45166,7 @@ var ACTIVATION_MILESTONES = ["line_live", "first_reply", "first_lead_search"];
 
 // src/workspace/platform-days.ts
 var PLATFORM_DAYS_READ = { days: 7 };
-var sum = (m) => Object.values(m).reduce((a, n) => a + n, 0);
+var sum2 = (m) => Object.values(m).reduce((a, n) => a + n, 0);
 var plural2 = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 var FAILURE_WORDS = {
   refused: "refused",
@@ -41168,7 +45174,7 @@ var FAILURE_WORDS = {
   unknown: "may have gone"
 };
 function failuresOf(m) {
-  const n = sum(m);
+  const n = sum2(m);
   if (n === 0) return "";
   const parts2 = Object.entries(m).filter(([, c]) => c > 0).sort(([a], [b]) => a.localeCompare(b)).map(([outcome, c]) => `${c} ${FAILURE_WORDS[outcome] ?? outcome}`);
   return `${plural2(n, "send", "sends")} failed (${parts2.join(", ")})`;
@@ -41190,7 +45196,7 @@ function spineLine(r2) {
     parts2.push(`first answer within ${seconds(worst)} (${channels.join(", ")})`);
   }
   if (r2.duplicate_sends !== null) parts2.push(plural2(r2.duplicate_sends, "duplicate send", "duplicate sends"));
-  const died = sum(r2.dead_letters);
+  const died = sum2(r2.dead_letters);
   if (died > 0) {
     const kinds = Object.entries(r2.dead_letters).filter(([, n]) => n > 0).sort(([a], [b]) => a.localeCompare(b)).map(([kind, n]) => `${kind} ${n}`);
     parts2.push(`${plural2(died, "job", "jobs")} died (${kinds.join(", ")})`);
@@ -41767,6 +45773,36 @@ export {
   ACTIVITY_SPANS,
   ACTIVITY_SPAN_DAYS,
   ACTOR_TYPES,
+  ADS_ASK_MIN,
+  ADS_ASK_MIN_CALLS,
+  ADS_ASK_SOON_DAYS,
+  ADS_CHANCE_Z,
+  ADS_COPY_LIMITS,
+  ADS_DAILY_CHOICES_MINOR,
+  ADS_DEFAULT_CURRENCY,
+  ADS_DEFAULT_MILES,
+  ADS_DISPLAY_NAME_MAX,
+  ADS_DOORS,
+  ADS_END_SHIFTS,
+  ADS_EXAMPLES,
+  ADS_EXTEND_MAX_DAYS,
+  ADS_FRESH_DAYS,
+  ADS_GROUP_FROM,
+  ADS_MOVE_DAYS,
+  ADS_MOVE_STEP_MINOR,
+  ADS_OWN_DAYS,
+  ADS_OWN_START_MINOR,
+  ADS_PERMISSION_WARN_DAYS,
+  ADS_READ,
+  ADS_ROUTE,
+  ADS_SCOPE_ALL,
+  ADS_SETTLE_DAYS,
+  ADS_SOFT_NEEDS,
+  ADS_SPECIAL_MILES,
+  ADS_TOTAL_STEPS,
+  ADS_WINDOW_DAYS,
+  ADS_WORDS,
+  ADS_ZIP_DIGITS,
   ALERT_ADDRESSES_MAX,
   ALERT_ADDRESSES_MIN,
   ALERT_KINDS,
@@ -41780,6 +45816,7 @@ export {
   APPOINTMENT_WORDS,
   APP_KEYS_RESIZE_CLASS,
   APP_ROUTE_RE,
+  ASK,
   ASK_ANSWER_CAPS,
   ASK_ANSWER_FORMAT,
   ASK_CAPS,
@@ -41838,6 +45875,7 @@ export {
   BOOKING_TRY_NOTE,
   BOOKS_BY_HAND,
   BOOKS_WITH_CALENDAR,
+  BOOK_ONLINE,
   BRAIN_INTENTS,
   BRAIN_LANGUAGES,
   BRAIN_OUTPUT_JSON_SCHEMA,
@@ -41856,6 +45894,7 @@ export {
   BROADCAST_THROTTLE_WAITS_MS,
   BROADCAST_WORDS,
   BROKEN_CONFIG_WORDS,
+  BUDGET_RULES,
   BUILTIN_LISTS,
   BUSINESS_INDUSTRIES,
   BUSINESS_TYPES,
@@ -41885,6 +45924,7 @@ export {
   CARRIER_CONSENT_SOURCE,
   CARRIER_WORDS,
   CHAIN_MIN_LISTINGS,
+  CHANGED,
   CHANNELS_DOOR,
   CHANNEL_ANSWERED,
   CHANNEL_KINDS,
@@ -41893,12 +45933,16 @@ export {
   CHECKOUT_OUTCOME_WORDS,
   CHECKOUT_RETURNS,
   CHECKOUT_RETURN_ROUTE,
+  CHECKS,
+  CHIPS,
   CHIPS_SHOWN,
+  CHOOSE,
   CLIENT_ERROR_BOUNDARIES,
   CLIENT_ERROR_LIMITS,
   COMMON_LANGUAGES,
   COMPANY_TYPES,
   CONFIDENCE_STEPS,
+  CONNECT,
   CONNECTION_GROUP_WORDS,
   CONNECTION_KINDS,
   CONSENT_CHANNELS,
@@ -41916,11 +45960,13 @@ export {
   CONVERSATION_OPT_IN_PATTERN,
   CONVERSATION_PHRASE,
   CONVERSATION_STATES,
+  COUNTED,
   CalendarConfigSchema,
   ClientErrorInput,
   ClosureSchema,
   ContactAddedData,
   ContactConsentChangedData,
+  DASH,
   DATA_NOT_INSTRUCTIONS,
   DAYS,
   DAY_MS,
@@ -41964,6 +46010,9 @@ export {
   DOMAIN_HOLDS,
   DOMAIN_RAMP,
   DOMAIN_RESUMERS,
+  DOOR,
+  DOOR_NEEDS,
+  DOOR_ORDER,
   DOUBT_SEEN,
   DOUBT_SETTLED_AS,
   DOUBT_WORDS,
@@ -41975,9 +46024,11 @@ export {
   DRAFT_NOTICE_MAX,
   DRAFT_TONES,
   DRAFT_WHYS,
-  E164,
+  DRAWER,
+  E1642 as E164,
   EARLIER_FALLBACK_DEFAULTS,
   EDGE_ERROR_CODES,
+  EDIT,
   EMAILED_NOTIFICATION_KINDS,
   EMAIL_ALWAYS_KINDS,
   EMAIL_BODY_MAX,
@@ -42001,11 +46052,13 @@ export {
   EVENT_SUBSCRIBERS,
   EVERYONE_HINT,
   EVERYONE_LABEL,
+  EXAMPLE,
   FALLBACK_DEFAULTS,
   FALLBACK_DETAILS,
   FEED_CHECK_WORDS,
   FEED_GUIDES,
   FEED_MAX_BYTES,
+  FIGURES,
   FINISH_SETTING_UP,
   FIRST_RUN_FIND_ROUTE,
   FIRST_RUN_HELPERS,
@@ -42028,10 +46081,12 @@ export {
   FORWARD_IS_HANDOFF,
   FREE_MAIL_DOMAINS,
   FeaturesConfigSchema,
+  GATE,
   GET_YES_ROUTE,
   GMAIL_FORWARD_NOTE,
   GOOGLE_SHOWN_REVIEWS,
   GREETING_DEFAULT,
+  GROUP,
   GUARDRAIL_KEYS,
   GuardrailsSchema,
   HANDLED_OUTCOMES,
@@ -42042,6 +46097,7 @@ export {
   HANDOVER_WORDS,
   HAND_KINDS,
   HAND_WORDS_MAX,
+  HEAD,
   HELD_ON,
   HELD_REASONS,
   HELD_WORDS,
@@ -42171,6 +46227,7 @@ export {
   LEAD_UNREACHABLE_KEY,
   LEAD_UNREACHABLE_WORD,
   LEAD_WORDS,
+  LEDGER,
   LEDGER_SORTS,
   LEDGER_STATUSES,
   LENS_ROUTES,
@@ -42187,6 +46244,7 @@ export {
   LINE_RELEASE_REPORT_DAYS,
   LINE_RELEASE_WARN_DAYS,
   LINE_STEP_WORDS,
+  LIST,
   LIST_ANY_MAX,
   LIST_ASSIGNED,
   LIST_DEAL_STAGES,
@@ -42251,6 +46309,7 @@ export {
   MESSAGE_SENDERS,
   MESSAGE_STATUSES,
   MESSAGE_TYPES,
+  MINOR_PER_UNIT,
   MIN_MS,
   MISSED_CALL_TOUCH_WORDS,
   MOCK_TEXTING_SENTENCE,
@@ -42266,6 +46325,7 @@ export {
   MOMENTS_RETIRED,
   MOMENT_TRIGGERS,
   NEEDS_TITLE,
+  NEW_AD,
   NEW_CONVERSATION_WORDS,
   NEW_MESSAGE_WORDS,
   NEW_PLAYBOOK_TICKS_EVERY_CHANNEL,
@@ -42281,6 +46341,8 @@ export {
   NOTICE_HOLD_WORDS,
   NOTICE_READ_MAX_TOKENS,
   NOTICE_SCHEMA,
+  NO_AD,
+  NO_ADS,
   NO_CHANNEL_REACH,
   NO_FIELDS_COMPOSED_WORDS,
   NO_LINK_DETAILS,
@@ -42347,8 +46409,10 @@ export {
   PEOPLE_LISTS,
   PEOPLE_LIST_GROUPS,
   PEOPLE_RHYTHM_UNIT,
+  PEOPLE_TAB,
   PEOPLE_TABS,
   PERM_DOING,
+  PERSON_AD_ON,
   PERSON_CAME_FROM_WORDS,
   PERSON_CHANNEL_WORDS,
   PERSON_DETAIL_WORDS,
@@ -42357,6 +46421,7 @@ export {
   PERSON_MODE_LABELS,
   PERSON_MODE_WORDS,
   PERSON_STATE_LABELS,
+  PHONE,
   PHONE_RINGS,
   PHONE_WAYS,
   PIPELINE_BOARD_CAP,
@@ -42367,14 +46432,18 @@ export {
   PIPELINE_SORTS,
   PIPELINE_WORDS,
   PLAN_NOTE_MAX,
+  PLATFORMS,
   PLATFORM_DAYS_READ,
   PLATFORM_HOLD_NOTICE,
   PLATFORM_HOLD_READD,
   PLATFORM_HOLD_REFUSAL,
   PLATFORM_NEW_DAYS,
   PLATFORM_NUMBERS,
+  PLATFORM_OWNER,
   PLATFORM_QUIET_DAYS,
+  PLATFORM_SURFACE,
   PLATFORM_VERDICTS,
+  PLATFORM_WORD,
   PLAYBOOK_BREATH_MS,
   PLAYBOOK_CALENDAR_UNREAD,
   PLAYBOOK_CAP_CHOICES,
@@ -42401,6 +46470,7 @@ export {
   POLICY_MODE_WORDS,
   PREFETCH_READS,
   PREFETCH_SLOT,
+  PREVIEW,
   PREVIEW_CHANNEL_WORDS,
   PREVIEW_WORDS,
   PROFILE_CROSSING_WORDS,
@@ -42440,6 +46510,7 @@ export {
   QUIET_AFTER_DAYS,
   QUOTE_MAX,
   RATE_HITS_RETENTION_HOURS,
+  REACH_NOTE,
   REACH_OUT_AFTER_DAYS,
   REACH_OUT_AWAY_DAYS,
   REACH_OUT_AWAY_MAX_DAYS,
@@ -42481,6 +46552,7 @@ export {
   RECORDING_PURGED_WORDS,
   RECORDING_RETENTION_DAYS,
   REFERRAL_ID_MAX,
+  REFUSED,
   REGISTRATION_COST_WORDS,
   REGISTRATION_PATHS,
   REGISTRATION_PATH_WORDS,
@@ -42522,6 +46594,7 @@ export {
   REPORT_WEEK_SHORT,
   REPUTATION_HOLDS,
   REPUTATION_MEMORY_MS,
+  RESULTS,
   RETELL_MODELS,
   RETENTION_DAYS,
   REVIEWS_WAITING_SHOWN,
@@ -42531,6 +46604,7 @@ export {
   REVIEW_NEWS_MS,
   REVIEW_REPLY_MAX_CHARS,
   REVIEW_REPLY_MAX_WORDS,
+  REVIEW_WITHIN,
   ROLES,
   ROLE_PERMS,
   ROLE_SAYS,
@@ -42551,6 +46625,7 @@ export {
   RenameLeadSearchSchema,
   SAME_SITTING_MS,
   SAME_VISIT_MS,
+  SCHEDULE_NEEDS_TOTAL,
   SCHEMA_SETS,
   SECOND_FACTOR_LEVEL,
   SECOND_FACTOR_PATH,
@@ -42569,11 +46644,13 @@ export {
   SEND_DAY_FRAME,
   SEND_WHEN_WORDS,
   SEND_WINDOW_MARGIN_MIN,
+  SENTENCE,
   SERVER_KEY_PREFIX,
   SERVER_NOTIFICATION_KINDS,
   SERVICE_PRICE_EMPTY,
   SERVICE_SUGGESTION_TYPES,
   SESSION_ENDED,
+  SETTINGS_DOOR,
   SETUP_CARD_ORDER,
   SETUP_LATER_REFUSED,
   SETUP_REQUEST_KINDS,
@@ -42586,6 +46663,7 @@ export {
   SHARED_EVENT_SHAPES,
   SHARED_EVENT_VERSIONS,
   SHORTCUTS,
+  SHOWN,
   SIGNED_BY_MAX,
   SIGNIN_RESEND_COOLDOWN_S,
   SIGNUP_NAME_MAX,
@@ -42603,10 +46681,14 @@ export {
   SPEND_LEADS,
   SPEND_NUMBER,
   SPEND_TEXTING,
+  STANDING,
+  STANDING_CHECKS,
   STARTER_LANGUAGES,
   STARTER_LINE_WORDS,
   STARTER_TEMPLATES,
   START_PLAN_WORDS,
+  STATE,
+  STATE_WORD,
   STEP_SHEET_WORDS,
   STOP_ALL_REFUSALS,
   STOP_ENDED_OFFERS_SOURCE,
@@ -42635,6 +46717,7 @@ export {
   THEME_INK,
   THEME_OPTIONS,
   THREAD_CHANNEL_WORDS,
+  TILES,
   TIMELINE_FILTERS,
   TIMETABLE_HORIZON_DAYS,
   TOAST_ICONS,
@@ -42649,6 +46732,7 @@ export {
   TOKENS_DAY_DEFAULT,
   TONES,
   TONE_PRESETS,
+  TOO_EARLY_DAYS,
   TRIAL_COVERS,
   TRY_QUIET_AFTER_MS,
   TRY_SKIPPED,
@@ -42659,6 +46743,7 @@ export {
   UNSUBSCRIBE_PAGE_HEADER,
   US_STATE_ZONES,
   UUID3 as UUID,
+  V0,
   VERSION_CHANNELS,
   VERSION_CHANNEL_WORDS,
   VISION_STRENGTH,
@@ -42678,8 +46763,11 @@ export {
   WORKSPACE_LOGOS_BUCKET,
   WRITE_HOLDS,
   WRITE_HOLD_WORDS,
+  ZIPS,
   abandonedCall,
   abilityRows,
+  aboutADayAfter,
+  accountRows,
   activityDoor,
   activityFamily,
   activityFamilyKinds,
@@ -42690,8 +46778,29 @@ export {
   activityRowsForLines,
   activityTone,
   activityWords,
+  adAccountOf,
+  adBarsOf,
+  adFollowOn,
+  adModel,
+  adPeopleOf,
+  adPersonInitials,
+  adPersonWho,
+  adPreviewOf,
+  adQuotes,
+  adRoute,
+  adServiceOf,
+  adStateOf,
+  adWith,
+  addDays,
   addressAlreadyKnown,
   addressInMessage,
+  adsFactOf,
+  adsModel,
+  adsReportRoute,
+  adsResultsOf,
+  adsResultsRoute,
+  adsScopeKey,
+  adsScopeOfKey,
   afterPersonRefused,
   agentFor,
   ago,
@@ -42703,6 +46812,7 @@ export {
   alertGrid,
   alertTestMail,
   allVisitsIn,
+  allWord,
   allowanceBeforeSend,
   allowanceLine,
   allowanceLines,
@@ -42728,6 +46838,9 @@ export {
   approvalWordsOf,
   approvedWordsFor,
   areaCodeOf,
+  areaOfValue,
+  areaValueOf,
+  areaWord,
   asContactId,
   asListRule,
   asPersonMode,
@@ -42739,6 +46852,7 @@ export {
   askModelProfile,
   askPages,
   askUndoOpen,
+  askWhy,
   attentionOf,
   attentionRow,
   audienceMembers,
@@ -42856,9 +46970,12 @@ export {
   channelsStandingWords,
   channelsWords,
   checkChipsOf,
+  checkFix,
   checkNoteSuggestion,
+  checkOk,
   checkOpening,
   checkResultWords,
+  checkWords,
   checkedWords,
   chipsMoreWords,
   citationRoute,
@@ -42898,6 +47015,7 @@ export {
   compareTemplates,
   compareWords,
   composeSystemPrompt,
+  connectModel,
   connectionRows,
   connectionWords,
   consentAnswerWords,
@@ -42921,9 +47039,14 @@ export {
   conversationOfNeedsKey,
   conversationPatch,
   conversationWaitsOnYou,
+  costEach,
+  countCtx,
+  counted,
+  countedDoor,
   coveredChannels,
   coversSpan,
   csvCell,
+  currencySymbol,
   customerDomainOf,
   customerWords,
   dailyLimit,
@@ -42931,11 +47054,17 @@ export {
   dayFromQuestion,
   dayInZone,
   dayIntervals,
+  dayLines,
+  dayOfIso,
   dayPlusInZone,
   dayProblems,
+  dayShort,
+  dayWord,
   dayWords,
+  daysBetween,
   daysToSunset,
   daysWithAppointments,
+  daysWord,
   daysWords,
   dealCardsOf,
   dealFactsOf,
@@ -42984,7 +47113,9 @@ export {
   domainRegistrarHint,
   domainStatsWords,
   doorNamesNoAudience,
+  doorNeeds,
   doorOf,
+  draftAd,
   draftExcerpt,
   draftListRule,
   draftRefusal,
@@ -42992,6 +47123,10 @@ export {
   dueStepDay,
   durationLabel,
   durationWords,
+  eachInTouch,
+  earlierCost,
+  editFootOf,
+  editOf,
   eligibleFor,
   eligibleForPlaybook,
   emailDomainOf,
@@ -43015,6 +47150,7 @@ export {
   emptyReadSet,
   endedOn,
   endingOfRound,
+  endsWhenOf,
   enrolFor,
   enrolPurpose,
   enrolRefusalWords,
@@ -43048,6 +47184,7 @@ export {
   fenced,
   fencedInline,
   fetchPublic,
+  figureWords,
   fillSlots,
   filterOpenings,
   filterTimeline,
@@ -43056,7 +47193,9 @@ export {
   finiteOrNull,
   finiteOrZero,
   firstLine,
+  firstMissing,
   firstNameOf,
+  firstReadyDoor,
   firstReceptionistOf,
   firstRunKicker,
   firstRunLiveOf,
@@ -43096,6 +47235,7 @@ export {
   frameSteer,
   frameWhisper,
   freeWindows,
+  fromAdWords,
   fromSlotParts,
   fromZonedInput,
   gainedOver,
@@ -43104,6 +47244,7 @@ export {
   googleFillsOf,
   greetingFor,
   groundCitations,
+  groupMeta,
   groupTemplates,
   guardSpokenTurns,
   guardrailsInForce,
@@ -43136,7 +47277,7 @@ export {
   holdDoors,
   holdNotice,
   holdOf,
-  holdWords,
+  holdWords2 as holdWords,
   holderOf,
   hoursFromGoogle,
   hoursLines2 as hoursLines,
@@ -43176,6 +47317,7 @@ export {
   isActivityFamily,
   isActivityMoney,
   isActivityNoise,
+  isAdsParam,
   isAppointmentWord,
   isAutomatedSend,
   isBaselinePrompt,
@@ -43186,6 +47328,7 @@ export {
   isCarrier,
   isChatMessage,
   isCheckoutReturn,
+  isConnected,
   isConsultationTitle,
   isDayKey,
   isDealLostReason,
@@ -43319,6 +47462,7 @@ export {
   leadNoCardLine,
   leadNotBusinessesLine,
   leadNoteLeft,
+  leadOf,
   leadPeekMenu,
   leadPhoneState,
   leadPinTone,
@@ -43350,6 +47494,8 @@ export {
   ledgerPhoneLine,
   ledgerPhoneWhat,
   ledgerRowIn,
+  leftOfAd,
+  leftOfMoney,
   legacyErasedEmailHash,
   legacyErasedPhoneHash,
   legacyLeadSuppressionHash,
@@ -43433,6 +47579,7 @@ export {
   messageWhyNot,
   messageWords,
   metricWordsOf,
+  minorOfUnits,
   missedCall,
   missedCallIsNews,
   mmss,
@@ -43443,6 +47590,7 @@ export {
   momentOffered,
   momentReadsCalendar,
   mondayOf,
+  moneyOf,
   moneyWords,
   monthDaysAt,
   monthLabelOf,
@@ -43456,15 +47604,23 @@ export {
   navigateLabel,
   needsAnswer,
   needsConsultation,
+  needsSecond,
+  newAdDefaults,
+  newAdFrom,
+  newAdFromRoute,
+  newAdModel,
+  newAdRoute,
   newCampaignChannels,
   newConversationOf,
   newReceptionistDefaults,
+  newestPostFor,
   nextMonthStart,
   nextOpenMoment,
   nextRunLabel,
   nextRunWords,
   nextStepOf,
   nextThemePref,
+  noAdsOf,
   noChannelWords,
   noMessageWords,
   noNumberWords,
@@ -43531,8 +47687,10 @@ export {
   ownedDomainOf,
   paceWords,
   pageTitle,
+  pageTotals,
   pageVitalsWords,
   paramLabel,
+  parseAds,
   parseAmount,
   parseBrainOutput,
   parseCsv,
@@ -43579,6 +47737,7 @@ export {
   pastAllowance,
   pastTarget,
   pastTargetPage,
+  patchRestarts,
   pauseHoursOf,
   pauseMsOf,
   pausedGreetingFor,
@@ -43591,6 +47750,8 @@ export {
   peopleListAction,
   peopleNowOf,
   peopleVisitsOf,
+  peopleWord,
+  perDayOf,
   personActs,
   personInText,
   personInitials,
@@ -43603,6 +47764,7 @@ export {
   personStateFor,
   phoneDialable,
   phoneLine,
+  phoneOf,
   phoneTail,
   pickCurrentDeal,
   pinTokens,
@@ -43644,6 +47806,7 @@ export {
   platformHealthOf,
   platformHealthWords,
   platformLineActions,
+  platformMeta,
   platformNumber,
   platformPartnerRows,
   platformPartnerStanding,
@@ -43651,6 +47814,7 @@ export {
   platformQueue,
   platformRows,
   platformSummary,
+  platformsFor,
   playbookChannelsRead,
   playbookFailedAbout,
   playbookFailedWords,
@@ -43717,6 +47881,10 @@ export {
   pushesFor,
   quantile,
   questionAfterProbe,
+  quietOf,
+  quotesPrice,
+  raiseOf,
+  ratingLine,
   ratingWords,
   reachBarParts,
   reachBarWords,
@@ -43725,6 +47893,7 @@ export {
   reachFor,
   reachLineOf,
   reachLines,
+  reachNoteOf,
   reachOutAddHandStep,
   reachOutAddStep,
   reachOutAfterDayChoices,
@@ -43761,6 +47930,7 @@ export {
   reachedCustomer,
   reachedVoicemail,
   readAgoLabel,
+  readTime,
   readingPlan,
   readingSystemPrompt,
   readingUserContent,
@@ -43830,6 +48000,7 @@ export {
   resolveParams,
   resolveSystemPrompt,
   resolveTheme,
+  resultsOf,
   resumeDomain,
   retentionWords,
   reviewHeldWords,
@@ -43873,6 +48044,7 @@ export {
   saidYesTo,
   saidYesWords,
   sameAddress,
+  sameArea,
   sameListed,
   sameName,
   samePhone,
@@ -43904,6 +48076,7 @@ export {
   sendsWaitWords,
   sentByWords,
   sentResultsOfSource,
+  sentenceParts,
   serverNotificationRows,
   serviceLineWords,
   serviceNamedIn,
@@ -43914,6 +48087,7 @@ export {
   servicesToldWords,
   servicesWords,
   sessionEnded,
+  settling,
   setupCardOf,
   setupLaterOf,
   setupPhoneWantOf,
@@ -43947,6 +48121,7 @@ export {
   slotValueOf,
   slotWritten,
   slugTemplateName,
+  smallestPreset,
   smsConsentSentence,
   smsSegments,
   smsStateRow,
@@ -43970,8 +48145,10 @@ export {
   standingOf,
   starsOf,
   startWords,
+  started,
   starterByKey,
   starterByName,
+  starterCopy,
   starterDraft,
   starterEmailText,
   starterForTrigger,
@@ -44001,7 +48178,10 @@ export {
   stopRequestQuestion,
   stoppedRunFix,
   suggestLocalPart,
+  sum,
+  sumMoney,
   sumOf,
+  sumsOf,
   systemOneDollars,
   systemOneState,
   telHref,
@@ -44039,6 +48219,8 @@ export {
   threadStanding,
   threadsWaitingOnYou,
   tidyCallSummary,
+  tilesOf,
+  timeOf,
   timetable,
   timezoneCity,
   timezoneWords,
@@ -44091,6 +48273,8 @@ export {
   tokenBudgetSpent,
   tokenCapOf,
   tomorrowAtIn,
+  totalOf,
+  totalsOf,
   touchesAfterRun,
   trialOffer,
   trialWords,
@@ -44115,6 +48299,7 @@ export {
   usageOf,
   usageTokens,
   utf8Bytes,
+  v0Of,
   v1FromAnswer,
   validateEmailVersion,
   validateOwnVersion,
@@ -44131,6 +48316,7 @@ export {
   versionWords,
   versionsOf,
   vetoRunNotice,
+  viewState,
   viewerListWords,
   violatesNoPrices,
   visitActsOf,
@@ -44212,6 +48398,7 @@ export {
   yesWaitWords,
   yesWaits,
   youAreLiveEmail,
+  zipIssue,
   zoneDayKey,
   zoneMidnight,
   zoneOfRegion,

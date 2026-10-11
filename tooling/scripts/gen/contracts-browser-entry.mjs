@@ -27,7 +27,7 @@ import ts from "typescript";
 export const OUT = "packages/contracts/src/browser.generated.ts";
 const SRC = "packages/contracts/src";
 /**
- * The modules only a page-only entry reads (package.json's `./report-window`, `./report-lens`), relative to SRC: their
+ * The modules only a page-only entry reads (package.json's `./report-window`, `./report-lens`, `./ads-page`), relative to SRC: their
  * names stay in the barrels, so the server and the tests read them from the index, and are left out of the browser's
  * entry, which every page's route loads. The page that draws them imports them by that subpath. A path that names no
  * file under SRC filters nothing, silently, so `generate` refuses it.
@@ -43,6 +43,23 @@ export const PAGE_ONLY = [
   "reports/campaigns/reach-out-lens.ts",
   "reports/campaigns/campaign-words.ts",
   "reports/campaigns/campaign-lens.ts",
+  "ads/rules.ts",
+  "ads/money.ts",
+  "ads/words.ts",
+  "ads/words-page.ts",
+  "ads/words-drawer.ts",
+  "ads/words-new.ts",
+  "ads/results/words-results.ts",
+  "ads/results/results.ts",
+  "ads/words-connect.ts",
+  "ads/vm-base.ts",
+  "ads/page.ts",
+  "ads/page-parts.ts",
+  "ads/drawer.ts",
+  "ads/drawer-parts.ts",
+  "ads/drawer-edit.ts",
+  "ads/new-ad.ts",
+  "ads/new-ad-parts.ts",
 ];
 /** The specifiers that load zod's classic API. zod/mini and zod/v4/core share its core and are cut by the bundler. */
 const CLASSIC_ZOD = new Set(["zod", "zod/v4", "zod/v4/classic"]);

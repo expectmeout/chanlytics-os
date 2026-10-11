@@ -5,7 +5,7 @@ export type { NameableContact, NameableCaller } from "./person-name";
 // like every other surface, and the index exports it from there.
 export { personName } from "./person-name";
 // A person's wires and where they came from, in words: the leaf the list rules read too (person-words.ts).
-export { PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS } from "./person-words";
+export { PERSON_AD_ON, PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, fromAdWords } from "./person-words";
 export type { PersonCameFrom, PersonChannel } from "./person-words";
 export type {
   PersonRowDto,

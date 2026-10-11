@@ -14,11 +14,16 @@ import type { CampaignLensVM, PeopleReportVM } from "@chanlytics/contracts/repor
 import { useStanding } from "../kit/head/standing";
 import type { ReportsSurface } from "./surface";
 
-/** The lens reads the page holds beside the report, whose own sentence a head says: each null where its read has not landed. One object: the surfaces tree takes at most four parameters (max-params). */
+/**
+ * The lens reads the page holds beside the report, whose own sentence a head says: each null where its read has not landed. One
+ * object: the surfaces tree takes at most four parameters (max-params). The Ads lens's (a demo session's) is the head of its fold,
+ * which is drawn once its chunk has been fetched; where it is not drawn there is none.
+ */
 interface ReportsHeads {
   reviews: ReviewsReportVM | null;
   people: Pick<PeopleReportVM, "head"> | null;
   campaigns: Pick<CampaignLensVM, "head"> | null;
+  ads?: { head: string | null } | null;
 }
 
 export function useReportsStanding(
