@@ -258,11 +258,8 @@ function sweepTickAtOrAfter(ms2) {
 var SELLS_BY = ["booking", "proposal"];
 var SELLS_BY_QUESTION = "How customers buy";
 var SELLS_BY_WORDS = {
-  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
-  proposal: {
-    label: "Some get a proposal first",
-    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
-  }
+  booking: { label: "They book an appointment", sentence: "Bookings and reminders." },
+  proposal: { label: "Some get a proposal first", sentence: "Adds proposals, a Pipeline and Deals in Reports." }
 };
 function isSellsBy(s) {
   return typeof s === "string" && SELLS_BY.includes(s);
@@ -6352,7 +6349,7 @@ function booksWithName(withWhat) {
 }
 var BOOKING_TOOL_WORDS = {
   label: "Booking tool",
-  hint: "What you book with. It fills your calendar and tells the receptionist what is taken.",
+  hint: "Fills your calendar and tells the receptionist what's taken.",
   empty: "Not set up",
   placeholder: "What do you book with?",
   link: {
@@ -18588,7 +18585,7 @@ function instructionsDraft(brain) {
   if (whose.kind === "own") return { text: whose.text, carried: false };
   return whose.kind === "carried" || whose.kind === "prompt" ? { text: whose.text, carried: true } : { text: "", carried: false };
 }
-var NO_FIELDS_COMPOSED_WORDS = "None of the details on this page are composed into what it reads yet.";
+var NO_FIELDS_COMPOSED_WORDS = "Your details aren't in what it reads yet.";
 function hasProfile(p) {
   if (!p) return false;
   const statedHours = !!p.hours && Object.values(p.hours).some((h) => h?.open && h?.close || h?.intervals?.length);
@@ -18645,13 +18642,13 @@ var channelOpens = (c) => {
 var STRENGTHS = /* @__PURE__ */ (() => ({
   never_confirm_booking: {
     strength: "structural",
-    chip: "It cannot anyway",
-    sentence: "Nothing in this product can create, move or cancel an appointment. Switching this off would not let it book \u2014 it would only stop it being told not to claim it had.",
+    chip: "Built in",
+    sentence: "It can't book, move or cancel an appointment anyway. Off only stops it being told not to claim it did.",
     checkedOn: null
   },
   never_quote_prices: {
     strength: "checked",
-    chip: "Checked, not just told",
+    chip: "Checked",
     // The sentence says the rule. `checkedOn` says how it lands per channel, and the
     // page draws both -- so the sentence must not say the channels too, or an owner
     // reads the same fact twice, once in prose and once in the two boxes under it.
@@ -18662,12 +18659,12 @@ var STRENGTHS = /* @__PURE__ */ (() => ({
     // this switch says. The detectors (violatesNoPrices on a chat reply, spokenBreach on a
     // call) run either way; the switch adds or removes the one prompt line that tells it
     // not to quote one. So the sentence cannot say the switch turns the checking on.
-    sentence: "A detector reads every reply for a price in dollars or pesos whether this switch is on or off, and it offers a consult or the booking link instead. On, it is also told not to quote one.",
+    sentence: "Every reply is checked for a price in dollars or pesos, even with this off. On, it's also told not to quote one.",
     checkedOn: [
       {
         channel: "whatsapp",
         label: channelOpens("whatsapp"),
-        words: "The words are swapped before the customer sees them. A draft sits in between."
+        words: "a price is swapped out before the customer sees it."
       },
       {
         channel: "voice",
@@ -18676,20 +18673,22 @@ var STRENGTHS = /* @__PURE__ */ (() => ({
         // still being delivered, and with that switched off on the agent the same check runs on the final transcript
         // and the owner is told after the fact instead (policy.ts). "Degrading is the point", and the line degrades
         // with it rather than promising the better half of it.
-        words: "It has already been heard. You are told either way, and a correction goes into the call itself whenever it can still be reached."
+        words: "it was already heard. You're told, and it corrects itself if the caller is still on."
       }
     ]
   },
+  // Told, and nothing checks the answer: there is no clean signal to check against, since the phrase that would catch a
+  // denial also catches the correct disclosure.
   disclose_ai: {
     strength: "instructed",
-    chip: "Told, and trusted",
-    sentence: "A line in what it reads, and nothing checks the answer afterwards. There is no clean signal to check against: the phrase that would catch a denial also catches the correct disclosure.",
+    chip: "Told",
+    sentence: "It's told this, and nothing checks its answer.",
     checkedOn: null
   },
   no_health_advice: {
     strength: "instructed",
-    chip: "Told, and trusted",
-    sentence: "Skin reactions, allergies, pregnancy, medication \u2014 a professional advises at the appointment.",
+    chip: "Told",
+    sentence: "A professional advises at the appointment. It's told this, and nothing checks its answer.",
     checkedOn: null
   }
 }))();
@@ -18702,7 +18701,7 @@ var VISION_STRENGTH = /* @__PURE__ */ (() => ({
   // Two clauses, one per position, and nothing else. "The rules above are limits; this one gives it an ability, so
   // it starts off" went: the dashed rule above the switch says it is apart, the badge beside it says it is a power,
   // and the switch itself says it is off -- three sayings of one thing, and four lines of a phone.
-  sentence: "On, it says what it sees and suggests the next step, under the rules above. Off, a photo goes to a person.",
+  sentence: "Off, photos go to a person.",
   checkedOn: null
 }))();
 var RULES_AT_REST_WORDS = {
@@ -18732,11 +18731,9 @@ function rulesKept(i) {
   kept.push(i.vision ? PHOTOS_AT_REST_WORDS.on : PHOTOS_AT_REST_WORDS.off);
   return kept;
 }
-var rulesWithoutFields = (noLink) => `${NO_FIELDS_COMPOSED_WORDS} These four switches change nothing it is told: it answers from its own stored instructions, followed only by ${noLink ? "what to do with no booking link and " : ""}any rules your Autonomy tab adds.`;
-var RULES_WITHOUT_FIELDS_WORDS = /* @__PURE__ */ (() => rulesWithoutFields(false))();
-var RULES_WITHOUT_FIELDS_NO_LINK_WORDS = /* @__PURE__ */ (() => rulesWithoutFields(true))();
-function rulesWithoutFieldsWords(brain) {
-  return offersBookingLink(brain) ? RULES_WITHOUT_FIELDS_WORDS : RULES_WITHOUT_FIELDS_NO_LINK_WORDS;
+var RULES_WITHOUT_FIELDS_WORDS = /* @__PURE__ */ (() => `${NO_FIELDS_COMPOSED_WORDS} Until they are, it isn't told these rules.`)();
+function rulesWithoutFieldsWords() {
+  return RULES_WITHOUT_FIELDS_WORDS;
 }
 
 // src/config/business-tab/business-gap.ts
@@ -18775,7 +18772,7 @@ function openWeekWords(hours, tz) {
   return `${DAY_COUNT_WORDS[open]} ${open === 1 ? "day" : "days"} a week, ${zone}`;
 }
 function hoursZoneWords(tz) {
-  return `All times in ${timezoneCity(tz)} time, as the receptionist states them.`;
+  return `In ${timezoneCity(tz)} time`;
 }
 function closuresAheadWords(closures, tz, now) {
   const dated = (closures ?? []).filter((c) => !!c?.date);
@@ -18829,12 +18826,14 @@ var PROMPT_READERS = {
 };
 var PROMPT_NOW = {
   label: {
-    whatsapp: "Sent alongside it, rebuilt for every message",
-    voice: "Sent alongside it, rebuilt for every call"
+    whatsapp: "Today's date and time",
+    voice: "Today's date and time"
   },
+  // Sent apart from the prompt so the prompt stays the same from one message to the next (its cache holds), which is
+  // why the sheet draws it apart; what an owner needs of that is when it is rebuilt.
   why: {
-    whatsapp: "Shown separately because it is sent separately \u2014 folding a value that changes every minute into the block above would throw away the prompt cache on every message.",
-    voice: "Shown separately because it is sent separately \u2014 folding a value that changes every minute into the block above would throw away the prompt cache on every call."
+    whatsapp: "Added to every message",
+    voice: "Added to every call"
   }
 };
 
@@ -18872,10 +18871,6 @@ function servicesFoundWords(shown, total) {
   if (!total) return "No services yet.";
   if (!shown) return "No service is called that.";
   return `${count(shown)} of ${count(total)} ${total === 1 ? "service" : "services"}`;
-}
-function servicesSaveWords(n) {
-  if (!n) return "Save with no services";
-  return `Save ${count(n)} ${n === 1 ? "service" : "services"}`;
 }
 
 // src/config/business-tab/booking-rules-words.ts
@@ -18925,17 +18920,17 @@ function bookingRuleRefusal(key) {
   return words3[key](bound.min, bound.max);
 }
 var BOOKING_RULE_HINTS = /* @__PURE__ */ (() => ({
-  lead_hours: `Empty uses ${pluralGrouped(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
-  slot_min: `Empty uses the calendar's ${count(BOOKING_DEFAULTS.slot_min)}.`,
+  lead_hours: null,
+  slot_min: null,
   buffer_min: null,
-  max_days_ahead: `Empty uses ${count(BOOKING_DEFAULTS.max_days_ahead)}.`,
-  party_max: "Larger groups go to a person."
+  max_days_ahead: null,
+  party_max: "Bigger groups are handed to a person."
 }))();
 
 // src/config/business-tab/fold-limits.ts
 var PROFILE_CROSSING_WORDS = {
-  stops: "Saved like this, the receptionist stops being given the details on this page and answers from its stored instructions.",
-  starts: "Saved like this, the receptionist starts being given the details on this page, and the instructions it follows today are carried in beneath them."
+  stops: "Saved like this, it stops being given your details and answers from its stored instructions.",
+  starts: "Saved like this, it starts being given your details, with today's instructions kept beneath them."
 };
 function profileRefusal(key, seen, of) {
   const L2 = PROFILE_LIMITS;
@@ -19033,7 +19028,7 @@ function instructionsWords(text) {
   if (!t) return { opening: null, limit: null };
   return {
     opening: `\u201C${cutAtWord(t, OPENING_SHOWN)}\u201D`,
-    limit: `${count(t.length)} of ${count(INSTRUCTIONS_MAX)} characters`
+    limit: t.length >= INSTRUCTIONS_MAX * 0.9 ? `${count(t.length)} of ${count(INSTRUCTIONS_MAX)} characters` : null
   };
 }
 function fallbacksWords(fallbacks) {
@@ -19054,11 +19049,22 @@ function handoffChatWords(i) {
   return `${when} stops answering, the thread turns Needs you in the Inbox, and anyone set to be alerted is emailed. It holds off for ${pause}, then answers the customer's next message itself.`;
 }
 function transferWords(hasHandoffNumber) {
-  return hasHandoffNumber ? "During opening hours it rings the number you gave and stays on until someone picks up. Outside them, or if nobody answers, it takes a message." : "No number yet, so it takes a message instead \u2014 which is better than a number nobody picks up.";
+  return hasHandoffNumber ? "During opening hours it rings the number you gave and stays on until someone picks up. Outside them, or if nobody answers, it takes a message." : "No number yet, so it takes a message.";
 }
-function handoffCallWords(i) {
-  return `${i.hasEscalateWhen ? "Your reasons reach a call too. " : ""}${transferWords(!!i.hasHandoffNumber)}`;
+function handoffChatRow(pauseHours) {
+  const pause = heldFor(hardLimitsWords({ pause_hours: pauseHours }).hours);
+  return { name: "Stops and marks it Needs you", sub: `Sends your alerts \xB7 replies again after ${pause}` };
 }
+function handoffCallRow(transfer) {
+  const number2 = typeof transfer === "string" ? transfer.trim() : "";
+  return number2 ? {
+    name: `Rings ${number2}`,
+    sub: "In opening hours, otherwise takes a message",
+    act: "Change",
+    actName: "Change the transfer number"
+  } : { name: "Takes a message", sub: "No transfer number", act: "Add one", actName: "Add a transfer number" };
+}
+var HANDOFF_ANYWAY = "Anyone who asks for a person, or needs help it can't give, is handed over too.";
 function handoffWords(reasons, transfer) {
   const list2 = (Array.isArray(reasons) ? reasons : []).filter((r2) => typeof r2 === "string" && r2.trim() !== "").map((r2) => r2.trim());
   const n = list2.length;
@@ -19264,7 +19270,7 @@ function parseBrainOutput(raw) {
 
 // src/config/prompt-blocks.ts
 var PLATFORM_LABEL = "Chanlytics' own instructions";
-var PLATFORM_NOTE = "Written by Chanlytics for every workspace, not by you.";
+var PLATFORM_NOTE = "The same for every business";
 var BLOCK_MARKS = /* @__PURE__ */ (() => [
   { row: "hours", label: "When you're open", startsWith: PROMPT_OPENINGS.hours },
   { row: "closures", label: "Days you're closed", startsWith: PROMPT_OPENINGS.closures },
@@ -19279,14 +19285,14 @@ var BLOCK_MARKS = /* @__PURE__ */ (() => [
     label: "Hand-off",
     startsWith: PROMPT_OPENINGS.handoffChat,
     channel: "whatsapp",
-    note: "Always sent, whether or not you give reasons \u2014 it is how anything it should not decide reaches you. On WhatsApp it hands you the thread."
+    note: "Always sent, reasons or not: it's how anything it shouldn't decide reaches you."
   },
   {
     row: "handoff",
     label: "Hand-off",
     startsWith: PROMPT_OPENINGS.handoffCall,
     channel: "voice",
-    note: "Always sent, whether or not you give reasons \u2014 it is how a caller who needs a person reaches one. On a call it transfers to your number in opening hours if you gave one, and takes a message otherwise."
+    note: "Always sent, reasons or not: it's how a caller who needs a person reaches one, or leaves a message."
   },
   { row: "platform", label: PLATFORM_LABEL, startsWith: PROMPT_OPENINGS.callTools, channel: "voice", note: PLATFORM_NOTE },
   { row: "platform", label: PLATFORM_LABEL, startsWith: PROMPT_OPENINGS.callMedium, channel: "voice", note: PLATFORM_NOTE },
@@ -19296,7 +19302,7 @@ var BLOCK_MARKS = /* @__PURE__ */ (() => [
     row: "guardrails",
     label: "Rules it always keeps",
     startsWith: PROMPT_OPENINGS.rules,
-    note: "Beside the rules on this row: a line Chanlytics writes for every workspace, for a customer who replies YES OFFERS; where there is a WhatsApp number, a line that asks each customer once for that yes; and any rule your Autonomy tab adds."
+    note: "Also here: Chanlytics' own lines about offers and news, and any rule from Autonomy."
   }
 ])();
 var IDENTITY = { row: "identity", label: "Who you are", startsWith: "" };
@@ -19305,7 +19311,7 @@ var CARRIED = {
   row: "extra_instructions",
   label: "In your own words",
   startsWith: "",
-  note: "The prompt this workspace had before it had fields. It is read until you write your own."
+  note: "Its earlier instructions, read until you write your own."
 };
 var PROMPT = {
   row: "extra_instructions",
@@ -19316,14 +19322,14 @@ var PROMPT = {
   //
   // Marked pure for the reason rule-strengths.ts gives beside STRENGTHS: a substitution makes this an expression
   // the bundler keeps at the top level, and the prompt view is drawn on one tab of the dashboard and nowhere else.
-  note: /* @__PURE__ */ (() => `This workspace's own prompt, read as it stands. ${NO_FIELDS_COMPOSED_WORDS}`)()
+  note: /* @__PURE__ */ (() => `Its own instructions, as they stand. ${NO_FIELDS_COMPOSED_WORDS}`)()
 };
 var BASELINE = { row: "platform", label: PLATFORM_LABEL, startsWith: "", note: PLATFORM_NOTE };
 var AUTONOMY = {
   row: "autonomy",
   label: "Autonomy's rules",
   startsWith: "",
-  note: "Set on the Autonomy tab, not on this page."
+  note: "Set on Autonomy"
 };
 var MARK_OF = {
   own: OWN_WORDS,
@@ -40103,6 +40109,7 @@ export {
   GUARDRAIL_KEYS,
   GuardrailsSchema,
   HANDLED_OUTCOMES,
+  HANDOFF_ANYWAY,
   HANDOFF_FORWARDS_BACK,
   HANDOVER_DAYS,
   HANDOVER_WAITING_MAX,
@@ -41151,7 +41158,8 @@ export {
   guessSlotKind,
   handOf,
   handStepWords,
-  handoffCallWords,
+  handoffCallRow,
+  handoffChatRow,
   handoffChatWords,
   handoffE164,
   handoffWords,
@@ -41914,7 +41922,6 @@ export {
   serviceSuggestionsOf,
   serviceUndoName,
   servicesFoundWords,
-  servicesSaveWords,
   servicesToldWords,
   servicesWords,
   sessionEnded,

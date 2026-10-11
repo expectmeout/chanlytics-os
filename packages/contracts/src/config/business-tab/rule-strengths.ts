@@ -15,7 +15,6 @@
  * This module holds the rules fold: how far each rule goes, what the row says at rest, and the one sentence for
  * a record whose details compose nothing. The other folds' words are its neighbours in this folder.
  */
-import { offersBookingLink } from "../no-booking-link";
 import { GUARDRAIL_KEYS, type GuardrailKey, type GuardrailsInForce } from "../workspace-config/config-rules";
 import { NO_FIELDS_COMPOSED_WORDS } from "../workspace-config/resolve";
 
@@ -76,14 +75,13 @@ export interface RuleStrengthVM {
 const STRENGTHS: Record<GuardrailKey, RuleStrengthVM> = /* @__PURE__ */ (() => ({
   never_confirm_booking: {
     strength: "structural",
-    chip: "It cannot anyway",
-    sentence:
-      "Nothing in this product can create, move or cancel an appointment. Switching this off would not let it book — it would only stop it being told not to claim it had.",
+    chip: "Built in",
+    sentence: "It can't book, move or cancel an appointment anyway. Off only stops it being told not to claim it did.",
     checkedOn: null,
   },
   never_quote_prices: {
     strength: "checked",
-    chip: "Checked, not just told",
+    chip: "Checked",
     // The sentence says the rule. `checkedOn` says how it lands per channel, and the
     // page draws both -- so the sentence must not say the channels too, or an owner
     // reads the same fact twice, once in prose and once in the two boxes under it.
@@ -95,12 +93,12 @@ const STRENGTHS: Record<GuardrailKey, RuleStrengthVM> = /* @__PURE__ */ (() => (
     // call) run either way; the switch adds or removes the one prompt line that tells it
     // not to quote one. So the sentence cannot say the switch turns the checking on.
     sentence:
-      "A detector reads every reply for a price in dollars or pesos whether this switch is on or off, and it offers a consult or the booking link instead. On, it is also told not to quote one.",
+      "Every reply is checked for a price in dollars or pesos, even with this off. On, it's also told not to quote one.",
     checkedOn: [
       {
         channel: "whatsapp",
         label: channelOpens("whatsapp"),
-        words: "The words are swapped before the customer sees them. A draft sits in between.",
+        words: "a price is swapped out before the customer sees it.",
       },
       {
         channel: "voice",
@@ -109,22 +107,22 @@ const STRENGTHS: Record<GuardrailKey, RuleStrengthVM> = /* @__PURE__ */ (() => (
         // still being delivered, and with that switched off on the agent the same check runs on the final transcript
         // and the owner is told after the fact instead (policy.ts). "Degrading is the point", and the line degrades
         // with it rather than promising the better half of it.
-        words:
-          "It has already been heard. You are told either way, and a correction goes into the call itself whenever it can still be reached.",
+        words: "it was already heard. You're told, and it corrects itself if the caller is still on.",
       },
     ],
   },
+  // Told, and nothing checks the answer: there is no clean signal to check against, since the phrase that would catch a
+  // denial also catches the correct disclosure.
   disclose_ai: {
     strength: "instructed",
-    chip: "Told, and trusted",
-    sentence:
-      "A line in what it reads, and nothing checks the answer afterwards. There is no clean signal to check against: the phrase that would catch a denial also catches the correct disclosure.",
+    chip: "Told",
+    sentence: "It's told this, and nothing checks its answer.",
     checkedOn: null,
   },
   no_health_advice: {
     strength: "instructed",
-    chip: "Told, and trusted",
-    sentence: "Skin reactions, allergies, pregnancy, medication — a professional advises at the appointment.",
+    chip: "Told",
+    sentence: "A professional advises at the appointment. It's told this, and nothing checks its answer.",
     checkedOn: null,
   },
 }))();
@@ -151,8 +149,7 @@ export const VISION_STRENGTH: RuleStrengthVM = /* @__PURE__ */ (() => ({
   // Two clauses, one per position, and nothing else. "The rules above are limits; this one gives it an ability, so
   // it starts off" went: the dashed rule above the switch says it is apart, the badge beside it says it is a power,
   // and the switch itself says it is off -- three sayings of one thing, and four lines of a phone.
-  sentence:
-    "On, it says what it sees and suggests the next step, under the rules above. Off, a photo goes to a person.",
+  sentence: "Off, photos go to a person.",
   checkedOn: null,
 }))();
 
@@ -246,16 +243,14 @@ export function rulesKept(i: RulesKeptInputs): string[] {
  * Built inside a call marked pure, as STRENGTHS is: a template literal with a substitution in it is an
  * expression the bundler must keep at the top level, and this sentence belongs to one tab of the dashboard.
  */
-const rulesWithoutFields = (noLink: boolean): string =>
-  `${NO_FIELDS_COMPOSED_WORDS} These four switches change nothing it is told: it answers from its own stored instructions, followed only by ${noLink ? "what to do with no booking link and " : ""}any rules your Autonomy tab adds.`;
-export const RULES_WITHOUT_FIELDS_WORDS = /* @__PURE__ */ (() => rulesWithoutFields(false))();
-const RULES_WITHOUT_FIELDS_NO_LINK_WORDS = /* @__PURE__ */ (() => rulesWithoutFields(true))();
+export const RULES_WITHOUT_FIELDS_WORDS = /* @__PURE__ */ (() =>
+  `${NO_FIELDS_COMPOSED_WORDS} Until they are, it isn't told these rules.`)();
 
 /**
- * RULES_WITHOUT_FIELDS_WORDS for the record it is said of. A receptionist with no booking link is told what to do
- * instead, first among the rules after its stored prompt (config.ts resolveSystemPrompt), so the sentence names that
- * rule too, by the resolver's own test (offersBookingLink).
+ * RULES_WITHOUT_FIELDS_WORDS, as the rules' sheet asks for it. It once named, for a receptionist with no booking link, the
+ * rule it is told about that first; one line now says only what an owner can change, which is the details (Ruben, 10 Oct
+ * 2026: the sheets "too wordy, too explanatory").
  */
-export function rulesWithoutFieldsWords(brain: { booking_link?: string | null } | null | undefined): string {
-  return offersBookingLink(brain) ? RULES_WITHOUT_FIELDS_WORDS : RULES_WITHOUT_FIELDS_NO_LINK_WORDS;
+export function rulesWithoutFieldsWords(): string {
+  return RULES_WITHOUT_FIELDS_WORDS;
 }

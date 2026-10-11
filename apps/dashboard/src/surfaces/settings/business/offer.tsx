@@ -11,7 +11,7 @@
 // those learned came with them, comments and all.
 //
 // The page composes and never derives. Every sentence here with a number in it is contracts' (servicesWords,
-// servicesToldWords, servicesSaveWords, bookingRulesWords, BOOKING_RULE_HINTS, through BUSINESS_TAB), and so is
+// servicesToldWords, bookingRulesWords, BOOKING_RULE_HINTS, through BUSINESS_TAB), and so is
 // every word of how customers buy (sellsByVM, sellsBySaved); what a fold or the sheet opens with, refuses and writes is
 // folds.ts's; the gestures are BtFold and BtSheet (gestures/).
 //
@@ -24,7 +24,8 @@
 import type { SellsBy, SellsByVM } from "@chanlytics/contracts";
 import type { ComponentProps, ReactNode } from "react";
 import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
-import { RecordField, RecordSwitch, RecordToggleGroup } from "../../kit/record/field";
+import { Panel } from "../../kit/panel/panel";
+import { RecordBox, RecordField, RecordSwitch, RecordTip, RecordToggleGroup } from "../../kit/record/field";
 import { RecordRow, RecordChips } from "../../kit/record/row";
 import { recFolds } from "../../kit/record/registry";
 import { FieldError } from "../../kit/field-error/field-error";
@@ -203,17 +204,16 @@ export const BtServicesRow = ({ brain, canEdit, saver }: { brain: Brain; canEdit
 
 /* ------------------------------------ the booking rules ------------------------------------ */
 
-// The five numbers, in the fold's order (the canvas's Edit-Fold), each with its label, its unit, and the old grid's
-// placeholder for its box. Each box is named by its label and unit, the words on screen (WCAG 2.5.3): the old grid's
-// names were kept as a second name, and "Offers times up to" was heard as "Days ahead", which nobody saying the words
-// on screen could reach. Their ranges are folds.ts's RULES, and what an empty box means is contracts'
-// (BOOKING_RULE_HINTS).
+// The five numbers, in the fold's order (the canvas's Edit-Fold), each with its label, its unit, and the number an empty
+// box is worked out with, as its placeholder (contracts BOOKING_DEFAULTS; the party size has none, and 4 is an example).
+// Each box is named by its label and unit, the words on screen (WCAG 2.5.3). Their ranges are folds.ts's RULES, and the
+// one fact a box needs beside it is contracts' (BOOKING_RULE_HINTS), behind a tip.
 const BTW_RULE_BOXES = [
   ["lead_hours", "Least notice", "hours", "2"],
-  ["slot_min", "Slot length", "minutes", "30"],
-  ["buffer_min", "Gap between appointments", "minutes", "0"],
-  ["max_days_ahead", "Offers times up to", "days ahead", "14"],
-  ["party_max", "Most people per booking", "people", "4"],
+  ["slot_min", "Slot length", "min", "30"],
+  ["buffer_min", "Gap between", "min", "0"],
+  ["max_days_ahead", "Offers times up to", "days", "14"],
+  ["party_max", "Largest group", "people", "4"],
 ] as const;
 
 /** The booking rules' draft: five numbers as they are typed, the switch, and the notes one to a line. */
@@ -228,74 +228,100 @@ interface RulesDraft {
 }
 
 /**
- * The five rule boxes: each under its own label with its unit and what an empty box means. A number is kept as it
- * is typed: the save's checks refuse a non-digit or a number outside its range under its box (problemsOf, the old
- * form's sentences), where the old grid stripped anything but digits as it was typed and saved "2.5" as 25. A box takes
- * no min or max: a text box ignores both, and the range is said in the refusal (folds.ts RULES), under the box, where
- * the hint was.
+ * The five numbers as one list: each its label on the left and its small box with its unit on the right, the number an
+ * empty box is worked out with as its placeholder (Ruben, 10 Oct 2026: five boxes the sheet's width, each with a
+ * sentence under it, were most of a phone's screen). A number is kept as it is typed: the save's checks refuse a
+ * non-digit or a number outside its range (problemsOf, the old form's sentences), said under its row, the whole row's
+ * width, where the old grid stripped anything but digits as it was typed and saved "2.5" as 25. A box takes no min or
+ * max: a text box ignores both, and the range is said in the refusal (folds.ts RULES).
  */
 const BtRuleBoxes = ({ draft, update, problems, readOnly }: FoldFields<RulesDraft>) => {
   const hints = BUSINESS_TAB.BOOKING_RULE_HINTS;
   return (
-    <div className="bt-rules-grid">
-      {BTW_RULE_BOXES.map(([key, label, unit, placeholder]) => (
-        <RecordField
-          key={key}
-          id={`bt-rule-${key}`}
-          label={label}
-          unit={unit}
-          hint={hints[key] || null}
-          value={draft[key]}
-          onChange={(v) => update((d) => ({ ...d, [key]: v }), [key])}
-          problem={problems[key] || null}
-          inputMode="numeric"
-          placeholder={placeholder}
-          readOnly={readOnly || undefined}
-          testid={`rec-rule-${key}`}
-        />
-      ))}
-    </div>
+    <Panel variant="inset" size="flush" className="bt-lines" role="group" aria-label="The booking rules">
+      {BTW_RULE_BOXES.map(([key, label, unit, placeholder]) => {
+        const wrong = problems[key] || null;
+        const problemId = `rec-bt-rule-${key}-problem`;
+        const hint = hints[key] || null;
+        return (
+          <div className="bt-line" key={key} data-testid={`rec-rule-row-${key}`}>
+            <span className="bt-line-words">
+              <span className="bt-line-name" id={`bt-rule-${key}-label`}>
+                {label}
+              </span>
+            </span>
+            <span className="bt-line-end">
+              {hint ? <RecordTip text={hint} label={`About ${label.toLowerCase()}`} /> : null}
+              <span className="bt-number">
+                <RecordBox
+                  id={`bt-rule-${key}`}
+                  label={`${label} ${unit}`}
+                  unit={unit}
+                  size="sm"
+                  value={draft[key]}
+                  onChange={(v) => update((d) => ({ ...d, [key]: v }), [key])}
+                  invalid={wrong ? problemId : null}
+                  inputMode="numeric"
+                  placeholder={placeholder}
+                  readOnly={readOnly}
+                  testid={`rec-rule-${key}`}
+                />
+              </span>
+            </span>
+            <span className="bt-line-wrong">
+              <FieldError id={problemId} message={wrong} />
+            </span>
+          </div>
+        );
+      })}
+    </Panel>
   );
 };
 
 /**
- * The booking rules' fields: five numbers, each under its own label with its unit and what an empty box means, and the
- * notes one to a line. Drawn on every render (BtFold's rule), and none comes or goes, so each is the kit's
- * RecordField.
+ * The booking rules' fields: the five numbers as one list, the email switch on a line of its own, and the notes one to a
+ * line. Drawn on every render (BtFold's rule), and none comes or goes. What the sheet once said under its title ("It
+ * never books") is the rules' own row's ("Never confirm an appointment"), and what its foot said Save writes went: a
+ * Save writes what its sheet holds.
  */
 const BtRules = (f: FoldFields<RulesDraft>) => {
   const { draft, update, problems, readOnly } = f;
   return (
-    <div className="bt-rules" data-testid="rec-rules-boxes">
+    <div className="bt-stack" data-testid="rec-rules-boxes">
       <BtRuleBoxes {...f} />
       {/* Off by default: the receptionist asks for an email only where the owner wants the campaigns that follow (Part 0
-          of the campaigns-on-every-channel spec). Drawn as the guardrails fold draws its switches (bt-rule): the words
-          beside the switch name it, so a person saying them can press it. */}
-      <div className="bt-rule">
-        <span className="bt-rule-words">
-          <span className="bt-rule-head">
-            <span className="bt-rule-label" id="bt-rule-ask_email-label">
-              Ask for an email when sending the booking link
+          of the campaigns-on-every-channel spec). The words beside the switch name it, so a person saying them can
+          press it. */}
+      <Panel variant="inset" size="flush" className="bt-lines">
+        <div className="bt-line">
+          <span className="bt-line-words">
+            <span className="bt-line-name" id="bt-rule-ask_email-label">
+              Ask for their email
+            </span>
+            <span className="bt-line-sub" id="bt-rule-ask_email-says">
+              When it sends the booking link
             </span>
           </span>
-        </span>
-        <RecordSwitch
-          on={!!draft.ask_email}
-          onChange={(v) => update((d) => ({ ...d, ask_email: v }), ["ask_email"])}
-          labelledBy="bt-rule-ask_email-label"
-          readOnly={readOnly}
-          testid="rec-rule-ask-email"
-        />
-      </div>
+          <span className="bt-line-end">
+            <RecordSwitch
+              on={!!draft.ask_email}
+              onChange={(v) => update((d) => ({ ...d, ask_email: v }), ["ask_email"])}
+              labelledBy="bt-rule-ask_email-label"
+              describedBy="bt-rule-ask_email-says"
+              readOnly={readOnly}
+              testid="rec-rule-ask-email"
+            />
+          </span>
+        </div>
+      </Panel>
       <RecordField
         id="bt-rule-notes"
-        label="Anything else about booking"
-        hint="One per line."
+        label="Other rules"
         rows={3}
         value={draft.notes}
         onChange={(v) => update((d) => ({ ...d, notes: v }), ["notes"])}
         problem={problems.notes || null}
-        placeholder={"No chemical services after 4 PM\nBridal parties are booked by phone"}
+        placeholder={"One per line, like\nGroups of 6 or more book by phone"}
         readOnly={readOnly || undefined}
         testid="rec-rule-notes"
       />
@@ -317,8 +343,7 @@ const BtConsult = ({ draft, update, problems, readOnly }: FoldFields<string>) =>
     value={draft}
     onChange={(v) => update(() => v, ["consult_first"])}
     problem={problems.consult_first || null}
-    hint="Services that need a consultation before they can be booked, one per line."
-    placeholder={"Color correction\nExtensions"}
+    placeholder={"One service per line, like\nColor correction"}
     readOnly={readOnly || undefined}
     testid="rec-consult-first"
   />
@@ -379,8 +404,6 @@ export const BtOfferCard = ({
   flash: (flash: LegacyFlash) => void;
   saver: Saver | null;
 }) => {
-  // Whether it sends a link at all, by the resolver's own test.
-  const btwOffers = BUSINESS_TAB.offersBookingLink(brain);
   const profile = brain.profile || {};
   const rules = profile.booking_rules || {};
   const pressable = (thing: string) => gate("settings", `change ${thing}`);
@@ -407,12 +430,6 @@ export const BtOfferCard = ({
         {...shared}
         id="booking_rules"
         label="Booking rules"
-        hint={
-          btwOffers
-            ? "It never books. It says which times are open and sends the link."
-            : "It never books. It says which times are open and takes their details."
-        }
-        footNote="Saves these five rules, the switch and the notes, and nothing else on the page."
         gate={pressable("the booking rules")}
         row={btRulesRow(rules)}
         body={(f) => <BtRules {...f} />}

@@ -438,10 +438,10 @@ test("deals are on exactly where the workspace says some customers get a proposa
   assert.equal(isSellsBy("banana"), false);
   assert.equal(SELLS_BY_QUESTION, "How customers buy");
   assert.deepEqual(SELLS_BY_WORDS, {
-    booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+    booking: { label: "They book an appointment", sentence: "Bookings and reminders." },
     proposal: {
       label: "Some get a proposal first",
-      sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports.",
+      sentence: "Adds proposals, a Pipeline and Deals in Reports.",
     },
   });
   // The refusal is a literal, so the bundles that never say it drop it; this holds it to the question and the labels.
@@ -463,11 +463,11 @@ test("Settings › Business says the answer as a row, offers the two as a choice
   assert.deepEqual([unsaid.dealsOn, unsaid.consultHint], [false, null]);
   // The choice: both answers, in the set's order, each with its label and what choosing it means, and nothing else.
   assert.deepEqual(unsaid.choices, [
-    { value: "booking", label: "They book an appointment", hint: "Bookings, reminders and the booking link." },
+    { value: "booking", label: "They book an appointment", hint: "Bookings and reminders." },
     {
       value: "proposal",
       label: "Some get a proposal first",
-      hint: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports.",
+      hint: "Adds proposals, a Pipeline and Deals in Reports.",
     },
   ]);
   assert.deepEqual(

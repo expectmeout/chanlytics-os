@@ -249,10 +249,10 @@ test("an empty website says what empty means, and claims no page it cannot back"
   const tree = drawTab({ profile: without(marisa, "website"), facts: { website: { value: null, source: "absent" } } });
   const row = byTestId(tree, "rec-row-website");
   assert.equal(row.props["data-empty"], "true");
-  // Exactly what the composer does with an empty box: it writes no website line. Not that the receptionist has none to
-  // give -- the owner's own words may name one -- and not the page we publish, which no receptionist is told and the
-  // carriers are filed only from the business record's own website.
-  assert.match(textOf(row), /Optional\. Left empty, the receptionist is given no website\./);
+  // One word, and only what is exact: the composer writes no website line for an empty box, and that is the owner's
+  // choice. Not that the receptionist has none to give -- the owner's own words may name one -- and not the page we
+  // publish, which no receptionist is told and the carriers are filed only from the business record's own website.
+  assert.equal(textOf(find(row, (n) => classes(n).includes("rec-row-hint"))), "Optional");
   assert.doesNotMatch(textOf(row), /\/b\/|no website to give/);
   assert.equal(textOf(byTestId(tree, "rec-row-act-website")), "Add one");
 });
@@ -2025,7 +2025,7 @@ test("an untouched fold follows what is stored: a colleague's change read back i
   );
   assert.deepEqual(
     partsOf(byTestId(tree, "rec-fold-says-hours")).map(([eyebrow]) => eyebrow),
-    ["Your receptionist will be told"],
+    ["Preview what it's told"],
     "nothing goes: the week is as stored",
   );
   assert.equal(W.__settingsUnsaved(), false, "and it holds no changes");

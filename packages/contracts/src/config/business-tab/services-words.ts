@@ -87,9 +87,3 @@ export function servicesFoundWords(shown: number, total: number): string {
   if (!shown) return "No service is called that.";
   return `${count(shown)} of ${count(total)} ${total === 1 ? "service" : "services"}`;
 }
-
-/** The sheet's Save, named for what it saves: "Save 33 services". */
-export function servicesSaveWords(n: number): string {
-  if (!n) return "Save with no services";
-  return `Save ${count(n)} ${n === 1 ? "service" : "services"}`;
-}

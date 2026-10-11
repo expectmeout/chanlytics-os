@@ -153,38 +153,36 @@ async function expectQuiet(page: Page, where: string): Promise<void> {
  * yet".
  */
 /**
- * The five strength badges in the rules fold sit in ONE place.
- *
- * On a phone `.bt-rule-head` wrapped: a badge went under its label where the label was long and stayed inline where
- * it was short, so the same signal appeared in two positions down one fold, and an owner scanning for it had to read
- * every row. One position, measured against each badge's own label rather than the viewport, since the labels start
- * at the same edge and a badge that moved with its label would still be wrong.
+ * The four strengths in the rules sheet sit in ONE place: each rule's pill ends at the same distance from its row's
+ * end, inside its row, so an owner scanning for them reads one column; the photos switch, an ability in a group of its
+ * own, wears none (Ruben, 10 Oct 2026, the sheets in one shape). Measured against each row rather than the viewport.
  *
  * The walk is scoped to the open sheet (`sheet`), never the page: a fold's body stays drawn, hidden, while it is
- * closed (RecordFold), and the booking rules' email switch is a `.bt-rule` row with no badge, so a page-wide walk
- * counted it as a sixth rule wearing none while the guardrails sheet was open.
+ * closed (RecordFold).
  */
 async function expectRuleBadgesInLine(page: Page, sheet: string, where: string): Promise<void> {
   const badges = await page.evaluate(
     (within) =>
-      [...document.querySelectorAll(`${within} .bt-rule`)].map((row) => {
-        const label = row.querySelector(".bt-rule-label")!.getBoundingClientRect();
-        const chip = row.querySelector(".bt-rule-chip")?.getBoundingClientRect();
+      [...document.querySelectorAll(`${within} .bt-line[data-testid^="rec-rule-"]`)].map((row) => {
+        const box = row.getBoundingClientRect();
+        const pill = row.querySelector(".pill")?.getBoundingClientRect();
         return {
           id: row.getAttribute("data-testid"),
-          dx: chip ? Math.round(chip.left - label.left) : null,
-          ownLine: chip ? chip.top >= label.bottom - 1 : null,
+          dx: pill ? Math.round(box.right - pill.right) : null,
+          inRow: pill ? pill.top >= box.top && pill.bottom <= box.bottom : null,
         };
       }),
     sheet,
   );
   expect(badges.length, `${where}: four rules and the photos switch`).toBe(5);
-  for (const b of badges) expect(b.dx, `${where}: ${b.id} wears a badge`).not.toBeNull();
+  const rules = badges.filter((b) => b.id !== "rec-rule-vision");
+  for (const b of rules) expect(b.dx, `${where}: ${b.id} wears its strength`).not.toBeNull();
   expect(
-    [...new Set(badges.map((b) => b.dx))],
-    `${where}: every badge starts at the same offset from its label`,
+    [...new Set(rules.map((b) => b.dx))],
+    `${where}: every strength ends at the same place in its row`,
   ).toHaveLength(1);
-  for (const b of badges) expect(b.ownLine, `${where}: ${b.id}'s badge is on its own line under the label`).toBe(true);
+  for (const b of rules) expect(b.inRow, `${where}: ${b.id}'s strength is inside its row`).toBe(true);
+  expect(badges.find((b) => b.id === "rec-rule-vision")?.dx, `${where}: the photos switch wears none`).toBeNull();
 }
 
 async function expectAbilitiesQuiet(page: Page, where: string): Promise<void> {
@@ -359,6 +357,9 @@ async function expectFingerSized(page: Page, selector: string, where: string): P
     for (const el of controls) {
       const r = el.getBoundingClientRect();
       if (!r.height) continue;
+      // Out of sight on purpose, a keyboard's and a screen reader's (a phone sheet's corner Close beside a foot that
+      // closes it): nothing a finger can reach to measure.
+      if (getComputedStyle(el).clipPath.startsWith("inset(50%")) continue;
       const after = getComputedStyle(el, "::after");
       const laid = after.content && after.content !== "none" && after.position === "absolute";
       const tall = Math.max(r.height, laid ? r.height - parseFloat(after.top) - parseFloat(after.bottom) : 0);
@@ -953,7 +954,7 @@ test.describe("Settings › Business on a real workspace", () => {
     await expectRecordUnchanged(page, before);
   });
 
-  test("what the receptionist is told opens as a sheet from its door, walks to a block, opens a row, and closes back to the door", async ({
+  test("what the receptionist is told opens as a sheet from its door, opens a block, opens a row, and closes back to the door", async ({
     page,
   }) => {
     const before = await readConfig(page);
@@ -961,37 +962,25 @@ test.describe("Settings › Business on a real workspace", () => {
     await openRecord(page);
     const door = page.getByTestId("rec-prompt-open");
     const sheet = page.getByTestId("rec-sheet-prompt");
-    const blocks = sheet.locator('[data-testid^="rec-prompt-block-"]');
+    // Each block is the kit's folding row: its wrapper by its id, never the press inside it.
+    const blocks = sheet.locator('[data-testid^="rec-prompt-block-"]:not([data-testid$="-press"])');
+    const press = (id: string) => page.getByTestId(`rec-prompt-block-${id}-press`);
 
     // The told section's door opens the sheet, and focus is on the sheet, so a screen reader names the dialog.
     await door.click();
     await expect(sheet).toBeFocused();
-    await expect(page.getByTestId("rec-prompt-contents")).toBeVisible();
-
-    // An entry takes the reader to its block: the last one, which starts below the fold of a long prompt.
-    const entries = sheet.locator(".bt-prompt-entry");
-    expect(await entries.count(), "one entry per block").toBe(await blocks.count());
-    const last = entries.last();
-    const id = (await last.getAttribute("data-testid"))!.slice("rec-prompt-entry-".length);
-    await last.click();
-    const block = page.getByTestId(`rec-prompt-block-${id}`);
-    await expect(block).toBeInViewport();
-    await expect(block, "the block it walked to takes focus, so a keyboard reads on from it").toBeFocused();
-    // A block's door is latent until the block is approached (spec §11): walked to and focused, its door is drawn.
-    const settled = () =>
-      page.evaluate(() =>
-        Promise.all(
-          document
-            .getAnimations()
-            .filter((a) => a.effect?.getTiming().iterations !== Infinity)
-            .map((a) => a.finished.catch(() => null)),
-        ),
-      );
-    const opacity = (l: Locator) => l.evaluate((el) => getComputedStyle(el).opacity);
-    if (await block.locator(".bt-prompt-door").count()) {
-      await settled();
-      expect(await opacity(block.locator(".bt-prompt-door")), "the focused block's door is drawn").toBe("1");
-    }
+    // The blocks are the contents (Ruben, 10 Oct 2026): no rail of names beside them, and every one starts closed.
+    await expect(sheet.getByTestId("rec-prompt-contents")).toHaveCount(0);
+    const n = await blocks.count();
+    expect(n, "there are blocks to read").toBeGreaterThan(0);
+    for (let i = 0; i < n; i++) await expect(blocks.nth(i)).toHaveAttribute("data-open", "false");
+    // The last block opens onto its words, and closes again.
+    const id = (await blocks.last().getAttribute("data-testid"))!.slice("rec-prompt-block-".length);
+    await press(id).click();
+    await expect(press(id)).toHaveAttribute("aria-expanded", "true");
+    await expect(blocks.last().locator(".bt-prompt-block-text")).toBeVisible();
+    await press(id).click();
+    await expect(press(id)).toHaveAttribute("aria-expanded", "false");
 
     // Escape closes the sheet, and focus goes back to the door that opened it.
     await page.keyboard.press("Escape");
@@ -1001,8 +990,8 @@ test.describe("Settings › Business on a real workspace", () => {
     // A block's door lands in the row's editor: the sheet goes, and focus is inside the fold or the inline editor it
     // opened. Escape then closes that editor, since nothing was typed. The seeded workspace's prompt is the product's
     // own opening lines, which no row of the page writes, so every block it has is the platform's and offers no door:
-    // that is asserted instead, and the door is walked on the salon's record. The Autonomy tab's rules are a block too,
-    // and their door goes to that tab (prompt.tsx, BTP_DOORS), not to a row here: it is walked there.
+    // that is asserted instead. The Autonomy tab's rules are a block too, and their door goes to that tab (prompt.tsx,
+    // BTP_DOORS), not to a row here: it is walked there. A door is inside its block's line, which opens first.
     await door.click();
     await expect(sheet).toBeFocused();
     const away = sheet.locator('[data-testid="rec-prompt-door-autonomy"]');
@@ -1011,31 +1000,24 @@ test.describe("Settings › Business on a real workspace", () => {
     );
     if ((await rowDoors.count()) === 0) {
       expect(
-        (await sheet.locator('[data-testid^="rec-prompt-block-platform"]').count()) + (await away.count()),
+        (await sheet.locator('[data-testid^="rec-prompt-block-platform"]:not([data-testid$="-press"])').count()) +
+          (await away.count()),
         "a block a row wrote offers its door",
-      ).toBe(await blocks.count());
+      ).toBe(n);
       if (await away.count()) {
-        await away.locator("xpath=ancestor::section[1]").hover();
+        await press("autonomy").click();
         await away.click();
         await expect(page).toHaveURL(/\/settings\/autonomy$/);
         await expect(page.locator(".pol-table")).toBeVisible();
         await openRecord(page);
       } else {
-        await sheet.getByRole("button", { name: "Close" }).first().click();
+        await sheet.locator(".rec-sheet-foot").getByRole("button", { name: "Done" }).click();
         await expect(sheet).toHaveCount(0);
         await expect(door).toBeFocused();
       }
     } else {
-      // At rest, with the pointer away from every block, no door is drawn; the pointer on a block draws its door.
-      await page.mouse.move(0, 0);
-      await settled();
-      expect(
-        await sheet.locator(".bt-prompt-door").evaluateAll((els) => els.map((el) => getComputedStyle(el).opacity)),
-        "a door drawn at rest on a desktop",
-      ).toEqual(Array(await sheet.locator(".bt-prompt-door").count()).fill("0"));
-      await rowDoors.first().locator("xpath=ancestor::section[1]").hover();
-      await settled();
-      expect(await opacity(rowDoors.first()), "the door of the block under the pointer is drawn").toBe("1");
+      const first = (await rowDoors.first().getAttribute("data-testid"))!.slice("rec-prompt-door-".length);
+      await press(first).click();
       await rowDoors.first().click();
       await expect(sheet).toHaveCount(0);
       await expectFocusInside(
@@ -1047,8 +1029,8 @@ test.describe("Settings › Business on a real workspace", () => {
       await expect(page.locator(".rec-fold:not([hidden]), .rec-inline:not([hidden])")).toHaveCount(0);
     }
 
-    // On a phone: no contents beside the blocks, each block's head carries its share, the head holds still over the
-    // blocks, the foot is Close, nothing scrolls sideways, and nothing in it is loud.
+    // On a phone: each block's line carries its share as one meter, the head holds still over the blocks, the foot is
+    // Done, the corner's Close is out of sight beside it, nothing scrolls sideways, and nothing in it is loud.
     await page.setViewportSize({ width: 390, height: 844 });
     for (const channel of ["WhatsApp", "Phone"]) {
       await door.click();
@@ -1063,29 +1045,16 @@ test.describe("Settings › Business on a real workspace", () => {
             .map((a) => a.finished.catch(() => null)),
         ),
       );
-      await expect(page.getByTestId("rec-prompt-contents")).toBeHidden();
-      const n = await blocks.count();
-      expect(n, `${channel}: there are blocks to read`).toBeGreaterThan(0);
-      // Each head keeps its share in words for a screen reader, off the glass, and draws no bar of it (23 Sep: the
-      // rail is a plain list of names, and the bar under a phone's head went with the rail's).
-      for (let i = 0; i < n; i++) {
-        await expect(blocks.nth(i).locator(".bt-prompt-bar")).toHaveCount(0);
-        const words = await blocks
-          .nth(i)
-          .locator(".bt-prompt-block-share")
-          .evaluate((el) => ({
-            w: Math.round(el.getBoundingClientRect().width),
-            clipped: getComputedStyle(el).clipPath !== "none",
-          }));
-        expect(words, `${channel}: a block's share in words is on the glass`).toEqual({ w: 1, clipped: true });
-      }
-      // Nothing hovers here, so every door is drawn.
+      const count = await blocks.count();
+      expect(count, `${channel}: there are blocks to read`).toBeGreaterThan(0);
       expect(
-        await sheet
-          .locator(".bt-prompt-door")
-          .evaluateAll((els) => els.filter((el) => getComputedStyle(el).opacity !== "1").length),
-        `${channel}: a door hidden on a phone`,
-      ).toBe(0);
+        await sheet.locator('div[data-testid^="rec-prompt-share-"]').count(),
+        `${channel}: one meter for each block`,
+      ).toBe(count);
+      await expect(sheet.locator(".rec-sheet-close"), `${channel}: the corner's Close is out of sight`).toHaveCSS(
+        "clip-path",
+        /inset/,
+      );
       await expectNoSidewaysScroll(page, `the prompt sheet on a phone, ${channel}`, [PANE, ".rec-sheet-body"]);
       await expectPromptSheetQuiet(page, `the prompt sheet on a phone, ${channel}`);
       const body = page.locator(".rec-sheet-body");
@@ -1094,9 +1063,9 @@ test.describe("Settings › Business on a real workspace", () => {
         el.scrollTop = el.scrollHeight;
       });
       expect((await boxOf(sheet.locator(".rec-sheet-head"), "the sheet's head")).y, "the head moved").toBe(head.y);
-      const close = sheet.locator(".rec-sheet-foot").getByRole("button", { name: "Close" });
-      await expect(close).toBeInViewport({ ratio: 1 });
-      await close.click();
+      const done = sheet.locator(".rec-sheet-foot").getByRole("button", { name: "Done" });
+      await expect(done).toBeInViewport({ ratio: 1 });
+      await done.click();
       await expect(sheet).toHaveCount(0);
       await expect(door).toBeFocused();
     }
@@ -1206,7 +1175,10 @@ test.describe("Settings › Business on a real workspace", () => {
                 ? "the gap line's link"
                 : id === "set-export-all"
                   ? "Download"
-                  : id === "rec-who-carriers" || el.closest(".set-team-mail") || el.classList.contains("set-mark")
+                  : id === "rec-who-carriers" ||
+                      el.closest(".set-team-mail") ||
+                      el.closest(".set-data-val") ||
+                      el.classList.contains("set-mark")
                     ? "part of a sentence it sits in"
                     : el.classList.contains("rec-row-act")
                       ? "a row's act"

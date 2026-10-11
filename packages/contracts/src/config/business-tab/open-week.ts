@@ -37,7 +37,7 @@ export function openWeekWords(hours: Partial<Record<string, Hours>> | null | und
  * sentence. The zone row itself says the whole of it, where changing it is the point.
  */
 export function hoursZoneWords(tz: string): string {
-  return `All times in ${timezoneCity(tz)} time, as the receptionist states them.`;
+  return `In ${timezoneCity(tz)} time`;
 }
 
 export interface ClosuresAheadVM {

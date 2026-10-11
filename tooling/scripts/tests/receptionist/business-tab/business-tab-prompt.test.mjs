@@ -9,14 +9,7 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import {
-  promptBlocks,
-  blockShareWords,
-  promptCostWords,
-  promptTotalWords,
-  PROMPT_READERS,
-  PROMPT_NOW,
-} from "@chanlytics/contracts";
+import { promptBlocks, promptCostWords, promptTotalWords, PROMPT_READERS, PROMPT_NOW } from "@chanlytics/contracts";
 import { unmount, all, find, byTestId, textOf, classes, press } from "../../_legacy-react.mjs";
 import {
   W,
@@ -48,14 +41,13 @@ const drawPrompt = (channel = "whatsapp", over = {}) => {
 const sheetOf = (tree) => byTestId(tree, "rec-sheet-prompt");
 /** The resolved prompt the sheet cuts, cut the way it cuts it: with the stored brain, so a carried prompt is found. */
 const cut = (channel) => promptBlocks(W.__SETTINGS.prompt[channel], channel, W.__SETTINGS.config.brain);
-const entriesOf = (tree) => all(byTestId(tree, "rec-prompt-contents"), (n) => classes(n).includes("bt-prompt-entry"));
-/** An element's description, as a screen reader reads it: the text of every node its aria-describedby names. */
-const describedBy = (tree, node) =>
-  String(node.props["aria-describedby"] || "")
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((id) => textOf(find(tree, (n) => n.props?.id === id)))
-    .join(" ");
+/** Each block's line, the kit's folding row: its wrapper by its id, never the press inside it (`…-press`). */
+const blocksOf = (tree) =>
+  all(sheetOf(tree), (n) => /^rec-prompt-block-[a-z0-9_-]+$/.test(n.props?.["data-testid"] || "")).filter(
+    (n) => !/-press$/.test(n.props["data-testid"]),
+  );
+/** A block's line opened: the press its folding row holds. */
+const openBlock = (tree, id) => press(byTestId(tree, `rec-prompt-block-${id}-press`));
 /** What is on the glass: every text node outside a visually hidden span. */
 const onScreen = (n) => {
   if (n == null || typeof n === "boolean") return "";
@@ -68,48 +60,36 @@ const onScreen = (n) => {
 
 /* ------------------------------------ the plan's four ------------------------------------ */
 
-test("the contents lists one entry per block, with what each costs: a share on screen, the count in its description", () => {
+test("each block is a line of its own, with what it costs: its share as a thin meter, the exact count its name for a reader", () => {
   const tree = drawPrompt();
   const blocks = cut("whatsapp");
   const total = W.__SETTINGS.prompt.whatsapp.length;
-  const entries = entriesOf(tree);
-  assert.equal(entries.length, blocks.length);
-  blocks.forEach((b, i) => {
-    const entry = entries[i];
-    assert.match(textOf(entry), new RegExp(b.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), `${b.id} is listed`);
-    // The plan asked for the count in the entry. The owner's rule (22 Sep) put it where a screen reader and a tip
-    // find it and nowhere on the glass: the entry is described by it, and draws the share as a bar.
-    assert.equal(describedBy(tree, entry), promptCostWords(b.chars, total), `${b.id} is described by what it costs`);
+  assert.equal(blocksOf(tree).length, blocks.length);
+  for (const b of blocks) {
+    const line = byTestId(tree, `rec-prompt-block-${b.id}-press`);
+    assert.match(textOf(line), new RegExp(b.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), `${b.id} is named`);
+    // The owner's rule (22 Sep): the cost is a share drawn as one thin bar, and the exact count is where a screen reader
+    // finds it, never on the glass: the kit's meter, named by contracts' words with the count in them.
+    const meter = byTestId(tree, `rec-prompt-share-${b.id}`);
+    assert.equal(meter.props["aria-label"], promptCostWords(b.chars, total), `${b.id}: named by what it costs`);
     assert.match(
-      describedBy(tree, entry),
+      meter.props["aria-label"],
       new RegExp(b.chars.toLocaleString("en-US")),
       "the exact count, for a reader",
     );
-    assert.equal(entry.props.title, promptCostWords(b.chars, total), "and for a pointer");
-    assert.doesNotMatch(onScreen(entry), /\d/, `${b.id}: no number on the glass`);
-    // Nor in its NAME: a visually hidden span inside the button still names it, so the count was heard twice, once as
-    // the entry's name and once as its description. The name is everything the button holds, hidden text included.
-    assert.doesNotMatch(textOf(entry), /\d/, `${b.id}: the entry's name is its label alone`);
-    // No bar of its share either (23 Sep): the rail is a plain list of names, and the cost is the description's.
-    assert.equal(
-      find(entry, (n) => classes(n).includes("bt-prompt-bar")),
-      null,
-      `${b.id}: nothing drawn but its name`,
-    );
-  });
-  // The whole is the contents' own name, and nowhere else.
-  const contents = byTestId(tree, "rec-prompt-contents");
-  const name = String(contents.props["aria-labelledby"])
-    .split(" ")
-    .map((id) => textOf(find(tree, (n) => n.props?.id === id)))
-    .join(" ");
-  assert.equal(name, `Written by ${promptTotalWords(total)}`);
+    assert.doesNotMatch(onScreen(line), /\d/, `${b.id}: no number on the glass`);
+  }
+  // The whole is said once, for a reader.
+  assert.equal(textOf(byTestId(tree, "rec-prompt-total")), promptTotalWords(total));
 });
 
-test("a block carries a door back to the row that wrote it", () => {
-  const tree = drawPrompt();
+test("a block carries a door back to the row that wrote it, inside its line", () => {
+  let tree = drawPrompt();
+  openBlock(tree, "services");
+  tree = redrawTab();
   const block = byTestId(tree, "rec-prompt-block-services");
-  const door = find(block, (n) => typeof n.props?.onClick === "function");
+  assert.equal(block.props["data-open"], "true", "opened, its words and its door");
+  const door = byTestId(block, "rec-prompt-door-services");
   assert.ok(door, "the block opens its row");
   // And pressing it closes the sheet and opens the row, through the one-open-at-a-time registry.
   press(door);
@@ -126,22 +106,21 @@ test("the hand-off block says it is always sent", () => {
   }
 });
 
-test("what is sent beside the prompt is drawn apart, and says why", () => {
+test("what is sent beside the prompt is drawn apart, and says when it is rebuilt", () => {
   const tree = drawPrompt();
   const now = byTestId(tree, "rec-prompt-now");
-  assert.match(textOf(now), /rebuilt/i);
-  assert.match(textOf(now), /prompt cache/i, "the reason it is separate is the reason it stays separate");
+  assert.ok(textOf(now).includes(PROMPT_NOW.label.whatsapp), "what it is");
+  assert.ok(textOf(now).includes(PROMPT_NOW.why.whatsapp), "and when it is rebuilt");
   assert.ok(textOf(now).includes(W.__composedPrompt("whatsapp").now), "the clock the server composed, as it is");
-  assert.ok(textOf(now).includes(PROMPT_NOW.why.whatsapp));
+  assert.doesNotMatch(textOf(now), /prompt cache/i, "the machinery is the code's to know (Ruben, 10 Oct 2026)");
   // Apart: no block of the prompt holds it.
   for (const b of cut("whatsapp")) {
     assert.ok(!textOf(byTestId(tree, `rec-prompt-block-${b.id}`)).includes("Right now"), `${b.id} does not hold it`);
   }
-  // On a call it is rebuilt for the call, and it is the call's cache it keeps.
+  // On a call it is rebuilt for the call.
   const call = textOf(byTestId(drawPrompt("voice"), "rec-prompt-now"));
-  assert.match(call, /rebuilt for every call/);
   assert.ok(call.includes(PROMPT_NOW.why.voice));
-  assert.ok(!call.includes("on every message"), "a call's clock is not rebuilt per message");
+  assert.ok(!call.includes("every message"), "a call's clock is not rebuilt per message");
 });
 
 /* ------------------------------------ the slot ------------------------------------ */
@@ -201,9 +180,7 @@ test("opened after the services sheet, and the services sheet after it, every ed
   press(byTestId(tree, "rec-prompt-open"));
   tree = redrawTab();
   assert.deepEqual(
-    all(sheetOf(tree), (n) => /^rec-prompt-block-/.test(n.props?.["data-testid"] || "")).map(
-      (n) => n.props["data-testid"],
-    ),
+    blocksOf(tree).map((n) => n.props["data-testid"]),
     cut("whatsapp").map((b) => `rec-prompt-block-${b.id}`),
     "the prompt sheet draws its own blocks",
   );
@@ -236,36 +213,29 @@ test("the told section's door opens the sheet, and its Close, Escape and foot al
   tree = redrawTab();
   sheetOf(tree).props.onKeyDown({ key: "Escape", defaultPrevented: false, preventDefault() {} });
   assert.equal(sheetOf(redrawTab()), null);
-  // The foot's Close: there is nothing to save, so it is the foot's one button.
+  // The foot's Done: there is nothing to save, so it is the foot's one button.
   press(byTestId(redrawTab(), "rec-prompt-open"));
   tree = redrawTab();
   const foot = find(sheetOf(tree), (n) => classes(n).includes("rec-sheet-foot"));
   const buttons = all(foot, (n) => n.type === "button");
   assert.deepEqual(
     buttons.map((b) => textOf(b)),
-    ["Close"],
+    ["Done"],
   );
   press(buttons[0]);
   assert.equal(sheetOf(redrawTab()), null);
 });
 
-test("the head says what it is and who reads it, and counts nothing", () => {
+test("the head says what it is, alone, and counts nothing; which receptionist is the toggle under it", () => {
   for (const channel of ["whatsapp", "voice"]) {
     const tree = drawPrompt(channel);
     const kit = find(tree, (n) => n.type === W.RecordSheet);
     assert.equal(kit.props.title, "What your receptionist is told");
-    assert.equal(kit.props.sub, PROMPT_READERS[channel], `${channel}: one muted line`);
+    assert.equal(kit.props.sub, undefined, `${channel}: no line under the title (Ruben, 10 Oct 2026)`);
     const sheet = sheetOf(tree);
     const head = find(sheet, (n) => classes(n).includes("rec-sheet-head"));
     assert.doesNotMatch(textOf(head), /\d/, `${channel}: no count in the head`);
-    // Who reads it is said ONCE in the sheet (PromptPreview carried it twice while open, Task 4.0's I3). The told section
-    // behind says it too, but a modal dialog is all a screen reader is given while it is open (aria-modal).
-    assert.equal(
-      textOf(sheet).split(PROMPT_READERS[channel]).length - 1,
-      1,
-      `${channel}: who reads it, once in the sheet`,
-    );
-    // The channel switch is the kit's toggle group, in the sheet's tools.
+    // The channel switch is the kit's toggle group, in the sheet's tools: it says whose words these are.
     const toggle = byTestId(sheet, "rec-prompt-channel");
     assert.equal(toggle.props.role, "radiogroup");
     const on = find(toggle, (n) => n.props?.role === "radio" && n.props["aria-checked"] === true);
@@ -288,12 +258,15 @@ test("every block is keyed by its id, and on a call the platform's text is drawn
     assert.ok(textOf(block).includes(b.text), `${b.id} holds its own text, as contracts cut it`);
   }
   // The page composes nothing: every block's text, in order, is every word the receptionist reads.
-  const drawn = all(sheetOf(tree), (n) => /^rec-prompt-block-/.test(n.props?.["data-testid"] || ""));
   assert.deepEqual(
-    drawn.map((n) => n.props["data-testid"]),
+    blocksOf(tree).map((n) => n.props["data-testid"]),
     ids.map((id) => `rec-prompt-block-${id}`),
   );
-  assert.equal(entriesOf(tree).length, blocks.length, "one entry for each, the platform's twice");
+  assert.equal(
+    all(sheetOf(tree), (n) => n.type === "div" && /^rec-prompt-share-/.test(n.props?.["data-testid"] || "")).length,
+    blocks.length,
+    "one meter for each, the platform's twice",
+  );
 });
 
 test("each block says what contracts wrote about it, and a block with nothing to say says nothing", () => {
@@ -301,15 +274,16 @@ test("each block says what contracts wrote about it, and a block with nothing to
     const tree = drawPrompt(channel);
     for (const b of cut(channel)) {
       const block = byTestId(tree, `rec-prompt-block-${b.id}`);
-      const note = find(block, (n) => classes(n).includes("bt-prompt-block-note"));
+      // Whose words they are is the line's second line, as contracts wrote it.
+      const note = find(block, (n) => classes(n).includes("bt-disc-sub"));
       if (b.note) assert.equal(textOf(note), b.note, `${channel}: ${b.id}`);
       else assert.equal(note, null, `${channel}: ${b.id} carries no note`);
     }
   }
-  // The rules block says it carries the YES OFFERS line; the platform's say whose they are.
+  // The rules block says it carries Chanlytics' lines about offers; the platform's say whose they are.
   const tree = drawPrompt();
-  assert.match(textOf(byTestId(tree, "rec-prompt-block-guardrails")), /YES OFFERS/);
-  assert.match(textOf(byTestId(tree, "rec-prompt-block-platform")), /Written by Chanlytics/);
+  assert.match(textOf(byTestId(tree, "rec-prompt-block-guardrails")), /offers and news/);
+  assert.match(textOf(byTestId(tree, "rec-prompt-block-platform")), /The same for every business/);
 });
 
 test("the prompt carried into a blank box is found, because the sheet cuts with the stored brain", () => {
@@ -318,52 +292,48 @@ test("the prompt carried into a blank box is found, because the sheet cuts with 
   const tree = drawPrompt("whatsapp", { profile: carried });
   const own = byTestId(tree, "rec-prompt-block-extra_instructions");
   assert.ok(own, "the carried prompt is a block of its own");
-  assert.match(textOf(own), /before it had fields/, "and says where it came from");
+  assert.match(textOf(own), /earlier instructions/, "and says where it came from");
   assert.ok(textOf(own).includes(W.__SETTINGS.config.brain.system_prompt));
 });
 
-test("a phone reads the share on each block's head, as the rail's bar, with the words kept for a screen reader", () => {
-  // Under 761px the rail is not drawn (settings.css; the journey measures it at 390px), so each block's head carries
-  // the rail's own bar: the same one quiet indicator at every width. The share in contracts' words was on the glass
-  // there once, and "less than a tenth of everything it reads" stood under most heads; the words are a screen
-  // reader's now (visually hidden on a phone, not drawn above it, where the entry's description says it).
+test("every width reads one quiet share on each block's line, and no rail of names beside them", () => {
+  // The rail of names beside the blocks, which a phone hid, and a phone's share in words under every head, went: each
+  // block's line is the contents now, its share the one meter on it at every width (Ruben, 10 Oct 2026).
   const tree = drawPrompt();
-  const total = W.__SETTINGS.prompt.whatsapp.length;
   for (const b of cut("whatsapp")) {
-    const head = find(byTestId(tree, `rec-prompt-block-${b.id}`), (n) => classes(n).includes("bt-prompt-block-head"));
-    assert.equal(
-      find(head, (n) => classes(n).includes("bt-prompt-bar")),
-      null,
-      `${b.id}: no bar under the head`,
+    const line = byTestId(tree, `rec-prompt-block-${b.id}-press`);
+    assert.ok(
+      find(line, (n) => n === byTestId(tree, `rec-prompt-share-${b.id}`)),
+      `${b.id}: its meter is on its line`,
     );
-    const share = find(head, (n) => classes(n).includes("bt-prompt-block-share"));
-    assert.equal(textOf(share), blockShareWords(b.chars, total), `${b.id}: the words, for a reader`);
+    assert.equal(
+      find(line, (n) => classes(n).includes("bt-prompt-block-share")),
+      null,
+      `${b.id}: no words of it`,
+    );
   }
-  assert.ok(
-    find(sheetOf(tree), (n) => n.type === "nav" && classes(n).includes("bt-prompt-rail")),
-    "the rail, which a phone hides",
+  assert.equal(
+    find(sheetOf(tree), (n) => n.type === "nav"),
+    null,
+    "no rail",
   );
 });
 
-test("an entry takes the reader to its block", () => {
-  const tree = drawPrompt();
-  const shown = [];
-  const was = globalThis.document.getElementById;
-  globalThis.document.getElementById = (id) => ({
-    scrollIntoView: (o) => shown.push(["scroll", id, o && o.block]),
-    focus: (o) => shown.push(["focus", id, !!(o && o.preventScroll)]),
-  });
-  try {
-    press(entriesOf(tree).find((e) => textOf(e).includes("Services")));
-  } finally {
-    globalThis.document.getElementById = was;
-  }
-  assert.deepEqual(shown, [
-    ["scroll", "bt-prompt-block-services", "start"],
-    ["focus", "bt-prompt-block-services", true],
-  ]);
-  assert.equal(byTestId(tree, "rec-prompt-block-services").props.id, "bt-prompt-block-services");
-  assert.equal(byTestId(tree, "rec-prompt-block-services").props.tabIndex, -1, "a block takes focus, not a Tab stop");
+test("a block's line opens onto its words and closes again, and starts closed", () => {
+  let tree = drawPrompt();
+  assert.ok(
+    blocksOf(tree).every((b) => b.props["data-open"] === "false"),
+    "every line closed: the lines are the contents",
+  );
+  openBlock(tree, "services");
+  tree = redrawTab();
+  const block = byTestId(tree, "rec-prompt-block-services");
+  assert.equal(block.props["data-open"], "true");
+  assert.equal(byTestId(tree, "rec-prompt-block-services-press").props["aria-expanded"], true);
+  assert.ok(textOf(find(block, (n) => classes(n).includes("bt-prompt-block-text"))).length > 0, "its words");
+  openBlock(tree, "services");
+  tree = redrawTab();
+  assert.equal(byTestId(tree, "rec-prompt-block-services").props["data-open"], "false");
 });
 
 test("every block a row of this page wrote opens that row, and the platform's opens nothing", () => {
@@ -378,10 +348,10 @@ test("every block a row of this page wrote opens that row, and the platform's op
   };
   for (const [id, [kind, row]] of Object.entries(where)) {
     const tree = drawPrompt();
-    const door = byTestId(tree, `rec-prompt-door-${id}`);
+    openBlock(tree, id);
+    const door = byTestId(redrawTab(), `rec-prompt-door-${id}`);
     assert.ok(door, `${id} has a door`);
-    // The class the latent-until-approached rule reads (settings.css; the journey measures it by computed style).
-    assert.ok(classes(door).includes("bt-prompt-door"), `${id}: a door, drawn on approach on a desktop`);
+    assert.ok(classes(door).includes("bt-prompt-door"), `${id}: a door, inside its block's line`);
     press(door);
     const next = redrawTab();
     assert.equal(sheetOf(next), null, `${id}: the sheet closes`);
@@ -476,7 +446,7 @@ test("the sheet draws what the server composed, word for word, and nothing when 
     W.__composedPrompt = (channel) => ({ text: `${text} (${channel})`, now: "It is 7:23 PM.", tz: "America/New_York" });
     let tree = drawPrompt();
     const sheet = sheetOf(tree);
-    const blocks = all(sheet, (n) => /^rec-prompt-block-/.test(n.props?.["data-testid"] || ""));
+    const blocks = blocksOf(tree);
     assert.equal(
       blocks.map((b) => textOf(find(b, (n) => classes(n).includes("bt-prompt-block-text")))).join("\n\n"),
       `${text} (whatsapp)`,

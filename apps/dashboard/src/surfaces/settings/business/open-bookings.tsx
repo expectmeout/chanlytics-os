@@ -474,7 +474,6 @@ export const BtBookingTool = ({
       id={BOOKING_TOOL_FOLD}
       light
       label={BOOKING_TOOL_WORDS.label}
-      hint={BOOKING_TOOL_WORDS.hint}
       channel={null}
       gate={gate("settings", "change what you book with")}
       row={{

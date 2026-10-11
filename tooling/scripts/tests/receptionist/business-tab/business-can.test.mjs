@@ -71,7 +71,7 @@ test("an ability whose input is missing points at the row that supplies it", () 
   const thin = { ...marisa, handoff_number: undefined };
   const card = canCard(drawTab({ profile: thin }));
   const transfer = byTestId(card, "rec-can-transfer");
-  assert.match(textOf(transfer), /takes a message instead/i);
+  assert.match(textOf(transfer), /takes a message/i);
   assert.ok(
     find(transfer, (n) => typeof n.props?.onClick === "function"),
     "and offers the row that fixes it",
@@ -363,7 +363,7 @@ test("a viewer reads the whole card and is offered no door", () => {
     W.canDo = () => false;
     const card = canCard(drawTab({ profile: { ...marisa, handoff_number: undefined } }));
     const transfer = byTestId(card, "rec-can-transfer");
-    assert.match(textOf(transfer), /takes a message instead/i, "the sentence is theirs to read");
+    assert.match(textOf(transfer), /takes a message/i, "the sentence is theirs to read");
     assert.equal(
       find(transfer, (n) => typeof n.props?.onClick === "function"),
       null,
