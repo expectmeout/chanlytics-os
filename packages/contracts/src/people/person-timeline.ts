@@ -383,8 +383,9 @@ function visitItems({ profile, nowMs, base, stamp }: PersonCardContext): PersonT
         ...stamp(t),
         kind: "visit",
         who: "Calendar",
-        // Past, never "visited": the calendar says when, not that they came (decision 0002's answer 3).
-        text: `${ahead ? "Booked" : "Past visit"} · ${visitTitleFor(v.title, base.name)}`,
+        // Past, never "visited": the calendar says when, not that they came (decision 0002's answer 3). A member's word on
+        // it is said instead (step 8): kept, or missed.
+        text: `${ahead ? "Booked" : v.said === "missed" ? "Missed" : v.said === "kept" ? "Kept" : "Past visit"} · ${visitTitleFor(v.title, base.name)}`,
         sub: `${visitTime(v, zone)} · from ${profile.visits.source}${v.via === "name" ? " · matched by name" : ""}`,
         link: { label: "Open the day", to: `calendar/${visitDateKey(v.start, zone)}` },
       });

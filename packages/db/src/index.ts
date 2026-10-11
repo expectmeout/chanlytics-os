@@ -15,8 +15,16 @@ export {
   settleDelivery,
 } from "./events";
 export type { EmittedKind, EventData, DeliveredEvent, DeliveryRow } from "./events";
-export { recordModelUsage, workspaceMayUseModels, aiFailuresHour, purgeAiUsage, usageMonth } from "./ai-usage";
-export type { AiFailures, UsageMonthRow } from "./ai-usage";
+export {
+  recordModelUsage,
+  workspaceMayUseModels,
+  aiFailuresHour,
+  purgeAiUsage,
+  usageMonth,
+  keepModelTurn,
+  scrubModelTurns,
+} from "./ai-usage";
+export type { AiFailures, UsageMonthRow, ModelTurnKept } from "./ai-usage";
 export { keepInvoiceAmount } from "./billing/events";
 export { applyBilling } from "./billing/account";
 export type { BillingPatch, BillingExpectation } from "./billing/account";
@@ -517,6 +525,8 @@ export {
   updateAppointment,
   appointmentsBetween,
   visitsOver,
+  recordOver,
+  feedWordsOver,
   markVisit,
   appointmentWorkspace,
   appointmentsForClient,

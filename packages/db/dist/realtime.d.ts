@@ -4035,6 +4035,89 @@ type Database = {
                     }
                 ];
             };
+            model_prompts: {
+                Row: {
+                    first_seen_at: string;
+                    last_seen_at: string;
+                    prompt_hash: string;
+                    tenant_id: string;
+                    text: string;
+                };
+                Insert: {
+                    first_seen_at?: string;
+                    last_seen_at?: string;
+                    prompt_hash: string;
+                    tenant_id: string;
+                    text: string;
+                };
+                Update: {
+                    first_seen_at?: string;
+                    last_seen_at?: string;
+                    prompt_hash?: string;
+                    tenant_id?: string;
+                    text?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "model_prompts_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
+            model_turns: {
+                Row: {
+                    conversation_id: string;
+                    created_at: string;
+                    id: string;
+                    latency_ms: number | null;
+                    model: string | null;
+                    prompt_hash: string;
+                    request: Json;
+                    response: Json | null;
+                    tenant_id: string;
+                };
+                Insert: {
+                    conversation_id: string;
+                    created_at?: string;
+                    id: string;
+                    latency_ms?: number | null;
+                    model?: string | null;
+                    prompt_hash: string;
+                    request: Json;
+                    response?: Json | null;
+                    tenant_id: string;
+                };
+                Update: {
+                    conversation_id?: string;
+                    created_at?: string;
+                    id?: string;
+                    latency_ms?: number | null;
+                    model?: string | null;
+                    prompt_hash?: string;
+                    request?: Json;
+                    response?: Json | null;
+                    tenant_id?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "model_turns_conversation_id_same_workspace";
+                        columns: ["tenant_id", "conversation_id"];
+                        isOneToOne: false;
+                        referencedRelation: "conversations";
+                        referencedColumns: ["tenant_id", "id"];
+                    },
+                    {
+                        foreignKeyName: "model_turns_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
             notification_marks: {
                 Row: {
                     dismissed_at: string | null;
@@ -5925,6 +6008,41 @@ type Database = {
                     }
                 ];
             };
+            tenant_config_versions: {
+                Row: {
+                    changed_at: string;
+                    changed_by: string | null;
+                    config: Json;
+                    replaced_at: string | null;
+                    tenant_id: string;
+                    version: number;
+                };
+                Insert: {
+                    changed_at?: string;
+                    changed_by?: string | null;
+                    config: Json;
+                    replaced_at?: string | null;
+                    tenant_id: string;
+                    version: number;
+                };
+                Update: {
+                    changed_at?: string;
+                    changed_by?: string | null;
+                    config?: Json;
+                    replaced_at?: string | null;
+                    tenant_id?: string;
+                    version?: number;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "tenant_config_versions_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
             tenants: {
                 Row: {
                     created_at: string;
@@ -7528,6 +7646,27 @@ type Database = {
                 Args: never;
                 Returns: string;
             };
+            model_turn_keep: {
+                Args: {
+                    p_conversation_id: string;
+                    p_latency_ms?: number;
+                    p_model?: string;
+                    p_prompt_hash: string;
+                    p_prompt_text: string;
+                    p_request: Json;
+                    p_response?: Json;
+                    p_tenant_id: string;
+                    p_turn_id: string;
+                };
+                Returns: undefined;
+            };
+            model_turns_scrub: {
+                Args: {
+                    p_needles: string[];
+                    p_tenant_id: string;
+                };
+                Returns: number;
+            };
             newest_messages: {
                 Args: {
                     p_each: number;
@@ -8336,6 +8475,12 @@ type Database = {
                 };
                 Returns: number;
             };
+            purge_config_versions: {
+                Args: {
+                    p_keep?: string;
+                };
+                Returns: number;
+            };
             purge_cron_history: {
                 Args: {
                     p_keep?: string;
@@ -8377,6 +8522,18 @@ type Database = {
             };
             purge_leads: {
                 Args: never;
+                Returns: number;
+            };
+            purge_model_prompts: {
+                Args: {
+                    p_keep?: string;
+                };
+                Returns: number;
+            };
+            purge_model_turns: {
+                Args: {
+                    p_keep?: string;
+                };
                 Returns: number;
             };
             purge_notifications: {

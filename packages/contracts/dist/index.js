@@ -4202,6 +4202,22 @@ function usageMonthOf(month, lines) {
   };
 }
 
+// src/ai/turn.ts
+var MODEL_TURN_WRITE_MS = 1500;
+var MODEL_TURN_TEXT_MAX = 2e4;
+function modelTurnRequestOf(sent2) {
+  return {
+    now: sent2.now ?? null,
+    who: sent2.who ?? null,
+    steer: sent2.steer ?? null,
+    messages: sent2.messages.map((m) => ({ role: m.role, content: m.content })),
+    photo: sent2.photoType ?? null
+  };
+}
+function modelTurnResponseOf(stopReason, record2, text) {
+  return { stop_reason: stopReason, text: text.slice(0, MODEL_TURN_TEXT_MAX), record: record2 ? { ...record2 } : null };
+}
+
 // src/ai/flags.ts
 var FLAG_MECHANISMS = [
   "edge_env",
@@ -10446,6 +10462,13 @@ var LIST_RULE_FIELDS = [
     needs: ["calendar"],
     draft: "days until their next appointment; op this_week is Monday to Sunday of this week"
   },
+  {
+    id: "missed_visit",
+    label: "Missed a visit",
+    kind: "days",
+    needs: ["calendar"],
+    draft: "days since a visit they did not come to, as a member marked it missed on the calendar"
+  },
   { id: "booked", label: "A visit booked", kind: "yesno", needs: ["calendar"], draft: "an appointment booked ahead" },
   {
     id: "asked_not_booked",
@@ -10566,6 +10589,7 @@ var fact = (shape) => z3.strictObject(shape);
 var ListFactSchema = z3.discriminatedUnion("field", [
   fact({ field: z3.literal("last_visit"), ...Days }),
   fact({ field: z3.literal("next_visit"), ...Days }),
+  fact({ field: z3.literal("missed_visit"), ...Days }),
   fact({ field: z3.literal("booked"), ...YesNo }),
   fact({ field: z3.literal("asked_not_booked"), ...YesNo }),
   fact({ field: z3.literal("last_heard"), ...Days }),
@@ -10588,7 +10612,7 @@ var ListFactSchema = z3.discriminatedUnion("field", [
 var AnySchema = z3.strictObject({ any: z3.array(ListFactSchema).check(z3.minLength(2), z3.maxLength(LIST_ANY_MAX)) });
 var ListConditionSchema = z3.union([AnySchema, ListFactSchema]);
 function factProblem(f) {
-  if (f.field !== "last_visit" && f.field !== "next_visit" && f.field !== "last_heard" && f.field !== "first_contact")
+  if (f.field !== "last_visit" && f.field !== "next_visit" && f.field !== "missed_visit" && f.field !== "last_heard" && f.field !== "first_contact")
     return null;
   if ((f.op === "more_than" || f.op === "within") && f.days === void 0) return `${f.field} ${f.op} needs days`;
   if (f.op === "this_week" && f.field !== "next_visit") return "only the next visit can be this week";
@@ -10695,6 +10719,8 @@ function holds(f, v, inList) {
       return dayHolds(v.lastVisitDays, f.op, f.days);
     case "next_visit":
       return f.op === "this_week" ? v.nextVisitThisWeek : dayHolds(v.nextVisitDays, f.op, f.days);
+    case "missed_visit":
+      return dayHolds(v.missedVisitDays, f.op, f.days);
     case "last_heard":
       return dayHolds(v.heardDays, f.op, f.days);
     case "first_contact":
@@ -10755,13 +10781,20 @@ var DEAL_STAGE_LIST_WORDS = {
   ended: "ended"
 };
 var PURPOSE_WORDS = { offers: "offers", messages: "messages" };
+var DAY_FACT_ENDS = {
+  last_visit: { never: "Never visited", ever: "Has visited" },
+  missed_visit: { never: "Never missed a visit", ever: "Has missed a visit" },
+  last_heard: { never: "Never heard from", ever: "Has written or called" },
+  first_contact: { never: "No first contact on file", ever: "Has a first contact" }
+};
 function listFactWords(f, listName = () => null) {
   const label = fieldOf(f.field).label;
   switch (f.field) {
     case "last_visit":
+    case "missed_visit":
     case "last_heard":
     case "first_contact":
-      return f.op === "never" ? f.field === "last_visit" ? "Never visited" : f.field === "last_heard" ? "Never heard from" : "No first contact on file" : f.op === "ever" ? f.field === "last_visit" ? "Has visited" : f.field === "last_heard" ? "Has written or called" : "Has a first contact" : f.op === "more_than" ? `${label} more than ${plural(f.days ?? 0, "day")} ago` : `${label} in the last ${plural(f.days ?? 0, "day")}`;
+      return f.op === "never" ? DAY_FACT_ENDS[f.field].never : f.op === "ever" ? DAY_FACT_ENDS[f.field].ever : f.op === "more_than" ? `${label} more than ${plural(f.days ?? 0, "day")} ago` : `${label} in the last ${plural(f.days ?? 0, "day")}`;
     case "next_visit":
       return f.op === "this_week" ? `${label} this week` : f.op === "never" ? "No visit ahead" : f.op === "ever" ? "A visit ahead" : f.op === "within" ? `${label} in the next ${plural(f.days ?? 0, "day")}` : `${label} more than ${plural(f.days ?? 0, "day")} away`;
     case "booked":
@@ -12852,7 +12885,13 @@ var RETENTION_DAYS = {
   /** A provider's delivery as it came, kept for a local replay after a fix (purge_provider_events, 00336; decision 0032). */
   provider_events: 7,
   /** What a write answered, under the key its page sent, so the same write sent twice is made once (purge_idempotency_keys, 00340; decision 0035). */
-  idempotency_keys: 1
+  idempotency_keys: 1,
+  /** A receptionist's turn as the model read it, and what it answered (purge_model_turns, 00401; decision 0039). */
+  model_turns: 30,
+  /** The text of a prompt the receptionist was given, from the last turn that read it: the usage ledger's own keep, so a kept turn's row there opens its prompt for as long as the row stands (purge_model_prompts, 00401). */
+  model_prompts: 400,
+  /** A workspace's settings as they stood at a version, from the day the next replaced it; the version in force is kept (purge_config_versions, 00402; decision 0039, step 3). */
+  tenant_config_versions: 400
 };
 var RATE_HITS_RETENTION_HOURS = 2;
 var EVENT_EVIDENCE_KINDS = [
@@ -12870,7 +12909,7 @@ var daysAfter = (n) => n === 1 ? "the day" : `${n} days`;
 var forDays = (n) => n === 1 ? "a day" : `${n} days`;
 function retentionWords() {
   const d = RETENTION_DAYS;
-  return `Call audio is kept for ${d.call_recordings} days and then removed; transcripts stay with the conversation. Webhook receipts, delivery logs, unplaced messages and model-usage rows are kept for ${d.events_evidence} days. Assistant threads untouched for ${d.ask_threads} days, and notifications after ${d.notifications} days, are removed; the sweeps' run history is kept for ${d.cron_history} days and rate-limit counters for ${RATE_HITS_RETENTION_HOURS} hours. Leads nobody has worked are set aside after ${d.leads_untouched} days and their details removed after ${d.leads_untouched_blanked}; places a search left out lose their details after ${d.leads_excluded_blanked} days, and the finder's reasons for a batch of places are removed after ${d.lead_judgments}. A Google review is kept while Google shows it: one it no longer lists is removed at the next full read, and any review is removed ${d.google_reviews} days after we last saw it. A team invitation that was accepted or taken back is removed ${d.invitations_closed} days later, with the address on it, and the address a workspace was handed over to is cleared once its new owner accepts. Background jobs, which carry a message while it is sent, are removed ${d.jobs_finished} days after they finish, or ${d.jobs_failed} days after they fail. Messages, call reports, delivery receipts and billing notices, as each provider sent them to us, are kept for ${d.provider_events} days so they can be replayed after a fault. What a change made in the dashboard answered is kept for ${forDays(d.idempotency_keys)}, so the same change sent twice is made once. How fast each page loaded, with no person or workspace attached, is kept for ${d.page_vitals} days, and what each model call cost for ${d.ai_usage} days. A voice conversation's session, which holds nothing of what was said, is removed ${daysAfter(d.ask_voice_sessions)} after it expires. Everything else stays while the workspace exists.`;
+  return `Call audio is kept for ${d.call_recordings} days and then removed; transcripts stay with the conversation. Webhook receipts, delivery logs, unplaced messages and model-usage rows are kept for ${d.events_evidence} days. Assistant threads untouched for ${d.ask_threads} days, and notifications after ${d.notifications} days, are removed; the sweeps' run history is kept for ${d.cron_history} days and rate-limit counters for ${RATE_HITS_RETENTION_HOURS} hours. Leads nobody has worked are set aside after ${d.leads_untouched} days and their details removed after ${d.leads_untouched_blanked}; places a search left out lose their details after ${d.leads_excluded_blanked} days, and the finder's reasons for a batch of places are removed after ${d.lead_judgments}. A Google review is kept while Google shows it: one it no longer lists is removed at the next full read, and any review is removed ${d.google_reviews} days after we last saw it. A team invitation that was accepted or taken back is removed ${d.invitations_closed} days later, with the address on it, and the address a workspace was handed over to is cleared once its new owner accepts. Background jobs, which carry a message while it is sent, are removed ${d.jobs_finished} days after they finish, or ${d.jobs_failed} days after they fail. Messages, call reports, delivery receipts and billing notices, as each provider sent them to us, are kept for ${d.provider_events} days so they can be replayed after a fault. What a change made in the dashboard answered is kept for ${forDays(d.idempotency_keys)}, so the same change sent twice is made once. How fast each page loaded, with no person or workspace attached, is kept for ${d.page_vitals} days, and what each model call cost for ${d.ai_usage} days. What the receptionist was shown when it wrote a reply, and what it answered, is kept for ${d.model_turns} days, and the instructions it was given for ${d.model_prompts} days after they were last used. A workspace's settings as they stood before a change are kept for ${d.tenant_config_versions} days after the change. A voice conversation's session, which holds nothing of what was said, is removed ${daysAfter(d.ask_voice_sessions)} after it expires. Everything else stays while the workspace exists.`;
 }
 var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
 var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
@@ -15806,6 +15845,13 @@ function appointmentKeyOf(item) {
   if (!item.uid) return `ev:${item.start}`;
   return item.occurrence === void 0 ? item.uid : `${item.uid}:${item.occurrence}`;
 }
+var RECORD_KEY = "appt:";
+function recordKeyOf(id) {
+  return `${RECORD_KEY}${id}`;
+}
+function recordIdOf(key) {
+  return key.startsWith(RECORD_KEY) ? key.slice(RECORD_KEY.length) : null;
+}
 
 // src/calendar/service-offer.ts
 var foldName = (s) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
@@ -16029,7 +16075,8 @@ function indexFeed(items, own) {
     const c = extractContacts(it, own);
     for (const ph of c.phones) byPhone.set(ph, [...byPhone.get(ph) ?? [], it]);
     for (const em of c.emails) byEmail.set(em, [...byEmail.get(em) ?? [], it]);
-    texts.push({ item: it, text: [it.title, ...c.names, it.description ?? ""].join("\n") });
+    if (!it.uid || recordIdOf(it.uid) === null)
+      texts.push({ item: it, text: [it.title, ...c.names, it.description ?? ""].join("\n") });
   }
   return { byPhone, byEmail, texts, own };
 }
@@ -16040,7 +16087,8 @@ var visitOf = (it, via) => ({
   end: it.end,
   title: it.title || "Busy",
   allDay: it.allDay,
-  via
+  via,
+  ...it.said ? { said: it.said } : {}
 });
 function allVisitsIn(index, person) {
   if (isOwn(index.own, person)) return [];
@@ -16060,15 +16108,20 @@ function allVisitsIn(index, person) {
   return out.sort((a, b) => a.start - b.start);
 }
 function visitsIn(index, person, nowMs) {
-  if (isOwn(index.own, person)) return { next: null, last: null, near: [] };
+  if (isOwn(index.own, person)) return { next: null, last: null, near: [], missed: null };
   let next = null;
   let last = null;
+  let missed = null;
   const near2 = [];
   const seen = /* @__PURE__ */ new Set();
   const take = (it, via) => {
     if (seen.has(it)) return;
     seen.add(it);
     const v = visitOf(it, via);
+    if (v.said === "missed") {
+      if (!missed || v.start > missed.start) missed = v;
+      return;
+    }
     if (it.end >= nowMs) {
       if (!next || v.start < next.start) next = v;
     } else if (!last || v.end > last.end) last = v;
@@ -16080,7 +16133,7 @@ function visitsIn(index, person, nowMs) {
   if (re) {
     for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
   }
-  return { next, last, near: near2.sort((a, b) => a.start - b.start) };
+  return { next, last, near: near2.sort((a, b) => a.start - b.start), missed };
 }
 function visitsOf(items, person, nowMs, own) {
   return visitsIn(indexFeed(items, own), person, nowMs);
@@ -16157,7 +16210,8 @@ function toVisitDto(v) {
     title: v.title,
     all_day: v.allDay,
     via: v.via,
-    ...v.key ? { key: v.key } : {}
+    ...v.key ? { key: v.key } : {},
+    ...v.said ? { said: v.said } : {}
   } : null;
 }
 var NAME_WORD = /^[\p{L}][\p{L}'’.-]*$/u;
@@ -16220,7 +16274,15 @@ function afterPersonRefused(code2) {
 }
 function bookedAfterAsk(visits, askedMs) {
   if (!visits) return false;
-  return visitAnswersAsk(visits.next ? visits.next.start : null, visits.last ? visits.last.start : null, askedMs);
+  return visitAnswersAsk(visitStartOf(visits.next), begunOf(visits.last, visits.missed), askedMs);
+}
+function visitStartOf(v) {
+  const t = v ? ms(v.start) : NaN;
+  return Number.isFinite(t) ? t : null;
+}
+function begunOf(last, missed) {
+  const starts = [visitStartOf(last), visitStartOf(missed)].filter((t) => t !== null);
+  return starts.length ? Math.max(...starts) : null;
 }
 function visitAnswersAsk(nextStartMs, lastStartMs, askedMs) {
   if (nextStartMs !== null) return true;
@@ -16662,10 +16724,11 @@ function feedItemOfAppointment(row2) {
     end: Date.parse(row2.ends_at),
     title: appointmentTitle(row2),
     allDay: row2.all_day,
-    uid: `appt:${row2.id}`,
-    description: row2.note,
+    uid: recordKeyOf(row2.id),
+    // The client's number where an event carries one, and their address as a guest, so the one visits index
+    // (indexFeed) finds the row by either as it finds an event: a notice that gave a number alone is still theirs.
+    description: [row2.note, row2.client_phone].filter(Boolean).join("\n") || null,
     location: null,
-    // The client as a guest, so the one visits index (indexFeed) finds the row by their address as it finds an event.
     attendees: row2.client_email ? [{ name: row2.client_name, email: row2.client_email }] : [],
     organizer: null
   };
@@ -16688,13 +16751,32 @@ function feedMarksOf(rows2) {
   const marks = /* @__PURE__ */ new Map();
   for (const r2 of rows2) {
     const mark = visitMarkOf(r2);
-    if (mark && r2.external_id) marks.set(r2.external_id, mark);
+    if (mark && r2.external_id) marks.set(r2.external_id, { ...mark, start: Date.parse(r2.starts_at) });
   }
   return marks;
 }
+function markOn(marks, it) {
+  const m = marks?.get(appointmentKeyOf(it));
+  return m && m.start === it.start ? { id: m.id, status: m.status } : null;
+}
+function feedWithRecord(items, record2, own) {
+  if (!record2) return [...items];
+  const out = [];
+  for (const it of withoutVisitsRowsDraw([...items], [...record2.noted], own)) {
+    const said = markOn(record2.marks, it)?.status;
+    if (said === "cancelled") continue;
+    out.push(said === "kept" || said === "missed" ? { ...it, said } : it);
+  }
+  for (const r2 of record2.noted) {
+    if (r2.status !== "booked" && r2.status !== "kept" && r2.status !== "missed") continue;
+    const it = feedItemOfAppointment(r2);
+    out.push(r2.status === "booked" ? it : { ...it, said: r2.status });
+  }
+  return out.sort((a, b) => a.start - b.start);
+}
 function itemOfAppointment(row2, people) {
   return {
-    id: `appt:${row2.id}`,
+    id: recordKeyOf(row2.id),
     start: new Date(Date.parse(row2.starts_at)).toISOString(),
     end: new Date(Date.parse(row2.ends_at)).toISOString(),
     title: appointmentTitle(row2),
@@ -25891,9 +25973,11 @@ function visitTitleFor(title, name) {
   }
   return title;
 }
-function visitKeysOf(v) {
+function visitKeysOf(v, nowMs, tz) {
   const near2 = v ? v.near ?? [v.last, v.next].filter((x) => x !== null) : [];
+  const missedMs = v?.missed ? Date.parse(v.missed.start) : NaN;
   return {
+    missedVisitDays: Number.isFinite(missedMs) ? Math.max(0, localDaysBetween(missedMs, nowMs, tz)) : null,
     visitDays: v ? near2.map((x) => ({ date: visitDateKey(x.start, v.timezone), via: x.via })) : [],
     nextVisitDate: v?.next ? visitDateKey(v.next.start, v.timezone) : null,
     lastVisitDate: v?.last ? visitDateKey(v.last.start, v.timezone) : null,
@@ -25959,11 +26043,7 @@ function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null
   const booked = !!v?.next;
   const nextVisitMs = v?.next ? Date.parse(v.next.start) : null;
   const lastVisitMs = v?.last ? Date.parse(v.last.start) : null;
-  const askedNotBooked = calendar === "ok" && askedMs !== null && nowMs - askedMs <= MONTH_MS && !visitAnswersAsk(
-    nextVisitMs !== null && Number.isFinite(nextVisitMs) ? nextVisitMs : null,
-    lastVisitMs !== null && Number.isFinite(lastVisitMs) ? lastVisitMs : null,
-    askedMs
-  );
+  const askedNotBooked = calendar === "ok" && askedMs !== null && nowMs - askedMs <= MONTH_MS && !bookedAfterAsk(v, askedMs);
   const stateDetail = state === "needs_you" ? r2.open_escalation_reason ? reasonShort(r2.open_escalation_reason) : r2.queued_reply_at && personStanding(r2, nowMs).standing !== "needs_you" ? "a reply is about to send \u2014 you can still stop it" : "waiting for a person" : state === "waiting_on_you" ? [HELD_WORDS.yours.pill.toLowerCase(), theirTurnWords(last)].filter(Boolean).join(", and ") : state === "opted_out" ? consent.sub : state === "new" ? `first contact ${first.label}` : state === "quiet" ? `last heard from ${ago(askedMs, tz, nowMs)}` : state === "unheard" ? last.ts === null ? "no contact recorded" : "they have not written or called" : "";
   const vm = {
     id: r2.id,
@@ -26013,7 +26093,7 @@ function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null
     standing: state === "needs_you" || state === "waiting_on_you" ? state : null,
     assigned: !r2.latest_assignee_user_id ? "nobody" : !viewerId ? "someone" : r2.latest_assignee_user_id === viewerId ? "me" : "teammate",
     stopped: isOptedOutContact({ consent: r2.consent, dnc: r2.dnc }),
-    ...visitKeysOf(v),
+    ...visitKeysOf(v, nowMs, tz),
     deal: dealOf(r2, tz, nowMs),
     openDeals: openDealsOf(r2, tz, nowMs),
     ...consultationKeysOf(v, nextVisitMs),
@@ -27214,8 +27294,9 @@ function visitItems({ profile, nowMs, base, stamp }) {
         ...stamp(t),
         kind: "visit",
         who: "Calendar",
-        // Past, never "visited": the calendar says when, not that they came (decision 0002's answer 3).
-        text: `${ahead ? "Booked" : "Past visit"} \xB7 ${visitTitleFor(v.title, base.name)}`,
+        // Past, never "visited": the calendar says when, not that they came (decision 0002's answer 3). A member's word on
+        // it is said instead (step 8): kept, or missed.
+        text: `${ahead ? "Booked" : v.said === "missed" ? "Missed" : v.said === "kept" ? "Kept" : "Past visit"} \xB7 ${visitTitleFor(v.title, base.name)}`,
         sub: `${visitTime(v, zone)} \xB7 from ${profile.visits.source}${v.via === "name" ? " \xB7 matched by name" : ""}`,
         link: { label: "Open the day", to: `calendar/${visitDateKey(v.start, zone)}` }
       });
@@ -27487,7 +27568,7 @@ function personLikeOf(p) {
   };
 }
 function peopleVisitsOf(items, people, cal, nowMs) {
-  const index = indexFeed([...items], cal.own);
+  const index = indexFeed(feedWithRecord(items, cal.record, cal.own), cal.own);
   const mark = (v) => v ? { ...v, consultation: isConsultationTitle(v.title, cal.services, cal.rules) } : null;
   const out = /* @__PURE__ */ new Map();
   for (const p of people) {
@@ -27498,7 +27579,8 @@ function peopleVisitsOf(items, people, cal, nowMs) {
       state: "ok",
       next: mark(toVisitDto(v.next)),
       last: mark(toVisitDto(v.last)),
-      near: v.near.map((x) => mark(toVisitDto(x))).filter((x) => x !== null)
+      near: v.near.map((x) => mark(toVisitDto(x))).filter((x) => x !== null),
+      missed: mark(toVisitDto(v.missed ?? null))
     });
   }
   return out;
@@ -40456,6 +40538,7 @@ export {
   MODEL_PRICES,
   MODEL_PURPOSES,
   MODEL_ROUTES,
+  MODEL_TURN_WRITE_MS,
   MOMENTS_RETIRED,
   MOMENT_TRIGGERS,
   NEEDS_TITLE,
@@ -41230,6 +41313,7 @@ export {
   feedProblemWords,
   feedSourceLabel,
   feedUrlOk,
+  feedWithRecord,
   fenceActed,
   fenced,
   fencedInline,
@@ -41564,6 +41648,7 @@ export {
   localHour,
   localToUtcMs,
   lookPrefOf,
+  markOn,
   maskedEmail,
   matchColumns,
   matchPerson,
@@ -41599,6 +41684,8 @@ export {
   missedCallIsNews,
   mmss,
   modelRoute,
+  modelTurnRequestOf,
+  modelTurnResponseOf,
   momentHoldsWords,
   momentOffered,
   momentReadsCalendar,
@@ -41932,6 +42019,8 @@ export {
   receptionistOn,
   receptionistPrimary,
   receptionistShadowCall,
+  recordIdOf,
+  recordKeyOf,
   recordOrNull,
   refusalOf,
   refusedWords,
@@ -42285,7 +42374,6 @@ export {
   viewerListWords,
   violatesNoPrices,
   visitActsOf,
-  visitAnswersAsk,
   visitDateKey,
   visitDay,
   visitDayWord,

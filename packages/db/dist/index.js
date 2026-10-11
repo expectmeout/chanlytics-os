@@ -336,6 +336,26 @@ async function purgeAiUsage(db) {
   if (error) throw new Error(`ai_usage_purge: ${error.message}`);
   return Number(data) || 0;
 }
+async function keepModelTurn(db, turn) {
+  const { error } = await db.rpc("model_turn_keep", {
+    p_tenant_id: turn.tenantId,
+    p_turn_id: turn.turnId,
+    p_conversation_id: turn.conversationId,
+    p_prompt_hash: turn.promptHash,
+    p_prompt_text: turn.promptText,
+    p_request: turn.request,
+    ...turn.response ? { p_response: turn.response } : {},
+    ...turn.model ? { p_model: turn.model } : {},
+    ...turn.latencyMs === null ? {} : { p_latency_ms: Math.max(0, Math.round(turn.latencyMs)) }
+  });
+  if (error) throw new Error(`model_turn_keep: ${error.message}`);
+}
+async function scrubModelTurns(db, tenantId, needles) {
+  const { data, error } = await db.rpc("model_turns_scrub", { p_tenant_id: tenantId, p_needles: [...needles] });
+  if (error && (error.code === "PGRST202" || error.code === "42883")) return 0;
+  if (error) throw new Error(`model_turns_scrub: ${error.message}`);
+  return data ?? 0;
+}
 async function usageMonth(db, tenantId, month) {
   const { data, error } = await db.rpc("ai_usage_month", { p_tenant_id: tenantId, p_month: month });
   if (error) throw new Error(`ai_usage_month: ${error.message}`);
@@ -427,6 +447,7 @@ var ERASURE_LEGS = {
   ask_scrub: "scrub_ask_for_contact: the assistant's turns that name them deleted (00238)",
   deliveries_scrub: "provider_events_scrub: a kept delivery that names them deleted (00336)",
   notes_scrub: "person_notes_scrub: their numbers and addresses overwritten in other people's notes (00341)",
+  turns_scrub: "model_turns_scrub: the receptionist's kept turns that name them, in anyone's thread, deleted (00401); their own went with their conversation",
   appointments_scrub: "appointments_scrub: their visits keep their time and service and lose the client's name, number, address and note; the notices that made them, and any whose subject names them, lose the name (00345)"
 };
 var withPerson = (by) => ({ kind: "with_person", by });
@@ -696,6 +717,17 @@ var ERASURE_STRATEGIES = {
   // The kinds a member's phones are not told (00372), and a member's sort and columns: the member's own settings.
   memberships: all(NOT_PERSONAL, "push_off", "views"),
   messages: all(withPerson("erase_contact"), "template_name", "media", "external_id", "content_hash", "error", "meta"),
+  // A kept turn (decision 0039): the person's own go when their conversation does, by the fence's cascade, and a turn
+  // about someone else that quoted them is deleted by needle; the prompt it read is the business's own facts, and
+  // leaves by its clock.
+  model_turns: {
+    ...all(scrubbedBy("turns_scrub", "erase_contact"), "request", "response"),
+    ...all(NOT_PERSONAL, "prompt_hash", "model")
+  },
+  model_prompts: { text: byAge("model_prompts"), prompt_hash: NOT_PERSONAL },
+  // The settings as they stood (decision 0039, step 3): the business's own, as tenant_config.config is, and unlike it
+  // a version leaves by its clock once it is replaced.
+  tenant_config_versions: { config: byAge("tenant_config_versions") },
   notifications: {
     ...all(byAge("notifications"), "title", "body"),
     ...all(NOT_PERSONAL, "route", "subject_type", "subject_id")
@@ -4914,7 +4946,9 @@ async function keepChannelStanding(db, tenantId, channelId, standing) {
 
 // src/repositories/calendar/appointments.ts
 import {
-  APPOINTMENT_STATUSES
+  APPOINTMENT_STATUSES,
+  recordIdOf,
+  recordKeyOf
 } from "../../contracts/dist/index.js";
 var LIVE_STATUSES = ["proposed", "booked"];
 var SPAN_MAX = 2e3;
@@ -4960,11 +4994,28 @@ var FEED_SPAN_MAX = 1e4;
 async function visitsOver(db, tenantId, fromIso, toIso) {
   const [noted, feed] = await Promise.all([
     db.from("appointments").select("*").eq("tenant_id", tenantId).neq("source", "calendar_feed").gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).limit(SPAN_MAX),
-    db.from("appointments").select("id, status, external_id").eq("tenant_id", tenantId).eq("source", "calendar_feed").is("vanished_at", null).gt("ends_at", fromIso).lt("starts_at", toIso).limit(FEED_SPAN_MAX)
+    db.from("appointments").select("id, status, external_id, starts_at").eq("tenant_id", tenantId).eq("source", "calendar_feed").is("vanished_at", null).gt("ends_at", fromIso).lt("starts_at", toIso).limit(FEED_SPAN_MAX)
   ]);
   if (noted.error) throw new Error(`visits_over: ${noted.error.message}`);
   if (feed.error) throw new Error(`visits_over: ${feed.error.message}`);
   return { noted: noted.data ?? [], feed: feed.data ?? [] };
+}
+var SAID_STATUSES = ["kept", "missed", "cancelled"];
+async function feedWordsOver(db, tenantId, fromIso, toIso) {
+  return readAllRows(
+    "appointments_feed_words",
+    (from, to) => db.from("appointments").select("id, status, external_id, starts_at").eq("tenant_id", tenantId).eq("source", "calendar_feed").is("vanished_at", null).in("status", [...SAID_STATUSES]).gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).order("id", { ascending: true }).range(from, to)
+  );
+}
+async function recordOver(db, tenantId, fromIso, toIso) {
+  const [noted, feed] = await Promise.all([
+    readAllRows(
+      "appointments_noted",
+      (from, to) => db.from("appointments").select("*").eq("tenant_id", tenantId).neq("source", "calendar_feed").gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).order("id", { ascending: true }).range(from, to)
+    ),
+    feedWordsOver(db, tenantId, fromIso, toIso)
+  ]);
+  return { noted, feed };
 }
 async function appointmentWorkspace(db, id) {
   const { data, error } = await db.from("appointments").select("id, tenant_id").eq("id", id).maybeSingle();
@@ -4983,7 +5034,7 @@ async function markVisit(db, p) {
 async function appointmentsForClient(db, tenantId, who, fromIso) {
   const or = clientFilter(who);
   if (!or) return [];
-  const { data, error } = await db.from("appointments").select("*").eq("tenant_id", tenantId).in("status", [...LIVE_STATUSES]).gt("ends_at", fromIso).or(or).order("starts_at", { ascending: true }).limit(50);
+  const { data, error } = await db.from("appointments").select("*").eq("tenant_id", tenantId).neq("source", "calendar_feed").gt("ends_at", fromIso).or(or).order("starts_at", { ascending: true }).limit(50);
   if (error) throw new Error(`appointments_for_client: ${error.message}`);
   return data ?? [];
 }
@@ -5039,19 +5090,22 @@ var KEYS_PER_READ = 25;
 var isStatus = (s) => APPOINTMENT_STATUSES.includes(s);
 async function appointmentStates(db, tenantId, keys) {
   const out = /* @__PURE__ */ new Map();
-  for (let i = 0; i < keys.length; i += KEYS_PER_READ) {
-    const { data, error } = await db.from("appointments").select("external_id, status, starts_at, vanished_at, updated_at").eq("tenant_id", tenantId).eq("source", "calendar_feed").in("external_id", keys.slice(i, i + KEYS_PER_READ));
+  const put = (key, r) => {
+    if (key && isStatus(r.status))
+      out.set(key, { status: r.status, starts_at: r.starts_at, vanished_at: r.vanished_at, updated_at: r.updated_at });
+  };
+  const ids = keys.flatMap((k) => recordIdOf(k) ?? []);
+  const feedKeys = keys.filter((k) => recordIdOf(k) === null);
+  for (let i = 0; i < feedKeys.length; i += KEYS_PER_READ) {
+    const { data, error } = await db.from("appointments").select("external_id, status, starts_at, vanished_at, updated_at").eq("tenant_id", tenantId).eq("source", "calendar_feed").in("external_id", feedKeys.slice(i, i + KEYS_PER_READ));
     if (error && (error.code === "PGRST205" || error.code === "42P01")) return out;
     if (error) throw new Error(`appointments: ${error.message}`);
-    for (const r of data ?? []) {
-      if (r.external_id && isStatus(r.status))
-        out.set(r.external_id, {
-          status: r.status,
-          starts_at: r.starts_at,
-          vanished_at: r.vanished_at,
-          updated_at: r.updated_at
-        });
-    }
+    for (const r of data ?? []) put(r.external_id, r);
+  }
+  for (let i = 0; i < ids.length; i += KEYS_PER_READ) {
+    const { data, error } = await db.from("appointments").select("id, status, starts_at, vanished_at, updated_at").eq("tenant_id", tenantId).in("id", ids.slice(i, i + KEYS_PER_READ));
+    if (error) throw new Error(`appointments: ${error.message}`);
+    for (const r of data ?? []) put(recordKeyOf(r.id), r);
   }
   return out;
 }
@@ -5207,6 +5261,7 @@ export {
   failQueuedSend,
   failStrandedRun,
   failedMessageErrors,
+  feedWordsOver,
   finishableRuns,
   firstReplies,
   followUpOnFile,
@@ -5254,6 +5309,7 @@ export {
   keepIdempotencyReceipt,
   keepInvoiceAmount,
   keepMessageCost,
+  keepModelTurn,
   keepProviderEvent,
   lastInboundEmail,
   lastOutboundEmailSubject,
@@ -5369,6 +5425,7 @@ export {
   recordLateCarrierOptOut,
   recordModelUsage,
   recordOutbound,
+  recordOver,
   recordPartnerSecondFactorReset,
   recordProviderDomain,
   recordStatusByExternalId,
@@ -5407,6 +5464,7 @@ export {
   saveTemplateVersion,
   savedListFor,
   savedListsFor,
+  scrubModelTurns,
   scrubPersonNotes,
   scrubProviderEvents,
   searchMessages,

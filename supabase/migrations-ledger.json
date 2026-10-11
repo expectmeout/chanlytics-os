@@ -40,7 +40,10 @@
     "00295": "held by the Reports lane's drafts (cm-reports) when #1374 numbered its migrations",
     "00322": "the tables leave Postgres Changes held this number in #1411 and landed as 00324, above the head by then; a stop ends the yes to offers had moved to 00323 to leave it room (#1409)",
     "00325": "unused: #1417 (a message's status is told to its workspace) held it, but 00326 (two records of one person become one) reached production first, so #1417 landed as 00327 above the head",
-    "00378": "held for the doors lane (#1537), whose eleven moved above #1539's 00379 and 00380 when that merged first: they landed as 00381 to 00391"
+    "00378": "held for the doors lane (#1537), whose eleven moved above #1539's 00379 and 00380 when that merged first: they landed as 00381 to 00391",
+    "00398": "applied to production on 11 Oct 2026 by the lead-ideas lane (cm-bell) ahead of its pull request; that pull request puts its three files back in this order, here, above 00397 and below 00401",
+    "00399": "applied to production on 11 Oct 2026 by the lead-ideas lane (cm-bell) ahead of its pull request; that pull request puts its three files back in this order, here, above 00397 and below 00401",
+    "00400": "applied to production on 11 Oct 2026 by the lead-ideas lane (cm-bell) ahead of its pull request; that pull request puts its three files back in this order, here, above 00397 and below 00401"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -399,6 +402,8 @@
     "00394_a_new_person_is_one_who_reached_you.sql": "8a3e70409ab7eb04060a591956846c3b4bdbecd551f8a00a09d6e67a1fed0a2f",
     "00395_the_people_lens_is_read_beyond_the_days_counts.sql": "2c4b85c3506e5dba229b3f37da31b87b2c7f50f684b73d8a4a50bf6fb805a5cf",
     "00396_a_hold_is_told_from_its_event.sql": "b04adcf408584fb773642bb0fc4899fe50b32ee259a9ef6045207d598bfb8c4c",
-    "00397_a_member_says_what_became_of_a_visit.sql": "a55a9b3c7b23973b9ab64cf5d672c0084398e629ef5a01691ee81405f92aa9de"
+    "00397_a_member_says_what_became_of_a_visit.sql": "a55a9b3c7b23973b9ab64cf5d672c0084398e629ef5a01691ee81405f92aa9de",
+    "00401_a_reply_keeps_what_the_receptionist_was_told.sql": "edb76da1403ad24ea8887bd0b6ad27192e8ad6fdaf7dd90427ecef81f9944b48",
+    "00402_a_settings_change_keeps_what_the_settings_said.sql": "a1024754150f10b2933709d125d00d1b3ca15ef5e02c8e754d297e4fef45b431"
   }
 }

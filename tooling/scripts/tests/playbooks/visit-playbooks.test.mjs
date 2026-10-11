@@ -574,7 +574,7 @@ test("the wiring: the CHECKs, the facts column, the runner attaching the calenda
 
 /* ---- the run context: one workspace's bad read is one workspace's problem ---- */
 
-const ctxDb = (over = {}, faults = {}) =>
+const ctxDb = (over = {}, faults = {}, people = []) =>
   fakeDb(
     {
       tenants: [{ id: "t1", timezone: "America/New_York", status: "active" }],
@@ -597,7 +597,7 @@ const ctxDb = (over = {}, faults = {}) =>
       ...over,
     },
     faults,
-    { people_list: () => [] },
+    { people_list: () => people },
   );
 
 test("the touch history is read whole, and a workspace that cannot be read is RETURNED as an error, not thrown", async () => {
@@ -767,4 +767,144 @@ test("the day a visit moment is about is the calendar's own tomorrow and yesterd
   assert.equal(visitMomentDay("visit_tomorrow", NY, Date.parse("2026-11-01T04:30:00Z")), "2026-11-02");
   // 2 Nov 2026, 1:00 AM EST, the morning after the 25-hour day: yesterday is the 1st.
   assert.equal(visitMomentDay("visited", NY, Date.parse("2026-11-02T06:00:00Z")), "2026-11-01");
+});
+
+test("a run reads the record with the feed (0002's readers): a visit a member said missed is no last visit, a booking a notice stated is a next one, and a list's missed_visit finds who missed", async () => {
+  const { loadTenantRunContext } = await import("../../../../apps/edge/lib/playbooks.ts");
+  const { forgetFeeds } = await import("../../../../apps/edge/lib/calendar/availability.ts");
+  const now = new Date("2026-09-12T15:00:00Z");
+  const CAL = "+13055550133";
+  const ANA = "+13055550111";
+  const ics = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "BEGIN:VEVENT",
+    "UID:ev-came",
+    "DTSTART:20260820T140000Z",
+    "DTEND:20260820T150000Z",
+    "SUMMARY:Colour",
+    `DESCRIPTION:${CAL}`,
+    "END:VEVENT",
+    "BEGIN:VEVENT",
+    "UID:ev-missed",
+    "DTSTART:20260910T140000Z",
+    "DTEND:20260910T150000Z",
+    "SUMMARY:Colour",
+    `DESCRIPTION:${CAL}`,
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(ics, { status: 200, headers: { "content-type": "text/calendar" } });
+  const person = (id, phone) => ({
+    id,
+    display_name: id,
+    phone_e164: phone,
+    consent: "opted_in",
+    marketing_consent: "opted_in",
+    dnc: false,
+    channels: ["sms"],
+    conversation_count: 1,
+    has_chat: true,
+    has_backfill: false,
+  });
+  const appt = (over) => ({
+    tenant_id: "t1",
+    vanished_at: null,
+    all_day: false,
+    title: null,
+    service: null,
+    staff: null,
+    price: null,
+    note: null,
+    client_name: null,
+    client_phone: null,
+    client_email: null,
+    contact_id: null,
+    ...over,
+  });
+  try {
+    const ctx = await loadTenantRunContext(
+      ctxDb(
+        {
+          tenant_config: [
+            { tenant_id: "t1", config: { calendar: { ical_url: "https://calendar.example.com/run-record.ics" } } },
+          ],
+          appointments: [
+            // The feed's row for Cal's visit on the 10th, a member's "missed" on it.
+            appt({
+              id: "f1",
+              source: "calendar_feed",
+              tool: "calendar",
+              status: "missed",
+              external_id: "ev-missed",
+              starts_at: "2026-09-10T14:00:00Z",
+              ends_at: "2026-09-10T15:00:00Z",
+            }),
+            // Ana's booking, from a tool's emailed notice: on no calendar.
+            appt({
+              id: "n1",
+              source: "booking_email",
+              tool: "booksy",
+              status: "booked",
+              external_id: "bk-1",
+              service: "Balayage",
+              client_name: "Ana Ruiz",
+              client_phone: ANA,
+              starts_at: "2026-09-14T14:00:00Z",
+              ends_at: "2026-09-14T15:00:00Z",
+            }),
+          ],
+          segments: [
+            {
+              id: "l-missed",
+              tenant_id: "t1",
+              name: "Missed lately",
+              rule: { all: [{ field: "missed_visit", op: "within", days: 7 }] },
+            },
+          ],
+          segment_members: [],
+        },
+        {},
+        [person("p-cal", CAL), person("p-ana", ANA)],
+      ),
+      "t1",
+      now,
+    );
+    assert.ok(!("error" in ctx), JSON.stringify(ctx));
+    assert.equal(ctx.calendar, "ok");
+    const cal = ctx.visits.get("p-cal");
+    assert.equal(cal?.last?.start, "2026-08-20T14:00:00.000Z", "the last visit Cal came to, not the one they missed");
+    assert.equal(cal?.missed?.start, "2026-09-10T14:00:00.000Z");
+    assert.equal(
+      ctx.visits.get("p-ana")?.next?.start,
+      "2026-09-14T14:00:00.000Z",
+      "the notice's booking is Ana's next",
+    );
+    const members = ctx.listMembers({ kind: "saved", id: "l-missed" });
+    assert.deepEqual(members?.state === "ok" ? [...members.ids] : members, ["p-cal"]);
+    // A record that cannot be read is the calendar unavailable, as a feed is: a visit a member cancelled could not be
+    // told from one that stands, so no visit's message goes that hour, and a list on the calendar cannot be counted.
+    const blind = await loadTenantRunContext(
+      ctxDb(
+        {
+          tenant_config: [
+            { tenant_id: "t1", config: { calendar: { ical_url: "https://calendar.example.com/run-record.ics" } } },
+          ],
+          segments: [],
+          segment_members: [],
+        },
+        { "appointments.select": { message: "statement timeout" } },
+        [person("p-cal", CAL)],
+      ),
+      "t1",
+      now,
+    );
+    assert.ok(!("error" in blind), JSON.stringify(blind));
+    assert.equal(blind.calendar, "unavailable");
+    assert.equal(blind.visits.size, 0);
+  } finally {
+    globalThis.fetch = realFetch;
+    forgetFeeds();
+  }
 });

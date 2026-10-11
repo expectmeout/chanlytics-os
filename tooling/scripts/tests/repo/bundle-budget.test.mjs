@@ -15,7 +15,7 @@
  * records of main and exits 3 when a sum grew past its week's line. The decisions are pure (`compareWith`,
  * `unargued`, `reasonIn`, `judge`, `weekOf`), held here case by case and then through the script.
  */
-import { test } from "node:test";
+import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import crypto from "node:crypto";
@@ -45,6 +45,21 @@ const SCRIPT = path.join(ROOT, "tooling/scripts/checks/bundle-budget.mjs");
 /** Ceilings well clear of the fixtures' sums, unless a test sets its own. */
 const CEILING = { js: 10_000_000, css: 10_000_000, page: 10_000_000 };
 const PAGE_DIR = "server/app/(os)/w/[workspace]/[[...route]]";
+
+/**
+ * Every folder a test here writes, removed when the file is done: each run left its builds behind, and on 10 Oct 2026
+ * one laptop's temp folder held 15,717 of them (7.3 GB).
+ */
+const made = [];
+after(() => {
+  for (const dir of made) fs.rmSync(dir, { recursive: true, force: true });
+});
+/** A new folder under the system's temp folder, removed with the rest when the file is done. */
+function tempDir(prefix) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  made.push(dir);
+  return dir;
+}
 
 /** Text that compresses like code, not like a run of one letter: deterministic, so every run measures the same. */
 function noise(seed, bytes) {
@@ -80,7 +95,7 @@ function writeBuild({
   chunks = CHUNKS,
   pages = PAGES,
 } = {}) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bundle-budget-"));
+  const dir = tempDir("bundle-budget-");
   const put = (rel, text) => {
     fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
     fs.writeFileSync(path.join(dir, rel), text);
@@ -345,7 +360,7 @@ test("the week: main beside main a week before, a sum past its week's line exits
   assert.match(report, /Grew past the week's line: route JS \+4,097/);
   assert.match(report, /- abc1234 A change \(#1\)\n- def5678 Another \(#2\)/);
 
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bundle-week-"));
+  const dir = tempDir("bundle-week-");
   const put = (name, v) => (fs.writeFileSync(path.join(dir, name), JSON.stringify(v)), path.join(dir, name));
   const reportFile = path.join(dir, "week.md");
   const past = spawnSync(

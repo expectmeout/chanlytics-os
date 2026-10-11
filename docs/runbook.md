@@ -1178,6 +1178,32 @@ What to watch while it is on: `wa_answer_unscheduled` (the job could not be writ
 sweep's to hand to a person, within a quarter of an hour), and a reply's lateness on the heartbeat's line
 (`reply_late_ms`), which pages past a minute.
 
+## Read what the receptionist was told
+
+A reply the receptionist wrote names the turn it was written in (`messages.meta.turn_id`; decision 0039), and the turn
+is kept for thirty days as the model read it: the clock and what was open, who the person was, an owner's steer, the
+thread, and what the model answered before anything replaced it. The text of the prompt is kept under its hash, 400
+days past its last turn. No session reads either table, so this is the service role's, read only:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… node tooling/scripts/ops/turn-read.mjs --message <uuid>       # the reply's row
+NEXT_PUBLIC_SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… node tooling/scripts/ops/turn-read.mjs --conversation <uuid>  # its turns, newest first
+NEXT_PUBLIC_SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… node tooling/scripts/ops/turn-read.mjs --turn <uuid> [--no-prompt] [--json]
+```
+
+It prints a customer's words and the team's notes about them: read it where you would read the Inbox, and keep its
+output out of a ticket. A holding reply has no record and names no turn; ask for its conversation and read the turn at
+its time, whose answer says what came back. What it prints as the answer is the record the platform read; where the
+model's own words said more it says so, and `--json` has them whole. A turn that is not there is past its thirty days,
+went with an erasure (the person's own, or anyone's that named them), or could not be kept: the edge logs
+`model_turn_write_failed` for that one, and the reply went all the same. The thirty days and the prompts' 400 are one
+nightly job, `purge-model-turns`, which the health sweep watches as `purge_model_turns`.
+
+Asked by the reply (`--message`), it ends with the settings the reply was written under: the version its row names
+(`meta.config_version`), when that version came into force and whether it still is; `--json` has the settings whole.
+Every version of a workspace's settings is kept while it is in force and 400 days after the next replaces it
+(`tenant_config_versions`, written by a trigger on every save; `purge-config-versions` nightly).
+
 ## Read the jobs ledger
 
 Everything that happens later is a row in `jobs` (S-08): a reply 15 seconds after Send, a broadcast's batches, an email's

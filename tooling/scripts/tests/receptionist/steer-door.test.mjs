@@ -1070,10 +1070,27 @@ test("the default: called the way Vercel calls it -- POST(request), nothing in t
       // Stamped with what it was written from: the prompt on the wire (its hash) and the settings' version.
       prompt_hash: createHash("sha256").update(blocks[0]).digest("hex").slice(0, 16),
       config_version: null,
+      // And with the turn it was written in, kept as the model read it (decision 0039).
+      turn_id: tables.model_turns[0].id,
     },
     escalate: false,
     delay_ms: 45_000,
   });
+  // The turn is the rewrite's own: its conversation, the owner's steer as the model read it, the thread as it was
+  // sent, and the model's record before anything replaced it; the prompt's text is kept under the hash the row names.
+  assert.equal(tables.model_turns.length, 1);
+  const [turn] = tables.model_turns;
+  assert.deepEqual([turn.tenant_id, turn.conversation_id], [draft.tenant_id, draft.conversation_id]);
+  assert.equal(turn.request.steer, blocks[3]);
+  assert.equal(turn.request.who, blocks[2]);
+  assert.equal(turn.request.now, blocks[1]);
+  assert.deepEqual(turn.request.messages, sent[0].body.messages);
+  assert.equal(turn.response.record.reply, reply);
+  assert.deepEqual(
+    tables.model_prompts.map((p) => [p.prompt_hash, p.text]),
+    [[body.meta.prompt_hash, blocks[0]]],
+  );
+  assert.equal(draft.meta.turn_id, turn.id, "and the draft's own row names it");
   assert.deepEqual([draft.status, draft.body], ["queued", reply]);
   assert.equal(
     tables.messages.find((m) => m.id === w.M).status,

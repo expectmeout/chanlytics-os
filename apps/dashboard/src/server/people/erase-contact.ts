@@ -15,7 +15,7 @@
  * order they run in, on the session's client for the rest.
  */
 import { AppError } from "@chanlytics/contracts";
-import { appointmentsScrub, scrubPersonNotes, scrubProviderEvents, type Json } from "@chanlytics/db";
+import { appointmentsScrub, scrubModelTurns, scrubPersonNotes, scrubProviderEvents, type Json } from "@chanlytics/db";
 import { serviceDb } from "@/server/service-db";
 import { type erasureScope, recordDecision } from "@/server/verbs";
 import {
@@ -216,6 +216,18 @@ async function scrubCopiesFirst(ctx: RouteContext, contact: ErasedContact, keys:
       500,
     );
   }
+  // The receptionist's kept turns (00401, decision 0039) that quote them from someone else's thread or notes: deleted
+  // by the same spellings, while they are in hand. Their own turns go with their conversations in step 4.
+  try {
+    await scrubModelTurns(serviceDb(), contact.tenant_id, keys.needles);
+  } catch (e) {
+    log.error("erase_turns_prescrub_failed", { contact: contact.id, error: e });
+    throw new AppError(
+      "internal",
+      "The receptionist's kept turns that named this person could not be scrubbed, so nothing was deleted. Try again.",
+      500,
+    );
+  }
 }
 
 /* ---- 3. Storage, before the rows that name it ---- */
@@ -269,6 +281,7 @@ async function forgetAfterRows(ctx: RouteContext, contact: ErasedContact, keys: 
   log.info("erase_jobs_scrubbed", { contact: contact.id, jobs: jobsScrubbed });
   await scrubKeptDeliveriesBestEffort(contact, keys.needles);
   await scrubOthersNotesBestEffort(contact, keys.needles);
+  await scrubKeptTurnsBestEffort(contact, keys.needles);
   await scrubAppointmentsBestEffort(contact, keys.needles);
 }
 
@@ -368,6 +381,18 @@ async function scrubOthersNotesBestEffort(contact: ErasedContact, needles: reado
     await scrubPersonNotes(serviceDb(), contact.tenant_id, contact.id, needles);
   } catch (e) {
     log.error("erase_notes_scrub_failed", { contact: contact.id, error: e });
+  }
+}
+
+/**
+ * The receptionist's kept turns that name them, again: one taken while the erasure ran is caught here. A failure is
+ * logged and carries on, and the turns' thirty-day clock takes whatever it left.
+ */
+async function scrubKeptTurnsBestEffort(contact: ErasedContact, needles: readonly string[]): Promise<void> {
+  try {
+    await scrubModelTurns(serviceDb(), contact.tenant_id, needles);
+  } catch (e) {
+    log.error("erase_turns_scrub_failed", { contact: contact.id, error: e });
   }
 }
 

@@ -2414,16 +2414,17 @@ test("the calendar, for Ask: the board's week exactly as calendarWeek assembles 
 });
 
 /**
- * The record's four reads (its rows over the span, the notices' latest and their held count, the mailbox) are asked for
- * together and waited for together (calendar-week.ts recordOverSpan, 9 Oct 2026: one after the other they were four
- * round trips the board stood behind). Which of the four is heard first is the database stand-in's to say, not the
- * route's, so the four are put in one order before what was asked is compared: every read is still there, once, with its
- * columns, and everything before and after them is still in its own order. `at` is where the four begin.
+ * The record's five reads (its rows over the span, in two since 00397: the bookings whole and the feed's rows by key;
+ * the notices' latest and their held count; the mailbox) are asked for together and waited for together
+ * (calendar-week.ts recordOverSpan, 9 Oct 2026: one after the other they were round trips the board stood behind). Which
+ * is heard first is the database stand-in's to say, not the route's, so the five are put in one order before what was
+ * asked is compared: every read is still there, once, with its columns, and everything before and after them is still
+ * in its own order. `at` is where the five begin.
  */
 const recordTogether = (asked, at) => [
   ...asked.slice(0, at),
-  ...asked.slice(at, at + 4).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
-  ...asked.slice(at + 4),
+  ...asked.slice(at, at + 5).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
+  ...asked.slice(at + 5),
 ];
 
 test("the calendar's reader never writes (D7): an owner's Ask reads the board of a feed naming someone People does not hold and puts nobody in People -- no door called, nothing inserted -- and its zone and settings are the turn's: a turn that holds them reads neither again", async () => {
@@ -2443,8 +2444,11 @@ test("the calendar's reader never writes (D7): an owner's Ask reads the board of
       // The record's rows over the span and the notices' health line (00345) are read beside the feed, then everyone.
       // Last, once the feed has read, the record's taken time over the days on offer (record-busy.ts): this week does
       // not cover a fortnight's offer, so the board's open times ask for it rather than reuse the span's rows.
+      // The span's record is two reads since a member's word on a visit (00397, visitsOver): the bookings, and the feed's
+      // rows by key.
       recordTogether(
         [
+          "appointments.select",
           "appointments.select",
           "appointment_notices.select",
           "appointment_notices.select",
@@ -2477,8 +2481,9 @@ test("the calendar's reader never writes (D7): an owner's Ask reads the board of
       !json.includes("cal.example") && !json.includes("front desk of Harbor"),
       "neither is anywhere in the read",
     );
-    // The record, the notices' two, the mailbox, everyone, the policies and the taken time: seven, and nothing asked again.
-    assert.equal(ctx.supabase.seen.length, before + 7, "nothing asked again");
+    // The record (two reads since 00397: the bookings, and the feed's rows by key), the notices' two, the mailbox,
+    // everyone, the policies and the taken time: eight, and nothing asked again.
+    assert.equal(ctx.supabase.seen.length, before + 8, "nothing asked again");
   });
 });
 
@@ -2534,8 +2539,10 @@ const CALENDAR_ASKED_AT_MAIN = [
   ["tenants.select", "name, timezone"],
   ["tenant_config.select", "config"],
   // Since 00345: the record's rows over the span and the notices' health line (the latest, and the held count), read
-  // beside the feed before everyone is (docs/plans/2026-10-07-bookings-arrive-by-email.md).
+  // beside the feed before everyone is (docs/plans/2026-10-07-bookings-arrive-by-email.md); since 00397 the span's
+  // record is two reads (visitsOver): the bookings whole, and the feed's rows as ids and statuses by key.
   ["appointments.select", "*"],
+  ["appointments.select", "id, status, external_id, starts_at"],
   ["appointment_notices.select", "tool, received_at"],
   ["appointment_notices.select", "id"],
   // The workspace's address the tool is to send to, and Gmail's pending confirmation of a forward here.
@@ -2564,7 +2571,7 @@ test("GET calendar through its reader asks what it asked at origin/main, in the 
         k,
         k === "tenant_config.select" ? "tenant_id, config, version, updated_at, updated_by" : cols,
       ]);
-      // The record's four begin after the door, the zone and the settings.
+      // The record's five begin after the door, the zone and the settings.
       assert.deepEqual(
         recordTogether(
           ctx.supabase.seen.map((q) => (q.rpc ? [`rpc:${q.rpc}`, null] : [`${q.table}.${q.op}`, q.columns])),
@@ -3697,6 +3704,10 @@ const PEOPLE_ASKED_AT_MAIN = [
   // 3 Oct 2026: the channels the follow-up ticks (db playbookChannels), beside its template: the number and Meta's
   // approval stop only a follow-up that goes by WhatsApp.
   ["playbooks.select", "channels"],
+  // 11 Oct 2026 (0002's readers): the record over the feed's season, joined to it: a booking's rows whole, and the
+  // feed's rows as ids and statuses by key (db visitsOver).
+  ["appointments.select", "*"],
+  ["appointments.select", "id, status, external_id, starts_at"],
   ["templates.select", MESSAGE_ROWS_ASKED],
   ["tenants.select", "timezone"],
   ["tenants.select", "timezone"],
@@ -3737,6 +3748,10 @@ const PEOPLE_ASKED_NOW = [
   ["rpc:contact_seen", null],
   ["rpc:team_roster", null],
   ["playbooks.select", "channels"],
+  // 11 Oct 2026 (0002's readers): the record over the feed's season, joined to it: a booking's rows whole, and the
+  // feed's rows as ids and statuses by key (db visitsOver).
+  ["appointments.select", "*"],
+  ["appointments.select", "id, status, external_id, starts_at"],
   ["templates.select", MESSAGE_ROWS_ASKED],
   ["tenants.select", "timezone"],
   ["tenants.select", "timezone"],
@@ -3752,6 +3767,14 @@ const PEOPLE_ASKED_NOW = [
     "broadcast_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id",
   ],
 ];
+/**
+ * The record's reads beside the rest (0002's readers): a reader asks for the record beside the feed, so where its two
+ * reads land among the others is the stand-in's to say. The others in their order, and the record's apart.
+ */
+const recordApart = (asked) => {
+  const isRecord = (q) => (Array.isArray(q) ? q[0] : q) === "appointments.select";
+  return [asked.filter((q) => !isRecord(q)), asked.filter(isRecord)];
+};
 /** A list of queries as a bag: the same reads, whatever their order. */
 const bagOf = (asked) => asked.map((q) => JSON.stringify(q)).sort();
 /** Every query in the order it reached the database, with the columns a select asked for. */
@@ -3770,11 +3793,11 @@ test("GET contacts through its reader asks what it asked at origin/main -- the p
     const w = peopleWorld();
     const routed = worldCtx(w);
     const page = await contactsRoute.GET.run(req(`?workspace=${A}`), routed);
-    assert.deepEqual(askedWith(routed), want, "the workspace's door, then the reads");
+    assert.deepEqual(recordApart(askedWith(routed)), recordApart(want), "the workspace's door, then the reads");
     const ctx = worldCtx(w);
     const r = await kernel.load(turnIn(ctx), peopleReader, { q: null, offset: 0 });
     assert.deepEqual(r.data, page, "the route's payload");
-    assert.deepEqual(askedWith(ctx), want.slice(1));
+    assert.deepEqual(recordApart(askedWith(ctx)), recordApart(want.slice(1)));
     // What each read was for, in the payload: Ana's visit from the feed, who each step is for, the pace, the follow-up.
     const [ana, luis] = r.data.people;
     assert.deepEqual(
@@ -3792,16 +3815,18 @@ test("GET contacts through its reader asks what it asked at origin/main -- the p
     const s = await kernel.load(turnIn(searched), peopleReader, { q: "luis", offset: 0 });
     assert.deepEqual([s.data.deal_pace, s.data.follow_up], [null, null]);
     assert.deepEqual(
-      askedWith(searched),
-      want
-        .slice(1)
-        .filter(
-          ([k, cols]) =>
-            !/^(playbooks|tenant_channels|lines|templates|broadcasts|broadcast_recipients)\./.test(k) &&
-            !(k === "deals.select") &&
-            !(k === "policies.select" && cols === "mode") &&
-            !(k === "tenants.select" && /^(status|timezone)$/.test(cols)),
-        ),
+      recordApart(askedWith(searched)),
+      recordApart(
+        want
+          .slice(1)
+          .filter(
+            ([k, cols]) =>
+              !/^(playbooks|tenant_channels|lines|templates|broadcasts|broadcast_recipients)\./.test(k) &&
+              !(k === "deals.select") &&
+              !(k === "policies.select" && cols === "mode") &&
+              !(k === "tenants.select" && /^(status|timezone)$/.test(cols)),
+          ),
+      ),
       "the same, less the pace and the follow-up",
     );
     // A turn that already holds the zone, the settings and how the customers buy is asked for none of them again.
@@ -3818,8 +3843,8 @@ test("GET contacts through its reader asks what it asked at origin/main -- the p
     assert.deepEqual(heldWant[roster + 1], ["playbooks.select", "channels"]);
     heldWant.splice(roster, 2, heldWant[roster + 1], heldWant[roster]);
     assert.deepEqual(
-      askedWith(turn.ctx).slice(held),
-      heldWant,
+      recordApart(askedWith(turn.ctx).slice(held)),
+      recordApart(heldWant),
       "the page, the steps, the pace and the follow-up's own reads: the zone, the settings and sells_by were the turn's",
     );
   });
@@ -4190,11 +4215,10 @@ test("the audience pool, for Ask: everyone with their appointments for the membe
     const held = turn.ctx.supabase.seen.length;
     assert.equal(kernel.load(turn, audiencePoolReader, undefined), kernel.load(turn, audiencePoolReader, undefined));
     await kernel.load(turn, audiencePoolReader, undefined);
-    assert.deepEqual(asked(turn.ctx).slice(held), [
-      "tenant_channels.select",
-      "lines.select",
-      "rpc:people_list",
-      "policies.select",
+    assert.deepEqual(recordApart(asked(turn.ctx).slice(held)), [
+      ["tenant_channels.select", "lines.select", "rpc:people_list", "policies.select"],
+      // The record over the feed's season (0002's readers): a booking's rows, and the feed's rows by key.
+      ["appointments.select", "appointments.select"],
     ]);
     // The settings are read only where the pool's calendar lookup would read them: one that fails costs the visits,
     // said once in the log, as server/people/audience.ts's own lookup costs them -- never the pool.
@@ -4463,6 +4487,10 @@ const PLAYBOOKS_ASKED_AT_MAIN = [
   ["policies.select", "subject_type, subject_id, mode"],
   ["tenants.select", "name, timezone"],
   ["tenant_config.select", "config"],
+  // 11 Oct 2026 (0002's readers): the record over the feed's season, beside it: a booking's rows whole, and the feed's
+  // rows as ids and statuses by key (db visitsOver).
+  ["appointments.select", "*"],
+  ["appointments.select", "id, status, external_id, starts_at"],
   ["deals.select", "id, contact_id, proposed_at"],
   ["tenants.select", "timezone"],
   ["broadcasts.select", "id, playbook_id, state, scheduled_for, created_at, run_for, params"],

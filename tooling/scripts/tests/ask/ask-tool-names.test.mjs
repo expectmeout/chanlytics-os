@@ -1088,12 +1088,14 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     const withDoubts = NAMES[old] === "people.get" ? [...withDecisions, "person_doubts.select"] : withDecisions;
     // 7 Oct 2026 (00345, bookings arrive by email): the calendar's reader reads the record beside the feed -- the
     // appointments over the span, the notices' health line (the latest, and the held count) and the workspace's mailbox
-    // -- so calendar.week makes those four reads more. Its bytes are unchanged: this workspace has no calendar and no
-    // booking has arrived, and with no feed to read nothing of the record's taken time is asked.
+    // -- so calendar.week makes those reads more. Its bytes are unchanged: this workspace has no calendar and no
+    // booking has arrived, and with no feed to read nothing of the record's taken time is asked. Since 00397 the span's
+    // record is two reads (db visitsOver: the bookings whole, and the feed's rows by key), so five more.
     const withCalendar =
       NAMES[old] === "calendar.week"
         ? [
             ...withDoubts,
+            "appointments.select",
             "appointments.select",
             "appointment_notices.select",
             "appointment_notices.select",

@@ -8,6 +8,7 @@
  * marked as consultations, so a playbook on a list that reads one ran on nobody the page counted.
  */
 import type { ConsultRules } from "../calendar/service-offer";
+import { feedWithRecord, type PoolRecord } from "../calendar/appointment-item";
 import type { FeedItem } from "../calendar/feed";
 import {
   indexFeed,
@@ -49,6 +50,11 @@ export interface PoolCalendar {
   /** The profile's services and its consult-first rule: which of a person's visits is a consultation (0004). */
   services: readonly { name: string }[];
   rules: ConsultRules | null;
+  /**
+   * The record over the feed's season (decision 0002's readers): a booking's rows join the feed's events, a cancelled
+   * visit leaves them, and a member's kept or missed rides on each. Null or absent: the feed alone, as before.
+   */
+  record?: PoolRecord | null;
 }
 
 /**
@@ -62,7 +68,7 @@ export function peopleVisitsOf(
   cal: PoolCalendar,
   nowMs: number,
 ): Map<string, PersonVisitsDto> {
-  const index = indexFeed([...items], cal.own);
+  const index = indexFeed(feedWithRecord(items, cal.record, cal.own), cal.own);
   const mark = (v: VisitDto | null): VisitDto | null =>
     v ? { ...v, consultation: isConsultationTitle(v.title, cal.services, cal.rules) } : null;
   const out = new Map<string, PersonVisitsDto>();
@@ -75,6 +81,7 @@ export function peopleVisitsOf(
       next: mark(toVisitDto(v.next)),
       last: mark(toVisitDto(v.last)),
       near: v.near.map((x) => mark(toVisitDto(x))).filter((x): x is VisitDto => x !== null),
+      missed: mark(toVisitDto(v.missed ?? null)),
     });
   }
   return out;

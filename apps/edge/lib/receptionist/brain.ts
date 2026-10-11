@@ -25,20 +25,31 @@
  * answer or a record out of its shape is the holding reply and a handoff. generateReply is the door: while the second
  * model is on (TYPESAFE_SHADOW, decision 0023) it also puts the customer's words to it in shadow, compares its answer
  * with the record's intent and keeps it, and never lets it change the reply.
+ *
+ * A turn about a conversation is kept as the model read it (decision 0039): what it read beside the prompt, the
+ * prompt's text under its hash, and what it answered before layer two replaced any of it, so a reply can be read again
+ * after the person's notes, the clock and the settings have all moved on. The record names the turn (meta.turn_id)
+ * once it is kept. Keeping it is the port's last act and never costs the answer: a turn that cannot be kept is a log
+ * line (lib/model.ts keepTurn). An eval names no conversation and keeps its ledger row alone.
  */
+import { randomUUID } from "node:crypto";
 import type { ThreadTurn } from "../packages/core.js";
 import {
   BRAIN_OUTPUT_JSON_SCHEMA,
   MODEL_ROUTES,
   parseBrainOutput,
   brainMetaOf,
+  modelTurnRequestOf,
+  modelTurnResponseOf,
   receptionistPrimary,
   receptionistShadowCall,
   type BrainMeta,
+  type BrainOutput,
   type BrainStamp,
+  type ModelTurnResponse,
 } from "../packages/contracts.js";
-import { formatRejected, type ModelReply } from "../packages/channels.js";
-import { callModel, ModelUnavailable, promptHashOf, type ModelCallFor } from "../model.js";
+import { formatRejected, type ModelAsk, type ModelReply } from "../packages/channels.js";
+import { callModel, keepTurn, ModelUnavailable, promptHashOf, type ModelCallFor } from "../model.js";
 import { startShadow } from "../shadow.js";
 import { logger } from "../log.js";
 
@@ -65,6 +76,7 @@ export interface BrainReply {
  */
 export interface BrainCall {
   tenantId: string | null;
+  /** The conversation it answers: the ledger's subject, and what the turn is kept under (decision 0039). */
   subjectId?: string | null;
   configVersion?: number | null;
   purpose?: "receptionist" | "reply_draft";
@@ -179,7 +191,6 @@ async function answerReply(
   /** Who it is for: the usage ledger's row, and the settings' version on the record. */
   call?: BrainCall,
 ): Promise<BrainReply> {
-  const L = logger();
   const purpose = call?.purpose ?? "receptionist";
   const stamp: BrainStamp = { promptHash: promptHashOf(systemPrompt), configVersion: call?.configVersion ?? null };
   const forWhom: ModelCallFor = {
@@ -214,7 +225,54 @@ async function answerReply(
     ],
     messages,
   };
+  const ask = (): Promise<Asked> => askOnce(purpose, base, forWhom, stamp, fallbackText);
 
+  const conversationId = call?.subjectId ?? null;
+  if (!call?.tenantId || !conversationId) return (await ask()).reply;
+  const turn = {
+    turnId: randomUUID(),
+    tenantId: call.tenantId,
+    conversationId,
+    promptHash: stamp.promptHash,
+    promptText: systemPrompt,
+    request: modelTurnRequestOf({
+      now: nowNote,
+      who: leadNote ? whoNote(leadNote) : undefined,
+      steer,
+      messages: [...prior, { role: "user", content: userText }],
+      photoType: image?.mime,
+    }),
+  };
+  const began = Date.now();
+  let asked: Asked;
+  try {
+    asked = await ask();
+  } catch (e) {
+    // No answer came. The turn is kept as it was put, and the failure goes on to the caller as it always has.
+    await keepTurn({ ...turn, response: null, model: null, latencyMs: Date.now() - began });
+    throw e;
+  }
+  const kept = await keepTurn({ ...turn, response: asked.said, model: asked.model, latencyMs: Date.now() - began });
+  const { reply } = asked;
+  return kept && reply.meta ? { ...reply, meta: { ...reply.meta, turn_id: turn.turnId } } : reply;
+}
+
+/** What one asking came to: the reply, and the model's own answer beside it as a turn keeps it. */
+interface Asked {
+  reply: BrainReply;
+  said: ModelTurnResponse;
+  model: string;
+}
+
+/** The request put to the model, in its record's shape and plainly if that shape is refused, and its answer read. */
+async function askOnce(
+  purpose: NonNullable<BrainCall["purpose"]>,
+  base: ModelAsk["body"],
+  forWhom: ModelCallFor,
+  stamp: BrainStamp,
+  fallbackText: string,
+): Promise<Asked> {
+  const L = logger();
   let structured = true;
   let r = await callModel(
     {
@@ -237,25 +295,31 @@ async function answerReply(
   if (r.fellBack) L.warn("brain_fell_back", { asked: r.asked, model: r.model });
   const usage = { input_tokens: r.usage.input, output_tokens: r.usage.output };
   const stopReason = r.message.stop_reason;
+  const raw = r.text;
+  const model = r.model;
+  const asked = (reply: BrainReply, record: BrainOutput | null = null): Asked => ({
+    reply,
+    said: modelTurnResponseOf(stopReason, record, raw),
+    model,
+  });
 
   if (stopReason === "refusal") {
-    return { text: fallbackText, escalate: true, reason: "refusal", usage };
+    return asked({ text: fallbackText, escalate: true, reason: "refusal", usage });
   }
 
-  const raw = r.text;
-  if (!structured) return legacyReply(raw, fallbackText, stopReason, usage, r.model, stamp);
+  if (!structured) return asked(legacyReply(raw, fallbackText, stopReason, usage, model, stamp));
 
   // A capped answer is a cut-off document: nothing in it can be trusted to
   // be whole, so the holding reply goes out and a person is told, as a capped
   // reply always meant.
   if (stopReason === "max_tokens") {
     L.error("brain_capped", { chars: raw.length });
-    return { text: fallbackText, escalate: true, reason: "human_token", usage };
+    return asked({ text: fallbackText, escalate: true, reason: "human_token", usage });
   }
   const parsed = parseBrainOutput(raw);
   if (!parsed.ok) {
     L.error("brain_parse_failed", { error: parsed.error, chars: raw.length });
-    return { text: fallbackText, escalate: true, reason: "brain_error", usage };
+    return asked({ text: fallbackText, escalate: true, reason: "brain_error", usage });
   }
 
   let text = parsed.value.reply.trim();
@@ -266,13 +330,16 @@ async function answerReply(
     text = fallbackText;
     escalate = true;
   }
-  return {
-    text,
-    escalate,
-    reason: escalate ? "human_token" : undefined,
-    usage,
-    meta: brainMetaOf(parsed.value, r.model, stamp),
-  };
+  return asked(
+    {
+      text,
+      escalate,
+      reason: escalate ? "human_token" : undefined,
+      usage,
+      meta: brainMetaOf(parsed.value, model, stamp),
+    },
+    parsed.value,
+  );
 }
 
 /**
