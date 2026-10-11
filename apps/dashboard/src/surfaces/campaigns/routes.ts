@@ -7,7 +7,7 @@
  * its rooms, Sent (the shell's `broadcasts`) and the Library (`messages`, the path's `templates`); the old Playbooks list,
  * `outbound`, lands on the home (contracts doorOf). Every crumb's first word, Campaigns, goes back to the home.
  */
-import { CAMPAIGN_ROOMS, LIFECYCLE_WORDS } from "@chanlytics/contracts";
+import { CAMPAIGN_ROOMS, LIFECYCLE_WORDS, templateTitle } from "@chanlytics/contracts";
 import { surfaceValue } from "../surface-values";
 import { parseHome } from "./home/address";
 
@@ -40,11 +40,13 @@ export function campaignsChrome({ param }: { param: string | null }): { crumbs: 
   return {
     crumbs: named
       ? [CAMPAIGNS, named]
-      : edited
-        ? [CAMPAIGNS, edited]
-        : at.compose
-          ? [CAMPAIGNS, CAMPAIGN_ROOMS.newMessage]
-          : [CAMPAIGN_ROOMS.home],
+      : at.message
+        ? [CAMPAIGNS, templateTitle(at.message, null)]
+        : edited
+          ? [CAMPAIGNS, edited]
+          : at.compose
+            ? [CAMPAIGNS, CAMPAIGN_ROOMS.newMessage]
+            : [CAMPAIGN_ROOMS.home],
     mount: "campaigns",
     act: null,
   };

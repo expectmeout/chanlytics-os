@@ -27,9 +27,14 @@ const isWords = (node: ReactNode) => typeof node === "string" || typeof node ===
 
 /**
  * Who or what the row is, in its first column: the kit's face, for a person, a lead or a conversation; or, for a row
- * that is a thing of a kind (a campaign), the kit's mark holding the kind's glyph (the Icon), neutral always.
+ * that is a thing of a kind (a campaign), the kit's mark holding the kind's glyph (the Icon), neutral always; or nothing
+ * (`bare`), where what the rows are is said around them already (Campaigns' phone list, each row on its moment's line:
+ * the same glyph on every row of a moment said nothing the line did not), and the lines take the first column.
  */
-type ListRowFirst = { face: FaceProps; mark?: undefined } | { mark: ReactElement; face?: undefined };
+type ListRowFirst =
+  | { face: FaceProps; mark?: undefined; bare?: undefined }
+  | { mark: ReactElement; face?: undefined; bare?: undefined }
+  | { bare: true; face?: undefined; mark?: undefined };
 
 /** The row's lines, which are its props: it takes no children. */
 type ListRowLines = ListRowFirst & {
@@ -83,6 +88,7 @@ function factsLine(facts: readonly ReactNode[]) {
 
 /** The first column: the face, or the kind's mark. */
 function firstOf(first: ListRowFirst) {
+  if (first.bare) return null;
   if (first.mark !== undefined) {
     return (
       <span className="mark list-row-mark" aria-hidden="true">
@@ -94,11 +100,11 @@ function firstOf(first: ListRowFirst) {
 }
 
 /** A row of a list: its face or its kind, its lines, and what trails its name; a link where it has an address. */
-export function ListRow({ face, mark, name, end, said, facts = [], note, className, ...element }: ListRowProps) {
-  const classes = cx("list-row", className);
+export function ListRow({ face, mark, bare, name, end, said, facts = [], note, className, ...element }: ListRowProps) {
+  const classes = cx("list-row", bare ? "list-row-bare" : null, className);
   const lines = (
     <>
-      {firstOf(mark !== undefined ? { mark } : { face })}
+      {firstOf(bare ? { bare } : mark !== undefined ? { mark } : { face })}
       <div className="list-row-name">{name}</div>
       {end?.("list-row-end")}
       {saidLine(said)}

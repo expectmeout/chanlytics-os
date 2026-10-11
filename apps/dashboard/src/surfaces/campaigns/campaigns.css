@@ -1,33 +1,10 @@
 /* Campaigns: the Lifecycle home, the Sent room, the Library, the composers, the version editor and the reach-out's emails.
    Moved out of components.css and mobile.css whole, in their order; the rules themselves are as they were. */
 
-.ob-head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-/* Beside the state pill, and in the warning ink, because it IS the state: a
-   playbook that runs every day and reaches nobody reads as a working one. */
-.ob-reach {
-  flex: none;
-  font-size: var(--text-xs);
-  color: var(--warn-ink);
-  white-space: nowrap;
-}
 /* ---- A playbook is a message, a list and a clock ----
-   The card led with the trigger, the schedule, the audience, the template's NAME
-   and the next run -- five chips and a meta line -- and the message itself was
-   two clamped lines at 12px in --ink-muted behind a "Show the whole message"
-   toggle: the least prominent thing on a card whose subject it is. The message
-   is the left column now and everything else is a sentence beside it.
-   The column is the preview's own width plus its gutter, so the two never fight;
-   under that it stacks, which is where a phone always is. */
-.ob-body {
-  display: grid;
-  grid-template-columns: 268px minmax(0, 1fr);
-  gap: var(--space-5);
-  align-items: start;
-}
+   Its drawer reads down one column (playbooks/card-detail.tsx; Ruben, 11 Oct 2026, where a paragraph, a chip and the head
+   said what it does three times): its facts a line each (parts/lines.tsx), the message as a customer reads it with its
+   name under it, then its runs. */
 .ob-words {
   display: flex;
   flex-direction: column;
@@ -36,6 +13,9 @@
   min-width: 0;
 }
 .ob-words-name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
   font-size: var(--text-xs);
   color: var(--ink-muted);
   background: none;
@@ -49,16 +29,6 @@
 }
 .ob-words-name .dim {
   color: var(--ink-dim);
-}
-.ob-facts {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  min-width: 0;
-}
-/* A warning under the sentence starts where the sentence does: the hint's own centring is for a line beside a control. */
-.ob-facts > .bc-excl-hint {
-  align-self: flex-start;
 }
 /* 68ch, the measure the clamped line used: on a 1280 page the facts column is
    782px, which is about 120 characters -- half again past where the eye stops
@@ -74,10 +44,6 @@
   color: var(--ink);
   font-weight: var(--weight-medium);
 }
-.ob-sentence-dim {
-  font-size: var(--text-sm);
-  color: var(--ink-dim);
-}
 /* A word inside a sentence that opens something, drawn as the sentence plus an
    underline -- never a button shape mid-sentence. */
 .ob-link {
@@ -92,42 +58,103 @@
 .ob-link:hover {
   border-bottom-color: var(--ink);
 }
-@container (max-width: 640px) {
-  .ob-body {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-.ob-history {
+/* Its runs: what they earned in all, one quiet line, then the newest a line each in the lines' inset, its day, what it
+   sent and its chevron, the whole line the press that opens it on Sent. */
+.ob-runs {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
+  gap: var(--space-2);
+  min-width: 0;
 }
-.ob-history .ob-history-row {
-  display: inline-flex;
+.ob-runs-head {
+  margin: 0;
+  padding: 0 var(--space-1);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--ink-dim);
+}
+.ob-runs-head .tabular {
+  color: var(--ink-muted);
+}
+.cm-lines > .ob-history-row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  column-gap: var(--space-3);
   align-items: center;
-  gap: 4px;
-  margin-top: 0;
-  padding: 2px 0;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 14px;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
   text-align: left;
-  border-radius: var(--radius-sm);
 }
-.ob-history-row .icon {
-  opacity: 0;
-  transition: opacity var(--duration-fast) var(--ease-out);
+.cm-lines > .ob-history-row + .ob-history-row {
+  border-top: 1px solid var(--line);
 }
-.ob-history-row:hover,
-.ob-history-row:focus-visible {
+.ob-history-day {
   color: var(--ink);
 }
-.ob-history-row:hover .icon,
-.ob-history-row:focus-visible .icon {
-  opacity: 1;
+.ob-history-said {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ob-history-row > .icon {
+  color: var(--ink-faint);
+}
+@media (hover: hover) {
+  .cm-lines > .ob-history-row:hover {
+    background: var(--bg-hover);
+  }
 }
 .ob-history-more {
+  padding: 0 var(--space-1);
   font-size: var(--text-xs);
   color: var(--ink-faint);
-  padding-top: 2px;
+}
+
+/* A drawer's facts as lines (parts/lines.tsx): the kit's inset, a line each, its word in the dim ink at the left and what
+   it holds beside it, a hairline between them, as Settings' sheets draw a list of settings. */
+.cm-lines {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.cm-line {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  column-gap: var(--space-3);
+  /* On the first line's words: a line of words, a row of switches and a chip all sit on the word's own line. */
+  align-items: baseline;
+  min-height: 44px;
+  padding: 12px 14px;
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+}
+.cm-line + .cm-line {
+  border-top: 1px solid var(--line);
+}
+.cm-line-k {
+  color: var(--ink-dim);
+}
+.cm-line-v {
+  min-width: 0;
+  color: var(--ink-muted);
+  text-wrap: pretty;
+}
+.cm-line-v b {
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+/* A word in a line that opens something is the line's words, underlined: its press is the line's height already. */
+.cm-line-v .ob-link {
+  min-height: 0;
+  border-bottom: 0;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 3px;
 }
 .msg-delete-held {
   display: flex;
@@ -1089,7 +1116,7 @@ html.legacy-on .tpl-fresh {
 .ob-card-detail {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
   container-type: inline-size;
 }
 /* A reach-out's chain, open in its pane (Reach out Part 4 PR 8): its steps in a line, their counts in a quiet table. */
@@ -1134,9 +1161,6 @@ html.legacy-on .tpl-fresh {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-}
-.ob-head-bare {
-  justify-content: flex-start;
 }
 /* ---- The playbook composer (outbound-real.jsx PlaybookComposer) ----
    The record kit's sheet beside the page, read as a playbook is: who it is for,
@@ -1514,13 +1538,24 @@ html.legacy-on .tpl-fresh {
   color: var(--ink);
   border-color: var(--line-strong);
 }
-.ro-door-phone {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  width: 100%;
-  justify-content: center;
-  border-radius: 0;
+/* On a phone, an accent word at the end of the search's line (leads/scope/scope.tsx), where a full-width coral bar pinned
+   over the rows, then a second coral button beside New search, stood heavier than the page's one act (Ruben, 10 Oct 2026). */
+.lf-strip .ro-door-phone {
+  flex: none;
+  gap: 5px;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  color: var(--accent);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  position: relative;
+}
+/* A thumb's press area round the word, which the line does not make room for. */
+.lf-strip .ro-door-phone::after {
+  content: "";
+  position: absolute;
+  inset: -13px -6px;
 }
 .pb-foot {
   display: flex;
@@ -3184,6 +3219,13 @@ html.legacy-on .msg-use-link {
 .msg-lang-k {
   flex: none;
 }
+/* On a phone the language's chip says its language: the word before it went, so the chip and the channel switch share
+   one line. */
+@media (max-width: 900px) {
+  .msg-lang-k {
+    display: none;
+  }
+}
 /* A language written in the row that opened it: the composer as a panel in the
    fold, its fields beside the message as the customer will read it, and while
    the assistant writes, the shape of the words rather than a spinner. */
@@ -3467,7 +3509,7 @@ html.legacy-on .msg-use-link {
   flex-wrap: wrap;
 }
 .pb-when {
-  line-height: 2;
+  line-height: var(--leading-relaxed);
 }
 /* The bubble stands on the pane itself, not on a stage of its own; the fields under it are an inset. */
 .pb-preview {
@@ -3486,13 +3528,28 @@ html.legacy-on .msg-use-link {
   border: 1px solid var(--surface-inset-edge);
   background: var(--bg-sunken);
 }
-/* What is missing where the message would be is an inset, as the composer boards draw what a row holds, not a
-   dashed box; named by its testid, since its class is a primitive's word. */
+/* What is missing where the message would be is its line, under the row's word, with no box round it (Ruben, 11 Oct
+   2026: "Win-back, written for you · Add it" stood in an inset of its own, its glyph a line over its words); named by its
+   testid, since its class is a primitive's word. */
 [data-testid="pb-message-empty"] {
+  padding: 0;
   border: 0;
-  border-radius: var(--surface-inset-radius);
-  background: var(--surface-inset-fill);
-  box-shadow: var(--surface-inset-ring), var(--surface-inset-depth);
+  background: none;
+}
+[data-testid="pb-starter"] {
+  align-items: center;
+}
+[data-testid="pb-starter"] > svg {
+  margin-top: 0;
+}
+/* Its one press, "Add it", is the line's link: the ink's, underlined, a word's height (the touch floor stood it 44px). */
+[data-testid="pb-starter"] [data-testid="pb-add-starter"] {
+  min-height: 0;
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 3px;
 }
 
 /* The broadcast composer's rows (C2, the second door): one pane, the width of the canvases' composer, each question a
@@ -3873,6 +3930,8 @@ section:has(> .tpl-composer:not(.is-translate)) {
    tinted as what varies, with a dotted rule under them that says a press changes them. */
 .mp-body > button.mp-slot {
   display: inline;
+  /* A word of the bubble: the touch floor's 44px stood its line apart from the next. */
+  min-height: 0;
   padding: 0 2px;
   font: inherit;
   color: inherit;
@@ -4067,54 +4126,70 @@ section:has(> .tpl-composer:not(.is-translate)) {
 .cm-reach-by {
   margin-top: var(--space-1);
 }
-/* Send by (parts/send-by.tsx): a switch beside its word for each channel, in one row that wraps. A channel that is closed
-   to this message says so in its word's ink, and why in the kit's tooltip. */
+/* Send by (parts/send-by.tsx; Ruben, 11 Oct 2026, where three switches and their reasons took a row and three lines): a
+   small capsule for each channel with its dot and its word, as the home draws a campaign's channels (.cmh-chan), in one
+   row that wraps. On, the dot is filled in the channel's colour and the word is the ink's; off, hollow and quieter; closed
+   to this message, fainter still. A finger keeps 44px round each (the touch floor's height is its press, not its size).
+   Under the row, the reason of the one last pressed. */
 .cm-via {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2) var(--space-5);
+  gap: 6px;
   min-width: 0;
 }
-.cm-via-one {
+.cm-via .cm-via-one {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-}
-.cm-via-word {
-  font-size: var(--text-sm);
+  min-height: 0;
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
   color: var(--ink-muted);
+  text-decoration: none;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
-.cm-via-word[data-fixed="true"] {
+.cm-via .cm-via-one[data-on="true"] {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+.cm-via .cm-via-one[data-fixed="true"][data-on="false"] {
   color: var(--ink-faint);
 }
-/* A channel a playbook keeps that cannot send yet is on and live, where one that cannot be turned on is dimmed: its word is
-   underlined as a thing with a reason to read, in the tooltip and to a screen reader. */
-.cm-via-word[data-waiting="true"] {
-  text-decoration: underline dotted;
-  text-underline-offset: 3px;
+@media (hover: hover) {
+  .cm-via .cm-via-one:hover {
+    border-color: var(--line-strong);
+  }
 }
-/* Why a channel is closed, as a line under the row where there is no pointer: the kit's tooltip never shows to a finger. A
-   screen reader has the same words as each switch's description, so the line is hidden from it. */
-.cm-via-whys {
-  display: none;
+@media (pointer: coarse) {
+  .cm-via .cm-via-one::after {
+    content: "";
+    position: absolute;
+    inset: -8px -3px;
+  }
+}
+.cm-via .cm-via-one .cmh-chan {
+  color: inherit;
+}
+.cm-via-why {
   flex-basis: 100%;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  margin: 2px 0 0;
   font-size: var(--text-xs);
   line-height: var(--leading-snug);
   color: var(--ink-dim);
+  text-wrap: pretty;
+}
+.cm-via-why[hidden] {
+  display: none;
 }
 .cm-via-why-word {
   color: var(--ink-muted);
-}
-@media (hover: none) {
-  .cm-via-whys {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-  }
 }
 /* Where the workspace can send on nothing, the row says so once under its switches (parts/send-by.tsx `standing`): the
    row's whole width, in the quiet size, for a pointer and a thumb alike, since its words are the doors that mend it. */
@@ -4531,6 +4606,11 @@ html.legacy-on .cm-pane-sub .bc-run-link {
 }
 .tpl-channels {
   flex: none;
+}
+/* Where the language in view stands on each channel: one quiet line from the left, under the bar it reads with. */
+.tpl-standing {
+  align-self: flex-start;
+  margin: 0;
 }
 /* An email's or a text's version in view: the preview with its menu beside it, the question under, and what a message with
    none says. The preview rides the kit's inset, which it only places. */
@@ -5704,6 +5784,121 @@ div.tpl-slotbox:not([data-lines="1"]) {
 .cmh-meta > .cmh-failed {
   margin: 0;
 }
+/* The Moments head on a phone (Ruben, 11 Oct 2026, where five lines said who can hear you and what cannot send): how many
+   moments are on at the name's end in the dim ink, as each moment's own count is drawn; who can hear you on one line;
+   the channels as a chip each with one Set up; and, where nothing can send, one card in the reach line's place. */
+.cmh-spine-block > .cmh-block-head {
+  justify-content: space-between;
+}
+.cmh-spine-block > .cmh-block-head > .cmh-dim {
+  font-size: var(--text-sm);
+}
+.cmh-meta {
+  gap: var(--space-2);
+}
+/* Where nobody has said yes to offers, the amber words are the door to how it is got. */
+.cmh .cmh-offers-door {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--warn-ink);
+  text-decoration: none;
+}
+/* The channels: a chip each in the marks' own look (the dot in the channel's colour, hollow where it is not set up), one
+   Set up at the row's end, and a pressed chip's reason on the line under them. */
+.cmh-head-chans {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.cmh .cmh-head-chans > .cmh-chans {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+}
+.cmh .cmh-head-chan {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--ink-muted);
+  text-decoration: none;
+}
+.cmh .cmh-head-chan[data-closed="true"] {
+  color: var(--ink-dim);
+}
+.cmh .cmh-head-chan[aria-expanded="true"] {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+@media (pointer: coarse) {
+  .cmh .cmh-head-chan {
+    position: relative;
+  }
+  .cmh .cmh-head-chan::after {
+    content: "";
+    position: absolute;
+    inset: -8px -3px;
+  }
+}
+.cmh .cmh-head-setup {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  font-size: var(--text-sm);
+  color: var(--ink);
+  text-decoration: none;
+}
+.cmh-chan-why {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.cmh-chan-why[hidden] {
+  display: none;
+}
+/* At the rail's head on a desk: the chips at the right of the count, a pressed chip's reason under them, at the right. */
+.cmh-rail-block > .cmh-block-head > .cmh-head-chans {
+  flex: 1 1 auto;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+.cmh-rail-block > .cmh-block-head > .cmh-head-chans > .cmh-chan-why {
+  text-align: right;
+}
+.cmh .cmh-rail-block > .cmh-block-head > .cmh-head-chans > .cmh-head-setup {
+  margin-left: var(--space-1);
+}
+/* Nothing can send: one quiet card, its line and its one door, over the chips that say which are not set up. */
+.cmh-none {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-lg);
+}
+.cmh-none-title {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+.cmh-none-body {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
 /* The door to how the yes to offers is got: a thumb's height to press, and a line's height in the head (its box reaches
    into the gaps over and under it, where nothing else is pressed). */
 .cmh-meta-yes {
@@ -5763,36 +5958,77 @@ div.tpl-slotbox:not([data-lines="1"]) {
 .cmh-spine {
   padding: var(--space-1) 0 var(--space-2);
 }
-/* A moment's head on the phone: its node, its caps, its figure or its words, and at its end a state or a door. The end
-   stands on the head's line where it fits and takes a line of its own, at the right, where it does not (seen on the rig
-   at 375px, 10 Oct: Reach-outs' "Find businesses to write to" left "No campaign yet" 33px, its words running into the
-   door), so the words between keep one line. */
+/* A moment's head on the phone (Ruben, 11 Oct 2026: the list made calmer): its node, its name in the sentence's own case
+   with how many beside it in the dim ink, and a state at the end where the node does not say it. A label, never a press:
+   an empty moment's campaign is a row of its own under it (ledger-phone.tsx PhoneOffered). */
 .cmh-spine-head {
   position: relative;
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 2px var(--space-2);
+  column-gap: var(--space-2);
   min-height: 44px;
   padding: var(--space-2) var(--space-3);
 }
-.cmh-spine-head > * {
-  flex: none;
-}
-.cmh-spine-head > :nth-child(3) {
-  flex: 1 1 auto;
-  min-width: 0;
-  white-space: nowrap;
-}
-.cmh-spine-head > :last-child {
-  margin-left: auto;
-}
 .cmh-spine-head > .cmh-node {
+  grid-column: 1;
+  grid-row: 1;
   width: 28px;
   height: 28px;
 }
-.cmh-spine-head > .cmh-figure {
-  font-size: var(--text-lg);
+.cmh-spine-title {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.cmh-spine-title > .cmh-group-caps {
+  min-width: 0;
+  overflow: hidden;
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--ink-muted);
+}
+.cmh-spine-title > .cmh-figure {
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+  letter-spacing: normal;
+  color: var(--ink-dim);
+}
+.cmh-spine-title > .cmh-dim {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+/* A row's end on a phone: its state and the chevron that says it opens something, every row's. */
+.cmh-row-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.cmh-row-end > svg {
+  flex: none;
+  color: var(--ink-faint);
+}
+/* A row's name that acts in place (an offered campaign's Turn on) is a button, which the touch floor makes a thumb tall:
+   the whole row is the press (cmRowPress), so its name keeps the line's height, as a name that is a link does. */
+.cmh .cmh-phone-row .cmh-row-name {
+  min-height: 0;
+  height: auto;
+}
+/* What an offered campaign needs first, leading its line in the needs-you amber. */
+.cmh-offered-needs {
+  color: var(--warn-ink);
 }
 /* The line down the left, through a moment's head and its rows, solid where the moment is on (the section's own
    data-on, which LedgerPhone writes: no :has() over its head), dashed where it is not; a group off the line draws none. */
@@ -5807,19 +6043,27 @@ div.tpl-slotbox:not([data-lines="1"]) {
   left: calc(var(--space-3) + 13px);
   border-left: 2px dashed var(--line-strong);
 }
+/* Solid where the moment is on, in the faint ink rather than the ink: a white rule down the page was the loudest thing on
+   it, louder than the campaigns it ran past. */
 .cmh-group[data-on="true"]::before {
   border-left-style: solid;
-  border-left-color: var(--ink);
+  border-left-color: var(--ink-faint);
 }
+/* A row's words start under its moment's name (the head's padding, its node and the gap after it), with no glyph of its
+   own beside them (ListRow `bare`): the line down the left is what the rows have in common. */
 .cmh-phone-row {
   position: relative;
-  padding-left: calc(var(--space-3) + 28px);
+  padding-left: calc(28px + var(--space-2));
+}
+.cmh-phone-line {
+  --row-pad-x: var(--space-3);
 }
 /* A row brought into view (ledger-keys.ts) stops under the strip where the strip sticks, never beneath it. */
 .cmh-spine[data-tools="true"] .cmh-phone-row {
   scroll-margin-top: var(--cmh-phone-strip-h);
 }
-.cmh-phone-row + .cmh-phone-row {
+/* Between two rows, a hairline from where their words start: it ran under the moment's line too, and cut it. */
+.cmh-phone-row + .cmh-phone-row > .cmh-phone-line {
   border-top: 1px solid var(--line);
 }
 .cmh-phone-row[data-opens="true"] > .cmh-phone-line {
@@ -5912,15 +6156,26 @@ div.tpl-slotbox:not([data-lines="1"]) {
     display: none;
   }
 }
-/* The first day's "Set up my campaigns" on a phone (home/ask-on-campaigns.tsx SetUpAsk): under the hinted moment's head, at
-   the list's width past its line, as a row's acts stand under it; legacy.css's touch floor (`html.legacy-on .btn` under
-   a coarse pointer) gives it its 44px. */
-.cmh-first-ask-row {
+/* The first day's door on a phone (home/ask-on-campaigns.tsx SetUpAsk): once, at the top of the list, a line of its own
+   in a hairline's box with its chevron at the end (Ruben, 11 Oct 2026: under the hinted moment it read as that moment's);
+   legacy.css's touch floor gives it its 44px. */
+.cmh-first-ask-top {
   display: flex;
-  padding: 0 var(--space-3) var(--space-2) calc(var(--space-3) + 28px);
+  padding: var(--space-1) var(--space-3) var(--space-2);
 }
-.cmh-first-ask-row > .cmh-first-ask {
+.cmh .cmh-first-ask-top > .cmh-first-ask {
   flex: 1 1 auto;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding-inline: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  text-align: left;
+}
+.cmh .cmh-first-ask-top > .cmh-first-ask > :last-child {
+  margin-left: auto;
+  color: var(--ink-faint);
 }
 
 /* A moment and the composer, in the kit's sheet from the side (home/pane-sheet.tsx). The pane is the page's own CmPane and
@@ -5963,6 +6218,31 @@ div.tpl-slotbox:not([data-lines="1"]) {
 .cmh-host-body > .bc-pane > .cm-pane-head {
   display: none;
 }
+/* A composer in the sheet: its rows start under its name, a little closer than a page's. */
+.cmh-host-body .pb-compose {
+  padding: 0 0 var(--space-2);
+}
+.cmh-host-body .pb-grow {
+  padding: var(--space-3) 0;
+}
+/* Under the sheet's kicker (pane-sheet.tsx) the pane's head is the sheet's one head: close under the kicker's line, its
+   name a step under a page's, its line under it; on a phone no capsule's margins round it, and the body starts at the
+   sheet's own gutter. */
+.cmh-host-body > .cm-pane > .cm-pane-head {
+  padding: 2px 14px 14px 22px;
+}
+.cmh-host-body > .cm-pane > .cm-pane-head .cm-pane-title {
+  font-size: var(--text-lg);
+}
+@media (max-width: 900px) {
+  .cmh-host-body > .cm-pane > .cm-pane-head {
+    margin: 0;
+    padding: 0 8px 12px 16px;
+  }
+  .cmh-host-body > .cm-pane > .cm-pane-body {
+    padding: 0 16px 16px;
+  }
+}
 /* On a phone the sheet takes its full height and the pane fills what the head and the strip leave, so the pane's body
    is the one thing that scrolls and its foot stands at the bottom. A height of its own (70dvh) was taller than that
    room: the foot, with Send or Start in it, lay under the screen's edge until the sheet itself was scrolled. */
@@ -5970,6 +6250,11 @@ div.tpl-slotbox:not([data-lines="1"]) {
   .cmh-host.cmh-host {
     height: calc(82vh - var(--kb, 0px));
     height: calc(82dvh - var(--kb, 0px));
+  }
+  /* A pane with no foot (a message open by itself) is as tall as what it holds, up to the same height: a short message
+     stood over a screen of blank. */
+  .cmh-host-fit.cmh-host-fit {
+    height: auto;
   }
 }
 

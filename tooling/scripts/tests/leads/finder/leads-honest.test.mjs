@@ -1510,44 +1510,38 @@ test("on a phone the first day draws no bar, its ideas are rows with a door's ma
   );
 });
 
-test("on a phone Leads' act is Import leads, on the row of views, its first word kept where the row is short", async () => {
-  // A phone's Leads had no way to bring a list in but the Lists sheet's last row. Find leads is Ask's circle there,
-  // which stands over every page (spec F1), so the head holds the door that adds: as People's and the Pipeline's do.
+test("on a phone Leads' act is New search, and Import leads is a word on the row of views", async () => {
+  // A phone's head holds the coral act every page has: here New search, the first day's question over the leads
+  // (Ruben, 10 Oct 2026). The door that brings a list in stands on the row of views with Select and Sort, in a word.
   await fresh();
   globalThis.__phone = true;
-  let tree = draw();
-  const said = standingSaid();
-  assert.equal(said?.title, "People");
-  const act = byTestId(said.act, "leads-import-open");
-  assert.ok(act, "the head holds Import leads");
-  assert.equal(textOf(act), "Import leads", "in the rail's own words for the same door");
-  const part = (name) => find(act, (n) => n.props?.className === name);
-  assert.equal(textOf(part("pg-act-keep")), "Import", "the first word is kept with the mark");
-  assert.equal(textOf(part("pg-act-rest")), " leads", "the rest follows, and gives way beside three scopes");
-  assert.equal(byTestId(said.act, "leads-find"), null, "one act in the head: Find leads is Ask's on a phone");
-  assert.equal(
-    find(tree, (n) => n.type === LeadImportSheet),
-    null,
-    "nothing is open yet",
-  );
-  act.props.onClick();
-  tree = draw();
-  assert.ok(
-    find(tree, (n) => n.type === LeadImportSheet),
-    "the press opens the import sheet",
-  );
-  // A role that may not find may not import: the act says why at the button, as the rail's door does.
-  await fresh({ role: "operator" });
-  globalThis.__phone = true;
-  draw();
-  const gated = byTestId(standingSaid().act, "leads-import-open");
-  assert.equal(gated.props["aria-disabled"], true);
-  assert.match(String(gated.props["aria-description"]), /import leads/);
+  try {
+    let tree = draw();
+    const said = standingSaid();
+    assert.equal(said?.title, "People");
+    const act = byTestId(said.act, "leads-new-search-act");
+    assert.ok(act, "the head holds New search");
+    assert.equal(textOf(act).trim(), "New search");
+    assert.equal(byTestId(said.act, "leads-import-open"), null, "Import leads is the row's, not the head's");
+    assert.equal(byTestId(said.act, "leads-find"), null, "one act in the head: Find leads is Ask's on a phone");
+    const bar = byTestId(tree, "leads-phone-bar");
+    const word = byTestId(bar, "leads-phone-import");
+    assert.equal(textOf(word).trim(), "Import", "the row's word for the same door");
+    assert.equal(
+      find(tree, (n) => n.type === LeadImportSheet),
+      null,
+      "nothing is open yet",
+    );
+    click(word);
+    tree = draw();
+    assert.ok(
+      find(tree, (n) => n.type === LeadImportSheet),
+      "the press opens the import sheet",
+    );
+  } finally {
+    globalThis.__phone = false;
+  }
 });
-
-// D3: Needs review is a queue. Its head is one chip per thing that would resolve the leads in it; a chip selects
-// them; the bar offers what resolves that selection and nothing else. Every resolver's door is the surface's own
-// (bulkLeads, checkLeadsAgain), so the bench never offers what the door cannot do.
 test("Needs review is a workbench: the pile in the order to work it, the group's own leads as cards, one press per group, and what each press costs", async () => {
   await fresh();
   let tree = draw({ leadsRoute: `leads:s-${SEARCH_A}:c-review` });
@@ -3035,18 +3029,28 @@ test("a pile of leads with no address, or one that bounces, is offered Keep and 
   }
 });
 
-test("REGRESSION: on a phone Leads' selection is one row -- ✕, the count, Mark contacted, ⋯ -- and Not a fit asks its five whys in the sheet; the why list was the peek's, drawn full screen", async () => {
+test("REGRESSION: on a phone Leads' selection is the dock -- Clear, Contacted, Not a fit, More -- and Not a fit asks its five whys in the sheet; the why list was the peek's, drawn full screen", async () => {
   await fresh();
   globalThis.__phone = true;
   try {
     byTestId(draw(), "select-all").props.onChange();
     let tree = draw();
     const bar = byTestId(tree, "leads-bulk-bar");
-    assert.ok(String(bar.props.className).split(/\s+/).includes("pp-bulk"), "the phone's row");
+    assert.ok(String(bar.props.className).split(/\s+/).includes("pp-bulk"), "the phone's dock");
+    assert.equal(bar.props["aria-label"], "5 leads selected", "the count is the toolbar's name (Ruben, 10 Oct 2026)");
+    // Each act once: the kit's Button is walked as the element it was given and as what it drew.
     assert.deepEqual(
-      bar.props.children.filter(Boolean).map((k) => k.props?.["data-testid"] || k.props?.className),
-      ["leads-bulk-clear", "cl-bulk-count", "leads-bulk-contacted", "leads-bulk-more"],
-      "four things, in one row",
+      [
+        ...new Set(
+          all(bar, (n) =>
+            String(n.props?.className || "")
+              .split(/\s+/)
+              .includes("pp-bulk-act"),
+          ).map((n) => n.props["data-testid"]),
+        ),
+      ],
+      ["leads-bulk-clear", "leads-bulk-contacted", "leads-bulk-not-a-fit", "leads-bulk-more"],
+      "four acts, each a glyph over its word, Clear first",
     );
     assert.equal(byTestId(bar, "leads-bulk-copy"), null, "the rest are the sheet's");
     click(byTestId(tree, "leads-bulk-more"));
@@ -3062,19 +3066,16 @@ test("REGRESSION: on a phone Leads' selection is one row -- ✕, the count, Mark
           .includes("pp-sheet-row"),
     ).map((n) => n.props["data-testid"]);
     // Write to them (Reach out Part 7, lists.tsx) stands beside Copy emails: the page imports it, so the sheet draws it.
-    assert.deepEqual(rows, [
-      "leads-select-matching",
-      "leads-bulk-copy",
-      "leads-bulk-write",
-      "leads-bulk-not-a-fit",
-      "leads-bulk-export",
-    ]);
-    click(byTestId(sheet, "leads-bulk-not-a-fit"));
+    // Not a fit is the dock's own now, so More holds what is left.
+    assert.deepEqual(rows, ["leads-select-matching", "leads-bulk-copy", "leads-bulk-write", "leads-bulk-export"]);
+    sheet.props.onClose();
+    tree = draw();
+    click(byTestId(tree, "leads-bulk-not-a-fit"));
     tree = draw();
     assert.equal(byTestId(tree, "peek-why"), null, "REGRESSION: the peek's own list, which a phone draws full screen");
     const whys = openSheet(tree, "leads-bulk-why");
     assert.ok(whys, "the five whys, as the sheet's step");
-    assert.ok(whys.props.back, "with a way back to the list");
+    assert.equal(whys.props.back, null, "the dock's own step walks back to nothing");
     click(byTestId(whys, "leads-bulk-why-chain"));
     await settle();
     // bulkNotAFit sends LeadsBulkSchema's body, which carries no reason: the ids shown and selected.
@@ -3380,7 +3381,7 @@ test("REGRESSION: on a phone a lead's row is People's row -- one cell of the fac
     rowOf(tree, "l2").props.onClick();
     tree = draw();
     assert.equal(peeks.length, before, "a tap while selecting does not open the lead");
-    assert.match(textOf(byTestId(tree, "leads-bulk-bar")), /2 selected/, "it selects it");
+    assert.equal(byTestId(tree, "leads-bulk-bar").props["aria-label"], "2 leads selected", "it selects it");
   } finally {
     globalThis.__phone = false;
   }
@@ -3474,26 +3475,27 @@ test("where deals are on, a phone's bar still holds no switch (the frame's strip
   assert.ok(byTestId(t, "leads-bar-find"), "and the door to Ask is still the bar's last control");
 });
 
-test("the plan panel's sheet is the page's own dialog and registers no listener of its own", async () => {
+test("the plan panel's sheet on a phone is the kit's Sheet in a job's shape: a title, Cancel, and a word's choices with their way back", async () => {
+  // It was a dialog of the page's own, with the page's listener owning Esc; the kit's Sheet (Base UI's) owns its own,
+  // as every phone sheet does (Ruben, 10 Oct 2026).
   await fresh();
   cells = [];
-  frames.begin();
-  const before = frames.called();
   const t = LeadPlanSheet({
+    open: true,
+    title: "New search",
     onClose() {},
     children: globalThis.React.createElement("div", { "data-testid": "the-plan" }, "The plan"),
   });
-  assert.equal(
-    frames.called(),
-    before,
-    "hookless: the page's listener owns Esc, and a second one would take the key twice",
+  assert.equal(t.type, Sheet, "the kit's Sheet");
+  assert.deepEqual(
+    [t.props.shape, t.props.testid, t.props.title, t.props.close, t.props.back],
+    ["job", "lead-plan-sheet", "New search", { word: "Cancel" }, null],
+    "a job's shape, named, closed by a word, with no way back of its own",
   );
-  const sheet = byTestId(t, "lead-plan-sheet");
-  assert.equal(sheet.props.role, "dialog");
-  assert.ok(sheet.props.className.includes("pl-plan"), "PL_OVERLAY names .pl-plan as the page's own");
-  assert.ok(byTestId(t, "the-plan"), "the panel the page put in it is drawn under its handle");
+  const picking = LeadPlanSheet({ open: true, title: "How many", back: { onBack() {} }, onClose() {} });
+  assert.ok(picking.props.back, "a word's picker brings its way back to the plan");
+  assert.ok(byTestId(t, "the-plan"), "the panel the page put in it is drawn under its title");
 });
-
 test("at a phone's width the page draws the bar instead of the rail and the controls, and nothing else above the rows", async () => {
   await fresh();
   globalThis.__phone = true;
@@ -3963,12 +3965,9 @@ test("D5: the same leads, on the ground — a pin per lead the source placed, th
     "how wide the square is, in the owner's own unit",
   );
   assert.equal(byTestId(map, "lead-map-ring"), null, "this search named a city and no centre yet, so no area is drawn");
-  // One search is open and its plan never measured a centre, so there is no ring: the line says that, instead of
-  // "these searches", which was the wording for a mixed list and read as though several were on screen.
-  assert.equal(
-    textOf(byTestId(map, "lead-map-note")),
-    "Where this search's leads are. It never measured a centre, so there is no area to draw.",
-  );
+  // One search is open and its plan never measured a centre, so there is no ring: the leads are the picture, and no
+  // line says so (Ruben, 10 Oct 2026); the line that said "these searches" read as though several were on screen.
+  assert.equal(byTestId(map, "lead-map-note"), null);
   assert.equal(byTestId(map, "lead-map-toowide"), null, "one city's leads are one place, so the square is drawn");
   assert.equal(
     all(map, (n) => n.props?.["data-testid"] === "lead-map-row").length,
@@ -4441,7 +4440,7 @@ test("at a phone's width Needs review is rows in groups: the group's acts on its
   }
 });
 
-test("at a phone's width the bar's switch says list or map, and the leads under the map are the list's own rows", async () => {
+test("at a phone's width the bar's switch is one word, the view it opens, and the leads under the map are the list's own rows", async () => {
   // 25 Sep: the pin read as a hammer and said neither which view this was nor what it opened; under the map stood a
   // boxed list of its own (numbered rows, square tiles) that looked like no other list.
   await fresh();
@@ -4449,9 +4448,14 @@ test("at a phone's width the bar's switch says list or map, and the leads under 
   try {
     let tree = draw({ leadsRoute: `leads:s-${SEARCH_A}` });
     const bar = byTestId(tree, "leads-phone-bar");
-    assert.equal(byTestId(bar, "leads-list-toggle").props["aria-pressed"], true, "the list is the view shown");
-    assert.equal(byTestId(bar, "leads-map-toggle").props["aria-pressed"], false);
-    click(byTestId(bar, "leads-map-toggle"));
+    const sw = byTestId(bar, "leads-view-switch");
+    assert.equal(
+      textOf(sw).trim(),
+      "Map",
+      "one word, the view it opens: the list is the view shown (Ruben, 10 Oct 2026)",
+    );
+    assert.equal(sw.props["aria-label"], "Show the map");
+    click(sw);
     tree = draw({ leadsRoute: `leads:s-${SEARCH_A}` });
     const map = byTestId(tree, "lead-map");
     assert.ok(map);
@@ -4462,8 +4466,8 @@ test("at a phone's width the bar's switch says list or map, and the leads under 
       "the list's rows under it",
     );
     assert.ok(byTestId(map, "lead-map-count"), "how many are on it, in a line under the map");
-    assert.equal(byTestId(byTestId(tree, "leads-phone-bar"), "leads-map-toggle").props["aria-pressed"], true);
-    click(byTestId(byTestId(tree, "leads-phone-bar"), "leads-list-toggle"));
+    assert.equal(textOf(byTestId(byTestId(tree, "leads-phone-bar"), "leads-view-switch")).trim(), "List");
+    click(byTestId(byTestId(tree, "leads-phone-bar"), "leads-view-switch"));
     tree = draw({ leadsRoute: `leads:s-${SEARCH_A}` });
     assert.equal(byTestId(tree, "lead-map"), null, "and the list again");
   } finally {
@@ -4494,19 +4498,19 @@ test("at a phone's width a list picked in the Lists sheet opens and the sheet cl
   }
 });
 
-test("at a phone's width the bar has the map's pin where the rows have places, and it opens the map where the rows were", async () => {
+test("at a phone's width the bar has the Map word where the rows have places, and it opens the map where the rows were", async () => {
   await fresh();
   globalThis.__phone = true;
   try {
     let tree = draw({ leadsRoute: `leads:s-${SEARCH_A}` });
-    const pin = byTestId(byTestId(tree, "leads-phone-bar"), "leads-map-toggle");
-    assert.ok(pin, "the pin in the bar");
-    assert.equal(pin.props["aria-pressed"], false);
+    const pin = byTestId(byTestId(tree, "leads-phone-bar"), "leads-view-switch");
+    assert.ok(pin, "the word in the bar");
+    assert.equal(textOf(pin).trim(), "Map");
     assert.equal(byTestId(tree, "lead-map"), null, "the rows first");
     click(pin);
     tree = draw({ leadsRoute: `leads:s-${SEARCH_A}` });
     assert.ok(byTestId(tree, "lead-map"), "the map where the rows were");
-    assert.equal(byTestId(byTestId(tree, "leads-phone-bar"), "leads-map-toggle").props["aria-pressed"], true);
+    assert.equal(textOf(byTestId(byTestId(tree, "leads-phone-bar"), "leads-view-switch")).trim(), "List");
     assert.equal(all(tree, (n) => n.props?.className === "cl-controls").length, 0, "still no controls row");
   } finally {
     globalThis.__phone = false;

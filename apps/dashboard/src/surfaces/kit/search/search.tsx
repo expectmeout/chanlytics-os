@@ -4,13 +4,14 @@
  * now wears too (10 Oct 2026): a 38px capsule on an inset's fill, its glyph 15px and its words in the dim ink.
  *
  * On a phone (the kit's 900px) it rests: the capsule is a button saying what it finds, at the page's size; a press opens
- * the field -- 16px, so a phone never zooms into it -- with Cancel beside it, which empties it and rests it again. Words
- * in the box keep it open. On a desk it never rests: the field is drawn, at the page's size, and there is no Cancel.
+ * the field in the same capsule, where it stood, its words at the same size and ink -- typed at 16px, so a phone never
+ * zooms into it, and drawn at the page's (Ruben, 10 Oct 2026: the field had moved 3px, lost 61px to a Cancel beside it
+ * and changed its words' size). No Cancel: from the first word typed the clear (×) stands in its end, and a field left
+ * empty rests again as focus leaves it. Words in the box keep it open. On a desk it never rests: the field is drawn, at the page's size, and there is no Cancel.
  * `rests` says which, where the page knows (People's bar is a phone's only); left out, the window's width says.
  *
  * Hookless but for the width: whether it is open is the page's (`open`), so the page's one keyboard listener can open
- * it on /. `testid` names the field; the capsule at rest, the clear and Cancel are `-open`, `-clear` and `-cancel` on
- * it. `className` is for the page's layout (where it stands and the room round it), and comes last.
+ * it on /. `testid` names the field; the capsule at rest and the clear are `-open` and `-clear` on it. `className` is for the page's layout (where it stands and the room round it), and comes last.
  */
 import { useEffect, useState, type RefObject } from "react";
 import { editorBox, focusAsDrawn } from "../../legacy-verbs";
@@ -82,22 +83,27 @@ export function Search({
     );
   }
   return (
-    <div className={cx("search", className)} {...(resting ? editorBox : {})}>
+    <div className={cx("search", className)} data-rests={resting ? "" : undefined} {...(resting ? editorBox : {})}>
       <label className="search-box">
         <Icon name="search" size={15} />
-        <input
-          ref={inputRef}
-          type="search"
-          inputMode="search"
-          enterKeyHint="search"
-          autoComplete="off"
-          autoFocus={resting && open && focusAsDrawn()}
-          value={value}
-          placeholder={label}
-          aria-label={label}
-          onChange={(e) => onChange(e.target.value)}
-          data-testid={testid}
-        />
+        <span className="search-field">
+          <input
+            ref={inputRef}
+            type="search"
+            inputMode="search"
+            enterKeyHint="search"
+            autoComplete="off"
+            autoFocus={resting && open && focusAsDrawn()}
+            value={value}
+            placeholder={label}
+            aria-label={label}
+            onChange={(e) => onChange(e.target.value)}
+            onBlur={() => {
+              if (resting && !value) onOpen(false);
+            }}
+            data-testid={testid}
+          />
+        </span>
         {value ? (
           <button
             type="button"
@@ -113,19 +119,6 @@ export function Search({
           </button>
         ) : null}
       </label>
-      {resting ? (
-        <button
-          type="button"
-          className="search-cancel"
-          onClick={() => {
-            onChange("");
-            onOpen(false);
-          }}
-          data-testid={`${testid}-cancel`}
-        >
-          Cancel
-        </button>
-      ) : null}
     </div>
   );
 }

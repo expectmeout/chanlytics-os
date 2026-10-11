@@ -158,10 +158,11 @@ function bcColWho(v: BcV) {
           testid="bc-lists-failed"
         />
       )}
-      {/* Where the send goes by more than WhatsApp alone the bar is who it reaches on which channel, its words on hover. */}
+      {/* Where the send goes by more than WhatsApp alone the bar is who it reaches on which channel, its words on hover. Where
+          it reaches nobody the sentence under the line says so, and a bar of all amber said it louder a second time. */}
       {sample && reachBy && sample.split ? (
         <CmSplitBar split={sample.split} className="bc-to-bar" testid="bc-reach-bar" />
-      ) : sample ? (
+      ) : sample && activeCount > 0 ? (
         <BcReachBar sending={activeCount} held={sample.held} />
       ) : null}
       {bcBlockers(v)}
@@ -405,14 +406,18 @@ function bcColVia({ ticks, on, setChannels, data }: BcV) {
 }
 
 // When: now, or a day and a time by the business's clock, what that means, and the number it goes from -- where the send
-// goes by WhatsApp, the only channel that has one, or would but for the number, which is then what says why. Never under a
-// message with no WhatsApp version: the tick stays ticked when the message is changed to one, and the number is nothing to
-// it there.
+// goes by WhatsApp, the only channel that has one, or would but for the number, which is then what says why. What WhatsApp
+// says of the number (its rating, its daily limit) is said only where it stops or slows the send: "Number quality not
+// reported yet · daily limit not reported yet" under every send was a line nobody acts on (Ruben, 11 Oct 2026). Never under
+// a message with no WhatsApp version: the tick stays ticked when the message is changed to one, and the number is nothing
+// to it there.
 function bcColWhen({ whenAt, maxDays, setWhenAt, whenNote, number, channels, tpl, data }: BcV) {
   const byWhatsApp = channels.includes("whatsapp") && messageHolds(tpl?.message ?? CM_NO_MESSAGE_YET).whatsapp;
   // Where nothing can send at all and there is no number, the Send by row has just said so, its door beside it: the
   // number's line here would be the same sentence a second time.
   const saidAbove = !!number && !number.present && cmNothingOpen(data.ready) !== null;
+  const troubled =
+    !!number && (!number.health.canSend || number.health.tone === "warn" || number.health.tone === "danger");
   return (
     <div className="bc-col" data-testid="bc-col-when">
       <span className="bc-col-label">When</span>
@@ -426,7 +431,13 @@ function bcColWhen({ whenAt, maxDays, setWhenAt, whenNote, number, channels, tpl
       {number && byWhatsApp && !saidAbove && (
         <div className={`bc-number bc-number-${number.health.tone}`} data-testid="bc-number">
           <Icon name="chat" size={11} />
-          <span>{number.present ? `WhatsApp ${number.display || ""} · ${number.health.label}` : BC_SAYS.noNumber}</span>
+          <span>
+            {!number.present
+              ? BC_SAYS.noNumber
+              : troubled
+                ? `WhatsApp ${number.display || ""} · ${number.health.label}`
+                : `From WhatsApp ${number.display || ""}`}
+          </span>
         </div>
       )}
       {number && byWhatsApp && number.present && !number.health.canSend && (

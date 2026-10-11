@@ -162,6 +162,11 @@ let leadsLoaded: LeadsLoaded | null = null;
 let leadsChangeCount = 0;
 /** How long a held view is fresh without a change: a change Realtime missed (a dropped feed) is not kept past it. */
 const LEADS_HELD_FRESH_MS = 2 * MIN_MS;
+/**
+ * How a page waits for ideas another read is writing (00398): asked again after each of these, about ninety seconds in
+ * all, since a write may take the model's whole minute and its fallback's.
+ */
+const IDEAS_WAITS_MS = [5_000, 5_000, 5_000, 10_000, 10_000, 15_000, 20_000, 20_000];
 /** Whether a held view must be read again behind its paint. */
 const staleView = (l: LeadsLoaded): boolean =>
   l.asOfChange < leadsChangeCount || Date.now() - l.readAt > LEADS_HELD_FRESH_MS;
@@ -262,6 +267,8 @@ async function readPageOne(v: LeadsView): Promise<LeadsLoaded> {
     searches.searches.length === 0
       ? await leadRead<LeadSuggestionsDto>("GET lead-suggestions").catch(() => null)
       : (leadsLoaded?.suggestions ?? null);
+  // Another read is writing them this moment: asked again shortly, once this view is on screen.
+  if (suggestions && suggestions.pending) setTimeout(() => void readSuggestions(), IDEAS_WAITS_MS[0]);
   return {
     tz,
     view: v,
@@ -617,6 +624,10 @@ export async function checkLeadsAgain(ids: string[]) {
 export async function answerSearch(id: string, answer: "keep" | "include" | "stop", plan?: LeadSearchPlan) {
   return api()("POST lead-searches/[id]/answer", { params: { id }, body: { answer, ...(plan ? { plan } : {}) } });
 }
+/** A new search from an idea's plan (00398): the plan as the owner approved it, through the door Ask's card posts to. */
+export async function startSearch(plan: LeadSearchPlan) {
+  return api()("POST lead-searches", { body: plan, once: true });
+}
 export async function moreForSearch(id: string, purpose: "topup" | "renew", plan: LeadSearchPlan) {
   return api()("POST lead-searches/[id]/more", { params: { id }, body: { purpose, plan }, once: true });
 }
@@ -638,6 +649,23 @@ export async function renameSearch(id: string, name: string) {
 export async function removeSearch(id: string) {
   return leadCall<{ archived: number; kept: number }>("DELETE lead-searches/[id]", { params: { id } });
 }
+/**
+ * The ideas for a new search, read now: a phone's New search shows the first day's page over a workspace that has
+ * searched, whose first read never asked for them, and a business line saved asks for new ones (Ruben, 10 Oct 2026: the
+ * page said "Suggestions are not available right now" there, and kept the old ideas after a save). Laid on the view on
+ * screen; a failed read is the first day's own note. Ideas another read is writing this moment (`pending`, 00398) are
+ * asked for again after each of IDEAS_WAITS_MS, until they land or the waits run out.
+ */
+export async function readSuggestions(wait = 0): Promise<void> {
+  const suggestions = await leadRead<LeadSuggestionsDto>("GET lead-suggestions").catch(() => null);
+  if (!leadsLoaded) return;
+  leadsLoaded = { ...leadsLoaded, suggestions };
+  publishLeads();
+  window.dispatchEvent(new CustomEvent("surface:leads"));
+  const next = IDEAS_WAITS_MS[wait];
+  if (suggestions && suggestions.pending && next !== undefined) setTimeout(() => void readSuggestions(wait + 1), next);
+}
+
 export async function setBusinessLine(business_line: string) {
   return leadCall<{ business_line: string }>("PUT lead-suggestions", { body: { business_line } });
 }

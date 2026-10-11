@@ -44,6 +44,8 @@ export const LeadBand = ({
       el.style.setProperty("--mark-x", `${on ? on.offsetLeft : 0}px`);
       el.style.setProperty("--mark-w", `${on ? on.offsetWidth : 0}px`);
       el.classList.toggle("has-mark", !!on);
+      // The strip's stylesheet reads it as an attribute: a class named for the mark is the kit's word, not a page's.
+      el.toggleAttribute("data-marked", !!on);
     };
     place();
     if (typeof ResizeObserver === "undefined") return undefined;
@@ -73,6 +75,7 @@ export const LeadBand = ({
               onClick={() => onPick(cls === c.id ? null : c.id)}
               data-testid={`lead-class-${c.id}`}
             >
+              <span className={`ld-class-dot tone-${LEAD_BAND_TONE[c.id]}`} aria-hidden="true" />
               <span className="n">{c.count}</span> <span className="w">{ldBandWords(c)}</span>
             </button>
           ))}

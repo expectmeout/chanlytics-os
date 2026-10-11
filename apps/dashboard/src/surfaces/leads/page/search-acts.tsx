@@ -4,7 +4,13 @@
  * searched again or run again, each through its door, the toast saying what happened.
  */
 import type { ReactNode } from "react";
-import { leadSearchWords, leadsRoute, type LeadSearchDto, type LeadSearchPlan } from "@chanlytics/contracts";
+import {
+  leadSearchWords,
+  leadsRoute,
+  type LeadIdeaDto,
+  type LeadSearchDto,
+  type LeadSearchPlan,
+} from "@chanlytics/contracts";
 import { api } from "@/legacy-bridge/api";
 import { askAbout, openAsk, refusalToast } from "../../legacy-verbs";
 import type { Flash } from "../../people/types";
@@ -16,6 +22,7 @@ import {
   removeRoundLeads,
   removeSearch,
   renameSearch,
+  readSuggestions,
   setBusinessLine,
   type LeadsSurface,
 } from "../surface";
@@ -79,6 +86,7 @@ export const leadFinderActs = ({
     plan: (plan) => setFinder({ plan }),
     pick: (pick) => setFinder({ pick }),
     more: finder.more,
+    idea: !!finder.idea,
   };
   const finderAnswer = (words: string) => leadAnswerPlan(words, finderSet);
   const finderApprove = async (plan: LeadSearchPlan) => {
@@ -90,7 +98,9 @@ export const leadFinderActs = ({
     // receipt's "Leads shows it" was a promise the page had not kept. A top-up or an answer is on a search already open,
     // so it stays.
     const undo = r && r.ok ? (r.undo as { search_id?: string } | undefined) : undefined;
-    const started = undo && undo.search_id;
+    // An idea's search says its id in the door's answer, an Ask card's in its undo.
+    const data = r && r.ok ? (r.data as { search_id?: string } | undefined) : undefined;
+    const started = (undo && undo.search_id) || (data && data.search_id);
     if (started && !leadView.searchId) nav(leadsRoute({ searchId: started, list: "all", cls: null }));
     return r;
   };
@@ -105,7 +115,16 @@ export const leadFinderActs = ({
     };
     openFinder({ stage: "plan", words: how === "answer" ? "" : s.asked, proposal: null, plan, more });
   };
-  return { finderAnswer, finderApprove, searchAnswerOf, openFind, openPlanFor };
+  // An idea opens its plan as it is, a new search to approve (00398), its size no more than the month has left; Change
+  // what I asked is Ask, with the plan in words. One kept from before ideas were plans opens Ask with its words.
+  const openIdea = (idea: LeadIdeaDto, left: number | null) => {
+    const words = idea.ask || idea.words;
+    if (!idea.plan) return openFind(words);
+    const count = left && left < idea.plan.count ? left : idea.plan.count;
+    // The plan says it came from an idea (plan.from): the ideas' own measure of whether they are followed.
+    openFinder({ stage: "plan", words, proposal: null, plan: { ...idea.plan, count, from: "idea" }, more: null, idea });
+  };
+  return { finderAnswer, finderApprove, searchAnswerOf, openFind, openPlanFor, openIdea };
 };
 export type FinderActs = ReturnType<typeof leadFinderActs>;
 
@@ -212,6 +231,20 @@ export const leadSearchActs = (a: SearchActsArgs) => {
     }
     setLeadLine(null);
     plFlash({ msg: <>Saved. New suggestions from what you said.</> });
+    // The saved line clears the ideas on the server; read the new ones now, not at the next cold read.
+    void readSuggestions();
+  };
+  // New ideas from the same line (00399): the line saved again clears the ideas on the server, as a changed line does,
+  // and the read that follows writes others. The line is the one the page shows, so nothing of the owner's changes.
+  const newIdeas = async () => {
+    const line = leads.suggestions ? leads.suggestions.business_line.trim() : "";
+    if (!line) return;
+    const r = await setBusinessLine(line);
+    if (!r.ok) {
+      plFlash({ msg: <>{r.message || "New ideas could not be asked for. Try again in a moment."}</> });
+      return;
+    }
+    void readSuggestions();
   };
   // Find new ones runs the same plan again, and only places not already in your leads count (P3).
   const findNewOnes = (s: RailSearch) => {
@@ -238,6 +271,6 @@ export const leadSearchActs = (a: SearchActsArgs) => {
   const searchWordsFor = (id: string) => leadSearchWords(searchById(id), leads.tz);
   const exportHrefFor = (s: { id: string }) =>
     api().url("GET leads/export", { query: { search: s.id, list: "all", sort: "fit", dir: "asc" } });
-  return { ...keptSearchActs(a), saveBusinessLine, findNewOnes, searchAgain, searchWordsFor, exportHrefFor };
+  return { ...keptSearchActs(a), saveBusinessLine, newIdeas, findNewOnes, searchAgain, searchWordsFor, exportHrefFor };
 };
 export type SearchActs = ReturnType<typeof leadSearchActs>;

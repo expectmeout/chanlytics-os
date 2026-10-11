@@ -76,6 +76,7 @@ export {
   siteHost,
   isSiteRoot,
   stateCode,
+  leadKindKey,
 } from "./search/clean";
 export type { CleanedEmails } from "./search/clean";
 export {
@@ -145,9 +146,10 @@ export {
   leadQuestionMail,
   leadPlanLikely,
   leadPlanFacts,
+  leadPlanFactLine,
+  leadMonthPlanFacts,
   leadPlanAsk,
   LEAD_DRAFT_JSON_SCHEMA,
-  LEAD_SUGGEST_JSON_SCHEMA,
   leadQuestionTitle,
   LEAD_QUESTION_WAIT_LINE,
   leadQuestionRoute,
@@ -184,6 +186,7 @@ export {
   leadCheckAgainCents,
   LEAD_MAP_MAX_SPAN_M,
   leadMapAcross,
+  leadAreaFrom,
   leadBand,
   leadMarkSrc,
   toLeadRowVM,
@@ -206,8 +209,21 @@ export {
   BusinessLineSchema,
   ProposeLeadSearchSchema,
   LeadDraftAnswerSchema,
-  LeadSuggestAnswerSchema,
 } from "./lead-plan-schema";
+export {
+  LEAD_SUGGEST_RETRY_MS,
+  LEAD_IDEAS_SYSTEM,
+  ideaHistoryOf,
+  ideaBasisOf,
+  ideaPacket,
+  ideaPacketText,
+  ideaJsonSchema,
+  ideaPassed,
+  ideaPassedOf,
+} from "./lead-ideas";
+export type { IdeaHistory, IdeaSearch, IdeaPacket, IdeaPassed, IdeaLanguage } from "./lead-ideas";
+export { LeadIdeasAnswerSchema, ideaAsk, ideasFrom, ideasRead } from "./lead-ideas-read";
+export type { LeadIdeasAnswer, IdeaDropped } from "./lead-ideas-read";
 export type {
   LeadsQuery,
   LeadStageInput,
@@ -242,6 +258,7 @@ export type {
   LeadCounts,
   LeadMonthDto,
   LeadSuggestionsDto,
+  LeadIdeaDto,
   LeadPlanFacts,
   LeadReviewGroupId,
   LeadReviewAct,

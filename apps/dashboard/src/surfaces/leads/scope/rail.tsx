@@ -274,19 +274,23 @@ export const LeadsRailRows = (p: RailRowsProps) => {
           <div className="cl-rail-hint">No searches yet. Describe the businesses you want and Claude finds them.</div>
         )}
       </RailSection>
-      <div className="cl-rail-foot">
-        <button
-          type="button"
-          className="cl-rail-newseg"
-          onClick={onNew}
-          data-testid="leads-new-search"
-          {...(canFind ? {} : gate("find", "find leads"))}
-        >
-          <Icon name="plus" size={11} /> New search
-        </button>
-        {/* A list of your own (Reach out Part 7): a file of businesses, checked first, as a search. */}
-        {importDoor}
-      </div>
+      {/* A phone's sheet is the lists alone: New search is its head's act and Import its bar's word (Ruben, 10 Oct
+          2026), so the sheet's foot would say each again. */}
+      {compact ? null : (
+        <div className="cl-rail-foot">
+          <button
+            type="button"
+            className="cl-rail-newseg"
+            onClick={onNew}
+            data-testid="leads-new-search"
+            {...(canFind ? {} : gate("find", "find leads"))}
+          >
+            <Icon name="plus" size={11} /> New search
+          </button>
+          {/* A list of your own (Reach out Part 7): a file of businesses, checked first, as a search. */}
+          {importDoor}
+        </div>
+      )}
     </>
   );
 };

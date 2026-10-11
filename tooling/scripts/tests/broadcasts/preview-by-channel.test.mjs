@@ -24,7 +24,7 @@ import { pathToFileURL } from "node:url";
 import { transform } from "lightningcss";
 import * as contracts from "@chanlytics/contracts";
 import { ROOT } from "../_source.mjs";
-import { installLegacyReact, fresh, all, find, byTestId, textOf, press } from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, all, find, byTestId, textOf, press } from "../_legacy-react.mjs";
 
 installLegacyReact({
   location: {
@@ -424,7 +424,7 @@ test("the stepper walks the people and wraps, each press one step, and says its 
 
 /* ---------------------------------- why a channel is closed, to a finger ---------------------------------- */
 
-test("why a channel is closed is a line under the Send by row where there is no pointer -- the kit's tooltip never shows to a finger -- and each switch keeps the same words as its description", () => {
+test("why a channel is closed is said under the Send by row, one at a time, as its toggle is pressed -- the kit's tooltip never shows to a finger -- and each toggle keeps the same words as its description", () => {
   fresh();
   // The workspace sends on WhatsApp alone: WhatsApp is the one on (and stays on), text and email are closed, each for its own reason.
   const ready = contracts.channelsReady({
@@ -433,27 +433,35 @@ test("why a channel is closed is a line under the Send by row where there is no 
     email: { mailbox: false, domain: false },
   });
   const ticks = cmViaTicks(["whatsapp"], ready, { purpose: "conversational", about: "ours" }, false);
-  const tree = h(CmVia, { ticks, onTick() {}, testid: "bc-via" });
-  const whys = byTestId(tree, "bc-via-whys");
-  assert.deepEqual(
-    all(whys, (n) => n.type === "li").map((n) => [n.props["data-channel"], textOf(n)]),
-    ticks.map((t) => [t.channel, `${t.word} ${t.why}`]),
-    "a line for each channel that has a reason, under the row, with the channel's name before it",
-  );
   assert.deepEqual(
     ticks.map((t) => t.why !== null),
     [true, true, true],
     "(the one channel that is on says why it cannot be turned off, as the others say why they cannot be turned on)",
   );
-  assert.equal(whys.props["aria-hidden"], "true", "hidden from a screen reader, which has the words already");
-  // The screen reader's own copy is each switch's description, as it was.
+  const draw = () => again(() => h(CmVia, { ticks, onTick() {}, testid: "bc-via" }));
+  let tree = draw();
+  const whys = byTestId(tree, "bc-via-whys");
+  assert.equal(whys.props.hidden, true, "nothing said until one is pressed: three reasons stood under the row");
+  assert.equal(whys.props.role, "status", "said to a screen reader as it changes");
+  // Each pressed in turn says its own, the channel's name before it, in the one line.
+  for (const t of ticks) {
+    press(byTestId(draw(), `bc-via-${t.channel}`));
+    tree = draw();
+    assert.equal(textOf(byTestId(tree, "bc-via-whys")), `${t.word} ${t.why}`);
+  }
+  press(byTestId(tree, `bc-via-${ticks.at(-1).channel}`));
+  assert.equal(byTestId(draw(), "bc-via-whys").props.hidden, true, "pressed again, it is put away");
+  // The screen reader's own copy is each toggle's description, as each switch's was.
+  tree = draw();
   for (const t of ticks) {
     const one = byTestId(tree, `bc-via-${t.channel}`);
     const said = find(one, (n) => n.props?.className === "cm-sr");
     assert.equal(textOf(said), t.why);
-    assert.equal(find(one, (n) => n.props?.describedBy !== undefined).props.describedBy, said.props.id);
+    assert.equal(one.props["aria-describedby"], said.props.id);
+    assert.equal(one.props.role, "switch");
   }
-  // Nothing to say, no line: a row whose every channel is open and none is the last one on.
+  // Nothing to say: a row whose every channel is open and none is the last one on never shows the line.
+  fresh();
   const open = contracts.channelsReady({
     whatsapp: { canSend: true, refusal: null },
     textLine: { sms_state: "active", reg_mock: false },
@@ -464,25 +472,27 @@ test("why a channel is closed is a line under the Send by row where there is no 
     onTick() {},
     testid: "bc-via",
   });
-  assert.equal(byTestId(quiet, "bc-via-whys"), null);
+  assert.equal(byTestId(quiet, "bc-via-whys").props.hidden, true);
 });
 
-test("the line is drawn for a touch screen alone: hidden in the stylesheet, shown under (hover: none), in tokens", () => {
+test("the reason's line and the toggles are drawn in tokens: the line in the quiet size and ink, put away while it says nothing; each toggle a capsule a finger finds 44px round", () => {
   const file = "apps/dashboard/src/surfaces/campaigns/campaigns.css";
   const css = transform({
     filename: file,
     code: fs.readFileSync(path.join(ROOT, file)),
     minify: true,
   }).code.toString();
-  const rule = /\.cm-via-whys\{([^}]*)\}/.exec(css);
-  assert.ok(rule, "a rule for the line");
-  assert.ok(rule[1].includes("display:none"), "off wherever there is a pointer, where the tooltip says it");
-  const touch = /@media \(hover:none\)\{\.cm-via-whys\{([^}]*)\}\}/.exec(css);
-  assert.ok(touch, "and on under (hover: none)");
-  assert.ok(touch[1].includes("display:flex"), touch?.[1]);
-  // Its size, ink and gap are the tokens', as every value in a stylesheet is.
-  assert.ok(rule[1].includes("font-size:var(--text-xs)") && rule[1].includes("color:var(--ink-dim)"), rule[1]);
-  assert.ok(touch[1].includes("gap:var(--space-1)"), touch[1]);
+  const line = /\.cm-via-why\{([^}]*)\}/.exec(css);
+  assert.ok(line, "a rule for the line");
+  assert.ok(line[1].includes("font-size:var(--text-xs)") && line[1].includes("color:var(--ink-dim)"), line[1]);
+  assert.ok(/\.cm-via-why\[hidden\]\{display:none\}/.test(css), "put away while it says nothing");
+  const one = /\.cm-via \.cm-via-one\{([^}]*)\}/.exec(css);
+  assert.ok(one, "a rule for the toggle");
+  assert.ok(one[1].includes("border-radius:var(--radius-full)") && one[1].includes("min-height:0"), one[1]);
+  assert.ok(
+    /@media \(pointer:coarse\)\{\.cm-via \.cm-via-one:after\{[^}]*inset:/.test(css),
+    "and a finger's press round it",
+  );
 });
 
 /* ---------------------------------- the split as a bar ---------------------------------- */

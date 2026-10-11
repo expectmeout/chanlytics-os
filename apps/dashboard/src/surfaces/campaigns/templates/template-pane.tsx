@@ -20,7 +20,7 @@ import type { ApiResult } from "@/client/api";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { StatePill } from "../../kit/pill/state-pill";
 import { Segmented } from "../../kit/segmented/segmented";
-import { CmPane } from "../parts/split";
+import { CmPane, useCmPhone } from "../parts/split";
 import type { TemplateMade } from "./composer-acts";
 import type { StarterGroup, TemplateGroup, TplLang } from "./group";
 import { firstView, messageFacts } from "./message-row-facts";
@@ -71,6 +71,7 @@ export function TemplatePane(p: PaneProps) {
   const { onAdd, onRename, onHide, onDelete, onWritten, versions, canWrite = false } = p;
   const { onSaveVersion = () => Promise.resolve(null), onRemoveVersion = () => undefined } = p;
   const first = firstView(g, langs);
+  const phone = useCmPhone();
   const [langId, setLangId] = useState(first.langId);
   // The language that was in view before one nobody has written was picked: the
   // words a translation is written from, and where Cancel goes back to.
@@ -193,7 +194,8 @@ export function TemplatePane(p: PaneProps) {
   return (
     <CmPane
       testid="template-pane"
-      mark={tplMark(marks.offer)}
+      // A phone's head is a line a thumb wide: the gift or the bell is the row's, in the list, not the open message's there.
+      mark={phone ? null : tplMark(marks.offer)}
       title={g.title}
       badge={row ? <StatePill kind="template" value={row.meta_status} testid="template-pane-status" /> : null}
       sub={says ? <span data-testid="template-pane-users">{says}</span> : null}

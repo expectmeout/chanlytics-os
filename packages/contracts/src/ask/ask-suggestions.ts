@@ -195,7 +195,8 @@ function pageChips(
   if (input.surface === "leads") {
     // The section under the field keeps three, and they must be these.
     const ideas = (input.leadIdeas ?? []).filter(Boolean).slice(0, 3);
-    for (const w of ideas) add(w, "ask", "search");
+    // An idea is its plan in words (00398), which can run long: the chip clips them, the question sent keeps them whole.
+    for (const w of ideas) add(w, "ask", "search", false, clipWords(w, 48));
     // A search's own words can run long; the chip shows them clipped, the question sent keeps them whole.
     if (!ideas.length)
       for (const a of (input.leadSearches ?? []).filter(Boolean).slice(0, 2))

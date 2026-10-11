@@ -319,6 +319,13 @@ export const EVENT_KINDS = [
    * one line per lead.
    */
   "lead.set_aside",
+  /**
+   * The ideas for a new search were written (00400: lead_suggestions_write), { how: "written" | "line", count, by_owner }:
+   * "written" when the model's ideas were kept, with how many; "line" when the owner set the business line they are
+   * written from, which asks for new ones. A record for Reports (how often ideas are written, whether owners rewrite
+   * the line), never a line of the owner's Activity.
+   */
+  "lead.ideas_written",
   // A deal (0004): written by deal_record, one kind per stage; record kinds, kept.
   "deal.proposed",
   "deal.won",

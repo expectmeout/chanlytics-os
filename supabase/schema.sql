@@ -6829,6 +6829,61 @@ COMMENT ON FUNCTION public.lead_reserve(p_tenant_id uuid, p_month text, p_day te
 
 
 --
+-- Name: lead_round_adds_to_its_kind(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_round_adds_to_its_kind() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_kind    text;
+  v_places  integer;
+  v_matched integer;
+  v_email   integer;
+begin
+  begin
+    v_kind := coalesce(new.plan->>'category_key',
+                       (select s.plan->>'category_key' from public.lead_searches s where s.id = new.search_id));
+    if v_kind is null or v_kind !~ '^[a-z][a-z0-9_]{1,39}$' then
+      return null;
+    end if;
+    -- What the round judged: every place but one the owner took out afterwards, how many qualified, and how many of
+    -- those have an email (leadReachLine reads with_email over matched).
+    select count(*) filter (where m.excluded_by is distinct from 'owner'),
+           count(*) filter (where m.class = 'qualified'),
+           count(*) filter (where m.class = 'qualified' and l.email is not null)
+      into v_places, v_matched, v_email
+      from public.lead_search_members m
+      left join public.leads l on l.id = m.lead_id
+     where m.round_id = new.id;
+    if coalesce(v_places, 0) = 0 then
+      return null;
+    end if;
+    insert into public.lead_niche_priors as n (category_key, places, matched, with_email, updated_at)
+    values (v_kind, v_places, v_matched, v_email, now())
+    on conflict (category_key) do update
+       set places     = n.places + excluded.places,
+           matched    = n.matched + excluded.matched,
+           with_email = n.with_email + excluded.with_email,
+           updated_at = now();
+  exception when others then
+    -- A count is never worth a round that cannot end.
+    return null;
+  end;
+  return null;
+end;
+$_$;
+
+
+--
+-- Name: FUNCTION lead_round_adds_to_its_kind(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_round_adds_to_its_kind() IS 'A round that ends adds what it judged to its kind''s platform-wide counts (lead_niche_priors), by its plan''s category_key (00398). Its caller''s rights (00400): the service, or a door of its own. Aggregates only. Never raises.';
+
+
+--
 -- Name: lead_round_answer(uuid, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -8371,6 +8426,270 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.lead_spend_refusal(p_tenant_id uuid) IS 'Null when the workspace may spend (billing_may_spend), else {error: payment_required, sentence}: whyCannotSpend''s sentence for finding leads, or requireSpend''s for no billing record (00364). lead_search_create, lead_search_import, lead_search_more and lead_check_again return it before they reserve or schedule anything.';
+
+
+--
+-- Name: lead_suggest_history(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_suggest_history(p_tenant_id uuid) RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  with s as (
+    -- The searches the finder ran (a list brought in is not a kind searched for), newest first.
+    select s.id, s.plan, s.created_at, s.removed_at
+      from public.lead_searches s
+     where s.tenant_id = p_tenant_id
+       and s.via in ('people', 'ask')
+       and s.created_at > now() - interval '180 days'
+     order by s.created_at desc
+     limit 24
+  ),
+  r as (
+    -- Each search's newest round: how it ended, and the areas beside it Claude named.
+    select x.search_id, x.rounds, x.state, x.ending, x.ended_at, x.nearby
+      from (
+        select r.search_id, r.state, r.ending, r.ended_at, r.nearby,
+               count(*) over (partition by r.search_id) as rounds,
+               row_number() over (partition by r.search_id order by r.seq desc) as n
+          from public.lead_rounds r
+          join s on s.id = r.search_id
+         where r.tenant_id = p_tenant_id
+      ) x
+     where x.n = 1
+  ),
+  m as (
+    select m.search_id,
+           count(*) filter (where m.class = 'qualified') as qualified,
+           count(*) filter (where m.class = 'review') as review,
+           count(*) filter (where m.class = 'excluded') as excluded
+      from public.lead_search_members m
+      join s on s.id = m.search_id
+     where m.tenant_id = p_tenant_id
+     group by m.search_id
+  ),
+  x as (
+    -- Why places were left out, by the key that left them out: the kind, no way to reach them, the owner, or one of the
+    -- plan's own exclusions and criteria (contracts class.ts).
+    select y.search_id, jsonb_object_agg(y.excluded_by, y.n) as by_key
+      from (
+        select m.search_id, m.excluded_by, count(*) as n
+          from public.lead_search_members m
+          join s on s.id = m.search_id
+         where m.tenant_id = p_tenant_id and m.class = 'excluded' and m.excluded_by is not null
+         group by m.search_id, m.excluded_by
+      ) y
+     group by y.search_id
+  ),
+  kept as (
+    select distinct m.search_id, m.lead_id
+      from public.lead_search_members m
+      join s on s.id = m.search_id
+     where m.tenant_id = p_tenant_id and m.class <> 'excluded'
+  ),
+  l as (
+    -- What came of the leads each search kept, and when one was last contacted. A lead in two searches counts in each.
+    select k.search_id,
+           count(*) filter (where l.contacted_at is not null) as contacted,
+           count(*) filter (where l.last_outcome = 'interested') as interested,
+           count(*) filter (where l.booked_at is not null) as booked,
+           count(*) filter (where l.stage = 'converted') as customers,
+           count(*) filter (where l.closed_reason = 'said_no') as said_no,
+           count(*) filter (where l.closed_reason = 'not_a_fit') as not_a_fit,
+           count(*) filter (where l.closed_reason = 'stale') as stale,
+           count(*) filter (where l.email is not null) as with_email,
+           count(*) filter (where l.phone_e164 is not null) as with_phone,
+           max(l.contacted_at) as last_contacted_at
+      from kept k
+      join public.leads l on l.id = k.lead_id and l.tenant_id = p_tenant_id
+     where l.erased_at is null
+     group by k.search_id
+  ),
+  w as (
+    -- Why a lead was not a fit, as the owner said it (lead.not_a_fit: chain, wrong_kind, too_far, customer, other).
+    select y.search_id, jsonb_object_agg(y.why, y.n) as by_why
+      from (
+        select k.search_id, e.data->>'why' as why, count(distinct e.subject_id) as n
+          from kept k
+          join public.events e on e.subject_id = k.lead_id
+         where e.tenant_id = p_tenant_id and e.kind = 'lead.not_a_fit' and e.data->>'why' is not null
+         group by k.search_id, e.data->>'why'
+      ) y
+     group by y.search_id
+  ),
+  ro as (
+    -- The reach-out to its leads: how many were emailed, and when the last email went.
+    select k.search_id, count(distinct o.lead_id) as sent, max(o.sent_at) as last_sent_at
+      from kept k
+      join public.reach_out_sends o on o.lead_id = k.lead_id and o.tenant_id = p_tenant_id
+     where o.state = 'sent'
+     group by k.search_id
+  ),
+  rr as (
+    -- Replies a person wrote (not an out-of-office or a machine), by what they meant; an undone reading is not one.
+    select k.search_id,
+           count(distinct p.lead_id) as replied,
+           count(distinct p.lead_id) filter (where p.intent = 'interested') as interested,
+           count(distinct p.lead_id) filter (where p.intent in ('no', 'wrong_person')) as declined
+      from kept k
+      join public.reach_out_replies p on p.lead_id = k.lead_id and p.tenant_id = p_tenant_id
+     where p.undone_at is null and p.claim = 'person'
+     group by k.search_id
+  ),
+  d as (
+    select k.search_id, count(*) as won, coalesce(sum(d.amount_cents), 0) as cents
+      from kept k
+      join public.deals d on d.lead_id = k.lead_id and d.tenant_id = p_tenant_id
+     where d.stage = 'won'
+     group by k.search_id
+  )
+  select jsonb_build_object(
+    'basis', (select max(r2.ended_at) from public.lead_rounds r2 where r2.tenant_id = p_tenant_id and r2.state = 'ended'),
+    'home', (select jsonb_build_object('city', b.city, 'region', b.region, 'zip', b.postal_code)
+               from public.business_records b where b.tenant_id = p_tenant_id),
+    'listing', (select jsonb_build_object('address', g.address, 'type', g.facts->>'primary_type')
+                  from public.google_listings g
+                 where g.tenant_id = p_tenant_id
+                 order by g.linked_at desc
+                 limit 1),
+    'searches', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'kind', s.plan->>'category_key',
+               'name', s.plan->>'name',
+               'terms', coalesce(s.plan->'terms', '[]'::jsonb),
+               'area', s.plan->'area',
+               'count', s.plan->'count',
+               'contact', s.plan->>'contact',
+               'criteria', coalesce(s.plan->'criteria', '[]'::jsonb),
+               'exclusions', coalesce(s.plan->'exclusions', '[]'::jsonb),
+               'from_idea', s.plan->>'from' = 'idea',
+               'at', s.created_at,
+               'removed', s.removed_at is not null,
+               'rounds', coalesce(r.rounds, 0),
+               'state', r.state,
+               'ending', r.ending,
+               'ended_at', r.ended_at,
+               'nearby', coalesce(r.nearby, '[]'::jsonb),
+               'found', jsonb_build_object('qualified', coalesce(m.qualified, 0), 'review', coalesce(m.review, 0),
+                                           'excluded', coalesce(m.excluded, 0)),
+               'left_out', coalesce(x.by_key, '{}'::jsonb),
+               'leads', jsonb_build_object('contacted', coalesce(l.contacted, 0), 'interested', coalesce(l.interested, 0),
+                                           'booked', coalesce(l.booked, 0), 'customers', coalesce(l.customers, 0),
+                                           'said_no', coalesce(l.said_no, 0), 'not_a_fit', coalesce(l.not_a_fit, 0),
+                                           'stale', coalesce(l.stale, 0), 'with_email', coalesce(l.with_email, 0),
+                                           'with_phone', coalesce(l.with_phone, 0),
+                                           'last_contacted_at', l.last_contacted_at),
+               'not_a_fit_why', coalesce(w.by_why, '{}'::jsonb),
+               'reach', jsonb_build_object('sent', coalesce(ro.sent, 0), 'replied', coalesce(rr.replied, 0),
+                                           'interested', coalesce(rr.interested, 0), 'declined', coalesce(rr.declined, 0),
+                                           'last_sent_at', ro.last_sent_at),
+               'won', jsonb_build_object('deals', coalesce(d.won, 0), 'cents', coalesce(d.cents, 0))
+             ) order by s.created_at desc)
+        from s
+        left join r on r.search_id = s.id
+        left join m on m.search_id = s.id
+        left join x on x.search_id = s.id
+        left join l on l.search_id = s.id
+        left join w on w.search_id = s.id
+        left join ro on ro.search_id = s.id
+        left join rr on rr.search_id = s.id
+        left join d on d.search_id = s.id
+    ), '[]'::jsonb)
+  );
+$$;
+
+
+--
+-- Name: FUNCTION lead_suggest_history(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_suggest_history(p_tenant_id uuid) IS 'What a workspace''s finder searches of the last 180 days asked for and found, and what came of the leads each kept (contacted and when last, interested, booked, customers, said no, not a fit and why, reach-out sent and when last, replied, deals won), whether each was started from an idea, with where the workspace is: the ideas for a new search are written from it (00398, 00399). Counts, moments and the plan''s own words only; never a business''s name, a person, a reply''s words or a judgment''s reasons. The service''s alone: the route checks the member may find.';
+
+
+--
+-- Name: lead_suggestions_write(uuid, text, timestamp with time zone, text, boolean, jsonb, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_suggestions_write(p_tenant_id uuid, p_act text, p_claim timestamp with time zone DEFAULT NULL::timestamp with time zone, p_line text DEFAULT NULL::text, p_by_owner boolean DEFAULT false, p_items jsonb DEFAULT '[]'::jsonb, p_basis text DEFAULT NULL::text, p_passed jsonb DEFAULT '[]'::jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_line    text := left(btrim(coalesce(p_line, '')), 160);
+  v_claimed timestamptz;
+  v_done    boolean;
+begin
+  if p_act = 'claim' then
+    -- The claim on writing: this read's own moment, or null while another read's claim is under two minutes old. A
+    -- workspace with no row gets one, with the line and no ideas.
+    if char_length(v_line) < 3 then
+      v_line := 'this business';
+    end if;
+    insert into public.lead_suggestions as k (tenant_id, business_line, by_owner, items, made_at, making_at)
+    values (p_tenant_id, v_line, false, '[]'::jsonb, now(), clock_timestamp())
+    on conflict (tenant_id) do update set making_at = clock_timestamp()
+     where k.making_at is null or k.making_at < now() - interval '2 minutes'
+    returning k.making_at into v_claimed;
+    return jsonb_build_object('claim', v_claimed);
+  elsif p_act = 'keep' then
+    -- Kept while the claim stands: false when it was let go meanwhile (the owner saved a line, or a slower write was
+    -- taken over), and nothing is written.
+    update public.lead_suggestions k
+       set business_line = v_line,
+           by_owner      = coalesce(p_by_owner, false),
+           items         = coalesce(p_items, '[]'::jsonb),
+           basis         = left(p_basis, 80),
+           passed        = coalesce(p_passed, '[]'::jsonb),
+           made_at       = now(),
+           making_at     = null,
+           failed_at     = null
+     where k.tenant_id = p_tenant_id
+       and p_claim is not null
+       and k.making_at = p_claim
+       and char_length(v_line) >= 3
+    returning true into v_done;
+    if coalesce(v_done, false) then
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (p_tenant_id, 'lead.ideas_written', 'lead', 'lead_search', null,
+              jsonb_build_object('how', 'written', 'count', jsonb_array_length(coalesce(p_items, '[]'::jsonb)),
+                                 'by_owner', coalesce(p_by_owner, false)));
+    end if;
+    return jsonb_build_object('kept', coalesce(v_done, false));
+  elsif p_act = 'fail' then
+    -- The model would not write them under this claim: the claim let go and the failure kept, so the next reads say so
+    -- for a while rather than ask again. A claim since taken over is left alone.
+    update public.lead_suggestions k
+       set failed_at = now(), making_at = null
+     where k.tenant_id = p_tenant_id and p_claim is not null and k.making_at = p_claim
+    returning true into v_done;
+    return jsonb_build_object('failed', coalesce(v_done, false));
+  elsif p_act = 'line' then
+    -- The owner's own words: kept with no ideas and no basis, so the next read asks again, and nothing passed on, since
+    -- what was passed on was another line's. The owner's word clears any claim: a write in flight finds its claim gone.
+    if char_length(v_line) < 3 then
+      raise exception 'a business line is at least three characters' using errcode = '22023';
+    end if;
+    insert into public.lead_suggestions as k (tenant_id, business_line, by_owner, items, basis, passed, made_at, making_at, failed_at)
+    values (p_tenant_id, v_line, true, '[]'::jsonb, null, '[]'::jsonb, now(), null, null)
+    on conflict (tenant_id) do update
+       set business_line = excluded.business_line, by_owner = true, items = '[]'::jsonb, basis = null,
+           passed = '[]'::jsonb, made_at = now(), making_at = null, failed_at = null;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'lead.ideas_written', 'lead', 'lead_search', null,
+            jsonb_build_object('how', 'line', 'count', 0, 'by_owner', true));
+    return jsonb_build_object('saved', true);
+  end if;
+  raise exception 'act is claim, keep, fail or line' using errcode = '22023';
+end;
+$$;
+
+
+--
+-- Name: FUNCTION lead_suggestions_write(p_tenant_id uuid, p_act text, p_claim timestamp with time zone, p_line text, p_by_owner boolean, p_items jsonb, p_basis text, p_passed jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_suggestions_write(p_tenant_id uuid, p_act text, p_claim timestamp with time zone, p_line text, p_by_owner boolean, p_items jsonb, p_basis text, p_passed jsonb) IS 'The one writer of lead_suggestions (00400), by act: claim ({claim}: this read''s moment, or null while another''s stands), keep ({kept}: only while p_claim stands), fail ({failed}: the claim let go and the failure kept), line ({saved}: the owner''s own words, which clear any claim). A keep and a line write lead.ideas_written. The service''s alone.';
 
 
 --
@@ -22698,7 +23017,7 @@ CREATE TABLE public.ai_usage (
     CONSTRAINT ai_usage_output_tokens_check CHECK ((output_tokens >= 0)),
     CONSTRAINT ai_usage_port_check CHECK ((port = ANY (ARRAY['anthropic'::text, 'typesafe'::text]))),
     CONSTRAINT ai_usage_prompt_hash_check CHECK (((prompt_hash IS NULL) OR (prompt_hash ~ '^[0-9a-f]{16,64}$'::text))),
-    CONSTRAINT ai_usage_purpose_check CHECK ((purpose = ANY (ARRAY['receptionist'::text, 'reply_draft'::text, 'ask'::text, 'lead_json'::text, 'template_draft'::text, 'review_reply'::text, 'lead_judge'::text, 'note_suggest'::text, 'reach_out_check'::text, 'reply_read'::text, 'booking_read'::text]))),
+    CONSTRAINT ai_usage_purpose_check CHECK ((purpose = ANY (ARRAY['receptionist'::text, 'reply_draft'::text, 'ask'::text, 'lead_json'::text, 'template_draft'::text, 'review_reply'::text, 'lead_judge'::text, 'note_suggest'::text, 'reach_out_check'::text, 'reply_read'::text, 'booking_read'::text, 'lead_suggest'::text]))),
     CONSTRAINT ai_usage_shadow_check CHECK (((shadow AND (port <> 'anthropic'::text)) OR ((NOT shadow) AND (question IS NULL) AND (primary_answer IS NULL) AND (shadow_answer IS NULL) AND (shadow_confidence IS NULL) AND (confident IS NULL) AND (agrees IS NULL)))),
     CONSTRAINT ai_usage_shadow_words_check CHECK (((char_length(COALESCE(question, ''::text)) <= 80) AND (char_length(COALESCE(primary_answer, ''::text)) <= 80) AND (char_length(COALESCE(shadow_answer, ''::text)) <= 80) AND ((shadow_confidence IS NULL) OR ((shadow_confidence >= (0)::numeric) AND (shadow_confidence <= (1)::numeric))))),
     CONSTRAINT ai_usage_usd_check CHECK (((usd IS NULL) OR (usd >= (0)::numeric)))
@@ -24467,6 +24786,11 @@ CREATE TABLE public.lead_suggestions (
     by_owner boolean DEFAULT false NOT NULL,
     items jsonb DEFAULT '[]'::jsonb NOT NULL,
     made_at timestamp with time zone DEFAULT now() NOT NULL,
+    basis text,
+    making_at timestamp with time zone,
+    failed_at timestamp with time zone,
+    passed jsonb DEFAULT '[]'::jsonb NOT NULL,
+    CONSTRAINT lead_suggestions_basis_check CHECK ((char_length(basis) <= 80)),
     CONSTRAINT lead_suggestions_business_line_check CHECK (((char_length(business_line) >= 3) AND (char_length(business_line) <= 160)))
 );
 
@@ -24475,7 +24799,35 @@ CREATE TABLE public.lead_suggestions (
 -- Name: TABLE lead_suggestions; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.lead_suggestions IS 'The three or four kinds of business worth reaching, written from the workspace''s business line (§8.9). One row per workspace; by_owner says the line is the owner''s own words, not the workspace''s name and services. The service writes it; members read it.';
+COMMENT ON TABLE public.lead_suggestions IS 'The ideas for a new search (§8.9), each a ready plan, written from the workspace''s business line and what its searches found (00398). One row per workspace; by_owner says the line is the owner''s own words. The service writes it; members read it.';
+
+
+--
+-- Name: COLUMN lead_suggestions.basis; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lead_suggestions.basis IS 'What the ideas were written over: the end of the workspace''s newest ended round when they were written, so a round that ends since asks for new ones (server/leads/lead-suggestions.ts). Null on ideas written before 00398, which are asked for again.';
+
+
+--
+-- Name: COLUMN lead_suggestions.making_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lead_suggestions.making_at IS 'When a read claimed the writing of new ideas (lead_suggestions_claim); cleared when they are kept or fail. A claim older than two minutes is taken over.';
+
+
+--
+-- Name: COLUMN lead_suggestions.failed_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lead_suggestions.failed_at IS 'When the model last would not write them: the next reads say so for a few minutes rather than ask again.';
+
+
+--
+-- Name: COLUMN lead_suggestions.passed; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lead_suggestions.passed IS 'Ideas offered before and not started since, as [{key, place, label, times}] (contracts ideaPassed, 00399): offered twice and not started is a no, and not offered again.';
 
 
 --
@@ -28971,6 +29323,13 @@ CREATE TRIGGER jobs_set_updated_at BEFORE UPDATE ON public.jobs FOR EACH ROW EXE
 --
 
 CREATE TRIGGER jobs_wake AFTER INSERT ON public.jobs REFERENCING NEW TABLE AS new_rows FOR EACH STATEMENT EXECUTE FUNCTION public.jobs_wake();
+
+
+--
+-- Name: lead_rounds lead_round_adds_to_its_kind; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER lead_round_adds_to_its_kind AFTER UPDATE OF state ON public.lead_rounds FOR EACH ROW WHEN (((new.state = 'ended'::text) AND (old.state IS DISTINCT FROM 'ended'::text))) EXECUTE FUNCTION public.lead_round_adds_to_its_kind();
 
 
 --
@@ -33992,6 +34351,14 @@ GRANT ALL ON FUNCTION public.lead_reserve(p_tenant_id uuid, p_month text, p_day 
 
 
 --
+-- Name: FUNCTION lead_round_adds_to_its_kind(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_round_adds_to_its_kind() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_round_adds_to_its_kind() TO service_role;
+
+
+--
 -- Name: FUNCTION lead_round_answer(p_round_id uuid, p_answer text, p_plan jsonb); Type: ACL; Schema: public; Owner: -
 --
 
@@ -34199,6 +34566,22 @@ GRANT ALL ON FUNCTION public.lead_site_key(p_host text) TO service_role;
 
 REVOKE ALL ON FUNCTION public.lead_spend_refusal(p_tenant_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.lead_spend_refusal(p_tenant_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION lead_suggest_history(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_suggest_history(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_suggest_history(p_tenant_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION lead_suggestions_write(p_tenant_id uuid, p_act text, p_claim timestamp with time zone, p_line text, p_by_owner boolean, p_items jsonb, p_basis text, p_passed jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_suggestions_write(p_tenant_id uuid, p_act text, p_claim timestamp with time zone, p_line text, p_by_owner boolean, p_items jsonb, p_basis text, p_passed jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_suggestions_write(p_tenant_id uuid, p_act text, p_claim timestamp with time zone, p_line text, p_by_owner boolean, p_items jsonb, p_basis text, p_passed jsonb) TO service_role;
 
 
 --

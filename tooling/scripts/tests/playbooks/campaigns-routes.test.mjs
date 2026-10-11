@@ -16,10 +16,13 @@ import assert from "node:assert/strict";
 
 const S = "../../../../apps/dashboard/src/surfaces";
 const { campaignsChrome, broadcastsChrome, broadcastsProps } = await import(`${S}/campaigns/routes.ts`);
-const { parseHome, momentRoute, composeRoute, groupRoute } = await import(`${S}/campaigns/home/address.ts`);
+const { parseHome, momentRoute, messageRoute, composeRoute, groupRoute } = await import(
+  `${S}/campaigns/home/address.ts`
+);
 const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
 const { SURFACE_ROUTES, routeHasPage, onOnePage } = await import(`${S}/routes.ts`);
-const { workspacePath, routeOfPath, routeOfHash, movedAddress, doorOf } = await import("@chanlytics/contracts");
+const { workspacePath, routeOfPath, routeOfHash, movedAddress, doorOf, templateTitle } =
+  await import("@chanlytics/contracts");
 
 afterEach(() => {
   for (const k of ["playbooks", "broadcasts", "reach_outs"]) setSurfaceValue(k, undefined);
@@ -31,32 +34,44 @@ const SENT = { label: "Sent", to: "broadcasts" };
 /* ------------------------------------------------------ the home ------------------------------------------------------ */
 
 test("the home's address says a moment open, or the composer, and spells back to the same words", () => {
-  assert.deepEqual(parseHome(null), { group: null, moment: null, compose: null });
-  assert.deepEqual(parseHome("moment:pb-1"), { group: null, moment: "pb-1", compose: null });
-  assert.deepEqual(parseHome("new"), { group: null, moment: null, compose: { mode: "once", to: null } });
+  assert.deepEqual(parseHome(null), { group: null, moment: null, message: null, compose: null });
+  assert.deepEqual(parseHome("moment:pb-1"), { group: null, moment: "pb-1", message: null, compose: null });
+  assert.deepEqual(parseHome("new"), { group: null, moment: null, message: null, compose: { mode: "once", to: null } });
   assert.deepEqual(
     parseHome("new:to:s1"),
-    { group: null, moment: null, compose: { mode: "once", to: "s1" } },
+    { group: null, moment: null, message: null, compose: { mode: "once", to: "s1" } },
     "the audience it is for",
   );
   assert.deepEqual(parseHome("new:to:"), parseHome("new"), "no audience named is no audience");
   assert.deepEqual(parseHome("new:every"), {
     group: null,
     moment: null,
+    message: null,
     compose: { mode: "every", moment: null, edit: null },
   });
   assert.deepEqual(parseHome("new:moment:quiet_30"), {
     group: null,
     moment: null,
+    message: null,
     compose: { mode: "every", moment: "quiet_30", edit: null },
   });
   assert.deepEqual(parseHome("new:edit:pb-1"), {
     group: null,
     moment: null,
+    message: null,
     compose: { mode: "every", moment: null, edit: "pb-1" },
   });
+  // A message open in a drawer of its own, by its name (the call's text's, or the one a campaign's drawer names).
+  assert.deepEqual(parseHome("message:spring_offer"), {
+    group: null,
+    moment: null,
+    message: "spring_offer",
+    compose: null,
+  });
+  assert.equal(messageRoute("spring_offer"), "campaigns/message:spring_offer");
+  assert.equal(parseHome(messageRoute("visit_reminder").split("/")[1]).message, "visit_reminder", "and back");
   // A word the page does not know is the home: a link never lands on nothing.
-  for (const odd of ["surprise", "moment:", "new:edit:", "run:b-1", ""])
+  for (const odd of ["surprise", "moment:", "message:", "new:edit:", "run:b-1", ""])
     assert.deepEqual(parseHome(odd), parseHome(null), odd);
   assert.equal(momentRoute("pb-1"), "campaigns/moment:pb-1");
   assert.equal(composeRoute("once"), "campaigns/new");
@@ -73,8 +88,8 @@ test("the home's address says a moment open, or the composer, and spells back to
 });
 
 test("the ledger's group is the address's own: campaigns/in:<group>, word-free, spelled back as it was read", () => {
-  assert.deepEqual(parseHome("in:before"), { group: "before", moment: null, compose: null });
-  assert.deepEqual(parseHome("in:reach_out"), { group: "reach_out", moment: null, compose: null });
+  assert.deepEqual(parseHome("in:before"), { group: "before", moment: null, message: null, compose: null });
+  assert.deepEqual(parseHome("in:reach_out"), { group: "reach_out", moment: null, message: null, compose: null });
   // Word-free ids only (decision 46): a word, a hyphen, a capital or nothing is the home, never a group of nothing.
   for (const odd of ["in:", "in:Before", "in:visit-tomorrow", "in:../x", "in:1st", "in:before:x"])
     assert.deepEqual(parseHome(odd), parseHome(null), odd);
@@ -100,6 +115,11 @@ test("the home's crumbs name Campaigns, and a playbook or a reach-out by name on
   assert.deepEqual(c("new:edit:pb-1").crumbs, [HOME, "Win-back"], "changing a playbook is named for it");
   assert.deepEqual(c("new:edit:ch-1").crumbs, [HOME, "Cold email to studios"], "and a reach-out for its own name");
   assert.deepEqual(c("new:to:s1").crumbs, [HOME, "New message"], "the composer on a list is the composer");
+  assert.deepEqual(
+    c("message:spring_offer").crumbs,
+    [HOME, templateTitle("spring_offer", null)],
+    "a message by its title",
+  );
   for (const p of [null, "moment:pb-1", "new", "new:every", "surprise"])
     assert.equal(c(p).mount, "campaigns", String(p));
   assert.equal(c(null).act, null, "a real workspace's New message is the page's own; the top bar has none");

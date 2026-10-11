@@ -11,7 +11,7 @@ export const SCHEMA_SETS = {
   "ai_usage.port": ["anthropic", "typesafe"],
   "ai_usage.purpose": [
     "receptionist", "reply_draft", "ask", "lead_json", "template_draft", "review_reply", "lead_judge",
-    "note_suggest", "reach_out_check", "reply_read", "booking_read",
+    "note_suggest", "reach_out_check", "reply_read", "booking_read", "lead_suggest",
   ],
   "appointment_notices.hold_reason": [
     "no_model", "may_not_spend", "unreadable", "not_a_booking", "no_time", "no_client", "gone",

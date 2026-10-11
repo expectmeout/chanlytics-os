@@ -28,7 +28,7 @@ function _buttonTakes(
   type _Its = [
     // Its props are the type the kit names for them, and its kinds, sizes and tone its map's, each optional.
     Holds<Exactly<ComponentProps<typeof Button>, ButtonProps>>,
-    Holds<Exactly<ButtonProps["variant"], "primary" | "secondary" | "quiet" | "danger" | undefined>>,
+    Holds<Exactly<ButtonProps["variant"], "primary" | "secondary" | "quiet" | "plain" | "danger" | undefined>>,
     Holds<Exactly<ButtonProps["size"], "sm" | "md" | "lg" | "text" | undefined>>,
     Holds<Exactly<ButtonProps["tone"], "danger" | undefined>>,
   ];

@@ -90,6 +90,36 @@ a.btn {
   color: var(--ink);
 }
 
+/* A word in a row of words, one press each (a phone's bar: People's Select, Sort and Export, Leads' Select, Sort, Import
+   and Map): never a ground, an edge or a capsule, at rest, under a pointer, pressed or with its menu open. The quiet
+   kind's fill, at a thumb's 44px and Glass's capsule radius, drew a circle around the word a finger had just left, since
+   a touch keeps :hover (Ruben, 10 Oct 2026: "too big and bulky"). Its ink is the quiet kind's and lifts to the ink under
+   a pointer and while its menu is open; a press dims it, as a text button on a phone does. A key's focus keeps the ring. */
+.btn-plain,
+.btn-plain:hover,
+.btn-plain:active,
+.btn-plain[data-popup-open] {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+.btn-plain {
+  color: var(--quiet-ink);
+}
+.btn-plain[data-popup-open],
+.btn-plain[aria-expanded="true"] {
+  color: var(--ink);
+}
+@media (hover: hover) {
+  .btn-plain:hover {
+    color: var(--ink);
+  }
+}
+.btn-plain:active {
+  opacity: 0.55;
+  transition-duration: 0s;
+}
+
 /* The destructive act, filled: Confirm's Yes for anything that destroys or
    cannot be undone. A touch darker than the tone so its white words hold
    contrast in both themes. `.btn.danger` is the quiet form, for the control
@@ -175,8 +205,10 @@ a.btn {
 /* ---------- Search — the capsule a list is searched from (kit/search/search.tsx) ----------
    People's phone search, the one the Inbox's list wears too (10 Oct 2026): a 38px capsule on an inset's fill with its
    ring and depth, the glyph 15px and the words in the dim ink at the page's size. At rest on a phone it is a button
-   saying what it finds; pressed, it is the field, 16px on a phone so the phone never zooms into it, with Cancel beside
-   it. Its focus is a box's (--focus-field-edged: the capsule has no border of its own). The page places it (the room
+   saying what it finds; pressed, it is the field in the same capsule, where it stood: its words at the rest's size and
+   ink (typed at 16px on a phone, so the phone never zooms into it, and drawn at the page's), the clear in its end from
+   the first word, and no ring, since the caret says it is open; left empty, it rests as focus leaves (Ruben, 10 Oct 2026). On a desk its focus is a box's
+   (--focus-field-edged: the capsule has no border of its own). The page places it (the room
    round it, a box before it or a toggle after it), never what it looks like. Two classes name each part, so the touch
    floor's `html.legacy-on button` and `input` (legacy.css, 44px) give way to the capsule's own height. */
 .search {
@@ -218,8 +250,17 @@ a.btn {
 .search > .search-box:focus-within {
   box-shadow: var(--focus-field-edged), var(--surface-inset-depth);
 }
-.search > .search-box > input {
+.search[data-rests] > .search-box:focus-within {
+  box-shadow: var(--surface-inset-ring), var(--surface-inset-depth);
+}
+.search-box > .search-field {
   flex: 1;
+  min-width: 0;
+  display: grid;
+  align-items: center;
+}
+.search-box > .search-field > input {
+  width: 100%;
   min-width: 0;
   height: 36px;
   min-height: 0;
@@ -230,19 +271,19 @@ a.btn {
   font: inherit;
   outline: none;
 }
-.search-box > input::placeholder {
-  color: var(--ink-faint);
+.search-field > input::placeholder {
+  color: var(--ink-dim);
 }
-.search-box > input::-webkit-search-cancel-button {
+.search-field > input::-webkit-search-cancel-button {
   -webkit-appearance: none;
   appearance: none;
 }
 .search-box > .search-clear {
   flex: none;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   min-height: 0;
-  margin-right: -10px;
+  margin-right: -8px;
   display: grid;
   place-items: center;
   padding: 0;
@@ -252,21 +293,14 @@ a.btn {
   color: var(--ink-dim);
   cursor: pointer;
 }
-.search-cancel {
-  flex: none;
-  height: 44px;
-  padding: 0 4px;
-  border: 0;
-  background: transparent;
-  color: var(--ink);
-  font: inherit;
-  font-size: var(--text-base);
-  font-weight: var(--weight-medium);
-  cursor: pointer;
-}
+/* A phone's field: 16px, so the phone never zooms into it, and drawn at the rest's size (--text-base over 16px), its box
+   as wide as its room once drawn. A scale, not a size: the zoom is the phone's reading of the font's size alone. */
 @media (max-width: 900px) {
-  .search > .search-box > input {
+  .search-box > .search-field > input {
+    width: calc(100% / 0.84375);
     font-size: var(--field-text-touch);
+    scale: 0.84375;
+    transform-origin: 0 50%;
   }
 }
 
@@ -2902,6 +2936,20 @@ select.rec-input :is(option, optgroup) {
 .token[data-popup-open] .token-caret {
   rotate: 180deg;
 }
+/* Under a finger the token keeps its own height and the touch floor's 44px is the press round it, not its size (named
+   twice to stand over that floor, html.legacy-on button): three 44px capsules in a composer's rows stood like buttons
+   of a form (Ruben, 11 Oct 2026: the drawers too cluttered). */
+@media (pointer: coarse) {
+  .token.token {
+    position: relative;
+    min-height: 0;
+  }
+  .token.token::after {
+    content: "";
+    position: absolute;
+    inset: -8px -2px;
+  }
+}
 
 /* ---------- Two tiers of tip ---------- */
 /* Nothing to press in it: a mark whose words the app's one tooltip (.ui-tip) draws on hover, on focus and on a tap.
@@ -3185,6 +3233,20 @@ a.list-row {
 }
 .list-row:not(:has(> .list-row-said)) > .list-row-mark {
   grid-row: 1 / span 2;
+}
+/* A row with nothing in its first column (ListRow `bare`): what the rows are is said around them (Campaigns' phone list,
+   each row on its moment's line), so the lines take the row's width from its start. */
+.list-row-bare {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.list-row-bare > .list-row-name {
+  grid-column: 1;
+}
+.list-row-bare > .list-row-end {
+  grid-column: 2;
+}
+.list-row-bare > :is(.list-row-said, .list-row-facts, .list-row-note) {
+  grid-column: 1 / 3;
 }
 .list-row-name {
   grid-column: 2;
@@ -3687,6 +3749,7 @@ a.list-row {
   box-shadow: var(--primary-depth);
 }
 .btn-ghost,
+.btn-plain,
 .btn-danger {
   box-shadow: none;
 }
@@ -4129,6 +4192,50 @@ footer.rec-sheet-foot .btn {
   max-height: calc(88dvh - var(--kb, 0px));
 }
 
+/* A sheet whose title is a kicker (Sheet's `kicker`: Campaigns' drawers, whose pane carries the name, its state and its
+   acts under it): the title a quiet line, the Close a small circle at its end, no rule under them, so the sheet has one
+   head and not two stacked (Ruben, 11 Oct 2026: the drawers too cluttered). The words still name the dialog. Its tools
+   (a choice of kind) stand under the line with no rules round them. */
+.sheet-kicker .rec-sheet-head {
+  align-items: center;
+  gap: var(--space-2);
+  padding: 14px 14px 0 22px;
+  border-bottom: 0;
+}
+.sheet-kicker .rec-sheet-head .rec-sheet-title {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0;
+  color: var(--ink-dim);
+}
+.sheet-kicker .rec-sheet-close {
+  width: 28px;
+  height: 28px;
+}
+.sheet-kicker .rec-sheet-tools {
+  padding: 10px 22px 2px;
+  border-bottom: 0;
+}
+@media (max-width: 900px) {
+  .sheet-kicker .rec-sheet-head {
+    padding: 0 8px 0 16px;
+  }
+  .sheet-kicker .rec-sheet-tools {
+    padding: 6px 16px 0;
+  }
+  /* What it holds closes it from its own foot (`footCloses`: a composer's Cancel): the corner's Close steps out of sight,
+     as a record sheet's does on a phone, and comes back for a keyboard. */
+  .sheet[data-foot-closes="true"] .rec-sheet-close:not(:focus-visible) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
+
 /* ---- The composer's rows (campaigns3.py, the compact composer C2; deals3.py, the deal's pane D2) ----
    A composer's rows are a pane's: the key in the third ink, the rule between them the edge (the roles'), and the
    fields in them insets, a plain fill with its hairline and its specular top edge, rounding as a capsule where the
@@ -4140,6 +4247,23 @@ footer.rec-sheet-foot .btn {
   border-color: var(--surface-inset-edge);
   background: var(--surface-inset-fill);
   box-shadow: var(--surface-inset-depth);
+}
+/* A title said in place (Field's `shape="title"`: a campaign's name in its sheet) stays the words it is at rest, here too:
+   the inset's fill drew a box round the name, and the touch floor stood it 44px tall. Its hairline under a pointer and
+   its ring under the keys are its own, as above. */
+.rec-input.rec-input-title {
+  min-height: 0;
+  border-color: transparent;
+  background: none;
+  box-shadow: none;
+}
+.rec-input.rec-input-title:hover {
+  border-color: var(--line);
+}
+.rec-input.rec-input-title:focus-visible {
+  border-color: var(--accent);
+  background: var(--bg);
+  box-shadow: var(--focus-field);
 }
 /* A row's mark in Glass is an inset, as a face is (above): every row and thing inside a pane is an inset's fill with
    its ring and specular edge, never the sunken ground, which drew a black tile on the dark pane. */
@@ -4177,6 +4301,45 @@ footer.rec-sheet-foot .btn {
 .token:focus-visible {
   border-color: var(--accent);
   box-shadow: var(--focus-field), var(--surface-inset-depth);
+}
+/* A token read as a word of its sentence (Picker's `inline`: a campaign's "Every day at 10:00 AM, up to 25 people a
+   run…"): no capsule at rest, the one chosen in the sentence's ink and weight, a dotted rule under it and its chevron
+   after, so a sentence of three choices reads as one and keeps its own line's height (three capsules 44px tall broke it
+   over three tall lines on a phone). Under a finger it keeps the touch floor's 44px as the press round it, not as its
+   height; under a pointer, and open, its rule is drawn whole. A keyboard's ring is a button's. */
+.token.token-inline {
+  position: relative;
+  height: auto;
+  min-height: 0;
+  gap: 2px;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  vertical-align: baseline;
+}
+.token-inline .token-face {
+  text-decoration: underline dotted var(--ink-faint);
+  text-underline-offset: 4px;
+}
+.token.token-inline:is(:hover, [data-popup-open]) {
+  background: transparent;
+}
+.token-inline:is(:hover, [data-popup-open]) .token-face {
+  text-decoration-style: solid;
+  text-decoration-color: var(--ink-dim);
+}
+.token.token-inline:focus-visible {
+  border-color: transparent;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--focus-ring);
+}
+@media (pointer: coarse) {
+  .token.token-inline::after {
+    content: "";
+    position: absolute;
+    inset: -12px -4px;
+  }
 }
 textarea.rec-input,
 .rec-combo[data-open="true"] {

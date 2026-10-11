@@ -9,6 +9,11 @@
  * press that one control rather than close past the question (`askFirst`); a pane with nothing to ask is closed by the
  * page (`onClose`). The pane's own Close and Back are not drawn here (components.css, "Campaigns home"): the sheet's is the
  * one at the corner.
+ *
+ * One head (Ruben, 11 Oct 2026: the drawers too cluttered): the sheet's title is a kicker, a quiet line saying where it
+ * was opened from ("Appointment tomorrow", "Turn on", "The call's text") with the Close at its end, and the pane's head
+ * under it carries the name, its state and its acts. A composer's foot holds its Cancel, so on a phone the corner's Close
+ * steps out of sight there (`footCloses`), as every phone sheet's does over its Cancel.
  */
 import { useRef } from "react";
 import type { ReactNode } from "react";
@@ -32,6 +37,10 @@ interface PaneSheetProps {
   askFirst?: boolean;
   /** A composer is wider than a playbook's detail. */
   wide?: boolean;
+  /** The pane's foot holds the act that closes it (a composer's Cancel): the corner's Close steps aside on a phone. */
+  footCloses?: boolean;
+  /** On a phone, as tall as what it holds (up to the sheet's height): a pane with no foot to stand at the bottom. */
+  fit?: boolean;
   testid?: string;
   children: ReactNode;
 }
@@ -43,6 +52,8 @@ export function PaneSheet({
   onClose,
   askFirst = false,
   wide = false,
+  footCloses = false,
+  fit = false,
   testid,
   children,
 }: PaneSheetProps) {
@@ -59,7 +70,9 @@ export function PaneSheet({
       title={title}
       close={{ label: LIFECYCLE_WORDS.close, glyph: <Icon name="x" size={13} /> }}
       tools={tools}
-      className={cx("cmh-host", wide && "cmh-host-wide")}
+      kicker
+      footCloses={footCloses}
+      className={cx("cmh-host", wide && "cmh-host-wide", fit && "cmh-host-fit")}
     >
       <div ref={body} className="cmh-host-body" data-testid={testid}>
         {children}

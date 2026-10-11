@@ -391,8 +391,9 @@ export interface LifecycleReachTile {
    * where the desk's tile has one: the removed tile's sentence said the receptionist asks, and opened nothing.
    */
   phone: {
-    words: string;
-    offers: { words: string; tone: LifecycleTone };
+    /** Null where nobody is in People yet: the line is not drawn. */
+    words: string | null;
+    offers: { words: string; tone: LifecycleTone } | null;
     yes: { label: string; route: string } | null;
   } | null;
 }

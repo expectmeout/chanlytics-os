@@ -3462,24 +3462,36 @@ type Database = {
             };
             lead_suggestions: {
                 Row: {
+                    basis: string | null;
                     business_line: string;
                     by_owner: boolean;
+                    failed_at: string | null;
                     items: Json;
                     made_at: string;
+                    making_at: string | null;
+                    passed: Json;
                     tenant_id: string;
                 };
                 Insert: {
+                    basis?: string | null;
                     business_line: string;
                     by_owner?: boolean;
+                    failed_at?: string | null;
                     items?: Json;
                     made_at?: string;
+                    making_at?: string | null;
+                    passed?: Json;
                     tenant_id: string;
                 };
                 Update: {
+                    basis?: string | null;
                     business_line?: string;
                     by_owner?: boolean;
+                    failed_at?: string | null;
                     items?: Json;
                     made_at?: string;
+                    making_at?: string | null;
+                    passed?: Json;
                     tenant_id?: string;
                 };
                 Relationships: [
@@ -7385,6 +7397,25 @@ type Database = {
             };
             lead_spend_refusal: {
                 Args: {
+                    p_tenant_id: string;
+                };
+                Returns: Json;
+            };
+            lead_suggest_history: {
+                Args: {
+                    p_tenant_id: string;
+                };
+                Returns: Json;
+            };
+            lead_suggestions_write: {
+                Args: {
+                    p_act: string;
+                    p_basis?: string;
+                    p_by_owner?: boolean;
+                    p_claim?: string;
+                    p_items?: Json;
+                    p_line?: string;
+                    p_passed?: Json;
                     p_tenant_id: string;
                 };
                 Returns: Json;

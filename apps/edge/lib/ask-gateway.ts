@@ -212,10 +212,12 @@ const isAsk = (purpose: GatewayPurpose): boolean => purpose === "ask" || purpose
 
 /**
  * The registry's purpose a gateway purpose is asked as (contracts ai/models.ts): Ask's turn is Ask's route (the template
- * drafter's rounds come as Ask's too), the lead and list drafts the small JSON route. The route names the fallback.
+ * drafter's rounds come as Ask's too), the ideas for a new search their own (00398), the lead and list drafts the small
+ * JSON route. The route names the fallback.
  */
 export function modelPurposeOf(purpose: GatewayPurpose): ModelPurpose {
-  return isAsk(purpose) ? "ask" : "lead_json";
+  if (isAsk(purpose)) return "ask";
+  return purpose === "lead_suggest" ? "lead_suggest" : "lead_json";
 }
 /** What Ask's daily budget counts: the gateway's purposes, and the reach-out sheet's preview (its own door, R12). */
 type AskUsagePurpose = GatewayPurpose | "reach_out_preview";
@@ -252,7 +254,7 @@ function formatOf(raw: unknown): { type: "json_schema"; schema: Record<string, u
  */
 export const GATEWAY_MODELS: readonly string[] = [
   ...new Set(
-    (["ask", "lead_json", "template_draft"] as const).flatMap((p) =>
+    (["ask", "lead_json", "lead_suggest", "template_draft"] as const).flatMap((p) =>
       [MODEL_ROUTES[p].model, MODEL_ROUTES[p].fallback].filter((m): m is NonNullable<typeof m> => m !== null),
     ),
   ),
