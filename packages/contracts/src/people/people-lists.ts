@@ -5,7 +5,7 @@
 import type { AskedPurpose } from "../consent/consent";
 import type { PersonRowVM } from "./person-row";
 import { MONTH_MS } from "./person-helpers";
-import { DAY_MS, WEEK_MS } from "../shared/time";
+import { WEEK_MS } from "../shared/time";
 
 /* ---------------------------- lists and totals --------------------------- */
 
@@ -246,28 +246,4 @@ export function peopleAggregates(rows: PersonRowVM[], nowMs: number): PeopleAggr
     booked,
     askedNotBooked,
   };
-}
-
-const RECENCY_BUCKETS = [
-  { label: "today", max: 1 },
-  { label: "3d", max: 3 },
-  { label: "1w", max: 7 },
-  { label: "2w", max: 14 },
-  { label: "1m", max: 30 },
-  { label: "2m", max: 60 },
-  { label: "3m", max: 90 },
-  { label: "older", max: Infinity },
-];
-
-/** Days since last contact, bucketed — the honest replacement for the
- *  mockup's temperature strip. */
-export function recencyCells(rows: PersonRowVM[], nowMs: number): { label: string; count: number }[] {
-  const cells = RECENCY_BUCKETS.map((b) => ({ label: b.label, count: 0 }));
-  for (const v of rows) {
-    const days = v.lastContact.ts === null ? Infinity : (nowMs - v.lastContact.ts) / DAY_MS;
-    let i = RECENCY_BUCKETS.findIndex((b) => days < b.max);
-    if (i === -1) i = cells.length - 1;
-    cells[i].count++;
-  }
-  return cells;
 }

@@ -15,9 +15,11 @@ import {
   callerName,
   describeNow,
   newReceptionistDefaults,
+  peopleNowOf,
   personName,
   reportFacts,
   toCallVM,
+  toPeopleReportVM,
   toPersonVM,
   toReceptionistReportVM,
   toReportVM,
@@ -27,6 +29,7 @@ import { fakeDb } from "../_fake-db.mjs";
 import { rows } from "../_rows.mjs";
 import { fieldsOf, logLineOf } from "../_log-lines.mjs";
 import { PLAN } from "../_lead-fixtures.mjs";
+import { QUIET, SERIES } from "../reports/people/_people-world.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -59,6 +62,7 @@ const {
   report: reportReader,
   reviewsReport,
   receptionistReport,
+  peopleReport,
 } = await import(at("apps/dashboard/src/server/readers/report.ts"));
 const { runTool, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const { setServiceClient } = await import(at("apps/dashboard/src/server/service-db.ts"));
@@ -67,6 +71,7 @@ const reportsRoute = await import(at("apps/dashboard/app/api/v1/reports/route.ts
 const campaignsRoute = await import(at("apps/dashboard/app/api/v1/reports/campaigns/route.ts"));
 const reviewsRoute = await import(at("apps/dashboard/app/api/v1/reports/reviews/route.ts"));
 const receptionistRoute = await import(at("apps/dashboard/app/api/v1/reports/receptionist/route.ts"));
+const peopleRoute = await import(at("apps/dashboard/app/api/v1/reports/people/route.ts"));
 const googleRoute = await import(at("apps/dashboard/app/api/v1/google/route.ts"));
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
 const { calendarWeek } = await import(at("apps/dashboard/src/server/calendar/calendar-week.ts"));
@@ -2956,6 +2961,346 @@ test("the Receptionist lens carries the hours and closures the report carries --
   }
 });
 
+/* ------------------------------------------------------------------- the People lens (Reports, C3) */
+
+const BOOK_DAY = 24 * HOUR;
+/**
+ * A person as people_list answers it (people-pool.test.mjs's row): wrote on WhatsApp `daysAgo` days before CAL_NOW, a yes
+ * to messages and to offers on it, with nothing else open.
+ */
+const bookRow = (n, daysAgo, over = {}) => {
+  const heard = new Date(CAL_NOW.getTime() - daysAgo * BOOK_DAY).toISOString();
+  return {
+    id: `k-${n}`,
+    display_name: `Person ${n}`,
+    wa_profile_name: null,
+    phone_e164: `+1917555${String(n).padStart(4, "0")}`,
+    email: null,
+    consent: "opted_in",
+    consent_source: "customer_message",
+    consent_updated_at: heard,
+    marketing_consent: "opted_in",
+    marketing_consent_source: "form",
+    marketing_consent_updated_at: heard,
+    marketing_channels: ["whatsapp"],
+    dnc: false,
+    channels: ["whatsapp"],
+    conversation_count: 1,
+    escalation_count: 0,
+    needs_human: false,
+    open_escalation_reason: null,
+    open_escalation_since: null,
+    latest_conversation_id: `cv-${n}`,
+    latest_state: "open",
+    latest_paused_until: null,
+    latest_assignee_user_id: null,
+    latest_snooze_until: null,
+    latest_wa_inbound_at: heard,
+    last_message_at: heard,
+    last_message_direction: "inbound",
+    last_message_sender: "customer",
+    last_inbound_text: "Can I move Saturday to 11?",
+    last_inbound_at: heard,
+    last_call_at: null,
+    last_inbound_call_at: null,
+    call_count: 0,
+    call_seconds: 0,
+    first_contact_at: heard,
+    earliest_row_at: heard,
+    has_backfill: false,
+    has_chat: true,
+    message_channels: ["whatsapp"],
+    queued_reply_at: null,
+    ...over,
+  };
+};
+/**
+ * The moment the fifth person last wrote: 22:00 on 1 Sep in New York, 02:00 on 2 Sep in UTC. CAL_NOW is the 8th at noon in
+ * New York, so by the workspace's days they were heard 7 days ago (`d7_30`), and by UTC's 6 (`under_7`): only the workspace's
+ * zone puts them in the right bucket.
+ */
+const EDGE_HEARD = "2026-09-02T02:00:00.000Z";
+/**
+ * Five people, so the book's buckets differ: heard 2, 20, 45 and 100 days before CAL_NOW, and the fifth on the edge of the
+ * week by the zone (above). The first has a step of the member's a day past, the second one of a teammate's due today and
+ * reaches Harbor by WhatsApp and by phone, the fourth asked to stop.
+ */
+const BOOK = [
+  bookRow(1, 2, { step_id: "s1", step_body: "Send the quote", step_due_on: "2026-09-07", step_for_user_id: USER }),
+  bookRow(2, 20, {
+    channels: ["whatsapp", "voice"],
+    step_id: "s2",
+    step_body: "Call back",
+    step_due_on: "2026-09-08",
+    step_for_user_id: "u2",
+  }),
+  bookRow(3, 45),
+  bookRow(4, 100, { consent: "opted_out" }),
+  bookRow(5, 0, { last_inbound_at: EDGE_HEARD, last_message_at: EDGE_HEARD, latest_wa_inbound_at: EDGE_HEARD }),
+];
+/** The counts of the People world's busy thirty days, without the window they were read for. */
+const { timezone: _zone, today: _day, days: _span, ...BUSY } = SERIES;
+/** What people_series answers (00395) for the days asked, ending where it was asked to: a quiet window, or what `over` puts in it. */
+const peopleSeriesAnswer = (a, over = {}) => ({
+  timezone: "America/New_York",
+  today: "2026-09-08",
+  end: a.p_end ?? "2026-09-08",
+  days: a.p_days,
+  ...QUIET,
+  ...over,
+});
+/** Harbor's WhatsApp number, as the People worlds give the channels (calendar-counts.test.mjs's). */
+const WHATSAPP_ON = [{ tenant_id: A, kind: "whatsapp", status: "active", config: {} }];
+/** calendar-feed's Harbor with People as BOOK, people_series answering `over` and the channels `channels` gives. */
+const peopleLensWorld = (over = {}, rpcs = {}, channels = WHATSAPP_ON) => ({
+  tables: { ...calTables(null), tenant_channels: channels },
+  rpcs: { people_series: (a) => peopleSeriesAnswer(a, over), people_list: () => BOOK, ...rpcs },
+});
+/** What a database that has not run 00395 answers a call to people_series. */
+const peopleSeriesGone = () => {
+  throw Object.assign(
+    new Error("Could not find the function public.people_series(p_days, p_tenant_id) in the schema cache"),
+    { code: "PGRST202" },
+  );
+};
+const peopleListDown = () => {
+  throw new Error("people down");
+};
+
+test("the People lens, for Ask and for the page: GET reports/people answers its reader's payload, key for key and byte for byte, for each preset -- the database's series and the book as it stands now, no row of its own", async (t) => {
+  // The route reads the real clock: the book's days are counted from the turn's.
+  t.mock.timers.enable({ apis: ["Date"], now: CAL_NOW.getTime() });
+  const w = peopleLensWorld(BUSY);
+  for (const [period, days] of [
+    ["7d", 7],
+    ["30d", 30],
+    ["90d", 90],
+  ]) {
+    const page = await peopleRoute.GET.run(req(`?period=${period}&workspace=${A}`), worldCtx(w));
+    const r = await kernel.load(calIn(worldCtx(w)), peopleReport, { days, end: null });
+    assert.equal(JSON.stringify(r.data), JSON.stringify(page), `${period}: the route's payload, byte for byte`);
+    assert.deepEqual(Object.keys(page), ["timezone", "today", "end", "days", "series", "now"]);
+    assert.deepEqual([page.timezone, page.today, page.days], ["America/New_York", "2026-09-08", days]);
+    assert.deepEqual(r.rows, [], "drawn on the Reports page, whose row the report names");
+  }
+  await assert.rejects(
+    peopleRoute.GET.run(req(`?period=14d&workspace=${A}`), worldCtx(w)),
+    (e) => e.status === 400,
+    "a period that is none of the four is refused at the door",
+  );
+});
+
+test("the People lens carries the series as the database gave it and the book as People counts it: peopleNowOf over the rows People holds, in the workspace's zone at the turn's clock, judged against what the workspace can send on", async () => {
+  const w = peopleLensWorld(BUSY);
+  const r = await kernel.load(calIn(worldCtx(w)), peopleReport, LENS);
+  assert.deepEqual(r.data.series, peopleSeriesAnswer({ p_days: 30 }, BUSY), "the series, as the database gave it");
+
+  const held = (await kernel.load(calIn(worldCtx(w)), everyoneReader, undefined)).data;
+  const ready = await channelsReadyOrNull(worldCtx(w), A, { withPause: false });
+  assert.notEqual(ready, null, "the channels are read, WhatsApp among them");
+  const nowMs = CAL_NOW.getTime();
+  assert.deepEqual(r.data.now, peopleNowOf(held, { tz: "America/New_York", nowMs, ready }));
+  assert.equal(r.data.now.people, 5);
+  assert.deepEqual(
+    r.data.now.fresh,
+    { under_7: 1, d7_30: 2, d31_60: 1, d61_90: 0, d91_up: 1, never: 0 },
+    "the fifth, 22:00 on the 1st in New York, was heard 7 days ago by the workspace's days",
+  );
+  const inUtc = peopleNowOf(held, { tz: "UTC", nowMs, ready });
+  assert.deepEqual(
+    inUtc.fresh,
+    { under_7: 2, d7_30: 1, d31_60: 1, d61_90: 0, d91_up: 1, never: 0 },
+    "and 6 by UTC's: the zone is what tells the two apart",
+  );
+  assert.notDeepEqual(r.data.now.fresh, inUtc.fresh);
+  assert.deepEqual(r.data.now.steps, { overdue: 1, due_today: 1 }, "the days of the steps are the workspace's");
+  assert.deepEqual(r.data.now.wires, {
+    whatsapp_only: 4,
+    sms_only: 0,
+    phone_only: 0,
+    email_only: 0,
+    several: 1,
+    none: 0,
+  });
+
+  // The channels count: with no WhatsApp number nobody can be sent offers, which counting by WhatsApp alone (the channels not read) would not say.
+  const dark = await kernel.load(calIn(worldCtx(peopleLensWorld(BUSY, {}, []))), peopleReport, LENS);
+  assert.equal(r.data.now.lists.offers_ok, 4);
+  assert.equal(dark.data.now.lists.offers_ok, 0);
+  assert.equal(peopleNowOf(held, { tz: "America/New_York", nowMs, ready: null }).lists.offers_ok, 4);
+  assert.equal(
+    dark.data.now.lists.opted_in,
+    r.data.now.lists.opted_in,
+    "the yes is theirs, whether or not you can send",
+  );
+});
+
+test("the People lens on a database that does not have its function yet (00395 not applied) answers 200 with `series: null`, the book and the window it was asked, said once in the log with the workspace; any other refusal is still the route's failure", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: CAL_NOW.getTime() });
+  const absent = peopleLensWorld(BUSY, { people_series: peopleSeriesGone });
+  const { result: page, lines } = await logged("people_series_missing", () =>
+    peopleRoute.GET.run(req(`?workspace=${A}`), worldCtx(absent)),
+  );
+  assert.deepEqual(Object.keys(page), ["timezone", "today", "days", "series", "now"]);
+  assert.equal(page.series, null);
+  assert.deepEqual([page.timezone, page.today, page.days], ["America/New_York", "2026-09-08", 30]);
+  assert.equal(page.now.people, 5, "the book does not need the function");
+  assert.deepEqual(lines, [{ tenant_id: A }], "said once for the read, naming the workspace");
+
+  const ctx = worldCtx(absent);
+  const { result: r } = await logged("people_series_missing", () => kernel.load(calIn(ctx), peopleReport, LENS));
+  assert.deepEqual(r.data, page, "Ask's reader answers what the route does");
+  const seen = asked(ctx);
+  for (const q of ["rpc:people_list", "tenants.select"])
+    assert.equal(seen.filter((x) => x === q).length, 1, `${q}: once, whichever half asks`);
+
+  // Days that ended before today name their last day in the answer, as the window was asked.
+  const { result: ended } = await logged("people_series_missing", () =>
+    kernel.load(calIn(worldCtx(absent)), peopleReport, { days: 20, end: "2026-08-31" }),
+  );
+  assert.deepEqual(
+    [ended.data.timezone, ended.data.today, ended.data.end, ended.data.days, ended.data.series],
+    ["America/New_York", "2026-09-08", "2026-08-31", 20, null],
+  );
+  assert.equal(ended.data.now.people, 5);
+
+  // A different code is not this window: the route fails as it does for any read that cannot be made.
+  const denied = peopleLensWorld(BUSY, {
+    people_series: () => {
+      throw Object.assign(new Error("permission denied for function people_series"), { code: "42501" });
+    },
+  });
+  const unsaid = await logged("people_series_missing", async () => {
+    await assert.rejects(peopleRoute.GET.run(req(`?workspace=${A}`), worldCtx(denied)), /permission denied/);
+  });
+  assert.deepEqual(unsaid.lines, [], "and the log does not call it the missing function");
+});
+
+test("the People lens: a function with no workspace is the route's 404 in its words, and a read that fails is its failure -- not found and could not read are two answers", async () => {
+  const unknown = peopleLensWorld(BUSY, { people_series: () => ({ error: "unknown_tenant" }) });
+  await assert.rejects(kernel.load(turnIn(worldCtx(unknown)), peopleReport, LENS), noReport);
+  await assert.rejects(peopleRoute.GET.run(req(`?workspace=${A}`), worldCtx(unknown)), noReport);
+  const down = peopleLensWorld(BUSY, {
+    people_series: () => {
+      throw new Error("connection refused");
+    },
+  });
+  const failed = /people_series: connection refused/;
+  await assert.rejects(kernel.load(turnIn(worldCtx(down)), peopleReport, LENS), failed);
+  await assert.rejects(peopleRoute.GET.run(req(`?workspace=${A}`), worldCtx(down)), failed);
+});
+
+test("the People lens never fails for its book: People that cannot be read leave `now: null`, said once in the log with the workspace, and the series is answered -- each half fails alone, and both gone still answer the window as it was asked", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: CAL_NOW.getTime() });
+  const down = peopleLensWorld(BUSY, { people_list: peopleListDown });
+  const { result: page, lines } = await logged("people_pool_failed", () =>
+    peopleRoute.GET.run(req(`?workspace=${A}`), worldCtx(down)),
+  );
+  assert.deepEqual(Object.keys(page), ["timezone", "today", "end", "days", "series", "now"]);
+  assert.equal(page.now, null);
+  assert.deepEqual(page.series, peopleSeriesAnswer({ p_days: 30 }, BUSY), "and the rest of the lens is answered");
+  assert.equal(lines.length, 1, "logged once, never fatal");
+  assert.equal(lines[0].tenant_id, A);
+  assert.match(lines[0].error, /people down/);
+
+  const { result: r } = await logged("people_pool_failed", () =>
+    kernel.load(calIn(worldCtx(down)), peopleReport, LENS),
+  );
+  assert.deepEqual(r.data, page, "Ask's reader answers what the route does");
+
+  const both = peopleLensWorld(BUSY, { people_series: peopleSeriesGone, people_list: peopleListDown });
+  const { result: neither, lines: poolLines } = await logged("people_pool_failed", () =>
+    kernel.load(calIn(worldCtx(both)), peopleReport, LENS),
+  );
+  const none = neither.data;
+  assert.deepEqual([none.series, none.now, none.days, none.today], [null, null, 30, "2026-09-08"]);
+  assert.equal(poolLines.length, 1, "the book's failure is said once beside the missing function's");
+});
+
+test("the People lens never fails the route for a zone it cannot read: a database without its function whose workspace row cannot be read answers `series: null, now: null` -- the book's failure said once in the log -- and Ask's tool reads that as `available: false`", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: CAL_NOW.getTime() });
+  const absent = peopleLensWorld(BUSY, { people_series: peopleSeriesGone });
+  const zoneDown = { "tenants.select": { message: "tenants down" } };
+  const { result: r, lines } = await logged("people_pool_failed", () =>
+    kernel.load(calIn(worldCtx(absent, zoneDown)), peopleReport, LENS),
+  );
+  const none = r.data;
+  assert.deepEqual([none.series, none.now, none.days], [null, null, 30], "neither half, and the days as asked");
+  assert.deepEqual(Object.keys(none), ["timezone", "today", "days", "series", "now"]);
+  assert.equal(
+    typeof none.timezone,
+    "string",
+    "a zone and a day the type holds, though nothing reads them of this answer",
+  );
+  assert.match(none.today, /^\d{4}-\d{2}-\d{2}$/);
+  assert.deepEqual(r.rows, []);
+  assert.equal(lines.length, 1, "the book's failure is said once");
+  assert.match(lines[0].error, /tenants down/);
+  const lens = toPeopleReportVM(none);
+  assert.deepEqual([lens.windowAvailable, lens.nowAvailable], [false, false], "Ask's tool: `{ available: false }`");
+
+  // Days that ended before today name their last day, as the window was asked.
+  const { result: ended } = await logged("people_pool_failed", () =>
+    kernel.load(calIn(worldCtx(absent, zoneDown)), peopleReport, { days: 20, end: "2026-08-31" }),
+  );
+  assert.deepEqual(
+    [ended.data.end, ended.data.days, ended.data.series, ended.data.now],
+    ["2026-08-31", 20, null, null],
+  );
+
+  // The zone is only the missing function's trouble when both fail: with the function there, a zone that cannot be read is the series' answer to give.
+  const { result: there } = await logged("people_pool_failed", () =>
+    kernel.load(calIn(worldCtx(peopleLensWorld(BUSY), zoneDown)), peopleReport, LENS),
+  );
+  assert.deepEqual(there.data.series, peopleSeriesAnswer({ p_days: 30 }, BUSY), "the window is answered");
+  assert.equal(there.data.now, null, "and the book, which needs the zone, is not");
+});
+
+test("the People lens reads its book for days that ended before today as well: the book is as of now and the window is the database's -- people_series is asked with the last day named, and People once", async () => {
+  const ctx = worldCtx(peopleLensWorld(BUSY));
+  const ended = await kernel.load(calIn(ctx), peopleReport, { days: 20, end: "2026-08-31" });
+  assert.deepEqual(
+    ctx.supabase.seen.filter((q) => q.rpc === "people_series"),
+    [{ rpc: "people_series", args: { p_tenant_id: A, p_days: 20, p_end: "2026-08-31" } }],
+    "the database counts the 20 days to the 31st",
+  );
+  assert.equal(asked(ctx).filter((x) => x === "rpc:people_list").length, 1, "and People is read");
+  assert.equal(ended.data.end, "2026-08-31");
+  assert.equal(ended.data.days, 20);
+  const live = await kernel.load(calIn(worldCtx(peopleLensWorld(BUSY))), peopleReport, LENS);
+  assert.deepEqual(ended.data.now, live.data.now, "the book is the same as of now, whichever days are asked");
+});
+
+test("the People lens reads each of its things once in a turn: the series, People, the zone and the channels -- and a turn that already loaded People for the report reads People once", async () => {
+  const ctx = worldCtx(peopleLensWorld(BUSY));
+  await kernel.load(calIn(ctx), peopleReport, LENS);
+  for (const q of ["rpc:people_series", "rpc:people_list", "tenants.select", "tenant_channels.select", "lines.select"])
+    assert.equal(asked(ctx).filter((x) => x === q).length, 1, `${q}: once`);
+
+  const both = worldCtx(peopleLensWorld(BUSY, { report_series: series }));
+  const rc = calIn(both);
+  await Promise.all([kernel.load(rc, reportReader, LENS), kernel.load(rc, peopleReport, LENS)]);
+  await kernel.load(rc, peopleReport, LENS);
+  assert.equal(
+    asked(both).filter((x) => x === "rpc:people_list").length,
+    1,
+    "the report counted People for its booking line; the lens counts the same read",
+  );
+  assert.equal(asked(both).filter((x) => x === "rpc:people_series").length, 1);
+});
+
+test("the People lens is the workspace's, not the member's: the same answer for an owner and a viewer, whoever a step in the book is for", async () => {
+  const w = peopleLensWorld(BUSY);
+  const viewer = await kernel.load(calIn(worldCtx(w), "viewer"), peopleReport, LENS);
+  const owner = await kernel.load(
+    kernel.readerContext({ ...worldCtx(w), userId: "u2" }, { tenantId: A, role: "owner" }, CAL_NOW),
+    peopleReport,
+    LENS,
+  );
+  assert.equal(JSON.stringify(owner.data), JSON.stringify(viewer.data));
+  assert.notEqual(owner.data.now, null);
+});
+
 /* ----------------------------------------------------------------------- the openings (PR 1.5) */
 
 /** calendar-counts.test.mjs's feed for the openings: Wednesday morning taken, the afternoon open. */
@@ -4861,6 +5206,8 @@ test("the channels, for the page and for Ask: GET channels answers its reader's 
     "quality_at",
     "standing",
     "standing_read_at",
+    // When the number first connected (#1541), which the toast and the row try its link by.
+    "connected_at",
   ]);
   // When each last heard from a customer: WhatsApp's last inbound message, the line's last inbound call.
   const heard = channelsWorld({

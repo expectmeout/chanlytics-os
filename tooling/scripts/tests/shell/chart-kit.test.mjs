@@ -1,6 +1,6 @@
 /**
  * The chart kit, EXECUTED on a stub React: clean axes, a curve that never overshoots its data, gaps where a day has
- * nothing, arcs that close, one rule for the x labels, and the parts every chart shares: the card that owns its series
+ * nothing, one rule for the x labels, and the parts every chart shares: the card that owns its series
  * (colours, legend, table twin, a CSV spelled by contracts' csvCell), a tooltip that stays inside the card at any
  * width, one keyboard stop per chart, and each chart drawn and read back. Run against the kit's own modules
  * (surfaces/kit/charts), which the app imports.
@@ -13,25 +13,13 @@ import { installLegacyReact, fresh, again, all, find, byTestId, textOf, classes,
 installLegacyReact();
 // The kit's charts are TSX (surfaces/kit/charts, decision 0015): imported, and drawn on the same stub React.
 const K = "../../../../apps/dashboard/src/surfaces/kit/charts";
-const {
-  ckNice,
-  ckNiceSeconds,
-  ckSecondsLabel,
-  ckMonotone,
-  ckRuns,
-  ckArc,
-  ckEvery,
-  ckHeight,
-  ckTip,
-  ckDescribe,
-  ckTipSide,
-} = await import(`${K}/geometry.ts`);
+const { ckNice, ckNiceSeconds, ckSecondsLabel, ckMonotone, ckRuns, ckEvery, ckHeight, ckTip, ckDescribe, ckTipSide } =
+  await import(`${K}/geometry.ts`);
 const { CkXLabels, ChartLegend, ChartTooltip } = await import(`${K}/parts.tsx`);
 const { ChartCard, SegmentBar } = await import(`${K}/card.tsx`);
 const { BarChart, BarList } = await import(`${K}/bar.tsx`);
 const { LineChart } = await import(`${K}/line.tsx`);
 const { DotPlot } = await import(`${K}/dot.tsx`);
-const { PieChart } = await import(`${K}/pie.tsx`);
 const { RadarChart } = await import(`${K}/radar.tsx`);
 const { RadialChart } = await import(`${K}/radial.tsx`);
 const { HeatStrip } = await import(`${K}/heat.tsx`);
@@ -146,16 +134,6 @@ test("a day with nothing is a gap in the line, never a dive to zero", () => {
       [4, 5],
     ],
   ]);
-});
-
-test("an arc closes, and a full turn is drawn as two halves", () => {
-  const half = ckArc(50, 50, [30, 40], [0, Math.PI]);
-  assert.ok(half.startsWith("M") && half.endsWith("Z"));
-  assert.equal((ckArc(50, 50, [30, 40], [0, Math.PI * 2]).match(/Z/g) || []).length, 2);
-  assert.ok(
-    ckArc(50, 50, [30, 40], [0, Math.PI * 1.5]).includes(" 0 1 1 "),
-    "past a half turn the large-arc flag is set",
-  );
 });
 
 test("one rule for the x labels: every so many days, always the newest, never one crowding it, whole dates at the ends", () => {
@@ -448,46 +426,6 @@ test("a chart told to fill takes the room its card has left, and never less than
   assert.deepEqual(line.props.style, { minHeight: 176 });
 });
 
-test("a donut told to fill is sized from its width, never from the height it is the cause of", () => {
-  // Height would chase itself -- the ring is what makes the box tall -- so the ring takes a share of the width, held
-  // between its floor and its ceiling. At the 600px the kit assumes before it measures, the ceiling is what caps it.
-  const ring = (props) =>
-    find(
-      PieChart({
-        data: [
-          { key: "whatsapp", value: 3 },
-          { key: "voice", value: 1 },
-        ],
-        config: CHANNELS,
-        ...props,
-      }),
-      (n) => classes(n).includes("ck-pie-figure"),
-    ).props.style;
-  // The ring's size, and beside it the hole its middle words keep inside (charts.css, --ck-hole).
-  const size = (props) => {
-    const { width, height } = ring(props);
-    return { width, height };
-  };
-  assert.deepEqual(
-    size({ size: "fill", floor: 138, ceiling: 208 }),
-    { width: 208, height: 208 },
-    "600 * 0.45 is over the ceiling",
-  );
-  assert.deepEqual(
-    size({ size: "fill", floor: 138, ceiling: 500 }),
-    { width: 270, height: 270 },
-    "under it, the share of the width",
-  );
-  assert.deepEqual(
-    size({ size: "fill", floor: 320, ceiling: 500 }),
-    { width: 320, height: 320 },
-    "never under the floor",
-  );
-  assert.deepEqual(size({ size: 138 }), { width: 138, height: 138 }, "a number is the size");
-  // A 138px ring is 4px in from its box and its band 16px wide: its hole is 138 - 8 - 32 = 98px across.
-  assert.equal(ring({ size: 138 })["--ck-hole"], "98px", "the figure says its hole");
-});
-
 test("a bar list: label and value on one line, the bar under them sized against the largest, a row with a door is a button", () => {
   fresh();
   const picked = [];
@@ -744,60 +682,7 @@ test("a dot plot: every reply on the line and no reference still draws, on a rea
   }
 });
 
-/* ------------------------------------------ donut, radar, radial, heat, segments ------------------------------------------ */
-
-const CHANNELS = {
-  whatsapp: { label: "WhatsApp", color: "var(--chart-cat-1)" },
-  voice: { label: "Calls", color: "var(--chart-cat-2)" },
-  email: { label: "Email", color: "var(--chart-cat-3)" },
-};
-
-test("a donut: slices in the data's own order (a channel keeps its colour whatever its size), a legend with counts and shares", () => {
-  fresh();
-  const draw = () =>
-    PieChart({
-      data: [
-        { key: "whatsapp", value: 49 },
-        { key: "voice", value: 11 },
-        { key: "email", value: 0 },
-      ],
-      config: CHANNELS,
-      center: { value: 60, label: "messages and calls" },
-    });
-  let tree = draw();
-  assert.deepEqual(
-    all(tree, (n) => classes(n).includes("ck-slice")).map((s) => s.props.fill),
-    ["var(--color-whatsapp)", "var(--color-voice)"],
-    "an empty slice is not drawn",
-  );
-  assert.equal(textOf(find(tree, (n) => classes(n).includes("ck-pie-legend"))), "WhatsApp4982%Calls1118%");
-  assert.equal(textOf(find(tree, (n) => classes(n).includes("ck-pie-center"))), "60messages and calls");
-  find(tree, (n) => classes(n).includes("ck-pie-figure")).props.onFocus();
-  tree = again(draw);
-  assert.equal(
-    textOf(find(tree, (n) => classes(n).includes("ck-pie-center"))),
-    "49WhatsApp",
-    "focus starts on the first slice, and it speaks in the centre",
-  );
-});
-
-test("one slice is a whole: the number and its row are the chart, with no ring", () => {
-  fresh();
-  const tree = PieChart({
-    data: [
-      { key: "whatsapp", value: 5 },
-      { key: "voice", value: 0 },
-    ],
-    config: CHANNELS,
-    center: { value: 5, label: "messages and calls" },
-  });
-  assert.equal(
-    find(tree, (n) => n.type === "svg"),
-    null,
-  );
-  assert.ok(classes(tree).includes("ck-pie-one"));
-  assert.equal(textOf(tree), "5messages and callsWhatsApp5100%");
-});
+/* ------------------------------------------ radar, radial, heat, segments ------------------------------------------ */
 
 test("a radar: hairline rings and spokes, the period washed and the one before a gray line, a day read in the config's words", () => {
   fresh();

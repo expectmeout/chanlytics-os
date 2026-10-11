@@ -82,6 +82,13 @@ export {
   receptionistDtoOf,
 } from "./receptionist/receptionist-record";
 export type { ReceptionistDto, ReceptionistSeriesDto } from "./receptionist/receptionist-record";
+export { peopleNowOf } from "./people/people-now";
+export type { PeopleNowDto } from "./people/people-now";
+export { isPeopleSeriesDto, peopleDtoOf } from "./people/people-record";
+export type { PeopleDto, PeopleSeriesDto } from "./people/people-record";
+export { toPeopleReportVM } from "./people/people-report";
+export type { PeopleFigureVM, PeopleReportVM } from "./people/people-report";
+export { PEOPLE_RHYTHM_UNIT } from "./people/people-words";
 export {
   CAMPAIGNS_RESULTS_PERIOD,
   REPORT_PERIOD_DEFAULT,

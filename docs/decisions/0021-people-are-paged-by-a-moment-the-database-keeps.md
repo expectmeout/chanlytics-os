@@ -227,6 +227,11 @@ Each is its own pull request, in this order, and each ships alone.
    its index. It changes a number Today shows, and says whose. Since 00304, Today (`metrics_summary`) and Reports
    (`report_series`) read new people through one function, `contact_first_moments` (made in 00303); this step re-points that function at
    the kept moments, so the number changes in one place and People's `new_at` joins the same rule.
+
+   _Note, 10 Oct 2026:_ step 4 as written is superseded for Reports and Today. Since 00394, `contact_first_moments` is a
+   person's first inbound message in their own words or first inbound call that connected; People's `new_at` and its
+   New this week keep their own rule until the People surface's lane.
+
 5. **A refresh by person** (the dashboard). It needs step 3. Under 0019, it needs 0019's payload to name the people.
 
 ## Tests

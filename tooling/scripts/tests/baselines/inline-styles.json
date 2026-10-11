@@ -26,7 +26,6 @@
   "apps/dashboard/src/surfaces/kit/charts/heat.tsx": 1,
   "apps/dashboard/src/surfaces/kit/charts/line.tsx": 1,
   "apps/dashboard/src/surfaces/kit/charts/parts.tsx": 3,
-  "apps/dashboard/src/surfaces/kit/charts/pie.tsx": 3,
   "apps/dashboard/src/surfaces/kit/charts/radar.tsx": 1,
   "apps/dashboard/src/surfaces/kit/charts/radial.tsx": 2,
   "apps/dashboard/src/surfaces/kit/meter/meter.tsx": 1,

@@ -6636,6 +6636,12 @@ function compareWords(current, previous, rangeLabel, priorHadAny) {
   if (current === previous) return `same as ${beforeWords(rangeLabel)}`;
   return `${current > previous ? "up" : "down"} from ${previous}`;
 }
+function newPeopleLine(newNow, newBefore, rangeLabel, priorHadAny) {
+  if (newNow === 0) return "Nobody new reached you in this period.";
+  const reached = `${plural(newNow, "new person", "new people")} reached you`;
+  if (!priorHadAny) return `${reached}.`;
+  return `${reached} (${newBefore === 0 ? "none" : newBefore} ${beforeWords(rangeLabel)}).`;
+}
 var messagesTile = ({ days, current, points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
   id: "messages",
   metric: "customer_messages",
@@ -6857,19 +6863,6 @@ function speedOf(replies, days) {
 }
 var moodRank = (s) => s === "Positive" ? 0 : s === "Negative" ? 2 : 1;
 var listWords = (names3, last) => names3.length <= 1 ? names3.join("") : `${names3.slice(0, -1).join(", ")} ${last} ${names3[names3.length - 1]}`;
-var channelNoun = (c) => c.key === "voice" ? "calls" : c.key === "email" ? "email" : c.key === "sms" ? "texts" : c.label;
-function channelsLine(channels, rangeLabel) {
-  if (!channels) return null;
-  const reached = channels.reduce((s, c) => s + c.value, 0);
-  if (!reached) return null;
-  const top = channels.reduce((a, c) => c.value > a.value ? c : a);
-  const lead = top.value * 2 > reached ? `Mostly ${channelNoun(top)}` : `${capitalize(channelNoun(top))} ${top.key === "voice" || top.key === "sms" ? "lead" : "leads"}`;
-  const before = channels.reduce((s, c) => s + c.prior, 0);
-  if (!before) return `${lead}.`;
-  const wasTop = channels.reduce((a, c) => c.prior > a.prior ? c : a);
-  if (wasTop.key === top.key) return `${lead}, as ${beforeWords(rangeLabel)}.`;
-  return `${capitalize(channelNoun(top))} took over from ${channelNoun(wasTop)}.`;
-}
 function rhythmLine(week) {
   if (!week.current.some((v) => v > 0)) return null;
   const avg = week.unit === "average";
@@ -7035,7 +7028,7 @@ function replyLine({ sortedReply, p90, hold }) {
   if (sortedReply.length >= 10) return `Nine in ten within ${fmtSeconds(p90)}.`;
   return sortedReply.length ? `The slowest took ${fmtSeconds(sortedReply[sortedReply.length - 1])}.` : null;
 }
-function linesOf(f, week, channels) {
+function linesOf(f, week) {
   const { points, tot, prev, rangeLabel, answeredTotal, prevAnsweredTotal } = f;
   const busiestDay = tot.in ? points.reduce((b, p) => p.in > b.in ? p : b) : null;
   return {
@@ -7045,7 +7038,7 @@ function linesOf(f, week, channels) {
     answered: busiestDay ? `Most messages on ${busiestDay.label}: ${busiestDay.in}.` : null,
     reply: replyLine(f),
     calls: tot.calls ? `About ${fmtSeconds(tot.callSeconds / tot.calls)} a call.` : null,
-    channels: channelsLine(channels, rangeLabel),
+    people: newPeopleLine(tot.newPeople, prev.newPeople, rangeLabel, f.priorHadAny),
     rhythm: rhythmLine(week)
   };
 }
@@ -7100,7 +7093,7 @@ function toReportVM(dto, opts) {
     hoursUnset: hoursUnsetOf(dto.arrivals, opts?.profile),
     channels,
     period: periodWords(f.days, f.until),
-    lines: linesOf(f, week, channels),
+    lines: linesOf(f, week),
     table: {
       columns: [
         "Day",
@@ -7191,7 +7184,7 @@ var REPORT_LENSES = [
   {
     id: "people",
     label: "People",
-    sub: "who reached you, and where and when",
+    sub: "who reached you, whether you can reach them, and who is slipping away",
     shownWhen: "always",
     role: "viewer",
     empty: NOTHING_CAME_IN
@@ -13902,26 +13895,6 @@ function peopleAggregates(rows2, nowMs) {
     booked,
     askedNotBooked
   };
-}
-var RECENCY_BUCKETS = [
-  { label: "today", max: 1 },
-  { label: "3d", max: 3 },
-  { label: "1w", max: 7 },
-  { label: "2w", max: 14 },
-  { label: "1m", max: 30 },
-  { label: "2m", max: 60 },
-  { label: "3m", max: 90 },
-  { label: "older", max: Infinity }
-];
-function recencyCells(rows2, nowMs) {
-  const cells = RECENCY_BUCKETS.map((b) => ({ label: b.label, count: 0 }));
-  for (const v of rows2) {
-    const days = v.lastContact.ts === null ? Infinity : (nowMs - v.lastContact.ts) / DAY_MS;
-    let i = RECENCY_BUCKETS.findIndex((b) => days < b.max);
-    if (i === -1) i = cells.length - 1;
-    cells[i].count++;
-  }
-  return cells;
 }
 
 // src/consent/consent-asks.ts
@@ -23051,8 +23024,8 @@ function pipelineSorted(vm, by, dir) {
   if (sort === "stage" && dir !== "desc") return vm;
   const sign = dir === "desc" ? -1 : 1;
   const groups = vm.groups.map((g) => {
-    const ranked = g.rows.map((r2, i) => ({ r: r2, i }));
-    ranked.sort((a, b) => {
+    const ranked2 = g.rows.map((r2, i) => ({ r: r2, i }));
+    ranked2.sort((a, b) => {
       if (sort === "stage") return sign * (a.i - b.i);
       if (sort === "name") return sign * a.r.name.localeCompare(b.r.name) || a.i - b.i;
       if (sort === "next") {
@@ -23070,7 +23043,7 @@ function pipelineSorted(vm, by, dir) {
       if (y === null) return -1;
       return sign * (x - y);
     });
-    return { ...g, rows: ranked.map((x) => x.r) };
+    return { ...g, rows: ranked2.map((x) => x.r) };
   });
   return { ...vm, groups };
 }
@@ -29516,7 +29489,7 @@ function campaignChannelsOf2(rows2) {
     ];
   });
 }
-function channelsLine2(channels) {
+function channelsLine(channels) {
   if (channels.length < 2) return null;
   const whatsapp = channels.find((c) => c.channel === "whatsapp");
   return whatsapp ? `Read receipts are WhatsApp's alone: ${whatsapp.read} of its ${whatsapp.sent} were read.` : "A text or an email keeps no read receipt.";
@@ -29650,21 +29623,21 @@ function toCampaignReportVM(dto) {
       // A yes is to being messaged, never to an offer: a visit reminder is no offer (the wiring audit's C25).
       funnel: tot.optIns || tot.optOuts ? `${tot.optIns} ${tot.optIns === 1 ? "person" : "people"} said yes to messages, ${tot.optOuts} ${tot.optOuts === 1 ? "person" : "people"} asked to stop.` : "Nobody said yes to messages or asked to stop.",
       sent: sends2 ? sends2 === 1 ? "From one broadcast or campaign run." : `From ${sends2} broadcast and campaign runs.` : null,
-      channels: channelsLine2(channels)
+      channels: channelsLine(channels)
     }
   };
 }
 
 // src/reports/lens-answer.ts
 function lensAnswerOf(lens, parts2) {
-  const { vm, campaigns, deals, reviews } = parts2;
+  const { vm, campaigns, deals, reviews, people } = parts2;
   switch (lens) {
     case "overview":
       return vm.empty ? void 0 : vm.lines.hero;
     case "receptionist":
       return vm.empty ? void 0 : vm.lines.receptionist ?? void 0;
     case "people":
-      return vm.empty ? void 0 : vm.lines.channels ?? void 0;
+      return people?.head ?? vm.lines.people;
     case "pipeline":
       return deals?.present ? deals.headline : void 0;
     case "campaigns":
@@ -30012,7 +29985,7 @@ var METRIC_WORDS = {
   reply_median: "The middle time from a customer's message to the receptionist's first reply, including the hold you set before replies go out. A message you answered first, or that nobody answered, is not counted.",
   handovers: "How many times the receptionist stopped and held a conversation for you, counted when it stopped, whatever the reason. A conversation held twice counts twice.",
   calls: "Calls to the receptionist that connected. A call that rang out or dropped before anyone spoke is not counted.",
-  new_people: "People whose first message, in either direction, or first connected call fell in this period. People brought in with their history, people who asked to be forgotten, and people with no message or call yet are not counted.",
+  new_people: "People whose first message in their own words, or first connected call to you, fell in this period, counted once. A message you or the receptionist sent, an automatic reply or a list's mail, a call you placed, people brought in with their history, people who asked to be forgotten, and people who have not written or phoned yet are not counted.",
   booked: "Of the people who wrote or called in this period, how many have an appointment ahead on your calendar, or one that began no more than a day before they asked. It is a dash where no calendar is connected or it could not be read.",
   messages_sent: "Messages your broadcasts and campaign runs sent in this period, on every channel, one for each person reached. A reply you or the receptionist wrote is not counted.",
   delivered_share: `Of the messages sent, the share the channel reports as delivered or read (${DELIVERY_RECEIPTS_WORDS}). A message with no receipt yet is not counted as delivered.`,
@@ -30032,15 +30005,33 @@ var METRIC_WORDS = {
   answered_while_closed: "Of the customer messages that came in while your opening hours and closures say you were closed, how many the receptionist answered first. A message that came while you were open, one you answered first, and one nobody answered are not counted as answered. It is a dash until you set your opening hours.",
   waiting_on_you: "Conversations the receptionist flagged for a person that nobody has taken, as of now, whatever period is picked. One you or a teammate has taken over, and one put aside until later, are not counted.",
   call_backs: "Of the conversations waiting on you, the ones where the customer asked to be rung back, as of now, whatever period is picked. A call-back someone has taken over, or put aside until later, is not counted.",
-  replies_held_back: "Replies the receptionist wrote in this period that the send door refused, such as a person having the thread or the customer having asked to stop. A reply you cancelled or a person answered first, which the hold counts, and a broadcast or campaign message the door held are not counted."
+  replies_held_back: "Replies the receptionist wrote in this period that the send door refused, such as a person having the thread or the customer having asked to stop. A reply you cancelled or a person answered first, which the hold counts, and a broadcast or campaign message the door held are not counted.",
+  people_reached: "People who wrote in their own words, or phoned and were spoken to, in this period, counted once however often they did. An automatic reply, a message or call you placed, a call that rang out, people brought in with their history, and people who asked to be forgotten are not counted.",
+  yeses_won: "The yeses people gave in this period, one for each person and each kind of message (their visit, offers, offers by email), in their own words or recorded at the desk. A merge restating a yes, a client list imported, which never records a yes, a person who asked to be forgotten, and a record merged into another are not counted.",
+  stops_recorded: "The stops people gave in this period, one for each person and each kind of message they stopped, by their own STOP, an unsubscribe link, a complaint, the carrier or at the desk. A merge restating a stop, the end of a yes to offers that a STOP brings with it, a person who asked to be forgotten, and a record merged into another are not counted.",
+  steps_overdue: "People whose earliest open step has a day before today, as of now, whatever period is picked. A step with no day, a step already done, and a later step of the same person are not counted.",
+  steps_due_today: "People whose earliest open step has today for its day, as of now, whatever period is picked. A step with no day, a step already done, and a later step of the same person are not counted.",
+  email_stopped_now: "People whose email address bounced for good, drew a complaint or was stopped by the email provider, as of now, whatever period is picked, so mail to it is no longer sent. A phone number that does not work, which Chanlytics does not record, is not counted.",
+  said_yes_messages: "People on your Said yes to messages list, as of now, whatever period is picked: the answer People shows them, whenever it was given. A person who has asked to stop since, one on do-not-contact, and one who has not answered are not counted.",
+  can_receive_offers: "People on your Can receive offers list, as of now, whatever period is picked: they said yes to offers and can be reached on a channel you send on now. A yes with no number or address to send to, a channel you have not connected, and a person who asked to stop are not counted.",
+  opted_out_now: "People on your Opted out list, as of now, whatever period is picked: they asked to stop being messaged, or are on do-not-contact, whenever that was. A person who has said yes again since and is not on do-not-contact is not counted.",
+  quiet_now: "People whose last message or call to you was more than 30 days ago, as of now, whatever period is picked. Your own messages are not theirs, and a person who has never written or phoned is not counted."
 };
 var metricWordsOf = (metric) => METRIC_WORDS[metric];
 
-// src/reports/receptionist/receptionist-words.ts
+// src/reports/report-mix.ts
 var ownWord = (words3, key) => Object.hasOwn(words3, key) ? words3[key] : void 0;
 function rankedEntries(counts, labelOf2) {
   return Object.entries(counts).filter(([, n]) => n > 0).map(([key, n]) => [key, labelOf2(key), n]).sort((a, b) => b[2] - a[2] || (a[0] < b[0] ? -1 : 1));
 }
+function barsOf2(entries) {
+  const max = Math.max(1, ...entries.map(([, , value]) => value));
+  return entries.map(([id, label, value]) => ({ id, label, value, share: value / max }));
+}
+var mixOf = (entries, line) => ({ rows: barsOf2(entries), line, empty: null });
+var noMix = (empty) => ({ rows: [], line: null, empty });
+
+// src/reports/receptionist/receptionist-words.ts
 var HOLD_OUTCOMES = [
   ["sent", "Went out as the hold ended"],
   ["canceled", "You cancelled"],
@@ -30118,12 +30109,6 @@ function heldBackMeta(byReason) {
 var heldBackEntries = (byReason) => rankedEntries(byReason, (key) => capitalize(refusalWords(key)));
 
 // src/reports/receptionist/receptionist-report.ts
-function barsOf2(entries) {
-  const max = Math.max(1, ...entries.map(([, , value]) => value));
-  return entries.map(([id, label, value]) => ({ id, label, value, share: value / max }));
-}
-var mixOf = (entries, line) => ({ rows: barsOf2(entries), line, empty: null });
-var noMix = (empty) => ({ rows: [], line: null, empty });
 function holdPart({ hold }) {
   return hold.now.total === 0 ? noMix(HOLD_EMPTY) : mixOf(holdEntries(hold.now), holdLine2(hold.now));
 }
@@ -30279,6 +30264,405 @@ function toReceptionistReportVM(dto, opts) {
     closed: closedFigure(series, dto.profile),
     stuck: stuckFigures(series, opts.nowMs),
     heldBack: barsOf2(heldBackEntries(series.blocked.by_reason))
+  };
+}
+
+// src/reports/people/people-now.ts
+var FRESH_BUCKETS = [
+  { key: "under_7", before: 7 },
+  { key: "d7_30", before: QUIET_AFTER_DAYS + 1 },
+  { key: "d31_60", before: 61 },
+  { key: "d61_90", before: 91 }
+];
+function freshBucketOf(heardDays) {
+  if (heardDays === null) return "never";
+  return FRESH_BUCKETS.find((b) => heardDays < b.before)?.key ?? "d91_up";
+}
+function freshCountsOf(vms) {
+  const fresh = { under_7: 0, d7_30: 0, d31_60: 0, d61_90: 0, d91_up: 0, never: 0 };
+  for (const v of vms) fresh[freshBucketOf(v.heardDays)] += 1;
+  return fresh;
+}
+var BOOK_CONTEXT = poolListContext({ calendar: "none", dealsOn: false, consultFirst: false, viewer: null });
+function listCountOf(id, vms) {
+  const def = resolveList({ kind: "builtin", id }, []);
+  const members = def ? membersOf(def, vms, BOOK_CONTEXT) : null;
+  if (members?.state !== "ok") throw new Error(`People's list ${id} cannot be counted without a viewer`);
+  return members.ids.size;
+}
+function listCountsOf(vms) {
+  return {
+    opted_in: listCountOf("opted_in", vms),
+    offers_ok: listCountOf("offers_ok", vms),
+    opted_out: listCountOf("opted_out", vms),
+    quiet: listCountOf("quiet", vms)
+  };
+}
+function stepCountsOf(vms) {
+  const standing = (due) => vms.filter((v) => v.nextStep?.due === due).length;
+  return { overdue: standing("past"), due_today: standing("today") };
+}
+var ONLY_WIRE = {
+  whatsapp: "whatsapp_only",
+  sms: "sms_only",
+  voice: "phone_only",
+  email: "email_only"
+};
+function wireBucketOf(channels) {
+  const first = channels.at(0);
+  if (first === void 0) return "none";
+  return channels.length > 1 ? "several" : ONLY_WIRE[first];
+}
+function wireCountsOf(vms) {
+  const wires = { whatsapp_only: 0, sms_only: 0, phone_only: 0, email_only: 0, several: 0, none: 0 };
+  for (const v of vms) wires[wireBucketOf(v.channels)] += 1;
+  return wires;
+}
+function peopleNowOf(rows2, o) {
+  const vms = poolRowsOf(rows2, { tz: o.tz, now: new Date(o.nowMs), viewer: null, dealsOn: false, ready: o.ready });
+  return {
+    people: vms.length,
+    fresh: freshCountsOf(vms),
+    lists: listCountsOf(vms),
+    steps: stepCountsOf(vms),
+    email_stopped: vms.filter((v) => v.emailSuppressed).length,
+    wires: wireCountsOf(vms)
+  };
+}
+
+// src/reports/people/people-record.ts
+var SERIES_RECORDS = [
+  ["reached", "now"],
+  ["reached", "before"],
+  ["by_channel", "now"],
+  ["by_channel", "before"],
+  ["first_came", "by_via"],
+  ["consent", "now", "yes", "by_source"],
+  ["consent", "now", "yes", "by_purpose"],
+  ["consent", "now", "stop", "by_source"],
+  ["consent", "now", "stop", "by_purpose"],
+  ["consent", "before"],
+  ["email_stopped", "by_reason"],
+  ["steps"]
+];
+var hasRecordAt = (from, path) => path.reduce((at3, key) => at3 === null ? null : recordOrNull(at3[key]), from) !== null;
+function isPeopleSeriesDto(answer) {
+  const a = recordOrNull(answer);
+  return a !== null && typeof a.timezone === "string" && typeof a.today === "string" && typeof a.days === "number" && SERIES_RECORDS.every((path) => hasRecordAt(a, path));
+}
+function peopleDtoOf(series, parts2) {
+  const asked = series ?? parts2.head;
+  return {
+    timezone: asked.timezone,
+    today: asked.today,
+    ...asked.end === void 0 ? {} : { end: asked.end },
+    days: asked.days,
+    series,
+    now: parts2.now
+  };
+}
+
+// src/reports/people/people-words.ts
+var PEOPLE_RHYTHM_UNIT = "messages and calls";
+var listDoor = (id) => `clients/seg:${id}`;
+var HEAD_NOBODY = "Nobody reached you in this period";
+function newBeforeWords(before, days, priorHad) {
+  if (!priorHad) return "";
+  return ` (${before.new === 0 ? "none" : before.new} ${beforeWords(rangeLabelOf(days))})`;
+}
+function bookYesWords(book) {
+  return book !== null && book.people >= REPORT_MIN_N ? `; ${book.lists.opted_in} of ${book.people} have said yes to messages` : "";
+}
+function headWords(reached, days, book, priorHad) {
+  const { now, before } = reached;
+  const reachedWords = now.people === 0 ? HEAD_NOBODY : `${plural(now.people, "person", "people")} reached you, ${now.new} new${newBeforeWords(before, days, priorHad)}`;
+  return `${reachedWords}${bookYesWords(book)}.`;
+}
+var happened = (parts2) => parts2.filter(([n]) => n > 0).map(([n, words3]) => `${n} ${words3}`).join(" \xB7 ");
+var reachedMeta = (people, fresh) => people === 0 ? "nobody wrote or called in this period" : `${fresh} new \xB7 ${people - fresh} you knew already`;
+var newMeta = (people, fresh) => fresh === 0 ? "nobody new" : `of the ${people} who reached you`;
+var yesesMeta = (by) => happened([
+  [by.messages, "to messages"],
+  [by.offers, "to offers"],
+  [by.email_offers, "to email offers"]
+]) || "nobody said yes in this period";
+var stopsMeta = (by) => happened([
+  [by.messages, "stopped all messages"],
+  [by.offers, "stopped offers"],
+  [by.email_offers, "stopped email offers"]
+]) || "nobody asked to stop in this period";
+var keptAsWords = (key) => capitalize(key.replace(/_/g, " "));
+function ranked(counts, words3) {
+  const order = Object.keys(words3);
+  const place = (key) => {
+    const at3 = order.indexOf(key);
+    return at3 === -1 ? order.length : at3;
+  };
+  return rankedEntries(counts, (key) => ownWord(words3, key) ?? keptAsWords(key)).sort(
+    (a, b) => b[2] - a[2] || place(a[0]) - place(b[0])
+  );
+}
+var lastOf = (entries, id) => [
+  ...entries.filter(([key]) => key !== id),
+  ...entries.filter(([key]) => key === id)
+];
+var channelEntries = (byChannel) => ranked(byChannel, PERSON_CHANNEL_WORDS);
+var CHANNELS_LINE = "A person who reached you more than one way is counted in each.";
+var CHANNELS_EMPTY = "Nobody reached you in this period.";
+var UNRECORDED = "unknown";
+var FIRST_CAME_WORDS = { ...PERSON_CAME_FROM_WORDS, ad: "An ad", [UNRECORDED]: "Not recorded" };
+var firstCameEntries = (byVia) => lastOf(ranked(byVia, FIRST_CAME_WORDS), UNRECORDED);
+var firstCameKnown = (entries) => entries.filter(([id]) => id !== UNRECORDED).reduce((n, [, , value]) => n + value, 0);
+var firstCameLine = (known, fresh) => `${known} of ${fresh} new people have a recorded way in.`;
+var FIRST_CAME_NOBODY = "Nobody new reached you in this period.";
+var firstCameNone = (fresh) => `No way in is recorded for the ${plural(fresh, "new person", "new people")}.`;
+var OTHER = "other";
+var MEMBER = "member";
+var YES_ROWS = {
+  customer_message: "Their own message",
+  form: "A form",
+  in_person: "In person",
+  phone: "By phone",
+  [OTHER]: "Another way"
+};
+var STOP_ROWS = {
+  customer_message: "Their own STOP",
+  carrier: "The carrier",
+  unsubscribe: "An unsubscribe",
+  complaint: "A complaint",
+  reply: "A reply",
+  whatsapp: "WhatsApp's offers stop",
+  [MEMBER]: "Recorded by a member",
+  [OTHER]: "Another way"
+};
+var MEMBER_SOURCES = ["in_person", "phone", "form", "operator"];
+function answerEntries(bySource, rowWords, rowOf2) {
+  const rows2 = {};
+  for (const [source, n] of Object.entries(bySource)) {
+    const row2 = rowOf2(source);
+    rows2[row2] = (rows2[row2] ?? 0) + n;
+  }
+  return lastOf(ranked(rows2, rowWords), OTHER);
+}
+var rowIn = (rowWords, source) => Object.hasOwn(rowWords, source) ? source : OTHER;
+var yesEntries = (bySource) => answerEntries(bySource, YES_ROWS, (source) => rowIn(YES_ROWS, source));
+var stopEntries = (bySource) => answerEntries(bySource, STOP_ROWS, (source) => MEMBER_SOURCES.includes(source) ? MEMBER : rowIn(STOP_ROWS, source));
+var YESES_LINE = "Each person is counted once for each kind of message they said yes to.";
+var YESES_EMPTY = "Nobody said yes in this period.";
+var STOPS_LINE = "Each person is counted once for each kind of message they stopped.";
+var STOPS_EMPTY = "Nobody asked to stop in this period.";
+function stepsDoneEntries(steps) {
+  const rows2 = [
+    ["on_time", "Done on or before their day", steps.on_time],
+    ["late", "Done after their day", Math.max(0, steps.done - steps.on_time)]
+  ];
+  return rows2.filter(([, , n]) => n > 0);
+}
+var stepsDoneLine = (steps) => steps.done >= REPORT_MIN_N ? `${steps.on_time} of ${steps.done} were done on or before their day.` : `${plural(steps.done, "step was", "steps were")} done in this period.`;
+var STEPS_DONE_EMPTY = "No step was done in this period.";
+var EMAIL_STOP_WORDS = {
+  hard_bounce: "Bounced for good",
+  complaint: "Marked as spam",
+  provider: "Stopped by the email provider",
+  [UNRECORDED]: "Reason not recorded"
+};
+var emailStoppedEntries = (byReason) => lastOf(ranked(byReason, EMAIL_STOP_WORDS), UNRECORDED);
+var emailStoppedLine = (total) => `${plural(total, "address", "addresses")} stopped working in this period.`;
+var EMAIL_STOPPED_EMPTY = "No address stopped working in this period.";
+var BOOK_EMPTY = "Nobody is in your book yet.";
+var WIRE_ROWS = [
+  ["whatsapp_only", `${PERSON_CHANNEL_WORDS.whatsapp} only`],
+  ["sms_only", `${PERSON_CHANNEL_WORDS.sms} only`],
+  ["phone_only", `${PERSON_CHANNEL_WORDS.voice} only`],
+  ["email_only", `${PERSON_CHANNEL_WORDS.email} only`],
+  ["several", "More than one way"],
+  ["none", "None yet"]
+];
+var wireEntries = (wires) => WIRE_ROWS.map(([key, label]) => [key, label, wires[key]]).filter(([, , n]) => n > 0);
+var wiresLine = (several, people) => `${several} of ${people} have reached you more than one way, as of today.`;
+var FRESH_ROWS = [
+  ["under_7", "Under 7 days"],
+  ["d7_30", "7 to 30 days"],
+  ["d31_60", "31 to 60 days"],
+  ["d61_90", "61 to 90 days"],
+  ["d91_up", "91 days or more"],
+  ["never", "Never heard from"]
+];
+var freshEntries = (fresh) => FRESH_ROWS.map(([key, label]) => [key, label, fresh[key]]);
+var freshLine = (people) => `Of ${plural(people, "person", "people")} as of today: the days since they last wrote or called. Your own messages do not count.`;
+function quietDoor(quiet) {
+  if (quiet === 0) return null;
+  return {
+    line: `${plural(quiet, "person has", "people have")} been quiet for more than 30 days.`,
+    door: listDoor("quiet"),
+    label: "Quiet 30+ days"
+  };
+}
+var stepsOverdueMeta = (overdue) => overdue === 0 ? "no next step is past its day" : "people whose next step is past its day";
+var stepsDueTodayMeta = (due) => due === 0 ? "no next step is due today" : "people whose next step is due today";
+var emailStoppedNowMeta = (stopped) => stopped === 0 ? "every address works" : "people whose address no longer receives your email";
+var standMeta = (people) => people === 0 ? "nobody is in your book yet" : `of ${plural(people, "person", "people")}`;
+
+// src/reports/people/people-report.ts
+var priorHadOf = ({ reached, consent }) => reached.before.people > 0 || consent.before.yes > 0 || consent.before.stop > 0;
+function stripOf({ reached, consent }, days, priorHad) {
+  const { now, before } = reached;
+  const against = (current, previous) => compareWords(current, previous, rangeLabelOf(days), priorHad);
+  const { yes, stop } = consent.now;
+  return [
+    {
+      id: "people-reached",
+      metric: "people_reached",
+      label: "People who reached you",
+      value: String(now.people),
+      meta: reachedMeta(now.people, now.new),
+      compare: against(now.people, before.people)
+    },
+    {
+      id: "new-people",
+      metric: "new_people",
+      label: "New people",
+      value: String(now.new),
+      meta: newMeta(now.people, now.new),
+      compare: against(now.new, before.new),
+      // A share of those who reached you: of fewer than five, it says nothing (the kit greys it).
+      ...now.people > 0 ? { n: now.people, minN: REPORT_MIN_N } : {}
+    },
+    {
+      id: "yeses-won",
+      metric: "yeses_won",
+      label: "Yeses won",
+      value: String(yes.total),
+      meta: yesesMeta(yes.by_purpose),
+      compare: against(yes.total, consent.before.yes)
+    },
+    {
+      id: "stops",
+      metric: "stops_recorded",
+      label: "Stops",
+      value: String(stop.total),
+      meta: stopsMeta(stop.by_purpose),
+      compare: against(stop.total, consent.before.stop)
+    }
+  ];
+}
+var partOf2 = (entries, line, empty) => entries.length === 0 ? noMix(empty) : mixOf(entries, line);
+function firstCamePart({ reached, first_came }) {
+  const fresh = reached.now.new;
+  if (fresh === 0) return noMix(FIRST_CAME_NOBODY);
+  const entries = firstCameEntries(first_came.by_via);
+  const known = firstCameKnown(entries);
+  return known === 0 ? noMix(firstCameNone(fresh)) : mixOf(entries, firstCameLine(known, fresh));
+}
+function windowOf(series, days, book) {
+  const { consent, steps, email_stopped } = series;
+  const priorHad = priorHadOf(series);
+  return {
+    head: headWords(series.reached, days, book, priorHad),
+    strip: stripOf(series, days, priorHad),
+    // Spread: the DTO's `ByChannelDto` is an interface, which has no index signature to pass as a count by key.
+    channels: partOf2(channelEntries({ ...series.by_channel.now }), CHANNELS_LINE, CHANNELS_EMPTY),
+    firstCame: firstCamePart(series),
+    yeses: partOf2(yesEntries(consent.now.yes.by_source), YESES_LINE, YESES_EMPTY),
+    stops: partOf2(stopEntries(consent.now.stop.by_source), STOPS_LINE, STOPS_EMPTY),
+    stepsDone: partOf2(stepsDoneEntries(steps), stepsDoneLine(steps), STEPS_DONE_EMPTY),
+    emailStopped: partOf2(
+      emailStoppedEntries(email_stopped.by_reason),
+      emailStoppedLine(email_stopped.total),
+      EMAIL_STOPPED_EMPTY
+    )
+  };
+}
+function noWindow() {
+  return {
+    head: null,
+    strip: [],
+    channels: noMix(null),
+    firstCame: noMix(null),
+    yeses: noMix(null),
+    stops: noMix(null),
+    stepsDone: noMix(null),
+    emailStopped: noMix(null)
+  };
+}
+function wiresPart(book) {
+  if (book.people === 0) return noMix(BOOK_EMPTY);
+  const { several } = book.wires;
+  return {
+    rows: barsOf2(wireEntries(book.wires)),
+    line: several > 0 ? wiresLine(several, book.people) : null,
+    empty: null
+  };
+}
+function freshPart(book) {
+  if (book.people === 0) return { ...noMix(BOOK_EMPTY), quiet: null };
+  return { ...mixOf(freshEntries(book.fresh), freshLine(book.people)), quiet: quietDoor(book.lists.quiet) };
+}
+var toned = (count2, tone) => count2 > 0 ? { tone } : {};
+function stuckNowFigures({ steps, email_stopped }) {
+  return [
+    {
+      id: "steps-overdue",
+      metric: "steps_overdue",
+      label: "Steps overdue",
+      value: String(steps.overdue),
+      meta: stepsOverdueMeta(steps.overdue),
+      compare: null,
+      door: listDoor("steps_due"),
+      ...toned(steps.overdue, "warn")
+    },
+    {
+      id: "steps-due-today",
+      metric: "steps_due_today",
+      label: "Steps due today",
+      value: String(steps.due_today),
+      meta: stepsDueTodayMeta(steps.due_today),
+      compare: null,
+      door: listDoor("steps_due")
+    },
+    {
+      id: "email-stopped",
+      metric: "email_stopped_now",
+      label: "Email stopped working",
+      value: String(email_stopped),
+      meta: emailStoppedNowMeta(email_stopped),
+      compare: null,
+      ...toned(email_stopped, "fail")
+    }
+  ];
+}
+var STAND_LISTS = [
+  { id: "said-yes-messages", metric: "said_yes_messages", label: "Said yes to messages", list: "opted_in" },
+  { id: "can-receive-offers", metric: "can_receive_offers", label: "Can receive offers", list: "offers_ok" },
+  { id: "opted-out", metric: "opted_out_now", label: "Opted out", list: "opted_out" },
+  { id: "quiet-30", metric: "quiet_now", label: "Quiet 30+ days", list: "quiet" }
+];
+function standFigures({ people, lists }) {
+  return STAND_LISTS.map(({ id, metric, label, list: list2 }) => ({
+    id,
+    metric,
+    label,
+    value: String(lists[list2]),
+    meta: standMeta(people),
+    compare: null,
+    door: listDoor(list2),
+    n: people,
+    minN: REPORT_MIN_N
+  }));
+}
+function bookOf(book) {
+  return { wires: wiresPart(book), fresh: freshPart(book), stuck: stuckNowFigures(book), stand: standFigures(book) };
+}
+function noBook() {
+  return { wires: noMix(null), fresh: { ...noMix(null), quiet: null }, stuck: [], stand: [] };
+}
+function toPeopleReportVM(dto) {
+  const { series, now } = dto;
+  return {
+    windowAvailable: series !== null,
+    nowAvailable: now !== null,
+    ...series === null ? noWindow() : windowOf(series, dto.days, now),
+    ...now === null ? noBook() : bookOf(now)
   };
 }
 
@@ -34091,6 +34475,7 @@ var ROUTE_KEYS = [
   "GET reports",
   "GET reports/campaigns",
   "GET reports/headline",
+  "GET reports/people",
   "GET reports/reach-outs",
   "GET reports/receptionist",
   "GET reports/reviews",
@@ -35371,10 +35756,10 @@ function figuresOf(m, conversations, callsInWindow, escalations, tz, now) {
     label: "new people",
     value: p.new_contacts,
     meta: !p.new_contacts ? "nobody new yet" : !agree ? "first contact today" : newWires.length === 1 ? `${p.new_contacts === 1 ? "on" : p.new_contacts === 2 ? "both on" : "all on"} ${wireWord(newWires[0][0])}` : `on ${andList(newWires.map(([w]) => wireWord(w)))}`,
-    // Named when the two counts agree. When they do not, the figure still opens: the reason they disagree IS
-    // the answer to what an owner is asking -- the count is everyone whose first word or call came today, and the
-    // page only holds the ones who wrote. Without this the fourth figure was the one stat on the card with nothing
-    // under it, so a hover that worked three times in a row did nothing on the fourth.
+    // Named when the two counts agree. When they do not, the figure still opens: the reason they disagree IS the answer
+    // to what an owner is asking -- the count is everyone whose first message of their own, or first call to us, came
+    // today (00394), and the page only holds the ones who wrote. Without this the fourth figure was the one stat on the
+    // card with nothing under it, so a hover that worked three times in a row did nothing on the fourth.
     receipt: said.length ? {
       text: `${andList(names3.length > 3 ? [...said, `${names3.length - 3} more`] : said)} wrote for the first time today.`,
       door: { label: "Open People", to: "clients/seg:new_week" }
@@ -39967,6 +40352,7 @@ export {
   PENDING_WORKSPACE_KEY,
   PEOPLE_LISTS,
   PEOPLE_LIST_GROUPS,
+  PEOPLE_RHYTHM_UNIT,
   PEOPLE_TABS,
   PERM_DOING,
   PERSON_CAME_FROM_WORDS,
@@ -40812,6 +41198,7 @@ export {
   isOptedOut,
   isOptedOutContact,
   isPartnerCode,
+  isPeopleSeriesDto,
   isPersonRow,
   isPersonsWords,
   isPipelineView,
@@ -41164,8 +41551,10 @@ export {
   pendingCodeOf,
   pendingWorkspaceOf,
   peopleAggregates,
+  peopleDtoOf,
   peopleFromItems,
   peopleListAction,
+  peopleNowOf,
   peopleVisitsOf,
   personActs,
   personInText,
@@ -41344,7 +41733,6 @@ export {
   reasonShort,
   reasonSummaryOf,
   receiptWords,
-  recencyCells,
   receptionistCardOf,
   receptionistDtoOf,
   receptionistOf2 as receptionistOf,
@@ -41631,6 +42019,7 @@ export {
   toLeadRowVM,
   toLiveCallVM,
   toLiveVM,
+  toPeopleReportVM,
   toPersonRowVM,
   toPersonVM,
   toReachOutReportVM,

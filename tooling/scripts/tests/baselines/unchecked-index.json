@@ -86,7 +86,6 @@
   "packages/contracts/src/lines/channels.ts": 5,
   "packages/contracts/src/notes/steps.ts": 1,
   "packages/contracts/src/people/lists/list-rules.ts": 1,
-  "packages/contracts/src/people/people-lists.ts": 1,
   "packages/contracts/src/people/person-cards.ts": 1,
   "packages/contracts/src/people/person-row.ts": 2,
   "packages/contracts/src/playbooks/playbook-follow-ups.ts": 1,

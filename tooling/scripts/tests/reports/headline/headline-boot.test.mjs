@@ -125,6 +125,8 @@ const OTHERS = [
   (await importSrc(`${S}/surfaces/reports/reviews-surface.ts`)).reviewsOverride,
   // The Receptionist lens's, the same: on demand, drawn on that lens alone.
   (await importSrc(`${S}/surfaces/reports/receptionist-surface.ts`)).receptionistOverride,
+  // The People lens's, the same: on demand, drawn on that lens alone.
+  (await importSrc(`${S}/surfaces/reports/people-surface.ts`)).reportsPeopleOverride,
   (await importSrc(`${S}/surfaces/settings/billing/surface.ts`)).billingOverride,
 ];
 const settle = async (n = 40) => {
@@ -177,6 +179,7 @@ test("on Today, one small route is read for Reports' sake where three large ones
     false,
     "nor the Receptionist lens's, which only its lens draws",
   );
+  assert.equal(after.asked.includes("reports_people"), false, "nor the People lens's, which only its lens draws");
   assert.ok(
     after.bytes * 20 < before.bytes,
     `a few hundred bytes for tens of thousands: ${after.bytes} against ${before.bytes}`,
@@ -206,6 +209,7 @@ test("on any other page the report is no longer read at all: it was a stranger i
     false,
     "nor the Receptionist lens's, which only its lens draws",
   );
+  assert.equal(after.asked.includes("reports_people"), false, "nor the People lens's, which only its lens draws");
 });
 
 /* ---- the server: which doors each route reaches for ---- */
