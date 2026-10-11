@@ -255,7 +255,7 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
   ];
   // Said only where somebody is left out, so a listing with nobody left out reads as it always did.
   const leftOutSaid = audiences.some((a) => "left_out_offers" in a || "left_out_messages" in a)
-    ? " A broadcast leaves out whoever hears from you within a week of it, before or after: can_be_sent counts who a send that goes now goes to, and left_out_offers and left_out_messages how many are left out, which the card says too; a card set for later counts for its own time, so it may leave out fewer."
+    ? " A broadcast leaves out whoever hears from you within a week of it, before or after: can_be_sent counts who a send that goes now goes to, and left_out_offers and left_out_messages how many are left out, which the card says too; a card set for later counts for its own time, so it may leave out more or fewer."
     : "";
   return {
     route: "broadcasts",
@@ -388,7 +388,7 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
       ...(x.kind === "saved" ? { counted_per_list: true } : counted(x.id)),
       starter_template: starterForTrigger(x.id)?.title ?? null,
     })),
-    note: `A run is a broadcast, and ${NO_NUMBER_REACH}. It never reaches anyone twice within the playbook's gap, and sends one playbook message per person per week. said_yes_now counts who each trigger names that said the yes its template needs, a number or not; can_be_sent_now is who of them a run reaches now, the Playbooks page's own count: whoever a broadcast already reached this week waits out the week. A null count means the page could not count it just now.${pb.deals_on ? " The proposal follow-up reaches each proposal once, with its link: its counts leave out whoever already had theirs." : ""}`,
+    note: `A run is a broadcast, and ${NO_NUMBER_REACH}. It never reaches anyone twice within the playbook's gap, and sends one playbook message per person per week. said_yes_now counts who each trigger names that said the yes its template needs, a number or not; can_be_sent_now is who of them a run reaches now, the Playbooks page's own count: whoever hears from you within a week of today, by a message already sent or one due, waits. A null count means the page could not count it just now.${pb.deals_on ? " The proposal follow-up reaches each proposal once, with its link: its counts leave out whoever already had theirs." : ""}`,
   };
 }
 
@@ -631,7 +631,7 @@ async function readJourney(t: ToolContext): Promise<unknown> {
 export const campaignsTool = defineActions({
   name: "campaigns",
   description: "What goes out to the people who said yes, by action.",
-  tail: "Call action audiences before proposing a broadcast, and to say who a message would reach; call action playbooks to say what is running, and before proposing a playbook. Pick the message first, then quote its can_be_sent count as who the broadcast reaches, never a larger one, for a message that goes by WhatsApp; for a message whose channels hold email or sms, propose it with channels naming them and quote the card's count, since the can_be_sent counts are by WhatsApp alone and a 0 there does not mean nobody can be reached; when a WhatsApp message's count is 0 and its said_yes is not, and its channels hold no other, the ones who said yes have no number to send to: say so, and never send the owner to get a yes they already have. When a playbook's can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number to send to, or heard from a broadcast this week: say so the same way. A list that cannot be counted here carries cannot_count and no counts; a null count means the page could not count it just now, and nothing has run because it was read.",
+  tail: "Call action audiences before proposing a broadcast, and to say who a message would reach; call action playbooks to say what is running, and before proposing a playbook. Pick the message first, then quote its can_be_sent count as who the broadcast reaches, never a larger one, for a message that goes by WhatsApp; for a message whose channels hold email or sms, propose it with channels naming them and quote the card's count, since the can_be_sent counts are by WhatsApp alone and a 0 there does not mean nobody can be reached; when a WhatsApp message's count is 0 and its said_yes is not, and its channels hold no other, the ones who said yes have no number to send to: say so, and never send the owner to get a yes they already have. When a playbook's can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number to send to, or hear from you within a week of today: say so the same way. A list that cannot be counted here carries cannot_count and no counts; a null count means the page could not count it just now, and nothing has run because it was read.",
   actions: {
     audiences: readAction({
       input: z.object({}),

@@ -506,15 +506,19 @@ function bcNewTemplate(v: BcV) {
 // and Escape, with something written: the one question first (UnsavedAsk), where the foot's acts were.
 function bcSendFoot(v: BcV) {
   const { data, name, setName, canSend, armed, ready, say, whenAt, whenNote, submit, setArmed, active } = v;
-  // Send now goes at once: its button and its confirm say who it sends to now (reach.ts bcSendNowOf), whatever time is
-  // picked for Schedule it, and it is not offered when nobody would go now.
-  const { tpl, busy, work, sendNow } = v;
+  // Send now goes at once: its button, its confirm and what stops it are who it sends to now (reach.ts bcSendNowOf,
+  // `sayNow`), whatever time is picked for Schedule it.
+  const { tpl, busy, work, sendNow, readyNow, sayNow } = v;
   if (work.asking) return <UnsavedAsk onYes={work.discard} onNo={work.stay} testid="bc-leave" />;
-  // A time picked that cannot be scheduled (passed, or past the ceiling) is what Schedule it waits on, when nothing else is.
-  const stop = say ?? (whenAt !== null && !whenNote.ok ? { tone: "warn" as const, words: whenNote.words } : null);
   // The act is the one the screen is set up for: Send now, or Schedule it once a time is picked, which is then the last
   // of the two, where the act stood.
   const later = whenAt !== null;
+  // A time picked that cannot be scheduled (passed, or past the ceiling) is what Schedule it waits on, when nothing else is;
+  // and where Schedule it may go but Send now may not, the one line says why Send now waits.
+  const stop =
+    say ??
+    (later && !whenNote.ok ? { tone: "warn" as const, words: whenNote.words } : null) ??
+    (later && sayNow ? { tone: sayNow.tone, words: `Send now: ${sayNow.words}` } : null);
   const scheduleIt = (
     <Button
       key="later"
@@ -532,7 +536,7 @@ function bcSendFoot(v: BcV) {
       key="now"
       variant={later ? undefined : "primary"}
       className={`bc-send-now ${later ? "bc-act-second" : "bc-act-main"}`}
-      disabled={!ready || !(sendNow.count > 0)}
+      disabled={!readyNow}
       onClick={() => setArmed(true)}
       data-testid="bc-send"
       {...gate("approve", "send a broadcast")}

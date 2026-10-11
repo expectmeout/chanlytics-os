@@ -324,8 +324,14 @@ function sentenceCounted(c: CardCtx) {
           `${pbPeople(p.candidates)} ${trig && trig.kind === "deal" ? poolWords(p.trigger, word) : "on the list"} said yes`}
       </LinkButton>
       {/* Why a list with people on it can still offer nobody: one message per
-          person per week, across playbooks. A bare "0 people" read as broken. */}
-      {p.held > 0 ? <>, and {pbPeople(p.held)} more heard from you this week and wait</> : null}
+          person per week, across playbooks, a message already sent or one due
+          within a week of today. A bare "0 people" read as broken. */}
+      {p.held > 0 ? (
+        <>
+          , and {pbPeople(p.held)} more {p.held === 1 ? "hears" : "hear"} from you within a week of today and{" "}
+          {p.held === 1 ? "waits" : "wait"}
+        </>
+      ) : null}
     </>
   );
 }

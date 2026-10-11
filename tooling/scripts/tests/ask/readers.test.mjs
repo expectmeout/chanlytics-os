@@ -3890,7 +3890,7 @@ const PB2 = "99999999-9999-4999-8999-999999999992";
 const PLAYBOOKS_KEYS = [
   "playbooks",
   "timezone",
-  "touched",
+  // 11 Oct 2026: `touched` left the answer; no client read it, and who the breath holds is in each pool's `held`.
   "pools",
   "calendar",
   "lists",
@@ -4079,14 +4079,8 @@ test("the playbooks, for Ask and for the page: GET playbooks answers its reader'
   assert.deepEqual([pages["deals off"].deals_on, pages["deals off"].pools.proposal_waiting], [false, null]);
   const rich = pages["calendar, deals and a list"];
   assert.deepEqual(
-    [
-      rich.calendar,
-      rich.deals_on,
-      Object.keys(rich.touched),
-      rich.lists.map((l) => l.id),
-      rich.pools[`list:${SEG1}`].pool,
-    ],
-    ["ok", true, [P2], [SEG1], 1],
+    [rich.calendar, rich.deals_on, "touched" in rich, rich.lists.map((l) => l.id), rich.pools[`list:${SEG1}`].pool],
+    ["ok", true, false, [SEG1], 1],
   );
   // 9 Oct 2026 (spec 2026-10-09 §4.8, §4.3): the shape's word and booking tool, and the matrix's modes by class.
   assert.deepEqual(

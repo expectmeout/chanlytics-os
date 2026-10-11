@@ -76,8 +76,8 @@ export interface FollowUpFactsDto {
   /** Contact id -> when the run they are in was made to wait for a person. */
   held: Record<string, string>;
   /**
-   * Contact id -> their latest message from any run that the week's breath counts now: within a week of now, either side
-   * (broadcasts/run-words.ts breathTouchOf over packages/db recentTouches).
+   * Contact id -> the last message of the chain the week's breath holds them by from now on, each within a week of the
+   * next (broadcasts/run-words.ts breathChainOf over packages/db recentTouches): they are free a week after it.
    */
   heard: Record<string, string>;
 }

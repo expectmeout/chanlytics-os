@@ -1064,7 +1064,10 @@ test("A paused playbook says it is paused, and a run's day is words", () => {
   const held = textOf(
     find(pane(playbook({ candidates: 0, held: 2 })), (n) => String(n.props?.className || "") === "ob-sentence"),
   ).replace(/\s+/g, " ");
-  assert.ok(held.includes("0 people on the list said yes, and 2 people more heard from you this week and wait"), held);
+  assert.ok(
+    held.includes("0 people on the list said yes, and 2 people more hear from you within a week of today and wait"),
+    held,
+  );
 });
 
 test("a proposal follow-up's detail (0006): where deals are on, who it reaches with a proposal waiting; where they are off, why it runs nothing, and no count it never took", async () => {

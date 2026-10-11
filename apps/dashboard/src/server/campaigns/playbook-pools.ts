@@ -59,7 +59,7 @@ export const PLAYBOOK_POOL = 100_000;
 interface PoolCounts {
   /** Who a run would pick now. */
   candidates: number;
-  /** Who waits only for the week's breath: eligible, but reached by some broadcast within the week. */
+  /** Who waits only for the week's breath: eligible, but another message reaches them within a week of today, sent or due. */
   held: number;
   /** Everyone the moment names, before anyone is left out: the trigger's list, everyone, or the day's visits. */
   pool: number;

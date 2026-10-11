@@ -110,8 +110,8 @@ export interface AssembleCommand {
    */
   held: readonly string[];
   /**
-   * The people of `recipients` a send by hand leaves out, having heard from a campaign or a broadcast within the week
-   * (the week's breath, create-broadcast.ts), by contact: enrolled with everyone, their row marked in the run's own write
+   * The people of `recipients` a send by hand leaves out, hearing from a campaign or a broadcast within a week of it,
+   * before or after (the week's breath, create-broadcast.ts), by contact: enrolled with everyone, their row marked in the run's own write
    * (contracts LEFT_OUT_FACTS, which the send's check at the wire skips them for), and skipped with RECIPIENT_REASON_HEARD
    * the moment the run exists, before anyone held for the month. A playbook's run names none: its moment draws by its own
    * reading of the breath (contracts eligibleForPlaybook).

@@ -864,12 +864,23 @@ function withCampaignsLabel(want) {
 }
 
 /**
+ * 11 Oct 2026 (a one-off send honours the breath, fix round 3): the week's breath counts a message within a week either
+ * side, one due included, so campaigns.playbooks' note says who waits in those words. The one sentence, once.
+ */
+function withTheBreathsWords(frozen) {
+  return frozen.replace(
+    "whoever a broadcast already reached this week waits out the week.",
+    "whoever hears from you within a week of today, by a message already sent or one due, waits.",
+  );
+}
+
+/**
  * 9 Oct 2026 (the moment spec, A6, D35): campaigns.playbooks says each playbook's last 30 days (last_30_days, from
  * campaign_series' sources; null where that read fails, as in this world, which models no campaign_series) in the place
  * of its all-time runs, sent and replied, and its route is Campaigns' own word. Nothing else moved.
  */
 function withLastThirtyDays(frozen) {
-  const said = JSON.parse(frozen);
+  const said = JSON.parse(withTheBreathsWords(frozen));
   if (!Array.isArray(said.playbooks)) return frozen;
   const playbooks = said.playbooks.map((p) =>
     Object.fromEntries(

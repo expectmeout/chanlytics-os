@@ -761,7 +761,7 @@ test("a moment that reaches people says how many, and who waits out the week; a 
   const sends = coming({
     playbooks: playbooks({ rows: [playbook({ candidates: 3, held: 2, named: { pool: 5, saidYes: 5 } })] }),
   });
-  assert.equal(sends.rows[0].why, "3 of 5 will get it · 2 heard from you this week and wait");
+  assert.equal(sends.rows[0].why, "3 of 5 will get it · 2 hear from you within a week of today and wait");
   assert.deepEqual(sends.rows[0].pill, { tone: "ok", label: "3 people" });
   // A run sends its cap and no more: the next run's share is what "will get it" promises, and the rest wait for later
   // runs. A new win-back with 300 quiet people said "300 will get it" over a run that sends 25.
@@ -772,7 +772,7 @@ test("a moment that reaches people says how many, and who waits out the week; a 
   });
   assert.equal(
     capped.rows[0].why,
-    "25 of 420 will get it · up to 275 more on later runs, 25 a run · 4 heard from you this week and wait",
+    "25 of 420 will get it · up to 275 more on later runs, 25 a run · 4 hear from you within a week of today and wait",
   );
   // A visit's moment has no cap: a reminder is owed to everyone with a visit, and tomorrow's visits have no later run.
   const visits = coming({
@@ -803,8 +803,13 @@ test("a moment that reaches people says how many, and who waits out the week; a 
   });
   assert.deepEqual(
     [heard.rows[0].why, heard.rows[0].pill.label],
-    ["2 heard from you this week and wait", "Waiting out the week"],
+    ["2 hear from you within a week of today and wait", "One a week"],
   );
+  // One for one: the verb agrees.
+  const one = coming({
+    playbooks: playbooks({ rows: [playbook({ candidates: 0, held: 1, named: { pool: 5, saidYes: 5 } })] }),
+  });
+  assert.equal(one.rows[0].why, "1 hears from you within a week of today and waits");
   const unread = coming({ playbooks: playbooks({ rows: [playbook({ candidates: null, held: null, named: null })] }) });
   assert.deepEqual([unread.rows[0].why, unread.rows[0].pill], ["Who it reaches could not be counted", null]);
   const nobodyOn = coming({ playbooks: playbooks({ rows: [playbook({ named: { pool: 0, saidYes: 0 } })] }) });

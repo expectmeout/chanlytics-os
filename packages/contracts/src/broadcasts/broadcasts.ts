@@ -175,6 +175,7 @@ export {
   leftOutBy,
   heardWithin,
   breathTouchOf,
+  breathChainOf,
   heardFor,
   breathSplit,
   reachAfterBreath,

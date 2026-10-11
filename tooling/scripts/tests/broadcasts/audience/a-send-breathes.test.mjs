@@ -1,6 +1,6 @@
 /**
- * A one-off send honours the breath (spec §5.6): a person who heard from a campaign or a broadcast within the week
- * (contracts PLAYBOOK_BREATH_MS) is left out of a broadcast too, never sent it. They are enrolled with everyone, their row
+ * A one-off send honours the breath (spec §5.6): a person who hears from a campaign or a broadcast within a week of it,
+ * before or after (contracts PLAYBOOK_BREATH_MS) is left out of a broadcast too, never sent it. They are enrolled with everyone, their row
  * marked in the run's own transaction (LEFT_OUT_FACTS, which the send's check at the wire skips them for), and skipped the
  * moment the run exists with RECIPIENT_REASON_HEARD, so the run's page says who was left out and why; a person sending it
  * may switch that off on the composer (`breathe: false`), and Ask never does. Who heard is ONE read, the composer's own:
@@ -8,10 +8,11 @@
  * one number for one moment.
  *
  * Run over the core verb (createBroadcast) with its ports faked, over packages/db's hold and read on a database in memory,
- * and over the dashboard's port for the window: two days ago is this week, eight days ago is not. The breath is the week
- * before a person RECEIVES the message (contracts leftOutBy, the one rule): a send scheduled ahead leaves out who heard within
- * the week before it goes, as known at the press, so one three days ahead leaves out a touch two days ago and keeps one
- * five days ago, and one ten days ahead leaves nobody out.
+ * and over the dashboard's port for the window: two days ago is this week, eight days ago is not. The breath is at most one
+ * message a week per person, judged on both sides of the time a person RECEIVES it (contracts heardWithin, the one rule): a
+ * send leaves out whoever has a message, sent or due, as known at the press, within a week of the time it goes, before or
+ * after -- so one three days ahead leaves out a touch two days ago and keeps one five days ago, one ten days ahead leaves
+ * out the person queued for twelve days ahead, and a send now keeps a person queued for twenty-five days ahead.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
@@ -272,7 +273,7 @@ test("a breathe that is not true or false is refused in words before anything is
       make(f, { breathe }),
       "validation",
       400,
-      "breathe is true or false: whether the people who heard from you this week are left out.",
+      "breathe is true or false: whether the people who hear from you within a week of it are left out.",
     );
     assert.deepEqual(f.of("touches"), []);
     assert.deepEqual(f.ops(), []);

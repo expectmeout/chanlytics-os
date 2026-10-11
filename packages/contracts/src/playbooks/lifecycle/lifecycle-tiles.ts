@@ -169,6 +169,13 @@ export function workspacePausedOf(input: Pick<LifecycleInput, "playbooks" | "bro
   return input.playbooks?.ready?.paused === true || input.broadcasts?.ready?.paused === true;
 }
 
+/**
+ * Who of a moment's people the week's breath holds, in words: another message reaches them within a week of today, sent
+ * or due (broadcasts/run-words.ts heardWithin), so they wait. One for one, more for more.
+ */
+const heldWaitWords = (n: number): string =>
+  `${n} ${n === 1 ? "hears" : "hear"} from you within a week of today and ${n === 1 ? "waits" : "wait"}`;
+
 /** Who a running moment will reach on its next run, and the reason when it reaches nobody. */
 function whoWill(p: LifecyclePlaybook): { why: string; pill: LifecycleComing["pill"] } | null {
   const reach = playbookReach({ state: p.state, candidates: p.candidates, held: p.held, waiting: p.totals.waiting });
@@ -189,7 +196,7 @@ function whoWill(p: LifecyclePlaybook): { why: string; pill: LifecycleComing["pi
         why:
           `${next}${of} will get it` +
           (later > 0 ? ` · up to ${later} more on later runs, ${cap} a run` : "") +
-          (p.held ? ` · ${p.held} heard from you this week and wait` : ""),
+          (p.held ? ` · ${heldWaitWords(p.held)}` : ""),
         pill: { tone: "ok", label: plural(next, "person", "people") },
       };
     }
@@ -205,8 +212,8 @@ function whoWill(p: LifecyclePlaybook): { why: string; pill: LifecycleComing["pi
       };
     case "all-heard":
       return {
-        why: `${p.held ?? 0} heard from you this week and wait`,
-        pill: { tone: "warn", label: "Waiting out the week" },
+        why: heldWaitWords(p.held ?? 0),
+        pill: { tone: "warn", label: "One a week" },
       };
     case "uncounted":
       return { why: "Who it reaches could not be counted", pill: null };

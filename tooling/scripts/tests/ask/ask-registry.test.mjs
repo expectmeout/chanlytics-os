@@ -146,6 +146,15 @@ const PLAYBOOK_CHANNELS_WORDS = [
  * the field says the same word. The one phrase, once.
  */
 const BROADCAST_BY_WORDS = ["whether a playbook or a person sent it", "whether a campaign or a person sent it"];
+/**
+ * 11 Oct 2026 (a one-off send honours the breath, fix round 3): the week's breath counts a message within a week either
+ * side, one due included, so the tail says a playbook's people "hear from you within a week of today" where it said they
+ * "heard from a broadcast this week". The one phrase, once.
+ */
+const BREATH_TAIL_WORDS = [
+  "or heard from a broadcast this week: say so the same way.",
+  "or hear from you within a week of today: say so the same way.",
+];
 /** 9 Oct 2026 (the moment spec, A6, D35): each playbook says its last 30 days, where it said what its runs earned. */
 const PLAYBOOK_RESULTS_WORDS = [
   "its list when it runs on one, what its runs earned,",
@@ -510,7 +519,8 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
       )
         .replace(...PLAYBOOK_CHANNELS_WORDS)
         .replace(...PLAYBOOK_RESULTS_WORDS)
-        .replace(...BROADCAST_BY_WORDS),
+        .replace(...BROADCAST_BY_WORDS)
+        .replace(...BREATH_TAIL_WORDS),
     );
     // calendar (10 Oct 2026): the room in the book (LANE_ACTIONS), and nothing else it says moved.
     laneAdded(role, "calendar", was(role, "calendar").description);

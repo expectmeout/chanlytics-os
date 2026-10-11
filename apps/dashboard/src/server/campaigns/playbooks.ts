@@ -2,6 +2,7 @@ import "server-only";
 import {
   AppError,
   audienceTrigger,
+  breathChainOf,
   breathTouchOf,
   campaignMessageOf,
   FOLLOW_UP_ONE,
@@ -245,9 +246,10 @@ export async function followUpFacts(ctx: RouteContext, tenantId: string, now: Da
   };
   // Only who holds a proposal out: the rows the facts are for.
   for (const t of followUps) if (out.contacts.has(t.contact_id)) latest(t.sent ? had : t.held ? held : queued, t);
-  // The message the breath holds them by now: the latest within a week of now, either side (contracts breathTouchOf).
+  // The message the breath holds them by until a week after it: the last of the chain from now, each within a week of
+  // the next (contracts breathChainOf), so the stand's day is the day the sweep would next send them.
   for (const [id, times] of Object.entries(recent)) {
-    const at = out.contacts.has(id) ? breathTouchOf(times, now.getTime(), now.getTime()) : null;
+    const at = out.contacts.has(id) ? breathChainOf(times, now.getTime()) : null;
     if (at !== null) heard[id] = new Date(at).toISOString();
   }
   return {

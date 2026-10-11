@@ -23,8 +23,6 @@ type Pools = Awaited<ReturnType<typeof triggerPools>>;
 interface PlaybooksPage {
   playbooks: PlaybookListRow[];
   timezone: string;
-  /** Who a run reached from a week ago on, or is due to, and when (db recentTouches): every message, earliest first. */
-  touched: Record<string, string[]>;
   pools: Pools["pools"];
   calendar: Pools["calendar"];
   lists: Pools["lists"];
@@ -44,8 +42,8 @@ interface PlaybooksPage {
 
 /**
  * GET playbooks, as the route answers it: the workspace's playbooks with what their runs earned, the business's clock
- * (the hours are its), who any broadcast reached this week (the breath the page shows), each trigger's pool over
- * everyone counted the way a run counts it -- no one looking, the week's touches applied -- and the lists a playbook
+ * (the hours are its), each trigger's pool over everyone counted the way a run counts it -- no one looking, the week's
+ * breath applied (db recentTouches, read here and counted into each pool's `held`, never answered whole) -- and the lists a playbook
  * may run on, each with its own pool, and whether deals are on here (0008), which offers and counts the proposal
  * follow-up (0006). The route's body, moved here whole, so the Playbooks page and campaigns.playbooks say the same
  * numbers. The workspace's name and zone, how its customers buy and its settings come through their readers, once in a
@@ -113,7 +111,6 @@ export const playbooks: Reader<undefined, PlaybooksPage> = {
       data: {
         playbooks,
         timezone: facts.timezone,
-        touched,
         pools,
         calendar,
         lists,

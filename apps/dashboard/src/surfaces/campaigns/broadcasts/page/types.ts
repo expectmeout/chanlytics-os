@@ -175,9 +175,11 @@ export interface BcReach {
   activeCount: number;
   /**
    * What Send now sends: judged for now whatever time is picked (reach.ts bcSendNowOf), so its button and its confirm say
-   * the number it goes to, and the channel split of them (null for WhatsApp alone). The screen's own with no time picked.
+   * the number it goes to, and the channel split of them (null for WhatsApp alone); who it leaves out now, and the day's
+   * limit by who goes on WhatsApp now, which its own readiness reads (BcSlotWords `sayNow`). The screen's own with no time
+   * picked.
    */
-  sendNow: { count: number; splitWords: string | null };
+  sendNow: { count: number; leftOut: number; splitWords: string | null; overLimitWords: string | null };
   /**
    * Of those it reaches, how many hear from a campaign or a broadcast within a week of the send, either side: the time
    * picked, else now (contracts heardFor over the reading's `heardTouches`, as the route judges it).
@@ -238,6 +240,9 @@ export interface BcSlotWords {
   /** Nothing stops it and it is not on its way: `say` is null (reach.ts bcStopOf is the one rule for both). */
   ready: boolean;
   say: BcSay | null;
+  /** Send now's own, over who it sends to now (BcReach `sendNow`): the same rule, so a time picked readies neither alone. */
+  readyNow: boolean;
+  sayNow: BcSay | null;
   shown: string[];
 }
 

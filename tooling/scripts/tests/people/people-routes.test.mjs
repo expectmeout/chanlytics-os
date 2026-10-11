@@ -2117,6 +2117,18 @@ test("the proposal follow-up's facts (0006): answered with People's first page w
     [P1, P2, P4, P5].sort(),
     "whom any run reached this week, of who holds a proposal out: the week's breath",
   );
+  // The breath frees a person at the end of the chain of their messages, each within a week of the next: the day the
+  // sweep would next send them anything. P5 went two days ago: free in five days. Queued again for ten days ahead, the
+  // run that frees them is a week after that one: free in seventeen.
+  const { breathEndsAt } = await import("@chanlytics/contracts");
+  assert.equal(breathEndsAt(Date.parse(f.heard[P5])), now + 5 * DAY, "one message: a week after it");
+  const chained = await read(
+    world({
+      broadcasts: [...world().broadcasts, run("later-run", { state: "scheduled", scheduled_for: iso(now + 10 * DAY) })],
+      broadcast_recipients: [...world().broadcast_recipients, queued("later-run", P5)],
+    }),
+  );
+  assert.equal(breathEndsAt(Date.parse(chained.heard[P5])), now + 17 * DAY, "a week after the last of the chain");
   assert.equal((await read(world({ policies: [policy("auto")] }))).asks, false, "auto: its runs go");
   assert.equal((await read(world({ policies: [] }))).asks, true, "a class with no row runs as ask");
   assert.equal(

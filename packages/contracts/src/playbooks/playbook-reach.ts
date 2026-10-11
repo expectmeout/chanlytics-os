@@ -84,8 +84,9 @@ export function touchesAfterRun(
 /**
  * The people a run may reach: the trigger's list crossed with who said yes to
  * THIS KIND of message, minus anyone who heard from this playbook within its
- * gap (its cadence, for the month's offer), minus anyone who heard from any
- * playbook this week; the longest-unheard first; at most the cap.
+ * gap (its cadence, for the month's offer), minus anyone a message from any
+ * run reaches within a week of now, sent or due (the week's breath, heardWithin);
+ * the longest-unheard first; at most the cap.
  *
  * The purpose is the trigger's own `cls`, which every trigger has always
  * declared and which nothing has ever read. `booking` is a reminder about an

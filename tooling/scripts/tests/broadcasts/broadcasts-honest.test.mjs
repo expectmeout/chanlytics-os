@@ -5338,6 +5338,19 @@ test("a send scheduled ahead leaves out who hears from you within a week of it: 
   assert.equal(byTestId(tree, "bc-heard"), null);
   assert.equal(heardToo(tree), null);
   assert.equal(textOf(byTestId(tree, "bc-who-n")), "2");
+  // Send now, beside it, goes at once to nobody: both hear from you within a week of now. It waits, and the one line under
+  // the foot says why, while Schedule it may go.
+  assert.equal(byTestId(tree, "bc-send").props.disabled, true, "Send now waits");
+  assert.equal(
+    textOf(byTestId(tree, "bc-foot-say")),
+    `Send now: ${contracts.allLeftOutWords("Everyone", 2)}`,
+    "and the foot says why",
+  );
+  assert.equal(
+    find(tree, (n) => String(n.props?.className || "").includes("bc-send-later")).props.disabled,
+    false,
+    "Schedule it may go",
+  );
 });
 
 test("a message due weeks ahead leaves nobody out of a send now, and one due in three days does: the composer counts both sides of the send", () => {

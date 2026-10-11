@@ -2814,7 +2814,7 @@ function askedBreath(breathe) {
   if (typeof breathe !== "boolean")
     throw new AppError12(
       "validation",
-      "breathe is true or false: whether the people who heard from you this week are left out."
+      "breathe is true or false: whether the people who hear from you within a week of it are left out."
     );
   return breathe;
 }

@@ -2530,6 +2530,19 @@ function breathTouchOf(times, sendsAt, now) {
   for (const at3 of times.map(Date.parse)) if (within2(at3) && (latest === null || at3 > latest)) latest = at3;
   return latest;
 }
+function breathChainOf(times, now) {
+  let free = now;
+  let last = null;
+  for (const at3 of times.map(Date.parse).sort((a, b) => a - b)) {
+    if (!heardWithin(free, now)(at3)) {
+      if (at3 > free) break;
+      continue;
+    }
+    last = at3;
+    free = Math.max(free, at3 + PLAYBOOK_BREATH_MS);
+  }
+  return last;
+}
 function leftOutBy(touches, sendsAt, now) {
   return new Set(
     Object.entries(touches).filter(([, times]) => breathTouchOf(times, sendsAt, now) !== null).map(([id]) => id)
@@ -28872,6 +28885,7 @@ function nextShare(p) {
 function workspacePausedOf(input) {
   return input.playbooks?.ready?.paused === true || input.broadcasts?.ready?.paused === true;
 }
+var heldWaitWords = (n) => `${n} ${n === 1 ? "hears" : "hear"} from you within a week of today and ${n === 1 ? "waits" : "wait"}`;
 function whoWill(p) {
   const reach = playbookReach({ state: p.state, candidates: p.candidates, held: p.held, waiting: p.totals.waiting });
   const of = p.named ? ` of ${p.named.pool}` : "";
@@ -28883,7 +28897,7 @@ function whoWill(p) {
       const next = nextShare(p);
       const later = all - next;
       return {
-        why: `${next}${of} will get it` + (later > 0 ? ` \xB7 up to ${later} more on later runs, ${cap} a run` : "") + (p.held ? ` \xB7 ${p.held} heard from you this week and wait` : ""),
+        why: `${next}${of} will get it` + (later > 0 ? ` \xB7 up to ${later} more on later runs, ${cap} a run` : "") + (p.held ? ` \xB7 ${heldWaitWords(p.held)}` : ""),
         pill: { tone: "ok", label: plural(next, "person", "people") }
       };
     }
@@ -28894,8 +28908,8 @@ function whoWill(p) {
       };
     case "all-heard":
       return {
-        why: `${p.held ?? 0} heard from you this week and wait`,
-        pill: { tone: "warn", label: "Waiting out the week" }
+        why: heldWaitWords(p.held ?? 0),
+        pill: { tone: "warn", label: "One a week" }
       };
     case "uncounted":
       return { why: "Who it reaches could not be counted", pill: null };
@@ -39218,6 +39232,7 @@ export {
   booksWithOf,
   booksWithOptions,
   brainMetaOf,
+  breathChainOf,
   breathEndsAt,
   breathSplit,
   breathTouchOf,

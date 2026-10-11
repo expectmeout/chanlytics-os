@@ -100,18 +100,25 @@ const bcGoes = (r: { sending: number; heard: number }, breathe: boolean): number
 /**
  * What Send now sends, beside a time picked or not: it goes at once, so who heard is judged for now (contracts heardFor,
  * the one rule the route judges it by), whatever time the screen is set for, under the switch as the send carries it
- * (`breathe`). Its button and its confirm say this count and this split, so each act's number is what that act sends; with
- * no time picked it is the screen's own reading.
+ * (`breathe`). Its button and its confirm say this count and this split, and what stops it (reach.ts bcStopOf over it:
+ * nobody left now, or the day's limit by who goes on WhatsApp now), so each act's number and readiness are that act's;
+ * with no time picked it is the screen's own reading.
  */
 function bcSendNowOf(
   a: AudienceOption | null,
   purpose: AskedPurpose,
   on: readonly ConsentChannel[],
-  { breathe, now }: { breathe: boolean; now: number },
+  how: { breathe: boolean; now: number; limitOf: (onWhatsApp: number) => string | null },
 ): BcReach["sendNow"] {
-  const r = bcReadingOf(a, purpose, on, { sendsAt: now, now });
-  const split = r.preview && r.preview.split ? reachAfterBreath(r.preview.split, r.heardBy, breathe) : null;
-  return { count: bcGoes(r, breathe), splitWords: cmSplitWords(split, on) };
+  const r = bcReadingOf(a, purpose, on, { sendsAt: how.now, now: how.now });
+  const split = r.preview && r.preview.split ? reachAfterBreath(r.preview.split, r.heardBy, how.breathe) : null;
+  const count = bcGoes(r, how.breathe);
+  return {
+    count,
+    leftOut: r.sending - count,
+    splitWords: cmSplitWords(split, on),
+    overLimitWords: how.limitOf(split ? split.byChannel.whatsapp : count),
+  };
 }
 
 /** The send a choice is an answer for: its message, its list and its channels, as the armed question is (state.tsx). */
@@ -182,14 +189,15 @@ export function bcReachOf({
   const numberOk = !viaWhatsApp || !!(number && number.present && number.health.canSend);
   // The number's daily limit is WhatsApp's: only who the send reaches on it counts against it, as the route counts it.
   const onWhatsApp = split ? split.byChannel.whatsapp : activeCount;
-  const overLimitWords = active && viaWhatsApp && number ? overLimitRefusal(number.health, onWhatsApp) : null;
+  const limitOf = (n: number) => (active && viaWhatsApp && number ? overLimitRefusal(number.health, n) : null);
+  const overLimitWords = limitOf(onWhatsApp);
   return {
     active,
     tpl,
     purpose,
     sizeOf,
     activeCount,
-    sendNow: bcSendNowOf(active, purpose, on, { breathe, now }),
+    sendNow: bcSendNowOf(active, purpose, on, { breathe, now, limitOf }),
     heard: reading.heard,
     breathe,
     setHeardToo,
@@ -314,6 +322,7 @@ export function bcSlotWordsOf({
   active,
   activeCount,
   leftOut,
+  sendNow,
   busy,
   numberOk,
   overLimitWords,
@@ -329,6 +338,7 @@ export function bcSlotWordsOf({
     | "active"
     | "activeCount"
     | "leftOut"
+    | "sendNow"
     | "numberOk"
     | "overLimitWords"
     | "on"
@@ -361,23 +371,30 @@ export function bcSlotWordsOf({
   );
   const specs = vars.map((v, i) => (srcOf(i) === "text" ? typed[i].trim() : { kind: srcOf(i) }));
   // Nothing stops it, and it is not already on its way. What is said while something does is the same call's answer.
-  const say = bcStopOf({
-    tpl,
-    active,
-    activeCount,
-    leftOut,
-    on,
-    purpose,
-    number,
-    numberOk,
-    overLimitWords,
-    channelReady,
-    labels,
-    filled,
+  const stopOf = (n: { activeCount: number; leftOut: number; overLimitWords: string | null }) =>
+    bcStopOf({ tpl, active, on, purpose, number, numberOk, channelReady, labels, filled, ...n });
+  const say = stopOf({ activeCount, leftOut, overLimitWords });
+  // Send now's own: the same rule over who it sends to now (sendNow), so a time picked ahead never readies an act that
+  // goes at once to nobody, or past the day's limit.
+  const sayNow = stopOf({
+    activeCount: sendNow.count,
+    leftOut: sendNow.leftOut,
+    overLimitWords: sendNow.overLimitWords,
   });
-  const ready = say === null && !busy;
   const shown = previewValues.map((v) => String(v).trim());
-  return { typed, setTyped, chooseSource, filled, previewValues, specs, ready, say, shown };
+  return {
+    typed,
+    setTyped,
+    chooseSource,
+    filled,
+    previewValues,
+    specs,
+    ready: say === null && !busy,
+    readyNow: sayNow === null && !busy,
+    say,
+    sayNow,
+    shown,
+  };
 }
 
 // The people behind the count, and what the line under the list says about them.

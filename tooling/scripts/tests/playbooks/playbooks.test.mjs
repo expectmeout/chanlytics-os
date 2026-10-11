@@ -609,7 +609,7 @@ test("the page and its doors: Campaigns' home is real, and the old Outbound is i
   assert.ok(!/Nobody/.test(comingOf(4)), "and says nothing of the kind");
   assert.match(
     comingOf(0, 2),
-    /2 heard from you this week and waitWaiting out the week$/,
+    /2 hear from you within a week of today and waitOne a week$/,
     "people waiting out the week are not nobody",
   );
 });
