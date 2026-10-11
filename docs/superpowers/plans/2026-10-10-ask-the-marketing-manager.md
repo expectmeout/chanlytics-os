@@ -455,7 +455,9 @@ Run (R1): `tests/ask/ask-tools-size.test.mjs`. Expected: PASS, four printed line
 
 **Interfaces:**
 - Produces: `playbooks.until date null`, `playbooks.trial_until timestamptz null`; `change_playbook` replaced (`create or
-  replace`, same signature as `mig/00377`) mapping `p_set ->> 'params'` (jsonb array of strings), `(p_set ->> 'until')::date`,
+  replace`, same signature as `mig/00377`) mapping `p_set -> 'params'` (a jsonb array of `ParamSpec` objects, as the route
+  stores them — the door checks only that it is an array and core judges the elements; the first draft said "strings",
+  which Task 10's review corrected), `(p_set ->> 'until')::date`,
   `(p_set ->> 'trial_until')::timestamptz` beside the six keys it maps today; the decision row's `data` names each key
   changed as it does for the six.
 
