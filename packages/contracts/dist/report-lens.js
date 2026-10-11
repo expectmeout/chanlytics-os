@@ -682,7 +682,8 @@ var PERSON_CAME_FROM_WORDS = {
   calendar: "Your calendar",
   manual: "Added by hand",
   import: "Imported",
-  lead: "A lead you found"
+  lead: "A lead you found",
+  ad: "An ad"
 };
 
 // src/reports/people/people-words.ts

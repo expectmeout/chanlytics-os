@@ -129,8 +129,6 @@ const phoneBarOf = (p: P) => (
     q={p.q}
     onQ={p.onQ}
     searchRef={p.searchRef}
-    searchOpen={p.searchOpen}
-    onSearchOpen={p.onSearchOpen}
     onFind={p.onFind}
     canFind={p.canFind}
     onImport={p.onImport}

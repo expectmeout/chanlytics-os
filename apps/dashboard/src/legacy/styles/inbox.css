@@ -2831,3 +2831,28 @@ button.ix-ctx:hover { background: var(--bg-hover); }
     opacity: 0.7;
   }
 }
+
+/* ====================================================================
+   Came from an ad, in a thread (Inbox, a demo's: the header's line under the head). One quiet line across the header, as a
+   step due is (inbox.css .ix-th-step), its words a door to the ad. It stands beside the person's link, never inside it.
+   ==================================================================== */
+.ix-th-ad {
+  display: flow-root;
+  grid-column: 1 / -1;
+  min-width: 0;
+  /* The head's gap (12px on a desk, 6px in a phone's pill) already stands between its rows: the line comes closer. */
+  margin-top: calc(var(--space-1) * -1);
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+/* In a phone's pill the line keeps off the rounded corner. */
+:is(.inbox, .conversations)[data-takeover] .ix-th-ad {
+  padding-inline: var(--space-3);
+}
+/* Under a thumb the door reaches down into the header's own padding for its 44px, without moving a word. */
+@media (pointer: coarse) {
+  .ix-th-ad-door {
+    padding: var(--space-1) var(--space-3) var(--space-3) 0;
+    margin: calc(var(--space-1) * -1) 0 calc(var(--space-3) * -1);
+  }
+}

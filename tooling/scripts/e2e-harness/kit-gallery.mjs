@@ -983,30 +983,25 @@ export const FAMILIES = [
   {
     family: "Search",
     about:
-      "The capsule a list is searched from, Search (surfaces/kit/search/search.tsx), People's and the Inbox's: at rest on " +
-      "a phone a button saying what it finds; pressed, the field in the same capsule (typed at 16px on a phone, drawn at " +
-      "the rest's size) with its words and their clear in its end; on a desk the field alone, at the page's size.",
+      "The capsule a list is searched from, Search (surfaces/kit/search/search.tsx), People's, the Inbox's and " +
+      "Conversations': the field, always, the capsule its label, so a press anywhere on it is in the field (typed at 16px " +
+      "on a phone, drawn at the page's size), and the clear in its end from the first word.",
     entries: [
       {
         id: "search",
         html:
-          `<div class="search"><button type="button" class="search-rest" aria-label="Search names, numbers and emails">` +
-          `${icon("search", 15)}<span>Search names, numbers and emails</span></button></div>`,
-      },
-      {
-        id: "search-open",
-        html:
-          `<div class="search" data-rests="" tabindex="-1"><label class="search-box">${icon("search", 15)}` +
+          `<div class="search"><label class="search-box">${icon("search", 15)}` +
           `<span class="search-field"><input type="search" inputmode="search" enterkeyhint="search" autocomplete="off" ` +
-          `value="Sam" placeholder="Search names, numbers and emails" aria-label="Search names, numbers and emails"></span>` +
-          `<button type="button" class="search-clear" aria-label="Clear the search">${icon("x", 12)}</button></label></div>`,
+          `value="" placeholder="Search names, numbers and emails" aria-label="Search names, numbers and emails"></span>` +
+          `</label></div>`,
       },
       {
-        id: "search-desk",
+        id: "search-words",
         html:
           `<div class="search"><label class="search-box">${icon("search", 15)}` +
           `<span class="search-field"><input type="search" inputmode="search" enterkeyhint="search" autocomplete="off" ` +
-          `value="" placeholder="Search by name or message" aria-label="Search by name or message"></span></label></div>`,
+          `value="Sam" placeholder="Search names, numbers and emails" aria-label="Search names, numbers and emails"></span>` +
+          `<button type="button" class="search-clear" aria-label="Clear the search">${icon("x", 12)}</button></label></div>`,
       },
     ],
   },

@@ -1,0 +1,509 @@
+/* Campaigns › Ads: New ad (MOCKUP). Tokens only; class names start ads- and carry no primitive word. */
+
+/* ---- The head: "2 of 5", five dots, and the quiet Review (new-ad.tsx) ---- */
+.ads-new-pane .cm-pane-acts {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.ads-new-count {
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--ink-dim);
+}
+.ads-new-stepdots {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.ads-new-stepdot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--line-strong);
+}
+.ads-new-stepdot[data-state="done"] {
+  background: var(--ink-dim);
+}
+.ads-new-stepdot[data-state="now"] {
+  background: var(--ink);
+}
+
+/* ---- The body: the sentence under the head, then the step in view ---- */
+.ads-new {
+  padding: 0 0 var(--space-3);
+}
+/* The sentence stays in view as the step scrolls, on the sheet's own ground. */
+.ads-new-lead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) 0 var(--space-3);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-pop-fill);
+}
+.ads-new-hint {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.ads-new-lead .cm-recipe {
+  font-size: var(--text-lg);
+  line-height: 1.75;
+}
+/* The last step is the screen the drawer is: the sentence at the drawer's size. */
+.ads-new[data-step="5"] .ads-new-lead .cm-recipe {
+  font-size: var(--text-xl);
+  line-height: 1.85;
+}
+/* On a phone the sentence clamps to two lines until it is opened. */
+.ads-new-lead[data-clamp="true"] .cm-recipe {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+.ads-new .ads-new-more {
+  align-self: flex-start;
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+
+.ads-new-step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.ads-new-title {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+/* The reach line stood tucked under the drawer's sentence; here it follows a callout or the title. */
+.ads-new .cm-reach-line {
+  margin-top: 0;
+}
+.ads-new-title:focus {
+  outline: none;
+}
+.ads-new-sec {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.ads-new-sec-k {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink-dim);
+}
+.ads-new-cap {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--ink-dim);
+}
+.ads-new-dim {
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.ads-new-lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--ink-dim);
+}
+.ads-new-quiet {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+
+/* ---- Dot rows: what something stands on (green where it does, an amber ring where it needs the owner) ---- */
+.ads-new-rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ads-new-need {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 32px;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.ads-new-need[data-tone="warn"],
+.ads-new-need[data-tone="fail"] {
+  color: var(--ink);
+}
+.ads-new-need-text {
+  min-width: 0;
+}
+.ads-new-need-note {
+  color: var(--ink-dim);
+}
+.ads-new .ads-new-need-door {
+  margin-inline-start: auto;
+  flex: none;
+  font-size: var(--text-xs);
+  color: var(--warn-ink);
+}
+.ads-new .ads-new-need[data-tone="fail"] .ads-new-need-door {
+  color: var(--danger-ink);
+}
+.ads-new-dot {
+  flex: none;
+  box-sizing: border-box;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  background: var(--ok);
+}
+.ads-new-dot[data-tone="warn"] {
+  border: 1.5px solid var(--warn);
+  background: transparent;
+}
+.ads-new-dot[data-tone="fail"] {
+  background: var(--danger);
+}
+
+/* ---- Step 1 and step 4: a choice of one, as rows ---- */
+.ads-new-doors,
+.ads-new-presets {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.ads-new .ads-new-pick {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 56px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+  color: var(--ink);
+  text-align: start;
+  text-overflow: clip;
+  white-space: normal;
+  overflow: visible;
+}
+.ads-new .ads-new-pick[aria-pressed="true"] {
+  background: var(--line);
+}
+@media (hover: hover) {
+  .ads-new .ads-new-pick:hover {
+    background: var(--hover-fill);
+  }
+  .ads-new .ads-new-pick[aria-pressed="true"]:hover {
+    background: var(--line);
+  }
+}
+.ads-new .ads-new-pick:focus-visible,
+.ads-new .ads-new-post:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+.ads-new-pick-words {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ads-new-pick-verb {
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+.ads-new-pick-line {
+  color: var(--ink-muted);
+}
+.ads-new-pick-runs {
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.ads-new-pick-check {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 16px;
+  color: var(--ink);
+}
+/* The 22px ring a door is drawn in (the ledger's group ring), inked where it is the one chosen. */
+.ads-new-ring {
+  display: grid;
+  flex: none;
+  place-items: center;
+  box-sizing: border-box;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius-circle);
+  color: var(--ink-dim);
+}
+.ads-new-ring[data-chosen="true"] {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+/* What the chosen door needs, under its row and in line with its words. */
+.ads-new-needs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3) var(--space-2) calc(var(--space-3) + 22px + var(--space-3));
+}
+/* Book online: a fourth door, quiet and not pressable. */
+.ads-new-later {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 56px;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.ads-new-later .ads-new-pick-line {
+  color: var(--ink-dim);
+}
+
+/* ---- Step 2: the ad ---- */
+.ads-new-posts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.ads-new .ads-new-post {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 88px;
+  padding: 0;
+  border-radius: var(--radius-md);
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+  text-align: start;
+  text-overflow: clip;
+  white-space: normal;
+  overflow: visible;
+}
+/* A flat tile, no gradient; picked, it wears a 2px ring in ink. */
+.ads-new-post-art {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--surface-inset-fill);
+  color: var(--ink-dim);
+}
+.ads-new-post[aria-pressed="true"] .ads-new-post-art {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+.ads-new-onoff {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.ads-new-onoff-words {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ads-new-ctl {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.ads-new-ctl-k {
+  min-width: 0;
+}
+.ads-new-shown {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+}
+.ads-new-shown dt {
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.ads-new-shown dd {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+
+/* Google: the address the ad opens, and what people search (words, not presses). */
+.ads-new-address {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+.ads-new-themes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ads-new-theme {
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+/* Who the ad is shown as, under the preview: read from the connection, with the door to change it. */
+.ads-new-shownas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.ads-new-shownas-words {
+  min-width: 0;
+  margin: 0;
+}
+.ads-new-shownas-k {
+  color: var(--ink-dim);
+}
+.ads-new-shownas-v {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.ads-new .ads-new-shownas-door {
+  flex: none;
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+
+/* ---- Step 3: where and who ---- */
+.ads-new-run {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 36px;
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink);
+}
+.ads-new-run-word {
+  color: var(--ink-dim);
+}
+.ads-new-run[data-tone="warn"] .ads-new-run-word {
+  color: var(--warn-ink);
+}
+.ads-new .ads-new-also {
+  align-self: flex-start;
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+.ads-new .ads-new-also[aria-pressed="true"] {
+  color: var(--ink);
+}
+/* The age floor: a lock, the word, and the floor, which nobody chooses here. */
+.ads-new-ages {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.ads-new-ages-k {
+  color: var(--ink-dim);
+}
+.ads-new-ages-v {
+  color: var(--ink);
+}
+.ads-new-area {
+  margin: 0;
+  font-size: var(--text-md);
+  line-height: 1.85;
+  color: var(--ink-muted);
+}
+.ads-new-ask {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink);
+}
+.ads-new-who {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+
+/* ---- Step 5: review ---- */
+.ads-new-checked {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.ads-new .ads-new-all {
+  align-self: flex-start;
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+
+/* The foot's door beside the reason a red row gives: after the words, or on a line of its own where they fill the foot. */
+.pb-foot-say .ads-new-foot-door {
+  margin-inline-start: var(--space-2);
+  color: var(--danger-ink);
+}
+
+/* ---- The preview (step-preview.tsx) ---- */
+.ads-new-pv {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  /* A thumb's press: a post is its tile, and the rows keep their 56px. */
+  .ads-new .ads-new-post {
+    width: calc((100% - 2 * var(--space-3)) / 3);
+  }
+  .ads-new-needs {
+    padding-inline-start: calc(var(--space-3) + 22px + var(--space-3));
+  }
+}

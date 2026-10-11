@@ -2,6 +2,7 @@
  * The demo's threads that wait on a call: a verdict after a consult, a refund, a partnership, a discount and a booking
  * conflict, each with the approval card the mockup drew for it (moved from data/inbox-data.jsx, decision 0015, step 3).
  */
+import { DEMO_ADS } from "../../demo-ads";
 import type { SeededThread } from "../types";
 
 export const NEEDING_YOU: SeededThread[] = [
@@ -69,6 +70,7 @@ export const NEEDING_YOU: SeededThread[] = [
     avatar: "AK",
     state: "needs",
     clientId: "c-aisha",
+    fromAd: DEMO_ADS.saturday,
     waitingMin: 42,
     channels: ["phone", "sms"],
     primaryChannel: "phone",
@@ -295,11 +297,12 @@ export const NEEDING_YOU: SeededThread[] = [
   {
     id: "th-jordan-discount",
     who: "Jordan Patel",
-    whoMeta: "Lead · From IG ad · First visit booked",
+    whoMeta: "Lead · First visit booked",
     avatar: "JP",
     state: "needs",
     clientId: "c-jordan",
     leadId: "ld-jordan",
+    fromAd: DEMO_ADS.spring,
     waitingMin: 26,
     channels: ["sms"],
     primaryChannel: "sms",

@@ -313,10 +313,10 @@ test.describe("Leads on a real workspace", () => {
     await page.waitForLoadState("networkidle");
     const bar = page.getByTestId("leads-phone-bar");
     await expect(bar).toBeVisible();
-    await expect(bar.getByTestId("leads-phone-search-open")).toBeVisible();
+    await expect(bar.getByTestId("leads-phone-search")).toBeVisible();
     // Whole, not only there: the bar once drew 18px tall with all four clipped inside it (the rated card's star
     // track shared its class), and a clipped control still has a box, so it still passed as visible.
-    await expect(bar.getByTestId("leads-phone-search-open")).toBeInViewport({ ratio: 1 });
+    await expect(bar.getByTestId("leads-phone-search")).toBeInViewport({ ratio: 1 });
     // Nothing above the rows but the bar and the strip: no stat cards, no
     // controls row, no rail (feedback_mobile_work_first).
     await expect(page.locator(".cl-rail")).toBeHidden();
@@ -327,14 +327,16 @@ test.describe("Leads on a real workspace", () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(
       0,
     );
-    // Search is the bar's button; pressed, the bar is one full-width field (it was a 64px box that said "Sear"). There
-    // is no Cancel: the clear (×) stands in the field from the first word, and a field left empty rests as focus leaves.
-    await bar.getByTestId("leads-phone-search-open").click();
+    // Search is one full-width field under the bar (it was a 64px box that said "Sear"), the field from the first draw,
+    // so one press begins the typing (Ruben, 11 Oct 2026). There is no Cancel: the clear (×) stands in the field from
+    // the first word, and keeps the field in focus.
     const search = page.getByTestId("leads-phone-search");
-    await expect(search).toBeInViewport({ ratio: 1 });
+    await search.click();
+    await expect(search).toBeFocused();
     await search.fill("zz");
     await page.getByTestId("leads-phone-search-clear").click();
     await expect(search).toHaveValue("");
+    await expect(search).toBeFocused();
     await search.blur();
     await expect(bar.getByTestId("leads-phone-lists")).toBeVisible();
   });

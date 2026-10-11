@@ -206,6 +206,7 @@ export type RealThread = Omit<InboxThreadVM, keyof ThreadBase | "state"> &
     contextStrip?: undefined;
     leadId?: undefined;
     hasHumanContact?: undefined;
+    fromAd?: undefined;
   };
 
 /** A thread of the mockup's: what a demo session draws, and the standalone harness's seeds. */
@@ -214,6 +215,8 @@ export interface SeededThread extends ThreadBase {
   state: ThreadState;
   leadId?: string;
   hasHumanContact?: boolean;
+  /** The ad that brought them (a demo's thread alone: the header says it, with a door to the ad). */
+  fromAd?: { id: string; name: string };
   approval?: Approval;
   verdict?: Verdict;
   contextStrip?: ContextFact[];

@@ -2009,3 +2009,16 @@ html.legacy-on .bt-link { position: relative; }
     box-shadow: var(--selected-depth);
   }
 }
+
+/* ---- Ad accounts (Settings › Connections; a demo's card until the wiring lane) --------------------------------------
+   A platform's row is the connection row above (.set-int-row, in the group's columns); what stands under it starts where its
+   words do (.set-conn > .set-row-stack). The dot rows are Ads' standing's (ads.css: .ads-dots, .ads-dotline), and an amber
+   one says the step that mends it on a line of its own, under the dot's words. */
+.set-ads-facts { margin: 0; font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); text-wrap: pretty; }
+.set-ads-stack { gap: var(--space-2); }
+.set-ads-ready { padding-top: var(--space-1); }
+.set-ads-ready .ads-dotline { flex-wrap: wrap; row-gap: 0; }
+.set-ads-fix { flex: 1 1 100%; padding-left: calc(7px + var(--space-2)); font-size: var(--text-xs); line-height: var(--leading-snug); color: var(--ink-dim); }
+/* Disconnect while an ad runs is refused: what to do first, then its two quiet words. */
+.set-ads-refused { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); margin: 0; font-size: var(--set-hint); line-height: 1.5; color: var(--warn-ink); }
+.set-ads-choose { display: flex; flex-direction: column; gap: var(--space-2); }

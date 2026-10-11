@@ -189,8 +189,6 @@ export const leadsListProps = (p: LeadsPage) => {
     q: p.q,
     onQ: setQ,
     searchRef: p.searchRef,
-    searchOpen: p.searchOpen,
-    onSearchOpen: p.setSearchOpen,
     scrollRef: p.scrollRef,
     scrolled: p.scrolledX,
     onScrolled: p.setScrolledX,

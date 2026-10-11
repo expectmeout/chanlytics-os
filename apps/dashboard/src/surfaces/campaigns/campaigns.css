@@ -3569,11 +3569,16 @@ html.legacy-on .msg-use-link {
   flex: none;
   margin-top: 2px;
 }
-/* One callout over the sentence: what keeps a run from sending, its glyph, and its door at the end. */
+/*
+ * One callout over the sentence: what keeps a run from sending, its glyph, and its door at the end. Where the words and a
+ * long door ("Open Settings › Connections") cannot share a narrow line, the door goes under the words instead of squeezing
+ * them into a column; a wide line is unchanged.
+ */
 .cm-callout {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2) var(--space-3);
   margin: 0;
   padding: var(--space-3);
   border-radius: var(--radius-lg);
@@ -3586,7 +3591,7 @@ html.legacy-on .msg-use-link {
   flex: none;
 }
 .cm-callout-words {
-  flex: 1 1 auto;
+  flex: 1 1 12em;
   min-width: 0;
 }
 .cm-callout-door {
@@ -4828,6 +4833,13 @@ div.tpl-slotbox:not([data-lines="1"]) {
     position: absolute;
     inset: -14px -8px;
   }
+}
+/* A tile with two doors ("All runs ›", "Full report ›"): they stand together at the head's end, the pair taking the push. */
+.cmh-doors {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-4);
+  margin-left: auto;
 }
 .cmh-dim {
   color: var(--ink-dim);

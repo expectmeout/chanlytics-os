@@ -20,13 +20,17 @@ export function channelsCard(v: PeopleReportVM, className: string) {
   });
 }
 
-/** How the new people first came: the way in each was first kept under. */
-export function firstCard(v: PeopleReportVM, className: string) {
+/**
+ * How the new people first came: the way in each was first kept under. Where the workspace has ads, its "An ad" row is the door to
+ * Reports › Ads over the same days (`ads`: that press).
+ */
+export function firstCard(v: PeopleReportVM, className: string, ads: (() => void) | null = null) {
   return mixCard(v.firstCame, {
     title: "How they first came",
     testid: "chart-people-first",
     className,
     columns: ["How they first came", "New people"],
+    ...(ads ? { door: { id: "ad", open: ads } } : {}),
   });
 }
 

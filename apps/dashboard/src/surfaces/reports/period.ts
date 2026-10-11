@@ -56,7 +56,7 @@ export function backToShown(): void {
   const here = reportsRouteParts(at);
   const shown = surfaceValue("reports");
   if (here && shown) {
-    const to = lensRoute(here.lens, typeof shown.range === "string" ? null : shown.range);
+    const to = lensRoute(here.lens, typeof shown.range === "string" ? null : shown.range, here.scope ?? null);
     if (to !== at) navigate(to, { replace: true });
   }
   followShown(true);
@@ -79,7 +79,7 @@ export async function setReportRange(range: ReportRange): Promise<boolean> {
   // are no period's) the one kept before the pick. Never the one a caller kept on the way here.
   const prev = surfaceValue("reports")?.period ?? shownReportPeriod();
   if (typeof range === "string") keepReportPeriod(range);
-  const to = here ? lensRoute(here.lens, typeof range === "string" ? null : range) : before;
+  const to = here ? lensRoute(here.lens, typeof range === "string" ? null : range, here.scope ?? null) : before;
   if (to !== before) navigate(to);
   // Today's line and Worth a look say the period too (the headline), and so do the Reviews, Receptionist, People and Campaigns lenses. One this tab holds paints at once;
   // it is read behind that only when none is held for the range or the held one is old.

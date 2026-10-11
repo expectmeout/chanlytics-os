@@ -335,6 +335,26 @@ test("a lens the workspace has no use for says so at its address, in the registr
   assert.ok(byTestId(none, "lens-empty"), "deals on and none ever recorded: the same words, never a blank");
 });
 
+test("Ads reaches a workspace without ads as the registry's empty at its address, with the door to Ads: none of its cards, no head sentence, and no fact on the Overview", () => {
+  for (const sellsBy of ["booking", "proposal"]) {
+    workspace(sellsBy);
+    const tree = draw("ads", { R: surface({ deals: DEALS }) });
+    const empty = byTestId(tree, "lens-empty");
+    assert.ok(empty, `${sellsBy}: the lens says it has nothing, never a blank`);
+    assert.equal(textOf(find(empty, (n) => classes(n).includes("empty-title"))), "No ads in this period");
+    assert.ok(textOf(empty).includes("Open Ads"), "and where Ads is");
+    for (const id of ["ads-lens", "ads-res-days", "ads-res-figures", "ads-res-funnel", "ads-res-platforms"])
+      assert.equal(byTestId(tree, id), null, `${sellsBy}: ${id} is a card of the demo's lens alone`);
+    assert.equal(standingSaid().sentence, undefined, "its head says Reports and nothing of ads");
+    const overview = draw("overview", { R: surface({ deals: DEALS }) });
+    assert.deepEqual(
+      all(overview, (n) => n.props?.["data-fact"] === "ads"),
+      [],
+      `${sellsBy}: Worth knowing says nothing of ads where there are none`,
+    );
+  }
+});
+
 test("a period with nothing in it says so on each lens that draws sections, and on People it hides nothing: the lens never draws the empty", () => {
   workspace("booking");
   const R = surface({ report: quiet(), deals: NO_DEALS });

@@ -1,0 +1,135 @@
+/*
+ * Results (MOCKUP): its own stylesheet, imported by the two modules that draw it (results/results-sheet.tsx over the
+ * Ads page, and Reports' Ads lens, reports/lenses/ads.tsx), so it loads with either and with no other page.
+ */
+.ads-res-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.ads-res-head {
+  margin: 0;
+  font-size: var(--text-lg);
+  line-height: var(--leading-snug);
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
+  text-wrap: pretty;
+}
+.ads-res-head b {
+  font-weight: var(--weight-semibold);
+}
+.ads-res-pane-line {
+  margin: calc(var(--space-3) * -1) 0 0;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.ads-res-figures-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+/* The sheet's four figures: two rows of two in a raised box with hairlines between, as the page's strip is at its narrow width. */
+.ads-res-figures {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg-raised);
+}
+.ads-res-fig {
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+}
+.ads-res-fig:nth-child(even) {
+  border-left: 1px solid var(--line);
+}
+.ads-res-fig:nth-child(n + 3) {
+  border-top: 1px solid var(--line);
+}
+.ads-res-figures dt {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.ads-res-figures dd {
+  font-variant-numeric: tabular-nums;
+}
+.ads-res-quiet,
+.ads-res-note {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--ink-dim);
+  text-wrap: pretty;
+}
+.ads-res-note {
+  margin-top: var(--space-2);
+}
+/* By day: what was spent above and the people below, each a small title over its bars. */
+.ads-res-lane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.ads-res-lane + .ads-res-lane {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+/* The tables: a name and the dim line under it at the left, the numbers at the right with their short units under them. */
+.ads-res-table td {
+  vertical-align: top;
+}
+.ads-res-name {
+  display: block;
+  color: var(--ink);
+  text-align: start;
+  text-decoration: none;
+}
+.ads-res-sub {
+  display: block;
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--ink-dim);
+}
+.ads-res-num {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: var(--leading-snug);
+  text-align: right;
+}
+.ads-res-theirs-line {
+  margin: 0;
+}
+/* The sheet's foot: the door to the full report, at the end. */
+.ads-res-foot {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+}
+.ads-res-full {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 44px;
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+/* Reports › Ads: the scope's picker with the days it covers beside it, over the figures. */
+.rpt-ads-scope {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+.rpt-ads-pane {
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}

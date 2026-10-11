@@ -47,6 +47,12 @@ const STAND_IN_NETWORK = "./tooling/scripts/tests/calendar/_stand-in-network.mjs
  */
 const STAND_IN_BASE_UI = "./tooling/scripts/tests/shared/_stand-in-base-ui.mjs";
 
+/**
+ * Stylesheets, as the page tests stand in for them, loaded before every test file: a module loaded on demand imports its
+ * own rules, which the suite (no bundler) would read as JavaScript (tests/shared/_stand-in-css.mjs says how).
+ */
+const STAND_IN_CSS = "./tooling/scripts/tests/shared/_stand-in-css.mjs";
+
 /** What each command runs when it is given no files. */
 export const SUITES = {
   test: ["tooling/scripts/tests/**/*.test.mjs", "apps/mobile/test/*.test.mjs"],
@@ -104,6 +110,8 @@ export function planOf(argv, env) {
       STAND_IN_NETWORK,
       "--import",
       STAND_IN_BASE_UI,
+      "--import",
+      STAND_IN_CSS,
       "--test",
       ...report,
       ...flags,

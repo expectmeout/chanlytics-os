@@ -10,11 +10,26 @@
 import type { PersonDetailDto, PersonRowDto, PersonVisitsDto, PersonVM, VisitDto } from "@chanlytics/contracts";
 import { DAY_MS, HOUR_MS, MIN_MS, toPersonVM } from "@chanlytics/contracts";
 import { ZONE } from "@/surfaces/calendar/sample-clock";
+import { DEMO_ADS } from "../demo-ads";
 import { peopleSurfaceOf } from "./surface-map";
 import type { PeopleLoaded } from "./surface-map";
 import type { PeopleSurface } from "./surface";
 
 const phone = (last2: string) => `+130555501${last2}`;
+
+/** Who an ad brought, by their People id (the Ads page's fixtures name the same ten; a demo's: no real workspace has an ad to name). */
+const BROUGHT_BY: Readonly<Record<string, (typeof DEMO_ADS)[keyof typeof DEMO_ADS]>> = {
+  "c-jordan": DEMO_ADS.spring,
+  "c-maya": DEMO_ADS.spring,
+  "c-priya": DEMO_ADS.spring,
+  "c-amelia": DEMO_ADS.spring,
+  "c-rashid": DEMO_ADS.spring,
+  "c-amy": DEMO_ADS.saturday,
+  "c-david": DEMO_ADS.saturday,
+  "c-marcus": DEMO_ADS.saturday,
+  "c-david-chen": DEMO_ADS.saturday,
+  "c-aisha": DEMO_ADS.saturday,
+};
 
 /** Who a row is: their id, their name, and the last two digits of their number. */
 type Who = readonly [id: string, name: string, last2: string];
@@ -102,7 +117,7 @@ function sampleRows(nowMs: number): PersonRowDto[] {
       last_message_sender: "ai",
       ...over,
     });
-  return [
+  const rows = [
     wrote(["c-aisha", "Aisha Khan", "01"], 94, "Can I move Saturday to 11? I have to be at the airport by 2.", {
       needs_human: true,
       open_escalation_reason: "human_token",
@@ -188,6 +203,8 @@ function sampleRows(nowMs: number): PersonRowDto[] {
       },
     ),
   ];
+  // Where they first came from is what people_list says once (00138): an ad, for those an ad brought.
+  return rows.map((r) => (BROUGHT_BY[r.id] ? { ...r, came_from: "ad" } : r));
 }
 
 /** What People reads, before it is mapped: the sample's own workspace, its lists kept by hand and by rule, and its calendar. */
@@ -349,6 +366,16 @@ function sampleDetail(id: string, now: Date = new Date()): PersonDetailDto | nul
     workspace_reply_mode: "auto",
     ...(row.visits
       ? { visits: { ...row.visits, all: [row.visits.next, row.visits.last].filter((v): v is VisitDto => !!v) } }
+      : {}),
+    ...(BROUGHT_BY[id]
+      ? {
+          added: {
+            at: row.first_contact_at ?? row.earliest_row_at ?? new Date(nowMs).toISOString(),
+            source: "ad",
+            title: null,
+            ad: BROUGHT_BY[id],
+          },
+        }
       : {}),
     person_notes: [],
     note_team: [],

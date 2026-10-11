@@ -16,6 +16,7 @@ import {
   type ReportDays,
 } from "@chanlytics/contracts";
 import { workspaceOverride } from "@/legacy-bridge/surface-data";
+import { demoSession } from "../legacy-verbs";
 import type { SurfaceViews } from "../routes";
 
 /**
@@ -25,17 +26,24 @@ import type { SurfaceViews } from "../routes";
 export const reportsTakes = (param: string): boolean => reportsParamParts(param) !== null;
 
 /**
+ * Whether the workspace has ads to report: a demo session, drawn from the Ads sample. MOCKUP: the wiring lane (decision 0049) sets
+ * this from the workspace's connected ad accounts, and the lens is then a real one. A test reads a chrome with no window, which is
+ * no demo.
+ */
+export const adsAreOn = (): boolean => typeof window !== "undefined" && demoSession();
+
+/**
  * Who is looking and how their customers buy, as the workspace list the shell holds says it: the one place Reports asks, for the
  * strip and for the page's body. Null before the list is held (the shell reads it before the page draws, ROUTE_WAITS, but a read
  * that failed leaves none).
  */
 const lensWho = (): LensWho | null => {
   const ws = workspaceOverride.current();
-  return ws ? { sellsBy: ws.sells_by, role: ws.role } : null;
+  return ws ? { sellsBy: ws.sells_by, role: ws.role, adsOn: adsAreOn() } : null;
 };
 
 /** What is known of a workspace whose list is not held: deals are not on, and the person is the lowest rung. */
-const NOT_HELD: LensWho = { sellsBy: undefined, role: undefined };
+const notHeld = (): LensWho => ({ sellsBy: undefined, role: undefined, adsOn: adsAreOn() });
 
 /**
  * Whether a lens is shown here: yes or no, or null where the answer waits on a list the shell has not held (how the workspace sells
@@ -45,7 +53,7 @@ const NOT_HELD: LensWho = { sellsBy: undefined, role: undefined };
 export function lensShownHere(lens: LensId): boolean | null {
   const who = lensWho();
   if (who) return lensIsShown(lens, who);
-  return lensIsShown(lens, NOT_HELD) ? true : null;
+  return lensIsShown(lens, notHeld()) ? true : null;
 }
 
 /**
@@ -54,7 +62,7 @@ export function lensShownHere(lens: LensId): boolean | null {
  * and moves to another lens is looking at that week there, never back on the period.
  */
 function lensViews(picked: LensId, days: ReportDays | null): SurfaceViews {
-  const tabs = lensesFor(lensWho() ?? NOT_HELD).map((l) => ({
+  const tabs = lensesFor(lensWho() ?? notHeld()).map((l) => ({
     id: l.id,
     label: l.label,
     to: lensRoute(l.id, days),

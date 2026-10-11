@@ -7948,6 +7948,57 @@ function leadPlanAsk(plan, facts) {
   return { count: count2, label, covers };
 }
 
+// src/ads/address.ts
+var ADS_ROUTE = "campaigns/ads";
+var DOORS = ["whatsapp", "call", "form"];
+var STARTS = ["copy", "again", "google"];
+var NONE = { ad: null, compose: null, results: false };
+var isAdsParam = (param) => /^ads(:|$)/.test(param);
+var adStartOf = (word) => STARTS.find((s) => s === word);
+function composeOf(rest) {
+  const [first = "", ...more] = rest.split(":");
+  const how = adStartOf(first);
+  const id = more.join(":");
+  if (how && id) return { door: how === "google" ? "call" : "whatsapp", from: { how, id } };
+  return { door: DOORS.find((d) => d === first) ?? "whatsapp", from: null };
+}
+function parseAds(param) {
+  const rest = param.replace(/^ads:?/, "");
+  if (rest.startsWith("ad:")) {
+    const id = rest.slice("ad:".length);
+    return id ? { ...NONE, ad: id } : NONE;
+  }
+  if (rest === "results") return { ...NONE, results: true };
+  if (rest === "new") return { ...NONE, compose: composeOf("") };
+  if (rest.startsWith("new:")) return { ...NONE, compose: composeOf(rest.slice("new:".length)) };
+  return NONE;
+}
+var adRoute = (id) => `${ADS_ROUTE}:ad:${id}`;
+var newAdRoute = (door = "whatsapp") => door === "whatsapp" ? `${ADS_ROUTE}:new` : `${ADS_ROUTE}:new:${door}`;
+var newAdFromRoute = (how, id) => `${ADS_ROUTE}:new:${how}:${id}`;
+var adsResultsRoute = () => `${ADS_ROUTE}:results`;
+var ADS_SCOPE_ALL = { kind: "all" };
+var SCOPE_PLATFORMS = ["meta", "google", "tiktok"];
+function adsScopeKey(scope) {
+  if (scope.kind === "all") return "all";
+  return scope.kind === "platform" ? `platform:${scope.platform}` : `ad:${scope.id}`;
+}
+function adsScopeOfKey(key) {
+  if (key === "all") return ADS_SCOPE_ALL;
+  if (key.startsWith("platform:")) {
+    const platform = SCOPE_PLATFORMS.find((p) => p === key.slice("platform:".length));
+    return platform ? { kind: "platform", platform } : null;
+  }
+  const id = key.startsWith("ad:") ? key.slice("ad:".length) : "";
+  return id ? { kind: "ad", id } : null;
+}
+var ADS_WORDS = {
+  viewsLabel: "Which campaigns",
+  messagesTab: "Messages",
+  adsTab: "Ads",
+  newAd: "New ad"
+};
+
 // src/config/roles.ts
 var ROLE_RANK = { viewer: 0, operator: 1, partner: 2, owner: 3 };
 function roleAtLeast(role, atLeast) {
@@ -8837,6 +8888,18 @@ var REPORT_LENSES = [
     })
   },
   {
+    id: "ads",
+    label: "Ads",
+    sub: "what your ads cost, who they brought, and who booked",
+    shownWhen: "ads_on",
+    role: "viewer",
+    empty: (r2) => ({
+      title: "No ads in this period",
+      body: `Nothing was spent on ads, and nobody got in touch through one, between ${r2.since} and ${r2.until}.`,
+      door: { label: "Open Ads", to: ADS_ROUTE }
+    })
+  },
+  {
     id: "reviews",
     label: "Reviews",
     sub: "what customers say on Google",
@@ -8849,16 +8912,27 @@ var REPORT_LENSES = [
     })
   }
 ];
-var lensRoute = (id, days = null) => {
-  if (days === null) return id === "overview" ? "reports" : `reports/${id}`;
-  return id === "overview" ? `reports/${reportRangeKey(days)}` : `reports/${id}:${reportRangeKey(days)}`;
+var lensRoute = (id, days = null, scope = null) => {
+  const narrowed = id === "ads" && scope !== null && scope.kind !== "all" ? adsScopeKey(scope) : null;
+  if (days === null && narrowed === null) return id === "overview" ? "reports" : `reports/${id}`;
+  const rest = [days === null ? null : reportRangeKey(days), narrowed].filter((w) => w !== null).join(":");
+  return id === "overview" ? `reports/${rest}` : `reports/${id}:${rest}`;
 };
+var adsReportRoute = (days, scope = ADS_SCOPE_ALL) => lensRoute("ads", days, scope);
 var LENS_ROUTES = REPORT_LENSES.map((l) => lensRoute(l.id));
 var isLensParam = (param) => REPORT_LENSES.some((l) => l.id === param && l.id !== "overview");
 var daysOfKey = (key) => {
   const range = reportRangeOfKey(key);
   return range !== null && typeof range !== "string" ? range : null;
 };
+function adsParts(rest) {
+  const at3 = rest.indexOf(":");
+  const days = daysOfKey(at3 < 0 ? rest : rest.slice(0, at3));
+  if (days && at3 < 0) return { days };
+  const words2 = days ? rest.slice(at3 + 1) : rest;
+  const scope = words2 === "all" ? null : adsScopeOfKey(words2);
+  return scope ? { days, scope } : null;
+}
 function reportsParamParts(param) {
   if (param === "") return { lens: "overview", days: null };
   const alone = daysOfKey(param);
@@ -8867,6 +8941,10 @@ function reportsParamParts(param) {
   const word = at3 < 0 ? param : param.slice(0, at3);
   if (!isLensParam(word)) return null;
   if (at3 < 0) return { lens: word, days: null };
+  if (word === "ads") {
+    const ads = adsParts(param.slice(at3 + 1));
+    return ads ? { lens: word, ...ads } : null;
+  }
   const days = daysOfKey(param.slice(at3 + 1));
   return days ? { lens: word, days } : null;
 }
@@ -8878,10 +8956,9 @@ function reportsRouteParts(route) {
 function lensOfRoute(route) {
   return reportsRouteParts(route)?.lens ?? null;
 }
+var shownTo = (l, who) => l.shownWhen === "always" || l.shownWhen === "deals_on" && dealsAreOn(who.sellsBy) || l.shownWhen === "ads_on" && who.adsOn;
 function lensesFor(who) {
-  return REPORT_LENSES.filter(
-    (l) => (l.shownWhen === "always" || dealsAreOn(who.sellsBy)) && roleAtLeast(who.role ?? "viewer", l.role)
-  );
+  return REPORT_LENSES.filter((l) => shownTo(l, who) && roleAtLeast(who.role ?? "viewer", l.role));
 }
 var lensIsShown = (id, who) => lensesFor(who).some((l) => l.id === id);
 function lensOf(id) {
@@ -9040,6 +9117,44 @@ function activityDoor(r2) {
 function activityMemberWords(row2, about) {
   if (!about) return row2.text;
   return row2.text === activityKindWords(row2.kind) ? about : `${row2.text} \xB7 ${about}`;
+}
+
+// src/ads/ads.ts
+var MINOR_PER_UNIT = 100;
+var atNoon = (iso) => Date.parse(`${iso}T12:00:00Z`);
+function addDays(iso, n) {
+  return new Date(atNoon(iso) + n * DAY_MS).toISOString().slice(0, 10);
+}
+var daysBetween2 = (a, b) => Math.round((atNoon(b) - atNoon(a)) / DAY_MS);
+function aboutADayAfter(o) {
+  const { ad, amountMinor, endDay, today } = o;
+  if (ad.budget.mode === "daily") return amountMinor;
+  const spent = ad.days.reduce((all, d) => all + d.spendMinor, 0);
+  const daysLeft = Math.max(1, daysBetween2(today, endDay) + 1);
+  const units = Math.max(0, Math.round((amountMinor - spent) / daysLeft / MINOR_PER_UNIT));
+  return units * MINOR_PER_UNIT;
+}
+function sameArea(a, b) {
+  if (a.kind === "radius" && b.kind === "radius") return a.miles === b.miles;
+  return a.kind === "zips" && b.kind === "zips" && a.zips.join(",") === b.zips.join(",");
+}
+var saidWords = (c) => JSON.stringify([c.headline, c.text, c.headlines, c.lines]);
+function patchRestarts(ad, patch) {
+  const offer = patch.serviceId !== void 0 && patch.serviceId !== ad.serviceId;
+  const area = patch.area !== void 0 && !sameArea(patch.area, ad.area);
+  const words2 = patch.copy !== void 0 && saidWords(patch.copy) !== saidWords(ad.copy);
+  return offer || area || words2 || patch.photo === true || ad.needs?.code === "rejected";
+}
+function adWith(ad, read, patch) {
+  const service = patch.serviceId === void 0 ? void 0 : read.services.find((s) => s.id === patch.serviceId);
+  let next = service ? { ...ad, offer: service.name, serviceId: service.id } : ad;
+  if (patch.area) next = { ...next, area: patch.area };
+  if (patch.copy) next = { ...next, copy: patch.copy };
+  if (patch.amountMinor === void 0 && patch.endDay === void 0) return next;
+  const amountMinor = patch.amountMinor ?? ad.budget.amountMinor;
+  const endDay = patch.endDay ?? ad.endDay;
+  const aboutADayMinor = aboutADayAfter({ ad, amountMinor, endDay, today: read.today });
+  return { ...next, endDay, budget: { ...ad.budget, amountMinor }, aboutADayMinor };
 }
 
 // src/ai/flags.ts
@@ -10937,6 +11052,8 @@ var LIFECYCLE_WORDS = {
   results: {
     title: "What came back",
     link: "All runs",
+    /** The tile's second door: Reports › Campaigns over the same days. */
+    fullReport: "Full report",
     quiet: "Nothing went out, and nobody said yes or asked to stop.",
     funnel: { sent: "Sent", delivered: "Delivered", read: "Read", replied: "Replied" },
     funnelLabel: "Sent, delivered, read and replied",
@@ -11737,7 +11854,8 @@ var ASK_SCOPE_KINDS = [
   "lead",
   "search",
   "run",
-  "playbook"
+  "playbook",
+  "ad"
 ];
 var UUID = /^[0-9a-f-]{36}$/;
 function clientsScope(param, label) {
@@ -11766,13 +11884,19 @@ function scopeFromRoute(page, param, label, chains) {
   if (page === "live" && UUID.test(param)) return { kind: "call", id: param, label: label || "this call" };
   if (page === "broadcasts" && param.startsWith("run:") && UUID.test(param.slice(4)))
     return { kind: "run", id: param.slice(4), label: label || "this run" };
-  if ((page === "campaigns" || page === "outbound") && param.startsWith("moment:") && UUID.test(param.slice(7))) {
+  if (page === "campaigns" || page === "outbound") return campaignsScope(page, param, label, chains);
+  if (page === "clients") return clientsScope(param, label);
+  return null;
+}
+function campaignsScope(page, param, label, chains) {
+  if (param.startsWith("moment:") && UUID.test(param.slice(7))) {
     const id = param.slice(7);
     const chain = chains?.find((c) => c.root_id === id);
     if (chain) return { kind: "page", id: `campaigns/moment:${id}`, label: label || chain.name || "this reach-out" };
     return { kind: "playbook", id, label: label || "this campaign" };
   }
-  if (page === "clients") return clientsScope(param, label);
+  if (page === "campaigns" && param.startsWith("ads:ad:") && UUID.test(param.slice(7)))
+    return { kind: "ad", id: param.slice(7), label: label || "this ad" };
   return null;
 }
 var ASK_SURFACES = [
@@ -12002,8 +12126,15 @@ var PERSON_CAME_FROM_WORDS = {
   calendar: "Your calendar",
   manual: "Added by hand",
   import: "Imported",
-  lead: "A lead you found"
+  lead: "A lead you found",
+  ad: "An ad"
 };
+var PERSON_AD_ON = {
+  meta: "Facebook and Instagram",
+  google: "Google",
+  tiktok: "TikTok"
+};
+var fromAdWords = (name) => name ? `From an ad \xB7 ${name}` : "From an ad";
 
 // src/people/person-helpers.ts
 var MONTH_MS = 30 * DAY_MS;
@@ -12058,13 +12189,20 @@ function proposalSending(conversations, url) {
   );
 }
 function addedBy(added) {
-  if (added.source === "import") return { who: "You", how: "from a spreadsheet" };
-  if (added.source !== "calendar" && added.source !== "lead") return { who: "You", how: "by hand" };
+  if (added.source === "import") return { who: "You", how: "from a spreadsheet", to: null };
+  if (added.source === "ad") return addedByAd(added.ad ?? null);
+  if (added.source !== "calendar" && added.source !== "lead") return { who: "You", how: "by hand", to: null };
   const from = PERSON_CAME_FROM_WORDS[added.source];
   return {
     who: added.source === "calendar" ? "Calendar" : "Leads",
-    how: `from ${from.charAt(0).toLowerCase()}${from.slice(1)}${added.source === "calendar" && added.title ? ` (${added.title})` : ""}`
+    how: `from ${from.charAt(0).toLowerCase()}${from.slice(1)}${added.source === "calendar" && added.title ? ` (${added.title})` : ""}`,
+    to: null
   };
+}
+function addedByAd(ad) {
+  const from = PERSON_CAME_FROM_WORDS.ad.toLowerCase();
+  if (!ad) return { who: "Ads", how: `from ${from}`, to: null };
+  return { who: "Ads", how: `from ${from} (${ad.name}, on ${PERSON_AD_ON[ad.platform]})`, to: adRoute(ad.id) };
 }
 
 // src/people/person-row-facts.ts
@@ -22701,6 +22839,8 @@ function cameFromSaid(key, n) {
       return "came from your imported history";
     case "lead":
       return "came from Leads";
+    case "ad":
+      return "came from an ad";
     default:
       return null;
   }
@@ -28976,7 +29116,8 @@ function addedItems({ profile, stamp }) {
   if (!profile.added) return [];
   const t = ts(profile.added.at);
   const by = addedBy(profile.added);
-  return t !== null ? [{ id: "added", ts: t, ...stamp(t), kind: "system", who: by.who, text: `Added ${by.how}` }] : [];
+  const door = by.to ? { link: { label: "Open the ad", to: by.to } } : {};
+  return t !== null ? [{ id: "added", ts: t, ...stamp(t), kind: "system", who: by.who, text: `Added ${by.how}`, ...door }] : [];
 }
 function foundItems(ctx) {
   const found = reachOutOf(ctx)?.found;
@@ -31426,7 +31567,7 @@ function campaignLedgerDtoOf(series, parts2) {
 
 // src/reports/lens-answer.ts
 function lensAnswerOf(lens, parts2) {
-  const { vm, campaigns, deals, reviews, people } = parts2;
+  const { vm, campaigns, deals, reviews, people, ads } = parts2;
   switch (lens) {
     case "overview":
       return vm.empty ? void 0 : vm.lines.hero;
@@ -31438,6 +31579,8 @@ function lensAnswerOf(lens, parts2) {
       return deals?.present ? deals.headline : void 0;
     case "campaigns":
       return campaigns?.head ?? void 0;
+    case "ads":
+      return ads?.head ?? void 0;
     case "reviews":
       return reviews && !reviews.empty ? reviews.lines.head ?? void 0 : void 0;
   }
@@ -31620,7 +31763,7 @@ function receptionistDtoOf(series, parts2) {
 
 // src/reports/report-facts.ts
 var lowerFirst2 = (s) => s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
-function reportFacts(vm, campaigns) {
+function reportFacts(vm, campaigns, ads = null) {
   const out = [];
   const none = vm.answered.totals.none;
   if (none > 0) {
@@ -31708,7 +31851,7 @@ function reportFacts(vm, campaigns) {
       }
     }
   }
-  return out.slice(0, 3);
+  return ads ? [...out.slice(0, 2), ads] : out.slice(0, 3);
 }
 
 // src/reports/report-headline.ts
@@ -39072,6 +39215,9 @@ export {
   ACTIVITY_SPANS,
   ACTIVITY_SPAN_DAYS,
   ACTOR_TYPES,
+  ADS_ROUTE,
+  ADS_SCOPE_ALL,
+  ADS_WORDS,
   ALERT_ADDRESSES_MAX,
   ALERT_ADDRESSES_MIN,
   ALERT_KINDS,
@@ -39524,6 +39670,7 @@ export {
   MESSAGE_SENDERS,
   MESSAGE_STATUSES,
   MESSAGE_TYPES,
+  MINOR_PER_UNIT,
   MIN_MS,
   MISSED_CALL_TOUCH_WORDS,
   MOCK_TEXTING_SENTENCE,
@@ -39619,6 +39766,7 @@ export {
   PEOPLE_LIST_GROUPS,
   PEOPLE_TABS,
   PERM_DOING,
+  PERSON_AD_ON,
   PERSON_CAME_FROM_WORDS,
   PERSON_CHANNEL_WORDS,
   PERSON_DETAIL_WORDS,
@@ -39916,6 +40064,7 @@ export {
   WRITE_HOLD_WORDS,
   abandonedCall,
   abilityRows,
+  aboutADayAfter,
   activityDoor,
   activityFamily,
   activityFamilyKinds,
@@ -39926,8 +40075,15 @@ export {
   activityRowsForLines,
   activityTone,
   activityWords,
+  adRoute,
+  adWith,
+  addDays,
   addressAlreadyKnown,
   addressInMessage,
+  adsReportRoute,
+  adsResultsRoute,
+  adsScopeKey,
+  adsScopeOfKey,
   afterPersonRefused,
   agentFor,
   ago,
@@ -40171,6 +40327,7 @@ export {
   dayPlusInZone,
   dayProblems,
   dayWords,
+  daysBetween2 as daysBetween,
   daysToSunset,
   daysWithAppointments,
   daysWords,
@@ -40334,6 +40491,7 @@ export {
   frameSteer,
   frameWhisper,
   freeWindows,
+  fromAdWords,
   fromSlotParts,
   fromZonedInput,
   gainedOver,
@@ -40412,6 +40570,7 @@ export {
   isActivityFamily,
   isActivityMoney,
   isActivityNoise,
+  isAdsParam,
   isAppointmentWord,
   isAutomatedSend,
   isBaselinePrompt,
@@ -40683,6 +40842,8 @@ export {
   navigateLabel,
   needsAnswer,
   needsConsultation,
+  newAdFromRoute,
+  newAdRoute,
   newCampaignChannels,
   newConversationOf,
   newReceptionistDefaults,
@@ -40760,6 +40921,7 @@ export {
   pageTitle,
   pageVitalsWords,
   paramLabel,
+  parseAds,
   parseAmount,
   parseCsv,
   parseDevice,
@@ -40801,6 +40963,7 @@ export {
   pastAllowance,
   pastTarget,
   pastTargetPage,
+  patchRestarts,
   pauseHoursOf,
   pauseMsOf,
   pausedGreetingFor,
@@ -41087,6 +41250,7 @@ export {
   saidYesTo,
   saidYesWords,
   sameAddress,
+  sameArea,
   sameListed,
   sameName,
   samePhone,

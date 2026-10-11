@@ -3,11 +3,10 @@
  * (moved whole from legacy/pages/people.jsx, decision 0015), in the Inbox's tiers under the strip of views the frame draws
  * (SurfaceTabs: the scopes are the page's views, said in its chrome, surfaces/people/chrome.ts): the row of the list
  * being shown and the scope's own words (People's Select, Sort and Export, Leads' and the Pipeline's own), as the Inbox's buckets
- * stand; and the search, the kit's (kit/search/search.tsx), the capsule the Inbox's list wears too. Nothing else sits
- * above the rows but the one line under them. A press on the capsule opens the field -- full width and 16px, so a phone
- * never zooms into it -- with Cancel beside it; the list stays over it, as the Inbox's views stay over its search.
- * Hookless: its state is the page's
- * (`searchOpen`), so the page's one keyboard listener opens it on /.
+ * stand; and the search, the kit's (kit/search/search.tsx), the capsule the Inbox's list wears too: the field, full
+ * width and 16px, so a phone never zooms into it, and the first tap on it the caret. Nothing else sits above the rows but
+ * the one line under them; the list stays over the search, as the Inbox's views stay over its. Hookless: the field's ref
+ * is the page's (`searchRef`), so the page's one keyboard listener puts the caret in it on /.
  * `listCount` (Leads') stands apart from the name and never gives way: the name is what an ellipsis shortens. With no
  * `onLists` there is no list to pick and the row draws no list button. `title`, while a selection is on, stands in the
  * list's place: how many are selected, beside Select all and Cancel, as a phone's mail and photos say it (Ruben, 10 Oct
@@ -47,8 +46,6 @@ export function PeoplePhoneBar({
   q,
   onQ,
   searchRef,
-  searchOpen = false,
-  onSearchOpen,
   searchLabel,
   trailing = null,
   title = null,
@@ -61,8 +58,6 @@ export function PeoplePhoneBar({
   q: string;
   onQ: (q: string) => void;
   searchRef: SearchRef;
-  searchOpen?: boolean;
-  onSearchOpen: (open: boolean) => void;
   searchLabel: string;
   trailing?: ReactNode;
   title?: ReactNode;
@@ -101,13 +96,10 @@ export function PeoplePhoneBar({
       ) : null}
       <Search
         className="pp-lookup"
-        rests
         label={searchLabel}
         value={q}
         onChange={onQ}
         inputRef={searchRef}
-        open={searchOpen}
-        onOpen={onSearchOpen}
         testid={id("search")}
       />
     </div>

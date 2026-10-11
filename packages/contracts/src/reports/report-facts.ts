@@ -11,7 +11,7 @@ import type { CampaignReportVM } from "./campaign-report";
 import { plural } from "../shared/words";
 
 export interface ReportFactVM {
-  id: "unanswered" | "handovers" | "busiest" | "hours" | "closed" | "campaign" | "channel";
+  id: "unanswered" | "handovers" | "busiest" | "hours" | "closed" | "campaign" | "channel" | "ads";
   tone: "" | "warn";
   /** An icon the legacy Icon set draws. */
   icon: "alert" | "users" | "calendar" | "clock" | "sparkle" | "chat";
@@ -26,8 +26,16 @@ const lowerFirst = (s: string): string => (s ? s.charAt(0).toLowerCase() + s.sli
 /**
  * The campaigns it reads are the sources of the Campaigns lens's own read (`reports_campaigns`), which the page holds beside the
  * report: null, or no sources, while that read is out, failed or missing, and the fact is then absent, never guessed.
+ *
+ * `ads` is the one fact the Ads fold makes of the same days ("Your ads brought 14 new people", its door Open Ads): handed only
+ * to a workspace that has ads (a demo session for now), so a workspace without them reads exactly the facts it always did. It
+ * takes the last of the three places, after the two an owner should act on first.
  */
-export function reportFacts(vm: ReportVM, campaigns: Pick<CampaignReportVM, "sources"> | null): ReportFactVM[] {
+export function reportFacts(
+  vm: ReportVM,
+  campaigns: Pick<CampaignReportVM, "sources"> | null,
+  ads: ReportFactVM | null = null,
+): ReportFactVM[] {
   const out: ReportFactVM[] = [];
 
   // "Yet": the newest of these may have a reply being written right now; every one of them has none so far.
@@ -138,5 +146,5 @@ export function reportFacts(vm: ReportVM, campaigns: Pick<CampaignReportVM, "sou
     }
   }
 
-  return out.slice(0, 3);
+  return ads ? [...out.slice(0, 2), ads] : out.slice(0, 3);
 }

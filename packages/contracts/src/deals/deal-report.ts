@@ -96,6 +96,8 @@ function cameFromSaid(key: PersonCameFrom, n: number): string | null {
       return "came from your imported history";
     case "lead":
       return "came from Leads";
+    case "ad":
+      return "came from an ad";
     default:
       return null;
   }

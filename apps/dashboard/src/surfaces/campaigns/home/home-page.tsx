@@ -42,7 +42,7 @@ import {
   useLedgerKeys,
   useLetGo,
   useRowMarks,
-} from "./ledger/ledger-keys";
+} from "../parts/ledger-keys";
 import { LedgerPhone } from "./ledger/ledger-phone";
 import { useLedgerView } from "./ledger/use-ledger-view";
 import { NewMessageLabel } from "./new-label";
