@@ -12,15 +12,19 @@ import {
   PLAYBOOK_PATCH_KEYS,
   PLAYBOOK_PATCH_WORDS,
   appointmentWords,
+  campaignDayWords,
   channelNeverCarries,
   enrolPurpose,
+  isDayKey,
   isPlaybookState,
   isWinBack,
+  localDate,
   messageFitsMoment,
   messageHolds,
   messageWhyNot,
   momentOffered,
   momentReadsCalendar,
+  parseParamSpecs,
   playbookName,
   ruleNeeds,
   triggerOf,
@@ -157,6 +161,15 @@ async function listOf(
   return { listName, listKey: null, listId };
 }
 
+/**
+ * A follow-up carries the proposal it follows (0006): with no slot filled by its link it is a bare "just checking in",
+ * which is a person's to write. Made, or its words changed.
+ */
+function refuseFollowUpWithoutLink(trig: ReturnType<typeof triggerOf>, specs: readonly ParamSpec[]): void {
+  if (trig?.kind === "deal" && !specs.some((s) => s.kind === "proposal_link"))
+    throw new AppError("validation", FOLLOW_UP_NEEDS_LINK);
+}
+
 /** A moment and its message agree on the yes they need (contracts messageFitsMoment, decision 7), made or changed. */
 function refuseMessageThatDisagrees(cls: string, category: string | null): void {
   const fit = messageFitsMoment(cls, category);
@@ -215,9 +228,15 @@ export async function checkPlaybookChannels(
   return channelsItMayGoBy(Array.isArray(asked) ? asked : [], row.channels, cls, message);
 }
 
-/** What a change in place reads beyond the playbook: why its list keeps it paused (decision 0009), or null. */
-export interface CheckPlaybookPatchPorts {
+/**
+ * What a change in place reads beyond the playbook: why its list keeps it paused (decision 0009), or null; its message
+ * and the links its values may need, for a change of its words (as a new campaign's are read); and the business's zone,
+ * for a change of its end. Each is asked only of a change that names what it decides.
+ */
+export interface CheckPlaybookPatchPorts extends TemplateValuesPorts {
   archivedList(row: { id: string; trigger: string }): Promise<string | null>;
+  /** The business's zone: an end is a day by its clock, today or later. */
+  timezone(): Promise<string>;
 }
 
 /**
@@ -233,6 +252,14 @@ export interface PlaybookPatchRow {
   cap_per_run: number;
   gap_days: number;
   cadence_days: number;
+  /** The message it sends, by any version's id: its words are held to that message's slots. */
+  template_id: string | null;
+  /** Its words as the row stores them (playbooks.params): the slot specs a run fills, read as a run reads them. */
+  params: unknown;
+  /** Its last day (00395), YYYY-MM-DD by the business's clock, or null. */
+  until: string | null;
+  /** Until when it runs on trial (00395), an instant, or null. */
+  trial_until: string | null;
 }
 
 /** A name as a change keeps it: trimmed, its runs of space one, never empty and never past the bound (D25). */
@@ -249,18 +276,90 @@ const patchNumber = (k: keyof typeof PLAYBOOK_LIMITS, v: unknown, was: number): 
   v === undefined ? undefined : playbookNumber(k, v, was);
 
 /**
+ * Its words a change names (00395 `params`): as many values as its message takes, each judged as a new campaign's are
+ * (templateValues: typed text, or a value the run fills that this moment and this workspace can fill), and a follow-up's
+ * link kept. The specs a run fills, as the route stores them; undefined where the change names none.
+ */
+async function patchParams(
+  ports: TemplateValuesPorts,
+  row: PlaybookPatchRow,
+  v: unknown,
+): Promise<ParamSpec[] | undefined> {
+  if (v === undefined) return undefined;
+  const trig = triggerOf(row.trigger);
+  const { specs } = await templateValues(ports, {
+    templateId: row.template_id ?? "",
+    params: v,
+    visits: trig?.kind === "visit",
+    proposal: trig?.kind === "deal",
+  });
+  refuseFollowUpWithoutLink(trig, specs);
+  return specs;
+}
+
+/** Its last day a change names (00395 `until`): a day by the business's clock, today or later; null clears it. */
+async function patchUntil(
+  ports: Pick<CheckPlaybookPatchPorts, "timezone">,
+  v: unknown,
+  now: Date,
+): Promise<string | null | undefined> {
+  if (v === undefined || v === null) return v;
+  if (!isDayKey(v)) throw new AppError("validation", PLAYBOOK_PATCH_WORDS.untilDay);
+  const tz = await ports.timezone();
+  const today = localDate(tz, now);
+  if (v < today) throw new AppError("validation", PLAYBOOK_PATCH_WORDS.untilPast(campaignDayWords(today, tz, now)));
+  return v;
+}
+
+/** An instant with its zone, as a trial's end is written: a date, a time, and Z or an offset. */
+const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/;
+
+/** The end of its trial a change names (00395 `trial_until`): an instant, kept in one spelling (UTC); null ends it. */
+function patchTrialUntil(v: unknown): string | null | undefined {
+  if (v === undefined || v === null) return v;
+  const at = typeof v === "string" && INSTANT.test(v) ? Date.parse(v) : Number.NaN;
+  if (!Number.isFinite(at)) throw new AppError("validation", PLAYBOOK_PATCH_WORDS.trialWhen);
+  return new Date(at).toISOString();
+}
+
+/** What the row holds of each key a change may name: its words read as a run reads them, a date it has none of null. */
+function patchHeldOf(row: PlaybookPatchRow): Required<PlaybookPatch> {
+  return {
+    state: row.state,
+    name: row.name,
+    run_hour: row.run_hour,
+    cap_per_run: row.cap_per_run,
+    gap_days: row.gap_days,
+    cadence_days: row.cadence_days,
+    params: parseParamSpecs(row.params),
+    until: row.until ?? null,
+    trial_until: row.trial_until ?? null,
+  };
+}
+
+/** Whether a value a change names is what the row holds: its words as the specs they are, a trial's end as the instant. */
+function holdsAlready(k: PlaybookPatchKey, to: unknown, held: unknown): boolean {
+  if (k === "params") return JSON.stringify(to) === JSON.stringify(held);
+  if (k === "trial_until" && typeof to === "string" && typeof held === "string")
+    return Date.parse(to) === Date.parse(held);
+  return to === held;
+}
+
+/**
  * A playbook changed in place (the moment spec §4.9 A5): what Ask's change card proposes and PUT playbooks/:id's patch
- * writes, judged one way. `asked` names any of the six fields (contracts PLAYBOOK_PATCH_KEYS) and nothing else; each is
+ * writes, judged one way. `asked` names any of the nine (contracts PLAYBOOK_PATCH_KEYS) and nothing else; each number is
  * held to its bounds (PLAYBOOK_LIMITS; a name past PLAYBOOK_NAME_MAX is refused, never cut, so a card says exactly what
- * is stored), a cadence to the month's offer, a resume to a list that is not archived (by the port), and a reach-out's
- * step to its state alone (its sheet changes the rest). It answers only what differs from the row as it stands, `set`,
- * and what each of those held, `was`; nothing that differs is `{ set: {}, was: {} }`, which the card refuses in words and
- * the route answers without a write.
+ * is stored), a cadence to the month's offer, a resume to a list that is not archived (by the port), its words to its
+ * message's slots (patchParams), its end to a day today or later by the business's clock at `now`, its trial's end to an
+ * instant, and a reach-out's step to its state alone (its sheet changes the rest). It answers only what differs from the
+ * row as it stands, `set`, and what each of those held, `was`; nothing that differs is `{ set: {}, was: {} }`, which the
+ * card refuses in words and the route answers without a write.
  */
 export async function checkPlaybookPatch(
   ports: CheckPlaybookPatchPorts,
   row: PlaybookPatchRow,
   asked: Record<string, unknown>,
+  now: Date,
 ): Promise<{ set: PlaybookPatch; was: PlaybookPatch }> {
   const keys = Object.keys(asked).filter((k) => asked[k] !== undefined);
   if (keys.length === 0 || keys.some((k) => !(PLAYBOOK_PATCH_KEYS as readonly string[]).includes(k)))
@@ -278,15 +377,19 @@ export async function checkPlaybookPatch(
     cap_per_run: patchNumber("cap_per_run", asked.cap_per_run, row.cap_per_run),
     gap_days: patchNumber("gap_days", asked.gap_days, row.gap_days),
     cadence_days: patchNumber("cadence_days", asked.cadence_days, row.cadence_days),
+    params: await patchParams(ports, row, asked.params),
+    until: await patchUntil(ports, asked.until, now),
+    trial_until: patchTrialUntil(asked.trial_until),
   };
+  const held = patchHeldOf(row);
   const set: PlaybookPatch = {};
   const was: PlaybookPatch = {};
   // A field the change names with a value the row does not hold already: set, and what the row held, each in its type.
   const differs = <K extends PlaybookPatchKey>(k: K): void => {
     const to = next[k];
-    if (to === undefined || to === row[k]) return;
+    if (to === undefined || holdsAlready(k, to, held[k])) return;
     set[k] = to;
-    was[k] = row[k];
+    was[k] = held[k];
   };
   for (const k of PLAYBOOK_PATCH_KEYS) differs(k);
   if (set.cadence_days !== undefined && row.trigger !== "everyone_monthly")
@@ -355,10 +458,7 @@ export async function checkPlaybook(
   });
   refuseMessageThatDisagrees(cls, message.category);
   const channels = channelsItMayGoBy(body?.channels, existing?.channels ?? null, cls, message);
-  // A follow-up carries the proposal it follows (0006): with no slot filled by its link it is a bare "just checking
-  // in", which is a person's to write.
-  if (trig.kind === "deal" && !specs.some((s) => s.kind === "proposal_link"))
-    throw new AppError("validation", FOLLOW_UP_NEEDS_LINK);
+  refuseFollowUpWithoutLink(trig, specs);
   return {
     // A name when none was given: the moment's alone when it sends its own starter, else with the message's title; a
     // list's own name for a playbook on a list; an appointment moment's in the workspace's word (D43).

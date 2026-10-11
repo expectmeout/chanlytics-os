@@ -1408,6 +1408,9 @@ Body 1:
 | `cap_per_run` | number | no |  |
 | `gap_days` | number | no |  |
 | `cadence_days` | number | no |  |
+| `params` | array of any | no |  |
+| `until` | string or null | no |  |
+| `trial_until` | string or null | no |  |
 
 Body 2:
 

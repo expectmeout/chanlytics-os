@@ -52,6 +52,10 @@ export const LIFECYCLE_WORDS = {
     none: "No message for it yet",
   },
   monthsOffer: { name: "The month's offer" },
+  /** A campaign past its last day (00395 `until`), its state: "Ended Oct 1", the day by the business's calendar. */
+  ended: (day: string): string => `Ended ${day}`,
+  /** A campaign on trial (00395 `trial_until`), its state: "On trial until Oct 9", the day its trial ends. */
+  onTrial: (day: string): string => `On trial until ${day}`,
   gone: {
     title: "That campaign isn't here any more.",
     body: "Its runs stay in Sent, with their numbers.",
@@ -336,7 +340,10 @@ function lifecycleClock(p: Pick<LifecyclePlaybook, "trigger" | "run_hour" | "cad
   return p.trigger === "everyone_monthly" ? `every ${p.cadence_days} days` : `daily ${clockHour(p.run_hour)}`;
 }
 
-/** What a playbook says of itself as a state: on with its clock, a run waiting on the person, or paused. */
+/**
+ * What a playbook says of itself as a state: ended on its day, running nothing here, paused, a run waiting on the person,
+ * on trial until its day, or on with its clock.
+ */
 export function lifecycleStateOf(p: LifecyclePlaybook): {
   words: string;
   /** The same on a phone, where there is room for less: the clock alone while it is on. */
@@ -350,10 +357,14 @@ export function lifecycleStateOf(p: LifecyclePlaybook): {
     tone,
     paused,
   });
+  // A campaign past its last day runs nothing more (its `off` says so too): its end is the state, whatever else it was.
+  if (p.ended) return stated(LIFECYCLE_WORDS.ended(p.ended), "plain");
   if (p.off) return stated("Not running here", "plain");
   // Paused rests (decision 13 of 9 Oct 2026): amber is for a run waiting on someone, never for a rule its owner stopped.
   if (p.state !== "running") return stated("Paused", "plain", true);
   if (p.totals.waiting) return stated("Waiting on you", "warn");
+  // On, its runs waiting for a person until the trial ends: the news beside its clock, which its next run still says.
+  if (p.trial) return stated(LIFECYCLE_WORDS.onTrial(p.trial), "ok");
   return stated(`On · ${lifecycleClock(p)}`, "ok", false, lifecycleClock(p));
 }
 

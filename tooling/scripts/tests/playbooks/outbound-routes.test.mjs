@@ -1492,7 +1492,7 @@ test("a playbook's channels alone: judged against the playbook as it stands and 
       playbook.PUT.run(send("PUT", { channels }), ctxFor(tables, { id: K1 })),
       "validation",
       400,
-      "Send a change (any of state, name, run_hour, cap_per_run, gap_days and cadence_days), the channels alone as a list (channels: whatsapp, sms or email), or the whole campaign with its trigger and template_id.",
+      "Send a change (any of state, name, run_hour, cap_per_run, gap_days, cadence_days, params, until and trial_until), the channels alone as a list (channels: whatsapp, sms or email), or the whole campaign with its trigger and template_id.",
     );
   assert.deepEqual(rowOf(K1).channels, ["whatsapp", "email"], "a refusal writes nothing");
   // A channel named twice is one channel.

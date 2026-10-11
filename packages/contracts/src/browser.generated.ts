@@ -210,7 +210,7 @@ export { PLAYBOOK_PATCH_KEYS, PLAYBOOK_PATCH_WORDS } from "./playbooks/playbook-
 export { MESSAGE_MOMENT_WORDS, messageFitsMoment, enrolPurpose, messageAboutOfTrigger, passesHandoverPause } from "./playbooks/playbook-purpose";
 export { eligibleForPlaybook, playbookRunReach, touchesAfterRun, theirVisitTest, visitMomentDay, visitOnDay, playbookReach, playbookReachDoor, playbookNoNumberWords, playbookPoolKey, PLAYBOOK_REACH_WORDS, PLAYBOOK_CLASS_LABEL } from "./playbooks/playbook-reach";
 export { heldBackOfOneRun, runReadingOf } from "./playbooks/playbook-run-split";
-export { planRun, localDate, localHour, nextOpenMoment, runDueNow, inLastSendingHour, scheduleLine, runsWords, nextRunLabel } from "./playbooks/playbook-schedule";
+export { planRun, localDate, localHour, nextOpenMoment, runDueNow, inLastSendingHour, scheduleLine, runsWords, nextRunLabel, campaignDayWords, campaignEnded, effectiveMode, trialDayWords } from "./playbooks/playbook-schedule";
 export { isPlaybookTotalsDto } from "./playbooks/playbook-totals";
 export { triggerOf, triggerOffered, momentOffered, momentReadsCalendar, MOMENTS_RETIRED, isWinBack, triggerWords, winBackWords, policyClassOffered, PLAYBOOK_TRIGGERS, MOMENT_TRIGGERS, PLAYBOOK_STATES, isPlaybookState, PLAYBOOK_DEFAULTS, PLAYBOOK_HOURS, PLAYBOOK_LIMITS, PLAYBOOK_CAP_CHOICES, SENDING_HOURS_WORDS, sendsWaitWords, PLAYBOOK_BREATH_MS, PLAYBOOK_VETO_DELAY_MS, PLAYBOOK_VETO_DELAY_WORDS, delayWords, vetoRunNotice, PLAYBOOK_NAME_MAX, CAMPAIGN_NOT_FOUND, REACH_OUT_IS_NOT_A_MOMENT } from "./playbooks/playbook-triggers";
 export { playbookListRef, proposalFactsFor, visitFactsFor, visitDayWord, LIST_PLAYBOOK_CLASSES } from "./playbooks/playbooks";

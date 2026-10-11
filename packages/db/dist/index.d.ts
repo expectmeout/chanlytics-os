@@ -38840,11 +38840,12 @@ declare function playbookForChannels(db: Db$i, tenantId: string, playbookId: str
 type PlaybookRowOf = Database["public"]["Tables"]["playbooks"]["Row"];
 /**
  * One playbook as a change in place is judged against it (core checkPlaybookPatch; Ask's change card, PUT
- * playbooks/:id's patch): its row under the caller's RLS, and the run of it that waits for approval, with how many it is
- * for, which a pause leaves waiting (D8). Null where the workspace has no such playbook. A reach-out's root is one too:
- * its sheet's Pause is a change of its state. Throws on a failed read.
+ * playbooks/:id's patch): its row under the caller's RLS, its message and words, its end and its trial (00395), and the
+ * run of it that waits for approval, with how many it is for, which a pause leaves waiting (D8). Null where the workspace
+ * has no such playbook. A reach-out's root is one too: its sheet's Pause is a change of its state. Throws on a failed
+ * read.
  */
-declare function playbookForChange(db: Db$i, tenantId: string, playbookId: string): Promise<(Pick<PlaybookRowOf, "id" | "name" | "trigger" | "state" | "policy_class" | "run_hour" | "cap_per_run" | "gap_days" | "cadence_days" | "list_id" | "list_key"> & {
+declare function playbookForChange(db: Db$i, tenantId: string, playbookId: string): Promise<(Pick<PlaybookRowOf, "id" | "name" | "trigger" | "state" | "policy_class" | "run_hour" | "cap_per_run" | "gap_days" | "cadence_days" | "list_id" | "list_key" | "template_id" | "params" | "until" | "trial_until"> & {
     waiting: {
         id: string;
         recipient_count: number;

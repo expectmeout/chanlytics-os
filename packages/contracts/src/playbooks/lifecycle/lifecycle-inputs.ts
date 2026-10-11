@@ -2,8 +2,9 @@
  * What Campaigns' home is made from, read off the answers its surfaces read (GET playbooks', GET channels'): the one
  * reading the Playbooks and Broadcasts surfaces (cmp/playbooks/surface.ts, cmp/broadcasts/surface.ts) and Ask's
  * campaigns.journey all make, so the page and Ask hand the home (campaignsHomeOf) the same input and no rule of it is
- * said twice. The business's shape, each card's next run, why it runs nothing here, its archived list and its trigger's
- * words, the moments a new campaign may start from, whether every moment was counted, and the workspace's WhatsApp line.
+ * said twice. The business's shape, each card's next run, why it runs nothing here, the day it ended and the day its trial
+ * ends (00395, on the business's clock), its archived list and its trigger's words, the moments a new campaign may start
+ * from, whether every moment was counted, and the workspace's WhatsApp line.
  *
  * Pure, and tolerant of a key a server from before it does not send (either deploy order): no zone is New York's, no
  * calendar is none, no lists are none, and no word is the one derived from how its customers buy.
@@ -11,13 +12,17 @@
 import { appointmentWordOf, type AppointmentWord } from "../../journey/appointment-word";
 import { PEOPLE_LISTS } from "../../people/lists/lists";
 import { FOLLOW_UP_NEEDS_DEALS } from "../playbook-follow-ups";
-import { nextRunLabel } from "../playbook-schedule";
+import { campaignDayWords, campaignEnded, localDate, nextRunLabel, trialDayWords } from "../playbook-schedule";
 import { PLAYBOOK_TRIGGERS, momentOffered, triggerOf, triggerOffered, triggerWords } from "../playbook-triggers";
 import type { PlaybookDto } from "../playbooks";
 import type { LifecycleShape } from "./lifecycle-types";
+import { LIFECYCLE_WORDS } from "./lifecycle-words";
 
 /** A playbook as GET playbooks lists it, as far as the home's reading of it goes. */
-type AnswerPlaybook = Pick<PlaybookDto, "trigger" | "state" | "run_hour" | "last_run_for" | "list_id" | "list_key">;
+type AnswerPlaybook = Pick<
+  PlaybookDto,
+  "trigger" | "state" | "run_hour" | "last_run_for" | "list_id" | "list_key" | "until" | "trial_until"
+>;
 
 /** GET playbooks' answer, as far as the home's input reads it; every key but the playbooks may be absent from an older server. */
 export interface LifecycleAnswer<P extends AnswerPlaybook = AnswerPlaybook> {
@@ -34,12 +39,17 @@ export interface LifecycleAnswer<P extends AnswerPlaybook = AnswerPlaybook> {
   bookings_by_email?: boolean | null;
 }
 
-/** What the answer says of one card beside its row: its list archived, its trigger's words, its next run, why it runs nothing here. */
+/**
+ * What the answer says of one card beside its row: its list archived, its trigger's words, its next run, why it runs
+ * nothing here, the day it ended and the day its trial ends (LifecyclePlaybook's `ended` and `trial`).
+ */
 interface LifecycleCardRead {
   listArchived: boolean;
   triggerLabel: string;
   next: string;
   off: string | null;
+  ended: string | null;
+  trial: string | null;
 }
 
 /** A moment that may run here (triggerOffered), and whether a new campaign may start from it (momentOffered). */
@@ -105,14 +115,21 @@ function cardReadOf(
   at: { tz: string; now: Date; shape: LifecycleShape },
 ): LifecycleCardRead {
   const t = triggerOf(p.trigger);
+  // A follow-up made while deals were on runs nothing once they are off (0006).
+  const dealsOff = t && !triggerOffered(t, at.shape.dealsOn) ? FOLLOW_UP_NEEDS_DEALS : null;
+  // Nor does a campaign past its last day, by the business's today (00395).
+  const last = campaignEnded(p, localDate(at.tz, at.now));
+  const ended = last ? campaignDayWords(last, at.tz, at.now) : null;
   return {
     // Its list was archived (00169): paused until the list is restored or the playbook moved to another.
     listArchived: p.trigger === "saved_list" && !!(pb.lists ?? []).find((l) => l.id === p.list_id)?.archived,
     triggerLabel: triggerLabelOf(p, pb, at.shape.word),
     // While the workspace is paused no time is promised: the card says so instead of "tomorrow 10:00 AM".
     next: nextRunLabel(p, at.tz, at.now, pb.ready?.paused === true),
-    // A follow-up made while deals were on runs nothing once they are off: the card says why (0006).
-    off: t && !triggerOffered(t, at.shape.dealsOn) ? FOLLOW_UP_NEEDS_DEALS : null,
+    // Why it runs nothing here: the card says it, and every rule of the home that skips what runs nothing skips it.
+    off: ended ? LIFECYCLE_WORDS.ended(ended) : dealsOff,
+    ended,
+    trial: trialDayWords(p, at.tz, at.now),
   };
 }
 

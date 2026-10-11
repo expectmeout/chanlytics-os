@@ -1358,7 +1358,9 @@ async function playbookForChannels(db, tenantId, playbookId) {
   return { ...data, run_waits: (waiting.data ?? []).length > 0 };
 }
 async function playbookForChange(db, tenantId, playbookId) {
-  const { data, error } = await db.from("playbooks").select("id, name, trigger, state, policy_class, run_hour, cap_per_run, gap_days, cadence_days, list_id, list_key").eq("tenant_id", tenantId).eq("id", playbookId).maybeSingle();
+  const { data, error } = await db.from("playbooks").select(
+    "id, name, trigger, state, policy_class, run_hour, cap_per_run, gap_days, cadence_days, list_id, list_key, template_id, params, until, trial_until"
+  ).eq("tenant_id", tenantId).eq("id", playbookId).maybeSingle();
   if (error) throw new Error(`playbook_for_change: ${error.message}`);
   if (!data) return null;
   const waiting = await db.from("broadcasts").select("id, recipient_count").eq("tenant_id", tenantId).eq("playbook_id", playbookId).eq("state", "pending_approval").limit(1);

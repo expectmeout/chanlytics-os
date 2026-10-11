@@ -27,6 +27,7 @@ import {
   checkPlaybook,
   checkPlaybookChannels,
   checkPlaybookMoment,
+  type CheckPlaybookPatchPorts,
   type CheckPlaybookPorts,
   type PlaybookInput,
 } from "@chanlytics/core";
@@ -52,6 +53,7 @@ import { whatsappHealthOf } from "@/server/campaigns/channels-ready";
 import { sellsByOf } from "@/server/people/deals";
 import { appointmentWordFor } from "@/server/readers/facts";
 import { lazily } from "@/server/lazy";
+import { tenantFacts } from "@/server/tenant";
 
 /**
  * Playbooks, read and checked.
@@ -63,7 +65,7 @@ import { lazily } from "@/server/lazy";
  * broadcast could not send or a slot the workspace cannot fill.
  */
 const COLUMNS =
-  "id, name, trigger, list_id, list_key, template_id, template_name, template_language, params, policy_class, state, run_hour, cap_per_run, gap_days, cadence_days, last_run_for, last_run_at, created_at, channels";
+  "id, name, trigger, list_id, list_key, template_id, template_name, template_language, params, policy_class, state, run_hour, cap_per_run, gap_days, cadence_days, last_run_for, last_run_at, created_at, channels, until, trial_until";
 
 /** One moment playbook's totals as the database counts them (playbook_totals, 00374): the card's shapes are read off it. */
 type TotalsRow = PlaybookTotalsDto[string];
@@ -299,9 +301,15 @@ export async function playbookRows(ctx: RouteContext, tenantId: string): Promise
   let { data: rows, error } = await read(COLUMNS);
   const missing = (col: string) =>
     !!error && new RegExp(col).test(error.message) && /does not exist|could not find/i.test(error.message);
+  // A database 00395 has not reached has no end and no trial, and every playbook there runs on with neither: read again
+  // without them, and each of the reads below keeps that.
+  let columns = COLUMNS;
+  if (missing("until")) {
+    columns = columns.replace(", until, trial_until", "");
+    ({ data: rows, error } = await read(columns));
+  }
   // A database 00298 has not reached has no channels, and every playbook there goes by WhatsApp: read again without it,
   // and each of the reads below keeps that.
-  let columns = COLUMNS;
   if (missing("channels")) {
     columns = columns.replace(", channels", "");
     ({ data: rows, error } = await read(columns));
@@ -435,7 +443,7 @@ export type { PlaybookInput };
  * runs on none of the workspace's own: what a resume (core checkPlaybookPatch's port) and a run now ask. It is neither
  * resumed nor run until its list is restored or it is moved to another.
  */
-export async function archivedListRefusal(
+async function archivedListRefusal(
   ctx: Pick<RouteContext, "supabase">,
   p: { id: string; trigger: string },
 ): Promise<string | null> {
@@ -455,6 +463,20 @@ export async function refuseOnArchivedList(
 ): Promise<void> {
   const words = await archivedListRefusal(ctx, p);
   if (words) throw new AppError("validation", words);
+}
+
+/**
+ * What a change in place reads of this workspace (core checkPlaybookPatch), for PUT playbooks/:id and Ask's change card
+ * alike: why its list keeps it paused (archivedListRefusal), its message and links for a change of its words (the ports a
+ * new playbook's values are read through), and the business's zone for a change of its end. Each is read only when a
+ * change asks it.
+ */
+export function playbookPatchPorts(ctx: RouteContext, tenantId: string): CheckPlaybookPatchPorts {
+  return {
+    ...templateValuePorts(ctx, tenantId),
+    archivedList: (r) => archivedListRefusal(ctx, r),
+    timezone: async () => (await tenantFacts(ctx.supabase, tenantId)).timezone,
+  };
 }
 
 /**

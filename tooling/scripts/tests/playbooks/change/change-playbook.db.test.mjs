@@ -332,6 +332,11 @@ test(
       cadence_days: 30,
       list_id: null,
       list_key: null,
+      // Its message and words, its end and its trial (00395): what a change of the three is judged against.
+      template_id: templateId,
+      params: [],
+      until: null,
+      trial_until: null,
       waiting: null,
     });
     const run = ok(

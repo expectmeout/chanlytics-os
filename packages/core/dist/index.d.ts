@@ -2041,6 +2041,10 @@ interface PlaybookRow {
     list_key?: string | null;
     /** The channels it may go by (`playbooks.channels`); absent or empty on a row made before: WhatsApp alone. */
     channels?: string[] | null;
+    /** Its last day (00395), YYYY-MM-DD by the business's clock: a run for a day past it is off as `ended`. Absent before it. */
+    until?: string | null;
+    /** Until when it runs on trial (00395): before it, a run its class would send by itself waits (contracts effectiveMode). */
+    trial_until?: string | null;
 }
 /** The workspace as the run reads it once per tenant: the people, the modes, the number, the touches, the calendar. */
 interface RunContext {
@@ -2101,7 +2105,9 @@ type RunOutcome =
 } | {
     outcome: "off";
     mode: string;
-    skipped: "never" | "template_not_approved" | "number_flagged" | "already_ran_today" | "no_calendar" | "no_list" | "list_uncounted" | "deals_off";
+    skipped: "never" | "template_not_approved" | "number_flagged" | "already_ran_today" | "no_calendar" | "no_list" | "list_uncounted" | "deals_off"
+    /** A run for a day past the campaign's last (00395 `until`): it has ended, and sends nothing more. */
+     | "ended";
 } | {
     outcome: "failed";
     error: string;
@@ -2479,12 +2485,18 @@ declare function checkPlaybookChannels(ports: Pick<TemplateValuesPorts, "message
     template_id: string | null;
     channels: string[] | null;
 }, asked: unknown): Promise<ConsentChannel[]>;
-/** What a change in place reads beyond the playbook: why its list keeps it paused (decision 0009), or null. */
-interface CheckPlaybookPatchPorts {
+/**
+ * What a change in place reads beyond the playbook: why its list keeps it paused (decision 0009), or null; its message
+ * and the links its values may need, for a change of its words (as a new campaign's are read); and the business's zone,
+ * for a change of its end. Each is asked only of a change that names what it decides.
+ */
+interface CheckPlaybookPatchPorts extends TemplateValuesPorts {
     archivedList(row: {
         id: string;
         trigger: string;
     }): Promise<string | null>;
+    /** The business's zone: an end is a day by its clock, today or later. */
+    timezone(): Promise<string>;
 }
 /**
  * A playbook as a change is judged against it: its row as the database holds it now, never a caller's copy. Its state
@@ -2499,17 +2511,26 @@ interface PlaybookPatchRow {
     cap_per_run: number;
     gap_days: number;
     cadence_days: number;
+    /** The message it sends, by any version's id: its words are held to that message's slots. */
+    template_id: string | null;
+    /** Its words as the row stores them (playbooks.params): the slot specs a run fills, read as a run reads them. */
+    params: unknown;
+    /** Its last day (00395), YYYY-MM-DD by the business's clock, or null. */
+    until: string | null;
+    /** Until when it runs on trial (00395), an instant, or null. */
+    trial_until: string | null;
 }
 /**
  * A playbook changed in place (the moment spec §4.9 A5): what Ask's change card proposes and PUT playbooks/:id's patch
- * writes, judged one way. `asked` names any of the six fields (contracts PLAYBOOK_PATCH_KEYS) and nothing else; each is
+ * writes, judged one way. `asked` names any of the nine (contracts PLAYBOOK_PATCH_KEYS) and nothing else; each number is
  * held to its bounds (PLAYBOOK_LIMITS; a name past PLAYBOOK_NAME_MAX is refused, never cut, so a card says exactly what
- * is stored), a cadence to the month's offer, a resume to a list that is not archived (by the port), and a reach-out's
- * step to its state alone (its sheet changes the rest). It answers only what differs from the row as it stands, `set`,
- * and what each of those held, `was`; nothing that differs is `{ set: {}, was: {} }`, which the card refuses in words and
- * the route answers without a write.
+ * is stored), a cadence to the month's offer, a resume to a list that is not archived (by the port), its words to its
+ * message's slots (patchParams), its end to a day today or later by the business's clock at `now`, its trial's end to an
+ * instant, and a reach-out's step to its state alone (its sheet changes the rest). It answers only what differs from the
+ * row as it stands, `set`, and what each of those held, `was`; nothing that differs is `{ set: {}, was: {} }`, which the
+ * card refuses in words and the route answers without a write.
  */
-declare function checkPlaybookPatch(ports: CheckPlaybookPatchPorts, row: PlaybookPatchRow, asked: Record<string, unknown>): Promise<{
+declare function checkPlaybookPatch(ports: CheckPlaybookPatchPorts, row: PlaybookPatchRow, asked: Record<string, unknown>, now: Date): Promise<{
     set: PlaybookPatch;
     was: PlaybookPatch;
 }>;

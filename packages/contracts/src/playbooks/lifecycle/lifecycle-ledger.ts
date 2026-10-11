@@ -217,11 +217,14 @@ function rowStatusOf(p: LifecyclePlaybook): LifecycleRow["status"] {
   return p.totals.waiting ? "waiting" : "on";
 }
 
-/** The line under a campaign's name: its list, its cadence, why it runs nothing here, else its moment's hint in the word. */
+/**
+ * The line under a campaign's name: its list, its cadence, why it runs nothing here, else its moment's hint in the word.
+ * A campaign that has ended says so as its state (lifecycleStateOf), so its line says its moment, not its end twice.
+ */
 function rowHintOf(p: LifecyclePlaybook, word: AppointmentWord): string {
   if (p.trigger === "saved_list") return `On a list · ${p.triggerLabel}`;
   if (p.trigger === "everyone_monthly") return `Every ${p.cadence_days} days, to a yes to offers`;
-  if (p.off) return p.off;
+  if (p.off && !p.ended) return p.off;
   const t = triggerOf(p.trigger);
   return t ? triggerWords(t, word).hint : p.triggerLabel;
 }
@@ -246,7 +249,8 @@ function rowWaitingOf(p: LifecyclePlaybook, at: RowAt): LifecycleWaiting | null 
 
 /**
  * Resume, asked in place: when its next run would be, to about how many, and, where its class sends without asking
- * (`auto`, GET playbooks' `modes`), that in full (decision 7). Unread, the mode is not guessed: when and how many alone.
+ * (`auto`, GET playbooks' `modes`) and it is not on trial, that in full (decision 7). Unread, the mode is not guessed: when
+ * and how many alone.
  * A moment that could not be counted (`candidates` null) says when alone: never "about 0 people" nobody counted.
  */
 function resumeOf(p: LifecyclePlaybook, input: LifecycleInput): LifecycleAct {
@@ -258,7 +262,8 @@ function resumeOf(p: LifecyclePlaybook, input: LifecycleInput): LifecycleAct {
     workspacePausedOf(input),
   );
   const cls = p.policy_class ?? triggerOf(p.trigger)?.cls ?? null;
-  const auto = cls !== null && input.playbooks?.modes?.[cls] === "auto";
+  // On trial (00395), a run of an auto class still waits for a person: it does not send on its own until the trial ends.
+  const auto = cls !== null && input.playbooks?.modes?.[cls] === "auto" && !p.trial;
   const detail = W.detail(when, p.candidates === null ? null : nextShare(p));
   return {
     kind: "resume",

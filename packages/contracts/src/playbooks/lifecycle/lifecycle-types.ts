@@ -57,8 +57,18 @@ export interface LifecyclePlaybook {
   candidates: number | null;
   held: number | null;
   named: LifecycleNamed | null;
-  /** Why it runs nothing here (a follow-up where deals are off), or null. */
+  /** Why it runs nothing here (a follow-up where deals are off, a campaign past its last day), or null. */
   off: string | null;
+  /**
+   * Its last day as its words say it ("Oct 1"), where the business's today is past it (00395 `until`): it has ended, and
+   * `off` says so. Null or absent otherwise.
+   */
+  ended?: string | null;
+  /**
+   * The day its trial ends as its words say it ("Oct 9"), while it is on trial (00395 `trial_until`): a run its class
+   * would send by itself waits for a person. Null or absent otherwise.
+   */
+  trial?: string | null;
   listArchived?: boolean;
   totals: { waiting: { id: string; recipient_count: number } | null };
   /** The channels it goes by (the row's `channels`): WhatsApp alone where it names none, as one made before them. */

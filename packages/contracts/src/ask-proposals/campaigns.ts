@@ -11,7 +11,7 @@ import {
   type ConsentChannel,
 } from "../consent/consent-channels";
 import { LIFECYCLE_TOAST, LIFECYCLE_WORDS, channelsGoesByWords } from "../playbooks/lifecycle/lifecycle-words";
-import { PLAYBOOK_PATCH_KEYS } from "../playbooks/playbook-patch";
+import { PLAYBOOK_PATCH_CLEARS, PLAYBOOK_PATCH_KEYS } from "../playbooks/playbook-patch";
 import { SENDING_HOURS_WORDS } from "../playbooks/playbook-triggers";
 import { clockWhen } from "../shared/clock";
 import { plural } from "../shared/words";
@@ -228,9 +228,16 @@ export const playbookChannelsSpec: ProposalSpec = {
   },
 };
 
-/** What a change card's commit sends: the fields it changes, and nothing else of the playbook. */
+/**
+ * What a change card's commit sends: the fields it changes, and nothing else of the playbook. A null names nothing, but
+ * for the two dates a null clears (PLAYBOOK_PATCH_CLEARS), so an undo of a campaign's first end writes "no end" back.
+ */
 const patchIn = (pl: Record<string, unknown>): Record<string, unknown> =>
-  Object.fromEntries(PLAYBOOK_PATCH_KEYS.filter((k) => pl[k] !== undefined && pl[k] !== null).map((k) => [k, pl[k]]));
+  Object.fromEntries(
+    PLAYBOOK_PATCH_KEYS.filter((k) => pl[k] !== undefined && (pl[k] !== null || PLAYBOOK_PATCH_CLEARS.includes(k))).map(
+      (k) => [k, pl[k]],
+    ),
+  );
 
 /**
  * The undo of a pause: it resumes the campaign under its class's mode, so where the card read that mode as `auto` it says

@@ -124,6 +124,10 @@ export interface PlaybookDto {
   last_run_for: string | null;
   last_run_at: string | null;
   created_at: string;
+  /** Its last day (00395), YYYY-MM-DD by the business's clock, or null; absent from a server before it. */
+  until?: string | null;
+  /** Until when it runs on trial (00395), an instant, or null; absent from a server before it. */
+  trial_until?: string | null;
 }
 
 /**

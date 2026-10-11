@@ -197,13 +197,23 @@ export const PLAYBOOK_VETO_DELAY_WORDS = delayWords(PLAYBOOK_VETO_DELAY_MS);
 /**
  * What the owner is told when the sweep makes a run under veto: it goes by itself `when` (the business's clock, with
  * its day: "today 10:30 AM", "tomorrow 9:00 AM") unless a person stops it, and the promise "unless you stop it" is only kept for someone who is told. A run a person
- * asked for is not told: they decided it. Said on the bell and by mail (core run-playbook.ts).
+ * asked for is not told: they decided it. Said on the bell and by mail (core run-playbook.ts). `trialUntil`: the day the
+ * campaign's trial ends ("Oct 18"), where its trial made a run its class would send by itself wait (contracts
+ * effectiveMode), so the owner reads why this one waits and that the next ones will not; null where veto is its class's.
  */
-export function vetoRunNotice(name: string, people: number, when: string): { subject: string; body: string } {
+export function vetoRunNotice(
+  name: string,
+  people: number,
+  when: string,
+  trialUntil: string | null,
+): { subject: string; body: string } {
   const who = `${people} ${people === 1 ? "person" : "people"}`;
+  const trial = trialUntil
+    ? ` “${name}” is on trial until ${trialUntil}: until then each of its runs waits ${PLAYBOOK_VETO_DELAY_WORDS} for you to stop it, and after it they send on their own.`
+    : "";
   return {
     subject: `Campaign “${name}” sends ${when}: ${who}`,
-    body: `${who} will be sent “${name}” ${when}. Stop the run on Today or in Campaigns before then if it should not go.`,
+    body: `${who} will be sent “${name}” ${when}. Stop the run on Today or in Campaigns before then if it should not go.${trial}`,
   };
 }
 

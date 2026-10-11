@@ -2366,8 +2366,10 @@ async function assembleRun(ports, cmd) {
 
 // src/campaigns/run-playbook.ts
 import {
+  campaignEnded,
   campaignMessageOf as campaignMessageOf2,
   clockWhen,
+  effectiveMode,
   localDate,
   messageHolds as messageHolds2,
   nextOpenMoment as nextOpenMoment3,
@@ -2383,6 +2385,7 @@ import {
   proposalFactsFor,
   readyForMessage,
   touchesAfterRun,
+  trialDayWords,
   triggerOf as triggerOf3,
   triggerOffered,
   vetoRunNotice,
@@ -2568,7 +2571,7 @@ async function sayTheRun(run, made) {
     return;
   }
   if (mode === "veto" && by.kind !== "user") {
-    const told = vetoRunNotice(p.name, n, clockWhen(at.getTime(), ctx.tz, ctx.now.getTime()));
+    const told = vetoRunNotice(p.name, n, clockWhen(at.getTime(), ctx.tz, ctx.now.getTime()), run.trial);
     await ports.notify(told.subject, told.body, made.madeId).catch(() => void 0);
   }
 }
@@ -2576,12 +2579,15 @@ async function runPlaybook(ports, cmd) {
   const { playbook: p, ctx, by } = cmd;
   const now = ctx.now;
   const runFor = cmd.runFor ?? localDate(ctx.tz, now);
-  const mode = ctx.modes.get(p.policy_class) ?? "ask";
+  const classMode = ctx.modes.get(p.policy_class) ?? "ask";
+  const mode = effectiveMode(p, classMode, now);
+  const trial = mode === classMode ? null : trialDayWords(p, ctx.tz, now);
   const record = (data) => ports.record(p.id, runFor, now, { run_for: runFor, by: by.kind, ...data });
   const off = async (skipped, opts = {}) => {
     if (opts.record !== false) await record({ mode, skipped });
     return { outcome: "off", mode, skipped };
   };
+  if (campaignEnded(p, runFor)) return off("ended");
   const plan = by.kind === "user" ? mode === "never" ? { kind: "off" } : { kind: "send", state: "scheduled", at: now } : planRun(mode, now);
   if (plan.kind === "off") return off("never");
   const send = plan.kind === "send" ? plan : null;
@@ -2589,7 +2595,7 @@ async function runPlaybook(ports, cmd) {
   const movedFrom = send && open?.moved ? send.at.toISOString() : null;
   const goesAt = open ? open.at : now;
   const channels = parseChannels(void 0, p.channels ?? null);
-  const run = { ports, p, ctx, by, runFor, mode, channels, record, off };
+  const run = { ports, p, ctx, by, runFor, mode, trial, channels, record, off };
   const message = await readMessage(run);
   if ("error" in message) return { outcome: "failed", error: message.error };
   const gate = await allowed(run, message);
@@ -3039,15 +3045,19 @@ import {
   PLAYBOOK_PATCH_KEYS,
   PLAYBOOK_PATCH_WORDS,
   appointmentWords,
+  campaignDayWords,
   channelNeverCarries as channelNeverCarries2,
   enrolPurpose as enrolPurpose3,
+  isDayKey,
   isPlaybookState,
   isWinBack,
+  localDate as localDate3,
   messageFitsMoment,
   messageHolds as messageHolds3,
   messageWhyNot,
   momentOffered,
   momentReadsCalendar,
+  parseParamSpecs as parseParamSpecs3,
   playbookName,
   ruleNeeds,
   triggerOf as triggerOf4,
@@ -3100,6 +3110,10 @@ async function listOf(ports, trig, body) {
   if (!listName) throw new AppError15("not_found", "List not found.", 404);
   return { listName, listKey: null, listId };
 }
+function refuseFollowUpWithoutLink(trig, specs) {
+  if (trig?.kind === "deal" && !specs.some((s) => s.kind === "proposal_link"))
+    throw new AppError15("validation", FOLLOW_UP_NEEDS_LINK);
+}
 function refuseMessageThatDisagrees(cls, category) {
   const fit = messageFitsMoment(cls, category);
   if (!fit.ok) throw new AppError15("validation", fit.words);
@@ -3131,7 +3145,53 @@ function patchName(v) {
   return name;
 }
 var patchNumber = (k, v, was) => v === void 0 ? void 0 : playbookNumber(k, v, was);
-async function checkPlaybookPatch(ports, row, asked2) {
+async function patchParams(ports, row, v) {
+  if (v === void 0) return void 0;
+  const trig = triggerOf4(row.trigger);
+  const { specs } = await templateValues(ports, {
+    templateId: row.template_id ?? "",
+    params: v,
+    visits: trig?.kind === "visit",
+    proposal: trig?.kind === "deal"
+  });
+  refuseFollowUpWithoutLink(trig, specs);
+  return specs;
+}
+async function patchUntil(ports, v, now) {
+  if (v === void 0 || v === null) return v;
+  if (!isDayKey(v)) throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.untilDay);
+  const tz = await ports.timezone();
+  const today = localDate3(tz, now);
+  if (v < today) throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.untilPast(campaignDayWords(today, tz, now)));
+  return v;
+}
+var INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/;
+function patchTrialUntil(v) {
+  if (v === void 0 || v === null) return v;
+  const at = typeof v === "string" && INSTANT.test(v) ? Date.parse(v) : Number.NaN;
+  if (!Number.isFinite(at)) throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.trialWhen);
+  return new Date(at).toISOString();
+}
+function patchHeldOf(row) {
+  return {
+    state: row.state,
+    name: row.name,
+    run_hour: row.run_hour,
+    cap_per_run: row.cap_per_run,
+    gap_days: row.gap_days,
+    cadence_days: row.cadence_days,
+    params: parseParamSpecs3(row.params),
+    until: row.until ?? null,
+    trial_until: row.trial_until ?? null
+  };
+}
+function holdsAlready(k, to, held) {
+  if (k === "params") return JSON.stringify(to) === JSON.stringify(held);
+  if (k === "trial_until" && typeof to === "string" && typeof held === "string")
+    return Date.parse(to) === Date.parse(held);
+  return to === held;
+}
+async function checkPlaybookPatch(ports, row, asked2, now) {
   const keys = Object.keys(asked2).filter((k) => asked2[k] !== void 0);
   if (keys.length === 0 || keys.some((k) => !PLAYBOOK_PATCH_KEYS.includes(k)))
     throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.nothing);
@@ -3145,15 +3205,19 @@ async function checkPlaybookPatch(ports, row, asked2) {
     run_hour: patchNumber("run_hour", asked2.run_hour, row.run_hour),
     cap_per_run: patchNumber("cap_per_run", asked2.cap_per_run, row.cap_per_run),
     gap_days: patchNumber("gap_days", asked2.gap_days, row.gap_days),
-    cadence_days: patchNumber("cadence_days", asked2.cadence_days, row.cadence_days)
+    cadence_days: patchNumber("cadence_days", asked2.cadence_days, row.cadence_days),
+    params: await patchParams(ports, row, asked2.params),
+    until: await patchUntil(ports, asked2.until, now),
+    trial_until: patchTrialUntil(asked2.trial_until)
   };
+  const held = patchHeldOf(row);
   const set = {};
   const was = {};
   const differs = (k) => {
     const to = next[k];
-    if (to === void 0 || to === row[k]) return;
+    if (to === void 0 || holdsAlready(k, to, held[k])) return;
     set[k] = to;
-    was[k] = row[k];
+    was[k] = held[k];
   };
   for (const k of PLAYBOOK_PATCH_KEYS) differs(k);
   if (set.cadence_days !== void 0 && row.trigger !== "everyone_monthly")
@@ -3189,8 +3253,7 @@ async function checkPlaybook(ports, body, existing) {
   });
   refuseMessageThatDisagrees(cls, message.category);
   const channels = channelsItMayGoBy(body?.channels, existing?.channels ?? null, cls, message);
-  if (trig.kind === "deal" && !specs.some((s) => s.kind === "proposal_link"))
-    throw new AppError15("validation", FOLLOW_UP_NEEDS_LINK);
+  refuseFollowUpWithoutLink(trig, specs);
   return {
     // A name when none was given: the moment's alone when it sends its own starter, else with the message's title; a
     // list's own name for a playbook on a list; an appointment moment's in the workspace's word (D43).

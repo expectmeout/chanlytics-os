@@ -16,7 +16,7 @@ import {
 } from "@chanlytics/contracts";
 import { checkPlaybookPatch } from "@chanlytics/core";
 import { listPolicies, playbookForChange } from "@chanlytics/db";
-import { archivedListRefusal } from "../../../campaigns/playbooks";
+import { playbookPatchPorts } from "../../../campaigns/playbooks";
 import { UUID, actAction, propose, refuse, str, type ProposalOutcome, type ToolContext } from "../context";
 import { MODE_WORDS } from "./playbook";
 
@@ -74,7 +74,7 @@ async function proposePlaybookChange(
   const asked = Object.fromEntries(PLAYBOOK_PATCH_KEYS.filter((k) => input[k] !== undefined).map((k) => [k, input[k]]));
   let judged: { set: PlaybookPatch; was: PlaybookPatch };
   try {
-    judged = await checkPlaybookPatch({ archivedList: (r) => archivedListRefusal(t.ctx, r) }, row, asked);
+    judged = await checkPlaybookPatch(playbookPatchPorts(t.ctx, t.tenantId), row, asked, t.now);
   } catch (e) {
     return refuse(e instanceof Error ? e.message : String(e));
   }

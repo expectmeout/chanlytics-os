@@ -140,6 +140,10 @@ export interface PlaybookRow {
   list_key?: string | null;
   /** The channels it may go by (`playbooks.channels`); absent or empty on a row made before: WhatsApp alone. */
   channels?: string[] | null;
+  /** Its last day (00395), YYYY-MM-DD by the business's clock: a run for a day past it is off as `ended`. Absent before it. */
+  until?: string | null;
+  /** Until when it runs on trial (00395): before it, a run its class would send by itself waits (contracts effectiveMode). */
+  trial_until?: string | null;
 }
 
 /** The workspace as the run reads it once per tenant: the people, the modes, the number, the touches, the calendar. */
@@ -201,7 +205,9 @@ export type RunOutcome =
         | "no_calendar"
         | "no_list"
         | "list_uncounted"
-        | "deals_off";
+        | "deals_off"
+        /** A run for a day past the campaign's last (00395 `until`): it has ended, and sends nothing more. */
+        | "ended";
     }
   | { outcome: "failed"; error: string };
 

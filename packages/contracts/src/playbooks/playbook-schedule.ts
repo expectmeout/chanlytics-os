@@ -6,11 +6,47 @@ import { shiftKey, zoneMidnight } from "../calendar/day-keys";
 import { appointmentWords, type AppointmentWord } from "../journey/appointment-word";
 import { PLAYBOOK_HOURS, PLAYBOOK_VETO_DELAY_MS, triggerOf } from "./playbook-triggers";
 import type { PlaybookDto } from "./playbooks";
-import { clockHour } from "../shared/clock";
+import { clockDate, clockHour } from "../shared/clock";
 import { dateFormat, HOUR_MS } from "../shared/time";
 
 export type RunPlan =
   { kind: "send"; state: "scheduled"; at: Date } | { kind: "hold"; state: "pending_approval" } | { kind: "off" };
+
+/**
+ * Whether a campaign runs on trial at `now` (00395 `trial_until`): before that instant, a run its class would send by
+ * itself waits for a person. No trial, one that is over, and a value that is no instant are none.
+ */
+function onTrialAt(p: { trial_until?: string | null }, now: Date): boolean {
+  const end = Date.parse(p.trial_until ?? "");
+  return Number.isFinite(end) && now.getTime() < end;
+}
+
+/**
+ * The mode a run of a campaign goes under: its class's, but auto waits for a person as veto does while the campaign is
+ * on trial (onTrialAt). Every other mode is its own. What core run-playbook plans and tells a run by, and records.
+ */
+export function effectiveMode<M extends string>(p: { trial_until?: string | null }, mode: M, now: Date): M | "veto" {
+  return mode === "auto" && onTrialAt(p, now) ? "veto" : mode;
+}
+
+/**
+ * A campaign's last day (00395 `until`, YYYY-MM-DD by the business's clock) where `day`, the business's day, is past it:
+ * it has ended, and a run on such a day sends nothing (core run-playbook's `ended`). Null where it has no end, or `day`
+ * is its last or before.
+ */
+export function campaignEnded(p: { until?: string | null }, day: string): string | null {
+  return p.until && day > p.until ? p.until : null;
+}
+
+/** A campaign's day as its words say it, by the business's calendar: "Nov 30", and "Jan 4, 2027" in another year. */
+export function campaignDayWords(day: string, tz: string, now: Date): string {
+  return clockDate(zoneMidnight(tz, day) + 12 * HOUR_MS, tz, now.getTime());
+}
+
+/** The day a campaign's trial ends, as its words say it ("Oct 18"), while it is on trial at `now`; null otherwise. */
+export function trialDayWords(p: { trial_until?: string | null }, tz: string, now: Date): string | null {
+  return onTrialAt(p, now) ? clockDate(Date.parse(p.trial_until ?? ""), tz, now.getTime()) : null;
+}
 
 /** What a run does under the class's mode: sends now, sends after a stop window, waits for a person, or nothing. */
 export function planRun(mode: string | null | undefined, now: Date): RunPlan {

@@ -1,7 +1,8 @@
 /**
  * One playbook, started (app/api/v1/playbooks: checked whole, then written running with its line in the ledger in one
  * transaction, startNewPlaybook), and changed or removed (app/api/v1/playbooks/:id): `{ state, name, run_hour,
- * cap_per_run, gap_days, cadence_days }`, any of them, changes it in place, judged against it as it stands and written
+ * cap_per_run, gap_days, cadence_days, params, until, trial_until }`, any of them, changes it in place, judged against it
+ * as it stands and written
  * with its line in the ledger in one transaction (the change_playbook door; on a database before it, the way it was
  * written before, for one release); `{ channels }` changes the channels it goes by and writes nothing else; the whole
  * playbook is re-checked the way a new one is checked and rewritten (campaigns/playbooks.ts); the rule can go, its runs
@@ -33,9 +34,9 @@ import { serviceDb } from "@/server/service-db";
 import { jsonBody } from "@/server/request-guards";
 import { recordDecision, type playbookScope } from "@/server/verbs";
 import {
-  archivedListRefusal,
   checkPlaybookChannelsInput,
   checkPlaybookInput,
+  playbookPatchPorts,
   playbookWriteError,
 } from "@/server/campaigns/playbooks";
 import { channelsChanged, keptChannels } from "@/server/campaigns/playbook-channels";
@@ -57,7 +58,11 @@ const ONE_OF_THREE = {
   error: (issue: { code: string }) => (issue.code === "unrecognized_keys" ? PUT_BODY_WORDS : undefined),
 };
 
-/** A change in place (the moment spec §4.9 A5): any of the six, and no other key. Core judges each value, in words. */
+/**
+ * A change in place (the moment spec §4.9 A5): any of the nine, and no other key; its words (`params`, the values its
+ * message takes), its last day (`until`, YYYY-MM-DD) and its trial's end (`trial_until`, an instant) since 00395, a null
+ * clearing either date. Core judges each value, in words.
+ */
 const PATCH_BODY = z.strictObject(
   {
     state: z.string().optional(),
@@ -66,6 +71,9 @@ const PATCH_BODY = z.strictObject(
     cap_per_run: z.number().optional(),
     gap_days: z.number().optional(),
     cadence_days: z.number().optional(),
+    params: z.array(z.unknown()).optional(),
+    until: z.string().nullable().optional(),
+    trial_until: z.string().nullable().optional(),
   },
   ONE_OF_THREE,
 );
@@ -158,8 +166,9 @@ export async function changePlaybook(ctx: RouteContext, body: PlaybookPutBody, p
 /**
  * A change in place (the moment spec §4.9 A5; decision D26): the drawer's Pause and Resume, Ask's change card, the
  * reach-out sheet's Pause. Judged against the playbook as the database holds it now (core checkPlaybookPatch: the six
- * fields' bounds, a cadence for the month's offer alone, a resume refused on an archived list, a reach-out's step paused
- * or resumed and nothing else), then written with its line in the ledger in one transaction (the change_playbook door):
+ * fields' bounds, a cadence for the month's offer alone, a resume refused on an archived list, its words held to its
+ * message's slots, its end a day today or later by the business's clock, its trial's end an instant, a reach-out's step
+ * paused or resumed and nothing else), then written with its line in the ledger in one transaction (the change_playbook door):
  * the row locked, only what differs set, and what each field held answered as `was`, which an undo puts back. Nothing
  * that differs writes nothing and answers what it is, so a second press of Pause is no second line. On a database before
  * the door, written the way it was before (changeTheOldWay), for one release.
@@ -171,14 +180,14 @@ async function patchPlaybook(ctx: RouteContext, asked: Record<string, unknown>, 
   // The table's check holds a state to the two; one it does not know is no row a change is judged against.
   if (!isPlaybookState(read.state)) throw new Error(`playbook ${p.id} holds a state the check does not: ${read.state}`);
   const row = { ...read, state: read.state };
-  const { set, was } = await checkPlaybookPatch({ archivedList: (r) => archivedListRefusal(ctx, r) }, row, asked);
+  const { set, was } = await checkPlaybookPatch(playbookPatchPorts(ctx, p.tenant_id), row, asked, new Date());
   // Nothing differs: nothing written and no line, answered as the door answers its own no-op (was empty, decision_id null).
   if (Object.keys(set).length === 0) return { id: p.id, name: row.name, state: row.state, was: {}, decision_id: null };
   const name = set.name ?? row.name;
   const wrote = await writePlaybookChange(ctx.supabase, {
     tenantId: p.tenant_id,
     playbookId: p.id,
-    set: set as Record<string, string | number>,
+    set,
     decision: { name, ...set },
     via: ctx.via ?? null,
     undoOf: ctx.undoOf ?? null,

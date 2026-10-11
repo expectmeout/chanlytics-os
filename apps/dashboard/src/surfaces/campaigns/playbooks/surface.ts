@@ -386,6 +386,9 @@ export const playbooksOverride: SurfaceOverride = {
           held: reading ? reading.held : null,
           named: namedOf(reading),
           off: card.off,
+          // The day it ended, or its trial ends (00395), in the card's words: what its state says.
+          ended: card.ended,
+          trial: card.trial,
         };
       }),
       timezone: tz,
