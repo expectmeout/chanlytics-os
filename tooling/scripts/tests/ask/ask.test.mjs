@@ -1581,7 +1581,8 @@ test("the speed pass: a fast model for a short answer, the autonomy modes in the
   assert.ok(
     // Prettier breaks a call with two function arguments over lines: the shape, whatever its whitespace.
     /load\(rc, readers\.policies, undefined\)\.then\(\s*\(r\) => r\.data,\s*\(\) => \[\],?\s*\)/.test(turn) &&
-      turn.includes("cfg?.config ?? null, offered)"),
+      // At the turn's clock since a note may end (workspaceFacts' `now`), with the policies after it.
+      turn.includes("cfg?.config ?? null, rc.now, offered)"),
     "the policies still ride in the stable block, read through the turn's cache and tolerated when they fail",
   );
   const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
