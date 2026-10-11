@@ -1447,6 +1447,7 @@
     "id": "setup_campaigns_first_day",
     "text": "We're an online B2B consultancy: people book a discovery call, then most get a proposal. Set up my campaigns.",
     "surface": "campaigns",
+    "needs": ["no_calendar"],
     "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
     "expect": {
       "tools_any": ["campaigns.playbooks", "propose_campaign.playbook"],
