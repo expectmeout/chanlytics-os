@@ -447,7 +447,7 @@ var ERASURE_LEGS = {
   ask_scrub: "scrub_ask_for_contact: the assistant's turns that name them deleted (00238)",
   deliveries_scrub: "provider_events_scrub: a kept delivery that names them deleted (00336)",
   notes_scrub: "person_notes_scrub: their numbers and addresses overwritten in other people's notes (00341)",
-  turns_scrub: "model_turns_scrub: the receptionist's kept turns that name them, in anyone's thread, deleted (00359); their own went with their conversation",
+  turns_scrub: "model_turns_scrub: the receptionist's kept turns that name them, in anyone's thread, deleted (00401); their own went with their conversation",
   appointments_scrub: "appointments_scrub: their visits keep their time and service and lose the client's name, number, address and note; the notices that made them, and any whose subject names them, lose the name (00345)"
 };
 var withPerson = (by) => ({ kind: "with_person", by });

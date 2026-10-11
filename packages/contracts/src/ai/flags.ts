@@ -78,13 +78,6 @@ export const FLAGS: readonly Flag[] = [
     kept: "The environment's pilot line stays as a test line.",
   },
   {
-    name: "WHATSAPP_ANSWERS_AS_JOBS",
-    mechanism: "edge_env",
-    does: "The workspaces (ids, or 'all') whose WhatsApp messages are answered by a job after the webhook's 200, as a text is; empty, each is answered inside Meta's request.",
-    owner: "Ruben",
-    sunset: "2026-11-30",
-  },
-  {
     name: "RETELL_DOORS_SIGNED",
     mechanism: "edge_env",
     does: "'1' makes Retell's signature the only key to the voice doors; unset, the shared secret opens them beside it.",

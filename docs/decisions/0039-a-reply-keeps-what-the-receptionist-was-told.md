@@ -4,7 +4,11 @@
 (00401, 00402), step 4 as far as it goes without asking a model. Steps 5 and 6 to come: 5 waits on a model key for the
 evals, which is Ruben's to set, and 6 on a month of kept turns.
 
-Written against commit `d09bed1c9` (main, 9 October 2026), and every file and line below was read at it.
+Written against commit `d09bed1c9` (main, 9 October 2026), and every file and line below was read at it. Merged with
+main at `749061938` (#1551) on 11 October 2026, when the two migrations, first numbered 00359 and 00360, moved above
+production's head (00400); the ledger argues 00398 to 00400, which the lead-ideas lane applied ahead of its pull
+request. Main's rule since #1537 that a door writes its record's event is argued for both writers under "Rises" in
+`docs/debt.md`: a kept turn and a kept version are evidence, not facts.
 
 ## Context
 
