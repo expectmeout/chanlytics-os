@@ -4,8 +4,9 @@
  * the reach-outs' say the database's refusal with its code, for the door to word. The reviews' ledger (`reviews_ledger`)
  * is one of them: its counts, its window in the workspace's zone and who wrote each reply are SQL's, held by
  * google/google-reviews-ledger.db.test.mjs over a real database. It and the Receptionist lens's series
- * (`receptionist_series`, 00380) answer null where the database does not have their function yet (00350 and 00380 are
- * applied after the dashboard deploys), and the counts beside them (00374, 00375) answer "missing", for one release.
+ * (`receptionist_series`, 00380) and the People lens's (`people_series`, 00395) answer null where the database does not
+ * have their function yet (00350, 00380 and 00395 are applied after the dashboard deploys), and the counts beside them
+ * (00374, 00375) answer "missing", for one release.
  *
  * Each reads a window: a count of days and the day they end on (00359). Days that end today name no day, which is the
  * call every one of these was before, so a database without 00359 reads a period as it always did; only days that ended
@@ -19,6 +20,7 @@ import {
   campaignSeries,
   playbookTotals,
   reachOutChainTotals,
+  peopleSeries,
   reachOutReport,
   receptionistSeries,
   reportSeries,
@@ -199,6 +201,38 @@ test("receptionistSeries is null where the database does not have the function y
           window,
         ),
         /^Error: receptionist_series: boom$/,
+        `${code}`,
+      );
+});
+
+test("peopleSeries asks people_series for the window, naming the last day only when it is not today", async () => {
+  const { db, asked } = dbWith({
+    people_series: { data: { days: 30 }, error: null },
+  });
+  assert.deepEqual(await peopleSeries(db, W, live(30)), { days: 30 });
+  await peopleSeries(db, W, ended(20, "2026-09-20"));
+  assert.deepEqual(asked, [
+    ["people_series", { p_tenant_id: W, p_days: 30 }],
+    ["people_series", { p_tenant_id: W, p_days: 20, p_end: "2026-09-20" }],
+  ]);
+});
+
+test("peopleSeries is null where the database does not have the function yet (00395 not applied), for a period and for picked days, and throws for any other failure", async () => {
+  const gone = "Could not find the function public.people_series(p_days, p_tenant_id) in the schema cache";
+  for (const code of ["PGRST202", "42883"]) {
+    const missing = dbWith({ people_series: { data: null, error: { message: gone, code } } }).db;
+    assert.equal(await peopleSeries(missing, W, live(30)), null, code);
+    assert.equal(
+      await peopleSeries(missing, W, ended(20, "2026-09-20")),
+      null,
+      `${code}: a window that names a day too`,
+    );
+  }
+  for (const code of ["XX000", "42501", "08006", undefined])
+    for (const window of [live(30), ended(20, "2026-09-20")])
+      await assert.rejects(
+        peopleSeries(dbWith({ people_series: { data: null, error: { message: "boom", code } } }).db, W, window),
+        /^Error: people_series: boom$/,
         `${code}`,
       );
 });

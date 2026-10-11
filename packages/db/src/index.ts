@@ -221,6 +221,7 @@ export {
   campaignSeries,
   reviewsLedger,
   receptionistSeries,
+  peopleSeries,
   reachOutReport,
   ReportWindowNotReadable,
   playbookTotals,

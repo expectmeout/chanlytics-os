@@ -55,6 +55,7 @@ import {
   writtenReview,
 } from "./_report-world.mjs";
 import { ownHeld } from "./receptionist/_receptionist-world.mjs";
+import { held as peopleHeld, dtoWith as peopleDto } from "./people/_people-world.mjs";
 
 const went = [];
 const flashed = [];
@@ -73,11 +74,12 @@ globalThis.__WORKSPACES = [
 globalThis.__ACTIVE_WORKSPACE = "w1";
 const S = "../../../../apps/dashboard/src";
 const { ReportsPage } = await import(`${S}/surfaces/reports/reports-page.tsx`);
-const { RPT_CHANNELS } = await import(`${S}/surfaces/reports/series.ts`);
+const { RPT_CHANNEL_COLORS } = await import(`${S}/surfaces/reports/series.ts`);
 const { setSurfaceValue, surfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 const { keepReportPeriod } = await import(`${S}/surfaces/reports/surface.ts`);
-const { receptionistSample, reviewsSample } = await import(`${S}/surfaces/reports/sample.ts`);
-const { toReceptionistReportVM } = await import("@chanlytics/contracts/report-lens");
+const { peopleSample, receptionistSample, reviewsSample } = await import(`${S}/surfaces/reports/sample.ts`);
+const { toPeopleReportVM, toReceptionistReportVM, PEOPLE_RHYTHM_UNIT } =
+  await import("@chanlytics/contracts/report-lens");
 const { setStatus } = await import(`${S}/legacy-bridge/surface-status.ts`);
 const { startSurfaces } = await import(`${S}/legacy-bridge/surface-runner.ts`);
 // The shell's doors, which the surface reaches through the bridge's verbs (surfaces/legacy-verbs.ts).
@@ -205,6 +207,8 @@ const drawOnce = (set) => {
   if (shown?.period) keepReportPeriod(shown.period);
   // The Receptionist lens's own read is of the range the report shows (its states are receptionist/receptionist-page.test.mjs's).
   setSurfaceValue("reports_receptionist", shown ? ownHeld(undefined, shown.key) : undefined);
+  // The People lens's own read likewise (its states are people/people-page.test.mjs's).
+  setSurfaceValue("reports_people", shown ? peopleHeld(peopleDto(), shown.key) : undefined);
   fresh();
   went.length = 0;
   return draw();
@@ -241,6 +245,8 @@ const cls = (tree, c) => find(tree, (n) => classes(n).includes(c));
 const { Segmented } = await import(`${S}/surfaces/kit/segmented/segmented.tsx`);
 const { Field } = await import(`${S}/surfaces/kit/field/field.tsx`);
 const { Figure } = await import(`${S}/surfaces/kit/figure/figure.tsx`);
+const { HeatStrip } = await import(`${S}/surfaces/kit/charts/heat.tsx`);
+const { RadarChart } = await import(`${S}/surfaces/kit/charts/radar.tsx`);
 const { RptStrip } = await import(`${S}/surfaces/reports/blocks.tsx`);
 const { standingSaid } = await import(`${S}/surfaces/kit/head/standing.ts`);
 const { Popover } = await import(`${S}/surfaces/kit/popover/popover.tsx`);
@@ -467,6 +473,37 @@ test("a ratio of too few is greyed and says so: three answered is under the mini
   );
 });
 
+test("a tile that says what needs you or what failed draws a figure with its tone; a tile with none draws none", () => {
+  const tile = {
+    id: "stuck",
+    metric: "waiting_on_you",
+    label: "Steps overdue",
+    value: "6",
+    meta: "",
+    compare: "up from 2",
+  };
+  const figureOf = (t) => {
+    fresh();
+    return find(RptStrip({ tiles: [t] }), (n) => n.type === Figure);
+  };
+  assert.equal(figureOf({ ...tile, tone: "warn" }).props.tone, "warn", "what needs you is amber");
+  assert.equal(figureOf({ ...tile, tone: "fail" }).props.tone, "fail", "what failed is red");
+  assert.equal(figureOf(tile).props.tone, undefined, "a tile with no tone draws a figure with none");
+  const warned = find(
+    RptStrip({ tiles: [{ ...tile, tone: "warn" }] }),
+    (n) => n.type === "div" && n.props["data-figure"] === "waiting_on_you",
+  );
+  assert.deepEqual(classes(warned), ["figure", "is-warn", "rpt-cell"], "the kit's figure wears the tone");
+  assert.equal(textOf(cls(warned, "figure-change")), "up from 2", "its change is still said, in the kit's plain ink");
+  // No tile of the page's own lenses sets a tone yet: the People lens's stuck-now figures are the first.
+  const vm = toReportVM(reportDto(), { profile: null });
+  assert.deepEqual(
+    vm.tiles.filter((t) => t.tone !== undefined).map((t) => t.id),
+    [],
+    "no existing tile is toned",
+  );
+});
+
 /* ------------------------------------------ the cards ------------------------------------------ */
 
 test("every card is drawn, under the testids the e2e, Today and the Google tests read, in the lenses' sections", async () => {
@@ -487,9 +524,21 @@ test("every card is drawn, under the testids the e2e, Today and the Google tests
     "receptionist-time",
     "receptionist-figures",
     "receptionist-stuck",
-    "chart-channels",
+    // The People lens's own (people/people-page.test.mjs holds their words and states), then the two cards the frame kept.
+    "people-strip",
+    "chart-people-channels",
+    "chart-people-first",
+    "chart-people-yeses",
+    "chart-people-stops",
+    "chart-people-wires",
+    "chart-people-fresh",
     "chart-rhythm",
     "chart-people",
+    "people-time",
+    "chart-people-steps",
+    "chart-people-bounced",
+    "people-stuck",
+    "people-stand",
     "chart-funnel",
     "chart-campaigns",
     "chart-sources",
@@ -507,7 +556,15 @@ test("every card is drawn, under the testids the e2e, Today and the Google tests
   assert.deepEqual(all(tree, (n) => n.type === "h2").map(textOf), ["Worth knowing"]);
   assert.deepEqual(
     all(tree, (n) => n.type === "section" && n.props.className === "rpt-section").map((n) => n.props["aria-label"]),
-    ["The receptionist", "Time between steps", "Stuck now", "Your customers", "Campaigns"],
+    [
+      "The receptionist",
+      "Time between steps",
+      "Stuck now",
+      "Your customers",
+      "Time between steps",
+      "Stuck now",
+      "Campaigns",
+    ],
   );
   assert.equal(
     find(tree, (n) => n.type === "section" && n.props["aria-label"] === "This period").props.className,
@@ -524,7 +581,6 @@ test("each card's one line is the view model's, and adds the next thing: never a
     "About 2m 10s a call.",
     "390 seconds over 3 calls; the minutes and the voicemail are the tile's",
   );
-  assert.equal(takeaway(tree, "chart-channels"), "Mostly WhatsApp, as the 7 days before.");
   assert.equal(takeaway(tree, "chart-rhythm"), "Nothing on Monday.", "the busy side of the week is Worth knowing's");
   assert.equal(takeaway(tree, "chart-funnel"), "3 people said yes to messages, 2 people asked to stop.");
   assert.equal(
@@ -548,17 +604,25 @@ test("'every message was answered without you' is said only when it is true", ()
   assert.ok(!said.includes("without you") && said.includes("answered by you or by nobody"), said);
 });
 
-test("the channels in messages and calls, their colour fixed by channel, the week round the radar and the hours under it", () => {
+test("the kept rhythm card: the week round a radar and the hours under it, 24 cells, in the contracts' unit words", () => {
   const tree = page();
-  const pie = card(tree, "chart-channels");
-  assert.equal(textOf(cls(pie, "ck-pie-center")), "20messages and calls");
-  assert.deepEqual(
-    all(pie, (n) => classes(n).includes("ck-slice")).map((s) => s.props.fill),
-    ["var(--color-whatsapp)", "var(--color-voice)", "var(--color-email)", "var(--color-sms)"],
-  );
-  assert.equal(pie.props.style["--color-voice"], "var(--chart-cat-2)", "the card publishes the channel colours");
   const rhythm = card(tree, "chart-rhythm");
+  assert.ok(cls(rhythm, "ck-radar-line"), "the week round a radar");
   assert.equal(all(rhythm, (n) => classes(n).includes("ck-cell")).length, 24, "a cell an hour");
+  const strip = find(rhythm, (n) => n.type === HeatStrip);
+  assert.equal(strip.props.unit, PEOPLE_RHYTHM_UNIT, "the hours count what contracts says they count");
+  assert.equal(PEOPLE_RHYTHM_UNIT, "messages and calls");
+  assert.ok(strip.props.ariaLabel.includes(PEOPLE_RHYTHM_UNIT), strip.props.ariaLabel);
+  const radar = find(rhythm, (n) => n.type === RadarChart);
+  assert.ok(radar.props.ariaLabel.includes(PEOPLE_RHYTHM_UNIT), radar.props.ariaLabel);
+  // The donut is gone: nothing on the page draws a pie of the channels, and the lens's card is a list of bars. The walk
+  // reaches what the kit's parts rendered (the rhythm card's own cells above), so a pie's class would be found.
+  assert.deepEqual(
+    all(tree, (n) => classes(n).some((c) => /^ck-(pie|slice)/.test(c))),
+    [],
+    "REGRESSION: the donut counted messages and calls and said 'people': no element wears a ck-pie or ck-slice class",
+  );
+  assert.equal(card(tree, "chart-channels"), null);
 });
 
 test("a caller's mood and the reply spread are part-bars in their own order, each part in its colour and its word", () => {
@@ -696,15 +760,13 @@ test("a workspace with no hours is asked for them through the page, with the doo
   assert.equal(factOf(unread, "hours"), null, "a profile that could not be read says nothing of the hours");
 });
 
-test("the channels are contracts' words, in contracts' order, each in the colour kept for it", () => {
+test("the channels' colours are kept by channel, in contracts' order, and the same ones wherever a channel is drawn", () => {
   assert.deepEqual(
-    Object.keys(RPT_CHANNELS),
+    Object.keys(RPT_CHANNEL_COLORS),
     REPORT_CHANNELS.map((c) => c.key),
     "in the order a chart lists them",
   );
-  for (const { key, label } of REPORT_CHANNELS)
-    assert.equal(RPT_CHANNELS[key].label, label, `${key} says contracts' word`);
-  assert.deepEqual(Object.fromEntries(Object.entries(RPT_CHANNELS).map(([k, v]) => [k, v.color])), {
+  assert.deepEqual(RPT_CHANNEL_COLORS, {
     whatsapp: "var(--chart-cat-1)",
     voice: "var(--chart-cat-2)",
     email: "var(--chart-cat-3)",
@@ -810,21 +872,10 @@ test("asked, then booked: the share's other side sits on the card's foot, with t
   }
 });
 
-test("where they reach you: the same split the period before, under the donut, in its own counts", () => {
-  const tree = page();
-  const before = byTestId(card(tree, "chart-channels"), "channels-before");
-  assert.ok(before, "a part-bar of the period before");
-  assert.equal(textOf(find(before, (n) => classes(n).includes("ck-segbar-title"))), "The 7 days before");
-  // Seven on WhatsApp then, twelve now: the legend's counts are the prior ones, which no tile and no donut gives.
-  assert.ok(textOf(before).includes("WhatsApp") && textOf(before).includes("7"));
-});
-
 test("a v2 payload still draws: what it cannot know is said, never invented", () => {
   const v2 = reportDto();
   for (const k of ["replies", "channels", "hours"]) delete v2[k];
   const tree = across(() => setSurfaceValue("reports", { ...surface(), vm: toReportVM(v2) }));
-  assert.ok(textOf(card(tree, "chart-channels")).includes("Not counted for this period yet."));
-  assert.equal(takeaway(tree, "chart-channels"), "", "and no sentence about channels it never counted");
   assert.equal(plot(tree, "chart-reply"), null, "no speed line without the replies");
   assert.ok(byTestId(card(tree, "chart-reply"), "reply-spread"), "the spread still reads");
   assert.equal(cls(card(tree, "chart-rhythm"), "ck-heat"), null, "no hours without the grid");
@@ -1713,6 +1764,58 @@ test("a demo's Receptionist lens draws the sample's own read through the same fo
   }
 });
 
+test("a demo's People lens draws the sample's own read through the same fold, every part of it, and its tabs switch the sample's period", () => {
+  setSurfaceValue("reports", undefined);
+  setSurfaceValue("reports_people", undefined);
+  globalThis.__DEMO_MODE = true;
+  lensAt = LENS_PATHS[2];
+  const foldOf = (range) => toPeopleReportVM(peopleSample(range).dto);
+  try {
+    fresh();
+    let tree = draw();
+    assert.ok(byTestId(tree, "reports-sample"), "the sample's page");
+    for (const id of [
+      "people-strip",
+      "chart-people-channels",
+      "chart-people-first",
+      "chart-people-yeses",
+      "chart-people-stops",
+      "chart-people-wires",
+      "chart-people-fresh",
+      "people-time",
+      "chart-people-steps",
+      "chart-people-bounced",
+      "people-stuck",
+      "people-stand",
+      "chart-people",
+      "chart-rhythm",
+    ])
+      assert.ok(byTestId(tree, id), `${id}: the sample has every part`);
+    assert.equal(byTestId(tree, "people-failed"), null);
+    assert.equal(byTestId(tree, "people-now-failed"), null);
+    assert.equal(
+      byTestId(tree, "reports-sample").props["data-loading"],
+      undefined,
+      "the sample answers at once: nothing is on its way",
+    );
+    assert.equal(standingSaid().sentence, foldOf("30d").head, "the head says the sample's fold");
+    assert.equal(
+      textOf(cls(card(tree, "chart-people-steps"), "ck-card-takeaway")),
+      foldOf("30d").stepsDone.line,
+      "a card's line is the fold's, of the sample's numbers",
+    );
+    choose(tree, "90 days");
+    tree = redraw();
+    assert.equal(chosen(tree), "90 days", "the sample's own period");
+    assert.equal(standingSaid().sentence, foldOf("90d").head);
+    assert.notEqual(foldOf("90d").head, foldOf("30d").head, "a longer period is more people");
+    assert.equal(textOf(cls(card(tree, "chart-people-steps"), "ck-card-takeaway")), foldOf("90d").stepsDone.line);
+  } finally {
+    globalThis.__DEMO_MODE = false;
+    lensAt = LENS_PATHS[0];
+  }
+});
+
 test("a demo draws the same page from the sample, its tabs switch the sample; without a demo the page says what Reports reads", () => {
   setSurfaceValue("reports", undefined);
   globalThis.__DEMO_MODE = true;
@@ -1725,7 +1828,14 @@ test("a demo draws the same page from the sample, its tabs switch the sample; wi
     );
     lensAt = LENS_PATHS[2];
     fresh();
-    assert.ok(byTestId(draw(), "chart-channels"), "and its People lens");
+    // The sample answers the People lens's own read at once as well: the strip, and the cards the report keeps beside it.
+    const people = draw();
+    assert.ok(
+      byTestId(people, "people-strip") && byTestId(people, "chart-people") && byTestId(people, "chart-rhythm"),
+      "and its People lens",
+    );
+    assert.equal(byTestId(people, "people-failed"), null);
+    assert.equal(byTestId(people, "reports-sample").props["data-loading"], undefined, "nothing is on its way");
     lensAt = LENS_PATHS[0];
     fresh();
     tree = draw();

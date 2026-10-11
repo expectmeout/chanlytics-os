@@ -170,8 +170,8 @@ export function RptFacts({ facts }: { facts: ReportFactVM[] }) {
  * A tile as the kit's figure: its value, the period before in counts beside it, its line under it, and over its label the
  * words for what it counts (contracts metricWordsOf), named by its metric. Every strip of the page draws its tiles with it,
  * so a figure says the same on every lens; the grid, the dividers and the padding are the page's. A tile that names a work
- * page (`door`) opens it from its number, and a ratio of too few (`n` under `minN`) is greyed and says how few, as the kit's
- * figure draws both.
+ * page (`door`) opens it from its number, a ratio of too few (`n` under `minN`) is greyed and says how few, and a tile that
+ * says what needs you or what failed (`tone`) has its number read in amber or red, as the kit's figure draws each.
  */
 export function RptFigure({ t }: { t: ReportStripTile }) {
   return (
@@ -185,6 +185,7 @@ export function RptFigure({ t }: { t: ReportStripTile }) {
       definition={metricWordsOf(t.metric)}
       n={t.n}
       minN={t.minN}
+      tone={t.tone}
       door={t.door ? routeDoor(t.door) : undefined}
     />
   );

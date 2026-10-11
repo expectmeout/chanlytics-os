@@ -159,22 +159,30 @@ test(
   },
 );
 
+// 00379 left a person's first moment as it was (their first word in either direction, whatever it said) and left "a new
+// person" to the People lens. 00394 gave it its one rule: a first reach-in in their own words (or a call that connected),
+// so an out-of-office from a new address is no one arriving. What this test said before (that the person is counted) is
+// the number that was wrong; first-moments.db.test.mjs holds the rule's other edges.
 test(
-  "a person whose only message was automated mail still has a first moment: the new-person rule is People's, and this migration does not touch it",
+  "a person whose only message was automated mail is no new person: the rule is a first reach-in in their own words",
   { skip },
   async () => {
     const w = await world("harbor-automated-first", "+15550139002");
-    const row = inbound(w, 45, "email", { email: { claim: "automated" } });
-    ok(await db.from("messages").insert(row));
+    ok(await db.from("messages").insert(inbound(w, 45, "email", { email: { claim: "automated" } })));
     const firsts = ok(await db.rpc("contact_first_moments", { p_tenant_id: w.tenantId }));
-    const mine = firsts.find((f) => f.contact_id === w.contact);
-    assert.ok(mine, "a person's first word in either direction is a first moment, whatever it said");
-    assert.equal(new Date(mine.first_at).getTime(), new Date(row.channel_ts).getTime(), "the row's own channel_ts");
+    assert.equal(
+      firsts.find((f) => f.contact_id === w.contact),
+      undefined,
+      "an automatic reply is no one reaching the business: no first moment",
+    );
     const r = ok(await db.rpc("report_series", { p_tenant_id: w.tenantId, p_days: 7 }));
     assert.equal(
       r.series.slice(-7).reduce((s, d) => s + d.new_contacts, 0),
-      1,
-      "new people still count them",
+      0,
+      "Overview counts no new person",
     );
+    // Two days, as the first test reads: the 45-minute-old row is in the window whatever time of day this runs.
+    const m = ok(await db.rpc("metrics_summary", { p_tenant_id: w.tenantId, p_days: 2 }));
+    assert.equal(m.period.new_contacts, 0, "Today counts none either");
   },
 );

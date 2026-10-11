@@ -3165,6 +3165,14 @@ async function receptionistSeries(db, tenantId, window) {
   }
   return data;
 }
+async function peopleSeries(db, tenantId, window) {
+  const { data, error } = await db.rpc("people_series", windowArgs(tenantId, window));
+  if (error) {
+    if (isMissingDoor(error)) return null;
+    throw new Error(`people_series: ${error.message}`);
+  }
+  return data;
+}
 async function reachOutReport(db, tenantId, window) {
   const { data, error } = await db.rpc("reach_out_report", windowArgs(tenantId, window));
   if (error) {
@@ -5281,6 +5289,7 @@ export {
   pauseEmailOffers,
   peopleCursorOf,
   peoplePage,
+  peopleSeries,
   personDecisions,
   personReplyMode,
   personRow,

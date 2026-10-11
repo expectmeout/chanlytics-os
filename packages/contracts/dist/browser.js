@@ -1956,8 +1956,8 @@ function priceFigures(text) {
       while (from > 0 && /[\d.,]/.test(text.charAt(from - 1))) from -= 1;
       while (to < text.length && /[\d.,]/.test(text.charAt(to))) to += 1;
       const whole = text.slice(from, to);
-      const figure = /\d+(?:[.,]\d+)*/.exec(whole)?.[0].replace(/[.,]0+$/, "");
-      found.push(figure ?? whole.toLowerCase().replace(/\s+/g, " ").trim());
+      const figure2 = /\d+(?:[.,]\d+)*/.exec(whole)?.[0].replace(/[.,]0+$/, "");
+      found.push(figure2 ?? whole.toLowerCase().replace(/\s+/g, " ").trim());
     }
   }
   return found;
@@ -8119,6 +8119,12 @@ function compareWords(current, previous, rangeLabel, priorHadAny) {
   if (current === previous) return `same as ${beforeWords(rangeLabel)}`;
   return `${current > previous ? "up" : "down"} from ${previous}`;
 }
+function newPeopleLine(newNow, newBefore, rangeLabel, priorHadAny) {
+  if (newNow === 0) return "Nobody new reached you in this period.";
+  const reached = `${plural(newNow, "new person", "new people")} reached you`;
+  if (!priorHadAny) return `${reached}.`;
+  return `${reached} (${newBefore === 0 ? "none" : newBefore} ${beforeWords(rangeLabel)}).`;
+}
 var messagesTile = ({ days, current, points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
   id: "messages",
   metric: "customer_messages",
@@ -8340,19 +8346,6 @@ function speedOf(replies, days) {
 }
 var moodRank = (s) => s === "Positive" ? 0 : s === "Negative" ? 2 : 1;
 var listWords = (names3, last) => names3.length <= 1 ? names3.join("") : `${names3.slice(0, -1).join(", ")} ${last} ${names3[names3.length - 1]}`;
-var channelNoun = (c) => c.key === "voice" ? "calls" : c.key === "email" ? "email" : c.key === "sms" ? "texts" : c.label;
-function channelsLine(channels, rangeLabel) {
-  if (!channels) return null;
-  const reached = channels.reduce((s, c) => s + c.value, 0);
-  if (!reached) return null;
-  const top = channels.reduce((a, c) => c.value > a.value ? c : a);
-  const lead = top.value * 2 > reached ? `Mostly ${channelNoun(top)}` : `${capitalize(channelNoun(top))} ${top.key === "voice" || top.key === "sms" ? "lead" : "leads"}`;
-  const before = channels.reduce((s, c) => s + c.prior, 0);
-  if (!before) return `${lead}.`;
-  const wasTop = channels.reduce((a, c) => c.prior > a.prior ? c : a);
-  if (wasTop.key === top.key) return `${lead}, as ${beforeWords(rangeLabel)}.`;
-  return `${capitalize(channelNoun(top))} took over from ${channelNoun(wasTop)}.`;
-}
 function rhythmLine(week) {
   if (!week.current.some((v) => v > 0)) return null;
   const avg = week.unit === "average";
@@ -8518,7 +8511,7 @@ function replyLine({ sortedReply, p90, hold }) {
   if (sortedReply.length >= 10) return `Nine in ten within ${fmtSeconds(p90)}.`;
   return sortedReply.length ? `The slowest took ${fmtSeconds(sortedReply[sortedReply.length - 1])}.` : null;
 }
-function linesOf(f, week, channels) {
+function linesOf(f, week) {
   const { points, tot, prev, rangeLabel, answeredTotal, prevAnsweredTotal } = f;
   const busiestDay = tot.in ? points.reduce((b, p) => p.in > b.in ? p : b) : null;
   return {
@@ -8528,7 +8521,7 @@ function linesOf(f, week, channels) {
     answered: busiestDay ? `Most messages on ${busiestDay.label}: ${busiestDay.in}.` : null,
     reply: replyLine(f),
     calls: tot.calls ? `About ${fmtSeconds(tot.callSeconds / tot.calls)} a call.` : null,
-    channels: channelsLine(channels, rangeLabel),
+    people: newPeopleLine(tot.newPeople, prev.newPeople, rangeLabel, f.priorHadAny),
     rhythm: rhythmLine(week)
   };
 }
@@ -8583,7 +8576,7 @@ function toReportVM(dto, opts) {
     hoursUnset: hoursUnsetOf(dto.arrivals, opts?.profile),
     channels,
     period: periodWords(f.days, f.until),
-    lines: linesOf(f, week, channels),
+    lines: linesOf(f, week),
     table: {
       columns: [
         "Day",
@@ -8674,7 +8667,7 @@ var REPORT_LENSES = [
   {
     id: "people",
     label: "People",
-    sub: "who reached you, and where and when",
+    sub: "who reached you, whether you can reach them, and who is slipping away",
     shownWhen: "always",
     role: "viewer",
     empty: NOTHING_CAME_IN
@@ -17069,26 +17062,6 @@ function peopleAggregates(rows2, nowMs) {
     askedNotBooked
   };
 }
-var RECENCY_BUCKETS = [
-  { label: "today", max: 1 },
-  { label: "3d", max: 3 },
-  { label: "1w", max: 7 },
-  { label: "2w", max: 14 },
-  { label: "1m", max: 30 },
-  { label: "2m", max: 60 },
-  { label: "3m", max: 90 },
-  { label: "older", max: Infinity }
-];
-function recencyCells(rows2, nowMs) {
-  const cells = RECENCY_BUCKETS.map((b) => ({ label: b.label, count: 0 }));
-  for (const v of rows2) {
-    const days = v.lastContact.ts === null ? Infinity : (nowMs - v.lastContact.ts) / DAY_MS;
-    let i = RECENCY_BUCKETS.findIndex((b) => days < b.max);
-    if (i === -1) i = cells.length - 1;
-    cells[i].count++;
-  }
-  return cells;
-}
 
 // src/consent/consent-asks.ts
 var UNASKED = {
@@ -17477,7 +17450,7 @@ function toRunReportVM(d, opts) {
     people,
     replies,
     stop,
-    figures: RUN_FIGURES.map((figure) => figure(f))
+    figures: RUN_FIGURES.map((figure2) => figure2(f))
   };
 }
 
@@ -29784,7 +29757,7 @@ function campaignChannelsOf2(rows2) {
     ];
   });
 }
-function channelsLine2(channels) {
+function channelsLine(channels) {
   if (channels.length < 2) return null;
   const whatsapp = channels.find((c) => c.channel === "whatsapp");
   return whatsapp ? `Read receipts are WhatsApp's alone: ${whatsapp.read} of its ${whatsapp.sent} were read.` : "A text or an email keeps no read receipt.";
@@ -29918,21 +29891,21 @@ function toCampaignReportVM(dto) {
       // A yes is to being messaged, never to an offer: a visit reminder is no offer (the wiring audit's C25).
       funnel: tot.optIns || tot.optOuts ? `${tot.optIns} ${tot.optIns === 1 ? "person" : "people"} said yes to messages, ${tot.optOuts} ${tot.optOuts === 1 ? "person" : "people"} asked to stop.` : "Nobody said yes to messages or asked to stop.",
       sent: sends2 ? sends2 === 1 ? "From one broadcast or campaign run." : `From ${sends2} broadcast and campaign runs.` : null,
-      channels: channelsLine2(channels)
+      channels: channelsLine(channels)
     }
   };
 }
 
 // src/reports/lens-answer.ts
 function lensAnswerOf(lens, parts2) {
-  const { vm, campaigns, deals, reviews } = parts2;
+  const { vm, campaigns, deals, reviews, people } = parts2;
   switch (lens) {
     case "overview":
       return vm.empty ? void 0 : vm.lines.hero;
     case "receptionist":
       return vm.empty ? void 0 : vm.lines.receptionist ?? void 0;
     case "people":
-      return vm.empty ? void 0 : vm.lines.channels ?? void 0;
+      return people?.head ?? vm.lines.people;
     case "pipeline":
       return deals?.present ? deals.headline : void 0;
     case "campaigns":
@@ -29940,6 +29913,101 @@ function lensAnswerOf(lens, parts2) {
     case "reviews":
       return reviews && !reviews.empty ? reviews.lines.head ?? void 0 : void 0;
   }
+}
+
+// src/reports/people/people-now.ts
+var FRESH_BUCKETS = [
+  { key: "under_7", before: 7 },
+  { key: "d7_30", before: QUIET_AFTER_DAYS + 1 },
+  { key: "d31_60", before: 61 },
+  { key: "d61_90", before: 91 }
+];
+function freshBucketOf(heardDays) {
+  if (heardDays === null) return "never";
+  return FRESH_BUCKETS.find((b) => heardDays < b.before)?.key ?? "d91_up";
+}
+function freshCountsOf(vms) {
+  const fresh = { under_7: 0, d7_30: 0, d31_60: 0, d61_90: 0, d91_up: 0, never: 0 };
+  for (const v of vms) fresh[freshBucketOf(v.heardDays)] += 1;
+  return fresh;
+}
+var BOOK_CONTEXT = poolListContext({ calendar: "none", dealsOn: false, consultFirst: false, viewer: null });
+function listCountOf(id, vms) {
+  const def = resolveList({ kind: "builtin", id }, []);
+  const members = def ? membersOf(def, vms, BOOK_CONTEXT) : null;
+  if (members?.state !== "ok") throw new Error(`People's list ${id} cannot be counted without a viewer`);
+  return members.ids.size;
+}
+function listCountsOf(vms) {
+  return {
+    opted_in: listCountOf("opted_in", vms),
+    offers_ok: listCountOf("offers_ok", vms),
+    opted_out: listCountOf("opted_out", vms),
+    quiet: listCountOf("quiet", vms)
+  };
+}
+function stepCountsOf(vms) {
+  const standing = (due) => vms.filter((v) => v.nextStep?.due === due).length;
+  return { overdue: standing("past"), due_today: standing("today") };
+}
+var ONLY_WIRE = {
+  whatsapp: "whatsapp_only",
+  sms: "sms_only",
+  voice: "phone_only",
+  email: "email_only"
+};
+function wireBucketOf(channels) {
+  const first = channels.at(0);
+  if (first === void 0) return "none";
+  return channels.length > 1 ? "several" : ONLY_WIRE[first];
+}
+function wireCountsOf(vms) {
+  const wires = { whatsapp_only: 0, sms_only: 0, phone_only: 0, email_only: 0, several: 0, none: 0 };
+  for (const v of vms) wires[wireBucketOf(v.channels)] += 1;
+  return wires;
+}
+function peopleNowOf(rows2, o) {
+  const vms = poolRowsOf(rows2, { tz: o.tz, now: new Date(o.nowMs), viewer: null, dealsOn: false, ready: o.ready });
+  return {
+    people: vms.length,
+    fresh: freshCountsOf(vms),
+    lists: listCountsOf(vms),
+    steps: stepCountsOf(vms),
+    email_stopped: vms.filter((v) => v.emailSuppressed).length,
+    wires: wireCountsOf(vms)
+  };
+}
+
+// src/reports/people/people-record.ts
+var SERIES_RECORDS = [
+  ["reached", "now"],
+  ["reached", "before"],
+  ["by_channel", "now"],
+  ["by_channel", "before"],
+  ["first_came", "by_via"],
+  ["consent", "now", "yes", "by_source"],
+  ["consent", "now", "yes", "by_purpose"],
+  ["consent", "now", "stop", "by_source"],
+  ["consent", "now", "stop", "by_purpose"],
+  ["consent", "before"],
+  ["email_stopped", "by_reason"],
+  ["steps"]
+];
+var hasRecordAt = (from, path) => path.reduce((at3, key) => at3 === null ? null : recordOrNull(at3[key]), from) !== null;
+function isPeopleSeriesDto(answer) {
+  const a = recordOrNull(answer);
+  return a !== null && typeof a.timezone === "string" && typeof a.today === "string" && typeof a.days === "number" && SERIES_RECORDS.every((path) => hasRecordAt(a, path));
+}
+function peopleDtoOf(series, parts2) {
+  const asked = series ?? parts2.head;
+  return {
+    timezone: asked.timezone,
+    today: asked.today,
+    ...asked.end === void 0 ? {} : { end: asked.end },
+    days: asked.days,
+    series,
+    now: parts2.now
+  };
 }
 
 // src/reports/reach-out-report.ts
@@ -30687,6 +30755,7 @@ var ROUTE_KEYS = [
   "GET reports",
   "GET reports/campaigns",
   "GET reports/headline",
+  "GET reports/people",
   "GET reports/reach-outs",
   "GET reports/receptionist",
   "GET reports/reviews",
@@ -36132,10 +36201,10 @@ function figuresOf(m, conversations, callsInWindow, escalations, tz, now) {
     label: "new people",
     value: p.new_contacts,
     meta: !p.new_contacts ? "nobody new yet" : !agree ? "first contact today" : newWires.length === 1 ? `${p.new_contacts === 1 ? "on" : p.new_contacts === 2 ? "both on" : "all on"} ${wireWord(newWires[0][0])}` : `on ${andList(newWires.map(([w]) => wireWord(w)))}`,
-    // Named when the two counts agree. When they do not, the figure still opens: the reason they disagree IS
-    // the answer to what an owner is asking -- the count is everyone whose first word or call came today, and the
-    // page only holds the ones who wrote. Without this the fourth figure was the one stat on the card with nothing
-    // under it, so a hover that worked three times in a row did nothing on the fourth.
+    // Named when the two counts agree. When they do not, the figure still opens: the reason they disagree IS the answer
+    // to what an owner is asking -- the count is everyone whose first message of their own, or first call to us, came
+    // today (00394), and the page only holds the ones who wrote. Without this the fourth figure was the one stat on the
+    // card with nothing under it, so a hover that worked three times in a row did nothing on the fourth.
     receipt: said.length ? {
       text: `${andList(names3.length > 3 ? [...said, `${names3.length - 3} more`] : said)} wrote for the first time today.`,
       door: { label: "Open People", to: "clients/seg:new_week" }
@@ -37269,6 +37338,47 @@ var PLATFORM_NUMBERS = {
     why: "a provider's delivery is kept within a minute of the provider's own clock, at the 95th percentile"
   }
 };
+function mostFor(t, key) {
+  if (typeof t.most === "number") return t.most;
+  return (key !== null && Object.hasOwn(t.most, key) ? t.most[key] : void 0) ?? t.otherwise ?? Number.POSITIVE_INFINITY;
+}
+function breachesOf(name, t, v) {
+  if (typeof v === "number") {
+    const most = mostFor(t, null);
+    return v > most ? [{ number: name, key: null, value: v, most }] : [];
+  }
+  if (!v || typeof v !== "object" || Array.isArray(v)) return [];
+  return Object.entries(v).sort(([a], [b]) => a.localeCompare(b)).flatMap(([key, x]) => {
+    const most = mostFor(t, key);
+    return typeof x === "number" && x > most ? [{ number: name, key, value: x, most }] : [];
+  });
+}
+function pastTarget(row2, { all = false } = {}) {
+  const values = row2;
+  return Object.entries(PLATFORM_NUMBERS).flatMap(
+    ([name, n]) => n.promise && (all || n.alarm) ? breachesOf(name, n, values[name]) : []
+  );
+}
+function figure(name, v) {
+  const n = PLATFORM_NUMBERS[name];
+  return n.promise && n.unit === "ms" ? seconds(v) : String(v);
+}
+function pastTargetPage(day, workspaces) {
+  const lines = workspaces.map(
+    (w) => `  ${w.name} (${w.tenantId}): ` + w.breaches.map(
+      (b) => `${b.number}${b.key === null ? "" : ` ${b.key}`} ${figure(b.number, b.value)}, target ${figure(b.number, b.most)}`
+    ).join("; ")
+  );
+  return {
+    subject: `${plural2(workspaces.length, "workspace", "workspaces")} past a target on ${day}`,
+    body: `On ${day} (UTC) these numbers went past the targets the platform answers for (decision 0031, invariant 12; contracts PLATFORM_NUMBERS):
+
+${lines.join("\n")}
+
+The day's counts are in platform_metrics (the back office's day by workspace).
+`
+  };
+}
 
 // src/workspace/second-factor.ts
 function factorStepNeeded(aal) {
@@ -38115,6 +38225,7 @@ export {
   PLATFORM_HOLD_READD,
   PLATFORM_HOLD_REFUSAL,
   PLATFORM_NEW_DAYS,
+  PLATFORM_NUMBERS,
   PLATFORM_QUIET_DAYS,
   PLATFORM_VERDICTS,
   PLAYBOOK_BREATH_MS,
@@ -38898,6 +39009,7 @@ export {
   isOptedOut,
   isOptedOutContact,
   isPartnerCode,
+  isPeopleSeriesDto,
   isPersonRow,
   isPersonsWords,
   isPipelineView,
@@ -39228,13 +39340,17 @@ export {
   passesHandoverPause,
   passwordProblem,
   pastAllowance,
+  pastTarget,
+  pastTargetPage,
   pauseHoursOf,
   pauseMsOf,
   pausedGreetingFor,
   pausedVoiceFacts,
   peopleAggregates,
+  peopleDtoOf,
   peopleFromItems,
   peopleListAction,
+  peopleNowOf,
   peopleVisitsOf,
   personActs,
   personInText,
@@ -39412,7 +39528,6 @@ export {
   reasonShort,
   reasonSummaryOf,
   receiptWords,
-  recencyCells,
   receptionistCardOf,
   receptionistDtoOf,
   receptionistOn,

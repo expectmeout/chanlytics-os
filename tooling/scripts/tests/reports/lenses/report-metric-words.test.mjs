@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import { installLegacyReact, fresh, all, byTestId, textOf, classes, find } from "../../_legacy-react.mjs";
 import { DEALS, campaignDto, cday, reviewsDto, reviewsGoogle, reviewsHeld, surface } from "../_report-world.mjs";
 import { ownHeld } from "../receptionist/_receptionist-world.mjs";
+import { dtoWith } from "../people/_people-world.mjs";
 
 installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 globalThis.window.fetch = async () =>
@@ -22,6 +23,7 @@ const {
   bookedTileOf,
   metricWordsOf,
   toGoogleVM,
+  toPeopleReportVM,
   toReceptionistReportVM,
   MISSED_CALL_TOUCH_WORDS,
   REPLY_WINDOW_WORDS,
@@ -73,6 +75,11 @@ const receptionistTiles = () => {
   };
   const vm = toReceptionistReportVM(dto, { nowMs: NOW });
   return [...vm.handover, vm.missed, vm.closed, ...vm.stuck];
+};
+/** The People lens's own figures (contracts reports/people/): the strip, what is stuck now and where the book stands. */
+const peopleTiles = () => {
+  const vm = toPeopleReportVM(dtoWith());
+  return [...vm.strip, ...vm.stuck, ...vm.stand];
 };
 /** A listing as the edge reads it (the shape of tests/google/google.test.mjs's own), with one review. */
 const GOOGLE = {
@@ -158,12 +165,13 @@ test("every figure the reports build names a metric that has words, and no two m
     ...toGoogleVM(GOOGLE, { days: 7, until: null }, NOW, "UTC").tiles,
     ...reviews.tiles,
     ...receptionistTiles(),
+    ...peopleTiles(),
   ];
   const metrics = [...new Set(tiles.map((t) => t.metric))];
   assert.equal(
     metrics.length,
-    26,
-    "the receptionist's six, booked, the campaigns' five, Google's four, the three more the profile's reviews add and the seven the Receptionist lens's own read adds",
+    36,
+    "the receptionist's six, booked, the campaigns' five, Google's four, the three more the profile's reviews add, the seven the Receptionist lens's own read adds and the ten the People lens's own read adds (its New people is the Overview's)",
   );
   for (const m of metrics) {
     const words = metricWordsOf(m);
@@ -215,6 +223,71 @@ test("the Receptionist lens's seven figures name a metric each, and each metric 
     assert.ok(words.length > 80 && words.endsWith("."), `${id}: a sentence of words`);
   }
   assert.equal(new Set(ids.map(metricWordsOf)).size, ids.length, "each says what only it counts");
+});
+
+test("the People lens's ten figures name a metric each, and each metric says what is not counted", () => {
+  const ids = [
+    "people_reached",
+    "yeses_won",
+    "stops_recorded",
+    "steps_overdue",
+    "steps_due_today",
+    "email_stopped_now",
+    "said_yes_messages",
+    "can_receive_offers",
+    "opted_out_now",
+    "quiet_now",
+  ];
+  const vm = toPeopleReportVM(dtoWith());
+  assert.deepEqual(
+    [...vm.strip, ...vm.stuck, ...vm.stand].map((t) => t.metric),
+    [
+      "people_reached",
+      "new_people",
+      "yeses_won",
+      "stops_recorded",
+      "steps_overdue",
+      "steps_due_today",
+      "email_stopped_now",
+      "said_yes_messages",
+      "can_receive_offers",
+      "opted_out_now",
+      "quiet_now",
+    ],
+    "the figures, in the order the lens draws them; its second is the Overview's New people",
+  );
+  for (const id of ids) {
+    const words = metricWordsOf(id);
+    assert.match(words, /\bnot counted\b/, `${id}: says what is not counted`);
+    assert.ok(words.length > 80 && words.endsWith("."), `${id}: a sentence of words`);
+    assert.doesNotMatch(words, /playbook/i, id);
+  }
+  const every = [
+    ...ids,
+    "new_people",
+    "customer_messages",
+    "said_yes",
+    "asked_to_stop",
+    "waiting_on_you",
+    "call_backs",
+  ];
+  assert.equal(new Set(every.map(metricWordsOf)).size, every.length, "each says what only it counts");
+  // The two sides of the same day say it in different words, and the two people lists that overlap say what each leaves out.
+  assert.match(metricWordsOf("steps_overdue"), /a day before today/);
+  assert.match(metricWordsOf("steps_due_today"), /has today for its day/);
+  assert.match(metricWordsOf("said_yes"), /counted once a day each/, "the Campaigns lens's yeses stay per day");
+  assert.match(
+    metricWordsOf("yeses_won"),
+    /one for each person and each kind of message/,
+    "the People lens's are per person",
+  );
+  // Like people_reached, the answers are of live people only: the SQL leaves out an erased person and a merged-away record.
+  for (const id of ["people_reached", "yeses_won", "stops_recorded"]) {
+    assert.match(metricWordsOf(id), /asked to be forgotten/, `${id}: says an erased person is left out`);
+  }
+  for (const id of ["yeses_won", "stops_recorded"]) {
+    assert.match(metricWordsOf(id), /a record merged into another/, `${id}: says a merged-away record is left out`);
+  }
 });
 
 test("the Overview's strip draws each figure with its words over the label", () => {

@@ -6,8 +6,8 @@
  * the calls and the sources to what was sent. The page imports it, and draws it only in a demo session that has read
  * nothing of its own (the standalone mockup's Reports went with the shell's: a moved surface is drawn by the app). The Reviews
  * lens has its own, a listing Google shows with no Business Profile behind it (`reviewsSample`), drawn the same way, and so has
- * the Receptionist lens (`receptionistSample`): the route's answer for the same business and days, which the lens folds as it
- * folds a workspace's.
+ * the Receptionist lens (`receptionistSample`) and the People lens (`peopleSample`): the route's answer for the same business and
+ * days, which the lens folds as it folds a workspace's.
  */
 import {
   toReportVM,
@@ -21,6 +21,8 @@ import {
   type BookingReportDto,
   type GoogleReviewDto,
   type ReviewsReportDto,
+  type PeopleDto,
+  type PeopleNowDto,
   type ReceptionistDto,
   type ReportVM,
   HOUR_MS,
@@ -31,6 +33,7 @@ import {
   type ReportRange,
 } from "@chanlytics/contracts";
 import { reportWindowOf, type ReportWindowVM } from "@chanlytics/contracts/report-window";
+import type { PeopleSurface } from "./people-surface";
 import type { ReceptionistSurface } from "./receptionist-surface";
 import type { ReviewsSurface } from "./reviews-surface";
 import type { ReportsSurface } from "./surface";
@@ -431,6 +434,15 @@ function sharedOver(total: number, weights: readonly number[]): number[] {
   return [first + total - sumOf(parts), ...rest];
 }
 
+/** A count shared by name in the proportion of the weights, every name there (one with no share is 0). */
+function split<K extends string>(total: number, weights: Readonly<Record<K, number>>): Record<K, number> {
+  const counts = sharedOver(total, Object.values<number>(weights));
+  const shared: Record<K, number> = { ...weights };
+  let at = 0;
+  for (const name in weights) shared[name] = counts[at++] ?? 0;
+  return shared;
+}
+
 /** What became of the replies held for the owner: those sent, and the few that did not go out as written. */
 function sampleHold(totals: Totals): ReceptionistSeries["hold"] {
   const sent = totals.ai;
@@ -456,22 +468,12 @@ function sampleHold(totals: Totals): ReceptionistSeries["hold"] {
 }
 
 /** What customers asked about: four in five of the texts and WhatsApp messages carry a topic, shared over five. */
-const TOPIC_WEIGHTS: ReadonlyArray<readonly [string, number]> = [
-  ["booking", 40],
-  ["pricing", 25],
-  ["hours", 15],
-  ["services", 12],
-  ["other", 8],
-];
+const TOPIC_WEIGHTS = { booking: 40, pricing: 25, hours: 15, services: 12, other: 8 };
 
 function sampleTopics(vm: ReportVM): ReceptionistSeries["topics"] {
   const texts = sumOf((vm.channels ?? []).filter((c) => c.key === "whatsapp" || c.key === "sms").map((c) => c.value));
   const stamped = Math.round(texts * 0.8);
-  const counts = sharedOver(
-    stamped,
-    TOPIC_WEIGHTS.map(([, w]) => w),
-  );
-  return { of: texts, stamped, by_intent: Object.fromEntries(TOPIC_WEIGHTS.map(([id], i) => [id, counts[i] ?? 0])) };
+  return { of: texts, stamped, by_intent: split(stamped, TOPIC_WEIGHTS) };
 }
 
 /** The language of each reply it sent: mostly English, some Spanish (none, in a period too quiet to have one). */
@@ -602,5 +604,114 @@ export function receptionistSample(range: ReportRange, today: string = todayIn(Z
     readAt: Date.parse(`${today}T16:00:00Z`),
   };
   keptReceptionist.set(key, surface);
+  return surface;
+}
+
+type PeopleSeries = NonNullable<PeopleDto["series"]>;
+
+/** How the sample's new people first came (a salon: its WhatsApp number, the phone, a text), and the sources of its yeses, stops and stopped addresses. */
+const FIRST_CAME_WEIGHTS = { whatsapp: 40, call: 22, sms: 10, email: 8, calendar: 8, ad: 7, unknown: 5 };
+const YES_SOURCES = { customer_message: 58, form: 20, in_person: 14, phone: 8 };
+const STOP_SOURCES = { customer_message: 46, unsubscribe: 22, carrier: 14, reply: 10, complaint: 4, operator: 4 };
+const EMAIL_STOP_REASONS = { hard_bounce: 60, complaint: 25, provider: 10, unknown: 5 };
+
+/** The people who reached the business: the new ones, and of those it knew already as many as three in ten of the messages and three in five of the calls (a person writes and rings more than once). */
+function sampleReached(vm: ReportVM): PeopleSeries["reached"] {
+  const channels = vm.channels ?? [];
+  const side = (fresh: number, of: "value" | "prior") => {
+    const wrote = sumOf(channels.filter((c) => c.key !== "voice").map((c) => c[of]));
+    const phoned = sumOf(channels.filter((c) => c.key === "voice").map((c) => c[of]));
+    return { people: fresh + Math.round(wrote * 0.3) + Math.round(phoned * 0.6), new: fresh };
+  };
+  return { now: side(vm.people.total, "value"), before: side(sumOf(vm.people.prior.map((n) => n ?? 0)), "prior") };
+}
+
+/** The people on each wire, a person once in each they used: a sixth again are on two, shared in proportion to the report's own messages and calls by wire. */
+function sampleWires(vm: ReportVM, people: number, of: "value" | "prior"): PeopleSeries["by_channel"]["now"] {
+  const wires = ["whatsapp", "sms", "email", "voice"];
+  const weight = (key: string) => (vm.channels ?? []).find((c) => c.key === key)?.[of] ?? 0;
+  const counts = sharedOver(people + Math.round(people / 6), wires.map(weight));
+  const [whatsapp = 0, sms = 0, email = 0, voice = 0] = counts.map((n) => Math.min(people, n));
+  return { whatsapp, sms, email, voice };
+}
+
+/** The answers of the window, one a person, kind of message and answer: by who gave them, and by what they were about. */
+function sampleAnswers(total: number, sources: Record<string, number>): PeopleSeries["consent"]["now"]["yes"] {
+  const [messages = 0, offers = 0, email_offers = 0] = sharedOver(total, [60, 28, 12]);
+  return { total, by_source: split(total, sources), by_purpose: { messages, offers, email_offers } };
+}
+
+/** The window people_series answers for the sample's business, in shares of the people who reached it: a fifth said yes, one in twenty stopped, 3% had an address stop working, and the steps done are 40% of them (three in four on time). */
+function sampleSeries(vm: ReportVM, head: Pick<PeopleDto, "timezone" | "today" | "end" | "days">): PeopleSeries {
+  const reached = sampleReached(vm);
+  const { now, before } = reached;
+  const share = (f: number) => Math.round(now.people * f);
+  const [yes, stop, stopped, done] = [share(0.2), share(0.05), share(0.03), share(0.4)];
+  return {
+    ...head,
+    reached,
+    by_channel: { now: sampleWires(vm, now.people, "value"), before: sampleWires(vm, before.people, "prior") },
+    first_came: { by_via: split(now.new, FIRST_CAME_WEIGHTS) },
+    consent: {
+      now: { yes: sampleAnswers(yes, YES_SOURCES), stop: sampleAnswers(stop, STOP_SOURCES) },
+      before: { yes: Math.round(yes * 0.8), stop: Math.round(stop * 1.25) },
+    },
+    email_stopped: { total: stopped, by_reason: split(stopped, EMAIL_STOP_REASONS) },
+    steps: { done, on_time: Math.round(done * 0.75) },
+  };
+}
+
+/** The people in the sample's book. The book is as it stands now, whatever days are picked, so it is the same for every range. */
+const BOOK_PEOPLE = 480;
+/** How fresh the book is, and by which wires it reaches the business: weights, which `split` turns into counts that add up to the book. */
+const BOOK_FRESH: Readonly<Record<keyof PeopleNowDto["fresh"], number>> = {
+  under_7: 13,
+  d7_30: 22,
+  d31_60: 16,
+  d61_90: 12,
+  d91_up: 25,
+  never: 12,
+};
+const BOOK_WIRES: Readonly<Record<keyof PeopleNowDto["wires"], number>> = {
+  whatsapp_only: 58,
+  sms_only: 5,
+  phone_only: 10,
+  email_only: 7,
+  several: 16,
+  none: 4,
+};
+
+/** The book as the pool counts it. The Quiet list is whoever was last heard from more than thirty days ago: the buckets past it. */
+function sampleBook(): PeopleNowDto {
+  const fresh = split(BOOK_PEOPLE, BOOK_FRESH);
+  const share = (f: number) => Math.round(BOOK_PEOPLE * f);
+  const quiet = fresh.d31_60 + fresh.d61_90 + fresh.d91_up;
+  return {
+    people: BOOK_PEOPLE,
+    fresh,
+    lists: { opted_in: share(0.64), offers_ok: share(0.09), opted_out: share(0.05), quiet },
+    steps: { overdue: 5, due_today: 3 },
+    email_stopped: 4,
+    wires: split(BOOK_PEOPLE, BOOK_WIRES),
+  };
+}
+
+const keptPeople = new Map<string, PeopleSurface>();
+
+/**
+ * The demo's People read for a range as of `today`: the route's answer for the same business and days as `reportsSample`, beside a
+ * book that is the same whichever days are picked. The same range on the same day is the same object, which the lens folds once.
+ */
+export function peopleSample(range: ReportRange, today: string = todayIn(ZONE)): PeopleSurface {
+  const win = sampleWindow(range, today);
+  const key = `${win.key}:${today}`;
+  const hit = keptPeople.get(key);
+  if (hit) return hit;
+  const head = { timezone: ZONE, today, ...(win.live ? {} : { end: win.to }), days: win.days };
+  const surface: PeopleSurface = {
+    dto: { ...head, series: sampleSeries(reportsSample(range, today).vm, head), now: sampleBook() },
+    key: win.key,
+  };
+  keptPeople.set(key, surface);
   return surface;
 }

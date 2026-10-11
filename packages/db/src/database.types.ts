@@ -7423,6 +7423,10 @@ export type Database = {
           wa_profile_name: string
         }[]
       }
+      people_series: {
+        Args: { p_days?: number; p_end?: string; p_tenant_id: string }
+        Returns: Json
+      }
       person_doubt_dismiss: { Args: { p_doubt_id: string }; Returns: Json }
       person_link_lead: {
         Args: {

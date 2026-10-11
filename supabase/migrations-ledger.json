@@ -40,9 +40,7 @@
     "00295": "held by the Reports lane's drafts (cm-reports) when #1374 numbered its migrations",
     "00322": "the tables leave Postgres Changes held this number in #1411 and landed as 00324, above the head by then; a stop ends the yes to offers had moved to 00323 to leave it room (#1409)",
     "00325": "unused: #1417 (a message's status is told to its workspace) held it, but 00326 (two records of one person become one) reached production first, so #1417 landed as 00327 above the head",
-    "00378": "held for the doors lane (#1537), whose eleven moved above #1539's 00379 and 00380 when that merged first: they landed as 00381 to 00391",
-    "00394": "held by #1546 (the People lens), open when the hold's notice was numbered 00396 above it",
-    "00395": "held by #1546 (the People lens), open when the hold's notice was numbered 00396 above it"
+    "00378": "held for the doors lane (#1537), whose eleven moved above #1539's 00379 and 00380 when that merged first: they landed as 00381 to 00391"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -398,6 +396,8 @@
     "00391_what_a_run_and_a_reach_out_kept_of_a_person_goes_with_them.sql": "41977bd9d75769f42b88c5a5e6c214dc1b9ac3dc33eb220eeba09664ce6f5bbd",
     "00392_a_review_google_no_longer_shows_and_a_closed_invitation_go.sql": "a2f60beed4051a4b072b0db14e7584e6bb5d1101cd0a5a1da1c8da244352660d",
     "00393_a_person_is_added_by_their_number_or_their_address.sql": "c9fec19f278c7c93b2062e3c80e9b6e8d400f2b3613b444a986ab3efee1309b4",
+    "00394_a_new_person_is_one_who_reached_you.sql": "8a3e70409ab7eb04060a591956846c3b4bdbecd551f8a00a09d6e67a1fed0a2f",
+    "00395_the_people_lens_is_read_beyond_the_days_counts.sql": "2c4b85c3506e5dba229b3f37da31b87b2c7f50f684b73d8a4a50bf6fb805a5cf",
     "00396_a_hold_is_told_from_its_event.sql": "b04adcf408584fb773642bb0fc4899fe50b32ee259a9ef6045207d598bfb8c4c"
   }
 }

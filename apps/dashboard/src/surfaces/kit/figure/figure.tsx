@@ -3,7 +3,8 @@
  * plain ink, and one line under it. It draws the `div` that holds a term and its definitions, so the page draws the `dl` that
  * holds several (Reports' strip). Where the words need a definition (what is counted, and what is not) the label is a stop for
  * the kit's Tooltip, never a native `title`; where the number opens something it is a door: the kit's press (press.tsx), a link
- * where it has an address and a button where it acts. A figure is not a tone: its change is plain ink, never green or red.
+ * where it has an address and a button where it acts. A figure's CHANGE is never a tone: it is plain ink, never green or red;
+ * its value is one only for what needs you (`warn`, amber) or what failed (`fail`, red), the reports lenses spec, D10.
  * A ratio says the count it is of (`n`) and the fewest that say anything (`minN`); of some, but too few, it is greyed and says
  * how few (`is-thin`, the reports lenses spec, D9), so a share of three messages is never read as a trend. Of none there is no
  * ratio, and nothing to grey.
@@ -38,6 +39,11 @@ export type FigureProps = {
   n?: number | null;
   /** The fewest that say anything: a ratio of some, but fewer than this, is greyed and says how few (the reports lenses spec, D9). */
   minN?: number;
+  /**
+   * What the number is: `warn` for what needs you (steps overdue), `fail` for what failed (email that stopped working); none
+   * for every other figure, and never green. It reads the number alone, never its change (the reports lenses spec, D10).
+   */
+  tone?: "warn" | "fail";
   /** What the figure is, for a page's tests and a later phase's definitions (`data-figure`). */
   id?: string;
   className?: string;
@@ -58,6 +64,7 @@ export function Figure({
   door,
   n = null,
   minN,
+  tone,
   id,
   className,
   "data-testid": testid,
@@ -90,7 +97,11 @@ export function Figure({
       </Press>
     );
   return (
-    <div className={cx("figure", thin && "is-thin", className)} data-figure={id} data-testid={testid}>
+    <div
+      className={cx("figure", thin && "is-thin", tone && `is-${tone}`, className)}
+      data-figure={id}
+      data-testid={testid}
+    >
       <dt className="figure-label">{term}</dt>
       <dd className="figure-value">
         {number}

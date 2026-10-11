@@ -744,6 +744,8 @@ const FIGURES = {
   "figure-door-act": () =>
     h(Figure, { label: "Customer messages", value: "17", meta: "on 6 of 7 days", door: { onClick } }),
   "figure-thin": () => h(Figure, { label: "Customer messages", value: "62%", meta: "on 6 of 7 days", n: 3, minN: 5 }),
+  "figure-warn": () => h(Figure, { label: "Customer messages", value: "17", meta: "on 6 of 7 days", tone: "warn" }),
+  "figure-fail": () => h(Figure, { label: "Customer messages", value: "17", meta: "on 6 of 7 days", tone: "fail" }),
 };
 
 test("Figure draws the gallery's Figure family: a term and its definitions, the number a door where it opens something, the page's class last", () => {
@@ -806,6 +808,24 @@ test("Figure draws the gallery's Figure family: a term and its definitions, the 
     ["figure-label", "figure-value", "figure-meta", "figure-n"],
     "the count's line comes after the line under the number",
   );
+  // A tone is for what needs you (warn) or what failed (fail), the reports lenses spec D10: the figure wears it, and the
+  // stylesheet reads it on the number alone. It adds no row, and a thin figure keeps its state ahead of it.
+  const tone = (props) => drawn(h(Figure, { label: "Steps overdue", value: "6", ...props }));
+  assert.equal(tone({ tone: "warn" }).props.className, "figure is-warn");
+  assert.equal(tone({ tone: "fail" }).props.className, "figure is-fail");
+  assert.equal(tone({}).props.className, "figure", "no tone, no class");
+  assert.equal(tone({ tone: undefined }).props.className, "figure", "an unset tone is none");
+  assert.equal(
+    tone({ n: 2, minN: 5, tone: "warn" }).props.className,
+    "figure is-thin is-warn",
+    "thin first, then the tone",
+  );
+  assert.equal(
+    tone({ tone: "fail", className: "rpt-cell" }).props.className,
+    "figure is-fail rpt-cell",
+    "the page's layout class stays last",
+  );
+  assert.deepEqual(rows({ tone: "warn", change: "up from 2" }), ["figure-label", "figure-value"], "a tone adds no row");
 });
 
 /**
