@@ -402,6 +402,8 @@
     "00397_a_member_says_what_became_of_a_visit.sql": "a55a9b3c7b23973b9ab64cf5d672c0084398e629ef5a01691ee81405f92aa9de",
     "00398_an_idea_for_a_search_is_written_from_what_searches_found.sql": "6984bf02a866f283fe4d7fc8cdc990d0050042e1d216daaee696ed734ab44d3d",
     "00399_an_idea_is_judged_with_the_clock_and_kept_only_by_its_claim.sql": "bcbcf26962c044529d9e9fc741ee6ef79fbdc700a70379ab099daad7484061d0",
-    "00400_the_ideas_are_written_through_one_door_which_keeps_their_event.sql": "212c29ef6a932e926a2cb418029f6c8fa056d33226229ec7254ef22f12980ebc"
+    "00400_the_ideas_are_written_through_one_door_which_keeps_their_event.sql": "212c29ef6a932e926a2cb418029f6c8fa056d33226229ec7254ef22f12980ebc",
+    "00401_a_reply_keeps_what_the_receptionist_was_told.sql": "edb76da1403ad24ea8887bd0b6ad27192e8ad6fdaf7dd90427ecef81f9944b48",
+    "00402_a_settings_change_keeps_what_the_settings_said.sql": "a1024754150f10b2933709d125d00d1b3ca15ef5e02c8e754d297e4fef45b431"
   }
 }

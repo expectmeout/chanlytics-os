@@ -50,6 +50,9 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
   // 00340 added 'purge_idempotency_keys', the nightly purge of the keys writes were answered under, a day on.
   // 00392 added 'purge_google_reviews' and 'purge_invitations', the nightly purges of a review the mirror has not seen
   // for its days and of an invitation closed a month.
+  // 00401 added 'purge_model_turns', the nightly purge of the receptionist's kept turns, thirty days on, and of the
+  // prompts no turn has read for 400.
+  // 00402 added 'purge_config_versions', the nightly purge of a workspace's settings 400 days after a version is replaced.
   assert.deepEqual(
     data.map((r) => r.sweep),
     [
@@ -70,6 +73,7 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
       "platform_metrics_roll",
       "playbooks",
       "purge_ask",
+      "purge_config_versions",
       "purge_cron_history",
       "purge_events",
       "purge_google_reviews",
@@ -77,6 +81,7 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
       "purge_invitations",
       "purge_jobs",
       "purge_leads",
+      "purge_model_turns",
       "purge_notifications",
       "purge_page_vitals",
       "purge_provider_events",
@@ -148,6 +153,7 @@ test("an unexpected sweep name cannot be added behind sweep_health()'s back", { 
     "platform_metrics_roll",
     "playbooks",
     "purge_ask",
+    "purge_config_versions",
     "purge_cron_history",
     "purge_events",
     "purge_google_reviews",
@@ -155,6 +161,7 @@ test("an unexpected sweep name cannot be added behind sweep_health()'s back", { 
     "purge_invitations",
     "purge_jobs",
     "purge_leads",
+    "purge_model_turns",
     "purge_notifications",
     "purge_page_vitals",
     "purge_provider_events",

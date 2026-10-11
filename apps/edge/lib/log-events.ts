@@ -275,6 +275,7 @@ export const LOG_EVENTS = [
   "media_too_large_after_read",
   "model_failures_unpageable",
   "model_failures_unreadable",
+  "model_turn_write_failed",
   "notes_candidates_failed",
   "notes_looked",
   "notes_model_failed",

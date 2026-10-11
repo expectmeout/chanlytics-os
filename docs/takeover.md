@@ -51,7 +51,7 @@ doors importing db or channels        0   imports in 0 files
 unnamed durations                    63   in 33 files
 event-shaped clocks                   5   of the registered clocks (invariant 6)
 tables with more than one writer     57   388 writers among them
-doors writing a record with no event   68   writing 77 tables (invariant 2)
+doors writing a record with no event   70   writing 80 tables (invariant 2)
 personal columns with no erasure strategy    2   in 1 table
 breakpoints outside the set          33   in 11 files
 literal style values                915   in 22 stylesheets

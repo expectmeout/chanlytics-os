@@ -14,6 +14,7 @@ export { activityTone } from "./activity/tones";
 export { DATA_NOT_INSTRUCTIONS, PROFILE_NAME_MAX, fenceActed, fenced, fencedInline, injectionQuestion, promptSafeName } from "./ai/fence";
 export { FLAGS, FLAG_MECHANISMS, daysToSunset } from "./ai/flags";
 export { MODELS, MODEL_IDS, MODEL_EFFORTS, MODEL_PURPOSES, MODEL_ROUTES, MODEL_PORTS, RETELL_MODELS, modelRoute, fallbackModel, shadowPortOf, isModelId, readsAsModel } from "./ai/models";
+export { MODEL_TURN_WRITE_MS, modelTurnRequestOf, modelTurnResponseOf } from "./ai/turn";
 export { MODEL_PRICES, MODEL_CALL_OUTCOMES, NO_USAGE, priceOf, usageDollars, usageTokens, usageOf, aiUsageBodyOf, usageMonthOf } from "./ai/usage";
 export { RUN_VERBS, PLAYBOOK_CARD_REFUSALS, proposalChannelsWords } from "./ask-proposals/campaigns";
 export { ASK_THREAD_ROUTES } from "./ask-proposals/inbox";

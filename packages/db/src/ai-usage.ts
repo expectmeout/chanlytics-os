@@ -13,10 +13,25 @@
  *   purgeAiUsage          the rows past their keep (ai_usage_purge).
  *   usageMonth            a workspace's month of metered use by meter, purpose and model (ai_usage_month), on the
  *                         caller's client: RLS decides whose rows it sums.
+ *
+ * And what a row of it names (decision 0039; 00401 model_prompts, model_turns):
+ *
+ *   keepModelTurn         one receptionist turn as the model read it, and the text of the prompt it read, in one
+ *                         write (model_turn_keep). A write that fails throws; the model port logs it and keeps the answer.
+ *   scrubModelTurns       an erasure's hand (model_turns_scrub): the workspace's kept turns that name the person.
+ *
+ * The turns' two clocks are the database's own (purge_model_turns and purge_model_prompts, nightly on one registered
+ * job), so nothing here runs them.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { mayUseModels, RETENTION_DAYS } from "@chanlytics/contracts";
-import type { AiUsageBody, BillingMode, BillingStatus } from "@chanlytics/contracts";
+import type {
+  AiUsageBody,
+  BillingMode,
+  BillingStatus,
+  ModelTurnRequest,
+  ModelTurnResponse,
+} from "@chanlytics/contracts";
 import type { Database } from "./database.types";
 
 type Db = SupabaseClient<Database>;
@@ -61,6 +76,45 @@ export async function purgeAiUsage(db: Db): Promise<number> {
   const { data, error } = await db.rpc("ai_usage_purge", { p_keep: `${RETENTION_DAYS.ai_usage} days` });
   if (error) throw new Error(`ai_usage_purge: ${error.message}`);
   return Number(data) || 0;
+}
+
+/** One turn to keep: the conversation it was about, the prompt it read, and the two records of it. */
+export interface ModelTurnKept {
+  /** The model port's own id for the turn: what the reply's meta names it by. */
+  turnId: string;
+  tenantId: string;
+  conversationId: string;
+  promptHash: string;
+  promptText: string;
+  request: ModelTurnRequest;
+  /** Null where no answer came. */
+  response: ModelTurnResponse | null;
+  model: string | null;
+  latencyMs: number | null;
+}
+
+export async function keepModelTurn(db: Db, turn: ModelTurnKept): Promise<void> {
+  const { error } = await db.rpc("model_turn_keep", {
+    p_tenant_id: turn.tenantId,
+    p_turn_id: turn.turnId,
+    p_conversation_id: turn.conversationId,
+    p_prompt_hash: turn.promptHash,
+    p_prompt_text: turn.promptText,
+    p_request: turn.request,
+    ...(turn.response ? { p_response: turn.response } : {}),
+    ...(turn.model ? { p_model: turn.model } : {}),
+    ...(turn.latencyMs === null ? {} : { p_latency_ms: Math.max(0, Math.round(turn.latencyMs)) }),
+  });
+  if (error) throw new Error(`model_turn_keep: ${error.message}`);
+}
+
+/** An erasure's hand: the workspace's kept turns that name any of the person's identifiers, deleted; how many went. */
+export async function scrubModelTurns(db: Db, tenantId: string, needles: readonly string[]): Promise<number> {
+  const { data, error } = await db.rpc("model_turns_scrub", { p_tenant_id: tenantId, p_needles: [...needles] });
+  // A database before 00401 keeps no turn, so nothing is there to scrub: the dashboard may deploy first (either order).
+  if (error && (error.code === "PGRST202" || error.code === "42883")) return 0;
+  if (error) throw new Error(`model_turns_scrub: ${error.message}`);
+  return data ?? 0;
 }
 
 export interface UsageMonthRow {
