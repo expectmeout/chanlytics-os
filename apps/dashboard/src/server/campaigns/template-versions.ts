@@ -55,6 +55,9 @@ type Db = Pick<RouteContext, "supabase">;
 /** The session a version is written on, and the member it is written as (the first version of a message is the service role's, naming them). */
 type Acting = Pick<RouteContext, "supabase" | "userId">;
 
+/** A message's values as the routes that take them say them: numbered 1, 2, 3 in order, each with a name. */
+export const MESSAGE_VALUES_WORDS = "Give each value a number, in order from 1, and a name.";
+
 /** What a message is, said with its first version when the workspace has no row of its name (POST templates/versions). */
 interface NewMessage {
   category: "marketing" | "utility";
@@ -207,6 +210,26 @@ export async function saveVersion(ctx: RouteContext, member: Member, v: VersionR
     throw new AppError("validation", "Pick a language from the list.");
   const held = await messageSlots(ctx.supabase, member.tenantId, v.name, v.language);
   return writeOrBegin(ctx, member.tenantId, v, held);
+}
+
+/**
+ * POST templates/message: one email or text version of a message written whole (write-message.ts), which says what the
+ * message is (its category and values) with every version at once. Beside the rows its message has, where the workspace
+ * holds any of its name (writeVersion: the message's own slots and category), else as its first (beginMessage: the
+ * category and values said, a text of an offer refused). The words are checked here as everywhere (checkedWords).
+ * Unlike a member's first version (beginVersion), no starter's name reaches here (the caller refuses one) and a utility
+ * category is filed as it is said, its WhatsApp version, where it has one, going to Meta's review after it.
+ */
+export async function fileWrittenVersion(
+  db: Acting,
+  tenantId: string,
+  v: VersionRequest,
+  message: { category: "marketing" | "utility"; variables: MessageVariable[] },
+): Promise<VersionSaved> {
+  const held = await messageSlots(db.supabase, tenantId, v.name, v.language);
+  if (held !== null) return writeVersion(db, tenantId, v, held);
+  const words = checkedWords(v, message.variables.length);
+  return beginMessage(db.userId, tenantId, v, words, { ...message, title: null });
 }
 
 /** DELETE templates/versions/:id: an email or text version a member wrote, and nothing else (the door says which rows). */

@@ -1537,6 +1537,13 @@
       "rate": "ask",
       "spend": false
     },
+    "POST templates/message": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "settings",
+      "spend": false
+    },
     "GET templates": {
       "kind": "read",
       "scope": "workspace",
