@@ -25878,8 +25878,8 @@ declare const LIFECYCLE_WORDS: {
              * tomorrow"): the moment said as the people it names, in the workspace's word for an appointment.
              */
             readonly who: (trigger: string, word: AppointmentWord) => string;
-            /** Who it reaches now: "All 6 can hear it", "2 of 6 can hear it". */
-            readonly hear: (will: number, pool: number) => string;
+            /** Who it reaches now: "All 6 can hear it", "2 of 6 can hear it"; "2 can hear it" where nobody counted the pool. */
+            readonly hear: (will: number, pool: number | null) => string;
             /** Nobody the moment names yet: "Nobody with an appointment tomorrow right now". */
             readonly nobody: (of: string) => string;
             /** What happens next, before it is saved ("First run today at 10:00 AM"), or for one that runs ("Next run …"). */

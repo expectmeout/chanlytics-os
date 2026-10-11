@@ -267,7 +267,8 @@ function bcReach(v: BcV) {
   return (
     <CmReachLine
       will={activeCount}
-      pool={activeCount + held}
+      // A list read before its people were kept has no pool to say: the count alone, never "All".
+      pool={sample ? activeCount + held : null}
       of={`on “${active.label}”`}
       first={first}
       by={reachBy}

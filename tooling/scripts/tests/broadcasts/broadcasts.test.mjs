@@ -969,7 +969,7 @@ test("the detail: every person on a broadcast, with what happened to them; the s
     "a number that may send, an audience inside its limit: the button is live",
   );
   const flagged = numberOn(numberHealth({ quality: "GREEN", event: "FLAGGED", limit: "TIER_1K" }));
-  assert.ok(textOf(byTestId(flagged, "bc-number-refusal")).includes("flagged"), "why it may not send");
+  assert.ok(textOf(byTestId(flagged, "bc-number")).includes("flagged"), "why it may not send, over the sentence");
   assert.equal(send(flagged).props.disabled, true, "the button follows the number");
   const big = audienceOf("s-regulars", "Regulars", { conversational: 300, marketing: 300 });
   const over = numberOn(numberHealth({ quality: "GREEN", event: null, limit: "TIER_250" }), { audiences: [big] });

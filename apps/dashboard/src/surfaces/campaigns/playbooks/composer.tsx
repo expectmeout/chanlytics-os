@@ -122,7 +122,7 @@ function sheetFoot(p: {
  * over it, the sentence, who it reaches now under it, the message as its person reads it, and when it first runs. It
  * stood as five rows of a word and a section each (To, Send by, Says, When, Rules).
  */
-function sheetBody(x: SectionCtx) {
+function composerBody(x: SectionCtx) {
   return (
     <div className="pb-compose cm-sentence">
       {overSentence(x)}
@@ -263,7 +263,7 @@ export function PlaybookComposer({ data, editing, initialTrigger = null, onTrigg
       closeLabel="Cancel"
       foot={sheetFoot({ x, work, editing, busy, error, turnOn })}
     >
-      {sheetBody(x)}
+      {composerBody(x)}
     </CmPane>
   );
 }

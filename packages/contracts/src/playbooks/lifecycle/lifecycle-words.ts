@@ -145,9 +145,13 @@ export const LIFECYCLE_WORDS = {
         if (trigger === "saved_list") return "everyone on a list";
         return (triggerOf(trigger)?.label ?? "").toLowerCase();
       },
-      /** Who it reaches now: "All 6 can hear it", "2 of 6 can hear it". */
-      hear: (will: number, pool: number): string =>
-        will > 0 && will === pool ? `All ${will} can hear it` : `${will} of ${pool} can hear it`,
+      /** Who it reaches now: "All 6 can hear it", "2 of 6 can hear it"; "2 can hear it" where nobody counted the pool. */
+      hear: (will: number, pool: number | null): string =>
+        pool === null
+          ? `${will} can hear it`
+          : will > 0 && will === pool
+            ? `All ${will} can hear it`
+            : `${will} of ${pool} can hear it`,
       /** Nobody the moment names yet: "Nobody with an appointment tomorrow right now". */
       nobody: (of: string): string => `Nobody ${of} right now`,
       /** What happens next, before it is saved ("First run today at 10:00 AM"), or for one that runs ("Next run …"). */

@@ -368,14 +368,22 @@ function sentenceArchived(c: CardCtx) {
  * that mends a run reaching nobody; or why it runs nothing (off, its list archived, paused).
  */
 function nextWords(c: CardCtx): ReactNode {
-  const { p, reachWords, reachDoor } = c;
+  const { p, trig, reachWords, reachDoor } = c;
   if (p.listArchived) return sentenceArchived(c);
   if (p.state === "paused") return <>Paused &mdash; nothing runs until you resume it</>;
+  // Who the run reaches now, as many as one run takes (a visit's moment has no cap), and who waits out the week: said
+  // where the moment was counted, where the drawer's Who line said it (Ruben, 11 Oct 2026: the line is the sentence now).
+  const now = p.candidates ?? 0;
+  const waits = p.held ?? 0;
+  const counted = p.candidates !== null && p.held !== null && !p.totals.waiting;
+  const reaches = counted && now > 0 ? (trig && trig.kind === "visit" ? now : Math.min(now, p.cap_per_run)) : 0;
   return (
     <>
       {LIFECYCLE_WORDS.compose.sentence.nextRun("")}
       <b>{LIFECYCLE_WORDS.compose.sentence.at(p.next)}</b>
+      {reaches > 0 ? <> &middot; {pbPeople(reaches)}</> : null}
       {reachWords ? <> &middot; {reachWords}</> : null}
+      {reaches > 0 && waits > 0 ? <> &middot; {pbPeople(waits)} more wait this week</> : null}
       {reachDoor ? (
         <>
           {" "}

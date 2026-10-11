@@ -135,7 +135,8 @@ export function CmReach({
 
 interface CmReachLineProps {
   will: number;
-  pool: number;
+  /** Out of how many, or null where nobody counted them (a send's list read before its people were): the count alone. */
+  pool: number | null;
   /** What the pool is, where nobody is in it: "Nobody with an appointment tomorrow right now". */
   of?: string | null;
   held?: number;
@@ -179,9 +180,9 @@ export function CmReachLine({
   testid,
 }: CmReachLineProps) {
   const S = LIFECYCLE_WORDS.compose.sentence;
-  const total = Math.max(pool, will + held);
+  const total = pool === null ? null : Math.max(pool, will + held);
   const lead = first ?? reasons[0]?.t ?? null;
-  const tone = reachTone(will, total, lead ? 1 : 0);
+  const tone = reachTone(will, total ?? will, lead ? 1 : 0);
   const said = total === 0 ? S.nobody(of ?? "") : S.hear(will, total);
   const more = reasons.length > 0 || !!by || !!allowance || !!guard || !!box;
   const line = (

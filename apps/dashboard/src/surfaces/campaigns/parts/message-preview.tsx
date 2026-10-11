@@ -35,6 +35,7 @@ import type { ReactNode } from "react";
 import { PREVIEW_WORDS, personInitials } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
 import { Button } from "../../kit/button/button";
+import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { cx } from "../../kit/variants";
 
@@ -167,9 +168,9 @@ function bubbleLabel(m: {
   return `Preview — ${from || "your business"} sends: ${header ? `${header}. ` : ""}${words}${footer ? `. ${footer}` : ""}${rows.length ? `. Buttons: ${rows.map((b) => b.text).join(", ")}` : ""}`;
 }
 
-/** Where the person reads it, a quiet label over the preview; none over a bare one, whose walk says it. */
-function mpVia(via: string | null, bare: boolean | undefined) {
-  return via && !bare ? (
+/** Where the person reads it, a quiet label over the preview ("By email"). */
+function mpVia(via: string | null) {
+  return via ? (
     <span className="mp-via" data-testid="mp-via">
       {via}
     </span>
@@ -383,7 +384,7 @@ export function MessagePreview({
       className={cx("mp", compact && "mp-compact", held && "mp-held", bare && "mp-bare")}
       data-testid={testid || "message-preview"}
     >
-      {mpVia(via, bare)}
+      {mpVia(via)}
       {mail ? (
         <MailFrame
           bare={!!bare}
@@ -467,11 +468,7 @@ export function PreviewStepper({
     <>
       <div className="mp-step" data-testid="mp-step">
         <span className="mp-step-who">
-          {person ? (
-            <span className="mp-step-initials" aria-hidden="true">
-              {mpInitials(p.label)}
-            </span>
-          ) : null}
+          {person ? <Face initials={mpInitials(p.label)} size="sm" /> : null}
           <span className="mp-step-name">{p.label}</span>
           <span className="mp-step-pos tabular">{p.position}</span>
         </span>

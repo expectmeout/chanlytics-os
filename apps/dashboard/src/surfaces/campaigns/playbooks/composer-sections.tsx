@@ -135,7 +135,8 @@ function momentPicker(x: SectionCtx) {
 /** Which list it runs on: one of People's, or one of the workspace's own, and where there is none, the way to make one. */
 function listPicker(x: SectionCtx) {
   const { f, lists, list, setListId } = x;
-  if (lists.length === 0) return null;
+  // No list kept yet: the sentence says "a list", and the line over it says where one is made (overSentence).
+  if (lists.length === 0) return <>a list</>;
   return (
     <Picker
       label="The list it runs on"
@@ -320,7 +321,8 @@ function calendarWarning(x: SectionCtx) {
     "calendar",
     W.words,
     <LinkButton className="cm-callout-door" {...routeDoor(W.door.to)} data-testid="pb-calendar-door">
-      {W.door.label} <Icon name="chevron" size={11} />
+      {W.door.label}
+      <Icon name="chevron" size={11} />
     </LinkButton>,
   );
 }
@@ -336,7 +338,8 @@ function numberWarning(x: SectionCtx) {
   const W = LIFECYCLE_WORDS.compose.number;
   const door = (
     <LinkButton className="cm-callout-door" {...routeDoor(W.door.to)} data-testid="pb-number-door">
-      {W.door.label} <Icon name="chevron" size={11} />
+      {W.door.label}
+      <Icon name="chevron" size={11} />
     </LinkButton>
   );
   if (data.number.present && !data.number.health.canSend)
@@ -345,11 +348,23 @@ function numberWarning(x: SectionCtx) {
   return data.number.present || cmNothingOpen(data.ready) ? null : callout("pb-number", "chat", W.words, door);
 }
 
+/** A playbook on a list where the workspace keeps none yet: where one is made. */
+function noListsWarning(x: SectionCtx) {
+  if (!x.onList || x.lists.length > 0) return null;
+  return callout(
+    "pb-no-lists",
+    "filter",
+    "Keep a list on People first — by hand, or describe who and it keeps itself current.",
+    null,
+  );
+}
+
 /** What stands over the sentence: the moment's other campaigns, and what keeps a run from sending. */
 export function overSentence(x: SectionCtx) {
   return (
     <>
       {momentHolds(x)}
+      {noListsWarning(x)}
       {calendarWarning(x)}
       {numberWarning(x)}
     </>
@@ -409,8 +424,9 @@ function starterLine(x: SectionCtx) {
 export function starterToAdd(
   x: SectionCtx,
 ): { title: string; body: string; footer: string | null; values: string[] } | null {
-  const { templatesRead, starter, starterGroup, starterAny, canEdit } = x;
-  if (!(templatesRead && canEdit && starter && !starterGroup && !starterAny)) return null;
+  const { templatesRead, starter, starterGroup, starterAny, canEdit, editingId } = x;
+  // A new campaign's alone: one being changed whose message is gone says so, and is never moved to another behind its back.
+  if (!(templatesRead && canEdit && editingId === null && starter && !starterGroup && !starterAny)) return null;
   const text = starter.texts.en_US ?? Object.values(starter.texts)[0];
   if (!text) return null;
   return {
@@ -643,6 +659,8 @@ export function messageSection(x: SectionCtx) {
               slot={vars.length > 0 ? slotOf(x, tpl) : null}
               bare
               {...preview}
+              // The walk over the bubble is the channels: it names the one in view, so no label over it says it again.
+              via={null}
             >
               <PreviewStepper
                 people={steps.map((step) => ({ label: step.label, position: step.position }))}

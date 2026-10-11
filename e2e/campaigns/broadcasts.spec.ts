@@ -83,10 +83,10 @@ test.describe("Broadcasts on a real workspace", () => {
 
     const composer = await openComposer(page);
 
-    // Audiences: the list is a token in the To sentence, on Everyone (contracts EVERYONE_LABEL) unless a link named one,
-    // and the sentence says how many of what it holds can hear the message.
+    // Audiences: the list is a word of the send's sentence, on Everyone (contracts EVERYONE_LABEL) unless a link named one,
+    // and the line under it says how many of what it holds can hear the message (or that nobody is on it).
     await expect(composer.getByTestId("bc-audience")).toContainText(EVERYONE_LABEL);
-    await expect(composer.getByTestId("bc-who-count")).toContainText("can hear it");
+    await expect(composer.getByTestId("bc-reach")).toContainText(/can hear it|Nobody/);
 
     // Messages: one option per message the page can send, by contracts' own rules over what the route answers
     // (messagesOffered: its `messages`, which the page lists from, and which hold a message's WhatsApp version's
@@ -120,11 +120,13 @@ test.describe("Broadcasts on a real workspace", () => {
     // credentials, and a workspace ready on nothing opens ticked on WhatsApp, so its tick is off and the line stands. The
     // composer opens on the first channel the workspace can send on and the message holds, so a message written for email
     // alone opens on Email, with no number to say.
+    // The channels are a word of the sentence ("by [WhatsApp or Email]"); a healthy number is said where the send's time is.
     const number = composer.getByTestId("bc-number");
-    if ((await composer.getByTestId("bc-via-whatsapp").getAttribute("data-on")) === "true") {
+    if ((await composer.getByTestId("bc-via-word").innerText()).includes("WhatsApp")) {
       await expect(number).toBeVisible();
-      await expect(number).toContainText(/quality|No WhatsApp number/);
-    } else if ((await number.count()) > 0) await expect(number).toContainText(/quality|No WhatsApp number/);
+      await expect(number).toContainText(/quality|No WhatsApp number|From WhatsApp/);
+    } else if ((await number.count()) > 0)
+      await expect(number).toContainText(/quality|No WhatsApp number|From WhatsApp/);
 
     const words = await composer.innerText();
     for (const s of INVENTED) expect(words, `invented in the composer: "${s}"`).not.toContain(s);

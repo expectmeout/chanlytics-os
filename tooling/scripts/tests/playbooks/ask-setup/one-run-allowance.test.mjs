@@ -72,8 +72,8 @@ const { surfaceValue } = await import(at(`${SRC}/surfaces/surface-values.ts`));
 const { composerModel, composerOffered, composerOpened } = await import(
   at(`${SRC}/surfaces/campaigns/playbooks/composer-model.ts`)
 );
-const { whoSection } = await import(at(`${SRC}/surfaces/campaigns/playbooks/composer-sections.tsx`));
-const { CmWho } = await import(at(`${SRC}/surfaces/campaigns/parts/reach.tsx`));
+const { reachLine } = await import(at(`${SRC}/surfaces/campaigns/playbooks/composer-sections.tsx`));
+const { CmReachLine } = await import(at(`${SRC}/surfaces/campaigns/parts/reach.tsx`));
 
 /** The month's offer (marketing), with an email version: an offer by email, which the month's allowance meters. */
 const OFFER = "dddddddd-dddd-4ddd-8ddd-ddddddddddd2";
@@ -267,7 +267,7 @@ async function worldOf({ db = {}, emailsSent = 0, answer = (x) => x } = {}) {
   return { ctx, pb, data: surfaceValue("playbooks") };
 }
 
-/** The composer on the month's offer, by WhatsApp and email, at a cap: what its view model makes, and what its To row says. */
+/** The composer on the month's offer, by WhatsApp and email, at a cap: what its view model makes, and what its reach line says. */
 function composer(data, cap) {
   const f = {
     ...composerOpened(null, MOMENT, data),
@@ -289,7 +289,8 @@ function composer(data, cap) {
   const x = { ...model, data, f, editingId: null, editingTemplateName: null, canEdit: true, adding: false, who: 0 };
   for (const k of ["setHour", "setCap", "setGap", "setCadence", "setListId", "setCls", "setChannels", "setFills"])
     x[k] = none;
-  const who = find(whoSection(x), (n) => n.type === CmWho);
+  // The reach line under the composer's sentence (Ruben, 11 Oct 2026), which holds the allowance behind it.
+  const who = find(reachLine(x), (n) => n.type === CmReachLine);
   return { model, allowance: who ? (who.props.allowance ?? null) : undefined };
 }
 

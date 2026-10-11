@@ -7,7 +7,7 @@
  * It stood as five lines of a word and a fact each (Next run, Who, When, Goes by, Rules). Apart from card-detail.tsx, which
  * draws the rest of the drawer and holds its verbs.
  */
-import { LIFECYCLE_WORDS, PLAYBOOK_CAP_CHOICES, triggerOf } from "@chanlytics/contracts";
+import { LIFECYCLE_WORDS, PLAYBOOK_CAP_CHOICES, appointmentWords, triggerOf } from "@chanlytics/contracts";
 import type { AppointmentWord, ConsentChannel, LifecycleSentence } from "@chanlytics/contracts";
 import { navigate } from "../../legacy-verbs";
 import { Picker, Token } from "../../kit/picker/picker";
@@ -120,12 +120,25 @@ function gapWord({ p, canAct, busy, onChange }: CardSentenceProps) {
   );
 }
 
+/** What the people's word says of them on a hover: who they are counted from, and where a press opens them. */
+function whoTip(kind: string | undefined, word: AppointmentWord): string {
+  if (kind === "visit")
+    return `Everyone with a recorded yes — the day's ${appointmentWords(word).many} are picked from them · click to open them in People`;
+  if (kind === "deal")
+    return "The proposals waiting with nothing back — before their links, their follow-ups and the week's breath · click to open them in the Pipeline";
+  return "The list this campaign watches — before the gap and the week's breath · click to open it in People";
+}
+
 /** Who it goes to, the word that opens them: a moment's people, a list by its name. */
 function whoWord({ p, word, listRoute }: CardSentenceProps) {
   const S = LIFECYCLE_WORDS.compose.sentence;
   const who = p.trigger === "saved_list" ? `everyone on ${p.triggerLabel}` : S.who(p.trigger, word);
   return (
-    <Token onClick={() => navigate(listRoute)} data-testid="pb-audience">
+    <Token
+      onClick={() => navigate(listRoute)}
+      data-tip={whoTip(triggerOf(p.trigger)?.kind, word)}
+      data-testid="pb-audience"
+    >
       {who}
     </Token>
   );

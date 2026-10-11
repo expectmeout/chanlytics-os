@@ -460,17 +460,18 @@ test("the playbook composer keeps what was typed in the tab, opens again on it, 
   assert.equal(tabClosing(), false, "gone from the page, it holds the tab no longer");
   tree = composer();
   assert.equal(byTestId(tree, "pb-name").props.value, "Sunday quiet", "on the words that were typed");
-  assert.ok(faceOf(tree, "pb-moment").includes("Welcome"), "the draft's moment: the first one nothing is doing yet");
+  assert.equal(
+    pickerOf(tree, "pb-moment").props.value,
+    "new_week",
+    "the draft's moment: the first one nothing is doing yet",
+  );
 
   // A moment's Turn on pressed while a new playbook is half-written: the composer opens on THAT moment (the sheet keys the
   // composer by the moment, so React mounts it anew), with the words kept. Drawn on its own: the stub keeps one set of
   // cells whatever the key.
   unmount();
   const pressed = composer({ initialTrigger: "phoned_only" });
-  assert.ok(
-    faceOf(pressed, "pb-moment").includes(contracts.triggerOf("phoned_only").label),
-    "the moment pressed wins over the draft's",
-  );
+  assert.equal(pickerOf(pressed, "pb-moment").props.value, "phoned_only", "the moment pressed wins over the draft's");
   assert.equal(byTestId(pressed, "pb-name").props.value, "Sunday quiet", "and the words stay");
   unmount();
   tree = composer();
@@ -724,7 +725,7 @@ test("the send screen keeps its words -- a name, a typed value, a picked time --
   press(byTestId(tree, "bc-leave-no"));
   tree = redraw(page);
   assert.ok(byTestId(tree, "bc-compose-close"));
-  assert.ok(byTestId(tree, "bc-send"), "and the send's acts are back");
+  assert.ok(byTestId(tree, "bc-schedule"), "and the send's one act is back: Schedule, since a time is picked");
   assert.equal(typedSlots(tree)[0].props.typed, "20% off colour");
 
   // Left and come back to: the send screen, on the same list, with the same words.
