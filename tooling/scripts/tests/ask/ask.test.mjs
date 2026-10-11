@@ -1917,6 +1917,21 @@ test("the rules know the plan and the message (the marketing manager's §5.7): a
   // The two actions the rules name are propose_campaign's, as the API is told them.
   const campaign = ACT_TOOLS.find((t) => t.name === "propose_campaign");
   for (const action of ["Action plan ", "Action message "]) assert.ok(campaign.description.includes(action), action);
+  // 11 Oct 2026 (Task 19's review): the tools' words the model reads beside the rules agree with them. propose_campaign's
+  // tail sends an offer, a promotion or a whole setup to the plan before it names any action that builds one step, and
+  // the journey read says what it reports and that a whole setup or an offer is the plan's, never assembled from it.
+  const tail =
+    "For an offer, a promotion or a whole setup, call action plan once with the intent and leave its steps to it, never the actions below one by one.";
+  assert.ok(campaign.description.includes(tail), campaign.description);
+  assert.ok(campaign.description.indexOf(tail) < campaign.description.indexOf("call action broadcast for one message"));
+  const journey = READ_TOOLS.find((t) => t.name === "campaigns").description;
+  assert.ok(
+    journey.includes(
+      "A whole setup or an offer is one call of propose_campaign with action plan, which reads the journey itself and makes the steps, never a campaign proposed stage by stage from this read",
+    ),
+    journey,
+  );
+  assert.ok(!journey.includes("then propose one for an uncovered stage"), "the hand-assembled setup is gone");
   // On Campaigns, where a sentence is a campaign to propose, an offer, a promotion or a whole setup is the plan first.
   const w = turnWords({
     role: "owner",

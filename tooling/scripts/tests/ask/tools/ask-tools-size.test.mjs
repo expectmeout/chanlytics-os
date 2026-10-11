@@ -1,7 +1,8 @@
 /**
  * The size of Ask's tools block, per role: what the model is sent beside every question, in characters of
  * `JSON.stringify(toApiTools(role, true))`, the examples in. The owner's, the largest, was 50,153 on 27 September,
- * 57,761 on 10 October and 66,050 on 11 October 2026 (propose_campaign's plan); a change that adds actions states the
+ * 57,761 on 10 October and 66,050 on 11 October 2026 (propose_campaign's plan), then 66,440 the same day (the journey's
+ * words and propose_campaign's tail point an offer or a whole setup at the plan); a change that adds actions states the
  * growth in its pull request from the lines this
  * prints, and every role is held under contracts' ASK_TOOLS_CHARS_CEILING. The real registry is built, as
  * ../ask-registry.test.mjs builds it.
