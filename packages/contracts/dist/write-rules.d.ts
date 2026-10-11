@@ -89,6 +89,7 @@ declare const TenantConfigWriteSchema: z.ZodPipe<z.ZodUnknown, z.ZodObject<{
     }, z.core.$strip>>;
     features: z.ZodOptional<z.ZodObject<{
         vision: z.ZodOptional<z.ZodBoolean>;
+        ads_preview: z.ZodOptional<z.ZodBoolean>;
     }, z.core.$strip>>;
 }, z.core.$strip>>;
 

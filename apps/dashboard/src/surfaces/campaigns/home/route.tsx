@@ -8,10 +8,10 @@
 import { Suspense, lazy } from "react";
 import { usePathname } from "next/navigation";
 import { isAdsParam, routeOfPath } from "@chanlytics/contracts";
-import { demoSession } from "../../legacy-verbs";
+import { useAdsShown } from "../ads/shown";
 import { CampaignsHome } from "./home-page";
 
-// The Ads view is a page of its own: its code is its own chunk, fetched only when an Ads address is opened in a demo session.
+// The Ads view is a page of its own: its code is its own chunk, fetched only when an Ads address is opened where Ads is drawn.
 const AdsPage = lazy(() => import("../ads/ads-page").then((m) => ({ default: m.AdsPage })));
 
 /** What stands where the Ads page will be while its chunk loads: the page's own box, quiet, so the pane keeps its height. */
@@ -23,9 +23,10 @@ export function CampaignsRoute() {
   const route = routeOfPath(usePathname()) ?? "campaigns";
   // The route's second word, as the shell reads its param (`campaigns/moment:pb-1/x` names moment:pb-1).
   const param = route.split("/")[1] || null;
-  // `campaigns/ads…` is the Ads view, a page of its own on a mount of its own (routes.ts adsChrome), in a demo session only:
-  // a real workspace has no ads to read yet, so an Ads address is the home.
-  if (param && isAdsParam(param) && demoSession()) {
+  const adsShown = useAdsShown();
+  // `campaigns/ads…` is the Ads view, a page of its own on a mount of its own (routes.ts adsChrome), in a demo session or a
+  // workspace whose Ads preview is on (ads/shown.ts) only: any other has no ads to read yet, so an Ads address is the home.
+  if (param && isAdsParam(param) && adsShown) {
     return (
       <Suspense fallback={<AdsReading />}>
         <AdsPage param={param} />
