@@ -29,6 +29,10 @@ var HELD_REASONS = {
   sms_line_not_active: "the texting line is not active",
   // The workspace's month of emails or texts is used up (CAMPAIGN_MONTH_ALLOWANCE): held on its channel, never moved.
   month_allowance: "this month's allowance is used up",
+  // A send by hand skipped them at enrolment: they heard from a campaign or a broadcast that week (the week's breath).
+  // Spelled out rather than computed from RECIPIENT_REASON_HEARD, as outcome_unknown is below; run-report.test.mjs
+  // holds the two spellings together.
+  heard_this_week: "waited a week: heard from you this week",
   // The message's WhatsApp version is no longer one a send can use: it holds the people who go by WhatsApp, and only them.
   template_not_approved: "its WhatsApp version is no longer approved",
   // The number is on file but no thread answers to it on this line: a stored

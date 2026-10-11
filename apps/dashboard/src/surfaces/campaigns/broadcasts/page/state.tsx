@@ -91,7 +91,7 @@ export function useUnknownAudienceNotice(
 }
 
 // The words of the send, kept or fresh: the values typed into its slots and what fills each, the template it writes
-// here, its name, its time, and whether it is on its way.
+// here, its name, its time, whether it is on its way, and whether it goes to whoever heard this week too.
 export function useBcWords(kept: BcKept | null) {
   const [params, setParams] = useState<Params>((kept && kept.params) || {});
   const [sources, setSources] = useState<Sources>((kept && kept.sources) || {});
@@ -102,6 +102,10 @@ export function useBcWords(kept: BcKept | null) {
     kept && kept.whenAt !== null && kept.whenAt !== undefined ? kept.whenAt : null,
   );
   const [busy, setBusy] = useState(false);
+  // The switch that sends to whoever heard from a campaign or a broadcast this week too, kept as the send it was switched on
+  // for (reach.ts bcSendKey): on any other message, list or channels it is off, as it is once the send is cleared, and the
+  // send waits a week for them, as the route does unless told otherwise. A choice, never kept in the tab.
+  const [heardTooFor, setHeardTooFor] = useState<string | null>(null);
   // The words of the send -- a name, a value typed into a slot, a time picked -- are what is kept and what Cancel asks
   // about; the list and the message are choices, and a choice alone keeps nothing. Sent, or thrown away, they clear.
   const wrote =
@@ -113,6 +117,7 @@ export function useBcWords(kept: BcKept | null) {
     setWhenAt(null);
     setParams({});
     setSources({});
+    setHeardTooFor(null);
   };
   return {
     params,
@@ -127,6 +132,8 @@ export function useBcWords(kept: BcKept | null) {
     setWhenAt,
     busy,
     setBusy,
+    heardTooFor,
+    setHeardTooFor,
     wrote,
     clearWords,
   };

@@ -1,3 +1,4 @@
+import { RECIPIENT_REASON_HEARD } from "@chanlytics/contracts";
 import { errField, logger } from "@chanlytics/channels";
 import { MONTH_ALLOWANCE_REASON } from "./allowance";
 import type { AssembleCommand, AssemblePorts, Assembled, AssembledRun } from "./ports";
@@ -15,11 +16,13 @@ const assembleLog = logger();
  * answered with a 500 that a person presses again. The caller decides what a failure means to whoever asked: the
  * sweep counts it, a person is told.
  *
- * Whom the month's allowance already holds (`cmd.held`) is written as held once the run exists, not before: the run's
- * people are enrolled whole and the held are skipped in their own write, so a write that fails leaves them queued and
- * the send holds them at the wire (overAllowance), which is the backstop. It never fails the run, but it is never silent:
- * the failure is logged (`campaign_hold_unwritten`) and the answer says how many were left unheld (`unheld`), which the
- * caller records beside what it did hold, so a receipt never claims a hold that was not written.
+ * Who waits a week for the breath (`cmd.waits`) and whom the month's allowance already holds (`cmd.held`) are written
+ * as skipped once the run exists, not before: the run's people are enrolled whole and each is skipped in its own write,
+ * the breath's first, since nothing at the wire holds a person who heard this week, where the send holds a person past
+ * the month's room all the same (overAllowance, the backstop). A write that fails never fails the run, but it is never
+ * silent: the failure is logged (`campaign_hold_unwritten`, with its reason) and the answer says how many were left
+ * queued (`unwaited`, `unheld`), which the caller records beside what it did write, so a receipt never claims a skip that
+ * was not written.
  */
 export async function assembleRun(ports: AssemblePorts, cmd: AssembleCommand): Promise<Assembled> {
   let made: AssembledRun;
@@ -29,12 +32,24 @@ export async function assembleRun(ports: AssemblePorts, cmd: AssembleCommand): P
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
   const { id, decisionId } = made;
-  if (cmd.held.length === 0) return { ok: true, id, decisionId, unheld: 0 };
+  const unwaited = await skipAt(ports, id, cmd.waits, RECIPIENT_REASON_HEARD);
+  const unheld = await skipAt(ports, id, cmd.held, MONTH_ALLOWANCE_REASON);
+  return { ok: true, id, decisionId, unheld, unwaited };
+}
+
+/** The people of a run just made skipped with `reason`, at once: how many could not be written (none asked: none). */
+async function skipAt(ports: AssemblePorts, id: string, people: readonly string[], reason: string): Promise<number> {
+  if (people.length === 0) return 0;
   try {
-    await ports.holdRecipients(id, [...cmd.held], MONTH_ALLOWANCE_REASON);
-    return { ok: true, id, decisionId, unheld: 0 };
+    await ports.holdRecipients(id, [...people], reason);
+    return 0;
   } catch (e) {
-    assembleLog.error("campaign_hold_unwritten", { broadcast_id: id, unheld: cmd.held.length, error: errField(e) });
-    return { ok: true, id, decisionId, unheld: cmd.held.length };
+    assembleLog.error("campaign_hold_unwritten", {
+      broadcast_id: id,
+      reason,
+      unheld: people.length,
+      error: errField(e),
+    });
+    return people.length;
   }
 }

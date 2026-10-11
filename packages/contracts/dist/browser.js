@@ -2508,6 +2508,27 @@ function isReplyTo(sentAt, at3) {
   const a = Date.parse(at3);
   return Number.isFinite(s) && Number.isFinite(a) && a > s && a - s <= REPLY_WINDOW_MS;
 }
+var RECIPIENT_REASON_HEARD = "heard_this_week";
+function breathSplit(reached, idOf, touched) {
+  const goes = [];
+  const waits = [];
+  for (const person of reached) (touched.has(idOf(person)) ? waits : goes).push(person);
+  return { goes, waits };
+}
+function heardWords(n, breathe) {
+  if (n <= 0) return null;
+  if (breathe) return `${n} ${n === 1 ? "waits" : "wait"} a week`;
+  return `${n === 1 ? "One" : n} of them heard from a campaign or a broadcast this week.`;
+}
+function heardTooWords(n) {
+  return `Also send to the ${n === 1 ? "one" : n} who heard this week`;
+}
+function allWaitWords(label, n) {
+  return n === 1 ? `The one person on \u201C${label}\u201D it reaches heard from a campaign or a broadcast this week, so it waits a week.` : `All ${n} on \u201C${label}\u201D it reaches heard from a campaign or a broadcast this week, so they wait a week.`;
+}
+function goesToOf(receipt) {
+  return receipt.recipient_count - (receipt.waits_a_week ?? 0);
+}
 var HELD_REASONS = {
   opted_out: "asked to stop",
   not_opted_in: "no recorded yes",
@@ -2524,6 +2545,10 @@ var HELD_REASONS = {
   sms_line_not_active: "the texting line is not active",
   // The workspace's month of emails or texts is used up (CAMPAIGN_MONTH_ALLOWANCE): held on its channel, never moved.
   month_allowance: "this month's allowance is used up",
+  // A send by hand skipped them at enrolment: they heard from a campaign or a broadcast that week (the week's breath).
+  // Spelled out rather than computed from RECIPIENT_REASON_HEARD, as outcome_unknown is below; run-report.test.mjs
+  // holds the two spellings together.
+  heard_this_week: "waited a week: heard from you this week",
   // The message's WhatsApp version is no longer one a send can use: it holds the people who go by WhatsApp, and only them.
   template_not_approved: "its WhatsApp version is no longer approved",
   // The number is on file but no thread answers to it on this line: a stored
@@ -11971,10 +11996,14 @@ var broadcastSpec = {
       ...channelsNamed(pl)
     }
   }),
-  // The count and the name are the route's answer where it gave them, the card's where it did not.
+  // The count and the name are the route's answer where it gave them, the card's where it did not: who it goes to, the
+  // people it enrolled less those who wait a week for the breath (goesToOf), and how many wait.
   receipt: ({ payload: pl }, data) => {
-    const n = Number(rec(data).recipient_count ?? pl.count ?? 0);
-    return `Broadcast \u201C${rec(data).name ?? asText(pl.name)}\u201D \u2014 ${n} ${n === 1 ? "person" : "people"}, ${pl.scheduled_for ? "scheduled" : "sending now"}`;
+    const d = rec(data);
+    const waits = typeof d.waits_a_week === "number" ? d.waits_a_week : 0;
+    const n = typeof d.recipient_count === "number" ? goesToOf({ recipient_count: d.recipient_count, waits_a_week: waits }) : Number(pl.count ?? 0);
+    const waited = heardWords(waits, true);
+    return `Broadcast \u201C${d.name ?? asText(pl.name)}\u201D \u2014 ${n} ${n === 1 ? "person" : "people"}, ${pl.scheduled_for ? "scheduled" : "sending now"}${waited ? ` \xB7 ${waited}` : ""}`;
   },
   undo: {
     label: () => "Cancel it, if it has not finished",
@@ -17311,10 +17340,6 @@ function audienceMembers(rows2, kind, id, savedIds) {
   if (kind === "saved") return savedIds ? rows2.filter((r2) => savedIds.has(r2.id)) : [];
   return rows2;
 }
-function heardWords(n) {
-  if (n <= 0) return null;
-  return `${n === 1 ? "One" : n} of them heard from a campaign or a broadcast this week.`;
-}
 function previewPerson(r2, refusal, channel) {
   return { id: r2.id, label: r2.name, firstName: firstNameOf(r2.givenName, r2.waName), refusal, channel };
 }
@@ -17336,7 +17361,7 @@ function audiencePreview(rows2, kind, id, savedIds, purpose, how, limit = 5, tou
     sending: sending.length,
     held: held.length,
     saidYes: pool.filter((r2) => saidYesOnAny(r2, purpose, how)).length,
-    heard: sending.filter((x) => touched.has(x.r.id)).length
+    heard: breathSplit(sending, (x) => x.r.id, touched).waits.length
   };
 }
 
@@ -38510,6 +38535,7 @@ export {
   READING_SCHEMA,
   READY_WHATSAPP_ALONE,
   RECENT_MAX,
+  RECIPIENT_REASON_HEARD,
   RECIPIENT_STATES,
   RECORDING_PURGED_WORDS,
   RECORDING_RETENTION_DAYS,
@@ -38715,6 +38741,7 @@ export {
   alertGrid,
   alertTestMail,
   allVisitsIn,
+  allWaitWords,
   allowanceBeforeSend,
   allowanceLine,
   allowanceLines,
@@ -38795,6 +38822,7 @@ export {
   brainMetaOf,
   breathEndsAt,
   breathHolds,
+  breathSplit,
   broadcastFailureFix,
   broadcastFailureWords,
   broadcastName,
@@ -39108,6 +39136,7 @@ export {
   fromSlotParts,
   fromZonedInput,
   gainedOver,
+  goesToOf,
   googleAudienceWords,
   googleCallbackUrl,
   greetingFor,
@@ -39131,6 +39160,7 @@ export {
   hasProfile,
   headlineOf,
   heardSinceProposal,
+  heardTooWords,
   heardWords,
   heldBackOfOneRun,
   heldBackWords,

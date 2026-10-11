@@ -10,6 +10,7 @@ import type { PersonRowVM } from "../people/person-row";
 import type { RunReach } from "../playbooks/playbooks";
 import { firstNameOf } from "../templates/templates";
 import { type ChannelsReady, channelRefuses, type HeldOn, reachFor, type ReachSplit, reachSplit } from "./reach-for";
+import { breathSplit } from "./run-words";
 
 export type AudienceKind = "everyone" | "list" | "saved" | "playbook";
 
@@ -262,16 +263,10 @@ export interface AudiencePreview {
   saidYes: number;
   /**
    * How many of those it reaches heard from a playbook or a broadcast within the week (the touches a playbook's run
-   * waits a week after, PLAYBOOK_BREATH_MS): a send by hand is not held back by them, and the owner is told before it
-   * goes, not after.
+   * waits a week after, PLAYBOOK_BREATH_MS, split by breathSplit): a send by hand waits a week for them too, unless the
+   * person sending it sends to them as well, and `sending` still counts them.
    */
   heard: number;
-}
-
-/** The composer's note when some of an audience heard from a run this week; null when none did. */
-export function heardWords(n: number): string | null {
-  if (n <= 0) return null;
-  return `${n === 1 ? "One" : n} of them heard from a campaign or a broadcast this week.`;
 }
 
 function previewPerson(r: PersonRowVM, refusal: string | null, channel: ConsentChannel | null): PreviewPerson {
@@ -312,6 +307,6 @@ export function audiencePreview(
     sending: sending.length,
     held: held.length,
     saidYes: pool.filter((r) => saidYesOnAny(r, purpose, how)).length,
-    heard: sending.filter((x) => touched.has(x.r.id)).length,
+    heard: breathSplit(sending, (x) => x.r.id, touched).waits.length,
   };
 }

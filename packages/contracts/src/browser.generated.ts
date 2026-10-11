@@ -34,7 +34,7 @@ export { applySettingsChange, describeSettingsChange } from "./ask/ask-settings-
 export { cacheHitOf } from "./ask/ask-shape";
 export { buildAskSuggestions } from "./ask/ask-suggestions";
 export { emptyReadSet, noteRows, groundCitations, citationRoute, ASK_CITATION_KINDS, ASK_PAGE_ROUTES, ASK_ROW_WORDS } from "./ask/citations";
-export { eligibleFor, enrolFor, saidYesOnAny, heldWords, heldBackWords, audienceMembers, heardWords, audiencePreview, audienceTrigger, AUDIENCE_KINDS, EVERYONE_LABEL, EVERYONE_HINT, UNKNOWN_AUDIENCE_WORDS, CONSENT_LIST_IDS, doorNamesNoAudience } from "./broadcasts/broadcast-audience";
+export { eligibleFor, enrolFor, saidYesOnAny, heldWords, heldBackWords, audienceMembers, audiencePreview, audienceTrigger, AUDIENCE_KINDS, EVERYONE_LABEL, EVERYONE_HINT, UNKNOWN_AUDIENCE_WORDS, CONSENT_LIST_IDS, doorNamesNoAudience } from "./broadcasts/broadcast-audience";
 export { broadcastFailureWords, BROADCAST_FAILURES, BROADCAST_FAILURE_WORDS } from "./broadcasts/broadcast-failure-words";
 export { broadcastFailureFix, emailRunStop, playbookRunNext, stoppedRunFix, wireFailure, BROADCAST_FAILURE_FIX } from "./broadcasts/broadcast-failures";
 export { dailyLimit, numberHealth, overLimitRefusal, LIMIT_TIERS } from "./broadcasts/broadcast-number";
@@ -45,7 +45,7 @@ export { PREVIEW_WORDS, PREVIEW_CHANNEL_WORDS, previewOn, previewParts, previewS
 export { READY_WHATSAPP_ALONE, readyOrWhatsApp, answeredYes, personReachOf } from "./broadcasts/reach-any";
 export { DEFAULT_CAMPAIGN_CHANNELS, NEW_PLAYBOOK_TICKS_EVERY_CHANNEL, newCampaignChannels, CHANNEL_WORDS, CAMPAIGN_MONTH_ALLOWANCE, HELD_ON, channelRefuses, channelNeverCarries, offersNote, channelsReady, channelChoices, reachFor, reachSplit, reachSplitWords, heldByAllowance, allowanceRoom, pastAllowance, nextMonthStart, monthSentAt, allowanceBeforeSend, allowanceLine, allowanceLines } from "./broadcasts/reach-for";
 export { consentAnswerWords, receiptWords, toRunReportVM, RUN_REPORT_STEPS, RUN_FILTERS } from "./broadcasts/run-report";
-export { REPLY_WINDOW_HOURS, REPLY_WINDOW_MS, REPLY_WINDOW_WORDS, HELD_REASONS, EMAIL_HOLDS, DELIVERY_RECEIPTS_TIP, DELIVERY_RECEIPTS_WORDS, finishedRunHeldWhy, isReplyTo } from "./broadcasts/run-words";
+export { REPLY_WINDOW_HOURS, REPLY_WINDOW_MS, REPLY_WINDOW_WORDS, RECIPIENT_REASON_HEARD, HELD_REASONS, EMAIL_HOLDS, DELIVERY_RECEIPTS_TIP, DELIVERY_RECEIPTS_WORDS, finishedRunHeldWhy, isReplyTo, breathSplit, heardWords, heardTooWords, allWaitWords, goesToOf } from "./broadcasts/run-words";
 export { SEND_WHEN_WORDS } from "./broadcasts/send-when-words";
 export { whatsappOffersOpen } from "./broadcasts/whatsapp-offers";
 export { appointmentTitle, busyOfAppointments, feedItemOfAppointment, personOfAppointment, itemOfAppointment, withoutVisitsRowsDraw, daysWithAppointments } from "./calendar/appointment-item";

@@ -135,6 +135,11 @@ export interface StarterLibrary {
    * (0006), the review ask's only where the Google listing keeps a review link (00394).
    */
   readonly list: readonly StarterTemplate[];
+  /**
+   * The same, by whether the listing keeps a review link as the page drawing them read it from the surface it loads: the
+   * send screen's composer is given the broadcasts surface's (TemplateComposer `reviewLink`), where `list` reads Settings'.
+   */
+  offered: (reviewLink: boolean) => readonly StarterTemplate[];
   languages: typeof STARTER_LANGUAGES;
   byName: typeof starterByName;
   forTrigger: typeof starterForTrigger;
@@ -201,16 +206,18 @@ declare global {
   }
 }
 
+/** The starters offered here, by whether the listing keeps a review link: how the workspace sells is read as it is drawn. */
+const offeredHere = (reviewLink: boolean) => startersOffered({ dealsOn: dealsAreOn(viewedSellsBy()), reviewLink });
+
 /** The starter set as the pages read it, from contracts: the library, and the words and slots for any template. */
 export const starters: StarterLibrary = {
   // Read each time a page draws the set: an answer changed in Settings › Business changes it, and so does a Google
-  // listing bound or unbound (the settings surface's `reviewLink`, which the starter route reads the same way).
+  // listing bound or unbound (the settings surface's `reviewLink`, which the starter route reads the same way). That is the
+  // Library's surface; a page that loads another says it from its own (`offered`), never from one it does not load.
   get list() {
-    return startersOffered({
-      dealsOn: dealsAreOn(viewedSellsBy()),
-      reviewLink: surfaceValue("settings")?.settings?.reviewLink === true,
-    });
+    return offeredHere(surfaceValue("settings")?.settings?.reviewLink === true);
   },
+  offered: offeredHere,
   languages: STARTER_LANGUAGES,
   byName: starterByName,
   forTrigger: starterForTrigger,

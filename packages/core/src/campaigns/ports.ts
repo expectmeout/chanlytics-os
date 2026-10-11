@@ -103,16 +103,24 @@ export interface AssembleCommand {
    * enrolled with everyone, and held the moment the run exists, so its report says so before anything is sent.
    */
   held: readonly string[];
+  /**
+   * The people of `recipients` who heard from a campaign or a broadcast within the week and wait a week (the week's
+   * breath on a send by hand, create-broadcast.ts), by contact: enrolled with everyone, and skipped with contracts
+   * RECIPIENT_REASON_HEARD the moment the run exists, before anyone held for the month. A playbook's run names none: its
+   * moment never draws anyone the breath holds (contracts eligibleForPlaybook).
+   */
+  waits: readonly string[];
   /** Whose decision the send is, kept with the run; none for a run that waits for a person. */
   decision: AssembleDecision | null;
 }
 /**
  * The run made (its id, and its decision's when one was asked for), or why not. `unheld` is how many of the people to
  * hold at enrolment could not be written as held: they are queued, and the send holds them at the wire, so nothing is
- * lost; the run's record says so.
+ * lost; the run's record says so. `unwaited` is the same of the people who wait a week: queued, and nothing at the wire
+ * holds them, so it is logged by name and the receipt claims no wait it did not write.
  */
 export type Assembled =
-  { ok: true; id: string; decisionId: string | null; unheld: number } | { ok: false; error: string };
+  { ok: true; id: string; decisionId: string | null; unheld: number; unwaited: number } | { ok: false; error: string };
 
 /* ---- The playbook's run ---- */
 
@@ -292,9 +300,22 @@ export interface CreateBroadcastPorts extends AssemblePorts, TemplateValuesPorts
    * it (null when none is connected): one read of the rows each is judged by.
    */
   channels(): Promise<{ ready: ChannelsReady; health: NumberHealth | null }>;
+  /**
+   * Who a run of any kind reached, or is about to reach, within the week's breath before `now` (contracts
+   * PLAYBOOK_BREATH_MS): their contact ids, the read the composer counts its "N wait a week" by (the dashboard's
+   * recentTouches over packages/db touchesSince), so the page, Ask's card and the people a send skips are one number. Read
+   * once per send, and only when it breathes. Throws when it cannot be read: "nobody heard" is the reading that messages
+   * people twice.
+   */
+  touched(now: Date): Promise<ReadonlySet<string>>;
 }
 export interface CreateBroadcastCommand {
   userId: string;
+  /**
+   * The body as the route was handed it, the verb's own to judge (create-broadcast.ts `asked`): { template_id, params,
+   * audience, channels?, scheduled_for?, name?, breathe? }. `breathe` is whether the send waits a week for the people who
+   * heard from a campaign or a broadcast within it: absent (or null) is true; false only from the composer's own switch.
+   */
   body: unknown;
   now: Date;
 }

@@ -2,7 +2,7 @@
  * What a press on the broadcasts page does (moved from legacy/pages/broadcasts.jsx, decision 0015): stop and approve on
  * a run, the send itself, and the starter set added from the send screen. Each says so the moment the server takes it.
  */
-import { runStoppedWords } from "@chanlytics/contracts";
+import { goesToOf, heardWords, runStoppedWords } from "@chanlytics/contracts";
 import type { Output } from "@/client/api";
 import { starterWords } from "../../templates/composer";
 import { templates } from "../../templates/verbs";
@@ -91,6 +91,7 @@ export function bcSendActs({
   specs,
   active,
   on,
+  breathe,
   whenAt,
   name,
   setArmed,
@@ -118,7 +119,7 @@ export function bcSendActs({
   | "setAddingStarters"
 > &
   Pick<BcSlotWords, "ready" | "specs"> &
-  Pick<BcReach, "tpl" | "active" | "on"> &
+  Pick<BcReach, "tpl" | "active" | "on" | "breathe"> &
   Pick<BcRunActs, "cancel">): BcSendActs {
   const submit = async (scheduled: boolean) => {
     // `ready` says both are there (bcSlotWordsOf); the two are named again for the compiler.
@@ -132,6 +133,9 @@ export function bcSendActs({
       channels: on,
       scheduled_for: scheduled && whenAt !== null ? new Date(whenAt).toISOString() : null,
       name: name.trim() || null,
+      // Sent to whoever heard this week too, by the switch beside the count; else nothing said, and the send waits a week
+      // for them, as the route does by default.
+      ...(breathe ? {} : { breathe: false }),
     });
     setBusy(false);
     setArmed(false);
@@ -143,7 +147,9 @@ export function bcSendActs({
     clearWords();
     // Sent, the screen closes onto the ledger, where the run now is -- and "See who" opens it.
     setWriting(false);
-    const n = r.data.recipient_count;
+    // Who it goes to: everyone it enrolled, less those who wait a week (contracts goesToOf), and how many wait.
+    const n = goesToOf(r.data);
+    const waited = heardWords(r.data.recipient_count - n, true);
     // Outside nine to twenty by the business's clock the send moved to the next
     // nine o'clock: the receipt says when it really goes (bcWhenWords).
     const words = bcWhenWords(r.data);
@@ -157,6 +163,7 @@ export function bcSendActs({
         <>
           <b>{r.data.name || "Broadcast"}</b> · {n} {n === 1 ? "person" : "people"} —{" "}
           {words === "sending now" && data.chunk ? `sending now, ${data.chunk} at a time` : words}
+          {waited ? ` · ${waited}` : null}
         </>
       ),
       action: canSend

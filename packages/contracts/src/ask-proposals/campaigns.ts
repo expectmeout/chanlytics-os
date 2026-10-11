@@ -4,6 +4,7 @@
  * written for the Library, a version per channel.
  */
 import { CHANNEL_WORDS } from "../broadcasts/reach-for";
+import { goesToOf, heardWords } from "../broadcasts/run-words";
 import {
   CONSENT_CHANNELS,
   CONSENT_CHANNEL_WORDS,
@@ -133,10 +134,17 @@ export const broadcastSpec: ProposalSpec = {
       ...channelsNamed(pl),
     },
   }),
-  // The count and the name are the route's answer where it gave them, the card's where it did not.
+  // The count and the name are the route's answer where it gave them, the card's where it did not: who it goes to, the
+  // people it enrolled less those who wait a week for the breath (goesToOf), and how many wait.
   receipt: ({ payload: pl }, data) => {
-    const n = Number(rec(data).recipient_count ?? pl.count ?? 0);
-    return `Broadcast “${rec(data).name ?? asText(pl.name)}” — ${n} ${n === 1 ? "person" : "people"}, ${pl.scheduled_for ? "scheduled" : "sending now"}`;
+    const d = rec(data);
+    const waits = typeof d.waits_a_week === "number" ? d.waits_a_week : 0;
+    const n =
+      typeof d.recipient_count === "number"
+        ? goesToOf({ recipient_count: d.recipient_count, waits_a_week: waits })
+        : Number(pl.count ?? 0);
+    const waited = heardWords(waits, true);
+    return `Broadcast “${d.name ?? asText(pl.name)}” — ${n} ${n === 1 ? "person" : "people"}, ${pl.scheduled_for ? "scheduled" : "sending now"}${waited ? ` · ${waited}` : ""}`;
   },
   undo: {
     label: () => "Cancel it, if it has not finished",

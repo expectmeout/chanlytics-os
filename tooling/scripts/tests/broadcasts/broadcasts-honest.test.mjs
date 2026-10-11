@@ -4097,7 +4097,7 @@ test("A button cannot take a value, and needs somewhere to go", () => {
   assert.ok(textOf(none).includes("booking link"), textOf(none));
 });
 
-test("the send screen says how many of an audience heard from a playbook or a broadcast this week -- a send by hand is not held back by the week a playbook waits, and the owner was told nothing", async () => {
+test("the send screen says how many of an audience heard from a playbook or a broadcast this week, and they wait a week -- a send by hand was not held back by the week a playbook waits; a switch sends to them too", async () => {
   const rows = [
     {
       id: "a",
@@ -4135,13 +4135,15 @@ test("the send screen says how many of an audience heard from a playbook or a br
     0,
     "no touches read, nobody said",
   );
-  assert.equal(contracts.heardWords(2), "2 of them heard from a campaign or a broadcast this week.");
-  assert.equal(contracts.heardWords(1), "One of them heard from a campaign or a broadcast this week.");
-  assert.equal(contracts.heardWords(0), null);
+  // While the send breathes they wait a week; switched to send to them too, the note says who they are.
+  assert.equal(contracts.heardWords(2, true), "2 wait a week");
+  assert.equal(contracts.heardWords(1, true), "1 waits a week");
+  assert.equal(contracts.heardWords(2, false), "2 of them heard from a campaign or a broadcast this week.");
+  assert.equal(contracts.heardWords(1, false), "One of them heard from a campaign or a broadcast this week.");
+  assert.equal(contracts.heardWords(0, true), null);
 
   const offer = templateRow({ id: "tpl-offer", name: "fall_offer", purpose: "marketing" });
-  setSurfaceValue(
-    "broadcasts",
+  const heardSurface = () =>
     broadcastsSurface({
       templates: [offer],
       number: healthyNumber,
@@ -4153,11 +4155,74 @@ test("the send screen says how many of an audience heard from a playbook or a br
           counts: { marketing: 2, conversational: 3 },
           preview: { marketing: offers, conversational: notes },
         },
+        {
+          kind: "saved",
+          id: "s1",
+          label: "Regulars",
+          counts: { marketing: 2, conversational: 2 },
+          preview: { marketing: { ...offers, heard: 0 }, conversational: { ...notes, heard: 0 } },
+        },
       ],
-    }),
-  );
-  const tree = writing({ initialSegment: null, initialRun: null });
+    });
+  const sent = [];
+  broadcasts.send = async (body) => {
+    sent.push(body);
+    return {
+      ok: true,
+      data: {
+        id: "b-new",
+        name: "Fall offer",
+        recipient_count: 2,
+        waits_a_week: body.breathe === false ? 0 : 1,
+        scheduled_for: new Date().toISOString(),
+        moved_from: null,
+      },
+    };
+  };
+  const heardToo = (t) =>
+    find(t, (n) => n.props?.["data-testid"] === "bc-heard-too" && typeof n.props.onCheckedChange === "function");
+  const sendIt = async () => {
+    press(byTestId(again({ initialSegment: null, initialRun: null }), "bc-send"));
+    await press(byTestId(again({ initialSegment: null, initialRun: null }), "bc-send-yes"));
+  };
+  setSurfaceValue("broadcasts", heardSurface());
+  let tree = writing({ initialSegment: null, initialRun: null });
+  assert.equal(textOf(byTestId(tree, "bc-heard")), "1 waits a week");
+  // The count is who it sends to: of the two it reaches, the one who heard waits; Cy, with no yes to offers, is held back.
+  assert.equal(textOf(byTestId(tree, "bc-who-n")), "1");
+  assert.equal(textOf(byTestId(tree, "bc-who-count")), "·1 of 3 can hear it");
+  assert.ok(textOf(byTestId(tree, "bc-send")).includes("Send to 1 now"), textOf(byTestId(tree, "bc-send")));
+  const sw = heardToo(tree);
+  assert.ok(sw, "the switch is drawn where somebody heard");
+  assert.equal(sw.props.checked, false, "off by default");
+  assert.equal(textOf(byTestId(tree, "bc-heard-too-word")), "Also send to the one who heard this week");
+  toasts.length = 0;
+  await sendIt();
+  assert.equal(sent.length, 1);
+  assert.equal("breathe" in sent[0], false, "off: the body says nothing, and the send breathes");
+  assert.ok(textOf({ props: { children: toasts.at(-1).msg } }).includes("1 person"), "the toast says who it went to");
+  assert.ok(textOf({ props: { children: toasts.at(-1).msg } }).includes("1 waits a week"));
+
+  // Switched on: the note says who they are, the count is everyone it reaches, and the send carries breathe: false.
+  setSurfaceValue("broadcasts", heardSurface());
+  tree = writing({ initialSegment: null, initialRun: null });
+  heardToo(tree).props.onCheckedChange(true);
+  tree = again({ initialSegment: null, initialRun: null });
+  assert.equal(heardToo(tree).props.checked, true);
   assert.equal(textOf(byTestId(tree, "bc-heard")), "One of them heard from a campaign or a broadcast this week.");
+  assert.equal(textOf(byTestId(tree, "bc-who-n")), "2");
+  // It answers for this message, list and channels alone: on another list it says nothing of them, and the send there
+  // breathes; back on this one, the choice made for it stands.
+  pickerOf(tree, "bc-audience").props.onValueChange("saved:s1");
+  tree = again({ initialSegment: null, initialRun: null });
+  assert.equal(heardToo(tree), null, "nobody on Regulars heard");
+  assert.equal(textOf(byTestId(tree, "bc-who-n")), "2");
+  pickerOf(tree, "bc-audience").props.onValueChange("everyone:");
+  tree = again({ initialSegment: null, initialRun: null });
+  assert.equal(heardToo(tree).props.checked, true, "as it was chosen for Everyone");
+  await sendIt();
+  assert.equal(sent.length, 2);
+  assert.equal(sent[1].breathe, false);
   setSurfaceValue(
     "broadcasts",
     broadcastsSurface({
@@ -4174,11 +4239,66 @@ test("the send screen says how many of an audience heard from a playbook or a br
       ],
     }),
   );
-  assert.equal(
-    byTestId(writing({ initialSegment: null, initialRun: null }), "bc-heard"),
-    null,
-    "nobody heard, nothing said",
+  tree = writing({ initialSegment: null, initialRun: null });
+  assert.equal(byTestId(tree, "bc-heard"), null, "nobody heard, nothing said");
+  assert.equal(heardToo(tree), null, "and no switch");
+  assert.equal(textOf(byTestId(tree, "bc-who-n")), "2");
+
+  // Everyone it reaches heard: the foot says so and Send waits, never "nobody said yes"; the switch sends to them all.
+  const all2 = contracts.audiencePreview(rows, "everyone", null, null, "marketing", HOW, 5, new Set(["a", "b"]));
+  setSurfaceValue(
+    "broadcasts",
+    broadcastsSurface({
+      templates: [offer],
+      number: healthyNumber,
+      audiences: [
+        {
+          kind: "everyone",
+          id: null,
+          label: "Everyone",
+          counts: { marketing: 2, conversational: 3 },
+          preview: { marketing: all2, conversational: notes },
+        },
+      ],
+    }),
   );
+  tree = writing({ initialSegment: null, initialRun: null });
+  assert.equal(textOf(byTestId(tree, "bc-foot-say")), contracts.allWaitWords("Everyone", 2));
+  assert.equal(byTestId(tree, "bc-nobody"), null, "they said yes: the line about a missing yes is not drawn");
+  heardToo(tree).props.onCheckedChange(true);
+  tree = again({ initialSegment: null, initialRun: null });
+  assert.equal(byTestId(tree, "bc-foot-say"), null, "sent to them too, nothing stops it");
+});
+
+test("the send screen's composer offers the review ask by the surface its page loads: the broadcasts surface's review link, whether or not Settings was ever opened", () => {
+  const was = surfaceValue("settings");
+  // Settings never opened in this tab: its surface holds nothing.
+  setSurfaceValue("settings", null);
+  const review = contracts
+    .startersOffered({ dealsOn: false, reviewLink: true })
+    .find((s) => !contracts.startersOffered({ dealsOn: false, reviewLink: false }).some((x) => x.key === s.key));
+  assert.ok(review, "the review ask is the starter a review link adds");
+  try {
+    for (const reviewLink of [true, false]) {
+      setSurfaceValue(
+        "broadcasts",
+        broadcastsSurface({ templates: [templateRow()], number: healthyNumber, reviewLink }),
+      );
+      press(byTestId(writing({ initialSegment: null, initialRun: null }), "bc-new-template"));
+      const tree = again({ initialSegment: null, initialRun: null });
+      const chips = new Set(
+        all(tree, (n) => n.props?.["data-testid"] === "tpl-start-from" && n.props.title).map((n) => n.props.title),
+      );
+      assert.ok(chips.size > 0, "the starters are offered");
+      assert.equal(
+        chips.has(`${review.title} — ${review.purpose}`),
+        reviewLink,
+        `the listing keeps ${reviewLink ? "one" : "none"}`,
+      );
+    }
+  } finally {
+    setSurfaceValue("settings", was ?? null);
+  }
 });
 
 test("a playbook may run on any list: the composer picks one of the workspace's or one of People's, with its own count, and the save names it (decision 0009)", async () => {

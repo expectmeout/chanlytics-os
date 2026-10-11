@@ -115,6 +115,13 @@ export interface BcBase {
   /** The channels ticked in the Send by row, as the owner left them (what is on is BcReach's `on`). */
   channels: ConsentChannel[];
   setChannels: Setter<ConsentChannel[]>;
+  /**
+   * The send the switch "Also send to the N who heard this week" (contracts heardTooWords) was switched on for (reach.ts
+   * bcSendKey), or null: off, the send waits a week for whoever heard from a campaign or a broadcast this week; on, it
+   * carries `breathe: false`. It answers for that message, list and channels alone: on any other send it is off.
+   */
+  heardTooFor: string | null;
+  setHeardTooFor: Setter<string | null>;
   params: Params;
   setParams: Setter<Params>;
   sources: Sources;
@@ -160,7 +167,16 @@ export interface BcReach {
   tpl: BroadcastTemplate | null;
   purpose: AskedPurpose;
   sizeOf: (a: AudienceOption | null) => number;
+  /** Who the send goes to now: those it reaches, less those who wait a week while it breathes. The count Send says. */
   activeCount: number;
+  /** Of those it reaches, how many heard from a campaign or a broadcast this week (the reading's `heard`). */
+  heard: number;
+  /** Whether the send waits a week for them: unless the switch sends to them too. */
+  breathe: boolean;
+  /** The switch pressed: on sends to them too, for this message, list and channels alone. */
+  setHeardToo: (on: boolean) => void;
+  /** How many wait a week: `heard` while the send breathes, none once it sends to them too. */
+  waiting: number;
   number: BroadcastsSurface["number"] | null;
   /** The WhatsApp number can send, or WhatsApp is not one of the channels on and the number is nothing to this send. */
   numberOk: boolean;

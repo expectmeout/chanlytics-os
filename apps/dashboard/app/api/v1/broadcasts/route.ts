@@ -11,7 +11,7 @@ import { broadcasts } from "@/server/readers/broadcasts";
  * GET  /api/v1/broadcasts — the workspace's recent broadcasts with the numbers
  *      their messages earned.
  * POST /api/v1/broadcasts — { template_id, params, audience: { kind, id },
- *      channels?, scheduled_for?, name? }. Owner or operator. The rules are
+ *      channels?, scheduled_for?, name?, breathe? }. Owner or operator. The rules are
  *      core's (createBroadcast, packages/core/src/campaigns): `template_id`
  *      names a version of the message, any one of them; the values must be
  *      ones Meta accepts; the audience is one of People's lists, a list kept
@@ -22,8 +22,10 @@ import { broadcasts } from "@/server/readers/broadcasts";
  *      or that its purpose never carries is refused here, and each person is
  *      enrolled once, on the first one that reaches them, written on their
  *      row. The recipients are enrolled now, so the owner sees who and how
- *      many; the job re-checks each person at the wire. The ledger records
- *      the decision to send.
+ *      many; the job re-checks each person at the wire. Whoever heard from a
+ *      campaign or a broadcast this week waits a week, enrolled and skipped
+ *      as heard_this_week, unless `breathe` is false (the composer's own
+ *      switch; true or absent otherwise). The ledger records the decision to send.
  *      The body is the verb's own to read: every refusal is a sentence for
  *      the person composing, judged against the message's versions, which
  *      no schema knows.

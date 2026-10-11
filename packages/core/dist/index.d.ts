@@ -2000,19 +2000,28 @@ interface AssembleCommand {
      * enrolled with everyone, and held the moment the run exists, so its report says so before anything is sent.
      */
     held: readonly string[];
+    /**
+     * The people of `recipients` who heard from a campaign or a broadcast within the week and wait a week (the week's
+     * breath on a send by hand, create-broadcast.ts), by contact: enrolled with everyone, and skipped with contracts
+     * RECIPIENT_REASON_HEARD the moment the run exists, before anyone held for the month. A playbook's run names none: its
+     * moment never draws anyone the breath holds (contracts eligibleForPlaybook).
+     */
+    waits: readonly string[];
     /** Whose decision the send is, kept with the run; none for a run that waits for a person. */
     decision: AssembleDecision | null;
 }
 /**
  * The run made (its id, and its decision's when one was asked for), or why not. `unheld` is how many of the people to
  * hold at enrolment could not be written as held: they are queued, and the send holds them at the wire, so nothing is
- * lost; the run's record says so.
+ * lost; the run's record says so. `unwaited` is the same of the people who wait a week: queued, and nothing at the wire
+ * holds them, so it is logged by name and the receipt claims no wait it did not write.
  */
 type Assembled = {
     ok: true;
     id: string;
     decisionId: string | null;
     unheld: number;
+    unwaited: number;
 } | {
     ok: false;
     error: string;
@@ -2197,9 +2206,22 @@ interface CreateBroadcastPorts extends AssemblePorts, TemplateValuesPorts {
         ready: ChannelsReady;
         health: NumberHealth | null;
     }>;
+    /**
+     * Who a run of any kind reached, or is about to reach, within the week's breath before `now` (contracts
+     * PLAYBOOK_BREATH_MS): their contact ids, the read the composer counts its "N wait a week" by (the dashboard's
+     * recentTouches over packages/db touchesSince), so the page, Ask's card and the people a send skips are one number. Read
+     * once per send, and only when it breathes. Throws when it cannot be read: "nobody heard" is the reading that messages
+     * people twice.
+     */
+    touched(now: Date): Promise<ReadonlySet<string>>;
 }
 interface CreateBroadcastCommand {
     userId: string;
+    /**
+     * The body as the route was handed it, the verb's own to judge (create-broadcast.ts `asked`): { template_id, params,
+     * audience, channels?, scheduled_for?, name?, breathe? }. `breathe` is whether the send waits a week for the people who
+     * heard from a campaign or a broadcast within it: absent (or null) is true; false only from the composer's own switch.
+     */
     body: unknown;
     now: Date;
 }
@@ -2237,11 +2259,13 @@ interface CancelBroadcastPorts {
  * answered with a 500 that a person presses again. The caller decides what a failure means to whoever asked: the
  * sweep counts it, a person is told.
  *
- * Whom the month's allowance already holds (`cmd.held`) is written as held once the run exists, not before: the run's
- * people are enrolled whole and the held are skipped in their own write, so a write that fails leaves them queued and
- * the send holds them at the wire (overAllowance), which is the backstop. It never fails the run, but it is never silent:
- * the failure is logged (`campaign_hold_unwritten`) and the answer says how many were left unheld (`unheld`), which the
- * caller records beside what it did hold, so a receipt never claims a hold that was not written.
+ * Who waits a week for the breath (`cmd.waits`) and whom the month's allowance already holds (`cmd.held`) are written
+ * as skipped once the run exists, not before: the run's people are enrolled whole and each is skipped in its own write,
+ * the breath's first, since nothing at the wire holds a person who heard this week, where the send holds a person past
+ * the month's room all the same (overAllowance, the backstop). A write that fails never fails the run, but it is never
+ * silent: the failure is logged (`campaign_hold_unwritten`, with its reason) and the answer says how many were left
+ * queued (`unwaited`, `unheld`), which the caller records beside what it did write, so a receipt never claims a skip that
+ * was not written.
  */
 declare function assembleRun(ports: AssemblePorts, cmd: AssembleCommand): Promise<Assembled>;
 
@@ -2342,6 +2366,12 @@ interface BroadcastReceipt {
      * says so (`campaign_hold_unwritten`); the ledger's line says how many the month holds.
      */
     held_for_allowance: number;
+    /**
+     * How many of the people enrolled heard from a campaign or a broadcast within the week and wait a week (the week's
+     * breath), as written on their rows: skipped with contracts RECIPIENT_REASON_HEARD. Those whose skip could not be written
+     * are queued, logged by name, and not counted here. Who it goes to is recipient_count less these (contracts goesToOf).
+     */
+    waits_a_week: number;
     decision_id: string;
 }
 /**
@@ -2372,7 +2402,7 @@ declare function campaignHowOf(ports: Pick<CreateBroadcastPorts, "channels">, me
 /**
  * A person's broadcast: one message to the people who said yes.
  *
- * { template_id, params, audience: { kind, id }, channels?, scheduled_for?, name? }.
+ * { template_id, params, audience: { kind, id }, channels?, scheduled_for?, name?, breathe? }.
  * `template_id` is any version of the message, and the message needs no WhatsApp
  * version: each channel ticked needs only its own (WhatsApp's approved by Meta, an
  * email's and a text's written here), and a tick whose version the message does not
@@ -2383,7 +2413,9 @@ declare function campaignHowOf(ports: Pick<CreateBroadcastPorts, "channels">, me
  * when none is named), each person once, on the first channel the send can reach
  * them on (contracts reachFor), written on their row. The recipients are enrolled
  * now, so the owner sees who and how many; the job re-checks each person at the
- * wire. The ledger records the decision to send, in the run's own write. The body is judged here, in
+ * wire. Whoever heard from a campaign or a broadcast this week waits a week (the
+ * week's breath, `breathe` true unless the body says false): enrolled, and skipped
+ * with RECIPIENT_REASON_HEARD. The ledger records the decision to send, in the run's own write. The body is judged here, in
  * sentences for the person composing: the values are judged against the message
  * the workspace holds, which no schema knows.
  */

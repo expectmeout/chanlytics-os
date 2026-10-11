@@ -7725,6 +7725,119 @@ function allowanceLines(sent2) {
   return ["email", "sms"].flatMap((channel) => allowanceLine(channel, sent2[channel]) ?? []);
 }
 
+// src/broadcasts/run-words.ts
+var REPLY_WINDOW_HOURS = 72;
+var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * HOUR_MS;
+var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
+function isReplyTo(sentAt, at3) {
+  const s = Date.parse(sentAt);
+  const a = Date.parse(at3);
+  return Number.isFinite(s) && Number.isFinite(a) && a > s && a - s <= REPLY_WINDOW_MS;
+}
+var RECIPIENT_REASON_HEARD = "heard_this_week";
+function breathSplit(reached, idOf, touched) {
+  const goes = [];
+  const waits = [];
+  for (const person of reached) (touched.has(idOf(person)) ? waits : goes).push(person);
+  return { goes, waits };
+}
+function heardWords(n, breathe) {
+  if (n <= 0) return null;
+  if (breathe) return `${n} ${n === 1 ? "waits" : "wait"} a week`;
+  return `${n === 1 ? "One" : n} of them heard from a campaign or a broadcast this week.`;
+}
+function heardTooWords(n) {
+  return `Also send to the ${n === 1 ? "one" : n} who heard this week`;
+}
+function allWaitWords(label, n) {
+  return n === 1 ? `The one person on \u201C${label}\u201D it reaches heard from a campaign or a broadcast this week, so it waits a week.` : `All ${n} on \u201C${label}\u201D it reaches heard from a campaign or a broadcast this week, so they wait a week.`;
+}
+function goesToOf(receipt) {
+  return receipt.recipient_count - (receipt.waits_a_week ?? 0);
+}
+var HELD_REASONS = {
+  opted_out: "asked to stop",
+  not_opted_in: "no recorded yes",
+  // The reason the send job writes when the OTHER yes is the missing one. It was
+  // added to the wire (00095) and not to these words, so the owner read the raw
+  // enum `no_marketing_consent` on the broadcast's own detail pane -- and the
+  // distinction it draws is the entire point of the split, so it is the last one
+  // that should have arrived untranslated.
+  no_marketing_consent: "no yes to offers",
+  no_phone: "no number",
+  // The channel picked was email and no address is on file (step 3), or no channel the send ticks could carry it.
+  no_address: "no email address",
+  no_channel: "no channel it can go by",
+  sms_line_not_active: "the texting line is not active",
+  // The workspace's month of emails or texts is used up (CAMPAIGN_MONTH_ALLOWANCE): held on its channel, never moved.
+  month_allowance: "this month's allowance is used up",
+  // A send by hand skipped them at enrolment: they heard from a campaign or a broadcast that week (the week's breath).
+  // Spelled out rather than computed from RECIPIENT_REASON_HEARD, as outcome_unknown is below; run-report.test.mjs
+  // holds the two spellings together.
+  heard_this_week: "waited a week: heard from you this week",
+  // The message's WhatsApp version is no longer one a send can use: it holds the people who go by WhatsApp, and only them.
+  template_not_approved: "its WhatsApp version is no longer approved",
+  // The number is on file but no thread answers to it on this line: a stored
+  // number that does not normalise, or one no contact row matches.
+  no_thread: "no thread for that number",
+  human_has_it: "a person had the thread",
+  paused: "the workspace was paused",
+  superseded_by_human: "a person answered first",
+  sms_carries_no_promotions: "no offers by text",
+  // The campaigns domain offers leave from is not this deployment's to use, or the provider does not verify it: the business's
+  // news by email is an offer at the door (decision D2), so it waits as an offer does. Each person's own skip, final.
+  email_marketing_disabled: "offers and news by email can't leave yet: the campaigns domain isn't switched on",
+  // The workspace's offers by email are paused while complaints or bounces settle (email-offers.ts), and the business's news
+  // by email with them (decision D2); a visit's reminder and a reply still go.
+  email_offers_paused: "offers and news by email are paused",
+  // An offer's foot names the business's address, and it has none on file: the person is held until it does.
+  no_business_address: "no business address on file",
+  email_suppressed: "their email address stopped accepting mail",
+  recipient_changed: "their email address changed",
+  erased: "deleted",
+  // The provider refused the send, on whichever channel the person was reached by: a page that knows the channel says
+  // it by SEND_REFUSED_WORDS, and a row that does not (a person's own page, a run made before rows kept theirs) says this.
+  send_failed: "the provider refused it",
+  missing_value: "a value was missing",
+  // A reminder's appointment moved, was cancelled or marked missed, or left the calendar between the run and the send
+  // (calendar/feed-appointments.ts appointmentHolds): held, never sent for a time that no longer stands.
+  appointment_changed: "their appointment moved or was cancelled",
+  // Spelled out rather than computed from OUTCOME_UNKNOWN: a computed key makes
+  // this object opaque to the bundler, which then carries the whole map into
+  // every package that imports anything from here. core-broadcast.test.mjs
+  // holds the two spellings together.
+  outcome_unknown: "a run that did not finish",
+  // Reach out's (a cold email), short, for a run's line.
+  unsubscribed: "unsubscribed",
+  outreach_is_email_only: "cold email goes by email only",
+  outreach_not_a_lead: "not a business your searches found",
+  outreach_lead_closed: "no longer being written to",
+  outreach_suppressed: "on the never-again list",
+  outreach_wrote_back: "wrote back or called",
+  outreach_away: "away until the day they're back",
+  outreach_stopped: "you stopped writing to them",
+  outreach_without_unsubscribe: "no unsubscribe link",
+  outreach_needs_own_domain: "not from your own domain",
+  sending_domain_not_ready: "the domain isn't sending",
+  sending_domain_at_cap: "the domain's day is full"
+};
+var DELIVERY_RECEIPTS_WORDS = "each channel's own receipts";
+var DELIVERY_RECEIPTS_TIP = "Each channel's own receipts";
+var EMAIL_HOLDS = [
+  "email_offers_paused",
+  "email_marketing_disabled"
+];
+function finishedRunHeldWhy(emailHeld) {
+  const why = [
+    HELD_REASONS.not_opted_in,
+    HELD_REASONS.opted_out,
+    HELD_REASONS.no_phone,
+    HELD_REASONS.human_has_it,
+    ...EMAIL_HOLDS.filter((r2) => emailHeld.includes(r2)).map((r2) => HELD_REASONS[r2])
+  ];
+  return `${why.join(", ")}, or ${HELD_REASONS.outcome_unknown}`;
+}
+
 // src/ask/ask-suggestions.ts
 var CHIPS_OF = {
   pipeline: "people",
@@ -10455,10 +10568,14 @@ var broadcastSpec = {
       ...channelsNamed(pl)
     }
   }),
-  // The count and the name are the route's answer where it gave them, the card's where it did not.
+  // The count and the name are the route's answer where it gave them, the card's where it did not: who it goes to, the
+  // people it enrolled less those who wait a week for the breath (goesToOf), and how many wait.
   receipt: ({ payload: pl }, data) => {
-    const n = Number(rec(data).recipient_count ?? pl.count ?? 0);
-    return `Broadcast \u201C${rec(data).name ?? asText(pl.name)}\u201D \u2014 ${n} ${n === 1 ? "person" : "people"}, ${pl.scheduled_for ? "scheduled" : "sending now"}`;
+    const d = rec(data);
+    const waits = typeof d.waits_a_week === "number" ? d.waits_a_week : 0;
+    const n = typeof d.recipient_count === "number" ? goesToOf({ recipient_count: d.recipient_count, waits_a_week: waits }) : Number(pl.count ?? 0);
+    const waited = heardWords(waits, true);
+    return `Broadcast \u201C${d.name ?? asText(pl.name)}\u201D \u2014 ${n} ${n === 1 ? "person" : "people"}, ${pl.scheduled_for ? "scheduled" : "sending now"}${waited ? ` \xB7 ${waited}` : ""}`;
   },
   undo: {
     label: () => "Cancel it, if it has not finished",
@@ -15558,10 +15675,6 @@ function audienceMembers(rows2, kind, id, savedIds) {
   if (kind === "saved") return savedIds ? rows2.filter((r2) => savedIds.has(r2.id)) : [];
   return rows2;
 }
-function heardWords(n) {
-  if (n <= 0) return null;
-  return `${n === 1 ? "One" : n} of them heard from a campaign or a broadcast this week.`;
-}
 function previewPerson(r2, refusal, channel) {
   return { id: r2.id, label: r2.name, firstName: firstNameOf(r2.givenName, r2.waName), refusal, channel };
 }
@@ -15583,7 +15696,7 @@ function audiencePreview(rows2, kind, id, savedIds, purpose, how, limit = 5, tou
     sending: sending.length,
     held: held.length,
     saidYes: pool.filter((r2) => saidYesOnAny(r2, purpose, how)).length,
-    heard: sending.filter((x) => touched.has(x.r.id)).length
+    heard: breathSplit(sending, (x) => x.r.id, touched).waits.length
   };
 }
 
@@ -15643,94 +15756,6 @@ function numberHealth(n) {
 function overLimitRefusal(h, audience) {
   if (h.limitPerDay === null || audience <= h.limitPerDay) return null;
   return `This number can start up to ${h.limitPerDay.toLocaleString("en-US")} new conversations a day; this audience is ${audience.toLocaleString("en-US")}. Send to a smaller list or split it.`;
-}
-
-// src/broadcasts/run-words.ts
-var REPLY_WINDOW_HOURS = 72;
-var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * HOUR_MS;
-var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
-function isReplyTo(sentAt, at3) {
-  const s = Date.parse(sentAt);
-  const a = Date.parse(at3);
-  return Number.isFinite(s) && Number.isFinite(a) && a > s && a - s <= REPLY_WINDOW_MS;
-}
-var HELD_REASONS = {
-  opted_out: "asked to stop",
-  not_opted_in: "no recorded yes",
-  // The reason the send job writes when the OTHER yes is the missing one. It was
-  // added to the wire (00095) and not to these words, so the owner read the raw
-  // enum `no_marketing_consent` on the broadcast's own detail pane -- and the
-  // distinction it draws is the entire point of the split, so it is the last one
-  // that should have arrived untranslated.
-  no_marketing_consent: "no yes to offers",
-  no_phone: "no number",
-  // The channel picked was email and no address is on file (step 3), or no channel the send ticks could carry it.
-  no_address: "no email address",
-  no_channel: "no channel it can go by",
-  sms_line_not_active: "the texting line is not active",
-  // The workspace's month of emails or texts is used up (CAMPAIGN_MONTH_ALLOWANCE): held on its channel, never moved.
-  month_allowance: "this month's allowance is used up",
-  // The message's WhatsApp version is no longer one a send can use: it holds the people who go by WhatsApp, and only them.
-  template_not_approved: "its WhatsApp version is no longer approved",
-  // The number is on file but no thread answers to it on this line: a stored
-  // number that does not normalise, or one no contact row matches.
-  no_thread: "no thread for that number",
-  human_has_it: "a person had the thread",
-  paused: "the workspace was paused",
-  superseded_by_human: "a person answered first",
-  sms_carries_no_promotions: "no offers by text",
-  // The campaigns domain offers leave from is not this deployment's to use, or the provider does not verify it: the business's
-  // news by email is an offer at the door (decision D2), so it waits as an offer does. Each person's own skip, final.
-  email_marketing_disabled: "offers and news by email can't leave yet: the campaigns domain isn't switched on",
-  // The workspace's offers by email are paused while complaints or bounces settle (email-offers.ts), and the business's news
-  // by email with them (decision D2); a visit's reminder and a reply still go.
-  email_offers_paused: "offers and news by email are paused",
-  // An offer's foot names the business's address, and it has none on file: the person is held until it does.
-  no_business_address: "no business address on file",
-  email_suppressed: "their email address stopped accepting mail",
-  recipient_changed: "their email address changed",
-  erased: "deleted",
-  // The provider refused the send, on whichever channel the person was reached by: a page that knows the channel says
-  // it by SEND_REFUSED_WORDS, and a row that does not (a person's own page, a run made before rows kept theirs) says this.
-  send_failed: "the provider refused it",
-  missing_value: "a value was missing",
-  // A reminder's appointment moved, was cancelled or marked missed, or left the calendar between the run and the send
-  // (calendar/feed-appointments.ts appointmentHolds): held, never sent for a time that no longer stands.
-  appointment_changed: "their appointment moved or was cancelled",
-  // Spelled out rather than computed from OUTCOME_UNKNOWN: a computed key makes
-  // this object opaque to the bundler, which then carries the whole map into
-  // every package that imports anything from here. core-broadcast.test.mjs
-  // holds the two spellings together.
-  outcome_unknown: "a run that did not finish",
-  // Reach out's (a cold email), short, for a run's line.
-  unsubscribed: "unsubscribed",
-  outreach_is_email_only: "cold email goes by email only",
-  outreach_not_a_lead: "not a business your searches found",
-  outreach_lead_closed: "no longer being written to",
-  outreach_suppressed: "on the never-again list",
-  outreach_wrote_back: "wrote back or called",
-  outreach_away: "away until the day they're back",
-  outreach_stopped: "you stopped writing to them",
-  outreach_without_unsubscribe: "no unsubscribe link",
-  outreach_needs_own_domain: "not from your own domain",
-  sending_domain_not_ready: "the domain isn't sending",
-  sending_domain_at_cap: "the domain's day is full"
-};
-var DELIVERY_RECEIPTS_WORDS = "each channel's own receipts";
-var DELIVERY_RECEIPTS_TIP = "Each channel's own receipts";
-var EMAIL_HOLDS = [
-  "email_offers_paused",
-  "email_marketing_disabled"
-];
-function finishedRunHeldWhy(emailHeld) {
-  const why = [
-    HELD_REASONS.not_opted_in,
-    HELD_REASONS.opted_out,
-    HELD_REASONS.no_phone,
-    HELD_REASONS.human_has_it,
-    ...EMAIL_HOLDS.filter((r2) => emailHeld.includes(r2)).map((r2) => HELD_REASONS[r2])
-  ];
-  return `${why.join(", ")}, or ${HELD_REASONS.outcome_unknown}`;
 }
 
 // src/broadcasts/run-report.ts
@@ -40360,6 +40385,7 @@ export {
   READING_SCHEMA,
   READY_WHATSAPP_ALONE,
   RECENT_MAX,
+  RECIPIENT_REASON_HEARD,
   RECIPIENT_STATES,
   RECORDING_PURGED_WORDS,
   RECORDING_RETENTION_DAYS,
@@ -40584,6 +40610,7 @@ export {
   alertGrid,
   alertTestMail,
   allVisitsIn,
+  allWaitWords,
   allowanceBeforeSend,
   allowanceLine,
   allowanceLines,
@@ -40664,6 +40691,7 @@ export {
   brainMetaOf,
   breathEndsAt,
   breathHolds,
+  breathSplit,
   broadcastFailureFix,
   broadcastFailureWords,
   broadcastName,
@@ -40978,6 +41006,7 @@ export {
   fromSlotParts,
   fromZonedInput,
   gainedOver,
+  goesToOf,
   googleAudienceWords,
   googleCallbackUrl,
   googleFillsOf,
@@ -41002,6 +41031,7 @@ export {
   hasProfile,
   headlineOf,
   heardSinceProposal,
+  heardTooWords,
   heardWords,
   heldBackOfOneRun,
   heldBackWords,

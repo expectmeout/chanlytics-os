@@ -463,6 +463,9 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
     })),
     sendAt: open ? open.at : null,
     held: past.held,
+    // Nobody is enrolled to wait a week here: the run drew by its moment's own reading of the week's breath
+    // (eligibleForPlaybook over its touches), which leaves out who heard, or, for an appointment's message, sends anyway.
+    waits: [],
     // The ledger's line, in the run's own write: a run that sends says whose decision it was; one that waits says nothing
     // until a person approves it.
     decision: open ? decisionOf(run, { n, at: open.at, movedFrom }) : null,

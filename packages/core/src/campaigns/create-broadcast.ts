@@ -8,6 +8,8 @@ import {
   BUILTIN_LISTS,
   CAMPAIGNS_PAUSED_WORDS,
   EVERYONE_LABEL,
+  allWaitWords,
+  breathSplit,
   broadcastName,
   emptyAudienceRefusal,
   enrolFor,
@@ -23,6 +25,7 @@ import {
   type CampaignMessage,
   type ConsentChannel,
   type NumberHealth,
+  type ParamSpec,
   type PersonRowVM,
   listToken,
   type ListRef,
@@ -58,6 +61,12 @@ export interface BroadcastReceipt {
    * says so (`campaign_hold_unwritten`); the ledger's line says how many the month holds.
    */
   held_for_allowance: number;
+  /**
+   * How many of the people enrolled heard from a campaign or a broadcast within the week and wait a week (the week's
+   * breath), as written on their rows: skipped with contracts RECIPIENT_REASON_HEARD. Those whose skip could not be written
+   * are queued, logged by name, and not counted here. Who it goes to is recipient_count less these (contracts goesToOf).
+   */
+  waits_a_week: number;
   decision_id: string;
 }
 
@@ -71,6 +80,19 @@ interface Asked {
   params: unknown;
   scheduledFor: unknown;
   name: unknown;
+  /** Whether it waits a week for whoever heard this week: yes unless the body says false (the composer's own switch). */
+  breathe: boolean;
+}
+
+/** Whether the send breathes, as the body says it: true or false, absent or null for true; anything else is refused. */
+function askedBreath(breathe: unknown): boolean {
+  if (breathe === undefined || breathe === null) return true;
+  if (typeof breathe !== "boolean")
+    throw new AppError(
+      "validation",
+      "breathe is true or false: whether the people who heard from you this week wait a week.",
+    );
+  return breathe;
 }
 
 /** The body, judged in the order a person fills it in: the template, who it goes to, the list, the channels. */
@@ -82,6 +104,7 @@ function asked(raw: unknown): Asked {
     scheduled_for?: unknown;
     name?: unknown;
     channels?: unknown;
+    breathe?: unknown;
   } | null;
   const templateId = typeof body?.template_id === "string" ? body.template_id : "";
   if (!UUID.test(templateId)) throw new AppError("validation", "Pick a template.");
@@ -111,6 +134,7 @@ function asked(raw: unknown): Asked {
     params: body?.params,
     scheduledFor: body?.scheduled_for,
     name: body?.name,
+    breathe: askedBreath(body?.breathe),
   };
 }
 
@@ -195,10 +219,37 @@ async function audienceOf(
   };
 }
 
+/** One person on the send, with the channel it reaches them on (contracts enrolFor). */
+type Enrolled = ReturnType<typeof enrolFor>[number];
+
+/**
+ * The week's breath on a send by hand (spec §5.6): of the people enrolled, who goes now and who waits a week, having heard
+ * from a campaign or a broadcast within it -- by the one read of who did (ports.touched, the composer's own), made once and
+ * only when the send breathes, and split by contracts breathSplit, the rule the composer and Ask's card count by. A read
+ * that fails refuses the send: "nobody heard" is the reading that messages people twice.
+ */
+async function breathOf(
+  ports: Pick<CreateBroadcastPorts, "touched">,
+  enrolled: Enrolled[],
+  breathe: boolean,
+  now: Date,
+): Promise<{ goes: Enrolled[]; waits: Enrolled[] }> {
+  if (!breathe) return { goes: enrolled, waits: [] };
+  const touched = await ports.touched(now).catch((e: unknown) => {
+    createLog.error("campaign_step_failed", { step: "touches", error: errField(e) });
+    throw new AppError(
+      "internal",
+      "Who heard from you this week could not be read just now. Nothing was sent; try again.",
+      500,
+    );
+  });
+  return breathSplit(enrolled, (e) => e.row.id, touched);
+}
+
 /**
  * A person's broadcast: one message to the people who said yes.
  *
- * { template_id, params, audience: { kind, id }, channels?, scheduled_for?, name? }.
+ * { template_id, params, audience: { kind, id }, channels?, scheduled_for?, name?, breathe? }.
  * `template_id` is any version of the message, and the message needs no WhatsApp
  * version: each channel ticked needs only its own (WhatsApp's approved by Meta, an
  * email's and a text's written here), and a tick whose version the message does not
@@ -209,7 +260,9 @@ async function audienceOf(
  * when none is named), each person once, on the first channel the send can reach
  * them on (contracts reachFor), written on their row. The recipients are enrolled
  * now, so the owner sees who and how many; the job re-checks each person at the
- * wire. The ledger records the decision to send, in the run's own write. The body is judged here, in
+ * wire. Whoever heard from a campaign or a broadcast this week waits a week (the
+ * week's breath, `breathe` true unless the body says false): enrolled, and skipped
+ * with RECIPIENT_REASON_HEARD. The ledger records the decision to send, in the run's own write. The body is judged here, in
  * sentences for the person composing: the values are judged against the message
  * the workspace holds, which no schema knows.
  */
@@ -244,9 +297,13 @@ export async function createBroadcast(
   if (enrolled.length === 0) throw new AppError("conflict", emptyAudienceRefusal(purpose, label, pool, how), 409);
   if (enrolled.length > BROADCAST_MAX_RECIPIENTS)
     throw new AppError("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
+  // 4a. Whoever heard from a campaign or a broadcast this week waits a week (skipped at enrolment, in the assembly), unless
+  // the person sending it sends to them too: refused in words when nobody else is left, never a run of skips.
+  const { goes, waits } = await breathOf(ports, enrolled, want.breathe, now);
+  if (goes.length === 0) throw new AppError("conflict", allWaitWords(label, waits.length), 409);
   // An audience past the day's limit is split, not silently cut: WhatsApp's limit is Meta's, so it counts the people
-  // who go by WhatsApp alone.
-  const over = health ? overLimitRefusal(health, enrolled.filter((e) => e.channel === "whatsapp").length) : null;
+  // who go by WhatsApp alone, now.
+  const over = health ? overLimitRefusal(health, goes.filter((e) => e.channel === "whatsapp").length) : null;
   if (over) throw new AppError("validation", over);
 
   // 4b. Never at 3 AM. The same window the playbooks keep, by the business's
@@ -265,9 +322,10 @@ export async function createBroadcast(
   // enrolled held, so the run's report says so up front. A count that could not be made is not room, and the broadcast
   // waits for one rather than enrol past a month nobody counted. A broadcast has no moment, so every email and text is held.
   // Counted in the month the run OPENS in, not the one it was made in: made on the 28th for the 1st, it sends in the new month.
+  // Of who goes: a person who waits a week is sent nothing, and counts against no month.
   const past = await pastTheMonth(
     { monthSent: (channel) => ports.monthSent(channel, when) },
-    enrolled.map((e) => ({ id: e.row.id, channel: e.channel })),
+    goes.map((e) => ({ id: e.row.id, channel: e.channel })),
     null,
     purpose,
   ).catch((e: unknown) => {
@@ -293,24 +351,7 @@ export async function createBroadcast(
 
   // 5. The rows, the job and the ledger's line, whole (00282, with its decision since 00381): a decision that could not
   // be written is a run that was not made, never a 500 for one that was, which a person answers by pressing again.
-  const decision = {
-    by: { kind: "user" as const, userId: cmd.userId },
-    payload: {
-      name,
-      template: `${message.name}/${message.language}`,
-      category: message.category,
-      // The ledger names the list by its token; the send's own row keeps the rule it was counted by.
-      audience: { kind: audience.kind, id: audience.id, label: audience.label, ...(kept ? { list: kept.token } : {}) },
-      channels: [...how.channels],
-      values: specs.map(paramLabel),
-      recipients: enrolled.length,
-      scheduled_for: when.toISOString(),
-      ...(movedFrom ? { moved_from: movedFrom } : {}),
-      // As a playbook's run records it: how many the month holds. The hold is its own write after the run, and one that
-      // could not be made is logged there (assemble.ts) and counted on the receipt; the ledger's line says what was asked.
-      ...allowanceRecord(past.length, 0),
-    },
-  };
+  // Everyone is enrolled, who waits a week and who the month holds among them, each skipped the moment the run exists.
   const made = await assembleRun(ports, {
     broadcast: {
       name,
@@ -329,7 +370,18 @@ export async function createBroadcast(
     recipients: enrolled.map((e) => ({ contact_id: e.row.id, facts: null, channel: e.channel })),
     sendAt: when,
     held: past.map((p) => p.id),
-    decision,
+    waits: waits.map((e) => e.row.id),
+    decision: {
+      by: { kind: "user", userId: cmd.userId },
+      payload: decisionPayload(
+        { name, message, audience, kept, how, specs, enrolled, when, movedFrom },
+        {
+          held: past.length,
+          waits: waits.length,
+          breathe: want.breathe,
+        },
+      ),
+    },
   });
   if (!made.ok) {
     // A sentence for the person: nothing was written, and a bare error reached them as "Something went wrong". What the
@@ -350,6 +402,46 @@ export async function createBroadcast(
     // What was actually held at enrolment: a hold that could not be written is queued and held at the wire (the backstop),
     // so it is not claimed here.
     held_for_allowance: past.length - made.unheld,
+    // And who was written as waiting a week: a skip that could not be written is queued, and is not claimed either.
+    waits_a_week: waits.length - made.unwaited,
     decision_id: made.decisionId,
+  };
+}
+
+/**
+ * The ledger's line for a send by hand (the decision the run is written with, 00381): what was sent, to whom and when, and,
+ * as a playbook's run records it, how many the month holds; with how many wait a week for the breath where any do, and that
+ * the person sent to whoever heard this week too where they did. The skips are their own writes after the run, and one that
+ * could not be made is logged there (assemble.ts) and counted on the receipt; the ledger's line says what was asked.
+ */
+function decisionPayload(
+  s: {
+    name: string;
+    message: Pick<CampaignMessage, "name" | "language" | "category">;
+    audience: Audience;
+    kept: Audience["list"] | undefined;
+    how: CampaignHow;
+    specs: readonly ParamSpec[];
+    enrolled: readonly Enrolled[];
+    when: Date;
+    movedFrom: string | null;
+  },
+  skipped: { held: number; waits: number; breathe: boolean },
+) {
+  const { name, message, audience, kept, how, specs, enrolled, when, movedFrom } = s;
+  return {
+    name,
+    template: `${message.name}/${message.language}`,
+    category: message.category,
+    // The ledger names the list by its token; the send's own row keeps the rule it was counted by.
+    audience: { kind: audience.kind, id: audience.id, label: audience.label, ...(kept ? { list: kept.token } : {}) },
+    channels: [...how.channels],
+    values: specs.map(paramLabel),
+    recipients: enrolled.length,
+    scheduled_for: when.toISOString(),
+    ...(movedFrom ? { moved_from: movedFrom } : {}),
+    ...allowanceRecord(skipped.held, 0),
+    ...(skipped.waits > 0 ? { waits_a_week: skipped.waits } : {}),
+    ...(skipped.breathe ? {} : { breathe: false }),
   };
 }

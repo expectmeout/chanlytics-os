@@ -4,18 +4,22 @@ import {
   AUDIENCE_KINDS,
   AppError,
   BUILTIN_LISTS,
+  PLAYBOOK_CARD_REFUSALS,
+  allWaitWords,
   allowanceBeforeSend,
+  breathSplit,
   CONSENT_CHANNELS,
   EVERYONE_LABEL,
   broadcastName,
   cleanParam,
   clockWhen,
-  eligibleFor,
   emptyAudienceRefusal,
+  enrolFor,
+  heardTooWords,
+  heardWords,
   nextOpenMoment,
   parseParamSpec,
   proposalChannelsWords,
-  reachSplit,
   sendsWaitWords,
   type AskedPurpose,
   type CampaignHow,
@@ -26,6 +30,7 @@ import {
 } from "@chanlytics/contracts";
 import { campaignHowOf } from "@chanlytics/core";
 import { monthSentOrNull } from "../../../campaigns/month-sent";
+import { recentTouches } from "../../../campaigns/playbooks";
 import { archivedListWords, poolList } from "../../../people/audience";
 import { createBroadcastPorts } from "../../../ports/campaign-ports";
 import { load } from "../../../readers";
@@ -116,26 +121,70 @@ async function broadcastMessage(
 }
 
 /**
- * Who a broadcast proposal reaches and what its card says of the channels: the count, the words after it ("on WhatsApp and
+ * Who a broadcast proposal sends to and what its card says of the channels: the count, the words after it ("on WhatsApp and
  * by email (52 on WhatsApp, 32 by email)", none for a proposal that named no channel), the channels the card keeps
- * for its commit, and how many each channel reaches. Each person is reached once, on the first channel that reaches them
- * (contracts reachSplit).
+ * for its commit, how many each channel reaches, and how many wait a week. Each person is reached once, on the first
+ * channel that reaches them (contracts enrolFor, the route's own), and whoever heard from a campaign or a broadcast this
+ * week (`touched`, the composer's read) waits a week, as the route skips them (contracts breathSplit): the count, the split
+ * and the month are of who goes.
  */
 function broadcastReach(
   rows: PersonRowVM[],
   purpose: AskedPurpose,
   by: { how: CampaignHow; channels: ConsentChannel[]; named: boolean },
-): { count: number; says: string; kept: { channels?: ConsentChannel[] }; byChannel: Record<ConsentChannel, number> } {
-  if (!by.named) {
-    const count = eligibleFor(rows, "everyone", null, null, purpose, by.how).length;
-    return { count, says: "", kept: {}, byChannel: { whatsapp: count, sms: 0, email: 0 } };
-  }
-  const split = reachSplit(rows, purpose, by.how);
+  touched: ReadonlySet<string>,
+): {
+  count: number;
+  says: string;
+  kept: { channels?: ConsentChannel[] };
+  byChannel: Record<ConsentChannel, number>;
+  waits: number;
+} {
+  const { goes, waits } = breathSplit(
+    enrolFor(rows, "everyone", null, null, purpose, by.how),
+    (e) => e.row.id,
+    touched,
+  );
+  const byChannel: Record<ConsentChannel, number> = { whatsapp: 0, sms: 0, email: 0 };
+  for (const e of goes) byChannel[e.channel] += 1;
+  if (!by.named) return { count: goes.length, says: "", kept: {}, byChannel, waits: waits.length };
   return {
-    count: split.reached,
-    says: ` · ${proposalChannelsWords(by.channels, split.byChannel)}`,
+    count: goes.length,
+    says: ` · ${proposalChannelsWords(by.channels, byChannel)}`,
     kept: namedChannels(by),
-    byChannel: split.byChannel,
+    byChannel,
+    waits: waits.length,
+  };
+}
+
+/**
+ * Who a broadcast card sends to (broadcastReach), with how many wait a week in the composer's words and their separator
+ * (" · 1 waits a week", none where nobody heard), or why there is no card. Who heard from a campaign or a broadcast this
+ * week is the composer's own read of it (GET broadcasts' `touched`): unread is no card, since "nobody heard" would promise
+ * a send to people the route then skips. Nobody it reaches is said in the route's words, which say which cause it is
+ * (nobody said this yes, or the ones who did have no number); everyone it reaches having heard is said as the composer says
+ * it, and sending to them too is a person's own switch there, never Ask's.
+ */
+async function broadcastCount(
+  t: ToolContext,
+  rows: PersonRowVM[],
+  label: string,
+  purpose: AskedPurpose,
+  by: { how: CampaignHow; channels: ConsentChannel[]; named: boolean },
+): Promise<(ReturnType<typeof broadcastReach> & { waited: string }) | { refusal: string }> {
+  const touched = await recentTouches(t.ctx, t.tenantId, t.now).catch(() => null);
+  if (!touched) return { refusal: PLAYBOOK_CARD_REFUSALS.weekUnread };
+  const reach = broadcastReach(rows, purpose, by, new Set(Object.keys(touched)));
+  if (reach.count > 0) {
+    const waited = heardWords(reach.waits, true);
+    return { ...reach, waited: waited ? ` · ${waited}` : "" };
+  }
+  if (reach.waits > 0)
+    return {
+      refusal: `${allWaitWords(label, reach.waits)} Say so; a person may send it to them anyway from the composer (“${heardTooWords(reach.waits)}”)`,
+    };
+  return {
+    refusal: `nobody on "${label}" can receive this message: ${emptyAudienceRefusal(purpose, label, rows, by.how)} Say so, and name what to do about it`,
   };
 }
 
@@ -233,12 +282,9 @@ async function proposeBroadcast(t: ToolContext, input: BroadcastProposed): Promi
   const { purpose } = message;
   const by = await broadcastBy(t, message, input.channels);
   if ("refusal" in by) return refuse(by.refusal);
-  const { count, says, kept, byChannel } = broadcastReach(rows, purpose, by);
-  // In the route's words, which say which cause it is -- nobody said this yes, or the ones who did have no number.
-  if (count === 0)
-    return refuse(
-      `nobody on "${label}" can receive this message: ${emptyAudienceRefusal(purpose, label, rows, by.how)} Say so, and name what to do about it`,
-    );
+  const reach = await broadcastCount(t, rows, label, purpose, by);
+  if ("refusal" in reach) return refuse(reach.refusal);
+  const { count, says, kept, byChannel, waited } = reach;
   const when = str(input.scheduled_for, 40) || null;
   // With its offset: a bare date is midnight UTC, the evening before here, and
   // the route refuses it after the person approved the card.
@@ -255,7 +301,7 @@ async function proposeBroadcast(t: ToolContext, input: BroadcastProposed): Promi
   return propose({
     kind: "broadcast",
     title: `Broadcast to ${label}`,
-    summary: `${count} ${count === 1 ? "person" : "people"} who said yes${says}${held} · “${message.name}” · ${whenWords}: ${said.says}`,
+    summary: `${count} ${count === 1 ? "person" : "people"} who said yes${says}${held}${waited} · “${message.name}” · ${whenWords}: ${said.says}`,
     payload: {
       template_id: message.anchor.id,
       template_name: message.name,

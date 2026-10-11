@@ -381,6 +381,40 @@ test("a broadcast: the workspace must be named, a viewer is refused as a viewer,
   assert.equal(writes(nobody), 0, "nothing enrolled, nothing scheduled, nothing on the ledger");
 });
 
+test("a broadcast's breathe is the body's to say, true or false: anything else is refused in the person's words before anything is written, and false is judged on as any send is", async () => {
+  const tables = {
+    memberships: both("viewer", "operator"),
+    templates: [tpl(T2, B, { name: "offer", meta_status: "pending" })],
+    tenants: [],
+    tenant_config: [],
+    policies: [],
+  };
+  const rpcs = { people_list: () => [] };
+  const everyone = { kind: "everyone" };
+  for (const breathe of ["no", 1]) {
+    const ctx = ctxFor(tables, {}, rpcs);
+    await refused(
+      broadcasts.POST.run(send("POST", { template_id: T2, audience: everyone, breathe }, inB), ctx),
+      "validation",
+      400,
+      "breathe is true or false: whether the people who heard from you this week wait a week.",
+    );
+    assert.equal(writes(ctx), 0);
+  }
+  // False is a body the route takes: judged on, here to the message, whose WhatsApp version is still in review.
+  for (const breathe of [false, true]) {
+    await refused(
+      broadcasts.POST.run(
+        send("POST", { template_id: T2, audience: everyone, breathe }, inB),
+        ctxFor(tables, {}, rpcs),
+      ),
+      "conflict",
+      409,
+      "Connect a WhatsApp number first.",
+    );
+  }
+});
+
 test("approving and canceling a run: judged where it lives; a run not waiting is refused; a waiting run is skipped and a sending one stopped, each on the ledger; anything ended says so", async () => {
   const tables = {
     memberships: both("viewer", "operator"),

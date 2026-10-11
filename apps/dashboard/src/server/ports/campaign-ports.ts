@@ -7,10 +7,10 @@
  * assembled through one door (00282) that is the service role's alone.
  *
  * Beside the writes, the reads a send is judged by: the message, the booking link and the review link, the audience
- * pool (every person, and a built-in or saved list over it) read once, in the workspace's own zone, and the WhatsApp
- * number's health. A release or a cancel puts the broadcast_send job on the ledger, or takes it off (schedule,
- * cancelKindFor), and every act is recorded as a decision: a broadcast's and an approval's in the door's own write, a
- * cancel's after it.
+ * pool (every person, and a built-in or saved list over it) read once, in the workspace's own zone, the WhatsApp
+ * number's health, and who heard from a campaign or a broadcast this week (the week's breath). A release or a cancel
+ * puts the broadcast_send job on the ledger, or takes it off (schedule, cancelKindFor), and every act is recorded as a
+ * decision: a broadcast's and an approval's in the door's own write, a cancel's after it.
  */
 import { AppError, parseTenantConfig } from "@chanlytics/contracts";
 import {
@@ -40,6 +40,9 @@ import { storedConfigOf } from "../workspace/config-row";
 import { serviceDb } from "../service-db";
 import { tenantFacts } from "../tenant";
 import { channelsReadyOf, channelsReadyOrNull, whatsappHealthOf } from "../campaigns/channels-ready";
+// The week's breath, as the composer reads it. campaigns/playbooks.ts imports templateValuePorts from here in turn: each
+// side calls the other only inside a function, never as the module loads.
+import { recentTouches } from "../campaigns/playbooks";
 
 export function templateValuePorts(ctx: RouteContext, tenantId: string): TemplateValuesPorts {
   return {
@@ -161,6 +164,10 @@ export function createBroadcastPorts(ctx: RouteContext, tenantId: string, o: { f
       ]);
       return { ready, health };
     },
+    // Who heard from a campaign or a broadcast this week: the composer's own read (GET broadcasts' `touched`, the
+    // recentTouches it answers from), over the same window (contracts PLAYBOOK_BREATH_MS), so the page's "N wait a week"
+    // and the people the send skips are one number for one moment. A read that fails throws, and the send is refused.
+    touched: async (now) => new Set(Object.keys(await recentTouches(ctx, tenantId, now))),
   };
 }
 

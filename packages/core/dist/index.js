@@ -2321,6 +2321,7 @@ async function cancelled(ports, { tenantId, key, r, fresh }) {
 }
 
 // src/campaigns/assemble.ts
+import { RECIPIENT_REASON_HEARD } from "../../contracts/dist/index.js";
 import { errField as errField4, logger as logger5 } from "../../channels/dist/index.js";
 
 // src/campaigns/allowance.ts
@@ -2354,13 +2355,23 @@ async function assembleRun(ports, cmd) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
   const { id, decisionId } = made;
-  if (cmd.held.length === 0) return { ok: true, id, decisionId, unheld: 0 };
+  const unwaited = await skipAt(ports, id, cmd.waits, RECIPIENT_REASON_HEARD);
+  const unheld = await skipAt(ports, id, cmd.held, MONTH_ALLOWANCE_REASON);
+  return { ok: true, id, decisionId, unheld, unwaited };
+}
+async function skipAt(ports, id, people, reason) {
+  if (people.length === 0) return 0;
   try {
-    await ports.holdRecipients(id, [...cmd.held], MONTH_ALLOWANCE_REASON);
-    return { ok: true, id, decisionId, unheld: 0 };
+    await ports.holdRecipients(id, [...people], reason);
+    return 0;
   } catch (e) {
-    assembleLog.error("campaign_hold_unwritten", { broadcast_id: id, unheld: cmd.held.length, error: errField4(e) });
-    return { ok: true, id, decisionId, unheld: cmd.held.length };
+    assembleLog.error("campaign_hold_unwritten", {
+      broadcast_id: id,
+      reason,
+      unheld: people.length,
+      error: errField4(e)
+    });
+    return people.length;
   }
 }
 
@@ -2650,6 +2661,9 @@ async function runPlaybook(ports, cmd) {
     })),
     sendAt: open ? open.at : null,
     held: past.held,
+    // Nobody is enrolled to wait a week here: the run drew by its moment's own reading of the week's breath
+    // (eligibleForPlaybook over its touches), which leaves out who heard, or, for an appointment's message, sends anyway.
+    waits: [],
     // The ledger's line, in the run's own write: a run that sends says whose decision it was; one that waits says nothing
     // until a person approves it.
     decision: open ? decisionOf(run, { n, at: open.at, movedFrom }) : null
@@ -2763,6 +2777,8 @@ import {
   BUILTIN_LISTS,
   CAMPAIGNS_PAUSED_WORDS,
   EVERYONE_LABEL,
+  allWaitWords,
+  breathSplit,
   broadcastName,
   emptyAudienceRefusal,
   enrolFor,
@@ -2776,6 +2792,15 @@ import {
 import { errField as errField5, logger as logger6 } from "../../channels/dist/index.js";
 var OFFSET = /(?:Z|[+-]\d{2}:?\d{2})$/i;
 var createLog = logger6();
+function askedBreath(breathe) {
+  if (breathe === void 0 || breathe === null) return true;
+  if (typeof breathe !== "boolean")
+    throw new AppError12(
+      "validation",
+      "breathe is true or false: whether the people who heard from you this week wait a week."
+    );
+  return breathe;
+}
 function asked(raw) {
   const body = raw;
   const templateId = typeof body?.template_id === "string" ? body.template_id : "";
@@ -2798,7 +2823,8 @@ function asked(raw) {
     channels: parseChannels(body?.channels),
     params: body?.params,
     scheduledFor: body?.scheduled_for,
-    name: body?.name
+    name: body?.name,
+    breathe: askedBreath(body?.breathe)
   };
 }
 function askedTime(scheduledFor, now) {
@@ -2832,6 +2858,18 @@ async function audienceOf(ports, ref, now) {
     kept: { token: listToken2(ref), rule: found.rule ?? null, counted_at: now.toISOString() }
   };
 }
+async function breathOf(ports, enrolled, breathe, now) {
+  if (!breathe) return { goes: enrolled, waits: [] };
+  const touched = await ports.touched(now).catch((e) => {
+    createLog.error("campaign_step_failed", { step: "touches", error: errField5(e) });
+    throw new AppError12(
+      "internal",
+      "Who heard from you this week could not be read just now. Nothing was sent; try again.",
+      500
+    );
+  });
+  return breathSplit(enrolled, (e) => e.row.id, touched);
+}
 async function createBroadcast(ports, cmd) {
   const { now } = cmd;
   const want = asked(cmd.body);
@@ -2849,7 +2887,9 @@ async function createBroadcast(ports, cmd) {
   if (enrolled.length === 0) throw new AppError12("conflict", emptyAudienceRefusal(purpose, label, pool, how), 409);
   if (enrolled.length > BROADCAST_MAX_RECIPIENTS)
     throw new AppError12("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
-  const over = health ? overLimitRefusal(health, enrolled.filter((e) => e.channel === "whatsapp").length) : null;
+  const { goes, waits } = await breathOf(ports, enrolled, want.breathe, now);
+  if (goes.length === 0) throw new AppError12("conflict", allWaitWords(label, waits.length), 409);
+  const over = health ? overLimitRefusal(health, goes.filter((e) => e.channel === "whatsapp").length) : null;
   if (over) throw new AppError12("validation", over);
   const tz = await ports.timezone();
   const open = nextOpenMoment4(tz, when);
@@ -2859,7 +2899,7 @@ async function createBroadcast(ports, cmd) {
     throw new AppError12("validation", `Schedule within ${BROADCAST_SCHEDULE_MAX_DAYS} days.`);
   const past = await pastTheMonth(
     { monthSent: (channel) => ports.monthSent(channel, when) },
-    enrolled.map((e) => ({ id: e.row.id, channel: e.channel })),
+    goes.map((e) => ({ id: e.row.id, channel: e.channel })),
     null,
     purpose
   ).catch((e) => {
@@ -2876,24 +2916,6 @@ async function createBroadcast(ports, cmd) {
     id: want.audienceId,
     label,
     ...kept ? { list: kept } : {}
-  };
-  const decision = {
-    by: { kind: "user", userId: cmd.userId },
-    payload: {
-      name,
-      template: `${message.name}/${message.language}`,
-      category: message.category,
-      // The ledger names the list by its token; the send's own row keeps the rule it was counted by.
-      audience: { kind: audience.kind, id: audience.id, label: audience.label, ...kept ? { list: kept.token } : {} },
-      channels: [...how.channels],
-      values: specs.map(paramLabel),
-      recipients: enrolled.length,
-      scheduled_for: when.toISOString(),
-      ...movedFrom ? { moved_from: movedFrom } : {},
-      // As a playbook's run records it: how many the month holds. The hold is its own write after the run, and one that
-      // could not be made is logged there (assemble.ts) and counted on the receipt; the ledger's line says what was asked.
-      ...allowanceRecord(past.length, 0)
-    }
   };
   const made = await assembleRun(ports, {
     broadcast: {
@@ -2913,7 +2935,18 @@ async function createBroadcast(ports, cmd) {
     recipients: enrolled.map((e) => ({ contact_id: e.row.id, facts: null, channel: e.channel })),
     sendAt: when,
     held: past.map((p) => p.id),
-    decision
+    waits: waits.map((e) => e.row.id),
+    decision: {
+      by: { kind: "user", userId: cmd.userId },
+      payload: decisionPayload(
+        { name, message, audience, kept, how, specs, enrolled, when, movedFrom },
+        {
+          held: past.length,
+          waits: waits.length,
+          breathe: want.breathe
+        }
+      )
+    }
   });
   if (!made.ok) {
     createLog.error("campaign_step_failed", { step: "assemble", error: made.error });
@@ -2930,7 +2963,27 @@ async function createBroadcast(ports, cmd) {
     // What was actually held at enrolment: a hold that could not be written is queued and held at the wire (the backstop),
     // so it is not claimed here.
     held_for_allowance: past.length - made.unheld,
+    // And who was written as waiting a week: a skip that could not be written is queued, and is not claimed either.
+    waits_a_week: waits.length - made.unwaited,
     decision_id: made.decisionId
+  };
+}
+function decisionPayload(s, skipped) {
+  const { name, message, audience, kept, how, specs, enrolled, when, movedFrom } = s;
+  return {
+    name,
+    template: `${message.name}/${message.language}`,
+    category: message.category,
+    // The ledger names the list by its token; the send's own row keeps the rule it was counted by.
+    audience: { kind: audience.kind, id: audience.id, label: audience.label, ...kept ? { list: kept.token } : {} },
+    channels: [...how.channels],
+    values: specs.map(paramLabel),
+    recipients: enrolled.length,
+    scheduled_for: when.toISOString(),
+    ...movedFrom ? { moved_from: movedFrom } : {},
+    ...allowanceRecord(skipped.held, 0),
+    ...skipped.waits > 0 ? { waits_a_week: skipped.waits } : {},
+    ...skipped.breathe ? {} : { breathe: false }
   };
 }
 

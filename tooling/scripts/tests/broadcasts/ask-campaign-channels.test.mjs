@@ -1182,3 +1182,64 @@ test("Ask is told what a message is: a name with a version on each channel it is
   for (const text of [ASK_DEFINITIONS.broadcast, ASK_DEFINITIONS.playbook, listing, proposing])
     assert.ok(!/approved (WhatsApp )?templates?/i.test(text), text.slice(0, 120));
 });
+
+/* ---- The week's breath (spec §5.6): a broadcast card waits a week for whoever heard this week, as the route does ---- */
+
+const HEARD_RUN = "88888888-8888-4888-8888-888888888881";
+/** A run sent two days ago to these people: who heard from a campaign or a broadcast this week (packages/db touchesSince). */
+const heardBy = (...people) => ({
+  broadcasts: [
+    {
+      id: HEARD_RUN,
+      tenant_id: A,
+      playbook_id: null,
+      state: "sent",
+      scheduled_for: ago(2 * DAY),
+      created_at: ago(2 * DAY),
+      run_for: null,
+      params: [],
+    },
+  ],
+  broadcast_recipients: people.map((p) => ({
+    broadcast_id: HEARD_RUN,
+    tenant_id: A,
+    contact_id: p.id,
+    state: "sent",
+    reason: null,
+    sent_at: ago(2 * DAY),
+    facts: null,
+  })),
+});
+
+test("a broadcast card waits a week for whoever heard this week, as the route skips them: it counts who it sends to, says how many wait, and its commit never carries breathe", async () => {
+  const { allWaitWords, heardTooWords } = await import("@chanlytics/contracts");
+  // By WhatsApp alone it reaches the two with a number: the first heard from a run two days ago.
+  const r = await propose(BROADCAST, heardBy(PEOPLE[0]));
+  assert.equal(r.isError, false, r.result);
+  assert.equal(r.proposal.payload.count, 1, "who it sends to");
+  assert.match(r.proposal.summary, /^1 person who said yes · 1 waits a week · “visit_reminder” · now: /);
+  assert.equal("breathe" in commitBody(r.proposal), false, "absent is true: the route skips them as the card said");
+  assert.equal("breathe" in r.proposal.payload, false);
+  // Its action takes no breathe: the model cannot ask for one.
+  assert.equal(JSON.stringify(toApiTools("owner", true)).includes("breathe"), false);
+  // The receipt says who it went to and who waits, from the route's answer.
+  assert.equal(
+    PROPOSAL_SPECS.broadcast.receipt(r.proposal, { id: "b1", name: "Visit note", recipient_count: 2, waits_a_week: 1 }),
+    "Broadcast “Visit note” — 1 person, sending now · 1 waits a week",
+  );
+  // Nobody heard: the card is what it always was.
+  const quiet = await propose(BROADCAST, heardBy());
+  assert.match(quiet.proposal.summary, /^2 people who said yes · “visit_reminder” · now: /);
+  // By WhatsApp and email the split is counted over who it sends to.
+  const both = await propose({ ...BROADCAST, channels: ["whatsapp", "email"] }, heardBy(PEOPLE[0]));
+  assert.equal(both.proposal.payload.count, 2);
+  assert.match(
+    both.proposal.summary,
+    /^2 people who said yes · on WhatsApp and by email \(1 on WhatsApp, 1 by email\) · 1 waits a week · /,
+  );
+  // Everyone it reaches heard: no card, in words, and the way to send to them anyway is a person's, on the composer.
+  const all = await propose(BROADCAST, heardBy(PEOPLE[0], PEOPLE[2]));
+  assert.equal(all.isError, true);
+  assert.ok(said(all).startsWith(allWaitWords("Everyone", 2)), said(all));
+  assert.ok(said(all).includes(heardTooWords(2)), said(all));
+});

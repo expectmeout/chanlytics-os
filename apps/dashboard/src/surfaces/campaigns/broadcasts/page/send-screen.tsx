@@ -13,6 +13,7 @@ import {
   NO_TEMPLATE_WORDS,
   STARTER_LINE_WORDS,
   allowanceBeforeSend,
+  heardTooWords,
   heldBackWords,
   messageHolds,
   monthSentAt,
@@ -26,6 +27,7 @@ import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { Picker } from "../../../kit/picker/picker";
+import { Switch } from "../../../kit/switch/switch";
 import { UnsavedAsk } from "../../../kit/record/work";
 import { gate, gateTitle, routeDoor } from "../../../legacy-verbs";
 import { MessagePreview, PreviewStepper } from "../../parts/message-preview";
@@ -46,10 +48,9 @@ import type { BcV } from "./types";
 import { BC_SAYS, BC_TEXT, bcLangWords, bcTitle } from "./words";
 
 // What stood as paragraphs under the To row, and now sits behind "Who's held back" (page/audience.tsx BcHeldBack): who said yes,
-// the rules every send keeps (who is held back at the wire, how many go at a time), what an offer needs, and how many heard
-// from a run this week.
+// the rules every send keeps (who is held back at the wire, how many go at a time), and what an offer needs.
 function bcWhoNotes(v: BcV) {
-  const { data, active, yesWords, purpose, sample, on } = v;
+  const { data, active, yesWords, purpose, on } = v;
   return (
     <>
       <div className="bc-meta">
@@ -69,14 +70,31 @@ function bcWhoNotes(v: BcV) {
           {offersNote(cmReadyOf(data.ready))}
         </div>
       )}
-      {/* Who of these already heard from a run this week: a send by hand is not held back by the week a playbook
-                waits, so the owner is told here, before it goes (contracts heardWords). */}
-      {active && sample && sample.heard > 0 && (
-        <div className="bc-excl-hint" data-testid="bc-heard">
-          {broadcasts.heardWords(sample.heard)}
-        </div>
-      )}
     </>
+  );
+}
+
+// Who of those it reaches already heard from a campaign or a broadcast this week: they wait a week, as the route skips them
+// (the week's breath), and the kit's switch beside it, off, sends to them too (contracts heardWords, heardTooWords). Said in
+// the To row, where the count it changes is, and only where somebody heard.
+function bcHeard(v: BcV) {
+  const { active, heard, breathe, setHeardToo } = v;
+  if (!active || heard <= 0) return null;
+  return (
+    <div className="bc-excl-hint" data-testid="bc-heard-line">
+      <span data-testid="bc-heard">{broadcasts.heardWords(heard, breathe)}</span>{" "}
+      <span className="cm-via-one">
+        <Switch
+          labelledBy="bc-heard-too-word"
+          checked={!breathe}
+          onCheckedChange={(on) => setHeardToo(on)}
+          data-testid="bc-heard-too"
+        />
+        <span id="bc-heard-too-word" className="cm-via-word" data-testid="bc-heard-too-word">
+          {heardTooWords(heard)}
+        </span>
+      </span>
+    </div>
   );
 }
 
@@ -84,7 +102,8 @@ function bcWhoNotes(v: BcV) {
 // the list, the month's emails or texts running out (contracts allowanceBeforeSend; a broadcast is held at it), and nobody
 // to send it to -- with the door to where their yes is got.
 function bcBlockers(v: BcV) {
-  const { active, overLimit, number, activeCount, canSend, noNumber, yesDoor, on, purpose, sample, data, goesAt } = v;
+  const { active, overLimit, number, activeCount, waiting, canSend, noNumber, yesDoor, on, purpose, sample } = v;
+  const { data, goesAt } = v;
   // The month the send is set to go in, not the month it is made in: one set for the 1st, made on the 28th, counts against the new month.
   const allowance =
     active && sample && sample.split
@@ -103,7 +122,8 @@ function bcBlockers(v: BcV) {
           {active.label}” is {activeCount.toLocaleString()}. Send to a smaller list or split it.
         </div>
       )}
-      {canSend && active && activeCount === 0 && (
+      {/* Nobody it reaches, not everyone waiting a week: that is the heard line's, with its switch, and the foot's. */}
+      {canSend && active && activeCount === 0 && waiting === 0 && (
         <div className="bc-excl-hint" data-testid="bc-nobody">
           {on.length === 0 ? (
             CM_VIA_WORDS.nowhere
@@ -131,12 +151,14 @@ function bcBlockers(v: BcV) {
 function bcColWho(v: BcV) {
   const { audiences, active, sizeOf, setAud, data, sample, people, setWho, activeCount, heldLines, reachBy, yesLink } =
     v;
+  // Who waits a week is out of the count it sends to, and into the list's whole: "1 of 2 can hear it".
+  const { waiting } = v;
   return (
     <div className="bc-col" data-testid="bc-col-who">
       <span className="bc-col-label">Who</span>
       <p className="bc-to-line">
         <BcAudiencePick audiences={audiences} active={active} sizeOf={sizeOf} onPick={setAud} />
-        {active ? <BcCount sending={activeCount} held={sample ? sample.held : null} /> : null}
+        {active ? <BcCount sending={activeCount} held={sample ? sample.held + waiting : null} /> : null}
         {reachBy ? <BcReachBy words={reachBy} /> : null}
         {active ? (
           <BcHeldBack
@@ -162,8 +184,9 @@ function bcColWho(v: BcV) {
       {sample && reachBy && sample.split ? (
         <CmSplitBar split={sample.split} className="bc-to-bar" testid="bc-reach-bar" />
       ) : sample ? (
-        <BcReachBar sending={activeCount} held={sample.held} />
+        <BcReachBar sending={activeCount} held={sample.held + waiting} />
       ) : null}
+      {bcHeard(v)}
       {bcBlockers(v)}
     </div>
   );
@@ -449,6 +472,9 @@ function bcNewTemplate(v: BcV) {
     composing && (
       <TemplateComposer
         businessName={data.businessName}
+        // Its starters by the review link the page's own surface read (GET settings' review_link, through the broadcasts
+        // surface), so the review ask is offered here with Settings never opened in this tab.
+        reviewLink={data.reviewLink}
         onCancel={() => setComposing(false)}
         onDone={(made) => {
           setComposing(false);
