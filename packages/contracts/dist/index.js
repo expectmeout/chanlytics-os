@@ -10541,21 +10541,7 @@ var PROPOSAL_WORDS = {
    */
   stepMadeNothing: (n) => `Step ${n} made nothing this one can use, so nothing is sent. Ask again and the plan is made from how things stand now.`,
   /** A plan's silent steps, stopped at step n by its refusal (`why`, in the refusal's own words): nothing after it was done. */
-  planStopped: (n, why) => `Stopped at step ${n}: ${/[.!?…]$/.test(why.trim()) ? why.trim() : `${why.trim()}.`} The steps after it were not done.`,
-  /** A plan's step's head on the Line (ask/plan-steps.ts planGroupOf): where it stands in its plan. */
-  stepOf: (n, of) => `Step ${n} of ${of}`,
-  /** The one press over a plan's group: its steps that send nothing and are not approved yet, approved together. */
-  approveSilent: (n) => n === 1 ? "Approve the silent step" : `Approve the ${n} silent steps`,
-  /** In place of a send's Approve while a step it waits for is not approved yet (waitsForStep is its press's refusal). */
-  waitingFor: (n) => `Waits for step ${n}`,
-  /** In place of a send's Approve once a step it waits for was undone: it never goes, and planUndone says why. */
-  stepUndone: (n) => `Step ${n} was undone`,
-  /**
-   * Before a send's press, where the message it sends is one a step of its plan writes with a WhatsApp version and the
-   * send goes by WhatsApp: WhatsApp reviews that version first, and a press before it is answered by core's refusal.
-   * Static words: the Line holds no review state.
-   */
-  afterReview: (n) => `This can be approved once WhatsApp has reviewed step ${n}'s message.`
+  planStopped: (n, why) => `Stopped at step ${n}: ${/[.!?…]$/.test(why.trim()) ? why.trim() : `${why.trim()}.`} The steps after it were not done.`
 };
 var asText = (v) => v == null ? "" : String(v);
 var rec = (v) => v && typeof v === "object" ? v : {};
@@ -14054,17 +14040,18 @@ function planGroupOf(cards) {
   const byStep = new Map(mine.map((s) => [s.plan.step, s.card]));
   const steps = mine.map(({ card, plan }) => {
     const wait = planWaits(plan, made);
-    const review = reviewedStep(card, byStep);
     const undone = wait !== null && "undone" in wait;
     return {
       card,
-      head: PROPOSAL_WORDS.stepOf(plan.step, plan.of),
-      waits: wait === null ? null : "undone" in wait ? PROPOSAL_WORDS.stepUndone(wait.undone) : PROPOSAL_WORDS.waitingFor(wait.waits),
-      note: undone ? PROPOSAL_WORDS.planUndone : review === null ? null : PROPOSAL_WORDS.afterReview(review)
+      step: plan.step,
+      of: plan.of,
+      wait,
+      review: undone ? null : reviewedStep(card, byStep),
+      note: undone ? PROPOSAL_WORDS.planUndone : null
     };
   });
   const left = mine.filter((s) => s.plan.silent && !made[s.plan.step]).length;
-  return { id, steps, press: left > 0 ? PROPOSAL_WORDS.approveSilent(left) : null };
+  return { id, steps, left };
 }
 function planCountWords(cards, language) {
   const id = cards[0]?.plan?.id;

@@ -92,6 +92,13 @@ const ASK_TEXT = {
     tryAgain: "Try again",
     priceNote: "This looks like a price. The receptionist never quotes one; you may.",
     windowNote: "Their 24-hour window is closed — only an approved template can be sent. Open the thread to pick one.",
+    // A plan's group (ask-turn.jsx AskPlan, contracts planGroupOf): a step's head, the one press for the steps that send
+    // nothing, what a send waits for in its Approve's place, and WhatsApp's review of the message a step writes.
+    stepOf: (n, of) => `Step ${n} of ${of}`,
+    approveSilent: (n) => (n === 1 ? "Approve the silent step" : `Approve the ${n} silent steps`),
+    waitingFor: (n) => `Waits for step ${n}`,
+    stepUndone: (n) => `Step ${n} was undone`,
+    afterReview: (n) => `This can be approved once WhatsApp has reviewed step ${n}'s message.`,
     kReply: "reply", kSteer: "rewrite", kInbox: "inbox", kPerson: "receptionist", kAutonomy: "autonomy", kSettings: "settings", kWhisper: "whisper", kTeam: "team", kBroadcast: "broadcast", kPlaybook: "campaign", kLeads: "Leads", kDeal: "deal", kNote: "note", kDetails: "details", kList: "list", kRun: "run", kMessage: "message",
   },
   es: {
@@ -177,6 +184,11 @@ const ASK_TEXT = {
     tryAgain: "Reintentar",
     priceNote: "Parece un precio. La recepcionista nunca los da; tú sí puedes.",
     windowNote: "Su ventana de 24 horas está cerrada: solo se puede enviar una plantilla aprobada. Abre el hilo para elegir una.",
+    stepOf: (n, of) => `Paso ${n} de ${of}`,
+    approveSilent: (n) => (n === 1 ? "Aprobar el paso silencioso" : `Aprobar los ${n} pasos silenciosos`),
+    waitingFor: (n) => `Espera el paso ${n}`,
+    stepUndone: (n) => `El paso ${n} se deshizo`,
+    afterReview: (n) => `Se podrá aprobar cuando WhatsApp haya revisado el mensaje del paso ${n}.`,
     kReply: "respuesta", kSteer: "reescritura", kInbox: "inbox", kPerson: "recepcionista", kAutonomy: "autonomía", kSettings: "ajustes", kWhisper: "susurro", kTeam: "equipo", kBroadcast: "difusión", kPlaybook: "campaña", kLeads: "Leads", kDeal: "acuerdo", kNote: "nota", kDetails: "datos", kList: "lista", kRun: "envío", kMessage: "mensaje",
   },
 };

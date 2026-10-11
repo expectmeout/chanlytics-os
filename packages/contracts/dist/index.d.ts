@@ -14019,20 +14019,6 @@ declare const PROPOSAL_WORDS: {
     readonly stepMadeNothing: (n: number) => string;
     /** A plan's silent steps, stopped at step n by its refusal (`why`, in the refusal's own words): nothing after it was done. */
     readonly planStopped: (n: number, why: string) => string;
-    /** A plan's step's head on the Line (ask/plan-steps.ts planGroupOf): where it stands in its plan. */
-    readonly stepOf: (n: number, of: number) => string;
-    /** The one press over a plan's group: its steps that send nothing and are not approved yet, approved together. */
-    readonly approveSilent: (n: number) => string;
-    /** In place of a send's Approve while a step it waits for is not approved yet (waitsForStep is its press's refusal). */
-    readonly waitingFor: (n: number) => string;
-    /** In place of a send's Approve once a step it waits for was undone: it never goes, and planUndone says why. */
-    readonly stepUndone: (n: number) => string;
-    /**
-     * Before a send's press, where the message it sends is one a step of its plan writes with a WhatsApp version and the
-     * send goes by WhatsApp: WhatsApp reviews that version first, and a press before it is answered by core's refusal.
-     * Static words: the Line holds no review state.
-     */
-    readonly afterReview: (n: number) => string;
 };
 
 /**
@@ -15301,27 +15287,38 @@ declare function cardsInPlans<P extends Pick<AskProposal, "plan">>(cards: readon
 })[];
 /** A plan's card as the Line holds it, its outcome as it stands: what its group is drawn from. */
 type HeldCard = Pick<AskProposal, "id" | "kind" | "payload" | "plan" | "outcome">;
-/** One step of a plan's group on the Line (planGroupOf). */
+/**
+ * One step of a plan's group on the Line (planGroupOf): where it stands and what it waits for, as numbers the Line says
+ * in its own language (ask-text.jsx, as it says Approve), and the refusal's own sentence where it never goes.
+ */
 interface GroupStep<P extends HeldCard> {
     card: P;
-    /** Where it stands in its plan: "Step 1 of 6". */
-    head: string;
-    /** What it waits for, in place of its Approve ("Waits for step 2"); null where it may be pressed. */
-    waits: string | null;
-    /** The line said before its press: why it never goes (a step it waits for was undone), or WhatsApp's review; or null. */
+    /** Its step and how many its plan has: its head ("Step 1 of 6"). */
+    step: number;
+    of: number;
+    /** What it waits for in place of its Approve (planWaits): a step not committed yet, or one undone; null where it may be pressed. */
+    wait: {
+        undone: number;
+    } | {
+        waits: number;
+    } | null;
+    /** The step whose message WhatsApp reviews before this send can go, said before its press; null for none, and where it never goes. */
+    review: number | null;
+    /** Why it never goes, in the refusal's own words (PROPOSAL_WORDS.planUndone), where a step it waits for was undone; else null. */
     note: string | null;
 }
 /**
  * A plan's group as the Line draws it (the marketing manager's spec §5.8), from its cards as they stand now: each step in
- * step order under its head, with what it waits for in place of its Approve (planWaits, over what its plan's cards
- * became: planMadeOf) and the line said before its press; and the words of the one press over them (`press`), counting
- * the steps that send nothing and are not committed yet, null where none is left. The plan is the first stamped card's;
- * a card of any other plan, or of none, is not read.
+ * step order, with where it stands, what it waits for in place of its Approve (planWaits, over what its plan's cards
+ * became: planMadeOf) and what is said before its press; and how many steps that send nothing are not committed yet
+ * (`left`), which the one press over them approves and counts, none where it is zero. Numbers, which the Line words in its
+ * own language as it words its other buttons (ask-text.jsx); the plan is the first stamped card's, and a card of any other
+ * plan, or of none, is not read.
  */
 declare function planGroupOf<P extends HeldCard>(cards: readonly P[]): {
     id: string;
     steps: GroupStep<P>[];
-    press: string | null;
+    left: number;
 };
 
 /**

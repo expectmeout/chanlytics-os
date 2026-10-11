@@ -266,11 +266,21 @@ const AskCard = ({ p, messageId, t, onNav, hideOpen = false, onOutcome, onEdit, 
   );
 };
 
+// A plan's step's own words in the Line's language (ask-text.jsx; contracts planGroupOf hands their numbers): its head,
+// what it waits for in its Approve's place, and the line before its press: why it never goes (the refusal's own words,
+// as every refusal is said) or WhatsApp's review of the message a step writes.
+const atStepWords = (t, s) => ({
+  head: t.stepOf(s.step, s.of),
+  waits: !s.wait ? null : "undone" in s.wait ? t.stepUndone(s.wait.undone) : t.waitingFor(s.wait.waits),
+  note: s.note || (s.review === null ? null : t.afterReview(s.review)),
+});
+
 // A plan of Ask's (the marketing manager's spec §5.4, §5.8): its cards one group in step order, each under its head
 // ("Step 1 of 6"), with one press above them for the steps that send nothing (commit.ts commitPlan, through
-// window.__ask.commitPlan) and each send its own press once the steps it waits for are made. What the group is, its words
-// and what each card waits for are contracts' (planGroupOf), read again on every draw from the cards as they stand: their
-// outcomes as the turn holds them, over what this group saw become of them since (`seen`). The press is held while any
+// window.__ask.commitPlan) and each send its own press once the steps it waits for are made. What the group is and what
+// each card waits for are contracts' (planGroupOf), read again on every draw from the cards as they stand: their
+// outcomes as the turn holds them, over what this group saw become of them since (`seen`); its words are the Line's own,
+// in its language (`t`, atStepWords). The press is held while any
 // of its cards is busy, records each step's outcome as that card's own press would (atDone, atFailed), one after another,
 // and hands each card it decided that outcome to draw (`ran`); a stop is the step it stopped at, failed in commitPlan's
 // own words (PROPOSAL_WORDS.planStopped, never wrapped again), and the rest stay pressable one by one.
@@ -304,14 +314,14 @@ const AskPlan = ({ cards, messageId, t, onNav, onOutcome, onEdit, cardOpen }) =>
   const gateKey = g.steps.map((s) => (s.card.plan.silent ? gates[s.card.kind] || "approve" : null)).find((k) => k && !window.canDo(k)) || "approve";
   return (
     <div className="ask-steps" data-testid="ask-plan">
-      {g.press ? (
+      {g.left > 0 ? (
         <div className="ask-step-n">
-          <button type="button" className="btn btn-primary btn-sm" onClick={press} disabled={held} data-testid="ask-plan-approve" {...window.gate(gateKey, "approve these steps")}>{busy ? t.working : g.press}</button>
+          <button type="button" className="btn btn-primary btn-sm" onClick={press} disabled={held} data-testid="ask-plan-approve" {...window.gate(gateKey, "approve these steps")}>{busy ? t.working : t.approveSilent(g.left)}</button>
         </div>
       ) : null}
-      {g.steps.map((s) => (
+      {g.steps.map((s) => { const w = atStepWords(t, s); return (
         <div key={s.card.id} className="ask-step" data-testid="ask-step">
-          <div className="ask-step-n"><span className="rec-hint">{s.head}</span></div>
+          <div className="ask-step-n"><span className="rec-hint">{w.head}</span></div>
           <AskCard
             p={s.card}
             messageId={messageId}
@@ -320,10 +330,10 @@ const AskPlan = ({ cards, messageId, t, onNav, onOutcome, onEdit, cardOpen }) =>
             onOutcome={onOutcome}
             onEdit={onEdit}
             hideOpen={!!cardOpen && cardOpen[s.card.id] === false}
-            step={{ waits: s.waits, note: s.note, cards: now, held: busy && s.card.plan.silent, ran: ran[s.card.id] || null, saw, onBusy: (b) => setWorking((prev) => ({ ...prev, [s.card.id]: b })) }}
+            step={{ waits: w.waits, note: w.note, cards: now, held: busy && s.card.plan.silent, ran: ran[s.card.id] || null, saw, onBusy: (b) => setWorking((prev) => ({ ...prev, [s.card.id]: b })) }}
           />
         </div>
-      ))}
+      ); })}
     </div>
   );
 };

@@ -115,14 +115,20 @@ export function cardsInPlans<P extends Pick<AskProposal, "plan">>(
 /** A plan's card as the Line holds it, its outcome as it stands: what its group is drawn from. */
 type HeldCard = Pick<AskProposal, "id" | "kind" | "payload" | "plan" | "outcome">;
 
-/** One step of a plan's group on the Line (planGroupOf). */
+/**
+ * One step of a plan's group on the Line (planGroupOf): where it stands and what it waits for, as numbers the Line says
+ * in its own language (ask-text.jsx, as it says Approve), and the refusal's own sentence where it never goes.
+ */
 interface GroupStep<P extends HeldCard> {
   card: P;
-  /** Where it stands in its plan: "Step 1 of 6". */
-  head: string;
-  /** What it waits for, in place of its Approve ("Waits for step 2"); null where it may be pressed. */
-  waits: string | null;
-  /** The line said before its press: why it never goes (a step it waits for was undone), or WhatsApp's review; or null. */
+  /** Its step and how many its plan has: its head ("Step 1 of 6"). */
+  step: number;
+  of: number;
+  /** What it waits for in place of its Approve (planWaits): a step not committed yet, or one undone; null where it may be pressed. */
+  wait: { undone: number } | { waits: number } | null;
+  /** The step whose message WhatsApp reviews before this send can go, said before its press; null for none, and where it never goes. */
+  review: number | null;
+  /** Why it never goes, in the refusal's own words (PROPOSAL_WORDS.planUndone), where a step it waits for was undone; else null. */
   note: string | null;
 }
 
@@ -149,14 +155,15 @@ function reviewedStep(p: HeldCard, steps: ReadonlyMap<number, HeldCard>): number
 
 /**
  * A plan's group as the Line draws it (the marketing manager's spec §5.8), from its cards as they stand now: each step in
- * step order under its head, with what it waits for in place of its Approve (planWaits, over what its plan's cards
- * became: planMadeOf) and the line said before its press; and the words of the one press over them (`press`), counting
- * the steps that send nothing and are not committed yet, null where none is left. The plan is the first stamped card's;
- * a card of any other plan, or of none, is not read.
+ * step order, with where it stands, what it waits for in place of its Approve (planWaits, over what its plan's cards
+ * became: planMadeOf) and what is said before its press; and how many steps that send nothing are not committed yet
+ * (`left`), which the one press over them approves and counts, none where it is zero. Numbers, which the Line words in its
+ * own language as it words its other buttons (ask-text.jsx); the plan is the first stamped card's, and a card of any other
+ * plan, or of none, is not read.
  */
 export function planGroupOf<P extends HeldCard>(
   cards: readonly P[],
-): { id: string; steps: GroupStep<P>[]; press: string | null } {
+): { id: string; steps: GroupStep<P>[]; left: number } {
   const id = cards.find((p) => p.plan)?.plan?.id ?? "";
   const mine = cards
     .flatMap((card) => (card.plan && card.plan.id === id ? [{ card, plan: card.plan }] : []))
@@ -168,22 +175,18 @@ export function planGroupOf<P extends HeldCard>(
   const byStep = new Map<number, HeldCard>(mine.map((s) => [s.plan.step, s.card]));
   const steps = mine.map(({ card, plan }): GroupStep<P> => {
     const wait = planWaits(plan, made);
-    const review = reviewedStep(card, byStep);
     const undone = wait !== null && "undone" in wait;
     return {
       card,
-      head: PROPOSAL_WORDS.stepOf(plan.step, plan.of),
-      waits:
-        wait === null
-          ? null
-          : "undone" in wait
-            ? PROPOSAL_WORDS.stepUndone(wait.undone)
-            : PROPOSAL_WORDS.waitingFor(wait.waits),
-      note: undone ? PROPOSAL_WORDS.planUndone : review === null ? null : PROPOSAL_WORDS.afterReview(review),
+      step: plan.step,
+      of: plan.of,
+      wait,
+      review: undone ? null : reviewedStep(card, byStep),
+      note: undone ? PROPOSAL_WORDS.planUndone : null,
     };
   });
   const left = mine.filter((s) => s.plan.silent && !made[s.plan.step]).length;
-  return { id, steps, press: left > 0 ? PROPOSAL_WORDS.approveSilent(left) : null };
+  return { id, steps, left };
 }
 
 /**

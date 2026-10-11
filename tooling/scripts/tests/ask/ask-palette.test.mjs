@@ -4185,10 +4185,68 @@ test("a plan's cards draw as one group in step order where its first card stood,
     // words; the send by email alone, and the campaign by email, say nothing of it.
     assert.deepEqual(
       stepsOf(tree).map((s) => textOf(byTestId(s, "ask-step-note")) || null),
-      [null, null, null, PC.PROPOSAL_WORDS.afterReview(1), null, null],
+      [null, null, null, "This can be approved once WhatsApp has reviewed step 1's message.", null, null],
     );
-    assert.equal(PC.PROPOSAL_WORDS.afterReview(1), "This can be approved once WhatsApp has reviewed step 1's message.");
     assert.deepEqual(calls.commit, [], "nothing is pressed by drawing");
+  } finally {
+    calls.restore();
+  }
+});
+
+test("the group's own words are the Line's, in the Line's language (ask-text.jsx): Spanish on a Spanish Line, on an English one the words it said before, word for word; a card's own words (a refusal's) stay as every card's do", () => {
+  const calls = planBridge();
+  const AskAnswer = globalThis.window.AskAnswerKit.AskAnswer;
+  const chrome = (lang, cards) => {
+    const tree = render(AskAnswer, planProps(cards, { t: globalThis.window.askText(lang) }));
+    return {
+      heads: stepsOf(tree).map((s) => textOf(find(s, (n) => classOf(n).includes("ask-step-n")))),
+      press: textOf(byTestId(tree, "ask-plan-approve")) || null,
+      waits: waitsOf(tree),
+      notes: stepsOf(tree).map((s) => textOf(byTestId(s, "ask-step-note")) || null),
+      approve: textOf(byTestId(stepCard(tree, 1), "ask-card-approve")) || null,
+    };
+  };
+  const six = (word) => [1, 2, 3, 4, 5, 6].map(word);
+  try {
+    assert.deepEqual(chrome("es", SIX), {
+      heads: six((n) => `Paso ${n} de 6`),
+      press: "Aprobar los 3 pasos silenciosos",
+      waits: [null, null, null, "Espera el paso 1", "Espera el paso 1", "Espera el paso 1"],
+      notes: [null, null, null, "Se podrá aprobar cuando WhatsApp haya revisado el mensaje del paso 1.", null, null],
+      approve: "Aprobar",
+    });
+    assert.deepEqual(chrome("en", SIX), {
+      heads: six((n) => `Step ${n} of 6`),
+      press: "Approve the 3 silent steps",
+      waits: [null, null, null, "Waits for step 1", "Waits for step 1", "Waits for step 1"],
+      notes: [null, null, null, "This can be approved once WhatsApp has reviewed step 1's message.", null, null],
+      approve: "Approve",
+    });
+    // Step 1 undone: a send that waits for it never goes. Its pill is the Line's; why is the refusal's own sentence.
+    const undone = [
+      { ...SIX[0], outcome: { state: "undone", receipt: "Removed", atMs: 1, undo: null } },
+      ...SIX.slice(1),
+    ];
+    const es = chrome("es", undone);
+    const en = chrome("en", undone);
+    assert.deepEqual(
+      [es.press, es.waits.slice(3), es.notes.slice(3)],
+      [
+        "Aprobar los 2 pasos silenciosos",
+        ["El paso 1 se deshizo", "El paso 1 se deshizo", "El paso 1 se deshizo"],
+        [PC.PROPOSAL_WORDS.planUndone, PC.PROPOSAL_WORDS.planUndone, PC.PROPOSAL_WORDS.planUndone],
+      ],
+    );
+    assert.deepEqual(
+      [en.press, en.waits.slice(3)],
+      ["Approve the 2 silent steps", ["Step 1 was undone", "Step 1 was undone", "Step 1 was undone"]],
+    );
+    // One step that sends nothing left: said as one.
+    const one = [approved(SIX[0], MADE_MESSAGE), approved(SIX[1]), ...SIX.slice(2)];
+    assert.deepEqual(
+      [chrome("es", one).press, chrome("en", one).press],
+      ["Aprobar el paso silencioso", "Approve the silent step"],
+    );
   } finally {
     calls.restore();
   }
