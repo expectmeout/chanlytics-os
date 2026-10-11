@@ -348,7 +348,7 @@ export function accountRows(read: AdsRead, platform: AdPlatform): StandRowVM[] {
 }
 
 /** What the ad itself changes about what its door needs: where a Google ad opens, and whether TikTok's is made from a post. */
-export interface NeedsChoice {
+interface NeedsChoice {
   /** Google: the page the ad opens. Chanlytics puts the number on its own page; on the owner's site it must already be there. */
   opens?: "page" | "site";
   /** TikTok: whether the ad is made from a post, which needs the post permission (left out, the account's own row stands). */
