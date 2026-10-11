@@ -111,9 +111,6 @@
   "apps/dashboard/src/server/ask/store.ts": {
     "unknownAs": 1
   },
-  "apps/dashboard/src/server/ask/tools/act/broadcast.ts": {
-    "nonNull": 2
-  },
   "apps/dashboard/src/server/ask/tools/read/people.ts": {
     "nonNull": 1
   },

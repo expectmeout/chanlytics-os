@@ -14,8 +14,7 @@
  * Every step's input is the input of the Ask action it is expanded through (Task 17): each is parsed, strictly, by that
  * action's own schema (the dashboard's tools, read as modules, each action found by its name), every written message
  * passes the door's own checks of its words (POST templates/message's checkMessage), and a note's change is one
- * AskSettingsChangeSchema reads. The playbook step's `until` is the one key its action does not take yet: Task 17
- * teaches it, and takes this strip out.
+ * AskSettingsChangeSchema reads. A new campaign's `until` is its action's own since Task 17.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -44,13 +43,8 @@ const LINE = "10% off every service all November.";
 /** Ten o'clock on 1 Nov 2026 in New York: standard time from that morning, five hours behind UTC. */
 const FIRST_AT = "2026-11-01T15:00:00.000Z";
 
-/** The built-in offers list as People's lists read it: its rule, and who is on it. */
-const offersList = (count = 40) => ({
-  token: OFFERS,
-  name: "Can receive offers",
-  rule: { v: 2, all: [{ field: "can_receive", op: "is", to: "offers", yes: true }] },
-  count,
-});
+/** The built-in offers list as People's lists read it: its token, its name, and who is on it. */
+const offersList = (count = 40) => ({ token: OFFERS, name: "Can receive offers", count });
 
 /** The offer message's values: the month's offer starter's, the offer the one typed. */
 const OFFER_SLOTS = [
@@ -209,8 +203,9 @@ const REUSED = "Sends “this_months_offer”, already in the Library, with the 
 const WRITES = (on) =>
   `Writes a message for offers, “offer”, for ${on}: this offer goes in its words, and the next offer can send it too.`;
 const NOTE = "Tells the receptionist about the offer, until Nov 30.";
+/** The pause is a silent step: it applies at the plan's Approve (Task 15, carry-forward b). */
 const PAUSES =
-  "Pauses the month's offer, “This month's offer”, while this offer runs, so nobody gets two offers: resume it after Nov 30.";
+  "Pauses the month's offer, “This month's offer”, from when you approve it, so nobody gets two offers; resume it after Nov 30.";
 const GOES = "The offer goes to “Can receive offers” on Nov 1 at 10:00 AM.";
 const REMINDS =
   "On Nov 20, ask me to send a reminder to whoever on “Can receive offers” has not booked by then: that is its own question on the day, when who has booked is known.";
@@ -266,6 +261,29 @@ const ROWS = [
     world: world({ messages: [monthsOfferMessage()] }),
     steps: [noteStep(1), firstSend(2, [1], { channels: ["whatsapp"] })],
     words: [REUSED, W.noText, NOTE, GOES, REMINDS],
+  },
+  {
+    name: "texts asked for alone are refused in words that say texts never carry an offer, not that nothing here can (Task 15, carry-forward e)",
+    intent: offer({ channels: ["sms"] }),
+    world: world({ messages: [monthsOfferMessage()] }),
+    refused: W.textOnly,
+  },
+  {
+    name: "a starter the set retired is never reused, though it carries the offer's value: the earlier month's offer (Task 15, carry-forward d)",
+    intent: offer(),
+    world: world({
+      messages: [
+        monthsOfferMessage({
+          name: "monthly_offer",
+          versions: [
+            { channel: "whatsapp", id: V(31), state: "approved" },
+            { channel: "email", id: V(32), state: "approved" },
+          ],
+        }),
+      ],
+    }),
+    steps: [WRITTEN({ whatsapp: { body: WA_BODY }, email: EMAIL }), noteStep(2), writtenSend(3, [1, 2])],
+    words: [WRITES("WhatsApp and email"), NOTE, GOES, REMINDS],
   },
   {
     name: "a quick note is not an offer message: the plan's own is sent, the quick note never (ruling 2)",
@@ -538,15 +556,7 @@ const ROWS = [
     intent: offer({ who: `list:${OWN}`, service: "any service" }, "A tenth off anything you book in November"),
     world: world({
       messages: [monthsOfferMessage()],
-      lists: [
-        offersList(),
-        {
-          token: `list:${OWN}`,
-          name: "Regulars",
-          rule: { all: [{ field: "calls", op: "at_least", n: 2 }] },
-          count: 30,
-        },
-      ],
+      lists: [offersList(), { token: `list:${OWN}`, name: "Regulars", count: 30 }],
     }),
     steps: [
       {
@@ -787,11 +797,8 @@ test("every step's input is the input of the Ask action it is expanded through",
     const out = planOf(row.intent, row.world);
     for (const s of out.steps) {
       seen.add(s.kind);
-      // The playbook action takes `until` from Task 17, which takes this strip out; every other key is its own today.
-      const { until, ...rest } = s.input;
-      const input = s.kind === "playbook" ? rest : s.input;
-      if (s.kind === "playbook" && until !== undefined) assert.ok(C.isDayKey(until), `${row.name}: until is a day`);
-      const parsed = SCHEMAS[s.kind].strict().safeParse(input);
+      // Every key its own, `until` on a new campaign among them (Task 17).
+      const parsed = SCHEMAS[s.kind].strict().safeParse(s.input);
       assert.ok(parsed.success, `${row.name}, step ${s.n} (${s.kind}): ${JSON.stringify(parsed.error?.issues)}`);
       if (s.kind === "note") assert.ok(C.AskSettingsChangeSchema.safeParse(s.input.change).success, row.name);
       if (s.kind === "message") doorTakes(s, row.name);
@@ -832,6 +839,9 @@ test("the Spanish message is written in Spanish, the starter's Spanish values, t
   // An English message's offer value is not the Spanish one's: an English offer message is not reused in Spanish.
   const english = planOf(offer(), world({ language: "es", messages: [writtenOffer({ language: "es" })] }));
   assert.equal(english.steps[0].kind, "message", "written in Spanish, not the English-labelled one sent");
+  // Written under the next free name, and held to the door's checks as every written message is (carry-forward c).
+  assert.equal(english.steps[0].input.name, "offer_2");
+  doorTakes(english.steps[0], "the Spanish offer_2");
 });
 
 test("a name the Library holds is not written twice", () => {

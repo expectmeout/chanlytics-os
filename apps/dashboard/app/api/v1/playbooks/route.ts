@@ -15,7 +15,7 @@ import { playbooks } from "@/server/readers/playbooks";
  *      whether deals are on here (`deals_on`, 0008): the proposal follow-up is
  *      offered, and counted by the workspace's pace, only where they are (0006).
  * POST /api/v1/playbooks — { name?, trigger, template_id, params, run_hour?,
- *      cap_per_run?, gap_days?, cadence_days?, channels?, trial_until? }, or `starter_key`
+ *      cap_per_run?, gap_days?, cadence_days?, channels?, until?, trial_until? }, or `starter_key`
  *      in place of `template_id`: the playbook is judged whole, and only
  *      where it goes by a channel the starter's message holds at once (an
  *      email or text version, or a WhatsApp version already approved) is
@@ -31,7 +31,10 @@ import { playbooks } from "@/server/readers/playbooks";
  *      carries (texts carry no offers) is refused here, and one the workspace
  *      is not ready on is not (a run holds the people it cannot reach there).
  *      `trial_until`, an instant with its zone, starts it on trial until then
- *      (00395, D5: Ask's card under an auto class), judged as a change's is.
+ *      (00395, D5: Ask's card under an auto class), judged as a change's is;
+ *      `until`, YYYY-MM-DD, is its last day (00395: Ask's plan, an offer's
+ *      campaign), today or later by the business's clock, judged as a
+ *      change's is.
  *
  * The GET's body is its reader's (readers/playbooks.ts), which Ask's campaigns.playbooks reads too.
  */

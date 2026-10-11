@@ -39,7 +39,7 @@ export const ASK_MAX_CHARS = 1000;
 export const ASK_MAX_ROUNDS = 3;
 /** End to end, under the route's sixty-second ceiling. */
 export const ASK_TURN_BUDGET_MS = 45_000;
-/** The most the owner's tools block may be, in characters as the model is sent it (57,761 on 10 October 2026). */
+/** The most the owner's tools block may be, in characters as the model is sent it (66,050 on 11 October 2026). */
 export const ASK_TOOLS_CHARS_CEILING = 72_000;
 /**
  * The longest the voice door lets pass with nothing speakable sent: ElevenLabs cuts a custom LLM whose stream goes
@@ -217,13 +217,15 @@ export interface AskProposal {
  * A card's place in a plan of Ask's (the marketing manager's spec §5.4): the plan's id, which step of how many it is,
  * and whether it sends nothing (silent: approved with the plan's other silent steps, commit.ts commitPlan) or is a send,
  * its own press. A step's commit goes under the step's key (`plan:<id>:<step>`), whichever way it is pressed, so the
- * plan pressed twice makes nothing twice; and a token in its payload (`@step:n`) is filled with what step n made.
+ * plan pressed twice makes nothing twice; and a token in its payload (`@step:n`) is filled with what step n made. `after`
+ * is the steps a send waits for (contracts PlanStep.after: every silent step), none for a silent one.
  */
 export interface AskPlanStamp {
   id: string;
   step: number;
   of: number;
   silent: boolean;
+  after: number[];
 }
 
 /** What became of a card, kept with the turn that proposed it. */

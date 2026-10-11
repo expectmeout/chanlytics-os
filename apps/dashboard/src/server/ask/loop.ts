@@ -34,6 +34,7 @@ import {
   ACT_TOOL_NAMES,
   buildProposal,
   calledName,
+  cardsOf,
   newToolContext,
   runTool,
   toApiTools,
@@ -535,7 +536,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
     if (!args) return cutOff(b);
     return timed(calledName(b.name, args), async () => {
       const p = await ports.propose(tc, b.name, args);
-      if (p.proposal) proposals.push(p.proposal);
+      proposals.push(...cardsOf(p));
       return { result: p.result, isError: p.isError };
     });
   };

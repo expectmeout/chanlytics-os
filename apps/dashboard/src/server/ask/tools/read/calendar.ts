@@ -11,9 +11,10 @@ import { defineActions, noteRow, readAction, str, type ToolContext } from "../co
  * How full the book is over the next fourteen days, for pacing an offer to what the business can take: the openings
  * reader's own answer for every day and service (readers/openings.ts), read once a turn as calendar.openings reads it
  * with neither asked, its room summed (ask/openings.ts roomOf). No calendar, or one that cannot be read, is said in
- * `none`, and counts nothing.
+ * `none`, and counts nothing. Ask's plan reads the room through it too (act/plan.ts), so the room it paces an offer to is
+ * the room this says.
  */
-async function getRoom(t: ToolContext): Promise<unknown> {
+export async function getRoom(t: ToolContext) {
   const r = (await load(t.rc, openings, { day: null, service: null })).data.openings;
   if (!r.room) {
     const none = r.state === "no_calendar" ? "no_calendar" : "unavailable";

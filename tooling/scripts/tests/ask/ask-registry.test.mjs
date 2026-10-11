@@ -67,9 +67,14 @@ const asProposableNow = (schema) => {
  * tool, so the strict-tools cap (twenty) is untouched.
  */
 const CHANNELS = { type: "array", items: { type: "string", enum: ["whatsapp", "sms", "email"] } };
+/**
+ * Less what an action gained since: its channels (3 Oct 2026), and, a new playbook's, its last day (`until`, 11 Oct 2026:
+ * Ask's plan ends an offer's campaign with the offer), one optional day the change action already took in that shape.
+ */
 const lessChannels = (schema) => {
   const out = structuredClone(schema);
   delete out.properties.channels;
+  delete out.properties.until;
   return out;
 };
 
@@ -440,12 +445,13 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
     ROLES.map((role) => tool(role, "propose_campaign")?.input_schema.properties.action.enum ?? null),
     // 8 Oct 2026: and its channels, the channels a playbook that exists goes by, to every role its playbook reaches; 9
     // Oct 2026: and its change, a playbook that exists paused, resumed, renamed or retimed, to the same roles; 10 Oct
-    // 2026: and its message, a new message written for the Library, to the same roles.
+    // 2026: and its message, a new message written for the Library, to the same roles; 11 Oct 2026: and its plan, an
+    // offer or a whole setup made into its cards, to the same roles.
     [
       null,
-      ["broadcast", "playbook", "run", "channels", "change", "message"],
-      ["broadcast", "playbook", "run", "channels", "change", "message"],
-      ["broadcast", "playbook", "run", "channels", "change", "message"],
+      ["broadcast", "playbook", "run", "channels", "change", "message", "plan"],
+      ["broadcast", "playbook", "run", "channels", "change", "message", "plan"],
+      ["broadcast", "playbook", "run", "channels", "change", "message", "plan"],
     ],
   );
   const was = (role, name) => TODAY[role].find((t) => t.name === name);
@@ -575,8 +581,29 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
       category: _k,
       versions: _w,
       slots: _o,
+      intent: _i,
+      offer: _f,
+      say: _y,
+      stages: _g2,
       ...fields
     } = now.input_schema.properties;
+    // 11 Oct 2026: the plan action's own four fields (contracts PlanIntent, flat); its language is the message's, one
+    // shape; and a new playbook's until is the change's, one shape.
+    assert.deepEqual(
+      [_i, _y, _g2].map(shapeOf),
+      [
+        { type: "string", enum: ["offer", "cover_journey"] },
+        { type: "string" },
+        { type: "array", items: { type: "string", enum: ["first_contact", "before", "after", "proposal", "quiet"] } },
+      ],
+      `${role}: plan's intent, say and stages`,
+    );
+    assert.deepEqual(
+      Object.keys(shapeOf(_f).properties),
+      ["words", "from", "until", "service", "who", "channels"],
+      `${role}: plan's offer, PlanIntent's own fields`,
+    );
+    assert.deepEqual(shapeOf(_f).required, ["words", "from", "until"], `${role}: an offer's words and its two days`);
     // 9 Oct 2026: the change action's own three fields; its name, run_hour and cap_per_run are the playbook's, one shape.
     assert.deepEqual(
       [_s, _g, _c].map(shapeOf),
@@ -643,13 +670,19 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
       asProposableNow(before.input_schema).properties,
     );
     assert.deepEqual(
-      now.input_examples.filter((ex) => !["run", "channels", "change", "message"].includes(ex.action)),
+      now.input_examples.filter((ex) => !["run", "channels", "change", "message", "plan"].includes(ex.action)),
       before.input_examples,
     );
     assert.ok(now.description.includes(` ${DEFS.get("propose_campaign").actions.run.words} `), role);
     assert.ok(now.description.includes(` ${DEFS.get("propose_campaign").actions.channels.words} `), role);
     assert.ok(now.description.includes(` ${DEFS.get("propose_campaign").actions.change.words} `), role);
     assert.ok(now.description.includes(` ${DEFS.get("propose_campaign").actions.message.words} `), role);
+    assert.ok(now.description.includes(` ${DEFS.get("propose_campaign").actions.plan.words} `), role);
+    assert.deepEqual(
+      now.input_examples.filter((ex) => ex.action === "plan").map((ex) => ex.intent),
+      ["offer", "cover_journey"],
+      `${role}: the plan's two examples, the offer and a whole setup`,
+    );
   }
 });
 
@@ -710,6 +743,9 @@ test("the rename is a bijection: every old tool is one tool and action of the re
     );
     if (gainedChannels)
       assert.deepEqual(shapeOf(toolSchema(def.input).properties.channels), CHANNELS, `${to}: and channels`);
+    if (old === "propose_playbook")
+      assert.deepEqual(shapeOf(toolSchema(def.input).properties.until), { type: "string" }, `${to}: and until`);
+    else if (gainedChannels) assert.equal("until" in toolSchema(def.input).properties, false, `${to}: no until`);
   }
 });
 

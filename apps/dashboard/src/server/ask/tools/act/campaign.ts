@@ -2,6 +2,7 @@ import "server-only";
 import { defineActions } from "../context";
 import { broadcastAction } from "./broadcast";
 import { messageAction } from "./message";
+import { planAction } from "./plan";
 import { playbookAction } from "./playbook";
 import { playbookChangeAction } from "./playbook-change";
 import { playbookChannelsAction } from "./playbook-channels";
@@ -13,8 +14,9 @@ import { runAction } from "./run";
  * skipped (run, D11 of that plan), and since 8 Oct 2026 the channels a playbook that exists goes by, changed (channels:
  * what a press on the Goes by row of its drawer does), and since 9 Oct 2026 a playbook that exists changed in place (change:
  * what its drawer's Pause, Resume and Edit of its name and clock do), and since 10 Oct 2026 a new message for the Library,
- * a version per channel (message: what the Library's New message files, whole). Each action is its own family's, under
- * this tool; each builds a card an operator may approve.
+ * a version per channel (message: what the Library's New message files, whole), and since 11 Oct 2026 an offer or a whole
+ * setup as one plan (plan: every card it takes, each step built by its own action here or propose_settings', from one
+ * call). Each action is its own family's, under this tool; each builds a card an operator may approve.
  */
 export const propose_campaign = defineActions({
   name: "propose_campaign",
@@ -28,5 +30,6 @@ export const propose_campaign = defineActions({
     channels: playbookChannelsAction,
     change: playbookChangeAction,
     message: messageAction,
+    plan: planAction,
   },
 });

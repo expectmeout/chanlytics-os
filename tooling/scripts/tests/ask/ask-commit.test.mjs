@@ -1132,7 +1132,7 @@ test("a card is approved while it is fresh: past a day nothing leaves the tab an
 test("a plan's card is approved for a week, since a plan's sends are set ahead and its steps wait for one another: fresh at six days, lapsed at eight in the plan's own words; a card of no plan still lapses after a day", async () => {
   const now = Date.parse("2026-10-08T12:00:00Z");
   const made = (days) => new Date(now - days * DAY_MS).toISOString();
-  const plan = { id: "plan-1", step: 1, of: 2, silent: true };
+  const plan = { id: "plan-1", step: 1, of: 2, silent: true, after: [] };
   const mode = (extra) => card("person_mode", { contact_id: P1, mode: "never", who: "Rosa" }, extra);
 
   const six = tab();

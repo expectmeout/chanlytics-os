@@ -124,7 +124,7 @@ const stamped = (kind, step, payload, over = {}) => ({
   payload,
   undo: null,
   made_at: MADE_AT,
-  plan: { id: PLAN, step, of: 4, silent: kind !== "broadcast" },
+  plan: { id: PLAN, step, of: 4, silent: kind !== "broadcast", after: kind === "broadcast" ? [1, 2, 3] : [] },
   ...over,
 });
 
@@ -360,7 +360,7 @@ test("what a step made survives a reload: the outcome a commit records keeps it 
     // Another plan's card in the same turn, undone there, is not this plan's step.
     stamped("message", 1, message.payload, {
       id: "p-other",
-      plan: { id: "plan-other", step: 1, of: 1, silent: true },
+      plan: { id: "plan-other", step: 1, of: 1, silent: true, after: [] },
       outcome: { state: "undone", receipt: "x", atMs: 1 },
     }),
   ];

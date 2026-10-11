@@ -163,9 +163,6 @@
   "apps/dashboard/src/server/ask/sse.ts": {
     "@typescript-eslint/no-unsafe-assignment": 1
   },
-  "apps/dashboard/src/server/ask/tools/act/broadcast.ts": {
-    "@typescript-eslint/no-unnecessary-type-assertion": 1
-  },
   "apps/dashboard/src/server/ask/tools/act/invite.ts": {
     "@typescript-eslint/require-await": 1
   },

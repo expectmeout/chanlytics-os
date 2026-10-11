@@ -308,10 +308,11 @@ interface PatchWhen {
 }
 
 /**
- * Its last day a change names (00395 `until`): a day by the business's clock, today or later, or on an undo the day it
- * held, past or not; null clears it.
+ * The last day a change or a new campaign names (00395 `until`): a day by the business's clock, today or later, or on an
+ * undo the day it held, past or not; null clears it, or names none. The one judgement checkPlaybookPatch, POST playbooks
+ * (the dashboard's startNewPlaybook) and Ask's new campaign card ask; the zone is read only where a day is to be judged.
  */
-async function patchUntil(
+export async function untilOf(
   ports: Pick<CheckPlaybookPatchPorts, "timezone">,
   v: unknown,
   when: PatchWhen,
@@ -402,7 +403,7 @@ export async function checkPlaybookPatch(
     gap_days: patchNumber("gap_days", asked.gap_days, row.gap_days),
     cadence_days: patchNumber("cadence_days", asked.cadence_days, row.cadence_days),
     params: await patchParams(ports, row, asked.params),
-    until: await patchUntil(ports, asked.until, when),
+    until: await untilOf(ports, asked.until, when),
     trial_until: trialUntilOf(asked.trial_until, when),
   };
   const held = patchHeldOf(row);

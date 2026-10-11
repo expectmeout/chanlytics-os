@@ -483,9 +483,10 @@ async function readBroadcast(t: ToolContext, input: { broadcast_id: string }): P
  * The message library whole (readers/templates.ts messageReadsOf), over Settings' read (`all`), the one the Library's
  * page and Ask's context of it read: every message, a version still in Meta's review among its versions with its state,
  * the values it fills and the campaigns that send it, so a message Ask writes is never a twin of one the workspace holds.
- * Every version is a row an answer may cite, as the read gave it: a template, opened on the Library.
+ * Every version is a row an answer may cite, as the read gave it: a template, opened on the Library. Ask's plan reads the
+ * Library through it too (act/plan.ts).
  */
-async function readMessages(t: ToolContext): Promise<unknown> {
+export async function readMessages(t: ToolContext) {
   const read = await load(t.rc, templatesReader, { all: true });
   const library = read.data;
   if (library.usedBy === undefined) throw new Error("templates: Settings' read came back without what sends each");
@@ -578,9 +579,10 @@ function journeyStageLine(stage: LifecycleStage, group: LifecycleGroup | undefin
  * business of any trade sends at each touch point, for the workspace's shape and in its word. Only what the rail reads
  * is read: the reach-outs, the library and the campaigns' last 30 days are the ledger's, the head's and the tiles', and
  * the home takes each as not read yet. The campaigns it names are rows a citation names, opened on their drawer. A read
- * the rail can do without that fails is the page's failed read: the rail stands, and the log says it.
+ * the rail can do without that fails is the page's failed read: the rail stands, and the log says it. Ask's plan reads
+ * the journey through it too (act/plan.ts).
  */
-async function readJourney(t: ToolContext): Promise<unknown> {
+export async function readJourney(t: ToolContext) {
   const failed = (read: string) => unread(t, "campaigns.journey", read);
   const [read, bc, chans] = await Promise.all([
     load(t.rc, playbooks, undefined),

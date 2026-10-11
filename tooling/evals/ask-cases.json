@@ -1583,8 +1583,10 @@
     "surface": "campaigns",
     "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
     "expect": {
+      "tools_order": ["propose_campaign.plan"],
       "proposals_any": ["message", "broadcast"],
       "proposals_max": 6,
+      "card_fields_absent": { "message": ["versions.sms"] },
       "no_write": true
     }
   },
@@ -1595,7 +1597,7 @@
     "needs": ["calendar"],
     "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
     "expect": {
-      "tools_any": ["propose_campaign.playbook"],
+      "tools_any": ["propose_campaign.playbook", "propose_campaign.plan"],
       "proposals_any": ["playbook"],
       "proposals_max": 3,
       "no_write": true

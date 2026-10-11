@@ -4,6 +4,7 @@ import type { z } from "zod";
 import {
   AppError,
   PROPOSAL_SPECS,
+  STEP_TOKEN,
   channelChoices,
   channelsReady,
   emptyReadSet,
@@ -67,6 +68,11 @@ export interface ToolContext {
    * validation).
    */
   rc: ReaderContext;
+  /**
+   * The step of Ask's plan this tool builds a card for (act/plan.ts), where a plan runs it: a `@step:n` naming an earlier
+   * step stands in for an id that step makes (stepNamed). Absent everywhere else, where a token names nothing.
+   */
+  step?: number;
 }
 
 export interface ToolOutcome {
@@ -79,6 +85,8 @@ export interface ToolOutcome {
 
 export interface ProposalOutcome {
   proposal: AskProposal | null;
+  /** Several cards from one call, in order (a plan's steps, proposeMany): where set, they are the call's cards. */
+  proposals?: AskProposal[];
   /** What the model sees. */
   result: string;
   isError: boolean;
@@ -327,6 +335,35 @@ export async function whatsappAloneRefusal(
 }
 
 /**
+ * The earlier step of the plan a value names by its token (contracts STEP_TOKEN, `@step:n`), where the tool builds a
+ * plan's step (`t.step`) and n is a step before it; else null: a token outside a plan, or naming its own step or a later
+ * one, names nothing, and the id it stands in for is refused as any other value that is not one.
+ */
+export function stepNamed(t: ToolContext, v: string): number | null {
+  const m = STEP_TOKEN.exec(v);
+  if (!m || t.step === undefined) return null;
+  const n = Number(m[1]);
+  return n >= 1 && n < t.step ? n : null;
+}
+
+/**
+ * The message an earlier step of a plan writes, as a campaign card on it judges its channels before it is filed: a
+ * version on each channel the card goes by, as the plan writes one for each (contracts planOf), so the workspace alone
+ * says whether each can send. Its versions' own standing (WhatsApp's review) is the route's to judge at the press, by
+ * then filled with the message the step made (Task 16's commit).
+ */
+export function stepMessage(channels: readonly ConsentChannel[]): Pick<CampaignMessage, "versions"> {
+  const on = (c: ConsentChannel) => channels.includes(c);
+  return {
+    versions: {
+      whatsapp: on("whatsapp") ? { id: "", status: "approved", hidden: false, blocked: null, reason: null } : null,
+      email: on("email") ? { id: "" } : null,
+      sms: on("sms") ? { id: "" } : null,
+    },
+  };
+}
+
+/**
  * A reader's 404 as the tool's own "not here" answer, null; any other failure
  * is still the read failing (runTool says so). A row the workspace does not
  * hold is not a read that failed, and the model must not be told it was.
@@ -418,3 +455,21 @@ export const propose = (p: Omit<AskProposal, "id" | "needs" | "undo" | "made_at"
     }),
   };
 };
+
+/** The cards one call made, in order, as the loop keeps them: a plan's several (proposeMany), else its one, else none. */
+export const cardsOf = (o: ProposalOutcome): AskProposal[] => o.proposals ?? (o.proposal ? [o.proposal] : []);
+
+/**
+ * Several cards from one call, in order, each made by `propose` (a plan's steps, act/plan.ts): the loop keeps every one
+ * (loop.ts, cardsOf), and the model is told what `said` says of them, and that nothing has happened yet.
+ */
+export const proposeMany = (proposals: AskProposal[], said: Record<string, unknown>): ProposalOutcome => ({
+  proposal: null,
+  proposals,
+  isError: false,
+  result: JSON.stringify({
+    proposed: true,
+    ...said,
+    note: "Nothing has happened yet. These are cards the person approves, edits or dismisses, each on its own. Say what you proposed; never say any of it is done.",
+  }),
+});

@@ -14043,7 +14043,7 @@ declare const ASK_MAX_CHARS = 1000;
 declare const ASK_MAX_ROUNDS = 3;
 /** End to end, under the route's sixty-second ceiling. */
 declare const ASK_TURN_BUDGET_MS = 45000;
-/** The most the owner's tools block may be, in characters as the model is sent it (57,761 on 10 October 2026). */
+/** The most the owner's tools block may be, in characters as the model is sent it (66,050 on 11 October 2026). */
 declare const ASK_TOOLS_CHARS_CEILING = 72000;
 /**
  * The longest the voice door lets pass with nothing speakable sent: ElevenLabs cuts a custom LLM whose stream goes
@@ -14198,13 +14198,15 @@ interface AskProposal {
  * A card's place in a plan of Ask's (the marketing manager's spec §5.4): the plan's id, which step of how many it is,
  * and whether it sends nothing (silent: approved with the plan's other silent steps, commit.ts commitPlan) or is a send,
  * its own press. A step's commit goes under the step's key (`plan:<id>:<step>`), whichever way it is pressed, so the
- * plan pressed twice makes nothing twice; and a token in its payload (`@step:n`) is filled with what step n made.
+ * plan pressed twice makes nothing twice; and a token in its payload (`@step:n`) is filled with what step n made. `after`
+ * is the steps a send waits for (contracts PlanStep.after: every silent step), none for a silent one.
  */
 interface AskPlanStamp {
     id: string;
     step: number;
     of: number;
     silent: boolean;
+    after: number[];
 }
 /** What became of a card, kept with the turn that proposed it. */
 interface AskProposalOutcome {
@@ -15088,11 +15090,10 @@ interface PlanWorld {
     };
     /** The Library, as campaigns with action messages reads it. */
     messages: MessageRead[];
-    /** People's lists offered here and the workspace's own, each with its rule (null where kept by hand) and count (null: not counted). */
+    /** People's lists offered here and the workspace's own, each with its count (null: not counted). */
     lists: {
         token: string;
         name: string;
-        rule: unknown;
         count: number | null;
     }[];
     /** The workspace's campaigns: the month's offer among them (trigger everyone_monthly). */
@@ -15130,7 +15131,7 @@ interface PlanWorld {
 /** One step: the action it is expanded through (its kind) and that action's input, whether it sends, and why. */
 interface PlanStep {
     n: number;
-    kind: "message" | "list" | "note" | "change" | "broadcast" | "playbook";
+    kind: "message" | "note" | "change" | "broadcast" | "playbook";
     /** Sends nothing: approved with the plan's other silent steps. A send is its own press. */
     silent: boolean;
     input: Record<string, unknown>;
@@ -15140,6 +15141,80 @@ interface PlanStep {
 }
 type OfferChannel = "whatsapp" | "email";
 type Room = NonNullable<PlanWorld["room"]>;
+/**
+ * What a plan says. Its refusals are the model's to say back (each ends on what to do); its words and each step's why
+ * are the person's. WhatsApp's review is WhatsApp's.
+ */
+declare const PLAN_WORDS: {
+    readonly noOffer: "intent offer takes offer: its words, from and until, the offer's first and last day. Ask what the offer is and when it runs.";
+    readonly noWords: "words is the offer in the owner's words: ask what the offer is.";
+    readonly notADay: "from and until are days on the business's calendar, written YYYY-MM-DD: ask for them again.";
+    readonly fromAfterUntil: "until comes before from: an offer's last day is its first day or later. Ask which dates they meant.";
+    readonly fromPast: "from is a day already past on the business's calendar: an offer starts today or later. Ask when it starts.";
+    readonly noChannel: "Nothing here can carry an offer: WhatsApp needs a connected number, email needs email set up to send offers, and texts carry no offers. Say so, and what to set up first.";
+    readonly noChannelNamed: "channels names no channel: name WhatsApp, email or both, or leave channels out for every one the workspace sends offers on.";
+    /** Texts asked for alone: never a channel an offer goes by, whatever the workspace can send. */
+    readonly textOnly: "Texts carry no offers. An offer goes by WhatsApp or email: say so, and name either, or leave channels out for every one the workspace sends offers on.";
+    readonly noOffersList: "who is not a list this workspace has: name one people with action lists gives, or leave who out for everyone who can receive offers.";
+    readonly journeyUnread: "The journey could not be read just now, so which moments are covered is not known: say so, and try again in a moment.";
+    readonly nothingToCover: "Every moment asked for is covered already or not offered here (an appointment's moments need a calendar connected, a proposal's needs deals on): say so, and propose nothing.";
+    /** What an offer is called: the receptionist's note, the send and the campaign. */
+    readonly offerTitle: (words: string) => string;
+    /** What the receptionist's note says: the offer as the message says it, its dates, and what it is for. */
+    readonly noteText: (line: string, from: string, until: string, service: string | null) => string;
+    readonly reuseMessage: (name: string) => string;
+    readonly writeMessage: (name: string, on: readonly OfferChannel[]) => string;
+    readonly withoutWhatsApp: "It goes without WhatsApp: no WhatsApp number is connected.";
+    readonly withoutEmail: "It goes without email: email is not set up to send offers.";
+    readonly noText: "Texts carry no offers.";
+    readonly noteMade: (until: string) => string;
+    readonly noteKnown: "The receptionist already has a note about the offer.";
+    /** The pause is a silent step: it applies at the plan's Approve, not on the offer's first day. */
+    readonly monthsOfferPaused: (name: string, until: string) => string;
+    readonly firstSend: (list: string, day: string, at: string) => string;
+    readonly firstAtApprove: (list: string, at: string) => string;
+    /** An offer that starts today, on a calendar with less room than half its audience: a campaign, from its Approve. */
+    readonly paced: (room: Room, audience: number) => string;
+    /** The same room for an offer that starts later: the room counted now is not the offer's, so it is asked again then. */
+    readonly roomTight: (room: Room, audience: number, from: string) => string;
+    readonly whatsappReview: "Its WhatsApp version waits on WhatsApp's review, which may still be running at the first send: whoever it reaches on WhatsApp waits for it.";
+    /** The reminder is a question of its own on its day, when who has booked is known: a send counts its people at its Approve. */
+    readonly reminderAsk: (day: string, list: string) => string;
+    readonly cover: (n: number) => string;
+    readonly notOffered: (stages: readonly string[]) => string;
+    readonly pausedOn: (name: string) => string;
+    /**
+     * What a card says of what an earlier step of its plan makes, named by its token (`@step:n`): not filed yet, so not
+     * quoted, and filled in by the commit once that step is approved.
+     */
+    readonly stepMessage: (n: number) => string;
+    readonly stepCampaign: (n: number) => string;
+    /** A change to a campaign a step makes: what is said without the campaign's row (its other fields are its step's). */
+    readonly stepChangeOnly: (n: number) => string;
+    readonly why: {
+        readonly message: "No message in the Library carries an offer on every channel this one goes by.";
+        readonly note: "So the receptionist can answer about the offer.";
+        readonly pause: "So nobody gets the month's offer and this one.";
+        readonly first: "The offer, on its first day.";
+        readonly paced: "The offer, as fast as the calendar can take it.";
+        readonly stage: (id: JourneyStageId) => string;
+    };
+};
+/** The steps of an intent against the workspace as it stands, and what the plan says; or why there is no plan. */
+declare function planOf(intent: PlanIntent, world: PlanWorld): {
+    steps: PlanStep[];
+    words: string;
+} | {
+    refused: string;
+};
+
+/**
+ * A plan's steps as a commit reads them (the marketing manager's spec §5.4): the token a step names what an earlier step
+ * makes by (`@step:n`), filled from what the plan made, and that made read back from its cards' outcomes. Apart from the
+ * plan itself (plan.ts, which reads the starters, the lists and the journey to make the steps), so the browser's commit
+ * runner (legacy-bridge/ask/commit.ts) reads these and nothing of how a plan is made.
+ */
+
 /**
  * Every step of a plan committed so far, by step, as a card's commit fills its tokens from it and a press of the plan
  * skips it: its card's kind and the id its spec says it made (ProposalSpec.made), null where it made nothing a token
@@ -15156,53 +15231,6 @@ type PlanMade = Record<number, {
 declare const STEP_TOKEN: RegExp;
 declare function stepToken(n: number): string;
 /**
- * What a plan says. Its refusals are the model's to say back (each ends on what to do); its words and each step's why
- * are the person's. WhatsApp's review is WhatsApp's.
- */
-declare const PLAN_WORDS: {
-    readonly noWords: "words is the offer in the owner's words: ask what the offer is.";
-    readonly notADay: "from and until are days on the business's calendar, written YYYY-MM-DD: ask for them again.";
-    readonly fromAfterUntil: "until comes before from: an offer's last day is its first day or later. Ask which dates they meant.";
-    readonly fromPast: "from is a day already past on the business's calendar: an offer starts today or later. Ask when it starts.";
-    readonly noChannel: "Nothing here can carry an offer: WhatsApp needs a connected number, email needs email set up to send offers, and texts carry no offers. Say so, and what to set up first.";
-    readonly noChannelNamed: "channels names no channel: name WhatsApp, email or both, or leave channels out for every one the workspace sends offers on.";
-    readonly noOffersList: "who is not a list this workspace has: name one people with action lists gives, or leave who out for everyone who can receive offers.";
-    readonly journeyUnread: "The journey could not be read just now, so which moments are covered is not known: say so, and try again in a moment.";
-    readonly nothingToCover: "Every moment asked for is covered already or not offered here (an appointment's moments need a calendar connected, a proposal's needs deals on): say so, and propose nothing.";
-    /** What an offer is called: the receptionist's note, the send and the campaign. */
-    readonly offerTitle: (words: string) => string;
-    /** What the receptionist's note says: the offer as the message says it, its dates, and what it is for. */
-    readonly noteText: (line: string, from: string, until: string, service: string | null) => string;
-    readonly reuseMessage: (name: string) => string;
-    readonly writeMessage: (name: string, on: readonly OfferChannel[]) => string;
-    readonly withoutWhatsApp: "It goes without WhatsApp: no WhatsApp number is connected.";
-    readonly withoutEmail: "It goes without email: email is not set up to send offers.";
-    readonly noText: "Texts carry no offers.";
-    readonly noteMade: (until: string) => string;
-    readonly noteKnown: "The receptionist already has a note about the offer.";
-    readonly monthsOfferPaused: (name: string, until: string) => string;
-    readonly firstSend: (list: string, day: string, at: string) => string;
-    readonly firstAtApprove: (list: string, at: string) => string;
-    /** An offer that starts today, on a calendar with less room than half its audience: a campaign, from its Approve. */
-    readonly paced: (room: Room, audience: number) => string;
-    /** The same room for an offer that starts later: the room counted now is not the offer's, so it is asked again then. */
-    readonly roomTight: (room: Room, audience: number, from: string) => string;
-    readonly whatsappReview: "Its WhatsApp version waits on WhatsApp's review, which may still be running at the first send: whoever it reaches on WhatsApp waits for it.";
-    /** The reminder is a question of its own on its day, when who has booked is known: a send counts its people at its Approve. */
-    readonly reminderAsk: (day: string, list: string) => string;
-    readonly cover: (n: number) => string;
-    readonly notOffered: (stages: readonly string[]) => string;
-    readonly pausedOn: (name: string) => string;
-    readonly why: {
-        readonly message: "No message in the Library carries an offer on every channel this one goes by.";
-        readonly note: "So the receptionist can answer about the offer.";
-        readonly pause: "So nobody gets the month's offer and this one.";
-        readonly first: "The offer, on its first day.";
-        readonly paced: "The offer, as fast as the calendar can take it.";
-        readonly stage: (id: JourneyStageId) => string;
-    };
-};
-/**
  * Every `@step:n` in a step's input, at any depth, filled with the id step n made; or the first step it names that
  * names nothing: not committed yet, committed with nothing a token names (its id null), or undone. The input it is
  * given is left as it was.
@@ -15217,13 +15245,6 @@ declare function resolveSteps(payload: Record<string, unknown>, made: PlanMade):
  * committed. Only the cards of plan `planId` are read.
  */
 declare function planMadeOf(planId: string, cards: readonly Pick<AskProposal, "kind" | "plan" | "outcome">[]): PlanMade;
-/** The steps of an intent against the workspace as it stands, and what the plan says; or why there is no plan. */
-declare function planOf(intent: PlanIntent, world: PlanWorld): {
-    steps: PlanStep[];
-    words: string;
-} | {
-    refused: string;
-};
 
 /**
  * The page context: what the page a person is on sends with a question, and with the palette's warm (the spec, 5.2;

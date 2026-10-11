@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import {
   LIFECYCLE_WORDS,
+  PLAN_WORDS,
   PLAYBOOK_CLASS_LABEL,
   PLAYBOOK_LIMITS,
   PLAYBOOK_NAME_MAX,
@@ -19,11 +20,12 @@ import {
   type PlaybookPatch,
   type PlaybookPolicyClass,
 } from "@chanlytics/contracts";
-import { checkPlaybookPatch } from "@chanlytics/core";
+import { checkPlaybookPatch, untilOf } from "@chanlytics/core";
 import { listPolicies, playbookForChange } from "@chanlytics/db";
 import { playbookPatchPorts } from "../../../campaigns/playbooks";
-import { UUID, actAction, propose, refuse, str, type ProposalOutcome, type ToolContext } from "../context";
-import { MODE_WORDS, paramSpecsOf } from "./playbook";
+import { UUID, actAction, propose, refuse, stepNamed, str, type ProposalOutcome, type ToolContext } from "../context";
+import { paramSpecsOf } from "./playbook";
+import { MODE_WORDS } from "./playbook-card";
 
 /** Where a playbook's id is read, said as the model calls it. */
 const PLAYBOOK_FROM = "campaigns with action playbooks";
@@ -77,6 +79,48 @@ function changeParts(
 type ChangeAsked = Omit<PlaybookPatch, "params"> & { playbook_id: string; params?: string[] };
 
 /**
+ * A change to the campaign an earlier step of Ask's plan makes (`@step:n`, context.ts stepNamed), today named by no plan:
+ * there is no row to judge it against yet, so it takes only what is said without one (a pause, new words, a last day),
+ * each judged as a value by its own judge (paramSpecsOf; core untilOf), and the PUT judges it against the campaign at
+ * its press, the token filled with the campaign's id by then. The card says the campaign is the one step `step` makes.
+ */
+async function proposeChangeOnStep(t: ToolContext, input: ChangeAsked, step: number): Promise<ProposalOutcome> {
+  const { playbook_id: token, state, params, until, ...rest } = input;
+  const others = Object.values(rest).some((v) => v !== undefined);
+  if (others || (state !== undefined && state !== "paused")) return refuse(PLAN_WORDS.stepChangeOnly(step));
+  const words = params === undefined ? undefined : paramSpecsOf(params);
+  if (words && "refusal" in words) return refuse(words.refusal);
+  let end: string | null | undefined;
+  try {
+    end = await untilOf({ timezone: () => Promise.resolve(t.timezone) }, until, { now: t.now, undo: false });
+  } catch (e) {
+    return refuse(e instanceof Error ? e.message : String(e));
+  }
+  const named: PlaybookPatch = {
+    ...(state ? { state } : {}),
+    ...(words ? { params: words.specs } : {}),
+    ...(end ? { until: end } : {}),
+  };
+  if (Object.keys(named).length === 0) return refuse(PLAYBOOK_PATCH_WORDS.nothing);
+  const name = PLAN_WORDS.stepCampaign(step);
+  const at = { tz: t.timezone, now: t.now };
+  return propose({
+    kind: "playbook_change",
+    title: PLAYBOOK_PATCH_WORDS.title(named, name),
+    // A pause, words and an end need nothing of the campaign's row to be said.
+    summary: changeParts(named, {}, { cls: "", mode: "ask", classMode: "ask", waits: null }, at).join(" · "),
+    payload: {
+      playbook_id: str(token, 40),
+      playbook_name: name,
+      ...named,
+      was: {},
+      run_waits: false,
+      timezone: t.timezone,
+    },
+  });
+}
+
+/**
  * A playbook that exists, paused, resumed, renamed or retimed (the moment spec §4.9 A5), and since 00395 given new
  * words, a last day or a trial's end (D5: null ends its trial): what its drawer does, proposed as a card. It reads the
  * one playbook (packages/db playbookForChange: its row, and a run of it that waits), never the Playbooks page, and judges
@@ -87,6 +131,9 @@ type ChangeAsked = Omit<PlaybookPatch, "params"> & { playbook_id: string; params
  * its own sheet, never here.
  */
 async function proposePlaybookChange(t: ToolContext, input: ChangeAsked): Promise<ProposalOutcome> {
+  // The campaign an earlier step of Ask's plan makes, named by its token: no row to read yet (proposeChangeOnStep).
+  const step = stepNamed(t, str(input.playbook_id, 40));
+  if (step !== null) return proposeChangeOnStep(t, input, step);
   // An id is one id in either case: the pattern takes both, so the row is asked for as the table writes it.
   const id = str(input.playbook_id, 40).toLowerCase();
   if (!UUID.test(id)) return refuse(`playbook_id must be a playbook's id, as ${PLAYBOOK_FROM} gives it`);

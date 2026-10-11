@@ -4,8 +4,8 @@
  * and nothing is read or written here. Each step is the input of one of Ask's own actions, which the server expands it
  * through as its own card (a message, a note for the receptionist, a change to a campaign, a broadcast, a campaign); a
  * step that names what an earlier step makes carries its token (`@step:n`), which the commit fills from what the plan
- * made (resolveSteps). The steps that send nothing are silent and are approved together; a send is its own press and
- * waits for them (`after`).
+ * made (plan-steps.ts resolveSteps). The steps that send nothing are silent and are approved together; a send is its own
+ * press and waits for them (`after`).
  *
  * The rules, each a row of the table test (tooling/scripts/tests/ask/plan/plan-of.test.mjs):
  *
@@ -46,8 +46,9 @@ import { SENDER_WORDS } from "../templates/sender-words";
 import { starterByName, starterText } from "../templates/starter-lookup";
 import { messageLanguageCode } from "../templates/starter-templates";
 import { languageBase } from "../templates/template-languages";
-import type { AskProposal, MessageRead } from "./ask";
+import type { MessageRead } from "./ask";
 import { clip } from "./ask-answer";
+import { stepToken } from "./plan-steps";
 
 /** What the owner asked for, as the model states it: an offer in their words and dates, or the journey to cover. */
 export type PlanIntent =
@@ -82,8 +83,8 @@ export interface PlanWorld {
   channels: { whatsapp: boolean; email_offers: boolean };
   /** The Library, as campaigns with action messages reads it. */
   messages: MessageRead[];
-  /** People's lists offered here and the workspace's own, each with its rule (null where kept by hand) and count (null: not counted). */
-  lists: { token: string; name: string; rule: unknown; count: number | null }[];
+  /** People's lists offered here and the workspace's own, each with its count (null: not counted). */
+  lists: { token: string; name: string; count: number | null }[];
   /** The workspace's campaigns: the month's offer among them (trigger everyone_monthly). */
   playbooks: { id: string; name: string; trigger: string; state: string; template_name: string | null }[];
   /** The receptionist's notes. */
@@ -107,7 +108,7 @@ export interface PlanWorld {
 /** One step: the action it is expanded through (its kind) and that action's input, whether it sends, and why. */
 export interface PlanStep {
   n: number;
-  kind: "message" | "list" | "note" | "change" | "broadcast" | "playbook";
+  kind: "message" | "note" | "change" | "broadcast" | "playbook";
   /** Sends nothing: approved with the plan's other silent steps. A send is its own press. */
   silent: boolean;
   input: Record<string, unknown>;
@@ -124,21 +125,6 @@ type Room = NonNullable<PlanWorld["room"]>;
 type Audience = { audience_kind: "list" | "saved"; audience_id: string };
 type Slot = { position: number; label: string; kind: string };
 
-/**
- * Every step of a plan committed so far, by step, as a card's commit fills its tokens from it and a press of the plan
- * skips it: its card's kind and the id its spec says it made (ProposalSpec.made), null where it made nothing a token
- * names (a note, a change); or that the step was undone, so what it made is gone, a card naming it is refused
- * (PROPOSAL_WORDS.planUndone) and the plan's press never runs it again. A step absent is not committed yet.
- */
-export type PlanMade = Record<number, { kind: string; id: string | null } | { undone: true }>;
-
-/** The token a step's input names what an earlier step makes by: `@step:1` is step 1's message. */
-export const STEP_TOKEN = /^@step:(\d+)$/;
-
-export function stepToken(n: number): string {
-  return `@step:${n}`;
-}
-
 /** The hour a send goes at, by the business's clock: the hour a campaign runs at unless told otherwise. */
 const SEND_HOUR = PLAYBOOK_DEFAULTS.runHour;
 /** The day to ask for a reminder, this many days after the first send: the 20th of a month-long offer from the 1st. */
@@ -153,7 +139,6 @@ const LIVE = new Set(["approved", "pending"]);
 const WRITTEN_NAME = /^offer(?:_\d+)?$/;
 const SILENT: Record<StepKind, boolean> = {
   message: true,
-  list: true,
   note: true,
   change: true,
   broadcast: false,
@@ -209,6 +194,8 @@ const capOf = (room: Room): number =>
  * are the person's. WhatsApp's review is WhatsApp's.
  */
 export const PLAN_WORDS = {
+  noOffer:
+    "intent offer takes offer: its words, from and until, the offer's first and last day. Ask what the offer is and when it runs.",
   noWords: "words is the offer in the owner's words: ask what the offer is.",
   notADay: "from and until are days on the business's calendar, written YYYY-MM-DD: ask for them again.",
   fromAfterUntil: "until comes before from: an offer's last day is its first day or later. Ask which dates they meant.",
@@ -218,6 +205,8 @@ export const PLAN_WORDS = {
     "Nothing here can carry an offer: WhatsApp needs a connected number, email needs email set up to send offers, and texts carry no offers. Say so, and what to set up first.",
   noChannelNamed:
     "channels names no channel: name WhatsApp, email or both, or leave channels out for every one the workspace sends offers on.",
+  /** Texts asked for alone: never a channel an offer goes by, whatever the workspace can send. */
+  textOnly: `${CHANNEL_WORDS.noOffersByText} An offer goes by WhatsApp or email: say so, and name either, or leave channels out for every one the workspace sends offers on.`,
   noOffersList:
     "who is not a list this workspace has: name one people with action lists gives, or leave who out for everyone who can receive offers.",
   journeyUnread:
@@ -237,8 +226,9 @@ export const PLAN_WORDS = {
   noText: CHANNEL_WORDS.noOffersByText,
   noteMade: (until: string): string => `Tells the receptionist about the offer, until ${until}.`,
   noteKnown: "The receptionist already has a note about the offer.",
+  /** The pause is a silent step: it applies at the plan's Approve, not on the offer's first day. */
   monthsOfferPaused: (name: string, until: string): string =>
-    `Pauses the month's offer, “${name}”, while this offer runs, so nobody gets two offers: resume it after ${until}.`,
+    `Pauses the month's offer, “${name}”, from when you approve it, so nobody gets two offers; resume it after ${until}.`,
   firstSend: (list: string, day: string, at: string): string => `The offer goes to “${list}” on ${day} at ${at}.`,
   firstAtApprove: (list: string, at: string): string =>
     `The offer goes to “${list}” when you approve it, as ${at} today has passed.`,
@@ -257,6 +247,15 @@ export const PLAN_WORDS = {
     `Starts ${plural(n, "campaign")}, one on each moment not covered yet, each its own card.`,
   notOffered: (stages: readonly string[]): string => `Not offered here: ${joinWords(stages)}.`,
   pausedOn: (name: string): string => `“${name}” stands paused on its moment: resume it from its drawer.`,
+  /**
+   * What a card says of what an earlier step of its plan makes, named by its token (`@step:n`): not filed yet, so not
+   * quoted, and filled in by the commit once that step is approved.
+   */
+  stepMessage: (n: number): string => `the message made by step ${n}`,
+  stepCampaign: (n: number): string => `the campaign made by step ${n}`,
+  /** A change to a campaign a step makes: what is said without the campaign's row (its other fields are its step's). */
+  stepChangeOnly: (n: number): string =>
+    `A change to the campaign made by step ${n} takes state paused, params or until: the rest is the step's own to say.`,
   why: {
     message: "No message in the Library carries an offer on every channel this one goes by.",
     note: "So the receptionist can answer about the offer.",
@@ -295,50 +294,6 @@ function audienceOf(token: string): Audience | null {
   const ref = parseListToken(token);
   if (!ref) return null;
   return { audience_kind: ref.kind === "builtin" ? "list" : "saved", audience_id: ref.id };
-}
-
-/**
- * Every `@step:n` in a step's input, at any depth, filled with the id step n made; or the first step it names that
- * names nothing: not committed yet, committed with nothing a token names (its id null), or undone. The input it is
- * given is left as it was.
- */
-export function resolveSteps(
-  payload: Record<string, unknown>,
-  made: PlanMade,
-): Record<string, unknown> | { unresolved: number } {
-  let unresolved: number | null = null;
-  const fill = (v: unknown): unknown => {
-    if (typeof v === "string") {
-      const m = STEP_TOKEN.exec(v);
-      if (!m) return v;
-      const n = Number(m[1]);
-      const step = made[n];
-      if (step && !("undone" in step) && step.id !== null) return step.id;
-      unresolved ??= n;
-      return v;
-    }
-    if (Array.isArray(v)) return v.map(fill);
-    if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fill(x)]));
-    return v;
-  };
-  const out = Object.fromEntries(Object.entries(payload).map(([k, x]) => [k, fill(x)]));
-  return unresolved === null ? out : { unresolved };
-}
-
-/**
- * A plan's made, read back from what became of its cards, in one pass (a reload, another tab): a step whose card was
- * approved is committed, with the id its outcome kept (null where it made nothing a token names, or an outcome saved
- * before outcomes kept it); one whose card was undone is undone. A card dismissed, failed or not acted on is not
- * committed. Only the cards of plan `planId` are read.
- */
-export function planMadeOf(planId: string, cards: readonly Pick<AskProposal, "kind" | "plan" | "outcome">[]): PlanMade {
-  const made: PlanMade = {};
-  for (const p of cards) {
-    if (p.plan?.id !== planId || !p.outcome) continue;
-    if (p.outcome.state === "done") made[p.plan.step] = { kind: p.kind, id: p.outcome.made?.id ?? null };
-    else if (p.outcome.state === "undone") made[p.plan.step] = { undone: true };
-  }
-  return made;
 }
 
 /* ------------------------------------------------------------------ an offer */
@@ -418,8 +373,8 @@ type OfferMessage =
 /**
  * The message to reuse: a marketing one in the workspace's language whose one typed value is the offer's (the
  * starter's "The offer", by its label), every other filled per person, with a live version on every channel the offer
- * goes by; the starter first, then one a plan wrote, then the Library's order. Its id is its version on the first of
- * those channels, and it is in review where the WhatsApp version it would send still is.
+ * goes by, and no starter the set retired; the starter first, then one a plan wrote, then the Library's order. Its id is
+ * its version on the first of those channels, and it is in review where the WhatsApp version it would send still is.
  */
 function reusedMessage(world: PlanWorld, on: readonly OfferChannel[], line: string): OfferMessage | null {
   const offer = offerSlots(world.language).find((s) => s.kind === "text");
@@ -434,6 +389,8 @@ function reusedMessage(world: PlanWorld, on: readonly OfferChannel[], line: stri
   const versionOn = (m: MessageRead, c: OfferChannel) => m.versions.find((v) => v.channel === c && LIVE.has(v.state));
   const fits = world.messages.filter(
     (m) =>
+      // A starter the set replaced is never sent anew (the earlier month's offer carries the same offer value).
+      !starterByName(m.name)?.retired &&
       m.category === "marketing" &&
       languageBase(m.language) === world.language &&
       takes(m) &&
@@ -538,6 +495,8 @@ function offerRead(offer: Offer, say: string | undefined, world: PlanWorld): Off
   const dates = offerDates(offer, world);
   if ("refused" in dates) return dates;
   if (offer.channels?.length === 0) return { refused: SAY.noChannelNamed };
+  // Texts alone: no channel the workspace could set up would carry it, so not "nothing here can carry an offer".
+  if (offer.channels?.every((c) => c === "sms")) return { refused: SAY.textOnly };
   const { on, said: onSaid } = offerChannels(offer.channels, world.channels);
   if (on.length === 0) return { refused: SAY.noChannel };
   const audience = world.lists.find((l) => l.token === (offer.who ?? world.offersList));

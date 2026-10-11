@@ -344,6 +344,7 @@ export type PlaybookToStart = Required<
     | "gap_days"
     | "cadence_days"
     | "channels"
+    | "until"
     | "trial_until"
   >
 >;
@@ -351,8 +352,9 @@ export type PlaybookToStart = Required<
 /**
  * Start a playbook with its line in the ledger (00357 start_playbook), on the member's own session: the row, running
  * and theirs, then the start_playbook decision, in one transaction. The door runs on the caller's rights, so the
- * table's policy, checks and unique indexes judge the row. Since 00395 it writes the end of a trial the playbook names
- * (`trial_until`; a database before it writes none, and the campaign runs as its class says from its first run). The
+ * table's policy, checks and unique indexes judge the row. Since 00395 it writes the last day the playbook names
+ * (`until`) and the end of a trial (`trial_until`; a database before it writes neither, and the campaign runs as its
+ * class says from its first run, until it is paused). The
  * new row's id with its decision's, or the database's refusal, which the caller words; an answer with neither id is a
  * door that is not this one, and throws.
  */

@@ -180,6 +180,8 @@ export const playbookSpec: ProposalSpec = {
       ...channelsNamed(pl),
       // It starts on trial (D5), where the card said so: the route counts the week from the Approve, at its own clock.
       ...(pl.trial === true ? { trial: true } : {}),
+      // Its last day (00395), where the card named one: the route judges it again at its own clock.
+      ...(typeof pl.until === "string" ? { until: pl.until } : {}),
     },
   }),
   // "Campaign", the word a person reads; and, where the route says it sent the starter's WhatsApp version for review, so.

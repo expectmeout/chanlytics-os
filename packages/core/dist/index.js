@@ -3231,7 +3231,7 @@ async function patchParams(ports, row, v) {
   refuseFollowUpWithoutLink(trig, specs);
   return specs;
 }
-async function patchUntil(ports, v, when) {
+async function untilOf(ports, v, when) {
   if (v === void 0 || v === null) return v;
   if (!isDayKey(v)) throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.untilDay);
   if (when.undo) return v;
@@ -3284,7 +3284,7 @@ async function checkPlaybookPatch(ports, row, asked2, when) {
     gap_days: patchNumber("gap_days", asked2.gap_days, row.gap_days),
     cadence_days: patchNumber("cadence_days", asked2.cadence_days, row.cadence_days),
     params: await patchParams(ports, row, asked2.params),
-    until: await patchUntil(ports, asked2.until, when),
+    until: await untilOf(ports, asked2.until, when),
     trial_until: trialUntilOf(asked2.trial_until, when)
   };
   const held = patchHeldOf(row);
@@ -39362,6 +39362,7 @@ export {
   toBase64,
   trialUntilOf,
   unreadableThread,
+  untilOf,
   wake,
   whatsappSender,
   whatsappWire,

@@ -43,6 +43,7 @@ export {
   checkPlaybookPatch,
   playbookNumber,
   trialUntilOf,
+  untilOf,
 } from "./check-playbook";
 export type { PlaybookInput, CheckPlaybookPorts, CheckPlaybookPatchPorts, PlaybookPatchRow } from "./check-playbook";
 export { reachOutRunIdFor, sendIdFor, sendMessageId, handStepIdFor } from "./reach-out-ids";

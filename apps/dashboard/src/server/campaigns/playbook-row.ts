@@ -22,7 +22,7 @@ import {
   triggerOf,
   type PlaybookPatch,
 } from "@chanlytics/contracts";
-import { checkPlaybookPatch, trialUntilOf } from "@chanlytics/core";
+import { checkPlaybookPatch, trialUntilOf, untilOf } from "@chanlytics/core";
 import {
   emitEvent,
   playbookForChange,
@@ -126,12 +126,15 @@ function trialAsked(asked: Record<string, unknown> | null, now: Date): string | 
  * playbook sends with nobody on record as having started it, and a person who presses Start again makes one. A body
  * naming `starter_key` and no message is judged whole, then files that starter (withStarterMessage: a refused one files
  * nothing and asks nothing of Meta), and the answer says what became of its WhatsApp version (`starter`). The trial it
- * starts on (trialAsked) is judged first, at this route's clock.
+ * starts on (trialAsked) and its last day (`until`, YYYY-MM-DD: core untilOf, a change's own judge, today or later by
+ * the business's clock) are judged first, at this route's clock.
  */
 export async function startNewPlaybook(ctx: RouteContext, req: Request, member: Member) {
   const tenantId = member.tenantId;
   const asked = (await jsonBody(req)) as Record<string, unknown> | null;
-  const trialUntil = trialAsked(asked, new Date());
+  const now = new Date();
+  const trialUntil = trialAsked(asked, now);
+  const until = (await untilOf(playbookPatchPorts(ctx, tenantId), asked?.until, { now, undo: false })) ?? null;
   // A starter named and no message (A0): the starter is filed first, and the playbook goes by it.
   const { body, starter } = await withStarterMessage(ctx, member, asked);
   const v = await checkPlaybookInput(ctx, tenantId, body, null);
@@ -152,6 +155,7 @@ export async function startNewPlaybook(ctx: RouteContext, req: Request, member: 
       gap_days: v.gap_days,
       cadence_days: v.cadence_days,
       channels: v.channels,
+      until,
       trial_until: trialUntil,
     },
     decision: {
@@ -162,6 +166,7 @@ export async function startNewPlaybook(ctx: RouteContext, req: Request, member: 
       run_hour: v.run_hour,
       cap_per_run: v.cap_per_run,
       channels: v.channels,
+      ...(until ? { until } : {}),
       ...(trialUntil ? { trial_until: trialUntil } : {}),
     },
     via: ctx.via ?? null,

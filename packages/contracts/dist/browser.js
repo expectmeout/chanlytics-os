@@ -12085,7 +12085,9 @@ var playbookSpec = {
       cadence_days: pl.cadence_days,
       ...channelsNamed(pl),
       // It starts on trial (D5), where the card said so: the route counts the week from the Approve, at its own clock.
-      ...pl.trial === true ? { trial: true } : {}
+      ...pl.trial === true ? { trial: true } : {},
+      // Its last day (00395), where the card named one: the route judges it again at its own clock.
+      ...typeof pl.until === "string" ? { until: pl.until } : {}
     }
   }),
   // "Campaign", the word a person reads; and, where the route says it sent the starter's WhatsApp version for review, so.
@@ -18382,11 +18384,41 @@ function nextRunOf(p, tz, now) {
   return { day: "tomorrow", hour: p.run_hour, soon: false };
 }
 
-// src/ask/plan.ts
+// src/ask/plan-steps.ts
 var STEP_TOKEN = /^@step:(\d+)$/;
 function stepToken(n) {
   return `@step:${n}`;
 }
+function resolveSteps(payload, made) {
+  let unresolved = null;
+  const fill2 = (v) => {
+    if (typeof v === "string") {
+      const m = STEP_TOKEN.exec(v);
+      if (!m) return v;
+      const n = Number(m[1]);
+      const step2 = made[n];
+      if (step2 && !("undone" in step2) && step2.id !== null) return step2.id;
+      unresolved ??= n;
+      return v;
+    }
+    if (Array.isArray(v)) return v.map(fill2);
+    if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fill2(x)]));
+    return v;
+  };
+  const out = Object.fromEntries(Object.entries(payload).map(([k, x]) => [k, fill2(x)]));
+  return unresolved === null ? out : { unresolved };
+}
+function planMadeOf(planId, cards) {
+  const made = {};
+  for (const p of cards) {
+    if (p.plan?.id !== planId || !p.outcome) continue;
+    if (p.outcome.state === "done") made[p.plan.step] = { kind: p.kind, id: p.outcome.made?.id ?? null };
+    else if (p.outcome.state === "undone") made[p.plan.step] = { undone: true };
+  }
+  return made;
+}
+
+// src/ask/plan.ts
 var SEND_HOUR = PLAYBOOK_DEFAULTS.runHour;
 var REMINDER_AFTER_DAYS = 19;
 var OFFER_CHANNELS = ["whatsapp", "email"];
@@ -18395,7 +18427,6 @@ var LIVE = /* @__PURE__ */ new Set(["approved", "pending"]);
 var WRITTEN_NAME = /^offer(?:_\d+)?$/;
 var SILENT = {
   message: true,
-  list: true,
   note: true,
   change: true,
   broadcast: false,
@@ -18431,12 +18462,15 @@ var capOf = (room) => Math.min(
   Math.max(PLAYBOOK_LIMITS.cap_per_run.min, Math.ceil(room.open / Math.max(1, room.days)))
 );
 var PLAN_WORDS = {
+  noOffer: "intent offer takes offer: its words, from and until, the offer's first and last day. Ask what the offer is and when it runs.",
   noWords: "words is the offer in the owner's words: ask what the offer is.",
   notADay: "from and until are days on the business's calendar, written YYYY-MM-DD: ask for them again.",
   fromAfterUntil: "until comes before from: an offer's last day is its first day or later. Ask which dates they meant.",
   fromPast: "from is a day already past on the business's calendar: an offer starts today or later. Ask when it starts.",
   noChannel: "Nothing here can carry an offer: WhatsApp needs a connected number, email needs email set up to send offers, and texts carry no offers. Say so, and what to set up first.",
   noChannelNamed: "channels names no channel: name WhatsApp, email or both, or leave channels out for every one the workspace sends offers on.",
+  /** Texts asked for alone: never a channel an offer goes by, whatever the workspace can send. */
+  textOnly: `${CHANNEL_WORDS.noOffersByText} An offer goes by WhatsApp or email: say so, and name either, or leave channels out for every one the workspace sends offers on.`,
   noOffersList: "who is not a list this workspace has: name one people with action lists gives, or leave who out for everyone who can receive offers.",
   journeyUnread: "The journey could not be read just now, so which moments are covered is not known: say so, and try again in a moment.",
   nothingToCover: "Every moment asked for is covered already or not offered here (an appointment's moments need a calendar connected, a proposal's needs deals on): say so, and propose nothing.",
@@ -18451,7 +18485,8 @@ var PLAN_WORDS = {
   noText: CHANNEL_WORDS.noOffersByText,
   noteMade: (until) => `Tells the receptionist about the offer, until ${until}.`,
   noteKnown: "The receptionist already has a note about the offer.",
-  monthsOfferPaused: (name, until) => `Pauses the month's offer, \u201C${name}\u201D, while this offer runs, so nobody gets two offers: resume it after ${until}.`,
+  /** The pause is a silent step: it applies at the plan's Approve, not on the offer's first day. */
+  monthsOfferPaused: (name, until) => `Pauses the month's offer, \u201C${name}\u201D, from when you approve it, so nobody gets two offers; resume it after ${until}.`,
   firstSend: (list2, day, at3) => `The offer goes to \u201C${list2}\u201D on ${day} at ${at3}.`,
   firstAtApprove: (list2, at3) => `The offer goes to \u201C${list2}\u201D when you approve it, as ${at3} today has passed.`,
   /** An offer that starts today, on a calendar with less room than half its audience: a campaign, from its Approve. */
@@ -18464,6 +18499,14 @@ var PLAN_WORDS = {
   cover: (n) => `Starts ${plural(n, "campaign")}, one on each moment not covered yet, each its own card.`,
   notOffered: (stages) => `Not offered here: ${joinWords(stages)}.`,
   pausedOn: (name) => `\u201C${name}\u201D stands paused on its moment: resume it from its drawer.`,
+  /**
+   * What a card says of what an earlier step of its plan makes, named by its token (`@step:n`): not filed yet, so not
+   * quoted, and filled in by the commit once that step is approved.
+   */
+  stepMessage: (n) => `the message made by step ${n}`,
+  stepCampaign: (n) => `the campaign made by step ${n}`,
+  /** A change to a campaign a step makes: what is said without the campaign's row (its other fields are its step's). */
+  stepChangeOnly: (n) => `A change to the campaign made by step ${n} takes state paused, params or until: the rest is the step's own to say.`,
   why: {
     message: "No message in the Library carries an offer on every channel this one goes by.",
     note: "So the receptionist can answer about the offer.",
@@ -18494,34 +18537,6 @@ function audienceOf(token2) {
   const ref = parseListToken(token2);
   if (!ref) return null;
   return { audience_kind: ref.kind === "builtin" ? "list" : "saved", audience_id: ref.id };
-}
-function resolveSteps(payload, made) {
-  let unresolved = null;
-  const fill2 = (v) => {
-    if (typeof v === "string") {
-      const m = STEP_TOKEN.exec(v);
-      if (!m) return v;
-      const n = Number(m[1]);
-      const step2 = made[n];
-      if (step2 && !("undone" in step2) && step2.id !== null) return step2.id;
-      unresolved ??= n;
-      return v;
-    }
-    if (Array.isArray(v)) return v.map(fill2);
-    if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fill2(x)]));
-    return v;
-  };
-  const out = Object.fromEntries(Object.entries(payload).map(([k, x]) => [k, fill2(x)]));
-  return unresolved === null ? out : { unresolved };
-}
-function planMadeOf(planId, cards) {
-  const made = {};
-  for (const p of cards) {
-    if (p.plan?.id !== planId || !p.outcome) continue;
-    if (p.outcome.state === "done") made[p.plan.step] = { kind: p.kind, id: p.outcome.made?.id ?? null };
-    else if (p.outcome.state === "undone") made[p.plan.step] = { undone: true };
-  }
-  return made;
 }
 function offerDates(offer, world) {
   if (!isDayKey(offer.from) || !isDayKey(offer.until)) return { refused: SAY.notADay };
@@ -18572,7 +18587,10 @@ function reusedMessage(world, on, line) {
   };
   const versionOn = (m2, c) => m2.versions.find((v) => v.channel === c && LIVE.has(v.state));
   const fits = world.messages.filter(
-    (m2) => m2.category === "marketing" && languageBase(m2.language) === world.language && takes(m2) && on.every((c) => versionOn(m2, c))
+    (m2) => (
+      // A starter the set replaced is never sent anew (the earlier month's offer carries the same offer value).
+      !starterByName(m2.name)?.retired && m2.category === "marketing" && languageBase(m2.language) === world.language && takes(m2) && on.every((c) => versionOn(m2, c))
+    )
   );
   const rank = (m2) => m2.name === "this_months_offer" ? 0 : WRITTEN_NAME.test(m2.name) ? 1 : 2;
   const m = [...fits].sort((a, b) => rank(a) - rank(b)).at(0);
@@ -18626,6 +18644,7 @@ function offerRead(offer, say2, world) {
   const dates = offerDates(offer, world);
   if ("refused" in dates) return dates;
   if (offer.channels?.length === 0) return { refused: SAY.noChannelNamed };
+  if (offer.channels?.every((c) => c === "sms")) return { refused: SAY.textOnly };
   const { on, said: onSaid } = offerChannels(offer.channels, world.channels);
   if (on.length === 0) return { refused: SAY.noChannel };
   const audience = world.lists.find((l) => l.token === (offer.who ?? world.offersList));
