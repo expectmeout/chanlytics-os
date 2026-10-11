@@ -174,6 +174,33 @@ test("a workspace with its owner on file: a row of kind deadman on its bell, a m
   }
 });
 
+test("a person who asked to stop waits for nobody: settled once without a warning, so it never holds a place among the oldest; a person the owner handles waits on the owner, and is warned", async () => {
+  // 11 Oct 2026: "a customer has had no answer for N hours" was said of an opt-out, and it came back every tick.
+  const w = world([
+    waiting("e-stop", A, { reason: "opt_out" }),
+    waiting("e-held", A, { reason: "person_hold" }),
+    waiting("e-a1", A),
+  ]);
+  const line = wire();
+  try {
+    const [status, body] = await answer(await w.tick());
+    assert.equal(status, 200);
+    assert.equal(body.flagged, 2, "the two customers still waiting are warned");
+    assert.equal(bell(w, A).length, 2);
+    assert.deepEqual(
+      bell(w, A).map((r) => /Flagged because: (\w+)/.exec(r.body)?.[1]),
+      ["person_hold", "customer_asked_for_human"],
+    );
+    assert.deepEqual(
+      w.marks,
+      [["e-stop"], ["e-held"], ["e-a1"]],
+      "each settled once: the opt-out unwarned, two warned",
+    );
+  } finally {
+    line.restore();
+  }
+});
+
 test("a mail the mailer refuses earns no stamp: the bell row stays (it is the workspace's own record) and the next tick will try again", async () => {
   const w = world([waiting("e-a2", A)]);
   const refused = wire(() => new Response("invalid api key", { status: 401 }));

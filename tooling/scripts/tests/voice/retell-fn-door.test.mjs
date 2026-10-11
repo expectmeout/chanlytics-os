@@ -419,7 +419,12 @@ function world({
 
 /* -------------------------------------------------------------- the door */
 
-test("the door: no header, an empty one, a wrong one and the secret on the URL are each a 401 that reads nothing and sends nothing; the header configured on the tool opens it", async () => {
+/** What the door says to a knock it turned away: a sentence the agent can speak, since a 401 has no words (11 Oct 2026). */
+const TURNED_AWAY = {
+  result: "I can't send anything just now. Take the caller's name and say someone will call them back.",
+};
+
+test("the door: no header, an empty one, a wrong one and the secret on the URL are each turned away, in words the agent speaks, reading nothing and sending nothing; the header configured on the tool opens it", async () => {
   const w = world();
   const db = w.open();
   const caller = w.number();
@@ -434,14 +439,14 @@ test("the door: no header, an empty one, a wrong one and the secret on the URL a
       ],
     ]) {
       const res = await knock(w.ask(caller), opts);
-      assert.deepEqual([res.status, await res.json()], [401, { ok: false, error: "bad_secret" }], why);
+      assert.deepEqual([res.status, await res.json()], [200, TURNED_AWAY], why);
     }
     // With no secret configured, nothing matches it: not a missing header, not an empty one.
     await withEnv({ RETELL_FN_SECRET: undefined }, async () => {
       for (const secret of [null, "", "anything"]) {
-        assert.equal(
-          (await knock(w.ask(caller), { secret })).status,
-          401,
+        assert.deepEqual(
+          await (await knock(w.ask(caller), { secret })).json(),
+          TURNED_AWAY,
           `no secret configured, header ${JSON.stringify(secret)}`,
         );
       }
@@ -450,16 +455,22 @@ test("the door: no header, an empty one, a wrong one and the secret on the URL a
     // webhook door already refuses.
     await withEnv({ RETELL_FN_SECRET: "" }, async () => {
       for (const secret of [null, "", "anything"]) {
-        assert.equal(
-          (await knock(w.ask(caller), { secret })).status,
-          401,
+        assert.deepEqual(
+          await (await knock(w.ask(caller), { secret })).json(),
+          TURNED_AWAY,
           `an empty secret configured, header ${JSON.stringify(secret)}`,
         );
       }
     });
     assert.equal(db.seen.length, 0, "not one row read");
     assert.deepEqual(w.left().calls, [], "nothing sent");
-    assert.deepEqual(log.lines, [], "and nothing said");
+    // One line a refused knock, its door named and nothing of the caller: the trace a stale secret leaves now that the
+    // answer is a 200 (the review of 11 Oct 2026).
+    assert.deepEqual(
+      log.lines.map((l) => [l.event, l.fields]),
+      Array.from({ length: 10 }, () => ["voice_tool_knock_refused", { door: "fn" }]),
+      "and one line said for each refusal, naming only the door",
+    );
 
     assert.equal(
       await spoken(await knock(w.ask(caller))),

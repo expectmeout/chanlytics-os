@@ -3274,7 +3274,7 @@ var IMPORTED_CALL_NOTE = /^\[voice call note /;
 var isBackfill = (m) => !!m.meta && typeof m.meta === "object" && m.meta.backfill === true;
 var isAcknowledgement = (m) => !!m.meta && typeof m.meta === "object" && m.meta.ack === true;
 var effectiveAt = (m) => new Date(m.channel_ts ?? m.created_at).getTime();
-function assembleHistory(rows, limit) {
+function keptTurns(rows) {
   const kept = rows.filter((m) => {
     const body = (m.body ?? "").trim();
     if (!body) return false;
@@ -3282,8 +3282,10 @@ function assembleHistory(rows, limit) {
     if (isBackfill(m) && IMPORTED_CALL_NOTE.test(body)) return false;
     return true;
   });
-  kept.sort((a, b) => effectiveAt(a) - effectiveAt(b));
-  return kept.map((m) => ({
+  return kept.sort((a, b) => effectiveAt(a) - effectiveAt(b));
+}
+function assembleHistory(rows, limit) {
+  return keptTurns(rows).map((m) => ({
     // A call note is the customer's own history on another channel — one
     // agent, so it counts the same as a message.
     role: m.sender === "customer" ? "user" : "assistant",
@@ -3331,7 +3333,7 @@ var EMPTY_LEAD = {
   history: [],
   optedOut: false
 };
-async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
+async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16, answering) {
   const withAnswer = await db.from("contacts").select(
     "id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, marketing_channels, offers_asked_at, tenants(sells_by)"
   ).eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
@@ -3356,12 +3358,7 @@ async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
   const dealsOn = dealsAreOn(contact.sellsBy);
   const { data: conv, error: vErr } = await db.from("conversations").select("id").eq("tenant_id", tenantId).eq("contact_id", contact.id).maybeSingle();
   if (vErr) throw new Error(`readLeadContext/conversation: ${vErr.message}`);
-  let history = [];
-  if (conv) {
-    const { data: rows, error: hErr } = await db.from("messages").select(HISTORY_COLUMNS).eq("tenant_id", tenantId).eq("conversation_id", conv.id).order("created_at", { ascending: false }).limit(historyLimit * 3);
-    if (hErr) throw new Error(`readLeadContext/history: ${hErr.message}`);
-    history = assembleHistory(rows ?? [], historyLimit);
-  }
+  const { history, lastTurnAt } = conv ? await turnsBefore(db, tenantId, conv.id, historyLimit, answering) : { history: [], lastTurnAt: null };
   const { data: dealRows } = dealsOn ? await db.from("deals").select("stage, service, proposed_at, decided_at, ended_at, created_at, proposal_url").eq("tenant_id", tenantId).eq("contact_id", contact.id).order("created_at", { ascending: false }) : { data: [] };
   const current = pickCurrentDeal(dealRows ?? []);
   const others = (dealRows ?? []).filter((d) => d !== current && dealIsOpen(d));
@@ -3375,7 +3372,7 @@ async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
     // Having said anything at all is what makes someone returning — not merely
     // existing as a row, which an outbound-only contact would also satisfy.
     returning: history.length > 0,
-    lastSeenAt: contact.last_seen_at ?? null,
+    lastSeenAt: answering ? lastTurnAt : contact.last_seen_at ?? null,
     history,
     optedOut: contact.consent === "opted_out" || contact.dnc === true,
     hasEmail: !!contact.email,
@@ -3389,6 +3386,14 @@ async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
     deal: current ? dealRowFacts(current) : null,
     otherDeals: others.map((d) => ({ ...dealRowFacts(d), proposal_url: d.proposal_url }))
   };
+}
+async function turnsBefore(db, tenantId, conversationId, limit, answering) {
+  const { data: rows, error } = await db.from("messages").select(`id, ${HISTORY_COLUMNS}`).eq("tenant_id", tenantId).eq("conversation_id", conversationId).order("created_at", { ascending: false }).limit(answering ? Math.max(limit * 3, 24) + 1 : limit * 3);
+  if (error) throw new Error(`readLeadContext/history: ${error.message}`);
+  const before = (rows ?? []).filter((m) => m.id !== answering);
+  const newest = keptTurns(before).at(-1);
+  const lastTurnAt = newest ? new Date(effectiveAt(newest)).toISOString() : null;
+  return { history: assembleHistory(before, limit), lastTurnAt };
 }
 function dealRowFacts(d) {
   return {

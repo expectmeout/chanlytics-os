@@ -108,7 +108,8 @@ test("the prompt carries the rows on both channels — a composed profile and a 
 
 test("the wiring: the edge passes the rows to both prompts and checks after generation; the API refuses what a class cannot honour; the pane says so", () => {
   const wa = readCode("packages/core/src/inbound/model-turn.ts");
-  assert.ok(wa.includes('resolveSystemPrompt(brainCfg, "whatsapp", rt?.timezone, new Date(), rt?.policy, rt?.known)'));
+  // The wire the message came on: a text is told it answers texts (compose.ts).
+  assert.ok(wa.includes("resolveSystemPrompt(brainCfg, channel, rt?.timezone, new Date(), rt?.policy, rt?.known)"));
   assert.ok(wa.includes("const two = layerTwo({"), "the turn asks layer two after generation");
   // Layer two, run: under "ask", a booking link the model sent anyway is taken back and the thread is a person's.
   const brainCfg = { business_name: "Marisa's", booking_link: "https://book.example.com/marisas" };

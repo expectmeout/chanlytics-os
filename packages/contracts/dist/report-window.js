@@ -31,6 +31,10 @@ function shiftMonth(key, n) {
 // src/shared/words.ts
 var plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
+// src/config/no-booking-link.ts
+var NO_LINK_DETAILS = "their name, what they need, and where and when";
+var NO_WAY_TO_SEND_LINK = `Booking: the booking link can only be sent by WhatsApp, and this business has no WhatsApp line, so never use send_booking_link and never promise a link or a message. When the caller wants to book, change or cancel a booking, take ${NO_LINK_DETAILS}, and say the team will follow up. If they would rather book themselves and a website is listed above, they can book there.`;
+
 // src/reports/reports.ts
 var REPORT_RANGES = [
   { days: 7, id: "7d", label: "7 days" },

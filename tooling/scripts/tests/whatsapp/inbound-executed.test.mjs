@@ -512,6 +512,43 @@ test("a short code is a sender, never a person: recorded, marked handled, nothin
   assert.equal(w.seen.escalations.length, 0);
 });
 
+test("a one-time code from an ordinary number is a service, never a person: recorded, marked handled, nothing sent; a person's own code is answered", async () => {
+  // 11 Oct 2026: verification codes from long numbers were answered with a sales reply.
+  const codes = [
+    "Your verification code is 482913. It expires in 10 minutes.",
+    "G-482913 is your Google verification code.",
+    "482913 is your login code. Do not share this code with anyone.",
+    "Use 4829 to sign in to your account.",
+  ];
+  for (const [i, body] of codes.entries()) {
+    const w = world();
+    await w.run(text(body, `wamid.otp${i}`));
+    assert.equal(w.seen.sent.length, 0, body);
+    assert.equal(w.seen.processed, 1, `${body}: recorded and handled`);
+    assert.equal(w.seen.escalations.length, 0, body);
+    assert.equal(w.seen.unreachable, 0, `${body}: the sender can be written to; it is the words that are a service's`);
+  }
+  // A person's text with a number in it is theirs: a door code, a booking reference.
+  const meta = { intent: "booking", confidence: 0.9, reason: "", facts_used: [], language: "en", model: "m" };
+  for (const [i, body] of [
+    "The gate code is 4829, see you Tuesday",
+    "My confirmation code is 482913, can I move it?",
+    // The review of 11 Oct 2026: each of these was set aside by the first draft, which took any number near a word.
+    "I need a one time deep clean for my 1200 sq ft apartment",
+    "one-time move, about 1800 sq ft",
+    "Can I pay a security deposit of 2500",
+    "I can't log in to your booking page, error 5003",
+    "Our building security closes at 5, I'm in apartment 1204",
+  ].entries()) {
+    let asked = 0;
+    const w = world({ env: { modelKey: "k" } });
+    await w.run(text(body, `wamid.person${i}`), {
+      brain: async () => ({ generateReply: async () => ((asked += 1), { text: "Thanks!", escalate: false, meta }) }),
+    });
+    assert.equal(asked, 1, `${body}: the receptionist was asked`);
+  }
+});
+
 test("an ingest the database refuses is not swallowed: IngestFailed surfaces and a copy reaches the mailbox", async () => {
   const w = world({
     ingest: async () => {
@@ -1284,6 +1321,26 @@ test("REGRESSION (S5): the holding message is filled as it goes out, whether the
   assert.deepEqual(
     failed.seen.sent.map((s) => s.body),
     ["Sorry — Harbor Nails will reply here soon."],
+  );
+});
+
+test("the writer is read without the message being answered: the reader is handed its id, which was stored first", async () => {
+  // 11 Oct 2026: every writer was "Returning contact. Last in touch today." (db readLeadContext says why).
+  const asked = [];
+  const meta = { intent: "booking", confidence: 0.9, reason: "", facts_used: [], language: "en", model: "m" };
+  const w = world({ env: { modelKey: "k" } });
+  await w.run(text("do you have anything saturday?"), {
+    leads: {
+      read: async (...args) => (asked.push(args.slice(2)), { name: null }),
+      describe: () => "First time reaching out.",
+      personReplyMode: async () => null,
+    },
+    brain: async () => ({ generateReply: async () => ({ text: "We do, at 10.", escalate: false, meta }) }),
+  });
+  assert.deepEqual(
+    asked,
+    [[`+${FROM}`, 1, "m-in"]],
+    "the person's number, one turn, and the message the ingest stored",
   );
 });
 

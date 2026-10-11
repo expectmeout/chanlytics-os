@@ -22,6 +22,7 @@ import {
   FALLBACK_DEFAULTS,
   frameGuardrail,
   NO_LINK_DETAILS,
+  NO_WAY_TO_SEND_LINK,
   offersBookingLink,
   parseTenantConfigResult,
   resolveSystemPrompt,
@@ -41,6 +42,8 @@ const QUOTES = {
   fallbacks: { greeting: "g", error: "e", non_text: "n" },
 };
 const BOOKS = { ...QUOTES, booking_link: "https://book.example/harbor" };
+/** What the platform knows of a workspace with a WhatsApp line: the one way a call can send the link. */
+const WITH_WHATSAPP = { channels: [{ kind: "whatsapp", number_e164: "+13055550199", status: "active" }] };
 const PROFILE = {
   address: "12 Pier Rd, Brooklyn",
   hours: { mon: { open: "08:00", close: "18:00" } },
@@ -140,12 +143,27 @@ test("a receptionist answered from its own stored prompt is told there is no lin
     const told = resolveSystemPrompt(QUOTES, channel);
     assert.ok(told.startsWith(`${QUOTES.system_prompt}\n\nRules you must follow:\n- `), told);
     assert.ok(told.includes("no booking link"), channel);
-    assert.equal(resolveSystemPrompt(BOOKS, channel), withStanding(BOOKS.system_prompt, channel), channel);
+    // With a WhatsApp line, which a call sends the link by (contracts offersLinkOn).
+    assert.equal(
+      resolveSystemPrompt(BOOKS, channel, null, new Date(), null, WITH_WHATSAPP),
+      withStanding(BOOKS.system_prompt, channel),
+      channel,
+    );
   }
   assert.ok(
     resolveSystemPrompt(QUOTES, "voice").includes("never use send_booking_link"),
     "the shell's tool, named to be left alone on a stored prompt as on a composed one",
   );
+  // A link and no WhatsApp line: a call is told it cannot send it, first among the rules; chat keeps its words.
+  const call = resolveSystemPrompt(BOOKS, "voice");
+  assert.ok(
+    call.startsWith(`${BOOKS.system_prompt}
+
+Rules you must follow:
+- ${NO_WAY_TO_SEND_LINK}`),
+    call,
+  );
+  assert.equal(resolveSystemPrompt(BOOKS, "whatsapp"), withStanding(BOOKS.system_prompt, "whatsapp"));
 });
 
 test("the messages sent in its name leave out the link's sentence, and nothing else", () => {

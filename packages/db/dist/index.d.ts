@@ -39956,7 +39956,9 @@ interface LeadContext {
  * would otherwise leave a lead behind in the workspace. The real ingest paths
  * create rows; this one only reports what is already true.
  */
-declare function readLeadContext(db: Db$g, tenantId: string, phoneE164: string, historyLimit?: number): Promise<LeadContext>;
+declare function readLeadContext(db: Db$g, tenantId: string, phoneE164: string, historyLimit?: number, 
+/** The message being answered, stored before they were read: not their history, nor their last touch (none on a call). */
+answering?: string): Promise<LeadContext>;
 /**
  * The deal facts for a caller known by their number, or null: what the availability door needs and nothing more (0004).
  * None where deals are off (dealsAreOn, 0008): the workspace's answer rides on the contact read, and a database that

@@ -78,7 +78,7 @@ export { servicesWords, servicesToldWords, serviceUndoName, servicesFoundWords, 
 export { knownForwarding, sameAddress, sameName, resolveFacts, factConflicts, changedConfigFields, SOURCE_WORDS } from "./config/facts";
 export { INTENT_LABELS } from "./config/intent-labels";
 export { tokenCapOf, tokenBudgetSpent, TOKENS_DAY_DEFAULT } from "./config/limits";
-export { offersBookingLink, priceNextStep, NO_LINK_DETAILS } from "./config/no-booking-link";
+export { offersBookingLink, offersLinkOn, priceNextStep, NO_LINK_DETAILS, NO_WAY_TO_SEND_LINK } from "./config/no-booking-link";
 export { violatesNoPrices, priceFigures, namesMoney, heldLine, spokenBreach, spokenBreachDetails, guardSpokenTurns, waWindow, replyWindow, isLiveCall, hardLimitsWords, replyDelayMs, WA_WINDOW_MS, REPLY_LIMITS, REPLY_MAX_ANY, CALL_HEARTBEAT_MS, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MIN_MS, REPLY_DELAY_MAX_MS, REPLY_CAP_DEFAULT, PAUSE_HOURS_DEFAULT, pauseHoursOf, pauseMsOf } from "./config/policy";
 export { promptBlocks } from "./config/prompt-blocks";
 export { roleAtLeast } from "./config/roles";

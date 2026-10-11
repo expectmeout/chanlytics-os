@@ -58,10 +58,12 @@ export const HANDOFF_VAR = "{{handoff_number}}";
  * agent with no knowledge and no idea that it has none. This is the third
  * option: no facts, and told so. The call-start judgement on the edge
  * (apps/edge/lib/voice/call-start.ts) sends this same constant as its fallback, so
- * the shell's default and the webhook's answer cannot drift apart.
+ * the shell's default and the webhook's answer cannot drift apart. It offers nothing it may not be able to do: with no
+ * details there is no knowing whether the business has a booking link or a WhatsApp line to send one by, so it takes a
+ * message (11 Oct 2026: it offered the link by WhatsApp to every call it was said on).
  */
 export const FACTS_UNAVAILABLE =
-  "The business's details could not be loaded for this call. Do not state opening hours, prices, services or an address from memory — you do not have them. Say you will have someone confirm, offer to take a message, and offer to send the booking link to the caller's WhatsApp.";
+  "The business's details could not be loaded for this call. Do not state opening hours, prices, services or an address from memory — you do not have them. Say you will have someone confirm, and offer to take their name and a message so the team can call them back. Do not offer to send anything.";
 
 /** What the agent is told about a caller when nothing could be read: the shell's default, and the webhook's fallback. */
 export const CALLER_UNKNOWN = "New caller - no prior interactions on record.";
@@ -116,11 +118,13 @@ export function voiceShellTools(fnUrl: string, bookingHeaders?: Record<string, s
       type: "custom",
       name: "send_booking_link",
       description:
-        "Text the booking link to the caller's WhatsApp. Use when the caller wants to book. It goes to the number they are calling from unless another number is given.",
+        "Send the booking link to the caller's WhatsApp when the caller wants to book, unless your instructions say there is no link or no way to send it. It goes to the number they are calling from unless another number is given.",
       url: fnUrl,
       method: "POST",
       speak_during_execution: true,
-      execution_message_description: "Say you are sending the booking link to their WhatsApp now.",
+      // Said while the tool runs, before it has answered: so it promises nothing, and the answer it speaks after says
+      // what happened (11 Oct 2026: "sending it to their WhatsApp now" came before every refusal).
+      execution_message_description: "Say one moment, please.",
       speak_after_execution: true,
       ...(bookingHeaders ? { headers: bookingHeaders } : {}),
       // No `required` list: the provider drops an empty one on save, and the
@@ -140,7 +144,7 @@ export function voiceShellTools(fnUrl: string, bookingHeaders?: Record<string, s
       type: "custom",
       name: "check_availability",
       description:
-        "Check which appointment times are open right now. Use when the caller asks when they could come in, or before offering a time. Returns the open windows; offer up to three that fit, then send the booking link. Never confirm a slot yourself.",
+        "Check which appointment times are open right now. Use when the caller asks when they could come in, or before offering a time. Returns the open windows and what to offer after them; offer up to three that fit, then do what the answer says. Never confirm a slot yourself.",
       url: availabilityUrl(fnUrl),
       method: "POST",
       speak_during_execution: true,
