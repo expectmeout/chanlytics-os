@@ -594,6 +594,7 @@
   .side-wrap .sidebar.collapsed .nav-hint,
   .side-wrap .sidebar.collapsed .sb-team-body,
   .side-wrap .sidebar.collapsed .sb-team > .icon,
+  .side-wrap .sidebar.collapsed .sb-chev,
   .side-wrap .sidebar.collapsed .user-chip .who { display: revert; }
   .side-wrap .sidebar.collapsed .nav-item { justify-content: flex-start; padding: 11px 10px; }
   .side-wrap .sidebar.collapsed .sb-team { justify-content: flex-start; padding: 16px 14px 12px; }

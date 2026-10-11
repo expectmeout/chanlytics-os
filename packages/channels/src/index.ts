@@ -10,6 +10,7 @@ export {
   NotPublicError,
 } from "./public-fetch";
 export type { Resolve, Resolved, PublicFetchDeps } from "./public-fetch";
+export { BOT_USER_AGENT, pageText, imageBytes } from "./site-reads";
 export { askModel, streamModel, formatRejected } from "./models/anthropic";
 export type {
   ModelAsk,

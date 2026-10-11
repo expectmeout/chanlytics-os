@@ -46,7 +46,7 @@
  *
  * A row is HOOKLESS, as it has always been: its children come and go, its act is found as the press lands.
  */
-import type { MouseEvent, MouseEventHandler, ReactNode } from "react";
+import type { MouseEvent, MouseEventHandler, ReactElement, ReactNode } from "react";
 import { Icon } from "../icon/icon";
 import { can, pick } from "./dom";
 import { factWords, pageSelection } from "./shell-verbs";
@@ -62,6 +62,12 @@ interface RecordAct {
   testid?: string | null;
   name?: string | null;
   icon?: string | null;
+  /**
+   * The act's button handed to the page, for an act that opens something of its own: a page's Menu takes it as its
+   * control (`trigger`), so a row that offers a few choices keeps the one act every row has, and the record kit asks
+   * nothing of the menu.
+   */
+  wrap?: ((button: ReactElement) => ReactElement) | null;
 }
 
 /** A second answer that disagrees with the row's own. */
@@ -119,6 +125,10 @@ export function recRowPress(e: MouseEvent<HTMLElement> | null | undefined): void
   const row = e && e.currentTarget;
   const t = e && (e.target as Element | null);
   if (!row || !t || !t.closest || !can(row, "querySelector")) return;
+  // A press that reaches the row through a portal (React carries it up the tree it was drawn from, not the page's) was
+  // pressed somewhere else: the menu the act opened, drawn on the body. Taking it for a press on the row opened the menu
+  // again as its item was chosen.
+  if (can(row, "contains") && !row.contains(t)) return;
   const own = t.closest(REC_ROW_OWN_PRESS);
   if (own && own !== row && row.contains(own)) return;
   const picked = pageSelection();
@@ -227,7 +237,7 @@ interface RowIds {
 /** The row's one act: its words, an arrow for an act that goes elsewhere, and the phone's chevron. */
 function rowAct(act: RecordAct, ids: RowIds) {
   const { id, keyId, wordsId, wrongId } = ids;
-  return (
+  const button = (
     <button
       type="button"
       className="rec-row-act"
@@ -254,6 +264,7 @@ function rowAct(act: RecordAct, ids: RowIds) {
       </span>
     </button>
   );
+  return act.wrap ? act.wrap(button) : button;
 }
 
 /** A record's row: a label, its value, where the value came from, and one act. */

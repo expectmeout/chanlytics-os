@@ -391,6 +391,7 @@ export {
   workspaceIdsOf,
   createWorkspaceFn,
   lineForwardingSet,
+  setWorkspaceLogo,
   updatePlaybook,
   removePlaybook,
   startPlaybook,

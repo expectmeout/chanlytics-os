@@ -87,5 +87,6 @@ export { checkable, check, isAgainRun } from "./runner/check";
 export type { CheckOutcome, CheckAgain } from "./runner/check";
 export { reconcileUnknownRuns } from "./runner/sweep";
 export type { ReconcileOutcome } from "./runner/sweep";
+export { leadMarksFrom } from "./mark";
 export { imageHeaderOf, markImageFrom, MARK_MIN_SIDE, MARK_MAX_RATIO, MARK_MAX_BYTES } from "./mark-image";
 export type { MarkKind, MarkImage } from "./mark-image";

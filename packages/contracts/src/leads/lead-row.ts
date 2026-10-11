@@ -24,6 +24,7 @@ import {
   type LeadStage,
 } from "./lead-words";
 import { agoShort, agoWords } from "../shared/time";
+import { publicObjectSrc } from "../shared/link";
 import { initialsOf } from "../conversations/thread-contact";
 
 /* ------------------------------------------------ what the page is given -- */
@@ -182,15 +183,8 @@ export const LEAD_MARK_PATH = /^[0-9a-f]{64}\.(png|jpg|webp|gif|ico)$/;
  * wrote, and without an https origin to serve it from.
  */
 export function leadMarkSrc(supabaseUrl: string | null | undefined, path: string | null | undefined): string | null {
-  if (!path || !LEAD_MARK_PATH.test(path) || !supabaseUrl) return null;
-  let origin: string;
-  try {
-    origin = new URL(supabaseUrl).origin;
-  } catch {
-    return null;
-  }
-  if (!/^https:\/\//.test(origin) && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin)) return null;
-  return `${origin}/storage/v1/object/public/${LEAD_MARKS_BUCKET}/${path}`;
+  if (!path || !LEAD_MARK_PATH.test(path)) return null;
+  return publicObjectSrc(supabaseUrl, LEAD_MARKS_BUCKET, path);
 }
 
 /**

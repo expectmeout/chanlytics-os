@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-233 handlers in 47 domains.
+236 handlers in 47 domains.
 
 ## activity
 
@@ -1967,3 +1967,23 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 Writes; for any signed-in person, for themselves; counts against the `create_workspace` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/workspaces/create/route.ts`).
+
+### `PUT /api/v1/workspaces/logo`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `workspace_logo` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `image` | string | yes | at least 1 characters; at most 349528 characters; matches `^[A-Za-z0-9+/]+={0,2}$` |
+
+### `DELETE /api/v1/workspaces/logo`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `workspace_logo` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/workspaces/logo/route.ts`).
+
+### `POST /api/v1/workspaces/logo/lookup`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `workspace_logo_lookup` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/workspaces/logo/lookup/route.ts`).

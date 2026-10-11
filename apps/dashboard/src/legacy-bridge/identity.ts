@@ -11,6 +11,7 @@ import {
   identityWords,
   memberWords,
   personInitials,
+  workspaceInitials,
   type IdentityInput,
   timezoneWords,
   timezoneCity,
@@ -30,6 +31,8 @@ export interface IdentityApi {
   words: typeof identityWords;
   member: typeof memberWords;
   initials: typeof personInitials;
+  /** A workspace's initials, for its circle where it has no logo: the sidebar's row, the rail and the switcher. */
+  workspace: typeof workspaceInitials;
 }
 
 export interface MeApi {
@@ -164,7 +167,12 @@ export const meVerbs: MeApi = {
 
 export function installIdentity(win: Window = window): void {
   installRoles(win);
-  win.__identity = { words: identityWords, member: memberWords, initials: personInitials };
+  win.__identity = {
+    words: identityWords,
+    member: memberWords,
+    initials: personInitials,
+    workspace: workspaceInitials,
+  };
   win.__tz = {
     words: timezoneWords,
     city: timezoneCity,

@@ -21723,6 +21723,48 @@ COMMENT ON FUNCTION public.set_template_title(p_template_id uuid, p_title text) 
 
 
 --
+-- Name: set_workspace_logo(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_workspace_logo(p_tenant_id uuid, p_logo_path text) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user   uuid := auth.uid();
+  v_path   text := nullif(btrim(coalesce(p_logo_path, '')), '');
+  v_before text;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.caller_has_permission(p_tenant_id, 'settings') then
+    raise exception 'Only someone who may change this workspace''s settings can change its logo.' using errcode = '42501';
+  end if;
+  if v_path is not null and split_part(v_path, '/', 1) <> p_tenant_id::text then
+    raise exception 'That picture is not this workspace''s.' using errcode = '22023';
+  end if;
+  -- The row, held against a second save at once; "no key", so the many writes that only point at the workspace go on.
+  select t.logo_path into v_before from public.tenants t where t.id = p_tenant_id for no key update;
+  if not found then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  update public.tenants set logo_path = v_path where id = p_tenant_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'settings.changed', 'system', 'workspace', p_tenant_id,
+          jsonb_build_object('fields', jsonb_build_array('logo'), 'by', v_user, 'version', null));
+  return v_before;
+end $$;
+
+
+--
+-- Name: FUNCTION set_workspace_logo(p_tenant_id uuid, p_logo_path text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.set_workspace_logo(p_tenant_id uuid, p_logo_path text) IS 'Sets (or, with null, clears) the workspace''s logo address for a caller who may change its settings (caller_has_permission ''settings'': a partner only on a session that showed its second factor), refuses an address outside the workspace''s own folder, writes settings.changed {fields: [logo], by} in the same transaction, and answers the address it held, which the save then removes from storage.';
+
+
+--
 -- Name: setup_request(uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -27029,6 +27071,8 @@ CREATE TABLE public.tenants (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     sells_by text,
     left_empty_at timestamp with time zone,
+    logo_path text,
+    CONSTRAINT tenants_logo_path_shape CHECK (((logo_path IS NULL) OR ((split_part(logo_path, '/'::text, 1) = (id)::text) AND (logo_path ~ '^[0-9a-f-]{36}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.png$'::text)))),
     CONSTRAINT tenants_sells_by_check CHECK (((sells_by IS NULL) OR (sells_by = ANY (ARRAY['booking'::text, 'proposal'::text])))),
     CONSTRAINT tenants_status_check CHECK ((status = ANY (ARRAY['active'::text, 'paused'::text, 'test'::text])))
 );
@@ -27053,6 +27097,13 @@ COMMENT ON COLUMN public.tenants.sells_by IS 'How this workspace''s customers bu
 --
 
 COMMENT ON COLUMN public.tenants.left_empty_at IS 'When the workspace''s last member left it (delete_my_account, 00262): it is paused, its plan is ended, and billing never resumes it. Null while anyone is in it.';
+
+
+--
+-- Name: COLUMN tenants.logo_path; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.tenants.logo_path IS 'The workspace''s own logo (00407): <tenant id>/<uuid>.png in the public workspace-logos bucket, a square PNG the server remade; null when it has none and its initials stand in. Written only by set_workspace_logo.';
 
 
 --
@@ -37099,6 +37150,15 @@ GRANT ALL ON FUNCTION public.set_template_hidden(p_template_id uuid, p_hidden bo
 REVOKE ALL ON FUNCTION public.set_template_title(p_template_id uuid, p_title text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.set_template_title(p_template_id uuid, p_title text) TO authenticated;
 GRANT ALL ON FUNCTION public.set_template_title(p_template_id uuid, p_title text) TO service_role;
+
+
+--
+-- Name: FUNCTION set_workspace_logo(p_tenant_id uuid, p_logo_path text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.set_workspace_logo(p_tenant_id uuid, p_logo_path text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.set_workspace_logo(p_tenant_id uuid, p_logo_path text) TO authenticated;
+GRANT ALL ON FUNCTION public.set_workspace_logo(p_tenant_id uuid, p_logo_path text) TO service_role;
 
 
 --

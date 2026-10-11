@@ -123,8 +123,9 @@ test("the wiring: one profile row per account, written by its owner only, read b
   );
 
   const bridge = readCode("apps/dashboard/src/legacy-bridge/identity.ts");
-  assert.ok(
-    bridge.includes("win.__identity = { words: identityWords, member: memberWords, initials: personInitials };"),
+  assert.match(
+    bridge,
+    /win\.__identity = \{\s*words: identityWords,\s*member: memberWords,\s*initials: personInitials,\s*workspace: workspaceInitials,?\s*\};/,
   );
   assert.ok(bridge.includes('window.dispatchEvent(new CustomEvent("me:changed"));'), "the chrome hears a change");
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installIdentity();"));

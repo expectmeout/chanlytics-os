@@ -77,7 +77,7 @@
     if (name) return { name, sub: m.email };
     return { name: (m && m.email) ?? "Someone", sub: null };
   };
-  if (!has("__identity")) window.__identity = { words: identityWords, member: memberWords, initials: personInitials };
+  if (!has("__identity")) window.__identity = { words: identityWords, member: memberWords, initials: personInitials, workspace: (n) => { const w = String(n || "").split(/[^A-Za-z0-9À-ɏ'’]+/).filter(Boolean); const named = w.length > 1 && /^the$/i.test(w[0]) ? w.slice(1) : w; return ((named[0]?.[0] ?? "") + (named[1]?.[0] ?? "")).toUpperCase() || "—"; } };
 
   // ---- Workspace time (contracts/workspace.ts) -----------------------------
   // Intl is the only authority on what a zone is; a list checked into the repo

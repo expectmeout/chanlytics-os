@@ -23,7 +23,7 @@ export {
   FORWARD_IS_HANDOFF,
 } from "./phone";
 export { normalizeEmail, whyNotAnEmail, addressInMessage } from "./email-address";
-export { normalizeLink, whyNotALink, linkHost } from "./link";
+export { normalizeLink, whyNotALink, linkHost, publicObjectSrc } from "./link";
 export {
   optInPurposeOf,
   optInLink,

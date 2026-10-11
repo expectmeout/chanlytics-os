@@ -1642,6 +1642,27 @@
       "rate": "create_workspace",
       "spend": false
     },
+    "POST workspaces/logo/lookup": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "workspace_logo_lookup",
+      "spend": false
+    },
+    "PUT workspaces/logo": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "workspace_logo",
+      "spend": false
+    },
+    "DELETE workspaces/logo": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "workspace_logo",
+      "spend": false
+    },
     "GET workspaces": {
       "kind": "read",
       "scope": "account",
