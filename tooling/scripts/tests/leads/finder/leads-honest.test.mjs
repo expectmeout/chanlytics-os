@@ -3400,13 +3400,11 @@ const bar = (over = {}) => {
     q: "",
     onQ() {},
     searchRef: { current: null },
-    searchOpen: false,
-    onSearchOpen() {},
     ...over,
   });
 };
 
-test("on a phone the list and search are one bar under the frame's strip; Find leads is its last control, the three's mark, a door to Ask; search is a button that opens the bar into the field", async () => {
+test("on a phone the list and search are one top under the frame's strip; Find leads is its last control, the three's mark, a door to Ask; search is the field, on a row of its own", async () => {
   await fresh();
   const opened = [];
   const t = bar({ onFind: () => opened.push("find"), canFind: true });
@@ -3415,8 +3413,18 @@ test("on a phone the list and search are one bar under the frame's strip; Find l
     0,
     "the switch is the frame's strip over the bar, not in it",
   );
-  assert.equal(byTestId(t, "leads-phone-search-open").props["aria-label"], "Search leads");
-  assert.equal(byTestId(t, "leads-phone-search"), null, "REGRESSION: the box was 64px wide on a phone and said 'Sear'");
+  // The field from the first draw: a capsule at rest only drew the field on a tap, and a second tap began the typing
+  // (Ruben, 11 Oct 2026). It stands under the bar's row, never in it.
+  assert.equal(byTestId(t, "leads-phone-search").props["aria-label"], "Search leads");
+  assert.equal(byTestId(t, "leads-phone-search-open"), null, "no capsule at rest to press first");
+  assert.equal(
+    byTestId(
+      find(t, (n) => n.props?.className === "pp-bar"),
+      "leads-phone-search",
+    ),
+    null,
+    "REGRESSION: the box was 64px wide in the bar's row on a phone and said 'Sear'",
+  );
   // The mark is a door to Ask, drawn for the widths where the shell has no ✦ (721-900px; leads.css hides it under
   // 720px, where the ✦ is the door, spec F1). It calls the page's one door with no words, never with its event.
   const door = byTestId(t, "leads-bar-find");
@@ -3453,17 +3461,17 @@ test("on a phone the list and search are one bar under the frame's strip; Find l
     1,
     "one bar, not a row of controls",
   );
-  const open = bar({ searchOpen: true });
-  const field = byTestId(open, "leads-phone-search");
-  assert.equal(field.props["aria-label"], "Search leads");
-  assert.equal(field.props.autoFocus, true, "pressed, the field takes focus, so the keyboard comes up");
+  assert.notEqual(
+    byTestId(t, "leads-phone-search").props.autoFocus,
+    true,
+    "nothing takes focus by itself: the field takes the tap that lands on it",
+  );
   assert.ok(
-    byTestId(open, "leads-phone-lists"),
+    byTestId(t, "leads-phone-lists"),
     "and the list stays over it, as the Inbox's buckets stay over its search",
   );
-  assert.equal(byTestId(open, "leads-phone-search-open"), null, "the capsule at rest is the field now");
   const kept = byTestId(bar({ q: "pilates" }), "leads-phone-search");
-  assert.equal(kept.props.value, "pilates", "a view's own words keep the field open");
+  assert.equal(kept.props.value, "pilates", "a view's own words are in the field");
   assert.notEqual(kept.props.autoFocus, true, "without taking focus: a view coming back must not pull up the keyboard");
 });
 

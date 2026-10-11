@@ -299,7 +299,7 @@ function rowsView(s: PipelineState) {
  */
 function phoneBar(s: PipelineState) {
   const { f, ui, r } = s;
-  const { q, setQ, searchRef, searchOpen, setSearchOpen } = f.controls;
+  const { q, setQ, searchRef } = f.controls;
   return (
     <PeoplePhoneBar
       listLabel={P.viewLabel(r.view, r.pace)}
@@ -309,8 +309,6 @@ function phoneBar(s: PipelineState) {
       q={q}
       onQ={setQ}
       searchRef={searchRef}
-      searchOpen={searchOpen}
-      onSearchOpen={setSearchOpen}
       searchLabel={PL_SEARCH_LABEL}
       testid="pipeline"
       title={pipeSelecting(s) ? (s.picked.length ? `${s.picked.length} selected` : "Select deals") : null}

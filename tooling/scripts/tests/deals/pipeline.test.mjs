@@ -1787,7 +1787,7 @@ test("on a phone: one bar with the view's list button and search, New proposal i
     // Beside three scopes a narrow phone has room for one word: the act says "New" with its mark, and the rest gives way.
     assert.equal(textOf(find(headAct, (n) => n.props?.className === "pg-act-keep")), "New");
     assert.equal(textOf(find(headAct, (n) => n.props?.className === "pg-act-rest")), " proposal");
-    assert.equal(byTestId(bar, "pipeline-phone-search-open").props["aria-label"], "Search names, numbers and emails");
+    assert.equal(byTestId(bar, "pipeline-phone-search").props["aria-label"], "Search names, numbers and emails");
     assert.ok(byTestId(tree, "pipeline-summary"));
     const card = find(tree, (n) => n.type === "tr" && n.props?.id === "person-wes");
     assert.match(card.props.className, /\bpl-card-row\b/);

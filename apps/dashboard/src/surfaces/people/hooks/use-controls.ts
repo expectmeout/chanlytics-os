@@ -57,10 +57,8 @@ const layoutKeys = (l: LayoutChoices): View => ({
   ...(l.density === "compact" ? { density: l.density } : {}),
 });
 
-/** The phone's search (open, the bar is the field), a selection's sheet, Select people, and whether the window is a phone's width. */
+/** A selection's sheet, Select people, and whether the window is a phone's width. */
 function usePhoneControls() {
-  // The phone's search: open, the bar is the field (PeoplePhoneBar). Words in the box keep it open.
-  const [searchOpen, setSearchOpen] = useState(false);
   // A selection on a phone: the step its sheet is on (null when shut), and More › Select people, a selection begun with
   // nobody picked yet. The page's, so its one keyboard listener shuts the sheet on Esc and the sheet is hookless.
   const [bulkSheet, setBulkSheet] = useState<string | null>(null);
@@ -73,7 +71,7 @@ function usePhoneControls() {
     mq.addEventListener("change", on);
     return () => mq.removeEventListener("change", on);
   }, []);
-  return { searchOpen, setSearchOpen, bulkSheet, setBulkSheet, selectMode, setSelectMode, phone };
+  return { bulkSheet, setBulkSheet, selectMode, setSelectMode, phone };
 }
 
 /**
@@ -334,8 +332,6 @@ export function usePlControls<R extends TableRow, X extends TableCtx>(args: Cont
     });
   return {
     phone,
-    searchOpen: phoneState.searchOpen,
-    setSearchOpen: phoneState.setSearchOpen,
     bulkSheet: phoneState.bulkSheet,
     setBulkSheet,
     selectMode: phoneState.selectMode,

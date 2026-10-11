@@ -1137,7 +1137,7 @@ test("REGRESSION: on a phone People is one bar, one line and the people -- a 57p
       "the scopes are the frame's strip of views over the page, never the bar's",
     );
     assert.equal(textOf(byTestId(bar, "people-phone-lists")).trim(), "Everyone", "the list being shown");
-    assert.equal(byTestId(bar, "people-phone-search-open").props["aria-label"], "Search names, numbers and emails");
+    assert.equal(byTestId(bar, "people-phone-search").props["aria-label"], "Search names, numbers and emails");
     assert.ok(
       find(bar, (n) => n.type === Menu),
       "and the page's more-menu",
@@ -1208,7 +1208,7 @@ test("on a phone the top is the list's row and the search under the frame's stri
   onPhone(async () => {
     await freshPage({ people: [person(1)], dealsOn: true });
     went.length = 0;
-    let tree = draw();
+    const tree = draw();
     const top = byTestId(tree, "people-phone-bar");
     const kids = (top.props.children || []).filter(Boolean);
     // The frame's strip of views stands over this (SurfaceTabs); the page's top begins at the bar.
@@ -1225,11 +1225,10 @@ test("on a phone the top is the list's row and the search under the frame's stri
     );
     assert.ok(scroller, "the page's scroller");
     assert.equal(byTestId(scroller, "people-phone-bar"), null, "the top is not inside what scrolls");
-    click(byTestId(tree, "people-phone-search-open"));
-    tree = draw();
-    const searching = byTestId(tree, "people-phone-bar");
-    assert.ok(byTestId(searching, "people-phone-search"), "the bar is the field");
-    assert.ok(byTestId(searching, "people-phone-lists"), "and the list stays over it");
+    // The search is the field from the first draw, no button a press swaps for it (Ruben, 11 Oct 2026), under the list.
+    assert.equal(byTestId(top, "people-phone-search-open"), null, "no capsule at rest to press first");
+    assert.ok(byTestId(top, "people-phone-search"), "the bar's search is the field");
+    assert.ok(byTestId(top, "people-phone-lists"), "and the list stays over it");
   }));
 
 test("a desktop draws no phone bar, and keeps its controls row and its list head", async () => {
@@ -1290,29 +1289,19 @@ test("on a phone the page's act is Add people too, its first word kept where the
     );
   }));
 
-test("on a phone search is a capsule at rest that opens into the field; the clear empties it, and left empty it rests as focus leaves", () =>
+test("on a phone search is the field from the first draw: nothing focuses it by itself, the clear empties it, and it stays", () =>
   onPhone(async () => {
     await freshPage({ people: [person(1, { display_name: "Rosa Diaz" }), person(2, { display_name: "Ana Lee" })] });
     let tree = draw();
-    assert.equal(byTestId(tree, "people-phone-search"), null, "no box until asked");
-    click(byTestId(tree, "people-phone-search-open"));
-    tree = draw();
+    // It rested as a capsule a tap only swapped for the field, so a second tap began the typing (Ruben, 11 Oct 2026).
+    assert.equal(byTestId(tree, "people-phone-search-open"), null, "no capsule at rest to press first");
     const field = byTestId(tree, "people-phone-search");
     assert.equal(field.props.type, "search");
-    assert.equal(field.props.autoFocus, true, "with keys the field is ready");
-    // On a touch screen the field waits for a tap: the button showed it, and the keyboard is the person's to ask for.
-    const media = globalThis.window.matchMedia;
-    globalThis.window.matchMedia = (q) => ({ ...media(q), matches: q === "(pointer: coarse)" || media(q).matches });
-    try {
-      assert.equal(byTestId(draw(), "people-phone-search").props.autoFocus, false, "no keyboard by itself");
-    } finally {
-      globalThis.window.matchMedia = media;
-    }
+    assert.notEqual(field.props.autoFocus, true, "nothing focuses by itself: the field takes the tap that lands on it");
     assert.ok(
       byTestId(tree, "people-phone-lists"),
       "the list stays over the field, as the Inbox's buckets stay over its search",
     );
-    assert.equal(byTestId(tree, "people-phone-search-open"), null, "the capsule at rest is the field now");
     field.props.onChange({ target: { value: "rosa" } });
     tree = draw();
     assert.deepEqual(idsShown(tree), ["person-p1"]);
@@ -1320,14 +1309,11 @@ test("on a phone search is a capsule at rest that opens into the field; the clea
     click(byTestId(tree, "people-phone-search-clear"));
     tree = draw();
     assert.equal(idsShown(tree).length, 2, "the clear empties the words");
-    assert.ok(byTestId(tree, "people-phone-search"), "and keeps the field open");
-    byTestId(tree, "people-phone-search").props.onBlur();
-    tree = draw();
-    assert.ok(byTestId(tree, "people-phone-search-open"), "left empty, the field rests as focus leaves it");
-    assert.equal(byTestId(tree, "people-phone-search"), null, "and the capsule is back");
-    // The page's / opens it too.
+    assert.ok(byTestId(tree, "people-phone-search"), "and the field stays");
+    assert.equal(byTestId(tree, "people-phone-search-clear"), null, "with no clear until a word is typed again");
+    // The page's / puts the caret in it (the field's ref, a browser's), and draws nothing new.
     press("/");
-    assert.ok(byTestId(draw(), "people-phone-search"), "/ opens the field");
+    assert.ok(byTestId(draw(), "people-phone-search"), "/ leaves the field where it stands");
   }));
 
 /** The phone bar's Sort, its items as the page built them: a set of choices (the sorts) as items ticked or not. */
