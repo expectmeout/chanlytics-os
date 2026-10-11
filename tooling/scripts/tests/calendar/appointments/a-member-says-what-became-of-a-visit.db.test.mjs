@@ -207,3 +207,53 @@ test("a booked visit is not proposed again by anyone", { skip }, async () => {
   const back = await w.admin.from("appointments").update({ status: "proposed" }).eq("id", id);
   assert.match(back.error?.message ?? "", /not proposed again/);
 });
+
+test(
+  "an event the calendar moves after its visit was marked is a new visit: the word stays with the time it was said of, and the key is booked afresh",
+  { skip },
+  async () => {
+    const iso = (ms) => new Date(ms).toISOString();
+    const key = `feed-move-${Date.now().toString(36)}`;
+    const id = await visit(-2, { source: "calendar_feed", tool: null, external_id: key });
+    assert.equal((await say(w.operator, id, "missed")).appointment.status, "missed");
+    // The no-show rebooked by dragging the same event to next week: the feed's next read names the key at a new time.
+    const next = Date.now() + 5 * 24 * HOUR;
+    const sync = (startMs) =>
+      w.admin.rpc("appointments_feed_sync", {
+        p_tenant_id: w.tenant,
+        p_timezone: "America/New_York",
+        p_rows: [
+          {
+            external_id: key,
+            starts_at: iso(startMs),
+            ends_at: iso(startMs + HOUR),
+            all_day: false,
+            service: null,
+            consultation: false,
+            contact_id: null,
+          },
+        ],
+        p_from: iso(Date.now() - 30 * 24 * HOUR),
+        p_to: iso(Date.now() + 30 * 24 * HOUR),
+        p_now: iso(Date.now()),
+      });
+    assert.equal(ok(await sync(next)).moved, 1);
+    const rows = ok(
+      await w.admin
+        .from("appointments")
+        .select("id, external_id, status, starts_at, vanished_at")
+        .eq("tenant_id", w.tenant)
+        .like("external_id", `${key}%`),
+    );
+    const old = rows.find((r) => r.id === id);
+    assert.equal(old.status, "missed", "the word stays with the time it was said of");
+    assert.notEqual(old.external_id, key, "set aside under its key and that start");
+    assert.ok(old.vanished_at, "gone from the feed as it stood");
+    const fresh = rows.find((r) => r.external_id === key);
+    assert.equal(fresh.status, "booked", "REGRESSION: a rebooked no-show stood missed next week, its reminder held");
+    assert.equal(Date.parse(fresh.starts_at), next);
+    assert.deepEqual(await changes(fresh.id), ["moved"]);
+    // The next hour's read of the same is no change.
+    assert.equal(ok(await sync(next)).moved, 0);
+  },
+);

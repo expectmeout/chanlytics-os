@@ -1,13 +1,13 @@
 # 0044 · A moment, a pause and a snooze are due rows
 
 **Status:** Decided on 10 October 2026 (Ruben: "review and go with the best suggestions for chanlytics"), and
-**amended on 11 October 2026**, before its jobs were written (Ruben: "continue next as you suggest end to end"): the
-times are rows already, so no job kind is made, and the four clocks that carry them out are classified `due`, as built
-with the amendment (see "Amended"). 0031's "the reminder as a job on a due row" and invariant 6 ("time is a row"). Written against commit
+**amended later that day**, before its jobs were written (Ruben: "continue next as you suggest end to end"): the
+times are rows already, so no job kind is made; the clocks that carry them out are classified `due`, and the deadman
+`reconcile`, as built with the amendment (see "Amended"). 0031's "the reminder as a job on a due row" and invariant 6 ("time is a row"). Written against commit
 `ef0aea36a` (main, 10 October 2026), amended against `4953875c2`. Where this note and the code disagree, the code
 wins.
 
-## Amended, 11 October 2026
+## Amended, 10 October 2026
 
 Building step 1 found 00098, "Time lives in the row", which retired the very job kinds step 1 would bring back
 (`pause_expire`, `snooze_wake`): a pause and a snooze keep their deadline on the conversation (`paused_until`,
@@ -19,11 +19,12 @@ on a job:
 | ----------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | `pauses`    | `conversations.paused_until`, `control_until`                                                                 | `thread_wake`: a second copy                                                |
 | `snoozes`   | `conversations.snooze_until`                                                                                  | `thread_wake`: a second copy                                                |
-| `deadman`   | `escalations.created_at` plus two hours, told once (`deadman_alerted_at`)                                     | `hold_check` (0043 step 4): a second copy                                   |
+| `deadman`   | `escalations.created_at`, plus a two-hour constant, told once (`deadman_alerted_at`)                          | `hold_check` (0043 step 4): a second copy                                   |
 | `playbooks` | `playbooks.run_hour` in the workspace's zone, and the day it last ran (`last_run_for`, 00245 `playbooks_due`) | `playbook_run`: a second copy, moved on every change of hour, zone or state |
 
-A job is no sooner, either: the ledger's heartbeat and these sweeps both tick every ten seconds (00098), and the
-playbooks' hour is the hour. What a job would add is isolation per run and room past the sweep's page of 25 per tick;
+A job is no sooner, or not by enough to matter: the ledger's heartbeat and the pauses' and snoozes' sweeps all tick
+every ten seconds (00098); the playbooks' sweep runs at five past each hour, for moments due by the hour; and the deadman
+runs every ten minutes, so a hold two hours old is told within ten minutes of it. What a job would add is isolation per run and room past the sweep's page of 25 per tick;
 the playbooks sweep already stamps a run that failed and moves it to the back, and its backlog alarm (`playbooks_backlog`)
 says when the page binds. That is the moment to revisit it, with the alarm's numbers.
 
@@ -31,10 +32,12 @@ So, in place of the decision below:
 
 1. **No job kind is built:** not `thread_wake`, `playbook_run` or `hold_check`.
 2. **The clocks are classified as what they are.** A clock that carries out a time its rows already hold is `due`
-   (`tooling/scripts/tests/clocks/_clocks.mjs`), and names the columns (`times`), which `clocks/clock-kinds.test.mjs`
-   holds to the schema. `pauses`, `snoozes`, `deadman` and `playbooks` move from event-shaped to `due`: nine
-   event-shaped clocks become five. The count fell because they were filed wrong on 6 October, not because any code
-   moved; the five left (`calendar`, `lines`, `notes`, `reach_out`, `reach_out_check`) poll for what an event or a
+   (`tooling/scripts/tests/clocks/_clocks.mjs`), and names the columns (`times`) and the database function that reads
+   them (`fn`), which `clocks/clock-kinds.test.mjs` holds to the schema. `pauses`, `snoozes` and `playbooks` move
+   from event-shaped to `due`. The deadman moves to `reconcile`: most of its work finds what a crash left, which no
+   row's time says (a message no turn finished, a reply no job was left to send, a run no job started), and its hold's
+   two hours are a constant on the escalation's own time. Nine event-shaped clocks become five. The count fell because
+   they were filed wrong on 6 October, not because any code moved; the five left (`calendar`, `lines`, `notes`, `reach_out`, `reach_out_check`) poll for what an event or a
    workflow step would say.
 3. **Point 5 stands:** a moment draws its people from the appointments record once 0002's readers are built (lane A,
    step 3).

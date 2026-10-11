@@ -85,10 +85,25 @@ export function personOfAppointment(row: AppointmentLike, people: PersonLike[]):
 }
 
 /** The row's id and status as the board carries them: null for a status the record does not hold. */
-export function visitMarkOf(row: Pick<AppointmentLike, "id" | "status">): VisitMark | null {
+function visitMarkOf(row: Pick<AppointmentLike, "id" | "status">): VisitMark | null {
   return (APPOINTMENT_STATUSES as readonly string[]).includes(row.status)
     ? { id: row.id, status: row.status as AppointmentStatus }
     : null;
+}
+
+/**
+ * The feed's rows by their key, with how each stands: what a feed event the board draws finds its record's row by
+ * (appointmentKeyOf), so a member's word on it is said there. Pure.
+ */
+export function feedMarksOf(
+  rows: ReadonlyArray<{ id: string; status: string; external_id: string | null }>,
+): Map<string, VisitMark> {
+  const marks = new Map<string, VisitMark>();
+  for (const r of rows) {
+    const mark = visitMarkOf(r);
+    if (mark && r.external_id) marks.set(r.external_id, mark);
+  }
+  return marks;
 }
 
 /** The board's row for an appointment: the item the day draws, with what the notice stated. */

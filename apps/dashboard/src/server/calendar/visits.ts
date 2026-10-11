@@ -12,7 +12,7 @@ import { dbRefusal, type RouteContext } from "@/server/with-route";
 import { log } from "@/server/log";
 
 /** What the door answered: the row as it stands now, what it stood at before, and the decision, unless nothing moved. */
-export interface VisitMarked {
+interface VisitMarked {
   visit: VisitMark;
   from: string;
   decision_id: string | null;

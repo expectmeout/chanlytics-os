@@ -2562,3 +2562,36 @@ test("what became of a visit (0002 step 8): a past one says Past, never Done, an
   assert.equal(textOf(byTestId(tree, "cal-panel-state")), "Past");
   leave();
 });
+
+test("the word is said on every view: the agenda (a phone's own) says it under the name, and the month counts a cancelled visit as no time taken", () => {
+  const week = dto();
+  week.days[1].items[0].visit = { id: "a1", status: "missed" };
+  week.days[3].items[0].visit = { id: "a2", status: "cancelled" };
+  fresh(week);
+  globalThis.window.matchMedia = (q) => ({ matches: /max-width:\s*720px/.test(q) });
+  let tree;
+  try {
+    tree = page();
+  } finally {
+    delete globalThis.window.matchMedia;
+  }
+  const cls = (n) => String((n && (n.rendered || n).props?.className) || "");
+  const rows = all(tree, (n) => n.props?.["data-testid"] === "cal-agenda-item");
+  const ana = rows.find((n) => textOf(n).includes("Ana Ruiz"));
+  assert.equal(
+    textOf(find(ana, (n) => cls(n).split(" ").includes("ag-item-sub"))),
+    "Color · Missed · 1h 30m",
+    "REGRESSION: the agenda, a phone's default, never said what became of a visit",
+  );
+  assert.ok(textOf(rows.find((n) => textOf(n).includes("Team training"))).includes("Cancelled"));
+
+  fresh(week);
+  tree = page();
+  pickView(tree, "month");
+  tree = page();
+  const thursday = all(tree, (n) => n.props?.["data-testid"] === "cal-month-cell").find((n) =>
+    String(n.props["aria-label"]).includes("September 10"),
+  );
+  assert.ok(thursday, "the month draws the day");
+  assert.doesNotMatch(String(thursday.props["aria-label"]), /taken/, "a cancelled visit is no time taken");
+});

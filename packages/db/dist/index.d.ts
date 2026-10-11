@@ -41323,11 +41323,19 @@ declare function updateAppointment(db: Db$1, tenantId: string, id: string, patch
  */
 declare function appointmentsBetween(db: Db$1, tenantId: string, fromIso: string, toIso: string): Promise<AppointmentRow[]>;
 /**
- * Every row over a span, whatever its source and however it stands, by start: what the board needs to say what a member
- * said became of a visit (00397), a booking's and a feed event's alike. The feed's rows come too, for their ids and
- * statuses only: the board draws the feed itself (appointmentsBetween leaves them out for that reason).
+ * The record over a span, as the board says what became of each visit (00397), in two reads with their own caps: a
+ * booking's rows whole, however they stand (a cancelled one is drawn struck, and leaves the feed's copy of it out), and
+ * the feed's rows the feed still names, as their ids and statuses by key (the board draws the feed itself, which is why
+ * appointmentsBetween leaves them out).
  */
-declare function visitsOver(db: Db$1, tenantId: string, fromIso: string, toIso: string): Promise<AppointmentRow[]>;
+declare function visitsOver(db: Db$1, tenantId: string, fromIso: string, toIso: string): Promise<{
+    noted: AppointmentRow[];
+    feed: Array<{
+        id: string;
+        status: string;
+        external_id: string | null;
+    }>;
+}>;
 /**
  * The workspace a visit belongs to, as the caller may see it: on a member's session RLS decides, so one they cannot see
  * is null. What a route about one visit is scoped by.

@@ -39,6 +39,14 @@ function phaseOf(b: CalendarBlockVM, d: CalendarFrame, now: number | null): stri
   return soonest && soonest.id === b.id ? "next" : "later";
 }
 
+/** What a member said became of a visit (decision 0002 step 8), in the board's word for it; null while it stands. */
+function saidOf(b: CalendarBlockVM): { status: "kept" | "missed" | "cancelled"; word: string } | null {
+  const status = b.visit?.status;
+  return status === "kept" || status === "missed" || status === "cancelled"
+    ? { status, word: VISIT_WORDS[status] }
+    : null;
+}
+
 /** One taken block from the feed. Neutral, never an agent's colour: the calendar did not say who booked it, only that the time is taken. */
 function CrBlock({
   b,
@@ -67,8 +75,8 @@ function CrBlock({
         }
       : {};
   // What a member said became of it (0002 step 8), said quietly: the word beside the time, and a cancelled one struck.
-  const said = b.visit && b.visit.status !== "booked" && b.visit.status !== "proposed" ? b.visit.status : null;
-  const saidWord = said ? VISIT_WORDS[said] : null;
+  const said = saidOf(b)?.status ?? null;
+  const saidWord = saidOf(b)?.word ?? null;
   return (
     <button
       className="cal-appt feed"
@@ -147,17 +155,22 @@ function dayHead(p: {
           Closed{d.closed.note ? ` · ${d.closed.note}` : ""}
         </span>
       )}
-      {d.allDay.map((b) => (
-        <button
-          key={b.id}
-          className="cal-allday"
-          onClick={() => onOpen(b)}
-          title={b.title}
-          aria-label={`${b.title}, all day, ${d.long}`}
-        >
-          {b.title}
-        </button>
-      ))}
+      {d.allDay.map((b) => {
+        const said = saidOf(b);
+        return (
+          <button
+            key={b.id}
+            className="cal-allday"
+            onClick={() => onOpen(b)}
+            title={said ? `${b.title} · ${said.word}` : b.title}
+            aria-label={`${b.title}, all day, ${d.long}${said ? `, ${said.word.toLowerCase()}` : ""}`}
+            data-visit={said?.status}
+          >
+            {b.title}
+            {said ? ` · ${said.word}` : ""}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -302,7 +315,8 @@ function monthCell(p: {
   onDay: (key: string) => void;
 }) {
   const { d, monthKey, feedOk, fit, onDay } = p;
-  const taken = d.blocks.length + d.allDay.length;
+  // A visit said cancelled is no time taken, whatever the calendar still holds.
+  const taken = [...d.blocks, ...d.allDay].filter((b) => saidOf(b)?.status !== "cancelled").length;
   const open = d.windows.filter(fit).length;
   const inMonth = d.key.slice(0, 7) === monthKey;
   return (
@@ -429,7 +443,7 @@ function agendaDay(p: {
               key={b.id}
               time={allDay ? "All day" : calendar.clockLabel(b.t)}
               name={b.person ? b.person.name : b.service}
-              service={[b.person ? b.service : null, b.tool].filter(Boolean).join(" · ") || null}
+              service={[b.person ? b.service : null, b.tool, saidOf(b)?.word].filter(Boolean).join(" · ") || null}
               dur={allDay ? null : calendar.durationLabel(b.dur)}
               onOpen={() => onOpen(b)}
               hint={b.time}

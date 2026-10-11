@@ -3,7 +3,7 @@
  * the database in line with a provider, or with what a wake missed), judge (watch the rest and raise the alarm), keep
  * (retention and housekeeping: a purge, a partition made ahead), roll (count a day), or carry out what is due: a time
  * its rows already hold, a deadline or a schedule and the day it last ran, each row acted on once (`times` names the
- * columns, which clocks/clock-kinds.test.mjs holds to the schema). Time living in the row is 00098's rule, which retired
+ * columns, and `fn` the database function that reads them, which clocks/clock-kinds.test.mjs holds to the schema). Time living in the row is 00098's rule, which retired
  * the jobs that once kept a second copy of a pause's and a snooze's time (decision 0044, amended 11 October 2026). A clock
  * that runs a timer or a reaction on a schedule, inferring from a condition what no row's time says, is event-shaped:
  * its work belongs on a due row or after the event that starts it, and the count of them may only fall
@@ -29,9 +29,8 @@ export const CLOCKS = {
   calls: { kind: "reconcile", why: "re-reads calls, recordings and notes from Retell" },
   channel_quality: { kind: "reconcile", why: "reads each connected WhatsApp number's quality rating from Meta" },
   deadman: {
-    kind: "due",
-    why: "tells of an open hold two hours after the row's own time, once (the row keeps that it told); and reconciles what a crash left: a message no turn finished, a reply no job was left to send",
-    times: ["escalations.created_at", "escalations.deadman_alerted_at"],
+    kind: "reconcile",
+    why: "reconciles what a crash left, which no row's time says: a message no turn finished, a reply no job was left to send, a run no job started; and tells of a hold still open two hours after its own time, once",
   },
   domains: { kind: "reconcile", why: "checks each sending domain's verification, bounces and holds with the provider" },
   google: { kind: "reconcile", why: "reads each workspace's listings and profiles from Google" },
@@ -53,14 +52,16 @@ export const CLOCKS = {
   partners: { kind: "roll", why: "a daily batch: a partner's matured earnings, and the letters that say so" },
   pauses: {
     kind: "due",
-    why: "ends a thread's pause, and its hold on who is speaking, at the time the write that paused it kept on the row (00098)",
+    why: "ends a thread's hold on who is speaking, and its pause once no request for a person still asks for one, at the time the write that paused it kept on the row (00098)",
     times: ["conversations.paused_until", "conversations.control_until"],
+    fn: "expire_stale_pauses",
   },
   platform_metrics_roll: { kind: "roll", why: "counts each workspace's day" },
   playbooks: {
     kind: "due",
     why: "runs each moment and reach-out step once a day, at its hour in its workspace's zone, judged from the hour and the day it last ran on its row (00245); and writes the day's reach-out line at six",
     times: ["playbooks.run_hour", "playbooks.last_run_for"],
+    fn: "playbooks_due",
   },
   purge_ask: { kind: "keep", why: "retention: Ask threads untouched for ninety days" },
   purge_cron_history: { kind: "keep", why: "retention: the clocks' own run history" },
@@ -88,6 +89,7 @@ export const CLOCKS = {
     kind: "due",
     why: "wakes a snoozed thread at the time the snooze kept on the row (00098)",
     times: ["conversations.snooze_until"],
+    fn: "wake_stale_snoozes",
   },
   sweep_voice_sessions: { kind: "keep", why: "retention: voice sessions a day past their token" },
 };

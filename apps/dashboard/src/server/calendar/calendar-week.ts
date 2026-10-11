@@ -44,9 +44,9 @@ import {
   type CalendarFeedDto,
   type CalendarNoticesDto,
   type TenantConfig,
-  visitMarkOf,
   appointmentKeyOf,
   type VisitMark,
+  feedMarksOf,
 } from "@chanlytics/contracts";
 import {
   appointmentNoticesOf,
@@ -189,7 +189,7 @@ export type CalendarSources = {
    * feed's events (docs/plans/2026-10-07-bookings-arrive-by-email.md). Empty for a workspace none have reached.
    */
   rows: AppointmentLike[];
-  /** The record's row for each feed event the hourly sync keeps, by its key, with how it stands (recordOfSpan). */
+  /** The record's row for each feed event the hourly sync keeps, by its key, with how it stands (feedMarksOf). */
   marks: ReadonlyMap<string, VisitMark>;
   /**
    * The record's taken time over the days the receptionist may offer, read beside a feed that reads (record-busy.ts):
@@ -236,39 +236,15 @@ async function recordOverSpan(
       error: e instanceof Error ? e.message : String(e),
     });
   const [record, notices] = await Promise.all([
-    visitsOver(ctx.supabase, tenantId, spanFrom, spanTo).catch((e): AppointmentRow[] => {
+    visitsOver(ctx.supabase, tenantId, spanFrom, spanTo).catch((e): { noted: AppointmentRow[]; feed: [] } => {
       failed(e);
-      return [];
+      return { noted: [], feed: [] };
     }),
     noticesHealth(ctx, tenantId, by, true),
   ]);
-  return { ...recordOfSpan(record), notices };
-}
-
-/** What the board draws of a booking's row: while it stands, and once a member said they came or did not. */
-const DRAWN = new Set(["proposed", "booked", "kept", "missed"]);
-
-/**
- * The record over a span as the board takes it: the rows it draws beside the feed, a booking's while it stands or once a
- * member said kept or missed (a cancelled one frees its time, and the board leaves it out), and the feed's own rows by
- * their key, for their ids and statuses only, since the board draws the feed itself. A row the feed stopped naming is no
- * event's. Pure.
- */
-export function recordOfSpan(record: readonly AppointmentRow[]): {
-  rows: AppointmentLike[];
-  marks: Map<string, VisitMark>;
-} {
-  const rows: AppointmentLike[] = [];
-  const marks = new Map<string, VisitMark>();
-  for (const r of record) {
-    if (r.source !== "calendar_feed") {
-      if (DRAWN.has(r.status)) rows.push(r);
-      continue;
-    }
-    const mark = r.vanished_at || !r.external_id ? null : visitMarkOf(r);
-    if (mark && r.external_id) marks.set(r.external_id, mark);
-  }
-  return { rows, marks };
+  // A booking's rows however they stand: drawn (a cancelled one struck), and each one's copy in the feed left out
+  // (withoutVisitsRowsDraw), cancelled or not. The feed's own rows by key, for what a member says on them.
+  return { rows: record.noted, marks: feedMarksOf(record.feed), notices };
 }
 
 /**
@@ -418,7 +394,8 @@ export async function calendarSources(
     : named.tool
       ? { ...NO_RECORD, notices: await noticesHealth(ctx, tenantId, named, false, opts.mailbox) }
       : NO_RECORD;
-  base.feed.notices = { ...notices, count: rows.length };
+  // The visits the notices became over the span, a cancelled one aside.
+  base.feed.notices = { ...notices, count: rows.filter((r) => r.status !== "cancelled").length };
 
   // What the board needs of the address and the settings, and not them: the calendar's name, the business's own.
   const read = {

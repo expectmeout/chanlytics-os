@@ -32,6 +32,7 @@ import {
   windowFor,
   zoneMidnight,
   isConsultationTitle,
+  feedMarksOf,
 } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -46,6 +47,7 @@ const { calendarWeek, itemsToDays, MAX_ITEMS_PER_DAY } = await import(
 );
 const { previewFeed } = await import(at("apps/dashboard/src/server/calendar/feed-preview.ts"));
 const route = await import(at("apps/dashboard/app/api/v1/calendar/route.ts"));
+const visitRoute = await import(at("apps/dashboard/app/api/v1/calendar/visits/[id]/route.ts"));
 
 const TZ = "America/New_York";
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -836,44 +838,25 @@ test("the people are read beside the calendar's feed, not after it: a slow feed 
 
 /* ------------------------------------------- what became of a visit (decision 0002 step 8, 00397) */
 
-const { recordOfSpan } = await import(at("apps/dashboard/src/server/calendar/calendar-week.ts"));
-const visitRoute = await import(at("apps/dashboard/app/api/v1/calendar/visits/[id]/route.ts"));
 /** A member's press, as the route reads it. */
 const post = (body) =>
   new Request("http://localhost/api/v1/calendar/visits/x", { method: "POST", body: JSON.stringify(body) });
 
-test("the record over a span: a booking's rows are drawn while they stand or once a member said what became of them, and each feed event's row is found by its key", () => {
-  const row = (id, source, status, over = {}) => ({
-    id,
-    source,
-    status,
-    external_id: `k-${id}`,
-    vanished_at: null,
-    starts_at: "2026-09-08T14:00:00.000Z",
-    ends_at: "2026-09-08T15:00:00.000Z",
-    ...over,
-  });
-  const { rows, marks } = recordOfSpan([
-    row("b1", "booking_email", "booked"),
-    row("b2", "booking_email", "missed"),
-    row("b3", "booking_email", "cancelled"),
-    row("b4", "booking_email", "proposed"),
-    row("f1", "calendar_feed", "booked"),
-    row("f2", "calendar_feed", "missed"),
-    row("f3", "calendar_feed", "booked", { vanished_at: "2026-09-08T16:00:00.000Z" }),
-  ]);
+test("each feed event finds its record's row by its key, with how it stands", () => {
   assert.deepEqual(
-    rows.map((r) => r.id),
-    ["b1", "b2", "b4"],
-    "a cancelled booking frees its time; the feed's own rows are never drawn twice",
-  );
-  assert.deepEqual(
-    [...marks],
+    [
+      ...feedMarksOf([
+        { id: "f1", status: "booked", external_id: "k-f1" },
+        { id: "f2", status: "missed", external_id: "k-f2" },
+        { id: "f3", status: "rescheduled", external_id: "k-f3" },
+        { id: "f4", status: "booked", external_id: null },
+      ]),
+    ],
     [
       ["k-f1", { id: "f1", status: "booked" }],
       ["k-f2", { id: "f2", status: "missed" }],
     ],
-    "a row the feed stopped naming is no event's",
+    "a status the record does not hold, and a row with no key, are no event's",
   );
 
   const event = (uid, start, occurrence) => ({
@@ -967,4 +950,71 @@ test("POST calendar/visits/:id: an operator's word reaches the door with what th
       return true;
     },
   );
+});
+
+test("the week reads the record: a cancelled booking is drawn struck and keeps the feed's copy of it off the board, and a feed event carries its row's word", async () => {
+  forgetFeeds();
+  const TWO = ics(
+    vevent([
+      "UID:a1",
+      "SUMMARY:Ana Ruiz · Balayage",
+      "DESCRIPTION:Ana Ruiz +1 (917) 555-0100",
+      "DTSTART;TZID=America/New_York:20260908T140000",
+      "DTEND;TZID=America/New_York:20260908T153000",
+    ]),
+    vevent([
+      "UID:a2",
+      "SUMMARY:Bea Lin · Gloss",
+      "DTSTART;TZID=America/New_York:20260909T100000",
+      "DTEND;TZID=America/New_York:20260909T110000",
+    ]),
+  );
+  answers.set("https://cal.example/two.ics", { body: TWO });
+  const t = tables("https://cal.example/two.ics");
+  t.appointments = [
+    {
+      id: "b1",
+      tenant_id: T,
+      source: "booking_email",
+      tool: "booksy",
+      external_id: "bk-1",
+      status: "cancelled",
+      starts_at: "2026-09-08T18:00:00.000Z",
+      ends_at: "2026-09-08T19:30:00.000Z",
+      all_day: false,
+      title: null,
+      service: "Balayage",
+      staff: null,
+      price: null,
+      note: null,
+      client_name: "Ana Ruiz",
+      client_phone: "+19175550100",
+      client_email: null,
+      contact_id: null,
+      vanished_at: null,
+    },
+    {
+      id: "f2",
+      tenant_id: T,
+      source: "calendar_feed",
+      external_id: "a2",
+      status: "missed",
+      starts_at: "2026-09-09T14:00:00.000Z",
+      ends_at: "2026-09-09T15:00:00.000Z",
+      vanished_at: null,
+    },
+  ];
+  const week = await calendarWeek(ctxFor(t), T, { from: "2026-09-07", days: 7 }, NOW);
+  const tue = week.days.find((d) => d.key === "2026-09-08").items;
+  assert.deepEqual(
+    tue.map((it) => [it.id, it.visit]),
+    [["appt:b1", { id: "b1", status: "cancelled" }]],
+    "REGRESSION: cancelling a booking drew the calendar's copy of it again, as booked",
+  );
+  const wed = week.days.find((d) => d.key === "2026-09-09").items;
+  assert.deepEqual(
+    wed.map((it) => it.visit),
+    [{ id: "f2", status: "missed" }],
+  );
+  assert.equal(week.feed.notices.count, 0, "a cancelled visit is none of the visits the notices became");
 });

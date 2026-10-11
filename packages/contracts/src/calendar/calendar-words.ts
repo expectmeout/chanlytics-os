@@ -43,16 +43,18 @@ export function visitStateOf(
 
 /**
  * What a member may say of a visit now, in the order it is offered, by mark_visit's own rules (00397): kept or missed
- * once it has begun, cancelled until it ends; a kept visit may be corrected to missed and a missed one to kept; nothing
+ * once it has begun, cancelled until it ends; a kept visit that has begun may be corrected to missed and a missed one to
+ * kept; nothing
  * of a cancelled one, nor of an event the record has not kept yet.
  */
 export function visitActsOf(visit: VisitMark | null, startMs: number, endMs: number, nowMs: number): VisitWord[] {
   if (!visit) return [];
   switch (visit.status) {
+    // A correction is a word about a visit that has begun, as the door holds it (not_begun).
     case "kept":
-      return ["missed"];
+      return startMs <= nowMs ? ["missed"] : [];
     case "missed":
-      return ["kept"];
+      return startMs <= nowMs ? ["kept"] : [];
     case "cancelled":
       return [];
     case "proposed":

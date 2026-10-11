@@ -14,6 +14,8 @@
 --   3. appointment.changed says kept and missed as well, and a person's word on a feed's row too: the feed's door writes
 --      its own events (00348) and never moves a status, so a status moved on a feed row is a person's.
 --   4. The ledger takes the subject and the verb: 'appointment', 'mark_visit'.
+--   5. The feed's door keeps a person's word with its time: an event moved after its visit was marked kept, missed or
+--      cancelled is a new visit, booked afresh under its key, the marked row set aside with the start it was said of.
 --
 -- Deploy order: this migration first. A dashboard that calls a function the database does not hold answers the write
 -- with an error and changes nothing. Re-runnable.
@@ -99,6 +101,137 @@ create trigger appointments_note_status
   for each row
   when (new.source = 'calendar_feed' and old.status is distinct from new.status)
   execute function public.appointments_note_change();
+
+-- 5. A word keeps its time ---------------------------------------------------------------------------------------------
+-- The feed's door (00348) moved a row by its key whatever it said, so a no-show marked missed and then rebooked by
+-- dragging the same event to next week stood missed next week: its reminder held, the board saying Missed. An event
+-- moved after a person's word on its visit is a new visit: the marked row keeps the word with the time it was said of,
+-- set aside under its key and that start, and the key is booked afresh. Its event says moved.
+create or replace function public.appointments_feed_sync(p_tenant_id uuid, p_timezone text, p_rows jsonb, p_from timestamp with time zone, p_to timestamp with time zone, p_now timestamp with time zone DEFAULT NULL::timestamp with time zone) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_now      timestamptz := coalesce(p_now, now());
+  v_tz       text := coalesce(nullif(btrim(p_timezone), ''), 'UTC');
+  v_in       record;
+  v_row      public.appointments%rowtype;
+  v_contact  uuid;
+  v_id       uuid;
+  v_change   text;
+  v_seen     text[] := '{}';
+  v_added    integer := 0;
+  v_moved    integer := 0;
+  v_back     integer := 0;
+  v_vanished integer := 0;
+begin
+  if p_tenant_id is null or not exists (select 1 from tenants t where t.id = p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  if jsonb_typeof(coalesce(p_rows, 'null'::jsonb)) <> 'array' then
+    raise exception 'The rows are a list.' using errcode = '22023';
+  end if;
+  if p_from is null or p_to is null or p_to <= p_from then
+    raise exception 'The window runs forward.' using errcode = '22023';
+  end if;
+  -- One read of a workspace's feed at a time, and never one older than the read the workspace last had: the sweep
+  -- stamps the workspace with its tick's time once the read is kept, so a tick that overlapped a later one finds the
+  -- later stamp and leaves the newer rows as they are.
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|appointments|calendar_feed', 42));
+  if exists (select 1 from tenant_config tc where tc.tenant_id = p_tenant_id and tc.calendar_checked_at > v_now) then
+    return jsonb_build_object('added', 0, 'moved', 0, 'back', 0, 'vanished', 0, 'seen', 0, 'stale', true);
+  end if;
+
+  for v_in in
+    select distinct on (r.external_id) r.*
+      from jsonb_to_recordset(p_rows) as r(
+             external_id text, starts_at timestamptz, ends_at timestamptz, all_day boolean, service text,
+             consultation boolean, contact_id uuid)
+     where nullif(btrim(r.external_id), '') is not null and char_length(r.external_id) <= 512
+       and r.starts_at is not null and r.ends_at is not null and r.ends_at > r.starts_at
+       and r.starts_at between p_from and p_to
+     order by r.external_id
+  loop
+    v_seen := array_append(v_seen, v_in.external_id);
+    -- Only a living person of this workspace: a match the sweep made against a list read a moment ago may have been
+    -- erased or merged since.
+    select c.id into v_contact from contacts c
+     where c.id = v_in.contact_id and c.tenant_id = p_tenant_id
+       and c.erased_at is null and c.merged_into_contact_id is null;
+    v_change := null;
+    select * into v_row from appointments a
+     where a.tenant_id = p_tenant_id and a.source = 'calendar_feed' and a.external_id = v_in.external_id
+     for update;
+    if v_row.id is null then
+      insert into appointments (tenant_id, contact_id, source, external_id, status, starts_at, ends_at, all_day,
+                                service, consultation, timezone)
+      values (p_tenant_id, v_contact, 'calendar_feed', v_in.external_id, 'booked', v_in.starts_at, v_in.ends_at,
+              coalesce(v_in.all_day, false), left(nullif(btrim(v_in.service), ''), 200),
+              coalesce(v_in.consultation, false), v_tz)
+      returning id into v_id;
+      v_change := 'added';
+      v_added := v_added + 1;
+    elsif v_row.status in ('kept', 'missed', 'cancelled') and v_row.starts_at is distinct from v_in.starts_at then
+      -- A person's word was about the visit at its old time (00397): the event moved since is a new visit. The marked
+      -- row is set aside under the key and its old start, gone from the feed as it stood, and a fresh one is booked.
+      update appointments
+         set external_id = left(v_row.external_id, 512) || '@' || extract(epoch from v_row.starts_at)::bigint::text,
+             vanished_at = coalesce(vanished_at, v_now)
+       where id = v_row.id;
+      insert into appointments (tenant_id, contact_id, source, external_id, status, starts_at, ends_at, all_day,
+                                service, consultation, timezone)
+      values (p_tenant_id, v_contact, 'calendar_feed', v_in.external_id, 'booked', v_in.starts_at, v_in.ends_at,
+              coalesce(v_in.all_day, false), left(nullif(btrim(v_in.service), ''), 200),
+              coalesce(v_in.consultation, false), v_tz)
+      returning id into v_id;
+      v_change := 'moved';
+      v_moved := v_moved + 1;
+    else
+      v_id := v_row.id;
+      if v_row.vanished_at is not null then
+        v_change := 'back';
+        v_back := v_back + 1;
+      elsif v_row.starts_at is distinct from v_in.starts_at then
+        v_change := 'moved';
+        v_moved := v_moved + 1;
+      end if;
+      update appointments
+         set contact_id = v_contact, starts_at = v_in.starts_at, ends_at = v_in.ends_at,
+             all_day = coalesce(v_in.all_day, false), service = left(nullif(btrim(v_in.service), ''), 200),
+             consultation = coalesce(v_in.consultation, false), timezone = v_tz, vanished_at = null
+       where id = v_id
+         and (contact_id is distinct from v_contact or starts_at is distinct from v_in.starts_at
+              or ends_at is distinct from v_in.ends_at or all_day is distinct from coalesce(v_in.all_day, false)
+              or service is distinct from left(nullif(btrim(v_in.service), ''), 200)
+              or consultation is distinct from coalesce(v_in.consultation, false)
+              or timezone is distinct from v_tz or vanished_at is not null);
+    end if;
+    if v_change is not null then
+      insert into events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (p_tenant_id, 'appointment.changed', 'appointment', 'appointment', v_id,
+              jsonb_build_object('change', v_change, 'source', 'calendar_feed', 'starts_at', v_in.starts_at));
+    end if;
+  end loop;
+
+  -- Gone from the read, inside the window it covered: vanished, never cancelled.
+  for v_row in
+    update appointments a
+       set vanished_at = v_now
+     where a.tenant_id = p_tenant_id and a.source = 'calendar_feed' and a.vanished_at is null
+       and a.starts_at between p_from and p_to
+       and not (a.external_id = any (v_seen))
+    returning a.*
+  loop
+    v_vanished := v_vanished + 1;
+    insert into events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'appointment.changed', 'appointment', 'appointment', v_row.id,
+            jsonb_build_object('change', 'vanished', 'source', 'calendar_feed', 'starts_at', v_row.starts_at));
+  end loop;
+
+  return jsonb_build_object('added', v_added, 'moved', v_moved, 'back', v_back, 'vanished', v_vanished,
+                            'seen', cardinality(v_seen), 'stale', false);
+end $$;
 
 -- 1. The door ------------------------------------------------------------------------------------------------------------
 create or replace function public.mark_visit(

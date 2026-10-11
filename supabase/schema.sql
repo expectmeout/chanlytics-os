@@ -286,6 +286,21 @@ begin
       returning id into v_id;
       v_change := 'added';
       v_added := v_added + 1;
+    elsif v_row.status in ('kept', 'missed', 'cancelled') and v_row.starts_at is distinct from v_in.starts_at then
+      -- A person's word was about the visit at its old time (00397): the event moved since is a new visit. The marked
+      -- row is set aside under the key and its old start, gone from the feed as it stood, and a fresh one is booked.
+      update appointments
+         set external_id = left(v_row.external_id, 512) || '@' || extract(epoch from v_row.starts_at)::bigint::text,
+             vanished_at = coalesce(vanished_at, v_now)
+       where id = v_row.id;
+      insert into appointments (tenant_id, contact_id, source, external_id, status, starts_at, ends_at, all_day,
+                                service, consultation, timezone)
+      values (p_tenant_id, v_contact, 'calendar_feed', v_in.external_id, 'booked', v_in.starts_at, v_in.ends_at,
+              coalesce(v_in.all_day, false), left(nullif(btrim(v_in.service), ''), 200),
+              coalesce(v_in.consultation, false), v_tz)
+      returning id into v_id;
+      v_change := 'moved';
+      v_moved := v_moved + 1;
     else
       v_id := v_row.id;
       if v_row.vanished_at is not null then

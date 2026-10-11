@@ -629,7 +629,8 @@
 .cal-ev-visit-acts { display: inline-flex; gap: 6px; flex-wrap: wrap; }
 .cal-ev-visit-refused { flex-basis: 100%; color: var(--ink-muted); font-size: var(--text-xs); }
 /* A visit said cancelled is struck on the board; the time stays the calendar's until it is edited there. */
-.cal-appt[data-visit="cancelled"] .cal-appt-who { text-decoration: line-through; }
+.cal-appt[data-visit="cancelled"] .cal-appt-who,
+.cal-allday[data-visit="cancelled"] { text-decoration: line-through; }
 
 /* The notes wear the same key and value as Where, because they are the same
    kind of thing: something the event carried. A border and a fill made them a

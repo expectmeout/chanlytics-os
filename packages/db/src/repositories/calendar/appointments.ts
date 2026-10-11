@@ -146,22 +146,47 @@ export async function appointmentsBetween(
   return data ?? [];
 }
 
+/** The most feed rows a span's read carries: four short columns each, for a calendar a whole team writes. */
+const FEED_SPAN_MAX = 10_000;
+
 /**
- * Every row over a span, whatever its source and however it stands, by start: what the board needs to say what a member
- * said became of a visit (00397), a booking's and a feed event's alike. The feed's rows come too, for their ids and
- * statuses only: the board draws the feed itself (appointmentsBetween leaves them out for that reason).
+ * The record over a span, as the board says what became of each visit (00397), in two reads with their own caps: a
+ * booking's rows whole, however they stand (a cancelled one is drawn struck, and leaves the feed's copy of it out), and
+ * the feed's rows the feed still names, as their ids and statuses by key (the board draws the feed itself, which is why
+ * appointmentsBetween leaves them out).
  */
-export async function visitsOver(db: Db, tenantId: string, fromIso: string, toIso: string): Promise<AppointmentRow[]> {
-  const { data, error } = await db
-    .from("appointments")
-    .select("*")
-    .eq("tenant_id", tenantId)
-    .gt("ends_at", fromIso)
-    .lt("starts_at", toIso)
-    .order("starts_at", { ascending: true })
-    .limit(SPAN_MAX);
-  if (error) throw new Error(`visits_over: ${error.message}`);
-  return data ?? [];
+export async function visitsOver(
+  db: Db,
+  tenantId: string,
+  fromIso: string,
+  toIso: string,
+): Promise<{
+  noted: AppointmentRow[];
+  feed: Array<{ id: string; status: string; external_id: string | null }>;
+}> {
+  const [noted, feed] = await Promise.all([
+    db
+      .from("appointments")
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .neq("source", "calendar_feed")
+      .gt("ends_at", fromIso)
+      .lt("starts_at", toIso)
+      .order("starts_at", { ascending: true })
+      .limit(SPAN_MAX),
+    db
+      .from("appointments")
+      .select("id, status, external_id")
+      .eq("tenant_id", tenantId)
+      .eq("source", "calendar_feed")
+      .is("vanished_at", null)
+      .gt("ends_at", fromIso)
+      .lt("starts_at", toIso)
+      .limit(FEED_SPAN_MAX),
+  ]);
+  if (noted.error) throw new Error(`visits_over: ${noted.error.message}`);
+  if (feed.error) throw new Error(`visits_over: ${feed.error.message}`);
+  return { noted: noted.data ?? [], feed: feed.data ?? [] };
 }
 
 /**

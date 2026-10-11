@@ -9,6 +9,7 @@ import { useEffect, useReducer, useRef, useState } from "react";
 import { VISIT_WORDS, visitActsOf, visitStateOf, type CalendarBlockVM, type VisitWord } from "@chanlytics/contracts";
 import { api } from "@/legacy-bridge/api";
 import { Button } from "../kit/button/button";
+import { Confirm } from "../kit/confirm/confirm";
 import { Icon } from "../kit/icon/icon";
 import { gate, leaving, navigate, touchSwipe, trapFocus } from "../legacy-verbs";
 import { crPhone } from "./board-dom";
@@ -95,6 +96,8 @@ function whoLine(p: { b: CalendarBlockVM; person: Person; deal: Deal; e164: stri
 function VisitActs({ b }: { b: CalendarBlockVM }) {
   const [busy, setBusy] = useState<VisitWord | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  // Cancelled is final (the door keeps it so), so it is asked first, in the kit's one shape; kept and missed correct.
+  const [asking, setAsking] = useState(false);
   const acts = visitActsOf(b.visit, Date.parse(b.start), Date.parse(b.end), Date.now());
   if (!b.visit || acts.length === 0) return null;
   const visit = b.visit;
@@ -106,11 +109,14 @@ function VisitActs({ b }: { b: CalendarBlockVM }) {
       if (!r.ok) setProblem(r.message);
     } finally {
       setBusy(null);
+      setAsking(false);
     }
   };
   return (
     <div className="cal-ev-detail" data-testid="cal-panel-visit">
-      <span className="cal-ev-detail-key">{visit.status === "booked" ? "What happened" : "Correct it"}</span>
+      <span className="cal-ev-detail-key">
+        {visit.status === "kept" || visit.status === "missed" ? "Correct it" : "What happened"}
+      </span>
       <span className="cal-ev-visit-acts">
         {acts.map((status) => (
           <Button
@@ -118,14 +124,27 @@ function VisitActs({ b }: { b: CalendarBlockVM }) {
             variant="quiet"
             size="sm"
             data-testid={`cal-panel-visit-${status}`}
-            disabled={busy !== null}
-            onClick={() => void say(status)}
+            disabled={busy !== null || asking}
+            onClick={() => (status === "cancelled" ? setAsking(true) : void say(status))}
             {...gate("approve", "say what became of a visit")}
           >
             {VISIT_WORDS[status]}
           </Button>
         ))}
       </span>
+      {asking && (
+        <Confirm
+          question="Cancel this visit?"
+          detail="It can't be undone here. Its reminders stop; the calendar keeps the time until it is changed there."
+          yes="Yes, cancelled"
+          no="Keep it"
+          danger
+          busy={busy === "cancelled"}
+          onYes={() => void say("cancelled")}
+          onNo={() => setAsking(false)}
+          testid="cal-panel-visit-cancel"
+        />
+      )}
       {problem && (
         <span className="cal-ev-visit-refused" role="alert" data-testid="cal-panel-visit-refused">
           {problem}

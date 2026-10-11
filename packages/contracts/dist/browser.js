@@ -9994,10 +9994,11 @@ function visitStateOf(visit, endMs, nowMs) {
 function visitActsOf(visit, startMs, endMs, nowMs) {
   if (!visit) return [];
   switch (visit.status) {
+    // A correction is a word about a visit that has begun, as the door holds it (not_begun).
     case "kept":
-      return ["missed"];
+      return startMs <= nowMs ? ["missed"] : [];
     case "missed":
-      return ["kept"];
+      return startMs <= nowMs ? ["kept"] : [];
     case "cancelled":
       return [];
     case "proposed":
@@ -18550,6 +18551,14 @@ function personOfAppointment(row2, people) {
 }
 function visitMarkOf(row2) {
   return APPOINTMENT_STATUSES.includes(row2.status) ? { id: row2.id, status: row2.status } : null;
+}
+function feedMarksOf(rows2) {
+  const marks = /* @__PURE__ */ new Map();
+  for (const r2 of rows2) {
+    const mark = visitMarkOf(r2);
+    if (mark && r2.external_id) marks.set(r2.external_id, mark);
+  }
+  return marks;
 }
 function itemOfAppointment(row2, people) {
   return {
@@ -38959,6 +38968,7 @@ export {
   feedAppointmentRows,
   feedBodyProblem,
   feedItemOfAppointment,
+  feedMarksOf,
   feedNotes,
   feedProblemWords,
   feedSourceLabel,
@@ -39986,7 +39996,6 @@ export {
   visitDayWord,
   visitFactsFor,
   visitLine,
-  visitMarkOf,
   visitMomentDay,
   visitOnDay,
   visitStartTime,

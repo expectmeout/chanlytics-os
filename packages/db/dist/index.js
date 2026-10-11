@@ -4956,10 +4956,15 @@ async function appointmentsBetween(db, tenantId, fromIso, toIso) {
   if (error) throw new Error(`appointments_between: ${error.message}`);
   return data ?? [];
 }
+var FEED_SPAN_MAX = 1e4;
 async function visitsOver(db, tenantId, fromIso, toIso) {
-  const { data, error } = await db.from("appointments").select("*").eq("tenant_id", tenantId).gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).limit(SPAN_MAX);
-  if (error) throw new Error(`visits_over: ${error.message}`);
-  return data ?? [];
+  const [noted, feed] = await Promise.all([
+    db.from("appointments").select("*").eq("tenant_id", tenantId).neq("source", "calendar_feed").gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).limit(SPAN_MAX),
+    db.from("appointments").select("id, status, external_id").eq("tenant_id", tenantId).eq("source", "calendar_feed").is("vanished_at", null).gt("ends_at", fromIso).lt("starts_at", toIso).limit(FEED_SPAN_MAX)
+  ]);
+  if (noted.error) throw new Error(`visits_over: ${noted.error.message}`);
+  if (feed.error) throw new Error(`visits_over: ${feed.error.message}`);
+  return { noted: noted.data ?? [], feed: feed.data ?? [] };
 }
 async function appointmentWorkspace(db, id) {
   const { data, error } = await db.from("appointments").select("id, tenant_id").eq("id", id).maybeSingle();

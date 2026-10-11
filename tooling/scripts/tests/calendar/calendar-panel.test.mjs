@@ -87,6 +87,7 @@ test("what may be said of a visit, and when, by mark_visit's own rules (00397): 
   assert.deepEqual(acts("booked", -3), ["kept", "missed"], "over: whether they came, never cancelled");
   assert.deepEqual(acts("kept", -3), ["missed"], "a kept visit corrected to missed");
   assert.deepEqual(acts("missed", -3), ["kept"], "and back");
+  assert.deepEqual(acts("missed", 5), [], "never of a visit that has not begun: the door refuses it");
   assert.deepEqual(acts("cancelled", 5), [], "a cancelled one is said nothing more of");
   assert.deepEqual(acts("proposed", 5), ["cancelled"], "a request may be cancelled");
   assert.deepEqual(acts("proposed", -3), [], "and never kept or missed: it was not booked");

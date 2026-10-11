@@ -84,7 +84,7 @@ export {
   itemOfAppointment,
   withoutVisitsRowsDraw,
   daysWithAppointments,
-  visitMarkOf,
+  feedMarksOf,
 } from "./appointment-item";
 export type { AppointmentLike } from "./appointment-item";
 export type {
