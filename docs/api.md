@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-232 handlers in 47 domains.
+233 handlers in 47 domains.
 
 ## activity
 
@@ -801,6 +801,8 @@ Writes; for a member of the workspace the request names, partner or above; count
 | `version` | integer | yes | ≥ 1; ≤ 9007199254740991 |
 | `card` | `"local_businesses"` | yes |  |
 | `name` | string | yes |  |
+| `category_key` | string | no | matches `^[a-z][a-z0-9_]{0,39}$` |
+| `from` | `"idea"` | no |  |
 | `asked` | string | yes |  |
 | `terms` | array of string | yes | at least 1; at most 5 |
 | `area` | object | yes |  |
