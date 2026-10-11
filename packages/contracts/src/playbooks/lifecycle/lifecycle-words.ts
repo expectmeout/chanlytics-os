@@ -293,7 +293,10 @@ export const LIFECYCLE_WORDS = {
     businesses: "businesses",
     chainNeeds: "Writes to the businesses a search found",
     openRun: "Open the run",
-    /** A row's last 30 days, as its cell says them. */
+    /**
+     * A row's last 30 days, as its cell says them. A reach-out's is in the businesses it wrote to, which "wrote back" is a
+     * count of; its emails written only where the businesses were not counted (a database before 00404).
+     */
     results: (r: LifecycleRowResults): string =>
       r === "uncounted"
         ? "—"
@@ -301,7 +304,9 @@ export const LIFECYCLE_WORDS = {
           ? "Nothing sent"
           : r.kind === "sent"
             ? `${r.sent} sent · ${r.replied} replied`
-            : `${r.written} written · ${r.wroteBack} wrote back`,
+            : r.businesses === null
+              ? `${r.written} written · ${r.wroteBack} wrote back`
+              : `${plural(r.businesses, "business", "businesses")} · ${r.wroteBack} wrote back`,
     sentOnce: {
       footer: (n: number): string => `Sent once · last 30 days · ${n}`,
       open: "Sent",

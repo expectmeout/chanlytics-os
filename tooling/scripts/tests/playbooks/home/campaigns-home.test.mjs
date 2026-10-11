@@ -1433,7 +1433,8 @@ test("Campaigns' own 30 days are one read of each report over its own period, ea
       },
     ],
   };
-  const chains = { complete: true, by_root: { "ro-1": { written: 9, wrote_back: 2 } } };
+  // Nine emails to four businesses (00404 counts them); `businesses` is dropped below to read a database before it.
+  const chains = { complete: true, by_root: { "ro-1": { written: 9, businesses: 4, wrote_back: 2 } } };
   const asked = [];
   const read = async (fail) => {
     const kept = globalThis.fetch;
@@ -1463,7 +1464,10 @@ test("Campaigns' own 30 days are one read of each report over its own period, ea
       [{ id: "pb-1", kind: "playbook", name: "Win-back", sent: 14, replied: 3, lastAt: "2026-10-01T14:05:00Z" }],
       "each campaign's own, as the ledger's rows read them",
     );
-    assert.deepEqual(both.chains, { complete: true, byRoot: { "ro-1": { written: 9, wroteBack: 2 } } });
+    assert.deepEqual(both.chains, {
+      complete: true,
+      byRoot: { "ro-1": { written: 9, businesses: 4, wroteBack: 2 } },
+    });
     assert.deepEqual(
       [...new Set(asked)].sort(),
       ["/api/v1/reports/campaigns?period=30d", "/api/v1/reports/reach-outs?period=30d"],
@@ -1473,6 +1477,13 @@ test("Campaigns' own 30 days are one read of each report over its own period, ea
     assert.deepEqual([noReport.report, noReport.chains.byRoot["ro-1"].written], [null, 9], "the chains stand");
     const noChains = await read("reach-outs");
     assert.deepEqual([noChains.report.sources.length, noChains.chains], [1, null], "the report stands");
+    // A database before 00404 answers no businesses: the ledger holds null, and says the old line.
+    delete chains.by_root["ro-1"].businesses;
+    const old = await read(null);
+    assert.deepEqual(old.chains, {
+      complete: true,
+      byRoot: { "ro-1": { written: 9, businesses: null, wroteBack: 2 } },
+    });
   } finally {
     console.error = errorWas;
     setSurfaceValue("campaign_results", undefined);

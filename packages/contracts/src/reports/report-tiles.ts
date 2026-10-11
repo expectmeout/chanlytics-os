@@ -4,11 +4,12 @@
  * says, by one id, where its builder builds it (`metric`): a closed set, so a tile that says what no id names is a compile
  * error rather than a lookup that falls back, and the id is what the figure is called wherever it is read (the page's
  * figures today; a definition's tooltip, Ask's block and the headline of a later phase). Not prefixed by a lens: a tile moves
- * between lenses (the lenses spec, D18) and its id does not. The receptionist's tiles are built here; the campaigns' and
- * Google's are built where their reports are, and name their figures from this same set.
+ * between lenses (the lenses spec, D18) and its id does not. The receptionist's tiles are built here; the campaigns' (the lens's
+ * strip) and Google's are built where their reports are, and name their figures from this same set.
  */
 import type { BookingReportVM } from "./booking-report";
 import { durationWords } from "../shared/clock";
+import { pct } from "../shared/numbers";
 import { plural } from "../shared/words";
 import { holdNote } from "./report-speed";
 import type { PeriodFacts } from "./reports";
@@ -22,9 +23,7 @@ export type ReportMetric =
   | "calls"
   | "new_people"
   | "booked"
-  | "messages_sent"
   | "delivered_share"
-  | "replied_share"
   | "said_yes"
   | "asked_to_stop"
   | "rating"
@@ -50,13 +49,39 @@ export type ReportMetric =
   | "said_yes_messages"
   | "can_receive_offers"
   | "opted_out_now"
-  | "quiet_now";
+  | "quiet_now"
+  | "emails_written"
+  | "emails_landed"
+  | "emails_bounced"
+  | "people_sent_to"
+  | "people_wrote_back"
+  | "runs_waiting"
+  | "runs_failed"
+  | "campaign_replies_waiting"
+  | "templates_paused"
+  | "number_health";
 
 /**
  * The fewest a ratio is of for it to say anything (the reports lenses spec, D9): a share or a median of fewer than this is
  * greyed and says how few it is of. One number for every lens; the reviews' reply time keeps its own, smaller, minimum.
  */
 export const REPORT_MIN_N = 5;
+
+/**
+ * Whether a share is of some, but too few, to say anything (D9): a count above none and under the fewest (`minN`: REPORT_MIN_N, or
+ * the ratio's own where it keeps one, as the reviews' reply time does; required, so a caller names the minimum it judges by).
+ * Of none there is no ratio to grey, and its line says why. The one predicate for the kit's greyed Figure, a bar of a rate,
+ * and what Ask leaves unsaid, so the three never part.
+ */
+export const isThinShare = (n: number, minN: number): boolean => n > 0 && n < minN;
+
+/**
+ * A share as a lens says it where it is written, not drawn (D9): of five or more a percentage, under that the count it is of
+ * ("3 of 4"), and of nothing none at all (`share` is null: a dash with words is the caller's). A percentage of fewer than five
+ * is never said. The one spelling for a channel's delivered share, a source's, and Ask's.
+ */
+export const shareSaid = (share: number | null, count: number, of: number): string | null =>
+  share === null ? null : of >= REPORT_MIN_N ? `${share}%` : `${count} of ${of}`;
 
 export interface ReportTileVM {
   id: string;
@@ -138,6 +163,28 @@ export function compareWords(
   if (current === previous) return `same as ${beforeWords(rangeLabel)}`;
   return `${current > previous ? "up" : "down"} from ${previous}`;
 }
+
+/**
+ * A share against the period before's share, in words: "was 88% the 30 days before". The period before's share only where
+ * that period had five or more to take it of (REPORT_MIN_N), else the count it is of in the same place ("was 2 of 3 the 30
+ * days before", as shareSaid says it): a share of fewer than five is never said, in a period before any more than in this one
+ * (D9). The figure's own label says what is counted ("Delivered", "Wrote back"), so neither form repeats it. None where this
+ * period or the period before has nothing to take a share of (`nowOf`, `was.of`), so there is nothing to set beside it. The one
+ * rule for the Campaigns lens's Delivered and Wrote back and for the Reach-outs' Landed.
+ */
+export function shareWasWords(nowOf: number, was: { part: number; of: number }, rangeLabel: string): string | null {
+  if (nowOf === 0) return null;
+  const said = shareSaid(pct(was.part, was.of), was.part, was.of);
+  return said === null ? null : `was ${said} ${beforeWords(rangeLabel)}`;
+}
+
+/**
+ * Messages answered, as a count of the messages sent: "9 of 24 were answered", "1 of 3 was answered". A message is answered and
+ * a person writes back: the Campaigns lens says each message's rate this way, and the Overview's fact of the campaign that drew
+ * the most replies says it as the lens does; "wrote back" is left to the people (the lens's strip and head).
+ */
+export const messagesAnsweredWords = (answered: number, of: number): string =>
+  `${answered} of ${of} ${answered === 1 ? "was" : "were"} answered`;
 
 /**
  * The People lens's head until its own read lands, and when it says nothing: how many new people reached the business,

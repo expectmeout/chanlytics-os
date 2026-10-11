@@ -3,7 +3,7 @@ import "server-only";
  * Reports › Reach-outs (Reach out, Part 6: H1, H3–H6): what the workspace's reach-outs wrote over Reports' window, one of
  * its periods or the days a member picked (from and to), and what came of it, read by one definer function that checks
  * the member again (00241 reach_out_report; 00360 names a window's last day). The route refuses any other range; the page
- * draws it through contracts' toReachOutReportVM. The reader
+ * draws it through contracts' toReachOutLensVM. The reader
  * (readers/campaign-report.ts reachOutReport) answers the route with it, and each chain's own totals beside it.
  */
 import type { ReachOutReportDto } from "@chanlytics/contracts";

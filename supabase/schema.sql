@@ -1161,6 +1161,382 @@ COMMENT ON FUNCTION public.calls_note_transfer() IS 'Writes call.transferred { a
 
 
 --
+-- Name: campaign_answers(uuid, timestamp with time zone, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.campaign_answers(p_tenant_id uuid, p_since timestamp with time zone, p_until timestamp with time zone) RETURNS TABLE(broadcast_id uuid, contact_id uuid, event_id uuid, at timestamp with time zone, consent text, purpose text, exact boolean)
+    LANGUAGE sql STABLE
+    SET search_path TO ''
+    AS $$
+  with said as (
+    -- Every yes and stop of a live person from p_since on, with the purpose it is about and the key it carries (null where
+    -- it carries none of its own kind).
+    select e.id, e.subject_id as contact_id, e.created_at,
+           date_trunc('milliseconds', e.created_at) as ms,
+           x.consent, x.purpose,
+           case when x.purpose = 'email_marketing' and x.consent = 'opted_out'
+                 and x.source in ('unsubscribe', 'complaint', 'reply')
+                 and jsonb_typeof(e.data -> 'message_id') = 'string' and e.data ->> 'message_id' <> ''
+                then e.data ->> 'message_id' end as key_mail,
+           case when x.source in ('carrier', 'whatsapp')
+                 and jsonb_typeof(e.data -> 'message_external_id') = 'string' and e.data ->> 'message_external_id' <> ''
+                then e.data ->> 'message_external_id' end as key_wire
+      from public.events e
+      join public.contacts c
+        on c.tenant_id = e.tenant_id and c.id = e.subject_id
+       and c.erased_at is null and c.merged_into_contact_id is null
+     cross join lateral (
+       select e.data ->> 'consent' as consent,
+              e.data ->> 'source'  as source,
+              case when e.data ->> 'purpose' in ('email_marketing', 'marketing')
+                   then e.data ->> 'purpose' else 'conversational' end as purpose) x
+     where e.tenant_id = p_tenant_id
+       and e.kind = 'contact.consent_changed'
+       and e.created_at >= p_since
+       and x.consent in ('opted_in', 'opted_out')
+       and coalesce(x.source, '') not in ('merge', 'stop')
+  ),
+  -- The ones that can stand for a run: those within the reply window past p_until, where a later answer by the clock can
+  -- still come, and those with a key, which belong to their send whenever they came.
+  ev as (
+    select s.*
+      from said s
+     where s.created_at < p_until + public.campaign_reply_window()
+        or s.key_mail is not null or s.key_wire is not null
+  ),
+  -- An event that carries a key belongs to the person's send that key names, and to no other.
+  by_key as (
+    select r.broadcast_id, v.contact_id, v.id as event_id, v.created_at as at, v.ms, v.consent, v.purpose
+      from ev v
+      join public.broadcast_recipients r
+        on r.tenant_id = p_tenant_id and r.contact_id = v.contact_id and r.state = 'sent'
+       and r.message_id::text = v.key_mail
+     where v.key_mail is not null
+    union all
+    select r.broadcast_id, v.contact_id, v.id, v.created_at, v.ms, v.consent, v.purpose
+      from ev v
+      join public.messages m
+        on m.tenant_id = p_tenant_id and m.external_id = v.key_wire
+      join public.broadcast_recipients r
+        on r.tenant_id = p_tenant_id and r.contact_id = v.contact_id and r.state = 'sent' and r.message_id = m.id
+     where v.key_wire is not null
+  ),
+  -- Every other event belongs to each send of the person it came after, within the reply window; an answer about offers
+  -- by email, to a send that went by email.
+  by_time as (
+    select r.broadcast_id, v.contact_id, v.id as event_id, v.created_at as at, v.ms, v.consent, v.purpose
+      from ev v
+      join public.broadcast_recipients r
+        on r.tenant_id = p_tenant_id and r.contact_id = v.contact_id and r.state = 'sent'
+     where v.key_mail is null and v.key_wire is null
+       and v.ms > date_trunc('milliseconds', r.sent_at)
+       and v.ms <= date_trunc('milliseconds', r.sent_at) + public.campaign_reply_window()
+       and (v.purpose <> 'email_marketing' or r.channel = 'email')
+  ),
+  attributed as (
+    select k.*, true as exact from by_key k
+    union all
+    select t.*, false as exact from by_time t
+  ),
+  -- The latest a person said to a run stands for it.
+  latest as (
+    select distinct on (a.broadcast_id, a.contact_id) a.*
+      from attributed a
+     order by a.broadcast_id, a.contact_id, a.ms desc, a.event_id::text collate "C" desc
+  )
+  select l.broadcast_id, l.contact_id, l.event_id, l.at, l.consent, l.purpose, l.exact
+    from latest l
+   where l.at >= p_since and l.at < p_until
+$$;
+
+
+--
+-- Name: FUNCTION campaign_answers(p_tenant_id uuid, p_since timestamp with time zone, p_until timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.campaign_answers(p_tenant_id uuid, p_since timestamp with time zone, p_until timestamp with time zone) IS 'What each person answered each campaign run: for every run (broadcast) and person it reached (a recipient in state sent, a live person) that has one, the latest yes or stop (a contact.consent_changed event, consent opted_in or opted_out, source not merge or stop) that was theirs to give it, for the ones whose instant falls in [p_since, p_until). An event answers the run its key names (an unsubscribe, complaint or reply no to offers by email: message_id; a carrier or WhatsApp event of either consent: message_external_id; exact), whenever it came, and no other; every other event answers each send of the person it came after within campaign_reply_window, offers by email only a send that went by email. The rule contracts'' answersToRuns says in TypeScript, held equal by campaign-answers.db.test.mjs; the events up to the reply window past p_until are read too, and any event that carries a key from p_since on, whenever it came after it, so the window''s end never changes which answer stands for a run: a window holds the answer as it stands now, dated by its own time. Security invoker: row security decides what is read.';
+
+
+--
+-- Name: campaign_ledger(uuid, integer, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.campaign_ledger(p_tenant_id uuid, p_days integer DEFAULT 30, p_end date DEFAULT NULL::date) RETURNS jsonb
+    LANGUAGE plpgsql STABLE
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_tz     text;
+  v_days   integer := least(greatest(coalesce(p_days, 30), 1), 90);
+  v_today  date;
+  v_end    date;          -- the window's last day: today, or the earlier day a member picked (00360)
+  v_start  timestamptz;   -- the window's first instant
+  v_prior  timestamptz;   -- the period before's first instant
+  v_stop   timestamptz;   -- the midnight after the window's last day, in the zone
+  v_result jsonb;
+begin
+  select timezone into v_tz from tenants where id = p_tenant_id;
+  if v_tz is null then
+    return jsonb_build_object('error', 'unknown_tenant');
+  end if;
+
+  v_today := (now() at time zone v_tz)::date;
+  v_end   := least(coalesce(p_end, v_today), v_today);
+  v_start := ((v_end - (v_days - 1))::timestamp) at time zone v_tz;
+  v_prior := ((v_end - (v_days * 2 - 1))::timestamp) at time zone v_tz;
+  v_stop  := ((v_end + 1)::timestamp) at time zone v_tz;
+
+  with
+  -- The window and the one before it, as periods: every part that is set against before reads both through this.
+  periods(is_now) as (values (true), (false)),
+
+  -- The runs a send in the span can belong to. The window is driven from broadcasts_tenant_created, since no index serves
+  -- broadcast_recipients by (tenant_id, sent_at); its runs bound which recipients are kept, and the planner reads them
+  -- (a hash join of the workspace's recipients at scale, 11 Oct 2026). The kind comes from the audience (a deleted
+  -- playbook's run keeps it), the time from when the run started, else when it was to.
+  runs_in_reach as (
+    select b.id, b.state, b.failure, b.template_name, b.template_language,
+           case when b.audience ->> 'kind' = 'reach_out' then 'reach_out'
+                when b.audience ->> 'kind' = 'playbook' or b.playbook_id is not null then 'moment'
+                else 'broadcast' end                            as kind,
+           coalesce(b.started_at, b.scheduled_for)              as run_at
+      from broadcasts b
+     where b.tenant_id = p_tenant_id
+       and b.created_at >= v_prior - public.campaign_run_lead()
+       and b.created_at <  v_stop
+  ),
+
+  -- Every recipient of those runs with the message they were sent, if any (a failed or erased one has none).
+  rec as (
+    select r.broadcast_id, r.contact_id, r.state, r.reason, r.sent_at,
+           coalesce(r.channel, 'whatsapp')                      as channel,
+           b.kind, b.run_at, b.template_name, b.template_language,
+           m.conversation_id, m.status as message_status, m.error as message_error, m.created_at as message_at
+      from runs_in_reach b
+      join broadcast_recipients r on r.broadcast_id = b.id and r.tenant_id = p_tenant_id
+      left join messages m on m.id = r.message_id
+  ),
+
+  -- What went out in the span: a person a run marked sent, whether they wrote back and how soon, and whether their
+  -- reply window is over. One probe of messages_conversation_created (conversation_id, created_at) for each send,
+  -- whatever the planner guesses: run_counts' shape (00374), which says why the probe is fenced and names no workspace.
+  sent as (
+    select s.*,
+           (s.first_reply_at is not null)                                  as replied,
+           (s.sent_at + public.campaign_reply_window() <= now())           as mature
+      from (
+        select r.broadcast_id, r.contact_id, r.channel, r.kind, r.template_name, r.template_language, r.sent_at,
+               (r.sent_at >= v_start) as is_now,
+               (select min(x.at)
+                  from (select i.created_at as at
+                          from messages i
+                         where i.conversation_id = r.conversation_id
+                           and i.direction = 'inbound'
+                           and i.sender = 'customer'
+                           and public.message_is_a_persons_words(i.meta)
+                           and i.created_at > r.sent_at
+                           and i.created_at <= r.sent_at + public.campaign_reply_window()
+                        offset 0) x) as first_reply_at
+          from rec r
+         where r.state = 'sent'
+           and r.sent_at >= v_prior and r.sent_at < v_stop
+        -- Fenced here too: the probe is run once a send. Without it the planner pulls `s` up and copies the probe into
+        -- `replied` as well, and every send is probed twice.
+        offset 0
+      ) s
+  ),
+
+  -- People, once each however many runs reached them; and the runs that sent, by kind (a reach-out run has no people here).
+  people_stats as (
+    select p.is_now,
+           count(distinct s.contact_id)                                    as sent_to,
+           count(distinct s.contact_id) filter (where s.replied)           as wrote_back,
+           count(distinct s.contact_id) filter (where not s.mature)        as counting
+      from periods p
+      left join sent s on s.is_now = p.is_now
+     group by p.is_now
+  ),
+  run_stats as (
+    select p.is_now,
+           count(distinct s.broadcast_id) filter (where s.kind = 'moment')    as moment,
+           count(distinct s.broadcast_id) filter (where s.kind = 'broadcast') as broadcast
+      from periods p
+      left join sent s on s.is_now = p.is_now
+     group by p.is_now
+  ),
+
+  -- Held: the people a run did not send to, dated by the run (they have no time of their own), told by a reason of ours.
+  held_rows as (
+    select r.state,
+           case when r.reason ~ '^[a-z][a-z_]{0,39}$' then r.reason else 'other' end as reason
+      from rec r
+     where r.state in ('skipped', 'failed')
+       and r.run_at >= v_start and r.run_at < v_stop
+  ),
+  held_stats as (
+    select count(*)                                  as total,
+           count(*) filter (where h.state = 'skipped') as skipped,
+           count(*) filter (where h.state = 'failed')  as failed
+      from held_rows h
+  ),
+
+  -- Stopped: the runs that failed or were canceled, dated by their time; the failed told by a code of ours.
+  stopped_rows as (
+    select b.state,
+           case when b.failure ~ '^[a-z_]+(:[a-z]+)?$' then b.failure else 'other' end as failure
+      from runs_in_reach b
+     where b.kind in ('moment', 'broadcast')
+       and b.state in ('failed', 'canceled')
+       and b.run_at >= v_start and b.run_at < v_stop
+  ),
+  stopped_stats as (
+    select count(*) filter (where b.state = 'failed')   as failed,
+           count(*) filter (where b.state = 'canceled') as canceled
+      from stopped_rows b
+  ),
+
+  -- Failed sends: a message marked failed in the window, by the channel it went by and the provider's code (an email has
+  -- none); with none, one word of a closed set. The error is read and never repeated.
+  failed_rows as (
+    select f.channel, f.code,
+           case when f.code is null then
+                  case when f.channel = 'email' and f.error ->> 'provider' in ('bounced', 'failed', 'suppressed')
+                         then f.error ->> 'provider'
+                       when f.channel = 'sms' and f.error ->> 'carrier' in ('undelivered', 'failed', 'canceled')
+                         then f.error ->> 'carrier'
+                       when f.error ->> 'reason' in ('never_delivered', 'run_interrupted', 'orphaned')
+                         then f.error ->> 'reason'
+                       when f.error ->> 'outcome' = 'unknown' then 'outcome_unknown'
+                       else 'unknown' end
+           end as kind
+      from (select r.channel, r.message_error as error,
+                   -- An email carries no code: its word decides (sendFailureWords reads none for email either).
+                   case when r.channel = 'email' then null else public.provider_code_of(r.message_error) end as code
+              from rec r
+             where r.message_status = 'failed'
+               and r.message_at >= v_start and r.message_at < v_stop) f
+  ),
+  failed_by as (
+    select f.channel, f.code, f.kind, count(*) as n
+      from failed_rows f
+     group by f.channel, f.code, f.kind
+  ),
+
+  -- By message: the window's sends by the name and language of the run's message; a reply rate is of the mature sends.
+  by_message_rows as (
+    select s.template_name as name, s.template_language as lang,
+           count(*)                                          as sent,
+           count(*) filter (where s.mature)                  as mature,
+           count(*) filter (where s.mature and s.replied)    as replied
+      from sent s
+     where s.is_now
+     group by s.template_name, s.template_language
+     order by count(*) desc, s.template_name, s.template_language
+     limit 20
+  ),
+
+  -- First reply: the window's answered sends, by seconds to the first answer, each in the first bucket it fits.
+  reply_rows as (
+    select extract(epoch from s.first_reply_at - s.sent_at)::double precision as seconds
+      from sent s
+     where s.is_now and s.replied
+  ),
+  reply_stats as (
+    select count(*)                                                       as n,
+           round(percentile_cont(0.5) within group (order by q.seconds))::bigint as median_s,
+           count(*) filter (where q.seconds <= 900)                       as m15,
+           count(*) filter (where q.seconds > 900   and q.seconds <= 3600)   as h1,
+           count(*) filter (where q.seconds > 3600  and q.seconds <= 14400)  as h4,
+           count(*) filter (where q.seconds > 14400 and q.seconds <= 86400)  as h24,
+           count(*) filter (where q.seconds > 86400)                      as h72
+      from reply_rows q
+  ),
+
+  -- Approval: an approval made in the window, from the run's being made to the decision. Joined to the run by id: the
+  -- run may have been made long before, and may be of any kind.
+  approval_rows as (
+    select extract(epoch from d.created_at - b.created_at)::double precision as seconds
+      from decisions d
+      join broadcasts b on b.id = d.subject_id and b.tenant_id = d.tenant_id
+     where d.tenant_id = p_tenant_id
+       and d.subject_type = 'broadcast'
+       and d.verb = 'send_broadcast'
+       and d.payload ->> 'approved' = 'true'
+       and d.created_at >= v_start and d.created_at < v_stop
+  ),
+  approval_stats as (
+    select count(*)                                                       as n,
+           round(percentile_cont(0.5) within group (order by q.seconds))::bigint as median_s,
+           count(*) filter (where q.seconds <= 3600)                      as h1,
+           count(*) filter (where q.seconds > 3600  and q.seconds <= 14400)  as h4,
+           count(*) filter (where q.seconds > 14400 and q.seconds <= 86400)  as h24,
+           count(*) filter (where q.seconds > 86400)                      as over
+      from approval_rows q
+  )
+
+  select jsonb_build_object(
+    'timezone', v_tz,
+    'today', to_char(v_today, 'YYYY-MM-DD'),
+    'end', to_char(v_end, 'YYYY-MM-DD'),
+    'days', v_days,
+    'people', jsonb_build_object(
+      'now', (select jsonb_build_object('sent_to', s.sent_to, 'wrote_back', s.wrote_back, 'counting', s.counting)
+                from people_stats s where s.is_now),
+      'before', (select jsonb_build_object('sent_to', s.sent_to, 'wrote_back', s.wrote_back)
+                   from people_stats s where not s.is_now)),
+    'runs', jsonb_build_object(
+      'now', (select jsonb_build_object('moment', s.moment, 'broadcast', s.broadcast) from run_stats s where s.is_now),
+      'before', (select jsonb_build_object('moment', s.moment, 'broadcast', s.broadcast)
+                   from run_stats s where not s.is_now)),
+    'held', (select jsonb_build_object(
+               'total', s.total,
+               'skipped', s.skipped,
+               'failed', s.failed,
+               'by_reason', coalesce((select jsonb_object_agg(t.reason, t.n) from (
+                                select h.reason, count(*) as n from held_rows h group by h.reason) t), '{}'::jsonb))
+               from held_stats s),
+    'stopped', (select jsonb_build_object(
+                  'failed', s.failed,
+                  'canceled', s.canceled,
+                  'by_failure', coalesce((select jsonb_object_agg(t.failure, t.n) from (
+                                   select b.failure, count(*) as n from stopped_rows b
+                                    where b.state = 'failed' group by b.failure) t), '{}'::jsonb))
+                  from stopped_stats s),
+    'failed_sends', jsonb_build_object(
+      'total', (select count(*) from failed_rows),
+      'by_code', coalesce((select jsonb_agg(jsonb_build_object(
+                             'channel', f.channel, 'code', f.code, 'kind', f.kind, 'n', f.n)
+                           order by f.n desc, f.channel, f.code, f.kind)
+                             from failed_by f), '[]'::jsonb)),
+    'by_message', coalesce((select jsonb_agg(jsonb_build_object(
+                              'name', m.name, 'language', m.lang, 'sent', m.sent, 'mature', m.mature,
+                              'replied', m.replied)
+                            order by m.sent desc, m.name, m.lang)
+                              from by_message_rows m), '[]'::jsonb),
+    'first_reply', (select jsonb_build_object(
+                      'n', s.n,
+                      'median_s', s.median_s,
+                      'buckets', jsonb_build_object('m15', s.m15, 'h1', s.h1, 'h4', s.h4, 'h24', s.h24, 'h72', s.h72))
+                      from reply_stats s),
+    'approval', (select jsonb_build_object(
+                   'n', s.n,
+                   'median_s', s.median_s,
+                   'buckets', jsonb_build_object('h1', s.h1, 'h4', s.h4, 'h24', s.h24, 'over', s.over))
+                   from approval_stats s)
+  ) into v_result;
+
+  return v_result;
+end $_$;
+
+
+--
+-- Name: FUNCTION campaign_ledger(p_tenant_id uuid, p_days integer, p_end date); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.campaign_ledger(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports › Campaigns, beyond the days'' counts: over p_days and the same number of days before them, the people sent to and who wrote back (a person once, however many runs; sends whose 72-hour reply window is not over are still counting), the runs that sent by kind (moments and broadcasts), what runs held back and why (a reason of ours or other, dated by the run), the runs that failed or were canceled and why, why sends failed (the provider''s code, else one word of a closed set), each message''s sends, mature sends and replies, how soon the first reply came, and how long approvals waited. Counts only: nothing a person or a provider wrote comes out. SECURITY INVOKER: the caller''s RLS decides what a member reads. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today (00405).';
+
+
+--
 -- Name: campaign_month_sent(uuid, text, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1213,6 +1589,25 @@ COMMENT ON FUNCTION public.campaign_reply_window() IS 'The window a reply to a c
 
 
 --
+-- Name: campaign_run_lead(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.campaign_run_lead() RETURNS interval
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO ''
+    AS $$
+  select interval '37 days'
+$$;
+
+
+--
+-- Name: FUNCTION campaign_run_lead(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.campaign_run_lead() IS 'How long before a send its run may have been made: the 30 days a broadcast may be scheduled ahead (contracts BROADCAST_SCHEDULE_MAX_DAYS) plus a week for holds and throttles. campaign_ledger reads the runs made from the earliest instant it looks at, less this (00405).';
+
+
+--
 -- Name: campaign_series(uuid, integer, date); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1229,6 +1624,7 @@ declare
   v_start  timestamptz;
   v_stop   timestamptz;
   v_cur    date;
+  v_cur_start timestamptz;
   v_result jsonb;
 begin
   select timezone into v_tz from tenants where id = p_tenant_id;
@@ -1243,6 +1639,8 @@ begin
   v_start := ((v_end - (v_span - 1))::timestamp) at time zone v_tz;
   v_stop  := ((v_end + 1)::timestamp) at time zone v_tz;
   v_cur   := v_end - (v_days - 1);
+  -- The current period's first instant: an answer from here on is the current period's, one before it the period before's.
+  v_cur_start := v_cur::timestamp at time zone v_tz;
 
   with days as (
     select (v_end - (v_span - 1) + g)::date as day
@@ -1280,17 +1678,16 @@ begin
                       and i.created_at <= s.sent_at + public.campaign_reply_window())  as replied
       from sent s
   ),
-  -- A yes or a stop, from the desk or in the customer's own words: the
-  -- consent ledger both doors write (00013, 00043), email's own answer with them (00174: the one-click unsubscribe an
-  -- offer by email invites, and YES OFFERS by email), which this left out while offers went by WhatsApp alone. One
-  -- answer a person a day each way: the unsubscribe page's "stop all" writes the STOP and email's own no for one
-  -- press (stop_all_messages), and that is one stop.
+  -- A yes or a stop is an answer to a campaign (00403): what a person said to a run that reached them, from the desk or in
+  -- their own words, the unsubscribe an offer by email invites among them (00174) and a carrier's or WhatsApp's STOP, and
+  -- not the consent ledger as a whole (campaign_answers says which events are one). A person counts once a period and
+  -- answer, on the day of the earliest, whatever runs they said it to: the unsubscribe page's "stop all" writes the STOP
+  -- and email's own no for one press (stop_all_messages), and that is one stop.
   consent as (
-    select distinct (e.created_at at time zone v_tz)::date as day, e.subject_id, e.data->>'consent' as consent
-      from events e
-     where e.tenant_id = p_tenant_id
-       and e.kind = 'contact.consent_changed'
-       and e.created_at >= v_start and e.created_at < v_stop
+    select distinct on (a.contact_id, a.consent, (a.at >= v_cur_start))
+           (a.at at time zone v_tz)::date as day, a.contact_id, a.consent
+      from public.campaign_answers(p_tenant_id, v_start, v_stop) a
+     order by a.contact_id, a.consent, (a.at >= v_cur_start), a.at, a.event_id
   ),
   -- Each day from one pass over each source, grouped by the day (00251), where a scalar subquery per day and per
   -- count scanned both again for every day.
@@ -1387,7 +1784,146 @@ end $$;
 -- Name: FUNCTION campaign_series(p_tenant_id uuid, p_days integer, p_end date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports › Campaigns: messages sent by broadcasts and playbook runs, delivered and read receipts, replies within campaign_reply_window (the customer''s own words: not a call''s note, an automatic reply, a list''s mail or a booking tool''s notice), yeses and stops (an unsubscribe from offers by email among them, 00174; one a person a day each way), day by day over two periods, and the current period by source and by the channel each went by (0030; a row naming none went by WhatsApp). `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
+COMMENT ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports › Campaigns: messages sent by broadcasts and playbook runs, delivered and read receipts, replies within campaign_reply_window (the customer''s own words: not a call''s note, an automatic reply, a list''s mail or a booking tool''s notice), yeses and stops (a yes or a stop is an answer to a campaign run, public.campaign_answers, 00403: once a person and period, on the day of the earliest; an unsubscribe from offers by email among them, 00174), day by day over two periods, and the current period by source and by the channel each went by (0030; a row naming none went by WhatsApp). `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
+
+
+--
+-- Name: campaign_stuck(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.campaign_stuck(p_tenant_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql STABLE
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_since  constant timestamptz := now() - interval '30 days';
+  v_reach  constant timestamptz := now() - interval '30 days' - public.campaign_run_lead();
+  v_result jsonb;
+begin
+  if not exists (select 1 from tenants where id = p_tenant_id) then
+    return jsonb_build_object('error', 'unknown_tenant');
+  end if;
+
+  with
+  -- Waiting for an OK: the oldest 500, any kind. The kind comes from the audience (a deleted playbook's run keeps it).
+  waiting as (
+    select b.id, b.name, b.playbook_id, b.run_for, b.created_at, b.recipient_count,
+           case when b.audience ->> 'kind' = 'reach_out' then 'reach_out'
+                when b.audience ->> 'kind' = 'playbook' or b.playbook_id is not null then 'moment'
+                else 'broadcast' end       as kind,
+           b.audience ->> 'trigger'        as run_trigger,
+           b.audience ->> 'kind'           as audience_kind
+      from broadcasts b
+     where b.tenant_id = p_tenant_id
+       and b.state = 'pending_approval'
+     order by b.created_at, b.id
+     limit 500
+  ),
+
+  -- Failed in the last 30 days: the newest 500, told by a failure of ours. A run is made up to the lead before it ends.
+  failed as (
+    select b.id, b.name,
+           case when b.audience ->> 'kind' = 'reach_out' then 'reach_out'
+                when b.audience ->> 'kind' = 'playbook' or b.playbook_id is not null then 'moment'
+                else 'broadcast' end       as kind,
+           case when b.failure ~ '^[a-z_]+(:[a-z]+)?$' then b.failure else 'other' end as failure,
+           coalesce(b.finished_at, b.updated_at) as finished_at
+      from broadcasts b
+     where b.tenant_id = p_tenant_id
+       and b.state = 'failed'
+       and b.created_at >= v_reach
+       and coalesce(b.finished_at, b.updated_at) >= v_since
+     order by coalesce(b.finished_at, b.updated_at) desc, b.id
+     limit 500
+  ),
+
+  -- The sends of the last 30 days, of moments and broadcasts, to a thread that could be waiting on a person (a superset of
+  -- standingOfThread's flagged: needs_human, any pause, an open escalation), and the first answer each got. The filter is
+  -- applied before the probe, so only those threads are looked into; the probe is campaign_ledger's, once per send.
+  reached as (
+    select s.conversation_id, s.state, s.paused_until, s.assignee_user_id, s.open_escalation, f.at as first_reply_at
+      from (
+        select m.conversation_id, r.sent_at, c.state, c.paused_until, c.assignee_user_id,
+               exists (select 1 from escalations e where e.conversation_id = c.id and e.state = 'open') as open_escalation
+          from broadcasts b
+          join broadcast_recipients r on r.broadcast_id = b.id and r.tenant_id = p_tenant_id
+          join messages m on m.id = r.message_id
+          join conversations c on c.id = m.conversation_id and c.tenant_id = p_tenant_id
+         where b.tenant_id = p_tenant_id
+           and b.created_at >= v_reach
+           and b.audience ->> 'kind' is distinct from 'reach_out'
+           and r.state = 'sent'
+           and r.sent_at >= v_since
+      ) s
+      cross join lateral (
+        select min(x.at) as at
+          from (select i.created_at as at
+                  from messages i
+                 where i.conversation_id = s.conversation_id
+                   and i.direction = 'inbound'
+                   and i.sender = 'customer'
+                   and public.message_is_a_persons_words(i.meta)
+                   and i.created_at > s.sent_at
+                   and i.created_at <= s.sent_at + public.campaign_reply_window()
+                offset 0) x
+      ) f
+     where (s.state = 'needs_human' or s.paused_until is not null or s.open_escalation)
+       and f.at is not null
+  ),
+  -- One row a thread: the later of its sends' first answers. The oldest 500.
+  flagged as (
+    select r.conversation_id, r.state, r.paused_until, r.assignee_user_id, r.open_escalation,
+           max(r.first_reply_at) as replied_at
+      from reached r
+     group by r.conversation_id, r.state, r.paused_until, r.assignee_user_id, r.open_escalation
+     order by max(r.first_reply_at), r.conversation_id
+     limit 500
+  ),
+
+  -- What Meta stopped: a WhatsApp message that is not hidden, used or not.
+  tpl as (
+    select t.name, t.language, t.meta_status, t.quality
+      from templates t
+     where t.tenant_id = p_tenant_id
+       and t.channel = 'whatsapp'
+       and t.hidden_at is null
+       and t.meta_status in ('paused', 'disabled', 'rejected')
+     order by t.name, t.language
+     limit 100
+  )
+
+  select jsonb_build_object(
+    'runs_waiting', coalesce((select jsonb_agg(jsonb_build_object(
+                                'id', w.id, 'name', w.name, 'kind', w.kind, 'playbook_id', w.playbook_id,
+                                'run_for', w.run_for, 'trigger', w.run_trigger, 'audience_kind', w.audience_kind,
+                                'created_at', w.created_at, 'recipient_count', w.recipient_count)
+                              order by w.created_at, w.id)
+                                from waiting w), '[]'::jsonb),
+    'runs_failed', coalesce((select jsonb_agg(jsonb_build_object(
+                               'id', f.id, 'name', f.name, 'kind', f.kind, 'failure', f.failure,
+                               'finished_at', f.finished_at)
+                             order by f.finished_at desc, f.id)
+                               from failed f), '[]'::jsonb),
+    'replies', coalesce((select jsonb_agg(jsonb_build_object(
+                           'state', t.state, 'paused_until', t.paused_until, 'assignee_user_id', t.assignee_user_id,
+                           'open_escalation', t.open_escalation, 'replied_at', t.replied_at)
+                         order by t.replied_at, t.conversation_id)
+                           from flagged t), '[]'::jsonb),
+    'templates', coalesce((select jsonb_agg(jsonb_build_object(
+                             'name', t.name, 'language', t.language, 'status', t.meta_status, 'quality', t.quality)
+                           order by t.name, t.language)
+                             from tpl t), '[]'::jsonb)
+  ) into v_result;
+
+  return v_result;
+end $_$;
+
+
+--
+-- Name: FUNCTION campaign_stuck(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.campaign_stuck(p_tenant_id uuid) IS 'Reports › Campaigns, what is stuck as it stands now (no window): the runs waiting for an OK (any kind, with the facts the day rule reads), the runs that failed in the last 30 days (a failure of ours, else other), the threads that answered a moment or a broadcast within the reply window and may wait on a person (needs_human, any pause or an open escalation: wider than standingOfThread''s flagged, on purpose, with the facts the rule reads), and the WhatsApp messages Meta paused, disabled or rejected. Facts, never verdicts, and nothing a person or a provider wrote. Each list at most 500, the messages 100. SECURITY INVOKER: the caller''s RLS decides what a member reads (00406).';
 
 
 --
@@ -14979,6 +15515,51 @@ COMMENT ON FUNCTION public.profile_set(p_display_name text) IS 'Your own display
 
 
 --
+-- Name: provider_code_of(jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.provider_code_of(p_error jsonb) RETURNS integer
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO ''
+    AS $_$
+  select x.code
+    from (select string_agg(chr(c), '') as ws
+            from unnest(array[9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200,
+                              8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279]) c) w
+   cross join lateral (values
+           (1, p_error -> 'errors' -> 0 -> 'code'),
+           (2, p_error -> 'code'),
+           (3, case jsonb_typeof(p_error -> 'body')
+                 when 'object' then p_error -> 'body' -> 'error' -> 'code'
+                 when 'string' then to_jsonb(substring(p_error ->> 'body'
+                                      from '"code"[' || w.ws || ']*:[' || w.ws || ']*([0-9]{3,6})'))
+               end),
+           (4, case jsonb_typeof(p_error -> 'body')
+                 when 'string' then to_jsonb(substring(btrim(p_error ->> 'body', w.ws) from '^Twilio ([0-9]{5})$'))
+               end)) c(ord, j)
+   cross join lateral (
+           select case jsonb_typeof(c.j)
+                    when 'number' then
+                      case when (c.j)::numeric > 0 and (c.j)::numeric = trunc((c.j)::numeric)
+                                and (c.j)::numeric <= 2147483647
+                           then (c.j)::numeric::integer end
+                    when 'string' then
+                      case when btrim(c.j #>> '{}', w.ws) ~ '^[0-9]{3,6}$' then btrim(c.j #>> '{}', w.ws)::integer end
+                  end as code) x
+   where x.code is not null
+   order by c.ord
+   limit 1
+$_$;
+
+
+--
+-- Name: FUNCTION provider_code_of(p_error jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.provider_code_of(p_error jsonb) IS 'The provider''s error code on a failed message, wherever the writer put it: the first of a receipt''s errors list, a receipt''s code, then the answer to the send itself as body (Graph''s JSON cut short, read for its "code", or "Twilio 30034"; or an object holding error.code). A code is a whole number above zero or 3 to 6 digits in a string; null when the row says none (a number past the integer type is none). contracts'' providerCodeOf says the same in TypeScript; reports/campaigns/provider-code.db.test.mjs holds the two equal (00405).';
+
+
+--
 -- Name: provider_events_scrub(uuid, text[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -16006,6 +16587,12 @@ begin
         from period x
        group by x.root_id
     ),
+    -- The businesses a chain wrote to (00404): the population wrote_back is a count of.
+    written_to as (
+      select ls.root_id, count(*) as businesses
+        from last_sent ls
+       group by ls.root_id
+    ),
     wrote_back as (
       select ls.root_id, count(*) as wrote_back
         from last_sent ls
@@ -16014,10 +16601,12 @@ begin
     )
     select coalesce(jsonb_object_agg(r.id::text, jsonb_build_object(
              'written', coalesce(c.written, 0),
+             'businesses', coalesce(n.businesses, 0),
              'wrote_back', coalesce(b.wrote_back, 0),
              'last_at', c.last_at)), '{}'::jsonb)
       from public.playbooks r
       left join per_chain c on c.root_id = r.id
+      left join written_to n on n.root_id = r.id
       left join wrote_back b on b.root_id = r.id
      where r.tenant_id = p_tenant_id and r.kind = 'reach_out' and r.trigger = 'lead_first'
   );
@@ -16028,7 +16617,7 @@ end $$;
 -- Name: FUNCTION reach_out_chain_totals(p_tenant_id uuid, p_days integer, p_end date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_chain_totals(p_tenant_id uuid, p_days integer, p_end date) IS 'Every chain of the workspace (a reach-out''s first step), by its id, for a member (may_read_workspace): what it wrote over p_days days (1 to 90) to the window''s last day in the workspace''s zone, the window reach_out_report reads, how many businesses it wrote to wrote back (outreach_wrote_back, each once a chain at its last email) and when it last wrote in it; a chain that wrote nothing is { written: 0, wrote_back: 0, last_at: null } (00375). `p_end` is the window''s last day, as 00360 reads it: null is today, and a day that has not come is read as today.';
+COMMENT ON FUNCTION public.reach_out_chain_totals(p_tenant_id uuid, p_days integer, p_end date) IS 'Every chain of the workspace (a reach-out''s first step), by its id, for a member (may_read_workspace): what it wrote over p_days days (1 to 90) to the window''s last day in the workspace''s zone, the window reach_out_report reads, in emails (written) and in businesses (the ones it wrote to, each once a chain at its last email: the population wrote_back is a count of, so wrote_back is never more than businesses, 00404), how many of them wrote back (outreach_wrote_back) and when it last wrote in it; a chain that wrote nothing is { written: 0, businesses: 0, wrote_back: 0, last_at: null } (00375, 00404). `p_end` is the window''s last day, as 00360 reads it: null is today, and a day that has not come is read as today.';
 
 
 --
@@ -17537,6 +18126,7 @@ declare
   v_end   date;
   v_since timestamptz;
   v_stop  timestamptz;
+  v_prior timestamptz;
 begin
   if auth.uid() is null or not exists (
        select 1 from public.memberships m where m.tenant_id = p_tenant_id and m.user_id = auth.uid()
@@ -17555,10 +18145,14 @@ begin
   v_end   := least(coalesce(p_end, v_today), v_today);
   v_since := (v_end - (p_days - 1))::timestamp at time zone v_tz;
   v_stop  := ((v_end + 1)::timestamp) at time zone v_tz;
+  -- Where the period before begins (00404): the same count of days, ending where the window begins.
+  v_prior := (v_end - (p_days * 2 - 1))::timestamp at time zone v_tz;
   return (
     -- An email that left (00179's one spelling, email_left): sent, or failed by a receipt after it left, which is how
-    -- the clock settles a send whose email bounced before it was read sent. Dated by when it left.
-    with left_ as (
+    -- the clock settles a send whose email bounced before it was read sent. Dated by when it left. Read twice now (the
+    -- window's `sent` and the period before), so not materialized (00404): each read takes the rows it needs, and the
+    -- tenant's whole history of emails is never held for the second.
+    with left_ as not materialized (
       select s.id, s.root_id, s.playbook_id, s.lead_id, s.contact_id, s.domain_id,
              coalesce(s.sent_at, public.email_sent_at(m.meta, m.status_updated_at, m.created_at)) as sent_at,
              lower(nullif(btrim(s.angle), '')) as angle, m.status, m.error, m.meta
@@ -17599,6 +18193,7 @@ begin
     ),
     angles as (
       select x.angle, count(*) as written,
+             (select count(*) from answers a where a.angle = x.angle) as businesses,
              (select count(*) from answers a where a.angle = x.angle and a.wrote_back) as wrote_back,
              row_number() over (order by count(*) desc, x.angle) as rank
         from sent x
@@ -17625,6 +18220,7 @@ begin
                                where p.tenant_id = p_tenant_id and p.kind = 'reach_out' and p.trigger = 'lead_first'),
       'totals', jsonb_build_object(
         'written', (select count(*) from sent),
+        'businesses', (select count(*) from last_sent),
         'delivered', (select count(*) from sent where status in ('delivered', 'read')),
         'bounced', (select count(*) from sent where status = 'failed' and error->>'provider' = 'bounced'),
         'wrote_back', (select count(*) from answers where wrote_back),
@@ -17632,6 +18228,13 @@ begin
         'booked', (select count(*) from answers where booked),
         'said_no', (select count(*) from answers where said_no),
         'handed', coalesce((select sum(n) from handed), 0)),
+      -- What the period before wrote, counted as the totals count it: emails only (00404).
+      'before', (
+        select jsonb_build_object(
+                 'written', count(*),
+                 'delivered', count(*) filter (where x.status in ('delivered', 'read')),
+                 'bounced', count(*) filter (where x.status = 'failed' and x.error->>'provider' = 'bounced'))
+          from left_ x where x.sent_at >= v_prior and x.sent_at < v_since),
       'series', (
         select coalesce(jsonb_agg(jsonb_build_object('day', g.day, 'written', coalesce(c.n, 0)) order by g.day), '[]'::jsonb)
           from (select (v_end - k) as day from generate_series(0, p_days - 1) k) g
@@ -17668,6 +18271,7 @@ begin
                                          and x.status in ('delivered', 'read')),
                          'bounced', (select count(*) from sent x where x.playbook_id = c.id
                                        and x.status = 'failed' and x.error->>'provider' = 'bounced'),
+                         'businesses', (select count(*) from answers a where a.playbook_id = c.id),
                          'wrote_back', (select count(*) from answers a where a.playbook_id = c.id and a.wrote_back),
                          'interested', (select count(*) from answers a where a.playbook_id = c.id and a.interested),
                          'booked', (select count(*) from answers a where a.playbook_id = c.id and a.booked),
@@ -17683,11 +18287,13 @@ begin
              limit 20
           ) ch), '[]'::jsonb),
       'angles', coalesce((
-        select jsonb_agg(jsonb_build_object('angle', a.angle, 'written', a.written, 'wrote_back', a.wrote_back)
+        select jsonb_agg(jsonb_build_object('angle', a.angle, 'written', a.written, 'businesses', a.businesses,
+                                            'wrote_back', a.wrote_back)
                          order by a.rank)
           from angles a where a.rank <= 8), '[]'::jsonb),
       'other_angles', jsonb_build_object(
         'written', coalesce((select sum(a.written) from angles a where a.rank > 8), 0),
+        'businesses', coalesce((select sum(a.businesses) from angles a where a.rank > 8), 0),
         'wrote_back', coalesce((select sum(a.wrote_back) from angles a where a.rank > 8), 0)),
       'no_angle', (select count(*) from sent where angle is null),
       'domains', coalesce((
@@ -17704,7 +18310,7 @@ end $$;
 -- Name: FUNCTION reach_out_report(p_tenant_id uuid, p_days integer, p_end date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_report(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports'' Reach-outs section (Reach out Part 6, H1, H3-H6), for a member: over p_days days (1 to 90; any other is refused) to the window''s last day in the workspace''s zone, the emails that left and what came of them. has_reach_out, totals, series (written per day), chains (at most 20, each with its steps; reach_out_chain_totals counts every chain over the same window, 00375), angles (the top 8, other_angles, no_angle) and domains (at most 10; a removed domain''s host is null). Each lead is counted once per chain at its last email of the period; wrote back is outreach_wrote_back. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
+COMMENT ON FUNCTION public.reach_out_report(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports'' Reach-outs section (Reach out Part 6, H1, H3-H6), for a member: over p_days days (1 to 90; any other is refused) to the window''s last day in the workspace''s zone, the emails that left and what came of them. has_reach_out, totals, before (written, delivered and bounced over the same count of days before the window, 00404: outcomes are state now, so they have no period before), series (written per day), chains (at most 20, each with its steps; reach_out_chain_totals counts every chain over the same window, 00375), angles (the top 8, other_angles, no_angle) and domains (at most 10; a removed domain''s host is null). Emails are written, delivered and bounced; businesses are the leads written to, each once per chain at its last email of the period, and every outcome (wrote back, interested, booked, said no) is a count of them, so it is never more than `businesses`, on the totals, on a step (the businesses whose last email was that step), on an angle (the ones whose last email had it) and past the top 8 (00404); wrote back is outreach_wrote_back. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
 
 
 --
@@ -33338,6 +33944,24 @@ GRANT ALL ON FUNCTION public.calls_note_transfer() TO service_role;
 
 
 --
+-- Name: FUNCTION campaign_answers(p_tenant_id uuid, p_since timestamp with time zone, p_until timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.campaign_answers(p_tenant_id uuid, p_since timestamp with time zone, p_until timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.campaign_answers(p_tenant_id uuid, p_since timestamp with time zone, p_until timestamp with time zone) TO authenticated;
+GRANT ALL ON FUNCTION public.campaign_answers(p_tenant_id uuid, p_since timestamp with time zone, p_until timestamp with time zone) TO service_role;
+
+
+--
+-- Name: FUNCTION campaign_ledger(p_tenant_id uuid, p_days integer, p_end date); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.campaign_ledger(p_tenant_id uuid, p_days integer, p_end date) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.campaign_ledger(p_tenant_id uuid, p_days integer, p_end date) TO authenticated;
+GRANT ALL ON FUNCTION public.campaign_ledger(p_tenant_id uuid, p_days integer, p_end date) TO service_role;
+
+
+--
 -- Name: FUNCTION campaign_month_sent(p_tenant_id uuid, p_channel text, p_at timestamp with time zone); Type: ACL; Schema: public; Owner: -
 --
 
@@ -33355,12 +33979,30 @@ GRANT ALL ON FUNCTION public.campaign_reply_window() TO service_role;
 
 
 --
+-- Name: FUNCTION campaign_run_lead(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.campaign_run_lead() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.campaign_run_lead() TO authenticated;
+GRANT ALL ON FUNCTION public.campaign_run_lead() TO service_role;
+
+
+--
 -- Name: FUNCTION campaign_series(p_tenant_id uuid, p_days integer, p_end date); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer, p_end date) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer, p_end date) TO authenticated;
 GRANT ALL ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer, p_end date) TO service_role;
+
+
+--
+-- Name: FUNCTION campaign_stuck(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.campaign_stuck(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.campaign_stuck(p_tenant_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.campaign_stuck(p_tenant_id uuid) TO service_role;
 
 
 --
@@ -35552,6 +36194,15 @@ GRANT ALL ON FUNCTION public.playbooks_due(p_kind text, p_at timestamp with time
 REVOKE ALL ON FUNCTION public.profile_set(p_display_name text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.profile_set(p_display_name text) TO authenticated;
 GRANT ALL ON FUNCTION public.profile_set(p_display_name text) TO service_role;
+
+
+--
+-- Name: FUNCTION provider_code_of(p_error jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.provider_code_of(p_error jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.provider_code_of(p_error jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.provider_code_of(p_error jsonb) TO service_role;
 
 
 --

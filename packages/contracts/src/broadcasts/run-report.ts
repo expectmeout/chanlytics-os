@@ -5,6 +5,7 @@
 import { audienceTrigger } from "./broadcast-audience";
 import { broadcastFailureFix, broadcastFailureWords } from "./broadcast-failures";
 import type { BroadcastRecipientDto } from "./broadcasts";
+import type { AnswerPurpose } from "./run-answers";
 import { HELD_REASONS } from "./run-words";
 import { CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, type ConsentChannel } from "../consent/consent-channels";
 import type { ParamSpec } from "../templates/templates";
@@ -120,9 +121,6 @@ type ReportRecipient = Pick<
   | "answered_at"
   | "waiting_on_you"
 >;
-
-/** Which question a person's answer after a run was to: offers, offers by email (their own answer, 00174), or everything. */
-type AnswerPurpose = NonNullable<BroadcastRecipientDto["consent_purpose"]>;
 
 /**
  * Which answer a yes or a stop was, said once for a person and once for a

@@ -10,7 +10,9 @@
  * own rule for who is told. The Receptionist lens's rows (convergeReceptionist)
  * are held to the same bar, and to what the lens reads of them; so are the People
  * lens's (convergePeople: a yes on the ledger for each person, three steps done,
- * and no step open).
+ * and no step open); so are the Campaigns lens's (convergeCampaigns: one run that
+ * went out to the three people, two messages delivered, one reply and the owner's
+ * approval, and no run, message or job anything could still be waiting on).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -91,6 +93,9 @@ const { sweepUnfinished } = await import(
 const { RECEPTIONIST_PREFIX, MISSED_CALL_ID } = seed;
 // The People lens's rows (convergePeople): the prefix of each step's words and the note on each yes's event.
 const { PEOPLE_PREFIX, PEOPLE_NOTE } = seed;
+// The Campaigns lens's rows (convergeCampaigns): the prefix of its messages' ids, the mark on its approval, the run's name
+// and the message it sent.
+const { CAMPAIGNS_PREFIX, CAMPAIGNS_NOTE, CAMPAIGN_RUN, CAMPAIGN_MESSAGE } = seed;
 
 const OWNER = "e2e-owner@example.com";
 const MATE = "e2e-member@example.com";
@@ -281,8 +286,8 @@ test("converging twice leaves one workspace in one state: nothing is duplicated"
   assert.equal(of(w.t, "contact_identities", T).length, PEOPLE.length);
   assert.equal(
     of(w.t, "conversations", T).length,
-    2,
-    "Robin's, whose two messages the other specs read, and Sam's, which the Receptionist lens draws",
+    3,
+    "Robin's, whose two messages the other specs read, Sam's, which the Receptionist lens draws, and Casey's, where the Campaigns run's reply is",
   );
   const robins = threadOf(w.t, T, ROBIN.phone);
   assert.deepEqual(
@@ -369,9 +374,15 @@ test("every row it writes is one the production sweeps leave alone", async () =>
     { escalation_emails: [ALERT_INBOX] },
     "one address an alert can go to, and it is Resend's test inbox",
   );
-  for (const table of ["jobs", "lines", "playbooks", "broadcasts"]) {
+  for (const table of ["jobs", "lines", "playbooks"]) {
     assert.equal(of(w.t, table, T).length, 0, `no ${table}`);
   }
+  // The one run is the Campaigns lens's, and it went out: nothing is waiting for a person or for a send job.
+  assert.deepEqual(
+    of(w.t, "broadcasts", T).map((b) => b.state),
+    ["sent"],
+    "one run, and it is sent",
+  );
   // Two escalations exist, both resolved when they were written: an open one is paged to the platform after two hours.
   assert.deepEqual(
     of(w.t, "escalations", T).map((e) => e.state),
@@ -573,10 +584,37 @@ test("what the specs leave behind is put back", async () => {
     { id: "deal-stray", tenant_id: T, contact_id: "stray", stage: "won" },
     { id: "deal-elsewhere", tenant_id: "elsewhere", contact_id: "someone", stage: "won" },
   );
+  // A run a spec made and left waiting, with a person on it (the database cascades them; a double does not): every run starts from none.
+  w.t.broadcasts.push({
+    id: "stray-run",
+    tenant_id: T,
+    name: "stray run",
+    state: "scheduled",
+    scheduled_for: new Date(NOW + DAY_MS).toISOString(),
+  });
+  w.t.broadcast_recipients.push({
+    broadcast_id: "stray-run",
+    contact_id: robin.id,
+    tenant_id: T,
+    state: "queued",
+    channel: "whatsapp",
+  });
   const cfg = w.t.tenant_config.find((r) => r.tenant_id === T);
   cfg.config = { ...cfg.config, notifications: { escalation_emails: ["owner@a-real-business.com"] } };
 
   await run(w, { now: NOW + 3_600_000 });
+  assert.deepEqual(
+    of(w.t, "broadcasts", T).map((b) => b.name),
+    [CAMPAIGN_RUN],
+    "the stray run is gone and the seed's own is written afresh",
+  );
+  assert.deepEqual(
+    of(w.t, "broadcast_recipients", T)
+      .map((r) => r.state)
+      .sort(),
+    ["sent", "sent", "skipped"],
+    "and so are its people: the stray's queued one went with its run",
+  );
 
   assert.deepEqual(
     of(w.t, "contacts", T)
@@ -584,7 +622,7 @@ test("what the specs leave behind is put back", async () => {
       .sort(),
     PEOPLE.map((p) => p.name).sort(),
   );
-  assert.equal(of(w.t, "conversations", T).length, 2, "Robin's and Sam's: the stray one is gone");
+  assert.equal(of(w.t, "conversations", T).length, 3, "Robin's, Sam's and Casey's: the stray one is gone");
   assert.deepEqual(
     of(w.t, "messages", T)
       .map((m) => m.external_id)
@@ -686,6 +724,16 @@ test("a run backs the workspace up before it writes", async () => {
     backedUp.some((r) => r.table === "events"),
     false,
     "the ledger's rows a run replaces are not: they are the seed's own, written afresh",
+  );
+  assert.deepEqual(
+    ["broadcasts", "broadcast_recipients"].map((table) => backedUp.filter((r) => r.table === table).length),
+    [1, 3],
+    "the run the Campaigns lens reads and its three people, which the run deletes and writes again",
+  );
+  assert.deepEqual(
+    backedUp.filter((r) => r.table === "decisions").map((r) => r.row.payload.seed),
+    [CAMPAIGNS_NOTE],
+    "and its approval alone of the decisions: the seed's own, found by its mark",
   );
 });
 
@@ -972,10 +1020,18 @@ test("the Receptionist lens's rows: Sam's conversation holds a week of what the 
   );
   const sam = personAt(w.t, T, SAM.phone);
   const casey = personAt(w.t, T, CASEY.phone);
-  const thread = of(w.t, "messages", T).filter((m) => m.conversation_id === cv.id);
+  const inSam = of(w.t, "messages", T).filter((m) => m.conversation_id === cv.id);
+  // His thread is the Receptionist lens's, and holds the one message the Campaigns run sent him (convergeCampaigns, which
+  // runs after), named by its own prefix: what is asked of the Receptionist's rows is asked of the ones it wrote.
+  const thread = inSam.filter((m) => String(m.external_id).startsWith(RECEPTIONIST_PREFIX));
   assert.ok(
-    thread.every((m) => m.contact_id === sam.id && String(m.external_id).startsWith(RECEPTIONIST_PREFIX)),
+    inSam.every((m) => m.contact_id === sam.id) && thread.every((m) => m.contact_id === sam.id),
     "every message in it is Sam's and the seed's, named by its prefix",
+  );
+  assert.deepEqual(
+    inSam.filter((m) => !thread.includes(m)).map((m) => m.external_id),
+    [`${CAMPAIGNS_PREFIX}out-sam`],
+    "and the one the Campaigns run sent him is the only other",
   );
   assert.equal(new Set(thread.map((m) => m.external_id)).size, thread.length, "each once");
   assert.equal(RECEPTIONIST_PREFIX, "e2e-seed-r-");
@@ -1112,7 +1168,11 @@ test("what the lens will make of those rows: the hold, the topics, the languages
       ["whatsapp", "sms"].includes(m.channel) &&
       personsWords(m),
   );
-  assert.equal(texts.length, 6);
+  assert.equal(
+    texts.length,
+    7,
+    "Robin's one, Sam's five and Casey's reply to the Campaigns run (which names no topic)",
+  );
   assert.deepEqual(
     count(
       texts.filter((m) => m.meta?.intent),
@@ -1135,7 +1195,14 @@ test("what the lens will make of those rows: the hold, the topics, the languages
   // the handovers: the first reply of a person after each, and how long each took to settle,
   const medians = of(w.t, "escalations", T).map((e) => {
     const first = messages
-      .filter((m) => m.conversation_id === e.conversation_id && m.sender === "human" && m.direction === "outbound")
+      .filter(
+        (m) =>
+          m.conversation_id === e.conversation_id &&
+          m.sender === "human" &&
+          m.direction === "outbound" &&
+          // Written as a person's, and nobody's: a broadcast's send is no answer to a handover (public.automated_send).
+          !["broadcast", "reach_out"].includes(m.meta?.source),
+      )
       .map((m) => Date.parse(m.created_at))
       .filter((at) => at > Date.parse(e.created_at))
       .sort()[0];
@@ -1174,13 +1241,14 @@ test("the workspace keeps no opening hours, as the local harness's record and th
   assert.ok(TenantConfigWriteSchema.safeParse(cfg.config).success, "a config the settings save accepts");
   assert.deepEqual(cfg.config.notifications, { escalation_emails: [ALERT_INBOX] }, "and the alerts are as they were");
 
-  // Each person's words by the workspace's own day and quarter hour (what receptionist_series counts as arrivals): six,
-  // Robin's one and Sam's five, for the automated email is nobody's arrival. Asked the one question the lens asks of a
-  // workspace with no hours (closedOf), the answer is none, which the lens words as a request for them and not as zero.
+  // Each person's words by the workspace's own day and quarter hour (what receptionist_series counts as arrivals): seven,
+  // Robin's one, Sam's five and Casey's reply to the Campaigns run, for the automated email is nobody's arrival. Asked the
+  // one question the lens asks of a workspace with no hours (closedOf), the answer is none, which the lens words as a
+  // request for them and not as zero.
   const arrivals = of(w.t, "messages", T)
     .filter((m) => m.direction === "inbound" && m.sender === "customer" && personsWords(m))
     .map((m) => ({ d: localOf(m.created_at).day, q: localOf(m.created_at).q, n: 1 }));
-  assert.equal(arrivals.length, 6);
+  assert.equal(arrivals.length, 7);
   assert.equal(closedOf(arrivals, {}), null);
 });
 
@@ -1249,10 +1317,16 @@ test("the Receptionist rows delete their own last night's before they are writte
   );
   assert.deepEqual(
     counted().map((n, i) => n - before[i]),
-    [0, 0, 0, 0, 1, 0],
-    "the same rows again, and the other event is not the seed's to delete",
+    [0, -1, 0, 0, 1, 0],
+    "the same rows again, but for the one message the Campaigns run sent Sam, which went with his thread, and the other event is not the seed's to delete",
   );
   assert.notEqual(threadOf(w.t, T, SAM.phone).id, cv.id, "a conversation of its own, written afresh");
+  assert.ok(
+    (await verify(w.db, T, ownerId)).some((p) => /Campaigns|run/.test(p)),
+    "and verify names the run it left without a message",
+  );
+  // The run is written after the Receptionist's rows, and writing it again puts that message back.
+  await seed.convergeCampaigns(w.db, T, ownerId, NOW + DAY_MS);
   assert.deepEqual(await verify(w.db, T, ownerId), []);
 });
 
@@ -1445,7 +1519,14 @@ test("the eval's Win-back (the moment spec, A8): written only under --seed-win-b
   const { tenantId: T } = await run(w);
   const ownerId = w.t.memberships.find((m) => m.role === "owner").user_id;
   assert.deepEqual(of(w.t, "playbooks", T), [], "merging seeds nothing");
-  assert.deepEqual(of(w.t, "templates", T), [], "nor a message for it");
+  // The Campaigns lens's run has a message of its own, and the Win-back's is not it.
+  const winBackMessages = () => of(w.t, "templates", T).filter((m) => m.name === WIN_BACK.template);
+  assert.deepEqual(winBackMessages(), [], "nor a message for it");
+  assert.deepEqual(
+    of(w.t, "templates", T).map((m) => m.name),
+    [CAMPAIGN_MESSAGE.name],
+    "the run's message is the only one",
+  );
   // A dry run under the flag says what it would add, and adds nothing.
   const before = JSON.stringify(w.t);
   const dry = await run(w, { apply: false, seedWinBack: true });
@@ -1465,7 +1546,7 @@ test("the eval's Win-back (the moment spec, A8): written only under --seed-win-b
     [[WIN_BACK.name, "quiet_30", "paused", "reengage"]],
   );
   const [winBack] = playbooks;
-  const messages = of(w.t, "templates", T);
+  const messages = winBackMessages();
   assert.equal(messages.length, 1, "one message, written once");
   const [message] = messages;
   assert.equal(winBack.template_id, message.id);
@@ -1504,7 +1585,12 @@ test("the eval's Win-back (the moment spec, A8): written only under --seed-win-b
     of(w.t, "playbooks", T).map((p) => [p.name, p.state, p.run_hour]),
     [[WIN_BACK.name, "paused", 10]],
   );
-  assert.equal(of(w.t, "templates", T).length, 1, "and no second message");
+  assert.equal(winBackMessages().length, 1, "and no second message");
+  assert.equal(
+    of(w.t, "templates", T).filter((m) => m.name === CAMPAIGN_MESSAGE.name).length,
+    1,
+    "nor a second one for the Campaigns run",
+  );
   assert.deepEqual(await due(), []);
 });
 
@@ -1840,4 +1926,692 @@ test("verify() names a step left open under the prefix, one with no day, a yes t
   assert.notEqual(await said(), "");
   await run(w, { now: NOW + DAY_MS });
   assert.deepEqual(await verify(w.db, T, ownerId), [], "the next run puts it back");
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// The Campaigns lens's rows (convergeCampaigns): one run that went out to the three seeded people, and what came of it.
+// ---------------------------------------------------------------------------------------------------------------------
+
+/** The seed's run, found by its name; the people on it; the messages it wrote, found by their prefix; the approval it was given, by its mark. */
+const theRun = (t, tenantId) => of(t, "broadcasts", tenantId).filter((b) => b.name === CAMPAIGN_RUN);
+const runPeople = (t, tenantId) => of(t, "broadcast_recipients", tenantId);
+const campaignMessages = (t, tenantId) =>
+  of(t, "messages", tenantId).filter((m) => String(m.external_id ?? "").startsWith(CAMPAIGNS_PREFIX));
+const approvalsOf = (t, tenantId) => of(t, "decisions", tenantId).filter((d) => d.payload?.seed === CAMPAIGNS_NOTE);
+/** The reply window of a send (public.campaign_reply_window, contracts REPLY_WINDOW_HOURS). */
+const REPLY_WINDOW_MS = 72 * HOUR_MS;
+/**
+ * What the lens's reply probe finds for a person a run sent to (00405 `sent`): the first thing they wrote in the thread the
+ * message went to, in their own words, after the send and within the window. Milliseconds after the send, or null.
+ */
+function firstReplyAfter(t, tenantId, recipient) {
+  const sentAt = Date.parse(recipient.sent_at);
+  const sentMessage = of(t, "messages", tenantId).find((m) => m.id === recipient.message_id);
+  const replies = of(t, "messages", tenantId)
+    .filter(
+      (m) =>
+        m.conversation_id === sentMessage?.conversation_id &&
+        m.direction === "inbound" &&
+        m.sender === "customer" &&
+        personsWords(m) &&
+        Date.parse(m.created_at) > sentAt &&
+        Date.parse(m.created_at) <= sentAt + REPLY_WINDOW_MS,
+    )
+    .map((m) => Date.parse(m.created_at));
+  return replies.length ? Math.min(...replies) - sentAt : null;
+}
+
+test("the Campaigns lens's rows: one message, one run that went out to the three seeded people, two messages delivered and read, a reply, and the owner's approval 40 minutes after the run was made", async () => {
+  const w = world();
+  const { tenantId: T } = await run(w);
+  const ownerId = w.users.find((u) => u.email === OWNER).id;
+  assert.equal(CAMPAIGNS_PREFIX, "e2e-seed-c-");
+  assert.equal(CAMPAIGN_RUN, "e2e seed: hello");
+  assert.equal(CAMPAIGN_MESSAGE.name, "e2e_seed_hello");
+  const [robin, casey, sam] = PEOPLE.map((p) => personAt(w.t, T, p.phone));
+
+  // The message: WhatsApp, in English, approved, written here and not synced from Meta, in made-up words.
+  const templates = of(w.t, "templates", T).filter((m) => m.name === CAMPAIGN_MESSAGE.name);
+  assert.equal(templates.length, 1, "written once");
+  const [template] = templates;
+  assert.deepEqual(
+    [template.channel, template.language, template.meta_status, template.source, template.hidden_at ?? null],
+    ["whatsapp", "en_US", "approved", "chanlytics", null],
+  );
+  assert.equal(template.body_preview, CAMPAIGN_MESSAGE.body);
+  assert.ok(template.body_preview.length > 20, "words for a person to read");
+
+  // The run: a broadcast to everyone, sent, made by the owner and finished a few minutes after it began.
+  const runs = of(w.t, "broadcasts", T);
+  assert.equal(runs.length, 1, "the only run in the workspace");
+  const [made] = runs;
+  assert.deepEqual(
+    [
+      made.name,
+      made.state,
+      made.audience.kind,
+      made.recipient_count,
+      made.created_by,
+      made.channels,
+      made.failure ?? null,
+    ],
+    [CAMPAIGN_RUN, "sent", "everyone", 3, ownerId, ["whatsapp"], null],
+  );
+  assert.deepEqual(
+    [made.template_id, made.template_name, made.template_language, made.playbook_id ?? null],
+    [template.id, CAMPAIGN_MESSAGE.name, "en_US", null],
+    "a broadcast of its message, no playbook's",
+  );
+  assert.ok(
+    Date.parse(made.created_at) <= Date.parse(made.started_at) &&
+      Date.parse(made.started_at) < Date.parse(made.finished_at) &&
+      Date.parse(made.finished_at) - Date.parse(made.created_at) < HOUR_MS,
+    "made, started, finished, within the hour",
+  );
+
+  // The three seeded people, once each: two sent to on WhatsApp, and Robin held back because a person had his thread.
+  const people = runPeople(w.t, T);
+  assert.deepEqual(
+    people.map((r) => r.contact_id).sort(),
+    [robin.id, casey.id, sam.id].sort(),
+    "the seed's people, once each",
+  );
+  assert.ok(people.every((r) => r.broadcast_id === made.id && r.channel === "whatsapp"));
+  const onRun = (person) => people.find((r) => r.contact_id === person.id);
+  assert.deepEqual(
+    [onRun(robin).state, onRun(robin).reason, onRun(robin).message_id ?? null, onRun(robin).sent_at ?? null],
+    ["skipped", "human_has_it", null, null],
+  );
+  for (const person of [casey, sam]) {
+    assert.deepEqual([onRun(person).state, onRun(person).reason ?? null], ["sent", null]);
+    assert.ok(onRun(person).message_id && onRun(person).sent_at, "and the message it sent, at the time it went");
+  }
+
+  // The two messages: the run's own, delivered to Casey and read by Sam, in each one's thread, named for the run.
+  const out = campaignMessages(w.t, T).filter((m) => m.direction === "outbound");
+  assert.deepEqual(out.map((m) => m.external_id).sort(), [
+    `${CAMPAIGNS_PREFIX}out-casey`,
+    `${CAMPAIGNS_PREFIX}out-sam`,
+  ]);
+  const outOf = (person) => out.find((m) => m.contact_id === person.id);
+  assert.deepEqual([outOf(casey).status, outOf(sam).status], ["delivered", "read"]);
+  assert.equal(outOf(casey).conversation_id, threadOf(w.t, T, CASEY.phone).id, "in Casey's own thread");
+  assert.equal(outOf(sam).conversation_id, threadOf(w.t, T, SAM.phone).id, "and Sam's");
+  for (const person of [casey, sam]) {
+    const m = outOf(person);
+    assert.deepEqual(
+      [m.channel, m.sender, m.type, m.template_name, m.body, m.meta.source, m.meta.broadcast_id, m.meta.broadcast_name],
+      [
+        "whatsapp",
+        "human",
+        "template",
+        CAMPAIGN_MESSAGE.name,
+        CAMPAIGN_MESSAGE.body,
+        "broadcast",
+        made.id,
+        CAMPAIGN_RUN,
+      ],
+      "written as a broadcast writes it (core broadcast-channels metaOf): the human's, and automated by its source",
+    );
+    assert.equal(m.id, onRun(person).message_id, "the person's row names it");
+    assert.equal(m.created_at, onRun(person).sent_at, "and the time it went");
+  }
+  assert.equal(
+    of(w.t, "messages", T).filter(
+      (m) => m.contact_id === robin.id && String(m.external_id).startsWith(CAMPAIGNS_PREFIX),
+    ).length,
+    0,
+    "Robin was sent nothing",
+  );
+  assert.equal(
+    of(w.t, "messages", T).filter((m) => m.conversation_id === threadOf(w.t, T, ROBIN.phone).id).length,
+    2,
+    "and his thread is the two messages the other specs read",
+  );
+
+  // Casey's reply, in her own thread, two hours after her message. Sam's message is read and the run plants no reply to it,
+  // but his thread is the Receptionist lens's and holds the asks he wrote in the days after it: the lens counts any words of
+  // a person's in the thread within 72 hours of a send as writing back, so he is counted among those who did.
+  const [reply, ...more] = campaignMessages(w.t, T).filter((m) => m.direction === "inbound");
+  assert.deepEqual(more, [], "one reply");
+  assert.deepEqual(
+    [reply.contact_id, reply.conversation_id, reply.channel, reply.sender, reply.status, personsWords(reply)],
+    [casey.id, threadOf(w.t, T, CASEY.phone).id, "whatsapp", "customer", "received", true],
+  );
+  assert.equal(Date.parse(reply.created_at) - Date.parse(onRun(casey).sent_at), 2 * HOUR_MS, "two hours after");
+  assert.equal(firstReplyAfter(w.t, T, onRun(casey)), 2 * HOUR_MS);
+  assert.equal(
+    campaignMessages(w.t, T).filter((m) => m.direction === "inbound").length,
+    1,
+    "the only reply the run planted is Casey's",
+  );
+  const samsFirst = firstReplyAfter(w.t, T, onRun(sam));
+  assert.ok(
+    samsFirst !== null && samsFirst < REPLY_WINDOW_MS,
+    "Sam's own next ask, in his own thread, is what the lens reads as his",
+  );
+  const next = of(w.t, "messages", T).find(
+    (m) =>
+      m.conversation_id === threadOf(w.t, T, SAM.phone).id &&
+      Date.parse(m.created_at) - Date.parse(onRun(sam).sent_at) === samsFirst,
+  );
+  assert.ok(
+    next.direction === "inbound" &&
+      next.sender === "customer" &&
+      String(next.external_id).startsWith(RECEPTIONIST_PREFIX),
+    "and it is one of the Receptionist lens's, not the run's",
+  );
+
+  // The approval: the owner's, on the run, 40 minutes after it was made, carrying the mark the next run finds it by.
+  const decisions = approvalsOf(w.t, T);
+  assert.equal(decisions.length, 1);
+  const [decision] = decisions;
+  assert.deepEqual(
+    [decision.subject_type, decision.subject_id, decision.verb, decision.actor_type, decision.actor_user_id],
+    ["broadcast", made.id, "send_broadcast", "user", ownerId],
+  );
+  assert.equal(decision.payload.approved, true);
+  assert.equal(decision.payload.name, CAMPAIGN_RUN);
+  assert.equal(
+    Date.parse(decision.created_at) - Date.parse(made.created_at),
+    40 * MIN_MS,
+    "40 minutes after the run was made",
+  );
+  assert.deepEqual(await verify(w.db, T, ownerId), []);
+});
+
+test("what the Campaigns lens will make of those rows: two people sent to and both wrote back (Casey in two hours), one held, a broadcast, a wait of 40 minutes, and every send old enough to have had its reply window", async () => {
+  const w = world();
+  const { tenantId: T } = await run(w);
+  const [made] = theRun(w.t, T);
+  const people = runPeople(w.t, T);
+  const sent = people.filter((r) => r.state === "sent");
+
+  // campaign_ledger's definitions (00405), applied to the rows: the kind from the audience, the sends in the window,
+  // the people once each, those who wrote back, and the held by their reason.
+  const kind =
+    made.audience?.kind === "reach_out"
+      ? "reach_out"
+      : made.audience?.kind === "playbook" || made.playbook_id
+        ? "moment"
+        : "broadcast";
+  assert.equal(kind, "broadcast", "a one-off broadcast: counted among the runs, and no campaign's");
+  const inWindow = (at) => NOW - Date.parse(at) < 7 * DAY_MS && Date.parse(at) <= NOW;
+  assert.ok(
+    sent.every((r) => inWindow(r.sent_at)),
+    "inside the shortest period, so every period counts them",
+  );
+  assert.equal(new Set(sent.map((r) => r.contact_id)).size, 2, "people sent to: two");
+  assert.equal(
+    sent.filter((r) => firstReplyAfter(w.t, T, r) !== null).length,
+    2,
+    "people who wrote back: both (Sam by the asks of his own thread, which the lens cannot tell from an answer)",
+  );
+  assert.deepEqual(
+    people.filter((r) => r.state === "skipped").map((r) => r.reason),
+    ["human_has_it"],
+    "held: one, for a reason the lens has words for",
+  );
+  assert.ok(inWindow(made.started_at), "and the run is in the window it is held in");
+
+  // The reply window is over for every send (the by-message rate divides by those), and Casey's reply is the first of the two.
+  for (const r of sent)
+    assert.ok(Date.parse(r.sent_at) + REPLY_WINDOW_MS <= NOW, "mature: 72 hours old by the time the specs read");
+  const answers = sent.map((r) => firstReplyAfter(w.t, T, r)).sort((a, b) => a - b);
+  assert.equal(
+    answers[0],
+    2 * HOUR_MS,
+    "the quickest is Casey's, in two hours: the first-reply bucket of up to four hours",
+  );
+  assert.ok(answers[1] > 4 * HOUR_MS && answers[1] < REPLY_WINDOW_MS, "and the other is Sam's own next ask, later");
+
+  // Delivered counts the messages the channel reports delivered or read (the funnel's 2 of 2, 1 of them read).
+  const out = campaignMessages(w.t, T).filter((m) => m.direction === "outbound");
+  assert.deepEqual(out.map((m) => m.status).sort(), ["delivered", "read"]);
+
+  // The wait for the owner's OK, from the run's being made to the approval (approval_rows).
+  const [decision] = approvalsOf(w.t, T);
+  const waited = (Date.parse(decision.created_at) - Date.parse(made.created_at)) / 1000;
+  assert.equal(waited, 2400, "40 minutes");
+  // approval_rows' buckets (00405) by upper bound: h1 at 3,600 s ("An hour or less"), h4 at 14,400, h24 at 86,400, else over.
+  const approvalBucket = waited <= 3600 ? "h1" : waited <= 14_400 ? "h4" : waited <= 86_400 ? "h24" : "over";
+  assert.equal(approvalBucket, "h1", "and the lens puts it in the hour or less");
+  assert.equal(decision.payload.approved, true, "payload->>'approved' = 'true'");
+  assert.ok(inWindow(decision.created_at));
+
+  // Dated past the day the sweeps look back over, and well before the first conversation's reply, so that is still the newest.
+  const robinsReply = Date.parse(threadOf(w.t, T, ROBIN.phone).last_message_at);
+  for (const m of campaignMessages(w.t, T)) {
+    assert.ok(
+      NOW - Date.parse(m.created_at) > DAY_MS,
+      `${m.external_id} is past the day the unfinished-message sweep reads`,
+    );
+    assert.ok(robinsReply - Date.parse(m.created_at) >= 3 * HOUR_MS, `${m.external_id} is older than Robin's reply`);
+  }
+  const casey = personAt(w.t, T, CASEY.phone);
+  const caseys = threadOf(w.t, T, CASEY.phone);
+  assert.deepEqual(
+    [caseys.contact_id, caseys.state, caseys.paused_until, caseys.snooze_until, caseys.assignee_user_id],
+    [casey.id, "open", null, null, null],
+    "Casey's thread is an ordinary open one, nobody's to answer",
+  );
+  const reply = campaignMessages(w.t, T).find((m) => m.direction === "inbound");
+  assert.deepEqual(
+    [caseys.last_message_at, caseys.last_inbound_at, caseys.last_wa_inbound_at],
+    Array(3).fill(reply.created_at),
+    "and it ends where her reply does",
+  );
+  assert.ok(
+    Date.parse(caseys.created_at) <= Date.parse(runPeople(w.t, T).find((r) => r.contact_id === casey.id).sent_at),
+  );
+  const newest = of(w.t, "conversations", T).sort((a, b) => (a.last_message_at < b.last_message_at ? 1 : -1))[0];
+  assert.equal(newest.contact_id, personAt(w.t, T, ROBIN.phone).id, "Robin's thread is still the newest");
+});
+
+test("a second run changes nothing but the dates: the Campaigns rows move a day with the run, and none is added", async () => {
+  const w = world();
+  const { tenantId: T } = await run(w);
+  const undated = (rows) =>
+    JSON.stringify(rows)
+      .replace(/"\d{4}-\d{2}-\d{2}T[\d:.]+Z"/g, '"<date>"')
+      .replace(/"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"/g, '"<id>"');
+  const byKey = (key) => (a, b) => (String(key(a)) < String(key(b)) ? -1 : 1);
+  const picture = () => ({
+    message: of(w.t, "templates", T).filter((m) => m.name === CAMPAIGN_MESSAGE.name),
+    runs: of(w.t, "broadcasts", T),
+    people: runPeople(w.t, T).sort(byKey((r) => `${r.state}${r.reason}`)),
+    messages: campaignMessages(w.t, T).sort(byKey((m) => m.external_id)),
+    approvals: approvalsOf(w.t, T),
+    conversations: of(w.t, "conversations", T).length,
+    templates: of(w.t, "templates", T).length,
+  });
+  const dates = () => ({
+    run: ["created_at", "scheduled_for", "started_at", "finished_at"].map((k) => Date.parse(theRun(w.t, T)[0][k])),
+    sends: Object.fromEntries(
+      runPeople(w.t, T)
+        .filter((r) => r.sent_at)
+        .map((r) => [r.contact_id, Date.parse(r.sent_at)]),
+    ),
+    messages: Object.fromEntries(campaignMessages(w.t, T).map((m) => [m.external_id, Date.parse(m.created_at)])),
+    approval: Date.parse(approvalsOf(w.t, T)[0].created_at),
+  });
+  const first = { shape: undated(picture()), dates: dates() };
+  assert.deepEqual(
+    [Object.keys(first.dates.sends).length, Object.keys(first.dates.messages).length],
+    [2, 3],
+    "there is something to compare",
+  );
+  await run(w, { now: NOW + DAY_MS });
+  assert.equal(undated(picture()), first.shape, "the same rows, but for their dates and their ids");
+  const next = dates();
+  assert.deepEqual(
+    next.run.map((at, i) => at - first.dates.run[i]),
+    Array(4).fill(DAY_MS),
+    "the run moved a day",
+  );
+  for (const [person, at] of Object.entries(first.dates.sends))
+    assert.equal(next.sends[person] - at, DAY_MS, "a send moved a day");
+  for (const [id, at] of Object.entries(first.dates.messages))
+    assert.equal(next.messages[id] - at, DAY_MS, `${id} moved a day`);
+  assert.equal(next.approval - first.dates.approval, DAY_MS, "and so did the approval");
+});
+
+test("the Campaigns rows are all terminal: no run waiting, no message queued or failed, no job, no open escalation, nothing a sweep or the bell selects", async () => {
+  const w = world();
+  const { tenantId: T } = await run(w);
+  const messages = of(w.t, "messages", T);
+
+  // Nothing waits for a person or for a send job.
+  assert.deepEqual(
+    of(w.t, "broadcasts", T).map((b) => b.state),
+    ["sent"],
+  );
+  assert.deepEqual(
+    messages.filter((m) => ["queued", "failed"].includes(m.status)),
+    [],
+    "no message is queued or failed (Today counts a failed one as a reply that failed to deliver)",
+  );
+  assert.deepEqual(
+    campaignMessages(w.t, T)
+      .filter((m) => m.direction === "outbound")
+      .map((m) => m.status)
+      .sort(),
+    ["delivered", "read"],
+  );
+  assert.equal(of(w.t, "jobs", T).length, 0, "no job");
+  assert.deepEqual(
+    of(w.t, "escalations", T).filter((e) => e.state !== "resolved"),
+    [],
+    "no open escalation",
+  );
+  assert.equal(
+    runPeople(w.t, T).filter((r) => r.state === "queued").length,
+    0,
+    "nobody is queued on the run for a send to claim",
+  );
+
+  // No trigger fires on them: the booking-link note is for a `sent` row, and the ask for a yes to offers is for a body that says it.
+  const OFFERS_ASKED = /(^|[^a-z])(yes\s+offers|s[ií]\s+ofertas)([^a-z]|$)/i;
+  for (const m of campaignMessages(w.t, T).filter((x) => x.direction === "outbound")) {
+    assert.notEqual(m.status, "sent", `${m.external_id} is past the status the booking-link note reads`);
+    assert.doesNotMatch(m.body, OFFERS_ASKED, `${m.external_id} asks for no yes to offers`);
+  }
+  assert.ok(
+    of(w.t, "contacts", T).every((c) => !c.offers_asked_at),
+    "so no one is stamped as asked",
+  );
+  assert.equal(
+    of(w.t, "notifications", T).length,
+    2,
+    "the bell holds the two lead rows alone: a run that went out rings nothing",
+  );
+
+  // The unfinished-message sweep reads a day back for a text nobody finished with: Casey's reply is three days old and stamped.
+  const reply = campaignMessages(w.t, T).find((m) => m.direction === "inbound");
+  assert.ok(reply.meta.processed_at, "stamped as finished with");
+  const raised = [];
+  const stamped = [];
+  const told = [];
+  const sweep = (after) =>
+    sweepUnfinished({
+      db: w.db,
+      L: quietLog,
+      upsertEscalation: async (...args) => {
+        raised.push(args);
+        return { created: true };
+      },
+      markProcessed: async (_db, _tenant, id) => {
+        stamped.push(id);
+      },
+      notify: async (...args) => {
+        told.push(args);
+        return true;
+      },
+      loadTenantNotifications: async () => ({ notifications: null, isEnvDefault: false }),
+      reachesTenant: () => true,
+      deadline: Infinity,
+      now: () => NOW + after,
+    });
+  for (const after of [4 * MIN_MS, 23 * HOUR_MS, 26 * HOUR_MS, 50 * HOUR_MS])
+    assert.deepEqual(
+      await sweep(after),
+      { unanswered: 0, orphaned: 0, told: 0 },
+      `${after / HOUR_MS} hours after the seed`,
+    );
+  assert.deepEqual([raised, told], [[], []], "no escalation raised, nobody told");
+  assert.equal(stamped.includes(reply.id), false, "and the sweep never touches Casey's reply");
+
+  // The note sweep (00159, note_candidates) reads a thread whose newest customer message is between six hours and seven days
+  // old and newer than its last look: Casey's is stamped as looked at, so it waits for a message that never comes.
+  const caseys = threadOf(w.t, T, CASEY.phone);
+  const threadWaits = (c, now) =>
+    Date.parse(c.last_inbound_at) < now - 6 * HOUR_MS &&
+    Date.parse(c.last_inbound_at) > now - 7 * DAY_MS &&
+    (c.note_checked_at == null || Date.parse(c.note_checked_at) < Date.parse(c.last_inbound_at));
+  assert.ok(caseys.note_checked_at, "Casey's thread is stamped as read");
+  for (const after of [0, 7 * HOUR_MS, 3 * DAY_MS])
+    assert.equal(threadWaits(caseys, NOW + after), false, `${after / HOUR_MS} hours on`);
+  assert.equal(
+    threadWaits({ ...caseys, note_checked_at: null }, NOW),
+    true,
+    "without the stamp it would wait: the stamp is what keeps a model away",
+  );
+});
+
+test("the Campaigns rows delete their own last night's before they are written, and only theirs: a person's run, a decision of another kind, another workspace's rows and the Receptionist's stay", async () => {
+  const w = world();
+  const { tenantId: T } = await run(w);
+  const ownerId = w.users.find((u) => u.email === OWNER).id;
+  const robin = personAt(w.t, T, ROBIN.phone);
+  const casey = personAt(w.t, T, CASEY.phone);
+  const [firstRun] = theRun(w.t, T);
+  const planted = (table, row) => w.t[table].push({ tenant_id: T, ...row });
+  const elsewhere = crypto.randomUUID();
+  // Another workspace's rows that look exactly like the seed's (its name, its mark, its prefix): every delete is the workspace's own.
+  w.t.broadcasts.push({ id: "elsewhere-run", tenant_id: elsewhere, name: CAMPAIGN_RUN, state: "sent" });
+  w.t.decisions.push({
+    id: "elsewhere-approval",
+    tenant_id: elsewhere,
+    subject_type: "broadcast",
+    subject_id: "elsewhere-run",
+    verb: "send_broadcast",
+    actor_type: "user",
+    payload: { approved: true, seed: CAMPAIGNS_NOTE },
+    created_at: new Date(NOW).toISOString(),
+  });
+  w.t.messages.push({
+    id: "elsewhere-m",
+    tenant_id: elsewhere,
+    conversation_id: "elsewhere-cv",
+    external_id: `${CAMPAIGNS_PREFIX}out-casey`,
+    direction: "outbound",
+    status: "delivered",
+  });
+  // What a spec or a person could have left: a run of their own with a person on it, their cancel of it, an approval carrying
+  // the seed's mark for a run that is gone, a stray in Casey's thread, a leftover with the seed's prefix in Robin's, and an
+  // ordinary message in Robin's.
+  planted("broadcasts", {
+    id: "their-run",
+    name: "Spring note",
+    state: "sent",
+    scheduled_for: new Date(NOW).toISOString(),
+  });
+  planted("broadcast_recipients", {
+    broadcast_id: "their-run",
+    contact_id: robin.id,
+    state: "sent",
+    channel: "whatsapp",
+  });
+  planted("decisions", {
+    id: "their-cancel",
+    subject_type: "broadcast",
+    subject_id: crypto.randomUUID(),
+    verb: "cancel_broadcast",
+    actor_type: "user",
+    actor_user_id: ownerId,
+    payload: { name: "Spring note" },
+    created_at: new Date(NOW).toISOString(),
+  });
+  planted("decisions", {
+    id: "old-approval",
+    subject_type: "broadcast",
+    subject_id: crypto.randomUUID(),
+    verb: "send_broadcast",
+    actor_type: "user",
+    actor_user_id: ownerId,
+    payload: { approved: true, seed: CAMPAIGNS_NOTE },
+    created_at: new Date(NOW).toISOString(),
+  });
+  planted("messages", {
+    id: "stray-in-casey",
+    conversation_id: threadOf(w.t, T, CASEY.phone).id,
+    contact_id: casey.id,
+    direction: "inbound",
+    sender: "customer",
+    status: "received",
+  });
+  const robinsThread = threadOf(w.t, T, ROBIN.phone);
+  planted("messages", {
+    id: "old-c",
+    conversation_id: robinsThread.id,
+    contact_id: robin.id,
+    direction: "outbound",
+    external_id: `${CAMPAIGNS_PREFIX}old`,
+    status: "delivered",
+  });
+  // A spec changed the message: paused, and hidden from the library.
+  const message = of(w.t, "templates", T).find((m) => m.name === CAMPAIGN_MESSAGE.name);
+  Object.assign(message, { meta_status: "paused", hidden_at: new Date(NOW).toISOString() });
+  const receptionist = of(w.t, "messages", T).filter((m) =>
+    String(m.external_id).startsWith(RECEPTIONIST_PREFIX),
+  ).length;
+
+  await seed.convergeCampaigns(w.db, T, ownerId, NOW + DAY_MS);
+
+  const ids = (rows) => rows.map((r) => r.id);
+  assert.equal(theRun(w.t, T).length, 1, "one run of the seed's");
+  assert.equal(ids(of(w.t, "broadcasts", T)).includes("their-run"), true, "and a person's own stays");
+  assert.notEqual(theRun(w.t, T)[0].id, firstRun.id, "written afresh");
+  assert.equal(
+    runPeople(w.t, T).filter((r) => r.broadcast_id === "their-run").length,
+    1,
+    "and so does the person on it",
+  );
+  assert.equal(
+    runPeople(w.t, T).filter((r) => r.broadcast_id === firstRun.id).length,
+    0,
+    "last night's people went with its run",
+  );
+  assert.deepEqual(
+    ids(of(w.t, "decisions", T)).sort(),
+    ["their-cancel", approvalsOf(w.t, T)[0].id].sort(),
+    "the mark finds the seed's approvals, the run it names gone or not: the old one went, a decision of another kind stays",
+  );
+  assert.equal(approvalsOf(w.t, T).length, 1, "and the seed's one is written again");
+  assert.equal(approvalsOf(w.t, T)[0].subject_id, theRun(w.t, T)[0].id, "for the new run");
+  assert.deepEqual(
+    campaignMessages(w.t, T)
+      .map((m) => m.external_id)
+      .sort(),
+    [`${CAMPAIGNS_PREFIX}in-casey`, `${CAMPAIGNS_PREFIX}out-casey`, `${CAMPAIGNS_PREFIX}out-sam`],
+    "the prefix finds the seed's messages wherever they were left: the leftover in Robin's thread is gone, and nothing is doubled",
+  );
+  assert.equal(
+    ids(of(w.t, "messages", T)).includes("stray-in-casey"),
+    false,
+    "Casey's thread goes whole and is written afresh",
+  );
+  assert.equal(
+    of(w.t, "messages", T).filter((m) => m.conversation_id === robinsThread.id).length,
+    2,
+    "Robin's thread is his two messages again",
+  );
+  assert.equal(
+    of(w.t, "messages", T).filter((m) => String(m.external_id).startsWith(RECEPTIONIST_PREFIX)).length,
+    receptionist,
+    "and the Receptionist's rows are not the Campaigns run's to touch",
+  );
+  assert.equal(
+    of(w.t, "templates", T).filter((m) => m.name === CAMPAIGN_MESSAGE.name).length,
+    1,
+    "one message, put back",
+  );
+  const putBack = of(w.t, "templates", T).find((m) => m.name === CAMPAIGN_MESSAGE.name);
+  assert.deepEqual([putBack.meta_status, putBack.hidden_at ?? null], ["approved", null]);
+  assert.deepEqual(
+    [
+      w.t.broadcasts.some((b) => b.id === "elsewhere-run"),
+      w.t.decisions.some((d) => d.id === "elsewhere-approval"),
+      w.t.messages.some((m) => m.id === "elsewhere-m"),
+    ],
+    [true, true, true],
+    "another workspace's run, approval and message, with the seed's name, mark and prefix, stay",
+  );
+});
+
+test("verify() names a run still to go, a queued or failed message, a run, a person, a message, an approval or the message that is gone or doubled, and a message that did not arrive", async () => {
+  const w = world();
+  const { tenantId: T } = await run(w);
+  const ownerId = w.users.find((u) => u.email === OWNER).id;
+  assert.deepEqual(await verify(w.db, T, ownerId), []);
+  const said = async () => (await verify(w.db, T, ownerId)).join(" | ");
+  const [made] = theRun(w.t, T);
+
+  // A run waiting for a person, scheduled or on its way: a row in Today, or a send job's.
+  for (const state of ["pending_approval", "scheduled", "sending", "failed", "canceled"]) {
+    const stray = { id: `stray-${state}`, tenant_id: T, name: "a spec's run", state };
+    w.t.broadcasts.push(stray);
+    assert.match(await said(), /run\(s\) not sent/, `${state}: named`);
+    w.t.broadcasts.splice(w.t.broadcasts.indexOf(stray), 1);
+    assert.equal(await said(), "", `${state}: gone`);
+  }
+
+  // The run changed, doubled or gone.
+  made.state = "sending";
+  assert.match(await said(), /the one sent run/, "a run that is not sent");
+  made.state = "sent";
+  const twin = { ...made, id: crypto.randomUUID() };
+  w.t.broadcasts.push(twin);
+  assert.match(await said(), /the one sent run/, "a doubled run");
+  w.t.broadcasts.splice(w.t.broadcasts.indexOf(twin), 1);
+  w.t.broadcasts.splice(w.t.broadcasts.indexOf(made), 1);
+  assert.match(await said(), /the one sent run/, "a run that is gone");
+  w.t.broadcasts.push(made);
+  assert.equal(await said(), "");
+
+  // A person gone from the run, or held for a reason it was not.
+  const [dropped] = w.t.broadcast_recipients.splice(
+    w.t.broadcast_recipients.findIndex((r) => r.state === "skipped"),
+    1,
+  );
+  assert.match(await said(), /Campaigns run should have its people/, "a missing person");
+  w.t.broadcast_recipients.push(dropped);
+  assert.equal(await said(), "");
+  dropped.reason = "opted_out";
+  assert.match(
+    await said(),
+    /Campaigns run should have its people/,
+    "a person held for a reason the seed does not give",
+  );
+  dropped.reason = "human_has_it";
+  assert.equal(await said(), "");
+
+  // Messages: queued by hand, failed by hand, and one that did not arrive, doubled or gone.
+  const planted = (over) => ({ id: crypto.randomUUID(), tenant_id: T, sender: "ai", direction: "outbound", ...over });
+  const queued = planted({ status: "queued" });
+  w.t.messages.push(queued);
+  assert.match(await said(), /queued/, "a send job would pick it up");
+  w.t.messages.pop();
+  const failed = planted({ status: "failed", external_id: "left-by-a-spec" });
+  w.t.messages.push(failed);
+  assert.match(await said(), /failed outbound/, "Today counts it as a reply that failed to deliver");
+  w.t.messages.pop();
+  const [hello] = campaignMessages(w.t, T).filter((m) => m.direction === "outbound");
+  const was = hello.status;
+  hello.status = "sent";
+  assert.match(await said(), /Campaigns run should have two messages/, "a message that has not arrived");
+  hello.status = "failed";
+  assert.match(await said(), /Campaigns run should have two messages/, "and one that failed");
+  assert.match(await said(), /failed outbound/);
+  hello.status = was;
+  w.t.messages.splice(w.t.messages.indexOf(hello), 1);
+  assert.match(await said(), /Campaigns run should have two messages/, "a message that is gone");
+  w.t.messages.push(hello);
+  assert.equal(await said(), "");
+  const reply = campaignMessages(w.t, T).find((m) => m.direction === "inbound");
+  w.t.messages.splice(w.t.messages.indexOf(reply), 1);
+  assert.match(await said(), /Campaigns run should have two messages/, "the reply is part of what the lens reads");
+  w.t.messages.push(reply);
+  assert.equal(await said(), "");
+
+  // The approval: gone, doubled, or not an approval.
+  const [approval] = approvalsOf(w.t, T);
+  w.t.decisions.splice(w.t.decisions.indexOf(approval), 1);
+  assert.match(await said(), /approval/, "an approval that is gone");
+  w.t.decisions.push(approval);
+  const twice = { ...approval, id: crypto.randomUUID() };
+  w.t.decisions.push(twice);
+  assert.match(await said(), /approval/, "a doubled one");
+  w.t.decisions.splice(w.t.decisions.indexOf(twice), 1);
+  approval.payload = { ...approval.payload, approved: false };
+  assert.match(await said(), /approval/, "one that approved nothing");
+  approval.payload = { ...approval.payload, approved: true };
+  assert.equal(await said(), "");
+
+  // The message: paused by Meta, or gone.
+  const message = of(w.t, "templates", T).find((m) => m.name === CAMPAIGN_MESSAGE.name);
+  message.meta_status = "paused";
+  assert.match(await said(), /approved/, "a message Meta stopped");
+  message.meta_status = "approved";
+  assert.equal(await said(), "");
+
+  // All of it put back by the next run.
+  made.state = "scheduled";
+  w.t.messages.push(queued);
+  approval.payload = { ...approval.payload, approved: false };
+  message.meta_status = "rejected";
+  assert.notEqual(await said(), "");
+  await run(w, { now: NOW + DAY_MS });
+  assert.deepEqual(await verify(w.db, T, ownerId), [], "the next run puts it back");
+  assert.equal(approvalsOf(w.t, T).length, 1, "and the approval that approved nothing is not kept beside the new one");
 });

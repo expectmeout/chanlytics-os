@@ -116,7 +116,10 @@ async function logged(event, fn) {
     console.warn = was.warn;
   }
 }
-/** A report with one chain of its own, whose one step wrote to three businesses and heard back from one. */
+/**
+ * A report with one chain of its own, whose one step wrote three emails to two businesses (00404 counts them) and heard
+ * back from one.
+ */
 const ONE_CHAIN = {
   days: 30,
   has_reach_out: true,
@@ -128,9 +131,14 @@ const ONE_CHAIN = {
       search: null,
       last_at: null,
       runs: 1,
-      steps: [{ id: "r1", n: 0, written: 3, wrote_back: 1 }],
+      steps: [{ id: "r1", n: 0, written: 3, businesses: 2, wrote_back: 1 }],
     },
   ],
+};
+/** The same report from a database before 00404: its steps count no businesses. */
+const ONE_CHAIN_BEFORE_00404 = {
+  ...ONE_CHAIN,
+  chains: [{ ...ONE_CHAIN.chains[0], steps: [{ id: "r1", n: 0, written: 3, wrote_back: 1 }] }],
 };
 
 test("GET reports/reach-outs reads the report and every chain's totals over one window: a period ends today and names no day, days a member picked name their last day to both, and a window it cannot read is refused in its words before either is asked", async () => {
@@ -180,8 +188,8 @@ test("GET reports/reach-outs answers its reader's payload; where the chains' tot
   const d = doors({
     reach_out_report: () => ONE_CHAIN,
     reach_out_chain_totals: () => ({
-      r1: { written: 3, wrote_back: 1, last_at: null },
-      r2: { written: 0, wrote_back: 0, last_at: null },
+      r1: { written: 3, businesses: 2, wrote_back: 1, last_at: null },
+      r2: { written: 0, businesses: 0, wrote_back: 0, last_at: null },
     }),
   });
   const page = await report.GET.run(get("&period=30d"), ctxFor(tables("viewer"), {}, d.rpcs));
@@ -197,8 +205,27 @@ test("GET reports/reach-outs answers its reader's payload; where the chains' tot
   assert.deepEqual(read.rows, [], "no row of its own: it is drawn on Reports");
   assert.deepEqual(
     page.chains,
+    {
+      complete: true,
+      by_root: {
+        r1: { written: 3, businesses: 2, wrote_back: 1 },
+        r2: { written: 0, businesses: 0, wrote_back: 0 },
+      },
+    },
+    "every chain, the one past the report's own among them, in businesses as in emails",
+  );
+  // A database before 00404 answers the function without businesses: the chains carry none, and nothing is made up.
+  const before = doors({
+    reach_out_report: () => ONE_CHAIN_BEFORE_00404,
+    reach_out_chain_totals: () => ({
+      r1: { written: 3, wrote_back: 1, last_at: null },
+      r2: { written: 0, wrote_back: 0, last_at: null },
+    }),
+  });
+  assert.deepEqual(
+    (await report.GET.run(get("&period=30d"), ctxFor(tables("viewer"), {}, before.rpcs))).chains,
     { complete: true, by_root: { r1: { written: 3, wrote_back: 1 }, r2: { written: 0, wrote_back: 0 } } },
-    "every chain, the one past the report's own among them",
+    "absent, so the Home says its old line",
   );
   // A database before 00375: PostgREST does not know the function. The report's own chains, summed, and no line.
   const missing = doors({
@@ -210,8 +237,22 @@ test("GET reports/reach-outs answers its reader's payload; where the chains' tot
   const old = await logged("reach_out_chain_totals_read_failed", () =>
     report.GET.run(get("&period=30d"), ctxFor(tables("viewer"), {}, missing.rpcs)),
   );
-  assert.deepEqual(old.result.chains, { complete: false, by_root: { r1: { written: 3, wrote_back: 1 } } });
+  assert.deepEqual(old.result.chains, {
+    complete: false,
+    by_root: { r1: { written: 3, businesses: 2, wrote_back: 1 } },
+  });
   assert.deepEqual(old.lines, [], "a function not there yet is no failure");
+  // And from a report that counts no businesses either (a database before 00404 and 00375): the sum has none to say.
+  const oldest = doors({
+    reach_out_report: () => ONE_CHAIN_BEFORE_00404,
+    reach_out_chain_totals: () => {
+      throw Object.assign(new Error("Could not find the function public.reach_out_chain_totals"), { code: "PGRST202" });
+    },
+  });
+  assert.deepEqual((await report.GET.run(get("&period=30d"), ctxFor(tables("viewer"), {}, oldest.rpcs))).chains, {
+    complete: false,
+    by_root: { r1: { written: 3, wrote_back: 1 } },
+  });
   // A chains' read that fails (a member's statement past its 8 seconds) is no missing function: the report still answers,
   // its own chains said as not every chain, and the failure is logged, never thrown at the section.
   const slow = doors({
@@ -224,13 +265,25 @@ test("GET reports/reach-outs answers its reader's payload; where the chains' tot
     report.GET.run(get("&period=30d"), ctxFor(tables("viewer"), {}, slow.rpcs)),
   );
   assert.deepEqual(timedOut.result.report, ONE_CHAIN, "the report answers whatever the totals do");
-  assert.deepEqual(timedOut.result.chains, { complete: false, by_root: { r1: { written: 3, wrote_back: 1 } } });
+  assert.deepEqual(timedOut.result.chains, {
+    complete: false,
+    by_root: { r1: { written: 3, businesses: 2, wrote_back: 1 } },
+  });
   assert.deepEqual(timedOut.lines, [
     { tenant_id: A, error: "reach_out_chain_totals: canceling statement due to statement timeout" },
   ]);
   // An answer of the wrong shape is no count: every chain says "—" rather than a number nobody counted.
   const odd = doors({ reach_out_report: () => ONE_CHAIN, reach_out_chain_totals: () => ({ r1: { written: "3" } }) });
   assert.equal((await report.GET.run(get("&period=30d"), ctxFor(tables("viewer"), {}, odd.rpcs))).chains, null);
+  // So is a businesses that is present and no count: the same refusal, never a number made of it.
+  const oddBusinesses = doors({
+    reach_out_report: () => ONE_CHAIN,
+    reach_out_chain_totals: () => ({ r1: { written: 3, businesses: "2", wrote_back: 1 } }),
+  });
+  assert.equal(
+    (await report.GET.run(get("&period=30d"), ctxFor(tables("viewer"), {}, oddBusinesses.rpcs))).chains,
+    null,
+  );
   // The report's own read is the section: its failure is the route's, whatever the totals answered.
   const down = doors({
     reach_out_report: () => {

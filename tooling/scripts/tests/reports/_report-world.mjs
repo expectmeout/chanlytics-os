@@ -3,14 +3,7 @@
  * bridge's contracts functions make its view models (the fixtures every Reports test shares; nothing here is a real
  * business: Harbor Studio's numbers are made up).
  */
-import {
-  toReportVM,
-  toCampaignReportVM,
-  toBookingReportVM,
-  toDealReportVM,
-  toReviewsReportVM,
-  reportFacts,
-} from "@chanlytics/contracts";
+import { toReportVM, toBookingReportVM, toDealReportVM, toReviewsReportVM } from "@chanlytics/contracts";
 
 /* ------------- a week that has everything: Sat Aug 29 to Fri Sep 4, 2026, after a quieter week ------------- */
 
@@ -200,22 +193,17 @@ export const DEALS = toDealReportVM(
   }),
   "in the last 7 days",
 );
-/** `profile` is the workspace's hours as the surface reads them: null could not be read, `{}` was read and holds none. */
-export const surface = ({
-  report = {},
-  campaigns = campaignDto(),
-  booking = CALENDAR,
-  deals = NO_DEALS,
-  profile = null,
-} = {}) => {
+/**
+ * The frame's read as the override publishes it: the report, the booking line and the deals, and nothing of campaigns (the Campaigns
+ * lens's own read is `reports_campaigns`, campaigns/_campaign-world.mjs, and Worth knowing is the page's). `profile` is the
+ * workspace's hours as the surface reads them: null could not be read, `{}` was read and holds none.
+ */
+export const surface = ({ report = {}, booking = CALENDAR, deals = NO_DEALS, profile = null } = {}) => {
   const vm = toReportVM(reportDto(report), { profile });
-  const cm = campaigns ? toCampaignReportVM(campaigns) : null;
   return {
     vm,
-    campaigns: cm,
     booking: toBookingReportVM(booking),
     deals,
-    facts: reportFacts(vm, cm),
     // What it is of, as the override publishes it (surfaces/reports/surface.ts): the range, its one name, and the
     // period by name, which days a member picked have none of.
     range: "7d",

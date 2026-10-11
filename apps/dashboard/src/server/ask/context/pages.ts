@@ -5,6 +5,7 @@ import {
   dealsAreOn,
   lifecycleChainsOf,
   nextRunLabel,
+  plural,
   reportDaysAsked,
   reportRangeOfKey,
   sentResultsOfSource,
@@ -79,15 +80,17 @@ export const reports: Provider = async (rc, ctx) => {
 
 /**
  * A row's last 30 days in its line, in its row's words (contracts sentResultsOfSource, chainResultsOf): what it sent and
- * how many replied, or what it wrote and how many wrote back; nothing sent; or, unread or not counted, said so, never
+ * how many replied, or the businesses a reach-out wrote to and how many wrote back (its emails written where the
+ * businesses were not counted, a database before 00404); nothing sent; or, unread or not counted, said so, never
  * all-time totals.
  */
 function lastDaysPart(r: LifecycleRowResults | null): string {
   if (r === null || r === "uncounted") return "30d: not read";
   if (r === "none") return "30d: nothing sent";
-  return r.kind === "sent"
-    ? `30d: ${r.sent} sent, ${r.replied} replied`
-    : `30d: ${r.written} written, ${r.wroteBack} wrote back`;
+  if (r.kind === "sent") return `30d: ${r.sent} sent, ${r.replied} replied`;
+  return r.businesses === null
+    ? `30d: ${r.written} written, ${r.wroteBack} wrote back`
+    : `30d: ${plural(r.businesses, "business", "businesses")}, ${r.wroteBack} wrote back`;
 }
 
 /**

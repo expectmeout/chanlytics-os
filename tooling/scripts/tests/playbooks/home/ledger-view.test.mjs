@@ -70,7 +70,10 @@ test("a desk sorts by name, by who is at it now, or by what came back, the uncou
     group("quiet", [
       row("b", { people: { n: 4, unit: "people" }, results: { kind: "sent", sent: 10, replied: 1 } }),
       row("a", { people: { n: null, unit: "people" }, results: "uncounted" }),
-      row("c", { people: { n: 9, unit: "people" }, results: { kind: "written", written: 40, wroteBack: 6 } }),
+      row("c", {
+        people: { n: 9, unit: "people" },
+        results: { kind: "written", written: 40, businesses: 18, wroteBack: 6 },
+      }),
     ]),
   ]);
   assert.deepEqual(ids(ledgerViewOf(l, { ...ASK, sort: "name" })), ["a", "b", "c"]);

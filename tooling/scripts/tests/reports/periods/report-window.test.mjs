@@ -1,6 +1,6 @@
 /**
  * A report over days that ended before today, in contracts' own words (reports.ts, calendar-people.ts, google.ts,
- * review-report.ts, reach-out-report.ts). Every report ended on the workspace's today until a member could pick its
+ * review-report.ts, campaigns/reach-out-lens.ts). Every report ended on the workspace's today until a member could pick its
  * days (00359); one that ended earlier says so wherever a sentence says when: by its dates where it is named, "in the
  * 7 days to Sep 4" where something happened in it, never "the last 7 days", which would claim days the report did not
  * read. A period by name says what it always said. What the database counts over a window is
@@ -13,7 +13,7 @@ import {
   endedOn,
   toBookingReportVM,
   toGoogleVM,
-  toReachOutReportVM,
+  toReachOutLensVM,
   toReportVM,
   toReviewsReportVM,
 } from "@chanlytics/contracts";
@@ -128,7 +128,7 @@ test("an empty period of reach-outs says which days nothing was written in", () 
     no_angle: 0,
     domains: [],
   };
-  const words = (dto) => toReachOutReportVM(dto).lines.empty;
+  const words = (dto) => toReachOutLensVM(dto).lines.empty;
   assert.equal(words({ ...none, end: "2026-09-20" }), "No reach-out wrote in the 20 days to Sep 20.");
   assert.equal(words({ ...none, days: 30 }), "No reach-out wrote in the last 30 days.");
   assert.equal(

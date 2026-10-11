@@ -51,8 +51,9 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   leads: ["lead-searches", "leads?list=all&sort=fit&dir=asc&limit=500"],
   // The weeks around the business's today, by the route's clock (GET calendar `around`).
   calendar: ["calendar?around=today"],
-  // The report, the offers' and the reach-outs' over one period: REPORT_PERIOD_DEFAULT here, the device's own in the head.
-  reports: ["reports?period=30d", "reports/campaigns?period=30d", "reports/reach-outs?period=30d"],
+  // The report over one period: REPORT_PERIOD_DEFAULT here, the device's own in the head. The Campaigns lens's three reads are its
+  // own surface's (reports_campaigns), made where the lens is drawn and not by the head.
+  reports: ["reports?period=30d"],
   live: ["calls", "channels"],
   // Sent: the runs, who an audience reaches and the composers' reads.
   broadcasts: ["broadcasts", "contacts", "segments", "templates", "channels", "settings"],

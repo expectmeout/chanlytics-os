@@ -206,10 +206,12 @@ export interface LifecycleSource {
 /**
  * Each reach-out's last 30 days, by its root (GET reports/reach-outs' `chains`). `complete`: every chain was counted, so
  * one absent wrote nothing; false where they come from the report's twenty, so one absent may be past them and says "—".
+ * `written` is emails; `businesses` the businesses they went to, which `wroteBack` is a count of: null where it is not
+ * counted (a database before 00404), never guessed from `written`.
  */
 export interface LifecycleChains {
   complete: boolean;
-  byRoot: Readonly<Partial<Record<string, { written: number; wroteBack: number }>>>;
+  byRoot: Readonly<Partial<Record<string, { written: number; businesses: number | null; wroteBack: number }>>>;
 }
 
 /** How the business works, as the home reads it (the playbooks surface's, from GET playbooks' businessShape). */
@@ -437,10 +439,10 @@ export interface LifecycleComingTile {
   rules: string;
 }
 
-/** A row's last 30 days: a playbook's or a one-off's sent and replied (campaign_series), a chain's written and wrote back (Reports' words), counted where nothing went ("none"), or not counted ("uncounted", "—"). */
+/** A row's last 30 days: a playbook's or a one-off's sent and replied (campaign_series), a chain's businesses (else emails written) and wrote back (Reports' words), counted where nothing went ("none"), or not counted ("uncounted", "—"). */
 export type LifecycleRowResults =
   | { kind: "sent"; sent: number; replied: number }
-  | { kind: "written"; written: number; wroteBack: number }
+  | { kind: "written"; written: number; businesses: number | null; wroteBack: number }
   | "none"
   | "uncounted";
 

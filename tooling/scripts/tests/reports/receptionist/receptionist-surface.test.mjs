@@ -74,7 +74,7 @@ globalThis.window.fetch = async (url) => {
   const period = days ? `${days.from}~${days.to}` : u.searchParams.get("period");
   const route = u.pathname.replace("/api/v1/", "");
   asked.push(period ? `${route} ${period}` : route);
-  if (/^reports\/(campaigns|reach-outs)$/.test(route)) return down();
+  if (/^reports\/(campaigns|campaigns\/ledger|reach-outs)$/.test(route)) return down();
   if (parked && parked.route === route && parked.period === period) await parked.until;
   if (route === "reports") {
     if (refuse === period) return down();

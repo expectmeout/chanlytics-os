@@ -36,5 +36,28 @@ export function barsOf(entries: MixEntry[]): ReportBarVM[] {
   return entries.map(([id, label, value]) => ({ id, label, value, share: value / max }));
 }
 
+/**
+ * A bar that is a rate: the share it is of, the words that say what it is of, and the count it is of (`n`: the sends that have had
+ * their time, the businesses an opening was the last email to) with the fewest that say anything (`minN`), so the page greys a bar of
+ * fewer than five (D9). The Campaigns lens's messages and its reach-outs' angles are both these.
+ */
+export interface RateRowVM {
+  id: string;
+  label: string;
+  value: number;
+  display: string;
+  n: number;
+  minN: number;
+}
+
 export const mixOf = (entries: MixEntry[], line: string): MixPartVM => ({ rows: barsOf(entries), line, empty: null });
 export const noMix = (empty: string | null): MixPartVM => ({ rows: [], line: null, empty });
+
+/**
+ * A part the database did not count (`noMix(null)`'s shape): no bars, no line and no words for why there are none. It is not a
+ * part that counted nothing (that one says so in `empty`), and a count the database did not send is never a zero, so whoever
+ * says the parts in words of its own (Ask does) leaves this one unsaid. The one predicate for the shape, for a mix and for a
+ * rate's rows alike.
+ */
+export const isUncounted = (m: { rows: readonly unknown[]; line: string | null; empty: string | null }): boolean =>
+  m.rows.length === 0 && m.line === null && m.empty === null;

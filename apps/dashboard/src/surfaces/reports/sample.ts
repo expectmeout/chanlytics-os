@@ -7,15 +7,15 @@
  * nothing of its own (the standalone mockup's Reports went with the shell's: a moved surface is drawn by the app). The Reviews
  * lens has its own, a listing Google shows with no Business Profile behind it (`reviewsSample`), drawn the same way, and so has
  * the Receptionist lens (`receptionistSample`) and the People lens (`peopleSample`): the route's answer for the same business and
- * days, which the lens folds as it folds a workspace's.
+ * days, which the lens folds as it folds a workspace's. The Campaigns lens's (campaigns-sample.ts) is made over the same days of
+ * the same business, so it shares what is exported here: the business, a sample day, the window a sample is of, today in the
+ * business's zone and the zone.
  */
 import {
   toReportVM,
-  toCampaignReportVM,
   toBookingReportVM,
   toDealReportVM,
   toReviewsReportVM,
-  reportFacts,
   type ReportDto,
   type CampaignReportDto,
   type BookingReportDto,
@@ -25,7 +25,6 @@ import {
   type PeopleNowDto,
   type ReceptionistDto,
   type ReportVM,
-  HOUR_MS,
   sumOf,
   REPORT_PERIOD_DEFAULT,
   isReportDays,
@@ -38,7 +37,7 @@ import type { ReceptionistSurface } from "./receptionist-surface";
 import type { ReviewsSurface } from "./reviews-surface";
 import type { ReportsSurface } from "./surface";
 
-const ZONE = "America/New_York";
+export const ZONE = "America/New_York";
 const SPAN = 180;
 /** The reply hold the sample's business has set, in seconds: each reply it sends waits it out. */
 const SAMPLE_HOLD_S = 60;
@@ -46,7 +45,7 @@ const SAMPLE_HOLD_S = 60;
 type ReportDay = ReportDto["series"][number];
 type CampaignDay = CampaignReportDto["series"][number];
 
-interface SampleDay {
+export interface SampleDay {
   report: ReportDay;
   campaign: CampaignDay;
   /** The receptionist's reply to each message it answered, in seconds. */
@@ -103,7 +102,7 @@ const tally = (xs: readonly string[]): Record<string, number> => {
 };
 
 /** Half a year of the business, oldest first, ending today. */
-function business(today: string): SampleDay[] {
+export function business(today: string): SampleDay[] {
   const r = seeded(7);
   const out: SampleDay[] = [];
   for (let i = SPAN - 1; i >= 0; i--) {
@@ -202,96 +201,6 @@ function reportDto(all: readonly SampleDay[], n: number, today: string): ReportD
   };
 }
 
-/**
- * A count shared over parts in proportion to their caps, each part held under its cap; what rounding leaves goes to the
- * first part with room. The parts add up to the count wherever it is no more than the caps' sum.
- */
-function sharedUnder(count: number, caps: readonly number[]): number[] {
-  const whole = Math.max(1, sumOf(caps));
-  const parts = caps.map((cap) => Math.min(cap, Math.floor((count * cap) / whole)));
-  let left = count - sumOf(parts);
-  for (let i = 0; i < parts.length && left > 0; i++) {
-    const room = (caps[i] ?? 0) - (parts[i] ?? 0);
-    const add = Math.min(room, left);
-    parts[i] = (parts[i] ?? 0) + add;
-    left -= add;
-  }
-  return parts;
-}
-
-function campaignDto(all: readonly SampleDay[], n: number, today: string): CampaignReportDto {
-  const span = all.slice(-2 * n);
-  const cur = span.slice(-n);
-  const total = (k: "sent" | "delivered" | "read" | "replied") => sumOf(cur.map((d) => d.campaign[k]));
-  const t = { sent: total("sent"), delivered: total("delivered"), read: total("read"), replied: total("replied") };
-  const runs = cur.filter((d) => d.campaign.sent > 0).length;
-  const at = (hoursAgo: number) => new Date(Date.parse(`${today}T15:00:00Z`) - hoursAgo * HOUR_MS).toISOString();
-  // Three sources share the period's sends: half the win-back playbook, three tenths a one-off offer, the rest a
-  // quiet-month nudge. Each count splits the same way, so the parts add up to the whole.
-  const part = (f: number) => ({
-    sent: Math.round(t.sent * f),
-    delivered: Math.round(t.delivered * f),
-    read: Math.round(t.read * f),
-    replied: Math.round(t.replied * f),
-  });
-  const a = part(0.5);
-  const b = part(0.3);
-  const c = {
-    sent: t.sent - a.sent - b.sent,
-    delivered: t.delivered - a.delivered - b.delivered,
-    read: t.read - a.read - b.read,
-    replied: t.replied - a.replied - b.replied,
-  };
-  const sources: CampaignReportDto["sources"] = t.sent
-    ? [
-        {
-          id: "sample-winback",
-          kind: "playbook",
-          name: "Win-back",
-          template_name: "winback_offer",
-          runs: Math.max(1, Math.ceil(runs / 2)),
-          ...a,
-          last_at: at(30),
-        },
-        {
-          id: "sample-offer",
-          kind: "broadcast",
-          name: "Loyalty offer",
-          template_name: "quick_note",
-          runs: 1,
-          ...b,
-          last_at: at(90),
-        },
-        {
-          id: "sample-quiet",
-          kind: "playbook",
-          name: "Quiet for a month",
-          template_name: "quiet_nudge",
-          runs: Math.max(1, Math.floor(runs / 2)),
-          ...c,
-          last_at: at(200),
-        },
-      ]
-    : [];
-  // The same sends by channel (0030): three quarters by WhatsApp, the rest by text and email. Each count is shared by
-  // the sends' split and held under each channel's own sends, so the parts add up to the whole and no channel delivered
-  // or heard back from more than it sent; a read is WhatsApp's alone.
-  const textSent = Math.floor(t.sent * 0.15);
-  const emailSent = Math.floor(t.sent * 0.1);
-  const waSent = t.sent - textSent - emailSent;
-  const sentParts = [waSent, textSent, emailSent];
-  const [waD = 0, txD = 0, emD = 0] = sharedUnder(t.delivered, sentParts);
-  const [waR = 0, txR = 0, emR = 0] = sharedUnder(t.replied, sentParts);
-  const by_channel: CampaignReportDto["by_channel"] = t.sent
-    ? [
-        { channel: "whatsapp", sent: waSent, delivered: waD, read: Math.min(t.read, waD), replied: waR },
-        { channel: "sms", sent: textSent, delivered: txD, read: 0, replied: txR },
-        { channel: "email", sent: emailSent, delivered: emD, read: 0, replied: emR },
-      ]
-    : [];
-  return { timezone: ZONE, days: n, span_days: 2 * n, today, series: span.map((d) => d.campaign), sources, by_channel };
-}
-
 /** Asked, then booked, counted for a window that ends today alone, as the server counts it (readers/report.ts bookingOf). */
 function bookingDto(all: readonly SampleDay[], n: number, live: boolean): BookingReportDto {
   if (!live) return { calendar: "ended", days: n, asked: 0, booked: 0 };
@@ -300,10 +209,10 @@ function bookingDto(all: readonly SampleDay[], n: number, live: boolean): Bookin
 }
 
 /** The window a sample is of: the range asked for (anything that is none of ours is the default period) as of `today`. */
-const sampleWindow = (range: ReportRange, today: string): ReportWindowVM =>
+export const sampleWindow = (range: ReportRange, today: string): ReportWindowVM =>
   reportWindowOf(isReportPeriod(range) || isReportDays(range) ? range : REPORT_PERIOD_DEFAULT, today);
 
-const todayIn = (zone: string): string =>
+export const todayIn = (zone: string): string =>
   new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(
     new Date(),
   );
@@ -316,6 +225,7 @@ const keptReports = new Map<string, ReportsSurface>();
  * day, said as the report says a window that ended before today (`end`).
  */
 export function reportsSample(range: ReportRange, today: string = todayIn(ZONE)): ReportsSurface {
+  // The report alone: the Campaigns lens has its own sample beside it (campaigns-sample.ts), and Worth knowing is the page's.
   const win = sampleWindow(range, today);
   const n = win.days;
   const key = `${win.key}:${today}`;
@@ -323,14 +233,11 @@ export function reportsSample(range: ReportRange, today: string = todayIn(ZONE))
   if (hit) return hit;
   const all = business(win.to);
   const vm = toReportVM({ ...reportDto(all, n, win.to), today, end: win.to }, { profile: null });
-  const campaigns = toCampaignReportVM(campaignDto(all, n, win.to));
   const surface: ReportsSurface = {
     vm,
-    campaigns,
     booking: toBookingReportVM(bookingDto(all, n, win.live)),
     // The demo is a salon: no deal was ever recorded, so Reports draws no Deals section (0004).
     deals: toDealReportVM(null, vm.period.within),
-    facts: reportFacts(vm, campaigns),
     range: win.range,
     key: win.key,
     period: win.period,

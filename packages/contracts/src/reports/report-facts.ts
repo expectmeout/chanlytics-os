@@ -6,7 +6,7 @@
  * estimate, and none says a tile's number again (the tiles already did). Pure; the page draws what this returns.
  */
 import { reportHourWords, type ReportVM } from "./reports";
-import { beforeWords } from "./report-tiles";
+import { beforeWords, messagesAnsweredWords } from "./report-tiles";
 import type { CampaignReportVM } from "./campaign-report";
 import { plural } from "../shared/words";
 
@@ -23,7 +23,11 @@ export interface ReportFactVM {
 
 const lowerFirst = (s: string): string => (s ? s.charAt(0).toLowerCase() + s.slice(1) : s);
 
-export function reportFacts(vm: ReportVM, campaigns: CampaignReportVM | null): ReportFactVM[] {
+/**
+ * The campaigns it reads are the sources of the Campaigns lens's own read (`reports_campaigns`), which the page holds beside the
+ * report: null, or no sources, while that read is out, failed or missing, and the fact is then absent, never guessed.
+ */
+export function reportFacts(vm: ReportVM, campaigns: Pick<CampaignReportVM, "sources"> | null): ReportFactVM[] {
   const out: ReportFactVM[] = [];
 
   // "Yet": the newest of these may have a reply being written right now; every one of them has none so far.
@@ -106,7 +110,7 @@ export function reportFacts(vm: ReportVM, campaigns: CampaignReportVM | null): R
       tone: "",
       icon: "sparkle",
       text: `${best.name} drew the most replies`,
-      sub: `${best.replied} of ${best.sent} wrote back`,
+      sub: messagesAnsweredWords(best.replied, best.sent),
       door: { label: "Open it", to: best.kind === "broadcast" ? `broadcasts/run:${best.id}` : `outbound/${best.id}` },
     });
   }

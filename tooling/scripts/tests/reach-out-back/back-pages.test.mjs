@@ -8,7 +8,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
+import { toCampaignLensVM } from "@chanlytics/contracts/report-lens";
 import { installLegacyReact, fresh, again, all, byTestId, textOf, press, settle } from "../_legacy-react.mjs";
+import { CAMPAIGNS, dtoWith } from "../reports/campaigns/_campaign-world.mjs";
 
 // The fixtures are dated around 28 Sep 2026 and the lines say "Tue" within a week and a date after it, so the clock
 // the bridge reads (Date.now) is the fixtures' own: a wall clock a week on turned "Written Tue" into "Written Sep 22".
@@ -18,8 +20,9 @@ installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live", __chrome:
 const W = globalThis;
 const L = "../../../../apps/dashboard/src/legacy";
 await import(`${L}/components/data-bits.jsx`);
-// Reports' Reach-outs section is TSX (decision 0015): the surface's own module, on the same stub.
-const { RptReachOuts } = await import("../../../../apps/dashboard/src/surfaces/reports/reach-outs.tsx");
+// Reports' Reach-outs section is TSX (decision 0015): the Campaigns lens's part of it, on the same stub.
+const { reachOutsSection } =
+  await import("../../../../apps/dashboard/src/surfaces/reports/lenses/campaigns-reach-outs.tsx");
 // Leads is TSX too (surfaces/leads, decision 0015 step 9): its reach-out block, strip and lines, and its Stage column.
 const S = "../../../../apps/dashboard/src/surfaces";
 const { useReachOutLeads, ReachOutLeadsStrip, LeadReachOut } = await import(`${S}/leads/reach-out/lines.tsx`);
@@ -58,7 +61,8 @@ const reportDto = (over = {}) => ({
   today: "2026-09-28",
   since: "2026-08-30",
   has_reach_out: true,
-  totals: counts({ written: 12, delivered: 11, wrote_back: 2, interested: 1, booked: 1, said_no: 1 }),
+  totals: counts({ written: 12, delivered: 11, businesses: 8, wrote_back: 2, interested: 1, booked: 1, said_no: 1 }),
+  before: { written: 9, delivered: 8, bounced: 0 },
   series: [{ day: "2026-09-28", written: 12 }],
   chains: [
     {
@@ -73,14 +77,14 @@ const reportDto = (over = {}) => ({
           id: "p1",
           n: 0,
           hand: null,
-          ...counts({ written: 12, delivered: 11, wrote_back: 2, interested: 1, booked: 1, said_no: 1 }),
+          ...counts({ written: 12, delivered: 11, businesses: 8, wrote_back: 2, interested: 1, booked: 1, said_no: 1 }),
         },
-        { id: "p2", n: 1, hand: null, ...counts() },
+        { id: "p2", n: 1, hand: null, ...counts({ businesses: 0 }) },
       ],
     },
   ],
-  angles: [{ angle: "their rating", written: 12, wrote_back: 2 }],
-  other_angles: { written: 0, wrote_back: 0 },
+  angles: [{ angle: "their rating", written: 12, businesses: 8, wrote_back: 2 }],
+  other_angles: { written: 0, businesses: 0, wrote_back: 0 },
   no_angle: 0,
   domains: [
     {
@@ -96,20 +100,29 @@ const reportDto = (over = {}) => ({
   ],
   ...over,
 });
+/**
+ * The Campaigns lens's Reach-outs section, drawn over the lens's fold: the sends and the ledger of the campaign world beside the
+ * reach-outs this file gives (`null`: that read failed; `undefined`: nothing reads it, as in the demo).
+ */
 const section = (reachOuts) => {
   fresh();
-  return again(() => W.React.createElement(RptReachOuts, { R: { reachOuts } }));
+  const fold = toCampaignLensVM({ campaigns: CAMPAIGNS, ledger: dtoWith(), reachOuts }, NOW);
+  return again(() => reachOutsSection(fold));
 };
 
-test("Reports draws the reach-outs' section: the funnel, the angles, the domains, the days, and each step on its line", () => {
-  const tree = section(contracts.toReachOutReportVM(reportDto()));
+test("Reports draws the reach-outs' section: the strip, the emails, the businesses, the angles, the domains, the days and each step on its line", () => {
+  const tree = section(reportDto());
   assert.ok(byTestId(tree, "rpt-reach-outs"));
-  for (const id of ["ro-funnel", "ro-angles", "ro-domains", "ro-written", "ro-sources"])
+  for (const id of ["ro-strip", "ro-emails", "ro-funnel", "ro-angles", "ro-domains", "ro-written", "ro-sources"])
     assert.ok(byTestId(tree, id), id);
   assert.equal(all(tree, (n) => n.props?.["data-testid"] === "ro-source-row").length, 1);
   assert.equal(all(tree, (n) => n.props?.["data-testid"] === "ro-step-row").length, 2);
   assert.equal(all(tree, (n) => n.props?.["data-testid"] === "ro-domain-row").length, 1);
   assert.match(textOf(byTestId(tree, "ro-domains")), /mail\.example\.com.*Verified/);
+  // The businesses are counted apart from the emails: 8 businesses wrote to by 12 emails.
+  assert.match(textOf(byTestId(tree, "ro-sources")), /Businesses/);
+  assert.match(textOf(byTestId(tree, "ro-funnel")), /Written to.*8/);
+  assert.match(textOf(byTestId(tree, "ro-emails")), /Written.*12/);
   went.length = 0;
   assert.match(byTestId(tree, "ro-source-open").props.href, /^#\//, "the chain's name is a link with its address");
   press(byTestId(tree, "ro-source-open"));
@@ -117,14 +130,19 @@ test("Reports draws the reach-outs' section: the funnel, the angles, the domains
 });
 
 test("Reports says a failed read, an empty period, and draws nothing where there is no reach-out", () => {
-  assert.ok(byTestId(section(null), "ro-report-failed"));
-  assert.equal(section(undefined).rendered, null);
-  assert.equal(section(contracts.toReachOutReportVM(reportDto({ has_reach_out: false }))).rendered, null);
+  const failed = section(null);
+  assert.ok(byTestId(failed, "rpt-reach-outs"), "under its own heading");
+  assert.ok(byTestId(failed, "ro-failed"));
+  assert.match(textOf(byTestId(failed, "ro-failed")), /The rest of this page is current\./, "the fold's words");
+  assert.equal(byTestId(failed, "ro-strip"), null);
+  assert.equal(section(undefined), null);
+  assert.equal(section(reportDto({ has_reach_out: false })), null);
   const empty = section(
-    contracts.toReachOutReportVM(reportDto({ totals: counts(), chains: [], angles: [], domains: [], series: [] })),
+    reportDto({ totals: counts({ businesses: 0 }), chains: [], angles: [], domains: [], series: [] }),
   );
   assert.ok(byTestId(empty, "ro-report-empty"));
   assert.equal(byTestId(empty, "ro-funnel"), null);
+  assert.equal(byTestId(empty, "ro-strip"), null);
 });
 
 /* -------------------------------------------------------------------------- Leads -- */

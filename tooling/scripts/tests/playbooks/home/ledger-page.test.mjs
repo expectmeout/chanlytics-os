@@ -320,11 +320,15 @@ const NINE = () =>
       rowOf("pb-d"),
     ]),
     groupOf("lists", [rowOf("pb-e"), rowOf("pb-f")]),
-    groupOf("reach_out", [rowOf("ch-1", { kind: "chain", results: { kind: "written", written: 40, wroteBack: 6 } })], {
-      kind: "route",
-      label: "Find businesses to write to",
-      route: "clients/leads",
-    }),
+    groupOf(
+      "reach_out",
+      [rowOf("ch-1", { kind: "chain", results: { kind: "written", written: 40, businesses: 18, wroteBack: 6 } })],
+      {
+        kind: "route",
+        label: "Find businesses to write to",
+        route: "clients/leads",
+      },
+    ),
   ]);
 
 test("past seven rows the tool line stands: the search, a tab per status above zero, how many are shown, Sort and Group", () => {
@@ -415,7 +419,7 @@ test("a row: its name a link to its drawer, the whole row its press, what came b
   assert.equal(b.props["data-state"], "waiting");
   assert.match(textOf(byTestId(b, "cmh-approve")), /Approve · 7 people/);
   const chain = rows.find((r) => r.props["data-row"] === "ch-1");
-  assert.match(textOf(chain), /40 written · 6 wrote back/, "a chain in Reports' words");
+  assert.match(textOf(chain), /18 businesses · 6 wrote back/, "a chain in Reports' words, in businesses");
   const call = rows.find((r) => r.props["data-row"] === "call_text");
   assert.equal(
     byTestId(call, "cmh-row-open").props.href,

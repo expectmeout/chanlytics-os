@@ -3,11 +3,9 @@ import {
   type ChannelsReady,
   channelsReady,
   type NumberHealth,
-  numberHealth,
-  numberHealthWithStanding,
+  numberHealthOfConfig,
   offerPauseOf,
   parseTenantConfig,
-  standingFromConfig,
 } from "@chanlytics/contracts";
 import { mailboxOfTenant, textLineFacts, whatsappChannelFacts, workspacePaused } from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
@@ -106,7 +104,5 @@ type WhatsappHealth = NumberHealth & { number: string | null };
 export async function whatsappHealthOf(ctx: RouteContext, tenantId: string): Promise<WhatsappHealth | null> {
   const wa = await whatsappChannelFacts(ctx.supabase, tenantId);
   if (!wa) return null;
-  const s = (k: string) => (typeof wa.config[k] === "string" ? wa.config[k] : null);
-  const health = numberHealth({ quality: s("quality_rating"), event: s("quality_event"), limit: s("messaging_limit") });
-  return { ...numberHealthWithStanding(health, standingFromConfig(wa.config.standing)), number: wa.number };
+  return { ...numberHealthOfConfig(wa.config), number: wa.number };
 }

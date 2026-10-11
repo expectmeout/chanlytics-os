@@ -6,8 +6,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fixedDaysOf, reportRangeKey } from "@chanlytics/contracts";
-import { toPeopleReportVM, toReceptionistReportVM } from "@chanlytics/contracts/report-lens";
+import { fixedDaysOf, reportFacts, reportRangeKey } from "@chanlytics/contracts";
+import { toCampaignLensVM, toPeopleReportVM, toReceptionistReportVM } from "@chanlytics/contracts/report-lens";
+import { campaignsSample } from "../../../../apps/dashboard/src/surfaces/reports/campaigns-sample.ts";
 import {
   peopleSample,
   receptionistSample,
@@ -16,6 +17,11 @@ import {
 } from "../../../../apps/dashboard/src/surfaces/reports/sample.ts";
 
 const TODAY = "2026-09-18";
+/** The clock the Campaigns sample is folded on: the sample's own noon-ish hour on the day it is of. */
+const SAMPLE_NOW = Date.parse(`${TODAY}T16:00:00Z`);
+/** The Campaigns sample folded by the real fold, as the page folds it (no reach-outs: nothing reads them in a demo). */
+const campaignsFold = (sample) =>
+  toCampaignLensVM({ campaigns: sample.campaigns, ledger: sample.ledger, reachOuts: sample.reachOuts }, SAMPLE_NOW);
 
 test("the same period on the same day is the same report, kept rather than rebuilt on every draw", () => {
   const a = reportsSample("30d", TODAY);
@@ -30,7 +36,7 @@ test("the same period on the same day is the same report, kept rather than rebui
 test("every total agrees with its parts, in every period", () => {
   for (const id of ["7d", "30d", "90d"]) {
     const days = fixedDaysOf(id);
-    const { vm, campaigns, booking } = reportsSample(id, TODAY);
+    const { vm, booking } = reportsSample(id, TODAY);
     const t = vm.answered.totals;
     const reached = t.in + vm.calls.total;
     assert.equal(
@@ -67,9 +73,10 @@ test("every total agrees with its parts, in every period", () => {
       vm.calls.total,
       `${days}: a mood for each call`,
     );
+    const { report } = campaignsFold(campaignsSample(id, TODAY));
     assert.equal(
-      campaigns.sources.reduce((s, x) => s + x.sent, 0),
-      campaigns.totals.sent,
+      report.sources.reduce((s, x) => s + x.sent, 0),
+      report.totals.sent,
       `${days}: the sources share what was sent`,
     );
     assert.ok(booking.present && booking.booked <= booking.asked, `${days}: booked out of asked`);
@@ -80,11 +87,22 @@ test("it is a report worth showing: traffic, a period before to compare with, ca
   for (const id of ["7d", "30d", "90d"]) {
     const days = fixedDaysOf(id);
     const s = reportsSample(id, TODAY);
+    const { report } = campaignsFold(campaignsSample(id, TODAY));
     assert.equal(s.vm.empty, false, `${days}`);
     assert.ok(s.vm.tiles.find((x) => x.id === "messages").compare, `${days}: compared with the period before`);
-    assert.ok(s.campaigns && !s.campaigns.empty && s.campaigns.totals.sent > 0, `${days}: something went out`);
-    assert.ok(s.facts.length >= 1 && s.facts.length <= 3, `${days}: Worth knowing has something to say`);
+    assert.ok(report && !report.empty && report.totals.sent > 0, `${days}: something went out`);
+    // Worth knowing is the page's, made from the report and the Campaigns sample's sources: three at most, and at least one.
+    const facts = reportFacts(s.vm, report);
+    assert.ok(facts.length >= 1 && facts.length <= 3, `${days}: Worth knowing has something to say`);
   }
+});
+
+test("the report's sample is the frame alone: it carries nothing of campaigns and no facts, which the Campaigns sample and the page make", () => {
+  const s = reportsSample("30d", TODAY);
+  assert.deepEqual(Object.keys(s).sort(), ["booking", "days", "deals", "fetchedAt", "key", "period", "range", "vm"]);
+  assert.equal("campaigns" in s, false);
+  assert.equal("facts" in s, false);
+  assert.equal("reachOuts" in s, false);
 });
 
 test("Month is the days since the 1st: eighteen on the 18th, said as a period of its own", () => {
@@ -97,7 +115,7 @@ test("the sample's channels (0030) share each period's figures, every part insid
   for (let k = 0; k < 366; k++) {
     const today = new Date(Date.parse("2026-01-01T12:00:00Z") + k * 86_400_000).toISOString().slice(0, 10);
     for (const id of ["7d", "30d", "90d", "month"]) {
-      const { campaigns } = reportsSample(id, today);
+      const { report: campaigns } = campaignsFold(campaignsSample(id, today));
       const at = `${today} ${id}`;
       const sum = (k2) => campaigns.channels.reduce((n, c) => n + c[k2], 0);
       if (!campaigns.totals.sent) continue;
@@ -339,4 +357,129 @@ test("the Reviews sample is the public listing through the Reviews fold: four fi
     assert.equal(s.vm.lines.connect, "Connect your Business Profile to see every review, who answered, and how fast.");
     assert.equal(typeof s.vm.lines.head, "string", `${id}: and its head says the listing`);
   }
+});
+
+/** Every number in what the fold says is whole, and no sentence in it is made of a number that was not there. */
+function wholeWords(value, at) {
+  if (typeof value === "number") assert.ok(Number.isFinite(value), `${at}: ${value}`);
+  else if (typeof value === "string") assert.doesNotMatch(value, /NaN|Infinity|undefined|null/, `${at}: ${value}`);
+  else if (value && typeof value === "object") for (const [k, v] of Object.entries(value)) wholeWords(v, `${at}.${k}`);
+}
+
+test("the demo's Campaigns sample is the sends and the ledger over the report's own days, folded by the real fold with every read present and agreeing, and no reach-outs", () => {
+  const picked = { from: "2026-09-01", to: "2026-09-10" };
+  for (const range of ["7d", "30d", "90d", "month", picked]) {
+    const at = typeof range === "string" ? range : "picked days";
+    const sample = campaignsSample(range, TODAY);
+    const report = reportsSample(range, TODAY);
+    const v = campaignsFold(sample);
+    assert.deepEqual(
+      Object.keys(sample).sort(),
+      ["campaigns", "key", "ledger"],
+      `${at}: what the surface holds, no reach-outs`,
+    );
+    assert.equal(sample.key, report.key, `${at}: of the report's range, by its one name`);
+    assert.deepEqual(
+      [v.reads.campaigns, v.reads.ledger, v.reads.stuck, v.reads.reachOuts],
+      ["ok", "ok", "ok", "none"],
+      `${at}: every read present, and the reach-outs absent so that part draws nothing`,
+    );
+    assert.equal(v.reachOuts, null, at);
+    assert.deepEqual(v.failed, [], `${at}: nothing failed`);
+    assert.equal(v.quiet, false, `${at}: something went out`);
+    assert.equal(typeof v.head, "string", `${at}: the lens has a sentence`);
+    assert.equal(v.strip.length, 5, `${at}: the five figures`);
+    assert.equal(v.stuck.length, 5, `${at}: and the five stuck now`);
+    wholeWords(v, at);
+    // The sends: the channels, the sources and the days agree.
+    const t = v.report.totals;
+    const channels = campaignsSampleChannels(sample);
+    assert.deepEqual(
+      [channels.sent, channels.delivered, channels.replied],
+      [t.sent, t.delivered, t.replied],
+      `${at}: the channels sum to the totals`,
+    );
+    assert.equal(
+      sample.campaigns.sources.reduce((s, x) => s + x.sent, 0),
+      t.sent,
+      `${at}: the sources share what was sent`,
+    );
+    // The ledger agrees with the sends it is beside.
+    const s = sample.ledger.series;
+    const people = s.people;
+    assert.ok(
+      people.now.sent_to <= t.sent && people.now.wrote_back <= people.now.sent_to,
+      `${at}: people are no more than the sends`,
+    );
+    assert.ok(people.now.wrote_back <= t.replied, `${at}: and none wrote back more than were answered`);
+    assert.ok(people.now.counting <= people.now.sent_to, `${at}: and those still to answer are of those sent to`);
+    assert.ok(people.before.wrote_back <= people.before.sent_to, at);
+    const runs = s.runs.now.moment + s.runs.now.broadcast;
+    assert.equal(
+      runs,
+      sample.campaigns.sources.reduce((n, x) => n + x.runs, 0),
+      `${at}: the runs behind the sends`,
+    );
+    const sum = (o) => Object.values(o).reduce((a, b) => a + b, 0);
+    assert.equal(sum(s.first_reply.buckets), s.first_reply.n, `${at}: first replies add up`);
+    assert.equal(s.first_reply.n, t.replied, `${at}: one first reply for each answered send`);
+    assert.equal(sum(s.approval.buckets), s.approval.n, `${at}: approvals add up`);
+    assert.equal(sum(s.held.by_reason), s.held.total, `${at}: held back, by reason`);
+    assert.equal(sum(s.stopped.by_failure), s.stopped.failed, `${at}: stopped, by why`);
+    assert.equal(
+      s.failed_sends.by_code.reduce((n, c) => n + c.n, 0),
+      s.failed_sends.total,
+      `${at}: failed sends, by why`,
+    );
+    assert.equal(
+      s.by_message.reduce((n, m) => n + m.sent, 0),
+      t.sent,
+      `${at}: each message's sends are the report's`,
+    );
+    for (const m of s.by_message) assert.ok(m.replied <= m.mature && m.mature <= m.sent, `${at}: ${m.name}`);
+    // What is stuck now is as of now: one run waits and the number is healthy.
+    assert.deepEqual(
+      [sample.ledger.stuck.waiting.n, sample.ledger.stuck.number.state, sample.ledger.stuck.number.tone],
+      [1, "read", "ok"],
+      at,
+    );
+  }
+});
+
+/** The sends' channels summed. */
+function campaignsSampleChannels(sample) {
+  const rows = sample.campaigns.by_channel ?? [];
+  const add = (k) => rows.reduce((n, c) => n + c[k], 0);
+  return { sent: add("sent"), delivered: add("delivered"), replied: add("replied") };
+}
+
+test("the Campaigns sample is kept per range and day, names a range by its one name, and says days that ended before today as the report does", () => {
+  const a = campaignsSample("30d", TODAY);
+  assert.equal(
+    a,
+    campaignsSample("30d", TODAY),
+    "the same range on the same day is the same object, which the page folds once",
+  );
+  assert.notEqual(a, campaignsSample("30d", "2026-09-19"), "another day, another read");
+  assert.equal(campaignsSample("14d", TODAY).key, "30d", "a period Reports does not offer is the default one");
+  assert.equal(campaignsSample("month", TODAY).ledger.days, 18);
+  const picked = { from: "2026-09-01", to: "2026-09-10" };
+  const own = campaignsSample(picked, TODAY);
+  assert.equal(own.key, reportRangeKey(picked), "named by its one name");
+  assert.deepEqual([own.ledger.days, own.ledger.end, own.ledger.today], [10, "2026-09-10", TODAY]);
+  assert.equal(own.ledger.series.end, "2026-09-10", "the window names its last day to the fold");
+  assert.equal(own.ledger.series.people.now.counting, 0, "a window that ended has nobody whose reply window is open");
+  assert.equal(
+    own.ledger.series.by_message.every((m) => m.mature === m.sent),
+    true,
+    "and every send has had its time",
+  );
+  // A window that ends today names no day to the database, and has the newest sends not yet counted as answered.
+  assert.equal("end" in campaignsSample("7d", TODAY).ledger, false);
+  assert.equal("end" in campaignsSample("7d", TODAY).ledger.series, false);
+  const live = campaignsSample("30d", TODAY).ledger.series;
+  assert.ok(
+    live.by_message.some((m) => m.mature < m.sent),
+    "sent in the last 3 days: too new to say",
+  );
 });

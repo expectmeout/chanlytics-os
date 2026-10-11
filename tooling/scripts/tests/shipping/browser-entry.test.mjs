@@ -106,6 +106,9 @@ test("a page-only module's names are in no page's entry, and in its own", () => 
     "reports/receptionist/receptionist-words.ts",
     "reports/people/people-report.ts",
     "reports/people/people-words.ts",
+    "reports/campaigns/reach-out-lens.ts",
+    "reports/campaigns/campaign-words.ts",
+    "reports/campaigns/campaign-lens.ts",
   ]);
   for (const name of [
     "metricWordsOf",
@@ -115,6 +118,8 @@ test("a page-only module's names are in no page's entry, and in its own", () => 
     "toReceptionistReportVM",
     "toPeopleReportVM",
     "PEOPLE_RHYTHM_UNIT",
+    "toReachOutLensVM",
+    "toCampaignLensVM",
   ])
     assert.ok(!current.names.includes(name), `${name} is the Reports page's, by its own entry`);
   const lens = fs.readFileSync(path.join(ROOT, "packages/contracts/dist/report-lens.js"), "utf8");
@@ -122,6 +127,8 @@ test("a page-only module's names are in no page's entry, and in its own", () => 
   assert.match(lens, /toReceptionistReportVM/);
   assert.match(lens, /toPeopleReportVM/);
   assert.match(lens, /PEOPLE_RHYTHM_UNIT/);
+  assert.match(lens, /toReachOutLensVM/);
+  assert.match(lens, /toCampaignLensVM/);
   // The Receptionist lens's record is the server's: the root barrel names it, so the browser's entry carries it, and a page
   // imports only its types. The People lens's record and the book's count are the server's the same way.
   for (const name of [
@@ -162,7 +169,14 @@ test("every page-only path names a file, since one that names none would filter 
     );
   // The list the generator is given decides what the entry leaves out: with none, the page-only names come back.
   const all = generate(ROOT, []);
-  for (const name of ["metricWordsOf", "toReceptionistReportVM", "toPeopleReportVM", "reportWindowOf"])
+  for (const name of [
+    "metricWordsOf",
+    "toReceptionistReportVM",
+    "toPeopleReportVM",
+    "toReachOutLensVM",
+    "toCampaignLensVM",
+    "reportWindowOf",
+  ])
     assert.ok(all.names.includes(name), `${name} is in the entry when nothing is page-only`);
 });
 

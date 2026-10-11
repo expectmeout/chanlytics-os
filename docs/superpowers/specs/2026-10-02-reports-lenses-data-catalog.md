@@ -114,16 +114,17 @@ Avoid: "revenue" (amounts are what proposals say); a weighted forecast on a hand
 
 | Add | Form | Status | Source |
 | --- | --- | --- | --- |
-| **Who it reached, and who it left out**: eligible → never said yes / heard this already / no number / over the cap → sent | stacked bar | Now | `broadcasts.audience.reach` (RunReach), `broadcast_recipients.reason` |
-| **How fast it landed**: median seconds to delivered, hours to read | two figures | Now | `messages.meta.status_at` |
-| **Reply rate by template** | bar list | Now | `campaign_series.sources.template_name` |
-| **By channel**: WhatsApp, text, email | stacked bar | Now | `messages.channel` on recipients |
-| **Templates**: approved, paused, rejected, quality | list rows with a state pill | Now (quality Small: not applied from its webhook) | `templates.meta_status`, `category`, `quality` |
-| **Your number**: quality and messaging tier over time | step line with flags | Small (#6) | `channel.phone_number_quality_update` events (kept) |
-| **Why sends failed**, by provider code | bar list | Now | `messages.error` (Meta errors, Twilio `code`, email bounce) |
-| **Approval wait**: created → started | figure | Now | `broadcasts.created_at`, `started_at` |
+| **Yes and stop**: the answers to a campaign, once for each person and period | two figures | Built 11 Oct 2026 (C4) | `contact.consent_changed` events of a person a run reached, within 72 hours of the message or an exact unsubscribe (`campaign_answers`, 00403, held equal to `answersToRuns`) |
+| **Who it reached, and who it left out**: eligible → never said yes / heard this already / no number / over the cap → sent | stacked bar | Built 11 Oct 2026 (C4) for who it reached and who was held back; who it left out on purpose before the run was made stays Now | `broadcast_recipients.reason`, dated by their run (`campaign_ledger`, 00405); `broadcasts.audience.reach` (RunReach, whose keys are of mixed styles) is not read yet |
+| **How fast it landed**: median seconds to delivered, hours to read | two figures | Now; not drawn in C4 (the review's avoid list: delivery latency) | `messages.meta.status_at` |
+| **Reply rate by template** | bar list | Built 11 Oct 2026 (C4) | `campaign_ledger` (00405): for each template and language the sends that have had their 72 hours and the replies to them; `campaign_series.sources.template_name` stays the Home's |
+| **By channel**: WhatsApp, text, email | stacked bar | Built 11 Oct 2026 (C4) | `messages.channel` on recipients (`campaign_series.by_channel`) |
+| **Templates**: approved, paused, rejected, quality | list rows with a state pill | Built 11 Oct 2026 (C4) as the messages Meta stopped, in what is stuck now (quality Small: not applied from its webhook) | `templates.meta_status` (`campaign_stuck`, 00406) |
+| **Your number**: quality and messaging tier over time | step line with flags | Small (#6); not drawn in C4 (a few points in 90 days: the avoid list), its health now is a figure of what is stuck now | `channel.phone_number_quality_update` events (kept); the channel's own config for now |
+| **Why sends failed**, by provider code | bar list | Built 11 Oct 2026 (C4) | `messages.status`, `messages.error` of the recipient's message (`campaign_ledger`, 00405): a number or one word of a closed set and the channel, never the body (Meta errors, Twilio `code`, email bounce) |
+| **Approval wait**: created → started | figure | Built 11 Oct 2026 (C4), from the decision, not from `started_at` (the send beginning) | `decisions` verb `send_broadcast` with `approved`, against `broadcasts.created_at` |
 | **Booked after a campaign** (within N days) | funnel's last step | New (#1); deals won after a send is Now | appointments; `deals` ⨝ recipients |
-| **Clicks** on a link in WhatsApp/SMS | rate | New (a first-party redirect writing `link.clicked`) | decide first: email stays without tracking (decision 8) |
+| **Clicks** on a link in WhatsApp/SMS | rate | New (a first-party redirect writing `link.clicked`); not drawn in C4 | decide first: email stays without tracking (decision 8) |
 | Cost per message | figure | New (#4) | WhatsApp pricing, SMS segments |
 
 Avoid: open rates and email click tracking (decision 8); "read" as a headline (it depends on the recipient's receipts); sent counts as the hero.

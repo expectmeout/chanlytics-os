@@ -1,11 +1,12 @@
 /**
  * What the boot stopped loading for Reports' sake (the lenses spec, D17 and §6.5). Before, the runner booted every override on every
- * page, so the report (GET reports, reports/campaigns, reports/reach-outs: three routes and four view models built in the browser) was
- * read on the Inbox as a stranger and on Today as a surface it draws; now Today draws `reports_headline`, one small read, and the
- * report is read where Reports is on screen. The real runner is started over every override (the report's real, over a recording
- * fetch on a busy workspace's thirty days; the others recorded) on `today` and on `inbox`, both passes counted, before and after; and
- * the database's doors are counted per route over the in-memory double. The direction is held; the numbers are printed for the pull
- * request.
+ * page, so the report (GET reports, and once reports/campaigns and reports/reach-outs beside it: three routes and four view models
+ * built in the browser) was read on the Inbox as a stranger and on Today as a surface it draws; now Today draws `reports_headline`,
+ * one small read, and the report is read where Reports is on screen, alone (the Campaigns lens's reads are its own surface's, drawn on
+ * that lens and the Overview). The real runner is started over every override (the report's real, over a recording fetch on a busy
+ * workspace's thirty days; the others recorded) on `today` and on `inbox`, both passes counted, before and after; and the database's
+ * doors are counted per route over the in-memory double, against the three routes the report once was. The direction is held; the
+ * numbers are printed for the pull request.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -83,9 +84,8 @@ const NO_REACH_OUTS = {
 };
 const BOOKING = { calendar: "ok", days: 30, asked: 140, booked: 60 };
 const BODIES = {
+  // The report alone: a read of reports/campaigns or reports/reach-outs is not modelled, so the boot making one is a failure.
   reports: { report: busyReport(), booking: BOOKING, deals: null, profile: null },
-  "reports/campaigns": { report: busyCampaigns() },
-  "reports/reach-outs": { report: NO_REACH_OUTS },
   "reports/headline": { headline: headlineOf(busyReport(), "30d", BOOKING) },
 };
 
@@ -127,6 +127,8 @@ const OTHERS = [
   (await importSrc(`${S}/surfaces/reports/receptionist-surface.ts`)).receptionistOverride,
   // The People lens's, the same: on demand, drawn on that lens alone.
   (await importSrc(`${S}/surfaces/reports/people-surface.ts`)).reportsPeopleOverride,
+  // The Campaigns lens's, the same: on demand, drawn on that lens and on the Overview alone.
+  (await importSrc(`${S}/surfaces/reports/campaigns-surface.ts`)).reportsCampaignsOverride,
   (await importSrc(`${S}/surfaces/settings/billing/surface.ts`)).billingOverride,
 ];
 const settle = async (n = 40) => {
@@ -161,9 +163,10 @@ async function bootOn(hash, after) {
     asked,
   };
 }
-const REPORT_ROUTES = ["reports", "reports/campaigns", "reports/reach-outs"];
+/** The report the boot read before Today drew the headline: the report alone, now that the frame holds nothing of campaigns. */
+const REPORT_ROUTES = ["reports"];
 
-test("on Today, one small route is read for Reports' sake where three large ones were, in either pass", async (t) => {
+test("on Today, one small route is read for Reports' sake where the whole report was, in either pass", async (t) => {
   assert.ok(ROUTE_DRAWS.today.includes("reports_headline"), "Today draws the headline");
   assert.ok(!ROUTE_DRAWS.today.includes("reports"), "and no longer the report");
   const before = await bootOn("#/today", false);
@@ -180,6 +183,11 @@ test("on Today, one small route is read for Reports' sake where three large ones
     "nor the Receptionist lens's, which only its lens draws",
   );
   assert.equal(after.asked.includes("reports_people"), false, "nor the People lens's, which only its lens draws");
+  assert.equal(
+    after.asked.includes("reports_campaigns"),
+    false,
+    "nor the Campaigns lens's, which only its lens and the Overview draw",
+  );
   assert.ok(
     after.bytes * 20 < before.bytes,
     `a few hundred bytes for tens of thousands: ${after.bytes} against ${before.bytes}`,
@@ -210,6 +218,11 @@ test("on any other page the report is no longer read at all: it was a stranger i
     "nor the Receptionist lens's, which only its lens draws",
   );
   assert.equal(after.asked.includes("reports_people"), false, "nor the People lens's, which only its lens draws");
+  assert.equal(
+    after.asked.includes("reports_campaigns"),
+    false,
+    "nor the Campaigns lens's, which only its lens and the Overview draw",
+  );
 });
 
 /* ---- the server: which doors each route reaches for ---- */

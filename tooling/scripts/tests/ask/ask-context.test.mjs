@@ -1038,7 +1038,8 @@ test("Campaigns' reach-outs (A2): each one the ledger shows is a row of its own,
   const reach = {
     ...RPCS,
     reach_out_report: () => ({ chains: [] }),
-    reach_out_chain_totals: () => ({ [ROOT]: { written: 12, wrote_back: 2 } }),
+    // Twelve emails to five businesses, two of whom wrote back (00404 counts the businesses).
+    reach_out_chain_totals: () => ({ [ROOT]: { written: 12, businesses: 5, wrote_back: 2 } }),
   };
   const ledger = (rpcs) =>
     buildContext(
@@ -1066,7 +1067,7 @@ test("Campaigns' reach-outs (A2): each one the ledger shows is a row of its own,
   );
   assert.equal(
     textOf(got.blocks[1]),
-    `Movers in Austin · 30d: 12 written, 2 wrote back · running · next run waiting on you · route: campaigns/moment:${ROOT}`,
+    `Movers in Austin · 30d: 5 businesses, 2 wrote back · running · next run waiting on you · route: campaigns/moment:${ROOT}`,
   );
   // Every chain was counted, so one with no totals wrote nothing in these days.
   assert.equal(textOf(got.blocks[3]), `Gyms nearby · 30d: nothing sent · paused · route: campaigns/moment:${PAUSED}`);
@@ -1081,6 +1082,29 @@ test("Campaigns' reach-outs (A2): each one the ledger shows is a row of its own,
       ["playbook", PB, `outbound/${PB}`],
       ["playbook", PAUSED, `outbound/${PAUSED}`],
     ],
+  );
+  // A database before 00404 counts no businesses: the old line, in the emails written. One business is one business.
+  clearContextCache();
+  readerCache.clear();
+  const old = await ledger({
+    ...RPCS,
+    reach_out_report: () => ({ chains: [] }),
+    reach_out_chain_totals: () => ({ [ROOT]: { written: 12, wrote_back: 2 } }),
+  });
+  assert.ok(
+    textOf(old.blocks[1]).startsWith("Movers in Austin · 30d: 12 written, 2 wrote back · running"),
+    textOf(old.blocks[1]),
+  );
+  clearContextCache();
+  readerCache.clear();
+  const one = await ledger({
+    ...RPCS,
+    reach_out_report: () => ({ chains: [] }),
+    reach_out_chain_totals: () => ({ [ROOT]: { written: 3, businesses: 1, wrote_back: 1 } }),
+  });
+  assert.ok(
+    textOf(one.blocks[1]).startsWith("Movers in Austin · 30d: 1 business, 1 wrote back · running"),
+    textOf(one.blocks[1]),
   );
   // Totals that could not be read are said so, and logged; never "nothing sent".
   clearContextCache();

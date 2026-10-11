@@ -83,10 +83,12 @@ const CHANGED = ["campaigns", "propose_autonomy", "propose_campaign", "propose_l
 /**
  * 6 Oct 2026 (decision 0030, a campaign counted by its channel): report says the Campaigns lens beside the Deals
  * section, and campaigns says a run's channels and that its read is a share of what went by WhatsApp. The one sentence
- * each, and nothing else either says.
+ * each, and nothing else either says. 11 Oct 2026 (Reports, the Campaigns lens, C4 T16): report says the lens as the page
+ * does, from the one fold (toCampaignLensVM), so its sentence names the new shape (the people sent to, the window's mixes,
+ * what is stuck now) in the old one's place; it still ends with the words the next sentence follows.
  */
 const REPORT_CAMPAIGNS_WORDS =
-  "the Deals section where deals are on, and the Campaigns lens: what the broadcasts and playbooks sent, delivered and had written back, who said yes or asked to stop, the sources that sent the most, and by_channel where more than one channel sent (read is a share of what went by WhatsApp alone: a text or an email keeps no read receipt); campaigns says error where its numbers could not be read.";
+  "the Deals section where deals are on, and the Campaigns lens, as the page says it: head is its sentence; figures are the people sent to, the share of the messages delivered, the share of those people who wrote back, and the yeses and stops after a campaign, each against the period before; funnel is what was sent, delivered, read (WhatsApp's alone) and answered, counted in messages (a person sent three is three messages here and one in figures); by_channel is the same by channel where more than one sent (read is a share of what went by WhatsApp alone: a text or an email keeps no read receipt); sources are the five that sent the most; window is the period's, from the database's ledger: held (who was held back, and why), runs_stopped (the runs that failed or were canceled), failed_sends (why sends failed after they left), by_message (who wrote back to each message), send_to_first_reply (how soon the first reply came) and wait_for_your_ok (how long approvals waited); stuck is what is stuck now, whatever period is picked: the runs waiting for your OK, the failed runs, the replies waiting on you, the messages Meta stopped and your WhatsApp number; a share is said only of five or more and a count under that, and a mix with nothing to draw says the page's words in empty; window is null where the database does not keep the ledger yet and stuck where it does not keep what is stuck, each with an error beside it where its read failed, and a part of window the database did not count is null too; campaigns says error where its numbers could not be read.";
 /**
  * 7 Oct 2026 (Reports phase C, lens 1, T4): report says the Reviews lens after the Campaigns lens: the one sentence, and
  * nothing else it says moved.
@@ -95,10 +97,11 @@ const REPORT_REVIEWS_WORDS =
   "campaigns says error where its numbers could not be read. The Reviews lens is in reviews: the sentence at its head and its figures as the page says them (the rating, the count, the reviews written against the period before) and, where the owner's Business Profile is connected, how many were answered and how fast, the mix of stars, and how many wait for a reply (held is how many of the oldest waiting hold a reply the receptionist wrote and did not post); reviews says linked false where no Google listing is linked, and error where its numbers could not be read. Call it for";
 /**
  * 9 Oct 2026 (a moment holds many campaigns, lane 2, task 6): report says the Reach-outs section after the Reviews lens,
- * through the page's own reader: the one sentence, and nothing else it says moved.
+ * through the page's own reader: the one sentence, and nothing else it says moved. 11 Oct 2026 (Reports, the Campaigns lens,
+ * C4 T16): and says it in businesses, as the page's new fold does (toReachOutLensVM): the sentence is replaced whole.
  */
 const REPORT_REACH_OUTS_WORDS =
-  "reviews says linked false where no Google listing is linked, and error where its numbers could not be read. The Reach-outs section is in reach_outs, as the page says it: how many emails the reach-outs wrote, how many were delivered and bounced, and how many businesses wrote back, were interested, booked, said no or were handed to the owner, with the funnel's sentence and the line on what was handed (empty says nothing was written); reach_outs is null where the workspace has no reach-out, and error where its numbers could not be read. Call it for";
+  "reviews says linked false where no Google listing is linked, and error where its numbers could not be read. The Reach-outs section is in reach_outs, as the page says it: strip is the emails the reach-outs wrote, the share that landed and the number that bounced, each against the period before; emails is what was written, delivered and bounced, counted in emails; businesses is the businesses written to and how many wrote back, were interested, booked or said no, counted in businesses as they stand now (each counts once, at the last email that wrote to it, and an outcome is set against nothing before); angles is who wrote back, as they stand now, by the opening of the last email; handed is the line on the businesses handed to the owner, null where none were, and empty says nothing was written; reach_outs is null where the workspace has no reach-out, and error where its numbers could not be read. Call it for";
 /**
  * 10 Oct 2026 (Reports, the Receptionist lens, C2 T13): report says the Receptionist lens after the Reach-outs section: the
  * one sentence, and nothing else it says moved. It opens with the end of the Reach-outs sentence it follows, which it

@@ -173,11 +173,14 @@ test(
     assert.deepEqual(Object.keys(totals).sort(), [...roots].sort(), "every chain of the workspace, and nothing else");
     const report = ok(await viewer.rpc("reach_out_report", { p_tenant_id: A, p_days: 30 }), "the report");
     assert.equal(report.chains.length, 20, "the report's twenty");
+    // Emails written and businesses written to (00404): each chain here wrote one email to one business, so the two are
+    // equal on every row below and the share of wrote back is the same whichever it is of;
+    // reports/campaigns/reach-out-businesses.db.test.mjs holds the world where a business gets two emails.
     for (const c of report.chains) {
       const sum = (k) => c.steps.reduce((t, s) => t + s[k], 0);
       assert.deepEqual(
-        [totals[c.root_id].written, totals[c.root_id].wrote_back],
-        [sum("written"), sum("wrote_back")],
+        [totals[c.root_id].written, totals[c.root_id].businesses, totals[c.root_id].wrote_back],
+        [sum("written"), sum("businesses"), sum("wrote_back")],
         c.name,
       );
       assert.equal(Date.parse(totals[c.root_id].last_at), Date.parse(c.last_at), `${c.name}: when it last wrote`);
@@ -189,20 +192,25 @@ test(
       [roots[20], roots[21]],
       "the two oldest of this month's writers are past the report's twenty",
     );
-    for (const r of past) assert.equal(totals[r].written, 1, "and still say what they wrote");
+    for (const r of past) {
+      assert.equal(totals[r].written, 1, "and still say what they wrote");
+      assert.equal(totals[r].businesses, 1, "to one business");
+    }
     assert.deepEqual(
       totals[roots[22]],
-      { written: 0, wrote_back: 0, last_at: null },
+      { written: 0, businesses: 0, wrote_back: 0, last_at: null },
       "wrote forty days ago: nothing in thirty",
     );
     assert.deepEqual(
       totals[roots[23]],
-      { written: 0, wrote_back: 0, last_at: null },
+      { written: 0, businesses: 0, wrote_back: 0, last_at: null },
       "never wrote: nothing, and never absent",
     );
     assert.equal(totals[roots[0]].wrote_back, 1, "the business that wrote back");
+    assert.equal(totals[roots[0]].businesses, 1, "one of one");
     const ninety = ok(await viewer.rpc("reach_out_chain_totals", { p_tenant_id: A, p_days: 90 }), "ninety days");
     assert.equal(ninety[roots[22]].written, 1, "ninety days hold it");
+    assert.equal(ninety[roots[22]].businesses, 1, "and the business it wrote to");
     assert.equal(
       ok(await viewer.rpc("reach_out_chain_totals", { p_tenant_id: A, p_days: 500 }))[roots[22]].written,
       1,
@@ -255,8 +263,13 @@ test(
     assert.deepEqual([report.end, report.today], [dayBefore(2), today], "the report's window ended two days ago");
     assert.deepEqual(Object.keys(ended).sort(), [...roots].sort(), "every chain of the workspace, still");
     for (const r of roots.slice(0, 22))
-      assert.deepEqual(ended[r], { written: 0, wrote_back: 0, last_at: null }, "REGRESSION: counted what came after");
+      assert.deepEqual(
+        ended[r],
+        { written: 0, businesses: 0, wrote_back: 0, last_at: null },
+        "REGRESSION: counted what came after",
+      );
     assert.equal(ended[roots[22]].written, 1, "the email forty days ago is in its days");
+    assert.equal(ended[roots[22]].businesses, 1, "to one business");
     assert.deepEqual(
       report.chains.map((c) => c.root_id),
       [roots[22]],
@@ -264,7 +277,10 @@ test(
     );
     for (const c of report.chains) {
       const sum = (k) => c.steps.reduce((t, s) => t + s[k], 0);
-      assert.deepEqual([ended[c.root_id].written, ended[c.root_id].wrote_back], [sum("written"), sum("wrote_back")]);
+      assert.deepEqual(
+        [ended[c.root_id].written, ended[c.root_id].businesses, ended[c.root_id].wrote_back],
+        [sum("written"), sum("businesses"), sum("wrote_back")],
+      );
       assert.equal(Date.parse(ended[c.root_id].last_at), Date.parse(c.last_at), `${c.name}: when it last wrote`);
     }
     const now = ok(await viewer.rpc("reach_out_chain_totals", { p_tenant_id: A, p_days: 30 }), "no day named");

@@ -6346,15 +6346,33 @@ export type Database = {
         Args: { p_permission: string; p_tenant_id: string }
         Returns: boolean
       }
+      campaign_answers: {
+        Args: { p_since: string; p_tenant_id: string; p_until: string }
+        Returns: {
+          at: string
+          broadcast_id: string
+          consent: string
+          contact_id: string
+          event_id: string
+          exact: boolean
+          purpose: string
+        }[]
+      }
+      campaign_ledger: {
+        Args: { p_days?: number; p_end?: string; p_tenant_id: string }
+        Returns: Json
+      }
       campaign_month_sent: {
         Args: { p_at?: string; p_channel: string; p_tenant_id: string }
         Returns: number
       }
       campaign_reply_window: { Args: never; Returns: string }
+      campaign_run_lead: { Args: never; Returns: string }
       campaign_series: {
         Args: { p_days?: number; p_end?: string; p_tenant_id: string }
         Returns: Json
       }
+      campaign_stuck: { Args: { p_tenant_id: string }; Returns: Json }
       change_playbook: {
         Args: {
           p_decision?: Json
@@ -7889,6 +7907,7 @@ export type Database = {
         }[]
       }
       profile_set: { Args: { p_display_name: string }; Returns: Json }
+      provider_code_of: { Args: { p_error: Json }; Returns: number }
       provider_events_scrub: {
         Args: { p_needles: string[]; p_tenant_id: string }
         Returns: number

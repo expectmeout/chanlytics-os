@@ -82,8 +82,7 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
   );
   const server = readCode("apps/dashboard/src/server/campaigns/broadcasts.ts");
   assert.ok(
-    server.includes("REPLY_WINDOW_MS,") &&
-      server.includes("isReplyTo(sentAt, m.created_at)") &&
+    server.includes("isReplyTo(sentAt, m.created_at)") &&
       server.includes("replied.set(m.conversation_id, m.created_at)"),
     "a reply is an inbound inside the contracts' one window (its value runs in reports-honest.test.mjs), and the FIRST one is kept with its time (slice C)",
   );
@@ -93,7 +92,11 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
       mig.includes("create or replace function public.campaign_series"),
     "the SQL series keeps the same window",
   );
-  assert.ok(readCode("packages/contracts/src/reports/campaign-report.ts").includes("wrote back ${REPLY_WINDOW_WORDS}"));
+  assert.ok(
+    readCode("packages/contracts/src/reports/campaigns/campaign-words.ts").includes(
+      "were answered ${REPLY_WINDOW_WORDS}",
+    ),
+  );
   assert.ok(
     readRaw("apps/dashboard/src/legacy/styles/dashboard-a-v2.css").includes(
       ".brief-beat-text { flex: 1; min-width: 0; }",
