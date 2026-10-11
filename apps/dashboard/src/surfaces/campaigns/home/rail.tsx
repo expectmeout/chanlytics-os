@@ -15,7 +15,7 @@ import { Meter } from "../../kit/meter/meter";
 import { Panel } from "../../kit/panel/panel";
 import { StatePill } from "../../kit/pill/state-pill";
 import type { RouteDoor } from "../../legacy-verbs";
-import { ChannelMarks, ChannelsLine } from "../parts/channels-line";
+import { ChannelChips, ChannelMarks, ChannelsLine, channelsPaused } from "../parts/channels-line";
 import { HomeFailed } from "./failed";
 import { ResumeAct } from "./ledger/ledger-acts";
 
@@ -37,7 +37,7 @@ export interface RailActs {
  * hinted, and where no moment has anyone to reach yet, the first Turn on, so the door is never left out on a new
  * workspace's quietest day. The desk's rail and the phone's list read it alike.
  */
-export function firstDayStage(stages: readonly LifecycleStage[]): string | null {
+function firstDayStage(stages: readonly LifecycleStage[]): string | null {
   const offs = stages.filter((s) => s.state === "off" && s.act?.kind === "turn_on");
   return (offs.find((s) => s.hint) ?? offs[0])?.id ?? null;
 }
@@ -225,8 +225,13 @@ export function Rail({ home, acts, firstDayDoor = null, children }: RailProps) {
         <h2 className="cmh-h">{rail.title}</h2>
         {rail.coveredWords ? <span className="cmh-dim">{rail.coveredWords}</span> : null}
         {/* Where the workspace stands on its channels, at the rail's right on a desk: the frame keeps the head's own line
-            for a screen reader (a tab's list opens on its acts alone), so the page says it where the eye is. */}
-        <ChannelsLine parts={home.head.channels} testid="cmh-channels-rail" />
+            for a screen reader (a tab's list opens on its acts alone), so the page says it where the eye is. The phone's
+            chips, a chip each and one Set up (11 Oct 2026); the workspace's pause, its one line. */}
+        {channelsPaused(home.head.channels) ? (
+          <ChannelsLine parts={home.head.channels} testid="cmh-channels-rail" />
+        ) : (
+          <ChannelChips parts={home.head.channels} testid="cmh-channels-rail" />
+        )}
       </header>
       {home.failed.counts ? <HomeFailed failed={home.failed.counts} testid="pb-counts-failed" /> : null}
       {rail.stages.length > 0 ? (

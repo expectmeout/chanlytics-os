@@ -46,6 +46,7 @@ function _pickerTakes(
     face: "09:00",
     placeholder: "Choose an hour",
     readOnly: now.saving,
+    inline: true,
     ref: token,
     className: "pb-hour",
     "data-testid": "pb-hour",

@@ -640,7 +640,6 @@ test("the drawer and the composer say the workspace's own word for an appointmen
 
 /* ------------------------------- Send by (One message, every channel, step 3) ------------------------------- */
 
-const { Switch } = await import(`${SRC}/surfaces/kit/switch/switch.tsx`);
 const { Tooltip } = await import(`${SRC}/surfaces/kit/tooltip/tooltip.tsx`);
 
 /** The workspace's channels as the page reads them (server/campaigns/channels-ready.ts): WhatsApp, a text line, a mailbox. */
@@ -714,10 +713,30 @@ const viaSurface = (over = {}) =>
     templates: [reminderRow(), { ...starterRow("monthly_offer"), channels: ["whatsapp"] }],
     ...over,
   });
-/** The Send by row's switches by channel: each as the kit's Switch was given it. */
+/**
+ * The Send by row's toggles by channel (parts/send-by.tsx: a capsule each, a switch to a screen reader), read as the
+ * switches they replaced were read: whether it is on, whether it takes no press, what describes it, and a press that asks
+ * for a state, which presses the toggle where its state is not that one already.
+ */
 const viaOf = (tree) =>
   Object.fromEntries(
-    ["whatsapp", "sms", "email"].map((c) => [c, find(byTestId(tree, `pb-via-${c}`), (n) => n.type === Switch)]),
+    ["whatsapp", "sms", "email"].map((c) => {
+      const one = byTestId(tree, `pb-via-${c}`);
+      return [
+        c,
+        one && {
+          props: {
+            role: one.props.role,
+            checked: one.props["aria-checked"],
+            readOnly: one.props["data-fixed"] === "true",
+            describedBy: one.props["aria-describedby"],
+            onCheckedChange: (on) => {
+              if (on !== one.props["aria-checked"]) one.props.onClick();
+            },
+          },
+        },
+      ];
+    }),
   );
 const composingVia = (over = {}, moment = "visit_tomorrow") => composing(viaSurface(over), moment);
 /** Why each closed channel is closed, from the tooltips the row wears (a channel that says nothing wears none). */
@@ -734,6 +753,11 @@ test("Send by: a switch for each channel after what it says, every open channel 
   assert.ok(byTestId(tree, "pb-via"), "the row is drawn");
   assert.equal(find(byTestId(tree, "pb-via"), (n) => n.props?.role === "group").props["aria-label"], "Send by");
   const via = viaOf(tree);
+  assert.deepEqual(
+    ["whatsapp", "sms", "email"].map((c) => via[c].props.role),
+    ["switch", "switch", "switch"],
+    "each channel a switch to a screen reader",
+  );
   // Every channel the workspace is ready on and the message holds (8 Oct 2026, decision 5): a person is reached once, on
   // their best channel, so each tick widens who is reached and never doubles a message.
   assert.deepEqual(
@@ -779,9 +803,19 @@ test("Send by: a switch for each channel after what it says, every open channel 
   const why = find(byTestId(tree, "pb-via-sms"), (n) => n.props?.className === "cm-sr");
   assert.equal(textOf(why), "Texts carry no offers.");
   assert.equal(offer.sms.props.describedBy, why.props.id);
-  // Pressing a closed channel changes nothing.
+  // Pressing a closed channel changes nothing, and says why under the row, one at a time, where a finger reads it.
+  assert.equal(byTestId(tree, "pb-via-whys").props.hidden, true, "nothing said until a closed one is pressed");
   offer.sms.props.onCheckedChange(true);
   assert.equal(viaOf(page()).sms.props.checked, false);
+  assert.equal(textOf(byTestId(page(), "pb-via-whys")), "Text Texts carry no offers.");
+  viaOf(page()).email.props.onCheckedChange(true);
+  assert.equal(
+    textOf(byTestId(page(), "pb-via-whys")),
+    "Email Offers by email start once the campaigns domain is set up.",
+    "the one last pressed",
+  );
+  viaOf(page()).email.props.onCheckedChange(true);
+  assert.equal(byTestId(page(), "pb-via-whys").props.hidden, true, "and pressed again, it is put away");
 });
 
 test("a paused workspace is said in the playbook's foot as a note, never a refusal: it can still be saved and runs once billing resumes", () => {
@@ -894,9 +928,17 @@ test("the reasons under the reach are contracts' reachLines alone: no address, a
   );
 });
 
-test("the guardrails say who the run reaches for the channels it goes by, where they are read and not in the tooltip alone", () => {
+test("the guardrails say who the run reaches for the channels it goes by, first in the shield's tip, and on no line of their own", () => {
   let tree = composingVia();
-  const who = (t) => textOf(byTestId(t, "pb-guard-who"));
+  assert.equal(byTestId(tree, "pb-guard-who"), null, "the To row's count says who it reaches: no line says it again");
+  // What the tip says first: who it reaches (pbWhoWords), then the moment's rule and who the wire holds back.
+  const tip = (t) => byTestId(t, "pb-guard").props["data-tip"];
+  const who = (t) => {
+    const words = tip(t);
+    const at = words.indexOf(" One message per");
+    const cut = at >= 0 ? at : words.indexOf(" Never twice");
+    return cut >= 0 ? words.slice(0, cut) : words;
+  };
   // Every open channel on as it opens (decision 5): one line for each way they differ, from the one predicate.
   assert.equal(
     who(tree),
@@ -907,10 +949,7 @@ test("the guardrails say who the run reaches for the channels it goes by, where 
   viaOf(page()).email.props.onCheckedChange(false);
   tree = page();
   assert.equal(who(tree), "Only people with a recorded yes to hearing from you and a phone number.");
-  assert.ok(
-    byTestId(tree, "pb-guard").props["data-tip"].startsWith(who(tree)),
-    "the tooltip repeats it, with the rest",
-  );
+  assert.ok(tip(tree).length > who(tree).length, "the tip says it first, with the rest");
   // Email ticked too: one line for each way they differ, from the one predicate (contracts consentGuardWords), so an email
   // is never said to ask a recorded yes and a number.
   viaOf(tree).email.props.onCheckedChange(true);
@@ -1001,9 +1040,10 @@ test("where the workspace can send on nothing, Send by says so once with a door 
   const doors = allByTestId(standing, "pb-via-standing-door").filter((n) => n.type === "a");
   assert.equal(doors.length, 3);
   for (const door of doors) assert.match(String(door.props.href), /admin\/integrations$/);
-  // In place of the reasons a thumb reads, which the line has just given: what is left under the row is the promise
-  // to the channel the playbook keeps, without its reason a second time.
-  assert.equal(textOf(byTestId(tree, "pb-via-whys")), "WhatsApp It sends once it can.");
+  // In place of the reason line, which the standing line has just given: the channel the playbook keeps says it waits on
+  // its own toggle, without its reason a second time.
+  assert.equal(byTestId(tree, "pb-via-whys"), null);
+  assert.match(textOf(byTestId(tree, "pb-via-whatsapp")), /WhatsApp · waits/);
   assert.equal(byTestId(tree, "pb-number"), null, "the number's own warning would be the same thing said twice");
   assert.equal(viaOf(tree).whatsapp.props.checked, true, "and the playbook still keeps the channel it ticks, waiting");
   // A workspace paused for billing is not one that can send on nothing: the sheet says the pause where Save is, and
@@ -1547,8 +1587,9 @@ test("a Turn on opens a sheet titled for its moment, with no kind switch; New me
     again(() => CampaignsHome({ param: "new:moment:visited", nowMs: NOW })),
     (n) => n.type === PaneSheet,
   );
-  assert.equal(turnOn.props.title, contracts.LIFECYCLE_WORDS.compose.turnOn("How did it go"));
-  assert.match(String(turnOn.props.title), /^Turn on \S/, "Turn on, and the moment's campaign by name");
+  assert.equal(turnOn.props.title, contracts.LIFECYCLE_WORDS.compose.turnOnShort, "Turn on, as the sheet's kicker");
+  const named = byTestId(turnOn, "pb-name");
+  assert.ok(named.props.value || named.props.placeholder, "and the campaign's name under it, to rename in place");
   assert.equal(turnOn.props.tools, undefined, "a Turn on is no choice of kind");
   fresh();
   // A moment that already holds one (the sample's Win-back): no second campaign's title is its name.
@@ -1572,7 +1613,7 @@ test("a Turn on's title follows the moment its field holds: another moment chose
   const draw = () => again(() => CampaignsHome({ param: "new:moment:visited", nowMs: NOW }));
   const titleOf = (tree) => find(tree, (n) => n.type === PaneSheet).props.title;
   let tree = draw();
-  assert.equal(titleOf(tree), contracts.LIFECYCLE_WORDS.compose.turnOn("How did it go"));
+  assert.equal(titleOf(tree), contracts.LIFECYCLE_WORDS.compose.turnOnShort);
   // The win-back's moment (by visits: the sample has a calendar), whose stage already runs the sample's Win-back: no
   // second campaign's title is its name.
   const moment = pickerOf(tree, "pb-moment");
@@ -1582,17 +1623,17 @@ test("a Turn on's title follows the moment its field holds: another moment chose
   );
   moment.props.onValueChange("lapsed");
   tree = draw();
-  assert.equal(titleOf(tree), "New message", "not 'Turn on How did it go' over a Win-back");
+  assert.equal(titleOf(tree), "New message", "not 'Turn on' over a Win-back");
   // Back to the day after: its Turn on again, the address never moved.
   pickerOf(tree, "pb-moment").props.onValueChange("visited");
   tree = draw();
-  assert.equal(titleOf(tree), contracts.LIFECYCLE_WORDS.compose.turnOn("How did it go"));
+  assert.equal(titleOf(tree), contracts.LIFECYCLE_WORDS.compose.turnOnShort);
   assert.equal(find(tree, (n) => n.type === PlaybookComposer).props.initialTrigger, "visited", "the sheet stays open");
   // A choice is the sheet's it was made in: closed and opened again by the same Turn on, it is titled for its moment.
   pickerOf(tree, "pb-moment").props.onValueChange("lapsed");
   again(() => CampaignsHome({ param: null, nowMs: NOW }));
   again(() => CampaignsHome({ param: null, nowMs: NOW }));
-  assert.equal(titleOf(draw()), contracts.LIFECYCLE_WORDS.compose.turnOn("How did it go"));
+  assert.equal(titleOf(draw()), contracts.LIFECYCLE_WORDS.compose.turnOnShort);
 });
 
 test("a moment that already holds a campaign says so as the composer opens on it; the one being changed is not news", () => {

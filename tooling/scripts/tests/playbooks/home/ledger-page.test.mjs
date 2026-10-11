@@ -760,20 +760,31 @@ const drawPhone = (home, { group = null } = {}) => {
   return { draw, acts };
 };
 
-test("on a phone the Moments head says one meta line, and the channels only where one is closed", () => {
+/** A phone row's state pill: in the row's end, before its chevron (ledger-phone.tsx `cmh-row-end`), or none. */
+const pillIn = (row) =>
+  find(
+    find(row, (n) => String(n.props?.className ?? "").includes("cmh-row-end")),
+    (n) => n.props && "label" in n.props && "kind" in n.props,
+  );
+
+test("on a phone the Moments head says how many are on beside its name, who can hear you on one line, and the channels as chips", () => {
   fresh();
   let tree = drawPhone(phoneHome(NINE())).draw();
+  assert.match(textOf(byTestId(tree, "cmh-on")), /3 of 4 on/, "beside the head's name");
   const meta = byTestId(tree, "cmh-reach");
-  assert.match(textOf(meta), /3 of 4 on/);
   assert.match(textOf(meta), /41 of 60 can hear you/);
-  assert.equal(byTestId(meta, "cmh-channels"), null, "every channel open: nothing said of them");
+  assert.doesNotMatch(textOf(meta), /3 of 4 on/, "said once");
   fresh();
   const closed = [
     { channel: null, channels: ["whatsapp"], open: true, words: "Sending on WhatsApp", door: null },
     { channel: "sms", channels: ["sms"], open: false, words: "Text: No texting line yet", door: "admin/integrations" },
   ];
   tree = drawPhone(phoneHome(NINE(), { head: { channels: closed } })).draw();
-  assert.ok(byTestId(byTestId(tree, "cmh-reach"), "cmh-channels"), "one closed: the line, with its door");
+  const chips = byTestId(byTestId(tree, "cmh-reach"), "cmh-channels");
+  assert.ok(chips, "a chip each");
+  assert.ok(byTestId(chips, "cmh-channels-sms"), "the closed one is pressed for why");
+  assert.equal(byTestId(chips, "cmh-channels-whatsapp"), null, "an open one is words, nothing to press");
+  assert.ok(byTestId(chips, "cmh-channels-door"), "and one Set up is the door that mends it");
 });
 
 test("past seven rows a strip of chips, one choice: a moment's chip narrows to it, Needs you lets go of it, All of both", () => {
@@ -847,7 +858,7 @@ test("on a phone under seven rows a group the address names is said, with how ma
   assert.equal(byTestId(drawPhone(phoneHome(few)).draw(), "cmh-ledger-say"), null, "nothing narrows it: nothing said");
 });
 
-test("each moment's head is its node on the line, an empty one with its Turn on; its rows under it wear their kind as a mark", () => {
+test("each moment's head is its node on the line, an empty one offering its campaign as a row; its rows under it bare", () => {
   fresh();
   const tree = drawPhone(phoneHome(NINE())).draw();
   const heads = allBy(tree, "cmh-group-head");
@@ -858,19 +869,27 @@ test("each moment's head is its node on the line, an empty one with its Turn on;
     "with its node on the line",
   );
   assert.match(textOf(head("before")), /BEFORE/);
-  assert.ok(byTestId(head("after"), "cmh-turn-on"), "an empty moment carries its Turn on");
+  // A head is a label, never a press (Ruben, 11 Oct 2026): what an empty moment offers is a row under it.
+  assert.equal(byTestId(head("after"), "cmh-turn-on"), null, "no Turn on in a head");
+  const after = allBy(tree, "cmh-group").find((g) => g.props["data-group"] === "after");
+  assert.ok(byTestId(after, "cmh-offered"), "an empty moment offers its campaign as a row");
   assert.equal(head("lists").props["data-stage"], undefined, "Lists stand off the line");
   const rows = allBy(tree, "cmh-row");
   const a = rows.find((r) => r.props["data-row"] === "pb-a");
   const line = find(a, (n) => n.type === ListRow);
-  assert.ok(line.props.mark, "a mark, never a face");
+  // Bare: the moment's line beside it says what it is, where the same glyph stood on every row of a moment.
+  assert.equal(line.props.bare, true, "no mark, and never a face");
   assert.equal(line.props.face, undefined);
   assert.equal(byTestId(a, "cmh-row-open").props.href, "/w/studio/campaigns/moment:pb-a", "the drawer's door");
   // Its state once, on its pill in the phone's words; its one line is contracts' (ledgerPhoneLine).
+  // The moment is the head over the row, so its line says no moment.
   const pb = NINE().groups[1].rows[0];
-  assert.equal(line.props.said, contracts.ledgerPhoneLine(pb, "BEFORE"));
+  assert.equal(
+    line.props.said,
+    [contracts.ledgerPhoneWhat(pb), contracts.ledgerPhoneLine(pb, "")].filter(Boolean).join(" · "),
+  );
   assert.equal(all(a, (n) => n.props?.said !== undefined).length, 1, "the line is drawn once");
-  const pill = find(line, (n) => n.props?.className === "list-row-end" && "label" in n.props);
+  const pill = pillIn(line);
   assert.equal(pill.props.label, "daily 9:00 AM", "the pill says the phone's words, once");
   assert.match(textOf(a), /212 sent · 48 replied/, "and what came back");
   const b = rows.find((r) => r.props["data-row"] === "pb-b");
@@ -1244,12 +1263,13 @@ test("on a phone the drawer's docked foot holds Pause, or Resume, when no run wa
   assert.match(textOf(pause), /Pause/);
   const foot = find(running, (n) => classes(n).includes("pb-pane-foot"));
   assert.equal(foot.props["data-foot-pair"], "", "laid out as every phone foot's acts are (kit.css data-foot-pair)");
+  // Edit is the pair's other half (11 Oct 2026, where Pause stood alone across the foot and Edit in the menu).
+  assert.match(textOf(byTestId(running, "pb-edit-foot")), /Edit/);
   const menu = find(running, (n) => n.type === Menu && /More for Win-back/.test(n.props.label ?? ""));
   assert.deepEqual(
     menu.props.groups[0].items.map((i) => i.label),
-    // Ask about this campaign follows the menu's own act on a phone (the moment spec, A1: ask-on-campaigns.tsx).
-    ["Edit", "Ask about this campaign", "Run now", "Delete…"],
-    "the foot holds Pause: the menu does not say it twice",
+    ["Ask about this campaign", "Run now", "Delete…"],
+    "the foot holds Pause and Edit: the menu says neither twice",
   );
   fresh();
   const paused = page("moment:pb-sample-reminder");
@@ -1316,7 +1336,7 @@ test("a change saved from a row's drawer is scrolled to and washed once the last
   assert.deepEqual(said, [["back"], ["back"], ["back"], ["back"]], "each sheet closed back to what stood under it");
 });
 
-test("a moment whose people were not counted says the ledger's own dash, on the desk's card and on a phone's head", () => {
+test("a moment whose people were not counted says the ledger's own dash on the desk's card, and no figure on a phone's head", () => {
   fresh();
   // A word of the test's own for the dash: the card and the head read the ledger's, and type none of their own.
   const words = { ...WORDS, dash: "not counted" };
@@ -1330,7 +1350,9 @@ test("a moment whose people were not counted says the ledger's own dash, on the 
     stages: phone.rail.stages.map((s) => (s.id === "before" ? { ...s, people: null } : s)),
   };
   const head = allBy(drawPhone(phone).draw(), "cmh-group-head").find((x) => x.props["data-group"] === "before");
-  assert.equal(textOf(byTestId(head, "cmh-people")).trim(), "not counted");
+  // Nobody counted is nothing beside a moment's name on a phone (11 Oct 2026): never a zero, nor a dash that reads as one.
+  assert.equal(byTestId(head, "cmh-people"), null);
+  assert.doesNotMatch(textOf(head), /\b0\b|not counted/);
 });
 
 test("a card's press and a row's name are the kit's own variants: the press drawn as text, the name taking where it stands", () => {
@@ -1362,10 +1384,7 @@ test("the phone's own words are the ones it says: its head's name, and no word l
 test("on a phone a row with no state in the phone's words draws no pill: the call's text while its templates are unread", () => {
   fresh();
   const tree = drawPhone(phoneHome(NINE())).draw();
-  const pillOf = (id) => {
-    const row = allBy(tree, "cmh-row").find((r) => r.props["data-row"] === id);
-    return find(row, (n) => n.props?.className === "list-row-end" && "label" in n.props);
-  };
+  const pillOf = (id) => pillIn(allBy(tree, "cmh-row").find((r) => r.props["data-row"] === id));
   assert.equal(pillOf("call_text"), null, "no pill with nothing on it");
   assert.equal(pillOf("pb-a").props.label, "daily 9:00 AM", "a row with its words keeps its pill");
 });

@@ -52,7 +52,6 @@ import {
   pbListSub,
   pbShort,
   pbTitle,
-  pbWhoWords,
   pbWith,
 } from "./words";
 
@@ -288,7 +287,9 @@ function starterLine(x: SectionCtx) {
             </>
           ) : (
             <>
-              <b>{starter.title}</b> is written for this moment.{" "}
+              {/* The message is ready, said as one: its name, that it is written, and the one press that adds it. */}
+              <b>{starter.title}</b>, {STARTER_LINE_WORDS.written}
+              {canEdit ? " · " : null}
               {canEdit ? (
                 <LinkButton disabled={adding} onClick={addStarter} data-testid="pb-add-starter">
                   {adding ? "Adding…" : STARTER_LINE_WORDS.add}
@@ -467,7 +468,10 @@ export function viaSection(x: SectionCtx) {
   );
 }
 
-/** When it runs, said as one sentence with its numbers chosen in place. */
+/**
+ * When it runs, said as one sentence with its numbers chosen in place: each a word of the sentence (the kit's inline
+ * token), so the sentence keeps its own line's height (three capsules stood it over three tall lines on a phone).
+ */
 function whenSentence(x: SectionCtx) {
   const { f, trig, visits, monthly, city, setHour, setCap, setGap, setCadence } = x;
   const repeat = monthly ? f.cadence : f.gap;
@@ -482,6 +486,7 @@ function whenSentence(x: SectionCtx) {
         onValueChange={(h) => setHour(Number(h))}
         groups={cmNumbers(pbHours().map((h) => ({ v: h, t: pbHour(h) })))}
         chevron={cmChevron()}
+        inline
         data-testid="pb-hour"
       />
       {city ? ` ${city} time` : ""}
@@ -498,6 +503,7 @@ function whenSentence(x: SectionCtx) {
             onValueChange={(n) => setCap(Number(n))}
             groups={cmNumbers(pbWith(PLAYBOOK_CAP_CHOICES, Number(f.cap)).map((n) => ({ v: n, t: String(n) })))}
             chevron={cmChevron()}
+            inline
             data-testid="pb-cap"
           />{" "}
           {Number(f.cap) === 1 ? "person" : "people"} a run.{" "}
@@ -517,6 +523,7 @@ function whenSentence(x: SectionCtx) {
                   pbWith(monthly ? PB_CADENCES : PB_GAPS, Number(repeat)).map((n) => ({ v: n, t: `${n} days` })),
                 )}
                 chevron={cmChevron()}
+                inline
                 data-testid="pb-gap"
               />
               .
@@ -529,8 +536,9 @@ function whenSentence(x: SectionCtx) {
 }
 
 /**
- * The row of Autonomy it runs under, and the guardrails every run keeps: who it reaches, said where it is read and not only
- * in the shield's tooltip (which a finger never opens), for the channels it goes by.
+ * The row of Autonomy it runs under, and the guardrails every run keeps, on one line: the shield's words are its tip,
+ * shown on a hover, on focus and on a tap (who it reaches first, for the channels it goes by). Who it reaches stood as a
+ * line of its own under them, which the To row's count already says (Ruben, 11 Oct 2026: the sheet too cluttered).
  */
 export function underLine(x: SectionCtx) {
   const { trig, runsUnder, kept, purpose } = x;
@@ -538,9 +546,10 @@ export function underLine(x: SectionCtx) {
   const guard = pbGuardWords({ kind: trig ? trig.kind : "", word: x.data.shape.word }, kept, purpose, about);
   return (
     <div className="pb-rules-line">
+      {/* The row of Autonomy it runs under, as its chip says it ("Re-engage · asks you"), which opens Autonomy: the row's
+          own word (Rules) says what it is, so no "Runs under" before it. */}
       {runsUnder && (
         <span className="pb-runs-under" data-testid="pb-runs-under">
-          <span>Runs under</span>
           <PolicyChip cls={runsUnder} />
         </span>
       )}
@@ -553,9 +562,6 @@ export function underLine(x: SectionCtx) {
         data-testid="pb-guard"
       >
         <Icon name="shield" size={12} /> Guardrails
-      </span>
-      <span className="pb-guard-words" data-testid="pb-guard-who">
-        {pbWhoWords(kept, purpose, about)}
       </span>
     </div>
   );

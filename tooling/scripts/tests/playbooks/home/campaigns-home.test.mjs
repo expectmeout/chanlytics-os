@@ -219,10 +219,17 @@ test("the head says the page's line with its numbers in bold, the Library with i
   assert.doesNotMatch(text, /Sending on WhatsApp/);
   assert.equal(byTestId(head, "cmh-channels"), null, "no channel line in the frame's head");
   assert.equal(byTestId(head, "cmh-channels-door"), null, "and no door there");
+  // At the rail's head, a chip each (Ruben, 11 Oct 2026, where three sentences stood): an open one says it sends, a closed
+  // one is pressed for why, and one Set up is the door that mends it.
+  const W = contracts.LIFECYCLE_WORDS.channels;
   const rail = byTestId(page(), "cmh-channels-rail");
-  assert.match(textOf(rail), /Sending on WhatsApp/);
-  assert.match(textOf(rail), /Text: No texting line yet/);
-  assert.ok(byTestId(rail, "cmh-channels-rail-door"), "a closed channel is a door, where it is seen");
+  const named = all(rail, (n) => typeof n.props?.["aria-label"] === "string").map((n) => n.props["aria-label"]);
+  assert.ok(named.includes(W.sending("WhatsApp")), named.join(" | "));
+  assert.ok(named.includes(W.notSetUp("Text")), named.join(" | "));
+  pressed(byTestId(rail, "cmh-channels-rail-sms"));
+  const why = find(byTestId(page(), "cmh-channels-rail"), (n) => n.props?.className === "cmh-chan-why");
+  assert.match(textOf(why), /No texting line yet/, "the closed one says why, pressed");
+  assert.ok(byTestId(rail, "cmh-channels-rail-door"), "and Set up is the door, where it is seen");
   assert.ok(byTestId(head, "cmh-library"));
   assert.match(textOf(byTestId(head, "cmh-library")), /Library/);
   assert.ok(byTestId(head, "cmh-new"));
@@ -275,9 +282,11 @@ test("the phone opens on the moments: who can hear you one line in their head, a
   assert.equal(all(reach, (n) => n.type === Meter).length, 0, "no bar: the figure says it");
   // The sample has no texting line: a channel is closed, so where the workspace stands is said, with its door.
   assert.ok(byTestId(reach, "cmh-channels"));
+  // The amber "0 to offers" is itself the door to how that yes is got (Ruben, 11 Oct 2026: it stood apart as "Get their yes").
   const yes = all(reach, (n) => n.type === "a" && n.props?.["data-testid"] === "cmh-phone-yes")[0];
   assert.ok(yes, "the door is a link");
-  assert.equal(textOf(yes), "Get their yes");
+  assert.equal(textOf(yes), "0 to offers");
+  assert.equal(yes.props["aria-label"], "0 to offers: Get their yes", "named for where it goes");
   assert.match(String(yes.props.href), /broadcasts\/get-yes$/);
   assert.ok(byTestId(rail, "cmh-ledger"), "the campaigns stand in the same pane, under the line");
   const blocks = all(
@@ -768,7 +777,7 @@ test("a link to a playbook that is gone says so once the chains were read, and a
   assert.equal(sheet(tree).props.title, "Reach-outs", "the drawer's kicker is the campaign's group");
 });
 
-test("New message hosts the send screen under Send once and the playbook composer under Every time a moment comes", () => {
+test("New message hosts the send screen under Send once and the playbook composer under Every time", () => {
   surfaces();
   fresh();
   const once = page("new");
@@ -781,7 +790,7 @@ test("New message hosts the send screen under Send once and the playbook compose
     seg.props.options.map((o) => [o.value, o.label]),
     [
       ["once", "Send once"],
-      ["every", "Every time a moment comes"],
+      ["every", "Every time"],
     ],
   );
   seg.props.onValueChange("every");
@@ -1620,10 +1629,15 @@ test("Ask's doors on Campaigns (the moment spec, A1): Ask in the head between th
     const phone = page();
     const onPhoneDoor = byTestId(phone, "cmh-setup-ask");
     assert.ok(onPhoneDoor, "the phone's first day has its door too");
-    assert.match(textOf(onPhoneDoor), /Set up my campaigns/);
+    assert.equal(textOf(onPhoneDoor), contracts.LIFECYCLE_WORDS.ask.setUpDoor);
     assert.equal(find(onPhoneDoor, (n) => n.type === Icon)?.props.name, "three", "its mark, never a bare glyph");
-    const hintedGroup = allBy(phone, "cmh-group").find((g) => byTestId(g, "cmh-group-head")?.props["data-hint"]);
-    assert.ok(byTestId(hintedGroup, "cmh-setup-ask"), "under the hinted moment's Turn on");
+    // Once, at the list's top: under the hinted moment it read as that moment's (Ruben, 11 Oct 2026).
+    assert.equal(
+      allBy(phone, "cmh-group").filter((g) => byTestId(g, "cmh-setup-ask")).length,
+      0,
+      "under no moment of the list",
+    );
+    assert.ok(byTestId(byTestId(phone, "cmh-ledger"), "cmh-setup-ask"), "at the top of the list");
     globalThis.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
     surfaces();
     fresh();

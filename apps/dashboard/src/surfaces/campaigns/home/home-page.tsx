@@ -27,10 +27,11 @@ import { CmDot, CmHead } from "../parts/head";
 import { useCmPhone } from "../parts/split";
 import type { PlaybookCardVM } from "../playbooks/surface";
 import { ReachOutSheet } from "../reach-out/sheet";
-import { composeRoute, momentRoute, parseHome } from "./address";
+import { composeRoute, messageRoute, momentRoute, parseHome } from "./address";
 import { AskDoor, SetUpAsk, useLedgerOnScreen } from "./ask-on-campaigns";
 import type { HomeAddress } from "./address";
 import { MomentDrawer } from "./drawer";
+import { MessageDrawer } from "./message-drawer";
 import { Ledger } from "./ledger/ledger";
 import type { LedgerActs, LedgerApproval } from "./ledger/ledger-acts";
 import {
@@ -122,15 +123,19 @@ function useActs(home: LifecycleHome, nav: Nav, flash: Flash, onDecided: (id: st
     });
     if (!r.ok) flash({ tone: "danger", msg: <>{r.message}</> });
   };
+  // A route of the home's own (`campaigns/message:<name>`, the call's text's message) is a sheet over it, pushed so Back
+  // closes it; any other is a page.
+  const homes = (route: string) => route.startsWith("campaigns/");
   const onAct = (act: LifecycleAct) => {
     if (act.kind === "open") nav.push(momentRoute(act.playbookId));
     else if (act.kind === "turn_on") nav.push(composeRoute("every", { moment: act.moment }));
     else if (act.kind === "resume") void resume(act.playbookId);
+    else if (homes(act.route)) nav.push(act.route);
     else navigate(act.route);
   };
   const door: Door = (act) => {
     if (act.kind === "open") return routeDoor(momentRoute(act.playbookId), nav.push);
-    if (act.kind === "route") return routeDoor(act.route);
+    if (act.kind === "route") return routeDoor(act.route, homes(act.route) ? nav.push : undefined);
     return null;
   };
   // A browser that will not copy (no clipboard on an insecure page, or a refusal) says the phrase, to be typed or copied by hand.
@@ -236,8 +241,8 @@ function useLedgerPage(
   address: HomeAddress,
   at: { group: string | null; nav: Nav; phone: boolean },
 ) {
-  // A sheet over the ledger: the drawer, or a composer (a reach-out's sheet among them, at the composer's address).
-  const sheetOpen = address.moment !== null || address.compose !== null;
+  // A sheet over the ledger: the drawer, a message's, or a composer (a reach-out's sheet among them, at the composer's address).
+  const sheetOpen = address.moment !== null || address.message !== null || address.compose !== null;
   const marks = useRowMarks(sheetOpen);
   const settled = marks.mark && marks.mark.kind === "settled" ? marks.mark.id : null;
   const view = useLedgerView(home.ledger, { group: at.group, onGroup: at.nav.narrow, phone: at.phone, keep: settled });
@@ -259,7 +264,10 @@ function useLedgerPage(
   // The rows the screen shows, so focus has a row to go to when the opener is gone (the row now at its index, else the
   // last, else the search).
   const fromCard = useFocusComesHome(
-    address.moment ?? (address.compose && address.compose.mode === "every" ? address.compose.edit : null),
+    address.moment ??
+      // A message's drawer was opened from the call's text, whose row the focus comes home to.
+      (address.message !== null ? "call_text" : null) ??
+      (address.compose && address.compose.mode === "every" ? address.compose.edit : null),
     ids,
   );
   // A campaign just made has no row until the playbooks are read again: it is scrolled to when its row is drawn.
@@ -360,8 +368,11 @@ export function CampaignsHome({ param, nowMs }: CampaignsHomeProps) {
         flash={flash}
         onClose={nav.close}
         onEdit={(p: PlaybookCardVM) => changeAt(p.id)}
+        onMessage={(name) => nav.push(messageRoute(name))}
         onEditChain={(c) => changeAt(c.root_id)}
       />
+      {/* A message open in its own drawer: the call's text's, or the one a campaign's drawer names. */}
+      <MessageDrawer name={address.message} flash={flash} onClose={nav.close} />
       {chain && chain.search ? (
         <ReachOutSheet key={chain.root_id} search={chain.search} chain={chain} onClose={nav.close} onGo={nav.swap} />
       ) : null}

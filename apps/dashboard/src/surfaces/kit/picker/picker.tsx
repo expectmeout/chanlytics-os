@@ -75,6 +75,11 @@ export type PickerProps<V extends string> = {
   note?: ReactNode;
   /** While a save is out: it keeps its focus and opens on nothing new (never `disabled`, which lets focus go). */
   readOnly?: boolean;
+  /**
+   * Read as a word of its sentence (`.token-inline`): no capsule at rest, its words underlined, the line it stands on
+   * its own height; a finger still finds 44px round it. For a sentence of several (a campaign's "Every day at…").
+   */
+  inline?: boolean;
   /** The id a test finds the token by (a page's tests and the browser's specs). */
   "data-testid"?: string;
   className?: string;
@@ -121,7 +126,7 @@ function PickerList<V extends string>(props: PickerProps<V> & { one: PickerOptio
     >
       <BaseSelect.Trigger
         ref={ref}
-        className={cx("token", className)}
+        className={cx("token", props.inline && "token-inline", className)}
         aria-label={`${label}: ${one ? one.label : (props.placeholder ?? "none")}`}
         data-testid={props["data-testid"]}
       >
@@ -192,7 +197,7 @@ function PickerFind<V extends string>(props: PickerProps<V> & { one: PickerOptio
     >
       <BaseCombobox.Trigger
         ref={ref}
-        className={cx("token", className)}
+        className={cx("token", props.inline && "token-inline", className)}
         aria-label={`${label}: ${one ? one.label : (props.placeholder ?? "none")}`}
         data-testid={props["data-testid"]}
       >

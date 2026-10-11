@@ -5,6 +5,7 @@
  * them; the rows, which scroll; and a foot that holds still. Or a phone's small job (`shape="job"`: Add a person, a
  * list's name, what a selection can become): a short head with a way back where the job is a step of another, its
  * title, and a word to close it or none, then the job itself. What it lists and what its foot acts on are the page's.
+ * A record's title may be a kicker (`kicker`): a quiet line over a pane that draws its own head, as Campaigns' drawers do.
  *
  * Its behaviour is Base UI's Dialog (`@base-ui/react/dialog`, the plan's decision 15): modal, so focus is held inside
  * it and the page behind is inert to a pointer and a screen reader and does not scroll; Escape and a press on the
@@ -50,6 +51,16 @@ type SheetShape =
       tools?: ReactNode;
       /** The foot, which holds still under the rows: the page's acts. */
       foot?: ReactNode;
+      /**
+       * The title said as a quiet line over what the sheet holds, its Close a small circle at that line's end, where
+       * what it holds draws its own head (a name, its state, its acts): one head, never two stacked.
+       */
+      kicker?: boolean;
+      /**
+       * What it holds closes it from its own foot (a composer's Cancel): on a phone the head's Close steps out of sight
+       * there, as a record sheet's does over its Cancel, and comes back for a keyboard.
+       */
+      footCloses?: boolean;
       back?: undefined;
     }
   | {
@@ -59,6 +70,8 @@ type SheetShape =
       sub?: undefined;
       tools?: undefined;
       foot?: undefined;
+      kicker?: undefined;
+      footCloses?: undefined;
     };
 
 /** A sheet: whether it is open, what asks it to close, its head, what it holds, and its shape's parts. */
@@ -170,7 +183,8 @@ export function Sheet(props: SheetProps) {
         <Dialog.Popup
           ref={place}
           initialFocus={initialFocus ?? firstFocus}
-          className={cx("sheet", className)}
+          className={cx("sheet", shown.kicker && "sheet-kicker", className)}
+          data-foot-closes={shown.footCloses ? "true" : undefined}
           data-testid={testid}
           {...touchSwipe({ onDown: onClose, when: onAPhone })}
           render={(p, state) => <section {...p} data-leaving={closingWord(state)} />}

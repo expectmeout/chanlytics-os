@@ -67,6 +67,8 @@ interface CardViaProps {
   via: CardVia;
   /** The channels it keeps after a press: what the server is sent, alone. */
   onChannels: (next: readonly ConsentChannel[]) => void;
+  /** The switches alone, where a line's word already says "Goes by" (the drawer's lines, parts/lines.tsx). */
+  bare?: boolean;
 }
 
 /**
@@ -75,19 +77,23 @@ interface CardViaProps {
  * viewer sees them still. A press starts from what it keeps, so a channel kept and waiting for a line is never let go by a
  * press on another. Nothing for a playbook that runs nothing here, nor for a reach-out's step, which goes by email alone.
  */
-export function CardVia({ p, canAct, busy, via, onChannels }: CardViaProps) {
+export function CardVia({ p, canAct, busy, via, onChannels, bare = false }: CardViaProps) {
   if (p.off || triggerOf(p.trigger)?.kind === "reach_out") return null;
   const ticks = canAct && !busy ? via.ticks : via.ticks.map((t) => ({ ...t, fixed: true }));
+  const row = (
+    <CmVia
+      ticks={ticks}
+      label={LIFECYCLE_WORDS.channels.goesBy}
+      busy={busy}
+      onTick={(channel, on) => onChannels(cmTick(via.kept, channel, on))}
+      testid="pb-via"
+    />
+  );
+  if (bare) return row;
   return (
     <div className="ob-via" data-testid="pb-goes-by">
       <span className="ob-via-k">{LIFECYCLE_WORDS.channels.goesBy}</span>
-      <CmVia
-        ticks={ticks}
-        label={LIFECYCLE_WORDS.channels.goesBy}
-        busy={busy}
-        onTick={(channel, on) => onChannels(cmTick(via.kept, channel, on))}
-        testid="pb-via"
-      />
+      {row}
     </div>
   );
 }
