@@ -1047,6 +1047,8 @@ test("the rows, then the job, then the ledger: the row as the person composed it
     moved_from: null,
     held_for_allowance: 0,
     left_out: 0,
+    // Sent now, not set for a time ahead: its breath was this week's.
+    scheduled_ahead: false,
     decision_id: "d1",
   });
 });
