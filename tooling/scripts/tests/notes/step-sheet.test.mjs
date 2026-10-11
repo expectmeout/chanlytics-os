@@ -335,7 +335,7 @@ test("the sheet opens where it is asked for, reads the person, says what is wron
   assert.equal(title(tree), "Set a next step");
   tree = await until("the person is read", (t) => input(t, "step-sheet-what-input"));
   assert.equal(sub(tree), "Tove Lind · Website");
-  assert.match(textOf(byTestId(tree, "step-sheet-rule")), /team only/);
+  assert.match(textOf(byTestId(tree, "step-sheet-rule")), /Only your team sees it/);
 
   // Nothing typed, no day: each is said under its field, and nothing is sent.
   press(saveOf(tree));

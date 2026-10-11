@@ -608,7 +608,7 @@
   "apps/dashboard/src/legacy/styles/settings.css::cw-input": 2,
   "apps/dashboard/src/legacy/styles/settings.css::field-error": 3,
   "apps/dashboard/src/legacy/styles/settings.css::pill": 3,
-  "apps/dashboard/src/legacy/styles/settings.css::rec-box": 7,
+  "apps/dashboard/src/legacy/styles/settings.css::rec-box": 6,
   "apps/dashboard/src/legacy/styles/settings.css::rec-can-chip": 2,
   "apps/dashboard/src/legacy/styles/settings.css::rec-card-head": 1,
   "apps/dashboard/src/legacy/styles/settings.css::rec-card-sub": 1,

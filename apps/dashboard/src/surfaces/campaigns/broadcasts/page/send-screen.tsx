@@ -103,16 +103,16 @@ function bcBlockers(v: BcV) {
           {active.label}” is {activeCount.toLocaleString()}. Send to a smaller list or split it.
         </div>
       )}
-      {canSend && active && activeCount === 0 && (
+      {/* Where no channel is ticked the foot says so, by the act it stops: said here too, it was the same sentence twice
+          in one screen (Ruben, 10 Oct 2026). */}
+      {canSend && active && activeCount === 0 && on.length > 0 && (
         <div className="bc-excl-hint" data-testid="bc-nobody">
-          {on.length === 0 ? (
-            CM_VIA_WORDS.nowhere
-          ) : noNumber ? (
+          {noNumber ? (
             noNumber
           ) : purpose === "marketing" ? (
             <>
-              Nobody on “{active.label}” has said yes to offers yet — that is a separate answer from saying yes to
-              messages. Record it under “Offers and news” on their profile{yesDoor}.
+              Nobody on “{active.label}” has said yes to offers yet. Record it under “Offers and news” on their profile
+              {yesDoor}.
             </>
           ) : (
             <>
@@ -466,8 +466,7 @@ function bcNewTemplate(v: BcV) {
 // cannot be taken back asking before anything leaves. A time picked makes Schedule it the act, with Send now beside it. Cancel,
 // and Escape, with something written: the one question first (UnsavedAsk), where the foot's acts were.
 function bcSendFoot(v: BcV) {
-  const { data, name, setName, canSend, armed, ready, say, whenAt, whenNote, submit, setArmed, active, activeCount } =
-    v;
+  const { data, canSend, armed, ready, say, whenAt, whenNote, submit, setArmed, active, activeCount } = v;
   const { tpl, busy, work, splitWords } = v;
   if (work.asking) return <UnsavedAsk onYes={work.discard} onNo={work.stay} testid="bc-leave" />;
   // A time picked that cannot be scheduled (passed, or past the ceiling) is what Schedule it waits on, when nothing else is.
@@ -512,14 +511,6 @@ function bcSendFoot(v: BcV) {
           {stop.words}
         </span>
       )}
-      <Field
-        className="bc-foot-name"
-        aria-label="Name this broadcast"
-        placeholder="Name this broadcast (optional)"
-        value={name}
-        onValueChange={setName}
-        maxLength={80}
-      />
       {/* Stop, Skip and Cancel stay with the roles that may press them; the page says why once, in the gate's words. */}
       {!canSend && (
         <div className="bc-excl-hint" data-testid="bc-role">
@@ -576,6 +567,22 @@ function bcSendPane(v: BcV, body: ReactNode) {
 // pane, each with its word at the left, and the foot the glass bar. The columns keep their own markup, testids and words;
 // the row's word says what their eyebrows (Who, What, When) said. Send by stands under To (8 Oct 2026): the count under To
 // is counted over the channels ticked, and stood two rows and a whole preview away from the switches that change it.
+// The send's name, a row of its own under When: optional, and the message's own name where none is typed. It stood in the
+// foot, between the line that says what stops the send and the send itself (Ruben, 10 Oct 2026: a foot holds the acts).
+function bcColName({ name, setName }: BcV) {
+  return (
+    <div className="bc-col" data-testid="bc-col-name">
+      <Field
+        aria-label="Name this broadcast"
+        placeholder="Optional"
+        value={name}
+        onValueChange={setName}
+        maxLength={80}
+      />
+    </div>
+  );
+}
+
 function bcGlassRow(word: string, body: ReactNode) {
   return (
     <div className="bc-grow">
@@ -593,6 +600,7 @@ export function bcComposerGlass(v: BcV) {
       {bcGlassRow(CM_VIA_WORDS.label, bcColVia(v))}
       {bcGlassRow("Says", bcColWhat(v))}
       {bcGlassRow("When", bcColWhen(v))}
+      {bcGlassRow("Name", bcColName(v))}
     </div>,
   );
 }

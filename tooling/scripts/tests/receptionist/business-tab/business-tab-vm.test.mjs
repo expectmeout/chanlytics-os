@@ -899,9 +899,9 @@ test("the services row counts them, names the first three with how long each tak
   assert.equal(vm.count, 33);
   assert.equal(vm.line, "33", "the count alone: the key says what it counts");
   // In the stored order, which is the order the receptionist reads them in: never sorted.
-  // "180 min", never "180m", which a screen reader may say as metres.
+  // "3 h" and "45 min", never "180m", which a screen reader may say as metres (contracts serviceTakesWords).
   assert.deepEqual(vm.chips, [
-    { name: "Balayage", takes: "180 min" },
+    { name: "Balayage", takes: "3 h" },
     { name: "Highlights", takes: "45 min" },
     { name: "Haircut", takes: null },
   ]);

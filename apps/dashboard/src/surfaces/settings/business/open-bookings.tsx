@@ -479,11 +479,8 @@ export const BtBookingTool = ({
       row={{
         value: booksWith ? <BtoBooksWith withWhat={booksWith} feed={feed} /> : null,
         empty: BOOKING_TOOL_WORDS.empty,
-        hint: booksWith
-          ? null
-          : guess
-            ? `Your booking link is on ${guess}. Set it up to fill your calendar.`
-            : BOOKING_TOOL_WORDS.hint,
+        // A line under it only where there is something to act on: the tool the booking link was found on.
+        hint: !booksWith && guess ? `Your booking link is on ${guess}. Set it up to fill your calendar.` : null,
         children: (
           <>
             <BtoFeedRead stored={!!feed} whole={!canEdit} />

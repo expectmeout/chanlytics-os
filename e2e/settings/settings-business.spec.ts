@@ -63,8 +63,8 @@ async function openFold(page: Page, id: string): Promise<Locator> {
 }
 
 /**
- * Throw away whatever the test typed: Cancel, and the ask it raises when something was typed. Answering "Yes,
- * discard" is how this spec ends an editor; the one Save it presses goes to a stand-in (the header says which).
+ * Throw away whatever the test typed: Cancel, and the ask it raises when something was typed. Answering "Discard" is
+ * how this spec ends an editor; the one Save it presses goes to a stand-in (the header says which).
  */
 async function discard(page: Page, id: string, kind: "fold" | "sheet" = "fold"): Promise<void> {
   await page.getByTestId(`rec-${kind}-cancel-${id}`).click();
@@ -657,7 +657,7 @@ test.describe("Settings › Business on a real workspace", () => {
     await page.getByTestId("rec-fold-cancel-tone").click();
     const ask = page.getByTestId("rec-fold-tone-cancel-confirm");
     await expect(ask).toBeVisible();
-    await expect(ask).toContainText("Discard your changes?");
+    await expect(ask).toContainText("Discard changes?");
     // The fold is still open behind the question: nothing was thrown away by asking.
     await expect(foldOf(page, "tone")).toBeVisible();
 
@@ -684,9 +684,10 @@ test.describe("Settings › Business on a real workspace", () => {
     await expect(monday).toHaveAttribute("data-open", "true");
     await hours.getByTestId("rec-hours-add-mon").click();
 
-    // Where the person was: the first shift's opening time, which the remove does not take away.
+    // Where the person was: the first shift's opening time, which the remove does not take away. Focused, not pressed:
+    // a press opens its list of times (open-week.tsx BtoTime), whose wash would take the remove's press.
     const firstOpen = hours.locator("#bt-hours-mon-0-open");
-    await firstOpen.click();
+    await firstOpen.focus();
     await hours.getByTestId("rec-hours-remove-mon-1").click();
     // Focus was on the remove, which went with its row. It comes back to the last FIELD the person was in.
     await expect(firstOpen, "a removed shift left focus on the document").toBeFocused();
@@ -1331,7 +1332,7 @@ test.describe("Settings › Business on a real workspace", () => {
       await page.touchscreen.tap(above!.x, above!.y);
       const ask = page.getByTestId("rec-fold-tone-cancel-confirm");
       await expect(ask).toBeVisible();
-      await expect(ask).toContainText("Discard your changes?");
+      await expect(ask).toContainText("Discard changes?");
       await expect(page.locator('[role="dialog"]'), "another editor opened under the ask").toHaveCount(1);
       await expect(sheet.locator(".rec-sheet-foot").getByTestId("rec-fold-tone-cancel-confirm")).toHaveCount(1);
       await page.getByTestId("rec-fold-tone-cancel-no").tap();

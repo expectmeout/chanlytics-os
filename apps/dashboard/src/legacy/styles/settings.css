@@ -1442,8 +1442,8 @@ html.legacy-on .bt-link { position: relative; }
 /* The week (pages/business-tab-open.jsx): at rest one sentence, the composer's own run-collapsing; in its fold seven
    lines, a switch, the day and its times. It was drawn on one scale too, as bars in a ribbon at rest and on a track
    beside each day's boxes, which said nothing the sentence did not (removed 23 Sep). The fold's label column is
-   --bt-week-key: the day's switch and name, which the copy menu lines up with. */
-.bt-week { --bt-week-key: 96px; }
+   --bt-week-key: the day's switch and name, which the copy menu lines up with; --bt-time-w a time box's width. */
+.bt-week { --bt-week-key: 96px; --bt-time-w: 110px; }
 .bt-hours-line { font-size: var(--text-base); line-height: var(--leading-normal); color: var(--ink); text-wrap: pretty; }
 /* A link's address on one line (23 Sep): cut with an ellipsis where it does not fit, never broken across three lines
    at any character; the whole of it is in its editor, a press away. */
@@ -1458,20 +1458,24 @@ html.legacy-on .bt-link { position: relative; }
 /* Seven lines, each its switch, its day and its times (23 Sep): the week's scale and each day's track went, and a
    hairline stands between days; the row at rest says the week in one sentence. */
 .bt-week { display: flex; flex-direction: column; gap: 0; }
-.bt-week-row { display: grid; grid-template-columns: var(--bt-week-key) minmax(0, 1fr) auto; align-items: center; column-gap: 12px; row-gap: 4px; padding: 5px 0; border-top: 1px solid var(--line); }
+.bt-week-row { display: grid; grid-template-columns: var(--bt-week-key) minmax(0, 1fr); align-items: center; column-gap: 12px; row-gap: 4px; padding: 5px 0; border-top: 1px solid var(--line); }
 .bt-week-row:first-of-type { border-top: none; }
 .bt-week-row .field-error { grid-column: 2 / -1; }
 .bt-week-day { display: flex; align-items: center; gap: 9px; }
 .bt-week-name { font-size: var(--text-base); color: var(--ink); }
 .bt-week-row[data-open="false"] .bt-week-name { color: var(--ink-dim); }
 .bt-week-times { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
-/* The press that adds a break sits past the times, level with the day's last shift. */
-.bt-week-more { align-self: end; display: flex; align-items: center; min-height: 28px; }
-.bt-week-shift { display: flex; align-items: center; gap: 5px; }
-/* A time box is the kit's small box (RecordBox size="sm") at the width of a time: the width is this page's, the rest the kit's. */
-/* Wide enough for "09:30 AM" and the picker's own mark at the column's size: at 96px the meridiem was cut. */
-.bt-time { width: 110px; font-variant-numeric: tabular-nums; }
+/* A shift is one line: its two times and the act it ends in (the first shift's adds a break, a later one's removes it),
+   on tracks every line shares, so a day's shifts stand in columns. */
+.bt-week-shift { display: grid; grid-template-columns: var(--bt-time-w) auto var(--bt-time-w) auto; align-items: center; gap: 5px; }
+/* A time is the house's menu standing in the kit's box (open-week.tsx BtoTime): its track's width, the time it holds and
+   the box's chevron; "Set" in the dim ink while it holds none. The width is this page's, the rest the kit's. */
+.bt-time-pick { display: grid; min-width: 0; }
+.bt-time { width: 100%; min-width: 0; padding-inline: 10px; font-size: var(--text-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bt-time[data-empty="true"] { color: var(--ink-dim); }
 .bt-week-to { font-size: var(--text-sm); color: var(--ink-dim); }
+/* The press that adds a break: quiet ink, the plus and the word. */
+.bt-week-break { display: inline-flex; align-items: center; gap: 2px; font-size: var(--text-sm); color: var(--ink-muted); }
 .bt-week-closed { font-size: var(--text-sm); color: var(--ink-dim); }
 /* Under the tracks, past the label column and the gap after it. */
 .bt-week-copy { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 12px 0 0 calc(var(--bt-week-key) + 12px); }
@@ -1598,6 +1602,8 @@ html.legacy-on .bt-link { position: relative; }
    and a Remove on each of thirty-three rows (23 Sep). */
 .bt-service-row { display: grid; grid-template-columns: minmax(0, 1fr) 96px minmax(0, 0.8fr) 28px; align-items: start; gap: 6px; padding: 3px 0; border-top: 1px solid var(--line); }
 .bt-service-row[hidden] { display: none; }
+/* A service's one line, a phone's (services.tsx btsLine): a desk draws its boxes instead. */
+.bt-service-line { display: none; }
 .bt-service-head { position: sticky; top: 0; z-index: 1; padding: 10px 0 6px; border-top: none; background: var(--bg-raised); font-size: var(--text-xs); color: var(--ink-dim); }
 .bt-service-name { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .bt-service-name > .rec-box { flex: 1; }
@@ -1710,19 +1716,20 @@ html.legacy-on .bt-link { position: relative; }
 .rec-sheet[aria-busy="true"] :is(.bt-service-row .btn, .rec-sheet-tools .btn, .bt-service-gone .bt-link) { cursor: progress; }
 
 @media (max-width: 760px) {
-  /* No room for four columns: the day and the press that adds a break share a line, its bars take the next, and its
-     times the one after, each the width of the fold. */
-  .bt-week { --bt-week-key: 0px; }
-  .bt-week-row { grid-template-columns: minmax(0, 1fr) auto; }
-  .bt-week-row > .bt-week-day { grid-column: 1; grid-row: 1; }
-  .bt-week-row > .bt-week-more { grid-column: 2; grid-row: 1; align-self: center; }
-  /* A phone's day: the switch and its name on one line, the two time boxes on the line under them. */
-  .bt-week-row > .bt-week-times { grid-column: 1 / -1; grid-row: 3; width: auto; }
-  /* A closed day says so beside its switch, on its one line: it took a second line under every closed day (10 Oct
-     2026), and a closed day has no break to add. */
-  .bt-week-row[data-open="false"] > .bt-week-times { grid-column: 2; grid-row: 1; align-self: center; }
-  .bt-week-row[data-open="false"] > .bt-week-more { display: none; }
-  .bt-week-row > .field-error { grid-column: 1 / -1; }
+  /* A phone's day is one line (Ruben, 10 Oct 2026: a day took two): the switch and the day, its times at the line's
+     end, and the plus that adds a break after them, its word left to its tip. A break's times stand under the day's,
+     each shift's remove after it; a closed day says so where its times would be. Where the line is too narrow for
+     both (under about 370px) the times wrap under the day by themselves, with no width of their own to hold. */
+  .bt-week { --bt-week-key: 0px; --bt-time-w: 96px; }
+  .bt-week-row { display: flex; flex-wrap: wrap; justify-content: space-between; column-gap: 10px; }
+  .bt-week-day { gap: 8px; min-height: 44px; }
+  .bt-week-row > .bt-week-times { margin-left: auto; align-items: flex-end; }
+  .bt-week-shift { grid-template-columns: var(--bt-time-w) auto var(--bt-time-w) 32px; gap: 3px; }
+  .bt-week-break-word { display: none; }
+  /* A finger's size (44px) in the line's 32px act column: the press reaches past it into the sheet's margin, never over
+     the closing time beside it. */
+  .bt-week-break { width: 44px; height: 44px; margin-right: -12px; justify-content: center; }
+  .bt-week-row > .field-error { flex-basis: 100%; }
   /* No label column to line up with: the copy menu starts at the fold's edge. calc(var(--bt-week-key) + 12px) still
      added the column's gap with the column at 0px, and set the menu 12px in from everything above it. */
   .bt-week-copy { padding-left: 0; }
@@ -1730,14 +1737,23 @@ html.legacy-on .bt-link { position: relative; }
   /* The dates share the first line with the remove; the reason (the third box) takes the next. */
   .bt-closure > .rec-box:nth-child(3) { grid-column: 1 / 3; grid-row: 2; }
   .bt-closure-head { display: none; }
-  /* A service's three columns stack into one row: its name with the remove at the right, then how long and the price,
-     side by side, each row ruled off from the next. The columns' head has nothing left to name. */
+  /* A phone's service is one line, its name and "3 h · At consult" under it, pressed to open (Ruben, 10 Oct 2026: each
+     took two lines of boxes). Open, its three columns stack: its name with the remove at the right, then how long and
+     the price, side by side. Each row is ruled off from the next, and the columns' head has nothing left to name. */
   .bt-service-head { display: none; }
   .bt-service-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; padding: 8px 0; border-top: 1px solid var(--line); }
   .bt-service-row > .bt-service-name { grid-column: 1 / 3; grid-row: 1; }
   .bt-service-row > .btn { grid-column: 3; grid-row: 1; }
-  .bt-service-row > .rec-box:nth-child(2) { grid-column: 1; grid-row: 2; }
-  .bt-service-row > .rec-box:nth-child(3) { grid-column: 2; grid-row: 2; }
+  .bt-service-row > .rec-box:nth-child(3) { grid-column: 1; grid-row: 2; }
+  .bt-service-row > .rec-box:nth-child(4) { grid-column: 2; grid-row: 2; }
+  .bt-service-row[data-open="false"] { padding: 0; }
+  .bt-service-row[data-open="false"] > :not(.bt-service-line) { display: none; }
+  .bt-service-line { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; width: 100%; min-height: 56px; padding: 8px 0; text-align: left; color: var(--ink); }
+  .bt-service-row[data-open="true"] > .bt-service-line { display: none; }
+  .bt-service-line-words { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .bt-service-line-name { overflow: hidden; font-size: var(--text-base); white-space: nowrap; text-overflow: ellipsis; }
+  .bt-service-line-sub { font-size: var(--text-sm); color: var(--ink-dim); }
+  .bt-service-line > svg { flex: none; color: var(--ink-faint); }
   /* An ability keeps its title and its glyphs on one line -- the kit's phone row puts the value under the label, and
      two glyphs are not a value to read down to -- and the line that carries a decision takes the row under them. */
   .bt-can-row > .bt-can-chips { grid-column: 2; grid-row: 1; }
@@ -1753,14 +1769,6 @@ html.legacy-on .bt-link { position: relative; }
   .bt-told .rec-card-sub { order: 1; flex-basis: 100%; }
   .bt-prompt-sheet .rec-sheet-foot { display: flex; }
   .bt-prompt-sheet .rec-sheet-foot > .btn { height: 40px; }
-}
-
-/* WCAG's reflow width, 320px: nothing runs past the edge. A shift's two time boxes share the line, each taking what is
-   left of it. */
-@media (max-width: 400px) {
-  .bt-week-shift { width: 100%; }
-  .bt-week-shift > .rec-box { flex: 1 1 0; min-width: 0; }
-  .bt-time { width: 100%; min-width: 0; }
 }
 
 /* Settings › Connections › Email: the domains a workspace sends cold email from (Reach out; the canvas's

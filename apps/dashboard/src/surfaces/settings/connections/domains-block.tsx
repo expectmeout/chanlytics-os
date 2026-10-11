@@ -169,7 +169,7 @@ const SendingDomainAdd = ({ mailDomain, fromName, flash, onClose }: AddProps) =>
           label="The domain you'll send from"
           value={host}
           onChange={setHost}
-          hint={<>A domain of its own is safest, like get{"<business>"}.com: your everyday email stays out of it.</>}
+          hint={<>A separate domain is safest, like get{"<business>"}.com.</>}
           problem={problems.host}
           placeholder="getyourbusiness.com"
           autoCapitalize="none"

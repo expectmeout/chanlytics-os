@@ -704,7 +704,7 @@ test("a message with an email version and no WhatsApp row is offered by the chan
   assert.deepEqual(withNumber.ticks, {
     whatsapp: { on: false, why: "This message has no WhatsApp version." },
     sms: { on: false, why: "This message has no text version yet." },
-    email: { on: true, why: "A campaign goes by at least one channel." },
+    email: { on: true, why: "Keep at least one on." },
   });
   // A workspace with no number: WhatsApp's reason is the workspace's, which wins; Text and Email are as they were.
   const noNumber = sendByOf(offered, NO_NUMBER);
@@ -716,7 +716,7 @@ test("a message with an email version and no WhatsApp row is offered by the chan
   assert.deepEqual(noNumber.ticks, {
     whatsapp: { on: false, why: "Connect a WhatsApp number first." },
     sms: { on: false, why: "This message has no text version yet." },
-    email: { on: true, why: "A campaign goes by at least one channel." },
+    email: { on: true, why: "Keep at least one on." },
   });
 });
 

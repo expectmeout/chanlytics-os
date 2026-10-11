@@ -128,7 +128,6 @@ export const TPL_VERSION_WORDS = {
   save: "Save",
   saving: "Saving…",
   cancel: "Cancel",
-  leaves: "saved",
   /** How long the subject is, against what an inbox shows. */
   subjectCount: (n: number, max: number): string => `${n} of ${max}`,
   /** What a text comes to on the wire, STOP line included. */

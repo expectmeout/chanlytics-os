@@ -2,9 +2,11 @@
 //
 // What you offer's list of services, in a sheet beside the page (docs/superpowers/specs/2026-09-20-business-tab-design.md
 // §4.4 and §5; the canvas's Edit-Sheet board): thirty-three rows of three boxes on the live record, the "99 inputs in a
-// 720px column" the redesign exists to remove. A search and Add above the rows, the rows in three columns with a remove
-// each, and a foot that says what the receptionist will be told. Its row at rest is the card's (offer.tsx
-// BtServicesRow), whose act asks the registry for this sheet by its id, as the gap line's door does.
+// 720px column" the redesign exists to remove. Add above the rows (and a search once the list is long), the rows in
+// three columns with a remove each, and a foot that says what the receptionist will be told. On a phone a service is
+// one line, its name and "3 h · At consult", that opens onto its boxes when pressed (Ruben, 10 Oct 2026: each service
+// took two lines of boxes). Its row at rest is the card's (offer.tsx BtServicesRow), whose act asks the registry for
+// this sheet by its id, as the gap line's door does.
 //
 // A file of its own because the PAGE draws it, through its one sheet slot after every card, never the card: the fold
 // registry opens one editor or sheet at a time, and the slot draws one sheet or none (tab.tsx BtSheetSlot).
@@ -60,6 +62,19 @@ const btsFolded = (s: string | null | undefined) => BUSINESS_TAB.foldName(String
 // What the sheet says when a list is full: the cap the save's schema keeps (LIMITS.services), said where Add was.
 const btsFull = (max: number) => `That is the most services the receptionist keeps (${max}). Remove one first.`;
 
+// The search comes with a list long enough to search: under this many, every service is in sight at once, and a
+// search box over three rows was a box with nothing to do. A search with words in it stays, whatever the count.
+const BTS_SEARCH_FROM = 8;
+
+/**
+ * The rows a phone has pressed open, by their place, for one opening of the sheet: a row pressed open last time opens
+ * folded the next. A row typed in is open from then as a changed row, whatever its place.
+ */
+interface Pressed {
+  opening: number;
+  at: number[];
+}
+
 /**
  * The services list inside the sheet's draft, with every rule a list has (BtFold's rows: the cap through Add and
  * through an Undo, a removal said only when it happened, the row back at its index, the field keys each row's
@@ -79,39 +94,42 @@ const btsServiceRows = (rows: SheetFields["rows"]) => {
   });
 };
 
-/** The strip above the rows: the search and Add. */
+/** The strip above the rows: Add, and the search once the list is long enough to need one. */
 const btsTools = (f: SheetFields, search: Search, setSearch: Dispatch<SetStateAction<Search>>) => {
   const svc = btsServiceRows(f.rows);
   const q = search.opening === f.opening ? search.q : "";
+  const searched = q !== "" || (f.draft || []).length >= BTS_SEARCH_FROM;
   return (
     <>
-      <span className="bt-services-search">
-        <Icon name="search" size={12} />
-        <RecordBox
-          id="bt-services-search"
-          label="Search services"
-          type="search"
-          value={q}
-          placeholder="Search services"
-          onChange={(v) => setSearch({ opening: f.opening, q: v })}
-          autoComplete="off"
-          spellCheck={false}
-          testid="rec-services-search"
-          // Escape with words in the search clears them, and goes no further: the sheet's Escape closed it, or asked, over a
-          // search a person only meant to empty. Not preventDefault, which would stop the box's own clear. Empty, the key
-          // is the sheet's.
-          onKeyDown={(e) => {
-            if (e.key === "Escape" && q !== "") {
-              e.stopPropagation();
-              setSearch({ opening: f.opening, q: "" });
-            }
-          }}
-        />
-      </span>
+      {searched ? (
+        <span className="bt-services-search">
+          <Icon name="search" size={12} />
+          <RecordBox
+            id="bt-services-search"
+            label="Search services"
+            type="search"
+            value={q}
+            placeholder="Search services"
+            onChange={(v) => setSearch({ opening: f.opening, q: v })}
+            autoComplete="off"
+            spellCheck={false}
+            testid="rec-services-search"
+            // Escape with words in the search clears them, and goes no further: the sheet's Escape closed it, or asked,
+            // over a search a person only meant to empty. Not preventDefault, which would stop the box's own clear.
+            // Empty, the key is the sheet's.
+            onKeyDown={(e) => {
+              if (e.key === "Escape" && q !== "") {
+                e.stopPropagation();
+                setSearch({ opening: f.opening, q: "" });
+              }
+            }}
+          />
+        </span>
+      ) : null}
       {/* The write schema takes no more than this, so the sheet does not offer it (rows' canAdd). */}
       {svc.canAdd ? (
         <button type="button" className="btn btn-sm" {...f.press(() => svc.add())} data-testid="rec-services-add">
-          <Icon name="plus" size={12} /> Add
+          <Icon name="plus" size={12} /> {searched ? "Add" : "Add a service"}
         </button>
       ) : (
         <span className="bt-fold-note" data-testid="rec-services-cap">
@@ -158,7 +176,34 @@ interface RowEnv {
   shown: boolean;
   /** Whether the row's service is on the consult-first list. */
   consults: boolean;
+  /** Whether a phone draws the row's boxes, or its one line: a row pressed open, changed, new, or wrong is open. */
+  open: boolean;
+  /** Opens the row onto its boxes; from a key, focus goes to its name (a finger's press leaves the keyboard down). */
+  onOpen: (byKey: boolean) => void;
 }
+
+/**
+ * A service's one line on a phone: its name, and how long it takes with its price under it (contracts
+ * serviceLineWords), pressed to open the row onto its boxes. A desk draws the boxes, and never this.
+ */
+const btsLine = (x: ServiceRow, i: number, env: RowEnv) => (
+  <button
+    type="button"
+    className="bt-service-line"
+    aria-expanded={env.open}
+    aria-controls={`svc-${i}-name`}
+    // A click a key made has no count of presses (detail 0): only then does focus move into the name, so a finger's
+    // press opens the row without raising the keyboard (Ruben, 9 Oct 2026: no field focuses by itself).
+    onClick={(e) => env.onOpen(e.detail === 0)}
+    data-testid={`rec-service-line-${i}`}
+  >
+    <span className="bt-service-line-words">
+      <span className="bt-service-line-name">{x.name && x.name.trim() ? x.name : "New service"}</span>
+      <span className="bt-service-line-sub">{BUSINESS_TAB.serviceLineWords(x, env.consults)}</span>
+    </span>
+    <Icon name="chevron" size={12} />
+  </button>
+);
 
 /** One service: its three boxes and a remove. */
 const btsRow = (x: ServiceRow, i: number, env: RowEnv) => {
@@ -179,9 +224,11 @@ const btsRow = (x: ServiceRow, i: number, env: RowEnv) => {
       key={`svc-${i}`}
       className="bt-service-row"
       hidden={env.shown ? undefined : true}
+      data-open={env.open ? "true" : "false"}
       data-testid={`rec-service-${i}`}
       {...svc.row(i)}
     >
+      {btsLine(x, i, env)}
       <span className="bt-service-name">
         <RecordBox
           id={`svc-${i}-name`}
@@ -203,9 +250,9 @@ const btsRow = (x: ServiceRow, i: number, env: RowEnv) => {
       <RecordBox
         id={`svc-${i}-minutes`}
         label={`Service ${n} takes (min)`}
+        unit="min"
         size="sm"
         inputMode="numeric"
-        placeholder="45"
         value={x.duration_min == null ? "" : String(x.duration_min)}
         onChange={(v) => setSvc("duration_min", v)}
         problem={said(`service-${i}-duration_min`)}
@@ -216,7 +263,7 @@ const btsRow = (x: ServiceRow, i: number, env: RowEnv) => {
         label={`Service ${n} price`}
         size="sm"
         value={x.price_note || ""}
-        placeholder="quoted at consult"
+        placeholder={BUSINESS_TAB.SERVICE_PRICE_EMPTY}
         onChange={(v) => setSvc("price_note", v)}
         problem={said(`service-${i}-price_note`)}
         readOnly={f.readOnly}
@@ -239,15 +286,26 @@ interface BodyEnv {
   search: Search;
   pins: WeakMap<object, string>;
   rules: NonNullable<NonNullable<Brain["profile"]>["booking_rules"]> | null;
+  /** The rows pressed open on a phone, and how a press opens one. */
+  pressed: Pressed;
+  press: (i: number, byKey: boolean) => void;
 }
 
 /**
  * The rows, with each Undo where its row would go back, which moves as rows are taken out and put back around it
  * (both are rows()', `waiting`, so every list keeps them).
  */
-const btsDrawn = (f: SheetFields, list: ServiceRow[], shows: (x: ServiceRow) => boolean, rules: BodyEnv["rules"]) => {
+const btsDrawn = (f: SheetFields, list: ServiceRow[], shows: (x: ServiceRow) => boolean, env: BodyEnv) => {
+  const { rules } = env;
   const svc = btsServiceRows(f.rows);
   const marks = svc.waiting();
+  // A row a phone draws open: one pressed open, one changed since the sheet opened (typed in, added, put back: rows()
+  // makes a new row for each, so a row being typed in never folds away under the keys), or one with something wrong.
+  const opened = new Set(f.opened || []);
+  const wrong = (i: number) =>
+    [`service-${i}-name`, `service-${i}-duration_min`, `service-${i}-price_note`].some((k) => !!f.problems[k]);
+  const pressed = (i: number) => env.pressed.opening === f.opening && env.pressed.at.includes(i);
+  const isOpen = (x: ServiceRow, i: number) => pressed(i) || !opened.has(x) || wrong(i);
   // Whether a service needs a consultation first is contracts' one question (needsConsultation), the one the Calendar's
   // board asks of the same list: a row marked here is a service the receptionist offers as a consultation.
   const consults = (name: string | null | undefined) =>
@@ -255,7 +313,16 @@ const btsDrawn = (f: SheetFields, list: ServiceRow[], shows: (x: ServiceRow) => 
   const drawn: ReactNode[] = [];
   list.forEach((x, i) => {
     marks.filter((m) => m.at === i).forEach((m) => drawn.push(btsMark(m, f)));
-    drawn.push(btsRow(x, i, { f, svc, shown: shows(x), consults: consults(x.name) }));
+    drawn.push(
+      btsRow(x, i, {
+        f,
+        svc,
+        shown: shows(x),
+        consults: consults(x.name),
+        open: isOpen(x, i),
+        onOpen: (byKey) => env.press(i, byKey),
+      }),
+    );
   });
   marks.filter((m) => m.at >= list.length).forEach((m) => drawn.push(btsMark(m, f)));
   return drawn;
@@ -278,7 +345,7 @@ const btsBody = (f: SheetFields, env: BodyEnv) => {
     if (x && !opened.has(x) && !env.pins.has(x)) env.pins.set(x, q);
   });
   const shows = (x: ServiceRow) => !q || btsFolded(x.name).includes(q) || (!opened.has(x) && env.pins.get(x) === q);
-  const drawn = btsDrawn(f, list, shows, env.rules);
+  const drawn = btsDrawn(f, list, shows, env);
   const none = q && list.length > 0 && !list.some(shows);
   // What the search has left in sight, said politely to a screen reader as it narrows (contracts servicesFoundWords):
   // the rows it hides are hidden, which nothing announces. Drawn from the sheet's first draw, empty with no search, so
@@ -292,7 +359,7 @@ const btsBody = (f: SheetFields, env: BodyEnv) => {
       {list.length > 0 ? (
         <div className="bt-service-row bt-service-head" aria-hidden="true">
           <span>Service</span>
-          <span>Takes (min)</span>
+          <span>Takes</span>
           <span>Price</span>
           <span />
         </div>
@@ -380,6 +447,7 @@ export const BtServicesSheet = ({
   if (!pins.current) pins.current = new WeakMap();
   const pinned = pins.current;
   const rules = (brain.profile || {}).booking_rules || null;
+  const [pressed, setPressed] = useState<Pressed>({ opening: -1, at: [] });
 
   return (
     <BtSheet<ServiceRow[]>
@@ -392,7 +460,18 @@ export const BtServicesSheet = ({
       gate={gate("settings", "change your services")}
       tools={(f: SheetFields) => btsTools(f, search, setSearch)}
       told={btsTold}
-      body={(f: SheetFields) => btsBody(f, { search, pins: pinned, rules })}
+      body={(f: SheetFields) =>
+        btsBody(f, {
+          search,
+          pins: pinned,
+          rules,
+          pressed,
+          press: (i, byKey) => {
+            setPressed((was) => ({ opening: f.opening, at: was.opening === f.opening ? [...was.at, i] : [i] }));
+            if (byKey) f.focus(`service-${i}`);
+          },
+        })
+      }
     />
   );
 };

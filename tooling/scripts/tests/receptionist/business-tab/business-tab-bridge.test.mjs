@@ -38,6 +38,9 @@ import {
   foldName,
   serviceUndoName,
   servicesFoundWords,
+  serviceLineWords,
+  lengthWords,
+  SERVICE_PRICE_EMPTY,
   bookingRuleRefusal,
   TONE_PRESETS,
   PROMPT_READERS,
@@ -165,6 +168,7 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "PROFILE_LIMITS",
     "PROMPT_NOW",
     "PROMPT_READERS",
+    "SERVICE_PRICE_EMPTY",
     "TONE_PRESETS",
     "VISION_STRENGTH",
     "abilityRows",
@@ -193,6 +197,7 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "hoursZoneWords",
     "instructionsWords",
     "isProductFallback",
+    "lengthWords",
     "loadSaveRules",
     "needsConsultation",
     "notesWords",
@@ -210,6 +215,7 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "saveIssues",
     "sellsBySaved",
     "sellsByVM",
+    "serviceLineWords",
     "serviceUndoName",
     "servicesFoundWords",
     "servicesToldWords",
@@ -285,6 +291,12 @@ test("the bridge publishes the tab's view models, and each says what contracts s
   assert.equal(tab.HANDOFF_ANYWAY, HANDOFF_ANYWAY);
   assert.equal(tab.serviceUndoName("Balayage"), serviceUndoName("Balayage"));
   assert.equal(tab.servicesFoundWords(11, 33), servicesFoundWords(11, 33));
+  assert.equal(
+    tab.serviceLineWords({ duration_min: 90, price_note: "" }, true),
+    serviceLineWords({ duration_min: 90, price_note: "" }, true),
+  );
+  assert.equal(tab.SERVICE_PRICE_EMPTY, SERVICE_PRICE_EMPTY);
+  assert.equal(tab.lengthWords(510), lengthWords(510));
   assert.equal(tab.blockShareWords(1190, 4345), blockShareWords(1190, 4345));
   assert.deepEqual(
     tab.bookingRulesWords(STORED.profile.booking_rules),

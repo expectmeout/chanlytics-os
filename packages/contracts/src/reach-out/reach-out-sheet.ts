@@ -21,19 +21,21 @@ import type { HandKind } from "./reach-out-hand";
 import { pct } from "../shared/numbers";
 import { dateFormat } from "../shared/time";
 
+// Each sentence says what an owner acts on, once, and stops (Ruben, 10 Oct 2026: the sheet said each thing at length,
+// in nine notes).
 export const REACH_OUT_SHEET_WORDS = {
-  sub: "Your email, opened differently for each business, from a domain you own. Whoever writes back lands in your Inbox, and the receptionist drafts the answer.",
-  who: "Ready, with a checked address, never written to. Keeps itself current as the search grows.",
+  sub: "Your email, opened for each business, from your own domain. Replies land in your Inbox.",
+  who: "Ready, with a checked address, never written to. Keeps itself current.",
   opening:
-    "The receptionist writes the opening from the finder's record of each business: why it fit, the reviews, the site, the hours. It never invents a fact; the check before each send holds anything it can't back.",
-  stops: "Stops for anyone who writes back on any channel, books, unsubscribes, bounces or says no.",
-  stopOne: "To stop writing to one business, open its lead and press Stop writing to them.",
-  first: `Starts today. The first run waits on you. After that, a run gives you ${PLAYBOOK_VETO_DELAY_WORDS} to stop it.`,
+    "The receptionist opens each email from the finder's record. It never invents a fact: anything it can't back is held.",
+  stops: "Stops when they reply, book, unsubscribe, bounce or say no.",
+  stopOne: "To stop one business, press Stop writing to them on its lead.",
+  first: `Starts today. You approve the first run; after that you have ${PLAYBOOK_VETO_DELAY_WORDS} to stop each one.`,
   slotsHint: "each is filled for each business, or the email is held",
   foot: "Why they're hearing from you, your address, Unsubscribe",
   footHint: "as the law asks",
   repliesHint: "into your Inbox",
-  checkLater: "Every email is checked before it goes. The first run shows what the check held, and waits on you.",
+  checkLater: "Each email is checked before it goes. The first run waits for you.",
   noDomain: "Add a domain you send from in Settings › Connections › Email first.",
   anotherStep: "Another step",
   anotherStepHint: "· another email",
@@ -44,7 +46,7 @@ export const REACH_OUT_SHEET_WORDS = {
   handWords: "What to do",
   handPlaceholder: "Ask whether our quote suited them",
   remove: "Remove",
-  removeNote: "Removes the reach-out and its words. Only before its first email goes; after that, pause it.",
+  removeNote: "Only before its first email goes; after that, pause it.",
   recheck: "Check the held again",
 } as const;
 

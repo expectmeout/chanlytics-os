@@ -73,7 +73,7 @@ export { notesWords, instructionsWords, fallbacksWords, COMMON_LANGUAGES, TONE_P
 export { openWeekWords, hoursZoneWords, closuresAheadWords } from "./config/business-tab/open-week";
 export { blockShareWords, promptCostWords, promptTotalWords, PROMPT_READERS, PROMPT_NOW } from "./config/business-tab/prompt-cost-words";
 export { ruleStrength, rulesKept, rulesWithoutFieldsWords, ABILITY_CHANNEL_WORDS, VISION_STRENGTH, RULES_AT_REST_WORDS, RULES_WITHOUT_FIELDS_WORDS } from "./config/business-tab/rule-strengths";
-export { servicesWords, servicesToldWords, serviceUndoName, servicesFoundWords } from "./config/business-tab/services-words";
+export { servicesWords, servicesToldWords, serviceUndoName, servicesFoundWords, serviceLineWords, lengthWords, SERVICE_PRICE_EMPTY } from "./config/business-tab/services-words";
 export { knownForwarding, sameAddress, sameName, resolveFacts, factConflicts, changedConfigFields, SOURCE_WORDS } from "./config/facts";
 export { INTENT_LABELS } from "./config/intent-labels";
 export { tokenCapOf, tokenBudgetSpent, TOKENS_DAY_DEFAULT } from "./config/limits";

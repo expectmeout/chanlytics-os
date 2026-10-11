@@ -112,10 +112,12 @@ interface BtAsksArgs {
   reset: () => void;
 }
 export const btAsks = ({ ask, fold, prefix, busy, dirty, light = false, close, reset }: BtAsksArgs) => {
+  // The question and its two answers, and nothing under them: "Discard changes?" says what the press does
+  // (Ruben, 10 Oct 2026: a line saying nothing was saved said the question again).
   const words = {
-    question: "Discard your changes?",
-    detail: "Nothing you changed here has been saved.",
-    yes: "Yes, discard",
+    question: "Discard changes?",
+    detail: null,
+    yes: "Discard",
     no: "Keep editing",
   };
   return {

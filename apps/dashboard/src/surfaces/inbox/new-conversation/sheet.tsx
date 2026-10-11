@@ -60,7 +60,7 @@ function aboutPart(s: SheetState) {
     <section className="ix-new-part">
       <Field
         label={W.about.label}
-        hint={W.about.hint}
+        placeholder={W.about.placeholder}
         rows={2}
         value={written.about}
         onValueChange={(about) => s.patch({ about })}

@@ -543,7 +543,7 @@ test("Save with nothing chosen says why under the choice; saved as it opened, no
     // Cancel with a change asks first, as every fold's does.
     cancelFoldOf(tree, "sells_by");
     tree = redrawTab(flash);
-    assert.match(textOf(byTestId(tree, "rec-fold-sells_by-cancel-confirm")), /Discard your changes\?/);
+    assert.match(textOf(byTestId(tree, "rec-fold-sells_by-cancel-confirm")), /Discard changes\?/);
     assert.equal(sent.length, 0, "and never once the settings save");
   } finally {
     delete W.__workspace;
@@ -615,7 +615,8 @@ test("the sheet is the canvas's: its head, a search and Add, three columns, a co
     "Search services",
   );
   assert.match(textOf(byTestId(tree, "rec-services-add")), /Add/);
-  assert.equal(textOf(find(sheet, (n) => classes(n).includes("bt-service-head"))), "ServiceTakes (min)Price");
+  // How long a service takes says its unit in its box ("min"), so the column's head is the word alone.
+  assert.equal(textOf(find(sheet, (n) => classes(n).includes("bt-service-head"))), "ServiceTakesPrice");
   // Each row is three boxes and a remove, each box named for its row.
   const third = rowsOf(tree)[2];
   assert.deepEqual(
@@ -636,6 +637,47 @@ test("the sheet is the canvas's: its head, a search and Add, three columns, a co
   assert.doesNotMatch(textOf(find(sheet, (n) => classes(n).includes("rec-sheet-foot"))), /undo/i);
   // With services in it the foot counts nothing (23 Sep: the count and its share went; the Save says how many).
   assert.equal(byTestId(tree, "rec-sheet-services-told-words"), null);
+});
+
+test("on a phone a service is one line, its name and how long and its price, that opens onto its boxes when pressed", () => {
+  // Ruben, 10 Oct 2026: each service took two lines of boxes on a phone. A row the sheet opened with is its line (a desk
+  // draws its boxes and never the line: settings.css); pressed, it opens, and so is a row added or typed in.
+  let tree = drawTab({
+    profile: {
+      ...many,
+      services: [
+        { name: "Balayage", duration_min: 180, price_note: "" },
+        { name: "Color", duration_min: 90, price_note: "$85" },
+      ],
+    },
+  });
+  tree = openSheet(tree);
+  const rows = () => rowsOf(tree);
+  assert.deepEqual(
+    rows().map((r) => r.props["data-open"]),
+    ["false", "false"],
+    "rows from the record are folded",
+  );
+  const line = (i) => byTestId(tree, `rec-service-line-${i}`);
+  assert.equal(textOf(line(0)), "Balayage3 h · At consult");
+  assert.equal(textOf(line(1)), "Color1 h 30 min · $85");
+  assert.equal(line(0).props["aria-expanded"], false);
+  assert.equal(line(0).props["aria-controls"], "svc-0-name");
+  // A finger's press opens the row and leaves the keyboard down (no focus moves); the other stays folded.
+  line(0).props.onClick({ detail: 1 });
+  tree = redrawTab();
+  assert.deepEqual(
+    rows().map((r) => r.props["data-open"]),
+    ["true", "false"],
+  );
+  // A row added is open, for its boxes to be typed in.
+  press(byTestId(tree, "rec-services-add"));
+  tree = redrawTab();
+  assert.equal(rows()[2].props["data-open"], "true");
+  assert.equal(textOf(line(2)), "New serviceAt consult");
+  // A list this short has no search, and its Add says what it adds.
+  assert.equal(byTestId(tree, "rec-services-search"), null);
+  assert.equal(textOf(byTestId(tree, "rec-services-add")).trim(), "Add a service");
 });
 
 test("the foot says only what an owner must know: Save says Save, and nothing counts the characters", () => {
@@ -953,7 +995,7 @@ test("Escape and Close are the sheet's Cancel: with changes they ask first, and 
   assert.ok(sheetOf(tree), "typed in: it stays open");
   assert.match(
     textOf(byTestId(tree, "rec-sheet-services-cancel-confirm")),
-    /Discard your changes\?/,
+    /Discard changes\?/,
     "and asks, above its Save",
   );
   press(byTestId(tree, "rec-sheet-services-cancel-no"));
@@ -986,7 +1028,7 @@ test("opening the sheet with a fold holding changes asks about the fold, and ope
     [["booking_rules"], null],
     "the fold's changes are not thrown away",
   );
-  assert.match(textOf(byTestId(tree, "rec-fold-booking_rules-ask-confirm")), /Discard your changes\?/);
+  assert.match(textOf(byTestId(tree, "rec-fold-booking_rules-ask-confirm")), /Discard changes\?/);
   press(byTestId(tree, "rec-fold-booking_rules-ask-yes"));
   tree = redrawTab();
   assert.deepEqual([openFolds(tree), !!sheetOf(tree)], [[], true], "answered, the sheet opens");
@@ -999,7 +1041,7 @@ test("opening the sheet with a fold holding changes asks about the fold, and ope
   assert.deepEqual([openFolds(tree), !!sheetOf(tree)], [[], true], "the sheet's changes are not thrown away");
   assert.match(
     textOf(byTestId(tree, "rec-sheet-services-ask-confirm")),
-    /Discard your changes\?/,
+    /Discard changes\?/,
     "and it asks, in the sheet, since Tab never leaves it",
   );
   press(byTestId(tree, "rec-sheet-services-ask-no"));
@@ -1358,7 +1400,14 @@ test("consult-first and the booking rules share one stored object, and saved one
 test("the consult-first mark and the search's folding are contracts' own rules, the Calendar's and the phone tool's", () => {
   // The spec review's probe: the sheet folded names with a copy of contracts' foldName, and matched the consult-first list
   // with a copy of needsConsultation. A second implementation of a rule is a bug even when it agrees (root CLAUDE.md).
-  const services = [{ name: "Colour Correction" }, { name: "Uñas de gel" }, { name: " Extensions" }, { name: "Cut" }];
+  // Eight, so the sheet has its search (it comes with a list long enough to search: services.tsx BTS_SEARCH_FROM).
+  const services = [
+    { name: "Colour Correction" },
+    { name: "Uñas de gel" },
+    { name: " Extensions" },
+    { name: "Cut" },
+    ...["Gloss", "Toner", "Trim", "Wash"].map((name) => ({ name })),
+  ];
   const rules = { ...marisa.booking_rules, consult_first: ["colour correction ", "EXTENSIONS"] };
   let tree = drawTab({ profile: { ...marisa, services, booking_rules: rules } });
   tree = openSheet(tree);
@@ -1368,7 +1417,7 @@ test("the consult-first mark and the search's folding are contracts' own rules, 
     services.map((s) => needsConsultation(s.name, rules)),
     "each row marked as contracts answers for it",
   );
-  assert.deepEqual(marked, [true, false, true, false]);
+  assert.deepEqual(marked, [true, false, true, false, false, false, false, false]);
   for (const words of ["unas", "UÑAS", " uñas "]) {
     searchFor(tree, words);
     tree = redrawTab();
@@ -1640,7 +1689,7 @@ test("every box of What you offer is named by the words on screen beside it, so 
   )
     .map(textOf)
     .filter(Boolean);
-  assert.deepEqual(head, ["Service", "Takes (min)", "Price"]);
+  assert.deepEqual(head, ["Service", "Takes", "Price"]);
   const boxes = all(rowsOf(tree)[1], (n) => n.type === "input");
   boxes.forEach((box, i) =>
     assert.match(

@@ -974,7 +974,7 @@ test("a workspace that cannot send on any channel the playbook ticks still saves
   assert.equal(viaOf(tree).whatsapp.props.checked, true, "WhatsApp stays ticked: it waits for a number");
   assert.equal(
     reasonsOf(tree).whatsapp,
-    `${contracts.CHANNEL_WORDS.noWhatsApp} It goes by it once it can. A campaign goes by at least one channel.`,
+    `${contracts.CHANNEL_WORDS.noWhatsApp} It sends once it can. Keep at least one on.`,
     "and says why it waits, and why it stays",
   );
   // It is all the playbook keeps: switched off it would keep none, and a save that names none keeps what it had, so the
@@ -1003,7 +1003,7 @@ test("where the workspace can send on nothing, Send by says so once with a door 
   for (const door of doors) assert.match(String(door.props.href), /admin\/integrations$/);
   // In place of the reasons a thumb reads, which the line has just given: what is left under the row is the promise
   // to the channel the playbook keeps, without its reason a second time.
-  assert.equal(textOf(byTestId(tree, "pb-via-whys")), "WhatsApp It goes by it once it can.");
+  assert.equal(textOf(byTestId(tree, "pb-via-whys")), "WhatsApp It sends once it can.");
   assert.equal(byTestId(tree, "pb-number"), null, "the number's own warning would be the same thing said twice");
   assert.equal(viaOf(tree).whatsapp.props.checked, true, "and the playbook still keeps the channel it ticks, waiting");
   // A workspace paused for billing is not one that can send on nothing: the sheet says the pause where Save is, and
@@ -1046,7 +1046,7 @@ test("a channel a playbook ticks that closes later stays ticked, says it waits, 
   });
   const tree = composing(viaSurface({ rows: [mine], ready: noMailbox }), null, "pb-visit");
   assert.equal(viaOf(tree).email.props.checked, true, "email stays ticked while the mailbox is missing");
-  assert.equal(reasonsOf(tree).email, `${contracts.CHANNEL_WORDS.noMailbox} It goes by it once it can.`);
+  assert.equal(reasonsOf(tree).email, `${contracts.CHANNEL_WORDS.noMailbox} It sends once it can.`);
   await press(byTestId(tree, "pb-save"));
   assert.deepEqual(said.at(-1)[2].channels, ["whatsapp", "email"], "and is saved with the playbook");
 });
@@ -1092,7 +1092,7 @@ test("the drawer's Goes by row: a press sends the channels it keeps, alone; one 
     "named to a screen reader as it is labelled",
   );
   assert.deepEqual(checkedOf(pane), [true, true, true]);
-  assert.equal(reasonsOf(pane).sms, `${contracts.CHANNEL_WORDS.noTextLine} It goes by it once it can.`);
+  assert.equal(reasonsOf(pane).sms, `${contracts.CHANNEL_WORDS.noTextLine} It sends once it can.`);
   viaOf(pane).email.props.onCheckedChange(false);
   await settled();
   assert.deepEqual(said.at(-1), ["channels", "pb-visit", ["whatsapp", "sms"]], "the channels, and nothing else of it");
