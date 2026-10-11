@@ -1533,7 +1533,7 @@ end $_$;
 -- Name: FUNCTION campaign_ledger(p_tenant_id uuid, p_days integer, p_end date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.campaign_ledger(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports › Campaigns, beyond the days'' counts: over p_days and the same number of days before them, the people sent to and who wrote back (a person once, however many runs; sends whose 72-hour reply window is not over are still counting), the runs that sent by kind (moments and broadcasts), what runs held back and why (a reason of ours or other, dated by the run), the runs that failed or were canceled and why, why sends failed (the provider''s code, else one word of a closed set), each message''s sends, mature sends and replies, how soon the first reply came, and how long approvals waited. Counts only: nothing a person or a provider wrote comes out. SECURITY INVOKER: the caller''s RLS decides what a member reads. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today (00399).';
+COMMENT ON FUNCTION public.campaign_ledger(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports › Campaigns, beyond the days'' counts: over p_days and the same number of days before them, the people sent to and who wrote back (a person once, however many runs; sends whose 72-hour reply window is not over are still counting), the runs that sent by kind (moments and broadcasts), what runs held back and why (a reason of ours or other, dated by the run), the runs that failed or were canceled and why, why sends failed (the provider''s code, else one word of a closed set), each message''s sends, mature sends and replies, how soon the first reply came, and how long approvals waited. Counts only: nothing a person or a provider wrote comes out. SECURITY INVOKER: the caller''s RLS decides what a member reads. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today (00405).';
 
 
 --
@@ -1604,7 +1604,7 @@ $$;
 -- Name: FUNCTION campaign_run_lead(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.campaign_run_lead() IS 'How long before a send its run may have been made: the 30 days a broadcast may be scheduled ahead (contracts BROADCAST_SCHEDULE_MAX_DAYS) plus a week for holds and throttles. campaign_ledger reads the runs made from the earliest instant it looks at, less this (00399).';
+COMMENT ON FUNCTION public.campaign_run_lead() IS 'How long before a send its run may have been made: the 30 days a broadcast may be scheduled ahead (contracts BROADCAST_SCHEDULE_MAX_DAYS) plus a week for holds and throttles. campaign_ledger reads the runs made from the earliest instant it looks at, less this (00405).';
 
 
 --
@@ -1678,7 +1678,7 @@ begin
                       and i.created_at <= s.sent_at + public.campaign_reply_window())  as replied
       from sent s
   ),
-  -- A yes or a stop is an answer to a campaign (00397): what a person said to a run that reached them, from the desk or in
+  -- A yes or a stop is an answer to a campaign (00403): what a person said to a run that reached them, from the desk or in
   -- their own words, the unsubscribe an offer by email invites among them (00174) and a carrier's or WhatsApp's STOP, and
   -- not the consent ledger as a whole (campaign_answers says which events are one). A person counts once a period and
   -- answer, on the day of the earliest, whatever runs they said it to: the unsubscribe page's "stop all" writes the STOP
@@ -1784,7 +1784,7 @@ end $$;
 -- Name: FUNCTION campaign_series(p_tenant_id uuid, p_days integer, p_end date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports › Campaigns: messages sent by broadcasts and playbook runs, delivered and read receipts, replies within campaign_reply_window (the customer''s own words: not a call''s note, an automatic reply, a list''s mail or a booking tool''s notice), yeses and stops (a yes or a stop is an answer to a campaign run, public.campaign_answers, 00397: once a person and period, on the day of the earliest; an unsubscribe from offers by email among them, 00174), day by day over two periods, and the current period by source and by the channel each went by (0030; a row naming none went by WhatsApp). `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
+COMMENT ON FUNCTION public.campaign_series(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports › Campaigns: messages sent by broadcasts and playbook runs, delivered and read receipts, replies within campaign_reply_window (the customer''s own words: not a call''s note, an automatic reply, a list''s mail or a booking tool''s notice), yeses and stops (a yes or a stop is an answer to a campaign run, public.campaign_answers, 00403: once a person and period, on the day of the earliest; an unsubscribe from offers by email among them, 00174), day by day over two periods, and the current period by source and by the channel each went by (0030; a row naming none went by WhatsApp). `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
 
 
 --
@@ -1923,7 +1923,7 @@ end $_$;
 -- Name: FUNCTION campaign_stuck(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.campaign_stuck(p_tenant_id uuid) IS 'Reports › Campaigns, what is stuck as it stands now (no window): the runs waiting for an OK (any kind, with the facts the day rule reads), the runs that failed in the last 30 days (a failure of ours, else other), the threads that answered a moment or a broadcast within the reply window and may wait on a person (needs_human, any pause or an open escalation: wider than standingOfThread''s flagged, on purpose, with the facts the rule reads), and the WhatsApp messages Meta paused, disabled or rejected. Facts, never verdicts, and nothing a person or a provider wrote. Each list at most 500, the messages 100. SECURITY INVOKER: the caller''s RLS decides what a member reads (00400).';
+COMMENT ON FUNCTION public.campaign_stuck(p_tenant_id uuid) IS 'Reports › Campaigns, what is stuck as it stands now (no window): the runs waiting for an OK (any kind, with the facts the day rule reads), the runs that failed in the last 30 days (a failure of ours, else other), the threads that answered a moment or a broadcast within the reply window and may wait on a person (needs_human, any pause or an open escalation: wider than standingOfThread''s flagged, on purpose, with the facts the rule reads), and the WhatsApp messages Meta paused, disabled or rejected. Facts, never verdicts, and nothing a person or a provider wrote. Each list at most 500, the messages 100. SECURITY INVOKER: the caller''s RLS decides what a member reads (00406).';
 
 
 --
@@ -15556,7 +15556,7 @@ $_$;
 -- Name: FUNCTION provider_code_of(p_error jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.provider_code_of(p_error jsonb) IS 'The provider''s error code on a failed message, wherever the writer put it: the first of a receipt''s errors list, a receipt''s code, then the answer to the send itself as body (Graph''s JSON cut short, read for its "code", or "Twilio 30034"; or an object holding error.code). A code is a whole number above zero or 3 to 6 digits in a string; null when the row says none (a number past the integer type is none). contracts'' providerCodeOf says the same in TypeScript; reports/campaigns/provider-code.db.test.mjs holds the two equal (00399).';
+COMMENT ON FUNCTION public.provider_code_of(p_error jsonb) IS 'The provider''s error code on a failed message, wherever the writer put it: the first of a receipt''s errors list, a receipt''s code, then the answer to the send itself as body (Graph''s JSON cut short, read for its "code", or "Twilio 30034"; or an object holding error.code). A code is a whole number above zero or 3 to 6 digits in a string; null when the row says none (a number past the integer type is none). contracts'' providerCodeOf says the same in TypeScript; reports/campaigns/provider-code.db.test.mjs holds the two equal (00405).';
 
 
 --
@@ -16587,7 +16587,7 @@ begin
         from period x
        group by x.root_id
     ),
-    -- The businesses a chain wrote to (00398): the population wrote_back is a count of.
+    -- The businesses a chain wrote to (00404): the population wrote_back is a count of.
     written_to as (
       select ls.root_id, count(*) as businesses
         from last_sent ls
@@ -16617,7 +16617,7 @@ end $$;
 -- Name: FUNCTION reach_out_chain_totals(p_tenant_id uuid, p_days integer, p_end date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_chain_totals(p_tenant_id uuid, p_days integer, p_end date) IS 'Every chain of the workspace (a reach-out''s first step), by its id, for a member (may_read_workspace): what it wrote over p_days days (1 to 90) to the window''s last day in the workspace''s zone, the window reach_out_report reads, in emails (written) and in businesses (the ones it wrote to, each once a chain at its last email: the population wrote_back is a count of, so wrote_back is never more than businesses, 00398), how many of them wrote back (outreach_wrote_back) and when it last wrote in it; a chain that wrote nothing is { written: 0, businesses: 0, wrote_back: 0, last_at: null } (00375, 00398). `p_end` is the window''s last day, as 00360 reads it: null is today, and a day that has not come is read as today.';
+COMMENT ON FUNCTION public.reach_out_chain_totals(p_tenant_id uuid, p_days integer, p_end date) IS 'Every chain of the workspace (a reach-out''s first step), by its id, for a member (may_read_workspace): what it wrote over p_days days (1 to 90) to the window''s last day in the workspace''s zone, the window reach_out_report reads, in emails (written) and in businesses (the ones it wrote to, each once a chain at its last email: the population wrote_back is a count of, so wrote_back is never more than businesses, 00404), how many of them wrote back (outreach_wrote_back) and when it last wrote in it; a chain that wrote nothing is { written: 0, businesses: 0, wrote_back: 0, last_at: null } (00375, 00404). `p_end` is the window''s last day, as 00360 reads it: null is today, and a day that has not come is read as today.';
 
 
 --
@@ -18145,12 +18145,12 @@ begin
   v_end   := least(coalesce(p_end, v_today), v_today);
   v_since := (v_end - (p_days - 1))::timestamp at time zone v_tz;
   v_stop  := ((v_end + 1)::timestamp) at time zone v_tz;
-  -- Where the period before begins (00398): the same count of days, ending where the window begins.
+  -- Where the period before begins (00404): the same count of days, ending where the window begins.
   v_prior := (v_end - (p_days * 2 - 1))::timestamp at time zone v_tz;
   return (
     -- An email that left (00179's one spelling, email_left): sent, or failed by a receipt after it left, which is how
     -- the clock settles a send whose email bounced before it was read sent. Dated by when it left. Read twice now (the
-    -- window's `sent` and the period before), so not materialized (00398): each read takes the rows it needs, and the
+    -- window's `sent` and the period before), so not materialized (00404): each read takes the rows it needs, and the
     -- tenant's whole history of emails is never held for the second.
     with left_ as not materialized (
       select s.id, s.root_id, s.playbook_id, s.lead_id, s.contact_id, s.domain_id,
@@ -18228,7 +18228,7 @@ begin
         'booked', (select count(*) from answers where booked),
         'said_no', (select count(*) from answers where said_no),
         'handed', coalesce((select sum(n) from handed), 0)),
-      -- What the period before wrote, counted as the totals count it: emails only (00398).
+      -- What the period before wrote, counted as the totals count it: emails only (00404).
       'before', (
         select jsonb_build_object(
                  'written', count(*),
@@ -18310,7 +18310,7 @@ end $$;
 -- Name: FUNCTION reach_out_report(p_tenant_id uuid, p_days integer, p_end date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_report(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports'' Reach-outs section (Reach out Part 6, H1, H3-H6), for a member: over p_days days (1 to 90; any other is refused) to the window''s last day in the workspace''s zone, the emails that left and what came of them. has_reach_out, totals, before (written, delivered and bounced over the same count of days before the window, 00398: outcomes are state now, so they have no period before), series (written per day), chains (at most 20, each with its steps; reach_out_chain_totals counts every chain over the same window, 00375), angles (the top 8, other_angles, no_angle) and domains (at most 10; a removed domain''s host is null). Emails are written, delivered and bounced; businesses are the leads written to, each once per chain at its last email of the period, and every outcome (wrote back, interested, booked, said no) is a count of them, so it is never more than `businesses`, on the totals, on a step (the businesses whose last email was that step), on an angle (the ones whose last email had it) and past the top 8 (00398); wrote back is outreach_wrote_back. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
+COMMENT ON FUNCTION public.reach_out_report(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports'' Reach-outs section (Reach out Part 6, H1, H3-H6), for a member: over p_days days (1 to 90; any other is refused) to the window''s last day in the workspace''s zone, the emails that left and what came of them. has_reach_out, totals, before (written, delivered and bounced over the same count of days before the window, 00404: outcomes are state now, so they have no period before), series (written per day), chains (at most 20, each with its steps; reach_out_chain_totals counts every chain over the same window, 00375), angles (the top 8, other_angles, no_angle) and domains (at most 10; a removed domain''s host is null). Emails are written, delivered and bounced; businesses are the leads written to, each once per chain at its last email of the period, and every outcome (wrote back, interested, booked, said no) is a count of them, so it is never more than `businesses`, on the totals, on a step (the businesses whose last email was that step), on an angle (the ones whose last email had it) and past the top 8 (00404); wrote back is outreach_wrote_back. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
 
 
 --

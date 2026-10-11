@@ -420,7 +420,7 @@ test("a reach-out's numbers: written, businesses and wrote back from its own tot
     chains: { complete: false, byRoot: { "ro-1": { written: 40, businesses: 18, wroteBack: 6 } } },
   });
   assert.equal(res(twenty, "ro-21"), "uncounted", "from the report's twenty: one not among them may be past them");
-  // A database before 00398 (or a fixture from before it) counts no businesses: null, whether the key is absent or null.
+  // A database before 00404 (or a fixture from before it) counts no businesses: null, whether the key is absent or null.
   const before = ledger({
     reachOuts: chains,
     chains: {

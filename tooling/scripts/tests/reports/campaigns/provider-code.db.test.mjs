@@ -1,5 +1,5 @@
 /**
- * 00399 on a real Postgres: provider_code_of, the provider's error code on a failed message, said once in SQL and held to
+ * 00405 on a real Postgres: provider_code_of, the provider's error code on a failed message, said once in SQL and held to
  * the TypeScript parse that already says it for the thread (contracts conversations/message-words.ts, `providerCodeOf`).
  *
  * The ledger groups why sends failed by this code; the Inbox draws "WhatsApp didn't deliver it (error 131049)" from the

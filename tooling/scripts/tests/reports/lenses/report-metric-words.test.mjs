@@ -420,7 +420,7 @@ test("the Campaigns lens's seven new figures name a metric each, each metric say
     assert.doesNotMatch(metricWordsOf(id), /once a day each/, `${id}: a person once in the period, not once a day`);
   // What is stuck is as of now; the others are of the period.
   for (const id of ids.slice(2)) assert.match(metricWordsOf(id), /as of now, whatever period is picked/, id);
-  // The stuck count of failed runs reads every kind of run, a reach-out's step among them (00400); the window's Runs that stopped
+  // The stuck count of failed runs reads every kind of run, a reach-out's step among them (00406); the window's Runs that stopped
   // leaves a reach-out's to its own part, and says so (campaign-lens.test.mjs): the two counts differ by kind alone, in words.
   assert.match(metricWordsOf("runs_failed"), /: a campaign, a broadcast or a reach-out step\./);
   assert.match(

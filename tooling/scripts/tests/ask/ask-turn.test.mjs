@@ -1181,7 +1181,7 @@ test("report says the Campaigns lens where the database does not keep the ledger
   const sends = (said) => said.figures.map((f) => f.label);
   const alone = ["Delivered", "Said yes", "Asked to stop"];
 
-  // No campaign_ledger (00399 not applied): the sends alone, what is stuck still said, no failure and no silence either.
+  // No campaign_ledger (00405 not applied): the sends alone, what is stuck still said, no failure and no silence either.
   const noLedger = await logged("campaign_ledger_missing", () =>
     salonReport(salonRpcs({ campaign_ledger: functionGone("campaign_ledger(p_days, p_tenant_id)") })),
   );
@@ -2344,7 +2344,7 @@ test("report says the Reach-outs section as the page does (the Campaigns lens, C
     ...over,
   });
   /**
-   * What reach_out_report answers (00398) over the days asked: 40 emails to 25 businesses (30 emails the period before), of
+   * What reach_out_report answers (00404) over the days asked: 40 emails to 25 businesses (30 emails the period before), of
    * which 6 businesses wrote back as they stand now, two angles, or none at all with `over`.
    */
   const reachOuts = (days, over = {}) => ({
@@ -2447,7 +2447,7 @@ test("report says the Reach-outs section as the page does (the Campaigns lens, C
   });
   assert.equal(unhanded.reach_outs.handed, null);
 
-  // A database before 00398 sends no businesses: the emails stand, and the businesses part says it does not count them.
+  // A database before 00404 sends no businesses: the emails stand, and the businesses part says it does not count them.
   const old = await run({
     ...rpcs,
     reach_out_report: (a) => {

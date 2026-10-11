@@ -4,7 +4,7 @@ import { REPLY_WINDOW_MS } from "./run-words";
 /**
  * The answer to a campaign run: a yes or a stop (the consent ledger's `contact.consent_changed`, 00013) that a run's
  * message earned. One rule, said here once: the run sheet reads it (server/campaigns/broadcasts.ts, consentAfter), and
- * `public.campaign_answers` (00397) restates it in SQL for Reports › Campaigns and the Campaigns home, which a database
+ * `public.campaign_answers` (00403) restates it in SQL for Reports › Campaigns and the Campaigns home, which a database
  * test holds equal to this over one world. The People lens keeps every yes and stop; this is the part of them a run
  * is owed.
  *

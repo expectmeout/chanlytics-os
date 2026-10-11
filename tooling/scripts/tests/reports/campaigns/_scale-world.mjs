@@ -24,7 +24,7 @@
  *              in `created_at`, so the window cannot be read from the index): one approved `send_broadcast` for each of
  *              the 3,600 runs, made 5 to 125 minutes after the run, the most a workspace that approves everything has.
  *   stuck      One thread in ten is `needs_human`, so campaign_stuck's reply probe has threads to look into.
- *   reach-out  The reach-out reads (00398) read the workspace's `reach_out_sends` and the emails they left, and look the
+ *   reach-out  The reach-out reads (00404) read the workspace's `reach_out_sends` and the emails they left, and look the
  *              answers up in the workspace's messages: one chain of three emails (four days apart) over the last 99
  *              days to 4,000 businesses (all get the first, 60% the second, 30% the third; one in twenty bounces; one
  *              in twenty writes back, in the thread, answering the first email's message id; one in forty is read as a

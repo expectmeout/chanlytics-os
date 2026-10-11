@@ -350,7 +350,7 @@ test(
 );
 
 test(
-  "Reports › Campaigns counts an unsubscribe from offers by email among its stops, as it counts a STOP: each an answer to its run (00320, 00397)",
+  "Reports › Campaigns counts an unsubscribe from offers by email among its stops, as it counts a STOP: each an answer to its run (00320, 00403)",
   { skip },
   async () => {
     const opts = async () => {
@@ -367,7 +367,7 @@ test(
         subject_id: contact,
         data: { consent: "opted_out", source: "customer_message", channel: "whatsapp", words: "STOP" },
       });
-    // A yes or a stop is counted on Reports only as the answer to a campaign run (00397). The presses above reached no
+    // A yes or a stop is counted on Reports only as the answer to a campaign run (00403). The presses above reached no
     // run: nobody was sent anything there, so they are the ledger's, and People's, and no campaign's.
     assert.equal(await opts(), 0, "a press no run was sent to is no stop of a campaign");
 

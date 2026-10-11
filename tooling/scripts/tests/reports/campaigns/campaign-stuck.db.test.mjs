@@ -1,6 +1,6 @@
 /**
- * 00400 on a real Postgres: campaign_stuck, what is stuck in a workspace's campaigns as it stands now. campaign_ledger
- * (00399) reads a window; a run that waits for an OK, a run that failed, a thread that answered a campaign and may wait
+ * 00406 on a real Postgres: campaign_stuck, what is stuck in a workspace's campaigns as it stands now. campaign_ledger
+ * (00405) reads a window; a run that waits for an OK, a run that failed, a thread that answered a campaign and may wait
  * on a person, and a message Meta stopped are not in one. The read ships facts and never a verdict: whether an approval
  * is too late, whether a thread waits on a person and whether the number can send are the reader's.
  *
@@ -45,7 +45,7 @@ const MINUTE = 60_000;
 const T0 = Math.floor(Date.now() / 1000) * 1000;
 /**
  * How far back the read looks for a run that failed and for the sends that were answered: the SQL says `interval '30
- * days'` (00400), contracts says it in words (STUCK_DAYS, "30 days") for the lens's sentences. The cases at the edge
+ * days'` (00406), contracts says it in words (STUCK_DAYS, "30 days") for the lens's sentences. The cases at the edge
  * below sit an hour either side of THIS, so a change to either alone is red here.
  */
 const STUCK = Number(/^(\d+) days$/.exec(STUCK_DAYS)?.at(1)) * DAY;

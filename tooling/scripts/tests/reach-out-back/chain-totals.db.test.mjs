@@ -173,7 +173,7 @@ test(
     assert.deepEqual(Object.keys(totals).sort(), [...roots].sort(), "every chain of the workspace, and nothing else");
     const report = ok(await viewer.rpc("reach_out_report", { p_tenant_id: A, p_days: 30 }), "the report");
     assert.equal(report.chains.length, 20, "the report's twenty");
-    // Emails written and businesses written to (00398): each chain here wrote one email to one business, so the two are
+    // Emails written and businesses written to (00404): each chain here wrote one email to one business, so the two are
     // equal on every row below and the share of wrote back is the same whichever it is of;
     // reports/campaigns/reach-out-businesses.db.test.mjs holds the world where a business gets two emails.
     for (const c of report.chains) {

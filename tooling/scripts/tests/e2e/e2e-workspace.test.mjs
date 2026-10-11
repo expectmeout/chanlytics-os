@@ -1941,7 +1941,7 @@ const approvalsOf = (t, tenantId) => of(t, "decisions", tenantId).filter((d) => 
 /** The reply window of a send (public.campaign_reply_window, contracts REPLY_WINDOW_HOURS). */
 const REPLY_WINDOW_MS = 72 * HOUR_MS;
 /**
- * What the lens's reply probe finds for a person a run sent to (00399 `sent`): the first thing they wrote in the thread the
+ * What the lens's reply probe finds for a person a run sent to (00405 `sent`): the first thing they wrote in the thread the
  * message went to, in their own words, after the send and within the window. Milliseconds after the send, or null.
  */
 function firstReplyAfter(t, tenantId, recipient) {
@@ -2127,7 +2127,7 @@ test("what the Campaigns lens will make of those rows: two people sent to and bo
   const people = runPeople(w.t, T);
   const sent = people.filter((r) => r.state === "sent");
 
-  // campaign_ledger's definitions (00399), applied to the rows: the kind from the audience, the sends in the window,
+  // campaign_ledger's definitions (00405), applied to the rows: the kind from the audience, the sends in the window,
   // the people once each, those who wrote back, and the held by their reason.
   const kind =
     made.audience?.kind === "reach_out"
@@ -2173,7 +2173,7 @@ test("what the Campaigns lens will make of those rows: two people sent to and bo
   const [decision] = approvalsOf(w.t, T);
   const waited = (Date.parse(decision.created_at) - Date.parse(made.created_at)) / 1000;
   assert.equal(waited, 2400, "40 minutes");
-  // approval_rows' buckets (00399) by upper bound: h1 at 3,600 s ("An hour or less"), h4 at 14,400, h24 at 86,400, else over.
+  // approval_rows' buckets (00405) by upper bound: h1 at 3,600 s ("An hour or less"), h4 at 14,400, h24 at 86,400, else over.
   const approvalBucket = waited <= 3600 ? "h1" : waited <= 14_400 ? "h4" : waited <= 86_400 ? "h24" : "over";
   assert.equal(approvalBucket, "h1", "and the lens puts it in the hour or less");
   assert.equal(decision.payload.approved, true, "payload->>'approved' = 'true'");

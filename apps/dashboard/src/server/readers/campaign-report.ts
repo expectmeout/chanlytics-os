@@ -136,7 +136,7 @@ export async function chainLastDays(rc: ReaderContext): Promise<ReachOutChainTot
 
 /**
  * What is stuck, as the database lists it (campaign_stuck): the facts contracts' campaignLedgerDtoOf judges. A database
- * without the function (00400 goes to production on the owner's word, either deploy order works) is `stuck: null`, said
+ * without the function (00406 goes to production on the owner's word, either deploy order works) is `stuck: null`, said
  * in the log once, and no failure; a read that fails, or an answer that is not the four lists (its own `{ error }` for an
  * unknown workspace), is `stuckFailed`, said in the log with the workspace, so the lens can tell a read that failed from
  * a function not applied yet. Never fatal: the window is answered without it.
@@ -213,7 +213,7 @@ async function numberOf(rc: ReaderContext): Promise<CampaignNumberDto> {
  * the product's own rules (a run is late when the verb that approves it would refuse it, a reply waits on you by the one
  * standing) at the turn's clock in the window's zone. Nothing of the member asking reaches it (`rc.userId` is not passed on):
  * the answer is the workspace's. A function that answers nothing is the page's 404, in its words; any other failure of the
- * ledger is the route's. A database that does not have the function yet (00399 is applied on the owner's word, after the
+ * ledger is the route's. A database that does not have the function yet (00405 is applied on the owner's word, after the
  * dashboard deploys) answers null for a period and for picked days alike: the answer is then the window the route was asked
  * with `series: null`, the lens draws what is stuck and none of its own window's parts, and the log says
  * `campaign_ledger_missing` once a read. No row of its own, and no ttl: a route reads it fresh and a turn keeps its own,

@@ -130,7 +130,7 @@ function codeOf(v: unknown): number | null {
  * receipt's `code` (a text's status callback), or the answer to the send itself, as `body`: Graph's JSON, cut at two
  * hundred characters so read for its `"code"` rather than parsed, or "Twilio 30034".
  *
- * Said again once in SQL, `public.provider_code_of` (00399), which the Campaigns ledger groups why sends failed by;
+ * Said again once in SQL, `public.provider_code_of` (00405), which the Campaigns ledger groups why sends failed by;
  * reports/campaigns/provider-code.db.test.mjs holds the two to the same answer for every shape of error.
  */
 export function providerCodeOf(error: Record<string, unknown>): number | null {
@@ -178,7 +178,7 @@ const OUTCOME_UNKNOWN_KIND = "outcome_unknown";
 
 /**
  * The sentence `sendFailureWords` says for a failure the Campaigns ledger keeps as a closed pair instead of the row's
- * `error` (00399, `failed_sends.by_code`: no body, no number, no address ever leaves the database). The pair is the
+ * `error` (00405, `failed_sends.by_code`: no body, no number, no address ever leaves the database). The pair is the
  * provider's `code` (a text's or a WhatsApp message's; an email carries none, its word decides) or, with no code, one `kind`
  * of a closed set, read as the channel reads it:
  *   - an email's `provider`: bounced, failed, suppressed;

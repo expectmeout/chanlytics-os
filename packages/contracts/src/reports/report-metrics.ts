@@ -3,8 +3,8 @@
  * is counted, and what is not). One definition per metric id (report-tiles.ts), and `Record` makes a figure with no
  * definition a compile error, so the page never says a number it has not said the meaning of (the lenses spec, §7). The
  * words follow the SQL each figure is read from: `report_series` and `metrics_summary` (00304, with 00303's connected call,
- * first moment and first reply), `campaign_series` (00329, with 00397's answers), `campaign_ledger` (00399) and
- * `campaign_stuck` (00400), `receptionist_series` (00380), `reach_out_report` (00398), Google's own count (google.ts)
+ * first moment and first reply), `campaign_series` (00329, with 00403's answers), `campaign_ledger` (00405) and
+ * `campaign_stuck` (00406), `receptionist_series` (00380), `reach_out_report` (00404), Google's own count (google.ts)
  * and the reviews on record (review-report.ts). Where a window is a number of days (or an hour), it is the constant the
  * report counts by, never a second spelling of it.
  */

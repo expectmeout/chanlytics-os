@@ -8,7 +8,7 @@
  * contacts pass runs once, not once a day (with sequential scans off, its index is read four times a person: the first
  * word is asked for where the pass filters and where it says the day, and a history moved in once; as written, that
  * was four times a person for each of the fourteen days); and a campaign's sends, receipts and replies land on their
- * days, and so do the answers to its runs (a yes or a stop, dated by when it came: 00397).
+ * days, and so do the answers to its runs (a yes or a stop, dated by when it came: 00403).
  *
  * Everything happens in a transaction on this machine's database that never commits. The workspace keeps UTC, so a
  * day is a UTC date. Read through the CLI, as sweep-registry.db.test.mjs turns a clock; SUPABASE_CLI names the binary
@@ -130,7 +130,7 @@ test(
 );
 
 test(
-  "campaign_series: each day's sends, receipts, replies and answers (a yes or a stop to a run, 00397) land on it",
+  "campaign_series: each day's sends, receipts, replies and answers (a yes or a stop to a run, 00403) land on it",
   { skip },
   () => {
     const seen = rolledBack(`
@@ -177,7 +177,7 @@ test(
         end if;
       end loop;
       -- Three hours into today, after today's three sends and inside their 72 hours: a yes or a stop is an answer to the
-      -- run that reached the person, dated by when it came (00397), not a line of the consent ledger on a day of its own.
+      -- run that reached the person, dated by when it came (00403), not a line of the consent ledger on a day of its own.
       -- The first person (reached by WhatsApp) says yes, then presses "stop all" on the unsubscribe page, which writes
       -- the STOP and email's own no for the one press (00174): the stop is the latest they said to the run and stands,
       -- the yes is superseded, and email's no is no answer of a person the run did not reach by email. The second
@@ -208,7 +208,7 @@ test(
     assert.deepEqual(
       row(1),
       [0, 0, 0, 0, 0, 0],
-      "a day ago: the answers are dated by when they came, and none came (they were a line of the ledger on this day before 00397)",
+      "a day ago: the answers are dated by when they came, and none came (they were a line of the ledger on this day before 00403)",
     );
     assert.deepEqual(row(3), [2, 0, 0, 0, 0, 0], "three days ago: two sent, and the failed one counts nowhere");
     for (const k of [2, 4, 5, 6, 7, 13]) assert.deepEqual(row(k), [0, 0, 0, 0, 0, 0], `${ago(k)} had nothing`);

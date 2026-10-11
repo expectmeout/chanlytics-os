@@ -147,7 +147,7 @@ export const heldReasonWords = (key: string): string => capitalize(ownWord(HELD_
 export const heldBackLine = (held: number, sent: number): string =>
   `${held} of the ${plural(sent + held, "message")} planned ${wasWere(held)} held back or could not be sent.`;
 
-/** Under the Runs that stopped card: the window counts a campaign's and a broadcast's runs; a reach-out's are its own part's (00399). */
+/** Under the Runs that stopped card: the window counts a campaign's and a broadcast's runs; a reach-out's are its own part's (00405). */
 const REACH_OUTS_UNDER = "A reach-out's runs are not counted here.";
 export const STOPPED_EMPTY = `No run failed or was canceled in this period. ${REACH_OUTS_UNDER}`;
 export const CANCELED_KEY = "canceled";
@@ -252,7 +252,7 @@ export function runsWaitingMeta(n: number, late: number): string {
 }
 
 const RUNS_FAILED_NONE = `no run failed in the last ${STUCK_DAYS}`;
-/** What the stuck figure counts that the window's card leaves out: it reads every kind of run (00400), a reach-out's step among them. */
+/** What the stuck figure counts that the window's card leaves out: it reads every kind of run (00406), a reach-out's step among them. */
 const REACH_OUT_STEP_COUNTS = "a reach-out's step counts too";
 
 /**

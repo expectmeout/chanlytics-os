@@ -1,6 +1,6 @@
--- 00399 · The Campaigns lens is read beyond the days' counts (Reports, the Campaigns lens).
+-- 00405 · The Campaigns lens is read beyond the days' counts (Reports, the Campaigns lens).
 --
--- campaign_series (00374, 00397) counts messages day by day: how many went out, were delivered, read, answered. It cannot
+-- campaign_series (00374, 00403) counts messages day by day: how many went out, were delivered, read, answered. It cannot
 -- say how many PEOPLE a campaign reached or heard back from (a person on two runs is two sends), why sends failed, what a
 -- run held back and why, which message earned a reply, how long a reply took, or how long an approval waited. The Campaigns
 -- lens asks all of that, and this is its own read, `campaign_ledger(p_tenant_id, p_days, p_end)`: one statement, under the
@@ -89,7 +89,7 @@ $$;
 revoke execute on function public.campaign_run_lead() from public, anon;
 grant execute on function public.campaign_run_lead() to authenticated, service_role;
 comment on function public.campaign_run_lead() is
-  'How long before a send its run may have been made: the 30 days a broadcast may be scheduled ahead (contracts BROADCAST_SCHEDULE_MAX_DAYS) plus a week for holds and throttles. campaign_ledger reads the runs made from the earliest instant it looks at, less this (00399).';
+  'How long before a send its run may have been made: the 30 days a broadcast may be scheduled ahead (contracts BROADCAST_SCHEDULE_MAX_DAYS) plus a week for holds and throttles. campaign_ledger reads the runs made from the earliest instant it looks at, less this (00405).';
 
 create or replace function public.provider_code_of(p_error jsonb)
 returns integer
@@ -128,7 +128,7 @@ $$;
 revoke execute on function public.provider_code_of(jsonb) from public, anon;
 grant execute on function public.provider_code_of(jsonb) to authenticated, service_role;
 comment on function public.provider_code_of(jsonb) is
-  'The provider''s error code on a failed message, wherever the writer put it: the first of a receipt''s errors list, a receipt''s code, then the answer to the send itself as body (Graph''s JSON cut short, read for its "code", or "Twilio 30034"; or an object holding error.code). A code is a whole number above zero or 3 to 6 digits in a string; null when the row says none (a number past the integer type is none). contracts'' providerCodeOf says the same in TypeScript; reports/campaigns/provider-code.db.test.mjs holds the two equal (00399).';
+  'The provider''s error code on a failed message, wherever the writer put it: the first of a receipt''s errors list, a receipt''s code, then the answer to the send itself as body (Graph''s JSON cut short, read for its "code", or "Twilio 30034"; or an object holding error.code). A code is a whole number above zero or 3 to 6 digits in a string; null when the row says none (a number past the integer type is none). contracts'' providerCodeOf says the same in TypeScript; reports/campaigns/provider-code.db.test.mjs holds the two equal (00405).';
 
 create or replace function public.campaign_ledger(p_tenant_id uuid, p_days integer default 30, p_end date default null)
 returns jsonb
@@ -403,4 +403,4 @@ revoke all on function public.campaign_ledger(uuid, integer, date) from public, 
 grant execute on function public.campaign_ledger(uuid, integer, date) to authenticated, service_role;
 
 comment on function public.campaign_ledger(uuid, integer, date) is
-  'Reports › Campaigns, beyond the days'' counts: over p_days and the same number of days before them, the people sent to and who wrote back (a person once, however many runs; sends whose 72-hour reply window is not over are still counting), the runs that sent by kind (moments and broadcasts), what runs held back and why (a reason of ours or other, dated by the run), the runs that failed or were canceled and why, why sends failed (the provider''s code, else one word of a closed set), each message''s sends, mature sends and replies, how soon the first reply came, and how long approvals waited. Counts only: nothing a person or a provider wrote comes out. SECURITY INVOKER: the caller''s RLS decides what a member reads. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today (00399).';
+  'Reports › Campaigns, beyond the days'' counts: over p_days and the same number of days before them, the people sent to and who wrote back (a person once, however many runs; sends whose 72-hour reply window is not over are still counting), the runs that sent by kind (moments and broadcasts), what runs held back and why (a reason of ours or other, dated by the run), the runs that failed or were canceled and why, why sends failed (the provider''s code, else one word of a closed set), each message''s sends, mature sends and replies, how soon the first reply came, and how long approvals waited. Counts only: nothing a person or a provider wrote comes out. SECURITY INVOKER: the caller''s RLS decides what a member reads. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today (00405).';

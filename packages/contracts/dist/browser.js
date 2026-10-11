@@ -10767,7 +10767,7 @@ var LIFECYCLE_WORDS = {
     openRun: "Open the run",
     /**
      * A row's last 30 days, as its cell says them. A reach-out's is in the businesses it wrote to, which "wrote back" is a
-     * count of; its emails written only where the businesses were not counted (a database before 00398).
+     * count of; its emails written only where the businesses were not counted (a database before 00404).
      */
     results: (r2) => r2 === "uncounted" ? "\u2014" : r2 === "none" ? "Nothing sent" : r2.kind === "sent" ? `${r2.sent} sent \xB7 ${r2.replied} replied` : r2.businesses === null ? `${r2.written} written \xB7 ${r2.wroteBack} wrote back` : `${plural(r2.businesses, "business", "businesses")} \xB7 ${r2.wroteBack} wrote back`,
     sentOnce: {

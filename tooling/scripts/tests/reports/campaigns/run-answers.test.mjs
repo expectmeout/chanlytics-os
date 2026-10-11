@@ -2,7 +2,7 @@
  * A yes or a stop is the answer to a campaign run, by one rule (contracts broadcasts/run-answers.ts, `answersToRuns`).
  *
  * The run sheet reads it (server/campaigns/broadcasts.ts, consentAfter), and Task 2 restates it in SQL
- * (`campaign_answers`, 00397), which a database test holds equal to this one over one world. So this file says the rule
+ * (`campaign_answers`, 00403), which a database test holds equal to this one over one world. So this file says the rule
  * once, in cases: which events count, which run each belongs to (a key where the event carries one that names a send,
  * else the 72 hours after it), and which one stands for a person on a run (the latest).
  *

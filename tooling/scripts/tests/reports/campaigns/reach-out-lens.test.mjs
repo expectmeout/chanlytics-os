@@ -105,8 +105,8 @@ const report = (over = {}) => ({
   ],
   ...over,
 });
-/** The same salon on a database before 00398: no `businesses` anywhere, and no period before. */
-const before00398 = () => {
+/** The same salon on a database before 00404: no `businesses` anywhere, and no period before. */
+const before00404 = () => {
   const dto = report();
   delete dto.totals.businesses;
   delete dto.before;
@@ -146,7 +146,7 @@ test("the strip against the period before: none where it is absent, nothing writ
   assert.deepEqual(
     toReachOutLensVM(none, NOW).strip.map((t) => t.compare),
     [null, null, null],
-    "no period before in the answer (a database before 00398)",
+    "no period before in the answer (a database before 00404)",
   );
   assert.deepEqual(
     compares({ before: { written: 0, delivered: 0, bounced: 0 } }),
@@ -222,8 +222,8 @@ test("the strip says a zero as 0 and a share of nothing as a dash, with words", 
   );
 });
 
-test("on a database before 00398 the strip counts emails alone, and says nothing of businesses", () => {
-  const { strip } = toReachOutLensVM(before00398(), NOW);
+test("on a database before 00404 the strip counts emails alone, and says nothing of businesses", () => {
+  const { strip } = toReachOutLensVM(before00404(), NOW);
   assert.deepEqual(
     strip.map((t) => [t.value, t.meta, t.compare]),
     [
@@ -232,7 +232,7 @@ test("on a database before 00398 the strip counts emails alone, and says nothing
       ["2", "2 of 40 emails bounced", null],
     ],
   );
-  const quiet = { ...before00398(), totals: counts(), chains: [], angles: [], series: [], domains: [] };
+  const quiet = { ...before00404(), totals: counts(), chains: [], angles: [], series: [], domains: [] };
   assert.equal(toReachOutLensVM(quiet, NOW).strip[0].meta, "none in this period");
 });
 
@@ -288,8 +288,8 @@ test("a share is said only of five or more, and a count under that", () => {
   assert.match(one.businesses.line, /^Of 1 business written to in/);
 });
 
-test("on a database before 00398 the businesses part says it does not count them, and the emails part stands", () => {
-  const old = toReachOutLensVM(before00398(), NOW);
+test("on a database before 00404 the businesses part says it does not count them, and the emails part stands", () => {
+  const old = toReachOutLensVM(before00404(), NOW);
   assert.deepEqual(old.businesses, {
     rows: [],
     line: null,
@@ -703,15 +703,15 @@ test("no share of fewer than five is said anywhere in the vm, and nothing is a N
   );
 });
 
-test("a businesses count that is null or not a count reads as absent: the pre-00398 words, never 'null'", () => {
+test("a businesses count that is null or not a count reads as absent: the pre-00404 words, never 'null'", () => {
   // A route's answer is trusted loosely (wholeOf): a `null` is no more a count than a missing key is.
-  const dto = before00398();
+  const dto = before00404();
   dto.totals.businesses = null;
   for (const a of dto.angles) a.businesses = null;
   dto.other_angles = { written: 3, businesses: null, wrote_back: 1 };
   for (const c of dto.chains) for (const s of c.steps) s.businesses = null;
   const vmNull = toReachOutLensVM(dto, NOW);
-  const old = toReachOutLensVM(before00398(), NOW);
+  const old = toReachOutLensVM(before00404(), NOW);
   assert.equal(vmNull.strip[0].meta, "40 emails");
   assert.deepEqual(vmNull.businesses, old.businesses);
   assert.equal(vmNull.businesses.empty, "This database does not count businesses yet.");

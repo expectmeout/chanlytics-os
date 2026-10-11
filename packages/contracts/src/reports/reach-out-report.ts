@@ -16,8 +16,8 @@ export interface ReachOutReportCounts {
   delivered: number;
   bounced: number;
   /**
-   * The businesses written to, each once, at its last email of the period (00398): the population wrote back, interested,
-   * booked and said no are counts of, so a share of them is of this, never of `written`. Absent on a database before 00398.
+   * The businesses written to, each once, at its last email of the period (00404): the population wrote back, interested,
+   * booked and said no are counts of, so a share of them is of this, never of `written`. Absent on a database before 00404.
    */
   businesses?: number;
   wrote_back: number;
@@ -67,11 +67,11 @@ export interface ReachOutReportDto {
   /** The workspace has a reach-out at all: the section is drawn only then. */
   has_reach_out: boolean;
   totals: ReachOutReportCounts;
-  /** What the period before (the same count of days, ending the day before `since`) wrote: emails only, outcomes being state now (00398). */
+  /** What the period before (the same count of days, ending the day before `since`) wrote: emails only, outcomes being state now (00404). */
   before?: { written: number; delivered: number; bounced: number };
   series: Array<{ day: string; written: number }>;
   chains: ReachOutReportChainDto[];
-  /** `businesses` (00398): the businesses whose last email had this angle; absent on a database before it. */
+  /** `businesses` (00404): the businesses whose last email had this angle; absent on a database before it. */
   angles: Array<{ angle: string; written: number; businesses?: number; wrote_back: number }>;
   other_angles: { written: number; businesses?: number; wrote_back: number };
   no_angle: number;
@@ -83,7 +83,7 @@ export interface ReachOutReportDto {
  * workspace): what it wrote (emails), to how many businesses, and how many wrote back, in Reports' words. `complete` says
  * every chain was counted, so one absent from `by_root` wrote nothing; it is false where the numbers come from the
  * report's own chains (a database before the function, chainTotalsFromReport), which holds at most twenty, so one absent
- * may be past the twenty and says "—". `businesses` is the population `wrote_back` is a count of (00398): absent on a
+ * may be past the twenty and says "—". `businesses` is the population `wrote_back` is a count of (00404): absent on a
  * database before it, never a guess. GET reports/reach-outs answers it beside the report (spec 2026-10-09 §4.5).
  */
 export interface ReachOutChainTotalsDto {
@@ -93,7 +93,7 @@ export interface ReachOutChainTotalsDto {
 
 /**
  * The function's answer, checked (no cast): each root's written, businesses and wrote back; null for anything else. A
- * root without `businesses` (a database before 00398) is read as it is, with the key absent; one whose `businesses` is
+ * root without `businesses` (a database before 00404) is read as it is, with the key absent; one whose `businesses` is
  * there and no count is no answer of the function.
  */
 export function chainTotalsOf(answer: unknown): ReachOutChainTotalsDto | null {

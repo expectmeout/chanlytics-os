@@ -1038,7 +1038,7 @@ test("Campaigns' reach-outs (A2): each one the ledger shows is a row of its own,
   const reach = {
     ...RPCS,
     reach_out_report: () => ({ chains: [] }),
-    // Twelve emails to five businesses, two of whom wrote back (00398 counts the businesses).
+    // Twelve emails to five businesses, two of whom wrote back (00404 counts the businesses).
     reach_out_chain_totals: () => ({ [ROOT]: { written: 12, businesses: 5, wrote_back: 2 } }),
   };
   const ledger = (rpcs) =>
@@ -1083,7 +1083,7 @@ test("Campaigns' reach-outs (A2): each one the ledger shows is a row of its own,
       ["playbook", PAUSED, `outbound/${PAUSED}`],
     ],
   );
-  // A database before 00398 counts no businesses: the old line, in the emails written. One business is one business.
+  // A database before 00404 counts no businesses: the old line, in the emails written. One business is one business.
   clearContextCache();
   readerCache.clear();
   const old = await ledger({

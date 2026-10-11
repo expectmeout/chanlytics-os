@@ -2,9 +2,9 @@
  * Reports › Campaigns — what the lens is read from, judged once on the server.
  *
  * The lens reads three things beside the sends' own report (campaign_series, which the Campaigns home reads too). The
- * window is the database's (campaign_ledger, 00399): the people the runs reached and who wrote back, the runs that sent,
+ * window is the database's (campaign_ledger, 00405): the people the runs reached and who wrote back, the runs that sent,
  * what was held back and why, the runs that stopped, why sends failed, each message's sends and replies, how soon the
- * first reply came and how long an approval waited. What is stuck now is a second answer (campaign_stuck, 00400): the runs
+ * first reply came and how long an approval waited. What is stuck now is a second answer (campaign_stuck, 00406): the runs
  * waiting for an OK, the runs that failed, the people who answered and may be waiting, the templates Meta stopped. The
  * third is no database's: the connected number's health, which the reader derives from the channel's stored config
  * (lines/number-standing.ts numberHealthOfConfig). This is the two answers' shapes, their guards, and the one place the
@@ -23,13 +23,13 @@ import { nextOpenMoment } from "../../playbooks/playbook-schedule";
 import { zoneDayKey } from "../../shared/clock";
 import { isCount, recordOrNull } from "../../shared/unknown";
 
-/** The most rows campaign_stuck lists in each list: the SQL's `limit 500` (00400). A list this long may have been cut. */
+/** The most rows campaign_stuck lists in each list: the SQL's `limit 500` (00406). A list this long may have been cut. */
 const CAMPAIGN_ROWS_LISTED = 500;
 
 /** How many of the templates Meta stopped the lens names; their count is of those campaign_stuck lists (at most 100). */
 const TEMPLATES_NAMED = 3;
 
-/* ---------------------------------------------------------------- campaign_ledger (00399) */
+/* ---------------------------------------------------------------- campaign_ledger (00405) */
 
 /** The people a period's runs sent to, and how many of them wrote back: a person once, however many runs sent to them. */
 interface PeopleCountsDto {
@@ -60,7 +60,7 @@ interface ByMessageDto {
   replied: number;
 }
 
-/** campaign_ledger's own answer (00399): counts, and the business's own template names; never a person's name, number or address. */
+/** campaign_ledger's own answer (00405): counts, and the business's own template names; never a person's name, number or address. */
 export interface CampaignLedgerSeriesDto {
   timezone: string;
   /** The workspace's day in that zone when the read was made: "2026-10-06". */
@@ -88,7 +88,7 @@ export interface CampaignLedgerSeriesDto {
   approval: { n: number; median_s: number | null; buckets: { h1: number; h4: number; h24: number; over: number } };
 }
 
-/* ---------------------------------------------------------------- campaign_stuck (00400) */
+/* ---------------------------------------------------------------- campaign_stuck (00406) */
 
 /** A run waiting for an OK, of any kind (a reach-out step's too): the facts the verb's refusal reads. */
 interface WaitingRunRaw {
@@ -130,7 +130,7 @@ interface TemplateRaw {
   quality: string | null;
 }
 
-/** campaign_stuck's own answer (00400): as of now, never the window; each list at most 500 (templates at most 100). */
+/** campaign_stuck's own answer (00406): as of now, never the window; each list at most 500 (templates at most 100). */
 export interface CampaignStuckRawDto {
   runs_waiting: WaitingRunRaw[];
   runs_failed: FailedRunRaw[];

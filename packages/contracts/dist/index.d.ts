@@ -11544,7 +11544,7 @@ declare function overLimitRefusal(h: NumberHealth, audience: number): string | n
 /**
  * The answer to a campaign run: a yes or a stop (the consent ledger's `contact.consent_changed`, 00013) that a run's
  * message earned. One rule, said here once: the run sheet reads it (server/campaigns/broadcasts.ts, consentAfter), and
- * `public.campaign_answers` (00397) restates it in SQL for Reports › Campaigns and the Campaigns home, which a database
+ * `public.campaign_answers` (00403) restates it in SQL for Reports › Campaigns and the Campaigns home, which a database
  * test holds equal to this over one world. The People lens keeps every yes and stop; this is the part of them a run
  * is owed.
  *
@@ -19101,7 +19101,7 @@ declare function messageStatusLabel(status: string | undefined, channel?: string
  * receipt's `code` (a text's status callback), or the answer to the send itself, as `body`: Graph's JSON, cut at two
  * hundred characters so read for its `"code"` rather than parsed, or "Twilio 30034".
  *
- * Said again once in SQL, `public.provider_code_of` (00399), which the Campaigns ledger groups why sends failed by;
+ * Said again once in SQL, `public.provider_code_of` (00405), which the Campaigns ledger groups why sends failed by;
  * reports/campaigns/provider-code.db.test.mjs holds the two to the same answer for every shape of error.
  */
 declare function providerCodeOf(error: Record<string, unknown>): number | null;
@@ -19115,7 +19115,7 @@ declare function providerCodeOf(error: Record<string, unknown>): number | null;
 declare function sendFailureWords(error: unknown, channel: string | null | undefined): string | null;
 /**
  * The sentence `sendFailureWords` says for a failure the Campaigns ledger keeps as a closed pair instead of the row's
- * `error` (00399, `failed_sends.by_code`: no body, no number, no address ever leaves the database). The pair is the
+ * `error` (00405, `failed_sends.by_code`: no body, no number, no address ever leaves the database). The pair is the
  * provider's `code` (a text's or a WhatsApp message's; an email carries none, its word decides) or, with no code, one `kind`
  * of a closed set, read as the channel reads it:
  *   - an email's `provider`: bounced, failed, suppressed;
@@ -26160,7 +26160,7 @@ declare const LIFECYCLE_WORDS: {
         readonly openRun: "Open the run";
         /**
          * A row's last 30 days, as its cell says them. A reach-out's is in the businesses it wrote to, which "wrote back" is a
-         * count of; its emails written only where the businesses were not counted (a database before 00398).
+         * count of; its emails written only where the businesses were not counted (a database before 00404).
          */
         readonly results: (r: LifecycleRowResults) => string;
         readonly sentOnce: {
@@ -26505,7 +26505,7 @@ interface LifecycleSource {
  * Each reach-out's last 30 days, by its root (GET reports/reach-outs' `chains`). `complete`: every chain was counted, so
  * one absent wrote nothing; false where they come from the report's twenty, so one absent may be past them and says "—".
  * `written` is emails; `businesses` the businesses they went to, which `wroteBack` is a count of: null where it is not
- * counted (a database before 00398), never guessed from `written`.
+ * counted (a database before 00404), never guessed from `written`.
  */
 interface LifecycleChains {
     complete: boolean;
@@ -26966,8 +26966,8 @@ interface ReachOutReportCounts {
     delivered: number;
     bounced: number;
     /**
-     * The businesses written to, each once, at its last email of the period (00398): the population wrote back, interested,
-     * booked and said no are counts of, so a share of them is of this, never of `written`. Absent on a database before 00398.
+     * The businesses written to, each once, at its last email of the period (00404): the population wrote back, interested,
+     * booked and said no are counts of, so a share of them is of this, never of `written`. Absent on a database before 00404.
      */
     businesses?: number;
     wrote_back: number;
@@ -27016,7 +27016,7 @@ interface ReachOutReportDto {
     /** The workspace has a reach-out at all: the section is drawn only then. */
     has_reach_out: boolean;
     totals: ReachOutReportCounts;
-    /** What the period before (the same count of days, ending the day before `since`) wrote: emails only, outcomes being state now (00398). */
+    /** What the period before (the same count of days, ending the day before `since`) wrote: emails only, outcomes being state now (00404). */
     before?: {
         written: number;
         delivered: number;
@@ -27027,7 +27027,7 @@ interface ReachOutReportDto {
         written: number;
     }>;
     chains: ReachOutReportChainDto[];
-    /** `businesses` (00398): the businesses whose last email had this angle; absent on a database before it. */
+    /** `businesses` (00404): the businesses whose last email had this angle; absent on a database before it. */
     angles: Array<{
         angle: string;
         written: number;
@@ -27047,7 +27047,7 @@ interface ReachOutReportDto {
  * workspace): what it wrote (emails), to how many businesses, and how many wrote back, in Reports' words. `complete` says
  * every chain was counted, so one absent from `by_root` wrote nothing; it is false where the numbers come from the
  * report's own chains (a database before the function, chainTotalsFromReport), which holds at most twenty, so one absent
- * may be past the twenty and says "—". `businesses` is the population `wrote_back` is a count of (00398): absent on a
+ * may be past the twenty and says "—". `businesses` is the population `wrote_back` is a count of (00404): absent on a
  * database before it, never a guess. GET reports/reach-outs answers it beside the report (spec 2026-10-09 §4.5).
  */
 interface ReachOutChainTotalsDto {
@@ -27060,7 +27060,7 @@ interface ReachOutChainTotalsDto {
 }
 /**
  * The function's answer, checked (no cast): each root's written, businesses and wrote back; null for anything else. A
- * root without `businesses` (a database before 00398) is read as it is, with the key absent; one whose `businesses` is
+ * root without `businesses` (a database before 00404) is read as it is, with the key absent; one whose `businesses` is
  * there and no count is no answer of the function.
  */
 declare function chainTotalsOf(answer: unknown): ReachOutChainTotalsDto | null;
@@ -27130,7 +27130,7 @@ declare function sentResultsOfSource(s: {
 /**
  * The chains' own totals as the ledger reads them (GET reports/reach-outs' `chains`, by root); null where the answer
  * carried none (a server from before them). Campaigns' results surface and Ask's context of the page read them alike.
- * A root whose businesses were not counted (a database before 00398) holds null for them.
+ * A root whose businesses were not counted (a database before 00404) holds null for them.
  */
 declare function lifecycleChainsOf(dto: ReachOutChainTotalsDto | null | undefined): LifecycleChains | null;
 /**
@@ -29420,7 +29420,7 @@ interface ByMessageDto {
     mature: number;
     replied: number;
 }
-/** campaign_ledger's own answer (00399): counts, and the business's own template names; never a person's name, number or address. */
+/** campaign_ledger's own answer (00405): counts, and the business's own template names; never a person's name, number or address. */
 interface CampaignLedgerSeriesDto {
     timezone: string;
     /** The workspace's day in that zone when the read was made: "2026-10-06". */
@@ -29518,7 +29518,7 @@ interface TemplateRaw {
     status: "paused" | "disabled" | "rejected";
     quality: string | null;
 }
-/** campaign_stuck's own answer (00400): as of now, never the window; each list at most 500 (templates at most 100). */
+/** campaign_stuck's own answer (00406): as of now, never the window; each list at most 500 (templates at most 100). */
 interface CampaignStuckRawDto {
     runs_waiting: WaitingRunRaw[];
     runs_failed: FailedRunRaw[];
@@ -29648,7 +29648,7 @@ interface ReachOutLensVM {
     /** Nothing was written or handed in the period. */
     empty: boolean;
     days: number;
-    /** As the database gave them (`businesses` absent before 00398). */
+    /** As the database gave them (`businesses` absent before 00404). */
     totals: ReachOutReportCounts;
     /** [emails written, landed, bounced] */
     strip: ReportStripTile[];

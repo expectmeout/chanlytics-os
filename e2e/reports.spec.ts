@@ -30,12 +30,12 @@ import { routeOf } from "./address";
  * database without 00395 answers `series: null`: the lens draws the book and its kept cards and no window card.
  *
  * The Campaigns lens draws the sends' own read (`GET reports/campaigns`: the funnel, the day card, the channels and the sources) and
- * two of its own: the window beyond the sends' counts (`GET reports/campaigns/ledger`, 00399: the people reached and who wrote back,
- * what was held and why, each message's replies, the time between steps) and what is stuck now (the same route's `stuck`, 00400),
+ * two of its own: the window beyond the sends' counts (`GET reports/campaigns/ledger`, 00405: the people reached and who wrote back,
+ * what was held and why, each message's replies, the time between steps) and what is stuck now (the same route's `stuck`, 00406),
  * and with them the reach-outs (`GET reports/reach-outs`). The nightly's workspace holds one run that went out three days ago to
  * its three people (e2e-workspace.mjs, convergeCampaigns: Casey's message delivered and answered, Sam's read, Robin held back
- * because a person had his thread, and the owner's approval), no run waiting and no message failed. A database without 00399
- * answers `series: null` and one without 00400 `stuck: null`: the lens then draws the sends' cards and none of that read's,
+ * because a person had his thread, and the owner's approval), no run waiting and no message failed. A database without 00405
+ * answers `series: null` and one without 00406 `stuck: null`: the lens then draws the sends' cards and none of that read's,
  * and says nothing failed.
  */
 const INVENTED = [
@@ -232,15 +232,15 @@ async function thePeopleLens(page: Page, report: Locator) {
 
 /**
  * The parts of `GET reports/campaigns/ledger` this spec reads (contracts' CampaignLedgerDto): the window's people sent to (a person
- * once, however many runs sent to them) and what is stuck now. `series` is null on a database without the window's read (00399)
- * and `stuck` on one without what is stuck (00400), or where that read failed.
+ * once, however many runs sent to them) and what is stuck now. `series` is null on a database without the window's read (00405)
+ * and `stuck` on one without what is stuck (00406), or where that read failed.
  */
 type CampaignsRead = {
   series: { people: { now: { sent_to: number } } } | null;
   stuck: object | null;
 };
 
-/** The lens's own read, in which each of its two halves says whether the database has it: a database without 00399 or 00400 answers null for it. */
+/** The lens's own read, in which each of its two halves says whether the database has it: a database without 00405 or 00406 answers null for it. */
 async function readCampaigns(page: Page): Promise<CampaignsRead> {
   const res = await apiGet(page, "/api/v1/reports/campaigns/ledger?period=30d");
   expect(res.status()).toBe(200);
@@ -251,8 +251,8 @@ async function readCampaigns(page: Page): Promise<CampaignsRead> {
  * What the Campaigns lens draws once its reads have landed, on the nightly's workspace (e2e-workspace.mjs, convergeCampaigns: one
  * run to its three people three days ago, two messages delivered or read, a reply, Robin held back, an approval; no run waiting and
  * no message failed). The funnel, the day card and the sources are the sends' own read and are drawn either way; the strip of five
- * figures, how many were held and why, the messages' replies and the time between steps are the ledger's (00399), and the strip of
- * what is stuck now is the second half's (00400): on a database without either, those cards are not drawn and nothing failed.
+ * figures, how many were held and why, the messages' replies and the time between steps are the ledger's (00405), and the strip of
+ * what is stuck now is the second half's (00406): on a database without either, those cards are not drawn and nothing failed.
  * The reach-outs are drawn exactly where the workspace has one.
  *
  * The numbers are read, never written here: the nightly's other specs write to the workspace, and the sum is what the seed and

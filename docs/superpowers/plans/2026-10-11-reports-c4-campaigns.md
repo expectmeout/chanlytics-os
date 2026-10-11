@@ -1,5 +1,7 @@
 # Reports phase C, lens 4: the Campaigns lens, drawn from what is stored (C4) Implementation Plan
 
+> Landed as 00403-00406 (renumbered at the push, 11 Oct 2026). The plan below says 00397-00400, the numbers the lane was written under; main took those first.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** The Campaigns lens answers "did my messages reach people, did they answer, and what is stuck?" in the lenses spec's five parts (D7: sentence, against before, mix, time between steps, stuck now), from reads of its own: the funnel and the per-campaign rows from the report the Campaigns home already reads (one number on two pages), the people, the held and the failed, the replies by message and the waits from one new window function, what is stuck now from one new as-of-now function, and the reach-outs counted in businesses. A yes or a stop on this lens is an answer to a campaign, on the Home too.

@@ -1,5 +1,5 @@
 /**
- * 00397 on a real Postgres: campaign_answers, a yes or a stop after a campaign as the answer to its run, and
+ * 00403 on a real Postgres: campaign_answers, a yes or a stop after a campaign as the answer to its run, and
  * campaign_series, which counts these (a person once a period and answer) where it counted the whole ledger by the day.
  *
  * The rule is said once in TypeScript (contracts broadcasts/run-answers.ts, `answersToRuns`) and restated in SQL

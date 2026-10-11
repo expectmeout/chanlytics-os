@@ -5,9 +5,9 @@
  * they were read, and the range it is of). Nothing here is a real business.
  *
  * The lens has three reads and the world keeps them apart as the surface does. CAMPAIGNS is what campaign_series answers
- * (the days' counts, the sources, the channels: 00374, 00397). SERIES is what campaign_ledger answers for the window
- * (00399: people, runs, what was held and stopped, why sends failed, each message, how soon the first reply came, how long an
- * approval waited), and STUCK what campaign_stuck answers as of now (00400), in the raw shape the database gives it. STUCK_NOW
+ * (the days' counts, the sources, the channels: 00374, 00403). SERIES is what campaign_ledger answers for the window
+ * (00405: people, runs, what was held and stopped, why sends failed, each message, how soon the first reply came, how long an
+ * approval waited), and STUCK what campaign_stuck answers as of now (00406), in the raw shape the database gives it. STUCK_NOW
  * is STUCK judged at NOW by the product's own rules and written out by hand: the oracle the builder is held to, and the
  * stuck half of the DTO the route answers (dtoWith).
  *
@@ -120,7 +120,7 @@ export const CAMPAIGNS_QUIET = {
 
 /* ---------------------------------------------------------- campaign_ledger (the window) */
 
-/** campaign_ledger's answer for the thirty days (00399): the window it was read for, and counts, never a name. */
+/** campaign_ledger's answer for the thirty days (00405): the window it was read for, and counts, never a name. */
 export const SERIES = {
   timezone: "America/New_York",
   today: "2026-09-04",
@@ -166,7 +166,7 @@ export const QUIET = {
 /* ---------------------------------------------------------- campaign_stuck (as of now) */
 
 /**
- * campaign_stuck's answer (00400), as the database gives it at NOW. Three runs wait for an OK: a reach-out's step (made for
+ * campaign_stuck's answer (00406), as the database gives it at NOW. Three runs wait for an OK: a reach-out's step (made for
  * a day gone by, never refused: the rule's own exemption), a win-back made for yesterday (its day has passed) and one made
  * for today. One run failed. Three people answered a campaign and their threads are flagged: the first has an open
  * escalation and nobody, the second needs a person, and the third is a teammate's. Two WhatsApp messages Meta stopped.

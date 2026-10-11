@@ -519,8 +519,8 @@ interface ReachOutReportCounts {
     delivered: number;
     bounced: number;
     /**
-     * The businesses written to, each once, at its last email of the period (00398): the population wrote back, interested,
-     * booked and said no are counts of, so a share of them is of this, never of `written`. Absent on a database before 00398.
+     * The businesses written to, each once, at its last email of the period (00404): the population wrote back, interested,
+     * booked and said no are counts of, so a share of them is of this, never of `written`. Absent on a database before 00404.
      */
     businesses?: number;
     wrote_back: number;
@@ -569,7 +569,7 @@ interface ReachOutReportDto {
     /** The workspace has a reach-out at all: the section is drawn only then. */
     has_reach_out: boolean;
     totals: ReachOutReportCounts;
-    /** What the period before (the same count of days, ending the day before `since`) wrote: emails only, outcomes being state now (00398). */
+    /** What the period before (the same count of days, ending the day before `since`) wrote: emails only, outcomes being state now (00404). */
     before?: {
         written: number;
         delivered: number;
@@ -580,7 +580,7 @@ interface ReachOutReportDto {
         written: number;
     }>;
     chains: ReachOutReportChainDto[];
-    /** `businesses` (00398): the businesses whose last email had this angle; absent on a database before it. */
+    /** `businesses` (00404): the businesses whose last email had this angle; absent on a database before it. */
     angles: Array<{
         angle: string;
         written: number;
@@ -638,7 +638,7 @@ interface ReachOutLensVM {
     /** Nothing was written or handed in the period. */
     empty: boolean;
     days: number;
-    /** As the database gave them (`businesses` absent before 00398). */
+    /** As the database gave them (`businesses` absent before 00404). */
     totals: ReachOutReportCounts;
     /** [emails written, landed, bounced] */
     strip: ReportStripTile[];
@@ -864,7 +864,7 @@ interface ByMessageDto {
     mature: number;
     replied: number;
 }
-/** campaign_ledger's own answer (00399): counts, and the business's own template names; never a person's name, number or address. */
+/** campaign_ledger's own answer (00405): counts, and the business's own template names; never a person's name, number or address. */
 interface CampaignLedgerSeriesDto {
     timezone: string;
     /** The workspace's day in that zone when the read was made: "2026-10-06". */

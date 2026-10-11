@@ -166,7 +166,7 @@ function sentResultsOf(id: string, report: LifecycleInput["report"]): LifecycleR
 /**
  * The chains' own totals as the ledger reads them (GET reports/reach-outs' `chains`, by root); null where the answer
  * carried none (a server from before them). Campaigns' results surface and Ask's context of the page read them alike.
- * A root whose businesses were not counted (a database before 00398) holds null for them.
+ * A root whose businesses were not counted (a database before 00404) holds null for them.
  */
 export function lifecycleChainsOf(dto: ReachOutChainTotalsDto | null | undefined): LifecycleChains | null {
   if (!dto) return null;
@@ -191,7 +191,7 @@ export function chainResultsOf(rootId: string, chains: LifecycleInput["chains"])
   if (!chains) return "uncounted";
   const c = chains.byRoot[rootId];
   if (!c) return chains.complete ? "none" : "uncounted";
-  // Read as null where the key is absent, too: an input from before 00398 (an older fixture) has no businesses to say.
+  // Read as null where the key is absent, too: an input from before 00404 (an older fixture) has no businesses to say.
   return c.written > 0
     ? { kind: "written", written: c.written, businesses: c.businesses ?? null, wroteBack: c.wroteBack }
     : "none";

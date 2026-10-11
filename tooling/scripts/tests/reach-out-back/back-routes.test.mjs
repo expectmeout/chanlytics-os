@@ -117,7 +117,7 @@ async function logged(event, fn) {
   }
 }
 /**
- * A report with one chain of its own, whose one step wrote three emails to two businesses (00398 counts them) and heard
+ * A report with one chain of its own, whose one step wrote three emails to two businesses (00404 counts them) and heard
  * back from one.
  */
 const ONE_CHAIN = {
@@ -135,8 +135,8 @@ const ONE_CHAIN = {
     },
   ],
 };
-/** The same report from a database before 00398: its steps count no businesses. */
-const ONE_CHAIN_BEFORE_00398 = {
+/** The same report from a database before 00404: its steps count no businesses. */
+const ONE_CHAIN_BEFORE_00404 = {
   ...ONE_CHAIN,
   chains: [{ ...ONE_CHAIN.chains[0], steps: [{ id: "r1", n: 0, written: 3, wrote_back: 1 }] }],
 };
@@ -214,9 +214,9 @@ test("GET reports/reach-outs answers its reader's payload; where the chains' tot
     },
     "every chain, the one past the report's own among them, in businesses as in emails",
   );
-  // A database before 00398 answers the function without businesses: the chains carry none, and nothing is made up.
+  // A database before 00404 answers the function without businesses: the chains carry none, and nothing is made up.
   const before = doors({
-    reach_out_report: () => ONE_CHAIN_BEFORE_00398,
+    reach_out_report: () => ONE_CHAIN_BEFORE_00404,
     reach_out_chain_totals: () => ({
       r1: { written: 3, wrote_back: 1, last_at: null },
       r2: { written: 0, wrote_back: 0, last_at: null },
@@ -242,9 +242,9 @@ test("GET reports/reach-outs answers its reader's payload; where the chains' tot
     by_root: { r1: { written: 3, businesses: 2, wrote_back: 1 } },
   });
   assert.deepEqual(old.lines, [], "a function not there yet is no failure");
-  // And from a report that counts no businesses either (a database before 00398 and 00375): the sum has none to say.
+  // And from a report that counts no businesses either (a database before 00404 and 00375): the sum has none to say.
   const oldest = doors({
-    reach_out_report: () => ONE_CHAIN_BEFORE_00398,
+    reach_out_report: () => ONE_CHAIN_BEFORE_00404,
     reach_out_chain_totals: () => {
       throw Object.assign(new Error("Could not find the function public.reach_out_chain_totals"), { code: "PGRST202" });
     },

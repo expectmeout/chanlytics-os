@@ -1,7 +1,7 @@
 /**
  * The day's numbers at 6 PM (Reach out Part 6: H12) and each reach-out's own totals, executed (contracts
  * reach-out-report.ts): the bell's line says what happened and nothing it did not count; a chain's totals are checked, not
- * cast, and carry the businesses a share of an outcome is of (00398). The report's own fold, in businesses, is the
+ * cast, and carry the businesses a share of an outcome is of (00404). The report's own fold, in businesses, is the
  * Campaigns lens's (tooling/scripts/tests/reports/campaigns/reach-out-lens.test.mjs); the first fold of it, whose cases
  * stood here, went on 11 Oct 2026.
  */
@@ -70,7 +70,7 @@ test("a chain's own totals: every chain counted by the function, each by its roo
   assert.deepEqual(fromReport, { complete: false, by_root: { [ROOT_A]: { written: 40, wrote_back: 6 } } });
 });
 
-test("a chain's businesses (00398): a reach-out is counted in the businesses it wrote to, each once at its last email; absent on a database before it, refused where it is no count", () => {
+test("a chain's businesses (00404): a reach-out is counted in the businesses it wrote to, each once at its last email; absent on a database before it, refused where it is no count", () => {
   const ROOT_A = "11111111-1111-4111-8111-111111111111";
   const ROOT_B = "22222222-2222-4222-8222-222222222222";
   // Nine emails to four businesses, two of whom wrote back: the share of a business is of businesses, never of emails.
@@ -84,7 +84,7 @@ test("a chain's businesses (00398): a reach-out is counted in the businesses it 
     businesses: 0,
     wrote_back: 0,
   });
-  // A database before 00398 answers without it: the key stays absent (not undefined, not zero).
+  // A database before 00404 answers without it: the key stays absent (not undefined, not zero).
   const before = chainTotalsOf({ r1: { written: 9, wrote_back: 2 } });
   assert.deepEqual(before, { complete: true, by_root: { r1: { written: 9, wrote_back: 2 } } });
   assert.equal("businesses" in (before?.by_root.r1 ?? {}), false, "absent, so the Home says its old line");

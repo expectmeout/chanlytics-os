@@ -1,4 +1,4 @@
--- 00398 · A reach-out is counted in the businesses it wrote to (Reports › Campaigns › Reach-outs, the Campaigns home).
+-- 00404 · A reach-out is counted in the businesses it wrote to (Reports › Campaigns › Reach-outs, the Campaigns home).
 --
 -- reach_out_report (00241, 00261, 00360) and reach_out_chain_totals (00375) counted what a reach-out wrote in emails and
 -- what came back (wrote back, interested, booked, said no) in businesses, each business once a chain at its last email of
@@ -65,12 +65,12 @@ begin
   v_end   := least(coalesce(p_end, v_today), v_today);
   v_since := (v_end - (p_days - 1))::timestamp at time zone v_tz;
   v_stop  := ((v_end + 1)::timestamp) at time zone v_tz;
-  -- Where the period before begins (00398): the same count of days, ending where the window begins.
+  -- Where the period before begins (00404): the same count of days, ending where the window begins.
   v_prior := (v_end - (p_days * 2 - 1))::timestamp at time zone v_tz;
   return (
     -- An email that left (00179's one spelling, email_left): sent, or failed by a receipt after it left, which is how
     -- the clock settles a send whose email bounced before it was read sent. Dated by when it left. Read twice now (the
-    -- window's `sent` and the period before), so not materialized (00398): each read takes the rows it needs, and the
+    -- window's `sent` and the period before), so not materialized (00404): each read takes the rows it needs, and the
     -- tenant's whole history of emails is never held for the second.
     with left_ as not materialized (
       select s.id, s.root_id, s.playbook_id, s.lead_id, s.contact_id, s.domain_id,
@@ -148,7 +148,7 @@ begin
         'booked', (select count(*) from answers where booked),
         'said_no', (select count(*) from answers where said_no),
         'handed', coalesce((select sum(n) from handed), 0)),
-      -- What the period before wrote, counted as the totals count it: emails only (00398).
+      -- What the period before wrote, counted as the totals count it: emails only (00404).
       'before', (
         select jsonb_build_object(
                  'written', count(*),
@@ -227,7 +227,7 @@ end $$;
 revoke all on function public.reach_out_report(uuid, integer, date) from public, anon;
 grant execute on function public.reach_out_report(uuid, integer, date) to authenticated, service_role;
 comment on function public.reach_out_report(uuid, integer, date) is
-  'Reports'' Reach-outs section (Reach out Part 6, H1, H3-H6), for a member: over p_days days (1 to 90; any other is refused) to the window''s last day in the workspace''s zone, the emails that left and what came of them. has_reach_out, totals, before (written, delivered and bounced over the same count of days before the window, 00398: outcomes are state now, so they have no period before), series (written per day), chains (at most 20, each with its steps; reach_out_chain_totals counts every chain over the same window, 00375), angles (the top 8, other_angles, no_angle) and domains (at most 10; a removed domain''s host is null). Emails are written, delivered and bounced; businesses are the leads written to, each once per chain at its last email of the period, and every outcome (wrote back, interested, booked, said no) is a count of them, so it is never more than `businesses`, on the totals, on a step (the businesses whose last email was that step), on an angle (the ones whose last email had it) and past the top 8 (00398); wrote back is outreach_wrote_back. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
+  'Reports'' Reach-outs section (Reach out Part 6, H1, H3-H6), for a member: over p_days days (1 to 90; any other is refused) to the window''s last day in the workspace''s zone, the emails that left and what came of them. has_reach_out, totals, before (written, delivered and bounced over the same count of days before the window, 00404: outcomes are state now, so they have no period before), series (written per day), chains (at most 20, each with its steps; reach_out_chain_totals counts every chain over the same window, 00375), angles (the top 8, other_angles, no_angle) and domains (at most 10; a removed domain''s host is null). Emails are written, delivered and bounced; businesses are the leads written to, each once per chain at its last email of the period, and every outcome (wrote back, interested, booked, said no) is a count of them, so it is never more than `businesses`, on the totals, on a step (the businesses whose last email was that step), on an angle (the ones whose last email had it) and past the top 8 (00404); wrote back is outreach_wrote_back. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
 
 create or replace function public.reach_out_chain_totals(p_tenant_id uuid, p_days integer, p_end date default null)
 returns jsonb
@@ -284,7 +284,7 @@ begin
         from period x
        group by x.root_id
     ),
-    -- The businesses a chain wrote to (00398): the population wrote_back is a count of.
+    -- The businesses a chain wrote to (00404): the population wrote_back is a count of.
     written_to as (
       select ls.root_id, count(*) as businesses
         from last_sent ls
@@ -311,4 +311,4 @@ end $$;
 revoke all on function public.reach_out_chain_totals(uuid, integer, date) from public, anon;
 grant execute on function public.reach_out_chain_totals(uuid, integer, date) to authenticated, service_role;
 comment on function public.reach_out_chain_totals(uuid, integer, date) is
-  'Every chain of the workspace (a reach-out''s first step), by its id, for a member (may_read_workspace): what it wrote over p_days days (1 to 90) to the window''s last day in the workspace''s zone, the window reach_out_report reads, in emails (written) and in businesses (the ones it wrote to, each once a chain at its last email: the population wrote_back is a count of, so wrote_back is never more than businesses, 00398), how many of them wrote back (outreach_wrote_back) and when it last wrote in it; a chain that wrote nothing is { written: 0, businesses: 0, wrote_back: 0, last_at: null } (00375, 00398). `p_end` is the window''s last day, as 00360 reads it: null is today, and a day that has not come is read as today.';
+  'Every chain of the workspace (a reach-out''s first step), by its id, for a member (may_read_workspace): what it wrote over p_days days (1 to 90) to the window''s last day in the workspace''s zone, the window reach_out_report reads, in emails (written) and in businesses (the ones it wrote to, each once a chain at its last email: the population wrote_back is a count of, so wrote_back is never more than businesses, 00404), how many of them wrote back (outreach_wrote_back) and when it last wrote in it; a chain that wrote nothing is { written: 0, businesses: 0, wrote_back: 0, last_at: null } (00375, 00404). `p_end` is the window''s last day, as 00360 reads it: null is today, and a day that has not come is read as today.';

@@ -207,7 +207,7 @@ export interface LifecycleSource {
  * Each reach-out's last 30 days, by its root (GET reports/reach-outs' `chains`). `complete`: every chain was counted, so
  * one absent wrote nothing; false where they come from the report's twenty, so one absent may be past them and says "—".
  * `written` is emails; `businesses` the businesses they went to, which `wroteBack` is a count of: null where it is not
- * counted (a database before 00398), never guessed from `written`.
+ * counted (a database before 00404), never guessed from `written`.
  */
 export interface LifecycleChains {
   complete: boolean;

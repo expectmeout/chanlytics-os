@@ -483,7 +483,7 @@ async function consentEventsOf(
  * of it: the consent ledger both doors write (00013) -- a yes at the desk or in
  * their own words, a STOP, an unsubscribe -- and which of it is this run's answer
  * is one rule, contracts answersToRuns (broadcasts/run-answers.ts), which Reports
- * › Campaigns and the Campaigns home count by too (00397). It says what counts (a
+ * › Campaigns and the Campaigns home count by too (00403). It says what counts (a
  * merge's restated consent does not), who answers (a person who stands, not one
  * erased or merged away), and whose an event is (the send an unsubscribe or a
  * carrier's stop names, however late; else the reply window after the send); this

@@ -4,7 +4,7 @@
  * window of ./_campaign-world.mjs. Two chains of two steps write 40 emails (36 delivered, 2 bounced) to 25 businesses, 6 of
  * whom wrote back; the 30 days before wrote 30. Nothing here is a real business.
  *
- * `reachOuts(over)` is the report as a database from 00398 answers it; `beforeBusinesses()` is the same salon on a database
+ * `reachOuts(over)` is the report as a database from 00404 answers it; `beforeBusinesses()` is the same salon on a database
  * before it, which counts no businesses anywhere. Each returns a fresh object, so a test may change what it is handed.
  */
 
@@ -58,7 +58,7 @@ const chainsOf = () => [
   },
 ];
 
-/** The report the route answers, for a database from 00398 (`over` replaces any key). */
+/** The report the route answers, for a database from 00404 (`over` replaces any key). */
 export const reachOuts = (over = {}) => ({
   timezone: "America/New_York",
   days: 30,
@@ -103,7 +103,7 @@ export const reachOuts = (over = {}) => ({
   ...over,
 });
 
-/** The same salon on a database before 00398: no `businesses` anywhere, and no period before. */
+/** The same salon on a database before 00404: no `businesses` anywhere, and no period before. */
 export const beforeBusinesses = () => {
   const dto = reachOuts();
   delete dto.totals.businesses;

@@ -1,6 +1,6 @@
 /**
  * The Campaigns lens's record, EXECUTED: the shape the ledger route answers (contracts
- * reports/campaigns/campaign-record.ts) -- the databases' two answers (campaign_ledger, 00399, and campaign_stuck, 00400),
+ * reports/campaigns/campaign-record.ts) -- the databases' two answers (campaign_ledger, 00405, and campaign_stuck, 00406),
  * the guards that tell each from `{ error }` and from a body short of a part the fold reads, and the one builder that puts
  * them beside the number's health. What waits is judged here and not in SQL, by the product's own rules: a run's day has
  * passed by the verb's refusal (runApprovalRefusal), a reply waits on you by the one standing (standingOf), and the

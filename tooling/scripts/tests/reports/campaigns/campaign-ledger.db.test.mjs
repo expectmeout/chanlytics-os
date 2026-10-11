@@ -1,5 +1,5 @@
 /**
- * 00399 on a real Postgres: campaign_ledger, the Campaigns lens' own read. campaign_series counts messages and cannot say
+ * 00405 on a real Postgres: campaign_ledger, the Campaigns lens' own read. campaign_series counts messages and cannot say
  * people, why sends failed, what was held or how long an approval waited; this counts them, as people and as counts only.
  *
  * The first test builds one busy week (the controller's brief spells out what it must answer); the later ones hold the

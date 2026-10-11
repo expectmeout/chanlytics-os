@@ -348,7 +348,7 @@ function quietReceptionist({ p_days: days }, over = {}) {
 }
 /** What people_series answers (00395) for a quiet period: nobody reached the business and nothing was answered or done. */
 const quietPeople = ({ p_days: days }) => ({ timezone: TZ, today: dayKey(NOW.getTime()), days, ...QUIET });
-/** What campaign_ledger answers (00399) for a quiet window: nobody was sent to, held, stopped, failed or approved. */
+/** What campaign_ledger answers (00405) for a quiet window: nobody was sent to, held, stopped, failed or approved. */
 const quietCampaigns = ({ p_days: days }) => ({
   timezone: TZ,
   today: dayKey(NOW.getTime()),

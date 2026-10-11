@@ -90,7 +90,7 @@ function byChannelSaid(cm: CampaignReportVM) {
   }));
 }
 
-/** The window's six parts, from the database's ledger (campaign_ledger, 00399). */
+/** The window's six parts, from the database's ledger (campaign_ledger, 00405). */
 function windowSaid(lens: CampaignLensVM) {
   return {
     held: partSaid(lens.held),
@@ -174,7 +174,7 @@ function reviewsSaid(rv: ReviewsReportVM) {
  * first three figures against the period before) and the businesses in businesses (`businesses`, `angles`): each business is
  * counted once, at the last email that wrote to it, and who wrote back, was interested, booked or said no is as it stands
  * now, said against nothing of the period before. `handed` is the page's line on the businesses handed to the owner, null
- * where none were; a database before 00398 says in `businesses` and `angles` that it does not count businesses yet.
+ * where none were; a database before 00404 says in `businesses` and `angles` that it does not count businesses yet.
  */
 function reachOutsSaid(ro: ReachOutLensVM) {
   if (!ro.present) return null;

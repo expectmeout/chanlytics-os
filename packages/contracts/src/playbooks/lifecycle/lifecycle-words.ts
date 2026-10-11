@@ -295,7 +295,7 @@ export const LIFECYCLE_WORDS = {
     openRun: "Open the run",
     /**
      * A row's last 30 days, as its cell says them. A reach-out's is in the businesses it wrote to, which "wrote back" is a
-     * count of; its emails written only where the businesses were not counted (a database before 00398).
+     * count of; its emails written only where the businesses were not counted (a database before 00404).
      */
     results: (r: LifecycleRowResults): string =>
       r === "uncounted"

@@ -444,7 +444,7 @@ test(
 
     const rep = ok(await as.viewer.c.rpc("reach_out_report", { p_tenant_id: A, p_days: 7 }));
     assert.equal(rep.has_reach_out, true);
-    // Emails written, businesses answered (00398): this world wrote one email to each of its five businesses, so the
+    // Emails written, businesses answered (00404): this world wrote one email to each of its five businesses, so the
     // two are equal here and the outcomes below are of five either way; reports/campaigns/reach-out-businesses.db.test.mjs
     // holds the world where a business gets two emails, and the share it was divided by `written` before.
     assert.deepEqual(rep.totals, {

@@ -8,12 +8,12 @@
  * The counts do the rest: each is held to the same rows counted straight off the tables, so a read that strays outside
  * its window is wrong here, whatever its time.
  *
- *   campaign_ledger(t, 30), campaign_ledger(t, 90)   00399, the lens's own read: people, held, stopped, failed, by
+ *   campaign_ledger(t, 30), campaign_ledger(t, 90)   00405, the lens's own read: people, held, stopped, failed, by
  *                                                    message, first reply, approval
- *   campaign_series(t, 30)                           00397's consent part, with the days' counts
- *   campaign_stuck(t)                                00400, what is stuck as it stands
- *   campaign_answers(t, now - 30 days, now)          00397, each person's answer to each run
- *   reach_out_report(t, 30), reach_out_chain_totals  00398, the businesses a reach-out wrote to
+ *   campaign_series(t, 30)                           00403's consent part, with the days' counts
+ *   campaign_stuck(t)                                00406, what is stuck as it stands
+ *   campaign_answers(t, now - 30 days, now)          00403, each person's answer to each run
+ *   reach_out_report(t, 30), reach_out_chain_totals  00404, the businesses a reach-out wrote to
  *
  * Each is asked three times and gated on the median of the three, under 4,000 ms; the three times, the minimum and the
  * median are printed (`t.diagnostic`). Each answer's counts are held to the same rows counted straight off the tables.
@@ -403,7 +403,7 @@ test(
 );
 
 test(
-  "the reach-out reads (00398) answer a member inside half of 8 seconds, in the businesses the chain wrote to",
+  "the reach-out reads (00404) answer a member inside half of 8 seconds, in the businesses the chain wrote to",
   { skip },
   async (t) => {
     const tenant = world();

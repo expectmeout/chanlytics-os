@@ -1,5 +1,5 @@
 /**
- * 00398 on a real Postgres: a reach-out is counted in the businesses it wrote to. reach_out_report and
+ * 00404 on a real Postgres: a reach-out is counted in the businesses it wrote to. reach_out_report and
  * reach_out_chain_totals counted what came back (wrote back, interested, booked, said no) in businesses, each once a
  * chain at its last email of the window, and what was written in emails; every share a page drew put the one over the
  * other, so a business that got three emails said a third of what it did. They now say both: `businesses` beside
@@ -323,7 +323,7 @@ test("businesses are counted once, at their last email, and every outcome is of 
   const { w, r, S1, S2 } = await worldA();
   const rep = await report(w);
   // Six emails left to four businesses: L1 and L3 got two, so the 2 who wrote back are 2 of 4, never 2 of 6 (before
-  // 00398 a page divided an outcome by `written`).
+  // 00404 a page divided an outcome by `written`).
   assert.deepEqual(rep.totals, {
     written: 6,
     businesses: 4,

@@ -2,12 +2,12 @@
  * Reports › Campaigns › Reach-outs, in businesses (the Campaigns lens, C4): what a workspace's reach-outs wrote over the
  * period, and what came of it, said in the unit each number is of.
  *
- * The database counts two things (00398 reach_out_report) and this keeps them apart. An email is one that left: a business
+ * The database counts two things (00404 reach_out_report) and this keeps them apart. An email is one that left: a business
  * with three is three. A business is counted once, at the last email that wrote to it, and it is the population wrote back,
  * interested, booked and said no are counts of, as they stand now: so a share of an outcome is of businesses, never of
  * emails, and no list mixes the two. Of the period before only what was written is known (emails written, delivered,
  * bounced): an outcome is state now, so it is set against nothing. A share is said only of five or more (REPORT_MIN_N) and
- * is a count under that; the strip carries the count a share is of, for the kit to grey it. A database before 00398 sends no
+ * is a count under that; the strip carries the count a share is of, for the kit to grey it. A database before 00404 sends no
  * `businesses`: the part says so in words and the emails part stands.
  *
  * The day series, the domains and the handed line were the first fold's (before 11 Oct 2026, reach-out-report.ts held it), and
@@ -72,7 +72,7 @@ export interface ReachOutLensVM {
   /** Nothing was written or handed in the period. */
   empty: boolean;
   days: number;
-  /** As the database gave them (`businesses` absent before 00398). */
+  /** As the database gave them (`businesses` absent before 00404). */
   totals: ReachOutReportCounts;
   /** [emails written, landed, bounced] */
   strip: ReportStripTile[];
@@ -138,7 +138,7 @@ const tenthOf = (n: number, d: number): number | null => (d > 0 ? Math.round((n 
 
 /**
  * The businesses a record counts, where it is a count: absent, `null` and anything else that is no count are all "not
- * counted" (a database before 00398 sends none), never a number to print or to divide by.
+ * counted" (a database before 00404 sends none), never a number to print or to divide by.
  */
 const countedBusinesses = (c: { businesses?: unknown }): number | undefined =>
   isCount(c.businesses) ? c.businesses : undefined;
@@ -176,7 +176,7 @@ function whenOf(dto: ReachOutReportDto): WhenWords {
 
 /* ------------------------------------------------------------------------------------------------ the strip */
 
-/** The first figure's line under it: the businesses the emails went to, or (before 00398) the emails alone. */
+/** The first figure's line under it: the businesses the emails went to, or (before 00404) the emails alone. */
 function writtenMeta(counts: ReachOutReportCounts): string {
   const { written } = counts;
   const businesses = countedBusinesses(counts);
@@ -295,7 +295,7 @@ function anglesPart(dto: ReachOutReportDto, when: WhenWords): ReachOutLensVM["an
       line: null,
       empty: `No email ${when.these} had an opening, so there is no angle to compare.`,
     };
-  // A database before 00398 sends angles without their businesses: a share of the emails would be a share of another unit.
+  // A database before 00404 sends angles without their businesses: a share of the emails would be a share of another unit.
   if (listed.some((a) => a.businesses === undefined)) return { rows: [], line: null, empty: NO_BUSINESSES };
   const unangled = dto.no_angle ? ` ${plural(dto.no_angle, "email")} had no opening, so no angle.` : "";
   return {
@@ -310,7 +310,7 @@ function anglesPart(dto: ReachOutReportDto, when: WhenWords): ReachOutLensVM["an
 /**
  * The businesses that wrote back as a line says them: a share of the businesses with the count beside it from five, the count
  * it is of under that ("1 of 3", as shareSaid says it), and the count alone where the businesses are not counted (a database
- * before 00398) or there are none to take a share of.
+ * before 00404) or there are none to take a share of.
  */
 function answeredCell(wroteBack: number, businesses: number | undefined): string {
   if (businesses === undefined || businesses === 0) return String(wroteBack);

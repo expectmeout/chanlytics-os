@@ -81,7 +81,7 @@ export const reports: Provider = async (rc, ctx) => {
 /**
  * A row's last 30 days in its line, in its row's words (contracts sentResultsOfSource, chainResultsOf): what it sent and
  * how many replied, or the businesses a reach-out wrote to and how many wrote back (its emails written where the
- * businesses were not counted, a database before 00398); nothing sent; or, unread or not counted, said so, never
+ * businesses were not counted, a database before 00404); nothing sent; or, unread or not counted, said so, never
  * all-time totals.
  */
 function lastDaysPart(r: LifecycleRowResults | null): string {

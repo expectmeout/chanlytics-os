@@ -3327,14 +3327,14 @@ const RED_CONFIG = {
 };
 /** An active WhatsApp channel of Harbor's holding `config`; `over` changes the row (a stopped number, another kind). */
 const numberOf = (config, over = {}) => [{ tenant_id: A, kind: "whatsapp", status: "active", config, ...over }];
-/** What campaign_ledger answers (00399) for the days asked: the world's thirty days, said for the window it was asked. */
+/** What campaign_ledger answers (00405) for the days asked: the world's thirty days, said for the window it was asked. */
 const ledgerAnswer = (a) => ({ ...LEDGER, end: a.p_end ?? LEDGER.end, days: a.p_days });
 /** calendar-feed's Harbor with the ledger world's two answers (campaign_stuck as the database gives it) and the channels `channels` gives. */
 const ledgerWorld = (rpcs = {}, channels = numberOf(RED_CONFIG)) => ({
   tables: { ...calTables(null), tenant_channels: channels },
   rpcs: { campaign_ledger: ledgerAnswer, campaign_stuck: () => STUCK, ...rpcs },
 });
-/** What a database that has not run 00399 or 00400 answers a call to its function. */
+/** What a database that has not run 00405 or 00406 answers a call to its function. */
 const functionGone = (signature) => () => {
   throw Object.assign(new Error(`Could not find the function public.${signature} in the schema cache`), {
     code: "PGRST202",
@@ -3433,7 +3433,7 @@ test("the Campaigns lens' ledger carries the series as the database gave it, jud
   );
 });
 
-test("the Campaigns lens' ledger on a database that does not have its functions yet (00399, 00400 not applied) answers 200 -- without campaign_ledger `series: null`, the window it was asked and what is stuck; without campaign_stuck `stuck: null` -- each said once in the log; any other refusal is still the route's failure", async (t) => {
+test("the Campaigns lens' ledger on a database that does not have its functions yet (00405, 00406 not applied) answers 200 -- without campaign_ledger `series: null`, the window it was asked and what is stuck; without campaign_stuck `stuck: null` -- each said once in the log; any other refusal is still the route's failure", async (t) => {
   t.mock.timers.enable({ apis: ["Date"], now: LEDGER_NOW });
   const noLedger = ledgerWorld({ campaign_ledger: ledgerGone });
   const { result: page, lines } = await logged("campaign_ledger_missing", () =>

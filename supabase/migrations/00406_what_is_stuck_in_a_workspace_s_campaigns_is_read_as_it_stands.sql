@@ -1,6 +1,6 @@
--- 00400 · What is stuck in a workspace's campaigns is read as it stands (Reports, the Campaigns lens).
+-- 00406 · What is stuck in a workspace's campaigns is read as it stands (Reports, the Campaigns lens).
 --
--- campaign_ledger (00399) reads a window. What is stuck is in none: a run waits for an OK whatever the day, a thread that
+-- campaign_ledger (00405) reads a window. What is stuck is in none: a run waits for an OK whatever the day, a thread that
 -- answered a campaign waits until somebody answers it, a message Meta stopped stays stopped until it is put right. This is
 -- the lens's own read of that, `campaign_stuck(p_tenant_id)`: one statement, under the caller's RLS (SECURITY INVOKER),
 -- as of now, with no window and no period before, and each list at most 500 as receptionist_series' `stuck` is (00380),
@@ -9,7 +9,7 @@
 -- It ships facts and never a verdict. Whether an approval is too late (the day rule, contracts' runApprovalRefusal),
 -- whether a thread waits on a person (standingOfThread) and whether the number can send (numberHealth) are said once, in
 -- TypeScript, by the reader; this hands over the columns those rules read. No name, number, address or word a person or a
--- provider wrote leaves it: a run's failure comes out as a code of ours or `other` (00399's rule), a thread as its state.
+-- provider wrote leaves it: a run's failure comes out as a code of ours or `other` (00405's rule), a thread as its state.
 --
 --   runs_waiting  The workspace's runs in `pending_approval`, of any kind (a reach-out step's too: the reader sorts them by
 --                 `kind`, told as campaign_ledger tells it: from the audience first, `playbook_id` only where the audience
@@ -170,4 +170,4 @@ revoke all on function public.campaign_stuck(uuid) from public, anon;
 grant execute on function public.campaign_stuck(uuid) to authenticated, service_role;
 
 comment on function public.campaign_stuck(uuid) is
-  'Reports › Campaigns, what is stuck as it stands now (no window): the runs waiting for an OK (any kind, with the facts the day rule reads), the runs that failed in the last 30 days (a failure of ours, else other), the threads that answered a moment or a broadcast within the reply window and may wait on a person (needs_human, any pause or an open escalation: wider than standingOfThread''s flagged, on purpose, with the facts the rule reads), and the WhatsApp messages Meta paused, disabled or rejected. Facts, never verdicts, and nothing a person or a provider wrote. Each list at most 500, the messages 100. SECURITY INVOKER: the caller''s RLS decides what a member reads (00400).';
+  'Reports › Campaigns, what is stuck as it stands now (no window): the runs waiting for an OK (any kind, with the facts the day rule reads), the runs that failed in the last 30 days (a failure of ours, else other), the threads that answered a moment or a broadcast within the reply window and may wait on a person (needs_human, any pause or an open escalation: wider than standingOfThread''s flagged, on purpose, with the facts the rule reads), and the WhatsApp messages Meta paused, disabled or rejected. Facts, never verdicts, and nothing a person or a provider wrote. Each list at most 500, the messages 100. SECURITY INVOKER: the caller''s RLS decides what a member reads (00406).';

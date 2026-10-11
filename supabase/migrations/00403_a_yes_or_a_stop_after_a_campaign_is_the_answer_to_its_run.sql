@@ -1,4 +1,4 @@
--- 00397 · A yes or a stop after a campaign is the answer to its run (Reports › Campaigns, the Campaigns home).
+-- 00403 · A yes or a stop after a campaign is the answer to its run (Reports › Campaigns, the Campaigns home).
 --
 -- campaign_series (00051, 00174, 00251, 00320, 00329, 00360, 00374) counted its yeses and stops off the workspace's whole
 -- consent ledger, once a person a day each way, so "N said yes · M asked to stop" said what the workspace's people did and
@@ -196,7 +196,7 @@ begin
                       and i.created_at <= s.sent_at + public.campaign_reply_window())  as replied
       from sent s
   ),
-  -- A yes or a stop is an answer to a campaign (00397): what a person said to a run that reached them, from the desk or in
+  -- A yes or a stop is an answer to a campaign (00403): what a person said to a run that reached them, from the desk or in
   -- their own words, the unsubscribe an offer by email invites among them (00174) and a carrier's or WhatsApp's STOP, and
   -- not the consent ledger as a whole (campaign_answers says which events are one). A person counts once a period and
   -- answer, on the day of the earliest, whatever runs they said it to: the unsubscribe page's "stop all" writes the STOP
@@ -301,4 +301,4 @@ revoke all on function public.campaign_series(uuid, integer, date) from public, 
 grant execute on function public.campaign_series(uuid, integer, date) to authenticated, service_role;
 
 comment on function public.campaign_series(uuid, integer, date) is
-  'Reports › Campaigns: messages sent by broadcasts and playbook runs, delivered and read receipts, replies within campaign_reply_window (the customer''s own words: not a call''s note, an automatic reply, a list''s mail or a booking tool''s notice), yeses and stops (a yes or a stop is an answer to a campaign run, public.campaign_answers, 00397: once a person and period, on the day of the earliest; an unsubscribe from offers by email among them, 00174), day by day over two periods, and the current period by source and by the channel each went by (0030; a row naming none went by WhatsApp). `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
+  'Reports › Campaigns: messages sent by broadcasts and playbook runs, delivered and read receipts, replies within campaign_reply_window (the customer''s own words: not a call''s note, an automatic reply, a list''s mail or a booking tool''s notice), yeses and stops (a yes or a stop is an answer to a campaign run, public.campaign_answers, 00403: once a person and period, on the day of the earliest; an unsubscribe from offers by email among them, 00174), day by day over two periods, and the current period by source and by the channel each went by (0030; a row naming none went by WhatsApp). `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';

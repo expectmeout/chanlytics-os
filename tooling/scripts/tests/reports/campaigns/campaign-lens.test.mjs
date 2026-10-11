@@ -157,7 +157,7 @@ test("a period that sent nothing says so, and what the reach-outs wrote if only 
     fold({ ...quiet, reachOuts: reachOutReport(1, 1) }).head,
     "Nothing went out in this period. Your reach-outs wrote 1 email to 1 business.",
   );
-  // A database that does not count businesses yet (before 00398) says the emails alone; a reach-out that wrote none says nothing.
+  // A database that does not count businesses yet (before 00404) says the emails alone; a reach-out that wrote none says nothing.
   assert.equal(
     fold({ ...quiet, reachOuts: reachOutReport(12, undefined) }).head,
     "Nothing went out in this period. Your reach-outs wrote 12 emails.",
@@ -233,7 +233,7 @@ test("a reply still coming is said whenever the database counts one: the clock's
     wrote({ end: undefined }),
     "48 of 180 people within 3 days, 9 sent to in the last 3 days may still answer",
   );
-  // Days a member picked that ended yesterday still have sends under 72 hours old: the database (00399 `mature`, by the clock)
+  // Days a member picked that ended yesterday still have sends under 72 hours old: the database (00405 `mature`, by the clock)
   // counts them, and so the strip says so, as the By message line does (one maturity rule, not a calendar day's).
   assert.equal(
     wrote({ end: "2026-09-03" }),
