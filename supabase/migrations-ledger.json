@@ -393,6 +393,8 @@
     "00388_an_escalation_is_opened_with_its_event.sql": "69997625fab82d67d9e10da807f7f481e927c48a4f2d5d964361023860c2988f",
     "00389_a_booking_reaches_its_reach_out_through_its_event.sql": "f239aae5eddc56e3fcd7d75fbfc02678074bd2cfe6fdb012bff480f9976c4cd3",
     "00390_a_paused_subscription_keeps_what_it_would_have_been_handed.sql": "d6775bf1d2836ce20f21b193c85ab236e072d81af4e464dab717f69d91157b81",
-    "00391_what_a_run_and_a_reach_out_kept_of_a_person_goes_with_them.sql": "41977bd9d75769f42b88c5a5e6c214dc1b9ac3dc33eb220eeba09664ce6f5bbd"
+    "00391_what_a_run_and_a_reach_out_kept_of_a_person_goes_with_them.sql": "41977bd9d75769f42b88c5a5e6c214dc1b9ac3dc33eb220eeba09664ce6f5bbd",
+    "00392_a_review_google_no_longer_shows_and_a_closed_invitation_go.sql": "a2f60beed4051a4b072b0db14e7584e6bb5d1101cd0a5a1da1c8da244352660d",
+    "00393_a_person_is_added_by_their_number_or_their_address.sql": "c9fec19f278c7c93b2062e3c80e9b6e8d400f2b3613b444a986ab3efee1309b4"
   }
 }

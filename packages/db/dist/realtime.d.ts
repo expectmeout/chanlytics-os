@@ -6068,6 +6068,16 @@ type Database = {
             };
         };
         Functions: {
+            add_person: {
+                Args: {
+                    p_display_name: string;
+                    p_email: string;
+                    p_phone_e164: string;
+                    p_source: string;
+                    p_tenant_id: string;
+                };
+                Returns: Json;
+            };
             ai_failures_hour: {
                 Args: {
                     p_min?: number;
@@ -8320,7 +8330,19 @@ type Database = {
                 };
                 Returns: number;
             };
+            purge_google_reviews: {
+                Args: {
+                    p_keep?: string;
+                };
+                Returns: number;
+            };
             purge_idempotency_keys: {
+                Args: {
+                    p_keep?: string;
+                };
+                Returns: number;
+            };
+            purge_invitations: {
                 Args: {
                     p_keep?: string;
                 };

@@ -246,5 +246,5 @@ export type {
 } from "./partner-invite";
 export { ACTIVATION_MILESTONES } from "./activation";
 export type { ActivationMilestone } from "./activation";
-export { PLATFORM_DAYS_READ, platformDaysWords } from "./platform-days";
+export { PLATFORM_DAYS_READ, PLATFORM_NUMBERS, pastTarget, pastTargetPage, platformDaysWords } from "./platform-days";
 export type { PlatformDayRowDto, PlatformDayLineVM, PlatformDaysVM } from "./platform-days";

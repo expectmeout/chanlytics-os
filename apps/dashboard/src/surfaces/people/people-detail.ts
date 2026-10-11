@@ -320,7 +320,8 @@ export async function appendPersonNotesMany(ids: string[], line: string): Promis
  * were already here; the People surface re-reads after it.
  */
 export async function addPerson(body: {
-  phone: string;
+  phone?: string;
+  email?: string;
   name?: string;
 }): Promise<ApiResult<{ contact_id: string; existed: boolean }>> {
   return api()("POST contacts", { body });

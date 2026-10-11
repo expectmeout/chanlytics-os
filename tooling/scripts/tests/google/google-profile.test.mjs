@@ -413,6 +413,29 @@ test("the first sync is history: every review kept, the rating and the count tak
   );
 });
 
+test("the mirror follows Google: a complete read lets the unlisted reviews go, a capped one or one that came back without its list does not", () => {
+  const plan = (reviews, over) =>
+    planProfileSync({ last_synced_at: "2026-09-06T15:00:00Z" }, new Map(), page(reviews, over), "2026-09-07", NOW);
+  assert.equal(
+    plan([gbp()], { total_count: 1 }).prune,
+    true,
+    "every review Google lists was read: one not among them is gone at Google",
+  );
+  assert.equal(plan([gbp()], { next_page_token: "more" }).prune, false, "the oldest were never read: nothing goes");
+  assert.equal(
+    plan([], { total_count: null, average_rating: null }).prune,
+    false,
+    "a page with no list and no count is not a location that lost every review",
+  );
+  assert.equal(plan([], { total_count: 0 }).prune, true, "Google says none: none are kept");
+  assert.equal(
+    plan([gbp()], { total_count: 3 }).prune,
+    false,
+    "a list shorter than Google's count was cut short: the purge's days take what it leaves",
+  );
+  assert.equal(plan([gbp()], { total_count: null }).prune, true, "no count to hold it to: a complete list is the list");
+});
+
 test("after that, a review not on record and written since the last sync is news; a reply that appeared is noted, never announced", () => {
   const before = { last_synced_at: "2026-09-06T15:00:00Z" };
   const known = new Map([["r-old", { updated_at: "2025-01-10T13:00:00Z", reply_text: null }]]);
@@ -735,7 +758,10 @@ test("the edge: the secret alone on the edge, a read before a row, the grant giv
       lib.includes('return { ok: false, error: "no_refresh_token" };') &&
       lib.includes('return { ok: false, error: "not_on_maps" };'),
   );
-  assert.ok(lib.includes('.eq("origin", "places");'), "the public five make way for the profile");
+  assert.ok(
+    lib.includes('if (first) await letReviewsGo(db, conn.tenant_id, "places", null);'),
+    "the public five make way for the profile",
+  );
   assert.ok(
     lib.includes("{ reviews: carriesReviews }"),
     "with the profile connected the public read keeps only the numbers",

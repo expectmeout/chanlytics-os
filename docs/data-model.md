@@ -84,7 +84,7 @@ what the script writes.
 | [`person_moments`](#person_moments) | none | on, 1 policy |
 | [`person_notes`](#person_notes) | `packages/db/src/repositories/thread.ts` | on, 1 policy |
 | [`platform_admins`](#platform_admins) | none | on, no policy, so only the service role reaches it |
-| [`platform_metrics`](#platform_metrics) | none | on, no policy, so only the service role reaches it |
+| [`platform_metrics`](#platform_metrics) | `packages/db/src/ops.ts` | on, no policy, so only the service role reaches it |
 | [`playbooks`](#playbooks) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/sweeps.ts` | on, 4 policies |
 | [`policies`](#policies) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out-sheet.ts` | on, 5 policies |
 | [`profiles`](#profiles) | none | on, 1 policy |
@@ -103,7 +103,7 @@ what the script writes.
 | [`templates`](#templates) | `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/templates.ts` | on, 1 policy |
 | [`tenant_channels`](#tenant_channels) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/routing.ts`, `packages/db/src/sweeps.ts` | on, 1 policy |
 | [`tenant_config`](#tenant_config) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts` | on, 2 policies |
-| [`tenants`](#tenants) | `packages/db/src/ai-usage.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 2 policies |
+| [`tenants`](#tenants) | `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 2 policies |
 | [`waitlist`](#waitlist) | `packages/db/src/waitlist.ts` | on, no policy, so only the service role reaches it |
 | [`lead_searches_view`](#lead_searches_view) (view) | none | |
 | [`usage_ledger`](#usage_ledger) (view) | none | |
@@ -2048,7 +2048,7 @@ Which partner brought this workspace (0012), one row per workspace and never mov
 | `checks` | jsonb | no | `'{}'::jsonb` |  |
 | `seat_held_at` | timestamp with time zone | yes |  | When pausing the partner took their seat on this workspace (0012): their membership is a viewer's until partner_status_set restores it. Null when the seat was never taken. |
 | `origin` | text | no | `'link'::text` | How the partner came to this workspace: link, the business made it through their link (0012); handover, the partner made it and handed it to its owner (0016); invite, its owner asked the partner to join it (0018). |
-| `handover_email` | text | yes |  | The address the workspace is handed to (0016), lower case. Only its owner by that address may accept it. |
+| `handover_email` | text | yes |  | The address a workspace is handed to (0016), lower case; cleared once its new owner accepts (00392), kept while it waits, is declined or expires, so the partner may send it again. |
 | `handover_sent_at` | timestamp with time zone | yes |  |  |
 | `handover_expires_at` | timestamp with time zone | yes |  |  |
 | `handover_accepted_at` | timestamp with time zone | yes |  |  |
@@ -2232,7 +2232,7 @@ Foreign keys:
 
 One UTC day of one workspace, counted (00277): messages in and out by channel, customers' messages (asks) and how many got an answer from anyone, the receptionist's replies answered, held and handed off, its 95th-percentile latency, sends that failed by outcome, and model tokens. Rolled up nightly (platform_metrics_roll); service role only, read by the back office.
 
-- Owned by: none
+- Owned by: `packages/db/src/ops.ts`
 - Primary key: `tenant_id`, `day`
 - Row-level security: on, no policy, so only the service role reaches it
 
@@ -2832,7 +2832,7 @@ Foreign keys:
 
 ### tenants
 
-- Owned by: `packages/db/src/ai-usage.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts`
+- Owned by: `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 

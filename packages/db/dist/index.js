@@ -386,6 +386,31 @@ async function migrationHead(db) {
   const row = data?.[0];
   return { head: row?.head ?? null, applied: row?.applied ?? 0 };
 }
+var NAMES_PER_READ = 100;
+async function platformDay(db, day) {
+  const { data, error } = await db.from("platform_metrics").select("tenant_id, brain_p95_ms, job_lag_ms, duplicate_sends, dead_letters, relay_lag_ms, intake_lag_ms").eq("day", day);
+  if (error) throw new Error(error.message);
+  const rows = data ?? [];
+  const ids = [...new Set(rows.map((r) => r.tenant_id))];
+  const live = /* @__PURE__ */ new Map();
+  for (let i = 0; i < ids.length; i += NAMES_PER_READ) {
+    const t = await db.from("tenants").select("id, name, status").in("id", ids.slice(i, i + NAMES_PER_READ));
+    if (t.error) throw new Error(t.error.message);
+    for (const w of t.data ?? []) if (w.status === "active") live.set(w.id, w.name);
+  }
+  return rows.flatMap((r) => {
+    const name = live.get(r.tenant_id);
+    return name === void 0 ? [] : [
+      {
+        ...r,
+        name,
+        job_lag_ms: r.job_lag_ms,
+        dead_letters: r.dead_letters,
+        intake_lag_ms: r.intake_lag_ms
+      }
+    ];
+  });
+}
 
 // src/erasure-registry.ts
 var ERASURE_LEGS = {
@@ -562,10 +587,15 @@ var ERASURE_STRATEGIES = {
     "name",
     "place_id"
   ),
-  // A review's ids and language. Its reviewer, words and reply are counted (above).
-  google_reviews: all(NOT_PERSONAL, "language_code", "maps_uri", "review_id"),
+  // A review as Google shows it: a complete read drops one Google no longer lists, and one not seen for its days goes
+  // (purge_google_reviews, 00392). Its ids and language are nobody's.
+  google_reviews: {
+    ...all(byAge("google_reviews"), "author", "author_uri", "author_photo_uri", "body", "reply_text"),
+    ...all(NOT_PERSONAL, "language_code", "maps_uri", "review_id")
+  },
   idempotency_keys: all(byAge("idempotency_keys"), "key", "route", "request_hash", "response"),
-  // A team invitation's address: the workspace's, kept with it.
+  // A team invitation's address: the workspace's while it is open or expired (the Team card sends it again); one
+  // accepted or taken back goes with its address 30 days later (purge_invitations, 00392).
   invitations: { email: WITH_WORKSPACE },
   jobs: {
     // A thrown error can quote the recipient a provider refused.
@@ -574,8 +604,12 @@ var ERASURE_STRATEGIES = {
     dedupe_key: NOT_PERSONAL
   },
   lead_counters: { period: NOT_PERSONAL },
-  // A batch's judge: its model and the hashes of its work. Its answer is counted (above).
-  lead_judgments: all(NOT_PERSONAL, "model", "op_id", "request_hash"),
+  // A batch's judge: its answer, with a reason for each place, goes with the batch (purge_leads, 00140); its model and
+  // the hashes of its work are nobody's.
+  lead_judgments: {
+    answer: byAge("lead_judgments"),
+    ...all(NOT_PERSONAL, "model", "op_id", "request_hash")
+  },
   // A lead's stage before and after a move, its counts, ids and a keyed hash of its place.
   lead_operations: all(NOT_PERSONAL, "before", "after"),
   lead_preferences: {
@@ -700,7 +734,7 @@ var ERASURE_STRATEGIES = {
     )
   },
   // A partner's ledger of the workspaces it brought: Stripe's ids, the code used, the sweep's checks and reasons; the
-  // address a workspace is handed to, the workspace's.
+  // address a workspace is handed to, the workspace's, cleared once its new owner accepts (00392).
   partner_earnings: all(NOT_PERSONAL, "currency", "stripe_event_id", "stripe_invoice_id"),
   partner_tenants: {
     handover_email: WITH_WORKSPACE,
@@ -1179,6 +1213,23 @@ async function recordConsent(db, p) {
     ...p.undoOf ? { p_undo_of: p.undoOf } : {}
   });
   return { data, error };
+}
+async function addPersonByHand(db, p) {
+  const { data, error } = p.email ? await db.rpc("add_person", {
+    p_tenant_id: p.tenantId,
+    p_phone_e164: p.phone ?? "",
+    p_email: p.email,
+    p_display_name: p.name,
+    p_source: p.source
+  }) : await db.rpc("create_person", {
+    p_tenant_id: p.tenantId,
+    p_phone_e164: p.phone ?? "",
+    p_display_name: p.name,
+    p_source: p.source
+  });
+  if (error) return { data: null, error };
+  const o = data ?? {};
+  return { data: { contact_id: String(o.contact_id), existed: o.existed === true }, error: null };
 }
 
 // src/repositories/control.ts
@@ -4985,6 +5036,7 @@ export {
   activeWhatsappNumbers,
   activitySubjects,
   activityTokensOf,
+  addPersonByHand,
   addPersonNote,
   addToList,
   addToWaitlist,
@@ -5177,6 +5229,7 @@ export {
   personDecisions,
   personReplyMode,
   personRow,
+  platformDay,
   platformHoldStands,
   platformWide,
   playbookChannels,

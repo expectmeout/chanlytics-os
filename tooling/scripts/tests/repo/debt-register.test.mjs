@@ -120,7 +120,9 @@ function blockFrom(by, scanCounts) {
     [
       "personal columns with no erasure strategy",
       keys(by["erasure-strategies.json"]),
-      `in ${new Set(Object.keys(by["erasure-strategies.json"] ?? {}).map((c) => c.split(".")[0])).size} tables`,
+      ((n) => `in ${n} ${n === 1 ? "table" : "tables"}`)(
+        new Set(Object.keys(by["erasure-strategies.json"] ?? {}).map((c) => c.split(".")[0])).size,
+      ),
     ],
     ["breakpoints outside the set", total(by["breakpoints.json"]), `in ${files(by["breakpoints.json"])} files`],
     ["literal style values", fieldsTotal(by["style-values.json"]), `in ${keys(by["style-values.json"])} stylesheets`],

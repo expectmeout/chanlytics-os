@@ -7,7 +7,7 @@
  */
 import type { ListRule } from "@chanlytics/contracts";
 import { refusalToast } from "../../legacy-verbs";
-import { addPerson } from "../people-detail";
+import { addPerson, writePersonNote } from "../people-detail";
 import { lists } from "../people-lists";
 import { plMadeId } from "../words";
 import type { Flash } from "../types";
@@ -103,28 +103,58 @@ export const plRuleMadeWords = (name: string) => (
 );
 
 /**
- * Somebody the business meets before they ever write or call, added by hand through the door the calendar sweep uses: a
- * number already here opens that person rather than making a second one.
+ * Somebody the business meets before they ever write or call, added by hand through the one door a person is resolved
+ * by (POST contacts): a number, an address or both, and a name if known; a number or an address already here opens that
+ * person rather than making a second one. What was not typed is not sent.
  */
 export async function plAddPerson({
   name,
   phone,
+  email = "",
 }: {
   name: string;
   phone: string;
+  email?: string;
 }): Promise<{ ok: true; id: string; existed: boolean } | { ok: false; error: string }> {
-  const r = await addPerson({ phone: phone.trim(), ...(name.trim() ? { name: name.trim() } : {}) });
+  const r = await addPerson({
+    ...(phone.trim() ? { phone: phone.trim() } : {}),
+    ...(email.trim() ? { email: email.trim() } : {}),
+    ...(name.trim() ? { name: name.trim() } : {}),
+  });
   if (r.ok) return { ok: true, id: r.data.contact_id, existed: !!r.data.existed };
   // The field's own sentence where the route named one, else the refusal's.
   return { ok: false, error: (r.fields && Object.values(r.fields)[0]) || r.message || "Could not add them." };
 }
-export const plAddedWords = ({ name, phone }: { name: string; phone: string }, existed: boolean) =>
-  existed ? (
+
+/**
+ * What a member asked for beside the add, once the person is there: their first note (the notes log's own door) and a
+ * list kept by hand to put them on. Each is its own door, so one that is refused leaves the person added; what did not go
+ * on is answered, in the words the add says it with.
+ */
+export async function plAddExtras(id: string, { note, listId }: { note: string; listId: string }): Promise<string[]> {
+  const missed: string[] = [];
+  if (note.trim()) {
+    const n = await writePersonNote(id, { body: note.trim() });
+    if (!n.ok) missed.push("the note");
+  }
+  if (listId) {
+    const l = await lists.add(listId, [id]);
+    if (!l.ok) missed.push("the list");
+  }
+  return missed;
+}
+
+/** The add, said: who (the name, else the number, else the address), new or already here, and what did not go on. */
+export const plAddedWords = (
+  { name, phone, email = "" }: { name: string; phone: string; email?: string },
+  existed: boolean,
+  missed: readonly string[] = [],
+) => {
+  const who = name.trim() || phone.trim() || email.trim();
+  return (
     <>
-      <b>{name.trim() || phone.trim()}</b> was already here — opened
-    </>
-  ) : (
-    <>
-      <b>{name.trim() || phone.trim()}</b> added
+      <b>{who}</b> {existed ? "was already here — opened" : "added"}
+      {missed.length ? ` · ${missed.join(" and ")} did not save` : ""}
     </>
   );
+};

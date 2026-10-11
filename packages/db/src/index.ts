@@ -20,10 +20,10 @@ export type { AiFailures, UsageMonthRow } from "./ai-usage";
 export { keepInvoiceAmount } from "./billing/events";
 export { applyBilling } from "./billing/account";
 export type { BillingPatch, BillingExpectation } from "./billing/account";
-export { migrationHead } from "./ops";
+export { migrationHead, platformDay } from "./ops";
 export { ERASURE_LEGS, ERASURE_STRATEGIES } from "./erasure-registry";
 export type { ErasureLeg, ErasureStrategy } from "./erasure-registry";
-export type { MigrationHead } from "./ops";
+export type { MigrationHead, PlatformDayPromises } from "./ops";
 export { signUpOnPublicKey, inviteUserByEmail, listSecondFactors, deleteSecondFactor } from "./auth";
 export { addToWaitlist, refreshWaitlistRow, waitlistWaiting, markWaitlistInvited } from "./waitlist";
 export { createServiceClient } from "./service-client";
@@ -407,6 +407,7 @@ export {
   scrubPersonNotes,
   mergePeople,
   recordConsent,
+  addPersonByHand,
   resolvePerson,
   PERSON_FORGOTTEN,
   openDoubtsOf,

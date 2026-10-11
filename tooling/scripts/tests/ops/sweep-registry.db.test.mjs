@@ -111,6 +111,9 @@ const EVERY_CLOCK = {
   purge_provider_events: "purge-provider-events",
   // The keys writes were answered under (00340): nightly, a day on, judged by its run.
   purge_idempotency_keys: "purge-idempotency-keys",
+  // A review the mirror has not seen for its days, and a closed invitation (00392): nightly, judged by their runs.
+  purge_google_reviews: "purge-google-reviews",
+  purge_invitations: "purge-invitations",
 };
 const RUN_JUDGED = [
   "partitions",
@@ -119,7 +122,9 @@ const RUN_JUDGED = [
   "purge_ask",
   "purge_cron_history",
   "purge_events",
+  "purge_google_reviews",
   "purge_idempotency_keys",
+  "purge_invitations",
   "purge_jobs",
   "purge_leads",
   "purge_notifications",

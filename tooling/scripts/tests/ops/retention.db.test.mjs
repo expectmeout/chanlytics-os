@@ -295,3 +295,164 @@ test(
     assert.deepEqual((left ?? []).map((r) => r.key).sort(), ["card:young", "req:young"]);
   },
 );
+
+test(
+  "purge_google_reviews lets a review go that the mirror has not seen for its days, and says the connection is no longer whole",
+  { skip },
+  async () => {
+    // Decision 0036, 00392: run with its DEFAULT, so a default that drifts from RETENTION_DAYS.google_reviews fails.
+    const keep = RETENTION_DAYS.google_reviews;
+    assert.ifError(
+      (await db.from("google_listings").insert({ tenant_id: tenantId, place_id: `place-${Date.now()}`, name: "Kept" }))
+        .error,
+    );
+    assert.ifError(
+      (
+        await db
+          .from("google_connections")
+          .insert({ tenant_id: tenantId, account_name: "accounts/1", reviews_complete: true })
+      ).error,
+    );
+    const rows = [
+      ["gone", keep + 1],
+      ["kept", keep - 1],
+    ].map(([review_id, age]) => ({
+      tenant_id: tenantId,
+      review_id,
+      origin: "profile",
+      author: "Rae",
+      body: "Kind and quick.",
+      last_seen_at: daysAgo(age),
+    }));
+    assert.ifError((await db.from("google_reviews").insert(rows)).error);
+    const { data: purged, error } = await db.rpc("purge_google_reviews");
+    assert.ifError(error);
+    assert.ok(purged >= 1, `answers how many it removed (${purged})`);
+    const { data: left } = await db.from("google_reviews").select("review_id").eq("tenant_id", tenantId);
+    assert.deepEqual(
+      (left ?? []).map((r) => r.review_id),
+      ["kept"],
+    );
+    const { data: conn } = await db
+      .from("google_connections")
+      .select("reviews_complete")
+      .eq("tenant_id", tenantId)
+      .single();
+    assert.equal(
+      conn.reviews_complete,
+      false,
+      "a mirror that lost a review here no longer holds every one Google lists",
+    );
+  },
+);
+
+test(
+  "purge_invitations lets an invitation go 30 days after it was accepted or taken back, with the address its decision kept; an open or expired one stays",
+  { skip },
+  async () => {
+    const keep = RETENTION_DAYS.invitations_closed;
+    const invite = async (email, over) => {
+      const { data, error } = await db
+        .from("invitations")
+        .insert({ tenant_id: tenantId, email, role: "operator", ...over })
+        .select("id")
+        .single();
+      assert.ifError(error);
+      const d = await db.from("decisions").insert({
+        tenant_id: tenantId,
+        subject_type: "invitation",
+        subject_id: data.id,
+        verb: "invite",
+        actor_type: "system",
+        payload: { email, role: "operator" },
+      });
+      assert.ifError(d.error);
+      return data.id;
+    };
+    const accepted = await invite("old-yes@example.com", {
+      created_at: daysAgo(keep + 9),
+      expires_at: daysAgo(keep + 2),
+      accepted_at: daysAgo(keep + 1),
+    });
+    const revoked = await invite("old-no@example.com", {
+      created_at: daysAgo(keep + 9),
+      expires_at: daysAgo(keep + 2),
+      revoked_at: daysAgo(keep + 1),
+    });
+    const recent = await invite("new-yes@example.com", {
+      created_at: daysAgo(keep),
+      expires_at: daysAgo(keep - 7),
+      accepted_at: daysAgo(keep - 1),
+    });
+    const expired = await invite("never@example.com", {
+      created_at: daysAgo(keep + 40),
+      expires_at: daysAgo(keep + 33),
+    });
+    const { data: purged, error } = await db.rpc("purge_invitations");
+    assert.ifError(error);
+    assert.ok(purged >= 2, `answers how many it removed (${purged})`);
+    const { data: left } = await db.from("invitations").select("id").eq("tenant_id", tenantId);
+    assert.deepEqual((left ?? []).map((r) => r.id).sort(), [recent, expired].sort());
+    const { data: said } = await db
+      .from("decisions")
+      .select("subject_id, payload")
+      .eq("tenant_id", tenantId)
+      .eq("subject_type", "invitation");
+    const by = Object.fromEntries((said ?? []).map((d) => [d.subject_id, d.payload]));
+    assert.deepEqual(by[accepted], { role: "operator" }, "the decision is kept, the address is not");
+    assert.deepEqual(by[revoked], { role: "operator" });
+    assert.equal(by[recent].email, "new-yes@example.com", "an invitation still kept keeps its decision whole");
+    assert.equal(by[expired].email, "never@example.com");
+  },
+);
+
+test(
+  "purge_leads lets a batch's judgment go after its days, as RETENTION_DAYS.lead_judgments says",
+  { skip },
+  async () => {
+    const keep = RETENTION_DAYS.lead_judgments;
+    const search = (
+      await db
+        .from("lead_searches")
+        .insert({ tenant_id: tenantId, via: "people", card: "local_businesses", name: "kept", asked: "kept", plan: {} })
+        .select("id")
+        .single()
+    ).data.id;
+    const round = (
+      await db
+        .from("lead_rounds")
+        .insert({
+          tenant_id: tenantId,
+          search_id: search,
+          seq: 1,
+          purpose: "probe",
+          plan: {},
+          plan_version: 1,
+          target: 5,
+          month: "2026-09",
+          day: "2026-09-19",
+        })
+        .select("id")
+        .single()
+    ).data.id;
+    // Ended as soon as it exists, as the tenancy suite ends its own: a round that has not ended is the finder's work.
+    assert.ifError((await db.from("lead_rounds").update({ state: "ended", ending: "stopped" }).eq("id", round)).error);
+    const rows = [
+      ["gone", keep + 1],
+      ["kept", keep - 1],
+    ].map(([op, age]) => ({
+      tenant_id: tenantId,
+      round_id: round,
+      op_id: `${op}-${Date.now()}`,
+      answer: { places: [{ reason: "A family salon on Main Street." }] },
+      created_at: daysAgo(age),
+    }));
+    assert.ifError((await db.from("lead_judgments").insert(rows)).error);
+    assert.ifError((await db.rpc("purge_leads")).error);
+    const { data: left } = await db.from("lead_judgments").select("op_id").eq("round_id", round);
+    assert.deepEqual(
+      (left ?? []).map((r) => r.op_id.split("-")[0]),
+      ["kept"],
+    );
+  },
+);

@@ -106,7 +106,7 @@ html.legacy-on .rec-row-act { min-height: 0; }
      home indicator. */
   .rec-sheet { top: auto; bottom: var(--kb, 0px); left: 0; width: auto; height: calc(88vh - var(--kb, 0px)); height: calc(88dvh - var(--kb, 0px)); border: 1px solid var(--surface-pop-edge); border-bottom: 0; border-radius: var(--surface-pane-radius) var(--surface-pane-radius) 0 0; }
   /* The deal sheet holds a few fields, so it is as tall as they are, as a fold's sheet is, never 88% of blank. */
-  .rec-sheet.deal-sheet { height: auto; max-height: calc(88vh - var(--kb, 0px)); max-height: calc(88dvh - var(--kb, 0px)); }
+  .rec-sheet:is(.deal-sheet, .pl-add) { height: auto; max-height: calc(88vh - var(--kb, 0px)); max-height: calc(88dvh - var(--kb, 0px)); }
   .rec-sheet.deal-sheet .deal-sheet-reasons .rec-seg { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   /* A fold open on a phone is this sheet (record-fold.jsx), as tall as what it holds and no taller than a list's: the
      voice's one box does not open 88% of a screen of blank. It rises from the bottom as it opens, on the fold's own
