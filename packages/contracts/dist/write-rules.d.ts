@@ -52,6 +52,7 @@ declare const TenantConfigWriteSchema: z.ZodPipe<z.ZodUnknown, z.ZodObject<{
             escalate_when: z.ZodOptional<z.ZodArray<z.ZodString>>;
             tone: z.ZodOptional<z.ZodString>;
             handoff_number: z.ZodOptional<z.ZodString>;
+            phone_greeting: z.ZodCatch<z.ZodOptional<z.ZodString>>;
             website: z.ZodOptional<z.ZodString>;
             notes: z.ZodOptional<z.ZodArray<z.ZodObject<{
                 title: z.ZodString;

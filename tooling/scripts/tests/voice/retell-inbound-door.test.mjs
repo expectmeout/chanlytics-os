@@ -408,6 +408,7 @@ test("a routed call is answered 200 with the four variables the shell's prompt r
           facts_chars: v.business_facts.length,
           hold: "claimed",
           late: false,
+          greeting: "standard",
         },
       ],
       "one line: the caller's tail, the agent, the call, and what the agent was handed",

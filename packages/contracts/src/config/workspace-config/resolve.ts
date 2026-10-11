@@ -9,7 +9,7 @@ import { NO_WAY_TO_SEND_LINK, offersBookingLink, offersLinkOn } from "../no-book
 import { BASELINE_CLOSING, BASELINE_OPENING, isBaselinePrompt } from "./brain-config";
 import type { BrainConfig } from "./brain-config-schema";
 import type { BusinessProfile } from "./business-profile";
-import { composeSystemPrompt, noLinkBooking, standingRules, PROMPT_OPENINGS } from "./compose";
+import { composeSystemPrompt, noLinkBooking, standingRules, PROMPT_OPENINGS, type PromptAudience } from "./compose";
 
 /**
  * What the Business form's instructions box opens with (S4).
@@ -131,6 +131,11 @@ export function resolveSystemPrompt(
    * everywhere else because it is computed here.
    */
   known?: KnownFacts | null,
+  /**
+   * Who reads what it writes: a customer (every reply, a steer, a call, the preview) or a draft a person sends as
+   * themselves (the reach-out reply draft), which is never told to say it is an assistant.
+   */
+  audience: PromptAudience = "customer",
 ): string {
   const channel = wire === "voice" ? "voice" : "whatsapp";
   const facts = resolveFacts(brain, known);
@@ -143,7 +148,7 @@ export function resolveSystemPrompt(
       : channel === "voice" && !offersLinkOn("call", brain, facts.whatsapp_line.value)
         ? [NO_WAY_TO_SEND_LINK]
         : [];
-    const rules = [...link, ...standingRules(policy, channel)];
+    const rules = [...link, ...standingRules(policy, channel, audience)];
     return `${brain.system_prompt}\n\n${PROMPT_OPENINGS.rules}\n${rules.map((r) => `- ${r}`).join("\n")}`;
   }
   const profile = brain.profile as BusinessProfile;
@@ -173,7 +178,7 @@ export function resolveSystemPrompt(
   // old text in the form and decided what to keep. ownWordsOf states that
   // rule, so anything looking for these words in the prompt uses the same one.
   const carried = { ...profile, extra_instructions: ownWordsOf(brain) ?? undefined };
-  return composeSystemPrompt(resolved, carried, wire, tz, now, policy);
+  return composeSystemPrompt(resolved, carried, wire, tz, now, policy, audience);
 }
 
 /**

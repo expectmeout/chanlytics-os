@@ -29,6 +29,11 @@ export interface SetupDto {
     address: boolean;
     /** The number the phone receptionist warm-transfers to, E.164. */
     handoff: string | null;
+    /**
+     * The business's own phone greeting as stored, {business} unfilled (decision 0051), or null for the standard one.
+     * Optional: a server older than the field answers without it, and the first run then says the standard greeting.
+     */
+    phone_greeting?: string | null;
     /** The config row exists but the parser refused it. */
     broken: boolean;
     /** Whether the receptionist is set up, by the one test (config.ts receptionistOf): none, set, or broken. */

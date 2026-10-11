@@ -215,8 +215,8 @@
     "depth": 3
   },
   "apps/edge/lib/voice/call-start.ts::planCallStart#1": {
-    "lines": 148,
-    "branches": 33,
+    "lines": 139,
+    "branches": 31,
     "depth": 6
   },
   "apps/edge/lib/whatsapp/connect-number.ts::connectWhatsAppNumber#1": {
@@ -331,7 +331,7 @@
   },
   "packages/contracts/src/setup/first-run.ts::receptionistCardOf#1": {
     "lines": 55,
-    "branches": 39,
+    "branches": 38,
     "depth": 1
   },
   "packages/contracts/src/shell/refusal.ts::refusalOf#1": {

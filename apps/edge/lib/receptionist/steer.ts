@@ -30,7 +30,9 @@ import {
   resolveSystemPrompt,
   describeNow,
   frameSteer,
-  violatesNoPrices,
+  priceBreach,
+  priceAllowance,
+  priceFigures,
   namesMoney,
   replyDelayMs,
   fallbackMessages,
@@ -60,12 +62,24 @@ export interface BrainPort {
 }
 
 /**
- * Whether a rewrite may not go out: a price never goes out, nor money a person decides (a refund, a discount, a
- * deposit). Both are refused as policy_block_price, the one code the two apps read whichever deploys first; the log
- * line says which, and never the words.
+ * The prices a rewrite may carry: the amounts the owner wrote while "Never quote a price" is off (priceAllowance), and
+ * any the owner typed into this instruction, which a person chose for this one message (as person-draft.ts counts what
+ * a draft was given). Null, the strict rule, when there is neither (decision 0051).
  */
-function rewriteBlocked(text: string, messageId: string): boolean {
-  if (violatesNoPrices(text)) {
+function steerAllowance(brain: Parameters<typeof priceAllowance>[0], instruction: string): ReadonlySet<string> | null {
+  const listed = priceAllowance(brain);
+  const typed = priceFigures(instruction);
+  if (!listed && !typed.length) return null;
+  return new Set([...(listed ?? []), ...typed]);
+}
+
+/**
+ * Whether a rewrite may not go out: a price it may not say (priceBreach over steerAllowance), or money a person decides
+ * (a refund, a discount, a deposit) whatever was typed. Both are refused as policy_block_price, the one code the two
+ * apps read whichever deploys first; the log line says which, and never the words.
+ */
+function rewriteBlocked(text: string, messageId: string, allowed: ReadonlySet<string> | null): boolean {
+  if (priceBreach(text, allowed)) {
     steerLog.warn("steer_policy_block_price", { message_id: messageId });
     return true;
   }
@@ -248,7 +262,7 @@ export async function steerHeldDraft(
     return refuse(502, "brain_failed");
   }
   // The same second door the handler keeps: no price, no money a person decides; the original draft stays.
-  if (rewriteBlocked(r.text, messageId)) return refuse(409, "policy_block_price");
+  if (rewriteBlocked(r.text, messageId, steerAllowance(rt.brain, text))) return refuse(409, "policy_block_price");
   const words = wordsForTheWire(channel, r.text, thread.textedBefore);
 
   const delayMs =

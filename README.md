@@ -20,9 +20,11 @@ not decide money: the money class of the Autonomy matrix is locked to `never`
 by a database trigger, the prompt says so, and a deterministic check after
 generation holds any reply that names a refund, a discount, a coupon, a deposit
 or a payment term (`namesMoney`, English and Spanish) whatever intent the model
-gave it. It does not quote a price in a reply: the same kind of check
-(`violatesNoPrices`: every currency, spelled-out amounts, cuts) replaces any
-reply carrying one and hands the thread to a person, whatever the prompt said.
+gave it. It quotes no price the business did not write: the same kind of check
+(`priceBreach`: every currency, spelled-out amounts, cuts) replaces a reply
+carrying any price while "Never quote a price" is on, and with it off any price
+the owner did not write (`priceAllowance`, decision 0051), and hands the thread
+to a person, whatever the prompt said.
 Every model call, whichever the purpose, goes through one port and one registry
 (`packages/contracts/src/ai/models.ts`) and is kept, in dollars, in `ai_usage`.
 

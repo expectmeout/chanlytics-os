@@ -2,7 +2,8 @@
  * Judge one evaluation case against what the receptionist said.
  *
  * Pure, so a test can execute it on a fixture. Every expectation is a hard
- * assertion an owner would recognise: no price ever, the right kind of
+ * assertion an owner would recognise: no price it may not say (any at all on a
+ * workspace where "Never quote a price" is on, decision 0051), the right kind of
  * question, a handoff when one is due, the customer's language, a fact that
  * had to appear, a phrase that must not, and, where the answer is a fact of the
  * business, that the record names a fact it relied on (`grounded`).
@@ -11,7 +12,7 @@
  * any other, and left out of the gate until a run has held it and someone has
  * read what was said. A hard case is never on trial.
  */
-import { violatesNoPrices } from "../../packages/contracts/dist/index.js";
+import { priceBreach } from "../../packages/contracts/dist/index.js";
 
 /**
  * @typedef {{ intent?: string | string[], escalate?: boolean, language?: string, includes?: string[], excludes?: string[], min_confidence?: number, grounded?: boolean }} Expect
@@ -19,14 +20,20 @@ import { violatesNoPrices } from "../../packages/contracts/dist/index.js";
  * @typedef {{ id: string, ok: boolean, text?: string, escalate?: boolean, reason?: string | null, meta?: { intent?: string, confidence?: number, language?: string, facts_used?: string[] } | null, usage?: { input_tokens: number, output_tokens: number } | null, ms?: number, error?: string }} EvalResult
  */
 
-/** @param {EvalCase} c @param {EvalResult} r @returns {{ pass: boolean, failures: string[] }} */
-export function judgeCase(c, r) {
+/**
+ * @param {EvalCase} c @param {EvalResult} r
+ * @param {ReadonlySet<string> | null} allowed the workspace's price allowance (contracts priceAllowance): null, the
+ *   strict rule, for a workspace with "Never quote a price" on. Required, so every caller says which: a workspace with
+ *   the switch off would otherwise fail its own listed price.
+ * @returns {{ pass: boolean, failures: string[] }}
+ */
+export function judgeCase(c, r, allowed) {
   const failures = [];
   if (!r || !r.ok) return { pass: false, failures: [`no answer: ${r?.error ?? "missing result"}`] };
   const text = String(r.text ?? "");
   const e = c.expect ?? {};
-  // Always, whatever the case says: a price never leaves the receptionist.
-  if (violatesNoPrices(text)) failures.push("quoted a price");
+  // Always, whatever the case says: no price leaves the receptionist that the workspace does not allow.
+  if (priceBreach(text, allowed)) failures.push("quoted a price");
   if (!r.meta) failures.push("no record (intent/confidence) came back");
   if (e.intent !== undefined) {
     const want = Array.isArray(e.intent) ? e.intent : [e.intent];
@@ -77,14 +84,18 @@ export function validateCases(cases) {
   return problems;
 }
 
-/** One line per case, and a footer, for a terminal. */
-export function formatReport(cases, results) {
+/**
+ * One line per case, and a footer, for a terminal.
+ * @param {EvalCase[]} cases @param {EvalResult[]} results
+ * @param {ReadonlySet<string> | null} allowed the workspace's price allowance, as judgeCase takes it
+ */
+export function formatReport(cases, results, allowed) {
   const lines = [];
   let passed = 0;
   let tokens = 0;
   for (const c of cases) {
     const r = results.find((x) => x.id === c.id);
-    const j = judgeCase(c, r);
+    const j = judgeCase(c, r, allowed);
     if (j.pass) passed++;
     tokens += (r?.usage?.input_tokens ?? 0) + (r?.usage?.output_tokens ?? 0);
     const conf =

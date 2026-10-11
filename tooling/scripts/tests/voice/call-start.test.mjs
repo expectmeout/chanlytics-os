@@ -507,3 +507,37 @@ test("within its budget: a calendar read that hangs costs its own block, never t
   });
   assert.match(late.error, /longer than 30 ms/);
 });
+
+test("the business's own greeting is what the caller hears first, with the AI clause added where it never says so; paused, the take-a-message line (decision 0051)", async () => {
+  // A workspace of its own for each case, so the runtime's cache answers for none of them.
+  const plan = async (phone_greeting, status = "active") => {
+    const w = fresh();
+    const config = { brain: { ...BRAIN, profile: { ...BRAIN.profile, phone_greeting } } };
+    const r = await planCallStart({
+      agentId: w.agent,
+      from: CALLER,
+      db: world(w, { config, status }),
+      now: NOW,
+      calendar: calendar().port,
+    });
+    return [r.variables.greeting, r.greetingSource];
+  };
+  assert.deepEqual(
+    await plan("Hey, you've reached {business}! This is our virtual assistant. What can I do for you?"),
+    ["Hey, you've reached Harbor Moving! This is our virtual assistant. What can I do for you?", "owner"],
+  );
+  assert.deepEqual(await plan("Thanks for calling {business}. How can I help?"), [
+    "Thanks for calling Harbor Moving. I'm the automated assistant. How can I help?",
+    "owner_disclosed",
+  ]);
+  assert.deepEqual(
+    await plan("Hi, this is {business}, and I'm not a bot.", "paused"),
+    [pausedGreetingFor("Harbor Moving"), "paused"],
+    "paused, the owner's line waits",
+  );
+  assert.deepEqual(await plan("Hi, this is {business}, and I'm not a bot."), [
+    greetingFor("Harbor Moving"),
+    "standard_denied",
+  ]);
+  assert.deepEqual(await plan(undefined), [greetingFor("Harbor Moving"), "standard"]);
+});

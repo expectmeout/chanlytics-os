@@ -50,3 +50,12 @@ export type {
   ForwardingProof,
 } from "./forwarding";
 export { greetingFor, pausedGreetingFor, GREETING_DEFAULT } from "./greeting";
+export {
+  greetingOf,
+  greetingNotes,
+  statesAutomated,
+  deniesAutomated,
+  spokenNameOf,
+  GREETING_TEMPLATE,
+} from "./greeting-owner";
+export type { GreetingSource, GreetingNote, GreetingNoteKey } from "./greeting-owner";

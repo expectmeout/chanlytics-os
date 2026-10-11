@@ -18,6 +18,7 @@ import {
   ruleStrength,
   VISION_STRENGTH,
   GUARDRAIL_KEYS,
+  ALWAYS_TOLD,
   rulesKept,
   RULES_AT_REST_WORDS,
   businessGap,
@@ -171,13 +172,12 @@ test("the photos switch is the fifth strength, and its words live where the four
   }
 });
 
-test("a price is caught whatever the switch says, and the rule says so", () => {
-  // The owner's decision (20 Sep 2026): a receptionist never states a price. The detector
-  // -- violatesNoPrices on a chat reply, spokenBreach on a call -- runs whether the switch
-  // is on or off; the switch adds or removes the one prompt line that tells it not to.
+test("a price nobody wrote is caught whatever the switch says, and the rule says what off allows", () => {
+  // Decision 0051 (11 Oct 2026) reversed the 20 Sep decision: off, it may say the prices the owner wrote, and only
+  // those. The detector -- priceBreach on a chat reply, spokenBreach on a call -- reads every reply either way.
   const s = ruleStrength("never_quote_prices").sentence;
-  assert.match(s, /even with this off/);
-  assert.match(s, /On, it's also told not to quote one\./);
+  assert.match(s, /Every reply is checked for a price/);
+  assert.match(s, /On, it says none; off, it may say the ones you've written, and any other is swapped out\./);
   // What the detector actually knows (policy.ts PRICE_PATTERNS): euros and pounds pass it.
   assert.match(s, /dollars or pesos/);
   assert.doesNotMatch(s, /WhatsApp|call/i, "the channels are checkedOn's to say");
@@ -193,18 +193,19 @@ test("the row at rest names only what the receptionist actually keeps", () => {
     "No health advice",
     "Won't look at photos",
   ]);
-  // The checked rule stays with its switch off. The owner decided (20 Sep 2026) that a receptionist never states a
-  // price: the detector runs either way, and a row that dropped the word would read as if prices went through.
+  // The checked rule with its switch off says what it may say instead (decision 0051): the detector still runs, and the
+  // row says the prices it lets through are the owner's.
+  const open = rulesKept({ rules: { ...all, never_quote_prices: false }, vision: false, composes: true });
+  assert.ok(open.includes("Says only the prices you wrote") && !open.includes("Never quotes a price"));
+  // A told-and-trusted rule is a line in a prompt and nothing else, so switching it off takes the word with it.
+  const noHealth = rulesKept({ rules: { ...all, no_health_advice: false }, vision: false, composes: true });
+  assert.equal(noHealth.length, 4);
+  // Saying it is an assistant is always on (ALWAYS_TOLD): named whatever a row stores.
   assert.ok(
-    rulesKept({ rules: { ...all, never_quote_prices: false }, vision: false, composes: true }).includes(
-      "Never quotes a price",
+    rulesKept({ rules: { ...all, disclose_ai: false }, vision: false, composes: true }).includes(
+      "Says it's an assistant",
     ),
   );
-  // A told-and-trusted rule is a line in a prompt and nothing else, so switching it off takes the word with it.
-  for (const key of ["disclose_ai", "no_health_advice"]) {
-    const kept = rulesKept({ rules: { ...all, [key]: false }, vision: false, composes: true });
-    assert.equal(kept.length, 4, key);
-  }
   // The structural one is not a promise it keeps but a thing it cannot do, so with the line gone the words change
   // rather than the fact: it may still CLAIM it booked, which is the only part the switch decides.
   assert.deepEqual(rulesKept({ rules: { ...all, never_confirm_booking: false }, vision: true, composes: true }), [
@@ -220,26 +221,29 @@ test("M-2: on a record that composes nothing the row names only what holds, and 
   // The resolver hands such a record its stored prompt plus Autonomy's rules (config.ts resolveSystemPrompt's
   // no-profile branch), so none of the four is a line it reads. The fold says that once
   // (RULES_WITHOUT_FIELDS_WORDS); the row at rest says nothing it cannot back, which leaves the two that hold
-  // whatever it is told: the detector, and the appointments table that does not exist.
+  // whatever it is told: the detector, and the appointments table that does not exist; and the one line every prompt
+  // carries, stored or composed (decision 0051): that it is an automated assistant.
   const all = { never_quote_prices: true, never_confirm_booking: true, disclose_ai: true, no_health_advice: true };
   assert.deepEqual(rulesKept({ rules: all, vision: false, composes: false }), [
     "Never quotes a price",
     "Cannot book anything",
+    "Says it's an assistant",
     "Won't look at photos",
   ]);
-  // Every switch off changes nothing about it: neither of the two is the switch's to decide.
+  // Every switch off changes nothing about it: none of the three is the switch's to decide.
   const none = { never_quote_prices: false, never_confirm_booking: false, disclose_ai: false, no_health_advice: false };
   assert.deepEqual(rulesKept({ rules: none, vision: false, composes: false }), [
     "Never quotes a price",
     "Cannot book anything",
+    "Says it's an assistant",
     "Won't look at photos",
   ]);
   // And it is derived from the three strengths, not a second list to keep in step: a rule that is only instructed is
   // named at rest only where the record composes it.
   for (const key of GUARDRAIL_KEYS) {
     const named = rulesKept({ rules: all, vision: false, composes: false }).length;
-    assert.equal(named, 3, key);
-    if (ruleStrength(key).strength === "instructed") {
+    assert.equal(named, 4, key);
+    if (ruleStrength(key).strength === "instructed" && !ALWAYS_TOLD.has(key)) {
       assert.ok(!rulesKept({ rules: all, vision: false, composes: false }).includes(RULES_AT_REST_WORDS[key]), key);
     }
   }
@@ -1323,7 +1327,10 @@ test("a record whose details compose nothing is told the stored prompt and Auton
   // either is a change to both, and the page cannot drift into saying it two ways again.
   assert.ok(blocks[0].note.includes(NO_FIELDS_COMPOSED_WORDS), "the prompt view's note carries it");
   assert.ok(RULES_WITHOUT_FIELDS_WORDS.startsWith(NO_FIELDS_COMPOSED_WORDS), "and the fold's note opens with it");
-  assert.match(RULES_WITHOUT_FIELDS_WORDS, /Until they are, it isn't told these rules\.$/);
+  assert.match(
+    RULES_WITHOUT_FIELDS_WORDS,
+    /Until they are, it isn't told these rules, only that it is an automated assistant\.$/,
+  );
   // What it is TOLD, never what it does: the price detector reads every reply whatever the profile (layerTwo on a chat
   // reply, spokenBreach on a call), and nothing can confirm a booking anyway. The sheet draws this over "Checked", the
   // price rule's pill, so a sentence that the rules "do not reach it" would contradict the chip next to it.
@@ -1482,7 +1489,10 @@ test("the rules sheet over a stored prompt says one line, link or no link: what 
   // It named the no-link rule a receptionist with no booking link is told first; the sheet says only what an owner can
   // act on (Ruben, 10 Oct 2026: the sheets "too wordy, too explanatory").
   assert.equal(rulesWithoutFieldsWords(), RULES_WITHOUT_FIELDS_WORDS);
-  assert.equal(RULES_WITHOUT_FIELDS_WORDS, `${NO_FIELDS_COMPOSED_WORDS} Until they are, it isn't told these rules.`);
+  assert.equal(
+    RULES_WITHOUT_FIELDS_WORDS,
+    `${NO_FIELDS_COMPOSED_WORDS} Until they are, it isn't told these rules, only that it is an automated assistant.`,
+  );
 });
 
 test("with no booking link, the two rows that lean on one say what does the work instead; the rest are as they were", () => {

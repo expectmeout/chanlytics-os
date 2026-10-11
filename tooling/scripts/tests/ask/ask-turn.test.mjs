@@ -5041,7 +5041,9 @@ test("the rules Ask says the receptionist follows are the ones the composer gave
   });
   const PRICE = "never quotes or confirms a price";
   const BOOKING = "never confirms a booking itself";
-  const AI = "says it is an automated assistant when asked";
+  // Always (decision 0051): a stored false changes nothing, and the price rule off says what it may say instead.
+  const AI = "always says it is the business's automated assistant, never a person";
+  const WRITTEN = "says only the prices the business wrote, never another";
   const HEALTH = "gives no health advice";
 
   // No `guardrails` key at all: what every workspace that never opened the rules has.
@@ -5062,8 +5064,7 @@ test("the rules Ask says the receptionist follows are the ones the composer gave
     TZ,
     config({ never_quote_prices: false, never_confirm_booking: false, disclose_ai: false }),
   );
-  assert.deepEqual(off.guardrails, [], "switched off is off, and the health rule is still not on");
-  assert.doesNotMatch(factsBlock(off), /The receptionist /);
+  assert.deepEqual(off.guardrails, [WRITTEN, AI], "switched off is off, and the health rule is still not on");
 
   // The same three configs through the composer: Ask lists the health rule exactly when the receptionist's prompt holds it.
   for (const [guardrails, facts] of [
@@ -5078,11 +5079,9 @@ test("the rules Ask says the receptionist follows are the ones the composer gave
     );
     assert.equal(facts.guardrails.includes(HEALTH), /Never give medical or health advice/.test(composed));
     assert.equal(facts.guardrails.includes(PRICE), /Never quote or confirm a price/.test(composed));
+    assert.equal(facts.guardrails.includes(WRITTEN), /Say a price only as the business wrote it/.test(composed));
     assert.equal(facts.guardrails.includes(BOOKING), /Never promise or confirm an appointment yourself/.test(composed));
-    assert.equal(
-      facts.guardrails.includes(AI),
-      /say plainly that you are the business's automated assistant/.test(composed),
-    );
+    assert.ok(facts.guardrails.includes(AI) && /never claim or hint that you are a person/.test(composed));
   }
 
   // The one reading both go through, with the defaults applied; null and undefined are a workspace with no rules stored.
@@ -5099,6 +5098,7 @@ test("the rules Ask says the receptionist follows are the ones the composer gave
     disclose_ai: true,
     no_health_advice: true,
   });
+  assert.equal(guardrailsInForce({ disclose_ai: false }).disclose_ai, true, "always on, whatever a row stores");
 });
 
 test("people.get says where the proposal lives (00154), so a card can carry the address into a reply; nothing when there is none, and nothing of a deal where deals are off (0008)", async () => {

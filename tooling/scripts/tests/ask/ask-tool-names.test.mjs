@@ -1033,7 +1033,12 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // said "Connect your calendar" to a business whose bookings arrive by email (contracts BOOKED_NEEDS_A_LINK).
     let result = want.result
       .replaceAll("+19295550100", "+442079460100")
-      .replaceAll("Connect your calendar under Settings › Business", "Add a calendar link under Settings › Business");
+      .replaceAll("Connect your calendar under Settings › Business", "Add a calendar link under Settings › Business")
+      // 11 Oct 2026 (decision 0051): saying it is an automated assistant is no longer a switch, and Ask says so.
+      .replaceAll(
+        "says it is an automated assistant when asked",
+        "always says it is the business's automated assistant, never a person",
+      );
     for (const [from, to] of Object.entries(NAMES))
       result = result.replace(new RegExp(`\\b${from}\\b`, "g"), inWords(to));
     if (NAMES[old] === "report")

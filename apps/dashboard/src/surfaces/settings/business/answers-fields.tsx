@@ -5,7 +5,7 @@
 // messages sent when it cannot answer are there with it; these four are here so that neither module passes the
 // file-length ratchet (800 lines). Hookless, as the card is: the folds hold the hooks.
 
-import type { GuardrailKey } from "@chanlytics/contracts";
+import type { BusinessProfile, GuardrailKey } from "@chanlytics/contracts";
 import type { ComponentProps, ReactNode } from "react";
 import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import { Icon } from "../../kit/icon/icon";
@@ -196,7 +196,7 @@ export const BtaLanguages = ({
 const BTA_RULES: [GuardrailKey, string, string][] = [
   ["never_quote_prices", "Never quote a price", "Never quotes a price"],
   ["never_confirm_booking", "Never confirm an appointment", "Never confirms a booking"],
-  ["disclose_ai", "Says it's an assistant if asked", "Says it's an assistant"],
+  ["disclose_ai", "Says it's an automated assistant", "Says it's an assistant"],
   ["no_health_advice", "No health advice", "No health advice"],
 ];
 
@@ -204,8 +204,9 @@ const BTA_RULES: [GuardrailKey, string, string][] = [
 type RulesDraft = Partial<Record<GuardrailKey | "vision", unknown>>;
 
 /**
- * One of the four switches, on one line: its label, how far it goes as one quiet word (the kit's pill at rest), the
- * sentence behind a tip, and the switch, which carries the sentence as its description too.
+ * One of the four rules, on one line: its label, how far it goes as one quiet word (the kit's pill at rest), the
+ * sentence behind a tip, and the switch, which carries the sentence as its description too. A rule that is not a switch
+ * (contracts ALWAYS_TOLD: saying it is an automated assistant, decision 0051) says "Always on" where the switch would be.
  */
 const BtaRule = ({
   ruleKey,
@@ -236,14 +237,20 @@ const BtaRule = ({
           {r.chip}
         </span>
         <RecordTip text={r.sentence} label={`How far "${label}" goes`} testid={`rec-rule-tip-${ruleKey}`} />
-        <RecordSwitch
-          on={on}
-          onChange={(v) => update((d) => ({ ...(d as RulesDraft), [ruleKey]: v }))}
-          labelledBy={`bt-rule-${ruleKey}-label`}
-          describedBy={`bt-rule-${ruleKey}-says`}
-          readOnly={readOnly}
-          testid={`rec-rule-switch-${ruleKey}`}
-        />
+        {BUSINESS_TAB.ALWAYS_TOLD.has(ruleKey) ? (
+          <span className="bt-line-sub" data-testid={`rec-rule-always-${ruleKey}`}>
+            Always on
+          </span>
+        ) : (
+          <RecordSwitch
+            on={on}
+            onChange={(v) => update((d) => ({ ...(d as RulesDraft), [ruleKey]: v }))}
+            labelledBy={`bt-rule-${ruleKey}-label`}
+            describedBy={`bt-rule-${ruleKey}-says`}
+            readOnly={readOnly}
+            testid={`rec-rule-switch-${ruleKey}`}
+          />
+        )}
       </span>
       <span className="rec-sr" id={`bt-rule-${ruleKey}-says`}>
         {r.sentence}
@@ -323,8 +330,25 @@ export const BtaRules = ({
   update,
   readOnly,
   unread,
-}: Pick<Fields, "draft" | "update" | "readOnly"> & { unread: string | null }) => {
+  profile,
+  name,
+}: Pick<Fields, "draft" | "update" | "readOnly"> & {
+  unread: string | null;
+  profile: BusinessProfile | null;
+  /** The business's name, so a greeting callers never hear lends the list no price. */
+  name: string | null;
+}) => {
   const rules = draft as RulesDraft;
+  // With "Never quote a price" off in the draft, the amounts it may say, read as the save would leave them (0051).
+  const prices =
+    rules.never_quote_prices === false
+      ? BUSINESS_TAB.pricesWrittenWords(
+          BUSINESS_TAB.allowedPrices({
+            business_name: name ?? "",
+            profile: { ...(profile || {}), guardrails: { ...(profile?.guardrails || {}), never_quote_prices: false } },
+          }),
+        )
+      : null;
   return (
     <div className="bt-stack" data-testid="rec-rules-switches">
       {unread ? (
@@ -337,6 +361,11 @@ export const BtaRules = ({
           <BtaRule key={key} ruleKey={key} label={label} on={rules[key] === true} update={update} readOnly={readOnly} />
         ))}
       </Panel>
+      {prices ? (
+        <p className="bt-fold-note" data-testid="rec-rules-prices">
+          {prices}
+        </p>
+      ) : null}
       {/* Opt-in, unlike the rules above: this gives the receptionist an ability rather than a limit, so it starts off. */}
       <BtaVisionRule on={rules.vision === true} update={update} readOnly={readOnly} />
       <BtaRuleChecked />

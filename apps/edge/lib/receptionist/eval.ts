@@ -14,13 +14,16 @@
  *
  * Small on purpose: at most six cases per request, sequential, inside the
  * function's budget; the runner batches. Body: { tenant_id, cases: [{ id,
- * text, history? }] } where history is prior turns [{ role, content }].
+ * text, history? }] } where history is prior turns [{ role, content }]. The
+ * answer carries the prices the workspace may say (allowed_prices, contracts
+ * priceAllowance; null for the strict rule), so the runner judges a price
+ * against the workspace's own switch.
  */
 import { json, refuse } from "../http.js";
 import { workspaceFor, type Admitted } from "../admin-auth.js";
 import { pg } from "../pg.js";
 import { loadTenantRuntime } from "../tenant-runtime.js";
-import { resolveSystemPrompt, describeNow, fallbackMessages, UUID } from "../packages/contracts.js";
+import { resolveSystemPrompt, describeNow, fallbackMessages, priceAllowance, UUID } from "../packages/contracts.js";
 import { oldestActiveChannel } from "../packages/db.js";
 import { brainCallOf, generateReply } from "./brain.js";
 import { env } from "../env.js";
@@ -45,6 +48,25 @@ interface EvalCase {
  */
 export interface BrainPort {
   generateReply?: typeof generateReply;
+}
+
+/**
+ * The door's answer: what the receptionist said, case by case, and the prices the workspace may say
+ * (allowed_prices, contracts priceAllowance; null for the strict rule), so the runner judges by the workspace's switch.
+ */
+function evalAnswer(
+  rt: Awaited<ReturnType<typeof loadTenantRuntime>>,
+  promptChars: number,
+  results: readonly unknown[],
+): Response {
+  const allowed = priceAllowance(rt.brain);
+  return json(200, {
+    ok: true,
+    prompt_chars: promptChars,
+    timezone: rt.timezone,
+    allowed_prices: allowed ? [...allowed] : null,
+    results,
+  });
 }
 
 export async function evaluateCases(
@@ -124,5 +146,5 @@ export async function evaluateCases(
     ms: Date.now() - started,
     prompt_chars: system.length,
   });
-  return json(200, { ok: true, prompt_chars: system.length, timezone: rt.timezone, results });
+  return evalAnswer(rt, system.length, results);
 }

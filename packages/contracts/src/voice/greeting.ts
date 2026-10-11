@@ -11,9 +11,10 @@
  * the business is unknown this simply greets nobody by name, which is never
  * wrong -- and is the shell's own default, below, so the two are one sentence.
  *
- * Both disclosures -- recording, and that this is an automated assistant --
- * live here rather than in the agent's config, because they are promises the
- * product makes and should not be editable by whoever last opened Retell.
+ * The standard line, with both disclosures: recording, and that this is an
+ * automated assistant. The business may write its own (decision 0051,
+ * greeting-owner.ts greetingOf), which keeps the second whatever it says;
+ * nothing typed into Retell is spoken, since begin_message is this variable.
  *
  * Contracts' since the first run shows the owner the sentence their receptionist
  * will say (first-run.ts); the voice shell (packages/channels voice-shell.ts)
@@ -28,7 +29,7 @@ export function greetingFor(name: string | null): string {
  * twelve callers in thirty days five hung up within four seconds and three heard it out in silence (the engine review's
  * second pass, 11 Oct 2026). This one is 16 words with the salon's name, about six seconds, and keeps both disclosures,
  * "calls are recorded" in place of "may be", which every call is. Ruben approved a greeting of about fifteen words the
- * same day (the review's decision 6); the owner's own sentence after it is the "On the phone" card's, still to come.
+ * same day (the review's decision 6); decision 0051 then let the business write the whole line itself.
  */
 function opening(name: string | null): string {
   return name ? `Hi, ${name}.` : "Hi, thanks for calling.";

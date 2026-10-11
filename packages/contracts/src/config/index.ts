@@ -2,6 +2,7 @@
 export {
   violatesNoPrices,
   priceFigures,
+  priceBreach,
   namesMoney,
   heldLine,
   spokenBreach,
@@ -117,6 +118,9 @@ export { hoursRuns } from "./workspace-config/prompt-hours";
 export type { HoursRun } from "./workspace-config/prompt-hours";
 export { describeNow, composeSystemPrompt, PROMPT_OPENINGS } from "./workspace-config/compose";
 export { offersAfterStart, offersFacts } from "./workspace-config/offers-ask";
+export { allowedPrices, priceAllowance } from "./workspace-config/price-allowance";
+export type { AllowedPrice } from "./workspace-config/price-allowance";
+export { disclosureFacts, CONVERSATION_UNDER_WAY, CONVERSATION_GAP_MS } from "./workspace-config/assistant-disclosure";
 export type { LeadChannel } from "./workspace-config/offers-ask";
 export {
   instructionsDraft,
@@ -144,6 +148,8 @@ export {
   VISION_STRENGTH,
   RULES_AT_REST_WORDS,
   RULES_WITHOUT_FIELDS_WORDS,
+  ALWAYS_TOLD,
+  pricesWrittenWords,
 } from "./business-tab/rule-strengths";
 export type { RuleStrength, RuleStrengthVM, RulesKeptInputs } from "./business-tab/rule-strengths";
 export { bookingLinkRowWords, businessGap } from "./business-tab/business-gap";

@@ -7,7 +7,8 @@
  */
 import {
   replyDelayMs,
-  violatesNoPrices,
+  priceBreach,
+  priceAllowance,
   namesMoney,
   heldLine,
   policyAskClass,
@@ -104,7 +105,9 @@ function urgentPhone(x: Pick<LayerTwoIn, "brainCfg" | "known">): string | null {
 
 /**
  * Layer-2 policy enforcement (Blueprint §6): prompt text is never the only
- * defense. A price in the draft blocks the send outright. Money -- a refund, a
+ * defense. A price it may not say blocks the send outright: any price while
+ * "Never quote a price" is on, and with it off any amount the owner did not
+ * write (priceAllowance, decision 0051). Money -- a refund, a
  * discount, a deposit, a payment term, named in the draft or read as the
  * model's intent -- is a person's, whatever the model's record says (the
  * charter's locked row). Under "ask", a booking or a service/pricing question
@@ -119,7 +122,7 @@ export function layerTwo(x: LayerTwoIn): LayerTwoOut {
   const phone = urgentPhone(x);
   let priceBlocked = false;
   const moneyHeld = x.intent === "money" || namesMoney(replyText);
-  if (violatesNoPrices(replyText)) {
+  if (priceBreach(replyText, priceAllowance(x.brainCfg))) {
     priceBlocked = true;
     replyText = heldLine("price", x.language, phone);
     escalate = true;

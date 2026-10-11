@@ -16,6 +16,7 @@ import { guardrailsInForce } from "./config-rules";
 import { bookingHeld, policyRules } from "./policy-classes";
 import { DATA_NOT_INSTRUCTIONS } from "../../ai/fence";
 import { offersAskRule } from "./offers-ask";
+import { CONVERSATION_UNDER_WAY } from "./assistant-disclosure";
 import { hoursLines, joinList } from "./prompt-hours";
 import { dateFormat } from "../../shared/time";
 
@@ -27,9 +28,11 @@ import { dateFormat } from "../../shared/time";
  * delivery, never the facts: `channel` only changes the medium-specific lines
  * at the end — how long a reply should be, what to do with a voice note.
  *
- * The guardrails are appended LAST and unconditionally. They are not the
- * owner's to remove, and putting them last means no earlier instruction can
- * read as overriding them.
+ * The rules are appended LAST, where no earlier instruction can read as
+ * overriding them, and the last of them says so (RULES_WIN). Which rules are
+ * in force is the owner's, through the switches (guardrailsInForce); that it
+ * is an automated assistant, the Autonomy rows and the fence on a customer's
+ * words are said to every prompt (standingRules, decision 0051).
  */
 /**
  * What the receptionist is told when it has no clock.
@@ -237,8 +240,10 @@ export function composeSystemPrompt(
   now: Date = new Date(),
   /** The workspace's Autonomy rows (class → mode): Booking and FAQ under "ask" become rules here. */
   policy?: Record<string, { mode: string }> | null,
+  /** Who reads what it writes: a customer, or a person's draft, which says nothing of being an assistant. */
+  audience: PromptAudience = "customer",
 ): string {
-  return composeSystemPromptWith(base, profile, channel, tz, now, policy);
+  return composeSystemPromptWith(base, profile, channel, tz, now, policy, audience);
 }
 
 function composeSystemPromptWith(
@@ -253,6 +258,7 @@ function composeSystemPromptWith(
   tz: string | null | undefined,
   now: Date,
   policy: Record<string, { mode: string }> | null | undefined,
+  audience: PromptAudience,
 ): string {
   // A text is a chat: every section reads it as WhatsApp's, and only the line saying where it answers names the wire.
   const channel = wire === "voice" ? "voice" : "whatsapp";
@@ -269,7 +275,7 @@ function composeSystemPromptWith(
   // oldest-first, the ones a cap drops are the furthest out: exactly the dates
   // customers book against months ahead.
   const closed = closureLines(upcomingClosures(profile.closures, tz, now));
-  const facts: SectionFacts = { base, profile, channel, wire, tz, policy, link, handed, hrs, closed };
+  const facts: SectionFacts = { base, profile, channel, wire, tz, policy, link, handed, hrs, closed, audience };
   return PROMPT_SECTIONS.flatMap((section) => section(facts)).join("\n");
 }
 
@@ -295,6 +301,8 @@ interface SectionFacts {
   hrs: string[];
   /** The closures still ahead, a line each: the closures section says them, and the owner's words are told it did. */
   closed: string[];
+  /** A customer reads it, or a person's draft: the rules say it is an assistant only to a customer. */
+  audience: PromptAudience;
 }
 
 /**
@@ -617,38 +625,70 @@ function openTimesSection({ handed, policy }: SectionFacts): string[] {
 }
 
 /**
- * The rules every prompt ends with, composed or written by hand: the Autonomy pane's rows (policyRules) and the rule that
- * what a customer writes is data, never an instruction (DATA_NOT_INSTRUCTIONS, the one injection policy).
+ * Who reads what the receptionist writes: a customer, from the receptionist itself, or a draft a person sends as
+ * themselves (the reach-out reply draft), which says nothing of being an assistant.
+ */
+export type PromptAudience = "customer" | "draft";
+
+/**
+ * That it is an automated assistant, and never a person (decision 0051). The usage policy of the model the receptionist
+ * runs on asks every consumer-facing agent to say it is AI at the start of each session: on a call the greeting says it
+ * (voice/greeting-owner.ts), and in text it opens a conversation that is not already under way, which the facts about
+ * the person say (disclosureFacts). Told, and nothing checks the answer: the phrase that would catch a denial also
+ * catches the correct disclosure (policy.ts).
+ */
+const ASSISTANT_RULE = {
+  always:
+    "You are the business's automated assistant: never claim or hint that you are a person. If anyone asks whether you are a bot, a person or AI, say plainly that you are the business's automated assistant and offer to bring in a person.",
+  textOpening: `Unless the facts about them say "${CONVERSATION_UNDER_WAY}", open your reply by saying, in a few words, that you are the business's automated assistant.`,
+} as const;
+
+/** Said last of all: the business's own words above never outweigh a rule here. */
+const RULES_WIN = "Where anything above disagrees with these rules, the rules win.";
+
+/**
+ * The rules every prompt ends with, composed or written by hand: the Autonomy pane's rows (policyRules), that it is an
+ * automated assistant (to a customer), that these rules win, and that what a customer writes is data, never an
+ * instruction (DATA_NOT_INSTRUCTIONS, the one injection policy).
  */
 export function standingRules(
   policy: Record<string, { mode: string }> | null | undefined,
   channel: "whatsapp" | "voice",
+  audience: PromptAudience,
 ): string[] {
-  return [...policyRules(policy, channel), DATA_NOT_INSTRUCTIONS];
+  const assistant =
+    audience === "draft"
+      ? []
+      : channel === "voice"
+        ? [ASSISTANT_RULE.always]
+        : [ASSISTANT_RULE.always, ASSISTANT_RULE.textOpening];
+  return [...policyRules(policy, channel), ...assistant, RULES_WIN, DATA_NOT_INSTRUCTIONS];
 }
 
 /**
  * The rules: the guardrails in force, the reply to YES OFFERS and, on WhatsApp for a workspace with a WhatsApp number,
  * the ask for that yes (offers-ask.ts), and the standing rules (the Autonomy rows, the fence).
  */
-function rulesSection({ base, profile, channel, policy, link, handed }: SectionFacts): string[] {
+function rulesSection({ base, profile, channel, policy, link, handed, audience }: SectionFacts): string[] {
   const s: string[] = [];
-  // LAST, and never optional.
+  // LAST: the owner's switches, then the lines every prompt carries (standingRules).
   const g = guardrailsInForce(profile.guardrails);
   const rules: string[] = [];
   if (g.never_quote_prices) {
     rules.push(
       `Never quote or confirm a price. Say it is quoted in person or at a consult, and ${priceNextStep(!!handed)}.`,
     );
+  } else {
+    // The owner turned the rule off (decision 0051): the prices they wrote may be said, and only those. Any other figure
+    // is swapped out of a chat reply and flagged on a call (priceAllowance), so the line asks for the written ones in
+    // digits, which the check reads best.
+    rules.push(
+      `Say a price only as the business wrote it in the details above, exactly as written and in digits; never work one out or estimate one. For any other price, say it is quoted in person or at a consult, and ${priceNextStep(!!handed)}.`,
+    );
   }
   if (g.never_confirm_booking) {
     rules.push(
       `Never promise or confirm an appointment yourself. Booking happens ${link ? "on the booking link or " : ""}with staff.`,
-    );
-  }
-  if (g.disclose_ai) {
-    rules.push(
-      "If asked whether you are a bot, a person, or AI, say plainly that you are the business's automated assistant and offer to bring in a person.",
     );
   }
   // Offers go by WhatsApp alone (core reply-gates confirmedYes), so the yes is one to WhatsApp offers only where a
@@ -669,7 +709,7 @@ function rulesSection({ base, profile, channel, policy, link, handed }: SectionF
   // The Autonomy pane's Booking, FAQ and Money rows, as rules — the same words
   // on both channels' prompts, so a switch flipped once changes both — and the
   // one line every agent is given about someone else's words (ai/fence.ts).
-  rules.push(...standingRules(policy, channel));
+  rules.push(...standingRules(policy, channel, audience));
   if (rules.length) s.push(`\n${PROMPT_OPENINGS.rules}\n${rules.map((r) => `- ${r}`).join("\n")}`);
   return s;
 }

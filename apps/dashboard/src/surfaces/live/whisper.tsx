@@ -80,8 +80,9 @@ function whisperNote({ last, explain, toggle }: NoteProps) {
       </button>
       {explain && (
         <div className="lm-whisper-more" data-testid="live-whisper-more">
-          It keeps your whisper in mind and works it into its answers in its own words, when it fits. It will not quote
-          a price or confirm a booking because of one, and the caller never hears you.
+          It keeps your whisper in mind and works it into its answers in its own words, when it fits. Its rules still
+          hold: it says no price your settings rule out and confirms no booking because of one, and the caller never
+          hears you.
         </div>
       )}
     </>

@@ -1961,6 +1961,75 @@ var PRICE_PATTERNS = [
 function violatesNoPrices(text) {
   return PRICE_PATTERNS.some((p) => p.test(text));
 }
+function canonicalNumber(run) {
+  const m = /^(\d{1,3}(?:[.,]\d{3})+|\d+)(?:[.,](\d{1,2}))?$/.exec(run);
+  if (!m) return run.replace(/[.,]0+$/, "");
+  const [, whole = "", cents = ""] = m;
+  const int2 = String(Number(whole.replace(/[.,]/g, "")));
+  const dec = cents.replace(/0+$/, "");
+  return dec ? `${int2}.${dec}` : int2;
+}
+var NUMBER_WORDS = /* @__PURE__ */ (() => {
+  const w = {};
+  const units = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven"];
+  const teens = ["twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
+  const tens = ["twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+  units.forEach((u, i) => w[u] = i);
+  teens.forEach((t, i) => w[t] = 12 + i);
+  tens.forEach((t, i) => w[t] = 20 + 10 * i);
+  const es = "un uno una dos tres cuatro cinco seis siete ocho nueve diez once doce trece catorce quince".split(" ");
+  es.forEach((u, i) => w[u] = i < 3 ? 1 : i - 1);
+  ["dieciseis", "diecisiete", "dieciocho", "diecinueve"].forEach((t, i) => w[t] = 16 + i);
+  w.veinte = 20;
+  ["veintiun", "veintiuno", "veintiuna"].forEach((t) => w[t] = 21);
+  "veintidos veintitres veinticuatro veinticinco veintiseis veintisiete veintiocho veintinueve".split(" ").forEach((t, i) => w[t] = 22 + i);
+  ["treinta", "cuarenta", "cincuenta", "sesenta", "setenta", "ochenta", "noventa"].forEach(
+    (t, i) => w[t] = 30 + 10 * i
+  );
+  w.cien = 100;
+  w.ciento = 100;
+  "doscientos trescientos cuatrocientos quinientos seiscientos setecientos ochocientos novecientos".split(" ").forEach((t, i) => w[t] = [200, 300, 400, 500, 600, 700, 800, 900][i] ?? 0);
+  return w;
+})();
+function numberOfWords(words2) {
+  const tokens = words2.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().split(/[\s-]+/).filter((t) => t && t !== "and" && t !== "y");
+  if (!tokens.length) return null;
+  let total = 0;
+  let current = 0;
+  for (const t of tokens) {
+    if (t === "hundred") current = (current || 1) * 100;
+    else if (t === "thousand" || t === "mil") {
+      total += (current || 1) * 1e3;
+      current = 0;
+    } else if (t in NUMBER_WORDS) current += NUMBER_WORDS[t] ?? 0;
+    else return null;
+  }
+  return total + current;
+}
+var CURRENCY_WORDS = new RegExp(String.raw`\b${COUNTRY}(?:${CODES}|${NAMES}|quid)\b`, "gi");
+var PERCENT_SIGN = new RegExp(PERCENT, "i");
+var DEAL = /\b(?:2\s?x\s?1|dos por uno)\b/i;
+function figureOf(whole) {
+  if (DEAL.test(whole)) return "2x1";
+  const percent = PERCENT_SIGN.test(whole) ? "%" : "";
+  const run = /\d+(?:[.,]\d+)*/.exec(whole)?.[0];
+  if (run) return `${canonicalNumber(run)}${percent}`;
+  const spelled = numberOfWords(
+    whole.replace(CURRENCY_WORDS, " ").replace(PERCENT_SIGN, " ").replace(/\b(?:off|discount)\b/gi, " ")
+  );
+  return spelled !== null ? `${spelled}${percent}` : whole.toLowerCase().replace(/\s+/g, " ").trim();
+}
+var NOT_A_PRICE_AFTER = String.raw`(?!\d|[.,]\d|-\d|\s*(?::|%|-?\s*(?:am|pm|a\.m|p\.m|o'clock|min|mins|minutes?|hours?|hrs?|people|persons?|guests?|days?|weeks?|months?|years?|minutos?|horas?|personas?|d[ií]as?|semanas?|meses|años?)\b))`;
+var RANGE_TOP = new RegExp(
+  String.raw`^\s*(?:-|–|—|to|a|hasta)\s*[$€£]?\s*(\d+(?:[.,]\d+)*)${NOT_A_PRICE_AFTER}`,
+  "i"
+);
+var BETWEEN_TOP = new RegExp(String.raw`^\s*(?:and|y)\s*[$€£]?\s*(\d+(?:[.,]\d+)*)${NOT_A_PRICE_AFTER}`, "i");
+function rangeTopAfter(text, from, to) {
+  const tail = text.slice(to);
+  const top = RANGE_TOP.exec(tail) ?? (/\b(?:between|entre)\s+$/i.test(text.slice(0, from)) ? BETWEEN_TOP.exec(tail) : null);
+  return top?.[1] ? canonicalNumber(top[1].replace(/[.,]$/, "")) : null;
+}
 function priceFigures(text) {
   const found = [];
   for (const p of PRICE_PATTERNS) {
@@ -1969,12 +2038,17 @@ function priceFigures(text) {
       let to = m.index + m[0].length;
       while (from > 0 && /[\d.,]/.test(text.charAt(from - 1))) from -= 1;
       while (to < text.length && /[\d.,]/.test(text.charAt(to))) to += 1;
-      const whole = text.slice(from, to);
-      const figure2 = /\d+(?:[.,]\d+)*/.exec(whole)?.[0].replace(/[.,]0+$/, "");
-      found.push(figure2 ?? whole.toLowerCase().replace(/\s+/g, " ").trim());
+      const figure2 = figureOf(text.slice(from, to).replace(/[.,]$/, ""));
+      found.push(figure2);
+      const top = /^\d/.test(figure2) && !figure2.endsWith("%") ? rangeTopAfter(text, from, to) : null;
+      if (top) found.push(top);
     }
   }
-  return found;
+  return [...new Set(found)];
+}
+function priceBreach(text, allowed) {
+  if (!allowed) return violatesNoPrices(text);
+  return priceFigures(text).some((f) => !allowed.has(f));
 }
 var MONEY_PATTERNS = [
   /\brefund(?:s|ed|ing|able)?\b/i,
@@ -2031,22 +2105,25 @@ function heldLine(kind, language, phone) {
   const words2 = language === "es" ? HELD_LINES.es : HELD_LINES.en;
   return `${words2[kind]}${phone ? words2.urgent(phone) : ""}`;
 }
-function spokenBreach(turns) {
+function spokenBreach(turns, allowed) {
   if (!turns?.length) return null;
   let n = 0;
+  let callerSpoke = false;
   for (const t of turns) {
+    if (t?.role === "user") callerSpoke = true;
     if (t?.role !== "agent") continue;
     n += 1;
+    if (n === 1 && !callerSpoke) continue;
     const said = (t.content ?? "").trim();
-    if (said && violatesNoPrices(said)) return { rule: "price", said: said.slice(0, 300), turn: n };
+    if (said && priceBreach(said, allowed)) return { rule: "price", said: said.slice(0, 300), turn: n };
   }
   return null;
 }
 function spokenBreachDetails(b) {
-  return `The phone receptionist quoted a price out loud, which its standing rules do not allow. It said: "${b.said}" A call cannot be taken back the way a draft can, so check what the caller was told before confirming anything.`;
+  return `The phone receptionist said a price out loud that it may not give: none while \u201CNever quote a price\u201D is on, and otherwise one you haven't written. It said: "${b.said}" A call cannot be taken back the way a draft can, so check what the caller was told before confirming anything.`;
 }
 function guardSpokenTurns(o) {
-  const breach = spokenBreach(o.turns);
+  const breach = spokenBreach(o.turns, o.allowed);
   if (!breach) return { breach: null, escalate: null, correct: false };
   return {
     breach,
@@ -2711,7 +2788,9 @@ function guardrailsInForce(g) {
   return {
     never_quote_prices: g?.never_quote_prices !== false,
     never_confirm_booking: g?.never_confirm_booking !== false,
-    disclose_ai: g?.disclose_ai !== false,
+    // Always: the receptionist says it is an automated assistant whatever a row stores (decision 0051). The key stays
+    // in the schema so an open tab's rules save, which writes all four, is never refused by name.
+    disclose_ai: true,
     no_health_advice: g?.no_health_advice === true
   };
 }
@@ -6460,13 +6539,13 @@ function moneyLine(lines) {
   return `${say2((l) => l.month_cents)} from this month's payments \xB7 ${say2((l) => l.held_cents + l.payable_cents + l.paid_cents)} to date`;
 }
 function partnerWorkspacesVM(overview, money2, nowMs = Date.now(), status = "active") {
-  const judged = platformRows(overview, nowMs);
+  const judged2 = platformRows(overview, nowMs);
   const moneyOf = (id) => money2.filter((m) => m.tenant_id === id);
   const standingOf2 = (id) => {
     const s = moneyOf(id)[0]?.standing ?? "pending";
     return PARTNER_STANDING_WORDS[s] ?? null;
   };
-  const rows2 = judged.map((r2) => {
+  const rows2 = judged2.map((r2) => {
     const v = PLATFORM_VERDICTS[r2.verdict];
     return {
       tenantId: r2.tenantId,
@@ -11934,17 +12013,17 @@ function fmtDate(ms2, tz, nowMs) {
 }
 function replyChannelOfThreads(conversations) {
   let own = null;
-  let any = null;
+  let any2 = null;
   for (const c of conversations) {
     for (const m of c.messages) {
       if (!isFromTheirSide(m)) continue;
       const at3 = Date.parse(m.channel_ts ?? m.created_at);
       if (!Number.isFinite(at3)) continue;
-      if (!any || at3 > any.at) any = { at: at3, channel: m.channel };
+      if (!any2 || at3 > any2.at) any2 = { at: at3, channel: m.channel };
       if (isTheirOwnWords(m) && (!own || at3 > own.at)) own = { at: at3, channel: m.channel };
     }
   }
-  const latest = own ?? any;
+  const latest = own ?? any2;
   return latest ? writtenChannelOf(latest.channel) : null;
 }
 function ourWireOfThreads(conversations) {
@@ -15591,9 +15670,12 @@ var ABANDONED_MS = 15e3;
 function abandonedCall(dto) {
   if (dto.direction !== "inbound") return false;
   if (neverConnected(dto) || reachedVoicemail(dto)) return false;
+  if (dto.disconnection_reason !== "user_hangup") return false;
+  if (Array.isArray(dto.transcript_object) && dto.transcript_object.length) {
+    return !dto.transcript_object.some((t) => t?.role === "user" && (t.content ?? "").trim() !== "");
+  }
   const ms2 = dto.duration_ms;
-  if (typeof ms2 !== "number" || ms2 <= 0 || ms2 >= ABANDONED_MS) return false;
-  return dto.disconnection_reason === "user_hangup";
+  return typeof ms2 === "number" && ms2 > 0 && ms2 < ABANDONED_MS;
 }
 function neverConnected(dto) {
   return dto.status === "not_connected";
@@ -15673,13 +15755,14 @@ function itemFocus(m, n) {
 
 // src/voice/whisper.ts
 var OPEN = 'Owner: "';
+var STANDING_RULES_HOLD = (what) => `The rules in your instructions still hold, and you are the business's automated assistant, never a person: if the ${what} asks for something they rule out, use what you can of it and leave the rest.`;
 function frameWhisper(text) {
   return `A whisper from the business owner, who is listening to this call. The caller cannot hear it.
 ${OPEN}${text.trim()}"
-Keep it in mind from here on and use it in your own words when it fits: in your next answer if it applies now, later if it is conditional (for example, only if the caller brings something up). Never read it out word for word, and do not force it into an answer where it does not belong. Your standing rules still hold: do not quote or confirm a price, do not confirm a booking yourself, and say you are an automated assistant if asked \u2014 if the whisper asks for one of those, use what you can of it and leave the rest.`;
+Keep it in mind from here on and use it in your own words when it fits: in your next answer if it applies now, later if it is conditional (for example, only if the caller brings something up). Never read it out word for word, and do not force it into an answer where it does not belong. ` + STANDING_RULES_HOLD("whisper");
 }
 function frameGuardrail(rule, opts) {
-  const what = rule === "price" ? "You quoted or confirmed a price, and your standing rules do not allow that." : "You broke one of your standing rules.";
+  const what = rule === "price" ? "You said a price your instructions do not let you give." : "You broke one of your standing rules.";
   return `A correction from the Chanlytics platform, not from the business. The caller cannot hear it.
 ${what}
 Put it right in your own words when you next speak: say you cannot confirm pricing yourself, that the team confirms it, and ${priceNextStep(opts.hasBookingLink)}. Do not repeat the figure, and never read this out.`;
@@ -15687,7 +15770,7 @@ Put it right in your own words when you next speak: say you cannot confirm prici
 function frameSteer(text) {
   return `An instruction from the business owner, who read your draft before it went out. The customer cannot see it.
 ${OPEN}${text.trim()}"
-Write your reply again and follow it where it fits. Keep everything else that was right. Never repeat the instruction word for word. Your standing rules still hold: do not quote or confirm a price, do not confirm a booking yourself, no health advice, and say you are an automated assistant if asked \u2014 if the instruction asks for one of those, use what you can of it and leave the rest.`;
+Write your reply again and follow it where it fits. Keep everything else that was right. Never repeat the instruction word for word. ` + STANDING_RULES_HOLD("instruction");
 }
 function whisperText(content) {
   const c = (content ?? "").replace(/\r\n/g, "\n");
@@ -20596,6 +20679,15 @@ function offersAskRule() {
   return `When a WhatsApp conversation the customer started comes to its natural end after something went well (a booking made or confirmed, or their question fully answered), and the facts about them say "${FACT.never}", close your reply with this question, once, in their language: "Want our offers and news here too? Reply ${en}. You can stop any time." (in Spanish, ${es} in place of ${en}). Never ask twice; never on a text or email conversation, in a complaint, in a cancellation, after STOP, or of anyone who has said no to offers; never make it a condition of anything.`;
 }
 
+// src/config/workspace-config/assistant-disclosure.ts
+var CONVERSATION_UNDER_WAY = "This conversation is already under way.";
+var CONVERSATION_GAP_MS = DAY_MS;
+function disclosureFacts(p, channel, now) {
+  if (channel === "voice" || !p.returning || !p.lastTurnAt) return [];
+  const at3 = Date.parse(p.lastTurnAt);
+  return Number.isFinite(at3) && now.getTime() - at3 < CONVERSATION_GAP_MS ? [CONVERSATION_UNDER_WAY] : [];
+}
+
 // src/config/workspace-config/compose.ts
 function dateKeyInZone(tz, at3) {
   try {
@@ -20687,16 +20779,16 @@ var PROMPT_OPENINGS = {
 function noLinkBooking(channel) {
   return channel === "voice" ? `Booking: there is no booking link, so never use send_booking_link. When the caller wants to book, change or cancel a booking, or get a quote, take ${NO_LINK_DETAILS}, and say the team will follow up.` : `There is no booking link to send. When someone wants to book, change or cancel a booking, or get a quote, take ${NO_LINK_DETAILS}; once they have told you, say the team will follow up and set escalate to true.`;
 }
-function composeSystemPrompt(base, profile, channel = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy) {
-  return composeSystemPromptWith(base, profile, channel, tz, now, policy);
+function composeSystemPrompt(base, profile, channel = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy, audience = "customer") {
+  return composeSystemPromptWith(base, profile, channel, tz, now, policy, audience);
 }
-function composeSystemPromptWith(base, profile, wire, tz, now, policy) {
+function composeSystemPromptWith(base, profile, wire, tz, now, policy, audience) {
   const channel = wire === "voice" ? "voice" : "whatsapp";
   const link = offersBookingLink(base) ? base.booking_link : null;
   const handed = offersLinkOn(channel === "voice" ? "call" : "chat", base, base.whatsapp_line) ? link : null;
   const hrs = hoursLines(profile.hours);
   const closed = closureLines(upcomingClosures(profile.closures, tz, now));
-  const facts = { base, profile, channel, wire, tz, policy, link, handed, hrs, closed };
+  const facts = { base, profile, channel, wire, tz, policy, link, handed, hrs, closed, audience };
   return PROMPT_SECTIONS.flatMap((section) => section(facts)).join("\n");
 }
 var PROMPT_SECTIONS = [
@@ -20895,10 +20987,16 @@ ${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants
   );
   return s;
 }
-function standingRules(policy, channel) {
-  return [...policyRules(policy, channel), DATA_NOT_INSTRUCTIONS];
+var ASSISTANT_RULE = {
+  always: "You are the business's automated assistant: never claim or hint that you are a person. If anyone asks whether you are a bot, a person or AI, say plainly that you are the business's automated assistant and offer to bring in a person.",
+  textOpening: `Unless the facts about them say "${CONVERSATION_UNDER_WAY}", open your reply by saying, in a few words, that you are the business's automated assistant.`
+};
+var RULES_WIN = "Where anything above disagrees with these rules, the rules win.";
+function standingRules(policy, channel, audience) {
+  const assistant = audience === "draft" ? [] : channel === "voice" ? [ASSISTANT_RULE.always] : [ASSISTANT_RULE.always, ASSISTANT_RULE.textOpening];
+  return [...policyRules(policy, channel), ...assistant, RULES_WIN, DATA_NOT_INSTRUCTIONS];
 }
-function rulesSection({ base, profile, channel, policy, link, handed }) {
+function rulesSection({ base, profile, channel, policy, link, handed, audience }) {
   const s = [];
   const g = guardrailsInForce(profile.guardrails);
   const rules = [];
@@ -20906,15 +21004,14 @@ function rulesSection({ base, profile, channel, policy, link, handed }) {
     rules.push(
       `Never quote or confirm a price. Say it is quoted in person or at a consult, and ${priceNextStep(!!handed)}.`
     );
+  } else {
+    rules.push(
+      `Say a price only as the business wrote it in the details above, exactly as written and in digits; never work one out or estimate one. For any other price, say it is quoted in person or at a consult, and ${priceNextStep(!!handed)}.`
+    );
   }
   if (g.never_confirm_booking) {
     rules.push(
       `Never promise or confirm an appointment yourself. Booking happens ${link ? "on the booking link or " : ""}with staff.`
-    );
-  }
-  if (g.disclose_ai) {
-    rules.push(
-      "If asked whether you are a bot, a person, or AI, say plainly that you are the business's automated assistant and offer to bring in a person."
     );
   }
   rules.push(
@@ -20926,7 +21023,7 @@ function rulesSection({ base, profile, channel, policy, link, handed }) {
       `Never give medical or health advice \u2014 for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment${handed ? " and offer the booking link" : ""}.`
     );
   }
-  rules.push(...standingRules(policy, channel));
+  rules.push(...standingRules(policy, channel, audience));
   if (rules.length) s.push(`
 ${PROMPT_OPENINGS.rules}
 ${rules.map((r2) => `- ${r2}`).join("\n")}`);
@@ -20945,12 +21042,12 @@ function hasProfile(p) {
   const statedHours = !!p.hours && Object.values(p.hours).some((h) => h?.open && h?.close || h?.intervals?.length);
   return !!(p.address || p.tone || p.extra_instructions || statedHours || p.services?.length || p.languages?.length || p.escalate_when?.length || p.website || p.notes?.length);
 }
-function resolveSystemPrompt(brain, wire = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy, known) {
+function resolveSystemPrompt(brain, wire = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy, known, audience = "customer") {
   const channel = wire === "voice" ? "voice" : "whatsapp";
   const facts = resolveFacts(brain, known);
   if (!hasProfile(brain.profile)) {
     const link = !offersBookingLink(brain) ? [noLinkBooking(channel)] : channel === "voice" && !offersLinkOn("call", brain, facts.whatsapp_line.value) ? [NO_WAY_TO_SEND_LINK] : [];
-    const rules = [...link, ...standingRules(policy, channel)];
+    const rules = [...link, ...standingRules(policy, channel, audience)];
     return `${brain.system_prompt}
 
 ${PROMPT_OPENINGS.rules}
@@ -20966,7 +21063,7 @@ ${rules.map((r2) => `- ${r2}`).join("\n")}`;
     whatsapp_line: facts.whatsapp_line.value
   };
   const carried = { ...profile, extra_instructions: ownWordsOf(brain) ?? void 0 };
-  return composeSystemPrompt(resolved, carried, wire, tz, now, policy);
+  return composeSystemPrompt(resolved, carried, wire, tz, now, policy, audience);
 }
 function ownWordsOf(brain) {
   const own = brain?.profile?.extra_instructions;
@@ -21012,16 +21109,17 @@ var STRENGTHS = /* @__PURE__ */ (() => ({
     // Dollars and pesos are what `violatesNoPrices` knows. "A currency figure" promised
     // more: forty-five euros, or a pound sign, would pass it untouched.
     //
-    // The owner's decision (20 Sep 2026): a receptionist never states a price, whatever
-    // this switch says. The detectors (violatesNoPrices on a chat reply, spokenBreach on a
-    // call) run either way; the switch adds or removes the one prompt line that tells it
-    // not to quote one. So the sentence cannot say the switch turns the checking on.
-    sentence: "Every reply is checked for a price in dollars or pesos, even with this off. On, it's also told not to quote one.",
+    // Decision 0051 (11 Oct 2026) reversed the owner's 20 Sep decision that a receptionist never states a price
+    // whatever this switch says: off now lets it say the prices the owner wrote (priceAllowance), and only those. The
+    // detectors (priceBreach on a chat reply, spokenBreach on a call) read every reply either way, so the sentence
+    // names what is always true: a price nobody wrote never goes out. Switch-agnostic, so ruleStrength keeps its
+    // one-argument shape; the switch's own state is said by rulesKept and the fold's list.
+    sentence: "Every reply is checked for a price in dollars or pesos. On, it says none; off, it may say the ones you've written, and any other is swapped out.",
     checkedOn: [
       {
         channel: "whatsapp",
         label: channelOpens("whatsapp"),
-        words: "a price is swapped out before the customer sees it."
+        words: "a price it may not say is swapped out before the customer sees it."
       },
       {
         channel: "voice",
@@ -21034,12 +21132,13 @@ var STRENGTHS = /* @__PURE__ */ (() => ({
       }
     ]
   },
-  // Told, and nothing checks the answer: there is no clean signal to check against, since the phrase that would catch a
-  // denial also catches the correct disclosure.
+  // Always on (decision 0051): the usage policy of the model it runs on asks every consumer-facing agent to say it is
+  // AI, so this is no longer a switch (ALWAYS_TOLD). Told, and nothing checks the answer: there is no clean signal to
+  // check against, since the phrase that would catch a denial also catches the correct disclosure.
   disclose_ai: {
     strength: "instructed",
     chip: "Told",
-    sentence: "It's told this, and nothing checks its answer.",
+    sentence: "People should know who they're talking to. A call's greeting says it; in text it opens a new conversation saying so, and says it whenever asked. Nothing checks its answer.",
     checkedOn: null
   },
   no_health_advice: {
@@ -21061,6 +21160,8 @@ var VISION_STRENGTH = /* @__PURE__ */ (() => ({
   sentence: "Off, photos go to a person.",
   checkedOn: null
 }))();
+var ALWAYS_TOLD = /* @__PURE__ */ new Set(["disclose_ai"]);
+var PRICES_WRITTEN_WORDS = "Says only the prices you wrote";
 var RULES_AT_REST_WORDS = {
   never_quote_prices: "Never quotes a price",
   never_confirm_booking: "Never confirms a booking",
@@ -21081,16 +21182,25 @@ function rulesKept(i) {
   const kept = [];
   for (const key of GUARDRAIL_KEYS) {
     const { strength } = ruleStrength(key);
-    const told = i.composes && rules[key];
-    if (strength === "checked" || told) kept.push(RULES_AT_REST_WORDS[key]);
+    const told = i.composes && rules[key] || ALWAYS_TOLD.has(key);
+    if (key === "never_quote_prices" && !rules[key] && i.composes) kept.push(PRICES_WRITTEN_WORDS);
+    else if (strength === "checked" || told) kept.push(RULES_AT_REST_WORDS[key]);
     else if (strength === "structural") kept.push(CANNOT_BOOK_WORDS);
   }
   kept.push(i.vision ? PHOTOS_AT_REST_WORDS.on : PHOTOS_AT_REST_WORDS.off);
   return kept;
 }
-var RULES_WITHOUT_FIELDS_WORDS = /* @__PURE__ */ (() => `${NO_FIELDS_COMPOSED_WORDS} Until they are, it isn't told these rules.`)();
+var RULES_WITHOUT_FIELDS_WORDS = /* @__PURE__ */ (() => `${NO_FIELDS_COMPOSED_WORDS} Until they are, it isn't told these rules, only that it is an automated assistant.`)();
 function rulesWithoutFieldsWords() {
   return RULES_WITHOUT_FIELDS_WORDS;
+}
+var PRICES_NAMED = 6;
+function pricesWrittenWords(list2) {
+  if (!list2) return null;
+  if (!list2.length) return "You haven't written a price yet. Add one to a service, and it may say it.";
+  const named = list2.slice(0, PRICES_NAMED).map((p) => `${p.figure} (${p.from})`).join(", ");
+  const more = list2.length > PRICES_NAMED ? ` and ${list2.length - PRICES_NAMED} more` : "";
+  return `It may say ${named}${more}, as you wrote them. Any other price is swapped out.`;
 }
 
 // src/config/business-tab/services-words.ts
@@ -21305,6 +21415,202 @@ function promptBlocks(text, channel, from) {
       text: lines.slice(a, b).join("\n").trim()
     };
   });
+}
+
+// src/voice/greeting.ts
+function greetingFor(name) {
+  return `${opening(name)} I'm the automated assistant, and calls are recorded. How can I help?`;
+}
+function opening(name) {
+  return name ? `Hi, ${name}.` : "Hi, thanks for calling.";
+}
+function pausedGreetingFor(name) {
+  return `${opening(name)} I'm the automated assistant, and calls are recorded. Today I can only take a message for the team.`;
+}
+var GREETING_DEFAULT = /* @__PURE__ */ greetingFor(null);
+
+// src/voice/greeting-owner.ts
+var GREETING_NAME_SLOT = "{business}";
+var AI_CLAUSE = { en: "I'm the automated assistant.", es: "Soy el asistente autom\xE1tico." };
+var GREETING_TEMPLATE = greetingFor(GREETING_NAME_SLOT);
+var GREETING_LONG_WORDS = 18;
+var SECONDS_PER_WORD = 0.4;
+var ROLE = String.raw`(?:assistant|receptionist|agent|attendant|operator|concierge|helper|host)`;
+var MACHINE = String.raw`(?:A\.?I\.?|(?:chat)?bot|robot|machine|computer|automated|automatic|virtual|digital|artificial intelligence)`;
+var STATES_AI = [
+  new RegExp(
+    String.raw`\b(?:automated|automatic|virtual|digital|A\.?I\.?|artificial[- ]intelligence|robot(?:ic)?)\s+${ROLE}\b`,
+    "i"
+  ),
+  new RegExp(
+    String.raw`\b(?:I'm|I am|this is|you're (?:speaking|talking) (?:with|to)|you are (?:speaking|talking) (?:with|to)|you've reached|you have reached)\s+(?:(?:the|a|an|our|your|\w+'s)\s+)?(?:\w+\s+)?${MACHINE}\b`,
+    "i"
+  ),
+  /\bchat\s?bot\b/i,
+  /\b(?:asistente|recepcionista|agente|operador[a]?)\s+(?:virtual|digital|autom[aá]tic[oa]|de\s+IA|de\s+inteligencia\s+artificial)\b/i,
+  /\b(?:soy|habla\s+con|est[aá]\s+hablando\s+con|le\s+atiende)\s+(?:(?:el|la|un|una|su|nuestr[oa])\s+)?(?:IA|robot|bot|m[aá]quina|inteligencia\s+artificial|asistente\s+(?:virtual|autom[aá]tic[oa]|digital))\b/i
+];
+var NEGATION = String.raw`(?:not|never|isn't|aren't|ain't|wasn't)`;
+var GOVERNED = String.raw`(?:(?!but\b|and\b|or\b|though\b)[\w']+\s+){0,2}`;
+var DENIED = String.raw`(?:(?:a|an|the|some)\s+)?(?:bot|chatbot|robot|machine|computer|automated|automatic|A\.?I\.?|artificial intelligence|(?:virtual|digital)\s+${ROLE})`;
+var DENIES_AI = [
+  new RegExp(String.raw`\b${NEGATION}\s+${GOVERNED}${DENIED}\b`, "i"),
+  /\bno\s+(?:bots?|robots?|machines?|A\.?I\.?)\b/i,
+  /\bAI[- ]free\b/i,
+  /\b(?:I'm|I am|this is|you're (?:speaking|talking) (?:with|to)|you are (?:speaking|talking) (?:with|to))\s+(?:a\s+)?(?:real|live|actual)\s+(?:person|human)\b/i,
+  /(?<!\bnot\s(?:a\s)?)\b(?:a\s+)?(?:real|live|actual)\s+(?:person|human)\s+(?:here|speaking|answering)\b/i,
+  /\bno\s+(?:soy|es)\s+(?:un\s+|una\s+)?(?:robot|bot|m[aá]quina|autom[aá]tic[oa]|IA|asistente\s+virtual|inteligencia\s+artificial)\b/i,
+  /\bno\s+(?:est[aá]\s+)?habla(?:ndo)?\s+con\s+(?:un\s+|una\s+)?(?:robot|bot|m[aá]quina|IA|asistente\s+virtual)\b/i,
+  /(?<!\bno\s)\bsoy\s+una\s+persona(?:\s+real)?\b/i,
+  /(?<!\bno\s(?:soy|es)\s(?:una\s)?)\bpersona\s+real\b/i
+];
+var SAYS_RECORDING = [
+  /\brecord(?:ed|ing|s)?\b/i,
+  /\bgrab(?:a|an|ada|adas|ado|amos|ando|ar|aci[oó]n)\b/i
+];
+var DENIES_RECORDING = [
+  /\b(?:not|never)\s+(?:being\s+|be\s+|get\s+)?record(?:ed|ing|s)?\b/i,
+  /\bno\s+recordings?\b/i,
+  /\b(?:don't|doesn't|won't|aren't|isn't|ain't)\s+(?:being\s+|be\s+)?record(?:ed|ing|s)?\b/i,
+  /\bno\s+(?:se\s+)?(?:graba|graban|grabamos|grabada|grabadas|est[aá]\s+grabando|estamos\s+grabando|son\s+grabadas|es\s+grabada)\b/i,
+  /\bsin\s+grabar\b/i
+];
+var LINK2 = /\b(?:https?:\/\/|www\.)\S+|\b[\w-]+\.(?:com|net|org|co|io|us|mx|es)\b/i;
+var SPANISH = /[¿¡ñ]|\b(?:hola|gracias|llamar|llamada|ayudar|ayudarle|ayudarte|bienvenid[oa]s?|c[oó]mo|est[aá]|usted)\b/i;
+var NAME_STANDS_IN = "Xname";
+function judged(text, name) {
+  const straight = (s) => s.replace(/[‘’]/g, "'");
+  let t = straight(text).split(GREETING_NAME_SLOT).join(NAME_STANDS_IN);
+  const n = straight(name ?? "").trim();
+  if (n) t = t.split(n).join(NAME_STANDS_IN);
+  return t;
+}
+var any = (rules, t) => rules.some((r2) => r2.test(t));
+function statesAutomated(text, name = null) {
+  const t = judged(text, name);
+  return any(STATES_AI, t) && !any(DENIES_AI, t);
+}
+function deniesAutomated(text, name = null) {
+  return any(DENIES_AI, judged(text, name));
+}
+function spokenNameOf(name) {
+  const n = (name ?? "").trim();
+  return n || null;
+}
+var clauseFor = (text, name) => SPANISH.test(judged(text, name)) ? AI_CLAUSE.es : AI_CLAUSE.en;
+function withAiClause(text, clause2) {
+  const closing = /^([\s\S]*[.!?…])\s+([^.!?…]*\?)\s*$/.exec(text);
+  if (closing) {
+    const [, head, question] = closing;
+    return `${head} ${clause2} ${question}`;
+  }
+  const trimmed2 = text.trimEnd();
+  return `${trimmed2}${/[.!?…]$/.test(trimmed2) ? "" : "."} ${clause2}`;
+}
+function greetingOf(input) {
+  const name = spokenNameOf(input.name);
+  if (input.paused) return { text: pausedGreetingFor(name), source: "paused" };
+  const raw = (input.stored ?? "").replace(/\{\{/g, "{").replace(/\}\}/g, "}").trim();
+  if (!raw) return { text: greetingFor(name), source: "standard" };
+  if (deniesAutomated(raw, name)) return { text: greetingFor(name), source: "standard_denied" };
+  if (raw.includes(GREETING_NAME_SLOT) && !name) return { text: GREETING_DEFAULT, source: "standard" };
+  const filled = name ? raw.split(GREETING_NAME_SLOT).join(name) : raw;
+  return statesAutomated(raw, name) ? { text: filled, source: "owner" } : { text: withAiClause(filled, clauseFor(raw, name)), source: "owner_disclosed" };
+}
+function greetingNotes(input) {
+  const raw = (input.stored ?? "").trim();
+  if (!raw) return [];
+  const name = spokenNameOf(input.name);
+  const t = judged(raw, name);
+  const notes = [];
+  if (deniesAutomated(raw, name)) {
+    notes.push({
+      key: "denies_ai",
+      words: "This says it isn't automated, so callers hear the standard greeting instead: your receptionist always says it's an automated assistant."
+    });
+    return notes;
+  }
+  if (!statesAutomated(raw, name)) {
+    notes.push({
+      key: "adds_ai",
+      words: `It doesn't say it's automated, so callers also hear \u201C${clauseFor(raw, name)}\u201D Say it your own way to replace it.`
+    });
+  }
+  if (any(DENIES_RECORDING, t)) {
+    notes.push({
+      key: "denies_recording",
+      words: "This tells callers they aren't recorded. Calls to your receptionist are recorded, so that isn't so."
+    });
+  } else if (!any(SAYS_RECORDING, t)) {
+    notes.push({
+      key: "no_recording",
+      words: "The standard greeting says calls are recorded; yours doesn't. In some places callers have to be told first."
+    });
+  }
+  const spoken = greetingOf({ name, stored: raw, paused: false }).text;
+  const words2 = (name ? spoken.split(name).join(" ") : spoken).split(/\s+/).filter(Boolean).length;
+  if (words2 > GREETING_LONG_WORDS) {
+    notes.push({
+      key: "long",
+      words: `About ${Math.round(words2 * SECONDS_PER_WORD)} seconds before a caller can speak. Callers hang up during long greetings; under 7 seconds keeps more of them.`
+    });
+  }
+  if (LINK2.test(t)) notes.push({ key: "link", words: "A web address is read out letter by letter on a call." });
+  const [slot] = (raw.match(/\{[^{}]*\}/g) ?? []).filter((s) => s !== GREETING_NAME_SLOT);
+  if (slot) {
+    notes.push({
+      key: "slot",
+      words: `${slot} isn't filled in, so callers hear it as written. Only ${GREETING_NAME_SLOT} is.`
+    });
+  }
+  if (input.namesMoney(t)) {
+    notes.push({
+      key: "money",
+      words: "It mentions a discount, deposit or refund. If a caller asks about it, your receptionist hands it to you."
+    });
+  }
+  if (input.neverQuotePrices && input.namesPrice(t)) {
+    notes.push({
+      key: "price",
+      words: "It says a price while \u201CNever quote a price\u201D is on. Callers hear this one anyway."
+    });
+  }
+  return notes;
+}
+
+// src/config/workspace-config/price-allowance.ts
+var BARE_PRICE = /^\s*(?:from|starting at|desde|a partir de)?\s*\$?\s*(\d+(?:[.,]\d{1,2})?)\s*(?:(?:-|–|to|a)\s*\$?\s*(\d+(?:[.,]\d{1,2})?))?\s*\+?\s*$/i;
+var FORBIDS = /\b(?:never|don['’]?t|do not|not to|no digas|no menciones|nunca)\b/i;
+var CUT = /\d\s*%?\s*(?:off|de descuento|menos)\b/i;
+function amountsIn(text) {
+  return text.split(/(?<=[.!?;])\s+|\n+/).filter((s) => s.trim() && !namesMoney(s) && !CUT.test(s) && !FORBIDS.test(s)).flatMap((s) => priceFigures(s)).filter((f) => /^\d+(?:\.\d+)?$/.test(f));
+}
+function amountsInPriceBox(note) {
+  const bare = BARE_PRICE.exec(note);
+  if (bare) {
+    const [, low, high] = bare;
+    return [low, high].filter((n) => !!n).flatMap((n) => priceFigures(`$${n}`));
+  }
+  return amountsIn(note);
+}
+function allowedPrices(brain) {
+  const profile = brain?.profile;
+  if (!profile || !hasProfile(profile) || guardrailsInForce(profile.guardrails).never_quote_prices) return null;
+  const out = [];
+  const add = (figures, from) => {
+    for (const figure2 of figures) if (!out.some((p) => p.figure === figure2)) out.push({ figure: figure2, from });
+  };
+  for (const s of profile.services ?? []) if (s.price_note) add(amountsInPriceBox(s.price_note), s.name);
+  for (const n of profile.notes ?? []) add(amountsIn(`${n.title}. ${n.text}`), "Notes");
+  for (const n of profile.booking_rules?.notes ?? []) add(amountsIn(n), "Booking notes");
+  const greeting = profile.phone_greeting;
+  const heard = greeting ? greetingOf({ name: brain?.business_name, stored: greeting, paused: false }).source : null;
+  if (greeting && (heard === "owner" || heard === "owner_disclosed")) add(amountsIn(greeting), "Greeting");
+  return out;
+}
+function priceAllowance(brain) {
+  const list2 = allowedPrices(brain);
+  return list2 ? new Set(list2.map((p) => p.figure)) : null;
 }
 
 // src/config/workspace-config/role-perms.ts
@@ -23109,8 +23415,8 @@ function playbookRunReach(rows2, p, touches, nowMs, pace, listIds = null) {
       reach.heardThis += 1;
       return false;
     }
-    const any = touches.byAny.get(r2.id);
-    if (any !== void 0 && breathHolds(any, nowMs)) {
+    const any2 = touches.byAny.get(r2.id);
+    if (any2 !== void 0 && breathHolds(any2, nowMs)) {
       reach.heardAny += 1;
       return false;
     }
@@ -25098,9 +25404,9 @@ function verdictOf(s, searches, now) {
   if (s.leads.customers + s.leads.booked + s.won.deals > 0 || interested >= INTERESTED_TO_SAY || s.reach.sent >= SENT_TO_SAY && s.reach.replied / s.reach.sent >= REPLIES_THAT_WORK)
     return "worked";
   const closed = s.leads.said_no + s.leads.not_a_fit;
-  const judged = s.found.qualified + s.found.review + s.found.excluded;
+  const judged2 = s.found.qualified + s.found.review + s.found.excluded;
   const silent = s.reach.sent >= SENT_WITH_NONE && s.reach.replied === 0;
-  if (silent && daysAgo(s.lastSentAt, now) >= SILENCE_DAYS || closed >= CLOSED_TO_SAY && closed >= CLOSED_THAT_FAIL * Math.max(s.leads.contacted, 1) || judged >= JUDGED_TO_SAY && s.found.qualified + s.found.review <= KEPT_THAT_FAIL * judged || s.removed === searches)
+  if (silent && daysAgo(s.lastSentAt, now) >= SILENCE_DAYS || closed >= CLOSED_TO_SAY && closed >= CLOSED_THAT_FAIL * Math.max(s.leads.contacted, 1) || judged2 >= JUDGED_TO_SAY && s.found.qualified + s.found.review <= KEPT_THAT_FAIL * judged2 || s.removed === searches)
     return "did_not_work";
   if (s.running) return "running";
   return s.leads.contacted === 0 && s.reach.sent === 0 ? "not_reached" : "too_early";
@@ -25154,11 +25460,11 @@ function outcomeLine(s) {
 }
 function kindLines(s, group, dry, now) {
   const places = [...new Set(group.map((x) => x.area?.label).filter(Boolean))].join("; ");
-  const judged = s.found.qualified + s.found.review + s.found.excluded;
+  const judged2 = s.found.qualified + s.found.review + s.found.excluded;
   const kept = s.found.qualified + s.found.review;
   const lines = [
     `Searched ${group.length === 1 ? "" : `${group.length} times, last `}${agoOf(group[0]?.at ?? "", now)}${places ? `, in ${places}` : ""}`,
-    `Checked ${judged}: ${s.found.qualified} matched, ${s.found.review} to look at, ${s.found.excluded} left out${s.found.excluded ? ` (${topOf(s.leftOut, (k) => leftOutWord(k, s.withWords))})` : ""}`
+    `Checked ${judged2}: ${s.found.qualified} matched, ${s.found.review} to look at, ${s.found.excluded} left out${s.found.excluded ? ` (${topOf(s.leftOut, (k) => leftOutWord(k, s.withWords))})` : ""}`
   ];
   if (kept) lines.push(`${s.leads.with_email} of its ${kept} leads list an email, ${s.leads.with_phone} a phone`);
   if (kept || s.leads.contacted) lines.push(outcomeLine(s));
@@ -31542,7 +31848,7 @@ var googleSaid = (g) => ({
   gained: g.gained,
   source: g.source
 });
-var figureOf = (id, metric, label, said) => ({ id, metric, label, delta: null, spark: [], compare: null, ...said });
+var figureOf2 = (id, metric, label, said) => ({ id, metric, label, delta: null, spark: [], compare: null, ...said });
 function whoAnsweredWords(answered, receptionist) {
   if (!answered) return "none answered yet";
   const you = answered - receptionist;
@@ -31560,25 +31866,25 @@ function reviewsProfileTiles(google, p) {
     const meta = historyWords(p.history) ?? "";
     return [
       ...own,
-      figureOf("written", "reviews_written", label, { value: "\u2014", meta }),
-      figureOf("answered", "reviews_answered", "Answered", { value: "\u2014", meta }),
-      figureOf("reply_time", "review_reply_time", "Time to reply", { value: "\u2014", meta })
+      figureOf2("written", "reviews_written", label, { value: "\u2014", meta }),
+      figureOf2("answered", "reviews_answered", "Answered", { value: "\u2014", meta }),
+      figureOf2("reply_time", "review_reply_time", "Time to reply", { value: "\u2014", meta })
     ];
   }
   const counted2 = p.written > 0;
   return [
     ...own,
-    figureOf("written", "reviews_written", label, {
+    figureOf2("written", "reviews_written", label, {
       value: String(p.written),
       meta: p.written ? "with words or without" : "none in this period",
       spark: p.daily,
       compare: p.prior === null ? null : compareWords(p.written, p.prior, rangeLabelOf(p.days), true)
     }),
-    figureOf("answered", "reviews_answered", "Answered", {
+    figureOf2("answered", "reviews_answered", "Answered", {
       value: counted2 ? `${p.answered} of ${p.written}` : "\u2014",
       meta: counted2 ? whoAnsweredWords(p.answered, p.receptionist) : "nothing to answer"
     }),
-    figureOf("reply_time", "review_reply_time", "Time to reply", {
+    figureOf2("reply_time", "review_reply_time", "Time to reply", {
       value: counted2 ? fmtSeconds(p.replySeconds) : "\u2014",
       meta: counted2 ? replyTimeMeta(p) : "nothing to answer"
     })
@@ -32496,18 +32802,6 @@ function checkChipsOf(i) {
   };
 }
 
-// src/voice/greeting.ts
-function greetingFor(name) {
-  return `${opening(name)} I'm the automated assistant, and calls are recorded. How can I help?`;
-}
-function opening(name) {
-  return name ? `Hi, ${name}.` : "Hi, thanks for calling.";
-}
-function pausedGreetingFor(name) {
-  return `${opening(name)} I'm the automated assistant, and calls are recorded. Today I can only take a message for the team.`;
-}
-var GREETING_DEFAULT = /* @__PURE__ */ greetingFor(null);
-
 // src/setup/first-run-live.ts
 var FIRST_RUN_LIVE_WORDS = {
   heading: (business) => business ? `${business}'s receptionist is answering` : "Your receptionist is answering",
@@ -32582,7 +32876,7 @@ function firstRunLiveOf({ dto, emails, business, owner }) {
         change: { label: W.change, to: "admin/workspace" }
       }
     ],
-    greeting: W.greeting(greetingFor(business)),
+    greeting: W.greeting(greetingOf({ name: business, stored: dto.business.phone_greeting, paused: false }).text),
     // The email goes with the first run's first activation of calls (the capability route, first_run): said only
     // where it will go.
     finish: {
@@ -33652,6 +33946,10 @@ function setupCardOf(vm) {
   };
 }
 var linkShown = (url) => url.replace(/^https?:\/\/(www\.)?/i, "").replace(/\/+$/, "");
+function cardGreeting(spoken, profile, setup) {
+  const stored = profile?.phone_greeting ?? setup.business.phone_greeting ?? null;
+  return greetingOf({ name: spoken, stored, paused: false }).text;
+}
 function receptionistCardOf(i) {
   if (i.sellsBy !== null && typeof i.sellsBy !== "string") {
     throw new TypeError(
@@ -33677,7 +33975,7 @@ function receptionistCardOf(i) {
     status,
     strip: `Your receptionist \xB7 ${status.words}`,
     greetingLabel: "Greets every caller with",
-    greeting: greetingFor(spoken || null),
+    greeting: cardGreeting(spoken, p, i.setup),
     rows: [
       { key: "open", label: "Open", value: i.setup.business.hours && p?.hours ? openWeekWords(p.hours, i.tz) : null },
       {
@@ -38780,6 +39078,7 @@ export {
   ALERT_PANE_WORDS,
   ALERT_REFUSED_WORDS,
   ALERT_TOPICS,
+  ALWAYS_TOLD,
   ANALYSIS_GRACE_MS,
   ANGLE_WORDS_MAX,
   APPOINTMENT_SOURCES,
@@ -38912,10 +39211,12 @@ export {
   CONSULT_FIRST_DEAL_HINT,
   CONSULT_FOLLOW_DAYS,
   CONVERSATIONAL_ASK_TITLE,
+  CONVERSATION_GAP_MS,
   CONVERSATION_MOVES,
   CONVERSATION_OPT_IN_PATTERN,
   CONVERSATION_PHRASE,
   CONVERSATION_STATES,
+  CONVERSATION_UNDER_WAY,
   DATA_NOT_INSTRUCTIONS,
   DAYS,
   DAY_MS,
@@ -39026,6 +39327,7 @@ export {
   GMAIL_FORWARD_NOTE,
   GOOGLE_SHOWN_REVIEWS,
   GREETING_DEFAULT,
+  GREETING_TEMPLATE,
   GUARDRAIL_KEYS,
   HANDLED_OUTCOMES,
   HANDOFF_ANYWAY,
@@ -39641,6 +39943,7 @@ export {
   allowanceLine,
   allowanceLines,
   allowanceRoom,
+  allowedPrices,
   amountTotalsWords,
   amountWords,
   answerForCards,
@@ -39899,6 +40202,7 @@ export {
   defaultWriteWire,
   delayWords,
   deltaOf,
+  deniesAutomated,
   describeNow,
   describeOpenings,
   describeSettingsChange,
@@ -39907,6 +40211,7 @@ export {
   deskSignVM,
   detectLanguage,
   deviceTimezone,
+  disclosureFacts,
   divertedNumbers,
   domainDailyCap,
   domainHoldFixWords,
@@ -40035,6 +40340,8 @@ export {
   googleAudienceWords,
   googleCallbackUrl,
   greetingFor,
+  greetingNotes,
+  greetingOf,
   groundCitations,
   groupTemplates,
   guardSpokenTurns,
@@ -40599,10 +40906,13 @@ export {
   previewRefusedWords,
   previewSays,
   previewVersionsOf,
+  priceAllowance,
+  priceBreach,
   priceFigures,
   priceNextStep,
   priceOf,
   priceWords,
+  pricesWrittenWords,
   priorOf,
   profileRefusal,
   promptBlocks,
@@ -40861,6 +41171,7 @@ export {
   spokenBreach,
   spokenBreachDetails,
   spokenDuration,
+  spokenNameOf,
   stageArgs,
   standingAfterNameDecision,
   standingAlertWords,
@@ -40886,6 +41197,7 @@ export {
   stateLabel,
   stateOf,
   stateTone,
+  statesAutomated,
   stepDayFor,
   stepDayOf,
   stepDays,

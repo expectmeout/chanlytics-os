@@ -166,6 +166,9 @@ export async function receiveInboundCall(request: Request): Promise<Response> {
     // How long the call waited, and how much of it was the plan: the budget is Retell's ten seconds.
     plan_ms: planMs,
     late: start.late,
+    // Which greeting the caller heard: the standard, the business's own (with the AI clause added or not), paused, or the
+    // standard because its own denied being automated (decision 0051). Which words, the version table says.
+    greeting: start.greetingSource,
     ms: Date.now() - t0,
   });
   return json(200, { call_inbound: { dynamic_variables: start.variables } });

@@ -4,7 +4,7 @@
  * person rather than a lost message. With no model key the workspace's own greeting goes, labelled a
  * fallback, and the platform is paged.
  */
-import { resolveSystemPrompt, describeNow, shadowWordsOf } from "@chanlytics/contracts";
+import { resolveSystemPrompt, describeNow, shadowWordsOf, priceAllowance } from "@chanlytics/contracts";
 import type { BrainConfig, BrainMeta } from "@chanlytics/contracts";
 import { photoUserText } from "./vision";
 import { layerTwo, noModelPlan, NO_MODEL_PAGE } from "./steps";
@@ -112,7 +112,7 @@ export async function modelTurn(
       const tBrain = Date.now();
       const r = await generateReply(
         thread.history,
-        photo ? photoUserText(n.media?.caption) : bodyText,
+        photo ? photoUserText(n.media?.caption, priceAllowance(brainCfg) ? "written" : "none") : bodyText,
         // Composed from the workspace's structured facts when it has them,
         // and its hand-written prompt when it does not. lib/call-start.ts
         // composes the SAME thing for the voice agent, which is the point:

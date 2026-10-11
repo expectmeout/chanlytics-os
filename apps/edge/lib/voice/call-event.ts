@@ -51,6 +51,12 @@ interface CallEventFacts {
   alreadyCorrected: boolean;
   /** The provider's API key is held, so a live call can be corrected. */
   canCorrect: boolean;
+  /**
+   * The prices the receptionist may say on this call (contracts priceAllowance): the amounts the owner wrote while
+   * "Never quote a price" is off. Null is the strict rule, any price at all: the door reads it only when the turns hold
+   * a price, and a workspace it could not read is strict. Required, so the door says which.
+   */
+  allowed: ReadonlySet<string> | null;
 }
 
 /** What the bell row is about: the call, or the thread when it needs a call back. */
@@ -140,6 +146,7 @@ function guardSteps(n: NormalizedCall, res: IngestCallResult, f: CallEventFacts)
     turns: n.transcriptObject,
     live: n.status === "ongoing",
     alreadyCorrected: f.alreadyCorrected,
+    allowed: f.allowed,
   });
   const out: CallStep[] = [];
   if (guard.escalate && guard.breach && res.conversation_id) {
