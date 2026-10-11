@@ -6258,7 +6258,8 @@ var byDoorOf = (ads, scoped) => DOOR_ORDER.flatMap((d) => {
 });
 var resultsGrouped = (n) => n === null ? DASH : n.toLocaleString("en-US");
 function theirsCells(t) {
-  if (t.platform === "meta") return [resultsGrouped(t.reach), resultsGrouped(t.taps), resultsGrouped(t.chats), resultsGrouped(t.leads)];
+  if (t.platform === "meta")
+    return [resultsGrouped(t.reach), resultsGrouped(t.taps), resultsGrouped(t.chats), resultsGrouped(t.leads)];
   if (t.platform === "google") return [resultsGrouped(t.clicks), resultsGrouped(t.calls), resultsGrouped(t.longCalls)];
   return [resultsGrouped(t.reach), resultsGrouped(t.clicks), resultsGrouped(t.leads)];
 }
