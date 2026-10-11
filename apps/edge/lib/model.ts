@@ -8,7 +8,8 @@
  *   - no key: nothing is asked, and the answer is null ("no model to ask");
  *   - a purpose a person asks for (Ask, the drafts, the review reply, the notes) first asks whether the workspace may use
  *     the model at all (mayUseModels: not paused, not ended, not unbilled); a workspace that may not gets no call;
- *   - a write to the ledger that fails is logged and never costs the answer.
+ *   - a write to the ledger that fails is logged and never costs the answer;
+ *   - a receptionist's turn about a conversation is kept as the model read it (keepTurn; decision 0039), on the same terms.
  *
  * askJson is the one JSON transport the platform's small reads share: the answer is asked for in its schema
  * (output_config); an API that refuses the request's format, not its content, is asked again once for plain JSON with
@@ -25,8 +26,14 @@ import {
   type ModelReply,
   type ModelStreamReply,
 } from "./packages/channels.js";
-import { aiUsageBodyOf, type ModelCallOutcome, type ModelPurpose, type ModelUsage } from "./packages/contracts.js";
-import { recordModelUsage, workspaceMayUseModels } from "./packages/db.js";
+import {
+  MODEL_TURN_WRITE_MS,
+  aiUsageBodyOf,
+  type ModelCallOutcome,
+  type ModelPurpose,
+  type ModelUsage,
+} from "./packages/contracts.js";
+import { keepModelTurn, recordModelUsage, workspaceMayUseModels, type ModelTurnKept } from "./packages/db.js";
 import { pg } from "./pg.js";
 import { env } from "./env.js";
 import { logger, errField } from "./log.js";
@@ -113,6 +120,35 @@ export async function recordCall(
     );
   } catch (e) {
     logger({ tenant_id: forWhom.tenantId }).error("ai_usage_write_failed", { purpose, error: errField(e) });
+  }
+}
+
+/**
+ * One receptionist turn kept as the model read it, with the text of its prompt (decision 0039; packages/db
+ * keepModelTurn). Never thrown, and never waited on longer than MODEL_TURN_WRITE_MS: a turn that cannot be kept, or is
+ * not kept in time, is logged and the answer goes as it would have. Answers whether it was kept, so a reply names
+ * only a turn that is there.
+ */
+export async function keepTurn(turn: ModelTurnKept): Promise<boolean> {
+  const db = pg();
+  if (!db) return false;
+  const L = logger({ tenant_id: turn.tenantId });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const tooSlow = new Promise<"late">((resolve) => {
+      timer = setTimeout(() => resolve("late"), MODEL_TURN_WRITE_MS);
+    });
+    const write = keepModelTurn(db, turn).then(() => "kept" as const);
+    // Left behind, it may still land or fail after the reply has gone: either way nobody is waiting on it.
+    write.catch(() => undefined);
+    const kept = (await Promise.race([write, tooSlow])) === "kept";
+    if (!kept) L.error("model_turn_write_failed", { turn: turn.turnId, left_behind_ms: MODEL_TURN_WRITE_MS });
+    return kept;
+  } catch (e) {
+    L.error("model_turn_write_failed", { turn: turn.turnId, error: errField(e) });
+    return false;
+  } finally {
+    clearTimeout(timer);
   }
 }
 

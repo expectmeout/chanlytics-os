@@ -69,6 +69,14 @@ export const CLOCKS = {
   purge_google_reviews: { kind: "keep", why: "retention: a Google review the mirror has not seen for ninety days" },
   purge_idempotency_keys: { kind: "keep", why: "retention: the keys writes were answered under, after a day" },
   purge_invitations: { kind: "keep", why: "retention: a team invitation a month after it was accepted or taken back" },
+  purge_config_versions: {
+    kind: "keep",
+    why: "retention: a workspace's settings as they stood, 400 days after a version is replaced",
+  },
+  purge_model_turns: {
+    kind: "keep",
+    why: "retention: the receptionist's kept turns after thirty days, and the prompts no turn has read for 400",
+  },
   purge_jobs: { kind: "keep", why: "retention: the ledger's finished and failed rows" },
   purge_leads: { kind: "keep", why: "retention: leads nobody worked, and places a search left out" },
   purge_notifications: { kind: "keep", why: "retention: notifications after ninety days" },

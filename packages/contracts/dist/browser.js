@@ -9129,6 +9129,22 @@ var FLAGS = [
   }
 ];
 
+// src/ai/turn.ts
+var MODEL_TURN_WRITE_MS = 1500;
+var MODEL_TURN_TEXT_MAX = 2e4;
+function modelTurnRequestOf(sent2) {
+  return {
+    now: sent2.now ?? null,
+    who: sent2.who ?? null,
+    steer: sent2.steer ?? null,
+    messages: sent2.messages.map((m) => ({ role: m.role, content: m.content })),
+    photo: sent2.photoType ?? null
+  };
+}
+function modelTurnResponseOf(stopReason, record2, text) {
+  return { stop_reason: stopReason, text: text.slice(0, MODEL_TURN_TEXT_MAX), record: record2 ? { ...record2 } : null };
+}
+
 // src/ai/usage.ts
 var NO_USAGE = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
 var MODEL_PRICES = {
@@ -15535,7 +15551,13 @@ var RETENTION_DAYS = {
   /** A provider's delivery as it came, kept for a local replay after a fix (purge_provider_events, 00336; decision 0032). */
   provider_events: 7,
   /** What a write answered, under the key its page sent, so the same write sent twice is made once (purge_idempotency_keys, 00340; decision 0035). */
-  idempotency_keys: 1
+  idempotency_keys: 1,
+  /** A receptionist's turn as the model read it, and what it answered (purge_model_turns, 00401; decision 0039). */
+  model_turns: 30,
+  /** The text of a prompt the receptionist was given, from the last turn that read it: the usage ledger's own keep, so a kept turn's row there opens its prompt for as long as the row stands (purge_model_prompts, 00401). */
+  model_prompts: 400,
+  /** A workspace's settings as they stood at a version, from the day the next replaced it; the version in force is kept (purge_config_versions, 00402; decision 0039, step 3). */
+  tenant_config_versions: 400
 };
 var RATE_HITS_RETENTION_HOURS = 2;
 var EVENT_EVIDENCE_KINDS = [
@@ -15553,7 +15575,7 @@ var daysAfter = (n) => n === 1 ? "the day" : `${n} days`;
 var forDays = (n) => n === 1 ? "a day" : `${n} days`;
 function retentionWords() {
   const d = RETENTION_DAYS;
-  return `Call audio is kept for ${d.call_recordings} days and then removed; transcripts stay with the conversation. Webhook receipts, delivery logs, unplaced messages and model-usage rows are kept for ${d.events_evidence} days. Assistant threads untouched for ${d.ask_threads} days, and notifications after ${d.notifications} days, are removed; the sweeps' run history is kept for ${d.cron_history} days and rate-limit counters for ${RATE_HITS_RETENTION_HOURS} hours. Leads nobody has worked are set aside after ${d.leads_untouched} days and their details removed after ${d.leads_untouched_blanked}; places a search left out lose their details after ${d.leads_excluded_blanked} days, and the finder's reasons for a batch of places are removed after ${d.lead_judgments}. A Google review is kept while Google shows it: one it no longer lists is removed at the next full read, and any review is removed ${d.google_reviews} days after we last saw it. A team invitation that was accepted or taken back is removed ${d.invitations_closed} days later, with the address on it, and the address a workspace was handed over to is cleared once its new owner accepts. Background jobs, which carry a message while it is sent, are removed ${d.jobs_finished} days after they finish, or ${d.jobs_failed} days after they fail. Messages, call reports, delivery receipts and billing notices, as each provider sent them to us, are kept for ${d.provider_events} days so they can be replayed after a fault. What a change made in the dashboard answered is kept for ${forDays(d.idempotency_keys)}, so the same change sent twice is made once. How fast each page loaded, with no person or workspace attached, is kept for ${d.page_vitals} days, and what each model call cost for ${d.ai_usage} days. A voice conversation's session, which holds nothing of what was said, is removed ${daysAfter(d.ask_voice_sessions)} after it expires. Everything else stays while the workspace exists.`;
+  return `Call audio is kept for ${d.call_recordings} days and then removed; transcripts stay with the conversation. Webhook receipts, delivery logs, unplaced messages and model-usage rows are kept for ${d.events_evidence} days. Assistant threads untouched for ${d.ask_threads} days, and notifications after ${d.notifications} days, are removed; the sweeps' run history is kept for ${d.cron_history} days and rate-limit counters for ${RATE_HITS_RETENTION_HOURS} hours. Leads nobody has worked are set aside after ${d.leads_untouched} days and their details removed after ${d.leads_untouched_blanked}; places a search left out lose their details after ${d.leads_excluded_blanked} days, and the finder's reasons for a batch of places are removed after ${d.lead_judgments}. A Google review is kept while Google shows it: one it no longer lists is removed at the next full read, and any review is removed ${d.google_reviews} days after we last saw it. A team invitation that was accepted or taken back is removed ${d.invitations_closed} days later, with the address on it, and the address a workspace was handed over to is cleared once its new owner accepts. Background jobs, which carry a message while it is sent, are removed ${d.jobs_finished} days after they finish, or ${d.jobs_failed} days after they fail. Messages, call reports, delivery receipts and billing notices, as each provider sent them to us, are kept for ${d.provider_events} days so they can be replayed after a fault. What a change made in the dashboard answered is kept for ${forDays(d.idempotency_keys)}, so the same change sent twice is made once. How fast each page loaded, with no person or workspace attached, is kept for ${d.page_vitals} days, and what each model call cost for ${d.ai_usage} days. What the receptionist was shown when it wrote a reply, and what it answered, is kept for ${d.model_turns} days, and the instructions it was given for ${d.model_prompts} days after they were last used. A workspace's settings as they stood before a change are kept for ${d.tenant_config_versions} days after the change. A voice conversation's session, which holds nothing of what was said, is removed ${daysAfter(d.ask_voice_sessions)} after it expires. Everything else stays while the workspace exists.`;
 }
 var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
 var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
@@ -38318,6 +38340,7 @@ export {
   MODEL_PRICES,
   MODEL_PURPOSES,
   MODEL_ROUTES,
+  MODEL_TURN_WRITE_MS,
   MOMENTS_RETIRED,
   MOMENT_TRIGGERS,
   NEEDS_TITLE,
@@ -39415,6 +39438,8 @@ export {
   missedCallIsNews,
   mmss,
   modelRoute,
+  modelTurnRequestOf,
+  modelTurnResponseOf,
   momentHoldsWords,
   momentOffered,
   momentReadsCalendar,
