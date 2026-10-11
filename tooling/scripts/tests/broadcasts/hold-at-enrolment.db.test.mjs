@@ -116,7 +116,17 @@ test(
   async () => {
     const broadcast = await run(A, people);
     const past = people.slice(5);
-    await holdRecipients(db, { tenantId: A, broadcastId: broadcast, contactIds: past, reason: "month_allowance" });
+    const done = await holdRecipients(db, {
+      tenantId: A,
+      broadcastId: broadcast,
+      contactIds: past,
+      reason: "month_allowance",
+    });
+    assert.deepEqual(
+      { skipped: [...done.skipped].sort(), error: done.error },
+      { skipped: [...past].sort(), error: null },
+      "it answers who it skipped, every step's",
+    );
     const got = await states(A, broadcast);
     assert.equal(got.size, MANY);
     for (const id of people.slice(0, 5))
@@ -139,13 +149,20 @@ test(
       .eq("broadcast_id", broadcast)
       .eq("contact_id", one);
     assert.equal(sent.error, null, sent.error?.message);
-    await holdRecipients(db, {
+    const first = await holdRecipients(db, {
       tenantId: A,
       broadcastId: broadcast,
       contactIds: [one, two],
       reason: "month_allowance",
     });
-    await holdRecipients(db, { tenantId: A, broadcastId: broadcast, contactIds: [two], reason: "something_else" });
+    assert.deepEqual(first, { skipped: [two], error: null }, "the settled one is not counted as held");
+    const again = await holdRecipients(db, {
+      tenantId: A,
+      broadcastId: broadcast,
+      contactIds: [two],
+      reason: "something_else",
+    });
+    assert.deepEqual(again, { skipped: [], error: null }, "held already: nobody skipped twice");
     const got = await states(A, broadcast);
     assert.equal(got.get(one)[0], "sent", "settled: left as it is");
     assert.deepEqual(got.get(two), ["skipped", "month_allowance"], "held once, and its first word stands");
@@ -155,24 +172,45 @@ test(
 
 test("another workspace's run is never touched, whoever names it", { skip }, async () => {
   const broadcast = await run(B, peopleB);
-  await holdRecipients(db, { tenantId: A, broadcastId: broadcast, contactIds: peopleB, reason: "month_allowance" });
+  const done = await holdRecipients(db, {
+    tenantId: A,
+    broadcastId: broadcast,
+    contactIds: peopleB,
+    reason: "month_allowance",
+  });
+  assert.deepEqual(done, { skipped: [], error: null }, "nobody of another workspace's is counted");
   const got = await states(B, broadcast);
   for (const id of peopleB) assert.deepEqual(got.get(id), ["queued", null]);
 });
 
-test("nobody to hold is no write, and a failed write throws", { skip }, async () => {
-  const broadcast = await run(A, people.slice(0, 2));
-  await holdRecipients(db, { tenantId: A, broadcastId: broadcast, contactIds: [], reason: "month_allowance" });
-  assert.deepEqual(
-    [...(await states(A, broadcast)).values()],
-    [
-      ["queued", null],
-      ["queued", null],
-    ],
-  );
-  // A reason the table refuses (its CHECK holds a closed set of states, not reasons: a bad id is the failure here).
-  await assert.rejects(
-    holdRecipients(db, { tenantId: A, broadcastId: "not-a-uuid", contactIds: [people[0]], reason: "month_allowance" }),
-    /hold_recipients:/,
-  );
-});
+test(
+  "nobody to hold is no write, and a failed write answers its words with nobody counted as skipped, never a throw",
+  { skip },
+  async () => {
+    const broadcast = await run(A, people.slice(0, 2));
+    const none = await holdRecipients(db, {
+      tenantId: A,
+      broadcastId: broadcast,
+      contactIds: [],
+      reason: "month_allowance",
+    });
+    assert.deepEqual(none, { skipped: [], error: null });
+    assert.deepEqual(
+      [...(await states(A, broadcast)).values()],
+      [
+        ["queued", null],
+        ["queued", null],
+      ],
+    );
+    // A write the database refuses (a bad id here: the table's CHECK is on states, not reasons) is answered, not thrown:
+    // the step's words, and nobody claimed as skipped, so the caller logs it and its receipt claims no hold.
+    const failed = await holdRecipients(db, {
+      tenantId: A,
+      broadcastId: "not-a-uuid",
+      contactIds: [people[0]],
+      reason: "month_allowance",
+    });
+    assert.deepEqual(failed.skipped, []);
+    assert.match(failed.error ?? "", /^hold_recipients:/);
+  },
+);

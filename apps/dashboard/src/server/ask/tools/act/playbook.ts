@@ -49,7 +49,7 @@ import {
   type StarterTemplate,
 } from "@chanlytics/contracts";
 import { campaignHow } from "@chanlytics/core";
-import { followUpOnFile, listPolicies, recentTouches, runningTwins } from "@chanlytics/db";
+import { followUpOnFile, listPolicies, runningTwins } from "@chanlytics/db";
 import { archivedListWords, poolList, type AudiencePool } from "../../../people/audience";
 import { dealPaceRead, sellsByOf } from "../../../people/deals";
 import { monthSentOrNull } from "../../../campaigns/month-sent";
@@ -78,6 +78,7 @@ import {
   propose,
   refuse,
   str,
+  touchesThisWeek,
   whatsappAloneRefusal,
   whatsappHow,
   type AskedMessage,
@@ -480,8 +481,9 @@ async function reachNow(
     // A proposal's moment is counted as the page counts it (0006): by the pace, less whoever had their follow-up.
     deal ? dealPaceRead(t.ctx, t.tenantId, t.now) : Promise.resolve(null),
     deal ? proposalFollowUps(t.ctx, t.tenantId, t.now).catch(() => null) : Promise.resolve(noFollowUps()),
-    // Who was messaged this week, by a campaign or a member (the week's breath), the page's own read of it.
-    recentTouches(t.ctx.supabase, t.tenantId, t.now).catch(() => null),
+    // Who was messaged this week, by a campaign or a member (the week's breath), the page's own read of it; one that
+    // fails is said in the log (context.ts touchesThisWeek) before the card is refused below.
+    touchesThisWeek(t, "propose_campaign.playbook"),
   ]);
   if (!followUps) return { refusal: PLAYBOOK_CARD_REFUSALS.followUpsUnread };
   if (!touched) return { refusal: PLAYBOOK_CARD_REFUSALS.weekUnread };

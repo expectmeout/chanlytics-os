@@ -22,6 +22,7 @@ import {
   type ProposalKindAboveOperator,
 } from "@chanlytics/contracts";
 import { parseChannels, readCampaignMessage, type TemplateValuesPorts } from "@chanlytics/core";
+import { recentTouches } from "@chanlytics/db";
 import type { RouteContext } from "../../with-route";
 import { readerContext, type ReaderContext } from "../../readers";
 import { whatsappHealthOf } from "../../campaigns/channels-ready";
@@ -203,6 +204,15 @@ export const unread =
     log.error("ask_tool_read_failed", { tool, read, tenant_id: t.tenantId, error: e });
     return null;
   };
+
+/**
+ * Who heard from a campaign or a broadcast this week, as every page and the send read it (packages/db recentTouches, the
+ * week's breath): contact id -> their latest touch. Null where it could not be read, said in the log by the tool that
+ * asked (`unread`), which then counts nothing it would have to count with nobody heard: a card is refused
+ * (PLAYBOOK_CARD_REFUSALS.weekUnread), a listing gives no count.
+ */
+export const touchesThisWeek = (t: ToolContext, tool: string): Promise<Record<string, string> | null> =>
+  recentTouches(t.ctx.supabase, t.tenantId, t.now).catch(unread(t, tool, "touches"));
 
 /**
  * The channels a proposal is counted by, as the route that commits it reads them: WhatsApp alone, since a proposal names

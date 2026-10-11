@@ -1277,3 +1277,43 @@ test("campaigns.audiences counts what a card would: who it sends to, with how ma
     JSON.stringify(broken.could_not_read),
   );
 });
+
+test("a card whose week could not be read is no card, and the failed read is said in the log by the tool that asked: the broadcast's and the playbook's alike", async () => {
+  const { PLAYBOOK_CARD_REFUSALS } = await import("@chanlytics/contracts");
+  const card = (input) => {
+    const supabase = fakeDb(
+      tables(),
+      { "broadcasts.select": { message: "connection reset" } },
+      { people_list: () => PEOPLE },
+    );
+    const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
+    return buildProposal(t, "propose_campaign", input);
+  };
+  const lines = [];
+  const was = console.error;
+  console.error = (...a) => lines.push(String(a[0]));
+  let broadcast;
+  let playbook;
+  try {
+    broadcast = await card(BROADCAST);
+    playbook = await card({ action: "playbook", trigger: "quiet_30", template_id: OFFER, params: [] });
+  } finally {
+    console.error = was;
+  }
+  assert.equal(said(broadcast), PLAYBOOK_CARD_REFUSALS.weekUnread);
+  assert.equal(said(playbook), PLAYBOOK_CARD_REFUSALS.weekUnread);
+  const failed = lines
+    .map((l) => {
+      try {
+        return JSON.parse(l);
+      } catch {
+        return null;
+      }
+    })
+    .filter((l) => l?.event === "ask_tool_read_failed")
+    .map((l) => [l.tool, l.read]);
+  assert.deepEqual(failed, [
+    ["propose_campaign.broadcast", "touches"],
+    ["propose_campaign.playbook", "touches"],
+  ]);
+});

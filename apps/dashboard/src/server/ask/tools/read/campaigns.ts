@@ -50,7 +50,6 @@ import {
   type LifecyclePlaybooks,
   type LifecycleStage,
 } from "@chanlytics/contracts";
-import { recentTouches } from "@chanlytics/db";
 import { load } from "../../../readers";
 import { audiencePool } from "../../../readers/audience-pool";
 import { broadcast as broadcastReader, broadcasts as broadcastsReader } from "../../../readers/broadcasts";
@@ -66,6 +65,7 @@ import {
   noteRow,
   readAction,
   str,
+  touchesThisWeek,
   unlessNotFound,
   unread,
   whatsappHowOf,
@@ -163,12 +163,10 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
     // The channels as the Broadcasts page reads them (readers/channels.ts), once a turn: workspace.settings reads the
     // same. A read that fails is no number known, as the page takes it -- said as such, never as no number.
     load(t.rc, channelsReader, undefined).then((r) => r.data.channels, unread(t, "campaigns.audiences", "channels")),
-    // Who heard from a campaign or a broadcast this week, the breath's one read (packages/db recentTouches): a broadcast
-    // leaves them out, so the count said here is the card's. Null where it could not be read, which is said.
-    recentTouches(t.ctx.supabase, t.tenantId, t.now).then(
-      (r) => new Set(Object.keys(r)),
-      unread(t, "campaigns.audiences", "touches"),
-    ),
+    // Who heard from a campaign or a broadcast this week, the breath's one read (context.ts touchesThisWeek, the cards'
+    // own): a broadcast leaves them out, so the count said here is the card's. Null where it could not be read, which is
+    // said in the log there and to the model below.
+    touchesThisWeek(t, "campaigns.audiences").then((r) => (r ? new Set(Object.keys(r)) : null)),
   ]);
   const tpls = tplRead ? tplRead.data.templates : null;
   const messages = tplRead ? tplRead.data.messages : null;

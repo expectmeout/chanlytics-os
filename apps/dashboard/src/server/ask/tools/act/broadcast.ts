@@ -29,8 +29,6 @@ import {
   type PersonRowVM,
 } from "@chanlytics/contracts";
 import { campaignHowOf } from "@chanlytics/core";
-import { recentTouches } from "@chanlytics/db";
-import { log } from "@/server/log";
 import { monthSentOrNull } from "../../../campaigns/month-sent";
 import { archivedListWords, poolList } from "../../../people/audience";
 import { createBroadcastPorts } from "../../../ports/campaign-ports";
@@ -47,6 +45,7 @@ import {
   proposedChannels,
   refuse,
   str,
+  touchesThisWeek,
   whatsappAloneRefusal,
   whatsappHow,
   type AskedMessage,
@@ -159,23 +158,10 @@ function broadcastReach(
 }
 
 /**
- * Who heard from a campaign or a broadcast this week, as the composer reads it (packages/db recentTouches, GET broadcasts'
- * `touched`), by contact; null where it could not be read, which is said in the log by name, and to the model by the
- * caller: "nobody heard" would promise a send to people the route then leaves out.
- */
-async function heardThisWeek(t: ToolContext): Promise<ReadonlySet<string> | null> {
-  try {
-    return new Set(Object.keys(await recentTouches(t.ctx.supabase, t.tenantId, t.now)));
-  } catch (e) {
-    log.error("broadcast_touches_failed", { tenant_id: t.tenantId, error: e instanceof Error ? e.message : String(e) });
-    return null;
-  }
-}
-
-/**
  * Who a broadcast card sends to (broadcastReach), with how many are left out in the composer's words and their separator
- * (" · 1 left out: heard from you this week", none where nobody heard), or why there is no card: who heard unread is no
- * card. Nobody it reaches is said in the route's words, which say which cause it is (nobody said this yes, or the ones who
+ * (" · 1 left out: heard from you this week", none where nobody heard), or why there is no card: who heard unread
+ * (context.ts touchesThisWeek, logged there) is no card, since "nobody heard" would promise a send to people the route
+ * then leaves out. Nobody it reaches is said in the route's words, which say which cause it is (nobody said this yes, or the ones who
  * did have no number); everyone it reaches having heard is said as the composer says it, and sending to them too is a
  * person's own switch there, never Ask's.
  */
@@ -186,9 +172,9 @@ async function broadcastCount(
   purpose: AskedPurpose,
   by: { how: CampaignHow; channels: ConsentChannel[]; named: boolean },
 ): Promise<(ReturnType<typeof broadcastReach> & { leftOutSaid: string }) | { refusal: string }> {
-  const touched = await heardThisWeek(t);
+  const touched = await touchesThisWeek(t, "propose_campaign.broadcast");
   if (!touched) return { refusal: PLAYBOOK_CARD_REFUSALS.weekUnread };
-  const reach = broadcastReach(rows, purpose, by, touched);
+  const reach = broadcastReach(rows, purpose, by, new Set(Object.keys(touched)));
   if (reach.count > 0) {
     const said = heardWords(reach.leftOut, true);
     return { ...reach, leftOutSaid: said ? ` · ${said}` : "" };
