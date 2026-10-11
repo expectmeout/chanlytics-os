@@ -64,7 +64,7 @@ import {
   HEAD,
   LEDGER,
   PHONE,
-  READ,
+  ADS_READ,
   STANDING,
   figureWords,
   groupMeta,
@@ -577,8 +577,8 @@ export function earlierCost(read: AdsRead): { each: string; people: number } | n
 const failedOf = (rv: ReadView): FailedVM[] =>
   rv.failed.map((platform) => ({
     platform,
-    line: READ.failed(PLATFORM_OWNER[platform], rv.asOf[platform] ?? null),
-    again: READ.again,
+    line: ADS_READ.failed(PLATFORM_OWNER[platform], rv.asOf[platform] ?? null),
+    again: ADS_READ.again,
   }));
 
 /** The choice of how to group the ledger: offered, and honoured, from ADS_GROUP_FROM ads. */

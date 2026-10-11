@@ -145,7 +145,7 @@ function limitsOf(saved: AdRead, today: string): Limits {
 }
 
 /** Why the platform will not take an amount, in its words; null where it will. */
-function refusalOf(n: number, limits: Limits): string | null {
+function editRefusalOf(n: number, limits: Limits): string | null {
   if (n === limits.savedMinor) return null;
   if (limits.again !== null) return CHIPS.tiktokWait(dayWord(limits.again));
   const { step } = limits;
@@ -158,7 +158,7 @@ function amountOption(ad: AdRead, n: number, o: { today: string; limits: Limits 
   const cur = ad.currency;
   const current = n === now;
   const raise = n > now;
-  const refused = refusalOf(n, o.limits);
+  const refused = editRefusalOf(n, o.limits);
   if (ad.budget.mode === "total") {
     const perDay = perDayOf(aboutADayAfter({ ad, amountMinor: n, endDay: ad.endDay, today: o.today }), cur);
     const label = raise ? CHIPS.raise(moneyOf(n, cur)) : LIST.inAll(moneyOf(n, cur));

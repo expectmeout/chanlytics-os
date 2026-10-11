@@ -77,7 +77,7 @@ function WaitingPerson({ person }: { person: AdWaitingRowVM }) {
         <span className="ads-waiting-who">
           <b>{person.name}</b>
           <span className="ads-waiting-line">{person.line}</span>
-          <span className="ads-waiting-tip">{person.tip}</span>
+          <span className="ads-waiting-where">{person.tip}</span>
         </span>
         <span className="ads-since">{person.since}</span>
       </LinkButton>

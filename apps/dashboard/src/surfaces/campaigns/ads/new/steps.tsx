@@ -15,7 +15,7 @@ import { StepWhere } from "./step-where";
 
 type BodyProps = StepProps & { step: Step };
 
-function Body({ step, ...p }: BodyProps) {
+function NewAdBody({ step, ...p }: BodyProps) {
   switch (step) {
     case 1:
       return <StepDoor {...p} />;
@@ -37,7 +37,7 @@ export function StepBody({ ref, ...p }: BodyProps & { ref?: Ref<HTMLHeadingEleme
       <h3 className="ads-new-title" id="ads-new-step-title" tabIndex={-1} ref={ref}>
         {NEW_AD.steps.at(p.step - 1)}
       </h3>
-      <Body {...p} />
+      <NewAdBody {...p} />
     </section>
   );
 }

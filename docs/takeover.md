@@ -56,7 +56,7 @@ personal columns with no erasure strategy    2   in 1 table
 breakpoints outside the set          33   in 11 files
 literal style values                911   in 22 stylesheets
 primitives outside the kit         1721   selectors naming 715 classes
-inline style props                  197   in 50 files
+inline style props                  198   in 51 files
 wire names not in snake_case         54   in 27 routes
 dead exports, types and modules     278
 source-text reads in tests          758
@@ -64,7 +64,7 @@ lint warnings                       343   in 147 files, 59 of them exhaustive-de
 route JS ceiling, KB gzipped        800   the shell included
 route CSS ceiling, KB gzipped       160
 each page's own JS ceiling, KB      256   gzipped, beyond the route
-trees the lint's limits hold         53   16 of them with max-params waiting
+trees the lint's limits hold         54   16 of them with max-params waiting
 ```
 
 <!-- measured:end -->

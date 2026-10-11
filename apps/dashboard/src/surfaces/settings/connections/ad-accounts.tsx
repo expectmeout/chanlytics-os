@@ -175,7 +175,7 @@ function choosing(r: ConnectRowVM, picked: string | undefined, acts: Acts, chang
 }
 
 /** What stands under a row: what connecting does, or the account's own facts, what is ready, and anything it was asked. */
-function stackOf(r: ConnectRowVM, ask: Ask, picked: string | undefined, acts: Acts) {
+function accountStackOf(r: ConnectRowVM, ask: Ask, picked: string | undefined, acts: Acts) {
   const mine = ask && ask.platform === r.id ? ask.what : null;
   const facts = [r.facts, r.read].filter(Boolean).join(" · ");
   const open = r.status === "choose" || mine === "change";
@@ -256,7 +256,7 @@ function platformRow(r: ConnectRowVM, ask: Ask, picked: string | undefined, acts
           />
         )}
       </div>
-      {stackOf(r, ask, picked, acts)}
+      {accountStackOf(r, ask, picked, acts)}
     </Fragment>
   );
 }

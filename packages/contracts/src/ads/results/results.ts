@@ -189,7 +189,10 @@ function scopeWordOf(scope: AdsScope, ads: readonly AdRead[]): string {
 
 const unitsOf = (minor: number): number => minor / 100;
 
-function daysOf(ads: readonly AdRead[], o: { from: string; to: string; today: string; a: string }): ResultsDaysVM {
+function resultDaysOf(
+  ads: readonly AdRead[],
+  o: { from: string; to: string; today: string; a: string },
+): ResultsDaysVM {
   const currencies = [...new Set(ads.map((ad) => ad.currency))];
   const one = currencies.length === 1 ? (currencies[0] ?? null) : null;
   const settleFrom = addDays(o.today, -ADS_SETTLE_DAYS);
@@ -291,7 +294,7 @@ function unitOf(ads: readonly AdRead[]): string | null {
   return only ? DOOR[only].unit : null;
 }
 
-function rowOf(subset: readonly AdRead[], scoped: AdsRead, id: string, label: string): ResultsRowVM {
+function resultsRowOf(subset: readonly AdRead[], scoped: AdsRead, id: string, label: string): ResultsRowVM {
   const here: AdsRead = { ...scoped, ads: [...subset] };
   const p = pageTotals(here);
   const people = subset.filter(counted);
@@ -324,30 +327,31 @@ function rowOf(subset: readonly AdRead[], scoped: AdsRead, id: string, label: st
 const byPlatformOf = (ads: readonly AdRead[], scoped: AdsRead): ResultsRowVM[] =>
   PLATFORMS.flatMap((p) => {
     const mine = ads.filter((ad) => ad.platform === p);
-    return mine.length === 0 ? [] : [rowOf(mine, scoped, p, PLATFORM_WORD[p])];
+    return mine.length === 0 ? [] : [resultsRowOf(mine, scoped, p, PLATFORM_WORD[p])];
   });
 
 const byDoorOf = (ads: readonly AdRead[], scoped: AdsRead): ResultsRowVM[] =>
   DOOR_ORDER.flatMap((d) => {
     const mine = ads.filter((ad) => ad.door === d);
-    return mine.length === 0 ? [] : [rowOf(mine, scoped, d, DOOR[d].label)];
+    return mine.length === 0 ? [] : [resultsRowOf(mine, scoped, d, DOOR[d].label)];
   });
 
 // ---------------------------------------------------------------------------------------------------------------------
 // What the platforms say
 
-const grouped = (n: number | null): string => (n === null ? DASH : n.toLocaleString("en-US"));
+const resultsGrouped = (n: number | null): string => (n === null ? DASH : n.toLocaleString("en-US"));
 
 /** An ad's own numbers in the platform's columns (RESULTS.theirs.columns, in their order). */
 function theirsCells(t: AdTheirs): string[] {
-  if (t.platform === "meta") return [grouped(t.reach), grouped(t.taps), grouped(t.chats), grouped(t.leads)];
-  if (t.platform === "google") return [grouped(t.clicks), grouped(t.calls), grouped(t.longCalls)];
-  return [grouped(t.reach), grouped(t.clicks), grouped(t.leads)];
+  if (t.platform === "meta")
+    return [resultsGrouped(t.reach), resultsGrouped(t.taps), resultsGrouped(t.chats), resultsGrouped(t.leads)];
+  if (t.platform === "google") return [resultsGrouped(t.clicks), resultsGrouped(t.calls), resultsGrouped(t.longCalls)];
+  return [resultsGrouped(t.reach), resultsGrouped(t.clicks), resultsGrouped(t.leads)];
 }
 
 const theirsColumns = (platform: AdPlatform): string[] => Object.values(RESULTS.theirs.columns[platform]);
 
-function theirsOf(ads: readonly AdRead[], read: AdsRead): ResultsTheirsVM[] {
+function resultsTheirsOf(ads: readonly AdRead[], read: AdsRead): ResultsTheirsVM[] {
   return PLATFORMS.flatMap((platform) => {
     const mine = ads.filter((ad) => ad.platform === platform && started(ad));
     if (mine.length === 0) return [];
@@ -368,7 +372,14 @@ function theirsOf(ads: readonly AdRead[], read: AdsRead): ResultsTheirsVM[] {
 // The fold
 
 /** The head's sentence, said of whatever the results are narrowed to. */
-function headOf(o: { of: string; touch: number; booked: number; calls: number; peopleAds: number; linked: boolean }) {
+function resultsHeadOf(o: {
+  of: string;
+  touch: number;
+  booked: number;
+  calls: number;
+  peopleAds: number;
+  linked: boolean;
+}) {
   if (o.peopleAds === 0 && o.calls > 0) return RESULTS.head.calls({ calls: o.calls, of: o.of });
   if (o.touch === 0) return RESULTS.head.quiet({ of: o.of });
   return o.linked
@@ -376,7 +387,7 @@ function headOf(o: { of: string; touch: number; booked: number; calls: number; p
     : RESULTS.head.touchOnly({ touch: o.touch, of: o.of });
 }
 
-const NOTHING: Pick<
+const RESULTS_NOTHING: Pick<
   AdsResultsVM,
   "days" | "funnel" | "cameBack" | "byPlatform" | "byDoor" | "byAd" | "figures" | "quiet"
 > = {
@@ -391,7 +402,7 @@ const NOTHING: Pick<
 };
 
 /** The days asked for, ending yesterday at the latest: a platform has no today yet. */
-function windowOf(read: AdsRead, at: ResultsAt): AdsResultsVM["window"] {
+function resultsWindowOf(read: AdsRead, at: ResultsAt): AdsResultsVM["window"] {
   const to = at.to < read.today ? at.to : addDays(read.today, -1);
   return { from: at.from, to, days: Math.max(0, daysBetween(at.from, to) + 1) };
 }
@@ -410,7 +421,7 @@ function emptyOf(o: { read: AdsRead; ads: readonly AdRead[] | null; window: AdsR
  * workspace with no ad, and days with nothing spent or counted each say so in `empty` and leave the sections out.
  */
 export function adsResultsOf(read: AdsRead, config: AdsConfig, at: ResultsAt): AdsResultsVM {
-  const window = windowOf(read, at);
+  const window = resultsWindowOf(read, at);
   const ads = adsOf(read, at.scope);
   const scoped: AdsRead = {
     ...read,
@@ -445,12 +456,12 @@ export function adsResultsOf(read: AdsRead, config: AdsConfig, at: ResultsAt): A
     },
   };
   const empty = emptyOf({ read, ads, window, quiet });
-  if (empty) return { ...base, ...NOTHING, empty, head: null, theirs: { cards: [], why: null } };
+  if (empty) return { ...base, ...RESULTS_NOTHING, empty, head: null, theirs: { cards: [], why: null } };
   const model = adsModel(scoped, config);
   return {
     ...base,
     empty: null,
-    head: headOf({
+    head: resultsHeadOf({
       of: ofWords(at.scope, scoped.ads),
       touch: p.touch,
       booked: p.booked,
@@ -460,7 +471,7 @@ export function adsResultsOf(read: AdsRead, config: AdsConfig, at: ResultsAt): A
     }),
     figures: model.figures,
     quiet: model.counted?.quiet ?? null,
-    days: daysOf(scoped.ads, {
+    days: resultDaysOf(scoped.ads, {
       from: window.from,
       to: window.to,
       today: read.today,
@@ -471,7 +482,7 @@ export function adsResultsOf(read: AdsRead, config: AdsConfig, at: ResultsAt): A
     byPlatform: byPlatformOf(scoped.ads, scoped),
     byDoor: byDoorOf(scoped.ads, scoped),
     byAd: model.groups.flatMap((g) => g.rows),
-    theirs: { cards: windowRead ? theirsOf(scoped.ads, read) : [], why: unread },
+    theirs: { cards: windowRead ? resultsTheirsOf(scoped.ads, read) : [], why: unread },
   };
 }
 

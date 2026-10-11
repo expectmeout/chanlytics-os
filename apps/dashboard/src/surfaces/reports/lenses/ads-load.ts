@@ -54,10 +54,11 @@ interface AdsHere {
   draw: AdsDraw | null;
 }
 
-const NOTHING: AdsHere = { head: null, fact: null, draw: null };
+const LENS_NOTHING: AdsHere = { head: null, fact: null, draw: null };
 
 /** The sentence at the head, its two halves as one line; none where the fold has nothing to draw. */
-const sentenceOf = (fold: AdsResultsVM): string | null => (fold.head ? `${fold.head.strong}${fold.head.rest}` : null);
+const lensSentenceOf = (fold: AdsResultsVM): string | null =>
+  fold.head ? `${fold.head.strong}${fold.head.rest}` : null;
 
 /**
  * The Ads of the lens on screen: its fold over the days the address says, else the range shown, narrowed to the scope the address
@@ -66,9 +67,9 @@ const sentenceOf = (fold: AdsResultsVM): string | null => (fold.head ? `${fold.h
  */
 export function useAdsLens(lens: LensId, at: ReportsParts, R: ReportsSurface | null): AdsHere {
   const parts = useAdsParts(adsAreOn());
-  if (!parts || !R || (lens !== "ads" && lens !== "overview")) return NOTHING;
+  if (!parts || !R || (lens !== "ads" && lens !== "overview")) return LENS_NOTHING;
   const fold = parts.fold(at.days ?? R.range, at.scope ?? ADS_SCOPE_ALL, R.vm.today);
-  if (lens === "overview") return { ...NOTHING, fact: parts.fact(fold) };
+  if (lens === "overview") return { ...LENS_NOTHING, fact: parts.fact(fold) };
   const onScope = (scope: AdsScope) => navigate(adsReportRoute(at.days, scope), { replace: true });
-  return { head: { head: sentenceOf(fold) }, fact: null, draw: { parts, fold, onScope } };
+  return { head: { head: lensSentenceOf(fold) }, fact: null, draw: { parts, fold, onScope } };
 }

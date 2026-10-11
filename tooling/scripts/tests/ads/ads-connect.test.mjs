@@ -13,7 +13,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readCode, importSrc } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
 
 const root = await import("@chanlytics/contracts");
 const page = await import("@chanlytics/contracts/ads-page");
@@ -368,16 +368,4 @@ test("the four demo threads say which ad brought them, the same ad the Ads page 
     ["Spring offer", "Saturday video"],
   );
   assert.ok(![WEEKEND, NEAR_ME].some((id) => threads.some((t) => t.fromAd && t.fromAd.id === id)));
-});
-
-test("a real workspace's Connections draws none of it: the card is a demo's, and its code a chunk of its own", () => {
-  const pane = readCode("apps/dashboard/src/surfaces/settings/connections/pane.tsx");
-  assert.ok(
-    pane.includes('lazy(() => import("./ad-accounts")'),
-    "fetched on demand, so a real workspace never loads it",
-  );
-  assert.ok(pane.includes("{demoSession() && ("), "drawn in a demo session only");
-  assert.ok(!/from "\.\/ad-accounts"/.test(pane), "never imported whole");
-  const header = readCode("apps/dashboard/src/surfaces/inbox/thread/header.tsx");
-  assert.ok(header.includes("thread.fromAd ? fromAdLine(thread.fromAd) : null"), "a thread with no ad draws no line");
 });

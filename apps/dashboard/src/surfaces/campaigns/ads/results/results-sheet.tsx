@@ -41,7 +41,7 @@ function FullReport({ vm }: { vm: AdsResultsVM }) {
 }
 
 /** What the sheet holds: nothing to report in words, or the head, the figures, the days, the platforms and what came back. */
-function Body({ vm }: { vm: AdsResultsVM }) {
+function SheetBody({ vm }: { vm: AdsResultsVM }) {
   if (vm.empty) {
     return <EmptyState kind="line" title={vm.empty.title} body={vm.empty.body} testid="ads-res-empty" />;
   }
@@ -86,7 +86,7 @@ export function ResultsSheet({ open, read, config, onClose }: ResultsSheetProps)
           onClose={onClose}
         >
           <div className="ads-res-body">
-            <Body vm={vm} />
+            <SheetBody vm={vm} />
           </div>
         </CmPane>
       ) : null}

@@ -167,7 +167,7 @@ function permissionRow(acct: AdAccountRead, today: string): ReadyRowVM | null {
 }
 
 /** What a connected account stands on, in the words Ads' standing uses. */
-function readyOf(acct: AdAccountRead, today: string): ReadyRowVM[] {
+function connectReadyOf(acct: AdAccountRead, today: string): ReadyRowVM[] {
   const rows = CHECKS[acct.platform].map((id) => readyRow(acct, id));
   const permission = permissionRow(acct, today);
   return permission ? [...rows, permission] : rows;
@@ -185,7 +185,7 @@ function readOf(acct: AdAccountRead): string | null {
   return acct.readAt ? CONNECT.read(timeOf(acct.readAt, acct.timezone)) : null;
 }
 
-function stateOf(status: AdAccountStatus, ready: readonly ReadyRowVM[]): { tone: Tone; words: string } {
+function connectStateOf(status: AdAccountStatus, ready: readonly ReadyRowVM[]): { tone: Tone; words: string } {
   if (status === "choose") return { tone: "info", words: STANDING.choose };
   if (status === "lapsed") return { tone: "warn", words: STANDING.lapsed };
   if (status === "not-connected") return { tone: "plain", words: CONNECT.off };
@@ -194,7 +194,7 @@ function stateOf(status: AdAccountStatus, ready: readonly ReadyRowVM[]): { tone:
     : { tone: "ok", words: STANDING.connected };
 }
 
-function rowOf(
+function connectRowOf(
   platform: AdPlatform,
   acct: AdAccountRead | undefined,
   ads: readonly AdRead[],
@@ -202,10 +202,10 @@ function rowOf(
 ): ConnectRowVM {
   const status = acct?.status ?? "not-connected";
   const connected = acct !== undefined && status === "connected";
-  const ready = connected ? readyOf(acct, today) : [];
+  const ready = connected ? connectReadyOf(acct, today) : [];
   const here = ads.filter((ad) => ad.platform === platform);
   const adopted = here.filter((ad) => !ad.madeHere).length;
-  const state = stateOf(status, ready);
+  const state = connectStateOf(status, ready);
   const bad = ready.filter((r) => r.tone === "warn").length;
   return {
     id: platform,
@@ -234,7 +234,7 @@ export function connectModel(input: {
   today: string;
 }): ConnectRowVM[] {
   return PLATFORMS.map((platform) =>
-    rowOf(
+    connectRowOf(
       platform,
       input.accounts.find((a) => a.platform === platform),
       input.ads,

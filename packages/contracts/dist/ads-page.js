@@ -412,7 +412,7 @@ var HEAD = {
   newAd: "New ad",
   ask: "Ask"
 };
-var READ = {
+var ADS_READ = {
   failed: (owner, when) => when === null ? `${owner}'s numbers could not be read` : `${owner}'s numbers could not be read \xB7 as of ${when}`,
   again: "Try again"
 };
@@ -1744,7 +1744,7 @@ function permissionRow2(acct, today) {
     fix: soon ? checkFix(id, acct.platform) : null
   };
 }
-function readyOf(acct, today) {
+function connectReadyOf(acct, today) {
   const rows = CHECKS2[acct.platform].map((id) => readyRow(acct, id));
   const permission = permissionRow2(acct, today);
   return permission ? [...rows, permission] : rows;
@@ -1757,19 +1757,19 @@ function readOf(acct) {
   }
   return acct.readAt ? CONNECT.read(timeOf(acct.readAt, acct.timezone)) : null;
 }
-function stateOf(status, ready) {
+function connectStateOf(status, ready) {
   if (status === "choose") return { tone: "info", words: STANDING.choose };
   if (status === "lapsed") return { tone: "warn", words: STANDING.lapsed };
   if (status === "not-connected") return { tone: "plain", words: CONNECT.off };
   return ready.some((r) => r.tone === "warn") ? { tone: "warn", words: STANDING.needsYou } : { tone: "ok", words: STANDING.connected };
 }
-function rowOf(platform, acct, ads, today) {
+function connectRowOf(platform, acct, ads, today) {
   const status = acct?.status ?? "not-connected";
   const connected = acct !== void 0 && status === "connected";
-  const ready = connected ? readyOf(acct, today) : [];
+  const ready = connected ? connectReadyOf(acct, today) : [];
   const here = ads.filter((ad) => ad.platform === platform);
   const adopted = here.filter((ad) => !ad.madeHere).length;
-  const state = stateOf(status, ready);
+  const state = connectStateOf(status, ready);
   const bad = ready.filter((r) => r.tone === "warn").length;
   return {
     id: platform,
@@ -1792,7 +1792,7 @@ function rowOf(platform, acct, ads, today) {
 }
 function connectModel(input) {
   return PLATFORMS.map(
-    (platform) => rowOf(
+    (platform) => connectRowOf(
       platform,
       input.accounts.find((a) => a.platform === platform),
       input.ads,
@@ -2352,11 +2352,11 @@ function spentFigure(p, read, rv, def) {
 function figuresOf(p, read, rv) {
   const w = figureWords(countCtx(read));
   const linked = read.calendar.linked;
-  const plain2 = { change: null, n: null, minN: REPORT_MIN_N };
+  const plain = { change: null, n: null, minN: REPORT_MIN_N };
   return [
     spentFigure(p, read, rv, w.spent),
     {
-      ...plain2,
+      ...plain,
       id: "touch",
       label: w.touch.label,
       value: String(p.touch),
@@ -2364,7 +2364,7 @@ function figuresOf(p, read, rv) {
       definition: w.touch.def
     },
     {
-      ...plain2,
+      ...plain,
       id: "booked",
       label: w.booked.label,
       value: linked ? String(p.booked) : DASH,
@@ -2446,8 +2446,8 @@ function earlierCost(read) {
 }
 var failedOf = (rv) => rv.failed.map((platform) => ({
   platform,
-  line: READ.failed(PLATFORM_OWNER[platform], rv.asOf[platform] ?? null),
-  again: READ.again
+  line: ADS_READ.failed(PLATFORM_OWNER[platform], rv.asOf[platform] ?? null),
+  again: ADS_READ.again
 }));
 var groupByOf = (read, by) => read.ads.length < ADS_GROUP_FROM ? null : {
   label: GROUP.label,
@@ -2562,12 +2562,12 @@ function judgeOf(ad, t, o) {
     const line = DRAWER.results.tooEarly(o.many);
     return { word: line.word, rest: line.rest, sheet: DRAWER.results.tooEarlySheet[ad.platform] };
   }
-  const plain2 = (rest) => ({ word: null, rest, sheet: null });
+  const plain = (rest) => ({ word: null, rest, sheet: null });
   if (ad.state === "on" && t.spentMinor > 0 && t.inTouch === 0) {
-    return plain2(DRAWER.results.quietStart(moneyOf(t.spentMinor, ad.currency)));
+    return plain(DRAWER.results.quietStart(moneyOf(t.spentMinor, ad.currency)));
   }
   if (counted(ad) && t.inTouch > 0 && t.booked === 0) {
-    return plain2(
+    return plain(
       DRAWER.results.zero({ inTouch: t.inTouch, did: DOOR[ad.door].did, spent: moneyOf(t.spentMinor, ad.currency) })
     );
   }
@@ -2620,7 +2620,7 @@ function adBarsOf(ad, t, read) {
     todayNote: DRAWER.results.soFarToday(timeOf(read.readAt, read.timezone))
   };
 }
-var grouped = (n) => n.toLocaleString("en-US");
+var drawerGrouped = (n) => n.toLocaleString("en-US");
 function theirCounts(ad) {
   const x = ad.theirs;
   const L = DRAWER.quiet.theirs;
@@ -2643,14 +2643,14 @@ function theirCounts(ad) {
       ];
   }
 }
-function theirsOf(ad) {
+function drawerTheirsOf(ad) {
   if (!started(ad)) return null;
   const owner = PLATFORM_OWNER[ad.platform];
   return {
     door: DRAWER.quiet.theirsDoor(owner),
     rows: theirCounts(ad).map(([label, n]) => ({
       label,
-      value: n === null ? DRAWER.quiet.notRead : grouped(n),
+      value: n === null ? DRAWER.quiet.notRead : drawerGrouped(n),
       known: n !== null
     })),
     note: DRAWER.quiet.theirsNote(owner)
@@ -2675,7 +2675,7 @@ function quietOf(ad) {
     reply: ad.reply ? DRAWER.quiet.reply(replyTime(ad.reply.medianSeconds), ad.reply.n) : null,
     replyGrey: ad.reply !== null && ad.reply.n < REPORT_MIN_N,
     provenance: ad.door === "call" ? DRAWER.quiet.provenanceCalls : DRAWER.quiet.provenance(owner),
-    theirs: theirsOf(ad),
+    theirs: drawerTheirsOf(ad),
     typed: typedOf(ad),
     extra: ad.platform === "google" ? DRAWER.quiet.googleExtra : null
   };
@@ -2770,7 +2770,7 @@ function calOf(p) {
       return { text: DRAWER.people.nothing, tone: "plain", note: null };
   }
 }
-function doorOf(p) {
+function drawerDoorOf(p) {
   const waits = p.talk === "waiting" || p.talk === "call";
   if (waits && p.threadId !== null) return { to: `inbox/${p.threadId}`, tip: DRAWER.people.tipConversation(p.name) };
   return { to: `clients/${p.personId}`, tip: DRAWER.people.tipPerson(p.name) };
@@ -2788,7 +2788,7 @@ function personRow(p, read) {
     talk: booked ? null : talkOf(p, read.today),
     cal: calOf(p),
     booked,
-    door: doorOf(p)
+    door: drawerDoorOf(p)
   };
 }
 function adPeopleOf(ad, t, o) {
@@ -2846,7 +2846,7 @@ function limitsOf(saved, today) {
     again: next !== null && today < next ? next : null
   };
 }
-function refusalOf(n, limits) {
+function editRefusalOf(n, limits) {
   if (n === limits.savedMinor) return null;
   if (limits.again !== null) return CHIPS.tiktokWait(dayWord(limits.again));
   const { step } = limits;
@@ -2857,7 +2857,7 @@ function amountOption(ad, n, o) {
   const cur = ad.currency;
   const current = n === now;
   const raise = n > now;
-  const refused = refusalOf(n, o.limits);
+  const refused = editRefusalOf(n, o.limits);
   if (ad.budget.mode === "total") {
     const perDay = perDayOf(aboutADayAfter({ ad, amountMinor: n, endDay: ad.endDay, today: o.today }), cur);
     const label2 = raise ? CHIPS.raise(moneyOf(n, cur)) : LIST.inAll(moneyOf(n, cur));
@@ -2976,7 +2976,7 @@ function editFootOf(o) {
 // src/ads/drawer.ts
 var connectionsDoor = () => ({ words: SETTINGS_DOOR, to: ADS_DOORS.accounts });
 var renewDoor = () => ({ words: DRAWER.callout.renew, to: ADS_DOORS.accounts });
-var plain = (text) => ({ tone: "plain", text, door: null, acts: [] });
+var plainPart = (text) => ({ tone: "plain", text, door: null, acts: [] });
 function lapsingDay(ad, read) {
   const end = adAccountOf(read, ad.platform)?.permissionEnd ?? null;
   if (ad.platform !== "tiktok" || ad.media.kind !== "post" || end === null) return null;
@@ -3009,14 +3009,14 @@ function needsCallout(ad, needs, read) {
     case "paused-in-platform": {
       const resume = DRAWER.callout.resume;
       return {
-        ...plain(DRAWER.callout.pausedInPlatform(ad.platform)),
+        ...plainPart(DRAWER.callout.pausedInPlatform(ad.platform)),
         acts: [{ id: "resume", label: resume, done: resume }]
       };
     }
     case "price-changed": {
       const update = DRAWER.callout.updateAd;
       return {
-        ...plain(DRAWER.callout.priceChanged({ was: needs.was, now: needs.now })),
+        ...plainPart(DRAWER.callout.priceChanged({ was: needs.was, now: needs.now })),
         acts: [{ id: "update", label: update, done: update }]
       };
     }
@@ -3054,25 +3054,25 @@ function settleWords(ad, read) {
 function finishedCallout(ad, t, read) {
   const said = DRAWER.callout.finished({ name: ad.name, total: moneyOf(totalOf(ad) ?? t.lifetimeMinor, ad.currency) });
   const brought = ad.door === "call" ? DRAWER.callout.finishedCalls(t.inTouch) : DRAWER.callout.finishedBooked(t.booked);
-  return plain(`${said} ${brought} ${settleWords(ad, read)}`);
+  return plainPart(`${said} ${brought} ${settleWords(ad, read)}`);
 }
 function stateCallout(ad, t, read) {
   switch (ad.state) {
     case "setting-up":
-      return plain(DRAWER.callout.settingUp(ad.platform));
+      return plainPart(DRAWER.callout.settingUp(ad.platform));
     case "couldnt-finish":
       return couldntFinishCallout(ad);
     case "review":
-      return started(ad) ? plain(DRAWER.callout.recheck({ owner: PLATFORM_OWNER[ad.platform], within: REVIEW_WITHIN[ad.platform] })) : plain(DRAWER.callout.review(ad.platform));
+      return started(ad) ? plainPart(DRAWER.callout.recheck({ owner: PLATFORM_OWNER[ad.platform], within: REVIEW_WITHIN[ad.platform] })) : plainPart(DRAWER.callout.review(ad.platform));
     case "ended":
-      return plain(`${DRAWER.callout.ended(dayWord(ad.endDay))} ${settleWords(ad, read)}`);
+      return plainPart(`${DRAWER.callout.ended(dayWord(ad.endDay))} ${settleWords(ad, read)}`);
     case "finished":
       return finishedCallout(ad, t, read);
     case "on":
     case "paused": {
       const lapsing = lapsingDay(ad, read);
       if (lapsing !== null) return lapsingCallout(lapsing);
-      return ad.state === "on" && t.spentMinor > 0 && t.inTouch === 0 ? plain(DRAWER.callout.quiet) : null;
+      return ad.state === "on" && t.spentMinor > 0 && t.inTouch === 0 ? plainPart(DRAWER.callout.quiet) : null;
     }
     default:
       return null;
@@ -3321,7 +3321,7 @@ var plainRow = (text, tone = "ok") => ({
   door: null,
   block: null
 });
-var NOT_READY = { "not-connected": "notConnected", choose: "choose", lapsed: "lapsed" };
+var AD_NOT_READY = { "not-connected": "notConnected", choose: "choose", lapsed: "lapsed" };
 function needRow(r) {
   const unmet = r.tone === "warn" && r.door !== null;
   return {
@@ -3342,7 +3342,7 @@ function accountRowsOf(draft, read, needs) {
       tone: "fail",
       note: null,
       door: settingsDoor(),
-      block: NEW_AD.blocked[NOT_READY[status]](owner)
+      block: NEW_AD.blocked[AD_NOT_READY[status]](owner)
     }
   ];
 }
@@ -3943,7 +3943,7 @@ function scopeWordOf(scope, ads) {
   return scope.kind === "platform" ? PLATFORM_WORD[scope.platform] : ads[0]?.name ?? NO_AD.title;
 }
 var unitsOf = (minor) => minor / 100;
-function daysOf(ads, o) {
+function resultDaysOf(ads, o) {
   const currencies = [...new Set(ads.map((ad) => ad.currency))];
   const one = currencies.length === 1 ? currencies[0] ?? null : null;
   const settleFrom = addDays(o.today, -ADS_SETTLE_DAYS);
@@ -4021,7 +4021,7 @@ function unitOf(ads) {
   const only = doors.size === 1 ? [...doors][0] : void 0;
   return only ? DOOR[only].unit : null;
 }
-function rowOf2(subset, scoped, id, label) {
+function resultsRowOf(subset, scoped, id, label) {
   const here = { ...scoped, ads: [...subset] };
   const p = pageTotals(here);
   const people = subset.filter(counted);
@@ -4049,20 +4049,20 @@ function rowOf2(subset, scoped, id, label) {
 }
 var byPlatformOf = (ads, scoped) => PLATFORMS.flatMap((p) => {
   const mine = ads.filter((ad) => ad.platform === p);
-  return mine.length === 0 ? [] : [rowOf2(mine, scoped, p, PLATFORM_WORD[p])];
+  return mine.length === 0 ? [] : [resultsRowOf(mine, scoped, p, PLATFORM_WORD[p])];
 });
 var byDoorOf = (ads, scoped) => DOOR_ORDER.flatMap((d) => {
   const mine = ads.filter((ad) => ad.door === d);
-  return mine.length === 0 ? [] : [rowOf2(mine, scoped, d, DOOR[d].label)];
+  return mine.length === 0 ? [] : [resultsRowOf(mine, scoped, d, DOOR[d].label)];
 });
-var grouped2 = (n) => n === null ? DASH : n.toLocaleString("en-US");
+var resultsGrouped = (n) => n === null ? DASH : n.toLocaleString("en-US");
 function theirsCells(t) {
-  if (t.platform === "meta") return [grouped2(t.reach), grouped2(t.taps), grouped2(t.chats), grouped2(t.leads)];
-  if (t.platform === "google") return [grouped2(t.clicks), grouped2(t.calls), grouped2(t.longCalls)];
-  return [grouped2(t.reach), grouped2(t.clicks), grouped2(t.leads)];
+  if (t.platform === "meta") return [resultsGrouped(t.reach), resultsGrouped(t.taps), resultsGrouped(t.chats), resultsGrouped(t.leads)];
+  if (t.platform === "google") return [resultsGrouped(t.clicks), resultsGrouped(t.calls), resultsGrouped(t.longCalls)];
+  return [resultsGrouped(t.reach), resultsGrouped(t.clicks), resultsGrouped(t.leads)];
 }
 var theirsColumns = (platform) => Object.values(RESULTS.theirs.columns[platform]);
-function theirsOf2(ads, read) {
+function resultsTheirsOf(ads, read) {
   return PLATFORMS.flatMap((platform) => {
     const mine = ads.filter((ad) => ad.platform === platform && started(ad));
     if (mine.length === 0) return [];
@@ -4078,12 +4078,12 @@ function theirsOf2(ads, read) {
     ];
   });
 }
-function headOf(o) {
+function resultsHeadOf(o) {
   if (o.peopleAds === 0 && o.calls > 0) return RESULTS.head.calls({ calls: o.calls, of: o.of });
   if (o.touch === 0) return RESULTS.head.quiet({ of: o.of });
   return o.linked ? RESULTS.head.booked({ booked: o.booked, touch: o.touch, of: o.of }) : RESULTS.head.touchOnly({ touch: o.touch, of: o.of });
 }
-var NOTHING = {
+var RESULTS_NOTHING = {
   days: null,
   funnel: null,
   cameBack: null,
@@ -4093,7 +4093,7 @@ var NOTHING = {
   figures: [],
   quiet: null
 };
-function windowOf(read, at) {
+function resultsWindowOf(read, at) {
   const to = at.to < read.today ? at.to : addDays(read.today, -1);
   return { from: at.from, to, days: Math.max(0, daysBetween(at.from, to) + 1) };
 }
@@ -4105,7 +4105,7 @@ function emptyOf(o) {
   return { title: words.title, body: words.body };
 }
 function adsResultsOf(read, config, at) {
-  const window = windowOf(read, at);
+  const window = resultsWindowOf(read, at);
   const ads = adsOf(read, at.scope);
   const scoped = {
     ...read,
@@ -4140,12 +4140,12 @@ function adsResultsOf(read, config, at) {
     }
   };
   const empty = emptyOf({ read, ads, window, quiet });
-  if (empty) return { ...base, ...NOTHING, empty, head: null, theirs: { cards: [], why: null } };
+  if (empty) return { ...base, ...RESULTS_NOTHING, empty, head: null, theirs: { cards: [], why: null } };
   const model = adsModel(scoped, config);
   return {
     ...base,
     empty: null,
-    head: headOf({
+    head: resultsHeadOf({
       of: ofWords(at.scope, scoped.ads),
       touch: p.touch,
       booked: p.booked,
@@ -4155,7 +4155,7 @@ function adsResultsOf(read, config, at) {
     }),
     figures: model.figures,
     quiet: model.counted?.quiet ?? null,
-    days: daysOf(scoped.ads, {
+    days: resultDaysOf(scoped.ads, {
       from: window.from,
       to: window.to,
       today: read.today,
@@ -4166,7 +4166,7 @@ function adsResultsOf(read, config, at) {
     byPlatform: byPlatformOf(scoped.ads, scoped),
     byDoor: byDoorOf(scoped.ads, scoped),
     byAd: model.groups.flatMap((g) => g.rows),
-    theirs: { cards: windowRead ? theirsOf2(scoped.ads, read) : [], why: unread }
+    theirs: { cards: windowRead ? resultsTheirsOf(scoped.ads, read) : [], why: unread }
   };
 }
 function adsFactOf(vm) {
@@ -4198,6 +4198,7 @@ export {
   ADS_OWN_DAYS,
   ADS_OWN_START_MINOR,
   ADS_PERMISSION_WARN_DAYS,
+  ADS_READ,
   ADS_SETTLE_DAYS,
   ADS_SOFT_NEEDS,
   ADS_SPECIAL_MILES,
@@ -4237,7 +4238,6 @@ export {
   PLATFORM_WORD,
   PREVIEW,
   REACH_NOTE,
-  READ,
   REFUSED,
   RESULTS,
   REVIEW_WITHIN,

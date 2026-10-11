@@ -141,7 +141,7 @@ function TheirsCard({ card, className }: { card: ResultsTheirsVM; className: str
 }
 
 /** The grid class of a card among `n` standing in a row of twelve. */
-const spanOf = (n: number): string => (n >= 3 ? "rpt-span-4" : n === 2 ? "rpt-span-6" : "rpt-span-12");
+const adsSpanOf = (n: number): string => (n >= 3 ? "rpt-span-4" : n === 2 ? "rpt-span-6" : "rpt-span-12");
 
 /** What the platforms say: one card each, never added together; or why none is drawn. */
 export function TheirsCards({ theirs }: { theirs: AdsResultsVM["theirs"] }) {
@@ -153,7 +153,7 @@ export function TheirsCards({ theirs }: { theirs: AdsResultsVM["theirs"] }) {
       <p className="ads-res-note ads-res-theirs-line">{RESULTS.theirs.line}</p>
       <div className="rpt-grid" data-testid="ads-res-theirs">
         {theirs.cards.map((card) => (
-          <TheirsCard key={card.platform} card={card} className={spanOf(theirs.cards.length)} />
+          <TheirsCard key={card.platform} card={card} className={adsSpanOf(theirs.cards.length)} />
         ))}
       </div>
       <p className="ads-res-note">{RESULTS.theirs.dash}</p>

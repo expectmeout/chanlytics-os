@@ -782,7 +782,7 @@
   font-weight: var(--weight-medium);
 }
 .ads-waiting-line,
-.ads-waiting-tip {
+.ads-waiting-where {
   font-size: var(--text-xs);
   color: var(--ink-dim);
 }

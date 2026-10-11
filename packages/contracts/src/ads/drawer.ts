@@ -103,7 +103,7 @@ export interface AdDrawerVM {
 const connectionsDoor = (): DoorVM => ({ words: SETTINGS_DOOR, to: ADS_DOORS.accounts });
 const renewDoor = (): DoorVM => ({ words: DRAWER.callout.renew, to: ADS_DOORS.accounts });
 
-const plain = (text: string): CalloutVM => ({ tone: "plain", text, door: null, acts: [] });
+const plainPart = (text: string): CalloutVM => ({ tone: "plain", text, door: null, acts: [] });
 
 /** The day TikTok's permission to use the ad's post ends, when it ends within a week and the ad is made of a post. */
 function lapsingDay(ad: AdRead, read: AdsRead): string | null {
@@ -142,14 +142,14 @@ function needsCallout(ad: AdRead, needs: AdNeeds, read: AdsRead): CalloutVM {
     case "paused-in-platform": {
       const resume = DRAWER.callout.resume;
       return {
-        ...plain(DRAWER.callout.pausedInPlatform(ad.platform)),
+        ...plainPart(DRAWER.callout.pausedInPlatform(ad.platform)),
         acts: [{ id: "resume", label: resume, done: resume }],
       };
     }
     case "price-changed": {
       const update = DRAWER.callout.updateAd;
       return {
-        ...plain(DRAWER.callout.priceChanged({ was: needs.was, now: needs.now })),
+        ...plainPart(DRAWER.callout.priceChanged({ was: needs.was, now: needs.now })),
         acts: [{ id: "update", label: update, done: update }],
       };
     }
@@ -196,29 +196,29 @@ function finishedCallout(ad: AdRead, t: Totals, read: AdsRead): CalloutVM {
   const said = DRAWER.callout.finished({ name: ad.name, total: moneyOf(totalOf(ad) ?? t.lifetimeMinor, ad.currency) });
   const brought =
     ad.door === "call" ? DRAWER.callout.finishedCalls(t.inTouch) : DRAWER.callout.finishedBooked(t.booked);
-  return plain(`${said} ${brought} ${settleWords(ad, read)}`);
+  return plainPart(`${said} ${brought} ${settleWords(ad, read)}`);
 }
 
 /** What an ad that is not waiting on a need says of its state. */
 function stateCallout(ad: AdRead, t: Totals, read: AdsRead): CalloutVM | null {
   switch (ad.state) {
     case "setting-up":
-      return plain(DRAWER.callout.settingUp(ad.platform));
+      return plainPart(DRAWER.callout.settingUp(ad.platform));
     case "couldnt-finish":
       return couldntFinishCallout(ad);
     case "review":
       return started(ad)
-        ? plain(DRAWER.callout.recheck({ owner: PLATFORM_OWNER[ad.platform], within: REVIEW_WITHIN[ad.platform] }))
-        : plain(DRAWER.callout.review(ad.platform));
+        ? plainPart(DRAWER.callout.recheck({ owner: PLATFORM_OWNER[ad.platform], within: REVIEW_WITHIN[ad.platform] }))
+        : plainPart(DRAWER.callout.review(ad.platform));
     case "ended":
-      return plain(`${DRAWER.callout.ended(dayWord(ad.endDay))} ${settleWords(ad, read)}`);
+      return plainPart(`${DRAWER.callout.ended(dayWord(ad.endDay))} ${settleWords(ad, read)}`);
     case "finished":
       return finishedCallout(ad, t, read);
     case "on":
     case "paused": {
       const lapsing = lapsingDay(ad, read);
       if (lapsing !== null) return lapsingCallout(lapsing);
-      return ad.state === "on" && t.spentMinor > 0 && t.inTouch === 0 ? plain(DRAWER.callout.quiet) : null;
+      return ad.state === "on" && t.spentMinor > 0 && t.inTouch === 0 ? plainPart(DRAWER.callout.quiet) : null;
     }
     default:
       return null;

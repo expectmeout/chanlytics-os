@@ -217,7 +217,7 @@ export function ResNum({ cell }: { cell: { value: string; unit: string | null; w
 }
 
 /** The cells of a row of a table, as text, for its CSV and its twin. */
-const textOf = (cell: { value: string; unit: string | null }): string =>
+const partTextOf = (cell: { value: string; unit: string | null }): string =>
   cell.unit ? `${cell.value} ${cell.unit}` : cell.value;
 
 /** The platforms (or the doors) as a table: one row each, the page's own cells. */
@@ -240,7 +240,14 @@ export function RowsCard(p: {
       switchable={false}
       table={{
         columns: [p.first, H.ads, H.spent, H.touch, H.booked, H.each],
-        rows: p.rows.map((r) => [r.label, r.ads, r.spent, textOf(r.inTouch), textOf(r.booked), textOf(r.each)]),
+        rows: p.rows.map((r) => [
+          r.label,
+          r.ads,
+          r.spent,
+          partTextOf(r.inTouch),
+          partTextOf(r.booked),
+          partTextOf(r.each),
+        ]),
       }}
     >
       <div className="ck-table-wrap">

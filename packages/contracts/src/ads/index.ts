@@ -119,7 +119,7 @@ export {
   LEDGER,
   NO_ADS,
   PHONE,
-  READ,
+  ADS_READ,
   STANDING,
   TILES,
   V0,

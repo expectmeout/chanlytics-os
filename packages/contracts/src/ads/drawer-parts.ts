@@ -212,7 +212,7 @@ export function adBarsOf(ad: AdRead, t: Totals, read: AdsRead): BarsVM {
   };
 }
 
-const grouped = (n: number): string => n.toLocaleString("en-US");
+const drawerGrouped = (n: number): string => n.toLocaleString("en-US");
 
 /** One of the platform's own numbers: what it is called, and the number, or that it was not read. */
 export interface TheirsRowVM {
@@ -256,14 +256,14 @@ function theirCounts(ad: AdRead): Counted[] {
 }
 
 /** The platform's own numbers: nothing exists to read until the platform has approved the ad. */
-function theirsOf(ad: AdRead): TheirsVM | null {
+function drawerTheirsOf(ad: AdRead): TheirsVM | null {
   if (!started(ad)) return null;
   const owner = PLATFORM_OWNER[ad.platform];
   return {
     door: DRAWER.quiet.theirsDoor(owner),
     rows: theirCounts(ad).map(([label, n]) => ({
       label,
-      value: n === null ? DRAWER.quiet.notRead : grouped(n),
+      value: n === null ? DRAWER.quiet.notRead : drawerGrouped(n),
       known: n !== null,
     })),
     note: DRAWER.quiet.theirsNote(owner),
@@ -311,7 +311,7 @@ export function quietOf(ad: AdRead): QuietVM {
     reply: ad.reply ? DRAWER.quiet.reply(replyTime(ad.reply.medianSeconds), ad.reply.n) : null,
     replyGrey: ad.reply !== null && ad.reply.n < REPORT_MIN_N,
     provenance: ad.door === "call" ? DRAWER.quiet.provenanceCalls : DRAWER.quiet.provenance(owner),
-    theirs: theirsOf(ad),
+    theirs: drawerTheirsOf(ad),
     typed: typedOf(ad),
     extra: ad.platform === "google" ? DRAWER.quiet.googleExtra : null,
   };
@@ -498,7 +498,7 @@ function calOf(p: AdPersonRead): AdPersonRowVM["cal"] {
 }
 
 /** A row opens the conversation when the move is the owner's and there is one (`inbox/<threadId>`), else the person (`clients/<id>`). */
-function doorOf(p: AdPersonRead): AdPersonRowVM["door"] {
+function drawerDoorOf(p: AdPersonRead): AdPersonRowVM["door"] {
   const waits = p.talk === "waiting" || p.talk === "call";
   if (waits && p.threadId !== null) return { to: `inbox/${p.threadId}`, tip: DRAWER.people.tipConversation(p.name) };
   return { to: `clients/${p.personId}`, tip: DRAWER.people.tipPerson(p.name) };
@@ -517,7 +517,7 @@ function personRow(p: AdPersonRead, read: AdsRead): AdPersonRowVM {
     talk: booked ? null : talkOf(p, read.today),
     cal: calOf(p),
     booked,
-    door: doorOf(p),
+    door: drawerDoorOf(p),
   };
 }
 

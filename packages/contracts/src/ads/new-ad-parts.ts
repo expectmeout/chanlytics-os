@@ -278,7 +278,7 @@ const plainRow = (text: string, tone: "ok" | "warn" = "ok"): CheckRowVM => ({
 });
 
 /** The key of what stops Turn on when the platform's account is not ready, by its status. */
-const NOT_READY = { "not-connected": "notConnected", choose: "choose", lapsed: "lapsed" } as const;
+const AD_NOT_READY = { "not-connected": "notConnected", choose: "choose", lapsed: "lapsed" } as const;
 
 /** A need of the door, as a row: one that is not met is red and stops Turn on; an amber one (a permission about to lapse) does not. */
 function needRow(r: StandRowVM): CheckRowVM {
@@ -303,7 +303,7 @@ function accountRowsOf(draft: AdDraft, read: AdsRead, needs: readonly StandRowVM
       tone: "fail",
       note: null,
       door: settingsDoor(),
-      block: NEW_AD.blocked[NOT_READY[status]](owner),
+      block: NEW_AD.blocked[AD_NOT_READY[status]](owner),
     },
   ];
 }

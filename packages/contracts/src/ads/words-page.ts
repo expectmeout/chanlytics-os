@@ -35,7 +35,7 @@ export const HEAD = {
 };
 
 /** The line under the pane line when an account could not be read, and the press that reads it again. */
-export const READ = {
+export const ADS_READ = {
   failed: (owner: string, when: string | null) =>
     when === null ? `${owner}'s numbers could not be read` : `${owner}'s numbers could not be read · as of ${when}`,
   again: "Try again",
