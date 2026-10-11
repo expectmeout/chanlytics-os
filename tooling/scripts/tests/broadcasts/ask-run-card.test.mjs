@@ -469,7 +469,7 @@ test("a run card skipped, walked end to end: Skip ends the run unsent through it
     .proposal;
   const done = await commitProposal(tab.win, card, tab.client);
   const run = tables.broadcasts.find((b) => b.id === RUN);
-  assert.deepEqual(done, { ok: true, receipt: `${run.name} skipped — nothing will send`, undo: null });
+  assert.deepEqual(done, { ok: true, receipt: `${run.name} skipped — nothing will send`, undo: null, made: null });
   assert.equal(run.state, "canceled");
   assert.deepEqual(tables.jobs, [], "nothing scheduled");
   assert.deepEqual(

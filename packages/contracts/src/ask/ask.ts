@@ -18,7 +18,7 @@
  * change (ask-settings-change.ts).
  */
 import type { SchemaSet } from "../shared/schema-sets";
-import { DAY_MS, MIN_MS } from "../shared/time";
+import { DAY_MS, MIN_MS, WEEK_MS } from "../shared/time";
 import type { AskAnswer } from "./ask-answer";
 import type { AskCitation } from "./citations";
 import type { ProposalNeeds } from "../ask-proposals/spec";
@@ -207,8 +207,23 @@ export interface AskProposal {
    * Absent on a card made before this, which is not held to it.
    */
   made_at?: string;
+  /** The plan the card is a step of, where Ask's plan made it (AskPlanStamp); absent on a card of no plan. */
+  plan?: AskPlanStamp;
   /** Set once the person acted on the card. */
   outcome?: AskProposalOutcome | null;
+}
+
+/**
+ * A card's place in a plan of Ask's (the marketing manager's spec §5.4): the plan's id, which step of how many it is,
+ * and whether it sends nothing (silent: approved with the plan's other silent steps, commit.ts commitPlan) or is a send,
+ * its own press. A step's commit goes under the step's key (`plan:<id>:<step>`), whichever way it is pressed, so the
+ * plan pressed twice makes nothing twice; and a token in its payload (`@step:n`) is filled with what step n made.
+ */
+export interface AskPlanStamp {
+  id: string;
+  step: number;
+  of: number;
+  silent: boolean;
 }
 
 /** What became of a card, kept with the turn that proposed it. */
@@ -226,15 +241,21 @@ export const ASK_UNDO_MS = 10 * 60_000;
 
 /** How long a card may be approved after it was made: a day. Past it, it is asked for again and made from what is true then. */
 const ASK_CARD_FRESH_MS = DAY_MS;
+/**
+ * How long a plan's card may be approved: a week. A plan's send is set ahead (an offer's first day, at ten) and its
+ * steps wait for one another, so a plan made on Monday for Friday is still approved on Thursday.
+ */
+const ASK_PLAN_FRESH_MS = WEEK_MS;
 
 /**
  * Whether a card is too old to approve. A card left in a thread was approved days later against the list, the thread
  * or the setting as it stood when it was proposed: a three-day-old broadcast card sent to today's audience under
- * Monday's count. False for a card that does not say when it was made, or says it unreadably: nothing is refused on a guess.
+ * Monday's count. A plan's card has a week (ASK_PLAN_FRESH_MS), any other a day. False for a card that does not say when
+ * it was made, or says it unreadably: nothing is refused on a guess.
  */
-export function askCardLapsed(p: Pick<AskProposal, "made_at">, nowMs: number): boolean {
+export function askCardLapsed(p: Pick<AskProposal, "made_at" | "plan">, nowMs: number): boolean {
   const made = typeof p.made_at === "string" ? Date.parse(p.made_at) : NaN;
-  return Number.isFinite(made) && nowMs - made > ASK_CARD_FRESH_MS;
+  return Number.isFinite(made) && nowMs - made > (p.plan ? ASK_PLAN_FRESH_MS : ASK_CARD_FRESH_MS);
 }
 
 export interface AskMessageVM {

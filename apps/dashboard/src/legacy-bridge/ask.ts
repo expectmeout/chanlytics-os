@@ -27,7 +27,7 @@ import { askApi, type AskApiCalls, type SendEvent } from "./ask/api";
 import { apiFor } from "./api";
 import { createClient } from "../lib/supabase/client";
 import { hearAddress, routeOnScreen } from "./workspace";
-import { commitProposal, editReply, undoProposal, type CommitResult } from "./ask/commit";
+import { commitProposal, editReply, undoProposal, type CommitResult, type UndoResult } from "./ask/commit";
 import { askPalette, quickAnswer } from "./ask/palette";
 import { askSpeech, type SpeechPurpose } from "./ask/speech";
 import { askAloud } from "./ask/aloud";
@@ -48,7 +48,7 @@ export type AskApi = ReturnType<typeof askPalette> &
     /** Approve a card: the verb's own route, then the surfaces refresh. */
     commit(p: AskProposal): Promise<CommitResult>;
     /** Undo a committed card, where the verb has one. */
-    undo(p: AskProposal, outcome: AskProposalOutcome): Promise<CommitResult>;
+    undo(p: AskProposal, outcome: AskProposalOutcome): Promise<UndoResult>;
     /** "Edit in the composer": open the thread with the words ready to change. */
     editReply(p: AskProposal): void;
     /** Whether a committed card's undo is still true to offer: contracts' askUndoOpen. */

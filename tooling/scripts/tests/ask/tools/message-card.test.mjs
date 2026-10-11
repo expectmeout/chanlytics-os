@@ -542,8 +542,10 @@ test("Approve sends the card's body to POST templates/message, marked as a card'
     },
   };
   const p = (await propose(THANKS)).proposal;
-  const r = await commitProposal(win, p, client, Date.parse(p.made_at));
+  const r = await commitProposal(win, p, client, { nowMs: Date.parse(p.made_at) });
   assert.equal(r.ok, true, r.message);
+  // What it made, as a plan's later step names it: the first version filed (a send takes any version's id).
+  assert.deepEqual(r.made, { kind: "message", id: V(1) });
   assert.equal(r.receipt, C.PROPOSAL_SPECS.message.receipt(p, FILED));
   assert.deepEqual(r.undo, {
     versions: [

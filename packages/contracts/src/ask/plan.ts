@@ -124,6 +124,14 @@ type Room = NonNullable<PlanWorld["room"]>;
 type Audience = { audience_kind: "list" | "saved"; audience_id: string };
 type Slot = { position: number; label: string; kind: string };
 
+/**
+ * What a plan's steps have made, by step, as a card's commit fills its tokens from it: the id step n made (its card's
+ * kind, and the id its spec says it made, ProposalSpec.made), or that step n was undone, so what it made is gone and a
+ * card naming it is refused (PROPOSAL_WORDS.planUndone), never sent to something that no longer exists. A step absent
+ * has made nothing yet.
+ */
+export type PlanMade = Record<number, { kind: string; id: string } | { undone: true }>;
+
 /** The token a step's input names what an earlier step makes by: `@step:1` is step 1's message. */
 export const STEP_TOKEN = /^@step:(\d+)$/;
 

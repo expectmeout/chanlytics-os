@@ -1045,7 +1045,12 @@ test("a note card, walked end to end: the model's call makes it, Approve writes 
   const card = built.proposal;
   const done = await commitProposal(tab.win, card, tab.client);
   const [written] = world.person_notes;
-  assert.deepEqual(done, { ok: true, receipt: "Rosa · Note added", undo: { contact_id: ROSA, note_id: written.id } });
+  assert.deepEqual(done, {
+    ok: true,
+    receipt: "Rosa · Note added",
+    undo: { contact_id: ROSA, note_id: written.id },
+    made: null,
+  });
   assert.deepEqual(
     [written.contact_id, written.body, written.team_only, written.due_on, written.deal_id],
     [ROSA, "Prefers mornings.", false, null, null],
@@ -1097,6 +1102,7 @@ test("a details card, walked end to end: the model's call makes it from what the
     ok: true,
     receipt: "Rosa · Name: Rosa Díaz · Email: rosa@example.com",
     undo: { contact_id: ROSA, name: "Rosa", email: "" },
+    made: null,
   });
   const rosa = () => world.contacts.find((c) => c.id === ROSA);
   assert.deepEqual([rosa().display_name, rosa().email], ["Rosa Díaz", "rosa@example.com"]);

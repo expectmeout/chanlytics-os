@@ -5474,9 +5474,10 @@ var ASK_CAPS = {
 var ASK_THREAD_VERBS = ["take_over", "hand_back", "snooze", "wake", "archive", "resolve"];
 var ASK_UNDO_MS = 10 * 6e4;
 var ASK_CARD_FRESH_MS = DAY_MS;
+var ASK_PLAN_FRESH_MS = WEEK_MS;
 function askCardLapsed(p, nowMs) {
   const made = typeof p.made_at === "string" ? Date.parse(p.made_at) : NaN;
-  return Number.isFinite(made) && nowMs - made > ASK_CARD_FRESH_MS;
+  return Number.isFinite(made) && nowMs - made > (p.plan ? ASK_PLAN_FRESH_MS : ASK_CARD_FRESH_MS);
 }
 var ASK_SCOPE_KINDS = [
   "thread",
@@ -10527,7 +10528,15 @@ var PROPOSAL_WORDS = {
   cannotApprove: "This card cannot be approved from here.",
   noUndo: "This one has no undo.",
   /** A card past ASK_CARD_FRESH_MS (askCardLapsed): nothing is sent, and asking again makes it from what is true now. */
-  lapsed: "This card is more than a day old, and what it would change may have moved since. Ask again and it is made from how things stand now."
+  lapsed: "This card is more than a day old, and what it would change may have moved since. Ask again and it is made from how things stand now.",
+  /** A plan's card past its week (askCardLapsed): the same, in the plan's words. */
+  planLapsed: "This plan is more than a week old, and what it would change may have moved since. Ask again and it is made from how things stand now.",
+  /** A plan's card naming a step that was undone: what that step made is gone, so nothing is sent to it. */
+  planUndone: "A step this one builds on was undone, so what it would use is gone and nothing is sent. Ask again and the plan is made from how things stand now.",
+  /** A plan's card naming a step that has made nothing yet: that step is approved first. */
+  waitsForStep: (n) => `This waits for step ${n}: approve step ${n} first, then this one.`,
+  /** A plan's silent steps, stopped at step n by its refusal (`why`, in the refusal's own words): nothing after it was done. */
+  planStopped: (n, why) => `Stopped at step ${n}: ${/[.!?…]$/.test(why.trim()) ? why.trim() : `${why.trim()}.`} The steps after it were not done.`
 };
 var asText = (v) => v == null ? "" : String(v);
 var rec = (v) => v && typeof v === "object" ? v : {};
@@ -10876,6 +10885,9 @@ var messageSpec = {
     const not = CONSENT_CHANNELS.includes(refused.channel) ? { channel: refused.channel, words: asText(refused.words) } : null;
     return MESSAGE_WORDS.filed(asText(d.name ?? pl.name), versionsIn(d.versions), not);
   },
+  // The first version the door filed: a broadcast and a playbook take any version's id for the message (core
+  // templateValues), so a plan's send names this one. None where nothing was filed.
+  made: (_p, data) => versionsIn(rec(data).versions).at(0)?.id ?? null,
   undo: {
     // The versions the card writes that an undo can delete, in the order the door files them.
     label: ({ payload }) => MESSAGE_WORDS.undo(OWN_VERSION_CHANNELS.filter((c) => rec(payload.versions)[c] != null)),

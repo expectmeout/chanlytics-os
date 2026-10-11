@@ -546,6 +546,9 @@ export const messageSpec: ProposalSpec = {
       : null;
     return MESSAGE_WORDS.filed(asText(d.name ?? pl.name), versionsIn(d.versions), not);
   },
+  // The first version the door filed: a broadcast and a playbook take any version's id for the message (core
+  // templateValues), so a plan's send names this one. None where nothing was filed.
+  made: (_p, data) => versionsIn(rec(data).versions).at(0)?.id ?? null,
   undo: {
     // The versions the card writes that an undo can delete, in the order the door files them.
     label: ({ payload }) => MESSAGE_WORDS.undo(OWN_VERSION_CHANNELS.filter((c) => rec(payload.versions)[c] != null)),

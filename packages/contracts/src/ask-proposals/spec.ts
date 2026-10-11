@@ -86,6 +86,12 @@ export interface ProposalSpec {
    */
   then?(p: AskProposal, data: unknown): ProposalCall | ProposalRefusal | null;
   receipt(p: AskProposal, data: unknown, then?: ProposalThen): string;
+  /**
+   * The id of what the commit made, from the route's answer, that a later step of a plan names by its token
+   * (`@step:n`, contracts resolveSteps): a message's version, which a send names the message by. Absent, or null, where
+   * the card makes nothing a step names.
+   */
+  made?(p: AskProposal, data: unknown): string | null;
   undo?: ProposalUndo;
   /** Where the card's Open goes, or null; `outcome` is what became of it. */
   open(p: Pick<AskProposal, "payload">, outcome: AskProposalOutcome | null): string | null;
@@ -104,6 +110,17 @@ export const PROPOSAL_WORDS = {
   /** A card past ASK_CARD_FRESH_MS (askCardLapsed): nothing is sent, and asking again makes it from what is true now. */
   lapsed:
     "This card is more than a day old, and what it would change may have moved since. Ask again and it is made from how things stand now.",
+  /** A plan's card past its week (askCardLapsed): the same, in the plan's words. */
+  planLapsed:
+    "This plan is more than a week old, and what it would change may have moved since. Ask again and it is made from how things stand now.",
+  /** A plan's card naming a step that was undone: what that step made is gone, so nothing is sent to it. */
+  planUndone:
+    "A step this one builds on was undone, so what it would use is gone and nothing is sent. Ask again and the plan is made from how things stand now.",
+  /** A plan's card naming a step that has made nothing yet: that step is approved first. */
+  waitsForStep: (n: number): string => `This waits for step ${n}: approve step ${n} first, then this one.`,
+  /** A plan's silent steps, stopped at step n by its refusal (`why`, in the refusal's own words): nothing after it was done. */
+  planStopped: (n: number, why: string): string =>
+    `Stopped at step ${n}: ${/[.!?…]$/.test(why.trim()) ? why.trim() : `${why.trim()}.`} The steps after it were not done.`,
 } as const;
 
 /* ------------------------------------------------------------ shared by the families */

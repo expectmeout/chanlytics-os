@@ -34,6 +34,7 @@ export type {
   AskRole,
   AskThreadVerb,
   AskProposal,
+  AskPlanStamp,
   AskProposalOutcome,
   AskMessageVM,
   AskThreadVM,
@@ -111,7 +112,7 @@ export type {
 } from "./ask-answer";
 export { ASK_ANSWER_FORMAT } from "./answer-format";
 export { planOf, resolveSteps, stepToken, STEP_TOKEN, PLAN_WORDS } from "./plan";
-export type { PlanIntent, PlanWorld, PlanStep } from "./plan";
+export type { PlanIntent, PlanWorld, PlanStep, PlanMade } from "./plan";
 export { ASK_CONTEXT_MAX_ROWS, ASK_CONTEXT_ROW_KINDS, itemFocus } from "./ask-context";
 export { PageContextSchema } from "./ask-schemas";
 export type { AskContextRowKind, PageContextRow, PageContext } from "./ask-context";
