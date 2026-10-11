@@ -8,10 +8,10 @@
 // services and their own words are most of what it reads -- the thing that made a prompt halving invisible when it
 // happened to a live salon.
 //
-// Built to the owner's 22 September rule (the plan's Task 4.0): a block's cost is a SHARE, drawn as one thin bar in
-// the contents and, on a phone, where there is no room for the contents, as the same bar under the block's own label,
-// with contracts' share words for a screen reader. The exact count is in the entry's accessible description and its tip, never on the glass. The prompt is set in
-// the page's own face. No colour, no pill, no gradient.
+// Built to the owner's 22 September rule (the plan's Task 4.0): a block's cost is a SHARE, drawn as one thin bar on its
+// line (the kit's meter), whose name for a screen reader is the exact count; never a number on the glass. Each block is
+// a line that opens onto its words (Ruben, 10 Oct 2026, the sheets in one shape), so the lines are the contents. The
+// prompt is set in the page's own face. No colour, no pill, no gradient.
 //
 // Three things, read as the page draws:
 //   useBtPromptSheet  the sheet's hold on the fold registry and the channel it shows, which the PAGE holds
@@ -19,17 +19,20 @@
 //                     chosen and the sheet is the one thing that comes and goes;
 //   BtPromptTold      the told section at rest: its title, one muted phrase and the door;
 //   BtPromptSheet     the sheet, drawn by the page's one sheet slot (tab.tsx BtSheetSlot) only while the
-//                     registry has it open, and holding no hook of its own beside the kit's RecordSheet.
+//                     registry has it open, and holding no hook of its own beside the kit's RecordSheet and the
+//                     folding rows its blocks are, which hold whether each is open.
 //
 // The page composes and never derives. The text is the server's (composedPrompt, the settings read's
 // preview, composed by the function the edge runs); the cut, the notes, the shares and every sentence with a number in
-// it are contracts' (promptBlocks, blockShareWords, promptCostWords, promptTotalWords, PROMPT_READERS, PROMPT_NOW,
+// it are contracts' (promptBlocks, promptCostWords, promptTotalWords, PROMPT_READERS, PROMPT_NOW,
 // through BUSINESS_TAB). Which row on this page wrote a block is this file's (BTP_DOORS): it is the page's
 // shape, not the prompt's.
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import { navigate } from "../../legacy-verbs";
+import { Meter } from "../../kit/meter/meter";
+import { RecordDisclosure } from "../../kit/record/disclosure";
 import { useRecordFold } from "../../kit/record/hooks";
 import { recFolds } from "../../kit/record/registry";
 import { RecordSheet } from "../../kit/record/sheet";
@@ -127,15 +130,6 @@ export const BtPromptTold = ({ prompt }: { prompt: BtPromptHold | null }) => {
   );
 };
 
-/** Take the reader to a block: scrolled to the top of the sheet's body, and focused there so a keyboard reads on from it. */
-const btpShow = (id: string) => {
-  const el = document.getElementById ? document.getElementById(`bt-prompt-block-${id}`) : null;
-  if (!el) return;
-  const still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (el.scrollIntoView) el.scrollIntoView({ block: "start", behavior: still ? "auto" : "smooth" });
-  if (el.focus) el.focus({ preventScroll: true });
-};
-
 /**
  * A block's door back to the row that wrote it. A row of this page is asked for through the registry, which closes
  * this sheet and opens that row's fold, inline editor or sheet; the fold takes focus as it opens. The Autonomy tab's
@@ -166,66 +160,48 @@ const btpDoor = (block: PromptBlock, prompt: BtPromptHold, canEdit: boolean): Re
   );
 };
 
-/** The contents: a plain list of the blocks' names, each described by what it costs. */
-const btpContents = (blocks: PromptBlock[], total: number): ReactNode => {
-  const tab = BUSINESS_TAB;
-  const cost = (b: PromptBlock) => tab.promptCostWords(b.chars, total);
-  return (
-    <nav
-      className="bt-prompt-rail"
-      aria-labelledby="bt-prompt-rail-title bt-prompt-total"
-      data-testid="rec-prompt-contents"
-    >
-      <h3 className="bt-prompt-rail-title" id="bt-prompt-rail-title">
-        Written by
-      </h3>
-      <span className="rec-sr" id="bt-prompt-total">
-        {tab.promptTotalWords(total)}
-      </span>
-      <ol className="bt-prompt-entries">
-        {blocks.map((b) => (
-          <li key={b.id}>
-            <button
-              type="button"
-              className="bt-prompt-entry"
-              onClick={() => btpShow(b.id)}
-              title={cost(b)}
-              aria-describedby={`bt-prompt-cost-${b.id}`}
-              data-testid={`rec-prompt-entry-${b.id}`}
-            >
-              <span className="bt-prompt-entry-label">{b.label}</span>
-            </button>
-            {/* Beside the button, not in it: text inside a button, hidden or not, is part of its name, and the count
-                was heard twice, as the name and again as the description. */}
-            <span className="rec-sr" id={`bt-prompt-cost-${b.id}`}>
-              {cost(b)}
-            </span>
-          </li>
-        ))}
-      </ol>
-    </nav>
-  );
-};
+/**
+ * A block's line: its name, whose words they are (its note, as contracts wrote it), and its share of everything the
+ * receptionist reads as one thin bar (the kit's meter), never a number on the glass: the exact count is the bar's name
+ * for a screen reader (the owner's rule of 22 Sep).
+ */
+const btpLine = (b: { id: string; label: ReactNode; note?: string | null; chars?: number }, total: number) => (
+  <>
+    <span className="bt-disc-name" id={`bt-prompt-label-${b.id}`}>
+      {b.label}
+    </span>
+    {b.note ? <span className="bt-disc-sub">{b.note}</span> : null}
+    {typeof b.chars === "number" && total > 0 ? (
+      <Meter
+        size="sm"
+        className="bt-prompt-share"
+        parts={[
+          { share: b.chars, color: "var(--ink-dim)" },
+          { share: Math.max(0, total - b.chars), tone: "rest" },
+        ]}
+        aria-label={BUSINESS_TAB.promptCostWords(b.chars, total)}
+        data-testid={`rec-prompt-share-${b.id}`}
+      />
+    ) : null}
+  </>
+);
 
 /**
  * The sheet: the kit's RecordSheet, a modal dialog beside the page, from the bottom on a phone.
  *
- *   head      "What your receptionist is told", and one muted line: who reads it, on the channel shown. No count.
+ *   head      "What your receptionist is told". Who reads it is the channel chosen under it, so no line under the title.
  *   tools     the channel, WhatsApp or Phone, as the kit's toggle group: the two are not the same text.
- *   contents  a plain list of the blocks' names, each labelled by its row, with the exact count of what it costs in
- *             its description and its tip and nothing on the glass (the thin bar of its share, and the "Written by"
- *             over the list, went on 23 Sep; the heading still names the list for a screen reader). The whole prompt's
- *             length is the contents' own name. An entry takes the reader to its block. Not drawn on a phone
- *             (settings.css).
- *   blocks    each keyed by its id, not its row (the platform's text is drawn twice on a call): its label, its share
- *             (on a phone only, where the contents are not: the rail's bar under the label, and the words for a screen
- *             reader), its door back to its row, its text in the page's own face with its line breaks, and its note as
- *             contracts wrote it.
- *   now       what is sent beside the prompt, rebuilt every time, under a dashed rule with the reason it is apart.
- *   foot      Close: there is nothing here to save. Shown on a phone, where the head's Close is a reach.
+ *   blocks    each a line that opens onto its words (the kit's RecordDisclosure): its name, whose words they are, and its
+ *             share as one thin bar; opened, its door back to its row and its text in the page's own face with its line
+ *             breaks. Keyed by its id, not its row (the platform's text is drawn twice on a call). The lines are the
+ *             contents: the rail of names beside the blocks, and a phone's share under every label, went (Ruben, 10 Oct
+ *             2026: the sheets "too wordy, too explanatory, too cluttered"). The whole prompt's length is said once,
+ *             for a screen reader.
+ *   now       what is sent beside the prompt, rebuilt every time, as a line of its own after them.
+ *   foot      Done: there is nothing here to save. Shown on a phone, where the head's Close steps out of sight.
  *
  * Focus, Escape and the Tab ring are the kit's: it opens on the sheet, Escape and either Close close it, and focus goes
- * back to the told section's door. Hookless beside the kit's sheet, which is the last thing it draws.
+ * back to the told section's door. Hookless beside the kit's sheet and the lines', which hold whether each is open.
  */
 export const BtPromptSheet = ({
   prompt,
@@ -243,48 +219,37 @@ export const BtPromptSheet = ({
   const blocks = tab.promptBlocks(composed.text, channel, brain);
   const total = composed.text.length;
   const body = (
-    <div className="bt-prompt">
-      {btpContents(blocks, total)}
-      <div className="bt-prompt-blocks">
-        {blocks.map((b) => (
-          <section
-            key={b.id}
-            id={`bt-prompt-block-${b.id}`}
-            className="bt-prompt-block"
-            tabIndex={-1}
-            aria-labelledby={`bt-prompt-label-${b.id}`}
-            data-testid={`rec-prompt-block-${b.id}`}
-          >
-            <header className="bt-prompt-block-head">
-              <h3 className="bt-prompt-block-label" id={`bt-prompt-label-${b.id}`}>
-                {b.label}
-              </h3>
-              {/* Its share in words, for a screen reader on a phone, where the contents are not drawn (settings.css
-                  draws it nowhere above 760px, where the entry's description says it). The bar it once drew beside
-                  the words went with the rail's (23 Sep): the count stays in the entry's description and its tip. */}
-              <span className="bt-prompt-block-share">{tab.blockShareWords(b.chars, total)}</span>
-              {btpDoor(b, prompt, canEdit)}
-            </header>
-            <p className="bt-prompt-block-text">{b.text}</p>
-            {b.note ? <p className="bt-prompt-block-note">{b.note}</p> : null}
-          </section>
-        ))}
-        <section className="bt-prompt-now" aria-labelledby="bt-prompt-now-label" data-testid="rec-prompt-now">
-          <h3 className="bt-prompt-block-label" id="bt-prompt-now-label">
-            {tab.PROMPT_NOW.label[channel]}
-          </h3>
-          <p className="bt-prompt-block-text">{composed.now}</p>
-          <p className="bt-prompt-block-note">{tab.PROMPT_NOW.why[channel]}</p>
-        </section>
-      </div>
+    <div className="bt-prompt bt-stack">
+      <span className="rec-sr" data-testid="rec-prompt-total">
+        {tab.promptTotalWords(total)}
+      </span>
+      {blocks.map((b) => (
+        <RecordDisclosure
+          key={`${channel}-${b.id}`}
+          id={`bt-prompt-block-${b.id}`}
+          label={btpLine(b, total)}
+          testid={`rec-prompt-block-${b.id}`}
+        >
+          {btpDoor(b, prompt, canEdit)}
+          <p className="bt-prompt-block-text">{b.text}</p>
+        </RecordDisclosure>
+      ))}
+      <RecordDisclosure
+        key={`${channel}-now`}
+        id="bt-prompt-now"
+        label={btpLine({ id: "now", label: tab.PROMPT_NOW.label[channel], note: tab.PROMPT_NOW.why[channel] }, total)}
+        testid="rec-prompt-now"
+      >
+        <p className="bt-prompt-block-text">{composed.now}</p>
+      </RecordDisclosure>
     </div>
   );
   return (
     <RecordSheet
       id="prompt"
       title="What your receptionist is told"
-      sub={tab.PROMPT_READERS[channel]}
       className="bt-prompt-sheet"
+      fit
       onClose={prompt.close}
       tools={
         <RecordToggleGroup
@@ -296,9 +261,13 @@ export const BtPromptSheet = ({
         />
       }
       foot={
-        <button type="button" className="btn btn-sm bt-prompt-close" onClick={prompt.close}>
-          Close
-        </button>
+        // The kit's pair attribute (kit.css data-foot-pair): on a phone the foot's one act takes the foot's width, as
+        // Save and Cancel share it.
+        <span data-foot-pair>
+          <button type="button" className="btn btn-sm bt-prompt-close" onClick={prompt.close}>
+            Done
+          </button>
+        </span>
       }
     >
       {body}

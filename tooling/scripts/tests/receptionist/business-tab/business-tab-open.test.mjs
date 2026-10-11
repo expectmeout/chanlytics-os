@@ -147,8 +147,8 @@ test("the hours fold is the week on one scale: a switch, the bars and the times 
   // The zone by the name the card above it already uses (openWeekWords: "in New York time"), never the IANA id: an
   // owner setting their opening hours has no use for "America/New_York", and it is the machine's name for the place.
   assert.equal(textOf(find(fold, (n) => classes(n).includes("rec-sheet-sub"))), hoursZoneWords("America/New_York"));
-  assert.equal(hoursZoneWords("America/New_York"), "All times in New York time, as the receptionist states them.");
-  assert.equal(textOf(byTestId(tree, "rec-fold-save-hours")), "Save the week");
+  assert.equal(hoursZoneWords("America/New_York"), "In New York time");
+  assert.equal(textOf(byTestId(tree, "rec-fold-save-hours")), "Save", "every sheet's Save says Save");
   assert.deepEqual(
     all(fold, (n) => n.props?.role === "switch").map((s) => [s.props["aria-label"], s.props["aria-checked"]]),
     [
@@ -183,7 +183,7 @@ test("the hours fold is the week on one scale: a switch, the bars and the times 
     textOf(find(foldOf(tree, "hours"), (n) => classes(n).includes("rec-fold-hint"))),
     hoursZoneWords("America/Chicago"),
   );
-  assert.equal(hoursZoneWords("America/Chicago"), "All times in Chicago time, as the receptionist states them.");
+  assert.equal(hoursZoneWords("America/Chicago"), "In Chicago time");
 });
 
 test("an hours save sends the stored config with the week changed, and everything else as it was", () => {
@@ -480,7 +480,7 @@ test("the hours fold says what the receptionist will be told as the draft stands
   let says = byTestId(tree, "rec-fold-says-hours");
   assert.deepEqual(
     partsOf(says),
-    [["Your receptionist will be told", composed("hours", stored).join("\n")]],
+    [["Preview what it's told", composed("hours", stored).join("\n")]],
     "unchanged: the block as it stands, under the canvas's eyebrow",
   );
   typeAt(tree, "Monday closes", "17:00");
@@ -493,7 +493,7 @@ test("the hours fold says what the receptionist will be told as the draft stands
   // The hours block's lines are runs of days: a changed Monday re-cuts them, and the lines that fall out of the old
   // block are about days nobody changed. So nothing is said to go while the block stays (the folds test holds the
   // rule); the whole new block says what Monday becomes.
-  assert.deepEqual(partsOf(says), [["Your receptionist will be told", composed("hours", next).join("\n")]]);
+  assert.deepEqual(partsOf(says), [["Preview what it's told", composed("hours", next).join("\n")]]);
   assert.match(textOf(says), /17:00/, "it follows the draft");
 
   // Every day closed, on a record that still composes: the block goes whole, line by line.
@@ -502,7 +502,7 @@ test("the hours fold says what the receptionist will be told as the draft stands
     tree = redrawTab();
   }
   assert.deepEqual(partsOf(byTestId(tree, "rec-fold-says-hours")), [
-    ["It will no longer be told", composed("hours", stored).join("\n")],
+    ["No longer told", composed("hours", stored).join("\n")],
   ]);
   assert.equal(
     byTestId(tree, "rec-fold-says-hours-note"),
@@ -813,9 +813,10 @@ test("the closures fold adds, edits and removes a closed day, puts a removed one
     all(rows()[0], (n) => n.type === "input").map((n) => n.props["aria-label"]),
     ["Closed from, 2099-12-24", "Closed until, 2099-12-24", "Reason, 2099-12-24"],
   );
+  // The one case this cannot express is the tip beside Add, never a paragraph under the list (Ruben, 10 Oct 2026).
   assert.match(
-    textOf(foldOf(tree, "closures")),
-    /Closing early rather than all day\? Leave it out of this list and set that day's hours above instead\./,
+    byTestId(tree, "rec-closures-tip").props["data-tip"],
+    /^Closing early\? Set that day's hours instead\./,
     "the old form's note, for the one case this cannot express",
   );
   assert.match(textOf(byTestId(tree, "rec-fold-says-closures")), /Christmas/, "the closures block, as it stands");
@@ -1032,7 +1033,7 @@ test("the booking tool row states what the owner books with, and under it one ma
     let row = byTestId(drawTab({ config: { calendar: undefined } }), "rec-row-calendar");
     assert.equal(row.props["data-empty"], "true");
     assert.equal(textOf(find(row, (n) => classes(n).includes("rec-row-empty"))), "Not set up");
-    assert.match(textOf(row), /What you book with\. It fills your calendar and tells the receptionist what is taken\./);
+    assert.match(textOf(row), /Fills your calendar and tells the receptionist what's taken\./);
     assert.equal(lineOf(row), null);
     assert.equal(byTestId(row, "rec-calendar-read"), null, "and no read is stated of a link there is not");
     // A tool named: the row states it as the product says it, and the line says it waits for the first email. The

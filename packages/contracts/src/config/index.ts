@@ -151,13 +151,7 @@ export type { StandingInputs, BusinessGap } from "./business-tab/business-gap";
 export { openWeekWords, hoursZoneWords, closuresAheadWords } from "./business-tab/open-week";
 export type { ClosuresAheadVM } from "./business-tab/open-week";
 export { chipsMoreWords, CHIPS_SHOWN } from "./business-tab/counts";
-export {
-  servicesWords,
-  servicesToldWords,
-  serviceUndoName,
-  servicesFoundWords,
-  servicesSaveWords,
-} from "./business-tab/services-words";
+export { servicesWords, servicesToldWords, serviceUndoName, servicesFoundWords } from "./business-tab/services-words";
 export type { ServiceWordsInput, ServicesWordsVM } from "./business-tab/services-words";
 export {
   blockShareWords,
@@ -178,7 +172,15 @@ export {
   TONE_PRESETS,
 } from "./business-tab/how-it-answers";
 export type { NotesWordsVM, InstructionsWordsVM, FallbacksWordsVM } from "./business-tab/how-it-answers";
-export { handoffChatWords, handoffCallWords, handoffWords } from "./business-tab/handoff-words";
+export {
+  handoffChatWords,
+  handoffChatRow,
+  handoffCallRow,
+  HANDOFF_ANYWAY,
+  handoffWords,
+  type HandoffRowVM,
+  type HandoffCallRowVM,
+} from "./business-tab/handoff-words";
 export type { HandoffWordsVM } from "./business-tab/handoff-words";
 export { abilityRows, cannotRows } from "./business-tab/abilities";
 export type { AbilityInputs, AbilityRowVM, AbilitiesVM, CannotRowVM } from "./business-tab/abilities";

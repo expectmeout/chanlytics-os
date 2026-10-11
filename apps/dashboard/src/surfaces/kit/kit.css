@@ -1856,6 +1856,100 @@ a.more-item {
 .rec-says[data-inline="true"] pre {
   line-height: var(--leading-normal);
 }
+/* Folded, as a sheet draws it (RecordSays' `folded`, fold.tsx): no hairline over it, since the fold's line is its own
+   inset, and the lines it holds keep the block's face inside. */
+.rec-says[data-folded="true"] {
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* ---------- A folding row: a line that opens onto what it holds (RecordDisclosure) ---------- */
+/* An inset, as a sheet's other quiet surfaces are: the line a finger's height, its words the third ink, a chevron that
+   turns as it opens. What it holds grows from nothing (grid rows, never a height), and once closed is out of sight and
+   out of the tab order (`visibility`, after the rows have shut). Its mark is a word with the kit's quiet dot before it:
+   a state worth knowing without opening it, never a tone. */
+.rec-disclosure {
+  border-radius: var(--surface-inset-radius);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-ring);
+}
+.rec-disclosure-press {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.rec-disclosure-press:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.rec-disclosure-label {
+  flex: 1;
+  min-width: 0;
+}
+.rec-disclosure-mark {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.rec-disclosure-mark::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--ink-muted);
+}
+.rec-disclosure-press > svg {
+  flex: none;
+  color: var(--ink-faint);
+  transition: rotate var(--duration-base) var(--ease-out);
+}
+.rec-disclosure[data-open="true"] .rec-disclosure-press > svg {
+  rotate: 90deg;
+}
+.rec-disclosure-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  visibility: hidden;
+  transition:
+    grid-template-rows var(--duration-base) var(--ease-out),
+    visibility 0s linear var(--duration-base);
+}
+.rec-disclosure[data-open="true"] .rec-disclosure-panel {
+  grid-template-rows: 1fr;
+  visibility: visible;
+  transition: grid-template-rows var(--duration-base) var(--ease-out);
+}
+.rec-disclosure-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+.rec-disclosure[data-open="true"] .rec-disclosure-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 14px 14px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rec-disclosure-press > svg,
+  .rec-disclosure-panel,
+  .rec-disclosure[data-open="true"] .rec-disclosure-panel {
+    transition: none;
+  }
+}
 /* Save and Cancel, and beside them the page's line or the keys that do the same. Save while it saves: busy, still a
    button focus rests on (record-fold.jsx), and the pointer says so. */
 .rec-foot {
@@ -3989,6 +4083,44 @@ footer.rec-sheet-foot .btn {
   [data-foot-pair][data-foot-pair] > :where(:not(.btn)):empty {
     display: none;
   }
+}
+
+/* A record sheet from the bottom, on a phone (data-phone: the record kit's own width, which the component reads, as
+   record.css draws it there). A grabber at its top says it is pulled down to close, as it is (data-bits touchSwipe),
+   and its ✕ steps out of sight wherever its foot holds the act that closes it (the kit's foot, with its Cancel, or a
+   page's pair of acts, data-foot-pair, with its Cancel or Done): that act, a press on the wash and the pull already
+   close it, and a third Close in the corner was the first thing a thumb met (Ruben, 10 Oct 2026). It stays
+   a button a keyboard and a screen reader reach, and comes back into sight when a keyboard does. A sheet the page asks
+   to fit (`fit`) is as tall as what it holds, up to the list's height: a member's three choices stood at the foot of a
+   screen of blank. */
+.rec-sheet[data-phone="true"]::before {
+  content: "";
+  position: absolute;
+  top: 7px;
+  left: 50%;
+  width: 36px;
+  height: 5px;
+  translate: -50% 0;
+  border-radius: var(--radius-full);
+  background: var(--line-strong);
+  pointer-events: none;
+}
+.rec-sheet[data-phone="true"] .rec-sheet-head {
+  padding-top: 22px;
+}
+.rec-sheet[data-phone="true"]:has(.rec-sheet-foot :is(.rec-foot, [data-foot-pair]))
+  .rec-sheet-close:not(:focus-visible) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.rec-sheet[data-phone="true"][data-fit="true"] {
+  height: auto;
+  max-height: calc(88dvh - var(--kb, 0px));
 }
 
 /* ---- The composer's rows (campaigns3.py, the compact composer C2; deals3.py, the deal's pane D2) ----

@@ -10,7 +10,7 @@
 // registry opens one editor or sheet at a time, and the slot draws one sheet or none (tab.tsx BtSheetSlot).
 //
 // The page composes and never derives: every sentence here with a number in it is contracts' (servicesToldWords,
-// servicesSaveWords, through BUSINESS_TAB); what the sheet opens with, refuses and writes is folds.ts's; the gesture
+// through BUSINESS_TAB); what the sheet opens with, refuses and writes is folds.ts's; the gesture
 // is BtSheet (gestures/). Its rows come and go (an Add, a remove, a search), so they are drawn hookless (the kit's
 // RecordBox), as a fold's rows are: they are drawn before the kit's sheet's own hooks.
 
@@ -307,14 +307,15 @@ const btsBody = (f: SheetFields, env: BodyEnv) => {
   );
 };
 
-/** How many services a draft would write: the sheet's Save says it. */
+/** How many services a draft would write: none is the one count the foot says anything of. */
 const btsWritten = (draft: ServiceRow[] | null) => businessTabSave.WRITTEN_ROWS.services(draft).length;
 
 // Only what an owner must know, over the Save: that a list with nothing in it composes nothing (contracts'
 // servicesToldWords at zero), and, where the save crosses the resolver's line, the sentence for it. The count of
 // services, their characters and their share of the prompt went with the "It will be told" eyebrow (23 Sep): a foot
-// that said "33 services, 1,085 characters" under thirty-three rows was the clutter it counted, and the Save says how
-// many it writes. The list's own refusal (too many) is said here too, by the Save it stops.
+// that said "33 services, 1,085 characters" under thirty-three rows was the clutter it counted, and the count left the
+// Save on 10 Oct 2026 (every sheet's Save says Save). The list's own refusal (too many) is said here too, by the Save
+// it stops.
 const btsTold = (f: SheetFields) => {
   const count = btsWritten(f.draft);
   const words =
@@ -344,7 +345,8 @@ const btsTold = (f: SheetFields) => {
 
 /**
  * The services sheet (the canvas's Edit-Sheet): a search and Add above the rows, the rows in three columns (Service,
- * Takes, Price) with a remove each, and the foot's "It will be told" over its Save. Drawn by the page, last (the
+ * Takes, Price) with a remove each, and the foot's one warning over its Save. Its title alone, "Services", the row's own
+ * name (Ruben, 10 Oct 2026: a line under every title said it again). Drawn by the page, last (the
  * header says why), over the one editor a fold is (BtSheet).
  *
  * The rows, their search and the foot are drawn by the functions above; what is the sheet's own is the two things it
@@ -382,15 +384,12 @@ export const BtServicesSheet = ({
   return (
     <BtSheet<ServiceRow[]>
       id="services"
-      title="What you offer"
-      sub="Names and rough timings. A price only if you can state it flatly."
+      title="Services"
       className="bt-services-sheet"
       canEdit={canEdit}
       flash={flash}
       saver={saver}
       gate={gate("settings", "change your services")}
-      saveLabel={(f: SheetFields) => BUSINESS_TAB.servicesSaveWords(btsWritten(f.draft))}
-      footNote="Removing one offers an undo."
       tools={(f: SheetFields) => btsTools(f, search, setSearch)}
       told={btsTold}
       body={(f: SheetFields) => btsBody(f, { search, pins: pinned, rules })}

@@ -110,6 +110,21 @@ const recSays = ({ inline = false, note = null } = {}) =>
       `<pre><span class="rec-says-line">Open on public holidays.</span></pre></div>`) +
   `</div>`;
 
+/** What saving writes folded behind one line, as a sheet draws it (RecordSays' `folded`): closed, or open on its lines. */
+const recSaysFolded = ({ open = false, mark = null } = {}) =>
+  `<div class="rec-says" data-folded="true"><div class="rec-disclosure" data-open="${open}">` +
+  `<button type="button" class="rec-disclosure-press" aria-expanded="${open}">` +
+  `<span class="rec-disclosure-label">Preview what it's told</span>` +
+  (mark ? `<span class="rec-disclosure-mark">${mark}</span>` : "") +
+  `${icon("chevron", 12)}</button>` +
+  `<div class="rec-disclosure-panel" role="region"><div class="rec-disclosure-inner">` +
+  `<div class="rec-says-part" data-part="says"><pre><span class="rec-says-line">Open Monday to Friday, 9:30 to 6.</span>
+` +
+  `<span class="rec-says-line" data-changed="true">Closed on public holidays.</span></pre></div>` +
+  `<div class="rec-says-part" data-part="gone"><span class="rec-says-eyebrow">No longer told</span>` +
+  `<pre><span class="rec-says-line">Open on public holidays.</span></pre></div>` +
+  `</div></div></div></div>`;
+
 /** A field (RecordField): its label holding the box, and a hint under it. */
 const recField = (label, value, hint = null) =>
   `<div class="rec-field"><label><span class="rec-field-label">${label}</span>` +
@@ -181,10 +196,10 @@ const dangerAsk = () =>
  * A record sheet over its wash; `leaving` draws the still copies that play its leaving (data-bits leaving), and
  * `asking` a question that destroys in its foot.
  */
-const recSheet = (leaving = false, asking = false) =>
+const recSheet = (leaving = false, asking = false, phone = false) =>
   `<div class="rec-sheet-backdrop" aria-hidden="true"${leaving ? ' data-leaving="true"' : ""}></div>` +
   `<section class="rec-sheet" role="dialog" aria-modal="true" aria-label="Services" tabindex="-1"` +
-  `${leaving ? ' data-leaving="true"' : ""}>` +
+  `${leaving ? ' data-leaving="true"' : ""}${phone ? ' data-phone="true" data-fit="true"' : ""}>` +
   recSheetHead("Services", "What you offer, and how long each takes.") +
   `<div class="rec-sheet-tools">${recCombo({ label: "Find a service", placeholder: "Find a service" })}` +
   `<span class="rec-sr" role="status" aria-live="polite">3 services</span></div>` +
@@ -205,7 +220,7 @@ const discardAsk = () =>
  * A fold drawn as a sheet (RecordFold's `frame`), its row behind it; `leaving` draws the copies that go, and `asking`
  * the question in its foot, in Save's and Cancel's place.
  */
-const recFoldSheet = (leaving = false, asking = false) =>
+const recFoldSheet = (leaving = false, asking = false, phone = false) =>
   (leaving
     ? ""
     : `<div class="rec-fold-behind" aria-hidden="true" inert><section class="rec-card">` +
@@ -214,11 +229,12 @@ const recFoldSheet = (leaving = false, asking = false) =>
       `${recAct("Change")}</div></section></div>`) +
   `<div class="rec-sheet-backdrop" data-fold="true" aria-hidden="true"${leaving ? ' data-leaving="true"' : ""}></div>` +
   `<section class="rec-sheet rec-fold-sheet" role="dialog" aria-modal="true" aria-label="Hours" data-open="true"` +
-  `${leaving ? ' data-leaving="true"' : ""}>` +
+  `${leaving ? ' data-leaving="true"' : ""}${phone ? ' data-phone="true"' : ""}>` +
   recSheetHead("Hours", "When you are open, each day.") +
   `<div class="rec-sheet-body"><div class="rec-fold-inner">` +
   recField("Monday opens", "09:30") +
   recField("Monday closes", "18:00") +
+  (phone ? recSaysFolded({ mark: "Changed" }) : "") +
   `</div></div>` +
   (asking
     ? `<footer class="rec-sheet-foot" data-asking="true">${discardAsk()}</footer></section>`
@@ -1497,7 +1513,7 @@ export const FAMILIES = [
   {
     family: "Fold, inline editor, what saving writes",
     about:
-      "The record kit's edits in place: a fold opened under its row with its fields, what saving writes and Save; a wide one; one closed; one saving; the inline editor in the row it edits, open, saving and closed.",
+      "The record kit's edits in place: a fold opened under its row with its fields, what saving writes and Save; a wide one; one closed; one saving; what saving writes folded behind one line, as a sheet draws it (RecordDisclosure), closed and open; the inline editor in the row it edits, open, saving and closed.",
     entries: [
       {
         id: "rec-fold",
@@ -1568,6 +1584,8 @@ export const FAMILIES = [
             `<div class="rec-inline-more">${recSays({ inline: true })}</div></div>`,
         ),
       },
+      { id: "rec-says-folded", html: recCard(recSaysFolded({ mark: "Changed" })) },
+      { id: "rec-says-folded-open", html: recCard(recSaysFolded({ open: true, mark: "Changed" })) },
       {
         id: "rec-inline-saving",
         html: recCard(
@@ -1593,7 +1611,7 @@ export const FAMILIES = [
   {
     family: "Record sheet",
     about:
-      "RecordSheet, beside the page over its wash: its head, tools, rows and foot; a fold drawn as a sheet with its row behind it, and with the question a discard asks in its foot; and the still copies that play each one's leaving.",
+      "RecordSheet, beside the page over its wash: its head, tools, rows and foot; a fold drawn as a sheet with its row behind it, and with the question a discard asks in its foot; the still copies that play each one's leaving; and each as a phone draws it from the bottom (data-phone: its grabber, its Close out of sight beside a foot that closes, the list fitted to what it holds).",
     entries: [
       { id: "rec-sheet", stage: "sheet", html: recSheet() },
       { id: "rec-sheet-leaving", stage: "sheet", html: recSheet(true) },
@@ -1601,6 +1619,8 @@ export const FAMILIES = [
       { id: "rec-fold-sheet", stage: "sheet", html: recFoldSheet() },
       { id: "rec-fold-sheet-asking", stage: "sheet", html: recFoldSheet(false, true) },
       { id: "rec-fold-sheet-leaving", stage: "sheet", html: recFoldSheet(true) },
+      { id: "rec-sheet-phone", stage: "sheet", html: recSheet(false, false, true) },
+      { id: "rec-fold-sheet-phone", stage: "sheet", html: recFoldSheet(false, false, true) },
     ],
   },
   {

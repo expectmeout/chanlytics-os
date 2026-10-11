@@ -266,9 +266,9 @@ event-shaped clocks                   9   of the registered clocks (invariant 6)
 tables with more than one writer     57   387 writers among them
 doors writing a record with no event   68   writing 77 tables (invariant 2)
 personal columns with no erasure strategy    8   in 3 tables
-breakpoints outside the set          35   in 11 files
+breakpoints outside the set          34   in 11 files
 literal style values                919   in 22 stylesheets
-primitives outside the kit         1734   selectors naming 720 classes
+primitives outside the kit         1727   selectors naming 718 classes
 inline style props                  200   in 51 files
 wire names not in snake_case         54   in 27 routes
 dead exports, types and modules     280

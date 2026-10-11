@@ -400,11 +400,14 @@ const composed = (block, brain, channel = "whatsapp") => {
   return b ? b.text.split("\n").filter((l) => l.trim() !== "") : [];
 };
 /** What an editor says saving writes, part by part: each part's eyebrow, and the lines under it. */
-const partsOf = (says) =>
-  all(says, (n) => n.props?.["data-part"]).map((p) => [
-    textOf(find(p, (n) => classes(n).includes("rec-says-eyebrow"))),
+const partsOf = (says) => {
+  // Folded in a sheet (RecordSays' `folded`), the lines it adds are named by the fold's own line, not an eyebrow.
+  const line = find(says, (n) => classes(n).includes("rec-disclosure-label"));
+  return all(says, (n) => n.props?.["data-part"]).map((p) => [
+    textOf(find(p, (n) => classes(n).includes("rec-says-eyebrow")) || (p.props["data-part"] === "says" ? line : null)),
     textOf(find(p, (n) => n.type === "pre")),
   ]);
+};
 
 /** A fold, drawn whether it is open or not; closed, it is hidden. */
 const foldOf = (tree, id) => byTestId(tree, `rec-fold-${id}`);

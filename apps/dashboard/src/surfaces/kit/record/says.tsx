@@ -20,6 +20,7 @@
  */
 import { Fragment } from "react";
 import type { MouseEvent, ReactNode } from "react";
+import { RecordDisclosure } from "./disclosure";
 
 const recSaysLines = (text: string, marks: number[] | null) => {
   const on = new Set(Array.isArray(marks) ? marks : []);
@@ -49,6 +50,52 @@ interface RecordSaysProps {
   inline?: boolean;
   changed?: number[] | null;
   goneChanged?: number[] | null;
+  /** Folded behind one line (RecordDisclosure) that `label` names: how a sheet draws it (fold.tsx). */
+  folded?: boolean;
+  /** Beside a folded block's line: what is worth knowing without opening it ("Changed"). */
+  mark?: ReactNode;
+  /** A sentence of the page's about the lines, drawn with them inside the fold rather than over it. */
+  aside?: ReactNode;
+}
+
+/**
+ * The lines folded behind one line, as a sheet draws them: `note` stays on show above it, since it says what a save
+ * does past its own lines (the resolver's crossing); `aside`, a sentence about whose lines they are, goes in with them.
+ * The block's own eyebrow is the fold's line, so only the lines that go keep theirs.
+ */
+function recSaysFolded(p: RecordSaysProps & { writes: boolean; drops: boolean }) {
+  const { id = null, testid = null, text = null, label = null, gone = null, goneLabel = null, note = null } = p;
+  const { changed = null, goneChanged = null, mark = null, aside = null, writes, drops } = p;
+  return (
+    <div className="rec-says" id={id || undefined} data-folded="true" data-testid={testid || undefined}>
+      {note ? (
+        <p className="rec-says-note" data-testid={testid ? `${testid}-note` : undefined}>
+          {note}
+        </p>
+      ) : null}
+      {writes || drops ? (
+        <RecordDisclosure
+          id={`${id || testid || "rec-says"}-fold`}
+          label={label}
+          mark={mark}
+          testid={testid ? `${testid}-fold` : null}
+        >
+          {aside ? <p className="rec-says-note">{aside}</p> : null}
+          {writes ? (
+            <div className="rec-says-part" data-part="says">
+              <pre>{recSaysLines(text as string, changed)}</pre>
+            </div>
+          ) : null}
+          {drops ? (
+            <div className="rec-says-part" data-part="gone">
+              {goneLabel ? <span className="rec-says-eyebrow">{goneLabel}</span> : null}
+              <pre>{recSaysLines(gone as string, goneChanged)}</pre>
+            </div>
+          ) : null}
+        </RecordDisclosure>
+      ) : null}
+    </div>
+  );
 }
 
 /** What saving writes: the lines it adds, the lines it takes away, and a sentence of the page's. */
@@ -63,10 +110,17 @@ export function RecordSays({
   inline = false,
   changed = null,
   goneChanged = null,
+  folded = false,
+  mark = null,
+  aside = null,
 }: RecordSaysProps) {
   const writes = typeof text === "string" && text.trim() !== "";
   const drops = typeof gone === "string" && gone.trim() !== "";
   if (!writes && !drops && !note) return null;
+  if (folded) {
+    const p = { id, testid, text, label, gone, goneLabel, note, changed, goneChanged, mark, aside };
+    return recSaysFolded({ ...p, writes, drops });
+  }
   return (
     <div
       className="rec-says"

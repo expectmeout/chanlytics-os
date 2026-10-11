@@ -146,8 +146,8 @@ test("every phrase §10 kept is drawn where it belongs", () => {
   const told = byTestId(tree, "rec-card-told");
   assert.match(textOf(told), /What your receptionist is told/);
   assert.equal(textOf(byTestId(tree, "rec-prompt-open")).trim(), "Read it");
-  // All times in New York time: the hours fold, in the name the card above uses.
-  assert.match(textOf(byTestId(tree, "rec-fold-hours")), /All times in New York time/);
+  // In New York time: the hours fold's one line under its title, in the name the card above uses.
+  assert.match(textOf(byTestId(tree, "rec-fold-hours")), /In New York time/);
   // N messages, in your words.
   assert.match(
     textOf(byTestId(tree, "rec-row-fallbacks")),

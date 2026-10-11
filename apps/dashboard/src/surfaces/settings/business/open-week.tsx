@@ -333,7 +333,10 @@ const btoCopies = (from: DayKey | null, apply: (from: DayKey, days: DayKey[]) =>
   );
 };
 
-/** The week's copy menu and the note under it. The menu is always drawn: a hook of its own sits in it. */
+/**
+ * The week's copy menu. The menu is always drawn: a hook of its own sits in it. A copy says what it named and overwrote
+ * in its own toast, with the whole week back in one Undo, so the sentence that said so under the menu went.
+ */
 const BtoWeekCopy = ({ from, copies, readOnly }: { from: DayKey | null; copies: MenuItems; readOnly: boolean }) => (
   <div className="bt-week-copy">
     {/* Escape closes the menu and nothing else: the fold's own Escape is Cancel, and with the menu open over it one
@@ -362,9 +365,6 @@ const BtoWeekCopy = ({ from, copies, readOnly }: { from: DayKey | null; copies: 
         gated={readOnly ? "Saving — nothing can be copied until this is saved." : null}
       />
     </div>
-    <span className="bt-fold-note">
-      Names every day it opens or overwrites, and puts the whole week back in one press.
-    </span>
   </div>
 );
 
