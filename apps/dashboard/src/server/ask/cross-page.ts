@@ -122,6 +122,26 @@ const SETUP = new RegExp(
 );
 
 /**
+ * An offer, asked for (the marketing manager's spec §5.7): the journey and the Library (campaigns.journey,
+ * campaigns.messages), read before round 1 on any page, Campaigns included, which propose_campaign's plan then reads
+ * again from the turn's cache (readers/index.ts TurnCache), never from the database twice. Only an offer to make: an
+ * amount off ("10% off colour all November", "un 10% de descuento") at a sentence's start, or an amount, a discount, a
+ * promotion or a sale after a verb that makes one ("run a promotion", "haz unas rebajas"), past a setup's openers or a
+ * "we". "Offer" alone is who can be sent one (AUDIENCES) and the month's offer a campaign's; "deal" is the pipeline's
+ * (PIPELINE); "sale" alone is Spanish for "goes out"; a question about how one did ("how did the promotion do?") is none.
+ */
+const OFFER_AMOUNT = String.raw`(?:(?:\d+(?:[.,]\d+)?\s?%|[$€£]\s?\d+(?:[.,]\d+)?)\s?(?:off|discount|(?:de )?descuento)|half[- ](?:off|price)|mitad de precio|2x1|(?:two|2) for (?:one|1)|buy one,? get one|bogo)\b`;
+const OFFER_THING = String.raw`(?:discounts?|descuentos?|promo(?:tion)?s?|promoci[oó]n(?:es)?|sale|rebajas?)\b`;
+/** Who makes it, besides a setup's openers: we, as a request or a plan. */
+const OFFER_OPENERS = String.raw`we(?:[’']re| are| will)?|(?:can|could|should|shall) we|let me|queremos|vamos a|podemos`;
+/** Making an offer, in either language, said now or as under way. */
+const OFFER_MAKE = String.raw`(?:offer(?:ing)?|giv(?:e|ing)|run(?:ning)?|do(?:ing)?|hav(?:e|ing)|throw(?:ing)?|send(?:ing)?|launch(?:ing)?|start(?:ing)?|creat(?:e|ing)|mak(?:e|ing)|set[- ]?up|plan(?:ning)?|put on|ofrec(?:er|e)|dar?|hacer|haz|hagamos|lanzar?|crear?|enviar?|env[ií]a|mandar?|preparar?|tener|poner?|pon)`;
+const OFFER_ASKED = new RegExp(
+  String.raw`(?:^|[.!?;:,¿¡]\s*)(?:(?:${SETUP_OPENERS}|${OFFER_OPENERS})\s+)*(?:${OFFER_AMOUNT}|${OFFER_MAKE}\s+(?:[\p{L}\d'’$%-]+\s+){0,4}?(?:${OFFER_AMOUNT}|${OFFER_THING}))`,
+  "iu",
+);
+
+/**
  * The reads each page's own rows already answer, by tool and action: on that page, its context answers the question.
  * Campaigns' rows are its campaigns and offers, so AUDIENCES' words name them there; who a send can reach is no row of
  * it, and is read when asked in REACH's words.
@@ -139,7 +159,8 @@ const ON_PAGE: Partial<Record<AskSurface, ReadonlySet<string>>> = {
 /**
  * The reads a question names on another page, at most CROSS_PAGE_MAX, in the order below. On Reports a
  * report is read only for a period other than the one on screen (the context's view). A setup's reads (SETUP) come
- * first, on every page.
+ * first, on every page, then a setup's or an offer's (OFFER_ASKED) journey and Library: within the cap a setup keeps
+ * its own two, and an offer's go before every other read.
  */
 export function crossPagePlan(text: string, surface: string | null, view: string | null = null): ToolRun[] {
   const q = text.replace(/\s+/g, " ").trim();
@@ -151,8 +172,13 @@ export function crossPagePlan(text: string, surface: string | null, view: string
     if (!answered.has(called) && !out.some((r) => calledName(r.name, r.input) === called)) out.push({ name, input });
   };
   // A setup's two reads come first and are read whatever page asks (A4): the page's rows hold neither.
-  if (SETUP.test(q))
-    for (const action of ["playbooks", "audiences"]) out.push({ name: "campaigns", input: { action } });
+  const setup = SETUP.test(q);
+  if (setup) for (const action of ["playbooks", "audiences"]) out.push({ name: "campaigns", input: { action } });
+  // Then the plan's two, the journey and the Library (the marketing manager's §5.7), whatever page asks: no page's rows
+  // are either. The cap leaves a setup its own two, whose one campaign alone reads nothing else (prompt.ts, the setup
+  // rule); a whole setup's plan reads these on its call, the campaigns and the lines among them read already.
+  if (setup || OFFER_ASKED.test(q))
+    for (const action of ["journey", "messages"]) out.push({ name: "campaigns", input: { action } });
   const overview = OVERVIEW.test(q);
   if (overview) add("today", {});
   if (overview || REPORT.test(q)) {

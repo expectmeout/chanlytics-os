@@ -1880,3 +1880,112 @@ test("on Campaigns the turn's words say what a sentence there is: a campaign to 
   // every turn; the Campaigns line only on Campaigns).
   assert.ok(ASK_DEFINITIONS.playbook.includes("say campaign, never playbook"), ASK_DEFINITIONS.playbook);
 });
+
+test("the rules know the plan and the message (the marketing manager's §5.7): an offer, a promotion or a whole setup is one call of propose_campaign's plan, whose steps Ask never assembles, and a message's words are written by its action message alone, every channel's version on the card; the setup rule says so itself, no rule left says otherwise, and on Campaigns the turn's words name the plan first", async () => {
+  const { turnWords } = await import(
+    pathToFileURL(path.join(here, "../../../../apps/dashboard/src/server/ask/prompt.ts")).href
+  );
+  const PLAN =
+    "For an offer, a promotion, or a whole setup, call propose_campaign with action plan once with the intent and leave the steps to it; never assemble the steps yourself.";
+  const MESSAGE =
+    "A message's words are written only through propose_campaign with action message, and every channel's version is on the card";
+  for (const words of [PLAN, MESSAGE])
+    assert.equal(ASK_RULES.filter((r) => r.includes(words)).length, 1, `one rule says it: ${words}`);
+  // The plan is the setup rule's own first instruction: the rule is reworded, never a second one beside it.
+  const setup = ASK_RULES.find((r) => r.startsWith("Setting up campaigns is a few cards, never a claim."));
+  assert.ok(setup.startsWith(`Setting up campaigns is a few cards, never a claim. ${PLAN}`), setup);
+  assert.ok(!ASK_RULES.some((r) => r !== setup && /\bset(ting)? up campaigns\b/i.test(r)), "one setup rule");
+  // A plan's steps that send nothing are one press and each send its own, as the plan's count sentence says them
+  // (contracts answerForCards); a reminder or a check after an appointment only where a calendar is connected (D2).
+  assert.ok(setup.includes("The steps that send nothing are one press and each send is its own"), setup);
+  assert.ok(
+    setup.includes("A reminder before an appointment, or a check after one, only where a calendar is connected"),
+  );
+  // What the rules said before a plan and a written message, none of it left: a whole setup's cards assembled by hand,
+  // a campaign on a held message or its starter and nothing else, every card its own press, Ask never writing a message.
+  const rules = ASK_RULES.join("\n");
+  for (const old of [
+    /then propose one card per campaign in one round/,
+    /\bEach card is its own press\b/,
+    /never (writes?|composes?) (a |the )?(message|template)/i,
+    /\bstarters? only\b|\bonly (a |its |the )?starter\b/i,
+    /template_id or the moment's starter/,
+  ])
+    assert.ok(!old.test(rules), String(old));
+  // Where a rule offers a campaign its starter, it offers the message Ask writes too.
+  for (const r of ASK_RULES.filter((x) => /\bstarter\b/.test(x))) assert.ok(r.includes("action message"), r);
+  // The two actions the rules name are propose_campaign's, as the API is told them.
+  const campaign = ACT_TOOLS.find((t) => t.name === "propose_campaign");
+  for (const action of ["Action plan ", "Action message "]) assert.ok(campaign.description.includes(action), action);
+  // On Campaigns, where a sentence is a campaign to propose, an offer, a promotion or a whole setup is the plan first.
+  const w = turnWords({
+    role: "owner",
+    personLabel: "ada@example.com (owner)",
+    scope: null,
+    surface: "campaigns",
+    language: "en",
+    timezone: "America/New_York",
+    closures: [],
+    now: new Date(NOW),
+  });
+  const plan = w.indexOf("An offer, a promotion or a whole setup is one call of propose_campaign with action plan");
+  assert.ok(plan > 0 && plan < w.indexOf("propose_campaign with action playbook"), w);
+});
+
+test("an offer asked for reads its journey and its Library before round 1, as a setup reads its two (the marketing manager's §5.7): on any page, Campaigns included, in either language; offer alone stays the audiences' word and deal the pipeline's; a question about how one did is none; within the cap a setup keeps its own two, and an offer's go before any other read", async () => {
+  const mod = await import(
+    pathToFileURL(path.join(here, "../../../../apps/dashboard/src/server/ask/cross-page.ts")).href
+  );
+  const names = (q, surface) => mod.crossPagePlan(q, surface).map((r) => `${r.name} ${JSON.stringify(r.input)}`);
+  const planReads = ['campaigns {"action":"journey"}', 'campaigns {"action":"messages"}'];
+  for (const q of [
+    "10% off colour all November",
+    // The eval's offer_november_colour.
+    "I want to offer 10% off colour all of November",
+    "For November, 10% off colour",
+    "half price haircuts next Tuesday",
+    "$20 off any appointment booked this week",
+    "Let's run a promotion for the holidays",
+    "Can we do a Black Friday sale?",
+    "Give everyone who said yes 15% off in December",
+    "please set up a discount for new clients",
+    "We're running a promo next month",
+    "Quiero ofrecer un 10% de descuento en color todo noviembre",
+    "Haz una promoción de 2x1 en diciembre",
+    "Lanza unas rebajas de verano",
+  ])
+    for (const surface of ["campaigns", "today", "people"])
+      assert.deepEqual(names(q, surface), planReads, `${q} (${surface})`);
+  // Where the deals stand is the pipeline's, never an offer's.
+  for (const q of [
+    "how many deals are open?",
+    "Who has a deal waiting?",
+    "move the deal with Ana to won",
+    "¿cuántas propuestas tengo?",
+  ])
+    assert.deepEqual(names(q, "today"), ['people {"action":"pipeline"}'], q);
+  // Offer alone is who can be sent one (the audiences) or the month's offer (a campaign the page holds).
+  assert.deepEqual(names("how many people can I send offers to?", "campaigns"), ['campaigns {"action":"audiences"}']);
+  assert.deepEqual(names("send an offer to the quiet clients", "today"), ['campaigns {"action":"audiences"}']);
+  assert.deepEqual(names("¿a quién puedo enviar ofertas?", "campaigns"), ['campaigns {"action":"audiences"}']);
+  assert.deepEqual(names("pause the monthly offer", "campaigns"), []);
+  // How one did, a customer's ask, Spanish's "sale" (goes out) and the business's sales are no offer to make.
+  for (const q of [
+    "how did the promotion do?",
+    "did the 10% off bring anyone in?",
+    "which discount worked best?",
+    "what should I do about the discount she asked for?",
+    "¿Sale el mensaje mañana?",
+    "¿qué sale esta semana?",
+  ])
+    assert.deepEqual(names(q, "campaigns"), [], q);
+  assert.deepEqual(names("how are sales this month?", "today"), ['report {"days":30}']);
+  // The cap (CROSS_PAGE_MAX, two) keeps the first: a setup's own two before an offer's, and an offer's before the
+  // rest, so the week asked beside an offer is the model's own read.
+  assert.equal(mod.CROSS_PAGE_MAX, 2);
+  assert.deepEqual(names("Set up my campaigns and run 10% off colour in November", "campaigns"), [
+    'campaigns {"action":"playbooks"}',
+    'campaigns {"action":"audiences"}',
+  ]);
+  assert.deepEqual(names("10% off colour all November. How did last month go?", "today"), planReads);
+});

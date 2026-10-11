@@ -777,11 +777,13 @@ const saidBeside = (headline, detail) => ({
     language: "en",
   }),
 });
-/** The November offer asked for, the model's one round scripted as `blocks`, the plan's tool run for real. */
-const planTurn = (blocks) => {
+/**
+ * The November offer asked for (or `text`), the model's one round scripted as `blocks`, the plan's tool run for real
+ * over `ctx`.
+ */
+const planTurn = (blocks, { text = `I want to offer ${WORDS}`, ctx = ctxOf(tables()) } = {}) => {
   const rounds = [{ blocks, stopReason: "tool_use", streamError: null }];
   const events = [];
-  const ctx = ctxOf(tables());
   return runAskTurn(
     {
       ctx,
@@ -794,7 +796,7 @@ const planTurn = (blocks) => {
       scope: null,
       surface: "campaigns",
       history: [],
-      text: `I want to offer ${WORDS}`,
+      text,
       emit: (ev) => events.push(ev),
       now: NOW,
     },
@@ -836,7 +838,38 @@ test("the loop keeps every card one call made: a plan's three cards are the turn
     r.answer.say.detail,
     "The steps that send nothing are approved with one press; each send is its own press once the steps it waits for are done. Nothing happens until you do.",
   );
-  assert.deepEqual(r.tools, ["propose_campaign.plan"]);
+  // The offer's journey and Library ride in before round 1 (cross-page.ts OFFER_ASKED), then the plan.
+  assert.deepEqual(r.tools, ["campaigns.journey", "campaigns.messages", "propose_campaign.plan"]);
+});
+
+test("an offer's journey and Library read before round 1 are the plan's own reads, answered from the turn's cache (readers/index.ts TurnCache): the plan's call after them asks the database for nothing more than the same call with nothing read ahead, and makes the same cards", async () => {
+  /** Each request the workspace's database was asked, counted by table and verb or by door. */
+  const asked = (ctx) => {
+    const n = {};
+    for (const q of ctx.supabase.seen) {
+      const k = q.rpc ? `rpc:${q.rpc}` : `${q.table}.${q.op}`;
+      n[k] = (n[k] ?? 0) + 1;
+    }
+    return n;
+  };
+  const ahead = ctxOf(tables());
+  const r = await planTurn([PLAN_CALL], { ctx: ahead });
+  assert.deepEqual(r.tools, ["campaigns.journey", "campaigns.messages", "propose_campaign.plan"]);
+  readerCache.clear();
+  // Words that name nothing to read ahead, the same call.
+  const bare = ctxOf(tables());
+  const r2 = await planTurn([PLAN_CALL], { text: "Make it so", ctx: bare });
+  assert.deepEqual(r2.tools, ["propose_campaign.plan"]);
+  assert.deepEqual(asked(ahead), asked(bare));
+  // The Library and the campaigns whole, which the reads ahead and the plan share, were asked once (a step's own read of
+  // one message or one campaign by its id or name is its handler's).
+  const whole = (ctx, table) =>
+    ctx.supabase.seen.filter((q) => q.table === table && q.op === "select" && q.filters.length === 1).length;
+  for (const table of ["templates", "playbooks"]) assert.equal(whole(ahead, table), 1, table);
+  assert.deepEqual(
+    r.proposals.map((p) => [p.kind, p.title]),
+    r2.proposals.map((p) => [p.kind, p.title]),
+  );
 });
 
 test("an answer beside a plan's cards that claims a write is said as the plan's own count sentence, its detail kept (loop.ts withoutClaimedWrite): nothing is done until a person presses", async () => {
