@@ -189,6 +189,17 @@ test("a closure's end has to be a day on the calendar, like its start", () => {
   );
 });
 
+test("a note's last day has to be a day on the calendar, refused in a closure's words; a real one, or none, is taken", () => {
+  const note = (until) => ({ title: "Holiday hours", text: "Open 10 to 2.", ...(until ? { until } : {}) });
+  assert.deepEqual(issues({ notes: [note("2026-11-31")] }), [
+    "brain.profile.notes.0.until|2026-11-31 is not a date on the calendar.",
+  ]);
+  assert.deepEqual(issues({ closures: [{ date: "2026-11-31" }] }), [
+    "brain.profile.closures.0.date|2026-11-31 is not a date on the calendar.",
+  ]);
+  assert.equal(write({ notes: [note("2026-11-30"), note()] }).success, true);
+});
+
 test("at most sixty closures: the sixty-first is refused, in one sentence, and the cap is the form's", () => {
   const day = (n) => `2027-${String(1 + Math.floor(n / 28)).padStart(2, "0")}-${String(1 + (n % 28)).padStart(2, "0")}`;
   const sixty = Array.from({ length: MAX_CLOSURES }, (_, n) => ({ date: day(n) }));

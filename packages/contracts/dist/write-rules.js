@@ -393,22 +393,19 @@ function checkDay(h, day, ctx) {
     });
   }
 }
+function checkCalendarDay(day, path, ctx) {
+  if (!isRealDate(day)) {
+    ctx.addIssue({
+      code: z3.ZodIssueCode.custom,
+      path,
+      message: `${day} is not a date on the calendar.`
+    });
+  }
+}
 function checkClosure(c, n, ctx) {
   const at = (...rest) => ["brain", "profile", "closures", n, ...rest];
-  if (!isRealDate(c.date)) {
-    ctx.addIssue({
-      code: z3.ZodIssueCode.custom,
-      path: at("date"),
-      message: `${c.date} is not a date on the calendar.`
-    });
-  }
-  if (c.until && !isRealDate(c.until)) {
-    ctx.addIssue({
-      code: z3.ZodIssueCode.custom,
-      path: at("until"),
-      message: `${c.until} is not a date on the calendar.`
-    });
-  }
+  checkCalendarDay(c.date, at("date"), ctx);
+  if (c.until) checkCalendarDay(c.until, at("until"), ctx);
   if (c.until && c.until < c.date) {
     ctx.addIssue({
       code: z3.ZodIssueCode.custom,
@@ -443,6 +440,9 @@ var WriteRules = TenantConfigSchema.superRefine((cfg, ctx) => {
     });
   }
   (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
+  (p.notes ?? []).forEach((note, n) => {
+    if (note.until) checkCalendarDay(note.until, ["brain", "profile", "notes", n, "until"], ctx);
+  });
 });
 var TenantConfigWriteSchema = z3.unknown().superRefine((raw, ctx) => refuseUnknownFields(TenantConfigSchema, raw, ctx)).pipe(WriteRules);
 

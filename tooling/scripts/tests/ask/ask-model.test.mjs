@@ -166,7 +166,7 @@ test("the loop asks the profile: the request names its id and its effort, and th
         ctx: { supabase: fakeDb({}), userId: "u1", email: "ada@example.com", params: {} },
         tenantId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
         role: "operator",
-        facts: workspaceFacts("Harbor", "America/New_York", null, []),
+        facts: workspaceFacts("Harbor", "America/New_York", null, new Date("2026-09-14T14:00:00Z"), []),
         timezone: "America/New_York",
         personLabel: "ada@example.com (operator)",
         language: "en",

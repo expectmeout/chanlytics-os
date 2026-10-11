@@ -352,7 +352,7 @@ function turn(ctx, over = {}) {
     ctx,
     tenantId: A,
     role: "operator",
-    facts: workspaceFacts("Harbor", TZ, ctx.supabase ? null : null, []),
+    facts: workspaceFacts("Harbor", TZ, ctx.supabase ? null : null, NOW, []),
     timezone: TZ,
     personLabel: "ada@example.com (operator)",
     language: "en",
@@ -3539,7 +3539,7 @@ test("the answers the model is shown fit the format key for key, ride in the cac
     assert.deepEqual(Object.keys(v).sort(), Object.keys(s.properties).sort(), path);
     for (const k of Object.keys(s.properties)) fits(s.properties[k], v[k], `${path}.${k}`);
   };
-  const system = stableSystem(workspaceFacts("Harbor", TZ, null, []));
+  const system = stableSystem(workspaceFacts("Harbor", TZ, null, NOW, []));
   for (const [question, example] of ASK_EXAMPLES) {
     fits(ASK_ANSWER_FORMAT, example, question);
     assert.ok(system.includes(JSON.stringify(example)), `${question} is in the cached block`);
@@ -4204,7 +4204,7 @@ test("the rules Ask says the receptionist follows are the ones the composer gave
   const HEALTH = "gives no health advice";
 
   // No `guardrails` key at all: what every workspace that never opened the rules has.
-  const absent = workspaceFacts("Harbor", TZ, config(undefined));
+  const absent = workspaceFacts("Harbor", TZ, config(undefined), NOW);
   assert.deepEqual(
     absent.guardrails,
     [PRICE, BOOKING, AI],
@@ -4212,7 +4212,7 @@ test("the rules Ask says the receptionist follows are the ones the composer gave
   );
   assert.doesNotMatch(factsBlock(absent), /health/, "Ask's context never claims a rule the receptionist was not given");
 
-  const on = workspaceFacts("Harbor", TZ, config({ no_health_advice: true }));
+  const on = workspaceFacts("Harbor", TZ, config({ no_health_advice: true }), NOW);
   assert.deepEqual(on.guardrails, [PRICE, BOOKING, AI, HEALTH]);
   assert.match(factsBlock(on), /The receptionist .*gives no health advice\./);
 
@@ -4220,6 +4220,7 @@ test("the rules Ask says the receptionist follows are the ones the composer gave
     "Harbor",
     TZ,
     config({ never_quote_prices: false, never_confirm_booking: false, disclose_ai: false }),
+    NOW,
   );
   assert.deepEqual(off.guardrails, [], "switched off is off, and the health rule is still not on");
   assert.doesNotMatch(factsBlock(off), /The receptionist /);
@@ -4258,6 +4259,58 @@ test("the rules Ask says the receptionist follows are the ones the composer gave
     disclose_ai: true,
     no_health_advice: true,
   });
+});
+
+test("the notes Ask says the receptionist follows are the ones the composer tells it today: an ended note is not listed, a lasting one says its end in the prompt's words, and one with no end reads as before", async () => {
+  const { factsBlock } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
+  const { composeSystemPrompt } = await import("@chanlytics/contracts");
+  const brain = {
+    business_name: "Harbor Moving",
+    booking_link: "https://book.example/harbor",
+    system_prompt: "Answer as the front desk of Harbor Moving: brief and warm.",
+    fallbacks: { greeting: "g", error: "e", non_text: "n" },
+  };
+  const withNotes = (notes) => ({ brain: { ...brain, profile: { address: "1 Pier Rd", notes } } });
+  const said = (facts) =>
+    factsBlock(facts)
+      .split("\n")
+      .find((l) => l.startsWith("Notes the receptionist follows:"));
+  const parking = { title: "Parking", text: "Behind the building" };
+  // NOW is 10:00 on Monday 14 September in New York: a note whose last day is the 14th lasts, the 13th's has ended.
+  const lasting = { title: "Holiday hours", text: "Open 10 to 2", until: "2026-09-14" };
+  const ended = { title: "Summer offer", text: "Colour at 20% off", until: "2026-09-13" };
+  const facts = workspaceFacts("Harbor", TZ, withNotes([parking, lasting, ended]), NOW, []);
+  assert.deepEqual(facts.notes, [parking, lasting], "the ended note is not among Ask's facts");
+  assert.equal(
+    said(facts),
+    "Notes the receptionist follows: Parking: Behind the building | Holiday hours (until Monday, September 14, 2026): Open 10 to 2.",
+  );
+  // The receptionist's prompt, at the same clock in the same zone, says the same notes in the same words.
+  const composed = composeSystemPrompt(
+    brain,
+    { address: "1 Pier Rd", notes: [parking, lasting, ended] },
+    "whatsapp",
+    TZ,
+    NOW,
+  );
+  assert.ok(
+    composed.includes(
+      "\n- Parking: Behind the building\n- Holiday hours (until Monday, September 14, 2026): Open 10 to 2",
+    ),
+  );
+  assert.ok(!composed.includes("Summer offer"));
+  // A note with no end, byte for byte as Ask said it before a note could end.
+  assert.equal(
+    said(workspaceFacts("Harbor", TZ, withNotes([parking]), NOW, [])),
+    "Notes the receptionist follows: Parking: Behind the building.",
+  );
+  // Every note ended: no line at all, as with none.
+  assert.equal(said(workspaceFacts("Harbor", TZ, withNotes([ended]), NOW, [])), undefined);
+  // The next day in New York the note that lasted has ended too.
+  assert.deepEqual(
+    workspaceFacts("Harbor", TZ, withNotes([parking, lasting]), new Date("2026-09-15T04:30:00Z"), []).notes,
+    [parking],
+  );
 });
 
 test("people.get says where the proposal lives (00154), so a card can carry the address into a reply; nothing when there is none, and nothing of a deal where deals are off (0008)", async () => {
@@ -6513,7 +6566,7 @@ test("the prefix (the Phase 5 plan, D2): the sha256 of what the last request sen
   const config = tables().tenant_config[0].config;
   const profile = config.brain.profile;
   const facts = (brain = {}, policies = []) =>
-    workspaceFacts("Harbor", TZ, { ...config, brain: { ...config.brain, ...brain } }, policies);
+    workspaceFacts("Harbor", TZ, { ...config, brain: { ...config.brain, ...brain } }, NOW, policies);
   const set = await ask({ facts: facts() });
   const changed = {
     role: await ask({ role: "owner", personLabel: "ada@example.com (owner)" }),
@@ -6952,7 +7005,7 @@ test("cold, each on its own (the Phase 5 plan, D1-D3): the previous round's star
     delete process.env.ASK_MODEL;
   }
   const config = tables().tenant_config[0].config;
-  const facts = (brain) => workspaceFacts("Harbor", TZ, { ...config, brain: { ...config.brain, ...brain } }, []);
+  const facts = (brain) => workspaceFacts("Harbor", TZ, { ...config, brain: { ...config.brain, ...brain } }, NOW, []);
   const profile = config.brain.profile;
   for (const [why, asking] of [
     ["another setting", { facts: facts({ business_name: "Harbor Movers" }) }],

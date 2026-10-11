@@ -91,21 +91,35 @@ function upcomingClosures(closures: Closure[] | undefined, today: string | null)
 }
 
 /**
- * The owner's notes the receptionist is still told on the business's day (businessToday): every note with no last
- * day, and one with a last day through that day, in the stored order. One whose day has passed stays in the config and
- * simply stops being said, as a closure does.
+ * The owner's notes the receptionist is still told on the business's day `today` (businessToday): every note with no
+ * last day, and one with a last day through that day, in the stored order. One whose day has passed stays in the config
+ * and simply stops being said, as a closure does.
  */
-function notesInForce(notes: Note[] | undefined, today: string | null): Note[] {
+function notesInForceOn<N extends Pick<Note, "until">>(notes: readonly N[] | undefined, today: string | null): N[] {
   if (!notes?.length) return [];
-  if (!today) return notes;
+  if (!today) return [...notes];
   return notes.filter((n) => !n.until || n.until >= today);
 }
 
-/** A note a line: "Parking: …", or with its last day, named as a single closed day is, "Holiday hours (until …): …". */
-function noteLines(notes: Note[]): string[] {
-  return notes.map((n) =>
-    n.until ? `${n.title} (until ${labelDate(n.until, true)}): ${n.text}` : `${n.title}: ${n.text}`,
-  );
+/**
+ * Which of the owner's notes still hold at `now`, on the business's day in `tz` (the closures' day, businessToday,
+ * with its fallback for no zone): the one rule the composer says notes by, for anything else that says what the
+ * receptionist is told (Ask's facts), so neither claims a note whose last day has passed.
+ */
+export function notesInForce<N extends Pick<Note, "until">>(
+  notes: readonly N[] | undefined,
+  tz: string | null | undefined,
+  now: Date,
+): N[] {
+  return notesInForceOn(notes, businessToday(tz, now));
+}
+
+/**
+ * A note as the receptionist is told it: "Parking: …", or with its last day, named as a single closed day is,
+ * "Holiday hours (until Saturday, October 10, 2026): …". The prompt's line after its "- ", and Ask's facts' alike.
+ */
+export function noteAsTold(n: Pick<Note, "title" | "text" | "until">): string {
+  return n.until ? `${n.title} (until ${labelDate(n.until, true)}): ${n.text}` : `${n.title}: ${n.text}`;
 }
 
 function closureLines(closures: Closure[]): string[] {
@@ -284,7 +298,7 @@ function composeSystemPromptWith(
   // customers book against months ahead.
   const today = businessToday(tz, now);
   const closed = closureLines(upcomingClosures(profile.closures, today));
-  const notes = noteLines(notesInForce(profile.notes, today));
+  const notes = notesInForceOn(profile.notes, today).map(noteAsTold);
   const facts: SectionFacts = { base, profile, channel, tz, policy, link, hrs, closed, notes };
   return PROMPT_SECTIONS.flatMap((section) => section(facts)).join("\n");
 }
@@ -306,7 +320,7 @@ interface SectionFacts {
   hrs: string[];
   /** The closures still ahead, a line each: the closures section says them, and the owner's words are told it did. */
   closed: string[];
-  /** The notes still in force on the business's day, a line each (noteLines): the notes section says them. */
+  /** The notes still in force on the business's day, a line each (noteAsTold): the notes section says them. */
   notes: string[];
 }
 

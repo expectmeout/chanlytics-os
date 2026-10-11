@@ -111,6 +111,7 @@ const BtaNote = ({
   notes,
   press,
   bad,
+  badUntil,
   ended,
   readOnly,
 }: {
@@ -119,6 +120,7 @@ const BtaNote = ({
   notes: ReturnType<Fields["rows"]>;
   press: Fields["press"];
   bad: string | null;
+  badUntil: string | null;
   ended: string | null;
   readOnly: boolean;
 }) => {
@@ -154,7 +156,9 @@ const BtaNote = ({
         type="date"
         value={note && typeof note.until === "string" ? note.until : ""}
         onChange={(v) => notes.setAt(i, { until: v })}
+        problem={badUntil}
         readOnly={readOnly}
+        testid={`rec-note-${i}-until`}
       />
       <button
         type="button"
@@ -177,11 +181,11 @@ const BtaNote = ({
 
 /**
  * The notes, each a title, what it says and an optional last day, with a remove. A note is words somebody typed, the
- * same as a closure, and
- * each went with one press and no Undo (S18): now the removal says so and offers it back at its own place (BtFold's
- * rows), and the list stops at the profile's ten, where the old form stopped by hiding Add. Hookless (the kit's
- * RecordBox, a textarea for what a note says): its rows come and go. What stops a note (half of one, or more than the
- * profile keeps) is said once under its row, and both its boxes are wrong by it.
+ * same as a closure, and each went with one press and no Undo (S18): now the removal says so and offers it back at its
+ * own place (BtFold's rows), and the list stops at the profile's ten, where the old form stopped by hiding Add.
+ * Hookless (the kit's RecordBox, a textarea for what a note says): its rows come and go. What stops a note (half of
+ * one, or more than the profile keeps) is said once under its row, and both its boxes are wrong by it; a last day the
+ * save refuses (one not on the calendar) is said under its own box, as a closed day's is.
  */
 const BtaNotes = ({
   draft,
@@ -195,7 +199,7 @@ const BtaNotes = ({
     name: (i) => `note-${i}`,
     max: businessTabSave.LIMITS.notes,
     blank: () => ({ title: "", text: "" }),
-    keysOf: (i) => [`note-${i}`],
+    keysOf: (i) => [`note-${i}`, `note-${i}-until`],
     key: "notes",
     full: BTA_NOTES_FULL,
   });
@@ -222,6 +226,7 @@ const BtaNotes = ({
           notes={notes}
           press={press}
           bad={(problems[`note-${i}`] as string | undefined) || null}
+          badUntil={(problems[`note-${i}-until`] as string | undefined) || null}
           ended={BUSINESS_TAB.noteEndedWords(n && n.until, zone, now)}
           readOnly={readOnly}
         />

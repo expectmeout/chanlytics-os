@@ -117,8 +117,9 @@ import { fallbackDefaults, instructionsDraft, receptionistDefaults, unknownDetai
  * a length or a count the old form never checked, and the server's refusal named no field the owner could see, so each
  * is said here first, from the one table of limits (LIMITS). What only the schema can judge -- overlapping shifts, a
  * date that is not on the calendar, an address the receptionist may not read -- stays the schema's to say, and
- * schemaProblems(fold, base, draft) puts its sentence under the same field keys, plus closure-<i>-date and
- * closure-<i>-until, and `elsewhere` for a refusal in a part of the settings that is not this fold's to fix. A fold's
+ * schemaProblems(fold, base, draft) puts its sentence under the same field keys, plus closure-<i>-date,
+ * closure-<i>-until and note-<i>-until, and `elsewhere` for a refusal in a part of the settings that is not this fold's
+ * to fix. A fold's
  * Save asks saveProblems(fold, base, draft), which is both with the page's own sentence winning, and sends only when it
  * is {}.
  */
@@ -627,7 +628,8 @@ const btListField = (fold: "services" | "closures" | "notes", path: (string | nu
   if (typeof path[3] !== "number") return fold;
   const row = BT_WRITTEN_ROWS[fold](draft)[path[3]];
   const at = row === undefined ? path[3] : row;
-  if (fold === "notes") return `note-${at}`;
+  // A note's sentence is its row's, but for its last day, which is said under its own box as a closed day's is.
+  if (fold === "notes") return `note-${at}${path[4] === "until" ? "-until" : ""}`;
   return `${fold === "services" ? "service" : "closure"}-${at}${typeof path[4] === "string" ? `-${path[4]}` : ""}`;
 };
 

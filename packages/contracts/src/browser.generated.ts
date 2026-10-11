@@ -83,7 +83,7 @@ export { promptBlocks } from "./config/prompt-blocks";
 export { roleAtLeast } from "./config/roles";
 export { ALERT_ADDRESSES_MAX, ALERT_ADDRESSES_MIN, ALERT_REFUSED_WORDS, alertAddressesOf, memberGetsAlerts, withAlertAddress } from "./config/workspace-config/alerts";
 export { newReceptionistDefaults, isBaselinePrompt } from "./config/workspace-config/brain-config";
-export { describeNow, composeSystemPrompt, PROMPT_OPENINGS } from "./config/workspace-config/compose";
+export { describeNow, composeSystemPrompt, PROMPT_OPENINGS, notesInForce, noteAsTold } from "./config/workspace-config/compose";
 export { DAYS, DAY_NAMES, isRealDate, dayProblems, MAX_INTERVALS_PER_DAY, MAX_CLOSURES, E164, isE164, INSTRUCTIONS_MAX, PROFILE_LIMITS, GUARDRAIL_KEYS, guardrailsInForce } from "./config/workspace-config/config-rules";
 export { isProductFallback, fallbackMessages, unknownDetails, FALLBACK_DETAILS, FALLBACK_DEFAULTS, EARLIER_FALLBACK_DEFAULTS } from "./config/workspace-config/fallbacks";
 export { offersAfterStart, offersFacts } from "./config/workspace-config/offers-ask";

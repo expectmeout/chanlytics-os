@@ -16,11 +16,13 @@ import {
   fencedInline,
   guardrailsInForce,
   hoursRuns,
+  noteAsTold,
+  notesInForce,
   parseTenantConfig,
   promptSafeName,
   type TenantConfig,
 } from "@chanlytics/contracts";
-import type { MembershipRole } from "@chanlytics/contracts";
+import type { MembershipRole, Note } from "@chanlytics/contracts";
 import type { AskMessageVM, AskProposal, AskProposalOutcome, AskScope } from "@chanlytics/contracts";
 import { oneLine } from "./context/rows";
 
@@ -188,7 +190,8 @@ export interface WorkspaceFacts {
   services: Array<{ name: string; duration_min?: number; price_note?: string }>;
   languages: string[];
   guardrails: string[];
-  notes: Array<{ title: string; text: string }>;
+  /** The notes the receptionist is told today (contracts notesInForce), each with its last day where it has one. */
+  notes: Note[];
   bookingNotes: string[];
   hasCalendar: boolean;
   /** The booking tool whose emails become appointments, as the product says it; null for none named. */
@@ -209,11 +212,16 @@ const calendarFactsOf = (
   booksByHand: !!cfg?.bookings?.by_hand,
 });
 
-/** The facts the receptionist itself runs on, in a few lines. */
+/**
+ * The facts the receptionist itself runs on, in a few lines. `now` is the clock they are true at (a turn's, rc.now):
+ * the notes are the ones the composer tells the receptionist on the workspace's day then, so Ask never claims a note
+ * whose last day has passed.
+ */
 export function workspaceFacts(
   name: string,
   timezone: string,
   rawConfig: unknown,
+  now: Date,
   policies: ReadonlyArray<{ class: string; mode: string }> = [],
 ): WorkspaceFacts {
   const cfg: TenantConfig | null = parseTenantConfig(rawConfig);
@@ -235,7 +243,8 @@ export function workspaceFacts(
     services: (profile?.services ?? []).slice(0, 40),
     languages: profile?.languages ?? [],
     guardrails,
-    notes: (profile?.notes ?? []).slice(0, 10),
+    // The composer's own rule and day (contracts notesInForce), then the ten Ask is told of.
+    notes: notesInForce(profile?.notes, timezone, now).slice(0, 10),
     bookingNotes: profile?.booking_rules?.notes ?? [],
     ...calendarFactsOf(cfg),
     visionOn: !!cfg?.features?.vision,
@@ -265,7 +274,8 @@ export function factsBlock(f: WorkspaceFacts): string {
       `Autonomy, class by class (auto: on its own · veto: after a short hold unless someone stops it · ask: waits for a person · never: not at all): ${f.autonomy.join("; ")}. Money is always never, by charter.`,
     );
   if (f.notes.length)
-    lines.push(`Notes the receptionist follows: ${f.notes.map((n) => `${n.title}: ${n.text}`).join(" | ")}.`);
+    // Each as the receptionist's prompt says it (contracts noteAsTold): a note with an end says it.
+    lines.push(`Notes the receptionist follows: ${f.notes.map(noteAsTold).join(" | ")}.`);
   if (f.bookingNotes.length) lines.push(`Booking notes: ${f.bookingNotes.join("; ")}.`);
   lines.push(calendarFact(f));
   return lines.join("\n");

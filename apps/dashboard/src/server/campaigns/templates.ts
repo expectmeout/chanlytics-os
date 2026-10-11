@@ -148,7 +148,8 @@ async function workspaceFor(
   ]);
   const parsed = parseTenantConfig(config);
   return {
-    facts: workspaceFacts(name, timezone, config),
+    // The request's clock: the facts are true now (a note says what it is told today; these prompts name no note).
+    facts: workspaceFacts(name, timezone, config, new Date()),
     bookingLink: parsed?.brain?.booking_link ?? null,
   };
 }

@@ -115,7 +115,13 @@ export type {
 } from "./workspace-config/config-schema";
 export { hoursRuns } from "./workspace-config/prompt-hours";
 export type { HoursRun } from "./workspace-config/prompt-hours";
-export { describeNow, composeSystemPrompt, PROMPT_OPENINGS } from "./workspace-config/compose";
+export {
+  describeNow,
+  composeSystemPrompt,
+  PROMPT_OPENINGS,
+  notesInForce,
+  noteAsTold,
+} from "./workspace-config/compose";
 export { offersAfterStart, offersFacts } from "./workspace-config/offers-ask";
 export type { LeadChannel } from "./workspace-config/offers-ask";
 export {

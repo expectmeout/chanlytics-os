@@ -136,24 +136,25 @@ function checkDay(h: Hours, day: string, ctx: z.RefinementCtx): void {
   }
 }
 
+/**
+ * A stored day that is not on the calendar, refused in one sentence: a closure's first and last day, and a note's last.
+ * The read regex accepts 2026-11-31. Caught here so it never reaches a renderer that would have to print it raw to
+ * avoid naming the wrong day.
+ */
+function checkCalendarDay(day: string, path: (string | number)[], ctx: z.RefinementCtx): void {
+  if (!isRealDate(day)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path,
+      message: `${day} is not a date on the calendar.`,
+    });
+  }
+}
+
 function checkClosure(c: Closure, n: number, ctx: z.RefinementCtx): void {
   const at = (...rest: (string | number)[]) => ["brain", "profile", "closures", n, ...rest];
-  // The read regex accepts 2026-11-31. Caught here so it never reaches a
-  // renderer that would have to print it raw to avoid naming the wrong day.
-  if (!isRealDate(c.date)) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: at("date"),
-      message: `${c.date} is not a date on the calendar.`,
-    });
-  }
-  if (c.until && !isRealDate(c.until)) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: at("until"),
-      message: `${c.until} is not a date on the calendar.`,
-    });
-  }
+  checkCalendarDay(c.date, at("date"), ctx);
+  if (c.until) checkCalendarDay(c.until, at("until"), ctx);
   if (c.until && c.until < c.date) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -192,6 +193,10 @@ const WriteRules = TenantConfigSchema.superRefine((cfg, ctx) => {
     });
   }
   (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
+  // A note's last day, judged as a closure's is.
+  (p.notes ?? []).forEach((note, n) => {
+    if (note.until) checkCalendarDay(note.until, ["brain", "profile", "notes", n, "until"], ctx);
+  });
 });
 
 /**

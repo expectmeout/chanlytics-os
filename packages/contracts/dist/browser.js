@@ -20743,15 +20743,16 @@ function upcomingClosures(closures, today) {
   if (!today) return closures;
   return closures.filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= today).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
 }
-function notesInForce(notes, today) {
+function notesInForceOn(notes, today) {
   if (!notes?.length) return [];
-  if (!today) return notes;
+  if (!today) return [...notes];
   return notes.filter((n) => !n.until || n.until >= today);
 }
-function noteLines(notes) {
-  return notes.map(
-    (n) => n.until ? `${n.title} (until ${labelDate(n.until, true)}): ${n.text}` : `${n.title}: ${n.text}`
-  );
+function notesInForce(notes, tz, now) {
+  return notesInForceOn(notes, businessToday(tz, now));
+}
+function noteAsTold(n) {
+  return n.until ? `${n.title} (until ${labelDate(n.until, true)}): ${n.text}` : `${n.title}: ${n.text}`;
 }
 function closureLines(closures) {
   return closures.map((c) => {
@@ -20819,7 +20820,7 @@ function composeSystemPromptWith(base, profile, channel, tz, now, policy) {
   const hrs = hoursLines(profile.hours);
   const today = businessToday(tz, now);
   const closed = closureLines(upcomingClosures(profile.closures, today));
-  const notes = noteLines(notesInForce(profile.notes, today));
+  const notes = notesInForceOn(profile.notes, today).map(noteAsTold);
   const facts = { base, profile, channel, tz, policy, link, hrs, closed, notes };
   return PROMPT_SECTIONS.flatMap((section) => section(facts)).join("\n");
 }
@@ -39454,11 +39455,13 @@ export {
   normalizePhone,
   notFoundPageMetadata,
   notNowDayOf,
+  noteAsTold,
   noteEndedWords,
   noteRows,
   noteSuggestSystemPrompt,
   noteSuggestUserContent,
   noteWhose,
+  notesInForce,
   notesWords,
   noticeAnswerOf,
   noticePrompt,
