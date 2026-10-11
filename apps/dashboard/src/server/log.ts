@@ -126,6 +126,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "lead_door_refusal_unknown",
   "media_remove_failed",
   "media_remove_refused",
+  "message_version_not_filed",
   "native_sign_in_failed",
   "native_sign_in_rate_limited",
   "native_sign_in_refused",

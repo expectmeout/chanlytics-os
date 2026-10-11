@@ -225,18 +225,19 @@ export async function saveVersion(ctx: RouteContext, member: Member, v: VersionR
 /**
  * POST templates/message: one email or text version of a message written whole (write-message.ts), which says what the
  * message is (its category and values) with every version at once. Beside the rows its message has, where the workspace
- * holds any of its name (writeVersion: the message's own slots and category), else as its first (beginMessage: the
- * category and values said, a text of an offer refused). The words are checked here as everywhere (checkedWords).
- * No starter's name reaches here, and a utility category only with a WhatsApp version for Meta to review: the caller
- * refuses both first (refuseWrittenUtility, the check a member's first version meets).
+ * holds any of its name (`held` is how many values they say, as the caller read them once: writeVersion, the message's
+ * own slots and category), else as its first (beginMessage: the category and values said, a text of an offer refused).
+ * The words are checked here as everywhere (checkedWords). No starter's name reaches here, nor a category or a number of
+ * values other than the message's on file, and a utility category only with a WhatsApp version for Meta to review: the
+ * caller refuses each first (refuseWrittenUtility, the check a member's first version meets).
  */
 export async function fileWrittenVersion(
   db: Acting,
   tenantId: string,
   v: VersionRequest,
+  held: number | null,
   message: { category: "marketing" | "utility"; variables: MessageVariable[] },
 ): Promise<VersionSaved> {
-  const held = await messageSlots(db.supabase, tenantId, v.name, v.language);
   if (held !== null) return writeVersion(db, tenantId, v, held);
   const words = checkedWords(v, message.variables.length);
   return beginMessage(db.userId, tenantId, v, words, { ...message, title: null });

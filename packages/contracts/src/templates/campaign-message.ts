@@ -368,4 +368,10 @@ export const MESSAGE_BEGIN_WORDS = {
   starterNeedsItsOwnWords:
     "A starter begins with its own words. Add the starter set, then change the words in the Library.",
   doorNotSwitchedOn: "Writing a message with no WhatsApp version is not switched on here yet.",
+  /**
+   * A message written whole in a language of a message already on file in another, said as something else (POST
+   * templates/message): a language of a message is the same kind of message with the same values.
+   */
+  heldOtherwise: (category: string | null, slots: number) =>
+    `This message is on file in another language as ${category === "utility" ? "a message about their own visit or proposal" : "an offer or news"} with ${slots} value${slots === 1 ? "" : "s"}. Write this language the same way, or give it another name.`,
 } as const;

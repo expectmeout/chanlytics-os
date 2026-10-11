@@ -10,7 +10,9 @@
  * member's first version meets, template-versions.ts refuseWrittenUtility), each version's
  * words on its channel's rules against the values (contracts validateOwnVersion, and validateTemplateDraft for
  * WhatsApp's, which Meta would refuse at the wire), and no twin: a message of the same name and language on file on any
- * channel is answered 409 in the words a WhatsApp submission is.
+ * channel is answered 409 in the words a WhatsApp submission is. A name on file in another language is a language of
+ * that message, written beside it, and only as what it is held as (its category and its number of values, read once),
+ * else 409 in words that say what is held.
  *
  * Then the email and text versions are filed, at once and approved, through the doors a member's own are
  * (template-versions.ts fileWrittenVersion: the first begins the message with its category and values, the other is
@@ -18,7 +20,7 @@
  * (template-submit.ts submitDraft). In that order, so a WhatsApp version the edge or Meta refuses leaves the others filed:
  * past the checks the answer always arrives, listing each version filed with its id and state, and the first that could
  * not be filed under `refused`, in its words, nothing after it attempted. A fault no one meant a person to read is said
- * in one plain sentence.
+ * in one plain sentence, and logged (message_version_not_filed).
  */
 import {
   AppError,
@@ -37,14 +39,18 @@ import {
   type OwnVersionChannel,
   type ParamSpec,
 } from "@chanlytics/contracts";
-import { messageVersionRowsOf } from "@chanlytics/db";
+import { heldMessageOf, messageVersionRowsOf } from "@chanlytics/db";
 import { SAME_NAME_WORDS, submitDraft } from "@/server/campaigns/template-submit";
 import { MESSAGE_VALUES_WORDS, fileWrittenVersion, refuseWrittenUtility } from "@/server/campaigns/template-versions";
+import { log } from "@/server/log";
 import type { RouteContext } from "@/server/with-route";
 import type { Member } from "@/server/route";
 
-/** A message as it is written whole: its name and language, its kind, a version per channel, and the values they fill. */
-interface WriteMessageBody {
+/**
+ * A message as it is written whole: its name and language, its kind, a version per channel, and the values they fill.
+ * The route's schema is held to it (templates/message/route.ts), so this is the one statement of the body.
+ */
+export interface WriteMessageBody {
   name: string;
   language: string;
   category: "marketing" | "utility";
@@ -65,7 +71,7 @@ interface VersionFiled {
 }
 
 /** What became of the message: each version filed, and the first that could not be, in its words. */
-interface WriteMessageAnswer {
+export interface WriteMessageAnswer {
   name: string;
   language: string;
   versions: VersionFiled[];
@@ -75,9 +81,14 @@ interface WriteMessageAnswer {
 /** A version that could not be filed for a reason no one meant a person to read (a fault, not a refusal). */
 const NOT_FILED = "This version could not be filed just now. Write it again from the Library.";
 
-/** The words a refusal says, or the plain sentence for a fault. */
-function filingWords(e: unknown): string {
-  return e instanceof AppError && e.code !== "internal" ? e.message : NOT_FILED;
+/**
+ * The words a refusal says, or, for a fault, the plain sentence, the fault itself logged: the answer still arrives (the
+ * versions before it are filed), so the route never sees it and its route_failed line is never written.
+ */
+function filingWords(e: unknown, tenantId: string, channel: ConsentChannel): string {
+  if (e instanceof AppError && e.code !== "internal") return e.message;
+  log.error("message_version_not_filed", { tenant_id: tenantId, channel, error: e });
+  return NOT_FILED;
 }
 
 /** An email's or a text's words as the body says them; null where it has no version on that channel. */
@@ -133,6 +144,23 @@ function checkMessage(body: WriteMessageBody, slots: WriteMessageBody["slots"]):
   }
 }
 
+/**
+ * The message on file under this name in another language, read once before anything is filed: a language of a message
+ * is the same kind of message with the same values, so one said otherwise is refused (409) in words that say what is
+ * held. What it answers is how many values the versions are written beside, or null where the name begins a message.
+ */
+async function heldValues(
+  ctx: RouteContext,
+  tenantId: string,
+  body: WriteMessageBody,
+  slots: number,
+): Promise<number | null> {
+  const held = await heldMessageOf(ctx.supabase, tenantId, body.name, body.language);
+  if (held && (held.category !== body.category || held.slots !== slots))
+    throw new AppError("conflict", MESSAGE_BEGIN_WORDS.heldOtherwise(held.category, held.slots), 409);
+  return held ? held.slots : null;
+}
+
 export async function writeMessage(
   ctx: RouteContext,
   member: Member,
@@ -144,6 +172,8 @@ export async function writeMessage(
   // A twin: the message is on file already, on some channel. Its other versions are written in the Library.
   if ((await messageVersionRowsOf(ctx.supabase, member.tenantId, { name, language })).length > 0)
     throw new AppError("conflict", SAME_NAME_WORDS, 409);
+  // A language of a message held in another: written beside it, as what it is held as.
+  let held = await heldValues(ctx, member.tenantId, body, slots.length);
 
   const filed: VersionFiled[] = [];
   const answer = (refused?: WriteMessageAnswer["refused"]): WriteMessageAnswer => ({
@@ -157,15 +187,13 @@ export async function writeMessage(
     const words = ownWords(body.versions, channel);
     if (!words) continue;
     try {
-      const saved = await fileWrittenVersion(
-        ctx,
-        member.tenantId,
-        { name, language, channel, ...words },
-        { category, variables },
-      );
+      const v = { name, language, channel, ...words };
+      const saved = await fileWrittenVersion(ctx, member.tenantId, v, held, { category, variables });
+      // The message is held from its first version on: the next is written beside it.
+      held = slots.length;
       filed.push({ channel, id: saved.version.id, state: "approved" });
     } catch (e) {
-      return answer({ channel, words: filingWords(e) });
+      return answer({ channel, words: filingWords(e, member.tenantId, channel) });
     }
   }
   if (!body.versions.whatsapp) return answer();
@@ -174,6 +202,6 @@ export async function writeMessage(
     filed.push({ channel: "whatsapp", id: sent.id, state: sent.meta_status === "approved" ? "approved" : "pending" });
     return answer();
   } catch (e) {
-    return answer({ channel: "whatsapp", words: filingWords(e) });
+    return answer({ channel: "whatsapp", words: filingWords(e, member.tenantId, "whatsapp") });
   }
 }

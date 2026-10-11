@@ -2982,14 +2982,17 @@ async function templatesToSend(db, tenantId, channel = "whatsapp") {
   return data ?? [];
 }
 async function messageSlots(db, tenantId, name, language) {
-  const { data, error } = await db.from("templates").select("channel, language, variables").eq("tenant_id", tenantId).eq("name", name);
-  if (error) throw new Error(`messageSlots: ${error.message}`);
+  return (await heldMessageOf(db, tenantId, name, language))?.slots ?? null;
+}
+async function heldMessageOf(db, tenantId, name, language) {
+  const { data, error } = await db.from("templates").select("channel, language, category, variables").eq("tenant_id", tenantId).eq("name", name);
+  if (error) throw new Error(`heldMessageOf: ${error.message}`);
   const rows = (data ?? []).slice().sort((a, b) => {
     const wa = Number(b.channel === "whatsapp") - Number(a.channel === "whatsapp");
     return wa || Number(b.language === language) - Number(a.language === language);
   });
   const row = rows[0];
-  return row ? variablesSlotCount(row.variables) : null;
+  return row ? { category: row.category, slots: variablesSlotCount(row.variables) } : null;
 }
 async function messageOfVersion(db, tenantId, id) {
   const { data, error } = await db.from("templates").select("name, language").eq("tenant_id", tenantId).eq("id", id).maybeSingle();
@@ -5099,6 +5102,7 @@ export {
   handBackThread,
   handRun,
   hasNewerCopy,
+  heldMessageOf,
   heldNoticeDue,
   heldNoticesOf,
   heldStale,

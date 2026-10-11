@@ -86,9 +86,10 @@ const message = (over = {}) => ({
 /**
  * The two doors a version is filed through, over the same tables: a version beside the message's rows takes their
  * category and values (save_template_version); the first version of a name says them itself, as the member it acts for,
- * and is refused where any row of the name is on file (create_message_version). Each call is said, in order, in `order`.
+ * and is refused where any row of the name is on file (create_message_version). Each call is said, in order, in `order`;
+ * `after.create`, where a case sets it, runs once the first version is written (a fault that comes after it).
  */
-function doors(tables, order) {
+function doors(tables, order, after) {
   let next = 900;
   const version = (a, over) => {
     const row = tpl(next++, {
@@ -119,7 +120,9 @@ function doors(tables, order) {
           throw Object.assign(new Error("Message not found."), { code: "P0002" });
         if (tables.templates.some((t) => t.tenant_id === a.p_tenant_id && t.name === a.p_name))
           throw Object.assign(new Error("This message already exists."), { code: "23505" });
-        return version(a, { category: a.p_category, variables: a.p_variables, created_by: a.p_user });
+        const made = version(a, { category: a.p_category, variables: a.p_variables, created_by: a.p_user });
+        after.create?.();
+        return made;
       },
     },
   };
@@ -188,10 +191,13 @@ function open({ templates = [], edge = null } = {}) {
     events: [],
   };
   const order = [];
-  const d = doors(tables, order);
+  // The member's session's faults, read at each call: a case may make a read fail once something is filed.
+  const faults = {};
+  const after = {};
+  const d = doors(tables, order, after);
   setServiceClient(fakeDb(tables, {}, d.service));
   meta = stubMeta(tables, order, edge);
-  const ctx = { supabase: fakeDb(tables, {}, d.session), userId: USER, email: "ada@example.com", params: {} };
+  const ctx = { supabase: fakeDb(tables, faults, d.session), userId: USER, email: "ada@example.com", params: {} };
   const post = (body, workspace = B) =>
     route.POST.run(
       new Request(`http://localhost/api/v1/x?workspace=${workspace}`, { method: "POST", body: JSON.stringify(body) }),
@@ -199,7 +205,7 @@ function open({ templates = [], edge = null } = {}) {
     );
   const filed = (name = "spring_colour") =>
     tables.templates.filter((t) => t.name === name).map((t) => [t.channel, t.meta_status]);
-  return { tables, order, meta, post, filed };
+  return { tables, order, meta, post, filed, faults, after };
 }
 
 async function refused(p, code, status, words) {
@@ -399,4 +405,108 @@ test("every version's words are checked before any is filed: a WhatsApp version 
   );
   assert.deepEqual(w.order, []);
   assert.deepEqual(w.tables.templates, []);
+});
+
+/* ---- A language of a message held in another ---- */
+
+/** The offer, held in English: its WhatsApp version, an offer with the two values. */
+const HELD_EN = () =>
+  tpl(1, { variables: SLOTS.map((s) => ({ position: s.position, label: s.label, example: s.example })) });
+const ES_EMAIL = { subject: "Primavera en {{2}}", body: "Hola {{1}}, el color de primavera tiene 10% menos en {{2}}." };
+const ES_WHATSAPP = {
+  body: "Hola {{1}}, el color de primavera tiene 10% menos en {{2}} este mes. Responde para reservar.",
+  footer: "Responde STOP para no recibir más",
+};
+
+test("(f) a Spanish body for a name held in English, the same kind and the same values, is no twin: its versions are written beside the message, WhatsApp's sent for review", async () => {
+  const w = open({ templates: [HELD_EN()] });
+  const r = await w.post(message({ language: "es", versions: { email: ES_EMAIL, whatsapp: ES_WHATSAPP } }));
+  assert.deepEqual(w.order, ["save:email", "meta"], "written beside the message on file, never begun again");
+  const es = (channel) => w.tables.templates.find((t) => t.language === "es" && t.channel === channel);
+  assert.deepEqual(
+    [es("email").category, es("email").variables.length, es("whatsapp").meta_status],
+    ["marketing", 2, "pending"],
+  );
+  assert.deepEqual(r, {
+    name: "spring_colour",
+    language: "es",
+    versions: [
+      { channel: "email", id: es("email").id, state: "approved" },
+      { channel: "whatsapp", id: es("whatsapp").id, state: "pending" },
+    ],
+  });
+});
+
+test("(g) a Spanish body for a name held in English with another number of values is refused before anything is filed, in words that say what is held", async () => {
+  const w = open({ templates: [HELD_EN()] });
+  await refused(
+    w.post(
+      message({
+        language: "es",
+        versions: { email: { subject: "Hola", body: "Hola {{1}}, hay novedades." } },
+        slots: SLOTS.slice(0, 1),
+      }),
+    ),
+    "conflict",
+    409,
+    MESSAGE_BEGIN_WORDS.heldOtherwise("marketing", 2),
+  );
+  assert.deepEqual(w.order, [], "no door was called and Meta was not asked");
+  assert.equal(w.tables.templates.length, 1);
+});
+
+test("(h) a Spanish body for a name held in English as another kind of message is refused before anything is filed, in words that say what is held", async () => {
+  const w = open({ templates: [HELD_EN()] });
+  await refused(
+    w.post(
+      message({
+        language: "es",
+        category: "utility",
+        versions: {
+          email: { subject: "Tu visita a {{2}}", body: "Hola {{1}}, gracias por venir a {{2}}." },
+          whatsapp: { body: "Hola {{1}}, gracias por venir a {{2}} hoy. Escríbenos si algo necesita un vistazo." },
+        },
+      }),
+    ),
+    "conflict",
+    409,
+    MESSAGE_BEGIN_WORDS.heldOtherwise("marketing", 2),
+  );
+  assert.match(MESSAGE_BEGIN_WORDS.heldOtherwise("marketing", 2), /an offer or news with 2 values/);
+  assert.deepEqual(w.order, []);
+  assert.equal(w.tables.templates.length, 1);
+});
+
+test("a fault once a version is filed is answered in one plain sentence and logged, never swallowed: the versions before it stay filed", async () => {
+  const w = open();
+  // The email begins the message; then the database stops answering reads, so the WhatsApp submission's own read fails.
+  w.after.create = () => (w.faults["templates.select"] = { message: "connection reset by peer" });
+  const lines = [];
+  const was = console.error;
+  console.error = (line) => {
+    try {
+      lines.push(JSON.parse(line));
+    } catch {
+      lines.push({ raw: String(line) });
+    }
+  };
+  let r;
+  try {
+    r = await w.post(message({ versions: { email: EMAIL, whatsapp: WHATSAPP } }));
+  } finally {
+    console.error = was;
+  }
+  assert.deepEqual(
+    r.versions.map((v) => [v.channel, v.state]),
+    [["email", "approved"]],
+  );
+  assert.deepEqual(r.refused, {
+    channel: "whatsapp",
+    words: "This version could not be filed just now. Write it again from the Library.",
+  });
+  assert.deepEqual(w.meta.calls, [], "the submission stopped at its read: nothing reached Meta");
+  const line = lines.find((l) => l.event === "message_version_not_filed");
+  assert.ok(line, `the fault is logged: ${JSON.stringify(lines)}`);
+  assert.deepEqual([line.level, line.tenant_id, line.channel], ["error", B, "whatsapp"]);
+  assert.match(String(line.error), /connection reset by peer/);
 });

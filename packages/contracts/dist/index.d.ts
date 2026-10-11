@@ -25087,6 +25087,11 @@ declare const MESSAGE_BEGIN_WORDS: {
     readonly customIsAnOffer: "A message you write is an offer or news. Only a starter is a reminder, a check after or a follow-up.";
     readonly starterNeedsItsOwnWords: "A starter begins with its own words. Add the starter set, then change the words in the Library.";
     readonly doorNotSwitchedOn: "Writing a message with no WhatsApp version is not switched on here yet.";
+    /**
+     * A message written whole in a language of a message already on file in another, said as something else (POST
+     * templates/message): a language of a message is the same kind of message with the same values.
+     */
+    readonly heldOtherwise: (category: string | null, slots: number) => string;
 };
 
 /**

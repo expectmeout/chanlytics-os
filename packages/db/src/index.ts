@@ -349,6 +349,7 @@ export {
   templatesNamed,
   templateStatusOf,
   messageSlots,
+  heldMessageOf,
   messageVersionRowsOf,
   ownVersionsFiled,
   saveTemplateVersion,
