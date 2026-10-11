@@ -56,7 +56,7 @@
   "apps/dashboard/src/server/leads/lead-search-create.ts::rpc": 1,
   "apps/dashboard/src/server/leads/lead-searches.ts": 6,
   "apps/dashboard/src/server/leads/lead-searches.ts::rpc": 4,
-  "apps/dashboard/src/server/leads/lead-suggestions.ts": 2,
+  "apps/dashboard/src/server/leads/lead-suggestions.ts": 1,
   "apps/dashboard/src/server/leads/lead-work.ts::rpc": 4,
   "apps/dashboard/src/server/metrics/activity.ts": 4,
   "apps/dashboard/src/server/metrics/metrics.ts::rpc": 1,

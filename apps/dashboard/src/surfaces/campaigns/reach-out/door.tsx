@@ -5,8 +5,8 @@
  * sheet with them included; none of either draws nothing. The search's reach is read through the bridge
  * (`reachOuts.reach`, held until the next write), and every word is contracts' (reachOutDoorOf). Writing is the page's
  * primary act, so a role that may not (a viewer, or an owner viewing as one) is shown it gated by the one role table
- * (gate("approve")), and told why at the control, never offered a sheet it could not save. On a phone it is the sticky
- * full-width button over the rows. Saved, the sheet stays open to say what the run did (R14); the door reads its search
+ * (gate("approve")), and told why at the control, never offered a sheet it could not save. On a phone it is an accent word
+ * at the end of the search's line, under its counts (a full-width coral bar pinned over the rows, then a second coral button, until 10 Oct 2026). Saved, the sheet stays open to say what the run did (R14); the door reads its search
  * again behind it.
  */
 import { useEffect, useState } from "react";
@@ -55,15 +55,16 @@ export function ReachOutDoor({ search, phone = false }: DoorProps) {
     <>
       {door && (
         <Button
-          variant="primary"
-          size={phone ? "md" : "sm"}
-          className={`ro-door${phone ? " ph-big ro-door-phone" : ""}`}
+          variant={phone ? "plain" : "primary"}
+          size="sm"
+          className={`ro-door${phone ? " ro-door-phone" : ""}`}
           onClick={press}
           {...gated}
           data-testid="leads-write"
           data-kind={door.kind}
         >
           <Icon name={door.kind === "open" ? "external" : "mail"} size={12} /> {door.label}
+          {phone ? <Icon name="chevron" size={11} /> : null}
         </Button>
       )}
       {open && search && (

@@ -326,12 +326,12 @@ test("a changed count re-plans without the model, and a changed area makes a new
   const st = { plan: PLAN, pick: null, refusal: null };
   assert.equal(
     textOf(byTestId(drawCard(st), "plan-sentence")),
-    "Find 200 personal trainers in Austin, TX with a website, reached by a checked email or a phone.",
+    "Find 200 personal trainers in Austin, TX: with a website; reached by a checked email or a phone.",
   );
   pickOption(st, "count", "50");
   assert.equal(
     textOf(byTestId(drawCard(st), "plan-sentence")),
-    "Find 50 personal trainers in Austin, TX with a website, reached by a checked email or a phone.",
+    "Find 50 personal trainers in Austin, TX: with a website; reached by a checked email or a phone.",
   );
   assert.equal(st.plan.version, 2, "the count is one of the five that make a new version (S15; planVersionOf on main)");
   const counts = byTestId((click(byTestId(drawCard(st), "plan-count")), drawCard(st)), "plan-count-50");
@@ -345,7 +345,7 @@ test("a changed count re-plans without the model, and a changed area makes a new
   assert.equal(st.plan.version, 3, "and so is the area");
   assert.equal(
     textOf(byTestId(drawCard(st), "plan-sentence")),
-    "Find 50 personal trainers in Round Rock, TX with a website, reached by a checked email or a phone.",
+    "Find 50 personal trainers in Round Rock, TX: with a website; reached by a checked email or a phone.",
   );
   assert.equal(textOf(byTestId(drawCard(st), "plan-changed")), "changed");
   assert.equal(sent.length, 0, "no model call: a picked word re-plans on the page");
@@ -413,7 +413,7 @@ test("Leaving out is chips the owner can take back, Likely says what past search
   assert.equal(st.plan.version, 2, "and that is a new version");
   assert.equal(byTestId(drawCard(st), "plan-leaving"), null);
   const fresh = drawCard({ plan: PLAN, pick: null, refusal: null }, { facts: { ...FACTS, prior: null } });
-  assert.equal(textOf(byTestId(fresh, "plan-likely")), "How many have an email is checked after the first 25.");
+  assert.equal(textOf(byTestId(fresh, "plan-likely")), "The share with an email shows after the first 25.");
 });
 
 test("Find N leads commits the card through the route, and a refusal is said under the button in the route's words", async () => {
@@ -765,7 +765,7 @@ test("Ask draws the finder's own plan card by name until it moves: surfaces/lead
   });
   assert.equal(
     textOf(byTestId(tree, "plan-sentence")),
-    "Find 200 personal trainers in Austin, TX with a website, reached by a checked email or a phone.",
+    "Find 200 personal trainers in Austin, TX: with a website; reached by a checked email or a phone.",
   );
   assert.equal(textOf(byTestId(tree, "plan-approve")), "Find 200 leads");
 });
@@ -1171,9 +1171,9 @@ test("holding the band, the strip drops its own ways into each pile -- the band'
     "the band's tab says 14 need a look; the strip does not say it again",
   );
   assert.equal(
-    textOf(byTestId(held, "strip-excluded")),
-    "40 left out",
-    "a step that opens a pile is the step, and stays",
+    byTestId(held, "strip-excluded"),
+    null,
+    "nor 40 left out: the band's tab is that door too, and the strip keeps its one next step (Ruben, 10 Oct 2026)",
   );
   assert.ok(
     find(held, (n) => n.props?.className === "lf-strip-band"),

@@ -216,6 +216,33 @@ export interface LeadMapPlot {
 /** Metres per degree, near enough for a city: a plot of one town, not a projection of the world. */
 const M_PER_DEG_LAT = 111_320;
 
+/** The middle of the box a set of points spans, or none for none. */
+const middleOf = (pts: { lat: number; lng: number }[]): { lat: number; lng: number } | null => {
+  if (!pts.length) return null;
+  const lats = pts.map((p) => p.lat);
+  const lngs = pts.map((p) => p.lng);
+  return { lat: (Math.min(...lats) + Math.max(...lats)) / 2, lng: (Math.min(...lngs) + Math.max(...lngs)) / 2 };
+};
+
+const COMPASS = ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"] as const;
+
+/**
+ * Where an area lies from the ground being looked at, in the owner's words: "9.2 mi southwest". A ZIP alone says
+ * nothing to a person, so a nearby area is offered with this beside it (Ruben, 10 Oct 2026). Nothing where either end
+ * has no place.
+ */
+export function leadAreaFrom(
+  from: { lat: number; lng: number } | null,
+  to: { lat: number; lng: number } | null | undefined,
+): string {
+  if (!from || !to) return "";
+  const perLng = M_PER_DEG_LAT * Math.cos((from.lat * Math.PI) / 180);
+  const e = (to.lng - from.lng) * perLng;
+  const n = (to.lat - from.lat) * M_PER_DEG_LAT;
+  const deg = ((Math.atan2(e, n) * 180) / Math.PI + 360) % 360;
+  return `${milesLabel(Math.hypot(e, n))} ${COMPASS[Math.round(deg / 45) % 8]}`;
+}
+
 /**
  * Where the leads sit on the ground, relative to each other and to the area the search asked for (D5). Everything
  * is measured in metres from one centre and then scaled into a square, so the picture is honest at a town's size
@@ -229,7 +256,9 @@ export function leadMapPlot(
   area: LeadArea | null,
 ): LeadMapPlot {
   const placed = rows.filter((r): r is { id: string; point: { lat: number; lng: number } } => !!r.point);
-  const anchor = area?.center ?? (placed.length ? { lat: placed[0].point.lat, lng: placed[0].point.lng } : null);
+  // With no centre asked for, the middle of the leads themselves: the square sat on whichever lead came first, so the
+  // leads crowded one side of it and the streets centred on a stranger's door (Ruben, 10 Oct 2026).
+  const anchor = area?.center ?? middleOf(placed.map((r) => r.point));
   if (!anchor || (!placed.length && !area?.center))
     return { pins: [], ring: null, spanM: 0, tooWide: false, center: anchor };
   const perLng = M_PER_DEG_LAT * Math.cos((anchor.lat * Math.PI) / 180);
@@ -269,7 +298,7 @@ export function leadMapNote(plot: LeadMapPlot, oneSearch: boolean): string {
   if (plot.tooWide)
     return "These leads are spread too far apart to be one place. Pick a search to see it on the ground.";
   if (plot.ring) return "The area this search asked for, and every lead it placed inside it.";
-  return oneSearch
-    ? "Where this search's leads are. It never measured a centre, so there is no area to draw."
-    : "Every lead these searches placed on the ground.";
+  // One search's leads where there is no area to draw are the picture itself, and need no sentence: it said the search
+  // "never measured a centre", a word of the engine's (Ruben, 10 Oct 2026).
+  return oneSearch ? "" : "Every lead these searches placed on the ground.";
 }

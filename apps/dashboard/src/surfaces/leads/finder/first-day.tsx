@@ -2,7 +2,7 @@
  * The first day of Leads: no search kept and no lead held, so there is nothing to list. The page is one question and the
  * place to answer it (canvas "Leads, the first day", option A, which Ruben chose on 7 Oct 2026): who you want as customers,
  * a field that is the door to Ask (Find leads is Ask on this surface, spec F1), and under it the ideas Claude wrote from
- * this workspace's own business line, each a door to Ask with its words. Then the line they were written from, with its
+ * this workspace's own business line and what its searches found, each a ready plan the plan sheet opens (00398). Then the line they were written from, with its
  * one control, which opens the line in a sheet of its own, and the door for a list the owner already has (on a phone
  * the head's act). It said what the finder never
  * does under them ("Businesses only…"), which Ruben took off as not needed (7 Oct 2026).
@@ -15,7 +15,7 @@
  * a door that still opens. Hookless, like everything else here: the line being rewritten is the page's (`leadLine`), handed
  * down. Every word is contracts' (LEAD_WORDS.firstDay).
  */
-import { LEAD_WORDS, type LeadSuggestionsDto } from "@chanlytics/contracts";
+import { LEAD_PRIOR_MIN, LEAD_WORDS, type LeadSuggestionsDto } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
@@ -26,14 +26,21 @@ import { gate } from "../../legacy-verbs";
 
 type Suggestion = LeadSuggestionsDto["items"][number];
 
+/**
+ * Why an idea, and how reachable its kind has been where past searches measured it (the platform's own counts, once
+ * there are enough: leadReachLine's floor): "Restaurants wrote back: 5 of 20 · About 7 in 10 have an email".
+ */
+const ideaWhy = (item: Suggestion): string =>
+  [item.who_for, item.prior && item.prior.matched >= LEAD_PRIOR_MIN ? item.reach : null].filter(Boolean).join(" · ");
+
 const FIRST_DAY_SAYS = LEAD_WORDS.firstDay;
 
 /**
- * One idea: a door to Ask with its words in the field, the kit's large button. On a desk it is a capsule that says its
- * name, and who it is for under a pointer or the keyboard's focus (the house's tip, as the peek's controls say theirs); on a
- * phone, where nothing hovers, a row the width of the screen with the mark of a door. How reachable its kind is stays
- * Ask's to say, in the plan it writes: before a workspace has searched, that line is the system's ("checked after 25"),
- * and no reason to pick.
+ * One idea: a search ready to approve, the kit's large button, which opens its plan in the plan sheet (00398); one kept
+ * from before ideas were plans opens Ask with its words. On a desk it is a capsule that says what it finds and where, and
+ * why under a pointer or the keyboard's focus (the house's tip, as the peek's controls say theirs); on a phone, where
+ * nothing hovers, a row the width of the screen with its why under its words and the mark of a door. How reachable its
+ * kind is, the plan sheet says.
  */
 const LeadIdea = ({
   item,
@@ -42,20 +49,27 @@ const LeadIdea = ({
   phone,
 }: {
   item: Suggestion;
-  onPick: (words: string) => void;
+  onPick: (item: Suggestion) => void;
   canFind: boolean;
   phone: boolean;
 }) => (
   <Button
     size="lg"
     className="ld-first-idea"
-    onClick={() => onPick(item.words)}
+    onClick={() => onPick(item)}
     data-testid={`ld-sug-${item.category_key}`}
-    data-tip={phone ? undefined : item.who_for}
-    aria-description={item.who_for}
+    data-tip={phone ? undefined : ideaWhy(item) || undefined}
+    aria-description={ideaWhy(item) || undefined}
     {...(canFind ? {} : gate("find", "find businesses for you"))}
   >
-    <span className="ld-first-idea-words">{item.words}</span>
+    {phone && ideaWhy(item) ? (
+      <span className="ld-first-idea-text">
+        <span className="ld-first-idea-words">{item.words}</span>
+        <span className="ld-first-idea-why">{ideaWhy(item)}</span>
+      </span>
+    ) : (
+      <span className="ld-first-idea-words">{item.words}</span>
+    )}
     {phone ? <Icon name="chevron" size={14} /> : null}
   </Button>
 );
@@ -68,8 +82,12 @@ interface FirstDayProps {
   lineDraft?: string;
   lineError?: string | null;
   lineBusy?: boolean;
-  /** Opens Ask on this surface, with these words in its field where an idea was picked. */
+  /** Opens Ask on this surface, with these words in its field where words are given. */
   onFind?: (words?: string) => void;
+  /** Opens an idea's plan in the plan sheet, or Ask with its words where it has none. */
+  onIdea?: (item: Suggestion) => void;
+  /** Asks for other ideas from the same line. */
+  onNewIdeas?: () => void;
   /** Opens the sheet a list of the owner's own is brought in by. */
   onImport?: () => void;
   onOpenLine?: () => void;
@@ -198,6 +216,56 @@ const LeadLineDeskSheet = ({ draft, error, busy, onDraft, onSave, onCancel }: Li
   </RecordSheet>
 );
 
+/**
+ * What stands where the ideas would: the server's reason it could not write them (suggestions.note), "writing" while
+ * another read writes them, or, for a read that never landed, that they are not available; nothing while there are
+ * ideas to show.
+ */
+const noteOf = (suggestions: LeadSuggestionsDto | null, shown: number): string | null =>
+  !suggestions
+    ? LEAD_WORDS.suggestUnavailable
+    : suggestions.pending && !shown
+      ? FIRST_DAY_SAYS.writing
+      : suggestions.note || null;
+
+/**
+ * What the ideas were written from, and the owner's two controls over it: Edit, and New ideas from the same line once
+ * there are ideas (00399). Nothing where the read never landed: there is no line to say, and none to edit from.
+ */
+const WrittenFrom = ({
+  suggestions,
+  canFind,
+  shown,
+  onOpenLine,
+  onNewIdeas,
+}: {
+  suggestions: LeadSuggestionsDto;
+  canFind: boolean;
+  shown: number;
+  onOpenLine: () => void;
+  onNewIdeas: () => void;
+}) => (
+  <p className="ld-first-from">
+    {FIRST_DAY_SAYS.from} <span data-testid="ld-line">{suggestions.business_line}</span>
+    {canFind ? (
+      <>
+        {" "}
+        <LinkButton className="ld-first-edit" onClick={onOpenLine} data-testid="ld-line-edit">
+          {FIRST_DAY_SAYS.edit}
+        </LinkButton>
+        {shown ? (
+          <>
+            {" · "}
+            <LinkButton className="ld-first-edit" onClick={onNewIdeas} data-testid="ld-ideas-new">
+              {FIRST_DAY_SAYS.newIdeas}
+            </LinkButton>
+          </>
+        ) : null}
+      </>
+    ) : null}
+  </p>
+);
+
 export const LeadsFirstDay = ({
   suggestions = null,
   canFind = false,
@@ -207,6 +275,8 @@ export const LeadsFirstDay = ({
   lineError = null,
   lineBusy = false,
   onFind = () => undefined,
+  onIdea = () => undefined,
+  onNewIdeas = () => undefined,
   onImport = () => undefined,
   onOpenLine = () => undefined,
   onLineDraft = () => undefined,
@@ -214,9 +284,7 @@ export const LeadsFirstDay = ({
   onCancelLine = () => undefined,
 }: FirstDayProps) => {
   const items = (suggestions && suggestions.items) || [];
-  // The server says why it could not write them (suggestions.note); a read that never landed says so itself, rather than
-  // leaving the space blank.
-  const note = suggestions ? suggestions.note || null : LEAD_WORDS.suggestUnavailable;
+  const note = noteOf(suggestions, items.length);
   const findGate = canFind ? {} : gate("find", "find businesses for you");
   return (
     <div className="ld-first" data-testid="leads-first-day">
@@ -241,8 +309,8 @@ export const LeadsFirstDay = ({
           <>
             <p className="ld-first-eyebrow">{FIRST_DAY_SAYS.ideas}</p>
             <div className="ld-first-ideas" data-testid="ld-sugs">
-              {items.map((it) => (
-                <LeadIdea key={it.category_key} item={it} onPick={onFind} canFind={canFind} phone={phone} />
+              {items.map((it, n) => (
+                <LeadIdea key={`${it.category_key}-${n}`} item={it} onPick={onIdea} canFind={canFind} phone={phone} />
               ))}
             </div>
           </>
@@ -252,20 +320,14 @@ export const LeadsFirstDay = ({
             {note}
           </p>
         ) : null}
-        {/* What the ideas were written from, and the one control that rewrites it. Nothing where the read never landed:
-            there is no line to say, and none to edit from. */}
         {suggestions ? (
-          <p className="ld-first-from">
-            {FIRST_DAY_SAYS.from} <span data-testid="ld-line">{suggestions.business_line}</span>
-            {canFind ? (
-              <>
-                {" "}
-                <LinkButton className="ld-first-edit" onClick={onOpenLine} data-testid="ld-line-edit">
-                  {FIRST_DAY_SAYS.edit}
-                </LinkButton>
-              </>
-            ) : null}
-          </p>
+          <WrittenFrom
+            suggestions={suggestions}
+            canFind={canFind}
+            shown={items.length}
+            onOpenLine={onOpenLine}
+            onNewIdeas={onNewIdeas}
+          />
         ) : null}
         {/* The door for a list the owner already has. A phone's head holds it as the page's act (Import leads, at the right
             of the row of views), so it is not said twice there. */}

@@ -3,7 +3,7 @@
  * leads-finder.jsx, decision 0015): the panel's state, whose round a plan belongs to, the card Ask brought back, and the
  * strip's view model.
  */
-import type { AskProposal, LeadPlanFacts, LeadSearchPlan } from "@chanlytics/contracts";
+import type { AskProposal, LeadIdeaDto, LeadPlanFacts, LeadSearchPlan } from "@chanlytics/contracts";
 
 /** The panel's stage: the answer row (answering only), Claude reading, the plan card, and the plan starting. */
 export type FinderStage = "compose" | "thinking" | "plan" | "starting";
@@ -47,6 +47,8 @@ export interface FinderState {
   trace: string | null;
   pick: string | null;
   more: FinderMore | null;
+  /** The idea the plan was opened from (00398): a new search, started through the page's own door, with its kind's prior. */
+  idea: LeadIdeaDto | null;
 }
 
 /** What the amend turn and the approve take of the panel: a setter for each field, the one close, and whose round it is. */
@@ -60,6 +62,8 @@ export interface FinderSet {
   plan: (plan: LeadSearchPlan | null) => void;
   pick: (pick: string | null) => void;
   more: FinderMore | null;
+  /** Whether the plan is an idea's, and so a new search of its own. */
+  idea: boolean;
 }
 
 /** One strip's view model: what is true of a search's latest round, and its next steps. */

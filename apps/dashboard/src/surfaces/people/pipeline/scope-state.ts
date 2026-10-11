@@ -167,11 +167,12 @@ export function usePipelineRows(f: PipelineFrame, ui: PipelineUi) {
   // Past the people People holds (its fifty pages), the line counts only the loaded, and says so in People's words.
   const loaded = people.page && people.page.has_more ? plLoadedWords(rows.length, people.page.total) : null;
   const searching = !!q.trim();
-  // Who may record a deal, whether the rows are a board, and whether they select: a selection is a desk's list, where
-  // x and Space pick the row under the cursor, for Mark as passed and People's own acts.
+  // Who may record a deal, whether the rows are a board, and whether they select: a list's, a desk's (x and Space pick the
+  // row under the cursor) and a phone's (its face, or a tap while Select is on; Ruben, 10 Oct 2026), for Mark as passed
+  // and People's own acts.
   const canRecord = pipeCanRecord();
   const board = !phone && layout === "board" && !all.empty;
-  const selectable = !phone && !board && (canRecord || canExport);
+  const selectable = !board && (canRecord || canExport);
   // Each group's rows in the order the member's heading picked (contracts pipelineSorted); the groups never move.
   // eslint-disable-next-line react-hooks/exhaustive-deps -- kept as the JSX drew it: P is the page's one object of rules, listed in the array
   const ordered = useMemo(() => P.sorted(vm, sortBy, sortDir === "desc" ? "desc" : "asc"), [P, vm, sortBy, sortDir]);

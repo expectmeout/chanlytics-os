@@ -23,6 +23,7 @@ import { useState } from "react";
 import { DEAL_CARD_WORDS, dealCardsOf, dealNextAct } from "@chanlytics/contracts";
 import type { DealAct, PersonVM, PipelinePeekFact, PipelinePeekReachVM, PipelinePeekVM } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
+import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { touchSwipe } from "../../legacy-verbs";
@@ -141,19 +142,19 @@ const PipelinePeekBar = ({
   return (
     <div className="pipe-peek-bar" data-testid="pipeline-peek-bar">
       {act ? (
-        <button
-          type="button"
-          className="btn btn-primary pipe-peek-bar-act"
+        <Button
+          variant="primary"
+          className="pipe-peek-bar-act"
           onClick={() => pdRun(person, act, deal ? deal.id : null, onCompose)}
           data-testid="pipeline-peek-bar-act"
         >
           {act.label}
-        </button>
+        </Button>
       ) : null}
       {call ? (
-        <a className="btn pipe-peek-bar-call" href={call} data-testid="pipeline-peek-bar-call">
+        <Button className="pipe-peek-bar-call" href={call} data-testid="pipeline-peek-bar-call">
           <Icon name="phone" size={14} /> {W.call}
-        </a>
+        </Button>
       ) : null}
     </div>
   );

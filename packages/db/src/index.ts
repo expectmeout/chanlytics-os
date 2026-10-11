@@ -493,9 +493,18 @@ export type {
   PartnerJoined,
   PartnerInviteMail,
 } from "./repositories/partner";
-export { readLeadOne } from "./repositories/leads";
+export {
+  readLeadOne,
+  readIdeaHistory,
+  claimIdeas,
+  keepIdeas,
+  failIdeas,
+  saveIdeasLine,
+  ideasBasis,
+  ideasClockAndLanguage,
+} from "./repositories/leads";
 export { ownLineOf } from "./lines";
-export type { LeadOneLead, LeadOneMember } from "./repositories/leads";
+export type { LeadOneLead, LeadOneMember, IdeasKept } from "./repositories/leads";
 export { watchedTables, watchedEvents, subscribeWorkspaceChanges } from "./realtime";
 export type { SubscribeOptions } from "./realtime";
 export { readAllRows, readAllRowsByKey, MAX_ROWS, DEFAULT_ROW_CAP } from "./paged";

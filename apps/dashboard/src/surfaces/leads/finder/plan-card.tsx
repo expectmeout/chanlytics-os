@@ -6,6 +6,7 @@
 import {
   LEAD_COUNT_CHOICES,
   leadPlanAsk,
+  leadPlanFactLine,
   leadPlanFacts,
   leadPlanLikely,
   planCeiling,
@@ -17,11 +18,13 @@ import {
   type LeadSearchPlan,
 } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
+import { PhoneSheetRow } from "../../people/sheets/phone-sheet";
 import { LeadPick, type PickOption } from "./pick";
 import type { FinderMore } from "./types";
 
 type PlanPatch = Parameters<typeof planVersionOf>[1];
 
+/** What the pickers offer before the facts are read: no nearby areas. Never said as a fact (a card says no allowance it was not given). */
 const NO_FACTS: LeadPlanFacts = {
   dupes: 0,
   leadsLeft: 0,
@@ -102,6 +105,9 @@ const PICK_TITLES: Record<string, string> = {
   contact: "Change what to find",
 };
 
+/** What a picker's step is called on a phone's sheet (scope.tsx), the title a desk's picker carries on hover. */
+export const planPickTitle = (id: string) => PICK_TITLES[id] || "Keep or take out";
+
 /** The sentence, a picker for each word that picks. */
 function planSentenceOf(
   plan: LeadSearchPlan,
@@ -111,6 +117,7 @@ function planSentenceOf(
     onPick: (pick: string | null) => void;
     change: (over: PlanPatch) => void;
     answering: FinderMore | null;
+    inline: boolean;
   },
 ) {
   return planWords(plan).map((w, i) => {
@@ -124,6 +131,7 @@ function planSentenceOf(
         label={w.text}
         title={PICK_TITLES[id] || "Keep or take out"}
         open={a.pick === id}
+        inline={a.inline}
         options={planOptions(id, plan, f, a.change)}
         onOpen={a.onPick}
         onPick={(o) => o.apply()}
@@ -186,6 +194,42 @@ const leavingRow = (plan: LeadSearchPlan, change: (over: PlanPatch) => void) => 
   </div>
 );
 
+/**
+ * A picker as a phone's step (Ruben, 10 Oct 2026: the listbox under a word ran off the sheet): its options as the sheet's
+ * rows, the one in use checked, a note at each row's end; a pick changes the plan and walks back to the sentence. Who is
+ * sought has no options here, so its step says how to change it and offers the way.
+ */
+function pickStep(
+  id: string,
+  options: readonly PickOption[],
+  onPick: (pick: string | null) => void,
+  onBack: () => void,
+) {
+  return (
+    <div className="pp-sheet-rows" data-testid={`plan-${id}-options`}>
+      {options.map((o) => (
+        <PhoneSheetRow
+          key={o.id}
+          icon={o.on ? "check" : null}
+          label={o.label}
+          meta={o.note || null}
+          onClick={() => {
+            onPick(null);
+            o.apply();
+          }}
+          testid={`plan-${id}-${o.id}`}
+        />
+      ))}
+      {options.length === 0 ? (
+        <>
+          <p className="pp-sheet-hint pp-sheet-rows-note">Say it differently to change who the search looks for.</p>
+          <PhoneSheetRow icon="three" label="Change what I asked" next onClick={onBack} testid={`plan-${id}-ask`} />
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 interface PlanCardProps {
   plan: LeadSearchPlan | null;
   view: { title?: string } | null;
@@ -199,6 +243,8 @@ interface PlanCardProps {
   onApprove: (plan: LeadSearchPlan) => void;
   onBack: () => void;
   answering?: FinderMore | null;
+  /** A phone's sheet: a picker opens as the sheet's step, and the facts are one line. */
+  asSteps?: boolean;
 }
 
 export const LeadPlanCard = ({
@@ -214,20 +260,23 @@ export const LeadPlanCard = ({
   onApprove,
   onBack,
   answering = null,
+  asSteps = false,
 }: PlanCardProps) => {
   if (!plan) return null;
   const f = facts || NO_FACTS;
   const change = (over: PlanPatch) => onChange(planVersionOf(plan, over));
-  const likely = leadPlanLikely(plan, f);
+  if (asSteps && pick) return pickStep(pick, planOptions(pick, plan, f, change), onPick, onBack);
+  // The facts as given: none read yet says no allowance, and clamps nothing (contracts leadPlanFacts).
+  const likely = leadPlanLikely(plan, facts);
   // An answer spends from the round's own reservation: its count is the one reserved, and the month's clamp is not this
   // round's to apply (nothing new is reserved).
-  const ask = answering ? { count: plan.count, label: "Update the search", covers: null } : leadPlanAsk(plan, f);
+  const ask = answering ? { count: plan.count, label: "Update the search", covers: null } : leadPlanAsk(plan, facts);
   const cannot =
     f.cannotSee && plan.criteria.some((c) => c.key === f.cannotSee?.key && c.standard === "seen") ? f.cannotSee : null;
   return (
     <div className="lf-plan" data-testid="lead-plan">
       <p className="lf-sentence" data-testid="plan-sentence">
-        {planSentenceOf(plan, f, { pick, onPick, change, answering })}
+        {planSentenceOf(plan, f, { pick, onPick, change, answering, inline: !asSteps })}
       </p>
       {plan.version > baseVersion ? (
         <span className="lf-changed" data-testid="plan-changed">
@@ -245,14 +294,20 @@ export const LeadPlanCard = ({
         )}
         <span>{likely.line}</span>
       </div>
-      <div className="lf-facts" data-testid="plan-facts">
-        {leadPlanFacts(plan, f).map((t, i) => (
-          <span key={t} className="lf-fact">
-            <Icon name={["clock", "users", "shield"][i] || "shield"} size={13} />
-            {t}
-          </span>
-        ))}
-      </div>
+      {asSteps ? (
+        <p className="lf-fact-line" data-testid="plan-facts">
+          {leadPlanFactLine(plan, facts)}
+        </p>
+      ) : (
+        <div className="lf-facts" data-testid="plan-facts">
+          {leadPlanFacts(plan, facts).map((t, i) => (
+            <span key={t} className="lf-fact">
+              <Icon name={["clock", "users", "shield"][i] || "shield"} size={13} />
+              {t}
+            </span>
+          ))}
+        </div>
+      )}
       {ask.covers ? (
         <p className="lf-said" data-testid="plan-covers">
           {ask.covers}

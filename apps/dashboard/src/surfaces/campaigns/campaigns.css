@@ -1514,13 +1514,24 @@ html.legacy-on .tpl-fresh {
   color: var(--ink);
   border-color: var(--line-strong);
 }
-.ro-door-phone {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  width: 100%;
-  justify-content: center;
-  border-radius: 0;
+/* On a phone, an accent word at the end of the search's line (leads/scope/scope.tsx), where a full-width coral bar pinned
+   over the rows, then a second coral button beside New search, stood heavier than the page's one act (Ruben, 10 Oct 2026). */
+.lf-strip .ro-door-phone {
+  flex: none;
+  gap: 5px;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  color: var(--accent);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  position: relative;
+}
+/* A thumb's press area round the word, which the line does not make room for. */
+.lf-strip .ro-door-phone::after {
+  content: "";
+  position: absolute;
+  inset: -13px -6px;
 }
 .pb-foot {
   display: flex;

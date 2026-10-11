@@ -5,6 +5,7 @@
 import type { LeadArea, LeadSearchPlan } from "./search/plan";
 import type { LeadEmailState, LeadRoundEnding, LeadSearchVia } from "./search/sets";
 import type { LeadClass, LeadStage } from "./lead-words";
+import type { LeadNichePrior } from "./leads";
 
 /* ------------------------------------------------- what the doors answer -- */
 
@@ -173,12 +174,34 @@ export interface LeadMonthDto {
   renewsOn: string;
 }
 
+/**
+ * One idea for a new search (00398): a ready plan written from what the workspace's searches found, pressed to open the
+ * plan sheet as it is. An idea kept from before plans were written has none, and opens Ask with its words.
+ */
+export interface LeadIdeaDto {
+  /** What it finds and where, as the idea says it: "Independent plumbers near 11105". */
+  words: string;
+  /** Why this one, in a line: the workspace's own numbers where its searches speak to it. */
+  who_for: string;
+  category_key: string;
+  /** How reachable the kind has been, platform-wide (leadReachLine). */
+  reach: string | null;
+  /** The platform-wide counts behind `reach`, for the plan sheet's likely line; null for a kind not searched enough. */
+  prior?: LeadNichePrior | null;
+  /** The search, ready to approve. */
+  plan?: LeadSearchPlan | null;
+  /** The same search as Ask is asked for it: Ask's Leads chip. */
+  ask?: string;
+}
+
 export interface LeadSuggestionsDto {
   business_line: string;
   by_owner: boolean;
   made_at: string;
-  items: { words: string; who_for: string; category_key: string; reach: string | null }[];
+  items: LeadIdeaDto[];
   note?: string;
+  /** Another read is writing them this moment: the page asks again shortly. */
+  pending?: boolean;
 }
 
 /** What the card knows beyond the plan: the reads release A's doors answer, folded into one unit (§0.2). `planFacts` in `server/leads.ts` (4.4) builds exactly this. */

@@ -80,14 +80,15 @@ const LEAD_FINDER_SHUT: FinderState = {
   trace: null,
   pick: null,
   more: null,
+  idea: null,
 };
 type FinderMove = { open: Partial<FinderState> } | { close: true } | { set: Partial<FinderState> };
 const leadFinderStep = (f: FinderState, move: FinderMove): FinderState => {
   const next: FinderState =
     "open" in move
-      ? { ...f, ...move.open, open: true, refusal: null, pick: null }
+      ? { ...f, idea: null, ...move.open, open: true, refusal: null, pick: null }
       : "close" in move
-        ? { ...f, open: false, more: null }
+        ? { ...f, open: false, more: null, idea: null }
         : { ...f, ...move.set };
   return (Object.keys(next) as (keyof FinderState)[]).every((k) => Object.is(next[k], f[k])) ? f : next;
 };
@@ -136,6 +137,9 @@ export const useLeadsState = () => {
   const [fitChip, setFitChip] = useState<LeadFit | null>(null);
   const [benchGroup, setBenchGroup] = useState<string | null>(null);
   const [mapOpen, setMapOpen] = useState(false);
+  // A phone's New search: the first day's question over the page (Ruben, 10 Oct 2026), held for the view it was pressed on,
+  // so a search opened, a list picked or Back ends it with nothing to clear.
+  const [newSearchAt, setNewSearchAt] = useState<string | null>(null);
   const [mapPick, setMapPick] = useState<string | null>(null);
   // One criterion of the Excluded view, from the chips at its head.
   const [chip, setChip] = useState<string | null>(null);
@@ -171,6 +175,8 @@ export const useLeadsState = () => {
     setBenchGroup,
     mapOpen,
     setMapOpen,
+    newSearchAt,
+    setNewSearchAt,
     mapPick,
     setMapPick,
     chip,

@@ -100,6 +100,8 @@ export const ACTIVITY_NOISE_PREFIXES = ["usage.", "webhook.", "ingest."] as cons
 export const ACTIVITY_NOISE_KINDS = [
   "escalation.changed",
   "lead.set_aside",
+  // The ideas for a search, written or asked for again (00400): how often is Reports', not the owner's day.
+  "lead.ideas_written",
   "call.transferred",
   "booking_link.sent",
   "channel.quality_rating",
@@ -274,6 +276,7 @@ const WORDS: Record<string, string> = {
   "lead.no_card": "An ask no source covers yet",
   "lead.converted": "A lead is Talking",
   "lead.set_aside": "A lead was set aside",
+  "lead.ideas_written": "Ideas for a search were written",
   // A reply to a reach-out, read (Reach out Part 5): the case below says who and what it meant.
   "reach_out.replied": "A business wrote back to a reach-out",
   "reach_out.reply_undone": "A reply read as no was undone",

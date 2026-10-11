@@ -35,10 +35,15 @@ interface Nouns {
   many: string;
   all: string;
   list: string;
+  /** The word a row's element id is named with, where it is not `one`. */
+  id?: string;
 }
 const PERSON_NOUN: Nouns = { one: "person", many: "people", all: "Select everyone shown", list: "People" };
 const PL_NOUNS: Record<string, Nouns> = {
   person: PERSON_NOUN,
+  // The Pipeline's rows are deals (0029: a row per open deal), counted as deals at the foot; each row's element is still
+  // named for its person's row (`person-<row>`), which the Pipeline's focus and its board look up (Ruben, 10 Oct 2026).
+  deal: { one: "deal", many: "deals", all: "Select every deal shown", list: "Deals", id: "person" },
   lead: { one: "lead", many: "leads", all: "Select every lead shown", list: "Leads" },
 };
 
@@ -102,7 +107,7 @@ function PeopleRow<R extends TableRow, X extends TableCtx>({
   const pick = selected ? "chosen" : selecting ? "choose" : undefined;
   return (
     <tr
-      id={`${words.one}-${p.id}`}
+      id={`${words.id ?? words.one}-${p.id}`}
       className={`${selected ? "selected" : ""} ${focused ? "focused" : ""} ${rowClass ? rowClass(p) : ""}`}
       aria-selected={selectable ? selected : undefined}
       tabIndex={tabStop ? 0 : -1}

@@ -277,7 +277,8 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   },
   // What the owner asked the finder for, and the kinds of business it suggested.
   lead_searches: all(NOT_PERSONAL, "asked", "card", "name", "plan"),
-  lead_suggestions: all(NOT_PERSONAL, "business_line", "items"),
+  // The ideas for a search (00398, 00399): the business line, the plans, what they were written over and what was passed on.
+  lead_suggestions: all(NOT_PERSONAL, "business_line", "items", "basis", "passed"),
   lead_suppressions: { hash: DIGEST },
   leads: {
     ...all(

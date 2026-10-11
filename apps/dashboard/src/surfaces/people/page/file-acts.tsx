@@ -13,6 +13,7 @@ export function PeopleFileActs({
   exportHref,
   exportName,
   flash,
+  plain = false,
 }: {
   /** Why there is no file to take (a list that cannot be counted, or one that is not here), in contracts' own words; else none. */
   exportBlocked: string | null | undefined;
@@ -20,6 +21,8 @@ export function PeopleFileActs({
   /** The list the file would hold, when one is open; none, and it holds everyone. */
   exportName: string | null | undefined;
   flash: Flash;
+  /** A phone's bar: a word among words, with no ground under a press (the kit's plain kind). */
+  plain?: boolean;
 }) {
   const press = !canDo("export")
     ? // A role that may not: the button stays, and a press says why at it (gate's props come last, so its handler is the one that runs).
@@ -35,7 +38,7 @@ export function PeopleFileActs({
         };
   return (
     <div className="pl-file-acts">
-      <Button variant="quiet" size="sm" data-testid="people-export" {...press}>
+      <Button variant={plain ? "plain" : "quiet"} size="sm" data-testid="people-export" {...press}>
         Export
       </Button>
     </div>
