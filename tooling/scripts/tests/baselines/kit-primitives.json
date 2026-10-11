@@ -262,7 +262,6 @@
   "apps/dashboard/src/legacy/styles/components.css::tbn-pop": 5,
   "apps/dashboard/src/legacy/styles/components.css::tl-msg-why-panel": 1,
   "apps/dashboard/src/legacy/styles/components.css::user-chip": 11,
-  "apps/dashboard/src/legacy/styles/conversations.css::cl-search-wrap": 1,
   "apps/dashboard/src/legacy/styles/conversations.css::cv-empty": 1,
   "apps/dashboard/src/legacy/styles/conversations.css::cv-head-avatar": 1,
   "apps/dashboard/src/legacy/styles/conversations.css::cv-row-avatar": 2,

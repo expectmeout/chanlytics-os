@@ -203,20 +203,20 @@ a.btn {
 }
 
 /* ---------- Search — the capsule a list is searched from (kit/search/search.tsx) ----------
-   People's phone search, the one the Inbox's list wears too (10 Oct 2026): a 38px capsule on an inset's fill with its
-   ring and depth, the glyph 15px and the words in the dim ink at the page's size. At rest on a phone it is a button
-   saying what it finds; pressed, it is the field in the same capsule, where it stood: its words at the rest's size and
-   ink (typed at 16px on a phone, so the phone never zooms into it, and drawn at the page's), the clear in its end from
-   the first word, and no ring, since the caret says it is open; left empty, it rests as focus leaves (Ruben, 10 Oct 2026). On a desk its focus is a box's
-   (--focus-field-edged: the capsule has no border of its own). The page places it (the room
-   round it, a box before it or a toggle after it), never what it looks like. Two classes name each part, so the touch
-   floor's `html.legacy-on button` and `input` (legacy.css, 44px) give way to the capsule's own height. */
+   People's phone search, the one every list's box wears (the Inbox's 10 Oct 2026, Conversations' 11 Oct): a 38px
+   capsule on an inset's fill with its ring and depth, the glyph 15px and the words in the dim ink at the page's size.
+   It is the field, always, and the capsule its label, so a press anywhere on it is in the field: the caret, and on a
+   phone the keyboard, at the first press (it rested as a button a press only swapped for the field, Ruben, 11 Oct 2026).
+   The words typed at 16px on a phone, so the phone never zooms into it, and drawn at the page's; the clear in its end
+   from the first word. Under a mouse its focus is a box's (--focus-field-edged: the capsule has no border of its own);
+   on a touch screen no ring, since the caret and the keyboard say it (Ruben, 10 Oct 2026). The page places it (the
+   room round it, a box before it or a toggle after it), never what it looks like. Two classes name each part, so the
+   touch floor's `html.legacy-on button` and `input` (legacy.css, 44px) give way to the capsule's own height. */
 .search {
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.search > .search-rest,
 .search > .search-box {
   flex: 1;
   min-width: 0;
@@ -233,16 +233,7 @@ a.btn {
   color: var(--ink-dim);
   font: inherit;
   font-size: var(--text-base);
-}
-.search > .search-rest {
-  text-align: left;
-  cursor: pointer;
-}
-.search-rest > span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  cursor: text;
 }
 .search .icon {
   flex: none;
@@ -250,8 +241,10 @@ a.btn {
 .search > .search-box:focus-within {
   box-shadow: var(--focus-field-edged), var(--surface-inset-depth);
 }
-.search[data-rests] > .search-box:focus-within {
-  box-shadow: var(--surface-inset-ring), var(--surface-inset-depth);
+@media (pointer: coarse) {
+  .search > .search-box:focus-within {
+    box-shadow: var(--surface-inset-ring), var(--surface-inset-depth);
+  }
 }
 .search-box > .search-field {
   flex: 1;
@@ -269,6 +262,7 @@ a.btn {
   background: transparent;
   color: var(--ink);
   font: inherit;
+  text-overflow: ellipsis;
   outline: none;
 }
 .search-field > input::placeholder {

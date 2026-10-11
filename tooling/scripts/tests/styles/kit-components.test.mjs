@@ -1204,58 +1204,51 @@ test("ViewTabs draws the gallery's Tab strip family: links on one capsule, the h
   );
 });
 
-/** A search, as a page hands it: what it finds, its words, and whether it is open. */
+/** A search, as a page hands it: what it finds, its words, and the field's test id. */
 const searchOf = (props) =>
   h(Search, {
     label: "Search names, numbers and emails",
     value: "",
     onChange() {},
-    open: false,
-    onOpen() {},
     testid: "people-phone-search",
     ...props,
   });
 
 /** The gallery's Search family, entry by entry. */
 const SEARCHES = {
-  search: () => searchOf({ rests: true }),
-  "search-open": () => searchOf({ rests: true, open: true, value: "Sam" }),
-  "search-desk": () => searchOf({ rests: false, label: "Search by name or message", testid: "inbox-search" }),
+  search: () => searchOf(),
+  "search-words": () => searchOf({ value: "Sam" }),
 };
 
-test("Search draws the gallery's Search family: the capsule at rest, the field with its clear, the desk's field", () => {
+test("Search draws the gallery's Search family: the field in its capsule, and the clear once there are words", () => {
   assert.deepEqual(parting(FAMILIES, "Search", SEARCHES), HELD);
-  const rest = drawn(searchOf({ rests: true, className: "pp-lookup" }));
-  assert.equal(rest.props.className, "search pp-lookup", "the page's layout class comes last");
-  const [button] = rest.props.children.flat().filter(Boolean);
-  assert.equal(button.props["data-testid"], "people-phone-search-open");
-  fresh();
-  let opened = false;
-  const pressed = drawn(searchOf({ rests: true, onOpen: (o) => (opened = o) }));
-  press(pressed.props.children.flat().filter(Boolean)[0]);
-  assert.equal(opened, true, "a press on the capsule asks for the field");
-  let words = "x";
-  let shut = null;
-  const open = drawn(
-    searchOf({ rests: true, open: true, value: "Sam", onChange: (q) => (words = q), onOpen: (o) => (shut = o) }),
+  // The field from the first draw, at every width: it rested as a button on a phone, and a tap only drew the field in
+  // its place, so a second tap began the typing (Ruben, 11 Oct 2026).
+  const empty = drawn(searchOf({ className: "pp-lookup" }));
+  assert.equal(empty.props.className, "search pp-lookup", "the page's layout class comes last");
+  const [box] = empty.props.children.flat().filter(Boolean);
+  assert.equal(box.type, "label", "the capsule is the field's label: a press anywhere on it is in the field");
+  const parts = box.props.children.flat().filter(Boolean);
+  assert.equal(parts.length, 2, "the glyph and the field: no clear until a word is typed");
+  const field = [parts[1].props.children].flat()[0];
+  assert.deepEqual(
+    [field.type, field.props.type, field.props["data-testid"], field.props.placeholder],
+    ["input", "search", "people-phone-search", "Search names, numbers and emails"],
   );
-  // No Cancel (Ruben, 10 Oct 2026): the clear stands in the field's end from the first word, and empties it; the field
-  // left empty rests as focus leaves it.
-  const label = open.props.children.flat().filter(Boolean).at(-1);
-  const clear = label.props.children.flat().filter(Boolean).at(-1);
+  assert.equal(
+    field.props.autoFocus,
+    undefined,
+    "nothing focuses by itself: the field takes the press that lands on it",
+  );
+  let words = "x";
+  const typed = drawn(searchOf({ value: "Sam", onChange: (q) => (words = q) }));
+  const clear = typed.props.children.flat().filter(Boolean)[0].props.children.flat().filter(Boolean).at(-1);
   assert.equal(clear.props["data-testid"], "people-phone-search-clear");
+  // No Cancel (Ruben, 10 Oct 2026): the clear stands in the field's end from the first word. Its press leaves focus in
+  // the field, so the caret, and a phone's keyboard, stay through it.
+  let kept = false;
+  clear.props.onPointerDown({ preventDefault: () => (kept = true) });
+  assert.equal(kept, true, "a press on the clear keeps the field's focus");
   press(clear);
-  assert.deepEqual([words, shut], ["", null], "the clear empties the field and keeps it open");
-  // The label holds the glyph, the field's box (the input inside it) and the clear.
-  const field = label.props.children.flat().filter(Boolean)[1].props.children[0];
-  assert.equal(field.props["data-testid"], "people-phone-search");
-  field.props.onBlur();
-  assert.equal(shut, null, "with words still in it, leaving the field asks nothing: it stays open");
-  const empty = drawn(searchOf({ rests: true, open: true, value: "", onOpen: (o) => (shut = o) }));
-  const emptyLabel = empty.props.children.flat().filter(Boolean).at(-1);
-  assert.equal(emptyLabel.props.children.flat().filter(Boolean).length, 2, "no clear until a word is typed");
-  emptyLabel.props.children.flat().filter(Boolean)[1].props.children[0].props.onBlur();
-  assert.equal(shut, false, "left empty, it rests as focus leaves it");
-  const desk = drawn(searchOf({ rests: false, value: "Sam" }));
-  assert.equal(desk.props.children.flat().filter(Boolean).length, 1, "on a desk the field stands alone");
+  assert.equal(words, "", "the clear empties the field");
 });

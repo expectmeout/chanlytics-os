@@ -1,6 +1,6 @@
 /* ====================================================================
    Chanlytics — Conversations (calls · chats · email)
-   Two-pane: list rail + viewer. Reuses the kit's sub-tabs, cl-search-wrap,
+   Two-pane: list rail + viewer. Reuses the kit's sub-tabs and search,
    tl-msg bubbles, ix-empty-state, pill primitives.
    ==================================================================== */
 
@@ -26,12 +26,12 @@
   background: var(--bg);
   min-width: 0;
 }
-/* The search, with the select-all box before it once a pick starts (pages/pick.tsx; inbox.css draws the box). */
-.cv-list-head { display: flex; align-items: center; padding: 10px 12px 0; }
-.cv-list-head > div { flex: 1 1 auto; min-width: 0; }
+/* The search, with the select-all box before it once a pick starts (pages/pick.tsx; inbox.css draws the box), where
+   Needs you's stands in the same pane (inbox.css .ix-search-row), so the capsule holds still as the tab changes. */
+.cv-list-head { display: flex; align-items: center; padding: 14px 18px 10px; }
+.cv-lookup { flex: 1 1 auto; min-width: 0; }
 /* What is picked, over the rows: the Inbox's own line (inbox.css .ix-list-head), which stands third in its list. */
 .cv-list > .ix-list-head { order: 0; }
-.cv-list-head .cl-search-wrap { max-width: none; }
 /* The filters are the kit's sub-tabs (SubTabs, kit.css), which bring their own line and sides. Five channels are 334px of
    tabs and a 320px phone has 288: the strip scrolls across there, where it was a strip of chips that did. */
 @media (max-width: 360px) {
@@ -393,34 +393,9 @@
   .conversations .cv-filters {
     margin: 0 16px;
   }
-  /* The search under the tabs, 38px tall, at the strip's sides. */
+  /* The search under the tabs (the kit's, kit.css), at the strip's sides. */
   .conversations .cv-list-head {
     padding: 6px 12px 8px;
-  }
-  .conversations .cv-list-head > div {
-    gap: 9px;
-    height: 38px;
-    padding: 0 12px;
-    border: 0;
-    border-radius: var(--radius-full);
-    background: var(--surface-inset-fill);
-    box-shadow:
-      var(--surface-inset-ring),
-      var(--surface-inset-depth);
-    color: var(--ink-dim);
-  }
-  .conversations .cv-list-head > div:focus-within {
-    box-shadow:
-      var(--focus-field-edged),
-      var(--surface-inset-depth);
-  }
-  .conversations .cv-list-head > div > .icon {
-    width: 15px;
-    height: 15px;
-    color: var(--ink-dim);
-  }
-  .conversations .cv-list-head > div > input {
-    font-size: var(--text-base);
   }
   /* The rows straight on the page, no hairline between them and none marked: the open one takes the screen. */
   .conversations .cv-rows {

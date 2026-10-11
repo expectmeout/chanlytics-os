@@ -117,8 +117,6 @@ function listProps({
 export interface ListCtx extends ReturnType<typeof listProps> {
   query: string;
   setQuery: (v: string) => void;
-  searchOpen: boolean;
-  setSearchOpen: (v: boolean) => void;
   showViews: boolean;
   setShowViews: (v: boolean) => void;
   askArchive: boolean;
@@ -176,8 +174,6 @@ export function InboxList(props: InboxListProps) {
     ixKeepPlace({ q: v });
   };
   const [showViews, setShowViews] = useState(false);
-  // On a phone the search rests as a capsule until pressed (the kit's Search); words in it keep it open.
-  const [searchOpen, setSearchOpen] = useState(false);
   // Archiving real threads cannot be undone, so the bar asks first; a cleared selection drops the question.
   const [askArchive, setAskArchive] = useState(false);
   useEffect(() => {
@@ -228,8 +224,6 @@ export function InboxList(props: InboxListProps) {
     ...base,
     query,
     setQuery,
-    searchOpen,
-    setSearchOpen,
     showViews,
     setShowViews,
     askArchive,
@@ -295,11 +289,11 @@ function bucketTabs(L: ListCtx) {
 
 /**
  * Search + saved-views toggle row. The select-all box leads it, over the rows' own boxes: it sat on the list's
- * head, a 38px line of its own beside a count the chip already said. The search is the kit's, People's capsule: on a
- * phone it rests as a button until pressed, then is the 16px field with Cancel; on a desk it is the field.
+ * head, a 38px line of its own beside a count the chip already said. The search is the kit's, People's capsule: the
+ * field, a press on it the first word's place.
  */
 function searchBox(L: ListCtx) {
-  const { visible, allThreads, query, setQuery, searchOpen, setSearchOpen, views, showViews, setShowViews } = L;
+  const { visible, allThreads, query, setQuery, views, showViews, setShowViews } = L;
   return (
     <div className="ix-search-row">
       {visible.length > 0 &&
@@ -314,8 +308,6 @@ function searchBox(L: ListCtx) {
         label={allThreads.some((t) => t.real) ? "Search by name or message" : "Search threads, clients, tags"}
         value={query}
         onChange={setQuery}
-        open={searchOpen}
-        onOpen={setSearchOpen}
         testid="inbox-search"
       />
       {views.some((v) => v.count > 0) && (

@@ -229,9 +229,6 @@
   "apps/dashboard/src/server/workspace/capabilities.ts": {
     "@typescript-eslint/no-base-to-string": 1
   },
-  "apps/dashboard/src/surfaces/kit/search/search.tsx": {
-    "jsx-a11y-x/no-autofocus": 1
-  },
   "apps/dashboard/src/surfaces/leads/bench/bench.tsx": {
     "jsx-a11y-x/click-events-have-key-events": 1,
     "jsx-a11y-x/no-static-element-interactions": 1
