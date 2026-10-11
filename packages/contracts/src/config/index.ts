@@ -151,7 +151,15 @@ export type { StandingInputs, BusinessGap } from "./business-tab/business-gap";
 export { openWeekWords, hoursZoneWords, closuresAheadWords } from "./business-tab/open-week";
 export type { ClosuresAheadVM } from "./business-tab/open-week";
 export { chipsMoreWords, CHIPS_SHOWN } from "./business-tab/counts";
-export { servicesWords, servicesToldWords, serviceUndoName, servicesFoundWords } from "./business-tab/services-words";
+export {
+  servicesWords,
+  servicesToldWords,
+  serviceUndoName,
+  servicesFoundWords,
+  serviceLineWords,
+  lengthWords,
+  SERVICE_PRICE_EMPTY,
+} from "./business-tab/services-words";
 export type { ServiceWordsInput, ServicesWordsVM } from "./business-tab/services-words";
 export {
   blockShareWords,

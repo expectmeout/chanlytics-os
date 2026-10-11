@@ -195,8 +195,8 @@ const ADD_WAYS: { value: AddWay; label: string }[] = [
   { value: "list", label: "A list (CSV)" },
 ];
 const ADD_SUBS: Record<AddWay, string> = {
-  one: "Someone you know of before they write or call. A number or an email that is already here opens that person instead of adding them twice.",
-  list: "A spreadsheet of your clients: names, mobile numbers, emails. Nothing already here is overwritten, and nobody is signed up for anything.",
+  one: "Someone already here opens instead of being added twice.",
+  list: "Names, mobile numbers, emails. Nothing here is overwritten, and no one is signed up for anything.",
 };
 
 /** A list a person can be put on by hand: one kept by hand, not one a rule keeps. */

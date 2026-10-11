@@ -201,10 +201,7 @@ test("the open pane is the report's: its steps counted, its sentence, its runs, 
     "Sep 25 · 5 written · 2 held",
     "Sep 24 · 30 written",
   ]);
-  assert.equal(
-    textOf(byTestId(tree, "ro-stop-one")),
-    "To stop writing to one business, open its lead and press Stop writing to them.",
-  );
+  assert.equal(textOf(byTestId(tree, "ro-stop-one")), "To stop one business, press Stop writing to them on its lead.");
   assert.equal(byTestId(tree, "ro-remove"), null, "one that wrote is paused, never removed (R16)");
 });
 

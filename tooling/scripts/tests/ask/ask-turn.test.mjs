@@ -8546,10 +8546,7 @@ test("a broadcast or a playbook proposed on a workspace with no WhatsApp number 
   const us = { ...WHATSAPP_NUMBER, number_e164: "+19295550198" };
   const paused = await buildProposal(toolContext([us]), "propose_campaign", broadcast);
   assert.deepEqual([paused.proposal, paused.isError], [null, true], paused.result);
-  assert.match(
-    JSON.parse(paused.result).error,
-    /Meta isn't delivering marketing messages on WhatsApp to US numbers right now/,
-  );
+  assert.match(JSON.parse(paused.result).error, /Meta has paused offers on WhatsApp to US numbers/);
   const unpaid = {
     ...WHATSAPP_NUMBER,
     config: { ...WHATSAPP_NUMBER.config, standing: { can_send: "AVAILABLE", has_payment_method: false } },

@@ -6329,7 +6329,7 @@ var PARTNER_WORDS = {
   /** The offer, before the share, which is printed from the row (shareWords). */
   offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays. A business already on Chanlytics can ask you in by your code: if it has not paid for a plan yet, the same share is yours once it does.",
   codeLabel: "Your code",
-  codeHint: `${PARTNER_CODE_MIN} to ${PARTNER_CODE_MAX} letters, digits or dashes. It is the end of your link, and it is yours for good.`,
+  codeHint: `${PARTNER_CODE_MIN} to ${PARTNER_CODE_MAX} letters, digits or dashes. It ends your link, for good.`,
   terms: "A share is paid on a workspace someone other than you brought you onto: made through your link, set up by you and handed to its owner, or one whose owner asked you in before it had paid for a plan. It is paid thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
   termsAgree: "I agree to these terms.",
   become: "Become a partner",
@@ -9706,7 +9706,7 @@ function offersPausedLine(offers) {
 
 // src/broadcasts/whatsapp-offers.ts
 var PLUS_ONE = /^\+1\d{10}$/;
-var US_PAUSED = "Meta isn't delivering marketing messages on WhatsApp to US numbers right now (paused since April 2025). Appointment messages and replies on WhatsApp are unaffected.";
+var US_PAUSED = "Meta has paused offers on WhatsApp to US numbers. Appointment messages and replies still go.";
 function whatsappOffersPaused(e164) {
   return typeof e164 === "string" && PLUS_ONE.test(e164.trim());
 }
@@ -10281,7 +10281,6 @@ function booksWithName(withWhat) {
 }
 var BOOKING_TOOL_WORDS = {
   label: "Booking tool",
-  hint: "Fills your calendar and tells the receptionist what's taken.",
   empty: "Not set up",
   placeholder: "What do you book with?",
   link: {
@@ -18019,7 +18018,8 @@ function indexFeed(items, own) {
     const c = extractContacts(it, own);
     for (const ph of c.phones) byPhone.set(ph, [...byPhone.get(ph) ?? [], it]);
     for (const em of c.emails) byEmail.set(em, [...byEmail.get(em) ?? [], it]);
-    if (!it.uid || recordIdOf(it.uid) === null) texts.push({ item: it, text: [it.title, ...c.names, it.description ?? ""].join("\n") });
+    if (!it.uid || recordIdOf(it.uid) === null)
+      texts.push({ item: it, text: [it.title, ...c.names, it.description ?? ""].join("\n") });
   }
   return { byPhone, byEmail, texts, own };
 }
@@ -19837,8 +19837,8 @@ var BOOKING_RULE_HINTS = /* @__PURE__ */ (() => ({
 function bookingLinkRowWords(sellsBy) {
   return bookingLinkOptional(sellsBy) ? {
     empty: "None \u2014 it takes their details instead",
-    hint: "Optional for a business that quotes: without one, it takes their details instead."
-  } : { empty: "Not set", hint: "Sent instead of confirming an appointment itself." };
+    hint: "Optional. Without one, it takes their details."
+  } : { empty: "Not set", hint: "Sent so customers book themselves." };
 }
 var CANNOT_SAY_SERVICES = "cannot say what you offer";
 var has2 = (v) => typeof v === "string" ? v.trim().length > 0 : Array.isArray(v) ? v.length > 0 : !!v && Object.keys(v).length > 0;
@@ -20783,6 +20783,20 @@ function rulesWithoutFieldsWords() {
 
 // src/config/business-tab/services-words.ts
 var SERVICE_CHIPS = CHIPS_SHOWN;
+function lengthWords(minutes) {
+  const m = typeof minutes === "string" ? Number(minutes.trim()) : minutes;
+  if (typeof m !== "number" || !Number.isFinite(m) || m <= 0) return null;
+  const whole = Math.round(m);
+  if (whole < 60) return `${whole} min`;
+  const h = Math.floor(whole / 60);
+  const rest = whole % 60;
+  return rest ? `${h} h ${rest} min` : `${h} h`;
+}
+var SERVICE_PRICE_EMPTY = "At consult";
+function serviceLineWords(s, consultFirst) {
+  const price = typeof s.price_note === "string" && s.price_note.trim() ? s.price_note.trim() : SERVICE_PRICE_EMPTY;
+  return [lengthWords(s.duration_min), price, consultFirst ? "Consult first" : null].filter(Boolean).join(" \xB7 ");
+}
 function servicesWords(services) {
   const list2 = (Array.isArray(services) ? services : []).filter(
     (s) => !!s && typeof s.name === "string" && s.name.trim() !== ""
@@ -20791,7 +20805,7 @@ function servicesWords(services) {
   if (!n) return { count: 0, line: null, chips: [], more: null };
   const chips = list2.slice(0, SERVICE_CHIPS).map((s) => ({
     name: s.name.trim(),
-    takes: typeof s.duration_min === "number" && s.duration_min > 0 ? `${s.duration_min} min` : null
+    takes: lengthWords(s.duration_min)
   }));
   return {
     count: n,
@@ -23802,24 +23816,26 @@ var DEAL_SHEET_WORDS = {
   service: { label: "Service", any: "Any service" },
   link: {
     label: "Proposal link",
-    hint: "A Google Doc, a PDF or any page you would send them.",
+    hint: "A doc, a PDF or any page.",
     placeholder: "docs.example.com/proposal"
   },
   value: {
     label: "Value",
-    hint: "Optional. Only you see it: the receptionist never says a figure.",
+    // Optional is said by the box being empty and nothing refusing it; who sees it is the one thing to say (Ruben,
+    // 10 Oct 2026: "Optional." under three boxes in a row).
+    hint: "Only you see it.",
     placeholder: "2,500",
     per: "How often"
   },
   agreed: {
     label: "Agreed amount",
-    hint: "Optional.",
+    hint: "Only you see it.",
     fromProposal: "The proposal's value, unless they agreed another."
   },
-  validUntil: { label: "Valid until", hint: "Optional." },
+  validUntil: { label: "Valid until", hint: null },
   when: { won: "When they said yes", lost: "When they passed", ended: "When it ended" },
   reason: { label: "Why they passed" },
-  note: { label: "Note", hint: "Optional. Only your team sees it.", placeholder: "In their words, or yours" },
+  note: { label: "Note", hint: "Only your team sees it.", placeholder: "In their words, or yours" },
   how: {
     label: "How they said yes",
     none: "Not recorded",
@@ -23829,11 +23845,11 @@ var DEAL_SHEET_WORDS = {
     where: "Where it was signed",
     wherePlaceholder: "DocuSign, Sep 20"
   },
-  message: { label: "Message", hint: "Sent as written. It has to carry the link." },
+  message: { label: "Message", hint: "It has to carry the link." },
   discard: {
-    question: "Discard your changes?",
-    detail: "Nothing here has been recorded.",
-    yes: "Yes, discard",
+    question: "Discard changes?",
+    detail: null,
+    yes: "Discard",
     no: "Keep editing"
   },
   reading: "Reading\u2026",
@@ -25745,7 +25761,8 @@ var NEW_CONVERSATION_WORDS = {
   how: { label: "Message or call", message: "Message", call: "Call" },
   about: {
     label: "What is it about?",
-    hint: "A line is enough: follow up on their quote, tell them Saturday opened up."
+    // What a line looks like is the box's own, until something is typed (Ruben, 10 Oct 2026: a sentence under it said it).
+    placeholder: "Follow up on their quote, or Saturday opened up"
   },
   write: {
     message: "Write it",
@@ -25757,6 +25774,8 @@ var NEW_CONVERSATION_WORDS = {
   },
   asks: "Before it is written",
   wire: "How it goes",
+  /** The ways it cannot go, one press away under the way it goes: "Why not Text or Email?". */
+  heldWhy: (names3) => `Why not ${names3.length > 1 ? `${names3.slice(0, -1).join(", ")} or ${names3[names3.length - 1]}` : names3[0]}?`,
   subject: "Subject",
   words: "Message",
   approved: {
@@ -25770,25 +25789,25 @@ var NEW_CONVERSATION_WORDS = {
   then: {
     label: "When they answer",
     receptionist: "The receptionist answers",
-    receptionistHint: "It will know your plan.",
+    receptionistHint: "Knows your plan",
     me: "I answer",
-    meHint: "The receptionist stays quiet until you hand the thread back.",
+    meHint: "It stays quiet until you hand it back",
     comesToYou: "Their answer comes to you, in Needs you."
   },
   note: {
-    label: "The receptionist will know",
+    label: "Note for the receptionist",
     leaveOut: "Leave it out",
-    putBack: "Tell the receptionist",
-    empty: "Say what it is about above, or write the note here."
+    putBack: "Add a note for the receptionist",
+    empty: "What it should know"
   },
   send: "Send",
   cancel: "Cancel",
   close: "Close",
   // The house's one question about what was typed and not sent, word for word (the record kit's UnsavedAsk).
   leave: {
-    question: "Throw away what you've written?",
-    detail: "Nothing has been sent.",
-    yes: "Yes, throw it away",
+    question: "Discard what you wrote?",
+    detail: null,
+    yes: "Discard",
     no: "Keep writing"
   },
   done: "Done",
@@ -26092,7 +26111,7 @@ var STEP_SHEET_WORDS = {
   what: { label: "What to do", placeholder: "Call about the timeline" },
   when: { label: "When", pick: "The day" },
   for: { label: "For", anyone: "Anyone on the team", me: "Me" },
-  teamOnly: "A step is for the team only: the receptionist never reads it.",
+  teamOnly: "Only your team sees it.",
   save: { add: "Set it", edit: "Save" },
   saving: "Saving\u2026",
   reading: "Reading\u2026",
@@ -26104,9 +26123,9 @@ var STEP_SHEET_WORDS = {
   // package that bundles contracts, as tone.ts's tables were (people.ts NOTE_MAX is the one spelling of it).
   problems: { what: "Say what to do.", day: "Pick a day.", tooLong: (max) => `At most ${max} characters.` },
   discard: {
-    question: "Discard your changes?",
-    detail: "Nothing here has been saved.",
-    yes: "Yes, discard",
+    question: "Discard changes?",
+    detail: null,
+    yes: "Discard",
     no: "Keep editing"
   }
 };
@@ -26281,7 +26300,11 @@ function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null
   const booked = !!v?.next;
   const nextVisitMs = v?.next ? Date.parse(v.next.start) : null;
   const lastVisitMs = v?.last ? Date.parse(v.last.start) : null;
-  const askedNotBooked = calendar === "ok" && askedMs !== null && nowMs - askedMs <= MONTH_MS && !visitAnswersAsk(nextVisitMs !== null && Number.isFinite(nextVisitMs) ? nextVisitMs : null, begunOf(v?.last, v?.missed), askedMs);
+  const askedNotBooked = calendar === "ok" && askedMs !== null && nowMs - askedMs <= MONTH_MS && !visitAnswersAsk(
+    nextVisitMs !== null && Number.isFinite(nextVisitMs) ? nextVisitMs : null,
+    begunOf(v?.last, v?.missed),
+    askedMs
+  );
   const stateDetail = state === "needs_you" ? r2.open_escalation_reason ? reasonShort(r2.open_escalation_reason) : r2.queued_reply_at && personStanding(r2, nowMs).standing !== "needs_you" ? "a reply is about to send \u2014 you can still stop it" : "waiting for a person" : state === "waiting_on_you" ? [HELD_WORDS.yours.pill.toLowerCase(), theirTurnWords(last)].filter(Boolean).join(", and ") : state === "opted_out" ? consent.sub : state === "new" ? `first contact ${first.label}` : state === "quiet" ? `last heard from ${ago(askedMs, tz, nowMs)}` : state === "unheard" ? last.ts === null ? "no contact recorded" : "they have not written or called" : "";
   const vm = {
     id: r2.id,
@@ -26481,17 +26504,17 @@ var DOUBT_WORDS = {
 
 // src/reach-out/reach-out-sheet.ts
 var REACH_OUT_SHEET_WORDS = {
-  sub: "Your email, opened differently for each business, from a domain you own. Whoever writes back lands in your Inbox, and the receptionist drafts the answer.",
-  who: "Ready, with a checked address, never written to. Keeps itself current as the search grows.",
-  opening: "The receptionist writes the opening from the finder's record of each business: why it fit, the reviews, the site, the hours. It never invents a fact; the check before each send holds anything it can't back.",
-  stops: "Stops for anyone who writes back on any channel, books, unsubscribes, bounces or says no.",
-  stopOne: "To stop writing to one business, open its lead and press Stop writing to them.",
-  first: `Starts today. The first run waits on you. After that, a run gives you ${PLAYBOOK_VETO_DELAY_WORDS} to stop it.`,
+  sub: "Your email, opened for each business, from your own domain. Replies land in your Inbox.",
+  who: "Ready, with a checked address, never written to. Keeps itself current.",
+  opening: "The receptionist opens each email from the finder's record. It never invents a fact: anything it can't back is held.",
+  stops: "Stops when they reply, book, unsubscribe, bounce or say no.",
+  stopOne: "To stop one business, press Stop writing to them on its lead.",
+  first: `Starts today. You approve the first run; after that you have ${PLAYBOOK_VETO_DELAY_WORDS} to stop each one.`,
   slotsHint: "each is filled for each business, or the email is held",
   foot: "Why they're hearing from you, your address, Unsubscribe",
   footHint: "as the law asks",
   repliesHint: "into your Inbox",
-  checkLater: "Every email is checked before it goes. The first run shows what the check held, and waits on you.",
+  checkLater: "Each email is checked before it goes. The first run waits for you.",
   noDomain: "Add a domain you send from in Settings \u203A Connections \u203A Email first.",
   anotherStep: "Another step",
   anotherStepHint: "\xB7 another email",
@@ -26502,7 +26525,7 @@ var REACH_OUT_SHEET_WORDS = {
   handWords: "What to do",
   handPlaceholder: "Ask whether our quote suited them",
   remove: "Remove",
-  removeNote: "Removes the reach-out and its words. Only before its first email goes; after that, pause it.",
+  removeNote: "Only before its first email goes; after that, pause it.",
   recheck: "Check the held again"
 };
 var REACH_OUT_REFUSALS = {
@@ -28045,8 +28068,11 @@ var STARTER_LINE_WORDS = {
     const at3 = statusOf(status);
     return at3 === "pending" ? "has its WhatsApp version in review \u2014 it appears here once approved, usually within minutes." : `has its WhatsApp version ${WHATSAPP_STANDING_WORDS[at3]} \u2014 see ${CAMPAIGN_ROOMS.home} \u203A ${CAMPAIGN_ROOMS.library}.`;
   },
-  /** The link that adds the moment's own message: its email and text versions at once, a WhatsApp version where a number is. */
-  add: "Add it \u2014 its email and text versions are written at once, and where a number is connected WhatsApp reviews its WhatsApp version, usually within minutes"
+  /**
+   * The link that adds the moment's own message: its email and text versions at once, a WhatsApp version where a number
+   * is, which the line says once it is in review (`standing`). The link was the whole of that, in 25 words.
+   */
+  add: "Add it"
 };
 var MESSAGE_BEGIN_WORDS = {
   customIsAnOffer: "A message you write is an offer or news. Only a starter is a reminder, a check after or a follow-up.",
@@ -35253,7 +35279,7 @@ var ALERT_PANE_WORDS = {
   bellOn: "Always on",
   email: "Email",
   emailNobody: "Nobody yet",
-  emailNobodyHint: "Until an address is added, a customer who needs a person reaches nobody by email: Chanlytics is told the workspace needs one, without the customer's message.",
+  emailNobodyHint: "Until one is added, nobody is emailed when a customer needs a person.",
   emailMore: (n) => n === 1 ? "and 1 more" : `and ${n} more`,
   change: "Change",
   done: "Done",
@@ -35272,7 +35298,7 @@ var ALERT_PANE_WORDS = {
   phoneHint: "Signing out on a phone stops its alerts.",
   browser: "This browser",
   browserValue: "When someone needs you right now",
-  browserHint: "A customer who needs a person, a reply waiting for your OK, a missed call, or a search's question, while Chanlytics is open in a tab.",
+  browserHint: "While Chanlytics is open in a tab.",
   browserBlocked: "Your browser is blocking alerts from Chanlytics. Allow them in its settings for this site, then switch this on.",
   what: "What you're told about",
   whatSub: "Tick where else each one reaches you. Email is the business's; your phone is yours.",
@@ -37248,7 +37274,7 @@ function partnerCodeFrom(raw) {
 var PARTNER_INVITE_WORDS = {
   /** Settings › Team, the owner's card. */
   title: "Your partner",
-  intro: `A partner is someone who sets up and runs your receptionist with you: they join your team with the partner role, and never touch billing or the team. Ask one by their code, the end of their link. They have ${PARTNER_INVITE_DAYS} days to accept.`,
+  intro: `Someone who sets up and runs your receptionist with you, never billing or the team. Ask one by their code; they have ${PARTNER_INVITE_DAYS} days to accept.`,
   codeLabel: "Their code or link",
   codePlaceholder: "their-code",
   invite: "Ask them",
@@ -38574,6 +38600,7 @@ export {
   SEND_WINDOW_MARGIN_MIN,
   SERVER_KEY_PREFIX,
   SERVER_NOTIFICATION_KINDS,
+  SERVICE_PRICE_EMPTY,
   SERVICE_SUGGESTION_TYPES,
   SESSION_ENDED,
   SETUP_CARD_ORDER,
@@ -39309,6 +39336,7 @@ export {
   legacyErasedEmailHash,
   legacyErasedPhoneHash,
   legacyLeadSuppressionHash,
+  lengthWords,
   lensAnswerOf,
   lensEmpty,
   lensIsShown,
@@ -39832,6 +39860,7 @@ export {
   sentByWords,
   sentResultsOfSource,
   serverNotificationRows,
+  serviceLineWords,
   serviceNamedIn,
   serviceOf2 as serviceOf,
   serviceSuggestionsOf,

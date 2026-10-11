@@ -1382,7 +1382,10 @@ test("focus that went with something comes back to the field the person was in; 
     ...field("yes, discard"),
     closest: (sel) => (sel === ".rec-fold-inner" || sel === ".confirm" ? {} : null),
   };
-  const remove = { ...field("remove the second shift"), matches: (sel) => sel === "button:not([role])" };
+  const remove = {
+    ...field("remove the second shift"),
+    matches: (sel) => sel === "button:not([role]):not(.rec-input)",
+  };
   const inner = { querySelectorAll: () => [first, second] };
   const ask = W.React.createElement("span", { className: "confirm" }, "Discard your changes?");
   let tree = draw(W.RecordFold, bookingRules({ open: false }));
@@ -3272,7 +3275,7 @@ test("a sheet gives focus back as a fold does: to the field the person was in wh
   const search = field("search", ".rec-sheet-tools");
   const nameBox = field("Service 3 name");
   const inPlace = field("Undo in the row's place", ".rec-sheet-body", {
-    matches: (sel) => sel === "button:not([role])",
+    matches: (sel) => sel === "button:not([role]):not(.rec-input)",
   });
   const keep = field("Keep editing", ".rec-sheet-body", { within: [".confirm"] });
   const tools = { querySelectorAll: () => [search] };

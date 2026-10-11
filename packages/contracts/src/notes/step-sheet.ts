@@ -13,7 +13,7 @@ export const STEP_SHEET_WORDS = {
   what: { label: "What to do", placeholder: "Call about the timeline" },
   when: { label: "When", pick: "The day" },
   for: { label: "For", anyone: "Anyone on the team", me: "Me" },
-  teamOnly: "A step is for the team only: the receptionist never reads it.",
+  teamOnly: "Only your team sees it.",
   save: { add: "Set it", edit: "Save" },
   saving: "Saving…",
   reading: "Reading…",
@@ -25,9 +25,9 @@ export const STEP_SHEET_WORDS = {
   // package that bundles contracts, as tone.ts's tables were (people.ts NOTE_MAX is the one spelling of it).
   problems: { what: "Say what to do.", day: "Pick a day.", tooLong: (max: number) => `At most ${max} characters.` },
   discard: {
-    question: "Discard your changes?",
-    detail: "Nothing here has been saved.",
-    yes: "Yes, discard",
+    question: "Discard changes?",
+    detail: null,
+    yes: "Discard",
     no: "Keep editing",
   },
 } as const;

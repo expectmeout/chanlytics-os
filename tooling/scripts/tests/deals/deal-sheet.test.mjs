@@ -216,14 +216,8 @@ test("each mode's sheet says what it is for, draws only its fields, in contracts
     s.service.options.map((o) => o.label),
     ["Any service", "Ad management", "SEO"],
   );
-  assert.deepEqual(
-    [s.link.label, s.link.hint],
-    ["Proposal link", "A Google Doc, a PDF or any page you would send them."],
-  );
-  assert.deepEqual(
-    [s.value.label, s.value.hint],
-    ["Value", "Optional. Only you see it: the receptionist never says a figure."],
-  );
+  assert.deepEqual([s.link.label, s.link.hint], ["Proposal link", "A doc, a PDF or any page."]);
+  assert.deepEqual([s.value.label, s.value.hint], ["Value", "Only you see it."]);
   assert.deepEqual(
     s.value.pers.map((p) => [p.value, p.label]),
     [
@@ -232,7 +226,8 @@ test("each mode's sheet says what it is for, draws only its fields, in contracts
       ["year", "A year"],
     ],
   );
-  assert.deepEqual([s.validUntil.label, s.validUntil.hint], ["Valid until", "Optional."]);
+  // Optional is said by the box being empty and nothing refusing it (Ruben, 10 Oct 2026): no line under the day.
+  assert.deepEqual([s.validUntil.label, s.validUntil.hint], ["Valid until", null]);
   assert.deepEqual([s.when, s.reason, s.note, s.how], [null, null, null, null], "a new proposal asks nothing of a yes");
   assert.deepEqual([s.send.label, s.send.can, s.send.why], ["Send it now on WhatsApp", true, null]);
   assert.equal(s.draft.send, true, "where it can go, it goes by default: recording and sending are one act");
@@ -278,7 +273,7 @@ test("each mode's sheet says what it is for, draws only its fields, in contracts
   assert.equal(s.save.label, "Mark as client");
   assert.deepEqual(
     dealSheetFor("won", person({ deals: [dealDto({ amount_cents: null, per: null })] }), NOW, ZONE).value.hint,
-    "Optional.",
+    "Only you see it.",
   );
 
   // A pass: the day, why, a note of the owner's.
@@ -289,7 +284,7 @@ test("each mode's sheet says what it is for, draws only its fields, in contracts
     ["Price", "Timing", "Went elsewhere", "No reply", "Not a fit", "Other"],
   );
   assert.equal(s.draft.reason, "", "no reason is chosen for them");
-  assert.deepEqual([s.note.label, s.note.hint, s.note.max], ["Note", "Optional. Only your team sees it.", 200]);
+  assert.deepEqual([s.note.label, s.note.hint, s.note.max], ["Note", "Only your team sees it.", 200]);
   assert.equal(s.value, null);
   assert.equal(s.save.label, "Record");
 
@@ -1322,7 +1317,7 @@ test("a send refused after a good record says both and closes; where it cannot g
   tree = redraw();
   assert.equal(
     textOf(find(byTestId(tree, "deal-sheet-cancel-confirm"), (n) => n.props?.className === "confirm-q")),
-    "Discard your changes?",
+    "Discard changes?",
   );
   press(byTestId(tree, "deal-sheet-cancel-no"));
   tree = await until("read behind it, what was typed kept", () => busy === 0);

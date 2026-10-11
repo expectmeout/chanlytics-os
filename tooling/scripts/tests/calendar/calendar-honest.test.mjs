@@ -676,7 +676,10 @@ test("(0008) the peek says the person's deal stage beside their name, in the one
     assert.ok(byTestId(byTestId(tree, "cal-panel-person"), "cal-panel-deal"), "beside the person");
     assert.ok(startAct(tree));
     // Its controls, drawn in the order Tab walks them, are the pinned order.
-    const controls = all(byTestId(tree, "cal-panel"), (n) => n.type === "button").map((b) => textOf(b).trim());
+    // A glyph's press is heard by its name (the copy is a glyph with its name and its tip, 10 Oct 2026).
+    const controls = all(byTestId(tree, "cal-panel"), (n) => n.type === "button").map(
+      (b) => b.props["aria-label"] || textOf(b).trim(),
+    );
     assert.deepEqual(controls, PEEK_FOCUS_ORDER);
     // Passed after it: the proposal that followed it was answered.
     tree = peek({ people: peopleWith("lost", true, END + HOUR) });

@@ -146,10 +146,7 @@ test("who gets it: the search's reach as the database counts it, the unconfirmed
   assert.notEqual(textOf(byTestId(included, "ro-who-line")), contracts.REACH_OUT_SHEET_WORDS.who);
   assert.equal(byTestId(tree, "ro-name").props.value, "Reach out · Personal trainers · Austin");
   assert.equal(byTestId(tree, "ro-signed").props.value, "Sam", "signed with the member's first name");
-  assert.equal(
-    textOf(byTestId(tree, "ro-stop-one")),
-    "To stop writing to one business, open its lead and press Stop writing to them.",
-  );
+  assert.equal(textOf(byTestId(tree, "ro-stop-one")), "To stop one business, press Stop writing to them on its lead.");
 });
 
 test("each field's problems are said under it in contracts' words, and Start waits until there are none", async () => {

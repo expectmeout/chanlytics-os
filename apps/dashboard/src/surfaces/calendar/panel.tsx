@@ -185,14 +185,24 @@ function panelFoot(p: {
             }
             onClick={textLink}
           >
-            <Icon name="calendar" size={12} /> {person.replyOpen ? "Text the booking link" : "Send the booking link"}
+            <Icon name="calendar" size={12} /> {person.replyOpen ? "Text the link" : "Send the link"}
           </Button>
         )}
       </div>
       <div className="st-modal-foot-actions">
+        {/* The copy is a glyph with its name and its tip: four worded presses in one foot wrapped to three lines on a
+            phone (Ruben, 10 Oct 2026). */}
         {bookingLink && (
-          <Button variant="quiet" size="sm" data-testid="cal-panel-copy-link" title={bookingLink} onClick={onCopyLink}>
-            Copy the booking link
+          <Button
+            variant="quiet"
+            size="sm"
+            iconOnly
+            aria-label="Copy the booking link"
+            data-tip="Copy the booking link"
+            data-testid="cal-panel-copy-link"
+            onClick={onCopyLink}
+          >
+            <Icon name="copy" size={12} />
           </Button>
         )}
         {/* The dialog's primary act, gated as the sheet's Save is: a role that may not record a deal is told why here. */}
@@ -328,10 +338,10 @@ export function CrPanel({
             </div>
           )}
           <VisitActs b={b} />
+          {/* Where it came from, and where it changes: the receptionist treats every time here as taken, which the
+              calendar itself says by drawing it (Ruben, 10 Oct 2026: a sentence of what the page already shows). */}
           <div className="cal-ev-note">
-            {b.tool
-              ? `Booked in ${b.tool} and emailed here. The receptionist treats this time as taken; to change or cancel it, do it in ${b.tool}.`
-              : `From ${source}. The receptionist treats this time as taken; to change or cancel it, edit it there.`}
+            {b.tool ? `Booked in ${b.tool}. Change or cancel it there.` : `From ${source}. Change or cancel it there.`}
           </div>
         </section>
         {panelFoot({ person, bookingLink, start, textLink, startProposal, onCopyLink, onClose })}
