@@ -128,13 +128,13 @@ Dn is decision n of the spec's §3.
 | `tests/ask/plan/plan-cards.test.mjs` | the `plan` action's cards, tokens, stamps, refusals |
 | `tests/ask/plan/plan-commit.test.mjs` | `commitPlan` over a stub client: order, keys, a stop, a held send, resolution |
 | `tests/ask/tools/message-card.test.mjs` | the `message` action and its spec |
-| `tests/campaigns/write-message.test.mjs` | the door over `_fake-db.mjs` |
-| `tests/campaigns/trial-and-until.test.mjs` | `effectiveMode`, a run on trial, a run past `until` |
-| `tests/campaigns/broadcast-breath.test.mjs` | a one-off send holds who heard this week |
+| `tests/templates/write-message.test.mjs` | the door over `_fake-db.mjs` (no new `tests/campaigns/` folder: the one-module rule covers `tooling/scripts`, so each test joins its domain's folder) |
+| `tests/playbooks/change/trial-and-until.test.mjs` | `effectiveMode`, a run on trial, a run past `until` |
+| `tests/broadcasts/broadcast-breath.test.mjs` (or a `breath/` subfolder of two files if `tests/broadcasts/` is at its 20) | a one-off send holds who heard this week |
 | `tests/playbooks/change/playbook-change-words.test.mjs` | `params`, `until`, `trial_until` through `checkPlaybookPatch` |
 | `tests/journey/journey-guide.test.mjs` | the guide's rows and words |
 | `tests/ask/tools/ask-tools-size.test.mjs` | the tools block in characters per role, under `ASK_TOOLS_CHARS_CEILING` |
-| `tests/campaigns/change-playbook-keys.db.test.mjs` | migration B applies twice; the door takes the three keys |
+| `tests/playbooks/change/change-playbook-keys.db.test.mjs` | migration B applies twice; the door takes the three keys |
 | `e2e/ask/plan.spec.ts` | a plan approved on the e2e workspace, email-only, sends refused |
 | `docs/decisions/0043-a-plan-is-steps-the-server-expands.md` | the decision note |
 
