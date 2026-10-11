@@ -166,27 +166,35 @@ function sentResultsOf(id: string, report: LifecycleInput["report"]): LifecycleR
 /**
  * The chains' own totals as the ledger reads them (GET reports/reach-outs' `chains`, by root); null where the answer
  * carried none (a server from before them). Campaigns' results surface and Ask's context of the page read them alike.
+ * A root whose businesses were not counted (a database before 00398) holds null for them.
  */
 export function lifecycleChainsOf(dto: ReachOutChainTotalsDto | null | undefined): LifecycleChains | null {
   if (!dto) return null;
   return {
     complete: dto.complete,
     byRoot: Object.fromEntries(
-      Object.entries(dto.by_root).map(([root, c]) => [root, { written: c.written, wroteBack: c.wrote_back }]),
+      Object.entries(dto.by_root).map(([root, c]) => [
+        root,
+        { written: c.written, businesses: c.businesses ?? null, wroteBack: c.wrote_back },
+      ]),
     ),
   };
 }
 
 /**
- * A reach-out's last 30 days, by its root: what it wrote and how many wrote back where it wrote anything; past the
- * report's twenty, absent is "none" only where every chain was counted. The one rule a reach-out's row of the ledger and
- * Ask's context of the page (apps/dashboard/src/server/ask/context/pages.ts) both say it by.
+ * A reach-out's last 30 days, by its root: the emails it wrote, the businesses they went to (null where not counted) and
+ * how many of them wrote back, where it wrote anything; past the report's twenty, absent is "none" only where every
+ * chain was counted. The one rule a reach-out's row of the ledger and Ask's context of the page
+ * (apps/dashboard/src/server/ask/context/pages.ts) both say it by.
  */
 export function chainResultsOf(rootId: string, chains: LifecycleInput["chains"]): LifecycleRowResults {
   if (!chains) return "uncounted";
   const c = chains.byRoot[rootId];
   if (!c) return chains.complete ? "none" : "uncounted";
-  return c.written > 0 ? { kind: "written", written: c.written, wroteBack: c.wroteBack } : "none";
+  // Read as null where the key is absent, too: an input from before 00398 (an older fixture) has no businesses to say.
+  return c.written > 0
+    ? { kind: "written", written: c.written, businesses: c.businesses ?? null, wroteBack: c.wroteBack }
+    : "none";
 }
 
 /** What a search matches: the parts, lower-cased. */

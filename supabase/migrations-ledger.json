@@ -398,6 +398,10 @@
     "00393_a_person_is_added_by_their_number_or_their_address.sql": "c9fec19f278c7c93b2062e3c80e9b6e8d400f2b3613b444a986ab3efee1309b4",
     "00394_a_new_person_is_one_who_reached_you.sql": "8a3e70409ab7eb04060a591956846c3b4bdbecd551f8a00a09d6e67a1fed0a2f",
     "00395_the_people_lens_is_read_beyond_the_days_counts.sql": "2c4b85c3506e5dba229b3f37da31b87b2c7f50f684b73d8a4a50bf6fb805a5cf",
-    "00396_a_hold_is_told_from_its_event.sql": "b04adcf408584fb773642bb0fc4899fe50b32ee259a9ef6045207d598bfb8c4c"
+    "00396_a_hold_is_told_from_its_event.sql": "b04adcf408584fb773642bb0fc4899fe50b32ee259a9ef6045207d598bfb8c4c",
+    "00397_a_yes_or_a_stop_after_a_campaign_is_the_answer_to_its_run.sql": "e68b3d49f3724605869f08b7c681a4ac5322c0ea9e93c1168f216747ce7a6fef",
+    "00398_a_reach_out_is_counted_in_the_businesses_it_wrote_to.sql": "0d1dcef002a1485bce75fd67ccba1fa35d2358da2166649ecf717d46d1055b25",
+    "00399_the_campaigns_lens_is_read_beyond_the_days_counts.sql": "cfe49831388e0d1ac873199d127a3c4c22d5bb04ece5cb8da3445d42699efa69",
+    "00400_what_is_stuck_in_a_workspace_s_campaigns_is_read_as_it_stands.sql": "f12574f5c5ee824ce831913b3b2b24ba215a583510a4a28d5152a4bcdd327bb9"
   }
 }

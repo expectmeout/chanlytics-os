@@ -567,6 +567,7 @@ test("what the page on screen draws from other surfaces follows its own surface,
     "reports_reviews",
     "reports_receptionist",
     "reports_people",
+    "reports_campaigns",
     "live",
     "broadcasts",
     "playbooks",
@@ -602,6 +603,7 @@ test("what the page on screen draws from other surfaces follows its own surface,
         "../surfaces/reports/reviews-surface",
         "../surfaces/reports/receptionist-surface",
         "../surfaces/reports/people-surface",
+        "../surfaces/reports/campaigns-surface",
         "surfaces/notifications",
         "../surfaces/live/surface",
         "../surfaces/setup/surface",
@@ -626,6 +628,8 @@ test("what the page on screen draws from other surfaces follows its own surface,
     ...ROUTE_DRAWS["reports/reviews"],
     ...ROUTE_DRAWS["reports/receptionist"],
     ...ROUTE_DRAWS["reports/people"],
+    ...ROUTE_DRAWS["reports/campaigns"],
+    ...ROUTE_DRAWS.reports,
     ...ROUTE_DRAWS["admin/integrations"],
   ])
     assert.ok(known.has(k), `${k} is a surface an override feeds (known: ${[...known].join(", ")})`);
@@ -739,6 +743,55 @@ test("the People lens reads its own surface right after Reports' own, ahead of e
     ["reports", "reports_people"],
     "its own surface, then the lens's read, before Settings or anyone's list",
   );
+  assert.equal(new Set(order).size, keys.length, "and every other surface still boots");
+});
+
+test("the Campaigns lens reads its own surface right after Reports' own, ahead of every stranger; the Overview reads it there too, for one fact, and the Pipeline lens does not", async () => {
+  // Reviews, the Receptionist, People and Campaigns each draw a read of their own beside the one of the page (surfaces/reports/campaigns-surface.ts).
+  const reg = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  assert.deepEqual(reg.ROUTE_DRAWS["reports/campaigns"], ["reports_campaigns"]);
+  assert.deepEqual(
+    reg.routeDrawsFor("reports", "campaigns"),
+    ["reports_campaigns"],
+    "asked as the shell asks: page and lens",
+  );
+  assert.deepEqual(reg.ROUTE_DRAWS.reports, ["reports_campaigns"], "the Overview draws it for one fact");
+  assert.deepEqual(reg.routeDrawsFor("reports", null), ["reports_campaigns"], "asked as the shell asks the Overview");
+  assert.deepEqual(reg.routeDrawsFor("reports", "pipeline"), [], "the Pipeline draws none of it: its row says so");
+  const keys = [
+    "conversations",
+    "inbox",
+    "today",
+    "settings",
+    "people",
+    "leads",
+    "reports",
+    "reports_reviews",
+    "reports_receptionist",
+    "reports_people",
+    "reports_campaigns",
+    "calendar",
+  ];
+  // The other lenses' reads are in the crowd as strangers: they come after the lens's own, with Settings and the rest.
+  for (const hash of ["#/reports/campaigns", "#/reports"]) {
+    const { order, overrides } = crowd(keys, { hash });
+    const stop = startSurfaces(overrides);
+    await settle(80);
+    stop();
+    assert.deepEqual(
+      order.slice(0, 2),
+      ["reports", "reports_campaigns"],
+      `${hash}: its own surface, then the Campaigns read, before Settings or anyone's list`,
+    );
+    assert.equal(new Set(order).size, keys.length, `${hash}: and every other surface still boots`);
+  }
+  // The Pipeline lens draws the report alone: the Campaigns read is a stranger to it, and comes with the rest.
+  const { order, overrides } = crowd(keys, { hash: "#/reports/pipeline" });
+  const stop = startSurfaces(overrides);
+  await settle(80);
+  stop();
+  assert.equal(order[0], "reports", "the page's own surface first");
+  assert.notEqual(order[1], "reports_campaigns", "and the Pipeline's boot does not put the Campaigns read next");
   assert.equal(new Set(order).size, keys.length, "and every other surface still boots");
 });
 

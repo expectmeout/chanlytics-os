@@ -30,6 +30,8 @@ export { emailLeftOutOf, splitQuotedReply } from "./message-email";
 export {
   messageStatusLabel,
   sendFailureWords,
+  failureWordsOf,
+  providerCodeOf,
   reachedCustomer,
   isHeldDraft,
   draftSendsAtMs,

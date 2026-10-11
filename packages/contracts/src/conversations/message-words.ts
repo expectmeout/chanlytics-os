@@ -114,6 +114,11 @@ const SETTLED_FAILURES: Readonly<Record<string, string>> = {
 const record = (v: unknown): Record<string, unknown> | null =>
   v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
 
+/** A table's words for a key it holds itself: `constructor` and `toString` belong to every object, and are no word of any table. */
+function tableWord<K extends string | number>(table: Readonly<Record<K, string>>, key: K): string | undefined {
+  return Object.hasOwn(table, key) ? table[key] : undefined;
+}
+
 /** A code as a number: a number, or digits in a string; nothing else is one. */
 function codeOf(v: unknown): number | null {
   if (typeof v === "number") return Number.isInteger(v) && v > 0 ? v : null;
@@ -124,8 +129,11 @@ function codeOf(v: unknown): number | null {
  * The provider's error code on a failed row, wherever the writer put it: a receipt's `errors` list (WhatsApp), a
  * receipt's `code` (a text's status callback), or the answer to the send itself, as `body`: Graph's JSON, cut at two
  * hundred characters so read for its `"code"` rather than parsed, or "Twilio 30034".
+ *
+ * Said again once in SQL, `public.provider_code_of` (00399), which the Campaigns ledger groups why sends failed by;
+ * reports/campaigns/provider-code.db.test.mjs holds the two to the same answer for every shape of error.
  */
-function providerCodeOf(error: Record<string, unknown>): number | null {
+export function providerCodeOf(error: Record<string, unknown>): number | null {
   const listed = Array.isArray(error.errors) ? record(error.errors[0]) : null;
   const direct = codeOf(listed?.code) ?? codeOf(error.code);
   if (direct !== null) return direct;
@@ -152,17 +160,44 @@ export function sendFailureWords(error: unknown, channel: string | null | undefi
   const wire = writtenChannelOf(channel);
   if (wire === "email") {
     const provider = typeof e.provider === "string" ? e.provider : "";
-    return EMAIL_FAILURES[provider] ?? settledWords(e);
+    return tableWord(EMAIL_FAILURES, provider) ?? settledWords(e);
   }
   const code = providerCodeOf(e);
   const sms = wire === "sms";
   if (code !== null) {
-    const meaning = (sms ? SMS_FAILURES : WHATSAPP_FAILURES)[code];
+    const meaning = tableWord(sms ? SMS_FAILURES : WHATSAPP_FAILURES, code);
     if (meaning) return `${meaning} (${sms ? "Twilio" : "WhatsApp"} error ${code}).`;
     return sms ? `Twilio didn't deliver it (error ${code}).` : `WhatsApp didn't deliver it (error ${code}).`;
   }
-  const carrier = typeof e.carrier === "string" ? SMS_STATUS_WORDS[e.carrier] : undefined;
+  const carrier = typeof e.carrier === "string" ? tableWord(SMS_STATUS_WORDS, e.carrier) : undefined;
   return carrier ?? settledWords(e);
+}
+
+/** The ledger's word for a send the provider never answered (`outcome: "unknown"` on the row): it may have gone. */
+const OUTCOME_UNKNOWN_KIND = "outcome_unknown";
+
+/**
+ * The sentence `sendFailureWords` says for a failure the Campaigns ledger keeps as a closed pair instead of the row's
+ * `error` (00399, `failed_sends.by_code`: no body, no number, no address ever leaves the database). The pair is the
+ * provider's `code` (a text's or a WhatsApp message's; an email carries none, its word decides) or, with no code, one `kind`
+ * of a closed set, read as the channel reads it:
+ *   - an email's `provider`: bounced, failed, suppressed;
+ *   - a text's `carrier`: undelivered, failed, canceled;
+ *   - a settled row's `reason`, on any wire: never_delivered, run_interrupted, orphaned;
+ *   - `outcome_unknown`, on any wire: the provider never answered (`outcome: "unknown"`), so it may have gone.
+ * `unknown`, a word the channel does not have and a null kind say null. The Inbox's thread and Reports therefore say a
+ * failure alike, from the one set of tables.
+ */
+export function failureWordsOf(
+  channel: string | null | undefined,
+  key: { code: number | null; kind: string | null },
+): string | null {
+  if (key.code !== null) return sendFailureWords({ code: key.code }, channel);
+  if (key.kind === null) return null;
+  if (key.kind === OUTCOME_UNKNOWN_KIND) return sendFailureWords({ outcome: "unknown" }, channel);
+  const wire = writtenChannelOf(channel);
+  const own = wire === "email" ? { provider: key.kind } : wire === "sms" ? { carrier: key.kind } : {};
+  return sendFailureWords({ ...own, reason: key.kind }, channel);
 }
 
 /** Why this message did not arrive, when it failed and its row says why (sendFailureWords); null for any other message. */
@@ -191,7 +226,7 @@ export function sentFactsOf(m: Pick<MessageDto, "status" | "error" | "channel">)
 
 /** The words for a failure that carries no provider's code: the ledger's own reasons, or a send whose outcome is not known. */
 function settledWords(e: Record<string, unknown>): string | null {
-  const settled = typeof e.reason === "string" ? SETTLED_FAILURES[e.reason] : undefined;
+  const settled = typeof e.reason === "string" ? tableWord(SETTLED_FAILURES, e.reason) : undefined;
   if (settled) return settled;
   return e.outcome === "unknown"
     ? "The provider didn't answer in time, so it may have gone: check the thread before sending it again."

@@ -12,6 +12,7 @@
  * It draws what the gallery's Figure families draw (tooling/scripts/e2e-harness/kit-gallery.mjs): "Figure", entry for entry,
  * and "Figure, on Base UI" for the label that carries a definition. `className` is for the page's layout, and comes last.
  */
+import { isThinShare } from "@chanlytics/contracts";
 import type { PressAct, PressDoor } from "../press";
 import { Press } from "../press";
 import { Tooltip } from "../tooltip/tooltip";
@@ -70,8 +71,9 @@ export function Figure({
   "data-testid": testid,
 }: FigureProps) {
   // Too few to read: only where the figure says both what it is of and the fewest that say anything. At n = 0 there is no
-  // ratio to grey (its "—" and its line already say why), so a figure of some, but too few, is the one that is thin.
-  const thin = n !== null && minN !== undefined && n > 0 && n < minN;
+  // ratio to grey (its "—" and its line already say why), so a figure of some, but too few, is the one that is thin: contracts'
+  // one predicate (isThinShare), which a bar of a rate and Ask's answer judge by too.
+  const thin = n !== null && minN !== undefined && isThinShare(n, minN);
   const term =
     definition === undefined ? (
       label

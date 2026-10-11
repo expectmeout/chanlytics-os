@@ -90,7 +90,7 @@ export const REPORT_LENSES = [
   {
     id: "campaigns",
     label: "Campaigns",
-    sub: "what went out, and who wrote back",
+    sub: "did your messages reach people, did they answer, and what is stuck",
     shownWhen: "always",
     role: "viewer",
     empty: (r) => ({

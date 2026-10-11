@@ -171,8 +171,9 @@ seven rows. Every number is one predicate, read once, and no other page pays for
     name: string; hint: string; status: "always" | "on" | "waiting" | "paused" | "not_here" | "off";
     stateWords: string; phoneWords: string; tone: LifecycleTone; needs: LifecycleNeeds; needsWords: string;
     channels: readonly LifecycleChannelMark[]; people: { n: number | null; unit: string };
-    results: { kind: "sent"; sent: number; replied: number } | { kind: "written"; written: number; wroteBack: number }
-      | "none" | "uncounted"; // campaign_series, or a chain in Reports' words
+    results: { kind: "sent"; sent: number; replied: number }
+      | { kind: "written"; written: number; businesses: number | null; wroteBack: number }
+      | "none" | "uncounted"; // campaign_series, or a chain in Reports' words (businesses added 11 Oct 2026, 00398)
     next: { words: string; atMs: number | null }; // waiting = now, paused = null
     open: LifecycleAct | null; waiting: LifecycleWaiting | null; act: LifecycleAct | null; search: string;
   }
@@ -210,7 +211,9 @@ seven rows. Every number is one predicate, read once, and no other page pays for
   days · Next · (acts), the sorted one in the chosen ink. A group's head (glyph in a 22px ring, caps, meta, `add` as a
   quiet `Button`) sticks under the tool line; under All an empty moment draws with Turn on, under a filter not at all.
 - A row (`cmh-row`, `data-row`, `data-kind`, `data-state`): dot, name and hint; `ChannelMarks`; people in `.tabular`;
-  "212 sent · 48 replied" or "40 written · 6 wrote back", "Nothing sent" or "—" dim; next in words, warn where it
+  "212 sent · 48 replied" or "25 businesses · 6 wrote back" (a chain's, in the businesses it wrote to, since 11 Oct 2026;
+  "40 written · 6 wrote back", in emails, only where the database does not count them yet: 00398), "Nothing sent" or "—"
+  dim; next in words, warn where it
   waits, plain where paused; the act: `WaitingActs` ("Approve · 7 people", "Skip" with its `Confirm`), or Resume with
   its `Confirm` ("Resume Win-back?" · "Next run today 9:00 AM, about 25 people", the mode in full under `auto`). A
   chain's run opens its page. The whole row opens, as Sent's do (`cmp/broadcasts/ledger.tsx:482-553`), its name an

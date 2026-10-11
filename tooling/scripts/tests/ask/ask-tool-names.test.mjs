@@ -25,6 +25,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 import { QUIET } from "../reports/people/_people-world.mjs";
+import { QUIET as CAMPAIGNS_QUIET } from "../reports/campaigns/_campaign-world.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -347,6 +348,13 @@ function quietReceptionist({ p_days: days }, over = {}) {
 }
 /** What people_series answers (00395) for a quiet period: nobody reached the business and nothing was answered or done. */
 const quietPeople = ({ p_days: days }) => ({ timezone: TZ, today: dayKey(NOW.getTime()), days, ...QUIET });
+/** What campaign_ledger answers (00399) for a quiet window: nobody was sent to, held, stopped, failed or approved. */
+const quietCampaigns = ({ p_days: days }) => ({
+  timezone: TZ,
+  today: dayKey(NOW.getTime()),
+  days,
+  ...CAMPAIGNS_QUIET,
+});
 const RPCS = {
   people_list: (a) => (a?.p_contact_id && a.p_contact_id !== P1 ? [] : [rosaRow]),
   metrics_summary: () => ({
@@ -414,6 +422,11 @@ const RPCS = {
   receptionist_series: (a) => quietReceptionist(a),
   // The People lens's read, which the report reads beside the series (readers/report.ts peopleReport): a quiet period.
   people_series: (a) => quietPeople(a),
+  // The Campaigns lens's ledger and what is stuck now, which the report reads beside the sends (readers/campaign-report.ts
+  // campaignLedgerReport): a quiet window and nothing stuck. The sends themselves (campaign_series) stay unmodelled, as
+  // campaigns.playbooks' last 30 days say: the lens is read and its sends are not, so the report says the lens as an error.
+  campaign_ledger: (a) => quietCampaigns(a),
+  campaign_stuck: () => ({ runs_waiting: [], runs_failed: [], replies: [], templates: [] }),
   lead_list_counts: () => ({ all: 0, ready: 0, nurture: 0, converted: 0, said_no: 0, not_a_fit: 0 }),
   lead_niche_prior: () => null,
 };
@@ -587,6 +600,14 @@ function withCampaigns(result) {
     ? result
     : JSON.stringify({ ...said, campaigns: { error: "the campaign numbers could not be read just now" } });
 }
+/**
+ * 11 Oct 2026 (Reports, the Campaigns lens, C4 T16): the report reads the lens's ledger beside its sends, whether or not the
+ * sends could be read (readers/campaign-report.ts campaignLedgerReport, once): the database's campaign_ledger and
+ * campaign_stuck, and the connected number's row (the reader says its health from the channel's stored config, db
+ * whatsappChannelFacts: its own read of tenant_channels, one). The bytes are unchanged: this world has no campaign_series,
+ * so the lens still says error.
+ */
+const withCampaignReads = (reads) => [...reads, "rpc:campaign_ledger", "rpc:campaign_stuck", "tenant_channels.select"];
 
 /**
  * 7 Oct 2026 (Reports phase C, lens 1, T4): the report says the Reviews lens after the Campaigns lens, from the lens's own
@@ -1133,8 +1154,11 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     const withWeek = readsTwins ? [...withTwins, "broadcasts.select", "tenants.select"] : withTwins;
     // 10 Oct 2026 (Reports, the Receptionist lens, C2 T13): and the Receptionist lens's own: one rpc more (withReceptionistReads).
     // 10 Oct 2026 (Reports, the People lens, C3 T13): and the People lens's: its series and the channels the book is judged against.
+    // 11 Oct 2026 (Reports, the Campaigns lens, C4 T16): and the Campaigns lens's ledger, what is stuck and the number (withCampaignReads).
     const reads =
-      NAMES[old] === "report" ? withPeopleReads(withReceptionistReads(withReviewReads(withWeek))) : withWeek;
+      NAMES[old] === "report"
+        ? withCampaignReads(withPeopleReads(withReceptionistReads(withReviewReads(withWeek))))
+        : withWeek;
     const [gotResult, wantResult] =
       NAMES[old] === "campaigns.playbooks"
         ? againstOffered(got.result, withLastThirtyDays(result))
@@ -1160,10 +1184,19 @@ test("the report finds the people its booking link went to only where the link w
   assert.equal(none.reads.filter((r) => r === "rpc:receptionist_series").length, 1, "the lens's read, once");
   // The People lens counts the same People: its series is its one call more, and the book is the turn's one read, counted.
   assert.equal(none.reads.filter((r) => r === "rpc:people_series").length, 1, "the People lens's read, once");
-  assert.equal(
-    none.reads.filter((r) => r === "tenant_channels.select").length,
-    1,
-    "and the channels it is judged against, once",
+  // The Campaigns lens's ledger and what is stuck: one call each, whether or not the sends could be read.
+  assert.deepEqual(
+    ["rpc:campaign_ledger", "rpc:campaign_stuck"].map((rpc) => none.reads.filter((r) => r === rpc).length),
+    [1, 1],
+    "the Campaigns lens's ledger and what is stuck, once each",
+  );
+  // The channels: the People lens judges its book against the turn's one read of them (the number's row and the texting
+  // line's), and the Campaigns lens reads the connected number's row once more, to say its health (the reader's own read,
+  // the channel's stored config): two reads of the number's row, one of the texting line's.
+  assert.deepEqual(
+    ["tenant_channels.select", "lines.select"].map((q) => none.reads.filter((r) => r === q).length),
+    [2, 1],
+    "and the channels: the book's judgment, once, and the number's health, once",
   );
 
   const link = (a) => quietReceptionist(a, { links: { total: 1, people: [{ c: P1, at: ago(DAY) }] } });

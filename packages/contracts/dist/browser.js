@@ -2486,6 +2486,14 @@ function numberHealthWithStanding(health, standing) {
   const row2 = standing ? standingRow(standing) : null;
   return row2 ? { ...health, canSend: false, tone: "danger", refusal: row2.sentence } : health;
 }
+function numberHealthOfConfig(config2) {
+  const s = (key) => {
+    const value = config2[key];
+    return typeof value === "string" ? value : null;
+  };
+  const health = numberHealth({ quality: s("quality_rating"), event: s("quality_event"), limit: s("messaging_limit") });
+  return numberHealthWithStanding(health, standingFromConfig(config2.standing));
+}
 var CAN_SEND_WORDS = {
   AVAILABLE: "can send",
   LIMITED: "limited",
@@ -2505,7 +2513,8 @@ function standingChangeWords(p) {
 // src/broadcasts/run-words.ts
 var REPLY_WINDOW_HOURS = 72;
 var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * HOUR_MS;
-var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
+var REPLY_DAYS = `${REPLY_WINDOW_HOURS / 24} days`;
+var REPLY_WINDOW_WORDS = `within ${REPLY_DAYS}`;
 function isReplyTo(sentAt, at3) {
   const s = Date.parse(sentAt);
   const a = Date.parse(at3);
@@ -3507,6 +3516,9 @@ var SETTLED_FAILURES = {
   orphaned: "It was never sent: no job was left to send it."
 };
 var record = (v) => v !== null && typeof v === "object" && !Array.isArray(v) ? v : null;
+function tableWord(table, key) {
+  return Object.hasOwn(table, key) ? table[key] : void 0;
+}
 function codeOf(v) {
   if (typeof v === "number") return Number.isInteger(v) && v > 0 ? v : null;
   return typeof v === "string" && /^\d{3,6}$/.test(v.trim()) ? Number(v.trim()) : null;
@@ -3530,17 +3542,26 @@ function sendFailureWords(error, channel) {
   const wire = writtenChannelOf(channel);
   if (wire === "email") {
     const provider = typeof e.provider === "string" ? e.provider : "";
-    return EMAIL_FAILURES[provider] ?? settledWords(e);
+    return tableWord(EMAIL_FAILURES, provider) ?? settledWords(e);
   }
   const code2 = providerCodeOf(e);
   const sms = wire === "sms";
   if (code2 !== null) {
-    const meaning = (sms ? SMS_FAILURES : WHATSAPP_FAILURES)[code2];
+    const meaning = tableWord(sms ? SMS_FAILURES : WHATSAPP_FAILURES, code2);
     if (meaning) return `${meaning} (${sms ? "Twilio" : "WhatsApp"} error ${code2}).`;
     return sms ? `Twilio didn't deliver it (error ${code2}).` : `WhatsApp didn't deliver it (error ${code2}).`;
   }
-  const carrier = typeof e.carrier === "string" ? SMS_STATUS_WORDS[e.carrier] : void 0;
+  const carrier = typeof e.carrier === "string" ? tableWord(SMS_STATUS_WORDS, e.carrier) : void 0;
   return carrier ?? settledWords(e);
+}
+var OUTCOME_UNKNOWN_KIND = "outcome_unknown";
+function failureWordsOf(channel, key) {
+  if (key.code !== null) return sendFailureWords({ code: key.code }, channel);
+  if (key.kind === null) return null;
+  if (key.kind === OUTCOME_UNKNOWN_KIND) return sendFailureWords({ outcome: "unknown" }, channel);
+  const wire = writtenChannelOf(channel);
+  const own = wire === "email" ? { provider: key.kind } : wire === "sms" ? { carrier: key.kind } : {};
+  return sendFailureWords({ ...own, reason: key.kind }, channel);
 }
 function messageFailedWhy(m) {
   return m.status === "failed" ? sendFailureWords(m.error, m.channel) : null;
@@ -3555,7 +3576,7 @@ function sentFactsOf(m) {
   };
 }
 function settledWords(e) {
-  const settled = typeof e.reason === "string" ? SETTLED_FAILURES[e.reason] : void 0;
+  const settled = typeof e.reason === "string" ? tableWord(SETTLED_FAILURES, e.reason) : void 0;
   if (settled) return settled;
   return e.outcome === "unknown" ? "The provider didn't answer in time, so it may have gone: check the thread before sending it again." : null;
 }
@@ -8090,8 +8111,14 @@ function hoursUnsetOf(arrivals, profile) {
   return arrivals !== void 0 && profile != null && !hasHours(profile.hours);
 }
 
+// src/shared/numbers.ts
+var sumOf = (xs) => xs.reduce((a, b) => a + b, 0);
+var pct = (n, of) => of > 0 ? Math.round(n / of * 100) : null;
+
 // src/reports/report-tiles.ts
 var REPORT_MIN_N = 5;
+var isThinShare = (n, minN) => n > 0 && n < minN;
+var shareSaid = (share, count2, of) => share === null ? null : of >= REPORT_MIN_N ? `${share}%` : `${count2} of ${of}`;
 function fmtSeconds(s) {
   if (s == null || !Number.isFinite(s)) return "\u2014";
   return durationWords(s);
@@ -8116,6 +8143,7 @@ function compareWords(current, previous, rangeLabel, priorHadAny) {
   if (current === previous) return `same as ${beforeWords(rangeLabel)}`;
   return `${current > previous ? "up" : "down"} from ${previous}`;
 }
+var messagesAnsweredWords = (answered, of) => `${answered} of ${of} ${answered === 1 ? "was" : "were"} answered`;
 function newPeopleLine(newNow, newBefore, rangeLabel, priorHadAny) {
   if (newNow === 0) return "Nobody new reached you in this period.";
   const reached = `${plural(newNow, "new person", "new people")} reached you`;
@@ -8217,10 +8245,6 @@ function bookedTileOf(booking) {
     meta: booking && booking.calendar === "unavailable" ? "the calendar could not be read" : "no calendar link"
   };
 }
-
-// src/shared/numbers.ts
-var sumOf = (xs) => xs.reduce((a, b) => a + b, 0);
-var pct = (n, of) => of > 0 ? Math.round(n / of * 100) : null;
 
 // src/reports/reports.ts
 var REPORT_CHANNELS = [
@@ -8684,7 +8708,7 @@ var REPORT_LENSES = [
   {
     id: "campaigns",
     label: "Campaigns",
-    sub: "what went out, and who wrote back",
+    sub: "did your messages reach people, did they answer, and what is stuck",
     shownWhen: "always",
     role: "viewer",
     empty: (r2) => ({
@@ -10534,8 +10558,11 @@ var LIFECYCLE_WORDS = {
     businesses: "businesses",
     chainNeeds: "Writes to the businesses a search found",
     openRun: "Open the run",
-    /** A row's last 30 days, as its cell says them. */
-    results: (r2) => r2 === "uncounted" ? "\u2014" : r2 === "none" ? "Nothing sent" : r2.kind === "sent" ? `${r2.sent} sent \xB7 ${r2.replied} replied` : `${r2.written} written \xB7 ${r2.wroteBack} wrote back`,
+    /**
+     * A row's last 30 days, as its cell says them. A reach-out's is in the businesses it wrote to, which "wrote back" is a
+     * count of; its emails written only where the businesses were not counted (a database before 00398).
+     */
+    results: (r2) => r2 === "uncounted" ? "\u2014" : r2 === "none" ? "Nothing sent" : r2.kind === "sent" ? `${r2.sent} sent \xB7 ${r2.replied} replied` : r2.businesses === null ? `${r2.written} written \xB7 ${r2.wroteBack} wrote back` : `${plural(r2.businesses, "business", "businesses")} \xB7 ${r2.wroteBack} wrote back`,
     sentOnce: {
       footer: (n) => `Sent once \xB7 last 30 days \xB7 ${n}`,
       open: "Sent",
@@ -17703,6 +17730,79 @@ function reachBarWords(split) {
   if (!first) return "Reaches nobody";
   if (parts2.length === 1) return `Reaches ${first.words}`;
   return `Reaches ${split.reached.toLocaleString("en-US")}: ${parts2.map((p) => p.words).join(", ")}`;
+}
+
+// src/broadcasts/run-answers.ts
+var NOT_ANSWERS = /* @__PURE__ */ new Set(["merge", "stop"]);
+var NAMES_THE_EMAIL = /* @__PURE__ */ new Set(["unsubscribe", "complaint", "reply"]);
+var NAMES_THE_SEND = /* @__PURE__ */ new Set(["carrier", "whatsapp"]);
+var isIn = (set, source) => typeof source === "string" && set.has(source);
+var wordOrNull = (v) => typeof v === "string" && v !== "" ? v : null;
+function purposeOf(named) {
+  return named === "email_marketing" || named === "marketing" ? named : "conversational";
+}
+function keyOfEvent(data, consent, purpose) {
+  const asEmail = purpose === "email_marketing" && consent === "opted_out" && isIn(NAMES_THE_EMAIL, data.source);
+  const email = asEmail ? wordOrNull(data.message_id) : null;
+  if (email) return { field: "messageId", value: email };
+  const send = isIn(NAMES_THE_SEND, data.source) ? wordOrNull(data.message_external_id) : null;
+  return send ? { field: "messageExternalId", value: send } : null;
+}
+function countedOf(e) {
+  const data = recordOrNull(e.data);
+  const atMs = Date.parse(e.at);
+  if (!data || !Number.isFinite(atMs) || isIn(NOT_ANSWERS, data.source)) return null;
+  const consent = data.consent;
+  if (consent !== "opted_in" && consent !== "opted_out") return null;
+  const purpose = purposeOf(data.purpose);
+  return {
+    id: e.id,
+    contactId: e.contactId,
+    at: e.at,
+    atMs,
+    consent,
+    purpose,
+    key: keyOfEvent(data, consent, purpose)
+  };
+}
+var namedBy = (key, sends2) => sends2.filter((s) => s[key.field] === key.value);
+function reachedBefore(e, sends2) {
+  return sends2.filter((s) => {
+    const sentMs = Date.parse(s.sentAt);
+    const inside = sentMs < e.atMs && e.atMs - sentMs <= REPLY_WINDOW_MS;
+    return inside && (e.purpose !== "email_marketing" || s.byEmail);
+  });
+}
+var isLaterEvent = (a, b) => a.atMs !== b.atMs ? a.atMs > b.atMs : a.id > b.id;
+function answersToRuns(sends2, events) {
+  const sendsOf = /* @__PURE__ */ new Map();
+  for (const s of sends2) {
+    if (!s.live) continue;
+    const had = sendsOf.get(s.contactId);
+    if (had) had.push(s);
+    else sendsOf.set(s.contactId, [s]);
+  }
+  const standing = /* @__PURE__ */ new Map();
+  for (const raw of events) {
+    const e = countedOf(raw);
+    const theirs = e ? sendsOf.get(e.contactId) : void 0;
+    if (!e || !theirs) continue;
+    const exact = e.key !== null;
+    for (const s of e.key ? namedBy(e.key, theirs) : reachedBefore(e, theirs)) {
+      const slot = JSON.stringify([s.runId, s.contactId]);
+      const held = standing.get(slot);
+      if (!held || isLaterEvent(e, held.event)) standing.set(slot, { runId: s.runId, event: e, exact });
+    }
+  }
+  return [...standing.values()].map(({ runId, event: e, exact }) => ({
+    runId,
+    contactId: e.contactId,
+    consent: e.consent,
+    purpose: e.purpose,
+    at: e.at,
+    eventId: e.id,
+    exact
+  }));
 }
 
 // src/broadcasts/send-when-words.ts
@@ -28400,7 +28500,10 @@ function lifecycleChainsOf(dto) {
   return {
     complete: dto.complete,
     byRoot: Object.fromEntries(
-      Object.entries(dto.by_root).map(([root, c]) => [root, { written: c.written, wroteBack: c.wrote_back }])
+      Object.entries(dto.by_root).map(([root, c]) => [
+        root,
+        { written: c.written, businesses: c.businesses ?? null, wroteBack: c.wrote_back }
+      ])
     )
   };
 }
@@ -28408,7 +28511,7 @@ function chainResultsOf(rootId, chains) {
   if (!chains) return "uncounted";
   const c = chains.byRoot[rootId];
   if (!c) return chains.complete ? "none" : "uncounted";
-  return c.written > 0 ? { kind: "written", written: c.written, wroteBack: c.wroteBack } : "none";
+  return c.written > 0 ? { kind: "written", written: c.written, businesses: c.businesses ?? null, wroteBack: c.wroteBack } : "none";
 }
 var rowSearchOf = (...parts2) => parts2.join(" ").toLowerCase();
 var NO_NEXT = { words: LIFECYCLE_WORDS.ledger.dash, atMs: null };
@@ -29758,10 +29861,24 @@ function campaignChannelsOf2(rows2) {
         readPct: whatsapp ? pct(r2.read, r2.sent) : null,
         replied: r2.replied,
         repliedPct: pct(r2.replied, r2.sent),
-        display: `${r2.sent} \xB7 ${deliveredPct === null ? "\u2014" : `${deliveredPct}%`} delivered`
+        display: `${r2.sent} \xB7 ${shareSaid(deliveredPct, r2.delivered, r2.sent) ?? "\u2014"} delivered`
       }
     ];
   });
+}
+function columnWords(d) {
+  return {
+    sentWords: `${dayPointOf(d.day).label}: ${d.sent} sent`,
+    answeredWords: d.replied > 0 ? `${d.replied} answered` : null
+  };
+}
+function sourceWords2(s) {
+  const delivered = shareSaid(pct(s.delivered, s.sent), s.delivered, s.sent);
+  const replied = shareSaid(pct(s.replied, s.sent), s.replied, s.sent);
+  return {
+    deliveredWords: delivered ?? "\u2014",
+    repliedWords: replied === null ? "\u2014" : s.sent >= REPORT_MIN_N ? `${replied} (${s.replied})` : replied
+  };
 }
 function channelsLine(channels) {
   if (channels.length < 2) return null;
@@ -29779,7 +29896,8 @@ function toCampaignReportVM(dto) {
     delivered: d.delivered,
     replied: d.replied,
     optIns: d.opt_ins,
-    optOuts: d.opt_outs
+    optOuts: d.opt_outs,
+    ...columnWords(d)
   }));
   const tot = {
     sent: sumOf(current.map((d) => d.sent)),
@@ -29800,12 +29918,8 @@ function toCampaignReportVM(dto) {
   const whatsapp = channels.find((c) => c.channel === "whatsapp");
   const read = dto.by_channel ? whatsapp?.read ?? 0 : tot.read;
   const readOf = dto.by_channel ? whatsapp?.sent ?? 0 : tot.sent;
-  const noun = plural(days, "day");
-  const rangeLabel = rangeLabelOf(days);
-  const priorHadAny = prev.sent + prev.optIns + prev.optOuts > 0;
   const rawSources = dto.sources ?? [];
   const sends2 = sumOf(rawSources.map((s) => s.runs));
-  const maxSent = Math.max(1, ...rawSources.map((s) => s.sent));
   const sources = rawSources.map((s) => ({
     id: s.id,
     kind: s.kind,
@@ -29820,85 +29934,134 @@ function toCampaignReportVM(dto) {
     replied: s.replied,
     deliveredPct: pct(s.delivered, s.sent),
     repliedPct: pct(s.replied, s.sent),
-    lastLabel: s.last_at ? WHEN2.format(new Date(s.last_at)) : "",
-    share: s.sent / maxSent
+    ...sourceWords2(s),
+    lastLabel: s.last_at ? WHEN2.format(new Date(s.last_at)) : ""
   }));
-  const tiles = [
-    {
-      id: "sent",
-      metric: "messages_sent",
-      label: "Messages sent",
-      value: String(tot.sent),
-      meta: tot.sent ? `over ${sends2} ${sends2 === 1 ? "send" : "sends"}` : "none in this period",
-      delta: deltaOf(tot.sent, prev.sent, true, noun),
-      spark: points.map((p) => p.sent),
-      compare: null
-    },
-    {
-      id: "delivered",
-      metric: "delivered_share",
-      label: "Delivered",
-      value: pct(tot.delivered, tot.sent) === null ? "\u2014" : `${pct(tot.delivered, tot.sent)}%`,
-      meta: tot.sent ? `${tot.delivered} of ${tot.sent} \xB7 ${DELIVERY_RECEIPTS_WORDS}` : "nothing sent",
-      delta: pointsDelta(pct(tot.delivered, tot.sent), pct(prev.delivered, prev.sent), noun),
-      spark: points.map((p) => p.delivered),
-      compare: null
-    },
-    {
-      id: "replied",
-      metric: "replied_share",
-      label: "Replied",
-      value: pct(tot.replied, tot.sent) === null ? "\u2014" : `${pct(tot.replied, tot.sent)}%`,
-      meta: tot.sent ? `${tot.replied} wrote back ${REPLY_WINDOW_WORDS}` : "nothing sent",
-      delta: pointsDelta(pct(tot.replied, tot.sent), pct(prev.replied, prev.sent), noun),
-      spark: points.map((p) => p.replied),
-      compare: null
-    },
-    {
-      id: "optins",
-      metric: "said_yes",
-      label: "Said yes",
-      value: String(tot.optIns),
-      meta: tot.optIns ? "at the desk, or in their own words" : "nobody in this period",
-      delta: deltaOf(tot.optIns, prev.optIns, true, noun),
-      spark: points.map((p) => p.optIns),
-      compare: compareWords(tot.optIns, prev.optIns, rangeLabel, priorHadAny)
-    },
-    {
-      id: "optouts",
-      metric: "asked_to_stop",
-      label: "Asked to stop",
-      value: String(tot.optOuts),
-      meta: tot.optOuts ? "STOP, or recorded at the desk" : "nobody in this period",
-      delta: deltaOf(tot.optOuts, prev.optOuts, false, noun),
-      spark: points.map((p) => p.optOuts),
-      compare: compareWords(tot.optOuts, prev.optOuts, rangeLabel, priorHadAny)
-    }
-  ];
   return {
     days,
-    tiles,
     points,
     totals: { ...tot, read, readOf, sends: sends2 },
+    before: prev,
     sources,
     empty: tot.sent === 0 && tot.optIns === 0 && tot.optOuts === 0,
-    max: Math.max(1, ...points.map((p) => p.sent)),
-    prior: priorOf(current.length, previous, (d) => d.sent),
     table: {
-      columns: ["Day", "Sent", "Delivered", "Replied", "Said yes", "Asked to stop"],
+      columns: ["Day", "Sent", "Delivered", "Answered", "Said yes", "Asked to stop"],
       rows: points.map((p) => [p.label, p.sent, p.delivered, p.replied, p.optIns, p.optOuts])
     },
     channels,
     channelTable: {
-      columns: ["Channel", "Sent", "Delivered", "Read", "Wrote back"],
+      columns: ["Channel", "Sent", "Delivered", "Read", "Answered"],
       rows: channels.map((c) => [c.label, c.sent, c.delivered, c.read, c.replied])
     },
     lines: {
-      // A yes is to being messaged, never to an offer: a visit reminder is no offer (the wiring audit's C25).
-      funnel: tot.optIns || tot.optOuts ? `${tot.optIns} ${tot.optIns === 1 ? "person" : "people"} said yes to messages, ${tot.optOuts} ${tot.optOuts === 1 ? "person" : "people"} asked to stop.` : "Nobody said yes to messages or asked to stop.",
       sent: sends2 ? sends2 === 1 ? "From one broadcast or campaign run." : `From ${sends2} broadcast and campaign runs.` : null,
       channels: channelsLine(channels)
     }
+  };
+}
+
+// src/reports/campaigns/campaign-record.ts
+var CAMPAIGN_ROWS_LISTED = 500;
+var TEMPLATES_NAMED = 3;
+var valueAt = (from, path) => path.reduce((at3, key) => recordOrNull(at3)?.[key], from);
+var isObjectAt = (from, path) => recordOrNull(valueAt(from, path)) !== null;
+function isRowsAt(from, path) {
+  const rows2 = valueAt(from, path);
+  return Array.isArray(rows2) && rows2.every((row2) => recordOrNull(row2) !== null);
+}
+var SERIES_OBJECTS = [
+  ["people", "now"],
+  ["people", "before"],
+  ["runs", "now"],
+  ["runs", "before"],
+  ["held", "by_reason"],
+  ["stopped", "by_failure"],
+  ["first_reply", "buckets"],
+  ["approval", "buckets"]
+];
+var SERIES_LISTS = [["failed_sends", "by_code"], ["by_message"]];
+function isCampaignLedgerSeriesDto(answer) {
+  const a = recordOrNull(answer);
+  return a !== null && typeof a.timezone === "string" && typeof a.today === "string" && (a.end === void 0 || typeof a.end === "string") && isCount(a.days) && SERIES_OBJECTS.every((path) => isObjectAt(a, path)) && SERIES_LISTS.every((path) => isRowsAt(a, path));
+}
+var STUCK_LISTS = ["runs_waiting", "runs_failed", "replies", "templates"];
+function isCampaignStuckRawDto(answer) {
+  const a = recordOrNull(answer);
+  return a !== null && STUCK_LISTS.every((key) => isRowsAt(a, [key]));
+}
+function oldestInstant(instants) {
+  return instants.reduce((first, at3) => {
+    if (Number.isNaN(Date.parse(at3))) return first;
+    return first === null || Date.parse(at3) < Date.parse(first) ? at3 : first;
+  }, null);
+}
+function runsWaitingOf(runs, at3) {
+  const days = {
+    today: zoneDayKey(at3.nowMs, at3.tz),
+    sendsOn: zoneDayKey(nextOpenMoment(at3.tz, new Date(at3.nowMs)).at.getTime(), at3.tz)
+  };
+  const late = runs.filter(
+    (r2) => runApprovalRefusal(
+      { playbook_id: r2.playbook_id, run_for: r2.run_for, audience: { kind: r2.audience_kind, trigger: r2.trigger } },
+      days
+    ) !== null
+  );
+  return {
+    n: runs.length,
+    late: late.length,
+    oldest_at: oldestInstant(runs.map((r2) => r2.created_at)),
+    capped: runs.length >= CAMPAIGN_ROWS_LISTED
+  };
+}
+function runsFailedOf(runs) {
+  const latest = runs.reduce((top, run) => {
+    if (Number.isNaN(Date.parse(run.finished_at))) return top;
+    return top === null || Date.parse(run.finished_at) > Date.parse(top.finished_at) ? run : top;
+  }, null);
+  return {
+    n: runs.length,
+    latest: latest === null ? null : { name: latest.name, failure: latest.failure, at: latest.finished_at },
+    capped: runs.length >= CAMPAIGN_ROWS_LISTED
+  };
+}
+function repliesWaitingOf(replies, nowMs) {
+  const waiting = replies.filter(
+    (r2) => standingOfThread(
+      { state: r2.state, paused_until: r2.paused_until, assignee_user_id: r2.assignee_user_id },
+      r2.open_escalation,
+      nowMs
+    ).standing === "needs_you"
+  );
+  return {
+    n: waiting.length,
+    oldest_at: oldestInstant(waiting.map((r2) => r2.replied_at)),
+    capped: replies.length >= CAMPAIGN_ROWS_LISTED
+  };
+}
+function templatesStoppedOf(templates) {
+  return {
+    n: templates.length,
+    items: templates.slice(0, TEMPLATES_NAMED).map((t) => ({ name: t.name, language: t.language, status: t.status }))
+  };
+}
+function campaignLedgerDtoOf(series, parts2) {
+  const asked = series ?? parts2.head;
+  const at3 = { tz: asked.timezone, nowMs: parts2.nowMs };
+  const failed = parts2.stuckFailed ? { stuck_failed: true } : {};
+  return {
+    timezone: asked.timezone,
+    today: asked.today,
+    ...asked.end === void 0 ? {} : { end: asked.end },
+    days: asked.days,
+    series,
+    stuck: parts2.stuck === null || parts2.stuckFailed ? null : {
+      waiting: runsWaitingOf(parts2.stuck.runs_waiting, at3),
+      failed: runsFailedOf(parts2.stuck.runs_failed),
+      replies: repliesWaitingOf(parts2.stuck.replies, at3.nowMs),
+      templates: templatesStoppedOf(parts2.stuck.templates),
+      number: parts2.number
+    },
+    ...failed
   };
 }
 
@@ -29915,7 +30078,7 @@ function lensAnswerOf(lens, parts2) {
     case "pipeline":
       return deals?.present ? deals.headline : void 0;
     case "campaigns":
-      return campaigns && !campaigns.empty ? campaigns.lines.funnel : void 0;
+      return campaigns?.head ?? void 0;
     case "reviews":
       return reviews && !reviews.empty ? reviews.lines.head ?? void 0 : void 0;
   }
@@ -30024,211 +30187,25 @@ function chainTotalsOf(answer) {
   for (const [root, value] of Object.entries(roots)) {
     const v = recordOrNull(value);
     if (!v || !isCount(v.written) || !isCount(v.wrote_back)) return null;
-    by_root[root] = { written: v.written, wrote_back: v.wrote_back };
+    if (v.businesses === void 0) by_root[root] = { written: v.written, wrote_back: v.wrote_back };
+    else if (isCount(v.businesses))
+      by_root[root] = { written: v.written, businesses: v.businesses, wrote_back: v.wrote_back };
+    else return null;
   }
   return { complete: true, by_root };
 }
 function chainTotalsFromReport(report) {
   const by_root = {};
   for (const c of report.chains) {
-    by_root[c.root_id] = {
-      written: c.steps.reduce((sum2, s) => sum2 + s.written, 0),
-      wrote_back: c.steps.reduce((sum2, s) => sum2 + s.wrote_back, 0)
-    };
+    const written = c.steps.reduce((sum2, s) => sum2 + s.written, 0);
+    const wrote_back = c.steps.reduce((sum2, s) => sum2 + s.wrote_back, 0);
+    const businesses = c.steps.reduce(
+      (sum2, s) => sum2 === null || s.businesses === void 0 ? null : sum2 + s.businesses,
+      0
+    );
+    by_root[c.root_id] = businesses === null ? { written, wrote_back } : { written, businesses, wrote_back };
   }
   return { complete: false, by_root };
-}
-var pctText = (n, d) => {
-  const share = pct(n, d);
-  return share === null ? "\u2014" : `${share}%`;
-};
-var rateText = (n, d) => d ? `${Math.round(n / d * 1e3) / 10}%` : "\u2014";
-function funnelOf(t) {
-  const row2 = (id, label, value, color) => ({
-    id,
-    label,
-    value,
-    display: id === "written" ? String(value) : `${value}  ${pctText(value, t.written)}`,
-    color
-  });
-  return {
-    max: Math.max(1, t.written),
-    rows: [
-      row2("written", "Written", t.written, "var(--chart-ramp-5)"),
-      row2("delivered", "Delivered", t.delivered, "var(--chart-ramp-4)"),
-      row2("wrote_back", "Wrote back", t.wrote_back, "var(--chart-ramp-3)"),
-      row2("interested", "Interested", t.interested, "var(--chart-ramp-3)"),
-      row2("booked", "Booked", t.booked, "var(--chart-ramp-3)"),
-      row2("said_no", "Said no", t.said_no, "var(--line-strong)"),
-      row2("bounced", "Bounced", t.bounced, "var(--line-strong)")
-    ]
-  };
-}
-function anglesOf(dto) {
-  const rows2 = dto.angles.map((a) => ({
-    id: a.angle,
-    label: a.angle,
-    value: pct(a.wrote_back, a.written) ?? 0,
-    display: `${a.wrote_back} of ${a.written}  ${pctText(a.wrote_back, a.written)}`
-  }));
-  const o = dto.other_angles;
-  if (o.written > 0)
-    rows2.push({
-      id: "other",
-      label: "Other angles",
-      value: pct(o.wrote_back, o.written) ?? 0,
-      display: `${o.wrote_back} of ${o.written}  ${pctText(o.wrote_back, o.written)}`
-    });
-  return { rows: rows2, max: Math.max(1, ...rows2.map((r2) => r2.value)) };
-}
-function domainStateWords(d, nowMs, tz) {
-  if (d.host === null) return "Since removed";
-  if (d.state === "verified") return "Verified";
-  if (d.state === "held") {
-    const held = d.held_at ? Date.parse(d.held_at) : NaN;
-    const since = Number.isFinite(held) ? ` since ${clockNear(held, tz, nowMs)}` : "";
-    return `Held${since}: ${domainHoldWords(d.held_why)}`;
-  }
-  return "Not sending yet";
-}
-function domainsOf(dto, nowMs) {
-  return dto.domains.map((d) => ({
-    id: d.host ?? "removed",
-    host: d.host ?? "A domain since removed",
-    state: domainStateWords(d, nowMs, dto.timezone),
-    held: d.state === "held",
-    sent: d.sent,
-    landed: pctText(d.delivered, d.sent),
-    bounced: rateText(d.bounced, d.sent),
-    complained: rateText(d.complained, d.sent)
-  }));
-}
-var shareOf = (n, of) => {
-  const share = pct(n, of);
-  return share === null ? String(n) : `${share}% (${n})`;
-};
-function chainLineOf(c, nowMs, tz) {
-  const sum2 = (k) => c.steps.reduce((t, s) => t + (s[k] ?? 0), 0);
-  const written = sum2("written");
-  const last = c.last_at ? Date.parse(c.last_at) : NaN;
-  return {
-    id: c.root_id,
-    kind: "chain",
-    name: c.name,
-    meta: [
-      "Reach-out",
-      plural(c.steps.length, "step"),
-      plural(c.runs, "run"),
-      c.search ? c.search.name : null,
-      c.state === "running" ? null : "paused"
-    ].filter(Boolean).join(" \xB7 "),
-    to: `outbound/${c.root_id}`,
-    written: String(written),
-    delivered: pctText(sum2("delivered"), written),
-    wroteBack: shareOf(sum2("wrote_back"), written),
-    interested: String(sum2("interested")),
-    booked: String(sum2("booked")),
-    saidNo: String(sum2("said_no")),
-    bounced: String(sum2("bounced")),
-    last: Number.isFinite(last) ? clockDate(last, tz, nowMs) : ""
-  };
-}
-function stepLineOf(root, s) {
-  const name = `${s.n + 1} \xB7 ${stepLabelOf({ n: s.n, hand: s.hand ? { kind: s.hand } : null })}`;
-  if (s.hand)
-    return {
-      id: `${root}:${s.id}`,
-      kind: "step",
-      name,
-      meta: `${s.handed} handed to you`,
-      to: null,
-      written: "\u2014",
-      delivered: "\u2014",
-      wroteBack: "\u2014",
-      interested: "\u2014",
-      booked: "\u2014",
-      saidNo: "\u2014",
-      bounced: "\u2014",
-      last: ""
-    };
-  return {
-    id: `${root}:${s.id}`,
-    kind: "step",
-    name,
-    meta: "",
-    to: null,
-    written: String(s.written),
-    delivered: pctText(s.delivered, s.written),
-    wroteBack: shareOf(s.wrote_back, s.written),
-    interested: String(s.interested),
-    booked: String(s.booked),
-    saidNo: String(s.said_no),
-    bounced: String(s.bounced),
-    last: ""
-  };
-}
-function linesOf2(dto) {
-  const t = dto.totals;
-  const angled = dto.angles.reduce((n, a) => n + a.written, 0) + dto.other_angles.written;
-  const until = endedOn(dto);
-  const oneDay = dto.days === 1 ? withinWords(1, until) : null;
-  const these = oneDay ?? "in these days";
-  return {
-    funnel: t.written ? `Of ${plural(t.written, "email")} written ${oneDay ?? `in these ${plural(dto.days, "day")}`}. Each business counts once, at the last email that wrote to it; a question counts as interested. No opens: only what came back.` : `Nothing was written ${these}.`,
-    angles: angled ? `The opening written for each business, and who answered.${dto.no_angle ? ` ${plural(dto.no_angle, "email")} had no opening, so no angle.` : ""}` : `No email ${these} had an opening, so there is no angle to compare.`,
-    domains: "Where it left from, and how it landed. Past 2% bounced, a domain holds itself.",
-    written: t.handed ? `${plural(t.handed, "business", "businesses")} handed to you as a call or a note, too.` : "",
-    empty: `No reach-out wrote ${withinWords(dto.days, until)}.`
-  };
-}
-var NO_COUNTS = {
-  written: 0,
-  delivered: 0,
-  bounced: 0,
-  wrote_back: 0,
-  interested: 0,
-  booked: 0,
-  said_no: 0,
-  handed: 0
-};
-function wholeOf(raw) {
-  return {
-    timezone: raw.timezone || "UTC",
-    days: raw.days ?? 30,
-    today: raw.today ?? "",
-    end: raw.end ?? raw.today ?? "",
-    since: raw.since ?? "",
-    has_reach_out: raw.has_reach_out === true,
-    totals: { ...NO_COUNTS, ...raw.totals ?? {} },
-    series: raw.series ?? [],
-    chains: raw.chains ?? [],
-    angles: raw.angles ?? [],
-    other_angles: raw.other_angles ?? { written: 0, wrote_back: 0 },
-    no_angle: raw.no_angle ?? 0,
-    domains: raw.domains ?? []
-  };
-}
-function toReachOutReportVM(raw, nowMs = Date.now()) {
-  const dto = wholeOf(raw);
-  const points = dto.series.map((d) => ({ ...dayPointOf(d.day), written: d.written }));
-  const sources = [];
-  for (const c of dto.chains) {
-    sources.push(chainLineOf(c, nowMs, dto.timezone));
-    for (const s of c.steps) sources.push(stepLineOf(c.root_id, s));
-  }
-  return {
-    present: dto.has_reach_out,
-    empty: dto.totals.written === 0 && dto.totals.handed === 0,
-    days: dto.days,
-    totals: dto.totals,
-    funnel: funnelOf(dto.totals),
-    angles: anglesOf(dto),
-    domains: domainsOf(dto, nowMs),
-    points,
-    table: { columns: ["Day", "Written"], rows: points.map((p) => [p.label, p.written]) },
-    sources,
-    lines: linesOf2(dto)
-  };
 }
 function reachOutDayWords(n) {
   const clauses = [];
@@ -30350,7 +30327,7 @@ function reportFacts(vm, campaigns) {
       tone: "",
       icon: "sparkle",
       text: `${best.name} drew the most replies`,
-      sub: `${best.replied} of ${best.sent} wrote back`,
+      sub: messagesAnsweredWords(best.replied, best.sent),
       door: { label: "Open it", to: best.kind === "broadcast" ? `broadcasts/run:${best.id}` : `outbound/${best.id}` }
     });
   }
@@ -30760,6 +30737,7 @@ var ROUTE_KEYS = [
   "GET reach-outs/reach",
   "GET reports",
   "GET reports/campaigns",
+  "GET reports/campaigns/ledger",
   "GET reports/headline",
   "GET reports/people",
   "GET reports/reach-outs",
@@ -34536,8 +34514,9 @@ var PREFETCH_READS = {
   leads: ["lead-searches", "leads?list=all&sort=fit&dir=asc&limit=500"],
   // The weeks around the business's today, by the route's clock (GET calendar `around`).
   calendar: ["calendar?around=today"],
-  // The report, the offers' and the reach-outs' over one period: REPORT_PERIOD_DEFAULT here, the device's own in the head.
-  reports: ["reports?period=30d", "reports/campaigns?period=30d", "reports/reach-outs?period=30d"],
+  // The report over one period: REPORT_PERIOD_DEFAULT here, the device's own in the head. The Campaigns lens's three reads are its
+  // own surface's (reports_campaigns), made where the lens is drawn and not by the head.
+  reports: ["reports?period=30d"],
   live: ["calls", "channels"],
   // Sent: the runs, who an audience reaches and the composers' reads.
   broadcasts: ["broadcasts", "contacts", "segments", "templates", "channels", "settings"],
@@ -35535,6 +35514,57 @@ function nameKnownCustomers(rows2, threads, calls) {
     const who = r2.about.type === "conversation" ? byConversation.get(r2.about.id) : r2.about.type === "call" ? byCall.get(r2.about.id) : void 0;
     return who ? { ...r2, title: r2.title.replace(NUMBER_IN_WORDS, who) } : r2;
   });
+}
+var HOLD_REASON_WORDS = {
+  human_token: "asked for a person",
+  non_text: "sent something other than words",
+  refusal: "asked something the receptionist will not answer",
+  rate_cap: "the receptionist reached its daily limit",
+  policy_block: "the receptionist held its reply for you",
+  send_failed: "a reply failed to send",
+  deadman: "has waited two hours for a person",
+  brain_error: "the receptionist could not finish its answer",
+  manual: "was handed to a person",
+  opt_out: "asked to stop",
+  state_unavailable: "the receptionist could not read the thread",
+  stale: "arrived too late to answer automatically",
+  person_hold: "is someone you answer yourself",
+  budget: "the day's model budget is used up",
+  policy_ask: "asked about a booking or a price you answer first",
+  callback: "needs a call back",
+  paused: "the workspace is paused",
+  carriers: "texted before the carriers approved the line",
+  email_review: "sent an email that waits for you"
+};
+var HOLD_CHANNEL_WORDS = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  email: "Email",
+  voice: "Phone"
+};
+var clipped = (s, max) => {
+  const t = s.replace(/\s+/g, " ").trim();
+  return t.length > max ? `${t.slice(0, max - 1)}\u2026` : t;
+};
+function holdNotice(f) {
+  const why = HOLD_REASON_WORDS[f.reason] ?? "needs a person";
+  const where = HOLD_CHANNEL_WORDS[f.channel ?? ""] ?? "The";
+  const shown = f.erased ? null : f.address?.startsWith("+") ? formatPhoneDisplay(f.address) ?? f.address : f.address;
+  const name = !f.erased && f.who?.trim() || shown || "A customer";
+  const lines = f.erased ? [] : [
+    ...f.customerWords ? [`They wrote: \u201C${clipped(f.customerWords, 600)}\u201D`] : [],
+    ...f.replyWords ? [`The receptionist: \u201C${clipped(f.replyWords, 600)}\u201D`] : [],
+    ...f.details ? [clipped(f.details, 600)] : []
+  ];
+  const pause = f.pausedHours ? `Reply from the Inbox \u2014 the receptionist is paused on this thread for ${f.pausedHours}h.` : "Reply from the Inbox.";
+  return {
+    kind: "handoff",
+    route: `inbox/th-${f.conversationId}`,
+    about: { type: "conversation", id: f.conversationId },
+    subject: clipped(`${name} needs a person \u2014 ${why}`, 200),
+    body: [...lines, "", `${where} conversation${shown ? ` \xB7 ${shown}` : ""}`, pause].join("\n").replace(/^\n/, ""),
+    redactedBody: `A ${where === "The" ? "" : `${where} `}conversation needed a person (${why}), and nobody could be told.`
+  };
 }
 
 // src/today/today-away.ts
@@ -38537,6 +38567,7 @@ export {
   answerWireOf,
   answerWords,
   answeredYes,
+  answersToRuns,
   applyReadState,
   applySettingsChange,
   appointmentHolds,
@@ -38647,6 +38678,7 @@ export {
   cameFromOf,
   campaignChannelsOf,
   campaignEmailRules,
+  campaignLedgerDtoOf,
   campaignMessageOf,
   campaignMessagesOf,
   campaignsHomeOf,
@@ -38851,6 +38883,7 @@ export {
   factorCodeWords,
   factorStepNeeded,
   failedAnswer,
+  failureWordsOf,
   fallbackMessages,
   fallbackModel,
   fallbacksWords,
@@ -38949,6 +38982,7 @@ export {
   heldWords,
   hexOf,
   holdDoors,
+  holdNotice,
   holdOf,
   holdWords,
   holderOf,
@@ -38985,6 +39019,8 @@ export {
   isBaselinePrompt,
   isBookingTool,
   isCampaignEmail,
+  isCampaignLedgerSeriesDto,
+  isCampaignStuckRawDto,
   isCarrier,
   isChatMessage,
   isCheckoutReturn,
@@ -39043,6 +39079,7 @@ export {
   isSiteRoot,
   isTheirOwnWords,
   isThemePref,
+  isThinShare,
   isTimezone,
   isTypingTarget,
   isUngrounded,
@@ -39267,6 +39304,7 @@ export {
   noticeAnswerOf,
   noticePrompt,
   numberHealth,
+  numberHealthOfConfig,
   numberHealthWithStanding,
   numberedSlots,
   offerFor,
@@ -39474,6 +39512,7 @@ export {
   proposalSpec,
   proposalsWaiting,
   proseAnswer,
+  providerCodeOf,
   providerNameOf,
   purposeOfPlaybook,
   purposeOfTemplate,
@@ -39673,6 +39712,7 @@ export {
   setupPhoneWantOf,
   setupSteps,
   shadowPortOf,
+  shareSaid,
   shareWords,
   sheetFootWords,
   shellStatusLine,
@@ -39809,7 +39849,6 @@ export {
   toLiveVM,
   toPersonRowVM,
   toPersonVM,
-  toReachOutReportVM,
   toReportVM,
   toReviewsReportVM,
   toRunReportVM,

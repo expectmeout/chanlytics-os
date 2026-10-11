@@ -12,7 +12,15 @@ import { HOUR_MS } from "../shared/time";
  */
 export const REPLY_WINDOW_HOURS = 72;
 export const REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * HOUR_MS;
-export const REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
+/** The reply window in days, as a sentence names a length of time that long ("3 days"): said once, here, beside the window. */
+export const REPLY_DAYS = `${REPLY_WINDOW_HOURS / 24} days`;
+export const REPLY_WINDOW_WORDS = `within ${REPLY_DAYS}`;
+
+/**
+ * How far back campaign_stuck (00400) looks for a run that failed and for the people a campaign reached: its
+ * `interval '30 days'`, as a sentence names it ("30 days"). The Campaigns lens's words and its figures' definitions say it.
+ */
+export const STUCK_DAYS = "30 days";
 
 /**
  * Whether a customer's message at `at` answers a send that reached them at `sentAt`: after it, and inside the reply

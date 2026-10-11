@@ -3,20 +3,23 @@
  * reach-outs wrote over the period, and what came of it. Every number is a count the database holds (00241
  * reach_out_report, reach_out_day_due): written is an email that left; wrote back, interested, booked and said no count
  * each lead once, at the last email of the period that wrote to it; no opens and no clicks anywhere (decision 8).
+ *
+ * This module holds what the route answers (the DTOs), each reach-out's own totals and the bell's line. The page's fold of
+ * the report, in the businesses it wrote to, is campaigns/reach-out-lens.ts.
  */
-import { clockDate, clockNear } from "../shared/clock";
-import { plural } from "../shared/words";
-import { domainHoldWords } from "../email/sending-domains";
-import { stepLabelOf } from "../reach-out/reach-out-sheet";
-import { pct } from "../shared/numbers";
 import { isCount, recordOrNull } from "../shared/unknown";
 import type { HandKind } from "../reach-out/reach-out-hand";
-import { dayPointOf, endedOn, withinWords } from "./reports";
 
 export interface ReachOutReportCounts {
+  /** Emails that left (a business with three is three). */
   written: number;
   delivered: number;
   bounced: number;
+  /**
+   * The businesses written to, each once, at its last email of the period (00398): the population wrote back, interested,
+   * booked and said no are counts of, so a share of them is of this, never of `written`. Absent on a database before 00398.
+   */
+  businesses?: number;
   wrote_back: number;
   interested: number;
   booked: number;
@@ -64,27 +67,35 @@ export interface ReachOutReportDto {
   /** The workspace has a reach-out at all: the section is drawn only then. */
   has_reach_out: boolean;
   totals: ReachOutReportCounts;
+  /** What the period before (the same count of days, ending the day before `since`) wrote: emails only, outcomes being state now (00398). */
+  before?: { written: number; delivered: number; bounced: number };
   series: Array<{ day: string; written: number }>;
   chains: ReachOutReportChainDto[];
-  angles: Array<{ angle: string; written: number; wrote_back: number }>;
-  other_angles: { written: number; wrote_back: number };
+  /** `businesses` (00398): the businesses whose last email had this angle; absent on a database before it. */
+  angles: Array<{ angle: string; written: number; businesses?: number; wrote_back: number }>;
+  other_angles: { written: number; businesses?: number; wrote_back: number };
   no_angle: number;
   domains: ReachOutReportDomainDto[];
 }
 
 /**
  * Each reach-out's numbers over a period, by its first step's id (`reach_out_chain_totals`, one pass, every chain of the
- * workspace): what it wrote, and how many wrote back, in Reports' words. `complete` says every chain was counted, so one
- * absent from `by_root` wrote nothing; it is false where the numbers come from the report's own chains (a database
- * before the function, chainTotalsFromReport), which holds at most twenty, so one absent may be past the twenty and says
- * "—". GET reports/reach-outs answers it beside the report (spec 2026-10-09 §4.5).
+ * workspace): what it wrote (emails), to how many businesses, and how many wrote back, in Reports' words. `complete` says
+ * every chain was counted, so one absent from `by_root` wrote nothing; it is false where the numbers come from the
+ * report's own chains (a database before the function, chainTotalsFromReport), which holds at most twenty, so one absent
+ * may be past the twenty and says "—". `businesses` is the population `wrote_back` is a count of (00398): absent on a
+ * database before it, never a guess. GET reports/reach-outs answers it beside the report (spec 2026-10-09 §4.5).
  */
 export interface ReachOutChainTotalsDto {
   complete: boolean;
-  by_root: Record<string, { written: number; wrote_back: number }>;
+  by_root: Record<string, { written: number; businesses?: number; wrote_back: number }>;
 }
 
-/** The function's answer, checked (no cast): each root's written and wrote back; null for anything else. */
+/**
+ * The function's answer, checked (no cast): each root's written, businesses and wrote back; null for anything else. A
+ * root without `businesses` (a database before 00398) is read as it is, with the key absent; one whose `businesses` is
+ * there and no count is no answer of the function.
+ */
 export function chainTotalsOf(answer: unknown): ReachOutChainTotalsDto | null {
   const roots = recordOrNull(answer);
   if (!roots) return null;
@@ -92,39 +103,34 @@ export function chainTotalsOf(answer: unknown): ReachOutChainTotalsDto | null {
   for (const [root, value] of Object.entries(roots)) {
     const v = recordOrNull(value);
     if (!v || !isCount(v.written) || !isCount(v.wrote_back)) return null;
-    by_root[root] = { written: v.written, wrote_back: v.wrote_back };
+    if (v.businesses === undefined) by_root[root] = { written: v.written, wrote_back: v.wrote_back };
+    else if (isCount(v.businesses))
+      by_root[root] = { written: v.written, businesses: v.businesses, wrote_back: v.wrote_back };
+    else return null;
   }
   return { complete: true, by_root };
 }
 
-/** The report's own chains, each its steps summed: what a database before the function can say, and not every chain. */
+/**
+ * The report's own chains, each its steps summed: what a database before the function can say, and not every chain. A
+ * chain's businesses is its steps' summed (each business is counted at one step only, its last), said only where every
+ * step carries it: a sum of some is not the chain's.
+ */
 export function chainTotalsFromReport(report: Pick<ReachOutReportDto, "chains">): ReachOutChainTotalsDto {
   const by_root: ReachOutChainTotalsDto["by_root"] = {};
   for (const c of report.chains) {
-    by_root[c.root_id] = {
-      written: c.steps.reduce((sum, s) => sum + s.written, 0),
-      wrote_back: c.steps.reduce((sum, s) => sum + s.wrote_back, 0),
-    };
+    const written = c.steps.reduce((sum, s) => sum + s.written, 0);
+    const wrote_back = c.steps.reduce((sum, s) => sum + s.wrote_back, 0);
+    const businesses = c.steps.reduce<number | null>(
+      (sum, s) => (sum === null || s.businesses === undefined ? null : sum + s.businesses),
+      0,
+    );
+    by_root[c.root_id] = businesses === null ? { written, wrote_back } : { written, businesses, wrote_back };
   }
   return { complete: false, by_root };
 }
 
-export interface ReachOutFunnelRow {
-  id: string;
-  label: string;
-  value: number;
-  display: string;
-  color: string;
-}
-
-export interface ReachOutAngleRow {
-  id: string;
-  label: string;
-  /** The share who wrote back, 0 to 100: what the bar measures. */
-  value: number;
-  display: string;
-}
-
+/** A domain's row in the Reach-outs part (H5): its state in words, and how its emails landed, as shares the lens words. */
 export interface ReachOutDomainRow {
   id: string;
   host: string;
@@ -134,262 +140,6 @@ export interface ReachOutDomainRow {
   landed: string;
   bounced: string;
   complained: string;
-}
-
-/** A line of the sources table: a reach-out, then each of its steps on its own line. */
-export interface ReachOutSourceLine {
-  id: string;
-  kind: "chain" | "step";
-  name: string;
-  meta: string;
-  /** The chain's row on Playbooks, for a reach-out's line. */
-  to: string | null;
-  written: string;
-  delivered: string;
-  wroteBack: string;
-  interested: string;
-  booked: string;
-  saidNo: string;
-  bounced: string;
-  last: string;
-}
-
-export interface ReachOutReportVM {
-  /** Draw the section: the workspace has a reach-out. */
-  present: boolean;
-  /** Nothing was written or handed in the period. */
-  empty: boolean;
-  days: number;
-  totals: ReachOutReportCounts;
-  funnel: { max: number; rows: ReachOutFunnelRow[] };
-  angles: { rows: ReachOutAngleRow[]; max: number };
-  domains: ReachOutDomainRow[];
-  points: Array<{ day: string; label: string; short: string; written: number }>;
-  table: { columns: string[]; rows: Array<Array<string | number>> };
-  sources: ReachOutSourceLine[];
-  lines: { funnel: string; angles: string; domains: string; written: string; empty: string };
-}
-
-const pctText = (n: number, d: number): string => {
-  const share = pct(n, d);
-  return share === null ? "—" : `${share}%`;
-};
-/** A rate to a tenth, where two in a hundred is the line a domain holds at: "2.4%". */
-const rateText = (n: number, d: number): string => (d ? `${Math.round((n / d) * 1000) / 10}%` : "—");
-
-/** The funnel, from written to booked, then the two that end a chain (canvas board 13). */
-function funnelOf(t: ReachOutReportCounts): ReachOutReportVM["funnel"] {
-  const row = (id: string, label: string, value: number, color: string): ReachOutFunnelRow => ({
-    id,
-    label,
-    value,
-    display: id === "written" ? String(value) : `${value}  ${pctText(value, t.written)}`,
-    color,
-  });
-  return {
-    max: Math.max(1, t.written),
-    rows: [
-      row("written", "Written", t.written, "var(--chart-ramp-5)"),
-      row("delivered", "Delivered", t.delivered, "var(--chart-ramp-4)"),
-      row("wrote_back", "Wrote back", t.wrote_back, "var(--chart-ramp-3)"),
-      row("interested", "Interested", t.interested, "var(--chart-ramp-3)"),
-      row("booked", "Booked", t.booked, "var(--chart-ramp-3)"),
-      row("said_no", "Said no", t.said_no, "var(--line-strong)"),
-      row("bounced", "Bounced", t.bounced, "var(--line-strong)"),
-    ],
-  };
-}
-
-/** Replies by angle (H4): the share who wrote back, the eight most written, then the rest as one. */
-function anglesOf(dto: ReachOutReportDto): ReachOutReportVM["angles"] {
-  const rows: ReachOutAngleRow[] = dto.angles.map((a) => ({
-    id: a.angle,
-    label: a.angle,
-    value: pct(a.wrote_back, a.written) ?? 0,
-    display: `${a.wrote_back} of ${a.written}  ${pctText(a.wrote_back, a.written)}`,
-  }));
-  const o = dto.other_angles;
-  if (o.written > 0)
-    rows.push({
-      id: "other",
-      label: "Other angles",
-      value: pct(o.wrote_back, o.written) ?? 0,
-      display: `${o.wrote_back} of ${o.written}  ${pctText(o.wrote_back, o.written)}`,
-    });
-  return { rows, max: Math.max(1, ...rows.map((r) => r.value)) };
-}
-
-/** A domain's state as the card says it (H5): verified, held since a day and why, or not sending yet. */
-function domainStateWords(d: ReachOutReportDomainDto, nowMs: number, tz: string): string {
-  if (d.host === null) return "Since removed";
-  if (d.state === "verified") return "Verified";
-  if (d.state === "held") {
-    const held = d.held_at ? Date.parse(d.held_at) : NaN;
-    const since = Number.isFinite(held) ? ` since ${clockNear(held, tz, nowMs)}` : "";
-    return `Held${since}: ${domainHoldWords(d.held_why)}`;
-  }
-  return "Not sending yet";
-}
-
-function domainsOf(dto: ReachOutReportDto, nowMs: number): ReachOutDomainRow[] {
-  return dto.domains.map((d) => ({
-    id: d.host ?? "removed",
-    host: d.host ?? "A domain since removed",
-    state: domainStateWords(d, nowMs, dto.timezone),
-    held: d.state === "held",
-    sent: d.sent,
-    landed: pctText(d.delivered, d.sent),
-    bounced: rateText(d.bounced, d.sent),
-    complained: rateText(d.complained, d.sent),
-  }));
-}
-
-/** A count and its share of what was written: "12% (3)". */
-const shareOf = (n: number, of: number): string => {
-  const share = pct(n, of);
-  return share === null ? String(n) : `${share}% (${n})`;
-};
-
-function chainLineOf(c: ReachOutReportChainDto, nowMs: number, tz: string): ReachOutSourceLine {
-  const sum = (k: keyof ReachOutReportCounts) => c.steps.reduce((t, s) => t + (s[k] ?? 0), 0);
-  const written = sum("written");
-  const last = c.last_at ? Date.parse(c.last_at) : NaN;
-  return {
-    id: c.root_id,
-    kind: "chain",
-    name: c.name,
-    meta: [
-      "Reach-out",
-      plural(c.steps.length, "step"),
-      plural(c.runs, "run"),
-      c.search ? c.search.name : null,
-      c.state === "running" ? null : "paused",
-    ]
-      .filter(Boolean)
-      .join(" · "),
-    to: `outbound/${c.root_id}`,
-    written: String(written),
-    delivered: pctText(sum("delivered"), written),
-    wroteBack: shareOf(sum("wrote_back"), written),
-    interested: String(sum("interested")),
-    booked: String(sum("booked")),
-    saidNo: String(sum("said_no")),
-    bounced: String(sum("bounced")),
-    last: Number.isFinite(last) ? clockDate(last, tz, nowMs) : "",
-  };
-}
-
-function stepLineOf(root: string, s: ReachOutReportStepDto): ReachOutSourceLine {
-  const name = `${s.n + 1} · ${stepLabelOf({ n: s.n, hand: s.hand ? { kind: s.hand } : null })}`;
-  if (s.hand)
-    return {
-      id: `${root}:${s.id}`,
-      kind: "step",
-      name,
-      meta: `${s.handed} handed to you`,
-      to: null,
-      written: "—",
-      delivered: "—",
-      wroteBack: "—",
-      interested: "—",
-      booked: "—",
-      saidNo: "—",
-      bounced: "—",
-      last: "",
-    };
-  return {
-    id: `${root}:${s.id}`,
-    kind: "step",
-    name,
-    meta: "",
-    to: null,
-    written: String(s.written),
-    delivered: pctText(s.delivered, s.written),
-    wroteBack: shareOf(s.wrote_back, s.written),
-    interested: String(s.interested),
-    booked: String(s.booked),
-    saidNo: String(s.said_no),
-    bounced: String(s.bounced),
-    last: "",
-  };
-}
-
-function linesOf(dto: ReachOutReportDto): ReachOutReportVM["lines"] {
-  const t = dto.totals;
-  const angled = dto.angles.reduce((n, a) => n + a.written, 0) + dto.other_angles.written;
-  // The day the report ended, where that was before today (endedOn); null where it ends today.
-  const until = endedOn(dto);
-  // A period of one day is its day, as withinWords says it: today (This month so far, on the 1st), or "on Sep 20" for a
-  // day a member picked before today. Any other is "these days".
-  const oneDay = dto.days === 1 ? withinWords(1, until) : null;
-  const these = oneDay ?? "in these days";
-  return {
-    funnel: t.written
-      ? `Of ${plural(t.written, "email")} written ${oneDay ?? `in these ${plural(dto.days, "day")}`}. Each business counts once, at the last email that wrote to it; a question counts as interested. No opens: only what came back.`
-      : `Nothing was written ${these}.`,
-    angles: angled
-      ? `The opening written for each business, and who answered.${dto.no_angle ? ` ${plural(dto.no_angle, "email")} had no opening, so no angle.` : ""}`
-      : `No email ${these} had an opening, so there is no angle to compare.`,
-    domains: "Where it left from, and how it landed. Past 2% bounced, a domain holds itself.",
-    written: t.handed ? `${plural(t.handed, "business", "businesses")} handed to you as a call or a note, too.` : "",
-    empty: `No reach-out wrote ${withinWords(dto.days, until)}.`,
-  };
-}
-
-const NO_COUNTS: ReachOutReportCounts = {
-  written: 0,
-  delivered: 0,
-  bounced: 0,
-  wrote_back: 0,
-  interested: 0,
-  booked: 0,
-  said_no: 0,
-  handed: 0,
-};
-
-/**
- * The answer as the page reads it, each list and count present: an answer missing one (a server before 00241 answers
- * the route with nothing of it) is a workspace with nothing to draw, never a page that throws.
- */
-function wholeOf(raw: Partial<ReachOutReportDto>): ReachOutReportDto {
-  return {
-    timezone: raw.timezone || "UTC",
-    days: raw.days ?? 30,
-    today: raw.today ?? "",
-    end: raw.end ?? raw.today ?? "",
-    since: raw.since ?? "",
-    has_reach_out: raw.has_reach_out === true,
-    totals: { ...NO_COUNTS, ...(raw.totals ?? {}) },
-    series: raw.series ?? [],
-    chains: raw.chains ?? [],
-    angles: raw.angles ?? [],
-    other_angles: raw.other_angles ?? { written: 0, wrote_back: 0 },
-    no_angle: raw.no_angle ?? 0,
-    domains: raw.domains ?? [],
-  };
-}
-
-export function toReachOutReportVM(raw: ReachOutReportDto, nowMs: number = Date.now()): ReachOutReportVM {
-  const dto = wholeOf(raw);
-  const points = dto.series.map((d) => ({ ...dayPointOf(d.day), written: d.written }));
-  const sources: ReachOutSourceLine[] = [];
-  for (const c of dto.chains) {
-    sources.push(chainLineOf(c, nowMs, dto.timezone));
-    for (const s of c.steps) sources.push(stepLineOf(c.root_id, s));
-  }
-  return {
-    present: dto.has_reach_out,
-    empty: dto.totals.written === 0 && dto.totals.handed === 0,
-    days: dto.days,
-    totals: dto.totals,
-    funnel: funnelOf(dto.totals),
-    angles: anglesOf(dto),
-    domains: domainsOf(dto, nowMs),
-    points,
-    table: { columns: ["Day", "Written"], rows: points.map((p) => [p.label, p.written]) },
-    sources,
-    lines: linesOf(dto),
-  };
 }
 
 /** The day's numbers (00241 reach_out_day_due). */

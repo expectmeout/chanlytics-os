@@ -78,6 +78,8 @@ const asked = [];
 const lensAsked = [];
 /** The same for the People lens's own read. */
 const peopleAsked = [];
+/** The same for the Campaigns lens's own read, told by the one route only it asks: the ledger. */
+const campaignsAsked = [];
 const answers = new Map();
 /** The route's own refusal of days it will not read, and a read that could not be made at all. */
 const REFUSED = () =>
@@ -111,7 +113,9 @@ globalThis.window.fetch = async (url) => {
     : u.searchParams.get("period");
   if (u.pathname.endsWith("/reports/receptionist")) lensAsked.push(key);
   if (u.pathname.endsWith("/reports/people")) peopleAsked.push(key);
-  if (/\/reports\/(campaigns|reach-outs|headline|reviews|receptionist|people)$/.test(u.pathname)) return DOWN();
+  if (u.pathname.endsWith("/reports/campaigns/ledger")) campaignsAsked.push(key);
+  if (/\/reports\/(campaigns|campaigns\/ledger|reach-outs|headline|reviews|receptionist|people)$/.test(u.pathname))
+    return DOWN();
   if (!u.pathname.endsWith("/reports")) return json(404, { ok: false, error: { code: "not_found", message: "no" } });
   asked.push(key);
   return (answers.get(key) ?? (() => report(key)))();
@@ -292,6 +296,63 @@ test("the same pick made on the People lens is followed by that lens alone: it i
     "the pick's entry says what the page shows, on the lens it was made on",
   );
   assert.equal(surfaceValue("reports").key, "7d");
+  assert.equal(shownReportPeriod(), "7d");
+});
+
+test("the same pick made on the Campaigns lens is followed by that lens alone: it is read for the days and again for the range kept, and the Receptionist and People lenses, off their pages, read nothing", async () => {
+  asked.length = 0;
+  lensAsked.length = 0;
+  peopleAsked.length = 0;
+  campaignsAsked.length = 0;
+  moves.length = 0;
+  at("reports/campaigns");
+  const ok = await setReportRange({ from: "2030-01-01", to: "2030-01-05" });
+  await landed();
+  assert.equal(ok, false, "the pick failed");
+  assert.deepEqual(asked, [TO_COME, "7d"]);
+  assert.deepEqual(
+    campaignsAsked.filter((k) => k === TO_COME),
+    [TO_COME],
+    "the Campaigns lens, on screen, follows the pick: read for the days, once",
+  );
+  assert.equal(
+    surfaceValue("reports_campaigns")?.key,
+    "7d",
+    "and says the range kept, painted from what it held or read again: its own reads fail alone, a failed one held as a null, so a read this tab made is not made twice",
+  );
+  assert.deepEqual(lensAsked, [], "the Receptionist lens is not on screen: nothing of it is read");
+  assert.deepEqual(peopleAsked, [], "nor is the People lens");
+  assert.deepEqual(
+    moves,
+    [
+      [`reports/campaigns:${TO_COME}`, false],
+      ["reports/campaigns", true],
+    ],
+    "the pick's entry says what the page shows, on the lens it was made on",
+  );
+  assert.equal(surfaceValue("reports").key, "7d");
+  assert.equal(shownReportPeriod(), "7d");
+});
+
+test("a pick made on a lens that draws none of the Campaigns read leaves it alone; made on the Overview, which draws it for one fact, the Overview follows it", async () => {
+  moves.length = 0;
+  // The period picked is one no other test of this document reads (the next one makes 90 days fail), and the period kept goes back after.
+  for (const lens of ["receptionist", "people", "pipeline"]) {
+    campaignsAsked.length = 0;
+    at(`reports/${lens}`);
+    await setReportRange("month");
+    await landed();
+    assert.deepEqual(campaignsAsked, [], `reports/${lens}: the Campaigns read is not drawn there`);
+  }
+  // The month was never read by the Campaigns read in this document: the Overview draws it, so a pick of the month reads it behind.
+  campaignsAsked.length = 0;
+  at("reports");
+  await setReportRange("month");
+  await landed();
+  assert.deepEqual(campaignsAsked, ["month"], "the Overview draws it for one fact: read for the period picked, once");
+  assert.equal(surfaceValue("reports_campaigns")?.key, "month");
+  await setReportRange("7d");
+  await landed();
   assert.equal(shownReportPeriod(), "7d");
 });
 

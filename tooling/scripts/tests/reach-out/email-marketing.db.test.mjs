@@ -350,7 +350,7 @@ test(
 );
 
 test(
-  "Reports › Campaigns counts an unsubscribe from offers by email among its stops, as it counts a STOP (00320)",
+  "Reports › Campaigns counts an unsubscribe from offers by email among its stops, as it counts a STOP: each an answer to its run (00320, 00397)",
   { skip },
   async () => {
     const opts = async () => {
@@ -358,35 +358,120 @@ test(
       assert.equal(r.error, undefined, JSON.stringify(r).slice(0, 200));
       return r.series.reduce((n, d) => n + d.opt_outs, 0);
     };
-    // The presses above are email's own answer (00174). They were left out while offers went by WhatsApp alone; an offer
-    // by email invites exactly this answer, so "Asked to stop" counts it.
-    const pressed = await opts();
-    assert.ok(pressed > 0, "the unsubscribes pressed above are counted");
-    // One answer a person a day: the page's "stop all" writes the STOP and email's own no for one press, and a person
-    // who unsubscribed today and then writes STOP has stopped once.
-    ok(
-      await db.from("events").insert({
+    const stopped = (contact) =>
+      db.from("events").insert({
         tenant_id: A,
         kind: "contact.consent_changed",
         category: "contact",
         subject_type: "contact",
-        subject_id: person,
+        subject_id: contact,
         data: { consent: "opted_out", source: "customer_message", channel: "whatsapp", words: "STOP" },
-      }),
-    );
-    assert.equal(await opts(), pressed, "the same person's STOP the same day is the same stop");
+      });
+    // A yes or a stop is counted on Reports only as the answer to a campaign run (00397). The presses above reached no
+    // run: nobody was sent anything there, so they are the ledger's, and People's, and no campaign's.
+    assert.equal(await opts(), 0, "a press no run was sent to is no stop of a campaign");
+
+    // A run that went out an hour ago to two people: one by email, one by WhatsApp.
+    const sentAt = new Date(Date.now() - 3_600_000).toISOString();
+    const reached = await personOf("reached@fixture-unsubscribe.example");
     const other = await personOf("stops-too@fixture-unsubscribe.example");
-    ok(
-      await db.from("events").insert({
-        tenant_id: A,
-        kind: "contact.consent_changed",
-        category: "contact",
-        subject_type: "contact",
-        subject_id: other,
-        data: { consent: "opted_out", source: "customer_message", channel: "whatsapp", words: "STOP" },
+    const template = ok(
+      await db
+        .from("templates")
+        .insert({ tenant_id: A, channel: "email", name: "unsubscribe_offer", language: "en", meta_status: "approved" })
+        .select("id")
+        .single(),
+    ).id;
+    const run = ok(
+      await db
+        .from("broadcasts")
+        .insert({
+          tenant_id: A,
+          name: "Fixture offer",
+          template_id: template,
+          template_name: "unsubscribe_offer",
+          template_language: "en",
+          scheduled_for: sentAt,
+          state: "sent",
+        })
+        .select("id")
+        .single(),
+    ).id;
+    /** What the run sent a person, and its record of it (the shape the send path freezes, trimmed to what is read here). */
+    const sentTo = async (contact, channel, to) => {
+      const conversation = ok(
+        await db.from("conversations").insert({ tenant_id: A, contact_id: contact }).select("id").single(),
+      ).id;
+      const message = ok(
+        await db
+          .from("messages")
+          .insert({
+            tenant_id: A,
+            conversation_id: conversation,
+            contact_id: contact,
+            channel,
+            direction: "outbound",
+            sender: "human",
+            type: "template",
+            body: "An offer",
+            status: "sent",
+            created_at: sentAt,
+            meta: {
+              source: "broadcast",
+              ...(to
+                ? {
+                    email: {
+                      subject: "An offer",
+                      to,
+                      request: { to: [to], from: '"Sam" <sam@getbestmovers.example>' },
+                    },
+                  }
+                : {}),
+            },
+          })
+          .select("id")
+          .single(),
+      ).id;
+      ok(
+        await db.from("broadcast_recipients").insert({
+          tenant_id: A,
+          broadcast_id: run,
+          contact_id: contact,
+          message_id: message,
+          state: "sent",
+          sent_at: sentAt,
+          channel,
+        }),
+      );
+      return message;
+    };
+    const email = await sentTo(reached, "email", "reached@fixture-unsubscribe.example");
+    await sentTo(other, "whatsapp");
+
+    // The press is email's own answer (00174). It was left out while offers went by WhatsApp alone; an offer by email
+    // invites exactly this answer, so "Asked to stop" counts it, as the stop of the run whose email it names.
+    ok(await press({ p_contact_id: reached, p_message_id: email }));
+    assert.equal(await opts(), 1, "the unsubscribe from offers by email is a stop of the run that sent the email");
+
+    // One answer a person to a run: the page's "stop all" writes the STOP and email's own no for one press, and a person
+    // who unsubscribed and then writes STOP has stopped once, the later of the two standing for the run.
+    ok(await stopped(reached));
+    assert.equal(await opts(), 1, "a STOP after the unsubscribe, in the same run, is the same stop");
+    const answers = ok(
+      await db.rpc("campaign_answers", {
+        p_tenant_id: A,
+        p_since: new Date(Date.now() - 86_400_000).toISOString(),
+        p_until: new Date(Date.now() + 86_400_000).toISOString(),
       }),
+    ).filter((a) => a.contact_id === reached);
+    assert.deepEqual(
+      answers.map((a) => [a.broadcast_id, a.consent]),
+      [[run, "opted_out"]],
+      "one answer to the run",
     );
-    assert.equal(await opts(), pressed + 1, "another person's STOP still counts");
+
+    ok(await stopped(other));
+    assert.equal(await opts(), 2, "another person's STOP still counts, as the stop of the run that reached them");
   },
 );
 

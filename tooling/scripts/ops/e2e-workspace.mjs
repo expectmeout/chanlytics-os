@@ -53,13 +53,19 @@
  *     (convergePeople): every row terminal and dated from the run. The workspace holds no open step, no stop and no
  *     address that stopped working: an open step is a row in Today and a person on the Steps due list, and other specs
  *     count those, and nothing here is for a sweep, a job or the bell to select;
+ *   - Reports' Campaigns lens reads one run that went out, three days ago, to the three people: a message of its own
+ *     (e2e_seed_hello), the run, Casey Example's and Sam Example's WhatsApp messages (delivered, and read), Casey's reply
+ *     two hours after hers, Robin Example held back because a person had his thread, and the owner's approval 40 minutes
+ *     after the run was made (convergeCampaigns): every row terminal and dated from the run. The workspace holds no run
+ *     waiting for a person or for a send job, no queued message and no failed one (Today counts each failed message as a
+ *     reply that failed to deliver), and nothing here is for a sweep, a job or the bell to select;
  *   - under `--seed-win-back` alone (Ruben's run by hand, never the nightly's),
  *     one playbook, a Win-back on silence, paused so no sweep runs it, on a
  *     made-up message of its own: what Ask's change cases resume, rename and
  *     retime (the moment spec, A8; decision D3); without it, an existing
  *     Win-back is only put back paused, and nothing is added;
- *   - and there is no job, open escalation, open step, line or broadcast: the two handovers are resolved, since the
- *     deadman pages the platform for one left open two hours, and the three steps are done.
+ *   - and there is no job, open escalation, open step or line, and no run that is not sent: the two handovers are resolved,
+ *     since the deadman pages the platform for one left open two hours, the three steps are done, and the one run went.
  *
  * Merging seeds no Win-back: the nightly (.github/workflows/nightly-e2e.yml, every
  * day at 09:00 UTC) passes --apply alone. The Win-back's first run,
@@ -80,6 +86,7 @@
 import { createClient } from "@supabase/supabase-js";
 import {
   DAY_MS,
+  EVERYONE_LABEL,
   HOUR_MS,
   MIN_MS,
   SHARED_EVENT_VERSIONS,
@@ -556,7 +563,7 @@ export const PEOPLE_NOTE = "e2e-seed-p";
 export const PEOPLE_PREFIX = "e2e seed step: ";
 /** The time of day the owner marks a step done, on a day of the workspace's calendar. */
 const STEP_DONE_AT = "11:00";
-const [ROBIN, CASEY] = PEOPLE;
+const [ROBIN, CASEY, SAM] = PEOPLE;
 /**
  * The three steps the owner finished, by the workspace's days before the run: whose (by phone number), the day each was due,
  * the day it was done and what it says after the prefix. Casey Example's first was done on its day and the second the day
@@ -691,6 +698,7 @@ export async function snapshot(db, tenantId, userIds) {
       "escalations",
       "jobs",
       "broadcasts",
+      "broadcast_recipients",
       "segments",
       "templates",
       "playbooks",
@@ -710,6 +718,14 @@ export async function snapshot(db, tenantId, userIds) {
     ]) {
       keep(table, must(`backing up ${table}`, await db.from(table).select("*").eq("tenant_id", tenantId)));
     }
+    // Not every decision: the ledger of what people decided is the workspace's, and a run deletes the one approval it wrote.
+    keep(
+      "decisions",
+      must(
+        "backing up the run's approval",
+        await db.from("decisions").select("*").eq("tenant_id", tenantId).eq("payload->>seed", CAMPAIGNS_NOTE),
+      ),
+    );
   }
   const ids = userIds.filter(Boolean);
   if (ids.length)
@@ -920,6 +936,8 @@ export async function converge(
     (await tenantRows("calls", "id, retell_call_id")).filter((c) => c.retell_call_id !== CALL_ID).map((c) => c.id),
     "clearing calls",
   );
+  // The people on every run go with their runs (the database cascades them; written out, so a run over a double clears them too).
+  must("clearing the runs' people", await db.from("broadcast_recipients").delete().eq("tenant_id", T));
   // A deal a spec recorded (0004, 0008), and the one a proposal link opens where deals are on: every run starts from none.
   for (const table of ["escalations", "jobs", "broadcasts", "segments", "ask_threads", "deals"]) {
     await deleteWhere(
@@ -1137,6 +1155,7 @@ export async function converge(
   if (winBack) did.push(winBack);
   await convergeReceptionist(db, T, ownerId, now);
   await convergePeople(db, T, ownerId, now);
+  await convergeCampaigns(db, T, ownerId, now);
 
   const problems = await verify(db, T, ownerId);
   if (problems.length) throw new Error(`the workspace is not in its known state: ${problems.join("; ")}`);
@@ -1960,6 +1979,340 @@ export async function convergePeople(db, T, ownerId, now) {
 }
 
 /**
+ * What Reports' Campaigns lens reads (convergeCampaigns), found by a run to be deleted and written again: every message the run
+ * wrote has an `external_id` that starts with CAMPAIGNS_PREFIX, its approval carries CAMPAIGNS_NOTE as `payload.seed` (the run it
+ * names is gone by the next night), and the run is found by its name. A run, a decision or a message a person made carries
+ * none of them, so a run never touches it.
+ */
+export const CAMPAIGNS_PREFIX = "e2e-seed-c-";
+export const CAMPAIGNS_NOTE = "e2e-seed-c";
+export const CAMPAIGN_RUN = "e2e seed: hello";
+/**
+ * The message the run sent: WhatsApp, in English, approved, made-up words that ask for nothing. It never says "yes offers": a
+ * message that does stamps its person as asked (messages_stamp_offers_asked, 00297), which is not for a seed to do.
+ */
+export const CAMPAIGN_MESSAGE = {
+  name: "e2e_seed_hello",
+  language: "en_US",
+  body: "Hello from the studio. This is a made-up note for the nightly's checks, and nobody is asked to answer it.",
+};
+/**
+ * When the run's steps happened, from the moment it was made, and that moment from the run of the seed: more than three days
+ * before, so that every send is past the 72 hours a reply is counted over (public.campaign_reply_window) by the time the specs
+ * read and the by-message rate counts it. Approved 40 minutes after it was made and begun at 45; Casey Example's message went at 46
+ * minutes and Sam Example's at 47; finished at 48. Casey wrote back two hours after hers. All of it is past the day the
+ * unfinished-message sweep looks back over, inside the shortest period the lens reads (7 days), and older than Robin Example's
+ * reply, so that conversation stays the newest.
+ */
+const RUN_MADE_AGO_MS = 3 * DAY_MS + 3 * HOUR_MS;
+const RUN_APPROVED_AFTER_MS = 40 * MIN_MS;
+const RUN_BEGUN_AFTER_MS = 45 * MIN_MS;
+const RUN_FINISHED_AFTER_MS = 48 * MIN_MS;
+const CASEY_WROTE_BACK_AFTER_MS = 2 * HOUR_MS;
+/** The reply Casey Example wrote: her own words, with no topic, no stop and nothing a sweep would read. */
+const CASEY_REPLY = "Thank you, see you soon.";
+/** The two messages the run sent, in the order they went: whose, the id that marks it, when it went (after the run was made), and how it stood last. */
+const RUN_SENDS = [
+  { person: CASEY.phone, id: "out-casey", afterMs: 46 * MIN_MS, status: "delivered", receiptAfterMs: 20 * SECOND_MS },
+  { person: SAM.phone, id: "out-sam", afterMs: 47 * MIN_MS, status: "read", receiptAfterMs: 25 * MIN_MS },
+];
+/** Why Robin Example was left out of the run: the reason the sheet and the lens have words for ("a person had the thread"). */
+const RUN_HELD_REASON = "human_has_it";
+
+/**
+ * The Campaigns lens's rows (Reports, campaign_ledger): one run that went out, three days ago, to the three seeded people, and
+ * what came of it. Deleted and written again every run and dated from it. What they give the lens: two people sent to, both of
+ * whom wrote back (Casey Example within two hours; Sam Example by the next ask he wrote in his own thread, which is the
+ * Receptionist lens's and which the lens cannot tell from an answer: the run plants no reply of his, and no send three days old
+ * could be clear of his asks, which run to two days ago); Robin Example held back for "a person had the thread"; a run of a
+ * broadcast, made by the owner and approved 40 minutes after; the message in the library, and no message failed.
+ *
+ * All of it terminal, so that nothing production runs in the background finds it:
+ *   - the run is `sent`, with its time of finishing: no run is waiting for a person (a row in Today) or for a send job, and no
+ *     sweep resumes a run that is not scheduled or sending. It is a broadcast, not a playbook's run, so no moment's clock or
+ *     allowance reads it;
+ *   - Casey Example's message is delivered and Sam Example's read, and nothing is queued, failed or `sent`: the booking-link
+ *     note is a trigger on a `sent` row, and a failed outbound message is one Today counts as "a reply failed to deliver";
+ *   - Casey's reply is a customer message three days old and stamped as finished with (`processed_at`), in a conversation
+ *     stamped as read by the note sweep (`note_checked_at`, as Sam's is), so neither the unfinished-message sweep (a day back)
+ *     nor the note sweep (a thread whose newest message is newer than its last look) has a row, and no model is asked about
+ *     them. Her conversation is open, with nothing timed and nobody's to answer, and older than Robin Example's;
+ *   - no job is written, and no bell row: a run that went out rings nothing when it is written this way;
+ *   - the approval is a decision, which nothing reads to act; the message is approved, written here and not synced from
+ *     Meta, with no WhatsApp business account to sync it against.
+ *
+ * Sam's message is written into Sam Example's conversation, which convergeReceptionist wrote before this runs: the Receptionist
+ * lens's thread holds one message of this run, three days back and earlier than the last thing that thread says, and no lens
+ * reads it as a person's own. Written as a broadcast writes a message (core broadcast-channels.ts `metaOf`): the human's by
+ * its row and automated by its source, so no count of what the team wrote (`public.automated_send`) takes it. (A run of
+ * convergeReceptionist alone deletes that thread with it, and this puts the message back.)
+ *
+ * Last night's are found by what marks them and nothing else: the run by its name, its messages by the prefix of their ids,
+ * its approval by its mark, Casey's conversation by her. A run, a decision or a message a person made is not the seed's to delete.
+ */
+export async function convergeCampaigns(db, T, ownerId, now) {
+  const stamp = new Date(now).toISOString();
+  const iso = (ms) => new Date(ms).toISOString();
+  const found = must("reading the people", await db.from("contacts").select("id, phone_e164").eq("tenant_id", T));
+  const idOf = (phone) => {
+    const person = found.find((p) => p.phone_e164 === phone);
+    if (!person) throw new Error("the Campaigns lens's rows are about the three seeded people: one is missing");
+    return person.id;
+  };
+  const [robin, casey, sam] = PEOPLE.map((p) => idOf(p.phone));
+  const [samsThread] = must(
+    "reading Sam's conversation",
+    await db.from("conversations").select("id").eq("tenant_id", T).eq("contact_id", sam),
+  );
+  if (!samsThread)
+    throw new Error(
+      "the Campaigns run sent Sam Example a message in his conversation, and he has none: convergeReceptionist writes it first",
+    );
+
+  // Last night's, whatever the specs did to them, gone first: the approval by its mark, the run by its name with its people, the
+  // messages by their prefix wherever they were left, and Casey's conversation with everything in it.
+  must(
+    "clearing the approval",
+    await db.from("decisions").delete().eq("tenant_id", T).eq("payload->>seed", CAMPAIGNS_NOTE),
+  );
+  const earlier = must(
+    "reading the run",
+    await db.from("broadcasts").select("id").eq("tenant_id", T).eq("name", CAMPAIGN_RUN),
+  );
+  await deleteWhere(
+    db,
+    "broadcast_recipients",
+    "broadcast_id",
+    earlier.map((b) => b.id),
+    "clearing the run's people",
+  );
+  await deleteWhere(
+    db,
+    "broadcasts",
+    "id",
+    earlier.map((b) => b.id),
+    "clearing the run",
+  );
+  const strays = must("reading the messages", await db.from("messages").select("id, external_id").eq("tenant_id", T));
+  await deleteWhere(
+    db,
+    "messages",
+    "id",
+    strays.filter((m) => String(m.external_id ?? "").startsWith(CAMPAIGNS_PREFIX)).map((m) => m.id),
+    "clearing the Campaigns messages",
+  );
+  const caseys = must(
+    "reading Casey's conversation",
+    await db.from("conversations").select("id").eq("tenant_id", T).eq("contact_id", casey),
+  ).map((c) => c.id);
+  await deleteWhere(db, "messages", "conversation_id", caseys, "clearing what else is in Casey's conversation");
+  await deleteWhere(db, "conversations", "id", caseys, "clearing Casey's conversation");
+
+  // The message: found, and put back as it is seeded, or written. Never deleted: a run that went out names it.
+  const words = {
+    category: "utility",
+    meta_status: "approved",
+    body_preview: CAMPAIGN_MESSAGE.body,
+    variables: [],
+    // templates_source_check takes 'meta' or 'chanlytics': a row written here, not synced from Meta.
+    source: "chanlytics",
+    hidden_at: null,
+  };
+  const known = must(
+    "reading the run's message",
+    await db
+      .from("templates")
+      .select("id")
+      .eq("tenant_id", T)
+      .eq("channel", "whatsapp")
+      .eq("name", CAMPAIGN_MESSAGE.name)
+      .eq("language", CAMPAIGN_MESSAGE.language)
+      .maybeSingle(),
+  );
+  if (known) must("putting the run's message back", await db.from("templates").update(words).eq("id", known.id));
+  const template =
+    known ??
+    must(
+      "adding the run's message",
+      await db
+        .from("templates")
+        .insert({
+          tenant_id: T,
+          channel: "whatsapp",
+          name: CAMPAIGN_MESSAGE.name,
+          language: CAMPAIGN_MESSAGE.language,
+          ...words,
+        })
+        .select("id")
+        .single(),
+    );
+
+  // The run, made by the owner, begun and finished a few minutes after it was approved.
+  const made = now - RUN_MADE_AGO_MS;
+  const begun = made + RUN_BEGUN_AFTER_MS;
+  const finished = made + RUN_FINISHED_AFTER_MS;
+  const run = must(
+    "the run",
+    await db
+      .from("broadcasts")
+      .insert({
+        tenant_id: T,
+        name: CAMPAIGN_RUN,
+        template_id: template.id,
+        template_name: CAMPAIGN_MESSAGE.name,
+        template_language: CAMPAIGN_MESSAGE.language,
+        params: [],
+        audience: { kind: "everyone", id: null, label: EVERYONE_LABEL },
+        state: "sent",
+        scheduled_for: iso(begun),
+        started_at: iso(begun),
+        finished_at: iso(finished),
+        recipient_count: PEOPLE.length,
+        failure: null,
+        created_by: ownerId,
+        created_at: iso(made),
+        updated_at: iso(finished),
+        playbook_id: null,
+        run_for: null,
+        channels: ["whatsapp"],
+      })
+      .select("id")
+      .single(),
+  );
+
+  // Casey's conversation: her message, and her reply two hours after it. Open, with nothing timed, stamped as read.
+  const caseySentAt = made + (RUN_SENDS.find((s) => s.person === CASEY.phone)?.afterMs ?? 0);
+  const repliedAt = caseySentAt + CASEY_WROTE_BACK_AFTER_MS;
+  const caseysThread = must(
+    "starting Casey's conversation",
+    await db
+      .from("conversations")
+      .insert({
+        tenant_id: T,
+        contact_id: casey,
+        state: "open",
+        paused_until: null,
+        snooze_until: null,
+        assignee_user_id: null,
+        created_at: iso(caseySentAt),
+        last_message_at: iso(repliedAt),
+        last_inbound_at: iso(repliedAt),
+        last_wa_inbound_at: iso(repliedAt),
+        // Read by the note sweep as of this run, which is later than anything she wrote.
+        note_checked_at: stamp,
+      })
+      .select("id")
+      .single(),
+  );
+
+  // The messages, every row with the same keys and its own id: a bulk insert sends a key some rows lack as NULL.
+  const threadOf = { [CASEY.phone]: caseysThread.id, [SAM.phone]: samsThread.id };
+  const message = (over) => ({
+    id: randomUUID(),
+    tenant_id: T,
+    conversation_id: null,
+    contact_id: null,
+    channel: "whatsapp",
+    direction: null,
+    sender: null,
+    type: "text",
+    body: null,
+    template_name: null,
+    template_vars: null,
+    external_id: null,
+    channel_ts: null,
+    status: null,
+    status_updated_at: null,
+    meta: {},
+    created_at: null,
+    ...over,
+  });
+  const sends = RUN_SENDS.map((s) => {
+    const sentAt = iso(made + s.afterMs);
+    return message({
+      conversation_id: threadOf[s.person],
+      contact_id: idOf(s.person),
+      direction: "outbound",
+      sender: "human",
+      type: "template",
+      body: CAMPAIGN_MESSAGE.body,
+      template_name: CAMPAIGN_MESSAGE.name,
+      template_vars: [],
+      external_id: `${CAMPAIGNS_PREFIX}${s.id}`,
+      channel_ts: sentAt,
+      status: s.status,
+      status_updated_at: iso(made + s.afterMs + s.receiptAfterMs),
+      meta: { source: "broadcast", broadcast_id: run.id, broadcast_name: CAMPAIGN_RUN },
+      created_at: sentAt,
+    });
+  });
+  const reply = message({
+    conversation_id: caseysThread.id,
+    contact_id: casey,
+    direction: "inbound",
+    sender: "customer",
+    body: CASEY_REPLY,
+    external_id: `${CAMPAIGNS_PREFIX}in-casey`,
+    channel_ts: iso(repliedAt),
+    status: "received",
+    meta: { processed_at: iso(repliedAt + 3 * SECOND_MS) },
+    created_at: iso(repliedAt),
+  });
+  must("the run's messages", await db.from("messages").insert([...sends, reply]));
+
+  // The run's people: Casey and Sam sent to, each with the message and the time it went; Robin held back.
+  const sentTo = (phone) => sends.find((m) => m.contact_id === idOf(phone));
+  const recipient = (over) => ({
+    broadcast_id: run.id,
+    tenant_id: T,
+    state: "queued",
+    reason: null,
+    message_id: null,
+    sent_at: null,
+    facts: null,
+    channel: "whatsapp",
+    attempt: 0,
+    ...over,
+  });
+  must(
+    "the run's people",
+    await db.from("broadcast_recipients").insert([
+      ...RUN_SENDS.map((s) =>
+        recipient({
+          contact_id: idOf(s.person),
+          state: "sent",
+          message_id: sentTo(s.person).id,
+          sent_at: sentTo(s.person).created_at,
+        }),
+      ),
+      recipient({ contact_id: robin, state: "skipped", reason: RUN_HELD_REASON }),
+    ]),
+  );
+
+  // The owner's approval, 40 minutes after the run was made, as approve.ts records it (name, recipients, approved, the day it was to go).
+  must(
+    "the approval",
+    await db.from("decisions").insert({
+      tenant_id: T,
+      subject_type: "broadcast",
+      subject_id: run.id,
+      verb: "send_broadcast",
+      actor_type: "user",
+      actor_user_id: ownerId,
+      payload: {
+        name: CAMPAIGN_RUN,
+        playbook_id: null,
+        recipients: PEOPLE.length,
+        approved: true,
+        scheduled_for: iso(begun),
+        seed: CAMPAIGNS_NOTE,
+      },
+      created_at: iso(made + RUN_APPROVED_AFTER_MS),
+    }),
+  );
+}
+
+/**
  * The eval's Win-back (the moment spec, A8; decision D3): one playbook on silence, PAUSED, so the hourly sweep never runs
  * it (playbooks_due takes only a running one), on a made-up message of its own: approved, no slot, a WhatsApp row the
  * channel above cannot send from, synced from nowhere and named for no starter. What Ask's change cases resume, rename
@@ -2279,6 +2632,90 @@ export async function verify(db, T, ownerId) {
   if (steps.length !== PEOPLE_STEPS.length)
     problems.push(
       `the workspace should hold the ${PEOPLE_STEPS.length} done steps the People lens counts, and holds ${steps.length}`,
+    );
+  // The state the Campaigns lens reads (e2e/reports.spec.ts): the one run that went out, to the three seeded people, with its two
+  // messages delivered or read, Casey Example's reply, the owner's approval and the message it sent. A run that is not sent is
+  // a row in Today (waiting for a person) or a send job's, and a failed outbound message is one Today counts as a reply that
+  // failed to deliver. (A queued message is named above, for every lens's rows.)
+  const runs = await read("the runs", db.from("broadcasts").select("id, name, state").eq("tenant_id", T));
+  const unsent = runs.filter((r) => r.state !== "sent");
+  if (unsent.length)
+    problems.push(
+      `${unsent.length} run(s) not sent in the workspace: a run waiting for a person is a row in Today, and one on its way is a send job's`,
+    );
+  const sentRuns = runs.filter((r) => r.name === CAMPAIGN_RUN);
+  if (sentRuns.length !== 1 || sentRuns.some((r) => r.state !== "sent"))
+    problems.push(
+      `the workspace should hold the one sent run "${CAMPAIGN_RUN}" the Campaigns lens counts, and holds ${sentRuns.length}`,
+    );
+  const [theRun] = sentRuns;
+  const seeded = (
+    await read("the seeded people", db.from("contacts").select("id, phone_e164").eq("tenant_id", T))
+  ).filter((c) => PEOPLE.some((p) => p.phone === c.phone_e164));
+  const onRun = theRun
+    ? await read(
+        "the run's people",
+        db
+          .from("broadcast_recipients")
+          .select("contact_id, state, reason")
+          .eq("tenant_id", T)
+          .eq("broadcast_id", theRun.id),
+      )
+    : [];
+  const robinId = seeded.find((c) => c.phone_e164 === ROBIN.phone)?.id;
+  const heldOnRun = onRun.filter((r) => r.state === "skipped");
+  if (
+    onRun.length !== PEOPLE.length ||
+    new Set(onRun.map((r) => r.contact_id)).size !== PEOPLE.length ||
+    onRun.some((r) => !seeded.some((c) => c.id === r.contact_id)) ||
+    onRun.filter((r) => r.state === "sent").length !== PEOPLE.length - 1 ||
+    heldOnRun.length !== 1 ||
+    heldOnRun[0].contact_id !== robinId ||
+    heldOnRun[0].reason !== RUN_HELD_REASON
+  )
+    problems.push(
+      `the Campaigns run should have its people: the ${PEOPLE.length} seeded people once each, ${PEOPLE.length - 1} sent to and ${ROBIN.name} held back as "${RUN_HELD_REASON}", and has ${onRun.map((r) => `${r.state}${r.reason ? ` ${r.reason}` : ""}`).join(", ") || "none"}`,
+    );
+  const everyMessage = await read(
+    "the messages",
+    db.from("messages").select("external_id, direction, status, meta").eq("tenant_id", T),
+  );
+  const ofTheRun = everyMessage.filter((m) => String(m.external_id ?? "").startsWith(CAMPAIGNS_PREFIX));
+  const delivered = ofTheRun.filter((m) => m.direction === "outbound");
+  const replies = ofTheRun.filter((m) => m.direction === "inbound");
+  if (
+    delivered.length !== RUN_SENDS.length ||
+    delivered.some((m) => !["delivered", "read"].includes(m.status) || m.meta?.broadcast_id !== theRun?.id) ||
+    replies.length !== 1
+  )
+    problems.push(
+      `the Campaigns run should have two messages, delivered or read, and ${CASEY.name}'s reply; the workspace holds ${delivered.length} sent (${delivered.map((m) => m.status).join(", ")}) and ${replies.length} reply`,
+    );
+  const failedOut = everyMessage.filter((m) => m.direction === "outbound" && m.status === "failed");
+  if (failedOut.length)
+    problems.push(
+      `${failedOut.length} failed outbound message(s) in the workspace: Today counts each as a reply that failed to deliver`,
+    );
+  const approvals = await read(
+    "the approval",
+    db.from("decisions").select("subject_id, payload").eq("tenant_id", T).eq("payload->>seed", CAMPAIGNS_NOTE),
+  );
+  if (approvals.length !== 1 || approvals[0].payload?.approved !== true || approvals[0].subject_id !== theRun?.id)
+    problems.push(
+      `the Campaigns run should have the one approval of its own, by the owner, on the run, and the workspace holds ${approvals.length}`,
+    );
+  const hello = await read(
+    "the run's message",
+    db.from("templates").select("channel, meta_status, hidden_at").eq("tenant_id", T).eq("name", CAMPAIGN_MESSAGE.name),
+  );
+  if (
+    hello.length !== 1 ||
+    hello[0].channel !== "whatsapp" ||
+    hello[0].meta_status !== "approved" ||
+    hello[0].hidden_at
+  )
+    problems.push(
+      `the Campaigns run's message should be one approved WhatsApp message in the library, and the workspace holds ${hello.length} (${hello.map((m) => m.meta_status).join(", ")})`,
     );
   // The eval's Win-back, where --seed-win-back has seeded it: paused, so no sweep runs it. None is no problem: the
   // nightly seeds none.

@@ -3173,6 +3173,22 @@ async function peopleSeries(db, tenantId, window) {
   }
   return data;
 }
+async function campaignLedger(db, tenantId, window) {
+  const { data, error } = await db.rpc("campaign_ledger", windowArgs(tenantId, window));
+  if (error) {
+    if (isMissingDoor(error)) return null;
+    throw new Error(`campaign_ledger: ${error.message}`);
+  }
+  return data;
+}
+async function campaignStuck(db, tenantId) {
+  const { data, error } = await db.rpc("campaign_stuck", { p_tenant_id: tenantId });
+  if (error) {
+    if (isMissingDoor(error)) return null;
+    throw new Error(`campaign_stuck: ${error.message}`);
+  }
+  return data;
+}
 async function reachOutReport(db, tenantId, window) {
   const { data, error } = await db.rpc("reach_out_report", windowArgs(tenantId, window));
   if (error) {
@@ -5125,8 +5141,10 @@ export {
   callBackMessage,
   callerNameOf,
   callersOf,
+  campaignLedger,
   campaignMonthSent,
   campaignSeries,
+  campaignStuck,
   claimCallActivity,
   claimCallNotification,
   claimControl,

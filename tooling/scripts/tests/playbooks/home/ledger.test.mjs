@@ -387,25 +387,49 @@ test("six rows keep the page short; the seventh brings the tools, and the one-of
   assert.equal(once.meta, "1 send · last 30 days");
 });
 
-test("a reach-out's numbers: written and wrote back from its own totals; absent or failed say —; past the report's twenty it still says its numbers or Nothing sent", () => {
+test("a reach-out's numbers: written, businesses and wrote back from its own totals; absent or failed say —; past the report's twenty it still says its numbers or Nothing sent", () => {
   const chains = [chain("ro-1"), chain("ro-2"), chain("ro-21")];
   const res = (l, id) => row(l, id).results;
   assert.equal(res(ledger({ reachOuts: chains, chains: undefined }), "ro-1"), "uncounted", "not read yet");
   assert.equal(res(ledger({ reachOuts: chains, chains: null }), "ro-1"), "uncounted", "could not be read");
   const every = ledger({
     reachOuts: chains,
-    chains: { complete: true, byRoot: { "ro-1": { written: 40, wroteBack: 6 }, "ro-2": { written: 0, wroteBack: 0 } } },
+    chains: {
+      complete: true,
+      byRoot: {
+        "ro-1": { written: 40, businesses: 18, wroteBack: 6 },
+        "ro-2": { written: 0, businesses: 0, wroteBack: 0 },
+      },
+    },
   });
-  assert.deepEqual(res(every, "ro-1"), { kind: "written", written: 40, wroteBack: 6 });
-  assert.equal(res(every, "ro-2"), "none");
+  assert.deepEqual(res(every, "ro-1"), { kind: "written", written: 40, businesses: 18, wroteBack: 6 });
+  assert.equal(res(every, "ro-2"), "none", "a chain that wrote nothing is Nothing sent, businesses or not");
   assert.equal(res(every, "ro-21"), "none", "every chain counted: one past twenty that wrote nothing says so");
   const twenty = ledger({
     reachOuts: chains,
-    chains: { complete: false, byRoot: { "ro-1": { written: 40, wroteBack: 6 } } },
+    chains: { complete: false, byRoot: { "ro-1": { written: 40, businesses: 18, wroteBack: 6 } } },
   });
   assert.equal(res(twenty, "ro-21"), "uncounted", "from the report's twenty: one not among them may be past them");
+  // A database before 00398 (or a fixture from before it) counts no businesses: null, whether the key is absent or null.
+  const before = ledger({
+    reachOuts: chains,
+    chains: {
+      complete: true,
+      byRoot: { "ro-1": { written: 40, wroteBack: 6 }, "ro-2": { written: 9, businesses: null, wroteBack: 2 } },
+    },
+  });
+  assert.deepEqual(res(before, "ro-1"), { kind: "written", written: 40, businesses: null, wroteBack: 6 });
+  assert.deepEqual(res(before, "ro-2"), { kind: "written", written: 9, businesses: null, wroteBack: 2 });
   const W = C.LIFECYCLE_WORDS.ledger;
-  assert.equal(W.results(res(every, "ro-1")), "40 written · 6 wrote back");
+  assert.equal(W.results(res(every, "ro-1")), "18 businesses · 6 wrote back", "every share is of businesses");
+  assert.equal(W.results({ kind: "written", written: 9, businesses: 1, wroteBack: 1 }), "1 business · 1 wrote back");
+  assert.equal(
+    W.results({ kind: "written", written: 4, businesses: 0, wroteBack: 0 }),
+    "0 businesses · 0 wrote back",
+    "a zero is a count, said as one",
+  );
+  assert.equal(W.results(res(before, "ro-1")), "40 written · 6 wrote back", "the old line where businesses is unknown");
+  assert.equal(W.results({ kind: "written", written: 9, businesses: null, wroteBack: 2 }), "9 written · 2 wrote back");
   assert.equal(W.results({ kind: "sent", sent: 212, replied: 48 }), "212 sent · 48 replied");
   assert.equal(W.results("none"), "Nothing sent");
   assert.equal(W.results("uncounted"), "—");
@@ -443,7 +467,10 @@ test("the sort keys: Next puts a waiting run first, then the soonest, paused las
     }),
     mk("waiting", { status: "waiting", next: { words: "Waiting on you", atMs: 30 } }),
     mk("soon", { people: { n: null, unit: "people" }, results: "uncounted" }),
-    mk("chain", { results: { kind: "written", written: 40, wroteBack: 6 }, next: { words: "—", atMs: null } }),
+    mk("chain", {
+      results: { kind: "written", written: 40, businesses: 18, wroteBack: 6 },
+      next: { words: "—", atMs: null },
+    }),
   ];
   const ids = (by) => [...rows].sort(C.ledgerOrder(by)).map((r) => r.id);
   assert.deepEqual([...C.LEDGER_SORTS], ["next", "name", "people", "replied"]);
@@ -458,6 +485,13 @@ test("the sort keys: Next puts a waiting run first, then the soonest, paused las
     ids("replied"),
     ["chain", "later", "paused", "waiting", "soon"],
     "a chain's wrote back beside replied",
+  );
+  // The sort reads wrote back, never the businesses a chain wrote to: more businesses, fewer answers, sorts after.
+  const wide = mk("wide", { results: { kind: "written", written: 300, businesses: 100, wroteBack: 2 } });
+  const narrow = mk("narrow", { results: { kind: "written", written: 20, businesses: 8, wroteBack: 5 } });
+  assert.deepEqual(
+    [wide, narrow].sort(C.ledgerOrder("replied")).map((r) => r.id),
+    ["narrow", "wide"],
   );
 });
 

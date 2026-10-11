@@ -3,10 +3,10 @@
  * it): taken from the view model that holds it, never composed on the page. A lens with nothing to say of itself says
  * nothing, and the head is its name alone. The People lens always has a sentence: its own where its read has landed and
  * said one, else the frame's count of new people, which a quiet period has too (a type import alone: the fold that
- * builds the lens's head stays in the page-only entry, out of the route's chunk).
+ * builds the lens's head stays in the page-only entry, out of the route's chunk). The Campaigns lens's is the head of its own
+ * read the same way, and nothing before that read lands or where it could not be made.
  */
 import type { DealReportVM } from "../deals/deal-report";
-import type { CampaignReportVM } from "./campaign-report";
 import type { LensId } from "./lenses";
 import type { PeopleReportVM } from "./people/people-report";
 import type { ReportVM } from "./reports";
@@ -16,7 +16,8 @@ export function lensAnswerOf(
   lens: LensId,
   parts: {
     vm: ReportVM;
-    campaigns: CampaignReportVM | null;
+    /** The Campaigns lens's own read, which the page holds beside the report: its head alone; null where it has not landed or failed. */
+    campaigns: { head: string | null } | null;
     deals: DealReportVM | null | undefined;
     /** The Reviews lens's own read, which the page holds beside the report; null where it has not landed. */
     reviews: ReviewsReportVM | null;
@@ -36,7 +37,7 @@ export function lensAnswerOf(
     case "pipeline":
       return deals?.present ? deals.headline : undefined;
     case "campaigns":
-      return campaigns && !campaigns.empty ? campaigns.lines.funnel : undefined;
+      return campaigns?.head ?? undefined;
     case "reviews":
       return reviews && !reviews.empty ? (reviews.lines.head ?? undefined) : undefined;
   }

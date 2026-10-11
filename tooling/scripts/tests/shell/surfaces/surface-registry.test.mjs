@@ -351,7 +351,7 @@ test("People resolves to its override for the list; a profile deep link waits on
   assert.equal(registry.routeSurfaceFor("clients", "3f8b2c1a-4d5e-4f6a-8b9c-0d1e2f3a4b5c"), "workspace");
 });
 
-test("a lens that names its draws is asked before its page, as the gate asks for a pane: Reviews, Receptionist and People draw their own reads, no other lens of Reports does", () => {
+test("a lens that names its draws is asked before its page, as the gate asks for a pane: Reviews, Receptionist, People and Campaigns draw their own reads, the Overview draws the Campaigns one for a fact, and the Pipeline lens draws none", () => {
   const ID = "3f8b2c1a-4d5e-4f6a-8b9c-0d1e2f3a4b5c";
   assert.deepEqual(registry.routeDrawsFor("reports", "reviews"), ["reports_reviews"]);
   assert.deepEqual(registry.ROUTE_DRAWS["reports/reviews"], ["reports_reviews"], "the one row that says it");
@@ -359,16 +359,26 @@ test("a lens that names its draws is asked before its page, as the gate asks for
   assert.deepEqual(registry.ROUTE_DRAWS["reports/receptionist"], ["reports_receptionist"], "the one row that says it");
   assert.deepEqual(registry.routeDrawsFor("reports", "people"), ["reports_people"]);
   assert.deepEqual(registry.ROUTE_DRAWS["reports/people"], ["reports_people"], "the one row that says it");
-  // Reports' other lenses, and the Overview, draw nothing beside the page's own read; the gate still waits for that one.
-  for (const lens of [undefined, null, "pipeline", "campaigns"])
-    assert.deepEqual(registry.routeDrawsFor("reports", lens), [], String(lens));
+  assert.deepEqual(registry.routeDrawsFor("reports", "campaigns"), ["reports_campaigns"]);
+  assert.deepEqual(registry.ROUTE_DRAWS["reports/campaigns"], ["reports_campaigns"], "the one row that says it");
+  // The Overview draws the Campaigns lens's read for one fact ("drew the most replies", R6), so the page's own row names it: read as
+  // the Overview comes on screen and when it has aged, never for each burst of messages (reports/campaigns-surface.ts).
+  for (const lens of [undefined, null])
+    assert.deepEqual(registry.routeDrawsFor("reports", lens), ["reports_campaigns"], `the Overview: ${lens}`);
+  assert.deepEqual(registry.ROUTE_DRAWS.reports, ["reports_campaigns"], "the one row that says it");
+  // The Pipeline lens draws nothing beside the page's own read: its row says so, or it would fall to the page's and read the Overview's.
+  assert.deepEqual(registry.routeDrawsFor("reports", "pipeline"), []);
+  assert.deepEqual(registry.ROUTE_DRAWS["reports/pipeline"], [], "the one row that says it");
   assert.equal(registry.routeSurfaceFor("reports", "reviews"), "reports");
   assert.equal(registry.routeSurfaceFor("reports", "receptionist"), "reports");
   assert.equal(registry.routeSurfaceFor("reports", "people"), "reports");
+  assert.equal(registry.routeSurfaceFor("reports", "campaigns"), "reports");
   assert.deepEqual(registry.routeSurfaces("reports", "reviews"), ["workspace", "reports", "reports_reviews"]);
   assert.deepEqual(registry.routeSurfaces("reports", "receptionist"), ["workspace", "reports", "reports_receptionist"]);
   assert.deepEqual(registry.routeSurfaces("reports", "people"), ["workspace", "reports", "reports_people"]);
-  assert.deepEqual(registry.routeSurfaces("reports"), ["workspace", "reports"]);
+  assert.deepEqual(registry.routeSurfaces("reports", "campaigns"), ["workspace", "reports", "reports_campaigns"]);
+  assert.deepEqual(registry.routeSurfaces("reports", "pipeline"), ["workspace", "reports"]);
+  assert.deepEqual(registry.routeSurfaces("reports"), ["workspace", "reports", "reports_campaigns"]);
   // The days a member picked ride in the param (contracts lensRoute): the lens is what is classified and fed, whatever
   // days it is over, and days alone are the Overview's.
   const DAYS = "2026-09-01~2026-09-20";
@@ -382,11 +392,19 @@ test("a lens that names its draws is asked before its page, as the gate asks for
   ]);
   assert.deepEqual(registry.routeDrawsFor("reports", `people:${DAYS}`), ["reports_people"]);
   assert.deepEqual(registry.routeSurfaces("reports", `people:${DAYS}`), ["workspace", "reports", "reports_people"]);
-  for (const param of [DAYS, `pipeline:${DAYS}`, `campaigns:${DAYS}`]) {
-    assert.equal(registry.routeSurfaceFor("reports", param), "reports", param);
-    assert.deepEqual(registry.routeDrawsFor("reports", param), [], param);
-    assert.deepEqual(registry.routeSurfaces("reports", param), ["workspace", "reports"], param);
-  }
+  assert.deepEqual(registry.routeDrawsFor("reports", `campaigns:${DAYS}`), ["reports_campaigns"]);
+  assert.deepEqual(registry.routeSurfaces("reports", `campaigns:${DAYS}`), [
+    "workspace",
+    "reports",
+    "reports_campaigns",
+  ]);
+  // Days alone are the Overview over them, which draws the Campaigns read for its fact; the Pipeline over days draws none.
+  assert.equal(registry.routeSurfaceFor("reports", DAYS), "reports");
+  assert.deepEqual(registry.routeDrawsFor("reports", DAYS), ["reports_campaigns"]);
+  assert.deepEqual(registry.routeSurfaces("reports", DAYS), ["workspace", "reports", "reports_campaigns"]);
+  assert.equal(registry.routeSurfaceFor("reports", `pipeline:${DAYS}`), "reports");
+  assert.deepEqual(registry.routeDrawsFor("reports", `pipeline:${DAYS}`), []);
+  assert.deepEqual(registry.routeSurfaces("reports", `pipeline:${DAYS}`), ["workspace", "reports"]);
   // What was asked of the page alone is asked as it was: a param that names no row of its own falls to the page's.
   assert.deepEqual(registry.routeDrawsFor("today"), registry.ROUTE_DRAWS.today);
   assert.deepEqual(registry.routeDrawsFor("today", "anything"), registry.ROUTE_DRAWS.today);

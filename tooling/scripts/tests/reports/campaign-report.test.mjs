@@ -1,14 +1,13 @@
 /**
- * Reports › Campaigns — the view model, EXECUTED, and the door behind it.
+ * Reports › Campaigns — the sends' view model, EXECUTED, and the door behind it.
  *
- * What the offers earned: sent, delivered and replied as counts and as
- * shares of sent, yeses and stops from the consent ledger, deltas that
- * refuse to invent a percentage against nothing, the current period by
- * source with a share of the biggest, the honest empty, and the table twin.
+ * What the offers earned: sent, delivered and replied as counts, yeses and stops from the consent ledger, the period before
+ * beside the period, the current period by source and by channel, the honest empty, and the table twin. The Campaigns home
+ * reads its totals and channels; the Campaigns lens folds it again into its own figures and words (campaigns/campaign-lens.test.mjs).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toCampaignReportVM } from "@chanlytics/contracts";
+import { REPORT_MIN_N, isThinShare, shareSaid, toCampaignReportVM } from "@chanlytics/contracts";
 import { importSrc, readRaw } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 
@@ -71,7 +70,7 @@ function dto(over = {}) {
   };
 }
 
-test("totals, shares of sent, and deltas over the prior period", () => {
+test("totals over the period, and the period before's beside them", () => {
   const vm = toCampaignReportVM(dto());
   assert.equal(vm.days, 7);
   assert.equal(vm.points.length, 7);
@@ -86,46 +85,47 @@ test("totals, shares of sent, and deltas over the prior period", () => {
     optIns: 3,
     optOuts: 2,
   });
-  const by = Object.fromEntries(vm.tiles.map((t) => [t.id, t]));
   assert.deepEqual(
-    vm.tiles.map((t) => t.label),
-    ["Messages sent", "Delivered", "Replied", "Said yes", "Asked to stop"],
+    vm.points.map((p) => p.sent),
+    [10, 0, 0, 6, 0, 4, 0],
   );
-  assert.equal(by.sent.value, "20");
-  assert.equal(by.sent.meta, "over 3 sends");
-  assert.equal(by.sent.delta.text, "+400% vs prior 7 days");
-  assert.equal(by.delivered.value, "80%", "16 of 20 delivered");
-  // A campaign goes by WhatsApp, text and email, and each wire says what it delivered: not WhatsApp's alone.
-  assert.equal(by.delivered.meta, "16 of 20 · each channel's own receipts");
-  assert.deepEqual(
-    by.delivered.delta,
-    { text: "-20 pts vs prior 7 days", tone: "neg" },
-    "a share moves in points, never a percentage of a percentage",
-  );
-  assert.equal(by.replied.value, "20%");
-  assert.deepEqual(
-    vm.tiles.map((t) => t.metric),
-    ["messages_sent", "delivered_share", "replied_share", "said_yes", "asked_to_stop"],
-    "each names its figure where it is built",
-  );
-  assert.equal(by.optins.value, "3");
-  assert.equal(by.optins.delta.text, "+200% vs prior 7 days");
-  assert.equal(by.optouts.value, "2");
-  assert.equal(by.optouts.delta, null, "no stops in the prior period: nothing to compare against");
-  assert.deepEqual(by.sent.spark, [10, 0, 0, 6, 0, 4, 0]);
-  assert.equal(vm.max, 10);
+  // The seven days before: the one small send and its yes, which the Campaigns lens sets its figures beside.
+  assert.deepEqual(vm.before, { sent: 4, delivered: 4, replied: 2, optIns: 1, optOuts: 0 });
   assert.equal(vm.empty, false);
+  // What the Campaigns home and the lens read, and nothing drawn from it that no page draws (the five tiles, the prior line, the
+  // largest day and a source's share of the largest went on 11 Oct 2026: computed and never drawn).
+  assert.deepEqual(Object.keys(vm).sort(), [
+    "before",
+    "channelTable",
+    "channels",
+    "days",
+    "empty",
+    "lines",
+    "points",
+    "sources",
+    "table",
+    "totals",
+  ]);
+  assert.deepEqual(Object.keys(vm.lines).sort(), ["channels", "sent"]);
 });
 
-test("the current period by source: a playbook's runs together, a broadcast alone, shares of the biggest, titles for people", () => {
+test("the current period by source: a playbook's runs together, a broadcast alone, titles for people", () => {
   const vm = toCampaignReportVM(dto());
   assert.deepEqual(
-    vm.sources.map((s) => [s.name, s.kindLabel, s.runs, s.sent, s.deliveredPct, s.repliedPct, s.share, s.template]),
+    vm.sources.map((s) => [s.name, s.kindLabel, s.runs, s.sent, s.deliveredPct, s.repliedPct, s.template]),
     [
       // The playbook sends the retired win-back (2 Oct 2026), called apart from the set's own by its title.
-      ["Win-back", "Campaign", 2, 14, 86, 21, 1, "Win-back (earlier)"],
-      ["A quick note · Sep 1", "Broadcast", 1, 6, 67, 17, 6 / 14, "A quick note"],
+      ["Win-back", "Campaign", 2, 14, 86, 21, "Win-back (earlier)"],
+      ["A quick note · Sep 1", "Broadcast", 1, 6, 67, 17, "A quick note"],
     ],
+  );
+  assert.deepEqual(
+    vm.sources.map((s) => [s.deliveredWords, s.repliedWords]),
+    [
+      ["86%", "21% (3)"],
+      ["67%", "17% (1)"],
+    ],
+    "what the table says: each of five sends or more, the answered with their count",
   );
   assert.match(vm.sources[0].lastLabel, /Sep \d/);
   // A read is a share of WhatsApp's own sends (0030): a source's sends are every channel's, so it says no read share.
@@ -135,16 +135,18 @@ test("the current period by source: a playbook's runs together, a broadcast alon
 test("the honest empty, and the table twin", () => {
   const nothing = toCampaignReportVM(dto({ series: dto().series.map((d) => day(d.day)), sources: [] }));
   assert.equal(nothing.empty, true);
-  const by = Object.fromEntries(nothing.tiles.map((t) => [t.id, t]));
-  assert.equal(by.delivered.value, "—");
-  assert.equal(by.sent.meta, "none in this period");
-  assert.equal(by.sent.delta, null);
+  assert.deepEqual(
+    [nothing.totals.sent, nothing.totals.delivered, nothing.totals.sends, nothing.sources.length],
+    [0, 0, 0, 0],
+    "nothing sent is counted as 0, shown as 0",
+  );
   const onlyYes = toCampaignReportVM(
     dto({ series: dto().series.map((d) => day(d.day, d.day === "2026-09-02" ? { opt_ins: 1 } : {})), sources: [] }),
   );
   assert.equal(onlyYes.empty, false, "a yes with nothing sent is still news");
   const vm = toCampaignReportVM(dto());
-  assert.deepEqual(vm.table.columns, ["Day", "Sent", "Delivered", "Replied", "Said yes", "Asked to stop"]);
+  // The day twin's count of messages is "Answered", as the funnel's row and the other twins say it; the people who wrote back are the strip's.
+  assert.deepEqual(vm.table.columns, ["Day", "Sent", "Delivered", "Answered", "Said yes", "Asked to stop"]);
   assert.equal(vm.table.rows.length, 7);
   assert.deepEqual(vm.table.rows[0].slice(1), [10, 9, 2, 2, 0]);
 });
@@ -216,13 +218,8 @@ test("the door: two periods by the business's clock, replied by the Broadcasts r
   // executed, not read as text: reports/lenses/reports-lens-page.test.mjs and shell/empty-failed.test.mjs.
 });
 
-test("the one sentence under each campaign card: who said yes to messages or stop, and how many runs sent it", () => {
+test("the one sentence under the day card: how many runs sent it", () => {
   const vm = toCampaignReportVM(dto());
-  assert.equal(
-    vm.lines.funnel,
-    "3 people said yes to messages, 2 people asked to stop.",
-    "never 'offers': a visit reminder is no offer (C25)",
-  );
   assert.equal(vm.lines.sent, "From 3 broadcast and campaign runs.", "the win-back's two runs and the broadcast");
   const one = toCampaignReportVM(
     dto({
@@ -230,25 +227,26 @@ test("the one sentence under each campaign card: who said yes to messages or sto
       sources: [dto().sources[1]],
     }),
   );
-  assert.equal(one.lines.funnel, "1 person said yes to messages, 1 person asked to stop.");
   assert.equal(one.lines.sent, "From one broadcast or campaign run.");
   const nothing = toCampaignReportVM(dto({ series: dto().series.map((d) => day(d.day)), sources: [] }));
-  assert.equal(nothing.lines.funnel, "Nobody said yes to messages or asked to stop.");
   assert.equal(nothing.lines.sent, null, "no run sent anything");
-  // The yes and the stop are drawn as figures, each with the period before in counts beside it (the Overview's strip does the same);
-  // the sent, the delivered and the replied are drawn as the funnel and the day chart, which compare nothing.
+  // The yes and the stop are the lens's figures (campaign-lens.test.mjs says them against the period before, in counts); this fold
+  // keeps the days they fell on, and the period before's totals for the lens to set them beside.
   assert.deepEqual(
-    vm.tiles.map((t) => t.compare),
-    [null, null, null, "up from 1", "none the 7 days before"],
-    "a count against the period before, in counts: one yes before and three now; no stop before and two now",
+    vm.points.map((p) => [p.optIns, p.optOuts]),
+    [
+      [2, 0],
+      [0, 0],
+      [1, 1],
+      [0, 0],
+      [0, 0],
+      [0, 1],
+      [0, 0],
+    ],
   );
-  // A workspace with nothing before this period has nothing to compare with: never "none the 7 days before".
+  // A workspace with nothing before this period has no period before to set it beside: its totals are all zero.
   const young = toCampaignReportVM(dto({ series: dto().series.slice(-7) }));
-  assert.deepEqual(
-    young.tiles.map((t) => t.compare),
-    [null, null, null, null, null],
-    "no period before: nothing is said of one",
-  );
+  assert.deepEqual(young.before, { sent: 0, delivered: 0, replied: 0, optIns: 0, optOuts: 0 });
 });
 
 test("by channel (0030): each channel that sent, the most first, over its own sends; a read is WhatsApp's alone and the period's read a share of WhatsApp's sends; one channel, no split", () => {
@@ -263,14 +261,14 @@ test("by channel (0030): each channel that sent, the most first, over its own se
     vm.channels.map((c) => [c.channel, c.label, c.sent, c.deliveredPct, c.read, c.readPct, c.repliedPct, c.display]),
     [
       ["whatsapp", "WhatsApp", 14, 86, 11, 79, 21, "14 · 86% delivered"],
-      ["sms", "Text", 4, 75, null, null, 25, "4 · 75% delivered"],
-      ["email", "Email", 2, 50, null, null, 0, "2 · 50% delivered"],
+      ["sms", "Text", 4, 75, null, null, 25, "4 · 3 of 4 delivered"],
+      ["email", "Email", 2, 50, null, null, 0, "2 · 1 of 2 delivered"],
     ],
     "a text's and an email's read is no figure at all, never a zero",
   );
   assert.deepEqual([vm.totals.read, vm.totals.readOf], [11, 14], "the period's read: of WhatsApp's own fourteen");
   assert.deepEqual(vm.channelTable, {
-    columns: ["Channel", "Sent", "Delivered", "Read", "Wrote back"],
+    columns: ["Channel", "Sent", "Delivered", "Read", "Answered"],
     rows: [
       ["WhatsApp", 14, 12, 11, 3],
       ["Text", 4, 3, null, 1],
@@ -298,5 +296,88 @@ test("by channel (0030): each channel that sent, the most first, over its own se
       { channel: "sms", sent: 0, delivered: 0, read: 0, replied: 0 },
     ]).channels,
     [],
+  );
+});
+
+test("a share of fewer than five is the count, never a percentage (D9): the one predicate and the one spelling, at 0, 4, 5 and 6", () => {
+  assert.equal(REPORT_MIN_N, 5);
+  // The minimum is named by whoever judges, never defaulted: a ratio with a smaller one of its own cannot forget it.
+  assert.equal(isThinShare.length, 2, "both parameters are required");
+  // Thin is some, but too few: of none there is no ratio to grey, and from five it is read.
+  assert.deepEqual(
+    [0, 1, 4, 5, 6].map((n) => isThinShare(n, REPORT_MIN_N)),
+    [false, true, true, false, false],
+  );
+  // A ratio that keeps a minimum of its own (the reviews' reply time) is judged by it.
+  assert.deepEqual(
+    [0, 1, 2, 3].map((n) => isThinShare(n, 3)),
+    [false, true, true, false],
+  );
+  // Said, a share is a percentage from five and the count under that; of none it is nothing.
+  assert.deepEqual(
+    [shareSaid(75, 3, 4), shareSaid(60, 3, 5), shareSaid(50, 3, 6), shareSaid(100, 1, 1), shareSaid(null, 0, 0)],
+    ["3 of 4", "60%", "50%", "1 of 1", null],
+  );
+});
+
+test("a channel's bar and a source's row say a share only of five sends or more, and the count under that; the Campaigns home takes neither", () => {
+  const channels = (sent) =>
+    toCampaignReportVM({
+      ...dto(),
+      by_channel: [
+        { channel: "whatsapp", sent: 20, delivered: 18, read: 10, replied: 4 },
+        { channel: "sms", sent, delivered: sent - 1, read: 0, replied: 1 },
+      ],
+    }).channels.map((c) => c.display);
+  assert.deepEqual(channels(4), ["20 · 90% delivered", "4 · 3 of 4 delivered"], "four sends: the count");
+  assert.deepEqual(channels(5), ["20 · 90% delivered", "5 · 80% delivered"], "five sends: the share");
+  assert.deepEqual(channels(6), ["20 · 90% delivered", "6 · 83% delivered"]);
+  const source = (sent, delivered, replied) => ({
+    id: "s",
+    kind: "playbook",
+    name: "Win-back",
+    template_name: null,
+    runs: 1,
+    sent,
+    delivered,
+    read: 0,
+    replied,
+    last_at: null,
+  });
+  const words = (sent, delivered, replied) => {
+    const s = toCampaignReportVM({ ...dto(), sources: [source(sent, delivered, replied)] }).sources[0];
+    return [s.deliveredWords, s.repliedWords];
+  };
+  assert.deepEqual(words(4, 3, 1), ["3 of 4", "1 of 4"], "four sends: counts, and no count in brackets");
+  assert.deepEqual(words(5, 4, 1), ["80%", "20% (1)"], "five sends: the shares, the answered with their count");
+  assert.deepEqual(words(14, 12, 3), ["86%", "21% (3)"]);
+  assert.deepEqual(words(0, 0, 0), ["—", "—"], "a source that sent none: a dash");
+  // The shares as numbers stay on the view model for whoever says them in their own words (Ask does, with the same predicate).
+  const vm = toCampaignReportVM({ ...dto(), sources: [source(4, 3, 1)] });
+  assert.deepEqual([vm.sources[0].deliveredPct, vm.sources[0].repliedPct], [75, 25]);
+  // The Campaigns home reads the totals and each channel's sends: nothing of a share.
+  assert.deepEqual(Object.keys(vm.totals).sort(), [
+    "delivered",
+    "optIns",
+    "optOuts",
+    "read",
+    "readOf",
+    "replied",
+    "sends",
+    "sent",
+  ]);
+});
+
+test("a day's column says its sends to a screen reader and the messages answered to a pointer, as messages", () => {
+  const { points } = toCampaignReportVM(dto());
+  assert.deepEqual(
+    points.slice(0, 4).map((p) => [p.label, p.sentWords, p.answeredWords]),
+    [
+      ["Aug 29", "Aug 29: 10 sent", "2 answered"],
+      ["Aug 30", "Aug 30: 0 sent", null],
+      ["Aug 31", "Aug 31: 0 sent", null],
+      ["Sep 1", "Sep 1: 6 sent", "1 answered"],
+    ],
+    "a day nothing was answered on adds nothing under its number",
   );
 });

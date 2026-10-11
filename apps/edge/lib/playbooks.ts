@@ -45,10 +45,8 @@ import {
   isSellsBy,
   offerPauseOf,
   ownAddressesOf,
-  numberHealth,
-  numberHealthWithStanding,
+  numberHealthOfConfig,
   parseTenantConfig,
-  standingFromConfig,
   peopleVisitsOf,
   poolListContext,
   consultFirstOf,
@@ -56,6 +54,7 @@ import {
   withVisitsOf,
   membersOf,
   resolveList,
+  type NumberHealth,
   type PersonRowDto,
   type PersonVisitsDto,
   BOOKING_DEFAULTS,
@@ -143,7 +142,7 @@ async function channelFacts(db: Db, tenantId: string) {
  */
 async function channelsNow(
   channels: Awaited<ReturnType<typeof channelFacts>>,
-  health: ReturnType<typeof numberHealth>,
+  health: NumberHealth,
   profile: { address?: string | null } | null | undefined,
 ) {
   // Whether an offer by email can go: the deployment's campaigns domain (kept five minutes), the business's address, and
@@ -159,18 +158,6 @@ async function channelsNow(
       offers: { campaigns, address: !!profile?.address?.trim(), paused: channels.offersPause },
     },
   });
-}
-
-/**
- * The number's rating (its config as Meta last said it), with what Meta holds against the number (its kept standing, 00338): a
- * number Meta has stopped, or whose account has no payment method, carries no campaign, refused in the sentence the
- * Connections row says (contracts numberHealthWithStanding: one rule, read by the dashboard's composers too).
- */
-function numberHealthOf(cfg: Record<string, unknown>, s: (k: string) => string | null) {
-  return numberHealthWithStanding(
-    numberHealth({ quality: s("quality_rating"), event: s("quality_event"), limit: s("messaging_limit") }),
-    standingFromConfig(cfg.standing),
-  );
 }
 
 /** Read once per tenant: the people, the modes, the number, the touches. */
@@ -221,8 +208,6 @@ export async function loadTenantRunContext(
   if (kept.error) return { error: `lists: ${kept.error}` };
   // A paused workspace runs nothing: the sweep counts it off, and says so once, quietly; Run now refuses it in words.
   if (tenant?.status === "paused") return { error: CONTEXT_PAUSED };
-  const cfg = channels.whatsapp ? channels.whatsapp.config : {};
-  const s = (k: string) => (typeof cfg[k] === "string" ? cfg[k] : null);
   // A touch is a message sent, or one on its way, dated by when it went or is due; a broadcast the owner sent by
   // hand counts for the breath (byAny) and for no playbook's gap; a proposal follow-up by any playbook, for the
   // follow-up's once per proposal (touchIndex, 0006).
@@ -273,7 +258,9 @@ export async function loadTenantRunContext(
     consultFirst: consultFirstOf(profile?.booking_rules),
     viewer: null,
   });
-  const health = numberHealthOf(cfg, s);
+  // The number's rating with what Meta holds against it (its kept standing, 00338): the one derivation the dashboard's
+  // composers read too (contracts numberHealthOfConfig). With no active number the config is empty and `ready` has none.
+  const health = numberHealthOfConfig(channels.whatsapp ? channels.whatsapp.config : {});
   const ready = await channelsNow(channels, health, profile);
   const vms = poolRowsOf(withVisitsOf(rows, visits, { state: calendar, timezone: tz, source: "calendar" }), {
     tz,

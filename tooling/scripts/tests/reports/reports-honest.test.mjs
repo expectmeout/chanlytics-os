@@ -20,7 +20,7 @@ import {
   press,
 } from "../_legacy-react.mjs";
 
-const { toCampaignReportVM, stateOf } = contracts;
+const { toCampaignLensVM, stateOf } = contracts;
 const TID = "t-studio";
 const ZONE = "America/New_York";
 
@@ -339,8 +339,9 @@ test("REGRESSION (C13): a link to a playbook opens it over the home, and a playb
 test("REGRESSION (C25): the reply window is one rule said one way -- three places said it three ways", () => {
   assert.equal(contracts.REPLY_WINDOW_MS, contracts.REPLY_WINDOW_HOURS * 3_600_000);
   assert.equal(contracts.REPLY_WINDOW_WORDS, "within 3 days", "72 hours, as the SQL series keeps it");
-  const replied = toCampaignReportVM(campaignDto()).tiles.find((t) => t.id === "replied");
-  assert.equal(replied.meta, `4 wrote back ${contracts.REPLY_WINDOW_WORDS}`);
+  // The Campaigns lens's funnel sentence says the published window (it was the old Replied tile's line until 11 Oct 2026).
+  const lens = toCampaignLensVM({ campaigns: campaignDto(), ledger: null, reachOuts: undefined }, Date.now());
+  assert.ok(lens.funnel.line.includes(`answered ${contracts.REPLY_WINDOW_WORDS}, of 20 messages`), lens.funnel.line);
   fresh();
   const stats = BcHistoryStats({
     rows: [

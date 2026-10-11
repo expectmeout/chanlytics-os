@@ -1,7 +1,7 @@
 import "server-only";
 import {
   AppError,
-  REPLY_WINDOW_MS,
+  answersToRuns,
   firstNameOf,
   isAutomatedSend,
   isPersonsWords,
@@ -9,6 +9,8 @@ import {
   parseParamSpecs,
   personName,
   runCountsOf,
+  type AnswerEvent,
+  type AnswerSend,
   type Audience,
   type BroadcastCounts,
   type BroadcastDetailDto,
@@ -17,6 +19,7 @@ import {
   type BroadcastState,
   type PersonCampaignDto,
   type RecipientState,
+  type RunAnswer,
 } from "@chanlytics/contracts";
 import { readAllRows, runCounts } from "@chanlytics/db";
 import { reachOutRunOf } from "@/server/campaigns/reach-outs";
@@ -61,15 +64,21 @@ interface RecipientRow {
   contact_id: string;
   /** The channel the send picked for them (reachFor, 00298): null on a run made before; absent where the read did not ask. */
   channel?: string | null;
+  /** The outbound email it was, where one was written: what an unsubscribe names (contracts answersToRuns); absent where the read did not ask. */
+  message_id?: string | null;
   state: string;
   reason: string | null;
   sent_at: string | null;
-  messages: { conversation_id: string; status: string; meta?: unknown } | null;
+  /** `external_id` is the provider's id, which a carrier's or WhatsApp's stop names (answersToRuns); absent where the read did not ask. */
+  messages: { conversation_id: string; status: string; meta?: unknown; external_id?: string | null } | null;
   contacts?: {
     display_name: string | null;
     wa_profile_name: string | null;
     phone_e164: string | null;
     email: string | null;
+    /** Whether the person stands (answersToRuns): erased, or merged into another, they answer nothing. */
+    erased_at?: string | null;
+    merged_into_contact_id?: string | null;
   } | null;
 }
 
@@ -424,63 +433,78 @@ export async function listRuns(ctx: RouteContext, tenantId: string): Promise<Bro
   return withCounts(ctx, tenantId, (rows ?? []) as BroadcastRow[]);
 }
 
+/** A person's answer to the run, as the sheet draws it: which, about what, and when. */
+type ConsentAnswer = Pick<RunAnswer, "consent" | "purpose" | "at">;
+
+/** The sheet's people the run reached, as the rule reads a send: the channel, the email and message it names, whether they stand. */
+function sendsOf(rows: RecipientRow[]): AnswerSend[] {
+  const out: AnswerSend[] = [];
+  for (const r of rows) {
+    if (r.state !== "sent" || !r.sent_at) continue;
+    out.push({
+      runId: r.broadcast_id,
+      contactId: r.contact_id,
+      sentAt: r.sent_at,
+      byEmail: r.channel === "email",
+      live: !r.contacts?.erased_at && !r.contacts?.merged_into_contact_id,
+      messageId: r.message_id ?? null,
+      messageExternalId: r.messages?.external_id ?? null,
+    });
+  }
+  return out;
+}
+
+/** These people's consent changes after `since`, two hundred people at a time so the URL stays short. */
+async function consentEventsOf(
+  ctx: RouteContext,
+  tenantId: string,
+  contactIds: string[],
+  since: string,
+): Promise<AnswerEvent[]> {
+  const out: AnswerEvent[] = [];
+  for (let i = 0; i < contactIds.length; i += IN_CHUNK) {
+    const { data, error } = await ctx.supabase
+      .from("events")
+      .select("id, subject_id, data, created_at")
+      .eq("tenant_id", tenantId)
+      .eq("kind", "contact.consent_changed")
+      .in("subject_id", contactIds.slice(i, i + IN_CHUNK))
+      .gt("created_at", since);
+    if (error) throw new Error(error.message);
+    for (const e of (data ?? []) as { id: string; subject_id: string | null; data: unknown; created_at: string }[]) {
+      if (e.subject_id) out.push({ id: e.id, contactId: e.subject_id, at: e.created_at, data: e.data });
+    }
+  }
+  return out;
+}
+
 /**
- * What each person the run reached said about hearing from the business after
- * it reached them: the consent ledger both doors write (00013) -- a yes at the
- * desk or in their own words, a STOP -- inside the same reply window a reply is
- * counted in, and the latest there stands. Reports › Campaigns counts the same
- * ledger by day for the whole workspace (00064); this is one run's share of it.
+ * What each person the run reached said about hearing from the business because
+ * of it: the consent ledger both doors write (00013) -- a yes at the desk or in
+ * their own words, a STOP, an unsubscribe -- and which of it is this run's answer
+ * is one rule, contracts answersToRuns (broadcasts/run-answers.ts), which Reports
+ * › Campaigns and the Campaigns home count by too (00397). It says what counts (a
+ * merge's restated consent does not), who answers (a person who stands, not one
+ * erased or merged away), and whose an event is (the send an unsubscribe or a
+ * carrier's stop names, however late; else the reply window after the send); this
+ * reads the sheet's people and their events and keeps the run's own rows.
  * Someone the run never reached did not answer it.
  */
-type ConsentAnswer = {
-  consent: "opted_in" | "opted_out";
-  purpose: "marketing" | "email_marketing" | "conversational";
-  at: string;
-};
 async function consentAfter(
   ctx: RouteContext,
   tenantId: string,
   rows: RecipientRow[],
+  runId: string,
 ): Promise<Map<string, ConsentAnswer>> {
-  const sentAt = new Map<string, number>();
-  // Who the run reached by email: an answer about offers by email (00174) is theirs to give it, and nobody else's.
-  const byEmail = new Set<string>();
-  for (const r of rows) {
-    if (r.state !== "sent" || !r.sent_at) continue;
-    sentAt.set(r.contact_id, Date.parse(r.sent_at));
-    if (r.channel === "email") byEmail.add(r.contact_id);
-  }
   const out = new Map<string, ConsentAnswer>();
-  if (sentAt.size === 0) return out;
-  const ids = [...sentAt.keys()];
-  const since = new Date(Math.min(...sentAt.values())).toISOString();
-  for (let i = 0; i < ids.length; i += IN_CHUNK) {
-    const { data, error } = await ctx.supabase
-      .from("events")
-      .select("subject_id, data, created_at")
-      .eq("tenant_id", tenantId)
-      .eq("kind", "contact.consent_changed")
-      .in("subject_id", ids.slice(i, i + IN_CHUNK))
-      .gt("created_at", since);
-    if (error) throw new Error(error.message);
-    for (const e of (data ?? []) as { subject_id: string | null; data: unknown; created_at: string }[]) {
-      const who = e.subject_id;
-      const from = who ? sentAt.get(who) : undefined;
-      const t = Date.parse(e.created_at);
-      if (!who || from === undefined || !(t > from) || t - from > REPLY_WINDOW_MS) continue;
-      const data = e.data as { consent?: unknown; purpose?: unknown } | null;
-      const consent = data?.consent;
-      if (consent !== "opted_in" && consent !== "opted_out") continue;
-      // An unsubscribe from email (00174) is no answer to a WhatsApp broadcast or a text. It is the answer of a person
-      // the run reached by email: the one-click unsubscribe is what an offer by email invites, and a run that counted
-      // none of them read "Asked to stop: 0" over the people who had.
-      const byMail = data?.purpose === "email_marketing";
-      if (byMail && !byEmail.has(who)) continue;
-      // The offers door names its purpose (00095); the conversational one names none.
-      const purpose = byMail ? "email_marketing" : data?.purpose === "marketing" ? "marketing" : "conversational";
-      const had = out.get(who);
-      if (!had || e.created_at > had.at) out.set(who, { consent, purpose, at: e.created_at });
-    }
+  const sends = sendsOf(rows);
+  const sentMs = sends.map((s) => Date.parse(s.sentAt)).filter(Number.isFinite);
+  if (sentMs.length === 0) return out;
+  // Someone who does not stand answers nothing (the rule), so their events are not read.
+  const people = [...new Set(sends.filter((s) => s.live).map((s) => s.contactId))];
+  const since = new Date(Math.min(...sentMs)).toISOString();
+  for (const a of answersToRuns(sends, await consentEventsOf(ctx, tenantId, people, since))) {
+    if (a.runId === runId) out.set(a.contactId, { consent: a.consent, purpose: a.purpose, at: a.at });
   }
   return out;
 }
@@ -496,7 +520,7 @@ function nameOf(r: RecipientRow): string {
 }
 
 const RECIPIENT_COLUMNS =
-  "broadcast_id, contact_id, state, reason, sent_at, messages(conversation_id, status, meta), contacts(display_name, wa_profile_name, phone_e164, email)";
+  "broadcast_id, contact_id, message_id, state, reason, sent_at, messages(conversation_id, status, meta, external_id), contacts(display_name, wa_profile_name, phone_e164, email, erased_at, merged_into_contact_id)";
 
 /**
  * Every person on a run, a page at a time, each with the channel the send picked for them. A database 00298 has not
@@ -550,7 +574,7 @@ export async function getBroadcast(ctx: RouteContext, tenantId: string, id: stri
   const replied = threads ? await repliedThreads(ctx, tenantId, threads, words) : new Map<string, string>();
   // The sheet's own count of its people, which a database before 00374 is read by (sheetCountsOf).
   const own = { ...(counts.get(id) ?? emptyCounts()), replied: replied.size };
-  const answered = await consentAfter(ctx, tenantId, rows);
+  const answered = await consentAfter(ctx, tenantId, rows, id);
   const answers = await answeredAfter(ctx, tenantId, replied);
   const waiting = replied.size > 0 ? await waitingThreads(ctx, tenantId, [...replied.keys()]) : new Set<string>();
 

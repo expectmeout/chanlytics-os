@@ -28,6 +28,7 @@ import { playbooksOverride } from "@/surfaces/campaigns/playbooks/surface";
 import { reportsOverride } from "@/surfaces/reports/surface";
 import { reportsHeadlineOverride } from "@/surfaces/reports/headline";
 import { forgetReportsPeople, reportsPeopleOverride } from "@/surfaces/reports/people-surface";
+import { forgetReportsCampaigns, reportsCampaignsOverride } from "@/surfaces/reports/campaigns-surface";
 import { forgetReceptionist, receptionistOverride } from "@/surfaces/reports/receptionist-surface";
 import { forgetReviews, reviewsOverride } from "@/surfaces/reports/reviews-surface";
 import { settingsOverride } from "./surfaces/settings";
@@ -54,7 +55,19 @@ const receptionist = (): SurfaceOverride[] => {
     ? [receptionistOverride]
     : [];
 };
-const thread = () => [inboxOverride, conversationsOverride, todayOverride, ...receptionist()];
+// What the Campaigns lens says is made wrong by writes the live feed does not tell it of: a yes or a stop (the people it counts as
+// answers), a reply or a resolved escalation ("replies waiting on you"), a run approved, skipped or made ("runs waiting" and the funnel),
+// a number connected or its standing ("your number") and the zone (its days). Its read is forgotten, and read as the page that draws it
+// comes on screen: the lens, or the Overview, which draws it for one fact. Where that page is on screen already, nothing else would read
+// it (the feed hears the lens's tables only on the lens, and tells it of none of these writes), so it is read again at once. Named once
+// by each write that moves it, through the composite lists below: a list that holds another does not name it twice.
+const reportsCampaigns = (): SurfaceOverride[] => {
+  forgetReportsCampaigns();
+  return typeof window !== "undefined" && ownsTheScreen("reports_campaigns", routeOnScreen())
+    ? [reportsCampaignsOverride]
+    : [];
+};
+const thread = () => [inboxOverride, conversationsOverride, todayOverride, ...receptionist(), ...reportsCampaigns()];
 // What the People lens counts is who is in the book, what they answered, their steps, the channels and the zone (its days). A write that
 // moves one of them from another page forgets the lens's read, and the lens reads it as it comes on screen; where it is on screen
 // already, nothing else would (the feed tells it of messages, calls and notes, not of these writes), so it is read again at once. A
@@ -71,15 +84,17 @@ const notes = () => [peopleOverride, ...reportsPeople()];
 // What a thread says of its person: their name, number, address and proposal link, and whether they said yes or asked
 // to stop (thread-dto.ts `contact`). An edit of those re-reads the threads with People, as a delete always did.
 const personAndThreads = () => [peopleOverride, ...thread()];
-const runs = () => [playbooksOverride, broadcastsOverride];
+// A run approved, skipped or made moves what the Campaigns lens says of the runs waiting on you and its funnel: its read goes with them.
+const runs = () => [playbooksOverride, broadcastsOverride, ...reportsCampaigns()];
 // Who a campaign reaches is counted from people's answers and from who exists: the composers' audience counts and a
 // playbook's "N will get it" (broadcasts, playbooks). A write that moves either re-reads them, or a yes recorded and
 // New message opened showed the audience as it was before.
 const audiences = () => [broadcastsOverride, playbooksOverride];
 // A yes or a stop recorded, for one person or many: the one list, so the four writes cannot drift apart. Their row and
-// their threads say it (personAndThreads), the audiences count by it, and Reports counts the yeses and stops, the People lens's
-// among them (and the two records made one, whose answers may change).
-const consentWrite = () => [...personAndThreads(), ...audiences(), reportsOverride, ...reportsPeople()];
+// their threads say it (personAndThreads, which carries the Campaigns lens's read: it counts the yeses and stops after a campaign, once),
+// the audiences count by it, and the People lens counts them too (and the two records made one, whose answers may change). The
+// report's own read no longer counts them: the campaigns are the lens's.
+const consentWrite = () => [...personAndThreads(), ...audiences(), ...reportsPeople()];
 // A person added or imported is on an audience or off it, as one deleted is, and is in the book the People lens counts or not.
 const peopleAndAudiences = () => [peopleOverride, ...audiences(), ...reportsPeople()];
 // A playbook made, changed or removed moves what People's rows say of it (their `follow_up`, 0006), with its own pages.
@@ -95,8 +110,9 @@ const runsAndChains = () => [...runs(), reachOutsOverride];
 const readiness = () => [broadcastsOverride, playbooksOverride, peopleOverride];
 // A channel opened or closed (a number connected, a line got or filed, the mailbox made or changed) moves who can receive offers too, which
 // the People lens counts against the same channels (`ChannelsReady`): its read goes with the three. So does a settings save (settingsWrite),
-// whose postal address is the one an offer by email names.
-const channelChange = () => [...readiness(), ...reportsPeople()];
+// whose postal address is the one an offer by email names. The Campaigns lens says the connected number's health ("your number"):
+// its read goes with them too.
+const channelChange = () => [...readiness(), ...reportsPeople(), ...reportsCampaigns()];
 // A template written here is read again by the Inbox at once, not when its kept read goes stale (inbox/surface.ts). The
 // playbooks surface, whose read of them is the call's text and the Library's count on Campaigns, is read again by its hook
 // (HOOKS below, `__refreshPlaybooks`), so it is not named here: a second read of GET playbooks would follow the first.
@@ -107,6 +123,10 @@ const templates = () => {
 // An email or text version, written or taken away: the one list, so the two writes cannot drift apart.
 const versionWrite = () => [settingsOverride, reachOutsOverride, playbooksOverride, broadcastsOverride, leadsOverride];
 const leads = () => [leadsOverride];
+// A lead's stage written (said no, not a fit, contacted, converted), in one or many, or such a write undone, sets or clears the
+// lead's closed reason: the Reach-outs part of the Campaigns lens counts Said no from it, as it stands now. Its read goes with the
+// Leads page's, forgotten and read as the page that draws it comes on screen (reportsCampaigns).
+const leadsAnswered = () => [leadsOverride, ...reportsCampaigns()];
 const setup = () => [setupOverride];
 const setupAndReadiness = () => [setupOverride, ...channelChange()];
 // The listing and its reviews are the Reviews lens's read too, and the lens is never the page a link, a refresh or a disconnect is made from
@@ -200,11 +220,11 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST leads/[id]/keep": leads,
   "POST leads/[id]/exclude": leads,
   "POST leads/[id]/put-back": leads,
-  "POST lead-operations/[id]/undo": leads,
-  "POST leads/bulk": leads,
+  "POST lead-operations/[id]/undo": leadsAnswered,
+  "POST leads/bulk": leadsAnswered,
   "DELETE leads/[id]": leads,
   "PUT lead-suggestions": leads,
-  "POST leads/[id]/stage": () => [leadsOverride, peopleOverride, ...reportsPeople()],
+  "POST leads/[id]/stage": () => [...leadsAnswered(), peopleOverride, ...reportsPeople()],
   // Outbound.
   // A broadcast made moves the month's emails and texts both composers say before a send, and Playbooks' composer reads
   // them from its own surface: both are read again, as approving or cancelling a run reads them.
@@ -265,7 +285,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // and it switches the deal layer: People's lists and column, Reports' Deals section and Today's proposals waiting. The zone
   // is also where Today's period line counts its days from: the headline is read again too, and the Reviews lens's read, which
   // counts a review on the day it was written in the zone, is forgotten and read as the lens comes on screen; so is the Receptionist
-  // lens's, whose days are the zone's too, and the People lens's, whose days (and the day a step falls due) are. How its customers buy
+  // lens's, whose days are the zone's too, and the People lens's, whose days (and the day a step falls due) are, and the Campaigns
+  // lens's, whose window is counted in it. How its customers buy
   // also shapes Campaigns' journey and the word it says (spec 2026-10-09 §4.8): the playbooks surface is read again.
   "PATCH workspaces": () => {
     forgetReviews();
@@ -278,6 +299,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
       playbooksOverride,
       ...receptionist(),
       ...reportsPeople(),
+      ...reportsCampaigns(),
     ];
   },
   "POST team/invite": settings,
@@ -287,8 +309,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // Connections repaints, and so does the Setup row that said "Connect".
   // The number connected is the one a broadcast goes out on: the composers' WhatsApp tick and who it reaches follow.
   "POST channels/whatsapp/connect": () => [settingsOverride, setupOverride, ...channelChange()],
-  // What Meta holds about the number is kept on the channel's config, which the settings read carries: Connections' row repaints.
-  "POST channels/whatsapp/standing": () => [settingsOverride],
+  // What Meta holds about the number is kept on the channel's config, which the settings read carries: Connections' row repaints, and
+  // the Campaigns lens's "your number" (numberHealthOfConfig reads the same config) is read again where it is drawn.
+  "POST channels/whatsapp/standing": () => [settingsOverride, ...reportsCampaigns()],
   "PUT notifications": () => [notificationsOverride],
   // Setup, lines, billing, Google.
   "POST capabilities/[kind]": setup,

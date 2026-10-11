@@ -51,6 +51,9 @@ interface ReportProfile {
     closures?: Closure[];
 }
 
+/** The channels a report names, in the order a chart lists them; each keeps its own colour whatever its rank.
+ *  No Instagram: the messages CHECK admits none, so a report would only ever say zero (spec A5). */
+type ReportChannelKey = "whatsapp" | "voice" | "email" | "sms";
 interface ReportBarVM {
     id: string;
     label: string;
@@ -65,12 +68,12 @@ interface ReportBarVM {
  * says, by one id, where its builder builds it (`metric`): a closed set, so a tile that says what no id names is a compile
  * error rather than a lookup that falls back, and the id is what the figure is called wherever it is read (the page's
  * figures today; a definition's tooltip, Ask's block and the headline of a later phase). Not prefixed by a lens: a tile moves
- * between lenses (the lenses spec, D18) and its id does not. The receptionist's tiles are built here; the campaigns' and
- * Google's are built where their reports are, and name their figures from this same set.
+ * between lenses (the lenses spec, D18) and its id does not. The receptionist's tiles are built here; the campaigns' (the lens's
+ * strip) and Google's are built where their reports are, and name their figures from this same set.
  */
 
 /** Every figure a tile says. */
-type ReportMetric = "customer_messages" | "answered_share" | "reply_median" | "handovers" | "calls" | "new_people" | "booked" | "messages_sent" | "delivered_share" | "replied_share" | "said_yes" | "asked_to_stop" | "rating" | "reviews" | "ratings_gained" | "newest_review" | "reviews_written" | "reviews_answered" | "review_reply_time" | "handover_first_reply" | "handover_settled" | "missed_calls_answered" | "answered_while_closed" | "waiting_on_you" | "call_backs" | "replies_held_back" | "people_reached" | "yeses_won" | "stops_recorded" | "steps_overdue" | "steps_due_today" | "email_stopped_now" | "said_yes_messages" | "can_receive_offers" | "opted_out_now" | "quiet_now";
+type ReportMetric = "customer_messages" | "answered_share" | "reply_median" | "handovers" | "calls" | "new_people" | "booked" | "delivered_share" | "said_yes" | "asked_to_stop" | "rating" | "reviews" | "ratings_gained" | "newest_review" | "reviews_written" | "reviews_answered" | "review_reply_time" | "handover_first_reply" | "handover_settled" | "missed_calls_answered" | "answered_while_closed" | "waiting_on_you" | "call_backs" | "replies_held_back" | "people_reached" | "yeses_won" | "stops_recorded" | "steps_overdue" | "steps_due_today" | "email_stopped_now" | "said_yes_messages" | "can_receive_offers" | "opted_out_now" | "quiet_now" | "emails_written" | "emails_landed" | "emails_bounced" | "people_sent_to" | "people_wrote_back" | "runs_waiting" | "runs_failed" | "campaign_replies_waiting" | "templates_paused" | "number_health";
 interface ReportTileVM {
     id: string;
     /** The figure this tile says: one id, declared by the builder of the tile. */
@@ -118,6 +121,19 @@ interface MixPartVM {
     rows: ReportBarVM[];
     line: string | null;
     empty: string | null;
+}
+/**
+ * A bar that is a rate: the share it is of, the words that say what it is of, and the count it is of (`n`: the sends that have had
+ * their time, the businesses an opening was the last email to) with the fewest that say anything (`minN`), so the page greys a bar of
+ * fewer than five (D9). The Campaigns lens's messages and its reach-outs' angles are both these.
+ */
+interface RateRowVM {
+    id: string;
+    label: string;
+    value: number;
+    display: string;
+    n: number;
+    minN: number;
 }
 
 /** The receptionist's held drafts of a period by what became of each; `total` is all of them, `low_confidence` those held for a look. */
@@ -305,6 +321,15 @@ declare function toReceptionistReportVM(dto: ReceptionistDto, opts: {
 }): ReceptionistReportVM;
 
 /**
+ * A reach-out's hand step (Reach out Part 5, G20): a chain's last step may hand each lead it reaches to the team instead
+ * of writing to them, as a call to make or a note, a dated step on the lead's person due the day the step runs. Its
+ * shape is the database's (00228 playbooks.hand); its words are here.
+ */
+/** What a hand step hands over: a call to make, or a note. */
+declare const HAND_KINDS: readonly ["call", "note"];
+type HandKind = (typeof HAND_KINDS)[number];
+
+/**
  * Reports › People — the book as it stands now, counted over the people pool by People's own rules.
  *
  * The window of the lens (who reached the business, how they came, what they answered) is the database's, counted over
@@ -488,4 +513,533 @@ declare const PEOPLE_RHYTHM_UNIT = "messages and calls";
 declare const PEOPLE_RHYTHM_EMPTY = "Nobody wrote or called in this period.";
 declare const FIRST_CAME_NOBODY = "Nobody new reached you in this period.";
 
-export { FIRST_CAME_NOBODY, type MixPartVM, PEOPLE_RHYTHM_EMPTY, PEOPLE_RHYTHM_UNIT, type PeopleFigureVM, type PeopleReportVM, type ReceptionistFigureVM, type ReceptionistReportVM, metricWordsOf, toPeopleReportVM, toReceptionistReportVM };
+interface ReachOutReportCounts {
+    /** Emails that left (a business with three is three). */
+    written: number;
+    delivered: number;
+    bounced: number;
+    /**
+     * The businesses written to, each once, at its last email of the period (00398): the population wrote back, interested,
+     * booked and said no are counts of, so a share of them is of this, never of `written`. Absent on a database before 00398.
+     */
+    businesses?: number;
+    wrote_back: number;
+    interested: number;
+    booked: number;
+    said_no: number;
+    handed: number;
+}
+interface ReachOutReportStepDto extends ReachOutReportCounts {
+    id: string;
+    n: number;
+    hand: HandKind | null;
+}
+interface ReachOutReportChainDto {
+    root_id: string;
+    name: string;
+    state: string;
+    search: {
+        id: string;
+        name: string;
+    } | null;
+    last_at: string | null;
+    runs: number;
+    steps: ReachOutReportStepDto[];
+}
+interface ReachOutReportDomainDto {
+    /** Null for the emails of a domain since removed. */
+    host: string | null;
+    state: string | null;
+    held_why: string | null;
+    held_at: string | null;
+    sent: number;
+    delivered: number;
+    /** Permanent bounces, the domain's own rule (00220 sending_domain_counts). */
+    bounced: number;
+    complained: number;
+}
+/** What `reach_out_report(tenant, days)` answers (00241). */
+interface ReachOutReportDto {
+    timezone: string;
+    days: number;
+    today: string;
+    /** The report's last day (00360): today for a period by name, an earlier day for days a member picked. */
+    end?: string;
+    since: string;
+    /** The workspace has a reach-out at all: the section is drawn only then. */
+    has_reach_out: boolean;
+    totals: ReachOutReportCounts;
+    /** What the period before (the same count of days, ending the day before `since`) wrote: emails only, outcomes being state now (00398). */
+    before?: {
+        written: number;
+        delivered: number;
+        bounced: number;
+    };
+    series: Array<{
+        day: string;
+        written: number;
+    }>;
+    chains: ReachOutReportChainDto[];
+    /** `businesses` (00398): the businesses whose last email had this angle; absent on a database before it. */
+    angles: Array<{
+        angle: string;
+        written: number;
+        businesses?: number;
+        wrote_back: number;
+    }>;
+    other_angles: {
+        written: number;
+        businesses?: number;
+        wrote_back: number;
+    };
+    no_angle: number;
+    domains: ReachOutReportDomainDto[];
+}
+/** A domain's row in the Reach-outs part (H5): its state in words, and how its emails landed, as shares the lens words. */
+interface ReachOutDomainRow {
+    id: string;
+    host: string;
+    state: string;
+    held: boolean;
+    sent: number;
+    landed: string;
+    bounced: string;
+    complained: string;
+}
+
+/**
+ * A line of the sources table: a reach-out, then each of its steps on its own line. Every cell is words, in businesses
+ * where it is a share of an outcome.
+ */
+interface ReachOutLensSourceLine {
+    id: string;
+    kind: "chain" | "step";
+    name: string;
+    meta: string;
+    /** The chain's row on Playbooks, for a reach-out's line. */
+    to: string | null;
+    /** Emails written. */
+    written: string;
+    /** Emails landed: a share of the emails written, from five. */
+    delivered: string;
+    /** Businesses written to, each once at its last email. */
+    businesses: string;
+    /** Businesses that wrote back: a share of the businesses, from five. */
+    wroteBack: string;
+    interested: string;
+    booked: string;
+    saidNo: string;
+    bounced: string;
+    last: string;
+}
+interface ReachOutLensVM {
+    /** Draw the part: the workspace has a reach-out. */
+    present: boolean;
+    /** Nothing was written or handed in the period. */
+    empty: boolean;
+    days: number;
+    /** As the database gave them (`businesses` absent before 00398). */
+    totals: ReachOutReportCounts;
+    /** [emails written, landed, bounced] */
+    strip: ReportStripTile[];
+    /** Written, delivered, bounced: emails. */
+    emails: MixPartVM;
+    /** Written to, wrote back, interested, booked, said no: businesses. */
+    businesses: MixPartVM;
+    /**
+     * The share of the businesses whose last email had each angle that wrote back. A bar is a rate: `n` is the businesses it is of
+     * and `minN` the fewest that say anything, so the page greys a bar of fewer than five (D9, as the messages' rates are).
+     */
+    angles: {
+        rows: RateRowVM[];
+        line: string | null;
+        empty: string | null;
+    };
+    domains: ReachOutDomainRow[];
+    /** A day written, with what a screen reader says of it (`writtenWords`). */
+    points: Array<{
+        day: string;
+        label: string;
+        short: string;
+        written: number;
+        writtenWords: string;
+    }>;
+    table: {
+        columns: string[];
+        rows: Array<Array<string | number>>;
+    };
+    /** A line a reach-out and a line a step under it, in businesses. */
+    sources: ReachOutLensSourceLine[];
+    /** `sources` is the line under the sources table: each business counts once, and what came of it is as it stands now. */
+    lines: {
+        written: string;
+        domains: string;
+        empty: string;
+        sources: string;
+    };
+}
+/** The Reach-outs part's own words, from the report the route answers (and the period before it, where there is one). */
+declare function toReachOutLensVM(raw: ReachOutReportDto, nowMs?: number): ReachOutLensVM;
+
+/**
+ * Reports › Campaigns — what the campaigns sent and what came of it, as facts.
+ *
+ * Messages sent by broadcasts and playbook runs, each channel's own delivered
+ * receipts (and WhatsApp's read receipts), who wrote back afterwards, and the people who said
+ * yes or asked to stop — over the period and the one before it, and the
+ * current period by source and by the channel each went by (0030). Every number is a count over columns; the
+ * shares are counts over counts; nothing is scored or estimated. A read is a share of WhatsApp's own sends alone:
+ * a text or an email keeps no read receipt. Colors are the page's.
+ */
+
+interface CampaignDayDto {
+    day: string;
+    sent: number;
+    delivered: number;
+    read: number;
+    replied: number;
+    opt_ins: number;
+    opt_outs: number;
+}
+interface CampaignSourceDto {
+    id: string;
+    kind: "playbook" | "broadcast";
+    name: string;
+    template_name: string | null;
+    runs: number;
+    sent: number;
+    delivered: number;
+    read: number;
+    replied: number;
+    last_at: string | null;
+}
+/** One channel's part of the current period (`campaign_series.by_channel`, 0030): a row naming none went by WhatsApp. */
+interface CampaignChannelDto {
+    channel: string;
+    sent: number;
+    delivered: number;
+    read: number;
+    replied: number;
+}
+/** What `campaign_series(tenant, days)` returns. `series` spans TWO periods, newest last; `sources` is the current one. */
+interface CampaignReportDto {
+    timezone: string;
+    days: number;
+    span_days: number;
+    today: string;
+    series: CampaignDayDto[];
+    sources: CampaignSourceDto[];
+    /** The current period by channel, the most sent first (0030); absent from a database before it. */
+    by_channel?: CampaignChannelDto[];
+    error?: string;
+}
+/** A channel a campaign sends on, in a report's own words for it (REPORT_CHANNELS): WhatsApp, a text, an email. */
+type CampaignChannelKey = Exclude<ReportChannelKey, "voice">;
+/** One channel's figures in the period, as the Campaigns lens draws them (0030). */
+interface CampaignChannelVM {
+    channel: CampaignChannelKey;
+    label: string;
+    sent: number;
+    delivered: number;
+    deliveredPct: number | null;
+    /** WhatsApp's alone, of its own sends: no other channel keeps a read receipt, so any other's is null, never a zero. */
+    read: number | null;
+    readPct: number | null;
+    replied: number;
+    repliedPct: number | null;
+    /** What its bar says beside it: what it sent, and how much of it was delivered (a share from five sends, else the count: shareSaid). */
+    display: string;
+}
+interface CampaignPointVM {
+    day: string;
+    label: string;
+    short: string;
+    sent: number;
+    delivered: number;
+    replied: number;
+    optIns: number;
+    optOuts: number;
+    /** What a screen reader hears of the day's column: the day and what it sent. */
+    sentWords: string;
+    /** What the column's pointer adds under its number: the messages of the day that were answered; null where none were. */
+    answeredWords: string | null;
+}
+interface CampaignSourceVM {
+    id: string;
+    kind: "playbook" | "broadcast";
+    kindLabel: string;
+    name: string;
+    templateName: string | null;
+    /** The template's words for people; the page may swap in the workspace's own title. */
+    template: string;
+    runs: number;
+    sent: number;
+    delivered: number;
+    read: number;
+    replied: number;
+    deliveredPct: number | null;
+    repliedPct: number | null;
+    /** What the table says of its delivered share: a percentage from five sends, else the count ("3 of 4"); a dash for none (shareSaid). */
+    deliveredWords: string;
+    /** What it says of the messages answered: a percentage with the count from five sends, else the count ("1 of 3"); a dash for none. */
+    repliedWords: string;
+    lastLabel: string;
+}
+interface CampaignTotals {
+    sent: number;
+    delivered: number;
+    /** WhatsApp's read receipts over the period (Campaigns' home draws them in its funnel). */
+    read: number;
+    /**
+     * The sends a read is a share of: WhatsApp's own (0030), the one channel that keeps read receipts; every send from a
+     * database before the channels were counted, as it always was.
+     */
+    readOf: number;
+    replied: number;
+    sends: number;
+    optIns: number;
+    optOuts: number;
+}
+interface CampaignReportVM {
+    days: number;
+    points: CampaignPointVM[];
+    totals: CampaignTotals;
+    /** The period before's messages sent, delivered and answered, and its yeses and stops: what the lens's strip sets this period beside. */
+    before: {
+        sent: number;
+        delivered: number;
+        replied: number;
+        optIns: number;
+        optOuts: number;
+    };
+    sources: CampaignSourceVM[];
+    /** Nothing went out and nobody answered about offers: no send, no yes, no stop. */
+    empty: boolean;
+    table: {
+        columns: string[];
+        rows: (string | number)[][];
+    };
+    /** The channels that sent in the period, the most first (0030): the lens draws them where more than one did. */
+    channels: CampaignChannelVM[];
+    /**
+     * The channels' figures as a table: each one's sent, delivered, read (WhatsApp's alone) and replies. A read that is no
+     * figure is null: the kit's table draws its own dash, and its CSV an empty cell.
+     */
+    channelTable: {
+        columns: string[];
+        rows: (string | number | null)[][];
+    };
+    /**
+     * The one sentence under each campaign card: how many runs sent it (null with none), and what a read is, where more than
+     * one channel sent (null otherwise). The funnel's sentence and the figures are the Campaigns lens's own (campaigns/campaign-lens.ts).
+     */
+    lines: {
+        sent: string | null;
+        channels: string | null;
+    };
+}
+
+/** The people a period's runs sent to, and how many of them wrote back: a person once, however many runs sent to them. */
+interface PeopleCountsDto {
+    sent_to: number;
+    wrote_back: number;
+}
+/** The runs of a period that sent, by kind. A reach-out step's run is never here: its people are reach_out_sends. */
+interface RunCountsDto {
+    moment: number;
+    broadcast: number;
+}
+/** Messages that failed after they were sent, for one cause: the channel they went by and the provider's code, or with none one word of a closed set. */
+interface FailedSendDto {
+    channel: string;
+    code: number | null;
+    kind: string | null;
+    n: number;
+}
+/** One message's sends in the window (by the run's template and language), the ones whose reply window is over, and the answered of those. */
+interface ByMessageDto {
+    name: string;
+    language: string;
+    sent: number;
+    mature: number;
+    replied: number;
+}
+/** campaign_ledger's own answer (00399): counts, and the business's own template names; never a person's name, number or address. */
+interface CampaignLedgerSeriesDto {
+    timezone: string;
+    /** The workspace's day in that zone when the read was made: "2026-10-06". */
+    today: string;
+    /** The window's last day (00360): today for a period by name, an earlier day for days a member picked. */
+    end?: string;
+    days: number;
+    /** The window (`now`) and the same number of days before it (`before`); `counting` are the people whose reply window is not over. */
+    people: {
+        now: PeopleCountsDto & {
+            counting: number;
+        };
+        before: PeopleCountsDto;
+    };
+    runs: {
+        now: RunCountsDto;
+        before: RunCountsDto;
+    };
+    /** People a run did not send to, dated by the run, by a reason of ours (`other` where the database held none). */
+    held: {
+        total: number;
+        skipped: number;
+        failed: number;
+        by_reason: Record<string, number>;
+    };
+    /** The runs that failed or were canceled, the failed by their code. */
+    stopped: {
+        failed: number;
+        canceled: number;
+        by_failure: Record<string, number>;
+    };
+    failed_sends: {
+        total: number;
+        by_code: FailedSendDto[];
+    };
+    /** The twenty messages with most sends. */
+    by_message: ByMessageDto[];
+    /** The window's answered sends, by the seconds to the first answer. */
+    first_reply: {
+        n: number;
+        median_s: number | null;
+        buckets: {
+            m15: number;
+            h1: number;
+            h4: number;
+            h24: number;
+            h72: number;
+        };
+    };
+    /** The approvals made in the window, by the seconds from the run's being made to the decision. */
+    approval: {
+        n: number;
+        median_s: number | null;
+        buckets: {
+            h1: number;
+            h4: number;
+            h24: number;
+            over: number;
+        };
+    };
+}
+/** The connected WhatsApp number, as the lens says it: none connected, one that could not be read, or its health and when it was last checked. */
+type CampaignNumberDto = {
+    state: "none";
+} | {
+    state: "unread";
+} | {
+    state: "read";
+    tone: "ok" | "warn" | "danger" | "unknown";
+    can_send: boolean;
+    label: string;
+    checked_at: string | null;
+};
+/** What is stuck in the workspace's campaigns now, judged. A `capped` list reached the 500 the database lists: its count is at least that. */
+interface CampaignStuckNowDto {
+    /** Runs waiting for an OK; `late` are those the verb that approves them would refuse (their day has passed). */
+    waiting: {
+        n: number;
+        late: number;
+        oldest_at: string | null;
+        capped: boolean;
+    };
+    failed: {
+        n: number;
+        latest: {
+            name: string;
+            failure: string;
+            at: string;
+        } | null;
+        capped: boolean;
+    };
+    /** People who answered a campaign and whose thread waits on a person, the workspace's. */
+    replies: {
+        n: number;
+        oldest_at: string | null;
+        capped: boolean;
+    };
+    /** Every template Meta stopped, and the first three. */
+    templates: {
+        n: number;
+        items: Array<{
+            name: string;
+            language: string;
+            status: "paused" | "disabled" | "rejected";
+        }>;
+    };
+    number: CampaignNumberDto;
+}
+/**
+ * What the route answers (the reader's body). `series` is null where the database has no campaign_ledger yet and `stuck`
+ * where it has no campaign_stuck, or where that read failed (`stuck_failed`, set only then: a function a database lacks is
+ * not a failure).
+ */
+interface CampaignLedgerDto {
+    timezone: string;
+    today: string;
+    end?: string;
+    days: number;
+    series: CampaignLedgerSeriesDto | null;
+    stuck: CampaignStuckNowDto | null;
+    stuck_failed?: true;
+}
+
+/** The lens's reads, by the part of the page each feeds. */
+type ReadPart = "campaigns" | "ledger" | "stuck" | "reach_outs";
+
+/** The three reads: the sends, the ledger the route answers (null where it failed), and the reach-outs (undefined in the demo). */
+interface CampaignLensInput {
+    campaigns: CampaignReportDto | null;
+    ledger: CampaignLedgerDto | null;
+    reachOuts: ReachOutReportDto | null | undefined;
+}
+/** A figure of the lens: the strip's tile, with the count a share is of (`n`), the page a count opens (`door`) and the tone of its number where it has them. */
+type CampaignFigureVM = ReportStripTile;
+interface CampaignLensVM {
+    /** The lens's sentence; null where the sends could not be read. */
+    head: string | null;
+    /** How each read went: `missing` is a function the database lacks (no failure, no words), `none` the reach-outs of a demo. */
+    reads: {
+        campaigns: "ok" | "failed";
+        ledger: "ok" | "missing" | "failed";
+        stuck: "ok" | "missing" | "failed";
+        reachOuts: "ok" | "failed" | "none";
+    };
+    /** One entry for each read that failed, with what stands. */
+    failed: Array<{
+        part: ReadPart;
+        what: string;
+        body: string;
+    }>;
+    /** Nothing went out, nothing was held, no run stopped and nobody answered: the lens draws one card, and what is stuck and the reach-outs. */
+    quiet: boolean;
+    /** The existing fold of the sends: the days, the channels, the sources and the tables. */
+    report: CampaignReportVM | null;
+    /** [people sent to, delivered, wrote back, said yes, asked to stop]; three without the ledger. */
+    strip: CampaignFigureVM[];
+    funnel: MixPartVM;
+    held: MixPartVM;
+    stopped: MixPartVM;
+    failedWhy: MixPartVM;
+    byMessage: {
+        rows: RateRowVM[];
+        line: string | null;
+        empty: string | null;
+    };
+    /** "From 12 campaign runs and 2 one-off broadcasts." */
+    runsLine: string | null;
+    firstReply: MixPartVM;
+    approval: MixPartVM;
+    /** [runs waiting, failed runs, replies waiting, messages Meta stopped, your number]; empty where not read. */
+    stuck: CampaignFigureVM[];
+    /** Null where the reach-outs were not read or failed. */
+    reachOuts: ReachOutLensVM | null;
+}
+/** The Campaigns lens's parts, in words, from its three reads and the clock. */
+declare function toCampaignLensVM(input: CampaignLensInput, nowMs: number): CampaignLensVM;
+
+export { type CampaignFigureVM, type CampaignLensInput, type CampaignLensVM, FIRST_CAME_NOBODY, type MixPartVM, PEOPLE_RHYTHM_EMPTY, PEOPLE_RHYTHM_UNIT, type PeopleFigureVM, type PeopleReportVM, type RateRowVM, type ReachOutLensSourceLine, type ReachOutLensVM, type ReceptionistFigureVM, type ReceptionistReportVM, metricWordsOf, toCampaignLensVM, toPeopleReportVM, toReachOutLensVM, toReceptionistReportVM };

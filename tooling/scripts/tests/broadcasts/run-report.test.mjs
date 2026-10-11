@@ -170,6 +170,94 @@ test("the latest answer inside the window is the one that stands: a yes, then a 
   assert.equal(d.recipients[0].consent_at, at(5 * H));
 });
 
+// The sheet's answers are the rule contracts' `answersToRuns` states (broadcasts/run-answers.ts), which Reports › Campaigns and
+// the Campaigns home count by too (00397). Its own cases are tooling/scripts/tests/reports/campaigns/run-answers.test.mjs;
+// these are three of what it changed on this page: a merge, an erased person, an unsubscribe past the window.
+const D = 24 * H;
+
+test("a merge's restated answer is no answer on a run's sheet", async () => {
+  // Merging two people writes the kept person's consent again, saying where it came from: the person said nothing.
+  const merged = (consent) => ({ data: { consent, source: "merge" } });
+  const world = {
+    broadcasts: [bRow()],
+    broadcast_recipients: [rec("c-merged"), rec("c-yes-then-merge"), rec("c-own-words")],
+    messages: [],
+    events: [
+      ev("c-merged", "opted_in", H, merged("opted_in")),
+      ev("c-merged", "opted_out", 2 * H, merged("opted_out")),
+      ev("c-yes-then-merge", "opted_in", H, { data: { consent: "opted_in", source: "in_person" } }),
+      ev("c-yes-then-merge", "opted_out", 2 * H, merged("opted_out")),
+      ev("c-own-words", "opted_out", H, { data: { consent: "opted_out", source: "customer_message" } }),
+    ],
+  };
+  const d = await getBroadcast({ supabase: fakeDb(world) }, TID, B);
+  const by = Object.fromEntries(d.recipients.map((r) => [r.contact_id, [r.consent_after, r.consent_at]]));
+  assert.deepEqual(by["c-merged"], [null, null], "a merge restating a yes and a stop: nobody answered");
+  assert.deepEqual(by["c-yes-then-merge"], ["opted_in", at(H)], "the merge after a yes does not take it back");
+  assert.deepEqual(by["c-own-words"], ["opted_out", at(H)], "their own words are still an answer");
+});
+
+test("an unsubscribe a week after an email run is on that run's sheet, as the email's person's answer", async () => {
+  // The one-click unsubscribe names the email it was in (00174): that email's run is what it answers, however late.
+  const unsubscribe = (key, over = {}) => ({
+    data: { consent: "opted_out", purpose: "email_marketing", source: "unsubscribe", ...key },
+    ...over,
+  });
+  const world = {
+    broadcasts: [bRow()],
+    broadcast_recipients: [
+      rec("c-mail", { channel: "email", message_id: "msg-mail" }),
+      rec("c-no-key", { channel: "email", message_id: "msg-no-key" }),
+      rec("c-inbox", { channel: "email", message_id: "msg-inbox-run" }),
+      rec("c-wa", {
+        channel: "whatsapp",
+        messages: { conversation_id: "cv-c-wa", status: "delivered", meta: {}, external_id: "wamid.run" },
+      }),
+    ],
+    messages: [],
+    events: [
+      ev("c-mail", "opted_out", 7 * D, unsubscribe({ message_id: "msg-mail" })),
+      ev("c-no-key", "opted_out", 7 * D, unsubscribe({})), // no key, and a week past the window: not this run's
+      ev("c-inbox", "opted_out", 7 * D, unsubscribe({ message_id: "msg-of-an-inbox-email" })), // an email of no run
+      // A carrier's stop names the text it refused (the provider's id), here for the run's WhatsApp message, two weeks on.
+      ev("c-wa", "opted_out", 14 * D, {
+        data: { consent: "opted_out", source: "carrier", message_external_id: "wamid.run" },
+      }),
+    ],
+  };
+  const d = await getBroadcast({ supabase: fakeDb(world) }, TID, B);
+  const by = Object.fromEntries(
+    d.recipients.map((r) => [r.contact_id, [r.consent_after, r.consent_purpose, r.consent_at]]),
+  );
+  assert.deepEqual(by["c-mail"], ["opted_out", "email_marketing", at(7 * D)]);
+  assert.deepEqual(
+    by["c-no-key"],
+    [null, null, null],
+    "without its key a week-old unsubscribe is nobody's answer to this run",
+  );
+  assert.deepEqual(by["c-inbox"], [null, null, null], "a key that finds no send of this run is no answer to it");
+  assert.deepEqual(by["c-wa"], ["opted_out", "conversational", at(14 * D)]);
+  const vm = C.toRunReportVM(d, { windowMs: C.REPLY_WINDOW_MS, nowMs: Date.parse(at(15 * D)) });
+  assert.equal(vm.groups.stopped, 2, "the run's figures count them");
+});
+
+test("an erased person's answer is not on the sheet", async () => {
+  const gone = { display_name: null, wa_profile_name: null, phone_e164: null, email: null };
+  const world = {
+    broadcasts: [bRow()],
+    broadcast_recipients: [
+      rec("c-live", { contacts: { ...gone, display_name: "Live", erased_at: null, merged_into_contact_id: null } }),
+      rec("c-erased", { contacts: { ...gone, erased_at: at(H), merged_into_contact_id: null } }),
+      rec("c-merged-away", { contacts: { ...gone, erased_at: null, merged_into_contact_id: "c-live" } }),
+    ],
+    messages: [],
+    events: [ev("c-live", "opted_in", H), ev("c-erased", "opted_in", H), ev("c-merged-away", "opted_out", H)],
+  };
+  const d = await getBroadcast({ supabase: fakeDb(world) }, TID, B);
+  const by = Object.fromEntries(d.recipients.map((r) => [r.contact_id, r.consent_after]));
+  assert.deepEqual(by, { "c-live": "opted_in", "c-erased": null, "c-merged-away": null });
+});
+
 test("what came back: each reply in its own words, who answered it first and when, and whether its thread waits on a person now", async () => {
   const msg = (conversation_id, direction, sender, ms, body, over = {}) => ({
     id: `m-${conversation_id}-${direction}-${ms}`,

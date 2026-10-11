@@ -65,15 +65,17 @@ const cday = (d, over = {}) => ({
   opt_outs: 0,
   ...over,
 });
-const campaigns = (sources) =>
-  toCampaignReportVM({
+/** What the fact reads of the Campaigns lens's own read: the sources the sends' report folds to, and nothing else of it. */
+const campaigns = (sources) => ({
+  sources: toCampaignReportVM({
     timezone: "UTC",
     days: 7,
     span_days: 14,
     today: "2026-09-04",
     series: DAYS.map((d) => cday(d)),
     sources,
-  });
+  }).sources,
+});
 const source = (id, kind, name, sent, replied) => ({
   id,
   kind,
@@ -205,7 +207,13 @@ test("the campaign that drew the most replies, and for the same replies the one 
   ]);
   const c = reportFacts(report(), cm).find((x) => x.id === "campaign");
   assert.equal(c.text, "September offer drew the most replies");
-  assert.equal(c.sub, "9 of 24 wrote back");
+  // The replies are messages answered, as the Campaigns lens and its funnel say them (people write back; a message is answered).
+  assert.equal(c.sub, "9 of 24 were answered");
+  const one = reportFacts(report(), campaigns([source("p1", "playbook", "Win-back", 40, 1)])).find(
+    (x) => x.id === "campaign",
+  );
+  assert.equal(one.sub, "1 of 40 was answered", "the verb agrees with the count");
+  assert.doesNotMatch(JSON.stringify([c, one]), /wrote back/);
   assert.deepEqual(c.door, { label: "Open it", to: "broadcasts/run:b1" });
   const tied = campaigns([
     source("p1", "playbook", "Win-back", 40, 6),
@@ -214,6 +222,18 @@ test("the campaign that drew the most replies, and for the same replies the one 
   const t = reportFacts(report(), tied).find((x) => x.id === "campaign");
   assert.equal(t.text, "Quiet for a month drew the most replies", "six replies from twelve beat six from forty");
   assert.deepEqual(t.door, { label: "Open it", to: "outbound/p2" });
+});
+
+test("the campaign fact reads the sources of the Campaigns lens's own read alone, and says nothing before it lands, where it failed, or where none was answered", () => {
+  const none = (cm) => reportFacts(report(), cm).find((x) => x.id === "campaign");
+  assert.equal(none(null), undefined, "a read still out, failed or missing: null");
+  assert.equal(none({ sources: [] }), undefined, "a read with no source: the empty list");
+  assert.equal(
+    none(campaigns([source("p1", "playbook", "Win-back", 40, 0)])),
+    undefined,
+    "a source nobody answered is not the one that drew the most replies",
+  );
+  assert.equal(none(campaigns([source("p1", "playbook", "Win-back", 40, 3)])).text, "Win-back drew the most replies");
 });
 
 test("a channel whose share moved ten points or more", () => {

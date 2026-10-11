@@ -134,6 +134,8 @@ export {
   reachBarWords,
 } from "./preview-by-channel";
 export type { PreviewVersions, PreviewOn, ReachBarPart } from "./preview-by-channel";
+export { answersToRuns } from "./run-answers";
+export type { AnswerSend, AnswerEvent, AnswerPurpose, RunAnswer } from "./run-answers";
 export { READY_WHATSAPP_ALONE, readyOrWhatsApp, answeredYes, personReachOf } from "./reach-any";
 export type { PersonReach } from "./reach-any";
 export { CHANNELS_DOOR, channelsStandingParts, channelsStandingWords } from "./channels-standing";

@@ -429,6 +429,28 @@ async function bookOf(rc: ReaderContext): Promise<PeopleNowDto | null> {
 }
 
 /**
+ * The window as the route asked it, dated in the workspace's zone (the turn's), for an answer with no series to carry its
+ * own: People's and the Campaigns ledger's on a database without their function. A zone that cannot be read is the product's
+ * default, never the route's failure: what is still answered is judged in it. (The Receptionist's reader starts the zone's
+ * read with its other two and lets a failure of it fail the read, so it builds its own head.)
+ */
+export async function askedHead(
+  rc: ReaderContext,
+  window: ReportWindow,
+): Promise<{ timezone: string; today: string; end?: string; days: number }> {
+  const timezone = await load(rc, facts.facts, undefined).then(
+    (f) => f.data.timezone,
+    () => DEFAULT_TIMEZONE,
+  );
+  return {
+    timezone,
+    today: zoneDayKey(rc.now.getTime(), timezone),
+    ...(window.end !== null && { end: window.end }),
+    days: window.days,
+  };
+}
+
+/**
  * GET reports/people, as the route answers it: who reached the business over `days` and the same number of days before
  * them, which one SECURITY INVOKER function counts in the workspace's own zone (peopleSeries: by the wire they used, how
  * the new ones first came, the yeses and stops they gave, the addresses that stopped working, the steps done on time), and
@@ -451,16 +473,7 @@ export const peopleReport: Reader<ReportWindow, PeopleDto> = {
       // The zone the book was counted in, which the turn holds: asked again only if that read failed, and if it fails
       // again the answer carries the product's default zone, which nothing reads of an answer with neither half (the
       // page draws its kept cards, Ask says `available: false`).
-      const timezone = await load(rc, facts.facts, undefined).then(
-        (f) => f.data.timezone,
-        () => DEFAULT_TIMEZONE,
-      );
-      const head = {
-        timezone,
-        today: zoneDayKey(rc.now.getTime(), timezone),
-        ...(window.end !== null && { end: window.end }),
-        days: window.days,
-      };
+      const head = await askedHead(rc, window);
       return { data: peopleDtoOf(null, { now, head }), rows: [], stamp: stamp() };
     }
     if (!isPeopleSeriesDto(answer)) throw new AppError("not_found", "No workspace found for this report.", 404);

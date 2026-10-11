@@ -25,6 +25,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { isThinShare } from "@chanlytics/contracts";
 import { FAMILIES } from "../../e2e-harness/kit-gallery.mjs";
 import { again, fresh, installLegacyReact, press, textOf } from "../_legacy-react.mjs";
 import { Button } from "../../../../apps/dashboard/src/surfaces/kit/button/button.tsx";
@@ -789,6 +790,13 @@ test("Figure draws the gallery's Figure family: a term and its definitions, the 
     "of none there is no ratio: its dash and its line say why, and nothing is greyed",
   );
   assert.deepEqual(rows({ n: 0, minN: 5 }), ["figure-label", "figure-value"], "and no line says it is of none");
+  // The kit greys by contracts' one predicate (a bar of a rate and Ask's answer judge by it too): the two agree at 0, 4, 5 and beyond.
+  for (const n of [0, 1, 4, 5, 6])
+    assert.equal(
+      drawn(h(Figure, { label: "Calls", value: "3", n, minN: 5 })).props.className === "figure is-thin",
+      isThinShare(n, 5),
+      `n ${n}`,
+    );
   const thin = drawn(h(Figure, { label: "Calls", value: "3", n: 1, minN: 5 }))
     .props.children.filter(Boolean)
     .at(-1);

@@ -146,6 +146,7 @@
 .rpt-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; }
 .rpt-grid > .rpt-span-4 { grid-column: span 4; }
 .rpt-grid > .rpt-span-5 { grid-column: span 5; }
+.rpt-grid > .rpt-span-6 { grid-column: span 6; }
 .rpt-grid > .rpt-span-7 { grid-column: span 7; }
 .rpt-grid > .rpt-span-8 { grid-column: span 8; }
 .rpt-grid > .rpt-span-12 { grid-column: 1 / -1; }
@@ -192,15 +193,16 @@ a.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: var(--
 
 /* The strip: five figures (the kit's Figure) in one frame with hairline dividers, a list of terms and their values. --cells is how many
    stand in a row; a strip of fewer figures says what it is, not how many it holds: the listing's own figures (Google, before a Business
-   Profile is connected) and the answers Campaigns counts. */
+   Profile is connected), and what a lens could read of its own (the Campaigns lens's three without its ledger, two without its sends, one where a run count is also missing). */
 .rpt-figures { --cells: 5; display: grid; grid-template-columns: repeat(var(--cells), minmax(0, 1fr)); margin: 0; background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-lg); }
 .rpt-cell { padding: 12px 18px 13px; }
 .rpt-cell + .rpt-cell { border-left: 1px solid var(--line); }
 .rpt-figures.listing { --cells: 4; }
-.rpt-figures.answers { --cells: 2; }
 /* The Receptionist lens's: the four against the period before and the four steps after a reply, the three that wait on you. */
 .rpt-figures.quad { --cells: 4; }
 .rpt-figures.trio { --cells: 3; }
+.rpt-figures.duo { --cells: 2; }
+.rpt-figures.solo { --cells: 1; }
 
 /* ---------- inside the cards ---------- */
 .rpt-hours { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
@@ -270,7 +272,7 @@ a.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: var(--
   .rpt-head { position: static; flex: none; }
   .rpt-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin-inline: calc(-1 * var(--gutter-page)); padding: 12px var(--gutter-page) 40px; }
   .rpt-dates { display: none; }
-  .rpt-hero, .rpt-facts, .rpt-grid > .rpt-span-4, .rpt-grid > .rpt-span-5, .rpt-grid > .rpt-span-7, .rpt-grid > .rpt-span-8 { grid-column: 1 / -1; }
+  .rpt-hero, .rpt-facts, .rpt-grid > .rpt-span-4, .rpt-grid > .rpt-span-5, .rpt-grid > .rpt-span-6, .rpt-grid > .rpt-span-7, .rpt-grid > .rpt-span-8 { grid-column: 1 / -1; }
   .rpt-hero { padding: 18px; gap: 16px; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; }
   .rpt-hero-copy { display: contents; }
   .rpt-hero-lead { grid-column: 2; grid-row: 1; }
@@ -283,7 +285,7 @@ a.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: var(--
   .rpt-cell:nth-child(even) { border-left: 1px solid var(--line); }
   .rpt-cell:nth-child(n + 3) { border-top: 1px solid var(--line); }
   .rpt-cell:last-child { grid-column: 1 / -1; border-left: none; }
-  .rpt-figures.listing .rpt-cell:last-child, .rpt-figures.answers .rpt-cell:last-child { grid-column: auto; border-left: 1px solid var(--line); }
+  .rpt-figures.listing .rpt-cell:last-child, .rpt-figures.duo .rpt-cell:last-child { grid-column: auto; border-left: 1px solid var(--line); }
   /* Four stay two rows of two; three are two and one that takes the row, as any odd strip is. */
   .rpt-figures.quad .rpt-cell:last-child { grid-column: auto; }
   .rpt-figures.trio { --cells: 2; }

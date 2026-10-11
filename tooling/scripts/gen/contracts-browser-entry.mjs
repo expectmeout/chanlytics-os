@@ -40,6 +40,9 @@ export const PAGE_ONLY = [
   "reports/receptionist/receptionist-words.ts",
   "reports/people/people-report.ts",
   "reports/people/people-words.ts",
+  "reports/campaigns/reach-out-lens.ts",
+  "reports/campaigns/campaign-words.ts",
+  "reports/campaigns/campaign-lens.ts",
 ];
 /** The specifiers that load zod's classic API. zod/mini and zod/v4/core share its core and are cut by the bundler. */
 const CLASSIC_ZOD = new Set(["zod", "zod/v4", "zod/v4/classic"]);

@@ -12,7 +12,9 @@ var DATE_FMT = formatterOnUse([], { month: "short", day: "numeric" });
 // src/broadcasts/run-words.ts
 var REPLY_WINDOW_HOURS = 72;
 var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * HOUR_MS;
-var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
+var REPLY_DAYS = `${REPLY_WINDOW_HOURS / 24} days`;
+var REPLY_WINDOW_WORDS = `within ${REPLY_DAYS}`;
+var STUCK_DAYS = "30 days";
 var HELD_REASONS = {
   opted_out: "asked to stop",
   not_opted_in: "no recorded yes",
@@ -89,11 +91,9 @@ var METRIC_WORDS = {
   calls: "Calls to the receptionist that connected. A call that rang out or dropped before anyone spoke is not counted.",
   new_people: "People whose first message in their own words, or first connected call to you, fell in this period, counted once. A message you or the receptionist sent, an automatic reply or a list's mail, a call you placed, people brought in with their history, people who asked to be forgotten, and people who have not written or phoned yet are not counted.",
   booked: "Of the people who wrote or called in this period, how many have an appointment ahead on your calendar, or one that began no more than a day before they asked. It is a dash where no calendar is connected or it could not be read.",
-  messages_sent: "Messages your broadcasts and campaign runs sent in this period, on every channel, one for each person reached. A reply you or the receptionist wrote is not counted.",
   delivered_share: `Of the messages sent, the share the channel reports as delivered or read (${DELIVERY_RECEIPTS_WORDS}). A message with no receipt yet is not counted as delivered.`,
-  replied_share: `Of the messages sent, the share the person answered in their own words ${REPLY_WINDOW_WORDS}. A note the system wrote, and a program writing from their address, are not their words.`,
-  said_yes: "People who said yes to being messaged in this period, in their own words or recorded at the desk, counted once a day each.",
-  asked_to_stop: "People who asked to stop being messaged in this period, by STOP, an unsubscribe link or at the desk, counted once a day each.",
+  said_yes: `People who said yes to being messaged ${REPLY_WINDOW_WORDS} of a campaign or a broadcast reaching them, in their own words or recorded at the desk, counted once in the period. A yes with no campaign before it, a merge restating an answer and a person who asked to be forgotten are not counted.`,
+  asked_to_stop: `People who asked to stop being messaged ${REPLY_WINDOW_WORDS} of a campaign or a broadcast reaching them, by STOP, a carrier's report or at the desk, and for email by the unsubscribe in the message however late it is used, counted once in the period. A stop with no campaign before it, a merge restating an answer and a person who asked to be forgotten are not counted.`,
   rating: "Your Google rating as of the last check: the average of every rating Google holds for your listing, not only this period's.",
   reviews: "How many ratings Google counts for your listing as of the last check, with words or without.",
   ratings_gained: "How many ratings Google's count rose by in this period, from the daily checks Chanlytics keeps: new ratings, with words or without. It needs two days of readings.",
@@ -117,7 +117,17 @@ var METRIC_WORDS = {
   said_yes_messages: "People on your Said yes to messages list, as of now, whatever period is picked: the answer People shows them, whenever it was given. A person who has asked to stop since, one on do-not-contact, and one who has not answered are not counted.",
   can_receive_offers: "People on your Can receive offers list, as of now, whatever period is picked: they said yes to offers and can be reached on a channel you send on now. A yes with no number or address to send to, a channel you have not connected, and a person who asked to stop are not counted.",
   opted_out_now: "People on your Opted out list, as of now, whatever period is picked: they asked to stop being messaged, or are on do-not-contact, whenever that was. A person who has said yes again since and is not on do-not-contact is not counted.",
-  quiet_now: "People whose last message or call to you was more than 30 days ago, as of now, whatever period is picked. Your own messages are not theirs, and a person who has never written or phoned is not counted."
+  quiet_now: "People whose last message or call to you was more than 30 days ago, as of now, whatever period is picked. Your own messages are not theirs, and a person who has never written or phoned is not counted.",
+  emails_written: "Emails your reach-outs wrote in this period, one for each email that left, however many went to the same business. A call or a note handed to you, and an email that never left, are not counted.",
+  emails_landed: "Of the emails your reach-outs wrote in this period, the share the email provider reports as delivered. An email with no receipt yet is not counted as delivered.",
+  emails_bounced: "Emails your reach-outs wrote in this period that bounced for good: the address refused them and will go on refusing. A complaint, and an email that is only late, are not counted.",
+  people_sent_to: "People a campaign or a broadcast sent a message to in this period, counted once however many it sent them. A person a run held back, a message that failed before it left and a reach-out's email are not counted.",
+  people_wrote_back: `Of the people sent a message in this period, how many answered in their own words ${REPLY_WINDOW_WORDS}, on any channel, counted once. A note the system wrote, an automatic reply, a booking tool's notice and an answer that came later are not counted; people sent to in the last ${REPLY_DAYS} may still answer.`,
+  runs_waiting: "Runs waiting for your OK, as of now, whatever period is picked: a campaign, a broadcast or a reach-out step. A run you approved, skipped or that already went is not counted; one whose day has passed is counted, and can only be skipped.",
+  runs_failed: `Runs that ended as failed in the last ${STUCK_DAYS}, as of now, whatever period is picked: a campaign, a broadcast or a reach-out step. A run you canceled or skipped, and a person held back from a run that went, are not counted.`,
+  campaign_replies_waiting: `People who answered a campaign in the last ${STUCK_DAYS} whose conversation waits for a person, as of now, whatever period is picked. One a teammate or you have taken over, and one put aside until later, are not counted.`,
+  templates_paused: "WhatsApp messages Meta paused, turned off or rejected, as of now, whatever period is picked. A message hidden from the library and one only waiting for review are not counted.",
+  number_health: "How WhatsApp rates your sending number, its quality and what Meta holds against it, as of now, whatever period is picked. A text line and a mailbox are not counted."
 };
 var metricWordsOf = (metric) => METRIC_WORDS[metric];
 
@@ -129,8 +139,82 @@ function keyParts(key) {
   const [y, m, d] = key.split("-").map(Number);
   return { y, m: m ?? 1, d: d ?? 1 };
 }
+function shiftKey(key, n) {
+  const { y, m, d } = keyParts(key);
+  const at = new Date(Date.UTC(y, m - 1, d + n));
+  return `${at.getUTCFullYear()}-${String(at.getUTCMonth() + 1).padStart(2, "0")}-${String(at.getUTCDate()).padStart(2, "0")}`;
+}
 
 // src/shared/clock.ts
+var FORMATS = /* @__PURE__ */ new Map();
+function formatsFor(tz) {
+  const hit = FORMATS.get(tz);
+  if (hit) return hit;
+  let zone = tz || "UTC";
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: zone });
+  } catch {
+    zone = "UTC";
+  }
+  const made = {
+    zone,
+    time: new Intl.DateTimeFormat("en-US", { timeZone: zone, hour: "numeric", minute: "2-digit" }),
+    date: new Intl.DateTimeFormat("en-US", { timeZone: zone, month: "short", day: "numeric" }),
+    dateYear: new Intl.DateTimeFormat("en-US", { timeZone: zone, month: "short", day: "numeric", year: "numeric" }),
+    weekday: new Intl.DateTimeFormat("en-US", { timeZone: zone, weekday: "short" }),
+    parts: new Intl.DateTimeFormat("en-US", {
+      timeZone: zone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit"
+    })
+  };
+  FORMATS.set(tz, made);
+  return made;
+}
+var WALLS = /* @__PURE__ */ new Map();
+var WALLS_MAX = 2048;
+function wall(atMs, tz) {
+  const id = `${tz}|${atMs}`;
+  const hit = WALLS.get(id);
+  if (hit) return hit;
+  const p = {};
+  for (const x of formatsFor(tz).parts.formatToParts(new Date(atMs))) p[x.type] = x.value;
+  const made = {
+    key: `${p.year}-${p.month}-${p.day}`,
+    year: Number(p.year),
+    hh: Number(p.hour) % 24,
+    mm: Number(p.minute)
+  };
+  if (WALLS.size >= WALLS_MAX) WALLS.clear();
+  WALLS.set(id, made);
+  return made;
+}
+function zoneDayKey(atMs, tz) {
+  return wall(atMs, tz).key;
+}
+function clockDate(atMs, tz, nowMs) {
+  const f = formatsFor(tz);
+  return wall(atMs, tz).year === wall(nowMs, tz).year ? f.date.format(new Date(atMs)) : f.dateYear.format(new Date(atMs));
+}
+function daysBetween(fromKey, toKey) {
+  const at = (key) => Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, Number(key.slice(8, 10)));
+  return Math.round((at(toKey) - at(fromKey)) / DAY_MS);
+}
+function daysFromToday(atMs, tz, nowMs) {
+  return daysBetween(zoneDayKey(nowMs, tz), zoneDayKey(atMs, tz));
+}
+function clockNear(atMs, tz, nowMs) {
+  const gap = daysFromToday(atMs, tz, nowMs);
+  if (gap === 0) return "today";
+  if (gap === -1) return "yesterday";
+  if (gap === 1) return "tomorrow";
+  if (Math.abs(gap) <= 6) return formatsFor(tz).weekday.format(new Date(atMs));
+  return clockDate(atMs, tz, nowMs);
+}
 function durationWords(seconds) {
   const v = Math.max(0, Math.round(seconds));
   if (v < 60) return `${v}s`;
@@ -201,12 +285,19 @@ function hoursUnsetOf(arrivals, profile) {
   return arrivals !== void 0 && profile != null && !hasHours(profile.hours);
 }
 
+// src/shared/numbers.ts
+var sumOf = (xs) => xs.reduce((a, b) => a + b, 0);
+var pct = (n, of) => of > 0 ? Math.round(n / of * 100) : null;
+
 // src/shared/words.ts
 var plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 var capitalize = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
+var joinWords = (items) => items.length <= 1 ? items[0] ?? "" : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 
 // src/reports/report-tiles.ts
 var REPORT_MIN_N = 5;
+var isThinShare = (n, minN) => n > 0 && n < minN;
+var shareSaid = (share, count, of) => share === null ? null : of >= REPORT_MIN_N ? `${share}%` : `${count} of ${of}`;
 function fmtSeconds(s) {
   if (s == null || !Number.isFinite(s)) return "\u2014";
   return durationWords(s);
@@ -218,15 +309,50 @@ function compareWords(current, previous, rangeLabel, priorHadAny) {
   if (current === previous) return `same as ${beforeWords(rangeLabel)}`;
   return `${current > previous ? "up" : "down"} from ${previous}`;
 }
+function shareWasWords(nowOf, was, rangeLabel) {
+  if (nowOf === 0) return null;
+  const said = shareSaid(pct(was.part, was.of), was.part, was.of);
+  return said === null ? null : `was ${said} ${beforeWords(rangeLabel)}`;
+}
+var messagesAnsweredWords = (answered, of) => `${answered} of ${of} ${answered === 1 ? "was" : "were"} answered`;
 
 // src/reports/reports.ts
+var REPORT_CHANNELS = [
+  { key: "whatsapp", label: "WhatsApp" },
+  { key: "voice", label: "Calls" },
+  { key: "email", label: "Email" },
+  { key: "sms", label: "Text" }
+];
 var REPORT_RANGES = [
   { days: 7, id: "7d", label: "7 days" },
   { days: 30, id: "30d", label: "30 days" },
   { days: 90, id: "90d", label: "90 days" },
   { days: null, id: "month", label: "Month" }
 ];
+function dayDate(day) {
+  const [y, m, d] = day.split("-").map(Number);
+  return new Date(y, (m ?? 1) - 1, d ?? 1);
+}
+function fmtDay(day) {
+  return DATE_FMT.format(dayDate(day));
+}
+var daysWords = (from, to) => from === to ? fmtDay(to) : `${fmtDay(from)} \u2013 ${fmtDay(to)}`;
+var endedOn = (report) => report.end && report.end < report.today ? report.end : null;
+function dayPointOf(day) {
+  return { day, label: fmtDay(day), short: String(dayDate(day).getDate()) };
+}
 var rangeLabelOf = (days) => REPORT_RANGES.find((r) => r.days === days)?.label ?? plural(days, "day");
+var periodWords = (days, until) => {
+  const rangeLabel = rangeLabelOf(days);
+  const before = capitalize(beforeWords(rangeLabel));
+  if (until === null) return { now: `Last ${rangeLabel}`, before, within: `in the last ${rangeLabel}` };
+  return {
+    now: daysWords(shiftKey(until, -(days - 1)), until),
+    before,
+    within: days === 1 ? `on ${fmtDay(until)}` : `in the ${rangeLabel} to ${fmtDay(until)}`
+  };
+};
+var withinWords = (days, until) => days === 1 && until === null ? "today" : periodWords(days, until).within;
 
 // src/reports/report-mix.ts
 var ownWord = (words, key) => Object.hasOwn(words, key) ? words[key] : void 0;
@@ -859,11 +985,2144 @@ function toPeopleReportVM(dto) {
     ...now === null ? noBook() : bookOf(now)
   };
 }
+
+// src/email/sending-domains.ts
+var DAY_FMT = formatterOnUse("en-US", { month: "short", day: "numeric" });
+var REPUTATION_MEMORY_MS = 30 * 864e5;
+var HOLD_WORDS = {
+  verification: "it stopped verifying",
+  dmarc: "its DMARC record is missing",
+  bounces: "more than 2% of its recent emails bounced",
+  complaint: "someone marked an email from it as spam",
+  provider: "the mail provider no longer has it",
+  unsubscribes: "more than 2% of the people it wrote to unsubscribed"
+};
+function domainHoldWords(why) {
+  return why && HOLD_WORDS[why] || "it was held";
+}
+
+// src/playbooks/playbook-time.ts
+var SWEEP_TICK_MS = 5 * MIN_MS;
+
+// src/playbooks/playbook-triggers.ts
+var PLAYBOOK_TRIGGERS = [
+  { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
+  {
+    id: "new_week",
+    label: "Welcome",
+    list: "new_week",
+    cls: "campaign",
+    kind: "list",
+    hint: "First contact in the last 7 days"
+  },
+  {
+    id: "phoned_only",
+    label: "Save our number",
+    list: "phoned_only",
+    cls: "reengage",
+    kind: "list",
+    hint: "Only ever phoned, never texted"
+  },
+  {
+    id: "everyone_monthly",
+    label: "The month's offer",
+    list: null,
+    cls: "campaign",
+    kind: "cadence",
+    hint: "Everyone who said yes, on a cadence"
+  },
+  {
+    id: "visit_tomorrow",
+    label: "Appointment reminder",
+    list: null,
+    cls: "booking",
+    kind: "visit",
+    hint: "The day before an appointment on the calendar"
+  },
+  // Under the Booking row since 2 Oct 2026, as the reminder is: its message asks how the appointment went and offers
+  // nothing, so it reaches a yes to texts. The labels here are the default word's (contracts appointmentWords, D42); a
+  // page and a new campaign's name say the workspace's own (triggerWords), and a name already stored keeps its words
+  // until its owner renames it (D43). The id never changes.
+  {
+    id: "visited",
+    label: "After the appointment",
+    list: null,
+    cls: "booking",
+    kind: "visit",
+    hint: "The day after an appointment, when nothing is booked next"
+  },
+  // People's Lapsed list, by visits rather than silence (00155). Since 2 Oct 2026 it IS the win-back where a calendar is
+  // connected, and the quiet one is the win-back where none is: one moment, read the one way the workspace can
+  // (momentOffered), so both are called Win-back and their hints say which.
+  {
+    id: "lapsed",
+    label: "Win-back",
+    list: "lapsed",
+    cls: "reengage",
+    kind: "list",
+    hint: "No appointment in 45 days, and nothing booked"
+  },
+  // Any list (decision 0009): one of People's (list_key, 00168) or one of the workspace's own (list_id, 00155), kept by
+  // hand or by a rule; the card says which. The id stays: playbooks made before any list could be named keep running.
+  {
+    id: "saved_list",
+    label: "On a list",
+    list: null,
+    cls: "campaign",
+    kind: "saved",
+    hint: "Everyone on a list: one of People's, or one you keep"
+  },
+  // A proposal out that has waited past the workspace's pace with nothing back (0006): one nudge per proposal, with
+  // its link, under its own class, where deals are on. Conversational: it answers the person's own request.
+  {
+    id: "proposal_waiting",
+    label: "Proposal follow-up",
+    list: null,
+    cls: "follow_up",
+    kind: "deal",
+    hint: "A proposal waiting with nothing back"
+  },
+  // Reach out (Part 3): a chain's first email, over a lead search, and a step days after the one before it. Made by
+  // the reach-out sheet (Part 4), never offered among the moments (triggerOffered).
+  {
+    id: "lead_first",
+    label: "Businesses a search found",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "The first email of a reach-out"
+  },
+  {
+    id: "after_step",
+    label: "After the step before",
+    list: null,
+    cls: "outreach",
+    kind: "reach_out",
+    hint: "A nudge, days after the step before"
+  }
+];
+var MOMENT_TRIGGERS = PLAYBOOK_TRIGGERS.filter(
+  (t) => t.kind !== "reach_out"
+);
+var PLAYBOOK_HOURS = { min: 9, max: 20 };
+var PLAYBOOK_LIMITS = {
+  run_hour: { min: PLAYBOOK_HOURS.min, max: PLAYBOOK_HOURS.max, what: "The hour" },
+  cap_per_run: { min: 1, max: 500, what: "The cap" },
+  gap_days: { min: 7, max: 365, what: "The gap" },
+  cadence_days: { min: 1, max: 90, what: "The cadence" }
+};
+var SENDING_HOURS_WORDS = {
+  min: PLAYBOOK_HOURS.min,
+  max: PLAYBOOK_HOURS.max,
+  first: `${PLAYBOOK_HOURS.min}:00`,
+  range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
+  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
+};
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
+var PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
+function delayWords(ms) {
+  const minutes = Math.round(ms / MIN_MS);
+  if (minutes < 60 || minutes % 60) return plural(minutes, "minute");
+  return minutes === 60 ? "an hour" : plural(minutes / 60, "hour");
+}
+var PLAYBOOK_VETO_DELAY_WORDS = delayWords(PLAYBOOK_VETO_DELAY_MS);
+
+// src/templates/template-languages.ts
+var L = (id, name, region, native) => ({
+  id,
+  label: region ? `${name} (${region})` : name,
+  name,
+  region,
+  native
+});
+var WHATSAPP_LANGUAGES = [
+  L("af", "Afrikaans", null, "Afrikaans"),
+  L("sq", "Albanian", null, "Shqip"),
+  L("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("az", "Azerbaijani", null, "Az\u0259rbaycan"),
+  L("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
+  L("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
+  L("ca", "Catalan", null, "Catal\xE0"),
+  L("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
+  L("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
+  L("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
+  L("hr", "Croatian", null, "Hrvatski"),
+  L("cs", "Czech", null, "\u010Ce\u0161tina"),
+  L("da", "Danish", null, "Dansk"),
+  L("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
+  L("nl", "Dutch", null, "Nederlands"),
+  L("nl_BE", "Dutch", "Belgium", "Nederlands"),
+  L("en", "English", null, "English"),
+  L("en_AU", "English", "Australia", "English"),
+  L("en_CA", "English", "Canada", "English"),
+  L("en_GH", "English", "Ghana", "English"),
+  L("en_IN", "English", "India", "English"),
+  L("en_IE", "English", "Ireland", "English"),
+  L("en_JM", "English", "Jamaica", "English"),
+  L("en_MY", "English", "Malaysia", "English"),
+  L("en_NZ", "English", "New Zealand", "English"),
+  L("en_QA", "English", "Qatar", "English"),
+  L("en_SG", "English", "Singapore", "English"),
+  L("en_ZA", "English", "South Africa", "English"),
+  L("en_AE", "English", "UAE", "English"),
+  L("en_UG", "English", "Uganda", "English"),
+  L("en_GB", "English", "UK", "English"),
+  L("en_US", "English", "US", "English"),
+  L("et", "Estonian", null, "Eesti"),
+  L("fil", "Filipino", null, "Filipino"),
+  L("fi", "Finnish", null, "Suomi"),
+  L("fr", "French", null, "Fran\xE7ais"),
+  L("fr_BE", "French", "Belgium", "Fran\xE7ais"),
+  L("fr_CA", "French", "Canada", "Fran\xE7ais"),
+  L("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
+  L("fr_MA", "French", "Morocco", "Fran\xE7ais"),
+  L("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
+  L("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
+  L("de", "German", null, "Deutsch"),
+  L("de_AT", "German", "Austria", "Deutsch"),
+  L("de_CH", "German", "Switzerland", "Deutsch"),
+  L("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
+  L("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
+  L("ha", "Hausa", null, "Hausa"),
+  L("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
+  L("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
+  L("hu", "Hungarian", null, "Magyar"),
+  L("id", "Indonesian", null, "Bahasa Indonesia"),
+  L("ga", "Irish", null, "Gaeilge"),
+  L("it", "Italian", null, "Italiano"),
+  L("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
+  L("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
+  L("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
+  L("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
+  L("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
+  L("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
+  L("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
+  L("lv", "Latvian", null, "Latvie\u0161u"),
+  L("lt", "Lithuanian", null, "Lietuvi\u0173"),
+  L("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
+  L("ms", "Malay", null, "Bahasa Melayu"),
+  L("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
+  L("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
+  L("nb", "Norwegian", null, "Norsk bokm\xE5l"),
+  L("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
+  L("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
+  L("pl", "Polish", null, "Polski"),
+  L("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
+  L("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
+  L("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
+  L("ro", "Romanian", null, "Rom\xE2n\u0103"),
+  L("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
+  L("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
+  L("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
+  L("sk", "Slovak", null, "Sloven\u010Dina"),
+  L("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
+  L("es", "Spanish", null, "Espa\xF1ol"),
+  L("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
+  L("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
+  L("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
+  L("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
+  L("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
+  L("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
+  L("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
+  L("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
+  L("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
+  L("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
+  L("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
+  L("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
+  L("sw", "Swahili", null, "Kiswahili"),
+  L("sv", "Swedish", null, "Svenska"),
+  L("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
+  L("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
+  L("th", "Thai", null, "\u0E44\u0E17\u0E22"),
+  L("tr", "Turkish", null, "T\xFCrk\xE7e"),
+  L("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
+  L("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
+  L("uz", "Uzbek", null, "O\u02BBzbek"),
+  L("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
+  L("zu", "Zulu", null, "isiZulu")
+];
+var BY_ID = new Map(WHATSAPP_LANGUAGES.map((l) => [l.id.toLowerCase(), l]));
+var keyOf = (code) => String(code ?? "").trim().replace(/-/g, "_").toLowerCase();
+function templateLanguage(code) {
+  return BY_ID.get(keyOf(code)) ?? null;
+}
+function languageName(code) {
+  const known = templateLanguage(code);
+  if (known) return known.name;
+  const base = String(code ?? "").split(/[-_]/)[0];
+  const Names = Intl.DisplayNames;
+  try {
+    const name = base && Names ? new Names(["en"], { type: "language" }).of(base) : void 0;
+    return name && name !== base ? name : String(code ?? "");
+  } catch {
+    return String(code ?? "");
+  }
+}
+function languageLabel(code) {
+  return templateLanguage(code)?.label ?? languageName(code);
+}
+
+// src/leads/search/plan.ts
+var US_STATES = {
+  alabama: "AL",
+  alaska: "AK",
+  arizona: "AZ",
+  arkansas: "AR",
+  california: "CA",
+  colorado: "CO",
+  connecticut: "CT",
+  delaware: "DE",
+  "district of columbia": "DC",
+  florida: "FL",
+  georgia: "GA",
+  hawaii: "HI",
+  idaho: "ID",
+  illinois: "IL",
+  indiana: "IN",
+  iowa: "IA",
+  kansas: "KS",
+  kentucky: "KY",
+  louisiana: "LA",
+  maine: "ME",
+  maryland: "MD",
+  massachusetts: "MA",
+  michigan: "MI",
+  minnesota: "MN",
+  mississippi: "MS",
+  missouri: "MO",
+  montana: "MT",
+  nebraska: "NE",
+  nevada: "NV",
+  "new hampshire": "NH",
+  "new jersey": "NJ",
+  "new mexico": "NM",
+  "new york": "NY",
+  "north carolina": "NC",
+  "north dakota": "ND",
+  ohio: "OH",
+  oklahoma: "OK",
+  oregon: "OR",
+  pennsylvania: "PA",
+  "rhode island": "RI",
+  "south carolina": "SC",
+  "south dakota": "SD",
+  tennessee: "TN",
+  texas: "TX",
+  utah: "UT",
+  vermont: "VT",
+  virginia: "VA",
+  washington: "WA",
+  "west virginia": "WV",
+  wisconsin: "WI",
+  wyoming: "WY"
+};
+var US_CODES = new Set(Object.values(US_STATES));
+
+// src/config/policy.ts
+var CODES = "usd|eur|gbp|mxn|cad|aud|cop|ars|clp|pen|brl";
+var NAMES = "dollars?|bucks?|euros?|quid|pesos?|d[o\xF3]lares?|reales?";
+var COUNTRY = String.raw`(?:(?:u\.?s\.?|american|canadian|australian|mexican|argentine|colombian|chilean)\s+)?`;
+var EN_NUMBER = "(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)";
+var ES_NUMBER = "(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieci[a-z\xE9]+|veinte|veinti[a-z\xE9\xE1\xED\xF3\xFA]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|quinientos|[a-z]+cientos|mil)";
+var PERCENT = String.raw`(?:%|per\s?cent|percent|por\s+ciento)`;
+var PRICE_PATTERNS = [
+  /[$€£¥₹]\s?\d/,
+  /\d\s?[€£]/,
+  /\b\d+(?:[.,]\d{1,2})?\s?\$/,
+  new RegExp(String.raw`\b(?:${CODES})\s?\d`, "i"),
+  new RegExp(String.raw`\b\d+(?:[.,]\d{1,2})?\s?${COUNTRY}(?:${CODES}|${NAMES})\b`, "i"),
+  new RegExp(
+    String.raw`\b${EN_NUMBER}(?:[\s-]+(?:and[\s-]+)?${EN_NUMBER})*[\s-]+${COUNTRY}(?:dollars?|bucks?|euros?|pesos?|quid)\b`,
+    "i"
+  ),
+  new RegExp(String.raw`\b${ES_NUMBER}(?:\s+(?:y\s+)?${ES_NUMBER})*\s+(?:pesos?|d[oó]lares?|euros?)\b`, "i"),
+  new RegExp(String.raw`\b\d{1,3}\s?${PERCENT}\s?(?:off|discount|de descuento|descuento|menos)\b`, "i"),
+  new RegExp(String.raw`\b${EN_NUMBER}(?:[\s-]+${EN_NUMBER})*\s+${PERCENT}\s+(?:off|discount)\b`, "i"),
+  new RegExp(String.raw`\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?${PERCENT}`, "i"),
+  /\b(?:half[\s-]price|half off|mitad de precio|2\s?x\s?1|dos por uno)\b/i
+];
+var WA_WINDOW_MS = 24 * HOUR_MS;
+var REPLY_LIMITS = {
+  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
+  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
+  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
+};
+var REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l) => l.max));
+var CALL_HEARTBEAT_MS = 10 * MIN_MS;
+var REPLY_DELAY_MAX_MS = 10 * MIN_MS;
+
+// src/templates/sender-words.ts
+var SENDER_WORDS = {
+  en: {
+    textStop: "Reply STOP to opt out",
+    emailStop: "Reply STOP to stop these emails.",
+    marketing: "This is a marketing email.",
+    noThanks: `Not interested? Reply "no thanks" and I won't write again`,
+    unsubscribe: "Unsubscribe",
+    us: "us",
+    offerAsked: (who) => `You asked for offers from ${who}.`,
+    offerCustomer: (who) => `You're a customer of ${who}.`,
+    visitProposal: (who) => `You're getting this about your proposal from ${who}.`,
+    visitBooked: (who) => `You're getting this because of your appointment with ${who}.`,
+    visitInTouch: (who) => `You're getting this because you've been in touch with ${who}.`
+  },
+  es: {
+    textStop: "Responde STOP para darte de baja",
+    emailStop: "Responde STOP para dejar de recibir estos correos.",
+    marketing: "Este es un correo de marketing.",
+    noThanks: `\xBFNo te interesa? Responde "no, gracias" y no volver\xE9 a escribirte`,
+    unsubscribe: "Darme de baja",
+    us: "nosotros",
+    offerAsked: (who) => `Pediste recibir ofertas de ${who}.`,
+    offerCustomer: (who) => `Eres cliente de ${who}.`,
+    visitProposal: (who) => `Recibes esto sobre tu propuesta de ${who}.`,
+    visitBooked: (who) => `Recibes esto por tu cita con ${who}.`,
+    visitInTouch: (who) => `Recibes esto porque has estado en contacto con ${who}.`
+  }
+};
+
+// src/templates/slot-sets.ts
+function namedSlots(names, labels = names) {
+  return { kind: "named", keys: names, labels };
+}
+
+// src/reach-out/reach-out-words.ts
+var REACH_OUT_SLOTS = ["opening", "business", "city", "your name", "your business", "booking link"];
+var REACH_OUT_SLOT_LABELS = {
+  opening: "Opening",
+  business: "Their business",
+  city: "Their city",
+  "your name": "Your name",
+  "your business": "Your business",
+  "booking link": "Booking link"
+};
+var REACH_OUT_SLOT_SET = namedSlots(
+  REACH_OUT_SLOTS,
+  REACH_OUT_SLOTS.map((s) => REACH_OUT_SLOT_LABELS[s])
+);
+
+// src/reach-out/reach-out-sheet.ts
+var REACH_OUT_SHEET_WORDS = {
+  sub: "Your email, opened differently for each business, from a domain you own. Whoever writes back lands in your Inbox, and the receptionist drafts the answer.",
+  who: "Ready, with a checked address, never written to. Keeps itself current as the search grows.",
+  opening: "The receptionist writes the opening from the finder's record of each business: why it fit, the reviews, the site, the hours. It never invents a fact; the check before each send holds anything it can't back.",
+  stops: "Stops for anyone who writes back on any channel, books, unsubscribes, bounces or says no.",
+  stopOne: "To stop writing to one business, open its lead and press Stop writing to them.",
+  first: `Starts today. The first run waits on you. After that, a run gives you ${PLAYBOOK_VETO_DELAY_WORDS} to stop it.`,
+  slotsHint: "each is filled for each business, or the email is held",
+  foot: "Why they're hearing from you, your address, Unsubscribe",
+  footHint: "as the law asks",
+  repliesHint: "into your Inbox",
+  checkLater: "Every email is checked before it goes. The first run shows what the check held, and waits on you.",
+  noDomain: "Add a domain you send from in Settings \u203A Connections \u203A Email first.",
+  anotherStep: "Another step",
+  anotherStepHint: "\xB7 another email",
+  /** The last step may hand each business it reaches to you instead (Part 5, G20). */
+  anotherCall: "A call for you",
+  anotherNote: "A note for you",
+  handHint: "\xB7 ends the chain: each business it reaches is a step on your Today",
+  handWords: "What to do",
+  handPlaceholder: "Ask whether our quote suited them",
+  remove: "Remove",
+  removeNote: "Removes the reach-out and its words. Only before its first email goes; after that, pause it.",
+  recheck: "Check the held again"
+};
+var REACH_OUT_REFUSALS = {
+  exists: "This search has a reach-out already.",
+  wrote: "This reach-out has written already. Pause it instead.",
+  stepWrote: "That step has written already. Pause the reach-out instead.",
+  /** 00228's: a call or a note anywhere but last, and a step changed from one to the other once it has run. */
+  handLast: "A call or a note ends the chain.",
+  stepRan: "That step has run already. Add a new step instead.",
+  outOfPlace: "A step is out of its place. Open the reach-out again.",
+  notFound: "Reach-out not found.",
+  workspaceNotFound: "Workspace not found.",
+  oneEmail: "A reach-out has at least one email.",
+  /** lead_set_stage's own, when Not a fit finds its lead missing or erased. */
+  leadNotFound: "Lead not found.",
+  leadGone: "This lead is gone.",
+  /** 00241 reach_out_lead_stop: a lead no chain ever planned (Part 6, H10). */
+  nothingWritten: "Nothing has been written to them yet.",
+  /** reach_out_report (00241, 00360): any count of days Reports reads, as its other functions take them. */
+  period: "A period is 1 to 90 days.",
+  searchNotFound: "Search not found.",
+  domainNotFound: "Domain not found.",
+  sendNotFound: "Email not found.",
+  runNotFound: "Run not found.",
+  runOver: "That run is over.",
+  gone: "That email has gone.",
+  includeHeld: "Only an email the check held for a reason is included.",
+  givenUp: "This email waited two weeks for your answer and was given up.",
+  decision: "Include, rewrite, skip or not a fit.",
+  /** A row's CHECK refused what the words' rules let through: never expected, said plainly. */
+  unsaved: "That reach-out could not be saved as it is. Check its steps and try again.",
+  /** DELETE playbooks/[id] on a reach-out (R16): its history is never deleted there. */
+  notHere: "A reach-out is removed from its own row, and only before its first email goes. After that, pause it.",
+  /** The preview on a deployment that runs nothing. */
+  preview: "Previews only work on the production dashboard.",
+  previewDown: "The preview could not be written just now. Try again in a moment.",
+  budget: "Today's assistant budget is spent, so the preview waits until tomorrow."
+};
+var REFUSAL_SET = new Set(Object.values(REACH_OUT_REFUSALS));
+function stepLabel(n) {
+  return n === 0 ? "Your email" : n === 1 ? "A short nudge" : `Email ${n + 1}`;
+}
+function stepLabelOf(s) {
+  if (!s.hand) return stepLabel(s.n);
+  return s.hand.kind === "call" ? REACH_OUT_SHEET_WORDS.anotherCall : REACH_OUT_SHEET_WORDS.anotherNote;
+}
+
+// src/shared/unknown.ts
+var isCount = (v) => typeof v === "number" && Number.isInteger(v) && v >= 0;
+
+// src/reports/campaigns/reach-out-lens.ts
+var NO_BUSINESSES = "This database does not count businesses yet.";
+var DOMAINS_LINE = "Where it left from, and how it landed. Past 2% bounced, a domain holds itself.";
+var STANDS_NOW = "as they stand now";
+var SOURCES_LINE = "A business counts once, at the last email that wrote to it. What came of each is as it stands now.";
+var DASH = "\u2014";
+var NO_EMAILS = {
+  written: 0,
+  delivered: 0,
+  bounced: 0,
+  wrote_back: 0,
+  interested: 0,
+  booked: 0,
+  said_no: 0,
+  handed: 0
+};
+var pctText = (n, d) => {
+  const share = pct(n, d);
+  return share === null ? DASH : `${share}%`;
+};
+var tenthOf = (n, d) => d > 0 ? Math.round(n / d * 1e3) / 10 : null;
+var countedBusinesses = (c) => isCount(c.businesses) ? c.businesses : void 0;
+function wholeOf(raw) {
+  const { businesses, ...counts } = raw.totals ?? {};
+  return {
+    timezone: raw.timezone || "UTC",
+    days: raw.days ?? 30,
+    today: raw.today ?? "",
+    end: raw.end ?? raw.today ?? "",
+    since: raw.since ?? "",
+    has_reach_out: raw.has_reach_out === true,
+    totals: { ...NO_EMAILS, ...counts, ...isCount(businesses) ? { businesses } : {} },
+    ...raw.before ? { before: raw.before } : {},
+    series: raw.series ?? [],
+    chains: raw.chains ?? [],
+    angles: raw.angles ?? [],
+    other_angles: raw.other_angles ?? { written: 0, wrote_back: 0 },
+    no_angle: raw.no_angle ?? 0,
+    domains: raw.domains ?? []
+  };
+}
+function whenOf(dto) {
+  const until = endedOn(dto);
+  const oneDay = dto.days === 1 ? withinWords(1, until) : null;
+  return { until, within: oneDay ?? `in these ${plural(dto.days, "day")}`, these: oneDay ?? "in these days" };
+}
+function writtenMeta(counts) {
+  const { written } = counts;
+  const businesses = countedBusinesses(counts);
+  if (businesses !== void 0) return `${plural(businesses, "business", "businesses")} written to`;
+  return written === 0 ? "none in this period" : plural(written, "email");
+}
+function stripFigures(dto) {
+  const { written, delivered, bounced } = dto.totals;
+  const range = rangeLabelOf(dto.days);
+  const prior = dto.before !== void 0 && dto.before.written > 0 ? dto.before : null;
+  const emails = plural(written, "email");
+  return [
+    {
+      id: "emails-written",
+      metric: "emails_written",
+      label: "Emails written",
+      value: String(written),
+      meta: writtenMeta(dto.totals),
+      compare: prior && compareWords(written, prior.written, range, true)
+    },
+    {
+      id: "emails-landed",
+      metric: "emails_landed",
+      label: "Landed",
+      value: pctText(delivered, written),
+      meta: written > 0 ? `${delivered} of ${emails} delivered` : "nothing written",
+      compare: prior && shareWasWords(written, { part: prior.delivered, of: prior.written }, range),
+      // A share of the emails written: of fewer than five, it says nothing (the kit greys it).
+      n: written,
+      minN: REPORT_MIN_N
+    },
+    {
+      id: "emails-bounced",
+      metric: "emails_bounced",
+      label: "Bounced",
+      value: String(bounced),
+      meta: bounced > 0 ? `${bounced} of ${emails} bounced` : "none bounced",
+      compare: prior && compareWords(bounced, prior.bounced, range, true)
+    }
+  ];
+}
+function emailsPart(dto, when) {
+  const { written, delivered, bounced } = dto.totals;
+  if (written === 0) return noMix(`Nothing was written ${when.these}.`);
+  const entries = [
+    ["written", "Written", written],
+    ["delivered", "Delivered", delivered],
+    ["bounced", "Bounced", bounced]
+  ];
+  const shares = written >= REPORT_MIN_N ? `: ${pct(delivered, written)}% were delivered and ${pct(bounced, written)}% bounced` : "";
+  return mixOf(
+    entries,
+    `Of ${plural(written, "email")} written ${when.within}${shares}. No opens: only what came back.`
+  );
+}
+function businessesPart(dto, when) {
+  const { wrote_back, interested, booked, said_no } = dto.totals;
+  const businesses = countedBusinesses(dto.totals);
+  if (businesses === void 0) return noMix(NO_BUSINESSES);
+  if (businesses === 0) return noMix(`No business was written to ${when.these}.`);
+  const entries = [
+    ["written_to", "Written to", businesses],
+    ["wrote_back", "Wrote back", wrote_back],
+    ["interested", "Interested", interested],
+    ["booked", "Booked", booked],
+    ["said_no", "Said no", said_no]
+  ];
+  const shares = businesses >= REPORT_MIN_N ? `: ${pct(wrote_back, businesses)}% wrote back and ${pct(interested, businesses)}% were interested` : "";
+  const line = `Of ${plural(businesses, "business", "businesses")} written to ${when.within}${shares}. Each counts once, at the last email that wrote to it; a question counts as interested. Who wrote back, was interested, booked or said no is as it stands now.`;
+  return mixOf(entries, line);
+}
+function angleRow(id, label, businesses, wroteBack) {
+  const of = `${wroteBack} of ${businesses}`;
+  const display = businesses === 0 ? DASH : businesses >= REPORT_MIN_N ? `${of}  ${pctText(wroteBack, businesses)}` : of;
+  return { id, label, value: pct(wroteBack, businesses) ?? 0, display, n: businesses, minN: REPORT_MIN_N };
+}
+function anglesPart(dto, when) {
+  const other = dto.other_angles;
+  const listed = dto.angles.map((a) => ({
+    id: a.angle,
+    label: a.angle,
+    businesses: countedBusinesses(a),
+    wroteBack: a.wrote_back
+  }));
+  if (other.written > 0)
+    listed.push({
+      id: "other",
+      label: "Other angles",
+      businesses: countedBusinesses(other),
+      wroteBack: other.wrote_back
+    });
+  if (listed.length === 0)
+    return {
+      rows: [],
+      line: null,
+      empty: `No email ${when.these} had an opening, so there is no angle to compare.`
+    };
+  if (listed.some((a) => a.businesses === void 0)) return { rows: [], line: null, empty: NO_BUSINESSES };
+  const unangled = dto.no_angle ? ` ${plural(dto.no_angle, "email")} had no opening, so no angle.` : "";
+  return {
+    rows: listed.map((a) => angleRow(a.id, a.label, a.businesses ?? 0, a.wroteBack)),
+    line: `The opening written for each business, and who answered, ${STANDS_NOW}.${unangled}`,
+    empty: null
+  };
+}
+function answeredCell(wroteBack, businesses) {
+  if (businesses === void 0 || businesses === 0) return String(wroteBack);
+  const said = shareSaid(pct(wroteBack, businesses), wroteBack, businesses) ?? String(wroteBack);
+  return isThinShare(businesses, REPORT_MIN_N) ? said : `${said} (${wroteBack})`;
+}
+function cellsOf(c, businesses) {
+  const landed = shareSaid(pct(c.delivered, c.written), c.delivered, c.written) ?? DASH;
+  const answered = answeredCell(c.wrote_back, businesses);
+  return {
+    written: String(c.written),
+    delivered: landed,
+    businesses: businesses === void 0 ? DASH : String(businesses),
+    wroteBack: answered,
+    interested: String(c.interested),
+    booked: String(c.booked),
+    saidNo: String(c.said_no),
+    bounced: String(c.bounced)
+  };
+}
+var HAND_CELLS = {
+  written: DASH,
+  delivered: DASH,
+  businesses: DASH,
+  wroteBack: DASH,
+  interested: DASH,
+  booked: DASH,
+  saidNo: DASH,
+  bounced: DASH
+};
+function summed(steps) {
+  const total = { ...NO_EMAILS };
+  for (const s of steps) {
+    total.written += s.written;
+    total.delivered += s.delivered;
+    total.bounced += s.bounced;
+    total.wrote_back += s.wrote_back;
+    total.interested += s.interested;
+    total.booked += s.booked;
+    total.said_no += s.said_no;
+    total.handed += s.handed;
+  }
+  return total;
+}
+function chainBusinesses(steps) {
+  if (!steps.every((s) => s.hand !== null || countedBusinesses(s) !== void 0)) return void 0;
+  return sumOf(steps.map((s) => countedBusinesses(s) ?? 0));
+}
+function chainSourceLine(c, nowMs, tz) {
+  const last = c.last_at ? Date.parse(c.last_at) : NaN;
+  const meta = [
+    "Reach-out",
+    plural(c.steps.length, "step"),
+    plural(c.runs, "run"),
+    c.search ? c.search.name : null,
+    c.state === "running" ? null : "paused"
+  ];
+  return {
+    id: c.root_id,
+    kind: "chain",
+    name: c.name,
+    meta: meta.filter(Boolean).join(" \xB7 "),
+    to: `outbound/${c.root_id}`,
+    ...cellsOf(summed(c.steps), chainBusinesses(c.steps)),
+    last: Number.isFinite(last) ? clockDate(last, tz, nowMs) : ""
+  };
+}
+function stepSourceLine(root, s) {
+  const line = {
+    id: `${root}:${s.id}`,
+    kind: "step",
+    name: `${s.n + 1} \xB7 ${stepLabelOf({ n: s.n, hand: s.hand ? { kind: s.hand } : null })}`,
+    to: null,
+    last: ""
+  };
+  if (s.hand) return { ...line, meta: `${s.handed} handed to you`, ...HAND_CELLS };
+  return { ...line, meta: "", ...cellsOf(s, countedBusinesses(s)) };
+}
+function sourceLines(dto, nowMs) {
+  return dto.chains.flatMap((c) => [
+    chainSourceLine(c, nowMs, dto.timezone),
+    ...c.steps.map((s) => stepSourceLine(c.root_id, s))
+  ]);
+}
+function domainStateWords(d, nowMs, tz) {
+  if (d.host === null) return "Since removed";
+  if (d.state === "verified") return "Verified";
+  if (d.state === "held") {
+    const held = d.held_at ? Date.parse(d.held_at) : NaN;
+    const since = Number.isFinite(held) ? ` since ${clockNear(held, tz, nowMs)}` : "";
+    return `Held${since}: ${domainHoldWords(d.held_why)}`;
+  }
+  return "Not sending yet";
+}
+function domainCell(n, sent, share) {
+  return shareSaid(share(n, sent), n, sent) ?? DASH;
+}
+function domainRows(dto, nowMs) {
+  return dto.domains.map((d) => ({
+    id: d.host ?? "removed",
+    host: d.host ?? "A domain since removed",
+    state: domainStateWords(d, nowMs, dto.timezone),
+    held: d.state === "held",
+    sent: d.sent,
+    landed: domainCell(d.delivered, d.sent, pct),
+    bounced: domainCell(d.bounced, d.sent, tenthOf),
+    complained: domainCell(d.complained, d.sent, tenthOf)
+  }));
+}
+function periodLines(dto, when) {
+  const handed = dto.totals.handed;
+  return {
+    written: handed ? `${plural(handed, "business", "businesses")} handed to you as a call or a note, too.` : "",
+    domains: DOMAINS_LINE,
+    empty: `No reach-out wrote ${withinWords(dto.days, when.until)}.`,
+    sources: SOURCES_LINE
+  };
+}
+function toReachOutLensVM(raw, nowMs = Date.now()) {
+  const dto = wholeOf(raw);
+  const when = whenOf(dto);
+  const points = dto.series.map((d) => {
+    const point = dayPointOf(d.day);
+    return { ...point, written: d.written, writtenWords: `${point.label}: ${d.written} written` };
+  });
+  return {
+    present: dto.has_reach_out,
+    empty: dto.totals.written === 0 && dto.totals.handed === 0,
+    days: dto.days,
+    totals: dto.totals,
+    strip: stripFigures(dto),
+    emails: emailsPart(dto, when),
+    businesses: businessesPart(dto, when),
+    angles: anglesPart(dto, when),
+    domains: domainRows(dto, nowMs),
+    points,
+    table: { columns: ["Day", "Written"], rows: points.map((p) => [p.label, p.written]) },
+    sources: sourceLines(dto, nowMs),
+    lines: periodLines(dto, when)
+  };
+}
+
+// src/templates/message-languages.ts
+function languageWords(code) {
+  return languageName(code);
+}
+function languageLabels(codes) {
+  const seen = /* @__PURE__ */ new Map();
+  for (const c of codes) {
+    const w = languageWords(c);
+    seen.set(w, (seen.get(w) ?? 0) + 1);
+  }
+  const out = {};
+  for (const c of codes) {
+    const w = languageWords(c);
+    out[c] = (seen.get(w) ?? 0) > 1 ? templateLanguage(c) ? languageLabel(c) : `${w} (${c})` : w;
+  }
+  return out;
+}
+
+// src/templates/starter-templates.ts
+var FIRST = { kind: "first_name", label: "First name", example: "Dani" };
+var BUSINESS = { kind: "business_name", label: "Business name", example: "Luna Studio" };
+var LINK = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
+var FIRST_ES = { ...FIRST, label: "Nombre" };
+var BUSINESS_ES = { ...BUSINESS, label: "Nombre del negocio" };
+var LINK_ES = { ...LINK, label: "Enlace de reservas" };
+var WHEN = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
+var SERVICE = { kind: "visit_service", label: "Service", example: "a consultation" };
+var WHEN_ES = { ...WHEN, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
+var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "una consulta" };
+var PROPOSAL = {
+  kind: "proposal_link",
+  label: "Proposal link",
+  example: "https://docs.example.com/proposal"
+};
+var PROPOSAL_ES = { ...PROPOSAL, label: "Enlace de la propuesta" };
+var OFFER = { kind: "text", label: "The offer", example: "20% off any service booked before Friday." };
+var OFFER_ES = {
+  kind: "text",
+  label: "La oferta",
+  example: "20% de descuento en cualquier servicio reservado antes del viernes."
+};
+var STOP_EN = SENDER_WORDS.en.textStop;
+var STOP_ES = SENDER_WORDS.es.textStop;
+var STARTER_TEMPLATES = [
+  /* ---- The set (2 Oct 2026), in the order a composer opens on ---- */
+  {
+    // An offer, and honest about it: it waits for a yes to offers. It asks for a reply rather than sending them to a
+    // link, so it needs no booking link on file, and what comes back is a conversation the receptionist can carry.
+    key: "winback_reply",
+    name: "winback_reply",
+    title: "Win-back",
+    purpose: "for anyone who has gone quiet",
+    category: "marketing",
+    trigger: "quiet_30",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, it's been a while since we last saw you at {{2}}. We'd love to see you again: reply with a day that suits you and we'll find you a time.",
+        footer: STOP_EN,
+        slots: [FIRST, BUSINESS]
+      },
+      es: {
+        body: "Hola {{1}}, hace tiempo que no te vemos en {{2}}. Nos encantar\xEDa volver a verte: responde con el d\xEDa que mejor te venga y te buscamos una hora.",
+        footer: STOP_ES,
+        slots: [FIRST_ES, BUSINESS_ES]
+      }
+    },
+    email: {
+      en_US: {
+        subject: "It's been a while",
+        body: "Hi {{1}},\n\nIt's been a while since we last saw you at {{2}}, and we'd love to see you again.\n\nReply with a day that suits you and we'll find you a time."
+      },
+      es: {
+        subject: "Hace tiempo que no te vemos",
+        body: "Hola {{1}}:\n\nHace tiempo que no te vemos en {{2}}, y nos encantar\xEDa volver a verte.\n\nResponde con el d\xEDa que mejor te venga y te buscamos una hora."
+      }
+    }
+  },
+  {
+    key: "this_months_offer",
+    name: "this_months_offer",
+    title: "This month's offer",
+    purpose: "for everyone who said yes to offers, once a month",
+    category: "marketing",
+    trigger: "everyone_monthly",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, this month at {{2}}: {{3}} Book here: {{4}} or reply with a day that suits you.",
+        footer: STOP_EN,
+        slots: [FIRST, BUSINESS, OFFER, LINK]
+      },
+      es: {
+        body: "Hola {{1}}, este mes en {{2}}: {{3}} Reserva aqu\xED: {{4}} o responde con el d\xEDa que mejor te venga.",
+        footer: STOP_ES,
+        slots: [FIRST_ES, BUSINESS_ES, OFFER_ES, LINK_ES]
+      }
+    },
+    email: {
+      en_US: {
+        subject: "This month at {{2}}",
+        body: "Hi {{1}},\n\nThis month at {{2}}: {{3}}\n\nBook here: {{4}}, or reply with a day that suits you."
+      },
+      es: {
+        subject: "Este mes en {{2}}",
+        body: "Hola {{1}}:\n\nEste mes en {{2}}: {{3}}\n\nReserva aqu\xED: {{4}}, o responde con el d\xEDa que mejor te venga."
+      }
+    }
+  },
+  {
+    key: "visit_reminder",
+    name: "visit_reminder",
+    title: "Visit reminder",
+    purpose: "for the day before an appointment",
+    category: "utility",
+    trigger: "visit_tomorrow",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, it's {{2}}. A reminder of your appointment {{3}} for {{4}}. If you need to change it, just reply here.",
+        footer: null,
+        slots: [FIRST, BUSINESS, WHEN, SERVICE]
+      },
+      es: {
+        body: "Hola {{1}}, te escribimos de {{2}}. Te recordamos tu cita {{3}} para {{4}}. Si necesitas cambiarla, responde aqu\xED.",
+        footer: null,
+        slots: [FIRST_ES, BUSINESS_ES, WHEN_ES, SERVICE_ES]
+      }
+    },
+    email: {
+      en_US: {
+        subject: "Your appointment {{3}}",
+        body: "Hi {{1}},\n\nA reminder of your appointment at {{2}} {{3}} for {{4}}.\n\nIf you need to change it, just reply to this email."
+      },
+      es: {
+        subject: "Tu cita {{3}}",
+        body: "Hola {{1}}:\n\nTe recordamos tu cita en {{2}} {{3}} para {{4}}.\n\nSi necesitas cambiarla, responde a este correo."
+      }
+    },
+    sms: {
+      en_US: {
+        body: "Hi {{1}}, it's {{2}}. A reminder of your appointment {{3}} for {{4}}. Reply here if you need to change it."
+      },
+      es: {
+        // Spanish texts keep to the letters the carriers send plainly (é, ñ, ¿ but not á, í, ó, ú), so each goes as one part.
+        body: "Hola {{1}}, te escribimos de {{2}}. Te recordamos tu cita {{3}} para {{4}}. Si necesitas cambiarla, responde a este mensaje."
+      }
+    }
+  },
+  {
+    // About the visit they just had, and nothing else: no offer and no booking push, so it is utility and reaches a
+    // yes to texts. Their reply opens WhatsApp's 24 hours, inside which the receptionist may say anything.
+    key: "after_visit_check",
+    name: "after_visit_check",
+    title: "How did it go",
+    purpose: "for the day after a visit",
+    category: "utility",
+    trigger: "visited",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, thanks for coming to {{2}} yesterday. How did everything go? If anything isn't right, reply here and we'll sort it out.",
+        footer: null,
+        slots: [FIRST, BUSINESS]
+      },
+      es: {
+        body: "Hola {{1}}, gracias por venir ayer a {{2}}. \xBFQu\xE9 tal fue todo? Si algo no est\xE1 bien, responde aqu\xED y lo solucionamos.",
+        footer: null,
+        slots: [FIRST_ES, BUSINESS_ES]
+      }
+    },
+    email: {
+      en_US: {
+        subject: "How did everything go?",
+        body: "Hi {{1}},\n\nThanks for coming to {{2}} yesterday. How did everything go?\n\nIf anything isn't right, just reply to this email and we'll sort it out."
+      },
+      es: {
+        subject: "\xBFQu\xE9 tal fue todo?",
+        body: "Hola {{1}}:\n\nGracias por venir ayer a {{2}}. \xBFQu\xE9 tal fue todo?\n\nSi algo no est\xE1 bien, responde a este correo y lo solucionamos."
+      }
+    },
+    sms: {
+      en_US: {
+        body: "Hi {{1}}, thanks for coming to {{2}} yesterday. How did everything go? If anything isn't right, reply here and we'll sort it out."
+      },
+      es: {
+        body: "Hola {{1}}, gracias por venir ayer a {{2}}. \xBFQu\xE9 tal fue todo? Si algo no te ha gustado, responde a este mensaje y lo solucionamos."
+      }
+    }
+  },
+  {
+    // 0006: one nudge per proposal, with its link. Utility, as a reminder of a person's own request is; it names no
+    // price, date, amount or offer, and Meta's category decides the yes it needs at the wire (deliver.ts).
+    key: "proposal_follow_up",
+    name: "proposal_follow_up",
+    title: "Proposal follow-up",
+    purpose: "for a proposal waiting with nothing back",
+    category: "utility",
+    trigger: "proposal_waiting",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, just making sure the proposal from {{2}} reached you: {{3}}. Reply here with any questions.",
+        footer: null,
+        slots: [FIRST, BUSINESS, PROPOSAL]
+      },
+      es: {
+        body: "Hola {{1}}, solo queremos confirmar que te lleg\xF3 la propuesta de {{2}}: {{3}}. Responde aqu\xED con cualquier pregunta.",
+        footer: null,
+        slots: [FIRST_ES, BUSINESS_ES, PROPOSAL_ES]
+      }
+    },
+    email: {
+      en_US: {
+        subject: "Your proposal from {{2}}",
+        body: "Hi {{1}},\n\nJust making sure the proposal from {{2}} reached you: {{3}}\n\nReply to this email with any questions."
+      },
+      es: {
+        subject: "Tu propuesta de {{2}}",
+        body: "Hola {{1}}:\n\nSolo queremos confirmar que te lleg\xF3 la propuesta de {{2}}: {{3}}\n\nResponde a este correo con cualquier pregunta."
+      }
+    },
+    sms: {
+      en_US: {
+        body: "Hi {{1}}, just making sure the proposal from {{2}} reached you: {{3}} Reply here with any questions."
+      },
+      es: {
+        body: "Hola {{1}}, queremos confirmar que recibiste la propuesta de {{2}}: {{3}} Responde a este mensaje con cualquier pregunta."
+      }
+    }
+  },
+  {
+    key: "quick_note",
+    name: "quick_note",
+    title: "A quick note",
+    purpose: "for any broadcast: news, hours, a heads-up",
+    category: "marketing",
+    trigger: null,
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, a quick note from {{2}}: {{3}} Write back here if you have any questions.",
+        footer: STOP_EN,
+        slots: [
+          FIRST,
+          BUSINESS,
+          { kind: "text", label: "The note", example: "we're open late on Thursdays this month." }
+        ]
+      },
+      es: {
+        body: "Hola {{1}}, una nota r\xE1pida de {{2}}: {{3}} Escr\xEDbenos aqu\xED si tienes alguna pregunta.",
+        footer: STOP_ES,
+        slots: [
+          FIRST_ES,
+          BUSINESS_ES,
+          { kind: "text", label: "La nota", example: "este mes abrimos hasta tarde los jueves." }
+        ]
+      }
+    },
+    email: {
+      en_US: {
+        subject: "A quick note from {{2}}",
+        body: "Hi {{1}},\n\nA quick note from {{2}}: {{3}}\n\nReply to this email if you have any questions."
+      },
+      es: {
+        subject: "Una nota r\xE1pida de {{2}}",
+        body: "Hola {{1}}:\n\nUna nota r\xE1pida de {{2}}: {{3}}\n\nResponde a este correo si tienes alguna pregunta."
+      }
+    }
+  },
+  {
+    // The one a caller asks for OUT LOUD, mid-call: the phone agent texts it when somebody wants to book (edge
+    // retell-fn.ts), with the business's WhatsApp named, so a caller who only ever phoned learns where to write.
+    //
+    // UTILITY, and that is the whole point of writing it down here. It answers a request the person just made, so it
+    // needs no separate yes to offers -- and because the category is Meta's own word for that, purposeOfTemplate reads
+    // it correctly and nothing has to override the purpose at a call site. It is LAST on purpose: the order is what a
+    // composer opens on, and this is the one a caller asks for rather than one anybody broadcasts.
+    key: "call_text",
+    name: "call_text",
+    title: "The call's text",
+    purpose: "for a caller who asks to book",
+    category: "utility",
+    trigger: null,
+    texts: {
+      en_US: {
+        // The first name every starter opens with, and here it is usually "there": the phone agent texts somebody
+        // whose name nobody has yet, and resolveParams says so rather than leaving a gap.
+        body: "Hi {{1}}, it's {{2}}, thanks for calling. Here's the link to book: {{3}}. This is our WhatsApp too: write to us here any time to book, move or ask about an appointment.",
+        footer: null,
+        slots: [FIRST, BUSINESS, LINK]
+      },
+      es: {
+        body: "Hola {{1}}, te escribimos de {{2}}, gracias por llamar. Aqu\xED tienes el enlace para reservar: {{3}}. Este tambi\xE9n es nuestro WhatsApp: escr\xEDbenos aqu\xED cuando quieras para reservar, cambiar o preguntar por una cita.",
+        footer: null,
+        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
+      }
+    },
+    sms: {
+      en_US: {
+        body: "Hi {{1}}, it's {{2}}, thanks for calling. Here's the link to book: {{3}}. You can text us here any time too."
+      },
+      es: {
+        body: "Hola {{1}}, te escribimos de {{2}}, gracias por llamar. Este es el enlace para reservar: {{3}}. Puedes responder a este mensaje cuando quieras."
+      }
+    }
+  },
+  /* ---- Retired (2 Oct 2026): never offered again, kept so a workspace that added one still reads it ---- */
+  {
+    key: "winback_offer",
+    name: "winback_offer",
+    // Called apart from the set's own Win-back, which a workspace that has this one sees listed beside it.
+    title: "Win-back (earlier)",
+    purpose: "for anyone quiet 30 days",
+    category: "marketing",
+    trigger: "quiet_30",
+    retired: { by: "winback_reply", why: "It sent people to a link; its place asks for a reply." },
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, it's been a while since we last saw you at {{2}}. We'd love to have you back \u2014 pick a time that suits you here: {{3}} and we'll take care of the rest.",
+        footer: STOP_EN,
+        slots: [FIRST, BUSINESS, LINK]
+      },
+      es: {
+        body: "Hola {{1}}, hace tiempo que no te vemos en {{2}}. Nos encantar\xEDa volver a atenderte \u2014 elige la hora que mejor te venga aqu\xED: {{3}} y nosotros nos ocupamos del resto.",
+        footer: STOP_ES,
+        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
+      }
+    }
+  },
+  {
+    key: "welcome_new",
+    name: "welcome_new",
+    title: "Welcome",
+    purpose: "for anyone new this week",
+    category: "marketing",
+    trigger: "new_week",
+    retired: {
+      by: null,
+      why: "The receptionist answers a first contact itself; as an offer, a welcome reached nobody new."
+    },
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, welcome to {{2}}! This is our WhatsApp \u2014 message us here any time to book, move or ask about an appointment. Book whenever you're ready: {{3}} and we'll take it from there.",
+        footer: STOP_EN,
+        slots: [FIRST, BUSINESS, LINK]
+      },
+      es: {
+        body: "Hola {{1}}, \xA1bienvenido/a a {{2}}! Este es nuestro WhatsApp \u2014 escr\xEDbenos aqu\xED cuando quieras para reservar, cambiar o preguntar por una cita. Reserva cuando quieras: {{3}} y nosotros nos encargamos del resto.",
+        footer: STOP_ES,
+        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
+      }
+    }
+  },
+  {
+    key: "save_our_number",
+    name: "save_our_number",
+    title: "Save our number",
+    purpose: "for anyone who only ever phoned",
+    category: "marketing",
+    trigger: "phoned_only",
+    retired: {
+      by: "call_text",
+      why: "Its people only ever phoned, so none could have said yes to offers; the call's text does its work during the call."
+    },
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, thanks for calling {{2}}. Save this number \u2014 on WhatsApp you can book, reschedule or ask us anything in a message, and we answer fast. Book any time: {{3}} or just write to us here.",
+        footer: STOP_EN,
+        slots: [FIRST, BUSINESS, LINK]
+      },
+      es: {
+        body: "Hola {{1}}, gracias por llamar a {{2}}. Guarda este n\xFAmero \u2014 por WhatsApp puedes reservar, cambiar tu cita o preguntarnos lo que quieras, y respondemos r\xE1pido. Reserva cuando quieras: {{3}} o escr\xEDbenos aqu\xED.",
+        footer: STOP_ES,
+        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
+      }
+    }
+  },
+  {
+    key: "monthly_offer",
+    name: "monthly_offer",
+    title: "This month's offer (earlier)",
+    purpose: "for everyone who said yes, once a month",
+    category: "marketing",
+    trigger: "everyone_monthly",
+    retired: { by: "this_months_offer", why: "It promised that spaces were limited, which a business may not mean." },
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, this month at {{2}}: {{3}} Book here: {{4}} \u2014 spaces are limited.",
+        footer: STOP_EN,
+        slots: [FIRST, BUSINESS, OFFER, LINK]
+      },
+      es: {
+        body: "Hola {{1}}, este mes en {{2}}: {{3}} Reserva aqu\xED: {{4}} \u2014 las plazas son limitadas.",
+        footer: STOP_ES,
+        slots: [FIRST_ES, BUSINESS_ES, OFFER_ES, LINK_ES]
+      }
+    }
+  },
+  {
+    key: "after_visit",
+    name: "after_visit",
+    title: "After the visit",
+    purpose: "for the day after a visit",
+    category: "marketing",
+    trigger: "visited",
+    retired: {
+      by: "after_visit_check",
+      why: "Asking them to book again made it an offer, which reached only a yes to offers; its place asks how it went."
+    },
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, thank you for coming to {{2}} yesterday \u2014 we hope you love the result. When you're ready for your next appointment, pick a time here: {{3}}.",
+        footer: STOP_EN,
+        slots: [FIRST, BUSINESS, LINK]
+      },
+      es: {
+        body: "Hola {{1}}, gracias por venir ayer a {{2}} \u2014 esperamos que te encante el resultado. Cuando quieras tu pr\xF3xima cita, elige la hora aqu\xED: {{3}}.",
+        footer: STOP_ES,
+        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
+      }
+    }
+  },
+  {
+    // The row this replaced was hand-written straight into one workspace's database, marked approved, with no
+    // meta_id: an approval Meta had never given, so every send of it failed, and it failed for every other workspace
+    // by not existing at all.
+    key: "booking_link",
+    name: "booking_link",
+    title: "Booking link",
+    purpose: "for a caller who asks to book",
+    category: "utility",
+    trigger: null,
+    retired: { by: "call_text", why: "The call's text sends the link and names the business's WhatsApp too." },
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, it's {{2}}. Here's the link to book your appointment: {{3}} \u2014 pick any time that suits you.",
+        footer: null,
+        slots: [FIRST, BUSINESS, LINK]
+      },
+      es: {
+        body: "Hola {{1}}, te escribimos de {{2}}. Aqu\xED tienes el enlace para reservar tu cita: {{3}} \u2014 elige la hora que mejor te venga.",
+        footer: null,
+        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
+      }
+    }
+  }
+];
+
+// src/templates/starter-lookup.ts
+function starterByName(name) {
+  return STARTER_TEMPLATES.find((s) => s.name === name) ?? null;
+}
+
+// src/templates/template-titles.ts
+var TEMPLATE_TITLE_MAX = 60;
+function templateTitle(name, title) {
+  const given = typeof title === "string" ? title.replace(/\s+/g, " ").trim() : "";
+  if (given) return given.slice(0, TEMPLATE_TITLE_MAX);
+  const s = starterByName(name);
+  if (s) return s.title;
+  const words = String(name ?? "").replace(/_v\d+$/i, "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  return words ? words[0].toUpperCase() + words.slice(1) : String(name ?? "");
+}
+
+// src/reports/campaign-report.ts
+var CAMPAIGN_CHANNELS = REPORT_CHANNELS.filter(
+  (c) => c.key !== "voice"
+);
+var WHEN2 = formatterOnUse([], { month: "short", day: "numeric" });
+var campaignPriorHadAny = (before) => before.sent + before.optIns + before.optOuts > 0;
+function campaignChannelsOf(rows) {
+  return (rows ?? []).flatMap((r) => {
+    const known = CAMPAIGN_CHANNELS.find((c) => c.key === r.channel);
+    if (!known || !(r.sent > 0)) return [];
+    const whatsapp = known.key === "whatsapp";
+    const deliveredPct = pct(r.delivered, r.sent);
+    return [
+      {
+        channel: known.key,
+        label: known.label,
+        sent: r.sent,
+        delivered: r.delivered,
+        deliveredPct,
+        read: whatsapp ? r.read : null,
+        readPct: whatsapp ? pct(r.read, r.sent) : null,
+        replied: r.replied,
+        repliedPct: pct(r.replied, r.sent),
+        display: `${r.sent} \xB7 ${shareSaid(deliveredPct, r.delivered, r.sent) ?? "\u2014"} delivered`
+      }
+    ];
+  });
+}
+function columnWords(d) {
+  return {
+    sentWords: `${dayPointOf(d.day).label}: ${d.sent} sent`,
+    answeredWords: d.replied > 0 ? `${d.replied} answered` : null
+  };
+}
+function sourceWords(s) {
+  const delivered = shareSaid(pct(s.delivered, s.sent), s.delivered, s.sent);
+  const replied = shareSaid(pct(s.replied, s.sent), s.replied, s.sent);
+  return {
+    deliveredWords: delivered ?? "\u2014",
+    repliedWords: replied === null ? "\u2014" : s.sent >= REPORT_MIN_N ? `${replied} (${s.replied})` : replied
+  };
+}
+function channelsLine(channels) {
+  if (channels.length < 2) return null;
+  const whatsapp = channels.find((c) => c.channel === "whatsapp");
+  return whatsapp ? `Read receipts are WhatsApp's alone: ${whatsapp.read} of its ${whatsapp.sent} were read.` : "A text or an email keeps no read receipt.";
+}
+function toCampaignReportVM(dto) {
+  const days = dto.days;
+  const series = dto.series ?? [];
+  const current = series.slice(-days);
+  const previous = series.slice(0, Math.max(0, series.length - days));
+  const points = current.map((d) => ({
+    ...dayPointOf(d.day),
+    sent: d.sent,
+    delivered: d.delivered,
+    replied: d.replied,
+    optIns: d.opt_ins,
+    optOuts: d.opt_outs,
+    ...columnWords(d)
+  }));
+  const tot = {
+    sent: sumOf(current.map((d) => d.sent)),
+    delivered: sumOf(current.map((d) => d.delivered)),
+    read: sumOf(current.map((d) => d.read)),
+    replied: sumOf(current.map((d) => d.replied)),
+    optIns: sumOf(current.map((d) => d.opt_ins)),
+    optOuts: sumOf(current.map((d) => d.opt_outs))
+  };
+  const prev = {
+    sent: sumOf(previous.map((d) => d.sent)),
+    delivered: sumOf(previous.map((d) => d.delivered)),
+    replied: sumOf(previous.map((d) => d.replied)),
+    optIns: sumOf(previous.map((d) => d.opt_ins)),
+    optOuts: sumOf(previous.map((d) => d.opt_outs))
+  };
+  const channels = campaignChannelsOf(dto.by_channel);
+  const whatsapp = channels.find((c) => c.channel === "whatsapp");
+  const read = dto.by_channel ? whatsapp?.read ?? 0 : tot.read;
+  const readOf = dto.by_channel ? whatsapp?.sent ?? 0 : tot.sent;
+  const rawSources = dto.sources ?? [];
+  const sends = sumOf(rawSources.map((s) => s.runs));
+  const sources = rawSources.map((s) => ({
+    id: s.id,
+    kind: s.kind,
+    kindLabel: s.kind === "playbook" ? "Campaign" : "Broadcast",
+    name: s.name,
+    templateName: s.template_name,
+    template: s.template_name ? templateTitle(s.template_name) : "",
+    runs: s.runs,
+    sent: s.sent,
+    delivered: s.delivered,
+    read: s.read,
+    replied: s.replied,
+    deliveredPct: pct(s.delivered, s.sent),
+    repliedPct: pct(s.replied, s.sent),
+    ...sourceWords(s),
+    lastLabel: s.last_at ? WHEN2.format(new Date(s.last_at)) : ""
+  }));
+  return {
+    days,
+    points,
+    totals: { ...tot, read, readOf, sends },
+    before: prev,
+    sources,
+    empty: tot.sent === 0 && tot.optIns === 0 && tot.optOuts === 0,
+    table: {
+      columns: ["Day", "Sent", "Delivered", "Answered", "Said yes", "Asked to stop"],
+      rows: points.map((p) => [p.label, p.sent, p.delivered, p.replied, p.optIns, p.optOuts])
+    },
+    channels,
+    channelTable: {
+      columns: ["Channel", "Sent", "Delivered", "Read", "Answered"],
+      rows: channels.map((c) => [c.label, c.sent, c.delivered, c.read, c.replied])
+    },
+    lines: {
+      sent: sends ? sends === 1 ? "From one broadcast or campaign run." : `From ${sends} broadcast and campaign runs.` : null,
+      channels: channelsLine(channels)
+    }
+  };
+}
+
+// src/consent/consent-channels.ts
+var CONSENT_CHANNELS = ["whatsapp", "sms", "email"];
+
+// src/broadcasts/broadcast-failure-words.ts
+var BROADCAST_FAILURES = [
+  "paused",
+  "template_not_approved",
+  "wire_unavailable",
+  "run_interrupted",
+  "throttled",
+  "stalled",
+  "people_unreadable",
+  "after_hours",
+  "provider_limit",
+  "campaigns_domain_unverified",
+  "email_offers_paused"
+];
+var WIRE_FAILURES = ["wire_unavailable", "throttled", "stalled"];
+var isFailure = (code) => BROADCAST_FAILURES.includes(code);
+var isWireFailure = (code) => WIRE_FAILURES.includes(code);
+function readFailure(stored) {
+  const [code, named, ...rest] = stored.split(":");
+  if (code === void 0 || !isFailure(code) || rest.length > 0) return null;
+  if (named === void 0) return { code, channel: "whatsapp" };
+  const channel = CONSENT_CHANNELS.find((c) => c === named);
+  return channel && isWireFailure(code) ? { code, channel } : null;
+}
+var wordsFor = (w, channel) => typeof w === "string" ? w : w[channel];
+var BROADCAST_FAILURE_WORDS = {
+  paused: "the workspace was paused",
+  template_not_approved: "its WhatsApp version is no longer approved",
+  wire_unavailable: {
+    whatsapp: "WhatsApp could not be reached",
+    sms: "the texting provider could not be reached",
+    email: "the mail provider could not be reached"
+  },
+  run_interrupted: "its send stopped partway and did not start again",
+  throttled: {
+    whatsapp: "WhatsApp kept limiting how fast this number may send",
+    sms: "the texting provider kept limiting how fast this line may send",
+    email: "the mail provider kept limiting how fast this workspace may send"
+  },
+  stalled: {
+    whatsapp: "its people or its number's credentials could not be read for half an hour",
+    sms: "its line's credentials could not be read for half an hour",
+    email: "its mailbox could not be read for half an hour"
+  },
+  people_unreadable: "its people could not be read for half an hour",
+  after_hours: "the day's sending hours ran out before it was done",
+  provider_limit: "the mail provider's limit for the day or the month was reached",
+  campaigns_domain_unverified: "the domain offers by email leave from is not verified with the mail provider",
+  email_offers_paused: "the workspace's offers by email were paused while complaints and bounces settled"
+};
+function broadcastFailureWords(failure) {
+  if (!failure) return "no reason was recorded";
+  const read = readFailure(failure);
+  return read ? wordsFor(BROADCAST_FAILURE_WORDS[read.code], read.channel) : "it could not finish";
+}
+
+// src/config/workspace-config/policy-classes.ts
+var POLICY_CLASS_WORDS = {
+  reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
+  faq: {
+    name: "Service & pricing questions",
+    short: "Questions",
+    note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone"
+  },
+  booking: {
+    name: "Book \xB7 reschedule",
+    short: "Bookings",
+    note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone"
+  },
+  reengage: {
+    name: "Re-engage quiet customers",
+    short: "Re-engage",
+    note: `the win-back and save-our-number campaigns \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
+  },
+  campaign: {
+    name: "Standing offers",
+    short: "Offers",
+    note: `the welcome and month's-offer campaigns \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
+  },
+  reviews: {
+    name: "Google reviews",
+    short: "Reviews",
+    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
+  },
+  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
+  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
+  follow_up: {
+    name: "Proposal follow-ups",
+    short: "Follow-ups",
+    note: "the proposal follow-up campaign \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  },
+  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
+  outreach: {
+    name: "Cold email to businesses a search found",
+    short: "Reach-outs",
+    note: `every email a reach-out sends \xB7 its first run always waits for you; later runs send ${PLAYBOOK_VETO_DELAY_WORDS} after they are made unless you stop them \xB7 never sends none`
+  }
+};
+var POLICY_COVERS = {
+  booking: "someone wants to book, reschedule or cancel",
+  faq: "Service and pricing questions",
+  money: "a refund, a discount, a deposit, a payment plan or any change to what someone pays"
+};
+
+// src/config/brain.ts
+var BRAIN_INTENTS = [
+  "booking",
+  "pricing",
+  // A refund, a discount, a deposit, a payment plan, any negotiation of what someone pays: the Autonomy pane's locked
+  // money row (never), so a person answers whatever the words say (policy-classes.ts policyClassOfIntent; defect 5).
+  "money",
+  "hours",
+  "services",
+  "location",
+  "complaint",
+  "smalltalk",
+  "other"
+];
+var BRAIN_LANGUAGES = ["en", "es", "other"];
+var BRAIN_OUTPUT_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    reply: {
+      type: "string",
+      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
+    },
+    intent: {
+      type: "string",
+      enum: [...BRAIN_INTENTS],
+      description: `What the customer is after. money: ${POLICY_COVERS.money}.`
+    },
+    escalate: {
+      type: "boolean",
+      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
+    },
+    reason: {
+      type: "string",
+      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
+    },
+    confidence: {
+      type: "number",
+      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
+    },
+    facts_used: {
+      type: "array",
+      items: { type: "string" },
+      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
+    },
+    language: {
+      type: "string",
+      enum: [...BRAIN_LANGUAGES],
+      description: "The language the reply is written in."
+    }
+  },
+  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
+  additionalProperties: false
+};
+
+// src/conversations/message-author.ts
+var EMAIL_CLAIMS = [
+  { claim: "report", personsWords: false },
+  { claim: "booking_notice", personsWords: false },
+  { claim: "forwarding_confirmation", personsWords: false },
+  { claim: "auto_reply", personsWords: false },
+  { claim: "automated", personsWords: false },
+  { claim: "person", personsWords: true }
+];
+var NOT_A_PERSONS_CLAIMS = EMAIL_CLAIMS.filter((c) => !c.personsWords).map((c) => c.claim);
+
+// src/conversations/thread-channel.ts
+function writtenChannelOf(channel) {
+  return channel === "sms" ? "sms" : channel === "email" ? "email" : "whatsapp";
+}
+
+// src/conversations/message-words.ts
+var WHATSAPP_FAILURES = {
+  130429: "Your number has reached WhatsApp's message limit for now",
+  131026: "WhatsApp couldn't deliver it: their number may not be on WhatsApp, or they haven't accepted its latest terms or updated the app",
+  131031: "Your WhatsApp Business account is restricted or disabled, or WhatsApp couldn't verify its details",
+  131042: "WhatsApp reports a problem with your payment method",
+  131047: "WhatsApp wouldn't send it: more than 24 hours have passed since they last replied, so only a template message can reach them now",
+  131048: "WhatsApp is limiting how many messages your number can send, because earlier ones were blocked or flagged as spam",
+  131049: "WhatsApp held it back: Meta limits marketing messages to each person, and isn't delivering marketing messages to US numbers at all for now",
+  131050: "They've chosen to stop receiving marketing messages from your business on WhatsApp",
+  131053: "WhatsApp couldn't upload the attachment, for a reason such as a file type it doesn't support",
+  131056: "Your number sent them too many messages in a short while, and WhatsApp asks you to wait before sending more to them",
+  132e3: "The template's variable values didn't match the ones it defines",
+  132001: "That template doesn't exist in this language, or hasn't been approved",
+  132012: "The template's variable values were formatted wrongly",
+  132015: "That template is paused because of its low quality",
+  132016: "That template was permanently disabled for low quality"
+};
+var SMS_FAILURES = {
+  21211: "That isn't a valid phone number",
+  21408: "Texts to that region are turned off for your account",
+  21610: "They've opted out of texts from your number",
+  21614: "That number isn't a valid mobile number",
+  30003: "Their phone couldn't be reached: it may be off, out of signal, or unable to receive texts",
+  30004: "The text was blocked from reaching this number",
+  30005: "The carrier says this number is unknown and may no longer exist",
+  30006: "This number can't receive texts, which is typical of a landline",
+  30007: "The text was filtered as a possible policy violation",
+  30008: "The carrier gave no reason for not delivering it",
+  30034: "Your texting line isn't registered with the carriers yet, so they blocked it"
+};
+var SMS_STATUS_WORDS = {
+  undelivered: "The carrier didn't deliver it.",
+  failed: "The text couldn't be sent.",
+  canceled: "The text was canceled before it left."
+};
+var EMAIL_FAILURES = {
+  bounced: "The email bounced: their address didn't accept it.",
+  failed: "The mail provider couldn't send it.",
+  suppressed: "The mail provider has stopped sending to this address after an earlier bounce or complaint."
+};
+var SETTLED_FAILURES = {
+  never_delivered: "It was never sent: the job that would have sent it never ran.",
+  run_interrupted: "It may not have gone: the run that was sending it did not finish.",
+  orphaned: "It was never sent: no job was left to send it."
+};
+var record = (v) => v !== null && typeof v === "object" && !Array.isArray(v) ? v : null;
+function tableWord(table, key) {
+  return Object.hasOwn(table, key) ? table[key] : void 0;
+}
+function codeOf(v) {
+  if (typeof v === "number") return Number.isInteger(v) && v > 0 ? v : null;
+  return typeof v === "string" && /^\d{3,6}$/.test(v.trim()) ? Number(v.trim()) : null;
+}
+function providerCodeOf(error) {
+  const listed = Array.isArray(error.errors) ? record(error.errors[0]) : null;
+  const direct = codeOf(listed?.code) ?? codeOf(error.code);
+  if (direct !== null) return direct;
+  const body = error.body;
+  if (typeof body === "string") {
+    const graph = /"code"\s*:\s*(\d{3,6})/.exec(body);
+    if (graph) return Number(graph[1]);
+    const twilio = /^Twilio (\d{5})$/.exec(body.trim());
+    return twilio ? Number(twilio[1]) : null;
+  }
+  return codeOf(record(record(body)?.error)?.code);
+}
+function sendFailureWords(error, channel) {
+  const e = record(error);
+  if (!e) return null;
+  const wire = writtenChannelOf(channel);
+  if (wire === "email") {
+    const provider = typeof e.provider === "string" ? e.provider : "";
+    return tableWord(EMAIL_FAILURES, provider) ?? settledWords(e);
+  }
+  const code = providerCodeOf(e);
+  const sms = wire === "sms";
+  if (code !== null) {
+    const meaning = tableWord(sms ? SMS_FAILURES : WHATSAPP_FAILURES, code);
+    if (meaning) return `${meaning} (${sms ? "Twilio" : "WhatsApp"} error ${code}).`;
+    return sms ? `Twilio didn't deliver it (error ${code}).` : `WhatsApp didn't deliver it (error ${code}).`;
+  }
+  const carrier = typeof e.carrier === "string" ? tableWord(SMS_STATUS_WORDS, e.carrier) : void 0;
+  return carrier ?? settledWords(e);
+}
+var OUTCOME_UNKNOWN_KIND = "outcome_unknown";
+function failureWordsOf(channel, key) {
+  if (key.code !== null) return sendFailureWords({ code: key.code }, channel);
+  if (key.kind === null) return null;
+  if (key.kind === OUTCOME_UNKNOWN_KIND) return sendFailureWords({ outcome: "unknown" }, channel);
+  const wire = writtenChannelOf(channel);
+  const own = wire === "email" ? { provider: key.kind } : wire === "sms" ? { carrier: key.kind } : {};
+  return sendFailureWords({ ...own, reason: key.kind }, channel);
+}
+function settledWords(e) {
+  const settled = typeof e.reason === "string" ? tableWord(SETTLED_FAILURES, e.reason) : void 0;
+  if (settled) return settled;
+  return e.outcome === "unknown" ? "The provider didn't answer in time, so it may have gone: check the thread before sending it again." : null;
+}
+
+// src/reports/campaigns/campaign-words.ts
+var NO_FIGURE = "\u2014";
+var NOTHING_WENT_OUT = "Nothing went out in this period.";
+function reachOutsWroteWords(emails, businesses) {
+  if (emails === 0) return "";
+  const to = businesses === void 0 ? "" : ` to ${plural(businesses, "business", "businesses")}`;
+  return ` Your reach-outs wrote ${plural(emails, "email")}${to}.`;
+}
+function peopleHeadWords({ messages, people, runs, wroteBack, before, range }) {
+  const sentence = `${plural(messages, "message")} to ${plural(people, "person", "people")} over ${plural(runs, "run")}`;
+  if (people < REPORT_MIN_N || wroteBack === null) return `${sentence}.`;
+  const hadPeople = before.sentTo !== null && before.sentTo > 0 && before.wroteBack !== null;
+  const was = hadPeople ? ` (${before.wroteBack === 0 ? "none" : before.wroteBack} ${beforeWords(range)})` : "";
+  return `${sentence}; ${wroteBack} of ${people} wrote back${was}.`;
+}
+function sendsHeadWords(sent) {
+  const sentence = `${plural(sent.messages, "message")} over ${plural(sent.runs, "run")}`;
+  return sent.messages >= REPORT_MIN_N ? `${sentence}; people wrote back to ${sent.replied} of them.` : `${sentence}.`;
+}
+var NO_MESSAGE_SENT = "no message went out in this period";
+var NOTHING_SENT = "nothing sent";
+var NOBODY_SENT_TO = "nobody was sent a message in this period";
+var NOBODY_IN_PERIOD = "nobody in this period";
+var ANSWER_META = `after a message of yours, ${REPLY_WINDOW_WORDS}`;
+function sentToMeta(messages, runs) {
+  if (messages === null) return plural(runs, "run");
+  return messages === 0 ? NO_MESSAGE_SENT : `${plural(messages, "message")} over ${plural(runs, "run")}`;
+}
+function deliveredMeta(delivered, sent) {
+  return sent === 0 ? NOTHING_SENT : `${delivered} of ${sent} \xB7 ${DELIVERY_RECEIPTS_WORDS}`;
+}
+function wroteBackMeta(facts) {
+  if (facts.people === 0) return NOBODY_SENT_TO;
+  const still = facts.counting !== null && facts.counting > 0 ? `, ${facts.counting} sent to in the last ${REPLY_DAYS} may still answer` : "";
+  return `${facts.wroteBack} of ${plural(facts.people, "person", "people")} ${REPLY_WINDOW_WORDS}${still}`;
+}
+var NO_MESSAGE_WENT_OUT = "No message went out in this period.";
+var wasWere = (n) => n === 1 ? "was" : "were";
+function funnelLine(f) {
+  if (f.sent < REPORT_MIN_N) {
+    return `Of ${plural(f.sent, "message")}, ${f.delivered} ${wasWere(f.delivered)} delivered and ${f.replied} ${wasWere(f.replied)} answered.`;
+  }
+  const read = f.readOf >= REPORT_MIN_N ? `, ${pct(f.read, f.readOf)}% of WhatsApp's were read` : "";
+  return `${pct(f.delivered, f.sent)}% were delivered${read} and ${pct(f.replied, f.sent)}% were answered ${REPLY_WINDOW_WORDS}, of ${plural(f.sent, "message")}.`;
+}
+var HELD_EMPTY = "Nobody was held back in this period.";
+var HELD_OTHER = "Another reason";
+var heldKeyOf = (key) => ownWord(HELD_REASONS, key) === void 0 ? "other" : key;
+var heldReasonWords = (key) => capitalize(ownWord(HELD_REASONS, key) ?? HELD_OTHER);
+var heldBackLine = (held, sent) => `${held} of the ${plural(sent + held, "message")} planned ${wasWere(held)} held back or could not be sent.`;
+var REACH_OUTS_UNDER = "A reach-out's runs are not counted here.";
+var STOPPED_EMPTY = `No run failed or was canceled in this period. ${REACH_OUTS_UNDER}`;
+var CANCELED_KEY = "canceled";
+var stoppedKeyOf = (key) => readFailure(key) === null ? "other" : key;
+var stoppedWords = (key) => key === CANCELED_KEY ? "Canceled" : capitalize(broadcastFailureWords(key));
+var stoppedLine = (failed, canceled) => `${plural(failed, "run")} failed and ${canceled} ${wasWere(canceled)} canceled. ${REACH_OUTS_UNDER}`;
+var FAILED_WHY_EMPTY = "No sent message failed in this period.";
+var UNRECORDED_REASON = "Reason not recorded";
+function failedReasonWords(row) {
+  const words = failureWordsOf(row.channel, { code: row.code ?? null, kind: row.kind ?? null });
+  return words === null ? UNRECORDED_REASON : words.replace(/\.$/, "");
+}
+var failedWhyLine = (total) => `${plural(total, "message")} failed after ${total === 1 ? "it was" : "they were"} sent, for the provider's own reason.`;
+var BY_MESSAGE_LINE = `A reply is counted only for messages sent more than ${REPLY_DAYS} ago, so each has had its time.`;
+var byMessageLine = (tooNew) => tooNew === 0 ? BY_MESSAGE_LINE : `${BY_MESSAGE_LINE} ${tooNew} sent since ${tooNew === 1 ? "is" : "are"} not counted yet.`;
+function messageRateWords(m) {
+  if (m.mature === 0) return `${m.sent} sent in the last ${REPLY_DAYS}, too new to say`;
+  const said = messagesAnsweredWords(m.replied, m.mature);
+  return isThinShare(m.mature, REPORT_MIN_N) ? said : `${said}  ${pct(m.replied, m.mature)}%`;
+}
+function runsLineWords(moment, broadcast) {
+  const kinds = [
+    moment > 0 ? plural(moment, "campaign run") : null,
+    broadcast > 0 ? plural(broadcast, "one-off broadcast") : null
+  ].filter((kind) => kind !== null);
+  return kinds.length === 0 ? null : `From ${joinWords(kinds)}.`;
+}
+var FIRST_REPLY_EMPTY = "No message was answered in this period.";
+var FIRST_REPLY_ROWS = [
+  ["m15", "Within 15 minutes"],
+  ["h1", "Within an hour"],
+  ["h4", "Within 4 hours"],
+  ["h24", "Within a day"],
+  ["h72", `Within ${REPLY_DAYS}`]
+];
+var APPROVAL_EMPTY = "No run waited for your OK in this period.";
+var APPROVAL_ROWS = [
+  ["h1", "An hour or less"],
+  ["h4", "Up to 4 hours"],
+  ["h24", "Up to a day"],
+  ["over", "More than a day"]
+];
+function firstReplyLine(n, medianS) {
+  if (n < REPORT_MIN_N)
+    return `${plural(n, "message")} ${n === 1 ? "has" : "have"} been answered so far: too few for a middle.`;
+  if (medianS === null) return null;
+  return `The middle one was answered ${durationWords(medianS)} after it was sent, of ${plural(n, "answered message")}.`;
+}
+function approvalLine(n, medianS) {
+  if (n < REPORT_MIN_N) return `${plural(n, "run")} you approved: too few for a middle.`;
+  if (medianS === null) return null;
+  return `The middle wait for your OK was ${durationWords(medianS)}, over ${plural(n, "run")} you approved.`;
+}
+function runsWaitingMeta(n, late) {
+  if (n === 0) return "nothing is waiting for your OK";
+  const one = n === 1;
+  if (late === 0) return one ? "it can still be approved" : "they can still be approved";
+  if (late >= n) return one ? "it is past its day: skip it" : "they are past their day: skip them";
+  return `${late} past their day (skip those), ${n - late} can still be approved`;
+}
+var RUNS_FAILED_NONE = `no run failed in the last ${STUCK_DAYS}`;
+var REACH_OUT_STEP_COUNTS = "a reach-out's step counts too";
+function failedRunMeta(failed) {
+  if (failed.n === 0) return RUNS_FAILED_NONE;
+  const what = failed.latest === null ? `${plural(failed.n, "run")} failed in the last ${STUCK_DAYS}` : `the latest: ${failed.latest.name}, ${broadcastFailureWords(failed.latest.failure)}`;
+  return `${what} \xB7 ${REACH_OUT_STEP_COUNTS}`;
+}
+var REPLIES_NONE = "nobody who answered a campaign is waiting";
+var REPLIES_WAITING = `people who answered a campaign in the last ${STUCK_DAYS} and wait for a person`;
+var TEMPLATES_NONE = "every WhatsApp message is approved";
+var STOPPED_BY_META = {
+  paused: "paused",
+  disabled: "turned off",
+  rejected: "rejected"
+};
+var TEMPLATES_TITLED = 2;
+function templatesMeta(templates) {
+  if (templates.n === 0) return TEMPLATES_NONE;
+  return templates.items.slice(0, TEMPLATES_TITLED).map((t) => `${templateTitle(t.name)} ${ownWord(STOPPED_BY_META, t.status) ?? t.status}`).join(", ");
+}
+var NUMBER_HEALTH_WORDS = { ok: "Good", warn: "Medium", danger: "Flagged", unknown: "Not reported" };
+var NUMBER_HEALTH_TONES = {
+  ok: {},
+  warn: { tone: "warn" },
+  danger: { tone: "fail" },
+  unknown: {}
+};
+var NUMBER_NONE = "no WhatsApp number is connected";
+var NUMBER_UNREAD = "this number could not be read";
+function numberMeta(number, tz, nowMs) {
+  const at = number.checked_at === null ? NaN : Date.parse(number.checked_at);
+  return Number.isNaN(at) ? number.label : `${number.label} \xB7 checked ${clockNear(at, tz, nowMs)}`;
+}
+var FAILED_WHAT = {
+  campaigns: "the campaign numbers",
+  ledger: "who it reached and what is stuck",
+  stuck: "what is stuck now",
+  reach_outs: "the reach-out numbers"
+};
+var STILL_READ = {
+  campaigns: "the sends and their channels",
+  ledger: "who it reached",
+  stuck: "what is stuck now",
+  reach_outs: "the reach-outs"
+};
+var REST_IS_CURRENT = "The rest of this page is current.";
+var NOTHING_ELSE_READ = "Nothing else on this page could be read either.";
+var onlyReadWords = (landed) => `Only ${joinWords(landed.map((part) => STILL_READ[part]))} could be read.`;
+
+// src/reports/campaigns/campaign-lens.ts
+var knownCount = (v) => isCount(v) ? v : null;
+function readsOf({ campaigns, ledger, reachOuts }) {
+  return {
+    campaigns: campaigns === null ? "failed" : "ok",
+    ledger: ledger === null ? "failed" : ledger.series === null ? "missing" : "ok",
+    stuck: ledger === null || ledger.stuck_failed === true ? "failed" : ledger.stuck === null ? "missing" : "ok",
+    reachOuts: reachOuts === void 0 ? "none" : reachOuts === null ? "failed" : "ok"
+  };
+}
+function failedReads(reads) {
+  const status = [
+    ["campaigns", reads.campaigns],
+    ["ledger", reads.ledger],
+    ["stuck", reads.stuck],
+    ["reach_outs", reads.reachOuts]
+  ];
+  const failing = status.filter(([part, is]) => is === "failed" && !(part === "stuck" && reads.ledger === "failed"));
+  const landed = status.filter(([, is]) => is === "ok").map(([part]) => part);
+  const others = failing.length === 1 ? REST_IS_CURRENT : landed.length === 0 ? NOTHING_ELSE_READ : onlyReadWords(landed);
+  return failing.map(([part]) => ({ part, what: FAILED_WHAT[part], body: others }));
+}
+function reachedPeopleOf({ people }) {
+  return {
+    sentTo: knownCount(people.now.sent_to),
+    wroteBack: knownCount(people.now.wrote_back),
+    counting: knownCount(people.now.counting),
+    before: { sentTo: knownCount(people.before.sent_to), wroteBack: knownCount(people.before.wrote_back) }
+  };
+}
+function runsOf({ runs }) {
+  const moment = knownCount(runs.now.moment);
+  const broadcast = knownCount(runs.now.broadcast);
+  return { moment, broadcast, total: moment === null || broadcast === null ? null : moment + broadcast };
+}
+function isQuiet(report, series) {
+  if (report === null) return false;
+  const { sent, optIns, optOuts } = report.totals;
+  if (sent + optIns + optOuts > 0) return false;
+  if (series === null) return true;
+  const { held, stopped, failed_sends, approval, people } = series;
+  return [held.total, stopped.failed, stopped.canceled, failed_sends.total, approval.n, people.now.wrote_back].every(
+    (n) => n === 0
+  );
+}
+function campaignHead(report, series, reach) {
+  const { sent, replied, sends } = report.totals;
+  if (sent === 0) {
+    return `${NOTHING_WENT_OUT}${reach === null ? "" : reachOutsWroteWords(reach.totals.written, reach.totals.businesses)}`;
+  }
+  const people = series === null ? null : reachedPeopleOf(series);
+  const runs = series === null ? null : runsOf(series).total;
+  if (series === null || people === null || people.sentTo === null || runs === null) {
+    return sendsHeadWords({ messages: sent, runs: sends, replied });
+  }
+  return peopleHeadWords({
+    messages: sent,
+    people: people.sentTo,
+    runs,
+    wroteBack: people.wroteBack,
+    before: people.before,
+    range: rangeLabelOf(series.days)
+  });
+}
+function sentToFigures(report, series) {
+  if (series === null) return [];
+  const { sentTo, before } = reachedPeopleOf(series);
+  const runs = runsOf(series).total;
+  if (sentTo === null || runs === null) return [];
+  return [
+    {
+      id: "people-sent-to",
+      metric: "people_sent_to",
+      label: "People sent to",
+      value: String(sentTo),
+      meta: sentToMeta(report === null ? null : report.totals.sent, runs),
+      compare: before.sentTo === null ? null : compareWords(sentTo, before.sentTo, rangeLabelOf(series.days), before.sentTo > 0)
+    }
+  ];
+}
+function deliveredShareFigure({ totals, before, days }) {
+  const share = pct(totals.delivered, totals.sent);
+  return {
+    id: "delivered",
+    metric: "delivered_share",
+    label: "Delivered",
+    value: share === null ? NO_FIGURE : `${share}%`,
+    meta: deliveredMeta(totals.delivered, totals.sent),
+    compare: shareWasWords(totals.sent, { part: before.delivered, of: before.sent }, rangeLabelOf(days)),
+    n: totals.sent,
+    minN: REPORT_MIN_N
+  };
+}
+function wroteBackFigures(series) {
+  if (series === null) return [];
+  const { sentTo, wroteBack, counting, before } = reachedPeopleOf(series);
+  if (sentTo === null || wroteBack === null) return [];
+  const share = pct(wroteBack, sentTo);
+  const was = before.sentTo === null || before.wroteBack === null ? null : shareWasWords(sentTo, { part: before.wroteBack, of: before.sentTo }, rangeLabelOf(series.days));
+  return [
+    {
+      id: "wrote-back",
+      metric: "people_wrote_back",
+      label: "Wrote back",
+      value: share === null ? NO_FIGURE : `${share}%`,
+      meta: wroteBackMeta({ wroteBack, people: sentTo, counting }),
+      compare: was,
+      n: sentTo,
+      minN: REPORT_MIN_N
+    }
+  ];
+}
+function answerFigures({ totals, before, days }) {
+  const priorHadAny = campaignPriorHadAny(before);
+  const range = rangeLabelOf(days);
+  return [
+    {
+      id: "said-yes",
+      metric: "said_yes",
+      label: "Said yes",
+      value: String(totals.optIns),
+      meta: totals.optIns > 0 ? ANSWER_META : NOBODY_IN_PERIOD,
+      compare: compareWords(totals.optIns, before.optIns, range, priorHadAny)
+    },
+    {
+      id: "asked-to-stop",
+      metric: "asked_to_stop",
+      label: "Asked to stop",
+      value: String(totals.optOuts),
+      meta: totals.optOuts > 0 ? ANSWER_META : NOBODY_IN_PERIOD,
+      compare: compareWords(totals.optOuts, before.optOuts, range, priorHadAny)
+    }
+  ];
+}
+function campaignStrip(report, series) {
+  return [
+    ...sentToFigures(report, series),
+    ...report === null ? [] : [deliveredShareFigure(report)],
+    ...wroteBackFigures(series),
+    ...report === null ? [] : answerFigures(report)
+  ];
+}
+function sumUnder(counts, keyOf2) {
+  const sums = /* @__PURE__ */ new Map();
+  for (const [key, n] of Object.entries(counts)) {
+    if (isCount(n)) sums.set(keyOf2(key), (sums.get(keyOf2(key)) ?? 0) + n);
+  }
+  return Object.fromEntries(sums);
+}
+function funnelPart(report) {
+  if (report === null) return noMix(null);
+  const { sent, delivered, read, readOf, replied } = report.totals;
+  if (sent === 0) return noMix(NO_MESSAGE_WENT_OUT);
+  const entries = [
+    ["sent", "Sent", sent],
+    ["delivered", "Delivered", delivered]
+  ];
+  if (readOf > 0) entries.push(["read", "Read", read]);
+  entries.push(["replied", "Answered", replied]);
+  return { rows: barsOf(entries), line: funnelLine({ sent, delivered, read, readOf, replied }), empty: null };
+}
+function heldPart(report, series) {
+  if (series === null) return noMix(null);
+  const { total, by_reason } = series.held;
+  if (!isCount(total)) return noMix(null);
+  if (total === 0) return noMix(HELD_EMPTY);
+  const rows = barsOf(rankedEntries(sumUnder(by_reason, heldKeyOf), heldReasonWords));
+  return { rows, line: report === null ? null : heldBackLine(total, report.totals.sent), empty: null };
+}
+function stoppedPart(series) {
+  if (series === null) return noMix(null);
+  const { failed, canceled, by_failure } = series.stopped;
+  if (!isCount(failed) || !isCount(canceled)) return noMix(null);
+  if (failed + canceled === 0) return noMix(STOPPED_EMPTY);
+  const counts = { ...sumUnder(by_failure, stoppedKeyOf), [CANCELED_KEY]: canceled };
+  return { rows: barsOf(rankedEntries(counts, stoppedWords)), line: stoppedLine(failed, canceled), empty: null };
+}
+function failedWhyPart(series) {
+  if (series === null) return noMix(null);
+  const { total, by_code } = series.failed_sends;
+  if (!isCount(total)) return noMix(null);
+  if (total === 0) return noMix(FAILED_WHY_EMPTY);
+  const counts = /* @__PURE__ */ new Map();
+  for (const row of by_code) {
+    if (!isCount(row.n)) continue;
+    const why = failedReasonWords(row);
+    counts.set(why, (counts.get(why) ?? 0) + row.n);
+  }
+  const rows = barsOf(rankedEntries(Object.fromEntries(counts), (why) => why));
+  return { rows, line: failedWhyLine(total), empty: null };
+}
+var isWholeMessage = (m) => typeof m.name === "string" && typeof m.language === "string" && isCount(m.sent) && isCount(m.mature) && isCount(m.replied);
+function titledMessages(messages) {
+  return messages.map((message) => {
+    const title = templateTitle(message.name);
+    const alike = messages.filter((m) => templateTitle(m.name) === title);
+    if (alike.length === 1) return { message, title };
+    const language = languageLabels(alike.map((m) => m.language))[message.language] ?? message.language;
+    return { message, title: `${title} (${language})` };
+  });
+}
+function byMessagePart(series) {
+  const none = { rows: [], line: null, empty: null };
+  if (series === null) return none;
+  if (series.by_message.length === 0) return { ...none, empty: NO_MESSAGE_WENT_OUT };
+  const messages = series.by_message.filter(isWholeMessage);
+  if (messages.length === 0) return none;
+  const tooNew = sumOf(messages.map((m) => Math.max(0, m.sent - m.mature)));
+  return {
+    rows: titledMessages(messages).map(({ message: m, title }) => ({
+      id: `${m.name}:${m.language}`,
+      label: title,
+      value: pct(m.replied, m.mature) ?? 0,
+      display: messageRateWords(m),
+      n: m.mature,
+      minN: REPORT_MIN_N
+    })),
+    line: byMessageLine(tooNew),
+    empty: null
+  };
+}
+function runsLineOf(series) {
+  if (series === null) return null;
+  const { moment, broadcast } = runsOf(series);
+  return moment === null || broadcast === null ? null : runsLineWords(moment, broadcast);
+}
+function waitPart(dist, words) {
+  if (dist === null || !isCount(dist.n)) return noMix(null);
+  if (dist.n === 0) return noMix(words.empty);
+  const buckets = dist.buckets;
+  const entries = [];
+  for (const [key, label] of words.rows) {
+    const count = buckets[key];
+    if (!isCount(count)) return noMix(null);
+    entries.push([key, label, count]);
+  }
+  const median = typeof dist.median_s === "number" && Number.isFinite(dist.median_s) ? dist.median_s : null;
+  return { rows: barsOf(entries), line: words.line(dist.n, median), empty: null };
+}
+var FIRST_REPLY_WORDS = { rows: FIRST_REPLY_ROWS, empty: FIRST_REPLY_EMPTY, line: firstReplyLine };
+var APPROVAL_WORDS = { rows: APPROVAL_ROWS, empty: APPROVAL_EMPTY, line: approvalLine };
+var stuckValue = (n, capped) => capped ? `${n}+` : String(n);
+var stuckTone = (n, tone) => n > 0 ? { tone } : {};
+function stuckFiguresOf(stuck, tz, nowMs) {
+  const { waiting, failed, replies, templates, number } = stuck;
+  const figure = { compare: null };
+  const health = number.state === "read" ? number.tone : null;
+  return [
+    {
+      ...figure,
+      id: "runs-waiting",
+      metric: "runs_waiting",
+      label: "Runs waiting for you",
+      value: stuckValue(waiting.n, waiting.capped),
+      meta: runsWaitingMeta(waiting.n, waiting.late),
+      door: "campaigns",
+      ...stuckTone(waiting.n, "warn")
+    },
+    {
+      ...figure,
+      id: "runs-failed",
+      metric: "runs_failed",
+      label: "Failed runs",
+      value: stuckValue(failed.n, failed.capped),
+      meta: failedRunMeta(failed),
+      door: "broadcasts",
+      ...stuckTone(failed.n, "fail")
+    },
+    {
+      ...figure,
+      id: "replies-waiting",
+      metric: "campaign_replies_waiting",
+      label: "Replies waiting on you",
+      value: stuckValue(replies.n, replies.capped),
+      meta: replies.n === 0 ? REPLIES_NONE : REPLIES_WAITING,
+      door: "inbox",
+      ...stuckTone(replies.n, "warn")
+    },
+    {
+      ...figure,
+      id: "templates-paused",
+      metric: "templates_paused",
+      label: "Messages Meta stopped",
+      value: String(templates.n),
+      meta: templatesMeta(templates),
+      door: "messages",
+      ...stuckTone(templates.n, "fail")
+    },
+    {
+      ...figure,
+      id: "number-health",
+      metric: "number_health",
+      label: "Your WhatsApp number",
+      value: health === null ? NO_FIGURE : NUMBER_HEALTH_WORDS[health],
+      meta: number.state === "read" ? numberMeta(number, tz, nowMs) : number.state === "none" ? NUMBER_NONE : NUMBER_UNREAD,
+      door: "admin/integrations",
+      ...health === null ? {} : NUMBER_HEALTH_TONES[health]
+    }
+  ];
+}
+function toCampaignLensVM(input, nowMs) {
+  const reads = readsOf(input);
+  const report = input.campaigns === null ? null : toCampaignReportVM(input.campaigns);
+  const series = input.ledger?.series ?? null;
+  const stuck = reads.stuck === "ok" ? input.ledger?.stuck ?? null : null;
+  const reachOuts = input.reachOuts ? toReachOutLensVM(input.reachOuts, nowMs) : null;
+  return {
+    head: report === null ? null : campaignHead(report, series, reachOuts),
+    reads,
+    failed: failedReads(reads),
+    quiet: isQuiet(report, series),
+    report,
+    strip: campaignStrip(report, series),
+    funnel: funnelPart(report),
+    held: heldPart(report, series),
+    stopped: stoppedPart(series),
+    failedWhy: failedWhyPart(series),
+    byMessage: byMessagePart(series),
+    runsLine: runsLineOf(series),
+    firstReply: waitPart(series?.first_reply ?? null, FIRST_REPLY_WORDS),
+    approval: waitPart(series?.approval ?? null, APPROVAL_WORDS),
+    stuck: stuck === null || input.ledger === null ? [] : stuckFiguresOf(stuck, input.ledger.timezone, nowMs),
+    reachOuts
+  };
+}
 export {
   FIRST_CAME_NOBODY,
   PEOPLE_RHYTHM_EMPTY,
   PEOPLE_RHYTHM_UNIT,
   metricWordsOf,
+  toCampaignLensVM,
   toPeopleReportVM,
+  toReachOutLensVM,
   toReceptionistReportVM
 };

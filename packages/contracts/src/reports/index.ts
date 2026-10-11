@@ -71,6 +71,8 @@ export {
   bookedTileOf,
   BOOKED_ENDED_META,
   REPORT_MIN_N,
+  isThinShare,
+  shareSaid,
 } from "./report-tiles";
 export type { ReportTileVM, ReportStripTile } from "./report-tiles";
 export { metricWordsOf } from "./report-metrics";
@@ -119,7 +121,21 @@ export { closedOf } from "./report-closed";
 export type { ReportArrivalDto, ReportProfile } from "./report-closed";
 export { reportFacts } from "./report-facts";
 export type { ReportFactVM } from "./report-facts";
-export { toReachOutReportVM, reachOutDayWords, chainTotalsOf, chainTotalsFromReport } from "./reach-out-report";
+export { isCampaignLedgerSeriesDto, isCampaignStuckRawDto, campaignLedgerDtoOf } from "./campaigns/campaign-record";
+export type {
+  CampaignLedgerDto,
+  CampaignLedgerSeriesDto,
+  CampaignNumberDto,
+  CampaignStuckNowDto,
+  CampaignStuckRawDto,
+} from "./campaigns/campaign-record";
+export { toReachOutLensVM } from "./campaigns/reach-out-lens";
+export type { ReachOutLensVM, ReachOutLensSourceLine } from "./campaigns/reach-out-lens";
+export { toCampaignLensVM } from "./campaigns/campaign-lens";
+export type { CampaignFigureVM, CampaignLensInput, CampaignLensVM } from "./campaigns/campaign-lens";
+export { isUncounted } from "./report-mix";
+export type { RateRowVM } from "./report-mix";
+export { reachOutDayWords, chainTotalsOf, chainTotalsFromReport } from "./reach-out-report";
 export type {
   ReachOutChainTotalsDto,
   ReachOutReportCounts,
@@ -127,10 +143,6 @@ export type {
   ReachOutReportChainDto,
   ReachOutReportDomainDto,
   ReachOutReportDto,
-  ReachOutFunnelRow,
-  ReachOutAngleRow,
   ReachOutDomainRow,
-  ReachOutSourceLine,
-  ReachOutReportVM,
   ReachOutDayNumbers,
 } from "./reach-out-report";

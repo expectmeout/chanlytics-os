@@ -19,7 +19,6 @@ import {
   lensOfRoute,
   lensRoute,
   lensesFor,
-  toCampaignReportVM,
   toDealReportVM,
   toReportVM,
   toReviewsReportVM,
@@ -43,6 +42,11 @@ test("six lenses in the strip's order, each with its words, and none for a lens 
     REPORT_LENSES.find((l) => l.id === "people")?.sub,
     "who reached you, whether you can reach them, and who is slipping away",
     "People's sub-line says the four questions the lens answers",
+  );
+  assert.equal(
+    REPORT_LENSES.find((l) => l.id === "campaigns")?.sub,
+    "did your messages reach people, did they answer, and what is stuck",
+    "Campaigns' sub-line says the three questions the lens answers",
   );
   assert.equal(
     lensEmpty("overview", { since: "Aug 29", until: "Sep 4" }).body,
@@ -155,18 +159,8 @@ test("the head says the lens's own sentence, from the view models that hold it",
   });
   const vm = toReportVM(dto([day("2026-09-03"), busy]), { profile: null });
   const quiet = toReportVM(dto([day("2026-09-03"), day("2026-09-04")]), { profile: null });
-  const sent = (n) => ({
-    timezone: "America/New_York",
-    days: 1,
-    span_days: 2,
-    today: "2026-09-04",
-    series: [
-      { day: "2026-09-03", sent: 0, delivered: 0, read: 0, replied: 0, opt_ins: 0, opt_outs: 0 },
-      { day: "2026-09-04", sent: n, delivered: n, read: 0, replied: 0, opt_ins: 0, opt_outs: 0 },
-    ],
-    sources: [],
-  });
-  const campaigns = toCampaignReportVM(sent(3));
+  // The Campaigns lens's own read, which the page holds beside the report: its head alone (the fold that makes it is the page's).
+  const campaigns = { head: "3 messages over 1 run." };
   const deals = toDealReportVM(
     {
       any: true,
@@ -214,7 +208,16 @@ test("the head says the lens's own sentence, from the view models that hold it",
   );
   assert.equal(typeof lensAnswerOf("people", { ...parts, vm: quiet }), "string");
   assert.equal(lensAnswerOf("pipeline", parts), deals.headline);
-  assert.equal(lensAnswerOf("campaigns", parts), campaigns.lines.funnel);
+  assert.equal(
+    lensAnswerOf("campaigns", parts),
+    "3 messages over 1 run.",
+    "the part's head, as the lens's read folds it",
+  );
+  assert.equal(
+    lensAnswerOf("campaigns", { ...parts, vm: quiet }),
+    "3 messages over 1 run.",
+    "whatever the receptionist's period",
+  );
   assert.equal(lensAnswerOf("reviews", parts), undefined, "Reviews says nothing until its own read has landed");
   const reviews = toReviewsReportVM(reviewsDto(), { nowMs: REVIEWS_NOW });
   assert.equal(
@@ -231,7 +234,13 @@ test("the head says the lens's own sentence, from the view models that hold it",
   assert.equal(
     lensAnswerOf("campaigns", { ...parts, campaigns: null }),
     undefined,
-    "a campaign read that failed says nothing",
+    "a campaign read that has not landed, or failed, says nothing",
   );
+  assert.equal(
+    lensAnswerOf("campaigns", { ...parts, campaigns: { head: null } }),
+    undefined,
+    "a read whose sends could not be read has no head to say",
+  );
+  assert.equal(lensAnswerOf("overview", { ...parts, campaigns: null }), vm.lines.hero, "another lens's is its own");
   assert.equal(lensAnswerOf("pipeline", { ...parts, deals: toDealReportVM(null, "in the last 1 day") }), undefined);
 });

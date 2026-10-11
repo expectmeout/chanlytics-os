@@ -44,6 +44,7 @@ export { OFFERS_BY_EMAIL_WORDS, OFFERS_PAUSED_WORDS, OFFERS_NOTICE_WORDS, OFFER_
 export { PREVIEW_WORDS, PREVIEW_CHANNEL_WORDS, previewOn, previewSays, previewVersionsOf, reachBarParts, reachByWords, reachBarWords } from "./broadcasts/preview-by-channel";
 export { READY_WHATSAPP_ALONE, readyOrWhatsApp, answeredYes, personReachOf } from "./broadcasts/reach-any";
 export { DEFAULT_CAMPAIGN_CHANNELS, NEW_PLAYBOOK_TICKS_EVERY_CHANNEL, newCampaignChannels, CHANNEL_WORDS, CAMPAIGN_MONTH_ALLOWANCE, HELD_ON, channelRefuses, channelNeverCarries, offersNote, channelsReady, channelChoices, reachFor, reachSplit, reachSplitWords, heldByAllowance, allowanceRoom, pastAllowance, nextMonthStart, monthSentAt, allowanceBeforeSend, allowanceLine, allowanceLines } from "./broadcasts/reach-for";
+export { answersToRuns } from "./broadcasts/run-answers";
 export { consentAnswerWords, receiptWords, toRunReportVM, RUN_REPORT_STEPS, RUN_FILTERS } from "./broadcasts/run-report";
 export { REPLY_WINDOW_HOURS, REPLY_WINDOW_MS, REPLY_WINDOW_WORDS, HELD_REASONS, EMAIL_HOLDS, DELIVERY_RECEIPTS_TIP, DELIVERY_RECEIPTS_WORDS, finishedRunHeldWhy, isReplyTo } from "./broadcasts/run-words";
 export { SEND_WHEN_WORDS } from "./broadcasts/send-when-words";
@@ -107,7 +108,7 @@ export { threadStanding, conversationWaitsOnYou, threadsWaitingOnYou, snoozedThr
 export { EMAIL_CLAIMS, isAutomatedSend, isPersonsWords, messageVia, messageAuthor, messageWhy } from "./conversations/message-author";
 export { emailLeftOutOf, splitQuotedReply } from "./conversations/message-email";
 export { mediaKind, mediaVM } from "./conversations/message-media";
-export { messageStatusLabel, sendFailureWords, reachedCustomer, isHeldDraft, draftSendsAtMs, messageWords, messageText, clipAtWord } from "./conversations/message-words";
+export { messageStatusLabel, sendFailureWords, failureWordsOf, providerCodeOf, reachedCustomer, isHeldDraft, draftSendsAtMs, messageWords, messageText, clipAtWord } from "./conversations/message-words";
 export { standingOf, replyWaitsOnYou, HELD_WORDS, seenBy, isUnseen } from "./conversations/standing";
 export { agentFor, answerWireOf, isChatMessage, isFromTheirSide, isTheirOwnWords, lastWroteOn, writtenChannelOf, threadChannelOf, threadChannelWords, THREAD_CHANNEL_WORDS } from "./conversations/thread-channel";
 export { shortTime, formatWaited } from "./conversations/thread-clock";
@@ -165,7 +166,7 @@ export { channelFor, channelKindWords, toChannelVM, CHANNEL_KIND_WORDS, CHANNEL_
 export { LINE_CODES_WITHIN_MS, LINE_CODES_MAX, LINE_CODES_EVERY_MS } from "./lines/line-codes";
 export { lineCredentialFailure, LINE_CREDENTIALS_SENTENCE } from "./lines/line-failure";
 export { lineReleaseAfterDays, billingEndedAt, lineReleaseStep, lineReleaseDay, lineReleaseWarning, lineReleasedWords, LINE_RELEASE_WARN_DAYS, LINE_RELEASE_MIN_DAYS, LINE_RELEASE_REPORT_DAYS } from "./lines/line-release";
-export { standingFromConfig, standingNeedsRead, standingAlertWords, standingAfterNameDecision, nameDecisionWords, numberHealthWithStanding } from "./lines/number-standing";
+export { standingFromConfig, standingNeedsRead, standingAlertWords, standingAfterNameDecision, nameDecisionWords, numberHealthWithStanding, numberHealthOfConfig } from "./lines/number-standing";
 export { registrationPathOf, soleProprietorLimits, REGISTRATION_PATHS, SOLE_PROP_LIMITS, REGISTRATION_QUESTION, REGISTRATION_PATH_WORDS, REGISTRATION_COST_WORDS } from "./lines/registration-path";
 export { WHATSAPP_COST_WORDS } from "./lines/whatsapp-cost";
 export { tryItLink } from "./lines/whatsapp-try-it";
@@ -233,18 +234,19 @@ export { REACH_OUT_SLOTS, REACH_OUT_SLOT_SET, REACH_OUT_SLOT_WORDS, REACH_OUT_SU
 export { zoneOfRegion, US_STATE_ZONES } from "./reach-out/us-zones";
 export { BOOKED_NEEDS_TODAY, toBookingReportVM } from "./reports/booking-report";
 export { toCampaignReportVM } from "./reports/campaign-report";
+export { isCampaignLedgerSeriesDto, isCampaignStuckRawDto, campaignLedgerDtoOf } from "./reports/campaigns/campaign-record";
 export { lensAnswerOf } from "./reports/lens-answer";
 export { REPORT_LENSES, LENS_ROUTES, lensRoute, isLensParam, lensOfRoute, reportsParamParts, reportsRouteParts, lensOf, lensesFor, lensIsShown, lensEmpty } from "./reports/lenses";
 export { peopleNowOf } from "./reports/people/people-now";
 export { isPeopleSeriesDto, peopleDtoOf } from "./reports/people/people-record";
-export { toReachOutReportVM, reachOutDayWords, chainTotalsOf, chainTotalsFromReport } from "./reports/reach-out-report";
+export { reachOutDayWords, chainTotalsOf, chainTotalsFromReport } from "./reports/reach-out-report";
 export { MISSED_CALL_TOUCH_WORDS, isReceptionistSeriesDto, receptionistDtoOf } from "./reports/receptionist/receptionist-record";
 export { closedOf } from "./reports/report-closed";
 export { reportFacts } from "./reports/report-facts";
 export { toHeadlineVM, isReportDto } from "./reports/report-headline";
 export { CAMPAIGNS_RESULTS_PERIOD, REPORT_PERIOD_DEFAULT, REPORT_PERIOD_IDS, REPORT_PERIOD_STORAGE, REPORT_MOST_DAYS, isReportPeriod, isReportDays, fixedDaysOf, monthDaysAt, reportPeriodOf, reportRangeAsked, reportRangeKey, reportRangeOfKey, sameReportRange, reportDaysCount, reportDaysRefusal, reportDaysAsked } from "./reports/report-periods";
 export { holdOf, replyHoldDtoOf } from "./reports/report-speed";
-export { fmtSeconds, deltaOf, pointsDelta, compareWords, bookedTileOf, BOOKED_ENDED_META, REPORT_MIN_N } from "./reports/report-tiles";
+export { fmtSeconds, deltaOf, pointsDelta, compareWords, bookedTileOf, BOOKED_ENDED_META, REPORT_MIN_N, isThinShare, shareSaid } from "./reports/report-tiles";
 export { fmtDay, daysWords, endedOn, quantile, priorOf, weekOf, reportHourWords, hoursOf, channelsOf, runningTotal, speedOf, toReportVM, headlineOf, REPORT_CHANNELS, REPORT_RANGES, REPORT_WEEK_SHORT, REPORT_WEEK_LONG } from "./reports/reports";
 export { reviewsWindowOf, reviewsAreOnRecord, isReviewsLedgerDto } from "./reports/review-record";
 export { toReviewsReportVM, REVIEWS_WAITING_SHOWN } from "./reports/review-report";
@@ -305,7 +307,7 @@ export { guessSlotKind, defaultSlotKinds, defaultParamSpecs, slotChoices, templa
 export { TEMPLATE_TITLE_MAX, templateTitle, playbookName } from "./templates/template-titles";
 export { templateNameOk, slugTemplateName, placeholdersOf, placeholdersSequential, validateTemplateDraft, templateComponents, parseParamSpec, parseParamSpecs, paramLabel, playbooksStillSending, firstNameOf, resolveParams, exampleParams, templateUsage, templateUseWords, templateUseNote, templateUnused, templateSends, templateSendsOf, templateSentWords, TEMPLATE_LANGUAGES, TEMPLATE_CATEGORIES, TEMPLATE_BODY_MAX, TEMPLATE_FOOTER_MAX, TEMPLATE_EXAMPLE_MAX, TEMPLATE_LABEL_MAX, TEMPLATE_NAME_MAX, TEMPLATE_NAME_WORDS, TEMPLATE_BUTTON_TEXT_MAX, PARAM_SOURCES, PARAM_SOURCE_LABELS, PARAM_SOURCE_HINTS } from "./templates/templates";
 export { ALERT_TOPICS, ALERT_PANE_WORDS, BELL_LINE_KINDS, EMAIL_ALWAYS_KINDS, EMAILED_NOTIFICATION_KINDS, emailsNotificationKind, emailsFor, withTopicEmail, withTopicPush, alertTestMail, alertGrid, bellLineFor, phoneLine } from "./today/notification-kinds";
-export { buildNotificationFeed, bellCalls, applyReadState, unreadCount, agoLabel, jobNewsWords, verbForRoute, conversationOfNeedsKey, callOfKey, noteWhose, serverNotificationRows, dedupeFeed, nameKnownCustomers, EMPTY_READ_STATE, ALERT_KINDS, SERVER_NOTIFICATION_KINDS, SERVER_KEY_PREFIX, REACH_OUT_DAY_ROUTE } from "./today/notifications";
+export { buildNotificationFeed, bellCalls, applyReadState, unreadCount, agoLabel, jobNewsWords, verbForRoute, conversationOfNeedsKey, callOfKey, noteWhose, serverNotificationRows, dedupeFeed, nameKnownCustomers, EMPTY_READ_STATE, ALERT_KINDS, SERVER_NOTIFICATION_KINDS, SERVER_KEY_PREFIX, REACH_OUT_DAY_ROUTE, holdNotice } from "./today/notifications";
 export { parseDevice, firstLine, pushFor, PUSH_PLATFORMS, PUSH_KINDS, isPushKind, pushOffOf, pushesFor, parseMemberAlerts, unreadFor, isForReader, PUSH_RECEIPTS_AFTER_MS, BELL_WINDOW_DAYS } from "./today/push";
 export { todayAwayGrouped, bellSections } from "./today/today-away";
 export { toTodayVM } from "./today/today-brief";

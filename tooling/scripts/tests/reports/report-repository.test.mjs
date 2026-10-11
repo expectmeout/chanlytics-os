@@ -4,8 +4,9 @@
  * the reach-outs' say the database's refusal with its code, for the door to word. The reviews' ledger (`reviews_ledger`)
  * is one of them: its counts, its window in the workspace's zone and who wrote each reply are SQL's, held by
  * google/google-reviews-ledger.db.test.mjs over a real database. It and the Receptionist lens's series
- * (`receptionist_series`, 00380) and the People lens's (`people_series`, 00395) answer null where the database does not
- * have their function yet (00350, 00380 and 00395 are applied after the dashboard deploys), and the counts beside them
+ * (`receptionist_series`, 00380), the People lens's (`people_series`, 00395) and the Campaigns lens's (`campaign_ledger`,
+ * 00399, and `campaign_stuck`, 00400, which takes no window) answer null where the database does not have their function
+ * yet (00350, 00380, 00395, 00399 and 00400 are applied after the dashboard deploys), and the counts beside them
  * (00374, 00375) answer "missing", for one release.
  *
  * Each reads a window: a count of days and the day they end on (00359). Days that end today name no day, which is the
@@ -17,7 +18,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   ReportWindowNotReadable,
+  campaignLedger,
   campaignSeries,
+  campaignStuck,
   playbookTotals,
   reachOutChainTotals,
   peopleSeries,
@@ -235,6 +238,60 @@ test("peopleSeries is null where the database does not have the function yet (00
         /^Error: people_series: boom$/,
         `${code}`,
       );
+});
+
+test("campaignLedger asks campaign_ledger for the window, naming the last day only when it is not today", async () => {
+  const { db, asked } = dbWith({
+    campaign_ledger: { data: { days: 30 }, error: null },
+  });
+  assert.deepEqual(await campaignLedger(db, W, live(30)), { days: 30 });
+  await campaignLedger(db, W, ended(20, "2026-09-20"));
+  assert.deepEqual(asked, [
+    ["campaign_ledger", { p_tenant_id: W, p_days: 30 }],
+    ["campaign_ledger", { p_tenant_id: W, p_days: 20, p_end: "2026-09-20" }],
+  ]);
+});
+
+test("campaignLedger is null where the database does not have the function yet (00399 not applied), for a period and for picked days, and throws for any other failure", async () => {
+  const gone = "Could not find the function public.campaign_ledger(p_days, p_tenant_id) in the schema cache";
+  for (const code of ["PGRST202", "42883"]) {
+    const missing = dbWith({ campaign_ledger: { data: null, error: { message: gone, code } } }).db;
+    assert.equal(await campaignLedger(missing, W, live(30)), null, code);
+    assert.equal(
+      await campaignLedger(missing, W, ended(20, "2026-09-20")),
+      null,
+      `${code}: a window that names a day too`,
+    );
+  }
+  for (const code of ["XX000", "42501", "08006", undefined])
+    for (const window of [live(30), ended(20, "2026-09-20")])
+      await assert.rejects(
+        campaignLedger(dbWith({ campaign_ledger: { data: null, error: { message: "boom", code } } }).db, W, window),
+        /^Error: campaign_ledger: boom$/,
+        `${code}`,
+      );
+});
+
+test("campaignStuck asks campaign_stuck for the workspace and nothing else", async () => {
+  const { db, asked } = dbWith({
+    campaign_stuck: { data: { waiting: [] }, error: null },
+  });
+  assert.deepEqual(await campaignStuck(db, W), { waiting: [] });
+  assert.deepEqual(asked, [["campaign_stuck", { p_tenant_id: W }]]);
+});
+
+test("campaignStuck is null where the database does not have the function yet (00400 not applied) and throws for any other failure", async () => {
+  const gone = "Could not find the function public.campaign_stuck(p_tenant_id) in the schema cache";
+  for (const code of ["PGRST202", "42883"]) {
+    const missing = dbWith({ campaign_stuck: { data: null, error: { message: gone, code } } }).db;
+    assert.equal(await campaignStuck(missing, W), null, code);
+  }
+  for (const code of ["XX000", "42501", "08006", undefined])
+    await assert.rejects(
+      campaignStuck(dbWith({ campaign_stuck: { data: null, error: { message: "boom", code } } }).db, W),
+      /^Error: campaign_stuck: boom$/,
+      `${code}`,
+    );
 });
 
 test("the counts' doors (00374, 00375) ask by name for the workspace, answer what the database says, answer 'missing' for a database without the function -- PostgREST's PGRST202, Postgres's 42883 -- so the dashboard reads the old way for one release, and throw every other failure", async () => {

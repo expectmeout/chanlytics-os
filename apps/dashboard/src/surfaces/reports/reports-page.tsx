@@ -7,8 +7,10 @@
  * as it comes on screen) that follows the period shown: the page asks how it stands against it once (`useFollower`) and hands that to
  * the lens, the head and its own dimming. The Receptionist lens draws the cards the report holds from the one read and the rest from
  * a read of its own (receptionist-surface.ts, the route's answer, which the lens folds), followed the same way; so does the People lens
- * (people-surface.ts), whose fold the page makes once, since its head says the fold's sentence as the lens draws the fold's cards. The
- * frame draws the strip of lenses (chrome.ts, its `views`) and
+ * (people-surface.ts), whose fold the page makes once, since its head says the fold's sentence as the lens draws the fold's cards. So
+ * does the Campaigns lens (campaigns-surface.ts), the whole of whose numbers are its own: the frame reads the report alone, the lens
+ * folds its read once (the head says the fold's sentence, and Worth knowing, which the page makes from the report and that read, says
+ * the campaign that drew the most replies). The frame draws the strip of lenses (chrome.ts, its `views`) and
  * the head (head.ts); the date range is the page's act at the strip's right, a capsule that opens it (period-picker.tsx), with what
  * its word leaves out beside it on a desk; the page draws the lens's body (lenses/), which is a view of its own: replaced as the lens
  * changes (keyed by it), and moved by the deck every change of view moves by (kit/motion/view-deck.ts), from the side its lens stands
@@ -24,13 +26,16 @@ import { useEffect, useState } from "react";
 import {
   REPORT_LENSES,
   REPORT_PERIOD_DEFAULT,
+  reportFacts,
   reportRangeKey,
   reportsRouteParts,
   routeOfPath,
   type LensId,
+  type ReportFactVM,
   type ReportRange,
+  type ReportVM,
 } from "@chanlytics/contracts";
-import type { PeopleReportVM } from "@chanlytics/contracts/report-lens";
+import type { CampaignLensVM, PeopleReportVM } from "@chanlytics/contracts/report-lens";
 import { reportWindowOf } from "@chanlytics/contracts/report-window";
 import { demoSession } from "../legacy-verbs";
 import { EmptyState } from "../kit/empty/empty";
@@ -38,9 +43,11 @@ import { useSlide } from "../kit/motion/use-slide";
 import { viewDeck } from "../kit/motion/view-deck";
 import { useFollower, useSurface, useSurfaceSettled, type Follower } from "../use-surface";
 import { useRptDesk, useRptPhone } from "./blocks";
+import { campaignsSample } from "./campaigns-sample";
+import type { CampaignsSurface } from "./campaigns-surface";
 import { lensShownHere } from "./chrome";
 import { useReportsStanding } from "./head";
-import { CampaignsLens } from "./lenses/campaigns";
+import { CampaignsLens, useCampaignsFold } from "./lenses/campaigns";
 import { OverviewLens } from "./lenses/overview";
 import { PeopleLens, usePeopleFold } from "./lenses/people";
 import { PipelineLens } from "./lenses/pipeline";
@@ -96,6 +103,7 @@ interface OwnReads {
   reviews: Follower<ReviewsSurface>;
   receptionist: Follower<ReceptionistSurface>;
   people: Follower<PeopleSurface>;
+  campaigns: Follower<CampaignsSurface>;
 }
 
 /**
@@ -106,41 +114,58 @@ function useOwnReads(live: ReportsSurface | undefined, R: ReportsSurface | null)
   const reviews = useFollower("reports_reviews");
   const receptionist = useFollower("reports_receptionist");
   const people = useFollower("reports_people");
-  if (live || !R) return { reviews, receptionist, people };
+  const campaigns = useFollower("reports_campaigns");
+  if (live || !R) return { reviews, receptionist, people, campaigns };
   return {
     reviews: { value: reviewsSample(R.range), state: "current" },
     receptionist: { value: receptionistSample(R.range), state: "current" },
     people: { value: peopleSample(R.range), state: "current" },
+    campaigns: { value: campaignsSample(R.range), state: "current" },
   };
 }
+
+/** What a read folds to, while that read is of the period shown: nothing before it lands, while it is of another period or where it could not be made. */
+const whileCurrent = <V,>(read: Follower<unknown>, fold: V | null): V | null =>
+  read.state === "current" ? fold : null;
+
+/** Worth knowing: from the report and, for the campaign that drew the most replies, the Campaigns read's sources while it is current. */
+const worthKnowing = (vm: ReportVM, campaigns: CampaignLensVM | null): ReportFactVM[] =>
+  reportFacts(vm, campaigns?.report ?? null);
 
 /** Whether the lens waits on a read of its own for the period shown (one that failed is the lens's own card, not a dimming). */
 const waitsOnItsRead = (lens: LensId, own: OwnReads): boolean =>
   (lens === "reviews" && own.reviews.state === "coming") ||
   (lens === "receptionist" && own.receptionist.state === "coming") ||
-  (lens === "people" && own.people.state === "coming");
+  (lens === "people" && own.people.state === "coming") ||
+  (lens === "campaigns" && own.campaigns.state === "coming");
 
-/** What the lens bodies draw beside the report: the reads that follow the period, and the People read folded (once: the head says its sentence too). One object: the surfaces tree takes at most four parameters (max-params). */
+/**
+ * What the lens bodies draw beside the report: the reads that follow the period, the People and Campaigns reads folded (once: the
+ * head says their sentences too) and Worth knowing, which the Overview draws. One object: the surfaces tree takes at most four
+ * parameters (max-params).
+ */
 interface LensReads {
   own: OwnReads;
-  fold: PeopleReportVM | null;
+  people: PeopleReportVM | null;
+  campaigns: CampaignLensVM | null;
+  facts: ReportFactVM[];
 }
 
 /** The lens's body: nothing where it is not yet known to be shown, what it says where it is not shown, else its cards. */
-function lensBody(lens: LensId, props: LensProps, shown: boolean | null, { own, fold }: LensReads) {
+function lensBody(lens: LensId, props: LensProps, shown: boolean | null, { own, people, campaigns, facts }: LensReads) {
   if (shown === null) return null;
   if (!shown) return <LensEmpty lens={lens} vm={props.R.vm} />;
   switch (lens) {
     case "overview":
-      return <OverviewLens {...props} />;
+      return <OverviewLens {...props} facts={facts} />;
     case "receptionist":
       return <ReceptionistLens {...props} own={own.receptionist} />;
     case "people":
-      return <PeopleLens {...props} own={own.people} fold={fold} />;
+      return <PeopleLens {...props} own={own.people} fold={people} />;
     case "pipeline":
       return <PipelineLens {...props} />;
     case "campaigns":
-      return <CampaignsLens {...props} />;
+      return <CampaignsLens {...props} own={own.campaigns} fold={campaigns} />;
     case "reviews":
       return (
         <ReviewsLens
@@ -233,20 +258,26 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
   const act = R ? (
     <PeriodPicker chosen={coming ?? R.range} today={R.vm.today} timezone={R.vm.timezone} pick={pick} desk={desk} />
   ) : null;
-  // The People read folded once per value, whatever the lens: its card draws it and the head says its sentence.
-  const fold = usePeopleFold(own.people);
+  // The People and Campaigns reads folded once per value, whatever the lens: the cards draw them and the head says their sentences.
+  const people = usePeopleFold(own.people);
+  const campaigns = useCampaignsFold(own.campaigns);
+  const campaignsNow = whileCurrent(own.campaigns, campaigns);
   // Its sentence names its period: nothing is said of one the lens cannot show. The People lens's own is the fold's head, until its
-  // read lands (or when it could not be made) the frame's count of new people.
+  // read lands (or when it could not be made) the frame's count of new people. The Campaigns lens's is the fold's head while its
+  // read is of the period shown, and nothing before that or when it could not be made.
   useReportsStanding(
     lens,
     R,
     {
       reviews: own.reviews.state === "failed" ? null : (own.reviews.value?.vm ?? null),
-      people: own.people.state === "failed" ? null : fold,
+      people: own.people.state === "failed" ? null : people,
+      campaigns: campaignsNow,
     },
     act,
   );
   if (!R) return readsAWorkspace();
+  // Worth knowing, once: the campaign that drew the most replies is the Campaigns read's, while it is of the period shown.
+  const facts = worthKnowing(R.vm, campaignsNow);
   // Dimmed while the page shows another period than the one picked. A pick painted at once from a held view (a pick back to
   // the period on screen, made while another loads) waits on nothing, though the read behind it is still out. On the Reviews lens
   // the same, while its own read is of another period than the one shown (one that failed is the lens's own card, not a dimming);
@@ -272,7 +303,7 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
           data-dims
           aria-busy={busy ? "true" : "false"}
         >
-          {lensBody(lens, { R, pick, phone }, lensShownHere(lens), { own, fold })}
+          {lensBody(lens, { R, pick, phone }, lensShownHere(lens), { own, people, campaigns, facts })}
         </div>
       </div>
     </div>
