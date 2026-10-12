@@ -45,6 +45,9 @@ const KIND_MARK: Partial<Record<string, string>> = {
   "call.recorded": "mic",
   erase: "ban",
   "contact.erased": "ban",
+  // Where a person works (0052): a place, linked or let go.
+  "contact.business_linked": "map",
+  "contact.business_unlinked": "map",
   "contact.noted": "pencil",
   "contact.note_changed": "pencil",
   "contact.note_removed": "pencil",
@@ -53,6 +56,7 @@ const KIND_MARK: Partial<Record<string, string>> = {
   "contact.note_dismissed": "pencil",
   "contact.note_done": "check",
   "contact.note_undone": "undo",
+  "contact.note_seen": "check",
   "message.send_failed": "alert",
   "message.send_blocked": "alert",
   "line.failed": "alert",

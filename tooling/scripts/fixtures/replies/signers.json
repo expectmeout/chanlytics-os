@@ -1,0 +1,260 @@
+{
+  "about": "Who signed a reply (decision 0052): what the reader returns as `signer`, and what the gate (contracts signerOf) keeps. Each answers the reach-out in replies.json (its lead and the email it answered); `answer` is a scripted reader's, `expect.signer` what the gate must keep, or null. The live eval (evals/reply-signers.mjs) asks the model and holds its answer, through the same gate, to `expect.signer`. Made-up people and example.com addresses only.",
+  "workspace": { "name": "Harbor Studio", "members": ["Sam Ortiz", "Jo Park"], "from": "Sam Ortiz" },
+  "replies": [
+    {
+      "email": {
+        "id": "signer-01",
+        "from": { "address": "priya@example.com", "name": "Priya Nair" },
+        "to": ["sam@reply.example.com"],
+        "cc": [],
+        "subject": "Re: A quick question",
+        "text": "This sounds interesting for our weekday classes. Could you send pricing?\n\nThanks,\nPriya Nair\nOwner, Brightwater & Co.\n\nOn Tue, Sep 29, Sam Ortiz wrote:\n> Hi, I saw your reviews and your booking page.",
+        "html": null,
+        "headers": {
+          "in-reply-to": "<reach-out-0001@owner.example.com>",
+          "references": "<reach-out-0001@owner.example.com>"
+        },
+        "messageId": "<signer-01@example.com>",
+        "createdAt": "2026-09-29T14:05:00.000Z",
+        "attachments": []
+      },
+      "expect": { "claim": "person", "signer": "Priya Nair" },
+      "answer": {
+        "intent": "question",
+        "summary": "Asks for pricing",
+        "day": null,
+        "refer_to": null,
+        "signer": { "name": "Priya Nair", "title": "Owner, Brightwater & Co." }
+      }
+    },
+    {
+      "email": {
+        "id": "signer-02",
+        "from": { "address": "office@example.com", "name": "Brightwater & Co." },
+        "to": ["sam@reply.example.com"],
+        "cc": [],
+        "subject": "Re: A quick question",
+        "text": "Yes, I would like to hear more. What does it cost for one coach?\n\nDana Cole\nHead coach",
+        "html": null,
+        "headers": {
+          "in-reply-to": "<reach-out-0001@owner.example.com>",
+          "references": "<reach-out-0001@owner.example.com>"
+        },
+        "messageId": "<signer-02@example.com>",
+        "createdAt": "2026-09-29T15:05:00.000Z",
+        "attachments": []
+      },
+      "expect": { "claim": "person", "signer": "Dana Cole" },
+      "answer": {
+        "intent": "question",
+        "summary": "Asks the cost for one coach",
+        "day": null,
+        "refer_to": null,
+        "signer": { "name": "Dana Cole", "title": "Head coach" }
+      }
+    },
+    {
+      "email": {
+        "id": "signer-03",
+        "from": { "address": "office@example.com", "name": "Brightwater & Co." },
+        "to": ["sam@reply.example.com"],
+        "cc": [],
+        "subject": "Re: A quick question",
+        "text": "Sounds good, send more details please.\n\nThe Brightwater Team",
+        "html": null,
+        "headers": {
+          "in-reply-to": "<reach-out-0001@owner.example.com>",
+          "references": "<reach-out-0001@owner.example.com>"
+        },
+        "messageId": "<signer-03@example.com>",
+        "createdAt": "2026-09-29T16:05:00.000Z",
+        "attachments": []
+      },
+      "expect": { "claim": "person", "signer": null },
+      "answer": {
+        "intent": "interested",
+        "summary": "Wants details",
+        "day": null,
+        "refer_to": null,
+        "signer": { "name": "The Brightwater Team", "title": null }
+      }
+    },
+    {
+      "email": {
+        "id": "signer-04",
+        "from": { "address": "office@example.com", "name": "Brightwater & Co." },
+        "to": ["sam@reply.example.com"],
+        "cc": [],
+        "subject": "Re: A quick question",
+        "text": "Happy to talk. Thursday works.\n\nPriya and Leah",
+        "html": null,
+        "headers": {
+          "in-reply-to": "<reach-out-0001@owner.example.com>",
+          "references": "<reach-out-0001@owner.example.com>"
+        },
+        "messageId": "<signer-04@example.com>",
+        "createdAt": "2026-09-29T17:05:00.000Z",
+        "attachments": []
+      },
+      "expect": { "claim": "person", "signer": null },
+      "answer": {
+        "intent": "interested",
+        "summary": "Can talk Thursday",
+        "day": null,
+        "refer_to": null,
+        "signer": { "name": "Priya and Leah", "title": null }
+      }
+    },
+    {
+      "email": {
+        "id": "signer-05",
+        "from": { "address": "office@example.com", "name": "Brightwater & Co." },
+        "to": ["sam@reply.example.com"],
+        "cc": [],
+        "subject": "Re: A quick question",
+        "text": "Sure, call us tomorrow.\n\nOn Tue, Sep 29, Sam Ortiz wrote:\n> Hi, I saw your reviews.\n> Thanks,\n> Sam Ortiz",
+        "html": null,
+        "headers": {
+          "in-reply-to": "<reach-out-0001@owner.example.com>",
+          "references": "<reach-out-0001@owner.example.com>"
+        },
+        "messageId": "<signer-05@example.com>",
+        "createdAt": "2026-09-29T18:05:00.000Z",
+        "attachments": []
+      },
+      "expect": { "claim": "person", "signer": null },
+      "answer": {
+        "intent": "interested",
+        "summary": "Asks for a call",
+        "day": null,
+        "refer_to": null,
+        "signer": { "name": "Sam Ortiz", "title": null }
+      }
+    },
+    {
+      "email": {
+        "id": "signer-06",
+        "from": { "address": "office@example.com", "name": "Brightwater & Co." },
+        "to": ["sam@reply.example.com"],
+        "cc": [],
+        "subject": "Re: A quick question",
+        "text": "No thanks, please take us off your list.\n\nMaria Lopez",
+        "html": null,
+        "headers": {
+          "in-reply-to": "<reach-out-0001@owner.example.com>",
+          "references": "<reach-out-0001@owner.example.com>"
+        },
+        "messageId": "<signer-06@example.com>",
+        "createdAt": "2026-09-29T19:05:00.000Z",
+        "attachments": []
+      },
+      "expect": { "claim": "person", "signer": null },
+      "answer": {
+        "intent": "no",
+        "summary": "Not interested",
+        "day": null,
+        "refer_to": null,
+        "signer": { "name": "Maria Lopez", "title": null }
+      }
+    },
+    {
+      "email": {
+        "id": "signer-07",
+        "from": { "address": "office@example.com", "name": "Brightwater & Co." },
+        "to": ["sam@reply.example.com"],
+        "cc": [],
+        "subject": "Re: A quick question",
+        "text": "Yes please, send it over.\n\nOwner",
+        "html": null,
+        "headers": {
+          "in-reply-to": "<reach-out-0001@owner.example.com>",
+          "references": "<reach-out-0001@owner.example.com>"
+        },
+        "messageId": "<signer-07@example.com>",
+        "createdAt": "2026-09-29T20:05:00.000Z",
+        "attachments": []
+      },
+      "expect": { "claim": "person", "signer": null },
+      "answer": {
+        "intent": "interested",
+        "summary": "Wants it sent",
+        "day": null,
+        "refer_to": null,
+        "signer": { "name": "Owner", "title": null }
+      }
+    },
+    {
+      "email": {
+        "id": "signer-08",
+        "from": { "address": "leah@example.com", "name": "Leah Brooks" },
+        "to": ["sam@reply.example.com"],
+        "cc": [],
+        "subject": "Re: A quick question",
+        "text": "We'd love this for our weekday brides too. Can we talk Thursday?\n\n-- \nLeah",
+        "html": null,
+        "headers": {
+          "in-reply-to": "<reach-out-0001@owner.example.com>",
+          "references": "<reach-out-0001@owner.example.com>"
+        },
+        "messageId": "<signer-08@example.com>",
+        "createdAt": "2026-09-30T14:05:00.000Z",
+        "attachments": []
+      },
+      "expect": { "claim": "person", "signer": "Leah" },
+      "answer": {
+        "intent": "interested",
+        "summary": "Wants to talk Thursday",
+        "day": null,
+        "refer_to": null,
+        "signer": { "name": "Leah", "title": null }
+      }
+    },
+    {
+      "email": {
+        "id": "signer-09",
+        "from": { "address": "office@example.com", "name": "Brightwater & Co." },
+        "to": ["sam@reply.example.com"],
+        "cc": [],
+        "subject": "Re: A quick question",
+        "text": "Thanks, we will look and be in touch.\n\nBrightwater & Co.",
+        "html": null,
+        "headers": {
+          "in-reply-to": "<reach-out-0001@owner.example.com>",
+          "references": "<reach-out-0001@owner.example.com>"
+        },
+        "messageId": "<signer-09@example.com>",
+        "createdAt": "2026-09-30T15:05:00.000Z",
+        "attachments": []
+      },
+      "expect": { "claim": "person", "signer": null },
+      "answer": {
+        "intent": "other",
+        "summary": "Will be in touch",
+        "day": null,
+        "refer_to": null,
+        "signer": { "name": "Brightwater & Co.", "title": null }
+      }
+    },
+    {
+      "email": {
+        "id": "signer-10",
+        "from": { "address": "office@example.com", "name": "Brightwater & Co." },
+        "to": ["sam@reply.example.com"],
+        "cc": [],
+        "subject": "Re: A quick question",
+        "text": "Interesting. What does it cost?",
+        "html": null,
+        "headers": {
+          "in-reply-to": "<reach-out-0001@owner.example.com>",
+          "references": "<reach-out-0001@owner.example.com>"
+        },
+        "messageId": "<signer-10@example.com>",
+        "createdAt": "2026-09-30T16:05:00.000Z",
+        "attachments": []
+      },
+      "expect": { "claim": "person", "signer": null },
+      "answer": { "intent": "question", "summary": "Asks the cost", "day": null, "refer_to": null, "signer": null }
+    }
+  ]
+}

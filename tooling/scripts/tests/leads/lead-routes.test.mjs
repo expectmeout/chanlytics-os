@@ -878,11 +878,12 @@ test("a stage change goes through the door with the page's words made its argume
     p_fit_reason: null,
     p_outcome: null,
     p_note: null,
+    p_spoke_with: null,
   });
   assert.equal(click.toast, "Marked talking. They join People when they write or call in, or when a call goes well.");
   assert.deepEqual([click.converted, click.contact_id, click.undo], [false, null, { op_id: OP, version: 4 }]);
   const call = await stage.POST.run(
-    req("POST", { kind: "outcome", outcome: "interested", note: "Tuesday" }),
+    req("POST", { kind: "outcome", outcome: "interested", note: "Tuesday", spoke_with: "  Priya Nair " }),
     ctxOf(world({ role: "operator" }), { id: LEAD }, rpcs),
   );
   assert.equal(call.toast, "Travis Heights Coaching Co. is in People now, with this call on their page.");
@@ -894,6 +895,8 @@ test("a stage change goes through the door with the page's words made its argume
     p_fit_reason: null,
     p_outcome: "interested",
     p_note: "Tuesday",
+    // Who they spoke with (0052): the person the call makes, named as typed.
+    p_spoke_with: "Priya Nair",
   });
 });
 
@@ -928,6 +931,7 @@ test("every other act on one lead says what it did, and Already a customer says 
     p_fit_reason: "customer",
     p_outcome: null,
     p_note: null,
+    p_spoke_with: null,
   });
   await refused(
     stage.POST.run(

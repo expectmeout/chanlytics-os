@@ -34,7 +34,7 @@ what the script writes.
 | [`contact_marks`](#contact_marks) | none | on, 1 policy |
 | [`contact_reads`](#contact_reads) | none | on, 1 policy |
 | [`contacts`](#contacts) | `packages/db/src/events.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/email.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notifications.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/thread.ts` | on, 1 policy |
-| [`conversations`](#conversations) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notifications.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/thread.ts` | on, 2 policies |
+| [`conversations`](#conversations) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notifications.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/thread.ts` | on, 2 policies |
 | [`deals`](#deals) | `packages/db/src/events.ts`, `packages/db/src/repositories/deals.ts`, `packages/db/src/repositories/thread.ts` | on, 1 policy |
 | [`decisions`](#decisions) | `packages/db/src/repositories/people.ts` | on, 2 policies |
 | [`erasure_keying`](#erasure_keying) | none | on, no policy, so only the service role reaches it |
@@ -83,7 +83,7 @@ what the script writes.
 | [`partner_tenants`](#partner_tenants) | `packages/db/src/repositories/partner.ts` | on, 2 policies |
 | [`partners`](#partners) | `packages/db/src/repositories/partner.ts` | on, 1 policy |
 | [`person_doubts`](#person_doubts) | `packages/db/src/repositories/people.ts` | on, 1 policy |
-| [`person_moments`](#person_moments) | none | on, 1 policy |
+| [`person_moments`](#person_moments) | `packages/db/src/repositories/people.ts` | on, 1 policy |
 | [`person_notes`](#person_notes) | `packages/db/src/repositories/thread.ts` | on, 1 policy |
 | [`platform_admins`](#platform_admins) | none | on, no policy, so only the service role reaches it |
 | [`platform_metrics`](#platform_metrics) | `packages/db/src/ops.ts` | on, no policy, so only the service role reaches it |
@@ -94,7 +94,7 @@ what the script writes.
 | [`push_devices`](#push_devices) | `packages/db/src/repositories/notifications.ts` | on, 1 policy |
 | [`rate_hits`](#rate_hits) | none | on, no policy, so only the service role reaches it |
 | [`reach_out_check_spend`](#reach_out_check_spend) | none | on, no policy, so only the service role reaches it |
-| [`reach_out_replies`](#reach_out_replies) | `packages/db/src/repositories/outreach.ts` | on, 1 policy |
+| [`reach_out_replies`](#reach_out_replies) | `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/people.ts` | on, 1 policy |
 | [`reach_out_sends`](#reach_out_sends) | `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
 | [`reply_turns`](#reply_turns) | none | on, no policy, so only the service role reaches it |
 | [`segment_members`](#segment_members) | `packages/db/src/repositories/lists.ts` | on, 3 policies |
@@ -728,9 +728,14 @@ Foreign keys:
 | `offers_asked_at` | timestamp with time zone | yes |  | When the receptionist first asked this person for the yes to offers: the first outbound message that says YES OFFERS or SI OFERTAS, in any case and with or without the accent (messages_stamp_offers_asked). It asks once. |
 | `acquired_via` | text | yes |  | How the person first reached the workspace, written once (person_set_first_touch): whatsapp, sms, email or call for the wire of the message or call that made them, ad for a WhatsApp click-to-chat ad (a referral whose source_type is ad; a post or any other referral is the wire's), calendar, import, lead or manual for the door that added them (00307). Null for a person from before it was kept, and wherever nothing says: unknown, never a guess. |
 | `acquired_ref` | text | yes |  | The line (tenant_channels.id) or the ad (Meta's source id) the person first came through; null where nothing says. Never the person. |
+| `lead_id` | uuid | yes |  | The business this person works at (0052): a lead, the newest that named them, set one way from leads (lead_tells_its_person) or by a member (person_join_lead). A lead is the business record; there is no businesses table. |
+| `lead_settled_at` | timestamp with time zone | yes |  | When a member said where this person works (person_join_lead, person_leave_lead): their lead_id then never moves by itself (0052). |
+| `name_source` | text | yes |  | Where display_name came from (0052): typed, import, calendar, signature, wire or lead. Null when no name was set (the WhatsApp name or the number shows) or for a name set before this, whose source is not known. The engine replaces only a strictly lower rank (person_name_rank) and never a settled name. |
+| `name_settled_at` | timestamp with time zone | yes |  | When a member settled the name (typed it, took a signer's, put the business's back, or declined a signer, 0052): automatic naming never moves it. |
 
 Foreign keys:
 
+- `tenant_id`, `lead_id` → [`leads`](#leads) (`tenant_id`, `id`), on delete set null
 - `tenant_id`, `merged_into_contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`)
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
@@ -740,7 +745,7 @@ Foreign keys:
 
 ### conversations
 
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notifications.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/thread.ts`
+- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notifications.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/thread.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 
@@ -2201,7 +2206,7 @@ Foreign keys:
 
 Each person's moments, kept as their messages and calls are written (0021): when they were last in touch, which orders People, and when they first got in touch, which says who is new. Written only by the triggers on contacts, messages and calls, and by the fill.
 
-- Owned by: none
+- Owned by: `packages/db/src/repositories/people.ts`
 - Primary key: `contact_id`
 - Row-level security: on, 1 policy
 
@@ -2258,6 +2263,7 @@ A person's notes (0007), one row each: the words, who wrote them (a member, or t
 | `done_at` | timestamp with time zone | yes |  | When the step was done; null while it is open. Only a step is done (person_notes_done_is_a_step). |
 | `done_by` | uuid | yes |  | Who marked the step done; null while it is open, and for a member no longer on the team. |
 | `deal_id` | uuid | yes |  | The deal this note moves, when it names one: one of the person's own (the doors refuse anyone else's). Kept, as null, when the deal goes. |
+| `for_seen_at` | timestamp with time zone | yes |  | When the member the note is for said Got it (0052, canvas A Up next): the note leaves their Up next; null until then. |
 
 Foreign keys:
 
@@ -2520,7 +2526,7 @@ Foreign keys:
 
 Reach out Part 5: one reading of one reply to a reach-out, keyed by the message (G3). The intent (or other, with why it could not be read), what the reading did (plan, with what it changed for the undo), the notice's two marks (B2), and the undo. Written by the service role's doors (reach_out_reply_apply, _draft, _tell_claim, _told) and the member's undo (reach_out_reply_undo) only.
 
-- Owned by: `packages/db/src/repositories/outreach.ts`
+- Owned by: `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/people.ts`
 - Primary key: `message_id`
 - Row-level security: on, 1 policy
 
@@ -2552,6 +2558,12 @@ Reach out Part 5: one reading of one reply to a reach-out, keyed by the message 
 | `read_at` | timestamp with time zone | no | `now()` |  |
 | `undone_at` | timestamp with time zone | yes |  |  |
 | `undone_by` | uuid | yes |  |  |
+| `signer_name` | text | yes |  | Who signed the reply, as the reading found it in the writer's own lines and the human-name gate let it through (contracts signerOf, 0052); null when nobody did. Cleared when the person is erased. |
+| `signer_title` | text | yes |  |  |
+| `signer_state` | text | yes |  | What became of the signer's name (0052): offered (the notice "Use this name"), adopted (by a member's press or automatically), declined, or undone. |
+| `signer_was` | text | yes |  |  |
+| `signer_settled_at` | timestamp with time zone | yes |  |  |
+| `signer_settled_by` | uuid | yes |  |  |
 
 Foreign keys:
 

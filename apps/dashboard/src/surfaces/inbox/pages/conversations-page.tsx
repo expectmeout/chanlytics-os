@@ -48,9 +48,20 @@ import { conversationsData, inboxData, IX_STORE } from "../store";
 import { ThreadCall } from "../thread/call";
 import { ixSwipeBack } from "../thread/thread";
 import { IxWho } from "../thread/who";
+import { businessTrailFor } from "../thread/shell-thread";
 import { ThreadPane } from "../thread/thread-pane";
 import type { ConversationRow, ConversationsSurface } from "../types";
 import { Button } from "../../kit/button/button";
+
+/** The business a named person works at, dim after their name on a row (0052), giving way before the name does. */
+function cvTrail(personId: string | null | undefined) {
+  const trail = businessTrailFor(personId);
+  return trail ? (
+    <span className="ix-thread-trail" data-testid="cv-row-business">
+      · {trail}
+    </span>
+  ) : null;
+}
 
 // The box's words, kept per tab in the tab's storage (the loading standard's F, legacy-bridge/tab-memory.ts): a
 // search typed on Phone is there again after a trip to People or a refresh; none on the standalone harness.
@@ -198,6 +209,7 @@ const CvRow = ({ c, active, onSelect, pick, tabStop, onKey }: CvRowProps) => {
       <span className="cv-row-body">
         <span className="cv-row-line1">
           <span className="cv-row-who">{c.who}</span>
+          {cvTrail(c.clientId)}
           <OutcomePill
             outcome={lead.outcome}
             standing={lead.standing ?? null}
@@ -252,6 +264,11 @@ function callHead(c: ConversationRow, onBack: (() => void) | null) {
         <IxWho to={clientId ? `clients/${clientId}` : null} who={c.who} avatar={c.initials.slice(0, 2)}>
           <div className="ix-th-name">
             <span className="ix-th-name-words">{c.who}</span>
+            {businessTrailFor(clientId) ? (
+              <span className="ix-th-trail" data-testid="cv-head-business">
+                · {businessTrailFor(clientId)}
+              </span>
+            ) : null}
             {cvStopped(c) && <StoppedMark testid="cv-head-stopped" />}
             {clientId && (
               <span className="ix-th-go" aria-hidden="true">

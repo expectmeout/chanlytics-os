@@ -392,6 +392,13 @@
       "rate": "person_edit",
       "spend": false
     },
+    "POST contacts/[id]/notes/seen": {
+      "kind": "write",
+      "scope": "row",
+      "role": "viewer",
+      "rate": "seen_mark",
+      "spend": false
+    },
     "PUT contacts/[id]/receptionist": {
       "kind": "write",
       "scope": "row",
@@ -1079,6 +1086,20 @@
       "rate": "partner_handover",
       "spend": false
     },
+    "PUT people/[id]/business": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "person_edit",
+      "spend": false
+    },
+    "DELETE people/[id]/business": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "person_edit",
+      "spend": false
+    },
     "POST people/[id]/draft": {
       "kind": "write",
       "scope": "row",
@@ -1091,6 +1112,13 @@
       "scope": "row",
       "role": "operator",
       "rate": "reply",
+      "spend": false
+    },
+    "POST people/[id]/name": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "person_edit",
       "spend": false
     },
     "GET people/[id]/reach": {

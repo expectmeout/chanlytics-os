@@ -151,9 +151,8 @@ test("a reply read: the gate, the model, the plan applied, the draft tried, then
   assert.deepEqual(applied.reading, parseReplyReading(INTERESTED));
   assert.equal(applied.unread, null);
   assert.equal(applied.reread, 0);
-  assert.deepEqual(
-    applied.plan,
-    readingPlan(parseReplyReading(INTERESTED), {
+  assert.deepEqual(applied.plan, {
+    ...readingPlan(parseReplyReading(INTERESTED), {
       claim: "person",
       receivedAt: RECEIVED,
       tz: set.lead.tz,
@@ -164,7 +163,9 @@ test("a reply read: the gate, the model, the plan applied, the draft tried, then
       reread: false,
       readAt: RECEIVED + 60_000,
     }),
-  );
+    // A signer is never taken as the writer's name by itself while automatic naming is off (0052): offered, not adopted.
+    adoptSigner: false,
+  });
   const [system, user] = w.calls("ask")[0].slice(1);
   assert.match(system, /seven intents/);
   assert.match(user, /<reply>/);
@@ -331,17 +332,20 @@ test("every fixture's answer is applied with readingPlan's own plan; the plan's 
     });
     await run(w);
     const [, , , applied] = w.calls("apply")[0];
-    const want = readingPlan(parseReplyReading(r.answer), {
-      claim,
-      receivedAt: Date.parse(r.email.createdAt),
-      tz: set.lead.tz,
-      business: set.lead.business,
-      leadAddress: set.lead.address,
-      leadWebsite: set.lead.website,
-      replyFrom: r.email.from.address,
-      reread: false,
-      readAt: Date.parse(r.email.createdAt) + 60_000,
-    });
+    const want = {
+      ...readingPlan(parseReplyReading(r.answer), {
+        claim,
+        receivedAt: Date.parse(r.email.createdAt),
+        tz: set.lead.tz,
+        business: set.lead.business,
+        leadAddress: set.lead.address,
+        leadWebsite: set.lead.website,
+        replyFrom: r.email.from.address,
+        reread: false,
+        readAt: Date.parse(r.email.createdAt) + 60_000,
+      }),
+      adoptSigner: false,
+    };
     assert.deepEqual(applied.plan, want, r.email.id);
     assert.equal(applied.reading.intent, r.expect.intent, r.email.id);
     // PR 3 has no draft stage: the plan may name one, and nothing here writes it.

@@ -197,6 +197,7 @@ export const plMatcher = (
       lastVisit?: string | null;
       deal?: { service?: string | null } | null;
       openDeals?: readonly { service?: string | null }[];
+      worksAt?: { name: string | null; gone: boolean } | null;
     }) => boolean)
   | null => {
   const needle = q.trim().toLowerCase();
@@ -212,7 +213,9 @@ export const plMatcher = (
     (p.lastVisit || "").toLowerCase().includes(needle) ||
     ((p.deal && p.deal.service) || "").toLowerCase().includes(needle) ||
     // Any open deal's service (0029): a client of one service with a proposal out for another is found by either.
-    (p.openDeals ?? []).some((d) => (d.service || "").toLowerCase().includes(needle));
+    (p.openDeals ?? []).some((d) => (d.service || "").toLowerCase().includes(needle)) ||
+    // The business they work at (0052): "bloom" finds Priya Nair of Bloom & Vow Bridal.
+    (!!p.worksAt && !p.worksAt.gone && (p.worksAt.name || "").toLowerCase().includes(needle));
 };
 
 /** The exact moment, by the business's clock: "Sep 6, 2026 · 3:10 PM". */

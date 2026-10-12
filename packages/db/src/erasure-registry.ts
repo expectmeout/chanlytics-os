@@ -42,7 +42,9 @@ export const ERASURE_LEGS = {
   proposal_trigger: "contact_proposal_on_erase: the proposal's link cleared",
   deals_trigger: "deals_erase_on_contact: a deal's note, evidence and link cleared",
   leads_trigger:
-    "leads_erase_on_contact: their lead blanked (lead_blank), its places deleted, a reach-out's opening and a preference's example cleared (00391), its keys kept as digests",
+    "leads_erase_on_contact: their lead blanked (lead_blank), its places deleted, a reach-out's opening and a preference's example cleared (00391), its keys kept as digests; one of several people at a business takes only their own address, number and the call's note from it (lead_person_leg, 00413)",
+  signer_trigger:
+    "person_signer_erase_on_contact: the name and title a reply's reading found as its signer, and what became of it, cleared (00413)",
   recipients_trigger:
     "broadcast_recipients_on_erase: the words each run kept for them, a visit's time, service and key and a proposal's link, cleared (00391)",
   jobs_scrub:
@@ -423,7 +425,13 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     ...all(byAge("provider_events"), "provider_event_id", "door", "url", "headers"),
   },
   // A reply to a reach-out hangs on the replier's message and thread, and goes with them.
-  reach_out_replies: all(withPerson("erase_contact"), "draft", "draft_why", "plan", "refer_to", "summary"),
+  reach_out_replies: {
+    ...all(withPerson("erase_contact"), "draft", "draft_why", "plan", "refer_to", "summary"),
+    // Who signed it (0052): cleared when the person it names is erased, wherever the reply's thread is.
+    ...all(scrubbedBy("signer_trigger"), "signer_name", "signer_title"),
+    // What became of the signer's name, and the source it replaced: closed words, never the name.
+    ...all(NOT_PERSONAL, "signer_state", "signer_was"),
+  },
   reach_out_sends: {
     // Written from the lead's record (00391).
     ...all(scrubbedBy("leads_trigger"), "opening", "angle", "hold_detail"),

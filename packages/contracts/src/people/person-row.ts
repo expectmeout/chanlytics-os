@@ -16,7 +16,7 @@
  * row's facts, person-row-facts.ts; the receptionist's line, person-receptionist.ts; how a person may be reached,
  * person-reach.ts.
  */
-import { inLocalWeek, localDaysBetween } from "../shared/clock";
+import { clockDate, inLocalWeek, localDaysBetween } from "../shared/clock";
 import { formatPhoneDisplay } from "../shared/phone";
 import { personName } from "./person-name";
 import { PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, type PersonCameFrom, type PersonChannel } from "./person-words";
@@ -57,6 +57,42 @@ import { heardAt, PERSON_STATE_LABELS, personStanding, personStateFor, type Pers
 import type { ConsentChannel } from "../consent/consent-channels";
 import { personReachOf, type PersonReach } from "../broadcasts/reach-any";
 import type { ChannelsReady } from "../broadcasts/reach-for";
+import { asNameSource, PERSON_NAME_WORDS, type NameSource } from "../person-page/words";
+
+/** Where their name came from and the business they work at, as the row says them (0052). */
+function rowNameAndWorkOf(
+  r: PersonRowDto,
+  tz: string,
+  nowMs: number,
+): Pick<PersonRowVM, "worksAt" | "nameSource" | "nameSettled" | "standIn" | "signer"> {
+  return {
+    worksAt: r.lead_id ? { leadId: r.lead_id, name: r.lead_name ?? null, gone: !!r.lead_gone } : null,
+    nameSource: asNameSource(r.name_source),
+    nameSettled: !!r.name_settled_at,
+    standIn: r.name_source === "lead",
+    signer: signerOfRow(r, tz, nowMs),
+  };
+}
+
+/** Their next step and whether its day has come (00166), the step read once for both. */
+function stepKeysOf(r: PersonRowDto, tz: string, nowMs: number): Pick<PersonRowVM, "nextStep" | "stepDue"> {
+  const nextStep = nextStepOf(r, tz, nowMs);
+  return { nextStep, stepDue: stepIsDue(nextStep) };
+}
+
+/** A reply's signer offered as their name, as the row says it (0052): for a stand-in or someone nobody has named. */
+function signerOfRow(r: PersonRowDto, tz: string, nowMs: number): PersonRowVM["signer"] {
+  if (!r.signer_message_id || !r.signer_name) return null;
+  if (r.name_source !== "lead" && r.display_name) return null;
+  const read = r.signer_read_at ? Date.parse(r.signer_read_at) : NaN;
+  return {
+    messageId: r.signer_message_id,
+    name: r.signer_name,
+    title: r.signer_title ?? null,
+    fact: PERSON_NAME_WORDS.signed(r.signer_name),
+    day: Number.isFinite(read) ? clockDate(read, tz, nowMs) : "",
+  };
+}
 
 /**
  * Channels are what actually happened, not only what identities record.
@@ -295,6 +331,23 @@ export interface PersonRowVM {
    * from the follow-up's facts, where one runs; null otherwise, and on a row read anywhere else.
    */
   followUp: FollowUpStand | null;
+  /**
+   * The business they work at (0052): the lead, its name while it stands, and whether it was erased or blanked since
+   * (its rows then say "Their business details were removed."). Null when they work nowhere, or on a row read before 00413.
+   */
+  worksAt: { leadId: string; name: string | null; gone: boolean } | null;
+  /** Where their name came from (0052), null when nobody set it or it was set before it was kept. */
+  nameSource: NameSource | null;
+  /** A member settled their name: nothing the engine finds moves it. */
+  nameSettled: boolean;
+  /** Named for the business they work at (nameSource lead): never greeted by a first name, and offered a signer's name. */
+  standIn: boolean;
+  /**
+   * A reply's signer offered as their name (0052): the notice "Priya Nair signed the reply · Oct 6 · Use this name", said
+   * on their page, the Inbox's header, the Leads peek and the bell. Only for a stand-in or someone nobody has named, never
+   * over a name of their own (personHeadOf's rule); null otherwise.
+   */
+  signer: { messageId: string; name: string; title: string | null; fact: string; day: string } | null;
 }
 
 /**
@@ -599,11 +652,11 @@ export function toPersonRowVM(
     deal: dealOf(r, tz, nowMs),
     openDeals: openDealsOf(r, tz, nowMs),
     ...consultationKeysOf(v, nextVisitMs),
-    nextStep: nextStepOf(r, tz, nowMs),
-    stepDue: stepIsDue(nextStepOf(r, tz, nowMs)),
+    ...stepKeysOf(r, tz, nowMs),
     dealStage: null,
     dealStages: [],
     followUp: null,
+    ...rowNameAndWorkOf(r, tz, nowMs),
   };
   // The Pipeline's group for them, from the deal and the consultations just read: one rule for both pages.
   vm.dealStage = dealStageOf(vm, nowMs);

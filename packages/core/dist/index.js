@@ -703,7 +703,10 @@ async function shapeTemplate(ports, conv, body) {
       "This template takes the booking link, and none is on file. Pick another template, or add the link in Settings \u203A Business first."
     );
   const params = resolveParams(slots, {
-    firstName: firstNameOf(conv.display_name, conv.wa_profile_name),
+    firstName: firstNameOf(conv.display_name, conv.wa_profile_name, {
+      source: conv.name_source,
+      settled: !!conv.name_settled_at
+    }),
     businessName: facts.business_name,
     bookingLink: facts.booking_link?.replace(/^https?:[/][/]/, "") ?? null
   });
@@ -1288,6 +1291,7 @@ function metaOf(e) {
 
 // src/messages/reply-read.ts
 import {
+  AUTOMATIC_NAMING,
   DRAFT_NEEDS_MS,
   leadReplyNote,
   parseReplyReading,
@@ -1297,6 +1301,8 @@ import {
   replyTextOf as replyTextOf2,
   replyUserContent,
   rereadAt,
+  signerAgrees,
+  signerOf,
   UNREAD_READING,
   zoneDayKey
 } from "../../contracts/dist/index.js";
@@ -1326,6 +1332,20 @@ async function readNow(ports, cmd, facts) {
       answered: facts.answered
     });
     reading = parseReplyReading(await ports.ask(replySystemPrompt(), user));
+    if (reading)
+      reading = {
+        ...reading,
+        signer: signerOf({
+          name: reading.signer?.name,
+          title: reading.signer?.title,
+          text: facts.text,
+          intent: reading.intent,
+          claim: facts.claim,
+          business: facts.business,
+          from: facts.from,
+          notNames: [facts.signedBy, ...facts.notNames ?? []]
+        })
+      };
   } catch {
     reading = null;
   }
@@ -1388,7 +1408,7 @@ async function readReply(ports, cmd) {
   let applied = false;
   if (isDue(kept, n)) {
     const { reading, unread, now } = await readNow(ports, cmd, facts);
-    const plan = readingPlan(reading, {
+    const planned = readingPlan(reading, {
       claim: facts.claim,
       receivedAt: facts.receivedAt,
       tz: facts.tz,
@@ -1400,6 +1420,11 @@ async function readReply(ports, cmd) {
       reread: n > 0,
       readAt: now
     });
+    const signer = reading?.signer ?? null;
+    const plan = {
+      ...planned,
+      adoptSigner: AUTOMATIC_NAMING && !!signer && signerAgrees(signer, { address: facts.from, name: facts.fromName })
+    };
     applied = await ports.apply(tenantId, messageId, { reading: reading ?? UNREAD_READING, unread, plan, reread: n });
     kept = await ports.reading(tenantId, messageId);
     if (!kept) throw new Error("reply_read: the reading was applied and is not there");
@@ -1426,7 +1451,8 @@ async function readReply(ports, cmd) {
     draft,
     unread: kept.unread,
     automatic: facts.claim === "auto_reply",
-    reread: n > 0
+    reread: n > 0,
+    signer: kept.signerOffered
   });
   const told = await ports.tell(tenantId, {
     conversationId: facts.conversationId,
@@ -1900,7 +1926,7 @@ async function sendOne(w, r) {
   if (!target) return skip("no_thread");
   const facts = rowFacts(r);
   const params = resolveParams2(w.specs, {
-    firstName: firstNameOf2(c.display_name, c.wa_profile_name),
+    firstName: firstNameOf2(c.display_name, c.wa_profile_name, { source: c.name_source, settled: !!c.name_settled_at }),
     businessName: w.facts.businessName,
     bookingLink: w.facts.bookingLink,
     visitWhen: typeof facts.visit_when === "string" ? facts.visit_when : null,

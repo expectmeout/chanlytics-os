@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-237 handlers in 47 domains.
+241 handlers in 47 domains.
 
 ## activity
 
@@ -523,6 +523,14 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 | --- | --- | --- | --- |
 | `note_id` | string (uuid) | yes |  |
 
+### `POST /api/v1/contacts/[id]/notes/seen`
+
+Writes; for a member of the row's own workspace, viewer or above; counts against the `seen_mark` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `note_id` | string (uuid) | yes |  |
+
 ### `PUT /api/v1/contacts/[id]/receptionist`
 
 Writes; for a member of the row's own workspace, owner or above; counts against the `person_mode` rate; spends nothing.
@@ -995,6 +1003,7 @@ Body 4:
 | `kind` | `"outcome"` | yes |  |
 | `outcome` | one of `"interested"`, `"call_back"`, `"not_interested"`, `"voicemail"`, `"no_answer"`, `"wrong_number"` | yes |  |
 | `note` | string | no | at most 280 characters |
+| `spoke_with` | string | no | at most 80 characters |
 
 Body 5:
 
@@ -1285,6 +1294,20 @@ Writes; for any signed-in person, for themselves; counts against the `partner_ha
 
 ## people
 
+### `PUT /api/v1/people/[id]/business`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `person_edit` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `lead_id` | string (uuid) | yes |  |
+
+### `DELETE /api/v1/people/[id]/business`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `person_edit` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/people/[id]/business/route.ts`).
+
 ### `POST /api/v1/people/[id]/draft`
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `person_draft` rate; spends nothing.
@@ -1311,6 +1334,32 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 | `email_to` | string | no | at most 320 characters |
 | `then` | one of `"receptionist"`, `"me"` | yes |  |
 | `note` | string | no | at least 1 characters; at most 280 characters |
+
+### `POST /api/v1/people/[id]/name`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `person_edit` rate; spends nothing.
+
+One of 3 bodies.
+
+Body 1:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `act` | `"adopt"` | yes |  |
+| `message_id` | string (uuid) | yes |  |
+
+Body 2:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `act` | `"undo"` | yes |  |
+
+Body 3:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `act` | `"decline"` | yes |  |
+| `message_id` | string (uuid) | yes |  |
 
 ### `GET /api/v1/people/[id]/reach`
 

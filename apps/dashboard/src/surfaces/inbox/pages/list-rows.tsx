@@ -16,6 +16,7 @@ import { ReplyChip } from "../thread/reply-strip";
 import { channelIconOf } from "../thread/timeline";
 import { inboxData } from "../store";
 import { threadUnread } from "../../seen";
+import { businessTrailFor } from "../thread/shell-thread";
 import type { Thread } from "../types";
 
 /**
@@ -107,6 +108,16 @@ function rowFoot(L: ListCtx, t: Thread) {
   );
 }
 
+/** The business a named person works at, dim after their name (0052), giving way before the name does. */
+function rowTrail(t: Thread) {
+  const trail = t.real ? businessTrailFor(t.clientId) : null;
+  return trail ? (
+    <span className="ix-thread-trail" data-testid="thread-business">
+      · {trail}
+    </span>
+  ) : null;
+}
+
 /** A row's first line: who, the pill and the one time. */
 function rowLine1(L: ListCtx, t: Thread) {
   const { activeBucket, inNeedsBucket, searching, sendingIn } = L;
@@ -125,6 +136,7 @@ function rowLine1(L: ListCtx, t: Thread) {
   return (
     <div className="ix-thread-line1">
       <span className="ix-thread-who">{t.who}</span>
+      {rowTrail(t)}
       {t.pinned && <Icon name="pin" size={10} />}
       <div className="ix-thread-meta">
         {/* They asked to stop: said beside the name, where the owner picks who to answer, not first at a reply box that

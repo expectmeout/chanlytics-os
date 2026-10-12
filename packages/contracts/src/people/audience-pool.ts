@@ -43,6 +43,9 @@ export function personLikeOf(
         | "email_suppressed_at"
         | "consent"
         | "dnc"
+        | "lead_id"
+        | "lead_name"
+        | "lead_gone"
       >
     >,
 ): PersonLike {
@@ -67,6 +70,8 @@ export function personLikeOf(
       emailStopped: isEmailStopped({ email_suppressed_at: p.email_suppressed_at ?? null }),
       optedOut: isOptedOutContact({ consent: p.consent, dnc: p.dnc }),
     },
+    // The business they work at, while it stands (0052): the calendar's fourth match.
+    business: p.lead_id && !p.lead_gone && p.lead_name ? p.lead_name : null,
   };
 }
 

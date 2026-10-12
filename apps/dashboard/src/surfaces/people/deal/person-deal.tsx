@@ -234,11 +234,14 @@ function dealLine(c: DealCardVM, W: typeof DEAL_CARD_WORDS) {
   );
 }
 
-/** The card's acts: the next one as the outline button, the other moves as quiet words. */
-function dealActs(p: Pick<PersonVM, "id">, c: DealCardVM, onCompose: ComposeFn) {
+/**
+ * The card's acts: the next one as the outline button, the other moves as quiet words. Where the page draws Up next
+ * (`rung`, the person page's Overview), the next act is its rung's alone and the card keeps the other moves.
+ */
+function dealActs(p: Pick<PersonVM, "id">, c: DealCardVM, onCompose: ComposeFn, rung = false) {
   return (
     <div className="cl-prof-deal-acts">
-      {c.next ? (
+      {c.next && !rung ? (
         <button
           type="button"
           className="btn btn-sm"
@@ -273,6 +276,7 @@ export const PersonDealOne = ({
   canRecord,
   onCompose,
   flash = null,
+  rung = false,
 }: {
   p: PersonVM;
   c: DealCardVM;
@@ -280,6 +284,8 @@ export const PersonDealOne = ({
   canRecord: boolean;
   onCompose: ComposeFn;
   flash?: FlashFn | null;
+  /** Up next holds the card's next act (the person page's Overview). */
+  rung?: boolean;
 }) => (
   <article className="cl-prof-deal-card" data-stage={c.stage} data-testid="person-deal-card">
     <div className="cl-prof-deal-head">
@@ -301,7 +307,7 @@ export const PersonDealOne = ({
         ))}
       </div>
     ) : null}
-    {canRecord && (c.next || c.more.length) ? dealActs(p, c, onCompose) : null}
+    {canRecord && ((c.next && !rung) || c.more.length) ? dealActs(p, c, onCompose, rung) : null}
     <PersonDealStep p={p} c={c} canRecord={canRecord} flash={flash} />
   </article>
 );
@@ -313,11 +319,14 @@ export const PersonDealQuiet = ({
   q,
   canRecord,
   onCompose,
+  rung = false,
 }: {
   p: Pick<PersonVM, "id">;
   q: DealQuietVM;
   canRecord: boolean;
   onCompose: ComposeFn;
+  /** Up next holds the line's act where it is the next step nobody has taken. */
+  rung?: boolean;
 }) => (
   <div className="cl-prof-deal-none" data-testid="person-deal-none">
     <p className="cl-prof-deal-said">
@@ -333,7 +342,7 @@ export const PersonDealQuiet = ({
         </>
       ) : null}
     </p>
-    {canRecord ? (
+    {canRecord && !(rung && q.primary) ? (
       <button
         type="button"
         className={q.primary ? "btn btn-sm" : "cl-prof-deal-act"}
@@ -352,11 +361,14 @@ export const PersonDealCard = ({
   canRecord = false,
   onCompose = null,
   flash = null,
+  rung = false,
 }: {
   p: PersonVM | null;
   canRecord?: boolean;
   onCompose?: ComposeFn;
   flash?: FlashFn | null;
+  /** The page draws Up next, which holds each deal's next act (the person page's Overview). */
+  rung?: boolean;
 }) => {
   if (!p || !p.dealsOn) return null;
   const tz = pageClock().zone();
@@ -368,7 +380,7 @@ export const PersonDealCard = ({
         {W.title}
       </h2>
       {vm.quiet ? (
-        <PersonDealQuiet p={p} q={vm.quiet} canRecord={canRecord} onCompose={onCompose} />
+        <PersonDealQuiet p={p} q={vm.quiet} canRecord={canRecord} onCompose={onCompose} rung={rung} />
       ) : (
         <div className="cl-prof-deal-list">
           {vm.cards.map((c) => (
@@ -380,6 +392,7 @@ export const PersonDealCard = ({
               canRecord={canRecord}
               onCompose={onCompose}
               flash={flash}
+              rung={rung}
             />
           ))}
         </div>

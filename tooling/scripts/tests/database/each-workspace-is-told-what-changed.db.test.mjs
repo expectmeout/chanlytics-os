@@ -440,6 +440,9 @@ const NARROWED = {
     "email_suppressed_reason",
     "merged_into_contact_id",
     "erased_at",
+    // Where they work and where their name came from (0052): People's trail and the person page draw both.
+    "lead_id",
+    "name_source",
   ],
   tenant_config: null,
   templates: [

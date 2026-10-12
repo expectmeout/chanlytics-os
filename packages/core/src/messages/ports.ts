@@ -143,6 +143,9 @@ export interface ContactRow {
   erased_at: string | null;
   display_name: string | null;
   wa_profile_name: string | null;
+  /** Where that name came from, and whether a member settled it (0052): a stand-in is "there" (firstNameOf). */
+  name_source?: string | null;
+  name_settled_at?: string | null;
 }
 export type RecipientMark = {
   /**

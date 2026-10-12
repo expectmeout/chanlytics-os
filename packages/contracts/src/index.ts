@@ -21,6 +21,7 @@ export * from "./new-conversation";
 export * from "./notes";
 export * from "./notices";
 export * from "./people";
+export * from "./person-page";
 export * from "./playbooks";
 export * from "./reach-out";
 export * from "./reports";

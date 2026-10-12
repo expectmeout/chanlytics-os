@@ -258,8 +258,9 @@ function messageItems(ctx: PersonCardContext): PersonTimelineItemVM[] {
   const { profile, base, stamp } = ctx;
   // A reach-out's email is named for its chain and step, and a reply it read says how it was read (Part 6, H11).
   const reach = reachOutOf(ctx);
-  // A person we know only by number or address keeps the whole identifier: "+1" as a speaker label is nobody.
-  const first = shortName(base.name);
+  // A person we know only by number or address keeps the whole identifier: "+1" as a speaker label is nobody. A stand-in
+  // named for their business reads whole (0052): "Bloom & Vow Bridal", never "Bloom".
+  const first = base.standIn ? base.name : shortName(base.name);
   const runOf = new Map((profile.campaigns ?? []).filter((c) => c.message_id).map((c) => [c.message_id!, c]));
   const items: PersonTimelineItemVM[] = [];
   for (const c of profile.conversations) {

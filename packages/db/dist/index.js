@@ -463,7 +463,8 @@ var ERASURE_LEGS = {
   email_trigger: "contact_email_on_erase: the address and why it was suppressed cleared (00125)",
   proposal_trigger: "contact_proposal_on_erase: the proposal's link cleared",
   deals_trigger: "deals_erase_on_contact: a deal's note, evidence and link cleared",
-  leads_trigger: "leads_erase_on_contact: their lead blanked (lead_blank), its places deleted, a reach-out's opening and a preference's example cleared (00391), its keys kept as digests",
+  leads_trigger: "leads_erase_on_contact: their lead blanked (lead_blank), its places deleted, a reach-out's opening and a preference's example cleared (00391), its keys kept as digests; one of several people at a business takes only their own address, number and the call's note from it (lead_person_leg, 00413)",
+  signer_trigger: "person_signer_erase_on_contact: the name and title a reply's reading found as its signer, and what became of it, cleared (00413)",
   recipients_trigger: "broadcast_recipients_on_erase: the words each run kept for them, a visit's time, service and key and a proposal's link, cleared (00391)",
   jobs_scrub: "scrubErasedJobs and erase_contact: a job's payload that carried their number or words overwritten, and its error cleared",
   ask_scrub: "scrub_ask_for_contact: the assistant's turns that name them deleted (00238)",
@@ -823,7 +824,13 @@ var ERASURE_STRATEGIES = {
     ...all(byAge("provider_events"), "provider_event_id", "door", "url", "headers")
   },
   // A reply to a reach-out hangs on the replier's message and thread, and goes with them.
-  reach_out_replies: all(withPerson("erase_contact"), "draft", "draft_why", "plan", "refer_to", "summary"),
+  reach_out_replies: {
+    ...all(withPerson("erase_contact"), "draft", "draft_why", "plan", "refer_to", "summary"),
+    // Who signed it (0052): cleared when the person it names is erased, wherever the reply's thread is.
+    ...all(scrubbedBy("signer_trigger"), "signer_name", "signer_title"),
+    // What became of the signer's name, and the source it replaced: closed words, never the name.
+    ...all(NOT_PERSONAL, "signer_state", "signer_was")
+  },
   reach_out_sends: {
     // Written from the lead's record (00391).
     ...all(scrubbedBy("leads_trigger"), "opening", "angle", "hold_detail"),
@@ -1163,6 +1170,84 @@ function mergedOf(v) {
     email_marketing: word("email_marketing"),
     counts: out
   };
+}
+function nameAnswerOf(v, doneKey) {
+  const o = v && typeof v === "object" && !Array.isArray(v) ? v : {};
+  return {
+    done: o[doneKey] === true,
+    name: typeof o.name === "string" ? o.name : null,
+    why: typeof o.why === "string" ? o.why : null
+  };
+}
+async function adoptPersonName(db, personId, messageId) {
+  const { data, error } = await db.rpc("person_name_adopt", { p_contact_id: personId, p_message_id: messageId });
+  if (error) throw error;
+  return nameAnswerOf(data, "named");
+}
+async function undoPersonName(db, personId) {
+  const { data, error } = await db.rpc("person_name_undo", { p_contact_id: personId });
+  if (error) throw error;
+  return nameAnswerOf(data, "undone");
+}
+async function declinePersonName(db, personId, messageId) {
+  const { data, error } = await db.rpc("person_name_decline", { p_contact_id: personId, p_message_id: messageId });
+  if (error) throw error;
+  return nameAnswerOf(data, "declined");
+}
+async function joinPersonToLead(db, personId, leadId) {
+  const { data, error } = await db.rpc("person_join_lead", { p_contact_id: personId, p_lead_id: leadId });
+  if (error) throw error;
+  const o = data && typeof data === "object" && !Array.isArray(data) ? data : {};
+  return { leadId: typeof o.lead_id === "string" ? o.lead_id : leadId };
+}
+async function leavePersonLead(db, personId) {
+  const { data, error } = await db.rpc("person_leave_lead", { p_contact_id: personId });
+  if (error) throw error;
+  const o = data && typeof data === "object" && !Array.isArray(data) ? data : {};
+  return { left: o.left === true };
+}
+async function seePersonNote(db, noteId) {
+  const { data, error } = await db.rpc("person_note_seen", { p_note_id: noteId });
+  if (error) throw error;
+  const o = data && typeof data === "object" && !Array.isArray(data) ? data : {};
+  return { seen: typeof o.seen === "string", why: typeof o.error === "string" ? o.error : null };
+}
+var PEOPLE_AT_A_LEAD = 20;
+async function peopleAtLead(db, tenantId, leadId) {
+  const { data, error } = await db.from("contacts").select("id, display_name, wa_profile_name, phone_e164, email, name_source").eq("tenant_id", tenantId).eq("lead_id", leadId).is("erased_at", null).is("merged_into_contact_id", null).limit(PEOPLE_AT_A_LEAD);
+  if (error) throw new Error(`peopleAtLead: ${error.message}`);
+  const people = data ?? [];
+  if (!people.length) return [];
+  const ids = people.map((p) => p.id);
+  const [moments, waiting] = await Promise.all([
+    db.from("person_moments").select("contact_id, in_touch_at").eq("tenant_id", tenantId).in("contact_id", ids),
+    db.from("conversations").select("contact_id").eq("tenant_id", tenantId).eq("state", "needs_human").in("contact_id", ids)
+  ]);
+  if (moments.error) throw new Error(`peopleAtLead: ${moments.error.message}`);
+  if (waiting.error) throw new Error(`peopleAtLead: ${waiting.error.message}`);
+  const touched = new Map((moments.data ?? []).map((m) => [m.contact_id, m.in_touch_at]));
+  const needs = new Set((waiting.data ?? []).map((w) => w.contact_id));
+  return people.map((p) => {
+    const at = touched.get(p.id) ?? null;
+    return { ...p, in_touch_at: at && !at.startsWith("-") ? at : null, needs_you: needs.has(p.id) };
+  }).sort((a, b) => (b.in_touch_at ?? "").localeCompare(a.in_touch_at ?? ""));
+}
+async function signersOf(db, tenantId, personId) {
+  const { data, error } = await db.from("reach_out_replies").select("message_id, signer_name, signer_title, signer_state, read_at, intent, claim").eq("tenant_id", tenantId).eq("contact_id", personId).in("signer_state", ["offered", "adopted"]).is("undone_at", null).order("read_at", { ascending: false }).limit(5);
+  if (error) throw new Error(`signersOf: ${error.message}`);
+  return (data ?? []).flatMap(
+    (r) => r.signer_name && (r.signer_state === "offered" || r.signer_state === "adopted") ? [
+      {
+        message_id: r.message_id,
+        name: r.signer_name,
+        title: r.signer_title,
+        state: r.signer_state,
+        read_at: r.read_at,
+        intent: r.intent,
+        claim: r.claim
+      }
+    ] : []
+  );
 }
 async function resolvePerson(db, p) {
   const { data, error } = await db.rpc("resolve_person", {
@@ -2422,11 +2507,18 @@ async function reachOutReplyOf(db, p) {
     from: textOf(o.from),
     subject: textOf(o.subject),
     text: textOf(o.text),
-    received_at: receivedAt
+    received_at: receivedAt,
+    cited: o.cited === true,
+    from_name: textOf(o.from_name),
+    not_names: [textOf(o.workspace), ...Array.isArray(o.team) ? o.team.map(textOf) : []].filter(
+      (x) => !!x
+    )
   };
 }
 async function replyReadingOf(db, p) {
-  const { data, error } = await db.from("reach_out_replies").select("intent, claim, summary, unread, rereads, plan, told_at, undone_at, draft, draft_state, draft_why").eq("tenant_id", p.tenantId).eq("message_id", p.messageId).maybeSingle();
+  const { data, error } = await db.from("reach_out_replies").select(
+    "intent, claim, summary, unread, rereads, plan, told_at, undone_at, draft, draft_state, draft_why, signer_name, signer_state"
+  ).eq("tenant_id", p.tenantId).eq("message_id", p.messageId).maybeSingle();
   if (error) throw new Error(`cannot read the reply's reading: ${error.message}`);
   return data ?? null;
 }
@@ -5419,6 +5511,7 @@ export {
   addToList,
   addToWaitlist,
   addressesSuppressed,
+  adoptPersonName,
   aiFailuresHour,
   answeredReachOutEmail,
   applyBilling,
@@ -5474,6 +5567,7 @@ export {
   createWorkspaceForBusiness,
   declineHandover,
   declinePartnerInvite,
+  declinePersonName,
   deleteList,
   deleteSecondFactor,
   deleteSendingDomain,
@@ -5550,6 +5644,7 @@ export {
   inviteUserByEmail,
   isMissingDoor,
   isWorkspaceCall,
+  joinPersonToLead,
   keepAppointmentNotice,
   keepChannelQuality,
   keepChannelStanding,
@@ -5566,6 +5661,7 @@ export {
   leadNamesByIds,
   leadSlotsOf,
   leadWritten,
+  leavePersonLead,
   lineForwardingSet,
   linkCallMessage,
   listMemberIds,
@@ -5626,6 +5722,7 @@ export {
   parentEmailOf,
   pauseConversation,
   pauseEmailOffers,
+  peopleAtLead,
   peopleCursorOf,
   peoplePage,
   peopleSeries,
@@ -5730,6 +5827,7 @@ export {
   scrubProviderEvents,
   searchMessages,
   searchNamesByIds,
+  seePersonNote,
   sendJobScheduled,
   sendNow,
   sendStanding,
@@ -5754,6 +5852,7 @@ export {
   setWorkspaceLogo,
   settleDelivery,
   signUpOnPublicKey,
+  signersOf,
   staleSends,
   stampEmailComplaint,
   stampEmailLeftAs,
@@ -5790,6 +5889,7 @@ export {
   touchesSince,
   uncheckedSends,
   uncheckedWaiting,
+  undoPersonName,
   undoReplyReading,
   updateAppointment,
   updatePlaybook,

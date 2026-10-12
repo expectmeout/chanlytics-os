@@ -275,7 +275,13 @@ export function heardWords(n: number): string | null {
 }
 
 function previewPerson(r: PersonRowVM, refusal: string | null, channel: ConsentChannel | null): PreviewPerson {
-  return { id: r.id, label: r.name, firstName: firstNameOf(r.givenName, r.waName), refusal, channel };
+  return {
+    id: r.id,
+    label: r.name,
+    firstName: firstNameOf(r.givenName, r.waName, { source: r.nameSource, settled: r.nameSettled }),
+    refusal,
+    channel,
+  };
 }
 
 /** Nobody touched: an audience read with no touches in hand. */
@@ -297,8 +303,12 @@ export function audiencePreview(
   const picks = pool.map((r) => ({ r, p: reachFor(r, purpose, how) }));
   const sending = picks.filter((x) => x.p.channel !== null);
   const held = picks.filter((x) => x.p.channel === null);
-  const named = sending.filter((x) => firstNameOf(x.r.givenName, x.r.waName) !== null);
-  const unnamed = sending.filter((x) => firstNameOf(x.r.givenName, x.r.waName) === null);
+  const named = sending.filter(
+    (x) => firstNameOf(x.r.givenName, x.r.waName, { source: x.r.nameSource, settled: x.r.nameSettled }) !== null,
+  );
+  const unnamed = sending.filter(
+    (x) => firstNameOf(x.r.givenName, x.r.waName, { source: x.r.nameSource, settled: x.r.nameSettled }) === null,
+  );
   // One ordinary person, then the one nobody has seen, then the rest in order, each with the channel they are reached on.
   const order = [...named.slice(0, 1), ...unnamed.slice(0, 1), ...named.slice(1), ...unnamed.slice(1)];
   const people = order.slice(0, limit).map((x) => previewPerson(x.r, null, x.p.channel));

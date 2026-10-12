@@ -14,6 +14,7 @@ import type { DealPaceDto } from "../deals/deal-waits";
 import type { RecipientState } from "../broadcasts/broadcasts";
 import type { PersonNoteDto, PersonNoteTeamDto } from "../notes/person-notes";
 import type { ReachOutLeadTimelineDto } from "../reach-out/reach-out-leads";
+import type { LeadRowDto } from "../leads/lead-dtos";
 import type { PersonDoubtDto } from "./person-doubts";
 
 /* --------------------------------- DTOs ---------------------------------- */
@@ -151,6 +152,57 @@ export interface PersonRowDto {
   marked_unread?: boolean;
   /** The stamp of their mark's last writing; absent where they have none. */
   marked_at?: string | null;
+  /**
+   * The business they work at (0052, 00413): the lead, its name while it stands, and whether it was erased or blanked
+   * since. Absent on a row read before the columns existed, null when they work nowhere.
+   */
+  lead_id?: string | null;
+  lead_name?: string | null;
+  lead_gone?: boolean | null;
+  /** Where their name came from (NAME_SOURCES), and when a member settled it; absent before 00413, null when not known. */
+  name_source?: string | null;
+  name_settled_at?: string | null;
+  /** The newest reply's signer offered as their name (0052, people_list): the reply, the name and title, when it was read. */
+  signer_message_id?: string | null;
+  signer_name?: string | null;
+  signer_title?: string | null;
+  signer_read_at?: string | null;
+}
+
+/** One person at a business, as its sheet lists them (0052): who, where their name came from, when last in touch. */
+export interface PersonAtLeadDto {
+  id: string;
+  display_name: string | null;
+  wa_profile_name: string | null;
+  phone_e164: string | null;
+  email: string | null;
+  name_source: string | null;
+  /** When they were last in touch, by People's kept order (person_moments); null for never. */
+  in_touch_at: string | null;
+  /** Their latest thread waits on a person (needs_human). */
+  needs_you: boolean;
+}
+
+/** A reply's signer as a person's page reads it (0052): the reply, the name, the title, and what became of the offer. */
+export interface PersonSignerDto {
+  message_id: string;
+  name: string;
+  title: string | null;
+  state: "offered" | "adopted";
+  /** When the reply was read: the newest is first. */
+  read_at: string;
+  /** What the reading found the reply to mean, and what kind of email it was: a name is never offered from a no. */
+  intent: string;
+  claim: string;
+}
+
+/**
+ * The business a person works at, as their page reads it (0052): the lead as a row of Leads' page (its listing, its
+ * stage, its verdict, its reach, LeadRowDto, through the list's own builder), and the people who work there.
+ */
+export interface PersonBusinessDto {
+  lead: LeadRowDto;
+  people: PersonAtLeadDto[];
 }
 
 export interface PersonIdentityDto {
@@ -235,6 +287,13 @@ export interface PersonDetailDto {
   lead?: PersonLeadDto | null;
   /** The open doubts naming this person (0034 step 4, 00344): another record one identity could belong to, each. Absent from a server before the table. */
   doubts?: PersonDoubtDto[];
+  /**
+   * The business they work at (0052): the lead `row.lead_id` names, read as Leads reads one, and its people. Null when
+   * they work nowhere, or the lead could not be read; absent from a server before 00413.
+   */
+  business?: PersonBusinessDto | null;
+  /** The signers of their replies still offered or adopted, newest first (0052): "Use this name", and its undo. */
+  signers?: PersonSignerDto[];
 }
 
 /** One run that named a person: what went, when, and what became of it at the wire. */

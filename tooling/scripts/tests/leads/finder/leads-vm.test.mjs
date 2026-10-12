@@ -267,10 +267,11 @@ test("a stage change in the page's words becomes the door's arguments; the door,
     p_fit_reason: null,
     p_outcome: null,
     p_note: null,
+    p_spoke_with: null,
   });
   assert.deepEqual(
     args({ kind: "stage", stage: "converted" }),
-    { p_stage: "converted", p_reason: null, p_fit_reason: null, p_outcome: null, p_note: null },
+    { p_stage: "converted", p_reason: null, p_fit_reason: null, p_outcome: null, p_note: null, p_spoke_with: null },
     "a click says Talking; it never says convert",
   );
   assert.deepEqual(args({ kind: "not_a_fit", why: "customer" }), {
@@ -279,6 +280,7 @@ test("a stage change in the page's words becomes the door's arguments; the door,
     p_fit_reason: "customer",
     p_outcome: null,
     p_note: null,
+    p_spoke_with: null,
   });
   assert.deepEqual(args({ kind: "not_a_fit", why: "chain" }), {
     p_stage: "archived",
@@ -286,6 +288,7 @@ test("a stage change in the page's words becomes the door's arguments; the door,
     p_fit_reason: "chain",
     p_outcome: null,
     p_note: null,
+    p_spoke_with: null,
   });
   assert.deepEqual(args({ kind: "said_no" }), {
     p_stage: "archived",
@@ -293,6 +296,7 @@ test("a stage change in the page's words becomes the door's arguments; the door,
     p_fit_reason: null,
     p_outcome: null,
     p_note: null,
+    p_spoke_with: null,
   });
   assert.deepEqual(args({ kind: "outcome", outcome: "interested", note: "Wants a call Tuesday" }), {
     p_stage: "converted",
@@ -300,13 +304,20 @@ test("a stage change in the page's words becomes the door's arguments; the door,
     p_fit_reason: null,
     p_outcome: "interested",
     p_note: "Wants a call Tuesday",
+    p_spoke_with: null,
   });
+  // Who the call reached (0052) goes with Interested to the door, which names the person it makes or renames a stand-in.
+  assert.equal(
+    args({ kind: "outcome", outcome: "interested", spoke_with: "  Priya Nair " }).p_spoke_with,
+    "Priya Nair",
+  );
   assert.deepEqual(args({ kind: "outcome", outcome: "wrong_number" }), {
     p_stage: null,
     p_reason: null,
     p_fit_reason: null,
     p_outcome: "wrong_number",
     p_note: null,
+    p_spoke_with: null,
   });
   assert.deepEqual(args({ kind: "emailed" }), {
     p_stage: "nurture",
@@ -314,6 +325,7 @@ test("a stage change in the page's words becomes the door's arguments; the door,
     p_fit_reason: null,
     p_outcome: "emailed",
     p_note: null,
+    p_spoke_with: null,
   });
   assert.deepEqual(
     [outcomeMove("interested").converts, outcomeMove("call_back").converts],

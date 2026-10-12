@@ -245,6 +245,12 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST contacts": () => [...peopleAndAudiences(), ...calendarIfDrawn()],
   // A conversation begun from the Inbox: their thread is new or moved, and their row on People says so.
   "POST people/[id]/message": personAndThreads,
+  // A signer's name used, put back or declined (0052): the name is on every row and thread header that draws them, a greeting
+  // counts it (the composers' audiences), and Leads' rows and peek say who the business's person is.
+  "POST people/[id]/name": () => [...personAndThreads(), ...audiences(), ...leads()],
+  // Linked to a business, or not at it (0052): their row trails the business, and the lead's own rows list its people.
+  "PUT people/[id]/business": () => [...personAndThreads(), ...leads()],
+  "DELETE people/[id]/business": () => [...personAndThreads(), ...leads()],
   "POST contacts/import": peopleAndAudiences,
   // A list is an audience and a playbook's moment too: the composer's chips and a playbook's count follow it.
   "POST segments": () => [peopleOverride, broadcastsOverride, playbooksOverride],
@@ -444,6 +450,9 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   // (surfaces/seen.ts), and the next read of each list carries the mark: three lists read again on every thread
   // opened would be three requests to say what the screen already does.
   "PUT contacts/[id]/seen": "the reader's own mark; the tab already draws it, and the next read carries it",
+  // Got it (canvas A, Up next): the reader's own mark on a note for them; the open person page reads itself again, and no
+  // other page draws whether a note was read.
+  "POST contacts/[id]/notes/seen": "the reader's own mark on a note for them; the open person page reads itself again",
   // Not the same (0034 step 4): the pair leaves the person's page, which reads itself again with the row gone (hero.tsx); no row of
   // People carries a doubt, so a read of the whole list was for nothing but to tell the open page to reload.
   "POST contacts/[id]/doubts/dismiss":

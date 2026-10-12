@@ -17,8 +17,9 @@ export function stageArgs(i: LeadStageInput): {
   p_fit_reason: string | null;
   p_outcome: string | null;
   p_note: string | null;
+  p_spoke_with: string | null;
 } {
-  const none = { p_stage: null, p_reason: null, p_fit_reason: null, p_outcome: null, p_note: null };
+  const none = { p_stage: null, p_reason: null, p_fit_reason: null, p_outcome: null, p_note: null, p_spoke_with: null };
   switch (i.kind) {
     case "stage":
       return { ...none, p_stage: i.stage };
@@ -35,7 +36,14 @@ export function stageArgs(i: LeadStageInput): {
       return { ...none, p_stage: "nurture", p_outcome: "emailed" };
     case "outcome": {
       const m = outcomeMove(i.outcome);
-      return { ...none, p_stage: m.stage, p_reason: m.closedReason, p_outcome: i.outcome, p_note: i.note ?? null };
+      return {
+        ...none,
+        p_stage: m.stage,
+        p_reason: m.closedReason,
+        p_outcome: i.outcome,
+        p_note: i.note ?? null,
+        p_spoke_with: i.spoke_with || null,
+      };
     }
   }
 }

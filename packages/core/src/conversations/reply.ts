@@ -80,6 +80,9 @@ export interface ReplyThread extends Pick<Thread, "id" | "tenant_id" | "phone_e1
   /** The names on file, for a template that opens with their first name. */
   display_name?: string | null;
   wa_profile_name?: string | null;
+  /** Where that name came from, and whether a member settled it (0052): a stand-in is "there" (firstNameOf). */
+  name_source?: string | null;
+  name_settled_at?: string | null;
   /** The address on the person's page, and whether it has stopped being sent to (00125, 00126). */
   email?: string | null;
   email_suppressed_at?: string | null;
@@ -468,7 +471,10 @@ interface ShapedTemplate {
  */
 export async function shapeTemplate(
   ports: ReplyPorts,
-  conv: Pick<ReplyThread, "tenant_id" | "marketing_consent" | "display_name" | "wa_profile_name">,
+  conv: Pick<
+    ReplyThread,
+    "tenant_id" | "marketing_consent" | "display_name" | "wa_profile_name" | "name_source" | "name_settled_at"
+  >,
   body: ReplyBody,
 ): Promise<ShapedTemplate> {
   if (!body.template?.name)
@@ -520,7 +526,10 @@ export async function shapeTemplate(
       "This template takes the booking link, and none is on file. Pick another template, or add the link in Settings › Business first.",
     );
   const params: string[] = resolveParams(slots, {
-    firstName: firstNameOf(conv.display_name, conv.wa_profile_name),
+    firstName: firstNameOf(conv.display_name, conv.wa_profile_name, {
+      source: conv.name_source,
+      settled: !!conv.name_settled_at,
+    }),
     businessName: facts.business_name,
     bookingLink: facts.booking_link?.replace(/^https?:[/][/]/, "") ?? null,
   });

@@ -545,16 +545,16 @@ const serve = (vm) => {
   assert.ok(dto, "the person served is one this file mapped, so the wire has their detail");
   world.details.set(vm.id, dto);
 };
-/** The page for a person, as the shell draws it at their id. */
-const pageFor = (id) => {
+/** The page for a person, as the shell draws it at their id, on the tab its address names (decision 0052, 13). */
+const pageFor = (id, tab) => {
   frames.begin();
-  return ClientProfile({ id });
+  return ClientProfile(tab ? { id, tab } : { id });
 };
-/** A loaded profile: the load effect run, then drawn again. */
-const profile = async (vm) => {
+/** A loaded profile, on the tab asked for (the Overview when none is): the load effect run, then drawn again. */
+const profile = async (vm, tab) => {
   await newTree();
   serve(vm);
-  const draw = () => pageFor(vm.id);
+  const draw = () => pageFor(vm.id, tab);
   draw();
   await settle(2);
   return draw;
@@ -729,22 +729,26 @@ test("REGRESSION (B17): the timeline narrows by kind, and each linked item opens
   // A visit that happened, and the fixture's one ahead.
   const PAST = { ...NEXT, id: "b0:1", start: iso(10 * D), end: iso(10 * D - 2 * H) };
   const vm = toPersonVM(detail({ visits: { ...VISITS, all: [PAST, NEXT] } }), ZONE, new Date(NOW));
-  const draw = await profile(vm);
-  let tree = draw();
-  // The fixture's one visit has not happened: it is Coming up, not History, and it is a door to its day.
-  const ahead = all(tree, (n) => n.props?.["data-testid"] === "person-visit-ahead");
+  // The fixture's one visit has not happened: it is Coming up on the Overview, not History, and it is a door to its day.
+  const ahead = all((await profile(vm))(), (n) => n.props?.["data-testid"] === "person-visit-ahead");
   assert.equal(ahead.length, 1, "the visit ahead is Coming up");
-  // The filters are the kit's sub-tabs: one tab for each kind History holds, and none for a kind it does not.
-  const filters = (t) => find(t, (n) => n.type === SubTabs).props;
+  press(ahead[0]);
+  const doors = [...went];
+  // History is its own tab (0052, 13).
+  const draw = await profile(vm, "history");
+  let tree = draw();
+  // The filters are the kit's sub-tabs (beside the page's own tabs): one for each kind History holds, none for another.
+  const filters = (t) =>
+    find(t, (n) => n.type === SubTabs && n.props.tabs.some((x) => x.testid?.startsWith("timeline-filter-"))).props;
   assert.deepEqual(
     filters(tree).tabs.map((t) => t.testid),
     ["timeline-filter-all", "timeline-filter-messages", "timeline-filter-visits"],
     "a filter for each kind History holds, and none for a kind it does not",
   );
   for (const open of all(tree, (n) => n.props?.["data-testid"] === "timeline-open")) press(open);
-  press(ahead[0]);
+  doors.push(...went);
   const day = toPersonRowVM(row({ visits: VISITS }), ZONE, new Date(NOW)).nextVisitDate;
-  assert.ok(went.includes("inbox/th-cv1") && went.includes(`calendar/${day}`), `the doors: ${went}`);
+  assert.ok(doors.includes("inbox/th-cv1") && doors.includes(`calendar/${day}`), `the doors: ${doors}`);
   filters(tree).onSelect("visits");
   tree = draw();
   assert.equal(
@@ -809,7 +813,7 @@ test("a call's to-do and what the caller gave are on the person's page, under th
     ZONE,
     new Date(NOW),
   );
-  const tree = (await profile(vm))();
+  const tree = (await profile(vm, "history"))();
   const rows = all(tree, (n) =>
     String(n.props?.className || "")
       .split(" ")
@@ -1011,7 +1015,7 @@ test("the timeline's linked rows are the doors themselves -- a message's door hi
   };
   let tree;
   try {
-    const draw = await profile(vm);
+    const draw = await profile(vm, "history");
     tree = draw();
   } finally {
     delete globalThis.window.__href;
@@ -1060,7 +1064,7 @@ test("a long record folds past twenty rows, and a fold of three is not worth a p
   const d = detail();
   const vm = toPersonVM({ ...d, conversations: [{ ...d.conversations[0], messages: many }] }, ZONE, new Date(NOW));
   assert.ok(vm.timeline.length > 23, `the fixture is long: ${vm.timeline.length}`);
-  const draw = await profile(vm);
+  const draw = await profile(vm, "history");
   let tree = draw();
   const rowsOf = (t) =>
     all(t, (n) =>
@@ -1083,7 +1087,7 @@ test("a long record folds past twenty rows, and a fold of three is not worth a p
     ZONE,
     new Date(NOW),
   );
-  const tree2 = (await profile(few))();
+  const tree2 = (await profile(few, "history"))();
   const fewPast = few.timeline.filter((i) => !i.ahead).length;
   assert.equal(rowsOf(tree2), fewPast, `${fewPast} rows, all drawn`);
   assert.equal(byTestId(tree2, "timeline-older"), null, "a fold of three rows is not worth a press");
@@ -1953,7 +1957,8 @@ test("a person a reach-out found reads its emails, how their reply was read, whe
 
 test("the profile's Campaigns rows open each run's report, and its Lists name the lists that keep themselves current, each opening on People", async () => {
   const vm = toPersonVM(withRuns(), ZONE, new Date(NOW));
-  const draw = await profile(vm);
+  // On a desk Campaigns is its own tab (0052, 13).
+  const draw = await profile(vm, "campaigns");
   const rows = all(draw(), (n) => n.props?.["data-testid"] === "person-campaign");
   assert.equal(rows.length, 5);
   assert.ok(
@@ -1962,8 +1967,12 @@ test("the profile's Campaigns rows open each run's report, and its Lists name th
   );
   press(rows[1]);
   assert.deepEqual(went, ["broadcasts/run:b-win"]);
-  const quiet = await profile(toPersonVM(detail(), ZONE, new Date(NOW)));
-  assert.equal(byTestId(quiet(), "person-campaigns"), null, "no runs, no section");
+  const quiet = await profile(toPersonVM(detail(), ZONE, new Date(NOW)), "campaigns");
+  assert.equal(
+    byTestId(quiet(), "person-campaigns"),
+    null,
+    "no runs, no section (and no tab: the Overview it falls to)",
+  );
 
   await peoplePage([row()], [{ id: "s1", name: "Regulars", ids: ["p1"] }]);
   cells = [];
@@ -2179,7 +2188,7 @@ test("a proposal's send sits beside the booking link in More, 'again' once it we
   try {
     tree = (await profile(vm))();
     assert.ok(!labels(tree).some((l) => /^Send/.test(l)), `a viewer sends nothing: ${labels(tree)}`);
-    assert.ok(labels(tree).includes("Call"));
+    assert.ok(byTestId(tree, "person-call"), "the head's own Call, beside More (0052)");
   } finally {
     globalThis.window.__ME = { role: "owner" };
   }
@@ -2278,7 +2287,7 @@ const sheetAsks = () => {
 const cardOf = (t) => byTestId(t, "person-deal-card");
 const movesOf = (t) => all(t, (n) => n.type === "button" && n.props?.["data-testid"] === "person-deal-move");
 
-test("the Deal section stands first in the column, above Coming up, only where deals are on; with no deal it is one quiet line that starts a proposal in the sheet; the card's settings have no Deal row", async () => {
+test("the Deal section stands on the Overview above Coming up, only where deals are on; with no deal it is one quiet line that starts a proposal in the sheet; the card's settings have no Deal row", async () => {
   recFolds.reset();
   const asked = sheetAsks();
   try {
@@ -2288,11 +2297,12 @@ test("the Deal section stands first in the column, above Coming up, only where d
     const tree = (await profile(withDeals([])))();
     const section = byTestId(tree, "person-deal");
     assert.equal(textOf(find(section, (n) => n.type === "h2")), "Deal");
-    // First in the column: the body draws it, then Coming up (VISITS has a visit ahead).
-    const body = find(tree, (n) => n.props?.className === "cl-prof-body");
-    const kids = body.props.children.filter((k) => k && typeof k === "object");
-    assert.equal(kids[0].type, PersonDealCard, "the deal first");
-    assert.equal(kids[1].props["data-testid"], "person-coming-up", "then what is coming");
+    // On the Overview (0052), its next act on Up next's rung, then Coming up (VISITS has a visit ahead).
+    const overview = find(tree, (n) => typeof n.type === "function" && n.type.name === "Overview");
+    const kids = overview.rendered.props.children.filter((k) => k && typeof k === "object");
+    const at = kids.findIndex((k) => k.type === PersonDealCard);
+    assert.ok(at >= 0 && kids[at].props.rung, "the deal, on the Overview, its next act Up next's");
+    assert.equal(kids[at + 1].props["data-testid"], "person-coming-up", "then what is coming");
     // Nothing recorded: one line, and its act in quiet words.
     assert.equal(textOf(byTestId(tree, "person-deal-said")), "No proposal yet");
     assert.equal(byTestId(tree, "person-deal-card"), null);
@@ -2326,7 +2336,7 @@ test("a proposal out is a card: its service and value, its steps, its link and w
   try {
     // The person's own link (00154) stays theirs: the card says the deal's.
     const vm = withDeals([dealRow({ proposal_url: url })], { proposal_url: "https://docs.example.com/p/own" });
-    let tree = (await profile(vm))();
+    let tree = (await profile(vm, "deals"))();
     const card = cardOf(tree);
     assert.equal(textOf(byTestId(card, "person-deal-title")), "Ad management");
     assert.equal(textOf(byTestId(card, "person-deal-value")), "$1,200", "a proposal says its value (0008)");
@@ -2371,7 +2381,7 @@ test("a proposal out is a card: its service and value, its steps, its link and w
     ]);
 
     // Recorded without a link: said, and adding it is the next act.
-    tree = (await profile(withDeals([dealRow()])))();
+    tree = (await profile(withDeals([dealRow()]), "deals"))();
     assert.deepEqual(all(cardOf(tree), (n) => n.props?.["data-testid"] === "person-deal-fact").map(textOf), [
       "No link",
     ]);
@@ -2379,7 +2389,7 @@ test("a proposal out is a card: its service and value, its steps, its link and w
     assert.deepEqual(movesOf(tree).map(textOf), ["Mark as client", "Mark as passed"], "the edit is said once");
     assert.equal(byTestId(tree, "person-deal-flag"), null, "they wrote since: nothing waiting");
     // Nothing back in a week: a state in the warn tone, the house's one pill.
-    tree = (await profile(withDeals([dealRow()], {}, { last_inbound_at: iso(12 * D) })))();
+    tree = (await profile(withDeals([dealRow()], {}, { last_inbound_at: iso(12 * D) }), "deals"))();
     const flag = find(tree, (n) => n.type === StatePill && n.props.testid === "person-deal-flag");
     assert.deepEqual([flag.props.kind, flag.props.value, flag.props.label], ["tone", "warn", "Nothing back in 9 days"]);
 
@@ -2389,6 +2399,7 @@ test("a proposal out is a card: its service and value, its steps, its link and w
         withDeals([
           dealRow({ stage: "won", decided_at: iso(2 * D), per: "month", amount_cents: 250_000, proposal_url: url }),
         ]),
+        "deals",
       )
     )();
     assert.equal(textOf(byTestId(cardOf(tree), "person-deal-value")), "$2,500 a month");
@@ -2403,7 +2414,9 @@ test("a proposal out is a card: its service and value, its steps, its link and w
 
     // Passed: no card, one line with the reason, and proposing again moves that row.
     asked.length = 0;
-    tree = (await profile(withDeals([dealRow({ stage: "lost", decided_at: iso(2 * D), lost_reason: "price" })])))();
+    tree = (
+      await profile(withDeals([dealRow({ stage: "lost", decided_at: iso(2 * D), lost_reason: "price" })]), "deals")
+    )();
     assert.equal(cardOf(tree), null);
     assert.match(textOf(byTestId(tree, "person-deal-said")), /^Ad management · Passed \w{3} \d+ · Price$/);
     press(byTestId(tree, "person-deal-start"));
@@ -2412,7 +2425,7 @@ test("a proposal out is a card: its service and value, its steps, its link and w
     // A viewer reads the card and presses nothing.
     globalThis.window.__ME = { role: "viewer" };
     try {
-      tree = (await profile(vm))();
+      tree = (await profile(vm, "deals"))();
       assert.ok(cardOf(tree));
       assert.equal(byTestId(tree, "person-deal-next"), null);
       assert.deepEqual(movesOf(tree), []);
@@ -2463,21 +2476,21 @@ test("where only an approved message can reach them, the card's follow-up opens 
     );
   try {
     const vm = quiet();
-    const tree = (await profile(vm))();
+    const tree = (await profile(vm, "deals"))();
     const next = byTestId(tree, "person-deal-next");
     assert.deepEqual([textOf(next), next.props.title], ["Follow up", contracts.DEAL_ACT_HINTS.approved]);
     press(next);
     assert.deepEqual(went, [vm.openThread], "their thread, which offers the approved messages");
     assert.deepEqual(carried, [], "and nothing written for them: no free text can go");
     for (const rowOver of [{ consent: "opted_out" }, { dnc: true }]) {
-      const stopped = (await profile(quiet(rowOver)))();
+      const stopped = (await profile(quiet(rowOver), "deals"))();
       assert.equal(textOf(byTestId(stopped, "person-deal-next")), "Mark as client", JSON.stringify(rowOver));
     }
     // Where their People row says the proposal follow-up has them (0006): the day its run goes, and the card leads
     // with no nudge of its own.
     const keep = surfaceValue("people");
     try {
-      const draw = await profile(quiet());
+      const draw = await profile(quiet(), "deals");
       setSurfaceValue("people", {
         ...(keep || {}),
         rows: [{ id: vm.id, followUp: { kind: "will", atMs: NOW, asks: true } }],
@@ -2623,7 +2636,7 @@ test("REGRESSION: on a phone a row stays in the card behind its sheet -- taken o
 test("REGRESSION: a History filter holds still -- on a phone a shorter list made the page shorter, and the strip jumped 328px down the screen under the thumb", async () => {
   const PAST = { ...NEXT, id: "b0:1", start: iso(10 * D), end: iso(10 * D - 2 * H) };
   const vm = toPersonVM(detail({ visits: { ...VISITS, all: [PAST, NEXT] } }), ZONE, new Date(NOW));
-  const draw = await profile(vm);
+  const draw = await profile(vm, "history");
   const held = [];
   const hold = globalThis.window.holdStill;
   globalThis.window.holdStill = (control, change) => {
@@ -2631,7 +2644,11 @@ test("REGRESSION: a History filter holds still -- on a phone a shorter list made
     change();
   };
   try {
-    find(draw(), (n) => n.type === SubTabs).props.onSelect("visits");
+    // History's filters, not the page's tabs beside them (0052).
+    find(
+      draw(),
+      (n) => n.type === SubTabs && n.props.tabs.some((x) => x.testid === "timeline-filter-all"),
+    ).props.onSelect("visits");
     assert.equal(held.length, 1, "the switch runs through holdStill, from the tab pressed");
     const timeline = find(draw(), (n) => typeof n.type === "function" && n.type.name === "PersonTimeline");
     assert.equal(timeline.props.filter, "visits", "and History shows the visits");
@@ -2677,7 +2694,7 @@ test("History names who added a person, by the door that did: the calendar, the 
       source,
     );
   // The page draws who above what: "You", then "Added by hand".
-  const draw = await profile(added("manual"));
+  const draw = await profile(added("manual"), "history");
   const row = find(
     draw(),
     (n) =>
@@ -2772,7 +2789,7 @@ test("a person not read yet is nothing of theirs until their whole page is in: n
   assert.ok(!textOf(tree).includes("Daniela Reyes"), "nothing of theirs at all");
   assert.ok(!textOf(tree).includes("Loading…"), "REGRESSION: a bare Loading… at once");
 
-  // Their page lands whole: the head, where they stand and the history in the same draw.
+  // Their page lands whole: the head, where they stand and the Overview (0052) in the same draw.
   hold.release();
   await settle();
   tree = pageFor("p1");
@@ -2782,8 +2799,8 @@ test("a person not read yet is nothing of theirs until their whole page is in: n
     "their name",
   );
   assert.ok(
-    find(tree, (n) => String(n.props?.className || "").includes("cl-prof-history")),
-    "and their history, together",
+    find(tree, (n) => typeof n.type === "function" && n.type.name === "Overview"),
+    "and their Overview, together",
   );
   assert.equal(byTestId(tree, "person-reading"), null);
 });
@@ -2854,8 +2871,8 @@ test("a demo session draws a sample person's page and asks the workspace for no 
     assert.equal(textOf(find(tree, (n) => n.type === "h1")), "Aisha Khan", "the sample's person, by name");
     assert.ok(byTestId(tree, "person-now"), "where they stand");
     assert.ok(
-      find(tree, (n) => String(n.props?.className || "").includes("cl-prof-history")),
-      "and their history",
+      find(tree, (n) => typeof n.type === "function" && n.type.name === "Overview"),
+      "and their Overview",
     );
     assert.equal(byTestId(tree, "person-reading"), null);
     assert.equal(world.seen.filter((q) => q.path.startsWith("/api/v1/contacts")).length, 0, "no request went out");

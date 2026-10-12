@@ -12,6 +12,7 @@ import { LeadCallAsk, LeadPeekAsk, LeadPeekMore, LeadSentAsk } from "./asks";
 import { LeadCallMenu } from "../cells/call-menu";
 import { LeadSlotShape } from "../cells/shapes";
 import { LeadEvidenceBar, PkHint, ldCheckMark, pkScrolling } from "./hint";
+import { LeadPeekPeople } from "./people";
 import type { Armed, Deck, PeekActs, PeekMode } from "./types";
 
 interface InfoProps {
@@ -469,6 +470,7 @@ export const LeadPeekInfo = (p: InfoProps) => {
         {on.reachOut}
         {peekDecide(vm, on)}
         {peekReach(vm, on)}
+        <LeadPeekPeople leadId={vm.id} on={on} />
         {peekOthers(vm)}
         {peekFound(vm)}
         {peekWeek(vm)}

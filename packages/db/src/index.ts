@@ -441,8 +441,16 @@ export {
   dismissPersonDoubt,
   contactSeen,
   markContact,
+  adoptPersonName,
+  undoPersonName,
+  declinePersonName,
+  joinPersonToLead,
+  leavePersonLead,
+  seePersonNote,
+  peopleAtLead,
+  signersOf,
 } from "./repositories/people";
-export type { PeopleCursor, ResolvePersonInput, ResolvedPerson } from "./repositories/people";
+export type { PeopleCursor, PersonNameAnswer, ResolvePersonInput, ResolvedPerson } from "./repositories/people";
 export {
   savedListsFor,
   listMemberIds,

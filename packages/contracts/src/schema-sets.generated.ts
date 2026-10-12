@@ -46,6 +46,7 @@ export const SCHEMA_SETS = {
   "contacts.consent": ["unknown", "opted_in", "opted_out"],
   "contacts.email_marketing": ["unknown", "opted_in", "opted_out"],
   "contacts.marketing_consent": ["unknown", "opted_in", "opted_out"],
+  "contacts.name_source": ["typed", "import", "calendar", "signature", "wire", "lead"],
   "conversations.state": ["open", "needs_human", "snoozed", "archived"],
   "deals.lost_reason": ["price", "timing", "elsewhere", "no_reply", "not_a_fit", "other"],
   "deals.per": ["once", "month", "year"],

@@ -200,7 +200,7 @@ export function defaultWriteWire(
  * `firstTextLine` is the line a first text to them would carry, where no text of ours has reached them yet.
  */
 export function writeReachOf(
-  r: WriteRow & Pick<PersonRowDto, "id" | "display_name" | "wa_profile_name">,
+  r: WriteRow & Pick<PersonRowDto, "id" | "display_name" | "wa_profile_name" | "name_source" | "name_settled_at">,
   at: {
     ready: ChannelsReady;
     mode: string | null;
@@ -224,7 +224,15 @@ export function writeReachOf(
         : { ok: true, tel: r.phone_e164, why: null },
     receptionist: { answers: mode !== "ask" && mode !== "never" },
     offers_ok: r.marketing_consent === "opted_in",
-    fills: facts ? { first_name: firstNameOf(r.display_name, r.wa_profile_name), ...facts } : null,
+    fills: facts
+      ? {
+          first_name: firstNameOf(r.display_name, r.wa_profile_name, {
+            source: r.name_source,
+            settled: !!r.name_settled_at,
+          }),
+          ...facts,
+        }
+      : null,
     first_text_line: ways.some((w) => w.wire === "sms" && w.ok) ? at.firstTextLine : null,
   };
 }
