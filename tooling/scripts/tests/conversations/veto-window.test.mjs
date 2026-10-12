@@ -175,10 +175,12 @@ test("the event names the usual cause rather than making someone guess", () => {
   test("the approved templates are actually fetched", () => {
     // /api/v1/templates existed, was tenant-scoped and approved-only, and had
     // no caller anywhere. The composer named a template by a literal instead.
-    assert.ok(seam.includes('read("GET templates")'), "the workspace's approved templates are fetched");
+    // Since decision 0047 (the wiring plan's task 3.3) the settings read is the one read of them, and the Inbox's are
+    // the WhatsApp rows of it that may go (offered-templates.ts offeredWhatsApp).
+    assert.ok(seam.includes('read("GET templates"'), "the workspace's templates are fetched");
     assert.match(
       seam,
-      /setSurfaceValue\("inbox", \{[\s\S]*?\btemplates,\s*(templatesHeld,\s*)?\}\)/,
+      /templates: shareUnchanged\(prev\.templates, offeredWhatsApp\(settings\)\),\s*templatesHeld: shareUnchanged\(prev\.templatesHeld, heldBackOf\(settings\)\)/,
       "and published with the Inbox's rows (and the count of what the picker left out)",
     );
   });

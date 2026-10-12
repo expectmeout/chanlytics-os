@@ -242,7 +242,7 @@ test("last contact says who and how long ago, and the newer of message vs call w
       ZONE,
       NOW,
     ).lastContact.label,
-    "You replied · 3d ago",
+    "Your team replied · 3d ago",
   );
   const called = toPersonRowVM(row({ last_call_at: iso(H), last_inbound_call_at: iso(H) }), ZONE, NOW).lastContact;
   assert.equal(called.kind, "call");
@@ -361,8 +361,10 @@ test("REGRESSION: a person reached only by email is not held by WhatsApp's windo
   assert.equal(emailOnly.replyWindow.open, true, "only WhatsApp has a window");
   assert.deepEqual(emailOnly.bookingLinkAction, {
     label: "Email the booking link",
+    short: "Email the link",
     title: "Opens the thread with the link ready to send by email",
     ready: true,
+    offered: true,
   });
 
   // WhatsApp's own words are unchanged, open and shut.
@@ -412,8 +414,10 @@ test("REGRESSION: a row replies on the wire they last wrote on (00320), so a tex
   assert.deepEqual(texter.replyWindow, { open: true, hoursLeft: 0 }, "only WhatsApp has a window");
   assert.deepEqual(texter.bookingLinkAction, {
     label: "Text the booking link",
+    short: "Text the link",
     title: "Opens the thread with the link ready to send as a text",
     ready: true,
+    offered: true,
   });
 
   // Both wires: the one they wrote on last decides, as the reply route does (verbs replyChannelOf).
@@ -706,15 +710,22 @@ test("the timeline merges messages, calls, escalations and decisions in true ord
   const vm = toPersonVM(detail(), ZONE, NOW);
   assert.deepEqual(
     vm.timeline.map((i) => i.kind),
-    ["escalation", "receptionist", "customer", "decision", "you", "decision", "call", "customer"],
+    ["escalation", "receptionist", "customer", "decision", "team", "decision", "receptionist", "call", "customer"],
   );
   assert.equal(vm.timeline[3].who, "Handed back");
   assert.equal(vm.timeline[5].who, "Took over");
-  assert.ok(!vm.timeline.some((i) => /never sent/.test(i.text)), "a canceled reply never reached them");
+  // A teammate's reply is the team's, never "You": the row does not say which member sent it.
+  assert.equal(vm.timeline[4].who, "Your team");
+  // A canceled reply is a line that says so, in the thread's words (messageStatusLabel), and not a hole.
+  const canceled = vm.timeline[6];
+  assert.equal(canceled.text, "never sent");
+  assert.equal(canceled.sub, "Canceled before sending");
   assert.ok(!vm.timeline.some((i) => i.kind === "system"), "the call_summary row is represented by the call itself");
   const call = vm.timeline.find((i) => i.kind === "call");
   assert.match(call.who, /^Inbound call · 1:52/);
   assert.equal(call.link.to, "conversations/cv-k1");
+  // How it ended is the one word Live, Conversations and the thread's call card say (callOutcomeFor), then where it is kept.
+  assert.equal(call.sub, "Handled · Recording and transcript in Conversations");
   for (let i = 1; i < vm.timeline.length; i++) assert.ok(vm.timeline[i - 1].ts >= vm.timeline[i].ts, "sorted desc");
 });
 

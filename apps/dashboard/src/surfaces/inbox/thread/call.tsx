@@ -13,6 +13,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type RefObject, type SyntheticEvent } from "react";
 import { callAttemptWords, callNoteLines, mmss } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
+import { StatePill } from "../../kit/pill/state-pill";
 import { demoSession } from "../shell";
 import { hasHref, hrefOf } from "./shell-thread";
 import { conversationsData } from "../store";
@@ -74,6 +75,8 @@ const audioOf = (e: SyntheticEvent<HTMLAudioElement>): HTMLAudioElement => e.tar
 interface CallWords {
   direction: string;
   missed: boolean;
+  /** How the call ended, by the ladder every call surface reads (contracts callOutcomeFor); null where only its note was read. */
+  outcome: string | null;
   about: string | null | undefined;
   length: string | null;
   kind: string;
@@ -90,6 +93,7 @@ function callWords(call: ConversationRow | null, note: string | null): CallWords
     return {
       direction: said.direction,
       missed: false,
+      outcome: null,
       about: said.about,
       length: said.length,
       kind: said.direction === "outbound" ? "Outbound call" : "Inbound call",
@@ -103,6 +107,7 @@ function callWords(call: ConversationRow | null, note: string | null): CallWords
   return {
     direction,
     missed,
+    outcome: call.outcome || null,
     // A seeded call carries its words as the old card's headline.
     about: "about" in call ? call.about : call.summary ? call.summary.headline : null,
     length: missed ? null : call.duration || null,
@@ -342,7 +347,7 @@ function callListenBar(c: CallDraw) {
 
 /** The quiet line where the call began: its play button or its glyph, what it was, how long, and when. */
 function callMark(c: CallDraw) {
-  const { src, listening, length, kind, lines, facts, at, player } = c;
+  const { src, listening, length, kind, lines, facts, at, player, outcome } = c;
   return (
     <div className="tl-call-mark" data-testid="tl-call-start">
       {src && !listening ? (
@@ -369,6 +374,8 @@ function callMark(c: CallDraw) {
           {/* A call with no lines says how it went on its one line: "Missed call · No answer". */}
           {!lines && facts.length > 0 && <span className="tl-call-facts">{facts.join(" · ")}</span>}
         </span>
+        {/* How it ended, in the pill Live and Conversations draw it with (contracts callOutcomeFor): the card said nothing of it. */}
+        {outcome && <StatePill kind="call" value={outcome} testid="tl-call-outcome" />}
         <span className="tl-call-at tabular">{at}</span>
       </span>
     </div>

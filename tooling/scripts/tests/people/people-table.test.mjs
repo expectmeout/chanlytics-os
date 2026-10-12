@@ -285,7 +285,7 @@ test("sections: one body each, under a head row with no id that names it, counts
       {
         key: "one",
         label: "Consultations",
-        meta: "1 held in the last week, no proposal yet",
+        meta: "1 ended in the last week, no proposal yet",
         rows: SECTIONED.slice(0, 2),
         collapsed: false,
       },
@@ -318,7 +318,7 @@ test("sections: one body each, under a head row with no id that names it, counts
   );
   assert.equal(textOf(find(h1, (n) => n.props?.className === "pl-sec-label")), "Consultations");
   assert.equal(textOf(find(h1, (n) => n.props?.className === "tally")), "2", "the count is the one count, a tally");
-  assert.equal(textOf(byTestId(h1, "table-section-meta")), "1 held in the last week, no proposal yet");
+  assert.equal(textOf(byTestId(h1, "table-section-meta")), "1 ended in the last week, no proposal yet");
   assert.equal(byTestId(h1, "table-section-toggle"), null, "a section that does not fold has nothing to press");
   // A collapsed section is its head alone, whose toggle says what opens it and presses the page's fold.
   assert.deepEqual(idsIn(t), ["person-c1", "person-c2"]);

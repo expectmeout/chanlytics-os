@@ -135,6 +135,7 @@ type LeadCellDoors = Pick<
   LeadCellCtx,
   | "onWarm"
   | "onOpen"
+  | "onOpenPerson"
   | "onExpand"
   | "onCall"
   | "onCopy"
@@ -191,6 +192,7 @@ const leadCellCtxFor = (
   };
   const ctx: LeadCellCtx = {
     onOpen: door("onOpen"),
+    onOpenPerson: door("onOpenPerson"),
     onExpand: door("onExpand"),
     ...now,
     onCall: door("onCall"),

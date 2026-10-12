@@ -42,6 +42,7 @@ import { getActiveWorkspace, routeOnScreen } from "@/legacy-bridge/workspace";
 import { heldViews } from "@/legacy-bridge/held-views";
 import { SURFACE_VALUE_SLOT } from "@/legacy-bridge/surface-cache";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
+import { declareReads } from "@/legacy-bridge/surface-registry";
 import { unwrap, type ApiResult, type RouteKey } from "@/client/api";
 import { declareSurfaceValue, setSurfaceValue, surfaceValue } from "../surface-values";
 
@@ -396,7 +397,7 @@ export const leadsOverride: SurfaceOverride = {
   },
   events: ["surface:leads"],
   // A run commits a page every few seconds and a check lands per batch: the strip and the rows follow the database.
-  refreshOnTables: ["leads", "lead_searches", "lead_rounds", "lead_search_members"],
+  ...declareReads("leads", { reads: ["lead"], fresh: "live" }),
   debounceMs: 800,
   apply: async () => {
     // Realtime on Leads' tables, a write's re-read, a reconnect: Leads changed, so every view held from before is read
@@ -612,6 +613,16 @@ export async function bulkLeads(body: LeadsBulkInput) {
       refresh: "behind",
     }),
   );
+}
+/**
+ * A copy of a view's leads as the CSV the page saves (kit downloadCsv). Marking what it took moves the month's count (§0.2),
+ * so it is a press that POSTs and not a link that GETs (decision 0047, lane 6); the leads read again behind the answer.
+ */
+export async function exportLeadsFile(view: Extract<LeadsBulkInput, { by: "view" }>["view"]) {
+  return leadCall<{ file: string; csv: string; rows: number }>("POST leads/export", {
+    body: view,
+    refresh: "behind",
+  });
 }
 /** Check again (D3): the mailbox check once more for the addresses whose last check did not answer. */
 export async function checkLeadsAgain(ids: string[]) {

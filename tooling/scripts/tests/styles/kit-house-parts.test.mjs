@@ -1,18 +1,20 @@
 /**
  * The kit's house parts, EXECUTED on the stub React: Confirm (the one way an act is confirmed), FieldError (the one way a
  * field says what is wrong) and the record kit's row (RecordRow, RecordChips). They are TSX in surfaces/kit, the one
- * implementation the pages that have not moved read by name (kit-globals.ts, published by seed-globals). The record
+ * implementation (Confirm is the one the pages that have not moved read by name: kit-globals.ts, published by
+ * seed-globals; the others are imported by the TSX that draws them, and by this test through `kitParts`). The record
  * kit's fold, sheet and fields are held by shell/record-kit.test.mjs; this is the small part any page draws.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, find, all, byTestId, textOf, classes } from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, find, all, byTestId, textOf, classes, kitParts } from "../_legacy-react.mjs";
 import { KIT_GLOBALS } from "../../../../apps/dashboard/src/surfaces/kit/kit-globals.ts";
 
 // The chrome's words for a fact's source, as the app's bridge publishes them (legacy-bridge/shell.ts).
 installLegacyReact({ __chrome: { state: stateOf } });
-const { Confirm, FieldError, RecordRow, RecordChips } = KIT_GLOBALS;
+const { Confirm } = KIT_GLOBALS;
+const { FieldError, RecordRow, RecordChips } = kitParts;
 const draw = (Comp, props = {}) => {
   fresh();
   return globalThis.React.createElement(Comp, props);

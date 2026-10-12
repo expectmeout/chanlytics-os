@@ -11,7 +11,7 @@
  *
  * Pure, so the rule is tested without a browser.
  */
-import type { MessageStatus } from "@chanlytics/contracts";
+import { liveTablesOf, type MessageStatus, type RecordKind, type RecordTable } from "@chanlytics/contracts";
 
 export const DEFAULT_REFRESH_TABLES: readonly string[] = ["messages", "conversations", "escalations"];
 
@@ -28,6 +28,12 @@ export interface RealtimeChange {
   /** INSERT | UPDATE | DELETE, or "*" when the source did not say. */
   event: string;
   row: Record<string, unknown>;
+  /**
+   * The clock the database told this change by (ISO 8601, UTC, to the millisecond; 00408): when its statement finished,
+   * a moment before the commit that let the tab hear it. Absent on a notice sent before 00408 and where the source did
+   * not say. It is the database's clock, not the browser's.
+   */
+  at?: string;
 }
 
 /**
@@ -73,6 +79,85 @@ export function wantsRefresh(o: RefreshPreference, table: string, change?: Realt
 /** True when the surface subscribes to anything at all. */
 export function subscribesToRealtime(o: RefreshPreference): boolean {
   return !!o.refreshOnMessageInserts || !!o.refreshOnTables?.length;
+}
+
+/**
+ * How fresh a surface must stay, said once (decision 0047):
+ *  - `"live"`: a change to a record it draws reads it again, wherever the owner is on the product.
+ *  - `"its-page"`: the same, but only while its page is on screen, and once when the owner comes back to it
+ *    (surface-registry.ts onlyOnItsPage): for the dear reads, which the other pages need not pay for.
+ *  - `{ aged }`: the feed tells it nothing. It is read where it is drawn, once what it holds is this many minutes old
+ *    (`onDemand`, `isStale`, surface-data.ts readAged).
+ *  - `"own-change"`: the feed tells it nothing and no clock ages it. It is read at boot and after the owner's own writes
+ *    (refresh-map.ts), and a verb of its own publishes what it changed.
+ */
+export type Freshness = "live" | "its-page" | "own-change" | { aged: number };
+
+/** Tables of a kind a surface draws and leaves unheard on purpose, in groups that share a reason. */
+export type OmittedTables = readonly { tables: readonly RecordTable[]; why: string }[];
+
+/**
+ * What a surface draws and how fresh it must stay. Its live tables (`refreshOnTables`) are derived from this by
+ * `declareReads` (surface-registry.ts), never written beside it: a table of a kind it draws is heard unless it says, with a
+ * reason, that it is not.
+ */
+export interface ReadsDeclaration {
+  /** The kinds of record it draws; it hears the tables of these (contracts liveTablesOf). */
+  reads: readonly RecordKind[];
+  fresh: Freshness;
+  /**
+   * Tables of those kinds it leaves unheard on purpose, each group with the reason. A surface that draws the number and the
+   * pause of a channel but not its mailbox says so here; the kind stays what it draws.
+   */
+  omit?: OmittedTables;
+  /** Tables beside its kinds it hears on purpose: a change that moves what it draws without being a record it draws. */
+  extra?: readonly RecordTable[];
+  /**
+   * Under `"its-page"`: the kinds that are the surface's own, heard wherever the owner is. A table of the other kinds is
+   * heard on its page, and kept for it elsewhere (surface-registry.ts onlyOnItsPage: a table it does not name is its own).
+   */
+  always?: readonly RecordKind[];
+  /**
+   * The surface's own rule per event, asked before the page rule: Today leaves out a call's transcript turn, so a turn
+   * heard on another page is not kept for Today either. Absent, every event of a table it hears is heard.
+   */
+  when?: (change: RealtimeChange) => boolean;
+  /**
+   * Under `"its-page"`: what the surface calls its page, given the standard rule (the page it owns is on screen, else the
+   * change is kept for it). The Campaigns lens narrows it to the lens alone, on a page that owns the Overview as well.
+   */
+  page?: (here: (change: RealtimeChange) => boolean) => (change: RealtimeChange) => boolean;
+}
+
+/** What a declaration comes to, to spread into the surface's override. */
+export interface DeclaredReads {
+  reads: readonly RecordKind[];
+  fresh: Freshness;
+  /** What it left unheard on purpose, with why: kept on the override so what is heard and what is not account for every table. */
+  omit?: OmittedTables;
+  /** Derived; absent where the surface hears nothing. */
+  refreshOnTables?: string[];
+  /** Derived from `when` and the page rule; absent where the surface has neither. */
+  refreshWhen?: (change: RealtimeChange) => boolean;
+}
+
+/**
+ * The tables a declaration hears, each once: the tables of the kinds it draws, less those it omits, and the extra. None where
+ * the feed tells the surface nothing (`{ aged }`, `"own-change"`).
+ */
+export function heardTables(d: ReadsDeclaration): string[] {
+  if (d.fresh !== "live" && d.fresh !== "its-page") return [];
+  const left = new Set<string>((d.omit ?? []).flatMap((group) => group.tables));
+  const tables: string[] = liveTablesOf(d.reads).filter((t) => !left.has(t));
+  for (const t of d.extra ?? []) if (!tables.includes(t)) tables.push(t);
+  return tables;
+}
+
+/** The tables a declaration hears only on its page: all it hears under `"its-page"`, less the kinds that are its own. */
+export function heardOnItsPage(d: ReadsDeclaration): string[] {
+  if (d.fresh !== "its-page") return [];
+  const own = new Set<string>(liveTablesOf(d.always ?? []));
+  return heardTables(d).filter((t) => !own.has(t));
 }
 
 /** How long the live feed may be down before the shell says so: the client rejoins a blip within seconds. */

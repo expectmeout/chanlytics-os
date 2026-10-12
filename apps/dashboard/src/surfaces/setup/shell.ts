@@ -6,6 +6,7 @@
  */
 import type { ComponentType, ReactNode } from "react";
 import type { WorkspaceSettings } from "@/legacy-bridge/surfaces/settings";
+import { windowValue } from "../legacy-verbs";
 
 /** A row or card of the Business tab, drawn as that tab draws it: its props are its own, handed on as the JSX handed them. */
 export type BusinessPart = ComponentType<Record<string, unknown>>;
@@ -25,7 +26,7 @@ type BusinessPartName =
 
 /** The part Settings' JSX published under this name, or nothing where it has not (a page drawn alone). */
 export function businessPart(name: BusinessPartName): BusinessPart | undefined {
-  const found: unknown = Reflect.get(window, name);
+  const found = windowValue(name);
   return typeof found === "function" ? (found as BusinessPart) : undefined;
 }
 
@@ -41,7 +42,7 @@ type SellsByChoice = (o: {
 }) => ReactNode;
 
 export function sellsByChoice(): SellsByChoice | undefined {
-  const found: unknown = Reflect.get(window, "btSellsByChoice");
+  const found = windowValue("btSellsByChoice");
   return typeof found === "function" ? (found as SellsByChoice) : undefined;
 }
 

@@ -1,7 +1,7 @@
 /**
  * One appointment on a list, and the list it sits on (moved whole from legacy/components/day-agenda.jsx, decision 0015:
- * the kit's one implementation, which seed-globals publishes as window.AgendaItem, AgendaItems and AgendaOpen for Today's
- * page, which has not moved). The shape Today's day drew and the Calendar's agenda drew a second time, in its own grid,
+ * the kit's one implementation, which Today's day pane drew by name (window.AgendaItem, AgendaItems and AgendaOpen) until
+ * the pane went, canvas E3; the Calendar's agenda imports it). The shape Today's day drew and the Calendar's agenda drew a second time, in its own grid,
  * its own sizes and its own order: the two said the same facts about the same appointment and looked like two products.
  *
  * It is one row, `.ag-*` in components.css:

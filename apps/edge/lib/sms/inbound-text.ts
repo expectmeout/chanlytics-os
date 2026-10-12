@@ -143,7 +143,10 @@ export async function receiveInboundText(request: Request): Promise<Response> {
     L.error("sms_inbound_failed", { error: e instanceof Error ? e.message : String(e) });
     // Twilio retries nothing on its own: a text the database did not accept is
     // refused so the provider redelivers, and the platform is told now.
-    const after = smsAfterThrow(e instanceof IngestFailed);
+    // A text the database KEPT, whose yes did not land (kept: only the door's own answer, taken when the job's kind was
+    // refused), is not one it refused: Twilio sends nothing again, so the 503 and the alert that it was not recorded would
+    // be wrong. The failure is in the line above, by name.
+    const after = smsAfterThrow(e instanceof IngestFailed && !e.kept);
     if (after.alert) await alertUnroutable("sms", inbound.to, 1, after.alert);
     return twiml(after.status);
   }

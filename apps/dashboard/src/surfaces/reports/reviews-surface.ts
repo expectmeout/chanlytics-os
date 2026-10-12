@@ -20,7 +20,6 @@
  */
 import { read } from "@/legacy-bridge/api";
 import { publishGoogleRead } from "@/legacy-bridge/google";
-import { onlyOnItsPage } from "@/legacy-bridge/surface-registry";
 import { reportRangeKey, toReviewsReportVM, type ReviewsReportVM } from "@chanlytics/contracts";
 import { periodSurface } from "./period-surface";
 import { rangeQuery, shownReportRange } from "./surface";
@@ -32,9 +31,6 @@ export interface ReviewsSurface {
   /** The range it is of, by its one name (contracts reportRangeKey): a period's id, or the days a member picked. */
   key: string;
 }
-
-/** The tables whose changes the live feed tells a workspace of and that the Reviews read draws from. */
-const REVIEWS_TABLES: string[] = ["google_reviews", "google_listings", "google_connections"];
 
 export const reviews = periodSurface({
   key: "reports_reviews",
@@ -49,7 +45,7 @@ export const reviews = periodSurface({
     return { vm: toReviewsReportVM(dto, { nowMs: readAt }), key: reportRangeKey(range) };
   },
   // Read again only while the lens is on screen, and once when it comes back (surface-registry.ts).
-  live: { refreshOnTables: REVIEWS_TABLES, refreshWhen: onlyOnItsPage("reports_reviews", REVIEWS_TABLES) },
+  live: { reads: ["review"], fresh: "its-page" },
 });
 
 export const reviewsOverride = reviews.override;

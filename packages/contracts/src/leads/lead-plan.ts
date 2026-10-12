@@ -62,7 +62,7 @@ export type LeadChips = Record<string, never>;
 
 /**
  * "clients/leads:s-<search>:l-<list>:c-<class>:p-<lead>". Ask cites a view with neither id as a page (ask/citations.ts
- * PAGE_PREFIX); one with a search's or a lead's id names that row, and grounds only where it was read.
+ * isPageRoute); one with a search's or a lead's id names that row, and grounds only where it was read.
  * Chips join in release C. The lead that is open (`p-`) comes last, so a view's own route is a prefix of the route
  * with a lead open over it: the view is what a read is keyed by, and the open lead is never part of that key.
  */

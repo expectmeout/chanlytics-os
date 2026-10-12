@@ -506,3 +506,16 @@ feed's, as it was before the record. Answer 1's fifteen minutes is the join's ru
 5's "count only `booked` and `kept` as booked" is read as it was asked, of a request: a request joins no pool. A visit
 said missed was booked, so it answers an ask in Reports' booking line and People's "Asked, never booked" alike (one
 rule, `bookedAfterAsk`); a cancelled one does not.
+
+Where the word is said (task 4.4 of the wiring plan, 11 October 2026). Answer 3 named the Calendar's panel as the door and
+no prompt, so a no-show nobody marked was still thanked by the after-the-visit moment. The door is the same one
+(`POST calendar/visits/[id]`, an operator's), and it is now reachable where a visit is seen: a visit is one line,
+built once in contracts (`visitLineOf`: its time, title, person, state, match and acts), and the Calendar's panel and board,
+People's Visits cell, the person's History and Coming up, the Inbox's chip and Today all draw that line. A visit that has
+ended and nobody has marked reads **Past** on all of them (the member's word otherwise, whether or not it has ended), a
+match reads "matched by phone", "by email" or "by name" once, and a visit that has begun and has no word asks "Did they
+come?" with Kept and Missed on the person's page. Today's queue asks it of yesterday's unmarked visits of a matched person,
+three at most and one row for the rest, counted in its sub-line and never in the number that says who needs you (Ruben's
+approval, 11 October 2026). The after-the-visit moment and the reminders hold as before: only Missed or Cancelled hold
+them, and the sweep still never stores `kept`. A consultation marked missed or cancelled offers no proposal on the Calendar;
+the Pipeline and the deal card say Past for one nobody marked, as the Calendar does.

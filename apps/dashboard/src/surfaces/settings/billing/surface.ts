@@ -25,6 +25,7 @@ import {
 } from "@chanlytics/contracts";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { api, read } from "@/legacy-bridge/api";
+import { declareReads } from "@/legacy-bridge/surface-registry";
 import { refreshSurfaces } from "@/legacy-bridge/surface-runner";
 import { setupOverride } from "@/surfaces/setup/surface";
 import { declareSurfaceValue, setSurfaceValue } from "../../surface-values";
@@ -81,7 +82,7 @@ export const billingOverride: SurfaceOverride = {
   value: "billing",
   events: ["surface:billing"],
   // The webhook writes the row on every Stripe event; the pane repaints on each.
-  refreshOnTables: ["billing_accounts"],
+  ...declareReads("billing", { reads: ["billing"], fresh: "live" }),
   apply: async () => {
     try {
       const d = await read("GET billing");

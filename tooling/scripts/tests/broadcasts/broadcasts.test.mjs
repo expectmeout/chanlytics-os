@@ -829,10 +829,10 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
     s.includes("counts: { conversational: preview.conversational.sending, marketing: preview.marketing.sending }"),
     "the chip's number is the length of the list the preview walks -- never a second count",
   );
-  // What the surface offers is made of the read by one function (parts/channels.ts cmOfferedMessages), run here: the purpose is
+  // What the surface offers is made of the settings read by one function (parts/channels.ts cmOfferedFrom), run here: the purpose is
   // stamped there, from the message's own category (contracts), never decided in the page, and a message is offered by the channels
   // it holds -- an email version alone is a message, a version WhatsApp has not approved is not one.
-  const { cmOfferedMessages } = await importSrc("apps/dashboard/src/surfaces/campaigns/parts/channels.ts");
+  const { cmOfferedFrom } = await importSrc("apps/dashboard/src/surfaces/campaigns/parts/channels.ts");
   const version = (channel, over = {}) => ({
     id: `t-${channel}`,
     channel,
@@ -847,8 +847,9 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
     ...over,
   });
   const offeredOf = (...rows) =>
-    cmOfferedMessages({
-      templates: rows.filter((r) => r.meta_status === "approved"),
+    cmOfferedFrom({
+      templatesAll: rows.filter((r) => r.channel === "whatsapp"),
+      templateVersions: rows.filter((r) => r.channel !== "whatsapp"),
       messages: campaignMessagesOf(rows),
     });
   assert.equal(offeredOf(version("whatsapp"))[0].purpose, "marketing", "an offer needs the yes to offers");
@@ -994,11 +995,11 @@ test("the detail: every person on a broadcast, with what happened to them; the s
       readCode("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx").includes("`the ${entry.via.name} campaign`"),
     "the thread says which broadcast, or which campaign",
   );
-  assert.ok(
-    readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/verbs.ts").includes(
-      "window.__refreshBroadcasts = refreshBroadcasts;",
-    ),
-  );
+  // Nothing re-reads Sent behind a window hook any more (the refresh map names its surface, and the composer's messages are the
+  // settings read's): the verbs publish themselves and no function to read the surface again.
+  const verbs = readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/verbs.ts");
+  assert.ok(verbs.includes("window.__broadcasts = broadcasts;"));
+  assert.equal(verbs.includes("__refreshBroadcasts"), false, "the hook went with the template rows' calls to it");
 });
 
 test("getting their yes: an unambiguous phrase the ingest records, a link that opens WhatsApp with it, a QR of that link, and a receptionist that thanks them", async () => {

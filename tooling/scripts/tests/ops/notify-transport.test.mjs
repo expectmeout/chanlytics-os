@@ -605,6 +605,8 @@ test("notify mails exactly the kinds contracts lists as emailed, and the page's 
     "job_failed",
     "leads_question",
     "number",
+    // A customer asked to stop (decision 0048): a line on the bell, emailed only as the business chooses, never always.
+    "opted_out",
     "playbook",
     "reach_out_replied",
     "sweep",
@@ -616,7 +618,17 @@ test("notify mails exactly the kinds contracts lists as emailed, and the page's 
   // A booking email held for a look (00345) is the bell's alone: it waits in Settings › Business, and no mail follows.
   assert.deepEqual(
     BELL,
-    ["booking_notice", "calendar_people", "leads_ready", "note_for_you", "review", "reach_out_day"].sort(),
+    // A booking that arrived and a teammate who joined (00410): told on the bell from their events, and no mail follows.
+    [
+      "booking",
+      "booking_notice",
+      "calendar_people",
+      "leads_ready",
+      "member_joined",
+      "note_for_you",
+      "review",
+      "reach_out_day",
+    ].sort(),
     "the rest are the bell's: written by the edge or a database function, and no mail follows",
   );
 
@@ -813,7 +825,7 @@ test("a stored email_off that is not a list of short names reads as none, and th
 
 // Decision 0043: a hold's notice is told by owner_notice, from its event, and must be told exactly once: a delivery
 // that runs twice, or a mail that fails, cannot become two notices or none.
-test("an event's notice is told once: its row keeps the event and the mail goes; a failed mail takes the row back and the delivery tries again; a twin's row refuses a second; nobody to mail keeps the bell and tells the platform without the words", async () => {
+test("an event's notice is told once: its row keeps the event, the phones are told with it and the mail goes; a failed mail leaves the row and the phones as they went, owes the mail, and the delivery's retry sends the mail alone; a twin's row refuses a second; nobody to mail keeps the bell and tells the platform without the words", async () => {
   const { alertFor } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/ops/job-alert.ts")).href);
   const E = "e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1";
   const news = {
@@ -848,6 +860,7 @@ test("an event's notice is told once: its row keeps the event and the mail goes;
   );
   assert.equal(told.tables.jobs.filter((j) => j.kind === "push_send").length, 1, "and the phones, once told");
 
+  // The mail provider is down (decision 0048): the row and the phones went at once and stay; the mail alone is owed.
   const lost = world();
   const refused = transport(false);
   await assert.rejects(
@@ -855,9 +868,37 @@ test("an event's notice is told once: its row keeps the event and the mail goes;
     /was not told; its delivery tries again/,
   );
   assert.deepEqual(
-    [lost.tables.notifications, lost.tables.jobs],
-    [[], []],
-    "the row is taken back, so the retry finds the notice owed",
+    lost.tables.notifications.map((n) => [n.kind, n.source_event, !!n.mail_due_at]),
+    [["handoff", E, true]],
+    "the row stays, and says its mail is owed",
+  );
+  assert.equal(
+    lost.tables.jobs.filter((j) => j.kind === "push_send").length,
+    1,
+    "the phones were told with the row, not after the mail",
+  );
+  const keptId = lost.tables.notifications[0].id;
+  // The retry (+2 minutes) finds the notice and sends the mail alone.
+  const back = transport(true);
+  await withEnv(PLATFORM_ENV, () => alertFor(lost.db, job, { db: lost.db, send: back.send })(news));
+  assert.deepEqual(
+    lost.tables.notifications.map((n) => [n.id, n.mail_due_at]),
+    [[keptId, null]],
+    "the same row, and nothing owed any more: the bell keeps no twin",
+  );
+  assert.deepEqual(
+    back.sent.map((m) => m.to),
+    [["owner@salon.example"]],
+    "the mail went once",
+  );
+  assert.equal(lost.tables.jobs.filter((j) => j.kind === "push_send").length, 1, "and the phones were not told twice");
+  // A third run of the same delivery (a lease that ran out after the work) tells nobody.
+  const idle = transport(true);
+  await withEnv(PLATFORM_ENV, () => alertFor(lost.db, job, { db: lost.db, send: idle.send })(news));
+  assert.deepEqual(
+    [idle.sent.length, lost.tables.notifications.length, lost.tables.jobs.length],
+    [0, 1, 1],
+    "REGRESSION: a delivery run again mailed or pushed the owner again",
   );
 
   const twin = world({
@@ -884,4 +925,99 @@ test("an event's notice is told once: its row keeps the event and the mail goes;
   assert.equal(platform.sent[0].subject, "A workspace needs notification settings");
   assert.match(platform.sent[0].text, /^A WhatsApp conversation needed a person/);
   assert.doesNotMatch(platform.sent[0].text, /Rosa|visit/, "never the customer's name or words");
+
+  // A customer's STOP is news (decision 0048): a workspace nobody can be mailed at has its bell row and nothing more. The
+  // platform's note is for what the receptionist must reach someone with, not for a business's opt-outs.
+  const stopRows = [];
+  const quiet = transport(true);
+  await withEnv(PLATFORM_ENV, () =>
+    alertFor(null, job, { db: fakeDb({ notifications: stopRows, jobs: [] }), send: quiet.send })({
+      kind: "opted_out",
+      route: "clients/c1",
+      about: { type: "contact", id: "c1" },
+      subject: "Dulce Amaro asked to stop receiving messages",
+      body: "Nothing more will be sent to them.",
+      redactedBody: "A customer asked to stop, and nobody could be told.",
+      sourceEvent: "e2e2e2e2-e2e2-4e2e-8e2e-e2e2e2e2e2e2",
+    }),
+  );
+  assert.deepEqual(
+    [stopRows.map((n) => [n.kind, !n.mail_due_at]), quiet.sent.length],
+    [[["opted_out", true]], 0],
+    "the row is kept, owing no mail, and the operator is not written to",
+  );
+});
+
+// Decision 0048: a notice is three deliveries with one state each. The row and the phones never wait on the mail, and a
+// mail that failed is owed and retried alone, for every notice that can be found again.
+test("notifyOnce keeps the row and tells the phones first, owes a mail that failed, and asked again finds the notice by what it is about and sends the mail alone; another notice about the same subject is not taken for it; a notice that names nothing it is about keeps the old way (S1-15)", async () => {
+  const { notifyOnce } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/ops/notify.ts")).href);
+  const target = { tenantId: TENANT, notifications: MAILBOX, isEnvDefault: false };
+  const msg = {
+    kind: "reach_out_replied",
+    route: "inbox/th-c1",
+    about: { type: "conversation", id: "c1" },
+    subject: "Ana Ruiz wrote back",
+    body: "She said yes.",
+  };
+  const world = () => {
+    const tables = { notifications: [], jobs: [] };
+    return { tables, db: fakeDb(tables) };
+  };
+  const pushes = (w) => w.tables.jobs.filter((j) => j.kind === "push_send").length;
+
+  const w = world();
+  const down = transport(false);
+  assert.equal(await withEnv(PLATFORM_ENV, () => notifyOnce(target, msg, { db: w.db, send: down.send })), false);
+  assert.equal(w.tables.notifications.length, 1, "the row stays");
+  assert.ok(w.tables.notifications[0].mail_due_at, "and says its mail is owed");
+  assert.equal(pushes(w), 1, "the phones were told with the row, before the mail was tried");
+  const id = w.tables.notifications[0].id;
+
+  // Asked again with the provider back: the mail alone.
+  const up = transport(true);
+  assert.equal(await withEnv(PLATFORM_ENV, () => notifyOnce(target, msg, { db: w.db, send: up.send })), true);
+  assert.deepEqual(
+    [w.tables.notifications.map((n) => [n.id, n.mail_due_at]), up.sent.length, pushes(w)],
+    [[[id, null]], 1, 1],
+    "one row, nothing owed, one mail, phones told once",
+  );
+  // Once told in full, the same words about the same thread are a notice of their own: only a notice that still owes its mail
+  // is found again (noticeFor), so a business that writes back twice is told twice. Its callers keep their own once (a run's
+  // mark, a reply's reading); a notice found by its event keeps it for them (notifyEvent).
+  const again = transport(true);
+  assert.equal(await withEnv(PLATFORM_ENV, () => notifyOnce(target, msg, { db: w.db, send: again.send })), true);
+  assert.deepEqual([again.sent.length, w.tables.notifications.length, pushes(w)], [1, 2, 2]);
+
+  // A different notice about the same conversation is its own: it is not the owed one's retry.
+  const other = world();
+  await withEnv(PLATFORM_ENV, () => notifyOnce(target, msg, { db: other.db, send: transport(false).send }));
+  const second = { ...msg, subject: "Ana Ruiz wrote back again" };
+  assert.equal(
+    await withEnv(PLATFORM_ENV, () => notifyOnce(target, second, { db: other.db, send: transport(true).send })),
+    true,
+  );
+  assert.deepEqual(
+    other.tables.notifications.map((n) => [n.title, !!n.mail_due_at]),
+    [
+      ["Ana Ruiz wrote back", true],
+      ["Ana Ruiz wrote back again", false],
+    ],
+    "two rows: the first still owes its mail, the second is told in full",
+  );
+
+  // Nothing to find it by (no event, nothing it is about): the way before 0048, the row taken back with a mail that failed,
+  // and the phones told only once the mail has gone.
+  const bare = world();
+  const { about: _about, ...unnamed } = msg;
+  assert.equal(
+    await withEnv(PLATFORM_ENV, () => notifyOnce(target, unnamed, { db: bare.db, send: transport(false).send })),
+    false,
+  );
+  assert.deepEqual([bare.tables.notifications.length, pushes(bare)], [0, 0]);
+  assert.equal(
+    await withEnv(PLATFORM_ENV, () => notifyOnce(target, unnamed, { db: bare.db, send: transport(true).send })),
+    true,
+  );
+  assert.deepEqual([bare.tables.notifications.length, pushes(bare)], [1, 1]);
 });

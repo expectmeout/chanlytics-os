@@ -13,14 +13,16 @@
  * on the page's body. A phone's sheet keeps a field that takes focus as it draws, so there the fields autoFocus.
  */
 import type { PersonRowVM } from "@chanlytics/contracts";
+import { Face } from "../../kit/face/face";
 import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
+import { StoppedMark } from "../../kit/pill/stopped-mark";
 import type { FocusOn } from "../../kit/record/focus";
 import { RecordSheet } from "../../kit/record/sheet";
 import { Sheet } from "../../kit/sheet/sheet";
 import { focusAsDrawn } from "../../legacy-verbs";
 import { JOB_CANCEL } from "../sheets/phone-sheet";
-import { plFace, plMatcher } from "../words";
+import { plMatcher } from "../words";
 import { P } from "./pipe";
 
 const PIPE_NEW_MAX = 8;
@@ -63,24 +65,20 @@ function pipeNewFound(found: readonly PersonRowVM[], onPick: (id: string) => voi
     );
   return (
     <ul className="pipe-new-list" data-testid="pipeline-new-list">
-      {found.map((p) => {
-        const face = plFace(p);
-        return (
-          <li key={p.id}>
-            <button type="button" className="pipe-new-row" onClick={() => onPick(p.id)} data-testid="pipeline-new-pick">
-              <span
-                className={`ix-thread-avatar pipe-new-face${face.glyph ? " cl-row-avatar-glyph" : ""}`}
-                aria-hidden="true"
-              >
-                {face.glyph ? <Icon name={face.glyph} size={11} /> : face.initials}
-              </span>
-              <span className="pipe-new-name">{p.name}</span>
-              {/* Where their deal stands, or when they were last heard: the row's own words. */}
-              <span className="pipe-new-said">{p.deal ? p.deal.line : p.lastContact.label}</span>
-            </button>
-          </li>
-        );
-      })}
+      {found.map((p) => (
+        <li key={p.id}>
+          <button type="button" className="pipe-new-row" onClick={() => onPick(p.id)} data-testid="pipeline-new-pick">
+            <Face person={{ name: p.name, initials: p.initials }} size="sm" className="pipe-new-face" />
+            <span className="pipe-new-name">
+              {p.name}
+              {/* They asked to stop: a proposal is a message to send, so the picker says it before a person is chosen. */}
+              {p.stopped && <StoppedMark className="pipe-new-stopped" testid="pipeline-new-stopped" />}
+            </span>
+            {/* Where their deal stands, or when they were last heard: the row's own words. */}
+            <span className="pipe-new-said">{p.deal ? p.deal.line : p.lastContact.label}</span>
+          </button>
+        </li>
+      ))}
     </ul>
   );
 }

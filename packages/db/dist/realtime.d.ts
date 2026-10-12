@@ -4191,6 +4191,7 @@ type Database = {
                     created_at: string;
                     id: string;
                     kind: string;
+                    mail_due_at: string | null;
                     recipient_user_id: string | null;
                     route: string | null;
                     source_event: string | null;
@@ -4204,6 +4205,7 @@ type Database = {
                     created_at?: string;
                     id?: string;
                     kind: string;
+                    mail_due_at?: string | null;
                     recipient_user_id?: string | null;
                     route?: string | null;
                     source_event?: string | null;
@@ -4217,6 +4219,7 @@ type Database = {
                     created_at?: string;
                     id?: string;
                     kind?: string;
+                    mail_due_at?: string | null;
                     recipient_user_id?: string | null;
                     route?: string | null;
                     source_event?: string | null;
@@ -9872,10 +9875,11 @@ type Database = {
  * The live feed (Blueprint §5, decision 0019): every surface hears the database through here, so no surface knows
  * how. The database tells each workspace what changed (00265): a notice on the private topic `workspace:<id>:changes`
  * when a statement on a watched table changes its rows, once a transaction for each table and event, naming the table
- * and the event, and the statuses a call's or a message update's statement left. It never carries a row; a surface that
- * wants one reads it. Realtime admits a member to their workspaces' topics (the one policy on realtime.messages) and
- * lets nobody speak on them. The session token is pushed to Realtime EXPLICITLY before the channel joins: relying on
- * supabase-js's auth-listener propagation races the join, and a private channel that joins as `anon` is refused.
+ * and the event, the statuses a call's or a message update's statement left, and the clock when it was told (`at`,
+ * 00408). It never carries a row; a surface that wants one reads it. Realtime admits a member to their workspaces'
+ * topics (the one policy on realtime.messages) and lets nobody speak on them. The session token is pushed to Realtime
+ * EXPLICITLY before the channel joins: relying on supabase-js's auth-listener propagation races the join, and a private
+ * channel that joins as `anon` is refused.
  *
  * The topic is the authorization, so it carries no caller's suffix, and realtime-js hands back the channel it already
  * has for a topic and joins it once. So each client keeps one channel per topic and counts who listens on it: two
@@ -9896,11 +9900,14 @@ declare function watchedEvents(): Array<{
     table: string;
     events: Event[];
 }>;
-/** What a surface hears of a change: the workspace, and a call's or a message update's status. Never the row. */
+/**
+ * What a surface hears of a change: the workspace, and a call's or a message update's status. Never the row. And, as the
+ * fourth argument, the clock the database told it by (`at`, ISO 8601 in UTC): absent from a notice sent before 00408.
+ */
 type OnChange = (row: {
     tenant_id: string;
     status?: string;
-}, table: string, event: string) => void;
+}, table: string, event: string, at?: string) => void;
 declare function subscribeWorkspaceChanges(client: SupabaseClient<Database>, 
 /** Called with the table a change was told for, its event, and a row of the workspace and its status, where it has one. */
 onChange: OnChange, opts?: SubscribeOptions): () => void;

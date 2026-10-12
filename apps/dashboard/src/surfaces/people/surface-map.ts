@@ -2,7 +2,7 @@
  * What People's rows and lists are, from what was read: the one mapping from the loaded people, their saved lists and the
  * workspace's facts to the surface's value (decision 0015). Pure: the override runs it over what the wire answered, and a
  * demo session's sample (sample.ts) runs it over made-up people, so both draw the one People page the same way. Nothing
- * here reads the window, the wire or the clock: the member looking and the moment are its arguments.
+ * here reads the window, the wire or the clock: the member looking, the moment and the roster are its arguments.
  */
 import {
   type ChannelsReady,
@@ -28,6 +28,7 @@ import {
   peopleListAction,
   savedListAction,
   type PersonRowVM,
+  type HolderNames,
   attentionRow,
 } from "@chanlytics/contracts";
 import type { PeopleSurface } from "./surface";
@@ -64,7 +65,15 @@ export interface PeopleLoaded {
  */
 export function personRowOf(
   r: PersonRowDto,
-  as: { tz: string; now: Date; dealsOn: boolean; viewer: string | null; ready: ChannelsReady | null },
+  as: {
+    tz: string;
+    now: Date;
+    dealsOn: boolean;
+    viewer: string | null;
+    ready: ChannelsReady | null;
+    /** The roster, where it is read: a teammate's thread says whose it is ("Ruben has it"). */
+    names?: HolderNames | null;
+  },
 ): PersonRowVM {
   return poolRowOf(r, as);
 }
@@ -73,14 +82,19 @@ export function personRowOf(
  * The surface from what is loaded: every list, count and cell derived the same way, whether after the first read, a later
  * page, or a demo session's sample (sample.ts), as the member `viewer` looks at `now`. Pure.
  */
-export function peopleSurfaceOf(loaded: PeopleLoaded, viewer: string | null, now: Date): PeopleSurface {
+export function peopleSurfaceOf(
+  loaded: PeopleLoaded,
+  viewer: string | null,
+  now: Date,
+  names: HolderNames | null = null,
+): PeopleSurface {
   const { tz, dealsOn, consultFirst } = loaded;
   // Each row's standing with the proposal follow-up, where one runs (0006, contracts followUpStandOf): the
   // Pipeline's chip and Today's leak read it off the row, judged by the pace and at the moment the rows are.
   const fu = dealsOn ? loaded.followUp : null;
   const pace = dealsOn ? loaded.dealPace : null;
   const rows = loaded.people.map((r) => {
-    const vm = personRowOf(r, { tz, now, dealsOn, viewer, ready: loaded.channelsReady });
+    const vm = personRowOf(r, { tz, now, dealsOn, viewer, ready: loaded.channelsReady, names });
     return fu ? { ...vm, followUp: followUpStandOf(vm, fu, tz, now.getTime(), pace, loaded.channelsReady) } : vm;
   });
   const calendar = loaded.calendar;

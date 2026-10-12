@@ -160,7 +160,7 @@ export function pipelineRail<T extends PipelineSource>(vm: PipelineVM<T>, nowMs:
     .map(([name, n]) => ({ view: `svc:${name}` as PipelineView, label: name, count: n, tone: null }));
   return [
     { key: "deals" as const, label: PIPELINE_WORDS.rail.deals, rows: deals },
-    { key: "waiting" as const, label: PIPELINE_WORDS.rail.waitingOnYou, rows: waits },
+    { key: "waiting" as const, label: PIPELINE_WORDS.rail.toFollowUp, rows: waits },
     { key: "services" as const, label: PIPELINE_WORDS.rail.services, rows: services },
   ].filter((s) => s.rows.length > 0);
 }

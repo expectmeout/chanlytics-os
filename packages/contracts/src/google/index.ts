@@ -13,6 +13,8 @@ export {
   connectionWords,
   reviewSnippet,
   reviewIsNew,
+  reviewNoticeIsAbout,
+  NEW_REVIEW_NEWS,
   toGoogleReviewVM,
   gainedOver,
   toGoogleVM,

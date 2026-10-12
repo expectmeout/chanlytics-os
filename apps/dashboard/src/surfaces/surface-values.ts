@@ -112,11 +112,27 @@ export function followState(key: SurfaceKey): FollowState {
   return values.has(key) ? "current" : "coming";
 }
 
+const valueWatchers = new Map<SurfaceKey, Set<() => void>>();
+
+/**
+ * Hear a surface's value published, whether its read landed or the cache gave it back: for a surface that holds part of what
+ * another surface read (the pickers are made of the settings read, offered-templates.ts), so it is made of it again with
+ * no read of its own. Answers the stop.
+ */
+export function onSurfaceValue(key: SurfaceKey, fn: () => void): () => void {
+  let set = valueWatchers.get(key);
+  if (!set) valueWatchers.set(key, (set = new Set()));
+  const heard = set;
+  heard.add(fn);
+  return () => void heard.delete(fn);
+}
+
 /** The override's answer, published: held here, and mirrored where the pages that have not moved look. */
 export function setSurfaceValue<K extends SurfaceKey>(key: K, value: SurfaceValues[K] | undefined): void {
   if (value === undefined) values.delete(key);
   else values.set(key, value);
   mirrorTo(key, value);
+  for (const fn of [...(valueWatchers.get(key) ?? [])]) fn();
 }
 
 /** Whether a value is a plain record (what a view model is made of), as against a list, a date, a map or a function. */

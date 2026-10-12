@@ -11,7 +11,8 @@ import { appointmentWords } from "../../journey/appointment-word";
 import type { AppointmentWord } from "../../journey/appointment-word";
 import { CALENDAR_SETTING_ROUTE } from "../../setup/calendar-source";
 import { clockHour } from "../../shared/clock";
-import { CAMPAIGN_ROOMS, runStoppedWords } from "../../shell/campaign-rooms";
+import type { ReachOutChainDto } from "../../reach-out/reach-out-dtos";
+import { CAMPAIGN_ROOMS, RUN_WAITING_WORDS, runStoppedWords } from "../../shell/campaign-rooms";
 import { joinWords, plural } from "../../shared/words";
 import { VERSION_CHANNEL_WORDS } from "../../templates/message-versions";
 import { WORKSPACE_PAUSED_FACT } from "../../workspace/billing";
@@ -233,10 +234,11 @@ export const LIFECYCLE_WORDS = {
   // A read that failed is its own state, never a tile that is not there or a zero that was not counted. The page draws the
   // kit's failed read where the data would be, and its Retry reads `surface` again.
   failed: {
+    // The templates are the settings read's, the one read of them (apps/dashboard offered-templates.ts): its Retry reads that.
     templates: {
       what: "your templates",
       body: "The call's text and the Library's count show once they read. Everything else here is current.",
-      surface: "playbooks",
+      surface: "settings",
     },
     counts: {
       what: "who each moment reaches",
@@ -372,7 +374,8 @@ export const LIFECYCLE_WORDS = {
     rules: `Sends wait for ${SENDING_HOURS_WORDS.range} · one a week per person, across every moment`,
     empty: "Nothing is set to go out in the next 7 days.",
     nobody: "Nobody",
-    waiting: "Waiting on you",
+    /** A run waiting for the owner, in the run's one phrase (broadcasts.ts BROADCAST_STATE_LABELS reads it too). */
+    waiting: RUN_WAITING_WORDS,
     /**
      * A run waiting on the person, approved or skipped on its own line: the two acts, and what Skip asks. What the line
      * says of the run is Today's own sentence for it (today-runs.ts todayRunWords: "7 people. Nothing sends until you
@@ -481,25 +484,51 @@ function lifecycleClock(p: Pick<LifecyclePlaybook, "trigger" | "run_hour" | "cad
   return p.trigger === "everyone_monthly" ? `every ${p.cadence_days} days` : `daily ${clockHour(p.run_hour)}`;
 }
 
-/** What a playbook says of itself as a state: on with its clock, a run waiting on the person, or paused. */
-export function lifecycleStateOf(p: LifecyclePlaybook): {
+/** A campaign's state as every page says it: its words, the same on a phone, its tone, and whether it is paused. */
+export interface LifecycleState {
   words: string;
   /** The same on a phone, where there is room for less: the clock alone while it is on. */
   short: string;
   tone: LifecycleTone;
   paused: boolean;
-} {
-  const stated = (words: string, tone: LifecycleTone, paused = false, short = words) => ({
-    words,
-    short,
-    tone,
-    paused,
-  });
+}
+
+const stated = (words: string, tone: LifecycleTone, paused = false, short = words): LifecycleState => ({
+  words,
+  short,
+  tone,
+  paused,
+});
+
+/**
+ * What a playbook says of itself as a state: on with its clock, a run waiting on the person, or paused. The ONE source of a
+ * campaign's state word, tone and pause: the rail, the ledger (desk and phone), the drawer, Coming up and Ask read it. A run
+ * waiting for the owner is shown whether or not the campaign is paused, on every page the same way (D1-campaign-state):
+ * pausing leaves a waiting run waiting by design (ask-proposals/campaigns.ts), the home tested the pause first and said
+ * "Paused" with Resume where the drawer tested the run first and said "Waiting on you" with Approve, and Coming up pointed
+ * at a row that had no Approve. `paused` still says whether it is, for Resume.
+ */
+export function lifecycleStateOf(
+  p: Pick<LifecyclePlaybook, "trigger" | "run_hour" | "cadence_days" | "state" | "totals"> & { off?: string | null },
+): LifecycleState {
   if (p.off) return stated("Not running here", "plain");
+  const paused = p.state !== "running";
+  if (p.totals.waiting) return stated(RUN_WAITING_WORDS, "warn", paused);
   // Paused rests (decision 13 of 9 Oct 2026): amber is for a run waiting on someone, never for a rule its owner stopped.
-  if (p.state !== "running") return stated("Paused", "plain", true);
-  if (p.totals.waiting) return stated("Waiting on you", "warn");
+  if (paused) return stated("Paused", "plain", true);
   return stated(`On · ${lifecycleClock(p)}`, "ok", false, lifecycleClock(p));
+}
+
+/**
+ * A reach-out's state, said as a playbook's is (lifecycleStateOf): its run waiting first, whether or not it is paused, then
+ * paused, else on. The ledger's row and the reach-out's drawer read it, so the drawer wears the home's word, not "Running".
+ */
+export function lifecycleChainStateOf(
+  c: Pick<ReachOutChainDto, "state"> & { next: Pick<ReachOutChainDto["next"], "waiting_run_id"> },
+): LifecycleState {
+  const paused = c.state !== "running";
+  if (c.next.waiting_run_id) return stated(RUN_WAITING_WORDS, "warn", paused);
+  return paused ? stated("Paused", "plain", true) : stated("On", "ok");
 }
 
 /** How a moment's or a group's campaigns stand, in a line: "3 campaigns · 2 on · 1 paused". */

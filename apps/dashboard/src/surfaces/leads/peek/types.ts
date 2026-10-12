@@ -97,6 +97,8 @@ export interface PeekState {
 export interface PeekActs {
   onClose: () => void;
   onExpand: () => void;
+  /** A lead that became a person: their page in People (the head's name opens it; so does the toast after Talking). */
+  onOpenPerson: (id: string) => void;
   onStage: (stage: PeekStage) => Promise<unknown>;
   onBack: () => void;
   onNotAFit: () => void;

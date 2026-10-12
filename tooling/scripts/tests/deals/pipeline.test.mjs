@@ -402,10 +402,11 @@ test("each row says one chip, and warn only where something waits on the owner",
     const c = chipOf(vm, id);
     return c ? [c.words, c.tone] : null;
   };
-  // Consultations: one held with no proposal since waits on the owner; one coming up is on its way.
-  assert.deepEqual(said("hugo"), ["Held Fri · no proposal yet", "warn"]);
-  assert.deepEqual(said("bea"), ["Held Sun · no proposal yet", "warn"]);
-  assert.deepEqual(said("hana"), ["Held Mon · no proposal yet", "warn"]);
+  // Consultations: one that has ended with no proposal since waits on the owner, and says Past while nobody has marked it
+  // (D1-consult-held: the record never infers that they came); one coming up is on its way.
+  assert.deepEqual(said("hugo"), ["Past Fri · no proposal yet", "warn"]);
+  assert.deepEqual(said("bea"), ["Past Sun · no proposal yet", "warn"]);
+  assert.deepEqual(said("hana"), ["Past Mon · no proposal yet", "warn"]);
   assert.deepEqual(said("theo"), ["Today 3:00 PM", "info"]);
   assert.deepEqual(said("sara"), ["Fri 2:00 PM", "info"]);
   assert.deepEqual(said("rae"), ["Fri 4:00 PM", "info"]);
@@ -456,7 +457,7 @@ test("each group says what it comes to; only Passed or ended starts folded", () 
   assert.deepEqual(
     vm.groups.map((g) => [g.key, g.meta, g.collapsed]),
     [
-      ["consultations", "3 held in the last week, no proposal yet", false],
+      ["consultations", "3 ended in the last week, no proposal yet", false],
       ["proposals", "$4,250", false],
       ["clients", "$1,340 a month", false],
       ["closed", null, true],
@@ -542,7 +543,7 @@ test("nobody to follow is an empty Pipeline, with its words for it", () => {
 });
 
 test("a consultation held is dated from its start, though the rule counts its week from its end; heard back is a message or a call", () => {
-  // An all-day consultation on Monday ends at Tuesday's midnight: dated from its end it read "Held yesterday".
+  // An all-day consultation on Monday ends at Tuesday's midnight: dated from its end it read "Past yesterday".
   const allDay = toPersonRowVM(
     personRow(NOW, "mona", "Mona", { visits: visits(null, visit(ny("09-21", 0), { allDay: true, hours: 24 })) }),
     TZ,
@@ -552,7 +553,7 @@ test("a consultation held is dated from its start, though the rule counts its we
   const [row] = pipelineOf([allDay], NOW, TZ, null).groups[0].rows;
   assert.deepEqual(
     [row.chip.words, row.inStage],
-    ["Held Mon · no proposal yet", "2 d"],
+    ["Past Mon · no proposal yet", "2 d"],
     "the words' day is the day it was held, and so is its count",
   );
   // A call they placed after the proposal went is something back, as a message is: the chip says what, not how.
@@ -1331,7 +1332,7 @@ test("the Pipeline has its own rail under People's switch (the frame's strip), t
     "no People's rail here",
   );
   assert.deepEqual(heads(tree), [
-    { label: "Consultations", count: "2", meta: "1 held in the last week, no proposal yet", toggle: null },
+    { label: "Consultations", count: "2", meta: "1 ended in the last week, no proposal yet", toggle: null },
     { label: "Proposal out", count: "2", meta: "$4,250", toggle: null },
     { label: "Clients", count: "1", meta: "$1,000 a month", toggle: null },
     { label: "Passed or ended", count: "2", meta: null, toggle: "Show" },
@@ -2192,7 +2193,7 @@ test("a row opens its deal in a peek beside the rows: the head at once, the pers
   assert.deepEqual(rowIds(tree), ["hana", "sara", "wes", "nia", "cat"]);
 });
 
-test("the peek reads the person again when a deal is recorded on them, opens on the tab's copy where there is one, and says a read that failed", async () => {
+test("the peek reads the person again when People lands or changes (a deal recorded or a step saved is read with it), opens on the tab's copy where there is one, and says a read that failed", async () => {
   const seen = await fresh();
   seen.person = (id) => (id === "nia" ? new Error("no route") : detailOf(seen.rawOf(id)));
   // The tab read them a moment ago: that is the copy the peek opens on.
@@ -2205,16 +2206,19 @@ test("the peek reads the person again when a deal is recorded on them, opens on 
   assert.ok(byTestId(peekOf(tree), "person-deal-card"), "the tab's copy: the card is there as the peek opens");
   await settled();
   assert.deepEqual(seen.reads, ["cat"], "and the read goes out behind it");
-  globalThis.window.dispatchEvent({ type: "deal:recorded", detail: { personId: "wes" } });
-  await settled();
-  assert.deepEqual(seen.reads, ["cat"], "someone else's deal is not this peek's");
+  // The sheets say nothing of their own that reads it (0047): `deal:recorded` gives the focus back to the row and does no more.
   globalThis.window.dispatchEvent({ type: "deal:recorded", detail: { personId: "cat" } });
-  await settled();
-  assert.deepEqual(seen.reads, ["cat", "cat"], "a deal recorded on them reads them again");
-  // And a step set, changed or done on them (the card in the peek draws their next step).
   globalThis.window.dispatchEvent({ type: "note:saved", detail: { personId: "cat" } });
   await settled();
-  assert.deepEqual(seen.reads, ["cat", "cat", "cat"], "a step saved on them reads them again");
+  assert.deepEqual(seen.reads, ["cat"], "neither a deal's event nor a note's reads the peek's person again");
+  // People landing or changing does: a deal recorded on them or a step set, changed or done on them (the card in the peek draws
+  // their next step) is read with People behind the write, and a teammate's through the live feed.
+  globalThis.window.dispatchEvent({ type: "surface:clients" });
+  await settled();
+  assert.deepEqual(seen.reads, ["cat", "cat"], "People changing reads them again");
+  globalThis.window.dispatchEvent({ type: "surface:clients" });
+  await settled();
+  assert.deepEqual(seen.reads, ["cat", "cat", "cat"], "and again for the next");
   // A read that failed, with nothing held: said, with Retry.
   find(tree, (n) => n.type === "tr" && n.props?.id === "person-nia").props.onClick();
   draw();
@@ -2479,7 +2483,7 @@ test("a view holds only its rows, and the line stays the whole Pipeline's", () =
   );
   assert.deepEqual(shape(of("waiting")), [["proposals", ["wes", "nia"], false]]);
   assert.deepEqual(shape(of("lapsed")), [["proposals", ["lars"], false]]);
-  assert.equal(of("consultations").groups[0].meta, "3 held in the last week, no proposal yet");
+  assert.equal(of("consultations").groups[0].meta, "3 ended in the last week, no proposal yet");
   for (const view of ["proposals", "waiting", "lapsed", "closed"])
     assert.deepEqual(of(view).summary, whole.summary, `${view}: the line is the whole Pipeline's`);
   // A service's deals, in every group they stand in; a consultation has no deal yet, so no service.
@@ -2549,7 +2553,7 @@ test("the Pipeline's rail: every group always, what waits only when some does, t
       ],
       [
         "waiting",
-        "Waiting on you",
+        "To follow up",
         [
           ["waiting", "Nothing back in a week", 2, "warn"],
           ["lapsed", "Lapsed", 1, "warn"],
@@ -3458,17 +3462,22 @@ test("the bridge's pass reads each person afresh, records only a deal still a pr
   }
 });
 
-test("the bridge publishes the deal kit the pages read, the card's next act with it", async () => {
+test("the bridge publishes the deal kit the pages read, the card's next act with it, and no verb nothing reads", async () => {
   const { installPeopleCourier } = await import("../../../../apps/dashboard/src/surfaces/people/people-detail.ts");
   const keep = {};
   const names = ["__deal", "__recordDeal", "__passDeals", "__personDetail", "__peekPerson", "__warmPerson"];
   for (const k of names) keep[k] = globalThis.window[k];
   try {
+    for (const k of ["__passDeals", "__personDetail", "__peekPerson"]) delete globalThis.window[k];
     installPeopleCourier();
     // The bridge's own contracts, by name: this file and the bridge load the package as two module instances.
     assert.equal(globalThis.window.__deal.next.name, dealNextAct.name, "a phone's peek pins the card's own next act");
     assert.equal(globalThis.window.__deal.menu.name, dealMenuActs.name);
-    assert.equal(typeof globalThis.window.__passDeals, "function");
+    assert.equal(typeof globalThis.window.__warmPerson, "function", "the shell's routeDoor warms a person by it");
+    // The pages import these (people-detail.ts passDeals, personDetail, peekPerson): the window names went with the
+    // last page that read them there (O4b).
+    for (const k of ["__passDeals", "__personDetail", "__peekPerson", "__warmPeople"])
+      assert.equal(globalThis.window[k], undefined, `${k} is no longer published`);
   } finally {
     for (const k of names) globalThis.window[k] = keep[k];
   }

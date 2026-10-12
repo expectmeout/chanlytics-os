@@ -17,7 +17,7 @@ import { agentIdFor } from "../shell";
 /* ------------------------------- what a page hands over ------------------------------- */
 
 /** A field of something a page handed over, whatever it is: nothing where it is not an object. */
-export const fieldOf = (thing: unknown, field: string): unknown =>
+const fieldOf = (thing: unknown, field: string): unknown =>
   thing && typeof thing === "object" ? Reflect.get(thing, field) : undefined;
 
 /** What an event on the window carries in its detail, by field; nothing where it carries none. */

@@ -104,7 +104,15 @@ export {
 } from "./lifecycle/lifecycle-ledger";
 export type { LedgerSort, LedgerStatus } from "./lifecycle/lifecycle-ledger";
 export { reachCountsOf } from "./lifecycle/lifecycle-tiles";
-export { LIFECYCLE_WORDS, LIFECYCLE_TOAST, channelsGoesByWords, momentHoldsWords } from "./lifecycle/lifecycle-words";
+export {
+  LIFECYCLE_WORDS,
+  LIFECYCLE_TOAST,
+  channelsGoesByWords,
+  lifecycleChainStateOf,
+  lifecycleStateOf,
+  momentHoldsWords,
+} from "./lifecycle/lifecycle-words";
+export type { LifecycleState } from "./lifecycle/lifecycle-words";
 export type {
   LedgerWords,
   LifecycleAct,

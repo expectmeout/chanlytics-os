@@ -11,9 +11,11 @@
  * figures.
  */
 import { useEffect, useRef } from "react";
+import { stateTone } from "@chanlytics/contracts";
 import type { LeadBand as LeadBandVM, LeadClass } from "@chanlytics/contracts";
 
-const LEAD_BAND_TONE: Record<LeadClass, string> = { qualified: "ok", review: "warn", excluded: "plain" };
+/** A class's tone is the pill's (the registry's lead_class): "Qualified" was green here and plain in the pill beside it. */
+const classTone = (id: LeadClass): string => stateTone("lead_class", id);
 
 const ldBandWords = (c: { label: string; count: number }) => String(c.label).replace(new RegExp(`^${c.count}\\s+`), "");
 
@@ -75,7 +77,7 @@ export const LeadBand = ({
               onClick={() => onPick(cls === c.id ? null : c.id)}
               data-testid={`lead-class-${c.id}`}
             >
-              <span className={`ld-class-dot tone-${LEAD_BAND_TONE[c.id]}`} aria-hidden="true" />
+              <span className={`ld-class-dot tone-${classTone(c.id)}`} aria-hidden="true" />
               <span className="n">{c.count}</span> <span className="w">{ldBandWords(c)}</span>
             </button>
           ))}
@@ -87,7 +89,7 @@ export const LeadBand = ({
               .map((c) => (
                 <span
                   key={c.id}
-                  className={`seg tone-${LEAD_BAND_TONE[c.id]}${cls && cls !== c.id ? " dim" : ""}`}
+                  className={`seg tone-${classTone(c.id)}${cls && cls !== c.id ? " dim" : ""}`}
                   style={{ flexGrow: c.count }}
                 />
               ))}

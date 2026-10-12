@@ -248,8 +248,10 @@ const where = (to) => {
 };
 
 test("the jump index lists every real surface: each page the registry calls real, and People's scopes, is a jump away", () => {
+  // Settings itself is the page every pane is under: it is real so that an address naming no pane opens Profile (A3c), and each
+  // of its panes is a jump of its own.
   const real = Object.keys(SURFACE_STATES)
-    .filter((k) => SURFACE_STATES[k] === "real")
+    .filter((k) => SURFACE_STATES[k] === "real" && k !== "admin")
     .sort();
   assert.deepEqual(
     Object.keys(REACHED)
@@ -781,7 +783,7 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
   assert.ok(idx.some((j) => j.to === "conversations/cv-k1" && j.sub === "missed"));
   assert.equal(
     api.rightNow("en"),
-    "Nora is waiting on you; one campaign run is waiting for your approval.",
+    "Nora needs you; one campaign run is waiting for your approval.",
     "the queue's people (a call worth a listen is nobody waiting) and the run waiting for a yes",
   );
   assert.deepEqual(api.waiting().people, [
@@ -1174,15 +1176,22 @@ test("the entry points are real everywhere: no Soon tag, ⌘K and the button ope
   const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
   assert.ok(shell.includes("appAsk: openAsk"), "the frame publishes the door the pages open the palette by");
   assert.ok(!shell.includes("Ask stubbed outside demo"));
-  const ask = readCode("apps/dashboard/src/legacy/pages/dashboard-a-ask.jsx");
+  // The seeded palette and the choice of it are the demo's file, loaded only in a demo session (manifest-demo.ts); a real
+  // workspace's AskBar is the Line (ask-real.jsx), and the door into Ask is the bridge's (surfaces/frame-doors.ts), not that file's.
+  const ask = readCode("apps/dashboard/src/legacy/demo/pages/dashboard-a-ask.jsx");
   assert.ok(
     ask.includes(
-      "const AskBar = (props) => (!window.__DEMO_MODE && window.AskReal ? <window.AskReal {...props} /> : <AskBarSeed {...props} />);",
+      "const AskBar = (props) => (!window.__DEMO_MODE && AskLine ? <AskLine {...props} /> : <AskBarSeed {...props} />);",
     ),
   );
   assert.ok(!ask.includes("if (!window.__DEMO_MODE) return; // Ask is stubbed"));
+  assert.ok(!ask.includes("window.askAbout ="), "the door into Ask is not defined in the seeded palette");
   const real = readCode("apps/dashboard/src/legacy/pages/ask-real.jsx");
   assert.ok(real.includes('data-testid="ask-real"') && real.includes('data-testid="ask-input"'));
+  assert.ok(
+    real.includes("window.AskBar = AskReal;"),
+    "a real workspace's AskBar is the Line, with no seeded file to choose it",
+  );
   // A quick answer never spends a model turn: executed in ask-palette.test.mjs ("the Line at rest").
   assert.ok(!/Aisha|Jordan|Lena|Drifting VIP|revenue pacing/.test(real), "nothing seeded in the real palette");
   const manifest = readCode("apps/dashboard/src/legacy-bridge/manifest.ts");

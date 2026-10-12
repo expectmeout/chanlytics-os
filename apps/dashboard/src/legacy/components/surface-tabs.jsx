@@ -29,11 +29,11 @@ const ST_GROUPS = {
   inbox: {
     match: ["inbox", "conversations", "live"],
     tabs: [
-      // The same count the sidebar badge and the phone tab show, from the one
-      // rule that owns it (ixWaitsOnYou) — never a second reading of it.
-      // It counts people who need you, so it is amber, as the Needs you pill is (tone.ts warn).
+      // The same count the sidebar badge, the phone tab, the tab's title and the phone app show: the one number
+      // (surfaces/needs-you.ts, read through `window.useNeedsYou`), handed in by the strip — never a second reading of it.
+      // It counts what needs you, so it is amber, as the Needs you pill is (tone.ts warn).
       // None of the three says a tip under a pointer: the names stand alone (Ruben, 8 Oct 2026).
-      { id: "inbox", label: "Needs you", to: "inbox", tone: "warn", badge: () => (window.sbNeedsCount ? window.sbNeedsCount() : 0) || null },
+      { id: "inbox", label: "Needs you", to: "inbox", tone: "warn", badge: (needs) => needs || null },
       { id: "conversations", label: "Conversations", to: "conversations" },
       // pulse is demo-only: it advertised a call in progress for an invented
       // caller, always on, beside the REAL Conversations tab.
@@ -43,7 +43,7 @@ const ST_GROUPS = {
         // The same heartbeat rule the page applies between refreshes, so the
         // tab does not pulse for a phantom the page has already dropped.
         ? window.__LIVE.now.some((c) => window.__chrome.liveStillUp(c, window.__LIVE.heartbeatMs, Date.now()))
-        : !!window.__DEMO_MODE && !(window.LM_STORE && window.LM_STORE.isEnded("lc-selena"))) },
+        : !!window.__DEMO_MODE) },
     ],
   },
   // Campaigns is one page, its home (surfaces/campaigns/home, canvas A), and Sent (broadcasts) and the Library (messages) are its
@@ -81,10 +81,13 @@ const stHref = (route) => { const a = stAddress(); return a && a.href ? a.href(r
 const SurfaceTabs = ({ page, param, views, onNavigate }) => {
   const [, stBump] = React.useReducer(n => n + 1, 0);
   const own = views && views.tabs.length > 1 ? views : null;
+  // What needs you, drawn again when the number changes and by nothing else: made of the Inbox's threads and the runs waiting,
+  // and the Inbox's own holds (surfaces/needs-you.ts). Not read before the Inbox has been, and nowhere in the standalone mockup.
+  const needs = window.useNeedsYou ? window.useNeedsYou() : 0;
   React.useEffect(() => {
-    // inbox:counts too: the Needs-you tab carries the badge, and the count moves
-    // when Today publishes the real one or a decision lands.
-    const evs = ["live:ended", "surface:live", "inbox:counts", "inbox:decisions", "leads:verdict"];
+    // surface:live moves the Live tab's pulse. A call's ending is a row on the live feed, and the verdict thread's news is the
+    // bell's: neither has an event of its own to hear. The Needs-you badge is the count's hook above, which no event feeds.
+    const evs = ["surface:live"];
     evs.forEach(e => window.addEventListener(e, stBump));
     return () => evs.forEach(e => window.removeEventListener(e, stBump));
   }, []);
@@ -110,7 +113,7 @@ const SurfaceTabs = ({ page, param, views, onNavigate }) => {
         id: t.id,
         label: t.label,
         href: stHref(t.to),
-        count: t.badge ? t.badge() : null,
+        count: t.badge ? t.badge(needs) : null,
         tone: t.tone === "warn" ? "warn" : undefined,
         live: t.pulse ? !!t.pulse() : false,
         tip: t.tip,

@@ -10,7 +10,7 @@
  * by build). What the record kit would have given it, the tab's memory of a half-written message, it asks of the tab
  * itself, as the thread's own reply box does.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   MIN_MS,
   NEW_CONVERSATION_WORDS as W,
@@ -25,20 +25,12 @@ import {
   type PersonRowVM,
   type WriteWay,
 } from "@chanlytics/contracts";
+import { offeredWhatsApp } from "../../offered-templates";
 import { useSurface } from "../../use-surface";
 import { clockZone, navigate, tabMemory } from "../shell";
 import type { Flash } from "../shell";
 import type { ApprovedTemplate } from "../types";
-import {
-  addByNumber,
-  approvedMessages,
-  askDraft,
-  findPeople,
-  keepNote,
-  readReach,
-  sendFirst,
-  undoFirst,
-} from "./verbs";
+import { addByNumber, askDraft, findPeople, keepNote, readReach, sendFirst, undoFirst } from "./verbs";
 import { openNewConversation } from "./store";
 import type { FirstMessage } from "./verbs";
 
@@ -262,22 +254,21 @@ function useReach(personId: string | null, reads: number): ReachRead | null {
   return read && read.id === personId ? read.read : { state: "reading" };
 }
 
-/** The approved messages, read once a wire carries nothing else. */
+/** The approved messages, once a wire carries nothing else. */
 type Approved = { state: "reading" } | { state: "failed" } | { state: "in"; templates: ApprovedTemplate[] };
 
+/**
+ * The approved messages are the settings read's, the one read of the templates (offered-templates.ts): the sheet makes none of
+ * its own, and draws them again if one is approved or hidden while it is open. Still reading until that read has landed, failed
+ * where its templates read did.
+ */
 function useApproved(wanted: boolean): Approved {
-  const [read, setRead] = useState<Approved>({ state: "reading" });
-  useEffect(() => {
-    if (!wanted) return undefined;
-    let live = true;
-    void approvedMessages().then((t) => {
-      if (live) setRead(t ? { state: "in", templates: t } : { state: "failed" });
-    });
-    return () => {
-      live = false;
-    };
-  }, [wanted]);
-  return read;
+  const settings = useSurface("settings");
+  return useMemo((): Approved => {
+    const rows = wanted ? offeredWhatsApp(settings) : undefined;
+    if (rows === undefined) return { state: "reading" };
+    return rows === null ? { state: "failed" } : { state: "in", templates: rows };
+  }, [settings, wanted]);
 }
 
 /** Someone being added from the pick: whether the fields are open, what was typed, and how the door answered. */

@@ -151,19 +151,19 @@ export function stepDays(nowMs: number, tz: string): StepDayChoice[] {
   return out;
 }
 
-/** How many steps due Today names at the head of the day, the rest a line to People's Steps due. */
+/** How many steps due Today names as rows of its queue, the rest one row to People's Steps due. */
 export const TODAY_STEPS_MAX = 3;
 
 /**
- * The people whose next step is due, today or before, for Today's day panel: the oldest day first, then by name, at
- * most `max`, and how many more there are. Each day is judged again at `nowMs`, so a row read yesterday says today's.
+ * The people whose next step is due, today or before, for Today's queue (a row each): the oldest day first, then by name, at
+ * most `max`, and how many are due in all. Each day is judged again at `nowMs`, so a row read yesterday says today's.
  */
 export function todayStepsDue<T extends { name: string; nextStep: PersonNextStepVM | null }>(
   rows: readonly T[],
   nowMs: number,
   tz: string,
   max = TODAY_STEPS_MAX,
-): { rows: { row: T; step: PersonNextStepVM }[]; count: number; more: string | null } {
+): { rows: { row: T; step: PersonNextStepVM }[]; count: number } {
   const due = rows
     .map((row): { row: T; step: PersonNextStepVM } | null => {
       const s = row.nextStep;
@@ -172,10 +172,5 @@ export function todayStepsDue<T extends { name: string; nextStep: PersonNextStep
     })
     .filter((x): x is { row: T; step: PersonNextStepVM } => x !== null)
     .sort((a, b) => a.step.day.day.localeCompare(b.step.day.day) || a.row.name.localeCompare(b.row.name));
-  const cap = Math.max(0, max);
-  return {
-    rows: due.slice(0, cap),
-    count: due.length,
-    more: due.length > cap ? `and ${due.length - cap} more` : null,
-  };
+  return { rows: due.slice(0, Math.max(0, max)), count: due.length };
 }

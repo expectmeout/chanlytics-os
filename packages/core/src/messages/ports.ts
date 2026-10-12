@@ -3,7 +3,7 @@
  * what each means. The adapter that knows the tables and the runtime's
  * services is packages/jobs/src/handlers.ts.
  */
-import type { AppointmentState, EmailHold, JobNews, SendPurpose } from "@chanlytics/contracts";
+import type { AppointmentState, EmailHold, FeedNames, JobNews, SendPurpose } from "@chanlytics/contracts";
 import type { EmailRequest } from "@chanlytics/channels";
 import type { Json, MessageVersionRow } from "@chanlytics/db";
 import type { Channel, Delivered, Delivery } from "../deliver";
@@ -187,6 +187,14 @@ export interface BroadcastBatchPorts {
    * appointments, and a read that fails is no rows: the send goes as it did before the record.
    */
   appointments?(keys: string[]): Promise<Map<string, AppointmentState>>;
+  /**
+   * What the owner's calendar feed names now (the edge's feed, kept five minutes), asked beside the record because the
+   * record is only as new as the hourly sweep: a visit cancelled in the calendar alone is still `booked` there, and its
+   * reminder would go. Null where the workspace has no calendar feed (nothing to ask); absent where the runtime has none.
+   * THROWS when the feed cannot be read: a reminder for a calendar event whose standing is unknown waits, queued, for the
+   * next batch, as every read the send cannot make does (broadcast.ts readPeople), and is never sent on a guess.
+   */
+  feed?(): Promise<FeedNames | null>;
   /** The thread this send belongs to, never created here. */
   target(phoneE164: string): Promise<{ conversationId: string } | null>;
   /** The same thread by the person, for an email, which reaches them by an address rather than a number; null for one that is gone. */

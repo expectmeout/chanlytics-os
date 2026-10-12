@@ -19,9 +19,15 @@ import { workspaceFor, type Admitted } from "../admin-auth.js";
 import { pg } from "../pg.js";
 import { mail, reachesTenant } from "./notify.js";
 import { loadTenantNotifications } from "../tenant-runtime.js";
-import { logger } from "../log.js";
+import { logger, errField } from "../log.js";
 import { dashboardOrigin } from "../dashboard-origin.js";
-import { alertTestMail, parseTenantConfigResult, spokenDuration, youAreLiveEmail } from "../packages/contracts.js";
+import {
+  alertTestMail,
+  appLink,
+  parseTenantConfigResult,
+  spokenDuration,
+  youAreLiveEmail,
+} from "../packages/contracts.js";
 import { workspaceNamed } from "../packages/db.js";
 
 export async function sendYouAreLive(auth: Admitted, body: Partial<{ tenant_id?: string }>): Promise<Response> {
@@ -125,10 +131,15 @@ export async function sendAlertTest(auth: Admitted, body: Partial<{ tenant_id?: 
     L.info("alert_test_unaddressed", { tenant_id: tenantId });
     return json(200, { ok: true, sent: false, why: "no_address", to: 0 });
   }
-  const named = await workspaceNamed(db, tenantId).catch(() => null);
+  const named = await workspaceNamed(db, tenantId).catch((e: unknown) => {
+    L.warn("notify_link_unavailable", { tenant_id: tenantId, error: errField(e) });
+    return null;
+  });
   const message = alertTestMail({
     business: named?.name || "your business",
-    link: `${dashboardOrigin()}${named?.slug ? `/w/${encodeURIComponent(named.slug)}` : ""}/settings/notifications`,
+    // The workspace's own page (contracts appLink); with its address word unread, the front door with the route as a hash,
+    // which the home carries to the workspace this browser used last. Never the origin and a path the app does not have.
+    link: `${dashboardOrigin()}${appLink(named?.slug, "admin/notifications")}`,
   });
   const sent = await mail(target, message);
   L.info("alert_test_sent", { tenant_id: tenantId, sent, to: to.length });

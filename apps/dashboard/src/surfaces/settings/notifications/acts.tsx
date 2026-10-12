@@ -4,7 +4,7 @@
  * it did in the frame's toast, with an Undo where one can be taken back.
  */
 import type { ReactNode, RefObject } from "react";
-import type { NotificationsConfig, PushKind } from "@chanlytics/contracts";
+import { memberWords, type NotificationsConfig, type PushKind } from "@chanlytics/contracts";
 import {
   ALERT_REFUSED_WORDS,
   alertAddressesOf,
@@ -149,7 +149,15 @@ export function teammatesOf(
   const key = (e: string) => e.trim().toLowerCase();
   return (team ?? []).flatMap((m) =>
     m.email && !memberGetsAlerts(m.email, notif)
-      ? [{ email: m.email, name: !!me && key(m.email) === key(me) ? "You" : m.displayName.trim() || m.email }]
+      ? [
+          {
+            email: m.email,
+            name:
+              !!me && key(m.email) === key(me)
+                ? "You"
+                : memberWords({ email: m.email, display_name: m.displayName }).name,
+          },
+        ]
       : [],
   );
 }

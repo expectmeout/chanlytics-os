@@ -6,11 +6,11 @@
 import { standingOfThread } from "../conversations/standing";
 import type { CallDto } from "../conversations/call-dto";
 import { toCallVM } from "../conversations/call-vm";
-import type { EscalationDto } from "../conversations/escalations";
+import { waitsOnAPerson, type EscalationDto } from "../conversations/escalations";
 import { threadsWaitingOnYou } from "../conversations/inbox-thread";
 import { lastExchanged, messageWords, clipAtWord } from "../conversations/message-words";
 import { contactName } from "../conversations/thread-contact";
-import type { ConversationDto } from "../conversations/thread-dto";
+import { isOptedOut, type ConversationDto } from "../conversations/thread-dto";
 import { waWindow } from "../config/policy";
 import { channelKindWords } from "../lines/channels";
 import { formatPhoneDisplay } from "../shared/phone";
@@ -85,7 +85,10 @@ export interface TodayFacts extends TodayInput {
   /** Whether the calls read succeeded; false means the rows omit the phone, and the card says so. */
   callsRead: boolean;
   wires: TodayWire[];
-  /** The one number every surface shows for "need you": threadsWaitingOnYou, the number the badge is published with. */
+  /**
+   * How many conversations wait on you: threadsWaitingOnYou, the threads' part of the one count every surface says for "need
+   * you" (waits.ts needsYouCount, which adds the runs waiting for a word). The headline says conversations, so it says this.
+   */
   needsYouCount: number;
   /** The open escalations nobody has taken over, oldest waiting first, each read once. */
   escRecords: EscalationRecord[];
@@ -116,7 +119,8 @@ function todayWires(m: MetricsSummaryDto): TodayWire[] {
 /**
  * The open escalations the queue holds, oldest waiting first. One rule (standing.ts): a handoff a person has
  * already taken over is theirs, not the queue's. An escalation whose thread the page did not load keeps its
- * place — unknown is not "handled".
+ * place — unknown is not "handled". A hold that waits on nobody (a customer who asked to stop, opened before decision
+ * 0048) is no row: it was told once on the bell, and there is nothing to be done.
  */
 function openEscalations(
   escalations: TodayInput["escalations"],
@@ -124,11 +128,11 @@ function openEscalations(
   now: Date,
 ): TodayInput["escalations"] {
   return escalations
-    .filter((e) => e.state === "open")
+    .filter((e) => e.state === "open" && waitsOnAPerson(e.reason))
     .filter((e) => {
       const conv = byConv.get(e.conversation_id);
       if (!conv) return true;
-      return standingOfThread(conv, true, now.getTime()).standing === "needs_you";
+      return standingOfThread(conv, e, now.getTime()).standing === "needs_you";
     })
     .sort((a, b) => a.created_at.localeCompare(b.created_at)); // oldest waiting first
 }
@@ -182,11 +186,13 @@ function escalationRecords(
 /**
  * Threads where the customer spoke last and the free-reply window is running
  * out. Rendered ONLY when at least one qualifies — an empty deadline board
- * manufactures anxiety on a calm day.
+ * manufactures anxiety on a calm day. Never a person who asked to stop: the window is a WhatsApp fact and the row offers a
+ * reply, which the box refuses to them (isOptedOut, the one predicate every send path asks). The gate raises a hold only on
+ * the STOP message itself, so a later message from the same person reaches here with no hold of its own to keep it out.
  */
 function closingConversations(conversations: ConversationDto[], escSet: Set<string>, now: Date): ConversationDto[] {
   return conversations.filter((c) => {
-    if (escSet.has(c.id)) return false;
+    if (escSet.has(c.id) || isOptedOut(c)) return false;
     const last = lastExchanged(c.messages);
     if (!last || last.sender !== "customer") return false;
     const w = waWindow(c.last_wa_inbound_at, now);

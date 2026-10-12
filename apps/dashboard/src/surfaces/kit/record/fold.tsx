@@ -1,6 +1,6 @@
 /**
  * The record kit: the fold (moved whole from legacy/components/record-fold.jsx, decision 0015: the kit's one
- * implementation, which seed-globals publishes under the names the pages that have not moved read).
+ * implementation, which the pages import).
  *
  * Two of the kit's three gestures (spec §5): the fold, a set of fields opened under the row that states them, and the
  * inline editor, one value edited in its row (inline.tsx); the sheet is sheet.tsx. The two share what they have in common

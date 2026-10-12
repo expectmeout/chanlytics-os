@@ -228,7 +228,8 @@ TSX (Draw with the kit, step 2).
 | sheet, modal | `Sheet` (`.sheet`): a record's composer, or a phone's small job (`shape="job"`); `RecordSheet` (`.rec-sheet`) on a legacy page |
 | menu, popover | `Menu` (`.more-*`), `Popover` (the panel's pop); `MoreMenu` on a legacy page |
 | select, picker, field | `Select` and `Combobox` (`.rec-combo-*`), in a `Field` (`.rec-field`); `RecordCombobox`, `RecordField` and `.input` on a legacy page |
-| face, initials | `Face` (`.face`) |
+| face, initials | `Face` (`.face`); a person is its `person` prop (their name and initials), which contracts' `personFaceOf` reads: initials for a name, the phone glyph for a number, the mail glyph for an address, on every page that names a person, so no page keeps its own avatar or its own test of a name |
+| a person who asked to stop | `StoppedMark` (`apps/dashboard/src/surfaces/kit/pill/stopped-mark.tsx`, the pill in contracts' `STOP_WORDS.mark`): beside the name wherever a person is offered as someone to answer or contact, from the row's `stopped` or `optedOut` |
 | empty state | `EmptyState`, and `FailedRead` for a read that failed (`.empty*`) |
 | state pill | `StatePill` (`.pill`) |
 | name chip | `.chip`, its × `.chip-x` |

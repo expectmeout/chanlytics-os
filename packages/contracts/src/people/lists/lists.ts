@@ -17,6 +17,8 @@ import {
   type ListRule,
 } from "./list-rules";
 import { SELLS_BY_QUESTION, SELLS_BY_WORDS } from "../../deals/sells-by";
+import { STOP_WORDS } from "../../consent/consent";
+import { HELD_WORDS, NEEDS_YOU_WORD } from "../../conversations/standing";
 import type { PersonRowVM } from "../person-row";
 
 /* ------------------------------------------------------------------ the reference */
@@ -28,7 +30,7 @@ const BUILTIN_ID = /^[a-z_]{1,40}$/;
 
 /**
  * A list's token, as the address writes it after `clients/`: `seg:<built-in id>` or `list:<saved list id>`. `state:`
- * (People's old standing tabs) reads as `seg:`, since Needs you and Waiting on you are lists.
+ * (People's old standing tabs) reads as `seg:`, since Needs you and You have it are lists.
  */
 export function listToken(ref: ListRef): string {
   return ref.kind === "builtin" ? `seg:${ref.id}` : `list:${ref.id}`;
@@ -56,6 +58,15 @@ export const PEOPLE_LIST_GROUPS: readonly { id: PeopleListGroup; label: string }
   { id: "reach", label: "Reach" },
 ];
 
+/**
+ * What the two kinds of list are called wherever lists are grouped by whose they are (decision 0009: a list is one thing, a
+ * rule over facts): the ones the product ships, and the ones the workspace made. People's rail, the Campaigns audience
+ * and the playbook picker head their two groups with these, and Today's row of pins -- which holds both -- is `pinned`,
+ * never "Your lists". They were "Smart lists" and "Saved" on People, "People's lists" and "Your lists" on Campaigns, and
+ * "Your lists" over both on Today. Leads' six views of a lead's stage are not lists (LEAD_WORDS.viewsHeading).
+ */
+export const LIST_GROUP_WORDS = { builtin: "Ready-made lists", own: "Your lists", pinned: "Pinned lists" } as const;
+
 interface BuiltinSpec {
   id: string;
   label: string;
@@ -80,7 +91,7 @@ const r = (...all: ListRule["all"]): ListRule => ({ v: 2, all });
 export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "needs_you",
-    label: "Needs you",
+    label: NEEDS_YOU_WORD,
     tip: "An open escalation, or a thread waiting for a person",
     group: "attention",
     onProfile: false,
@@ -89,7 +100,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   // Yours by the one standing rule (standing.ts): you took it over, or your reply paused the receptionist.
   {
     id: "waiting_on_you",
-    label: "Waiting on you",
+    label: HELD_WORDS.yours.pill,
     tip: "Threads you have: you took them over, or your reply paused the receptionist. A teammate's waits on them",
     group: "attention",
     onProfile: false,
@@ -221,7 +232,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   // A fact, not the state: someone who opted out AND needs you is in both lists.
   {
     id: "opted_out",
-    label: "Opted out",
+    label: STOP_WORDS.pill,
     tip: "Asked to stop; the receptionist stays silent, offers included",
     group: "reach",
     onProfile: false,

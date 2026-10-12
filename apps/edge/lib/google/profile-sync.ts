@@ -6,12 +6,12 @@
  */
 import { emitEvent } from "../packages/db.js";
 import { listReviews, planProfileSync, reviewParent, type PlacesHttp } from "../packages/channels.js";
-import { autoReplyBell, lensRoute, localDate, type EdgeRefusal } from "../packages/contracts.js";
+import { autoReplyBell, lensRoute, localDate, reviewRoute, type EdgeRefusal } from "../packages/contracts.js";
 import { keepAndPush, recordNotification } from "../ops/notify.js";
 import { logger } from "../log.js";
 import { readAllRows } from "../paged.js";
 import { http } from "./places.js";
-import type { ConnectionRow, Db } from "./google-rows.js";
+import { aboutReview, reviewRowIds, type ConnectionRow, type Db } from "./google-rows.js";
 import { tokenFor } from "./profile-credentials.js";
 import { answerNewReviews } from "./review-answers.js";
 import type { CheckResult } from "./listing-check.js";
@@ -142,14 +142,19 @@ export async function syncProfile(
     .update({ last_synced_at: plan.synced_at, sync_error: null, reviews_complete: plan.complete })
     .eq("tenant_id", conn.tenant_id);
   if (done.error) throw new Error(done.error.message);
-  // A new review reaches the phones too (decision 0040); what the receptionist answered is the bell's line alone.
+  // A new review reaches the phones too (decision 0040), about the review's row and opening it (contracts reviewRoute); what the
+  // receptionist answered is the bell's line alone.
+  const rowIds = await reviewRowIds(
+    db,
+    conn.tenant_id,
+    plan.bells.flatMap((b) => (b.review_id ? [b.review_id] : [])),
+  );
   for (const b of plan.bells) {
     await keepAndPush(conn.tenant_id, {
       kind: "review",
       title: b.title,
       body: b.body,
-      route: lensRoute("reviews"),
-      about: b.review_id ? { type: "review", id: b.review_id } : null,
+      ...aboutReview(rowIds, b.review_id),
     });
   }
   // The first sync is history, never answered. After that, the auto mode
@@ -162,12 +167,14 @@ export async function syncProfile(
       });
   const bell = autoReplyBell(answered);
   if (bell) {
+    // One review answered opens that review (its reply is under it); several open the lens.
+    const one = aboutOne(answered);
     await recordNotification(conn.tenant_id, {
       kind: "review",
       title: bell.title,
       body: bell.body,
-      route: lensRoute("reviews"),
-      about: aboutOne(answered),
+      route: one ? reviewRoute(one.id) : lensRoute("reviews"),
+      about: one,
     });
   }
   if (plan.fresh.length) {

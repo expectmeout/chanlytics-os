@@ -280,7 +280,8 @@ async function raiseUnanswered({ p, now, out, tell, late }: Tick): Promise<void>
           !toldFromItsEvent(flagged) &&
           (await tell(r.tenant_id, {
             kind: "deadman",
-            route: "inbox",
+            route: `inbox/th-${r.conversation_id}`,
+            about: { type: "conversation", id: r.conversation_id },
             subject: "A customer wrote and nothing answered",
             body:
               `A message arrived ${waitedMin} minutes ago and the receptionist never finished with it, so the customer has had no reply.\n\n` +
@@ -359,7 +360,8 @@ async function failOrphans({ p, now, out, tell, late }: Tick): Promise<void> {
           !toldFromItsEvent(flagged) &&
           (await tell(s.tenant_id, {
             kind: "deadman",
-            route: "inbox",
+            route: `inbox/th-${s.conversation_id}`,
+            about: { type: "conversation", id: s.conversation_id },
             subject: "A reply never left",
             body: `${who} was queued and ${ORPHAN_NOTE}, so it never reached the customer. The thread is flagged for you in the Inbox; check it before sending again.`,
             redactedBody: "A queued reply in this workspace never left; the thread is flagged.",

@@ -86,6 +86,12 @@ export const RATE = {
   settings: { limit: 30, windowMs: MIN_MS, noun: "settings changes" },
   /** A new tenant, its rows and its provisioning. */
   create_workspace: { limit: 5, windowMs: HOUR_MS, noun: "new workspaces" },
+  /**
+   * The shell's one POST per boot that seats the person in the workspaces that invited them (decision 0047, lane 6). Made on
+   * every cold start of a page, answered from one indexed lookup when nothing is open (00023), so the ceiling is a working
+   * day's page loads, not a loop's; a refusal here costs the person nothing but the news that they joined.
+   */
+  invitation_accept: { limit: 120, windowMs: HOUR_MS, noun: "invitation checks" },
   /** A person's receptionist mode. */
   person_mode: { limit: 60, windowMs: MIN_MS, noun: "receptionist changes" },
   consent: { limit: 60, windowMs: MIN_MS, noun: "consent changes" },

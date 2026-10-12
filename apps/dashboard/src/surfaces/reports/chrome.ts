@@ -80,7 +80,7 @@ function lensViews(picked: LensId, days: ReportDays | null): SurfaceViews {
  * afresh for each would lose its period's dimming and its place with every pick.
  */
 export function reportsChrome({ param }: { param: string | null }) {
-  const at = reportsParamParts(param ?? "") ?? { lens: "overview" as const, days: null };
+  const at = reportsParamParts(param ?? "") ?? { lens: "overview" as const, days: null, review: null };
   const crumbs = at.lens === "overview" ? ["Reports"] : [{ label: "Reports", to: "reports" }, lensOf(at.lens).label];
   return { crumbs, mount: "reports", views: lensViews(at.lens, at.days) };
 }

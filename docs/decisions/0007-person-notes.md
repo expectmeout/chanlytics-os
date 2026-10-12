@@ -107,8 +107,10 @@ note with a day, not a new kind of record. `person_notes` gains `due_on`, `done_
 - **Everywhere else.** The Pipeline: a Next step column after Stage, the soonest first on its first press; Steps
   due among what waits, over every group, saying no group's worth; the peek's fact for a step about the person
   (one that names their deal is the deal card's, said there once); a line on the board's card and a fact on the
-  phone's. Today: the steps due at the head of the day panel, three at most, the rest a line to People's Steps
-  due, in every workspace, calendar or not (`today.ts todaySteps`). The thread: a step whose day has come, under
+  phone's. Today: the steps due as rows of the queue, three at most, the rest one row to People's Steps due, in every
+  workspace, calendar or not (`today-steps.ts todaySteps`, `withSteps`; each opens the person, and its verb is Done, the
+  thread's). They were the head of the day panel, which canvas E3 dropped on 1 October 2026 without re-homing them; they came
+  back as queue rows on 11 October 2026 (0047, task 1.3 of the wiring plan), and the day pane stays dropped. The thread: a step whose day has come, under
   the head, with Done, which answers as the deal card's does. Ask: `propose_deal` takes `next_step` with
   `next_step_due` (today or later), and the commit writes the step after the deal, naming the row the door wrote;
   a step the door refuses is said on the receipt, and the deal stands. `search_people` says each person's next

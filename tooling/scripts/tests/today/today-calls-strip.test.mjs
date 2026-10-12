@@ -219,7 +219,17 @@ test("an ongoing call is a live row the strip can draw", () => {
 
 test("Today repaints when a call starts or ends, not on every transcript turn", async () => {
   // The searches ride along since a round that stops to ask is a lead_rounds UPDATE (spec G7); the calls rule is the same.
-  assert.deepEqual(todayOverride.refreshOnTables, [...DEFAULT_REFRESH_TABLES, "calls", "lead_rounds"]);
+  // And the channel, the line and the billing account, which its chips and red bands are drawn from (shell/hearing), and the
+  // person each row of the queue names (shell/hearing/the-pages-hear-the-silent-records).
+  assert.deepEqual(todayOverride.refreshOnTables, [
+    ...DEFAULT_REFRESH_TABLES,
+    "calls",
+    "lead_rounds",
+    "tenant_channels",
+    "lines",
+    "billing_accounts",
+    "contacts",
+  ]);
   // The rule itself, as the runner applies it: Today's own override (surfaces/today/surface.ts), run, not read. A turn
   // keeps status ongoing; a start or an end does not.
   const today = todayOverride;

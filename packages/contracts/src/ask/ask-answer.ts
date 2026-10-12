@@ -18,6 +18,7 @@ import {
   type AskReadSet,
 } from "./citations";
 import { PROPOSAL_SPECS, proposalSpec } from "../ask-proposals/proposals";
+import { canonicalRoute } from "../shell/address";
 
 /* ------------------------------------------------------------------ the shape */
 
@@ -138,7 +139,9 @@ function nextQuestions(next: string[], places: string[]): string[] {
  * a place keeps it: a later one to the same place (two appointments cited to the Calendar) is drawn without one; Do's
  * Open goes when an item has its route; a card's Open is hidden when an item or Open has its route; a receipt keeps its
  * words and draws its door only when nothing else offers that route; a next question that points at an offered place
- * goes. Returns the answer as drawn and, per card, whether its Open is drawn.
+ * goes. Returns the answer as drawn and, per card, whether its Open is drawn. A place is its canonical route (canonicalRoute):
+ * the readers spell a campaign `outbound/<id>` and the cards `campaigns/moment:<id>`, which are one place, and so are
+ * `people/<id>` and `clients/<id>`; the routes the answer carries are left as they were written.
  */
 export function oneDoor(
   a: AskAnswer,
@@ -146,22 +149,22 @@ export function oneDoor(
 ): { answer: AskAnswer; cardOpen: Record<string, boolean> } {
   const offered = new Set<string>();
   const items = a.show.items.map((it) => {
-    const door = !offered.has(it.source.to);
-    offered.add(it.source.to);
+    const door = !offered.has(canonicalRoute(it.source.to));
+    offered.add(canonicalRoute(it.source.to));
     return { ...it, source: { ...it.source, door } };
   });
-  const open = a.do.open && !offered.has(a.do.open.to) ? a.do.open : null;
-  if (open) offered.add(open.to);
+  const open = a.do.open && !offered.has(canonicalRoute(a.do.open.to)) ? a.do.open : null;
+  if (open) offered.add(canonicalRoute(open.to));
   const cardOpen: Record<string, boolean> = {};
   for (const c of cards) {
     const to = cardOpenRoute(c);
-    cardOpen[c.id] = !!to && !offered.has(to);
-    if (to && cardOpen[c.id]) offered.add(to);
+    cardOpen[c.id] = !!to && !offered.has(canonicalRoute(to));
+    if (to && cardOpen[c.id]) offered.add(canonicalRoute(to));
   }
   const receipt = (s: AskSource | null): AskSource | null => {
     if (!s) return null;
-    const door = !offered.has(s.to);
-    if (door) offered.add(s.to);
+    const door = !offered.has(canonicalRoute(s.to));
+    if (door) offered.add(canonicalRoute(s.to));
     return { ...s, door };
   };
   const breakdown = a.show.breakdown ? { ...a.show.breakdown, source: receipt(a.show.breakdown.source) } : null;
@@ -294,7 +297,7 @@ export function rightNowLine(w: AskWaiting | null, language: AskLanguage): strin
   const people = total
     ? es
       ? `${names(who, total, true)} ${total === 1 ? "te espera" : "te esperan"}`
-      : `${names(who, total, false)} ${total === 1 ? "is" : "are"} waiting on you`
+      : `${names(who, total, false)} ${total === 1 ? "needs" : "need"} you`
     : "";
   const n = w.runs.length;
   const runs = n
@@ -313,8 +316,7 @@ export function rightNowLine(w: AskWaiting | null, language: AskLanguage): strin
         ? `your search for ${w.searches[0].name} is waiting for your answer`
         : `${k} searches are waiting for your answer`
     : "";
-  if (!people && !runs && !searchesLine)
-    return es ? "Nadie te espera ahora mismo." : "Nobody is waiting on you right now.";
+  if (!people && !runs && !searchesLine) return es ? "Nadie te espera ahora mismo." : "Nobody needs you right now.";
   const s = [people, runs, searchesLine].filter(Boolean).join("; ");
   return `${s.charAt(0).toUpperCase()}${s.slice(1)}.`;
 }

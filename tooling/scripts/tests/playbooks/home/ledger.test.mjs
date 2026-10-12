@@ -272,13 +272,16 @@ test("three campaigns on one moment: all in its group, the stage's lead first, t
     detail: "Next run tomorrow 10:00 AM, about 4 people",
   });
   const waiting = row(l, "pb-l");
-  assert.deepEqual([waiting.status, waiting.stateWords, waiting.tone], ["waiting", "Waiting on you", "warn"]);
+  assert.deepEqual(
+    [waiting.status, waiting.stateWords, waiting.tone],
+    ["waiting", "Waiting for your approval", "warn"],
+  );
   assert.deepEqual(
     waiting.waiting,
     { runId: "r-1", people: 7, refusal: null },
     "approved or skipped on its row (decision 14)",
   );
-  assert.deepEqual(waiting.next, { words: "Waiting on you", atMs: NOW });
+  assert.deepEqual(waiting.next, { words: "Waiting for your approval", atMs: NOW });
   assert.deepEqual(l.counts, { all: 3, running: 2, needs: 1, paused: 1 });
   const stage = C.campaignsHomeOf(input(over)).rail.stages.find((s) => s.id === "quiet");
   assert.deepEqual(stage.bar, { on: 1, waiting: 1, paused: 1, of: 3 });
@@ -637,7 +640,7 @@ test("a phone row says its moment, its next run and who is at it, in one line; a
     "Quiet or lapsed · Paused · 5 people",
     "a paused row's end is its Resume: the line says it rests",
   );
-  assert.equal(line("pb-w"), "Quiet or lapsed · 5 people", "Waiting on you is the pill's, said once");
+  assert.equal(line("pb-w"), "Quiet or lapsed · 5 people", "Waiting for your approval is the pill's, said once");
   assert.equal(
     line("receptionist"),
     `First contact · ${row(l, "receptionist").people.n} this week`,
@@ -691,4 +694,72 @@ test("the composer says what a moment already holds, never the campaign being ch
   assert.equal(C.LIFECYCLE_WORDS.compose.calendar.door.label, C.LIFECYCLE_WORDS.needsCalendar.door, "one spelling");
   assert.equal(C.LIFECYCLE_WORDS.compose.calendar.door.to, C.CALENDAR_SETTING_ROUTE);
   assert.equal(C.LIFECYCLE_WORDS.compose.number.door.to, C.CHANNELS_DOOR);
+});
+
+test("D1-campaign-state: a paused campaign with a run waiting is shown waiting, with its Approve, whether or not it is paused", () => {
+  const rows = [
+    playbook({ id: "pb-pw", state: "paused", next: "paused", totals: { waiting: { id: "r-1", recipient_count: 7 } } }),
+    playbook({ id: "pb-p", state: "paused", next: "paused", trigger: "visited" }),
+  ];
+  const home = C.campaignsHomeOf(
+    input({ playbooks: playbooks(rows), broadcasts: broadcasts([run({ playbook_id: "pb-pw" })]) }),
+  );
+  const l = home.ledger;
+  // The row: waiting first, in the one phrase, amber, with the run's Approve and Skip; Resume stays the campaign's own act.
+  const both = row(l, "pb-pw");
+  assert.deepEqual(
+    [both.status, both.stateWords, both.phoneWords, both.tone],
+    ["waiting", C.RUN_WAITING_WORDS, C.RUN_WAITING_WORDS, "warn"],
+  );
+  assert.deepEqual(
+    both.waiting,
+    { runId: "r-1", people: 7, refusal: null },
+    "the home's row has the Approve its drawer has",
+  );
+  assert.equal(both.next.words, C.RUN_WAITING_WORDS);
+  assert.equal(both.act.kind, "resume", "it is still paused: Resume is kept beside the run");
+  // A paused campaign with nothing waiting is still Paused, grey, with Resume.
+  const paused = row(l, "pb-p");
+  assert.deepEqual(
+    [paused.status, paused.stateWords, paused.tone, paused.waiting],
+    ["paused", "Paused", "plain", null],
+  );
+  assert.equal(paused.act.kind, "resume");
+  // The counts and the meter count it as waiting, not paused; the rail says the same word as the row.
+  assert.deepEqual(l.counts, { all: 2, running: 1, needs: 1, paused: 1 });
+  const stage = home.rail.stages.find((s) => s.playbookId === "pb-pw");
+  assert.deepEqual([stage.stateWords, stage.tone, stage.waits], [C.RUN_WAITING_WORDS, "warn", true]);
+  assert.equal(stage.covered, false, "a paused campaign covers nothing, whatever waits");
+  // Library's used-by line reads the same order: a run waiting outranks paused, and says it in the run's phrase.
+  assert.equal(
+    C.templateUseNote({
+      playbooks: [{ name: "Win-back", paused: true, waiting: true, runs: "" }],
+      broadcasts: 0,
+      recent: [],
+      booking: false,
+    }),
+    "a run is waiting for your approval",
+  );
+});
+
+test("D1-campaign-state: a reach-out with a run waiting is shown waiting whether or not it is paused, with its run's door", () => {
+  const l = ledger({
+    reachOuts: [
+      chain("c-pw", { state: "paused", next: { waiting_run_id: "r-9" } }),
+      chain("c-p", { state: "paused" }),
+      chain("c-w", { next: { waiting_run_id: "r-8" } }),
+      chain("c-on"),
+    ],
+  });
+  const states = (id) => [row(l, id).status, row(l, id).stateWords, row(l, id).tone];
+  assert.deepEqual(states("c-pw"), ["waiting", C.RUN_WAITING_WORDS, "warn"]);
+  assert.deepEqual(row(l, "c-pw").act, {
+    kind: "route",
+    label: C.LIFECYCLE_WORDS.ledger.openRun,
+    route: "broadcasts/run:r-9",
+  });
+  assert.deepEqual(states("c-p"), ["paused", "Paused", "plain"]);
+  assert.equal(row(l, "c-p").act.kind, "resume");
+  assert.deepEqual(states("c-w"), ["waiting", C.RUN_WAITING_WORDS, "warn"]);
+  assert.deepEqual(states("c-on"), ["on", "On", "ok"]);
 });

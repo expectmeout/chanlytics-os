@@ -67,7 +67,7 @@ function answeredCard(vm: ReportVM, days: number) {
   );
 }
 
-/** Why it stopped: each handover's reason. The Inbox takes no reason, so a row is no door; "Waiting on you" is the way there. */
+/** Why it stopped: each handover's reason. The Inbox takes no reason, so a row is no door; "Needs you" is the way there. */
 function reasonsCard(vm: ReportVM) {
   const t = vm.answered.totals;
   return (

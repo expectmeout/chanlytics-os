@@ -1,5 +1,11 @@
 import "server-only";
-import type { BroadcastDetailDto, BroadcastDto, ChannelsReady, MonthSent } from "@chanlytics/contracts";
+import {
+  addressOf,
+  type BroadcastDetailDto,
+  type BroadcastDto,
+  type ChannelsReady,
+  type MonthSent,
+} from "@chanlytics/contracts";
 import { getBroadcast, listBroadcasts } from "../campaigns/broadcasts";
 import { channelsReadyOrNull } from "../campaigns/channels-ready";
 import { monthSentNext, monthSentOrNull } from "../campaigns/month-sent";
@@ -12,7 +18,7 @@ import { log } from "@/server/log";
 const runRef = (b: BroadcastDto): RowRef => ({
   kind: "broadcast",
   id: b.id,
-  route: `broadcasts/run:${b.id}`,
+  route: addressOf({ kind: "send", id: b.id }),
   label: b.name,
 });
 

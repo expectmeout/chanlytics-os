@@ -4,9 +4,10 @@
  * One table, keyed by route, replacing the list each of eleven couriers
  * carried for its own verbs. The lists are the couriers' own, copied as they
  * were: the reply re-reads the inbox, the conversations and Today, which
- * carries the "needs you" count; a template change re-reads settings and the
- * inbox, and tells the broadcasts and playbooks pages, which keep a hook until
- * they read the surfaces directly.
+ * carries the "needs you" count; a template change re-reads settings, the one
+ * read of the templates, and the pages that offer a message (the Inbox's reply
+ * box, both composers, the New conversation sheet) follow its publication
+ * (surfaces/offered-templates.ts), with no hook and no read of their own.
  *
  * Every write is in one of two tables: AFTER, the surfaces it re-reads, or
  * REFRESHES_NOTHING, with the reason nothing on screen moves (a draft, a
@@ -20,16 +21,15 @@ import type { RouteKey } from "../client/api";
 import { broadcastsOverride } from "@/surfaces/campaigns/broadcasts/surface";
 import { calendarOverride } from "@/surfaces/calendar/surface";
 import { conversationsOverride } from "@/surfaces/inbox/conversations-surface";
-import { forgetInboxTemplates, inboxOverride } from "@/surfaces/inbox/surface";
-import { liveOverride } from "@/surfaces/live/surface";
+import { inboxOverride } from "@/surfaces/inbox/surface";
 import { notificationsOverride } from "./surfaces/notifications";
 import { peopleOverride } from "@/surfaces/people/surface";
 import { playbooksOverride } from "@/surfaces/campaigns/playbooks/surface";
-import { reportsOverride } from "@/surfaces/reports/surface";
-import { reportsHeadlineOverride } from "@/surfaces/reports/headline";
-import { forgetReportsPeople, reportsPeopleOverride } from "@/surfaces/reports/people-surface";
-import { forgetReportsCampaigns, reportsCampaignsOverride } from "@/surfaces/reports/campaigns-surface";
-import { forgetReceptionist, receptionistOverride } from "@/surfaces/reports/receptionist-surface";
+import { forgetReports, reportsOverride } from "@/surfaces/reports/surface";
+import { headline } from "@/surfaces/reports/headline";
+import { reportsPeople as reportsPeopleLens } from "@/surfaces/reports/people-surface";
+import { reportsCampaigns as reportsCampaignsLens } from "@/surfaces/reports/campaigns-surface";
+import { receptionist as receptionistLens } from "@/surfaces/reports/receptionist-surface";
 import { forgetReviews, reviewsOverride } from "@/surfaces/reports/reviews-surface";
 import { settingsOverride } from "./surfaces/settings";
 import { todayOverride } from "@/surfaces/today/surface";
@@ -40,44 +40,66 @@ import { googleOverride } from "./google";
 import { leadsOverride } from "@/surfaces/leads/surface";
 import { setupOverride } from "@/surfaces/setup/surface";
 import { refreshSurfaces } from "./surface-runner";
-import { ownsTheScreen } from "./surface-registry";
+import { ownsTheScreen, whereDrawn } from "./surface-registry";
 import { routeOnScreen } from "./workspace";
 import { reachOutsOverride } from "@/surfaces/campaigns/reach-out/surface";
 import { repliesOverride } from "./reach-out/replies";
+import { campaignResults as campaignResultsHome } from "@/surfaces/campaigns/home/results-surface";
 
-// What the Receptionist lens says is made wrong by writes the live feed does not tell it of: a verb on a conversation (only the
-// conversation changes, and a reply or a resolved escalation moves "waiting on you"), the zone (its days), the hours and the closures
-// ("while you were closed"). Its read is forgotten, as a template written is for the Inbox, and read as the lens comes on screen; where
-// the lens is on screen already, nothing else would read it, so it is read again at once.
-const receptionist = (): SurfaceOverride[] => {
-  forgetReceptionist();
-  return typeof window !== "undefined" && ownsTheScreen("reports_receptionist", routeOnScreen())
-    ? [receptionistOverride]
-    : [];
+/** A read that counts over days, held by range (period-surface.ts): a Reports lens, or Today's headline. */
+interface PeriodRead {
+  override: SurfaceOverride;
+  forget(): void;
+  outdate(): void;
+}
+/**
+ * The one rule for a read over days that a write made wrong and the live feed does not tell of. Where its page is on screen, nothing
+ * else would read it, so it is read again at once; every range it holds is dropped, but the numbers drawn stay until the read that
+ * replaces them lands, so a band or a lens does not blank for the length of a read on every reply. Anywhere else it is forgotten, and
+ * its page reads it as it comes on screen. Each lens below is named once by each write that moves it, through the composite lists: a
+ * list that holds another does not name it twice.
+ */
+const ifDrawn = (lens: PeriodRead) => (): SurfaceOverride[] => {
+  if (typeof window !== "undefined" && ownsTheScreen(lens.override.key, routeOnScreen())) {
+    lens.outdate();
+    return [lens.override];
+  }
+  lens.forget();
+  return [];
 };
-// What the Campaigns lens says is made wrong by writes the live feed does not tell it of: a yes or a stop (the people it counts as
-// answers), a reply or a resolved escalation ("replies waiting on you"), a run approved, skipped or made ("runs waiting" and the funnel),
-// a number connected or its standing ("your number") and the zone (its days). Its read is forgotten, and read as the page that draws it
-// comes on screen: the lens, or the Overview, which draws it for one fact. Where that page is on screen already, nothing else would read
-// it (the feed hears the lens's tables only on the lens, and tells it of none of these writes), so it is read again at once. Named once
-// by each write that moves it, through the composite lists below: a list that holds another does not name it twice.
-const reportsCampaigns = (): SurfaceOverride[] => {
-  forgetReportsCampaigns();
-  return typeof window !== "undefined" && ownsTheScreen("reports_campaigns", routeOnScreen())
-    ? [reportsCampaignsOverride]
-    : [];
+// What the Receptionist lens says is made wrong by a verb on a conversation (only the conversation changes, and a reply or a resolved
+// escalation moves "waiting on you"), the zone (its days), the hours and the closures ("while you were closed").
+const receptionist = ifDrawn(receptionistLens);
+// What the Campaigns lens says is made wrong by a yes or a stop (the people it counts as answers), a reply or a resolved escalation
+// ("replies waiting on you"), a run approved, skipped or made ("runs waiting" and the funnel), a number connected or its standing ("your
+// number") and the zone (its days). Its page is the lens, or the Overview, which draws it for one fact (the feed hears the lens's tables
+// only on the lens, and tells it of none of these writes).
+const reportsCampaigns = ifDrawn(reportsCampaignsLens);
+// What Today's period line and Worth a look say is made wrong by a reply or a resolved escalation (the unanswered count falls by one for
+// each) and a visit marked (the booking pair). Today is where it is drawn.
+const headlineIfDrawn = ifDrawn(headline);
+// What the Reports overview says (the report, its booking line and its Deals section) is made wrong by a deal recorded, the zone saved
+// and a visit marked, and not by a message, which the feed tells it of while it is open. Made from Reports it is read again at once;
+// from anywhere else it is forgotten, and Reports reads it as it comes on screen, as the lenses are.
+const reportsIfDrawn = (): SurfaceOverride[] => {
+  forgetReports();
+  return typeof window !== "undefined" && ownsTheScreen("reports", routeOnScreen()) ? [reportsOverride] : [];
 };
-const thread = () => [inboxOverride, conversationsOverride, todayOverride, ...receptionist(), ...reportsCampaigns()];
-// What the People lens counts is who is in the book, what they answered, their steps, the channels and the zone (its days). A write that
-// moves one of them from another page forgets the lens's read, and the lens reads it as it comes on screen; where it is on screen
-// already, nothing else would (the feed tells it of messages, calls and notes, not of these writes), so it is read again at once. A
-// conversation's write, a reply or a hold reaches no one new and moves no step: `thread()` does not name it.
-const reportsPeople = (): SurfaceOverride[] => {
-  forgetReportsPeople();
-  return typeof window !== "undefined" && ownsTheScreen("reports_people", routeOnScreen())
-    ? [reportsPeopleOverride]
-    : [];
-};
+// What the Campaigns home says of its last 30 days (the sends and what came back, Campaigns' own numbers) is made wrong by a person
+// erased, whose messages are deleted with them: read again where Campaigns is drawn, forgotten elsewhere, as the lenses are.
+const campaignResultsIfDrawn = ifDrawn(campaignResultsHome);
+const thread = () => [
+  inboxOverride,
+  conversationsOverride,
+  todayOverride,
+  ...receptionist(),
+  ...reportsCampaigns(),
+  ...headlineIfDrawn(),
+];
+// What the People lens counts is who is in the book, what they answered, their steps, the channels and the zone (its days) (the feed
+// tells it of messages, calls and notes, not of these writes). A conversation's write, a reply or a hold reaches no one new and moves no
+// step: `thread()` does not name it.
+const reportsPeople = ifDrawn(reportsPeopleLens);
 const people = () => [peopleOverride];
 // A note may be a step, and the lens counts the steps overdue and due today: written, done, removed or decided, they move the lens too.
 const notes = () => [peopleOverride, ...reportsPeople()];
@@ -90,6 +112,11 @@ const runs = () => [playbooksOverride, broadcastsOverride, ...reportsCampaigns()
 // playbook's "N will get it" (broadcasts, playbooks). A write that moves either re-reads them, or a yes recorded and
 // New message opened showed the audience as it was before.
 const audiences = () => [broadcastsOverride, playbooksOverride];
+// What Campaigns says of a rule saved on Settings (the Resume question's 'It sends on its own' is read from the modes the playbooks hold):
+// read again where Campaigns is drawn, kept for its page elsewhere, as the lenses are forgotten and read as they come on screen. The
+// composers are heavy reads of everyone in People, and a rule saved is nearly always saved from Settings.
+const campaignsIfDrawn = (): SurfaceOverride[] =>
+  typeof window !== "undefined" ? whereDrawn([playbooksOverride, broadcastsOverride]) : [];
 // A yes or a stop recorded, for one person or many: the one list, so the four writes cannot drift apart. Their row and
 // their threads say it (personAndThreads, which carries the Campaigns lens's read: it counts the yeses and stops after a campaign, once),
 // the audiences count by it, and the People lens counts them too (and the two records made one, whose answers may change). The
@@ -97,6 +124,10 @@ const audiences = () => [broadcastsOverride, playbooksOverride];
 const consentWrite = () => [...personAndThreads(), ...audiences(), ...reportsPeople()];
 // A person added or imported is on an audience or off it, as one deleted is, and is in the book the People lens counts or not.
 const peopleAndAudiences = () => [peopleOverride, ...audiences(), ...reportsPeople()];
+// A person added from the Calendar's panel ("Add to People": a read of the board adds nobody, 0047 lane 6) is the person the board then
+// matches that visit to: the board is read again where it is drawn, and kept for its page elsewhere (the hourly sweep's people reach it
+// the same way, through the calendar_people bell row).
+const calendarIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? whereDrawn([calendarOverride]) : []);
 // A playbook made, changed or removed moves what People's rows say of it (their `follow_up`, 0006), with its own pages.
 const runsAndPeople = () => [...runs(), peopleOverride];
 // What also moves a reach-out's row (Part 4 PR 8): its chain's pause and resume are the playbook's own door on its
@@ -113,15 +144,19 @@ const readiness = () => [broadcastsOverride, playbooksOverride, peopleOverride];
 // whose postal address is the one an offer by email names. The Campaigns lens says the connected number's health ("your number"):
 // its read goes with them too.
 const channelChange = () => [...readiness(), ...reportsPeople(), ...reportsCampaigns()];
-// A template written here is read again by the Inbox at once, not when its kept read goes stale (inbox/surface.ts). The
-// playbooks surface, whose read of them is the call's text and the Library's count on Campaigns, is read again by its hook
-// (HOOKS below, `__refreshPlaybooks`), so it is not named here: a second read of GET playbooks would follow the first.
-const templates = () => {
-  forgetInboxTemplates();
-  return [settingsOverride, inboxOverride];
-};
-// An email or text version, written or taken away: the one list, so the two writes cannot drift apart.
-const versionWrite = () => [settingsOverride, reachOutsOverride, playbooksOverride, broadcastsOverride, leadsOverride];
+// A template written here is read again by Settings, the one read of the templates (every row with its status, what sends each and
+// how many went out). The pages that offer a message, the Inbox's reply box and the New conversation sheet, Broadcasts' composer
+// and Playbooks' composer, and Campaigns' home with its call's text and Library count, draw from that read and are made of it
+// again when it is published (surfaces/offered-templates.ts), so none is named here and none reads GET templates, GET playbooks
+// or GET broadcasts again for it: a second read of them would only follow the first.
+const templates = () => [settingsOverride];
+// An email or text version, written or taken away: the one list, so the two writes cannot drift apart. The composers' Send by row and
+// preview are drawn from the settings read (the messages it holds, with the versions each has), so it is the read that moves them. The
+// playbooks are read again for the server's side of it: a message with no WhatsApp row takes its category from its own versions
+// (contracts campaignMessagesOf, rule 4), and the count of a playbook whose message is stricter than its moment is made by that
+// category. Not Leads: a lead's row carries nothing of a chain's words (the held sends are the runs', and a lead's stage is its own
+// write), so a version moves no row it reads.
+const versionWrite = () => [settingsOverride, reachOutsOverride, playbooksOverride];
 const leads = () => [leadsOverride];
 // A lead's stage written (said no, not a fit, contacted, converted), in one or many, or such a write undone, sets or clears the
 // lead's closed reason: the Reach-outs part of the Campaigns lens counts Said no from it, as it stands now. Its read goes with the
@@ -138,18 +173,29 @@ const google = () => {
 };
 const billing = () => [billingOverride, setupOverride];
 const settings = () => [settingsOverride];
-// Settings carries the version the next save sends, and Today, the Calendar and Setup state the workspace's facts; the hours and the
-// closures a save holds are the Receptionist lens's "while you were closed", and the postal address it holds is what an offer by email
-// names, so who can receive offers (the People lens's count) moves with it. The one list for the two writes that carry them, so they
-// cannot drift.
-const settingsWrite = () => [
-  settingsOverride,
-  todayOverride,
+// A visit marked kept, missed or cancelled: what counts visits, in the writer's tab. The Calendar shows the word (and Today's queue,
+// which asks "Did they come?" of yesterday's unmarked visits, reads its blocks); People's rows (and the Inbox's chip, drawn from them, and
+// the person's page, which reads People: its History and Coming up say the word and ask the same presses) say the next and last visit and
+// "missed a visit"; the playbooks' and broadcasts' pools leave a visit
+// that is missed or cancelled; Today's headline, Reports' overview and the People and Receptionist lenses count the booked ones, read
+// where they are on screen and forgotten elsewhere. A teammate's mark, a booking email and the hourly calendar read reach the same
+// pages through the appointments the live feed tells of (their surfaces' rules).
+const visits = () => [
   calendarOverride,
-  setupOverride,
-  ...channelChange(),
+  peopleOverride,
+  playbooksOverride,
+  broadcastsOverride,
+  ...headlineIfDrawn(),
+  ...reportsIfDrawn(),
+  ...reportsPeople(),
   ...receptionist(),
 ];
+// Settings carries the version the next save sends, and the Calendar and Setup state the workspace's facts; the hours and the
+// closures a save holds are the Receptionist lens's "while you were closed", and the postal address it holds is what an offer by email
+// names, so who can receive offers (the People lens's count) moves with it. Today is not here: its five reads (the day's metrics, the
+// conversations, the escalations, the calls and the searches) draw no configuration. The one list for the two writes that carry
+// them, so they cannot drift.
+const settingsWrite = () => [settingsOverride, calendarOverride, setupOverride, ...channelChange(), ...receptionist()];
 
 /** Exported for the tests that hold a verb to its surfaces by running this, not by reading a courier. */
 export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
@@ -163,14 +209,20 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST escalations/[id]/resolve": thread,
   "POST messages/[id]/steer": thread,
   "POST messages/[id]/cancel-send": thread,
-  "POST calls/[id]/whisper": () => [liveOverride],
-  "POST calls/[id]/end": () => [liveOverride],
-  "POST calls/[id]/hand-over": () => [liveOverride],
   // People.
-  "DELETE contacts/[id]": () => [...personAndThreads(), ...audiences(), ...reportsPeople()],
+  // A person erased takes their messages, calls and threads with them (erase_contact deletes the rows, which the feed is not told
+  // of): the counts the report and the Campaigns home make of them fall, where those are drawn.
+  "DELETE contacts/[id]": () => [
+    ...personAndThreads(),
+    ...audiences(),
+    ...reportsPeople(),
+    ...reportsIfDrawn(),
+    ...campaignResultsIfDrawn(),
+  ],
   // Two records became one (0028): the kept person's page and People, the threads that folded, and every count by
-  // consent, Reports' included: the merge may change an answer, as a consent write does.
-  "POST contacts/[id]/merge": consentWrite,
+  // consent, Reports' included: the merge may change an answer, as a consent write does. The bell's lines about the folded thread
+  // now name the kept one (their address moves; the feed is told of a line's arrival, not of its change).
+  "POST contacts/[id]/merge": () => [...consentWrite(), notificationsOverride],
   "PUT contacts/[id]/receptionist": people,
   "PUT contacts/[id]/consent": consentWrite,
   "PUT contacts/[id]/marketing-consent": consentWrite,
@@ -182,7 +234,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // one, which the People lens counts.
   "PUT contacts/[id]/details": () => [...personAndThreads(), ...audiences(), ...reportsPeople()],
   // A deal moves People's row and lists, and Reports' Deals section counts it (0004).
-  "POST contacts/[id]/deal": () => [peopleOverride, reportsOverride, ...audiences()],
+  "POST contacts/[id]/deal": () => [peopleOverride, ...reportsIfDrawn(), ...audiences()],
   // A note may be a step, and a row carries the next one (00166): the Pipeline, Steps due and Today follow it, and so does the
   // People lens, which counts the steps overdue and due today.
   "POST contacts/[id]/notes": notes,
@@ -190,9 +242,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST contacts/[id]/notes/remove": notes,
   // A receptionist's suggestion kept becomes a note, perhaps a step: the same rows move.
   "POST contacts/[id]/notes/decide": notes,
-  // Not the same (0034 step 4): the pair leaves the person's page, which reads itself again; People's rows are as they were.
-  "POST contacts/[id]/doubts/dismiss": people,
-  "POST contacts": peopleAndAudiences,
+  "POST contacts": () => [...peopleAndAudiences(), ...calendarIfDrawn()],
   // A conversation begun from the Inbox: their thread is new or moved, and their row on People says so.
   "POST people/[id]/message": personAndThreads,
   "POST contacts/import": peopleAndAudiences,
@@ -222,6 +272,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST leads/[id]/put-back": leads,
   "POST lead-operations/[id]/undo": leadsAnswered,
   "POST leads/bulk": leadsAnswered,
+  // The leads a copy took are marked, so the month is not charged for them twice (§0.2): the rows and the month's count read again.
+  "POST leads/export": leads,
   "DELETE leads/[id]": leads,
   "PUT lead-suggestions": leads,
   "POST leads/[id]/stage": () => [...leadsAnswered(), peopleOverride, ...reportsPeople()],
@@ -231,16 +283,17 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST broadcasts": runs,
   "POST broadcasts/[id]/approve": runsAndChains,
   "POST broadcasts/[id]/cancel": runsAndChains,
-  // A playbook named by a starter files its message too (A0): the Library and the Inbox's templates move with it.
+  // A playbook named by a starter files its message too (A0): the Library, and every picker that is made of it, move with it.
   "POST playbooks": () => [...runsAndPeople(), ...templates()],
   "PUT playbooks/[id]": () => [...runsAndChains(), peopleOverride],
   "DELETE playbooks/[id]": runsAndPeople,
   "POST playbooks/[id]/run": runs,
   // A reach-out is a chain of playbooks over a search's leads (Part 4): its runs are broadcasts, its answers move leads,
-  // and its chain is the reach-outs surface (Playbooks' row, and Templates' email rows drawn from it).
-  "POST reach-outs": () => [reachOutsOverride, playbooksOverride, broadcastsOverride, leadsOverride],
-  "PUT reach-outs/[id]": () => [reachOutsOverride, playbooksOverride, broadcastsOverride, leadsOverride],
-  "DELETE reach-outs/[id]": () => [reachOutsOverride, playbooksOverride, broadcastsOverride, leadsOverride],
+  // and its chain is the reach-outs surface (Playbooks' row, and Templates' email rows drawn from it). Its own save writes the chain,
+  // its runs and its words and no lead: Leads carries nothing of a chain, and an answer that moves a lead is the lead's own write.
+  "POST reach-outs": () => [reachOutsOverride, playbooksOverride, broadcastsOverride],
+  "PUT reach-outs/[id]": () => [reachOutsOverride, playbooksOverride, broadcastsOverride],
+  "DELETE reach-outs/[id]": () => [reachOutsOverride, playbooksOverride, broadcastsOverride],
   // One held email decided moves its run and its lead, never its chain: the row's counts are its report, read on open.
   "POST reach-out-sends/[id]/decide": () => [broadcastsOverride, playbooksOverride, leadsOverride],
   // "Stop writing to them" skips the lead's planned and held emails in their runs (Part 6, H10).
@@ -254,11 +307,11 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST templates/starter": templates,
   "POST templates/sync": templates,
   // An email or text version of a message (One message, every channel, step 1): the Templates page reads them with the
-  // settings surface, and both composers read them too: the Send by row closes a channel the message has no version on,
-  // and the preview draws a person on the channel they are reached on as that version reads. No hook is told: the
-  // composers read their surfaces, which this re-reads. A reach-out's email is written by this route too (step 5),
-  // through its chain's save, so what a chain's edit moves moves with it: its words, the runs its held sends are in, and
-  // its leads. Taking a version away moves the same surfaces as writing one: the channel it was on closes.
+  // settings surface, and both composers are made of that read: the Send by row closes a channel the message has no version
+  // on, and the preview draws a person on the channel they are reached on as that version reads. Nothing else is told: the
+  // composers follow the settings read's publication (surfaces/offered-templates.ts). A reach-out's email is written by this
+  // route too (step 5), through its chain's save, so what a chain's edit moves moves with it: its words (the chains' read) and
+  // the playbooks' counts. Taking a version away moves the same surfaces as writing one: the channel it was on closes.
   "POST templates/versions": versionWrite,
   "DELETE templates/versions/[id]": versionWrite,
   // Settings and the team.
@@ -272,20 +325,23 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "PUT settings": settingsWrite,
   // The first receptionist is a settings write too, from what is known (its profile carries the hours): the same surfaces read again.
   "POST settings/receptionist": settingsWrite,
-  // A booking email held for a look, read again or dismissed (00345): the Calendar's read carries the held list and its
-  // count, which the Business tab's fold and the board's card both draw from, so the list says what is left at once.
-  "POST calendar/notices/[id]/read-again": () => [calendarOverride],
+  // A booking email held for a look and dismissed (00345): the Calendar's read carries the held list and its count, which the
+  // Business tab's fold and the board's card both draw from, so the list says what is left at once. (Read again is a job: below.)
   "POST calendar/notices/[id]/dismiss": () => [calendarOverride],
-  // What a member said became of a visit (0002 step 8): the board's read carries each visit's word.
-  "POST calendar/visits/[id]": () => [calendarOverride],
+  // What a member said became of a visit (0002 step 8): the board's read carries each visit's word, and every page that counts
+  // visits reads it from the appointments record (#1551): People's rows and the Inbox's chip over them, the playbooks' and the
+  // broadcasts' pools, Reports' booking line and Today's. The one list, so a page that draws a visit cannot be left behind.
+  "POST calendar/visits/[id]": visits,
   // A class's mode is what lets a playbook send by itself, ask, or never: People's rows say it of the follow-up (0006), and the Reviews
-  // lens's, of a review, whether its composer asks the receptionist for a draft.
-  "PUT policies": () => [settingsOverride, peopleOverride, reviewsOverride],
+  // lens's, of a review, whether its composer asks the receptionist for a draft. Campaigns' Resume question says 'It sends on its own'
+  // for a class that is Auto, from the modes the playbooks read held (campaignsIfDrawn).
+  "PUT policies": () => [settingsOverride, peopleOverride, reviewsOverride, ...campaignsIfDrawn()],
   // The zone is the workspace's, saved through its own route, and the prompt names it: the settings read's preview
   // carries the zone every fold's consequence is resolved with (business-tab.ts), and the prompt card states it. Not
   // re-read, they kept the old zone until something else was saved. How its customers buy is saved there too (0008),
   // and it switches the deal layer: People's lists and column, Reports' Deals section and Today's proposals waiting. The zone
-  // is also where Today's period line counts its days from: the headline is read again too, and the Reviews lens's read, which
+  // is also where Today's period line counts its days from: the headline is read again where Today is on screen and forgotten
+  // elsewhere, and so is the overview's. The Reviews lens's read, which
   // counts a review on the day it was written in the zone, is forgotten and read as the lens comes on screen; so is the Receptionist
   // lens's, whose days are the zone's too, and the People lens's, whose days (and the day a step falls due) are, and the Campaigns
   // lens's, whose window is counted in it. How its customers buy
@@ -295,8 +351,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
     return [
       settingsOverride,
       peopleOverride,
-      reportsOverride,
-      reportsHeadlineOverride,
+      ...reportsIfDrawn(),
+      ...headlineIfDrawn(),
       todayOverride,
       playbooksOverride,
       ...receptionist(),
@@ -308,6 +364,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // it again from there, so a picture saved or taken away is on screen as the answer lands.
   "PUT workspaces/logo": () => [workspaceOverride],
   "DELETE workspaces/logo": () => [workspaceOverride],
+  // Your own name: who is looking (the workspace read carries __ME, which the sidebar and the account menu say), and the roster the
+  // Team pane lists and the Inbox's teammate names are drawn from (the settings read), so the old name is not left on either.
+  "PUT me": () => [workspaceOverride, settingsOverride],
   "POST team/invite": settings,
   "POST team/invite/[id]/resend": settings,
   "PATCH team/[id]": settings,
@@ -353,7 +412,10 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST google/locations": google,
   "DELETE google/connection": google,
   // A reply posted is a review answered, from the Reviews lens: it counts the answers and lists the reviews that wait (the live feed is
-  // told of a review's first sight only, so a reply moves nothing there on its own). Its read publishes Google's own beside it.
+  // told of a review's first sight only, so a reply moves nothing there on its own). Its read publishes Google's own beside it
+  // (publishGoogleRead), where this tab holds Google's, so Today's line (made of it, and gone once its review has a reply) is current
+  // without a second read of the same listing. The bell's notices of the review are read by the verb (legacy-bridge/google.ts
+  // replyToReview), which writes through the notifications door.
   "POST google/reviews/[id]/reply": () => [reviewsOverride],
   // A partner joining a workspace (0020): the switcher's list, so the workspace just joined is there to open, and the
   // partner's count. It was a second path, read by hand in partner.ts.
@@ -382,6 +444,22 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   // (surfaces/seen.ts), and the next read of each list carries the mark: three lists read again on every thread
   // opened would be three requests to say what the screen already does.
   "PUT contacts/[id]/seen": "the reader's own mark; the tab already draws it, and the next read carries it",
+  // Not the same (0034 step 4): the pair leaves the person's page, which reads itself again with the row gone (hero.tsx); no row of
+  // People carries a doubt, so a read of the whole list was for nothing but to tell the open page to reload.
+  "POST contacts/[id]/doubts/dismiss":
+    "the open person page reads itself again with the doubt gone; no row of People carries a doubt",
+  // Live's calls: a press asks the phone provider, which changes the call, and its webhook changes the row; the calls notice
+  // (WATCHED calls, 00265) reads Live then. The press changes only the decision it records, and Live reads the calls and the
+  // channels, so a read made when the provider has answered, and the call has not yet moved, shows the call as it was.
+  "POST calls/[id]/whisper": "a sentence for the receptionist, worked into its next answer; no row Live reads changes",
+  "POST calls/[id]/end":
+    "the provider ends the call, and its webhook changes the row; the calls notice reads Live then",
+  "POST calls/[id]/hand-over":
+    "the provider transfers the call, and its webhook changes the row; the calls notice reads Live then",
+  // A booking email held for a look, read again: a job is scheduled and reads the email later. The Calendar has nothing new until it
+  // has: the visit it makes is an appointment the Calendar hears, and the list says what is left on the next read.
+  "POST calendar/notices/[id]/read-again":
+    "a job is scheduled to read the email; the appointment it makes is told to the Calendar",
   // A draft, a preview, a search: nothing stored that a surface shows.
   "POST calendar/preview": "a preview of what a change to the calendar would do",
   "POST google/reviews/[id]/draft": "a draft of a review's answer, shown in the sheet that asked",
@@ -399,11 +477,12 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST workspaces/create": "the tab switches to the new workspace, which boots",
   "POST workspaces/logo/lookup":
     "a look that stores nothing: the Logo row draws the picture it answers, and only a save keeps it",
+  "POST me/invitations/accept":
+    "the shell makes it as it boots and reads the list of workspaces again itself when it seated someone (invitations/accept.ts)",
   "POST handovers/[id]/accept": "the tab switches to the workspace handed over, which boots",
   "POST handovers/[id]/decline": "the handover leaves the screen asking, and the app opens as it would have",
   "DELETE me": "the account is gone and the tab goes to sign in",
   // Kept by the page that made them, or nothing a page shows.
-  "PUT me": "the name, laid on who is looking at once (identity.ts setName, me:changed)",
   "PUT me/devices": "this device's push registration",
   "DELETE me/devices": "this device's push registration",
   "PUT me/alerts": "published from the answer (notifications/verbs.ts)",
@@ -435,23 +514,10 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST platform/waitlist/invited": "the back office's waitlist, read again by its pane",
 };
 
-/** Window hooks a few pages still register; they go when those pages read the surfaces directly. */
-export const HOOKS: Partial<Record<RouteKey, string[]>> = {
-  "POST templates": ["__refreshBroadcasts", "__refreshPlaybooks"],
-  "PUT templates/[id]": ["__refreshBroadcasts", "__refreshPlaybooks"],
-  "DELETE templates/[id]": ["__refreshBroadcasts", "__refreshPlaybooks"],
-  "POST templates/starter": ["__refreshBroadcasts", "__refreshPlaybooks"],
-  "POST templates/sync": ["__refreshBroadcasts", "__refreshPlaybooks"],
-};
-
 /** The keys the table names, for the test that holds them to writes. */
 export const AFTER_KEYS = Object.keys(AFTER) as RouteKey[];
 
 export async function refreshAfter(key: RouteKey): Promise<void> {
   const overrides = AFTER[key]?.() ?? [];
   if (overrides.length) await refreshSurfaces(overrides);
-  for (const name of HOOKS[key] ?? []) {
-    const fn = (window as unknown as Record<string, (() => Promise<void>) | undefined>)[name];
-    if (fn) await fn();
-  }
 }

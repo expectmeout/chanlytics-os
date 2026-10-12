@@ -2356,9 +2356,9 @@ const WEEK = { from: "2026-09-07", days: 7 };
 const ANA = { id: "k-ana", display_name: "Ana Ruiz", wa_profile_name: null, phone_e164: "+19175550100", email: null };
 const tuesday = (week) => week.days.find((d) => d.key === "2026-09-08");
 
-test("the calendar, for Ask: the board's week exactly as calendarWeek assembles it for a read that puts nobody in People -- over calendar-feed's fixture with no calendar, a calendar that cannot be read, and its one appointment -- and each person its days name is a row, once, by the board's name for them", async () => {
+test("the calendar, for Ask: the board's week exactly as calendarWeek assembles it (a read puts nobody in People) -- over calendar-feed's fixture with no calendar, a calendar that cannot be read, and its one appointment -- and each person its days name is a row, once, by the board's name for them", async () => {
   const none = calTables(null);
-  const quiet = await calendarWeek(calCtx(none), A, WEEK, CAL_NOW, { canAct: false });
+  const quiet = await calendarWeek(calCtx(none), A, WEEK, CAL_NOW);
   const noFeed = await kernel.load(calIn(calCtx(none)), calendarReader, WEEK);
   assert.deepEqual(noFeed.data, { calendar: quiet });
   assert.equal(quiet.feed.state, "none");
@@ -2367,7 +2367,7 @@ test("the calendar, for Ask: the board's week exactly as calendarWeek assembles 
   await logged("ask_feed_fetch_failed", () =>
     withFeed({ body: "nope", status: 503 }, async () => {
       const t = calTables("https://cal.example/down.ics");
-      const want = await calendarWeek(calCtx(t), A, WEEK, CAL_NOW, { canAct: false });
+      const want = await calendarWeek(calCtx(t), A, WEEK, CAL_NOW);
       const r = await kernel.load(calIn(calCtx(t)), calendarReader, WEEK);
       assert.deepEqual(r.data, { calendar: want });
       assert.deepEqual([want.feed.state, want.feed.reason, want.feed.status], ["unavailable", "http", 503]);
@@ -2381,7 +2381,6 @@ test("the calendar, for Ask: the board's week exactly as calendarWeek assembles 
       A,
       WEEK,
       CAL_NOW,
-      { canAct: false },
     );
     const r = await kernel.load(calIn(calCtx(t, () => [ANA])), calendarReader, WEEK);
     assert.deepEqual(r.data, { calendar: want }, "the week calendarWeek answers");
@@ -2538,7 +2537,8 @@ test("the board's open times leave out a booking that arrived by email, over the
 /**
  * Every query GET calendar asked at origin/main (c39ce689) for an owner over calendar-feed's one appointment with
  * nobody in People yet, in order, with the columns it selected: the workspace's door, the zone, the settings, everyone
- * with their reply modes, then the person the feed names put in People.
+ * with their reply modes. It then put the person the feed names in People (create_person); since decision 0047 (lane 6)
+ * a read of the board writes nothing, for any role, and that last call is gone.
  */
 const CALENDAR_ASKED_AT_MAIN = [
   ["memberships.select", "tenant_id, role, tenants (slug, name, timezone)"],
@@ -2558,10 +2558,9 @@ const CALENDAR_ASKED_AT_MAIN = [
   // Once the feed has read: the record's taken time over the days on offer, which the open times subtract beside the
   // feed's (record-busy.ts). Asked here because this week does not cover a fortnight's offer; the board's first window does.
   ["appointments.select", "*"],
-  ["rpc:create_person", null],
 ];
 
-test("GET calendar through its reader asks what it asked at origin/main, in the same order -- the settings now through the config reader's columns -- and keeps its write between the read and the board: an owner's or an operator's read puts the person the feed names in People and the board links them, as it did; a viewer's asks the same, less the write", async (t) => {
+test("GET calendar through its reader asks what it asked at origin/main, in the same order -- the settings now through the config reader's columns -- less the write it made between the read and the board: no role's read puts the person the feed names in People (decision 0047, lane 6), and the board links nobody People does not hold", async (t) => {
   // The route reads the real clock, and People takes whom a feed names within a month of it (contracts
   // peopleFromItems). The feed's one appointment is on 8 September 2026, so with no clock this went red for good on
   // 8 October, thirty days on: nobody was added, and the last read asked for was missing. It runs on the clock the
@@ -2583,18 +2582,18 @@ test("GET calendar through its reader asks what it asked at origin/main, in the 
           ctx.supabase.seen.map((q) => (q.rpc ? [`rpc:${q.rpc}`, null] : [`${q.table}.${q.op}`, q.columns])),
           3,
         ),
-        recordTogether(role === "viewer" ? want.slice(0, -1) : want, 3),
+        recordTogether(want, 3),
         role,
       );
       assert.deepEqual(
         made.map((a) => [a.p_tenant_id, a.p_phone_e164, a.p_display_name, a.p_source]),
-        role === "viewer" ? [] : [[A, "+19175550100", "Ana Ruiz", "calendar"]],
-        `${role}: who is put in People`,
+        [],
+        `${role}: nobody is put in People by a read`,
       );
       assert.deepEqual(
         tuesday(page.calendar).items.map((i) => i.person),
-        role === "viewer" ? [null] : [{ id: "p1", name: "Ana Ruiz", via: "phone" }],
-        `${role}: the board links whom the read just added, as it did at origin/main`,
+        [null],
+        `${role}: the board links nobody People does not hold`,
       );
       assert.equal(page.calendar.days.length, 7);
       assert.ok(!JSON.stringify(page).includes("cal.example"), "the address never reaches the browser");
@@ -4787,7 +4786,7 @@ test("the playbooks, for Ask and for the page: GET playbooks answers its reader'
       assert.deepEqual(Object.keys(r.data), PLAYBOOKS_KEYS, `${label}: the keys in the order the route answered them`);
       assert.deepEqual(
         r.rows,
-        r.data.playbooks.map((p) => ({ kind: "playbook", id: p.id, route: `outbound/${p.id}`, label: p.name })),
+        r.data.playbooks.map((p) => ({ kind: "playbook", id: p.id, route: `campaigns/moment:${p.id}`, label: p.name })),
       );
       pages[label] = r.data;
     }

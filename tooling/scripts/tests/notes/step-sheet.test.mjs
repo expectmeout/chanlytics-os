@@ -293,8 +293,13 @@ const wire = (dto) => {
   };
   return { calls, answers };
 };
-const saved = [];
-W.addEventListener("note:saved", (e) => saved.push(e.detail));
+// What the sheet says on the window when it saves: nothing (0047). The write's refresh reads People behind it and the live feed
+// tells of the note; the person's page and the Pipeline's peek follow People, so the sheet sends them no event of its own.
+const said = [];
+for (const type of ["note:saved", "deal:recorded", "surface:clients"])
+  W.addEventListener(type, (e) => said.push(e.type));
+/** A save the door took: the sheet has closed and said so (a refusal says nothing on the toast and keeps the sheet open). */
+const written = () => toasts.length > 0;
 
 let drawn = null;
 const open = () => {
@@ -302,7 +307,7 @@ const open = () => {
   recFolds.reset();
   clearReadCaches();
   toasts.length = 0;
-  saved.length = 0;
+  said.length = 0;
   drawn = () => W.React.createElement(StepSheetHost, {});
   return drawn();
 };
@@ -358,7 +363,7 @@ test("the sheet opens where it is asked for, reads the person, says what is wron
   tree = redraw();
   assert.equal(recFolds.dirty(), true, "typed: the tab asks before closing over it");
   press(saveOf(tree));
-  tree = await until("written", () => saved.length > 0);
+  tree = await until("written", written);
   const writes = calls.filter((c) => c.method === "POST");
   assert.deepEqual(
     writes.map((c) => [c.path, c.body]),
@@ -376,7 +381,11 @@ test("the sheet opens where it is asked for, reads the person, says what is wron
     ],
   );
   assert.equal(textOf(toasts.at(-1).msg), STEP_SHEET_WORDS.done.add);
-  assert.deepEqual(saved, [{ personId: "p1" }], "the page is told, and reads them again");
+  assert.deepEqual(
+    said,
+    [],
+    "REGRESSION: the sheet told the page with a window event of its own, a second read of the person",
+  );
   assert.equal(sheetOf(tree), null, "and the sheet has closed");
   assert.equal(recFolds.dirty(), false);
 });
@@ -391,7 +400,7 @@ test("a change opens on the step as it stands and saves with the version it open
   assert.equal(input(tree, "step-sheet-what-input").props.value, "Call about the timeline");
   type(input(redraw(), "step-sheet-what-input"), "Call about the timeline and the logo");
   press(saveOf(redraw()));
-  await until("written", () => saved.length > 0);
+  await until("written", written);
   const write = calls.find((c) => c.method === "POST");
   assert.deepEqual([write.body.note_id, write.body.version, write.body.deal_id], ["n1", 2, "d1"]);
   assert.equal(textOf(toasts.at(-1).msg), STEP_SHEET_WORDS.done.edit);
@@ -451,7 +460,7 @@ test("refused because a teammate changed the step since, the sheet reads it agai
     "what was typed stays",
   );
   press(saveOf(tree));
-  await until("written", () => saved.length > 0);
+  await until("written", written);
   const [first, second] = calls.filter((c) => c.method === "POST").map((c) => c.body);
   assert.equal(first.version, 2, "the first Save named the version it was read at");
   assert.deepEqual(

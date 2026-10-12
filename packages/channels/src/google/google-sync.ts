@@ -12,7 +12,15 @@
  * nothing. The edge runs these plans against the tables and the bell; the
  * tests run them against fixtures.
  */
-import { plural, ratingWords, reviewSnippet, starsOf, type GoogleListingFacts, DAY_MS } from "@chanlytics/contracts";
+import {
+  plural,
+  ratingWords,
+  reviewSnippet,
+  starsOf,
+  type GoogleListingFacts,
+  DAY_MS,
+  NEW_REVIEW_NEWS,
+} from "@chanlytics/contracts";
 import type { PlaceDetails, PlaceReview } from "./google-places";
 import type { GbpReview, GbpReviewsPage } from "./google-profile";
 
@@ -58,7 +66,7 @@ export function reviewBells(
 ): ReviewBell[] {
   if (news.length > 0 && news.length <= REVIEW_BELL_MAX) {
     return news.map((r) => ({
-      title: `New on Google: ${starsOf(r.rating)} from ${r.author?.trim() || "a customer"}`,
+      title: `${NEW_REVIEW_NEWS} ${starsOf(r.rating)} from ${r.author?.trim() || "a customer"}`,
       body: `${r.text?.trim() ? `“${reviewSnippet(r.text, 280)}”` : "A rating without words."}\n${overall(listing.rating, listing.review_count)}.`,
       review_id: r.review_id,
     }));

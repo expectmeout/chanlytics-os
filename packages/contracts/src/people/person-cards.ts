@@ -6,7 +6,8 @@
  * builders are person-timeline.ts. Decomposed from toPersonVM (Phase 2 of the organization plan), proven equal by
  * value. index.ts names the card types; the builders are internal.
  */
-import { visitDay, visitLine, visitTime } from "../calendar/calendar-people";
+import { visitDay, visitLine } from "../calendar/calendar-people";
+import { appointmentWordWhere, appointmentWords } from "../journey/appointment-word";
 import { clockDate, clockDateYear, clockDayLabel, clockTime } from "../shared/clock";
 import { type DealVM, proposalLinkOf, toDealVM } from "../deals/deal-vm";
 import { leadsRoute } from "../leads/leads";
@@ -16,14 +17,18 @@ import { listRuleWhy } from "./lists/list-rules";
 import { PEOPLE_LISTS } from "./lists/lists";
 import type { PersonDetailDto, PersonRowDto } from "./person-dto";
 import {
+  askedFor,
   asPersonMode,
-  HELD_THREAD,
+  heldThreadOf,
   PERSON_MODE_WORDS,
+  SILENT_STOP,
+  snoozedAsk,
+  type HolderNames,
   type PersonMode,
   type ReceptionistTone,
 } from "./person-receptionist";
 import { ago } from "./person-row-facts";
-import { holderOf } from "./person-state";
+import { holderOf, personStanding } from "./person-state";
 import { bookingLinkAction, emailFactWords, type PersonProposalVM, repliesWords } from "./person-reach";
 import { toPersonRowVM, type PersonRowVM, visitTitleFor } from "./person-row";
 import { addedBy, ourWireOfThreads, proposalSending, proposalSent, replyChannelOfThreads, ts } from "./person-helpers";
@@ -51,6 +56,16 @@ export interface PersonFact {
   tone?: "neg" | "pos" | "";
 }
 
+/**
+ * One About fact. `next` marks the next appointment's, whatever the business calls one (its key is that word: "Next
+ * visit", "Next appointment"), so the page puts the door to it beside the fact it is, never beside a word it guessed.
+ */
+export interface PersonAboutFact {
+  k: string;
+  v: string;
+  next?: true;
+}
+
 /** The customer's last line and the last reply, verbatim. */
 export interface PersonLastExchange {
   customer: { text: string; at: string } | null;
@@ -72,6 +87,8 @@ export interface PersonCardContext {
   nowMs: number;
   /** The member looking, or null for none: whose a thread is depends on it (holderOf). */
   viewerId: string | null;
+  /** The roster, where the page has read it, or null: a teammate's thread says whose it is. */
+  names: HolderNames | null;
   /** The list row, corrected by the profile's own rows (personRowOf). */
   row: PersonRowDto;
   /** The row view model the page extends, built for the member looking. */
@@ -218,12 +235,14 @@ export function personCardContext(
   tz: string,
   now: Date,
   viewerId: string | null,
+  /** The roster, where the page has read it: a teammate's thread says whose it is (heldThreadOf). */
+  names: HolderNames | null = null,
 ): PersonCardContext {
   const nowMs = now.getTime();
   const row = personRowOf(d);
   // A card reads none of a row's reach facts (who can be sent what: the lists', Today's and the follow-up's), so it does
   // not carry the workspace's channels and counts them as before they were.
-  const base = toPersonRowVM(row, tz, now, viewerId, null);
+  const base = toPersonRowVM(row, tz, now, viewerId, null, names);
   const dealsOn = !!d.deals_on;
   const deals = dealsOn ? dealsListOf(d, tz, nowMs) : [];
   // The row's columns say WHICH deal shows (people_list's lateral join, pickCurrentDeal's rule); the listed copy of it
@@ -235,6 +254,7 @@ export function personCardContext(
     now,
     nowMs,
     viewerId,
+    names,
     row,
     base,
     stamp: (t: number) => ({ time: clockTime(t, tz), day: clockDayLabel(t, tz, nowMs) }),
@@ -288,29 +308,65 @@ export function lastExchangeOf({ profile, stamp }: PersonCardContext): PersonLas
  * reason and what happens next -- never the receptionist's name again, never the state a second time. Ask
  * reads `title` and `detail` together (server/ask/tools.ts), so the title keeps the state for it.
  */
-export function rightNowOf({ profile, tz, now, nowMs, viewerId, row: r, base }: PersonCardContext): PersonRightNow {
+export function rightNowOf({
+  profile,
+  tz,
+  now,
+  nowMs,
+  viewerId,
+  names,
+  row: r,
+  base,
+}: PersonCardContext): PersonRightNow {
   const threadTo = r.latest_conversation_id ? `inbox/th-${r.latest_conversation_id}` : null;
   // One door, one label: the header's "Open thread" and this card's "Open in Inbox" went to the same thread.
   const openThread = threadTo ? { label: "Open the thread", to: threadTo } : null;
+  const queuedCard = (): PersonRightNow => {
+    const q = ts(r.queued_reply_at);
+    return {
+      tone: "queued",
+      title: "Reply sending",
+      detail: `A reply is queued${q !== null ? `, ${ago(q, tz, nowMs)}` : ""} — it can still be stopped from the Inbox.`,
+      cta: openThread,
+    };
+  };
+  // A snooze puts the thread aside whatever else is open on it (standingOf, the Inbox's rule): Snoozed, with when it wakes
+  // and what it still asks for. The card tested the open escalation first and said "Needs you · Escalated" over a thread the
+  // Inbox had filed away (D1-snoozed-hold). A reply counting down to send is still what the thread is doing, so it goes on.
+  if (personStanding(r, nowMs, viewerId).standing === "snoozed") {
+    if (r.queued_reply_at) return queuedCard();
+    const asks = snoozedAsk(r);
+    const wakes = base.receptionist.wakes;
+    const said = [wakes ? `Wakes ${wakes}.` : null, asks ? `${asks} — that is still waiting for you.` : null];
+    return {
+      tone: "snoozed",
+      title: "Snoozed",
+      detail: said.filter(Boolean).join(" ") || "Hidden from your queue until it wakes.",
+      cta: openThread,
+    };
+  }
   // A thread a person has is theirs, whatever flagged it: receptionistOf's
   // order, so this card and the Receptionist fact cannot disagree. It asked
   // needs_human first, and an owner who had just answered an email -- a reply
   // claims the thread, and its state stays needs_human until handed back --
   // read "Needs you · Stopped, and nobody has taken the thread yet". Whose it
-  // is, is the Inbox's own word for it (HELD_THREAD).
+  // is, is the Inbox's own word for it (heldThreadOf, with the teammate's name where the roster says it).
   const held = holderOf(r, nowMs, viewerId);
   if (held) {
-    const { tone, title, detail } = HELD_THREAD[held];
+    const holder = held === "theirs" && r.latest_assignee_user_id ? names?.(r.latest_assignee_user_id) : null;
+    const { tone, title, detail } = heldThreadOf(held, holder);
     return { tone, title, detail, cta: openThread };
   }
-  if (r.open_escalation_reason) {
+  // A hold that waits on nobody (a STOP, opened before decision 0048) is no card of a wait: the consent card below says it.
+  const asked = askedFor(r);
+  if (asked) {
     const since = r.open_escalation_since ? shortTime(r.open_escalation_since, tz, now) : null;
     return {
       tone: "escalated",
-      title: `Escalated · ${reasonShort(r.open_escalation_reason)}`,
+      title: `Escalated · ${reasonShort(asked)}`,
       // The operator's first sentence for the reason (the Inbox's own): "Paused until someone answers" was appended to
       // every reason, over a person who had asked to stop, where nothing may be answered (the 2 Oct 2026 audit).
-      detail: `${since ? `Since ${since}. ` : ""}${reasonSummaryOf(r.open_escalation_reason)}`,
+      detail: `${since ? `Since ${since}. ` : ""}${reasonSummaryOf(asked)}`,
       cta: openThread,
     };
   }
@@ -322,31 +378,10 @@ export function rightNowOf({ profile, tz, now, nowMs, viewerId, row: r, base }: 
       cta: openThread,
     };
   }
-  if (r.queued_reply_at) {
-    const q = ts(r.queued_reply_at);
-    return {
-      tone: "queued",
-      title: "Reply sending",
-      detail: `A reply is queued${q !== null ? `, ${ago(q, tz, nowMs)}` : ""} — it can still be stopped from the Inbox.`,
-      cta: openThread,
-    };
-  }
-  if (base.receptionist.tone === "snoozed") {
-    return {
-      tone: "snoozed",
-      title: "Snoozed",
-      detail: `Wakes ${shortTime(r.latest_snooze_until ?? null, tz, now)}.`,
-      cta: openThread,
-    };
-  }
+  if (r.queued_reply_at) return queuedCard();
   if (base.consent.state === "opted_out") {
     // The consent ask on the rail carries the date and the words; here, only what it means for the thread.
-    return {
-      tone: "silent",
-      title: "Silent, they opted out",
-      detail: "They said stop — nothing goes out to them until they ask again.",
-      cta: null,
-    };
+    return { tone: "silent", title: SILENT_STOP.label, detail: SILENT_STOP.detail, cta: null };
   }
   if (
     ["never", "ask"].includes(profile.receptionist_mode ?? "") ||
@@ -388,12 +423,30 @@ const TONE_WORD: Record<ReceptionistTone, string> = {
   silent: "Silent",
 };
 
-/** Under the word, what the label says after it ("set to Never", "a person owns the thread"), not the label again. */
-const receptionistMeta = (label: string) =>
-  label.includes(", ") ? label.slice(label.indexOf(", ") + 2) : label.toLowerCase();
+/**
+ * Under the word, what the label says after it ("set to Never", "a person owns the thread"), not the label again. A
+ * teammate's name keeps its capital ("Ruben has it"); only "A teammate" is said in lower case. A snoozed thread's is when
+ * it wakes and what it still asks (the word before it is "Snoozed").
+ */
+const receptionistMeta = (label: string, tone: ReceptionistTone) =>
+  tone === "snoozed"
+    ? label.replace(/^Snoozed\s*/, "") || label.toLowerCase()
+    : label.includes(", ")
+      ? label.slice(label.indexOf(", ") + 2)
+      : tone === "theirs" && !label.startsWith("A teammate")
+        ? label
+        : label.toLowerCase();
 
-/** Facts strip: first and last contact, conversations, calls, the receptionist's standing, the deal, the next visit. */
-export function personFactsOf({ profile, tz, nowMs, base, current, firstChannel }: PersonCardContext): PersonFact[] {
+/** Facts strip: first and last contact, conversations, calls, the receptionist's standing, the deal, the next appointment. */
+export function personFactsOf({
+  profile,
+  tz,
+  nowMs,
+  base,
+  current,
+  firstChannel,
+  dealsOn,
+}: PersonCardContext): PersonFact[] {
   const lc = base.lastContact;
   const attempts = profile.calls.filter(neverConnected).length;
   const lastMeta =
@@ -401,8 +454,8 @@ export function personFactsOf({ profile, tz, nowMs, base, current, firstChannel 
       ? lc.kind === "call"
         ? "they phoned"
         : "they wrote"
-      : lc.who === "you"
-        ? "you replied"
+      : lc.who === "team"
+        ? "your team replied"
         : lc.who === "receptionist"
           ? "receptionist replied"
           : lc.who === "system"
@@ -430,7 +483,10 @@ export function personFactsOf({ profile, tz, nowMs, base, current, firstChannel 
     {
       label: "Receptionist",
       value: TONE_WORD[base.receptionist.tone],
-      meta: base.receptionist.tone === "escalated" ? "for you" : receptionistMeta(base.receptionist.label),
+      meta:
+        base.receptionist.tone === "escalated"
+          ? "for you"
+          : receptionistMeta(base.receptionist.label, base.receptionist.tone),
     },
     // The deal they are deciding on or took (0004): the stage word, and its line with the service and the amount.
     ...(current ? [{ label: "Deal", value: current.word, meta: current.line, tone: "" as const }] : []),
@@ -441,11 +497,19 @@ export function personFactsOf({ profile, tz, nowMs, base, current, firstChannel 
   if (profile.visits) {
     const v = profile.visits;
     facts.push({
-      label: "Next visit",
+      // In the workspace's word for an appointment, as Campaigns says it (decision 0041).
+      label: appointmentWords(appointmentWordWhere(dealsOn)).next,
       value: v.next ? visitDay(v.next.start, v.timezone, nowMs) : "—",
-      // The cell is narrow: the time here, the service in About.
-      meta: v.next
-        ? `${visitTime(v.next, v.timezone)}${v.next.via === "name" ? " · by name" : ""}`
+      // The cell is narrow: the time here, then how it stands if a word has been said of it and how it was matched if that
+      // was a guess (the visit line's own words, person-row.ts), the service in About.
+      meta: base.nextVisitLine
+        ? [
+            base.nextVisitLine.time,
+            base.nextVisitLine.state?.text,
+            base.nextVisitLine.guess ? base.nextVisitLine.match : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")
         : v.state === "ok"
           ? "none booked"
           : "could not be read",
@@ -463,8 +527,9 @@ export function aboutOf({
   firstChannel,
   reply,
   proposal,
-}: PersonCardContext): { k: string; v: string }[] {
-  const about: { k: string; v: string }[] = [];
+  dealsOn,
+}: PersonCardContext): PersonAboutFact[] {
+  const about: PersonAboutFact[] = [];
   if (base.phone) about.push({ k: "Phone", v: base.phone });
   if (base.email) about.push({ k: "Email", v: emailFactWords(base.email, base.emailSuppressed) });
   if (proposal) about.push({ k: "Proposal", v: proposal.host });
@@ -492,10 +557,11 @@ export function aboutOf({
       : v.state === "ok"
         ? "Nothing on the calendar"
         : "Calendar could not be read";
-    about.push({ k: "Next visit", v: nextLine });
+    const W = appointmentWords(appointmentWordWhere(dealsOn));
+    about.push({ k: W.next, v: nextLine, next: true });
     if (v.last)
       about.push({
-        k: "Last visit",
+        k: W.last,
         v: `${visitLine(v.last, v.timezone, nowMs)} · ${visitTitleFor(v.last.title, base.name)}`,
       });
   }
@@ -529,17 +595,19 @@ export function sinceWords(base: PersonRowVM): string {
 }
 
 /**
- * The row's reply fields made exact by the profile: the wire in words, its window, and the booking link's words for it
- * (which say an address that stopped accepting mail cannot be emailed: `emailStopped`, the row's own flag).
+ * The row's reply fields made exact by the profile: the wire in words, its window, and the booking link's act for it
+ * (which says an address that stopped accepting mail cannot be emailed: `emailStopped`, the row's own flag; and offers
+ * nothing to someone who asked to stop: `stop`, the row's own `stopped` and name). The same function the row asks.
  */
 export function replyFields(
   reply: PersonReply,
   emailStopped: boolean,
+  stop: { optedOut: boolean; who: string },
 ): Pick<PersonRowVM, "replyVia" | "replyWindow" | "bookingLinkAction"> {
   return {
     replyVia: REPLY_VIA[reply.via],
     replyWindow: reply.window,
-    bookingLinkAction: bookingLinkAction({ via: REPLY_VIA[reply.via], window: reply.window, emailStopped }),
+    bookingLinkAction: bookingLinkAction({ via: REPLY_VIA[reply.via], window: reply.window, emailStopped }, stop),
   };
 }
 

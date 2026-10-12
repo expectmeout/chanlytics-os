@@ -117,11 +117,18 @@ test("a playbook's hour is said as the clock says a time: one clock for a run's 
 });
 
 test("a run waiting on its owner has one name: its own pill's, a playbook's and a reach-out's with one waiting", () => {
-  assert.equal(C.BROADCAST_STATE_LABELS.pending_approval, "Waiting on you");
-  // The kit's pill reads the labels by kind (tone.ts stateOf): a playbook whose run waits says the run's own word,
-  // never the Inbox's "Needs you" for a thread a person must answer.
-  assert.equal(C.stateOf("playbook", "approval").label, C.stateOf("broadcast", "pending_approval").label);
-  assert.equal(C.stateOf("playbook", "approval").label, "Waiting on you");
+  assert.equal(C.BROADCAST_STATE_LABELS.pending_approval, "Waiting for your approval");
+  // A campaign whose run waits says the run's own word (lifecycleStateOf, the one source of a campaign's state), paused or
+  // not, never the Inbox's "Needs you" for a thread a person must answer.
+  const campaign = (state) => ({
+    trigger: "quiet_30",
+    run_hour: 10,
+    cadence_days: 30,
+    state,
+    totals: { waiting: { id: "r", recipient_count: 1 } },
+  });
+  assert.equal(C.lifecycleStateOf(campaign("running")).words, C.stateOf("broadcast", "pending_approval").label);
+  assert.equal(C.lifecycleStateOf(campaign("paused")).words, "Waiting for your approval");
 });
 
 test("a day on a timeline: today, yesterday, or the date, by the business's day", () => {

@@ -183,7 +183,7 @@ test("campaigns.broadcasts answers the Broadcasts page's rows over its reader, e
   const waiting = out.broadcasts.find((b) => b.broadcast_id === BC2);
   assert.deepEqual(
     [waiting.state, waiting.waiting_on_you, waiting.by, waiting.audience],
-    ["Waiting on you", true, "a campaign", "Quiet 30 days"],
+    ["Waiting for your approval", true, "a campaign", "Quiet 30 days"],
   );
   assert.ok(out.broadcasts.find((b) => b.broadcast_id === BC3).why_it_failed, "a failed run says why");
   // A run that went by WhatsApp and text says each, and its read is a share of WhatsApp's one (0030).
@@ -226,7 +226,7 @@ test("campaigns.broadcast answers one run as its opened page draws it over the s
     [
       ["Rosa", "Held back"],
       ["Ana Ruiz", "Replied"],
-      ["Lu", "Asked to stop"],
+      ["Lu", "Opted out"],
     ],
     "in the page's order",
   );

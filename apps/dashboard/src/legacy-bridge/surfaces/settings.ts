@@ -27,6 +27,7 @@ import { pageClock, workspaceZone } from "../zone";
 import type { PoliciesSurface } from "../policy-store";
 import type { Output } from "../../client/api";
 import type { SurfaceOverride } from "../surface-data";
+import { declareReads } from "../surface-registry";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { setSurfaceValue } from "../../surfaces/surface-values";
 
@@ -76,19 +77,22 @@ export type TemplateUse = Record<
  * The slice of Settings a TSX surface reads through `useSurface("settings")`: the workspace's record, its channels and its
  * templates with what uses each and when each last went out, exactly what the globals below hold, and each null where
  * that read failed. Campaigns' Templates and the panes of Settings that have moved read it; the rest still read the
- * globals.
+ * globals. Its templates are the one read of them (decision 0047, task 3.3): every row with its status, from which everything
+ * that offers a message to send is made (surfaces/offered-templates.ts): the Inbox's reply box and the New conversation sheet,
+ * both composers, and Campaigns' home. None of them reads GET templates of its own.
  */
 export interface SettingsSurface {
   settings: SettingsRecord | null;
   /** What the workspace's facts resolve to, and where two sources disagree (`__FACTS`); null on a broken config. */
   facts: { facts: ResolvedFacts; conflicts: FactConflict[] } | null;
   channels: ChannelVM[] | null;
+  /** WhatsApp's rows, with every status (approved or not, hidden or not): the pickers keep the ones contracts templateOffered says. */
   templatesAll: TemplateDto[] | null;
   /**
    * A message's other versions (One message, every channel, step 1): the workspace's email and text rows, which the
    * Templates page sets beside each message's WhatsApp rows by their name. `templatesAll` stays WhatsApp's alone, so
-   * what the Inbox, Broadcasts, Playbooks and Ask read of it does not change; a reach-out's emails are not here (their
-   * own list), and null is a read that failed, as it is for `templatesAll`.
+   * the Inbox, which offers WhatsApp's only, reads it as it did; the composers add these to make their messages. A
+   * reach-out's emails are not here (their own list), and null is a read that failed, as it is for `templatesAll`.
    */
   templateVersions?: TemplateDto[] | null;
   /**
@@ -168,6 +172,12 @@ export const settingsOverride: SurfaceOverride = {
     "__TEMPLATE_SENT",
   ],
   events: ["surface:settings"],
+  // What it draws that no other surface owns (0047): the business's facts and the version the next save sends
+  // (tenant_config), the Autonomy matrix (policies), the Library and what each template is used by (templates), the Team pane
+  // (memberships, invitations). A teammate's save, Meta's answer to a template, a seat taken: each reached another open tab
+  // only at a return or a reload. Told a few times a day, so heard wherever the tab is; this tab's own save is read once, by
+  // the refresh map, and its notice asks for nothing (surface-runner.ts readAfter).
+  ...declareReads("settings", { reads: ["facts", "rules", "template", "team"], fresh: "live" }),
   apply: async () => {
     const [cfg, team, pol, ch, tpl, zone] = await Promise.all([
       read("GET settings"),

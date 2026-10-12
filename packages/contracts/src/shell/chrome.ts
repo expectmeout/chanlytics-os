@@ -4,6 +4,7 @@
  * and the shortcuts sheet. Pure, so the sidebar, the shell and a test read the
  * same thing.
  */
+import { WORKSPACE_PAUSED } from "../lines/caller-gets";
 import { PAUSED_WORDS } from "../workspace/billing";
 import { roleSays } from "../config/workspace-config/role-perms";
 
@@ -237,7 +238,7 @@ export function notFoundPageMetadata(): PublicPageMetadata {
 export interface ShellStatus {
   stale: boolean;
   degraded: string[];
-  /** The workspace is paused (billing stopped): the receptionist answers nothing until Billing resumes it. */
+  /** The workspace is paused (billing stopped): a call is answered only to take a message and every other message waits in the Inbox (PAUSED_WORDS), until Billing resumes it. */
   paused?: boolean;
   /** This device has no connection: nothing on screen is kept current, and nothing pressed reaches the workspace. */
   offline?: boolean;
@@ -290,7 +291,7 @@ export function shellStatusLine(s: ShellStatus | null | undefined): ShellStatusL
   if (s.paused)
     return {
       kind: "paused",
-      tone: "danger",
+      tone: WORKSPACE_PAUSED.tone,
       text: "Your receptionist is paused",
       detail: PAUSED_WORDS,
       action: "billing",

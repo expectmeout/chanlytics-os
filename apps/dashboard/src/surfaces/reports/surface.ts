@@ -12,6 +12,7 @@
 import { ApiError } from "@/client/api";
 import { read } from "@/legacy-bridge/api";
 import { heldViews } from "@/legacy-bridge/held-views";
+import { isLiveCallTurn } from "@/legacy-bridge/surface-realtime";
 import { routeOnScreen } from "@/legacy-bridge/workspace";
 import {
   REPORT_PERIOD_DEFAULT,
@@ -30,8 +31,7 @@ import {
   type ReportVM,
 } from "@chanlytics/contracts";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { DEFAULT_REFRESH_TABLES } from "@/legacy-bridge/surface-realtime";
-import { onlyOnItsPage } from "@/legacy-bridge/surface-registry";
+import { declareReads, keepForItsPage } from "@/legacy-bridge/surface-registry";
 import { setSurfaceValue } from "../surface-values";
 
 /* ------------------------------- Reports --------------------------------- */
@@ -131,9 +131,19 @@ const refusesDays = (range: ReportRange, e: unknown): range is ReportDays =>
   typeof range !== "string" && e instanceof ApiError && e.code === "validation";
 
 /**
+ * A write made from another page changed what the overview counts (a deal recorded, the zone saved, a visit marked): nothing is
+ * held of it, so no pick paints a read from before, and Reports reads it as it comes on screen (surface-registry.ts keepForItsPage).
+ * Where Reports is on screen already the write reads it again at once instead (refresh-map.ts), as it does the lenses.
+ */
+export function forgetReports(): void {
+  reportsHeld.forget();
+  keepForItsPage("reports");
+}
+
+/**
  * Reports: the receptionist's own numbers over the period the page shows, built from one SQL function that already applies the
- * Today metrics' rules (the tenant's time zone, no undated imports, answered-by = first reply). Realtime message inserts
- * re-apply it while its page is on screen, so today's column moves.
+ * Today metrics' rules (the tenant's time zone, no undated imports, answered-by = first reply). Realtime message inserts, and the
+ * deals and visits it counts, re-apply it while its page is on screen, so today's column moves.
  */
 export const reportsOverride: SurfaceOverride = {
   key: "reports",
@@ -143,9 +153,24 @@ export const reportsOverride: SurfaceOverride = {
   onDemand: true,
   events: ["surface:reports"],
   refreshOnMessageInserts: true,
-  // A message moves the period's numbers: read again only while its page is on screen, and once when it comes back
+  // What the report counts: the messages, conversations and escalations its series are made of, the calls its voice figures count (a
+  // transcript turn of one in progress changes none of them, surface-realtime.ts isLiveCallTurn), the deals its Deals section counts
+  // (0004), the visits its booking line reads from the appointments record (#1551), the people it counts by what they said (new
+  // people, yes, stop, 0047) and the hours and closures it counts what came while the business was closed by (the business's facts).
+  // The sends and the reach-outs' numbers are the Campaigns lens's own read, so a run moves none of it. A message, a call, a deal, a
+  // visit or the hours moves the period's numbers: read again only while its page is on screen, and once when it comes back
   // (surface-registry.ts).
-  refreshWhen: onlyOnItsPage("reports", DEFAULT_REFRESH_TABLES),
+  ...declareReads("reports", {
+    reads: ["conversation", "hold", "call", "deal", "visit", "person", "facts"],
+    fresh: "its-page",
+    omit: [
+      {
+        tables: ["appointment_notices"],
+        why: "its booking line reads the appointments; a held booking email is not one",
+      },
+    ],
+    when: (change) => !isLiveCallTurn(change),
+  }),
   debounceMs: 800,
   // A range's reads take their turn; a pick of another range is read at once (activateOverride).
   view: shownReportKey,

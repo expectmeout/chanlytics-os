@@ -22,6 +22,7 @@
 import {
   type AppointmentState,
   type AskedPurpose,
+  type FeedNames,
   allowanceRoom,
   emailFoot,
   emailFootHtml,
@@ -103,6 +104,12 @@ export interface Work {
   priors: Map<string, { id: string; sentAt: string | null }>;
   /** The appointments the batch's reminders were drawn for, by key (ports.appointments): what each send asks again. */
   appointments: ReadonlyMap<string, AppointmentState>;
+  /**
+   * What the owner's calendar feed names now (ports.feed), asked once for the batch when a reminder in it was drawn for a
+   * calendar event: null where there is no feed to ask (or nothing in the batch needs it), "unread" where it could not be
+   * read, so a reminder for a calendar event waits for the next batch rather than going on a guess.
+   */
+  feed: FeedNames | "unread" | null;
   /** The month's emails and texts already sent, read once for the first person who needs it and counted as the batch sends. */
   month: Partial<Record<"email" | "sms", number>>;
   /**

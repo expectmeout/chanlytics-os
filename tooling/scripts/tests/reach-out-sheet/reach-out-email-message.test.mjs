@@ -524,10 +524,16 @@ test("the page's preview and the edge's send fill the six the same way: the same
 
 /* ---------------------------------- what a save re-reads ---------------------------------- */
 
-test("a saved email re-reads what a chain's edit moves: its words, the runs its held sends are in, its leads, and the settings that hold the rows", async () => {
+test("a saved email re-reads what a chain's edit moves: its words, the playbooks' counts, and the settings that hold the rows; no lead, whose row carries nothing of a chain", async () => {
   const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
   const keys = AFTER["POST templates/versions"]().map((o) => o.key);
-  // The reach-outs surface is the pane's own source: a save that left it stale would show the words as they were.
-  for (const key of ["settings", "reach_outs", "playbooks", "broadcasts", "leads"])
+  // The reach-outs surface is the pane's own source: a save that left it stale would show the words as they were. The runs its held
+  // sends are in read no template (Sent's rows are the broadcasts table's, and the sheet that shows a run's words draws them from the
+  // settings read), so Sent is not read again for it.
+  for (const key of ["settings", "reach_outs", "playbooks"])
     assert.ok(keys.includes(key), `${key} is read again: ${keys.join(", ")}`);
+  assert.equal(keys.includes("broadcasts"), false, `Sent reads no template: ${keys.join(", ")}`);
+  // A lead's stage is its own write; the chain's words and its held sends are not on a lead's row (the Leads page reads leads,
+  // searches, rounds and members, and the save writes none of them).
+  assert.equal(keys.includes("leads"), false, `Leads is not read for a message: ${keys.join(", ")}`);
 });

@@ -409,6 +409,10 @@
     "00404_a_reach_out_is_counted_in_the_businesses_it_wrote_to.sql": "f7499080b7599d817c368569fecc5971035c5df8eb753c8589c56c311ddec008",
     "00405_the_campaigns_lens_is_read_beyond_the_days_counts.sql": "b147c560f1a73a799842bb881986b5be61e4fdaba9e101547660b1bb93a6ec70",
     "00406_what_is_stuck_in_a_workspace_s_campaigns_is_read_as_it_stands.sql": "75ea067386120f66daf809961b8bee857f5b71a0ed52af01331dbb92de5b2737",
-    "00407_a_workspace_wears_its_own_logo.sql": "4632d59f0dd0e5b9da6a19a6f1b27c024f32462c0ac851c12c3dd7b31857a992"
+    "00407_a_workspace_wears_its_own_logo.sql": "4632d59f0dd0e5b9da6a19a6f1b27c024f32462c0ac851c12c3dd7b31857a992",
+    "00408_the_silent_records_join_the_live_feed.sql": "068ff25b2336d1489a5d76d2a0cb5a4f541c1f7103b97e68f79914649a488171",
+    "00409_a_stop_is_news_and_a_notice_keeps_its_mail_owed.sql": "0f7118c855e8ef880d40754d883aa94459b60fef39ad84e2caa97e18f8bec248",
+    "00410_a_booking_and_a_teammate_who_joined_are_told_from_their_events.sql": "6d79fa1ffddf29e62c157c21278e0ab4215d4c6450028a077430762213efabe0",
+    "00411_a_review_s_first_notices_open_the_review.sql": "15e17f609c62bb1b269d8612a9d3c5996cf05ae8156ce8e16672645cac377695"
   }
 }

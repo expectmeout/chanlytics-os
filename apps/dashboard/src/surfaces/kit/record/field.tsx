@@ -1,6 +1,7 @@
 /**
  * The record kit: the fields (moved whole from legacy/components/record-field.jsx, decision 0015: the kit's one
- * implementation, which seed-globals publishes under the names the pages that have not moved read).
+ * implementation, which the pages import; the one part a page of the shell still reads by name is RecordSwitch, the bell's alert
+ * switch: kit-globals.ts).
  *
  * Each is announced as what it is. A field is a label that holds its box; a box in a row of a list carries its name
  * (RecordBox); a switch is role="switch" and says which state it is in; a choice of a few is a radiogroup, one tab stop

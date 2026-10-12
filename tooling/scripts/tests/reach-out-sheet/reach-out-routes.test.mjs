@@ -300,7 +300,7 @@ test("GET reach-outs answers its reader's payload (readers/playbooks.ts reachOut
   assert.deepEqual(read.data, page, "the route's payload is the reader's");
   assert.deepEqual(
     read.rows.map((r) => [r.kind, r.id, r.route, r.label]),
-    page.chains.map((c) => ["playbook", c.root_id, `outbound/${c.root_id}`, c.name]),
+    page.chains.map((c) => ["playbook", c.root_id, `campaigns/moment:${c.root_id}`, c.name]),
     "each chain is a row a citation names, opened where its row opens",
   );
   assert.equal(read.rows.length, 1);

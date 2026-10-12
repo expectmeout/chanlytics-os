@@ -17,6 +17,7 @@ import {
   offersYesRefusal,
   stateOf,
   STOP_ENDED_OFFERS_SOURCE,
+  STOP_WORDS,
   verbalOptInScript,
 } from "@chanlytics/contracts";
 import { FieldError } from "../../kit/field-error/field-error";
@@ -245,7 +246,7 @@ function visitFold(c: PageCtx, row: ReactNode) {
 /** What is on record about offers and news, in a sentence. */
 function offersHint(c: PageCtx): string {
   const { consent } = c.p;
-  if (consent.state === "opted_out") return "They asked us to stop, offers included.";
+  if (consent.state === "opted_out") return `${STOP_WORDS.said("They")}, offers included.`;
   if (consent.marketing === "opted_in") return `Yes — ${consent.marketingSub}.`;
   if (consent.marketing === "opted_out") return `No — ${consent.marketingSub}. Visit messages still reach them.`;
   if (consent.marketingSource === STOP_ENDED_OFFERS_SOURCE)

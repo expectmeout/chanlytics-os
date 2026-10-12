@@ -5,6 +5,7 @@
  * where the search is, so the rail never loses the row that is being named.
  */
 import type { ReactNode } from "react";
+import { LEAD_WORDS as W } from "@chanlytics/contracts";
 import type { leadRail } from "@chanlytics/contracts";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
@@ -33,7 +34,7 @@ const LeadSearchMenu = ({
   onAgain,
   onRemove,
   onUndo,
-  exportHref,
+  onExport,
 }: {
   s: RailSearch;
   words: SearchWords;
@@ -43,7 +44,7 @@ const LeadSearchMenu = ({
   onAgain: (s: RailSearch) => void;
   onRemove: (s: RailSearch) => void;
   onUndo: (s: RailSearch) => void;
-  exportHref: string | null;
+  onExport: () => void;
 }) => (
   // In the box the rail's rows name (clients.css: the ⋯ shows as a pointer reaches the row).
   <MenuInPlace>
@@ -88,9 +89,8 @@ const LeadSearchMenu = ({
         {
           label: `Export these ${s.count}`,
           icon: "external",
-          onClick: () => {
-            if (exportHref) window.open(exportHref, "_self");
-          },
+          // A press that POSTs and saves the file (page/acts.tsx exportLeads), not a link: it marks what it took.
+          onClick: onExport,
           gate: canFind ? undefined : gate("find", "export these leads"),
         },
         // For a day after a round ends: the leads nobody has touched leave and the month is credited (§8.6). Named for what
@@ -143,7 +143,8 @@ interface RailRowsProps {
   onMore: (s: RailSearch) => void;
   onAgain: (s: RailSearch) => void;
   onUndo: (s: RailSearch) => void;
-  hrefFor: (s: RailSearch) => string | null;
+  /** The press that exports a search's leads as a file. */
+  exportFor: (s: RailSearch) => () => void;
   onNew: () => void;
   importDoor?: ReactNode;
   compact?: boolean;
@@ -210,7 +211,7 @@ const railSearchRow = (s: RailSearch, p: RailRowsProps) => (
         onAgain={p.onAgain}
         onRemove={p.onRemoveAsk}
         onUndo={p.onUndo}
-        exportHref={p.hrefFor(s)}
+        onExport={p.exportFor(s)}
       />
     }
     edit={p.renaming && p.renaming.id === s.id ? renamingField(s, p) : null}
@@ -251,8 +252,9 @@ export const LeadsRailRows = (p: RailRowsProps) => {
   const quiet = compact ? railQuiet(rail.lists, (l) => l.id === "all" || (!searchId && list === l.id)) : [];
   return (
     <>
-      {/* "Lists", not "Leads": the switch right above already says which scope this is. */}
-      <RailSection label="Lists" testid="leads-lists">
+      {/* "Views", not "Leads" (the switch right above already says which scope this is) and not "Lists" (People's word for a
+          rule over facts): these are six views of a lead's stage. */}
+      <RailSection label={W.viewsHeading} testid="leads-lists">
         {rail.lists
           .filter((l) => !quiet.includes(l))
           .map((l) => (
@@ -268,7 +270,7 @@ export const LeadsRailRows = (p: RailRowsProps) => {
           ))}
         <RailEmpty labels={quiet.map((l) => l.label)} testid="leads-lists-empty" />
       </RailSection>
-      <RailSection label="Searches" testid="leads-searches">
+      <RailSection label={W.searchesHeading} testid="leads-searches">
         {rail.searches.map((s) => railSearchRow(s, p))}
         {rail.searches.length === 0 && (
           <div className="cl-rail-hint">No searches yet. Describe the businesses you want and Claude finds them.</div>

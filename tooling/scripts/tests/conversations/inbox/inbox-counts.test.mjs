@@ -111,7 +111,6 @@ test("the fixtures stand where the salon's threads stand", () => {
 
 /* -------------------------------- a browser -------------------------------- */
 
-const counted = [];
 installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 const S = "../../../../../apps/dashboard/src";
 const { Inbox } = await import(`${S}/surfaces/inbox/pages/inbox-page.tsx`);
@@ -121,6 +120,7 @@ const { ixSending, ixBucketOf, ixWaitsOnYou } = await import(`${S}/surfaces/inbo
 const { threadUnread } = await import(`${S}/surfaces/seen.ts`);
 const { VW_STORE } = await import(`${S}/surfaces/inbox/store.ts`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
+const { needsYouNow } = await import(`${S}/surfaces/needs-you.ts`);
 Object.assign(globalThis, {
   location: {
     pathname: "/w/marisas",
@@ -141,12 +141,12 @@ Object.assign(globalThis, {
   setInterval: () => 1,
   clearInterval() {},
 });
-// The sidebar's badge counts by the Inbox's rule, which the app publishes under its old name (inbox/legacy-globals.ts).
-globalThis.ixWaitsOnYou = ixWaitsOnYou;
-// The badge's number is what the page tells its listeners, so it is read where it is dispatched.
+// The badge, the strip's tab, the title and the phone count by one selector over the surfaces (surfaces/needs-you.ts), and the
+// page sends no number for them: any event named inbox:counts is a regression, so it is watched for where it is dispatched.
+const sentCounts = [];
 const dispatched = globalThis.dispatchEvent;
 globalThis.dispatchEvent = (e) => {
-  if (e && e.type === "inbox:counts") counted.push(e.detail.needs);
+  if (e && e.type === "inbox:counts") sentCounts.push(e.detail);
   return dispatched(e);
 };
 // The shell's own toast and role gate, which the page draws through the bridge (surfaces/legacy-verbs.ts).
@@ -273,7 +273,7 @@ test("REGRESSION: a bucket the member picked survives the next read -- picking a
 });
 
 test("the Needs you chip counts what needs you, the badge's number -- not every thread flagged for a person", () => {
-  counted.length = 0;
+  sentCounts.length = 0;
   const { seen } = page([anas, mine, rosa, unsent]);
   const chip = (id) => seen.list.buckets.find((b) => b.id === id).count;
   assert.equal(
@@ -281,7 +281,8 @@ test("the Needs you chip counts what needs you, the badge's number -- not every 
     1,
     "REGRESSION: it counted the thread you have and Ana's too, under a badge that said 1",
   );
-  assert.equal(counted.at(-1), 1, "the badge's own number");
+  assert.equal(needsYouNow(), 1, "the badge's own number: the selector over the threads the page was given");
+  assert.deepEqual(sentCounts, [], "and the page sends none");
   assert.deepEqual(
     [chip("done"), chip("snoozed")],
     [3, 0],
@@ -475,16 +476,13 @@ test("each row says whose it is -- nothing more where the bucket already says Ne
   }
 });
 
-/* -------------------------------- the sidebar -------------------------------- */
+/* -------------------------------- the badge -------------------------------- */
 
-test("the sidebar's first count is the badge's: what needs you, not every flagged thread nobody in this tab holds", async () => {
-  await import("../../../../../apps/dashboard/src/legacy/components/sidebar.jsx");
+test("the badge's first count is the chip's: what needs you, not every flagged thread nobody in this tab holds, and none before the Inbox is read", () => {
+  setSurfaceValue("inbox", undefined);
+  assert.equal(needsYouNow(), null, "a count of what nothing has read is no count: the seeded threads are no one's");
   inboxWith([rosa, mine, anas, unsent]);
-  assert.equal(
-    globalThis.window.sbNeedsCount(),
-    1,
-    "REGRESSION: it counted Ana's thread as waiting on you until the Inbox mounted",
-  );
+  assert.equal(needsYouNow(), 1, "REGRESSION: it counted Ana's thread as waiting on you until the Inbox mounted");
 });
 
 /* --------------------------- a reply about to send --------------------------- */
@@ -520,7 +518,6 @@ const sendingThread = () => {
 };
 
 test("REGRESSION: a reply about to send is at the top of Needs you, counted by the chip and the badge -- it sat in Handled, on a row that said nothing about it", () => {
-  const W = globalThis.window;
   VW_STORE.state = {};
   const jess = sendingThread();
   assert.equal(jess.state, "done", "the thread itself is quiet: nobody asked for a person");
@@ -543,17 +540,18 @@ test("REGRESSION: a reply about to send is at the top of Needs you, counted by t
     "the chip counts it and matches its own list; Handled holds the rest and not this one while it counts down",
   );
   assert.equal(seen.list.threads.length, chip("escalated"), "the chip is the length of the list under it");
-  assert.equal(counted.at(-1), 2, "the sidebar badge is sent that same number");
+  assert.equal(needsYouNow(), 2, "the badge is that same number");
   inboxWith([rosa, mine, anas, unsent, jess]);
-  assert.equal(W.sbNeedsCount(), 2, "and reads the same rule when the Inbox is not mounted");
+  assert.equal(needsYouNow(), 2, "and reads the same rule when the Inbox is not mounted");
 
-  // Held: the countdown stops, and the thread is quiet again.
+  // Held: the countdown stops, and the thread is quiet again -- in the badge as in the chip, before the cancel's re-read.
   VW_STORE.state = { [`draft:${jess.veto.messageId}`]: { held: true } };
   assert.deepEqual(
     [ixSending(jess), ixBucketOf(jess), ixWaitsOnYou(jess)],
     [false, "done", false],
     "a held draft claims nothing",
   );
+  assert.equal(needsYouNow(), 1, "REGRESSION: the badge kept the reply this tab had just held, one over the chip");
   VW_STORE.state = {};
   // Past its last second it is Handled again, until the re-read says what actually happened.
   assert.equal(ixBucketOf(jess, jess.veto.endsAtMs + 1), "done");
@@ -582,7 +580,7 @@ test("the row says the seconds, where the time it last moved would be", () => {
   assert.equal(find(row("Rosa Díaz"), hasClass("ix-sending")), null, "only the thread whose reply is on its way");
 });
 
-/* ---- one count: the chip, the badge and Today's publish are the same rule (the 2 Oct 2026 audit) ---- */
+/* ---- one count: the chip, the badge and Today's headline are the same rule (the 2 Oct 2026 audit; OW1) ---- */
 
 /** The wire's threads the salon's Inbox holds, with the escalation each has open: the rows the page and Today both read. */
 const wireThread = (id, name, over, esc) => ({ dto: conv(id, name, over), esc });
@@ -731,22 +729,29 @@ const todayWire = (rows, replies) => {
   };
 };
 
-test("Today publishes the badge by the Inbox's rule: the sidebar does not drop a reply counting down every time Today reads again", async () => {
+test("Today sends no number for the badge: it reads, and the badge is the selector over the Inbox's threads -- a reply held in the tab is not put back by a Today read", async () => {
   const realFetch = globalThis.fetch;
   try {
     const { todayOverride } = await import(`${S}/surfaces/today/surface.ts`);
     VW_STORE.state = {};
-    todayWire(salon());
-    const before = counted.length;
-    await todayOverride.apply();
-    assert.equal(counted.length, before + 1, "Today says its number once per read");
-    assert.equal(
-      counted.at(-1),
-      2,
-      "REGRESSION: it read 1 (threadStanding alone) where the chip read 2: Rosa, and Jess whose reply is on its way",
-    );
     const inbox = salon().map(({ dto, esc }) => toInboxThreadVM(dto, esc, ZONE, new Date()));
-    assert.equal(counted.at(-1), inbox.filter((t) => ixWaitsOnYou(t)).length, "the chip's own number");
+    inboxWith(inbox);
+    const jess = inbox[4];
+    assert.equal(
+      needsYouNow(),
+      inbox.filter((t) => ixWaitsOnYou(t)).length,
+      "the chip's own number: Rosa, and Jess whose reply is on its way",
+    );
+    // The owner presses Hold: the cancel's re-read has not landed, so the thread still carries its draft.
+    VW_STORE.state = { [`draft:${jess.veto.messageId}`]: { held: true } };
+    assert.equal(needsYouNow(), 1, "the badge drops the held reply at once, as the chip does");
+    // A Today refresh lands inside that window. It used to send the wire's 2 over the Inbox's 1 and nothing put the 1 back.
+    todayWire(salon());
+    sentCounts.length = 0;
+    await todayOverride.apply();
+    assert.deepEqual(sentCounts, [], "REGRESSION: Today sent a number for the badge, over the Inbox's");
+    assert.equal(needsYouNow(), 1, "REGRESSION: the held reply was counted again until something else moved the badge");
+    VW_STORE.state = {};
   } finally {
     globalThis.fetch = realFetch;
   }
@@ -773,7 +778,14 @@ test("Today's headline says the badge's number, and a flagged thread older than 
       return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
     };
     await todayOverride.apply();
-    assert.equal(counted.at(-1), 3, "REGRESSION: the badge read 2, under the Inbox's 3, every time Today read");
+    // The Inbox reads that customer's thread by id and counts it: the same rows, the same rule, the badge's number.
+    const inbox = [...rows, old].map(({ dto, esc }) => toInboxThreadVM(dto, esc, ZONE, new Date()));
+    inboxWith(inbox);
+    assert.equal(
+      needsYouNow(),
+      3,
+      "the badge: Rosa, Jess whose reply is counting down, and the customer flagged weeks ago",
+    );
     assert.equal(
       surfaceValue("today")?.standing.headline,
       "3 conversations need you.",
@@ -833,20 +845,34 @@ test("a Today load asks for the replies to reach-outs once, as the surface that 
   }
 });
 
-test("the Inbox reads its approved templates once in a few minutes, not with every message it reads again for: a write here forgets them, and a read that failed is not kept", async (t) => {
+/** A row of the settings read's templates, as the Inbox's picker is made of it: one WhatsApp message in a state. */
+const tplRow = (name, over = {}) => ({
+  id: `t-${name}`,
+  channel: "whatsapp",
+  name,
+  language: "en_US",
+  meta_status: "approved",
+  hidden_at: null,
+  category: "utility",
+  variables: [],
+  body_preview: `Words of ${name}`,
+  ...over,
+});
+/** What the settings surface publishes of the templates (legacy-bridge/surfaces/settings.ts), and no more than the Inbox's picker reads of it. */
+const settingsOf = (rows) => ({ templatesAll: rows, templateVersions: [], messages: [] });
+
+test("the Inbox asks for no templates, however often it reads again: its picker is the settings read's as it stands -- absent while that is read, null where it failed", async () => {
   const realFetch = globalThis.fetch;
   try {
-    const { inboxOverride, forgetInboxTemplates } = await import(`${S}/surfaces/inbox/surface.ts`);
+    const { inboxOverride } = await import(`${S}/surfaces/inbox/surface.ts`);
     const { inboxData } = await import(`${S}/surfaces/inbox/store.ts`);
     const requests = [];
-    let templatesAnswer = true;
     globalThis.fetch = async (url) => {
       requests.push(String(url));
       const answers = {
         "/api/v1/conversations": { conversations: [] },
         "/api/v1/escalations": { escalations: [] },
         "/api/v1/workspaces": { workspaces: [] },
-        ...(templatesAnswer ? { "/api/v1/templates": { templates: [], held: null } } : {}),
       };
       const data = answers[new URL(String(url), "https://app.chanlytics.com").pathname];
       return new Response(
@@ -855,8 +881,7 @@ test("the Inbox reads its approved templates once in a few minutes, not with eve
       );
     };
     const asked = () => requests.filter((u) => u.includes("/api/v1/templates")).length;
-    t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-10-05T12:00:00Z") });
-    forgetInboxTemplates();
+    setSurfaceValue("settings", undefined);
 
     // Three passes as the feed brings them: a message, its receipt, a flag.
     await inboxOverride.apply();
@@ -864,75 +889,93 @@ test("the Inbox reads its approved templates once in a few minutes, not with eve
     await inboxOverride.apply();
     assert.equal(
       asked(),
-      1,
+      0,
       "REGRESSION: the templates were read again with every message the Inbox read again for (B12)",
     );
+    assert.equal(
+      inboxData().templates,
+      undefined,
+      "Settings is not read yet: the picker is still reading, not 'none approved'",
+    );
+    assert.equal(inboxData().templatesHeld, undefined);
 
-    t.mock.timers.tick(5 * 60_000);
+    // Settings lands: the Inbox is made of it with no read of its own, and says why the rest are left out.
+    setSurfaceValue(
+      "settings",
+      settingsOf([
+        tplRow("welcome"),
+        tplRow("still_in_review", { meta_status: "pending" }),
+        tplRow("put_away", { hidden_at: "2026-10-01T00:00:00Z" }),
+      ]),
+    );
+    assert.deepEqual(
+      inboxData().templates.map((t) => t.name),
+      ["welcome"],
+      "the approved, shown messages of WhatsApp",
+    );
+    assert.deepEqual(inboxData().templatesHeld, { pending: 1, rejected: 0, paused: 0, disabled: 0, hidden: 1 });
     await inboxOverride.apply();
-    assert.equal(asked(), 2, "a read five minutes old is read again: an approval made elsewhere reaches an open Inbox");
+    assert.deepEqual(
+      inboxData().templates.map((t) => t.name),
+      ["welcome"],
+      "and the Inbox's own read keeps what Settings holds",
+    );
 
-    forgetInboxTemplates();
+    // A templates read that failed on Settings is 'could not read' on the Inbox, which is still drawn.
+    setSurfaceValue("settings", { ...settingsOf([]), templatesAll: null });
+    assert.equal(inboxData().templates, null);
+    assert.equal(inboxData().templatesHeld, null);
     await inboxOverride.apply();
-    assert.equal(asked(), 3, "a template written in this tab is read again at once (refresh-map's templates writes)");
-
-    // A read that failed is not kept: the next pass, the composer's Retry among them, asks again.
-    forgetInboxTemplates();
-    templatesAnswer = false;
-    await inboxOverride.apply();
-    assert.equal(inboxData().templates, null, "a read that failed is 'could not read', and the Inbox is still drawn");
-    templatesAnswer = true;
-    await inboxOverride.apply();
-    assert.equal(asked(), 5, "a failed read is asked for again, never kept as the answer");
+    assert.equal(inboxData().templates, null);
+    assert.equal(inboxData().THREADS.length, 0, "the Inbox still lists its threads");
+    assert.equal(asked(), 0, "and not once did it read a template");
   } finally {
     globalThis.fetch = realFetch;
+    setSurfaceValue("settings", undefined);
   }
 });
 
-test("a template saved while the Inbox is reading is read again: the read that was already out does not keep the list from before the save", async () => {
+test("a template approved while the Inbox is reading is in its picker: the Inbox takes the settings read as it stands when it publishes, not as it stood when it began", async () => {
   const realFetch = globalThis.fetch;
   try {
-    const { inboxOverride, forgetInboxTemplates } = await import(`${S}/surfaces/inbox/surface.ts`);
+    const { inboxOverride } = await import(`${S}/surfaces/inbox/surface.ts`);
     const { inboxData } = await import(`${S}/surfaces/inbox/store.ts`);
     const { AFTER } = await import(`${S}/legacy-bridge/refresh-map.ts`);
-    const named = (name) => ({ templates: [{ id: name, name, language: "en_US", channel: "whatsapp" }], held: null });
-    let templates = () => Promise.resolve(named("before_the_save"));
-    let asked = 0;
+    let release = () => {};
+    const held = new Promise((resolve) => (release = resolve));
     globalThis.fetch = async (url) => {
       const path = new URL(String(url), "https://app.chanlytics.com").pathname;
-      if (path === "/api/v1/templates") asked += 1;
-      const data =
-        path === "/api/v1/templates"
-          ? await templates()
-          : {
-              "/api/v1/conversations": { conversations: [] },
-              "/api/v1/escalations": { escalations: [] },
-              "/api/v1/workspaces": { workspaces: [] },
-            }[path];
+      // The conversations answer is on the way when the member saves a template and Settings is read again.
+      if (path === "/api/v1/conversations") await held;
+      const data = {
+        "/api/v1/conversations": { conversations: [] },
+        "/api/v1/escalations": { escalations: [] },
+        "/api/v1/workspaces": { workspaces: [] },
+      }[path];
       return new Response(
         JSON.stringify(data ? { ok: true, data } : { ok: false, error: { code: "not_found", message: "no" } }),
         { status: data ? 200 : 404, headers: { "content-type": "application/json" } },
       );
     };
-    forgetInboxTemplates();
-    // A read goes out; its templates answer is on the way when the member saves a template.
-    let land;
-    templates = () => new Promise((resolve) => (land = () => resolve(named("before_the_save"))));
+    setSurfaceValue("settings", settingsOf([tplRow("before_the_save")]));
     const reading = inboxOverride.apply();
-    while (!land) await new Promise((r) => setTimeout(r, 0));
-    // The save's own refresh, as the bridge runs it after the write (refresh-map's templates group).
-    AFTER["POST templates"]();
-    land();
+    // The save's own refresh names Settings alone, as the bridge runs it after the write (refresh-map's templates group)...
+    assert.deepEqual(
+      AFTER["POST templates"]().map((o) => o.key),
+      ["settings"],
+      "a template written re-reads the one read of the templates",
+    );
+    // ...and Settings' read lands while the Inbox's is still out.
+    setSurfaceValue("settings", settingsOf([tplRow("before_the_save"), tplRow("after_the_save")]));
+    release();
     await reading;
-    templates = () => Promise.resolve(named("after_the_save"));
-    await inboxOverride.apply();
-    assert.equal(asked, 2, "REGRESSION: the read that was out kept its answer, and the next read asked for none");
     assert.deepEqual(
       inboxData().templates.map((t) => t.name),
-      ["after_the_save"],
+      ["before_the_save", "after_the_save"],
       "REGRESSION: the picker offered the list from before the save for five minutes",
     );
   } finally {
     globalThis.fetch = realFetch;
+    setSurfaceValue("settings", undefined);
   }
 });

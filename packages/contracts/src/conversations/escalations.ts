@@ -7,6 +7,7 @@
  * had become a second vocabulary for one closed set. The set is the database's (schema-sets.ts), so a reason the
  * CHECK gains without its three forms fails the package's typecheck.
  */
+import { STOP_WORDS } from "../consent/consent";
 import type { EscalationReason } from "../shared/enums";
 
 export interface EscalationDto {
@@ -32,7 +33,7 @@ export const ESCALATION_REASON_LABELS: Record<EscalationReason, string> = {
   rate_cap: "Too many replies too fast — the receptionist paused itself",
   deadman: "Nobody picked this up — flagged after silence",
   manual: "Flagged manually",
-  opt_out: "Asked to stop receiving messages",
+  opt_out: STOP_WORDS.said(),
   state_unavailable: "The receptionist could not read this thread — needs a human",
   stale: "Arrived hours late — too old to answer automatically",
   budget: "The day's model budget is used up — the receptionist paused itself",
@@ -59,7 +60,7 @@ export const ESCALATION_REASON_SHORT: Record<EscalationReason, string> = {
   rate_cap: "too many replies too fast",
   deadman: "nobody picked this up",
   manual: "flagged by hand",
-  opt_out: "asked to stop",
+  opt_out: STOP_WORDS.short,
   state_unavailable: "the receptionist could not read this thread",
   stale: "arrived hours late",
   budget: "the day's model budget is used up",
@@ -93,7 +94,7 @@ const ESCALATION_REASON_WHY: Record<EscalationReason, string> = {
   rate_cap: "because the reply limit was reached",
   deadman: "because no answer came in time",
   manual: "because it was flagged by hand",
-  opt_out: "because they asked to stop",
+  opt_out: `because they ${STOP_WORDS.short}`,
   state_unavailable: "because it could not read the thread",
   stale: "because a message arrived too late to answer",
   budget: "because the day's model budget ran out",
@@ -135,7 +136,7 @@ export const ESCALATION_SUMMARIES: Record<EscalationReason, string> = {
   rate_cap: "The receptionist hit its daily reply limit and stopped. NOTHING was sent — they're waiting in silence.",
   deadman: "This sat unanswered long enough to flag. Nobody has replied.",
   manual: "Flagged by hand for a human.",
-  opt_out: "They asked to stop receiving messages. Nothing was sent, and nothing may be.",
+  opt_out: `${STOP_WORDS.said("They")}. Nothing was sent, and nothing may be.`,
   state_unavailable: "The receptionist couldn't read this thread, so it stayed quiet. No reply went out.",
   stale:
     "This reached us hours after they sent it, too late to answer automatically. NOTHING was sent — they have been waiting since.",
@@ -159,3 +160,75 @@ export function reasonLabelOf(reason: string): string {
 export function reasonSummaryOf(reason: string): string {
   return (ESCALATION_SUMMARIES as Record<string, string>)[reason] ?? `${reasonLabelOf(reason)}. Needs a human.`;
 }
+
+/**
+ * What a person does about a hold, by its reason, beside the reason's words (decision 0048): write to the customer
+ * (`reply`), ring them back (`call_back`), or nothing may be sent and the thread only goes back (`hand_back`: Done, or
+ * Hand back, and no reply). Every page and notice that draws a hold reads the verb from here, so a customer who asked to
+ * stop is not offered "Open and reply" under a thread whose reply box says nothing can be sent. The set is the database's
+ * (schema-sets.ts), so a reason the CHECK gains without its act fails the package's typecheck.
+ */
+export type HoldAct = "reply" | "call_back" | "hand_back";
+
+export const ESCALATION_ACTS: Record<EscalationReason, HoldAct> = {
+  human_token: "reply",
+  refusal: "reply",
+  brain_error: "reply",
+  non_text: "reply",
+  send_failed: "reply",
+  policy_block: "reply",
+  policy_ask: "reply",
+  person_hold: "reply",
+  rate_cap: "reply",
+  deadman: "reply",
+  manual: "reply",
+  opt_out: "hand_back",
+  state_unavailable: "reply",
+  stale: "reply",
+  budget: "reply",
+  callback: "call_back",
+  paused: "reply",
+  carriers: "reply",
+  email_review: "reply",
+};
+
+/** The act of a reason; a reason the set does not know is answered, as a person is needed for it. */
+export function holdActOf(reason: string | null | undefined): HoldAct {
+  return (ESCALATION_ACTS as Record<string, HoldAct>)[reason ?? ""] ?? "reply";
+}
+
+/** The act of the open hold a thread has, or null where it has none. */
+export function openHoldAct(hold: { reason: string } | null | undefined): HoldAct | null {
+  return hold ? holdActOf(hold.reason) : null;
+}
+
+/**
+ * Whether a hold of this reason waits on a person: it has something to be done (`reply`, `call_back`). A customer who
+ * asked to stop is news, told once on the bell (consent/opt-out-notice.ts), never a wait: nothing may be sent to them,
+ * so the Inbox's Needs you, Today's queue, People's flag, the badge and the deadman all read this one answer. A hold that
+ * was opened before the receptionist stopped opening them (an open `opt_out`) is read as no wait, without being written
+ * over.
+ */
+export function waitsOnAPerson(reason: string | null | undefined): boolean {
+  return holdActOf(reason) !== "hand_back";
+}
+
+/** An open hold as a rule is handed it: whether one is open, or the hold itself, whose reason says whether it waits. */
+export type OpenHold = boolean | { reason?: string | null } | null | undefined;
+
+/** Whether an open hold, as `OpenHold` gives it, waits on a person: none open does not, one of no known reason does. */
+export function holdWaits(hold: OpenHold): boolean {
+  if (!hold) return false;
+  return hold === true ? true : waitsOnAPerson(hold.reason);
+}
+
+/**
+ * The verb a hold's page or notice offers, per act: the Today row's button, the thread's own first button (null where
+ * the act is to hand back: Done and Hand back are the thread's, and no reply is offered), and the clause a notice ends
+ * with. One set of words for all three, as the reason has one set for its label.
+ */
+export const HOLD_ACT_WORDS: Record<HoldAct, { cta: string; take: string | null; notice: string }> = {
+  reply: { cta: "Open and reply", take: "I'll answer this", notice: "Reply from the Inbox." },
+  call_back: { cta: "Open the call", take: "Call back", notice: "Call them back." },
+  hand_back: { cta: "Open the thread", take: null, notice: "Nothing can be sent to them." },
+};

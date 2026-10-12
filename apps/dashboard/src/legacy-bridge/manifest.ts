@@ -4,12 +4,14 @@
  * manifest-demo.ts's.
  * ES modules execute static imports in declaration order, so this file IS the
  * execution-order guarantee the classic <script> tags used to provide.
- * Order matters: data/ seeds globals pages/ read at module scope
- * (people-data mutates CLIENT_SEGMENTS from clients-data).
  *
  * The mockup's own files (legacy/demo/) are not here: a real workspace never
- * draws them, so it never downloads them. A session that declared itself a demo
- * loads them after these, at the foot of this file.
+ * draws them, so it never downloads them. That is its seeds too: the invented
+ * people and leads (demo/data/clients-data, people-data) and the seeded Ask palette
+ * (demo/pages/dashboard-a-ask), which a real workspace imported until 11 October
+ * 2026 for the one door it hosted (Ask's `askAbout` is surfaces/frame-doors.ts now)
+ * and the choice of the real Line (ask-real.jsx publishes `AskBar`). A session that
+ * declared itself a demo loads them after these, at the foot of this file.
  *
  * Dropped vs the original, and since deleted from the tree: tweaks-panel.jsx
  * (replaced by the bridge's localStorage prefs) and design-canvas.jsx (never
@@ -26,15 +28,11 @@ import "@/legacy/components/topbar.jsx";
 import "@/legacy/components/data-bits.jsx";
 
 import "@/legacy/data/constants.jsx";
-import "@/legacy/data/clients-data.jsx";
-import "@/legacy/data/people-data.jsx";
-import "@/legacy/pages/dashboard-a-ask.jsx";
 import "@/legacy/pages/ask-text.jsx";
 import "@/legacy/pages/ask-hooks.jsx";
 import "@/legacy/pages/ask-turn.jsx";
 import "@/legacy/pages/ask-home.jsx";
 import "@/legacy/pages/ask-real.jsx";
-import "@/legacy/pages/clients-bits.jsx";
 // People is TSX (surfaces/people): its list, its Leads scope, the Pipeline and a person's page; the parts the shell still
 // draws by name are published by seed-globals from people-globals.ts before any of these loads.
 

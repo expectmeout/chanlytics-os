@@ -127,13 +127,18 @@ test("the wiring: one profile row per account, written by its owner only, read b
     bridge,
     /win\.__identity = \{\s*words: identityWords,\s*member: memberWords,\s*initials: personInitials,\s*workspace: workspaceInitials,?\s*\};/,
   );
-  assert.ok(bridge.includes('window.dispatchEvent(new CustomEvent("me:changed"));'), "the chrome hears a change");
+  // A new name reaches the chrome and the roster through the workspace and settings reads the write re-reads (refresh-map.ts "PUT me"),
+  // and the bridge patches nothing ahead of them: shell/hearing/channels-billing-and-rules-are-heard.test.mjs runs it.
+  assert.ok(!bridge.includes("me:changed"), "the bridge no longer announces a name of its own");
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installIdentity();"));
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/surface-data.ts").includes("display_name?: string | null"));
 
   const sidebar = readCode("apps/dashboard/src/legacy/components/sidebar.jsx");
   assert.ok(sidebar.includes("window.__identity.words(me)"), "the chip reads the same words");
-  assert.ok(sidebar.includes('window.addEventListener("me:changed", bump);'));
+  assert.ok(
+    sidebar.includes('window.addEventListener("surface:workspace", bump);'),
+    "the chip redraws as who is looking is read",
+  );
   assert.ok(!sidebar.includes('split("@")[0]'), "never the email's local part as a name");
 
   // A person names themselves on Profile: drawn in settings-owner-panes.test.mjs ("your name is a row on Profile"). The

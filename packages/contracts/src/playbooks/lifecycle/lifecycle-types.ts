@@ -333,7 +333,7 @@ export interface LifecycleStage {
   needs: LifecycleNeeds;
   needsWords: string;
   covered: boolean;
-  /** Its playbook is on and a run of it waits for the person's approval: the node says so, where the check stood. */
+  /** A run of its playbook waits for the person's approval, whether or not the playbook is paused: the node says so, where the check stood. */
   waits: boolean;
   /** "Turn on · 3 tomorrow" on the one off moment that has people waiting, else null. */
   hint: string | null;

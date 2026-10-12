@@ -23,6 +23,7 @@
 import type { Tone } from "../shell/tone";
 import { agoWords, DAY_MS } from "../shared/time";
 import { textingWords, lineStuckProvisioning, type LineDto } from "../setup/setup";
+import { PAUSED_CALL } from "../lines/caller-gets";
 import { receptionistOn, maySpend, whyCannotSpend, type BillingMode, type BillingStatus } from "./billing";
 import { formatPhoneDisplay } from "../shared/phone";
 
@@ -206,7 +207,7 @@ function sentenceFor(r: PlatformTenantDto, verdict: PlatformVerdict, nowMs: numb
         : "Their line stopped and said nothing. A person at Chanlytics has to look.";
     case "billing":
       return r.billing_status === "past_due"
-        ? "A payment failed. The receptionist still answers, and will not once Stripe gives up."
+        ? "A payment failed. The receptionist still answers; once Stripe gives up, the workspace is paused."
         : `Not subscribed (${r.billing_status ?? "no status"}) — the receptionist is paused for them.`;
     case "rehearsal":
       return "Texting is filed against the test registry: it reports itself approved, delivers nothing, and expires thirty days after filing.";
@@ -246,7 +247,7 @@ function sentenceFor(r: PlatformTenantDto, verdict: PlatformVerdict, nowMs: numb
     case "live":
       return `Answering; last heard from ${heard === null ? "never" : agoWords(heard, nowMs)}.`;
     case "paused":
-      return "The workspace is paused. Nothing answers, by design.";
+      return `The workspace is paused, by design: ${PAUSED_CALL}.`;
     case "test":
       return "Not a customer — a test workspace.";
   }

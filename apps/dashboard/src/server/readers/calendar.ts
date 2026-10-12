@@ -1,5 +1,5 @@
 import "server-only";
-import type { CalendarWeekDto } from "@chanlytics/contracts";
+import { addressOf, type CalendarWeekDto } from "@chanlytics/contracts";
 import { calendarSources, weekFrom, type CalendarSources } from "../calendar/calendar-week";
 import { load, stamp, type Reader, type RowRef } from "./index";
 import * as facts from "./facts";
@@ -49,7 +49,12 @@ export const calendar: Reader<{ from: string | null; days: number }, { calendar:
       for (const it of d.items)
         if (it.person && !named.has(it.person.id)) {
           named.add(it.person.id);
-          rows.push({ kind: "person", id: it.person.id, route: `clients/${it.person.id}`, label: it.person.name });
+          rows.push({
+            kind: "person",
+            id: it.person.id,
+            route: addressOf({ kind: "person", id: it.person.id }),
+            label: it.person.name,
+          });
         }
     return { data: { calendar: week }, rows, stamp: stamp() };
   },

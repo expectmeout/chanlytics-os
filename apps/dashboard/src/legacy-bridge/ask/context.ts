@@ -1,13 +1,15 @@
 /**
  * The page a person is on, as Ask is sent it (contracts PageContext; the Phase 2 plan, PR 2.1): one provider a
- * surface, each reading only what its page already holds -- the globals the surfaces publish, or, where the rows on
- * screen are the page's own state (the Inbox's bucket, People's list and search, the Pipeline's box, the Calendar's
- * span), what the page said it drew (`window.__askOnScreen`, written at draw time). Identities and words only: a row
- * is its kind and id, and its label stays in the tab, where the words that name a row are matched. The server reads
- * every id again under the person's RLS and believes nothing else the tab says.
+ * surface, and Ask reads two things only (OW6, R2 C): the typed store, which a surface publishes its value to
+ * (`surfaceValue`: Today's queue, Conversations' rows, Live's calls, Leads' rows, the playbooks, the broadcasts, the
+ * messages), and, where the rows on screen are the page's own state (the Inbox's bucket, People's list and search, the
+ * Pipeline's box, the Calendar's span, Campaigns' ledger), what the page said it drew (on-screen.ts, written at draw time).
+ * No provider reads a window name of a page's own. Identities and words only: a row is its kind and id, and its label
+ * stays in the tab, where the words that name a row are matched. The server reads every id again under the person's RLS
+ * and believes nothing else the tab says.
  *
- * A provider that finds its global missing or in a shape it does not know gives no rows rather than throwing: a page
- * that has not loaded yet is asked about with its route alone.
+ * A provider that finds its value missing or in a shape it does not know gives no rows rather than throwing: a page that
+ * has not loaded yet is asked about with its route alone.
  */
 import {
   ASK_CONTEXT_MAX_ROWS,
@@ -21,48 +23,23 @@ import {
   type AskSurface,
   type PageContext,
 } from "@chanlytics/contracts";
+import { cvRoute, inChannel } from "@/surfaces/inbox/cv-rules";
 import { surfaceValue } from "@/surfaces/surface-values";
+import { askOnScreenOf, type OnScreenKey } from "./on-screen";
 import { surfaceFor } from "./palette";
 
 type Route = { page: string; param: string | null };
 /** A row as a provider finds it: its label, when the page shows one, is for matching the words and never leaves. */
 type Row = { kind: AskContextRowKind; id: string; label?: string };
 type Provided = { view?: string | null; rows: Row[]; focus?: AskScope | null };
-type Provider = (w: ContextGlobals, route: Route) => Provided;
-
-/** What a page that holds its rows in state says it drew (D3): its key, the ids in its order, and its view. */
-export interface OnScreen {
-  key: "inbox" | "people" | "pipeline" | "calendar" | "campaigns";
-  ids: string[];
-  view?: string | null;
-  /** The names the rows show, beside their ids, so the words can name one; kept in the tab. */
-  labels?: string[];
-}
-
-/** Today's queue row, as far as a provider reads it (contracts TodayQueueRowVM). */
-type TodayRow = { id: string; kind: string; conversationId: string | null; callId: string | null; who?: string };
-
-interface ContextGlobals {
-  __askOnScreen?: OnScreen | null;
-  TODAY_DATA?: { queue?: { rows?: TodayRow[] } } | null;
-  CONVERSATIONS_DATA?: { CONVERSATIONS?: Array<{ id: string; who?: string; name?: string; channel?: string }> } | null;
-  CV_ROUTE?: (word: string | null) => { channel: string; id: string | null };
-  CV_IN_CHANNEL?: (row: unknown, channel: string) => boolean;
-  __LIVE?: { now?: Array<{ callId: string; who?: string }>; recent?: Array<{ callId: string; who?: string }> } | null;
-  __LEADS?: {
-    rows?: Array<{ id: string; name?: string }>;
-    view?: { list?: string; cls?: string | null } | null;
-  } | null;
-  __PLAYBOOKS?: { rows?: Array<{ id: string; name?: string }> } | null;
-  __BROADCASTS?: { rows?: Array<{ id: string; name?: string | null }> } | null;
-  __TEMPLATES_ALL?: Array<{ id: string; name?: string; title?: string | null }> | null;
-}
+/** Over the window the ask is made from, which holds only what a page said it drew (on-screen.ts), and the route. */
+type Provider = (win: object, route: Route) => Provided;
 
 const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
 
 /** What a page said it drew, when it is the page asked about: a key that is another page's is not believed. */
-const drawn = (w: ContextGlobals, key: OnScreen["key"], kind: AskContextRowKind): Provided => {
-  const s = w.__askOnScreen;
+const drawn = (win: object, key: OnScreenKey, kind: AskContextRowKind): Provided => {
+  const s = askOnScreenOf(win);
   if (!s || s.key !== key) return { rows: [] };
   const labels = arr<string>(s.labels);
   return {
@@ -73,8 +50,10 @@ const drawn = (w: ContextGlobals, key: OnScreen["key"], kind: AskContextRowKind)
   };
 };
 
-const today: Provider = (w) => ({
-  rows: arr<TodayRow>(w.TODAY_DATA?.queue?.rows).flatMap((r): Row[] => {
+const today: Provider = () => ({
+  rows: arr<{ id: string; kind: string; conversationId: string | null; callId: string | null; who?: string }>(
+    surfaceValue("today")?.queue?.rows,
+  ).flatMap((r): Row[] => {
     const label = r.who;
     // A search waiting on its owner is `q-s-<search>` (contracts today.ts); a person's row is their thread, else the call.
     if (r.kind === "search") return r.id.startsWith("q-s-") ? [{ kind: "search", id: r.id.slice(4), label }] : [];
@@ -86,15 +65,15 @@ const today: Provider = (w) => ({
 
 const inbox: Provider = (w) => drawn(w, "inbox", "thread");
 
-const conversations: Provider = (w, route) => {
-  const tab = w.CV_ROUTE ? w.CV_ROUTE(route.param).channel : "all";
-  const inTab = w.CV_IN_CHANNEL;
+/** Conversations: the rows of the tab the address names (cv-rules.ts, the page's own rules), a call's row as the call. */
+const conversations: Provider = (_w, route) => {
+  const tab = cvRoute(route.param).channel;
   return {
     view: tab,
-    rows: arr<{ id: string; who?: string; name?: string; channel?: string }>(w.CONVERSATIONS_DATA?.CONVERSATIONS)
-      .filter((c) => (inTab ? inTab(c, tab) : true))
+    rows: arr<{ id: string; who?: string; channel: string }>(surfaceValue("conversations")?.CONVERSATIONS)
+      .filter((c) => inChannel(c, tab))
       .map((c): Row => {
-        const label = c.who ?? c.name;
+        const label = c.who;
         return c.id.startsWith("cv-")
           ? { kind: "call", id: c.id.slice(3), label }
           : { kind: "conversation", id: c.id, label };
@@ -102,31 +81,34 @@ const conversations: Provider = (w, route) => {
   };
 };
 
-const live: Provider = (w) => ({
-  rows: [
-    ...arr<{ callId: string; who?: string }>(w.__LIVE?.now),
-    ...arr<{ callId: string; who?: string }>(w.__LIVE?.recent),
-  ]
-    .filter((c) => typeof c.callId === "string")
-    .map((c) => ({ kind: "call", id: c.callId, label: c.who })),
-});
+const live: Provider = () => {
+  const shown = surfaceValue("live");
+  return {
+    rows: [
+      ...arr<{ callId: string; who?: string }>(shown?.now),
+      ...arr<{ callId: string; who?: string }>(shown?.recent),
+    ]
+      .filter((c) => typeof c.callId === "string")
+      .map((c) => ({ kind: "call", id: c.callId, label: c.who })),
+  };
+};
 
 const people: Provider = (w) => drawn(w, "people", "person");
 
-const leads: Provider = (w, route) => {
-  const v = w.__LEADS?.view;
+const leads: Provider = (_w, route) => {
+  const shown = surfaceValue("leads");
   const parsed = parseLeadsRoute(`clients/${route.param ?? "leads"}`);
-  const list = v?.list ?? parsed?.list ?? null;
-  const cls = v?.cls ?? parsed?.cls ?? null;
+  const list = shown?.view?.list ?? parsed?.list ?? null;
+  const cls = shown?.view?.cls ?? parsed?.cls ?? null;
   return {
     view: list ? `${list}${cls ? `/${cls}` : ""}` : null,
-    rows: arr<{ id: string; name?: string }>(w.__LEADS?.rows).map((r) => ({ kind: "lead", id: r.id, label: r.name })),
+    rows: arr<{ id: string; name?: string }>(shown?.rows).map((r) => ({ kind: "lead", id: r.id, label: r.name })),
   };
 };
 
 const pipeline: Provider = (w, route) => {
   // Where deals are off, the Pipeline's address draws People (surfaces/people/chrome.ts peopleTakes), and People says what it drew.
-  const got = w.__askOnScreen?.key === "people" ? drawn(w, "people", "person") : drawn(w, "pipeline", "person");
+  const got = askOnScreenOf(w)?.key === "people" ? drawn(w, "people", "person") : drawn(w, "pipeline", "person");
   return { ...got, view: got.view ?? parsePipelineRoute(`clients/${route.param ?? "pipeline"}`)?.view ?? null };
 };
 
@@ -152,7 +134,7 @@ const campaigns: Provider = (w, route) => {
     // The ledger says what it shows (surfaces/campaigns/home/ask-on-campaigns.tsx): its rows in its order, forty at most,
     // a one-off send's run spelled `run:<id>` and a reach-out `reach_out:<id>`, under the view it is set to. Before it has
     // drawn, the playbooks the surface read.
-    if (w.__askOnScreen?.key === "campaigns") {
+    if (askOnScreenOf(w)?.key === "campaigns") {
       const got = drawn(w, "campaigns", "playbook");
       const spelled = (r: Row): Row => {
         for (const kind of ["run", "reach_out"] as const)
@@ -163,7 +145,7 @@ const campaigns: Provider = (w, route) => {
     }
     return {
       view: "playbooks",
-      rows: arr<{ id: string; name?: string }>(w.__PLAYBOOKS?.rows).map((p) => ({
+      rows: arr<{ id: string; name?: string }>(surfaceValue("playbooks")?.rows).map((p) => ({
         kind: "playbook",
         id: p.id,
         label: p.name,
@@ -173,7 +155,7 @@ const campaigns: Provider = (w, route) => {
   if (route.page === "broadcasts")
     return {
       view: "broadcasts",
-      rows: arr<{ id: string; name?: string | null }>(w.__BROADCASTS?.rows).map((b) => ({
+      rows: arr<{ id: string; name?: string | null }>(surfaceValue("broadcasts")?.rows).map((b) => ({
         kind: "run",
         id: b.id,
         label: b.name ?? undefined,
@@ -181,11 +163,13 @@ const campaigns: Provider = (w, route) => {
     };
   return {
     view: "messages",
-    rows: arr<{ id: string; name?: string; title?: string | null }>(w.__TEMPLATES_ALL).map((t) => ({
-      kind: "template",
-      id: t.id,
-      label: t.title ?? t.name,
-    })),
+    rows: arr<{ id: string; name?: string; title?: string | null }>(surfaceValue("settings")?.templatesAll).map(
+      (t) => ({
+        kind: "template",
+        id: t.id,
+        label: t.title ?? t.name,
+      }),
+    ),
   };
 };
 
@@ -326,11 +310,10 @@ export function pageContext(
   words?: string,
   thread?: ReadonlyArray<ThreadMessage> | null,
 ): PageContext {
-  const w = win as unknown as ContextGlobals;
   const surface = surfaceFor(route.page, route.param);
   let got: Provided;
   try {
-    got = PROVIDERS[surface]?.(w, route) ?? { rows: [] };
+    got = PROVIDERS[surface]?.(win, route) ?? { rows: [] };
   } catch {
     got = { rows: [] };
   }

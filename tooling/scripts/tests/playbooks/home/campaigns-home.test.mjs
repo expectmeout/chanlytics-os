@@ -67,7 +67,7 @@ const { Button } = await import(`${SRC}/surfaces/kit/button/button.tsx`);
 const { playbooksSample } = await import(`${SRC}/surfaces/campaigns/playbooks/sample.ts`);
 const { broadcastsSample } = await import(`${SRC}/surfaces/campaigns/broadcasts/sample.ts`);
 const { playbooks: verbs } = await import(`${SRC}/surfaces/campaigns/playbooks/verbs.ts`);
-const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
+const { setSurfaceValue, surfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
 const { standingSaid } = await import(`${SRC}/surfaces/kit/head/standing.ts`);
 const { PlaybookPane } = await import(`${SRC}/surfaces/campaigns/playbooks/card-detail.tsx`);
 const { PlaybookComposer } = await import(`${SRC}/surfaces/campaigns/playbooks/composer.tsx`);
@@ -95,8 +95,8 @@ function surfaces(over = {}) {
     noNumber: 0,
     saidYes,
   });
-  // The call's text and the Library's count are the playbooks surface's own read of the templates (Settings is no longer
-  // drawn on Campaigns): a test that hands Settings a library hands it here.
+  // The call's text and the Library's count are the playbooks surface's slice, made of the settings read, the one read of the
+  // templates (offered-templates.ts): the page draws the slice, so a test that hands Settings a library hands it here.
   const lib = over.settings && "templatesAll" in over.settings ? over.settings.templatesAll : pb.templates;
   setSurfaceValue("playbooks", {
     ...pb,
@@ -439,7 +439,7 @@ test("a run waiting on you is approved on its row, through the broadcast's own d
     const line = waitingLine(page());
     assert.equal(line.props["data-state"], "waiting");
     assert.match(textOf(line), /Welcome/);
-    assert.match(textOf(line), /Waiting on you/);
+    assert.match(textOf(line), /Waiting for your approval/);
     const approve = byTestId(line, "cmh-approve");
     assert.match(textOf(approve), /Approve · 4 people/);
     assert.equal(textOf(byTestId(line, "cmh-skip")).trim(), "Skip");
@@ -854,7 +854,7 @@ const failedAt = (tree, id) => {
   return node ? { node, words: textOf(node), retry: byTestId(tree, `${id}-retry`) } : null;
 };
 
-test("a templates read that failed is said in the call's text's place, with a Retry that reads the playbooks surface again", () => {
+test("a templates read that failed is said in the call's text's place, with a Retry that reads the settings surface again: the one read of the templates", () => {
   surfaces({ settings: { templatesAll: null } });
   fresh();
   refreshed.length = 0;
@@ -882,8 +882,8 @@ test("a templates read that failed is said in the call's text's place, with a Re
   pressed(failed.retry);
   assert.deepEqual(
     refreshed,
-    ["playbooks"],
-    "its Retry reads the playbooks surface, whose own read of the templates it is (Settings is not drawn on Campaigns)",
+    ["settings"],
+    "its Retry reads the settings surface, the one read of the templates, which the playbooks surface is made of",
   );
   surfaces();
   fresh();
@@ -1165,23 +1165,31 @@ test("a broadcasts read that failed is said in each tile made from it, in the se
   }
 });
 
-test("a templates read the playbooks surface could not make leaves the Library with no count and the call's text with its Retry", () => {
-  surfaces({ playbooks: { library: null, messages: null } });
+test("a templates read the playbooks surface could not be made of leaves the Library with no count and the call's text with its Retry", () => {
+  // The playbooks surface's slice is made of the settings read each time it is published (followSettings), so a null
+  // library is a settings read whose templates failed: the rows and the messages both unread.
+  surfaces({ settings: { templatesAll: null, messages: null } });
+  assert.equal(surfaceValue("playbooks").library, null, "the slice made of it is null too");
   fresh();
   refreshed.length = 0;
   const tree = page();
   const failed = failedAt(tree, "cmh-templates-failed");
   assert.ok(failed, "a templates read that failed is said, as a null `library` is");
   pressed(failed.retry);
-  assert.deepEqual(refreshed, ["playbooks"]);
+  assert.deepEqual(
+    refreshed,
+    ["settings"],
+    "and the Retry reads the settings surface, which the playbooks surface is made of",
+  );
   assert.equal(textOf(byTestId(tree, "cmh-library")).includes("0"), false, "no Library count it did not read");
-  // Settings is no longer what the home reads its library from: a Settings read that failed says nothing here.
+  // The home reads its library from the playbooks surface's slice, which is made of the settings read (offered-templates.ts):
+  // a Settings read that is not drawn here says nothing of its own, and the slice the playbooks surface holds stands.
   surfaces();
   setSurfaceValue("settings", undefined);
   status.setStatus("settings", "seeded");
   try {
     fresh();
-    assert.equal(byTestId(page(), "cmh-templates-failed"), null, "the playbooks surface's own read stands");
+    assert.equal(byTestId(page(), "cmh-templates-failed"), null, "the playbooks surface's slice stands");
   } finally {
     status.setStatus("settings", "live");
   }
@@ -1426,7 +1434,6 @@ test("the Library's count and the home's count both take a message written for e
 
 test("Campaigns' own 30 days are one read of each report over its own period, each failing alone: a report that could not be read leaves the chains standing, and a chains' answer is each root's own", async () => {
   const { campaignResultsOverride } = await import(`${SRC}/surfaces/campaigns/home/results-surface.ts`);
-  const { surfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
   const answer = (data) =>
     new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { "content-type": "application/json" } });
   const refused = () =>

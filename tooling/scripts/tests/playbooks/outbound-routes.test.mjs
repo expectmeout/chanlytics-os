@@ -601,7 +601,11 @@ test("what sends a template says what that thing is doing: a playbook's clock, a
     true,
     "a run pending approval is its playbook waiting on the owner",
   );
-  assert.equal(C.templateUseNote(usedBy.monthly_offer), "a run is waiting on you", "which outranks its clock");
+  assert.equal(
+    C.templateUseNote(usedBy.monthly_offer),
+    "a run is waiting for your approval",
+    "which outranks its clock",
+  );
   assert.equal(C.templateUseWords(usedBy.save_our_number), "Save our number campaign", "paused, still named plainly");
   assert.equal(
     C.templateUseNote(usedBy.save_our_number),

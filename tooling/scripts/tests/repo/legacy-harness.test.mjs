@@ -47,7 +47,6 @@ import {
   DEFAULT_TIMEZONE,
   timezoneCity,
   timezoneWords,
-  SOURCE_WORDS,
   samePhone,
   whyNotAPhone,
   whyNotAHandoff,
@@ -308,7 +307,7 @@ const BRIDGED = [
   "__identity",
   "__tz",
   "DEFAULT_TIMEZONE",
-  "__FACT_WORDS",
+  "askAbout",
   "__samePhone",
   "__whyNotAPhone",
   "__whyNotAHandoff",
@@ -357,7 +356,6 @@ test("the stubs answer the way contracts answers", () => {
   const at = Date.UTC(2026, 3, 26, 16, 4);
   assert.deepEqual(win.__tz.words("America/New_York", at), timezoneWords("America/New_York", at));
 
-  assert.deepEqual(win.__FACT_WORDS, SOURCE_WORDS);
   assert.equal(win.__samePhone("(212) 555-0142", "+12125550142"), samePhone("(212) 555-0142", "+12125550142"));
   for (const n of ["", "12345", "5550142", "212 555 0142", "nonsense"]) {
     assert.equal(win.__whyNotAPhone(n), whyNotAPhone(n), `whyNotAPhone(${JSON.stringify(n)})`);
@@ -449,7 +447,7 @@ test("the mockup takes the kit's components and the Inbox's and People's names f
   assert.equal(
     tags[tags.indexOf(STUBS) + 1],
     "data/kit-globals.js",
-    "the pages here read Icon, EmptyState, FailedRead, SegmentBar, StatePill, Confirm, MoreMenu, PolicyChip, TlMedia, FieldError and the record kit by name, which the kit has drawn since decision 0015",
+    "the pages here read Icon, FailedRead, SegmentBar, StatePill, Confirm, MoreMenu, PolicyChip and the bell's RecordSwitch by name, which the kit has drawn since decision 0015",
   );
   assert.equal(
     tags[tags.indexOf(STUBS) + 2],
@@ -484,19 +482,24 @@ test("the kit's bundle publishes the kit's own components on the page's React, u
   vm.runInNewContext(await kitGlobalsBundle(), { window: win, React, console });
   for (const name of [
     "Icon",
-    "EmptyState",
     "FailedRead",
     "SegmentBar",
     "StatePill",
     "Confirm",
     "MoreMenu",
     "PolicyChip",
-    "TlMedia",
-    "FieldError",
+    "RecordSwitch",
   ])
     assert.equal(typeof win[name], "function", `${name} is published`);
-  // The record kit, which the pages read by name: its components and hooks, the fold registry and the rail's two answers.
+  // And only those: a name no page here reads is not published (O4b). The empty state, the field error, a thread's media,
+  // the attention row, the agenda's rows and the record kit (the row, the fields, the fold, the sheet, the registry that
+  // keeps one fold open and the unsaved-work rule) are imported by the TSX that draws them.
   for (const name of [
+    "EmptyState",
+    "TlMedia",
+    "FieldError",
+    "AttnRow",
+    "AgendaItem",
     "RecordRow",
     "RecordField",
     "RecordFold",
@@ -507,10 +510,9 @@ test("the kit's bundle publishes the kit's own components on the page's React, u
     "tabDraft",
     "__settingsUnsaved",
     "__settingsSaving",
+    "__recordFolds",
   ])
-    assert.equal(typeof win[name], "function", `${name} is published`);
-  assert.equal(typeof win.__recordFolds.request, "function", "the fold registry is published");
-  assert.equal(win.__settingsUnsaved(), false, "nothing is open, so the rail has nothing to ask");
+    assert.equal(win[name], undefined, `${name} is no global`);
   assert.equal(
     win.StatePill({ kind: "thread", value: "escalated" }).props.className,
     "pill pill-warn",
@@ -785,18 +787,20 @@ test("at most one file the harness loads takes an object rest: Babel keeps each 
   // `var _excluded` (`_excluded2`, … within the file), named the same in every file. Two files with a rest give that
   // one global two lists, and the file loaded last decides what every other file's rest leaves out: settings.jsx's
   // SetToggle list put LeadPeek's vm, mode and deck into its panes' acts, and put id, label and unit on the record
-  // kit's <input> before RecordField gathered its rest by hand (#777). A rest is taken with window.propsWithout
-  // (data-bits.jsx); one file may keep one, having nothing to clash with.
+  // kit's <input> before RecordField gathered its rest by hand (#777). A rest is written out by hand (window.propsWithout
+  // did it once, and nothing read it by the end); one file may keep one, having nothing to clash with.
   assert.ok(
     sharedScope.withRests.length <= 1,
-    `object rests in more than one file (take them with window.propsWithout): ${sharedScope.withRests.join(", ")}`,
+    `object rests in more than one file (write the props out): ${sharedScope.withRests.join(", ")}`,
   );
 });
 
 test("the Inbox's bundle publishes the demo's rows and the shell's rules under the names the pages still read", async () => {
   const { inboxGlobalsBundle } = await import("../../serve-legacy.mjs");
   const events = [];
+  // The harness is a demo session (data/bridge-stubs.jsx sets the switch before the bundle loads).
   const win = {
+    __DEMO_MODE: true,
     addEventListener: (type) => events.push(type),
     dispatchEvent: () => true,
   };
@@ -816,4 +820,9 @@ test("the Inbox's bundle publishes the demo's rows and the shell's rules under t
   );
   assert.equal(win.CV_IN_CHANNEL({ channel: "sms" }, "chats"), true, "a row on a grouped tab");
   assert.ok(events.includes("presence:changed"), "the countdowns hear the member go Away");
+  // Away is the demo's alone (its control is drawn only in a demo session): a real session loads the bundle and hears none.
+  const real = [];
+  const realWin = { addEventListener: (type) => real.push(type), dispatchEvent: () => true };
+  vm.runInNewContext(await inboxGlobalsBundle(), { window: realWin, console, CustomEvent: class {} });
+  assert.ok(!real.includes("presence:changed"), "a real session registers no listener for Away");
 });

@@ -1,5 +1,6 @@
 import "server-only";
 import {
+  addressOf,
   dealPaceOf,
   dealsAreOn,
   followUpStandOf,
@@ -154,7 +155,7 @@ export const people: Reader<{ q: string | null; offset: number; after?: PeopleCu
       rows: data.people.map((r): RowRef => ({
         kind: "person",
         id: r.id,
-        route: `clients/${r.id}`,
+        route: addressOf({ kind: "person", id: r.id }),
         label: personName(r),
       })),
       stamp: stamp(),

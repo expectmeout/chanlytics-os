@@ -5,6 +5,7 @@
  */
 import { foldName } from "../../calendar/service-offer";
 import { visitDay } from "../../calendar/calendar-people";
+import { visitStateOf } from "../../calendar/calendar-words";
 import { clockDate } from "../../shared/clock";
 import { DEAL_LINE_NONE, DEAL_STAGE_WORDS } from "../deal-words";
 import type { DealVM } from "../deal-vm";
@@ -36,6 +37,11 @@ export interface DealStepVM {
   label: string;
   /** "Sep 22", by the business's calendar; null for a step not reached, or one Coming up already dates. */
   day: string | null;
+  /**
+   * On the Consultation step once it has ended, how the visit stands in the visit line's word: "Kept" where the owner said
+   * they came, "Past" where nobody said (visitStateOf, D1-consult-held); never "done", which says it took place. Null on the others.
+   */
+  word: string | null;
   at: "done" | "current" | "ahead";
   /** The stage's own tone on the step it is at (tone.ts `deal`); null on the others. */
   tone: Tone | null;
@@ -153,6 +159,7 @@ function stepsOf(p: DealPerson, deal: DealVM, tz: string, nowMs: number, consult
       key: "consultation",
       label: DEAL_CARD_WORDS.consultation,
       day: done ? day(consulted) : null,
+      word: done ? (visitStateOf(p.lastVisitLine?.mark ?? null, consulted, nowMs)?.text ?? null) : null,
       at: done ? "done" : "ahead",
       tone: null,
     });
@@ -160,6 +167,7 @@ function stepsOf(p: DealPerson, deal: DealVM, tz: string, nowMs: number, consult
   steps.push({
     key: "proposal",
     label: DEAL_STAGE_WORDS.proposed,
+    word: null,
     day: day(deal.proposedMs ?? (won ? null : deal.sinceMs)),
     at: won ? "done" : "current",
     tone: won ? null : tone,
@@ -167,6 +175,7 @@ function stepsOf(p: DealPerson, deal: DealVM, tz: string, nowMs: number, consult
   steps.push({
     key: "client",
     label: DEAL_STAGE_WORDS.won,
+    word: null,
     day: won ? day(deal.sinceMs) : null,
     at: won ? "current" : "ahead",
     tone: won ? tone : null,

@@ -1,8 +1,18 @@
 import "server-only";
-import { emitEvent, inviteUserByEmail, workspaceIdsOf, type Database } from "@chanlytics/db";
+import {
+  emitEvent,
+  getOwnPartner,
+  inviteUserByEmail,
+  recordEvent,
+  subjectsWith,
+  workspaceIdsOf,
+  type Database,
+} from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { AppError } from "@chanlytics/contracts";
+import { AppError, type InvitationsAcceptedDto, type JoinedWorkspaceDto } from "@chanlytics/contracts";
 import { serviceDb } from "../service-db";
+import { tenantFacts } from "../tenant";
+import { requireSecondFactor, type RouteContext } from "../with-route";
 import { log } from "@/server/log";
 
 /**
@@ -14,7 +24,8 @@ import { log } from "@/server/log";
  * scoping lives in those functions and in the tenant each call names.
  *
  * Cross-workspace: acceptOpenInvites completes the invitations addressed to the signed-in email in every workspace that
- * invited it; the email, proved by the session, is the scope, and each membership it makes is the invitation's own.
+ * invited it; the email, proved by the session, is the scope, and each membership it makes is the invitation's own. It
+ * runs from a POST the shell makes once when it boots, never from a read (decision 0047, lane 6).
  */
 
 /** The one sentence for a change that would leave the workspace with no owner: team_change_role's and team_remove's refusal (last_owner), and 00271's trigger's behind it. */
@@ -310,10 +321,10 @@ interface InviteToAccept {
 }
 
 /**
- * The invitations still open for this address, none when there is no address or they cannot be read: looked up beside
- * the workspaces route's other reads, and accepted (acceptOpenInvites) once the request may write. Never rejects.
+ * The invitations still open for this address, none when there is no address or they cannot be read: looked up by the
+ * accept (acceptOpenInvites), which is the one place that writes on them. Never rejects.
  */
-export async function openInvitesFor(email: string | null): Promise<InviteToAccept[]> {
+async function openInvitesFor(email: string | null): Promise<InviteToAccept[]> {
   if (!email) return [];
   try {
     const { data, error } = await serviceDb()
@@ -329,36 +340,75 @@ export async function openInvitesFor(email: string | null): Promise<InviteToAcce
   }
 }
 
-/** A sign-in completes any open invites for this email: membership rows
- *  appear at the invited role and the invite is stamped accepted. Called from
- *  the workspaces route on every same-origin read, not only when a session has
- *  no memberships yet: a person already in one workspace can be invited to
- *  another. Self-healing, no separate accept endpoint to get wrong. `open`: the
- *  lookup already started (openInvitesFor); without it, it is made here. */
-export async function acceptOpenInvites(
-  userId: string,
-  email: string | null,
-  open: Promise<InviteToAccept[]> = openInvitesFor(email),
-): Promise<number> {
-  if (!email) return 0;
-  const invites = await open;
-  if (!invites.length) return 0;
+/**
+ * A person's open invitations accepted: membership rows appear at the invited role and each invite is stamped accepted.
+ * Made by one POST the shell makes once when it boots (POST me/invitations/accept, joinFromInvitations), no longer by
+ * the read of the workspace list, which seated people on every same-origin GET (decision 0047, lane 6: reads never
+ * write). Not only for a session with no memberships yet: a person already in one workspace can be invited to another.
+ * The invitations it seated, none when there is no address or nothing open.
+ */
+async function acceptOpenInvites(userId: string, email: string | null): Promise<InviteToAccept[]> {
+  if (!email) return [];
+  const invites = await openInvitesFor(email);
+  if (!invites.length) return [];
   const db = serviceDb();
-  let n = 0;
+  const seated: InviteToAccept[] = [];
   for (const inv of invites) {
     const { error: mErr } = await db
       .from("memberships")
       .insert({ tenant_id: inv.tenant_id, user_id: userId, role: inv.role });
-    if (!mErr || mErr.code === "23505") {
-      await db.from("invitations").update({ accepted_at: new Date().toISOString() }).eq("id", inv.id);
-      // The seat is the news, and only the read that took it says so: a seat already held (23505) joined before. The
-      // ledger kept the invitation and its role and never that anybody arrived.
-      if (!mErr)
-        await emitEvent(db, inv.tenant_id, "member.joined", "invitation", inv.id, { by: userId, role: inv.role });
-      n++;
+    // A refusal other than "they hold the seat" leaves the invitation open for the next read.
+    if (mErr && mErr.code !== "23505") continue;
+    // The seat, the news and the stamp are three writes that cannot share a transaction, so they are ordered to be finished
+    // by whoever comes next: the news (member.joined, which the owner's bell line follows: core SUBSCRIBERS.team_notice)
+    // before the invitation is stamped. An invitation still open is one nobody has been told of, so a read that died
+    // between the seat and its news is finished by the next one, which finds the seat held (23505) and the ledger without
+    // the news. The ledger is asked first, so a read that finds the news there writes none, and a seat that was held from
+    // another door while the invitation stayed open is accepted and said once, when it is first signed in to.
+    const said = await subjectsWith(db, inv.tenant_id, "member.joined", [inv.id]).catch(() => null);
+    if (!said) continue;
+    if (!said.has(inv.id)) {
+      const { error } = await recordEvent(db, inv.tenant_id, "member.joined", "invitation", inv.id, {
+        by: userId,
+        role: inv.role,
+      });
+      if (error) {
+        log.error("member_joined_not_recorded", { tenant_id: inv.tenant_id, invitation: inv.id, error });
+        continue;
+      }
     }
+    // Stamped only if nobody stamped it first (a second tab's read at once), which is the one that counts it.
+    await db
+      .from("invitations")
+      .update({ accepted_at: new Date().toISOString() })
+      .eq("id", inv.id)
+      .is("accepted_at", null);
+    seated.push(inv);
   }
-  return n;
+  return seated;
+}
+
+/**
+ * What POST me/invitations/accept answers: the workspaces the person was seated in, by name, so the shell can say "You
+ * joined Harbor". The name is read as the service role (the seat was just made, and RLS shows the person their own
+ * workspaces from the next request); one that cannot be read is "a workspace", never a failure of the acceptance.
+ */
+export async function joinFromInvitations(
+  ctx: Pick<RouteContext, "supabase" | "userId" | "email" | "aal">,
+): Promise<InvitationsAcceptedDto> {
+  // A partner account opens the app on a session that showed its second factor (0013), as the list of workspaces has always
+  // asked, so the refusal that sends the tab to the second step comes before any seat is made.
+  if (await getOwnPartner(ctx.supabase)) requireSecondFactor(ctx);
+  const seated = await acceptOpenInvites(ctx.userId, ctx.email ?? null);
+  const db = serviceDb();
+  const joined: JoinedWorkspaceDto[] = await Promise.all(
+    seated.map(async (inv) => ({
+      id: inv.tenant_id,
+      name: (await tenantFacts(db, inv.tenant_id).catch(() => null))?.name ?? "a workspace",
+      role: inv.role,
+    })),
+  );
+  return { joined };
 }
 
 /**

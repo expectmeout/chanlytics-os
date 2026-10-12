@@ -15,8 +15,9 @@ import { ixInDialog } from "../keys";
 import { canDo, gate, tabMemory } from "../shell";
 import { inboxData } from "../store";
 import type { ApprovedTemplate, Thread } from "../types";
+import { takeCarriedReply } from "../carried-reply";
 import { useReplyDraftDoor } from "./reply-strip";
-import { detailField, fieldOf } from "./shell-thread";
+import { detailField } from "./shell-thread";
 import { ixBandCallBack } from "./band";
 import { Button } from "../../kit/button/button";
 
@@ -117,7 +118,7 @@ function templateGap(p: {
         kind="line"
         title="Couldn't read your approved templates"
         body="Outside the 24-hour window only an approved template sends, so none can be offered until they're read."
-        surface="inbox"
+        surface="settings"
         testid="ix-tpl-failed"
       />
     );
@@ -283,25 +284,14 @@ const TemplateComposer = ({
 type SetText = Dispatch<SetStateAction<string>>;
 type BoxRef = RefObject<HTMLTextAreaElement | null>;
 
-/** A reply carried in from a profile ("Text the booking link"): only into an empty composer, only for this thread, and only once. */
-function takeCarriedReply(threadId: string, setText: SetText, taRef: BoxRef) {
-  try {
-    const raw = sessionStorage.getItem("chanlytics-compose");
-    if (!raw) return;
-    const carried: unknown = JSON.parse(raw);
-    const said = fieldOf(carried, "text");
-    if (typeof said !== "string") return;
-    const at = fieldOf(carried, "threadId");
-    const mine = at === threadId || at === `th-${threadId}` || `th-${String(at)}` === threadId;
-    if (!mine) return;
-    sessionStorage.removeItem("chanlytics-compose");
-    setText((cur) => (cur && cur.trim() ? cur : said));
-    window.setTimeout(() => {
-      if (taRef.current) taRef.current.focus();
-    }, FOCUS_COMPOSER_MS);
-  } catch {
-    /* nothing carried */
-  }
+/** A reply carried in from another page ("Text the booking link", carried-reply.ts): only into an empty composer, and once. */
+function putCarriedReply(threadId: string, setText: SetText, taRef: BoxRef) {
+  const said = takeCarriedReply(threadId);
+  if (said === null) return;
+  setText((cur) => (cur && cur.trim() ? cur : said));
+  window.setTimeout(() => {
+    if (taRef.current) taRef.current.focus();
+  }, FOCUS_COMPOSER_MS);
 }
 
 interface ComposerKeys {
@@ -597,7 +587,7 @@ export const Composer = ({ thread, reply, hasApproval, onType = null, onSend = (
     setText((cur) => (cur && cur.trim() ? cur : reply));
   }, [reply]);
 
-  useEffect(() => takeCarriedReply(thread.id, setText, taRef), [thread.id]);
+  useEffect(() => putCarriedReply(thread.id, setText, taRef), [thread.id]);
 
   const [sending, setSending] = useState(false);
   const doSend = () => {

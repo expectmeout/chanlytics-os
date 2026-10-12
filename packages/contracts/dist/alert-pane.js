@@ -151,7 +151,12 @@ var NOTIFICATION_DELIVERY = {
   leads_question: "email",
   note_for_you: "bell",
   reach_out_replied: "email",
-  reach_out_day: "bell"
+  reach_out_day: "bell",
+  // A customer asked to stop: news and no wait (decision 0048). Emailed only as the business chooses, never always.
+  opted_out: "email",
+  // A booking that arrived and a teammate who joined: news and no wait, a line on the bell and no mail, no phone.
+  booking: "bell",
+  member_joined: "bell"
 };
 var EMAILED_NOTIFICATION_KINDS = Object.keys(NOTIFICATION_DELIVERY).filter((k) => NOTIFICATION_DELIVERY[k] === "email");
 var ALERT_GROUP_TITLES = {
@@ -213,6 +218,15 @@ var ALERT_TOPICS = [
     email: "choice",
     phone: true,
     kinds: ["reach_out_replied"]
+  },
+  {
+    key: "opted_out",
+    group: "worth_knowing",
+    title: "A customer asked to stop",
+    what: "Someone texted STOP, unsubscribed from your emails, reported one as spam, or their carrier told us they stopped. Nothing more is sent to them, and nothing waits on you.",
+    email: "choice",
+    phone: false,
+    kinds: ["opted_out"]
   },
   {
     key: "job_failed",
@@ -377,9 +391,11 @@ var ALERT_PANE_WORDS = {
     const all = [
       ...also,
       "people added from your calendar",
+      "a booking that arrives",
       "a booking email that needs a look",
       "the day's reach-out numbers at 6 PM",
       "a problem with a line",
+      "a teammate who joins",
       "invitations not yet accepted"
     ];
     return `Also on the bell: ${all.slice(0, -1).join(", ")}, and ${all[all.length - 1]}.`;

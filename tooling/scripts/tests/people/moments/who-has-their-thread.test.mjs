@@ -196,3 +196,45 @@ test("the People row says the same as the page: its receptionist is one answer f
     assert.equal(p.rightNow.tone, p.receptionist.tone, `the card and the Receptionist fact agree for ${viewer}`);
   }
 });
+
+test("a teammate's thread says whose it is where the roster is read, as the Inbox's row does, and A teammate where it is not (D1-hold-words)", () => {
+  const names = (id) => (id === TEAMMATE ? "Ruben" : null);
+  const detail = (viewer, roster) =>
+    toPersonVM(
+      {
+        row: rowFor(FLAGGED),
+        identities: [],
+        conversations: [conversation(FLAGGED, viewer)],
+        calls: [],
+        escalations: [],
+        decisions: [],
+        receptionist_mode: null,
+        workspace_reply_mode: "auto",
+      },
+      TZ,
+      NOW,
+      viewer,
+      roster,
+    );
+  // The row, the card and the fact all say the name; the sentence is the Inbox's with the name in it.
+  assert.deepEqual(toPersonRowVM(rowFor(FLAGGED), TZ, NOW, ME, null, names).receptionist, {
+    tone: "theirs",
+    label: "Ruben has it",
+  });
+  const named = detail(ME, names);
+  assert.equal(named.rightNow.title, "Ruben has it");
+  assert.equal(named.rightNow.detail, "Ruben is answering this. The receptionist stays quiet until they hand it back.");
+  assert.equal(named.receptionist.label, "Ruben has it");
+  assert.equal(receptionistFact(named).meta, "Ruben has it", "a name keeps its capital");
+  // A roster that does not know them, or none: the words the Inbox falls back to. A name is never invented.
+  for (const roster of [() => null, () => undefined, null]) {
+    const unnamed = detail(ME, roster);
+    assert.equal(unnamed.rightNow.title, "A teammate has it");
+    assert.equal(unnamed.rightNow.detail, inboxFor(FLAGGED, ME).summary);
+    assert.equal(receptionistFact(unnamed).meta, "a teammate has it");
+  }
+  // The member looking is not named to themselves, whatever the roster says of them.
+  const mine = { ...FLAGGED, assignee: ME };
+  const own = toPersonRowVM(rowFor(mine), TZ, NOW, ME, null, () => "Ruben").receptionist;
+  assert.deepEqual(own, { tone: "yours", label: "You have it" });
+});

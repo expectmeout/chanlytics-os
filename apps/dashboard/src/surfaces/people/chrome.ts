@@ -3,7 +3,7 @@
  * drawNewList and drawPipeline, decision 0015): which addresses under `clients` the page takes, and the crumbs, the mount
  * and the one act of each. The frame stays mounted around it (surfaces/routes.ts).
  */
-import { parseLeadsRoute } from "@chanlytics/contracts";
+import { PERSON_STATE_LABELS, parseLeadsRoute } from "@chanlytics/contracts";
 import { surfaceValue } from "../surface-values";
 import { demoSession } from "../legacy-verbs";
 import { P } from "./pipeline/pipe";
@@ -49,7 +49,8 @@ function viewLabel(param: string): string {
   const savedMeta = savedId && P ? P.saved.find((l) => l.id === savedId) : null;
   if (surfaceList) return surfaceList.label;
   if (savedMeta) return savedMeta.name;
-  if (stateId) return stateId.replace(/_/g, " ");
+  // A state is named by its words, the pill's and the list's (contracts PERSON_STATE_LABELS): "You have it", not its key's "waiting on you".
+  if (stateId) return (PERSON_STATE_LABELS as Record<string, string>)[stateId] ?? stateId.replace(/_/g, " ");
   return P ? "List" : "Segment";
 }
 

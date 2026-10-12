@@ -372,7 +372,7 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
   // nothing about the one that might have dropped the channel.
   assert.equal(
     (code.match(/ports\.persist\.ingest\(/g) ?? []).length,
-    (code.match(/ports\.persist\.ingest\(db, tenantId, n, channel[,)]/g) ?? []).length,
+    (code.match(/ports\.persist\.ingest\(\s*db,\s*tenantId,\s*n,\s*channel[,)]/g) ?? []).length,
     "every ingest carries the channel (and the line it came in on, as its fifth argument: run in inbound-executed.test.mjs)",
   );
   assert.ok(

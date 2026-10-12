@@ -25,6 +25,7 @@ import {
   type Flash,
   type SeededLead,
 } from "../shell";
+import { needsYouMoved } from "../../needs-you";
 import { seePerson, threadReading, threadUnread, threadWhose } from "../../seen";
 import { inboxData, IX_STORE, VW_STORE, VW_UTIL, type Decision } from "../store";
 import { threadVerbs } from "../thread/thread-verbs";
@@ -278,6 +279,10 @@ export const useInboxState = (THREADS: Thread[], initialThreadId: string | null)
   routeThreadRef.current = initialThreadId;
   const { ownRouteRef, goTo, openThread, closeThread } = useInboxAddress(initialThreadId, setPhoneThreadOpen);
 
+  // Whether the thread the address names is among those held. One a link names that is older than the newest hundred is read
+  // by its id after the page has opened (use-named-record.ts), and opens, as the address does, in its own bucket when it lands.
+  const addressThreadHeld = !!initialThreadId && threads.some((x) => x.id === initialThreadId);
+
   // Deep-link follows later navigations too
   useEffect(
     () => {
@@ -297,12 +302,12 @@ export const useInboxState = (THREADS: Thread[], initialThreadId: string | null)
       // (selectThread), and a bucket picked opens none.
       if (ownRouteRef.current !== initialThreadId) setPhoneThreadOpen(true);
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- kept as the JSX drew it: follows the address alone, so a re-read never re-opens the thread
-    [initialThreadId],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- kept as the JSX drew it: follows the address, and the thread it names arriving, so a re-read that holds it already never re-opens the thread
+    [initialThreadId, addressThreadHeld],
   );
 
   // Real threads carry the answer (viewmodel `needsYou`) rather than having it
-  // re-derived here — this count drives the sidebar badge, and Today used to
+  // re-derived here — this count moves the badge's readers (below), and Today used to
   // dispatch a DIFFERENT number over the top of it. Seeded mockup threads keep
   // the demo rule, since "needs" is a state real threads can never hold. A reply
   // about to send waits on you too, by the one rule above (ixWaitsOnYou).
@@ -327,9 +332,11 @@ export const useInboxState = (THREADS: Thread[], initialThreadId: string | null)
     return () => clearTimeout(timer);
   }, [activeThreadId]);
 
-  // Sidebar badge sync
+  // What only this page knows -- a reply held in this tab before the cancel's re-read lands, a decision on a seeded thread --
+  // is part of what the badge, the tab, the title and the phone count. Told when this page's own number moves; the readers
+  // ask the one selector (needs-you.ts) again, which is made of the same threads and the same holds. Nothing is sent.
   useEffect(() => {
-    window.dispatchEvent(new CustomEvent("inbox:counts", { detail: { needs: needsCount } }));
+    needsYouMoved();
   }, [needsCount]);
 
   return {
@@ -519,7 +526,6 @@ export const inboxVerdict = (ix: InboxState & InboxMoves) => {
       });
       dealAdded = true;
     }
-    window.dispatchEvent(new CustomEvent("leads:verdict", { detail: { leadId: verdict.leadId, verdict: opt.verb } }));
     if (opt.verb === "client")
       window.dispatchEvent(
         new CustomEvent("leads:converted", { detail: { leadId: verdict.leadId, name: t.who, clientId: null } }),
@@ -570,14 +576,15 @@ export const useInboxVeto = (ix: InboxState & InboxMoves) => {
   // memoisation, so an unconditional 1Hz timer re-rendered the entire Inbox
   // once a second, forever, to move a number that isn't there. Real threads
   // carry a veto draft only while one is genuinely held server-side — gated on
-  // the DATA rather than on __DEMO_MODE, because the presence listener below
-  // is the Away->Available unfreeze path and must keep working either way.
+  // the DATA rather than on __DEMO_MODE, because a real draft's countdown is the
+  // server's and is drawn from its deadline.
   const hasLiveVeto = threads.some((t) => t.veto);
   useEffect(
     () => {
       VW_UTIL.seed(threads);
       const onPres = () => setVetoTick((n) => n + 1);
-      window.addEventListener("presence:changed", onPres);
+      // Away is the demo's (its control is drawn only in a demo session): a real session has none to hear.
+      if (demoSession()) window.addEventListener("presence:changed", onPres);
       const iv = hasLiveVeto ? window.setInterval(() => setVetoTick((n) => n + 1), TICK_MS) : null;
       return () => {
         if (iv) window.clearInterval(iv);

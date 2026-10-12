@@ -697,7 +697,7 @@ test("call_analyzed: the note lands in the caller's thread and the call links to
     assert.equal(bells.length, 1);
     assert.deepEqual(
       [bells[0].tenant_id, bells[0].kind, bells[0].route, bells[0].subject_type, bells[0].subject_id],
-      [w.T, "call", "conversations/phone", "call", call.id],
+      [w.T, "call", `conversations/cv-${call.id}`, "call", call.id],
     );
     assert.equal(bells[0].title, "Rosa phoned · 2 min");
     assert.ok(bells[0].body.startsWith("They wanted: a quote for a move on Tuesday.\nOutcome: Question answered.\n"));

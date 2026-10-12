@@ -51,6 +51,28 @@ export function initialsOf(name: string): string {
   return p.slice(0, 2).toUpperCase();
 }
 
+/**
+ * A person's face, decided once (D1-face-number, D1-face-email): what it stands for, by THE test of a name that is only an
+ * identifier (isIdentifierName), so no page holds its own copy of it -- a person with a name (`named`, drawn as their
+ * initials) or one known only by what reaches them, a number or an address (drawn as one glyph, the same on every page) --
+ * the initials a named person wears (the view model's own where it has them, else initialsOf), and the glyph (an Icon's
+ * name) that stands for a number or an address. The People table, the phone's card, the Pipeline's board, peek and
+ * picker, the Inbox, Conversations, Live, Today and the person's own page draw this through the kit's Face; before, a
+ * number was a phone glyph on two pages and two digits on seven, and an address a mail glyph on one view and a phone
+ * glyph on the next.
+ */
+export function personFaceOf(
+  name: string,
+  initials?: string,
+): { kind: "named" | "number" | "address"; initials: string; glyph: "phone" | "mail" | null } {
+  const kind = !isIdentifierName(name) ? "named" : name.includes("@") ? "address" : "number";
+  return {
+    kind,
+    initials: initials ?? initialsOf(name),
+    glyph: kind === "number" ? "phone" : kind === "address" ? "mail" : null,
+  };
+}
+
 /** The two columns that say mail to a person's address has stopped (`contacts.email_suppressed_at` and `email_suppressed_reason`, 00126), as a contact row or the thread's contact carries them. */
 export interface EmailStopBearing {
   email_suppressed_at?: string | null;

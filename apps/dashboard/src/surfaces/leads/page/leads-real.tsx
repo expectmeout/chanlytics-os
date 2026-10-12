@@ -43,8 +43,14 @@ interface LeadsRealProps {
 const NO_PROFILE = (): void => undefined;
 
 /** A cell's doors, to this draw's acts: Keep, Exclude and Put back show on the row at once, so a cell never waits on one. */
-const cellDoors = (acts: LeadActs, open: (id: string | null) => void, expand: (id: string | null) => void) => ({
+const cellDoors = (
+  acts: LeadActs,
+  open: (id: string | null) => void,
+  expand: (id: string | null) => void,
+  openPerson: (id: string) => void,
+) => ({
   onOpen: open,
+  onOpenPerson: openPerson,
   onExpand: expand,
   onCall: acts.callLead,
   onCopy: acts.copyLead,
@@ -190,7 +196,7 @@ function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: st
   // and the name's tag does not say it again.
   const cellCtxLeads = useLeadCells({
     leadShown: rows.leadShown,
-    doors: cellDoors(acts, setPeekId, setLightboxId),
+    doors: cellDoors(acts, setPeekId, setLightboxId, onOpenProfile),
     values: {
       values,
       mixedFits: !!(band && band.mixed),

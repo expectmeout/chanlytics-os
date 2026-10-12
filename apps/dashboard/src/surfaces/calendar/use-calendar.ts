@@ -4,7 +4,7 @@
  * calls, never a component, so the cells stay the page's.
  */
 import { useEffect, useRef, useState, type RefObject } from "react";
-import type { CalendarVM, CalendarView } from "@chanlytics/contracts";
+import type { CalendarDayVM, CalendarVM, CalendarView } from "@chanlytics/contracts";
 import { askOnScreenKey, demoSession, setAskOnScreen, useLegacyToast } from "../legacy-verbs";
 import { crPhone, crTyping } from "./board-dom";
 import { calendar } from "./verbs";
@@ -79,6 +79,37 @@ export function useCalendarState(initialDay: string | null) {
     toastNode,
     flash,
   };
+}
+
+/**
+ * A link that names a visit (`calendar/<day>:a-<id>`, contracts visitRoute) opens its panel as well as its day: once, as soon as
+ * the board has drawn the block. The block is found by the id of the visit's row in the record (`block.visit.id`); a block's own
+ * id is the feed's key or `appt:<id>`, which no link carries. A visit the days drawn do not hold, once a read that landed after
+ * this page mounted has the days it needs (`fetchedAt`: a window the tab held paints at once and is older than the page, and
+ * the read behind it may well hold a visit it lacks), is no visit this board has (a row deleted, a day outside what the address
+ * named), and the page stays as the day alone is.
+ */
+export function useOpenVisit(p: {
+  visitId: string | null;
+  days: readonly CalendarDayVM[];
+  /** The days the view needs are loaded and no read of them is on its way. */
+  covered: boolean;
+  /** When the read the board draws landed (CalendarSurface.fetchedAt). */
+  fetchedAt: number;
+  open: (blockId: string) => void;
+}) {
+  const done = useRef(false);
+  const mountedAt = useRef(Date.now());
+  const { visitId, days, open } = p;
+  const settled = p.covered && p.fetchedAt >= mountedAt.current;
+  useEffect(() => {
+    if (!visitId || done.current) return;
+    const block = days.flatMap((d) => [...d.allDay, ...d.blocks]).find((b) => b.visit?.id === visitId);
+    if (block) {
+      done.current = true;
+      open(block.id);
+    } else if (settled) done.current = true;
+  }, [visitId, days, settled]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 /** What Ask is told is on screen (legacy-bridge/ask/context.ts): the span drawn and the people its appointments name, in the board's order, forty at most. */

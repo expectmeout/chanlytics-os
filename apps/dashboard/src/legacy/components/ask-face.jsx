@@ -7,7 +7,6 @@
 // the page behind it (the phone's ✦). With no bridge (a test, a harness without its bundle) it is an empty canvas.
 const useAfRef = React.useRef;
 const useAfEffect = React.useEffect;
-const useAfState = React.useState;
 
 /** The page's tokens as the driver reads them, with the ground the three sit on in place of the page. */
 const groundTokens = (ground) => () => {
@@ -38,23 +37,15 @@ const AskFace = ({ className, tone = "page", ground = "page", side, testId }) =>
   return <canvas ref={ref} className={className} aria-hidden="true" data-testid={testId} />;
 };
 
-// The disc and its dot: the phone's ✦ is the cards' surface with the three on it, and its dot is the usage's standing,
-// said the way this app says every state (styles/ask.css, `.ask-disc`; the spec
-// docs/superpowers/specs/2026-09-25-the-ask-button-on-a-phone-design.md, B9): nothing under 80%, amber from 80%, red
-// at 100% (`data-usage`, the usage surface's standing: `window.__USAGE`, `{ standing }`, repainted on `surface:usage`;
-// the usage spec, a surface that does not exist yet). What needs you is the three's own colour (legacy-bridge/arrival.ts).
-const standingOf = () => {
-  const u = window.__USAGE;
-  return u && (u.standing === "warned" || u.standing === "over") ? u.standing : "ok";
-};
-const AskDisc = ({ testId }) => {
-  const [usage, setUsage] = useAfState(standingOf);
-  useAfEffect(() => {
-    const again = () => setUsage(standingOf());
-    window.addEventListener("surface:usage", again);
-    return () => window.removeEventListener("surface:usage", again);
-  }, []);
-  return <span className="ask-disc" data-usage={usage} aria-hidden="true" data-testid={testId} />;
-};
+// The disc: the phone's ✦ is the cards' surface with the three on it (styles/ask.css, `.ask-disc`; the spec
+// docs/superpowers/specs/2026-09-25-the-ask-button-on-a-phone-design.md, B9). Its dot on the rim (nothing under 80% of the
+// usage, amber from 80%, red at 100%) has no source today, so nothing is read here and the dot is never drawn: the usage
+// surface the spec names does not exist, the one number the app holds, the day's model tokens the receptionist stops at
+// (limits.max_llm_tokens_day), is read on the edge alone, and no route a member of every role may ask answers it. A standing
+// nothing sets (`window.__USAGE` was set by the standalone mockup's stub and by no part of the app, and `surface:usage` was
+// sent by none) is not a fact the database supports. When a member-readable read of the day's budget lands, it feeds
+// `data-usage` (ok | warned | over) on this span through the seam; the dot's rules in ask.css wait for it. What needs you is
+// the three's own colour (legacy-bridge/arrival.ts).
+const AskDisc = ({ testId }) => <span className="ask-disc" aria-hidden="true" data-testid={testId} />;
 
 Object.assign(window, { AskFace, AskDisc });

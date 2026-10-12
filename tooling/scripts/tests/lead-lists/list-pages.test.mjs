@@ -288,7 +288,7 @@ test("the rail's foot carries Import leads, which opens the sheet", () => {
     wordsFor: () => ({ askedLine: "", keepsLine: "" }),
     onPickList: () => {},
     onPickSearch: () => {},
-    hrefFor: () => null,
+    exportFor: () => () => {},
     onNew: () => {},
     importDoor: door,
   });
@@ -318,7 +318,7 @@ test("the bulk bar carries Write to them after Copy emails", () => {
     onNotAFit: () => {},
     whyOpen: false,
     onWhyOpen: () => {},
-    exportHref: null,
+    onExport: () => {},
     write,
   });
   const ids = all(

@@ -32,6 +32,9 @@ import {
   toGoogleVM,
   gainedOver,
   reviewIsNew,
+  reviewNoticeIsAbout,
+  reviewRoute,
+  NEW_REVIEW_NEWS,
   ratingWords,
   starsOf,
   listingLine,
@@ -590,9 +593,14 @@ test("the view model: four measured tiles, the latest reviews, a table twin, Tod
   assert.deepEqual(vm.table.rows, [["Ana P.", 5, "2h ago", "Fast, careful, and on time. Would hire again."]]);
   assert.deepEqual(vm.todayLine, {
     text: "New on Google: ★★★★★ from Ana P. — “Fast, careful, and on time. Would hire again.”",
-    to: lensRoute("reviews"),
+    to: reviewRoute(review().id),
+    review: { id: review().id, reviewId: "r-ana" },
   });
-  assert.equal(vm.todayLine.to, "reports/reviews", "Today's line opens the Reviews lens, where the review is drawn");
+  assert.equal(
+    vm.todayLine.to,
+    `reports/reviews:${review().id}`,
+    "Today's line opens that review in the Reviews lens, with its reply box",
+  );
   const longer = toGoogleVM(
     dto({
       days: [
@@ -673,6 +681,58 @@ test("the view model: four measured tiles, the latest reviews, a table twin, Tod
   assert.equal(trouble.listing.trouble, true);
   assert.match(trouble.listing.checked, /could not be read since 3h ago/);
   assert.ok(!JSON.stringify(vm).includes("null."), "no null read aloud");
+});
+
+test("a new review is Today's line until it is answered; then it is dealt with and the line goes (task 5.2, D1-review-twice)", () => {
+  const line = (over) => toGoogleVM(dto({ reviews: [review(over)] }), { days: 30, until: null }, NOW, "UTC").todayLine;
+  assert.ok(line({}), "unanswered and new: the line");
+  assert.equal(
+    line({ reply_text: "Thank you, Ana.", replied_at: "2026-09-07T14:30:00Z" }),
+    null,
+    "REGRESSION: answered, the line went on saying it was new, and so did the bell",
+  );
+  // The line names the newest review that waits, not one already answered above it.
+  const two = toGoogleVM(
+    dto({
+      reviews: [
+        review({
+          id: "22222222-2222-4222-8222-222222222222",
+          review_id: "r-bo",
+          author: "Bo",
+          published_at: "2026-09-07T14:30:00Z",
+          reply_text: "Thanks!",
+        }),
+        review(),
+      ],
+    }),
+    { days: 30, until: null },
+    NOW,
+    "UTC",
+  );
+  assert.equal(two.todayLine.review.id, review().id, "the answered one is passed over");
+  assert.equal(two.latest[0].reviewId, "r-bo", "a review view model carries Google's own id beside its row");
+});
+
+test("a review has one address, its row's: the lens with that review's reply box open; a notice of it is about either id", () => {
+  const id = review().id;
+  assert.equal(reviewRoute(id), `reports/reviews:${id}`);
+  assert.equal(
+    reviewRoute("r-ana"),
+    lensRoute("reviews"),
+    "Google's own id is no address any page parses: it opens the lens, never a page that is not there",
+  );
+  // The first notices of a new review were kept about Google's id for it; the receptionist's reply notice about its row.
+  const review_ = { id, reviewId: "r-ana" };
+  assert.equal(reviewNoticeIsAbout({ type: "review", id }, review_), true);
+  assert.equal(reviewNoticeIsAbout({ type: "review", id: "r-ana" }, review_), true);
+  assert.equal(reviewNoticeIsAbout({ type: "review", id: "r-bo" }, review_), false);
+  assert.equal(
+    reviewNoticeIsAbout({ type: "conversation", id }, review_),
+    false,
+    "another kind of subject is not a review",
+  );
+  assert.equal(reviewNoticeIsAbout(null, review_), false);
+  assert.equal(NEW_REVIEW_NEWS, "New on Google:", "the one word the notice and the line begin with");
 });
 
 /* ------------------------------------------------------------- Setup's row */
@@ -934,7 +994,8 @@ test("the dashboard: owners and the partner link and search, operators read, mem
   const bridge = readCode("apps/dashboard/src/legacy-bridge/google.ts");
   assert.ok(
     bridge.includes('key: "google",') &&
-      bridge.includes('refreshOnTables: ["google_listings", "google_reviews", "google_connections"],'),
+      bridge.includes('declareReads("google", {') &&
+      bridge.includes('reads: ["review"],'),
   );
   assert.deepEqual(
     (await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts")).AFTER["POST google/link"]().map((o) => o.key),

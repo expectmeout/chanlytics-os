@@ -1,7 +1,8 @@
 /**
  * What the live feed hands the runner for a notice (decision 0019): packages/db's subscribeWorkspaceChanges, run over
  * a client that delivers the notice the database would send (00265). Each change comes back as the runner hands it
- * to a surface's rule (surface-realtime.ts wantsRefresh): `{ table, event, row }`.
+ * to a surface's rule (surface-realtime.ts wantsRefresh): `{ table, event, row }`, and `at` where the notice carries the
+ * clock the database told it by (00408).
  *
  * The client's own behaviour, the shared channel and the join, is shell/surfaces/realtime-scope.test.mjs's.
  */
@@ -30,10 +31,11 @@ export async function changesOf({ event, payload }, tenantId = "ws-1") {
     removeChannel: async () => "ok",
   };
   const changes = [];
-  const off = subscribeWorkspaceChanges(client, (row, table, heard) => changes.push({ table, event: heard, row }), {
-    tenantId,
-    onStatus: () => {},
-  });
+  const off = subscribeWorkspaceChanges(
+    client,
+    (row, table, heard, at) => changes.push({ table, event: heard, row, ...(at ? { at } : {}) }),
+    { tenantId, onStatus: () => {} },
+  );
   await new Promise((r) => setTimeout(r, 0));
   hear({ type: "broadcast", event, payload });
   off();

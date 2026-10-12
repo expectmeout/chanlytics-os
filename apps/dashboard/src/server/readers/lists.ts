@@ -1,5 +1,5 @@
 import "server-only";
-import { listToken } from "@chanlytics/contracts";
+import { addressOf } from "@chanlytics/contracts";
 import { savedListsFor } from "@chanlytics/db";
 import type { SavedListDto } from "../people/lists";
 import { stamp, type Reader } from "./index";
@@ -18,7 +18,7 @@ export const lists: Reader<undefined, { lists: SavedListDto[] }> = {
       rows: saved.map((l) => ({
         kind: "list" as const,
         id: l.id,
-        route: `clients/${listToken({ kind: "saved", id: l.id })}`,
+        route: addressOf({ kind: "list", id: l.id, saved: true }),
         label: l.name,
       })),
       stamp: stamp(),

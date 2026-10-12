@@ -476,12 +476,16 @@ test("a figure that counts what has a page opens it: Needed you is a door to the
   const figureOf = (id) => find(strip, (n) => n.type === "div" && n.props["data-figure"] === id);
   const needed = find(figureOf("handovers"), (n) => n.type === "a");
   assert.ok(needed, "the number is a link, since a door is a link");
-  assert.equal(needed.props.href, "#/inbox");
+  assert.equal(needed.props.href, "/w/studio/inbox");
   assert.equal(textOf(needed), "3");
   press(needed);
   assert.deepEqual(went, ["inbox"], "and a plain press goes there by the app's own way");
   const messages = find(figureOf("customer_messages"), (n) => n.type === "a");
-  assert.equal(messages.props.href, "#/conversations", "the customer messages open the conversations they count");
+  assert.equal(
+    messages.props.href,
+    "/w/studio/conversations",
+    "the customer messages open the conversations they count",
+  );
   for (const id of ["calls", "new_people", "booked"])
     assert.equal(
       find(figureOf(id), (n) => n.type === "a" || n.type === "button"),
@@ -1387,6 +1391,42 @@ test("Google's reviews under the period, from the Business Profile: five figures
   }
 });
 
+test("a link to one review (reports/reviews:<id>) opens it where it is listed, marked, with its reply box open; one the lens does not list says so; the bare lens names none", async () => {
+  const [ana] = NORTHSIDE.reviews;
+  holdReviews(NORTHSIDE, northsideLedger());
+  const named = (tree) => reviewRows(tree).filter((r) => r.props["data-named"] === "true");
+  try {
+    lensAt = `${LENS_PATHS[5]}:${ana.id}`;
+    let tree = pageOnce();
+    assert.equal(named(tree).length, 1, "Ana's, where she waits");
+    assert.ok(classes(named(tree)[0]).includes("is-named"), "marked");
+    assert.equal(reviewRows(tree).length, 1, "drawn once, in the card she is listed in: the link adds no second copy");
+    assert.equal(reviewRows(card(tree, "reviews-waiting")).length, 1);
+    assert.equal(byTestId(tree, "google-review-missing"), null);
+    // Her box opens as she is drawn, as a press on Reply opens it; the draft is asked for and none comes, so it is hers to fill.
+    for (let i = 0; i < 5; i++) await settle();
+    tree = again(draw);
+    assert.ok(
+      byTestId(tree, "google-reply-composer"),
+      "REGRESSION: every notice opened the lens at its top, never the review",
+    );
+    // A review the lens does not list is said not to be here, and no box is opened for it.
+    lensAt = `${LENS_PATHS[5]}:22222222-2222-4222-8222-222222222222`;
+    tree = pageOnce();
+    assert.equal(named(tree).length, 0);
+    assert.ok(byTestId(tree, "google-review-missing"), "the lens says so");
+    assert.equal(byTestId(tree, "google-reply-composer"), null);
+    // The lens alone names no review and says nothing of one.
+    lensAt = LENS_PATHS[5];
+    tree = pageOnce();
+    assert.equal(named(tree).length, 0);
+    assert.equal(byTestId(tree, "google-review-missing"), null);
+  } finally {
+    lensAt = LENS_PATHS[0];
+    setSurfaceValue("reports_reviews", undefined);
+  }
+});
+
 test("a review that waits is drawn once, above Latest, which keeps the ones that do not; the held reply is said only where one was held", () => {
   const [ana] = NORTHSIDE.reviews;
   const bea = {
@@ -2052,7 +2092,7 @@ test("REGRESSION (C13): each source row opens its playbook or its broadcast -- t
   );
   assert.deepEqual(
     rows.map((r) => byTestId(r, "source-open").props.href),
-    ["#/outbound/p1", "#/broadcasts/run:b1"],
+    ["/w/studio/campaigns/moment:p1", "/w/studio/broadcasts/run:b1"],
     "and each is a link with its address",
   );
 });

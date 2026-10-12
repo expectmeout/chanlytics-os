@@ -45,6 +45,12 @@ export interface FeedItem extends BusyBlock {
    * read from a calendar; set only where the record joins the feed (feedWithRecord). Absent while it stands.
    */
   said?: "kept" | "missed";
+  /**
+   * The id of the record's row for this visit (appointments.id), as the Calendar names a visit it opens (visitRoute): a feed
+   * event's row by its key, a booking's own. Never read from a calendar; set only where the record joins the feed
+   * (feedWithRecord), and absent for an event the hourly sync has not kept a row for.
+   */
+  recordId?: string;
 }
 
 export interface ParsedFeed {

@@ -475,6 +475,24 @@ test("the peek names the business, its sub-line, the fit as a sentence and the s
   );
 });
 
+test("D1-lead-person-door: the name of a lead that became a person opens them in People; a lead that has not is its name alone", async () => {
+  reset();
+  const PERSON = "7b2d9c40-1e5f-4a63-8d27-3c9e5a1f6b88";
+  const converted = page({ vm: vmOf({ stage: "converted", contact_id: PERSON }) });
+  assert.equal(converted.p.vm.contactId, PERSON, "the peek's view model carries the person (contracts toLeadPeekVM)");
+  const door = byTestId(converted.draw().tree, "peek-name-person");
+  assert.ok(door, "the name is a door");
+  assert.equal(textOf(door), "Travis Heights Coaching Co.");
+  assert.equal(door.props.title, LEAD_WORDS.openPerson);
+  await press(door);
+  assert.deepEqual(opened, [PERSON], "the page's own door to a person, the one the Talking toast presses");
+  reset();
+  const plain = page().draw().tree;
+  assert.equal(page().p.vm.contactId, null);
+  assert.equal(byTestId(plain, "peek-name-person"), null, "no person, no door");
+  assert.equal(textOf(byTestId(plain, "peek-name")), "Travis Heights Coaching Co.");
+});
+
 test("the peek hands its panes its acts and nothing else: vm, mode, armed, draft, busy, deck and phone stay its own", () => {
   // Every prop but those seven is an act the panes call by name: the peek takes the rest of its props as the acts
   // (`...on`), so a prop it was handed that is not one of the seven would reach the panes as an act. This holds the list.

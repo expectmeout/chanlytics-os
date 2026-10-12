@@ -6,6 +6,7 @@
  */
 import {
   replyChipOf,
+  replyChipStateOf,
   replyFromLineOf,
   replyLeftAsOf,
   replyStripOf,
@@ -14,6 +15,7 @@ import {
 } from "@chanlytics/contracts";
 import { api, read } from "../api";
 import type { SurfaceOverride } from "../surface-data";
+import { declareReads } from "../surface-registry";
 
 type WithReplies = Window & { __REPLIES?: ReachOutRepliesDto | null };
 
@@ -25,7 +27,7 @@ export const repliesOverride: SurfaceOverride = {
   key: "reach_out_replies",
   globals: ["__REPLIES"],
   events: ["surface:reach_out_replies"],
-  refreshOnTables: ["reach_out_replies"],
+  ...declareReads("reach_out_replies", { reads: ["reach_out"], fresh: "live" }),
   apply: async () => {
     const w = window as WithReplies;
     try {
@@ -70,6 +72,8 @@ export const replies = {
   /** The strip above a thread's composer, in the business's calendar. */
   stripOf: (r: ReachOutReplyDto) => replyStripOf(r, Date.now(), businessZone()),
   chipOf: replyChipOf,
+  /** The state the chip is in -- the pill kind `reply`'s value (tone and words): the reading, else "Wrote back". */
+  chipStateOf: replyChipStateOf,
   /** The composer's line for a thread: where an answer goes out from, or null. */
   fromLineOf: (threadId: string): string | null => {
     const all = (window as WithReplies).__REPLIES;

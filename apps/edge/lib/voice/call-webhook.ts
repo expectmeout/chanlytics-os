@@ -628,6 +628,8 @@ export async function receiveCallEvent(request: Request): Promise<Response> {
   let notifyClaim: boolean | null = null;
   // What the bell row is about: the call, or the thread when it needs a call back.
   let callAbout: CallAbout | null = null;
+  // The call's own row, which that notice opens.
+  let callId: string | null = null;
   // The person the ingest placed the call on, whose saved name the owner's notice leads with.
   let callerId: string | null = null;
 
@@ -645,6 +647,7 @@ export async function receiveCallEvent(request: Request): Promise<Response> {
         },
       );
       callAbout = plan.about;
+      callId = plan.callId;
       callerId = res.contact_id;
       notifyClaim = await applyPlan(db, routed, plan);
     }
@@ -668,7 +671,7 @@ export async function receiveCallEvent(request: Request): Promise<Response> {
       return json(200, { ok: true, duplicate: true });
     }
     const saved = await savedCallerName(db, routed, callerId, n.retellCallId);
-    await tellOwner(db, routed, callNotice(n, call, callAbout, saved));
+    await tellOwner(db, routed, callNotice(n, call, callAbout, saved, callId));
   }
   return json(200, { ok: true });
 }

@@ -19,6 +19,7 @@ export {
   shortName,
   contactMeta,
   initialsOf,
+  personFaceOf,
   isEmailStopped,
   emailStoppedWords,
 } from "./thread-contact";
@@ -51,8 +52,13 @@ export {
   reasonShort,
   reasonLabelOf,
   reasonSummaryOf,
+  ESCALATION_ACTS,
+  HOLD_ACT_WORDS,
+  holdActOf,
+  holdWaits,
+  waitsOnAPerson,
 } from "./escalations";
-export type { EscalationDto } from "./escalations";
+export type { EscalationDto, HoldAct, OpenHold } from "./escalations";
 export type { InboxThreadVM } from "./inbox-thread-vm";
 export {
   threadStanding,
@@ -75,7 +81,7 @@ export {
 export type { CallDto } from "./call-dto";
 export { spokenDuration, toCallVM } from "./call-vm";
 export type { CallVM } from "./call-vm";
-export { standingOf, replyWaitsOnYou, HELD_WORDS, seenBy, isUnseen } from "./standing";
+export { standingOf, replyWaitsOnYou, HELD_WORDS, NEEDS_YOU_WORD, heldPill, seenBy, isUnseen } from "./standing";
 export type { StandingInput, Standing, StandingVerdict, SeenMarksDto, SeenOf, SeenReading } from "./standing";
 export { CONVERSATION_MOVES, conversationPatch, conversationMoveAllowed } from "./conversation-moves";
 export type { ConversationMoveName, ConversationPatch } from "./conversation-moves";

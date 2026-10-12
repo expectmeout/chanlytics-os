@@ -16,6 +16,7 @@ import {
   toCallVM,
   toInboxThreadVM,
   stateOf,
+  stateLabel,
   memberWords,
   frameWhisper,
   proposalMessage,
@@ -337,6 +338,11 @@ test("a call is part of its conversation: where it began, its lines as the threa
     [textOf(find(start, hasClass("tl-call-kind"))), textOf(find(start, hasClass("tl-call-length")))],
     ["Inbound call", "3:10"],
   );
+  assert.equal(
+    textOf(find(start, byTestId("tl-call-outcome"))),
+    stateLabel("call", "callback"),
+    "the card says how the call ended, in the pill Live and Conversations draw it with",
+  );
   const lines = spoken(call);
   assert.deepEqual(
     lines.map((l) => [hasClass("client")(l) ? "theirs" : "ours", words(l)]),
@@ -599,6 +605,7 @@ test("a call that never connected is the one line: what it was, how it ended, wh
   const start = find(call, byTestId("tl-call-start"));
   assert.equal(textOf(find(start, hasClass("tl-call-kind"))), "Missed call");
   assert.equal(textOf(find(start, hasClass("tl-call-facts"))), "No answer");
+  assert.equal(textOf(find(start, byTestId("tl-call-outcome"))), stateLabel("call", "missed"));
   assert.equal(find(call, hasClass("tl-call-length")), undefined);
   assert.equal(spoken(call).length, 0);
   assert.equal(find(call, byTestId("tl-call-end")), undefined, "one line, not two");

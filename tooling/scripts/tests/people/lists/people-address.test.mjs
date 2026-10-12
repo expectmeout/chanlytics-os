@@ -92,7 +92,8 @@ test("the chrome of an address: People's crumb, what the view is called, one mou
     "List",
     "an archived list is named for what it is, as the frame named it",
   );
-  assert.deepEqual(at("state:waiting_on_you").crumbs.at(-1), "waiting on you", "every underscore, not the first");
+  assert.deepEqual(at("state:waiting_on_you").crumbs.at(-1), "You have it", "a state by its words, not its key's");
+  assert.deepEqual(at("state:some_new_state").crumbs.at(-1), "some new state", "every underscore, not the first");
   assert.deepEqual(at("seg:nope").crumbs.at(-1), "List", "a list People has not got is named for what it is");
   for (const param of ["new-list", "seg:needs_you", "list:s1", "state:quiet", "seg:nope"])
     assert.equal(at(param).mount, "clients", `${param}: the page follows its own address, so one mount`);

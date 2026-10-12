@@ -637,8 +637,8 @@ test.describe("Phone shell on a real workspace", () => {
       if ((await row.count()) === 0) return; // an empty list on this workspace proves nothing
       shapes[label] = await shapeOf(row, faceSel, nameSel);
     };
-    await read("inbox", ".ix-thread", ".ix-thread-avatar", ".ix-thread-who", "a thread");
-    await read("conversations", ".cv-row", ".cv-row-avatar", ".cv-row-who", "a conversation");
+    await read("inbox", ".ix-thread", ".ix-thread-pic", ".ix-thread-who", "a thread");
+    await read("conversations", ".cv-row", ".cv-row-pic", ".cv-row-who", "a conversation");
     // People's and Leads' rows are the kit's list row (kit/list-row/list-row.tsx).
     await read("clients", ".pl-table tbody tr.pl-card-row", ".list-row-face", ".list-row-name", "a person");
     await read("clients/leads", ".pl-table tbody tr.pl-card-row", ".list-row-face", ".list-row-name", "a lead");

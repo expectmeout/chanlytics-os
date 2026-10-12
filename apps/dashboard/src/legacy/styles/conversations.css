@@ -57,7 +57,7 @@
 
 .cv-row {
   display: grid;
-  grid-template-columns: 30px 1fr;
+  grid-template-columns: var(--row-face) 1fr;
   gap: 10px;
   width: 100%;
   padding: 11px 14px;
@@ -116,15 +116,12 @@
   transform: translateY(-50%);
 }
 
-.cv-row-avatar {
+/* The row's lead: the kit's face (Face, by contracts' personFaceOf) with the wire of the words as a badge at its foot
+   (.cv-row-wire). The face is the kit's alone, at the row's size, as the Inbox's beside it. */
+.cv-row-lead {
   position: relative; /* holds the wire's badge (.cv-row-wire) */
-  width: 30px; height: 30px;
-  border-radius: 50%;
-  background: var(--bg-sunken);
-  border: 1px solid var(--line);
-  display: inline-flex; align-items: center; justify-content: center;
-  font-size: 10px; font-weight: 500;
-  color: var(--ink-muted);
+  display: flex;
+  align-self: start;
   margin-top: 2px;
 }
 /* The wire the row's words came on, a badge at the foot of the face, as the Inbox's row wears it (inbox.css
@@ -235,10 +232,6 @@
     gap: var(--row-gap);
     padding: var(--row-pad-y) var(--row-pad-x);
   }
-  .cv-row-avatar {
-    width: var(--row-face);
-    height: var(--row-face);
-  }
   .cv-row-body {
     gap: var(--row-line-gap);
   }
@@ -323,19 +316,9 @@
     border-bottom-color: transparent;
     border-radius: var(--surface-row-radius);
   }
+  /* The face is the kit's, which wears the canvases' avatar itself (kit.css): the row only stands it at its top. */
   .cv-row > :first-child {
-    width: 32px;
-    height: 32px;
     margin-top: 0;
-    border: 0;
-    background: var(--face-fill);
-    box-shadow:
-      var(--surface-inset-ring),
-      var(--surface-inset-depth);
-    color: var(--ink);
-    font-size: var(--text-xs);
-    font-weight: var(--weight-semibold);
-    letter-spacing: 0.01em;
   }
   .cv-row-body {
     gap: 3px;

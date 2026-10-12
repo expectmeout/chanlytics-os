@@ -291,7 +291,7 @@ test("parity: every built-in, its old closure against its rule, differs only whe
     assert.ok(differed[id] > 0, `${id} moved as approved`);
 });
 
-test("the pill says the lists' own facts: Needs you and Waiting on you are the lists, New and Quiet are on theirs", () => {
+test("the pill says the lists' own facts: Needs you and You have it are the lists, New and Quiet are on theirs", () => {
   const on = (id) => new Set(ROWS.filter(PEOPLE_LISTS.find((l) => l.id === id).test).map((v) => v.id));
   const needs = on("needs_you");
   const waiting = on("waiting_on_you");

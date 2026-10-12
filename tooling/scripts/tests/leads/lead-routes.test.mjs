@@ -818,8 +818,9 @@ test("release B's ten declare their policy: working a lead is the operator's, er
     rate: "lead_bulk",
     spend: true,
   });
-  assert.deepEqual(exportRoute.GET.policy, {
-    kind: "read",
+  assert.equal(exportRoute.GET, undefined, "a copy that marks leads is no GET (decision 0047, lane 6)");
+  assert.deepEqual(exportRoute.POST.policy, {
+    kind: "write",
     fresh: true,
     scope: "workspace",
     role: "owner",
@@ -952,7 +953,7 @@ test("a viewer is refused every write; an operator may work leads but not erase,
   for (const [route, method, body, params, role] of [
     [stage, "POST", { kind: "said_no" }, { id: LEAD }, "viewer"],
     [erase, "DELETE", undefined, { id: LEAD }, "operator"],
-    [exportRoute, "GET", undefined, {}, "operator"],
+    [exportRoute, "POST", { list: "all", sort: "fit", dir: "asc" }, {}, "operator"],
     [search, "DELETE", undefined, { id: SEARCH }, "operator"],
     [searchUndo, "POST", undefined, { id: SEARCH }, "operator"],
     [suggestions, "PUT", { business_line: "a personal training studio" }, {}, "operator"],
@@ -1088,20 +1089,26 @@ test("Check again goes through its door with the ids and says how many it took; 
   );
 });
 
-test("the export is the owner's, on the ledger like contacts/export, and marks what it took", async () => {
+test("the export is a POST, the owner's, on the ledger like contacts/export, and marks what it took; the file is the answer's, for the page to save", async () => {
   const tables = world({ role: "owner" });
   const rpcs = doors();
-  const res = await exportRoute.GET.run(get(`${inA}&list=ready`), ctxOf(tables, {}, rpcs));
-  assert.match(res.headers.get("content-disposition"), /^attachment; filename="leads-Zilker-Strength-\d{8}\.csv";/);
+  const out = await exportRoute.POST.run(req("POST", { list: "ready" }), ctxOf(tables, {}, rpcs));
+  assert.match(out.file, /^leads-Zilker-Strength-\d{8}\.csv$/);
+  assert.equal(out.rows, 1);
   assert.equal(rpcCalls("lead_export_mark").length, 1);
   assert.deepEqual(rpcCalls("lead_export_mark")[0], { p_tenant_id: A, p_ids: [LEAD] });
   assert.deepEqual(
     tables.decisions.map((d) => [d.verb, d.subject_type, d.payload.what, d.payload.rows]),
     [["export", "workspace", "leads", 1]],
   );
-  const csv = await res.text();
+  const csv = out.csv;
   assert.equal(
-    csv.split("\r\n")[0].replace("﻿", ""),
+    csv.startsWith("﻿"),
+    false,
+    "no byte-order mark: the page that saves the file adds one (kit downloadCsv)",
+  );
+  assert.equal(
+    csv.split("\r\n")[0],
     "Business,What they do,Street,City,State,ZIP,Phone,Email,Mailbox,Website,About,Facebook,LinkedIn,Google Maps,Rating,Reviews,Stage,Why,Search,Found",
   );
   assert.ok(csv.includes("Travis Heights Coaching Co."));

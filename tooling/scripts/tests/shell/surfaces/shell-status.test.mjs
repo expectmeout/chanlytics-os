@@ -181,6 +181,10 @@ const workspace = await importSrc("apps/dashboard/src/legacy-bridge/workspace.ts
 // The routes that have left the shell (a page of their own, drawn inside the frame's chrome), and the seam the Calendar's chrome reads.
 const { SURFACE_ROUTES } = await importSrc("apps/dashboard/src/surfaces/routes.ts");
 const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
+// What needs you (decision 0048): the one count the tab's title reads, as seed-globals publishes it (`window.useNeedsYou`), here
+// asked on every draw, since this stub React holds no external store.
+const { needsYouNow } = await importSrc("apps/dashboard/src/surfaces/needs-you.ts");
+win.useNeedsYou = () => needsYouNow();
 const bridgeApi = await importSrc("apps/dashboard/src/legacy-bridge/api.ts");
 const readCaches = await importSrc("apps/dashboard/src/legacy-bridge/read-cache.ts");
 // A person's page is TSX (surfaces/people/person) drawn by the layout (PAGES): the frame knows People's chrome for it, and
@@ -1365,6 +1369,49 @@ test("the first run keeps Ask: the palette is drawn over the step, closed, and t
   } finally {
     deep = true;
     delete win.FirstRun;
+    if (keptState !== undefined) win.__surfaceState = keptState;
+  }
+});
+
+test("the frame fills the bridge's doors as it renders (a move, Ask, a person's Back) and publishes no door name of its own when the bridge gave it the filler; without one it publishes them as it always did (surfaces/frame-doors.ts)", () => {
+  shell.installShell(win);
+  const keptState = win.__surfaceState;
+  delete win.__surfaceState;
+  const NAMES = ["appNavigate", "appAsk", "appBackToPeople"];
+  const kept = Object.fromEntries(NAMES.map((k) => [k, win[k]]));
+  const draw = (extra = {}) => {
+    frames.begin();
+    globalThis.ShellStatusBar = win.ShellStatusBar;
+    return win.ChanlyticsApp({
+      ...PAGES,
+      theme: "dark",
+      themePref: "dark",
+      sidebar: "open",
+      onSidebar() {},
+      onTheme() {},
+      ...extra,
+    });
+  };
+  try {
+    deep = false;
+    cells = [];
+    placeAt("#/start/phone");
+    for (const k of NAMES) delete win[k];
+    const filled = [];
+    draw({ fillDoors: (doors) => filled.push(doors) });
+    assert.equal(filled.length, 1, "filled once, as the frame renders");
+    assert.deepEqual(Object.keys(filled[0]).sort(), ["backToPeople", "navigate", "openAsk"]);
+    for (const k of Object.keys(filled[0])) assert.equal(typeof filled[0][k], "function", `${k} is a door`);
+    for (const k of NAMES) assert.equal(win[k], undefined, `the frame does not publish ${k}: the bridge does`);
+    // No bridge (the standalone mockup, a test): the frame publishes the names itself.
+    draw();
+    for (const k of NAMES) assert.equal(typeof win[k], "function", `${k} is published by the frame without a filler`);
+  } finally {
+    deep = true;
+    for (const k of NAMES) {
+      if (kept[k] === undefined) delete win[k];
+      else win[k] = kept[k];
+    }
     if (keptState !== undefined) win.__surfaceState = keptState;
   }
 });

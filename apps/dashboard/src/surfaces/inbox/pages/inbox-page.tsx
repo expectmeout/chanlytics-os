@@ -2,7 +2,7 @@
  * Inbox — composition layer + decide engine (moved from pages/inbox.jsx, decision 0015, step 3).
  * Three columns: list rail (320px) | thread pane (flex) | agent context rail (300px, the mockup's: a seeded thread only).
  * Decisions are REAL here: approve/decline/snooze move threads, append timeline
- * events, update counts (sidebar badge syncs via "inbox:counts"), offer undo,
+ * events, update counts (the badge is a selector, needs-you.ts, told when this page's count moves), offer undo,
  * and auto-advance to the next decision. Keyboard: A approve · D decline · E edit.
  *
  * The page is one record (`ix`) made by parts, in the order the page always made them (inbox-state.tsx, inbox-acts.tsx,
@@ -210,6 +210,21 @@ interface InboxProps {
   showAgentRail?: boolean;
   onOpenClient?: (clientId: string | null | undefined) => void;
   initialThreadId?: string | null;
+  /** The thread the link names is being read by its id (use-named-record.ts): say it is on its way, never that it is not here. */
+  opening?: boolean;
+}
+
+/** A link to a thread outside the loaded list, while it is read by its id: say it is on its way, and open nobody else's in its place. */
+function openingThread() {
+  return (
+    <EmptyState
+      kind="page"
+      glyph="inbox"
+      title="Opening this conversation…"
+      body="It shows here as soon as it has been read."
+      testid="inbox-opening-thread"
+    />
+  );
 }
 
 /** A link to a thread outside the loaded list: say so in the pane, and open nobody else's conversation in its place. */
@@ -354,7 +369,13 @@ const inboxPage = (
     density,
     showAgentRail,
     onOpenClient,
-  }: { density: Density; showAgentRail: boolean; onOpenClient: NonNullable<InboxProps["onOpenClient"]> },
+    opening,
+  }: {
+    density: Density;
+    showAgentRail: boolean;
+    onOpenClient: NonNullable<InboxProps["onOpenClient"]>;
+    opening: boolean;
+  },
 ) => {
   const {
     threads,
@@ -422,9 +443,11 @@ const inboxPage = (
           // person's 44 calls, and the phone froze (8 Oct 2026). Nothing is drawn there until a tap opens a thread.
           null
         : requestedMissing
-          ? // A link to a thread outside the loaded list: say so in the pane, and
-            // open nobody else's conversation in its place.
-            missingThread(ix)
+          ? // A link to a thread outside the loaded list: it is read by its id (opening), and said to be on its way; one the
+            // server will not give is said missing in the pane. Nobody else's conversation opens in its place.
+            opening
+            ? openingThread()
+            : missingThread(ix)
           : // The one thread (thread-pane.tsx): a real thread's verbs are the pane's own, the same in Conversations. A
             // seeded thread is the mockup's, and keeps this page's handlers.
             threadPane(ix, onOpenClient)}
@@ -442,6 +465,7 @@ export const Inbox = ({
   showAgentRail = true,
   onOpenClient = () => {},
   initialThreadId = null,
+  opening = false,
 }: InboxProps) => {
   // The page draws again when the Inbox surface moves, as the frame drew it again.
   useSurface("inbox");
@@ -483,5 +507,5 @@ export const Inbox = ({
     withBucketMoves,
     inboxCounts(withBucketMoves.threads, { INBOX_BUCKETS, INBOX_VIEWS, INBOX_BASELINE }),
   );
-  return inboxPage(full, { density, showAgentRail, onOpenClient });
+  return inboxPage(full, { density, showAgentRail, onOpenClient, opening });
 };

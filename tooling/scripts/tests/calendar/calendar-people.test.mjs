@@ -9,6 +9,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import {
   parseIcs,
   extractContacts,
@@ -29,7 +31,7 @@ import {
   PEOPLE_LISTS,
   ROLE_PERMS,
 } from "@chanlytics/contracts";
-import { importSrc, readCode } from "../_source.mjs";
+import { ROOT, importSrc, readCode } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { fieldsOf, logLineOf } from "../_log-lines.mjs";
 import {
@@ -756,11 +758,11 @@ async function profileUi() {
   return profileWorld;
 }
 
-test("the profile: a Next visit fact and About rows when the calendar is connected; nothing invented when it is not", () => {
+test("the profile: a Next appointment fact and About rows when the calendar is connected; nothing invented when it is not", () => {
   const now = new Date(NOW);
   const none = toPersonVM(detail(null), TZ, now);
   assert.ok(
-    !none.facts.some((f) => f.label === "Next visit") && !none.about.some((a) => a.k === "Next visit"),
+    !none.facts.some((f) => f.label === "Next appointment") && !none.about.some((a) => a.k === "Next appointment"),
     "no calendar, no line",
   );
   const next = {
@@ -780,18 +782,32 @@ test("the profile: a Next visit fact and About rows when the calendar is connect
     via: "name",
   };
   const vm = toPersonVM(detail({ timezone: TZ, source: "Google Calendar", state: "ok", next, last }), TZ, now);
-  const fact = vm.facts.find((f) => f.label === "Next visit");
+  const fact = vm.facts.find((f) => f.label === "Next appointment");
   assert.deepEqual(
     fact,
-    { label: "Next visit", value: "Tue, Sep 8", meta: "2:00 – 5:00 PM" },
+    { label: "Next appointment", value: "Tue, Sep 8", meta: "2:00 – 5:00 PM" },
     "the cell is narrow: the time here, the service in About",
   );
   assert.deepEqual(
-    vm.about.filter((a) => a.k === "Next visit" || a.k === "Last visit"),
+    vm.about.filter((a) => a.k === "Next appointment" || a.k === "Last appointment"),
     [
-      { k: "Next visit", v: "Tue, Sep 8 · 2:00 – 5:00 PM · Balayage" },
-      { k: "Last visit", v: "Thu, Aug 20 · 10:00 AM – 12:00 PM · Colour" },
+      // The next one is marked as the next (`next`), so the page puts its door beside it whatever the word.
+      { k: "Next appointment", v: "Tue, Sep 8 · 2:00 – 5:00 PM · Balayage", next: true },
+      { k: "Last appointment", v: "Thu, Aug 20 · 10:00 AM – 12:00 PM · Colour" },
     ],
+  );
+  // The workspace's own word, as Campaigns says it (decision 0041): where some customers get a proposal first it is a meeting.
+  const meeting = toPersonVM(
+    { ...detail({ timezone: TZ, source: "Google Calendar", state: "ok", next, last }), deals_on: true },
+    TZ,
+    now,
+  );
+  assert.deepEqual(
+    [
+      meeting.facts.find((f) => f.label === "Next meeting")?.value,
+      meeting.about.map((a) => a.k).filter((k) => /meeting/.test(k)),
+    ],
+    ["Tue, Sep 8", ["Next meeting", "Last meeting"]],
   );
   const empty = toPersonVM(
     detail({ timezone: TZ, source: "Google Calendar", state: "ok", next: null, last: null }),
@@ -799,22 +815,25 @@ test("the profile: a Next visit fact and About rows when the calendar is connect
     now,
   );
   assert.deepEqual(
-    empty.facts.find((f) => f.label === "Next visit"),
-    { label: "Next visit", value: "—", meta: "none booked" },
+    empty.facts.find((f) => f.label === "Next appointment"),
+    { label: "Next appointment", value: "—", meta: "none booked" },
   );
   const down = toPersonVM(
     detail({ timezone: TZ, source: "Google Calendar", state: "unavailable", next: null, last: null }),
     TZ,
     now,
   );
-  assert.equal(down.about.find((a) => a.k === "Next visit").v, "Calendar could not be read");
+  assert.equal(down.about.find((a) => a.k === "Next appointment").v, "Calendar could not be read");
   const byName = toPersonVM(
     detail({ timezone: TZ, source: "Google Calendar", state: "ok", next: { ...next, via: "name" }, last: null }),
     TZ,
     now,
   );
-  assert.ok(byName.facts.find((f) => f.label === "Next visit").meta.endsWith("· by name"));
-  assert.equal(down.facts.find((f) => f.label === "Next visit").meta, "could not be read");
+  assert.ok(
+    byName.facts.find((f) => f.label === "Next appointment").meta.endsWith("· matched by name"),
+    "a name is a guess, and says so in the one set of words every page says a match in",
+  );
+  assert.equal(down.facts.find((f) => f.label === "Next appointment").meta, "could not be read");
 });
 
 test("the wiring: the board and the profile read one match; both receptionists are told; the panel says who it is for and where it comes from", async () => {
@@ -863,7 +882,10 @@ test("the wiring: the board and the profile read one match; both receptionists a
     assert.ok(page.includes(`data-testid="${id}"`), id);
   assert.ok(page.includes("`From ${source}. Change or cancel it there.`"), "one line, no feed counts");
   assert.ok(!page.includes("read just now") && !page.includes("feedLine"), "the chip's sentence stays on the chip");
-  assert.ok(page.includes("matched by {person.via}") && page.includes("Not in People yet"));
+  assert.ok(
+    page.includes("{line.match &&") && page.includes("Not in People yet"),
+    "the panel says the visit line's match",
+  );
   const dto = readCode("packages/contracts/src/calendar/calendar.ts");
   assert.ok(
     dto.includes('source: dto.feed.source ?? "your calendar"') &&
@@ -1018,24 +1040,17 @@ test("one refused number costs one person, never everyone behind them", () => {
   assert.equal(afterPersonRefused(null), "stop");
   assert.equal(afterPersonRefused(""), "stop");
 
-  const svc = readCode("apps/dashboard/src/server/calendar/people-seen.ts");
+  // The board no longer adds people (a read never writes: decision 0047, lane 6); the import door is the member's batch
+  // writer that asks the rule now, rather than deciding inline.
+  const svc = readCode("apps/dashboard/app/api/v1/contacts/import/route.ts");
   assert.ok(
-    svc.includes('if (afterPersonRefused(error.code) === "skip") {') && svc.includes("continue;"),
-    "the read must ASK the rule rather than deciding inline",
-  );
-  // The bare `break` is what this test exists to prevent coming back.
-  assert.ok(
-    !/if \(error\) \{[^}]*\n\s*break;/.test(svc),
-    "a refusal must not end the batch before the rule has been consulted",
-  );
-  assert.ok(
-    /log\.error\(\s*"calendar_people_refused"/.test(svc) &&
-      /refused,\s*of: rows\.length,\s*added: added\.length/.test(svc),
-    "and it says once how many people the refusals cost, not once per row",
+    svc.includes('if (afterPersonRefused(error.code) === "skip" || error.code === ERASED) {') &&
+      svc.includes("continue;"),
+    "the batch must ASK the rule rather than deciding inline",
   );
 });
 
-test("automatically: an hourly sweep on the edge and the owner's own read both put the feed's people in People through one extraction; the profile says where they came from; no button", async () => {
+test("automatically: an hourly sweep on the edge puts the feed's people in People through one extraction, a read of the board adds nobody, and a press adds one; the profile says where they came from", async () => {
   const mig = readCode("supabase/migrations/00052_create_person.sql");
   assert.ok(
     mig.includes(
@@ -1149,28 +1164,21 @@ test("automatically: an hourly sweep on the edge and the owner's own read both p
     ],
     "each row that went through the door is on the ledger; the erased one was refused before it",
   );
-  // An owner's read (calendar-week.ts calendarWeek) and the door it adds through (people-seen.ts addPeopleSeen).
-  const svc = ["calendar-week", "people-seen"]
-    .map((m) => readCode(`apps/dashboard/src/server/calendar/${m}.ts`))
-    .join("\n");
+  // The board's read (calendar-week.ts calendarWeek, and the calendar route) is not a writer any more: it reaches no door
+  // (a read never writes, decision 0047 lane 6; the executed proof is calendar-feed.test.mjs and reads-never-write/).
+  assert.equal(
+    fs.existsSync(path.join(ROOT, "apps/dashboard/src/server/calendar/people-seen.ts")),
+    false,
+    "the board's own writer is gone",
+  );
   assert.ok(
-    // Only a feed adds people here (00345): a notice's person was put in People when it was read.
-    /if \(opts\.canAct && s\.parsed\)\s*people\.push\(\s*\.\.\.\(await addPeopleSeen\(/.test(svc) &&
-      /ctx\.supabase\.rpc\("create_person", \{\s*p_tenant_id: tenantId,\s*p_phone_e164: r\.phone,\s*p_display_name: r\.name \?\? "",\s*p_source: "calendar",\s*p_title: r\.title,?\s*\}\)/.test(
-        svc,
-      ),
-    "an owner's read adds through the door, before the board is matched",
+    !readCode("apps/dashboard/src/server/calendar/calendar-week.ts").includes('rpc("create_person"'),
+    "and calendarWeek reaches no door",
   );
   assert.ok(
     sweep.includes("insert into events (tenant_id, kind, category, subject_type, subject_id, data)") &&
       sweep.includes("'contact.added'"),
     "the door records where a person came from; members cannot write events themselves",
-  );
-  assert.ok(
-    readCode("apps/dashboard/app/api/v1/calendar/route.ts").includes(
-      "const canAct = !!ROLE_PERMS[member.role]?.approve;",
-    ),
-    "a viewer's read changes nothing",
   );
   const route = readCode("apps/dashboard/app/api/v1/contacts/route.ts");
   assert.ok(
@@ -1218,10 +1226,14 @@ test("automatically: an hourly sweep on the edge and the owner's own read both p
   );
   const page = readCode("apps/dashboard/src/surfaces/calendar/panel.tsx");
   assert.ok(
-    !page.includes("cal-panel-add") && !page.includes("__addPerson"),
-    "no button on the CALENDAR: added on its own, deleted from the profile if unwanted",
+    page.includes('data-testid="cal-panel-add-person"') && page.includes('api()("POST contacts"'),
+    "a visit whose person the board cannot match offers a press, through the door 'Add a person' uses (drawn in reads-never-write/)",
   );
-  assert.ok(page.includes('"Not in People yet — added within the hour"'));
+  assert.ok(!page.includes("__addPerson"), "and not through a window global");
+  assert.ok(
+    page.includes('"Not in People yet — added within the hour"'),
+    "the sweep still adds a number within the hour",
+  );
   // The hand's door has its screen on People now (slice D of the data program):
   // the same route, a number and a name, opening the person it made or found.
   assert.ok(
@@ -2179,9 +2191,9 @@ test("every visit, oldest first, for the timeline; the profile reads them as Vis
     visits.map((i) => [i.text, i.who]),
     [
       ["Booked · Balayage", "Calendar"],
-      ["Past visit · Colour", "Calendar"],
+      ["Past · Colour", "Calendar"],
     ],
-    "newest first, ahead reads as booked",
+    "newest first, ahead reads as booked, behind as Past: the one word the Calendar's panel says it in",
   );
   assert.equal(visits[1].sub, "10:00 AM – 12:00 PM · from Google Calendar");
   // What has not ended is Coming up too, above History: marked on the timeline, and said in the leaf's words.
@@ -2248,12 +2260,18 @@ test("every visit, oldest first, for the timeline; the profile reads them as Vis
     visits.length,
     "each visit's mark is the calendar",
   );
+  // What a page carries reaches the thread it names, once (inbox/carried-reply.ts, the hand-over every page writes and the
+  // composer reads). Run.
+  const carriedReply = await importSrc("apps/dashboard/src/surfaces/inbox/carried-reply.ts");
+  carriedReply.carryReply("inbox/th-c9", "Hello");
+  assert.equal(carriedReply.takeCarriedReply("th-other"), null, "another thread takes nothing");
+  assert.equal(carriedReply.takeCarriedReply("th-c9"), "Hello", "the thread it names takes it, by its route or its id");
+  assert.equal(carriedReply.takeCarriedReply("th-c9"), null, "and only once");
   const composer = readCode("apps/dashboard/src/surfaces/inbox/thread/composer.tsx");
   assert.ok(
-    composer.includes('sessionStorage.getItem("chanlytics-compose")') &&
-      composer.includes('sessionStorage.removeItem("chanlytics-compose")') &&
+    composer.includes("takeCarriedReply(threadId)") &&
       composer.includes("setText((cur) => (cur && cur.trim() ? cur : said));"),
-    "only into an empty composer, only once",
+    "the composer takes it, and only into an empty box",
   );
   // The profile carries the workspace's own booking link, from its settings, trimmed; none set, or a blank one, is no
   // link to send. Run.

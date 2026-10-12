@@ -13,7 +13,10 @@ import {
   activityWords,
   isActivityNoise,
   isUuid,
+  memberWords,
   shiftKey,
+  visitDateKey,
+  visitRoute,
   zoneDayKey,
   zoneMidnight,
   type ActivityActor,
@@ -340,7 +343,7 @@ export async function activityLog(ctx: RouteContext, tenantId: string, f: Activi
   const about = page.flatMap((r) =>
     r.subject_type && r.subject_id ? [{ type: r.subject_type, id: r.subject_id }] : [],
   );
-  const [team, said] = await Promise.all([
+  const [team, said, timezone] = await Promise.all([
     ids.size
       ? roster.then((r) => r.members)
       : roster.then(
@@ -348,10 +351,11 @@ export async function activityLog(ctx: RouteContext, tenantId: string, f: Activi
           () => [],
         ),
     activitySubjects(sb, tenantId, about),
+    zone,
   ]);
   const members: ActivityMemberDto[] = team.map((m) => ({
     id: m.userId,
-    name: m.displayName?.trim() || m.email || "A member",
+    name: memberWords({ email: m.email, display_name: m.displayName }).name,
   }));
   for (const m of members) if (ids.has(m.id)) actors[m.id] = m.name;
   const last = page[page.length - 1];
@@ -359,10 +363,18 @@ export async function activityLog(ctx: RouteContext, tenantId: string, f: Activi
     rows: page,
     actors,
     subjects: said.names,
-    // A message and an escalation open their thread, a deal its person: the pages the row's own subject cannot name.
+    // A message and an escalation open their thread, a deal its person, a visit its panel on its day (by the
+    // business's clock), a template its message in the Library (by its name): the pages the row's own subject cannot name.
     doors: {
       ...Object.fromEntries(Object.entries(said.threads).map(([key, id]) => [key, `inbox/th-${id}`])),
       ...Object.fromEntries(Object.entries(said.people).map(([key, id]) => [key, `clients/${id}`])),
+      ...Object.fromEntries(
+        Object.entries(said.visits).map(([key, start]) => [
+          key,
+          visitRoute(key.slice(key.indexOf(":") + 1), visitDateKey(start, timezone)),
+        ]),
+      ),
+      ...Object.fromEntries(Object.entries(said.library).map(([key, name]) => [key, `campaigns/message:${name}`])),
     },
     members,
     page: { limit: ACTIVITY_PAGE, has_more: more, next_cursor: last ? `${last.at}|${last.id}` : null },

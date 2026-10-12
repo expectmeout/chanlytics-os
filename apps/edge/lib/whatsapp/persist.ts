@@ -11,6 +11,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { pg } from "../pg.js";
 import { fetchMediaBytes, type NormalizedInbound } from "../packages/channels.js";
 import {
+  AnswerNotKept,
   claimReplyTurn,
   holdsReplyTurn,
   ingestInbound,
@@ -173,6 +174,8 @@ export async function pgIngest(
   n: NormalizedInbound,
   channel: "whatsapp" | "sms" = "whatsapp",
   line: string | null = null,
+  /** A job takes this message up next (the door that records it and schedules its answer): see db ingestInbound. */
+  opts: { jobFollows?: boolean } = {},
 ): Promise<IngestResult | null> {
   if (!db || !tenantId) return null;
   try {
@@ -197,10 +200,13 @@ export async function pgIngest(
       optOut: n.optOut,
       optIn: n.optIn,
       optInMarketing: n.optInMarketing,
+      ...(opts.jobFollows ? { jobFollows: true } : {}),
     });
   } catch (e) {
     logger().error("ingest_pg_failed", { tenant_id: tenantId, message: n.messageId, error: errField(e) });
-    throw new IngestFailed(e instanceof Error ? e.message : String(e));
+    // A yes the message carried that did not land (AnswerNotKept) is a message that IS kept: the provider is told to send
+    // it again, or the job is tried again, and the words are not said to be lost (core ingestOrSay).
+    throw new IngestFailed(e instanceof Error ? e.message : String(e), e instanceof AnswerNotKept);
   }
 }
 

@@ -9,9 +9,12 @@
 import { read } from "@/legacy-bridge/api";
 import { workspaceZone } from "@/legacy-bridge/zone";
 import { LEFT_THE_QUEUE } from "@/legacy-bridge/surface-realtime";
+import { declareReads } from "@/legacy-bridge/surface-registry";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { toConversationVM, toCallVM } from "@chanlytics/contracts";
+import { routeOnScreen } from "@/legacy-bridge/workspace";
+import { toConversationVM, toCallVM, type CallDto, type ConversationDto } from "@chanlytics/contracts";
 import { declareSurfaceValue, setSurfaceValue } from "../surface-values";
+import { namedByRoute } from "./address";
 import { cvCallsStandAsTheirThread } from "./cv-rules";
 import type { ConversationRow } from "./types";
 
@@ -60,6 +63,9 @@ export const conversationsOverride: SurfaceOverride = {
   refreshOnMessageInserts: true,
   // The rows' last words carry the same ticks as the thread (00327): see the Inbox's.
   refreshOnMessageStatuses: LEFT_THE_QUEUE,
+  // And the person each row names (0047): a teammate's rename, their number or address, a yes or a stop, a merge. A few a day,
+  // so heard on every page, as the messages are.
+  ...declareReads("conversations", { reads: ["conversation", "hold", "person"], fresh: "live" }),
   apply: async () => {
     // The open escalations too: a row's standing is the Inbox's rule over the thread AND its escalation
     // (contracts standingOf), and without the second this surface read an escalated thread as quiet. The Inbox
@@ -71,14 +77,40 @@ export const conversationsOverride: SurfaceOverride = {
       workspaceZone(),
     ]);
     const openByConv = new Map(escData.escalations.map((e) => [e.conversation_id, e]));
+    // The chat or the call the address names, when it is older than the hundred each read holds (a bell row from last week,
+    // an Activity line, a person's page, an Ask citation): read by its id, never looked for in the window (finding A2c).
+    // The workspace scopes both reads, so another's id answers nothing and the page still says it is not here.
+    const named =
+      typeof window !== "undefined" && window.location ? namedByRoute(routeOnScreen()) : { chat: null, call: null };
+    const chatId = named.chat && !data.conversations.some((c) => c.id === named.chat) ? named.chat : null;
+    const callId =
+      named.call && !(callsRes instanceof Error) && !callsRes.calls.some((c) => c.id === named.call)
+        ? named.call
+        : null;
+    const [chatExtra, callExtra] = await Promise.all([
+      chatId
+        ? read("GET conversations", { query: { ids: chatId } }).then(
+            (d): ConversationDto[] => d.conversations,
+            (): ConversationDto[] => [],
+          )
+        : Promise.resolve<ConversationDto[]>([]),
+      callId
+        ? read("GET calls", { query: { ids: callId } }).then(
+            (d): CallDto[] => d.calls,
+            (): CallDto[] => [],
+          )
+        : Promise.resolve<CallDto[]>([]),
+    ]);
     // Each call is read as a row, and the page folds a person's rows into one (cv-rules.ts cvOnePerPerson): the call
     // opens in their thread, which holds every call, transcript and recording. A call stands as its thread does.
-    const allThreads = data.conversations.map((c) => toConversationVM(c, openByConv.get(c.id) ?? null, tz));
+    const allThreads = [...data.conversations, ...chatExtra].map((c) =>
+      toConversationVM(c, openByConv.get(c.id) ?? null, tz),
+    );
     let callRows: ConversationRow[] = [];
     try {
       if (callsRes instanceof Error) throw callsRes;
       callRows = cvCallsStandAsTheirThread(
-        callsRes.calls.map((c) => toCallVM(c, tz)),
+        [...callsRes.calls, ...callExtra].map((c) => toCallVM(c, tz)),
         allThreads,
       );
     } catch (e) {

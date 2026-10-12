@@ -53,6 +53,11 @@ const NOTIFICATION_DELIVERY = {
   note_for_you: "bell",
   reach_out_replied: "email",
   reach_out_day: "bell",
+  // A customer asked to stop: news and no wait (decision 0048). Emailed only as the business chooses, never always.
+  opted_out: "email",
+  // A booking that arrived and a teammate who joined: news and no wait, a line on the bell and no mail, no phone.
+  booking: "bell",
+  member_joined: "bell",
 } as const satisfies Record<ServerNotificationKind, "email" | "bell">;
 
 /** A kept kind that is emailed. */
@@ -177,6 +182,15 @@ export const ALERT_TOPICS: readonly AlertTopic[] = [
     kinds: ["reach_out_replied"],
   },
   {
+    key: "opted_out",
+    group: "worth_knowing",
+    title: "A customer asked to stop",
+    what: "Someone texted STOP, unsubscribed from your emails, reported one as spam, or their carrier told us they stopped. Nothing more is sent to them, and nothing waits on you.",
+    email: "choice",
+    phone: false,
+    kinds: ["opted_out"],
+  },
+  {
     key: "job_failed",
     group: "worth_knowing",
     title: "Something did not finish",
@@ -272,6 +286,8 @@ export const BELL_LINE_KINDS = [
   "booking_notice",
   "reach_out_day",
   "alert",
+  "booking",
+  "member_joined",
 ] as const satisfies readonly ServerNotificationKind[];
 
 /** The kinds the business may turn off by email: every kind of a topic whose email is a choice. */
@@ -399,9 +415,11 @@ export const ALERT_PANE_WORDS = {
     const all = [
       ...also,
       "people added from your calendar",
+      "a booking that arrives",
       "a booking email that needs a look",
       "the day's reach-out numbers at 6 PM",
       "a problem with a line",
+      "a teammate who joins",
       "invitations not yet accepted",
     ];
     return `Also on the bell: ${all.slice(0, -1).join(", ")}, and ${all[all.length - 1]}.`;
@@ -422,6 +440,14 @@ export function alertTestMail(o: { business: string; link: string }): { subject:
       `This is a test from Settings › Notifications. If you can read it, alerts for ${o.business} reach this address: ` +
       `a customer who needs a person, and whatever is ticked under Email.\n\nNothing needs doing.\n\n${o.link}`,
   };
+}
+
+/**
+ * The last line of an alert mail: the page the notice names, as a link. The words are one place's, as the rest of the
+ * mail's are; the link is the edge's (appLink around noticeRoute), the same place the bell and the phone open.
+ */
+export function openItLine(link: string): string {
+  return `Open it: ${link}`;
 }
 
 /** Why the business's email ticks cannot be pressed just now, if they cannot: the role, a config that cannot be read, no address. */

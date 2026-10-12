@@ -50,7 +50,7 @@ import type {
   LifecycleTone,
   LifecycleWaiting,
 } from "./lifecycle-types";
-import { LIFECYCLE_WORDS, lifecycleStateOf, tallyWords } from "./lifecycle-words";
+import { LIFECYCLE_WORDS, lifecycleChainStateOf, lifecycleStateOf, tallyWords } from "./lifecycle-words";
 
 /** Campaigns before the tools: under seven, no tool line, tabs, heads, phone strip or search (decision 15, a judgment). */
 const LEDGER_TOOLS_AT = 7;
@@ -129,7 +129,10 @@ export function stagePlaybooks(def: JourneyStage, rows: readonly LifecyclePlaybo
   return rows.filter((p) => def.holds.includes(p.trigger));
 }
 
-/** How campaigns stand: on, a run waiting on the person, paused (an archived list's among them), or running nothing here. */
+/**
+ * How campaigns stand: on, a run waiting on the person (paused or not: lifecycleStateOf says the run first), paused (an
+ * archived list's among them), or running nothing here.
+ */
 export function tallyOf(own: readonly LifecyclePlaybook[]): {
   on: number;
   waiting: number;
@@ -139,8 +142,8 @@ export function tallyOf(own: readonly LifecyclePlaybook[]): {
   const t = { on: 0, waiting: 0, paused: 0, off: 0 };
   for (const p of own) {
     if (p.off) t.off += 1;
-    else if (p.state !== "running") t.paused += 1;
     else if (p.totals.waiting) t.waiting += 1;
+    else if (p.state !== "running") t.paused += 1;
     else t.on += 1;
   }
   return t;
@@ -219,10 +222,11 @@ interface RowAt {
   counted: boolean;
 }
 
+/** A row's status, in lifecycleStateOf's order: a run waiting for the owner is shown whether or not the campaign is paused. */
 function rowStatusOf(p: LifecyclePlaybook): LifecycleRow["status"] {
   if (p.off) return "not_here";
-  if (p.state !== "running") return "paused";
-  return p.totals.waiting ? "waiting" : "on";
+  if (p.totals.waiting) return "waiting";
+  return p.state !== "running" ? "paused" : "on";
 }
 
 /** The line under a campaign's name: its list, its cadence, why it runs nothing here, else its moment's hint in the word. */
@@ -301,7 +305,9 @@ function playbookRow(p: LifecyclePlaybook, at: RowAt): LifecycleRow {
     next: rowNextOf(p, status, at.input),
     open: { kind: "open", label: "Open", playbookId: p.id },
     waiting: status === "waiting" ? rowWaitingOf(p, at) : null,
-    act: status === "paused" && !archived ? resumeOf(p, at.input) : null,
+    // Resume is the campaign's own, so a paused campaign keeps it beside a run that waits (its row draws the run's Approve
+    // first); the rail's Resume reads it too.
+    act: p.state !== "running" && !p.off && !archived ? resumeOf(p, at.input) : null,
     search: rowSearchOf(p.name, hint, at.caps),
   };
 }
@@ -402,9 +408,11 @@ function chainRow(
 ): LifecycleRow {
   const W = LIFECYCLE_WORDS.ledger;
   const paused = c.state !== "running";
-  const waitingRun = paused ? null : c.next.waiting_run_id;
-  const status: LifecycleRow["status"] = paused ? "paused" : waitingRun ? "waiting" : "on";
-  const stateWords = paused ? "Paused" : waitingRun ? LIFECYCLE_WORDS.coming.waiting : "On";
+  // A run waiting is shown whether or not the reach-out is paused, as a campaign's is (lifecycleChainStateOf).
+  const waitingRun = c.next.waiting_run_id;
+  const status: LifecycleRow["status"] = waitingRun ? "waiting" : paused ? "paused" : "on";
+  const state = lifecycleChainStateOf(c);
+  const stateWords = state.words;
   const hint = `Cold email${c.search ? ` to ${c.search.name}` : ""} · ${plural(c.steps.length, "step")}`;
   const resume: LifecycleAct = {
     kind: "resume",
@@ -420,7 +428,7 @@ function chainRow(
     status,
     stateWords,
     phoneWords: stateWords,
-    tone: waitingRun ? "warn" : paused ? "plain" : "ok",
+    tone: state.tone,
     needs: "none",
     needsWords: W.chainNeeds,
     channels: chainMarksOf(at.ready, workspacePausedOf(at.input)),
@@ -433,10 +441,11 @@ function chainRow(
         : NO_NEXT,
     open: { kind: "open", label: "Open", playbookId: c.root_id },
     waiting: null,
-    act: paused
-      ? resume
-      : waitingRun
-        ? { kind: "route", label: W.openRun, route: `broadcasts/run:${waitingRun}` }
+    // The run waiting is the thing to answer, so its door comes before Resume (the drawer has Resume either way).
+    act: waitingRun
+      ? { kind: "route", label: W.openRun, route: `broadcasts/run:${waitingRun}` }
+      : paused
+        ? resume
         : null,
     search: rowSearchOf(c.name, hint, at.caps),
   };

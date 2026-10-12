@@ -435,7 +435,7 @@ test("a run that waits for a person is open, never sent by the job, approved thr
     ZONE,
   );
   assert.equal(vm.open, true);
-  assert.equal(vm.stateLabel, "Waiting on you");
+  assert.equal(vm.stateLabel, "Waiting for your approval");
   const h = readCode("packages/core/src/messages/broadcast.ts");
   assert.ok(
     h.includes('if (b.state !== "scheduled" && b.state !== "sending") return;'),
@@ -566,8 +566,9 @@ test("the page and its doors: Campaigns' home is real, and the old Outbound is i
           : []),
         // A playbook made, changed or removed moves what People's rows say of it (their follow-up, W3).
         ...(["POST playbooks", "PUT playbooks/[id]", "DELETE playbooks/[id]"].includes(k) ? ["people"] : []),
-        // One made on a starter files its message too (A0): the Library, and the Inbox's templates, read again.
-        ...(k === "POST playbooks" ? ["settings", "inbox"] : []),
+        // One made on a starter files its message too (A0): the Library, the one read of the templates, reads again; the Inbox's
+        // reply box and both composers are made of it (offered-templates.ts), so none is named beside it.
+        ...(k === "POST playbooks" ? ["settings"] : []),
       ],
       `${k}: every write re-fetches both surfaces`,
     );

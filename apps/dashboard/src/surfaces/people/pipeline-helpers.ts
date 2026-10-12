@@ -1,11 +1,8 @@
 /**
- * People › Pipeline (0008), as the scope's page reads it off window.__pipeline: the rows People already holds, grouped
- * by where each deal stands, what a card dropped in another column asks for, what the peek says of a row, and every
- * word the scope says. The page composes them; it decides nothing (pipeline-scope.jsx).
- *
- * One spelling, because three places hand the page these: seed-globals.ts in the app, the e2e harness's fixture over
- * its own record (tooling/scripts/e2e-harness), and the page's own test. A copy in each is a helper one of them lacks
- * the day the Pipeline gains one.
+ * People › Pipeline (0008), as the scope's page reads it: the rows People already holds, grouped by where each deal
+ * stands, what a card dropped in another column asks for, what the peek says of a row, and every word the scope says. The
+ * page composes them; it decides nothing (pipeline/pipe.ts imports them). They were once published on `window.__pipeline`
+ * for the pages that read them there; the last of those moved to TSX, and the name was taken down (O4b).
  */
 import {
   pipelineOf,
@@ -51,5 +48,3 @@ export const pipelineHelpers = () => ({
   boardMore: pipelineBoardMore,
   words: PIPELINE_WORDS,
 });
-
-export type PipelineHelpers = ReturnType<typeof pipelineHelpers>;

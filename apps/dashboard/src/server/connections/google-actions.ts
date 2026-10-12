@@ -40,8 +40,12 @@ export async function readGoogle(ctx: RouteContext, member: Member): Promise<{ g
 export async function googleCallback(ctx: RouteContext, req: Request) {
   const url = new URL(req.url);
   const origin = url.origin;
+  // The workspace's address word, once the signed state has proved whose workspace this was and this person is a member of
+  // it: the browser returns to that workspace's own page. Until then (a declined consent, a state that does not prove
+  // itself, someone else's) there is none to name, and the front door carries the tab to the last workspace it used.
+  let slug: string | null = null;
   const back = (outcome: string, why?: string) =>
-    new Response(null, { status: 302, headers: { location: afterGoogle(origin, outcome, why) } });
+    new Response(null, { status: 302, headers: { location: afterGoogle(origin, outcome, why, slug) } });
 
   const refused = url.searchParams.get("error");
   if (refused) return back("error", refused === "access_denied" ? "declined" : refused.slice(0, 60));
@@ -50,19 +54,21 @@ export async function googleCallback(ctx: RouteContext, req: Request) {
   const proof = await verifyState(secret, url.searchParams.get("state"), Date.now());
   if (!proof.ok) return back("error", `state_${proof.reason}`);
   if (proof.state.u !== ctx.userId) return back("error", "someone_else");
-  const code = url.searchParams.get("code") ?? "";
-  if (!code) return back("error", "no_code");
 
   // The workspace named at connect time, and this person's standing in it now.
   let tenantId: string;
   try {
     const member = await memberContext(ctx, proof.state.t);
+    slug = member.slug ?? null;
     // Whoever GET google/connect admitted (its policy: the partner rung and up), by the one table.
     if (!ROLE_PERMS[member.role]?.settings) return back("error", "not_owner");
     tenantId = member.tenantId;
   } catch {
     return back("error", "no_workspace");
   }
+  // Said inside the workspace: a state that proved itself and a code Google did not send is that business's to read.
+  const code = url.searchParams.get("code") ?? "";
+  if (!code) return back("error", "no_code");
 
   const a = await edgeGoogle({ op: "connect", tenant_id: tenantId, user_id: ctx.userId, code }, 55_000);
   const b = a.body ?? {};

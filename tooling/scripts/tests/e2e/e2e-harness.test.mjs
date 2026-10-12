@@ -520,9 +520,8 @@ test("the server answers People's reads where the record has people, by the work
 test("the pipeline fixture builds, and outside a browser it installs no People: nothing to read them by", async () => {
   const w = await publishedGlobals("pipeline");
   // Each is set as the block runs, before anything is read: none is here, so none of it ran.
-  assert.equal(w.__pipeline, undefined);
   assert.equal(w.__surfaceGate, undefined);
-  assert.equal(w.__proposalMessage, undefined);
+  assert.equal(w.__personDetail, undefined);
   // The Settings half of the record is published as every scenario's is.
   assert.equal(w.__ACTIVE_WORKSPACE, WORKSPACE.id);
 });

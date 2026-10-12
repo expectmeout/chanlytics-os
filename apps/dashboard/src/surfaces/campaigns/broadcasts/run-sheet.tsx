@@ -4,7 +4,13 @@
  * asks and promises.
  */
 import { Fragment } from "react";
-import { CONSENT_CHANNELS, LIFECYCLE_WORDS, messageAboutOfTrigger } from "@chanlytics/contracts";
+import {
+  BROADCAST_STATE_LABELS,
+  CONSENT_CHANNELS,
+  LIFECYCLE_WORDS,
+  messageAboutOfTrigger,
+  runStopWords,
+} from "@chanlytics/contracts";
 import type { ApprovalVM, BroadcastDetailDto, BroadcastDto, PreviewVersions, RunPersonVM } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
@@ -59,7 +65,7 @@ export const bcPersonRow = (p: RunPersonVM) => {
       className={`bc-person${p.attn ? " is-attn" : ""}${p.held ? " is-held" : ""}`}
       data-testid="bc-person"
     >
-      <Face initials={p.initials} size="sm" className="bc-person-who" />
+      <Face person={{ name: p.name, initials: p.initials }} size="sm" className="bc-person-who" />
       <LinkButton className="bc-person-name" onClick={() => navigate(`clients/${p.contact_id}`)}>
         {p.name}
       </LinkButton>
@@ -90,14 +96,16 @@ export const bcPersonRow = (p: RunPersonVM) => {
 const bcShare = (n: number, of: number) => (of > 0 ? Math.max(1.5, Math.round((n / of) * 1000) / 10) : 0);
 
 /**
- * What the pane's head says under a waiting run's name: that it waits on you, and where it sits among those waiting
- * ("Waiting on you · 1 of 2"). It was the sheet's own top, with a back button the pane's head now holds.
+ * What the pane's head says under a waiting run's name: that it waits for your approval, and where it sits among those
+ * waiting ("Waiting for your approval · 1 of 2"). It was the sheet's own top, with a back button the pane's head now holds.
  */
 export function bcSheetSub(sheet: BcSheetAsk) {
   const pos = sheet.position;
   return (
     <span data-testid="bc-sheet-pos">
-      {pos && pos[1] > 1 ? `Waiting on you · ${pos[0]} of ${pos[1]}` : "Waiting on you"}
+      {pos && pos[1] > 1
+        ? `${BROADCAST_STATE_LABELS.pending_approval} · ${pos[0]} of ${pos[1]}`
+        : BROADCAST_STATE_LABELS.pending_approval}
     </span>
   );
 }
@@ -271,7 +279,7 @@ function bcSheetActs(p: {
   onSeeAll: () => void;
 }) {
   const { b, avm, sheet, seeAll, onSeeAll } = p;
-  const stop = bcStopWords("pending_approval");
+  const stop = runStopWords("pending_approval");
   return (
     <div className="bc-sheet-acts bc-approval-acts" data-testid="bc-sheet-acts">
       {avm.expired && (
@@ -355,34 +363,3 @@ export function BcSheet({ d, people, avm, sheet, seeAll, onSeeAll }: BcSheetProp
     </div>
   );
 }
-
-// What each stop asks and promises, by the run's state.
-interface BcStopWords {
-  verb: string;
-  question: (row: { name: string }) => string;
-  detail: string;
-  yes: string;
-}
-
-const BC_STOP_WORDS: Record<string, BcStopWords> & { scheduled: BcStopWords } = {
-  sending: {
-    verb: "Stop",
-    question: (row) => `Stop ${row.name}?`,
-    detail: "Messages already out stay out; the rest do not go.",
-    yes: "Yes, stop it",
-  },
-  pending_approval: {
-    verb: "Skip",
-    question: (row) => `Skip ${row.name}?`,
-    detail: "Nothing sends, and the run closes.",
-    yes: "Yes, skip it",
-  },
-  scheduled: {
-    verb: "Cancel",
-    question: (row) => `Cancel ${row.name}?`,
-    detail: "Nothing will send.",
-    yes: "Yes, cancel it",
-  },
-};
-
-export const bcStopWords = (state: string): BcStopWords => BC_STOP_WORDS[state] || BC_STOP_WORDS.scheduled;

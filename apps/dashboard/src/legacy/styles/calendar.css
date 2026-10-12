@@ -622,9 +622,7 @@
 .cal-ev-when > span + span::before, .cal-ev-when-rel + span::before { content: "·"; color: var(--line-strong); margin-right: 8px; }
 .cal-ev-when-rel { font-weight: 500; color: var(--ink); }
 .cal-ev-when-dur { font-variant-numeric: tabular-nums; }
-/* A time that has gone says so, quietly: nothing here is a decision any more. */
-.cal-ev-state { font-size: var(--text-xs); padding: 1px 7px; border-radius: var(--radius-full); background: var(--bg-sunken); color: var(--ink-muted); border: 1px solid var(--line); }
-.cal-ev-state::before { content: none; }
+/* How a visit stands (Kept, Missed, Past) is the kit's pill, in a block of its own (panel.tsx whenLine): the dot between this line's parts is not drawn before it. */
 /* What a member said became of a visit (0002 step 8): the acts in a row, the door's refusal under them. */
 .cal-ev-visit-acts { display: inline-flex; gap: 6px; flex-wrap: wrap; }
 .cal-ev-visit-refused { flex-basis: 100%; color: var(--ink-muted); font-size: var(--text-xs); }

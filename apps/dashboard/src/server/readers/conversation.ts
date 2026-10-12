@@ -1,5 +1,12 @@
 import "server-only";
-import { AppError, memberMetaOf, personName, type ConversationDto, type MessageDto } from "@chanlytics/contracts";
+import {
+  AppError,
+  addressOf,
+  memberMetaOf,
+  personName,
+  type ConversationDto,
+  type MessageDto,
+} from "@chanlytics/contracts";
 import { mediaPublic } from "../dto";
 import { loadConversation, type VerbConversation } from "../verbs";
 import { load, stamp, type Reader, type RowRef } from "./index";
@@ -90,8 +97,16 @@ export const conversation: Reader<
     if (row.tenant_id !== rc.tenantId) throw new AppError("not_found", "Conversation not found.", 404);
     const messages = (await load(rc, messagesOf, { id: row.id, before })).data;
     const label = personName(row);
-    const rows: RowRef[] = [{ kind: "thread", id: row.id, route: `inbox/th-${row.id}`, label }];
-    if (row.contact_id) rows.push({ kind: "person", id: row.contact_id, route: `clients/${row.contact_id}`, label });
+    const rows: RowRef[] = [
+      { kind: "thread", id: row.id, route: addressOf({ kind: "conversation", id: row.id }), label },
+    ];
+    if (row.contact_id)
+      rows.push({
+        kind: "person",
+        id: row.contact_id,
+        route: addressOf({ kind: "person", id: row.contact_id }),
+        label,
+      });
     return { data: { conversation: conversationDtoOf(row, rc.userId), messages }, rows, stamp: stamp() };
   },
 };

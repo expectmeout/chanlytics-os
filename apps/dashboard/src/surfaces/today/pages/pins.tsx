@@ -1,7 +1,7 @@
 /**
  * The lists this member pinned to Today (moved from pages/dashboard-a-week.jsx, decision 0015, step 4).
  */
-import type { PeopleListsLike } from "@chanlytics/contracts";
+import { LIST_GROUP_WORDS, type PeopleListsLike } from "@chanlytics/contracts";
 import { appNavigate, borrowed, pinnedLists, useMoved } from "../shell";
 
 // The lists this member pinned to Today (decision 0009: any list is a door here, built-in or their own), each with its
@@ -14,8 +14,9 @@ export const TodayPins = () => {
   const pins = pinnedLists();
   if (!pins || !pins.length) return null;
   return (
-    <section className="tsec tp" data-testid="today-pins" aria-label="Your lists">
-      <span className="tp-lead">Your lists</span>
+    <section className="tsec tp" data-testid="today-pins" aria-label={LIST_GROUP_WORDS.pinned}>
+      {/* Any list pins here, one of the ready-made ones or one of your own (decision 0009): the row is named for the pin. */}
+      <span className="tp-lead">{LIST_GROUP_WORDS.pinned}</span>
       {/* A list's name is the chip, with its button inside; its count is the tally (the one badge system). */}
       {pins.map((p) => (
         <span key={p.token} className="chip tp-pin" data-testid="today-pin">

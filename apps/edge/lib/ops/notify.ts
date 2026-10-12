@@ -23,14 +23,30 @@
  * needs configuring without the customer's words travelling to a stranger.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { forgetNotification, type Database } from "../packages/db.js";
+import {
+  forgetNotification,
+  mailSent,
+  noticeFor,
+  workspaceNamed,
+  type Database,
+  type KeptNotice,
+} from "../packages/db.js";
 import type { NotificationsConfig } from "../packages/contracts.js";
-import { SERVER_NOTIFICATION_KINDS, emailsFor, isPushKind } from "../packages/contracts.js";
+import {
+  EMAIL_ALWAYS_KINDS,
+  SERVER_NOTIFICATION_KINDS,
+  appLink,
+  emailsFor,
+  isPushKind,
+  noticeRoute,
+  openItLine,
+} from "../packages/contracts.js";
 import { scheduleJob } from "../packages/jobs.js";
 import { pg } from "../pg.js";
 import { env } from "../env.js";
 import { logger, errField } from "../log.js";
 import { providerFetch } from "../packages/channels.js";
+import { dashboardOrigin } from "../dashboard-origin.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -46,6 +62,9 @@ export interface NotifyTarget {
   /** True when this tenant is the env-default one, whose owner IS the address
    *  in LEAD_TO — the only case where the env fallback is that tenant's own. */
   isEnvDefault: boolean;
+  /** The workspace's address word (tenants.slug), when it was read with the recipients: the link at the foot of an alert
+   *  mail is built from it. Unset means not read, and the mail reads it once; null means the workspace has none. */
+  slug?: string | null;
 }
 
 export interface NotifyMessage {
@@ -185,6 +204,9 @@ export function reachesTenant(target: NotifyTarget): boolean {
  */
 const KEPT_KINDS: ReadonlySet<string> = new Set(SERVER_NOTIFICATION_KINDS);
 
+/** The kind a row is kept as: the one asked for when the table keeps it, a plain alert otherwise. */
+const keptKind = (kind: string | undefined): string => (kind && KEPT_KINDS.has(kind) ? kind : "alert");
+
 /**
  * Keep the alert as a row the workspace can read on its bell, whether or not
  * an email goes out — a workspace with no recipients configured still owns
@@ -205,12 +227,14 @@ export async function recordNotification(
     route?: string | null;
     about?: { type: string; id: string } | null;
     sourceEvent?: string;
+    /** The mail of this notice is still to go: the row says so (`mail_due_at`, 00409) until the mail is sent (mailSent). */
+    mailOwed?: boolean;
   },
   db: Db | null = pg(),
 ): Promise<{ id: string; kind: string } | null> {
   if (!tenantId) return null;
   if (!db) return null;
-  const kind = n.kind && KEPT_KINDS.has(n.kind) ? n.kind : "alert";
+  const kind = keptKind(n.kind);
   const L = logger({ tenant_id: tenantId });
   try {
     const { data, error } = await db
@@ -224,6 +248,7 @@ export async function recordNotification(
         subject_type: n.about?.type ?? null,
         subject_id: n.about?.id ?? null,
         ...(n.sourceEvent ? { source_event: n.sourceEvent } : {}),
+        ...(n.mailOwed ? { mail_due_at: new Date().toISOString() } : {}),
       })
       .select("id")
       .single();
@@ -295,26 +320,34 @@ export async function notify(target: NotifyTarget, msg: NotifyMessage, ports: No
   // Settings › Notifications draws, so what the page says is emailed is what is). A kind kept for the bell, or one the
   // business turned off, is a row and no more, and the row is the notice.
   if (!emailsFor(target.notifications, msg.kind)) return kept !== null;
-  const sent = await mail(target, msg, ports);
+  const sent = await mailNotice(target, msg, ports, db);
   if (sent && kept && target.tenantId && msg.push === "after_mail") await schedulePush(target.tenantId, kept, db);
   return sent;
 }
 
+/** The mail half of a notice that is also kept: the mail, ending with the link to the page the notice names (openItLink). */
+function mailNotice(target: NotifyTarget, msg: NotifyMessage, ports: NotifyPorts, db: Db | null): Promise<boolean> {
+  return mail(target, { ...msg, openIt: true }, { send: ports.send, db });
+}
+
 /**
- * notify, for news its owner must hear exactly once (a reach-out run's first hold, R20): the row first, and no mail
- * without it; then the mail, and on a mail that failed the row goes again, so the caller asks once more and the bell
- * does not keep a twin. A workspace the mail cannot address (no recipients: reachesTenant) has its bell row, which is
- * the notice then. True only when the owner was told.
+ * notify, for news its owner must hear exactly once (a reach-out run's first hold, R20): the bell's row and the phones
+ * first, then the mail, which is retried alone if it failed: the row stays, marked as owing its mail (`mail_due_at`,
+ * 00409), and asking again finds it by what it is about and sends the mail and nothing else, so the bell keeps no twin
+ * and the phones are not told twice (decision 0048). A notice with nothing to find it by (no event, nothing it is about)
+ * keeps the old way: its row goes again when the mail failed. A workspace the mail cannot address (no recipients:
+ * reachesTenant) has its bell row, which is the notice then. True only when the owner was told in full.
  */
 export async function notifyOnce(target: NotifyTarget, msg: NotifyMessage, ports: NotifyPorts = {}): Promise<boolean> {
   return keepThenMail(target, msg, ports, false);
 }
 
 /**
- * notifyOnce, for the notice an event raises (a hold's: decision 0043, core SUBSCRIBERS.owner_notice). The row keeps the
- * event it answers, so a twin delivery's row refuses a second (and the delivery that kept the first tells); a workspace
- * nobody can be mailed at has its bell row, and the platform the fact without the words, as notify sends it. True only
- * when the owner was told: a mail that failed takes the row back, and the delivery tries again.
+ * notifyOnce, for the notice an event raises (a hold's: decision 0043, core SUBSCRIBERS.owner_notice; a customer's no:
+ * SUBSCRIBERS.consent_notice). The row keeps the event it answers, so a twin delivery's row refuses a second and the
+ * delivery that finds the first tells only what it still owes; a workspace nobody can be mailed at has its bell row, and
+ * the platform the fact without the words, as notify sends it. True only when the owner was told in full: a mail that
+ * failed leaves the row and the phones as they went, owes the mail, and the delivery tries again for the mail alone.
  */
 export async function notifyEvent(
   target: NotifyTarget,
@@ -324,7 +357,25 @@ export async function notifyEvent(
   return keepThenMail(target, msg, ports, true);
 }
 
-/** The row first, and no mail without it; then the mail, and on a mail that failed the row goes again. */
+/**
+ * What finds a notice again when its mail is owed: the event it answers, else what it is about with its title. A notice
+ * that names neither cannot be told from a new one on a second try.
+ */
+function retryKey(tenantId: string, msg: NotifyMessage): Parameters<typeof noticeFor>[1] | null {
+  const kind = keptKind(msg.kind);
+  if (msg.sourceEvent) return { tenantId, kind, sourceEvent: msg.sourceEvent };
+  if (msg.about?.type && msg.about.id)
+    return { tenantId, kind, subjectType: msg.about.type, subjectId: msg.about.id, title: msg.subject.slice(0, 200) };
+  return null;
+}
+
+/**
+ * A notice is three deliveries with one state each (decision 0048): the bell's row, the phones, and the mail. The row
+ * is kept and the phones scheduled FIRST, at once; the mail follows, and a mail that failed no longer takes the row
+ * back: the row says its mail is owed (`mail_due_at`), and a retry finds it (noticeFor) and sends the mail alone. So a
+ * mail provider that is down for twelve minutes costs the owner twelve minutes of mail and nothing else, where it used
+ * to cost the hold its bell row and its push as well.
+ */
 async function keepThenMail(
   target: NotifyTarget,
   msg: NotifyMessage,
@@ -332,24 +383,82 @@ async function keepThenMail(
   platformCopy: boolean,
 ): Promise<boolean> {
   const db = ports.db === undefined ? pg() : ports.db;
-  const kept = await recordNotification(
-    target.tenantId,
-    {
-      kind: msg.kind,
-      title: msg.subject,
-      body: msg.body,
-      route: msg.route,
-      about: msg.about,
-      sourceEvent: msg.sourceEvent,
-    },
-    db,
+  if (!target.tenantId || !db) return false;
+  const tenantId = target.tenantId;
+  const key = retryKey(tenantId, msg);
+  // Nothing to find it by on a second try: the way before decision 0048, the row withdrawn with a mail that failed.
+  if (!key) return keepOrWithdraw(target, msg, { ...ports, db }, platformCopy);
+  const L = logger({ tenant_id: tenantId });
+  const mails = emailsFor(target.notifications, msg.kind);
+  const toTenant = mails && reachesTenant(target);
+  // What an earlier try kept: told in full is told; a mail still owed is all that is left to do.
+  let earlier: KeptNotice | null;
+  try {
+    earlier = await noticeFor(db, key);
+  } catch (e) {
+    // "Could not check" is not "never told": a second row now could be the twin of the first.
+    L.error("notification_record_failed", { kind: key.kind, error: errField(e) });
+    return false;
+  }
+  if (earlier && !earlier.mailOwed) return true;
+  const kept = earlier ?? (await recordNotification(tenantId, noticeOf(msg, toTenant), db));
+  if (!kept) return false;
+  // The phones go with the row, at once, whatever becomes of the mail.
+  if (!earlier && msg.push !== false) await schedulePush(tenantId, kept, db);
+  if (!toTenant) {
+    // Nobody in the workspace to mail: the bell's row is the notice, and the platform's copy is said if it can be, for a
+    // kind the receptionist must reach someone with (a hold's). News (a customer's STOP, an unsubscribe) is the bell's alone:
+    // a note to the platform for each would be the operator's inbox filling with a business's opt-outs. A mail owed from a
+    // try when somebody was on file is owed no more.
+    if (mails && platformCopy && (EMAIL_ALWAYS_KINDS as readonly string[]).includes(msg.kind ?? "")) {
+      await mailNotice(target, msg, ports, db);
+    }
+    if (earlier) await owedNoMore(db, tenantId, kept);
+    return true;
+  }
+  if (!(await mailNotice(target, msg, ports, db))) return false;
+  await owedNoMore(db, tenantId, kept);
+  return true;
+}
+
+/** The row a notice keeps: its words, and that its mail is owed when one is to go. */
+function noticeOf(msg: NotifyMessage, mailOwed: boolean): Parameters<typeof recordNotification>[1] {
+  return {
+    kind: msg.kind,
+    title: msg.subject,
+    body: msg.body,
+    route: msg.route,
+    about: msg.about,
+    sourceEvent: msg.sourceEvent,
+    mailOwed,
+  };
+}
+
+/** Say the notice's mail is done with. A row that could not be written leaves the mail owed: said, and never thrown. */
+async function owedNoMore(db: Db, tenantId: string, kept: { id: string; kind: string }): Promise<void> {
+  await mailSent(db, { tenantId, id: kept.id }).catch((e: unknown) =>
+    logger({ tenant_id: tenantId }).error("notification_record_failed", { kind: kept.kind, error: errField(e) }),
   );
-  if (!kept || !target.tenantId || !db) return false;
+}
+
+/**
+ * The way before decision 0048, for a notice nothing can find again: the row, the mail, and on a mail that failed the row goes
+ * again. Its ports carry the database the caller resolved.
+ */
+async function keepOrWithdraw(
+  target: NotifyTarget,
+  msg: NotifyMessage,
+  ports: NotifyPorts & { db: Db },
+  platformCopy: boolean,
+): Promise<boolean> {
+  const { db } = ports;
+  const kept = await recordNotification(target.tenantId, noticeOf(msg, false), db);
+  if (!kept || !target.tenantId) return false;
   let told = true;
   if (emailsFor(target.notifications, msg.kind)) {
-    if (reachesTenant(target)) told = await mail(target, msg, ports);
+    if (reachesTenant(target)) told = await mailNotice(target, msg, ports, db);
     // Nobody in the workspace to mail: the bell's row is the notice, and the platform's copy is said if it can be.
-    else if (platformCopy) await mail(target, msg, ports);
+    else if (platformCopy) await mailNotice(target, msg, ports, db);
   }
   if (!told) {
     await forgetNotification(db, { tenantId: target.tenantId, id: kept.id }).catch((e) =>
@@ -370,11 +479,15 @@ async function keepThenMail(
  * it -- so the bell does not get it twice. A caller that names the kind is held to the business's choice (emailsFor):
  * a kind it turned off is not mailed, and reads as told, since the bell's row is the notice. A mail of no kind (the
  * first run's "you're live", a test) is not one an owner turns off.
+ *
+ * `openIt` ends the mail that goes to the workspace's own people with the link to the page the notice names (openItLink),
+ * and no other: not the redacted copy, and not a mail whose builder wrote its own link (a lead's question, "you're live",
+ * the alert test). notify and its kin set it; a caller that sends a mail by itself does not.
  */
 export async function mail(
   target: NotifyTarget,
-  msg: Pick<NotifyMessage, "subject" | "body" | "redactedBody"> & { kind?: string },
-  ports: Pick<NotifyPorts, "send"> = {},
+  msg: Pick<NotifyMessage, "subject" | "body" | "redactedBody" | "route"> & { kind?: string; openIt?: boolean },
+  ports: Pick<NotifyPorts, "send" | "db"> = {},
 ): Promise<boolean> {
   const L = logger({ tenant_id: target.tenantId });
   if (msg.kind !== undefined && !emailsFor(target.notifications, msg.kind)) return true;
@@ -383,8 +496,10 @@ export async function mail(
 
   switch (addressing.kind) {
     case "tenant":
-    case "platform":
-      return send(addressing.from, addressing.to, msg.subject, msg.body);
+    case "platform": {
+      const link = msg.openIt ? await openItLink(target, msg, ports.db) : null;
+      return send(addressing.from, addressing.to, msg.subject, link ? `${msg.body}\n\n${openItLine(link)}` : msg.body);
+    }
 
     case "redacted": {
       L.error("notify_tenant_unaddressable", { subject: redactNumbers(msg.subject) });
@@ -402,6 +517,31 @@ export async function mail(
     case "none":
       L.error("notify_no_recipient", { subject: redactNumbers(msg.subject) });
       return false;
+  }
+}
+
+/**
+ * The page an alert mail ends with, as a link: the dashboard's origin, the workspace's address and the place the notice
+ * opens on the bell and the phone (contracts noticeRoute: its own route, else its kind's list). Null when the notice is
+ * about no workspace (the platform's own news), or the workspace's address is not known.
+ *
+ * The slug comes with the recipients where the loader read it (NotifyTarget.slug). A target built from a loader that read
+ * only the recipients has it read here, once, for the one mail that goes. A link that cannot be built is no link, said on
+ * the log: never a mail that does not go (the alarm is this system's only channel), and never a link to another business.
+ */
+async function openItLink(
+  target: NotifyTarget,
+  msg: Pick<NotifyMessage, "kind" | "route">,
+  db: Db | null | undefined,
+): Promise<string | null> {
+  if (!target.tenantId) return null;
+  try {
+    const slug =
+      target.slug !== undefined ? target.slug : db ? ((await workspaceNamed(db, target.tenantId))?.slug ?? null) : null;
+    return slug ? `${dashboardOrigin()}${appLink(slug, noticeRoute(msg.kind, msg.route))}` : null;
+  } catch (e) {
+    logger({ tenant_id: target.tenantId }).warn("notify_link_unavailable", { error: errField(e) });
+    return null;
   }
 }
 

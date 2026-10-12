@@ -2,6 +2,7 @@
 var EVERY = ["INSERT", "UPDATE", "DELETE"];
 var INSERTS = ["INSERT"];
 var INSERTS_AND_UPDATES = ["INSERT", "UPDATE"];
+var UPDATES = ["UPDATE"];
 var WATCHED = [
   { table: "messages", events: INSERTS_AND_UPDATES },
   // arrivals, then a send's ticks and a failure written late: an update is told with its statuses (00327)
@@ -52,7 +53,32 @@ var WATCHED = [
   // their acts repaint (00376)
   { table: "playbooks", events: EVERY },
   // a booking that arrived by email written, moved or withdrawn by the booking_read job: the Calendar repaints (00345)
-  { table: "appointments", events: EVERY }
+  { table: "appointments", events: EVERY },
+  // The records no page was told of (00408, 0047). A person made, or renamed, answered, stopped, merged or erased by a
+  // teammate, a job or the customer's own link: People, the Inbox's thread heads and Campaigns' counts repaint. Their
+  // updates are told when an identity or an answer moved; a message's stamp on last_seen_at is not one.
+  { table: "contacts", events: INSERTS_AND_UPDATES },
+  // The settings saved in another tab or by a teammate: Settings, the Calendar, Setup and the composers repaint. Told
+  // when the version moved, so the hourly stamp on calendar_checked_at tells nothing. The receptionist's stamp reads it.
+  { table: "tenant_config", events: UPDATES },
+  // The Autonomy matrix, and a person's or a list's own rule: the chips beside every approval repaint. Read by the stamp.
+  { table: "policies", events: EVERY },
+  // Meta's answer to a template, a sync, a hide, a template made or removed: the Library and the composers repaint. The
+  // update is told when its status, rejection, quality, category, visibility or words moved.
+  { table: "templates", events: EVERY },
+  // Offers by email paused by the gate or resumed by the back office: Campaigns' head line and send tick repaint. The
+  // update is told when the pause columns moved.
+  { table: "mailboxes", events: UPDATES },
+  // A booking email the reader held for a look, or settled: the Business tab's held list repaints.
+  { table: "appointment_notices", events: INSERTS_AND_UPDATES },
+  // A seat taken, changed or left, and an invitation sent, renewed, accepted or revoked: the Team pane and the workspace
+  // list repaint, and a member whose own role moved is told. A seat's update is told when its role moved, never for the
+  // member's own saved views.
+  { table: "memberships", events: EVERY },
+  { table: "invitations", events: EVERY },
+  // The workspace paused or resumed (billing, the back office): the shell and Today's band repaint. Told when the status
+  // moved. The receptionist's stamp reads the row.
+  { table: "tenants", events: UPDATES }
 ];
 function watchedTables() {
   return WATCHED.map((w) => w.table);
@@ -128,10 +154,11 @@ function tell(hearing, tenantId, message) {
   if (typeof notice.table !== "string") return;
   const table = notice.table;
   const event = message.event ?? "*";
+  const at = typeof notice.at === "string" ? notice.at : void 0;
   const statuses = Array.isArray(notice.statuses) ? notice.statuses : [void 0];
   for (const listener of [...hearing.listeners])
     for (const status of statuses)
-      listener.onChange({ tenant_id: tenantId, ...typeof status === "string" ? { status } : {} }, table, event);
+      listener.onChange({ tenant_id: tenantId, ...typeof status === "string" ? { status } : {} }, table, event, at);
 }
 export {
   subscribeWorkspaceChanges,

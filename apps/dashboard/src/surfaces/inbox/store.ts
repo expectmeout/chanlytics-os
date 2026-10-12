@@ -9,7 +9,7 @@
  */
 import { surfaceValue } from "../surface-values";
 import { presenceAway, demoSession } from "./shell";
-import { conversationsSample, inboxSample, SEED_THREADS } from "./sample";
+import { conversationsSample, inboxSample } from "./sample";
 import type { ConversationsSurface, InboxSurface, Thread } from "./types";
 
 /* ------------------------------ what the surfaces hold ------------------------------ */
@@ -38,15 +38,13 @@ export interface Decision {
 
 /**
  * Shared across Inbox, Tasks and the shell badge. Decisions made anywhere overlay the seeded threads for the rest of the
- * session and broadcast two events: `inbox:decisions` (something changed, draw again) and `inbox:counts` ({ needs }, for
- * the sidebar badge).
+ * session and broadcast `inbox:decisions` (something changed, draw again), which the count of what needs you hears in a demo
+ * session (needs-you.ts): the badge is a selector over the threads and these decisions, not a number sent.
  */
 export const IX_STORE = {
   decisions: {} as Record<string, Decision>,
   _broadcast() {
-    const needs = SEED_THREADS.filter((t) => t.state === "needs" && !this.decisions[t.id]).length;
     window.dispatchEvent(new CustomEvent("inbox:decisions"));
-    window.dispatchEvent(new CustomEvent("inbox:counts", { detail: { needs } }));
   },
   set(threadId: string, rec: Decision) {
     this.decisions[threadId] = rec;
@@ -128,8 +126,13 @@ export const VW_UTIL = {
   },
 };
 
-/** Freeze and thaw the countdowns as the member goes Away and comes back; once, when the surfaces start. */
+/**
+ * Freeze and thaw the countdowns as the member goes Away and comes back; once, when the surfaces start. Away is the demo's:
+ * its control is drawn only in a demo session (topbar.jsx), and the countdowns it freezes are the seeded threads', so a real
+ * session registers no listener at all.
+ */
 export function hearPresence(): () => void {
+  if (!demoSession()) return () => {};
   const onChange = () => VW_UTIL.onPresence();
   window.addEventListener("presence:changed", onChange);
   return () => window.removeEventListener("presence:changed", onChange);

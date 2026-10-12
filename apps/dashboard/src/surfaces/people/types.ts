@@ -60,6 +60,8 @@ export type RowPick = "choose" | "chosen" | undefined;
 export interface TableColumn<R extends TableRow = TableRow, X extends TableCtx = TableCtx> {
   key: string;
   label: ReactNode;
+  /** The heading, where it is the workspace's word (the appointments column): read with what the workspace is, over `label`. */
+  labelOf?: (x: ColCtx) => string;
   sortable: boolean;
   /** Which way the first press on its heading goes: `"asc"`, or by default the most first (`"desc"`). */
   sortFirst?: "asc" | "desc";

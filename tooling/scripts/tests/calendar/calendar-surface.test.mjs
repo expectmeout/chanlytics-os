@@ -64,25 +64,25 @@ test("the tab's cache gives the Calendar's value back before React draws, so a r
   values.setSurfaceValue("calendar", undefined);
 });
 
-test("an address under the Calendar: a whole date opens that day, an appointment's id names none, and the page takes every param", () => {
+test("an address under the Calendar: a whole date opens that day, a visit's id names the visit to open, and the page takes every param", () => {
   const param = (path) => calendarParam(routeOfPath(path));
   assert.equal(param("/w/acme/calendar"), null, "the route alone");
   assert.equal(param("/w/acme/calendar/2026-09-10"), "2026-09-10");
   assert.equal(param("/w/acme/calendar/a-lin"), "a-lin");
   assert.equal(param("/w/acme/inbox/th-1"), null, "another route names no param of this one");
   assert.equal(param("/w/acme"), null);
-  assert.deepEqual(calendarAddress("2026-09-10"), { initialApptId: null, initialDay: "2026-09-10" });
+  assert.deepEqual(calendarAddress("2026-09-10"), { initialVisitId: null, initialDay: "2026-09-10" });
   assert.deepEqual(
     calendarAddress("a-1"),
-    { initialApptId: "a-1", initialDay: null },
-    "an appointment's id is not a day",
+    { initialVisitId: "1", initialDay: null },
+    "a visit's id is not a day, and the page opens the visit it names (links/a-visit-has-an-address-that-opens-it)",
   );
   assert.deepEqual(
     calendarAddress("2026-9-10"),
-    { initialApptId: null, initialDay: null },
+    { initialVisitId: null, initialDay: null },
     "only a whole date names a day",
   );
-  assert.deepEqual(calendarAddress(null), { initialApptId: null, initialDay: null });
+  assert.deepEqual(calendarAddress(null), { initialVisitId: null, initialDay: null });
   // The router draws the page for every param, as the frame's row did.
   for (const p of ["2026-09-10", "a-1", "anything", "x/y"]) {
     assert.equal(SURFACE_ROUTES.calendar.takes(p), true, p);

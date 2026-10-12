@@ -301,7 +301,7 @@ test("A playbook is somewhere on the home -- the win-back is a moment, every cam
   assert.ok(row("pb-1") && row("pb-2") && row("pb-3"), "every campaign is a row, the moment's lead among them");
   assert.equal(rows.filter((r) => r.props["data-row"] === "pb-1").length, 1, "and once");
   // A run waiting on the owner: its row says so and decides it; the drawer's own verbs are not drawn.
-  assert.ok(textOf(row("pb-3")).includes("Waiting on you"), textOf(row("pb-3")));
+  assert.ok(textOf(row("pb-3")).includes("Waiting for your approval"), textOf(row("pb-3")));
   assert.ok(byTestId(row("pb-3"), "cmh-approve"), "decided where it waits");
   assert.equal(byTestId(tree, "pb-approve"), null, "the page carries no verbs of a drawer that is not open");
   press(find(row("pb-3"), (n) => n.props?.["data-testid"] === "cmh-row-open"));
@@ -310,7 +310,11 @@ test("A playbook is somewhere on the home -- the win-back is a moment, every cam
   tree = homeAt("moment:pb-3");
   const pane = byTestId(tree, "pb-pane");
   assert.ok(byTestId(pane, "pb-approve") && byTestId(pane, "pb-skip"), "with Approve and Skip in it");
-  assert.ok(textOf(byTestId(pane, "pb-waiting")).includes("waits on you"));
+  assert.equal(
+    textOf(byTestId(pane, "pb-waiting")),
+    contracts.BROADCAST_STATE_LABELS.pending_approval,
+    "in the one word a waiting run is said in",
+  );
 });
 
 test("REGRESSION (C13): a link to a playbook opens it over the home, and a playbook since deleted says so, the home staying", () => {

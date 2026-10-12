@@ -1,7 +1,18 @@
 /* global React, Icon */
 // The shortcuts sheet: every key the app answers to, listed from one table
 // (contracts/chrome.ts through window.__chrome). Opens on "?" outside a
-// field and from the account menu; Escape and the backdrop close it.
+// field and from the account menu's Keyboard shortcuts row on a desk, which
+// calls openShortcuts() below (a phone needs no keys, and the row is not
+// drawn there); Escape and the backdrop close it.
+
+// The sheet's own opener, handed here while the sheet is drawn: openShortcuts() asks it. A door is a call to the sheet that
+// answers it, never an event on the window (shortcuts:open had a listener here and no sender after the row left the menu,
+// and nothing said so).
+let scOpener = null;
+const openShortcuts = () => {
+  if (scOpener) scOpener();
+};
+
 const ShortcutsSheet = () => {
   const [open, setOpen] = React.useState(false);
   // Whether the sheet is up, for the one listener below.
@@ -18,10 +29,10 @@ const ShortcutsSheet = () => {
         setOpen((v) => !v);
       }
     };
-    window.addEventListener("shortcuts:open", onOpen);
+    scOpener = onOpen;
     window.addEventListener("keydown", onKey);
     return () => {
-      window.removeEventListener("shortcuts:open", onOpen);
+      if (scOpener === onOpen) scOpener = null;
       window.removeEventListener("keydown", onKey);
     };
   }, []);
@@ -51,4 +62,4 @@ const ShortcutsSheet = () => {
   );
 };
 
-window.ShortcutsSheet = ShortcutsSheet;
+Object.assign(window, { ShortcutsSheet, openShortcuts });

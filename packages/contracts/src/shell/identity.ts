@@ -2,6 +2,7 @@ import { initialsOf } from "../conversations/thread-contact";
 import { DAY_MS } from "../shared/time";
 import { clockDate } from "../shared/clock";
 import { ROLES, ROLE_SAYS } from "../config/workspace-config/role-perms";
+import { UNKNOWN_MEMBER_WORD } from "../shared/words";
 
 /**
  * Who a person is, in words.
@@ -57,6 +58,8 @@ export function identityWords(me: IdentityInput | null | undefined): IdentityWor
 /**
  * A member as a roster shows them: the name they gave with the email under
  * it, or the email alone — never the email's local part dressed as a name.
+ * THE one function that names a member (Team's card, the Inbox's holder, a note's author, the Activity log, Notifications'
+ * addresses, Ask): a page that builds a member's name by hand says "A member" on one page and "ana" on the next.
  */
 export function memberWords(m: { email: string | null; display_name?: string | null }): {
   name: string;
@@ -64,7 +67,7 @@ export function memberWords(m: { email: string | null; display_name?: string | n
 } {
   const name = (m.display_name ?? "").trim();
   if (name) return { name, sub: m.email };
-  return { name: m.email ?? "Someone", sub: null };
+  return { name: (m.email ?? "").trim() || UNKNOWN_MEMBER_WORD, sub: null };
 }
 
 export const DISPLAY_NAME_MAX = 80;
@@ -106,6 +109,16 @@ export function joinedWords(joinedAt: string | null | undefined, tz: string, now
 }
 
 /**
+ * Whether an open invitation has run out its days. THE one answer: the Team card marks it Expired and the bell says
+ * Expired (invitationWords reads this too), so an invitation that has closed is not "pending" on the one and "Expired" on
+ * the other. False where the roster did not say when it ends.
+ */
+export function invitationExpired(inv: { expiresAt?: string | null }, nowMs: number): boolean {
+  const at = inv.expiresAt ? Date.parse(inv.expiresAt) : NaN;
+  return !Number.isNaN(at) && at <= nowMs;
+}
+
+/**
  * An open invitation on the Team card: when it went and how long it has, or that it expired. The roster returns every
  * invitation nobody accepted or revoked, expired ones included: an expired one is still the owner's to send again, and
  * a card that called it pending for ever was lying about a door that had closed. `sent` is null where the roster did
@@ -120,7 +133,38 @@ export function invitationWords(
   const sent = Number.isNaN(sentAt) ? null : `invited ${clockDate(sentAt, tz, nowMs)}`;
   const at = inv.expiresAt ? Date.parse(inv.expiresAt) : NaN;
   if (Number.isNaN(at)) return { expired: false, sent, left: null };
-  if (at <= nowMs) return { expired: true, sent, left: null };
+  if (invitationExpired(inv, nowMs)) return { expired: true, sent, left: null };
   const days = Math.ceil((at - nowMs) / DAY_MS);
   return { expired: false, sent, left: days <= 1 ? "expires today" : `${days} days left` };
+}
+
+/* -------------------------------------------- joining a workspace from an invitation -- */
+
+/**
+ * A person invited to a workspace is seated in it by one POST the shell makes once when it boots (`POST
+ * me/invitations/accept`; decision 0047, lane 6: reads never write), not by the read of the workspace list, which seated
+ * them on every same-origin read with no word that it had. The POST answers which workspaces it seated them in, and the
+ * shell says so (youJoinedWords).
+ */
+/** A workspace an invitation seated the signed-in person in. */
+export interface JoinedWorkspaceDto {
+  /** The workspace's id. */
+  id: string;
+  /** Its name, as the invited person will see it in the switcher. */
+  name: string;
+  /** The role the invitation gave. */
+  role: string;
+}
+
+/** What the accept answers: the workspaces it seated the person in, none when no invitation was open for their address. */
+export interface InvitationsAcceptedDto {
+  joined: JoinedWorkspaceDto[];
+}
+
+/** What the shell says once it seated someone: "You joined Harbor", "You joined Harbor and Zilker". Nothing to say of none. */
+export function youJoinedWords(names: readonly string[]): string | null {
+  if (!names.length) return null;
+  const list =
+    names.length < 3 ? names.join(" and ") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  return `You joined ${list}`;
 }

@@ -80,7 +80,7 @@ export const playbooks = {
 
 declare global {
   interface Window {
-    /** The one hook a page that has not moved still calls: Today's approve re-reads the cards behind it (refresh-map.ts HOOKS). */
+    /** The one hook a page that has not moved still calls: Today's approve re-reads the cards behind it (today/shell.ts refreshPlaybooks). */
     __refreshPlaybooks?: () => Promise<void>;
   }
 }

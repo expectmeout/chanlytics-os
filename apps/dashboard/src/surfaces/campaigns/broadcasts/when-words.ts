@@ -40,6 +40,16 @@ export function bcRunOffer(run: WaitingRun, at: { paused: boolean; known: boolea
   return waitingRunOffer(run, approvalDays(), at);
 }
 
+/**
+ * Whether a waiting run is decided on its sheet alone, never from a row (the offer's `open`): a reach-out's run, whose
+ * sheet counts and names each first cold email with its check. For the runs Sent lists, whose sheet is a press away, so
+ * `known` is true: the row asks the rule the way Today's row does, and a Sent row, a Today row and the ledger's door
+ * agree. The pause is the row's own business (Approve under a pause is refused in its words), so it is not asked here.
+ */
+export function bcOpensOnItsSheet(run: WaitingRun): boolean {
+  return bcRunOffer(run, { paused: false, known: true }).kind === "open";
+}
+
 /** What a receipt says of its time: the server's answer to a send or an approve. */
 interface WhenReceipt {
   scheduled_for?: string | null;

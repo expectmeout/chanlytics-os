@@ -38,7 +38,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   emptyBusinessRecord,
-  lensRoute,
+  reviewRoute,
   RECORDING_RETENTION_DAYS,
   newReceptionistDefaults,
 } from "@chanlytics/contracts";
@@ -1625,9 +1625,11 @@ test("google: listings not read for twenty hours are read again — never read f
   );
   assert.equal(tables.notifications.length, 1);
   const bell = tables.notifications[0];
+  // About the review's row, and opening that review (contracts reviewRoute).
+  const written = tables.google_reviews.find((r) => r.review_id === "r-news");
   assert.deepEqual(
     [bell.tenant_id, bell.kind, bell.route, bell.subject_type, bell.subject_id],
-    [news, "review", lensRoute("reviews"), "review", "r-news"],
+    [news, "review", reviewRoute(written.id), "review", written.id],
   );
   assert.match(bell.title, /^New on Google: .+ from Rosa$/);
   assert.match(bell.body, /“Careful movers, on time\.”/);

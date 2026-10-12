@@ -1,10 +1,9 @@
 /* global React, Icon */
-// AskBar — the palette ⌘K opens, and the seed palette a demo session draws.
-// Outside a demo AskBar is the Line (ask-real.jsx, over window.__ask), on every
-// page and over the first run. Everything else in this file but askAbout (the
-// one door into Ask from anywhere, below) is the demo's: its threads are kept in
-// this browser, its answers are canned from the seed world, and its links go to
-// the mockup's pages.
+// The seed palette a demo session draws, and the AskBar that chooses it. Outside a demo AskBar is the Line (ask-real.jsx,
+// over window.__ask), on every page and over the first run, and this file is not loaded (legacy-bridge/manifest-demo.ts).
+// All of it is the demo's: its threads are kept in this browser, its answers are canned from the seed world, and its
+// links go to the mockup's pages. The one door into Ask from anywhere, askAbout, is not here: it is surfaces/frame-doors.ts
+// (the standalone mockup's stand-in is data/bridge-stubs.jsx), and this palette hears what it hands the Line, `ask:seed`.
 
 const ASK_SEED_THREADS = [
   {
@@ -357,15 +356,9 @@ const askTopicFor = (q, prev = null) => {
   return prev;
 };
 
-// The one door into Ask from anywhere: it opens the palette and hands it `ask:seed`.
-// The Line (ask-real.jsx useArSeedKeys) reads askAbout({ prompt?, mode?: "compose", thread?: id, about?: scope }):
-// a prompt is asked, or with "compose" left in the field to finish; `thread` opens that conversation as it is; `about`
-// is the scope chip it opens with. The seed palette below reads { prompt, mode, title?, answer?, links?, actions?,
-// about? }: a canned answer is the demo's alone, and the Line asks the prompt instead.
-window.askAbout = (detail) => {
-  if (window.appAsk) window.appAsk();
-  window.dispatchEvent(new CustomEvent("ask:seed", { detail: detail || {} }));
-};
+// What the Line (ask-real.jsx useArSeedKeys) reads of askAbout({ prompt?, mode?: "compose", thread?: id, about?: scope })
+// is frame-doors.ts's. The seed palette below reads { prompt, mode, title?, answer?, links?, actions?, about? } off the same
+// `ask:seed` event: a canned answer is the demo's alone, and the Line asks the prompt instead.
 
 // The seed palette's jumps: the demo's pages and seeded people, threads, agents and lists. A workspace's are
 // contracts' askPages (legacy-bridge/ask/palette.ts jumpIndexFrom), which knows nothing seeded.
@@ -678,61 +671,9 @@ const AskBarSeed = ({ open, onClose }) => {
   );
 };
 
-// Persistent ambient dock at the bottom — shows the most recent agent action
-const AmbientDock = ({ onAsk }) => {
-  const { LIVE_TICKER } = window.CHANLY_DATA;
-  const live = LIVE_TICKER.find((t) => t.state === "live");
-  const [dismissed, setDismissed] = React.useState(false);
-  const [, setTick] = React.useState(0);
-
-  // Ending the call in Live Monitor flips the dock to "wrapped"
-  React.useEffect(() => {
-    const bump = () => setTick((n) => n + 1);
-    window.addEventListener("live:ended", bump);
-    return () => window.removeEventListener("live:ended", bump);
-  }, []);
-  const ended = live && window.LM_STORE && window.LM_STORE.isEnded("lc-selena") && /Selena/.test(live.target || "");
-
-  if (dismissed || !live) return null;
-
-  if (ended) return (
-    <div className="dock">
-      <span className="dock-pulse"><Icon name="check" size={12} style={{ color: "var(--ok)" }} /></span>
-      <span className="dock-text">
-        <strong>{live.agent}</strong> wrapped the call <span className="muted">{live.target}</span>
-      </span>
-      <button className="btn btn-ghost btn-sm" onClick={() => window.CHANLY.nav(window.CHANLY.R.conversation("cv-selena-live"))}>
-        Transcript
-      </button>
-      <button className="btn btn-ghost btn-icon btn-sm" onClick={() => setDismissed(true)} aria-label="Dismiss">
-        <Icon name="x" size={12} />
-      </button>
-    </div>
-  );
-
-  return (
-    <div className="dock">
-      <span className="dock-pulse">
-        <span className="live-dot" />
-      </span>
-      <span className="dock-text">
-        <strong>{live.agent}</strong> {live.verb} <span className="muted">{live.target}</span>
-        <span className="dock-elapsed mono">{live.duration}</span>
-      </span>
-      <button className="btn btn-ghost btn-sm" onClick={() => window.CHANLY.nav("live")}>
-        Listen in
-      </button>
-      <button className="btn btn-ghost btn-icon btn-sm" onClick={() => setDismissed(true)} aria-label="Dismiss">
-        <Icon name="x" size={12} />
-      </button>
-    </div>
-  );
-};
-
-// Outside a demo the palette reads the workspace (ask-real.jsx); the seed
-// palette above answers only the seed world and stays for the demo.
-const AskBar = (props) => (!window.__DEMO_MODE && window.AskReal ? <window.AskReal {...props} /> : <AskBarSeed {...props} />);
+// Outside a demo the palette reads the workspace: the Line, which ask-real.jsx published as AskBar before this file loaded
+// (a real workspace never loads this one); the seed palette above answers only the seed world and stays for the demo.
+const AskLine = window.AskBar;
+const AskBar = (props) => (!window.__DEMO_MODE && AskLine ? <AskLine {...props} /> : <AskBarSeed {...props} />);
 
 window.AskBar = AskBar;
-window.AskBarSeed = AskBarSeed;
-window.AmbientDock = AmbientDock;

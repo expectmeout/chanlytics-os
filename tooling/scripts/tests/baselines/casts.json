@@ -47,9 +47,6 @@
   "apps/dashboard/src/legacy-bridge/ask/commit.ts": {
     "unknownAs": 1
   },
-  "apps/dashboard/src/legacy-bridge/ask/context.ts": {
-    "unknownAs": 1
-  },
   "apps/dashboard/src/legacy-bridge/ask/palette.ts": {
     "unknownAs": 3
   },
@@ -69,14 +66,11 @@
     "unknownAs": 1
   },
   "apps/dashboard/src/legacy-bridge/notifications.ts": {
-    "unknownAs": 4,
+    "unknownAs": 2,
     "nonNull": 2
   },
   "apps/dashboard/src/legacy-bridge/read-cache.ts": {
     "nonNull": 1
-  },
-  "apps/dashboard/src/legacy-bridge/refresh-map.ts": {
-    "unknownAs": 1
   },
   "apps/dashboard/src/legacy-bridge/surface-cache.ts": {
     "unknownAs": 2

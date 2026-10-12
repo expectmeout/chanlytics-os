@@ -65,6 +65,7 @@ export {
   consultServiceOf,
   isConsultationTitle,
   noProposalSince,
+  consultationHappened,
   consultationHeld,
   dealStageOf,
   consultationsWithoutProposal,
