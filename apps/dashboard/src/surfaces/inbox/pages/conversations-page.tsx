@@ -600,6 +600,15 @@ function readingPane(p: {
   );
 }
 
+/**
+ * The page's parts (client/page-speed.ts): its list, its first part, drawn once Conversations' read is in; and each row
+ * opened, timed from the press that opened it, a move inside the page.
+ */
+function useCvParts(listRead: boolean, open: { id: string } | null): void {
+  usePartShown("conversations", "list", listRead);
+  usePartShown("conversations", "thread", !!open, open ? open.id : null);
+}
+
 export const ConversationsPage = ({
   channel = "all",
   initialId = null,
@@ -630,8 +639,6 @@ export const ConversationsPage = ({
   // Its own rows, and where a call opens depends on the threads the Inbox read (cvOpens): drawn again when either lands.
   const cvRead = useSurface("conversations");
   useSurface("inbox");
-  // The list is the page's first part (client/page-speed.ts): drawn once Conversations' read is in.
-  usePartShown("conversations", "list", cvRead !== undefined);
   const { openRow, closeRow } = useCvAddress(channel, setSelectedId, setPhoneOpen);
 
   // Deep-link follows later navigations; decisions flip pills live. An address naming no row is the list: Back from a
@@ -704,8 +711,7 @@ export const ConversationsPage = ({
   const onScreen = selected && !requestedMissing && (!cvOnPhone() || phoneOpen) ? (selectedRow ?? selected) : null;
   useSeeOpen(onScreen ? cvWhoseRow(onScreen) : null, onScreen ? cvSeenOf(onScreen) : undefined);
   useSeen();
-  // Each row opened, timed from the press that opened it: a move inside the page.
-  usePartShown("conversations", "thread", !!onScreen, onScreen ? onScreen.id : null);
+  useCvParts(cvRead !== undefined, onScreen);
   const openByHand = (id: string) => {
     const hit = cvFind(visible, id);
     if (hit && cvUnread(hit.row)) seePerson(cvWhoseRow(hit.row), cvSeenOf(hit.row));
