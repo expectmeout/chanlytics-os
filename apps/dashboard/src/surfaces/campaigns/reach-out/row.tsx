@@ -12,6 +12,7 @@
  */
 import { Fragment, useEffect, useReducer, useState } from "react";
 import type { ReactNode } from "react";
+import { lifecycleChainStateOf } from "@chanlytics/contracts";
 import type { ReachOutChainDto, ReachOutChainReportDto, ReachOutReachDto } from "@chanlytics/contracts";
 import type { ApiRefusal } from "@/client/api";
 import { canDo, gate, gateTitle, navigate, refusalToast } from "../../legacy-verbs";
@@ -309,7 +310,8 @@ export function ReachOutPane({ chain, canAct, flash, onClose, onEdit }: PaneProp
   const [editing, setEditing] = useState(false);
   const said =
     read && read.state === "ok" ? W.chainReportWordsOf(chain, read.report, read.reach || RO_NO_REACH, pace) : null;
-  const state = chain.state !== "running" ? "paused" : chain.next.waiting_run_id ? "approval" : "running";
+  // Its state as the home says it, a run waiting first (paused or not) and "On" for "Running" (contracts lifecycleChainStateOf).
+  const state = lifecycleChainStateOf(chain);
   const acts = (
     <ReachOutActs
       chain={chain}
@@ -332,7 +334,7 @@ export function ReachOutPane({ chain, canAct, flash, onClose, onEdit }: PaneProp
         )
       }
       title={chain.name}
-      badge={<StatePill kind="playbook" value={state} />}
+      badge={<StatePill kind="tone" value={state.tone} label={state.words} />}
       sub={W.chainHintOf(chain, pace.host)}
       foot={phone && canAct ? acts : undefined}
       onClose={onClose}

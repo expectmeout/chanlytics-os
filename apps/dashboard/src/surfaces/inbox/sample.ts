@@ -29,7 +29,7 @@ const INBOX_VIEWS: InboxView[] = [
   { id: "new-leads", label: "New leads today", icon: "plus", count: 9 },
 ];
 
-export const SEED_THREADS = [...NEEDING_YOU, ...WATCHING];
+const SEED_THREADS = [...NEEDING_YOU, ...WATCHING];
 
 const CHANNEL_LABELS: Record<string, string> = {
   phone: "Phone",

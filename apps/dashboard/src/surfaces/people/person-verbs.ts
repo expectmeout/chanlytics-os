@@ -6,7 +6,8 @@
  * `backToPeople` and the toast with the frame.
  */
 import type { ReactNode } from "react";
-import { navigate, useLegacyToast } from "../legacy-verbs";
+import { backToPeople } from "../frame-doors";
+import { useLegacyToast, windowValue } from "../legacy-verbs";
 
 /** What the shell's one flash takes, as a person's page raises it: words, a tone, an Undo or a door in the toast. */
 export interface PersonFlash {
@@ -39,8 +40,6 @@ interface ThreadVerbs {
 
 declare global {
   interface Window {
-    /** The frame's own Back to People: the People view this page was opened from, with its place (app-shell.jsx). */
-    appBackToPeople?: () => void;
     /** The Inbox's verbs on a real thread (thread-pane.jsx), spoken through the given flash. */
     threadVerbs?: (flash: FlashFn) => ThreadVerbs;
   }
@@ -57,11 +56,8 @@ export function usePersonToast(): [ReactNode, FlashFn] {
   return useLegacyToast();
 }
 
-/** The person's own Back: the People view they were opened from (the frame's rule), else People itself. */
-export function backToPeople(): void {
-  if (window.appBackToPeople) window.appBackToPeople();
-  else navigate("clients");
-}
+/** The person's own Back: the People view they were opened from (the frame's rule, filled into the bridge's doors), else People itself. */
+export { backToPeople };
 
 /** Where a smart list of the workspace is on People: `clients/seg:<id>`, the spelling the route table's `clientSeg` gives. */
 export function clientSegRoute(id: string): string {
@@ -76,8 +72,8 @@ interface WorkspaceRow {
 
 /** The name of the workspace being looked at (the workspace surface's rows, `__WORKSPACES`, at `__ACTIVE_WORKSPACE`); nothing where the shell has none. */
 export function workspaceName(): string {
-  const list: unknown = Reflect.get(window, "__WORKSPACES");
-  const active: unknown = Reflect.get(window, "__ACTIVE_WORKSPACE");
+  const list = windowValue("__WORKSPACES");
+  const active = windowValue("__ACTIVE_WORKSPACE");
   const found = (Array.isArray(list) ? (list as WorkspaceRow[]) : []).find((w) => w.id === active);
   return typeof found?.name === "string" ? found.name : "";
 }
@@ -94,7 +90,7 @@ export function threadVerbs(flash: FlashFn): ThreadVerbs {
   return own(flash);
 }
 
-/** Hear one of the window's own events (`deal:sheet`, `note:saved`, `surface:clients`); the answer lets go. */
+/** Hear one of the window's own events (`deal:sheet`, `step:sheet`, `surface:clients`); the answer lets go. */
 export function hear(type: string, fn: (detail: Record<string, unknown>) => void): () => void {
   const on = (e: Event) => fn((e as CustomEvent<Record<string, unknown> | null>).detail ?? {});
   window.addEventListener(type, on);

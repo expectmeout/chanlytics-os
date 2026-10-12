@@ -491,7 +491,7 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
   assert.ok(
     bridge.includes('key: "billing",') &&
       bridge.includes('value: "billing",') &&
-      bridge.includes('refreshOnTables: ["billing_accounts"],') &&
+      bridge.includes('declareReads("billing", { reads: ["billing"], fresh: "live" })') &&
       bridge.includes("window.location.assign(r.data.url)"),
   );
   const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");

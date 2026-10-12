@@ -5,7 +5,8 @@
  * call's own header (conversations-page.tsx) and Live's name are the same door.
  *
  * The face is the kit's Face at its header size, the one avatar a person wears wherever a thread or a call names them
- * (the thread's header, the call's header, Live's panel). Its picture slot (`photo`) is where an uploaded photo of a
+ * (the thread's header, the call's header, Live's panel), told who it is for (`person`: contracts decides a number's glyph
+ * from an address's from a name's initials). Its picture slot (`photo`) is where an uploaded photo of a
  * customer, or a company's logo, goes once members can add one: it covers the initials, which show again if the picture
  * does not load. Nothing draws a picture yet; when something does, it passes `photo` here and every place that names a
  * person has it.
@@ -25,7 +26,9 @@ interface IxWhoProps {
 }
 
 export const IxWho = ({ to = null, go = null, who, avatar, photo = null, priority = null, children }: IxWhoProps) => {
-  const face = <Face initials={avatar} size="lg" photo={photo ?? undefined} priority={priority} />;
+  const face = (
+    <Face person={{ name: who, initials: avatar }} size="lg" photo={photo ?? undefined} priority={priority} />
+  );
   if (!to || !hasRouteDoor())
     return (
       <div className="ix-th-who">

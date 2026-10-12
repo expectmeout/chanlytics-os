@@ -5,7 +5,8 @@
  * `Db`, from here.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
+import { lensRoute, reviewRoute } from "../packages/contracts.js";
+import { reviewRowsByGoogleId, type Database } from "../packages/db.js";
 
 export type ListingRow = Database["public"]["Tables"]["google_listings"]["Row"];
 export type ConnectionRow = Database["public"]["Tables"]["google_connections"]["Row"];
@@ -46,4 +47,30 @@ async function connectionOf(db: Db, tenantId: string): Promise<ConnectionRow | n
   return data;
 }
 
-export { connectionOf, type Db };
+/**
+ * The rows a workspace's reviews are on record under, by Google's own id for each. A notice of a review is kept about the review's
+ * ROW (its id is what the reply door, the ledger and the review's address name it by: contracts reviewRoute), not Google's id for
+ * it, which the first notices were kept about. A read that fails answers none, and the notice is then kept as it was: the bell is
+ * best effort, and a sync that has written its reviews must not fail for it.
+ */
+function reviewRowIds(db: Db, tenantId: string, googleIds: readonly string[]): Promise<Map<string, string>> {
+  return reviewRowsByGoogleId(db, tenantId, googleIds).catch(() => new Map<string, string>());
+}
+
+/**
+ * What the bell keeps a review's notice about and where it opens: the review's row and its address (the lens with that review's
+ * reply box open), else, for a notice of several reviews or of ratings alone, nothing and the lens; else Google's own id (a review
+ * whose row could not be found) and the lens.
+ */
+function aboutReview(
+  rowIds: ReadonlyMap<string, string>,
+  googleId: string | null,
+): { route: string; about: { type: string; id: string } | null } {
+  if (!googleId) return { route: lensRoute("reviews"), about: null };
+  const id = rowIds.get(googleId);
+  return id
+    ? { route: reviewRoute(id), about: { type: "review", id } }
+    : { route: lensRoute("reviews"), about: { type: "review", id: googleId } };
+}
+
+export { aboutReview, connectionOf, reviewRowIds, type Db };

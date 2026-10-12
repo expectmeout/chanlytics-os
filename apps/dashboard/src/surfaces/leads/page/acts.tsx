@@ -6,11 +6,23 @@
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { formatPhoneDisplay, type LeadNotAFitWhy, type LeadRowVM, type LeadsBulkInput } from "@chanlytics/contracts";
 import type { ApiRefusal } from "@/client/api";
+import { downloadCsv } from "../../kit/download";
 import { canDo, refusalToast } from "../../legacy-verbs";
 import type { Flash } from "../../people/types";
-import { bulkLeads, excludeLead, keepLead, putBackLead, undoLeadOperation, type LeadsSurface } from "../surface";
+import {
+  bulkLeads,
+  excludeLead,
+  exportLeadsFile,
+  keepLead,
+  putBackLead,
+  undoLeadOperation,
+  type LeadsSurface,
+} from "../surface";
 import type { Armed, PeekMode } from "../peek/types";
 import type { LeadView } from "./state";
+
+/** The view an export names: the keys GET leads takes, as a bulk act names a view (LeadsViewSchema). */
+type ExportView = Extract<LeadsBulkInput, { by: "view" }>["view"];
 
 /** What a door answers, as the page reads it: accepted with its data, or a refusal. */
 export type LeadAnswer = { ok: true; data: unknown } | ApiRefusal;
@@ -178,6 +190,27 @@ export const leadActs = (a: LeadActsArgs) => {
     leadAct(() => putBackLead(searchOf(leadById(id)), id), <>Put back. It counts as a lead now.</>);
   const bulk = (body: LeadsBulkInput) =>
     leadAct(() => bulkLeads(body), body.action === "contacted" ? <>Marked contacted.</> : <>Not a fit.</>);
+  // A view's leads as a file. A press that POSTs, not a link: marking what it took moves the month's count (§0.2), and a GET
+  // changes nothing (decision 0047, lane 6). The kit saves the file (on the phone app, through the share sheet); the toast
+  // says how many left.
+  const exportLeads = async (view: ExportView) => {
+    if (a.leadBusy) return;
+    a.setLeadBusy(true);
+    const r = await exportLeadsFile(view);
+    a.setLeadBusy(false);
+    if (!r.ok) {
+      a.plFlash(refusalToast(r, "The leads could not be exported"));
+      return;
+    }
+    downloadCsv(r.data.file, r.data.csv);
+    a.plFlash({
+      msg: (
+        <>
+          Exported {r.data.rows.toLocaleString()} {r.data.rows === 1 ? "lead" : "leads"}.
+        </>
+      ),
+    });
+  };
   // Not a fit, for everything selected: the same five whys the peek asks, asked once, one operation, one Undo (Task 15
   // step 4). The pick closes the list; the body is the one LeadsBulkSchema takes, which carries no reason -- the route
   // records not_a_fit for every row it touched, and release C reads the why.
@@ -197,6 +230,7 @@ export const leadActs = (a: LeadActsArgs) => {
     ...leadReach(a, leadById),
     bulkLeads: bulk,
     bulkNotAFit,
+    exportLeads,
   };
 };
 export type LeadActs = ReturnType<typeof leadActs>;

@@ -13,6 +13,7 @@
  * The hold's `other` ("Did not go out") and the door's refusals (`heldBack`) overlap by design: a draft the door refused is
  * in both, so the two are never added together here or anywhere.
  */
+import { NEEDS_YOU_WORD } from "../../conversations/standing";
 import { rangeLabelOf, type ReportBarVM } from "../reports";
 import { closedOf, hoursUnsetOf, type ReportProfile } from "../report-closed";
 import { barsOf, mixOf, noMix, type MixPartVM } from "../report-mix";
@@ -63,7 +64,7 @@ export interface ReceptionistReportVM {
   missed: ReceptionistFigureVM;
   /** Null where the workspace's hours could not be read; `unset` where they were and hold no open day. */
   closed: (ReceptionistFigureVM & { unset: boolean }) | null;
-  /** [waiting on you, call-backs, replies held back] */
+  /** [needs you, call-backs, replies held back] */
   stuck: ReceptionistFigureVM[];
   /** The reasons the door refused a reply, most first, for Ask and the figure's line. */
   heldBack: ReportBarVM[];
@@ -178,7 +179,9 @@ function stuckFigures({ stuck, blocked }: Series, nowMs: number): ReceptionistFi
     {
       id: "waiting",
       metric: "waiting_on_you",
-      label: "Waiting on you",
+      // The Inbox's name for a thread flagged that nobody has taken, which is what this counts (standingOfThread): the tile
+      // said "Waiting on you", which People used for a thread you have, so 3 here and 1 there were both right.
+      label: NEEDS_YOU_WORD,
       // A list cut at the database's limit is a floor: the Inbox is where the rest is.
       value: stuck.capped ? `${stuck.waiting}+` : String(stuck.waiting),
       meta: waitingMeta(stuck.waiting, stuck.oldest_at, nowMs),

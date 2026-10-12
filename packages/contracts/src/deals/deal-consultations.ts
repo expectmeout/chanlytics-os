@@ -3,6 +3,7 @@
  * consultation has had no proposal since, and where a person stands on the way to a deal (dealStageOf), the one
  * rule the Pipeline's groups and People's deal lists both read.
  */
+import type { VisitMark } from "../calendar/calendar-dto";
 import { foldName, needsConsultation, serviceNamedIn, type ConsultRules } from "../calendar/service-offer";
 import { DAY_MS } from "../shared/time";
 import type { DealStage } from "./deal-words";
@@ -34,6 +35,17 @@ export function isConsultationTitle(
   if (!t) return false;
   if (t.includes("consult")) return true;
   return consultServiceOf(title, services, rules) !== null;
+}
+
+/**
+ * Whether a consultation that has ended took place as far as anyone said (D1-consult-held, decision 0002's answer 3): it
+ * was marked kept, or nobody marked it and it is past. One marked missed or cancelled took none, and no proposal follows
+ * it. The one question every reader of "a consultation was held" asks of the visit's mark: the Calendar's peek offers a
+ * proposal by it, and the visit lines of the Pipeline, the deal card and Today word the consultation from the same mark
+ * (calendar-words.ts visitStateOf). A visit the record keeps no row for has no mark and stands as past.
+ */
+export function consultationHappened(visit: Pick<VisitMark, "status"> | null | undefined): boolean {
+  return visit?.status !== "missed" && visit?.status !== "cancelled";
 }
 
 /**
@@ -127,8 +139,9 @@ export function consultationsWithoutProposal<
 
 /**
  * Their count, in the one sentence the Pipeline's Consultations say it in and Today's row re-prints word for word:
- * "2 held in the last week, no proposal yet". The week is the rule's own (CONSULT_FOLLOW_DAYS).
+ * "2 ended in the last week, no proposal yet". The week is the rule's own (CONSULT_FOLLOW_DAYS). "Ended", never "held":
+ * a consultation nobody marked is past, and the record does not say they came (D1-consult-held; each row says Kept or Past).
  */
 export function consultsHeldWords(n: number): string {
-  return `${n} held in the last week, no proposal yet`;
+  return `${n} ended in the last week, no proposal yet`;
 }

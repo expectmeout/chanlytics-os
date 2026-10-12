@@ -223,7 +223,7 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof DMARC_STATES>, SchemaSet<"sending_domains.dmarc">>>,
   // Who lifts a reputation hold (00188, D16).
   Holds<Exactly<Of<typeof DOMAIN_RESUMERS>, SchemaSet<"sending_domains.resume_by">>>,
-  // Field data (00255, 00408): the browser's five and the shell's own two, and the two shapes of screen a report is from.
+  // Field data (00255, 00412): the browser's five and the shell's own two, and the two shapes of screen a report is from.
   Holds<Exactly<Of<typeof PAGE_METRICS>, SchemaSet<"page_vitals.metric">>>,
   Holds<Exactly<Of<typeof PAGE_DEVICES>, SchemaSet<"page_vitals.device">>>,
   // How a voice session ended (00300, 00302): the browser's word, kept on the row.

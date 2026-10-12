@@ -445,7 +445,14 @@ test("a deal with its next step: the deal first, then the step as a note of the 
       idem: "p-1:then",
     },
   ]);
-  assert.ok(t.events.indexOf("event:surface:clients") < t.events.indexOf("event:note:saved"), "People, then the page");
+  // One event for a person's card, said once for each call that landed: the deal's, then the step's. The step has no event of
+  // its own (0047): the person's page and the Pipeline's peek follow People.
+  assert.equal(
+    t.events.filter((e) => e === "event:surface:clients").length,
+    2,
+    "People, once for the deal and for the step",
+  );
+  assert.ok(!t.events.includes("event:note:saved"), "and no event of the note's own");
   const r = tab((key) =>
     key === deal ? envelope(ANSWERS[deal]) : refusal(400, "validation", "A note is at most 600 characters."),
   );
@@ -455,7 +462,11 @@ test("a deal with its next step: the deal first, then the step as a note of the 
     undo: null,
   });
   assert.equal(r.sent.length, 2);
-  assert.ok(!r.events.includes("event:note:saved"), "nothing saved, nothing said");
+  assert.equal(
+    r.events.filter((e) => e === "event:surface:clients").length,
+    1,
+    "the deal's, and nothing saved, nothing said of the step",
+  );
   // A new proposal's card names no deal: the step names the row the door wrote.
   const DEAL2 = "dddddddd-dddd-4ddd-8ddd-dddddddddd22";
   const fresh = tab((key) =>
@@ -494,7 +505,11 @@ test("a deal with its next step: the deal first, then the step as a note of the 
     [deal],
     "no notes request",
   );
-  assert.ok(bare.events.includes("event:surface:clients") && !bare.events.includes("event:note:saved"));
+  assert.equal(
+    bare.events.filter((e) => e === "event:surface:clients").length,
+    1,
+    "the deal's alone: no step was sent",
+  );
 });
 
 test("the step's write answers as the door takes it: People is read again behind it, after the deal's own read", async () => {

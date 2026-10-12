@@ -68,6 +68,17 @@ function shellRoute(route: string): string {
   return name === undefined ? route : name + route.slice(head.length);
 }
 
+/**
+ * A route as one place is spelled once: the product's word at its head is the shell's name (`people/c1` is `clients/c1`), and a
+ * retired route is the one that replaced it (`outbound/<id>` is `campaigns/moment:<id>`, doorOf). Two routes that open one
+ * place are equal here; whatever compares routes (the doors an answer offers, a count of what is already shown) compares
+ * these and never the strings as they were written.
+ */
+export function canonicalRoute(route: string): string {
+  const shell = shellRoute(route);
+  return doorOf(shell) ?? shell;
+}
+
 /** A route as its path writes it: the route's own name at its head (`clients/c1`) is the product's word (`people/c1`). */
 function pathRoute(route: string): string {
   const head = headOf(route);
@@ -127,4 +138,31 @@ export function movedAddress(address: AddressParts): string | null {
 /** Where a route lives in a workspace: `workspacePath("acme", "inbox/th-1")` is `/w/acme/inbox/th-1`. */
 export function workspacePath(slug: string, route = ""): string {
   return `/w/${encodeURIComponent(slug)}${route ? `/${pathRoute(doorOf(route) ?? route)}` : ""}`;
+}
+
+/**
+ * A page of the app as a link, for anything that is sent away from the app: a mail, a redirect after a provider, a return
+ * from a payment. The one writer of them (task 1.7 of the wiring plan; before it each wrote its own, and one wrote the
+ * product's path word by hand), built on `workspacePath` so the product's words and the retired names are said once.
+ * `appLink("acme", "inbox/th-1")` is `/w/acme/inbox/th-1`, and a query rides after the route:
+ * `appLink("acme", "admin/integrations", { google: "connected" })` is `/w/acme/settings/integrations?google=connected`. A
+ * value that is null or undefined is left out.
+ *
+ * With no workspace known (a slug that could not be read, a refusal made before a signed state proves whose workspace it
+ * was) the link is the front door with the route as a hash, `/#/admin/integrations`, which the home carries to the
+ * workspace this browser used last (the old spelling that keeps landing: `movedAddress`). It is a path and a query, never
+ * an origin: whoever sends it joins its own (the edge's `dashboardOrigin()`, the dashboard's request).
+ */
+export function appLink(
+  slug: string | null | undefined,
+  route = "",
+  query?: Readonly<Record<string, string | null | undefined>>,
+): string {
+  const asked = Object.entries(query ?? {})
+    .filter((e): e is [string, string] => typeof e[1] === "string")
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+    .join("&");
+  if (!slug) return `/${asked ? `?${asked}` : ""}${route ? `#/${route}` : ""}`;
+  const path = workspacePath(slug, route);
+  return asked ? `${path}${path.includes("?") ? "&" : "?"}${asked}` : path;
 }

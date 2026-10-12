@@ -22,6 +22,7 @@ import {
   nextOpenMoment,
   SENDING_HOURS_WORDS,
   timezoneCity,
+  tomorrowAtIn,
   zoneDayKey,
   zonedInputValue,
   fmtDay,
@@ -109,6 +110,17 @@ export async function workspaceZone(win: Window = window): Promise<string> {
   lastRead = data.workspaces.find((t) => t.id === data.activeWorkspaceId)?.timezone || DEFAULT_TIMEZONE;
   remember(win, slugOf(win), lastRead);
   return lastRead;
+}
+
+/** How far past midnight a read for the new day is made: a timer that fires a hair early must not read the day it is leaving. */
+const PAST_MIDNIGHT_MS = 1_000;
+
+/**
+ * How long until the business's day turns again: a second past its next midnight, by the zone and the date, so a day the clocks
+ * change is 23 or 25 hours and not 24.
+ */
+export function msUntilTheDayTurns(zone: string, nowMs: number): number {
+  return tomorrowAtIn(zone, nowMs, 0) - nowMs + PAST_MIDNIGHT_MS;
 }
 
 /** The clock the classic pages read: `window.__clock`. Every method says the workspace's time. */

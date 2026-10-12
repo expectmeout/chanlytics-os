@@ -1,8 +1,8 @@
 /**
  * The headline's override (surfaces/reports/headline.ts): one read of GET reports/headline for the period Reports shows,
  * published under `reports_headline` through the seam as contracts' view model; held by period, so a pick of a period this tab has
- * read paints at once; an answer for a period left is not painted; a read that fails fails the surface, never an empty line; and no
- * live-feed rule of its own (the brief's "copy the Reports surface's" would be inert: no route's own surface is this one). A period
+ * read paints at once; an answer for a period left is not painted; a read that fails fails the surface, never an empty line; and a
+ * live-feed rule that is Today's own, with a long wait (headline-live.test.mjs runs it). A period
  * pick (period.ts) paints what is held and reads behind it only when it must, and a pick that failed repaints the period kept. What it
  * shares with the Reviews read (period-surface.ts) is run through both of them in reports/lenses/reviews-surface.test.mjs.
  */
@@ -86,10 +86,18 @@ test("one read of the headline for the period Reports shows, published as contra
   );
 });
 
-test("it has no live-feed rule: a message moves a count by one in a hundred and the read reaches for the people pool and the calendar", () => {
-  assert.equal(reportsHeadlineOverride.refreshOnMessageInserts, undefined);
-  assert.equal(reportsHeadlineOverride.refreshOnTables, undefined);
-  assert.equal(reportsHeadlineOverride.refreshWhen, undefined);
+test("its live-feed rule keeps the cost argument true: the dearest read there is, heard only on its page and a long wait after the last change", () => {
+  // A message moves the period line by one in a hundred and the read reaches for the people pool and the calendar, so it is not
+  // read for each burst of messages as the day's own surface is (800 ms): fifteen seconds of quiet, thirty at the most.
+  assert.deepEqual(reportsHeadlineOverride.refreshOnTables, ["messages", "calls", "appointments", "contacts"]);
+  assert.equal(
+    reportsHeadlineOverride.refreshOnMessageInserts,
+    undefined,
+    "it names its tables, not the historical trio",
+  );
+  assert.equal(typeof reportsHeadlineOverride.refreshWhen, "function", "and hears them only where Today is on screen");
+  assert.ok(reportsHeadlineOverride.debounceMs >= 15_000, "a long wait after the last change");
+  assert.ok(reportsHeadlineOverride.maxWaitMs <= 30_000, "and never longer than thirty seconds after the first");
 });
 
 test("held by period: a period read is painted at once when picked again, one never read is not, and the answer for a period left is not painted", async () => {

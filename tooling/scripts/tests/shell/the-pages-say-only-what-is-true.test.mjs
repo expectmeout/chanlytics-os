@@ -349,7 +349,11 @@ test("Conversations draws a call's own story in amber -- 'Asked for a call back'
     outcome: toCallVM(call({ outcome: null, follow_up: null }), ZONE, NOW).outcome,
     channel: "phone",
   });
-  assert.equal(textOf(handled), "Receptionist handled it");
+  assert.equal(
+    textOf(handled),
+    "Handled",
+    "a call simply handled is the call's own word, as Live and the call card say it",
+  );
 });
 
 /* ------------- Today: a dark line silences the reassurance -------------- */
@@ -408,7 +412,7 @@ const mountToday = (vm) => {
   return { hero, recap, queue };
 };
 
-test("REGRESSION: while a line is down, Today never says nothing needs you -- the hero and the queue say new messages go unanswered", () => {
+test("REGRESSION: while a line is down, Today never says nothing needs you -- the hero and the queue say what the dark line does with what reaches it", () => {
   const down = todayWith([{ kind: "whatsapp", status: "disconnected", number: "+1 305" }]);
   assert.ok(down.standing.alert, "the fixture is a day with a dark line");
   const { hero, queue } = mountToday(down);
@@ -416,7 +420,12 @@ test("REGRESSION: while a line is down, Today never says nothing needs you -- th
   assert.ok(!queue.includes("All caught up"), queue);
   assert.ok(!queue.includes("nothing needs you"), `the queue's own heading does not reassure either: ${queue}`);
   assert.ok(hero.includes(down.standing.alert), `the line above the work carries the dark line: ${hero}`);
-  assert.ok(queue.includes("Nothing in the queue — new messages go unanswered until the line is back."), queue);
+  assert.ok(
+    queue.includes(
+      "Nothing in the queue. WhatsApp is disconnected — messages to it are neither answered nor recorded.",
+    ),
+    queue,
+  );
 });
 
 test("with every line up and nothing waiting, the reassurance stands", () => {

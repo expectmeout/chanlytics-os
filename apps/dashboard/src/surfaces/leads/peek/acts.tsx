@@ -188,6 +188,7 @@ export const LeadPeekActions = (p: PeekPage): PeekActs => {
     onExpand: () => {
       if (p.expand) p.expand(vm.id);
     },
+    onOpenPerson: p.onOpenPerson,
     onStage: (stage) => post({ kind: "stage", stage }, "Not changed"),
     onBack: () => p.setMode("info"),
     onNotAFit: () => p.setMode("why"),

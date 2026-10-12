@@ -93,29 +93,12 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
   const optedOut = consent.optedOut;
 
   if (optedOut) {
-    // Only on the opt-out message itself. upsertEscalation keeps ONE open
-    // escalation per conversation, so a repeated STOP updates rather than
-    // piles up — but a customer leaving is a business event the owner should
-    // see once, not a log line. A later message from the same person asks nobody.
-    const asked = n.optOut
-      ? sink.escalate(
-          "opt_out",
-          "Customer asked to stop receiving messages. Automatic replies are off for this contact until they text START.",
-        )
-      : null;
-    await Promise.all([
-      processedAfter(sink, asked, "none"),
-      ...(asked
-        ? [
-            asked,
-            tell(asked, {
-              said: n.body ?? `[${raw.type}]`,
-              answered: "(no reply sent — the customer opted out)",
-              why: "opt-out",
-            }),
-          ]
-        : []),
-    ]);
+    // A STOP is news, not a wait (decision 0048). The answer is recorded as ever (ingest_inbound wrote the consent and its
+    // contact.consent_changed event in the message's own transaction), and the owner is told once, on the bell, from that
+    // event (SUBSCRIBERS.consent_notice), in the Inbox's words. NO hold is opened: nothing may be sent to them, so a
+    // hold asked a person for something that cannot be done, and sat in Needs you, Today's queue and the badge, with a
+    // mail and a push, until a member pressed Resolve. A later message from the same person asks nobody either.
+    await processedAfter(sink, null, "none");
     // `decided_by` matters after the fact: which of the two sources held them out.
     L.info("wa_skip_opt_out", {
       this_message: n.optOut,

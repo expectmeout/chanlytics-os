@@ -289,7 +289,11 @@ test("the fresh book's quiet door: the fold's line, and a link to the list it co
   assert.ok(classes(line).includes("rpt-door-line"));
   assert.ok(textOf(line).includes(v.fresh.quiet.line), textOf(line));
   const door = find(line, (n) => n.type === "a");
-  assert.equal(door.props.href, "#/clients/seg:quiet", "People's own list of the people quiet for 30 days or more");
+  assert.equal(
+    door.props.href,
+    "/w/studio/people/seg:quiet",
+    "People's own list of the people quiet for 30 days or more",
+  );
   assert.equal(textOf(door), v.fresh.quiet.label);
   press(door);
   assert.deepEqual(navigated, ["clients/seg:quiet"], "and a plain press goes there by the app's own way");
@@ -571,8 +575,8 @@ test("the stuck figures are doors and wear their tone", () => {
     ["6", "3", "4"],
     "the book's counts",
   );
-  assert.equal(hrefOf(tree, "steps_overdue"), "#/clients/seg:steps_due", "the Steps due list");
-  assert.equal(hrefOf(tree, "steps_due_today"), "#/clients/seg:steps_due", "the same list");
+  assert.equal(hrefOf(tree, "steps_overdue"), "/w/studio/people/seg:steps_due", "the Steps due list");
+  assert.equal(hrefOf(tree, "steps_due_today"), "/w/studio/people/seg:steps_due", "the same list");
   assert.equal(hrefOf(tree, "email_stopped_now"), null, "no list of its own: not a door");
   assert.deepEqual(
     ["steps_overdue", "steps_due_today", "email_stopped_now"].map((m) => figureProps(tree, m).tone),
@@ -608,7 +612,7 @@ test("the stuck figures are doors and wear their tone", () => {
     0,
     "and none is drawn amber or red",
   );
-  assert.equal(hrefOf(none, "steps_overdue"), "#/clients/seg:steps_due", "the list is still a door at 0");
+  assert.equal(hrefOf(none, "steps_overdue"), "/w/studio/people/seg:steps_due", "the list is still a door at 0");
 });
 
 test("where they stand: four lists, a door each, greyed under five people", () => {
@@ -626,7 +630,12 @@ test("where they stand: four lists, a door each, greyed under five people", () =
   );
   assert.deepEqual(
     ["said_yes_messages", "can_receive_offers", "opted_out_now", "quiet_now"].map((m) => hrefOf(tree, m)),
-    ["#/clients/seg:opted_in", "#/clients/seg:offers_ok", "#/clients/seg:opted_out", "#/clients/seg:quiet"],
+    [
+      "/w/studio/people/seg:opted_in",
+      "/w/studio/people/seg:offers_ok",
+      "/w/studio/people/seg:opted_out",
+      "/w/studio/people/seg:quiet",
+    ],
     "a door to each list",
   );
   for (const f of v.stand) {
@@ -649,7 +658,7 @@ test("where they stand: four lists, a door each, greyed under five people", () =
     );
   }
   assert.equal(valueOf(figureOf(thin, "opted_out_now")), "0", "a count that is zero is still shown");
-  assert.equal(hrefOf(thin, "quiet_now"), "#/clients/seg:quiet", "and the lists are still doors");
+  assert.equal(hrefOf(thin, "quiet_now"), "/w/studio/people/seg:quiet", "and the lists are still doors");
 });
 
 test("a share of too few is greyed and says so", () => {

@@ -21,7 +21,6 @@ import {
   type LeadSearchPlan,
   type LeadsBulkInput,
 } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
 import type { usePlControls } from "../../people/hooks/use-controls";
 import type { usePlPlace } from "../../people/hooks/use-place";
 import type { PeopleRead, TableEmpty } from "../../people/types";
@@ -373,12 +372,13 @@ export const leadsBulkProps = (p: LeadsPage) => {
       phone,
       shut: () => setBulkSheet(null),
     }),
-    exportHref: api().url("GET leads/export", { query: bulkView }),
+    // The view as a file: a press that POSTs (acts.tsx exportLeads), since marking what it took moves the month's count.
+    onExport: () => p.exportLeads(bulkView),
     ...railDoors(p),
     chip: p.chip,
     onPickChip: p.setChip,
     onNeedsYou: (id: string) => nav(leadsRoute({ searchId: id, list: "all", cls: "excluded" })),
-    exportHrefFor: p.exportHrefFor,
+    exportFor: p.exportFor,
     searchWordsFor: p.searchWordsFor,
   };
 };

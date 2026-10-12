@@ -457,7 +457,7 @@ test("REGRESSION: a person who only phones says what the Inbox says of them -- '
   const wire = byClass(row, "cv-row-wire");
   assert.equal(wire?.props["aria-label"], "Phone", "the wire, on the face, named");
   assert.equal(find(wire, (n) => n.props?.name)?.props.name, "phone");
-  assert.ok(byClass(byClass(row, "cv-row-avatar"), "cv-row-wire"), "the face holds it");
+  assert.ok(byClass(byClass(row, "cv-row-lead"), "cv-row-wire"), "the face's lead holds it");
   assert.equal(
     find(byClass(row, "cv-row-line1"), (n) => n.props?.name),
     null,
@@ -473,4 +473,47 @@ test("REGRESSION: a person who only phones says what the Inbox says of them -- '
   assert.equal(drawn(rows(tree)[0]), "abandoned");
   assert.ok(textOf(rows(tree)[0]).includes("0:07"), "a row of one call says how long it ran, in its words");
   assert.equal(foot(rows(tree)[0]), null, "and nothing under them: one receptionist here, one call");
+});
+
+test("a person who asked to stop is marked on their row, and a number is one glyph on a row's face (D1-stop-unseen, D1-face-number)", async () => {
+  const { Face } = await import(`${S}/surfaces/kit/face/face.tsx`);
+  const stopper = (id, name, consent) =>
+    toConversationVM(
+      {
+        ...conv(id, name, [msg({ id: `m-${id}` }), ours({ id: `o-${id}` })]),
+        contact: { id: `k-${id}`, display_name: name, wa_profile_name: null, phone_e164: "+13475550109", ...consent },
+      },
+      null,
+      ZONE,
+      NOW,
+    );
+  const dana = stopper("c9", "Dana Cole", { consent: "opted_out", dnc: false });
+  const onDnc = stopper("c8", "Eli Brandt", { consent: "opted_in", dnc: true });
+  const number = stopper("c7", "+1 (347) 555-0107", { consent: "opted_in", dnc: false });
+  assert.deepEqual([dana.stopped, onDnc.stopped, number.stopped, rosa.stopped], [true, true, false, false]);
+
+  withRows([dana, onDnc, number, rosa]);
+  const tree = ConversationsPage({ channel: "all", initialId: null });
+  const rowOf = (name) => rows(tree).find((r) => textOf(r).includes(name));
+  assert.equal(textOf(byTestId(rowOf("Dana Cole"), "cv-row-stopped")), "Stopped", "they asked to stop");
+  assert.ok(byTestId(rowOf("Eli Brandt"), "cv-row-stopped"), "so did a person on do-not-contact");
+  assert.equal(
+    byTestId(rowOf("+1 (347) 555-0107"), "cv-row-stopped"),
+    null,
+    "someone who can be answered says nothing",
+  );
+  assert.equal(byTestId(rowOf("Rosa Díaz"), "cv-row-stopped"), null);
+
+  // One face: the kit's, told who it is for; a number is the phone glyph and never its last two digits.
+  const faceOf = (name) => find(rowOf(name), (n) => n.type === Face);
+  assert.deepEqual(faceOf("Dana Cole").props.person, { name: "Dana Cole", initials: "DC" });
+  assert.equal(find(faceOf("Dana Cole"), (n) => n.props?.name)?.props.name, undefined, "initials for a name");
+  assert.equal(find(faceOf("+1 (347) 555-0107"), (n) => n.props?.name)?.props.name, "phone", "a number is the glyph");
+  assert.equal(textOf(faceOf("+1 (347) 555-0107")), "");
+  assert.ok(String(faceOf("Dana Cole").rendered.props.className).includes("cv-row-pic"));
+
+  // A person's one row says it when their call does, though the chat beside it was read before the flag.
+  const call9 = { ...call("k9", "Dana Cole", { contact_id: dana.clientId }), stopped: true };
+  const [one] = cvRules.cvOnePerPerson([call9, { ...dana, stopped: false }]);
+  assert.equal(cvRules.cvStopped(one), true);
 });

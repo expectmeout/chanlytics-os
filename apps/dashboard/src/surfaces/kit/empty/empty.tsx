@@ -1,7 +1,7 @@
 /**
  * The kit's empty state and failed read (kit.css, ".empty*"): the one way a page says there is nothing here, and the one
  * way it says it could not read (moved whole from data-bits.jsx, decision 0015: the kit's one implementation, which
- * seed-globals publishes as window.EmptyState and window.FailedRead for the pages that still read them).
+ * seed-globals publishes as window.FailedRead for the frame, the one page of the shell that still reads it; EmptyState is imported).
  *
  * A read that failed is its own state, never "nothing there" (the audit's D9: Reports went blank when one of its two
  * reads failed). The same three kinds in both, the alert glyph, a Retry that reads the surface again, and the sentence

@@ -8,6 +8,7 @@ import {
   clockStamp,
   dealsAreOn,
   isActivityMoney,
+  memberWords,
   noteRows,
   parseTenantConfig,
   policyClassOffered,
@@ -184,7 +185,7 @@ async function readActivity(
     activity: activityLines(read, dayOf, folds).map((line) => {
       const r = line.row;
       const who = r.actor_user_id
-        ? (page.actors[r.actor_user_id] ?? "A member")
+        ? (page.actors[r.actor_user_id] ?? memberWords({ email: null }).name)
         : r.actor_type === "ai"
           ? "Receptionist"
           : r.source === "event"

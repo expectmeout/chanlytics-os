@@ -175,6 +175,54 @@ export function runStoppedWords(was: string | null | undefined): string {
 }
 
 /**
+ * A run waiting for its owner's approval, said once (D1-run-words). It was "Waiting on you" (Sent's pill and tab, Campaigns'
+ * row), "waiting on you" (Sent's band), "Needs you" (a tab that counts them), "Waiting for your approval" (Today's row), "is
+ * waiting for your word" (Today's brief), "Waiting for you" (the drawer's history) and "This run waits on you" (the drawer).
+ * The run's state label (broadcasts.ts BROADCAST_STATE_LABELS) is this, and every page that says a run waits reads that.
+ * Here, a leaf, so the modules that cannot import the broadcasts' (the Library's used-by line) read it too.
+ */
+export const RUN_WAITING_WORDS = "Waiting for your approval";
+
+/**
+ * What each stop of a run asks and promises, by the run's state: stopping a send, skipping a run nobody approved and
+ * canceling one still to come are three acts and none of them is one click (the audit's D13). Sent's run and its sheet draw
+ * them, and Today's queue draws the one for a run still to come, which was a "Stop" at one tap while Sent asked
+ * "Cancel X? Nothing will send." before the same cancel (D1-run-words): one verb, with the same question before it.
+ */
+export interface RunStopWords {
+  verb: string;
+  question: (row: { name: string }) => string;
+  detail: string;
+  yes: string;
+}
+
+const RUN_STOP_WORDS: Record<"sending" | "pending_approval" | "scheduled", RunStopWords> = {
+  sending: {
+    verb: "Stop",
+    question: (row) => `Stop ${row.name}?`,
+    detail: "Messages already out stay out; the rest do not go.",
+    yes: "Yes, stop it",
+  },
+  pending_approval: {
+    verb: "Skip",
+    question: (row) => `Skip ${row.name}?`,
+    detail: "Nothing sends, and the run closes.",
+    yes: "Yes, skip it",
+  },
+  scheduled: {
+    verb: "Cancel",
+    question: (row) => `Cancel ${row.name}?`,
+    detail: "Nothing will send.",
+    yes: "Yes, cancel it",
+  },
+};
+
+/** The stop words for a run's state; a state with none of its own (a run that is not live) is canceled. */
+export function runStopWords(state: string): RunStopWords {
+  return state === "sending" || state === "pending_approval" ? RUN_STOP_WORDS[state] : RUN_STOP_WORDS.scheduled;
+}
+
+/**
  * Why a yes to offers must be in writing, on a person's page: the carriers' rule, and the paper form that answers it, which is
  * under Get their yes in Sent. The link opens it (GET_YES_ROUTE).
  */

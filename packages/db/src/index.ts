@@ -42,7 +42,7 @@ export type { TenantDb } from "./tenant-db";
 export type { ServiceClientConfig } from "./service-client";
 export {
   ingestInbound,
-  recordCarrierOptOut,
+  AnswerNotKept,
   markProcessed,
   stampHandled,
   recordOutbound,
@@ -91,6 +91,7 @@ export {
 export type { Unsubscribed } from "./repositories/campaigns/email-offers";
 export {
   offersAnswerOf,
+  recordCarrierOptOut,
   recordLateCarrierOptOut,
   recordWhatsAppOffersStop,
 } from "./repositories/campaigns/offers-answer";
@@ -245,15 +246,24 @@ export { notePageVitals, pageSpeed, pageSpots, pageVitalsP75 } from "./repositor
 export {
   forgetNotification,
   noticeKept,
+  noticeFor,
+  mailSent,
   holdFactsOf,
   holdTold,
+  personFactsOf,
+  optOutTold,
+  eventTold,
+  bookedVisitsOf,
+  feedAdditionsWith,
+  memberJoinedOf,
   activityTokensOf,
   forgetActivityTokens,
   memberAlertsOf,
+  reviewRowsByGoogleId,
   setMemberPushOff,
   membersPushedFor,
 } from "./repositories/notifications";
-export type { MemberAlertsRow } from "./repositories/notifications";
+export type { MemberAlertsRow, KeptNotice } from "./repositories/notifications";
 export { workspacePaused } from "./repositories/campaigns/workspace";
 export {
   resolveChannelDetailed,
@@ -388,6 +398,7 @@ export {
   setPersonReplyMode,
   workspaceAnswersOnItsOwn,
   workspaceNamed,
+  workspaceZoneOf,
   membershipCountOf,
   workspaceIdsOf,
   createWorkspaceFn,

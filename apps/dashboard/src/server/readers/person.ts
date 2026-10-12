@@ -2,6 +2,7 @@ import "server-only";
 import {
   AppError,
   NEW_CONVERSATION_WORDS,
+  addressOf,
   callerName,
   consentChangeOf,
   dealsAreOn,
@@ -293,22 +294,31 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       consult_first: consultFirst,
       added: cameFrom(added.data),
     };
-    // The person as People names them, and each of their threads by the same name, as the Inbox names a thread by its
-    // person; each call by its caller, as the Calls page does.
-    const label = personName(row);
-    const rows: RowRef[] = [
-      { kind: "person", id, route: `clients/${id}`, label },
-      ...person.conversations.map((c): RowRef => ({ kind: "thread", id: c.id, route: `inbox/th-${c.id}`, label })),
-      ...person.calls.map((c): RowRef => ({
-        kind: "call",
-        id: c.id,
-        route: `conversations/cv-${c.id}`,
-        label: callerName(c),
-      })),
-    ];
-    return { data: { person }, rows, stamp: stamp() };
+    return { data: { person }, rows: rowsOfPerson(person, personName(row)), stamp: stamp() };
   },
 };
+
+/**
+ * The rows a person's read returned, each at its address: the person as People names them, and each of their threads by the
+ * same name, as the Inbox names a thread by its person; each call by its caller, as the Calls page does.
+ */
+function rowsOfPerson(person: PersonDetailDto, label: string): RowRef[] {
+  return [
+    { kind: "person", id: person.row.id, route: addressOf({ kind: "person", id: person.row.id }), label },
+    ...person.conversations.map((c): RowRef => ({
+      kind: "thread",
+      id: c.id,
+      route: addressOf({ kind: "conversation", id: c.id }),
+      label,
+    })),
+    ...person.calls.map((c): RowRef => ({
+      kind: "call",
+      id: c.id,
+      route: addressOf({ kind: "call", id: c.id }),
+      label: callerName(c),
+    })),
+  ];
+}
 
 /**
  * How one person can be written to and called now (GET people/[id]/reach; a conversation begins from the Inbox): People's
@@ -347,7 +357,9 @@ export const personReach: Reader<{ id: string }, { reach: PersonReachDto }> = {
     });
     return {
       data: { reach },
-      rows: [{ kind: "person", id: row.id, route: `clients/${row.id}`, label: reach.person.name }],
+      rows: [
+        { kind: "person", id: row.id, route: addressOf({ kind: "person", id: row.id }), label: reach.person.name },
+      ],
       stamp: stamp(),
     };
   },

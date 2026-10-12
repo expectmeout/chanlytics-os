@@ -36,7 +36,7 @@ import { platformDays } from "@/server/platform/day-counts";
  * page. Null when it could not be read; the workspaces still come back.
  *
  * How fast the pages are (00255) rides here for the first reason too: it is the platform's own state, platform-wide
- * like the clocks, and nobody else's to see. Null when it could not be read. So does where the pages' time goes (00408,
+ * like the clocks, and nobody else's to see. Null when it could not be read. So does where the pages' time goes (00412,
  * decision 0053: each page by how it opens and how a move reaches it, its parts, the elements that cost the most), and
  * each workspace's day, counted (00277 platform_metrics): the workspaces' work, where the page lists the workspaces.
  */

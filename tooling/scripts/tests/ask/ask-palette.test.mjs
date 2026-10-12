@@ -304,7 +304,7 @@ const later = async (C, props) => {
 
 /* ------------------------------ the palette ------------------------------ */
 
-const Palette = (props) => globalThis.window.AskReal(props);
+const Palette = (props) => globalThis.window.AskBar(props);
 const OPEN = { open: true, onClose() {} };
 const CLOSED = { open: false, onClose() {} };
 /** The shell's open landing: the palette drawn open, and what it asked for on the way. */
@@ -636,7 +636,7 @@ test("the Line at rest: Right now is Today's queue, then questions about the pag
     let tree = await later(Palette, OPEN);
     assert.equal(
       textOf(byClass(byTestId(tree, "ask-row-now"), "ask-row-label")[0]),
-      "Nora is waiting on you; your search for personal trainers is waiting for your answer.",
+      "Nora needs you; your search for personal trainers is waiting for your answer.",
     );
     // The pills beside the sentence say its counts (rightNowParts): one person waiting, no run, one search.
     assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "ask-pill").map(textOf), [
@@ -670,7 +670,7 @@ test("the Line at rest: Right now is Today's queue, then questions about the pag
     assert.deepEqual(calls.sent, [], "a quick answer asks no model");
     assert.equal(
       textOf(byTestId(tree, "ask-say")),
-      "Nora is waiting on you; your search for personal trainers is waiting for your answer.",
+      "Nora needs you; your search for personal trainers is waiting for your answer.",
     );
     assert.deepEqual(
       all(tree, (n) => n.props?.["data-testid"] === "ask-item").map((n) => textOf(n)),
@@ -3669,23 +3669,20 @@ test("on a phone the field in use composes: the rows go, their fold kept closed,
   }
 });
 
-/* ------------------------------ the phone's ✦: the disc and its dot ------------------------------ */
+/* ------------------------------ the phone's ✦: the disc, and the dot it does not draw ------------------------------ */
 
-test("the disc's dot is the usage's standing alone: nothing with no usage surface or under 80%, amber from 80%, red at 100%", () => {
+test("the disc reads no usage and draws no dot: nothing in the app sets a standing, so a standing the stub once set is not a fact", () => {
   const Disc = (props) => globalThis.window.AskDisc(props);
   const drawn = () => byTestId(render(Disc, { testId: "b" }), "b");
   try {
     delete globalThis.window.__USAGE;
     const disc = drawn();
     assert.equal(disc.props.className, "ask-disc");
-    assert.equal(disc.props["data-usage"], "ok", "no usage surface yet: no dot");
+    assert.equal(disc.props["data-usage"], undefined, "no usage surface yet: no dot");
     assert.equal(disc.props["data-needs"], undefined, "what needs you is the three's colour, not the disc's dot");
-    globalThis.window.__USAGE = { standing: "ok", share: 27 };
-    assert.equal(drawn().props["data-usage"], "ok", "under 80%: no dot");
-    globalThis.window.__USAGE = { standing: "warned", share: 89 };
-    assert.equal(drawn().props["data-usage"], "warned");
+    // The standalone mockup's stub set this and no part of the app did: the disc no longer looks.
     globalThis.window.__USAGE = { standing: "over", share: 100 };
-    assert.equal(drawn().props["data-usage"], "over");
+    assert.equal(drawn().props["data-usage"], undefined, "a value nothing real sets is not read");
   } finally {
     delete globalThis.window.__USAGE;
   }

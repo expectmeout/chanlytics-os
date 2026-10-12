@@ -62,6 +62,30 @@ export function requireUuid(value: unknown, what = "record"): string {
 }
 
 /**
+ * The records a list route is asked for by id (`?ids=a,b`): each once, in the order asked, or null when the query has no
+ * `ids` at all (a query of only commas names none, and answers none). Every id must be an id (requireUuid), and no more
+ * than `max` may be named at once, so the read that answers it is one query the route can bound. `what` is the record's
+ * singular, in the words of the refusal (`conversation`, `call`).
+ *
+ * A link to a record the page does not hold reads that one record by its id (wiring/records-not-pages, finding A2c); the
+ * route's workspace scopes the rows, so an id of another workspace answers nothing, and no other record opens in its place.
+ */
+export function requireUuidList(value: string | undefined, what: string, max: number): string[] | null {
+  if (!value) return null;
+  const asked = [
+    ...new Set(
+      value
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+    ),
+  ];
+  if (asked.length > max) throw new AppError("validation", `Ask for at most ${max} ${what}s at once.`);
+  for (const id of asked) requireUuid(id, what);
+  return asked;
+}
+
+/**
  * Parse a JSON body, or say why it could not be parsed.
  *
  * Every route did `await req.json().catch(() => null)` and then reached into

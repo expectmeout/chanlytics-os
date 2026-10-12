@@ -14,7 +14,7 @@
  *     never made from (00125).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { NOTICE_READ_MAX_TOKENS, NOTICE_SCHEMA } from "../packages/contracts.js";
+import { CALENDAR_SETTING_ROUTE, NOTICE_READ_MAX_TOKENS, NOTICE_SCHEMA } from "../packages/contracts.js";
 import { contactIdByEmail, contactIdByPhone, workspaceMaySpend, type Database } from "../packages/db.js";
 import type { JobContext } from "../packages/jobs.js";
 import { askJson, promptHashOf } from "../model.js";
@@ -77,10 +77,11 @@ export function bookingReader(db: Db, over: { now?: () => number } = {}): Bookin
       try {
         const target = await loadTenantNotifications(db, tenantId);
         await notifyOnce(
-          { tenantId, notifications: target.notifications, isEnvDefault: target.isEnvDefault },
+          { tenantId, ...target },
           {
             kind: "booking_notice",
-            route: "admin/workspace",
+            // The Business row that shows the emails held for a look (the booking tool's), open: not the top of the tab.
+            route: CALENDAR_SETTING_ROUTE,
             about: { type: "booking_notice", id: notice.noticeId },
             // The words Settings › Business says it in: the email, where from, and why a person must look.
             subject: "A booking email needs a look",

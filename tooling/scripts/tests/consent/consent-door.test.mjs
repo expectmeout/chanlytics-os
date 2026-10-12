@@ -593,7 +593,7 @@ test("the page: TWO asks, each asking how before it writes, a STOP is not undone
   assert.ok(stopped[0].hint.includes("Record a yes only if they ask again."), stopped[0].hint);
   assert.equal(stopped[0].canRecord, true, "the visit ask may still record an answer");
   assert.equal(stopped[1].canRecord, false, "the offers ask has nothing to record while a STOP stands");
-  assert.ok(stopped[1].hint.includes("They asked us to stop, offers included."), stopped[1].hint);
+  assert.ok(stopped[1].hint.includes("They asked to stop receiving messages, offers included."), stopped[1].hint);
   await quiet();
 
   // REGRESSION: one control labelled for offers, writing the other column.

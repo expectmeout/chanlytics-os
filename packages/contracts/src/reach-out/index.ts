@@ -136,6 +136,7 @@ export {
   startWords,
   nextRunWords,
   approvalWordsOf,
+  leadDoorOf,
   chainHintOf,
   chainReportWordsOf,
   emailTemplateWords,
@@ -226,6 +227,7 @@ export {
   isReplyUndoRefusal,
   replyStripOf,
   replyChipOf,
+  replyChipStateOf,
   replyFromLineOf,
   replyLeftAsOf,
 } from "./reach-out-reply-words";

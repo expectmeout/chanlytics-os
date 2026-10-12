@@ -13,6 +13,9 @@ import {
   smsStateRow,
   CONNECTION_KINDS,
   CONNECTION_GROUP_WORDS,
+  LINE_STEP_WORDS,
+  LINE_CREDENTIALS_SENTENCE,
+  PROVISIONING_DEADLINE_MS,
   toChannelVM,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
@@ -260,8 +263,12 @@ test("the phone line's road: requested, being set up with the step and since, st
     connectionRows({ ...base(), lines: { rows: [line({ voice_state: "failed", step: "trunk" })], ready: true } }, NOW),
   );
   assert.equal(failed.phone.stateWords, "Waiting on us");
-  assert.deepEqual(failed.phone.verb, { label: "Retry it", to: "start/phone", who: "owner" });
-  assert.equal(failed.phone.sentence, "Setting up stopped. A person at Chanlytics has it, or you can retry it.");
+  // Retried in place, as Start's row does it (ownLineStandOf): the same sentence for the same state, and the verb is the line's own.
+  assert.deepEqual(failed.phone.verb, { label: "Retry", to: "verb:retry-line:l1", who: "owner" });
+  assert.equal(
+    failed.phone.sentence,
+    `Setting up stopped while ${LINE_STEP_WORDS.trunk}. A person at Chanlytics has it. Retry from here; we have been told.`,
+  );
   const offer = by(connectionRows({ ...base(), lines: { rows: [], ready: true } }, NOW));
   assert.deepEqual(offer.phone.verb, { label: "Get a line", to: "start/phone", who: "owner" });
   const fwd = by(
@@ -611,4 +618,34 @@ test("the Email row says a domain is held, so a hold is not a green 'On' above i
     NOW,
   ).find((r) => r.kind === "email");
   assert.deepEqual([calm.state, calm.stateWords], ["connected", "On"]);
+});
+
+test("D1-line-row-derivations: the phone row says what Start's row says in each state of the own line, and retries in place", () => {
+  const phone = (over) =>
+    by(connectionRows({ ...base(), lines: { rows: [line({ step: "trunk", ...over })], ready: true } }, NOW)).phone;
+  // Setting up for hours: Start says the setup stopped and offers Retry; Connections said "Usually a minute or two", with no button.
+  const stuck = phone({ voice_state: "provisioning", state_since: ago(PROVISIONING_DEADLINE_MS + 60_000) });
+  assert.equal(stuck.stateWords, "Waiting on us");
+  assert.ok(
+    stuck.sentence.startsWith(`Setting up stopped while ${LINE_STEP_WORDS.trunk}, 6m ago.`),
+    "the same sentence Start's row opens with",
+  );
+  assert.deepEqual(stuck.verb, { label: "Retry", to: "verb:retry-line:l1", who: "owner" }, "retried where it stands");
+  // Within its deadline it is still setting up, and has no button.
+  const within = phone({ voice_state: "provisioning", state_since: ago(60_000) });
+  assert.equal(within.verb, null);
+  assert.ok(within.sentence.startsWith(`Setting up — ${LINE_STEP_WORDS.trunk}, since 1m ago.`));
+  // Stopped at the vault, which is ours to mend: a retry cannot help, so none is offered (it offered "Retry it").
+  const vault = phone({ voice_state: "failed", last_error: "keeping the line's credentials: permission denied" });
+  assert.equal(vault.verb, null, "no Retry that cannot help");
+  assert.ok(
+    vault.sentence.startsWith(`Setting up stopped at ${LINE_CREDENTIALS_SENTENCE}. A person at Chanlytics has it.`),
+  );
+  // Stopped at a carrier: a retry is the owner's, in place, not a walk to the first-run phone step.
+  const carrier = phone({ voice_state: "failed", last_error: "Twilio 21422: number not available" });
+  assert.equal(carrier.verb.to, "verb:retry-line:l1");
+  assert.ok(!JSON.stringify(carrier).includes("Twilio 21422"), "the provider's words stay off the page");
+  // The row's number is its detail, so its sentence names none; Start names it in the sentence and the rest is the same.
+  assert.equal(carrier.detail, "+1 (646) 555-0100");
+  assert.ok(!carrier.sentence.includes("555-0100"));
 });

@@ -82,7 +82,6 @@ import { reachOutsOverride } from "@/surfaces/campaigns/reach-out/surface";
 import { campaignResultsOverride } from "@/surfaces/campaigns/home/results-surface";
 import { installReplies, repliesOverride } from "./reach-out/replies";
 import { installCalendar } from "@/surfaces/calendar/verbs";
-import { installToday } from "@/surfaces/today/helpers";
 import { installMascot } from "./mascot";
 import { installArrival } from "./arrival";
 import { installAppBridge } from "./app-bridge";
@@ -91,13 +90,13 @@ import { installSetup, setupOverride } from "@/surfaces/setup/surface";
 import { googleOverride } from "./google";
 import { installBilling, billingOverride } from "@/surfaces/settings/billing/surface";
 import { alertsOverride } from "@/surfaces/settings/notifications/surface";
-import { installPlatform } from "./platform";
 import { partnerOverride } from "@/surfaces/settings/partner/surface";
-import { installActivity } from "./activity";
 import { installIdentity } from "./identity";
+import { fillDoors } from "../surfaces/frame-doors";
 import { installShell, publishShellStatus, shellStatusOf } from "./shell";
 import { installClock } from "./zone";
 import CreateWorkspace, { useHandoverAsk } from "./CreateWorkspace";
+import { JoinedNote } from "./invitations/joined-note";
 import type { OpenHandoverDto } from "@chanlytics/contracts";
 import { publicEnv } from "@/lib/public-env";
 
@@ -124,7 +123,6 @@ installBroadcasts();
 installPlaybooks();
 installReplies();
 installCalendar();
-installToday();
 // The three, Today's face: the character, its driver and the turn reducer (mascot/index.ts).
 installMascot();
 // On a phone the three take a page in as it arrives and notice what comes for you (arrival.ts).
@@ -134,8 +132,6 @@ installAppBridge();
 installBusinessTab();
 installSetup();
 installBilling();
-installPlatform();
-installActivity();
 installIdentity();
 installShell();
 // The installable shell's service worker (public/sw.js). It caches nothing
@@ -181,9 +177,9 @@ const speedShell: SpeedShell = {
 if (getActiveWorkspace())
   installPageSpeed(speedShell, { build: publicEnv.NEXT_PUBLIC_BUILD_SHA, report: publicEnv.productionBuild });
 
-// The mockup's own data-before-mount contract (boot gate). The Agents roster and the seeded Today (FLEET_DATA,
-// CHANLY_DATA) are the demo's, loaded only in a demo session (manifest-demo.ts).
-const REQUIRED = ["CHANLY", "INBOX_DATA", "CLIENTS", "POLICY", "ChanlyticsApp"] as const;
+// The mockup's own data-before-mount contract (boot gate). The seeded people (CLIENTS), the Agents roster and the
+// seeded Today (FLEET_DATA, CHANLY_DATA) are the demo's, loaded only in a demo session (manifest-demo.ts).
+const REQUIRED = ["CHANLY", "INBOX_DATA", "POLICY", "ChanlyticsApp"] as const;
 
 // leadsOverride rides beside peopleOverride: Leads is the other scope of that page.
 const SURFACES = [
@@ -375,6 +371,8 @@ type ChanlyticsAppComponent = React.ComponentType<{
   surfaceRoutes: typeof SURFACE_ROUTES;
   /** What the shared viewer shows: the Reports page, in a chunk of its own that only that viewer loads. */
   sharedPage: ReactNode;
+  /** Fills the bridge's doors with the frame's own move, Ask and Back to People as it renders (surfaces/frame-doors.ts). */
+  fillDoors: typeof fillDoors;
 }>;
 
 const SharedReports = lazy(() => import("@/surfaces/reports/reports-page").then((m) => ({ default: m.ReportsPage })));
@@ -440,6 +438,7 @@ function useShellApp(
             routeNow={route}
             surfaceRoutes={SURFACE_ROUTES}
             sharedPage={SHARED_PAGE}
+            fillDoors={fillDoors}
           />
           {/* The head Glass draws into the shell's places (kit/head/frame-head.tsx): beside the shell, in one tree. */}
           <FrameHead look={look} />
@@ -447,6 +446,8 @@ function useShellApp(
           <NewConversationHost />
           {/* The Booking tool's sheet, on whichever page a door to it was pressed (settings/booking-tool/host.tsx). */}
           <BookingToolHost route={route} />
+          {/* "You joined Harbor", when the one accept of the boot seated this person in a workspace (invitations/accept.ts). */}
+          <JoinedNote />
           {/* Each draw of the frame, said to the page's measures (client/page-speed.ts). */}
           <SpeedFrame route={route} />
         </>

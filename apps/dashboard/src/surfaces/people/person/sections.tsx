@@ -3,14 +3,25 @@
  * have not ended, each a door to its day), History (the timeline without them), and the rail's About and Campaigns cards.
  * Each is a function of the page's context returning an element, never a component of its own.
  */
-import type { PersonVM } from "@chanlytics/contracts";
+import {
+  appointmentWordWhere,
+  visitDoor,
+  visitLinkWords,
+  type PersonAboutFact,
+  type PersonVM,
+} from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
 import { navigate } from "../../legacy-verbs";
+import { VisitAsk } from "../../visit-line";
 import { PersonEmail } from "./name";
 import { PersonTimeline } from "./timeline";
 import type { PageCtx } from "./ctx";
 
-/** Their visits that have not ended: the calendar's future sat at the top of the timeline, over the conversation it followed. */
+/**
+ * Their visits that have not ended: the calendar's future sat at the top of the timeline, over the conversation it followed.
+ * Each is the one visit line (contracts visitLineOf): how it was matched when that was a guess, in the words every page says it
+ * in, and, once it has begun and nobody has said whether they came, the same two presses a past visit gets.
+ */
 export function comingUpSection(comingUp: NonNullable<PersonVM["comingUp"]>) {
   if (comingUp.length === 0) return false;
   return (
@@ -24,28 +35,34 @@ export function comingUpSection(comingUp: NonNullable<PersonVM["comingUp"]>) {
       </h2>
       <div className="cl-prof-up-list">
         {comingUp.map((v) => (
-          <button
-            key={v.id}
-            type="button"
-            className="cl-prof-up-visit"
-            onClick={() => navigate(v.to)}
-            data-testid="person-visit-ahead"
-          >
-            <span className="cl-prof-up-leaf" aria-hidden="true">
-              <span className="cl-prof-up-month">{v.month}</span>
-              <span className="cl-prof-up-date">{v.date}</span>
-            </span>
-            <span className="cl-prof-up-words">
-              <span className="cl-prof-up-title">{v.title}</span>
-              <span className="cl-prof-up-when">
-                {v.day} · {v.time}
-                {v.byName ? " · by name" : ""}
+          <div key={v.id} className="cl-prof-up-item">
+            <button
+              type="button"
+              className="cl-prof-up-visit"
+              onClick={() => navigate(v.to)}
+              data-testid="person-visit-ahead"
+            >
+              <span className="cl-prof-up-leaf" aria-hidden="true">
+                <span className="cl-prof-up-month">{v.month}</span>
+                <span className="cl-prof-up-date">{v.date}</span>
               </span>
-            </span>
-            <span className="cl-prof-up-go" aria-hidden="true">
-              <Icon name="chevron" size={12} />
-            </span>
-          </button>
+              <span className="cl-prof-up-words">
+                <span className="cl-prof-up-title">{v.title}</span>
+                <span className="cl-prof-up-when">
+                  {v.day} · {v.time}
+                  {v.match ? ` · ${v.match}` : ""}
+                </span>
+              </span>
+              <span className="cl-prof-up-go" aria-hidden="true">
+                <Icon name="chevron" size={12} />
+              </span>
+            </button>
+            {/* Under way and nobody has said whether they came: the question and its two presses, beside the door and not in it.
+                A copy of the page the tab kept from before this line existed has none, and asks nothing until it is read again. */}
+            {(v.visit?.asks.length ?? 0) > 0 && (
+              <div className="cl-prof-up-ask">{v.visit && <VisitAsk line={v.visit} testid="person-visit-ask" />}</div>
+            )}
+          </div>
         ))}
       </div>
     </section>
@@ -65,17 +82,19 @@ export function historySection(c: PageCtx, past: PersonVM["timeline"]) {
       <PersonTimeline
         items={past}
         initials={p.initials}
+        name={p.name}
         filter={tlFilter}
         onFilter={setTlFilter}
         showAll={tlAll}
         onShowAll={() => setTlAll(true)}
+        dealsOn={p.dealsOn}
       />
     </section>
   );
 }
 
 /** The one About fact that is changed here is the address, so its row is its control; the next visit and the lead have a door. */
-function aboutRow(c: PageCtx, a: { k: string; v: string }) {
+function aboutRow(c: PageCtx, a: PersonAboutFact) {
   const { p, canRecord, flash } = c;
   const lead = p.lead;
   return (
@@ -83,15 +102,15 @@ function aboutRow(c: PageCtx, a: { k: string; v: string }) {
       <span className="cl-prof-attr-key">{a.k}</span>
       <span className="cl-prof-attr-val">
         {a.k === "Email" ? <PersonEmail p={p} canEdit={canRecord} flash={flash} /> : a.v}
-        {/* The next visit opens its day on the Calendar; the row opened nothing. */}
-        {a.k === "Next visit" && p.nextVisitDate && (
+        {/* The next visit opens on the Calendar, its panel where the record has its row, else its day; the row opened nothing. */}
+        {a.next && p.nextVisitDate && (
           <button
             type="button"
             className="cl-bucket-link cl-prof-attr-door"
-            onClick={() => navigate(`calendar/${p.nextVisitDate}`)}
+            onClick={() => navigate(visitDoor(p.nextVisitDate ?? "", p.nextVisitId))}
             data-testid="fact-next-visit"
           >
-            Open the day <Icon name="arrow-right" size={10} />
+            {visitLinkWords(p.nextVisitId, appointmentWordWhere(p.dealsOn))} <Icon name="arrow-right" size={10} />
           </button>
         )}
         {/* The way back to where the finder found them: the lead, open over Leads. */}
@@ -119,7 +138,7 @@ function aboutRow(c: PageCtx, a: { k: string; v: string }) {
  * gets the row even when it is empty, because that row is where an address is added; someone who may not gets it only when
  * there is one.
  */
-function aboutRows(c: PageCtx): { k: string; v: string }[] {
+function aboutRows(c: PageCtx): PersonAboutFact[] {
   const { p, canRecord } = c;
   const said = new Set(["Phone", "Channels", "First contact", "Proposal"]);
   const count = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`;

@@ -165,14 +165,10 @@ export function closedLine(c: LineCtx) {
             {/* The name WhatsApp knows it by is the pane's (its foot), not every row's: an owner reads the
                 title and the words, and "winback_offer" in type is nothing they act on. */}
             <span className="msg-row-title">{g.title}</span>
+            {/* The one pill (the kit's StatePill), in the tone and the words the pane's pill wears: a refused version is
+                "Refused" on the row, the pane and the Inbox's picker (contracts TEMPLATE_STATUS_WORDS). */}
             {tag && (
-              <span
-                className={`pill${tag.tone && tag.tone !== "plain" ? ` pill-${tag.tone}` : ""} msg-tag`}
-                data-tone={tag.tone}
-                data-testid="template-status"
-              >
-                {tag.words}
-              </span>
+              <StatePill kind="tone" value={tag.tone} label={tag.words} className="msg-tag" testid="template-status" />
             )}
           </span>
           <span className="msg-row-words">{words ? `“${words}”` : g.purpose}</span>

@@ -133,7 +133,7 @@ test("the webhook writes the row Meta changed; Settings shows every template wit
     (await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts")).AFTER["POST templates/sync"]().map(
       (o) => o.key,
     ),
-    ["settings", "inbox"],
-    "the composer learns of a newly approved template too",
+    ["settings"],
+    "Settings' read is the one read of the templates: the Inbox's reply box and the composers are made of it (offered-templates.ts)",
   );
 });

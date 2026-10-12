@@ -107,7 +107,7 @@ test.describe("People on a real workspace", () => {
     // Every state pill is one of the six.
     const pills = await page.locator(".cl-row-bucket-pill").allInnerTexts();
     for (const p of pills)
-      expect(["needs you", "waiting on you", "opted out", "new", "quiet", "active"]).toContain(p.trim().toLowerCase());
+      expect(["needs you", "you have it", "opted out", "new", "quiet", "active"]).toContain(p.trim().toLowerCase());
 
     // The one line's count equals the rows shown when nothing is filtered, and
     // it is the only place the page says it besides the table's own foot.

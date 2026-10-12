@@ -5,15 +5,15 @@
  * the people held back and why, with everything the To row used to say under it.
  */
 import type { ReactNode } from "react";
-import type { AudiencePreview } from "@chanlytics/contracts";
+import { LIST_GROUP_WORDS, type AudiencePreview } from "@chanlytics/contracts";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { Picker } from "../../../kit/picker/picker";
 import { cmChevron, cmGroups, cmSearch } from "../../parts/picks";
 import type { AudienceOption } from "../surface";
 import { bcKey } from "./words";
 
-/** The headings the lists stand under in the picker; Everyone stands alone, over them. */
-const BC_AUDIENCE_HEADINGS = { list: "People's lists", saved: "Your lists" };
+/** The headings the lists stand under in the picker, the two groups People's rail names them by; Everyone stands alone, over them. */
+const BC_AUDIENCE_HEADINGS = { list: LIST_GROUP_WORDS.builtin, saved: LIST_GROUP_WORDS.own };
 
 /** A list longer than this takes a search at the top of its picker. */
 const BC_SEARCH_OVER = 8;

@@ -162,17 +162,9 @@ test("REGRESSION (A7): a control a role may not press stays reachable -- focusab
   assert.equal(globalThis.window.gate("settings")["data-tip"], "Only an owner can change the business details.");
 });
 
-test("presence and a busy menu refuse the same way: the reason reachable, the press inert", () => {
+test("a busy menu refuses the way a role does: the reason reachable, the press inert", () => {
   asRole("owner");
-  globalThis.window.PR_STORE.away = true;
-  try {
-    const t = globalThis.window.transferGate();
-    assert.equal(t.disabled, false);
-    assert.equal(t["aria-disabled"], true);
-    assert.match(t["data-tip"], /Away/);
-  } finally {
-    globalThis.window.PR_STORE.away = false;
-  }
+  assert.equal(globalThis.window.transferGate, undefined, "presence has no gate of its own: nothing read it (O4b)");
   fresh();
   const busy = again(() =>
     globalThis.window.MoreMenu({ items: [], gated: "One moment — the last change is still saving" }),

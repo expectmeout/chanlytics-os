@@ -630,7 +630,7 @@ test("the count above the work sees every wire, and calls each one what the owne
     NOW,
   );
   assert.deepEqual(smsOff.standing.lines, { text: "2 of 3 lines connected", short: "2 of 3 lines on", down: true });
-  assert.equal(smsOff.standing.alert, "Texting is disconnected — messages coming in are not being answered.");
+  assert.equal(smsOff.standing.alert, "Texting is disconnected — messages to it are neither answered nor recorded.");
   assert.equal(smsOff.queue.empty.testid, "today-queue-empty-down");
 
   // REGRESSION: "2 of 2 lines connected" on a workspace whose only line is email.

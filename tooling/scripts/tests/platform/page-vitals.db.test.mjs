@@ -1,11 +1,11 @@
 /**
- * Field data's table and its functions (00255, 00408), on a real database.
+ * Field data's table and its functions (00255, 00412), on a real database.
  *
  * note_page_vitals keeps a load's reports under the browser's own ids, and a later report of an id replaces its value
  * (INP and CLS grow while a page is open); an id twice in one call keeps one rather than failing the call; the
  * table's checks refuse what the route would. page_vitals_p75 answers the 75th percentile of each metric over every
  * page (page null) and over each page, from the latest p_most reports of the last p_days, so its cost is bounded by
- * what it is asked for, not by the platform's traffic. Since 00408 (decision 0053) a report may be the shell's own
+ * what it is asked for, not by the platform's traffic. Since 00412 (decision 0053) a report may be the shell's own
  * (READY, SETTLED), of a part of a page, of a move from another page, held or read, from a device and a build, with what
  * its time went on; page_vitals_p75 reads page loads alone, and page_speed and page_spots are the new card's reads.
  * Every row this suite writes carries its own id prefix and goes when it ends. Skipped without a local database.

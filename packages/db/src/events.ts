@@ -18,6 +18,7 @@ import {
   personName,
   SHARED_EVENT_VERSIONS,
   type ActivationMilestone,
+  type ActivitySubjectType,
   type ContactAddedData,
   type ContactConsentChangedData,
   type PlatformActedData,
@@ -247,7 +248,7 @@ const WABA_WRITE = { category: "system", version: 1 };
 function rowOf<K extends EmittedKind>(
   tenantId: string,
   kind: K,
-  subjectType: string | null,
+  subjectType: ActivitySubjectType | null,
   subjectId: string | null,
   data: EventData[K],
 ) {
@@ -276,7 +277,7 @@ export async function recordEvent<K extends EmittedKind>(
   db: Db,
   tenantId: string,
   kind: K,
-  subjectType: string | null,
+  subjectType: ActivitySubjectType | null,
   subjectId: string | null,
   data: EventData[K],
 ): Promise<{ error: string | null }> {
@@ -296,7 +297,7 @@ export async function emitEvent<K extends EmittedKind>(
   db: Db,
   tenantId: string,
   kind: K,
-  subjectType: string | null,
+  subjectType: ActivitySubjectType | null,
   subjectId: string | null,
   data: EventData[K],
 ): Promise<void> {
@@ -479,6 +480,10 @@ export interface ActivitySubjects {
   threads: Record<string, string>;
   /** The person a deal is with: their id. */
   people: Record<string, string>;
+  /** When a visit starts, as its row holds it (an ISO instant): the day a line about it opens the Calendar on. */
+  visits: Record<string, string>;
+  /** The name of the Library message a template row is, by `template:<id>`: how its drawer is addressed. A message that is gone, or hidden from the Library, is absent. */
+  library: Record<string, string>;
 }
 
 /** How many ids one statement names. */
@@ -511,6 +516,8 @@ interface Theirs {
   conversation_id?: string | null;
   /** A visit's own name for who it is with, where no person of the workspace is on it (a booking tool's email). */
   client_name?: string | null;
+  /** A visit's start: the row's own instant. */
+  starts_at?: string | null;
 }
 
 /** The subjects that are a person's or a thread's, read by type: the first round. */
@@ -536,7 +543,7 @@ async function theirsOf(
       db.from("escalations").select("id, conversation_id").eq("tenant_id", tenantId).in("id", some),
     ),
     readByIds<Theirs>(idsOf("appointment"), (some) =>
-      db.from("appointments").select("id, contact_id, client_name").eq("tenant_id", tenantId).in("id", some),
+      db.from("appointments").select("id, contact_id, client_name, starts_at").eq("tenant_id", tenantId).in("id", some),
     ),
   ]);
   return { conversation, call, deal, message, escalation, appointment };
@@ -568,6 +575,14 @@ async function ownNames(db: Db, tenantId: string, idsOf: (type: string) => strin
   return names;
 }
 
+/** The Library messages the page's template subjects are, by `template:<id>` to their names: the ones that are still there to open. */
+async function libraryOf(db: Db, tenantId: string, idsOf: (type: string) => string[]): Promise<Record<string, string>> {
+  const rows = await readByIds(idsOf("template"), (some) =>
+    db.from("templates").select("id, name").eq("tenant_id", tenantId).is("hidden_at", null).in("id", some),
+  );
+  return Object.fromEntries(rows.flatMap((r) => (r.name ? [[`template:${r.id}`, r.name]] : [])));
+}
+
 /**
  * Every subject of a page of the log: its name, and whose thread or person it is. A subject of a type with no name (a
  * workspace, a channel, a review), one row security hides, and a person with nothing to call them by are absent.
@@ -578,9 +593,14 @@ export async function activitySubjects(
   subjects: readonly ActivitySubject[],
 ): Promise<ActivitySubjects> {
   const idsOf = (type: string): string[] => [...new Set(subjects.filter((s) => s.type === type).map((s) => s.id))];
-  const [names, theirs] = await Promise.all([ownNames(db, tenantId, idsOf), theirsOf(db, tenantId, idsOf)]);
+  const [names, theirs, library] = await Promise.all([
+    ownNames(db, tenantId, idsOf),
+    theirsOf(db, tenantId, idsOf),
+    libraryOf(db, tenantId, idsOf),
+  ]);
   const threads: Record<string, string> = {};
   const people: Record<string, string> = {};
+  const visits: Record<string, string> = {};
 
   // An escalation is a thread's: the thread says whose. Only the threads the first round did not read are asked for.
   const known = new Map((theirs.conversation ?? []).map((c) => [c.id, c.contact_id ?? null]));
@@ -626,6 +646,8 @@ export async function activitySubjects(
   for (const a of theirs.appointment ?? []) {
     const key = `appointment:${a.id}`;
     if (!names[key] && a.client_name) names[key] = a.client_name;
+    // and opens on its day, which only its row knows.
+    if (a.starts_at) visits[key] = a.starts_at;
   }
-  return { names, threads, people };
+  return { names, threads, people, visits, library };
 }

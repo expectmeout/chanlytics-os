@@ -1,6 +1,6 @@
 /**
  * Where a page's time goes (decision 0053): the back office's card over the shell's own measures (READY, SETTLED) and
- * the browser's where it names an element (INP, LCP, CLS), read through page_speed() and page_spots() (00408).
+ * the browser's where it names an element (INP, LCP, CLS), read through page_speed() and page_spots() (00412).
  *
  * vitals.ts says what one report is and which page it is of; this says what the reports come to: each page as it
  * opens and as a move reaches it, the parts of a page that are drawn last, and the taps, paints and shifts that cost

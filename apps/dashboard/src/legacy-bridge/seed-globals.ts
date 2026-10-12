@@ -5,19 +5,21 @@
  * and export via Object.assign(window, {...}). Making our bundle's React THE
  * window.React means legacy components run inside our tree with one hook
  * dispatcher — no second React instance ever loads.
+ *
+ * Only a name something READS is published here. A name published for a page that has since moved to TSX and imports the
+ * kit directly is to be taken down with its last reader (decision 0015: "what is shared moves once, published under the old
+ * name for the pages still reading it, deleted with the last reader"), and was not: the sweep of 11 October 2026 (O4b)
+ * found forty names on this list that no shipped file read. The node tests that still reach a kit part by name get it from
+ * tooling/scripts/tests/_legacy-react.mjs (`kitParts`), not from the app's window.
  */
 import * as React from "react";
 import * as ReactDOM from "react-dom";
 import {
   ROLE_PERMS,
-  SOURCE_WORDS,
   roleGate,
   samePhone,
   whyNotAPhone,
-  linkHost,
   normalizeLink,
-  proposalMessage,
-  proposalLinkOf,
   whyNotAHandoff,
   handoffE164,
   formatPhoneDisplay,
@@ -26,12 +28,13 @@ import {
 import { INBOX_GLOBALS, hearPresence } from "../surfaces/inbox/legacy-globals";
 import { threadVerbs } from "../surfaces/inbox/thread/thread-verbs";
 import { KIT_GLOBALS } from "../surfaces/kit/kit-globals";
+import { useNeedsYou } from "../surfaces/needs-you";
 import { PEOPLE_GLOBALS } from "../surfaces/people/people-globals";
 import { LEADS_GLOBALS } from "../surfaces/leads/globals";
 import { BUSINESS_GLOBALS } from "../surfaces/settings/business/globals";
 import { surfaceHook, type SurfaceNames } from "./surface-status";
 import { routeSurfaces } from "./surface-registry";
-import { pipelineHelpers, type PipelineHelpers } from "@/surfaces/people/pipeline-helpers";
+import { DOOR_NAMES } from "../surfaces/frame-doors";
 import { installRoleStore } from "./identity";
 
 declare global {
@@ -42,14 +45,9 @@ declare global {
     __DEMO_MODE: boolean;
     ROLE_PERMS: typeof ROLE_PERMS;
     __roleGate: typeof roleGate;
-    __FACT_WORDS: typeof SOURCE_WORDS;
     __samePhone: typeof samePhone;
     __whyNotAPhone: typeof whyNotAPhone;
-    __linkHost: typeof linkHost;
     __normalizeLink: typeof normalizeLink;
-    __proposalMessage: typeof proposalMessage;
-    __proposalLinkOf: typeof proposalLinkOf;
-    __pipeline: PipelineHelpers;
     __whyNotAHandoff: typeof whyNotAHandoff;
     __handoffE164: typeof handoffE164;
     __phoneDisplay: typeof formatPhoneDisplay;
@@ -66,63 +64,36 @@ if (typeof window !== "undefined") {
     ReactDOM,
     useSurface: surfaceHook(React, routeSurfaces),
     Icon: KIT_GLOBALS.Icon,
-    EmptyState: KIT_GLOBALS.EmptyState,
     FailedRead: KIT_GLOBALS.FailedRead,
     SegmentBar: KIT_GLOBALS.SegmentBar,
     StatePill: KIT_GLOBALS.StatePill,
     Confirm: KIT_GLOBALS.Confirm,
     MoreMenu: KIT_GLOBALS.MoreMenu,
     PolicyChip: KIT_GLOBALS.PolicyChip,
-    TlMedia: KIT_GLOBALS.TlMedia,
-    AttnRow: KIT_GLOBALS.AttnRow,
     useHoldToTalk: KIT_GLOBALS.useHoldToTalk,
+    // The bell's alert switch (topbar.jsx) is the one record-kit part a page of the shell still draws by name.
+    RecordSwitch: KIT_GLOBALS.RecordSwitch,
+    // The doors every page uses to move and to ask, for the pages that read them by name (surfaces/frame-doors.ts: the frame fills the
+    // registry as it renders; these go through it).
+    askAbout: DOOR_NAMES.askAbout,
+    appAsk: DOOR_NAMES.appAsk,
+    appNavigate: DOOR_NAMES.appNavigate,
     // The Inbox's and Conversations' names for the pages that have not moved (surfaces/inbox/legacy-globals.ts), and the
     // one thread's verbs, which the deal sheet sends its proposal through (surfaces/inbox/thread/thread-verbs.tsx).
     INBOX_DATA: INBOX_GLOBALS.INBOX_DATA,
     CONVERSATIONS_DATA: INBOX_GLOBALS.CONVERSATIONS_DATA,
     IX_STORE: INBOX_GLOBALS.IX_STORE,
-    ixWaitsOnYou: INBOX_GLOBALS.ixWaitsOnYou,
+    // What needs you, the one number the sidebar's badge, the strip's tab, the phone's tab and the tab's title read, as a hook
+    // (surfaces/needs-you.ts); the Inbox's rule it is made of (ixWaitsOnYou) is no page's to call by name now.
+    useNeedsYou,
     CV_ROUTE: INBOX_GLOBALS.CV_ROUTE,
     CV_IN_CHANNEL: INBOX_GLOBALS.CV_IN_CHANNEL,
     threadVerbs,
-    FieldError: KIT_GLOBALS.FieldError,
-    RecordRow: KIT_GLOBALS.RecordRow,
-    RecordSourceChip: KIT_GLOBALS.RecordSourceChip,
-    RecordDispute: KIT_GLOBALS.RecordDispute,
-    RecordChips: KIT_GLOBALS.RecordChips,
-    recRowPress: KIT_GLOBALS.recRowPress,
-    RecordField: KIT_GLOBALS.RecordField,
-    RecordBox: KIT_GLOBALS.RecordBox,
-    RecordSwitch: KIT_GLOBALS.RecordSwitch,
-    RecordToggleGroup: KIT_GLOBALS.RecordToggleGroup,
-    RecordCombobox: KIT_GLOBALS.RecordCombobox,
-    RecordTip: KIT_GLOBALS.RecordTip,
-    RecordTipCard: KIT_GLOBALS.RecordTipCard,
-    recPhoneQuery: KIT_GLOBALS.recPhoneQuery,
-    recPortalRoot: KIT_GLOBALS.recPortalRoot,
-    RecordFold: KIT_GLOBALS.RecordFold,
-    RecordInline: KIT_GLOBALS.RecordInline,
-    RecordSays: KIT_GLOBALS.RecordSays,
-    RecordFoot: KIT_GLOBALS.RecordFoot,
-    useRecordFold: KIT_GLOBALS.useRecordFold,
-    useRecFocusHold: KIT_GLOBALS.useRecFocusHold,
-    useRecFocusOn: KIT_GLOBALS.useRecFocusOn,
-    recKeys: KIT_GLOBALS.recKeys,
-    useUnsavedWork: KIT_GLOBALS.useUnsavedWork,
-    UnsavedAsk: KIT_GLOBALS.UnsavedAsk,
-    tabDraft: KIT_GLOBALS.tabDraft,
-    RecordSheet: KIT_GLOBALS.RecordSheet,
     // The strip of views, the page a swipe walks and the deck a view moves by, which the frame draws and asks by name
     // until it moves itself (surface-tabs.jsx, app-shell.jsx).
     ViewTabs: KIT_GLOBALS.ViewTabs,
     viewPager: KIT_GLOBALS.viewPager,
     viewDeck: KIT_GLOBALS.viewDeck,
-    __recordFolds: KIT_GLOBALS.__recordFolds,
-    __settingsUnsaved: KIT_GLOBALS.__settingsUnsaved,
-    __settingsSaving: KIT_GLOBALS.__settingsSaving,
-    AgendaItem: KIT_GLOBALS.AgendaItem,
-    AgendaItems: KIT_GLOBALS.AgendaItems,
-    AgendaOpen: KIT_GLOBALS.AgendaOpen,
     // Leads' plan card, which Ask's palette draws for a lead_search card until Ask moves (surfaces/leads/globals.ts).
     LeadPlanCard: LEADS_GLOBALS.LeadPlanCard,
     // The Business tab's parts the first run draws and the saver it saves through (settings/business/globals.ts).
@@ -163,13 +134,8 @@ if (typeof window !== "undefined") {
   // says who may before the press, in the words the server's refusal gives
   // after it (contracts refusal.ts roleGate). data-bits.jsx gate() reads it.
   window.__roleGate = roleGate;
-  // How a fact's source is said beside its value. Published here for the same
-  // reason ROLE_PERMS is: the words belong to the contracts package, and a
-  // second copy in a page is one edit away from the surface claiming a
-  // provenance the resolver never gave it.
-  window.__FACT_WORDS = SOURCE_WORDS;
-  // "(646) 555-0175" and "+16465550175" are one number. The editor compares the
-  // typed value against the provisioned line as you type, and a page that
+  // "(646) 555-0175" and "+16465550175" are one number. The editor compares
+  // the typed value against the provisioned line as you type, and a page that
   // rolled its own comparison would accuse a workspace of a conflict for
   // writing its own number in a friendly format.
   window.__samePhone = samePhone;
@@ -177,19 +143,9 @@ if (typeof window !== "undefined") {
   // words. The published number is now optional, so the only thing standing
   // between a typo and a receptionist reading it aloud is this check.
   window.__whyNotAPhone = whyNotAPhone;
-  // Where a stored link lives (its host), for a row or a menu hint; and the words a one-step send of the proposal
-  // carries into the composer, once for the page and the thread.
-  window.__linkHost = linkHost;
   // THE web-address normalizer (contracts link.ts): the Business tab's website and booking link are stored as it
   // stores them, "harbormoving.example" with its https:// supplied, and refused where it refuses.
   window.__normalizeLink = normalizeLink;
-  window.__proposalMessage = proposalMessage;
-  // And which link is a person's now (0008): their deal's while it is a proposal out, none for any other deal, their
-  // own only with no deal. The thread reads it off People's row, so its send never offers a client a proposal.
-  window.__proposalLinkOf = proposalLinkOf;
-  // People › Pipeline (0008): the rows People already holds, grouped by where each deal stands, and everything the
-  // scope says of them (pipeline-helpers.ts, which the e2e harness publishes too).
-  window.__pipeline = pipelineHelpers();
   window.__whyNotAHandoff = whyNotAHandoff;
   window.__handoffE164 = handoffE164;
   // A stored number written the way people write one, "+1 (305) 555-0100", as

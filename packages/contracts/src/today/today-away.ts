@@ -1,9 +1,15 @@
 /**
- * While you were away: the bell's unread rows as Today reads them (the queue's subjects dropped, like rows
- * grouped, warnings first), and the bell itself read the same way, new above earlier. The rows are
- * notifications.ts's.
+ * While you were away: the bell's unread rows as Today reads them (what the page already draws above dropped, like rows
+ * grouped, warnings first), and the bell itself read the same way, new above earlier. The rows are notifications.ts's.
+ *
+ * ONE GROUPING. The away card is the bell's "New" section less what Today draws elsewhere, in the order a warning asks:
+ * it groups through `bellSections`, the one function, so the bell and the card say "9 calls" about the same nine calls and a
+ * group opens the same way in both (a press unfolds the notes under it, each of which opens its own record and is read as it
+ * is opened: AwayGroupVM.members). What differs is the bell's to keep and the card's to leave: the bell holds read notes under
+ * Earlier and can dismiss one, the card lists the unread ones alone, minus the queue's (task 5.2, D1-notice-two-drawings).
  */
-import { conversationOfNeedsKey, callOfKey, unreadCount } from "./notifications";
+import { reviewNoticeIsAbout } from "../google/google";
+import { conversationOfNeedsKey, callOfKey, kindListDoor, unreadCount } from "./notifications";
 
 /* --------------------------- while you were away ------------------------- */
 
@@ -24,12 +30,20 @@ export interface AwayRowLike {
 }
 
 /**
- * What a queue row is about, for the away card's dedupe: its thread, its call, or both. A bare string is a thread.
- * `searchTo` is a waiting search's door (leadQuestionRoute), which the bell's question row about it opens too.
+ * What the page draws above the card is about, for the away card's dedupe: a queue row's thread, its call, or both (a bare string
+ * is a thread), a waiting search by its door (`searchTo`, leadQuestionRoute), which the bell's question row about it opens too, a
+ * run the queue draws by its name, and the review the card's line draws (`review`, contracts GoogleVM.todayLine), whose notice is
+ * the same news a second time.
  */
 export type AwayQueueRef =
   | string
-  | { conversationId?: string | null; callId?: string | null; runLabel?: string | null; searchTo?: string | null };
+  | {
+      conversationId?: string | null;
+      callId?: string | null;
+      runLabel?: string | null;
+      searchTo?: string | null;
+      review?: { id: string; reviewId?: string | null } | null;
+    };
 
 /**
  * The titles the edge gives a run held for a word: `Campaign “Win-back · quiet 30 days” is ready: 1 person` (core
@@ -49,6 +63,17 @@ export interface AwayGroupVM<T extends AwayRowLike> {
   title: string | null;
   /** Every row it swallowed, so read and dismiss reach all of them. */
   ids: string[];
+  /** Every row it stands for, in the order the bell holds them: what a group shows when it is opened, each note opening its own record. */
+  members: T[];
+  /**
+   * Where the rows of a group are held together. A row alone opens its own; a group whose rows all point at one place (one thread,
+   * one page) names that place; a group whose rows point at different records names the list that holds them (kindListDoor),
+   * since the newest one's record is one of several. Null where no row names a door. A press on a group opens the notes under it,
+   * as the bell's does; this is where "all of them" is, for a reader that wants it.
+   */
+  door: string | null;
+  /** The words of a list's door ("Open the Inbox"), for a group that opens one; null where the newest row's own button says it. */
+  action: string | null;
 }
 
 /**
@@ -81,6 +106,12 @@ const AWAY_NOUN: Record<string, [one: string, many: string]> = {
   leads_ready: ["search finished", "searches finished"],
   // A reach-out that wrote to several businesses hears back from several (Reach out Part 5).
   reach_out_replied: ["reply to a reach-out", "replies to a reach-out"],
+  // A campaign's unsubscribes and STOPs come in a run (decision 0048): several are one pattern, in the Inbox's words.
+  opted_out: ["person asked to stop", "people asked to stop"],
+  // A day of bookings is one pattern, each its own visit (S1-01); a read of the calendar that found several is one row already.
+  booking: ["new booking", "new bookings"],
+  // Two invitations accepted the same morning read as a team that grew.
+  member_joined: ["teammate joined", "teammates joined"],
 };
 
 /**
@@ -139,6 +170,21 @@ function awayFoot(more: number, queued: number, drew: boolean): string | null {
     : `${head}, ${queued} of them already in the queue above`;
 }
 
+/**
+ * Where a group of two or more rows opens (AwayGroupVM.door): the one place their doors share, else the list that holds
+ * every row of their kind. A kind with no list falls back to the first door there is, which the table in
+ * tooling/scripts/tests/today/today-away-page.test.mjs keeps from happening to a kind that groups.
+ */
+function groupDoor(
+  kind: string,
+  doors: ReadonlyArray<string | undefined>,
+): Pick<AwayGroupVM<AwayRowLike>, "door" | "action"> {
+  const first = doors[0];
+  if (first !== undefined && doors.every((d) => d === first)) return { door: first, action: null };
+  const list = kindListDoor(kind);
+  return list ? { door: list.to, action: list.action } : { door: first ?? null, action: null };
+}
+
 /** The away card: the rows it draws, the numbers beside them, and every sentence it says. */
 export interface TodayAwayVM<T extends AwayRowLike> {
   /** What it draws, grouped and capped. */
@@ -186,6 +232,7 @@ export function todayAwayGrouped<T extends AwayRowLike>(
   const callsQueued = new Set(inQueue.flatMap((q) => (typeof q === "string" || !q.callId ? [] : [q.callId])));
   const runsQueued = inQueue.flatMap((q) => (typeof q === "string" || !q.runLabel ? [] : readyRunTitles(q.runLabel)));
   const searchesQueued = new Set(inQueue.flatMap((q) => (typeof q === "string" || !q.searchTo ? [] : [q.searchTo])));
+  const reviewsDrawn = inQueue.flatMap((q) => (typeof q === "string" || !q.review ? [] : [q.review]));
   const idOf = (r: T) => r.id ?? r.key ?? "";
   // A row about a conversation says so in three different ways, and only one of
   // them is `about`. A KEPT row (the edge wrote it) carries the subject; a
@@ -202,6 +249,9 @@ export function todayAwayGrouped<T extends AwayRowLike>(
     if (r.kind === "playbook" && runsQueued.some((title) => r.title.startsWith(title))) return true;
     // A search waiting on its answer is a row of the queue; the bell's question row about it opens the same pile (00163).
     if (r.kind === "leads_question" && searchesQueued.has(door(r) ?? "")) return true;
+    // A new review is a line of the card above (GoogleVM.todayLine) for as long as it is news and unanswered; the bell's notice of
+    // the same review is that news a second time, and opening either left the other and the badge as they were.
+    if (r.kind === "review" && reviewsDrawn.some((review) => reviewNoticeIsAbout(r.about, review))) return true;
     if (r.about && r.about.type === "conversation" && convs.has(r.about.id)) return true;
     if (r.about && r.about.type === "call" && callsQueued.has(r.about.id)) return true;
     const cv = conversationOfNeedsKey(idOf(r));
@@ -213,34 +263,26 @@ export function todayAwayGrouped<T extends AwayRowLike>(
   };
   const fresh = rows.filter((r) => r.unread && !aboutQueued(r));
 
-  const order: string[] = [];
-  const byKind = new Map<string, T[]>();
-  for (const r of fresh) {
-    const k = r.kind && AWAY_NOUN[r.kind] ? r.kind : `@${idOf(r)}`;
-    let bucket = byKind.get(k);
-    if (!bucket) {
-      bucket = [];
-      byKind.set(k, bucket);
-      order.push(k);
-    }
-    bucket.push(r);
-  }
-
-  const groups: Array<AwayGroupVM<T>> = [];
-  for (const k of order) {
-    const members = byKind.get(k) ?? [];
-    const noun = AWAY_NOUN[k];
-    if (!noun || members.length < AWAY_GROUP_MIN) {
-      for (const r of members) groups.push({ row: r, count: 1, title: null, ids: [idOf(r)] });
-      continue;
-    }
-    groups.push({
-      row: members[0],
-      count: members.length,
-      title: groupTitle(members, noun, idOf),
-      ids: members.map(idOf),
+  // The bell's own grouping (bellSections), over what is unread and not drawn above: every row here is new, so its one section
+  // is "New", and its lines are the card's groups, each kind said once where the newest of it stood.
+  const groups = bellSections(fresh)
+    .flatMap((section) => section.lines)
+    .map((line): AwayGroupVM<T> => {
+      const { row, members } = line;
+      if (line.count < AWAY_GROUP_MIN)
+        return { row, count: 1, title: null, ids: [idOf(row)], members, door: door(row) ?? null, action: null };
+      return {
+        row,
+        count: line.count,
+        title: line.title,
+        ids: members.map(idOf),
+        members,
+        ...groupDoor(
+          row.kind ?? "",
+          members.map((m) => door(m)),
+        ),
+      };
     });
-  }
 
   const rank = (g: AwayGroupVM<T>) => AWAY_TONE_RANK[g.row.tone] ?? 1;
   const sorted = groups

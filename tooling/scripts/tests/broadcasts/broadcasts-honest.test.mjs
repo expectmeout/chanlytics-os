@@ -220,9 +220,9 @@ Object.assign(globalThis, {
 });
 const { BroadcastsPage } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
 const { bcWhenNote } = await import(`${SRC}/surfaces/campaigns/broadcasts/when.tsx`);
-const { BroadcastDetail } = await import(`${SRC}/surfaces/campaigns/broadcasts/run.tsx`);
+const { BroadcastDetail, BcRunVerbs } = await import(`${SRC}/surfaces/campaigns/broadcasts/run.tsx`);
 // The receipt's sentence is words alone, apart from the picker, so the shell that publishes it carries no picker.
-const { bcWhenWords } = await import(`${SRC}/surfaces/campaigns/broadcasts/when-words.ts`);
+const { bcWhenWords, bcOpensOnItsSheet } = await import(`${SRC}/surfaces/campaigns/broadcasts/when-words.ts`);
 const { PlaybookComposer } = await import(`${SRC}/surfaces/campaigns/playbooks/composer.tsx`);
 const { PlaybookPane } = await import(`${SRC}/surfaces/campaigns/playbooks/card-detail.tsx`);
 const { CmSlot } = await import(`${SRC}/surfaces/campaigns/parts/slot.tsx`);
@@ -926,11 +926,11 @@ test("a run waiting on you opens as the sheet the canvas draws -- where it sits 
     const sheet = byTestId(tree, "bc-sheet");
     assert.ok(sheet, "a run waiting on you is its sheet, not a report of nothing sent");
     assert.equal(byTestId(tree, "bc-figures"), null);
-    // The sheet's own top (back, "Waiting on you", its place) and its title are the pane's head now (the layout is the
+    // The sheet's own top (back, "Waiting for your approval", its place) and its title are the pane's head now (the layout is the
     // Inbox's list + pane, docs/2026-10-02-campaigns-on-the-kit.md §3.1), outside the sheet's body.
     assert.equal(
       textOf(byTestId(tree, "bc-sheet-pos")),
-      "Waiting on you · 1 of 2",
+      "Waiting for your approval · 1 of 2",
       "where it sits among the runs waiting",
     );
     assert.equal(paneTitle(tree), "The month's offer");
@@ -1000,7 +1000,7 @@ test("a run waiting on you opens as the sheet the canvas draws -- where it sits 
     tree = again(props);
     assert.equal(byTestId(tree, "bc-sheet-approve"), null, "REGRESSION-IN-WAITING: a button the server refuses");
     assert.ok(textOf(byTestId(tree, "bc-sheet-expired")).includes("that day has passed"));
-    assert.equal(textOf(byTestId(tree, "bc-sheet-pos")), "Waiting on you", "the only one waiting");
+    assert.equal(textOf(byTestId(tree, "bc-sheet-pos")), "Waiting for your approval", "the only one waiting");
   } finally {
     Object.assign(broadcasts, keep);
   }
@@ -1265,7 +1265,7 @@ test("Broadcasts is one ledger: the runs waiting on you said at the head, the st
   assert.deepEqual([band.tab("all").label, band.tab("all").count], ["All", 10]);
   assert.deepEqual(
     [band.tab("pending_approval").label, band.tab("pending_approval").count, band.tab("pending_approval").tone],
-    ["Waiting on you", 1, "warn"],
+    ["Waiting for your approval", 1, "warn"],
   );
   assert.deepEqual([band.tab("sending").label, band.tab("sending").count], ["Sending", 1]);
   assert.equal(band.tab("sent").tone, undefined, "only the run that waits on you is warn");
@@ -1823,7 +1823,10 @@ test("REGRESSION (C14): a send in flight draws its progress, Approve says it is 
   // sub-tabs now: a word and a count each, which a test reads off the strip's props).
   const band = bandOf(tree);
   assert.deepEqual([band.tab("sending").label, band.tab("sending").count], ["Sending", 1], "REGRESSION: '2 queued'");
-  assert.deepEqual([band.tab("pending_approval").label, band.tab("pending_approval").count], ["Waiting on you", 1]);
+  assert.deepEqual(
+    [band.tab("pending_approval").label, band.tab("pending_approval").count],
+    ["Waiting for your approval", 1],
+  );
   assert.match(
     textOf(byTestId(tree, "bc-standing")),
     /the latest 50 broadcasts/,
@@ -2315,7 +2318,7 @@ test("a run's report: who it touched is filtered by the kit's sub-tabs, and a pe
     const faces = all(row, (n) => n.type === Face);
     assert.equal(faces.length, 1, "one face to a person");
     assert.equal(faces[0].props.size, "sm");
-    assert.ok(faces[0].props.initials, "with their initials");
+    assert.ok(faces[0].props.person?.initials, "with their initials, beside their name (the kit face's person)");
   }
 });
 
@@ -4212,7 +4215,7 @@ test("a playbook may run on any list: the composer picks one of the workspace's 
     assert.deepEqual(
       optionsOf(lists).map((o) => [o.value, o.label, o.group, o.sub, o.meta]),
       [
-        ["seg:lapsed", "Lapsed", "People's lists", "One of People's lists", "2 today"],
+        ["seg:lapsed", "Lapsed", "Ready-made lists", "Ready-made", "2 today"],
         ["list:l1", "Regulars", "Your lists", "Kept by hand", "3 today"],
         ["list:l2", "Texters", "Your lists", "Keeps itself current", "1 today"],
       ],
@@ -5175,7 +5178,9 @@ test("a waiting run whose day has passed is not offered an Approve the route ref
     assert.deepEqual(approvals, [], "no gate, and still no approve");
 
     // A reach-out's run has no day to pass: approveRun takes it to its own verb before it asks the day (decision D6), so
-    // the same card on a later day approves it. The page's rule is the verb's, exemption and all (runApprovalRefusal).
+    // the predicate says nothing of it (runApprovalRefusal, exemption and all). Nor is it approved from a row at all: the
+    // run's offer (contracts waitingRunOffer) is its sheet, where each email's check is shown, so Sent's row says
+    // "Open the run" in place of Approve and Skip, as Today's row and the ledger's door do (D1-run-reachout-approve).
     const reach = dto({
       id: "b-reach",
       name: "Dentists · 2026-09-10",
@@ -5192,24 +5197,84 @@ test("a waiting run whose day has passed is not offered an Approve the route ref
     assert.match(runApprovalRefusal(stale, days), /that day has passed/);
     setSurfaceValue("broadcasts", broadcastsSurface({ rows: [reach].map((b) => toBroadcastVM(b, ZONE)) }));
     globalThis.window.gatedProps = (reason) => ({ "aria-disabled": true, "data-tip": reason, onClick() {} });
-    approve = byTestId(page(props), "bc-approve");
-    assert.notEqual(
-      approve.props["aria-disabled"],
-      true,
-      "REGRESSION-IN-WAITING: a reach-out's Approve gated by a day",
+    const row = find(page(props), (n) => n.props?.id === "bc-row-b-reach");
+    assert.equal(
+      byTestId(row, "bc-approve"),
+      null,
+      "D1-run-reachout-approve: no one-tap approval of a reach-out's run",
     );
-    press(approve);
+    assert.equal(byTestId(row, "bc-stop"), null, "nor a Skip: both are decided on its sheet");
+    const open = byTestId(row, "bc-open-run");
+    assert.equal(textOf(open).trim(), contracts.LIFECYCLE_WORDS.ledger.openRun);
+    assert.equal(open.props["aria-disabled"], undefined, "and the door is never gated by a day");
+    press(open);
     await settle();
-    assert.deepEqual(approvals, ["b-reach"]);
+    assert.deepEqual(approvals, [], "opening the run approves nothing");
   } finally {
     delete globalThis.window.gatedProps;
     broadcasts.approve = keep;
   }
 });
 
+test("a run decided on its sheet alone is opened from its row, never approved or skipped there, and the pane that is its sheet draws none of it (D1-run-reachout-approve)", () => {
+  // The rule is the run's offer (contracts waitingRunOffer), asked once: a reach-out's run is `open`; a playbook's own is
+  // approved in place, and one whose day has passed is `skip`, which a row still draws (its Approve says why it cannot).
+  const waiting = {
+    state: "pending_approval",
+    started_at: null,
+    finished_at: null,
+    scheduled_for: iso(-H),
+    counts: quiet,
+  };
+  const reach = toBroadcastVM(
+    dto({
+      ...waiting,
+      id: "b-reach",
+      audience: { kind: "reach_out", root_id: "pb-1", step_id: "pb-1", label: "Dentists" },
+    }),
+    ZONE,
+  );
+  const own = toBroadcastVM(
+    dto({ ...waiting, id: "b-own", run_for: globalThis.window.__clock.dayKey(Date.now()) }),
+    ZONE,
+  );
+  const stale = toBroadcastVM(dto({ ...waiting, id: "b-stale" }), ZONE);
+  assert.equal(bcOpensOnItsSheet(reach), true);
+  assert.equal(bcOpensOnItsSheet(own), false);
+  assert.equal(
+    bcOpensOnItsSheet(stale),
+    false,
+    "a run whose day has passed is skipped from its row: its offer is skip",
+  );
+  const acts = { canSend: true, armed: false, onArm() {}, stopping: false, approve() {}, cancel() {} };
+  let opened = 0;
+  // Its row: one door, in the ledger's word, and the Approve and the Skip beside it are gone.
+  const row = BcRunVerbs({ row: reach, ...acts, onOpen: () => (opened += 1) });
+  assert.equal(byTestId(row, "bc-approve"), null);
+  assert.equal(byTestId(row, "bc-stop"), null);
+  const door = byTestId(row, "bc-open-run");
+  assert.equal(textOf(door).trim(), "Open the run");
+  press(door);
+  assert.equal(opened, 1);
+  // Asked to Skip on its sheet (the arm is the page's, shared), the row does not hold the question open or draw it.
+  assert.equal(byTestId(BcRunVerbs({ row: reach, ...acts, armed: true, onOpen: () => {} }), "bc-stop"), null);
+  // Its pane is the sheet: Approve and Skip are the sheet's own, so the head's verbs draw nothing for it.
+  assert.equal(BcRunVerbs({ row: reach, ...acts }), null);
+  // A playbook's own run keeps both, and a run that is not waiting keeps its stop.
+  const mine = BcRunVerbs({ row: own, ...acts, onOpen: () => {} });
+  assert.ok(byTestId(mine, "bc-approve"));
+  assert.ok(byTestId(mine, "bc-stop"));
+  assert.equal(byTestId(mine, "bc-open-run"), null);
+  const going = toBroadcastVM(
+    dto({ id: "b-going", state: "scheduled", audience: reach.audience, counts: quiet }),
+    ZONE,
+  );
+  assert.ok(byTestId(BcRunVerbs({ row: going, ...acts }), "bc-stop"), "a reach-out's run to come is stopped as before");
+});
+
 /* ------------------------- A message needs no WhatsApp row: what the composer offers, opens on, and says ------------------------- */
 
-const { cmOfferedMessages } = await import(`${SRC}/surfaces/campaigns/parts/channels.ts`);
+const { cmOfferedFrom } = await import(`${SRC}/surfaces/campaigns/parts/channels.ts`);
 
 /** One version of the message hours_note, on `channel`, as GET templates returns its rows (a WhatsApp row's `blocked` judged, an email's null). */
 const versionRow = (channel, over = {}) => ({
@@ -5231,10 +5296,14 @@ const versionRow = (channel, over = {}) => ({
   body_preview: "Hi {{1}}, we are open late on Thursdays.",
   ...over,
 });
-/** What the surface offers of these rows (broadcasts/surface.ts): the read's templates, and its messages, made of every row. */
+/**
+ * What the surface offers of these rows (broadcasts/surface.ts): the settings read's, its WhatsApp rows and its other
+ * channels' versions as it publishes them, and its messages, made of every row.
+ */
 const offeredOf = (...rows) =>
-  cmOfferedMessages({
-    templates: rows.filter((r) => r.meta_status === "approved" && !r.hidden_at),
+  cmOfferedFrom({
+    templatesAll: rows.filter((r) => r.channel === "whatsapp"),
+    templateVersions: rows.filter((r) => r.channel !== "whatsapp"),
     messages: contracts.campaignMessagesOf(rows),
   });
 /** A workspace with a texting line and a mailbox that sends the business's news, and no WhatsApp number. */

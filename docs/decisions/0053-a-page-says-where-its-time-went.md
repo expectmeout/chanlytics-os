@@ -1,6 +1,6 @@
 # 0053 · A page says where its time went
 
-**Status:** Built, step 1 (12 October 2026, 00408; Ruben: "go with all of your best decisions do the work yourself"):
+**Status:** Built, step 1 (12 October 2026, 00412; Ruben: "go with all of your best decisions do the work yourself"):
 the shell's own measures, the browser's five said for the page they were of, Server-Timing by reader and by database
 call, and the back office's card. Steps 2 to 10 are decided, each its own change, ordered by what step 1's numbers say.
 Written against commit `b220a8b74` (main, 12 October 2026, after #1563). Where this note and the code disagree, the
@@ -65,7 +65,7 @@ outside the repository) found the speed machinery sound and its measurement blin
   `PageVitalDetail`, `vitalsPageOf`, which names People's scopes and a person's page by their own names, and
   `PRIMARY_PART`); `shell/vitals-schema.ts` (at most 100 reports a beacon); `shell/page-speed.ts` (the card's rows,
   bands and sentences, `pageSpeedWords`).
-- **The table**: 00408 adds `part`, `came_from`, `warm`, `device`, `build` and `detail` to `page_vitals`, each held by
+- **The table**: 00412 adds `part`, `came_from`, `warm`, `device`, `build` and `detail` to `page_vitals`, each held by
   a CHECK (detail a JSON object of at most 2048 bytes); `note_page_vitals` takes the device and the build, and keeps a
   report's own page; `page_vitals_p75` reads page loads alone, as its card always meant; `page_speed` and `page_spots`
   are new, on the service role alone. Kept thirty days, as before.
@@ -106,8 +106,8 @@ production numbers, and the one whose page is slowest goes first.
 9. **Felt**: the route fade at most 120 ms, or a view transition; the last page kept under `<Activity>`.
 10. **On a phone**: Live's list kept for a reload; the glass's paint measured on a low-end Android.
 
-**Both orders:** the route takes a body from before 00408 (the page and its five) and keeps it as it did; an older
-shell sends that body. The dashboard's write needs 00408's `note_page_vitals`; before it, the write fails and the
+**Both orders:** the route takes a body from before 00412 (the page and its five) and keeps it as it did; an older
+shell sends that body. The dashboard's write needs 00412's `note_page_vitals`; before it, the write fails and the
 report is lost, never an error (the door's own rule), and the card reads no rows.
 
 ## Tests
@@ -117,7 +117,7 @@ page, a begin said twice at once, the gate, settling, a hidden tab and the minut
 read's name), the browser's five as reports and their elements' words, the back office's read and the card's
 sentences. `field-data.test.mjs` holds the seven
 to the table's set, the names of People's pages, the device and build, the refusals and the beacons in several.
-`page-vitals.db.test.mjs` runs 00408 on the stack (the columns' CHECKs, the report's own page, `page_speed`'s groups
+`page-vitals.db.test.mjs` runs 00412 on the stack (the columns' CHECKs, the report's own page, `page_speed`'s groups
 and its `waits_on`, `page_spots`). `routes/server-timing.test.mjs` holds the header's shares, the request's store,
 the database calls and the readers.
 

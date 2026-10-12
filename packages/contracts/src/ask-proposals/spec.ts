@@ -119,5 +119,9 @@ export const refuseWith = (words: string): ProposalRefusal => ({ refused: words 
 /** A map's own entry, never one its prototype lends ("constructor"). */
 export const ownEntry = <T>(m: Partial<Record<string, T>>, k: string): T | undefined =>
   Object.prototype.hasOwnProperty.call(m, k) ? m[k] : undefined;
-/** People repaint (the People surface, a person's page) once a person's card lands. */
+/**
+ * People repaint (the People surface, a person's page) once a person's card lands. The one event a card says (0047): a note's
+ * card said `note:saved` too, which only the person's page and the Pipeline's peek heard and now follow this one. For a call
+ * answered "behind" it is also what repaints the person's page before People's read, which follows it, has landed.
+ */
 export const PEOPLE_CHANGED: ProposalEvent = { type: "surface:clients" };

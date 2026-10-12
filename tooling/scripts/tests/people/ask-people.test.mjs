@@ -1059,7 +1059,8 @@ test("a note card, walked end to end: the model's call makes it, Approve writes 
     },
   ]);
   assert.ok(tab.events.includes("refresh POST contacts/[id]/notes"), "People read again behind it");
-  assert.ok(tab.events.includes(`note:saved ${JSON.stringify({ personId: ROSA })}`), "the person's page told");
+  assert.ok(tab.events.includes("surface:clients"), "the person's page told, as it is for every person's card");
+  assert.ok(!tab.events.some((e) => e.startsWith("note:saved")), "and no event of the note's own (0047)");
   const undone = await undoProposal(tab.win, card, doneWith(done), tab.client);
   assert.deepEqual(undone, { ok: true, receipt: "Note deleted", undo: null });
   assert.deepEqual(world.person_notes, [], "the note it wrote is gone");
@@ -1183,7 +1184,7 @@ const flagged = (assignee) => ({
 /** Made-up people, one per state and one on a teammate's thread, and the state the People row gives each. */
 const STANDING = [
   ["asked for a person, nobody has it", "Needs you", { ...flagged(null), open_escalation_reason: "asked_for_human" }],
-  ["held by the member asking, and they wrote last", "Waiting on you", flagged(ME)],
+  ["held by the member asking, and they wrote last", "You have it", flagged(ME)],
   ["held by a teammate", "Active", flagged(TEAMMATE)],
   ["new this week", "New", { first_contact_at: daysAgo(2), earliest_row_at: daysAgo(2), last_inbound_at: daysAgo(2) }],
   ["quiet for forty days", "Quiet", { last_inbound_at: daysAgo(40), last_message_at: daysAgo(40) }],

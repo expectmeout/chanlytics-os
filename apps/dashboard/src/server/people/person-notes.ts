@@ -1,4 +1,10 @@
-import { AppError, NOTE_REFUSALS, type PersonNoteDto, type PersonNoteTeamDto } from "@chanlytics/contracts";
+import {
+  AppError,
+  NOTE_REFUSALS,
+  memberWords,
+  type PersonNoteDto,
+  type PersonNoteTeamDto,
+} from "@chanlytics/contracts";
 import { dbRefusal, type RouteContext } from "@/server/with-route";
 import { log } from "@/server/log";
 
@@ -50,7 +56,7 @@ function toNoteDto(n: NoteRow, names: Map<string, string>, me: string): PersonNo
   };
 }
 
-/** The team by name: who wrote a note and who it is for. A member without a name is called by their address's name. */
+/** The team by name: who wrote a note and who it is for. A member is called as everywhere else (memberWords): the name they gave, else their address. */
 async function teamNames(ctx: RouteContext, tenantId: string): Promise<PersonNoteTeamDto[] | null> {
   const { data, error } = await Promise.resolve()
     .then(() => ctx.supabase.rpc("team_roster", { p_tenant_id: tenantId }))
@@ -61,7 +67,7 @@ async function teamNames(ctx: RouteContext, tenantId: string): Promise<PersonNot
   if (error) return null;
   return ((data ?? []) as { member_user_id: string; display_name: string | null; email: string | null }[]).map((m) => ({
     id: m.member_user_id,
-    name: (m.display_name ?? "").trim() || (m.email ?? "").split("@")[0] || "A teammate",
+    name: memberWords(m).name,
     me: m.member_user_id === ctx.userId,
   }));
 }

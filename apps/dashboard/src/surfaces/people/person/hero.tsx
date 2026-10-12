@@ -5,7 +5,13 @@
  * `personActs`. What an act does is its hover, never a sentence beside the label, which wrapped and ran past the menu's edge.
  */
 import type { ReactNode } from "react";
-import { DOUBT_WORDS, MERGE_WORDS, NEW_CONVERSATION_WORDS, proposalMessage } from "@chanlytics/contracts";
+import {
+  DOUBT_WORDS,
+  MERGE_WORDS,
+  NEW_CONVERSATION_WORDS,
+  appointmentWords,
+  proposalMessage,
+} from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Face } from "../../kit/face/face";
 import { Menu } from "../../kit/menu/menu";
@@ -18,7 +24,9 @@ import { Icon } from "../../kit/icon/icon";
 import { Picker } from "../../kit/picker/picker";
 import type { PickerGroup } from "../../kit/picker/picker";
 import { gate, navigate } from "../../legacy-verbs";
+import { carryReply } from "../../inbox/carried-reply";
 import { openNewConversation } from "../../inbox/new-conversation/store";
+import { visitWordHere } from "../../visit-line";
 import { deletePerson, mergePerson, settleDoubt } from "../people-detail";
 import { PersonName } from "./name";
 import { digitsOf } from "./ctx";
@@ -43,17 +51,9 @@ export function openWith(c: PageCtx): (text?: string | null) => void {
   const { p } = c;
   return (text) => {
     const thread = p.openThread;
-    if (text && thread !== null) {
-      try {
-        sessionStorage.setItem(
-          "chanlytics-compose",
-          JSON.stringify({ threadId: thread.replace(/^inbox\//, ""), text }),
-        );
-      } catch {
-        /* nothing to carry */
-      }
-    }
-    if (thread !== null) navigate(thread);
+    if (thread === null) return;
+    if (text) carryReply(thread, text);
+    navigate(thread);
   };
 }
 
@@ -78,7 +78,8 @@ function moreGroups(c: PageCtx, compose: (text?: string | null) => void): MenuGr
   const { p, canRecord, isOwner, setDel, setMerge } = c;
   const doAct: Record<string, () => void> = {
     booking: () => {
-      if (p.bookingLinkAction.ready) compose(`Here's the link to book your appointment: ${p.bookingLink}`);
+      if (p.bookingLinkAction.ready && p.bookingLink)
+        compose(appointmentWords(visitWordHere()).bookingLink(p.bookingLink));
       else if (p.openThread !== null) navigate(p.openThread);
     },
     proposal: () => {
@@ -328,7 +329,7 @@ function heroId(c: PageCtx, phoneOnly: boolean) {
   const idLine = idLineOf(c, phoneOnly);
   return (
     <div className="cl-prof-id">
-      <Face initials={p.initials} size="xl" />
+      <Face person={{ name: p.name, initials: p.initials }} size="xl" />
       <div className="cl-prof-titles">
         {/* The name, and beside it where they stand: a dot and the standing's word, its sentence on hover. The sentence is
             said under the line only when it asks for something: "New messages are answered automatically" under every

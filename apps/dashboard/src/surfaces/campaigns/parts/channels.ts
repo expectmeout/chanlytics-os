@@ -32,7 +32,9 @@ import {
   type ReachSplit,
 } from "@chanlytics/contracts";
 import { channelsOpenFor, openAmong } from "@/lib/campaign-channels";
+import type { SettingsSurface } from "@/legacy-bridge/surfaces/settings";
 import type { TemplateDto } from "@/surfaces/inbox/types";
+import { offeredRows } from "@/surfaces/offered-templates";
 import { RPT_CHANNEL_COLORS } from "@/surfaces/reports/series";
 
 /** What the page says of the Send by row, beyond the reasons contracts words (CHANNEL_WORDS, messageWhyNot). */
@@ -145,6 +147,17 @@ export function cmOfferedMessages(read: { templates?: TemplateDto[]; messages?: 
       },
     ];
   });
+}
+
+/**
+ * The messages a composer offers, made of the settings read (surfaces/offered-templates.ts), the one read of the templates:
+ * undefined before it has landed (the composer says it is still reading), null where its templates read failed (it says it could
+ * not read them), else cmOfferedMessages over the rows that may go and the messages made of every row.
+ */
+export function cmOfferedFrom(settings: SettingsSurface | undefined): CmOffered[] | null | undefined {
+  const rows = offeredRows(settings);
+  if (!rows) return rows;
+  return cmOfferedMessages({ templates: rows, ...(settings?.messages ? { messages: settings.messages } : {}) });
 }
 
 /** The offered message of this name and language, whichever of its versions an id once named: null where none is offered. */

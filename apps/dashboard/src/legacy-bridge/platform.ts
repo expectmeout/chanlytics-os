@@ -83,7 +83,7 @@ type OverviewAnswer = {
    */
   vitals?: PageVitalsRowDto[] | null;
   /**
-   * Where the pages' time goes (00408, decision 0053): each page by how it opens and how a move reaches it, its parts,
+   * Where the pages' time goes (00412, decision 0053): each page by how it opens and how a move reaches it, its parts,
    * and the elements that cost the most; null when unread, absent from an overview that predates it, which draws no card.
    */
   speed?: { rows: PageSpeedRowDto[]; spots: PageSpotRowDto[] } | null;
@@ -181,12 +181,6 @@ export interface PlatformApi {
   resetSecondFactor(partnerId: string, code: string, why: string): Promise<{ ok: boolean; message: string }>;
   /** Absent from a stand-in that has no partners' second factor to reset. */
   secondFactorWords?: typeof SECOND_FACTOR_WORDS;
-}
-
-declare global {
-  interface Window {
-    __platform?: PlatformApi;
-  }
 }
 
 /** The back office's verbs, each through its door. */
@@ -325,11 +319,6 @@ const platformVerbs: PlatformApi = {
 
 /**
  * The verbs the pane reads, held where a test stands in a whole other set (`backOffice.verbs = …`), as it once replaced
- * `window.__platform`.
+ * `window.__platform`, a name the Settings rail's warm read (settings.jsx) once read and nothing has since (O4b).
  */
 export const backOffice: { verbs: PlatformApi } = { verbs: platformVerbs };
-
-/** The verbs on the window, for the Settings rail's warm read (settings.jsx): a line to delete when the frame moves. */
-export function installPlatform(win: Window = window): void {
-  win.__platform = platformVerbs;
-}

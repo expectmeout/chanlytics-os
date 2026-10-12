@@ -11,7 +11,7 @@ export function threadState(
   v: Pick<InboxThreadVM, "needsYou" | "takenOver" | "claimedByOther" | "state" | "optedOut">,
 ): string {
   if (v.needsYou) return "needs you";
-  if (v.takenOver) return "waiting on you";
+  if (v.takenOver) return "you have it";
   if (v.claimedByOther) return "a teammate is answering";
   if (v.state === "snoozed") return "snoozed";
   if (v.optedOut) return "opted out";

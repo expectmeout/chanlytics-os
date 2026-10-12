@@ -1,7 +1,7 @@
 /**
  * The board's week: its span by the business's clock, the feed's items by day, the one read for a span
- * (calendarSources), the week assembled from it (weekFrom), and the three in turn (calendarWeek). The people an
- * owner's read puts in People are people-seen.ts's; the feed's parse is parsed-feed.ts's.
+ * (calendarSources), the week assembled from it (weekFrom), and the two in turn (calendarWeek). None of them writes: a
+ * read of the board adds nobody to People (decision 0047, lane 6); the feed's parse is parsed-feed.ts's.
  */
 import "server-only";
 import {
@@ -64,7 +64,6 @@ import { everyone } from "@/server/people/people";
 import { readSettings } from "./calendar-settings";
 import { storedConfigOf } from "@/server/workspace/config-row";
 import { parsedFeedFor, type ParsedRead } from "./parsed-feed";
-import { addPeopleSeen } from "./people-seen";
 import { recordBusy } from "./record-busy";
 import { log } from "@/server/log";
 
@@ -573,9 +572,9 @@ export function weekFrom(s: CalendarSources, people: PersonLike[], now: Date): C
  * assembly calls this for a workspace that is not the caller's own -- the back
  * office reading somebody else's -- and there is no request behind that.
  *
- * The read (calendarSources), then, when the caller may act, the people the feed names put in People, then the board
- * assembled (weekFrom): one clock for the span, the people and the windows. The calendar route takes the same three
- * steps around its reader.
+ * The read (calendarSources), then the board assembled (weekFrom): one clock for the span, the people and the windows.
+ * The calendar route takes the same two steps around its reader. Neither writes: the people an appointment names are put
+ * in People by the hourly sweep and the booking email's reader, and by a press on the board (decision 0047, lane 6).
  */
 export async function calendarWeek(
   ctx: Pick<RouteContext, "supabase">,
@@ -583,7 +582,6 @@ export async function calendarWeek(
   by: { from: string | null; days: number },
   now = new Date(),
   opts: {
-    canAct?: boolean;
     fresh?: boolean;
     feedOnly?: boolean;
     /** The zone, the raw settings and the mailbox, from a caller that holds or reads them itself (calendarSources). */
@@ -599,21 +597,5 @@ export async function calendarWeek(
     config: opts.config,
     mailbox: opts.mailbox,
   });
-  // A copy: the read's own list is never changed.
-  const people = [...s.people];
-  // The people this feed names are put in People here, so the board an
-  // owner is looking at already links to them; the hourly sweep does the
-  // same for everyone else, and for a feed nobody opens. A notice's person
-  // was put there when it was read (booking_read), so only a feed adds here.
-  if (opts.canAct && s.parsed)
-    people.push(
-      ...(await addPeopleSeen(ctx, tenantId, s.parsed.items, s.serviceNames, people, now).catch((e: unknown) => {
-        log.error("calendar_people_seen_failed", {
-          tenant_id: tenantId,
-          error: e instanceof Error ? e.message : String(e),
-        });
-        return [];
-      })),
-    );
-  return weekFrom(s, people, now);
+  return weekFrom(s, s.people, now);
 }

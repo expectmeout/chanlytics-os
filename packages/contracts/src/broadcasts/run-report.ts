@@ -8,6 +8,8 @@ import type { BroadcastRecipientDto } from "./broadcasts";
 import type { AnswerPurpose } from "./run-answers";
 import { HELD_REASONS } from "./run-words";
 import { CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, type ConsentChannel } from "../consent/consent-channels";
+import { STOP_WORDS } from "../consent/consent";
+import { NEEDS_YOU_WORD } from "../conversations/standing";
 import type { ParamSpec } from "../templates/templates";
 import { pct } from "../shared/numbers";
 import { HOUR_MS } from "../shared/time";
@@ -313,7 +315,8 @@ interface PersonCase {
 
 /** The pill: the first row that holds, in the order a person's line has always been read. */
 const PERSON_PILLS: readonly ((r: ReportRecipient, c: PersonCase) => RunPersonVM["pill"] | null)[] = [
-  (r, { out }) => (r.consent_after === "opted_out" && out ? { label: "Asked to stop", tone: "warn" } : null),
+  // A STOP is the one pill and the one tone everywhere (consent.ts STOP_WORDS): it was amber here, grey on People.
+  (r, { out }) => (r.consent_after === "opted_out" && out ? { label: STOP_WORDS.pill, tone: STOP_WORDS.tone } : null),
   (r, { out }) => (r.replied && out ? { label: "Replied", tone: "ok" } : null),
   (r, { out }) => (r.consent_after === "opted_in" && out ? { label: "Said yes", tone: "ok" } : null),
   (r) => (r.state === "skipped" ? { label: "Held back", tone: "plain" } : null),
@@ -393,7 +396,8 @@ function personLineOf(r: ReportRecipient, { greets, cutOff, clock, channelsSaid 
 
 /** What has happened since a reply: a person is waiting, who answered it and when, or nobody yet. */
 function replyOutcomeOf(r: ReportRecipient, clock: (iso: string | null) => string | null): RunReplyVM["outcome"] {
-  if (r.waiting_on_you) return { words: "Waiting on you", tone: "warn" };
+  // Its thread waits on a person and nobody has it (the one standing rule): the Inbox's "Needs you".
+  if (r.waiting_on_you) return { words: NEEDS_YOU_WORD, tone: "warn" };
   if (r.answered_by === "receptionist")
     return {
       words: `The receptionist answered${clock(r.answered_at) ? ` · ${clock(r.answered_at)}` : ""}`,
@@ -496,7 +500,7 @@ const repliedFigure: RunFigureOf = (f) => ({
   pct: pctOf(f, f.replied.length),
   sub:
     f.waiting > 0
-      ? `${f.waiting} waiting on you in the Inbox`
+      ? `${f.waiting} ${f.waiting === 1 ? "needs" : "need"} you in the Inbox`
       : f.replied.length > 0
         ? "each one is a thread in the Inbox"
         : "nobody has written back yet",

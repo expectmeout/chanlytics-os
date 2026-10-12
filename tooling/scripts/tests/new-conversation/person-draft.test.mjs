@@ -80,6 +80,29 @@ test("a message: asked once, in the owner's voice, with what the page knows and 
   assert.doesNotMatch(calls[0].request.system, /receptionist's voice|You are the assistant/);
 });
 
+test("a message to a person never builds on a reply of ours that never reached them (D1-message-status)", async () => {
+  answerWith({ ...EMPTY, text: "Hi Robin, checking in." });
+  const history = [
+    {
+      day: "Oct 3",
+      time: "9:00 AM",
+      who: "Your team",
+      kind: "team",
+      text: "WORDS-NEVER-SENT",
+      unsent: true,
+      sub: "Canceled before sending",
+    },
+    { day: "Oct 2", time: "11:00 AM", who: "Your team", kind: "team", text: "WORDS-THAT-WENT" },
+    ...KNOWN.who.timeline,
+  ];
+  await draftFrom(
+    { ...KNOWN, who: { ...KNOWN.who, timeline: history } },
+    { how: "message", wire: "sms", about: "follow up" },
+  );
+  assert.match(told(), /WORDS-THAT-WENT/, "what was said to them stands");
+  assert.doesNotMatch(told(), /WORDS-NEVER-SENT/, "what was canceled, failed or queued was not said to them");
+});
+
 test("a customer's own words are fenced as data, never handed over as an instruction", async () => {
   answerWith({ ...EMPTY, text: "Hi Robin, checking in about Saturday." });
   await draftFrom(KNOWN, { how: "message", wire: "sms", about: "follow up" });

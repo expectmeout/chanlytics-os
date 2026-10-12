@@ -42,6 +42,20 @@ export const REPLY_INTENT_WORDS: Record<ReplyIntent, string> = {
 };
 
 /**
+ * An intent as the Inbox's chip says it (the pill kind `reply`, shell/tone.ts): what the reply was read as, or "Wrote back"
+ * when it was not. The sentence beside it ("Wrote back · interested") keeps REPLY_INTENT_WORDS.
+ */
+export const REPLY_CHIP_WORDS: Record<ReplyIntent, string> = {
+  interested: "Interested",
+  question: "Question",
+  not_now: "Not now",
+  no: "Said no",
+  wrong_person: "Wrong person",
+  away: "Away",
+  other: "Wrote back",
+};
+
+/**
  * Text held to a bound in characters: whole when it fits, else cut after a whole word with an ellipsis, the ellipsis
  * inside the bound.
  */

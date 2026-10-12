@@ -16,21 +16,23 @@
  * row's facts, person-row-facts.ts; the receptionist's line, person-receptionist.ts; how a person may be reached,
  * person-reach.ts.
  */
-import { HOUR_MS } from "../shared/time";
 import { inLocalWeek, localDaysBetween } from "../shared/clock";
 import { formatPhoneDisplay } from "../shared/phone";
 import { personName } from "./person-name";
-import {
-  PERSON_CAME_FROM_WORDS,
-  PERSON_CHANNEL_WORDS,
-  REPLY_VIA,
-  type PersonCameFrom,
-  type PersonChannel,
-} from "./person-words";
+import { PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, type PersonCameFrom, type PersonChannel } from "./person-words";
 import { isOptedOutContact } from "../consent/consent";
-import { replyWindow } from "../config/policy";
 import type { FollowUpStand } from "../playbooks/playbooks";
-import { bookedAfterAsk, visitDateKey, visitDay, visitLine, type MatchVia } from "../calendar/calendar-people";
+import {
+  bookedAfterAsk,
+  visitDateKey,
+  visitDay,
+  visitLine,
+  visitTime,
+  type MatchVia,
+  type VisitDto,
+} from "../calendar/calendar-people";
+import { visitDoor } from "../calendar/appointment-key";
+import { visitLineOf, visitMarkOfDto, type VisitLineVM } from "../calendar/calendar-words";
 import { nextStepOf, stepIsDue, type PersonNextStepVM } from "../notes/steps";
 import { initialsOf, isEmailStopped, isIdentifierName } from "../conversations/thread-contact";
 import { dealOf, openDealsOf, type DealVM } from "../deals/deal-vm";
@@ -38,8 +40,8 @@ import { dealStageOf, dealStagesOf, type DealStandingStage } from "../deals/deal
 import type { PersonConsent } from "./person-consent";
 import { MONTH_MS, ts } from "./person-helpers";
 import type { PersonRowDto } from "./person-dto";
-import { bookingLinkAction } from "./person-reach";
-import { receptionistOf, type PersonReceptionist } from "./person-receptionist";
+import { replyReachOf, type BookingLinkAction } from "./person-reach";
+import { receptionistOf, type HolderNames, type PersonReceptionist } from "./person-receptionist";
 import {
   ago,
   consentOf,
@@ -50,7 +52,7 @@ import {
   type PersonLastContact,
 } from "./person-row-facts";
 import { reasonShort } from "../conversations/escalations";
-import { HELD_WORDS, readingOf } from "../conversations/standing";
+import { readingOf } from "../conversations/standing";
 import { heardAt, PERSON_STATE_LABELS, personStanding, personStateFor, type PersonState } from "./person-state";
 import type { ConsentChannel } from "../consent/consent-channels";
 import { personReachOf, type PersonReach } from "../broadcasts/reach-any";
@@ -99,7 +101,9 @@ function channelsOf(r: PersonRowDto): PersonChannel[] {
  * that cannot tell may say a reply is held when it is not, and never the reverse. The profile, which has every
  * message, answers it exactly (replyChannelOfThreads, ourWireOfThreads).
  */
-function replyChannelOfRow(r: PersonRowDto): "whatsapp" | "sms" | "email" | null {
+export function replyChannelOfRow(
+  r: Pick<PersonRowDto, "has_chat" | "last_inbound_channel" | "message_channels">,
+): "whatsapp" | "sms" | "email" | null {
   if (!r.has_chat) return null;
   const last = lastChannelOf(r.last_inbound_channel);
   if (last) return last;
@@ -177,14 +181,21 @@ export interface PersonRowVM {
   lastVisit: string | null;
   /** "Thu, Aug 20" — the day of the last visit, for the row when nothing is ahead. */
   lastVisitDay: string | null;
+  /**
+   * The next / last visit as the one visit line (calendar-words.ts visitLineOf): its day, time, title, how it stands
+   * (Kept, Missed, Past once it has ended), how it was matched and what can be said of it. People's Visits cell and the
+   * Inbox's chip draw these; the flat fields above stay what a list, a sort and a playbook read. Null without a visit.
+   */
+  nextVisitLine: VisitLineVM | null;
+  lastVisitLine: VisitLineVM | null;
   /** WhatsApp's 24-hour window for a free reply: open, and how long is left. Null without a chat. */
   replyWindow: { open: boolean; hoursLeft: number } | null;
   /** The wire a reply goes out on, in words ("Email", "WhatsApp", "Text"); null for a person who has only phoned. */
   replyVia: "WhatsApp" | "Text" | "Email" | null;
   /** Their channels in words, in the order the page shows them: "WhatsApp · Phone", "Email". */
   channelWords: string;
-  /** The booking-link button's words for the wire a reply goes out on (bookingLinkAction). */
-  bookingLinkAction: { label: string; title: string; ready: boolean };
+  /** The booking-link act for them: its words for the wire a reply goes out on, and whether it is offered at all (bookingLinkAction). */
+  bookingLinkAction: BookingLinkAction;
   /** When they last wrote or called, whichever is later. */
   askedMs: number | null;
   /**
@@ -241,6 +252,9 @@ export interface PersonRowVM {
   /** "2026-09-08": the day of the next / last visit by the calendar's own clock — what a day-keyed playbook reads. */
   nextVisitDate: string | null;
   lastVisitDate: string | null;
+  /** The id of the record's row for the next / last visit (VisitDto.record_id), which the Calendar opens it by; null where the record has none. */
+  nextVisitId: string | null;
+  lastVisitId: string | null;
   /**
    * How the calendar found the next / last visit to be theirs, surest first: a number or an address is exact, a name is a
    * guess (calendar-people.ts MatchVia). What a playbook that writes to them judges the visit by (playbook-reach.ts); null
@@ -307,6 +321,61 @@ export function visitTitleFor(title: string, name: string): string {
 }
 
 /**
+ * A visit a person's read carries (VisitDto) as the one visit line every page draws (calendar-words.ts visitLineOf): the
+ * row's next and last, the person page's History, Coming up and Next visit. Its title without the person's own name, its
+ * day by the business's clock, its mark from the record's row (visitMarkOfDto), and the door that opens it on the Calendar.
+ */
+export function visitLineForDto(
+  v: VisitDto,
+  o: { zone: string; nowMs: number; person: { id: string; name: string } },
+): VisitLineVM {
+  return visitLineOf(
+    {
+      id: v.record_id ?? v.id,
+      mark: visitMarkOfDto(v),
+      startMs: Date.parse(v.start),
+      endMs: Date.parse(v.end),
+      title: visitTitleFor(v.title, o.person.name),
+      day: visitDay(v.start, o.zone, o.nowMs),
+      time: visitTime(v, o.zone),
+      person: o.person,
+      via: v.via,
+      to: visitDoor(visitDateKey(v.start, o.zone), v.record_id),
+    },
+    o.nowMs,
+  );
+}
+
+/**
+ * Their next and last visit as the row says them: its day, the line with its title (the person's name taken out), and the
+ * one visit line every page draws (visitLineForDto). Nothing for a side with no visit, or a person with no calendar.
+ */
+function visitWordsOf(
+  v: PersonRowDto["visits"],
+  nowMs: number,
+  person: { id: string; name: string },
+): Pick<PersonRowVM, "nextVisitDay" | "nextVisit" | "nextVisitLine" | "lastVisitDay" | "lastVisit" | "lastVisitLine"> {
+  const said = (d: VisitDto | null | undefined, zone: string) =>
+    d
+      ? {
+          day: visitDay(d.start, zone, nowMs),
+          line: `${visitLine(d, zone, nowMs)} · ${visitTitleFor(d.title, person.name)}`,
+          vm: visitLineForDto(d, { zone, nowMs, person }),
+        }
+      : null;
+  const next = v ? said(v.next, v.timezone) : null;
+  const last = v ? said(v.last, v.timezone) : null;
+  return {
+    nextVisitDay: next?.day ?? null,
+    nextVisit: next?.line ?? null,
+    nextVisitLine: next?.vm ?? null,
+    lastVisitDay: last?.day ?? null,
+    lastVisit: last?.line ?? null,
+    lastVisitLine: last?.vm ?? null,
+  };
+}
+
+/**
  * What a day-keyed playbook reads of a row's visits (playbook-reach.ts): the calendar's day of the next and the last, how
  * each was found to be theirs (a number and an address are exact, a name is a guess: MatchVia), and the calendar's zone;
  * and the whole days since a visit a member said they missed, by the business's calendar (a list's missed_visit). All
@@ -318,7 +387,15 @@ function visitKeysOf(
   tz: string,
 ): Pick<
   PersonRowVM,
-  "nextVisitDate" | "lastVisitDate" | "nextVisitVia" | "lastVisitVia" | "visitDays" | "calendarTz" | "missedVisitDays"
+  | "nextVisitDate"
+  | "lastVisitDate"
+  | "nextVisitId"
+  | "lastVisitId"
+  | "nextVisitVia"
+  | "lastVisitVia"
+  | "visitDays"
+  | "calendarTz"
+  | "missedVisitDays"
 > {
   const near = v ? (v.near ?? [v.last, v.next].filter((x) => x !== null)) : [];
   const missedMs = v?.missed ? Date.parse(v.missed.start) : NaN;
@@ -327,6 +404,8 @@ function visitKeysOf(
     visitDays: v ? near.map((x) => ({ date: visitDateKey(x.start, v.timezone), via: x.via })) : [],
     nextVisitDate: v?.next ? visitDateKey(v.next.start, v.timezone) : null,
     lastVisitDate: v?.last ? visitDateKey(v.last.start, v.timezone) : null,
+    nextVisitId: v?.next?.record_id ?? null,
+    lastVisitId: v?.last?.record_id ?? null,
     nextVisitVia: v?.next?.via ?? null,
     lastVisitVia: v?.last?.via ?? null,
     calendarTz: v?.timezone ?? null,
@@ -372,35 +451,29 @@ function rowReachOf(
 }
 
 /**
- * Where a reply to them goes, its window, and the booking link's words for that wire. Channel-aware: only WhatsApp has a
- * window (policy replyWindow). This read WhatsApp's for everybody, so a person who had only ever emailed was shown
- * "Closed · template only" -- a template they cannot receive, on a wire they have never used. `emailStopped` is whether
- * mail to their address has stopped (rowReachOf's flag): the booking link is not offered by email then.
+ * Where a reply to them goes, its window, and the booking link's act for that wire (person-reach.ts replyReachOf, which the
+ * Calendar's block asks too). Channel-aware: only WhatsApp has a window (policy replyWindow). This read WhatsApp's for
+ * everybody, so a person who had only ever emailed was shown "Closed · template only" -- a template they cannot receive, on
+ * a wire they have never used. `emailStopped` is whether mail to their address has stopped (rowReachOf's flag): the booking
+ * link is not offered by email then. A person who asked to stop, or is on do-not-contact (isOptedOutContact), is offered it
+ * on no wire: the row said "Text the booking link", ready, over a STOP.
  */
 function rowReplyOf(
   r: PersonRowDto,
   now: Date,
   emailStopped: boolean,
+  who: string,
 ): Pick<PersonRowVM, "replyWindow" | "replyVia" | "bookingLinkAction"> {
-  const via = replyChannelOfRow(r);
-  if (!via)
-    return {
-      replyWindow: null,
-      replyVia: null,
-      bookingLinkAction: bookingLinkAction({ via: null, window: null, emailStopped }),
-    };
-  const w = replyWindow(via, r.latest_wa_inbound_at, now);
-  const win = {
-    open: w.open,
-    hoursLeft: w.closesAtIso
-      ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - now.getTime()) / HOUR_MS))
-      : 0,
-  };
-  return {
-    replyWindow: win,
-    replyVia: REPLY_VIA[via],
-    bookingLinkAction: bookingLinkAction({ via: REPLY_VIA[via], window: win, emailStopped }),
-  };
+  return replyReachOf(
+    {
+      wire: replyChannelOfRow(r),
+      waInboundAt: r.latest_wa_inbound_at,
+      emailStopped,
+      optedOut: isOptedOutContact({ consent: r.consent, dnc: r.dnc }),
+      who,
+    },
+    now,
+  );
 }
 
 /** Their thread, their conversation, and whether they are new to the reader, judged against when they last wrote or called. */
@@ -426,6 +499,8 @@ export function toPersonRowVM(
   now = new Date(),
   viewerId: string | null = null,
   ready: ChannelsReady | null,
+  /** The roster, where the page has read it: a teammate's thread says whose it is (person-receptionist.ts heldThreadOf). */
+  names: HolderNames | null = null,
 ): PersonRowVM {
   const nowMs = now.getTime();
   const name = personName(r);
@@ -454,7 +529,8 @@ export function toPersonRowVM(
           ? "a reply is about to send — you can still stop it"
           : "waiting for a person"
       : state === "waiting_on_you"
-        ? [HELD_WORDS.yours.pill.toLowerCase(), theirTurnWords(last)].filter(Boolean).join(", and ")
+        ? // The pill says "You have it" (HELD_WORDS), so the detail adds only whose turn it is.
+          (theirTurnWords(last) ?? "")
         : state === "opted_out"
           ? consent.sub
           : state === "new"
@@ -482,7 +558,7 @@ export function toPersonRowVM(
     stateLabel: PERSON_STATE_LABELS[state],
     stateDetail,
     lastContact: last,
-    receptionist: receptionistOf(r, tz, nowMs, viewerId),
+    receptionist: receptionistOf(r, tz, nowMs, viewerId, names),
     firstContact: first,
     cameFrom: cameFromOf(r),
     consent,
@@ -496,11 +572,8 @@ export function toPersonRowVM(
     needsYouSinceMs: ts(r.open_escalation_since),
     calendar,
     booked,
-    nextVisitDay: v?.next ? visitDay(v.next.start, v.timezone, nowMs) : null,
-    nextVisit: v?.next ? `${visitLine(v.next, v.timezone, nowMs)} · ${visitTitleFor(v.next.title, name)}` : null,
-    lastVisit: v?.last ? `${visitLine(v.last, v.timezone, nowMs)} · ${visitTitleFor(v.last.title, name)}` : null,
-    lastVisitDay: v?.last ? visitDay(v.last.start, v.timezone, nowMs) : null,
-    ...rowReplyOf(r, now, reach.emailSuppressed),
+    ...visitWordsOf(v, nowMs, { id: r.id, name }),
+    ...rowReplyOf(r, now, reach.emailSuppressed, name),
     channelWords: channelsOf(r)
       .map((c) => PERSON_CHANNEL_WORDS[c])
       .join(" · "),

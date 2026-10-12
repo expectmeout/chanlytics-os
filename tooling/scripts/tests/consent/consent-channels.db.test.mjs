@@ -26,7 +26,8 @@ import {
   offersAnswerOf,
   recordWhatsAppOffersStop,
 } from "../../../../packages/db/src/repositories/campaigns/offers-answer.ts";
-import { ingestInbound, recordCarrierOptOut } from "../../../../packages/db/src/repositories/ingest.ts";
+import { ingestInbound } from "../../../../packages/db/src/repositories/ingest.ts";
+import { recordCarrierOptOut } from "../../../../packages/db/src/repositories/campaigns/offers-answer.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const MIGRATION = path.join(ROOT, "supabase", "migrations", "00297_a_yes_covers_the_channels_it_was_given_for.sql");

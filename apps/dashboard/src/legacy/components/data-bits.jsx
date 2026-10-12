@@ -1,5 +1,5 @@
 /* global React */
-// Chanlytics — small reusable bits (sparklines, KPI, stat strips)
+// Chanlytics — small reusable bits (sparklines, stat strips)
 
 const Sparkline = ({ data = [], width = 60, height = 22, stroke = "currentColor" }) => {
   if (!data.length) return null;
@@ -18,21 +18,6 @@ const Sparkline = ({ data = [], width = 60, height = 22, stroke = "currentColor"
         points={points}
       />
     </svg>
-  );
-};
-
-const KPI = ({ label, value, delta, deltaLabel = "vs last week", trend, sparkData }) => {
-  const dir = delta != null ? (delta >= 0 ? "up" : "down") : null;
-  return (
-    <div className="kpi">
-      <div className="kpi-label">{label}</div>
-      <div className="kpi-value">{value}</div>
-      <div className="kpi-meta">
-        {dir && <span className={`delta-${dir}`}>{dir === "up" ? "↑" : "↓"} {Math.abs(delta)}%</span>}
-        <span>{deltaLabel}</span>
-      </div>
-      {sparkData && <Sparkline data={sparkData} stroke="var(--ink-faint)" />}
-    </div>
   );
 };
 
@@ -161,7 +146,7 @@ const usePPToast = () => {
 };
 usePPToast._seq = 0;
 
-Object.assign(window, { Sparkline, KPI, StatStrip, StatCell, usePPToast });
+Object.assign(window, { Sparkline, StatStrip, StatCell, usePPToast });
 
 // Shared hotkey hook (CLAUDE.md): suppress-while-typing is handled here.
 // matcher(e, typing) -> true means preventDefault + handler(e).
@@ -197,7 +182,7 @@ const trapTab = (e, box) => {
   if (e.shiftKey && (at === first || at === box)) { e.preventDefault(); last.focus(); }
   else if (!e.shiftKey && at === last) { e.preventDefault(); first.focus(); }
 };
-Object.assign(window, { trapTab, tabStops: tabStopsIn, propsWithout: (props, keys) => Object.fromEntries(Object.entries(props).filter(([k]) => !keys.includes(k))) });
+Object.assign(window, { trapTab, tabStops: tabStopsIn });
 
 // ---- A dialog holds focus while it is open ----
 // trapFocus(box): focus goes into the dialog (the box itself, so a phone's keyboard stays down), Tab stays inside it
@@ -824,13 +809,6 @@ window.PR_STORE = window.PR_STORE || {
   setAway(v) { this.away = v; this._emit(); },
   setTransfers(v) { this.transfers = v; this._emit(); },
 };
-// Presence refuses the way a role does: the same props, the same reachable reason.
-window.transferGate = () => {
-  const P = window.PR_STORE;
-  if (P && P.away) return gatedProps("You're Away — agents use the holding line + async approval");
-  if (P && !P.transfers) return gatedProps("Transfers off — callers get the holding line");
-  return {};
-};
 
 // ---- Workspace policy (charter matrix) — single source; Settings edits it, Fleet reads it ----
 window.POLICY = window.POLICY || {
@@ -878,7 +856,7 @@ Object.assign(window, { refusalToast, trapFocus, dialogRef, keyPress });
 
 // ---- Tip — one styled tooltip for every [data-tip] element (hover + keyboard focus) ----
 (() => {
-  if (window.__uiTip) return;
+  if (window.__tip) return;
   let node = null, showT = null, hideT = null, lastHide = 0, cur = null;
   const ensure = () => {
     if (!node) { node = document.createElement("div"); node.className = "ui-tip"; node.setAttribute("role", "tooltip"); document.body.appendChild(node); }
@@ -933,5 +911,4 @@ Object.assign(window, { refusalToast, trapFocus, dialogRef, keyPress });
   // A pressed gate shows its reason at once, at the control: a tap has no hover,
   // and the press's own mousedown has just hidden whatever the hover began.
   window.__tip = { show: (t) => { if (!t || !t.getAttribute || !t.getAttribute("data-tip")) return; cur = t; clearTimeout(showT); clearTimeout(hideT); place(t); } };
-  window.__uiTip = true;
 })();

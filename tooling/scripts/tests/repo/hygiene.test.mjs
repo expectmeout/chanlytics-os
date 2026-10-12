@@ -89,15 +89,16 @@ test("F48: one person's profile reads one person's rows; the metrics CTEs are no
   assert.ok(sql.includes("and k.status <> 'not_connected'"));
 });
 
-test("F51: a cross-site GET of the workspaces reads and writes nothing", () => {
+test("F51: a GET of the workspaces reads and writes nothing, from any site (a read never writes: decision 0047, lane 6)", () => {
   const route = readCode(
     "apps/dashboard/app/api/v1/workspaces/route.ts",
     "apps/dashboard/src/server/workspace/workspace-list.ts",
   );
-  // The lookup and the acceptance both wait on the request being the app's own: a cross-site read reads no invitation.
-  assert.ok(route.includes("const invited = isSameOrigin(_req) ? openInvitesFor(email ?? null) : null;"));
-  assert.ok(route.includes("if (invited && (await acceptOpenInvites(userId, email ?? null, invited)) > 0) {"));
-  assert.ok(route.includes('from "@/server/request-guards"'));
+  // F51 kept the acceptance of an invitation from running on a cross-site read, by looking at the request's origin. The
+  // acceptance is its own POST now, which the app's write guard holds to the app's own origin (with-route.ts, held by
+  // auth/auth-gate.test.mjs), so the list has no origin to look at and no invitation to look up.
+  assert.ok(!route.includes("acceptOpenInvites") && !route.includes("openInvitesFor"));
+  assert.ok(!route.includes("isSameOrigin") && !route.includes('from "@/server/request-guards"'));
 });
 
 test("F15: the list route ships each turn's start and end, not every word's timing, and the viewers read either", () => {

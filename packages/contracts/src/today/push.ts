@@ -1,4 +1,4 @@
-import type { ServerNotificationKind } from "./notifications";
+import type { NotificationsDto, ServerNotificationKind } from "./notifications";
 import { MIN_MS } from "../shared/time";
 
 /** Where a phone can be one of ours. Held to push_devices.platform (schema-sets.ts). */
@@ -131,7 +131,7 @@ export interface PushTarget {
 /**
  * The bell's number, by the bell's own rule (notifications.ts serverNotificationRows): kept rows of the window newer
  * than the person's seen moment, not marked read or dismissed by them. The edge counts it per reader before a push
- * and the page counts it on every bell change; both must agree, so both count here.
+ * and the page counts it (keptUnreadOf) as the phone app's icon; both must agree, so both count here.
  */
 export function unreadFor(
   rows: readonly { id: string; created_at: string }[],
@@ -141,6 +141,27 @@ export function unreadFor(
   const seen = seenAt ? Date.parse(seenAt) : 0;
   const gone = new Set(marks.filter((m) => m.read_at || m.dismissed_at).map((m) => m.notification_id));
   return rows.filter((r) => Date.parse(r.created_at) > seen && !gone.has(r.id)).length;
+}
+
+/**
+ * The number on the phone app's icon, as the page holds the bell's kept rows (GET notifications: the window's rows, each
+ * with this person's marks, and their seen moment): `unreadFor` over them, the rule the edge counts by before a push. The
+ * page posted the bell's whole count, which also counts the rows it derives itself (a thread that needs you, a held
+ * draft, a missed call, an invitation) and the edge cannot, so the icon read 2 with the app closed and 5 once it was open
+ * (D1-phone-badge). `seenMs` is a later seen moment this device holds, a Mark all read the re-read has not brought back.
+ */
+export function keptUnreadOf(dto: NotificationsDto | null | undefined, seenMs = 0): number {
+  if (!dto) return 0;
+  const seen = Math.max(seenMs, (dto.seen_at ? Date.parse(dto.seen_at) : 0) || 0);
+  return unreadFor(
+    dto.notifications,
+    seen > 0 ? new Date(seen).toISOString() : null,
+    dto.notifications.map((n) => ({
+      notification_id: n.id,
+      read_at: n.read ? n.created_at : null,
+      dismissed_at: n.dismissed ? n.created_at : null,
+    })),
+  );
 }
 
 /**

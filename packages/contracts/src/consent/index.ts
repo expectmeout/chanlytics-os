@@ -9,6 +9,7 @@ export {
   purposeOfPlaybook,
   OPT_OUT_REFUSAL,
   optOutWords,
+  STOP_WORDS,
   stopRequestQuestion,
   DELIVERY_REFUSALS,
   PURPOSE_REFUSALS,
@@ -62,3 +63,5 @@ export { yesAsked, consentGuardWords, consentRuleWords } from "./consent-asks";
 export type { YesAsk } from "./consent-asks";
 export { offerUnsubscribeWords, STOP_ALL_REFUSALS } from "./offers-unsubscribe";
 export type { OfferUnsubscribeView, OfferPageWords, OfferPageButton } from "./offers-unsubscribe";
+export { optOutOf, optOutNotice } from "./opt-out-notice";
+export type { OptOutHow, OptOutSaid, OptOutPerson } from "./opt-out-notice";

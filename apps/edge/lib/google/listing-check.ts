@@ -6,14 +6,21 @@
  */
 import { emitEvent } from "../packages/db.js";
 import { planListingCheck, publicFetcher, type PlaceDetails } from "../packages/channels.js";
-import { bookingPageKept, lensRoute, listingFactsOf, localDate, HOUR_MS } from "../packages/contracts.js";
+import { bookingPageKept, listingFactsOf, localDate, HOUR_MS } from "../packages/contracts.js";
 import { siteBookingPage } from "./booking-page.js";
 import { keepAndPush } from "../ops/notify.js";
 import { logger } from "../log.js";
 import { readAllRows } from "../paged.js";
 import { placesKey } from "./google-config.js";
 import { readPlace } from "./places.js";
-import { connectionOf, type ConnectionRow, type Db, type ListingRow } from "./google-rows.js";
+import {
+  aboutReview,
+  connectionOf,
+  reviewRowIds,
+  type ConnectionRow,
+  type Db,
+  type ListingRow,
+} from "./google-rows.js";
 
 export type CheckResult =
   { ok: true; fresh: number; counted: number; answered?: number } | { ok: false; error: string };
@@ -121,14 +128,18 @@ export async function checkListing(
     );
     if (reviews.error) throw new Error(reviews.error.message);
   }
-  // A new review reaches the phones too (decision 0040).
+  // A new review reaches the phones too (decision 0040), about the review's row and opening it (contracts reviewRoute).
+  const rowIds = await reviewRowIds(
+    db,
+    row.tenant_id,
+    plan.bells.flatMap((b) => (b.review_id ? [b.review_id] : [])),
+  );
   for (const b of plan.bells) {
     await keepAndPush(row.tenant_id, {
       kind: "review",
       title: b.title,
       body: b.body,
-      route: lensRoute("reviews"),
-      about: b.review_id ? { type: "review", id: b.review_id } : null,
+      ...aboutReview(rowIds, b.review_id),
     });
   }
   if (plan.fresh.length || plan.counted) {

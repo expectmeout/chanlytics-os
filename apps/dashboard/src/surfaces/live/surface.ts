@@ -7,6 +7,7 @@ import { read } from "@/legacy-bridge/api";
 import { workspaceZone } from "@/legacy-bridge/zone";
 import { toLiveVM, type LiveVM } from "@chanlytics/contracts";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
+import { declareReads } from "@/legacy-bridge/surface-registry";
 import { declareSurfaceValue, setSurfaceValue } from "../surface-values";
 
 /** The phone line right now: the calls in progress and the ones that just ended, with the line's number and switch. */
@@ -29,10 +30,19 @@ export const liveOverride: SurfaceOverride = {
   key: "live",
   globals: [],
   events: ["surface:live"],
-  // Calls only: a transcript turn is a calls UPDATE and nothing else needs
-  // to repaint for it; the note a call leaves in the thread is a messages
-  // INSERT the default surfaces already follow.
-  refreshOnTables: ["calls"],
+  // The calls, and the line's own row: a transcript turn is a calls UPDATE and nothing else needs to repaint for it; the
+  // note a call leaves in the thread is a messages INSERT the default surfaces already follow. The number and its on/off
+  // switch come from tenant_channels, which Setup hears: a line connected or switched off elsewhere is heard here too.
+  ...declareReads("live", {
+    reads: ["call", "channel"],
+    fresh: "live",
+    omit: [
+      {
+        tables: ["lines", "mailboxes", "sending_domains", "capability_activations", "business_records"],
+        why: "it draws the line's number and its switch (tenant_channels); a line's saga, a mailbox, a domain, an activation and the carriers' record are not among them",
+      },
+    ],
+  }),
   debounceMs: 300,
   apply: async () => {
     const [callsRes, chRes, tz] = await Promise.all([

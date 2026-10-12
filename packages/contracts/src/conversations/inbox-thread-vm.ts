@@ -3,6 +3,7 @@
  * mapping that builds it is inbox-thread.ts.
  */
 import type { ReplyWhyVM } from "../config/brain";
+import type { HoldAct } from "./escalations";
 import type { MediaVM } from "./message-media";
 
 /* ---- Inbox ThreadVM (Blueprint §7): escalations + conversations mapped into
@@ -16,6 +17,11 @@ export interface InboxThreadVM {
   /** The contact behind the thread — where "Open client" goes now that People is real. */
   clientId: string | null;
   escalationId: string | null;
+  /**
+   * What a person does about the open hold, by its reason (escalations.ts holdActOf): reply, call back, or hand back
+   * (nothing may be sent). The band offers the verb that act names; null where no hold is open.
+   */
+  holdAct?: HoldAct | null;
   windowOpen: boolean;
   /** The customer asked to stop receiving messages. Stronger than a closed
    *  24h window: an approved template can't reach them either. */

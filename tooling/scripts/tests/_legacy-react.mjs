@@ -16,10 +16,11 @@
  * this runner's react-server condition has none: the same stub is set on that module object, so its own calls reach the
  * stub the legacy pages call, and one tree holds both. Its elements come from the global React its JSX compiles to.
  *
- * The kit's components the shell's pages still draw by name (EmptyState, FailedRead, SegmentBar, StatePill, Confirm,
- * MoreMenu, PolicyChip, TlMedia, AttnRow, FieldError and the record kit: surfaces/kit/kit-globals.ts, which the app publishes
- * from seed-globals) are the kit's own here too. `Icon` stays the host element every test reads by its name and its props: a
- * page's icon is a leaf here, as it was, and the kit's own components draw the real one.
+ * The kit's components the shell's pages still draw by name (FailedRead, SegmentBar, StatePill, Confirm, MoreMenu,
+ * PolicyChip and the bell's RecordSwitch: surfaces/kit/kit-globals.ts, which the app publishes from seed-globals), and the
+ * parts the tests alone reach by name (`kitParts` below: the record kit, EmptyState, FieldError, TlMedia, AttnRow ...) are
+ * the kit's own here too. `Icon` stays the host element every test reads by its name and its props: a page's icon is a
+ * leaf here, as it was, and the kit's own components draw the real one.
  *
  * Not named *.test.mjs on purpose: the runner globs that pattern.
  */
@@ -35,6 +36,30 @@ const requireFromDashboard = createRequire(
   path.join(path.dirname(fileURLToPath(import.meta.url)), "../../../apps/dashboard/src/legacy-bridge/_.js"),
 );
 const reactModule = requireFromDashboard("react");
+// The rule that only one fold is open, as the pages hold it: tsx loads the dashboard's TSX as CommonJS, so a page's import of
+// it is a require, and an ESM import of it from here would be a second registry the pages never write to.
+const { recFolds } = requireFromDashboard("../surfaces/kit/record/registry.ts");
+// The kit's parts the tests reach by name, from the same modules the pages require (above): a test finds them in the tree by type.
+const { AgendaItem, AgendaItems, AgendaOpen } = requireFromDashboard("../surfaces/kit/agenda/agenda.tsx");
+const { AttnRow } = requireFromDashboard("../surfaces/kit/attention/attn-row.tsx");
+const { EmptyState } = requireFromDashboard("../surfaces/kit/empty/empty.tsx");
+const { FieldError } = requireFromDashboard("../surfaces/kit/field-error/field-error.tsx");
+const { TlMedia } = requireFromDashboard("../surfaces/kit/media/tl-media.tsx");
+const { RecordCombobox } = requireFromDashboard("../surfaces/kit/record/combobox.tsx");
+const { RecordBox, RecordField, RecordTip, RecordTipCard, RecordToggleGroup } = requireFromDashboard(
+  "../surfaces/kit/record/field.tsx",
+);
+const { RecordFold } = requireFromDashboard("../surfaces/kit/record/fold.tsx");
+const { recKeys, recPhoneQuery, useRecFocusHold, useRecFocusOn } = requireFromDashboard(
+  "../surfaces/kit/record/focus.ts",
+);
+const { useRecordFold } = requireFromDashboard("../surfaces/kit/record/hooks.ts");
+const { RecordInline } = requireFromDashboard("../surfaces/kit/record/inline.tsx");
+const { recPortalRoot } = requireFromDashboard("../surfaces/kit/record/leaving.ts");
+const { RecordChips, RecordDispute, RecordRow } = requireFromDashboard("../surfaces/kit/record/row.tsx");
+const { RecordFoot, RecordSays } = requireFromDashboard("../surfaces/kit/record/says.tsx");
+const { RecordSheet } = requireFromDashboard("../surfaces/kit/record/sheet.tsx");
+const { UnsavedAsk, tabDraft, useUnsavedWork } = requireFromDashboard("../surfaces/kit/record/work.tsx");
 // React.memo as the identity, before any TSX that calls `memo(Row)` at its top loads (People's table rows, through the
 // import below): a memo object is a leaf, not a component, in the trees the tests read, and the stub React draws function
 // components. The stub draws every row every time, as it always has; what the memo saves is proved by what the row is
@@ -43,12 +68,62 @@ reactModule.memo = (component) => component;
 const { PEOPLE_GLOBALS } = await import("../../../apps/dashboard/src/surfaces/people/people-globals.ts");
 
 /**
- * The kit's components the pages still draw by name, for a page test that builds its own window: what seed-globals
- * publishes in the app (surfaces/kit/kit-globals.ts), less `Icon`, which is the host element "Icon" in these trees.
- * `Object.assign(globalThis.window, kitPages)` after the page's stub React is in place, and `useStubHooks()` when the
- * test keeps a stub React of its own (the kit's components take their hooks from the react module, which has none here).
+ * The kit's parts the node tests reach by name and no shipped page reads off `window`: the app does not publish them (the
+ * sweep of 11 October 2026 took the names down), the TSX that draws them imports them, and a test that draws one on its own,
+ * or draws a page that does, finds it here. The record kit (the row, the fields, the fold, the inline editor, the sheet), the
+ * fold registry (`__recordFolds`) and the rail's two answers, the unsaved-work rule, the empty state, the field error, a
+ * thread's media, the attention row and the agenda's rows.
  */
-export const kitPages = Object.fromEntries(Object.entries(KIT_GLOBALS).filter(([name]) => name !== "Icon"));
+export const kitParts = {
+  EmptyState,
+  FieldError,
+  TlMedia,
+  AttnRow,
+  AgendaItem,
+  AgendaItems,
+  AgendaOpen,
+  RecordRow,
+  RecordDispute,
+  RecordChips,
+  RecordField,
+  RecordBox,
+  RecordToggleGroup,
+  RecordCombobox,
+  RecordTip,
+  RecordTipCard,
+  recPhoneQuery,
+  recPortalRoot,
+  RecordFold,
+  RecordInline,
+  RecordSays,
+  RecordFoot,
+  useRecordFold,
+  useRecFocusHold,
+  useRecFocusOn,
+  recKeys,
+  useUnsavedWork,
+  UnsavedAsk,
+  tabDraft,
+  RecordSheet,
+  /** The rule that only one fold is open, which the pages ask by its id. */
+  __recordFolds: recFolds,
+  /** The Settings rail's question before it replaces a pane: does anything hold unsaved changes? The open fold answers. */
+  __settingsUnsaved: () => recFolds.dirty() || recFolds.saving(),
+  /** A fold's save is out: the rail asks in other words, since "Leave without saving?" is untrue of a change on its way. */
+  __settingsSaving: () => recFolds.saving(),
+};
+
+/**
+ * The kit's components the pages still draw by name, for a page test that builds its own window: what seed-globals
+ * publishes in the app (surfaces/kit/kit-globals.ts), less `Icon`, which is the host element "Icon" in these trees, and
+ * `kitParts` beside them. `Object.assign(globalThis.window, kitPages)` after the page's stub React is in place, and
+ * `useStubHooks()` when the test keeps a stub React of its own (the kit's components take their hooks from the react
+ * module, which has none here).
+ */
+export const kitPages = {
+  ...Object.fromEntries(Object.entries(KIT_GLOBALS).filter(([name]) => name !== "Icon")),
+  ...kitParts,
+};
 
 /**
  * People's shared parts the pages that have not moved still draw or call by name (the table and its Columns menu, the rail
@@ -295,6 +370,7 @@ export function installLegacyReact(extra = {}) {
       cells.list[k] = {
         deps: null,
         effect: true,
+        store: true,
         cleanup: subscribe(() => {
           cells.wanted = true;
         }),
@@ -317,6 +393,9 @@ export function installLegacyReact(extra = {}) {
 
 /** A new tree: every hook cell and every listener forgotten. */
 export function fresh() {
+  // A new tree: the old one's subscriptions to a store outside React go with it, as React lets them go on unmount, so a
+  // component drawn before is not still heard asking to be drawn again.
+  for (const c of Object.values(cells.list)) if (c && c.store && typeof c.cleanup === "function") c.cleanup();
   cells.list = {};
   frames.reset();
   cells.wanted = false;

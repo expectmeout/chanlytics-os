@@ -8,8 +8,9 @@
  * what it can without it (the email and the browser) and offers no phone tick.
  */
 import type { MemberAlertsDto } from "@chanlytics/contracts";
-import { readAged, type SurfaceOverride } from "@/legacy-bridge/surface-data";
+import { ON_DEMAND_STALE_MIN, readAged, type SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { read } from "@/legacy-bridge/api";
+import { declareReads } from "@/legacy-bridge/surface-registry";
 import { setSurfaceValue, surfaceValue } from "../../surface-values";
 
 export interface AlertsSurface {
@@ -23,6 +24,9 @@ export const alertsOverride: SurfaceOverride = {
   onDemand: true,
   isStale: () => readAged(surfaceValue("alerts")?.fetchedAt),
   events: ["surface:alerts"],
+  // A member's own choices and phones: no record of the workspace's, so the feed tells it nothing. Read where the pane is drawn,
+  // and again when what it holds has aged; the pane's own verbs publish what they change.
+  ...declareReads("alerts", { reads: [], fresh: { aged: ON_DEMAND_STALE_MIN } }),
   apply: async () => {
     try {
       const d = await read("GET me/alerts");

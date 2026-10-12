@@ -488,7 +488,7 @@ function stuckFiguresOf(stuck: CampaignStuckNowDto, tz: string, nowMs: number): 
       ...figure,
       id: "replies-waiting",
       metric: "campaign_replies_waiting",
-      label: "Replies waiting on you",
+      label: "Replies that need you",
       value: stuckValue(replies.n, replies.capped),
       meta: replies.n === 0 ? REPLIES_NONE : REPLIES_WAITING,
       door: "inbox",

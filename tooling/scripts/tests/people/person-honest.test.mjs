@@ -629,6 +629,35 @@ test("REGRESSION (B26): a row's visit opens that day on the Calendar -- a press 
   assert.deepEqual(went, [`calendar/${toPersonRowVM(dto, ZONE, new Date()).nextVisitDate}`]);
 });
 
+test("(A1, D1) a row's visit opens the visit itself when the record has a row for it, not only its day", async () => {
+  const dto = row({ visits: { ...VISITS, next: { ...NEXT, record_id: "r-next" } } });
+  const draw = await peoplePage([dto]);
+  const tree = draw();
+  press(byTestId(tree, "row-visit-open"));
+  const day = toPersonRowVM(dto, ZONE, new Date()).nextVisitDate;
+  assert.deepEqual(went, [`calendar/${day}:a-r-next`], "the Calendar opens the visit's panel on its day");
+});
+
+test("(D1-visit-mark) a row's visit says how it stands beside its day -- Past once it has ended and nobody has marked it, the member's word once said, nothing while it is ahead", async () => {
+  const LAST = { id: "b0:1", start: iso(3 * D), end: iso(3 * D - 2 * H), title: "Color", all_day: false, via: "phone" };
+  const stateOf = async (visits) => {
+    const draw = await peoplePage([row({ visits })]);
+    const state = byTestId(draw(), "row-visit-state");
+    return state ? textOf(state) : null;
+  };
+  assert.equal(
+    await stateOf({ ...VISITS, next: null, last: LAST }),
+    "Past",
+    "it ended and nobody said: where the cell said only its day",
+  );
+  assert.equal(
+    await stateOf({ ...VISITS, next: null, last: { ...LAST, said: "kept", record_id: "r-last" } }),
+    "Kept",
+    "a member's word on it",
+  );
+  assert.equal(await stateOf(VISITS), null, "a visit ahead has no word yet");
+});
+
 test("REGRESSION (B15): the bulk bar's receptionist menu uses the one set of words -- it said Answer them and Stay out", async () => {
   const draw = await peoplePage([
     row(),
@@ -813,6 +842,19 @@ test("REGRESSION (B26): the profile's next visit opens that day on the Calendar 
   assert.ok(open, "the next visit is a door");
   press(open);
   assert.deepEqual(went, [`calendar/${toPersonRowVM(row({ visits: VISITS }), ZONE, new Date(NOW)).nextVisitDate}`]);
+});
+
+test("(A1, D1) the profile's next visit opens the visit itself when the record has a row for it, and says so", async () => {
+  const next = { ...NEXT, record_id: "r-next" };
+  const withRow = row({ visits: { ...VISITS, next } });
+  const draw = await profile(
+    toPersonVM(detail({ row: withRow, visits: { ...VISITS, next, all: [next] } }), ZONE, new Date(NOW)),
+  );
+  const open = byTestId(draw(), "fact-next-visit");
+  assert.ok(open, "the next visit is a door");
+  assert.ok(textOf(open).includes("Open the appointment"), `it says what it opens: ${textOf(open)}`);
+  press(open);
+  assert.deepEqual(went, [`calendar/${toPersonRowVM(withRow, ZONE, new Date(NOW)).nextVisitDate}:a-r-next`]);
 });
 
 test("REGRESSION (B18): a list chip on a profile opens its list -- the name was text", async () => {
@@ -2452,7 +2494,7 @@ test("where only an approved message can reach them, the card's follow-up opens 
   }
 });
 
-test("the page reads the person again when a deal of theirs is recorded in the sheet, and not for anyone else's", async () => {
+test("the page reads the person again when People lands or changes, which a deal recorded in the sheet or a step saved is read with; the sheets' own events read nothing (0047)", async () => {
   const vm = withDeals([dealRow()]);
   const draw = await profile(vm);
   draw();
@@ -2460,12 +2502,54 @@ test("the page reads the person again when a deal of theirs is recorded in the s
   // Counted from here: drawing the page is not what is being proved.
   const reads = () => took("GET", "/api/v1/contacts/p1").length;
   const drawn = reads();
-  globalThis.window.dispatchEvent({ type: "deal:recorded", detail: { personId: "someone-else" } });
-  await settle();
-  assert.equal(reads() - drawn, 0);
+  // The sheets say `deal:recorded` (the Pipeline's focus) and nothing of a note: neither reads the page, for anyone.
   globalThis.window.dispatchEvent({ type: "deal:recorded", detail: { personId: "p1" } });
+  globalThis.window.dispatchEvent({ type: "note:saved", detail: { personId: "p1" } });
   await settle();
-  assert.equal(reads() - drawn, 1, "their page is read again");
+  assert.equal(reads() - drawn, 0, "REGRESSION: a window event the sheets once said read the page a second time");
+  globalThis.window.dispatchEvent({ type: "surface:clients" });
+  await settle();
+  assert.equal(reads() - drawn, 1, "People landing or changing reads their page again, once");
+});
+
+test("the page reads the person again when the Inbox or Conversations shows a message or call of theirs newer than the page holds, and not for anyone else's (N1)", async () => {
+  // People re-reads a message only while its own list is on screen (#1347), and a person's page is another route: a customer who
+  // answered while their page was open changed nothing on it. The Inbox and Conversations are read for every message, so the page
+  // hears them and reads its one person: never People's list.
+  const vm = toPersonVM(detail(), ZONE, new Date(NOW));
+  const held = vm.lastContact.ts;
+  assert.ok(held, "the person was last heard from at a moment the page holds");
+  const keep = [surfaceValue("inbox"), surfaceValue("conversations")];
+  try {
+    const draw = await profile(vm);
+    draw();
+    await settle();
+    const reads = () => took("GET", "/api/v1/contacts/p1").length;
+    const drawn = reads();
+    const told = async (type) => {
+      globalThis.window.dispatchEvent({ type, detail: {} });
+      await settle();
+    };
+    setSurfaceValue("inbox", { THREADS: [{ clientId: "someone-else", lastAtMs: held + 60_000 }] });
+    await told("surface:inbox");
+    assert.equal(reads() - drawn, 0, "someone else wrote");
+    setSurfaceValue("inbox", { THREADS: [{ clientId: "p1", lastAtMs: held }] });
+    await told("surface:inbox");
+    assert.equal(reads() - drawn, 0, "nothing newer than the page holds");
+    setSurfaceValue("inbox", { THREADS: [{ clientId: "p1", lastAtMs: held + 60_000 }] });
+    await told("surface:inbox");
+    assert.equal(reads() - drawn, 1, "they wrote: their page is read again");
+    await told("surface:inbox");
+    await told("surface:conversations");
+    assert.equal(reads() - drawn, 1, "and the same message, told by the next read, is not read twice");
+    setSurfaceValue("conversations", { CONVERSATIONS: [{ clientId: "p1", ts: held + 120_000 }] });
+    await told("surface:conversations");
+    assert.equal(reads() - drawn, 2, "they phoned: read again");
+    assert.equal(took("GET", "/api/v1/contacts").length, 0, "and People's list is not read for it");
+  } finally {
+    setSurfaceValue("inbox", keep[0]);
+    setSurfaceValue("conversations", keep[1]);
+  }
 });
 
 /* ------------------------------ the card's settings, one line each (canvas A, step 2) ------------------------------ */
@@ -3084,8 +3168,9 @@ test("a note may have a day (0007, amended): a day makes it a step and holds Tea
 test("a deal's card says its next step (0007, amended): Next, what, when, for whom, with Done and, for its author, Change; with none, Set a next step; a viewer only reads it", async () => {
   const sent = [];
   const asked = [];
-  // What the window was told a step was saved (the page reads them again on it).
-  const heard = () => dispatched.filter((e) => e.type === "note:saved").map((e) => e.detail);
+  // What the window was told of a step: a done says nothing of its own when it lands (the write's refresh reads People behind it, and
+  // the page follows People), and says People moved where the door refused it, as nothing is read for a write that was not made.
+  const heard = (from) => dispatched.slice(from).filter((e) => e.type === "note:saved" || e.type === "surface:clients");
   const keep = { sheet: globalThis.window.openStepSheet, me: globalThis.window.__ME };
   recordingNotes(sent);
   // The card asks the shell's step sheet, which the frame draws once: here, a stand-in that says it was asked.
@@ -3115,6 +3200,7 @@ test("a deal's card says its next step (0007, amended): Next, what, when, for wh
     assert.match(textOf(step), new RegExp(`^${S.next}`));
     assert.match(textOf(step), /For Sam/);
     // A second press while the first is on its way reaches the door once: the first answers for both.
+    const told = dispatched.length;
     press(byTestId(step, "person-deal-nextstep-done"));
     press(byTestId(step, "person-deal-nextstep-done"));
     await settle();
@@ -3123,7 +3209,24 @@ test("a deal's card says its next step (0007, amended): Next, what, when, for wh
       [["done", "p1", { note_id: "n-soon", done: true, version: 1 }]],
       "one press, however many",
     );
-    assert.deepEqual(heard().at(-1), { personId: "p1" }, "the page reads them again");
+    assert.deepEqual(
+      heard(told),
+      [],
+      "a done the door took says nothing: People is read behind it and the page follows",
+    );
+    // A done the door refused (the step moved since the page read it): nothing was written, so nothing is read behind it, and the
+    // page says People moved so that it is read again and the next press has the step as it now is.
+    const taken = world.answers["POST /api/v1/contacts/p1/notes/done"];
+    world.answers["POST /api/v1/contacts/p1/notes/done"] = () => refused(409, "Someone changed this step.", "conflict");
+    const refusedAt = dispatched.length;
+    press(byTestId(step, "person-deal-nextstep-done"));
+    await settle();
+    assert.deepEqual(
+      heard(refusedAt).map((e) => e.type),
+      ["surface:clients"],
+      "a refused done reads the page again",
+    );
+    world.answers["POST /api/v1/contacts/p1/notes/done"] = taken;
     press(byTestId(step, "person-deal-nextstep-change"));
     assert.deepEqual(asked.at(-1), { personId: "p1", noteId: "n-soon" });
 

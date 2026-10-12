@@ -7,11 +7,43 @@
  * contracts' mayMessageFor, which reads what these keep.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { WHATSAPP_CONSENT_SOURCE } from "@chanlytics/contracts";
+import { CARRIER_CONSENT_SOURCE, WHATSAPP_CONSENT_SOURCE } from "@chanlytics/contracts";
 import type { Database } from "../../database.types";
-import { recordCarrierOptOut } from "../ingest";
 
 type Db = SupabaseClient<Database>;
+
+/**
+ * A no the carrier reported instead of relaying: a text refused with Twilio
+ * 21610, the person having replied STOP to the number before we heard (the
+ * STOP went to the carrier, or came before the line's webhook pointed here).
+ * The number is unreachable whatever our row says (contracts enums.ts, the
+ * carriers' words), so the row is brought to agree with the carrier THE WAY
+ * ingest_inbound records a STOP it did hear: the three consent columns
+ * together, dnc with them, and one contact.consent_changed row -- the carrier
+ * as its source, since there is no message of theirs to name -- in one
+ * transaction, through the one door a provider's stop is recorded by
+ * (record_provider_stop, 00383). It used to be two writes on two requests,
+ * and an event that was lost left the history silent and the channels the
+ * answer covered (00297's trigger reads the event) stale. A person already
+ * opted out, or erased, is left as they are with no second ledger row, and
+ * the door answers false. A write that fails THROWS, as the inbound door's does (ingest.ts):
+ * the door reports the send as it reports any wire it could not write, rather
+ * than a no going unrecorded under a refusal that says it was.
+ */
+export async function recordCarrierOptOut(
+  db: Db,
+  p: { tenantId: string; contactId: string; channel: "sms" },
+): Promise<boolean> {
+  const { data, error } = await db.rpc("record_provider_stop", {
+    p_tenant_id: p.tenantId,
+    p_contact_id: p.contactId,
+    p_purpose: "conversational",
+    p_channel: p.channel,
+    p_source: CARRIER_CONSENT_SOURCE,
+  });
+  if (error) throw new Error(`recording the carrier's opt-out for contact ${p.contactId}: ${error.message}`);
+  return data === true;
+}
 
 /**
  * One person's answer about offers and how it was given (contacts.marketing_consent and its source), or null where

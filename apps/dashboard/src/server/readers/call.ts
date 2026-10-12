@@ -1,5 +1,5 @@
 import "server-only";
-import { AppError, callerName, personName, type CallDto } from "@chanlytics/contracts";
+import { AppError, addressOf, callerName, personName, type CallDto } from "@chanlytics/contracts";
 import { CALL_COLUMNS, toCallDto } from "../dto";
 import { requireUuid } from "../request-guards";
 import { stamp, type Reader, type RowRef } from "./index";
@@ -29,12 +29,14 @@ export const call: Reader<{ id: string }, { call: CallDto }> = {
     if (error) throw new Error(error.message);
     if (!data) throw new AppError("not_found", "Call not found.", 404);
     const dto = toCallDto(data);
-    const rows: RowRef[] = [{ kind: "call", id: dto.id, route: `conversations/cv-${dto.id}`, label: callerName(dto) }];
+    const rows: RowRef[] = [
+      { kind: "call", id: dto.id, route: addressOf({ kind: "call", id: dto.id }), label: callerName(dto) },
+    ];
     if (dto.contact_id) {
       rows.push({
         kind: "person",
         id: dto.contact_id,
-        route: `clients/${dto.contact_id}`,
+        route: addressOf({ kind: "person", id: dto.contact_id }),
         label: personName(dto.contact),
       });
     }

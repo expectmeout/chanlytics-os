@@ -1,4 +1,4 @@
--- 00408 · A page says where its time went.
+-- 00412 · A page says where its time went.
 --
 -- Decision 0053. 00255 kept the browser's five numbers for each page load, named for the page the load landed on. They
 -- said how fast a document was, and nothing of what a person waits for inside the app: a move from Today to the
@@ -45,17 +45,17 @@ alter table public.page_vitals add constraint page_vitals_detail_check
   check (jsonb_typeof(detail) = 'object' and pg_column_size(detail) <= 2048);
 
 comment on table public.page_vitals is
-  'Field data (00255, 00408): one row per metric per page load or move, under its own id; the page it is of, a part of it, the page a move left, whether it drew held rows, the device, the build, and what the time went on. The metrics are the browser''s five (LCP, INP, CLS, FCP, TTFB) and the shell''s two (READY, SETTLED), in ms but for CLS. No person, no workspace. Kept thirty days.';
-comment on column public.page_vitals.part is 'The part of the page a READY is of (`queue`, `table`); null for the page itself (00408).';
-comment on column public.page_vitals.came_from is 'The page a move left; null for a page load; the page itself for a move inside it (00408).';
-comment on column public.page_vitals.warm is 'Whether what it drew was already held when it began: the tab''s cache, a view held (00408).';
-comment on column public.page_vitals.device is 'desk, or phone at the kit''s one phone width and under (00408).';
-comment on column public.page_vitals.build is 'The deploy the page ran: its sha''s first twelve, or dev (00408).';
-comment on column public.page_vitals.detail is 'What the time went on: a read''s route and its server and database time, a chunk, an element''s test id, a phase. Never a person or anything they wrote (00408).';
+  'Field data (00255, 00412): one row per metric per page load or move, under its own id; the page it is of, a part of it, the page a move left, whether it drew held rows, the device, the build, and what the time went on. The metrics are the browser''s five (LCP, INP, CLS, FCP, TTFB) and the shell''s two (READY, SETTLED), in ms but for CLS. No person, no workspace. Kept thirty days.';
+comment on column public.page_vitals.part is 'The part of the page a READY is of (`queue`, `table`); null for the page itself (00412).';
+comment on column public.page_vitals.came_from is 'The page a move left; null for a page load; the page itself for a move inside it (00412).';
+comment on column public.page_vitals.warm is 'Whether what it drew was already held when it began: the tab''s cache, a view held (00412).';
+comment on column public.page_vitals.device is 'desk, or phone at the kit''s one phone width and under (00412).';
+comment on column public.page_vitals.build is 'The deploy the page ran: its sha''s first twelve, or dev (00412).';
+comment on column public.page_vitals.detail is 'What the time went on: a read''s route and its server and database time, a chunk, an element''s test id, a phase. Never a person or anything they wrote (00412).';
 
 -- The route's door, with the device and the build of the load beside each report. A report that names its page (a
 -- move's) keeps it; one that names none is of the page the load landed on. A known id takes the new value and what it
--- went on: a grown INP is a different interaction. Called with two arguments, as before 00408, it keeps what it did.
+-- went on: a grown INP is a different interaction. Called with two arguments, as before 00412, it keeps what it did.
 drop function if exists public.note_page_vitals(text, jsonb);
 create or replace function public.note_page_vitals(
   p_page text,
@@ -167,7 +167,7 @@ $$;
 revoke all on function public.page_speed(integer, integer) from public, anon, authenticated;
 grant execute on function public.page_speed(integer, integer) to service_role;
 comment on function public.page_speed(integer, integer) is
-  'Where the pages'' time goes (00408): READY, SETTLED and the browser''s LCP, INP, CLS at the 75th percentile, over every page (page null) and each page, by part ('''' the page itself), how it was reached (load, move, within, all), device and held rows (all where over both), with the read waited on most. The latest p_most rows of the last p_days. Service role: the back office.';
+  'Where the pages'' time goes (00412): READY, SETTLED and the browser''s LCP, INP, CLS at the 75th percentile, over every page (page null) and each page, by part ('''' the page itself), how it was reached (load, move, within, all), device and held rows (all where over both), with the read waited on most. The latest p_most rows of the last p_days. Service role: the back office.';
 
 -- The elements that cost the most: each of the browser's three that names one (detail.el, a test id), by page and
 -- element, with the phase its time went on most.
@@ -199,4 +199,4 @@ $$;
 revoke all on function public.page_spots(integer, integer) from public, anon, authenticated;
 grant execute on function public.page_spots(integer, integer) to service_role;
 comment on function public.page_spots(integer, integer) is
-  'The elements that cost the most (00408): INP, LCP and CLS at the 75th percentile by page and element (detail.el, a test id), with the phase their time went on most. The latest p_most rows of the last p_days. Service role: the back office.';
+  'The elements that cost the most (00412): INP, LCP and CLS at the 75th percentile by page and element (detail.el, a test id), with the phase their time went on most. The latest p_most rows of the last p_days. Service role: the back office.';

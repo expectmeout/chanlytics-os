@@ -14,7 +14,7 @@ import type { BackOffice } from "./platform";
 import { log } from "@/server/log";
 
 /**
- * Field data's doors (00255, 00408): the route keeps what a page load reported, and the back office reads the 75th
+ * Field data's doors (00255, 00412): the route keeps what a page load reported, and the back office reads the 75th
  * percentile of it: the first card's over page loads, and where the pages' time goes (decision 0053).
  *
  * All run on the service role, the only role granted page_vitals and its functions. A row names a page, a part of it,
@@ -71,8 +71,8 @@ const knownOr = <T extends string>(set: ReadonlySet<string>, v: unknown, fallbac
   typeof v === "string" && set.has(v) ? (v as T) : fallback;
 
 /**
- * Where the pages' time goes (00408, decision 0053): page_speed's rows and page_spots', read together. Null when either
- * could not be read; none of either when the database has not reached 00408, which has nothing to show yet.
+ * Where the pages' time goes (00412, decision 0053): page_speed's rows and page_spots', read together. Null when either
+ * could not be read; none of either when the database has not reached 00412, which has nothing to show yet.
  */
 export async function platformSpeed(
   office: BackOffice,

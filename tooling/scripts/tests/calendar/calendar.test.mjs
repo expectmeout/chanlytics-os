@@ -402,15 +402,14 @@ test("full-fledged: month and agenda views, a date to jump to, windows that fit 
   );
   assert.deepEqual(
     (await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts")).AFTER["PUT settings"]().map((o) => o.key),
-    ["settings", "today", "calendar", "setup", "broadcasts", "playbooks", "people"],
-    "hours, closures, rules and services saved in Settings reach the board, and Setup (and the postal address, the composers' channels)",
+    ["settings", "calendar", "setup", "broadcasts", "playbooks", "people"],
+    "hours, closures, rules and services saved in Settings reach the board, and Setup (and the postal address, the composers' channels); Today's five reads draw no configuration",
   );
   const dayModule = readCode("apps/dashboard/src/surfaces/today/pages/day.tsx");
   assert.ok(
-    dayModule.includes('data-testid="today-day"') &&
-      dayModule.includes('if (!C || !C.vm || C.vm.feed.state !== "ok") return null;') &&
-      dayModule.includes('data-testid="today-day-unreadable"'),
-    "Today shows the day on the calendar, without a feed only the steps due, and says so about a feed it has and could not read (today-unreadable.test.mjs walks it)",
+    dayModule.includes('if (!C || !C.vm || C.vm.feed.state !== "ok") return null;') &&
+      !dayModule.includes('data-testid="today-day"'),
+    "Today reads the day from the calendar once, for the strip and the brief (no pane of its own since canvas E3), and a feed that is not ok is no day",
   );
   // calendar.week is the registry's, and runs in ask-turn.test.mjs ("calendar.week reads the people it names"), where
   // its result says that nothing is booked from here.
@@ -542,21 +541,54 @@ test("the board drawn right: overlapping blocks take lanes, a block outside the 
     ],
     "three that overlap share three lanes; the ones alone keep the column",
   );
+  const act = (label, short, title, ready) => ({ label, short, title, ready, offered: true });
   assert.deepEqual(
     blocks[0].person,
-    { id: "p1", name: "Ana", via: null, threadId: "th-c-1", replyOpen: true },
-    "a thread and an open reply window",
+    {
+      id: "p1",
+      name: "Ana",
+      via: null,
+      threadId: "th-c-1",
+      bookingLinkAction: act(
+        "Text the booking link",
+        "Text the link",
+        "Opens the thread with the link ready to send · any message for 23h more",
+        true,
+      ),
+      stopped: false,
+    },
+    "a thread and an open reply window: the link is carried in",
   );
   assert.deepEqual(
     blocks[1].person,
-    { id: "p2", name: "Bo", via: null, threadId: "th-c-2", replyOpen: false },
-    "a thread whose window closed a week ago",
+    {
+      id: "p2",
+      name: "Bo",
+      via: null,
+      threadId: "th-c-2",
+      bookingLinkAction: act(
+        "Send the booking link",
+        "Send the link",
+        "Only an approved message reaches them until they write again; their thread offers the one with the link",
+        false,
+      ),
+      stopped: false,
+    },
+    "a thread whose window closed a week ago: the thread offers the approved message",
   );
   assert.deepEqual(
     blocks[2].person,
-    { id: "p3", name: "Cy", via: null, threadId: null, replyOpen: false },
+    {
+      id: "p3",
+      name: "Cy",
+      via: null,
+      threadId: null,
+      bookingLinkAction: blocks[2].person.bookingLinkAction,
+      stopped: false,
+    },
     "in People, no thread yet",
   );
+  assert.equal(blocks[2].person.bookingLinkAction.ready, false, "and no link to carry");
   assert.equal(vm.hours.end, 21, "the 8 PM block is drawn: the grid ends at nine, not at the hour after closing");
   assert.equal(vm.hours.start, 8);
   const plain = toCalendarVM(dto(), now);

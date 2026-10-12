@@ -235,7 +235,7 @@ async function theirsOf(db, tenantId, idsOf) {
     ),
     readByIds(
       idsOf("appointment"),
-      (some) => db.from("appointments").select("id, contact_id, client_name").eq("tenant_id", tenantId).in("id", some)
+      (some) => db.from("appointments").select("id, contact_id, client_name, starts_at").eq("tenant_id", tenantId).in("id", some)
     )
   ]);
   return { conversation, call, deal, message, escalation, appointment };
@@ -268,11 +268,23 @@ async function ownNames(db, tenantId, idsOf) {
   for (const r of searches) if (r.name) names[`lead_search:${r.id}`] = r.name;
   return names;
 }
+async function libraryOf(db, tenantId, idsOf) {
+  const rows = await readByIds(
+    idsOf("template"),
+    (some) => db.from("templates").select("id, name").eq("tenant_id", tenantId).is("hidden_at", null).in("id", some)
+  );
+  return Object.fromEntries(rows.flatMap((r) => r.name ? [[`template:${r.id}`, r.name]] : []));
+}
 async function activitySubjects(db, tenantId, subjects) {
   const idsOf = (type) => [...new Set(subjects.filter((s) => s.type === type).map((s) => s.id))];
-  const [names, theirs] = await Promise.all([ownNames(db, tenantId, idsOf), theirsOf(db, tenantId, idsOf)]);
+  const [names, theirs, library] = await Promise.all([
+    ownNames(db, tenantId, idsOf),
+    theirsOf(db, tenantId, idsOf),
+    libraryOf(db, tenantId, idsOf)
+  ]);
   const threads = {};
   const people = {};
+  const visits = {};
   const known = new Map((theirs.conversation ?? []).map((c) => [c.id, c.contact_id ?? null]));
   const asked = [
     ...new Set((theirs.escalation ?? []).map((e) => e.conversation_id).filter((id) => !!id))
@@ -308,8 +320,9 @@ async function activitySubjects(db, tenantId, subjects) {
   for (const a of theirs.appointment ?? []) {
     const key = `appointment:${a.id}`;
     if (!names[key] && a.client_name) names[key] = a.client_name;
+    if (a.starts_at) visits[key] = a.starts_at;
   }
-  return { names, threads, people };
+  return { names, threads, people, visits, library };
 }
 
 // src/ai-usage.ts
@@ -1411,7 +1424,6 @@ async function openEscalation(db, p) {
 
 // src/repositories/ingest.ts
 import {
-  CARRIER_CONSENT_SOURCE,
   conversationPatch,
   normalizePhone,
   HOUR_MS
@@ -1512,24 +1524,14 @@ async function holdRecipients(db, p) {
 }
 
 // src/repositories/ingest.ts
+var AnswerNotKept = class extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "AnswerNotKept";
+  }
+};
 function stoppedNow(r) {
   return r?.consent === "opted_out" || r?.dnc === true;
-}
-async function noteYesOnChannel(db, p, contactId) {
-  const failed = (error) => dbLog().error("consent_channel_write_failed", { tenant_id: p.tenantId, contact_id: contactId, error });
-  try {
-    const { error } = await db.rpc("note_yes_on_channel", {
-      p_tenant_id: p.tenantId,
-      p_contact_id: contactId,
-      p_channel: p.channel,
-      p_message_external_id: p.messageExternalId,
-      p_words: (p.body ?? "").slice(0, 80)
-    });
-    const missing = error?.code === "PGRST202" || /Could not find the function public\.note_yes_on_channel/.test(error?.message ?? "");
-    if (error && !missing) failed(error.message);
-  } catch (e) {
-    failed(e instanceof Error ? e.message : String(e));
-  }
 }
 async function ingestInbound(db, p) {
   const { data, error } = await db.rpc("ingest_inbound", {
@@ -1549,46 +1551,62 @@ async function ingestInbound(db, p) {
   });
   if (error) throw new Error(`ingest_inbound: ${error.message}`);
   const out = data;
-  if (!out?.contact_id || !out.is_new) return out;
-  if (p.optIn) await noteYesOnChannel(db, p, out.contact_id);
-  if (p.optInMarketing && stoppedNow(out)) {
-    dbLog().warn("offers_yes_while_stopped", { tenant_id: p.tenantId, contact_id: out.contact_id, channel: p.channel });
-  } else if (p.optInMarketing) {
-    const args = {
-      p_tenant_id: p.tenantId,
-      p_contact_id: out.contact_id,
-      p_consent: "opted_in",
-      p_source: "customer_message",
-      p_note: null
-    };
-    const evidence = {
-      channel: p.channel,
-      message_external_id: p.messageExternalId,
-      words: (p.body ?? "").slice(0, 80) || null
-    };
-    let { error: mErr } = await db.rpc("set_marketing_consent", { ...args, p_evidence: evidence });
-    if (mErr && /p_evidence/.test(mErr.message))
-      ({ error: mErr } = await db.rpc("set_marketing_consent", args));
-    if (mErr) {
-      dbLog().error("marketing_consent_write_failed", {
-        tenant_id: p.tenantId,
-        contact_id: out.contact_id,
-        error: mErr.message
-      });
+  if (!out?.contact_id) return out;
+  if (!out.is_new && out.processed) return out;
+  const failed = [];
+  const attempt = async (event, write) => {
+    try {
+      await write();
+    } catch (e) {
+      const error2 = e instanceof Error ? e.message : String(e);
+      dbLog().error(event, { tenant_id: p.tenantId, contact_id: out.contact_id, error: error2 });
+      failed.push(`${event}: ${error2}`);
     }
-  }
+  };
+  if (p.optIn) await attempt("consent_channel_write_failed", () => keepYesOnChannel(db, p, out));
+  if (p.optInMarketing) await attempt("marketing_consent_write_failed", () => keepOffersYes(db, p, out));
+  if (failed.length > 0 && !p.jobFollows) throw new AnswerNotKept(failed.join("; "));
   return out;
 }
-async function recordCarrierOptOut(db, p) {
-  const { data, error } = await db.rpc("record_provider_stop", {
+async function answerKept(db, p, contactId, purpose) {
+  const asked = db.from("events").select("id").eq("tenant_id", p.tenantId).eq("kind", "contact.consent_changed").eq("subject_id", contactId).eq("data->>message_external_id", p.messageExternalId);
+  const { data, error } = await (purpose === "marketing" ? asked.eq("data->>purpose", "marketing") : asked.is("data->>purpose", null)).limit(1);
+  if (error) throw new Error(`answer_kept: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+async function keepYesOnChannel(db, p, out) {
+  if (!out.is_new && await answerKept(db, p, out.contact_id, "conversational")) return;
+  const { error } = await db.rpc("note_yes_on_channel", {
     p_tenant_id: p.tenantId,
-    p_contact_id: p.contactId,
-    p_purpose: "conversational",
+    p_contact_id: out.contact_id,
     p_channel: p.channel,
-    p_source: CARRIER_CONSENT_SOURCE
+    p_message_external_id: p.messageExternalId,
+    p_words: (p.body ?? "").slice(0, 80)
   });
-  if (error) throw new Error(`recording the carrier's opt-out for contact ${p.contactId}: ${error.message}`);
-  return data === true;
+  const missing = error?.code === "PGRST202" || /Could not find the function public\.note_yes_on_channel/.test(error?.message ?? "");
+  if (error && !missing) throw new Error(error.message);
+}
+async function keepOffersYes(db, p, out) {
+  if (stoppedNow(out)) {
+    dbLog().warn("offers_yes_while_stopped", { tenant_id: p.tenantId, contact_id: out.contact_id, channel: p.channel });
+    return;
+  }
+  if (!out.is_new && await answerKept(db, p, out.contact_id, "marketing")) return;
+  const args = {
+    p_tenant_id: p.tenantId,
+    p_contact_id: out.contact_id,
+    p_consent: "opted_in",
+    p_source: "customer_message",
+    p_note: null
+  };
+  const evidence = {
+    channel: p.channel,
+    message_external_id: p.messageExternalId,
+    words: (p.body ?? "").slice(0, 80) || null
+  };
+  let { error } = await db.rpc("set_marketing_consent", { ...args, p_evidence: evidence });
+  if (error && /p_evidence/.test(error.message)) ({ error } = await db.rpc("set_marketing_consent", args));
+  if (error) throw new Error(error.message);
 }
 async function markProcessed(db, tenantId, messageId) {
   const { error } = await db.rpc("mark_processed", {
@@ -1911,13 +1929,6 @@ async function mailboxFor(db, to) {
   return data;
 }
 async function ingestInboundEmail(db, p) {
-  let optIn = p.optIn ?? false;
-  if (optIn) {
-    const held = await db.from("messages").select("id").eq("tenant_id", p.tenantId).eq("external_id", p.receivedId).limit(1);
-    if (held.error)
-      throw new Error(`ingest_email: cannot read whether the email is already held: ${held.error.message}`);
-    optIn = (held.data ?? []).length === 0;
-  }
   const out = await ingestInbound(db, {
     tenantId: p.tenantId,
     channel: "email",
@@ -1930,7 +1941,7 @@ async function ingestInboundEmail(db, p) {
     channelTs: p.channelTs,
     meta: p.meta,
     optOut: p.optOut ?? false,
-    optIn
+    optIn: p.optIn ?? false
   });
   if (p.fromThemProven && !out.processed) {
     const { error } = await db.from("contacts").update({ email_suppressed_at: null, email_suppressed_reason: null }).eq("id", out.contact_id).eq("tenant_id", p.tenantId).eq("email", p.address).eq("email_suppressed_reason", "hard_bounce");
@@ -1947,27 +1958,26 @@ async function ingestInboundEmail(db, p) {
   if (p.optInOffers && !out.processed && stoppedNow(out)) {
     dbLog().warn("offers_yes_while_stopped", { tenant_id: p.tenantId, contact_id: out.contact_id, channel: "email" });
   } else if (p.optInOffers && !out.processed) {
-    try {
-      const yes = await setEmailOffersYes(db, {
-        tenantId: p.tenantId,
-        contactId: out.contact_id,
-        source: "customer_message",
-        messageId: out.message_id,
-        evidence
-      });
-      if (yes === "unsubscribed")
-        dbLog().warn("email_yes_refused", {
-          tenant_id: p.tenantId,
-          contact_id: out.contact_id,
-          reason: "unsubscribed"
-        });
-    } catch (e) {
+    const yes = await setEmailOffersYes(db, {
+      tenantId: p.tenantId,
+      contactId: out.contact_id,
+      source: "customer_message",
+      messageId: out.message_id,
+      evidence
+    }).catch((e) => {
       dbLog().error("email_yes_not_recorded", {
         tenant_id: p.tenantId,
         contact_id: out.contact_id,
         error: e instanceof Error ? e.message : String(e)
       });
-    }
+      throw e;
+    });
+    if (yes === "unsubscribed")
+      dbLog().warn("email_yes_refused", {
+        tenant_id: p.tenantId,
+        contact_id: out.contact_id,
+        reason: "unsubscribed"
+      });
   }
   return out;
 }
@@ -2119,7 +2129,18 @@ async function suppressEmailOf(db, p) {
 }
 
 // src/repositories/campaigns/offers-answer.ts
-import { WHATSAPP_CONSENT_SOURCE } from "../../contracts/dist/index.js";
+import { CARRIER_CONSENT_SOURCE, WHATSAPP_CONSENT_SOURCE } from "../../contracts/dist/index.js";
+async function recordCarrierOptOut(db, p) {
+  const { data, error } = await db.rpc("record_provider_stop", {
+    p_tenant_id: p.tenantId,
+    p_contact_id: p.contactId,
+    p_purpose: "conversational",
+    p_channel: p.channel,
+    p_source: CARRIER_CONSENT_SOURCE
+  });
+  if (error) throw new Error(`recording the carrier's opt-out for contact ${p.contactId}: ${error.message}`);
+  return data === true;
+}
 async function offersAnswerOf(db, tenantId, contactId) {
   const { data, error } = await db.from("contacts").select("marketing_consent, marketing_consent_source").eq("tenant_id", tenantId).eq("id", contactId).maybeSingle();
   if (error) throw new Error(error.message);
@@ -3303,7 +3324,11 @@ async function pageSpots(db, window) {
 }
 
 // src/repositories/notifications.ts
-import { HOUR_MS as HOUR_MS2, MIN_MS } from "../../contracts/dist/index.js";
+import {
+  CATCH_UP_VISITS,
+  HOUR_MS as HOUR_MS2,
+  MIN_MS
+} from "../../contracts/dist/index.js";
 
 // src/repositories/thread.ts
 import {
@@ -3599,10 +3624,28 @@ async function forgetNotification(db, p) {
   const { error } = await db.from("notifications").delete().eq("tenant_id", p.tenantId).eq("id", p.id);
   if (error) throw new Error(`cannot take the notification back: ${error.message}`);
 }
+async function noticeFor(db, p) {
+  const base = db.from("notifications").select("id, kind, mail_due_at").eq("tenant_id", p.tenantId);
+  const found = p.sourceEvent ? await base.eq("source_event", p.sourceEvent).limit(1) : p.subjectType && p.subjectId && p.title ? await base.eq("kind", p.kind).eq("subject_type", p.subjectType).eq("subject_id", p.subjectId).eq("title", p.title).not("mail_due_at", "is", null).order("created_at", { ascending: false }).limit(1) : null;
+  if (!found) return null;
+  if (found.error) throw new Error(`cannot read what the workspace was told: ${found.error.message}`);
+  const row = (found.data ?? [])[0];
+  return row ? { id: row.id, kind: row.kind, mailOwed: row.mail_due_at !== null } : null;
+}
+async function mailSent(db, p) {
+  const { error } = await db.from("notifications").update({ mail_due_at: null }).eq("tenant_id", p.tenantId).eq("id", p.id);
+  if (error) throw new Error(`cannot record that the notice was mailed: ${error.message}`);
+}
 async function noticeKept(db, p) {
   const { data, error } = await db.from("notifications").select("id").eq("tenant_id", p.tenantId).eq("kind", p.kind).eq("subject_type", p.subjectType).eq("subject_id", p.subjectId).limit(1);
   if (error) throw new Error(`cannot read what the workspace was told: ${error.message}`);
   return (data ?? []).length > 0;
+}
+async function reviewRowsByGoogleId(db, tenantId, googleIds) {
+  if (!googleIds.length) return /* @__PURE__ */ new Map();
+  const { data, error } = await db.from("google_reviews").select("id, review_id").eq("tenant_id", tenantId).in("review_id", [...googleIds]);
+  if (error) throw new Error(`cannot read the reviews on record: ${error.message}`);
+  return new Map((data ?? []).map((r) => [r.review_id, r.id]));
 }
 async function activityTokensOf(db, tenantId, roles) {
   const { data: members, error: me } = await db.from("memberships").select("user_id").eq("tenant_id", tenantId).in("role", [...roles]);
@@ -3698,13 +3741,83 @@ async function holdFactsOf(db, tenantId, ref, nowMs) {
   };
 }
 async function holdTold(db, p) {
-  const answered = await db.from("notifications").select("id").eq("tenant_id", p.tenantId).eq("source_event", p.eventId).limit(1);
+  const answered = await db.from("notifications").select("id").eq("tenant_id", p.tenantId).eq("source_event", p.eventId).is("mail_due_at", null).limit(1);
   if (answered.error) throw new Error(`cannot read what the workspace was told: ${answered.error.message}`);
   if ((answered.data ?? []).length) return true;
   const since = new Date(Date.parse(p.at) - MIN_MS).toISOString();
   const inline = await db.from("notifications").select("id").eq("tenant_id", p.tenantId).eq("kind", "handoff").eq("subject_type", "conversation").eq("subject_id", p.conversationId).is("source_event", null).gte("created_at", since).limit(1);
   if (inline.error) throw new Error(`cannot read what the workspace was told: ${inline.error.message}`);
   return (inline.data ?? []).length > 0;
+}
+async function personFactsOf(db, tenantId, contactId) {
+  const person = oneOr(
+    await db.from("contacts").select("display_name, wa_profile_name, phone_e164, email, erased_at, erasing_since").eq("tenant_id", tenantId).eq("id", contactId).limit(1),
+    "the person"
+  );
+  if (!person) return null;
+  return {
+    who: person.display_name ?? person.wa_profile_name ?? null,
+    address: person.phone_e164 ?? person.email ?? null,
+    erased: !!person.erased_at || !!person.erasing_since
+  };
+}
+async function optOutTold(db, p) {
+  const answered = await db.from("notifications").select("id").eq("tenant_id", p.tenantId).eq("source_event", p.eventId).is("mail_due_at", null).limit(1);
+  if (answered.error) throw new Error(`cannot read what the workspace was told: ${answered.error.message}`);
+  if ((answered.data ?? []).length) return true;
+  const since = new Date(Date.parse(p.at) - MIN_MS).toISOString();
+  const twin = await db.from("notifications").select("id").eq("tenant_id", p.tenantId).eq("kind", "opted_out").eq("subject_type", "contact").eq("subject_id", p.contactId).neq("source_event", p.eventId).gte("created_at", since).limit(1);
+  if (twin.error) throw new Error(`cannot read what the workspace was told: ${twin.error.message}`);
+  return (twin.data ?? []).length > 0;
+}
+async function eventTold(db, p) {
+  const answered = await db.from("notifications").select("id").eq("tenant_id", p.tenantId).eq("source_event", p.eventId).is("mail_due_at", null).limit(1);
+  if (answered.error) throw new Error(`cannot read what the workspace was told: ${answered.error.message}`);
+  return (answered.data ?? []).length > 0;
+}
+var BOOKING_SOURCES = ["booking_email", "booking_tool", "calendar_feed"];
+async function bookedVisitsOf(db, tenantId, ids, nowMs) {
+  if (ids.length === 0) return [];
+  const { data, error } = await db.from("appointments").select("id, starts_at, ends_at, all_day, timezone, source, client_name, service, contact_id").eq("tenant_id", tenantId).in("id", [...ids]).eq("status", "booked").is("vanished_at", null).in("source", [...BOOKING_SOURCES]).gt("starts_at", new Date(nowMs).toISOString());
+  if (error) throw new Error(`cannot read the visits: ${error.message}`);
+  const visits = data ?? [];
+  const personIds = [...new Set(visits.flatMap((v) => v.contact_id ? [v.contact_id] : []))];
+  const people = /* @__PURE__ */ new Map();
+  if (personIds.length) {
+    const found = await db.from("contacts").select("id, display_name, wa_profile_name, erased_at, erasing_since").eq("tenant_id", tenantId).in("id", personIds);
+    if (found.error) throw new Error(`cannot read the people of the visits: ${found.error.message}`);
+    for (const c of found.data ?? [])
+      people.set(c.id, {
+        name: c.display_name ?? c.wa_profile_name ?? null,
+        erased: !!c.erased_at || !!c.erasing_since
+      });
+  }
+  return visits.map((v) => {
+    const person = v.contact_id ? people.get(v.contact_id) : void 0;
+    const who = person?.erased ? null : v.client_name?.trim() || person?.name || null;
+    return {
+      id: v.id,
+      start: v.starts_at,
+      end: v.ends_at,
+      allDay: v.all_day,
+      timezone: v.timezone,
+      who,
+      service: v.service?.trim() || null,
+      via: v.source
+    };
+  });
+}
+async function feedAdditionsWith(db, tenantId, event) {
+  const { data, error } = await db.from("events").select("id, subject_id").eq("tenant_id", tenantId).eq("kind", "appointment.changed").eq("created_at", event.at).eq("data->>source", "calendar_feed").eq("data->>change", "added").order("id").limit(CATCH_UP_VISITS + 1);
+  if (error) throw new Error(`cannot read the calendar's additions: ${error.message}`);
+  return (data ?? []).flatMap((e) => e.subject_id ? [{ eventId: e.id, appointmentId: e.subject_id }] : []);
+}
+async function memberJoinedOf(db, tenantId, invitationId) {
+  const invite = oneOr(
+    await db.from("invitations").select("id, email, role").eq("tenant_id", tenantId).eq("id", invitationId).limit(1),
+    "the invitation"
+  );
+  return invite ? { invitationId: invite.id, email: invite.email, role: invite.role } : null;
 }
 
 // src/repositories/campaigns/workspace.ts
@@ -4137,6 +4250,11 @@ async function workspaceNamed(db, tenantId) {
   const { data, error } = await db.from("tenants").select("name, slug").eq("id", tenantId).maybeSingle();
   if (error) throw new Error(`cannot read the workspace: ${error.message}`);
   return data ? { name: data.name, slug: data.slug } : null;
+}
+async function workspaceZoneOf(db, tenantId) {
+  const { data, error } = await db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle();
+  if (error) throw new Error(`cannot read the workspace's zone: ${error.message}`);
+  return data?.timezone ?? null;
 }
 async function membershipCountOf(db, userId) {
   const { count: count2, error } = await db.from("memberships").select("id", { count: "exact", head: true }).eq("user_id", userId);
@@ -4808,6 +4926,7 @@ async function ownLineOf(db, tenantId) {
 var EVERY = ["INSERT", "UPDATE", "DELETE"];
 var INSERTS = ["INSERT"];
 var INSERTS_AND_UPDATES = ["INSERT", "UPDATE"];
+var UPDATES = ["UPDATE"];
 var WATCHED = [
   { table: "messages", events: INSERTS_AND_UPDATES },
   // arrivals, then a send's ticks and a failure written late: an update is told with its statuses (00327)
@@ -4858,7 +4977,32 @@ var WATCHED = [
   // their acts repaint (00376)
   { table: "playbooks", events: EVERY },
   // a booking that arrived by email written, moved or withdrawn by the booking_read job: the Calendar repaints (00345)
-  { table: "appointments", events: EVERY }
+  { table: "appointments", events: EVERY },
+  // The records no page was told of (00408, 0047). A person made, or renamed, answered, stopped, merged or erased by a
+  // teammate, a job or the customer's own link: People, the Inbox's thread heads and Campaigns' counts repaint. Their
+  // updates are told when an identity or an answer moved; a message's stamp on last_seen_at is not one.
+  { table: "contacts", events: INSERTS_AND_UPDATES },
+  // The settings saved in another tab or by a teammate: Settings, the Calendar, Setup and the composers repaint. Told
+  // when the version moved, so the hourly stamp on calendar_checked_at tells nothing. The receptionist's stamp reads it.
+  { table: "tenant_config", events: UPDATES },
+  // The Autonomy matrix, and a person's or a list's own rule: the chips beside every approval repaint. Read by the stamp.
+  { table: "policies", events: EVERY },
+  // Meta's answer to a template, a sync, a hide, a template made or removed: the Library and the composers repaint. The
+  // update is told when its status, rejection, quality, category, visibility or words moved.
+  { table: "templates", events: EVERY },
+  // Offers by email paused by the gate or resumed by the back office: Campaigns' head line and send tick repaint. The
+  // update is told when the pause columns moved.
+  { table: "mailboxes", events: UPDATES },
+  // A booking email the reader held for a look, or settled: the Business tab's held list repaints.
+  { table: "appointment_notices", events: INSERTS_AND_UPDATES },
+  // A seat taken, changed or left, and an invitation sent, renewed, accepted or revoked: the Team pane and the workspace
+  // list repaint, and a member whose own role moved is told. A seat's update is told when its role moved, never for the
+  // member's own saved views.
+  { table: "memberships", events: EVERY },
+  { table: "invitations", events: EVERY },
+  // The workspace paused or resumed (billing, the back office): the shell and Today's band repaint. Told when the status
+  // moved. The receptionist's stamp reads the row.
+  { table: "tenants", events: UPDATES }
 ];
 function watchedTables() {
   return WATCHED.map((w) => w.table);
@@ -4934,10 +5078,11 @@ function tell(hearing, tenantId, message) {
   if (typeof notice.table !== "string") return;
   const table = notice.table;
   const event = message.event ?? "*";
+  const at = typeof notice.at === "string" ? notice.at : void 0;
   const statuses = Array.isArray(notice.statuses) ? notice.statuses : [void 0];
   for (const listener of [...hearing.listeners])
     for (const status of statuses)
-      listener.onChange({ tenant_id: tenantId, ...typeof status === "string" ? { status } : {} }, table, event);
+      listener.onChange({ tenant_id: tenantId, ...typeof status === "string" ? { status } : {} }, table, event, at);
 }
 
 // src/sweeps.ts
@@ -5252,6 +5397,7 @@ async function dismissAppointmentNotice(db, tenantId, id) {
   return (data?.length ?? 0) > 0;
 }
 export {
+  AnswerNotKept,
   CALL_CONTROL_S,
   DB_REQUEST_HEADER,
   DEFAULT_ROW_CAP,
@@ -5294,6 +5440,7 @@ export {
   assembleBroadcast,
   assembleHistory,
   becomePartner,
+  bookedVisitsOf,
   callBackMessage,
   callerNameOf,
   callersOf,
@@ -5352,12 +5499,14 @@ export {
   endVoiceSession,
   erasureDigests,
   eventOfDelivery,
+  eventTold,
   everyoneIn,
   everyoneOnceIn,
   failIdeas,
   failQueuedSend,
   failStrandedRun,
   failedMessageErrors,
+  feedAdditionsWith,
   feedWordsOver,
   finishableRuns,
   firstReplies,
@@ -5423,6 +5572,7 @@ export {
   listPolicies,
   listRow,
   listSecondFactors,
+  mailSent,
   mailboxById,
   mailboxFor,
   mailboxOfTenant,
@@ -5436,6 +5586,7 @@ export {
   markWaitlistInvited,
   memberAlertsOf,
   memberHasAddress,
+  memberJoinedOf,
   memberWithdrawDrafts,
   memberWithdrawMessage,
   membersPushedFor,
@@ -5453,6 +5604,7 @@ export {
   namesOfPeople,
   notePageVitals,
   notesForReceptionist,
+  noticeFor,
   noticeKept,
   observeDb,
   offerLanguageOf,
@@ -5462,6 +5614,7 @@ export {
   openConversation,
   openDoubtsOf,
   openEscalation,
+  optOutTold,
   ourLastWire,
   outreachFactsOf,
   outreachModeOf,
@@ -5477,6 +5630,7 @@ export {
   peoplePage,
   peopleSeries,
   personDecisions,
+  personFactsOf,
   personReplyMode,
   personRow,
   platformDay,
@@ -5559,6 +5713,7 @@ export {
   resolveOutboundTarget,
   resolveOutboundTargetForContact,
   resolvePerson,
+  reviewRowsByGoogleId,
   reviewsLedger,
   runCounts,
   runGoesByOthers,
@@ -5660,6 +5815,7 @@ export {
   workspaceNameAndConfig,
   workspaceNamed,
   workspacePaused,
+  workspaceZoneOf,
   writePlaybookChange,
   writtenEmail,
   writtenEmails,

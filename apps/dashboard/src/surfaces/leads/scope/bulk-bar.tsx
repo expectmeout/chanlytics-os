@@ -13,6 +13,7 @@ import {
   type LeadRowVM,
   type LeadsBulkInput,
 } from "@chanlytics/contracts";
+import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { gate, leaving } from "../../legacy-verbs";
 import { Sheet } from "../../kit/sheet/sheet";
@@ -41,7 +42,8 @@ interface BulkBarProps {
   onNotAFit: (why: LeadNotAFitWhy, body: LeadsBulkInput) => unknown;
   whyOpen: boolean;
   onWhyOpen: (open: boolean) => void;
-  exportHref: string | null;
+  /** The press that exports the selection's view as a file: a POST that saves it (page/acts.tsx exportLeads), not a link. */
+  onExport: () => void;
   review?: ReviewDoors | null;
   phone?: boolean;
   sheet?: string | null;
@@ -79,7 +81,7 @@ function phoneSheets(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
     total,
     rows,
     whyNot,
-    exportHref,
+    onExport,
     sheet = null,
     onSheet = () => undefined,
   } = p;
@@ -165,17 +167,14 @@ function phoneSheets(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
           />
           {p.write}
           {canExport ? (
-            <a
-              className="pp-sheet-row"
-              href={exportHref || undefined}
-              download
-              onClick={() => onSheet(null)}
-              data-testid="leads-bulk-export"
-            >
-              <Icon name="external" size={16} />
-              <span className="pp-sheet-row-words">Export</span>
-              <span className="pp-sheet-row-meta">CSV</span>
-            </a>
+            <PhoneSheetRow
+              icon="external"
+              label="Export"
+              meta="CSV"
+              disabled={busy}
+              onClick={shut(onExport)}
+              testid="leads-bulk-export"
+            />
           ) : (
             <PhoneSheetRow
               icon="external"
@@ -262,7 +261,7 @@ function phoneBulkBar(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
 
 /** A desk's bar: the count, what resolves a Needs review selection, and every act in one row. */
 function deskBulkBar(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
-  const { busy, canFind, canExport, allMatching, total, rows, whyNot, exportHref, whyOpen, onWhyOpen, view } = p;
+  const { busy, canFind, canExport, allMatching, total, rows, whyNot, onExport, whyOpen, onWhyOpen, view } = p;
   const { picked, ids, count, hidden, acts } = f;
   const review = p.review as ReviewDoors;
   const gateWork = canFind ? {} : gate("find", "work these leads");
@@ -373,15 +372,15 @@ function deskBulkBar(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
         ) : null}
       </span>
       {canExport ? (
-        <a
-          className="btn btn-sm"
-          href={exportHref || undefined}
-          download
+        <Button
+          size="sm"
+          disabled={busy}
+          onClick={() => onExport()}
           title="Download these leads as a CSV file"
           data-testid="leads-bulk-export"
         >
           <Icon name="external" size={12} /> Export
-        </a>
+        </Button>
       ) : (
         <button
           type="button"

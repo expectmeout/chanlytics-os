@@ -4,25 +4,19 @@
  * a face on a card, a selection as a CSV (moved whole from legacy/pages/people.jsx, decision 0015). The pages that have
  * not moved (Leads, the Pipeline, the person page) still read the names published in people-globals.ts.
  */
-import { csvCell, HELD_WORDS, stateOf } from "@chanlytics/contracts";
+import { csvCell, PEOPLE_TABS, stateOf } from "@chanlytics/contracts";
 import type { PersonRowVM } from "@chanlytics/contracts";
 import { surfaceValue } from "../surface-values";
 import { pageClock } from "@/legacy-bridge/zone";
 import type { PeopleRead, TableColumn } from "./types";
 
-/** The states an address may still name (state:<x>). Needs you and Waiting on you are lists (decision 0009): their state address opens the list. */
+/** The states an address may still name (state:<x>). Needs you and You have it are lists (decision 0009): their state address opens the list. */
 export const PL_TABS = ["new", "quiet", "active"];
 const PL_STANDING_LISTS = ["needs_you", "waiting_on_you"];
 export const plStandingList = (state: string | null): string | null =>
   state && PL_STANDING_LISTS.includes(state) ? state : null;
-export const PL_TAB_LABEL: Record<string, string> = {
-  all: "All",
-  needs_you: "Needs you",
-  waiting_on_you: "Waiting on you",
-  new: "New",
-  quiet: "Quiet",
-  active: "Active",
-};
+/** Each tab's words, from contracts' (PEOPLE_TABS, which reads the state words): the page types none of its own. */
+export const PL_TAB_LABEL: Record<string, string> = Object.fromEntries(PEOPLE_TABS.map((t) => [t.id, t.label]));
 
 /** The band People's cards use (clients.css, 900px) and the one the Columns menu is judged by. */
 export const PL_PHONE_QUERY = "(max-width: 900px)";
@@ -72,17 +66,25 @@ export const plCsv = (
 };
 
 /** The receptionist, in one word beside the state, only when it is not simply answering. */
-export const PL_RECEPT_MARK: Record<string, string> = {
+const PL_RECEPT_MARK: Record<string, string> = {
   escalated: "escalated",
   queued: "reply queued",
   snoozed: "snoozed",
   paused: "held for you",
   yours: "held for you",
-  // A teammate's thread is said as the Inbox says it (standing.ts HELD_WORDS), in lower case beside the state.
-  theirs: HELD_WORDS.theirs.pill.toLowerCase(),
   silent: "silent",
 };
-/** The receptionist's word says what the state pill beside it already says: "escalated" is why they need you, "held for you" is waiting on you. */
+/**
+ * The mark beside the state. A teammate's thread says what the Inbox's pill says, with the teammate's name where the roster
+ * gave it ("Ruben has it": the row's own label, contracts heldPill), and a snoozed one when it wakes ("snoozed until Tue 10:00 AM").
+ */
+export const plReceptMark = (p: PersonRowVM): string =>
+  p.receptionist.tone === "theirs"
+    ? p.receptionist.label
+    : p.receptionist.tone === "snoozed" && p.receptionist.wakes
+      ? `${PL_RECEPT_MARK.snoozed} until ${p.receptionist.wakes}`
+      : (PL_RECEPT_MARK[p.receptionist.tone] ?? p.receptionist.tone);
+/** The receptionist's word says what the state pill beside it already says: "escalated" is why they need you, "held for you" is what "You have it" already says. */
 export const plReceptSaysTheState = (p: PersonRowVM): boolean =>
   (p.receptionist.tone === "escalated" && p.state === "needs_you") ||
   ((p.receptionist.tone === "paused" || p.receptionist.tone === "yours") && p.state === "waiting_on_you");
@@ -177,19 +179,6 @@ export const PL_MODES = [
   { id: "inherit", icon: "refresh" },
 ] as const;
 export const plModeWord = (id: string): string => stateOf("mode", id).label;
-
-export const plIsNumber = (name: string | null | undefined): boolean => /^[+\d(]/.test(name || "");
-/** A person shown by their address because they have no name and no number (contracts personName). */
-export const plIsAddress = (p: { email: string | null; name: string }): boolean => !!p.email && p.name === p.email;
-/** A person's face on a card: their initials, or the glyph for what names them while nobody has named them. */
-export const plFace = (p: {
-  initials: string;
-  name: string;
-  email: string | null;
-}): { initials: string; glyph: string | null } => ({
-  initials: p.initials,
-  glyph: plIsNumber(p.name) ? "phone" : plIsAddress(p) ? "mail" : null,
-});
 
 /** What the search box says it finds, in both of its places: the desktop's placeholder and the phone's bar. */
 export const PL_SEARCH_LABEL = "Search names, numbers and emails";

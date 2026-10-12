@@ -1,5 +1,4 @@
-import { leadsRoute } from "../leads/lead-plan";
-import { lensRoute } from "../reports/lenses";
+import { activitySubjectHome } from "./subjects";
 import {
   CALL_MISSED_WORDS,
   CALL_UNANSWERED_WORDS,
@@ -227,37 +226,15 @@ export function activityRowsForLines<T extends ActivityFoldRow>(
 }
 
 /**
- * Where a row opens: the page of what it is about, as a route without its slash; null where its subject has no page
- * of its own (a workspace, a deal, a list, whose page depends on what kind of list it is and is the page's to say).
- * The log offered a door for a person, a thread and a call, and none for a lead, a run, a member or a channel.
+ * Where a row opens: the page of what it is about, as a route without its slash, from its subject (the table in
+ * subjects.ts says where each kind of thing opens, or why it opens nowhere). Null where the row alone cannot name the
+ * page: a subject whose page the server looks up (a message's thread, a deal's person, a list's own kind of page), one with
+ * no page (a workspace), and one nobody declared. A visit opens its panel on the Calendar, and its day is the server's to
+ * add (a visit's own address, calendar/<day>:a-<id>): the id alone is the shape the board reads without one.
  */
 export function activityDoor(r: Pick<ActivityFoldRow, "subject_type" | "subject_id">): string | null {
-  const id = r.subject_id;
-  switch (r.subject_type) {
-    case "contact":
-      return id ? `clients/${id}` : null;
-    case "conversation":
-      return id ? `inbox/th-${id}` : null;
-    case "call":
-      return id ? `conversations/cv-${id}` : null;
-    case "lead":
-      return id ? leadsRoute({ peek: id }) : null;
-    case "broadcast":
-      return id ? `broadcasts/run:${id}` : null;
-    case "appointment":
-      return id ? `calendar/a-${id}` : null;
-    case "lead_search":
-      return id ? leadsRoute({ searchId: id }) : null;
-    case "membership":
-    case "invitation":
-      return "admin/team";
-    case "channel":
-      return "admin/integrations";
-    case "review":
-      return lensRoute("reviews");
-    default:
-      return null;
-  }
+  const home = activitySubjectHome(r.subject_type);
+  return home && "door" in home ? home.door(r.subject_id) : null;
 }
 
 /**

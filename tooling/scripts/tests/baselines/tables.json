@@ -28,7 +28,6 @@
   "apps/dashboard/src/server/ask/tools/act/reply.ts": 2,
   "apps/dashboard/src/server/ask/tools/act/thread-verb.ts": 2,
   "apps/dashboard/src/server/ask/tools/act/whisper.ts": 1,
-  "apps/dashboard/src/server/calendar/people-seen.ts::rpc": 2,
   "apps/dashboard/src/server/campaigns/broadcasts.ts": 11,
   "apps/dashboard/src/server/campaigns/playbooks.ts": 5,
   "apps/dashboard/src/server/campaigns/reach-out-leads.ts::rpc": 3,

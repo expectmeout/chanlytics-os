@@ -19,6 +19,7 @@ import {
   ALERT_TOPICS,
   ALERT_PANE_WORDS,
   BELL_LINE_KINDS,
+  toChannelVM,
 } from "@chanlytics/contracts";
 import { readCode, readRaw, importSrc } from "../_source.mjs";
 
@@ -40,7 +41,7 @@ test("F4: a save re-reads the settings surface, so the next save carries the new
   assert.deepEqual(
     AFTER["PUT settings"]().map((o) => o.key),
     // The postal address saved here is one of the channels' readiness, which the composers and People's reach read too.
-    ["settings", "today", "calendar", "setup", "broadcasts", "playbooks", "people"],
+    ["settings", "calendar", "setup", "broadcasts", "playbooks", "people"],
     "REGRESSION: the second save in a row was a 409 — settings first, for the version",
   );
   assert.ok(!fn.includes("await refresh();"), "the generic refresh never re-read this pane");
@@ -99,7 +100,7 @@ test("F35: every pause reads the workspace's own pause_hours, not a hard-coded d
   // Stated only by a branch that actually paused the thread. The email used to
   // promise the pause unconditionally, so nine of the eleven handoffs told the
   // owner the receptionist was out of a thread it was still answering.
-  assert.ok(alerts.includes("ctx.pausedHours\n        ? `Reply from the Inbox"), "and only when this branch paused it");
+  assert.ok(alerts.includes("(ctx.pausedHours\n        ? `${act.replace"), "and only when this branch paused it");
   // The notice's words are named (tell(asked, { said, answered, why, pausedHours }), #1547), so each branch's pause is
   // read by its name.
   assert.ok(
@@ -136,11 +137,20 @@ test("F36/F37: no alert the workspace is offered is Chanlytics' own; switching a
   );
   // The channels sentence moved with the pane it belongs to; the alerts
   // above it are the notifications pane and stay in the settings shell.
+  const off = toChannelVM(
+    {
+      id: "c1",
+      kind: "sms",
+      number_e164: null,
+      status: "disabled",
+      created_at: "2026-09-01T00:00:00Z",
+      last_inbound_at: null,
+    },
+    new Date("2026-09-12T12:00:00Z"),
+  );
   assert.ok(
-    readCode("packages/contracts/src/lines/channels.ts").includes(
-      "neither answered nor recorded; Chanlytics is told they are arriving, you are not",
-    ),
-    "the row's own sentence says what the code does (channels-vm.test.mjs runs it)",
+    off.healthLabel.includes("neither answered nor recorded; Chanlytics is told they are arriving, you are not"),
+    "the row's own sentence says what the code does (channels-vm.test.mjs and the caller-gets test run it)",
   );
 });
 

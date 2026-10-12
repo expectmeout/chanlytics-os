@@ -20,7 +20,8 @@ import {
   CARRIER_CONSENT_SOURCE,
   WHATSAPP_CONSENT_SOURCE,
 } from "../../../../../packages/contracts/src/people/person-consent.ts";
-import { ingestInbound, recordCarrierOptOut } from "../../../../../packages/db/src/repositories/ingest.ts";
+import { ingestInbound } from "../../../../../packages/db/src/repositories/ingest.ts";
+import { recordCarrierOptOut } from "../../../../../packages/db/src/repositories/campaigns/offers-answer.ts";
 import {
   recordLateCarrierOptOut,
   recordWhatsAppOffersStop,

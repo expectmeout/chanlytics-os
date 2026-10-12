@@ -272,7 +272,7 @@ function SpeedCard({
 }
 
 /**
- * Where the pages' time goes (00408, decision 0053): each page by how it opens and how a move reaches it, slowest first;
+ * Where the pages' time goes (00412, decision 0053): each page by how it opens and how a move reaches it, slowest first;
  * the parts of a page drawn last; and the taps, paints and shifts that cost the most, each by the element's test id.
  * Read from the overview this tab holds (peekList), so the page's own reads are unchanged; an overview that predates it
  * draws no card, and a read that failed says so in the first card's sentence alone. Every word is the view model's

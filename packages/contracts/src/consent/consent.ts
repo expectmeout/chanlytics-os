@@ -26,15 +26,38 @@ export interface ConsentBearing {
   dnc?: boolean | null;
 }
 
-export function isOptedOutContact(c: ConsentBearing): boolean {
-  return c.consent === "opted_out" || c.dnc === true;
+export function isOptedOutContact(c: ConsentBearing | null | undefined): boolean {
+  return !!c && (c.consent === "opted_out" || c.dnc === true);
 }
 
 /** What an opt-out is, in the words the refusal below says it and a second reader is asked it (stopRequestQuestion). */
-const ASKED_TO_STOP = "asked to stop receiving messages";
+const ASKED_TO_STOP_SHORT = "asked to stop";
+const ASKED_TO_STOP = `${ASKED_TO_STOP_SHORT} receiving messages`;
+
+/**
+ * "Asked to stop", said once (D1-stop-words). The same fact read "Opted out" on People's pill (grey), "Silent, they opted
+ * out" on the person's page, "Asked to stop" on a run's sheet (amber), "Said stop" in the history, "STOP received" under
+ * the consent, and "They asked us to stop, offers included" on its card, and the kit's consent pill wore a tone no page
+ * drew. Now every drawing takes its words from here: `pill` where a state is a pill (People's state, a run's person, the
+ * kit's consent pill), `short` where a clause stands in a list ("a person had the thread 3 · asked to stop 1"), `line` after
+ * a name in a sentence (`said` joins them), and one `tone`: a STOP is news and no wait (decision 0048), so it is neutral,
+ * never the amber of "Needs you". `mark` is the one small word beside a name wherever a person is offered as someone to
+ * answer or contact (the Inbox's row and header, Conversations, Live, the Pipeline, the Calendar's panel; D1-stop-unseen),
+ * and where People's pill says something that outranks the stop ("Needs you"); `said()` is its hover.
+ */
+export const STOP_WORDS = {
+  pill: "Opted out",
+  mark: "Stopped",
+  short: ASKED_TO_STOP_SHORT,
+  line: ASKED_TO_STOP,
+  tone: "plain",
+  /** The clause after a name ("Dana asked to stop receiving messages"), or on its own with a capital when none is given. */
+  said: (who?: string | null): string =>
+    who ? `${who} ${ASKED_TO_STOP}` : `${ASKED_TO_STOP.charAt(0).toUpperCase()}${ASKED_TO_STOP.slice(1)}`,
+} as const;
 
 /** The customer-facing reason, used wherever a refusal is explained. */
-export const OPT_OUT_REFUSAL = `This customer ${ASKED_TO_STOP}. They can text START to opt back in.`;
+export const OPT_OUT_REFUSAL = `This customer ${STOP_WORDS.line}. They can text START to opt back in.`;
 
 /**
  * What the owner reads where a reply box would be, by name: the Inbox's composer and the person page's Replies fact
@@ -42,7 +65,7 @@ export const OPT_OUT_REFUSAL = `This customer ${ASKED_TO_STOP}. They can text ST
  * had texted STOP (the 2 Oct 2026 audit).
  */
 export function optOutWords(who: string): string {
-  return `${who} ${ASKED_TO_STOP}. Nothing can be sent — they can text START to opt back in.`;
+  return `${STOP_WORDS.said(who)}. Nothing can be sent — they can text START to opt back in.`;
 }
 
 /**

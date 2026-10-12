@@ -3,6 +3,7 @@
  * legacy/pages/broadcasts-ledger.jsx, decision 0015).
  */
 import {
+  BROADCAST_STATE_LABELS,
   BROADCAST_WORDS,
   DAY_MS,
   DELIVERY_RECEIPTS_WORDS,
@@ -13,6 +14,7 @@ import {
 } from "@chanlytics/contracts";
 import type { BroadcastVM } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
+import { bcOpensOnItsSheet } from "./when-words";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
@@ -157,14 +159,14 @@ export function BcHistoryStats({
 
 // Every run's state in the order that matters to the owner: what waits on them,
 // what is to come, what is going out, what went and what did not. The tones are
-// the vocabulary's (tone.ts) for each state; the words are this page's.
+// the vocabulary's (tone.ts) and the words the run's own (contracts BROADCAST_STATE_LABELS): the page types none.
 const BC_BANDS = [
-  { id: "pending_approval", words: "waiting on you", tone: "warn" },
-  { id: "scheduled", words: "scheduled", tone: "info" },
-  { id: "sending", words: "sending", tone: "accent" },
-  { id: "sent", words: "sent", tone: "ok" },
-  { id: "failed", words: "failed", tone: "danger" },
-];
+  { id: "pending_approval", tone: "warn" },
+  { id: "scheduled", tone: "info" },
+  { id: "sending", tone: "accent" },
+  { id: "sent", tone: "ok" },
+  { id: "failed", tone: "danger" },
+] as const;
 
 interface BcBandProps {
   rows: readonly BroadcastVM[];
@@ -189,7 +191,7 @@ export function BcBand({ rows, band, onBand }: BcBandProps) {
     { id: BC_BAND_ALL, label: "All", count: rows.length, testid: `bc-band-${BC_BAND_ALL}` },
     ...parts.map((b): SubTab => ({
       id: b.id,
-      label: b.words.charAt(0).toUpperCase() + b.words.slice(1),
+      label: BROADCAST_STATE_LABELS[b.id],
       count: b.n,
       tone: b.tone === "warn" ? "warn" : undefined,
       testid: `bc-band-${b.id}`,
@@ -475,8 +477,9 @@ export function BcRunCard({
   const pb = byPb ? playbookRows().find((p) => p.id === row.playbook_id) : null;
   const waiting = row.state === "pending_approval";
   const sending = row.state === "sending";
-  // Skip asked, on this row: the question is the acts' cell until it is answered.
-  const asking = waiting && armed && canSend;
+  // Skip asked, on this row: the question is the acts' cell until it is answered. A run decided on its sheet alone (a
+  // reach-out's, bcOpensOnItsSheet) is skipped there, so a question the sheet asked is not this row's to hold open.
+  const asking = waiting && armed && canSend && !bcOpensOnItsSheet(row);
   const soon = bcSoon(row, now);
   const { will, pool, held, finished, reasons } = bcRunReach(row);
   const inner = (
@@ -534,6 +537,7 @@ export function BcRunCard({
               approving={approving}
               approve={approve}
               cancel={cancel}
+              onOpen={onOpen}
             />
           )}
           {/* Where the row goes: its report, a screen of its own. The whole row presses it; this is its mark, and its

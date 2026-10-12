@@ -1,13 +1,28 @@
 // The page, as Ask is sent it (legacy-bridge/ask/context.ts; the Phase 2 plan, PR 2.1): one provider a surface, each
 // over what its page already holds, the rows in the page's order, forty at most, kind and id only; the row the words
-// name by its place or its name; and the surfaces as the palette places them. Executed over fixture globals.
-import { test } from "node:test";
+// name by its place or its name; and the surfaces as the palette places them. Ask reads two things only (OW6): the typed
+// store, which a surface publishes its value to, and the on-screen ledger a page that holds its rows in state says it
+// drew (legacy-bridge/ask/on-screen.ts, here a fixture window's `__askOnScreen`).
+import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { PageContextSchema } from "@chanlytics/contracts";
 
 const { pageContext, focusFromWords } = await import("../../../../apps/dashboard/src/legacy-bridge/ask/context.ts");
 const { askPalette, surfaceFor } = await import("../../../../apps/dashboard/src/legacy-bridge/ask/palette.ts");
 const { setSurfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
+const { askOnScreenOf, askOnScreenKey, setAskOnScreen } =
+  await import("../../../../apps/dashboard/src/legacy-bridge/ask/on-screen.ts");
+
+/** The typed store as a page publishes it, held for one test and put back after it. */
+const held = new Set();
+const holding = (key, value) => {
+  held.add(key);
+  setSurfaceValue(key, value);
+};
+afterEach(() => {
+  for (const key of held) setSurfaceValue(key, undefined);
+  held.clear();
+});
 
 const U = (n) => `${String(n).padStart(8, "0")}-0000-4000-8000-000000000000`;
 const route = (hash) => {
@@ -42,21 +57,17 @@ test("the palette places every page on a surface: Leads and the Pipeline are Peo
 });
 
 test("Today: its queue in order -- a person's row as their thread, a call as the call, a search waiting as the search", () => {
-  const c = ctx(
-    {
-      TODAY_DATA: {
-        queue: {
-          rows: [
-            { id: "q1", kind: "handoff", conversationId: U(1), callId: null, who: "Rosa" },
-            { id: "q2", kind: "call", conversationId: null, callId: U(2), who: "Luis" },
-            { id: `q-s-${U(3)}`, kind: "search", conversationId: null, callId: null, who: "Trainers in Austin" },
-            { id: "q4", kind: "window", conversationId: U(4), callId: U(5), who: "Ana" },
-          ],
-        },
-      },
+  holding("today", {
+    queue: {
+      rows: [
+        { id: "q1", kind: "handoff", conversationId: U(1), callId: null, who: "Rosa" },
+        { id: "q2", kind: "call", conversationId: null, callId: U(2), who: "Luis" },
+        { id: `q-s-${U(3)}`, kind: "search", conversationId: null, callId: null, who: "Trainers in Austin" },
+        { id: "q4", kind: "window", conversationId: U(4), callId: U(5), who: "Ana" },
+      ],
     },
-    "today",
-  );
+  });
+  const c = ctx({}, "today");
   assert.equal(c.surface, "today");
   assert.deepEqual(c.rows, [
     { kind: "thread", id: U(1) },
@@ -101,12 +112,10 @@ test("Conversations: the rows of the tab on screen, a call's row as the call; Li
     { id: `cv-${U(2)}`, who: "Luis", channel: "phone" },
     { id: U(3), who: "Ana", channel: "email" },
   ];
-  const g = {
-    CONVERSATIONS_DATA: { CONVERSATIONS: rows },
-    CV_ROUTE: (w) =>
-      w && w.includes(":") ? { channel: w.split(":")[0], id: w.split(":")[1] } : { channel: w || "all", id: null },
-    CV_IN_CHANNEL: (c, tab) => tab === "all" || c.channel === tab,
-  };
+  // The rows the surface published, and the page's own rules of which tab a row is in (inbox/cv-rules.ts: the very ones
+  // the page filters by), not a copy of them on the window.
+  holding("conversations", { CONVERSATIONS: rows, CV_CHANNELS: [] });
+  const g = {};
   const all = ctx(g, "conversations");
   assert.deepEqual(all.rows, [
     { kind: "conversation", id: U(1) },
@@ -116,7 +125,8 @@ test("Conversations: the rows of the tab on screen, a call's row as the call; Li
   const phone = ctx(g, `conversations/phone:cv-${U(2)}`);
   assert.deepEqual([phone.view, phone.rows], ["phone", [{ kind: "call", id: U(2) }]]);
   assert.deepEqual(phone.focus, { kind: "call", id: U(2), label: "this call" });
-  const live = ctx({ __LIVE: { now: [{ callId: U(7) }], recent: [{ callId: U(8) }, { callId: U(9) }] } }, "live");
+  holding("live", { now: [{ callId: U(7) }], recent: [{ callId: U(8) }, { callId: U(9) }] });
+  const live = ctx({}, "live");
   assert.deepEqual(
     live.rows.map((r) => r.id),
     [U(7), U(8), U(9)],
@@ -124,15 +134,14 @@ test("Conversations: the rows of the tab on screen, a call's row as the call; Li
 });
 
 test("Leads: its rows in the page's order, its list and class as the view, the peek's lead or the search open as the focus", () => {
-  const g = {
-    __LEADS: {
-      rows: [
-        { id: U(1), name: "Iron Gym" },
-        { id: U(2), name: "Core Studio" },
-      ],
-      view: { list: "ready", cls: "strong" },
-    },
-  };
+  holding("leads", {
+    rows: [
+      { id: U(1), name: "Iron Gym" },
+      { id: U(2), name: "Core Studio" },
+    ],
+    view: { list: "ready", cls: "strong" },
+  });
+  const g = {};
   const c = ctx(g, `clients/leads:s-${U(9)}:p-${U(2)}`);
   assert.equal(c.surface, "leads");
   assert.deepEqual(c.rows, [
@@ -160,11 +169,10 @@ test("Reports: the period; Campaigns: the tab's own rows; Settings: the pane; St
     "REGRESSION: twenty days picked in September were read as the last twenty days",
   );
   setSurfaceValue("reports", undefined);
-  const g = {
-    __PLAYBOOKS: { rows: [{ id: U(1), name: "Win back" }] },
-    __BROADCASTS: { rows: [{ id: U(2), name: "Monday" }] },
-    __TEMPLATES_ALL: [{ id: U(3), name: "offer_1", title: "The offer" }],
-  };
+  holding("playbooks", { rows: [{ id: U(1), name: "Win back" }] });
+  holding("broadcasts", { rows: [{ id: U(2), name: "Monday" }] });
+  holding("settings", { templatesAll: [{ id: U(3), name: "offer_1", title: "The offer" }] });
+  const g = {};
   const out = ctx(g, "outbound");
   assert.deepEqual([out.surface, out.view, out.rows], ["campaigns", "playbooks", [{ kind: "playbook", id: U(1) }]]);
   const runs = ctx(g, `broadcasts/run:${U(2)}`);
@@ -177,6 +185,7 @@ test("Reports: the period; Campaigns: the tab's own rows; Settings: the pane; St
 });
 
 test("Campaigns' home sends the rows its ledger shows and the view they are under (the moment spec, A2): a campaign as a playbook, a one-off send as its run; the playbooks the surface read only before the ledger has drawn; a drawer open is the scope", () => {
+  holding("playbooks", { rows: [{ id: U(9), name: "An older read" }] });
   const g = {
     __askOnScreen: {
       key: "campaigns",
@@ -184,7 +193,6 @@ test("Campaigns' home sends the rows its ledger shows and the view they are unde
       labels: ["Win back", "Monday offer"],
       view: "playbooks:needs",
     },
-    __PLAYBOOKS: { rows: [{ id: U(9), name: "An older read" }] },
   };
   const out = ctx(g, "campaigns");
   assert.deepEqual(
@@ -252,14 +260,63 @@ test("forty rows at most, kind and id only -- a row's name never leaves the tab 
   assert.equal(c.rows.length, 40);
   assert.deepEqual(c.rows[0], { kind: "person", id: U(1) });
   assert.ok(!JSON.stringify(c).includes("P0"), "labels stay in the tab");
-  assert.deepEqual(ctx({ TODAY_DATA: { queue: { rows: "nope" } } }, "today").rows, []);
-  assert.deepEqual(ctx({ __LEADS: { rows: null } }, "clients/leads").rows, []);
-  const throws = {
-    get TODAY_DATA() {
-      throw new Error("a global that throws");
+  holding("today", { queue: { rows: "nope" } });
+  assert.deepEqual(ctx({}, "today").rows, []);
+  holding("leads", { rows: null });
+  assert.deepEqual(ctx({}, "clients/leads").rows, []);
+  holding("today", {
+    get queue() {
+      throw new Error("a value that throws");
     },
+  });
+  assert.deepEqual(ctx({}, "today").rows, [], "a provider that throws gives no rows");
+  // The ledger is believed only in a shape it has: a window that holds none of its own, or a record with no key, is none.
+  assert.equal(askOnScreenOf({}), null);
+  assert.equal(askOnScreenOf({ __askOnScreen: { ids: ["a"] } }), null);
+  assert.deepEqual(ctx({ __askOnScreen: "people" }, "clients").rows, []);
+});
+
+test("Ask is told what is on screen one way (OW6): a window name no page of the shell publishes under is not read by a provider, and the ledger has one writer and one reader", () => {
+  // A provider reads the typed store, not a name off the window: values a page of the shell once published under its old
+  // names are not what Today, Conversations, Live, Leads or Campaigns send.
+  const old = {
+    TODAY_DATA: { queue: { rows: [{ id: "q1", kind: "handoff", conversationId: U(1), callId: null }] } },
+    CONVERSATIONS_DATA: { CONVERSATIONS: [{ id: U(1), who: "Rosa", channel: "whatsapp" }] },
+    __LIVE: { now: [{ callId: U(7) }], recent: [] },
+    __LEADS: { rows: [{ id: U(1), name: "Iron Gym" }], view: { list: "ready", cls: null } },
+    __PLAYBOOKS: { rows: [{ id: U(1), name: "Win back" }] },
+    __BROADCASTS: { rows: [{ id: U(2), name: "Monday" }] },
+    __TEMPLATES_ALL: [{ id: U(3), name: "offer_1" }],
   };
-  assert.deepEqual(ctx(throws, "today").rows, [], "a provider that throws gives no rows");
+  for (const hash of [
+    "today",
+    "conversations",
+    "live",
+    "clients/leads",
+    "outbound",
+    `broadcasts/run:${U(2)}`,
+    "messages",
+  ])
+    assert.deepEqual(ctx(old, hash).rows, [], `${hash}: only the typed store is read`);
+  // The ledger: one function writes the window's name, the key it holds is read back, and taking it back empties it.
+  const was = globalThis.window;
+  const win = {};
+  globalThis.window = win;
+  try {
+    setAskOnScreen({ key: "calendar", ids: [U(5)], labels: ["Ana"], view: "2026-09-21/7" });
+    assert.equal(askOnScreenKey(), "calendar");
+    assert.deepEqual(win.__askOnScreen.ids, [U(5)]);
+    assert.deepEqual(
+      ctx(win, "calendar").rows,
+      [{ kind: "person", id: U(5) }],
+      "the provider reads what the writer wrote",
+    );
+    setAskOnScreen(null);
+    assert.equal(askOnScreenKey(), null);
+    assert.deepEqual(ctx(win, "calendar").rows, []);
+  } finally {
+    globalThis.window = was;
+  }
 });
 
 test("the row the words name: by its place, in English or Spanish, or by its name, whole; a place in time is not a row; the words win over the route", () => {

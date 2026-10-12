@@ -22,6 +22,7 @@
  * words. Its views, the rail and the address are pipeline-views.ts's; the peek is pipeline-peek.ts's; the board's
  * moves, the rows' order and a selection's pass are pipeline-board.ts's.
  */
+import { visitStateOf } from "../../calendar/calendar-words";
 import { clockDate, clockNear, clockNearWhen } from "../../shared/clock";
 import { plural } from "../../shared/words";
 import { DEAL_CARD_WORDS } from "../sheet/deal-card";
@@ -158,11 +159,15 @@ function dealRow<T extends PipelineSource>(
 }
 
 /**
- * A consultation held with no proposal since: when, and the step not taken yet. The rule measures from its end
- * (`consultedMs`); the words date it from its start, the day it was held, so one that took Monday reads Monday.
+ * A consultation that has ended with no proposal since: when, and the step not taken yet. The rule measures from its end
+ * (`consultedMs`); the words date it from its start, the day it was, so one that took Monday reads Monday. It is
+ * said as the visit is everywhere (calendar-words.ts visitStateOf, D1-consult-held): "Kept" where the owner said they came,
+ * "Past" where nobody said, never "Held", which says it took place. A missed one is no consultation to follow (the row's
+ * last visit leaves it out).
  */
 function heldRow<T extends PipelineSource>(r: T, endMs: number, tz: string, nowMs: number): PipelineRowBody<T> {
   const heldMs = r.lastVisitMs !== null && Number.isFinite(r.lastVisitMs) ? r.lastVisitMs : endMs;
+  const said = visitStateOf(r.lastVisitLine?.mark ?? null, endMs, nowMs);
   return {
     id: r.id,
     group: "consultations",
@@ -172,7 +177,10 @@ function heldRow<T extends PipelineSource>(r: T, endMs: number, tz: string, nowM
     service: null,
     value: null,
     inStage: daysWords(wholeDaysSince(heldMs, nowMs)),
-    chip: { words: `Held ${clockNear(heldMs, zoneOf(r, tz), nowMs)} · no proposal yet`, tone: "warn" },
+    chip: {
+      words: `${said ? `${said.text} ` : ""}${clockNear(heldMs, zoneOf(r, tz), nowMs)} · no proposal yet`,
+      tone: "warn",
+    },
     // Held, and the proposal is the step now: in warn, as the chip says it, since it waits on the owner.
     track: [step("consultation", "done"), step("proposal", "current", "warn"), step("client", "ahead")],
   };

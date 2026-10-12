@@ -213,7 +213,13 @@ test("REGRESSION: their page does not hold a reply behind a window email does no
   );
   assert.deepEqual(
     p.bookingLinkAction,
-    { label: "Email the booking link", title: "Opens the thread with the link ready to send by email", ready: true },
+    {
+      label: "Email the booking link",
+      short: "Email the link",
+      title: "Opens the thread with the link ready to send by email",
+      ready: true,
+      offered: true,
+    },
     "and the button fills the composer, which sends by email, instead of offering a WhatsApp template",
   );
 });

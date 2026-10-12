@@ -3,7 +3,7 @@
  * re-exports it.
  */
 import { LEAD_EMAIL_WORDS, LEAD_STAGE_WORDS, type LeadRowDto, type LeadsQuery } from "@chanlytics/contracts";
-import { attachment, csvCell, dateTag, safeName } from "../export/export";
+import { csvCell, dateTag, safeName } from "../export/export";
 import { leadsPage, type LeadsPageAnswer } from "./lead-page";
 import { tenantFacts } from "../tenant";
 import { recordDecision } from "../verbs";
@@ -36,10 +36,11 @@ const LEAD_CSV_COLUMNS: ReadonlyArray<readonly [string, (r: LeadRowDto) => strin
   ["Found", (r) => r.found_at],
 ];
 
+/** The file's text without its byte-order mark: the page that saves it adds one (kit downloadCsv), as every CSV it saves has. */
 function leadsCsv(rows: LeadRowDto[]): string {
   const head = LEAD_CSV_COLUMNS.map(([name]) => name).join(",");
   const body = rows.map((r) => LEAD_CSV_COLUMNS.map(([, pick]) => csvCell(pick(r))).join(","));
-  return `\uFEFF${[head, ...body].join("\r\n")}\r\n`;
+  return `${[head, ...body].join("\r\n")}\r\n`;
 }
 
 /** How many pages of 500 an export will walk before it stops: the month's whole allowance, with room. */
@@ -49,12 +50,15 @@ const EXPORT_PAGES = 20;
  * Every lead the view matches, as a CSV, and the ledger row that says a copy
  * left the building. What it took is marked so the same lead is not charged
  * twice (§0.2), and a lead already charged is not charged again.
+ *
+ * The file is the answer's `csv` and its name, `file`, for the page to save: marking what it took moves the month's count,
+ * so it is a POST (decision 0047, lane 6), and a POST answers the envelope like any other.
  */
 export async function exportLeads(
   ctx: Pick<RouteContext, "supabase" | "userId" | "via" | "undoOf">,
   tenantId: string,
   view: Omit<LeadsQuery, "after_key" | "after_id" | "limit">,
-): Promise<Response> {
+): Promise<{ file: string; csv: string; rows: number }> {
   const rows: LeadRowDto[] = [];
   let after: { key: string; id: string } | null = null;
   // Every page, not the first: a CSV that stops at 500 is indistinguishable
@@ -81,5 +85,9 @@ export async function exportLeads(
   });
   // On the ledger, as the people export is: who took a copy, and when.
   await recordDecision(ctx, tenantId, "workspace", tenantId, "export", { what: "leads", rows: rows.length });
-  return attachment(`leads-${safeName(name)}-${dateTag(new Date(), timezone)}.csv`, leadsCsv(rows), "text/csv");
+  return {
+    file: `leads-${safeName(name)}-${dateTag(new Date(), timezone)}.csv`,
+    csv: leadsCsv(rows),
+    rows: rows.length,
+  };
 }

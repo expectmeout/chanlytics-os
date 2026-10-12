@@ -106,7 +106,7 @@
     "@typescript-eslint/no-unsafe-assignment": 1
   },
   "apps/dashboard/src/legacy/components/ask-face.jsx": {
-    "react-hooks/exhaustive-deps": 2
+    "react-hooks/exhaustive-deps": 1
   },
   "apps/dashboard/src/legacy/components/data-bits.jsx": {
     "jsx-a11y-x/click-events-have-key-events": 1,
@@ -121,7 +121,7 @@
     "react-hooks/exhaustive-deps": 1
   },
   "apps/dashboard/src/legacy/demo/pages/agent-fleet.jsx": {
-    "react-hooks/exhaustive-deps": 2
+    "react-hooks/exhaustive-deps": 1
   },
   "apps/dashboard/src/legacy/demo/pages/agent-store.jsx": {
     "jsx-a11y-x/click-events-have-key-events": 6,
@@ -130,6 +130,9 @@
   },
   "apps/dashboard/src/legacy/demo/pages/agent-studio.jsx": {
     "react-hooks/exhaustive-deps": 7
+  },
+  "apps/dashboard/src/legacy/demo/pages/dashboard-a-ask.jsx": {
+    "jsx-a11y-x/click-events-have-key-events": 1
   },
   "apps/dashboard/src/legacy/demo/pages/pipeline.jsx": {
     "react-hooks/exhaustive-deps": 1
@@ -143,16 +146,13 @@
     "react-hooks/exhaustive-deps": 2
   },
   "apps/dashboard/src/legacy/pages/app-shell.jsx": {
-    "react-hooks/exhaustive-deps": 6
+    "react-hooks/exhaustive-deps": 5
   },
   "apps/dashboard/src/legacy/pages/ask-hooks.jsx": {
     "react-hooks/exhaustive-deps": 2
   },
   "apps/dashboard/src/legacy/pages/ask-real.jsx": {
     "react-hooks/exhaustive-deps": 19
-  },
-  "apps/dashboard/src/legacy/pages/dashboard-a-ask.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 1
   },
   "apps/dashboard/src/server/ask/context/pages.ts": {
     "@typescript-eslint/require-await": 1

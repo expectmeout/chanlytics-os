@@ -45,7 +45,7 @@ const FACTS_SHOWN = 6;
  * team's own record of them (why a thread was handed over, what a member decided, a change of consent, what the
  * system noted) is the member's, and reaches a call's brief alone.
  */
-const SAID_TO_THEM = new Set(["customer", "receptionist", "you", "call", "visit"]);
+const SAID_TO_THEM = new Set(["customer", "receptionist", "team", "call", "visit"]);
 
 /** What the draft reads of a person: their page's own view model, and only these fields of it. */
 type Who = Pick<PersonVM, "name" | "givenName" | "facts" | "lastExchange" | "timeline" | "noteList">;
@@ -98,7 +98,8 @@ function personLines(who: Who, forTheMember: boolean): string {
   const last = who.lastExchange?.customer;
   if (last) lines.push(`The last thing they wrote (${last.at}): ${last.text.slice(0, TURN_CHARS)}`);
   const turns = who.timeline
-    .filter((t) => forTheMember || SAID_TO_THEM.has(t.kind))
+    // A message that never reached them (queued, failed or canceled) was not said to them: the draft does not build on it.
+    .filter((t) => forTheMember || (SAID_TO_THEM.has(t.kind) && !t.unsent))
     .slice(0, TURNS_TOLD)
     .map((t) => `${t.day} ${t.time} ${t.who}: ${t.text.slice(0, TURN_CHARS)}`);
   if (turns.length) lines.push("What has happened, newest first:", ...turns);

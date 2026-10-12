@@ -26,7 +26,7 @@ import type { ComponentProps } from "react";
 import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import { EmptyState } from "../../kit/empty/empty";
 import { RecordField } from "../../kit/record/field";
-import { canDo, gate } from "../../legacy-verbs";
+import { canDo, gate, windowValue } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
 import { BtFold } from "./gestures/fold";
 import { BtZoneRow } from "./open";
@@ -164,7 +164,7 @@ const btcSendAnswer = ({
  * Whether the person may change the business: the role store's answer, or yes where the shell has none (the mockup).
  * Read as the card draws.
  */
-const btcMayChange = () => !Reflect.get(window, "canDo") || canDo("settings");
+const btcMayChange = () => !windowValue("canDo") || canDo("settings");
 
 /**
  * The card a workspace with no receptionist is shown. A role that may not change the business reads the empty state

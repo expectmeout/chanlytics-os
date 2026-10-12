@@ -4,7 +4,9 @@
  * would resolve it; for a left-out row, what left it out. The two tags are the kit's one StatePill, on the registry's tones
  * (tone.ts).
  */
+import { LEAD_WORDS } from "@chanlytics/contracts";
 import type { LeadRowVM } from "@chanlytics/contracts";
+import { LinkButton } from "../../kit/link-button/link-button";
 import { StatePill } from "../../kit/pill/state-pill";
 import { LeadCallMenu, ldCallProps } from "./call-menu";
 import { LeadCard, LeadHover } from "./hover";
@@ -56,7 +58,7 @@ export const LeadRatedCard = ({ l }: { l: LeadRowVM }) => {
     <LeadCard label={`How ${l.name} is rated`} testid="lead-card-rated">
       <div className="ld-card-rated">
         <span className="ld-card-score">{l.rated?.score}</span>
-        <span className="ld-card-count">{l.rated?.count} reviews</span>
+        <span className="ld-card-count">{l.rated?.reviews}</span>
       </div>
       {[5, 4, 3, 2, 1].map((star) => {
         const n = spread[star - 1] ?? 0;
@@ -94,6 +96,30 @@ export const ldClientOf = (l: LeadRowVM, x: Pick<LeadCellCtx, "peopleRows"> | nu
   return !!(person && person.deal && person.deal.stage === "won");
 };
 
+/**
+ * The Client pill of a converted lead whose deal is won: a door to the person it names, in People (the lead's row opens the
+ * lead itself, and nothing opened the person from here, D1-lead-person-door). A pill without a person to open, or a page
+ * that cannot open one, is the pill alone.
+ */
+const ldClientPill = (l: LeadRowVM, x: Pick<LeadCellCtx, "onOpenPerson">) => {
+  const person = l.contactId;
+  const pill = <StatePill kind="deal" value="won" testid="lead-state-tag" />;
+  return person && x.onOpenPerson ? (
+    <LinkButton
+      onClick={(e) => {
+        e.stopPropagation();
+        x.onOpenPerson(person);
+      }}
+      title={LEAD_WORDS.openPerson}
+      data-testid="lead-client-door"
+    >
+      {pill}
+    </LinkButton>
+  ) : (
+    pill
+  );
+};
+
 export const ldBusinessCell = (l: LeadRowVM, x: LeadCellCtx) => (
   <td key="business" className={`cl-name-cell pl-pin ld-biz-cell ${l.cls}`}>
     <div className="cl-row-name ld-row-name">
@@ -124,7 +150,7 @@ export const ldBusinessCell = (l: LeadRowVM, x: LeadCellCtx) => (
               (Talking; a lead that said no or is not a fit). It stays where it says more: Needs review, Left out (the
               column is empty for a left-out lead), and Contacted with how long ago. */}
           {ldClientOf(l, x) ? (
-            <StatePill kind="deal" value="won" testid="lead-state-tag" />
+            ldClientPill(l, x)
           ) : l.stateTag && !(x.stageShown && ldStageSaysIt(l)) ? (
             <StatePill kind="lead_row_state" value={l.state} label={l.stateTag} testid="lead-state-tag" />
           ) : null}

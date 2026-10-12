@@ -4395,7 +4395,14 @@ function placesFetch(fetchImpl = fetch, timeoutMs = PLACES_TIMEOUT_MS) {
 var PLACE_ID = /^[A-Za-z0-9_-]{10,300}$/;
 
 // src/google/google-sync.ts
-import { plural, ratingWords, reviewSnippet, starsOf, DAY_MS } from "../../contracts/dist/index.js";
+import {
+  plural,
+  ratingWords,
+  reviewSnippet,
+  starsOf,
+  DAY_MS,
+  NEW_REVIEW_NEWS
+} from "../../contracts/dist/index.js";
 var REVIEW_BELL_MAX = 3;
 var FRESH_SLACK_MS = 2 * DAY_MS;
 function overall(rating, count) {
@@ -4404,7 +4411,7 @@ function overall(rating, count) {
 function reviewBells(news, counted, listing) {
   if (news.length > 0 && news.length <= REVIEW_BELL_MAX) {
     return news.map((r) => ({
-      title: `New on Google: ${starsOf(r.rating)} from ${r.author?.trim() || "a customer"}`,
+      title: `${NEW_REVIEW_NEWS} ${starsOf(r.rating)} from ${r.author?.trim() || "a customer"}`,
       body: `${r.text?.trim() ? `\u201C${reviewSnippet(r.text, 280)}\u201D` : "A rating without words."}
 ${overall(listing.rating, listing.review_count)}.`,
       review_id: r.review_id

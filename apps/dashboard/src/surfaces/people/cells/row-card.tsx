@@ -13,12 +13,17 @@
  * (clients.css .pl-unread), as the Inbox's unread row does.
  */
 import type { ReactElement, ReactNode } from "react";
+import type { FacePerson } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { ListRow } from "../../kit/list-row/list-row";
 import type { RowPick } from "../types";
 
-/** The card's face: initials or a glyph, and pictures over them. */
+/**
+ * The card's face: a person (the kit's Face tells initials from the glyph of a number or an address, by contracts'
+ * personFaceOf), or initials or a glyph for what is not one (a lead's tile), and pictures over them.
+ */
 interface CardFace {
+  person?: FacePerson;
   initials?: string;
   glyph?: string | null;
   image?: string | null;
@@ -52,7 +57,11 @@ export function plRowCard({
   swipe?: object | null;
   grounds?: ReactNode;
 }): ReactElement<{ className?: string }> {
-  const holds = face.glyph ? { glyph: <Icon name={face.glyph} size={12} /> } : { initials: face.initials ?? "" };
+  const holds = face.person
+    ? { person: face.person }
+    : face.glyph
+      ? { glyph: <Icon name={face.glyph} size={12} /> }
+      : { initials: face.initials ?? "" };
   const who = numeric ? <span className="tabular">{name}</span> : name;
   return (
     // A row that slides takes its own touch: the strip of views over the page is not walked by it (surface-tabs.jsx).

@@ -12,15 +12,14 @@
  * It is read where the lens is drawn and nowhere else: `ROUTE_DRAWS["reports/receptionist"]` names it, so the boot's passes, a
  * return to the tab and Retry-all leave it alone on every other page, and the lens reads it as it comes on screen, once and again
  * when it has aged. Its live-feed rule is the lens's own (`onlyOnItsPage`, and Reports owns what it draws: surface-registry.ts): a
- * message, an escalation or a call (not a transcript turn of one in progress) moves it while the lens is on screen, 800 ms after the
- * last change as Reports' own read does, and once when it comes back. A write that makes it wrong from another page (a reply or a
- * resolved escalation moves "waiting on you", the workspace's zone moves the days, its hours and closures move "while you were
- * closed") forgets it instead of reading it from there (`forgetReceptionist`, refresh-map.ts), and reads it again only where the
- * lens is on screen, since the feed tells it of none of those writes.
+ * message, an escalation, a call (not a transcript turn of one in progress) or a visit (its links booked) moves it while the lens is
+ * on screen, 800 ms after the last change as Reports' own read does, and once when it comes back. A write that makes it wrong from
+ * another page (a reply or a resolved escalation moves "waiting on you", the workspace's zone moves the days, its hours and
+ * closures move "while you were closed") forgets it instead of reading it from there (`forgetReceptionist`, refresh-map.ts), and
+ * reads it again only where the lens is on screen, since the feed tells it of none of those writes.
  */
 import { read } from "@/legacy-bridge/api";
 import { isLiveCallTurn } from "@/legacy-bridge/surface-realtime";
-import { onlyOnItsPage } from "@/legacy-bridge/surface-registry";
 import { reportRangeKey, type ReceptionistDto } from "@chanlytics/contracts";
 import { periodSurface } from "./period-surface";
 import { rangeQuery, shownReportRange } from "./surface";
@@ -35,12 +34,6 @@ export interface ReceptionistSurface {
   readAt: number;
 }
 
-/** The tables whose changes the live feed tells a workspace of and that the Receptionist read draws from. */
-const RECEPTIONIST_TABLES: string[] = ["messages", "escalations", "calls"];
-
-/** Where the lens is on screen: the rest are held for it (surface-registry.ts onlyOnItsPage). */
-const onItsPage = onlyOnItsPage("reports_receptionist", RECEPTIONIST_TABLES);
-
 export const receptionist = periodSurface({
   key: "reports_receptionist",
   // The lens is drawn on the page the days are picked on: it follows whatever Reports shows, days a member picked too.
@@ -53,15 +46,19 @@ export const receptionist = periodSurface({
   }),
   // Read again only while the lens is on screen, and once when it comes back (surface-registry.ts), a burst of messages later. A
   // transcript turn of a call in progress changes nothing it counts (surface-realtime.ts isLiveCallTurn, as Today's rule leaves it
-  // out): asked first, so a turn heard on another page is not kept for the lens either.
+  // out): asked first, so a turn heard on another page is not kept for the lens either. What the read draws from: its links booked
+  // are visits, the people it reached are counted from the book (the person), and "while you were closed" is read from the hours and
+  // the closures the settings hold (the business's facts) (0047).
   live: {
-    refreshOnTables: RECEPTIONIST_TABLES,
-    refreshWhen: (change) => !isLiveCallTurn(change) && onItsPage(change),
+    reads: ["conversation", "hold", "call", "visit", "person", "facts"],
+    fresh: "its-page",
+    omit: [
+      { tables: ["conversations"], why: "it counts the messages, not the threads they are in" },
+      { tables: ["appointment_notices"], why: "its links booked are appointments; a held booking email is not one" },
+    ],
+    when: (change) => !isLiveCallTurn(change),
     debounceMs: 800,
   },
 });
 
 export const receptionistOverride = receptionist.override;
-
-/** A write from another page changed what the lens counts or says: nothing is held of it, and it is read as the lens comes on screen. */
-export const forgetReceptionist = receptionist.forget;

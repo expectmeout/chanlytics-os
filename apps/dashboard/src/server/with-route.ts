@@ -250,6 +250,12 @@ export interface MemberContext {
    * Absent where the membership's row did not carry them.
    */
   facts?: { name: string; timezone: string };
+  /**
+   * The workspace's address word (tenants.slug), from the same row: what a server-written link back to the workspace is made
+   * of (contracts appLink), such as the page Google returns the browser to. Absent where the row did not carry it. Not part of
+   * a route's `member` (route.ts mint): a route that links reads it from the context.
+   */
+  slug?: string;
 }
 
 /**
@@ -307,6 +313,7 @@ export async function memberContext(
     tenantId: m.tenant_id,
     role: m.role as MemberContext["role"],
     ...(typeof row?.timezone === "string" ? { facts: tenantFactsOf(row) } : {}),
+    ...(typeof row?.slug === "string" && row.slug ? { slug: row.slug } : {}),
   };
 }
 

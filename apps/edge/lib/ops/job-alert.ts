@@ -36,6 +36,9 @@ const REDACTED: Record<JobNewsKind, (jobKind: string) => string> = {
   broadcast_stopped: (k) => `A broadcast did not go out for a workspace (job kind: ${k}).`,
   broadcast_sent: (k) => `A broadcast finished for a workspace (job kind: ${k}).`,
   handoff: (k) => `A reply could not be delivered for a workspace, and its thread is flagged (job kind: ${k}).`,
+  opted_out: (k) => `A customer of a workspace asked to stop, and nobody there could be told (job kind: ${k}).`,
+  booking: (k) => `A booking arrived for a workspace, and nobody there could be told (job kind: ${k}).`,
+  member_joined: (k) => `A teammate joined a workspace, and nobody there could be told (job kind: ${k}).`,
 };
 
 /**

@@ -23,7 +23,17 @@ export interface CalendarItemDto {
   title: string;
   all_day: boolean;
   /** The person in People this appointment is for — by a phone in the event, else an address, else a whole name in its words; their thread and last WhatsApp message when they have one. */
-  person: { id: string; name: string; via?: MatchVia; thread?: string | null; wa_inbound_at?: string | null } | null;
+  person: {
+    id: string;
+    name: string;
+    via?: MatchVia;
+    thread?: string | null;
+    wa_inbound_at?: string | null;
+    /** The wire a reply goes out on, and the two stops, as their People row says them (calendar-people.ts PersonLike.reach). */
+    reply_wire?: "whatsapp" | "sms" | "email" | null;
+    email_stopped?: boolean;
+    opted_out?: boolean;
+  } | null;
   /** The event's own words, plain text. */
   description?: string | null;
   location?: string | null;

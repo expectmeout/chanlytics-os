@@ -23,7 +23,7 @@
     "broadcasts/broadcasts.test.mjs": 19,
     "calendar/availability-tool.test.mjs": 1,
     "calendar/availability.test.mjs": 4,
-    "calendar/calendar-people.test.mjs": 31,
+    "calendar/calendar-people.test.mjs": 30,
     "calendar/calendar.test.mjs": 11,
     "connections/connections.test.mjs": 10,
     "consent/consent-door.test.mjs": 2,
@@ -112,7 +112,7 @@
     "whatsapp/whatsapp-steps.test.mjs": 3,
     "workspace/exports.test.mjs": 7,
     "workspace/identity.test.mjs": 10,
-    "workspace/settings-truth.test.mjs": 12,
+    "workspace/settings-truth.test.mjs": 11,
     "workspace/team-audit-and-invites.test.mjs": 9,
     "workspace/team-reads.test.mjs": 3
   }

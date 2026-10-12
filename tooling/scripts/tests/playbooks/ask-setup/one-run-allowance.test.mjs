@@ -68,7 +68,7 @@ const { templates: templatesReader } = await import(at(`${SRC}/server/readers/te
 const { emailWire } = await import(at(`${SRC}/server/connections/email-readiness.ts`));
 const { setServiceClient } = await import(at(`${SRC}/server/service-db.ts`));
 const { playbooksOverride } = await import(at(`${SRC}/surfaces/campaigns/playbooks/surface.ts`));
-const { surfaceValue } = await import(at(`${SRC}/surfaces/surface-values.ts`));
+const { setSurfaceValue, surfaceValue } = await import(at(`${SRC}/surfaces/surface-values.ts`));
 const { composerModel, composerOffered, composerOpened } = await import(
   at(`${SRC}/surfaces/campaigns/playbooks/composer-model.ts`)
 );
@@ -244,7 +244,9 @@ afterEach(() => setServiceClient(null));
 /**
  * One world: the database, the month's emails already sent, and what the dashboard answers the page from it (GET
  * playbooks and GET templates by their own readers, as their routes do). `answer` changes the GET playbooks answer the page
- * reads (an older server's), never the database.
+ * reads (an older server's), never the database. The page's messages are the settings read's, the one read of the templates
+ * (offered-templates.ts): the templates reader's rows are published as Settings publishes the ones it reads (WhatsApp's, the
+ * email and text versions, and the messages made of all), and the surface is made of them.
  */
 async function worldOf({ db = {}, emailsSent = 0, answer = (x) => x } = {}) {
   const rows = tables(db);
@@ -256,12 +258,16 @@ async function worldOf({ db = {}, emailsSent = 0, answer = (x) => x } = {}) {
   const tpl = JSON.parse(JSON.stringify((await load(rc, templatesReader, { all: false })).data));
   routes = {
     "/api/v1/playbooks": answer(pb),
-    "/api/v1/templates": tpl,
     "/api/v1/channels": {
       channels: [{ kind: "whatsapp", status: "active", quality: "GREEN", messaging_limit: "TIER_1K" }],
     },
     "/api/v1/settings": { config: { brain: { business_name: "Harbor Studio" } }, version: 1 },
   };
+  setSurfaceValue("settings", {
+    templatesAll: tpl.templates.filter((t) => t.channel === "whatsapp"),
+    templateVersions: tpl.templates.filter((t) => t.channel !== "whatsapp"),
+    messages: tpl.messages,
+  });
   await playbooksOverride.apply();
   readerCache.clear();
   return { ctx, pb, data: surfaceValue("playbooks") };

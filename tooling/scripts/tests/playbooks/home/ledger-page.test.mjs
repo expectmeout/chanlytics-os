@@ -87,7 +87,7 @@ const ROW = {
   name: "Win-back",
   hint: "",
   status: "waiting",
-  stateWords: "Waiting on you",
+  stateWords: "Waiting for your approval",
   phoneWords: "",
   tone: "warn",
   needs: "offers",
@@ -95,7 +95,7 @@ const ROW = {
   channels: [],
   people: { n: 7, unit: "people" },
   results: "none",
-  next: { words: "Waiting on you", atMs: NOW },
+  next: { words: "Waiting for your approval", atMs: NOW },
   open: { kind: "open", label: "Open", playbookId: "pb-1" },
   waiting: { runId: "b-1", people: 7, refusal: null },
   act: null,
@@ -189,7 +189,7 @@ const comingLine = (id, over = {}) => ({
   ...over,
 });
 
-test("Coming up keeps a waiting run's time and Waiting on you, decides nothing, and its door says Sent and goes there", () => {
+test("Coming up keeps a waiting run's time and Waiting for your approval, decides nothing, and its door says Sent and goes there", () => {
   fresh();
   const refusal = "This run was made for Sep 30 and that day has passed.";
   const tile = {
@@ -203,7 +203,7 @@ test("Coming up keeps a waiting run's time and Waiting on you, decides nothing, 
   assert.equal(lines.length, 2);
   for (const line of lines) {
     assert.match(textOf(line), /Sat9:00 AM/, "its time");
-    assert.match(textOf(line), /Waiting on you/, "and that it waits");
+    assert.match(textOf(line), /Waiting for your approval/, "and that it waits");
     for (const id of ["cmh-waiting-acts", "cmh-approve", "cmh-skip"])
       assert.equal(byTestId(line, id), null, `${id}: a run is decided on its row of the ledger, never here`);
   }

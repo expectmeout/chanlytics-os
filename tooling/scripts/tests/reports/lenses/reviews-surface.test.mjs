@@ -344,7 +344,11 @@ test("its live-feed rule is the lens's own: the listing's three tables, heard wh
   reset("30d");
   assert.deepEqual(reviewsOverride.refreshOnTables, ["google_reviews", "google_listings", "google_connections"]);
   assert.equal(reviewsOverride.refreshOnMessageInserts, undefined, "a message is no review");
-  assert.deepEqual(reportsHeadlineOverride.refreshOnTables, undefined, "the headline has none");
+  assert.deepEqual(
+    reportsHeadlineOverride.refreshOnTables,
+    ["messages", "calls", "appointments", "contacts"],
+    "the headline has its own, Today's (headline-live.test.mjs)",
+  );
   const change = (table) => ({ table, event: "INSERT", row: {} });
   onLens();
   for (const table of reviewsOverride.refreshOnTables) {

@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { ResendConfig, EmailSendsAs, WaConfig, EmailRequest, ResendLimit, SendResult, ApifyClient, LeadJudge, NormalizedInbound, CarrierConsent } from '@chanlytics/channels';
-import { SendPurpose, MessageAbout, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, ConsentChannel, WriteRow, ChannelsReady, WriteWay, AppointmentState, EmailHold, JobNews, EmailClaim, BookingTool, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, PurposeRefusal, PurposeBearing, AskedPurpose, AppointmentStatus, NoticeHold, ParamSpec, Audience, PersonRowVM, ListRef, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, CampaignMessage, CampaignHow, AppointmentWord, PlaybookTrigger, PlaybookPolicyClass, PlaybookState, triggerOf, PlaybookPatch, PLAYBOOK_LIMITS, StepHand, TimetableDomain, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts, Handled, BrainIntent, EventSubscriber, HoldFacts } from '@chanlytics/contracts';
+import { SendPurpose, MessageAbout, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, ConsentChannel, WriteRow, ChannelsReady, WriteWay, AppointmentState, FeedNames, EmailHold, JobNews, EmailClaim, BookingTool, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, PurposeRefusal, PurposeBearing, AskedPurpose, AppointmentStatus, NoticeHold, ParamSpec, Audience, PersonRowVM, ListRef, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, CampaignMessage, CampaignHow, AppointmentWord, PlaybookTrigger, PlaybookPolicyClass, PlaybookState, triggerOf, PlaybookPatch, PLAYBOOK_LIMITS, StepHand, TimetableDomain, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts, Handled, BrainIntent, EventSubscriber, HoldFacts, OptOutPerson, BookedVisit, MemberJoined } from '@chanlytics/contracts';
 export { AppointmentStatus, DeliveryRefusal, EmailClaim } from '@chanlytics/contracts';
 import { Json, Database, MessageVersionRow, RoutedChannel, LeadContext, IngestResult, DeliveredEvent } from '@chanlytics/db';
 
@@ -1043,6 +1043,14 @@ interface BroadcastBatchPorts {
      * appointments, and a read that fails is no rows: the send goes as it did before the record.
      */
     appointments?(keys: string[]): Promise<Map<string, AppointmentState>>;
+    /**
+     * What the owner's calendar feed names now (the edge's feed, kept five minutes), asked beside the record because the
+     * record is only as new as the hourly sweep: a visit cancelled in the calendar alone is still `booked` there, and its
+     * reminder would go. Null where the workspace has no calendar feed (nothing to ask); absent where the runtime has none.
+     * THROWS when the feed cannot be read: a reminder for a calendar event whose standing is unknown waits, queued, for the
+     * next batch, as every read the send cannot make does (broadcast.ts readPeople), and is never sent on a guess.
+     */
+    feed?(): Promise<FeedNames | null>;
     /** The thread this send belongs to, never created here. */
     target(phoneE164: string): Promise<{
         conversationId: string;
@@ -3845,9 +3853,14 @@ interface InboundDb {
  * customer's words to the workspace mailbox, and the edge's persist adapter
  * throws it (apps/edge/lib/whatsapp/persist.ts re-exports it for the two doors
  * that count it into their 503).
+ *
+ * `kept`: the message IS recorded, and what failed is a yes it carried (db AnswerNotKept: a START's channel, YES OFFERS).
+ * The provider is still told to send it again (the redelivery finds the message unhandled and writes the yes), and a job
+ * is tried again, but nobody is told the words were lost: they were not.
  */
 declare class IngestFailed extends Error {
-    constructor(message: string);
+    readonly kept: boolean;
+    constructor(message: string, kept?: boolean);
 }
 /**
  * A logger with context bound to it, as the verb uses one: three levels and a
@@ -3867,6 +3880,8 @@ interface InboundLog {
  */
 interface InboundRuntime {
     tenantId: string;
+    /** The workspace's address word (tenants.slug), when the runtime read it: an alert mail links the workspace's page by it. */
+    slug?: string | null;
     /** null = this tenant's receptionist does not speak (unconfigured persona —
      *  persist + escalate only; silence over someone else's voice). */
     brain: BrainConfig | null;
@@ -3914,6 +3929,8 @@ interface InboundHandoff {
         notifications: NotificationsConfig | null;
         /** True when this tenant is the env-default one, whose owner IS the address in LEAD_TO. */
         isEnvDefault: boolean;
+        /** The workspace's address word, when it was read with the recipients (the edge's NotifyTarget.slug). */
+        slug?: string | null;
     };
     /** The wire the customer wrote on. WhatsApp unless the text came in on a carrier's. */
     channel?: InboundChannel;
@@ -4052,7 +4069,11 @@ interface InboundPorts {
         /** Persist first. Null when there is nothing to record for; IngestFailed when the write FAILED. */
         ingest(db: InboundDb | null, tenantId: string | null, n: NormalizedInbound, channel?: InboundChannel, 
         /** The line the message came in on, a tenant_channels id: the first touch of the person it makes carries it (K3). */
-        line?: string | null): Promise<IngestResult | null>;
+        line?: string | null, 
+        /** A job takes this message up next (a door that records it and schedules its answer): a yes that fails here is left owed to that job. */
+        opts?: {
+            jobFollows?: boolean;
+        }): Promise<IngestResult | null>;
         sink(db: InboundDb | null, tenantId: string | null, ing: IngestResult | null, rt?: InboundRuntime | null, channel?: InboundChannel, wire?: Wire): InboundSink;
         /**
          * The thread's reply turn (00284, ./turn.ts): `claim` takes it for this message before the model is asked, and
@@ -4420,7 +4441,19 @@ declare function bookingPageLinkedFrom(html: string, pageUrl: string): string | 
  *   owner_notice      a thread handed to a person (escalation.opened, or an open hold taking another reason:
  *                     escalation.changed; 00388, 00396) is told to its workspace once, from its rows (decision 0043):
  *                     the hold read again, so one answered since tells nobody; the notice keeps its event, so a second
- *                     run, or a notice an edge from before told inline, sends nothing again.
+ *                     run, or a notice an edge from before told inline, sends nothing again. A hold that waits on
+ *                     nobody (an `opt_out` an edge from before opened) is not told here: consent_notice tells it.
+ *   consent_notice    a customer's no (contact.consent_changed, whichever door wrote it: a typed STOP, the unsubscribe
+ *                     link, a complaint, a carrier's report) is told to its workspace once on the bell, in the Inbox's
+ *                     words (decision 0048, 00409). News and no wait: no hold is opened for it, and the mail follows
+ *                     only as the business chose. A no a member recorded, and every yes, tell nobody.
+ *   visit_notice      a booking that arrived (appointment.changed, a visit added or a hold confirmed, by a booking tool or the
+ *                     owner's calendar feed: 00410, S1-01) is told once on the bell, opening the visit on its day. The
+ *                     visits one read of the calendar added together are one line, told by the first of their events, and
+ *                     a read that adds more than a customer could book in an hour (a calendar newly connected) tells
+ *                     nobody. A visit withdrawn or already past by the time the delivery runs is not news.
+ *   team_notice       a teammate who accepted an invitation and joined (member.joined: 00410, S1-19) is told once on the
+ *                     bell, opening Settings > Team.
  */
 
 /** What a subscriber acts through: the job's own database, behind the verbs it needs. */
@@ -4433,12 +4466,56 @@ interface SubscriberPorts {
     } | {
         escalationId: string;
     }): Promise<HoldFacts | null>;
-    /** Whether the workspace was told of this hold already: this event's notice, or an inline one about the thread. */
+    /**
+     * Whether the workspace was told of this hold in full already: this event's notice with nothing owed, or an inline one
+     * about the thread. A notice kept whose mail is still owed (the mail failed after the row and the phones went) is not
+     * told yet: `tell` then sends the mail alone, and the row is never kept twice.
+     */
     holdTold(tenantId: string, p: {
         eventId: string;
         conversationId: string;
         at: string;
     }): Promise<boolean>;
+    /** The person a consent change is about, as their record says it (packages/db personFactsOf); null when there is no such person. */
+    optOutPerson(tenantId: string, contactId: string): Promise<OptOutPerson | null>;
+    /**
+     * Whether the workspace was told of this no already in full: this event's notice with nothing owed, or another door's
+     * notice for the same person within the minute (an unsubscribe page's "Stop all messages" writes two events for one
+     * press).
+     */
+    optOutTold(tenantId: string, p: {
+        eventId: string;
+        contactId: string;
+        at: string;
+    }): Promise<boolean>;
+    /**
+     * Whether the workspace was told of this event in full already: a notice answering it, with nothing owed (news that has no
+     * twin to look for but its own earlier delivery).
+     */
+    eventTold(tenantId: string, eventId: string): Promise<boolean>;
+    /**
+     * The visits of the record that are booked and still ahead among these, as the record says them now, with who booked
+     * (packages/db bookedVisitsOf). A visit cancelled, vanished from the feed, past, or a member's own entry is not among them.
+     */
+    bookedVisits(tenantId: string, ids: readonly string[], nowMs: number): Promise<BookedVisit[]>;
+    /**
+     * The calendar's additions one read of the feed wrote in the same transaction as this event, by event id (packages/db
+     * feedAdditionsWith): at most CATCH_UP_VISITS + 1, so a read that added more is seen as more without reading all of it.
+     */
+    feedAdditionsWith(tenantId: string, event: {
+        id: string;
+        at: string;
+    }): Promise<Array<{
+        eventId: string;
+        appointmentId: string;
+    }>>;
+    /** The invitation a member.joined event is about: who accepted it and as what (packages/db memberJoinedOf); null when it is gone. */
+    memberJoined(tenantId: string, invitationId: string): Promise<MemberJoined | null>;
+    /**
+     * Whether the workspace was told of this invitation's acceptance already, by whichever event: a read that took the seat
+     * twice (two tabs at once) writes two member.joined events, and the owner is told of one arrival once.
+     */
+    memberTold(tenantId: string, invitationId: string): Promise<boolean>;
     /**
      * Tell the workspace: the bell, the email its settings allow, the phones each member allows (decision 0040), exactly
      * once for the event the news names. Throws when it could not, so the delivery tries again.

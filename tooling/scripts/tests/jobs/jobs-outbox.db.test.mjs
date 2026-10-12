@@ -227,6 +227,16 @@ test("a retired kind can no longer be queued", { skip }, async () => {
 });
 
 test("the heartbeat records that it looked, and asks the edge only when something is due", { skip }, async () => {
+  // A delivery whose event is gone can never be delivered: a suite that deleted its events after itself left it, and a
+  // stack has no edge to drain it, so the tick would read it as work due. Those alone are cleared; another suite's live
+  // deliveries are not touched.
+  const queued = (await db.from("event_outbox").select("event_id")).data ?? [];
+  if (queued.length) {
+    const ids = queued.map((q) => q.event_id);
+    const alive = new Set(((await db.from("events").select("id").in("id", ids)).data ?? []).map((e) => e.id));
+    const gone = ids.filter((id) => !alive.has(id));
+    if (gone.length) await db.from("event_outbox").delete().in("event_id", gone);
+  }
   const t0 = Date.now();
   const idle = await db.rpc("trigger_jobs_tick");
   assert.equal(idle.error, null, idle.error?.message);

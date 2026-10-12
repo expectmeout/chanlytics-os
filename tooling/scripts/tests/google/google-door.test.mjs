@@ -36,7 +36,7 @@ import {
   PLACES_SEARCH_LIMIT,
   GBP_REVIEWS_MAX_PAGES,
 } from "@chanlytics/channels";
-import { lensRoute, localDate } from "@chanlytics/contracts";
+import { localDate, reviewRoute } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 import { scripted, said } from "../ai/_model-world.mjs";
 
@@ -935,9 +935,12 @@ test("refresh on the public listing: the rating, the count and the day are writt
     "the one written since the last read is news; the old one shown by relevance is not",
   );
   const bell = tables.notifications[0];
+  // The notice is about the review's ROW and opens that review with its reply box (contracts reviewRoute), not about Google's own
+  // id for it, which no page, door or ledger line names it by.
+  const rosa = tables.google_reviews.find((r) => r.review_id === "r-rosa");
   assert.deepEqual(
     [bell.tenant_id, bell.kind, bell.route, bell.subject_type, bell.subject_id],
-    [A, "review", lensRoute("reviews"), "review", "r-rosa"],
+    [A, "review", reviewRoute(rosa.id), "review", rosa.id],
   );
   assert.equal(bell.title, "New on Google: ★★★★★ from Rosa");
   assert.equal(bell.body, "“Careful movers, on time.”\n4.6 ★ overall · 11 reviews.");
@@ -1547,10 +1550,11 @@ test("refresh with the profile connected syncs it as the owner -- the expired to
     R1,
     "the review already on record keeps its row",
   );
+  const luis = tables.google_reviews.find((r) => r.review_id === "g-3");
   assert.deepEqual(
     tables.notifications.map((n) => [n.kind, n.title, n.route, n.subject_type, n.subject_id]),
-    [["review", "New on Google: ★★★★★ from Luis", lensRoute("reviews"), "review", "g-3"]],
-    "written since the last sync and not on record: news; Rosa's, on record, is not",
+    [["review", "New on Google: ★★★★★ from Luis", reviewRoute(luis.id), "review", luis.id]],
+    "written since the last sync and not on record: news, about the review's row; Rosa's, on record, is not",
   );
   assert.deepEqual(
     tables.events.map((e) => [e.kind, e.data]),
@@ -1646,10 +1650,10 @@ test("refresh under the auto mode: the review the receptionist answered rings on
   assert.equal(tables.google_reviews.find((r) => r.id === R1).reply_text, REPLY);
   assert.deepEqual(
     tables.notifications.map((n) => [n.tenant_id, n.kind, n.title, n.route, n.subject_type, n.subject_id]),
-    [[A, "review", "Replied to Rosa's review", lensRoute("reviews"), "review", R1]],
-    "one bell, about the review row, for the page where the reply is read",
+    [[A, "review", "Replied to Rosa's review", reviewRoute(R1), "review", R1]],
+    "one bell, about the review row, that opens the review where the reply is read",
   );
-  assert.equal(tables.notifications[0].route, "reports/reviews");
+  assert.equal(tables.notifications[0].route, `reports/reviews:${R1}`);
   // The ledger the Reviews report reads who wrote a reply from (reviews_ledger, 00350, joined to this by the database test):
   // the event is the receptionist's, filed under the review row.
   const replied = tables.events.filter((e) => e.kind === "google.replied");

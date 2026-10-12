@@ -4194,6 +4194,7 @@ export type Database = {
           created_at: string
           id: string
           kind: string
+          mail_due_at: string | null
           recipient_user_id: string | null
           route: string | null
           source_event: string | null
@@ -4207,6 +4208,7 @@ export type Database = {
           created_at?: string
           id?: string
           kind: string
+          mail_due_at?: string | null
           recipient_user_id?: string | null
           route?: string | null
           source_event?: string | null
@@ -4220,6 +4222,7 @@ export type Database = {
           created_at?: string
           id?: string
           kind?: string
+          mail_due_at?: string | null
           recipient_user_id?: string | null
           route?: string | null
           source_event?: string | null

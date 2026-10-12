@@ -35,13 +35,13 @@ import { calendarSample } from "./sample";
 import { touchSwipeStaying } from "./shell-verbs";
 import type { CalendarSurface } from "./surface";
 import type { CalendarFrame } from "./types";
-import { useBoardEffects, useCalendarState } from "./use-calendar";
+import { useBoardEffects, useCalendarState, useOpenVisit } from "./use-calendar";
 import { calendar } from "./verbs";
 import { crStep } from "./words";
 
-/** The page for one address: which day it names (calendar/<YYYY-MM-DD>), and which appointment (calendar/a-<id>, which the page does not open). */
+/** The page for one address: which day it names (calendar/<YYYY-MM-DD>), and which visit it opens the panel of (calendar/<YYYY-MM-DD>:a-<id>, or calendar/a-<id>). */
 interface CalendarAddress {
-  initialApptId?: string | null;
+  initialVisitId?: string | null;
   initialDay?: string | null;
 }
 
@@ -88,7 +88,7 @@ function rangeLabel(p: { view: string; anchor: string; frames: CalendarFrame[]; 
   return `${first.date} – ${last.key.slice(0, 7) === first.key.slice(0, 7) ? last.date.replace(/^[A-Za-z]+ /, "") : last.date}`;
 }
 
-function CalendarReal({ initialDay = null, C }: CalendarAddress & { C: CalendarSurface }) {
+function CalendarReal({ initialDay = null, initialVisitId = null, C }: CalendarAddress & { C: CalendarSurface }) {
   const st = useCalendarState(initialDay);
   const { view, setView, pickView, anchorKey, setAnchorKey, openId, setOpenId, pending, setPending } = st;
   const { failedSpan, setFailedSpan, serviceName, setServiceName, refreshing, setRefreshing } = st;
@@ -100,6 +100,15 @@ function CalendarReal({ initialDay = null, C }: CalendarAddress & { C: CalendarS
   const covered = !!calendar.covers(vm.days, span.from, span.days);
   const spanKey = `${span.from}+${span.days}`;
   const { read, keys } = useBoardEffects({ span, vm, view, anchor, covered, spanKey, setPending, setFailedSpan });
+
+  // A link that names a visit opens its panel once the board holds it (contracts visitRoute).
+  useOpenVisit({
+    visitId: initialVisitId,
+    days: vm.days,
+    covered: covered && !pending,
+    fetchedAt: C.fetchedAt,
+    open: setOpenId,
+  });
 
   const frames = framesOf(vm, span);
   // Days a failed read left out are not loading: they could not be read.

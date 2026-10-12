@@ -4,7 +4,7 @@
  * line each, each opening as itself on Sent (the kit's fold, RecordDisclosure). Apart from card-detail.tsx, which draws
  * the rest of the drawer and holds its verbs.
  */
-import { DELIVERY_RECEIPTS_TIP } from "@chanlytics/contracts";
+import { BROADCAST_STATE_LABELS, DELIVERY_RECEIPTS_TIP } from "@chanlytics/contracts";
 import { navigate } from "../../legacy-verbs";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
@@ -35,11 +35,11 @@ function historyRow(h: History) {
             {h.replied > 0 ? ` · ${h.replied} replied` : ""}
           </>
         ) : h.state === "pending_approval" ? (
-          `Waiting for you · ${h.recipient_count} people`
+          `${BROADCAST_STATE_LABELS.pending_approval} · ${h.recipient_count} people`
         ) : h.state === "sending" ? (
-          `Sending · ${h.sent} so far`
+          `${BROADCAST_STATE_LABELS.sending} · ${h.sent} so far`
         ) : h.state === "scheduled" ? (
-          `Scheduled · ${h.recipient_count} people`
+          `${BROADCAST_STATE_LABELS.scheduled} · ${h.recipient_count} people`
         ) : (
           h.state
         )}

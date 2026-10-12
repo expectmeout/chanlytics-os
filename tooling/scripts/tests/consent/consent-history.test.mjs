@@ -96,7 +96,7 @@ test("the words say what was answered and how we know, for every kind of change"
   });
   assert.deepEqual(consentChangeWords(change({ consent: "opted_out", channel: "whatsapp", words: "STOP" })), {
     who: "Consent",
-    text: "Said stop — nothing goes out to them",
+    text: "Asked to stop receiving messages — nothing goes out to them",
     sub: "In their own words on WhatsApp: “STOP”",
   });
   assert.equal(
@@ -134,7 +134,7 @@ test("the words say what was answered and how we know, for every kind of change"
     ),
     {
       who: "Consent",
-      text: "Said stop — nothing goes out to them",
+      text: "Asked to stop receiving messages — nothing goes out to them",
       sub: "Reported by the carrier: they had texted STOP to your number, so a text to them was not sent",
     },
   );
@@ -193,7 +193,7 @@ test("an unsubscribe is email's own answer: read as one, and never said as a sto
     text: "Unsubscribed from your emails",
     sub: "Pressed Unsubscribe in an email",
   });
-  assert.notEqual(consentChangeWords(row).text, "Said stop — nothing goes out to them");
+  assert.notEqual(consentChangeWords(row).text, "Asked to stop receiving messages — nothing goes out to them");
   // A purpose this code has never heard of is still read as the conversational question, as it always was.
   assert.equal(
     consentChangeOf({ id: "e", subject_id: null, created_at: "", data: { purpose: "x" } }).purpose,
@@ -642,9 +642,10 @@ test("until 00110 is applied, a YES OFFERS by text is still recorded: the door i
   );
   assert.equal(fresh.length, 1, "with 00110 in place, one call");
   assert.deepEqual(fresh[0].p_evidence, { channel: "whatsapp", message_external_id: "wamid.1", words: "YES OFFERS" });
-  // Any other refusal is not retried: it is the door's own answer.
+  // Any other refusal is not retried: it is the door's own answer. It is raised, since nothing else repeats the yes (the
+  // customer's message is kept all the same), unless a job follows this visit and writes it (a text's door).
   const other = [];
-  await ingestInbound(
+  const refusing = () =>
     fakeDb(
       {},
       {},
@@ -655,13 +656,19 @@ test("until 00110 is applied, a YES OFFERS by text is still recorded: the door i
           throw new Error("a yes to offers must be in writing");
         },
       },
-    ),
-    inbound,
-  );
+    );
+  const { AnswerNotKept } = await import(at("packages/db/src/repositories/ingest.ts"));
+  await assert.rejects(ingestInbound(refusing(), inbound), (e) => e instanceof AnswerNotKept);
   assert.equal(other.length, 1);
+  assert.equal(
+    (await ingestInbound(refusing(), { ...inbound, jobFollows: true })).contact_id,
+    "p1",
+    "the door of a message a job answers next keeps it, and leaves the yes to that job",
+  );
+  assert.equal(other.length, 2);
 });
 
-test("a START is noted on the channel it came on, after the ingest and with its words; a failure is logged and never the customer's", async () => {
+test("a START is noted on the channel it came on, after the ingest and with its words; a failure is logged, and raised unless a job follows", async () => {
   const { ingestInbound } = await import(at("packages/db/src/repositories/ingest.ts"));
   const inbound = {
     tenantId: A,
@@ -755,11 +762,23 @@ test("a START is noted on the channel it came on, after the ingest and with its 
     assert.equal((await ingestInbound(before.db, inbound)).contact_id, "p1");
     assert.deepEqual(lines, []);
 
-    // Any other refusal is logged by name and the message still stands.
+    // Any other refusal is logged by name, and the message still stands when a job follows the visit and writes the yes.
     const refused = world(() => {
       throw new Error("permission denied for function note_yes_on_channel");
     });
-    assert.equal((await ingestInbound(refused.db, inbound)).contact_id, "p1", "the message itself was ingested");
+    assert.equal(
+      (await ingestInbound(refused.db, { ...inbound, jobFollows: true })).contact_id,
+      "p1",
+      "the message itself was ingested",
+    );
+    assert.deepEqual(lines, [["consent_channel_write_failed", "permission denied for function note_yes_on_channel"]]);
+
+    // With no job to follow it is raised, after the log: a yes nothing repeats is not left to a log line.
+    lines.length = 0;
+    await assert.rejects(
+      ingestInbound(refused.db, inbound),
+      (e) => e.name === "AnswerNotKept" && /permission denied for function note_yes_on_channel/.test(e.message),
+    );
     assert.deepEqual(lines, [["consent_channel_write_failed", "permission denied for function note_yes_on_channel"]]);
 
     // The door is not modelled at all (a rejected call, not an error answer): the same.
@@ -769,7 +788,7 @@ test("a START is noted on the channel it came on, after the ingest and with its 
       ...broken,
       rpc: (name, args) => (name === "ingest_inbound" ? broken.rpc(name, args) : Promise.reject(new Error("boom"))),
     };
-    assert.equal((await ingestInbound(throwing, inbound)).contact_id, "p1");
+    assert.equal((await ingestInbound(throwing, { ...inbound, jobFollows: true })).contact_id, "p1");
     assert.deepEqual(lines, [["consent_channel_write_failed", "boom"]]);
   } finally {
     delete globalThis[slot];

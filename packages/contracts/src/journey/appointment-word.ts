@@ -33,6 +33,16 @@ export function appointmentWordOf(o: { stored: string | null; sellsBy: string | 
   return dealsAreOn(o.sellsBy) ? "meeting" : "appointment";
 }
 
+/**
+ * What a page calls an appointment when all it knows of the workspace is whether deals are on (dealsAreOn): the same
+ * derivation as GET playbooks' shape (appointmentWordOf with nothing stored), for the pages that read no playbooks -- the
+ * person's page, People's table -- so a workspace whose customers get a proposal first reads "meeting" there as it does on
+ * Campaigns (decision 0041, item 2).
+ */
+export function appointmentWordWhere(dealsOn: boolean): AppointmentWord {
+  return appointmentWordOf({ stored: null, sellsBy: dealsOn ? "proposal" : null });
+}
+
 /** How each word takes an article and a verb. Visit is the one that is a verb itself: "visits tomorrow", "visited". */
 const FORMS: Record<AppointmentWord, { a: string; has: string; have: string; had: string }> = {
   appointment: {
@@ -55,6 +65,13 @@ export interface AppointmentPhrases {
   many: string;
   a: string;
   Title: string;
+  /** "Appointments": a column's head. */
+  Many: string;
+  /** "Next appointment" and "Last appointment": the person's page, a fact and a line of its About rail each. */
+  next: string;
+  last: string;
+  /** The Today brief's count: "1 appointment today", "3 appointments today". */
+  today: (n: number) => string;
   /** The day before: the moment's caption, a new campaign's name on it, and the trigger's hint. */
   before: { caps: string; name: string; hint: string };
   /** The day after: the moment's caption, which is also a new campaign's name on it, and the trigger's hint. */
@@ -79,6 +96,10 @@ export interface AppointmentPhrases {
   byMany: string;
   /** Core's refusal of an appointment moment where no calendar is connected. */
   needsCalendar: string;
+  /** The question before one is said cancelled (the visit line's Cancel): "Cancel this appointment?". */
+  cancelAsk: string;
+  /** The words a booking link is handed to the customer in, ready in their thread's box: "Here's the link to book your appointment: <link>". */
+  bookingLink: (link: string) => string;
 }
 
 export function appointmentWords(word: AppointmentWord): AppointmentPhrases {
@@ -92,6 +113,10 @@ export function appointmentWords(word: AppointmentWord): AppointmentPhrases {
     many,
     a: f.a,
     Title,
+    Many: capitalize(many),
+    next: `Next ${word}`,
+    last: `Last ${word}`,
+    today: (n) => `${n} ${n === 1 ? word : many} today`,
     before: { caps: `${Title} tomorrow`, name: `${Title} reminder`, hint: `The day before ${f.a} on the calendar` },
     after: { caps: `After the ${word}`, hint: `The day after ${f.a}, when nothing is booked next` },
     lapsedHint: `No ${word} in 45 days, and nothing booked`,
@@ -106,5 +131,7 @@ export function appointmentWords(word: AppointmentWord): AppointmentPhrases {
     startsWith: `${f.a} tomorrow, ${f.a} yesterday`,
     byMany: `by ${many}`,
     needsCalendar: `${capitalize(many)} are read from your calendar, and none is connected. Connect one under Settings › Business.`,
+    cancelAsk: `Cancel this ${word}?`,
+    bookingLink: (link) => `Here's the link to book your ${word}: ${link}`,
   };
 }

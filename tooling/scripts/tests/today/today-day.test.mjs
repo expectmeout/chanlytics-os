@@ -17,6 +17,9 @@ import {
   todayLeaks,
   todayAwayGrouped,
   todaySteps,
+  todayStepsFoot,
+  todayStepsSub,
+  withSteps,
   withReplies,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
@@ -24,7 +27,7 @@ import { installLegacyReact, fresh, all, byTestId, textOf } from "../_legacy-rea
 
 // The pages the wiring test draws are the TSX surface's (apps/dashboard/src/surfaces/today, decision 0015), on the stub React.
 installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live" });
-const { TODAY_HELPERS, installToday } = await import("../../../../apps/dashboard/src/surfaces/today/helpers.ts");
+const { TODAY_HELPERS } = await import("../../../../apps/dashboard/src/surfaces/today/helpers.ts");
 const { HeroBrief } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief.tsx");
 const { TodayCard } = await import("../../../../apps/dashboard/src/surfaces/today/pages/card.tsx");
 const { DashboardA } = await import("../../../../apps/dashboard/src/surfaces/today/pages/today-page.tsx");
@@ -183,7 +186,13 @@ test("today and tomorrow, as the calendar reads them: items in time order with t
 });
 
 test("without a feed the day says nothing; with one and no visit playbook it offers to start one; a dash is no next open time", () => {
-  assert.deepEqual(todayDay(null, null), { feed: "none", frames: [], nextOpening: null, reminders: null });
+  assert.deepEqual(todayDay(null, null), {
+    feed: "none",
+    frames: [],
+    nextOpening: null,
+    reminders: null,
+    word: "appointment",
+  });
   const off = todayDay(
     cal([day("2026-09-06", { today: true })], {
       feed: { present: true, state: "unavailable", line: "", events: 0, source: "x" },
@@ -331,6 +340,13 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
       "leaks",
       "awayGrouped",
       "steps",
+      "stepsSub",
+      "stepsFoot",
+      "withSteps",
+      "visitsAsked",
+      "visitsSub",
+      "visitsFoot",
+      "withVisitsAsked",
       "withReplies",
       "withoutWrongPerson",
     ],
@@ -347,6 +363,9 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
     leaks: todayLeaks,
     awayGrouped: todayAwayGrouped,
     steps: todaySteps,
+    stepsSub: todayStepsSub,
+    stepsFoot: todayStepsFoot,
+    withSteps,
   }))
     assert.equal(TODAY_HELPERS[key].name, own.name, `${key} is contracts' ${own.name}`);
   assert.deepEqual(TODAY_HELPERS.day(null, null), todayDay(null, null));
@@ -400,35 +419,25 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
   assert.deepEqual(TODAY_HELPERS.withoutWrongPerson(waiting), waiting, "a read that failed takes nobody for gone");
   delete globalThis.__REPLIES;
   assert.deepEqual(TODAY_HELPERS.withoutWrongPerson(waiting), waiting, "and one not read yet");
-  delete globalThis.__today;
-  installToday();
-  assert.equal(globalThis.__today, TODAY_HELPERS, "installed, not re-listed");
-  delete globalThis.__today;
-  const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
-  assert.ok(
-    app.includes('import { installToday } from "@/surfaces/today/helpers";') && app.includes("installToday();"),
-  );
+  // The helpers are the page's by import, and nothing publishes them on the window (window.__today had no reader).
+  assert.equal(globalThis.__today, undefined, "no window name for the helpers");
+  assert.ok(!readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installToday"));
   const dayModule = readCode("apps/dashboard/src/surfaces/today/pages/day.tsx");
   for (const s of [
-    'data-testid="today-day"',
-    'if (C.vm.feed.state === "unavailable") {',
-    // The day's one derivation (dayVmOf), which the card and Glass's strip both read: a feed that is not ok is no day.
+    // The day's one derivation (dayVmOf), which the strip and the brief both read: a feed that is not ok is no day.
     'if (!C || !C.vm || C.vm.feed.state !== "ok") return null;',
-    "const vm = dayVmOf(C, P, people);",
-    'data-testid="today-day-frame"',
-    'testid="today-day-item"',
-    'nav(b.person ? `clients/${b.person.id}` : "calendar")',
-    'data-testid="today-day-reminders"',
-    'present("AgendaItems", agendaItems<AgendaChildren>())',
-    "<Items>",
-    "phase={b.phase}",
-    "flag={b.flag}",
-    "b.person ? b.person.name : b.service",
-    "service={b.person ? b.service : null}",
-    'data-testid="today-day-more"',
-    "d.moreLine",
+    "export function useDayVm()",
   ])
     assert.ok(dayModule.includes(s), s);
+  // And no pane: the day is folded into the strip and the brief (canvas E3), and the steps due are rows of the queue.
+  for (const gone of [
+    "export const TodayDay ",
+    "TodaySteps",
+    'data-testid="today-day',
+    "agendaItems",
+    "TODAY_HELPERS.steps",
+  ])
+    assert.ok(!dayModule.includes(gone), `${gone} is not drawn from day.tsx`);
   assert.match(
     dayModule,
     /TODAY_HELPERS\.day\(\s*C\.vm[^,]*,\s*P \? \{ rows: P\.rows, word: P\.shape\.word \} : null,\s*people \|\| null,?\s*\)/,
@@ -462,9 +471,9 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
   setSurfaceValue("today", undefined);
   const css = readRaw("apps/dashboard/src/legacy/styles/dashboard-a-v2.css");
   assert.ok(
-    css.includes(".td-day {") &&
-      css.includes(".td-frame.today .td-frame-label") &&
+    !css.includes(".td-") &&
       !dayModule.includes("cal-agenda") &&
       css.includes("@media (max-width: 1180px) {\n  .dash-a-v2-core, .dash-a-v2-foot { grid-template-columns: 1fr; }"),
+    "the pane's rules (.td-day*, .td-frame*, .td-step*) went with it; the page's grid stays",
   );
 });

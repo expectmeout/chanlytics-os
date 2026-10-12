@@ -5,6 +5,7 @@
  * exported from index.ts directly, since it reads people.ts's row view model.
  */
 import { clockDate } from "../shared/clock";
+import { appointmentWordWhere, appointmentWords } from "../journey/appointment-word";
 import { plural } from "../shared/words";
 import { DEAL_ACT_WORDS } from "../deals/deal-words";
 import type { DealVM } from "../deals/deal-vm";
@@ -14,12 +15,13 @@ import { MERGE_WORDS } from "./person-merge";
 import { DOUBT_WORDS, type DoubtSeen } from "./person-doubts";
 import { personName } from "./person-name";
 import { formatPhoneDisplay } from "../shared/phone";
-import type { PersonMode } from "./person-receptionist";
+import type { HolderNames, PersonMode } from "./person-receptionist";
 import { mayReach, type PersonProposalVM, proposalAction } from "./person-reach";
 import type { PersonRowVM } from "./person-row";
 import { ts } from "./person-helpers";
 import { personNotesVM, type PersonNoteTeamDto, type PersonNoteVM } from "../notes/person-notes";
 import { PERSON_CHANNEL_WORDS, type PersonChannel } from "./person-words";
+import { addressOf } from "../activity/record-address";
 import { HELD_REASONS, isReplyTo } from "../broadcasts/run-words";
 import { messageAt } from "../conversations/thread-dto";
 import { THREAD_CHANNEL_WORDS, isTheirOwnWords, writtenChannelOf } from "../conversations/thread-channel";
@@ -28,6 +30,7 @@ import {
   personFactsOf,
   lastExchangeOf,
   leadOf,
+  type PersonAboutFact,
   type PersonFact,
   type PersonLastExchange,
   type PersonRightNow,
@@ -60,12 +63,20 @@ export const TIMELINE_FILTERS: readonly {
   kinds: readonly TimelineKind[] | null;
 }[] = [
   { id: "all", label: "All", kinds: null },
-  { id: "messages", label: "Messages", kinds: ["customer", "receptionist", "you", "escalation", "decision"] },
+  { id: "messages", label: "Messages", kinds: ["customer", "receptionist", "team", "escalation", "decision"] },
   { id: "calls", label: "Calls", kinds: ["call"] },
-  { id: "visits", label: "Visits", kinds: ["visit"] },
+  { id: "visits", label: "Appointments", kinds: ["visit"] },
   { id: "consent", label: "Consent", kinds: ["consent"] },
   { id: "deals", label: "Deals", kinds: ["deal"] },
 ];
+
+/**
+ * A filter's heading in the workspace's words: the appointments' is the workspace's word for one ("Meetings" where some
+ * customers get a proposal first, as Campaigns says it: decision 0041), the others their own.
+ */
+export function timelineFilterLabel(f: { id: TimelineFilterId; label: string }, dealsOn: boolean): string {
+  return f.id === "visits" ? appointmentWords(appointmentWordWhere(dealsOn)).Many : f.label;
+}
 
 /** The items a filter shows, in the order they came; an unknown filter shows everything. */
 export function filterTimeline<T extends { kind: TimelineKind }>(items: readonly T[], id: string): T[] {
@@ -84,7 +95,7 @@ export interface PersonVM extends PersonRowVM {
   timeline: PersonTimelineItemVM[];
   /** Their visits that have not ended, soonest first: the page's Coming up. Each is in `timeline` too, marked `ahead`. */
   comingUp: PersonVisitAheadVM[];
-  about: { k: string; v: string }[];
+  about: PersonAboutFact[];
   /** Their notes (0007): the receptionist's suggestions first, then newest first. */
   noteList: PersonNoteVM[];
   /** The team a note can be for; empty where the team could not be read. */
@@ -192,13 +203,11 @@ export function personActs(p: Omit<PersonVM, "acts">): PersonActVM[] {
   const on =
     p.replyVia === "Email" ? " by email" : p.replyVia === "Text" ? " as a text" : p.replyVia ? " on WhatsApp" : "";
   const ready = `Opens their thread with it ready to send${on}`;
-  if (reach && p.bookingLink)
+  if (reach && p.bookingLink && p.bookingLinkAction.offered)
     acts.push({
       id: "booking",
       label: "Send booking link",
-      hint: p.bookingLinkAction.ready
-        ? ready
-        : "Only an approved message reaches them until they write again; their thread offers the one with the link",
+      hint: p.bookingLinkAction.ready ? ready : p.bookingLinkAction.title,
       group: "send",
       needs: "record",
     });
@@ -288,12 +297,14 @@ export function toPersonVM(
   now = new Date(),
   /** The member looking (toPersonRowVM's viewer). */
   viewerId: string | null = null,
+  /** The roster, where the page has read it: a teammate's thread says whose it is (person-receptionist.ts heldThreadOf). */
+  names: HolderNames | null = null,
 ): PersonVM {
-  const ctx = personCardContext(d, tz, now, viewerId);
+  const ctx = personCardContext(d, tz, now, viewerId, names);
   const { base, nowMs, dealsOn, reply } = ctx;
   const vm: Omit<PersonVM, "proposal" | "proposalAction" | "acts"> = {
     ...base,
-    ...(reply ? replyFields(reply, base.emailSuppressed) : {}),
+    ...(reply ? replyFields(reply, base.emailSuppressed, { optedOut: base.stopped, who: base.name }) : {}),
     since: sinceWords(base),
     metaLine: `${plural(base.threads, "conversation")} · ${plural(base.calls, "call")}`,
     lastExchange: lastExchangeOf(ctx),
@@ -374,7 +385,7 @@ function campaignsOf(d: PersonDetailDto, tz: string, nowMs: number): PersonCampa
       // Which wire it went by, or would have: a person on three channels is not told "Sent" with nowhere to look.
       line: `${c.playbook_id ? "Campaign" : "Broadcast"} · ${THREAD_CHANNEL_WORDS[writtenChannelOf(c.channel)]} · ${outcome}`,
       tone: replied ? "ok" : c.state === "skipped" || c.state === "failed" ? "warn" : "plain",
-      to: `broadcasts/run:${c.broadcast_id}`,
+      to: addressOf({ kind: "send", id: c.broadcast_id }),
     };
   });
 }

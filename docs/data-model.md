@@ -18,7 +18,7 @@ what the script writes.
 | --- | --- | --- |
 | [`ai_usage`](#ai_usage) | `packages/db/src/ai-usage.ts` | on, 1 policy |
 | [`appointment_notices`](#appointment_notices) | `packages/db/src/repositories/calendar/notices.ts` | on, 1 policy |
-| [`appointments`](#appointments) | `packages/db/src/events.ts`, `packages/db/src/repositories/calendar/appointments.ts` | on, 1 policy |
+| [`appointments`](#appointments) | `packages/db/src/events.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/notifications.ts` | on, 1 policy |
 | [`ask_messages`](#ask_messages) | none | on, 4 policies |
 | [`ask_threads`](#ask_threads) | none | on, 4 policies |
 | [`ask_voice_sessions`](#ask_voice_sessions) | `packages/db/src/ask-voice-session.ts` | on, 4 policies |
@@ -42,13 +42,13 @@ what the script writes.
 | [`event_deliveries`](#event_deliveries) | `packages/db/src/events.ts` | on, no policy, so only the service role reaches it |
 | [`event_outbox`](#event_outbox) | none | on, no policy, so only the service role reaches it |
 | [`event_subscriptions`](#event_subscriptions) | `packages/db/src/events.ts` | on, no policy, so only the service role reaches it |
-| [`events`](#events) | `packages/db/src/events.ts`, `packages/db/src/repositories/sending-domains.ts` | on, 1 policy |
+| [`events`](#events) | `packages/db/src/events.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notifications.ts`, `packages/db/src/repositories/sending-domains.ts` | on, 1 policy |
 | [`google_connections`](#google_connections) | none | on, 1 policy |
 | [`google_listing_days`](#google_listing_days) | none | on, 1 policy |
 | [`google_listings`](#google_listings) | none | on, 1 policy |
-| [`google_reviews`](#google_reviews) | none | on, 1 policy |
+| [`google_reviews`](#google_reviews) | `packages/db/src/repositories/notifications.ts` | on, 1 policy |
 | [`idempotency_keys`](#idempotency_keys) | `packages/db/src/repositories/idempotency.ts` | on, 1 policy |
-| [`invitations`](#invitations) | none | on, 1 policy |
+| [`invitations`](#invitations) | `packages/db/src/repositories/notifications.ts` | on, 1 policy |
 | [`job_capacity`](#job_capacity) | none | on, no policy, so only the service role reaches it |
 | [`jobs`](#jobs) | `packages/db/src/jobs.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/reach-out.ts` | on, no policy, so only the service role reaches it |
 | [`lead_counters`](#lead_counters) | none | on, no policy, so only the service role reaches it |
@@ -102,7 +102,7 @@ what the script writes.
 | [`sending_domain_days`](#sending_domain_days) | none | on, 1 policy |
 | [`sending_domains`](#sending_domains) | `packages/db/src/repositories/sending-domains.ts` | on, 1 policy |
 | [`sweep_status`](#sweep_status) | none | on, no policy, so only the service role reaches it |
-| [`templates`](#templates) | `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/templates.ts` | on, 1 policy |
+| [`templates`](#templates) | `packages/db/src/events.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/templates.ts` | on, 1 policy |
 | [`tenant_channels`](#tenant_channels) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/routing.ts`, `packages/db/src/sweeps.ts` | on, 1 policy |
 | [`tenant_config`](#tenant_config) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts` | on, 2 policies |
 | [`tenant_config_versions`](#tenant_config_versions) | none | on, no policy, so only the service role reaches it |
@@ -193,7 +193,7 @@ Foreign keys:
 
 One visit as a source stated it (decision 0002): a booking tool's notice, the calendar feed, a tool's door or a person; its client, what and with whom, and what became of it. Members read; the service role writes; the product never books.
 
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/calendar/appointments.ts`
+- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/calendar/appointments.ts`, `packages/db/src/repositories/notifications.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -959,7 +959,7 @@ Who reacts to an event kind (decision 0032): a subscriber's name, the lane its d
 
 ### events
 
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/sending-domains.ts`
+- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notifications.ts`, `packages/db/src/repositories/sending-domains.ts`
 - Primary key: `id`, `created_at`
 - Row-level security: on, 1 policy
 - Partitioned by range (created_at): `events_default` (default); and one per month, `events_yYYYYmMM`, made as the months come (not in the snapshot)
@@ -1080,7 +1080,7 @@ Foreign keys:
 
 Reviews of the workspace's listing as Google showed them, one row per review, kept from the first time it was seen. Members read; the edge writes.
 
-- Owned by: none
+- Owned by: `packages/db/src/repositories/notifications.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -1137,7 +1137,7 @@ Foreign keys:
 
 ### invitations
 
-- Owned by: none
+- Owned by: `packages/db/src/repositories/notifications.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -1927,6 +1927,7 @@ What needed the workspace's attention, kept: each alert the edge raised, where t
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `recipient_user_id` | uuid | yes |  | The one member this is for (0007); null for everyone in the workspace. Only the recipient reads an addressed row. |
 | `source_event` | uuid | yes |  | The event this notice answers (decision 0043, 00396): a hold's notice keeps its escalation event, so a second delivery of it tells nobody. Null for a notice no event raised. |
+| `mail_due_at` | timestamp with time zone | yes |  | When this notice's mail became owed (decision 0048, 00409): set with the row when a mail is to go, cleared once it has gone, so a retry sends the mail alone and the bell keeps one row. Null for a notice nothing owes. |
 
 Foreign keys:
 
@@ -1955,7 +1956,7 @@ Systemic conditions (provider auth failing, heartbeat mass-failing, ledger backl
 
 ### page_vitals
 
-Field data (00255, 00408): one row per metric per page load or move, under its own id; the page it is of, a part of it, the page a move left, whether it drew held rows, the device, the build, and what the time went on. The metrics are the browser's five (LCP, INP, CLS, FCP, TTFB) and the shell's two (READY, SETTLED), in ms but for CLS. No person, no workspace. Kept thirty days.
+Field data (00255, 00412): one row per metric per page load or move, under its own id; the page it is of, a part of it, the page a move left, whether it drew held rows, the device, the build, and what the time went on. The metrics are the browser's five (LCP, INP, CLS, FCP, TTFB) and the shell's two (READY, SETTLED), in ms but for CLS. No person, no workspace. Kept thirty days.
 
 - Owned by: none
 - Primary key: `id`
@@ -1968,12 +1969,12 @@ Field data (00255, 00408): one row per metric per page load or move, under its o
 | `page` | text | no |  |  |
 | `metric` | text | no |  |  |
 | `value` | double precision | no |  |  |
-| `part` | text | yes |  | The part of the page a READY is of (`queue`, `table`); null for the page itself (00408). |
-| `came_from` | text | yes |  | The page a move left; null for a page load; the page itself for a move inside it (00408). |
-| `warm` | boolean | yes |  | Whether what it drew was already held when it began: the tab's cache, a view held (00408). |
-| `device` | text | yes |  | desk, or phone at the kit's one phone width and under (00408). |
-| `build` | text | yes |  | The deploy the page ran: its sha's first twelve, or dev (00408). |
-| `detail` | jsonb | yes |  | What the time went on: a read's route and its server and database time, a chunk, an element's test id, a phase. Never a person or anything they wrote (00408). |
+| `part` | text | yes |  | The part of the page a READY is of (`queue`, `table`); null for the page itself (00412). |
+| `came_from` | text | yes |  | The page a move left; null for a page load; the page itself for a move inside it (00412). |
+| `warm` | boolean | yes |  | Whether what it drew was already held when it began: the tab's cache, a view held (00412). |
+| `device` | text | yes |  | desk, or phone at the kit's one phone width and under (00412). |
+| `build` | text | yes |  | The deploy the page ran: its sha's first twelve, or dev (00412). |
+| `detail` | jsonb | yes |  | What the time went on: a read's route and its server and database time, a chunk, an element's test id, a phase. Never a person or anything they wrote (00412). |
 
 ### partner_earnings
 
@@ -2798,7 +2799,7 @@ One row per pg_cron -> pg_net sweep: the last request id (joins net._http_respon
 
 ### templates
 
-- Owned by: `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/templates.ts`
+- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/templates.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 

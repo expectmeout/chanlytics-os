@@ -3,6 +3,7 @@
  * legacy/pages/playbook-bits.jsx, decision 0015; before that from outbound-real.jsx, Reach out Part 2.5).
  */
 import {
+  LIST_GROUP_WORDS,
   PLAYBOOK_REACH_WORDS,
   appointmentWords,
   clockHour,
@@ -35,11 +36,12 @@ import type { PlaybookTriggerOption } from "./surface";
 // re-run the effects on every render.
 export const PB_NONE: never[] = [];
 
-// A list a playbook may run on, in the picker's two groups (decision 0009): People's, then the workspace's own.
-export const PB_LIST_GROUPS = { people: "People's lists", own: "Your lists" };
+// A list a playbook may run on, in the picker's two groups (decision 0009): the ready-made ones, then the workspace's own,
+// named as People's rail and the audience picker name them (contracts LIST_GROUP_WORDS).
+export const PB_LIST_GROUPS = { people: LIST_GROUP_WORDS.builtin, own: LIST_GROUP_WORDS.own };
 
 export const pbListSub = (l: { builtin?: boolean; smart?: boolean }) =>
-  l.builtin ? "One of People's lists" : l.smart ? "Keeps itself current" : "Kept by hand";
+  l.builtin ? "Ready-made" : l.smart ? "Keeps itself current" : "Kept by hand";
 
 // What a playbook on a list sends, and the row of Autonomy it runs under (contracts LIST_PLAYBOOK_CLASSES). Both need
 // the yes to offers.
@@ -58,9 +60,6 @@ export const pbHours = () => {
 export const pbHour = (h: number) => clockHour(h);
 
 export const pbPeople = (n: number) => `${n} ${n === 1 ? "person" : "people"}`;
-
-export const pbStatus = (p: { state: string; totals?: { waiting: unknown } | null }) =>
-  p.totals && p.totals.waiting ? "approval" : p.state;
 
 // What the next run will actually do (contracts playbookReach): a running
 // playbook whose list is empty is not "running" in any sense the owner means.

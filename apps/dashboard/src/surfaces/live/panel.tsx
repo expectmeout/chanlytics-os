@@ -9,6 +9,7 @@ import { navigate, routeDoor } from "../legacy-verbs";
 import { EmptyState } from "../kit/empty/empty";
 import { Icon } from "../kit/icon/icon";
 import { Face } from "../kit/face/face";
+import { StoppedMark } from "../kit/pill/stopped-mark";
 import { LrPill, lrClock } from "./call-parts";
 import { LrControls } from "./controls";
 import { LrWhisper } from "./whisper";
@@ -134,6 +135,8 @@ function panelHead({ c, elapsed, quietS, onBack = null }: HeadProps) {
             ) : (
               c.who
             )}
+            {/* Before the call's pill, which a phone's header leaves out as the last of the line (live.css). */}
+            {c.stopped && <StoppedMark testid="lm-head-stopped" />}
             <LrPill c={c} />
           </div>
           <div className="lm-head-meta">
@@ -171,10 +174,10 @@ function panelHead({ c, elapsed, quietS, onBack = null }: HeadProps) {
             aria-label={`Open ${c.who}'s profile`}
             data-testid="lm-head-avatar"
           >
-            <Face initials={c.initials} size="lg" />
+            <Face person={{ name: c.who, initials: c.initials }} size="lg" />
           </a>
         ) : (
-          <Face initials={c.initials} size="lg" className="lm-head-door" />
+          <Face person={{ name: c.who, initials: c.initials }} size="lg" className="lm-head-door" />
         )}
         {/* The clock a thread's header gives its standing: the live dot and the call's length, running. */}
         {c.live && (

@@ -2,16 +2,27 @@
  * The playbook runs Today's queue draws (moved from pages/dashboard-a-command.jsx, decision 0015, step 4).
  *
  * A playbook's run that waits for a person, or one under the veto window (scheduled, not yet sending) as rows of the
- * same grammar, with Approve or Stop where the button goes. What already went out is a line of the day's card. The
- * page keeps deciding WHICH rows wait or are scheduled; the words are contracts' (todayRunWords).
+ * same grammar, with Approve or Cancel where the button goes. What already went out is a line of the day's card. The
+ * page keeps deciding WHICH rows wait or are scheduled; the words are contracts' (todayRunWords, runStopWords). Cancel
+ * asks what Sent asks before the same cancel ("Cancel X? Nothing will send."): it was a "Stop" at one tap here
+ * (D1-run-words).
  */
-import { CAMPAIGNS_PAUSED_WORDS, LIFECYCLE_WORDS, isReachOutRun, type BroadcastVM } from "@chanlytics/contracts";
+import { useState } from "react";
+import {
+  CAMPAIGNS_PAUSED_WORDS,
+  LIFECYCLE_WORDS,
+  runStopWords,
+  runStoppedWords,
+  type BroadcastVM,
+} from "@chanlytics/contracts";
 import type { BroadcastsSurface } from "@/surfaces/campaigns/broadcasts/surface";
 import { AttnRow } from "../../kit/attention/attn-row";
+import { Confirm } from "../../kit/confirm/confirm";
 import { gatedProps } from "../../legacy-verbs";
 import { TODAY_HELPERS } from "../helpers";
 import {
   bcLateWords,
+  bcOpensOnItsSheet,
   bcWhenWords,
   borrowed,
   broadcastVerbs,
@@ -52,6 +63,55 @@ export const runsPending = () => {
  */
 export const runLate = (r: BroadcastVM): string | null => bcLateWords(r);
 
+interface SoonRunProps {
+  r: BroadcastVM;
+  nav: Nav;
+  verbKind: VerbKind;
+  stop: (r: BroadcastVM) => unknown;
+}
+
+/**
+ * A run under the veto window: its row, and, once Cancel is pressed, the question Sent asks before the same cancel (contracts
+ * runStopWords: "Cancel X?", "Nothing will send."), in the kit's Confirm under it.
+ */
+function SoonRun({ r, nav, verbKind, stop }: SoonRunProps) {
+  const [asking, setAsking] = useState(false);
+  const W = runStopWords("scheduled");
+  const words = TODAY_HELPERS.runs(r).soon;
+  return (
+    <>
+      <AttnRow
+        initials="▶"
+        glyph="bolt"
+        name={r.audience.label}
+        meta={words.meta}
+        sentence={words.sentence}
+        status={words.status}
+        tone="warn"
+        cta={{ label: "Open", kind: verbKind(), onClick: () => nav(`broadcasts/run:${r.id}`) }}
+        also={{ label: W.verb, onClick: () => setAsking(true), gate: gate("approve", "cancel a run") }}
+        onOpen={() => nav(`broadcasts/run:${r.id}`)}
+        testid="brief-run-soon"
+      />
+      {asking && (
+        <Confirm
+          block
+          danger
+          question={W.question({ name: r.audience.label })}
+          detail={W.detail}
+          yes={W.yes}
+          onYes={() => {
+            setAsking(false);
+            void stop(r);
+          }}
+          onNo={() => setAsking(false)}
+          testid="brief-run-soon-stop"
+        />
+      )}
+    </>
+  );
+}
+
 export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, room: number) => {
   const api = broadcastVerbs();
   const refreshed = () => refreshPlaybooks();
@@ -66,19 +126,20 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, room: number) 
   const stop: (r: BroadcastVM) => unknown = async (r) => {
     if (!can || !api) return;
     let said = false;
-    const say = () => {
+    // What the server stopped, said as Sent says it (runStoppedWords): a run still to come is canceled, nothing will send.
+    const say = (data?: Record<string, unknown>) => {
       said = true;
       flash({
         msg: (
           <>
-            <b>{r.audience.label}</b> stopped: nothing sends
+            <b>{r.audience.label}</b> {runStoppedWords(typeof data?.was === "string" ? data.was : "scheduled")}
           </>
         ),
       });
     };
     const res = await api.cancel(r.id, { onAccepted: say });
     if (res.ok) refreshed();
-    if (!res.ok) flash(refusalFlash(res, "Not stopped"));
+    if (!res.ok) flash(refusalFlash(res, "Not canceled"));
     else if (!said) say();
   };
   const approve: (r: BroadcastVM) => unknown = async (r) => {
@@ -109,6 +170,9 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, room: number) 
   const drawn = [
     ...waiting.slice(0, room).map((r) => {
       const late = runLate(r);
+      // Decided on its sheet alone, as Sent's row and the ledger's door decide it (the run's offer, contracts
+      // waitingRunOffer): a reach-out's run, or one whose day has passed and is skipped there.
+      const opens = bcOpensOnItsSheet(r) || !!late;
       return (
         <AttnRow
           key={`run-${r.id}`}
@@ -122,7 +186,7 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, room: number) 
           // A reach-out's run is opened, never approved from here (decision D6): its sheet counts and names each send
           // first, Ask refuses to approve one, and a one-tap send from Today is the wrong habit for a first cold email.
           cta={
-            isReachOutRun(r.audience) || late
+            opens
               ? { label: "Open", kind: verbKind(), onClick: () => nav(`broadcasts/run:${r.id}`) }
               : {
                   // One word per act (decision 19 of the spec of 9 Oct 2026): "Approve · 7 people", as every screen says it.
@@ -132,11 +196,7 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, room: number) 
                   gate: paused ? gatedProps(CAMPAIGNS_PAUSED_WORDS) : gate("approve", "approve a run"),
                 }
           }
-          also={
-            isReachOutRun(r.audience) || late
-              ? null
-              : { label: "See who's on it", onClick: () => nav(`broadcasts/run:${r.id}`) }
-          }
+          also={opens ? null : { label: "See who's on it", onClick: () => nav(`broadcasts/run:${r.id}`) }}
           onOpen={() => nav(`broadcasts/run:${r.id}`)}
           testid="brief-run-row"
         />
@@ -144,22 +204,7 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, room: number) 
     }),
     ...soon
       .slice(0, Math.max(0, room - Math.min(waiting.length, room)))
-      .map((r) => (
-        <AttnRow
-          key={`run-${r.id}`}
-          initials="▶"
-          glyph="bolt"
-          name={r.audience.label}
-          meta={words(r).soon.meta}
-          sentence={words(r).soon.sentence}
-          status={words(r).soon.status}
-          tone="warn"
-          cta={{ label: "Open", kind: verbKind(), onClick: () => nav(`broadcasts/run:${r.id}`) }}
-          also={{ label: "Stop", onClick: () => stop(r), gate: gate("approve", "stop a run") }}
-          onOpen={() => nav(`broadcasts/run:${r.id}`)}
-          testid="brief-run-soon"
-        />
-      )),
+      .map((r) => <SoonRun key={`run-${r.id}`} r={r} nav={nav} verbKind={verbKind} stop={stop} />),
   ];
   return { drawn, count, cut: count - drawn.length };
 };

@@ -1,9 +1,16 @@
 /**
  * Ask's citation grammar: the kinds a citation may name, the rule that keeps one honest (a row a reader returned this
  * turn, or a page) and where each opens. Read by ask.ts's message, the answer's normaliser (ask-answer.ts) and the
- * format the model writes (answer-format.ts). Pure; it imports only Reports' lens table, whose routes are pages.
+ * format the model writes (answer-format.ts). Pure; it imports only the tables of the addresses the pages themselves parse.
  */
-import { LENS_ROUTES } from "../reports/lenses";
+import { addressOf } from "../activity/record-address";
+import { calendarParamParts } from "../calendar/appointment-key";
+import { JOURNEY_STAGE_IDS, type JourneyStageId } from "../journey/journey";
+import type { LifecycleGroup } from "../playbooks/lifecycle/lifecycle-types";
+import { parseLeadsRoute, leadsRoute } from "../leads/lead-plan";
+import { BUILTIN_LISTS, parseListToken } from "../people/lists/lists";
+import { GET_YES_ROUTE } from "../people/people-lists";
+import { LENS_ROUTES, reportsRouteParts } from "../reports/lenses";
 
 /* ----------------------------------------------------------- the citation */
 
@@ -99,23 +106,84 @@ export const ASK_PAGE_ROUTES: readonly string[] = [
   "admin/platform",
 ];
 
-// A list of the workspace's own is a row (`clients/list:<id>`, its reader's route), so its address is no page; a People
-// list's `clients/seg:<id>` is People's own view, and stays one.
-const PAGE_PREFIX =
-  /^(?!clients\/list:)(today|inbox|clients|segments|conversations|live|calendar|campaigns|outbound|broadcasts|messages|reports|start|admin)(\/[A-Za-z0-9:_-]+)?$/;
+/**
+ * Whether a route is a page Ask may name: one of the listed pages (ASK_PAGE_ROUTES), or an address its page takes by a
+ * parse of its own -- the Calendar's day, Reports' lens and the days after it, People's Leads views that name no search
+ * and no lead and its built-in lists, the Sent room's Get their yes, the calls tab of Conversations and a group of
+ * Campaigns' ledger. A visit is no page (it is a row, and Ask has no kind to cite one by), so `calendar/<day>:a-<id>` is not
+ * one, whatever the id. A route that only BEGINS with a page's word
+ * is no page (`admin/hours`, `calendar/next-week`, `reports/foo`, `today/x`): it lands on "Not in this release", on the usual
+ * week or on a card that names no surface. A list of the workspace's own (`clients/list:<id>`) is a row, its reader's route,
+ * and so are a thread, a call, a person, a campaign and a run: never a page.
+ */
+function isPageRoute(route: string): boolean {
+  if (ASK_PAGES.has(route)) return true;
+  const at = route.indexOf("/");
+  const param = at < 0 ? "" : route.slice(at + 1);
+  switch (at < 0 ? route : route.slice(0, at)) {
+    case "calendar": {
+      const named = calendarParamParts(param);
+      return named.day !== null && named.visitId === null;
+    }
+    case "conversations":
+      return route === CALLS_ROUTE;
+    case "campaigns":
+      return param.startsWith("in:") && CAMPAIGN_GROUPS.includes(param.slice("in:".length));
+    case "reports": {
+      // A lens is a page; one review (`reports/reviews:<id>`) is a row, never a page.
+      const parts = reportsRouteParts(route);
+      return parts !== null && parts.review === null;
+    }
+    case "broadcasts":
+      return route === GET_YES_ROUTE;
+    case "clients":
+      return isPeopleView(route, param);
+    default:
+      return false;
+  }
+}
+
+/** A view of People that is a page: a built-in list, or the Leads scope narrowed by its pile alone (the writer's own order). */
+function isPeopleView(route: string, param: string): boolean {
+  if (param.startsWith("seg:")) {
+    const ref = parseListToken(param);
+    return ref?.kind === "builtin" && BUILTIN_LISTS.some((l) => l.id === ref.id);
+  }
+  if (param !== "leads" && !param.startsWith("leads:")) return false;
+  const view = parseLeadsRoute(route);
+  return !!view && !view.searchId && !view.peek && leadsRoute({ list: view.list, cls: view.cls }) === route;
+}
+
+const ASK_PAGES: ReadonlySet<string> = new Set(ASK_PAGE_ROUTES);
+
+/** The calls tab of Conversations: the one tab address the product writes (a call's bell row, Today's calls figure, Live). */
+const CALLS_ROUTE = "conversations/phone";
+
+/**
+ * The groups of Campaigns' ledger that are no journey stage. A record over the type, so a group LifecycleGroup gains is a
+ * compile error here until it is named, and the list below cannot fall behind the ledger's.
+ */
+const OTHER_GROUPS = { lists: true, reach_out: true, sent_once: true } satisfies Record<
+  Exclude<LifecycleGroup["id"], JourneyStageId>,
+  true
+>;
+
+/** The groups of Campaigns' ledger an address narrows it to (`campaigns/in:<group>`): a journey stage, then the others. */
+const CAMPAIGN_GROUPS: readonly string[] = [...JOURNEY_STAGE_IDS, ...Object.keys(OTHER_GROUPS)];
 
 /**
  * Drop every citation that names a row the tools did not return this turn.
  * A model that read nothing cannot cite anything; a model that read the
- * Inbox can cite only the threads it saw. Pages are always allowed, because
- * a page is not a claim.
+ * Inbox can cite only the threads it saw. A page needs no read, because a
+ * page is not a claim, but it must be a page: one of the listed pages, or an
+ * address its page parses (isPageRoute). Anything else is dropped.
  */
 export function groundCitations(citations: AskCitation[], read: AskReadSet): { kept: AskCitation[]; dropped: number } {
   const kept: AskCitation[] = [];
   let dropped = 0;
   const seen = new Set<string>();
   for (const c of citations) {
-    const ok = c.kind === "page" ? PAGE_PREFIX.test(c.id) : read[c.kind].has(c.id);
+    const ok = c.kind === "page" ? isPageRoute(c.id) : read[c.kind].has(c.id);
     const key = `${c.kind}:${c.id}`;
     if (!ok || seen.has(key)) {
       dropped++;
@@ -129,10 +197,10 @@ export function groundCitations(citations: AskCitation[], read: AskReadSet): { k
 
 /** The rows that open at one route whoever read them: the kinds a citation named before the read set held routes. */
 const OWN_ROUTES: Partial<Record<AskCitationKind, (id: string) => string>> = {
-  thread: (id) => `inbox/th-${id}`,
-  conversation: (id) => `conversations/${id}`,
-  call: (id) => `conversations/cv-${id}`,
-  person: (id) => `clients/${id}`,
+  thread: (id) => addressOf({ kind: "conversation", id }),
+  conversation: (id) => addressOf({ kind: "conversation", id, in: "conversations" }),
+  call: (id) => addressOf({ kind: "call", id }),
+  person: (id) => addressOf({ kind: "person", id }),
 };
 
 /**

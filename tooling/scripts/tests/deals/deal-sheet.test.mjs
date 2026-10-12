@@ -701,6 +701,25 @@ test("the card says each open deal once: its steps, its link and whether it went
     ["Proposal out", "Sep 19", "current", "info"],
     ["Client", null, "ahead", null],
   ]);
+  // The consultation says how the visit stands, as the Calendar does: Past while nobody has marked it (the record never
+  // infers that they came: D1-consult-held), Kept once the owner said they did. The other steps say no such word.
+  assert.deepEqual(
+    card.steps.map((s) => s.word),
+    ["Past", null, null],
+  );
+  const keptVisits = consulted(5 * D);
+  keptVisits.last = { ...keptVisits.last, said: "kept", record_id: "r-consult" };
+  keptVisits.all = [keptVisits.last];
+  const [keptCard] = dealCardsOf(
+    person({
+      deals: [dealDto({ proposed_at: at(4 * D), created_at: at(4 * D), valid_until: "2026-09-30" })],
+      messages: [sentMsg(4 * D), msg("m1", 3 * H)],
+      visits: keptVisits,
+    }),
+    NOW,
+    ZONE,
+  ).cards;
+  assert.equal(keptCard.steps[0].word, "Kept");
   assert.deepEqual(card.link, { url: LINK, host: "docs.example.com" });
   assert.deepEqual(card.facts, ["Sent Sep 19 on WhatsApp", "Valid until Sep 30"]);
   assert.deepEqual(card.flags, [], "they wrote back since, and the day has not passed: nothing wants a look");

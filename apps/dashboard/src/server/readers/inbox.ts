@@ -1,5 +1,5 @@
 import "server-only";
-import type { ConversationDto, EscalationDto } from "@chanlytics/contracts";
+import { addressOf, type ConversationDto, type EscalationDto } from "@chanlytics/contracts";
 import { load, stamp, type Reader, type RowRef } from "./index";
 import { conversations, whoOf } from "./conversations";
 import { escalations } from "./escalations";
@@ -41,7 +41,12 @@ export const inbox: Reader<undefined, InboxRead> = {
     const all = [...extra, ...newest.data.conversations];
     return {
       data: { conversations: all, escalations: open.data.escalations },
-      rows: all.map((c): RowRef => ({ kind: "thread", id: c.id, route: `inbox/th-${c.id}`, label: whoOf(c) })),
+      rows: all.map((c): RowRef => ({
+        kind: "thread",
+        id: c.id,
+        route: addressOf({ kind: "conversation", id: c.id }),
+        label: whoOf(c),
+      })),
       stamp: stamp(),
     };
   },

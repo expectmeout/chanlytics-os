@@ -1,5 +1,5 @@
 /* global window */
-// Chanlytics — Clients seed data
+// Chanlytics — Clients seed data (the demo's: a real workspace never loads it, legacy-bridge/manifest-demo.ts)
 // 60 clients (representative slice of a 200-person book). Each carries:
 //   - identity, money, package, last visit, channels, tags, therapist
 //   - relationship temperature (0..1: cold..warm)
@@ -289,45 +289,8 @@ const CLIENT_SEGMENTS = [
   { id: "phone-only",      label: "Phone-only clients",       count: 8,  kind: "manual", query: "primaryChannel = phone" },
 ];
 
-// =============== BUCKETS (hero) ===============
-
-const BUCKETS = [
-  {
-    id: "needs-you",
-    label: "Needs you",
-    sub: "Agents flagged for human judgment",
-    accent: true,
-    glyph: "alert",
-  },
-  {
-    id: "drifting",
-    label: "Drifting",
-    sub: "Cooling off — agents trying to recover",
-    glyph: "trending-up",
-  },
-  {
-    id: "champion",
-    label: "Champions",
-    sub: "Healthy & high-value — keep on cruise",
-    glyph: "star",
-  },
-  {
-    id: "new",
-    label: "New",
-    sub: "Just joined — agents qualifying",
-    glyph: "sparkle",
-  },
-];
-
-// =============== Aggregates ===============
-const TOTAL_BOOK = 207;
-const ACTIVE_AGENT_TOUCHES_TODAY = 34;
-const HEALTH_INDEX = { score: 0.74, delta: -0.02, deltaLabel: "vs last week" };
-
 window.CLIENTS = CLIENTS;
 window.CLIENT_SEGMENTS = CLIENT_SEGMENTS;
-window.CLIENT_BUCKETS = BUCKETS;
-window.CLIENTS_AGGREGATES = { total: TOTAL_BOOK, activeAgentTouches: ACTIVE_AGENT_TOUCHES_TODAY, health: HEALTH_INDEX, newThisMonth: 9, agentsActive: 6, healthDelta: "↓ 2 vs last wk" };
 
 // =============== COMPLIANCE (consent + DNC) ===============
 // Contact-level. Absent = consented + clear — only exceptions live here.
@@ -336,3 +299,16 @@ window.COMPLIANCE = {
   "c-tom":   { dnc: true, date: "Apr 2" },
   "ld-chloe": { consent: "pending", method: "referral landing form" },
 };
+
+// =============== The shell contract's helpers over these seeds ===============
+// They read the seeds above, so they live with them: constants.jsx (every workspace) names none of the demo's data, and a
+// real workspace has no CHANLY.seg or CHANLY.compliance to call. (people-data.jsx adds segsOf and membersOf.)
+Object.assign(window.CHANLY, {
+  seg(id) { return (window.CLIENT_SEGMENTS || []).find((s) => s.id === id) || null; },
+  // Absent from the registry = consented and clear; only exceptions are recorded.
+  compliance(id) {
+    const c = (window.COMPLIANCE || {})[id] || {};
+    return { consent: c.consent || "granted", dnc: !!c.dnc, method: c.method || null, date: c.date || null };
+  },
+  canMessage(id) { const c = this.compliance(id); return c.consent === "granted" && !c.dnc; },
+});

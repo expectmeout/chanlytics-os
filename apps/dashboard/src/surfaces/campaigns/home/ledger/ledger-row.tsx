@@ -91,7 +91,13 @@ export function LedgerRow({ r, W, acts, cursor, mark }: LedgerRowProps) {
       {/* A press anywhere on the line that is not one of its controls opens the row, as Sent's runs and People's rows. */}
       <div className="cmh-row-line" role="presentation" onClick={cmRowPress}>
         <div className="cmh-row-what">
-          <span className="cmh-row-dot" data-tone={r.tone} aria-hidden="true" />
+          {/* Its state, in the one word the rail and the phone say (the view model's stateWords): the dot is that word's tone, so
+              it is named, never a bare colour. */}
+          <span
+            className="cmh-row-dot"
+            data-tone={r.tone}
+            {...(r.stateWords ? { role: "img", "aria-label": r.stateWords } : { "aria-hidden": true })}
+          />
           <RowName r={r} acts={acts} />
           {r.hint ? <span className="cmh-dim cmh-row-hint">{r.hint}</span> : null}
           {/* Under 1000px of page the two columns that leave stand here, under the name (campaigns.css): the people with

@@ -5,10 +5,10 @@
  * the one degradation that keeps a stale preference from bricking the app, every read asked at once and weighed in the
  * order it depends; and the two fields of the tenant row a
  * business owns, its zone and how its customers buy (0008). On a database 00160 has not reached, the read is asked
- * again without sells_by: either deploy order works. On the app's own reads only (the same origin: a cross-site GET
- * changes nothing) a read also accepts any open invitation for the caller's address and reads again
- * (acceptOpenInvites, which is why it is not only for an account with no membership), and a partner account must have
- * shown its second factor before it gets the list. The PATCH is its owner's: a forbidden UPDATE answers success with no
+ * again without sells_by: either deploy order works. The read writes nothing, whoever makes it: an invitation open for the
+ * caller's address is accepted by one POST the shell makes once when it boots (POST me/invitations/accept, after which
+ * the list is read again when it seated someone), not here (decision 0047, lane 6). A partner account must have shown
+ * its second factor before it gets the list. The PATCH is its owner's: a forbidden UPDATE answers success with no
  * rows in this stack, so the row count is the permission check. The routes declare who may and how often.
  */
 import { memberContext, requireSecondFactor, type MemberContext, type RouteContext } from "@/server/with-route";
@@ -23,11 +23,9 @@ import {
   workspaceLogoSrc,
   type SellsBy,
 } from "@chanlytics/contracts";
-import { acceptOpenInvites, openInvitesFor } from "@/server/workspace/team";
 import { emitEvent, getOpenHandovers, getOwnPartner } from "@chanlytics/db";
 import { serviceDb } from "@/server/service-db";
 import { isPlatformAdmin } from "@/server/platform/platform";
-import { isSameOrigin } from "@/server/request-guards";
 import { env } from "@/server/env";
 import { log } from "@/server/log";
 import { settled } from "@/server/lazy";
@@ -107,19 +105,15 @@ export async function readWorkspaces(ctx: RouteContext, _req: Request) {
   // Every read the answer is made of, at once. They were asked one after another, eight round trips before the
   // first byte (356 ms from a laptop to the database, 2 Oct 2026), and every page's boot reads this first; none of
   // them needs another's answer. What depends on something is decided below, in the order it always was: the
-  // partner's second factor before an invitation is accepted, an acceptance before the list is trusted.
+  // partner's second factor before the list is trusted.
   //
-  // An open invitation for this address is looked up with them and accepted below. Self-healing: there is no
-  // accept endpoint to get wrong, and no link that expires into a dead end. It used to be looked at ONLY when the
-  // caller had no memberships, which quietly stranded anyone who acquired one first: someone invited before they
-  // had an account, who signs up and creates their own workspace, holds a membership by the time the invitation is
-  // looked at, so it was never honoured, nobody was told, and the owner who sent it saw "pending" forever. It now
-  // runs on every workspace read; migration 00023 adds the partial index that makes that a lookup rather than a
-  // scan. A GET is exempt from the cross-site check by design (reads change nothing), and this one writes on the
-  // way through: benign and idempotent, but a write, so the lookup and the acceptance happen only on the app's own
-  // reads, and a cross-site GET gets the list and nothing else (F51).
-  const invited = isSameOrigin(_req) ? openInvitesFor(email ?? null) : null;
-  const [tenants, profileRead, platformAdmin, partnerRow, open, mineRead, activeRead] = await Promise.all([
+  // This read writes nothing. An open invitation for this address used to be looked up here and accepted on every
+  // same-origin read, the document head's included, which seated a person with no word to them that it had and made a
+  // GET that wrote (F51 had only made the cross-site one safe). It is one POST now (POST me/invitations/accept), which the
+  // shell makes once when it boots and which says "You joined X"; the list is read again when it seated someone.
+  // Acceptance was never gated on having no memberships (someone invited before they had an account, who then creates
+  // their own workspace, is seated all the same); the POST keeps that, and migration 00023's partial index.
+  const [tenants, profileRead, platformAdmin, partnerRow, open, mine, active] = await Promise.all([
     tenantsOf(supabase),
     // The name this person gave (profiles, 00068) rides with the identity, so the chrome shows a person rather
     // than the workspace standing in for one.
@@ -142,7 +136,7 @@ export async function readWorkspaces(ctx: RouteContext, _req: Request) {
     settled(memberContext(ctx, preferred, { defaultAllowed: true })),
   ]);
   if (tenants.error) throw new Error(tenants.error.message);
-  let { data } = tenants;
+  const { data } = tenants;
   // The name they gave us wins; the name they gave Google (full_name on the
   // auth user) stands in until they do. Never anything made from the email.
   const displayName = profileRead.data?.display_name || providerNameOf(ctx.metadata);
@@ -153,21 +147,6 @@ export async function readWorkspaces(ctx: RouteContext, _req: Request) {
   if (partner) requireSecondFactor(ctx);
   if (open.error) log.error("handovers_unread", { error: open.error.slice(0, 200) });
   const handovers = open.handovers;
-
-  // An invitation accepted makes a membership the reads above did not see: they are read again.
-  let mine = mineRead;
-  let active = activeRead;
-  if (invited && (await acceptOpenInvites(userId, email ?? null, invited)) > 0) {
-    const [retry, roles, again] = await Promise.all([
-      tenantsOf(supabase),
-      rolesOf(supabase, userId),
-      settled(memberContext(ctx, preferred, { defaultAllowed: true })),
-    ]);
-    if (retry.error) throw new Error(retry.error.message);
-    data = retry.data;
-    mine = roles;
-    active = again;
-  }
 
   // The caller's role rides along so the mockup gate() chips tell the truth —
   // but the role must describe the workspace actually being VIEWED. This used

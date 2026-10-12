@@ -5,7 +5,8 @@
  *
  * What the page says: the route it is on (at install and on every change), that a person is signed in (the
  * shell only ever boots this bundle for one: the proxy sends anyone else to /login, which the shell reads from the
- * address), the needs-you count the Inbox publishes (inbox:counts, the badge on the native tab), and the workspace
+ * address), the needs-you count (surfaces/needs-you.ts, the badge on the native tab), the bell's kept rows' unread count
+ * (the icon), and the workspace
  * the address names, and whether a sheet or a dialog stands over the page. What the shell asks: go to a route, open
  * the menu, scroll to the top, close what stands over the page. A message the page cannot parse does nothing.
  */
@@ -20,6 +21,7 @@ import {
   type PageMessage,
   type TodayVM,
 } from "@chanlytics/contracts";
+import { hearNeedsYou, needsYouNow } from "../surfaces/needs-you";
 import { api } from "./api";
 import { sealSurfaceCache } from "./surface-cache";
 import { goToRoute, hearAddress, pathWorkspace, routeOnScreen, workspaceHref } from "./workspace";
@@ -47,7 +49,7 @@ interface BridgeWindow {
   ReactNativeWebView?: { postMessage(s: string): void };
   __appBridge?: { receive(raw: string): void; forgetPhone(): Promise<void> };
   /** The bell (notifications.ts), when it is installed: its number is the icon's. */
-  __notifs?: { unread(): number; onChange(cb: () => void): () => void };
+  __notifs?: { keptUnread(): number; onChange(cb: () => void): () => void };
   /** Today's view model, as the surface seam publishes it (surface-data.ts): what the widget shows. */
   TODAY_DATA?: TodayVM;
   /** The Live page's view model: how many calls are still up ends, or keeps, the phone's call activity. */
@@ -72,7 +74,18 @@ export const deviceDoors: DeviceDoors = {
   forget: async (token) => (await api()("DELETE me/devices", { body: { token } })).ok,
 };
 
-export function installAppBridge(win: BridgeWindow = window, doors: DeviceDoors = deviceDoors): () => void {
+/** What the bridge asks of the count of what needs you: its number now (null before the Inbox has been read), and to be told when it may have moved. */
+export interface NeedsSource {
+  now(): number | null;
+  hear(fn: () => void): () => void;
+}
+const NEEDS_YOU: NeedsSource = { now: () => needsYouNow(), hear: hearNeedsYou };
+
+export function installAppBridge(
+  win: BridgeWindow = window,
+  doors: DeviceDoors = deviceDoors,
+  source: NeedsSource = NEEDS_YOU,
+): () => void {
   if (!win.document.documentElement.classList.contains(IN_APP_CLASS) || !win.ReactNativeWebView) return () => {};
   const post = (m: PageMessage) => {
     // Round-tripped through the parser so the page never posts a shape the shell would refuse.
@@ -84,9 +97,16 @@ export function installAppBridge(win: BridgeWindow = window, doors: DeviceDoors 
     const slug = pathWorkspace(win.location.pathname ?? "");
     if (slug) post({ t: "workspace", slug });
   };
-  const counts = (e: Event) => {
-    const needs = (e as CustomEvent<{ needs?: unknown }>).detail?.needs;
-    if (typeof needs === "number") post({ t: "needs", inbox: Math.max(0, Math.floor(needs)) });
+  // What needs you, for the native Inbox tab's badge: the one count every surface says (surfaces/needs-you.ts), said at
+  // install when the Inbox has been read and whenever the number changes, never twice in a row.
+  let needsSaid: number | null = null;
+  const counts = () => {
+    const needs = source.now();
+    if (needs === null || !Number.isFinite(needs)) return;
+    const inbox = Math.max(0, Math.floor(needs));
+    if (inbox === needsSaid) return;
+    needsSaid = inbox;
+    post({ t: "needs", inbox });
   };
   // Today for the widget: on every refresh of the page's Today, and at install when it is already there.
   const today = () => {
@@ -95,7 +115,7 @@ export function installAppBridge(win: BridgeWindow = window, doors: DeviceDoors 
       post({ t: "today", snapshot: todayWidgetSnapshot(vm, new Date()) });
   };
   const offAddress = hearAddress(route, win);
-  win.addEventListener("inbox:counts", counts);
+  const offNeeds = source.hear(counts);
   win.addEventListener("workspace:changed", workspace);
   win.addEventListener("surface:today", today);
   // The calls still up, for the Lock Screen's activity: none means the phone may end what it shows. A call marked live
@@ -125,9 +145,12 @@ export function installAppBridge(win: BridgeWindow = window, doors: DeviceDoors 
     e.preventDefault();
   };
   win.addEventListener("app:file", file);
-  // The bell's number is the icon's: said at install and on every change of the feed or the marks.
+  // The icon's number is the bell's kept rows' unread count, by the rule the edge counts them by before a push (contracts
+  // unreadFor, through the bell's `keptUnread`): said at install and on every change of the feed or the marks. The bell's whole
+  // count also counts the rows the page derives itself, which the edge cannot, so the icon read 2 with the app closed and 5
+  // once it was open (D1-phone-badge).
   const badge = () => {
-    const n = win.__notifs?.unread();
+    const n = win.__notifs?.keptUnread();
     if (typeof n === "number") post({ t: "badge", n: Math.max(0, Math.floor(n)) });
   };
   const offBell = win.__notifs?.onChange(badge) ?? (() => {});
@@ -136,11 +159,12 @@ export function installAppBridge(win: BridgeWindow = window, doors: DeviceDoors 
   workspace();
   route();
   overlays.tell();
+  counts();
   badge();
   today();
   return () => {
     offAddress();
-    win.removeEventListener("inbox:counts", counts);
+    offNeeds();
     win.removeEventListener("workspace:changed", workspace);
     win.removeEventListener("surface:today", today);
     win.removeEventListener("surface:live", calls);

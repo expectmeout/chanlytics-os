@@ -16,6 +16,7 @@
  *   quiet      nothing open — the receptionist is answering, or nothing is
  *              happening
  */
+import { holdWaits, type OpenHold } from "./escalations";
 
 export interface StandingInput {
   /** The conversation's state column. */
@@ -26,6 +27,12 @@ export interface StandingInput {
   assignee_is_me?: boolean | null;
   /** An escalation row still open on the thread. */
   open_escalation: boolean;
+  /**
+   * What the open one is for, where the caller has it. A hold that waits on nobody (escalations.ts waitsOnAPerson: a
+   * customer who asked to stop, opened before the receptionist stopped opening them) flags nothing, whatever else is
+   * open. Unsaid, the hold is read as one that waits.
+   */
+  escalation_reason?: string | null;
 }
 
 export type Standing = "needs_you" | "yours" | "theirs" | "snoozed" | "quiet";
@@ -46,6 +53,26 @@ export const HELD_WORDS = {
   },
 } as const satisfies Record<"yours" | "theirs", { pill: string; sentence: string }>;
 
+/**
+ * "Needs you": a thread flagged for a person that nobody has taken (standing `needs_you`), and nothing else. The one word
+ * for it wherever it is said (the Inbox's pill, People's state and list, Reports' tile, Ask), so a figure on one page and a
+ * list on another count the same threads under the same name. A thread somebody HAS is HELD_WORDS', and a run waiting for
+ * an owner's approval is BROADCAST_STATE_LABELS' (broadcasts.ts): "Waiting on you" named all three once (D1-waiting-on-you).
+ */
+export const NEEDS_YOU_WORD = "Needs you";
+
+/**
+ * The pill for a thread somebody has, once: the member looking has it ("You have it"), or a teammate does, by name where
+ * the roster names them ("Ruben has it") and "A teammate has it" where it does not (the roster is unread, or they have left
+ * the team). The Inbox's row and bar, Conversations' pill and People's Receptionist fact all say it through here, so one
+ * thread is not "Ruben has it" on one page and "A teammate has it" on the next. A name is never invented.
+ */
+export function heldPill(holder: "yours" | "theirs", name?: string | null): string {
+  if (holder === "yours") return HELD_WORDS.yours.pill;
+  const said = typeof name === "string" ? name.trim() : "";
+  return said ? `${said} has it` : HELD_WORDS.theirs.pill;
+}
+
 export interface StandingVerdict {
   standing: Standing;
   /** Something asked for a person: an open escalation, the needs_human state, or a live pause. */
@@ -60,12 +87,14 @@ export interface StandingVerdict {
 
 export function standingOf(i: StandingInput, nowMs: number): StandingVerdict {
   const paused = !!i.paused_until && new Date(i.paused_until).getTime() > nowMs;
-  const flagged = i.open_escalation || i.state === "needs_human" || paused;
+  // An open hold that waits on nobody (a STOP, decision 0048) is no escalation here: it is news the bell already told.
+  const holds = holdWaits(i.open_escalation ? { reason: i.escalation_reason } : false);
+  const flagged = holds || i.state === "needs_human" || paused;
   const claimedByTeammate = !!i.assignee_user_id && i.assignee_is_me === false;
   // A pause with no escalation open is the one a person's own reply leaves
   // behind: the receptionist stepped back because someone answered. A pause
   // WITH an escalation open is the receptionist waiting for that someone.
-  const mine = !!i.assignee_user_id || (paused && !i.open_escalation);
+  const mine = !!i.assignee_user_id || (paused && !holds);
   const standing: Standing =
     i.state === "snoozed"
       ? "snoozed"
@@ -94,7 +123,7 @@ export function standingOf(i: StandingInput, nowMs: number): StandingVerdict {
  */
 export function standingOfThread(
   thread: Pick<StandingInput, "state" | "paused_until" | "assignee_user_id" | "assignee_is_me">,
-  openEscalation: boolean,
+  openEscalation: OpenHold,
   nowMs: number,
 ): StandingVerdict {
   return standingOf(
@@ -103,7 +132,9 @@ export function standingOfThread(
       paused_until: thread.paused_until,
       assignee_user_id: thread.assignee_user_id,
       assignee_is_me: thread.assignee_is_me,
-      open_escalation: openEscalation,
+      // The hold itself where the caller has it: its reason says whether anyone has to act (waitsOnAPerson).
+      open_escalation: !!openEscalation,
+      escalation_reason: typeof openEscalation === "object" && openEscalation ? openEscalation.reason : null,
     },
     nowMs,
   );

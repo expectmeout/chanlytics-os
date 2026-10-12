@@ -1,12 +1,14 @@
 import { agoShort as spanAgo, MIN_MS } from "../shared/time";
 import { callAttemptWords } from "../conversations/call-dto";
 import { replyWaitsOnYou } from "../conversations/standing";
+import { ESCALATION_REASON_SHORT, HOLD_ACT_WORDS, holdActOf, reasonShort } from "../conversations/escalations";
 import { missedCallIsNews, type LiveCallVM } from "../voice/live";
 import { FINISH_SETTING_UP } from "../setup/first-run";
 import { lensRoute } from "../reports/lenses";
 import { firstLine } from "./push";
-import type { EscalationReason, JobKind } from "../shared/enums";
+import type { JobKind } from "../shared/enums";
 import { formatPhoneDisplay } from "../shared/phone";
+import { invitationExpired } from "../shell/identity";
 /**
  * The bell: what needs the owner, from what the browser already holds.
  *
@@ -98,6 +100,8 @@ export interface FeedInvite {
   id: string;
   email: string;
   created_at: string;
+  /** When it closes (the roster's `expires_at`): the bell says Expired once it has, as Team does. Absent where the roster did not say. */
+  expires_at?: string | null;
 }
 
 export interface FeedInput {
@@ -168,12 +172,14 @@ export function buildNotificationFeed(input: FeedInput): NotificationItem[] {
 
   for (const i of input.invites ?? []) {
     const at = Date.parse(i.created_at);
+    // Team marks an invitation that has run out its days Expired (invitationExpired); the bell says the same, not "pending".
+    const expired = invitationExpired({ expiresAt: i.expires_at }, now);
     items.push({
       key: `invite:${i.id}`,
       kind: "invite",
       at: Number.isNaN(at) ? now : at,
-      title: `Invitation pending · ${i.email}`,
-      message: "They have not accepted yet.",
+      title: `${expired ? "Invitation expired" : "Invitation pending"} · ${i.email}`,
+      message: expired ? "They did not accept in time. Send it again from Team." : "They have not accepted yet.",
       // Invitations live on the Team pane since Team split from Workspace;
       // the row's own button says "Team", so its door must open Team.
       to: "admin/team",
@@ -261,6 +267,23 @@ export const SERVER_NOTIFICATION_KINDS = [
   "reach_out_replied",
   /** The day's reach-out numbers, at 6 PM in the business's zone (Reach out Part 6, H12): a line in the bell, no more. */
   "reach_out_day",
+  /**
+   * A customer asked to stop, by any door (decision 0048): a typed STOP, an unsubscribe, a complaint, a carrier's report.
+   * News and no wait: a line on the bell, told once from the consent event (core SUBSCRIBERS.consent_notice); the mail
+   * is the business's choice, never always, and no phone is told.
+   */
+  "opted_out",
+  /**
+   * A booking arrived, by a booking tool's email or the owner's calendar (S1-01): news and no wait, a line on the bell that
+   * opens the visit on its day, told once from the record's appointment.changed event (core SUBSCRIBERS.visit_notice). No
+   * mail, no phone: the owner chose the tool, and the Calendar is where they look.
+   */
+  "booking",
+  /**
+   * A teammate accepted an invitation and joined (S1-19): news, a line on the bell that opens Settings > Team, told once
+   * from the seat's member.joined event (core SUBSCRIBERS.team_notice). No mail, no phone.
+   */
+  "member_joined",
 ] as const;
 export type ServerNotificationKind = (typeof SERVER_NOTIFICATION_KINDS)[number];
 
@@ -278,7 +301,7 @@ export type ServerNotificationKind = (typeof SERVER_NOTIFICATION_KINDS)[number];
  */
 export type JobNewsKind = Extract<
   ServerNotificationKind,
-  "job_failed" | "broadcast_sent" | "broadcast_stopped" | "handoff"
+  "job_failed" | "broadcast_sent" | "broadcast_stopped" | "handoff" | "opted_out" | "booking" | "member_joined"
 >;
 
 /**
@@ -424,55 +447,93 @@ export const REACH_OUT_DAY_ROUTE = "campaigns/in:reach_out";
 
 /**
  * How a kept kind reads. `own` keeps the kind's verb over the route's: a question asks for an answer, and "Open
- * Leads" would say where it is without saying what it wants.
+ * Leads" would say where it is without saying what it wants. A kind with none reads as a plain alert, as the edge keeps it.
  */
-const SERVER_LOOK: Record<string, { icon: string; tone: "" | "ok" | "warn"; action: string; to: string; own?: true }> =
-  {
-    handoff: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
-    deadman: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
-    call: { icon: "phone", tone: "", action: "Open the calls", to: "conversations/phone" },
-    /** The NUMBER's own health: a rating flagged, a limit lowered, the account restricted. */
-    number: { icon: "shield", tone: "warn", action: "Open Connections", to: "admin/integrations" },
-    /**
-     * A template's news is not the number's news. Both arrive on the same
-     * webhook, and for a while both were kind "number" — so "Template … approved"
-     * was drawn with a shield, in warn amber, over a door to Connections: good
-     * news wearing a warning's colour and pointing at the wrong page. Since Today
-     * sorts warnings above everything else, it also outranked real news.
-     *
-     * Two kinds rather than one kind and a tone column, because which of the two
-     * a change is belongs to the change (waba-events.ts describeWabaChange), and
-     * how it should read belongs here. Never inferred from the title.
-     */
-    template_ready: { icon: "check", tone: "ok", action: "Open Library", to: "messages" },
-    template_blocked: { icon: "alert", tone: "warn", action: "Open Library", to: "messages" },
-    sweep: { icon: "alert", tone: "warn", action: "Open Connections", to: "admin/integrations" },
-    /** A JOB that did not finish, and nothing else. See JobNewsKind. */
-    job_failed: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
-    /** A broadcast that ran to completion: good news, on the page it happened on. */
-    broadcast_sent: { icon: "check", tone: "ok", action: "Open Sent", to: "broadcasts" },
-    /** A broadcast that did not go out, or stopped partway. */
-    broadcast_stopped: { icon: "alert", tone: "warn", action: "Open Sent", to: "broadcasts" },
-    playbook: { icon: "bolt", tone: "ok", action: "Open Campaigns", to: "outbound" },
-    calendar_people: { icon: "users", tone: "ok", action: "Open People", to: "clients" },
-    /** A booking tool's email that could not be read as a booking (00345): a person looks, under Settings › Business. */
-    booking_notice: { icon: "calendar", tone: "warn", action: "Open Settings", to: "admin/workspace" },
-    /** A search that finished: good news, on the page the leads are on. */
-    leads_ready: { icon: "users", tone: "ok", action: "Open Leads", to: "clients/leads" },
-    /** A round that stopped to ask. It waits a day and then ends, so it is a warning. */
-    leads_question: { icon: "alert", tone: "warn", action: "Answer it", to: "clients/leads", own: true },
-    /** A review on Google: good news, on the Reviews lens, where it is read. A row kept before then says `reports`, and keeps it. */
-    review: { icon: "star", tone: "ok", action: "Open Reports", to: lensRoute("reviews") },
-    /** The subscription: a trial starting or ending, a card declined, the receptionist paused or back. */
-    billing: { icon: "money", tone: "warn", action: "Open Billing", to: "admin/billing" },
-    /** A note a teammate left for you on a person (0007): its row names them and opens their page, where the note is. */
-    note_for_you: { icon: "edit", tone: "", action: "Open their page", to: "clients" },
-    /** A business wrote back to a reach-out: its row names the thread, where the reply and what was read are. */
-    reach_out_replied: { icon: "mail", tone: "", action: "Open the thread", to: "inbox", own: true },
-    /** The day's reach-out numbers (H12): what they wrote and what came back, with the chains on Campaigns, at its Reach-outs. */
-    reach_out_day: { icon: "mail", tone: "", action: "Open Campaigns", to: REACH_OUT_DAY_ROUTE },
-    alert: { icon: "bell", tone: "", action: "Open Today", to: "today" },
-  };
+type ServerLook = { icon: string; tone: "" | "ok" | "warn"; action: string; to: string; own?: true };
+const ALERT_LOOK: ServerLook = { icon: "bell", tone: "", action: "Open Today", to: "today" };
+const SERVER_LOOK: Record<string, ServerLook> = {
+  handoff: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
+  deadman: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
+  call: { icon: "phone", tone: "", action: "Open the calls", to: "conversations/phone" },
+  /** The NUMBER's own health: a rating flagged, a limit lowered, the account restricted. */
+  number: { icon: "shield", tone: "warn", action: "Open Connections", to: "admin/integrations" },
+  /**
+   * A template's news is not the number's news. Both arrive on the same
+   * webhook, and for a while both were kind "number" — so "Template … approved"
+   * was drawn with a shield, in warn amber, over a door to Connections: good
+   * news wearing a warning's colour and pointing at the wrong page. Since Today
+   * sorts warnings above everything else, it also outranked real news.
+   *
+   * Two kinds rather than one kind and a tone column, because which of the two
+   * a change is belongs to the change (waba-events.ts describeWabaChange), and
+   * how it should read belongs here. Never inferred from the title.
+   */
+  template_ready: { icon: "check", tone: "ok", action: "Open Library", to: "messages" },
+  template_blocked: { icon: "alert", tone: "warn", action: "Open Library", to: "messages" },
+  sweep: { icon: "alert", tone: "warn", action: "Open Connections", to: "admin/integrations" },
+  /** A JOB that did not finish, and nothing else. See JobNewsKind. */
+  job_failed: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
+  /** A broadcast that ran to completion: good news, on the page it happened on. */
+  broadcast_sent: { icon: "check", tone: "ok", action: "Open Sent", to: "broadcasts" },
+  /** A broadcast that did not go out, or stopped partway. */
+  broadcast_stopped: { icon: "alert", tone: "warn", action: "Open Sent", to: "broadcasts" },
+  /**
+   * A run waits for the owner's word, or a reach-out holds an email for their call: a decision, so a warning, as the topic
+   * says it ("needs you", ALERT_TOPICS playbook), never good news sorted below the warnings. Once the run is settled the
+   * row reads as read and loses the warning (notice-closes.ts).
+   */
+  playbook: { icon: "bolt", tone: "warn", action: "Open Campaigns", to: "outbound" },
+  calendar_people: { icon: "users", tone: "ok", action: "Open People", to: "clients" },
+  /** A booking tool's email that could not be read as a booking (00345): a person looks, under Settings › Business. */
+  booking_notice: { icon: "calendar", tone: "warn", action: "Open Settings", to: "admin/workspace" },
+  /** A search that finished: good news, on the page the leads are on. */
+  leads_ready: { icon: "users", tone: "ok", action: "Open Leads", to: "clients/leads" },
+  /** A round that stopped to ask. It waits a day and then ends, so it is a warning. */
+  leads_question: { icon: "alert", tone: "warn", action: "Answer it", to: "clients/leads", own: true },
+  /** A review on Google: good news, on the Reviews lens, where it is read. A row kept before then says `reports`, and keeps it. */
+  review: { icon: "star", tone: "ok", action: "Open Reports", to: lensRoute("reviews") },
+  /** The subscription: a trial starting or ending, a card declined, the receptionist paused or back. */
+  billing: { icon: "money", tone: "warn", action: "Open Billing", to: "admin/billing" },
+  /** A note a teammate left for you on a person (0007): its row names them and opens their page, where the note is. */
+  note_for_you: { icon: "edit", tone: "", action: "Open their page", to: "clients" },
+  /** A business wrote back to a reach-out: its row names the thread, where the reply and what was read are. */
+  reach_out_replied: { icon: "mail", tone: "", action: "Open the thread", to: "inbox", own: true },
+  /** The day's reach-out numbers (H12): what they wrote and what came back, with the chains on Campaigns, at its Reach-outs. */
+  reach_out_day: { icon: "mail", tone: "", action: "Open Campaigns", to: REACH_OUT_DAY_ROUTE },
+  /** A customer asked to stop: news, not a warning (STOP_WORDS.tone is plain), on their page, where the answer is kept. */
+  opted_out: { icon: "shield", tone: "", action: "Open their page", to: "clients" },
+  /** A booking arrived: good news, on the Calendar at the visit (its row names the address; the day alone is the list door). */
+  booking: { icon: "calendar", tone: "ok", action: "Open Calendar", to: "calendar" },
+  /** A teammate joined: good news, on the Team pane, where the seat's role is looked after. */
+  member_joined: { icon: "users", tone: "ok", action: "Open Team", to: "admin/team" },
+  alert: ALERT_LOOK,
+};
+
+/** The look a kind is kept with, its own and never one an object inherits; null for a kind the bell keeps none for. */
+function lookOf(kind: string | null | undefined): ServerLook | null {
+  return kind && Object.hasOwn(SERVER_LOOK, kind) ? (SERVER_LOOK[kind] ?? null) : null;
+}
+
+/**
+ * The page that holds all the rows of a kind, and the verb that says so: where a group of rows that point at different records
+ * opens (Today's While you were away, todayAwayGrouped), since the newest row's own record is one of several. Null for a kind the
+ * bell does not keep a look for.
+ */
+export function kindListDoor(kind: string): { to: string; action: string } | null {
+  const look = lookOf(kind);
+  if (!look) return null;
+  return { to: look.to, action: look.own ? look.action : (verbForRoute(look.to) ?? look.action) };
+}
+
+/**
+ * Where a kept notice opens, on whichever channel reaches you: the route its row was kept with, else its kind's list door,
+ * else Today for a kind the bell keeps no look for (the kind is then a plain alert, as the edge keeps it). The bell opens
+ * it, the phone carries it (`pushFor`'s data.route) and the mail links it (the edge's notify), all from here, so the three
+ * cannot send one alert to three places (task 1.7 of the wiring plan; findings A2a and NS-4).
+ */
+export function noticeRoute(kind: string | null | undefined, route: string | null | undefined): string {
+  return route || (lookOf(kind) ?? ALERT_LOOK).to;
+}
 
 /** The verb for a row that names its own route; the kind's verb otherwise. */
 const ROUTE_VERBS: Array<[RegExp, string]> = [
@@ -483,12 +544,15 @@ const ROUTE_VERBS: Array<[RegExp, string]> = [
   [/^admin\/workspace/, "Open Business"],
   [/^admin\/notifications/, "Open Notifications"],
   [/^admin\/activity/, "Open Activity"],
+  [/^admin\/team/, "Open Team"],
   [/^admin\/billing/, "Open Billing"],
   [/^inbox/, "Open the Inbox"],
   [/^conversations\/phone/, "Open the calls"],
   [/^live/, "Open Live"],
   // The old Playbooks list (`outbound`) is Campaigns' home now, and Sent and the Library its rooms: the door says the name.
   [/^outbound/, "Open Campaigns"],
+  // A message open in its own drawer over Campaigns (a template's notice: refused, paused, approved): the door says what it opens.
+  [/^campaigns\/message:/, "Open the message"],
   [/^campaigns/, "Open Campaigns"],
   // A row about one run opens that run (a playbook's waiting or about to go, a reach-out's held sends), and says so.
   [/^broadcasts\/run:/, "Open the run"],
@@ -572,7 +636,7 @@ export function serverNotificationRows(dto: NotificationsDto | null | undefined)
   return dto.notifications
     .filter((n) => !n.dismissed)
     .map((n) => {
-      const look = SERVER_LOOK[n.kind] ?? SERVER_LOOK.alert;
+      const look = lookOf(n.kind) ?? ALERT_LOOK;
       const at = Date.parse(n.created_at);
       const job = jobRowWords(n);
       // The day's reach-out numbers open the Reach-outs, whatever route their row was kept with.
@@ -585,7 +649,7 @@ export function serverNotificationRows(dto: NotificationsDto | null | undefined)
         at,
         title: job ? job.title : n.title,
         message: job ? job.message : firstLine(n.body),
-        to: route ?? look.to,
+        to: noticeRoute(n.kind, route),
         icon: look.icon,
         tone: look.tone,
         action: look.own ? look.action : (verbForRoute(route) ?? look.action),
@@ -656,31 +720,12 @@ export function nameKnownCustomers<T extends NotificationRow>(
 
 /* ---- A hold, told from its record (decision 0043) ---- */
 
-/**
- * Why a thread waits for a person, in the owner's words: the subject's "needs a person — <why>", one for each reason a
- * hold can carry (contracts ESCALATION_REASONS), so a new reason cannot reach an owner as its raw token.
+/*
+ * Why a thread waits for a person is said in the Inbox's own words (escalations.ts ESCALATION_REASON_SHORT, through
+ * reasonShort), "needs a person — <why>", and what the owner does about it in the reason's act (HOLD_ACT_WORDS): a
+ * reason has one vocabulary, in the mail, the phone, the bell and every page (D1-hold-reasons). This file held a second
+ * map for the same closed set ("has waited two hours for a person" where the Inbox said "nobody picked this up").
  */
-const HOLD_REASON_WORDS: Readonly<Record<EscalationReason, string>> = {
-  human_token: "asked for a person",
-  non_text: "sent something other than words",
-  refusal: "asked something the receptionist will not answer",
-  rate_cap: "the receptionist reached its daily limit",
-  policy_block: "the receptionist held its reply for you",
-  send_failed: "a reply failed to send",
-  deadman: "has waited two hours for a person",
-  brain_error: "the receptionist could not finish its answer",
-  manual: "was handed to a person",
-  opt_out: "asked to stop",
-  state_unavailable: "the receptionist could not read the thread",
-  stale: "arrived too late to answer automatically",
-  person_hold: "is someone you answer yourself",
-  budget: "the day's model budget is used up",
-  policy_ask: "asked about a booking or a price you answer first",
-  callback: "needs a call back",
-  paused: "the workspace is paused",
-  carriers: "texted before the carriers approved the line",
-  email_review: "sent an email that waits for you",
-};
 
 /** The channel a thread was last written on, in the words an owner reads. */
 const HOLD_CHANNEL_WORDS: Readonly<Record<string, string>> = {
@@ -725,7 +770,10 @@ const clipped = (s: string, max: number): string => {
  * and no number. The platform's copy, for a workspace nobody can be told in, says the fact and never the words.
  */
 export function holdNotice(f: HoldFacts): Omit<JobNews, "sourceEvent"> {
-  const why = (HOLD_REASON_WORDS as Readonly<Record<string, string>>)[f.reason] ?? "needs a person";
+  // The Inbox's clause for the reason, and none for a reason the set does not know (the subject then says only that a
+  // person is needed, never the raw token).
+  const why = Object.hasOwn(ESCALATION_REASON_SHORT, f.reason) ? reasonShort(f.reason) : null;
+  const act = HOLD_ACT_WORDS[holdActOf(f.reason)].notice;
   const where = HOLD_CHANNEL_WORDS[f.channel ?? ""] ?? "The";
   const shown = f.erased ? null : f.address?.startsWith("+") ? (formatPhoneDisplay(f.address) ?? f.address) : f.address;
   const name = (!f.erased && f.who?.trim()) || shown || "A customer";
@@ -736,15 +784,16 @@ export function holdNotice(f: HoldFacts): Omit<JobNews, "sourceEvent"> {
         ...(f.replyWords ? [`The receptionist: “${clipped(f.replyWords, 600)}”`] : []),
         ...(f.details ? [clipped(f.details, 600)] : []),
       ];
+  // What to do, by the reason's act: reply, call back, or nothing that may be sent; the pause rides after it when there is one.
   const pause = f.pausedHours
-    ? `Reply from the Inbox — the receptionist is paused on this thread for ${f.pausedHours}h.`
-    : "Reply from the Inbox.";
+    ? `${act.replace(/\.$/, "")} — the receptionist is paused on this thread for ${f.pausedHours}h.`
+    : act;
   return {
     kind: "handoff",
     route: `inbox/th-${f.conversationId}`,
     about: { type: "conversation", id: f.conversationId },
-    subject: clipped(`${name} needs a person — ${why}`, 200),
+    subject: clipped(why ? `${name} needs a person — ${why}` : `${name} needs a person`, 200),
     body: [...lines, "", `${where} conversation${shown ? ` · ${shown}` : ""}`, pause].join("\n").replace(/^\n/, ""),
-    redactedBody: `A ${where === "The" ? "" : `${where} `}conversation needed a person (${why}), and nobody could be told.`,
+    redactedBody: `A ${where === "The" ? "" : `${where} `}conversation needed a person${why ? ` (${why})` : ""}, and nobody could be told.`,
   };
 }

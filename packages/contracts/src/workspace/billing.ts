@@ -4,6 +4,7 @@
  * and the Setup row. No Stripe client, no network: the edge applies what
  * planBilling decides, and the tests read the same functions.
  */
+import { callerSentence, WORKSPACE_PAUSED } from "../lines/caller-gets";
 import { agoWords, DAY_MS, formatterOnUse, numberFormat } from "../shared/time";
 
 export const BILLING_MODES = ["stripe", "direct"] as const;
@@ -260,11 +261,12 @@ export interface BillingPlan {
  * rings only when the receptionist's state changes, never on every update.
  */
 /**
- * What a paused workspace does, said the one way (the bell, the shell's status line): calls are still picked up, only
- * to take a message (pausedVoiceFacts), and every other message waits in the Inbox for a person.
+ * What a paused workspace does, said the one way (the bell, the shell's status line, Today's alert and empty queue,
+ * Start's billing row, the back office): calls are still picked up, only to take a message (pausedVoiceFacts), and every
+ * other message waits in the Inbox for a person. It is the standing value's own sentence (lines/caller-gets.ts
+ * WORKSPACE_PAUSED), so no page words what a caller gets of a pause a second time.
  */
-export const PAUSED_WORDS =
-  "Calls are answered only to take a message, and new messages wait in the Inbox for you to answer.";
+export const PAUSED_WORDS = /* @__PURE__ */ callerSentence(WORKSPACE_PAUSED);
 
 /**
  * What a campaign says while the workspace is paused, said the one way, in each place that says it in full: the composers'
@@ -274,8 +276,8 @@ export const PAUSED_WORDS =
  * Ask's run card reads no readiness and says it when the card is confirmed (approveRun's refusal). The Campaigns home's
  * rows say it short, in their own words ("after billing resumes", contracts nextRunLabel; the lifecycle's coming row). The
  * send door refuses every broadcast message under a pause (core deliver.ts `paused`), so a page that offered Send, or promised
- * a run, said what would not happen. Today says its own, about the receptionist ("This workspace is paused — the receptionist
- * is not answering anything."); this is the same fact said about what is sent.
+ * a run, said what would not happen. Today says it about the receptionist (PAUSED_WORDS, after "This workspace is
+ * paused."); this is the same fact said about what is sent.
  */
 /** The fact itself, for a line that carries its own door to Billing (Campaigns' head): the sentence below without its second. */
 export const WORKSPACE_PAUSED_FACT = "This workspace is paused, so nothing is sent until billing resumes";

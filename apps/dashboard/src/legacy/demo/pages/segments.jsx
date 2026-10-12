@@ -1,5 +1,5 @@
-/* global React, Icon, CLIENTS, CLIENT_SEGMENTS, SEGMENT_META, SEGMENTS_AGGREGATES,
-   Sparkline, MoreMenu, TempBar, ChannelGlyph */
+/* global React, Icon, CLIENTS, CLIENT_SEGMENTS, SEGMENT_META,
+   Sparkline, MoreMenu, ChannelGlyph */
 // Chanlytics — People · Segments
 // Agent-built smart lists + saved manual filters. Left: list + natural-language
 // composer. Right: definition, rules, trend, usage, live member preview.
@@ -11,6 +11,13 @@ const SG_SUGGESTIONS = [
   "Everyone who mentioned pricing this month",
   "Clients Jay saw more than 3 times",
 ];
+
+// ---- A fit or a temperature as a pin on a bar (the member preview's column; it stood in pages/clients-bits.jsx) -----
+const TempBar = ({ value = 0.5, sizeClass = "" }) => (
+  <div className={`cl-temp-bar ${sizeClass}`}>
+    <div className={`cl-temp-pin ${sizeClass}`} style={{ left: `${Math.round(value * 100)}%` }} />
+  </div>
+);
 
 // ---- Left rail row --------------------------------------------------------
 const SegmentRow = ({ seg, meta, active, onPick }) => (
@@ -153,11 +160,6 @@ const SegmentDetail = ({ seg, meta, extraUsage = [], onAssign, onDuplicate, onAr
         : { ...m, client: (window.CLIENTS || []).find(c => c.id === m.id) })
       .filter(m => m.client || m.leadRec);
   }, [meta]);
-  const broadcasts = useSgMemo(
-    () => (window.BC_HISTORY_SEED || []).filter(h => h.segId === (seg && seg.id)),
-    [seg]
-  );
-
   if (!seg) return null;
   const isAgent = seg.kind === "agent";
   const isLead = seg.kind === "lead";
@@ -316,26 +318,6 @@ const SegmentDetail = ({ seg, meta, extraUsage = [], onAssign, onDuplicate, onAr
           )}
         </div>
       </div>
-
-      {/* Broadcast history to this list */}
-      {broadcasts.length > 0 && (
-        <div className="sg-sec">
-          <div className="sg-sec-head">
-            <span className="sg-sec-title">Broadcasts to this list</span>
-            <span className="sg-sec-sub">{broadcasts.length} send{broadcasts.length === 1 ? "" : "s"}</span>
-          </div>
-          <div className="sg-usage">
-            {broadcasts.map((h, i) => (
-              <button key={i} className="sg-usage-row" onClick={() => window.CHANLY.nav(R.broadcast(seg.id))}>
-                <Icon name="wave" size={13} />
-                <span className="grow">{h.name}<span className="sg-hist-date"> · {h.date}</span></span>
-                <span className="sg-hist-meta tabular">{h.sent} sent · {h.replies} replies{h.booked !== "—" ? ` · ${h.booked}` : ""}</span>
-                <Icon name="arrow-right" size={11} />
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Member preview */}
       <div className="sg-sec sg-members">
@@ -666,46 +648,6 @@ const SegmentsPage = ({ initialId = null }) => {
   );
 };
 
-// ---- Segment Pulse (Today brief digest) --------------------------------------
-// Overnight list movement: who entered/left which segment, with the suggested move.
-const SegmentPulse = () => {
-  const moves = window.SEG_MOVEMENT || [];
-  const segOf = (id) => window.CHANLY.seg(id);
-  if (!moves.length) return null;
-  return (
-    <section className="fl-card sp-card">
-      <div className="fl-card-head">
-        <span className="fl-card-title">List movement</span>
-        <span className="fl-card-sub">overnight · segments drive the playbooks</span>
-        <button className="cl-bucket-link" style={{ marginLeft: "auto" }} onClick={() => window.CHANLY.nav("segments")}>
-          All segments <Icon name="arrow-right" size={10} />
-        </button>
-      </div>
-      <div className="sp-rows">
-        {moves.map((m, i) => {
-          const s = segOf(m.segId);
-          return (
-            <div key={i} className="sp-row">
-              <span className={`sp-dir ${m.dir}`}>{m.dir === "in" ? `+${m.count}` : `−${m.count}`}</span>
-              <span className="sp-body">
-                <button className="sp-seg" onClick={() => window.CHANLY.nav(CHANLY.R.segment(m.segId))}>{s ? s.label : m.segId}</button>
-                <span className="sp-who"> — {m.who}</span>
-                <span className="sp-note">{m.note}</span>
-              </span>
-              <button className="btn btn-ghost btn-sm" onClick={() => window.CHANLY.nav(m.action.to)}>
-                {m.action.label} <Icon name="arrow-right" size={10} />
-              </button>
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-};
-
-// A real workspace renders its lists (segments-real.jsx); the seeded page keeps the demo.
-window.SegmentsSeed = SegmentsPage;
 // The demo's page under the name the shell draws. A real workspace never reaches it: its lists live on People, and
 // `segments/<id>` lands there with the list picked (app-shell, window.__listRoute).
 window.SegmentsPage = SegmentsPage;
-window.SegmentPulse = SegmentPulse;

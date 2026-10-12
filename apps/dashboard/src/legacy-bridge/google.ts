@@ -20,6 +20,7 @@ import {
   checkedWords,
   connectionWords,
   reviewSnippet,
+  reviewNoticeIsAbout,
   type GoogleDto,
   type GoogleReadDto,
   type GoogleVM,
@@ -28,7 +29,8 @@ import {
 } from "@chanlytics/contracts";
 import { readAged, type SurfaceOverride } from "./surface-data";
 import { api, read } from "./api";
-import { ownsTheScreen } from "./surface-registry";
+import { bellNow } from "./notifications";
+import { declareReads, ownsTheScreen } from "./surface-registry";
 import { surfaceMoved } from "./surface-status";
 import { routeOnScreen } from "./workspace";
 import { setSurfaceValue, surfaceValue } from "../surfaces/surface-values";
@@ -104,18 +106,34 @@ export const googleOverride: SurfaceOverride = {
   isStale: googleIsStale,
   events: ["surface:google"],
   // The edge writes the listing on every read, the connection on every sync, and a review the first time it is seen.
-  refreshOnTables: ["google_listings", "google_reviews", "google_connections"],
-  // Not while the Reviews lens is on screen: its own read hears the same tables and publishes Google's beside its ledger.
-  refreshWhen: () => !ownsTheScreen("reports_reviews", routeOnScreen()),
+  ...declareReads("google", {
+    reads: ["review"],
+    fresh: "live",
+    // Not while the Reviews lens is on screen: its own read hears the same tables and publishes Google's beside its ledger.
+    when: () => !ownsTheScreen("reports_reviews", routeOnScreen()),
+  }),
   apply: async () => {
     const d = await read("GET google");
     setSurfaceValue("google", { dto: d.google, fetchedAt: Date.now() });
   },
 };
 
-/** An answer to a review, on Google. Operators and owners. */
+/**
+ * An answered review is dealt with: the bell's rows that told of it (a new one, or that the receptionist replied) are read, on the
+ * server, so the badge and Today's While you were away stop counting it on every device. Its notices were kept about Google's own id
+ * for the review or about its row (reviewNoticeIsAbout takes either), so the surface Google's read holds names both.
+ */
+function readNoticesOfReview(id: string): void {
+  if (typeof window === "undefined") return;
+  const held = surfaceValue("google")?.dto.reviews.find((r) => r.id === id);
+  const review = { id, reviewId: held?.review_id ?? null };
+  bellNow()?.readWhere((n) => n.kind === "review" && reviewNoticeIsAbout(n.about, review));
+}
+
+/** An answer to a review, on Google. Operators and owners. Answered, its notices are read. */
 export async function replyToReview(id: string, comment: string): Promise<{ ok: boolean; message: string }> {
   const r = await api()("POST google/reviews/[id]/reply", { params: { id }, body: { comment }, once: true });
+  if (r.ok) readNoticesOfReview(id);
   return { ok: r.ok, message: r.ok ? "" : r.message };
 }
 

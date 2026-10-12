@@ -332,7 +332,7 @@ test("a paused playbook is paused and not covered; a run waiting on you says so;
   });
   assert.deepEqual(
     [stage(waiting, "quiet").state, stage(waiting, "quiet").stateWords, stage(waiting, "quiet").tone],
-    ["on", "Waiting on you", "warn"],
+    ["on", "Waiting for your approval", "warn"],
   );
   // A moment whose playbook has a run waiting says so on its node too (a clock where the check stood): it is on, and it waits.
   assert.equal(stage(waiting, "quiet").waits, true);
@@ -410,8 +410,10 @@ test("a moment that holds several campaigns is led by the running one, says how 
 test("a paused campaign rests: plain, not amber; a run waiting on you is the one amber (D13)", () => {
   const paused = home({ playbooks: playbooks({ rows: [playbook({ state: "paused", next: "paused" })] }) });
   assert.deepEqual([stage(paused, "quiet").state, stage(paused, "quiet").tone], ["paused", "plain"]);
-  assert.equal(C.stateTone("playbook", "paused"), "plain");
-  assert.equal(C.stateTone("playbook", "approval"), "warn");
+  // The one source of a campaign's state, tone and pause (lifecycleStateOf), not a second vocabulary beside it.
+  const stated = (over) => C.lifecycleStateOf({ ...playbook(over), off: null });
+  assert.deepEqual([stated({ state: "paused" }).tone, stated({ state: "paused" }).paused], ["plain", true]);
+  assert.equal(stated({ totals: { waiting: { id: "r-9", recipient_count: 4 } } }).tone, "warn");
   assert.deepEqual(C.LIFECYCLE_TOAST.paused("Win-back"), [{ b: "Win-back" }, " paused"]);
 });
 
@@ -902,7 +904,7 @@ test("a scheduled run and a run waiting on you are lines, in time order, and sta
   assert.deepEqual(
     t.rows.map((r) => [r.kind, r.what, r.pill && r.pill.label]),
     [
-      ["run", "Win-back", "Waiting on you"],
+      ["run", "Win-back", "Waiting for your approval"],
       ["run", "Autumn hours", "22 people"],
       ["off", "Visit reminder", null],
     ],
@@ -935,7 +937,7 @@ test("a run waiting on you is approved or skipped where it waits: who gets it, a
   // promises nobody a count the month's allowance may hold part of, as "4 people get it once you approve" did.
   assert.equal(live.why, "4 people. Nothing sends until you say so.");
   assert.equal(live.why, C.todayRunWords(waitingRun()).waiting.sentence);
-  assert.deepEqual(live.pill, { tone: "warn", label: "Waiting on you" });
+  assert.deepEqual(live.pill, { tone: "warn", label: "Waiting for your approval" });
   assert.equal(row(waitingRun({ recipient_count: 1 })).why, "1 person. Nothing sends until you say so.");
   // Its day has passed (the board's moment is 2 October in New York): the verb refuses it (contracts runApprovalRefusal, THE
   // predicate), so the row says the verb's own sentence, with the day in words, and offers no Approve.
@@ -1217,11 +1219,11 @@ test("a read that failed is said where its data would be, in contracts' words, w
     none,
     "a surface not read yet has not failed",
   );
-  // The library is the playbooks surface's own read of the templates (Settings is not drawn on Campaigns): its Retry.
+  // The library is made of the templates, which are the settings read's, the one read of them (task 3.3): its Retry reads that.
   assert.deepEqual(home({ library: null }).failed.templates, {
     what: "your templates",
     body: "The call's text and the Library's count show once they read. Everything else here is current.",
-    surface: "playbooks",
+    surface: "settings",
   });
   assert.deepEqual(home({ playbooks: playbooks({ countsRead: false }) }).failed.counts, {
     what: "who each moment reaches",

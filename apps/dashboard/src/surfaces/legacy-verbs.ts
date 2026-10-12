@@ -4,15 +4,17 @@
  * A TSX surface reads no `window.*` name, so a verb a legacy page owns reaches it through the bridge: one function
  * here, which calls the window's own where it is, and does what the legacy page did where it is not (the standalone
  * mockup, a test's stand-in window). Each is a line to delete on the day its owner moves: the role gate with the role
- * store (the frame's step), `holdStill` and `askAbout` with the pages that publish them, `listRoute` with People,
- * `refreshSurface` and the toast with the frame, `navigate` with the frame's address. A surface never imports a legacy file, and
- * never reads the window itself; it imports this.
+ * store (the frame's step), `holdStill` with the page that publishes it, `listRoute` with People, `refreshSurface` and the
+ * toast with the frame. The doors to a route and to Ask (`navigate`, `askAbout`, `openAsk`) are the bridge's own now
+ * (surfaces/frame-doors.ts), named here for the surfaces that import them from this file. A surface never imports a legacy
+ * file, and never reads the window itself; it imports this.
  *
  * Nothing here is new behaviour: each reads what the pages it stands in for read, in the same words.
  */
 import type { KeyboardEvent, MouseEvent, ReactNode, RefCallback, TouchEvent } from "react";
-import type { AskScope } from "@chanlytics/contracts";
 import type { AskApi } from "../legacy-bridge/ask";
+import { workspacePath } from "@chanlytics/contracts";
+import { askAbout, navigate, openAsk } from "./frame-doors";
 import type { ViewPage } from "./kit/view-tabs/pager";
 import type { SetupSurface } from "./setup/surface";
 import { surfaceValue } from "./surface-values";
@@ -36,24 +38,22 @@ declare global {
   interface Window {
     CHANLY?: {
       nav?: (route: string, opts?: { replace?: boolean; quiet?: boolean }) => void;
-      /** The frame's address (legacy-bridge/workspace.ts): `hear` follows the route on screen, and answers the stop. */
+      /** The frame's address (surfaces/frame-doors.ts): `hear` follows the route on screen, and answers the stop. */
       address?: { hear?: (fn: () => void) => () => void };
     };
     canDo?: (action: string) => boolean;
     holdStill?: (el: Element | null | undefined, change: () => void) => void;
-    askAbout?: (about: AskAbout) => void;
-    appAsk?: () => void;
     __listRoute?: (id: string) => string;
     __refreshSurface?: (key: string) => Promise<void>;
     usePPToast?: () => [ReactNode, (flash: LegacyFlash) => void];
   }
 }
 
-/** Go to a route, the way a legacy page does (`CHANLY.nav`): the frame's own move, which keeps its Back and its address. */
-export function navigate(route: string, opts?: { replace?: boolean; quiet?: boolean }): void {
-  if (opts === undefined) window.CHANLY?.nav?.(route);
-  else window.CHANLY?.nav?.(route, opts);
-}
+/*
+ * Go to a route, open Ask, open Ask about something: the doors every page uses are the bridge's (legacy-bridge/workspace.ts), which
+ * the frame fills as it renders. They are named here too, with the verbs a surface already imports from this file.
+ */
+export { askAbout, navigate, openAsk };
 
 /** The role the member is acting as, View-as included (the role store's `myRole`); a role nobody can read is a viewer's. */
 export function actingRole(): string {
@@ -73,7 +73,7 @@ export function onRolesChanged(fn: () => void): () => void {
 
 /** Sign out of every session (the frame's `__shell.signOut`); false where there is no frame to do it. */
 export function shellSignOut(): boolean {
-  const shell = shellObject<{ signOut?: () => void }>("__shell");
+  const shell = windowObject<{ signOut?: () => void }>("__shell");
   if (!shell || !shell.signOut) return false;
   shell.signOut();
   return true;
@@ -99,22 +99,6 @@ export function holdStill(control: Element | null | undefined, change: () => voi
 }
 
 /**
- * What Ask is opened with (dashboard-a-ask.jsx `askAbout`): a question to ask, or to finish with `mode` "compose"; a
- * conversation to open; and `about`, the scope its chip opens on in place of the address's.
- */
-interface AskAbout {
-  prompt?: string;
-  mode?: string;
-  thread?: string;
-  about?: AskScope;
-}
-
-/** Open Ask on a question (the Line asks it, or opens on the scope). Nothing where Ask is not drawn. */
-export function askAbout(about: AskAbout): void {
-  window.askAbout?.(about);
-}
-
-/**
  * Move the address (`move`: a sheet's close, which may be a Back), then run `then` once the route on screen has moved
  * (the frame's address, `CHANLY.address.hear`: a Back as its popstate lands, a page's move as it is made), once. A Back
  * lands a moment after it is asked for, so what follows it waits for it. Where the frame hears no address (the
@@ -135,12 +119,6 @@ export function afterMove(move: () => void, then: () => void): void {
     then();
   });
   move();
-}
-
-/** Open Ask as ⌘K does (the frame's `appAsk`), keeping what is in its field; on nothing where the frame has no door of its own. */
-export function openAsk(): void {
-  if (window.appAsk) window.appAsk();
-  else askAbout({});
 }
 
 /** Ask's own calls (`window.__ask`, legacy-bridge/ask.ts installAsk): a turn sent, a card committed, the page as context. */
@@ -204,18 +182,23 @@ export function useLegacyToast(): [ReactNode, (flash: LegacyFlash) => void] {
  * policy store and the Reports data, the media link with the frame's client, the route with the frame.
  */
 
+/*
+ * The three readers of a name off the window, the one set there is (OW6): every file that reads a name the shell published
+ * reads it through these, and the surfaces' own `shell.ts` files name them as they use them (shell-doors.ts).
+ */
+
 /** A name off the window, whatever it holds. */
-const shellNamed = (name: string): unknown => Reflect.get(window, name);
+export const windowValue = (name: string): unknown => Reflect.get(window, name);
 
 /** A function the shell published, or nothing where it has not. */
-function shellFn<A extends unknown[], R>(name: string): ((...args: A) => R) | undefined {
-  const v = shellNamed(name);
+export function windowFn<A extends unknown[], R>(name: string): ((...args: A) => R) | undefined {
+  const v = windowValue(name);
   return typeof v === "function" ? (v as (...args: A) => R) : undefined;
 }
 
 /** An object the shell published, or nothing where it has not. */
-function shellObject<T extends object>(name: string): T | undefined {
-  const v = shellNamed(name);
+export function windowObject<T extends object>(name: string): T | undefined {
+  const v = windowValue(name);
   return typeof v === "object" && v !== null ? (v as T) : undefined;
 }
 
@@ -224,18 +207,18 @@ function shellObject<T extends object>(name: string): T | undefined {
  * inert, and pressing it shows the reason at the control (`window.__tip`). None where the shell has no role gate.
  */
 export function gatedProps(reason: string): Record<string, unknown> {
-  const g = shellFn<[string], Record<string, unknown>>("gatedProps");
+  const g = windowFn<[string], Record<string, unknown>>("gatedProps");
   return g ? g(reason) : {};
 }
 
 /** Whether the shell can build a link to a route at all (`__href`): the standalone mockup cannot. */
 export function hasHref(): boolean {
-  return !!shellFn("__href");
+  return !!windowFn("__href");
 }
 
 /** A link the browser follows to a route (`__href`: a download, a photo), or null where the shell builds none. */
 export function hrefOf(key: string, params?: Record<string, string>): string | null {
-  const href = shellFn<[string, Record<string, string> | undefined], string>("__href");
+  const href = windowFn<[string, Record<string, string> | undefined], string>("__href");
   return href ? href(key, params) : null;
 }
 
@@ -255,7 +238,7 @@ interface PolicyStore {
 
 /** The policy store, or nothing where the shell has none. */
 export function policyStore(): PolicyStore | undefined {
-  return shellObject<PolicyStore>("POLICY");
+  return windowObject<PolicyStore>("POLICY");
 }
 
 /** One class's figures in the trust digest: what it sent on its own. */
@@ -271,7 +254,7 @@ interface TrustTable {
 
 /** The trust digest, or nothing where the shell has none. */
 export function trustTable(): TrustTable | undefined {
-  return shellObject<TrustTable>("TRUST");
+  return windowObject<TrustTable>("TRUST");
 }
 
 /**
@@ -279,12 +262,12 @@ export function trustTable(): TrustTable | undefined {
  * Undefined is the standalone mockup, whose seeded trust table is what its chips quote.
  */
 export function policiesRead(): boolean {
-  return shellNamed("__POLICIES") !== undefined;
+  return windowValue("__POLICIES") !== undefined;
 }
 
 /** Go to Settings > Autonomy, as the policy chip does (`CHANLY.nav(CHANLY.R.admin("autonomy"))`); nowhere without the frame. */
 export function openAutonomy(): void {
-  const routes = shellObject<{ R?: { admin?: (pane: string) => string } }>("CHANLY")?.R;
+  const routes = windowObject<{ R?: { admin?: (pane: string) => string } }>("CHANLY")?.R;
   if (routes?.admin) navigate(routes.admin("autonomy"));
 }
 
@@ -293,7 +276,7 @@ export function openAutonomy(): void {
  * known" mark does): read when it is asked, and nothing where the shell has no tip.
  */
 export function showTip(target: Element | null): void {
-  const tip = shellObject<{ show?: (el: Element) => void }>("__tip");
+  const tip = windowObject<{ show?: (el: Element) => void }>("__tip");
   if (tip && tip.show && target) tip.show(target);
 }
 
@@ -371,14 +354,6 @@ interface Refusal {
   message?: string | null;
 }
 
-/** What Ask is told is on screen (Ask reads it when it opens); a page says it as it draws, and takes it back as it goes. */
-export interface AskOnScreen {
-  key: string;
-  ids: readonly string[];
-  labels: readonly (string | undefined)[];
-  view: string | null;
-}
-
 /** What the deal sheet is asked for, from anywhere (`window.openDealSheet`, components/deal-sheet.jsx). */
 export interface DealSheetAsk {
   personId: string;
@@ -400,7 +375,6 @@ declare global {
     refusalToast?: (r: Refusal | null | undefined, what?: string | null) => LegacyFlash;
     useHotkey?: (matcher: (e: KeyboardEvent, typing: boolean) => boolean, handler: (e: KeyboardEvent) => void) => void;
     __tip?: { show: (el: Element) => void };
-    __askOnScreen?: AskOnScreen | null;
     openDealSheet?: (ask: DealSheetAsk) => void;
   }
 }
@@ -524,7 +498,12 @@ export function keyPress(fn: (e: KeyboardEvent<HTMLElement>) => void): (e: Keybo
 
 /** A link to a route: its address in the href, and the app's own way there on a plain press (data-bits `routeDoor`). */
 export function routeDoor(to: string, go?: ((to: string) => void) | null): RouteDoor {
-  return window.routeDoor ? window.routeDoor(to, go) : { href: `#/${to}`, onClick: () => navigate(to) };
+  if (window.routeDoor) return window.routeDoor(to, go);
+  // The shell's own is not there: the address a workspace's route has (`/w/<slug>/<route>`, the one workspace.ts
+  // `hrefOfRoute` and the frame's `address.href` give), which a long press or a new tab opens, not the retired `#/` one;
+  // the hash only where there is no workspace page (the mockup).
+  const slug = /^\/w\/([^/?#]+)/.exec(window.location?.pathname ?? "")?.[1];
+  return { href: slug ? workspacePath(decodeURIComponent(slug), to) : `#/${to}`, onClick: () => navigate(to) };
 }
 
 /** A refusal as the toast raises it: always the danger tone, the page's words first (data-bits `refusalToast`). */
@@ -542,25 +521,17 @@ export function useLegacyHotkey(
   window.useHotkey?.(matcher, handler);
 }
 
-/** Say what is on screen to Ask, or take it back (`null`): what Ask reads when it opens. */
-export function setAskOnScreen(on: AskOnScreen | null): void {
-  window.__askOnScreen = on;
-}
-
-/** The page Ask was last told is on screen: a page takes it back only when it is its own. */
-export function askOnScreenKey(): string | null {
-  return window.__askOnScreen ? window.__askOnScreen.key : null;
-}
+/*
+ * What Ask is told is on screen (what Ask reads when it opens) is one ledger with one writer and one reader
+ * (legacy-bridge/ask/on-screen.ts): a page says what it drew as it draws, and takes it back, only if it is its own, as it
+ * goes. Named here for the surfaces that import every door from this file.
+ */
+export { askOnScreenKey, setAskOnScreen } from "../legacy-bridge/ask/on-screen";
+export type { OnScreen as AskOnScreen } from "../legacy-bridge/ask/on-screen";
 
 /** Ask for the one deal sheet (components/deal-sheet.jsx); nothing where the shell has none. */
 export function openDealSheet(ask: DealSheetAsk): void {
   window.openDealSheet?.(ask);
-}
-
-declare global {
-  interface Window {
-    appNavigate?: (route: string, opts?: { replace?: boolean }) => void;
-  }
 }
 
 /**

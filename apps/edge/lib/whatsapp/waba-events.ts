@@ -28,6 +28,7 @@ import {
   samePhone,
   standingAfterNameDecision,
   standingFromConfig,
+  TEMPLATE_STATUS_WORDS,
   WABA_FIELDS as WABA_FIELD_LIST,
   type NotificationsConfig,
   type ServerNotificationKind,
@@ -136,6 +137,8 @@ interface WabaWords {
   kind: ServerNotificationKind;
   /** Where this news is read. */
   route: string;
+  /** What it is about, when it is one thing (a template, by its name): the kept row opens it, and says so. */
+  about?: { type: string; id: string };
 }
 
 /** The number's own health: Connections, under a shield. Read by what tells an owner of a number's standing too (number-standing.ts). */
@@ -146,6 +149,18 @@ const READY = { kind: "template_ready" as const, route: "messages" };
 const BLOCKED = { kind: "template_blocked" as const, route: "messages" };
 
 /**
+ * A template notice opens the message it is about, in its own drawer over Campaigns (campaigns/message:<name>), and says what
+ * it is about (D1-template-marks): it opened the bare Library, at its top, though a message has its own address now. Without
+ * a name (an event that carries none) it keeps the Library's door.
+ */
+function aboutTemplate(name: string | null): Partial<Pick<WabaWords, "route" | "about">> {
+  return name ? { route: `campaigns/message:${name}`, about: { type: "template", id: name } } : {};
+}
+
+/** A status WhatsApp put on a template, in the Library's own word for it (TEMPLATE_STATUS_WORDS), lower case in a sentence. */
+const statusWord = (status: keyof typeof TEMPLATE_STATUS_WORDS): string => TEMPLATE_STATUS_WORDS[status].toLowerCase();
+
+/**
  * A template moved to another category. Moved to marketing is a restriction, not a failure: it can still be sent, but only to a
  * recorded yes. It reads with the ones it cannot.
  */
@@ -154,10 +169,43 @@ function categoryWords(v: Record<string, unknown>): WabaWords {
   const to = typeof v.new_category === "string" ? v.new_category.toLowerCase() : "another category";
   return {
     ...(to === "marketing" ? BLOCKED : READY),
+    ...aboutTemplate(typeof v.message_template_name === "string" ? v.message_template_name : null),
     subject: `Template “${name}” is now ${to}`,
     body: `Meta moved the template “${name}” to ${to}.${to === "marketing" ? " Sends that use it now need the customer's recorded yes." : ""}`,
     alert: to === "marketing",
   };
+}
+
+/** A template's status at Meta moved: refused, paused or disabled, or approved; null for a status nobody is told of. */
+function templateStatusWords(v: Record<string, unknown>): WabaWords | null {
+  const name = typeof v.message_template_name === "string" ? v.message_template_name : "a template";
+  const door = aboutTemplate(typeof v.message_template_name === "string" ? v.message_template_name : null);
+  const event = String(v.event ?? "");
+  if (event === "REJECTED")
+    return {
+      ...BLOCKED,
+      ...door,
+      subject: `Template “${name}” ${statusWord("rejected")}`,
+      body: `WhatsApp ${statusWord("rejected")} the template “${name}”${typeof v.reason === "string" && v.reason !== "NONE" ? ` (${v.reason.toLowerCase().replace(/_/g, " ")})` : ""}. It cannot be sent until it is revised and approved.`,
+      alert: true,
+    };
+  if (event === "PAUSED" || event === "DISABLED")
+    return {
+      ...BLOCKED,
+      ...door,
+      subject: `Template “${name}” ${statusWord(event === "PAUSED" ? "paused" : "disabled")}`,
+      body: `WhatsApp ${statusWord(event === "PAUSED" ? "paused" : "disabled")} the template “${name}”. Sends that use it will fail until it is restored.`,
+      alert: true,
+    };
+  if (event === "APPROVED")
+    return {
+      ...READY,
+      ...door,
+      subject: `Template “${name}” ${statusWord("approved")}`,
+      body: `WhatsApp ${statusWord("approved")} the template “${name}”. It can be sent now — from a broadcast, or from the Inbox outside the 24-hour window.`,
+      alert: true,
+    };
+  return null;
 }
 
 /** Meta's decision on the display name, as the owner's line: contracts says the words, this says where it is read. */
@@ -221,32 +269,8 @@ export function describeWabaChange(c: WabaChange, number: string | null): WabaWo
         };
       return null;
     }
-    case "message_template_status_update": {
-      const name = typeof v.message_template_name === "string" ? v.message_template_name : "a template";
-      const event = String(v.event ?? "");
-      if (event === "REJECTED")
-        return {
-          ...BLOCKED,
-          subject: `Template “${name}” rejected`,
-          body: `WhatsApp rejected the template “${name}”${typeof v.reason === "string" && v.reason !== "NONE" ? ` (${v.reason.toLowerCase().replace(/_/g, " ")})` : ""}. It cannot be sent until it is revised and approved.`,
-          alert: true,
-        };
-      if (event === "PAUSED" || event === "DISABLED")
-        return {
-          ...BLOCKED,
-          subject: `Template “${name}” ${event.toLowerCase()}`,
-          body: `WhatsApp ${event.toLowerCase()} the template “${name}”. Sends that use it will fail until it is restored.`,
-          alert: true,
-        };
-      if (event === "APPROVED")
-        return {
-          ...READY,
-          subject: `Template “${name}” approved`,
-          body: `WhatsApp approved the template “${name}”. It can be sent now — from a broadcast, or from the Inbox outside the 24-hour window.`,
-          alert: true,
-        };
-      return null;
-    }
+    case "message_template_status_update":
+      return templateStatusWords(v);
     case "template_category_update":
       return categoryWords(v);
     case "phone_number_name_update":
@@ -418,6 +442,7 @@ export async function handleWabaChange(
   await notify(target, {
     kind: described.kind,
     route: described.route,
+    ...(described.about ? { about: described.about } : {}),
     subject: described.subject,
     body: described.body,
   });

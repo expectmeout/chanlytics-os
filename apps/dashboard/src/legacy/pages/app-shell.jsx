@@ -72,15 +72,6 @@ const routeAt = (route) => {
   return { page, param, raw: route, soonState, retiredTo, routeKey };
 };
 
-// Inbox thread → client profile mapping (identity is consistent across surfaces)
-const THREAD_CLIENT = {
-  "th-aisha-refund": "c-aisha",
-  "th-wellness-partnership": "c-thewellness",
-  "th-jordan-discount": "c-jordan",
-  "th-maya-recovery": "c-maya",
-  "th-david-complaint": "c-david-chen",
-};
-
 // Sidebar nav id → route
 const NAV_ROUTE = {
   home: "today",
@@ -211,38 +202,13 @@ const PhoneTabs = ({ page, inboxNeeds, onNavigate, onMenu }) => {
 // Each holds one concern of ChanlyticsApp, and the state its effects set (the drawer's is useNavDrawer's), called in
 // the order the shell always called these hooks, so the effects run in the order they always ran.
 
-/** What needs you, for the sidebar's and the phone bar's count: from the threads at the first draw, then the Inbox's own count. */
-const useInboxNeeds = () => {
-  const [inboxNeeds, setInboxNeeds] = useShellState(() => {
-    let T = (window.INBOX_DATA || {}).THREADS || [];
-    // On a real workspace, only real threads may count. A COLD boot runs this
-    // before the inbox override applies, when THREADS is still the seed array —
-    // which put an invented "6" on the sidebar an inch from Today's honest "0".
-    // Cache-hydrated real threads carry t.real and still count.
-    if (window.__surfaceState && window.__surfaceState("inbox") === "real" && !window.__DEMO_MODE) {
-      T = T.filter((t) => t.real);
-    }
-    const D = (window.IX_STORE || {}).decisions || {};
-    // A real thread is counted by the Inbox's own rule (ixWaitsOnYou, the one the sidebar and the chip read): a thread a
-    // teammate or you have is not waiting on you, and a reply about to send is. This read needsYou alone, so the first
-    // number said 19 where the Inbox's chip said 21 (the 2 Oct 2026 audit).
-    const waits = (t) =>
-      t.real
-        ? window.ixWaitsOnYou
-          ? window.ixWaitsOnYou(t)
-          : !!t.needsYou
-        : t.state === "needs" || (t.state === "escalated" && !t.takenOver);
-    return T.filter((t) => waits(t) && !D[t.id]).length;
-  });
-
-  // Live Inbox badge — decisions made in the Inbox update the sidebar count
-  React.useEffect(() => {
-    const onCounts = (e) => setInboxNeeds(e.detail?.needs ?? 0);
-    window.addEventListener("inbox:counts", onCounts);
-    return () => window.removeEventListener("inbox:counts", onCounts);
-  }, []);
-  return inboxNeeds;
-};
+/**
+ * What needs you, for the sidebar's and the phone bar's count and the tab's title: the one number every surface says
+ * (surfaces/needs-you.ts, `window.useNeedsYou`, drawn again when it changes), a selector over the Inbox's threads and the
+ * runs waiting for a word. Nothing before the Inbox has been read (an invented "6" stood on the sidebar an inch from Today's
+ * honest "0" while it was seeded), and nothing in the standalone mockup's stub, which has no threads to count.
+ */
+const useInboxNeeds = () => (window.useNeedsYou ? window.useNeedsYou() : 0) || 0;
 
 /**
  * The route gate and the honesty gate, for the route on screen.
@@ -672,7 +638,7 @@ const appChrome = (s) => {
         )}
         {!askOpen && !navOpen && (
           <button type="button" className="phone-ask" onClick={openAsk} aria-label="Ask Chanlytics" title="Ask Chanlytics" data-testid="phone-ask">
-            {/* the disc with its state dot on the rim (ask-face.jsx AskDisc), the three over it on the same surface */}
+            {/* the disc (ask-face.jsx AskDisc; its usage dot on the rim waits for a usage surface), the three over it on the same surface */}
             {window.AskDisc ? <window.AskDisc testId="phone-ask-disc" /> : null}
             {PhoneFace
               ? <PhoneFace className="phone-ask-face" ground="raised" side={14} testId="phone-ask-face" />
@@ -702,7 +668,7 @@ const appChrome = (s) => {
 // press that asked for it answers first. The frame heard the address itself before, at once, while the page heard the
 // router a beat later: People's view remounted with the scope it was leaving, and every Inbox tab drew its page twice.
 // Without it (the standalone mockup, a test) the frame hears the address, as it always did.
-const ChanlyticsApp = ({ theme, themePref = theme, onTheme, look, onLook, sidebar = "open", onSidebar = () => {}, inboxDensity, showInboxAgentRail, routePage = null, surfaceRoutes = null, sharedPage = null, routeNow = null }) => {
+const ChanlyticsApp = ({ theme, themePref = theme, onTheme, look, onLook, sidebar = "open", onSidebar = () => {}, inboxDensity, showInboxAgentRail, routePage = null, surfaceRoutes = null, sharedPage = null, routeNow = null, fillDoors = null }) => {
   const [heard, setRoute] = useShellState(parseRoute());
   const route = routeNow !== null ? routeParts(routeNow) : heard;
   const [askOpen, setAskOpen] = useShellState(false);
@@ -720,10 +686,13 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, look, onLook, sideba
   // are not loaded.
   const PhoneFace = window.AskFace || null;
 
-  // Expose for deep components (fleet cards, command rows) without prop-drilling
-  // (A person's page, an App Router page in surfaces/people/person, takes its Back to People from the frame, which knows the
-  // People view it was opened from.)
-  Object.assign(window, { appNavigate: navigate, appAsk: openAsk, appBackToPeople: backToPeople });
+  // The doors every page uses (surfaces/frame-doors.ts), filled before the pages under this draw: the frame's own move, its
+  // Ask, and a person's Back to the People view they were opened from (A person's page, an App Router page in
+  // surfaces/people/person, takes it from the frame, which knows that view). The bridge hands the frame the filler as
+  // `fillDoors`, and publishes the names the pages that have not moved read (seed-globals.ts). Without a bridge (the
+  // standalone mockup, a test) the frame publishes them itself, as it always did.
+  if (fillDoors) fillDoors({ navigate, openAsk, backToPeople });
+  else Object.assign(window, { appNavigate: navigate, appAsk: openAsk, appBackToPeople: backToPeople });
 
   useShellRouting({ route, setRoute, setReadyTick: gate.setReadyTick, follows: routeNow === null });
   useShellKeys({ setAskOpen, sidebar, onSidebar });

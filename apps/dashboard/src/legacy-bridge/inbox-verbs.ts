@@ -11,7 +11,6 @@ import { api } from "./api";
 import type { ApiOptions, ApiResult, Input, Params, RouteKey } from "../client/api";
 import {
   FALLBACK_DEFAULTS,
-  INSTRUCTIONS_MAX,
   fallbackMessages,
   instructionsDraft,
   newReceptionistDefaults,
@@ -132,27 +131,15 @@ export async function refreshLive(): Promise<void> {
   await refreshSurfaces([liveOverride]);
 }
 
-/** Re-read the roster so the card shows what the server now holds, never what
- *  the browser hoped it would. */
-export async function refreshSettings(): Promise<void> {
-  await refreshSurfaces([settingsOverride]);
-}
-
 declare global {
   interface Window {
     __setPolicy?: (cls: string, mode: string | undefined, limits?: PolicyDials) => Promise<VerbResult>;
-    __refreshSettings?: () => Promise<void>;
-    __refreshLive?: () => Promise<void>;
     __href: typeof href;
-    __whisperCall: typeof whisperCall;
-    __endCall: typeof endCall;
-    __handOverCall: typeof handOverCall;
     __saveSettings: typeof saveSettings;
     __composedPrompt: typeof composedPrompt;
     __receptionistDefaults: typeof newReceptionistDefaults;
-    /** What the Business editor's instructions box opens with, and the most it holds (S4). */
+    /** What the Business editor's instructions box opens with (S4). */
     __instructionsDraft: typeof instructionsDraft;
-    __instructionsMax: number;
     /** The messages sent in the business's name as a customer reads them, the product's wording, and the names nothing fills in (S5). */
     __fallbackMessages: typeof fallbackMessages;
     __fallbackDefaults: typeof FALLBACK_DEFAULTS;
@@ -191,22 +178,18 @@ function dialsOnTheWire(d: PolicyDials): PolicyDialsBody {
  *
  * PUT /api/v1/policies, operator or owner; viewers get the server's refusal.
  * On success the refresh map re-reads the settings surface through the runner
- * (so the matrix, the approval chips and the cache all agree) and the mockup's own
- * `policy:changed` event fires, which is what every reader listens for.
+ * (so the matrix, the approval chips and the cache all agree), and that read
+ * says `policy:changed` once, the mockup's own event, which is what every reader
+ * listens for (surfaces/settings.ts). The verb says nothing of its own.
  */
 export async function setPolicy(cls: string, mode: string | undefined, limits: PolicyDials = {}): Promise<VerbResult> {
   // A delay edit sends no mode. It used to resend the one this page had
   // loaded, so changing the hold window from a stale tab could quietly flip
   // Replies back to whatever that tab remembered. Every dial travels the same
   // way: only the ones given, the mode untouched.
-  const r = await api()("PUT policies", {
+  return api()("PUT policies", {
     body: { class: cls, ...(mode !== undefined ? { mode } : {}), ...dialsOnTheWire(limits) },
   });
-  if (r.ok) {
-    const saved = r.data.policy?.mode ?? mode;
-    window.dispatchEvent(new CustomEvent("policy:changed", { detail: { class: cls, mode: saved } }));
-  }
-  return r;
 }
 
 /**
@@ -221,21 +204,15 @@ export function installInboxVerbs(): void {
   // named like every other request; the page builds the href with this.
   window.__href = href;
   window.__setPolicy = setPolicy;
-  window.__refreshSettings = refreshSettings;
-  window.__refreshLive = refreshLive;
   // A call's recording is no verb: the thread's <audio> points at the route (window.__href), which redirects to a
-  // link signed for each request.
-  window.__whisperCall = whisperCall;
-  window.__endCall = endCall;
-  window.__handOverCall = handOverCall;
+  // link signed for each request. (Live's verbs are imported by its page: whisperCall, endCall, handOverCall, refreshLive.)
   window.__saveSettings = saveSettings;
   window.__composedPrompt = composedPrompt;
   // The settings form builds a brand-new brain and must satisfy the same
   // schema the edge parses; the defaults live beside that schema.
   window.__receptionistDefaults = newReceptionistDefaults;
-  // The instructions box opens with what contracts says it should, and holds what the schema holds (S4).
+  // The instructions box opens with what contracts says it should (S4).
   window.__instructionsDraft = instructionsDraft;
-  window.__instructionsMax = INSTRUCTIONS_MAX;
   // The messages sent in the business's name, as the form previews and checks them (S5).
   window.__fallbackMessages = fallbackMessages;
   window.__fallbackDefaults = FALLBACK_DEFAULTS;

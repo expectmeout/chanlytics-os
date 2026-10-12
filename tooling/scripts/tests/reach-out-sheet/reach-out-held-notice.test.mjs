@@ -119,7 +119,7 @@ test("a live run holding sends is told once, through the real door, with its lin
   }
 });
 
-test("a mail that failed is not told: no bell twin kept, the claim kept, and asked again once it goes stale", async () => {
+test("a mail that failed is not told, but the bell keeps its row with the mail owed; the claim kept, and asked again once it goes stale, when the mail alone goes and no twin is kept", async () => {
   const w = world();
   const p = provider([500, 200]);
   const now = Date.now();
@@ -127,13 +127,20 @@ test("a mail that failed is not told: no bell twin kept, the claim kept, and ask
     const failed = await tick(w, new Date(now));
     assert.deepEqual([failed.told, failed.errors.length], [0, 1]);
     assert.equal(failed.errors[0].fields.broadcast_id, "run-1");
-    assert.equal(w.tables.notifications.length, 0, "the row goes with the mail that failed");
+    // The row never waits on the mail (decision 0048): it stays, and says its mail is owed.
+    assert.equal(w.tables.notifications.length, 1, "the row stays with the mail that failed");
+    assert.ok(w.tables.notifications[0].mail_due_at, "and says its mail is owed");
     const mark = w.tables.broadcasts[0].audience.held_notice;
     assert.ok(mark.claimed_at && !mark.sent_at, "claimed, never sent");
     const soon = await tick(w, new Date(now + 60_000));
     assert.deepEqual([soon.told, p.mails.length], [0, 1], "not asked again before its claim goes stale");
     const later = await tick(w, new Date(now + CLAIM_STALE_MS + 60_000));
-    assert.deepEqual([later.told, p.mails.length, w.tables.notifications.length], [1, 2, 1]);
+    assert.deepEqual(
+      [later.told, p.mails.length, w.tables.notifications.length],
+      [1, 2, 1],
+      "the mail alone went, and the bell still has the one row",
+    );
+    assert.equal(w.tables.notifications[0].mail_due_at, null, "and nothing is owed any more");
     assert.ok(w.tables.broadcasts[0].audience.held_notice.sent_at);
   } finally {
     p.restore();

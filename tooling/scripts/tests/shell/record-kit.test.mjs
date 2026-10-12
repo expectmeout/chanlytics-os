@@ -73,10 +73,10 @@ test("a row draws its label, its value and one act", () => {
   assert.match(textOf(tree), /marisasbeautysalon\.example\.com/);
   assert.match(textOf(tree), /Change/);
   assert.equal(all(tree, (n) => n.type === "button").length, 1, "one act, never two");
-  // And the whole row is that act's press (record-row.jsx recRowPress): a row with an act says so, and one without
-  // is not a press at all.
+  // And the whole row is that act's press (row.tsx recRowPress): a row with an act says so, and one without is not a
+  // press at all.
   const row = find(tree, (n) => classes(n).includes("rec-row"));
-  assert.deepEqual([row.props["data-act"], row.props.onClick], ["true", W.recRowPress]);
+  assert.deepEqual([row.props["data-act"], typeof row.props.onClick], ["true", "function"]);
   const still = find(draw(W.RecordRow, { label: "Website", value: "marisasbeautysalon.example.com" }), (n) =>
     classes(n).includes("rec-row"),
   );
@@ -101,25 +101,30 @@ test("a press on a row is a press on its act, never for a press on something of 
     querySelector: (sel) => (sel === ".rec-row-act" ? act : null),
   };
   const at = (target) => ({ currentTarget: row, target });
+  // The row's press, as a row with an act draws it (row.tsx recRowPress, the kit's own).
+  const rowPress = find(
+    draw(W.RecordRow, { label: "Website", value: "example.com", act: { label: "Change", onClick: () => {} } }),
+    (n) => classes(n).includes("rec-row"),
+  ).props.onClick;
   const selected = { text: "" };
   const was = W.getSelection;
   W.getSelection = () => ({ toString: () => selected.text });
   try {
-    W.recRowPress(at(words));
+    rowPress(at(words));
     assert.deepEqual(pressed, ["act"], "a press on the row's words is the act's");
-    W.recRowPress(at(link));
-    W.recRowPress(at(box));
+    rowPress(at(link));
+    rowPress(at(box));
     assert.deepEqual(pressed, ["act"], "a link or a box in the row is pressed for itself");
-    W.recRowPress(at({ closest: (sel) => (sel.includes("button") ? act : null) }));
+    rowPress(at({ closest: (sel) => (sel.includes("button") ? act : null) }));
     assert.deepEqual(pressed, ["act"], "the act itself has already answered its own press");
-    W.recRowPress(at(elsewhere));
+    rowPress(at(elsewhere));
     assert.deepEqual(
       pressed,
       ["act"],
       "a press on the menu the act opened is not a press on the row: it opened it again",
     );
     selected.text = "marisas";
-    W.recRowPress(at(words));
+    rowPress(at(words));
     assert.deepEqual(pressed, ["act"], "words dragged over are a selection, not a press");
   } finally {
     W.getSelection = was;

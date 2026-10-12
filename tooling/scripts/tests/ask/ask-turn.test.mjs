@@ -1129,7 +1129,7 @@ test("report says the Campaigns lens as the page does (C4): the sentence, the fi
       change: null,
     },
     {
-      label: "Replies waiting on you",
+      label: "Replies that need you",
       value: "2",
       meta: "people who answered a campaign in the last 30 days and wait for a person",
       change: null,
@@ -1137,7 +1137,7 @@ test("report says the Campaigns lens as the page does (C4): the sentence, the fi
     {
       label: "Messages Meta stopped",
       value: "2",
-      meta: "Win-back (earlier) paused, Spring note rejected",
+      meta: "Win-back (earlier) paused, Spring note refused",
       change: null,
     },
     {
@@ -1400,7 +1400,7 @@ test("report says an empty period in the lens's own words, with no share and no 
     [
       ["Runs waiting for you", "0", "nothing is waiting for your OK"],
       ["Failed runs", "0", "no run failed in the last 30 days"],
-      ["Replies waiting on you", "0", "nobody who answered a campaign is waiting"],
+      ["Replies that need you", "0", "nobody who answered a campaign is waiting"],
       ["Messages Meta stopped", "0", "every WhatsApp message is approved"],
       ["Your WhatsApp number", "Good", "Number quality: good · up to 1,000 new conversations a day · checked today"],
     ],
@@ -1835,8 +1835,8 @@ test("report says the Receptionist lens as the page does (Reports C2, the Recept
       },
       closed: { value: "3 of 5", meta: "5 messages came while you were closed; the receptionist answered 3." },
       stuck: [
-        { label: "Waiting on you", value: "2", meta: "the oldest has waited 6h" },
-        { label: "Call-backs", value: "1", meta: "people to ring, counted in waiting on you" },
+        { label: "Needs you", value: "2", meta: "the oldest has waited 6h" },
+        { label: "Call-backs", value: "1", meta: "people to ring, counted in Needs you" },
         { label: "Replies held back", value: "4", meta: "a person had the thread 3 · asked to stop 1" },
       ],
       held_back: ["A person had the thread: 3", "Asked to stop: 1"],
@@ -1942,7 +1942,7 @@ test("report says the Receptionist lens as the page does (Reports C2, the Recept
       },
       closed: { value: "0", meta: "no message came while you were closed" },
       stuck: [
-        { label: "Waiting on you", value: "0", meta: "nobody is waiting for you" },
+        { label: "Needs you", value: "0", meta: "nobody is waiting for you" },
         { label: "Call-backs", value: "0", meta: "no call-back is waiting" },
         { label: "Replies held back", value: "0", meta: "none were held at the door in this period" },
       ],
@@ -4049,6 +4049,74 @@ test("calendar.week reads the board as its page reads it (ledger #11): with no d
       ctx.supabase.seen.slice(before).filter((q) => q.table === "tenants" || q.table === "tenant_config").length,
       0,
       "the tenant and its settings are the turn's: read by the route before any tool, and never again",
+    );
+  } finally {
+    globalThis.fetch = fetchWas;
+    forgetFeeds();
+  }
+});
+
+test("calendar.week leaves a cancelled visit out of what is taken, as Today and People do: a member's word on the record is what the board strikes (wiring/records-not-pages, 1.6)", async () => {
+  const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
+  const event = (uid, start, end, summary) => [
+    "BEGIN:VEVENT",
+    `UID:${uid}`,
+    `DTSTART:${start}`,
+    `DTEND:${end}`,
+    `SUMMARY:${summary}`,
+    "END:VEVENT",
+  ];
+  const ICS = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//test//EN",
+    ...event("w1", "20260916T190000Z", "20260916T200000Z", "Estimate"),
+    ...event("w2", "20260916T203000Z", "20260916T213000Z", "Fitting"),
+    ...event("w3", "20260916T150000Z", "20260916T160000Z", "Walk-through"),
+    "END:VCALENDAR",
+  ].join("\r\n");
+  const row = (id, external_id, status, start, end) => ({
+    id,
+    tenant_id: A,
+    source: "calendar_feed",
+    external_id,
+    status,
+    starts_at: start,
+    ends_at: end,
+    vanished_at: null,
+  });
+  const base = tables();
+  const t = tables({
+    tenant_config: [
+      {
+        ...base.tenant_config[0],
+        config: { ...base.tenant_config[0].config, calendar: { ical_url: "https://calendar.example/harbor.ics" } },
+      },
+    ],
+    appointments: [
+      row("ap-w1", "w1", "cancelled", "2026-09-16T19:00:00Z", "2026-09-16T20:00:00Z"),
+      row("ap-w3", "w3", "missed", "2026-09-16T15:00:00Z", "2026-09-16T16:00:00Z"),
+    ],
+  });
+  const WEDNESDAY = new Date("2026-09-16T14:00:00Z");
+  const fetchWas = globalThis.fetch;
+  globalThis.fetch = async () => new Response(ICS, { status: 200, headers: { "content-type": "text/calendar" } });
+  try {
+    forgetFeeds();
+    const ctx = ctxFor(t, RPCS);
+    const rc = readerContext(ctx, { tenantId: A, role: "owner" }, WEDNESDAY);
+    await Promise.all(
+      [workspaceReads.facts, workspaceReads.config, workspaceReads.policies, workspaceReads.sellsBy].map((r) =>
+        load(rc, r, undefined),
+      ),
+    );
+    const tc = newToolContext(ctx, A, "owner", TZ, WEDNESDAY, rc);
+    const week = await runTool(tc, { name: "calendar", input: { action: "week", day: "2026-09-16" } });
+    assert.equal(week.isError, false, week.result);
+    assert.deepEqual(
+      JSON.parse(week.result).days[0].taken.map((b) => b.title),
+      ["Walk-through", "Fitting"],
+      "REGRESSION: the cancelled Estimate was listed as booked; a visit said missed is still on the day, as Today counts it",
     );
   } finally {
     globalThis.fetch = fetchWas;
@@ -6325,7 +6393,7 @@ test("thirteen names in a turn (PR 4.2): the rows leads.searches, campaigns.audi
       ["search", WAITING_SEARCH.id, `clients/leads:s-${WAITING_SEARCH.id}`],
       ["list", offered.audience_id, `clients/seg:${offered.audience_id}`],
       ["template", TPL, "messages"],
-      ["playbook", PB, `outbound/${PB}`],
+      ["playbook", PB, `campaigns/moment:${PB}`],
     ],
     "each where its reader said: a search on Leads, a People list on People, a template on Templates, a playbook at its card",
   );
@@ -9041,7 +9109,7 @@ test("a thread a teammate holds is said as theirs, never as the receptionist ans
   assert.equal(threadState(row({ claimedByOther: true })), "a teammate is answering");
   assert.equal(threadState(row({})), "answering");
   assert.equal(threadState(row({ needsYou: true, claimedByOther: true })), "needs you");
-  assert.equal(threadState(row({ takenOver: true, claimedByOther: true })), "waiting on you");
+  assert.equal(threadState(row({ takenOver: true, claimedByOther: true })), "you have it");
   assert.equal(threadState(row({ claimedByOther: true, state: "snoozed" })), "a teammate is answering");
   assert.equal(threadState(row({ state: "snoozed", optedOut: true })), "snoozed");
   assert.equal(threadState(row({ optedOut: true })), "opted out");

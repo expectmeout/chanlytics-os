@@ -6,7 +6,7 @@
  */
 import { agoWords, WEEK_MS } from "../shared/time";
 import { clockDate } from "../shared/clock";
-import { relationshipOnRecord } from "../consent/consent";
+import { relationshipOnRecord, STOP_WORDS } from "../consent/consent";
 import { channelsWords, coveredChannels } from "../consent/consent-channels";
 import { consentSourceLabel, STOP_ENDED_OFFERS_SOURCE, type PersonConsent } from "./person-consent";
 import { fmtDate, ts } from "./person-helpers";
@@ -23,8 +23,11 @@ export interface PersonLastContact {
   ts: number | null;
   at: string | null;
   kind: "message" | "call" | null;
-  who: "they" | "receptionist" | "you" | "system" | null;
-  /** Who spoke: "They wrote", "Receptionist replied", "Phoned", "We called"; "No contact recorded" with none. */
+  who: "they" | "receptionist" | "team" | "system" | null;
+  /**
+   * Who spoke: "They wrote", "Receptionist replied", "Your team replied", "Phoned", "We called"; "No contact recorded"
+   * with none. A person's reply is the team's, never "You": the row does not say which member sent it (messageAuthor).
+   */
   by: string;
   /** How long ago: "2h ago", the business's date past a week; empty with none. The table's first line (8 Oct 2026). */
   when: string;
@@ -34,7 +37,7 @@ export interface PersonLastContact {
 
 /**
  * Whose turn it is, when it is theirs: "they wrote last" after their message, "they called last" after their call; null
- * when the last word was ours. What Waiting on you adds to "You have it", where it is true: a thread you took over and
+ * when the last word was ours. What the row adds to "You have it", where it is true: a thread you took over and
  * answered still waits on you, and it said they wrote last.
  */
 export function theirTurnWords(last: Pick<PersonLastContact, "who" | "kind">): string | null {
@@ -76,15 +79,15 @@ export function lastContactOf(r: PersonRowDto, tz: string, nowMs: number): Perso
     r.last_message_direction === "inbound"
       ? "they"
       : r.last_message_sender === "human"
-        ? "you"
+        ? "team"
         : r.last_message_sender === "ai"
           ? "receptionist"
           : "system";
   const verb =
     who === "they"
       ? "They wrote"
-      : who === "you"
-        ? "You replied"
+      : who === "team"
+        ? "Your team replied"
         : who === "receptionist"
           ? "Receptionist replied"
           : "We sent";
@@ -209,7 +212,7 @@ export function consentOf(r: PersonRowDto, tz: string, nowMs: number): PersonCon
   return {
     state,
     dnc,
-    label: state === "opted_out" ? "Opted out" : state === "opted_in" ? "Opted in" : "Unknown",
+    label: state === "opted_out" ? STOP_WORDS.pill : state === "opted_in" ? "Opted in" : "Unknown",
     // The answer in the words its own control uses (Yes, Not asked, No), as marketingLabel is the offers answer's.
     answerLabel: state === "opted_in" ? "Yes" : state === "opted_out" ? "No" : "Not asked",
     sub,

@@ -14,6 +14,7 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
+import { reasonLabelOf } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 import { at, knock, answer, wire, refusedAtTheDoor, vault } from "../_cron-doors-world.mjs";
 
@@ -23,6 +24,7 @@ import { at, knock, answer, wire, refusedAtTheDoor, vault } from "../_cron-doors
 process.env.RESEND_API_KEY = "re_test_only";
 process.env.LEAD_TO = "ops@platform.test";
 process.env.LEAD_FROM = "Pager <pager@platform.test>";
+process.env.DASHBOARD_ORIGIN = "https://app.harbor.test";
 for (const k of ["WHATSAPP_PHONE_ID", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]) delete process.env[k];
 
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
@@ -67,6 +69,7 @@ function world(
   } = {},
 ) {
   const tables = {
+    tenants: [{ id: A, name: "Harbor Moving", slug: "harbor", timezone: "UTC", status: "active" }],
     tenant_config: [
       { tenant_id: A, config: { notifications: { escalation_emails: [OWNER] } } },
       { tenant_id: B, config: {} },
@@ -147,7 +150,16 @@ test("a workspace with its owner on file: a row of kind deadman on its bell, a m
     const rows = bell(w, A);
     assert.equal(rows.length, 1);
     assert.equal(rows[0].kind, "deadman");
-    assert.equal(rows[0].route, "inbox", "the bell sends the reader to the Inbox");
+    assert.equal(
+      rows[0].route,
+      "inbox/th-cv-e-a1",
+      "the bell sends the reader to THE CONVERSATION the sweep holds (it opened the Inbox, whose top is not that customer)",
+    );
+    assert.deepEqual(
+      [rows[0].subject_type, rows[0].subject_id],
+      ["conversation", "cv-e-a1"],
+      "and says whose it is, so the bell can pair it with the customer's derived 'needs you' row (dedupeFeed)",
+    );
     assert.equal(rows[0].title, "Still waiting: a customer has had no answer for 3 hours");
     assert.match(rows[0].body, new RegExp(`Customer: \\${CUSTOMER}`));
     assert.match(rows[0].body, /Flagged because: customer_asked_for_human/);
@@ -162,6 +174,10 @@ test("a workspace with its owner on file: a row of kind deadman on its bell, a m
       "sent from the platform's verified sender, since the workspace set none",
     );
     assert.equal(mail[0].subject, rows[0].title);
+    assert.ok(
+      mail[0].text.endsWith("\n\nOpen it: https://app.harbor.test/w/harbor/inbox/th-cv-e-a1"),
+      "and ends with the link to that conversation, the page the bell and the phone open",
+    );
     assert.ok(
       mail[0].text.includes(CUSTOMER) && mail[0].text.includes(DETAIL),
       "full detail: this mailbox belongs to the business whose customer it is",
@@ -188,8 +204,9 @@ test("a person who asked to stop waits for nobody: settled once without a warnin
     assert.equal(body.flagged, 2, "the two customers still waiting are warned");
     assert.equal(bell(w, A).length, 2);
     assert.deepEqual(
-      bell(w, A).map((r) => /Flagged because: (\w+)/.exec(r.body)?.[1]),
-      ["person_hold", "customer_asked_for_human"],
+      // Each reason in the owner's words (contracts reasonLabelOf), never its token.
+      bell(w, A).map((r) => /Flagged because: (.+)/.exec(r.body)?.[1]),
+      [reasonLabelOf("person_hold"), reasonLabelOf("customer_asked_for_human")],
     );
     assert.deepEqual(
       w.marks,
@@ -435,6 +452,14 @@ test("a hold the database refused is told by the sweep itself, in its own words:
     assert.deepEqual(
       rows.map((r) => r.title),
       ["A customer wrote and nothing answered", "A reply never left"],
+    );
+    assert.deepEqual(
+      rows.map((r) => [r.route, r.subject_type, r.subject_id]),
+      [
+        ["inbox/th-cv-m-old", "conversation", "cv-m-old"],
+        ["inbox/th-cv-q", "conversation", "cv-q"],
+      ],
+      "each opens the conversation it is about, and names it",
     );
     assert.match(rows[0].body, /are you open tomorrow\?/);
     assert.match(rows[0].body, /nothing will be sent on its own/);

@@ -224,15 +224,10 @@ test("the Inbox strip offers the three views, and says which one you are on", ()
 });
 
 test("the strip's badge is the count that already exists, not a second reading of it", () => {
-  win.ixWaitsOnYou = (t) => !!t.needsYou;
-  win.INBOX_DATA = {
-    THREADS: [
-      { id: "c1", real: true, needsYou: true },
-      { id: "c2", real: true, needsYou: true },
-      { id: "c3", real: true, needsYou: false },
-    ],
-  };
-  assert.equal(win.sbNeedsCount(), 2, "the fixture holds two that wait on you");
+  // The one number every surface says (surfaces/needs-you.ts, published as `window.useNeedsYou`): the strip is handed it and
+  // counts nothing of its own, so no row of INBOX_DATA can make it say another.
+  win.INBOX_DATA = { THREADS: [{ id: "c1", real: true, needsYou: true }] };
+  win.useNeedsYou = () => 2;
   assert.equal(strip("inbox")[0].badge, "2", "REGRESSION: the tab counted rows of its own");
   assert.match(strip("inbox")[0].tally, /\btally\b/, "a tab's count is the one tally");
   assert.match(
@@ -240,9 +235,11 @@ test("the strip's badge is the count that already exists, not a second reading o
     /\btally-warn\b/,
     "amber: it counts people who need you, as the Needs you pill does",
   );
-  win.INBOX_DATA = { THREADS: [{ id: "c3", real: true, needsYou: false }] };
+  win.useNeedsYou = () => 0;
   assert.equal(strip("inbox")[0].badge, null, "nothing waiting draws no badge");
-  delete win.ixWaitsOnYou;
+  win.useNeedsYou = () => null;
+  assert.equal(strip("inbox")[0].badge, null, "and none before the Inbox has been read");
+  delete win.useNeedsYou;
 });
 
 test("the strip is not drawn on a surface that has no second view", () => {

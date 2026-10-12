@@ -31,10 +31,9 @@ import { installRoleStore, installRoles } from "@/legacy-bridge/identity";
 import { installBusinessTab } from "@/legacy-bridge/business-tab";
 import { startSurfaces } from "@/legacy-bridge/surface-runner";
 import { peopleOverride } from "@/surfaces/people/surface";
-import { installPeopleCourier } from "@/surfaces/people/people-detail";
+import { installPeopleCourier, personDetail } from "@/surfaces/people/people-detail";
 import { installRouteGate, installSurfaceRegistry } from "@/legacy-bridge/surface-registry";
 import { setStatus } from "@/legacy-bridge/surface-status";
-import { pipelineHelpers } from "@/surfaces/people/pipeline-helpers";
 import { installTabMemory } from "@/legacy-bridge/tab-memory";
 import { installNotifications } from "@/legacy-bridge/notifications";
 import { installAsk } from "@/legacy-bridge/ask";
@@ -138,7 +137,6 @@ w.__handoffE164 = C.handoffE164;
 w.__roleGate = C.roleGate;
 w.__receptionistDefaults = C.newReceptionistDefaults;
 w.__instructionsDraft = C.instructionsDraft;
-w.__instructionsMax = C.INSTRUCTIONS_MAX;
 w.__fallbackMessages = C.fallbackMessages;
 w.__fallbackDefaults = C.FALLBACK_DEFAULTS;
 w.__unknownDetails = C.unknownDetails;
@@ -267,7 +265,7 @@ if (inBrowser && !w.location.pathname.startsWith(`/w/${WORKSPACE.slug}/`)) {
  * runner, the profile's courier, the registry that says which surfaces are real, and the route gate LegacyApp.tsx
  * installs, so a route waits for its surface and draws when it lands, never the seeded page first. Who is looking
  * is published above (__ME), so the workspace surface, which carries it in the app, is ready as the page opens. The
- * Pipeline's helpers are the ones seed-globals.ts publishes (pipeline-helpers.ts). A record with no people changes
+ * Pipeline's helpers are imported by the page (pipeline-helpers.ts). A record with no people changes
  * nothing: People stays the seeded page, and the Settings specs see the harness they always did.
  */
 // Only in a browser (above).
@@ -275,10 +273,9 @@ if (S.people && inBrowser) {
   installTabMemory(w as unknown as Window);
   installSurfaceRegistry();
   installPeopleCourier();
-  w.__pipeline = pipelineHelpers();
-  // What the People pages call that seed-globals.ts publishes from contracts: the words the one-step send of a proposal
-  // carries, and why a typed address is not one.
-  w.__proposalMessage = C.proposalMessage;
+  // Not the app's window (its pages import the courier): the harness's own test reads a person through it, from the
+  // harness's answer (tests/e2e/e2e-harness.test.mjs).
+  w.__personDetail = personDetail;
   setStatus("workspace", "live");
   // The settings read and Setup are published above, as for every record, so their routes draw. A route whose
   // surface the harness does not serve (Today, the Inbox, Leads) waits under the gate and then says it could not be

@@ -274,15 +274,14 @@ const Topbar = ({
   const [toastNode, flash] = usePPToast();
   const [, setTick] = React.useState(0);
 
-  // Live overlay — decisions and integration fixes flip bell items;
-  // ending the live call and listing-review outcomes PUSH session notifications
+  // The mockup's bell: decisions flip bell items, and a listing-review outcome, a lead converted, the scripted lead arriving
+  // and a handoff PUSH session notes. The bell draws those only in a demo (`shown`, below), and their senders are the demo's
+  // (the Agents store and fleet, the seeded verdict thread, the scripted lead), so a real session registers none of them:
+  // its bell is the server's rows alone. Nothing sends a call's ending, a broadcast queued or a batch approved any more
+  // (their pages left with the mockup, #1351), so the bell hears none of those at all.
   React.useEffect(() => {
+    if (!window.__DEMO_MODE) return undefined;
     const bump = () => setTick(n => n + 1);
-    const onEnded = () => setNotifs(list => list.some(n => n.id === "n-live-end") ? list : [{
-      id: "n-live-end", icon: "phone", tone: "ok", unread: true, time: "now",
-      title: "Call ended — Selena Cho", message: "Phone Rep wrapped and booked Swedish 60 today 11:30 ($180).",
-      actions: [{ label: "Transcript", to: "conversations/cv-selena-live", primary: true }, { label: "Calendar", to: "calendar/a-selena" }],
-    }, ...list]);
     // Listing review outcomes: rejection lands in the bell; the fix closes the loop
     const onListing = (e) => {
       const id = e.detail && e.detail.id;
@@ -317,9 +316,8 @@ const Topbar = ({
         });
       }
     };
-    // Commit moments across all four flows push into the bell:
-    // lead conversion (flow 1), broadcast/batch sends (flow 3) — decisions (flow 2)
-    // overlay in place, listings (flow 4) are handled below.
+    // Commit moments push into the bell: lead conversion (flow 1) — decisions (flow 2)
+    // overlay in place, listings (flow 4) are handled above.
     const onLeadConv = (e) => {
       const d = e.detail || {};
       setNotifs(list => list.some(n => n.id === "n-lead-" + d.leadId) ? list : [{
@@ -327,24 +325,6 @@ const Topbar = ({
         title: `Lead converted — ${d.name}`,
         message: "Client record created · entered New this month.",
         actions: [{ label: "Open client", to: d.clientId ? "clients/" + d.clientId : "clients", primary: true }, { label: "Leads", to: "clients/leads" }],
-      }, ...list]);
-    };
-    const onBcSent = (e) => {
-      const d = e.detail || {};
-      setNotifs(list => [{
-        id: "n-bc-" + Date.now(), icon: "chat", tone: "ok", unread: true, time: "now",
-        title: `Broadcast queued — ${d.name}`,
-        message: `${d.count} recipients over ${d.channel} — replies land in Conversations.`,
-        actions: [{ label: d.segId ? "Open segment" : "Sent", to: d.segId ? "segments/" + d.segId : "broadcasts", primary: true }, { label: "Conversations", to: "conversations" }],
-      }, ...list]);
-    };
-    const onObApproved = (e) => {
-      const d = e.detail || {};
-      setNotifs(list => list.some(n => n.id === "n-ob-" + d.id) ? list : [{
-        id: "n-ob-" + d.id, icon: "mail", tone: "ok", unread: true, time: "now",
-        title: `Batch approved — ${d.name}`,
-        message: `${d.count} sends queued — SMS Agent handles delivery and reports back in Tasks.`,
-        actions: [{ label: "In Tasks", to: "tasks", primary: true }],
       }, ...list]);
     };
     const onLeadArr = (e) => {
@@ -374,30 +354,27 @@ const Topbar = ({
       }, ...list]);
     };
     window.addEventListener("inbox:decisions", bump);
-    window.addEventListener("live:ended", onEnded);
     window.addEventListener("store:listing", onListing);
     window.addEventListener("leads:converted", onLeadConv);
-    window.addEventListener("broadcasts:sent", onBcSent);
-    window.addEventListener("outbound:approved", onObApproved);
     window.addEventListener("leads:arrived", onLeadArr);
     window.addEventListener("fleet:handoff", onHandoff);
-    // The one scripted inbound moment — DEMO_MODE only (never over real data)
-    const arrT = window.__DEMO_MODE ? setTimeout(() => { if (window.LD_STORE) window.LD_STORE.arrive(); }, 18000) : null;
+    // The one scripted inbound moment
+    const arrT = setTimeout(() => { if (window.LD_STORE) window.LD_STORE.arrive(); }, 18000);
     return () => {
-      if (arrT) clearTimeout(arrT);
+      clearTimeout(arrT);
       window.removeEventListener("inbox:decisions", bump);
-      window.removeEventListener("live:ended", onEnded);
       window.removeEventListener("store:listing", onListing);
       window.removeEventListener("leads:converted", onLeadConv);
-      window.removeEventListener("broadcasts:sent", onBcSent);
-      window.removeEventListener("outbound:approved", onObApproved);
       window.removeEventListener("leads:arrived", onLeadArr);
       window.removeEventListener("fleet:handoff", onHandoff);
     };
   }, []);
 
+  // Presence is the mockup's too (its control is drawn only in a demo, below): the label follows it there, and a real
+  // session has no Away to hear.
   const [, prBump] = React.useReducer((n) => n + 1, 0);
   React.useEffect(() => {
+    if (!window.__DEMO_MODE) return undefined;
     window.addEventListener("presence:changed", prBump);
     return () => window.removeEventListener("presence:changed", prBump);
   }, []);
@@ -405,6 +382,7 @@ const Topbar = ({
   // "What changed while you were away" — the presence payoff (#19)
   const prevAwayRef = React.useRef(!!(window.PR_STORE && window.PR_STORE.away));
   React.useEffect(() => {
+    if (!window.__DEMO_MODE) return undefined;
     const onPr = () => {
       const nowAway = !!(window.PR_STORE && window.PR_STORE.away);
       if (prevAwayRef.current && !nowAway) {
@@ -637,12 +615,9 @@ const SHELL_STATUS_ICON = { offline: "alert", paused: "pause", preview: "eye", s
  */
 const LiveCallBar = () => {
   const [, tick] = React.useReducer((n) => n + 1, 0);
-  // Drawn again when the calls are read again (the live surface's own signal), or a call is ended here.
+  // Drawn again when the calls are read again (the live surface's own signal): a call ended on Live, or by the caller, is a
+  // row that changed on the live feed, and nothing else announces it.
   useSurface("live");
-  React.useEffect(() => {
-    window.addEventListener("live:ended", tick);
-    return () => window.removeEventListener("live:ended", tick);
-  }, []);
   const bar = window.__chrome && window.__chrome.liveBar ? window.__chrome.liveBar(window.__LIVE, Date.now()) : null;
   // A second, so the clock reads like a clock, and only while a call is up: it ran every second of every session,
   // redrawing a bar that said nothing, under a comment that said otherwise.

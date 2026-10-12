@@ -51,6 +51,8 @@
 .rp2-review { display: grid; gap: 3px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-raised); }
 /* A new review says "new" in words; the coral accent is for live state, never a review. */
 .rp2-review.is-new { border-color: var(--line-strong); }
+/* The review a link names (reports/reviews:<id>) is marked where it is listed, with its reply box open under it. */
+.rp2-review.is-named { border-color: var(--line-strong); box-shadow: var(--focus-ring); }
 .rp2-review-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .rp2-review-stars { color: var(--warn); letter-spacing: 1px; font-size: 12px; white-space: nowrap; }
 .rp2-review-who { font-size: var(--text-sm); font-weight: 500; color: var(--ink); }

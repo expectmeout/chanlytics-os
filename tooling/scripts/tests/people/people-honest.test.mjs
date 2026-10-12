@@ -1790,10 +1790,12 @@ test("on a phone the lists are behind the bar's list button, as a sheet; a pick 
     tree = draw();
     assert.equal(openSheet(tree, "people-lists-sheet"), null, "a pick closes it");
     assert.equal(textOf(byTestId(tree, "people-phone-lists")).trim(), "Regulars", "and the bar names the list");
-    // The shell's and a profile's New list: on a phone the sheet comes up with the box open.
-    globalThis.window.dispatchEvent(new CustomEvent("segments:new"));
-    draw();
-    tree = draw();
+    // The shell's and a profile's New list is the address clients/new-list (nothing sends segments:new to People any more):
+    // on a phone the sheet comes up with the box open from the first draw.
+    await freshPage({ people: [person(1)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
+    addressAt("clients/new-list");
+    draw({ newList: true });
+    tree = draw({ newList: true });
     assert.ok(byTestId(openSheet(tree, "people-lists-sheet"), "new-list-name"), "with the New list box open");
   }));
 
@@ -1827,7 +1829,7 @@ test("on a phone the Lists sheet is compact: the groups name its blocks, an empt
     };
     let sheet = sheetOf();
     assert.equal(
-      find(sheet, (n) => n.props?.className === "cl-rail-label" && /Smart lists/.test(textOf(n))),
+      find(sheet, (n) => n.props?.className === "cl-rail-label" && /Ready-made lists/.test(textOf(n))),
       null,
       "one level of heading: the groups",
     );
@@ -1883,7 +1885,7 @@ test("a desktop's rail keeps every list and its heading: compact is the phone's 
     find(tree, (n) => n.props?.className === "cl-rail-empty"),
     null,
   );
-  assert.ok(find(tree, (n) => n.props?.className === "cl-rail-label" && /Smart lists/.test(textOf(n))));
+  assert.ok(find(tree, (n) => n.props?.className === "cl-rail-label" && /Ready-made lists/.test(textOf(n))));
 });
 
 // Decision 0009, phase 4: a list the address names that People doesn't have is said, never Everyone under its name.
@@ -2079,11 +2081,11 @@ test("on a phone a smart list's rule is shown and changed from the Lists sheet: 
     assert.match(textOf(byTestId(sheet, "rule-edit-now")), /^Now: Reaches you by WhatsApp/);
   }));
 
-test("a state address for Needs you or Waiting on you opens the list, and any list open is pinned to Today and taken off", async () => {
+test("a state address for Needs you or You have it opens the list, and any list open is pinned to Today and taken off", async () => {
   const seen = await freshPage({ people: [person(1)] });
   draw({ initialState: "waiting_on_you" });
   let tree = draw({ initialState: "waiting_on_you" });
-  assert.equal(textOf(byTestId(tree, "smart-filter")), "Waiting on you", "the list, not a hidden tab");
+  assert.equal(textOf(byTestId(tree, "smart-filter")), "You have it", "the list, not a hidden tab");
   assert.equal(byTestId(tree, "state-filter"), null);
   // The pin: this member's Today view, saved over the wire; the page says it, and the list's line says it is on Today.
   const saves = () => seen.viewSaves.map((s) => [s.page, s.view]);
@@ -2488,10 +2490,10 @@ test("the table's columns: Person, State, Next step and Last contact, and with a
   tree = draw();
   assert.deepEqual(
     headings(tree),
-    ["Person", "State", "Next step", "Last contact", "Visits"],
+    ["Person", "State", "Next step", "Last contact", "Appointments"],
     "with a calendar the visit joins the four",
   );
-  assert.deepEqual(sorting(tree), ["Person", "State", "Next step", "Last contact", "Visits"], "the visit sorts");
+  assert.deepEqual(sorting(tree), ["Person", "State", "Next step", "Last contact", "Appointments"], "the visit sorts");
   oneCellPerHeading(tree, "with a calendar");
 });
 
@@ -2727,7 +2729,7 @@ test("REGRESSION: the ? sheet's Esc is its own -- open, Esc closes it and the se
     assert.equal(sheet(), null, "closed until asked");
     byTestId(draw(), "select-all").props.onChange();
     draw();
-    globalThis.window.dispatchEvent(new CustomEvent("shortcuts:open"));
+    globalThis.window.openShortcuts();
     assert.ok(byTestId(sheet(), "shortcuts-sheet"), "the sheet is open");
     assert.equal(press("Escape"), true, "the sheet takes the Esc that closes it");
     assert.equal(sheet(), null, "and closes");
@@ -3346,7 +3348,7 @@ test("a column put back the way its default has it is no choice any more -- the 
   await freshPage({ people: [person(1)], calendar: "ok", views: { people: saves().at(-1) } });
   assert.deepEqual(
     headings(draw()),
-    ["Person", "State", "Next step", "Last contact", "Visits"],
+    ["Person", "State", "Next step", "Last contact", "Appointments"],
     "a calendar connects, and Visits shows, as it does for everyone",
   );
 });
@@ -3387,7 +3389,7 @@ test("with a calendar the menu offers Visits, shown, and the receptionist, hidde
   // The calendar stops answering: Visits cannot show and the menu does not offer it, but the choice is kept.
   seen = await freshPage({ people: [person(1)], calendar: "unavailable", views: { people: hidden } });
   tree = draw();
-  assert.ok(!headings(tree).includes("Visits"));
+  assert.ok(!headings(tree).includes("Appointments"));
   assert.ok(!menuItems(tree).some((c) => c.key === "visits"), "the menu offers what this workspace can show now");
   flipColumn(tree, "email");
   draw();

@@ -9,9 +9,9 @@
  * people it read, and a person the tab does not hold yet is nothing of theirs until their whole page is in, `Reading…` after
  * the standard's beat, never their name first and the rest after (Ruben, 24 Sep).
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
-import { NOTE_WORDS, shortName } from "@chanlytics/contracts";
+import { NOTE_WORDS, isIdentifierName, shortName } from "@chanlytics/contracts";
 import type { PersonRowVM, PersonVM } from "@chanlytics/contracts";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { useRecordFold } from "../../kit/record/hooks";
@@ -26,6 +26,7 @@ import { PersonProfileFrame } from "./frame";
 import { aboutCard, campaignsCard, comingUpSection, historySection } from "./sections";
 import { settingsCard } from "./settings-card";
 import { heldPerson, readPerson } from "./read";
+import { hearTheirThread } from "./their-thread";
 import { usePeopleSeam } from "./use-people";
 import { useSeeOpen } from "../../seen";
 import { usePartShown } from "../../use-surface";
@@ -48,10 +49,13 @@ function useHeld(id: string): [PageRead, Dispatch<SetStateAction<PageRead>>] {
 }
 
 /**
- * The read of the person, and what reads it again: People landing or changing (their row's follow-up, their lists), and a deal
- * recorded or moved in the sheet or a step set, changed or done (the sheets say so with `deal:recorded` and `note:saved`).
+ * The read of the person, and what reads it again: People landing or changing (`surface:clients`: their row's follow-up, their
+ * lists, and every write that names People in the refresh map or that the live feed tells of: a deal recorded or moved, a step set,
+ * changed or done -- the sheets say nothing of their own, 0047), and this person writing or phoning: the Inbox or Conversations
+ * holding something of theirs newer than the page does (their-thread.ts;
+ * People's own list does not hear a message while another page is open, and this page is another).
  */
-function useLoad(id: string, setSt: Dispatch<SetStateAction<PageRead>>): () => void {
+function useLoad(id: string, vm: PersonVM | null, setSt: Dispatch<SetStateAction<PageRead>>): () => void {
   const load = useCallback(() => {
     // Held from the last time this tab opened them, so going back to the list and in again does not put "Loading..."
     // over a page that is already known.
@@ -68,16 +72,21 @@ function useLoad(id: string, setSt: Dispatch<SetStateAction<PageRead>>): () => v
     load();
   }, [load]);
   useEffect(() => hear("surface:clients", () => load()), [load]);
+  // The latest moment of theirs the page has read for: their last contact when the page was read, or what told it of a later one
+  // (so a thread whose clock runs ahead of their row's is read once for it, never on every message after).
+  const held = useRef(vm);
+  held.current = vm;
+  const readTo = useRef(0);
   useEffect(() => {
-    const onDeal = (d: Record<string, unknown>) => {
-      if (d.personId === id) load();
-    };
-    const offDeal = hear("deal:recorded", onDeal);
-    const offNote = hear("note:saved", onDeal);
-    return () => {
-      offDeal();
-      offNote();
-    };
+    readTo.current = 0;
+    return hearTheirThread(
+      id,
+      () => Math.max(readTo.current, held.current?.lastContact.ts ?? 0),
+      (newest) => {
+        readTo.current = newest;
+        load();
+      },
+    );
   }, [id, load]);
   return load;
 }
@@ -118,7 +127,7 @@ function personPage(c: PageCtx, toastNode: ReactNode) {
   const past = p.timeline.filter((t) => !t.ahead);
   // Nobody is called "+1": a person known only by number is "them" in copy, and the line under their name does not say the
   // number twice.
-  const phoneOnly = /^[+\d(]/.test(p.name);
+  const phoneOnly = isIdentifierName(p.name);
   const compose = openWith(c);
   return (
     <div className="cl-profile" data-takeover>
@@ -160,7 +169,7 @@ function ClientProfileReal({ id }: { id: string }) {
     visit: useRecordFold("person-visit"),
     offers: useRecordFold("person-offers"),
   };
-  const load = useLoad(id, setSt);
+  const load = useLoad(id, st.vm, setSt);
   const people = usePeopleSeam();
   const { vm, loading, missing, error } = st;
   // The page's first part (client/page-speed.ts): the person drawn whole, or said missing or unread. A person opened
@@ -203,7 +212,7 @@ function ClientProfileReal({ id }: { id: string }) {
   // Where the proposal follow-up has them in hand (0006), their People row says so: the deal card then says when its run goes,
   // and leads with no nudge of its own. People unread, the card says what it said.
   const dealP = peopleRow && peopleRow.followUp ? { ...vm, followUp: peopleRow.followUp } : vm;
-  const phoneOnly = /^[+\d(]/.test(vm.name);
+  const phoneOnly = isIdentifierName(vm.name);
   const first = phoneOnly ? "them" : shortName(vm.name);
   const c: PageCtx = {
     p: vm,

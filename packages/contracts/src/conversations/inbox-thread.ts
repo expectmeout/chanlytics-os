@@ -7,6 +7,7 @@ import { MIN_MS } from "../shared/time";
 import { formatPhoneDisplay } from "../shared/phone";
 import { replyWhy, type ReplyWhyVM } from "../config/brain";
 import { replyWindow } from "../config/policy";
+import { needsYouCount, threadWait, waitsOf, type WaitingThread } from "../waits/waits";
 import { HELD_WORDS, readingOf, replyWaitsOnYou, standingOfThread } from "./standing";
 import { messageAt, isOptedOut, type ConversationDto, type MessageDto } from "./thread-dto";
 import { agentFor, answerWireOf, isChatMessage, writtenChannelOf, THREAD_CHANNEL_WORDS } from "./thread-channel";
@@ -26,7 +27,7 @@ import {
   clipAtWord,
 } from "./message-words";
 import { messageVia, messageAuthor, messageWhy, lastWordLine, type MessageAuthor } from "./message-author";
-import { reasonLabelOf, reasonSummaryOf, type EscalationDto } from "./escalations";
+import { openHoldAct, reasonLabelOf, reasonSummaryOf, waitsOnAPerson, type EscalationDto } from "./escalations";
 import type { InboxThreadVM } from "./inbox-thread-vm";
 
 /**
@@ -52,7 +53,7 @@ export function threadStanding(
   // for you", while the person who had asked for a human was still waiting.
   // Snooze now leaves the escalation open and hides the thread by STATE, so
   // "come back to this later" means the request comes back too.
-  const v = standingOfThread(dto, !!escalation, now.getTime());
+  const v = standingOfThread(dto, escalation, now.getTime());
   const state: InboxThreadVM["state"] = v.standing === "snoozed" ? "snoozed" : v.flagged ? "escalated" : "done";
   return { state, takenOver: v.takenOver, needsYou: v.standing === "needs_you", claimedByOther: v.claimedByOther };
 }
@@ -73,33 +74,51 @@ function heldDraftOf(messages: readonly MessageDto[]): MessageDto | null {
  * Needs you reads as well). The Inbox reads the same two facts off its view model (rules.ts ixWaitsOnYou) for its chip,
  * its list and the sidebar's badge, with the one thing only a tab knows, a hold made in it; this is that count for a
  * page that holds the wire. Today published threadStanding alone, and overwrote the Inbox's badge with a number
- * that left the drafts out on every refresh: 21 on the chip, 19 on the badge (the 2 Oct 2026 audit).
+ * that left the drafts out on every refresh: 21 on the chip, 19 on the badge (the 2 Oct 2026 audit). Both are
+ * waits.ts threadWait now, the one rule of a thread that waits, handed the thread as the wire holds it.
  */
 export function conversationWaitsOnYou(
   dto: ConversationDto,
   escalation: EscalationDto | null,
   now = new Date(),
 ): boolean {
-  if (threadStanding(dto, escalation, now).needsYou) return true;
+  return threadWait(waitingThread(dto, escalation, now), now.getTime()) !== null;
+}
+
+/** A conversation off the wire as the count reads it (waits.ts WaitingThread): its standing, and its held draft's deadline. */
+function waitingThread(dto: ConversationDto, escalation: EscalationDto | null, now: Date): WaitingThread {
   const draft = heldDraftOf(dto.messages);
-  return !!draft && replyWaitsOnYou({ endsAtMs: draftSendsAtMs(draft) }, now.getTime());
+  return {
+    needsYou: threadStanding(dto, escalation, now).needsYou,
+    send: draft ? { endsAtMs: draftSendsAtMs(draft) } : null,
+  };
 }
 
 /**
  * How many threads wait on you, over a page of threads and the open escalations: each thread read by
  * conversationWaitsOnYou, and an open escalation whose thread the page did not hold counted as waiting (unknown is not
- * handled; the Inbox reads such a thread by id and counts it the same way). THE number Today's headline says and the
- * badge it publishes, so the two cannot differ, and neither drops a customer flagged before the newest page.
+ * handled; the Inbox reads such a thread by id and counts it the same way). THE number Today's headline says: the
+ * threads' part of the one count (waits.ts needsYouCount, which adds the runs waiting for a word), so the two cannot
+ * differ, and neither drops a customer flagged before the newest page.
  */
 export function threadsWaitingOnYou(
   conversations: readonly ConversationDto[],
   escalations: ReadonlyArray<EscalationDto & { conversation_id: string }>,
   now: Date,
 ): number {
-  const open = new Map(escalations.filter((e) => e.state === "open").map((e) => [e.conversation_id, e]));
+  // A hold that waits on nobody (a customer who asked to stop, opened before decision 0048) is not counted, held or not.
+  const open = new Map(
+    escalations.filter((e) => e.state === "open" && waitsOnAPerson(e.reason)).map((e) => [e.conversation_id, e]),
+  );
   const held = new Set(conversations.map((c) => c.id));
-  const loaded = conversations.filter((c) => conversationWaitsOnYou(c, open.get(c.id) ?? null, now)).length;
-  return loaded + [...open.keys()].filter((id) => !held.has(id)).length;
+  return needsYouCount(
+    waitsOf({
+      threads: conversations.map((c) => waitingThread(c, open.get(c.id) ?? null, now)),
+      runs: [],
+      unreadHolds: [...open.keys()].filter((id) => !held.has(id)).length,
+      nowMs: now.getTime(),
+    }),
+  );
 }
 
 /**
@@ -295,7 +314,6 @@ export function toInboxThreadVM(
   const waitingMin = escalation
     ? Math.max(1, Math.round((now.getTime() - new Date(escalation.created_at).getTime()) / MIN_MS))
     : undefined;
-
   const ask = askOf(escalation, lastInbound);
 
   // A quiet thread's one line: who had the last word, and whether a reply didn't send (lastWordOf, I1).
@@ -308,6 +326,7 @@ export function toInboxThreadVM(
     conversationId: dto.id,
     clientId: dto.contact.id || null,
     escalationId: escalation?.id ?? null,
+    holdAct: openHoldAct(escalation),
     windowOpen: win,
     ...replyFacts(dto, primaryChannel, tz, now),
     who,

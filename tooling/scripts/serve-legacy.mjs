@@ -50,7 +50,7 @@ const CONTRACTS = path.join(REPO, "packages/contracts/dist/index.js");
 /**
  * What the mockup takes from the app's TypeScript, bundled for the browser, with contracts from its dist as the app
  * reads it. surfaces/kit/kit-globals.ts is the kit's components that the pages here still draw by name
- * (`Icon`, `EmptyState`, `FailedRead`, `SegmentBar`), TSX since decision 0015: built with the classic JSX runtime over
+ * (`Icon`, `FailedRead`, `SegmentBar`, `StatePill` ...), TSX since decision 0015: built with the classic JSX runtime over
  * the page's own React, as the app publishes them from seed-globals. A surface that has left the shell (Reports) is an
  * App Router page, which only the app draws, so the mockup has none of it. Built on the first request, and again when
  * an entry or the contracts dist changes.

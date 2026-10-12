@@ -3,6 +3,7 @@
  * Playbooks' row and open row, Templates' email row, and the doors' refusals. The canvas's words with the database's
  * numbers in; a count the database does not hold is never said (interested and booked are counted since 00241, Part 6).
  */
+import { addressOf } from "../activity/record-address";
 import { clockTime, clockWhen, zoneDayKey } from "../shared/clock";
 import { DOMAIN_RAMP, domainDailyCap } from "../email/sending-domains";
 import { nextRunLabel } from "../playbooks/playbook-schedule";
@@ -48,6 +49,8 @@ export const REACH_OUT_SHEET_WORDS = {
   remove: "Remove",
   removeNote: "Only before its first email goes; after that, pause it.",
   recheck: "Check the held again",
+  /** A business on a run's sheet, held or ready, opens its lead in Leads (the name's tip). */
+  openLead: "Open this business in Leads",
 } as const;
 
 /**
@@ -269,6 +272,14 @@ function approveWords(today: number, from: string | null): string {
 }
 
 /**
+ * Where a business on a run's sheet opens: its lead, in the Leads peek (addressOf, the one writer of a record's address).
+ * Null for a business whose lead the read did not name, which the sheet then draws as a name alone.
+ */
+export function leadDoorOf(leadId: string | null | undefined): string | null {
+  return leadId ? addressOf({ kind: "lead", id: leadId }) : null;
+}
+
+/**
  * The approval sheet for a reach-out run (F13; canvas board 05; R21, R22). `today` is the workspace's date and `now`
  * the moment it is said: a run from an earlier day goes from now, re-timed in their hours, and one whose first time has
  * passed today goes from now; never a time already past.
@@ -337,6 +348,8 @@ export function approvalWordsOf(r: ReachOutRunDto, p: { timezone: string; share:
     held: r.held.map((h) => ({
       id: h.send_id,
       name: h.business_name,
+      // Its lead, where the sheet's name opens it (leadDoorOf).
+      to: leadDoorOf(h.lead_id),
       why: holdWords(h.reason, h.detail),
       doors: holdDoors(h.reason).map((d): [HoldDoor, string] => [d, HOLD_DOOR_WORDS[d]]),
     })),

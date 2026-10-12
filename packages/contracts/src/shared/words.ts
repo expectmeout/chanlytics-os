@@ -9,6 +9,21 @@
 /** "1 review" · "3 reviews" · "2 people": the count, then the word it takes. The plural is the word plus "s" unless given. */
 export const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
 
+/** plural() for a count that can run to thousands, grouped as the product groups one: "1 review" · "1,284 reviews". */
+const groupedPlural = (n: number, one: string, many = `${one}s`): string =>
+  `${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;
+
+/** A place's reviews, ours (the Google card) or another business's (the Leads peek and card): "1 review" · "1,284 reviews". */
+export const reviewsPhrase = (n: number): string => groupedPlural(n, "review");
+
+/**
+ * What a member is called when the page cannot name them: no name and no address, or a row's member the roster does not
+ * hold. THE word on every page that names a member (memberWords, the Activity log, Ask's settings answer): "A member" and
+ * "Someone" were two spellings of it. A note whose author has left says more ("A former teammate"), and a thread's holder
+ * the roster does not know is "A teammate" (heldPill): those say who they are not, and this says nothing.
+ */
+export const UNKNOWN_MEMBER_WORD = "Someone";
+
 /** The first letter upper-cased, the rest as written; an empty string stays empty. */
 export const capitalize = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s);
 

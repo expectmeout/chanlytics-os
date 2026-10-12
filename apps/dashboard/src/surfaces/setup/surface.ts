@@ -33,6 +33,7 @@ import {
 } from "@chanlytics/contracts";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { api, read } from "@/legacy-bridge/api";
+import { declareReads } from "@/legacy-bridge/surface-registry";
 import { refreshSurfaces } from "@/legacy-bridge/surface-runner";
 import { goToRoute, routeOnScreen } from "@/legacy-bridge/workspace";
 import { saveView } from "../people/people-detail";
@@ -169,21 +170,24 @@ export const setupOverride: SurfaceOverride = {
   // 00070, 00117), so a change in another tab, or by a webhook, repaints here.
   // A call reaching the receptionist makes Try it's row ready (the first run's third step and Today's card): read
   // again when a call ends, until one has reached it, and never for each turn of a call or what follows its end.
-  refreshOnTables: [
-    "lines",
-    "notifications",
-    "tenant_channels",
-    "capability_activations",
-    "business_records",
-    "billing_accounts",
-    "google_connections",
-    "calls",
-    // a sending domain added, checked, verified or held by the ten-minute clock: Connections' Email row (00175)
-    "sending_domains",
-  ],
-  refreshWhen: (c) =>
-    c.table !== "calls" ||
-    (c.event === "UPDATE" && c.row.status === "ended" && !surfaceValue("setup")?.dto?.channels?.voice?.lastInboundAt),
+  // A sending domain added, checked, verified or held by the ten-minute clock: Connections' Email row (00175).
+  ...declareReads("setup", {
+    reads: ["channel", "notification", "billing", "review", "call"],
+    fresh: "live",
+    omit: [
+      {
+        tables: ["mailboxes"],
+        why: "the Email row follows the domain's standing (00175), not a mailbox's paused offers",
+      },
+      {
+        tables: ["google_reviews", "google_listings"],
+        why: "the Google row follows the profile's connection (00070), not the listing or a review seen",
+      },
+    ],
+    when: (c) =>
+      c.table !== "calls" ||
+      (c.event === "UPDATE" && c.row.status === "ended" && !surfaceValue("setup")?.dto?.channels?.voice?.lastInboundAt),
+  }),
   apply: async () => {
     try {
       await readSetup();

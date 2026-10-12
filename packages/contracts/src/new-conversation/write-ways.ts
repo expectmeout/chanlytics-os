@@ -21,6 +21,7 @@ import {
   type PurposeBearing,
 } from "../consent/consent";
 import { CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, type ConsentChannel } from "../consent/consent-channels";
+import { STOP_WORDS } from "../consent/consent";
 import { replyWindow } from "../config/policy";
 import type { ChannelsReady } from "../broadcasts/reach-for";
 import type { PersonRowDto } from "../people/person-dto";
@@ -110,7 +111,7 @@ export function startsOn(
 
 /** The words for each hold. A wire the workspace cannot send on says the workspace's own reason (reach-for.ts CHANNEL_WORDS). */
 export const WRITE_HOLD_WORDS: Record<Exclude<WriteHold, "not_ready">, (wire: ConsentChannel) => string> = {
-  stopped: () => "They asked to stop receiving messages.",
+  stopped: () => `${STOP_WORDS.said("They")}.`,
   no_number: () => "No number on their page.",
   no_address: () => "No email address on their page.",
   address_stopped: () => "Email to their address has stopped.",

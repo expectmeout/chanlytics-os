@@ -68,6 +68,25 @@ function windowOf({
   return { win, posted, fire: (type, detail) => win.dispatchEvent(new CustomEvent(type, { detail })) };
 }
 
+/**
+ * The count of what needs you as the bridge asks for it (app-bridge.ts NeedsSource): a number now, null before the Inbox has
+ * been read, and the page's hearing of it move. `set` is the selector's number changing, and tells whoever listens.
+ */
+function needsOf(first = null) {
+  let value = first;
+  const heard = new Set();
+  return {
+    source: { now: () => value, hear: (fn) => (heard.add(fn), () => heard.delete(fn)) },
+    set(next) {
+      value = next;
+      for (const fn of [...heard]) fn();
+    },
+    get listeners() {
+      return heard.size;
+    },
+  };
+}
+
 test("outside the app, or without the shell's wire, nothing is installed", () => {
   for (const opts of [{ inApp: false }, { native: false }]) {
     const { win, posted } = windowOf(opts);
@@ -79,7 +98,8 @@ test("outside the app, or without the shell's wire, nothing is installed", () =>
 
 test("at install the page says a person is in, its theme, the workspace and the route; then every change", () => {
   const { win, posted, fire } = windowOf({ hash: "#/inbox", theme: "light" });
-  const off = installAppBridge(win);
+  const needs = needsOf();
+  const off = installAppBridge(win, undefined, needs.source);
   assert.deepEqual(posted, [
     { t: "session", state: "in" },
     { t: "theme", theme: "light" },
@@ -91,9 +111,10 @@ test("at install the page says a person is in, its theme, the workspace and the 
   // Back to a page of its own: the address moved, and the browser said so.
   win.location.pathname = "/w/acme-plumbing/clients/abc";
   fire("popstate");
-  fire("inbox:counts", { needs: 3 });
-  fire("inbox:counts", {}); // a detail-less count is not a count
-  fire("inbox:counts", { needs: 2.7 });
+  needs.set(3);
+  needs.set(3); // the same number again is not news
+  needs.set(null); // a count not read is not a count
+  needs.set(2.7);
   win.location.pathname = "/w/other-shop";
   fire("workspace:changed");
   assert.deepEqual(posted, [
@@ -102,11 +123,32 @@ test("at install the page says a person is in, its theme, the workspace and the 
     { t: "needs", inbox: 2 },
     { t: "workspace", slug: "other-shop" },
   ]);
+  assert.equal(needs.listeners, 1, "the one count is heard once");
   off();
+  assert.equal(needs.listeners, 0, "and let go");
   win.location.pathname = "/w/acme-plumbing/today";
   fire("popstate");
+  needs.set(9);
   assert.equal(posted.length, 4, "uninstalled: silent");
   assert.equal(win.__appBridge, undefined);
+});
+
+test("the native Inbox tab is told what needs you at install when the Inbox has been read, and never the same number twice", () => {
+  const { win, posted } = windowOf();
+  const needs = needsOf(4);
+  installAppBridge(win, undefined, needs.source);
+  assert.deepEqual(
+    posted.filter((m) => m.t === "needs"),
+    [{ t: "needs", inbox: 4 }],
+    "a page that loads with the count known (the tab's cache) says it at once",
+  );
+  needs.set(4);
+  needs.set(0);
+  assert.deepEqual(
+    posted.filter((m) => m.t === "needs").map((m) => m.inbox),
+    [4, 0],
+    "and a count that falls to nothing clears the badge",
+  );
 });
 
 test("the shell's navigate moves the route, as a path; menu and top become the shell's events; a bad message does nothing", () => {
@@ -329,12 +371,14 @@ test("the shell's device ask goes through the page's own doors, and the page say
   );
 });
 
-test("the bell's number is posted at install and on every change; without a bell, nothing", () => {
+test("the icon's number is the bell's kept rows' unread count, posted at install and on every change; without a bell, nothing", () => {
   let n = 2;
   let cb = null;
-  const bell = { unread: () => n, onChange: (f) => ((cb = f), () => (cb = null)) };
+  // The bell also counts the rows the page derives itself (`unread`), which the edge cannot count before a push: the icon is
+  // the number the edge counts, so the page asks for the kept rows' alone (D1-phone-badge).
+  const bell = { unread: () => n + 3, keptUnread: () => n, onChange: (f) => ((cb = f), () => (cb = null)) };
   const { win, posted } = windowOf({ bell });
-  const off = installAppBridge(win, doors());
+  const off = installAppBridge(win, doors(), needsOf().source);
   assert.deepEqual(posted.at(-1), { t: "badge", n: 2 });
   n = 0;
   cb();

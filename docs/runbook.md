@@ -1073,7 +1073,7 @@ on 10 Oct 2026 at 800 KiB for the route's JS, 160 KiB for its CSS and 256 KiB fo
 work at the rate main grew in early October, read again with these numbers): LCP for the page drawn, INP for a tap
 answered.
 
-Since 00408 (decision 0053) a load also says where its time went. Each page, and each part of one a person waits for
+Since 00412 (decision 0053) a load also says where its time went. Each page, and each part of one a person waits for
 (Today's queue, the Inbox's list and thread, People's table, the Calendar's board…), reports `READY` when it is drawn
 with its rows: from the document's start on a load, from the press on a move between pages, and from the press that
 opened a thread or a person on a move within one. `SETTLED` says when every surface a load's page draws was read. Each

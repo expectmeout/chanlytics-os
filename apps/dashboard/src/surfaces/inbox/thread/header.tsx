@@ -6,10 +6,11 @@
  * the tree it was; its hooks stay in `ThreadHeader`, in the order they were.
  */
 import { adRoute, fromAdWords, linkHost, proposalLinkOf, proposalMessage } from "@chanlytics/contracts";
-import type { DealVM, PersonNextStepVM, PersonRowVM } from "@chanlytics/contracts";
+import type { DealVM, PersonNextStepVM, PersonRowVM, VisitLineVM } from "@chanlytics/contracts";
 import { useState, type ReactNode } from "react";
 import { Icon } from "../../kit/icon/icon";
 import { Menu, type MenuGroup, type MenuItem } from "../../kit/menu/menu";
+import { StoppedMark } from "../../kit/pill/stopped-mark";
 import { askAbout, routeDoor } from "../../legacy-verbs";
 import { ROUTES } from "../constants";
 import {
@@ -74,8 +75,10 @@ const IxThreadStep = ({
       });
     } else if (r) {
       flash({ tone: "danger", msg: <>{r.message}</> });
+      // Refused: nothing was written, so nothing is read again on its own, and the step the page holds may be the one that
+      // moved. A done is read again with People behind it (the write's refresh, 0047), which the person's page hears.
+      window.dispatchEvent(new CustomEvent("surface:clients"));
     }
-    window.dispatchEvent(new CustomEvent("note:saved", { detail: { personId } }));
   };
   return (
     <div className="ix-th-step" data-due={day.due} data-testid="ix-th-step">
@@ -133,7 +136,8 @@ interface HeaderFacts {
   person: PersonRowVM | null | undefined;
   deal: DealVM | null;
   proposalUrl: string | null;
-  visit: { ahead: boolean; day: string; time: string } | null;
+  /** Their next visit (else their last) as the one visit line, and whether it is ahead. */
+  visit: { ahead: boolean; line: VisitLineVM } | null;
 }
 
 /**
@@ -153,10 +157,10 @@ function headerFacts(thread: Thread): HeaderFacts {
   const visit =
     deal || !person
       ? null
-      : person.nextVisitDay
-        ? { ahead: true, day: person.nextVisitDay, time: (person.nextVisit || "").split(" · ")[1] || "" }
-        : person.lastVisitDay
-          ? { ahead: false, day: `Last · ${person.lastVisitDay}`, time: "" }
+      : person.nextVisitLine
+        ? { ahead: true, line: person.nextVisitLine }
+        : person.lastVisitLine
+          ? { ahead: false, line: person.lastVisitLine }
           : null;
   return { person, deal, proposalUrl, visit };
 }
@@ -362,6 +366,8 @@ function headerName(thread: Thread, personTo: string | null) {
   return (
     <div className="ix-th-name">
       <span className="ix-th-name-words">{thread.who}</span>
+      {/* They asked to stop: said beside the name, before the reply box turns into a banner (D1-stop-unseen). */}
+      {thread.real && thread.optedOut && <StoppedMark testid="ix-th-stopped" />}
       {thread.pinned && <Icon name="pin" size={11} style={{ color: "var(--ink-faint)" }} />}
       {thread.hasHumanContact && (
         <span className="ix-th-relation" title="Has spoken with a human before">
@@ -393,8 +399,15 @@ function headerSub(thread: Thread, channelLabels: Record<string, string>, facts:
         <span className={`ix-th-visit${visit.ahead ? " ahead" : ""}`} data-testid="ix-th-visit">
           <Icon name="calendar" size={10} />
           <span className="ix-th-visit-words">
-            {visit.day}
-            {visit.time && <span className="ix-th-visit-time"> · {visit.time}</span>}
+            {visit.ahead ? visit.line.day : `Last · ${visit.line.day}`}
+            {visit.ahead && visit.line.time && <span className="ix-th-visit-time"> · {visit.line.time}</span>}
+            {/* How it stands, in the one visit line's word: Kept or Missed once said, Past once it has ended and nobody has. */}
+            {visit.line.state && (
+              <span className="ix-th-visit-time" data-testid="ix-th-visit-state">
+                {" "}
+                · {visit.line.state.text}
+              </span>
+            )}
           </span>
         </span>
       )}

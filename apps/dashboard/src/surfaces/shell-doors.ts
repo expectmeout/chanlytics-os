@@ -5,22 +5,15 @@
  * the three readers, the role gate and the toast. Each door is a line to delete on the day its owner moves.
  */
 import type { ReactNode } from "react";
-import { useLegacyToast } from "./legacy-verbs";
+import { useLegacyToast, windowFn, windowObject, windowValue } from "./legacy-verbs";
 
-/** A name off the window, whatever it holds. */
-export const windowValue = (name: string): unknown => Reflect.get(window, name);
-
-/** A function the shell published, or nothing where it has not. */
-export function fn<A extends unknown[], R>(name: string): ((...args: A) => R) | undefined {
-  const v = windowValue(name);
-  return typeof v === "function" ? (v as (...args: A) => R) : undefined;
-}
-
-/** An object the shell published, or nothing where it has not. */
-export function object<T extends object>(name: string): T | undefined {
-  const v = windowValue(name);
-  return typeof v === "object" && v !== null ? (v as T) : undefined;
-}
+/*
+ * The three readers are legacy-verbs' (OW6: the one set of them, with no copy beside it), named as the surfaces' `shell.ts`
+ * files use them: a name off the window whatever it holds, a function the shell published, an object it published.
+ */
+export { windowValue };
+export const fn = windowFn;
+export const object = windowObject;
 
 /** A role gate's props, spread after a control's handlers: `{}` where the role may act (data-bits `gate`). */
 export function gate(perm: string, doing?: string): Record<string, unknown> {

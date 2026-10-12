@@ -6,6 +6,7 @@
 import { HELD_REASONS } from "../../broadcasts/run-words";
 import { INTENT_LABELS } from "../../config/intent-labels";
 import { DISCONNECTION_LABELS } from "../../conversations/call-dto";
+import { NEEDS_YOU_WORD } from "../../conversations/standing";
 import { BOOKED_NEEDS_A_LINK } from "../../setup/calendar-source";
 import { durationWords } from "../../shared/clock";
 import { capitalize, plural } from "../../shared/words";
@@ -156,7 +157,7 @@ export function waitingMeta(waiting: number, oldestAt: string | null, nowMs: num
 }
 
 export const callbacksMeta = (callbacks: number): string =>
-  callbacks === 0 ? "no call-back is waiting" : "people to ring, counted in waiting on you";
+  callbacks === 0 ? "no call-back is waiting" : `people to ring, counted in ${NEEDS_YOU_WORD}`;
 
 /** A refusal at the send door in the words a run's held people are given (HELD_REASONS), lower case as they stand. */
 const refusalWords = (key: string): string => ownWord(HELD_REASONS, key) ?? key.replace(/_/g, " ");
