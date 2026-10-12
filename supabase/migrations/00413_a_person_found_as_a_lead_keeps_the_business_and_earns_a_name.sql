@@ -1,4 +1,4 @@
--- 00412 · A person found as a lead keeps the business and earns a name.
+-- 00413 · A person found as a lead keeps the business and earns a name.
 --
 -- Decision 0052 (docs/decisions/0052-a-person-found-as-a-lead-keeps-the-business-and-earns-a-name.md), step 1. A lead's
 -- first cold email makes its person, named for the business (reach_out_person, 00344), and from then on the person IS
@@ -69,7 +69,7 @@ begin
   end if;
 end $$;
 
--- Its index, contacts_tenant_lead, is 00413's: built CONCURRENTLY, alone in its file.
+-- Its index, contacts_tenant_lead, is 00414's: built CONCURRENTLY, alone in its file.
 
 comment on column public.contacts.lead_id is
   'The business this person works at (0052): a lead, the newest that named them, set one way from leads (lead_tells_its_person) or by a member (person_join_lead). A lead is the business record; there is no businesses table.';

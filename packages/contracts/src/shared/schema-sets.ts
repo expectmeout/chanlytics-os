@@ -143,7 +143,7 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof CONSENT_STATES>, SchemaSet<"contacts.marketing_consent">>>,
   // The email answer (00174): the same three words, asked of marketing email (Reach out's unsubscribe).
   Holds<Exactly<Of<typeof CONSENT_STATES>, SchemaSet<"contacts.email_marketing">>>,
-  // Where a person's name came from (0052, 00412), in its one order.
+  // Where a person's name came from (0052, 00413), in its one order.
   Holds<Exactly<Of<typeof NAME_SOURCES>, SchemaSet<"contacts.name_source">>>,
 
   // Conversations and messages.

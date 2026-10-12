@@ -340,7 +340,7 @@ function mergedOf(v: unknown): MergedPeople {
 /* ------------------------------------------------------------ where a person works, and what to call them (0052) -- */
 
 /**
- * What a name door answers (00412: person_name_adopt, person_name_undo, person_name_decline): whether it did it, the
+ * What a name door answers (00413: person_name_adopt, person_name_undo, person_name_decline): whether it did it, the
  * name the person now has, and why not where it did not (gone, no_signer, settled, named, not_a_signer).
  */
 export interface PersonNameAnswer {

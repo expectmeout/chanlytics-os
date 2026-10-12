@@ -1,6 +1,6 @@
--- 00413 · The people at a business are found by its lead.
+-- 00414 · The people at a business are found by its lead.
 --
--- Decision 0052 gave a person the business they work at (contacts.lead_id, 00412). Every question that starts from the
+-- Decision 0052 gave a person the business they work at (contacts.lead_id, 00413). Every question that starts from the
 -- business asks for its people: the person page's business sheet (who works here), Leads' peek (In People), a lead
 -- erased while one of its people is still here (leads_erase_on_contact, the person leg), and the lead's own trigger
 -- that tells its person (lead_tells_its_person). Without this index each read the workspace's whole contacts table. It

@@ -1,7 +1,7 @@
 /**
  * "Use this name" (decision 0052, canvas A §1.2): a reply's signer offered as a person's name, said the same way wherever
  * the reply is read (their page's head, the Inbox's thread header), with one press to take it, Undo in its toast, and
- * x to decline it for everyone. The door is POST people/:id/name (00412's person_name_adopt, _undo and _decline), which
+ * x to decline it for everyone. The door is POST people/:id/name (00413's person_name_adopt, _undo and _decline), which
  * answers when it is done; People, the threads and Leads are read again behind it (the refresh map). Every word is
  * contracts' PERSON_NAME_WORDS.
  *

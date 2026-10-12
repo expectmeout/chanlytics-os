@@ -181,11 +181,11 @@ export interface ReachOutReplyOf {
   subject: string | null;
   text: string | null;
   received_at: string;
-  /** Whether the reply cites our email by its Message-ID (0052, 00412); false before it. */
+  /** Whether the reply cites our email by its Message-ID (0052, 00413); false before it. */
   cited: boolean;
   /** The From line's own words ("Priya Nair" of "Priya Nair <priya@…>"); null when it had none. */
   from_name: string | null;
-  /** The names a signer can never be (0052): the workspace's own and its members'. Empty before 00412. */
+  /** The names a signer can never be (0052): the workspace's own and its members'. Empty before 00413. */
   not_names: string[];
 }
 

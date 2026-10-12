@@ -100,7 +100,7 @@ Each step ships in either deploy order: a reader treats an absent column as "non
 
 ## Built (12 October 2026)
 
-In the lane, on a throwaway stack with every migration replayed: the migration (00412, and 00413, the index that finds a
+In the lane, on a throwaway stack with every migration replayed: the migration (00413, and 00414, the index that finds a
 business's people, built CONCURRENTLY alone in its file), its doors
 and the copies it changes (`resolve_person`, `set_person_name`, the reply's `reach_out_reply_of` and `_apply`,
 `people_page`, `people_list` with the offered signer, `merge_people` for Combine, both consent doors for the lock,

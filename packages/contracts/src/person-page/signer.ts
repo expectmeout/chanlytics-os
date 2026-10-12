@@ -21,7 +21,7 @@ import { replyTextOf } from "../reach-out/reach-out-replies";
 /** Automatic naming (0052, decision 5): off until the signer evals pass on the live key. The press is the default. */
 export const AUTOMATIC_NAMING = false;
 
-/** The most characters a signer's name or title keeps (00412's check). */
+/** The most characters a signer's name or title keeps (00413's check). */
 const SIGNER_MAX = 80;
 
 /** What a signer is, once it passed the gate. */

@@ -35,7 +35,7 @@ export interface PersonNoteDto {
   done_by_me?: boolean;
   /** The deal it moves, when it names one. */
   deal_id?: string | null;
-  /** The member it is for said Got it (00412): it leaves their Up next. Absent on a read before the column. */
+  /** The member it is for said Got it (00413): it leaves their Up next. Absent on a read before the column. */
   for_seen?: boolean;
 }
 
@@ -58,7 +58,7 @@ export interface PersonNoteVM {
   /** "For you", or "For Maria"; null when it is for everyone. */
   forWho: string | null;
   forMe: boolean;
-  /** For the reader, and they said Got it (00412): no longer in their Up next. */
+  /** For the reader, and they said Got it (00413): no longer in their Up next. */
   forSeen: boolean;
   forUserId: string | null;
   teamOnly: boolean;

@@ -14721,7 +14721,7 @@ interface PersonNoteDto {
     done_by_me?: boolean;
     /** The deal it moves, when it names one. */
     deal_id?: string | null;
-    /** The member it is for said Got it (00412): it leaves their Up next. Absent on a read before the column. */
+    /** The member it is for said Got it (00413): it leaves their Up next. Absent on a read before the column. */
     for_seen?: boolean;
 }
 /** A member of the team a note can be for, the reader marked. */
@@ -14742,7 +14742,7 @@ interface PersonNoteVM {
     /** "For you", or "For Maria"; null when it is for everyone. */
     forWho: string | null;
     forMe: boolean;
-    /** For the reader, and they said Got it (00412): no longer in their Up next. */
+    /** For the reader, and they said Got it (00413): no longer in their Up next. */
     forSeen: boolean;
     forUserId: string | null;
     teamOnly: boolean;
@@ -16828,13 +16828,13 @@ interface PersonRowDto {
     /** The stamp of their mark's last writing; absent where they have none. */
     marked_at?: string | null;
     /**
-     * The business they work at (0052, 00412): the lead, its name while it stands, and whether it was erased or blanked
+     * The business they work at (0052, 00413): the lead, its name while it stands, and whether it was erased or blanked
      * since. Absent on a row read before the columns existed, null when they work nowhere.
      */
     lead_id?: string | null;
     lead_name?: string | null;
     lead_gone?: boolean | null;
-    /** Where their name came from (NAME_SOURCES), and when a member settled it; absent before 00412, null when not known. */
+    /** Where their name came from (NAME_SOURCES), and when a member settled it; absent before 00413, null when not known. */
     name_source?: string | null;
     name_settled_at?: string | null;
     /** The newest reply's signer offered as their name (0052, people_list): the reply, the name and title, when it was read. */
@@ -16961,7 +16961,7 @@ interface PersonDetailDto {
     doubts?: PersonDoubtDto[];
     /**
      * The business they work at (0052): the lead `row.lead_id` names, read as Leads reads one, and its people. Null when
-     * they work nowhere, or the lead could not be read; absent from a server before 00412.
+     * they work nowhere, or the lead could not be read; absent from a server before 00413.
      */
     business?: PersonBusinessDto | null;
     /** The signers of their replies still offered or adopted, newest first (0052): "Use this name", and its undo. */
@@ -17564,7 +17564,7 @@ interface PersonReach {
  */
 declare function personReachOf(r: ReachRow, ready: ChannelsReady | null): PersonReach;
 
-/** Where a person's name came from (00412 contacts.name_source), in the one order: see person_name_rank. */
+/** Where a person's name came from (00413 contacts.name_source), in the one order: see person_name_rank. */
 declare const NAME_SOURCES: readonly ["typed", "import", "calendar", "signature", "wire", "lead"];
 type NameSource = (typeof NAME_SOURCES)[number];
 /** A name source as the wire carries it, or null for a person whose name nobody set, or set before it was kept. */
@@ -17594,7 +17594,7 @@ declare const PERSON_NAME_WORDS: {
     /** What Ask is asked about a person with no name of their own. */
     readonly askAboutThisPerson: "Ask about this person";
     readonly askAbout: (first: string) => string;
-    /** The door's answers that did nothing, in the page's words (00412's why). */
+    /** The door's answers that did nothing, in the page's words (00413's why). */
     readonly refused: {
         readonly gone: "This person is not in your workspace.";
         readonly no_signer: "That reply has no name to use.";
@@ -17841,7 +17841,7 @@ interface PersonRowVM {
     followUp: FollowUpStand | null;
     /**
      * The business they work at (0052): the lead, its name while it stands, and whether it was erased or blanked since
-     * (its rows then say "Their business details were removed."). Null when they work nowhere, or on a row read before 00412.
+     * (its rows then say "Their business details were removed."). Null when they work nowhere, or on a row read before 00413.
      */
     worksAt: {
         leadId: string;

@@ -6,7 +6,7 @@
  */
 import { plural } from "../shared/words";
 
-/** Where a person's name came from (00412 contacts.name_source), in the one order: see person_name_rank. */
+/** Where a person's name came from (00413 contacts.name_source), in the one order: see person_name_rank. */
 export const NAME_SOURCES = ["typed", "import", "calendar", "signature", "wire", "lead"] as const;
 export type NameSource = (typeof NAME_SOURCES)[number];
 
@@ -40,7 +40,7 @@ export const PERSON_NAME_WORDS = {
   /** What Ask is asked about a person with no name of their own. */
   askAboutThisPerson: "Ask about this person",
   askAbout: (first: string) => `Ask about ${first}`,
-  /** The door's answers that did nothing, in the page's words (00412's why). */
+  /** The door's answers that did nothing, in the page's words (00413's why). */
   refused: {
     gone: "This person is not in your workspace.",
     no_signer: "That reply has no name to use.",

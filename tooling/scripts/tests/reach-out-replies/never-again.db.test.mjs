@@ -818,8 +818,8 @@ const SOURCES = {
  * The migration that re-creates a function last, after the one a test below holds it to (00220, 00344), whose own
  * suite holds it to the body before it: ingest_inbound's 00361 in intake/a-delivery-taken-in-again-changes-no-consent.
  */
-// lead_set_stage is re-created whole last by 00412 (decision 0052: who the call reached, p_spoke_with).
-const LATER = { outreach_lead_facts: "00241", lead_set_stage: "00412", ingest_inbound: "00361" };
+// lead_set_stage is re-created whole last by 00413 (decision 0052: who the call reached, p_spoke_with).
+const LATER = { outreach_lead_facts: "00241", lead_set_stage: "00413", ingest_inbound: "00361" };
 
 /**
  * 00344 (decision 0034, step 2) re-creates four doors whole, each its last body but for the person's block, which the
@@ -1117,7 +1117,7 @@ test(
 test("every function re-created whole keeps its source's volatility, rights, search path and grants", { skip }, () => {
   // As main's replay has them before 00220: grantees beside the owner.
   const want = {
-    // Seven arguments since 00412 (p_spoke_with, decision 0052).
+    // Seven arguments since 00413 (p_spoke_with, decision 0052).
     "lead_set_stage(uuid,text,text,text,text,text,text)": [
       "v",
       true,

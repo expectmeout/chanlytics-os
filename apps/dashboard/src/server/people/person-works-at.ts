@@ -1,6 +1,6 @@
 /**
  * What a person is called and where they work (decision 0052), as the signed-in member: "Use this name" on a reply's
- * signer, its Undo, the notice's ×, "Link a business…" and "Not at this business". Each is a door of 00412 that reads
+ * signer, its Undo, the notice's ×, "Link a business…" and "Not at this business". Each is a door of 00413 that reads
  * the caller from the session (auth.uid()) and refuses anyone who may not act in the person's workspace, so the session
  * client is what is handed in. A refusal the door raises is carried back in its own sentence, at the status its code
  * says (dbRefusal); an answer that did nothing says why in the page's words (PERSON_NAME_WORDS.refused).

@@ -10,7 +10,7 @@ const Body = z.object({ note_id: z.uuid({ message: "Name the note you read." }) 
  *
  * Got it (canvas A, Up next): the member a note is for says they read it, and it leaves their Up next on every tab and
  * device. Their own mark, a viewer's too, as a bell's is: it changes nothing but their own reading. The note is read on
- * this person under RLS first (noteOn), and the door (person_note_seen, 00412) refuses a note that is for someone else.
+ * this person under RLS first (noteOn), and the door (person_note_seen, 00413) refuses a note that is for someone else.
  * The handle is seeNote in src/server/people/person-notes.ts.
  */
 export const POST = write({

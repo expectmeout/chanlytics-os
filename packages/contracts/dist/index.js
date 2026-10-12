@@ -22461,7 +22461,7 @@ var EVENT_KINDS = [
   /** A person renamed or annotated at the desk (00054), or given an email address (00125). */
   "contact.named",
   /**
-   * Where a person works (0052, 00412): linked to a lead (its first email or call, a reply that cited ours, a member's
+   * Where a person works (0052, 00413): linked to a lead (its first email or call, a reply that cited ours, a member's
    * hand), or not at it any more: { lead_id, via, by? }, never a name.
    */
   "contact.business_linked",
@@ -32223,7 +32223,7 @@ var PERSON_NAME_WORDS = {
   /** What Ask is asked about a person with no name of their own. */
   askAboutThisPerson: "Ask about this person",
   askAbout: (first) => `Ask about ${first}`,
-  /** The door's answers that did nothing, in the page's words (00412's why). */
+  /** The door's answers that did nothing, in the page's words (00413's why). */
   refused: {
     gone: "This person is not in your workspace.",
     no_signer: "That reply has no name to use.",

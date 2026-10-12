@@ -333,7 +333,7 @@ export interface PersonRowVM {
   followUp: FollowUpStand | null;
   /**
    * The business they work at (0052): the lead, its name while it stands, and whether it was erased or blanked since
-   * (its rows then say "Their business details were removed."). Null when they work nowhere, or on a row read before 00412.
+   * (its rows then say "Their business details were removed."). Null when they work nowhere, or on a row read before 00413.
    */
   worksAt: { leadId: string; name: string | null; gone: boolean } | null;
   /** Where their name came from (0052), null when nobody set it or it was set before it was kept. */

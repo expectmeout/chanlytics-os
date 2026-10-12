@@ -10606,8 +10606,8 @@ declare const ERASURE_LEGS: {
     readonly email_trigger: "contact_email_on_erase: the address and why it was suppressed cleared (00125)";
     readonly proposal_trigger: "contact_proposal_on_erase: the proposal's link cleared";
     readonly deals_trigger: "deals_erase_on_contact: a deal's note, evidence and link cleared";
-    readonly leads_trigger: "leads_erase_on_contact: their lead blanked (lead_blank), its places deleted, a reach-out's opening and a preference's example cleared (00391), its keys kept as digests; one of several people at a business takes only their own address, number and the call's note from it (lead_person_leg, 00412)";
-    readonly signer_trigger: "person_signer_erase_on_contact: the name and title a reply's reading found as its signer, and what became of it, cleared (00412)";
+    readonly leads_trigger: "leads_erase_on_contact: their lead blanked (lead_blank), its places deleted, a reach-out's opening and a preference's example cleared (00391), its keys kept as digests; one of several people at a business takes only their own address, number and the call's note from it (lead_person_leg, 00413)";
+    readonly signer_trigger: "person_signer_erase_on_contact: the name and title a reply's reading found as its signer, and what became of it, cleared (00413)";
     readonly recipients_trigger: "broadcast_recipients_on_erase: the words each run kept for them, a visit's time, service and key and a proposal's link, cleared (00391)";
     readonly jobs_scrub: "scrubErasedJobs and erase_contact: a job's payload that carried their number or words overwritten, and its error cleared";
     readonly ask_scrub: "scrub_ask_for_contact: the assistant's turns that name them deleted (00238)";
@@ -39144,11 +39144,11 @@ interface ReachOutReplyOf {
     subject: string | null;
     text: string | null;
     received_at: string;
-    /** Whether the reply cites our email by its Message-ID (0052, 00412); false before it. */
+    /** Whether the reply cites our email by its Message-ID (0052, 00413); false before it. */
     cited: boolean;
     /** The From line's own words ("Priya Nair" of "Priya Nair <priya@…>"); null when it had none. */
     from_name: string | null;
-    /** The names a signer can never be (0052): the workspace's own and its members'. Empty before 00412. */
+    /** The names a signer can never be (0052): the workspace's own and its members'. Empty before 00413. */
     not_names: string[];
 }
 /**
@@ -41771,7 +41771,7 @@ interface MergedPeople {
  */
 declare function mergePeople(db: Db$8, keep: string, merge: string): Promise<MergedPeople>;
 /**
- * What a name door answers (00412: person_name_adopt, person_name_undo, person_name_decline): whether it did it, the
+ * What a name door answers (00413: person_name_adopt, person_name_undo, person_name_decline): whether it did it, the
  * name the person now has, and why not where it did not (gone, no_signer, settled, named, not_a_signer).
  */
 interface PersonNameAnswer {

@@ -6,7 +6,7 @@ import { linkPersonToLead, unlinkPersonFromLead } from "@/server/people/person-w
 /**
  * PUT /api/v1/people/:id/business — { lead_id }: "Link a business…" (decision 0052). The person works at this lead of
  * the workspace, by a member's hand, settled: no later lead or reply moves them by itself. The door (person_join_lead,
- * 00412) refuses a lead of another workspace, erased or blanked.
+ * 00413) refuses a lead of another workspace, erased or blanked.
  *
  * DELETE /api/v1/people/:id/business: "Not at this business". The person is unlinked from the lead they work at, settled;
  * the lead keeps its history, and the lock on the yes that came with it is lifted.

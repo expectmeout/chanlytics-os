@@ -26,7 +26,7 @@ type NoteRow = {
   done_at: string | null;
   done_by: string | null;
   deal_id: string | null;
-  /** When the member it is for said Got it (00412); absent on a row read before the column. */
+  /** When the member it is for said Got it (00413); absent on a row read before the column. */
   for_seen_at?: string | null;
 };
 
@@ -56,7 +56,7 @@ function toNoteDto(n: NoteRow, names: Map<string, string>, me: string): PersonNo
     done_by_name: n.done_by ? (names.get(n.done_by) ?? null) : null,
     done_by_me: !!n.done_by && n.done_by === me,
     deal_id: n.deal_id ?? null,
-    // Got it (00412): the reader it is for has read it; it leaves their Up next.
+    // Got it (00413): the reader it is for has read it; it leaves their Up next.
     for_seen: !!n.for_seen_at,
   };
 }

@@ -153,13 +153,13 @@ export interface PersonRowDto {
   /** The stamp of their mark's last writing; absent where they have none. */
   marked_at?: string | null;
   /**
-   * The business they work at (0052, 00412): the lead, its name while it stands, and whether it was erased or blanked
+   * The business they work at (0052, 00413): the lead, its name while it stands, and whether it was erased or blanked
    * since. Absent on a row read before the columns existed, null when they work nowhere.
    */
   lead_id?: string | null;
   lead_name?: string | null;
   lead_gone?: boolean | null;
-  /** Where their name came from (NAME_SOURCES), and when a member settled it; absent before 00412, null when not known. */
+  /** Where their name came from (NAME_SOURCES), and when a member settled it; absent before 00413, null when not known. */
   name_source?: string | null;
   name_settled_at?: string | null;
   /** The newest reply's signer offered as their name (0052, people_list): the reply, the name and title, when it was read. */
@@ -289,7 +289,7 @@ export interface PersonDetailDto {
   doubts?: PersonDoubtDto[];
   /**
    * The business they work at (0052): the lead `row.lead_id` names, read as Leads reads one, and its people. Null when
-   * they work nowhere, or the lead could not be read; absent from a server before 00412.
+   * they work nowhere, or the lead could not be read; absent from a server before 00413.
    */
   business?: PersonBusinessDto | null;
   /** The signers of their replies still offered or adopted, newest first (0052): "Use this name", and its undo. */
