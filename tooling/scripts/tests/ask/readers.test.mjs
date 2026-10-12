@@ -1324,6 +1324,9 @@ const PERSON_KEYS = [
   "services",
   "consult_first",
   "added",
+  // Since #1566 (decision 0052): the business they work at, and the signers of their replies still offered or taken.
+  "business",
+  "signers",
 ];
 /**
  * Every read GET contacts/:id made at origin/main (fad8b7ea) for one person with threads, by table, and since 00344 the
@@ -1349,6 +1352,8 @@ const PERSON_READS = {
   "broadcast_recipients.select": 1,
   "person_doubts.select": 1,
   "person_notes.select": 1,
+  // The signers of their replies (db signersOf, decision 0052, #1566).
+  "reach_out_replies.select": 1,
   "messages.select": 1,
   "escalations.select": 1,
   "decisions.select": 1,

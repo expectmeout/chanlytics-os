@@ -1173,7 +1173,11 @@ test("every old tool's call, made by its new name and action, answers the bytes 
         : reachReads;
     // 7 Oct 2026 (00344, decision 0034 step 4): a person's page reads the open doubts naming them (person_doubts) in the
     // same round, so people.get makes that one read more; its bytes are unchanged, the tool not saying them yet.
-    const withDoubts = NAMES[old] === "people.get" ? [...withDecisions, "person_doubts.select"] : withDecisions;
+    const withDoubts0 = NAMES[old] === "people.get" ? [...withDecisions, "person_doubts.select"] : withDecisions;
+    // 12 Oct 2026 (#1566, decision 0052): and the signers of their replies still offered or taken (db signersOf), in the
+    // same round; its bytes are unchanged, the tool not saying them. This world's person names no lead, so the business
+    // they work at reads nothing.
+    const withDoubts = NAMES[old] === "people.get" ? [...withDoubts0, "reach_out_replies.select"] : withDoubts0;
     // 7 Oct 2026 (00345, bookings arrive by email): the calendar's reader reads the record beside the feed -- the
     // appointments over the span, the notices' health line (the latest, and the held count) and the workspace's mailbox
     // -- so calendar.week makes those reads more. Its bytes are unchanged: this workspace has no calendar and no
