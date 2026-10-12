@@ -20,7 +20,7 @@
  * the views and the window loaded around them (calendar-views.ts).
  */
 import { timezoneCity } from "../shared/time";
-import { waWindow } from "../config/policy";
+import { replyReachOf } from "../people/person-reach";
 import { formatPhoneDisplay } from "../shared/phone";
 import { BOOKING_DEFAULTS, closedOn, dayIntervals } from "./availability";
 import { clockInZone, dayInZone, dayPlusInZone } from "./zone-math";
@@ -223,7 +223,20 @@ function toBlock(item: CalendarItemDto, tz: string, dayStartMs: number, dayEndMs
           name: item.person.name,
           via: item.person.via ?? null,
           threadId: item.person.thread ? `th-${item.person.thread}` : null,
-          replyOpen: item.person.thread ? waWindow(item.person.wa_inbound_at ?? null, now).open : false,
+          bookingLinkAction: replyReachOf(
+            {
+              // A read that carries no reach (a server that predates it: either deploy order works) is read as it was
+              // before: a person with a thread is reached on WhatsApp, held by its window.
+              wire:
+                item.person.reply_wire !== undefined ? item.person.reply_wire : item.person.thread ? "whatsapp" : null,
+              waInboundAt: item.person.wa_inbound_at,
+              emailStopped: !!item.person.email_stopped,
+              optedOut: !!item.person.opted_out,
+              who: item.person.name,
+            },
+            now,
+          ).bookingLinkAction,
+          stopped: !!item.person.opted_out,
         }
       : null,
     description: item.description ?? null,

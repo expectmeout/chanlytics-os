@@ -27,6 +27,7 @@ import {
   LEAD_EMAIL_WORDS,
   LEAD_STAGE_WORDS,
   LEAD_LEFT_OUT_WORD,
+  lifecycleStateOf,
 } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
 import { kitHooks, kitPages } from "../_legacy-react.mjs";
@@ -42,29 +43,48 @@ test("one name, one tone: a person is needed is amber wherever it is said, and t
     ["thread", "needs_you"],
     ["person", "needs_you"],
     ["broadcast", "pending_approval"],
-    ["playbook", "approval"],
     ["escalation", "open"],
     ["setup", "waiting_you"],
   ]) {
     assert.equal(stateTone(kind, value), "warn", `${kind}/${value}`);
   }
+  // A campaign whose run waits for its owner's word is amber too, by the lifecycle view model, a campaign's one state.
+  assert.equal(
+    lifecycleStateOf({
+      trigger: "quiet_30",
+      run_hour: 10,
+      cadence_days: 30,
+      state: "running",
+      totals: { waiting: { id: "r1", recipient_count: 3 } },
+    }).tone,
+    "warn",
+  );
   for (const [kind, value] of [
     ["call", "live"],
     ["broadcast", "sending"],
   ]) {
     assert.equal(stateTone(kind, value), "accent", `${kind}/${value} is happening right now`);
   }
-  // A running playbook is a rule that is on, not something happening: it runs at
-  // its hour once a day, and while a run sends, that run is the broadcast's
-  // "sending" above. Its card wore the live accent all day long.
-  assert.equal(stateTone("playbook", "running"), "ok", "a playbook that is on is healthy, not live");
+  // A running playbook is a rule that is on, not something happening: it runs at its hour once a day, and while a run sends,
+  // that run is the broadcast's "sending" above. A campaign's state is the lifecycle view model's alone now (lifecycleStateOf),
+  // and it is healthy, not live.
+  assert.equal(
+    lifecycleStateOf({
+      trigger: "quiet_30",
+      run_hour: 10,
+      cadence_days: 30,
+      state: "running",
+      totals: { waiting: null },
+    }).tone,
+    "ok",
+  );
   // A role is a name, not a state. The owner's badge was blue, which on every other badge says "in progress".
   for (const role of ["owner", "operator", "viewer"]) assert.equal(stateTone("role", role), "plain", role);
   assert.equal(stateTone("tone", "accent"), "accent", "a tone a caller already holds is said as itself");
   assert.equal(stateTone("tone", "escalated"), "plain", "a standing name is not a tone");
   for (const [kind, value] of [
     ["thread", "done"],
-    ["call", "ended"],
+    ["call", "handled"],
     ["person", "quiet"],
     ["consent", "unknown"],
     ["broadcast", "canceled"],
@@ -89,7 +109,7 @@ test("the words are the label maps contracts already keeps, and a value nobody w
   assert.equal(stateLabel("thread", "escalated"), "Needs you", "the Inbox's state, in the one name");
   assert.equal(stateLabel("thread", "open"), "Customer wrote last");
   assert.equal(stateLabel("call", "abandoned"), "Hung up early");
-  assert.equal(stateLabel("call", "stale"), "No word from the provider", "a phantom is not labelled Ended");
+  assert.equal(stateLabel("call", "stale"), "No word from the provider", "a phantom is not labelled Handled");
   assert.equal(stateLabel("consent", "opted_out"), "Opted out");
   assert.equal(stateLabel("template", "pending"), "In review");
   assert.equal(stateLabel("thread", "zzz"), "zzz");
@@ -314,9 +334,9 @@ test("the pill: the tone's class and the map's words; the accent carries the liv
   const live = StatePill({ kind: "call", value: "live" });
   assert.equal(live.props.className, "pill pill-accent");
   assert.ok(byClass(live, "live-dot"), "right now has a pulse");
-  const ended = StatePill({ kind: "call", value: "ended" });
-  assert.equal(ended.props.className, "pill", "neutral is the base pill");
-  assert.equal(textOf(ended), "Ended");
+  const handled = StatePill({ kind: "call", value: "handled" });
+  assert.equal(handled.props.className, "pill", "neutral is the base pill");
+  assert.equal(textOf(handled), "Handled");
   const worded = StatePill({ kind: "person", value: "active", label: "Regular" });
   assert.equal(worded.props.className, "pill pill-ok");
   assert.equal(textOf(worded), "Regular", "a page's better words win");

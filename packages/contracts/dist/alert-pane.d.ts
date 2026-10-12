@@ -1,5 +1,5 @@
 /** What the edge writes when it raises an alert: the same kinds it emails. */
-declare const SERVER_NOTIFICATION_KINDS: readonly ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "booking_notice", "alert", "review", "billing", "template_ready", "template_blocked", "broadcast_sent", "broadcast_stopped", "leads_ready", "leads_question", "note_for_you", "reach_out_replied", "reach_out_day"];
+declare const SERVER_NOTIFICATION_KINDS: readonly ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "booking_notice", "alert", "review", "billing", "template_ready", "template_blocked", "broadcast_sent", "broadcast_stopped", "leads_ready", "leads_question", "note_for_you", "reach_out_replied", "reach_out_day", "opted_out", "booking", "member_joined"];
 type ServerNotificationKind = (typeof SERVER_NOTIFICATION_KINDS)[number];
 
 /**
@@ -43,6 +43,9 @@ declare const NOTIFICATION_DELIVERY: {
     readonly note_for_you: "bell";
     readonly reach_out_replied: "email";
     readonly reach_out_day: "bell";
+    readonly opted_out: "email";
+    readonly booking: "bell";
+    readonly member_joined: "bell";
 };
 /** A kept kind that is emailed. */
 type EmailedNotificationKind = {

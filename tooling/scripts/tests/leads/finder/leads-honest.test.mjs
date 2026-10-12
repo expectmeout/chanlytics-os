@@ -362,7 +362,7 @@ globalThis.window = {
   },
   dispatchEvent: (ev) => {
     for (const fn of [...(listeners[ev.type] || [])]) fn(ev);
-    return true;
+    return !ev.defaultPrevented;
   },
   setTimeout: (fn, ms) => setTimeout(fn, ms),
   clearTimeout: (h) => clearTimeout(h),
@@ -645,6 +645,14 @@ const answers = [
   [/^DELETE \/api\/v1\/leads\/[^/]+$/, () => ({ erased: true, already: false })],
   [/^POST \/api\/v1\/leads\/bulk$/, () => ({ done: 2, op_id: "op-b", version: 7, toast: "Done." })],
   [
+    /^POST \/api\/v1\/leads\/export$/,
+    () => ({
+      file: "leads-Salon-20260908.csv",
+      csv: "Business,City\r\nTravis Heights Coaching Co.,Austin\r\n",
+      rows: 161,
+    }),
+  ],
+  [
     /^POST \/api\/v1\/leads\/check-again$/,
     (b) => ({ scheduled: b.ids.length, skipped: 0, toast: `Checking ${b.ids.length} again.` }),
   ],
@@ -841,6 +849,19 @@ const settle = async (n = 8) => {
  */
 const flashSaid = async (before) => {
   for (let i = 0; i < 200 && flashes.length <= before; i += 1) await tick();
+};
+/**
+ * The files the kit offers the app's bridge (kit/download.ts: an `app:file` event the bridge takes and cancels): taken here, so a
+ * test sees what would be saved and nothing is made in a document that has no body. `stop` lets go of the listener.
+ */
+const takeFiles = () => {
+  const files = [];
+  const hear = (ev) => {
+    files.push(ev.detail);
+    ev.preventDefault();
+  };
+  globalThis.window.addEventListener("app:file", hear);
+  return Object.assign(files, { stop: () => globalThis.window.removeEventListener("app:file", hear) });
 };
 const press = (key, target = null, { focus = target, ...mods } = {}) => {
   globalThis.document.activeElement = focus;
@@ -1189,14 +1210,29 @@ test("the desk's map, Values / Signals and Export stand beside Columns as three 
   } finally {
     globalThis.localStorage.removeItem("leads.values");
   }
-  // Export: the browser is sent to the export route for this view, as an attachment, so the page stays where it is.
-  assert.deepEqual(navigated, [], "nothing is downloaded by itself");
-  click(byTestId(acts(tree), "leads-export"));
-  assert.deepEqual(
-    navigated,
-    [["/api/v1/leads/export?list=all&sort=fit&dir=asc&workspace=salon", "_self"]],
-    "the whole view, in the order the table has by default",
-  );
+  // Export: a press that POSTs this view (it marks what it took, so it is no link) and saves the file the answer holds, by the
+  // kit's one download: on the phone app the same event reaches the share sheet. The page stays where it is.
+  const saved = takeFiles();
+  try {
+    assert.deepEqual(wrote(), [], "nothing is exported by itself");
+    const flashed = flashes.length;
+    click(byTestId(acts(tree), "leads-export"));
+    await flashSaid(flashed);
+    assert.deepEqual(
+      lastWrite(),
+      { key: "POST /api/v1/leads/export", body: { list: "all", sort: "fit", dir: "asc" } },
+      "the whole view, in the order the table has by default",
+    );
+    assert.deepEqual(
+      saved.map((f) => [f.name, f.type, f.text.startsWith("﻿Business,City")]),
+      [["leads-Salon-20260908.csv", "text/csv", true]],
+      "the file the answer holds, saved once, with the byte-order mark the kit adds",
+    );
+    assert.equal(textOf(flashes.at(-1).msg), "Exported 161 leads.");
+    assert.deepEqual(navigated, [], "and the browser was sent nowhere");
+  } finally {
+    saved.stop();
+  }
 });
 
 test("Export, for a role that may not take the file, stays on the page, says why at the button and downloads nothing", async () => {
@@ -1212,7 +1248,8 @@ test("Export, for a role that may not take the file, stays on the page, says why
   assert.match(String(exportIt.props["aria-description"]), /export these leads/);
   assert.equal(exportIt.props["data-tip"], exportIt.props["aria-description"], "the reason is the tip under a pointer");
   click(exportIt);
-  assert.deepEqual(navigated, [], "a press downloads nothing");
+  assert.deepEqual(wrote(), [], "a press exports nothing");
+  assert.deepEqual(navigated, [], "and sends the browser nowhere");
   // The map and Values are not the file: a role that may not export may still look.
   assert.equal(byTestId(tree, "leads-map-toggle").props["data-gated"], undefined);
   assert.equal(byTestId(tree, "leads-values-toggle").props["data-gated"], undefined);
@@ -3213,9 +3250,9 @@ test("the Excluded view's chips count by criterion, and each narrows the rows", 
       n.props["aria-selected"],
     ]),
     [
-      ["2 qualified", false],
-      ["1 needs a look", false],
-      ["1 left out", true],
+      ["2 Qualified", false],
+      ["1 Needs review", false],
+      ["1 Left out", true],
     ],
     "the three classes, each a view of the search",
   );
@@ -3301,17 +3338,26 @@ test("Search again, changed opens the plan with what was asked; Rename renames t
   assert.deepEqual(went.at(-1), "clients/leads", "the rail lost that row, so the view is every lead again");
 });
 
-test("Export these N is a link to the search's own view of the export route", async () => {
+test("Export these N is a press that POSTs the search's own view to the export route and saves the file", async () => {
   await fresh();
   const m = menuOf("Personal trainers · Austin") || (draw(), menuOf("Personal trainers · Austin"));
   const exportIt = m.items.find((i) => i.label === "Export these 161");
   assert.ok(exportIt, "the menu offers the search's leads as a file");
-  exportIt.onClick();
-  assert.deepEqual(
-    navigated,
-    [[`/api/v1/leads/export?search=${SEARCH_A}&list=all&sort=fit&dir=asc&workspace=salon`, "_self"]],
-    "the browser is sent to the export route, for this search, all of it, in the order the table has by default",
-  );
+  const saved = takeFiles();
+  try {
+    const flashed = flashes.length;
+    exportIt.onClick();
+    await flashSaid(flashed);
+    assert.deepEqual(
+      lastWrite(),
+      { key: "POST /api/v1/leads/export", body: { search: SEARCH_A, list: "all", sort: "fit", dir: "asc" } },
+      "for this search, all of it, in the order the table has by default",
+    );
+    assert.equal(saved.length, 1, "the file is saved");
+    assert.deepEqual(navigated, [], "and the browser is sent nowhere");
+  } finally {
+    saved.stop();
+  }
 });
 
 /* ------------------------------------- the phone ------------------------------------- */
@@ -3622,7 +3668,7 @@ test("Leads' rows, compact in a phone's sheet: an empty list is said in a line, 
     wordsFor: () => ({ askedLine: "", keepsLine: "" }),
     onPickList: () => {},
     onPickSearch: () => {},
-    hrefFor: () => null,
+    exportFor: () => () => {},
     onNew: () => {},
   };
   const lists = (tree) =>
@@ -4315,6 +4361,19 @@ test("a converted lead whose person became a client reads Client, on the desktop
     "lead-state",
   );
   assert.deepEqual([withCard.props.kind, withCard.props.value], ["deal", "won"], "and so does the phone's card");
+  // D1-lead-person-door: the Client pill is the way to the person, through the cell context's own door (the page's
+  // onOpenProfile); a proposal out has no Client pill, and so no door, and neither has a row whose people are not read.
+  const went = [];
+  const doorOf = (td) => find(td, (n) => n.props?.["data-testid"] === "lead-client-door");
+  const door = doorOf(
+    business.cell(rows[0], { ...rowNode.props.ctx, peopleRows: people, onOpenPerson: (id) => went.push(id) }),
+  );
+  assert.ok(door, "the Client pill is a door");
+  assert.equal(door.props.title, LEAD_WORDS.openPerson);
+  door.props.onClick({ stopPropagation() {} });
+  assert.deepEqual(went, ["k1"], "it opens the person the lead converted into");
+  assert.equal(doorOf(business.cell(rows[1], { ...rowNode.props.ctx, peopleRows: people })), null);
+  assert.equal(doorOf(business.cell(rows[0], { ...rowNode.props.ctx, peopleRows: [] })), null);
   surfaceValue("people").rows = people;
   const without = pillOf(business.cell(rows[0], { ...rowNode.props.ctx, peopleRows: [] }), "lead-state-tag");
   assert.equal(

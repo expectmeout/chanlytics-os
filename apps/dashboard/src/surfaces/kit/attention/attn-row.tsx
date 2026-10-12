@@ -2,8 +2,8 @@
  * The one row grammar for a person who needs something: an avatar, a name with where and when, one sentence, one state
  * line, one button — and, where the state asks a second thing of you, a quiet second verb. People's strip and
  * Today's queue both draw it. The classes are the strip's (clients.css), so the two read alike wherever a row appears.
- * (Moved whole from pages/attention-bits.jsx, decision 0015: the kit's one implementation, which seed-globals publishes
- * as window.AttnRow for the pages that still read it.)
+ * (Moved whole from pages/attention-bits.jsx, decision 0015: the kit's one implementation, which the pages import;
+ * it was published as window.AttnRow until no page read it there.)
  *
  * Verbs are the caller's: `cta.onClick` and `also.onClick` do the work, and `cta.gate` and `also.gate` carry
  * window.gate(...)'s props; the row itself opens whatever `onOpen` says. Nothing here reads a surface.
@@ -16,6 +16,7 @@
 import { stateOf } from "@chanlytics/contracts";
 import type { MouseEventHandler, ReactNode } from "react";
 import { showTip } from "../../legacy-verbs";
+import { Face, type FacePerson } from "../face/face";
 import { Icon } from "../icon/icon";
 
 /** One verb of the row: its words, what it does, and the honesty gate's props (`window.gate(...)`), spread after its handlers. */
@@ -29,6 +30,8 @@ interface AttnAct {
 }
 
 interface AttnRowProps {
+  /** A person the row is about: the kit's Face draws them, by what contracts says they are (a number's glyph, an address's, or their initials). Over `initials` and `glyph`, which draw what is not a person. */
+  person?: FacePerson;
   initials?: string;
   glyph?: string | null;
   name: ReactNode;
@@ -86,6 +89,7 @@ function attnActs(cta: AttnAct | null, also: AttnAct | null, ctaTestid: string) 
 }
 
 export function AttnRow({
+  person,
   initials,
   glyph = null,
   name,
@@ -119,9 +123,13 @@ export function AttnRow({
       }}
       data-testid={testid}
     >
-      <div className={`cl-attn-avatar ${glyph ? "glyph" : ""}`} title={glyph === "phone" ? "No name yet" : undefined}>
-        {glyph ? <Icon name={glyph} size={12} /> : initials}
-      </div>
+      {person ? (
+        <Face person={person} className="cl-attn-pic" />
+      ) : (
+        <div className={`cl-attn-avatar ${glyph ? "glyph" : ""}`} title={glyph === "phone" ? "No name yet" : undefined}>
+          {glyph ? <Icon name={glyph} size={12} /> : initials}
+        </div>
+      )}
       <div className="cl-attn-body">
         <div className="cl-attn-name">
           <span className="cl-attn-who">{name}</span>

@@ -153,7 +153,7 @@ installLegacyReact({
 });
 const SRC = "../../../../../apps/dashboard/src";
 const { playbooksOverride } = await import(`${SRC}/surfaces/campaigns/playbooks/surface.ts`);
-const { surfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
+const { setSurfaceValue, surfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
 
 const EMPTY_POOL = { candidates: 0, held: 0, pool: 0, noYes: 0, stopped: 0, noNumber: 0, saidYes: 0 };
 /** A playbook as GET playbooks hands it over (contracts PlaybookDto and what its runs earned). */
@@ -185,16 +185,11 @@ const answer = (data) =>
 /**
  * The surface the bridge builds from what GET playbooks answers for a workspace whose calendar is `calendar`; `shape` is
  * what the answer says of the business beside it (its word and its booking tool), absent from a server from before them.
- * `templates` is GET templates' answer: by default one from before it named the call's text (`booking`).
+ * `settings` is what the settings surface has published of the templates, the one read of them (offered-templates.ts): by default
+ * none, as before the settings read has landed.
  */
-async function surfaceFor({
-  calendar,
-  playbooks = [],
-  pools = {},
-  dealsOn = false,
-  shape = {},
-  templates = { templates: [] },
-}) {
+async function surfaceFor({ calendar, playbooks = [], pools = {}, dealsOn = false, shape = {}, settings = undefined }) {
+  setSurfaceValue("settings", settings);
   const kept = globalThis.fetch;
   globalThis.fetch = async (url) => {
     const path = new URL(String(url), "https://app.chanlytics.com").pathname;
@@ -209,7 +204,7 @@ async function surfaceFor({
         people_lists: [],
         ...shape,
       });
-    if (path === "/api/v1/templates") return answer(templates);
+    // No GET templates is served: the playbooks surface asks for none (its templates are the settings read's, set above).
     if (path === "/api/v1/channels") return answer({ channels: [] });
     return answer({ config: { brain: { business_name: "Northside Studio" } }, version: 1 });
   };
@@ -312,24 +307,50 @@ test("the surface publishes the business's shape and says every appointment mome
   assert.equal(session.triggers.find((t) => t.id === "quiet_30").label, triggerOf("quiet_30").label);
 });
 
-test("the call's text is said only where GET templates says whether there is one: an answer from before `booking` says nothing, never 'No message for it yet'", async () => {
+test("the call's text is said only where the settings read says whether there is one: before it is read the home says nothing, never 'No message for it yet'", async () => {
   const callText = (s) =>
     campaignsHomeOf({ nowMs: NOW, tz: ZONE, playbooks: s, shape: s.shape, library: s.library })
       .ledger.groups.flatMap((g) => g.rows)
       .find((r) => r.id === "call_text");
-  // A server from before the call's text was named (a tab open across a rollback): not known, so not said, and not failed.
-  const before = await surfaceFor({ calendar: "ok", templates: { templates: [], messages: [] } });
+  // Settings is not read yet (the call's text and the Library are its read's, offered-templates.ts): not known, so not said, and not failed.
+  const before = await surfaceFor({ calendar: "ok" });
   assert.equal(before.library, undefined);
+  assert.equal(before.templates, undefined, "the composer is still reading, not told that none is approved");
+  assert.equal(before.messages, null);
   assert.deepEqual([callText(before).stateWords, callText(before).tone], ["", "plain"]);
   assert.equal(
     campaignsHomeOf({ nowMs: NOW, tz: ZONE, playbooks: before, shape: before.shape, library: before.library }).failed
       .templates,
     null,
   );
-  // The reader found none (`booking: null`): that is a fact, and the row says it.
-  const none = await surfaceFor({ calendar: "ok", templates: { templates: [], messages: [], booking: null } });
+  // Settings found no call's text among the WhatsApp rows (contracts bookingTemplate): that is a fact, and the row says it.
+  const none = await surfaceFor({ calendar: "ok", settings: { templatesAll: [], templateVersions: [], messages: [] } });
   assert.deepEqual(none.library, []);
+  assert.deepEqual(none.templates, []);
   assert.deepEqual([callText(none).stateWords, callText(none).tone], ["No message for it yet", "warn"]);
+  // And when it lands after the surface was read, the surface is made of it again with no read of its own.
+  setSurfaceValue("settings", {
+    templatesAll: [
+      {
+        id: "t-call",
+        channel: "whatsapp",
+        name: "call_text",
+        language: "en_US",
+        meta_status: "approved",
+        hidden_at: null,
+        category: "utility",
+        variables: [],
+        blocked: null,
+      },
+    ],
+    templateVersions: [],
+    messages: [],
+  });
+  assert.deepEqual(
+    surfaceValue("playbooks").library?.map((t) => t.name),
+    ["call_text"],
+  );
+  setSurfaceValue("settings", undefined);
 });
 
 test("the home's moments to turn on: none retired, and one win-back -- the one the workspace can read, and none at all when a playbook is on either", async () => {

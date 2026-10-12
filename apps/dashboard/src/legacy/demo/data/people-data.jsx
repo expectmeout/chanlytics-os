@@ -1,5 +1,6 @@
 /* global window */
-// Chanlytics — People seed data: the mockup's leads + Segment detail meta
+// Chanlytics — People seed data: the mockup's leads + Segment detail meta (the demo's: a real workspace never loads it,
+// legacy-bridge/manifest-demo.ts)
 // These are the MOCKUP's leads and the mockup's stages: new → qualifying →
 // ready → nurture (converted/archived are terminal states reached in-session).
 // The page that drew them as a queue is retired — Leads is a scope of People
@@ -8,13 +9,6 @@
 // Nothing real reads any of it: a stored lead's stage is contracts' LEAD_STAGES
 // (ready | nurture | converted | archived, with a reason) said in the words of
 // LEAD_STAGE_WORDS, and `qualifying` and `new` are never stored.
-
-const LEAD_STAGES = [
-  { id: "ready",      label: "Ready for you", sub: "Qualified — your call",        glyph: "alert",   accent: true },
-  { id: "qualifying", label: "Qualifying",    sub: "Agents gathering fit",          glyph: "sparkle" },
-  { id: "new",        label: "New",           sub: "Just arrived — first touch",    glyph: "bolt" },
-  { id: "nurture",    label: "Nurturing",     sub: "Not yet — agents keeping warm", glyph: "clock" },
-];
 
 const LEADS = [
   // ============ READY (qualified — operator decision) ============
@@ -218,13 +212,6 @@ const LEADS = [
   },
 ];
 
-const LEADS_AGGREGATES = {
-  capturedThisWeek: 23,
-  qualificationRate: 0.61,       // captured → ready
-  medianFirstTouch: "38s",
-  convertedThisWeek: { count: 6, value: 2870 },
-};
-
 // =============== SEGMENT DETAIL META ===============
 // Extends CLIENT_SEGMENTS (data/clients-data.jsx) by id with everything the
 // Segments surface needs: trend, rules, usage, membership sample.
@@ -364,13 +351,6 @@ const SEGMENT_META = {
   },
 };
 
-const SEGMENTS_AGGREGATES = {
-  total: 12,
-  inActiveUse: 9,
-  autoRefreshed: 9,
-  broadcastsThisMonth: 4,
-};
-
 // =============== VIP META (guardrails reference) ===============
 SEGMENT_META["vip-monthly"] = SEGMENT_META["vip-monthly"] || {
   definition: "VIP-tagged clients on a monthly-or-faster visit cadence.",
@@ -385,17 +365,6 @@ SEGMENT_META["vip-monthly"] = SEGMENT_META["vip-monthly"] || {
     { id: "c-sophie", matchedOn: "VIP · monthly ritual" },
   ],
 };
-
-// =============== LEAD SOURCES (weekly funnel by origin) ===============
-// captured → ready → converted · est = first-year value of conversions.
-// Sums match LEADS_AGGREGATES (23 captured, 6 converted, $2,870 est).
-const LEAD_SOURCES = [
-  { id: "instagram", label: "Instagram",      icon: "instagram", captured: 7, ready: 4, converted: 2, est: 520,  touch: "31s" },
-  { id: "website",   label: "Website & chat", icon: "chat",      captured: 6, ready: 4, converted: 2, est: 1610, touch: "24s" },
-  { id: "google",    label: "Google",         icon: "search",    captured: 4, ready: 2, converted: 1, est: 150,  touch: "58s" },
-  { id: "referral",  label: "Referrals",      icon: "users",     captured: 3, ready: 3, converted: 1, est: 590,  touch: "40s" },
-  { id: "phone",     label: "Phone & walk-in",icon: "phone",     captured: 3, ready: 1, converted: 0, est: 0,    touch: "3m 40s" },
-];
 
 // =============== LEAD LISTS ===============
 // Slices of People › Leads — join CLIENT_SEGMENTS so every targeting surface
@@ -464,21 +433,6 @@ const FLEET_PLAYBOOKS = {
   "objection-coach": [],
 };
 
-// =============== SEGMENT MOVEMENT (Today brief digest) ===============
-const SEG_MOVEMENT = [
-  { segId: "drifting-vips", dir: "in",  count: 1, who: "Yuki Tanaka",            note: "outreach paused until May 1 — her ask", action: { label: "Review watch", to: "segments/drifting-vips" } },
-  { segId: "pkg-ending",    dir: "in",  count: 2, who: "Lin Chen, Alex Mendez",  note: "rebuy nudges queued by SMS Agent",       action: { label: "See nudges", to: "fleet/sms-agent" } },
-  { segId: "lapsed-60",     dir: "out", count: 1, who: "Sam Rivera",             note: "booked — win-back worked (+$120)",       action: { label: "In Reports", to: "reports" } },
-];
-
-// =============== SEGMENT HEALTH (Reports) ===============
-const SEGMENT_HEALTH = [
-  { segId: "pkg-ending",    revenue: 3150, conv: "42%", note: "rebuy nudges · best return per send" },
-  { segId: "lapsed-60",     revenue: 2740, conv: "22%", note: "win-back running · 9 booked" },
-  { segId: "advocates",     revenue: 780,  conv: "—",   note: "referral flow drafted — approve in Outbound" },
-  { segId: "drifting-vips", revenue: 0,    conv: "—",   note: "watch list · $6.1k LTV at churn risk" },
-];
-
 // =============== PER-SEGMENT GUARDRAILS (Settings › Autonomy) ===============
 const SEG_GUARDRAILS = [
   { segId: "vip-monthly",   label: "VIP outreach",      hint: "How agents touch this list — rates stay owner-quoted", value: "White-glove · confirmations only", options: ["White-glove · confirmations only", "Normal cadence"] },
@@ -494,9 +448,8 @@ window.LEADS = LEADS;
 // ~18s into a session Riley texts back after a missed call; Qualifier scores
 // them 8s later. What is left to see is the bell (topbar.jsx starts the timer
 // only in a demo and listens for leads:arrived) — the page that drew the row
-// and the source strip is retired. Both beats still mutate LEADS +
-// LEAD_SOURCES (+ aggregates, guarded) together so the sums contract holds
-// mid-session. A real workspace never fires this: its lead news is the bell's
+// and the source strip is retired. Both beats still mutate LEADS.
+// A real workspace never fires this: its lead news is the bell's
 // own leads_ready / leads_question rows.
 const LD_ARRIVAL = {
   id: "ld-riley", name: "Riley Nguyen", initials: "RN",
@@ -523,9 +476,6 @@ const LD_STORE = {
     if (this.arrived) return;
     this.arrived = true;
     LEADS.unshift(LD_ARRIVAL);
-    const src = LEAD_SOURCES.find(s => s.id === "phone");
-    if (src) src.captured += 1;
-    if (typeof LEADS_AGGREGATES.capturedThisWeek === "number") LEADS_AGGREGATES.capturedThisWeek += 1;
     window.dispatchEvent(new CustomEvent("leads:arrived", { detail: { leadId: LD_ARRIVAL.id, phase: "arrived" } }));
     // Beat 2 — Qualifier finishes scoring; the same row updates in place.
     setTimeout(() => {
@@ -539,12 +489,18 @@ const LD_STORE = {
   },
 };
 window.LD_STORE = LD_STORE;
-window.LEAD_STAGES = LEAD_STAGES;
-window.LEADS_AGGREGATES = LEADS_AGGREGATES;
 window.SEGMENT_META = SEGMENT_META;
-window.SEGMENTS_AGGREGATES = SEGMENTS_AGGREGATES;
 window.FLEET_PLAYBOOKS = FLEET_PLAYBOOKS;
-window.SEG_MOVEMENT = SEG_MOVEMENT;
-window.SEGMENT_HEALTH = SEGMENT_HEALTH;
 window.SEG_GUARDRAILS = SEG_GUARDRAILS;
-window.LEAD_SOURCES = LEAD_SOURCES;
+
+// The shell contract's helpers over these seeds' segments (clients-data.jsx adds seg, compliance and canMessage).
+Object.assign(window.CHANLY, {
+  segsOf(personId, { lead = false } = {}) {
+    const META = window.SEGMENT_META || {};
+    return Object.keys(META)
+      .filter((k) => ((META[k] || {}).members || []).some((m) => m.id === personId && !!m.lead === lead))
+      .map((k) => this.seg(k))
+      .filter(Boolean);
+  },
+  membersOf(segId) { return (((window.SEGMENT_META || {})[segId]) || {}).members || []; },
+});

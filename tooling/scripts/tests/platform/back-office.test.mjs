@@ -237,7 +237,7 @@ test("money is a verdict only where it can stop the receptionist", () => {
   // exactly why it needs a person BEFORE it becomes unpaid.
   const due = only({ billing_status: "past_due" });
   assert.equal(due.verdict, "billing");
-  assert.match(due.sentence, /still answers, and will not/);
+  assert.match(due.sentence, /still answers; once Stripe gives up, the workspace is paused/);
   for (const status of ["unpaid", "canceled", "paused", "incomplete_expired"]) {
     assert.equal(only({ billing_status: status }).verdict, "billing", status);
   }
@@ -315,6 +315,11 @@ test("quiet means answering with nobody reaching them, and says for how long", (
 test("a paused workspace and a test workspace are not problems to solve", () => {
   assert.equal(only({ status: "paused" }).verdict, "paused");
   assert.match(only({ status: "paused" }).sentence, /by design/);
+  assert.match(
+    only({ status: "paused" }).sentence,
+    /by design: calls are answered only to take a message\.$/,
+    "and says what a call gets, in the value's own clause and to a reader who is staff, not the owner",
+  );
   // And a test tenant is not a customer at all -- it must not inflate a count
   // or sit in the middle of a support queue.
   const t = only({ status: "test", voice_active: false, whatsapp_active: false, created_at: ago(200) });
@@ -1036,13 +1041,14 @@ test("the back office is read on demand, not published to every browser", () => 
   // A surface would make every customer's browser fetch a page it will never be
   // allowed to see, on every boot, for two accounts' benefit.
   const bridge = readCode("apps/dashboard/src/legacy-bridge/platform.ts");
-  assert.match(bridge, /export function installPlatform/);
   assert.ok(!bridge.includes("SurfaceOverride"), "not a surface");
   assert.ok(
     bridge.includes("rows: platformRows") && bridge.includes("steps: setupSteps"),
     "the judgement and the customer's rows both come from contracts",
   );
-  assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installPlatform();"));
+  // Nothing reads the verbs off the window (the pane imports them), so nothing publishes them there (O4b).
+  assert.ok(!bridge.includes("installPlatform"), "no window name for the verbs");
+  assert.ok(!readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installPlatform"));
   // Classified as a real PANE of Settings -- without that line the shell's
   // honesty gate fell through to the page's "demo" and a platform admin who
   // clicked Back office got the Not-in-this-release card -- but never as a

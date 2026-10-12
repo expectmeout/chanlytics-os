@@ -35,7 +35,7 @@ globalThis.window.CHANLY = {
 };
 const keepError = console.error;
 console.error = () => {};
-const { receptionist, receptionistOverride, forgetReceptionist } = await importSrc(
+const { receptionist, receptionistOverride } = await importSrc(
   "apps/dashboard/src/surfaces/reports/receptionist-surface.ts",
 );
 const { headline, reportsHeadlineOverride } = await importSrc("apps/dashboard/src/surfaces/reports/headline.ts");
@@ -326,12 +326,24 @@ test("a read that fails fails the surface: the lens says so, never a count of no
   assert.equal(receptionist.isStale(), true, "and nothing is held for the period");
 });
 
-test("its live-feed rule is the lens's own: messages, escalations and calls, 800 ms after the last change, heard while the lens is on screen and left for it otherwise", () => {
+test("its live-feed rule is the lens's own: messages, escalations, calls and visits (its links booked), 800 ms after the last change, heard while the lens is on screen and left for it otherwise", () => {
   reset("30d");
-  assert.deepEqual(receptionistOverride.refreshOnTables, ["messages", "escalations", "calls"]);
+  // And the book its people are counted from (contacts), and the hours "while you were closed" is read from (tenant_config) (0047).
+  assert.deepEqual(receptionistOverride.refreshOnTables, [
+    "messages",
+    "escalations",
+    "calls",
+    "appointments",
+    "contacts",
+    "tenant_config",
+  ]);
   assert.equal(receptionistOverride.debounceMs, 800, "a burst of messages is waited out, as Reports' own read waits");
   assert.equal(receptionistOverride.refreshOnMessageInserts, undefined, "it names its tables, not the historical trio");
-  assert.deepEqual(reportsHeadlineOverride.refreshOnTables, undefined, "the headline has none");
+  assert.deepEqual(
+    reportsHeadlineOverride.refreshOnTables,
+    ["messages", "calls", "appointments", "contacts"],
+    "the headline has its own, Today's (headline-live.test.mjs)",
+  );
   const change = (table) => ({ table, event: "INSERT", row: {} });
   for (const route of ["reports/receptionist", "reports/receptionist:2026-09-01~2026-09-20"]) {
     elsewhere(route);
@@ -607,8 +619,8 @@ test("a write that makes the read wrong forgets it, and nothing reads it from th
     assert.equal(receptionist.isStale(), true, "so the lens reads it as it comes on screen");
     assert.deepEqual(receptionistReads(), [], "and it is not read from the Inbox");
     await receptionistOverride.apply();
-    forgetReceptionist();
-    assert.equal(surfaceValue("reports_receptionist"), undefined, "forgetReceptionist is the helper's forget");
+    receptionist.forget();
+    assert.equal(surfaceValue("reports_receptionist"), undefined, "the helper's forget holds nothing of it");
   } finally {
     stop();
   }

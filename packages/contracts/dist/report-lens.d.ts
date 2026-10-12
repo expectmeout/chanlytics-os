@@ -271,22 +271,6 @@ interface ReceptionistDto {
     profile: ReportProfile | null;
 }
 
-/**
- * Reports › Receptionist — what the lens's own read says, counted once.
- *
- * The route answers the lens's parts in one DTO (receptionist-record.ts: receptionist_series, with the people sent the
- * booking link counted against the calendar and who waits on you counted by `standingOfThread`, and the workspace's hours
- * beside them). This puts them in words: the mixes (what became of the held replies, what customers asked about, the
- * language the receptionist wrote in, how calls ended), the booking link and what came of it, and the figures: your
- * first reply and the time to settle a handover, the calls nobody took and whether anyone answered within an hour, what
- * came while the business was closed, and what is stuck now. A page draws these and makes no sentence of its own; Ask says
- * what it says. A ratio carries the count it is of (REPORT_MIN_N greys it under five), and a number with no source is a
- * dash with words, never a zero. Pure: the page feeds it the DTO and the clock.
- *
- * The hold's `other` ("Did not go out") and the door's refusals (`heldBack`) overlap by design: a draft the door refused is
- * in both, so the two are never added together here or anywhere.
- */
-
 /** A figure of the lens: the strip's tile, with the count a ratio is of (`n`) and the page a number opens (`door`) where it has them. */
 type ReceptionistFigureVM = ReportStripTile;
 interface ReceptionistReportVM {
@@ -310,7 +294,7 @@ interface ReceptionistReportVM {
     closed: (ReceptionistFigureVM & {
         unset: boolean;
     }) | null;
-    /** [waiting on you, call-backs, replies held back] */
+    /** [needs you, call-backs, replies held back] */
     stuck: ReceptionistFigureVM[];
     /** The reasons the door refused a reply, most first, for Ask and the figure's line. */
     heldBack: ReportBarVM[];
@@ -456,21 +440,6 @@ interface PeopleDto {
     series: PeopleSeriesDto | null;
     now: PeopleNowDto | null;
 }
-
-/**
- * Reports › People — what the lens's own read says, counted once.
- *
- * The route answers the lens's two halves in one DTO (people-record.ts): the window, from the database (people_series, 00395:
- * who reached the business and how, how the new ones first came, the yeses and stops they gave, the addresses that stopped
- * working, the steps finished on time), and the book as it stands now, from the people pool by People's own rules
- * (people-now.ts). This puts them in words: the head, the four figures against the period before, the mixes, the book's
- * wires and freshness, what is stuck and where the book stands. A page draws these and makes no sentence of its own; Ask
- * says what it says. A share carries the count it is of (REPORT_MIN_N greys it under five), a part with nothing in it says
- * so in words and never as a zero percentage, and either half stands without the other. Pure: the page feeds it the DTO.
- *
- * The window is "people", not "messages": report_series counts messages and calls day by day, and a person who wrote ten
- * times is one here. The book is "as of now, whatever period is picked", and says so wherever it is drawn.
- */
 
 /** A figure of the lens: the strip's tile, with the count a share is of (`n`), the list a count opens (`door`) and the tone of its number where it has them. */
 type PeopleFigureVM = ReportStripTile;

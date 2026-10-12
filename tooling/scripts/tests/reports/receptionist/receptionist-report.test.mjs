@@ -398,12 +398,12 @@ test("while you were closed: the hours decide, and no hours is a question", () =
   );
 });
 
-test("stuck: waiting on you, call-backs and replies held back", () => {
+test("stuck: needs you, call-backs and replies held back", () => {
   const v = vm();
   assert.deepEqual(
     v.stuck.map((f) => [f.metric, f.label, f.value, f.door]),
     [
-      ["waiting_on_you", "Waiting on you", "3", "inbox"],
+      ["waiting_on_you", "Needs you", "3", "inbox"],
       ["call_backs", "Call-backs", "1", "today"],
       ["replies_held_back", "Replies held back", "4", "inbox"],
     ],
@@ -412,7 +412,7 @@ test("stuck: waiting on you, call-backs and replies held back", () => {
     v.stuck.map((f) => f.meta),
     [
       "the oldest has waited 2h 10m",
-      "people to ring, counted in waiting on you",
+      "people to ring, counted in Needs you",
       "a person had the thread 3 · asked to stop 1",
     ],
   );
@@ -608,7 +608,7 @@ test("the DTO folds into the same view model the page draws", () => {
     v.stuck.map((f) => [f.value, f.meta]),
     [
       ["2", "the oldest has waited 2h 10m"],
-      ["1", "people to ring, counted in waiting on you"],
+      ["1", "people to ring, counted in Needs you"],
       ["4", "a person had the thread 3 · asked to stop 1"],
     ],
   );

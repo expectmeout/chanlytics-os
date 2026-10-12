@@ -106,7 +106,8 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
   // route in reads-routes.test.mjs ("reading notifications") and through its reader in readers.test.mjs.
   const sd = readCode("apps/dashboard/src/legacy-bridge/surfaces/notifications.ts");
   assert.ok(
-    sd.includes('key: "notifications",') && sd.includes('refreshOnTables: ["notifications"],'),
+    sd.includes('key: "notifications",') &&
+      sd.includes('declareReads("notifications", { reads: ["notification"], fresh: "live" })'),
     "repaints as the edge writes a row",
   );
   assert.ok(
@@ -117,7 +118,7 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
   assert.deepEqual(toldFor("notifications"), ["INSERT"], "the live feed is told of a note kept");
   const bell = readCode("apps/dashboard/src/legacy-bridge/notifications.ts");
   assert.ok(
-    /dedupeFeed\(\[\s*\.\.\.applyReadState\(feedFromGlobals\(win, Date\.now\(\)\), deviceState\(\)\),\s*\.\.\.serverNotificationRows\(win\.__NOTIFICATIONS\?\.dto\),?\s*\]\)\.sort\(\(a, b\) => b\.at - a\.at\)/.test(
+    /bellFeed\(\{\s*derived: feedFromGlobals\(win, Date\.now\(\)\),\s*device: deviceState\(\),\s*kept: win\.__NOTIFICATIONS\?\.dto,\s*waits: whatWaits\(\),?\s*\}\)\.sort\(\(a, b\) => b\.at - a\.at\)/.test(
       bell,
     ),
     "derived beside kept, once, newest first, the seen moment the server's",

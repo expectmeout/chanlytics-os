@@ -16,6 +16,7 @@
  * Pure. The dashboard's calendar, the person's profile, both receptionists
  * and the tests share it, so an appointment is the same person everywhere.
  */
+import { isIdentifierName } from "../conversations/thread-contact";
 import { dayInZone, dayPlusInZone } from "./zone-math";
 import type { FeedItem } from "./feed";
 import { appointmentKeyOf, recordIdOf } from "./appointment-key";
@@ -44,10 +45,37 @@ export interface PersonLike {
   thread?: string | null;
   /** When they last wrote on WhatsApp, for the reply window. */
   waInboundAt?: string | null;
+  /**
+   * What a reply to them is judged by, as their People row says it (people/person-row.ts replyChannelOfRow, isEmailStopped,
+   * isOptedOutContact): the wire a reply goes out on, whether mail to their address has stopped, whether they asked to
+   * stop or are on do-not-contact. The board's block asks the booking link's rule (people/person-reach.ts) of these.
+   */
+  reach?: { wire: "whatsapp" | "sms" | "email" | null; emailStopped: boolean; optedOut: boolean };
 }
 
 /** How a match was made, surest first: a number and an address are exact, a name is a guess. */
 export type MatchVia = "phone" | "email" | "name";
+
+/**
+ * How a match is said, once, wherever a visit names who it is for (the Calendar's panel, the person's History, Coming up
+ * and Next visit, D1-visit-match-words): "matched by phone". It was worded four ways ("matched by name", "by name",
+ * "matched by phone"). A name is the one match that is a guess, which the narrow places say alone (`isGuess`).
+ */
+const MATCH_WORDS: Record<MatchVia, string> = {
+  phone: "matched by phone",
+  email: "matched by email",
+  name: "matched by name",
+};
+
+/** The words for a match, or null where the visit says none (a visit rebuilt from an older read has no route). */
+export function matchWordsOf(via: MatchVia | null | undefined): string | null {
+  return via ? MATCH_WORDS[via] : null;
+}
+
+/** Whether a match is a guess: a name only, where a number and an address are the person (matchPerson). */
+export function isGuess(via: MatchVia | null | undefined): boolean {
+  return via === "name";
+}
 
 export interface PersonMatch {
   id: string;
@@ -56,11 +84,20 @@ export interface PersonMatch {
   /** Present only when the person has a thread: its conversation id, and their last WhatsApp message for the reply window. */
   thread?: string | null;
   wa_inbound_at?: string | null;
+  /** Present only when the person's row said it (PersonLike.reach): the wire a reply goes out on, and the two stops. */
+  reply_wire?: "whatsapp" | "sms" | "email" | null;
+  email_stopped?: boolean;
+  opted_out?: boolean;
 }
 
 /** The thread facts a match carries, when the person has one; nothing otherwise, so a match without a thread is unchanged. */
 function threadOf(p: PersonLike): Pick<PersonMatch, "thread" | "wa_inbound_at"> {
   return p.thread ? { thread: p.thread, wa_inbound_at: p.waInboundAt ?? null } : {};
+}
+
+/** The reach facts a match carries when the row said them, whether or not there is a thread: a stop is a stop. */
+export function replyFactsOf(p: PersonLike): Pick<PersonMatch, "reply_wire" | "email_stopped" | "opted_out"> {
+  return p.reach ? { reply_wire: p.reach.wire, email_stopped: p.reach.emailStopped, opted_out: p.reach.optedOut } : {};
 }
 
 const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
@@ -208,10 +245,10 @@ export function extractContacts(
 
 export const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-/** A whole-name matcher: four letters or more, on word edges ("Dani" is not in "Daniela"); null for a name that is none, or only a phone made words. */
+/** A whole-name matcher: four letters or more, on word edges ("Dani" is not in "Daniela"); null for a name that is none, or only a number or an address made words (isIdentifierName). */
 function nameMatcher(name: string): RegExp | null {
   const n = name.trim();
-  if (n.length < 4 || /^[+\d(]/.test(n)) return null;
+  if (n.length < 4 || isIdentifierName(n)) return null;
   return new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRe(n)}(?=$|[^\\p{L}\\p{N}])`, "iu");
 }
 
@@ -248,7 +285,7 @@ export function matchPerson(
     for (const p of people) if (p.phone) byPhone.set(p.phone, p);
     for (const ph of c.phones) {
       const p = byPhone.get(ph);
-      if (p) return { id: p.id, name: labelOf(p), via: "phone", ...threadOf(p) };
+      if (p) return { id: p.id, name: labelOf(p), via: "phone", ...threadOf(p), ...replyFactsOf(p) };
     }
   }
   if (c.emails.length) {
@@ -259,11 +296,11 @@ export function matchPerson(
     for (const p of people) if (p.email) byEmail.set(p.email.toLowerCase(), p);
     for (const em of c.emails) {
       const p = byEmail.get(em);
-      if (p) return { id: p.id, name: labelOf(p), via: "email", ...threadOf(p) };
+      if (p) return { id: p.id, name: labelOf(p), via: "email", ...threadOf(p), ...replyFactsOf(p) };
     }
   }
   const p = personInText([item.title, ...c.names, item.description ?? ""].join("\n"), people);
-  return p ? { id: p.id, name: labelOf(p), via: "name", ...threadOf(p) } : null;
+  return p ? { id: p.id, name: labelOf(p), via: "name", ...threadOf(p), ...replyFactsOf(p) } : null;
 }
 
 /* ---------------------------------------------------------------- visits */
@@ -280,6 +317,8 @@ export interface Visit {
   via: MatchVia;
   /** What a member said became of it (FeedItem.said): kept or missed. Absent while it stands. */
   said?: "kept" | "missed";
+  /** The id of the record's row for it (FeedItem.recordId): what the Calendar opens the visit by. Absent for an event the sync has not kept. */
+  recordId?: string;
 }
 
 export interface Visits {
@@ -337,6 +376,7 @@ const visitOf = (it: FeedItem, via: MatchVia): Visit => ({
   allDay: it.allDay,
   via,
   ...(it.said ? { said: it.said } : {}),
+  ...(it.recordId ? { recordId: it.recordId } : {}),
 });
 
 /** Every appointment of one person against an indexed feed, oldest first: their number first, their address second, their whole name third. */
@@ -524,6 +564,8 @@ export interface VisitDto {
   key?: string;
   /** What a member said became of it (decision 0002 step 8): kept or missed. Absent while it stands, and on an older read. */
   said?: "kept" | "missed";
+  /** The id of the record's row for it (Visit.recordId): the visit's own address on the Calendar. Absent for an event the sync has not kept, and on an older read. */
+  record_id?: string;
 }
 
 /** A person's appointments as their profile reads them. */
@@ -552,6 +594,7 @@ export function toVisitDto(v: Visit | null): VisitDto | null {
         via: v.via,
         ...(v.key ? { key: v.key } : {}),
         ...(v.said ? { said: v.said } : {}),
+        ...(v.recordId ? { record_id: v.recordId } : {}),
       }
     : null;
 }

@@ -11,7 +11,14 @@
  * notice earns the quiet.
  */
 import { notify, type NotifyTarget, type NotifyMessage } from "../ops/notify.js";
-import { formatPhoneDisplay, MIN_MS } from "../packages/contracts.js";
+import {
+  HOLD_ACT_WORDS,
+  formatPhoneDisplay,
+  holdActOf,
+  MIN_MS,
+  reasonShort,
+  type EscalationReason,
+} from "../packages/contracts.js";
 
 /**
  * The text channels a thread can arrive on. Declared here rather than
@@ -20,30 +27,47 @@ import { formatPhoneDisplay, MIN_MS } from "../packages/contracts.js";
  */
 type InboundChannel = "whatsapp" | "sms";
 
-/** The reasons the handler names, in the owner's words. Anything else is said as it came. */
-const REASON_WORDS: Record<string, string> = {
-  "passed to a human": "asked for a person",
-  "assistant flagged handoff": "the receptionist asked for a person",
-  "assistant flagged handoff (reply held for review)": "a reply is waiting for your review",
-  "non-text message": "sent a photo or a voice note",
-  "opt-out": "asked to stop",
-  "state unavailable": "the receptionist could not read the thread",
-  "late message": "arrived too late to answer automatically",
-  "rate cap": "the receptionist reached its daily limit",
-  budget: "the day's model budget is used up",
-  wa_send_failed: "the reply failed to send",
-  carriers: "texted before the carriers approved the line",
-  "no model": "the receptionist has no model to answer with",
-  // The handler passes these four too, and each used to reach the subject line
-  // as its raw internal token: "Jane Smith needs a person — location". The map
-  // is the one place these are translated, so it has to hold every reason its
-  // callers name.
-  location: "shared a location",
-  contacts: "sent a contact card",
-  paused: "the workspace is paused",
-  "message not recorded": "their message could not be recorded",
-  "opt-in not confirmed": "the confirmation of their yes could not be sent",
-};
+/**
+ * What the handler calls a hold it tells itself, where that is a reason a hold can carry (contracts ESCALATION_REASONS): the
+ * owner reads it in the Inbox's own words for the reason (reasonShort), and the act it asks for (HOLD_ACT_WORDS), as the
+ * notice read from the hold's rows says it (contracts holdNotice). A reason has one vocabulary (decision 0048): this map used
+ * to be a third set of words for the same closed set ("arrived too late to answer automatically" where the Inbox said "arrived
+ * hours late").
+ */
+const REASON_OF: ReadonlyMap<string, EscalationReason> = new Map<string, EscalationReason>([
+  ["passed to a human", "human_token"],
+  ["non-text message", "non_text"],
+  ["opt-out", "opt_out"],
+  ["state unavailable", "state_unavailable"],
+  ["late message", "stale"],
+  ["rate cap", "rate_cap"],
+  ["budget", "budget"],
+  ["wa_send_failed", "send_failed"],
+  ["carriers", "carriers"],
+  ["paused", "paused"],
+]);
+
+/**
+ * What the handler names that is no reason a hold carries, in the owner's words. Anything else is said as it came. The handler
+ * passes `location` and `contacts` too (a pin, a contact card: kinds of the hold `non_text`, said more exactly), and each
+ * used to reach the subject line as its raw internal token: "Jane Smith needs a person — location". This map and REASON_OF
+ * are the one place these are translated, so together they hold every reason its callers name.
+ */
+const OWN_WORDS: ReadonlyMap<string, string> = new Map([
+  ["assistant flagged handoff", "the receptionist asked for a person"],
+  ["assistant flagged handoff (reply held for review)", "a reply is waiting for your review"],
+  ["no model", "the receptionist has no model to answer with"],
+  ["location", "shared a location"],
+  ["contacts", "sent a contact card"],
+  ["message not recorded", "their message could not be recorded"],
+  ["opt-in not confirmed", "the confirmation of their yes could not be sent"],
+]);
+
+/** Why a thread needs a person, as the owner reads it: the Inbox's clause for a reason, else the handler's own words, else as it came. */
+function whyOf(reason: string): string {
+  const held = REASON_OF.get(reason);
+  return held ? reasonShort(held) : (OWN_WORDS.get(reason) ?? reason);
+}
 
 /**
  * Everything about the handoff other than the words: who is told, on which
@@ -114,7 +138,9 @@ export function handoffMessage({
   reason: string;
 } & Omit<HandoffContext, "target">): NotifyMessage {
   const name = ctx.who?.trim() || formatPhoneDisplay(`+${threadId}`) || `+${threadId}`;
-  const why = REASON_WORDS[reason] ?? reason;
+  const why = whyOf(reason);
+  // What to do, by the reason's act (a reply to write, a call to return, nothing that may be sent); the pause rides after it.
+  const act = HOLD_ACT_WORDS[holdActOf(REASON_OF.get(reason))].notice;
   // The owner of a workspace with both wires connected opens the thread this
   // names. Saying "WhatsApp" for a text sends them to an app the conversation
   // is not in.
@@ -129,8 +155,8 @@ export function handoffMessage({
       `${botText}\n\n` +
       `${where} · +${threadId}\n` +
       (ctx.pausedHours
-        ? `Reply from the Inbox — the receptionist is paused on this thread for ${ctx.pausedHours}h.`
-        : `Reply from the Inbox.`),
+        ? `${act.replace(/\.$/, "")} — the receptionist is paused on this thread for ${ctx.pausedHours}h.`
+        : act),
     redactedBody: `A ${where} conversation needed a person (${why}), and nobody could be told.`,
   };
 }

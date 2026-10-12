@@ -2,7 +2,8 @@
  * The live feed is the workspace's own topic (decision 0019). The database tells each workspace what changed on
  * `workspace:<id>:changes` (00265), and the wrapper in packages/db joins that topic privately, after pushing the
  * session's token, for the workspace the tab shows: a member of two workspaces neither hears nor repaints on the other
- * one's changes. A notice names a table and an event, and a call's statuses; the runner hears each as a change.
+ * one's changes. A notice names a table and an event, a call's statuses and the clock it was told by (00408); the
+ * runner hears each as a change.
  *
  * The fake client behaves as realtime-js 2.116.0 does where the wrapper depends on it: `channel(topic)` hands back the
  * channel it already has for a topic, a channel joins once (a second `subscribe` does nothing), and a removed channel
@@ -117,6 +118,29 @@ test("a notice reaches the runner as its table, its event and a row of the works
     { row: { tenant_id: "ws-1" }, table: "segment_members", event: "DELETE" },
     { row: { tenant_id: "ws-1", status: "ended" }, table: "calls", event: "UPDATE" },
     { row: { tenant_id: "ws-1", status: "ongoing" }, table: "calls", event: "UPDATE" },
+  ]);
+});
+
+test("a notice's clock reaches the runner with each change it is, and a notice with none, or not text, hands none (00408)", async () => {
+  const { client, made } = fakeClient();
+  const seen = [];
+  subscribeWorkspaceChanges(client, (row, table, event, at) => seen.push({ row, table, event, at }), {
+    tenantId: "ws-1",
+    onStatus: () => {},
+  });
+  await tick();
+  const [channel] = made;
+  const at = "2026-10-11T18:30:00.123Z";
+  channel.broadcast("UPDATE", { table: "contacts", op: "UPDATE", at, id: "n1" });
+  channel.broadcast("UPDATE", { table: "calls", op: "UPDATE", statuses: ["ended", "ongoing"], at, id: "n2" });
+  channel.broadcast("INSERT", { table: "messages", op: "INSERT", id: "n3" });
+  channel.broadcast("UPDATE", { table: "tenants", op: "UPDATE", at: 1760207400000, id: "n4" });
+  assert.deepEqual(seen, [
+    { row: { tenant_id: "ws-1" }, table: "contacts", event: "UPDATE", at },
+    { row: { tenant_id: "ws-1", status: "ended" }, table: "calls", event: "UPDATE", at },
+    { row: { tenant_id: "ws-1", status: "ongoing" }, table: "calls", event: "UPDATE", at },
+    { row: { tenant_id: "ws-1" }, table: "messages", event: "INSERT", at: undefined },
+    { row: { tenant_id: "ws-1" }, table: "tenants", event: "UPDATE", at: undefined },
   ]);
 });
 

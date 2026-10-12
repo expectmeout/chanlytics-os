@@ -17,11 +17,19 @@
  */
 
 import { sealSurfaceCache } from "./surface-cache";
+import { declareReads } from "./surface-registry";
 import { ApiError } from "../client/api";
-import { read } from "./api";
+import { api, read } from "./api";
+import { acceptedInTime, acceptInvitations } from "./invitations/accept";
 import { addressInWorkspace, getActiveWorkspace, rememberWorkspace, workspaceHref } from "./workspace";
-import type { RealtimeChange } from "./surface-realtime";
-import { MIN_MS, type MembershipRole, type MessageStatus, type PendingWorkspace } from "@chanlytics/contracts";
+import type { Freshness, OmittedTables, RealtimeChange } from "./surface-realtime";
+import {
+  MIN_MS,
+  type MembershipRole,
+  type MessageStatus,
+  type PendingWorkspace,
+  type RecordKind,
+} from "@chanlytics/contracts";
 import { peopleLoaded, publishPeople } from "@/surfaces/people/surface";
 import type { SurfaceKey } from "../surfaces/surface-values";
 export { getActiveWorkspace } from "./workspace";
@@ -47,17 +55,43 @@ export interface SurfaceOverride {
   apply: () => Promise<void>;
   /** Mockup events to dispatch after apply so mounted components re-render. */
   events?: string[];
+  /**
+   * The kinds of record it draws (contracts RECORD_KINDS), said once beside how fresh it must stay (`fresh`): both come from
+   * `declareReads` (surface-registry.ts), which an override spreads, and which derives `refreshOnTables` and `refreshWhen`
+   * from them (decision 0047). A surface that draws nothing a workspace's records tell of says `[]`.
+   */
+  reads: readonly RecordKind[];
+  fresh: Freshness;
+  /** The tables of those kinds it leaves unheard on purpose, with the reason (declareReads' `omit`). */
+  omit?: OmittedTables;
   /** Re-apply when a realtime message INSERT arrives (the runner owns the one shared subscription). */
   refreshOnMessageInserts?: boolean;
-  /** Re-apply on events from THESE tables instead — an explicit list wins
-   *  over the flag (see surface-realtime.ts). */
+  /**
+   * Re-apply on events from THESE tables instead — an explicit list wins over the flag (see surface-realtime.ts). Derived
+   * from `reads` and `fresh` by `declareReads`; an override never writes it.
+   */
   refreshOnTables?: string[];
-  /** A finer rule per event on top of the table list — see surface-realtime. */
+  /**
+   * A finer rule per event on top of the table list — see surface-realtime. Derived by `declareReads` from the surface's
+   * `when` and, for a surface heard on its page alone, the page rule.
+   */
   refreshWhen?: (change: RealtimeChange) => boolean;
   /** The statuses a message's UPDATE re-applies this surface for; none when absent — see surface-realtime. */
   refreshOnMessageStatuses?: readonly MessageStatus[];
   /** Debounce for realtime-triggered re-applies (default 400ms). */
   debounceMs?: number;
+  /**
+   * The longest a burst of realtime changes is waited out, from the first: the runner reads three seconds after the first change at
+   * the latest (surface-runner.ts), so a surface that asks for more than that in `debounceMs` says here how much it may have. A
+   * read that is dear and moves by one in a hundred for a message (Today's headline) names fifteen seconds of quiet and thirty at most.
+   */
+  maxWaitMs?: number;
+  /**
+   * Read again when the business's day turns, by the workspace's zone, in a visible tab (a hidden one reads as it is shown): for
+   * a surface that counts "the day so far", which nothing else moves at midnight (`watchTheDayTurn`, surface-runner.ts). An `onDemand` one is read where
+   * its page is on screen and kept for its page elsewhere, as a return to the tab does.
+   */
+  readAtMidnight?: boolean;
   /**
    * Which view of the surface a read is of, for a surface whose view the page picks through the seam (Reports'
    * period, the Calendar's days): reads of one view take their turn (activateOverride), and a read of another view
@@ -76,8 +110,9 @@ export interface SurfaceOverride {
   isStale?: () => boolean;
 }
 
-/** How old a held read of an `onDemand` surface may be before its page, coming on screen, reads it again. */
-const ON_DEMAND_STALE_MS = 5 * MIN_MS;
+/** How many minutes old a held read of an `onDemand` surface may be before its page, coming on screen, reads it again. */
+export const ON_DEMAND_STALE_MIN = 5;
+const ON_DEMAND_STALE_MS = ON_DEMAND_STALE_MIN * MIN_MS;
 
 /**
  * Whether a read made at `at` has aged, or was never made (`at` undefined): the one measure Google's read (google.ts), the Reviews
@@ -95,6 +130,16 @@ interface Reading {
 const reading = new Map<string, Reading>();
 
 /**
+ * What a read is a read of: the surface, and for one whose view the page picks through the seam, the view shown now. A surface
+ * whose view the page picks queues each view's reads apart: a pick never waits behind a read of the view it left, whose answer
+ * the surface drops itself. The runner remembers what it has read by the same name (surface-runner.ts), so a read of the view
+ * left is no read of the view shown.
+ */
+export function readSlot(o: Pick<SurfaceOverride, "key" | "view">): string {
+  return o.view ? `${o.key}|${o.view()}` : o.key;
+}
+
+/**
  * Read a surface and publish what it answered: one read at a time for each surface, so the newest read is the one
  * that lands last.
  *
@@ -105,9 +150,7 @@ const reading = new Map<string, Reading>();
  * asks meanwhile shares it: each caller is answered by a read that started after it asked.
  */
 export function activateOverride(o: SurfaceOverride): Promise<boolean> {
-  // A surface whose view the page picks through the seam queues each view's reads apart: a pick never waits behind a
-  // read of the view it left, whose answer the surface drops itself.
-  const slot = o.view ? `${o.key}|${o.view()}` : o.key;
+  const slot = readSlot(o);
   const out = reading.get(slot);
   if (!out) return startReading(o, slot);
   out.next ??= out.landed.then(() => startReading(o, slot));
@@ -169,10 +212,26 @@ export interface Me {
   partner?: { code: string; status: string } | null;
 }
 
+/** Whether the list has been read again for the seat the boot's accept made (invitations/accept.ts): once, not at every read after it. */
+let seatedRead = false;
+
 export const workspaceOverride: SurfaceOverride & { current: () => Workspace | null } = {
   key: "workspace",
   globals: ["__WORKSPACES", "__ME", "__ACTIVE_WORKSPACE", "__PENDING_WORKSPACE", "__SIGNUP_POSTURE"],
   events: ["surface:workspace"], // the sidebar, the arrival line and the bell listen for the list read again
+  // The seats and the workspaces' own status (0047): a seat taken, changed or left (the role this person acts under, the
+  // switcher's list, and the end of their own seat in the workspace on screen) and the workspace paused or resumed (the
+  // shell's band). A few a month, so heard wherever the tab is.
+  ...declareReads("workspace", {
+    reads: ["team", "workspace"],
+    fresh: "live",
+    omit: [
+      {
+        tables: ["invitations"],
+        why: "an invitation sent or revoked is the Team pane's (Settings); the switcher follows the seat it becomes, which is heard",
+      },
+    ],
+  }),
   // The workspace actually being VIEWED, as resolved by the server — not `[0]`, which was whichever tenant happened
   // to sort first and could differ from the one the data below it came from.
   current: () => {
@@ -180,7 +239,20 @@ export const workspaceOverride: SurfaceOverride & { current: () => Workspace | n
     return w.__WORKSPACES?.find((t) => t.id === w.__ACTIVE_WORKSPACE) ?? null;
   },
   apply: async () => {
-    const data = await read("GET workspaces");
+    // The invitations this sign-in completes are one POST (invitations/accept.ts), asked as the list is, not by it (a read never
+    // writes: decision 0047, lane 6). It costs the boot nothing when the list is whole: only a list that holds no workspace,
+    // or none the address names, waits for it, since that is the list an invitation is about to change, and is read again
+    // when it seated someone. A seat made beside a whole list reaches the switcher through the live feed (memberships).
+    void acceptInvitations();
+    let data = await read("GET workspaces");
+    const named = getActiveWorkspace();
+    const holdsIt = !named || data.workspaces.some((t) => t.slug === named || t.id === named);
+    if (!seatedRead && (!data.workspaces.length || !holdsIt) && (await acceptedInTime()).length) {
+      // The seat is made, so what the tab shares or the head started is the list from before it. Read once for it.
+      seatedRead = true;
+      api().forget();
+      data = await read("GET workspaces");
+    }
     const w = window as unknown as {
       __WORKSPACES?: Workspace[];
       __ME?: Me;
@@ -188,6 +260,18 @@ export const workspaceOverride: SurfaceOverride & { current: () => Workspace | n
       __PENDING_WORKSPACE?: PendingWorkspace | null;
       __SIGNUP_POSTURE?: "open" | "waitlist" | "invite";
     };
+    // The workspace on screen was this person's and is not any more (their seat was removed, in another tab or by a
+    // teammate): the tab leaves it for one of their others, else the front door, which shows them none. Said only of a list
+    // that held it: the first read of a tab has no list, and its address is corrected below. Sealed, as every leaving is: a
+    // read landing before the page unloads is of the workspace being left (surface-cache.ts).
+    const viewing = w.__ACTIVE_WORKSPACE;
+    if (viewing && w.__WORKSPACES?.some((t) => t.id === viewing) && !data.workspaces.some((t) => t.id === viewing)) {
+      const next = data.workspaces.find((t) => t.id === data.activeWorkspaceId) ?? data.workspaces[0];
+      sealSurfaceCache();
+      rememberWorkspace(next?.slug ?? null);
+      window.location.replace(next ? workspaceHref(next.slug) : "/");
+      return;
+    }
     w.__WORKSPACES = data.workspaces;
     w.__PENDING_WORKSPACE = "pending" in data ? (data.pending ?? null) : null;
     // The door a first workspace meets (the invite code, or the list), from the

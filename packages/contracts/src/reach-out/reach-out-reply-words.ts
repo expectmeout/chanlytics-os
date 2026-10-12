@@ -4,7 +4,14 @@
  * refusals are the words its door says (00222 reach_out_reply_undo), named here once so the page and the route agree.
  */
 import { clockDate, wallClockAt } from "../shared/clock";
-import { REPLY_INTENT_WORDS, REPLY_REREADS, type ReplyClaim, type ReplyIntent, type Unread } from "./reach-out-replies";
+import {
+  REPLY_CHIP_WORDS,
+  REPLY_INTENT_WORDS,
+  REPLY_REREADS,
+  type ReplyClaim,
+  type ReplyIntent,
+  type Unread,
+} from "./reach-out-replies";
 import type { DraftWhy } from "./reach-out-reply-draft";
 
 /** The most readings one page is told, and how far back it looks (the reading's own window, REACH_OUT_REPLY_DAYS). */
@@ -180,19 +187,17 @@ export function replyStripOf(r: ReachOutReplyDto, now: number, tz: string): Repl
   };
 }
 
-const CHIPS: Record<ReplyIntent, string> = {
-  interested: "Interested",
-  question: "Question",
-  not_now: "Not now",
-  no: "Said no",
-  wrong_person: "Wrong person",
-  away: "Away",
-  other: "Wrote back",
-};
+/**
+ * The state the Inbox's chip is in -- the pill kind `reply`'s value (shell/tone.ts): what the reply was read as, or "other"
+ * ("Wrote back") when it was not, or the reading was undone.
+ */
+export function replyChipStateOf(r: Pick<ReachOutReplyDto, "intent" | "unread" | "undone">): ReplyIntent {
+  return r.unread || r.undone ? "other" : r.intent;
+}
 
 /** The chip on the Inbox's row: what the reply was read as, or "Wrote back" when it was not, or was undone. */
 export function replyChipOf(r: Pick<ReachOutReplyDto, "intent" | "unread" | "undone">): string {
-  return r.unread || r.undone ? CHIPS.other : CHIPS[r.intent];
+  return REPLY_CHIP_WORDS[replyChipStateOf(r)];
 }
 
 /**

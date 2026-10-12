@@ -71,13 +71,22 @@ async function refused(p, code, status, words) {
 /** Every row the code under test wrote, changed or removed. */
 const writes = (ctx) => ctx.supabase.seen.filter((s) => ["insert", "update", "delete", "upsert"].includes(s.op)).length;
 const state = (t, u, exp = Date.now() + STATE_TTL_MS) => signState(SECRET, { t, u, n: newNonce(), exp });
-/** Where the browser lands: Integrations, with one word the card reads once. */
-async function lands(p) {
+/**
+ * Where the browser lands: Connections, with one word the card reads once. On the workspace's own address once the state has
+ * proved whose workspace it was (`workspace`, the slug), else on the front door with the route as a hash (wiring task 1.7).
+ */
+async function lands(p, workspace = null) {
   const res = await p;
   assert.equal(res.status, 302);
-  const to = res.headers.get("location");
-  assert.ok(to.endsWith("#/admin/integrations"), to);
-  return new URL(to).searchParams;
+  const to = new URL(res.headers.get("location"));
+  if (workspace) {
+    assert.equal(to.pathname, `/w/${workspace}/settings/integrations`, to.href);
+    assert.equal(to.hash, "", "the route is the path's, not a hash for the home to carry");
+  } else {
+    assert.equal(to.pathname, "/", to.href);
+    assert.equal(to.hash, "#/admin/integrations", to.href);
+  }
+  return to.searchParams;
 }
 
 test("the eleven declare their policy: the way there the owner's or the partner's (0012), the way back its own door as a read of the account, the listing and the account the owner's or the partner's, a refresh, a draft and a reply an operator's", () => {
@@ -118,23 +127,26 @@ test("the way back: nothing is trusted until the state proves itself, then the p
     "the person who started it",
   );
   assert.equal(
-    (await lands(callback.GET.run(get(`?state=${await state(A, USER)}&code=abc`), ctxFor(tables)))).get("why"),
+    (await lands(callback.GET.run(get(`?state=${await state(A, USER)}&code=abc`), ctxFor(tables)), "harbor")).get(
+      "why",
+    ),
     "not_owner",
-    "an operator in harbor cannot finish what only an owner may start",
+    "an operator in harbor cannot finish what only an owner may start: and is told on harbor's own page",
   );
   assert.equal(
     (await lands(callback.GET.run(get(`?state=${await state(C, USER)}&code=abc`), ctxFor(tables)))).get("why"),
     "no_workspace",
   );
   assert.equal(
-    (await lands(callback.GET.run(get(`?state=${await state(B, USER)}`), ctxFor(tables)))).get("why"),
+    (await lands(callback.GET.run(get(`?state=${await state(B, USER)}`), ctxFor(tables)), "bayside")).get("why"),
     "no_code",
+    "said inside the workspace the state named, which is bayside and not the older membership (harbor)",
   );
   const edge = ctxFor(tables);
   assert.equal(
-    (await lands(callback.GET.run(get(`?state=${await state(B, USER)}&code=abc`), edge))).get("why"),
+    (await lands(callback.GET.run(get(`?state=${await state(B, USER)}&code=abc`), edge), "bayside")).get("why"),
     "no_edge_credential",
-    "proved and the owner's: then the edge, which this machine has no credential for",
+    "proved and the owner's: then the edge, which this machine has no credential for; back on bayside's own page",
   );
   assert.equal(writes(edge), 0);
 });

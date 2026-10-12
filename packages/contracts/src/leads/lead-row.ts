@@ -11,6 +11,7 @@ import { isLeadList } from "./lead-import";
 import type { LEAD_CLOSED_REASONS, LeadEmailState } from "./search/sets";
 import { siteHost } from "./search/clean";
 import {
+  LEAD_CLASS_WORDS,
   LEAD_CLOSED_WORDS,
   LEAD_EMAIL_WORDS,
   LEAD_FIT_WORDS,
@@ -25,6 +26,7 @@ import {
 } from "./lead-words";
 import { agoShort, agoWords } from "../shared/time";
 import { publicObjectSrc } from "../shared/link";
+import { reviewsPhrase } from "../shared/words";
 import { initialsOf } from "../conversations/thread-contact";
 
 /* ------------------------------------------------ what the page is given -- */
@@ -64,17 +66,18 @@ export interface LeadBand {
   mixed: boolean;
 }
 
+/** The band's tabs, in the order the search's shape reads: what met the plan, what needs a person, what was left out. */
+const LEAD_BAND_ORDER = ["qualified", "review", "excluded"] as const satisfies readonly LeadClass[];
+
 export function leadBand(search: LeadSearchDto | null): LeadBand | null {
   const r = search?.round;
   if (!r) return null;
   const f = r.fits ?? { strong: 0, look: 0, long: 0 };
   const fits = (["strong", "look", "long"] as const).map((id) => ({ id, label: LEAD_FIT_WORDS[id], count: f[id] }));
   return {
-    classes: [
-      { id: "qualified", label: `${r.qualified} qualified`, count: r.qualified },
-      { id: "review", label: `${r.review} need${r.review === 1 ? "s" : ""} a look`, count: r.review },
-      { id: "excluded", label: `${r.excluded} left out`, count: r.excluded },
-    ],
+    // The tabs say the pills' words (LEAD_CLASS_WORDS: Qualified, Needs review, Left out) with the count in front, and the
+    // page draws them in the pills' tones (stateOf("lead_class")): a tab and a pill for one state read one map.
+    classes: LEAD_BAND_ORDER.map((id) => ({ id, label: `${r[id]} ${LEAD_CLASS_WORDS[id]}`, count: r[id] })),
     fits,
     mixed: fits.filter((x) => x.count > 0).length > 1,
   };
@@ -131,8 +134,8 @@ export interface LeadRowVM {
   sub: string;
   /** The two reach slots, phone then mailbox. */
   slots: { phone: LeadSlot; mailbox: LeadSlot };
-  /** "4.7" and "1,284", apart, or null where the source does not rate. */
-  rated: { score: string; count: string } | null;
+  /** "4.7" and "1,284", apart, and the count with its noun ("1 review", "1,284 reviews"), or null where the source does not rate. */
+  rated: { score: string; count: string; reviews: string } | null;
   /** The spread of reviews, one to five stars, or null when the listing did not say. */
   spread: [number, number, number, number, number] | null;
   /** The tile: the business's own mark, else the listing's photo, else initials on a tint the kind decides. */
@@ -188,6 +191,16 @@ export function leadMarkSrc(supabaseUrl: string | null | undefined, path: string
 }
 
 /**
+ * A rated lead's rating as the row, the peek and Ask say it: "4.7" and "1,284" apart, and the count with its noun ("1 review",
+ * "1,284 reviews"); null where the source does not rate.
+ */
+export function leadRatingOf(r: Pick<LeadRowDto, "rating" | "reviews">): LeadRowVM["rated"] {
+  if (r.rating === null || r.rating === undefined) return null;
+  const n = r.reviews ?? 0;
+  return { score: r.rating.toFixed(1), count: n.toLocaleString("en-US"), reviews: reviewsPhrase(n) };
+}
+
+/**
  * One row's words and shapes (§6.2). Nothing here is a stored value. The search is the row's own (D5): a review
  * row names what it waits on in the queue's words, and the name card names the term it was found for.
  */
@@ -197,6 +210,7 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
   const m = r.member;
   const excludedBy = m.excluded_by ? keyInWords(m.excluded_by) : null;
   const rating = ratingLabel(r.rating, r.reviews);
+  const rated = leadRatingOf(r);
   // Qualified wears its fit band; Needs review wears the judge's reason, which
   // is what it is waiting on; Excluded wears the criterion that left it out.
   const fitLabel =
@@ -210,18 +224,14 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
   const fitTitle =
     m.class === "excluded"
       ? `Left out: ${excludedBy ?? m.reason}`
-      : m.class === "qualified" && rating
-        ? `${m.reason} · ${rating.replace(" · ", " from ")} reviews`
+      : m.class === "qualified" && rated
+        ? `${m.reason} · ${rated.score} from ${rated.reviews}`
         : m.reason;
   const area = [r.postal_code ?? "", [r.city, r.state].filter(Boolean).join(", ")].filter(Boolean).join(" · ");
   // D5: the row as the redesign reads it -- one line about where, two reach slots, the tile, its state, the card.
   const sub = [r.category, r.neighborhood ?? null, r.postal_code ?? null, milesLabel(m.distance_m) || null]
     .filter((x): x is string => !!x)
     .join(" · ");
-  const rated =
-    r.rating === null || r.rating === undefined
-      ? null
-      : { score: r.rating.toFixed(1), count: (r.reviews ?? 0).toLocaleString("en-US") };
   const spread: LeadRowVM["spread"] = r.reviews_dist
     ? [r.reviews_dist.one, r.reviews_dist.two, r.reviews_dist.three, r.reviews_dist.four, r.reviews_dist.five]
     : null;

@@ -619,6 +619,7 @@ apps/dashboard/src/server/
   workspace/
 apps/dashboard/src/legacy-bridge/
   ask/
+  invitations/
   mascot/
   reach-out/
   surfaces/
@@ -661,6 +662,7 @@ packages/contracts/src/
   mobile/
   new-conversation/
   notes/
+  notices/
   people/
   playbooks/
   reach-out/
@@ -671,6 +673,7 @@ packages/contracts/src/
   templates/
   today/
   voice/
+  waits/
   workspace/
 packages/core/src/
   appointments/

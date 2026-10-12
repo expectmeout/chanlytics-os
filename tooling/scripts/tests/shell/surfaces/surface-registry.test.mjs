@@ -154,6 +154,7 @@ test("the real set is exactly the converted surfaces", () => {
     .map(([k]) => k)
     .sort();
   assert.deepEqual(real, [
+    "admin",
     "admin/activity",
     "admin/autonomy",
     "admin/billing",
@@ -217,20 +218,41 @@ test("a sub-route is checked BEFORE its page", () => {
   // pane and shipping five invented ones.
   const { surfaceStateFor } = registry;
   assert.equal(surfaceStateFor("admin", "workspace"), "real");
-  assert.equal(surfaceStateFor("admin", "nonsense"), "demo", "an unlisted pane inherits its page");
+  assert.equal(
+    surfaceStateFor("admin", "nonsense"),
+    "real",
+    "an unlisted pane is Settings' too, and Settings opens it on Profile (A3c)",
+  );
   // No pane named resolves to the one the shell will actually render —
   // see the default-pane test below.
   assert.equal(surfaceStateFor("admin", null), "real");
 });
 
-test("an unclassified pane inherits DEMO, never real", () => {
-  // The fallback is what keeps this safe: a pane nobody has classified must not
-  // become visible because someone forgot a line.
-  // Every pane Settings draws is classified now (billing and memory as honest
-  // "not built" panes); a pane nobody has listed still inherits the page.
-  for (const pane of ["nonsense", "seats"]) {
-    assert.equal(registry.surfaceStateFor("admin", pane), "demo", pane);
+test("an address under Settings that nobody listed opens Profile, never the card that says Not in this release (A3c)", () => {
+  // The frame replaces a demo address with that card (routeGated), and the page `admin` was classified demo, so every
+  // pane nobody had listed inherited it: a typed or invented address (settings/hours) showed the card, where Settings' own
+  // rule (settings/frame/tabs.ts SET_TAB) opens Profile. Every pane Settings draws is classified, and the page is Settings:
+  // the pane that renders is real or is Profile, and the gate waits for the read that feeds it.
+  for (const pane of ["nonsense", "seats", "hours", "workspace/calendar"]) {
+    assert.equal(registry.surfaceStateFor("admin", pane), "real", pane);
   }
+  for (const pane of ["nonsense", "seats", "hours"])
+    assert.equal(registry.routeSurfaceFor("admin", pane), "settings", `${pane}: Profile is fed by the settings read`);
+});
+
+test("a moved address (admin/setup, kept 30 days on bell rows) is nothing for a frame: classified as the page it was in, waiting for nothing, and moved (A3c)", () => {
+  assert.equal(surfaceRetiredTo("admin", "setup"), "start");
+  assert.equal(
+    surfaceStateFor("admin", "setup"),
+    "real",
+    "not demo: the frame drew the Settings card for it until the effect that moves it had run",
+  );
+  assert.equal(
+    routeSurfaceFor("admin", "setup"),
+    undefined,
+    "there is nothing to wait for on an address that moves on",
+  );
+  assert.equal(routeSurfaceFor("admin", "workspace"), "settings", "the rest of Settings waits for its read as before");
 });
 
 test("every real sub-route names an existing page", () => {
@@ -290,8 +312,8 @@ test("REGRESSION: a page opens on the pane it actually renders", () => {
   // by normal navigation: only a hand-typed #/admin/workspace could find it.
   assert.equal(registry.surfaceStateFor("admin", null), "real");
   assert.equal(registry.surfaceStateFor("admin"), "real");
-  // A named pane still wins over the default.
-  assert.equal(registry.surfaceStateFor("admin", "nonsense"), "demo");
+  // A named pane still wins over the default, and an unlisted one is Settings' (Profile).
+  assert.equal(registry.surfaceStateFor("admin", "nonsense"), "real");
 });
 
 test("every default pane is one the registry classifies", () => {
@@ -325,8 +347,8 @@ test("REGRESSION: the route gate resolves the PANE, not just the page", () => {
   assert.equal(registry.routeSurfaceFor("admin"), "settings");
 });
 
-test("a seeded pane is not made to wait for a surface that does not feed it", () => {
-  assert.equal(registry.routeSurfaceFor("admin", "nonsense"), undefined);
+test("a pane nobody listed waits for the read that feeds the pane it opens, Profile", () => {
+  assert.equal(registry.routeSurfaceFor("admin", "nonsense"), "settings");
 });
 
 test("the Leads SCOPE of People waits for its own surface, not for People's", () => {

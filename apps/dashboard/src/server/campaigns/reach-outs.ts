@@ -433,7 +433,15 @@ export async function reachOutRunOf(
     // with a time it does not have.
     planned: c.planned.flatMap((s) =>
       s.send_at
-        ? [{ send_id: s.id, business_name: s.lead?.business_name ?? "", send_at: s.send_at, checked: !!s.checked_at }]
+        ? [
+            {
+              send_id: s.id,
+              lead_id: s.lead_id,
+              business_name: s.lead?.business_name ?? "",
+              send_at: s.send_at,
+              checked: !!s.checked_at,
+            },
+          ]
         : [],
     ),
     skipped: c.skipped,

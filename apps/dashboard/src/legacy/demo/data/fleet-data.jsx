@@ -235,3 +235,17 @@ const FL_STORE = {
   isPbPaused(pbId) { return !!this.playbooks[pbId]; },
 };
 window.FL_STORE = FL_STORE;
+
+// ---- Agent registry (FLEET_ROSTER is the source of truth) ----
+// The shell contract's helpers over the roster: constants.jsx (every workspace) names none of the demo's data, and a real
+// workspace has no roster to look an agent up in (the sidebar asks for agentIdFor only where it is there).
+Object.assign(window.CHANLY, {
+  agents() { return (window.FLEET_DATA && window.FLEET_DATA.FLEET_ROSTER) || []; },
+  agentById(id) { return this.agents().find((a) => a.id === id) || null; },
+  agentByName(name) { return this.agents().find((a) => a.name === name) || null; },
+  agentByGlyph(g) { return this.agents().find((a) => a.glyph === g) || null; },
+  agentIdFor(name) {
+    const a = this.agentByName(name);
+    return a ? a.id : String(name || "").toLowerCase().replace(/\s+/g, "-");
+  },
+});

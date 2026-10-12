@@ -198,19 +198,23 @@ test("Why it stopped is not a door: the Inbox takes no reason, so its rows are p
     null,
     "no list of the lens is a door",
   );
-  // The door to the Inbox is part five's "Waiting on you" (the next test), not a row here.
+  // The door to the Inbox is part five's "Needs you" (the next test), not a row here.
 });
 
-test("the stuck figures are doors: Waiting on you and Replies held back open the Inbox, Call-backs open Today", () => {
+test("the stuck figures are doors: Needs you and Replies held back open the Inbox, Call-backs open Today", () => {
   const tree = draw();
   const door = (metric) => find(figureOf(tree, metric), (n) => n.type === "a");
   const label = (metric) => find(tree, (n) => n.type === Figure && n.props.id === metric).props.label;
-  assert.equal(label("waiting_on_you"), "Waiting on you");
-  assert.equal(door("waiting_on_you").props.href, "#/inbox");
+  assert.equal(
+    label("waiting_on_you"),
+    "Needs you",
+    "the Inbox's word for a thread flagged that nobody has taken (it said Waiting on you)",
+  );
+  assert.equal(door("waiting_on_you").props.href, "/w/studio/inbox");
   assert.equal(label("call_backs"), "Call-backs");
-  assert.equal(door("call_backs").props.href, "#/today");
+  assert.equal(door("call_backs").props.href, "/w/studio/today");
   assert.equal(label("replies_held_back"), "Replies held back");
-  assert.equal(door("replies_held_back").props.href, "#/inbox");
+  assert.equal(door("replies_held_back").props.href, "/w/studio/inbox");
   press(door("waiting_on_you"));
   press(door("call_backs"));
   assert.deepEqual(navigated, ["inbox", "today"], "and a plain press goes there by the app's own way");
@@ -380,7 +384,7 @@ test("no hours: the closed figure says so and holds the door to set them; no pro
   assert.ok(closed, "the figure is there, asking");
   assert.equal(textOf(find(closed, (n) => classes(n).includes("figure-meta"))), "set your opening hours to see this");
   assert.equal(textOf(find(closed, (n) => classes(n).includes("figure-value"))), "—", "a dash, never a zero");
-  assert.equal(find(closed, (n) => n.type === "a").props.href, "#/admin/workspace", "the door to set them");
+  assert.equal(find(closed, (n) => n.type === "a").props.href, "/w/studio/settings/workspace", "the door to set them");
   assert.equal(classes(closed).includes("is-thin"), false);
 
   const unread = draw({ own: ownHeld(dtoWith({}, null)) });

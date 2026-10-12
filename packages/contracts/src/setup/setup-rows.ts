@@ -13,7 +13,14 @@ import { calendarSourceFacts, calendarSourceOf, type CalendarSourceState } from 
 import { agoWords } from "../shared/time";
 import { plural } from "../shared/words";
 import { bookingPageOffered, listingLine } from "../google/google";
-import { dayWords, trialWords, TRIAL_COVERS, billingDoorOpen, BILLING_TEST_MODE_CLAUSE } from "../workspace/billing";
+import {
+  dayWords,
+  trialWords,
+  TRIAL_COVERS,
+  billingDoorOpen,
+  BILLING_TEST_MODE_CLAUSE,
+  PAUSED_WORDS,
+} from "../workspace/billing";
 import { capabilityStatus } from "./capabilities";
 import { EMAIL_ELSEWHERE_SENTENCE, EMAIL_NOT_ANSWERED_SENTENCE } from "../email/mailbox";
 import { GET_YES_ROUTE, NO_NUMBER_REACH } from "../people/people-lists";
@@ -109,7 +116,7 @@ function billingRow(i: SetupInputs, ctx: SetupRowContext): SetupRowDraft | null 
       title: "Billing",
       state: "waiting_you",
       required: true,
-      sentence: "Your receptionist is paused: messages land in the Inbox, nothing is answered.",
+      sentence: `Your receptionist is paused. ${PAUSED_WORDS}`,
       details: [
         ...testMode,
         b.status === "paused" ? "The trial ended without a card on file" : "Payment could not be collected",

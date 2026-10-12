@@ -1,7 +1,8 @@
 /**
  * The calls a new conversation makes (a conversation begins from the Inbox): who matches a search, someone added, how
- * a person can be reached, Ask's draft, the approved messages, the send, and the note that follows it. A courier: every
- * rule is the server's, and what it refuses is said in its own words. The sheet makes no request of its own.
+ * a person can be reached, Ask's draft, the send, and the note that follows it. A courier: every rule is the server's, and
+ * what it refuses is said in its own words. The sheet makes no request of its own. (The approved messages are no call: they
+ * are the settings read's, the one read of the templates, state.ts useApproved.)
  *
  * It asks the routes themselves and imports none of People's pages: the sheet is loaded on demand from the Inbox's
  * three tabs, and a module of People's page pulled into it regroups the chunks four other pages load (measured on
@@ -16,8 +17,6 @@ import {
 } from "@chanlytics/contracts";
 import { api } from "@/legacy-bridge/api";
 import { workspaceZone } from "@/legacy-bridge/zone";
-import { surfaceValue } from "../../surface-values";
-import type { ApprovedTemplate } from "../types";
 
 /**
  * Who matches, from the server (GET contacts, which matches a name, a WhatsApp name or three digits of a number), read
@@ -105,14 +104,3 @@ export const keepNote = (id: string, body: string, teamOnly: boolean) =>
     refresh: "behind",
     once: true,
   });
-
-/**
- * The workspace's approved WhatsApp messages: the ones the Inbox already holds, else read now (Conversations and Live
- * draw the act without the Inbox's read). Null when they could not be read.
- */
-export async function approvedMessages(): Promise<ApprovedTemplate[] | null> {
-  const held = surfaceValue("inbox")?.templates;
-  if (Array.isArray(held)) return held;
-  const r = await api()("GET templates");
-  return r.ok ? (r.data.templates ?? []).filter((t) => t.channel === "whatsapp") : null;
-}

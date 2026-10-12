@@ -1,5 +1,5 @@
 import { Database, Json } from '@chanlytics/db';
-import { JobKind, JobNews, PushMessage, Unread } from '@chanlytics/contracts';
+import { JobKind, JobNews, FeedNames, PushMessage, Unread } from '@chanlytics/contracts';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { ReceivedEmail } from '@chanlytics/channels';
 import { Wire, EmailIngestPorts, ReplyNotice, ReplyReadPorts, BookingNoticePorts, IncomingEmail } from '@chanlytics/core';
@@ -409,6 +409,18 @@ interface JobContext {
         erasedBefore: (tenantId: string, address: string, receivedAtIso: string) => Promise<boolean>;
         /** Tell the workspace's people an email is waiting: the edge's notify, addressed from that workspace. Never throws. */
         tell: (tenantId: string, note: Parameters<EmailIngestPorts["tell"]>[1]) => Promise<void>;
+    };
+    /**
+     * The owner's calendar feed, as the edge reads it (kept five minutes). INJECTED like email's intake: the fetch, its cache
+     * and the workspace's feed address live on the edge. Optional so a test context need not supply one; a broadcast's
+     * reminders then go on the record alone.
+     */
+    calendar?: {
+        /**
+         * What the workspace's calendar feed names now, over the span it was read for; null where the workspace has no feed to
+         * ask. Throws when the feed cannot be read: a reminder for a calendar event waits for the next batch (core broadcast).
+         */
+        feedNames: (tenantId: string, now: Date) => Promise<FeedNames | null>;
     };
     /**
      * The lead finder's pipeline (00140), as the edge holds it. INJECTED like

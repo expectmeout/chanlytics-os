@@ -7,6 +7,7 @@ import type { SyntheticEvent } from "react";
 import { LEAD_WORDS as W } from "@chanlytics/contracts";
 import type { LeadPeekVM } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
+import { LinkButton } from "../../kit/link-button/link-button";
 import type { Deck } from "./types";
 
 /** A photo that fails hides itself, and what is under it shows. */
@@ -19,6 +20,8 @@ interface HeadProps {
   vm: LeadPeekVM;
   onClose: () => void;
   onExpand: () => void;
+  /** Opens the person a converted lead became: the name is their door where the lead has one. */
+  onOpenPerson?: (id: string) => void;
   deck?: Deck | null;
 }
 
@@ -136,11 +139,25 @@ function peekBand({ vm, onClose, onExpand, deck }: HeadProps) {
 }
 
 /** Who they are: the name, the sub-line with today's hours, what people say, their own words, and where they are. */
-function peekIdentity(vm: LeadPeekVM) {
+function peekIdentity(vm: LeadPeekVM, onOpenPerson?: (id: string) => void) {
+  const person = vm.contactId;
   return (
     <div className="pk-identity" data-testid="peek-identity">
       <h2 className="pk-name" data-testid="peek-name">
-        {vm.name}
+        {/* A lead that became a person: the name is the way to them in People, as the person's page has the way back
+            ("Open the lead"). A lead that has not, or a page that cannot open one, is the name alone. */}
+        {person && onOpenPerson ? (
+          <LinkButton
+            size="inherit"
+            onClick={() => onOpenPerson(person)}
+            title={W.openPerson}
+            data-testid="peek-name-person"
+          >
+            {vm.name}
+          </LinkButton>
+        ) : (
+          vm.name
+        )}
       </h2>
       <div className="pk-sub-line">
         <span className="pk-sub" data-testid="peek-sub">
@@ -158,7 +175,7 @@ function peekIdentity(vm: LeadPeekVM) {
         <div className="pk-rate" data-testid="peek-rated">
           <Icon name="star" size={11} />
           <span className="pk-rate-score">{vm.rated.score}</span>
-          <span>{`${vm.rated.count} reviews`}</span>
+          <span>{vm.rated.reviews}</span>
           {vm.rated.low ? (
             <span className="pk-rate-low" data-testid="peek-rated-low">
               {vm.rated.low}
@@ -224,9 +241,9 @@ function peekIdentity(vm: LeadPeekVM) {
   );
 }
 
-export const LeadPeekHead = ({ vm, onClose, onExpand, deck }: HeadProps) => (
+export const LeadPeekHead = ({ vm, onClose, onExpand, onOpenPerson, deck }: HeadProps) => (
   <>
     {peekBand({ vm, onClose, onExpand, deck })}
-    {peekIdentity(vm)}
+    {peekIdentity(vm, onOpenPerson)}
   </>
 );

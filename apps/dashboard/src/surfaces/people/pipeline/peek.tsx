@@ -25,7 +25,9 @@ import type { DealAct, PersonVM, PipelinePeekFact, PipelinePeekReachVM, Pipeline
 import { pageClock } from "@/legacy-bridge/zone";
 import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
+import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
+import { StoppedMark } from "../../kit/pill/stopped-mark";
 import { touchSwipe } from "../../legacy-verbs";
 import { PersonDealOne, PersonDealQuiet, pdRun } from "../deal/person-deal";
 import { P } from "./pipe";
@@ -233,15 +235,15 @@ function peekHead(vm: PipelinePeekVM, onClose: () => void) {
   const W = P.words.peek;
   return (
     <div className="pk-head">
-      <span className={`ix-thread-avatar pipe-peek-face${vm.numeric ? " cl-row-avatar-glyph" : ""}`} aria-hidden="true">
-        {vm.numeric ? <Icon name="phone" size={13} /> : vm.initials}
-      </span>
+      <Face person={{ name: vm.name, initials: vm.initials }} size="lg" />
       <div className="pk-titles">
         <h2 className={`pk-name${vm.numeric ? " tabular" : ""}`} data-testid="pipeline-peek-name">
           {vm.name}
         </h2>
         <div className="pk-sub" data-testid="pipeline-peek-sub">
           {vm.sub}
+          {/* They asked to stop: a peek is where a person is picked up to answer, so it says it (D1-stop-unseen). */}
+          {vm.stopped && <StoppedMark className="pipe-stop-said" testid="pipeline-peek-stopped" />}
         </div>
       </div>
       <button

@@ -10,6 +10,8 @@ import type { ReachOutLines } from "../reach-out/lines";
 /** The cell context of the Leads scope (the page's `cellCtxLeads`): doors to the page's latest acts, and what a cell reads. */
 export interface LeadCellCtx extends TableCtx {
   onOpen: (id: string) => void;
+  /** A converted lead's person, by their id (the row's `contactId`): the Client pill opens them in People. */
+  onOpenPerson: (id: string) => void;
   onExpand: (id: string) => void;
   /** Values ⁄ Signals: the number and the address in the row. */
   values: boolean;

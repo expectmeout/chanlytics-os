@@ -9,8 +9,9 @@
  * It says nothing of its own. The title, the days it offers, who a step can be for, what it opens with, what is wrong before
  * a round trip and the body the notes route takes are contracts' (`step-sheet.ts`). It holds the fold registry under its own
  * id (`step-sheet`), as the deal sheet does. Save writes through `writePersonNote` with the version the sheet was read at,
- * so a teammate's change since is refused rather than written over; then the sheet closes, says so, and says `note:saved`,
- * which the person page reads again on. Whenever the person is read again with the sheet open, what was typed stays, every
+ * so a teammate's change since is refused rather than written over; then the sheet closes and says so. The person's page and
+ * the Pipeline's peek read the person again with People, which the write's refresh reads and the live feed tells of
+ * (`surface:clients`, 0047); the sheet sends them no event of its own. Whenever the person is read again with the sheet open, what was typed stays, every
  * field left alone takes the fresh value, and the step's version is the fresh one (contracts `stepSheetMerge`).
  */
 import { useEffect, useRef, useState } from "react";
@@ -292,7 +293,8 @@ async function save({ st, setSt, flash, fold, sheet }: Host): Promise<void> {
   setSt(SS_CLOSED);
   fold.current.close();
   flash({ msg: <>{W.done[sheet.mode]}</> });
-  announce("note:saved", { personId: ask.personId });
+  // Nothing more is said: the write's refresh reads People behind it and the live feed tells of the note (0047), and the
+  // person's page and the Pipeline's peek read the person again with them (`surface:clients`).
 }
 
 /** The Confirm that asks about what was typed: the fold's own question, or the sheet's Cancel's. */

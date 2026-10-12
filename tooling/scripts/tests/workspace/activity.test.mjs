@@ -1456,6 +1456,80 @@ test("a visit and a search are named in the log: a visit by its person, else as 
   assert.deepEqual(ids(calendar), ["e-g1", "e-g2"], "the Calendar family has something to say now");
 });
 
+test("(A1) a visit's row opens the visit on its day, by the business's clock; one the page cannot find has the door the board reads alone", async () => {
+  const t = tables();
+  // New York: 02:30 UTC on the 15th is the evening of the 14th.
+  t.appointments = [
+    { id: "ap1", tenant_id: A, contact_id: null, client_name: "Lee Park", starts_at: "2026-09-15T02:30:00Z" },
+    { id: "ap2", tenant_id: A, contact_id: null, client_name: "Dana Ortiz", starts_at: "2026-09-16T15:00:00Z" },
+  ];
+  const event = (id, kind, subject_id, minute) => ({
+    id,
+    tenant_id: A,
+    kind,
+    subject_type: "appointment",
+    subject_id,
+    data: { source: "booking_email", tool: "booksy" },
+    created_at: `2026-09-14T10:0${minute}:00Z`,
+  });
+  t.decisions = [];
+  t.events = [
+    event("h1", "appointment.booked", "ap1", 3),
+    event("h2", "appointment.moved", "ap2", 2),
+    event("h3", "appointment.cancelled", "gone", 1),
+  ];
+  const r = await route.GET.run(get("&from=2026-09-14"), ctxFor(t, rpcs));
+  assert.deepEqual(
+    r.doors,
+    { "appointment:ap1": `calendar/2026-09-14:a-ap1`, "appointment:ap2": `calendar/2026-09-16:a-ap2` },
+    "REGRESSION: the line opened the Calendar at today, with nothing opened; a visit last month was not on the screen at all",
+  );
+  assert.equal(r.doors["appointment:gone"], undefined, "a visit the page cannot read has no day to say");
+  assert.equal(
+    activityDoor({ subject_type: "appointment", subject_id: "gone" }),
+    "calendar/a-gone",
+    "and the log draws the address the board has always read, which opens the panel if the visit is among its days",
+  );
+});
+
+test("(1.6) a message sent to WhatsApp opens its drawer in the Library by name while its row is there; one deleted opens nothing, and both read as they did", async () => {
+  const t = tables();
+  t.templates = [
+    { id: "tp1", tenant_id: A, name: "spring_offer", language: "en", hidden_at: null },
+    { id: "tp3", tenant_id: A, name: "sample_hello", language: "en", hidden_at: "2026-09-01T00:00:00Z" },
+  ];
+  const event = (id, kind, subject_id, minute) => ({
+    id,
+    tenant_id: A,
+    kind,
+    subject_type: "template",
+    subject_id,
+    data: { name: "spring_offer", language: "en", by: "u1" },
+    created_at: `2026-09-14T10:0${minute}:00Z`,
+  });
+  t.decisions = [];
+  t.events = [
+    event("m1", "template.submitted", "tp1", 3),
+    event("m2", "template.removed", "tp2", 2),
+    event("m3", "template.submitted", "tp3", 1),
+  ];
+  const r = await route.GET.run(get("&from=2026-09-14"), ctxFor(t, rpcs));
+  assert.deepEqual(
+    r.doors,
+    { "template:tp1": "campaigns/message:spring_offer" },
+    "only a message still in the Library",
+  );
+  assert.deepEqual(
+    r.rows.map((x) => x.text),
+    [
+      "A message was sent to WhatsApp for approval · spring_offer",
+      "A message was deleted from the Library · spring_offer",
+      "A message was sent to WhatsApp for approval · spring_offer",
+    ],
+    "the words are the data's, whatever the subject is",
+  );
+});
+
 test("a campaign changed in place wears the log's edit mark; its pause and its resume keep their own", async () => {
   const { activityMark } = await import(at("apps/dashboard/src/surfaces/settings/activity/marks.ts"));
   assert.deepEqual(

@@ -3,6 +3,7 @@
  * already has. Their own module because the line's row alone is a ladder from bought to answering and from asked
  * for to paid for; setup-rows.ts holds the table they sit in, setup.ts the words and the context they read.
  */
+import { PHONE_LINE_OFF } from "../lines/caller-gets";
 import { lineCredentialFailure, LINE_CREDENTIALS_SENTENCE } from "../lines/line-failure";
 import { formatPhoneDisplay } from "../shared/phone";
 import { agoWords, spanLabel } from "../shared/time";
@@ -21,6 +22,7 @@ import {
   keptPhoneKind,
   lineStuckProvisioning,
   LINE_STEP_WORDS,
+  type LineDto,
   type SetupInputs,
   type SetupRowContext,
   type SetupRowDraft,
@@ -55,7 +57,7 @@ export function lineRow(i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
       title: "A line for calls and texts",
       state: "waiting_you",
       required: !answering,
-      sentence: `Your line ${voice.number ? `${voiceNum} ` : ""}is switched off — the receptionist is not answering it.`,
+      sentence: `Your line ${voice.number ? `${voiceNum} ` : ""}is switched off — ${PHONE_LINE_OFF.gets}.`,
       details: [],
       verb: { label: "Open Connections", to: "admin/integrations" },
     };
@@ -64,12 +66,30 @@ export function lineRow(i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
 }
 
 /**
- * The workspace's own line, from bought to answering: stuck, still setting up, stopped at the vault or at a carrier,
- * or set up and being connected. Null without one, and the ask decides (lineToGetRow).
+ * Where the workspace's own line stands while it is set up, built once from the line and read by Start's row (ownLineRow)
+ * and Connections' phone row, so the two say the same in each state (D1-line-row-derivations). Connections' row skipped
+ * two rules Start's has: a line that has been setting up for hours said "Usually a minute or two" with no button where Start
+ * said the setup stopped and offered Retry, and one stopped at the vault, which a retry cannot fix, offered "Retry it" where
+ * Start offered nothing; and its Retry only walked to the first-run phone step.
+ *
+ * `stuck`: setting up past the deadline (lineStuckProvisioning), a retry offered; `setting_up`: within it; `credentials`:
+ * stopped at the vault, which is ours to mend, so no retry; `stopped`: failed elsewhere, a retry offered; `connecting`: set
+ * up, being joined to the receptionist. `retry` is the verb that sets the line up again in place (verb:retry-line:<id>).
  */
-function ownLineRow(ctx: SetupRowContext): SetupRowDraft | null {
-  const { answering, ownLine, lineNum, nowMs } = ctx;
-  if (ownLine && lineStuckProvisioning(ownLine, nowMs)) {
+interface OwnLineStand {
+  kind: "stuck" | "setting_up" | "credentials" | "stopped" | "connecting";
+  sentence: string;
+  details: string[];
+  retry: string | null;
+}
+
+/** `number` is how the sentences name the line (Start names it; Connections shows the number beside the row and says none). */
+export function ownLineStandOf(line: LineDto, nowMs: number, number: string | null): OwnLineStand | null {
+  const n = number ? ` ${number}` : "";
+  const step = LINE_STEP_WORDS[line.step ?? ""] ?? "working on it";
+  const ago = agoWords(Date.parse(line.state_since), nowMs);
+  const retry = `verb:retry-line:${line.id}`;
+  if (lineStuckProvisioning(line, nowMs)) {
     // IT SAYS WHAT WILL HAPPEN, NOT WHAT HAS. This row used to read "A person at
     // Chanlytics has it" and "We have been told" -- and nothing had been: a saga
     // cut off by its lambda returns nothing, and the failure email only fires on a
@@ -83,71 +103,71 @@ function ownLineRow(ctx: SetupRowContext): SetupRowDraft | null {
     // updates by itself" with no verb, which after an hour is untrue twice over —
     // and the retry it withheld is the only thing that would have finished the job.
     return {
-      id: "line",
-      icon: "phone",
-      title: "A line for calls and texts",
-      state: "waiting_them",
-      required: !answering,
-      sentence: `Setting up ${lineNum} stopped while ${LINE_STEP_WORDS[ownLine.step ?? ""] ?? "working on it"}, ${agoWords(Date.parse(ownLine.state_since), nowMs)}.`,
+      kind: "stuck",
+      sentence: `Setting up${n} stopped while ${step}, ${ago}.`,
       details: [
         "It is retried automatically, usually within a quarter of an hour, and Chanlytics is told when it is",
         "Retry from here — it picks up where it stopped and buys nothing twice",
       ],
-      verb: { label: "Retry", to: `verb:retry-line:${ownLine.id}` },
+      retry,
     };
   }
-  if (ownLine && ownLine.voice_state === "provisioning") {
+  if (line.voice_state === "provisioning") {
     return {
-      id: "line",
-      icon: "phone",
-      title: "A line for calls and texts",
-      state: "waiting_them",
-      required: !answering,
-      sentence: `Setting up ${lineNum} — ${LINE_STEP_WORDS[ownLine.step ?? ""] ?? "working on it"}, since ${agoWords(Date.parse(ownLine.state_since), nowMs)}.`,
+      kind: "setting_up",
+      sentence: `Setting up${n} — ${step}, since ${ago}.`,
       details: ["Usually a minute or two; this page updates by itself"],
-      verb: null,
+      retry: null,
     };
   }
-  if (ownLine && ownLine.voice_state === "failed" && lineCredentialFailure(ownLine.last_error)) {
+  if (line.voice_state === "failed" && lineCredentialFailure(line.last_error)) {
     // Not a carrier failure and not the owner's to retry: the wall is ours.
     return {
-      id: "line",
-      icon: "phone",
-      title: "A line for calls and texts",
-      state: "waiting_them",
-      required: !answering,
-      sentence: `Setting up ${lineNum} stopped at ${LINE_CREDENTIALS_SENTENCE}. A person at Chanlytics has it.`,
+      kind: "credentials",
+      sentence: `Setting up${n} stopped at ${LINE_CREDENTIALS_SENTENCE}. A person at Chanlytics has it.`,
       details: [
         "A retry cannot help until the credentials are restored; we have been told and will finish it with you",
       ],
-      verb: null,
+      retry: null,
     };
   }
-  if (ownLine && ownLine.voice_state === "failed") {
+  if (line.voice_state === "failed") {
     return {
-      id: "line",
-      icon: "phone",
-      title: "A line for calls and texts",
-      state: "waiting_them",
-      required: !answering,
-      sentence: `Setting up ${lineNum} stopped while ${LINE_STEP_WORDS[ownLine.step ?? ""] ?? "working on it"}. A person at Chanlytics has it.`,
+      kind: "stopped",
+      sentence: `Setting up${n} stopped while ${step}. A person at Chanlytics has it.`,
       details: ["Retry from here; we have been told"],
-      verb: { label: "Retry", to: `verb:retry-line:${ownLine.id}` },
+      retry,
     };
   }
-  if (ownLine && ownLine.voice_state === "answering") {
+  if (line.voice_state === "answering") {
     return {
-      id: "line",
-      icon: "phone",
-      title: "A line for calls and texts",
-      state: "waiting_them",
-      required: !answering,
-      sentence: `${lineNum} is set up — connecting it to the receptionist.`,
+      kind: "connecting",
+      sentence: `${number ?? "Your number"} is set up — connecting it to the receptionist.`,
       details: [],
-      verb: null,
+      retry: null,
     };
   }
   return null;
+}
+
+/**
+ * The workspace's own line, from bought to answering: stuck, still setting up, stopped at the vault or at a carrier,
+ * or set up and being connected. Null without one, and the ask decides (lineToGetRow).
+ */
+function ownLineRow(ctx: SetupRowContext): SetupRowDraft | null {
+  const { answering, ownLine, lineNum, nowMs } = ctx;
+  const stand = ownLine ? ownLineStandOf(ownLine, nowMs, lineNum) : null;
+  if (!stand) return null;
+  return {
+    id: "line",
+    icon: "phone",
+    title: "A line for calls and texts",
+    state: "waiting_them",
+    required: !answering,
+    sentence: stand.sentence,
+    details: stand.details,
+    verb: stand.retry ? { label: "Retry", to: stand.retry } : null,
+  };
 }
 
 /**

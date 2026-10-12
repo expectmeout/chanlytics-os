@@ -6,14 +6,15 @@ import { lazy, memo, Suspense, useCallback, useEffect, useLayoutEffect, useState
 import { movedAddress, routeOfAddress, routeOfPath } from "@chanlytics/contracts";
 import { routeHasPage } from "@/surfaces/routes";
 import { api } from "./api";
+import { acceptedInTime } from "./invitations/accept";
 import { homeHref, lastWorkspace, notifyAddress, setAppRouter } from "./workspace";
 
 /**
  * Client-only mount for the legacy tree: module-scope code in the mockup
  * touches document/window at import time, so SSR/prerender must never
  * evaluate it (Blueprint §7 — the (os) surfaces are client-rendered).
- * `data/people-data.jsx` in particular reads `window` at module scope; dropping
- * ssr:false would throw during prerender.
+ * `seed-globals.ts` and the shell's files in particular read `window` at module scope (so does the demo's
+ * `demo/data/people-data.jsx`); dropping ssr:false would throw during prerender.
  *
  * The fallback below is the FIRST thing every visitor sees, for the whole
  * duration of the chunk download. It used to be hardcoded `#93a5a0` on the
@@ -191,6 +192,9 @@ export default function LegacyHost({ home = false, children }: { home?: boolean;
       const after = window.location.search + window.location.hash;
       let href = homeHref(lastWorkspace(), null, after);
       if (!href) {
+        // A tab that remembers no workspace is a first sign-in or a cleared browser, and the list of an account an invitation is
+        // about to seat is empty until the accept has (invitations/accept.ts): the accept goes first here, as the boot's list waits for it.
+        await acceptedInTime();
         const r = await api()("GET workspaces");
         href = homeHref(null, r.ok ? r.data : null, after);
       }

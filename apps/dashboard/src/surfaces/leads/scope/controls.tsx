@@ -17,7 +17,8 @@ import { PeopleColumnsMenu } from "../../people/table/columns-menu";
 
 interface ControlsProps {
   canExport: boolean;
-  exportHref: string | null;
+  /** The press that exports the view as a file: a POST that saves it (page/acts.tsx exportLeads), not a link. */
+  onExport: () => void;
   mapOpen: boolean;
   onMap: (on: boolean) => void;
   values: boolean;
@@ -76,9 +77,7 @@ export const LeadsControlsRight = ({ p }: { p: ControlsProps }) => {
   const exportPress = p.canExport
     ? {
         "data-tip": "Download these leads as a CSV file",
-        onClick: () => {
-          if (p.exportHref) window.open(p.exportHref, "_self");
-        },
+        onClick: p.onExport,
       }
     : { onClick: () => undefined, ...gate("export", "export these leads") };
   return (

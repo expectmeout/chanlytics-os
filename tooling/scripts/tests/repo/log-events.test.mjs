@@ -48,6 +48,8 @@ const FORWARDED = {
   "apps/edge/lib/voice/call-webhook.ts": ["s.event"], // planCallEvent's log step (call-event.ts)
   // The one computed name: pgSafe's step is a PgStep, so the family is a union tsc checks against the set.
   "apps/edge/lib/whatsapp/persist.ts": ["`pg_${label}_failed`"],
+  // ingestInbound's attempt(...): the answer it could not write, a union of the two literal names it is called with.
+  "packages/db/src/repositories/ingest.ts": ["event"],
 };
 
 /**

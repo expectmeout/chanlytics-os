@@ -28,6 +28,9 @@ const VERB_TESTID: Record<string, string> = {
   "verb:whatsapp-connect": "connect-whatsapp-btn",
   messages: "channel-messages",
 };
+/** What a verb does, for the gate's sentence: the retry of a line carries the line's id, so it is found by its prefix. */
+const doingOf = (to: string): string | undefined =>
+  VERB_DOING[to] ?? (to.startsWith("verb:retry-line:") ? "set the line up again" : undefined);
 const mayPress = (verb: ConnectionVerb | null): boolean =>
   !!verb && (verb.who === "owner" ? canDo("team") : canDo("approve"));
 // What a connection's verb does, for the gate's sentence (contracts refusal.ts roleGate).
@@ -160,7 +163,7 @@ function rowActs(o: ConnectionRowProps & { owner: boolean; armed: string | null;
             onClick={() => run(r)}
             disabled={busy}
             data-testid={VERB_TESTID[verb.to] || `connection-${r.kind}-verb`}
-            {...(mayPress(verb) ? {} : gate(verb.who === "owner" ? "team" : "approve", VERB_DOING[verb.to]))}
+            {...(mayPress(verb) ? {} : gate(verb.who === "owner" ? "team" : "approve", doingOf(verb.to)))}
           >
             {busy && verb.to === "verb:google-check"
               ? "Reading…"
@@ -300,7 +303,7 @@ export const ConnectionRow = (props: ConnectionRowProps) => {
   const removable =
     r.kind === "google_listing" && owner && !armed && (r.state === "connected" || r.state === "attention");
   const verb = r.verb;
-  const verbGate = verb && !mayPress(verb) ? gate(verb.who === "owner" ? "team" : "approve", VERB_DOING[verb.to]) : {};
+  const verbGate = verb && !mayPress(verb) ? gate(verb.who === "owner" ? "team" : "approve", doingOf(verb.to)) : {};
   const press = verb
     ? () =>
         verb.href

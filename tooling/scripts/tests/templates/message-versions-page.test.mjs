@@ -1105,7 +1105,7 @@ test("a message's marks: the offer mark is its purpose, whichever channel it has
     tone: "info",
   });
   assert.deepEqual(factsOf([en, w({ id: "w-es", language: "es", meta_status: "rejected" })], [], HOURS).marks.tag, {
-    words: "Spanish rejected",
+    words: "Spanish refused",
     tone: "danger",
   });
   // A message with no WhatsApp version has no tag, and no attention asked of a language it holds on another channel.

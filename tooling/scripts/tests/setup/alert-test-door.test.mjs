@@ -91,6 +91,27 @@ test("alert-test: one email to every alert address and nobody else, naming the b
   }
 });
 
+test("alert-test: the link is contracts' appLink: the workspace's own page, and with its address word unread the front door with a hash route", async () => {
+  const notifications = { escalation_emails: ["owner@example.com"] };
+  const net = wire();
+  try {
+    setPg(fakeDb(world(notifications)));
+    assert.deepEqual(await answer(await knock({ tenant_id: A })), [200, { ok: true, sent: true, to: 1 }]);
+    assert.ok(
+      net.mail()[0].text.endsWith("\n\nhttps://app.example.com/w/harbor-moving/settings/notifications"),
+      net.mail()[0].text,
+    );
+    // The workspace's row cannot be read (wiring task 1.7, N2): the mail still goes, and its link is a page the app has.
+    setPg(fakeDb(world(notifications), { "tenants.select": { message: "statement timeout" } }));
+    assert.deepEqual(await answer(await knock({ tenant_id: A })), [200, { ok: true, sent: true, to: 1 }]);
+    const text = net.mail()[1].text;
+    assert.ok(text.endsWith("\n\nhttps://app.example.com/#/admin/notifications"), text);
+    assert.ok(!text.includes("com/settings/notifications"), "never the origin and a path the app does not have");
+  } finally {
+    net.restore();
+  }
+});
+
 test("alert-test: a workspace with no alert address of its own is sent nothing, and the platform is not told", async () => {
   setPg(fakeDb(world(undefined)));
   const net = wire();

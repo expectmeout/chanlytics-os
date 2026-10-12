@@ -8,6 +8,7 @@
  * enrols a visit found by name alone only on a full saved name no one else holds (playbook-reach.ts), and says the service
  * alone (playbooks.ts visitFactsFor).
  */
+import { isIdentifierName } from "../conversations/thread-contact";
 import { escapeRe } from "./calendar-people";
 
 /**
@@ -18,7 +19,7 @@ import { escapeRe } from "./calendar-people";
  */
 export function fullNameKey(name: string | null | undefined): string | null {
   const n = (name ?? "").trim();
-  if (!n || /^[+\d(]/.test(n) || n.includes("@")) return null;
+  if (!n || isIdentifierName(n)) return null;
   const words = n.split(/\s+/);
   const first = words.at(0);
   const last = words.at(-1);
@@ -57,7 +58,7 @@ export function visitServiceOf(title: string, names: readonly (string | null | u
   let service = title.trim();
   for (const raw of names) {
     const name = (raw ?? "").trim();
-    if (name.length < 3 || /^[+\d(]/.test(name) || name.includes("@")) continue;
+    if (name.length < 3 || isIdentifierName(name)) continue;
     // Like the calendar's own name match, with an apostrophe a letter's own: "Al" is not in "Al's Cuts".
     const edge = "[^\\p{L}\\p{N}'’]";
     const re = new RegExp(`(?<=^|${edge})${escapeRe(name)}(?=$|${edge})`, "iu");

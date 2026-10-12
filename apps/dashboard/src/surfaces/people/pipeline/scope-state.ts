@@ -298,8 +298,9 @@ export function usePipelinePeekReads(ui: PipelineUi, place: PipelinePlace, doors
   useEffect(() => {
     pipePeekFocus(peekId, cursor);
   }, [peekId]); // eslint-disable-line react-hooks/exhaustive-deps -- kept as the JSX drew it: focus moves as the peek opens or closes
-  // The person for the peek, read behind the tab's copy; read again when a deal is recorded on them, and on Retry
-  // after a read that failed.
+  // The person for the peek, read behind the tab's copy; read again when People lands or changes (`surface:clients`: a deal
+  // recorded on them or a step set, changed or done is read with People behind the write, and the live feed tells of a
+  // teammate's), and on Retry after a read that failed.
   useEffect(() => {
     if (!peekId) {
       setPeek(null);
@@ -322,17 +323,12 @@ export function usePipelinePeekReads(ui: PipelineUi, place: PipelinePlace, doors
       );
     };
     read();
-    // A deal recorded or moved, and a step set, changed or done (the card in the peek draws its next step): read again.
-    const onDeal = (e: Event) => {
-      const detail = e && (e as CustomEvent<{ personId?: string } | null>).detail;
-      if (e && detail && detail.personId === who) read();
-    };
-    window.addEventListener("deal:recorded", onDeal);
-    window.addEventListener("note:saved", onDeal);
+    // A deal recorded or moved, and a step set, changed or done (the card in the peek draws its next step): People is read
+    // again with the write, and the peek follows it.
+    window.addEventListener("surface:clients", read);
     return () => {
       live = false;
-      window.removeEventListener("deal:recorded", onDeal);
-      window.removeEventListener("note:saved", onDeal);
+      window.removeEventListener("surface:clients", read);
     };
   }, [peekId, peekTry]); // eslint-disable-line react-hooks/exhaustive-deps -- kept as the JSX drew it: the setters are React's own
 }

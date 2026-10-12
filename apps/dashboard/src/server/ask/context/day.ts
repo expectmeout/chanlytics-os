@@ -131,7 +131,7 @@ export const inbox: Provider = async (rc, ctx) => {
       `${pageWithView(ctx)}: ${rows.length} threads on screen`,
       `needs you: ${count((v) => v.needsYou)}`,
       `held: ${count((v) => heldDraftWaits(v, rc.now.getTime()))}`,
-      `waiting on you: ${count((v) => v.takenOver)}`,
+      `you have it: ${count((v) => v.takenOver)}`,
       `snoozed: ${count((v) => v.state === "snoozed")}`,
       `threads: ${vms.length}`,
     ]),

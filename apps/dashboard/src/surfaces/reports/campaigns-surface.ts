@@ -20,19 +20,22 @@
  * tab and Retry-all leave it alone on every other page, and the lens reads it as it comes on screen, once and again when it has
  * aged. The Overview draws it for one fact (which campaign drew the most replies, `ROUTE_DRAWS["reports"]`), so the Overview reads it
  * the same way, on arrival and when it has aged; but its live-feed rule is the Campaigns lens's alone (`onlyOnItsPage`, and Reports
- * owns what it draws: surface-registry.ts): a message, a conversation, an escalation or a run moves it while the lens is on screen,
- * once for a burst of them (the wait is the longest the runner allows, three seconds from the first change: LIVE_WAIT_MS), and once
- * when it comes back; never for each burst of messages on the Overview, which keeps the burst for the lens (keepForItsPage), so the
- * lens reads once as it comes on screen instead of showing the numbers the Overview read on arrival. It is the dearest read of the
+ * owns what it draws: surface-registry.ts): a message, a conversation, an escalation, a run, a reach-out's reply or a channel's
+ * change moves it while the lens is on screen, once for a burst of them (the wait is the longest the runner allows, three seconds
+ * from the first change: LIVE_WAIT_MS), and once when it comes back; never for each burst of messages on the Overview, which keeps
+ * the burst for the lens (keepForItsPage), so the lens reads once as it comes on screen instead of showing the numbers the Overview
+ * read on arrival. It is the dearest read of the
  * lenses beside People's (the ledger is one pass over the window's runs and sends), so it waits out more than Reports' own 800 ms.
  * A delivery receipt is not heard: the sends' ticks are read as the lens opens, and a tick moves no figure it says by itself. A
  * write that makes it wrong from another page (a yes or a stop, a merge, a reply or a resolved escalation, a run made, approved or
  * skipped, a number connected or its standing, the workspace's zone) forgets it instead of reading it from there
- * (`forgetReportsCampaigns`, refresh-map.ts), and reads it again only where it is drawn, since the feed tells it of none of those
- * writes.
+ * (`forgetReportsCampaigns`, refresh-map.ts), and reads it again only where it is drawn: a teammate's reply, run or channel is heard
+ * while the lens is open, so the map is for the writer's own tab, for the zone and for a yes or a stop, which the feed does not carry
+ * to this lens (a person arriving is not a change to what it counts).
  */
 import { read } from "@/legacy-bridge/api";
-import { keepForItsPage, onlyOnItsPage } from "@/legacy-bridge/surface-registry";
+import type { RealtimeChange } from "@/legacy-bridge/surface-realtime";
+import { keepForItsPage } from "@/legacy-bridge/surface-registry";
 import { routeOnScreen } from "@/legacy-bridge/workspace";
 import {
   reportRangeKey,
@@ -56,24 +59,21 @@ export interface CampaignsSurface {
   key: string;
 }
 
-/** The tables whose changes the live feed tells a workspace of and that the Campaigns reads draw from. */
-const CAMPAIGNS_TABLES: string[] = ["messages", "conversations", "escalations", "broadcasts"];
-
-/** Where the lens or the Overview is on screen: the rest are held for them (surface-registry.ts onlyOnItsPage). */
-const whereDrawn = onlyOnItsPage("reports_campaigns", CAMPAIGNS_TABLES);
-
 /**
  * Where the feed is heard: on the Campaigns lens alone. The Overview draws the surface for one fact and is read as it comes on screen
  * and when it has aged, so it does not read for a burst; but the change is kept for the pages that draw it, as every other page keeps
- * it (`whereDrawn` is asked first, and keeps it wherever the surface is not drawn): the lens, or the Overview again, reads once as it
- * comes on screen, so the lens never shows the numbers the Overview read on arrival, minutes old.
+ * it (`here`, the standard page rule over Reports' two pages, is asked first, and keeps it wherever the surface is not drawn): the
+ * lens, or the Overview again, reads once as it comes on screen, so the lens never shows the numbers the Overview read on arrival,
+ * minutes old.
  */
-const heardOnTheLens = (change: { table: string }): boolean => {
-  if (!whereDrawn(change)) return false;
-  if (reportsRouteParts(routeOnScreen())?.lens === "campaigns") return true;
-  keepForItsPage("reports_campaigns");
-  return false;
-};
+const heardOnTheLens =
+  (here: (change: RealtimeChange) => boolean) =>
+  (change: RealtimeChange): boolean => {
+    if (!here(change)) return false;
+    if (reportsRouteParts(routeOnScreen())?.lens === "campaigns") return true;
+    keepForItsPage("reports_campaigns");
+    return false;
+  };
 
 /**
  * How long a burst of changes is waited out before the lens is read again. Asked for as five seconds; the runner never waits
@@ -107,14 +107,22 @@ export const reportsCampaigns = periodSurface({
   },
   // Read again only while the Campaigns lens is on screen, and once when it comes back (surface-registry.ts), a burst of messages
   // later. No call is among its tables, so no transcript turn of one in progress can be heard.
+  // What the Campaigns reads draw from: the messages, conversations and escalations a reply is made of, the runs a send is, a
+  // reach-out's replies read or undone, and the number it says the health of and the domains its reach-outs send from (0047). Not the
+  // book: the yeses and stops it counts are columns of the people, and a person arriving would read the dearest of the lenses (the
+  // baseline says so, reads-not-heard.json); a yes or a stop recorded in the writer's tab forgets it (refresh-map.ts consentWrite).
   live: {
-    refreshOnTables: CAMPAIGNS_TABLES,
-    refreshWhen: heardOnTheLens,
+    reads: ["conversation", "hold", "send", "reach_out", "channel"],
+    fresh: "its-page",
+    omit: [
+      {
+        tables: ["lines", "mailboxes", "capability_activations", "business_records"],
+        why: "it says the health of the connected number and a row for each sending domain; the text line, the mailbox, a capability or the business record are none of its figures",
+      },
+    ],
+    page: heardOnTheLens,
     debounceMs: LIVE_WAIT_MS,
   },
 });
 
 export const reportsCampaignsOverride = reportsCampaigns.override;
-
-/** A write from another page changed what the lens says: nothing is held of it, and it is read as the page that draws it comes on screen. */
-export const forgetReportsCampaigns = reportsCampaigns.forget;

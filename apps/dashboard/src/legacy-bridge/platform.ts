@@ -173,12 +173,6 @@ export interface PlatformApi {
   secondFactorWords?: typeof SECOND_FACTOR_WORDS;
 }
 
-declare global {
-  interface Window {
-    __platform?: PlatformApi;
-  }
-}
-
 /** The back office's verbs, each through its door. */
 const platformVerbs: PlatformApi = {
   list: () =>
@@ -312,11 +306,6 @@ const platformVerbs: PlatformApi = {
 
 /**
  * The verbs the pane reads, held where a test stands in a whole other set (`backOffice.verbs = …`), as it once replaced
- * `window.__platform`.
+ * `window.__platform`, a name the Settings rail's warm read (settings.jsx) once read and nothing has since (O4b).
  */
 export const backOffice: { verbs: PlatformApi } = { verbs: platformVerbs };
-
-/** The verbs on the window, for the Settings rail's warm read (settings.jsx): a line to delete when the frame moves. */
-export function installPlatform(win: Window = window): void {
-  win.__platform = platformVerbs;
-}

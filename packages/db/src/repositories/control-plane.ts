@@ -265,6 +265,13 @@ export async function workspaceNamed(db: Db, tenantId: string): Promise<{ name: 
   return data ? { name: data.name, slug: data.slug } : null;
 }
 
+/** The zone a workspace keeps its clock in (`tenants.timezone`); null when there is no such workspace. A read that fails throws. */
+export async function workspaceZoneOf(db: Db, tenantId: string): Promise<string | null> {
+  const { data, error } = await db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle();
+  if (error) throw new Error(`cannot read the workspace's zone: ${error.message}`);
+  return data?.timezone ?? null;
+}
+
 // ---- setup acts a member makes from the dashboard: the caller decides what a refusal means; what comes back is the
 // database's own answer, the error untouched, since the words for what it raises are theirs.
 

@@ -61,6 +61,7 @@ const routed = {
 };
 const runtime = (over = {}) => ({
   tenantId: "t1",
+  slug: "harbor",
   brain: BRAIN(),
   notifications: NOTIFICATIONS(),
   calendar: null,
@@ -121,6 +122,8 @@ function world(over = {}) {
     emails: [],
     // The line each message was ingested on (the verb's fifth argument), for the first touch the database stamps (K3).
     lines: [],
+    // What each ingest was told about the visit (the verb's sixth argument): `{ jobFollows: true }` at the door of a message a job answers next.
+    visits: [],
   };
   const rt = over.rt ?? runtime();
   const recordIngest = over.ingest ?? (async (_db, _tenant, n) => ingested(n));
@@ -224,6 +227,7 @@ function world(over = {}) {
         route: ctx.route,
         who: ctx.who,
         channel: ctx.channel,
+        target: ctx.target,
       });
     },
     page: async (_ports, key, subject, body) => {
@@ -245,8 +249,9 @@ function world(over = {}) {
     delivered.add(key);
     const body = m.text?.body ?? null;
     if (isNew && body) memory.history.push({ role: "user", content: body });
-    ports.persist.ingest = async (db, tenant, n, channel, line) => {
+    ports.persist.ingest = async (db, tenant, n, channel, line, visit) => {
       seen.lines.push(line ?? null);
+      seen.visits.push(visit ?? null);
       const rec = await recordIngest(db, tenant, n, channel);
       return (
         rec && {
@@ -346,6 +351,11 @@ test("no model key: the workspace's greeting leaves labelled a fallback, the thr
   assert.deepEqual(
     unwritten.seen.alerts.map((a) => [a.reason, a.who, a.route]),
     [["no model", "Dana", "inbox/th-conv1"]],
+  );
+  assert.equal(
+    unwritten.seen.alerts[0].target.slug,
+    "harbor",
+    "the alert's mail links the workspace's own page: its address word rides with the recipients the runtime read",
   );
   assert.equal(w.seen.pauses.length, 1, "the thread is handed over for the pause window");
   assert.equal(w.seen.processed, 1);
@@ -564,15 +574,44 @@ test("an ingest the database refuses is not swallowed: IngestFailed surfaces and
   assert.equal(w.seen.sent.length, 0, "nothing is said to a customer whose words were not kept");
 });
 
-test("STOP records the opt-out, escalates once, answers nothing, and keeps no second copy of the answer", async () => {
+test("a message the database kept, whose yes did not land, still surfaces as IngestFailed but is not mailed as lost", async () => {
+  // db AnswerNotKept, as the edge's pgIngest passes it on (kept): the provider sends the message again, or the job is tried
+  // again, and either visit writes the yes. The words are on record, so no copy goes to the workspace saying they are not.
+  const w = world({
+    ingest: async () => {
+      throw new IngestFailed("marketing_consent_write_failed: connection reset", true);
+    },
+  });
+  await assert.rejects(
+    () => w.run(text("YES OFFERS")),
+    (e) => e instanceof IngestFailed && e.kept === true,
+  );
+  assert.deepEqual(w.seen.alerts, [], "nothing says the words were lost: they were not");
+  assert.equal(w.seen.sent.length, 0, "and nothing is said to a customer whose yes is not yet kept");
+});
+
+test("only the door of a message a job answers next leaves a failed yes to that job: the job's visit and the webhook's raise it", async () => {
+  const w = world();
+  await w.record(text("YES OFFERS", "wamid.job-1"));
+  assert.deepEqual(w.seen.visits, [{ jobFollows: true }], "the door that schedules the answer says so");
+  await w.run(text("YES OFFERS", "wamid.job-1"), {}, true);
+  assert.deepEqual(
+    w.seen.visits.at(-1),
+    null,
+    "the job that answers it asks for nothing: a yes that fails there is raised",
+  );
+  await w.run(text("YES OFFERS", "wamid.direct-1"));
+  assert.deepEqual(w.seen.visits.at(-1), null, "and so does a webhook that answers in its own request");
+});
+
+test("STOP records the opt-out, opens no hold, tells nobody itself, answers nothing, and keeps no second copy of the answer", async () => {
+  // A STOP is news, not a wait (decision 0048): the answer is the consent its ingest wrote with its event, the owner is told
+  // once on the bell from that event (SUBSCRIBERS.consent_notice), and nothing is asked of a person who can do nothing.
   const w = world();
   await w.run(text("STOP"));
   assert.equal(w.seen.sent.length, 0);
-  assert.deepEqual(
-    w.seen.escalations.map((e) => e.reason),
-    ["opt_out"],
-  );
-  assert.deepEqual(w.seen.alerts, [], FROM_ITS_EVENT);
+  assert.deepEqual(w.seen.escalations, [], "no hold: nothing in Needs you, Today's queue or the badge");
+  assert.deepEqual(w.seen.alerts, [], "and no handoff mail or push: the consent event is what tells the owner");
   assert.equal(w.seen.processed, 1);
   // The answer lives in `contacts.consent` and nowhere else. It used to be
   // cached on the Blob thread as well, for the case where Postgres did not
@@ -693,19 +732,12 @@ test("a START whose answer is taken up after the person said STOP is held by the
   const start = text("START", "wamid.y1");
   await w.record(start);
   await w.run(text("STOP", "wamid.y2"));
-  assert.deepEqual(
-    w.seen.escalations.map((e) => e.reason),
-    ["opt_out"],
-  );
+  assert.deepEqual(w.seen.escalations, [], "a STOP opens no hold (decision 0048)");
   // The START's job, run late: its ingest is a redelivery, and the record holds the STOP that came after it.
   await w.run(start, {}, true);
   assert.deepEqual(w.seen.sent, [], "no confirmation of a yes the STOP since took back");
-  assert.deepEqual(
-    w.seen.escalations.map((e) => e.reason),
-    ["opt_out"],
-    "and nobody is told the customer said yes and was not confirmed",
-  );
-  assert.deepEqual(w.seen.alerts, [], `the STOP's hold is its one notice: ${FROM_ITS_EVENT}`);
+  assert.deepEqual(w.seen.escalations, [], "and nobody is told the customer said yes and was not confirmed");
+  assert.deepEqual(w.seen.alerts, [], "the STOP's one notice is the consent event's, on the bell");
   assert.equal(kept.record.consent, "opted_out", "the STOP stands");
 });
 
@@ -911,15 +943,13 @@ test("a redelivered pin drop escalates and emails once, not once per redelivery"
   assert.equal(w.seen.sent.length, 0, "a pin drop is readable: no apology");
 });
 
-test("a redelivered STOP does not open the handoff twice", async () => {
+test("a STOP, redelivered, opens no handoff at all: it is news told once from its consent event, never a wait", async () => {
   const w = world();
   await w.run(text("STOP"));
   await w.run(text("STOP"));
-  assert.deepEqual(
-    w.seen.escalations.map((e) => e.reason),
-    ["opt_out"],
-  );
-  assert.deepEqual(w.seen.alerts, [], FROM_ITS_EVENT);
+  assert.deepEqual(w.seen.escalations, []);
+  assert.deepEqual(w.seen.alerts, []);
+  assert.equal(w.seen.sent.length, 0, "and nothing is said back, however often it is delivered");
 });
 
 test("a thumbs-up or a system notice is kept and handled, and nothing is said, escalated, paused or downloaded", async () => {
@@ -1566,7 +1596,8 @@ test("each way out says what the message became, and what it was about where the
       {},
       [["blocked", null]],
     ],
-    ["STOP", world(), text("STOP"), {}, [["handoff", null]]],
+    // News, not a wait (decision 0048): nobody is asked, so it is not a handoff.
+    ["STOP", world(), text("STOP"), {}, [["blocked", null]]],
     ["a yes, confirmed", world(), text("START"), {}, [["ai", null]]],
     ["a yes whose confirmation did not go", world({ delivered: failed }), text("START"), {}, [["handoff", null]]],
     ["a workspace on ask", world({ rt: onAsk }), text("can I book Friday?"), {}, [["handoff", null]]],

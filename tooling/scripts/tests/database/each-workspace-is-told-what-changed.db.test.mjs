@@ -2,11 +2,13 @@
  * The database tells each workspace what changed (decision 0019, 00265), on a real database.
  *
  * A statement on a watched table puts one notice per workspace it changed on that workspace's private topic,
- * `workspace:<id>:changes`, through realtime.send: the table and the operation, and the statuses a call's or a
- * message update's statement left, never the row.
- * The tables and events with a trigger are the ones packages/db realtime.ts lists (WATCHED), read from pg_trigger. And
- * Realtime lets a member listen to their workspaces' topics and nobody speak on them, which is probed here as Realtime
- * probes a join: a notice written, read back as the caller.
+ * `workspace:<id>:changes`, through realtime.send: the table and the operation, the statuses a call's or a
+ * message update's statement left, and the clock it was told by (`at`, 00408), never the row.
+ * The tables and events with a trigger are the ones packages/db realtime.ts lists (WATCHED), read from pg_trigger; the
+ * updates that must ignore a stamp (00408) are row triggers narrowed to the columns a page draws, and every table the
+ * receptionist's runtime stamp reads is on the list (0047). And Realtime lets a member listen to their workspaces'
+ * topics and nobody speak on them, which is probed here as Realtime probes a join: a notice written, read back as the
+ * caller.
  *
  * Everything happens in a transaction on this machine's database that never commits. Read through the CLI, as
  * sweep-registry.db.test.mjs turns a clock; SUPABASE_CLI names the binary when `supabase` is not on PATH.
@@ -14,6 +16,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -26,14 +30,26 @@ const skip = !URL_
     ? "refusing a database that is not on this machine: this suite reads the local stack through the CLI"
     : false;
 
+/** The longest statement handed over on the command line: Windows refuses one past 32 KB, and the world is longer. */
+const LONGEST_ON_THE_LINE = 8_000;
+
 function cli(args) {
-  const r = spawnSync(CLI, ["db", "query", "--local", ...args], {
-    cwd: ROOT,
-    encoding: "utf8",
-    maxBuffer: 16 * 1024 * 1024,
-  });
-  if (r.error) throw new Error(`could not run ${CLI} (${r.error.message}); set SUPABASE_CLI to the supabase binary`);
-  return r;
+  // A statement past the line's length goes by a file of its own (the CLI's --file), removed once it has run.
+  const sql = args[args.length - 1];
+  const file =
+    sql.length > LONGEST_ON_THE_LINE ? path.join(os.tmpdir(), `told-${process.pid}-${Date.now()}.sql`) : null;
+  if (file) fs.writeFileSync(file, sql);
+  try {
+    const r = spawnSync(CLI, ["db", "query", "--local", ...(file ? [...args.slice(0, -1), "--file", file] : args)], {
+      cwd: ROOT,
+      encoding: "utf8",
+      maxBuffer: 16 * 1024 * 1024,
+    });
+    if (r.error) throw new Error(`could not run ${CLI} (${r.error.message}); set SUPABASE_CLI to the supabase binary`);
+    return r;
+  } finally {
+    if (file) fs.rmSync(file, { force: true });
+  }
 }
 
 /** One statement, and the rows it returned. */
@@ -70,10 +86,12 @@ function rolledBack(body) {
 const told = (step) => `
   steps := steps || jsonb_build_object('${step}', (
     select coalesce(jsonb_agg(jsonb_build_object(
-             'to', case m.topic when ta then 'a' else 'b' end, 'event', m.event, 'notice', m.payload - 'id',
+             'to', case m.topic when ta then 'a' else 'b' end, 'event', m.event, 'notice', m.payload - 'id' - 'at',
              'private', m.private, 'extension', m.extension)
            order by m.topic = tb, m.payload ->> 'table', m.event, m.payload ->> 'statuses'), '[]')
       from realtime.messages m where m.topic in (ta, tb)));
+  ats := ats || (select coalesce(jsonb_agg(m.payload -> 'at'), '[]')
+                   from realtime.messages m where m.topic in (ta, tb) and m.event <> 'probe');
   delete from realtime.messages where topic in (ta, tb);
   perform set_config('chanlytics.workspace_told', '', true);`;
 
@@ -104,7 +122,8 @@ function world() {
       a uuid; b uuid; ta text; tb text; ca uuid; cb uuid; conv uuid; conv_b uuid; seg_a uuid; seg_b uuid; tpl uuid;
       member_a uuid := gen_random_uuid(); viewer_a uuid := gen_random_uuid(); partner_a uuid := gen_random_uuid();
       member_b uuid := gen_random_uuid(); probe_a uuid; probe_b uuid; n integer; spoke boolean; tr record;
-      steps jsonb := '{}'; reads jsonb := '{}'; misfired jsonb := '[]';
+      steps jsonb := '{}'; reads jsonb := '{}'; misfired jsonb := '[]'; ats jsonb := '[]';
+      began text := to_char(clock_timestamp() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"');
     begin
       insert into public.tenants (slug, name) values ('told-a-' || gen_random_uuid(), 'Told A') returning id into a;
       insert into public.tenants (slug, name) values ('told-b-' || gen_random_uuid(), 'Told B') returning id into b;
@@ -187,8 +206,8 @@ function world() {
       delete from public.person_notes where tenant_id = b;
       ${told("note_removed")}
 
-      -- A playbook made, paused and removed by a teammate (00376): Campaigns' rows and acts repaint. Its message is no
-      -- watched row.
+      -- A playbook made, paused and removed by a teammate (00376): Campaigns' rows and acts repaint. Its template is
+      -- told on its own account (00408).
       insert into public.templates (tenant_id, channel, name, language, meta_status)
         values (a, 'whatsapp', 'told_offer', 'en_US', 'approved') returning id into tpl;
       ${told("template_made")}
@@ -199,6 +218,68 @@ function world() {
       ${told("playbook_paused")}
       delete from public.playbooks where tenant_id = a;
       ${told("playbook_removed")}
+
+      -- The records that were silent (00408), each told to its workspace alone: the table and the event, never the row.
+      -- A person. A message's stamp on last_seen_at is no change a page draws; a name is; the same name again is not.
+      update public.contacts set last_seen_at = now() where id = ca;
+      ${told("a_person_seen_again")}
+      update public.contacts set display_name = 'Ana' where id = ca;
+      ${told("a_person_named")}
+      update public.contacts set display_name = 'Ana' where id = ca;
+      ${told("the_same_name_written_again")}
+      -- One transaction: a person made (a statement trigger) and two of them changed (a row trigger) tell a workspace's
+      -- table and event once each, and the other workspace's own change is told to it.
+      insert into public.contacts (tenant_id) values (a);
+      update public.contacts set display_name = 'Ana Two', dnc = true where id = ca;
+      update public.contacts set email = 'ana@example.com' where id = ca;
+      update public.contacts set display_name = 'Ben' where id = cb;
+      ${told("people_made_and_changed_in_one_transaction")}
+
+      -- The settings. Told when the version moved; the hourly stamp on calendar_checked_at moves none.
+      update public.tenant_config set calendar_checked_at = now() where tenant_id = a;
+      ${told("the_calendar_stamped")}
+      update public.tenant_config set config = config || '{"told": true}' where tenant_id = a;
+      ${told("settings_saved")}
+      update public.tenant_config set config = config || '{"told": true}' where tenant_id = a;
+      ${told("the_same_settings_saved_again")}
+
+      -- The rules: one statement over two workspaces tells each; a rule for one person is made and removed.
+      update public.policies set mode = 'ask' where class = 'reply' and subject_type is null and tenant_id in (a, b);
+      ${told("the_rules_changed")}
+      insert into public.policies (tenant_id, class, mode, subject_type, subject_id) values (a, 'faq', 'ask', 'contact', ca);
+      ${told("a_rule_made_for_one_person")}
+      delete from public.policies where tenant_id = a and subject_id = ca;
+      ${told("a_rule_for_one_person_removed")}
+
+      -- A template. Meta's answer is told; a sync's stamp is not; a hide is; a removal is.
+      update public.templates set meta_status = 'rejected', rejected_reason = 'INVALID_FORMAT' where id = tpl;
+      ${told("a_template_rejected")}
+      update public.templates set synced_at = now() where id = tpl;
+      ${told("a_template_synced")}
+      update public.templates set meta_status = 'rejected' where id = tpl;
+      ${told("the_same_status_written_again")}
+      update public.templates set hidden_at = now() where id = tpl;
+      ${told("a_template_hidden")}
+      delete from public.templates where id = tpl;
+      ${told("a_template_removed")}
+
+      -- The mailbox. Its pause on offers is told, and its end; the mail it receives is not.
+      insert into public.mailboxes (tenant_id, local_part, reply_token, from_name)
+        values (a, 'told-' || left(md5(random()::text), 12), translate(left(md5(random()::text), 24), '0123456789', 'ghijklmnop'), 'Told A');
+      ${told("a_mailbox_made")}
+      update public.mailboxes set last_received_at = now() where tenant_id = a;
+      ${told("a_mailbox_received_mail")}
+      update public.mailboxes set offers_paused_at = now(), offers_paused_reason = 'bounces' where tenant_id = a;
+      ${told("offers_paused")}
+      update public.mailboxes set offers_paused_at = null, offers_paused_reason = null, offers_resumed_at = now() where tenant_id = a;
+      ${told("offers_resumed")}
+
+      -- A booking email the reader held for a look, then settled.
+      insert into public.appointment_notices (tenant_id, notice_id, tool, received_at, outcome, hold_reason)
+        values (a, 'told-notice', 'a_booking_tool', now(), 'held', 'unreadable');
+      ${told("a_booking_email_held")}
+      update public.appointment_notices set outcome = 'dismissed', hold_reason = 'not_a_booking' where tenant_id = a;
+      ${told("a_booking_email_settled")}
 
       -- One transaction: a loop of statements, as the lead finder's commits are, tells each workspace once.
       for n in 1..100 loop
@@ -227,16 +308,18 @@ function world() {
       ${messageIn("sent after the savepoint went back")}
       ${told("told_after_a_rollback")}
 
-      -- Every trigger, fired by a statement that changes no row: each table's runs, and tells nobody.
+      -- Every trigger, fired by a statement that changes no row: each table's runs, and tells nobody. A workspace's own
+      -- row (tenants) names its workspace by its id.
       for tr in
-        select c.relname as tbl, t.tgname, case when t.tgtype & 4 > 0 then 'insert' when t.tgtype & 8 > 0 then 'delete' else 'update' end as ev
+        select c.relname as tbl, t.tgname, case when c.relname = 'tenants' then 'id' else 'tenant_id' end as workspace,
+               case when t.tgtype & 4 > 0 then 'insert' when t.tgtype & 8 > 0 then 'delete' else 'update' end as ev
           from pg_trigger t join pg_class c on c.oid = t.tgrelid
          where t.tgname like 'workspace_tell_%' and not t.tgisinternal
       loop
         begin
           execute case tr.ev
-            when 'insert' then format('insert into public.%I (tenant_id) select tenant_id from public.%I where false', tr.tbl, tr.tbl)
-            when 'update' then format('update public.%I set tenant_id = tenant_id where false', tr.tbl)
+            when 'insert' then format('insert into public.%I (%I) select %I from public.%I where false', tr.tbl, tr.workspace, tr.workspace, tr.tbl)
+            when 'update' then format('update public.%I set %I = %I where false', tr.tbl, tr.workspace, tr.workspace)
             else format('delete from public.%I where false', tr.tbl) end;
         exception when others then
           misfired := misfired || jsonb_build_array(tr.tbl || '.' || tr.tgname || ': ' || sqlerrm);
@@ -248,6 +331,7 @@ function world() {
       insert into auth.users (id) values (member_a), (viewer_a), (partner_a), (member_b);
       insert into public.memberships (user_id, tenant_id, role) values
         (member_a, a, 'operator'), (viewer_a, a, 'viewer'), (partner_a, a, 'partner'), (member_b, b, 'owner');
+      ${told("seats_taken")}
       insert into realtime.messages (topic, extension, event, payload, private)
         values (ta, 'broadcast', 'probe', '{}', true) returning id into probe_a;
       insert into realtime.messages (topic, extension, event, payload, private)
@@ -280,8 +364,34 @@ function world() {
       end;
       reset role;
       reads := reads || jsonb_build_object('member_speaks', spoke);
+      ${told("probes")}
 
-      seen := jsonb_build_object('steps', steps, 'reads', reads);
+      -- The team and the workspace's own row (00408): a seat's role is told, the member's own saved views are not; an
+      -- invitation sent and accepted, a seat left, a workspace paused.
+      update public.memberships set views = '{"people": {"sortBy": "name"}}' where user_id = member_a;
+      ${told("a_member_saved_their_own_views")}
+      update public.memberships set role = 'viewer' where user_id = member_a and tenant_id = a;
+      ${told("a_role_changed")}
+      update public.memberships set role = 'viewer' where user_id = member_a and tenant_id = a;
+      ${told("the_same_role_written_again")}
+      insert into public.invitations (tenant_id, email, role) values (a, 'new-teammate@example.com', 'viewer');
+      ${told("a_teammate_invited")}
+      update public.invitations set accepted_at = now() where tenant_id = a;
+      ${told("an_invitation_accepted")}
+      delete from public.invitations where tenant_id = a;
+      ${told("an_invitation_removed")}
+      delete from public.memberships where user_id = viewer_a;
+      ${told("a_seat_left")}
+      update public.tenants set name = 'Told A, renamed' where id = a;
+      ${told("the_workspace_renamed")}
+      update public.tenants set status = 'paused' where id = a;
+      ${told("the_workspace_paused")}
+      update public.tenants set status = 'paused' where id = a;
+      ${told("the_workspace_paused_again")}
+
+      seen := jsonb_build_object(
+        'steps', steps, 'reads', reads, 'ats', ats, 'began', began,
+        'ended', to_char(clock_timestamp() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'));
     end;
   `);
   return seen;
@@ -301,37 +411,117 @@ const notice = (to, event, table, statuses) => ({
   extension: "broadcast",
 });
 
+/**
+ * The updates told only when a column a page draws holds something else than it did (00408), and the columns each is
+ * narrowed to: a row trigger, AFTER UPDATE OF them, WHEN one is distinct. A column added here is a decision about what
+ * a page draws. `null` is a table with no list: the settings are told when their version moved, whatever was named.
+ */
+const NARROWED = {
+  contacts: [
+    "display_name",
+    "wa_profile_name",
+    "phone_e164",
+    "email",
+    "notes",
+    "proposal_url",
+    "consent",
+    "consent_source",
+    "consent_updated_at",
+    "dnc",
+    "marketing_consent",
+    "marketing_consent_source",
+    "marketing_consent_updated_at",
+    "email_marketing",
+    "email_marketing_source",
+    "email_marketing_updated_at",
+    "consent_channels",
+    "marketing_channels",
+    "email_suppressed_at",
+    "email_suppressed_reason",
+    "merged_into_contact_id",
+    "erased_at",
+  ],
+  tenant_config: null,
+  templates: [
+    "meta_status",
+    "rejected_reason",
+    "quality",
+    "category",
+    "hidden_at",
+    "title",
+    "body_preview",
+    "components",
+    "variables",
+  ],
+  mailboxes: ["offers_paused_at", "offers_paused_reason", "offers_resumed_at"],
+  memberships: ["role"],
+  tenants: ["status"],
+};
+
 test(
-  "the tables and events with a trigger are the ones the live feed lists, each a statement's, after it",
+  "the tables and events with a trigger are the ones the live feed lists: a statement's, after it, or a narrowed update's, per row",
   { skip },
   async () => {
     const { watchedEvents } = await import(pathToFileURL(path.join(ROOT, "packages/db/src/realtime.ts")).href);
-    const rows = query(`
+    const triggers = query(`
     select c.relname as tbl,
-           array_agg(case when t.tgtype & 4 > 0 then 'INSERT' when t.tgtype & 16 > 0 then 'UPDATE' else 'DELETE' end
-                     order by case when t.tgtype & 4 > 0 then 1 when t.tgtype & 16 > 0 then 2 else 3 end) as events,
-           bool_and(t.tgtype & 1 = 0 and t.tgtype & 2 = 0 and t.tgtype & 64 = 0) as after_each_statement,
-           bool_and(coalesce(t.tgnewtable, t.tgoldtable) = 'changed') as reads_what_changed,
-           jsonb_object_agg(case when t.tgtype & 4 > 0 then 'INSERT' when t.tgtype & 16 > 0 then 'UPDATE' else 'DELETE' end,
-                            encode(t.tgargs, 'escape')) as args
+           case when t.tgtype & 4 > 0 then 'INSERT' when t.tgtype & 16 > 0 then 'UPDATE' else 'DELETE' end as event,
+           p.proname::text as fn,
+           t.tgtype & 1 > 0 as per_row,
+           t.tgtype & 2 = 0 and t.tgtype & 64 = 0 as after_it,
+           coalesce(t.tgnewtable, t.tgoldtable) as transition,
+           encode(t.tgargs, 'escape') as args,
+           t.tgqual is not null as has_when,
+           (select array_agg(a.attname::text order by a.attname) from unnest(t.tgattr::int2[]) as k
+              join pg_attribute a on a.attrelid = t.tgrelid and a.attnum = k) as cols
       from pg_trigger t join pg_class c on c.oid = t.tgrelid join pg_namespace n on n.oid = c.relnamespace
+           join pg_proc p on p.oid = t.tgfoid
      where n.nspname = 'public' and t.tgname like 'workspace_tell_%' and not t.tgisinternal
-       and t.tgfoid = 'public.workspace_tell_changes()'::regprocedure
-     group by c.relname order by c.relname`);
-    const inDatabase = rows.map((r) => ({ table: r.tbl, events: r.events }));
+       and t.tgfoid in ('public.workspace_tell_changes()'::regprocedure, 'public.workspace_tell_row_change()'::regprocedure)
+     order by c.relname, case when t.tgtype & 4 > 0 then 1 when t.tgtype & 16 > 0 then 2 else 3 end`);
+    const events = new Map();
+    for (const t of triggers) events.set(t.tbl, [...(events.get(t.tbl) ?? []), t.event]);
+    const inDatabase = [...events].map(([table, told]) => ({ table, events: told }));
     const listed = [...watchedEvents()].sort((x, y) => x.table.localeCompare(y.table));
     assert.deepEqual(inDatabase, listed, "a table joins the live feed with its trigger, in one change");
-    for (const r of rows) {
-      assert.equal(r.after_each_statement, true, `${r.tbl}: after each statement, not each row`);
-      assert.equal(r.reads_what_changed, true, `${r.tbl}: reads the rows its statement changed`);
-      assert.deepEqual(
-        r.args,
-        Object.fromEntries(r.events.map((e) => [e, judgedBy(r.tbl, e)])),
-        `${r.tbl}: the column its changes are judged by, for each event`,
-      );
+    for (const t of triggers) {
+      const where = `${t.tbl} ${t.event}`;
+      assert.equal(t.after_it, true, `${where}: after the change`);
+      if (t.event === "UPDATE" && t.tbl in NARROWED) {
+        assert.equal(t.fn, "workspace_tell_row_change", `${where}: told by the row function`);
+        assert.equal(t.per_row, true, `${where}: per row, the only trigger that can see which columns moved`);
+        assert.equal(t.has_when, true, `${where}: told when a value is distinct, not when a column is named`);
+        assert.deepEqual(t.cols, NARROWED[t.tbl] && [...NARROWED[t.tbl]].sort(), `${where}: the columns a page draws`);
+        assert.equal(t.args, "", `${where}: no column its changes are judged by`);
+        continue;
+      }
+      assert.equal(t.fn, "workspace_tell_changes", `${where}: told by the statement function`);
+      assert.equal(t.per_row, false, `${where}: after each statement, not each row`);
+      assert.equal(t.transition, "changed", `${where}: reads the rows its statement changed`);
+      assert.equal(t.has_when, false, `${where}: every change of it is told`);
+      assert.equal(t.cols, null, `${where}: no column list`);
+      assert.equal(t.args, judgedBy(t.tbl, t.event), `${where}: the column its changes are judged by`);
     }
   },
 );
+
+test("the live feed tells of every table the receptionist's runtime stamp reads (0047)", { skip }, async () => {
+  const { watchedEvents } = await import(pathToFileURL(path.join(ROOT, "packages/db/src/realtime.ts")).href);
+  const [{ def }] = query(`select pg_get_functiondef('public.runtime_stamp(uuid)'::regprocedure) as def`);
+  // The stamp's own text: the tables it selects from, its comments set aside.
+  const read = [...def.replace(/--[^\n]*/g, "").matchAll(/\b(?:from|join)\s+(?:public\.)?([a-z_]+)/gi)].map((m) =>
+    m[1].toLowerCase(),
+  );
+  const stamped = [...new Set(read)].sort();
+  for (const table of ["tenant_config", "policies", "tenants", "tenant_channels", "google_listings", "lines"])
+    assert.ok(stamped.includes(table), `the scan found ${table} in the stamp (${stamped.join(", ")})`);
+  const told = new Map(watchedEvents().map((w) => [w.table, w.events]));
+  for (const table of stamped) {
+    assert.ok(told.has(table), `${table}: the stamp reads it and the live feed does not tell of it`);
+    // A stamp moves on a row changed (a version, an updated_at, a status), so an update must be among the events.
+    assert.ok(told.get(table).includes("UPDATE"), `${table}: told of its updates, which are what move the stamp`);
+  }
+});
 
 test("every trigger runs on its table, and a statement that changes nothing tells nobody", { skip }, () => {
   const { steps } = world();
@@ -445,12 +635,121 @@ test(
   { skip },
   () => {
     const { steps } = world();
-    assert.deepEqual(steps.template_made, [], "a message's row is not watched");
+    assert.deepEqual(
+      steps.template_made,
+      [notice("a", "INSERT", "templates")],
+      "its template is told on its own (00408)",
+    );
     assert.deepEqual(steps.playbook_made, [notice("a", "INSERT", "playbooks")]);
     assert.deepEqual(steps.playbook_paused, [notice("a", "UPDATE", "playbooks")]);
     assert.deepEqual(steps.playbook_removed, [notice("a", "DELETE", "playbooks")]);
   },
 );
+
+test(
+  "a person made or changed is told to its workspace: a name, an answer and an address are, a message's stamp is not (00408)",
+  { skip },
+  () => {
+    const { steps } = world();
+    assert.deepEqual(steps.a_person_seen_again, [], "last_seen_at is a stamp every message puts on a person");
+    assert.deepEqual(steps.a_person_named, [notice("a", "UPDATE", "contacts")]);
+    assert.deepEqual(steps.the_same_name_written_again, [], "a column named and written as it was tells nothing");
+    assert.deepEqual(
+      steps.people_made_and_changed_in_one_transaction,
+      [notice("a", "INSERT", "contacts"), notice("a", "UPDATE", "contacts"), notice("b", "UPDATE", "contacts")],
+      "a person made and three changes: each workspace's table and event once, the other workspace told of its own",
+    );
+  },
+);
+
+test(
+  "the settings saved are told when their version moved, and the hourly calendar stamp is not (00408)",
+  { skip },
+  () => {
+    const { steps } = world();
+    assert.deepEqual(steps.the_calendar_stamped, [], "calendar_checked_at moves no version");
+    assert.deepEqual(steps.settings_saved, [notice("a", "UPDATE", "tenant_config")]);
+    assert.deepEqual(steps.the_same_settings_saved_again, [], "a save that changes nothing takes no version");
+  },
+);
+
+test("the rules changed are told to each workspace they changed in, a person's own rule too (00408)", { skip }, () => {
+  const { steps } = world();
+  assert.deepEqual(steps.the_rules_changed, [notice("a", "UPDATE", "policies"), notice("b", "UPDATE", "policies")]);
+  assert.deepEqual(steps.a_rule_made_for_one_person, [notice("a", "INSERT", "policies")]);
+  assert.deepEqual(steps.a_rule_for_one_person_removed, [notice("a", "DELETE", "policies")]);
+});
+
+test(
+  "a template's status, rejection and visibility are told, a sync's stamp is not, and its removal is (00408)",
+  { skip },
+  () => {
+    const { steps } = world();
+    assert.deepEqual(steps.a_template_rejected, [notice("a", "UPDATE", "templates")]);
+    assert.deepEqual(steps.a_template_synced, [], "synced_at is stamped on every template by every sync");
+    assert.deepEqual(steps.the_same_status_written_again, []);
+    assert.deepEqual(steps.a_template_hidden, [notice("a", "UPDATE", "templates")]);
+    assert.deepEqual(steps.a_template_removed, [notice("a", "DELETE", "templates")]);
+  },
+);
+
+test(
+  "a pause on offers by email and its end are told; a mailbox made and the mail it receives are not (00408)",
+  { skip },
+  () => {
+    const { steps } = world();
+    assert.deepEqual(steps.a_mailbox_made, []);
+    assert.deepEqual(steps.a_mailbox_received_mail, []);
+    assert.deepEqual(steps.offers_paused, [notice("a", "UPDATE", "mailboxes")]);
+    assert.deepEqual(steps.offers_resumed, [notice("a", "UPDATE", "mailboxes")]);
+  },
+);
+
+test("a booking email held for a look, and settled, is told to its workspace (00408)", { skip }, () => {
+  const { steps } = world();
+  assert.deepEqual(steps.a_booking_email_held, [notice("a", "INSERT", "appointment_notices")]);
+  assert.deepEqual(steps.a_booking_email_settled, [notice("a", "UPDATE", "appointment_notices")]);
+});
+
+test(
+  "a seat taken, a role changed, an invitation sent and accepted and a seat left are told; a member's own views are not (00408)",
+  { skip },
+  () => {
+    const { steps } = world();
+    assert.deepEqual(steps.seats_taken, [notice("a", "INSERT", "memberships"), notice("b", "INSERT", "memberships")]);
+    assert.deepEqual(steps.a_member_saved_their_own_views, [], "views change with every sort a member presses");
+    assert.deepEqual(steps.a_role_changed, [notice("a", "UPDATE", "memberships")]);
+    assert.deepEqual(steps.the_same_role_written_again, []);
+    assert.deepEqual(steps.a_teammate_invited, [notice("a", "INSERT", "invitations")]);
+    assert.deepEqual(steps.an_invitation_accepted, [notice("a", "UPDATE", "invitations")]);
+    assert.deepEqual(steps.an_invitation_removed, [notice("a", "DELETE", "invitations")]);
+    assert.deepEqual(
+      steps.a_seat_left.filter((n) => n.notice.table === "memberships"),
+      [notice("a", "DELETE", "memberships")],
+    );
+  },
+);
+
+test(
+  "a workspace's status moving is told to it; its name changing, or the same status again, is not (00408)",
+  { skip },
+  () => {
+    const { steps } = world();
+    assert.deepEqual(steps.the_workspace_renamed, []);
+    assert.deepEqual(steps.the_workspace_paused, [notice("a", "UPDATE", "tenants")]);
+    assert.deepEqual(steps.the_workspace_paused_again, []);
+  },
+);
+
+test("every notice carries the clock it was told by: UTC to the millisecond, within the run (00408)", { skip }, () => {
+  const { ats, began, ended } = world();
+  assert.ok(ats.length >= 30, `a run of this many notices (${ats.length}) all carry one`);
+  for (const at of ats) {
+    assert.match(String(at), /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/, "ISO 8601, UTC, to the millisecond");
+    assert.equal(new Date(at).toISOString(), at, "a time a browser reads back as it was written");
+    assert.ok(at >= began && at <= ended, `${at} lies between the run's start ${began} and its end ${ended}`);
+  }
+});
 
 test("one statement over 500 rows of two workspaces puts one notice on each", { skip }, () => {
   const { steps } = world();
@@ -463,7 +762,12 @@ test("one statement over 500 rows of two workspaces puts one notice on each", { 
     notice("a", "DELETE", "segment_members"),
     notice("b", "DELETE", "segment_members"),
   ]);
-  assert.deepEqual(steps.lists_made, [notice("a", "INSERT", "segments"), notice("b", "INSERT", "segments")]);
+  assert.deepEqual(steps.lists_made, [
+    notice("a", "INSERT", "contacts"),
+    notice("a", "INSERT", "segments"),
+    notice("b", "INSERT", "contacts"),
+    notice("b", "INSERT", "segments"),
+  ]);
 });
 
 test("a write that rolls back tells nothing, and takes back the memory of having told", { skip }, () => {

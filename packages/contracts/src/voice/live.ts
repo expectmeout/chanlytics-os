@@ -19,6 +19,7 @@ import { CALL_HEARTBEAT_MS, isLiveCall } from "../config/policy";
 import { formatPhoneDisplay } from "../shared/phone";
 import { callLength, mmss } from "../shared/clock";
 import { callerName } from "../people/person-name";
+import { isOptedOutContact } from "../consent/consent";
 import {
   endedHowOf,
   neverConnected,
@@ -30,6 +31,7 @@ import { callOutcomeFor, spokenDuration, type CallVM } from "../conversations/ca
 import { initialsOf, shortName } from "../conversations/thread-contact";
 import { shortTime } from "../conversations/thread-clock";
 import { callNotesOf, callOutcomeWords, type CallNotes } from "./call-words";
+import { PHONE_LINE_OFF } from "../lines/caller-gets";
 import type { ChannelDto } from "../lines/channels";
 import { DAY_MS, MIN_MS } from "../shared/time";
 
@@ -74,6 +76,8 @@ export interface LiveCallVM {
   who: string;
   whoShort: string;
   initials: string;
+  /** The caller is a person who asked to stop, or is on do-not-contact (isOptedOutContact): the row says it beside the name. */
+  stopped: boolean;
   /** Display phone, or null when the caller ID was withheld. */
   number: string | null;
   /** The caller's number as stored (E.164), for a page that acts on it (the first run's transfer choice); null when withheld. */
@@ -123,6 +127,9 @@ export interface LiveCallVM {
 export interface LiveLineVM {
   number: string | null;
   on: boolean;
+  /** What the page says while the line is off: the sentence about a switched-off line, whole, with what a caller gets
+   *  (lines/caller-gets.ts). The page draws it when `on` is false and says nothing of its own about the receptionist. */
+  offWords: string;
   /** When the line last rang, in the same short form. */
   lastCallLabel: string | null;
 }
@@ -266,6 +273,19 @@ function checkingOf(
   return { checking: false, checkingWhy: null };
 }
 
+/** Where the call's summary stands: a call that never connected has none to wait for; one in its grace after ending waits. */
+function summaryStateOf(c: {
+  missed: boolean;
+  summary: string | null;
+  live: boolean;
+  endedMs: number | null;
+  nowMs: number;
+}): LiveCallVM["summaryState"] {
+  if (c.missed) return "missed";
+  if (c.summary) return "ready";
+  return c.live || (c.endedMs !== null && c.nowMs - c.endedMs < ANALYSIS_GRACE_MS) ? "pending" : "none";
+}
+
 export function toLiveCallVM(dto: CallDto, tz: string, now = new Date()): LiveCallVM {
   const nowMs = now.getTime();
   const withheld = !dto.from_e164 && !dto.from_raw;
@@ -284,13 +304,7 @@ export function toLiveCallVM(dto: CallDto, tz: string, now = new Date()): LiveCa
 
   const endedMs = dto.ended_at ? new Date(dto.ended_at).getTime() : null;
   const summary = (dto.summary ?? "").trim() || null;
-  const summaryState: LiveCallVM["summaryState"] = missed
-    ? "missed"
-    : summary
-      ? "ready"
-      : live || (endedMs !== null && nowMs - endedMs < ANALYSIS_GRACE_MS)
-        ? "pending"
-        : "none";
+  const summaryState = summaryStateOf({ missed, summary, live, endedMs, nowMs });
 
   return {
     callId: dto.id,
@@ -299,6 +313,7 @@ export function toLiveCallVM(dto: CallDto, tz: string, now = new Date()): LiveCa
     who,
     whoShort,
     initials: withheld ? "–" : initialsOf(who),
+    stopped: isOptedOutContact(dto.contact),
     // The CUSTOMER's number: on a call the receptionist placed, that is the one it dialled. The bell's missed-call
     // row named the business's own line under an outbound dial that never connected (the 2 Oct 2026 audit).
     number: withheld ? null : dto.direction === "outbound" ? formatPhoneDisplay(dto.to_e164) : (phone ?? dto.from_raw),
@@ -341,6 +356,7 @@ export function toLiveVM(calls: CallDto[], channels: ChannelDto[] | null, tz: st
     ? {
         number: formatPhoneDisplay(voice.number_e164),
         on: voice.status === "active",
+        offWords: `The line is switched off — ${PHONE_LINE_OFF.gets}.`,
         lastCallLabel: voice.last_inbound_at ? shortTime(voice.last_inbound_at, tz, now) : null,
       }
     : null;

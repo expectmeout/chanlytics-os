@@ -53,7 +53,8 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
   assert.ok(
     alerts.includes("subject: `${name} needs a person — ${why}`") &&
       alerts.includes("about: ctx.about ?? null,") &&
-      alerts.includes('"passed to a human": "asked for a person"'),
+      // The reason is said in the Inbox's words (reasonShort of the hold's reason), not a map of the notice's own.
+      alerts.includes('["passed to a human", "human_token"]'),
     "a handoff is said in the owner's words, about its thread",
   );
   assert.ok(!alerts.includes("WhatsApp handoff needed"));
@@ -77,8 +78,8 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
   );
   // A call said by name, about its call or the thread that needs a call back, runs: retell-webhook-door.test.mjs.
   assert.ok(
-    /dedupeFeed\(\[\s*\.\.\.applyReadState\(/.test(readCode("apps/dashboard/src/legacy-bridge/notifications.ts")),
-    "the bridge shows the feed once",
+    /bellFeed\(\{\s*derived: feedFromGlobals\(/.test(readCode("apps/dashboard/src/legacy-bridge/notifications.ts")),
+    "the bridge shows the feed once, a hold as one row (contracts bellFeed, which hides the kept row by dedupeFeed)",
   );
   const server = readCode("apps/dashboard/src/server/campaigns/broadcasts.ts");
   assert.ok(

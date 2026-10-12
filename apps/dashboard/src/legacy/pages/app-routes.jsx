@@ -31,24 +31,18 @@ const demoPage = (name, props) => {
 // a hand-typed address. Ruben's decision, 11 September 2026: most of it is
 // revisited when the product is at 100%, and none of those features is built
 // before then. Nothing here is a promise to a customer or an operator.
+//
+// The landing's words for the pages the registry marks demo, and only those (surface-registry.ts SURFACE_STATES; a test
+// holds every key to a demo row). A page that has shipped never draws ComingSoon in the app: `soon/<page>` lands on the page
+// itself, and a name the registry does not know is not found, so a row for either is words no workspace reads. The
+// standalone mockup has no registry; there a page with no row here draws its key as its title.
 const SOON_META = {
   pipeline:   { icon: "deal",        title: "Pipeline",   blurb: "Deals kanban with agent attribution — who advanced what, and why." },
-  calendar:   { icon: "calendar",    title: "Calendar",   blurb: "Your calendar as the receptionist reads it — taken, open, closed." },
-  calls:      { icon: "phone",       title: "Calls",      blurb: "Live transcription and call review with agent summaries." },
-  chats:      { icon: "chat",        title: "Chats",      blurb: "Every DM and SMS conversation, threaded by client." },
-  email:      { icon: "mail",        title: "Email",      blurb: "Agent-drafted email, sequences, and review queues." },
-  outbound:   { icon: "bolt",        title: "Campaigns",  blurb: "Standing rules your receptionist runs — win-back, welcome, save our number, the month's offer." },
   content:    { icon: "content",     title: "Content",    blurb: "Content calendar with agent-drafted posts." },
-  broadcasts: { icon: "wave",        title: "Sent",       blurb: "One-to-many sends with per-segment targeting." },
   fleet:      { icon: "agents",      title: "Agent Fleet", blurb: "Deep management for every agent: autonomy, campaigns, performance." },
   store:      { icon: "agents",      title: "Agent Store", blurb: "Install agents with new abilities — phone, chat, recovery, review." },
   studio:     { icon: "sparkle",     title: "Agent Studio", blurb: "Compose custom agents from skills, tone, and guardrails." },
-  reports:    { icon: "trending-up", title: "Reports",    blurb: "Revenue, conversion, and agent performance over time." },
-  admin:      { icon: "settings",    title: "Settings",   blurb: "Team, billing, integrations, AI memory, and autonomy defaults." },
-  clients:    { icon: "users",       title: "People",    blurb: "Every customer's history, spend, and preferences in one profile." },
-  segments:   { icon: "filter",      title: "Lists",      blurb: "Smart lists that keep themselves current — lapsed, VIP, new." },
   tasks:      { icon: "check",       title: "Tasks",      blurb: "The work ledger — a receipt for everything your agents did." },
-  live:       { icon: "phone",       title: "Live",       blurb: "Calls on your line, as they happen." },
   shared:     { icon: "trending-up", title: "Shared reports", blurb: "Read-only report links you can hand to a client or partner." },
 };
 
@@ -290,7 +284,13 @@ const drawRoute = (r) => {
       }
     : row ? row.draw(r) : drawNotFound(r);
   const drawn = { pane: false, primaryAction: null, ...answer, mountKey: (row && row.mount) || (chrome && chrome.mount) || (surface && surface.mount) || r.routeKey };
+  // An address with a place to go (r.retiredTo: a retired page, a pane that moved -- admin/setup is the first run) draws nothing while
+  // the frame takes it there (app-shell.jsx useRouteMoves, an effect that runs after this draw): not the page, which for a real
+  // workspace may be the mockup's, and not the honesty gate's card, which says "Not in this release" of an address the
+  // product knows.
+  if (r.retiredTo) return { ...drawn, pane: false, primaryAction: null, content: null };
   return r.demoGated ? routeGated(drawn, r) : drawn;
 };
 
-Object.assign(window, { SHELL_ROUTES, drawRoute });
+// SOON_META is published for a-real-session-hears-only-what-is-sent.test.mjs, which holds its keys to the registry's demo rows.
+Object.assign(window, { SHELL_ROUTES, SOON_META, drawRoute });

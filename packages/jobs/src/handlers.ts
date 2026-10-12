@@ -5,6 +5,7 @@
  * adapter that builds the ports from the job's context (no env reads here).
  */
 import {
+  noticeRoute,
   pushFor,
   type JobKind,
   isForReader,
@@ -59,6 +60,13 @@ import {
   reachOutBookedFrom,
   holdFactsOf,
   holdTold,
+  personFactsOf,
+  optOutTold,
+  eventTold,
+  bookedVisitsOf,
+  feedAdditionsWith,
+  memberJoinedOf,
+  noticeKept,
 } from "@chanlytics/db";
 import { upsertEscalation, type EscalationOutcome } from "./escalate";
 import { broadcastSend } from "./broadcast-send";
@@ -288,7 +296,8 @@ async function pushSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   const badges = await badgesFor(ctx, job.tenant_id, [...new Set(devices.map((d) => d.user_id))]);
   const receipts = await ctx.push.send(
     pushFor(
-      n,
+      // The phone opens the place the bell does (contracts noticeRoute): a row kept with no route opens its kind's list.
+      { ...n, route: noticeRoute(n.kind, n.route) },
       devices.map((d) => ({ token: d.token, badge: badges.get(d.user_id) ?? 0 })),
     ),
   );
@@ -500,6 +509,14 @@ async function eventDeliver(ctx: JobContext, job: ClaimedJob): Promise<void> {
     bookedFromAppointment: (tenantId, appointmentId) => reachOutBookedFrom(ctx.db, tenantId, appointmentId),
     holdFacts: (tenantId, ref) => holdFactsOf(ctx.db, tenantId, ref, Date.now()),
     holdTold: (tenantId, p) => holdTold(ctx.db, { tenantId, ...p }),
+    optOutPerson: (tenantId, contactId) => personFactsOf(ctx.db, tenantId, contactId),
+    optOutTold: (tenantId, p) => optOutTold(ctx.db, { tenantId, ...p }),
+    eventTold: (tenantId, eventId) => eventTold(ctx.db, { tenantId, eventId }),
+    bookedVisits: (tenantId, ids, nowMs) => bookedVisitsOf(ctx.db, tenantId, ids, nowMs),
+    feedAdditionsWith: (tenantId, event) => feedAdditionsWith(ctx.db, tenantId, event),
+    memberJoined: (tenantId, invitationId) => memberJoinedOf(ctx.db, tenantId, invitationId),
+    memberTold: (tenantId, invitationId) =>
+      noticeKept(ctx.db, { tenantId, kind: "member_joined", subjectType: "invitation", subjectId: invitationId }),
     // The delivery is the event's workspace's job, so the runtime addresses the notice to it (job-alert.ts).
     tell: (news) => ctx.alert(news),
   };

@@ -1839,12 +1839,17 @@ begin
 
   -- The sends of the last 30 days, of moments and broadcasts, to a thread that could be waiting on a person (a superset of
   -- standingOfThread's flagged: needs_human, any pause, an open escalation), and the first answer each got. The filter is
-  -- applied before the probe, so only those threads are looked into; the probe is campaign_ledger's, once per send.
+  -- applied before the probe, so only those threads are looked into; the probe is campaign_ledger's, once per send. The
+  -- open hold's reason rides with it (00409): whether a hold waits on a person is waitsOnAPerson's to say, in TypeScript.
   reached as (
-    select s.conversation_id, s.state, s.paused_until, s.assignee_user_id, s.open_escalation, f.at as first_reply_at
+    select s.conversation_id, s.state, s.paused_until, s.assignee_user_id, s.open_escalation,
+           s.open_escalation_reason, f.at as first_reply_at
       from (
         select m.conversation_id, r.sent_at, c.state, c.paused_until, c.assignee_user_id,
-               exists (select 1 from escalations e where e.conversation_id = c.id and e.state = 'open') as open_escalation
+               exists (select 1 from escalations e where e.conversation_id = c.id and e.state = 'open') as open_escalation,
+               (select e.reason from escalations e
+                 where e.conversation_id = c.id and e.state = 'open'
+                 order by e.created_at desc limit 1) as open_escalation_reason
           from broadcasts b
           join broadcast_recipients r on r.broadcast_id = b.id and r.tenant_id = p_tenant_id
           join messages m on m.id = r.message_id
@@ -1872,10 +1877,10 @@ begin
   ),
   -- One row a thread: the later of its sends' first answers. The oldest 500.
   flagged as (
-    select r.conversation_id, r.state, r.paused_until, r.assignee_user_id, r.open_escalation,
+    select r.conversation_id, r.state, r.paused_until, r.assignee_user_id, r.open_escalation, r.open_escalation_reason,
            max(r.first_reply_at) as replied_at
       from reached r
-     group by r.conversation_id, r.state, r.paused_until, r.assignee_user_id, r.open_escalation
+     group by r.conversation_id, r.state, r.paused_until, r.assignee_user_id, r.open_escalation, r.open_escalation_reason
      order by max(r.first_reply_at), r.conversation_id
      limit 500
   ),
@@ -1906,7 +1911,8 @@ begin
                                from failed f), '[]'::jsonb),
     'replies', coalesce((select jsonb_agg(jsonb_build_object(
                            'state', t.state, 'paused_until', t.paused_until, 'assignee_user_id', t.assignee_user_id,
-                           'open_escalation', t.open_escalation, 'replied_at', t.replied_at)
+                           'open_escalation', t.open_escalation, 'open_escalation_reason', t.open_escalation_reason,
+                           'replied_at', t.replied_at)
                          order by t.replied_at, t.conversation_id)
                            from flagged t), '[]'::jsonb),
     'templates', coalesce((select jsonb_agg(jsonb_build_object(
@@ -1923,7 +1929,7 @@ end $_$;
 -- Name: FUNCTION campaign_stuck(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.campaign_stuck(p_tenant_id uuid) IS 'Reports › Campaigns, what is stuck as it stands now (no window): the runs waiting for an OK (any kind, with the facts the day rule reads), the runs that failed in the last 30 days (a failure of ours, else other), the threads that answered a moment or a broadcast within the reply window and may wait on a person (needs_human, any pause or an open escalation: wider than standingOfThread''s flagged, on purpose, with the facts the rule reads), and the WhatsApp messages Meta paused, disabled or rejected. Facts, never verdicts, and nothing a person or a provider wrote. Each list at most 500, the messages 100. SECURITY INVOKER: the caller''s RLS decides what a member reads (00406).';
+COMMENT ON FUNCTION public.campaign_stuck(p_tenant_id uuid) IS 'Reports › Campaigns, what is stuck as it stands now (no window): the runs waiting for an OK (any kind, with the facts the day rule reads), the runs that failed in the last 30 days (a failure of ours, else other), the threads that answered a moment or a broadcast within the reply window and may wait on a person (needs_human, any pause or an open escalation: wider than standingOfThread''s flagged, on purpose, with the facts the rule reads, among them what the open hold is for), and the WhatsApp messages Meta paused, disabled or rejected. Facts, never verdicts, and nothing a person or a provider wrote. Each list at most 500, the messages 100. SECURITY INVOKER: the caller''s RLS decides what a member reads (00406, 00409).';
 
 
 --
@@ -23597,6 +23603,8 @@ declare
   had text := told;
   w record;
   said text;
+  -- When this statement told (UTC, to the millisecond), the clock a tab compares with the read it started (0047).
+  noted_at text := to_char(clock_timestamp() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"');
 begin
   -- A trigger's argument names the column its table's changes are judged by (calls: status), carried as the distinct
   -- values the statement left; every other table's notice is its name and the operation alone.
@@ -23609,7 +23617,7 @@ begin
     continue when strpos(told, said) > 0;
     told := told || said;
     perform realtime.send(
-      jsonb_strip_nulls(jsonb_build_object('table', tg_table_name, 'op', tg_op, 'statuses', w.statuses)),
+      jsonb_strip_nulls(jsonb_build_object('table', tg_table_name, 'op', tg_op, 'statuses', w.statuses, 'at', noted_at)),
       tg_op,
       'workspace:' || w.tenant_id::text || ':changes',
       true);
@@ -23625,7 +23633,52 @@ end $$;
 -- Name: FUNCTION workspace_tell_changes(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.workspace_tell_changes() IS 'Decision 0019: a notice on the private topic workspace:<tenant_id>:changes for each workspace a statement on a watched table changed, naming the table, the operation and, where a trigger names a column, its values; once per transaction for each. Never a row.';
+COMMENT ON FUNCTION public.workspace_tell_changes() IS 'Decision 0019: a notice on the private topic workspace:<tenant_id>:changes for each workspace a statement on a watched table changed, naming the table, the operation, where a trigger names a column its values, and the clock when it was told (at, 0047); once per transaction for each. Never a row.';
+
+
+--
+-- Name: workspace_tell_row_change(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.workspace_tell_row_change() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+declare
+  -- The memory workspace_tell_changes keeps, in the same words: a row trigger and a statement trigger of one
+  -- transaction tell a workspace's table and event once between them.
+  told text := coalesce(current_setting('chanlytics.workspace_told', true), '');
+  tenant uuid;
+  said text;
+begin
+  -- The workspace is the row's tenant_id; a workspace's own row (tenants) is its id.
+  if tg_table_name = 'tenants' then
+    tenant := new.id;
+  else
+    tenant := new.tenant_id;
+  end if;
+  said := '|' || tenant::text || ' ' || tg_table_name || ' ' || tg_op || '|';
+  if strpos(told, said) > 0 then
+    return null;
+  end if;
+  perform set_config('chanlytics.workspace_told', told || said, true);
+  perform realtime.send(
+    jsonb_build_object(
+      'table', tg_table_name,
+      'op', tg_op,
+      'at', to_char(clock_timestamp() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+    tg_op,
+    'workspace:' || tenant::text || ':changes',
+    true);
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION workspace_tell_row_change(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.workspace_tell_row_change() IS 'Decision 0047: the notice of workspace_tell_changes, for an UPDATE a row trigger has narrowed to the columns a page draws (AFTER UPDATE OF them, WHEN one is distinct): the table, the operation and the clock when it was told, once per transaction for each workspace, table and event. Never a row.';
 
 
 --
@@ -25794,8 +25847,9 @@ CREATE TABLE public.notifications (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     recipient_user_id uuid,
     source_event uuid,
+    mail_due_at timestamp with time zone,
     CONSTRAINT notifications_body_check CHECK ((char_length(body) <= 4000)),
-    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text]))),
+    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text, 'opted_out'::text, 'booking'::text, 'member_joined'::text]))),
     CONSTRAINT notifications_title_check CHECK (((char_length(title) >= 1) AND (char_length(title) <= 200)))
 );
 
@@ -25819,6 +25873,13 @@ COMMENT ON COLUMN public.notifications.recipient_user_id IS 'The one member this
 --
 
 COMMENT ON COLUMN public.notifications.source_event IS 'The event this notice answers (decision 0043, 00396): a hold''s notice keeps its escalation event, so a second delivery of it tells nobody. Null for a notice no event raised.';
+
+
+--
+-- Name: COLUMN notifications.mail_due_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.notifications.mail_due_at IS 'When this notice''s mail became owed (decision 0048, 00409): set with the row when a mail is to go, cleared once it has gone, so a retry sends the mail alone and the bell keeps one row. Null for a notice nothing owes.';
 
 
 --
@@ -30410,6 +30471,13 @@ CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.google_listings REFE
 
 
 --
+-- Name: invitations workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.invitations REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
 -- Name: lead_rounds workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -30445,6 +30513,13 @@ CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.lines REFERENCING OL
 
 
 --
+-- Name: memberships workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.memberships REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
 -- Name: person_notes workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -30456,6 +30531,13 @@ CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.person_notes REFEREN
 --
 
 CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.playbooks REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: policies workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.policies REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
 
 
 --
@@ -30487,10 +30569,24 @@ CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.sending_domains REFE
 
 
 --
+-- Name: templates workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.templates REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
 -- Name: tenant_channels workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.tenant_channels REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: appointment_notices workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.appointment_notices REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
 
 
 --
@@ -30536,6 +30632,13 @@ CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.capability_activatio
 
 
 --
+-- Name: contacts workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.contacts REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
 -- Name: conversations workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -30578,6 +30681,13 @@ CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.google_reviews REFER
 
 
 --
+-- Name: invitations workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.invitations REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
 -- Name: lead_rounds workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -30613,6 +30723,13 @@ CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.lines REFERENCING NE
 
 
 --
+-- Name: memberships workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.memberships REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
 -- Name: messages workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -30638,6 +30755,13 @@ CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.person_notes REFEREN
 --
 
 CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.playbooks REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: policies workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.policies REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
 
 
 --
@@ -30669,10 +30793,24 @@ CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.sending_domains REFE
 
 
 --
+-- Name: templates workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.templates REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
 -- Name: tenant_channels workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.tenant_channels REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: appointment_notices workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.appointment_notices REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
 
 
 --
@@ -30718,6 +30856,13 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.capability_activatio
 
 
 --
+-- Name: contacts workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE OF display_name, wa_profile_name, phone_e164, email, notes, proposal_url, consent, consent_source, consent_updated_at, dnc, marketing_consent, marketing_consent_source, marketing_consent_updated_at, email_marketing, email_marketing_source, email_marketing_updated_at, consent_channels, marketing_channels, email_suppressed_at, email_suppressed_reason, merged_into_contact_id, erased_at ON public.contacts FOR EACH ROW WHEN (((old.display_name IS DISTINCT FROM new.display_name) OR (old.wa_profile_name IS DISTINCT FROM new.wa_profile_name) OR (old.phone_e164 IS DISTINCT FROM new.phone_e164) OR (old.email IS DISTINCT FROM new.email) OR (old.notes IS DISTINCT FROM new.notes) OR (old.proposal_url IS DISTINCT FROM new.proposal_url) OR (old.consent IS DISTINCT FROM new.consent) OR (old.consent_source IS DISTINCT FROM new.consent_source) OR (old.consent_updated_at IS DISTINCT FROM new.consent_updated_at) OR (old.dnc IS DISTINCT FROM new.dnc) OR (old.marketing_consent IS DISTINCT FROM new.marketing_consent) OR (old.marketing_consent_source IS DISTINCT FROM new.marketing_consent_source) OR (old.marketing_consent_updated_at IS DISTINCT FROM new.marketing_consent_updated_at) OR (old.email_marketing IS DISTINCT FROM new.email_marketing) OR (old.email_marketing_source IS DISTINCT FROM new.email_marketing_source) OR (old.email_marketing_updated_at IS DISTINCT FROM new.email_marketing_updated_at) OR (old.consent_channels IS DISTINCT FROM new.consent_channels) OR (old.marketing_channels IS DISTINCT FROM new.marketing_channels) OR (old.email_suppressed_at IS DISTINCT FROM new.email_suppressed_at) OR (old.email_suppressed_reason IS DISTINCT FROM new.email_suppressed_reason) OR (old.merged_into_contact_id IS DISTINCT FROM new.merged_into_contact_id) OR (old.erased_at IS DISTINCT FROM new.erased_at))) EXECUTE FUNCTION public.workspace_tell_row_change();
+
+
+--
 -- Name: conversations workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -30750,6 +30895,13 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.google_connections R
 --
 
 CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.google_listings REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: invitations workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.invitations REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
 
 
 --
@@ -30788,6 +30940,20 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.lines REFERENCING NE
 
 
 --
+-- Name: mailboxes workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE OF offers_paused_at, offers_paused_reason, offers_resumed_at ON public.mailboxes FOR EACH ROW WHEN (((old.offers_paused_at IS DISTINCT FROM new.offers_paused_at) OR (old.offers_paused_reason IS DISTINCT FROM new.offers_paused_reason) OR (old.offers_resumed_at IS DISTINCT FROM new.offers_resumed_at))) EXECUTE FUNCTION public.workspace_tell_row_change();
+
+
+--
+-- Name: memberships workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE OF role ON public.memberships FOR EACH ROW WHEN ((old.role IS DISTINCT FROM new.role)) EXECUTE FUNCTION public.workspace_tell_row_change();
+
+
+--
 -- Name: messages workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -30806,6 +30972,13 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.person_notes REFEREN
 --
 
 CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.playbooks REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: policies workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.policies REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
 
 
 --
@@ -30837,10 +31010,31 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.sending_domains REFE
 
 
 --
+-- Name: templates workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE OF meta_status, rejected_reason, quality, category, hidden_at, title, body_preview, components, variables ON public.templates FOR EACH ROW WHEN (((old.meta_status IS DISTINCT FROM new.meta_status) OR (old.rejected_reason IS DISTINCT FROM new.rejected_reason) OR (old.quality IS DISTINCT FROM new.quality) OR (old.category IS DISTINCT FROM new.category) OR (old.hidden_at IS DISTINCT FROM new.hidden_at) OR (old.title IS DISTINCT FROM new.title) OR (old.body_preview IS DISTINCT FROM new.body_preview) OR (old.components IS DISTINCT FROM new.components) OR (old.variables IS DISTINCT FROM new.variables))) EXECUTE FUNCTION public.workspace_tell_row_change();
+
+
+--
 -- Name: tenant_channels workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.tenant_channels REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: tenant_config workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.tenant_config FOR EACH ROW WHEN ((old.version IS DISTINCT FROM new.version)) EXECUTE FUNCTION public.workspace_tell_row_change();
+
+
+--
+-- Name: tenants workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE OF status ON public.tenants FOR EACH ROW WHEN ((old.status IS DISTINCT FROM new.status)) EXECUTE FUNCTION public.workspace_tell_row_change();
 
 
 --
@@ -37593,6 +37787,14 @@ GRANT ALL ON FUNCTION public.workspace_partner(p_tenant uuid) TO service_role;
 
 REVOKE ALL ON FUNCTION public.workspace_tell_changes() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.workspace_tell_changes() TO service_role;
+
+
+--
+-- Name: FUNCTION workspace_tell_row_change(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.workspace_tell_row_change() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.workspace_tell_row_change() TO service_role;
 
 
 --

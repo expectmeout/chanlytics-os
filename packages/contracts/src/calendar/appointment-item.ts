@@ -9,7 +9,8 @@
 import type { CalendarItemDto, VisitMark } from "./calendar-dto";
 import { APPOINTMENT_STATUSES, type AppointmentStatus } from "./feed-appointments";
 import type { BusyBlock, FeedItem } from "./feed";
-import { extractContacts, type OwnAddresses, type PersonLike, type PersonMatch } from "./calendar-people";
+import { visitStands } from "./calendar-words";
+import { extractContacts, replyFactsOf, type OwnAddresses, type PersonLike, type PersonMatch } from "./calendar-people";
 import { bookingToolName, SAME_VISIT_MS } from "./booking-notice";
 import { appointmentKeyOf, recordKeyOf } from "./appointment-key";
 import { shiftKey, zoneMidnight } from "./day-keys";
@@ -67,6 +68,7 @@ export function feedItemOfAppointment(row: AppointmentLike): FeedItem {
     location: null,
     attendees: row.client_email ? [{ name: row.client_name, email: row.client_email }] : [],
     organizer: null,
+    recordId: row.id,
   };
 }
 
@@ -83,6 +85,7 @@ export function personOfAppointment(row: AppointmentLike, people: PersonLike[]):
     name: found.name || row.client_name || "",
     via,
     ...(found.thread !== undefined ? { thread: found.thread, wa_inbound_at: found.waInboundAt ?? null } : {}),
+    ...replyFactsOf(found),
   };
 }
 
@@ -150,9 +153,12 @@ export function feedWithRecord(
   if (!record) return [...items];
   const out: FeedItem[] = [];
   for (const it of withoutVisitsRowsDraw([...items], [...record.noted], own)) {
-    const said = markOn(record.marks, it)?.status;
-    if (said === "cancelled") continue;
-    out.push(said === "kept" || said === "missed" ? { ...it, said } : it);
+    const mark = markOn(record.marks, it);
+    // One rule for a cancelled visit (visitStands): it is none, whoever cancelled it.
+    if (!visitStands(mark)) continue;
+    const said = mark?.status;
+    const withRow = mark ? { recordId: mark.id } : {};
+    out.push(said === "kept" || said === "missed" ? { ...it, ...withRow, said } : { ...it, ...withRow });
   }
   for (const r of record.noted) {
     if (r.status !== "booked" && r.status !== "kept" && r.status !== "missed") continue;

@@ -8,9 +8,10 @@
 import { clockWhen } from "../shared/clock";
 import { HELD_REASONS } from "../broadcasts/run-words";
 import { plural } from "../shared/words";
+import { RUN_WAITING_WORDS } from "../shell/campaign-rooms";
 import type { ReachOutRunDto } from "./reach-out-dtos";
 import { holdDoors, HOLD_DOOR_WORDS, type ReachOutHold } from "./reach-out-words";
-import { approvalWordsOf, chainPaceOf } from "./reach-out-sheet";
+import { approvalWordsOf, chainPaceOf, leadDoorOf } from "./reach-out-sheet";
 
 /**
  * Why a send was skipped, as a run's block says it after the count and a lead's story says it (Part 6): the reasons
@@ -52,7 +53,7 @@ function skippedWordsOf(skipped: Record<string, number>): string[] {
 
 /** A live run's state as the block's head says it; a run waiting is the approval sheet's own. */
 const STATE_WORDS: Record<string, string> = {
-  pending_approval: "Waiting on you",
+  pending_approval: RUN_WAITING_WORDS,
   scheduled: "Scheduled",
   sending: "Sending",
 };
@@ -94,7 +95,13 @@ export function reachOutRunWordsOf(
     list: checked.map((x) => {
       const ms = Date.parse(x.send_at);
       const retimed = earlier || Number.isNaN(ms) || ms <= p.now;
-      return { id: x.send_id, name: x.business_name, at: retimed ? RETIMED : clockWhen(ms, p.timezone, p.now) };
+      return {
+        id: x.send_id,
+        name: x.business_name,
+        // Its lead, where the name opens it (leadDoorOf).
+        to: leadDoorOf(x.lead_id),
+        at: retimed ? RETIMED : clockWhen(ms, p.timezone, p.now),
+      };
     }),
     skipAsk: `Skip ${r.chain_name}'s run?`,
     // What Approve released, as the flash says it: the checked sends due today, never the run's whole count (R21).

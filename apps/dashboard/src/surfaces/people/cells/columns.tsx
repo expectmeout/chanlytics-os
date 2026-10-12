@@ -10,24 +10,27 @@
  * kit's quiet buttons, shown on hover and on the keyboard's row. Every cell is one of the kit's shapes: a state is the
  * pill's dot and word, a fact two quiet lines, an act a button.
  */
-import { heldWords, rowReachWords, type PersonRowVM, type SeenReading } from "@chanlytics/contracts";
+import {
+  appointmentWordWhere,
+  appointmentWords,
+  heldWords,
+  isIdentifierName,
+  rowReachWords,
+  stopToldBesideState,
+  type PersonRowVM,
+  type SeenReading,
+} from "@chanlytics/contracts";
+import { carryReply } from "../../inbox/carried-reply";
 import { navigate } from "../../legacy-verbs";
 import { unreadHere } from "../../seen";
+import { VisitState, visitWordHere } from "../../visit-line";
 import { Button } from "../../kit/button/button";
 import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
+import { StoppedMark } from "../../kit/pill/stopped-mark";
 import type { PeopleCellCtx, RowPick, TableColumn } from "../types";
-import {
-  PL_RECEPT_MARK,
-  offersOf,
-  plFace,
-  plIsAddress,
-  plIsNumber,
-  plReceptSaysTheState,
-  plVisitStart,
-  plWhen,
-} from "../words";
+import { offersOf, plReceptMark, plReceptSaysTheState, plVisitStart, plWhen } from "../words";
 import { plRowCard } from "./row-card";
 import { plCallsSort, plLastSort, plNameSort, plNextSort, plOffersSort, plStateSort, plVisitsSort } from "./sorts";
 
@@ -55,16 +58,8 @@ function PeopleRowActions({
   if (!p.threadId && !drop) return null;
   const open = () => navigate(`inbox/${p.threadId}`);
   const link = () => {
-    if (p.bookingLinkAction.ready) {
-      try {
-        sessionStorage.setItem(
-          "chanlytics-compose",
-          JSON.stringify({ threadId: p.threadId, text: `Here's the link to book your appointment: ${bookingLink}` }),
-        );
-      } catch {
-        /* nothing to carry */
-      }
-    }
+    if (p.threadId && p.bookingLinkAction.ready && bookingLink)
+      carryReply(p.threadId, appointmentWords(visitWordHere()).bookingLink(bookingLink));
     open();
   };
   return (
@@ -82,8 +77,9 @@ function PeopleRowActions({
           <Icon name="chat" size={12} />
         </Button>
       )}
-      {/* The link goes into the thread's composer: the send glyph says so; the calendar's is the visit's own door. */}
-      {p.threadId && bookingLink && (
+      {/* The link goes into the thread's composer: the send glyph says so; the calendar's is the visit's own door. Not
+          drawn for someone who asked to stop: the act is not offered (contracts bookingLinkAction). */}
+      {p.threadId && bookingLink && p.bookingLinkAction.offered && (
         <Button
           variant="quiet"
           size="sm"
@@ -138,34 +134,36 @@ export const plNameCell = (
    * `unread`: the person is new to the reader (plUnread), which People's own list says. The Pipeline draws this cell
    * too, over rows that are not drawn again as the reader's marks move, and says nothing of it.
    */
-  { attention, onOpen, unread = false }: Pick<PeopleCellCtx, "attention" | "onOpen"> & { unread?: boolean },
+  {
+    attention,
+    onOpen,
+    unread = false,
+    stopMark = false,
+  }: Pick<PeopleCellCtx, "attention" | "onOpen"> & { unread?: boolean; stopMark?: boolean },
   said?: string | null,
   /** The row it is drawn on, where that is not the person's own id (the Pipeline's further deal, 0029). */
   rowId?: string,
 ) => {
-  // Named by an identifier, a number or an address: nobody has named them yet.
-  const byNumber = plIsNumber(p.name);
-  const numbered = byNumber || plIsAddress(p);
+  // Named by an identifier, a number or an address (isIdentifierName, the one test): nobody has named them yet.
+  const numbered = isIdentifierName(p.name);
   // Their words, or what they said on the phone, as the attention strip says them: a row in Needs you said neither, and
   // gave no reason for the state either. A table that has its own line for the row (the Pipeline's deal, in Glass) says it.
   const words = said === undefined ? attentionWordsOf(p, attention) : said;
   return (
     <td key="name" className="cl-name-cell pl-pin">
       <div className={unread ? "cl-row-name unread" : "cl-row-name"}>
-        {numbered ? (
-          <Face size="sm" glyph={<Icon name={byNumber ? "phone" : "mail"} size={12} />} title="No name yet" />
-        ) : (
-          <Face size="sm" initials={p.initials} />
-        )}
+        <Face size="sm" person={{ name: p.name, initials: p.initials }} />
         <div className="cl-row-name-block">
           <div className="cl-row-fullname">
             {/* Their own name on WhatsApp, where it differs, is the name's tip rather than a third thing on the row. */}
             <span
-              className={byNumber ? "tabular" : ""}
+              className={numbered ? "tabular" : ""}
               title={!numbered && p.waName && p.waName !== p.name ? `${p.waName} on WhatsApp` : undefined}
             >
               {p.name}
             </span>
+            {/* The Pipeline's person cell says a stop beside the name (People's own row says it in its State pill). */}
+            {stopMark && p.stopped && <StoppedMark className="cl-row-stopped" testid="row-stopped" />}
             {numbered && (
               <button
                 className="cl-row-name-them"
@@ -223,54 +221,67 @@ const plOffersCell = (p: PersonRowVM) => {
   );
 };
 
-/** The next visit's hours, as the row's own words give them after the day. */
-const visitHours = (p: PersonRowVM): string => (p.nextVisit || "").split(" · ")[1] || "";
-
-/** The Visits cell: the day of the next visit (else the last), which opens its day on the Calendar. */
-const plVisitsCell = (p: PersonRowVM) => (
-  <td
-    key="visits"
-    className="cl-visits-cell"
-    title={p.nextVisit || p.lastVisit || "Never on the calendar"}
-    data-testid="row-next-visit"
-  >
-    {p.nextVisitDate || p.lastVisitDate ? (
-      // The visit opens its day on the Calendar; the row around it opens the person.
-      <button
-        type="button"
-        className="cl-row-visit"
-        onClick={(e) => {
-          e.stopPropagation();
-          navigate(`calendar/${p.nextVisitDate || p.lastVisitDate}`);
-        }}
-        title={`Open ${p.nextVisitDay || p.lastVisitDay} on the Calendar`}
-        data-testid="row-visit-open"
-      >
-        {p.nextVisitDay ? (
-          <>
-            <span className="cl-row-next">{p.nextVisitDay}</span>
-            <span className="dim"> · {plVisitStart(visitHours(p))}</span>
-          </>
-        ) : (
-          <span className="cl-row-last-visit">Last · {p.lastVisitDay}</span>
-        )}
-      </button>
-    ) : (
-      <span className="dim">—</span>
-    )}
-  </td>
-);
+/**
+ * The Visits cell: the next visit (else the last) as the one visit line says it (contracts visitLineOf): its day, its hours,
+ * and how it stands beside them when a word has been said or it has ended and nobody has (Kept, Missed, Past). It opens that
+ * visit on the Calendar (its panel, where the record has its row; else its day).
+ */
+const plVisitsCell = (p: PersonRowVM) => {
+  const line = p.nextVisitLine ?? p.lastVisitLine;
+  return (
+    <td
+      key="visits"
+      className="cl-visits-cell"
+      title={p.nextVisit || p.lastVisit || "Never on the calendar"}
+      data-testid="row-next-visit"
+    >
+      {line ? (
+        // The visit opens on the Calendar; the row around it opens the person.
+        <button
+          type="button"
+          className="cl-row-visit"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (line.to) navigate(line.to);
+          }}
+          title={`Open ${line.day} on the Calendar`}
+          data-testid="row-visit-open"
+        >
+          {p.nextVisitLine ? (
+            <>
+              <span className="cl-row-next">{line.day}</span>
+              <span className="dim"> · {plVisitStart(line.time)}</span>
+            </>
+          ) : (
+            <span className="cl-row-last-visit">Last · {line.day}</span>
+          )}
+          <VisitState
+            state={line.state}
+            unmarked={line.unmarked}
+            className="cl-row-visit-state"
+            testid="row-visit-state"
+          />
+        </button>
+      ) : (
+        <span className="dim">—</span>
+      )}
+    </td>
+  );
+};
 
 /** The State cell: the pill, the receptionist's word beside it (said once), and the reason behind it. */
 const plStateCell = (p: PersonRowVM, x: PeopleCellCtx) => (
   <td key="state" className="cl-cut cl-state-cell">
     <PeopleStatePill state={p.state} label={p.stateLabel} />
+    {/* A stop the pill does not say: "Needs you" outranks "Opted out", so the pill alone read as a person who can be
+        answered (contracts stopToldBesideState). */}
+    {stopToldBesideState(p) && <StoppedMark className="cl-row-stopped" testid="row-stopped" />}
     {/* The receptionist's word beside the state, said once. On a desktop the stylesheet hides this one while its own
         column shows (is-in-column); a card draws that column's cell whatever the member chose, so a card hides this
         one wherever Visits does not take the cell's place. */}
     {p.receptionist.tone !== "answering" && !plReceptSaysTheState(p) && (
       <span className={`cl-row-recept-mark${x.shows.receptionist ? " is-in-column" : ""}`} title={p.receptionist.label}>
-        {PL_RECEPT_MARK[p.receptionist.tone] || p.receptionist.tone}
+        {plReceptMark(p)}
       </span>
     )}
     {p.stateDetail && (
@@ -287,7 +298,7 @@ const plStateCell = (p: PersonRowVM, x: PeopleCellCtx) => (
  * by their number or address says it as their name already, so their cell says the wire alone.
  */
 const plReachCell = (p: PersonRowVM) => {
-  const words = rowReachWords(p, !plIsNumber(p.name) && !plIsAddress(p));
+  const words = rowReachWords(p, !isIdentifierName(p.name));
   // A long address is cut with an ellipsis so the column stays narrow (a number never is): its whole rides in the tip.
   const tip = [words.tip, words.id !== null && words.id === p.email ? words.id : null].filter(Boolean).join(" · ");
   return (
@@ -379,7 +390,7 @@ export const PL_COLUMNS: PeopleColumn[] = [
     on: false,
     hint: "The wire they last wrote on, and how to reach them there",
     width: { base: 150, min: 124, max: 260, grow: 1 },
-    csv: { head: "Reach", cell: (p) => rowReachWords(p, !plIsNumber(p.name) && !plIsAddress(p)).wire ?? "" },
+    csv: { head: "Reach", cell: (p) => rowReachWords(p, !isIdentifierName(p.name)).wire ?? "" },
     cell: plReachCell,
   },
   // When over who: the column the table is sorted by reads by its time, and the speaker sits under it.
@@ -402,7 +413,10 @@ export const PL_COLUMNS: PeopleColumn[] = [
   },
   {
     key: "visits",
-    label: "Visits",
+    label: "Appointments",
+    // The workspace's word for an appointment, as Campaigns says it (decision 0041): "Meetings" where some customers get a
+    // proposal first, "Appointments" otherwise.
+    labelOf: (x) => appointmentWords(appointmentWordWhere(!!x.dealsOn)).Many,
     sortable: true,
     sortFirst: "asc",
     sortValue: plVisitsSort,
@@ -579,24 +593,25 @@ export const PL_COLUMNS: PeopleColumn[] = [
  * leaves the answer to offers, the receptionist's word, where they came from and their lists to their page, one tap away.
  */
 const plCardCell = (p: PersonRowVM, { attention }: Pick<PeopleCellCtx, "attention">, pick?: RowPick) => {
-  const byNumber = plIsNumber(p.name);
   const words = attentionWordsOf(p, attention);
   const asks = p.state === "needs_you" || p.state === "waiting_on_you";
-  const time = p.nextVisitDay ? (p.nextVisit || "").split(" · ")[1] || "" : "";
+  const line = p.nextVisitLine;
   return plRowCard({
-    face: plFace(p),
+    face: { person: { name: p.name, initials: p.initials } },
     pick,
     name: p.name,
     unread: plUnread(p),
-    numeric: byNumber,
+    numeric: isIdentifierName(p.name),
     pill: <PeopleStatePill state={p.state} label={p.stateLabel} />,
     lead: asks && p.stateDetail ? p.stateDetail : words,
     leadTestid: asks && p.stateDetail ? "row-state-detail" : "row-words",
     facts: [
-      p.nextVisitDay ? (
+      // A stop the pill does not say (the State cell's, on a desktop): the first of the card's facts.
+      stopToldBesideState(p) ? <StoppedMark key="stopped" testid="row-stopped" /> : null,
+      line ? (
         <span key="visit" className="pl-card-visit" data-testid="row-next-visit">
           <Icon name="calendar" size={11} />
-          {time ? `${p.nextVisitDay} · ${time}` : p.nextVisitDay}
+          {[line.day, line.time, line.state ? line.state.text : ""].filter(Boolean).join(" · ")}
         </span>
       ) : null,
       <span key="last" className="pl-card-last">

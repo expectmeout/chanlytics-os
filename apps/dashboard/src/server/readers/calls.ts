@@ -1,18 +1,19 @@
 import "server-only";
-import { callerName, type CallDto } from "@chanlytics/contracts";
+import { addressOf, callerName, type CallDto } from "@chanlytics/contracts";
 import { CALL_COLUMNS, toCallDto } from "../dto";
 import { stamp, type Reader, type RowRef } from "./index";
 
 /**
  * GET calls, as the route answers it: the workspace's phone calls, newest
- * first, a hundred at most, narrowed to one thread or one lifecycle state when
- * handed one (the route checks the thread is an id). The recording's storage
- * path and provider URL never leave the server (CALL_COLUMNS, toCallDto). Each
- * is a call a citation may name, by the caller as the Calls page names them.
+ * first, a hundred at most, narrowed to one thread, one lifecycle state or the
+ * calls `ids` names when handed them (the route checks each is an id). The
+ * recording's storage path and provider URL never leave the server
+ * (CALL_COLUMNS, toCallDto). Each is a call a citation may name, by the caller
+ * as the Calls page names them.
  */
-export const calls: Reader<{ conversationId?: string; status?: string }, { calls: CallDto[] }> = {
+export const calls: Reader<{ conversationId?: string; status?: string; ids?: string[] }, { calls: CallDto[] }> = {
   name: "calls",
-  async read(rc, { conversationId, status }) {
+  async read(rc, { conversationId, status, ids }) {
     const tenantId = rc.tenantId;
     let q = rc.ctx.supabase
       .from("calls")
@@ -22,6 +23,7 @@ export const calls: Reader<{ conversationId?: string; status?: string }, { calls
       .limit(100);
     if (conversationId) q = q.eq("conversation_id", conversationId);
     if (status) q = q.eq("status", status);
+    if (ids) q = q.in("id", ids);
     const { data, error } = await q;
     if (error) throw new Error(error.message);
     const calls: CallDto[] = (data ?? []).map(toCallDto);
@@ -31,7 +33,7 @@ export const calls: Reader<{ conversationId?: string; status?: string }, { calls
       rows: calls.map((c): RowRef => ({
         kind: "call",
         id: c.id,
-        route: `conversations/cv-${c.id}`,
+        route: addressOf({ kind: "call", id: c.id }),
         label: callerName(c),
       })),
       stamp: stamp(),

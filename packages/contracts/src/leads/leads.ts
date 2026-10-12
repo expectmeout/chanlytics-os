@@ -245,6 +245,8 @@ export const LEAD_WORDS = {
   },
   close: "Close",
   open: "Open",
+  /** The door from a lead that became a person (its name in the peek, the row's Client pill) to them in People. */
+  openPerson: "Open them in People",
   stageLabel: "Stage",
   notFit: LEAD_CLOSED_WORDS.not_a_fit,
   notFitTitle: LEAD_NOT_A_FIT_TITLE,
@@ -309,6 +311,13 @@ export const LEAD_WORDS = {
   openMaps: "Open in Maps",
   ratedHeading: "What people say",
   closePhotos: "Close",
+  /**
+   * The rail's two sections. The first is six views of a lead's stage (LEAD_LIST_WORDS), not lists: "Lists" is People's word
+   * for a rule over facts (decision 0009, LIST_GROUP_WORDS), and a list of the owner's own made from a file sits under
+   * Searches here.
+   */
+  viewsHeading: "Views",
+  searchesHeading: "Searches",
   // D5, on a phone: one lead at a time, and the question when you are back from the call.
   deckOf: (at: number, of: number) => `${at} of ${of}`,
   deckPrev: "The lead before",

@@ -1,5 +1,5 @@
 import "server-only";
-import { contactName, type ConversationDto, type MessageDto } from "@chanlytics/contracts";
+import { addressOf, contactName, type ConversationDto, type MessageDto } from "@chanlytics/contracts";
 import { failedMessageErrors } from "@chanlytics/db";
 import { CONVERSATION_COLUMNS, groupMessages, messageRowsOf, toConversationDto } from "../dto";
 import { seenOfPeople } from "../people/person-seen";
@@ -77,7 +77,7 @@ export const conversations: Reader<{ ids: string[] | null }, { conversations: Co
       rows: conversations.map((c): RowRef => ({
         kind: "thread",
         id: c.id,
-        route: `inbox/th-${c.id}`,
+        route: addressOf({ kind: "conversation", id: c.id }),
         label: whoOf(c),
       })),
       stamp: stamp(),

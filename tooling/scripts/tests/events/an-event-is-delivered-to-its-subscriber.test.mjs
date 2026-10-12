@@ -50,10 +50,74 @@ const READS = {
     subject_id: "c0c0c0c0-c0c0-4c0c-8c0c-c0c0c0c0c0c0",
     data: { reason: "rate_cap" },
   },
+  // A customer's typed STOP, as ingest_inbound writes it in the message's own transaction (00361).
+  consent_notice: {
+    kind: "contact.consent_changed",
+    category: "contact",
+    subject_type: "contact",
+    subject_id: "d0d0d0d0-d0d0-4d0d-8d0d-d0d0d0d0d0d0",
+    data: { consent: "opted_out", source: "customer_message", channel: "sms", words: "STOP" },
+    created_at: "2026-10-06T00:00:00Z",
+  },
+  // A booking tool's email kept on the record (00389's trigger writes it in the row's own transaction).
+  visit_notice: {
+    kind: "appointment.changed",
+    category: "appointment",
+    subject_type: "appointment",
+    subject_id: "a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1",
+    data: { change: "added", source: "booking_email", starts_at: "2999-10-12T15:00:00Z" },
+    created_at: "2026-10-06T00:00:00Z",
+  },
+  // The seat an accepted invitation made (acceptOpenInvites writes it).
+  team_notice: {
+    kind: "member.joined",
+    category: "team",
+    subject_type: "invitation",
+    subject_id: "1b1b1b1b-1b1b-4b1b-8b1b-1b1b1b1b1b1b",
+    data: { by: "99999999-9999-4999-8999-999999999999", role: "operator" },
+    created_at: "2026-10-06T00:00:00Z",
+  },
 };
 
 const CONV = "c0c0c0c0-c0c0-4c0c-8c0c-c0c0c0c0c0c0";
 const PERSON = "d0d0d0d0-d0d0-4d0d-8d0d-d0d0d0d0d0d0";
+const APPT = "a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1";
+const INVITATION = "1b1b1b1b-1b1b-4b1b-8b1b-1b1b1b1b1b1b";
+
+/** A visit of the record, booked and far ahead, as a booking tool's email left it. */
+const aVisit = (over = {}) => ({
+  id: APPT,
+  tenant_id: T,
+  starts_at: "2999-10-12T15:00:00Z",
+  ends_at: "2999-10-12T16:00:00Z",
+  all_day: false,
+  timezone: "America/New_York",
+  status: "booked",
+  source: "booking_email",
+  client_name: "Rosa Diaz",
+  service: "Gel manicure",
+  contact_id: null,
+  vanished_at: null,
+  ...over,
+});
+
+/** A booking that arrived, and a bell with nothing on it yet (S1-01). */
+const aBooking = () => ({ appointments: [aVisit()], contacts: [], notifications: [] });
+
+/** An invitation that was accepted, and a bell with nothing on it yet (S1-19). */
+const anAcceptedInvitation = () => ({
+  invitations: [
+    {
+      id: INVITATION,
+      tenant_id: T,
+      email: "ada@example.com",
+      role: "operator",
+      accepted_at: "2026-10-06T00:00:00Z",
+      revoked_at: null,
+    },
+  ],
+  notifications: [],
+});
 /** A thread waiting for a person: the hold, the thread, the person, their words and the receptionist's (decision 0043). */
 const heldThread = () => ({
   escalations: [
@@ -84,6 +148,12 @@ const heldThread = () => ({
   notifications: [],
 });
 
+/** A person who said no, and a bell with nothing on it yet (decision 0048). */
+const aPerson = () => ({
+  contacts: [rows.contact({ id: PERSON, tenant_id: T, display_name: "Rosa Diaz", phone_e164: "+13055550142" })],
+  notifications: [],
+});
+
 /** A world with one event, its subscription and the delivery the relay wrote; the booking door counts its calls. */
 function world({ paused = false, withEvent = true, subscriber = "audit" } = {}) {
   const read = READS[subscriber] ?? READS.audit;
@@ -91,6 +161,9 @@ function world({ paused = false, withEvent = true, subscriber = "audit" } = {}) 
   const booked = [];
   const tables = {
     ...(subscriber === "owner_notice" ? heldThread() : {}),
+    ...(subscriber === "consent_notice" ? aPerson() : {}),
+    ...(subscriber === "visit_notice" ? aBooking() : {}),
+    ...(subscriber === "team_notice" ? anAcceptedInvitation() : {}),
     events: withEvent ? [rows.event({ id: E, tenant_id: T, ...read })] : [],
     event_subscriptions: [{ kind, subscriber, lane: 2, paused, created_at: "2026-10-06T00:00:00Z" }],
     event_deliveries: [
@@ -282,11 +355,13 @@ test("owner_notice tells the workspace of a hold once, from its rows: who, why, 
     [n.kind, n.route, n.about, n.sourceEvent],
     ["handoff", `inbox/th-${CONV}`, { type: "conversation", id: CONV }, E],
   );
-  assert.equal(n.subject, "Rosa Diaz needs a person — the receptionist reached its daily limit");
+  // The Inbox's own words for the reason (ESCALATION_REASON_SHORT), not a second set of the notice's (D1-hold-reasons).
+  assert.equal(n.subject, "Rosa Diaz needs a person — too many replies too fast");
   assert.match(n.body, /^They wrote: “Can I move my visit to Friday\?”/);
   assert.match(n.body, /Thread hit 20 automatic replies today/);
   assert.match(n.body, /WhatsApp conversation · \+1 \(305\) 555-0142/);
-  assert.match(n.redactedBody, /^A WhatsApp conversation needed a person \(the receptionist reached its daily limit\)/);
+  assert.match(n.body, /\nReply from the Inbox\.$/, "the reason's act: a reply to write");
+  assert.match(n.redactedBody, /^A WhatsApp conversation needed a person \(too many replies too fast\)/);
   assert.doesNotMatch(n.redactedBody, /Rosa|Friday|305/, "the platform's copy holds no customer");
   assert.equal(await dispatchJob(w.ctx, w.job), "done");
   assert.equal(w.told.length, 1, "a second delivery of the same event tells nobody");
@@ -332,7 +407,7 @@ test("owner_notice reads a change by its hold, and names nobody erased", async (
   erased.tables.contacts[0].erased_at = "2026-10-05T00:00:00Z";
   assert.equal(await dispatchJob(erased.ctx, erased.job), "done");
   const [n] = erased.told;
-  assert.equal(n.subject, "A customer needs a person — the receptionist reached its daily limit");
+  assert.equal(n.subject, "A customer needs a person — too many replies too fast");
   assert.doesNotMatch(n.body, /Rosa|Friday|305|Thread hit/, "no name, no words, no number of someone erased");
 });
 
@@ -361,7 +436,7 @@ test("owner_notice tells a hold's new reason a moment after it told the first: i
   assert.equal(await dispatchJob(w.ctx, w.job), "done");
   assert.deepEqual(
     w.told.map((n) => n.subject),
-    ["Rosa Diaz needs a person — the receptionist reached its daily limit"],
+    ["Rosa Diaz needs a person — too many replies too fast"],
     "REGRESSION: a reason changed within the minute was swallowed by the first notice",
   );
 });
@@ -436,5 +511,416 @@ test("owner_notice leaves an email's hold to where it is taken in: opened, chang
     assert.equal(await dispatchJob(w.ctx, w.job), "done", name);
     assert.deepEqual(w.told, [], name);
     assert.equal(w.delivery().state, "done", `${name}: delivered, and nothing owed`);
+  }
+});
+
+/* ------------------------------------------------------------------------ a customer's no (decision 0048) */
+
+/** The consent event of a world, its data and its time said. */
+function saying(w, data, over = {}) {
+  Object.assign(w.tables.events[0], { data, ...over });
+  return w;
+}
+
+test("consent_notice tells the workspace of a customer's STOP once, on the bell, in the Inbox's words, from the consent event: no hold, no handoff", async () => {
+  const w = world({ subscriber: "consent_notice" });
+  assert.equal(await dispatchJob(w.ctx, w.job), "done");
+  assert.equal(w.told.length, 1);
+  const [n] = w.told;
+  assert.deepEqual(
+    [n.kind, n.route, n.about, n.sourceEvent],
+    ["opted_out", `clients/${PERSON}`, { type: "contact", id: PERSON }, E],
+    "a kind of its own, on the person's page, answering the consent event",
+  );
+  assert.equal(n.subject, "Rosa Diaz asked to stop receiving messages");
+  assert.equal(
+    n.body,
+    [
+      "They wrote: “STOP”",
+      "Nothing more will be sent to them. They can text START to opt back in.",
+      "",
+      "Text · +1 (305) 555-0142",
+    ].join("\n"),
+  );
+  assert.doesNotMatch(n.redactedBody, /Rosa|305|STOP/, "the platform's copy holds no customer");
+  assert.equal(w.tables.escalations, undefined, "and it opened nothing to wait on");
+  assert.equal(await dispatchJob(w.ctx, w.job), "done");
+  assert.equal(w.told.length, 1, "a second delivery of the same event tells nobody");
+});
+
+test("consent_notice tells every door's no in the same one kind: an unsubscribe, a complaint, a carrier's STOP, WhatsApp's report on an offer", async () => {
+  const doors = [
+    [
+      { consent: "opted_out", source: "carrier", channel: "sms" },
+      "Rosa Diaz asked to stop receiving messages",
+      /Their carrier told us they replied STOP to your number\./,
+    ],
+    [
+      { purpose: "email_marketing", consent: "opted_out", source: "unsubscribe", channel: "email" },
+      "Rosa Diaz unsubscribed from your emails",
+      /Offers and news by email to them have stopped\. Reminders and confirmations still reach them./,
+    ],
+    [
+      { purpose: "email_marketing", consent: "opted_out", source: "complaint", channel: "email" },
+      "Rosa Diaz reported one of your emails as spam",
+      /Offers and news by email to them have stopped\./,
+    ],
+    [
+      { purpose: "marketing", consent: "opted_out", source: "whatsapp", channel: "whatsapp" },
+      "Rosa Diaz stopped offers on WhatsApp",
+      /Offers to them on WhatsApp have stopped\./,
+    ],
+    [
+      {
+        consent: "opted_out",
+        source: "customer_message",
+        channel: "email",
+        words: "Stop all messages",
+        via: "unsubscribe_page",
+      },
+      "Rosa Diaz asked to stop receiving messages",
+      /They wrote: “Stop all messages”/,
+    ],
+  ];
+  for (const [data, subject, body] of doors) {
+    const w = saying(world({ subscriber: "consent_notice" }), data);
+    assert.equal(await dispatchJob(w.ctx, w.job), "done", JSON.stringify(data));
+    assert.deepEqual(
+      [w.told.length, w.told[0]?.kind, w.told[0]?.subject],
+      [1, "opted_out", subject],
+      JSON.stringify(data),
+    );
+    assert.match(w.told[0].body, body);
+  }
+});
+
+test("consent_notice tells nobody of a yes, of a no a member recorded themselves, of a merge, or of the end of a yes to offers by a STOP", async () => {
+  for (const data of [
+    { consent: "opted_in", source: "customer_message", channel: "sms", words: "START" },
+    { consent: "opted_out", source: "operator", by: "u1" },
+    { consent: "opted_out", source: "in_person", by: "u1" },
+    { consent: "opted_out", source: "merge" },
+    { purpose: "marketing", consent: "unknown", previous: "opted_in", source: "stop", stopped_by: "customer_message" },
+    { consent: "opted_in", source: "form", purpose: "marketing" },
+    "not an object",
+  ]) {
+    const w = saying(world({ subscriber: "consent_notice" }), data);
+    assert.equal(await dispatchJob(w.ctx, w.job), "done", JSON.stringify(data));
+    assert.deepEqual(w.told, [], JSON.stringify(data));
+    assert.equal(w.delivery().state, "done");
+  }
+  // An event that is not about a person's consent at all.
+  const other = world({ subscriber: "consent_notice" });
+  Object.assign(other.tables.events[0], { kind: "message.received", subject_type: null, subject_id: null });
+  assert.equal(await dispatchJob(other.ctx, other.job), "done");
+  assert.deepEqual(other.told, []);
+});
+
+test("consent_notice tells one press of Stop all messages once: its STOP and its unsubscribe are two events of one person within the minute", async () => {
+  // The first event's notice is kept; the second's delivery finds it and says nothing.
+  const w = saying(world({ subscriber: "consent_notice" }), {
+    purpose: "email_marketing",
+    consent: "opted_out",
+    source: "unsubscribe",
+    channel: "email",
+  });
+  const first = {
+    id: "f3f3f3f3-f3f3-4f3f-8f3f-f3f3f3f3f3f3",
+    tenant_id: T,
+    kind: "opted_out",
+    title: "Rosa Diaz asked to stop receiving messages",
+    body: "…",
+    route: `clients/${PERSON}`,
+    subject_type: "contact",
+    subject_id: PERSON,
+    source_event: "a2a2a2a2-a2a2-4a2a-8a2a-a2a2a2a2a2a2",
+    recipient_user_id: null,
+    mail_due_at: null,
+    created_at: "2026-10-06T00:00:01Z",
+  };
+  w.tables.notifications.push(first);
+  assert.equal(await dispatchJob(w.ctx, w.job), "done");
+  assert.deepEqual(w.told, [], "the person is told of once");
+
+  // Another person's no is their own news.
+  const other = saying(world({ subscriber: "consent_notice" }), { consent: "opted_out", source: "customer_message" });
+  other.tables.notifications.push({ ...first, subject_id: "e0e0e0e0-e0e0-4e0e-8e0e-e0e0e0e0e0e0" });
+  assert.equal(await dispatchJob(other.ctx, other.job), "done");
+  assert.equal(other.told.length, 1);
+
+  // And an earlier notice of the person's, from before the minute, is another time they said it.
+  const earlier = saying(world({ subscriber: "consent_notice" }), { consent: "opted_out", source: "customer_message" });
+  earlier.tables.notifications.push({ ...first, created_at: "2026-10-05T23:00:00Z" });
+  assert.equal(await dispatchJob(earlier.ctx, earlier.job), "done");
+  assert.equal(earlier.told.length, 1);
+});
+
+test("consent_notice names no one erased, and a notice whose mail is still owed is told again, for the mail alone", async () => {
+  const erased = world({ subscriber: "consent_notice" });
+  erased.tables.contacts[0].erased_at = "2026-10-05T00:00:00Z";
+  assert.equal(await dispatchJob(erased.ctx, erased.job), "done");
+  const [n] = erased.told;
+  assert.equal(n.subject, "A customer asked to stop receiving messages");
+  assert.doesNotMatch(n.body, /Rosa|305|STOP|wrote/, "no name, no words, no number of someone erased");
+
+  // The row and the phones went and the mail did not (mail_due_at): the delivery is not told in full, so the subscriber
+  // tells again, and the notice door (edge notify.ts) finds the row by its event and sends the mail alone.
+  const row = (mail_due_at) => ({
+    id: "f4f4f4f4-f4f4-4f4f-8f4f-f4f4f4f4f4f4",
+    tenant_id: T,
+    kind: "opted_out",
+    title: "Rosa Diaz asked to stop receiving messages",
+    body: "…",
+    route: `clients/${PERSON}`,
+    subject_type: "contact",
+    subject_id: PERSON,
+    source_event: E,
+    recipient_user_id: null,
+    mail_due_at,
+    created_at: "2026-10-06T00:00:01Z",
+  });
+  const owed = world({ subscriber: "consent_notice" });
+  owed.tables.notifications.push(row("2026-10-06T00:00:01Z"));
+  // The edge's door keeps no second row for the event; this world's stand-in only records what it was asked to tell.
+  owed.ctx.alert = async (news) => {
+    owed.told.push(news);
+  };
+  assert.equal(await dispatchJob(owed.ctx, owed.job), "done");
+  assert.deepEqual(
+    owed.told.map((t) => t.sourceEvent),
+    [E],
+    "bell told, mail owed: told again",
+  );
+  const done = world({ subscriber: "consent_notice" });
+  done.tables.notifications.push(row(null));
+  assert.equal(await dispatchJob(done.ctx, done.job), "done");
+  assert.deepEqual(done.told, [], "told in full: nothing more");
+});
+
+test("owner_notice does not tell a hold that waits on nobody: a STOP an edge from before still opened is consent_notice's to tell", async () => {
+  const w = world({ subscriber: "owner_notice" });
+  Object.assign(w.tables.events[0], { data: { reason: "opt_out" } });
+  w.tables.escalations[0].reason = "opt_out";
+  assert.equal(await dispatchJob(w.ctx, w.job), "done");
+  assert.deepEqual(w.told, [], "not as 'needs a person', and not twice");
+  assert.equal(w.delivery().state, "done");
+});
+
+/* ------------------------------------------------------------ a booking that arrived (S1-01, 00410) */
+
+test("visit_notice tells the workspace of a booking once, on the bell, opening the visit on its day: no mail, no phone, no name in the platform's copy", async () => {
+  const w = world({ subscriber: "visit_notice" });
+  assert.equal(await dispatchJob(w.ctx, w.job), "done");
+  assert.equal(w.told.length, 1);
+  const [n] = w.told;
+  assert.deepEqual(
+    [n.kind, n.route, n.about, n.sourceEvent],
+    ["booking", `calendar/2999-10-12:a-${APPT}`, { type: "appointment", id: APPT }, E],
+    "a kind of its own, at the visit on its day (the business's, by the visit's zone), answering the event",
+  );
+  assert.equal(n.subject, "Rosa Diaz booked with you");
+  assert.match(n.body, /^\w{3}, Oct 12 · 11:00\sAM – 12:00\sPM\nGel manicure\n\nFrom your booking tool's email$/);
+  assert.doesNotMatch(n.redactedBody, /Rosa|manicure/, "the platform's copy holds no customer");
+  assert.equal(await dispatchJob(w.ctx, w.job), "done");
+  assert.equal(w.told.length, 1, "a second delivery of the same event tells nobody");
+});
+
+test("visit_notice names the person a visit is linked to when the booking states no name, and nobody who is erased", async () => {
+  const linked = world({ subscriber: "visit_notice" });
+  linked.tables.appointments[0] = aVisit({ client_name: null, contact_id: PERSON });
+  linked.tables.contacts.push(rows.contact({ id: PERSON, tenant_id: T, display_name: "Dulce Amaro" }));
+  assert.equal(await dispatchJob(linked.ctx, linked.job), "done");
+  assert.equal(linked.told[0].subject, "Dulce Amaro booked with you");
+
+  const erased = world({ subscriber: "visit_notice" });
+  erased.tables.appointments[0] = aVisit({ client_name: "Dulce Amaro", contact_id: PERSON });
+  erased.tables.contacts.push(
+    rows.contact({ id: PERSON, tenant_id: T, display_name: "Dulce Amaro", erased_at: "2026-10-05T00:00:00Z" }),
+  );
+  assert.equal(await dispatchJob(erased.ctx, erased.job), "done");
+  assert.equal(erased.told[0].subject, "Someone booked with you");
+  assert.doesNotMatch(erased.told[0].body, /Dulce/);
+});
+
+test("visit_notice tells a hold the tool confirmed, and nobody of a move, a cancellation, a vanished or returned visit, or a member's own entry", async () => {
+  const confirmed = world({ subscriber: "visit_notice" });
+  confirmed.tables.events[0].data = { change: "confirmed", source: "booking_email", starts_at: "2999-10-12T15:00:00Z" };
+  assert.equal(await dispatchJob(confirmed.ctx, confirmed.job), "done");
+  assert.equal(confirmed.told.length, 1, "a proposed visit the tool booked is a booking arriving");
+
+  for (const [change, source] of [
+    ["moved", "booking_email"],
+    ["cancelled", "booking_email"],
+    ["vanished", "calendar_feed"],
+    ["back", "calendar_feed"],
+    ["moved", "calendar_feed"],
+    ["added", "person"],
+    ["confirmed", "calendar_feed"],
+  ]) {
+    const w = world({ subscriber: "visit_notice" });
+    w.tables.events[0].data = { change, source, starts_at: "2999-10-12T15:00:00Z" };
+    assert.equal(await dispatchJob(w.ctx, w.job), "done", `${change} from ${source}`);
+    assert.deepEqual(w.told, [], `${change} from ${source}: not a booking arriving`);
+    assert.equal(w.delivery().state, "done");
+  }
+  // An event that is not about an appointment at all.
+  const other = world({ subscriber: "visit_notice" });
+  Object.assign(other.tables.events[0], { kind: "message.received", subject_type: null, subject_id: null });
+  assert.equal(await dispatchJob(other.ctx, other.job), "done");
+  assert.deepEqual(other.told, []);
+});
+
+test("visit_notice tells what stands: a visit withdrawn, vanished, cancelled, already past, or entered by a member by the time it runs is not news", async () => {
+  for (const over of [
+    { status: "cancelled" },
+    { status: "proposed" },
+    { vanished_at: "2026-10-06T00:30:00Z" },
+    { starts_at: "2020-01-01T15:00:00Z", ends_at: "2020-01-01T16:00:00Z" },
+    { source: "person" },
+  ]) {
+    const w = world({ subscriber: "visit_notice" });
+    w.tables.appointments[0] = aVisit(over);
+    assert.equal(await dispatchJob(w.ctx, w.job), "done", JSON.stringify(over));
+    assert.deepEqual(w.told, [], JSON.stringify(over));
+  }
+  const gone = world({ subscriber: "visit_notice" });
+  gone.tables.appointments.length = 0;
+  assert.equal(await dispatchJob(gone.ctx, gone.job), "done");
+  assert.deepEqual(gone.told, [], "a visit the record no longer holds");
+});
+
+/** A made-up uuid of one kind of row, numbered: ordered the way the ledger orders ids. */
+const numbered = (prefix, i) => `${prefix}${String(i).padStart(7, "0")}-0000-4000-8000-000000000000`;
+
+/** The additions one read of the owner's calendar wrote together: n events of one transaction. `first` is the event the job delivers. */
+function aCalendarRead(n, { first = 0 } = {}) {
+  const w = world({ subscriber: "visit_notice" });
+  w.tables.appointments.length = 0;
+  w.tables.events.length = 0;
+  const at = "2026-10-06T00:00:00.123456+00:00";
+  for (let i = 0; i < n; i++) {
+    const day = String(12 + i).padStart(2, "0");
+    w.tables.appointments.push(
+      aVisit({
+        id: numbered("a", i),
+        source: "calendar_feed",
+        client_name: null,
+        service: i === 0 ? "Consultation" : null,
+        starts_at: `2999-10-${day}T15:00:00Z`,
+        ends_at: `2999-10-${day}T16:00:00Z`,
+      }),
+    );
+    w.tables.events.push(
+      rows.event({
+        id: numbered("e", i),
+        tenant_id: T,
+        kind: "appointment.changed",
+        category: "appointment",
+        subject_type: "appointment",
+        subject_id: numbered("a", i),
+        data: { change: "added", source: "calendar_feed", starts_at: `2999-10-${day}T15:00:00Z` },
+        created_at: at,
+      }),
+    );
+  }
+  const mine = w.tables.events[first];
+  Object.assign(w.job.payload, { event_id: mine.id });
+  w.tables.event_deliveries[0].event_id = mine.id;
+  return w;
+}
+
+test("visit_notice tells the visits one read of the calendar added as one line, by the first of their events and no other", async () => {
+  const first = aCalendarRead(3, { first: 0 });
+  assert.equal(await dispatchJob(first.ctx, first.job), "done");
+  assert.equal(first.told.length, 1);
+  const [n] = first.told;
+  assert.equal(n.kind, "booking");
+  assert.equal(n.subject, "3 new bookings on your calendar");
+  assert.equal(n.about, null, "a group is about no one visit");
+  assert.equal(n.route, `calendar/2999-10-12:a-${numbered("a", 0)}`, "it opens the earliest");
+  assert.match(n.body, /Consultation/);
+  assert.match(n.body, /From your calendar$/);
+  assert.equal(n.sourceEvent, numbered("e", 0), "answering the first event of the read");
+
+  // The others' deliveries, run over the same read, tell nobody: the first one did.
+  for (const i of [1, 2]) {
+    const w = aCalendarRead(3, { first: i });
+    assert.equal(await dispatchJob(w.ctx, w.job), "done");
+    assert.deepEqual(w.told, [], `the event at ${i} is not the first of its read`);
+  }
+
+  // One visit added by a read is told in its own words, from the calendar.
+  const alone = aCalendarRead(1);
+  assert.equal(await dispatchJob(alone.ctx, alone.job), "done");
+  assert.equal(alone.told[0].subject, "Someone booked with you");
+  assert.match(alone.told[0].body, /From your calendar$/);
+});
+
+test("visit_notice tells nobody of a read that adds more than a customer could book in an hour: a calendar newly connected", async () => {
+  const { CATCH_UP_VISITS } = await import("../../../../packages/contracts/src/notices/visit-news.ts");
+  const atTheLimit = aCalendarRead(CATCH_UP_VISITS);
+  assert.equal(await dispatchJob(atTheLimit.ctx, atTheLimit.job), "done");
+  assert.equal(atTheLimit.told.length, 1, "up to the limit is news");
+  const over = aCalendarRead(CATCH_UP_VISITS + 1);
+  assert.equal(await dispatchJob(over.ctx, over.job), "done");
+  assert.deepEqual(over.told, [], "beyond it, it is a calendar read and not customers booking");
+  assert.equal(over.delivery().state, "done");
+});
+
+/* --------------------------------------------------------------- a teammate who joined (S1-19, 00410) */
+
+test("team_notice tells the workspace that a teammate joined once, on the bell, opening Settings > Team", async () => {
+  const w = world({ subscriber: "team_notice" });
+  assert.equal(await dispatchJob(w.ctx, w.job), "done");
+  assert.equal(w.told.length, 1);
+  const [n] = w.told;
+  assert.deepEqual(
+    [n.kind, n.route, n.about, n.sourceEvent],
+    ["member_joined", "admin/team", { type: "invitation", id: INVITATION }, E],
+  );
+  assert.equal(n.subject, "ada@example.com joined your team");
+  assert.equal(
+    n.body,
+    "They accepted your invitation and joined as Operator.\nTheir role can be changed, or the seat removed, under Settings > Team.",
+  );
+  assert.doesNotMatch(n.redactedBody, /ada/, "the platform's copy holds no address");
+  assert.equal(await dispatchJob(w.ctx, w.job), "done");
+  assert.equal(w.told.length, 1, "a second delivery tells nobody");
+});
+
+test("team_notice tells an arrival once however many events wrote it, and nothing of an event that is not a seat or an invitation that is gone", async () => {
+  // Two tabs took the one seat at once and each wrote the ledger line: the owner is told of one arrival.
+  const twice = world({ subscriber: "team_notice" });
+  twice.tables.notifications.push({
+    id: "f5f5f5f5-f5f5-4f5f-8f5f-f5f5f5f5f5f5",
+    tenant_id: T,
+    kind: "member_joined",
+    title: "ada@example.com joined your team",
+    body: "…",
+    route: "admin/team",
+    subject_type: "invitation",
+    subject_id: INVITATION,
+    source_event: "a3a3a3a3-a3a3-4a3a-8a3a-a3a3a3a3a3a3",
+    recipient_user_id: null,
+    mail_due_at: null,
+    created_at: "2026-10-06T00:00:01Z",
+  });
+  assert.equal(await dispatchJob(twice.ctx, twice.job), "done");
+  assert.deepEqual(twice.told, []);
+
+  const gone = world({ subscriber: "team_notice" });
+  gone.tables.invitations.length = 0;
+  assert.equal(await dispatchJob(gone.ctx, gone.job), "done");
+  assert.deepEqual(gone.told, [], "an invitation the workspace no longer holds");
+
+  for (const over of [
+    { kind: "member.left", subject_type: "workspace", subject_id: T },
+    { subject_type: "membership" },
+    { subject_id: null },
+  ]) {
+    const w = world({ subscriber: "team_notice" });
+    Object.assign(w.tables.events[0], over);
+    assert.equal(await dispatchJob(w.ctx, w.job), "done", JSON.stringify(over));
+    assert.deepEqual(w.told, [], JSON.stringify(over));
   }
 });

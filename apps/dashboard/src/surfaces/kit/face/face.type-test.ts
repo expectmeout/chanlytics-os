@@ -63,4 +63,17 @@ function _faceTakes(
 
   // @ts-expect-error the kit draws the sizes it names: another comes with its first reader
   Face({ initials: "AR", size: "md" });
+
+  // A person, as every page that names one draws them (D1-face-number): their name as the page says it, and their
+  // initials where the view model has them; contracts decides initials or a glyph.
+  Face({ person: { name: "Aisha Rahman" } });
+  Face({ person: { name: "Aisha Rahman", initials: "AR" }, size: "lg", priority: "P1" });
+  Face({ person: { name: "+1 (305) 555-0100", initials: "00" }, photo: "https://example.com/aisha.jpg" });
+
+  // @ts-expect-error a person is told by name: the face reads what they are from it
+  Face({ person: { initials: "AR" } });
+  // @ts-expect-error one or the other: a person under initials say neither
+  Face({ person: { name: "Aisha Rahman" }, initials: "AR" });
+  // @ts-expect-error one or the other: a person under a glyph say neither
+  Face({ person: { name: "Aisha Rahman" }, glyph });
 }

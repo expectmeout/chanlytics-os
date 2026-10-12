@@ -14,6 +14,7 @@
  * page alone) draws nothing in its place, as it drew where the JSX had no part to name.
  */
 import type { ComponentType, ReactNode } from "react";
+import { windowValue } from "./legacy-verbs";
 
 declare global {
   interface Window {
@@ -28,7 +29,7 @@ export const nothing = (): null => null;
 
 /** The part the frame published under this name, or a component that draws nothing. */
 function part<P>(name: "Confirm" | "StatePill"): ComponentType<P> {
-  const found: unknown = Reflect.get(window, name);
+  const found = windowValue(name);
   return (typeof found === "function" ? found : nothing) as ComponentType<P>;
 }
 

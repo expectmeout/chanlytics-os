@@ -261,7 +261,8 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
      own ring around it. What needs you on the page is the three's own colour: lit where they stand as a page arrives,
      and kept lit while something waits (legacy-bridge/arrival.ts); the states while Ask works. Chosen from the canvas
      (Ruben, 25 Sep: "let's go with 4", then "the dot only past 80%, amber then red; if something needs attention the
-     three stay in colour at rest"); the beam it replaces is B3 to B5 of the spec. */
+     three stay in colour at rest"); the beam it replaces is B3 to B5 of the spec. Nothing sets `data-usage` yet (AskDisc
+     says why), so the dot waits, undrawn, for the usage surface. */
   .phone-ask .ask-disc {
     position: absolute; border-radius: 50%; pointer-events: none;
     background: var(--bg-raised); 

@@ -895,7 +895,7 @@ test("the sentences the queue and the card say about a playbook's run come from 
   assert.equal(todayRunWords({ ...run, recipient_count: 1, audience: { kind: "reach_out" } }).people, "1 business");
   assert.deepEqual(w.soon, {
     meta: "Campaign · sends today 9:00 AM",
-    sentence: "3 people. Stop it if you'd rather not.",
+    sentence: "3 people. Cancel it if you'd rather not.",
     status: ["Scheduled", "sends today 9:00 AM"],
   });
   for (const s of [w.waiting.sentence, w.soon.sentence, w.soon.meta, ...w.waiting.status, ...w.soon.status])
@@ -1138,15 +1138,15 @@ test("consultations with no proposal yet: the next step, said with a digit, in t
   const held = consultationsWithoutProposal(rows, NOW.getTime());
   assert.equal(held.length, 3);
   assert.equal(leak.math, `${consultsHeldWords(3)} · on Pipeline`);
-  assert.equal(leak.math, "3 held in the last week, no proposal yet · on Pipeline");
+  assert.equal(leak.math, "3 ended in the last week, no proposal yet · on Pipeline");
   // Amber: a person should look (the one badge system).
   assert.deepEqual([leak.tag, leak.tone, leak.icon], ["Next step", "warn", "calendar"]);
   assert.equal(
     leak.ask,
-    "3 consultations in the last week ended with no proposal yet. 3 held in the last week, no proposal yet · on Pipeline. Why is that?",
+    "3 consultations in the last week ended with no proposal yet. 3 ended in the last week, no proposal yet · on Pipeline. Why is that?",
   );
   // The count's own people: the first two the rule gives (the oldest first), each to their page.
-  assert.equal(leak.peopleLead, "Held with");
+  assert.equal(leak.peopleLead, "Consultation with");
   assert.deepEqual(
     leak.people.map((p) => p.id),
     held.slice(0, 2).map((r) => r.id),
@@ -1161,7 +1161,7 @@ test("consultations with no proposal yet: the next step, said with a digit, in t
   // One is enough, and one is said as one.
   const one = consultsLeak([consulted("p-b", "Bea Ortiz", daysBack(3))]);
   assert.equal(one.text, "1 consultation in the last week ended with no proposal yet.");
-  assert.equal(one.math, "1 held in the last week, no proposal yet · on Pipeline");
+  assert.equal(one.math, "1 ended in the last week, no proposal yet · on Pipeline");
   assert.deepEqual(
     one.people.map((p) => p.id),
     ["p-b"],
@@ -1193,7 +1193,7 @@ test("REGRESSION: one number, one clock and one sentence with the Pipeline -- th
   const rows = [consulted("p-a", "Abel Cruz", edge), consulted("p-b", "Bea Ortiz", daysBack(2))];
   const leak = consultsLeak(rows, { fetchedAt }, later);
   const pipe = pipelineOf(rows, fetchedAt, "America/New_York", null).groups.find((g) => g.key === "consultations");
-  assert.equal(pipe.meta, "2 held in the last week, no proposal yet");
+  assert.equal(pipe.meta, "2 ended in the last week, no proposal yet");
   assert.equal(leak.math, `${pipe.meta} · on Pipeline`, "the Pipeline's sentence, word for word");
   assert.equal(leak.text, "2 consultations in the last week ended with no proposal yet.");
   assert.deepEqual(

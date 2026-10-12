@@ -4,8 +4,14 @@
  * (personStateFor). The facts it reads are person-row-facts.ts's; the row that carries the pill is person-row.ts.
  */
 import { localDaysBetween } from "../shared/clock";
-import { replyWaitsOnYou, standingOf, type StandingVerdict } from "../conversations/standing";
-import { isOptedOutContact } from "../consent/consent";
+import {
+  HELD_WORDS,
+  NEEDS_YOU_WORD,
+  replyWaitsOnYou,
+  standingOf,
+  type StandingVerdict,
+} from "../conversations/standing";
+import { isOptedOutContact, STOP_WORDS } from "../consent/consent";
 import { ts } from "./person-helpers";
 import type { PersonRowDto } from "./person-dto";
 import { firstContactOf } from "./person-row-facts";
@@ -14,10 +20,16 @@ import { firstContactOf } from "./person-row-facts";
 
 export type PersonState = "needs_you" | "waiting_on_you" | "opted_out" | "new" | "quiet" | "active" | "unheard";
 
+/**
+ * The words of each state, each from the constant that owns it so a word means one thing (D1-waiting-on-you): "Needs you"
+ * is a thread flagged that nobody has taken (NEEDS_YOU_WORD, which Reports' tile says too), and a thread you took is the
+ * Inbox's "You have it" (HELD_WORDS). The state's key stays `waiting_on_you`: it is a smart list's id and an address that
+ * people keep, and a sent broadcast's audience names it.
+ */
 export const PERSON_STATE_LABELS: Record<PersonState, string> = {
-  needs_you: "Needs you",
-  waiting_on_you: "Waiting on you",
-  opted_out: "Opted out",
+  needs_you: NEEDS_YOU_WORD,
+  waiting_on_you: HELD_WORDS.yours.pill,
+  opted_out: STOP_WORDS.pill,
   new: "New",
   quiet: "Quiet",
   active: "Active",
@@ -27,8 +39,8 @@ export const PERSON_STATE_LABELS: Record<PersonState, string> = {
 /** The list's tabs: the states, in the order the rule evaluates them. */
 export const PEOPLE_TABS: readonly { id: "all" | PersonState; label: string }[] = [
   { id: "all", label: "All" },
-  { id: "needs_you", label: "Needs you" },
-  { id: "waiting_on_you", label: "Waiting on you" },
+  { id: "needs_you", label: PERSON_STATE_LABELS.needs_you },
+  { id: "waiting_on_you", label: PERSON_STATE_LABELS.waiting_on_you },
   { id: "new", label: "New" },
   { id: "quiet", label: "Quiet" },
   { id: "active", label: "Active" },
@@ -60,6 +72,7 @@ export function personStanding(r: StandingRow, nowMs: number, viewerId: string |
       assignee_user_id: r.latest_assignee_user_id,
       assignee_is_me: viewerId && r.latest_assignee_user_id ? r.latest_assignee_user_id === viewerId : undefined,
       open_escalation: !!r.open_escalation_reason,
+      escalation_reason: r.open_escalation_reason,
     },
     nowMs,
   );
@@ -67,11 +80,11 @@ export function personStanding(r: StandingRow, nowMs: number, viewerId: string |
 
 /**
  * Whose attention a person's latest thread asks for, judged for `viewerId` (decision 0009): it needs you -- flagged
- * and nobody has it, or a reply counting down to send (standing.ts replyWaitsOnYou, as the Inbox counts it) -- or it
- * waits on you: you have it, by the one standing rule (holderOf's): flagged, and you claimed it or someone's reply
- * paused the receptionist. A teammate's thread waits on them, and a name left on a thread nobody is working is no
- * claim: the receptionist answers it. With no one looking a claim reads as yours (standing.ts reads an unknown so).
- * People's Needs you and Waiting on you lists, and the row's pill, are this.
+ * and nobody has it, or a reply counting down to send (standing.ts replyWaitsOnYou, as the Inbox counts it) -- or you
+ * have it (`waiting_on_you`, worded "You have it"), by the one standing rule (holderOf's): flagged, and you claimed it
+ * or someone's reply paused the receptionist. A teammate's thread is theirs, and a name left on a thread nobody is
+ * working is no claim: the receptionist answers it. With no one looking a claim reads as yours (standing.ts reads an
+ * unknown so). People's Needs you and You have it lists, and the row's pill, are this.
  */
 export function attentionOf(
   r: PersonRowDto,
@@ -126,4 +139,13 @@ export function personStateFor(
   if (heard === null) return "unheard";
   if (localDaysBetween(heard, nowMs, tz) > QUIET_AFTER_DAYS) return "quiet";
   return "active";
+}
+
+/**
+ * Whether a row says the stop beside its pill (D1-stop-unseen). The pill is the first state that holds, and attention
+ * outranks a stop (personStateFor): a person who texted STOP on a thread that still waits on you read "Needs you" and
+ * nothing of the stop anywhere on their row. While the pill says "Opted out" it is the stop already, and says it once.
+ */
+export function stopToldBesideState(r: { stopped: boolean; state: PersonState }): boolean {
+  return r.stopped && r.state !== "opted_out";
 }

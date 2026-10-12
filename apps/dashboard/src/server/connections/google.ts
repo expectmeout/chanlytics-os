@@ -9,6 +9,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db";
 import {
+  appLink,
   listingFactsOf,
   type GoogleAudience,
   type GoogleConnectionDto,
@@ -195,11 +196,15 @@ export function stateSecret(): string | null {
   return key;
 }
 
-/** Where the browser lands after Google: Integrations, with the outcome in a word the card reads once. */
-export function afterGoogle(origin: string, outcome: string, why?: string): string {
-  const q = new URLSearchParams({ google: outcome });
-  if (why) q.set("why", why);
-  return `${origin}/?${q.toString()}#/admin/integrations`;
+/**
+ * Where the browser lands after Google: Connections, with the outcome in a word the card reads once. On the workspace's OWN
+ * address when the signed state has proved whose workspace it was (`slug`, contracts appLink), so a person who holds two
+ * reads the word on the business they connected and not on the one this browser used last; on the front door, which carries
+ * the tab to the last workspace used, for a refusal made before the state proves itself (a declined consent, a state that is
+ * malformed, expired or another person's), when no workspace is known to name.
+ */
+export function afterGoogle(origin: string, outcome: string, why?: string, slug?: string | null): string {
+  return `${origin}${appLink(slug, "admin/integrations", { google: outcome, why: why || null })}`;
 }
 
 /** The edge's word on the listing read that follows a link or a choice: what it found, or why it could not look. */

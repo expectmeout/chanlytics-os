@@ -26,6 +26,8 @@ let T;
 let SUBSCRIBERS;
 let holdFactsOf;
 let holdTold;
+let personFactsOf;
+let optOutTold;
 const ok = (r, what) => {
   assert.equal(r.error, null, `${what}: ${r.error?.message}`);
   return r.data;
@@ -35,7 +37,7 @@ before(async () => {
   if (skip) return;
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   ({ SUBSCRIBERS } = await import(pathToFileURL(path.join(ROOT, "packages/core/src/subscribers.ts")).href));
-  ({ holdFactsOf, holdTold } = await import(
+  ({ holdFactsOf, holdTold, personFactsOf, optOutTold } = await import(
     pathToFileURL(path.join(ROOT, "packages/db/src/repositories/notifications.ts")).href
   ));
   T = ok(
@@ -127,6 +129,8 @@ test("a hold opened through its door is owed to owner_notice, and told once from
     bookedFromAppointment: async () => 0,
     holdFacts: (tenantId, ref) => holdFactsOf(db, tenantId, ref, Date.now()),
     holdTold: (tenantId, p) => holdTold(db, { tenantId, ...p }),
+    optOutPerson: (tenantId, contactId) => personFactsOf(db, tenantId, contactId),
+    optOutTold: (tenantId, p) => optOutTold(db, { tenantId, ...p }),
     tell: async (news) => {
       told.push(news);
       ok(
@@ -146,7 +150,7 @@ test("a hold opened through its door is owed to owner_notice, and told once from
   };
   await SUBSCRIBERS.owner_notice(event, ports);
   assert.equal(told.length, 1);
-  assert.equal(told[0].subject, "Rosa Diaz needs a person — the receptionist reached its daily limit");
+  assert.equal(told[0].subject, "Rosa Diaz needs a person — too many replies too fast");
   assert.match(told[0].body, /^They wrote: “Can I move my visit to Friday\?”\nThread hit 20 automatic replies today/);
   assert.match(told[0].body, /Text conversation · \+1 \(305\) 555-0177/);
   await SUBSCRIBERS.owner_notice(event, ports);

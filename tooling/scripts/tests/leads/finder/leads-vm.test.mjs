@@ -12,6 +12,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { emptyReadSet, groundCitations, stateLabel } from "@chanlytics/contracts";
 import {
   leadsRoute,
   parseLeadsRoute,
@@ -186,11 +187,11 @@ const row = (over = {}) => ({
 test("a view of the Leads scope is a route Ask can cite and the page can read back", () => {
   const route = leadsRoute({ searchId: "5e000000-0000-4000-8000-000000000001", list: "ready", cls: "review" });
   assert.equal(route, "clients/leads:s-5e000000-0000-4000-8000-000000000001:l-ready:c-review");
-  assert.match(
-    route.slice("clients/".length),
-    /^[A-Za-z0-9:_-]+$/,
-    "the route grammar Ask grounds citations with (ask/citations.ts PAGE_PREFIX): with a search's id it names that row",
-  );
+  // Ask cites a view that names neither a search nor a lead as a page; one with a search's id names that row, and grounds only
+  // where it was read (ask/citations.ts isPageRoute, over parseLeadsRoute).
+  const asPage = (id) => groundCitations([{ kind: "page", id, label: id }], emptyReadSet()).kept.length === 1;
+  assert.equal(asPage(route), false, "with a search's id it names that row");
+  assert.equal(asPage(leadsRoute({ list: "ready", cls: "review" })), true, "narrowed by its pile alone it is a page");
   assert.deepEqual(parseLeadsRoute(route), {
     searchId: "5e000000-0000-4000-8000-000000000001",
     list: "ready",
@@ -212,7 +213,11 @@ test("the lead that is open is part of the address, after the view it is open ov
     `clients/leads:s-${SEARCH}:l-nurture:c-review:p-${LEAD}`,
     "the view first, then the lead: the view's own route is a prefix of it",
   );
-  assert.match(route.slice("clients/".length), /^[A-Za-z0-9:_-]+$/, "still inside the citation grammar");
+  assert.equal(
+    groundCitations([{ kind: "page", id: route, label: "Leads" }], emptyReadSet()).kept.length,
+    0,
+    "a view with a lead open over it names that lead, which grounds only where it was read",
+  );
   assert.deepEqual(parseLeadsRoute(route), { searchId: SEARCH, list: "nurture", cls: "review", chips: {}, peek: LEAD });
   assert.equal(parseLeadsRoute(`leads:p-${LEAD}`).peek, LEAD, "the shell's own param, without the page's name");
   assert.equal(parseLeadsRoute("clients/leads:p-not-an-id").peek, null, "anything that is not an id is no lead at all");
@@ -442,7 +447,7 @@ test("one row is words and shapes, never a stored value: the fit band, the email
         copy: true,
       },
     },
-    rated: { score: "5.0", count: "16" },
+    rated: { score: "5.0", count: "16", reviews: "16 reviews" },
     spread: null,
     tile: { initials: "ZS", tint: leadTintOf("Personal trainer"), image: null, band: null, logo: null },
     waitsOn: null,
@@ -923,7 +928,7 @@ test("D5: the row reads a sub-line, two reach slots, the tile, what it waits on,
     /^hello@zilkerstrength\.example — Mailbox exists$/,
     "the tip gives the value back, with the sentence behind the shape",
   );
-  assert.deepEqual(vm.rated, { score: "5.0", count: "16" });
+  assert.deepEqual(vm.rated, { score: "5.0", count: "16", reviews: "16 reviews" });
   assert.deepEqual(vm.spread, [0, 1, 1, 4, 10]);
   assert.deepEqual([vm.tile.initials, vm.tile.image], [vm.mark, null]);
   assert.ok(vm.tile.tint >= 1 && vm.tile.tint <= 6);
@@ -1070,7 +1075,7 @@ test("D5: the week's hours as bars, and the peek's own additions -- the tile, th
     [vm.tile, vm.rated, vm.distance, vm.checksSummary],
     [
       { initials: "ZS", tint: leadTintOf("Personal trainer"), image: null, band: null, logo: null },
-      { score: "5.0", count: "16", low: null },
+      { score: "5.0", count: "16", reviews: "16 reviews", low: null },
       "1.2 mi",
       "1 check passed · 1 couldn't tell · 1 failed",
     ],
@@ -1156,15 +1161,30 @@ test("a check Claude read is said in the plan's own words, under the key the jud
   );
 });
 
+test("D1-lead-one-reviews: a place with one review reads 1 review, on the row, the peek, the name card and the fit title -- the shared plural", () => {
+  const one = row({ reviews: 1 });
+  assert.equal(toLeadRowVM(one, TZ, NOW, SEARCH_DONE).rated.reviews, "1 review");
+  assert.equal(toLeadPeekVM(one, SEARCH_DONE, TZ, NOW).rated.reviews, "1 review");
+  assert.ok(toLeadRowVM(one, TZ, NOW, SEARCH_DONE).fitTitle.endsWith("5.0 from 1 review"), "the title said 1 reviews");
+  assert.deepEqual(
+    toLeadPeekVM(one, SEARCH_DONE, TZ, NOW).facts.find((f) => f.k === "Rated"),
+    { k: "Rated", v: "5.0 from 1 review" },
+  );
+  // A count that runs to thousands is grouped as it always was in the peek, and the noun follows it.
+  assert.equal(toLeadPeekVM(row({ reviews: 1284 }), SEARCH_DONE, TZ, NOW).rated.reviews, "1,284 reviews");
+});
+
 test("D5: the band is the search's whole shape, and the fit split is worth drawing only when the fits differ", () => {
   const band = leadBand(
     searchWith({}, { qualified: 19, review: 2, excluded: 7, fits: { strong: 11, look: 6, long: 2 } }),
   );
   assert.deepEqual(band.classes, [
-    { id: "qualified", label: "19 qualified", count: 19 },
-    { id: "review", label: "2 need a look", count: 2 },
-    { id: "excluded", label: "7 left out", count: 7 },
+    { id: "qualified", label: "19 Qualified", count: 19 },
+    { id: "review", label: "2 Needs review", count: 2 },
+    { id: "excluded", label: "7 Left out", count: 7 },
   ]);
+  // A tab says the pill's words (LEAD_CLASS_WORDS) with the count in front, and wears the pill's tone.
+  for (const c of band.classes) assert.equal(c.label, `${c.count} ${stateLabel("lead_class", c.id)}`, c.id);
   assert.deepEqual(
     band.fits.map((f) => [f.id, f.label, f.count]),
     [
@@ -1179,7 +1199,7 @@ test("D5: the band is the search's whole shape, and the fit split is worth drawi
     false,
     "every row strong: the split says nothing",
   );
-  assert.equal(leadBand(searchWith({}, { review: 1 })).classes[1].label, "1 needs a look");
+  assert.equal(leadBand(searchWith({}, { review: 1 })).classes[1].label, "1 Needs review", "one word for one or many");
   assert.deepEqual(
     leadBand(searchWith({}, { review: 1 })).fits.map((f) => f.count),
     [0, 0, 0],

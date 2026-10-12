@@ -10,8 +10,9 @@
  * It holds the fold registry under its own id (`deal-sheet`), so Cancel asks once about what was typed and the tab asks
  * before closing over it. Save records through the courier's `recordDeal`; with "Send it now" on, the proposal then goes
  * through the Inbox's own reply courier (its receipt, its Undo, its email retry), on the person's conversation. Then the
- * sheet closes, says so, and says `deal:recorded`, which the person page reads again on. A refusal keeps the sheet open,
- * said under the field it names.
+ * sheet closes, says so, and says `deal:recorded`, which the Pipeline gives the focus back to the deal's row on and does
+ * nothing else with: the person's page and the Pipeline's peek read the person again with People, which the write's refresh
+ * reads and the live feed tells of (`surface:clients`, 0047). A refusal keeps the sheet open, said under the field it names.
  */
 import { useEffect, useRef, useState } from "react";
 import type { ComponentProps, Dispatch, ReactNode, RefObject, SetStateAction } from "react";

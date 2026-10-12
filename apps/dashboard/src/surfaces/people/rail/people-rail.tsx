@@ -1,14 +1,14 @@
 /**
  * The rail (moved whole from legacy/pages/people.jsx, decision 0015). The switch between the scopes stands over it, the
  * frame's strip of views (surfaces/people/chrome.ts), never in it; under Leads the rows are the Leads scope's (LeadsRailRows,
- * leads-scope.jsx), drawn with the same kit, so the smart lists and the lists kept by hand are People's alone.
+ * leads-scope.jsx), drawn with the same kit, so the ready-made lists and the lists of your own are People's alone.
  * `everyone` ({ count, active, onPick }) is the phone sheet's first row, the way back to everyone. Under the Pipeline the
  * rows are People's own lists, and a pick opens that list on People (pipeline-scope.jsx). `compact` is the phone's
  * sheet: one level of heading, and the empty lists said in a line, not drawn.
  */
 import { Fragment } from "react";
 import type { ReactNode } from "react";
-import { stateOf } from "@chanlytics/contracts";
+import { LIST_GROUP_WORDS, stateOf } from "@chanlytics/contracts";
 import type { ListRule } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
 import { FailedRead } from "../../kit/empty/empty";
@@ -30,7 +30,7 @@ function smartSection(p: {
 }) {
   const { compact, lists, groups, active, onPick } = p;
   return (
-    <RailSection label={compact ? null : "Smart lists"} icon="sparkle">
+    <RailSection label={compact ? null : LIST_GROUP_WORDS.builtin} icon="sparkle">
       {groups.map((g) => {
         const own = lists.filter((l) => (l.group || "reach") === g.id);
         if (own.length === 0) return null;
@@ -113,7 +113,7 @@ function savedSection(p: {
   const { compact, saved, savedRead, archived, onRestore, activeSaved, onPickSaved, canEdit } = p;
   return (
     <RailSection
-      label={compact && savedRead && saved.length === 0 && archived.length === 0 ? null : "Saved"}
+      label={compact && savedRead && saved.length === 0 && archived.length === 0 ? null : LIST_GROUP_WORDS.own}
       testid="saved-lists"
     >
       {/* Lists that could not be read are not "no lists": the read failed, and the people above stand. */}

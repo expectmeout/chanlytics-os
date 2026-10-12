@@ -605,3 +605,31 @@ test("the day's reach-out numbers open Campaigns at its Reach-outs, whatever rou
     ["Open Campaigns", "Open Campaigns", "Open Campaigns"],
   );
 });
+
+/* ------------------------- a template's news opens the message ------------------------- */
+
+test("D1-template-marks: a kept template notice opens the message it is about in its own drawer, and a row kept before still opens the Library", () => {
+  const rows = serverNotificationRows({
+    seen_at: null,
+    notifications: [
+      kept({
+        id: "t1",
+        kind: "template_blocked",
+        title: "Template “winback_offer” refused",
+        body: "WhatsApp refused the template “winback_offer”. It cannot be sent until it is revised and approved.",
+        route: "campaigns/message:winback_offer",
+        subject_type: "template",
+        subject_id: "winback_offer",
+      }),
+      // A row the edge kept before a template notice had its own route: the kind's door.
+      kept({ id: "t0", kind: "template_blocked", title: "Template “old” rejected", route: "messages" }),
+      kept({ id: "t2", kind: "template_ready", title: "Template “spring” approved", route: null }),
+    ],
+  });
+  const by = Object.fromEntries(rows.map((r) => [r.key, r]));
+  assert.equal(by["n:t1"].to, "campaigns/message:winback_offer", "not the bare Library, at its top");
+  assert.equal(by["n:t1"].action, "Open the message");
+  assert.deepEqual(by["n:t1"].about, { type: "template", id: "winback_offer" });
+  assert.deepEqual([by["n:t0"].to, by["n:t0"].action], ["messages", "Open Library"]);
+  assert.deepEqual([by["n:t2"].to, by["n:t2"].action], ["messages", "Open Library"]);
+});

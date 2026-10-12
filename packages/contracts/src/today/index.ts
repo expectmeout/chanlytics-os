@@ -17,11 +17,19 @@ export { tzClock, tzSince } from "./today-clock";
 export { QUOTE_MAX } from "./today-facts";
 export { todayProof } from "./today-figures";
 export { NO_REPLY_AFTER_MS } from "./today-rows";
-export { isPersonRow } from "./today-queue";
+export { isPersonRow, namesAPerson } from "./today-queue";
 export { toTodayVM } from "./today-brief";
 export { todayBriefWords } from "./today-brief-words";
 export type { TodayBriefRun, TodayBriefWords } from "./today-brief-words";
-export { durationLabel, todayDay, TODAY_DAY_MAX } from "./today-day";
+export {
+  durationLabel,
+  todayDay,
+  todayVisitsAsked,
+  todayVisitsSub,
+  todayVisitsFoot,
+  withVisitsAsked,
+  TODAY_DAY_MAX,
+} from "./today-day";
 export type {
   DayFrameLike,
   CalendarLike,
@@ -29,6 +37,8 @@ export type {
   TodayDayItemVM,
   TodayDayFrameVM,
   TodayDayVM,
+  TodayVisitAskVM,
+  TodayVisitsAskedVM,
 } from "./today-day";
 export { todayPeriodLine } from "./today-period";
 export { todayRunWords, todayRunsSub, todayRunApproved } from "./today-runs";
@@ -45,7 +55,7 @@ export type {
   BellLineVM,
   BellSectionVM,
 } from "./today-away";
-export { todaySteps } from "./today-steps";
+export { todaySteps, todayStepsSub, todayStepsFoot, withSteps } from "./today-steps";
 export {
   ALERT_TOPICS,
   ALERT_PANE_WORDS,
@@ -57,6 +67,7 @@ export {
   withTopicEmail,
   withTopicPush,
   alertTestMail,
+  openItLine,
   alertGrid,
   bellLineFor,
   phoneLine,
@@ -83,6 +94,8 @@ export {
   conversationOfNeedsKey,
   callOfKey,
   noteWhose,
+  kindListDoor,
+  noticeRoute,
   serverNotificationRows,
   dedupeFeed,
   nameKnownCustomers,
@@ -123,5 +136,5 @@ export {
   parseMemberAlerts,
 } from "./push";
 export type { PushPlatform, PushDevice, PushKind, PushMessage, PhoneDto, MemberAlertsDto } from "./push";
-export { unreadFor, isForReader, PUSH_RECEIPTS_AFTER_MS, BELL_WINDOW_DAYS } from "./push";
+export { unreadFor, keptUnreadOf, isForReader, PUSH_RECEIPTS_AFTER_MS, BELL_WINDOW_DAYS } from "./push";
 export type { PushTarget } from "./push";

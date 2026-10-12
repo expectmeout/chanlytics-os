@@ -19,9 +19,9 @@ import {
 import { resnapshotSurface } from "@/legacy-bridge/surface-cache";
 import { read } from "@/legacy-bridge/api";
 import { workspaceZone } from "@/legacy-bridge/zone";
-import { DEFAULT_REFRESH_TABLES } from "@/legacy-bridge/surface-realtime";
-import { onlyOnItsPage } from "@/legacy-bridge/surface-registry";
+import { declareReads } from "@/legacy-bridge/surface-registry";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
+import { holderName } from "../holder-names";
 import { peopleSurfaceOf, personRowOf } from "./surface-map";
 import type { PeopleLoaded } from "./surface-map";
 import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
@@ -131,7 +131,7 @@ export function publishPeople(): void {
   // What did not change keeps its object, so the table's rows that did not change are not drawn again (surface-values.ts).
   setSurfaceValue(
     "people",
-    shareUnchanged(surfaceValue("people"), peopleSurfaceOf(peopleLoaded, viewerId(), new Date())),
+    shareUnchanged(surfaceValue("people"), peopleSurfaceOf(peopleLoaded, viewerId(), new Date(), holderName)),
   );
 }
 
@@ -273,6 +273,7 @@ export async function peopleSearch(q: string): Promise<{ rows: PersonRowVM[]; mo
         dealsOn: !!r.deals_on,
         viewer: viewerId(),
         ready: peopleLoaded?.channelsReady ?? null,
+        names: holderName,
       }),
     ),
     more: !!r.page?.has_more,
@@ -324,11 +325,46 @@ export const peopleOverride: SurfaceOverride = {
   // Deals too: a teammate's move, or a payment's, shows on the rows and the Pipeline without a reload (0008). The
   // tab's own moves already re-read People through the refresh map (POST contacts/[id]/deal).
   // And notes: a teammate's step, set or done, moves a row's next step (00166).
-  // And the lists (00169): a teammate's new list, rename or archive is on the rail without a reload.
-  refreshOnTables: [...DEFAULT_REFRESH_TABLES, "deals", "person_notes", "segments", "segment_members"],
-  // A message re-reads People only while People is on screen, and once when it comes back (surface-registry.ts): every
-  // page of it was read again for each message, on whatever page the owner was looking at. Its own tables, always.
-  refreshWhen: onlyOnItsPage("people", DEFAULT_REFRESH_TABLES),
+  // And the lists (00169): a teammate's new list, rename or archive is on the rail without a reload. And the visits (#1551): a
+  // teammate's mark, a booking email and the hourly calendar read move a row's next and last visit, "asked, never booked" and the
+  // "missed a visit" list, which the Inbox's visit chip and Today's Worth a look are drawn from. They are a few a day, so they are
+  // heard on every page, with the other kinds of its own below (`always`).
+  //
+  // The rest is heard while People is on screen and once when it comes back (surface-registry.ts onlyOnItsPage; a read of
+  // everyone is the dearest the feed asks for): every page of it was read again for each message, on whatever page the owner was
+  // looking at. They are what a row is made from that is not its own: the messages, conversations and holds its state is made
+  // of; the person (a teammate's rename, an answer, a stop, a merge, people imported); the playbooks a row's follow-up names; the
+  // channel and the workspace's pause its reach is counted against; the rules and templates its labels and sends read; and the
+  // business's facts it draws (the booking link, the deal pace, the postal address an offer by email names) (0047).
+  ...declareReads("people", {
+    reads: [
+      "conversation",
+      "hold",
+      "person",
+      "campaign",
+      "channel",
+      "billing",
+      "rules",
+      "template",
+      "facts",
+      "visit",
+      "deal",
+      "step",
+      "list",
+    ],
+    fresh: "its-page",
+    always: ["visit", "deal", "step", "list"],
+    omit: [
+      {
+        tables: ["lines", "mailboxes", "sending_domains", "capability_activations", "business_records"],
+        why: "its reach is counted against the numbers connected (tenant_channels) and the workspace's pause; a line's saga, a mailbox, a domain, an activation and the carriers' record are not among them",
+      },
+      {
+        tables: ["appointment_notices"],
+        why: "a booking email held for a look is the Calendar's and Settings'; a row's visits are the appointments themselves",
+      },
+    ],
+  }),
   apply: async () => {
     // A view saved while this read is out, or before it with its reply still to come, may be missing from what the read
     // brings back, so the tab's own saves are laid over it. A read that overlapped no save takes the server's views as

@@ -8,6 +8,7 @@ import { agoWords, DATE_FMT, DAY_MS } from "../shared/time";
  * is switched on, and when a customer last used it.
  */
 import { formatPhoneDisplay } from "../shared/phone";
+import { lineOffGets } from "./caller-gets";
 import type { NumberStanding } from "./number-standing";
 
 export interface ChannelDto {
@@ -161,13 +162,18 @@ const KIND_META: Record<string, { name: string; what: string; icon: ChannelVM["i
   instagram: { name: CHANNEL_KIND_WORDS.instagram, what: "Direct messages", icon: "instagram", noun: "message" },
 };
 
+/** What one thing arriving on a wire is called in a sentence: "call", "email", "message" (an unknown wire's too). */
+export function channelNoun(kind: string): string {
+  return KIND_META[kind]?.noun ?? "message";
+}
+
 export function toChannelVM(dto: ChannelDto, now = new Date()): ChannelVM {
   const nowMs = now.getTime();
   const meta = KIND_META[dto.kind] ?? {
     name: channelKindWords(dto.kind),
     what: "",
     icon: "chat" as const,
-    noun: "message",
+    noun: channelNoun(dto.kind),
   };
   const last = dto.last_inbound_at ? new Date(dto.last_inbound_at).getTime() : null;
   const on = dto.status === "active";
@@ -179,12 +185,11 @@ export function toChannelVM(dto: ChannelDto, now = new Date()): ChannelVM {
     // a text is neither answered nor recorded and the platform is told
     // (alertUnroutable) -- and a call is picked up by the receptionist with
     // no facts to answer with and is not recorded. This sentence said the
-    // opposite of both until 12 Sep 2026.
+    // opposite of both until 12 Sep 2026. What a caller gets is the standing
+    // value's (caller-gets.ts), which Live, Start and Today say too; who is
+    // told is this row's own.
     health = "off";
-    healthLabel =
-      dto.kind === "voice"
-        ? "Switched off — calls are picked up without your facts and are not recorded; Chanlytics is told, you are not"
-        : `Switched off — ${meta.noun}s to it are neither answered nor recorded; Chanlytics is told they are arriving, you are not`;
+    healthLabel = `Switched off — ${lineOffGets(dto.kind, meta.noun).gets}; Chanlytics is told${dto.kind === "voice" ? "" : " they are arriving"}, you are not`;
   } else if (last === null) {
     health = "unused";
     healthLabel = `On — no ${meta.noun} has arrived yet`;

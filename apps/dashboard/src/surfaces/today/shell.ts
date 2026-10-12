@@ -4,24 +4,22 @@
  * A TSX surface reads nothing off `window`, so each thing a page of the shell owns that Today draws reaches it through
  * one function here, which calls the window's own where it is and does what the page did where it is not (the
  * standalone harness, a test's stand-in window). Today reads more of the shell than any surface: the nine it draws
- * from (`ROUTE_DRAWS.today`), the frame's doors, the toast, the role gate, and the pages of the shell that draw the
- * rows it borrows (the agenda). Each is a line to delete on the day its owner moves; nothing here
- * is new behaviour.
+ * from (`ROUTE_DRAWS.today`), the frame's doors, the toast and the role gate. Each is a line to delete on the day its
+ * owner moves; nothing here is new behaviour.
  *
  * Reads are made when the page asks, never when this loads: a stand-in window a test builds later is the one read.
  */
 import { useCallback, useSyncExternalStore } from "react";
-import type { ComponentType } from "react";
 import type { SpeechPurpose } from "@chanlytics/contracts";
 import type { BellApi } from "@/legacy-bridge/notifications";
 import type { PageClock } from "@/legacy-bridge/zone";
 import { surfaceHook } from "@/legacy-bridge/surface-status";
 import { bcWhenWords as whenWords } from "../campaigns/broadcasts/when-words";
 
-export { bcLateWords } from "../campaigns/broadcasts/when-words";
+export { bcLateWords, bcOpensOnItsSheet } from "../campaigns/broadcasts/when-words";
 import type { SurfaceNames } from "@/legacy-bridge/surface-status";
 import { askAbout, canDo, holdStill } from "../legacy-verbs";
-import { fn, windowValue, object, type Flash } from "../shell-doors";
+import { fn, object, type Flash } from "../shell-doors";
 
 export { askAbout, canDo, holdStill };
 
@@ -105,6 +103,20 @@ export function surfaceFailed(key: string): boolean {
  */
 export const useMoved: (names: SurfaceNames) => number = surfaceHook({ useCallback, useSyncExternalStore });
 
+/* ---------------------------------- a step done ---------------------------------- */
+
+/**
+ * A person's notes' courier (people-detail.ts `window.__personNotes`), when it is published: the verb that marks a step done,
+ * the one the Inbox's thread header presses. Nothing in a stand-in window.
+ */
+export function personNotes() {
+  const notes = window.__personNotes;
+  return notes && typeof notes.done === "function" ? notes : null;
+}
+
+/** The step sheet (step-sheet.jsx `openStepSheet`) the toast after a step done offers, when the shell has one. */
+export { openStepSheet, stepSheetOffered } from "../people/deal/deal-verbs";
+
 /** The playbooks surface read again after a run's verb (`window.__refreshPlaybooks`): nothing in a stand-in window. */
 export function refreshPlaybooks(): void {
   fn<[], void>("__refreshPlaybooks")?.();
@@ -149,7 +161,7 @@ export interface VerbAnswer {
 
 /** The broadcasts surface's verbs, as far as Today draws them. */
 interface BroadcastVerbs {
-  cancel(id: string, opts?: { onAccepted?: () => void }): Promise<VerbAnswer>;
+  cancel(id: string, opts?: { onAccepted?: (data: NonNullable<VerbAnswer["data"]>) => void }): Promise<VerbAnswer>;
   approve(id: string, opts?: { onAccepted?: (data: NonNullable<VerbAnswer["data"]>) => void }): Promise<VerbAnswer>;
 }
 
@@ -157,16 +169,3 @@ interface BroadcastVerbs {
 export function bcWhenWords(data: unknown): string {
   return whenWords(data && typeof data === "object" ? data : null);
 }
-
-/* -------------------------- what the pages of the shell draw -------------------------- */
-
-/** A component a page of the shell published, drawn by name where Today borrows its rows; none where it is not loaded. */
-function component<P>(name: string): ComponentType<P> | undefined {
-  const v = windowValue(name);
-  return typeof v === "function" ? (v as ComponentType<P>) : undefined;
-}
-
-/** The one row every list of appointments wears (components/day-agenda.jsx), which the day's card draws. */
-export const agendaItem = <P>(): ComponentType<P> | undefined => component<P>("AgendaItem");
-export const agendaItems = <P>(): ComponentType<P> | undefined => component<P>("AgendaItems");
-export const agendaOpen = <P>(): ComponentType<P> | undefined => component<P>("AgendaOpen");

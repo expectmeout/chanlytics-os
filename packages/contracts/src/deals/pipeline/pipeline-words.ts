@@ -97,7 +97,9 @@ export const PIPELINE_WORDS = {
     sheet: "Views",
     deals: "Deals",
     all: "All deals",
-    waitingOnYou: "Waiting on you",
+    // The deals to follow up: proposals with nothing back, lapsed ones, steps due. It said "Waiting on you", which is a thread
+    // you have (People), a thread nobody has (Reports) and a run (Sent): one name for four things (D1-waiting-on-you).
+    toFollowUp: "To follow up",
     waiting: "Nothing back in a week",
     /** The same, once the workspace has a pace: past it by a fifth (waitAfterDays). */
     waitingPaced: (days: number) => `Nothing back in ${days} days`,

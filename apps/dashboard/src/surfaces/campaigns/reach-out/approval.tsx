@@ -11,9 +11,10 @@
  */
 import { Fragment, useState } from "react";
 import type { ReactNode } from "react";
+import { REACH_OUT_SHEET_WORDS } from "@chanlytics/contracts";
 import type { BroadcastDetailDto, ReachOutDecision } from "@chanlytics/contracts";
 import type { ApiRefusal } from "@/client/api";
-import { canDo, gateTitle } from "../../legacy-verbs";
+import { canDo, gateTitle, navigate } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
@@ -59,6 +60,26 @@ function RoRunWords({ vm }: { vm: RunWords }) {
   ) : null;
 }
 
+/**
+ * A business on the sheet, held or ready: its name, which opens its lead in the Leads peek where the read names the lead
+ * (`to`, contracts leadDoorOf), so the owner can see who it is before deciding on it. A name with no lead to open is the
+ * name alone.
+ */
+function RoName({ name, to, testid }: { name: string; to: string | null; testid: string }) {
+  return to ? (
+    <LinkButton
+      className="bc-person-name"
+      title={REACH_OUT_SHEET_WORDS.openLead}
+      onClick={() => navigate(to)}
+      data-testid={testid}
+    >
+      {name}
+    </LinkButton>
+  ) : (
+    <span className="bc-person-name">{name}</span>
+  );
+}
+
 interface HeldProps {
   vm: RunWords;
   may: boolean;
@@ -73,7 +94,7 @@ function RoRunHeld({ vm, may, busy, said, onDecide }: HeldProps) {
     <section className="bc-touched bc-sheet-people bc-approval-people" data-testid="ro-run-held">
       {vm.held.map((h) => (
         <div key={h.id} className="bc-person is-held" data-testid="ro-held">
-          <span className="bc-person-name">{h.name}</span>
+          <RoName name={h.name} to={h.to} testid="ro-held-lead" />
           <span className="bc-person-words">{h.why}</span>
           {may && (
             <span className="bc-person-doors">
@@ -110,7 +131,7 @@ function RoRunList({ vm }: { vm: RunWords }) {
       </div>
       {vm.list.map((x) => (
         <div key={x.id} className="bc-person" data-testid="ro-run-person">
-          <span className="bc-person-name">{x.name}</span>
+          <RoName name={x.name} to={x.to} testid="ro-person-lead" />
           <span className="bc-person-at mono">{x.at}</span>
         </div>
       ))}

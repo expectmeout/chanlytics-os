@@ -1,6 +1,6 @@
 /**
  * TlMedia: an attachment in a thread, for real sessions (moved whole from data-bits.jsx, decision 0015: the kit's one
- * implementation, which seed-globals publishes as window.TlMedia for the pages that still read it).
+ * implementation, which the pages import).
  *
  * The bytes live in a private bucket; the route answers with a five-minute signed URL by redirect, so an <img>, <audio>
  * or <video> can point straight at it. Without the bridge there is no route, and a seeded thread never carries `media`,

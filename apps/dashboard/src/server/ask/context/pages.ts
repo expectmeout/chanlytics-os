@@ -1,9 +1,10 @@
 import "server-only";
 import {
-  LIFECYCLE_WORDS,
   chainResultsOf,
   dealsAreOn,
+  lifecycleChainStateOf,
   lifecycleChainsOf,
+  lifecycleStateOf,
   nextRunLabel,
   plural,
   reportDaysAsked,
@@ -117,7 +118,8 @@ async function playbookContextRows(rc: ReaderContext, ids: string[]) {
         [
           p.name,
           lastDaysPart(days ? sentResultsOfSource(days) : null),
-          p.state,
+          // The campaign's state as the home says it (lifecycleStateOf), a run waiting included, paused or not.
+          lifecycleStateOf(p).words,
           `next run ${nextRunLabel(p, pb.timezone, rc.now, pb.ready?.paused === true)}`,
           moment.trim().toLowerCase() === p.name.trim().toLowerCase() ? null : moment,
         ],
@@ -144,17 +146,11 @@ async function chainContextRows(rc: ReaderContext, ids: string[]) {
   for (const id of ids) {
     const c = byRoot.get(id);
     if (!c) continue;
-    const waits = c.state === "running" && c.next.waiting_run_id !== null;
     rows.push({
       source: sourceOf("reach_out", id),
       title: c.name,
       text: line(
-        [
-          c.name,
-          lastDaysPart(chains ? chainResultsOf(id, chains) : null),
-          c.state,
-          waits ? `next run ${LIFECYCLE_WORDS.coming.waiting.toLowerCase()}` : null,
-        ],
+        [c.name, lastDaysPart(chains ? chainResultsOf(id, chains) : null), lifecycleChainStateOf(c).words],
         `campaigns/moment:${id}`,
       ),
       ref: refs.get(id) ?? null,

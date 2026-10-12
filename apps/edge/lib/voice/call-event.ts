@@ -101,6 +101,8 @@ export type CallStep =
 export interface CallEventPlan {
   steps: CallStep[];
   about: CallAbout | null;
+  /** The call's own row (calls.id), which the owner's notice of it opens; null where the delivery made none. */
+  callId: string | null;
 }
 
 /** A trimmed string, or nothing: the analysis's answers are the agent's free text. */
@@ -305,12 +307,14 @@ export function planCallEvent(e: CallEvent, f: CallEventFacts): CallEventPlan {
 
   const copy = recordingCopy(n, res, analyzed);
   if (copy) steps.push(copy);
-  return { steps, about };
+  return { steps, about, callId: res.call_id ?? null };
 }
 
 /**
  * The owner's notice of an analysed call: the bell row and the mail, in the
- * owner's words, name first ("Emily phoned · 3 min · needs a call back").
+ * owner's words, name first ("Emily phoned · 3 min · needs a call back"). It opens the call it is about
+ * (`conversations/cv-<call>`, as the Today queue's "Open the call" does), even when the row is about the thread for a call
+ * back: the summary is the call's.
  * The name is the one the owner saved for the caller (`saved`: their name, else
  * their WhatsApp name), as every page names a caller (contracts callerName);
  * with none saved, what the caller said of themselves, then their number, or that it was withheld.
@@ -324,6 +328,7 @@ export function callNotice(
   call: RetellCall,
   about: CallAbout | null,
   saved: string | null,
+  callId: string | null,
 ): NotifyMessage {
   const summary = n.summary || "(no summary)";
   const sentiment = n.sentiment || "n/a";
@@ -338,7 +343,7 @@ export function callNotice(
   const length = durationS >= 60 ? `${Math.round(durationS / 60)} min` : `${durationS} s`;
   return {
     kind: "call",
-    route: "conversations/phone",
+    route: callId ? `conversations/cv-${callId}` : "conversations/phone",
     about,
     subject: `${who} phoned · ${length}${callback ? " · needs a call back" : ""}`,
     body:

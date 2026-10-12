@@ -61,28 +61,35 @@ test("the routes hand the caller through", () => {
 
 /* --------------------------- the stranded invite -------------------------- */
 
-test("REGRESSION: acceptance is no longer gated on having no memberships", () => {
+test("REGRESSION: acceptance is no longer gated on having no memberships, and is no longer the workspace list's", () => {
   // `!data?.length &&` was the strand. Self-serve workspace creation made it
-  // the ordinary path rather than an edge case.
-  // Gated on the request being the app's own (F51: a GET is exempt from the
-  // cross-site check, so its write must not run for a cross-site read) —
-  // never on having no memberships.
+  // the ordinary path rather than an edge case. The acceptance is its own POST
+  // now (decision 0047, lane 6: a read never writes, so the list neither looks
+  // up an invitation nor seats anyone, cross-site or not), and still never
+  // gated on having no memberships.
   assert.ok(
-    workspaces.includes("const invited = isSameOrigin(_req) ? openInvitesFor(email ?? null) : null;") &&
-      workspaces.includes("if (invited && (await acceptOpenInvites(userId, email ?? null, invited)) > 0) {"),
-    "acceptance must be attempted on every same-origin workspace read",
+    !workspaces.includes("acceptOpenInvites") && !workspaces.includes("openInvitesFor"),
+    "the list seats nobody",
   );
   assert.ok(!workspaces.includes("!data?.length && (await acceptOpenInvites"), "the membership gate is the bug");
+  assert.ok(
+    service.includes("acceptOpenInvites(ctx.userId, ctx.email ?? null)") &&
+      !service.includes("data?.length && (await acceptOpenInvites"),
+    "the accept takes whatever is open for the address, however many workspaces the person is in already",
+  );
 });
 
-test("an open invitation, run: looked up beside the boot's other reads, accepted on the app's own read and the list read again with the new seat; a cross-site read looks up nothing and writes nothing", async () => {
+test("an open invitation, run: the list read seats nobody, whoever asks; the accept seats the person in every workspace that invited them, says which, and finishes once; the list read after it holds the seat", async () => {
   process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
   process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
   const { fakeDb } = await import("../_fake-db.mjs");
   const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
   const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
   const { GET } = await import(at("apps/dashboard/app/api/v1/workspaces/route.ts"));
+  const accepting = await import(at("apps/dashboard/app/api/v1/me/invitations/accept/route.ts"));
   const { setServiceClient } = await import(at("apps/dashboard/src/server/service-db.ts"));
+  const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
+  setRateStore(memoryStore());
   const USER = "99999999-9999-4999-8999-999999999999";
   const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
   const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -123,15 +130,28 @@ test("an open invitation, run: looked up beside the boot's other reads, accepted
       new Request("http://localhost/api/v1/workspaces?workspace=harbor", { headers: { "sec-fetch-site": site } }),
       ctx,
     );
+  const accept = () =>
+    accepting.POST.run(new Request("http://localhost/api/v1/me/invitations/accept", { method: "POST" }), ctx);
   const roleIn = (answer, id) => answer.workspaces.find((w) => w.id === id)?.role ?? null;
   try {
-    const away = await read("cross-site");
-    assert.equal(roleIn(away, B), null, "a cross-site read seats nobody");
+    // A read never writes: the app's own read of the list, and a cross-site one, seat nobody, stamp nothing, tell nothing.
+    for (const site of ["cross-site", "same-origin"]) {
+      const listed = await read(site);
+      assert.equal(roleIn(listed, B), null, `a ${site} read seats nobody`);
+      assert.equal(roleIn(listed, A), "owner");
+    }
     assert.equal(world.invitations[0].accepted_at, null, "and stamps nothing");
     assert.equal(world.memberships.length, 1);
+    assert.deepEqual(world.events, [], "and writes nothing to the ledger");
 
+    const seated = await accept();
+    assert.deepEqual(
+      seated,
+      { joined: [{ id: B, name: "Luna", role: "operator" }] },
+      "the accept says which workspace it seated them in, as the shell says it: You joined Luna",
+    );
     const home = await read("same-origin");
-    assert.equal(roleIn(home, B), "operator", "the list read again says the seat the invitation made");
+    assert.equal(roleIn(home, B), "operator", "the list read after it says the seat the invitation made");
     assert.equal(roleIn(home, A), "owner");
     assert.equal(home.activeWorkspaceId, A, "the tab stays where it asked to be");
     assert.equal(home.user.role, "owner");
@@ -143,10 +163,122 @@ test("an open invitation, run: looked up beside the boot's other reads, accepted
       "REGRESSION: the ledger kept the invitation and never that anybody arrived",
     );
 
-    const again = await read("same-origin");
-    assert.equal(world.memberships.length, 2, "an accepted invitation is not looked up again");
-    assert.equal(roleIn(again, B), "operator");
+    const again = await accept();
+    assert.deepEqual(again, { joined: [] }, "an accepted invitation is not accepted again, and the shell says nothing");
+    assert.equal(world.memberships.length, 2);
+    assert.equal(roleIn(await read("same-origin"), B), "operator");
     assert.equal(world.events.length, 1, "and is said once");
+  } finally {
+    setServiceClient(null);
+  }
+});
+
+test("a person with no address, or none open, is seated nowhere and told nothing", async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
+  process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
+  const { fakeDb } = await import("../_fake-db.mjs");
+  const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+  const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
+  const { joinFromInvitations } = await import(at("apps/dashboard/src/server/workspace/team.ts"));
+  const { setServiceClient } = await import(at("apps/dashboard/src/server/service-db.ts"));
+  const USER = "99999999-9999-4999-8999-999999999999";
+  const world = { memberships: [], tenants: [], events: [], invitations: [] };
+  try {
+    setServiceClient(fakeDb(world));
+    const as = (email) => ({ supabase: fakeDb(world), userId: USER, email, aal: "aal2" });
+    assert.deepEqual(await joinFromInvitations(as(undefined)), { joined: [] }, "no address, no invitation to find");
+    assert.deepEqual(await joinFromInvitations(as("ada@example.com")), { joined: [] }, "nothing open for it");
+    assert.deepEqual([world.memberships, world.events], [[], []], "and nothing written");
+  } finally {
+    setServiceClient(null);
+  }
+});
+
+test("an acceptance is finished by whoever accepts next: the news before the stamp, so an accept that died between the seat and its news is not the last (S1-19)", async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
+  process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
+  const { fakeDb } = await import("../_fake-db.mjs");
+  const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+  const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
+  const { joinFromInvitations } = await import(at("apps/dashboard/src/server/workspace/team.ts"));
+  const { setServiceClient } = await import(at("apps/dashboard/src/server/service-db.ts"));
+  const USER = "99999999-9999-4999-8999-999999999999";
+  const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const open = () => ({
+    id: "i-1",
+    tenant_id: B,
+    role: "operator",
+    email: "ada@example.com",
+    accepted_at: null,
+    revoked_at: null,
+    expires_at: "2999-01-01T00:00:00Z",
+  });
+  // The accept, as the route makes it: the person on their own session, the seats written as the service role.
+  const accept = (w) =>
+    joinFromInvitations({ supabase: fakeDb(w), userId: USER, email: "ada@example.com", aal: "aal2" });
+  const world = (over = {}) => ({
+    memberships: [],
+    tenants: [{ id: B, slug: "luna", name: "Luna", status: "active", timezone: "Europe/Madrid" }],
+    events: [],
+    invitations: [open()],
+    ...over,
+  });
+  try {
+    // The seat is taken and the news written, then the stamp: in that order, so the ledger has the news whenever the invitation is closed.
+    const first = world();
+    setServiceClient(fakeDb(first));
+    assert.equal((await accept(first)).joined.length, 1);
+    assert.equal(first.memberships.length, 1);
+    assert.deepEqual(
+      first.events.map((e) => [e.tenant_id, e.kind, e.subject_type, e.subject_id, e.data]),
+      [[B, "member.joined", "invitation", "i-1", { by: USER, role: "operator" }]],
+    );
+    assert.ok(first.invitations[0].accepted_at, "stamped once the news is on the ledger");
+
+    // A read that died after the seat and before the news: the next finds the seat held (23505) and the ledger without the
+    // news, writes it, and stamps. The owner's bell line follows the event (core SUBSCRIBERS.team_notice).
+    const died = world({
+      memberships: [{ tenant_id: B, user_id: USER, role: "operator", created_at: "2026-10-06T00:00:00Z" }],
+    });
+    setServiceClient(fakeDb(died));
+    assert.equal((await accept(died)).joined.length, 1);
+    assert.equal(died.memberships.length, 1, "no second seat");
+    assert.deepEqual(
+      died.events.map((e) => [e.kind, e.subject_id]),
+      [["member.joined", "i-1"]],
+      "REGRESSION: a seat taken and an event never written left the owner told of nothing, for good",
+    );
+    assert.ok(died.invitations[0].accepted_at);
+
+    // And a read that finds the news there already writes none: its own earlier try, or a second tab's.
+    const told = world({
+      memberships: [{ tenant_id: B, user_id: USER, role: "operator", created_at: "2026-10-06T00:00:00Z" }],
+      events: [
+        {
+          id: "e-1",
+          tenant_id: B,
+          kind: "member.joined",
+          category: "team",
+          subject_type: "invitation",
+          subject_id: "i-1",
+          data: { by: USER, role: "operator" },
+        },
+      ],
+    });
+    setServiceClient(fakeDb(told));
+    assert.equal((await accept(told)).joined.length, 1);
+    assert.equal(told.events.length, 1, "said once");
+    assert.ok(told.invitations[0].accepted_at, "and the invitation is closed");
+
+    // The news cannot be written: the invitation stays open, so the next accept tries again, and nothing is counted.
+    const failing = world();
+    setServiceClient(fakeDb(failing, { "events.insert": { message: "connection reset" } }));
+    assert.equal((await accept(failing)).joined.length, 0);
+    assert.equal(failing.invitations[0].accepted_at, null, "an invitation whose news was not written is not closed");
+    setServiceClient(fakeDb(failing));
+    assert.equal((await accept(failing)).joined.length, 1);
+    assert.equal(failing.events.length, 1, "the next accept writes it");
+    assert.ok(failing.invitations[0].accepted_at);
   } finally {
     setServiceClient(null);
   }

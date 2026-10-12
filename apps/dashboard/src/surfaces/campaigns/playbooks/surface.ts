@@ -32,11 +32,12 @@ import {
 } from "@chanlytics/contracts";
 import type { Output } from "@/client/api";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { DEFAULT_REFRESH_TABLES } from "@/legacy-bridge/surface-realtime";
-import { onlyOnItsPage } from "@/legacy-bridge/surface-registry";
+import { declareReads } from "@/legacy-bridge/surface-registry";
+import type { SettingsSurface } from "@/legacy-bridge/surfaces/settings";
 import { sameChannels } from "@/lib/campaign-channels";
-import { declareSurfaceValue, setSurfaceValue } from "../../surface-values";
-import { cmAddressOf, cmOfferedMessages, type CmOffered } from "../parts/channels";
+import { callTextOf, followSettings } from "../../offered-templates";
+import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../../surface-values";
+import { cmAddressOf, cmOfferedFrom, type CmOffered } from "../parts/channels";
 
 // The frame (its tab counts and the route table's crumbs) and Today read this under its old name until they move.
 declareSurfaceValue("playbooks", "__PLAYBOOKS");
@@ -269,16 +270,19 @@ export interface PlaybooksSurface {
     held: number | null;
     named: PlaybookNamed | null;
   }[];
-  /** The messages a playbook may send, with their variables and the channels each holds. */
-  /** Null: the templates read failed -- its own state, never "no template yet". */
-  templates: PlaybookTemplate[] | null;
   /**
-   * The call's text as its templates read names it (`booking`: found over every WhatsApp row, a hidden one too, as the
-   * edge texts it after a call), one row or none: Campaigns' home says whether there is one. Null where that read failed;
-   * undefined where the answer does not say (a server from before `booking`), and the home then says nothing of it.
+   * The messages a playbook may send, with their variables and the channels each holds: made of the settings read, the one
+   * read of the templates (parts/channels.ts cmOfferedFrom), and made of it again each time it is published. Null: that read
+   * failed -- its own state, never "no template yet". Absent while it is still being read.
+   */
+  templates?: PlaybookTemplate[] | null;
+  /**
+   * The call's text as the settings read's templates name it (contracts bookingTemplate, found over every WhatsApp row, a
+   * hidden one too, as the edge texts it after a call), one row or none: Campaigns' home says whether there is one. Null where
+   * that read failed; undefined while it is still being read, and the home then says nothing of it.
    */
   library: LifecycleTemplate[] | null | undefined;
-  /** Every message of the workspace, on every channel (its templates read's `messages`): the Library's count. Null where unread. */
+  /** Every message of the workspace, on every channel (the settings read's `messages`): the Library's count. Null where unread. */
   messages: CampaignMessage[] | null;
   /** Each autonomy class's mode (GET playbooks' `modes`): Resume says a class under `auto` in full. Null where unread. */
   modes: Readonly<Record<string, string>> | null;
@@ -312,25 +316,38 @@ function businessShapeOf(
 }
 
 /**
- * What the templates read gives the page, each null where it failed: the messages a playbook may send, the call's text
- * as the read names it, and every message of the workspace, which the Library counts.
+ * What the settings read, the one read of the templates, gives the page: the messages a playbook may send, the call's text
+ * and every message of the workspace, which the Library counts. Each is null where that read failed, and absent (the messages,
+ * null) while it is still being read; a playbooks read asks for no GET templates of its own.
  */
-function templatesReadOf(
-  tpl: Output<"GET templates"> | Error,
+function templatesOfSettings(
+  settings: SettingsSurface | undefined,
 ): Pick<PlaybooksSurface, "templates" | "library" | "messages"> {
-  if (tpl instanceof Error) return { templates: null, library: null, messages: null };
-  // An answer from before `booking` (a tab open across a rollback) does not say: never "No message for it yet" for a
-  // call's text that may exist. Null is the reader's "none found".
-  const booking: LifecycleTemplate | null | undefined = tpl.booking;
   return {
     // Every channel's rows are read: an email or a text of a message's name and language is a version of it.
-    templates: cmOfferedMessages(tpl),
-    // The call's text is looked up as today and as the edge sends it (voice/call-booking-link.ts): among EVERY WhatsApp
-    // row, a hidden one too. The composers' rows leave hidden ones out, so the read names the one it found (`booking`).
-    library: booking === undefined ? undefined : booking ? [booking] : [],
-    messages: tpl.messages,
+    templates: cmOfferedFrom(settings),
+    // The call's text is looked up as the edge sends it (voice/call-booking-link.ts): among EVERY WhatsApp row, a hidden one
+    // too, which the settings read holds (the composers' rows leave hidden ones out).
+    library: callTextOf(settings),
+    messages: settings?.messages ?? null,
   };
 }
+
+/**
+ * Its messages, the call's text and the Library's count are the settings read's, made of it again each time it is published
+ * (followSettings), so a template approved, blocked or written reaches the composer and Campaigns' home with the read that tells
+ * Settings, and this surface is not read again for it. (Its counts of who a run reaches do read the templates' categories, on
+ * the server: that is `reads` below, heard on its page.)
+ */
+followSettings("playbooks", (held, settings) => {
+  const now = templatesOfSettings(settings);
+  const templates = shareUnchanged(held.templates, now.templates);
+  const library = shareUnchanged(held.library, now.library);
+  const messages = shareUnchanged(held.messages, now.messages);
+  return templates === held.templates && library === held.library && messages === held.messages
+    ? held
+    : { ...held, templates, library, messages };
+});
 
 /**
  * Playbooks: the rows with what their runs earned, the triggers with the
@@ -345,13 +362,44 @@ export const playbooksOverride: SurfaceOverride = {
   events: ["surface:playbooks"],
   // A run the sweep made, or one approved or stopped elsewhere (00321), and a playbook paused, renamed or retimed by a
   // teammate (00376), move a playbook's row and its "next run": heard wherever the tab is. A message moves a playbook's
-  // replies: read again only while its page is on screen, and once when it comes back (surface-registry.ts).
-  refreshOnTables: [...DEFAULT_REFRESH_TABLES, "broadcasts", "playbooks"],
-  refreshWhen: onlyOnItsPage("playbooks", DEFAULT_REFRESH_TABLES),
+  // replies, and a visit its visit moments' pools ("N will get it": a visit marked missed or cancelled leaves them, #1551); a
+  // number, a line or the workspace's pause moves the Send by tick and the head line: read again only while its page is on
+  // screen, and once when it comes back (surface-registry.ts). And what the playbooks read of the business (0047): who a run would
+  // pick ("N will get it": the person, an answer, a stop, people imported), the templates (the server reads a message's category to
+  // count the run of a playbook whose message is stricter than its moment, so a message Meta re-categorised moves that count; the
+  // messages it offers are the settings read's, followSettings above) and the rules the strict-message counts and the Resume
+  // question say, the mailbox whose offers the gates paused and the business's facts, the postal address an offer by email names
+  // and the booking link a slot fills.
+  ...declareReads("playbooks", {
+    reads: [
+      "conversation",
+      "hold",
+      "visit",
+      "channel",
+      "billing",
+      "person",
+      "template",
+      "rules",
+      "facts",
+      "send",
+      "campaign",
+    ],
+    fresh: "its-page",
+    always: ["send", "campaign"],
+    omit: [
+      {
+        tables: ["appointment_notices"],
+        why: "a booking email held for a look is the Calendar's and Settings'; the pools read the appointments themselves",
+      },
+      {
+        tables: ["sending_domains", "capability_activations", "business_records"],
+        why: "Send by is worded from the number, the line, the mailbox's pause and the workspace's pause (channels-ready.ts); a domain, an activation and the carriers' record are not among them",
+      },
+    ],
+  }),
   apply: async () => {
-    const [pb, tpl, ch, cfg] = await Promise.all([
+    const [pb, ch, cfg] = await Promise.all([
       read("GET playbooks"),
-      read("GET templates").catch((e: unknown) => e as Error),
       read("GET channels").catch((e: unknown) => e as Error),
       read("GET settings").catch((e: unknown) => e as Error),
     ]);
@@ -370,7 +418,6 @@ export const playbooksOverride: SurfaceOverride = {
         ? null
         : ((ch.channels ?? []).find((c) => c.kind === "whatsapp" && c.status === "active") ?? null);
     const brain = cfg instanceof Error ? null : (cfg.config?.brain ?? null);
-    if (tpl instanceof Error) console.error("playbooks_templates_fetch_failed", tpl.message);
     if (ch instanceof Error) console.error("playbooks_channels_fetch_failed", ch.message);
     const tz = pb.timezone || "America/New_York";
     // A playbook on a list is counted by its list's token (`seg:<id>` or `list:<id>`, decision 0009), and named for it.
@@ -449,7 +496,8 @@ export const playbooksOverride: SurfaceOverride = {
         held: held(t.id),
         named: named(t.id),
       })),
-      ...templatesReadOf(tpl),
+      // The settings read's, as it stands now (absent while that is still being read; followSettings above).
+      ...templatesOfSettings(surfaceValue("settings")),
       // A server from before `modes` answers none: Resume then says when and to how many alone.
       modes: pb.modes ?? null,
       number: {

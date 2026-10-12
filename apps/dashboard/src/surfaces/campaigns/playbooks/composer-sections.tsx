@@ -445,7 +445,7 @@ function messageEmpty(x: SectionCtx) {
   return (
     <div className="pb-empty" data-testid="pb-message-empty">
       {!templatesRead && (
-        <FailedRead kind="line" what="your templates" surface="playbooks" testid="pb-templates-failed" />
+        <FailedRead kind="line" what="your templates" surface="settings" testid="pb-templates-failed" />
       )}
       {lost && (
         <p className="pb-empty-line is-warn" data-testid="pb-template-lost">

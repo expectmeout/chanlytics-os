@@ -219,7 +219,7 @@ async function getLead(t: ToolContext, input: { lead_id: string; search_id?: str
     about: peek.about ? cut(peek.about, 240) : null,
     where: peek.where ? cut(peek.where.line) : null,
     today: peek.today,
-    rated: peek.rated ? `${peek.rated.score} from ${peek.rated.count} reviews` : null,
+    rated: peek.rated ? `${peek.rated.score} from ${peek.rated.reviews}` : null,
     why_it_fits: cut(peek.fit.sentence, 240) || null,
     checks: peek.checksSummary || null,
     found_at: peek.foundSummary || null,

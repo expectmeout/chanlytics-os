@@ -36,7 +36,7 @@ export const LeadPeek = (props: PeekState & PeekActs) => {
       : {};
   return (
     <aside className="pk pl-peek" role="dialog" aria-label={vm.name} data-testid="lead-peek" {...swipe}>
-      <LeadPeekHead vm={vm} onClose={on.onClose} onExpand={on.onExpand} deck={deck} />
+      <LeadPeekHead vm={vm} onClose={on.onClose} onExpand={on.onExpand} onOpenPerson={on.onOpenPerson} deck={deck} />
       {mode === "draft" ? (
         <LeadDraftPane vm={vm} draft={draft} busy={busy} on={on} />
       ) : (

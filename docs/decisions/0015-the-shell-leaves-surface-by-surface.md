@@ -393,7 +393,7 @@ used moved with it (the amendment). What it settled, for the surfaces after it:
   its bundle, `window.__TODAY_SAMPLE`); the page is an App Router page, which only the app draws, so the mockup no longer draws it (nor
   the Inbox, nor Reports), and its bundle, its script tag and its test leave with the sample.
 - **The seam.** `today` is a key of `SurfaceValues` (contracts' `TodayVM`), mirrored as `window.TODAY_DATA` for Ask, the phone's bridge
-  and the bell; the override and the helpers (`TODAY_HELPERS`, published as `window.__today` for Settings) are in `surfaces/today/`.
+  and the bell; the override and the helpers (`TODAY_HELPERS`, once published as `window.__today` for Settings, which stopped reading it, and imported by the page since) are in `surfaces/today/`.
 - **Proof.** The pilot's recorder over 75 worlds (every state of the day, the queue's rows and runs, the day's calendar and steps, the
   leaks, the pins, the bell), every handler of them, 21 sequences and 82 checks of the attention row: 3,116 steps, no difference, and
   25 faults planted in the TSX, every one caught.

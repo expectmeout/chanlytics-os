@@ -12,6 +12,33 @@ const CREATE_TIMEOUT_MS = 30_000;
 
 /* ---- Templates as Meta holds them: the edge reads the number's account ---- */
 
+/**
+ * What a member did to a Library message, on the ledger: sent to WhatsApp for approval, or deleted. It is about the template
+ * (its row's id, subject "template"), with its name and language in the data, which is what the line says and what stays when
+ * the row is gone. While the row is there the line opens the message in the Library (activity.ts, doors). Best effort, as an
+ * event is.
+ */
+export function templateEvent(
+  db: ReturnType<typeof serviceDb>,
+  tenantId: string,
+  what: "submitted" | "removed",
+  template: { id: string; name: string; language: string },
+  by: string,
+): Promise<void> {
+  return emitEvent(
+    db,
+    tenantId,
+    what === "removed" ? "template.removed" : "template.submitted",
+    "template",
+    template.id,
+    {
+      name: template.name,
+      language: template.language,
+      by,
+    },
+  );
+}
+
 type SyncOutcome =
   | { ok: true; seen: number; approved: number; marketing: number; syncedAt: string }
   | { ok: false; reason: EdgeReason; detail?: string };
@@ -77,11 +104,7 @@ export async function createTemplate(
   if (edgeAnswered(r) && j.ok && j.id) {
     // What a business will say to its customers went to Meta under this member's hand: the ledger says who and
     // which, as it says every other consequential act. Best effort: the message is with Meta either way.
-    await emitEvent(serviceDb(), tenantId, "template.submitted", "workspace", tenantId, {
-      name: t.name,
-      language: t.language,
-      by: userId,
-    });
+    await templateEvent(serviceDb(), tenantId, "submitted", { id: j.id, name: t.name, language: t.language }, userId);
     return { ok: true, id: j.id, metaStatus: j.meta_status ?? "pending" };
   }
   return { ok: false, reason: edgeReasonOf(r), detail: j.detail };

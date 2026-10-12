@@ -8,8 +8,7 @@
  */
 import { z } from "zod";
 import { AppError, TEMPLATE_TITLE_MAX, playbooksStillSending } from "@chanlytics/contracts";
-import { emitEvent } from "@chanlytics/db";
-import { deleteTemplate } from "@/server/campaigns/meta-templates";
+import { deleteTemplate, templateEvent } from "@/server/campaigns/meta-templates";
 import { serviceDb } from "@/server/service-db";
 import type { RouteContext } from "@/server/with-route";
 import type { templateScope } from "@/server/verbs";
@@ -97,10 +96,6 @@ export async function deleteTemplateRow(ctx: RouteContext, tpl: TemplateRow) {
     );
   }
   // Its row is gone, so the ledger names it: a broadcast or a playbook that sent it still says the name.
-  await emitEvent(serviceDb(), tpl.tenant_id, "template.removed", "workspace", tpl.tenant_id, {
-    name: tpl.name,
-    language: tpl.language,
-    by: ctx.userId,
-  });
+  await templateEvent(serviceDb(), tpl.tenant_id, "removed", tpl, ctx.userId);
   return { deleted: true, id, name: tpl.name, language: tpl.language, at_meta: r.atMeta };
 }

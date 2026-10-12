@@ -26,6 +26,7 @@ import { refusalToast, useLegacyToast, type LegacyFlash } from "../../legacy-ver
 import { useAdsShown } from "../../campaigns/ads/shown";
 import { useSurface } from "../../use-surface";
 import type { SetupSurface } from "../../setup/surface";
+import { retryLineInPlace } from "../../setup/retry-line";
 import { SendingDomains } from "./domains-block";
 import { EmailSetupForm } from "./email-setup";
 import { GoogleChoose } from "./google-choose";
@@ -195,6 +196,12 @@ async function runVerb(
       k.toggleEmail();
       return;
     default:
+      // A line that stopped part-way, set up again in place, as Start's row does it (contracts ownLineStandOf).
+      if (verb.to.startsWith("verb:retry-line:")) {
+        k.setBusy(true);
+        await retryLineInPlace(verb.to.slice("verb:retry-line:".length), k.flash);
+        k.setBusy(false);
+      }
       return;
   }
 }

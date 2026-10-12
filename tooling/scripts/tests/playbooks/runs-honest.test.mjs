@@ -162,6 +162,15 @@ const TEMPLATE = {
     { position: 3, label: "Offer" },
   ],
 };
+/**
+ * What the settings surface publishes of the templates, the one read of them (offered-templates.ts): the playbooks surface asks for
+ * no GET templates of its own and is made of it, so a test that reads the surface publishes the rows here first.
+ */
+const settingsOf = (rows) => ({
+  templatesAll: rows.filter((r) => r.channel === "whatsapp"),
+  templateVersions: rows.filter((r) => r.channel !== "whatsapp"),
+  messages: campaignMessagesOf(rows),
+});
 const playbooksSurface = (over = {}) => ({
   rows: [playbook()],
   templates: [TEMPLATE],
@@ -305,6 +314,9 @@ const moreItem = (tree, label) => {
 const { broadcasts } = await import(`${S}/surfaces/campaigns/broadcasts/verbs.ts`);
 const { playbooks } = await import(`${S}/surfaces/campaigns/playbooks/verbs.ts`);
 const { playbooksOverride } = await import(`${S}/surfaces/campaigns/playbooks/surface.ts`);
+// The broadcasts surface's module declares where its value is mirrored (`window.__BROADCASTS`, which Today's queue reads);
+// the app loads it with every override, and no page this file draws imports it any more.
+await import(`${S}/surfaces/campaigns/broadcasts/surface.ts`);
 const { setSurfaceValue, surfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 
 const buttonsSaying = (tree, words) => all(tree, (n) => n.type === "button" && textOf(n).trim() === words);
@@ -865,11 +877,11 @@ test("REGRESSION: a playbook whose yes has no number says so and offers no QR --
   globalThis.fetch = async (url) => {
     const path = new URL(String(url), "https://app.chanlytics.com").pathname;
     if (path === "/api/v1/playbooks") return answer({ playbooks: rows, pools, timezone: ZONE, calendar: "none" });
-    if (path === "/api/v1/templates") return answer({ templates: [TEMPLATE] });
     if (path === "/api/v1/channels") return answer({ channels: [] });
     return answer({ config: { brain: { business_name: "Northside Studio" } }, version: 1 });
   };
   try {
+    setSurfaceValue("settings", settingsOf([TEMPLATE]));
     await playbooksOverride.apply();
     const drawn = (id) => pane(surfaceValue("playbooks").rows.find((p) => p.id === id));
     const noNumber = drawn("pb-quiet");
@@ -910,11 +922,11 @@ test("REGRESSION: a playbook's list that could not be read is not called deleted
     const path = new URL(String(url), "https://app.chanlytics.com").pathname;
     if (path === "/api/v1/playbooks")
       return answer({ playbooks: rows, pools, timezone: ZONE, calendar: "none", lists: null, people_lists: [] });
-    if (path === "/api/v1/templates") return answer({ templates: [TEMPLATE] });
     if (path === "/api/v1/channels") return answer({ channels: [] });
     return answer({ config: { brain: { business_name: "Northside Studio" } }, version: 1 });
   };
   try {
+    setSurfaceValue("settings", settingsOf([TEMPLATE]));
     await playbooksOverride.apply();
     const label = (id) => surfaceValue("playbooks").rows.find((p) => p.id === id).triggerLabel;
     assert.equal(
@@ -961,7 +973,6 @@ test("a playbook on an archived list says so in its detail, one press from its l
     const path = new URL(String(url), "https://app.chanlytics.com").pathname;
     if (path === "/api/v1/playbooks")
       return answer({ playbooks: rows, pools, timezone: ZONE, calendar: "none", lists: kept, people_lists: [] });
-    if (path === "/api/v1/templates") return answer({ templates: [TEMPLATE] });
     if (path === "/api/v1/channels") return answer({ channels: [] });
     return answer({ config: { brain: { business_name: "Northside Studio" } }, version: 1 });
   };
@@ -973,6 +984,7 @@ test("a playbook on an archived list says so in its detail, one press from its l
     },
   };
   try {
+    setSurfaceValue("settings", settingsOf([TEMPLATE]));
     await playbooksOverride.apply();
     const P = surfaceValue("playbooks");
     assert.equal(P.rows[0].listArchived, true);
@@ -1006,11 +1018,11 @@ test("REGRESSION: counts that could not be read are said as such, and nothing dr
   globalThis.fetch = async (url) => {
     const path = new URL(String(url), "https://app.chanlytics.com").pathname;
     if (path === "/api/v1/playbooks") return answer({ playbooks: [route], pools, timezone: ZONE, calendar: "none" });
-    if (path === "/api/v1/templates") return answer({ templates: [TEMPLATE] });
     if (path === "/api/v1/channels") return answer({ channels: [] });
     return answer({ config: { brain: { business_name: "Northside Studio" } }, version: 1 });
   };
   try {
+    setSurfaceValue("settings", settingsOf([TEMPLATE]));
     await playbooksOverride.apply();
     // The home says what it knows -- its moments, and the win-back's next run -- and draws no figure it never counted: a
     // moment has "—" where it has no number, and its next run says it could not be counted, never "Nobody".
@@ -1098,10 +1110,10 @@ test("a proposal follow-up's detail (0006): where deals are on, who it reaches w
       const path = new URL(String(url), "https://app.chanlytics.com").pathname;
       if (path === "/api/v1/playbooks")
         return answer({ playbooks: [follow], pools, timezone: ZONE, calendar: "none", deals_on: dealsOn });
-      if (path === "/api/v1/templates") return answer({ templates: [TEMPLATE] });
       if (path === "/api/v1/channels") return answer({ channels: [] });
       return answer({ config: { brain: { business_name: "Northside Studio" } }, version: 1 });
     };
+    setSurfaceValue("settings", settingsOf([TEMPLATE]));
     await playbooksOverride.apply();
     return surfaceValue("playbooks");
   };
@@ -1254,11 +1266,11 @@ test("a playbook's detail finds its message by its name and language through the
   globalThis.fetch = async (url) => {
     const path = new URL(String(url), "https://app.chanlytics.com").pathname;
     if (path === "/api/v1/playbooks") return answer({ playbooks: [stored], pools, timezone: ZONE, calendar: "none" });
-    if (path === "/api/v1/templates") return answer({ templates: rows, messages: campaignMessagesOf(rows) });
     if (path === "/api/v1/channels") return answer({ channels: [] });
     return answer({ config: { brain: { business_name: "Northside Studio" } }, version: 1 });
   };
   try {
+    setSurfaceValue("settings", settingsOf(rows));
     await playbooksOverride.apply();
     const P = surfaceValue("playbooks");
     assert.deepEqual(
@@ -1271,5 +1283,66 @@ test("a playbook's detail finds its message by its name and language through the
     assert.equal(byTestId(tree, "pb-template-gone"), null, "and it is not called gone for an id that moved");
   } finally {
     globalThis.fetch = kept;
+  }
+});
+
+test("D1-run-words: a run still to come is canceled on Today as on Sent -- the same verb, the same question first, the same words after", async () => {
+  const quiet = { queued: 3, sent: 0, skipped: 0, failed: 0, delivered: 0, read: 0, replied: 0 };
+  const soon = dto({
+    id: "b-soon",
+    name: "Offers · 2026-09-15",
+    state: "scheduled",
+    started_at: null,
+    finished_at: null,
+    scheduled_for: iso(20 * 60_000),
+    audience: { kind: "playbook", id: "pb-2", label: "Offers" },
+    playbook_id: "pb-2",
+    counts: quiet,
+  });
+  setSurfaceValue("broadcasts", { rows: [toBroadcastVM(soon, ZONE)] });
+  setSurfaceValue("today", toTodayVM(metrics, [], [], [], new Date("2026-09-06T14:00:00Z")));
+  const cancelled = [];
+  const keep = { verbs: globalThis.window.__broadcasts, toast: globalThis.window.usePPToast };
+  globalThis.window.__broadcasts = {
+    cancel: async (id, opts) => {
+      cancelled.push(id);
+      opts?.onAccepted?.({ was: "scheduled" });
+      return { ok: true };
+    },
+    approve: async () => ({ ok: true }),
+  };
+  toasts.length = 0;
+  globalThis.window.usePPToast = () => [null, (t) => toasts.push(t)];
+  try {
+    fresh();
+    let queue = AgentCommand();
+    const row = byTestId(queue, "brief-run-soon");
+    // The verb is Sent's Cancel (it was a Stop at one tap here), and the row's sentence says it.
+    assert.match(textOf(row), /Cancel it if you'd rather not\./);
+    assert.equal(buttonsSaying(row, "Stop").length, 0, "no Stop for a run still to come");
+    press(buttonsSaying(row, "Cancel")[0]);
+    assert.deepEqual(cancelled, [], "a press asks; it does not cancel");
+    // The question Sent asks before the same cancel (contracts runStopWords), in the kit's Confirm under the row.
+    queue = drawAgain(AgentCommand);
+    const ask = byTestId(queue, "brief-run-soon-stop-confirm");
+    assert.ok(ask, "REGRESSION: Today canceled a scheduled run at one tap, where Sent asks first");
+    assert.ok(textOf(ask).includes("Cancel Offers?") && textOf(ask).includes("Nothing will send."), textOf(ask));
+    assert.equal(textOf(byTestId(queue, "brief-run-soon-stop-yes")).trim(), "Yes, cancel it");
+    // No keeps it as it was.
+    press(byTestId(queue, "brief-run-soon-stop-no"));
+    queue = drawAgain(AgentCommand);
+    assert.equal(byTestId(queue, "brief-run-soon-stop-confirm"), null);
+    assert.deepEqual(cancelled, []);
+    // Yes cancels it, and says what Sent says of a run canceled (runStoppedWords), not "stopped: nothing sends".
+    press(buttonsSaying(byTestId(queue, "brief-run-soon"), "Cancel")[0]);
+    queue = drawAgain(AgentCommand);
+    await press(byTestId(queue, "brief-run-soon-stop-yes"));
+    await settle();
+    assert.deepEqual(cancelled, ["b-soon"]);
+    assert.equal(textOf(toasts.at(-1).msg), "Offers canceled — nothing will send");
+  } finally {
+    globalThis.window.__broadcasts = keep.verbs;
+    globalThis.window.usePPToast = keep.toast;
+    setSurfaceValue("today", undefined);
   }
 });

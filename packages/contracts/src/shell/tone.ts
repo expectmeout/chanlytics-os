@@ -22,7 +22,9 @@
  * The toast's tones (chrome.ts) are the four of these that a flash can be.
  */
 import { BROADCAST_STATE_LABELS } from "../broadcasts/broadcasts";
-import { HELD_WORDS } from "../conversations/standing";
+import { STOP_WORDS } from "../consent/consent";
+import { CALL_OUTCOME_WORDS } from "../conversations/call-dto";
+import { HELD_WORDS, NEEDS_YOU_WORD } from "../conversations/standing";
 import { PERSON_MODE_WORDS } from "../people/person-receptionist";
 import { PERSON_STATE_LABELS } from "../people/person-state";
 import { ROLE_WORDS } from "./identity";
@@ -40,6 +42,8 @@ import {
   LEAD_STAGE_WORDS,
 } from "../leads/leads";
 import { DEAL_STAGE_WORDS } from "../deals/deal-words";
+import { TEMPLATE_STATUS_WORDS } from "../templates/templates";
+import { REPLY_CHIP_WORDS } from "../reach-out/reach-out-replies";
 
 export type Tone = "accent" | "warn" | "info" | "ok" | "danger" | "plain";
 export const TONES: readonly Tone[] = ["accent", "warn", "info", "ok", "danger", "plain"];
@@ -52,8 +56,7 @@ export type StateKind =
   | "person" // People's smart-list state
   | "consent" // a person's answer
   | "mode" // the receptionist's mode for one person
-  | "broadcast"
-  | "playbook"
+  | "broadcast" // a run: waiting for approval, scheduled, sending, sent. A CAMPAIGN's state is the lifecycle view model's alone (lifecycleStateOf)
   | "template" // a WhatsApp template at Meta
   | "template_quality" // the rating WhatsApp gives a template (its quality_score)
   | "setup" // a Setup row
@@ -74,7 +77,10 @@ export type StateKind =
   // The row's own state, which its left edge, its tag and its pin on the map all say. The map kept a sixth
   // private family for exactly this, in CSS, keyed by words no tone vocabulary knows.
   | "lead_row_state"
-  | "deal"; // a deal's stage on a person (0004): proposed, won, lost, ended
+  | "deal" // a deal's stage on a person (0004): proposed, won, lost, ended
+  // What a business's reply to a reach-out was read as (the Inbox's chip on the row and the thread). It was a plain pill that
+  // carried the reading in a data attribute no style read, so "Interested" and "Said no" looked alike.
+  | "reply";
 
 /**
  * The tone of each source a fact can have, typed by `FactSource` itself.
@@ -133,9 +139,9 @@ const TONE_OF: Record<StateKind, Record<string, Tone>> = /* @__PURE__ */ (() => 
     missed: "plain",
     // The provider could not place or keep the call: a fault, not a customer's choice.
     failed: "warn",
+    // A call that is over and was simply handled: Live, Conversations and the thread's call card all say it so (callOutcomeFor).
     handled: "plain",
     stale: "plain",
-    ended: "plain",
     abandoned: "warn",
     callback: "warn",
     voicemail: "plain",
@@ -149,7 +155,8 @@ const TONE_OF: Record<StateKind, Record<string, Tone>> = /* @__PURE__ */ (() => 
     opted_out: "plain",
     unheard: "plain",
   },
-  consent: { opted_in: "ok", opted_out: "warn", unknown: "plain" },
+  // A STOP is news, not a wait (decision 0048): the kit's consent pill wore the amber of "Needs you" for it, which no page drew.
+  consent: { opted_in: "ok", opted_out: STOP_WORDS.tone, unknown: "plain" },
   mode: { auto: "ok", ask: "warn", never: "plain", inherit: "plain" },
   broadcast: {
     pending_approval: "warn",
@@ -159,11 +166,6 @@ const TONE_OF: Record<StateKind, Record<string, Tone>> = /* @__PURE__ */ (() => 
     canceled: "plain",
     failed: "danger",
   },
-  // Running is a standing rule that is on -- healthy, ok. It is not happening
-  // right now: its RUN is, while it sends, and that is the broadcast's own
-  // "sending", which keeps the accent.
-  // Paused rests (decision 13, 9 Oct 2026): amber is a run waiting on someone, never a rule its owner stopped.
-  playbook: { running: "ok", paused: "plain", approval: "warn" },
   template: { approved: "ok", pending: "info", rejected: "danger", paused: "warn", disabled: "warn" },
   template_quality: { GREEN: "ok", YELLOW: "warn", RED: "danger", UNKNOWN: "plain" },
   setup: { waiting_you: "warn", waiting_them: "info", ready: "ok", not_started: "plain" },
@@ -190,13 +192,25 @@ const TONE_OF: Record<StateKind, Record<string, Tone>> = /* @__PURE__ */ (() => 
   lead_row_state: { ready: "plain", contacted: "info", talking: "ok", review: "warn", out: "plain" },
   // A proposal out is waiting on someone else; a client is a good outcome; passed and ended are quiet.
   deal: { proposed: "info", won: "ok", lost: "plain", ended: "plain" },
+  // A reply to a reach-out, by how it was read. Interested is a good outcome (the Leads peek's chip wears the same ok), a
+  // question wants an answer, not now and away say when to write again (scheduled: info), and a no, a wrong person and a
+  // reply that could not be read are quiet: they ask nothing of the owner.
+  reply: {
+    interested: "ok",
+    question: "warn",
+    not_now: "info",
+    no: "plain",
+    wrong_person: "plain",
+    away: "info",
+    other: "plain",
+  },
 }))();
 
 /** The words a pill says when the page has none better. Marked pure for the reason `TONE_OF` is. */
 const LABEL_OF: Partial<Record<StateKind, Record<string, string>>> = /* @__PURE__ */ (() => ({
   thread: {
-    escalated: "Needs you",
-    needs_you: "Needs you",
+    escalated: NEEDS_YOU_WORD,
+    needs_you: NEEDS_YOU_WORD,
     yours: HELD_WORDS.yours.pill,
     theirs: HELD_WORDS.theirs.pill,
     snoozed: "Snoozed",
@@ -207,7 +221,7 @@ const LABEL_OF: Partial<Record<StateKind, Record<string, string>>> = /* @__PURE_
     decided: "Handled",
   },
   standing: {
-    escalated: "Needs you",
+    escalated: NEEDS_YOU_WORD,
     queued: "Reply queued",
     snoozed: "Snoozed",
     paused: "Paused",
@@ -217,31 +231,15 @@ const LABEL_OF: Partial<Record<StateKind, Record<string, string>>> = /* @__PURE_
     silent: "Silent",
     answering: "Answering",
   },
-  call: {
-    live: "Live",
-    missed: "Never connected",
-    failed: "Call failed",
-    handled: "Handled",
-    stale: "No word from the provider",
-    ended: "Ended",
-    abandoned: "Hung up early",
-    callback: "Asked for a call back",
-    voicemail: "Reached voicemail",
-  },
+  // How a call ended is the ladder's (callOutcomeFor), said once (CALL_OUTCOME_WORDS) for Live, Conversations, the thread's
+  // call card and a person's History; a call the provider has gone quiet about is no ending, and is said beside them.
+  call: { ...CALL_OUTCOME_WORDS, stale: "No word from the provider" },
   person: PERSON_STATE_LABELS,
-  consent: { opted_in: "Opted in", opted_out: "Opted out", unknown: "Consent unknown" },
+  consent: { opted_in: "Opted in", opted_out: STOP_WORDS.pill, unknown: "Consent unknown" },
   mode: PERSON_MODE_WORDS,
   broadcast: BROADCAST_STATE_LABELS,
-  // A playbook (or a reach-out) with a run waiting on its owner says what the run's own pill says: one name for it,
-  // read from the run's label. It said the Inbox's "Needs you" here after the run's label had stopped saying so.
-  playbook: { running: "Running", paused: "Paused", approval: BROADCAST_STATE_LABELS.pending_approval },
-  template: {
-    approved: "Approved",
-    pending: "In review",
-    rejected: "Rejected",
-    paused: "Paused",
-    disabled: "Disabled",
-  },
+  // The Library's words for where WhatsApp has a version (templates.ts), one for a refusal on the row, the pane and the picker.
+  template: TEMPLATE_STATUS_WORDS,
   template_quality: {
     GREEN: "High quality",
     YELLOW: "Medium quality",
@@ -260,6 +258,8 @@ const LABEL_OF: Partial<Record<StateKind, Record<string, string>>> = /* @__PURE_
   lead_fit: LEAD_FIT_WORDS,
   reach: LEAD_EMAIL_WORDS,
   lead_call_outcome: LEAD_CALL_OUTCOME_WORDS,
+  // The chip's words (reach-out-replies.ts); the strip's sentence ("Wrote back · interested") keeps REPLY_INTENT_WORDS.
+  reply: REPLY_CHIP_WORDS,
   // `lead_row_state` is a tone and no words: the row composes its own tag (`Contacted · 2m`) in toLeadRowVM,
   // and nothing ever asks this map for it. Words here would be a second set of the same five. A map whose
   // values are read off another map (`LEAD_STAGE_WORDS.ready`) once kept this whole registry and its five
@@ -276,6 +276,17 @@ export function stateTone(kind: StateKind, value: unknown): Tone {
 export function stateLabel(kind: StateKind, value: unknown): string {
   const v = typeof value === "string" ? value : String(value ?? "");
   return LABEL_OF[kind]?.[v] ?? v;
+}
+
+/**
+ * Every word a pill says, by kind and state: the label maps, read whole. The test that holds one word to one state reads it
+ * (tooling/scripts/tests/shell/words/one-word-per-state.test.mjs), so a label two states share is a decision someone wrote
+ * down, not an accident of two pages.
+ */
+export function stateWordList(): Array<{ kind: StateKind; value: string; label: string }> {
+  return Object.entries(LABEL_OF).flatMap(([kind, words]) =>
+    Object.entries(words ?? {}).map(([value, label]) => ({ kind: kind as StateKind, value, label })),
+  );
 }
 
 /** Both at once: what the pill draws. */

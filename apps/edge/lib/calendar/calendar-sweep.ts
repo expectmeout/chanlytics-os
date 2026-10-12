@@ -10,8 +10,10 @@
  * lib/ops/sweep-rotation.ts): CALENDAR_PER_TICK workspaces whose settings carry a feed address
  * (config.calendar.ical_url), the never-read first, then the least recently read, none read again within calendarDue's
  * minAgeMs. Each feed is read as the receptionists read it (feedItemsFor: one fetch per five minutes, parsed once) in
- * the workspace's own zone, and the same pure extraction the dashboard applies when an owner opens the Calendar
- * (peopleFromItems) picks the people, so a person is created once whichever path saw them first. addPeopleFromCalendar
+ * the workspace's own zone, and a pure extraction (peopleFromItems) picks the people. This sweep is the one path that adds
+ * them on its own: opening the Calendar adds nobody (a read never writes, decision 0047 lane 6), and the board offers "Add
+ * to People" for a visit it cannot match, through the door a hand uses, so a person is created once whichever path saw
+ * them first. addPeopleFromCalendar
  * gets or creates by phone: a name fills only an empty one, an address only where there is none, someone who asked to
  * be erased is not brought back by their own appointment, and each person made gets a `contact.added` event that says
  * where they came from. The owner hears it as a row on the bell (kind calendar_people), never as a mail. The same

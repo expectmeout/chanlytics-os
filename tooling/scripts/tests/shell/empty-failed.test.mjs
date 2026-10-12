@@ -588,7 +588,7 @@ test("a period the page has read paints at once when picked again and is read ag
   };
   const shown = () => surfaceValue("reports")?.period;
   // A runner to refresh through (setReportRange reads the real surface through it); this one joins no live feed.
-  const stop = startSurfaces([{ ...reportsOverride, refreshOnMessageInserts: false }]);
+  const stop = startSurfaces([{ ...reportsOverride, refreshOnMessageInserts: false, refreshOnTables: undefined }]);
   try {
     await release();
     assert.equal(shown(), "30d", "the saved period, read at boot");

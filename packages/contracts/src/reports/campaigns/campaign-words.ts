@@ -25,6 +25,7 @@ import { failureWordsOf } from "../../conversations/message-words";
 import { clockNear, durationWords } from "../../shared/clock";
 import { pct } from "../../shared/numbers";
 import { capitalize, joinWords, plural } from "../../shared/words";
+import { TEMPLATE_STATUS_WORDS } from "../../templates/templates";
 import { templateTitle } from "../../templates/template-titles";
 import { ownWord } from "../report-mix";
 import { REPORT_MIN_N, beforeWords, isThinShare, messagesAnsweredWords } from "../report-tiles";
@@ -272,20 +273,15 @@ export const REPLIES_NONE = "nobody who answered a campaign is waiting";
 export const REPLIES_WAITING = `people who answered a campaign in the last ${STUCK_DAYS} and wait for a person`;
 const TEMPLATES_NONE = "every WhatsApp message is approved";
 
-const STOPPED_BY_META: Readonly<Record<string, string>> = {
-  paused: "paused",
-  disabled: "turned off",
-  rejected: "rejected",
-};
 /** How many of the messages Meta stopped are named under the figure: the figure's own number says them all. */
 const TEMPLATES_TITLED = 2;
 
-/** Up to two of the messages Meta stopped, by title, and how: "Win-back paused, Spring note rejected". */
+/** Up to two of the messages Meta stopped, by title, and how, in the Library's own word for it: "Win-back paused, Spring note refused". */
 export function templatesMeta(templates: CampaignStuckNowDto["templates"]): string {
   if (templates.n === 0) return TEMPLATES_NONE;
   return templates.items
     .slice(0, TEMPLATES_TITLED)
-    .map((t) => `${templateTitle(t.name)} ${ownWord(STOPPED_BY_META, t.status) ?? t.status}`)
+    .map((t) => `${templateTitle(t.name)} ${TEMPLATE_STATUS_WORDS[t.status].toLowerCase()}`)
     .join(", ");
 }
 

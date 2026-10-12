@@ -701,7 +701,7 @@ const QUIET_RECEPTIONIST_SAID = {
   },
   closed: { value: QUIET_FOLD.closed.value, meta: QUIET_FOLD.closed.meta },
   stuck: [
-    { label: "Waiting on you", value: "0", meta: "nobody is waiting for you" },
+    { label: "Needs you", value: "0", meta: "nobody is waiting for you" },
     { label: "Call-backs", value: "0", meta: "no call-back is waiting" },
     { label: "Replies held back", value: "0", meta: "none were held at the door in this period" },
   ],
@@ -806,6 +806,13 @@ function withoutPersonState(old, got) {
     rest.right_now = { ...rest.right_now };
     delete rest.right_now.detail;
   }
+  // 12 Oct 2026 (the wiring map): a timeline message that never reached them says so in the thread's words (not_sent),
+  // and this world's one queued reply is "Sending…". Held to that here, then taken out.
+  if (Array.isArray(rest.timeline))
+    rest.timeline = rest.timeline.map(({ not_sent, ...item }) => {
+      if (not_sent !== undefined) assert.equal(not_sent, "Sending…", "an unsent message says the thread's word");
+      return item;
+    });
   return { ...got, result: JSON.stringify(rest) };
 }
 
@@ -859,6 +866,15 @@ function withCallDirection(frozen) {
     );
   if (Array.isArray(said.calls)) return JSON.stringify({ ...said, calls: said.calls.map(into) });
   return "who" in said ? JSON.stringify(into(said)) : frozen;
+}
+
+/**
+ * 12 Oct 2026 (D1-hold-words): People's list of the threads the member looking has is worded as the Inbox words them,
+ * "You have it", where these bytes say "Waiting on you"; its id and its token keep their names. The fixture stays as it
+ * was made.
+ */
+function withHeldListWord(frozen) {
+  return frozen.replaceAll('"label":"Waiting on you"', '"label":"You have it"');
 }
 
 /**
@@ -919,7 +935,7 @@ function withTheVerbsWords(frozen) {
  * (contracts clockHour: "Daily 10:00 AM"), where these bytes say a 24-hour one ("Daily 10:00"). The one change to what
  * the campaigns' tools answer and propose: the schedule line of a playbook. The fixture stays as it was made. Nothing
  * else is rewritten, because no frozen call holds it: none answers a next run with an hour, nor a run waiting on its
- * owner (whose state reads "Waiting on you" since that day; the two "Needs you" these bytes hold are a PERSON's
+ * owner (whose state reads "Waiting for your approval" since 11 Oct 2026; the two "Needs you" these bytes hold are a PERSON's
  * state, in People's answers, which is still its name).
  */
 function withTheClocksHour(frozen) {
@@ -1046,7 +1062,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     if (NAMES[old] === "inbox.list" && input.filter === "held") result = withNothingHeld(result);
     if (old === "list_threads" || old === "get_thread") result = withNoHeldDraft(result);
     if (NAMES[old] === "calls.list" || NAMES[old] === "calls.get") result = withCallDirection(result);
-    if (NAMES[old] === "campaigns.audiences") result = withChannels(result);
+    if (NAMES[old] === "campaigns.audiences") result = withHeldListWord(withChannels(result));
     if (NAMES[old].startsWith("propose_campaign.")) result = withTheVerbsWords(result);
     // 8 Oct 2026: a playbook's hour by the product's clock (withTheClocksHour): the campaigns' own answers and cards,
     // in their result and in the card they propose.

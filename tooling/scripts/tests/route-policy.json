@@ -825,8 +825,8 @@
       "rate": "lead_bulk",
       "spend": true
     },
-    "GET leads/export": {
-      "kind": "read",
+    "POST leads/export": {
+      "kind": "write",
       "fresh": true,
       "scope": "workspace",
       "role": "owner",
@@ -943,6 +943,13 @@
       "scope": "account",
       "role": null,
       "rate": "device_register",
+      "spend": false
+    },
+    "POST me/invitations/accept": {
+      "kind": "write",
+      "scope": "account",
+      "role": null,
+      "rate": "invitation_accept",
       "spend": false
     },
     "PUT me": {

@@ -97,6 +97,20 @@ test("every member's every phone hears a workspace row, in the bell's words; ano
   });
 });
 
+test("a row kept with no route opens its kind's list on the phone, as it does on the bell (wiring task 1.7)", async () => {
+  for (const [kind, opens] of [
+    ["handoff", "inbox"],
+    ["broadcast_sent", "broadcasts"],
+    ["number", "admin/integrations"],
+    ["playbook", "outbound"],
+  ]) {
+    const { db } = world({ notification: { kind, route: null } });
+    const p = port();
+    assert.equal(await dispatchJob(ctx(db, { push: p.push }), job), "done");
+    assert.equal(p.sent[0].data.route, opens, kind);
+  }
+});
+
 test("the badge is each reader's own bell number; the tickets go to one push_receipts job a quarter of an hour on", async (t) => {
   // The rows are dated 26 September and the bell counts the last thirty days (BELL_WINDOW_DAYS): read on the real
   // clock, this would count nothing from 26 October on. The clock is the one the other tests here hold.

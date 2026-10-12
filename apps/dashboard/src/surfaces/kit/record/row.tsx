@@ -1,6 +1,6 @@
 /**
  * The record kit: the row (moved whole from legacy/components/record-row.jsx, decision 0015: the kit's one
- * implementation, which seed-globals publishes under the names the pages that have not moved read).
+ * implementation, which the pages import).
  *
  * One grammar for a record a person reads: a label, the value, where the value came from, and one act. Four classes
  * drew this row before, each its own way (.cl-prof-attr, .set-row, .set-team-row, .set-int-row). The kit knows
@@ -121,7 +121,7 @@ const REC_ROW_OWN_PRESS = 'button, a[href], input, select, textarea, [role="butt
 // words at its edge; gated, the act's own refusal answers, as it would to a press on the act. Words dragged over in
 // the value are a selection, not a press. The row is hookless, as it has always been: its act is found as the press
 // lands.
-export function recRowPress(e: MouseEvent<HTMLElement> | null | undefined): void {
+function recRowPress(e: MouseEvent<HTMLElement> | null | undefined): void {
   const row = e && e.currentTarget;
   const t = e && (e.target as Element | null);
   if (!row || !t || !t.closest || !can(row, "querySelector")) return;
@@ -150,7 +150,7 @@ export function recRowPress(e: MouseEvent<HTMLElement> | null | undefined): void
  * A word rather than the bordered pill it was: on a phone the pill wrapped onto a line of its own under every value,
  * which is a row and a half of a record spent saying "you set this" seven times.
  */
-export function RecordSourceChip({
+function RecordSourceChip({
   source,
   label = null,
   tip = null,

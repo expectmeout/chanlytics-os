@@ -9,6 +9,7 @@ import type { SetupVerb } from "@chanlytics/contracts";
 import { canDo, navigate, openBookingTool, refusalToast, type LegacyFlash } from "../../legacy-verbs";
 import { billingVerbs } from "../../settings/billing/surface";
 import { setupVerbs } from "../surface";
+import { retryLineInPlace } from "../retry-line";
 import { setupGated } from "./gates";
 
 /** What a verb's press works with: the toast, the one verb on its way, and the two panels under the rows. */
@@ -70,25 +71,10 @@ async function forwardingTest(to: string, k: RowActs): Promise<void> {
   });
 }
 
-/** A line that stopped part-way, set up again. */
+/** A line that stopped part-way, set up again (retry-line.tsx, which Connections' phone row presses too). */
 async function retryLine(to: string, k: RowActs): Promise<void> {
   if (!canDo("team")) return;
-  await k.once(to, async () => {
-    k.flash({ tone: "info", msg: <>Retrying — usually a minute or two.</> });
-    const r = await setupVerbs.lines.retry(to.slice("verb:retry-line:".length));
-    k.flash({
-      tone: r.ok ? "ok" : "danger",
-      msg: r.ok ? (
-        r.queued ? (
-          <>Setting up again — this page updates by itself.</>
-        ) : (
-          <>Your line answers now.</>
-        )
-      ) : (
-        <>{r.message || "It stopped again — a person at Chanlytics has it."}</>
-      ),
-    });
-  });
+  await k.once(to, () => retryLineInPlace(to.slice("verb:retry-line:".length), k.flash));
 }
 
 /**

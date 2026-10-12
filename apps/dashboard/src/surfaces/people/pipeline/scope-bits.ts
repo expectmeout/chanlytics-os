@@ -3,6 +3,7 @@
  * the sort it opens in, the columns beside an open peek, the acts People's bar keeps, the two layouts and the first one
  * chosen, the peek's focus rule, who may record a deal, and the way a send from the peek's card reaches their thread.
  */
+import { carryReply } from "../../inbox/carried-reply";
 import { mayAtLeast } from "../../legacy-verbs";
 
 // The order the page opens in: Stage, the Pipeline's own (contracts pipelineOf), until the member picks a heading.
@@ -36,23 +37,14 @@ export const pipePeekFocus = (peekId: string | null, cursor: string | null) => {
 export const pipeCanRecord = (): boolean => mayAtLeast("operator");
 
 // A send from the peek's card opens their thread with the words in the box where free text can go: the person page's
-// own path (client-profile.jsx openWith), and the thread reads the same key as it opens (inbox-thread.jsx).
+// own path (person/hero.tsx openWith), carried as every page carries a reply (inbox/carried-reply.ts).
 export const pipeComposeIn = (
   person: { openThread: string | null } | null,
   text: string | null,
   nav: (to: string) => void,
 ) => {
   if (!person || !person.openThread) return;
-  if (text) {
-    try {
-      sessionStorage.setItem(
-        "chanlytics-compose",
-        JSON.stringify({ threadId: person.openThread.replace(/^inbox\//, ""), text }),
-      );
-    } catch {
-      /* nothing to carry */
-    }
-  }
+  if (text) carryReply(person.openThread, text);
   nav(person.openThread);
 };
 

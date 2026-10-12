@@ -1,9 +1,9 @@
 /**
  * What the Inbox and Conversations still publish for the pages that have not moved (decision 0015, step 3), under the
  * names they read: the seeded rows of a demo (`INBOX_DATA`, `CONVERSATIONS_DATA`, which a real read replaces), the
- * session's decisions (`IX_STORE`, which the sidebar's badge, the bell, Today and the demo's pages read), the one rule of
- * what waits on you (`ixWaitsOnYou`, the sidebar's and the surface tabs' badge), and the two rules Ask reads a tab and a
- * row by (`CV_ROUTE`, `CV_IN_CHANNEL`).
+ * session's decisions (`IX_STORE`, which the bell, Today and the demo's pages read), the one rule of what waits on you
+ * (`ixWaitsOnYou`, which only the standalone mockup's stub counts its seeded badge by: the app's badge is the selector in
+ * needs-you.ts, `useNeedsYou`), and the two rules Ask reads a tab and a row by (`CV_ROUTE`, `CV_IN_CHANNEL`).
  *
  * What is shared moves once: these were the mockup's globals, written by `data/inbox-data.jsx`,
  * `data/conversations-data.jsx`, `pages/inbox.jsx` and `pages/conversations.jsx`, and this is the one line that says them

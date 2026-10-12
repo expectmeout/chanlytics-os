@@ -5,6 +5,7 @@
  */
 import type { VisitMark } from "./calendar-dto";
 import type { MatchVia } from "./calendar-people";
+import type { BookingLinkAction } from "../people/person-reach";
 import type { CalendarSourceVM } from "../setup/calendar-source";
 import type { CalendarFeedHealth, CalendarFeedNoteVM } from "./calendar-words";
 
@@ -23,8 +24,19 @@ export interface CalendarBlockVM {
   service: string;
   /** "2 – 3:30 PM" */
   time: string;
-  /** Who it is for; `threadId` is the Inbox thread a booking link is texted into ("th-…"), `replyOpen` whether a plain text still reaches them. */
-  person: { id: string; name: string; via: MatchVia | null; threadId: string | null; replyOpen: boolean } | null;
+  /**
+   * Who it is for; `threadId` is the Inbox thread a booking link is carried into ("th-…"), `bookingLinkAction` the act that
+   * does it: the one the person's row holds (people/person-reach.ts), so a person who asked to stop is offered none.
+   */
+  person: {
+    id: string;
+    name: string;
+    via: MatchVia | null;
+    threadId: string | null;
+    bookingLinkAction: BookingLinkAction;
+    /** They asked to stop, or are on do-not-contact (the match's `opted_out`, isOptedOutContact over their row): the panel says it beside their name. */
+    stopped: boolean;
+  } | null;
   description: string | null;
   location: string | null;
   /** Display-formatted phones (and the same in E.164, for the add), and the emails the event carried. */

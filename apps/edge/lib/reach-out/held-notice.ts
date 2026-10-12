@@ -32,7 +32,7 @@ export type HeldNoticeSend = (db: Db, tenantId: string, msg: NotifyMessage) => P
 
 const sendHeldNotice: HeldNoticeSend = async (db, tenantId, msg) => {
   const target = await loadTenantNotifications(db, tenantId);
-  return notifyOnce({ tenantId, notifications: target.notifications, isEnvDefault: target.isEnvDefault }, msg, { db });
+  return notifyOnce({ tenantId, ...target }, msg, { db });
 };
 
 /**

@@ -6,6 +6,7 @@
  *
  * A line to delete on the day the step sheet is TSX: its verb is then an import.
  */
+import { windowValue } from "../../legacy-verbs";
 
 /** What the step sheet is asked for: a person, the deal a new step names, or the step to change. */
 export interface StepSheetAsk {
@@ -15,7 +16,7 @@ export interface StepSheetAsk {
 }
 
 const opener = (): ((ask: StepSheetAsk) => unknown) | null => {
-  const fn: unknown = Reflect.get(window, "openStepSheet");
+  const fn = windowValue("openStepSheet");
   return typeof fn === "function" ? (fn as (ask: StepSheetAsk) => unknown) : null;
 };
 

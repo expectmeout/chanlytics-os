@@ -11,7 +11,7 @@
  */
 import { useEffect, useReducer, useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
-import { LIFECYCLE_WORDS } from "@chanlytics/contracts";
+import { LIFECYCLE_WORDS, runStopWords } from "@chanlytics/contracts";
 import type { BroadcastDetailDto, BroadcastDto, BroadcastVM, RunFilterId, RunReportVM } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
 import { Button } from "../../kit/button/button";
@@ -29,10 +29,10 @@ import { CmPane } from "../parts/split";
 import { ReachOutRun, roRunHead } from "../reach-out/approval";
 import { reachOuts } from "../reach-out/surface";
 import { starters } from "../templates/verbs";
-import { BcSheet, bcPersonRow, bcSheetSub, bcStopWords } from "./run-sheet";
+import { BcSheet, bcPersonRow, bcSheetSub } from "./run-sheet";
 import type { BcSheetAsk } from "./run-sheet";
 import { broadcasts } from "./verbs";
-import { bcLateWords } from "./when-words";
+import { bcLateWords, bcOpensOnItsSheet } from "./when-words";
 
 // Stable empties, so a workspace without lists or templates does not re-run
 // the effects on every render.
@@ -275,7 +275,7 @@ function bcAside(vm: RunReportVM) {
                 title={`${x.name} — open the thread`}
                 data-testid="bc-reply"
               >
-                <Face initials={x.initials} size="sm" />
+                <Face person={{ name: x.name, initials: x.initials }} size="sm" />
                 <span className="bc-back-text">
                   <span className="bc-back-quote">{x.quote || "A reply with no words in it"}</span>
                   <span className="bc-back-outcome" data-tone={x.outcome.tone}>
@@ -459,13 +459,18 @@ interface BcRunVerbsProps {
   approving?: boolean;
   approve: (row: BroadcastVM) => void;
   cancel: (row: BroadcastVM) => void;
+  /** Opens the run's own screen, for a row beside it: what a run decided on its sheet offers in place of Approve. */
+  onOpen?: () => void;
 }
 
 // A run's verbs: Approve for one waiting on a person, and the stop, armed and
 // named for what it does -- stopping a send, skipping a run nobody approved and
 // cancelling one still to come are three acts, and none of them is one click
 // (the audit's D13). The same on a run's card and at the head of an opened run,
-// where a run opened from Today is approved.
+// where a run opened from Today is approved. A run the offer says is decided on its
+// sheet (a reach-out's: bcOpensOnItsSheet, contracts waitingRunOffer) is neither
+// approved nor skipped from a row: its row says "Open the run", as Today's and the
+// ledger's do, and the pane that is already its sheet draws none of it.
 export function BcRunVerbs({
   row,
   canSend,
@@ -475,8 +480,16 @@ export function BcRunVerbs({
   approving = false,
   approve,
   cancel,
+  onOpen,
 }: BcRunVerbsProps) {
-  const stop = bcStopWords(row.state);
+  const stop = runStopWords(row.state);
+  if (row.state === "pending_approval" && bcOpensOnItsSheet(row)) {
+    return onOpen ? (
+      <Button size="sm" variant="primary" onClick={onOpen} data-testid="bc-open-run">
+        {LIFECYCLE_WORDS.ledger.openRun}
+      </Button>
+    ) : null;
+  }
   // A run whose day has passed is refused by the verb (bcLateWords): the button says why instead of answering 409, and
   // the Skip beside it is the act left.
   const late = row.state === "pending_approval" ? bcLateWords(row) : null;

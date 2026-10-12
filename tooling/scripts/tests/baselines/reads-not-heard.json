@@ -1,0 +1,552 @@
+{
+  "groups": [
+    {
+      "why": "The caller's own seat. The SQL doors these pages read through check it before they answer (tenant_config_read, contact_seen, lead_month_used, the reach-outs' readers), and GET views keeps the member's saved views on it. None of them draws the roster from it: the roster is the team kind, which Settings and the shell draw. The feed tells a seat's role changing only (00408).",
+      "reads": {
+        "calendar": [
+          "memberships"
+        ],
+        "broadcasts": [
+          "memberships"
+        ],
+        "campaign_results": [
+          "memberships"
+        ],
+        "conversations": [
+          "memberships"
+        ],
+        "inbox": [
+          "memberships"
+        ],
+        "leads": [
+          "memberships"
+        ],
+        "people": [
+          "memberships"
+        ],
+        "playbooks": [
+          "memberships"
+        ],
+        "reach_out_replies": [
+          "memberships"
+        ],
+        "reach_outs": [
+          "memberships"
+        ],
+        "reports": [
+          "memberships"
+        ],
+        "reports_campaigns": [
+          "memberships"
+        ],
+        "reports_headline": [
+          "memberships"
+        ],
+        "reports_people": [
+          "memberships"
+        ],
+        "reports_receptionist": [
+          "memberships"
+        ],
+        "today": [
+          "memberships"
+        ]
+      }
+    },
+    {
+      "why": "A member's own alert settings, kept on their seat and saved by them (PUT me/alerts, published from the answer): nobody else's change reaches them. The pane is read where it is drawn and again once it has aged.",
+      "reads": {
+        "alerts": [
+          "memberships"
+        ]
+      }
+    },
+    {
+      "why": "The workspace's own row: its status (every door that must not act on a paused workspace reads it: workspacePaused, workspaceMaySpend, metrics_summary), its zone (a day is counted in it: the series functions) and how its customers buy (sellsByOf). The feed tells a status change only (00408); the zone and the way of buying are saved by PATCH workspaces, whose row re-reads the pages that draw them (refresh-map.ts).",
+      "reads": {
+        "broadcasts": [
+          "tenants"
+        ],
+        "campaign_results": [
+          "tenants"
+        ],
+        "leads": [
+          "tenants"
+        ],
+        "people": [
+          "tenants"
+        ],
+        "playbooks": [
+          "tenants"
+        ],
+        "reach_outs": [
+          "tenants"
+        ],
+        "reports": [
+          "tenants"
+        ],
+        "reports_campaigns": [
+          "tenants"
+        ],
+        "reports_headline": [
+          "tenants"
+        ],
+        "reports_people": [
+          "tenants"
+        ],
+        "reports_receptionist": [
+          "tenants"
+        ],
+        "reports_reviews": [
+          "tenants"
+        ],
+        "settings": [
+          "tenants"
+        ],
+        "today": [
+          "tenants"
+        ]
+      }
+    },
+    {
+      "why": "The partner's account and what it holds of the workspaces they brought: the money, the invitations and, for each workspace, its calls, messages, lines, channels, plan and standing (partner_overview). Those are rows of other workspaces than the one on screen, which the feed (one topic for each workspace) cannot tell of; the pane is read when it opens and after the partner's own acts (surfaces/settings/partner/surface.ts, own-change).",
+      "reads": {
+        "partner": [
+          "billing_accounts",
+          "calls",
+          "lines",
+          "memberships",
+          "messages",
+          "partner_earnings",
+          "partner_invitations",
+          "partner_tenants",
+          "partners",
+          "tenant_channels",
+          "tenants"
+        ]
+      }
+    },
+    {
+      "why": "The partner account and the handovers offered to it, read with the workspace list (GET workspaces): rows of the account, which spans workspaces and which no workspace's topic carries. Read at boot, and again after an invitation is accepted (refresh-map.ts, POST partner/invitations/[id]/accept).",
+      "reads": {
+        "workspace": [
+          "partner_tenants",
+          "partners"
+        ]
+      }
+    },
+    {
+      "why": "Who is signed in: the account's own name, read with the workspace list (GET workspaces). Profiles belong to a sign-in, not to a workspace, so the feed does not tell of them; a member renaming themselves (PUT me) re-reads the shell and Settings in their own tab.",
+      "reads": {
+        "workspace": [
+          "profiles"
+        ]
+      }
+    },
+    {
+      "why": "Teammates' names from the roster (team_roster): the Team pane's rows and the name of whoever holds a thread. Profiles belong to a sign-in, not to one workspace, so the feed does not tell of them; a member renaming themselves re-reads the shell and Settings in their own tab, and another tab reads the new name on its next read.",
+      "reads": {
+        "broadcasts": [
+          "profiles"
+        ],
+        "people": [
+          "profiles"
+        ],
+        "settings": [
+          "profiles"
+        ]
+      }
+    },
+    {
+      "why": "A member's own marks of what they have seen and flagged unread in the threads. They are private to a member, so no notice carries them; the tab draws its own mark at once (surfaces/seen.ts) and another tab of the same member reads the marks on its next read.",
+      "reads": {
+        "broadcasts": [
+          "contact_marks",
+          "contact_reads"
+        ],
+        "conversations": [
+          "contact_marks",
+          "contact_reads"
+        ],
+        "inbox": [
+          "contact_marks",
+          "contact_reads"
+        ],
+        "people": [
+          "contact_marks",
+          "contact_reads"
+        ],
+        "today": [
+          "contact_marks",
+          "contact_reads"
+        ]
+      }
+    },
+    {
+      "why": "A member's own marks and reads of the bell. They are private to a member, so no notice carries them; the bell is read again after its own marks (PUT notifications, refresh-map.ts) and on an arrival.",
+      "reads": {
+        "notifications": [
+          "notification_marks",
+          "notification_reads"
+        ]
+      }
+    },
+    {
+      "why": "Read inside people_list(), the book's list function, which joins each person's last call, deal, next step, open hold and thread to the row. The page reads the book for who is in it and what each said; the trace cannot tell which of those columns it draws, and the kinds it declares are the ones it hears. Owed: say which columns it draws and hear them, or read a narrower function.",
+      "reads": {
+        "reports": [
+          "person_notes"
+        ],
+        "reports_headline": [
+          "deals",
+          "escalations",
+          "person_notes"
+        ],
+        "reports_receptionist": [
+          "deals",
+          "person_notes"
+        ],
+        "reports_people": [
+          "deals",
+          "escalations"
+        ],
+        "broadcasts": [
+          "person_notes"
+        ],
+        "playbooks": [
+          "person_notes"
+        ],
+        "calendar": [
+          "calls",
+          "conversations",
+          "deals",
+          "escalations",
+          "messages",
+          "person_notes"
+        ]
+      }
+    },
+    {
+      "why": "People's last-contact and call columns come from people_list()'s last call and call count. A call ending is read on People's next read. Owed: People hears the call kind, less a live call's transcript turns.",
+      "reads": {
+        "people": [
+          "calls"
+        ]
+      }
+    },
+    {
+      "why": "Conversations draws the calls in its threads (GET calls). A call is told to Live and Today (the call kind); Conversations hears messages, conversations, escalations and the person, so a call ending is read on its next read. Owed: Conversations hears the call kind, less a live call's transcript turns.",
+      "reads": {
+        "conversations": [
+          "calls"
+        ]
+      }
+    },
+    {
+      "why": "The yeses and stops the Campaigns lens and home count as answers are columns of the people (campaign_answers reads their consent). They do not hear contacts on purpose: the feed carries a person arriving as well as an answer, and the dearest of the lenses would be read for each (the Campaigns lens counts sends, not the book). A yes or a stop recorded in the writer's tab forgets the lens (refresh-map.ts, consentWrite); a teammate's is read on the next read. Owed: hear contacts when the feed can tell an answer from an arrival.",
+      "reads": {
+        "campaign_results": [
+          "contacts"
+        ],
+        "reports_campaigns": [
+          "contacts"
+        ]
+      }
+    },
+    {
+      "why": "The Calendar matches a visit to a person by name and number from the book (people_list). A person added or renamed by a teammate is matched on the next read; the Calendar's own Add to People re-reads the board (refresh-map.ts calendarIfDrawn). Owed: the Calendar hears the person kind.",
+      "reads": {
+        "calendar": [
+          "contacts"
+        ]
+      }
+    },
+    {
+      "why": "The composers' audience counts name a deal (a proposal out, a yes since). The composers hear people's answers (contacts); a deal recorded in the writer's tab re-reads them (refresh-map.ts, POST contacts/[id]/deal), and another tab reads it on the next read.",
+      "reads": {
+        "broadcasts": [
+          "deals"
+        ],
+        "playbooks": [
+          "deals"
+        ]
+      }
+    },
+    {
+      "why": "A run's follow-up facts name the playbook that sends it (followUpFacts) and the Library's counts join the playbooks to each message (templatesOf, a playbook's name and mode): a playbook changed by a teammate is told to the Campaigns pages and read here on the next read. Owed where a figure of the page names one.",
+      "reads": {
+        "broadcasts": [
+          "playbooks"
+        ],
+        "campaign_results": [
+          "playbooks"
+        ],
+        "reach_out_replies": [
+          "playbooks"
+        ],
+        "reports_campaigns": [
+          "playbooks"
+        ],
+        "settings": [
+          "playbooks"
+        ]
+      }
+    },
+    {
+      "why": "The Library's counts of where each message is used and how many it sent: the templates read joins the playbooks, the runs (broadcasts) and their recipients. The Library repaints on a template's own change (it hears templates); a run elsewhere moves a count on the next read.",
+      "reads": {
+        "settings": [
+          "broadcasts"
+        ]
+      }
+    },
+    {
+      "why": "People's campaigns card names the last run each person was sent (touchesOf: broadcasts and their recipients). People hears the sends' ticks (messages) and the playbooks; a run made while it is open is read on its next read.",
+      "reads": {
+        "people": [
+          "broadcasts"
+        ]
+      }
+    },
+    {
+      "why": "A run's per-person rows, who was sent what and the receipts. A statement for each message would be a notice for each receipt, so the feed tells the run (broadcasts) and a message's ticks, never these rows (realtime.ts: a run's people are read when its page opens). The pages that count them read them when they open and again when a run or a message they hear moves.",
+      "reads": {
+        "broadcasts": [
+          "broadcast_recipients"
+        ],
+        "campaign_results": [
+          "broadcast_recipients"
+        ],
+        "people": [
+          "broadcast_recipients"
+        ],
+        "playbooks": [
+          "broadcast_recipients"
+        ],
+        "reports_campaigns": [
+          "broadcast_recipients"
+        ],
+        "settings": [
+          "broadcast_recipients"
+        ]
+      }
+    },
+    {
+      "why": "The composers' lists, the audiences a list kept by hand offers (savedListsFor). A list changed in another tab is read on the next read; the writer's tab re-reads them (refresh-map.ts, POST segments / PUT / DELETE). Owed: the composers hear the list kind on their page.",
+      "reads": {
+        "broadcasts": [
+          "segment_members",
+          "segments"
+        ],
+        "playbooks": [
+          "segment_members",
+          "segments"
+        ]
+      }
+    },
+    {
+      "why": "Carried by the settings read the composers use for the business's facts (the postal address an offer by email names, its name). The listing is part of the facts it returns, and the composers draw none of it.",
+      "reads": {
+        "broadcasts": [
+          "google_listings"
+        ],
+        "playbooks": [
+          "google_listings"
+        ]
+      }
+    },
+    {
+      "why": "Settings' Connections and Business panes state how the business is reached and set up: the number, the text line, the last message and call each heard (GET channels, linesFor), the calendar's visits read and the Google listing (knownFacts). Settings hears the settings, rules, library and team; a channel changed by Meta, the line's saga or a teammate is read on its next read, and its own writes re-read it (refresh-map.ts). Owed: Settings hears the channel kind on its page.",
+      "reads": {
+        "settings": [
+          "appointments",
+          "calls",
+          "google_listings",
+          "lines",
+          "messages",
+          "tenant_channels"
+        ]
+      }
+    },
+    {
+      "why": "The channel health the composers' Send by row says (GET channels reads the line's latest call): read when the composer opens and after a channel is changed (refresh-map.ts channelChange). A call ending is not a change to what they say of a channel.",
+      "reads": {
+        "broadcasts": [
+          "calls"
+        ],
+        "playbooks": [
+          "calls"
+        ]
+      }
+    },
+    {
+      "why": "A caller's name, embedded in the call row (CALL_COLUMNS), and the line's latest message beside the channel (GET channels). Live hears the calls and the channels; a rename or a text is read on the next call or visit.",
+      "reads": {
+        "live": [
+          "contacts",
+          "messages"
+        ]
+      }
+    },
+    {
+      "why": "Setup's team step counts the seats and the open invitations and names them from the roster (setup.ts teamCounts, teamRoster). A teammate joining or an invitation sent is read on Setup's next read. Owed: Setup declares the team kind.",
+      "reads": {
+        "setup": [
+          "invitations",
+          "memberships",
+          "profiles"
+        ]
+      }
+    },
+    {
+      "why": "Setup's rows state what is set up from the whole workspace: the calendar's visits and held emails, who can receive an offer, the last WhatsApp message, the templates' verdicts, the settings and the rules (setup.ts). It hears the channels, the line and billing, and reads the rest when it opens and after its own writes (refresh-map.ts setup()). Owed: Setup hears the facts, rules, template, visit and person kinds on its page.",
+      "reads": {
+        "setup": [
+          "appointment_notices",
+          "appointments",
+          "contacts",
+          "conversations",
+          "deals",
+          "escalations",
+          "messages",
+          "person_notes",
+          "policies",
+          "templates",
+          "tenant_config"
+        ]
+      }
+    },
+    {
+      "why": "The workspace's own mailbox, read for its address (the Calendar's Booking tool row) and for whose inbox a reply came to. Made or changed through POST mailboxes and PUT mailboxes/[id], whose rows re-read the Calendar and the composers; a pause by the gate or the back office is told to the composers (mailboxes) and read here on the next read.",
+      "reads": {
+        "calendar": [
+          "mailboxes"
+        ],
+        "reach_out_replies": [
+          "mailboxes"
+        ]
+      }
+    },
+    {
+      "why": "The Autonomy rules, read by replyPolicies and listPolicies to say whether a reply, a review or a reach-out is answered by the receptionist on its own (the waiting-on-you figures, the review composer's draft, a reach-out's mode). A rule saved on Settings re-reads the pages that draw it in the writer's tab (refresh-map.ts, PUT policies), and another tab reads it on its next read. Owed where a figure of the page depends on it: declare the rules kind.",
+      "reads": {
+        "calendar": [
+          "policies"
+        ],
+        "google": [
+          "policies"
+        ],
+        "reach_outs": [
+          "policies"
+        ],
+        "reports": [
+          "policies"
+        ],
+        "reports_headline": [
+          "policies"
+        ],
+        "reports_people": [
+          "policies"
+        ],
+        "reports_receptionist": [
+          "policies"
+        ],
+        "reports_reviews": [
+          "policies"
+        ]
+      }
+    },
+    {
+      "why": "Today's period line states the booking pair, which reads the calendar's settings (readers/report.ts bookingOf). A settings save in another tab is read on the next read. Owed: the headline hears the facts kind.",
+      "reads": {
+        "reports_headline": [
+          "tenant_config"
+        ]
+      }
+    },
+    {
+      "why": "The place a lead was found at (leads_page joins lead_places) and the ideas for a new search (lead_suggestions: written when a read asks the model for them, kept until a round ends or the line is saved). Neither is told by the feed: a round commits the lead (leads), and saving the business line (PUT lead-suggestions) re-reads Leads. The business line is read from the settings.",
+      "reads": {
+        "leads": [
+          "lead_places",
+          "lead_suggestions",
+          "tenant_config"
+        ]
+      }
+    },
+    {
+      "why": "A template's verdict and words: Meta's answer to it, what a stuck run is held on (campaign_stuck), the verdicts Setup states (templateVerdicts) and a chain's email words (emailWordsByTemplate). The pages that draw the Library hear templates; these read the verdict when they open and after the writes that move it (refresh-map.ts templates(), versionWrite, POST templates/sync). Owed: hear the template kind on their page.",
+      "reads": {
+        "reach_outs": [
+          "templates"
+        ],
+        "reports_campaigns": [
+          "templates"
+        ]
+      }
+    },
+    {
+      "why": "A chain's counts and its leads' timeline (reach_out_reach, reach_out_chain_report, reach_out_lead_timeline): sent, wrote back, the leads and the domain rows. The chains' read never hears a message or a lead on purpose (a chain is not a thread; its counts are its report, read when its sheet opens: refresh-map.ts, refresh-coverage.test.mjs), and the replies it counts are heard (reach_out_replies).",
+      "reads": {
+        "reach_outs": [
+          "calls",
+          "contacts",
+          "conversations",
+          "lead_search_members",
+          "lead_searches",
+          "lead_suppressions",
+          "leads",
+          "messages",
+          "reach_out_sends",
+          "sending_domains"
+        ]
+      }
+    },
+    {
+      "why": "The reach-outs pane says whether the workspace may spend (workspaceMaySpend: its plan and standing), read with the chains. A plan changing is read on the pane's next read. Owed: the reach-outs hear the billing kind.",
+      "reads": {
+        "reach_outs": [
+          "billing_accounts"
+        ]
+      }
+    },
+    {
+      "why": "The reach-outs' part of the Campaigns lens and home counts what a chain sent and who wrote back, said no or booked (reach_out_chain_totals, reach_out_report): a lead's call, the leads and their searches, the sends' rows and the domain rows. The replies it counts are heard (reach_out_replies); a lead's stage written re-reads the lens in the writer's tab (refresh-map.ts leadsAnswered). Owed: hear the lead and domain tables they count.",
+      "reads": {
+        "campaign_results": [
+          "calls",
+          "lead_searches",
+          "leads",
+          "reach_out_sends",
+          "sending_domains"
+        ],
+        "reports_campaigns": [
+          "calls",
+          "lead_searches",
+          "leads",
+          "reach_out_sends"
+        ]
+      }
+    },
+    {
+      "why": "The reply strip names the reply's lead, the person it came from, the email it answered and the domain it came to (repliesFor, reach_out_reply_undoable, answeredReachOutEmail). It hears the replies themselves (reach_out_replies); a lead, a person or a message changing underneath is read on the next read.",
+      "reads": {
+        "reach_out_replies": [
+          "contacts",
+          "leads",
+          "messages",
+          "reach_out_sends",
+          "sending_domains"
+        ]
+      }
+    },
+    {
+      "why": "GET contacts counts each message's versions to say whom it reaches, and by which channel (templates.ts messageVersionRowsOf). The templates a composer offers are the settings read's (surfaces/offered-templates.ts), which Settings hears on the feed (00408); Sent's pool counts follow on its next read.",
+      "reads": {
+        "broadcasts": [
+          "templates"
+        ]
+      }
+    }
+  ]
+}

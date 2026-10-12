@@ -48,13 +48,15 @@ export function usePeopleView({
 }
 
 /**
- * The phone's list picker (the rail, as a sheet), and the New list box. The shell's and a profile's "New list"
- * (segments:new) open the box; on a phone the sheet comes up with it, since the rail it sits in is not drawn there.
+ * The phone's list picker (the rail, as a sheet), and the New list box. The shell's and a profile's "New list" is an
+ * address (`clients/new-list`) that opens the box from the first draw; on a phone the sheet comes up with it, since the rail
+ * it sits in is not drawn there. Nothing is sent over the window for it: segments:new had one sender, the mockup's seeded
+ * Lists page (demo/pages/segments.jsx), and People never heard it from anything real.
  */
 export function usePeopleSheets(newList: boolean, savedId: string | null) {
   const [listsOpen, setListsOpen] = useState(() => !!newList && plPhoneNow());
   // Arrived at clients/new-list: the box is open from the first draw (and on a phone, the sheet it sits in).
-  const [newListSignal, setNewListSignal] = useState(newList ? 1 : 0);
+  const [newListSignal] = useState(newList ? 1 : 0);
   // Add people, the page's act: its sheet, at every width (import/import-sheet.tsx), which holds its own fields. The
   // refresh-map re-reads People after each part of an import.
   const [addOpen, setAddOpen] = useState(false);
@@ -67,16 +69,6 @@ export function usePeopleSheets(newList: boolean, savedId: string | null) {
     setRuleEditing(false);
   }, [savedId]);
   const [listDraft, setListDraft] = useState<ListDraft>(PL_LIST_EMPTY);
-  useEffect(() => {
-    const onNew = () => {
-      setNewListSignal((n) => n + 1);
-      // The rail is hidden at 900px and under (mobile.css), so there the box opens in the sheet: this asked 720px, and
-      // from 721 to 900 it opened inside a rail nobody could see.
-      if (plPhoneNow()) setListsOpen(true);
-    };
-    window.addEventListener("segments:new", onNew);
-    return () => window.removeEventListener("segments:new", onNew);
-  }, []);
   return {
     listsOpen,
     setListsOpen,

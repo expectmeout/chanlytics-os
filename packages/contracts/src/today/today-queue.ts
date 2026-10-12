@@ -3,7 +3,8 @@
  * ear, a search waiting on its owner) in one row grammar, longest wait first. The facts are today-facts.ts's; the
  * calls worth an ear are today-rows.ts's.
  */
-import { reasonLabelOf, reasonShort } from "../conversations/escalations";
+import { addressOf } from "../activity/record-address";
+import { HOLD_ACT_WORDS, holdActOf, reasonLabelOf, reasonShort } from "../conversations/escalations";
 import { messageWords, clipAtWord } from "../conversations/message-words";
 import { threadChannelWords } from "../conversations/thread-channel";
 import { formatWaited } from "../conversations/thread-clock";
@@ -30,6 +31,15 @@ const PEOPLE_KINDS: ReadonlySet<TodayQueueRowVM["kind"]> = new Set(["handoff", "
  */
 export function isPersonRow(r: Pick<TodayQueueRowVM, "kind">): boolean {
   return PEOPLE_KINDS.has(r.kind);
+}
+
+/**
+ * Whether a row names a person, so it wears a person's face (the kit's Face, over personFaceOf): every row but a search
+ * waiting on its owner (a lead search's name) and the rows for the steps and the visits not named (a count). A step, a
+ * visit to mark and a call worth a listen name a person without being one waiting on you, which isPersonRow keeps apart.
+ */
+export function namesAPerson(r: Pick<TodayQueueRowVM, "kind">): boolean {
+  return r.kind !== "search" && r.kind !== "steps" && r.kind !== "visits";
 }
 
 /** A question waited this long is warned: the sweep stops it after a day. */
@@ -59,7 +69,12 @@ function callbackRow(r: EscalationRecord): TodayQueueRowVM {
     status: ["Needs a call back", `since ${r.since}`],
     tone: "escalated",
     warn: r.warn,
-    cta: { label: "Open the call", to: r.call ? `conversations/cv-${r.call.id}` : `inbox/th-${e.conversation_id}` },
+    cta: {
+      label: HOLD_ACT_WORDS.call_back.cta,
+      to: r.call
+        ? addressOf({ kind: "call", id: r.call.id })
+        : addressOf({ kind: "hold", conversationId: e.conversation_id }),
+    },
     also: { label: "Done", verb: "resolve", conversationId: e.conversation_id, escalationId: e.id },
     waitedMs: r.waitedMs,
   };
@@ -87,7 +102,11 @@ function handoffRow(r: EscalationRecord): TodayQueueRowVM {
     ],
     tone: "escalated",
     warn: r.warn,
-    cta: { label: "Open and reply", to: `inbox/th-${e.conversation_id}` },
+    // The verb follows the reason's act (escalations.ts): a reply to write, a call to return, or nothing that may be sent.
+    cta: {
+      label: HOLD_ACT_WORDS[holdActOf(e.reason)].cta,
+      to: addressOf({ kind: "hold", conversationId: e.conversation_id }),
+    },
     also: { label: "Snooze", verb: "snooze", conversationId: e.conversation_id, escalationId: e.id },
     waitedMs: r.waitedMs,
   };
@@ -121,7 +140,7 @@ function windowRow(c: ConversationDto, f: TodayFacts): TodayQueueRowVM {
     status: ["Reply window closing", "they wrote last"],
     tone: "warn",
     warn: leftMs < 2 * HOUR_MS,
-    cta: { label: "Open thread", to: `inbox/th-${c.id}` },
+    cta: { label: "Open thread", to: addressOf({ kind: "conversation", id: c.id }) },
     also: null,
     // After every escalation (which waited ≥ 0), the soonest to close first.
     waitedMs: -leftMs,

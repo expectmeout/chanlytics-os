@@ -239,8 +239,8 @@ test("REGRESSION (A7, A9, A23): Conversations says who answered, signs our messa
   );
   assert.equal(
     textOf(OutcomePill({ outcome: "handled", channel: "phone" })),
-    "Receptionist handled it",
-    "a call keeps its own words",
+    "Handled",
+    "a call says what Live and the thread's call card say of it: the call's own word",
   );
   // A chat's way into its Inbox thread (A7) is now that it is that thread: the pane beside the list is the one thread
   // (thread-pane.tsx), which answers, takes over and hands back here. The door to a second screen is gone with it.
@@ -417,5 +417,38 @@ test("REGRESSION (A14): a recording that will not play says why where you listen
   } finally {
     delete globalThis.window.__href;
     setSurfaceValue("inbox", undefined);
+  }
+});
+
+test("D1-hold-words: Conversations' pill for a thread a teammate has names them from the roster, as the Inbox's row does, and says A teammate where it cannot", () => {
+  const theirs = toConversationVM(
+    conv([msg({ id: "m1" })], { state: "needs_human", assignee_user_id: "u-ruben", assignee_is_me: false }),
+    null,
+    ZONE,
+    NOW,
+  );
+  assert.equal(theirs.standing, "theirs");
+  assert.equal(theirs.holderId, "u-ruben", "the row carries whose it is");
+  const mine = toConversationVM(
+    conv([msg({ id: "m1" })], { state: "needs_human", assignee_user_id: "u-me", assignee_is_me: true }),
+    null,
+    ZONE,
+    NOW,
+  );
+  assert.equal(mine.holderId, null, "nobody to name: it is the reader's");
+  fresh();
+  const pill = (row) =>
+    textOf(OutcomePill({ outcome: row.outcome, standing: row.standing, holderId: row.holderId, channel: row.channel }));
+  // The roster Settings reads (window.__TEAM): the name is the workspace's, never invented.
+  globalThis.window.__TEAM = [{ userId: "u-ruben", email: "ruben@example.com", displayName: "Ruben" }];
+  try {
+    assert.equal(pill(theirs), "Ruben has it");
+    assert.equal(pill(mine), "You have it");
+    globalThis.window.__TEAM = [{ userId: "u-other", email: "ana@example.com", displayName: "Ana" }];
+    assert.equal(pill(theirs), "A teammate has it", "a teammate the roster does not know");
+    globalThis.window.__TEAM = null;
+    assert.equal(pill(theirs), "A teammate has it", "the roster unread");
+  } finally {
+    delete globalThis.window.__TEAM;
   }
 });

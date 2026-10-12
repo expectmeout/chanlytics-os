@@ -54,19 +54,20 @@ import { markProcessed } from "../packages/db.js";
 import { upsertEscalation } from "../packages/jobs.js";
 import { sweepUnfinished } from "./unfinished.js";
 import { sweepStrandedRuns } from "../ops/stranded-runs.js";
-import { MIN_MS, type EscalationReason } from "../packages/contracts.js";
+import { MIN_MS, reasonLabelOf, waitsOnAPerson } from "../packages/contracts.js";
 import type { SweepTick } from "../ops/sweep-door.js";
 
 /** How long a customer may wait on a human before this is a problem. */
 const UNANSWERED_AFTER = "2 hours";
 
-/**
- * Hand-offs on which nobody owes the customer an answer: a person who asked to stop. "A customer has had no answer for
- * N hours" about them was untrue, and each held a place among the oldest fifty every tick (the engine review's second
- * pass, 11 Oct 2026); each is settled once, unwarned, so it leaves the list. A person the owner handles is not one of
- * them: they wait on the owner, which is what this warns of (the review of 11 Oct 2026).
+/*
+ * Hand-offs on which nobody owes the customer an answer (contracts waitsOnAPerson: a person who asked to stop, the one
+ * rule Needs you, Today's queue and the badge read too, decision 0048). "A customer has had no answer for N hours" about
+ * them was untrue, and each held a place among the oldest fifty every tick (the engine review's second pass, 11 Oct
+ * 2026); each is settled once, unwarned, so it leaves the list. A person the owner handles is not one of them: they wait
+ * on the owner, which is what this warns of (the review of 11 Oct 2026). The receptionist no longer opens one, but those
+ * opened before it stopped are still open.
  */
-const WAITS_FOR_NOBODY: ReadonlySet<string> = new Set<EscalationReason>(["opt_out"]);
 
 interface Candidate {
   escalation_id: string;
@@ -145,7 +146,7 @@ export async function sweepDeadman({ db, L, started }: SweepTick): Promise<Respo
   const unaddressable = new Set<string>();
 
   for (const [i, c] of candidates.entries()) {
-    if (WAITS_FOR_NOBODY.has(c.reason)) {
+    if (!waitsOnAPerson(c.reason)) {
       await markAlerted(db, L, c);
       continue;
     }
@@ -184,12 +185,16 @@ export async function sweepDeadman({ db, L, started }: SweepTick): Promise<Respo
 
       const delivered = await notify(target, {
         kind: "deadman",
-        route: "inbox",
+        // The conversation the sweep holds, not the Inbox's top: the bell, the phone and the mail open that customer's thread
+        // (decision 0047), and the row says whose it is so the bell pairs it with the customer's own 'needs you' row.
+        route: `inbox/th-${c.conversation_id}`,
+        about: { type: "conversation", id: c.conversation_id },
         subject: `Still waiting: a customer has had no answer for ${waited}`,
         body:
           `A conversation was handed to a human ${waited} ago and is still open.\n\n` +
           `Customer: ${c.phone_e164 ?? "unknown"}\n` +
-          `Flagged because: ${c.reason}\n` +
+          // The Inbox's words for the reason (a label, and the raw token only for a reason the set does not know).
+          `Flagged because: ${reasonLabelOf(c.reason)}\n` +
           `${c.details ? `Detail: ${c.details}\n` : ""}` +
           `\nOpen it in the Inbox to reply, or resolve it if it was handled elsewhere.`,
         redactedBody: `A customer in this workspace has waited ${waited} for a human reply.`,

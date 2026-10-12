@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-236 handlers in 47 domains.
+237 handlers in 47 domains.
 
 ## activity
 
@@ -277,6 +277,7 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 | --- | --- | --- | --- |
 | `conversation_id` | string | no |  |
 | `status` | string | no |  |
+| `ids` | string | no |  |
 
 ### `POST /api/v1/calls/[id]/end`
 
@@ -1032,11 +1033,11 @@ Writes; for a member of the workspace the request names, partner or above; count
 | --- | --- | --- | --- |
 | `ids` | array of string (uuid) | yes | at least 1; at most 500 |
 
-### `GET /api/v1/leads/export`
+### `POST /api/v1/leads/export`
 
-Reads; for a member of the workspace the request names, owner or above; counts against the `export` rate; spends nothing.
+Writes; for a member of the workspace the request names, owner or above; counts against the `export` rate; spends nothing.
 
-| Query field | Type | Required | Limits |
+| Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `list` | one of `"all"`, `"ready"`, `"nurture"`, `"converted"`, `"said_no"`, `"not_a_fit"` | no |  |
 | `search` | string (uuid) | no |  |
@@ -1151,6 +1152,12 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 Writes; for any signed-in person, for themselves; counts against the `device_register` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/me/devices/route.ts`).
+
+### `POST /api/v1/me/invitations/accept`
+
+Writes; for any signed-in person, for themselves; counts against the `invitation_accept` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/me/invitations/accept/route.ts`).
 
 ## messages
 

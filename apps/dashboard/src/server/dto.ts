@@ -26,7 +26,7 @@ export const MESSAGE_COLUMNS =
   "id, conversation_id, direction, sender, type, body, media, meta, status, created_at, channel_ts, channel";
 
 export const CALL_COLUMNS =
-  "id, retell_call_id, direction, call_type, status, from_e164, from_raw, to_e164, started_at, ended_at, duration_ms, disconnection_reason, sentiment, call_successful, in_voicemail, summary, wanted, outcome, follow_up, caller_name, analysis, transcript_object, recording, conversation_id, contact_id, message_id, updated_at, contacts (display_name, wa_profile_name, phone_e164)";
+  "id, retell_call_id, direction, call_type, status, from_e164, from_raw, to_e164, started_at, ended_at, duration_ms, disconnection_reason, sentiment, call_successful, in_voicemail, summary, wanted, outcome, follow_up, caller_name, analysis, transcript_object, recording, conversation_id, contact_id, message_id, updated_at, contacts (display_name, wa_profile_name, phone_e164, consent, dnc)";
 
 interface ConversationRow {
   id: string;
@@ -112,7 +112,14 @@ interface CallRow {
   conversation_id: string | null;
   contact_id: string | null;
   message_id: string | null;
-  contacts: { display_name: string | null; wa_profile_name: string | null; phone_e164: string | null } | null;
+  contacts: {
+    display_name: string | null;
+    wa_profile_name: string | null;
+    phone_e164: string | null;
+    /** Selected for the row's "Stopped" mark (isOptedOutContact reads both). */
+    consent?: string | null;
+    dnc?: boolean | null;
+  } | null;
 }
 
 /**
@@ -304,6 +311,8 @@ export function toCallDto(c: CallRow): CallDto {
           display_name: c.contacts.display_name,
           wa_profile_name: c.contacts.wa_profile_name,
           phone_e164: c.contacts.phone_e164,
+          consent: c.contacts.consent ?? null,
+          dnc: c.contacts.dnc ?? null,
         }
       : null,
   };

@@ -21,8 +21,6 @@ import {
   type LifecycleReport,
 } from "@chanlytics/contracts";
 import { read } from "@/legacy-bridge/api";
-import { DEFAULT_REFRESH_TABLES } from "@/legacy-bridge/surface-realtime";
-import { onlyOnItsPage } from "@/legacy-bridge/surface-registry";
 import { periodSurface } from "../../reports/period-surface";
 
 /** What the home reads of its own 30 days: each null where its read failed, the other standing. */
@@ -55,10 +53,7 @@ function resultsReportOf(dto: CampaignReportDto): LifecycleReport {
   };
 }
 
-/** The tables whose changes move the numbers: the messages a reply is, and the runs a send is. Heard on Campaigns alone. */
-const RESULTS_TABLES: string[] = [...DEFAULT_REFRESH_TABLES, "broadcasts"];
-
-const campaignResults = periodSurface({
+export const campaignResults = periodSurface({
   key: "campaign_results",
   // One fixed period, never the one Reports shows: the ledger's "Last 30 days" and What came back say 30 days.
   shown: () => CAMPAIGNS_RESULTS_PERIOD,
@@ -79,10 +74,11 @@ const campaignResults = periodSurface({
     };
   },
   // Read again only while Campaigns is on screen, 800 ms after the last change (Reports' debounce, reports/surface.ts), and
-  // once when it comes back (surface-registry.ts).
+  // once when it comes back (surface-registry.ts). What moves the numbers: the messages a reply is, the runs a send is, and a
+  // reach-out's reply read or undone (What came back counts the chains' replies, 0047). Heard on Campaigns alone.
   live: {
-    refreshOnTables: RESULTS_TABLES,
-    refreshWhen: onlyOnItsPage("campaign_results", RESULTS_TABLES),
+    reads: ["conversation", "hold", "send", "reach_out"],
+    fresh: "its-page",
     debounceMs: 800,
   },
 });

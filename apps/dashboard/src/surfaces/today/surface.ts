@@ -6,8 +6,9 @@
  */
 
 import { read } from "@/legacy-bridge/api";
-import { DEFAULT_REFRESH_TABLES, isLiveCallTurn } from "@/legacy-bridge/surface-realtime";
-import { threadsWaitingOnYou, toTodayVM, type CallDto, type LeadSearchDto } from "@chanlytics/contracts";
+import { isLiveCallTurn } from "@/legacy-bridge/surface-realtime";
+import { declareReads } from "@/legacy-bridge/surface-registry";
+import { toTodayVM, type CallDto, type LeadSearchDto } from "@chanlytics/contracts";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { declareSurfaceValue, setSurfaceValue } from "../surface-values";
 
@@ -37,13 +38,36 @@ export const todayOverride: SurfaceOverride = {
   // Lead rounds too: a search that stops to ask is an UPDATE on its round, and
   // its answer another. Every lead_rounds change goes through — they are rare
   // and each one changes what the queue says about a search waiting on you.
-  refreshOnTables: [...DEFAULT_REFRESH_TABLES, "calls", "lead_rounds"],
+  // And the channel, the line and the billing account: the chips for WhatsApp, text, voice and email and the red bands
+  // ('WhatsApp is disconnected', 'This workspace is paused') are drawn from the metrics read, which nothing re-read for a
+  // number that failed, a line that registered or a subscription that ended. billing_accounts is written in the same
+  // transaction as the workspace's status (00382), so it stands for the pause. They change a few times a month.
+  // And the person each row of the queue names (contacts, 0047): a teammate's rename, their address, a yes or a stop. A few a
+  // day. Its other configuration, the hours the settings hold, it does not draw: the five reads below name none.
+  ...declareReads("today", {
+    reads: ["conversation", "hold", "call", "lead", "channel", "billing", "person"],
+    fresh: "live",
+    omit: [
+      {
+        tables: ["leads", "lead_searches", "lead_search_members"],
+        why: "the queue draws a search waiting on you, which its round says (a stop to ask, its answer); the leads it found and the people it kept are not in it",
+      },
+      {
+        tables: ["mailboxes", "sending_domains", "capability_activations", "business_records"],
+        why: "the chips and bands draw a channel's number, its line and the workspace's pause, not the mailbox's offers, a domain, an activation or the record the carriers read",
+      },
+    ],
+    // A transcript turn of a call in progress is an update that changes nothing the day counts (isLiveCallTurn); asked first.
+    when: (c) => !isLiveCallTurn(c),
+  }),
   // A send that fails, even long after it left, is a count on the day (the metrics' send_failures, 00327): the one
   // message update Today is read again for. A receipt's ticks are the threads', and the day's figures do not move
   // with them.
   refreshOnMessageStatuses: ["failed"],
-  refreshWhen: (c) => !isLiveCallTurn(c),
   debounceMs: 800, // the recap is aggregate, not per-thread — no need to be twitchy
+  // "Today so far" is one read of the business's day (metrics for one day): nothing else moves it at midnight, and a tab left
+  // open overnight said yesterday's totals until its first message of the new day.
+  readAtMidnight: true,
   apply: async () => {
     // Calls are additive context, not a precondition — a voice outage must not
     // blank the brief — but they are fetched WITH the others rather than
@@ -78,19 +102,10 @@ export const todayOverride: SurfaceOverride = {
       "today",
       toTodayVM(metricsRes.metrics, convData.conversations, escData.escalations, calls, now, searches),
     );
-
-    // The sidebar badge is seeded until the Inbox itself mounts, so a fresh
-    // load put a fabricated "6" one inch from Today's honest "0 need you".
-    // Today already holds the real rows — publish the count. Detail is
-    // REQUIRED: a detail-less inbox:counts zeroes the badge instead of
-    // correcting it.
-    //
-    // Counted by threadsWaitingOnYou, the Inbox's own rule over the wire and the number the headline above says: a
-    // thread that needs a person and nobody has, a reply counting down that can still be stopped, and a flagged
-    // thread older than the newest page. This used to publish metrics.now.escalations_open (a teammate's threads
-    // included), then threadStanding alone (no drafts), then the newest page alone: each a DIFFERENT number from the
-    // Inbox's chip, overwriting its badge on every Today refresh.
-    const needs = threadsWaitingOnYou(convData.conversations, escData.escalations, now);
-    window.dispatchEvent(new CustomEvent("inbox:counts", { detail: { needs } }));
+    // Today publishes no count for the badge, the tabs, the title or the phone. It used to send one after every read
+    // (metrics.now.escalations_open, then threadStanding alone, then the newest page alone, then threadsWaitingOnYou), each a
+    // different number from the Inbox's chip, over the Inbox's own: a reply held in the Inbox's tab, before the cancel's
+    // re-read, was the Inbox's alone, and whichever sent last was on screen. They all read one selector now (needs-you.ts);
+    // the headline above keeps the wire rule for its threads (contracts threadsWaitingOnYou), which is the same rule.
   },
 };

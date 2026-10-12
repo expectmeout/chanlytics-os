@@ -123,7 +123,9 @@ const PersonDealStep = ({
     }
     const next = sheet({ dealId: c.id });
     if (flash) flash(stepDoneFlash(r, next));
-    window.dispatchEvent(new CustomEvent("note:saved", { detail: { personId: p.id } }));
+    // Refused: nothing was written, so nothing is read again on its own, and the step the page holds may be the one that
+    // moved. A done is read again with People behind it (the write's refresh, 0047), which this page hears.
+    if (!r.ok) window.dispatchEvent(new CustomEvent("surface:clients"));
   };
   const change = s.mine ? sheet({ noteId: s.id }) : null;
   return (
@@ -184,6 +186,12 @@ function dealSteps(c: DealCardVM) {
         >
           <span className="cl-prof-deal-bar" aria-hidden="true" />
           <span className="cl-prof-deal-step-label">{s.label}</span>
+          {/* A consultation that has ended says how the visit stands, as every page does: Kept, or Past while nobody has said. */}
+          {s.word ? (
+            <span className="cl-prof-deal-step-day" data-testid="person-deal-step-word">
+              {s.word}
+            </span>
+          ) : null}
           {s.day ? <span className="cl-prof-deal-step-day">{s.day}</span> : null}
         </li>
       ))}

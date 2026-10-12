@@ -9,11 +9,12 @@ export const lrClock = (sec: number) => mmss(sec * 1000);
 
 // The call's state as the one pill draws it: live is the accent, the rest are
 // plain, and the words are the label map's. A call that is over says how it ended by the ladder
-// Conversations reads (contracts callOutcomeFor): hung up early, asked for a call back, voicemail, failed --
-// "Ended" only where it was simply handled.
+// Conversations and the thread's call card read (contracts callOutcomeFor): hung up early, asked for a call back,
+// voicemail, failed, never connected, else handled -- one word for a call that was simply handled, "Handled", wherever
+// it is said. It said "Ended" here and "Receptionist handled it" in Conversations.
 export const LrPill = ({ c }: { c: LiveCallVM }) => {
   const StatePill = statePillPart();
-  const value = c.live ? "live" : c.stale ? "stale" : c.outcome === "handled" ? "ended" : c.outcome;
+  const value = c.live ? "live" : c.stale ? "stale" : c.outcome;
   return (
     <StatePill
       kind="call"

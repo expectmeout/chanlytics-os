@@ -451,6 +451,11 @@ test("a reply waits on you by the one standing, the workspace's and not a member
   });
   const cases = [
     ["an open escalation and nobody", reply("2026-09-03T10:00:00.000Z", { open_escalation: true }), true],
+    [
+      "an open STOP hold and nobody: it waits on nobody (decision 0048)",
+      reply("2026-09-03T11:00:00.000Z", { open_escalation: true, open_escalation_reason: "opt_out" }),
+      false,
+    ],
     ["the needs_human state and nobody", reply("2026-08-31T10:00:00.000Z", { state: "needs_human" }), true],
     [
       "a live pause with an escalation open",
@@ -493,6 +498,7 @@ test("a reply waits on you by the one standing, the workspace's and not a member
         paused_until: r.paused_until,
         assignee_user_id: r.assignee_user_id,
         open_escalation: r.open_escalation,
+        escalation_reason: r.open_escalation_reason,
       },
       NOW,
     ).standing;

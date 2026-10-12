@@ -29,6 +29,7 @@ export {
   TEMPLATE_NAME_MAX,
   TEMPLATE_NAME_WORDS,
   TEMPLATE_BUTTON_TEXT_MAX,
+  TEMPLATE_STATUS_WORDS,
   PARAM_SOURCES,
   PARAM_SOURCE_LABELS,
   PARAM_SOURCE_HINTS,
@@ -155,7 +156,14 @@ export {
   templateUntranslatable,
 } from "./message-languages";
 export type { LanguageGroup, LanguageChoice } from "./message-languages";
-export { inboxTemplates, inboxSlots, noTemplateWords, slotToWrite, templateHolds } from "./inbox-templates";
+export {
+  inboxTemplates,
+  inboxSlots,
+  noTemplateWords,
+  slotToWrite,
+  templateHolds,
+  templateOffered,
+} from "./inbox-templates";
 export type { InboxTemplateLike, TemplateHolds } from "./inbox-templates";
 export {
   guessSlotKind,

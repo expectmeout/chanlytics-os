@@ -1,7 +1,7 @@
 /**
  * What Meta holds about a connected WhatsApp number, in the owner's words (contracts lines/number-standing.ts): the kept
  * answer read back from a channel's config without trusting it; the WhatsApp row for a number whose account's payment method
- * is missing or failing ("Waiting on you", with Meta's billing page as the row's one act), for one Meta has stopped for
+ * is missing or failing ("Payment needed", with Meta's billing page as the row's one act), for one Meta has stopped for
  * anything else ("Needs attention", Meta's first problem about messaging, WhatsApp Manager), for one it limits and for one it
  * has said nothing about; the two notes a row may carry (a declined or lapsed display name; an unverified business, with
  * Meta's page to verify on) and the silence on everything else (Meta's own notes, its calling problems, a verified business,
@@ -158,7 +158,7 @@ const whatsappRow = (ch) => connectionRows({ ...base(), channels: [ch] }, NOW).f
 
 test("a number whose account's payment method Meta reports a problem with waits on the owner: the sentence says what Meta stops, and nothing of Meta's prose is repeated", () => {
   const r = whatsappRow(channel(BLOCKED));
-  assert.deepEqual([r.state, r.stateWords, r.group], ["attention", "Waiting on you", "connected"]);
+  assert.deepEqual([r.state, r.stateWords, r.group], ["attention", "Payment needed", "connected"]);
   assert.equal(
     r.sentence,
     `${CARD_FAILING} ${IN_SUITE}`,
@@ -183,14 +183,14 @@ test("the account's payment method: none on file is Add a card on Meta's own pag
   );
   assert.deepEqual(
     [none.stateWords, none.sentence, none.verb],
-    ["Waiting on you", NEEDS_CARD, act("Add a card", ADD_CARD)],
+    ["Payment needed", NEEDS_CARD, act("Add a card", ADD_CARD)],
   );
   assert.deepEqual(none.notes, [notVerified("250")]);
   // A number Meta lets send with none on file: Meta's own word that it may send, so the replies are said to go.
   const open = whatsappRow(channel({ ...AVAILABLE, has_payment_method: false }));
   assert.deepEqual(
     [open.state, open.stateWords, open.sentence, open.verb],
-    ["attention", "Waiting on you", `${NEEDS_CARD} ${REPLIES_STILL_GO}`, act("Add a card", ADD_CARD)],
+    ["attention", "Payment needed", `${NEEDS_CARD} ${REPLIES_STILL_GO}`, act("Add a card", ADD_CARD)],
   );
   assert.deepEqual(open.notes, [], "a verified business says nothing of itself");
   // The business, or the account, not known (or an id that is not digits): no page that would open on nothing; Business Suite instead.
@@ -203,7 +203,7 @@ test("the account's payment method: none on file is Add a card on Meta's own pag
   const failing = whatsappRow(channel({ ...AVAILABLE, has_payment_method: true, problems: [CARD_ERROR] }));
   assert.deepEqual(
     [failing.stateWords, failing.sentence, failing.verb],
-    ["Waiting on you", `${CARD_FAILING} ${REPLIES_STILL_GO}`, act("Fix the card", ADD_CARD)],
+    ["Payment needed", `${CARD_FAILING} ${REPLIES_STILL_GO}`, act("Fix the card", ADD_CARD)],
   );
   // One on file and nothing named: nothing of it; a problem that is not about payment, on a number Meta lets send: nothing of it either.
   assert.equal(whatsappRow(channel({ ...AVAILABLE, has_payment_method: true })).stateWords, "On");
@@ -247,7 +247,7 @@ test("a number Meta has stopped for anything else needs attention: Meta's first 
   );
   assert.deepEqual(
     [live.stateWords, live.sentence, live.verb],
-    ["Waiting on you", CARD_FAILING, act("Fix the card", ADD_CARD)],
+    ["Payment needed", CARD_FAILING, act("Fix the card", ADD_CARD)],
   );
   assert.deepEqual(
     live.notes,
@@ -570,10 +570,10 @@ test("a connected number nobody has written to yet says how to try it from a pho
   // nobody, whether over the card or anything else, so it is not one to try.
   const newAccount = { ...AVAILABLE, has_payment_method: false };
   const waiting = whatsappRow(channel(newAccount, { ...unwritten, created_at: ago(2 * MIN) }));
-  assert.equal(waiting.stateWords, "Waiting on you");
+  assert.equal(waiting.stateWords, "Payment needed");
   assert.deepEqual(waiting.notes[0], { ...TRY, live: true });
   for (const [standing, words] of [
-    [BLOCKED, "Waiting on you"],
+    [BLOCKED, "Payment needed"],
     [RESTRICTED, "Needs attention"],
   ]) {
     const stopped = whatsappRow(channel(standing, { ...unwritten, created_at: ago(2 * MIN) }));

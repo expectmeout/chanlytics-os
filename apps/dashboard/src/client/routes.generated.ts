@@ -53,7 +53,6 @@ export const ROUTES = {
   "GET lead-suggestions": { method: "GET", path: "/api/v1/lead-suggestions" },
   "GET leads": { method: "GET", path: "/api/v1/leads" },
   "GET leads/[id]": { method: "GET", path: "/api/v1/leads/[id]" },
-  "GET leads/export": { method: "GET", path: "/api/v1/leads/export" },
   "GET lines/codes": { method: "GET", path: "/api/v1/lines/codes" },
   "GET me/alerts": { method: "GET", path: "/api/v1/me/alerts" },
   "GET messages/[id]/media": { method: "GET", path: "/api/v1/messages/[id]/media" },
@@ -161,6 +160,7 @@ export const ROUTES = {
   "POST leads/[id]/stage": { method: "POST", path: "/api/v1/leads/[id]/stage" },
   "POST leads/bulk": { method: "POST", path: "/api/v1/leads/bulk" },
   "POST leads/check-again": { method: "POST", path: "/api/v1/leads/check-again" },
+  "POST leads/export": { method: "POST", path: "/api/v1/leads/export" },
   "POST lines/buy": { method: "POST", path: "/api/v1/lines/buy" },
   "POST lines/forwarding": { method: "POST", path: "/api/v1/lines/forwarding" },
   "POST lines/forwarding/test": { method: "POST", path: "/api/v1/lines/forwarding/test" },
@@ -168,6 +168,7 @@ export const ROUTES = {
   "POST lines/retry": { method: "POST", path: "/api/v1/lines/retry" },
   "POST lines/search": { method: "POST", path: "/api/v1/lines/search" },
   "POST mailboxes": { method: "POST", path: "/api/v1/mailboxes" },
+  "POST me/invitations/accept": { method: "POST", path: "/api/v1/me/invitations/accept" },
   "POST messages/[id]/cancel-send": { method: "POST", path: "/api/v1/messages/[id]/cancel-send" },
   "POST messages/[id]/steer": { method: "POST", path: "/api/v1/messages/[id]/steer" },
   "POST notifications/test": { method: "POST", path: "/api/v1/notifications/test" },
@@ -293,7 +294,6 @@ export type Routes = {
   "GET lead-suggestions": typeof import("../../app/api/v1/lead-suggestions/route").GET;
   "GET leads": typeof import("../../app/api/v1/leads/route").GET;
   "GET leads/[id]": typeof import("../../app/api/v1/leads/[id]/route").GET;
-  "GET leads/export": typeof import("../../app/api/v1/leads/export/route").GET;
   "GET lines/codes": typeof import("../../app/api/v1/lines/codes/route").GET;
   "GET me/alerts": typeof import("../../app/api/v1/me/alerts/route").GET;
   "GET messages/[id]/media": typeof import("../../app/api/v1/messages/[id]/media/route").GET;
@@ -401,6 +401,7 @@ export type Routes = {
   "POST leads/[id]/stage": typeof import("../../app/api/v1/leads/[id]/stage/route").POST;
   "POST leads/bulk": typeof import("../../app/api/v1/leads/bulk/route").POST;
   "POST leads/check-again": typeof import("../../app/api/v1/leads/check-again/route").POST;
+  "POST leads/export": typeof import("../../app/api/v1/leads/export/route").POST;
   "POST lines/buy": typeof import("../../app/api/v1/lines/buy/route").POST;
   "POST lines/forwarding": typeof import("../../app/api/v1/lines/forwarding/route").POST;
   "POST lines/forwarding/test": typeof import("../../app/api/v1/lines/forwarding/test/route").POST;
@@ -408,6 +409,7 @@ export type Routes = {
   "POST lines/retry": typeof import("../../app/api/v1/lines/retry/route").POST;
   "POST lines/search": typeof import("../../app/api/v1/lines/search/route").POST;
   "POST mailboxes": typeof import("../../app/api/v1/mailboxes/route").POST;
+  "POST me/invitations/accept": typeof import("../../app/api/v1/me/invitations/accept/route").POST;
   "POST messages/[id]/cancel-send": typeof import("../../app/api/v1/messages/[id]/cancel-send/route").POST;
   "POST messages/[id]/steer": typeof import("../../app/api/v1/messages/[id]/steer/route").POST;
   "POST notifications/test": typeof import("../../app/api/v1/notifications/test/route").POST;

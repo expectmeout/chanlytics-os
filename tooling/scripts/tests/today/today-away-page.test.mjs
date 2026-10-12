@@ -5,8 +5,14 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { todayAwayGrouped, unreadCount, leadQuestionRoute } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, find, all, byTestId, textOf } from "../_legacy-react.mjs";
+import {
+  SERVER_NOTIFICATION_KINDS,
+  bellSections,
+  todayAwayGrouped,
+  unreadCount,
+  leadQuestionRoute,
+} from "@chanlytics/contracts";
+import { installLegacyReact, fresh, again, find, all, byTestId, textOf } from "../_legacy-react.mjs";
 
 installLegacyReact({ __DEMO_MODE: false });
 globalThis.appNavigate = () => {};
@@ -175,6 +181,8 @@ test("the lists a member pinned are one row of doors on Today, with People's cou
     globalThis.__lists = (await import("../../../../apps/dashboard/src/surfaces/people/people-lists.ts")).lists;
     const tree = globalThis.React.createElement(TodayPins, {});
     const row = byTestId(tree, "today-pins");
+    // The row holds ready-made lists as well as the member's own (decision 0009: any list pins), so it is not headed Your lists.
+    assert.equal(row.props["aria-label"], "Pinned lists");
     const pins = [];
     (function walk(n) {
       if (!n || typeof n !== "object") return;
@@ -226,4 +234,295 @@ test("a group of rows about ONE thread says one conversation, however many alert
   // A row that says nothing of what it is about stands for itself: two of them are two.
   const bare = (i) => ({ ...handoff(i, "x"), about: null });
   assert.equal(todayAwayGrouped([bare(1), bare(2)]).groups[0].title, "2 conversations need you");
+});
+
+// A group stands for several rows, and pressed it used to open the newest row's door and mark every row read: for the kinds
+// whose rows point at different records (a handoff, a failed job, a campaign ready, a search waiting, a reply to a
+// reach-out) the other records were never opened and no longer counted as unread (wiring/records-not-pages, N3).
+const row = (i, kind, to, about = null) => ({
+  id: `n:${i}`,
+  kind,
+  unread: true,
+  title: `${kind} ${i}`,
+  message: "x",
+  tone: "warn",
+  icon: "alert",
+  about,
+  time: "1m",
+  actions: [{ label: "Open it", to, primary: true }],
+});
+const T1 = "inbox/th-11111111-1111-4111-8111-111111111111";
+const T2 = "inbox/th-22222222-2222-4222-8222-222222222222";
+
+// Each kind that groups (todayAwayGrouped's nouns) and the list that holds its rows: where a group of different records opens.
+const LIST_DOORS = {
+  call: "conversations/phone",
+  job_failed: "inbox",
+  review: "reports/reviews",
+  calendar_people: "clients",
+  booking_notice: "admin/workspace",
+  handoff: "inbox",
+  playbook: "outbound",
+  template_ready: "messages",
+  template_blocked: "messages",
+  broadcast_sent: "broadcasts",
+  broadcast_stopped: "broadcasts",
+  note_for_you: "clients",
+  leads_question: "clients/leads",
+  leads_ready: "clients/leads",
+  reach_out_replied: "inbox",
+  // Decision 0048: a customer's no is news on the bell, a booking that arrived and a teammate who joined too.
+  opted_out: "clients",
+  booking: "calendar",
+  member_joined: "admin/team",
+};
+
+test("a group whose rows point at different records opens the list that holds them; one record, that record", () => {
+  const two = todayAwayGrouped([
+    row(1, "handoff", T1, { type: "conversation", id: "c1" }),
+    row(2, "handoff", T2, { type: "conversation", id: "c2" }),
+  ]).groups[0];
+  assert.equal(two.door, "inbox", "REGRESSION: it opened the newest conversation and marked the other read");
+  assert.equal(two.ids.length, 2, "and what it opens, the Inbox, holds both: both are read");
+  const one = todayAwayGrouped([
+    row(1, "handoff", T1, { type: "conversation", id: "c1" }),
+    row(2, "handoff", T1, { type: "conversation", id: "c1" }),
+    row(3, "handoff", T1, { type: "conversation", id: "c1" }),
+  ]).groups[0];
+  assert.equal(one.door, T1, "sixteen alerts about one thread open that thread");
+  const alone = todayAwayGrouped([row(1, "handoff", T2)]).groups[0];
+  assert.equal(alone.door, T2, "a row alone opens its own door");
+  const bare = todayAwayGrouped([
+    { ...row(1, "handoff", T1), actions: [] },
+    { ...row(2, "handoff", T1), actions: [] },
+  ]).groups[0];
+  assert.equal(bare.door, "inbox", "rows with no door of their own are held by their kind's list");
+});
+
+test("every kind that groups has a list door, and a group of different records opens it", () => {
+  const grouped = [];
+  for (const [kind, list] of Object.entries(LIST_DOORS)) {
+    const g = todayAwayGrouped([row(1, kind, "somewhere/one"), row(2, kind, "somewhere/two")]).groups;
+    assert.equal(g.length, 1, `${kind} groups`);
+    assert.equal(g[0].count, 2, kind);
+    assert.equal(g[0].door, list, `${kind}: two records open ${list}`);
+    assert.ok(g[0].action && /^Open|^Answer/.test(g[0].action), `${kind}: the door says what it is, ${g[0].action}`);
+    grouped.push(kind);
+  }
+  // A kind that groups and is not in the table above would be a noun with no list: found by trying every kind the edge writes.
+  const groups = SERVER_NOTIFICATION_KINDS.filter(
+    (kind) => todayAwayGrouped([row(1, kind, "a/b"), row(2, kind, "a/c")]).groups[0]?.count === 2,
+  );
+  assert.deepEqual(
+    [...groups].sort(),
+    grouped.sort(),
+    "the kinds that group are exactly the ones with a list door here",
+  );
+});
+
+// A group does one thing wherever it is drawn (task 5.2, D1-notice-two-drawings). In the bell a press on "9 calls" opens the notes under
+// it; on Today it marked every note read and jumped to one page, leaving the records it never showed unseen and counted as read.
+// Now both open the notes in place, and each note opens its own record and is read as it is opened.
+test("pressed, a group opens in place as the bell's does: nothing is read or opened; each note under it opens its own record and is read", () => {
+  const opened = [];
+  const read = [];
+  const kept = globalThis.appNavigate;
+  globalThis.appNavigate = (to) => opened.push(to);
+  try {
+    const rows = [row(1, "handoff", T1), row(2, "handoff", T2), row(3, "handoff", T2)];
+    let tree = draw(rows, []);
+    globalThis.__notifs.read = (id) => read.push(id);
+    const notesOf = (t) => all(t, (n) => n.props?.["data-testid"] === "today-away-note");
+    assert.equal(byClass(tree, "ta-main").props["aria-expanded"], false, "closed until it is pressed");
+    assert.equal(notesOf(tree).length, 0, "and the notes are not drawn");
+    byClass(tree, "ta-main").props.onClick();
+    assert.deepEqual(
+      [opened, read],
+      [[], []],
+      "REGRESSION: a press read the three and opened one page, the other records never shown",
+    );
+    tree = again(() => globalThis.React.createElement(TodayAway, {}));
+    assert.equal(byClass(tree, "ta-main").props["aria-expanded"], true, "open, in place");
+    const notes = notesOf(tree);
+    assert.deepEqual(
+      notes.map((n) => textOf(byClass(n, "ta-title")).trim()),
+      ["handoff 1", "handoff 2", "handoff 3"],
+      "every note the group stands for, each with its own words",
+    );
+    byClass(notes[0], "ta-main").props.onClick();
+    assert.deepEqual([opened, read], [[T1], ["n:1"]], "the first opens its thread and is read");
+    byClass(notes[2], "ta-main").props.onClick();
+    assert.deepEqual(
+      [opened, read],
+      [
+        [T1, T2],
+        ["n:1", "n:3"],
+      ],
+      "another opens its own; the one between is still unread",
+    );
+    // Pressed again, the group closes.
+    byClass(tree, "ta-main").props.onClick();
+    tree = again(() => globalThis.React.createElement(TodayAway, {}));
+    assert.equal(byClass(tree, "ta-main").props["aria-expanded"], false);
+    assert.equal(notesOf(tree).length, 0);
+    // Two alerts about one thread open under their line too, each the thread.
+    opened.length = 0;
+    read.length = 0;
+    tree = draw([row(1, "handoff", T1), row(2, "handoff", T1)], []);
+    globalThis.__notifs.read = (id) => read.push(id);
+    byClass(tree, "ta-main").props.onClick();
+    tree = again(() => globalThis.React.createElement(TodayAway, {}));
+    for (const n of notesOf(tree)) byClass(n, "ta-main").props.onClick();
+    assert.deepEqual(opened, [T1, T1]);
+    assert.deepEqual(read.sort(), ["n:1", "n:2"]);
+    // A row alone is as it was: one press reads it and opens it.
+    opened.length = 0;
+    read.length = 0;
+    tree = draw([row(1, "review", "reports/reviews")], []);
+    globalThis.__notifs.read = (id) => read.push(id);
+    byClass(tree, "ta-main").props.onClick();
+    assert.deepEqual([opened, read], [["reports/reviews"], ["n:1"]]);
+  } finally {
+    globalThis.appNavigate = kept;
+  }
+});
+
+test("the card and the bell group the same unread rows one way: bellSections is the one function; the card adds its warnings first and its cap", () => {
+  const calls = [
+    row(1, "call", "conversations/phone"),
+    row(2, "call", "conversations/phone"),
+    row(3, "call", "conversations/phone"),
+  ];
+  const mixed = [
+    ...calls,
+    row(4, "handoff", T1, { type: "conversation", id: "c1" }),
+    row(5, "handoff", T2, { type: "conversation", id: "c2" }),
+    row(6, "billing", "admin/billing"),
+    { ...row(7, "alert", "today"), unread: false },
+  ];
+  const away = todayAwayGrouped(mixed, [], 10).groups;
+  const bell = bellSections(mixed).find((s) => s.label === "New").lines;
+  const shape = (rows) => rows.map((g) => [g.row.id, g.count, g.title, g.members.map((m) => m.id)]);
+  assert.deepEqual(
+    shape(away),
+    shape(bell),
+    "the same lines, the same counts, the same words, the same notes under each",
+  );
+  assert.deepEqual(
+    away.map((g) => g.title),
+    ["3 calls", "2 conversations need you", null],
+    "three calls say three; a kind with no noun stands alone",
+  );
+  // What the card adds: a warning is never listed below good news, which the bell leaves in the order it came.
+  const news = { ...row(8, "leads_ready", "clients/leads"), tone: "ok" };
+  const sorted = todayAwayGrouped([news, ...mixed], [], 10).groups;
+  assert.equal(sorted.at(-1).row.id, "n:8", "the card puts good news last");
+  assert.equal(
+    bellSections([news, ...mixed]).find((s) => s.label === "New").lines[0].row.id,
+    "n:8",
+    "the bell does not",
+  );
+});
+
+test("a new review the card's line draws is not said again by the bell's notice of it; one it does not draw stands", () => {
+  const REV = "11111111-1111-4111-8111-111111111111";
+  const notice = (i, about) => ({
+    ...row(i, "review", "reports/reviews"),
+    tone: "ok",
+    title: "New on Google: ★★★★★ from Ana",
+    about,
+  });
+  const drawn = { review: { id: REV, reviewId: "g-ana" } };
+  const out = todayAwayGrouped(
+    [
+      notice(1, { type: "review", id: "g-ana" }),
+      notice(2, { type: "review", id: REV }),
+      notice(3, { type: "review", id: "g-bo" }),
+      { ...notice(4, null), title: "2 new reviews on Google" },
+    ],
+    [drawn],
+    5,
+  );
+  assert.deepEqual(
+    out.groups.flatMap((g) => g.members.map((m) => m.id)),
+    ["n:3", "n:4"],
+    "the notice kept about Google's id for the review and the one about its row are the line's; another review and a count are not",
+  );
+  assert.equal(out.queued, 2, "the two are counted in the head and the foot, as every row the page above holds is");
+  // A row of another kind about the same id is not a review's notice, and is never dropped for it.
+  const other = todayAwayGrouped([{ ...notice(5, { type: "review", id: REV }), kind: "billing" }], [drawn], 5);
+  assert.equal(other.groups.length, 1);
+});
+
+test("the card draws no review notice under the line: Today's Google surface is the line's, and an answered review has none", () => {
+  const REV = "11111111-1111-4111-8111-111111111111";
+  const hour = 3_600_000;
+  const at = (ago) => new Date(Date.now() - ago).toISOString();
+  const google = (over = {}) => ({
+    fetchedAt: Date.now(),
+    dto: {
+      ready: { places: true, profile: true },
+      listing: {
+        place_id: "p1",
+        name: "Northside Movers",
+        address: null,
+        maps_uri: null,
+        business_status: null,
+        rating: 4.8,
+        review_count: 12,
+        linked_at: at(90 * 24 * hour),
+        checked_at: at(hour),
+        check_error: null,
+      },
+      connection: null,
+      reviews: [
+        {
+          id: REV,
+          review_id: "g-ana",
+          origin: "profile",
+          rating: 5,
+          author: "Ana",
+          author_uri: null,
+          author_photo_uri: null,
+          body: "Careful movers.",
+          language_code: null,
+          published_at: at(2 * hour),
+          reply_text: null,
+          replied_at: null,
+          maps_uri: null,
+          first_seen_at: at(hour),
+          ...over,
+        },
+      ],
+      days: [],
+      reply_mode: "ask",
+    },
+  });
+  const notice = {
+    ...row(1, "review", "reports/reviews:" + REV),
+    tone: "ok",
+    title: "New on Google: ★★★★★ from Ana",
+    about: { type: "review", id: REV },
+  };
+  const away = (surface) => {
+    const rows = [notice];
+    fresh();
+    setSurfaceValue("google", surface);
+    globalThis.__notifs = { feed: () => rows, onChange: () => () => {}, read() {}, dismiss() {}, seenAll() {} };
+    setSurfaceValue("today", { queue: { rows: [] } });
+    return globalThis.React.createElement(TodayAway, {});
+  };
+  try {
+    const hidden = away(google());
+    assert.equal(all(hidden, (n) => n.props?.["data-testid"] === "today-away-row").length, 0, "the line has it");
+    assert.equal(textOf(byClass(hidden, "tq-count")).trim(), "1", "and the head still counts it: it is in the bell");
+    const answered = away(google({ reply_text: "Thank you, Ana.", replied_at: at(10 * 60_000) }));
+    assert.equal(
+      all(answered, (n) => n.props?.["data-testid"] === "today-away-row").length,
+      1,
+      "answered, the line has gone, and a notice the bell has not read stands for itself",
+    );
+  } finally {
+    setSurfaceValue("google", undefined);
+  }
 });

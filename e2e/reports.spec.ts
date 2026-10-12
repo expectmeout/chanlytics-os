@@ -74,7 +74,7 @@ async function hasReceptionistSeries(page: Page): Promise<boolean> {
  * convergeReceptionist: a week of Sam Example's conversation, two handovers resolved, a call nobody took and a send held at
  * the door). The strip is the frame's four figures; the hold, the topics, how calls ended, the time between steps and what
  * is stuck are the lens's own read, so they are waited for. A reason it stopped is no door (the Inbox takes no reason), and
- * "Waiting on you" is the Inbox's. The workspace has set no opening hours, so the closed figure is not a number: it says
+ * "Needs you" is the Inbox's. The workspace has set no opening hours, so the closed figure is not a number: it says
  * "—", asks for the hours, and its door is the page where they are set.
  *
  * And the automated email in Sam's conversation is a customer message by its row and nobody's words by its claim, so it is
@@ -108,7 +108,7 @@ async function theReceptionistLens(page: Page, report: Locator) {
     const stuck = report.getByTestId("receptionist-stuck");
     const waiting = stuck
       .locator(".figure")
-      .filter({ has: page.locator(".figure-label", { hasText: /^waiting on you$/i }) });
+      .filter({ has: page.locator(".figure-label", { hasText: /^needs you$/i }) });
     await expect(waiting.locator(".figure-value"), "a count, and 0 where nobody waits").toHaveText(/^\d+\+?$/);
     await expect(waiting.locator('a[href$="/inbox"]'), "and the Inbox is its door").toHaveCount(1);
 

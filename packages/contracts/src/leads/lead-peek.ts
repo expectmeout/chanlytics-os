@@ -14,7 +14,7 @@ import {
   leadWhere,
 } from "./lead-facts";
 import { CLOCK, clockIn, hourOf, milesLabel } from "./lead-helpers";
-import type { LeadSlot } from "./lead-row";
+import { leadRatingOf, type LeadSlot } from "./lead-row";
 import type { LeadSearchPlan } from "./search/plan";
 import type { LeadEmailState } from "./search/sets";
 import { roleAtLeast } from "../config/roles";
@@ -93,7 +93,14 @@ export interface LeadPeekVM {
    * "4.7" and "1,284", apart; null where the source does not rate. `low` is the one thing five bars said that an
    * average cannot, and it is null unless it is worth saying: see `leadLowShare`.
    */
-  rated: { score: string; count: string; low: string | null; spread?: { stars: number; pct: number }[] } | null;
+  rated: {
+    score: string;
+    count: string;
+    /** The count with its noun, said once for the peek, the card and Ask: "1 review", "1,284 reviews". */
+    reviews: string;
+    low: string | null;
+    spread?: { stars: number; pct: number }[];
+  } | null;
   /** The two reach slots, as the row wears them. */
   slots: { phone: LeadSlot; mailbox: LeadSlot };
   /** The week's hours as bars, in the listing's own order, today marked; [] when the listing showed no hours. */
@@ -112,6 +119,11 @@ export interface LeadPeekVM {
   distance: string;
   cls: LeadClass;
   stage: LeadStage;
+  /**
+   * The person this lead became (leads.contact_id), or null until it did: the peek's name and the row's Client pill open
+   * them in People (D1-lead-person-door), as the person's page opens the lead back.
+   */
+  contactId: string | null;
   stages: { id: "ready" | "nurture" | "converted"; label: string; on: boolean }[];
   canStage: boolean;
   notFitWord: string;
@@ -271,13 +283,26 @@ function foundWords(
  * did not.
  */
 function leadRated(r: LeadRowDto): LeadPeekVM["rated"] {
-  if (r.rating === null || r.rating === undefined) return null;
+  const base = leadRatingOf(r);
+  if (!base) return null;
   return {
-    score: r.rating.toFixed(1),
-    count: (r.reviews ?? 0).toLocaleString("en-US"),
+    ...base,
     low: leadLowShare(r.reviews_dist ?? null),
     ...(r.reviews_dist ? { spread: leadRatingSpread(r.reviews_dist) } : {}),
   };
+}
+
+/** The checks' head in a line: how many passed, couldn't tell and failed; nothing where none was made. */
+function checksSummaryOf(checks: ReadonlyArray<{ answer: string }>): string {
+  if (checks.length === 0) return "";
+  const passed = checks.filter((c) => c.answer === "yes").length;
+  const unsure = checks.filter((c) => c.answer === "unknown").length;
+  const failed = checks.filter((c) => c.answer === "no").length;
+  return [
+    `${passed} check${passed === 1 ? "" : "s"} passed`,
+    ...(unsure ? [`${unsure} couldn't tell`] : []),
+    ...(failed ? [`${failed} failed`] : []),
+  ].join(" · ");
 }
 
 export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: string, now: Date): LeadPeekVM {
@@ -335,23 +360,13 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
   const term = search?.plan.terms[0] ?? null;
   const where = foundWords(r, term);
   // D5: the peek re-cut -- the tile, the rating apart, the checks' head, the week, and the listing's facts.
-  const passed = m.checks.filter((c) => c.answer === "yes").length;
-  const unsure = m.checks.filter((c) => c.answer === "unknown").length;
-  const failed = m.checks.filter((c) => c.answer === "no").length;
-  const checksSummary =
-    m.checks.length === 0
-      ? ""
-      : [
-          `${passed} check${passed === 1 ? "" : "s"} passed`,
-          ...(unsure ? [`${unsure} couldn't tell`] : []),
-          ...(failed ? [`${failed} failed`] : []),
-        ].join(" · ");
+  const checksSummary = checksSummaryOf(m.checks);
   const week = leadWeekBars(r.hours ?? [], tz, now);
   const rated = leadRated(r);
   const facts: LeadPeekVM["facts"] = [
     ...(r.category ? [{ k: "Kind", v: r.category }] : []),
     ...(r.price ? [{ k: "Price", v: r.price }] : []),
-    ...(rated ? [{ k: "Rated", v: `${rated.score} from ${rated.count} review${r.reviews === 1 ? "" : "s"}` }] : []),
+    ...(rated ? [{ k: "Rated", v: `${rated.score} from ${rated.reviews}` }] : []),
     ...(r.claimed === true
       ? [{ k: "Listing", v: "Claimed by the owner" }]
       : r.claimed === false
@@ -388,6 +403,7 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
     sub,
     cls: m.class,
     stage: r.stage,
+    contactId: r.contact_id ?? null,
     stages: (["ready", "nurture", "converted"] as const).map((id) => ({
       id,
       label: LEAD_STAGE_WORDS[id],

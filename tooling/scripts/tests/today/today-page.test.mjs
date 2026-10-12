@@ -18,15 +18,12 @@ import {
   unreadCount,
   zoneDayKey,
   clockTime,
-  feedProblemWords,
   toPersonRowVM,
-  nextStepOf,
-  todaySteps,
   PEOPLE_LISTS,
   peopleListAction,
   stateOf,
   leadQuestionRoute,
-  lensRoute,
+  reviewRoute,
   LIFECYCLE_WORDS,
 } from "@chanlytics/contracts";
 import {
@@ -60,14 +57,12 @@ installLegacyReact({
   __surfaceFailed: (k) => failed.has(k),
   __refreshSurface: (k) => refreshed.push(k),
 });
-// One appointment on a list, the row Today's day and the Calendar's agenda both wear: the kit's (surfaces/kit/agenda), drawn by name.
+// The kit's parts the pages here draw by name or the tests reach (kitParts: the attention row, the record kit ...).
 Object.assign(globalThis.window, kitPages);
-for (const k of ["AgendaItem", "AgendaItems", "AgendaOpen"]) globalThis[k] = globalThis.window[k];
 const { HeroBrief } = await import("../../../../apps/dashboard/src/surfaces/today/pages/brief.tsx");
 const { TodayCard } = await import("../../../../apps/dashboard/src/surfaces/today/pages/card.tsx");
 const { TodaySetup } = await import("../../../../apps/dashboard/src/surfaces/today/pages/setup-card.tsx");
 const { AgentCommand } = await import("../../../../apps/dashboard/src/surfaces/today/pages/queue.tsx");
-const { TodayDay } = await import("../../../../apps/dashboard/src/surfaces/today/pages/day.tsx");
 const { TodayLeaks } = await import("../../../../apps/dashboard/src/surfaces/today/pages/leaks.tsx");
 const { TodayPins } = await import("../../../../apps/dashboard/src/surfaces/today/pages/pins.tsx");
 const { TodayAway } = await import("../../../../apps/dashboard/src/surfaces/today/pages/away.tsx");
@@ -627,8 +622,9 @@ test("a review that landed this morning is a line in the brief, and its one door
     const door = buttons(line, "Open Reports");
     assert.equal(door.length, 1, "one door");
     press(door[0]);
-    assert.equal(went.at(-1), lensRoute("reviews"), "the lens that draws the review, not the Overview");
-    assert.equal(went.at(-1), "reports/reviews");
+    // The line opens that review in the lens, with its reply box (contracts reviewRoute), not the lens at its top.
+    assert.equal(went.at(-1), reviewRoute("11111111-1111-4111-8111-111111111111"));
+    assert.equal(went.at(-1), "reports/reviews:11111111-1111-4111-8111-111111111111");
   } finally {
     setSurfaceValue("google", undefined);
   }
@@ -1083,11 +1079,11 @@ test("a search waiting on you is a row of the queue like a person: its name, its
 
 test("the day listens for People too: it reads People for a visit that needs someone and a person's channel, and on a cold boot People lands last", () => {
   // The boot reads what Today draws right after its own surface, People last (surface-registry.ts ROUTE_DRAWS):
-  // the card drew once with the calendar and never again, so the flag and the glyphs a person's row carries were
-  // missing until something else redrew it.
+  // the day drew once with the calendar and never again, so the flag and the glyphs a person's row carries were
+  // missing until something else redrew it. The strip and the brief read the one derivation (day.tsx useDayVm).
   clear();
   set({ today: busy(), __CALENDAR: calendar([block("b9", 9, "Slot 9")]), __PLAYBOOKS: noPlaybooks() });
-  draw(TodayDay);
+  draw(TodayStrip);
   for (const key of ["calendar", "playbooks", "people"]) {
     quiet();
     surfaceLanded(key);
@@ -1107,10 +1103,11 @@ test("each band of Today is drawn again when a surface it draws from lands, and 
     ["the alert line", HeroBrief, ["today"]],
     ["the day's card", TodayCard, ["today", "reports_headline"]],
     ["the setup card", TodaySetup, ["setup"]],
-    ["the queue", AgentCommand, ["today", "broadcasts", "live"]],
+    // The queue's head is the one count of what needs you (0048), made of the Inbox's threads; its visits to mark are the Calendar's.
+    ["the queue", AgentCommand, ["today", "broadcasts", "live", "people", "calendar", "inbox"]],
     ["Worth a look", TodayLeaks, ["reports_headline", "people", "today"]],
     ["the pins", TodayPins, ["people"]],
-    ["the day", TodayDay, ["calendar", "playbooks", "people"]],
+    ["the strip, which reads the day", TodayStrip, ["live", "calendar", "playbooks", "people"]],
   ];
   for (const [name, Band, drawnFrom] of bands) {
     draw(Band);
@@ -1119,151 +1116,11 @@ test("each band of Today is drawn again when a surface it draws from lands, and 
       surfaceLanded(key);
       assert.ok(redrawWanted(), `${name} is drawn again when ${key} lands`);
     }
-    for (const stranger of ["billing", "inbox", "conversations"]) {
+    for (const stranger of ["billing", "inbox", "conversations"].filter((s) => !drawnFrom.includes(s))) {
       quiet();
       surfaceLanded(stranger);
       assert.ok(!redrawWanted(), `${name} is not drawn again for ${stranger}`);
     }
-  }
-});
-
-test("the day: five rows and a line to the Calendar; a failed calendar read says so where the day would be", () => {
-  clear();
-  set({
-    today: busy(),
-    __CALENDAR: calendar([8, 9, 10, 11, 13, 14, 17].map((h) => block(`b${h}`, h, `Slot ${h}`))),
-    __PLAYBOOKS: noPlaybooks(),
-  });
-  const tree = draw(TodayDay);
-  assert.equal(all(tree, (n) => n.props?.["data-testid"] === "today-day-item").length, 5);
-  const more = byTestId(tree, "today-day-more");
-  assert.equal(textOf(more).trim(), "2 more on the Calendar");
-  press(more);
-  assert.equal(went.at(-1), "calendar");
-  set({ __CALENDAR: undefined });
-  failed.add("calendar");
-  const broke = draw(TodayDay);
-  assert.ok(byTestId(broke, "today-day-failed"));
-  assert.match(textOf(broke), /Couldn't read the calendar/);
-  failed.clear();
-  assert.equal(draw(TodayDay).rendered, null, "not read yet: the Calendar page's card says why");
-});
-
-test("a calendar it HAS and could not read says so where the day goes: the feed's own words, the Retry, the door", () => {
-  clear();
-  const c = calendar([]);
-  c.vm.feed = { ...c.vm.feed, state: "unavailable", problem: feedProblemWords("settings"), events: 0 };
-  set({ today: busy(), __CALENDAR: c, __PLAYBOOKS: noPlaybooks() });
-  const card = byTestId(draw(TodayDay), "today-day-unreadable");
-  // REGRESSION: this returned null. A working day and a broken feed drew exactly the same thing — nothing —
-  // so a bad calendar address survived two rounds of being looked straight at.
-  assert.ok(card, "the card is there");
-  const words = textOf(card);
-  assert.ok(words.includes("Couldn't read the calendar"), words);
-  assert.ok(words.includes(feedProblemWords("settings")), "the feed's own sentence, which names what to do");
-  assert.ok(
-    words.includes("The queue and the day's numbers are current"),
-    "what is beside it came from other reads and still stands",
-  );
-  press(byTestId(card, "today-day-unreadable-read-retry"));
-  assert.deepEqual(refreshed, ["calendar"], "one Retry, and it re-reads the calendar surface");
-  press(byTestId(card, "today-day-unreadable-open"));
-  assert.equal(went.at(-1), "calendar", "and a door to where the address lives");
-
-  // No calendar at all is not a fault: nothing failed, there is nothing to retry, and the invitation to connect
-  // one is the Calendar page's card to make — not a red word on a page about today's work.
-  c.vm.feed = { ...c.vm.feed, present: false, state: "none", problem: null };
-  assert.equal(draw(TodayDay).rendered, null, "no feed stays silent");
-});
-
-test("the steps due at the head of the day: three at most, the oldest first, each opening its person, the rest a line to People's Steps due; with no calendar the panel is the steps alone", () => {
-  clear();
-  const nowMs = Date.now();
-  const day = (d) => zoneDayKey(nowMs + d * 86_400_000, ZONE);
-  const row = (id, name, d, forName = null) => ({
-    id,
-    name,
-    nextStep:
-      d === null
-        ? null
-        : nextStepOf(
-            {
-              step_id: `s-${id}`,
-              step_body: `Call ${name}`,
-              step_due_on: day(d),
-              step_for_user_id: forName ? `u-${forName}` : null,
-              step_for_name: forName,
-            },
-            ZONE,
-            nowMs,
-          ),
-  });
-  const rows = [
-    row("a", "Ana", -3),
-    row("b", "Ben", 0),
-    row("c", "Cy", -1),
-    row("d", "Di", -5, "Maria"),
-    row("e", "Eli", 2),
-    row("f", "Flo", null),
-  ];
-  const clock = W.__clock;
-  W.__clock = { ...clock, zone: () => ZONE };
-  try {
-    set({ today: busy(), __PLAYBOOKS: noPlaybooks(), __PEOPLE: { rows, fetchedAt: nowMs } });
-    const want = todaySteps(rows, nowMs, ZONE);
-    const alone = byTestId(draw(TodayDay), "today-day-steps");
-    assert.ok(alone, "no calendar: the panel is the steps alone");
-    assert.equal(textOf(find(alone, (n) => classes(n).includes("td-frame-label"))), want.title);
-    const items = all(alone, (n) => n.props?.["data-testid"] === "today-step");
-    assert.deepEqual(
-      items.map((i) =>
-        ["td-step-who", "td-step-words", "td-step-when"].map((c) => textOf(find(i, (n) => classes(n).includes(c)))),
-      ),
-      want.items.map((s) => [s.name, s.words, s.when]),
-    );
-    assert.deepEqual(
-      want.items.map((s) => s.name),
-      ["Di", "Ana", "Cy"],
-      "the oldest day first, three at most",
-    );
-    assert.equal(textOf(find(items[0], (n) => classes(n).includes("td-step-for"))), "For Maria", "whose it is");
-    press(items[0]);
-    assert.equal(went.at(-1), "clients/d", "a step opens its person");
-    const more = byTestId(alone, "today-steps-more");
-    assert.equal(textOf(more).trim(), want.more.words);
-    press(more);
-    assert.equal(went.at(-1), "clients/seg:steps_due", "the rest: People's Steps due");
-    // With a calendar, at the head of the day: before its first frame.
-    set({ __CALENDAR: calendar([block("b9", 9, "Slot 9")]) });
-    const dayCard = byTestId(draw(TodayDay), "today-day");
-    assert.deepEqual(
-      all(dayCard, (n) => ["today-steps", "today-day-frame"].includes(n.props?.["data-testid"]))
-        .map((n) => n.props["data-testid"])
-        .slice(0, 2),
-      ["today-steps", "today-day-frame"],
-    );
-    // A calendar read that failed says so under the steps, which are People's and still true.
-    set({ __CALENDAR: undefined });
-    failed.add("calendar");
-    const broke = byTestId(draw(TodayDay), "today-day-failed");
-    assert.ok(byTestId(broke, "today-steps") && byTestId(broke, "today-day-failed-read"));
-    failed.clear();
-    // A feed it has and could not read: the steps, then what went wrong. None connected: the steps alone.
-    const cal = calendar([]);
-    cal.vm.feed = { ...cal.vm.feed, state: "unavailable", problem: feedProblemWords("settings"), events: 0 };
-    set({ __CALENDAR: cal });
-    assert.ok(byTestId(byTestId(draw(TodayDay), "today-day-unreadable"), "today-steps"));
-    cal.vm.feed = { ...cal.vm.feed, present: false, state: "none", problem: null };
-    assert.ok(byTestId(draw(TodayDay), "today-day-steps"), "no feed: the steps alone, never nothing");
-    set({ __CALENDAR: undefined });
-    // Judged when People's rows were published, as every page judges a step: six days ago, none was due yet.
-    set({ __PEOPLE: { rows, fetchedAt: nowMs - 6 * 86_400_000 } });
-    assert.equal(draw(TodayDay).rendered, null, "one clock: People's");
-    // None due: nothing, and without a calendar nothing at all.
-    set({ __PEOPLE: { rows: [row("e", "Eli", 2), row("f", "Flo", null)] } });
-    assert.equal(draw(TodayDay).rendered, null);
-  } finally {
-    W.__clock = clock;
   }
 });
 
@@ -1604,7 +1461,7 @@ test("worth a look where deals are on: the consultations row names the count's o
   assert.equal(want.text, "3 consultations in the last week ended with no proposal yet.");
   assert.equal(
     textOf(find(row, (n) => classes(n).includes("tl-people-lead"))),
-    "Held with",
+    "Consultation with",
     "not 'Waiting now': these are the count's own people, and the lead is contracts'",
   );
   const chips = all(row, (n) => classes(n).includes("tl-person"));
@@ -2077,7 +1934,7 @@ test("the brief: who needs you in bold with the oldest wait, the calendar's day,
   assert.ok(bold.includes("Dulce Amaro"));
   // Then what came in (the recap's line), then the run waiting for a word, its name in bold.
   assert.ok(said.includes(busy().recap.line), said);
-  assert.match(said, /Win-back is waiting for your word: .*Nothing sends until you say so\./, said);
+  assert.match(said, /Win-back is waiting for your approval: .*Nothing sends until you say so\./, said);
   assert.ok(bold.includes("Win-back"));
   // The same words are what the follow-up asks about.
   press(buttons(tree, "Ask a follow-up")[0]);

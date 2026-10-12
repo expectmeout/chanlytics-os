@@ -46,7 +46,13 @@ export async function openInbound(input: InboundInput, ports: InboundPorts) {
   const fallbacks = brainCfg ? fallbackMessages(brainCfg, rt?.known) : null;
   const notif: NotificationsConfig | null = rt?.notifications ?? null;
   // One addressing decision per message, reused by every alert below.
-  const notifyTarget: InboundHandoff["target"] = { tenantId, notifications: notif, isEnvDefault };
+  const notifyTarget: InboundHandoff["target"] = {
+    tenantId,
+    notifications: notif,
+    isEnvDefault,
+    // Read with the runtime, so an alert's mail links the workspace's page without a read of its own.
+    ...(rt?.slug !== undefined ? { slug: rt.slug } : {}),
+  };
   const replyLimits = rt?.policy["reply"]?.limits ?? {};
   const maxRepliesDay = replyLimits.max_replies_day ?? MAX_REPLIES_PER_DAY;
   const pauseMs = pauseMsOf(replyLimits);

@@ -13,6 +13,7 @@ import type { ReactNode } from "react";
 import {
   CAMPAIGN_ROOMS,
   LIFECYCLE_WORDS,
+  LIST_GROUP_WORDS,
   NO_TEMPLATE_WORDS,
   PREVIEW_WORDS,
   STARTER_LINE_WORDS,
@@ -111,7 +112,7 @@ function bcCallouts(v: BcV) {
         <FailedRead
           kind="line"
           what="your saved lists"
-          body="People's lists are current; the lists you made are missing until they read."
+          body={`${LIST_GROUP_WORDS.builtin} are current; ${LIST_GROUP_WORDS.own.toLowerCase()} are missing until they read.`}
           surface="broadcasts"
           testid="bc-lists-failed"
         />
@@ -397,7 +398,7 @@ function bcMessage(v: BcV) {
   return (
     <div className="bc-col bc-col-what" data-testid="bc-col-what">
       {!templatesRead && (
-        <FailedRead kind="line" what="your templates" surface="broadcasts" testid="bc-templates-failed" />
+        <FailedRead kind="line" what="your templates" surface="settings" testid="bc-templates-failed" />
       )}
       {templatesRead && templates.length === 0 && bcNoMessage(v)}
       {/* With nothing to pick, the reason the library's messages are not offered has no list to stand under. */}

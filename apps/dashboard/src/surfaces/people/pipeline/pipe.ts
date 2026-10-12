@@ -4,6 +4,7 @@
  * once.
  */
 import type { PipelineGroupKey, PipelineRowVM } from "@chanlytics/contracts";
+import { windowValue } from "../../legacy-verbs";
 import { pipelineHelpers } from "../pipeline-helpers";
 
 export const P = pipelineHelpers();
@@ -13,7 +14,7 @@ export const P = pipelineHelpers();
  * deal's acts only where there is one, as it always did. The ask itself is legacy-verbs.ts `openDealSheet`.
  */
 export function dealSheetOffered(): boolean {
-  return typeof Reflect.get(window, "openDealSheet") === "function";
+  return typeof windowValue("openDealSheet") === "function";
 }
 
 /** One group of the Pipeline as the table and the board draw it: its rows, and whether (and how) it folds. */

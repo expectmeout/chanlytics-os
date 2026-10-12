@@ -18,10 +18,13 @@ function nextOf(items: TodayDayItemVM[]): TodayDayItemVM | null {
   return items.find((b) => b.phase === "now") ?? items.find((b) => b.phase === "next") ?? null;
 }
 
-/** "Dulce Amaro · Color · 1h 30m": who or what, and how long; the start stands before it, in bold. */
+/**
+ * "Dulce Amaro · Color · 1h 30m": who or what, and how long; the start stands before it, in bold. A visit a member said
+ * kept and still under way says so ("· Kept"); one said missed is never here (nextOf), nor one said cancelled (todayDay).
+ */
 function nextRest(b: TodayDayItemVM): string {
   const what = b.person ? [b.person.name, b.service].filter(Boolean) : [b.service];
-  return [what.join(" · "), b.dur].filter(Boolean).join(" · ");
+  return [what.join(" · "), b.dur, b.said?.word].filter(Boolean).join(" · ");
 }
 
 /** The eight bars that move while a call lasts (E3's waveform): drawn once, moved by the sheet. */

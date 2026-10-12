@@ -138,6 +138,12 @@ A route that has left the shell says the product's word in its path, `/w/<slug>/
 `ROUTE_WORDS`: the shell's `clients` and `segments`); the column above is what the shell's own code and the old hash
 address still say, and either old name lands on the word for ever (`movedAddress`).
 
+A link to a record is written once: contracts' `addressOf` (`packages/contracts/src/activity/record-address.ts`) says where
+each kind of record opens (a person, a thread, a call, a visit, a list, a lead, a campaign, a run, a message of the Library,
+the reviews, the lines, the team), and the dashboard's address registry (`apps/dashboard/src/surfaces/addresses.ts`) holds each
+page's own parse of what it opens, so a writer and its page are held to each other (`tooling/scripts/tests/links/`). A link to a
+thread or a call older than the page's newest hundred reads that one by its id.
+
 ## Words to avoid
 
 - **Salon, stylist, visit** as product words. The first workspace was a salon

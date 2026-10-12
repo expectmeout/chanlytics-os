@@ -136,15 +136,15 @@ async function running({ debounceMs = 1, fresh = [] } = {}) {
   };
 }
 
-test("a message re-reads the Inbox, Conversations and Today, not the four surfaces nobody is looking at", async () => {
+test("a message re-reads the Inbox, Conversations and Today, and the headline Today owns, not the surfaces nobody is looking at", async () => {
   win.location.hash = "#/today";
   const r = await running();
   try {
     await r.message();
     assert.deepEqual(
       [...r.asked].sort(),
-      ["conversations", "inbox", "today"],
-      "REGRESSION: seven surfaces per message",
+      ["conversations", "inbox", "reports_headline", "today"],
+      "REGRESSION: seven surfaces per message (People, Reports, Broadcasts and Playbooks are not Today's to read)",
     );
   } finally {
     r.stop();
@@ -190,7 +190,11 @@ test("a notice reaches the surfaces as the live feed decodes it: each status it 
     await r.notice({ table: "messages", op: "UPDATE", statuses: ["received"] });
     assert.deepEqual(r.asked, [], "an arrival's stamp is nobody's tick");
     await r.notice({ table: "messages", op: "INSERT" });
-    assert.deepEqual([...r.asked].sort(), ["conversations", "inbox", "today"], "an arrival is read as ever");
+    assert.deepEqual(
+      [...r.asked].sort(),
+      ["conversations", "inbox", "reports_headline", "today"],
+      "an arrival is read as ever, and Worth a look with it",
+    );
   } finally {
     r.stop();
   }
@@ -338,7 +342,7 @@ test("Campaigns' home owns what it draws but Sent's runs: a message re-reads the
     r.asked.length = 0;
     await r.message();
     await r.message();
-    assert.deepEqual([...new Set(r.asked)].sort(), ["conversations", "inbox", "today"]);
+    assert.deepEqual([...new Set(r.asked)].sort(), ["conversations", "inbox", "reports_headline", "today"]);
     r.asked.length = 0;
 
     win.location.hash = "#/campaigns";
@@ -434,6 +438,9 @@ test("the Receptionist lens hears messages, escalations and calls only while it 
       ["escalations", "INSERT"],
       ["escalations", "UPDATE"],
       ["calls", "INSERT"],
+      // The people it reached are counted from the book, and "while you were closed" from the hours the settings hold (0047).
+      ["contacts", "UPDATE"],
+      ["tenant_config", "UPDATE"],
     ]) {
       r.asked.length = 0;
       await r.change(table, event);
@@ -455,7 +462,7 @@ test("the Receptionist lens hears messages, escalations and calls only while it 
       assert.equal(r.asked.includes("today"), false, "nor Today");
     }
     // It is told of no table it does not name: a review is the Reviews lens's, and a conversation's own row moves no figure here.
-    for (const table of ["google_reviews", "conversations", "contacts"]) {
+    for (const table of ["google_reviews", "conversations"]) {
       r.asked.length = 0;
       await r.change(table, "UPDATE");
       assert.deepEqual(lensReads(), [], `${table}: not the lens's`);
@@ -527,6 +534,14 @@ test("the People lens hears messages, calls and notes only while it is on screen
       ["person_notes", "INSERT"],
       ["person_notes", "UPDATE"],
       ["person_notes", "DELETE"],
+      // The book, counted by what each person said and whether they can be reached (0047): the postal address, and the number, the
+      // text line and the mailbox they are reached on.
+      ["contacts", "INSERT"],
+      ["contacts", "UPDATE"],
+      ["tenant_config", "UPDATE"],
+      ["tenant_channels", "UPDATE"],
+      ["lines", "UPDATE"],
+      ["mailboxes", "UPDATE"],
     ]) {
       r.asked.length = 0;
       await r.change(table, event);
@@ -551,8 +566,8 @@ test("the People lens hears messages, calls and notes only while it is on screen
       await r.change("messages", "UPDATE", status);
       assert.deepEqual(lensReads(), [], `a message ${status}: not the lens's`);
     }
-    // It is told of no table it does not name: an escalation, a conversation's own row, a person's, a review.
-    for (const table of ["escalations", "conversations", "contacts", "google_reviews"]) {
+    // It is told of no table it does not name: an escalation, a conversation's own row, a review.
+    for (const table of ["escalations", "conversations", "google_reviews"]) {
       r.asked.length = 0;
       await r.change(table, "UPDATE");
       assert.deepEqual(lensReads(), [], `${table}: not the lens's`);
@@ -636,6 +651,10 @@ test("the Campaigns lens hears messages, conversations, escalations and runs onl
       ["escalations", "UPDATE"],
       ["broadcasts", "INSERT"],
       ["broadcasts", "UPDATE"],
+      // A reach-out's reply read or undone, the number's standing and a sending domain.
+      ["reach_out_replies", "INSERT"],
+      ["tenant_channels", "UPDATE"],
+      ["sending_domains", "UPDATE"],
     ]) {
       r.asked.length = 0;
       await r.change(table, event);
@@ -648,7 +667,7 @@ test("the Campaigns lens hears messages, conversations, escalations and runs onl
       assert.deepEqual(lensReads(), [], `a message ${status}: not the lens's`);
     }
     // It is told of no table it does not name: a call (a call is the Receptionist's and the People lens's), a note, a review, a person's row.
-    for (const table of ["calls", "person_notes", "contacts", "google_reviews", "deals"]) {
+    for (const table of ["calls", "person_notes", "contacts", "google_reviews", "deals", "lines", "mailboxes"]) {
       r.asked.length = 0;
       await r.change(table, "UPDATE");
       assert.deepEqual(lensReads(), [], `${table}: not the lens's`);
@@ -733,7 +752,7 @@ test("the Campaigns lens hears messages, conversations, escalations and runs onl
   }
 });
 
-test("the page that owns what it draws is an explicit one: the surface registry names Campaigns' home and Reports' Reviews, Receptionist, People and Campaigns lenses, and no other page's draws are owned", async () => {
+test("the page that owns what it draws is an explicit one: the surface registry names Campaigns' home, Today's headline and Reports' Reviews, Receptionist, People and Campaigns lenses, and no other page's draws are owned", async () => {
   const owns = (key, route) => registry.ownsTheScreen(key, route);
   // Reports owns what it names for a lens, and that lens alone: Reviews' read, and no other of its pages or lenses.
   assert.equal(owns("reports_reviews", "reports/reviews"), true);
@@ -788,14 +807,29 @@ test("the page that owns what it draws is an explicit one: the surface registry 
   for (const key of ["playbooks", "campaign_results"]) assert.equal(owns(key, "campaigns"), true, key);
   assert.equal(owns("broadcasts", "campaigns"), false, "Sent's runs are drawn on the home and re-read on Sent");
   // The reach-outs are drawn on the home too; they have no table of their own to refresh on a message, but a route that
-  // draws them owns them for the refreshes that name a page. Settings is no longer drawn there.
+  // draws them owns them for the refreshes that name a page. Settings is drawn there again: the templates a composer offers
+  // and the Library counts are the settings read's, the one read of them (surfaces/offered-templates.ts).
   assert.equal(owns("reach_outs", "campaigns/new"), true);
-  assert.equal(owns("settings", "campaigns/new"), false);
+  assert.equal(owns("settings", "campaigns/new"), true);
   for (const key of ["people", "reports", "calendar"]) assert.equal(owns(key, "campaigns"), false, key);
-  // Today draws a good many surfaces and owns only its own.
-  for (const key of ["broadcasts", "reports", "playbooks", "people", "calendar"])
+  // Today draws a good many surfaces and owns its own, the headline its period line and Worth a look are printed from (it hears the
+  // feed there, a long wait later: reports/headline.ts), and the replies to a reach-out its queue draws.
+  for (const key of [
+    "broadcasts",
+    "reports",
+    "playbooks",
+    "people",
+    "calendar",
+    "setup",
+    "notifications",
+    "live",
+    "google",
+  ])
     assert.equal(owns(key, "today"), false, `today does not own ${key}`);
   assert.equal(owns("today", "today"), true);
+  for (const key of ["reports_headline", "reach_out_replies"]) assert.equal(owns(key, "today"), true, key);
+  for (const route of ["inbox", "clients", "calendar", "campaigns", "reports"])
+    assert.equal(owns("reports_headline", route), false, `${route} does not own the headline`);
   assert.equal(owns("broadcasts", "broadcasts/run:b-1"), true);
 });
 

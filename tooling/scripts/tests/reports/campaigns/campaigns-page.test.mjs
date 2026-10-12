@@ -840,7 +840,7 @@ test("what is stuck wears its tone and opens its door; with every count at 0 no 
   assert.deepEqual(metricsOf(strip), STUCK_METRICS);
   assert.deepEqual(
     metricsOf(strip).map((m) => figureProps(tree, m).label),
-    ["Runs waiting for you", "Failed runs", "Replies waiting on you", "Messages Meta stopped", "Your WhatsApp number"],
+    ["Runs waiting for you", "Failed runs", "Replies that need you", "Messages Meta stopped", "Your WhatsApp number"],
   );
   assert.deepEqual(
     metricsOf(strip).map((m) => valueOf(tree, m)),
@@ -853,7 +853,13 @@ test("what is stuck wears its tone and opens its door; with every count at 0 no 
   );
   assert.deepEqual(
     STUCK_METRICS.map((m) => hrefOf(tree, m)),
-    ["#/campaigns", "#/broadcasts", "#/inbox", "#/messages", "#/admin/integrations"],
+    [
+      "/w/studio/campaigns",
+      "/w/studio/broadcasts",
+      "/w/studio/inbox",
+      "/w/studio/templates",
+      "/w/studio/settings/integrations",
+    ],
     "a door each",
   );
   // The words under each number are the fold's, and the tone is drawn by the kit (is-warn, is-fail).
@@ -881,7 +887,7 @@ test("what is stuck wears its tone and opens its door; with every count at 0 no 
   const none = numberAs({ state: "none" });
   assert.deepEqual([valueOf(none, "number_health"), toneOf(none, "number_health")], ["—", undefined]);
   assert.equal(figureProps(none, "number_health").meta, "no WhatsApp number is connected");
-  assert.equal(hrefOf(none, "number_health"), "#/admin/integrations", "and where to connect one");
+  assert.equal(hrefOf(none, "number_health"), "/w/studio/settings/integrations", "and where to connect one");
   // Nothing stuck: a count that is zero is a 0, no figure wears a tone, and only the number says a word.
   const calm = draw({ own: own({ ledger: dtoWith({}, NOTHING_STUCK) }) });
   assert.deepEqual(
@@ -898,7 +904,7 @@ test("what is stuck wears its tone and opens its door; with every count at 0 no 
     all(byTestId(calm, "campaigns-stuck-strip"), (n) => /^is-(warn|fail)$/.test(classes(n).join(" "))).length,
     0,
   );
-  assert.equal(hrefOf(calm, "runs_waiting"), "#/campaigns", "the door is still there at 0");
+  assert.equal(hrefOf(calm, "runs_waiting"), "/w/studio/campaigns", "the door is still there at 0");
   // A list the database cut at 500 is a floor, said as one.
   const capped = draw({
     own: own({ ledger: dtoWith({}, stuckWith({ waiting: { n: 500, late: 2, oldest_at: null, capped: true } })) }),
@@ -1092,7 +1098,7 @@ test("the sources say a business once: the Businesses column, a door on a reach-
   );
   assert.deepEqual(
     doors.map((d) => d.props.href),
-    ["#/outbound/r1", "#/outbound/r2"],
+    ["/w/studio/campaigns/moment:r1", "/w/studio/campaigns/moment:r2"],
   );
   navigated.length = 0;
   press(doors[0]);

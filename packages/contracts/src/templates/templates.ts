@@ -9,9 +9,27 @@
  * function the page previews with.
  */
 import { clockDate } from "../shared/clock";
+import { isIdentifierName } from "../conversations/thread-contact";
+import type { TemplateStatus } from "../shared/enums";
+import { RUN_WAITING_WORDS } from "../shell/campaign-rooms";
 import { agoWords } from "../shared/time";
 import { isCount, recordOrNull } from "../shared/unknown";
 import { WHATSAPP_LANGUAGES } from "./template-languages";
+
+/**
+ * Where WhatsApp has a message's version, in the owner's words, once (D1-template-marks). A refusal read "Rejected" on the
+ * Library's pill, "refused" in its standing line and the Inbox picker, and "rejected" on the bell, and the row tag lower-cased
+ * the pill's. "Refused" is the word the sentences already said; the pill (tone.ts), the Library's per-channel standing
+ * (campaign-message.ts), the Inbox picker's reasons (inbox-templates.ts), the Reports tile's names and the bell all read
+ * this, lower-cased where they stand in a sentence.
+ */
+export const TEMPLATE_STATUS_WORDS: Record<TemplateStatus, string> = {
+  approved: "Approved",
+  pending: "In review",
+  rejected: "Refused",
+  paused: "Paused",
+  disabled: "Disabled",
+};
 
 /**
  * The languages a template may be written in: every one WhatsApp takes
@@ -301,13 +319,13 @@ export interface ParamFacts {
   proposalLink?: string | null;
 }
 
-/** The first name a message may use, or null when all that is on file is a number. */
+/** The first name a message may use, or null when all that is on file is a number or an address (isIdentifierName, the one test). */
 export function firstNameOf(
   displayName: string | null | undefined,
   waProfileName: string | null | undefined,
 ): string | null {
   const raw = (displayName || waProfileName || "").trim();
-  if (!raw || /^[+\d(]/.test(raw)) return null;
+  if (!raw || isIdentifierName(raw)) return null;
   const first = raw.split(/\s+/)[0].replace(/[^\p{L}\p{M}'’-]/gu, "");
   return first ? first.slice(0, 30) : null;
 }
@@ -469,7 +487,7 @@ export function templateUseWords(use: TemplateUse | null | undefined): string {
  */
 export function templateUseNote(use: TemplateUse | null | undefined): string | null {
   const u = use ?? NOTHING;
-  if (u.playbooks.some((p) => p.waiting)) return "a run is waiting on you";
+  if (u.playbooks.some((p) => p.waiting)) return `a run is ${RUN_WAITING_WORDS.toLowerCase()}`;
   if (u.playbooks.length === 1) return u.playbooks[0].paused ? "paused — nothing goes out" : u.playbooks[0].runs;
   if (u.playbooks.length > 1) return u.playbooks.every((p) => p.paused) ? "all paused — nothing goes out" : null;
   if (u.recent.length > 0)

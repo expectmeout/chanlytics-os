@@ -162,8 +162,8 @@ function playbookStage(base: StageBase, p: LifecyclePlaybook): LifecycleStage {
     phoneWords: s.short,
     tone: s.tone,
     covered: state === "on",
-    // On, and a run of it waits for the person: the node is a clock (the pill beside it says "Waiting on you").
-    waits: state === "on" && !!p.totals.waiting,
+    // A run of it waits for the person, paused or not: the node is a clock (the pill beside it says so, lifecycleStateOf).
+    waits: state !== "not_here" && !!p.totals.waiting,
     act: { kind: "open", label: "Open", playbookId: p.id },
   };
 }

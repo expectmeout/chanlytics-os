@@ -22,6 +22,7 @@ import {
   lensesFor,
   reportsParamParts,
   reportsRouteParts,
+  reviewRoute,
   toDealReportVM,
   toReportVM,
   toReviewsReportVM,
@@ -109,6 +110,22 @@ test("a lens is an address: the Overview is /reports, every other /reports/<lens
   assert.ok(isLensParam("pipeline") && !isLensParam("overview") && !isLensParam("usage"));
 });
 
+test("one review is an address of the Reviews lens: reports/reviews:<id>, the row's uuid, and nothing else after the colon is a review", () => {
+  const id = "3f2a9c1e-5b7d-4e8a-9c0b-1d2e3f4a5b6c";
+  assert.equal(reviewRoute(id), `reports/reviews:${id}`);
+  assert.deepEqual(reportsParamParts(`reviews:${id}`), { lens: "reviews", days: null, review: id });
+  assert.deepEqual(reportsRouteParts(`reports/reviews:${id}`), { lens: "reviews", days: null, review: id });
+  assert.equal(lensOfRoute(`reports/reviews:${id}`), "reviews", "it is the lens, with a review open");
+  // The lens alone, and over days, name no review.
+  assert.deepEqual(reportsParamParts("reviews"), { lens: "reviews", days: null, review: null });
+  assert.equal(reportsParamParts("reviews:2026-09-01~2026-09-20")?.review, null);
+  // A word after the colon that is no uuid is no address of Reports', and another lens takes no review.
+  for (const no of [`reviews:r-ana`, "reviews:", `people:${id}`, `receptionist:${id}`, `${id}`])
+    assert.equal(reportsParamParts(no), null, no);
+  // Google's own id for a review is no address any page parses: it opens the lens, never a page that is not there.
+  assert.equal(reviewRoute("r-ana"), lensRoute("reviews"));
+});
+
 test("Pipeline is shown where deals are on, Ads where ads are on, and nowhere else; the other five are shown to every member", () => {
   const ids = (who) => lensesFor(who).map((l) => l.id);
   const WITHOUT_ADS = REPORT_LENSES.map((l) => l.id).filter((id) => id !== "ads");
@@ -189,13 +206,14 @@ test("Ads' address says the days and what it is narrowed to, after the lens: eve
   }
   assert.deepEqual(
     reportsRouteParts(`reports/ads:${KEY}`),
-    { lens: "ads", days: DAYS },
+    { lens: "ads", days: DAYS, review: null },
     "every ad: no scope in the parts",
   );
   assert.deepEqual(reportsParamParts(`ads:${KEY}:platform:google`), {
     lens: "ads",
     days: DAYS,
     scope: { kind: "platform", platform: "google" },
+    review: null,
   });
   for (const no of [
     "ads:",

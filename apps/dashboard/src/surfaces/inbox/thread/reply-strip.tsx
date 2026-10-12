@@ -13,6 +13,7 @@ import { gate, refusalToast, useToast } from "../shell";
 import { detailField, repliesDoor, type StripThread } from "./shell-thread";
 import type { Thread } from "../types";
 import { Button } from "../../kit/button/button";
+import { StatePill } from "../../kit/pill/state-pill";
 
 /** The composer's side of "Use the draft": the draft for this thread, put in the reply box when the strip asks. */
 export const useReplyDraftDoor = (threadId: string | null, write: (text: string) => void) => {
@@ -44,11 +45,9 @@ export const ReplyChip = ({ thread }: { thread: Thread | null | undefined }) => 
   const R = repliesDoor();
   const reading = R && thread && thread.real ? R.readingOf(thread.id) : null;
   if (!R || !reading) return null;
-  return (
-    <span className="pill ix-reply-chip" data-intent={reading.intent} data-testid="thread-reply-chip">
-      {R.chipOf(reading)}
-    </span>
-  );
+  // The pill every other state uses, in the reading's own tone (contracts' `reply` kind): an Interested reply and a Said
+  // no were the same grey chip, which carried the reading in a data attribute no style read.
+  return <StatePill kind="reply" value={R.chipStateOf(reading)} className="ix-reply-chip" testid="thread-reply-chip" />;
 };
 
 export const ReplyStrip = ({ thread }: { thread: Thread }) => {

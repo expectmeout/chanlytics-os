@@ -409,7 +409,7 @@ test("the wiring: one row component for People and Today, the queue in the comma
   assert.deepEqual(
     rowsDrawn(quietDay, runs).testids,
     ["brief-run-row", "brief-run-soon"],
-    "a run waiting for a word and a run under its Stop are rows of the same grammar",
+    "a run waiting for a word and a run under its Cancel are rows of the same grammar",
   );
   // People drew three of these rows above its table -- the table's own first rows
   // again -- so the strip went and each row carries the words itself. Run, not read: a person who needs you,
@@ -457,7 +457,7 @@ test("the wiring: one row component for People and Today, the queue in the comma
     'data-testid="brief-live-call"',
     // The call in progress is read through the one hook the strip reads too (live-now.ts), which watches Live.
     "useLiveNow()",
-    'useMoved("broadcasts")',
+    'useMoved(["broadcasts", "people", "calendar"])',
   ])
     assert.ok(queue.includes(s), s);
   const real = queue.slice(queue.indexOf("const LiveRail"));
@@ -731,11 +731,16 @@ test("a person and four calls: the brief says one person needs you, not 'and 4 m
 });
 
 test("the queue's head counts who is waiting and the calls worth a listen apart; its foot counts the people the card could not hold", () => {
-  // Three waiting and a call worth a listen: the head said four.
+  // Two need you, a reply window is closing and a call is worth a listen: the head said four, then three, with the window.
+  // Its number is the count every surface says of what needs you (decision 0048): the window and the call are said beside it.
   const four = toTodayVM(metrics(), conversations, escalations, calls, NOW);
   assert.equal(four.queue.rows.length, 4);
   const head = rowsDrawn(four);
-  assert.equal(textOf(byTestId(head.tree, "today-queue-count")).trim(), "3", "REGRESSION: the head counted the call");
+  assert.equal(
+    textOf(byTestId(head.tree, "today-queue-count")).trim(),
+    "2",
+    "REGRESSION: the head counted the call, then the window closing: it counts who needs you, the badge's number",
+  );
   assert.match(
     textOf(find(head.tree, (n) => n.props?.className === "tq-sub")),
     /2 need you · 1 reply window closing · 1 call worth a listen/,
