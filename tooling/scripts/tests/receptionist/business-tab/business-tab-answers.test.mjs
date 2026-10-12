@@ -790,6 +790,20 @@ test("the price rule still says it is checked with the switch off, and lists wha
   );
 });
 
+test("what it may say leaves out a note that has ended on the workspace's own day, as the notes fold calls it ended", (t) => {
+  // Noon UTC on 11 October: already the 12th in Auckland, still the 11th in New York and UTC. A note whose last day is
+  // the 11th has ended only on the workspace's day, so a list read in any other zone would still offer its price.
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-10-11T12:00:00Z") });
+  const offer = { title: "Offer: Colour for $60", text: "Colour is $60 this week.", until: "2026-10-11" };
+  const parking = { title: "Parking", text: "Parking is $5." };
+  const off = { ...marisa, notes: [offer, parking], guardrails: { ...marisa.guardrails, never_quote_prices: false } };
+  const tree = rulesOpen({ profile: off, zone: "Pacific/Auckland" });
+  const listed = textOf(byTestId(tree, "rec-rules-prices"));
+  assert.match(listed, /^It may say 5 \(Notes\), as you wrote them\./);
+  assert.doesNotMatch(listed, /60/, "the ended offer's price is not one it may say");
+  assert.equal(noteEndedWords(offer.until, "Pacific/Auckland", new Date()), "ended Oct 11", "the fold's word for it");
+});
+
 test("the photos switch is an ability, not a limit, and is drawn apart from the four", () => {
   const tree = rulesOpen();
   const vision = byTestId(tree, "rec-rule-vision");
@@ -1103,9 +1117,12 @@ test("a note whose last day has passed on the business's own day reads ended, wi
   assert.deepEqual([endedOf(0), endedOf(2)], [null, null], "a note still lasting, and one with no end, say nothing");
 });
 
-test("in a workspace with no zone a note's end is judged as the composer judges it, never by the zone the page shows times in", () => {
+test("in a workspace with no zone a note's end is judged as the composer judges it, never by the zone the page shows times in", (t) => {
   // With no zone the composer's day is UTC's a day back: a note whose last day is that day is still told to the
   // receptionist, so the form does not call it ended; one whose last day is the day before is not, and the form does.
+  // Noon UTC, where New York's day and UTC's are both a day past the composer's: on the real clock, from midnight to
+  // four or five UTC, New York's day IS UTC's a day back, and a form that slipped to the page's zone passed then.
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-10-11T12:00:00Z") });
   const at = Date.now();
   const lastDay = new Date(at - DAY_MS).toISOString().slice(0, 10);
   const dayBefore = new Date(at - 2 * DAY_MS).toISOString().slice(0, 10);

@@ -38346,7 +38346,7 @@ function layerTwo(x) {
   const phone = urgentPhone(x);
   let priceBlocked = false;
   const moneyHeld = x.intent === "money" || namesMoney(replyText);
-  if (priceBreach(replyText, priceAllowance(x.brainCfg))) {
+  if (priceBreach(replyText, priceAllowance(x.brainCfg, x.tz, x.now))) {
     priceBlocked = true;
     replyText = heldLine("price", x.language, phone);
     escalate = true;
@@ -38961,7 +38961,7 @@ ${visits}`;
   }
   return leadNote;
 }
-function checked(at, brainCfg, r) {
+function checked(at, brainCfg, r, now) {
   const { rt, L } = at;
   const intent = r.meta?.intent ?? null;
   const two = layerTwo({
@@ -38972,7 +38972,10 @@ function checked(at, brainCfg, r) {
     policy: rt?.policy,
     intent,
     language: r.meta?.language ?? null,
-    known: rt?.known
+    known: rt?.known,
+    // The clock the prompt was composed at: a note's price is allowed exactly while the receptionist was told the note.
+    tz: rt?.timezone,
+    now
   });
   if (two.priceBlocked) L.warn("policy_block_price");
   if (two.moneyHeld) L.info("wa_policy_money", { intent });
@@ -38994,22 +38997,23 @@ async function modelTurn(at, bodyText, photo) {
       const { generateReply } = await ports.brain();
       const leadNote = await leadNoteFor(at);
       const openings = rt ? await ports.calendar.openings(rt) : null;
+      const now = /* @__PURE__ */ new Date();
       const tBrain = Date.now();
       const r = await generateReply(
         thread.history,
-        photo ? photoUserText(n.media?.caption, priceAllowance2(brainCfg) ? "written" : "none") : bodyText,
+        photo ? photoUserText(n.media?.caption, priceAllowance2(brainCfg, rt?.timezone, now) ? "written" : "none") : bodyText,
         // Composed from the workspace's structured facts when it has them,
         // and its hand-written prompt when it does not. lib/call-start.ts
         // composes the SAME thing for the voice agent, which is the point:
         // two copies of the hours is how two channels start disagreeing
         // about when the business opens. A text is told it answers texts (compose.ts).
-        resolveSystemPrompt(brainCfg, channel, rt?.timezone, /* @__PURE__ */ new Date(), rt?.policy, rt?.known),
+        resolveSystemPrompt(brainCfg, channel, rt?.timezone, now, rt?.policy, rt?.known),
         fallbacks.error,
         leadNote,
         // "Are you open?" it could already answer. "Are you open RIGHT NOW?"
         // it was answering too, from nothing — it had a table of hours and no
         // idea what day it was.
-        `${describeNow(rt?.timezone, /* @__PURE__ */ new Date(), brainCfg.profile?.closures)}${openings ? `
+        `${describeNow(rt?.timezone, now, brainCfg.profile?.closures)}${openings ? `
 
 ${openings}` : ""}`,
         photo ?? void 0,
@@ -39027,7 +39031,7 @@ ${openings}` : ""}`,
       usage = r.usage;
       brainMeta = r.meta;
       brainMs = Date.now() - tBrain;
-      ({ replyText, escalate, escalationReason } = checked(at, brainCfg, r));
+      ({ replyText, escalate, escalationReason } = checked(at, brainCfg, r, now));
     } catch (e) {
       L.error("brain_failed", { error: errField9(e) });
       replyText = fallbacks.error;

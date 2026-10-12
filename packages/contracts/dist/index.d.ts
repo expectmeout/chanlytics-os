@@ -21328,12 +21328,17 @@ interface AllowedPrice {
     from: string;
 }
 /**
- * Every amount the receptionist may say, with where it came from, or null when it may say none: the switch on (the
- * default), or a record whose details compose no prompt, where the switches change nothing (rule-strengths.ts).
+ * Every amount the receptionist may say at `now`, with where it came from, or null when it may say none: the switch on
+ * (the default), or a record whose details compose no prompt, where the switches change nothing (rule-strengths.ts).
+ * `tz` is the zone the receptionist is composed with, the workspace's own (null where it has none, never a page's), and
+ * `now` the clock it was composed at: a note counts while notesInForce says it is told.
  */
-declare function allowedPrices(brain: Pick<BrainConfig, "profile" | "business_name"> | null | undefined): AllowedPrice[] | null;
-/** The allowance as the checks read it: the set of figures, or null for the strict rule (priceBreach). */
-declare function priceAllowance(brain: Pick<BrainConfig, "profile" | "business_name"> | null | undefined): ReadonlySet<string> | null;
+declare function allowedPrices(brain: Pick<BrainConfig, "profile" | "business_name"> | null | undefined, tz: string | null | undefined, now: Date): AllowedPrice[] | null;
+/**
+ * The allowance as the checks read it: the set of figures, or null for the strict rule (priceBreach). `tz` and `now` are
+ * allowedPrices': each check passes the zone and the clock the words it checks were composed with.
+ */
+declare function priceAllowance(brain: Pick<BrainConfig, "profile" | "business_name"> | null | undefined, tz: string | null | undefined, now: Date): ReadonlySet<string> | null;
 
 /** The fact, word for word: the rule names it, so the two cannot drift. */
 declare const CONVERSATION_UNDER_WAY = "This conversation is already under way.";

@@ -23040,7 +23040,7 @@ function amountsInPriceBox(note) {
   }
   return amountsIn(note);
 }
-function allowedPrices(brain) {
+function allowedPrices(brain, tz, now) {
   const profile = brain?.profile;
   if (!profile || !hasProfile(profile) || guardrailsInForce(profile.guardrails).never_quote_prices) return null;
   const out = [];
@@ -23048,15 +23048,15 @@ function allowedPrices(brain) {
     for (const figure2 of figures) if (!out.some((p) => p.figure === figure2)) out.push({ figure: figure2, from });
   };
   for (const s of profile.services ?? []) if (s.price_note) add(amountsInPriceBox(s.price_note), s.name);
-  for (const n of profile.notes ?? []) add(amountsIn(`${n.title}. ${n.text}`), "Notes");
+  for (const n of notesInForce(profile.notes, tz, now)) add(amountsIn(`${n.title}. ${n.text}`), "Notes");
   for (const n of profile.booking_rules?.notes ?? []) add(amountsIn(n), "Booking notes");
   const greeting = profile.phone_greeting;
   const heard = greeting ? greetingOf({ name: brain?.business_name, stored: greeting, paused: false }).source : null;
   if (greeting && (heard === "owner" || heard === "owner_disclosed")) add(amountsIn(greeting), "Greeting");
   return out;
 }
-function priceAllowance(brain) {
-  const list2 = allowedPrices(brain);
+function priceAllowance(brain, tz, now) {
+  const list2 = allowedPrices(brain, tz, now);
   return list2 ? new Set(list2.map((p) => p.figure)) : null;
 }
 

@@ -461,12 +461,15 @@ async function correctReceptionist(
  * The prices the receptionist may say on this call (contracts priceAllowance), read only when the turns name one:
  * a strict check that finds nothing has nothing an allowance could change, and a warm runtime read still costs a stamp
  * round trip on every delivery. A workspace that cannot be read is strict, never a failed delivery (decision 0051).
+ * Read at the call's start, where its prompt was composed (call-start.ts): a call that runs past midnight on an offer's
+ * last day is judged by what the caller's receptionist was told, the offer's note and its price included.
  */
 async function allowedOnCall(db: Db, routed: RoutedChannel, n: NormalizedCall): Promise<ReadonlySet<string> | null> {
   if (!spokenBreach(n.transcriptObject, null)) return null;
   try {
     const rt = await loadTenantRuntime(db, routed);
-    return rt.loadFailed ? null : priceAllowance(rt.brain);
+    const composedAt = n.startedAtIso ? new Date(n.startedAtIso) : new Date();
+    return rt.loadFailed ? null : priceAllowance(rt.brain, rt.timezone, composedAt);
   } catch {
     return null;
   }

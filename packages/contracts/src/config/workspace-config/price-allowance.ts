@@ -8,8 +8,11 @@
  * flagged on a call, and money (a discount, a deposit, a refund, a payment term) is a person's whatever any switch says
  * (policy.ts namesMoney, the locked money row).
  *
- * Read only from what the owner wrote as a price or a note: each service's price box, the business's notes, the
- * booking notes. Never their own words or a carried hand-written prompt, which hold examples, stale prices and prices
+ * Read only from what the owner wrote as a price or a note: each service's price box, the business's notes still in
+ * force, the booking notes. A note whose last day has passed on the business's day gives nothing: the composer stops
+ * telling it then, by the one rule for which notes hold (compose.ts notesInForce), so an offer's price is said while the
+ * offer runs and never after. Hence the zone and the clock, the ones the prompt was composed with, beside the brain.
+ * Never their own words or a carried hand-written prompt, which hold examples, stale prices and prices
  * they forbid ("never say our $500 package"); never a person's notes (0007), a deal's amount (0004) or anything a
  * customer wrote. A sentence that names money, a cut ("$50 off") or forbids something gives nothing, and a share is never
  * a price. The owner's phone greeting counts too, once the switch is off and the line is the one callers hear: a price
@@ -19,6 +22,7 @@
 import { greetingOf } from "../../voice/greeting-owner";
 import { namesMoney, priceFigures } from "../policy";
 import type { BrainConfig } from "./brain-config-schema";
+import { notesInForce } from "./compose";
 import { guardrailsInForce } from "./config-rules";
 import { hasProfile } from "./resolve";
 
@@ -59,11 +63,15 @@ function amountsInPriceBox(note: string): string[] {
 }
 
 /**
- * Every amount the receptionist may say, with where it came from, or null when it may say none: the switch on (the
- * default), or a record whose details compose no prompt, where the switches change nothing (rule-strengths.ts).
+ * Every amount the receptionist may say at `now`, with where it came from, or null when it may say none: the switch on
+ * (the default), or a record whose details compose no prompt, where the switches change nothing (rule-strengths.ts).
+ * `tz` is the zone the receptionist is composed with, the workspace's own (null where it has none, never a page's), and
+ * `now` the clock it was composed at: a note counts while notesInForce says it is told.
  */
 export function allowedPrices(
   brain: Pick<BrainConfig, "profile" | "business_name"> | null | undefined,
+  tz: string | null | undefined,
+  now: Date,
 ): AllowedPrice[] | null {
   const profile = brain?.profile;
   if (!profile || !hasProfile(profile) || guardrailsInForce(profile.guardrails).never_quote_prices) return null;
@@ -72,7 +80,7 @@ export function allowedPrices(
     for (const figure of figures) if (!out.some((p) => p.figure === figure)) out.push({ figure, from });
   };
   for (const s of profile.services ?? []) if (s.price_note) add(amountsInPriceBox(s.price_note), s.name);
-  for (const n of profile.notes ?? []) add(amountsIn(`${n.title}. ${n.text}`), "Notes");
+  for (const n of notesInForce(profile.notes, tz, now)) add(amountsIn(`${n.title}. ${n.text}`), "Notes");
   for (const n of profile.booking_rules?.notes ?? []) add(amountsIn(n), "Booking notes");
   const greeting = profile.phone_greeting;
   const heard = greeting ? greetingOf({ name: brain?.business_name, stored: greeting, paused: false }).source : null;
@@ -80,10 +88,15 @@ export function allowedPrices(
   return out;
 }
 
-/** The allowance as the checks read it: the set of figures, or null for the strict rule (priceBreach). */
+/**
+ * The allowance as the checks read it: the set of figures, or null for the strict rule (priceBreach). `tz` and `now` are
+ * allowedPrices': each check passes the zone and the clock the words it checks were composed with.
+ */
 export function priceAllowance(
   brain: Pick<BrainConfig, "profile" | "business_name"> | null | undefined,
+  tz: string | null | undefined,
+  now: Date,
 ): ReadonlySet<string> | null {
-  const list = allowedPrices(brain);
+  const list = allowedPrices(brain, tz, now);
   return list ? new Set(list.map((p) => p.figure)) : null;
 }
