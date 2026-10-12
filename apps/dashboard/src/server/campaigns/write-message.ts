@@ -6,8 +6,8 @@
  * Everything that could refuse the message comes first, before anything is filed: a name of the shape Meta takes and no
  * starter's (a starter begins only as itself), a language from the list, at least one version, the values numbered in
  * order, no channel its purpose never goes by (a text carries no offer, contracts channelNeverCarries), no `utility`
- * category without a WhatsApp version for Meta to review (a message somebody writes is an offer or news: the check a
- * member's first version meets, template-versions.ts refuseWrittenUtility), each version's
+ * category without a WhatsApp version for Meta to review (the check a member's first version meets, template-versions.ts
+ * refuseWrittenUtility, in this door's own sentence: one about their own booking or proposal needs it), each version's
  * words on its channel's rules against the values (contracts validateOwnVersion, and validateTemplateDraft for
  * WhatsApp's, which Meta would refuse at the wire), and no twin: a message of the same name and language on file on any
  * channel is answered 409 in the words a WhatsApp submission is. A name on file in another language is a language of
@@ -32,6 +32,7 @@ import {
   TEMPLATE_NAME_WORDS,
   TEMPLATE_SAME_NAME_WORDS,
   channelNeverCarries,
+  metaStatusOf,
   purposeOfTemplate,
   starterByName,
   templateNameOk,
@@ -40,6 +41,7 @@ import {
   type ConsentChannel,
   type OwnVersionChannel,
   type ParamSpec,
+  type TemplateStatus,
 } from "@chanlytics/contracts";
 import { heldMessageOf, messageVersionRowsOf } from "@chanlytics/db";
 import { submitDraft } from "@/server/campaigns/template-submit";
@@ -65,11 +67,14 @@ export interface WriteMessageBody {
   slots: Array<{ position: number; label: string; example?: string | undefined; kind: ParamSpec["kind"] }>;
 }
 
-/** One version filed: an email's and a text's approved at once, WhatsApp's in review until Meta says. */
+/**
+ * One version filed: an email's and a text's approved at once, WhatsApp's as Meta answered its filing (in review until
+ * Meta says, or refused at once), read by the one rule a row's status is read by (contracts metaStatusOf).
+ */
 interface VersionFiled {
   channel: ConsentChannel;
   id: string;
-  state: "approved" | "pending";
+  state: TemplateStatus;
 }
 
 /** What became of the message: each version filed, and the first that could not be, in its words. */
@@ -138,8 +143,9 @@ export function checkMessage(body: WriteMessageBody): void {
   const purpose = purposeOfTemplate(body.category);
   const never = channels.map((c) => channelNeverCarries(c, purpose)).find((w) => w !== null);
   if (never) refuse(never);
-  // Nobody reviews a category its writer declares: utility comes with a WhatsApp version Meta reviews, or not at all.
-  if (!body.versions.whatsapp) refuseWrittenUtility(body.category);
+  // Nobody reviews a category its writer declares: utility comes with a WhatsApp version Meta reviews, or not at all,
+  // said as this door takes it (one about their own booking or proposal needs that version).
+  if (!body.versions.whatsapp) refuseWrittenUtility(body.category, MESSAGE_BEGIN_WORDS.utilityNeedsWhatsapp);
   for (const channel of OWN_VERSION_CHANNELS) {
     const words = ownWords(body.versions, channel);
     const check = words ? validateOwnVersion(channel, words, slots.length, body.language) : null;
@@ -166,13 +172,19 @@ export async function messageOnFile(
 /**
  * The message on file under this name in another language, read once before anything is filed: a language of a message
  * is the same kind of message with the same values, so one said otherwise is refused (409) in words that say what is
- * held. What it answers is how many values the versions are written beside, or null where the name begins a message.
+ * held. Its kind is what a send judges it by (consent purposeOfTemplate, the one spelling: a row filed with no category
+ * is an offer), so a held row with none takes an offer beside it. A code for signing in (`authentication`) is no kind a
+ * campaign sends, and is refused in words of its own. What it answers is how many values the versions are written
+ * beside, or null where the name begins a message.
  */
 export async function heldValues(ctx: RouteContext, tenantId: string, body: WriteMessageBody): Promise<number | null> {
   const held = await heldMessageOf(ctx.supabase, tenantId, body.name, body.language);
-  if (held && (held.category !== body.category || held.slots !== body.slots.length))
-    throw new AppError("conflict", MESSAGE_BEGIN_WORDS.heldOtherwise(held.category, held.slots), 409);
-  return held ? held.slots : null;
+  if (!held) return null;
+  if (held.category === "authentication") throw new AppError("conflict", MESSAGE_BEGIN_WORDS.heldAuthentication, 409);
+  const purpose = purposeOfTemplate(held.category);
+  if (purpose !== purposeOfTemplate(body.category) || held.slots !== body.slots.length)
+    throw new AppError("conflict", MESSAGE_BEGIN_WORDS.heldOtherwise(purpose, held.slots), 409);
+  return held.slots;
 }
 
 export async function writeMessage(
@@ -211,7 +223,8 @@ export async function writeMessage(
   if (!body.versions.whatsapp) return answer();
   try {
     const sent = await submitDraft(ctx, member, whatsappDraft(body, slots));
-    filed.push({ channel: "whatsapp", id: sent.id, state: sent.meta_status === "approved" ? "approved" : "pending" });
+    // As Meta answered: a version it refused in its create answer is filed refused, never said to be in review.
+    filed.push({ channel: "whatsapp", id: sent.id, state: metaStatusOf(sent.meta_status) });
     return answer();
   } catch (e) {
     return answer({ channel: "whatsapp", words: filingWords(e, member.tenantId, "whatsapp") });

@@ -1201,6 +1201,41 @@ test("one proposal follow-up per workspace (00167): the database's refusal of a 
   );
 });
 
+test("a card's start (x-via ask) refuses a running twin by the rule its card was made by: a press that outlived its key's day starts nothing; the composer's start, and a card's under a name of its own, start", async () => {
+  const { PLAYBOOK_CARD_REFUSALS } = await import("@chanlytics/contracts");
+  const tables = {
+    memberships: both("viewer", "operator"),
+    // The campaign the card's first press started: running, on its moment, its message, under the card's name.
+    playbooks: [pb(K2, B, { name: "Win-back", template_id: T1 })],
+    broadcasts: [],
+    broadcast_recipients: [],
+    tenants: [{ id: B, name: "Bayside", timezone: "America/Chicago" }],
+    templates: [tpl(T1, B, { name: "winback_offer", category: "marketing" })],
+    decisions: [],
+  };
+  const body = { trigger: "quiet_30", template_id: T1, params: [], name: "Win-back" };
+  // A card's commit is Ask's (the x-via header with-route reads into ctx.via); its key's day is gone, so it is run.
+  const asAsk = () => ({ ...ctxFor(tables), via: "ask" });
+  await refused(
+    playbooks.POST.run(send("POST", body, inB), asAsk()),
+    "conflict",
+    409,
+    PLAYBOOK_CARD_REFUSALS.twin("Win-back"),
+  );
+  assert.deepEqual(
+    [tables.playbooks.map((p) => p.id), tables.decisions],
+    [[K2], []],
+    "nothing started, nothing on the ledger",
+  );
+  // The composer's own start (no x-via) is a person's, as it always was: a second by hand is theirs to make.
+  const plain = await playbooks.POST.run(send("POST", body, inB), ctxFor(tables));
+  assert.equal(plain.state, "running");
+  // A card under a name of its own is a second they asked for, as the card's rule reads it.
+  const own = await playbooks.POST.run(send("POST", { ...body, name: "Win-back for regulars" }, inB), asAsk());
+  assert.equal(tables.playbooks.find((p) => p.id === own.id)?.name, "Win-back for regulars");
+  assert.equal(tables.playbooks.length, 3);
+});
+
 test("a reach-out's step is no moment: never listed among the playbooks, never rewritten as one, and still paused and resumed (Reach out, Part 3)", async () => {
   const K3 = "99999999-9999-4999-8999-999999999993";
   const reachOut = pb(K3, B, {

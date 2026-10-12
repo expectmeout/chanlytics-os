@@ -93,6 +93,7 @@ export {
   reachOutRowName,
   reachOutStepOf,
   versionsOf,
+  versionWord,
   noVersionWords,
 } from "./message-versions";
 export type {

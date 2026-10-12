@@ -28,7 +28,6 @@ import {
   type RunReading,
 } from "@chanlytics/contracts";
 import { campaignHow } from "@chanlytics/core";
-import { listPolicies } from "@chanlytics/db";
 import { archivedListWords, poolList, type AudiencePool } from "../../../people/audience";
 import { dealPaceRead } from "../../../people/deals";
 import { monthSentOrNull } from "../../../campaigns/month-sent";
@@ -37,7 +36,7 @@ import { noFollowUps, poolTouches, proposalFollowUps, type PlaybookInput } from 
 import { createBroadcastPorts } from "../../../ports/campaign-ports";
 import { load } from "../../../readers";
 import { audiencePool } from "../../../readers/audience-pool";
-import { businessShape } from "../../../readers/facts";
+import { businessShape, policies as policiesReader } from "../../../readers/facts";
 import { lists as listsReader } from "../../../readers/lists";
 import { AUDIENCES_CALL, touchesThisWeek, whatsappHow, type ToolContext } from "../context";
 
@@ -137,11 +136,12 @@ export const breathSaid = (trig: Trigger): string =>
  * Whether a new campaign starts on trial (D5): only where its class sends on its own (auto). Under ask, veto or never a
  * trial changes nothing: a run there waits for a person, waits for a Stop already, or runs nothing. The payload carries
  * the flag and no instant: the week starts at its Approve, counted by POST playbooks at its own clock (contracts
- * newCampaignTrialUntil), never when the card was made. And what the card says of it, before its class's mode.
+ * newCampaignTrialUntil), never when the card was made. And what the card says of it, before its class's mode and in the
+ * order they happen: "…waits half an hour with a Stop; after that, under “Offers” (auto): each run sends on its own."
  */
 export function trialOf(mode: string): { payload: { trial?: true }; said: string } {
   return mode === "auto"
-    ? { payload: { trial: true }, said: `${PLAYBOOK_CARD_WORDS.trial} · ` }
+    ? { payload: { trial: true }, said: `${PLAYBOOK_CARD_WORDS.trial}; after that, ` }
     : { payload: {}, said: "" };
 }
 
@@ -164,16 +164,23 @@ export async function reachNow(
   const deal = trig.kind === "deal";
   const [pool, policies, paceRead, followUps, touched] = await Promise.all([
     load(t.rc, audiencePool, undefined).then((r) => r.data),
-    listPolicies(t.ctx.supabase, t.tenantId).catch(() => []),
+    // The autonomy modes, the turn's one read of them (readers/facts.ts policies, as GET playbooks reads them). Unread is
+    // null, never a guess: a card that guessed "ask" under an auto class said its runs wait for a person, and its Approve
+    // started it with no trial week, sending on its own from its first run.
+    load(t.rc, policiesReader, undefined).then(
+      (r) => r.data,
+      () => null,
+    ),
     // A proposal's moment is counted as the page counts it (0006): by the pace, less whoever had their follow-up.
     deal ? dealPaceRead(t.ctx, t.tenantId, t.now) : Promise.resolve(null),
     deal ? proposalFollowUps(t.ctx, t.tenantId, t.now).catch(() => null) : Promise.resolve(noFollowUps()),
-    // Who was messaged this week, by a campaign or a member (the week's breath), the page's own read of it; one that
-    // fails is said in the log (context.ts touchesThisWeek) before the card is refused below.
+    // Who hears from you within a week either side, sent or due, by a campaign or a member (the week's breath), the
+    // page's own read of it; one that fails is said in the log (context.ts touchesThisWeek) before the card is refused below.
     touchesThisWeek(t, "propose_campaign.playbook"),
   ]);
   if (!followUps) return { refusal: PLAYBOOK_CARD_REFUSALS.followUpsUnread };
   if (!touched) return { refusal: PLAYBOOK_CARD_REFUSALS.weekUnread };
+  if (!policies) return { refusal: PLAYBOOK_CARD_REFUSALS.modeUnread };
   // A list's people, as a run counts them (listedPeople).
   const listed = listRef ? await listedPeople(t, pool, listRef) : { ids: null, label: null };
   if ("refusal" in listed) return listed;

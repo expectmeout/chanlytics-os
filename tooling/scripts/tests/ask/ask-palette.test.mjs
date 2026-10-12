@@ -3295,7 +3295,7 @@ test("a message the card writes (the marketing manager, §5.2) is drawn whole: i
     },
   ];
   const follows =
-    "Goes by email now; its WhatsApp version waits on WhatsApp's review (usually minutes, sometimes a day) · On WhatsApp: only people with a recorded yes to offers and a phone number.";
+    "Ready by email once approved; its WhatsApp version once WhatsApp has reviewed it (usually minutes, sometimes a day) · On WhatsApp: only people with a recorded yes to offers and a phone number.";
   const p = {
     id: "p1",
     kind: "message",

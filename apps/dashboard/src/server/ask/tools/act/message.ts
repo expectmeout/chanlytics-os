@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   AppError,
   CONSENT_CHANNELS,
+  MESSAGE_BEGIN_WORDS,
   MESSAGE_WORDS,
   OWN_VERSION_CHANNELS,
   PARAM_SOURCES,
@@ -66,7 +67,8 @@ function wordsRefusal(body: WriteMessageBody): string | null {
   const v = body.versions;
   const purpose = purposeOfTemplate(body.category);
   if (CONSENT_CHANNELS.some((c) => v[c] && channelNeverCarries(c, purpose))) return MESSAGE_WORDS.smsOffer;
-  if (!v.whatsapp && doorSays(() => refuseWrittenUtility(body.category))) return MESSAGE_WORDS.utilityNeedsWhatsapp;
+  if (!v.whatsapp && doorSays(() => refuseWrittenUtility(body.category, MESSAGE_BEGIN_WORDS.utilityNeedsWhatsapp)))
+    return MESSAGE_WORDS.utilityNeedsWhatsapp;
   if (v.whatsapp && templateBodyTooLong(v.whatsapp.body)) return MESSAGE_WORDS.tooLong;
   return doorSays(() => checkMessage(body));
 }

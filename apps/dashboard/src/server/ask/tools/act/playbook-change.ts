@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   LIFECYCLE_WORDS,
   PLAN_WORDS,
+  PLAYBOOK_CARD_REFUSALS,
   PLAYBOOK_CLASS_LABEL,
   PLAYBOOK_LIMITS,
   PLAYBOOK_NAME_MAX,
@@ -166,14 +167,12 @@ async function proposePlaybookChange(t: ToolContext, input: ChangeAsked): Promis
   const cls = PLAYBOOK_CLASS_LABEL[row.policy_class as PlaybookPolicyClass];
   // The mode its runs go under, read for a resume, which says it (D7: under auto a resume sends on its own), for a
   // pause, whose undo resumes it and says it the same way, and for a trial set, whose words follow it (trialSaid). A
-  // resume or a trial whose read fails makes no card: the card would say a mode it does not know. A pause needs none, so
-  // it is still a card, and its undo claims no mode (`mode` null); a trial ended says the same under any mode.
+  // resume or a trial whose read fails makes no card: the card would say a mode it does not know, in the words a new
+  // campaign's card declines in (PLAYBOOK_CARD_REFUSALS.modeUnread). A pause needs none, so it is still a card, and its
+  // undo claims no mode (`mode` null); a trial ended says the same under any mode.
   const trialSet = typeof set.trial_until === "string";
   const policies = set.state || trialSet ? await listPolicies(t.ctx.supabase, t.tenantId).catch(() => null) : [];
-  if (!policies && (set.state === "running" || trialSet))
-    return refuse(
-      `the sending mode of “${cls}” could not be read just now, so ${set.state === "running" ? "a resume" : "a trial"} cannot say what its runs would do; say so, and try again in a moment`,
-    );
+  if (!policies && (set.state === "running" || trialSet)) return refuse(PLAYBOOK_CARD_REFUSALS.modeUnread);
   // A class with no row of its own runs under ask, as a run reads it (core run-playbook). And a run goes as the campaign
   // will stand after this change: under auto while it is on trial, as veto does (contracts effectiveMode, 00409), so the
   // card and a pause's undo say how its runs go, never its class's mode alone.

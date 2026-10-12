@@ -152,12 +152,14 @@ async function beginMessage(
 
 /**
  * A message somebody writes is an offer or news (rule 4): nobody reviews a category its writer declares, so `utility`
- * (about their own visit or proposal) is a starter's alone, which Chanlytics writes, or comes with a WhatsApp version
+ * (about their own booking or proposal) is a starter's alone, which Chanlytics writes, or comes with a WhatsApp version
  * Meta reviews. The one check of it: a member's first version of a message (beginVersion, POST templates/versions, which
- * never has a WhatsApp version) and a message written whole with no WhatsApp version (write-message.ts).
+ * never has a WhatsApp version, in MESSAGE_BEGIN_WORDS.customIsAnOffer) and a message written whole with no WhatsApp
+ * version (write-message.ts, in MESSAGE_BEGIN_WORDS.utilityNeedsWhatsapp, since that door takes one with it): each door
+ * says it in `words` true of what it takes.
  */
-export function refuseWrittenUtility(category: "marketing" | "utility"): void {
-  if (category === "utility") throw new AppError("validation", MESSAGE_BEGIN_WORDS.customIsAnOffer);
+export function refuseWrittenUtility(category: "marketing" | "utility", words: string): void {
+  if (category === "utility") throw new AppError("validation", words);
 }
 
 /**
@@ -191,7 +193,7 @@ async function beginVersion(db: Acting, tenantId: string, v: VersionRequest): Pr
     example: x.example ?? null,
   }));
   const words = checkedWords(v, variables.length);
-  refuseWrittenUtility(category);
+  refuseWrittenUtility(category, MESSAGE_BEGIN_WORDS.customIsAnOffer);
   return beginMessage(db.userId, tenantId, v, words, { category, variables, title: title ?? null });
 }
 

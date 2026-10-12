@@ -43,7 +43,7 @@ const {
   calledName,
   newToolContext,
 } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
-const { MOMENT_TRIGGERS, MOMENTS_RETIRED, PLAYBOOK_VETO_DELAY_WORDS, PROPOSAL_SPECS, roleAtLeast } =
+const { MOMENT_TRIGGERS, MOMENTS_RETIRED, PLAYBOOK_VETO_DELAY_WORDS, PROPOSAL_SPECS, roleAtLeast, startersForTrigger } =
   await import("@chanlytics/contracts");
 /**
  * 2 Oct 2026: the two moments no longer offered for a new playbook (contracts MOMENTS_RETIRED) leave the playbook's
@@ -70,13 +70,29 @@ const asProposableNow = (schema) => {
 const CHANNELS = { type: "array", items: { type: "string", enum: ["whatsapp", "sms", "email"] } };
 /**
  * Less what an action gained since: its channels (3 Oct 2026), and, a new playbook's, its last day (`until`, 11 Oct 2026:
- * Ask's plan ends an offer's campaign with the offer), one optional day the change action already took in that shape.
+ * Ask's plan ends an offer's campaign with the offer), one optional day the change action already took in that shape,
+ * and the moment's starter to file at Approve (`starter`, 12 Oct 2026: the day after's review ask, named by its key).
  */
 const lessChannels = (schema) => {
   const out = structuredClone(schema);
   delete out.properties.channels;
   delete out.properties.until;
+  delete out.properties.starter;
   return out;
+};
+/**
+ * A new playbook's `starter` (12 Oct 2026): one optional key among the starters of the moments it may be proposed on,
+ * none the set replaced, in the moments' order.
+ */
+const STARTER = {
+  type: "string",
+  enum: [
+    ...new Set(
+      MOMENT_TRIGGERS.filter((m) => !(m.id in MOMENTS_RETIRED)).flatMap((m) =>
+        startersForTrigger(m.id).flatMap((s) => (s.retired ? [] : [s.key])),
+      ),
+    ),
+  ],
 };
 
 const fixture = (name) => JSON.parse(fs.readFileSync(path.join(ROOT, "tooling/scripts/tests/fixtures", name), "utf8"));
@@ -600,8 +616,12 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
       offer: _f,
       say: _y,
       stages: _g2,
+      starter,
       ...fields
     } = now.input_schema.properties;
+    // 12 Oct 2026: a new playbook's starter, named by its key, the one field the playbook action gained of its own.
+    assert.deepEqual(shapeOf(starter), STARTER, `${role}: the playbook's starter`);
+    assert.ok(STARTER.enum.includes("after_visit_review"), "the day after's review ask among them");
     // 11 Oct 2026: the plan action's own four fields (contracts PlanIntent, flat); its language is the message's, one
     // shape; and a new playbook's until is the change's, one shape.
     assert.deepEqual(
@@ -684,9 +704,17 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
       { ...fields, action: { type: "string", enum: ["broadcast", "playbook"] } },
       asProposableNow(before.input_schema).properties,
     );
+    // Less the examples of the actions added since, and the playbook's one naming its starter (12 Oct 2026).
     assert.deepEqual(
-      now.input_examples.filter((ex) => !["run", "channels", "change", "message", "plan"].includes(ex.action)),
+      now.input_examples.filter(
+        (ex) => !["run", "channels", "change", "message", "plan"].includes(ex.action) && !("starter" in ex),
+      ),
       before.input_examples,
+    );
+    assert.deepEqual(
+      now.input_examples.filter((ex) => "starter" in ex),
+      [{ action: "playbook", trigger: "visited", starter: "after_visit_review" }],
+      `${role}: the starter's one example, the day after's review ask`,
     );
     assert.ok(now.description.includes(` ${DEFS.get("propose_campaign").actions.run.words} `), role);
     assert.ok(now.description.includes(` ${DEFS.get("propose_campaign").actions.channels.words} `), role);
@@ -758,9 +786,13 @@ test("the rename is a bijection: every old tool is one tool and action of the re
     );
     if (gainedChannels)
       assert.deepEqual(shapeOf(toolSchema(def.input).properties.channels), CHANNELS, `${to}: and channels`);
-    if (old === "propose_playbook")
+    if (old === "propose_playbook") {
       assert.deepEqual(shapeOf(toolSchema(def.input).properties.until), { type: "string" }, `${to}: and until`);
-    else if (gainedChannels) assert.equal("until" in toolSchema(def.input).properties, false, `${to}: no until`);
+      assert.deepEqual(shapeOf(toolSchema(def.input).properties.starter), STARTER, `${to}: and starter`);
+    } else if (gainedChannels) {
+      assert.equal("until" in toolSchema(def.input).properties, false, `${to}: no until`);
+      assert.equal("starter" in toolSchema(def.input).properties, false, `${to}: no starter`);
+    }
   }
 });
 

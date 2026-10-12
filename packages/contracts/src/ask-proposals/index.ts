@@ -8,6 +8,7 @@ export {
   PLAYBOOK_CARD_WORDS,
   MESSAGE_WORDS,
   proposalChannelsWords,
+  stepOfferWords,
 } from "./campaigns";
 export { PERSON_DETAIL_WORDS } from "./person";
 export { PROPOSAL_WORDS } from "./spec";

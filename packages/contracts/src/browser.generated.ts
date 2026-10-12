@@ -18,7 +18,7 @@ export { FLAGS, FLAG_MECHANISMS, daysToSunset } from "./ai/flags";
 export { MODELS, MODEL_IDS, MODEL_EFFORTS, MODEL_PURPOSES, MODEL_ROUTES, MODEL_PORTS, RETELL_MODELS, modelRoute, fallbackModel, shadowPortOf, isModelId, readsAsModel } from "./ai/models";
 export { MODEL_TURN_WRITE_MS, modelTurnRequestOf, modelTurnResponseOf } from "./ai/turn";
 export { MODEL_PRICES, MODEL_CALL_OUTCOMES, NO_USAGE, priceOf, usageDollars, usageTokens, usageOf, aiUsageBodyOf, usageMonthOf } from "./ai/usage";
-export { RUN_VERBS, PLAYBOOK_CARD_REFUSALS, PLAYBOOK_CARD_WORDS, MESSAGE_WORDS, proposalChannelsWords } from "./ask-proposals/campaigns";
+export { RUN_VERBS, PLAYBOOK_CARD_REFUSALS, PLAYBOOK_CARD_WORDS, MESSAGE_WORDS, proposalChannelsWords, stepOfferWords } from "./ask-proposals/campaigns";
 export { ASK_THREAD_ROUTES } from "./ask-proposals/inbox";
 export { PERSON_DETAIL_WORDS } from "./ask-proposals/person";
 export { PROPOSAL_SPECS, proposalSpec, proposalBelowNeeds, PROPOSAL_GATE, askUndoOpen } from "./ask-proposals/proposals";
@@ -307,7 +307,7 @@ export { inboxTemplates, inboxSlots, noTemplateWords, slotToWrite, templateHolds
 export { libraryCount, isLibrarySample } from "./templates/library-count";
 export { languageWords, languageLabels, LANGUAGE_GROUP_WORDS, messageLanguageChoices, templateUntranslatable } from "./templates/message-languages";
 export { toSlotParts, fromSlotParts, partWritten, insertSlot, eraseSlot, clampWords, slotLabel, slotKnown, namedProblem } from "./templates/message-version-slots";
-export { VERSION_CHANNELS, OWN_VERSION_CHANNELS, VERSION_CHANNEL_WORDS, EMAIL_SUBJECT_MAX, EMAIL_BODY_MAX, SMS_SEGMENTS_MAX, smsStopLine, smsSegments, smsVersionSegments, versionSlotsRefusal, validateEmailVersion, validateSmsVersion, validateOwnVersion, campaignEmailRules, emailIssues, versionComponents, versionWords, renderOwnVersion, isReachOutRow, reachOutRowName, reachOutStepOf, versionsOf, noVersionWords } from "./templates/message-versions";
+export { VERSION_CHANNELS, OWN_VERSION_CHANNELS, VERSION_CHANNEL_WORDS, EMAIL_SUBJECT_MAX, EMAIL_BODY_MAX, SMS_SEGMENTS_MAX, smsStopLine, smsSegments, smsVersionSegments, versionSlotsRefusal, validateEmailVersion, validateSmsVersion, validateOwnVersion, campaignEmailRules, emailIssues, versionComponents, versionWords, renderOwnVersion, isReachOutRow, reachOutRowName, reachOutStepOf, versionsOf, versionWord, noVersionWords } from "./templates/message-versions";
 export { SENDER_WORDS, senderWords, senderLanguage } from "./templates/sender-words";
 export { fillSlots, numberedSlots, slotValueOf, slotWritten } from "./templates/slot-sets";
 export { starterByName, starterByKey, startersOffered, starterForTrigger, startersForTrigger, starterText, starterDraft, starterEmailText, starterSmsText } from "./templates/starter-lookup";

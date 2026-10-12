@@ -26,7 +26,9 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const {
   LIBRARY_STARTER_WORDS,
+  PLAYBOOK_CARD_REFUSALS,
   PLAYBOOK_CARD_WORDS,
+  PLAYBOOK_CLASS_LABEL,
   PROPOSAL_SPECS,
   appointmentWordOf,
   appointmentWords,
@@ -443,9 +445,15 @@ test("a new campaign under an auto class starts on trial for a week from when it
     const p = r.proposal;
     assert.deepEqual([p.payload.mode, p.payload.trial], ["auto", true]);
     assert.equal("trial_until" in p.payload, false, "no instant: the week starts at Approve");
-    assert.ok(p.summary.includes(` · ${PLAYBOOK_CARD_WORDS.trial} · `), p.summary);
-    // Its class's mode is still said: the trial is this campaign's first week, never a change to the class.
-    assert.ok(p.summary.includes("(auto): each run sends on its own."), p.summary);
+    // Its class's mode is still said, after the trial and in the order they happen: the trial is this campaign's first
+    // week, never a change to the class, and never two opposite sentences about every run side by side.
+    assert.ok(
+      p.summary.includes(
+        ` · ${PLAYBOOK_CARD_WORDS.trial}; after that, under “${PLAYBOOK_CLASS_LABEL.reengage}” (auto): each run sends on its own.`,
+      ),
+      p.summary,
+    );
+    assert.ok(!p.summary.includes(`${PLAYBOOK_CARD_WORDS.trial} · `), p.summary);
     const body = PROPOSAL_SPECS.playbook.commit(p, { settings: null }).body;
     assert.deepEqual([body.trial, "trial_until" in body], [true, false]);
   }
@@ -477,7 +485,7 @@ const withCalendar = () => {
   return [{ ...row, config: { ...row.config, calendar: { ical_url: "https://calendar.example/harbor.ics" } } }];
 };
 
-test("an appointment moment is proposed where a calendar is connected (D2): the reminder the day before is a card on its starter that says it goes whatever else they heard this week; with none connected it is refused in the check's own words, and nothing is filed", async () => {
+test("an appointment moment is proposed where a calendar is connected (D2): the reminder the day before is a card on its starter that says it goes whatever else they hear from you around it; with none connected it is refused in the check's own words, and nothing is filed", async () => {
   const REMINDER = startersForTrigger("visit_tomorrow").find((s) => !s.retired);
   const { made, rows } = propose({ trigger: "visit_tomorrow" }, { tenant_config: withCalendar() });
   const r = await made;
@@ -485,9 +493,11 @@ test("an appointment moment is proposed where a calendar is connected (D2): the 
   const p = r.proposal;
   // What the eval's remind_day_before reads off the card (ask-cases.json card_fields).
   assert.deepEqual([p.kind, p.payload.trigger, p.payload.starter_key], ["playbook", "visit_tomorrow", REMINDER.key]);
+  // The breath is two-sided (a message sent or due within a week of it, contracts BREATH_WHY), so the words never say
+  // "this week".
   assert.equal(
     PLAYBOOK_CARD_WORDS.appointmentBreath,
-    "exempt from one a week per person: each goes whatever else they heard this week",
+    "exempt from one a week per person: each goes whatever else they hear from you within a week of it",
   );
   assert.ok(p.summary.includes(` · ${PLAYBOOK_CARD_WORDS.appointmentBreath} · `), p.summary);
   assert.deepEqual([rows.templates, rows.playbooks], [[], []], "nothing is filed at the card");
@@ -508,4 +518,45 @@ test("an appointment moment is proposed where a calendar is connected (D2): the 
   // A message on file for it changes nothing: the moment is judged first, before its message or its channels.
   const held = template("dddddddd-dddd-4ddd-8ddd-ddddddddddd8", REMINDER.name, { language: "en_US" });
   assert.equal(said(await propose({ trigger: "visit_tomorrow" }, { templates: [held] }).made), needs);
+});
+
+test("the action can name the moment's starter to file at Approve: the day after's review ask, where the Google listing keeps a review link, is a card on it that commits its key; without the link it is refused in the route's own words; unnamed, the day after is still its check", async () => {
+  const { TEMPLATE_VALUE_WORDS } = await import(at("packages/core/src/campaigns/template-values.ts"));
+  const REVIEW = startersForTrigger("visited").find((s) => s.key === "after_visit_review");
+  const CHECK = startersForTrigger("visited").find((s) => s.key === "after_visit_check");
+  const listing = [{ tenant_id: A, new_review_uri: "https://example.com/review/harbor" }];
+  const world = { tenant_config: withCalendar(), google_listings: listing };
+  const { made, rows } = propose({ trigger: "visited", starter: REVIEW.key }, world);
+  const r = await made;
+  assert.equal(r.isError, false, r.result);
+  const p = r.proposal;
+  assert.deepEqual([p.payload.trigger, p.payload.starter_key], ["visited", REVIEW.key]);
+  assert.ok(p.summary.includes(` · ${LIBRARY_STARTER_WORDS.addsFirst(REVIEW.title)} · `), p.summary);
+  assert.deepEqual(p.payload.params, defaultParamSpecs({ name: REVIEW.name, variables: [] }));
+  assert.ok(
+    p.payload.params.some((s) => s.kind === "review_link"),
+    "its third value is the listing's link, filled at the send",
+  );
+  // Its Approve files that starter, then starts on it (POST playbooks with its key: starter-playbook.test.mjs files it).
+  const body = PROPOSAL_SPECS.playbook.commit(p, { settings: null }).body;
+  assert.deepEqual([body.starter_key, body.template_id, body.trigger], [REVIEW.key, undefined, "visited"]);
+  assert.deepEqual([rows.templates, rows.playbooks], [[], []], "nothing is filed at the card");
+
+  // No review link on the listing: refused before a card, in the words the route refuses its Approve in.
+  const none = propose({ trigger: "visited", starter: REVIEW.key }, { tenant_config: withCalendar() });
+  assert.equal(said(await none.made), TEMPLATE_VALUE_WORDS.noReviewLink);
+  assert.deepEqual([none.rows.templates, none.rows.playbooks], [[], []]);
+
+  // Unnamed, the day after's own starter stays How did it go, link or none.
+  const unnamed = await propose({ trigger: "visited" }, world).made;
+  assert.equal(unnamed.isError, false, unnamed.result);
+  assert.equal(unnamed.proposal.payload.starter_key, CHECK.key);
+
+  // Another moment's starter is refused in the route's words, and a starter beside a message is one too many.
+  const other = startersForTrigger("visit_tomorrow").find((s) => !s.retired);
+  const wrong = await propose({ trigger: "visited", starter: other.key }, world).made;
+  assert.equal(wrong.isError, true);
+  assert.match(said(wrong), /^That starter is not one /);
+  const both = await propose({ trigger: "visited", starter: REVIEW.key, template_id: REMINDER }, world).made;
+  assert.equal(said(both), PLAYBOOK_CARD_REFUSALS.starterOrMessage);
 });

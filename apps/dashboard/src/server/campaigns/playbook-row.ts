@@ -14,6 +14,8 @@ import { z } from "zod";
 import {
   AppError,
   CAMPAIGN_NOT_FOUND,
+  PLAYBOOK_CARD_REFUSALS,
+  PLAYBOOK_NAME_MAX,
   PLAYBOOK_PATCH_WORDS,
   REACH_OUT_IS_NOT_A_MOMENT,
   REACH_OUT_REFUSALS,
@@ -27,6 +29,7 @@ import {
   emitEvent,
   playbookForChange,
   removePlaybook,
+  runningTwins,
   startPlaybook,
   updatePlaybook,
   writePlaybookChange,
@@ -39,6 +42,7 @@ import {
   checkPlaybookInput,
   playbookPatchPorts,
   playbookWriteError,
+  type PlaybookInput,
 } from "@/server/campaigns/playbooks";
 import { channelsChanged, keptChannels } from "@/server/campaigns/playbook-channels";
 import { withStarterMessage } from "@/server/campaigns/starter-templates";
@@ -119,6 +123,33 @@ function trialAsked(asked: Record<string, unknown> | null, now: Date): string | 
 }
 
 /**
+ * A second running playbook on the same moment, list and message (the moment spec, D9): a second "set up my campaigns"
+ * proposed a twin win-back, which the week's breath then left reaching nobody. Refused in words, unless it is named apart
+ * from every one that runs: a name of its own is a second they asked for. Null where there is no twin. Ask's card is made
+ * by it (act/playbook.ts), and a card's start is held to it again (startNewPlaybook), so one rule says both.
+ */
+export async function twinRefusal(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+  checked: Pick<PlaybookInput, "trigger" | "list_id" | "list_key" | "template_id">,
+  named: unknown,
+): Promise<string | null> {
+  const twins = await runningTwins(ctx.supabase, tenantId, {
+    trigger: checked.trigger,
+    listId: checked.list_id,
+    listKey: checked.list_key,
+    templateId: checked.template_id,
+  });
+  // Bound and checked, never `twins[0].name`: an index read the compiler lets pass is a new offender in a file at 0
+  // (unchecked-index.json).
+  const [first] = twins;
+  if (!first) return null;
+  const own = typeof named === "string" ? named.trim().slice(0, PLAYBOOK_NAME_MAX) : "";
+  if (own && !twins.some((x) => x.name === own)) return null;
+  return PLAYBOOK_CARD_REFUSALS.twin(first.name);
+}
+
+/**
  * A new playbook (POST /api/v1/playbooks): everything it names checked the way the send route checks a broadcast
  * (checkPlaybookInput, in its own words, so the body is this verb's to read), then started with its line in the
  * ledger in one transaction (00357 start_playbook). The door runs on the member's own session, so the table's policy
@@ -128,6 +159,12 @@ function trialAsked(asked: Record<string, unknown> | null, now: Date): string | 
  * nothing and asks nothing of Meta), and the answer says what became of its WhatsApp version (`starter`). The trial it
  * starts on (trialAsked) and its last day (`until`, YYYY-MM-DD: core untilOf, a change's own judge, today or later by
  * the business's clock) are judged first, at this route's clock.
+ *
+ * A card's start (x-via ask) is held to the twin rule its card was made by (twinRefusal), 409 in its words. A press
+ * within its key's day is answered its first answer before this runs (route.ts onceForKey), but a plan's card can be
+ * approved for a week, its key kept a day (0035): a press that outlived its key reaches here, under the first press's
+ * name, so it starts nothing a second time. A starter on file is reused, and one not on file has no running twin on its
+ * template, so a refused start files nothing new. The composer's start is a person's, and is not held to it.
  */
 export async function startNewPlaybook(ctx: RouteContext, req: Request, member: Member) {
   const tenantId = member.tenantId;
@@ -138,6 +175,8 @@ export async function startNewPlaybook(ctx: RouteContext, req: Request, member: 
   // A starter named and no message (A0): the starter is filed first, and the playbook goes by it.
   const { body, starter } = await withStarterMessage(ctx, member, asked);
   const v = await checkPlaybookInput(ctx, tenantId, body, null);
+  const twin = ctx.via === "ask" ? await twinRefusal(ctx, tenantId, v, asked?.name) : null;
+  if (twin) throw new AppError("conflict", twin, 409);
   const { data: made, error } = await startPlaybook(ctx.supabase, {
     tenantId,
     playbook: {

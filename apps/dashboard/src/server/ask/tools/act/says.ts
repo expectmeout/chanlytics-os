@@ -2,12 +2,15 @@ import "server-only";
 import {
   CAMPAIGN_ROOMS,
   CONSENT_CHANNELS,
+  PLAN_WORDS,
   exampleParams,
   noVersionWords,
+  paramSaid,
   previewParts,
   previewSays,
   previewVersionsOf,
   renderTemplate,
+  stepOfferWords,
   type ConsentChannel,
   type ParamSpec,
 } from "@chanlytics/contracts";
@@ -16,6 +19,10 @@ import type { AskedMessage } from "../context";
 
 /** The business a card's example values name, as every card says it: no business's own name is read for a quote. */
 const EXAMPLE_BUSINESS = "the business";
+
+/** Words a card quotes, in `limit` characters: cut there, with an ellipsis where they ran past. One cut for every quote. */
+const clipQuote = (words: string, limit: number): string =>
+  `${words.slice(0, limit)}${words.length > limit ? "…" : ""}`;
 
 /**
  * What a campaign card quotes of the message it proposes to send, as the person reached reads it. A proposal that names no
@@ -39,10 +46,7 @@ export function cardSays(
   const missing = (why: string) => ({
     refusal: `${why} Say so: write it under ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library} first, or leave that channel out`,
   });
-  if (!by.named)
-    return whatsapp === null
-      ? missing(noVersionWords("whatsapp"))
-      : { says: `${whatsapp.slice(0, limit)}${whatsapp.length > limit ? "…" : ""}` };
+  if (!by.named) return whatsapp === null ? missing(noVersionWords("whatsapp")) : { says: clipQuote(whatsapp, limit) };
   if (whatsapp === null && by.channels.includes("whatsapp")) return missing(noVersionWords("whatsapp"));
   const said = previewSays(by.channels, {
     whatsapp: whatsapp ?? "",
@@ -52,6 +56,23 @@ export function cardSays(
     limit,
   });
   return "missing" in said ? missing(said.why) : said;
+}
+
+/** The room a typed value has where a step's send quotes it: what cardSays gives a broadcast's quoted words. */
+const STEP_VALUE_ROOM = 160;
+
+/**
+ * What a send says of the message step `step` of Ask's plan writes, which no row holds yet: which step makes it (contracts
+ * PLAN_WORDS.stepMessage), then the offer its typed values carry, each quoted as a card quotes a value (contracts
+ * paramSaid) and cut as cardSays cuts a message's words, so the card the owner approves shows what goes to everyone it
+ * reaches (contracts stepOfferWords). A value a run fills (a first name, a link) is the message's, said by none; none
+ * typed adds nothing. The message's own slot examples are left alone: they are what WhatsApp's reviewers read.
+ */
+export function stepSays(step: number, specs: readonly ParamSpec[]): string {
+  const quotes = specs.flatMap((s) =>
+    s.kind === "text" ? [paramSaid({ kind: "text", value: clipQuote(s.value, STEP_VALUE_ROOM) })] : [],
+  );
+  return `${PLAN_WORDS.stepMessage(step)}${stepOfferWords(quotes)}`;
 }
 
 /** The example a written message's value is quoted with (contracts exampleParams): a typed value is its own name. */

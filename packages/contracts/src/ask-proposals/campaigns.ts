@@ -4,7 +4,7 @@
  * written for the Library, a version per channel.
  */
 import { CHANNEL_WORDS } from "../broadcasts/reach-for";
-import { goesToOf, heardWords } from "../broadcasts/run-words";
+import { BREATH_WHY, goesToOf, heardWords } from "../broadcasts/run-words";
 import {
   CONSENT_CHANNELS,
   CONSENT_CHANNEL_WORDS,
@@ -15,15 +15,10 @@ import { LIFECYCLE_TOAST, LIFECYCLE_WORDS, channelsGoesByWords } from "../playbo
 import { PLAYBOOK_PATCH_CLEARS, PLAYBOOK_PATCH_KEYS } from "../playbooks/playbook-patch";
 import { SENDING_HOURS_WORDS } from "../playbooks/playbook-triggers";
 import { clockWhen } from "../shared/clock";
-import { plural } from "../shared/words";
+import { joinWords, plural } from "../shared/words";
 import { CAMPAIGN_ROOMS, LIBRARY_STARTER_WORDS, LIBRARY_WORDS } from "../shell/campaign-rooms";
-import { MESSAGE_BEGIN_WORDS } from "../templates/campaign-message";
-import {
-  OWN_VERSION_CHANNELS,
-  VERSION_CHANNEL_WORDS,
-  type OwnVersionChannel,
-  type VersionChannel,
-} from "../templates/message-versions";
+import { MESSAGE_BEGIN_WORDS, metaStatusOf } from "../templates/campaign-message";
+import { OWN_VERSION_CHANNELS, versionWord, type OwnVersionChannel } from "../templates/message-versions";
 import { languageName } from "../templates/template-languages";
 import { TEMPLATE_BODY_WORDS, TEMPLATE_SAME_NAME_WORDS } from "../templates/templates";
 import {
@@ -80,8 +75,21 @@ export const PLAYBOOK_CARD_REFUSALS = {
   twin: (name: string): string =>
     `“${name}” already runs on this moment with this message: say so, and propose a second only when they ask for another by a name of its own`,
   followUpsUnread: "who already had a proposal follow-up could not be read just now; say so, and try again in a moment",
-  /** The week's breath: every message sent this week, a member's own too, holds its person, so the count waits on it. */
-  weekUnread: "who was messaged this week could not be read just now; say so, and try again in a moment",
+  /**
+   * The week's breath: every message sent or due within a week of a run, a member's own too, holds its person, so the
+   * count waits on it. The stem a broadcast's door says it in (core createBroadcast).
+   */
+  weekUnread:
+    "who has had a message from you lately, or has one due, could not be read just now; say so, and try again in a moment",
+  /**
+   * The autonomy modes, unread: what a card says of its runs (and of a trial, which only an auto class starts on, D5)
+   * is its class's mode, so no card is made on a guess, and a change's card is not either (act/playbook-change.ts).
+   */
+  modeUnread:
+    "the sending mode of this campaign's class could not be read just now, so the card cannot say what its runs would do; say so, and try again in a moment",
+  /** The action named a message and a starter both: a campaign sends one. */
+  starterOrMessage:
+    "name template_id for a message the workspace holds, or starter for the moment's starter to file at Approve, never both",
   trigger: (triggers: readonly string[]): string => `trigger must be one of ${triggers.join(", ")}`,
   listToken: (from: string): string =>
     `a playbook on a list needs list: the list's token from ${from} (seg:<id> or list:<id>)`,
@@ -98,11 +106,19 @@ export const PLAYBOOK_CARD_WORDS = {
   trial: "on trial for a week from when you approve it: for seven days each run waits half an hour with a Stop",
   /**
    * A reminder the day before or a check after an appointment (D2): one message per appointment, sent whatever else
-   * the person heard this week, since the run is daily and the appointment is on one day (contracts playbookRunReach),
-   * so the week's breath, which holds every other moment, does not hold it.
+   * the person hears from you within a week of it, sent or due (BREATH_WHY), since the run is daily and the appointment
+   * is on one day (contracts playbookRunReach), so the week's breath, which holds every other moment, does not hold it.
    */
-  appointmentBreath: "exempt from one a week per person: each goes whatever else they heard this week",
+  appointmentBreath: `exempt from one a week per person: each goes whatever else they hear ${BREATH_WHY}`,
 } as const;
+
+/**
+ * What a send on the message an earlier step of Ask's plan writes says of it after "the message made by step 1" (PLAN_WORDS
+ * .stepMessage): the offer its typed values carry, each quoted as a card quotes a value (contracts paramSaid), so the
+ * card the owner approves shows the words that go to everyone it reaches. Nothing where no value is typed.
+ */
+export const stepOfferWords = (quotes: readonly string[]): string =>
+  quotes.length === 0 ? "" : `, with the offer ${joinWords(quotes)}`;
 
 /**
  * The channels a card's payload names, as the commit hands them to its route: only when the proposal named some, so a
@@ -405,10 +421,19 @@ export const runSpec: ProposalSpec = {
 
 /* ------------------------------------------------ a message written for the Library (the marketing manager, §5.2) */
 
-/** A channel as a sentence about a message's version names it: "WhatsApp", "email", "text". */
-const versionWord = (c: VersionChannel): string =>
-  c === "whatsapp" ? VERSION_CHANNEL_WORDS.whatsapp : VERSION_CHANNEL_WORDS[c].toLowerCase();
-/** "email version", "email and text versions". */
+/**
+ * Where a WhatsApp version the door filed stands, after "its WhatsApp version": approved, in review, or as WhatsApp
+ * answered the filing at once (refused, say), with where it is seen. A state the set does not know is in review, as a
+ * row's is (contracts metaStatusOf).
+ */
+const whatsappFiledWords = (state: string): string => {
+  const at = metaStatusOf(state);
+  const where = `(see ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library})`;
+  if (at === "approved") return "is approved";
+  if (at === "pending") return "is with WhatsApp for review";
+  return at === "rejected" ? `was refused by WhatsApp ${where}` : `is ${at} by WhatsApp ${where}`;
+};
+/** "email version", "email and text versions" (each channel's word, contracts versionWord). */
 const versionsWords = (own: readonly OwnVersionChannel[]): string =>
   `${own.map(versionWord).join(" and ")} version${own.length === 1 ? "" : "s"}`;
 
@@ -420,8 +445,8 @@ const versionsWords = (own: readonly OwnVersionChannel[]): string =>
 export const MESSAGE_WORDS = {
   /** A text version of an offer: the door's sentence (contracts channelNeverCarries). */
   smsOffer: `${CHANNEL_WORDS.noOffersByText} Say so, and write the offer for WhatsApp and email alone.`,
-  /** A message about their own appointment with no WhatsApp version for WhatsApp to review: the door's sentence. */
-  utilityNeedsWhatsapp: `${MESSAGE_BEGIN_WORDS.customIsAnOffer} One about their own appointment or proposal is written with a WhatsApp version, which WhatsApp reviews: add one, or write it as an offer or news (marketing).`,
+  /** A message about their own booking or proposal with no WhatsApp version for WhatsApp to review: the door's sentence. */
+  utilityNeedsWhatsapp: `${MESSAGE_BEGIN_WORDS.utilityNeedsWhatsapp} Add one, or write it as an offer or news (marketing).`,
   /** A WhatsApp version past what WhatsApp takes: the door's sentence (templateBodyTooLong). */
   tooLong: `${TEMPLATE_BODY_WORDS} Shorten its WhatsApp version, and propose it again.`,
   /** A WhatsApp version where no number is connected: what the door answers when the edge finds none. */
@@ -444,15 +469,19 @@ export const MESSAGE_WORDS = {
   title: (name: string, language: string): string =>
     `${CAMPAIGN_ROOMS.newMessage}: ${name}, in ${languageName(language)}`,
   /**
-   * When its versions can go: an email's and a text's once Approve files them, WhatsApp's once WhatsApp has reviewed it,
-   * in the product's voice (a person reads WhatsApp, never Meta, as STARTER_LINE_WORDS say the review).
+   * When its versions are ready to send: an email's and a text's once Approve files them (the card itself sends nothing,
+   * and in a plan it sits among the silent steps), WhatsApp's once WhatsApp has reviewed it, in the product's voice (a
+   * person reads WhatsApp, never Meta, as STARTER_LINE_WORDS say the review).
    */
   goes: (now: readonly OwnVersionChannel[], review: boolean): string => {
-    const reviewed = "WhatsApp version waits on WhatsApp's review (usually minutes, sometimes a day)";
-    if (now.length === 0) return review ? `Its ${reviewed}` : "";
-    return `Goes ${channelsWords(now)} now${review ? `; its ${reviewed}` : ""}`;
+    const reviewed = "once WhatsApp has reviewed it (usually minutes, sometimes a day)";
+    if (now.length === 0) return review ? `Its WhatsApp version is ready ${reviewed}` : "";
+    return `Ready ${channelsWords(now)} once approved${review ? `; its WhatsApp version ${reviewed}` : ""}`;
   },
-  /** What the door filed (its answer): each version, ready or in review, and the one it could not file, in its words. */
+  /**
+   * What the door filed (its answer): each version, ready, in review or as WhatsApp answered its filing (refused at once,
+   * say, which is said with where it is seen), and the one it could not file, in its words.
+   */
   filed: (
     name: string,
     filed: readonly { channel: ConsentChannel; state: string }[],
@@ -460,7 +489,7 @@ export const MESSAGE_WORDS = {
   ): string => {
     const said = filed.map((v) =>
       v.channel === "whatsapp"
-        ? `its WhatsApp version is ${v.state === "approved" ? "approved" : "with WhatsApp for review"}`
+        ? `its WhatsApp version ${whatsappFiledWords(v.state)}`
         : `its ${versionWord(v.channel)} version is ready`,
     );
     if (said.length === 0) return `“${name}” was not filed${refused ? `: ${refused.words}` : ""}`;
@@ -470,11 +499,14 @@ export const MESSAGE_WORDS = {
   /** The undo's button: the email and text versions it deletes; none where the card writes none. */
   undo: (own: readonly OwnVersionChannel[]): string | null =>
     own.length > 0 ? `Delete its ${versionsWords(own)}` : null,
-  /** What the undo did: those versions deleted, and the WhatsApp version, where the door filed one, left and said. */
+  /**
+   * What the undo did: those versions deleted, and the WhatsApp version, where the door filed one, left, said so, and
+   * where a person deletes it if it should go.
+   */
   undone: (own: readonly OwnVersionChannel[], whatsapp: boolean): string => {
     const gone = `Its ${versionsWords(own)} ${own.length === 1 ? "is" : "are"} deleted`;
     return whatsapp
-      ? `${gone}. Its WhatsApp version stays: WhatsApp holds it, and it is deleted from ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library}`
+      ? `${gone}. Its WhatsApp version stays, held by WhatsApp: delete it in ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library} if it should go.`
       : gone;
   },
   /**

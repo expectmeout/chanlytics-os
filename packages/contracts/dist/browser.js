@@ -4576,8 +4576,11 @@ var VERSION_CHANNEL_WORDS = {
   email: "Email",
   sms: "Text"
 };
+function versionWord(channel) {
+  return channel === "whatsapp" ? VERSION_CHANNEL_WORDS.whatsapp : VERSION_CHANNEL_WORDS[channel].toLowerCase();
+}
 function noVersionWords(channel) {
-  return channel === "whatsapp" ? "This message has no WhatsApp version." : `This message has no ${VERSION_CHANNEL_WORDS[channel].toLowerCase()} version yet.`;
+  return channel === "whatsapp" ? "This message has no WhatsApp version." : `This message has no ${versionWord(channel)} version yet.`;
 }
 var EMAIL_SUBJECT_MAX = 60;
 var EMAIL_BODY_MAX = 2e3;
@@ -12397,15 +12400,28 @@ var STARTER_LINE_WORDS = {
   /** After the moment's own message's name, where it is not added yet: "Win-back, written for you". */
   written: "written for you"
 };
+var THEIRS_WORDS = "a message about something they booked, or a proposal of theirs";
 var MESSAGE_BEGIN_WORDS = {
   customIsAnOffer: "A message you write is an offer or news. Only a starter is a reminder, a check after or a follow-up.",
+  /**
+   * A message written whole (POST templates/message, Ask's message card) takes one about their own booking or proposal,
+   * written with a WhatsApp version for WhatsApp to review: never with an email or a text alone, which nobody reviews.
+   * Its own sentence, since customIsAnOffer (POST templates/versions's) is not true of this door.
+   */
+  utilityNeedsWhatsapp: "A message about something they booked, or a proposal of theirs, needs a WhatsApp version, which WhatsApp reviews.",
   starterNeedsItsOwnWords: "A starter begins with its own words. Add the starter set, then change the words in the Library.",
   doorNotSwitchedOn: "Writing a message with no WhatsApp version is not switched on here yet.",
   /**
    * A message written whole in a language of a message already on file in another, said as something else (POST
-   * templates/message): a language of a message is the same kind of message with the same values.
+   * templates/message): a language of a message is the same kind of message with the same values, its kind what a send
+   * judges it by (consent purposeOfTemplate: a row with no category is an offer), so `purpose` is the held one's.
    */
-  heldOtherwise: (category, slots) => `This message is on file in another language as ${category === "utility" ? "a message about their own visit or proposal" : "an offer or news"} with ${slots} value${slots === 1 ? "" : "s"}. Write this language the same way, or give it another name.`
+  heldOtherwise: (purpose, slots) => `This message is on file in another language as ${purpose === "marketing" ? "an offer or news" : THEIRS_WORDS} with ${slots} value${slots === 1 ? "" : "s"}. Write this language the same way, or give it another name.`,
+  /**
+   * A name on file in another language as a code for signing in (Meta's `authentication`): no campaign sends one, so no
+   * kind of message is written beside it, and "write it the same way" would be no way out.
+   */
+  heldAuthentication: "This name is on file in another language as a code for signing in, which no campaign sends. Give this message another name."
 };
 
 // src/ask-proposals/spec.ts
@@ -12465,8 +12481,18 @@ var PLAYBOOK_CARD_REFUSALS = {
   /** A second running campaign on the same moment, list and message, where they named none of its own (D9). */
   twin: (name) => `\u201C${name}\u201D already runs on this moment with this message: say so, and propose a second only when they ask for another by a name of its own`,
   followUpsUnread: "who already had a proposal follow-up could not be read just now; say so, and try again in a moment",
-  /** The week's breath: every message sent this week, a member's own too, holds its person, so the count waits on it. */
-  weekUnread: "who was messaged this week could not be read just now; say so, and try again in a moment",
+  /**
+   * The week's breath: every message sent or due within a week of a run, a member's own too, holds its person, so the
+   * count waits on it. The stem a broadcast's door says it in (core createBroadcast).
+   */
+  weekUnread: "who has had a message from you lately, or has one due, could not be read just now; say so, and try again in a moment",
+  /**
+   * The autonomy modes, unread: what a card says of its runs (and of a trial, which only an auto class starts on, D5)
+   * is its class's mode, so no card is made on a guess, and a change's card is not either (act/playbook-change.ts).
+   */
+  modeUnread: "the sending mode of this campaign's class could not be read just now, so the card cannot say what its runs would do; say so, and try again in a moment",
+  /** The action named a message and a starter both: a campaign sends one. */
+  starterOrMessage: "name template_id for a message the workspace holds, or starter for the moment's starter to file at Approve, never both",
   trigger: (triggers) => `trigger must be one of ${triggers.join(", ")}`,
   listToken: (from) => `a playbook on a list needs list: the list's token from ${from} (seg:<id> or list:<id>)`,
   templateId: (from) => `template_id must be an id ${from} returned, or omitted for the trigger's starter`
@@ -12479,11 +12505,12 @@ var PLAYBOOK_CARD_WORDS = {
   trial: "on trial for a week from when you approve it: for seven days each run waits half an hour with a Stop",
   /**
    * A reminder the day before or a check after an appointment (D2): one message per appointment, sent whatever else
-   * the person heard this week, since the run is daily and the appointment is on one day (contracts playbookRunReach),
-   * so the week's breath, which holds every other moment, does not hold it.
+   * the person hears from you within a week of it, sent or due (BREATH_WHY), since the run is daily and the appointment
+   * is on one day (contracts playbookRunReach), so the week's breath, which holds every other moment, does not hold it.
    */
-  appointmentBreath: "exempt from one a week per person: each goes whatever else they heard this week"
+  appointmentBreath: `exempt from one a week per person: each goes whatever else they hear ${BREATH_WHY}`
 };
+var stepOfferWords = (quotes) => quotes.length === 0 ? "" : `, with the offer ${joinWords(quotes)}`;
 var channelsNamed = (pl) => Array.isArray(pl.channels) ? { channels: pl.channels } : {};
 var cancelCall = (u) => ({
   route: "POST broadcasts/[id]/cancel",
@@ -12692,13 +12719,19 @@ var runSpec = {
     return id ? `broadcasts/run:${id}` : "broadcasts";
   }
 };
-var versionWord = (c) => c === "whatsapp" ? VERSION_CHANNEL_WORDS.whatsapp : VERSION_CHANNEL_WORDS[c].toLowerCase();
+var whatsappFiledWords = (state) => {
+  const at3 = metaStatusOf(state);
+  const where = `(see ${CAMPAIGN_ROOMS.home} \u203A ${CAMPAIGN_ROOMS.library})`;
+  if (at3 === "approved") return "is approved";
+  if (at3 === "pending") return "is with WhatsApp for review";
+  return at3 === "rejected" ? `was refused by WhatsApp ${where}` : `is ${at3} by WhatsApp ${where}`;
+};
 var versionsWords = (own) => `${own.map(versionWord).join(" and ")} version${own.length === 1 ? "" : "s"}`;
 var MESSAGE_WORDS = {
   /** A text version of an offer: the door's sentence (contracts channelNeverCarries). */
   smsOffer: `${CHANNEL_WORDS.noOffersByText} Say so, and write the offer for WhatsApp and email alone.`,
-  /** A message about their own appointment with no WhatsApp version for WhatsApp to review: the door's sentence. */
-  utilityNeedsWhatsapp: `${MESSAGE_BEGIN_WORDS.customIsAnOffer} One about their own appointment or proposal is written with a WhatsApp version, which WhatsApp reviews: add one, or write it as an offer or news (marketing).`,
+  /** A message about their own booking or proposal with no WhatsApp version for WhatsApp to review: the door's sentence. */
+  utilityNeedsWhatsapp: `${MESSAGE_BEGIN_WORDS.utilityNeedsWhatsapp} Add one, or write it as an offer or news (marketing).`,
   /** A WhatsApp version past what WhatsApp takes: the door's sentence (templateBodyTooLong). */
   tooLong: `${TEMPLATE_BODY_WORDS} Shorten its WhatsApp version, and propose it again.`,
   /** A WhatsApp version where no number is connected: what the door answers when the edge finds none. */
@@ -12718,18 +12751,22 @@ var MESSAGE_WORDS = {
   /** The card's title: the name the door files the message under, and its language in words ("in English"). */
   title: (name, language) => `${CAMPAIGN_ROOMS.newMessage}: ${name}, in ${languageName(language)}`,
   /**
-   * When its versions can go: an email's and a text's once Approve files them, WhatsApp's once WhatsApp has reviewed it,
-   * in the product's voice (a person reads WhatsApp, never Meta, as STARTER_LINE_WORDS say the review).
+   * When its versions are ready to send: an email's and a text's once Approve files them (the card itself sends nothing,
+   * and in a plan it sits among the silent steps), WhatsApp's once WhatsApp has reviewed it, in the product's voice (a
+   * person reads WhatsApp, never Meta, as STARTER_LINE_WORDS say the review).
    */
   goes: (now, review) => {
-    const reviewed = "WhatsApp version waits on WhatsApp's review (usually minutes, sometimes a day)";
-    if (now.length === 0) return review ? `Its ${reviewed}` : "";
-    return `Goes ${channelsWords(now)} now${review ? `; its ${reviewed}` : ""}`;
+    const reviewed = "once WhatsApp has reviewed it (usually minutes, sometimes a day)";
+    if (now.length === 0) return review ? `Its WhatsApp version is ready ${reviewed}` : "";
+    return `Ready ${channelsWords(now)} once approved${review ? `; its WhatsApp version ${reviewed}` : ""}`;
   },
-  /** What the door filed (its answer): each version, ready or in review, and the one it could not file, in its words. */
+  /**
+   * What the door filed (its answer): each version, ready, in review or as WhatsApp answered its filing (refused at once,
+   * say, which is said with where it is seen), and the one it could not file, in its words.
+   */
   filed: (name, filed, refused) => {
     const said = filed.map(
-      (v) => v.channel === "whatsapp" ? `its WhatsApp version is ${v.state === "approved" ? "approved" : "with WhatsApp for review"}` : `its ${versionWord(v.channel)} version is ready`
+      (v) => v.channel === "whatsapp" ? `its WhatsApp version ${whatsappFiledWords(v.state)}` : `its ${versionWord(v.channel)} version is ready`
     );
     if (said.length === 0) return `\u201C${name}\u201D was not filed${refused ? `: ${refused.words}` : ""}`;
     const not = refused ? ` \xB7 its ${versionWord(refused.channel)} version was not filed: ${refused.words}` : "";
@@ -12737,10 +12774,13 @@ var MESSAGE_WORDS = {
   },
   /** The undo's button: the email and text versions it deletes; none where the card writes none. */
   undo: (own) => own.length > 0 ? `Delete its ${versionsWords(own)}` : null,
-  /** What the undo did: those versions deleted, and the WhatsApp version, where the door filed one, left and said. */
+  /**
+   * What the undo did: those versions deleted, and the WhatsApp version, where the door filed one, left, said so, and
+   * where a person deletes it if it should go.
+   */
   undone: (own, whatsapp) => {
     const gone = `Its ${versionsWords(own)} ${own.length === 1 ? "is" : "are"} deleted`;
-    return whatsapp ? `${gone}. Its WhatsApp version stays: WhatsApp holds it, and it is deleted from ${CAMPAIGN_ROOMS.home} \u203A ${CAMPAIGN_ROOMS.library}` : gone;
+    return whatsapp ? `${gone}. Its WhatsApp version stays, held by WhatsApp: delete it in ${CAMPAIGN_ROOMS.home} \u203A ${CAMPAIGN_ROOMS.library} if it should go.` : gone;
   },
   /**
    * An undo refused part-way: the versions already deleted, the ones that are not, and the door's refusal; nothing deleted
@@ -42384,6 +42424,7 @@ export {
   stepIsDue,
   stepLabel,
   stepLabelOf,
+  stepOfferWords,
   stepSheetBody,
   stepSheetDirty,
   stepSheetFor,
@@ -42516,6 +42557,7 @@ export {
   verifyCodeWords,
   versionComponents,
   versionSlotsRefusal,
+  versionWord,
   versionWords,
   versionsOf,
   vetoRunNotice,

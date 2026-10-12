@@ -42,8 +42,12 @@ const USER = "u1";
 const TZ = "America/New_York";
 const NOW = new Date("2026-10-10T14:00:00Z");
 const V = (n) => `77777777-7777-4777-8777-${String(n).padStart(12, "0")}`;
-/** The sentence the card says of when each version can go, word for word: WhatsApp's review, never Meta's. */
-const GOES = "Goes by email now; its WhatsApp version waits on WhatsApp's review (usually minutes, sometimes a day)";
+/**
+ * The sentence the card says of when each version can go, word for word: once its Approve files it (the card sends
+ * nothing), and WhatsApp's once WhatsApp, never Meta, has reviewed it.
+ */
+const GOES =
+  "Ready by email once approved; its WhatsApp version once WhatsApp has reviewed it (usually minutes, sometimes a day)";
 
 /** A template row as the table holds it: English is filed under en_US, as the starters are. */
 const tpl = (n, over = {}) => ({
@@ -176,7 +180,14 @@ test("a message about their appointment with no WhatsApp version for WhatsApp to
   const r = await propose(without(THANKS, "whatsapp"));
   assert.equal(r.isError, true);
   assert.equal(said(r), C.MESSAGE_WORDS.utilityNeedsWhatsapp);
-  assert.ok(said(r).startsWith(C.MESSAGE_BEGIN_WORDS.customIsAnOffer), "the door's own sentence, first");
+  assert.ok(said(r).startsWith(C.MESSAGE_BEGIN_WORDS.utilityNeedsWhatsapp), "the door's own sentence, first");
+  // The door's sentence says what this door takes: a message about their own booking or proposal WITH a WhatsApp
+  // version, never "a message you write is an offer or news", which POST templates/versions says, where it is true.
+  assert.equal(
+    C.MESSAGE_BEGIN_WORDS.utilityNeedsWhatsapp,
+    "A message about something they booked, or a proposal of theirs, needs a WhatsApp version, which WhatsApp reviews.",
+  );
+  assert.ok(!said(r).includes(C.MESSAGE_BEGIN_WORDS.customIsAnOffer), said(r));
   wroteNothing(r);
 });
 
@@ -277,9 +288,11 @@ test("a language of a message held in another, said as another kind or with othe
   const held = { templates: [tpl(1, { language: "es", category: "utility" })] };
   const r = await propose(OFFER, held);
   assert.equal(r.isError, true);
-  assert.equal(said(r), C.MESSAGE_BEGIN_WORDS.heldOtherwise("utility", 2));
+  assert.equal(said(r), C.MESSAGE_BEGIN_WORDS.heldOtherwise("conversational", 2));
   const fewer = await propose(OFFER, { templates: [tpl(1, { language: "es", variables: [] })] });
   assert.equal(said(fewer), C.MESSAGE_BEGIN_WORDS.heldOtherwise("marketing", 0));
+  // A row filed before categories were kept (null) reads as an offer, as a send reads it: an offer beside it is no other kind.
+  assert.equal((await propose(OFFER, { templates: [tpl(1, { language: "es", category: null })] })).isError, false);
 });
 
 test("every other refusal the door makes before filing is the card's, in the door's words: values out of order, an email naming a value the message has not", async () => {
@@ -340,7 +353,7 @@ test("an offer by WhatsApp and email is a card that quotes every version as the 
   wroteNothing(r);
 });
 
-test("a message about their appointment in Spanish, on all three channels: each quoted in its own words in the page's channel order, the text with its STOP line, and the email and text go at once", async () => {
+test("a message about their appointment in Spanish, on all three channels: each quoted in its own words in the page's channel order, the text with its STOP line, and the email and text ready once approved", async () => {
   const r = await propose(THANKS);
   assert.equal(r.isError, false, r.result);
   const p = r.proposal;
@@ -357,7 +370,7 @@ test("a message about their appointment in Spanish, on all three channels: each 
   assert.ok(text.endsWith(C.smsStopLine("es")), "a text as it goes, with the STOP line the sender adds");
   assert.ok(
     p.summary.includes(
-      " · Goes by email and by text now; its WhatsApp version waits on WhatsApp's review (usually minutes, sometimes a day) · ",
+      " · Ready by email and by text once approved; its WhatsApp version once WhatsApp has reviewed it (usually minutes, sometimes a day) · ",
     ),
     p.summary,
   );
@@ -367,14 +380,14 @@ test("a message about their appointment in Spanish, on all three channels: each 
   assert.equal(p.undo, "Delete its email and text versions");
 });
 
-test("a message with no WhatsApp version goes at once, and one with WhatsApp alone waits on its review", async () => {
+test("a message with no WhatsApp version is ready once approved, and one with WhatsApp alone once WhatsApp has reviewed it: the card sends nothing, and never says it goes now", async () => {
   const email = await propose(without(OFFER, "whatsapp"));
-  assert.ok(email.proposal.summary.includes(" · Goes by email now · "), email.proposal.summary);
-  assert.doesNotMatch(email.proposal.summary, /review/);
+  assert.ok(email.proposal.summary.includes(" · Ready by email once approved · "), email.proposal.summary);
+  assert.doesNotMatch(email.proposal.summary, /review|Goes/);
   const wa = await propose(without(OFFER, "email"));
   assert.ok(
     wa.proposal.summary.includes(
-      " · Its WhatsApp version waits on WhatsApp's review (usually minutes, sometimes a day) · ",
+      " · Its WhatsApp version is ready once WhatsApp has reviewed it (usually minutes, sometimes a day) · ",
     ),
     wa.proposal.summary,
   );
@@ -462,6 +475,12 @@ test("the receipt says what the door filed and what it refused, from its answer"
   );
   const approved = { ...FILED, versions: [{ channel: "whatsapp", id: V(3), state: "approved" }] };
   assert.equal(spec.receipt(p, approved), "“thanks_for_coming” is in the Library — its WhatsApp version is approved");
+  // WhatsApp refused it in its answer to the filing: said so, never "with WhatsApp for review".
+  const refusedAtOnce = { ...FILED, versions: [{ channel: "whatsapp", id: V(3), state: "rejected" }] };
+  assert.equal(
+    spec.receipt(p, refusedAtOnce),
+    `“thanks_for_coming” is in the Library — its WhatsApp version was refused by WhatsApp (see ${C.CAMPAIGN_ROOMS.home} › ${C.CAMPAIGN_ROOMS.library})`,
+  );
 });
 
 test("the undo keeps the email and text versions the door filed, deletes each through its own door within ten minutes, and leaves the WhatsApp version, saying so", () => {
@@ -482,7 +501,7 @@ test("the undo keeps the email and text versions the door filed, deletes each th
   ]);
   assert.equal(
     spec.undo.receipt({ deleted: true }, kept),
-    `Its email and text versions are deleted. Its WhatsApp version stays: WhatsApp holds it, and it is deleted from ${C.CAMPAIGN_ROOMS.home} › ${C.CAMPAIGN_ROOMS.library}`,
+    `Its email and text versions are deleted. Its WhatsApp version stays, held by WhatsApp: delete it in ${C.CAMPAIGN_ROOMS.home} › ${C.CAMPAIGN_ROOMS.library} if it should go.`,
   );
   const emailOnly = spec.undo.record(p, { ...FILED, versions: FILED.versions.slice(0, 1) }, { settings: null });
   assert.deepEqual(emailOnly, { versions: [{ channel: "email", id: V(1) }], whatsapp: null });
@@ -751,4 +770,26 @@ test("an approved card's body is what the door files: an offer by email alone, b
   } finally {
     setServiceClient(null);
   }
+});
+
+/* ------------------------------------------------------------------ a plan's send, on the message a step writes */
+
+test("a send on the message an earlier step writes quotes the offer it types (stepSays): each typed value in quotes, cut at 160 characters as a quoted message is, after which step makes it; a value a run fills, and none typed, add nothing", async () => {
+  const { stepSays } = await import(at("apps/dashboard/src/server/ask/tools/act/says.ts"));
+  const line = "10% off every service all November.";
+  assert.equal(
+    stepSays(1, [{ kind: "first_name" }, { kind: "business_name" }, { kind: "text", value: line }]),
+    `${C.PLAN_WORDS.stepMessage(1)}${C.stepOfferWords([C.paramSaid({ kind: "text", value: line })])}`,
+  );
+  assert.equal(
+    stepSays(1, [{ kind: "text", value: line }]),
+    "the message made by step 1, with the offer “10% off every service all November.”",
+  );
+  const long = "x".repeat(200);
+  assert.equal(
+    stepSays(2, [{ kind: "text", value: long }]),
+    `the message made by step 2, with the offer “${"x".repeat(160)}…”`,
+  );
+  assert.equal(stepSays(3, [{ kind: "first_name" }, { kind: "booking_link" }]), C.PLAN_WORDS.stepMessage(3));
+  assert.equal(stepSays(3, []), C.PLAN_WORDS.stepMessage(3));
 });

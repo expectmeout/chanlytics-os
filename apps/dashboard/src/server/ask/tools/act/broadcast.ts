@@ -4,7 +4,6 @@ import {
   AUDIENCE_KINDS,
   AppError,
   BUILTIN_LISTS,
-  PLAN_WORDS,
   PLAYBOOK_CARD_REFUSALS,
   allLeftOutWords,
   allowanceBeforeSend,
@@ -56,7 +55,7 @@ import {
   type ProposalOutcome,
   type ToolContext,
 } from "../context";
-import { cardSays } from "./says";
+import { cardSays, stepSays } from "./says";
 
 /** The values a proposal fills the message's slots with: typed text once, or one the job fills per person; or the refusal. */
 function proposedValues(params: unknown): { specs: ParamSpec[] } | { refusal: string } {
@@ -303,13 +302,16 @@ async function sentMessage(
   return { asked, purpose: asked.message.purpose };
 }
 
-/** What a broadcast card says of its message: its words quoted (cardSays), or, a step's, which step makes it. */
+/**
+ * What a broadcast card says of its message: its words quoted (cardSays), or, a step's, which step makes it and the offer
+ * its values type (stepSays).
+ */
 function messageSaid(
   sent: { asked: AskedMessage } | { asked: null; step: number },
   params: readonly ParamSpec[],
   by: { channels: ConsentChannel[]; named: boolean },
 ): { says: string } | { refusal: string } {
-  return sent.asked ? cardSays(sent.asked, params, by, 160) : { says: PLAN_WORDS.stepMessage(sent.step) };
+  return sent.asked ? cardSays(sent.asked, params, by, 160) : { says: stepSays(sent.step, params) };
 }
 
 async function proposeBroadcast(t: ToolContext, input: BroadcastProposed): Promise<ProposalOutcome> {
@@ -344,7 +346,7 @@ async function proposeBroadcast(t: ToolContext, input: BroadcastProposed): Promi
   const reach = await broadcastCount(t, { rows, label, purpose }, by, sendsAt);
   if ("refusal" in reach) return refuse(reach.refusal);
   const { count, says, kept, byChannel, leftOutSaid } = reach;
-  // A step's message is not filed yet: the card says which step makes it, and quotes nothing.
+  // A step's message is not filed yet: the card says which step makes it, and quotes the offer its values type.
   const said = messageSaid(sent, params, by);
   if ("refusal" in said) return refuse(said.refusal);
   // Named for the business's day and said by its clock, as the route names it and the pages say it; a step's message is

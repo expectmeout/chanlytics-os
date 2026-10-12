@@ -15,7 +15,13 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
-import { LIBRARY_WORDS, MESSAGE_BEGIN_WORDS, channelNeverCarries } from "@chanlytics/contracts";
+import {
+  CAMPAIGN_ROOMS,
+  LIBRARY_WORDS,
+  MESSAGE_BEGIN_WORDS,
+  PROPOSAL_SPECS,
+  channelNeverCarries,
+} from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -131,10 +137,11 @@ function doors(tables, order, after) {
 /**
  * The edge's template submission, stubbed. Taken (the default), Meta has it for review and the edge writes the row as it
  * does (apps/edge/lib/whatsapp/template-admin.ts: pending, its values numbered from the body with their labels and
- * examples); refused, the edge answers its status and code as its door does. Every call is kept with its body; any other
- * address is no address this file may reach.
+ * examples); refused, the edge answers its status and code as its door does. Taken, Meta may have answered it at once
+ * (`status`: refused in its create answer, say), which the edge writes on the row and answers. Every call is kept with its
+ * body; any other address is no address this file may reach.
  */
-function stubMeta(tables, order, answer = null) {
+function stubMeta(tables, order, answer = null, status = "pending") {
   const calls = [];
   const real = globalThis.fetch;
   let next = 800;
@@ -152,12 +159,12 @@ function stubMeta(tables, order, answer = null) {
       language: b.language,
       category: String(b.category).toLowerCase(),
       body_preview: b.body,
-      meta_status: "pending",
+      meta_status: status,
       variables: positions.map((n) => ({ position: n, label: b.labels[n - 1], example: b.examples[n - 1] ?? null })),
       created_by: b.user_id,
     });
     tables.templates.push(row);
-    return new Response(JSON.stringify({ ok: true, id: row.id, meta_id: "meta-1", meta_status: "pending" }), {
+    return new Response(JSON.stringify({ ok: true, id: row.id, meta_id: "meta-1", meta_status: status }), {
       status: 200,
     });
   };
@@ -172,7 +179,7 @@ afterEach(() => {
 });
 
 /** A world: B, where the member is an operator with a WhatsApp number; A, where they only look. */
-function open({ templates = [], edge = null } = {}) {
+function open({ templates = [], edge = null, status = "pending" } = {}) {
   const tables = {
     memberships: [
       { user_id: USER, tenant_id: A, role: "viewer", tenants: { slug: "harbor" }, created_at: "2026-01-01T00:00:00Z" },
@@ -196,7 +203,7 @@ function open({ templates = [], edge = null } = {}) {
   const after = {};
   const d = doors(tables, order, after);
   setServiceClient(fakeDb(tables, {}, d.service));
-  meta = stubMeta(tables, order, edge);
+  meta = stubMeta(tables, order, edge, status);
   const ctx = { supabase: fakeDb(tables, faults, d.session), userId: USER, email: "ada@example.com", params: {} };
   const post = (body, workspace = B) =>
     route.POST.run(
@@ -233,11 +240,13 @@ test("POST templates/message declares its policy as POST templates does, and has
 
 test("(a) a utility message with an email and a text version and no WhatsApp one is refused in the product's words before anything is filed: nobody reviews a category its writer declares", async () => {
   const w = open();
+  // This door takes a message about their own booking with a WhatsApp version, so its words say that one is needed,
+  // never "a message you write is an offer or news" (POST templates/versions's words, where that is true).
   await refused(
     w.post(message({ name: "visit_thanks", category: "utility", versions: { email: VISIT_EMAIL, sms: SMS } })),
     "validation",
     400,
-    MESSAGE_BEGIN_WORDS.customIsAnOffer,
+    MESSAGE_BEGIN_WORDS.utilityNeedsWhatsapp,
   );
   assert.deepEqual(w.order, [], "no door was called and Meta was not asked");
   assert.deepEqual(w.tables.templates, []);
@@ -365,6 +374,24 @@ test("(c) WhatsApp's version refused at the edge leaves the email filed and is a
   assert.deepEqual(m.filed(), [["email", "approved"]]);
 });
 
+test("(c2) WhatsApp refusing the version in its answer to the filing is filed as refused, never as in review, and the card's receipt says so", async () => {
+  const w = open({ status: "rejected" });
+  const r = await w.post(message({ versions: { email: EMAIL, whatsapp: WHATSAPP } }));
+  assert.deepEqual(w.filed(), [
+    ["email", "approved"],
+    ["whatsapp", "rejected"],
+  ]);
+  const wa = w.tables.templates.find((t) => t.channel === "whatsapp");
+  assert.deepEqual(r.versions.at(-1), { channel: "whatsapp", id: wa.id, state: "rejected" });
+  assert.equal(r.refused, undefined, "filed, and refused by WhatsApp: no version the door could not file");
+  const said = PROPOSAL_SPECS.message.receipt({ kind: "message", payload: { name: "spring_colour" } }, r);
+  assert.equal(
+    said,
+    `“spring_colour” is in the Library — its email version is ready; its WhatsApp version was refused by WhatsApp (see ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library})`,
+  );
+  assert.doesNotMatch(said, /for review/);
+});
+
 test("(d) a marketing message with a text version is refused in the product's words before anything is filed", async () => {
   const w = open();
   await refused(
@@ -475,6 +502,41 @@ test("(h) a Spanish body for a name held in English as another kind of message i
   assert.match(MESSAGE_BEGIN_WORDS.heldOtherwise("marketing", 2), /an offer or news with 2 values/);
   assert.deepEqual(w.order, []);
   assert.equal(w.tables.templates.length, 1);
+});
+
+test("(i) a name held in English with no category (a row filed before categories were kept) is an offer, as a send reads it: a Spanish offer beside it is written, never refused as another kind", async () => {
+  const w = open({ templates: [{ ...HELD_EN(), category: null }] });
+  const r = await w.post(message({ language: "es", versions: { email: ES_EMAIL, whatsapp: ES_WHATSAPP } }));
+  assert.deepEqual(w.order, ["save:email", "meta"], "written beside the message on file");
+  assert.deepEqual(
+    r.versions.map((v) => [v.channel, v.state]),
+    [
+      ["email", "approved"],
+      ["whatsapp", "pending"],
+    ],
+  );
+});
+
+test("(j) a name held in English as a code for signing in (authentication) is refused in words of its own: no campaign sends one, so no kind of message is written beside it", async () => {
+  for (const category of ["marketing", "utility"]) {
+    const w = open({ templates: [{ ...HELD_EN(), category: "authentication" }] });
+    const versions =
+      category === "marketing"
+        ? { email: ES_EMAIL, whatsapp: ES_WHATSAPP }
+        : {
+            email: { subject: "Tu visita a {{2}}", body: "Hola {{1}}, gracias por venir a {{2}}." },
+            whatsapp: { body: "Hola {{1}}, gracias por venir a {{2}} hoy. Escríbenos si algo necesita un vistazo." },
+          };
+    await refused(
+      w.post(message({ language: "es", category, versions })),
+      "conflict",
+      409,
+      MESSAGE_BEGIN_WORDS.heldAuthentication,
+    );
+    assert.deepEqual(w.order, [], `${category}: no door was called and Meta was not asked`);
+    assert.equal(w.tables.templates.length, 1);
+  }
+  assert.doesNotMatch(MESSAGE_BEGIN_WORDS.heldAuthentication, /offer or news|Write this language the same way/);
 });
 
 test("a fault once a version is filed is answered in one plain sentence and logged, never swallowed: the versions before it stay filed", async () => {

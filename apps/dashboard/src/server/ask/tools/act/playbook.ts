@@ -10,7 +10,6 @@ import {
   MOMENTS_RETIRED,
   MOMENT_TRIGGERS,
   NEW_PLAYBOOK_TICKS_EVERY_CHANNEL,
-  PLAN_WORDS,
   PLAYBOOK_CARD_REFUSALS,
   PLAYBOOK_DEFAULTS,
   PLAYBOOK_NAME_MAX,
@@ -32,6 +31,7 @@ import {
   saidYesWords,
   scheduleLine,
   slotLabels,
+  starterByKey,
   startersForTrigger,
   messageAboutOfTrigger,
   triggerOf,
@@ -41,11 +41,13 @@ import {
   type ListRef,
   type MessageAbout,
   type ParamSpec,
+  type PlaybookTrigger,
   type StarterTemplate,
 } from "@chanlytics/contracts";
 import { playbookNumber, refuseWithoutBookingLink, refuseWithoutReviewLink, untilOf } from "@chanlytics/core";
-import { followUpOnFile, runningTwins } from "@chanlytics/db";
+import { followUpOnFile } from "@chanlytics/db";
 import { sellsByOf } from "../../../people/deals";
+import { twinRefusal } from "../../../campaigns/playbook-row";
 import { checkPlaybookInput, checkPlaybookMomentInput, type PlaybookInput } from "../../../campaigns/playbooks";
 import { checkStarterPlaybook } from "../../../campaigns/starter-templates";
 import { templateValuePorts } from "../../../ports/campaign-ports";
@@ -82,7 +84,7 @@ import {
   wordedMoment,
   type Trigger,
 } from "./playbook-card";
-import { cardSays } from "./says";
+import { cardSays, stepSays } from "./says";
 
 /**
  * What a playbook proposed with no channel named goes by, as the tool's words tell the model: every channel the reading
@@ -103,6 +105,24 @@ const PROPOSABLE_TRIGGERS = MOMENT_TRIGGERS.filter((t) => !(t.id in MOMENTS_RETI
   string,
   ...string[],
 ];
+
+/**
+ * The starters a proposal may name by its key (`starter`): each such moment's own (contracts startersForTrigger), not one
+ * the set replaced. Whether this moment goes by the one named, and its link on file (the review ask's), is the route's own
+ * judgement, per proposal (checkStarterPlaybook, through proposeOnStarter).
+ */
+const PROPOSABLE_STARTERS = [
+  ...new Set(PROPOSABLE_TRIGGERS.flatMap((t) => startersForTrigger(t).flatMap((s) => (s.retired ? [] : [s.key])))),
+] as [string, ...string[]];
+
+/**
+ * The appointment moments' ids, as the action's words name them for the model to call with: ids, held to the set's own,
+ * never words a person reads (a sentence says the workspace's appointment word, contracts appointmentWords).
+ */
+const APPOINTMENT_TRIGGERS = { before: "visit_tomorrow", after: "visited" } as const satisfies Record<
+  string,
+  PlaybookTrigger
+>;
 
 /**
  * The values a model wrote for a message's slots, as the specs the route stores (contracts parseParamSpec: typed text,
@@ -148,13 +168,20 @@ function proposedSpecs(
  * hidden, and a version in hand that can be sent, whichever channel it is on, a WhatsApp version still in review among
  * them), its id the message's anchor; or the refusal that says neither is. Of a starter's languages the first by code is
  * the one held, as the read once ordered them. Where none is, the starter a card may add at Approve (A0): the moment's
- * own, still offered, unless the workspace hid a message of it, which no card adds back.
+ * own, still offered, unless the workspace hid a message of it, which no card adds back. `key` is the one the proposal
+ * named (the action's `starter`): this moment's, it is looked for on file the same way, and added at Approve where it is
+ * not (the day after's review ask, which the moment's own does not ask); another moment's is never taken from the
+ * Library, and goes to the card's judgement, which refuses it in the route's words (checkStarterPlaybook).
  */
 async function heldStarter(
   t: ToolContext,
   trig: { id: string; label: string },
-): Promise<{ id: string } | { refusal: string; starter: StarterTemplate | null }> {
-  const written = startersForTrigger(trig.id);
+  key: string,
+): Promise<{ id: string } | { starter: StarterTemplate } | { refusal: string }> {
+  const own = startersForTrigger(trig.id);
+  const named = key ? starterByKey(key) : null;
+  if (named && !own.some((s) => s.key === named.key && !s.retired)) return { starter: named };
+  const written = named ? [named] : own;
   const { messages } = (await load(t.rc, templatesReader, { all: false })).data;
   const offered = messages
     .filter((m) => m.offered)
@@ -165,12 +192,10 @@ async function heldStarter(
   // One the workspace hid has a version, and no card adds it back (nor would the starter set): said as hidden, the way
   // out being to show it again or to go by another message.
   if (messages.some((m) => m.hidden && written.some((x) => x.name === m.name)))
-    return { refusal: PLAYBOOK_CARD_REFUSALS.starterHidden(title, AUDIENCES_CALL), starter: null };
-  return {
-    refusal: PLAYBOOK_CARD_REFUSALS.starterUnsent(title, AUDIENCES_CALL),
-    // The one a card may add at its Approve (A0): the moment's starter still offered.
-    starter: written.find((s) => !s.retired) ?? null,
-  };
+    return { refusal: PLAYBOOK_CARD_REFUSALS.starterHidden(title, AUDIENCES_CALL) };
+  // The one a card may add at its Approve (A0): the one named, else the moment's starter still offered.
+  const adds = named ?? written.find((s) => !s.retired);
+  return adds ? { starter: adds } : { refusal: PLAYBOOK_CARD_REFUSALS.starterUnsent(title, AUDIENCES_CALL) };
 }
 
 /**
@@ -221,6 +246,8 @@ interface PlaybookProposed {
   channels?: ConsentChannel[];
   /** Its last day, YYYY-MM-DD by the business's clock (00409): once judged (endOf), the day itself. */
   until?: string;
+  /** The moment's starter to file at Approve, by its key, in place of a message (heldStarter). */
+  starter?: string;
 }
 
 /**
@@ -348,27 +375,6 @@ async function checkedPlaybook(
   } catch (e) {
     return { refusal: e instanceof Error ? e.message : String(e) };
   }
-}
-
-/**
- * A second running playbook on the same moment, list and message (the moment spec, D9): a second "set up my campaigns"
- * proposed a twin win-back, which the week's breath then left reaching nobody. Refused in words, unless they named this
- * one apart from every one that runs: a name of its own is a second they asked for. Null where there is no twin.
- */
-async function twinRefusal(t: ToolContext, checked: PlaybookInput, named: string | undefined): Promise<string | null> {
-  const twins = await runningTwins(t.ctx.supabase, t.tenantId, {
-    trigger: checked.trigger,
-    listId: checked.list_id,
-    listKey: checked.list_key,
-    templateId: checked.template_id,
-  });
-  // Bound and checked, never `twins[0].name`: an index read the compiler lets pass is a new offender in a file at 0
-  // (unchecked-index.json).
-  const [first] = twins;
-  if (!first) return null;
-  const own = str(named, PLAYBOOK_NAME_MAX);
-  if (own && !twins.some((x) => x.name === own)) return null;
-  return PLAYBOOK_CARD_REFUSALS.twin(first.name);
 }
 
 /**
@@ -534,8 +540,8 @@ async function stepJudged(t: ToolContext, input: PlaybookProposed, trig: Trigger
  * A new campaign on the message step `step` of the plan writes (stepJudged): who a run reaches, counted by the
  * workspace's channels alone with the step's message, an offer, laid over them (context.ts stepMessage) and the yes it
  * needs; the month's allowance, its class's mode, its trial and its last day, as every new campaign's card says them. It
- * says which step makes its message and quotes nothing; a name not given is the route's to give once the message is
- * filed.
+ * says which step makes its message and quotes the offer its values type (says.ts stepSays); a name not given is the
+ * route's to give once the message is filed.
  */
 async function proposeOnStep(
   t: ToolContext,
@@ -560,7 +566,7 @@ async function proposeOnStep(
   return propose({
     kind: "playbook",
     title: `Campaign: ${name ?? moment.label}`,
-    summary: `${listLabel ? `On ${listLabel}` : `${moment.label} — ${moment.hint.toLowerCase()}`} · ${scheduleLine(clock, word)}${breathSaid(trig)}${endSaid(t, input.until)}${goes} · ${waiting}${saidYesWords("the list", purposeOfPlaybook(cls), drawn.reach.will, drawn.saidYes)} · ${trial.said}${under.said} Says: ${PLAN_WORDS.stepMessage(step)}`,
+    summary: `${listLabel ? `On ${listLabel}` : `${moment.label} — ${moment.hint.toLowerCase()}`} · ${scheduleLine(clock, word)}${breathSaid(trig)}${endSaid(t, input.until)}${goes} · ${waiting}${saidYesWords("the list", purposeOfPlaybook(cls), drawn.reach.will, drawn.saidYes)} · ${trial.said}${under.said} Says: ${stepSays(step, specs)}`,
     payload: {
       ...clock,
       trigger_label: moment.label,
@@ -595,6 +601,9 @@ async function proposePlaybook(t: ToolContext, proposed: PlaybookProposed): Prom
   const followUp = await followUpRefusal(t, trig);
   if (followUp) return refuse(followUp);
   let templateId = str(input.template_id, 40);
+  // The moment's starter named by its key, to file at Approve: in place of a message, never beside one.
+  const starterKey = str(input.starter, 60);
+  if (starterKey && templateId) return refuse(PLAYBOOK_CARD_REFUSALS.starterOrMessage);
   // The message an earlier step of Ask's plan writes, named by its token: judged before it is filed (proposeOnStep).
   const step = stepNamed(t, templateId);
   // A step's message: its moment, the calendar's among it, is judged once there (stepJudged).
@@ -604,10 +613,10 @@ async function proposePlaybook(t: ToolContext, proposed: PlaybookProposed): Prom
   const notOffered = await calendarRefusal(t, trig);
   if (notOffered) return refuse(notOffered);
   if (!templateId) {
-    const own = await heldStarter(t, trig);
+    const own = await heldStarter(t, trig, starterKey);
     // A starter not on file is added at the card's Approve (A0), never refused while one is offered.
-    if ("refusal" in own)
-      return own.starter ? proposeOnStarter(t, input, trig, listRef, own.starter) : refuse(own.refusal);
+    if ("starter" in own) return proposeOnStarter(t, input, trig, listRef, own.starter);
+    if ("refusal" in own) return refuse(own.refusal);
     templateId = own.id;
   }
   const about = messageAboutOfTrigger(trig.id);
@@ -621,7 +630,8 @@ async function proposePlaybook(t: ToolContext, proposed: PlaybookProposed): Prom
     channels: picked.channels,
   });
   if ("refusal" in checked) return refuse(checked.refusal);
-  const twin = await twinRefusal(t, checked, input.name);
+  // A running twin (D9), by the rule its Approve is held to again (campaigns/playbook-row.ts twinRefusal).
+  const twin = await twinRefusal(t.ctx, t.tenantId, checked, input.name);
   if (twin) return refuse(twin);
   // By the channels it goes by: said and committed whenever they are more than WhatsApp alone by default.
   const by = { channels: checked.channels, named: picked.channels !== undefined };
@@ -683,9 +693,11 @@ export const playbookAction = actAction({
     name: z.string().optional(),
     channels: z.array(z.enum(CONSENT_CHANNELS)).optional(),
     until: z.string().optional(),
+    starter: z.enum(PROPOSABLE_STARTERS).optional(),
   }),
   examples: [
     { trigger: "quiet_30" },
+    { trigger: APPOINTMENT_TRIGGERS.after, starter: "after_visit_review" },
     {
       trigger: "saved_list",
       list: "seg:booked_week",
@@ -697,7 +709,7 @@ export const playbookAction = actAction({
   ],
   label: "Preparing a campaign",
   words:
-    "Action playbook takes trigger and proposes a standing rule that sends one message to newly eligible people who said yes: trigger is quiet_30 (win-back by silence, nothing heard in 30 days, where no calendar is connected), lapsed (win-back by appointments, none in 45 days, where a calendar is connected), visit_tomorrow (a reminder the day before an appointment) or visited (a check the day after one), both only where a calendar is connected and each sent whatever else the person heard that week, everyone_monthly (the month's offer), saved_list (on any list: its token from campaigns with action audiences in list, one of People's or one of the workspace's own, with policy_class campaign for an offer or reengage for a win-back), or, where deals are on, proposal_waiting (the proposal follow-up: one nudge per proposal waiting past the workspace's pace, one such playbook per workspace, its message carrying the proposal's link as @proposal_link), a moment this workspace is not offered being refused in words to say; template_id is a message from action audiences (the id of any of its versions), or omitted for the trigger's starter, which the card adds at its Approve where the workspace does not hold it yet (its WhatsApp version then goes to WhatsApp for review where none is on file, which the card says), but for a starter that takes words of its own such as the month's offer; params are the message's values in order (typed text, or @first_name, @business_name, @booking_link, @review_link, the link its Google listing keeps for a review, @visit_when and @visit_service on an appointment's moment, or @proposal_link), filled in for a starter except a typed one such as the month's offer; run_hour is 9 to 20 by the business's clock (default 10), cap_per_run defaults to 25, and channels (whatsapp, sms, email; when none is named it goes by " +
+    `Action playbook takes trigger and proposes a standing rule that sends one message to newly eligible people who said yes: trigger is quiet_30 (win-back by silence, nothing heard in 30 days, where no calendar is connected), lapsed (win-back by appointments, none in 45 days, where a calendar is connected), ${APPOINTMENT_TRIGGERS.before} (a reminder the day before an appointment) or ${APPOINTMENT_TRIGGERS.after} (a check the day after one), both only where a calendar is connected and each sent whatever else the person hears from you within a week of it, everyone_monthly (the month's offer), saved_list (on any list: its token from campaigns with action audiences in list, one of People's or one of the workspace's own, with policy_class campaign for an offer or reengage for a win-back), or, where deals are on, proposal_waiting (the proposal follow-up: one nudge per proposal waiting past the workspace's pace, one such playbook per workspace, its message carrying the proposal's link as @proposal_link), a moment this workspace is not offered being refused in words to say; template_id is a message from action audiences (the id of any of its versions), or omitted for the trigger's starter, which the card adds at its Approve where the workspace does not hold it yet (its WhatsApp version then goes to WhatsApp for review where none is on file, which the card says), but for a starter that takes words of its own such as the month's offer; starter, in place of template_id, is the moment's starter to file at Approve where the workspace does not hold it yet, by its key: on ${APPOINTMENT_TRIGGERS.after}, after_visit_review is the thank-you with a review ask, only where the Google listing keeps a review link, and after_visit_check, the thank-you that asks how it went, is the one taken when none is named; params are the message's values in order (typed text, or @first_name, @business_name, @booking_link, @review_link, the link its Google listing keeps for a review, @visit_when and @visit_service on an appointment's moment, or @proposal_link), filled in for a starter except a typed one such as the month's offer; run_hour is 9 to 20 by the business's clock (default 10), cap_per_run defaults to 25, and channels (whatsapp, sms, email; when none is named it goes by ` +
     UNNAMED_GOES_BY +
     ` the workspace can send on now that the message holds, as a new playbook opens in Campaigns, and the card says which, so name them only to go by fewer, or by one that is not ready yet) are the ones it may go by, each person once on the first it can: a channel its purpose never carries is refused, and one the workspace cannot send on yet is kept, its runs holding those people until it can; until is its last day, YYYY-MM-DD by the business's clock, today or later, after which it runs nothing. Under a class that sends on its own (auto) a new playbook starts on trial for a week from when it is approved, each run waiting ${PLAYBOOK_VETO_DELAY_WORDS} for a Stop, and the card says so.`,
   build: proposePlaybook,
