@@ -161,8 +161,9 @@ export function reachAfterBreath(
 /**
  * Why the breath leaves a person out, in one phrasing whichever side of the send their other message falls and whenever
  * it goes: they hear from you within a week of it. `n` people: the verb's one plural rule ("hears" for one, "hear" for more).
+ * A run waiting on approval says it too, in its reasons and its rules (playbook-approval.ts reachLines, toApprovalVM).
  */
-const BREATH_WHY = "from you within a week of it";
+export const BREATH_WHY = "from you within a week of it";
 const hearsOrHear = (n: number): string => (n === 1 ? "hears" : "hear");
 
 /**

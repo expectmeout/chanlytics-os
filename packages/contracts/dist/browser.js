@@ -24915,7 +24915,8 @@ function reachLines(reach, p, allowanceHeld = 0) {
       tone: "plain",
       door: { words: "Get their yes", to: GET_YES_ROUTE }
     },
-    { n: reach.heardAny, words: "heard from a campaign this week", tone: "warn", door: null },
+    // The week's breath, both sides of the run: a message from a campaign or a broadcast sent or due within a week of it.
+    { n: reach.heardAny, words: `${one(reach.heardAny, "hears", "hear")} ${BREATH_WHY}`, tone: "warn", door: null },
     { n: allowanceHeld, words: ALLOWANCE_HELD_WORDS, tone: "warn", door: null },
     {
       n: reach.heardThis,
@@ -24983,6 +24984,7 @@ function reachLines(reach, p, allowanceHeld = 0) {
   };
 }
 var ALLOWANCE_HELD_WORDS = "held for this month's allowance";
+var NONE_HEARS_WORDS = `none hears ${BREATH_WHY}`;
 var ALLOWANCE_REASON = "month_allowance";
 function allowanceHeldOn(recipients) {
   const held = { whatsapp: 0, sms: 0, email: 0 };
@@ -25037,13 +25039,13 @@ function toApprovalVM(d, opts) {
       rules.push(
         "each has a proposal waiting with nothing back, and its link",
         "none followed up on that proposal before",
-        "none heard from any campaign this week"
+        NONE_HEARS_WORDS
       );
       if (will >= opts.playbook.cap_per_run)
         rules.push(`capped at ${opts.playbook.cap_per_run} a run, the longest unheard first`);
     } else {
       const gap = opts.playbook.trigger === "everyone_monthly" ? opts.playbook.cadence_days : opts.playbook.gap_days;
-      rules.push(`none heard from this campaign in ${gap} days`, "none heard from any campaign this week");
+      rules.push(`none heard from this campaign in ${gap} days`, NONE_HEARS_WORDS);
       if (will >= opts.playbook.cap_per_run)
         rules.push(`capped at ${opts.playbook.cap_per_run} a run, the longest unheard first`);
     }

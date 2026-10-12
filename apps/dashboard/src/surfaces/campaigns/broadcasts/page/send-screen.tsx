@@ -551,13 +551,12 @@ function bcNewTemplate(v: BcV) {
 // The send screen's foot: what keeps the send from going (the first thing, in one line), and the one act the sentence is
 // set up for, saying what it will do: "Send to 14 now", which asks before anything leaves, or once a time is picked
 // "Schedule for tomorrow at 9:00 AM" (Ruben, 11 Oct 2026: one send button; the time is chosen in the sentence's "now").
-// Cancel, and Escape, with something written: the one question first (UnsavedAsk), where the act was.
+// Cancel, and Escape, with something written: the one question first (UnsavedAsk), where the act was. The count the act
+// and its Confirm say is the reach line's: who it sends to at the time it goes, those the week's breath leaves out taken
+// off. Picking a time puts an open Confirm away (state.tsx useBcArmed), so Send now's count is always now's.
 function bcSendFoot(v: BcV) {
-  const { data, canSend, armed, ready, say, whenAt, whenNote, submit, setArmed, active } = v;
-  // Send now goes at once: its button, its readiness and its confirm are who it sends to now (reach.ts bcSendNowOf), so a
-  // confirm still open after a time is picked asks for, and sends, what goes now. With no time picked it is the screen's own
-  // count, which is when its button stands.
-  const { tpl, busy, work, sendNow, readyNow } = v;
+  const { data, canSend, armed, ready, say, whenAt, whenNote, submit, setArmed, active, activeCount } = v;
+  const { tpl, busy, work, splitWords } = v;
   if (work.asking) return <UnsavedAsk onYes={work.discard} onNo={work.stay} testid="bc-leave" />;
   // A time picked that cannot be scheduled (passed, or past the ceiling) is what Schedule waits on, when nothing else is.
   const stop = say ?? (whenAt !== null && !whenNote.ok ? { tone: "warn" as const, words: whenNote.words } : null);
@@ -578,12 +577,12 @@ function bcSendFoot(v: BcV) {
       <Button
         variant="primary"
         className="bc-send-now bc-act-main"
-        disabled={!readyNow}
+        disabled={!ready}
         onClick={() => setArmed(true)}
         data-testid="bc-send"
         {...gate("approve", "send a broadcast")}
       >
-        <Icon name="send" size={13} /> {active && sendNow.count > 0 ? `Send to ${sendNow.count} now` : "Send now"}
+        <Icon name="send" size={13} /> {active && activeCount > 0 ? `Send to ${activeCount} now` : "Send now"}
       </Button>
     );
   return (
@@ -611,8 +610,8 @@ function bcSendFoot(v: BcV) {
         {!armed && act}
         {armed && tpl && active && (
           <Confirm
-            question={`Send “${bcTitle(tpl.name)}”${bcLangWords(tpl)} to ${sendNow.count} ${sendNow.count === 1 ? "person" : "people"} on “${active.label}”?`}
-            detail={`${sendNow.splitWords ? `${sendNow.splitWords}. ` : ""}It goes out now${data.chunk ? `, ${data.chunk} at a time` : ""}. A message already delivered cannot be taken back.`}
+            question={`Send “${bcTitle(tpl.name)}”${bcLangWords(tpl)} to ${activeCount} ${activeCount === 1 ? "person" : "people"} on “${active.label}”?`}
+            detail={`${splitWords ? `${splitWords}. ` : ""}It goes out now${data.chunk ? `, ${data.chunk} at a time` : ""}. A message already delivered cannot be taken back.`}
             yes="Yes, send it"
             busy={busy}
             onYes={() => submit(false)}

@@ -1,10 +1,12 @@
 /**
  * The hooks the broadcasts page calls, each holding one concern (moved from legacy/pages/broadcasts.jsx, decision
- * 0015): what can be offered, who a send goes to, the words of the send, the clock, a link's landing, and the yes.
+ * 0015): what can be offered, who a send goes to, the words of the send, the question Send now asks, the clock, a link's
+ * landing, and the yes.
  * BroadcastsReal calls them in the order it always has.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { HOUR_MS, UNKNOWN_AUDIENCE_WORDS, doorNamesNoAudience } from "@chanlytics/contracts";
+import type { ConsentChannel } from "@chanlytics/contracts";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { navigate } from "../../../legacy-verbs";
 import { tabDraft } from "../../../kit/record/work";
@@ -102,9 +104,10 @@ export function useBcWords(kept: BcKept | null) {
     kept && kept.whenAt !== null && kept.whenAt !== undefined ? kept.whenAt : null,
   );
   const [busy, setBusy] = useState(false);
-  // The switch that sends to whoever heard from a campaign or a broadcast this week too, kept as the send it was switched on
-  // for (reach.ts bcSendKey): on any other message, list or channels it is off, as it is once the send is cleared, and the
-  // send leaves them out, as the route does unless told otherwise. A choice, never kept in the tab.
+  // The switch that sends to whoever hears from a campaign or a broadcast within a week of it too, a message sent or due,
+  // kept as the send it was switched on for (reach.ts bcSendKey): on any other message, list or channels it is off, as it
+  // is once the send is cleared, and the send leaves them out, as the route does unless told otherwise. A choice, never
+  // kept in the tab.
   const [heardTooFor, setHeardTooFor] = useState<string | null>(null);
   // The words of the send -- a name, a value typed into a slot, a time picked -- are what is kept and what Cancel asks
   // about; the list and the message are choices, and a choice alone keeps nothing. Sent, or thrown away, they clear.
@@ -137,6 +140,27 @@ export function useBcWords(kept: BcKept | null) {
     wrote,
     clearWords,
   };
+}
+
+/**
+ * Whether Send now has been pressed once and is asking (its Confirm, in the foot). The question names a message, a list,
+ * how many it reaches and when it goes: the channels it goes by and the switch that sends to whoever hears from you
+ * within a week of it too decide how many, and the time picked decides when. Change any and it is no longer the question
+ * that was asked, so the act comes back: with a time picked it is Schedule, where the Confirm's Yes would send now.
+ */
+export function useBcArmed(asked: {
+  tplId: string;
+  aud: string;
+  channels: readonly ConsentChannel[];
+  whenAt: number | null;
+  heardTooFor: string | null;
+}) {
+  const [armed, setArmed] = useState(false);
+  const { tplId, aud, channels, whenAt, heardTooFor } = asked;
+  useEffect(() => {
+    setArmed(false);
+  }, [tplId, aud, channels, whenAt, heardTooFor]);
+  return { armed, setArmed };
 }
 
 /** How often the minutes until a run goes are counted again, while one is under an hour away. */

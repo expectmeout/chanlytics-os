@@ -4,6 +4,7 @@
  */
 import { audienceTrigger } from "../broadcasts/broadcast-audience";
 import type { BroadcastDto, BroadcastRecipientDto } from "../broadcasts/broadcasts";
+import { BREATH_WHY } from "../broadcasts/run-words";
 import { purposeOfPlaybook } from "../consent/consent";
 import { consentRuleWords } from "../consent/consent-asks";
 import type { ConsentChannel } from "../consent/consent-channels";
@@ -39,10 +40,11 @@ export interface ApprovalVM {
   /**
    * Out of how many, and who the rest are: everyone its moment named, as the
    * run counted them when it was drawn (playbookRunReach). `held` is who waits
-   * only for time -- heard from a playbook lately, past the number's day -- and
-   * is the bar's amber; the rest of the bar is grey: no yes, a stop, no number,
-   * past the cap. Each reason is a line, the most first, and the one an owner
-   * can act on carries its door. Null for a run that kept no count.
+   * only for time -- hears from you within a week of it (a message sent or due),
+   * heard from this campaign lately, past the month's allowance or the number's
+   * day -- and is the bar's amber; the rest of the bar is grey: no yes, a stop,
+   * no number, past the cap. Each reason is a line, the most first, and the one
+   * an owner can act on carries its door. Null for a run that kept no count.
    */
   of: {
     pool: number;
@@ -116,7 +118,8 @@ export function reachLines(
       tone: "plain",
       door: { words: "Get their yes", to: GET_YES_ROUTE },
     },
-    { n: reach.heardAny, words: "heard from a campaign this week", tone: "warn", door: null },
+    // The week's breath, both sides of the run: a message from a campaign or a broadcast sent or due within a week of it.
+    { n: reach.heardAny, words: `${one(reach.heardAny, "hears", "hear")} ${BREATH_WHY}`, tone: "warn", door: null },
     { n: allowanceHeld, words: ALLOWANCE_HELD_WORDS, tone: "warn", door: null },
     {
       n: reach.heardThis,
@@ -194,6 +197,12 @@ export function reachLines(
 
 /** What the held line says of the people the month's emails or texts have no room for ("2 held for this month's allowance"). */
 const ALLOWANCE_HELD_WORDS = "held for this month's allowance";
+
+/**
+ * The week's breath as a rule of the run's list (toApprovalVM `rules`): nobody on it hears from a campaign or a broadcast
+ * within a week of it, a message sent or due, in the words its reason line says it.
+ */
+const NONE_HEARS_WORDS = `none hears ${BREATH_WHY}`;
 
 /** The reason core writes on a person it holds at enrolment for the month's allowance (HELD_REASONS keeps its words). */
 const ALLOWANCE_REASON = "month_allowance";
@@ -374,13 +383,13 @@ export function toApprovalVM(
       rules.push(
         "each has a proposal waiting with nothing back, and its link",
         "none followed up on that proposal before",
-        "none heard from any campaign this week",
+        NONE_HEARS_WORDS,
       );
       if (will >= opts.playbook.cap_per_run)
         rules.push(`capped at ${opts.playbook.cap_per_run} a run, the longest unheard first`);
     } else {
       const gap = opts.playbook.trigger === "everyone_monthly" ? opts.playbook.cadence_days : opts.playbook.gap_days;
-      rules.push(`none heard from this campaign in ${gap} days`, "none heard from any campaign this week");
+      rules.push(`none heard from this campaign in ${gap} days`, NONE_HEARS_WORDS);
       if (will >= opts.playbook.cap_per_run)
         rules.push(`capped at ${opts.playbook.cap_per_run} a run, the longest unheard first`);
     }

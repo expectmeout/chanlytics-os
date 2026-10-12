@@ -18,7 +18,7 @@ interface CmReachDoor {
   to: string;
 }
 
-/** One line of why anybody is held back: "12 heard from a campaign this week". */
+/** One line of why anybody is held back: "12 hear from you within a week of it" (a message sent or due). */
 interface CmReachReason {
   t: ReactNode;
   tone?: string;
@@ -90,7 +90,7 @@ function barSaid(progress: number | null, label: string | null) {
  *   pool     out of how many
  *   of       what the pool is, after "of 36": "who said yes"
  *   held     how many of the pool are held back (the amber part of the bar)
- *   reasons  [{ t, tone, door? }]: "12 heard from a campaign this week"; a door is { words, to }
+ *   reasons  [{ t, tone, door? }]: "12 hear from you within a week of it" (sent or due); a door is { words, to }
  *   split    "Reaches 84: 52 on WhatsApp, 32 by email", under the number, for a run that goes by more than WhatsApp
  */
 export function CmReach({
@@ -204,9 +204,10 @@ function reachSaid(p: CmReachLineProps) {
  * hear it", and the first reason anybody is held back ("4 never said yes to offers"); the line is the press that opens the
  * rest in the kit's popover -- every reason with its door, who it reaches on which channel and its bar, and the month's
  * allowance. It stood as a count, a clause by channel, a link and a bar on two lines, between the sentence and the message.
+ * The count it says is on the line as `data-count` too, so a browser test reads the number rather than the sentence.
  */
 export function CmReachLine(props: CmReachLineProps) {
-  const { reasons = [], by, allowance, guard, box, testid } = props;
+  const { will, reasons = [], by, allowance, guard, box, testid } = props;
   const { tone, said, lead } = reachSaid(props);
   const more = reasons.length > 0 || !!by || !!allowance || !!guard || !!box;
   const line = (
@@ -220,7 +221,7 @@ export function CmReachLine(props: CmReachLineProps) {
     </>
   );
   return (
-    <div className="cm-reach-line" data-testid={testid} data-tone={tone}>
+    <div className="cm-reach-line" data-testid={testid} data-tone={tone} data-count={will}>
       {more ? (
         <Popover
           label={PREVIEW_WORDS.heldBack}

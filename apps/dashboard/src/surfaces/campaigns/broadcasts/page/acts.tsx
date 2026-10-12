@@ -85,7 +85,6 @@ export function bcRunActs({
 // The send, and the starter set added from the send screen.
 export function bcSendActs({
   ready,
-  readyNow,
   canSend,
   setBusy,
   tpl,
@@ -119,14 +118,13 @@ export function bcSendActs({
   | "addingStarters"
   | "setAddingStarters"
 > &
-  Pick<BcSlotWords, "ready" | "readyNow" | "specs"> &
+  Pick<BcSlotWords, "ready" | "specs"> &
   Pick<BcReach, "tpl" | "active" | "on" | "breathe"> &
   Pick<BcRunActs, "cancel">): BcSendActs {
   const submit = async (scheduled: boolean) => {
-    // Each act by its own readiness (bcSlotWordsOf): Schedule it by the time picked, Send now by who goes now -- so a
-    // Send now its button offers is never a Yes that does nothing. Both say the message and the list are there; the two
-    // are named again for the compiler.
-    if (!(scheduled ? ready : readyNow) || !canSend || !tpl || !active) return;
+    // `ready` says both are there and nothing stops the one act the foot draws (bcSlotWordsOf): Send now with no time
+    // picked, Schedule with one. The two are named again for the compiler.
+    if (!ready || !canSend || !tpl || !active) return;
     setBusy(true);
     const r = await broadcasts.send({
       template_id: tpl.id,

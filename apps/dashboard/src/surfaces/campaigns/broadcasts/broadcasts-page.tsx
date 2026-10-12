@@ -28,6 +28,7 @@ import { bcLedger } from "./page/ledger-screen";
 import { bcPeopleOf, bcPreviewOf, bcReachOf, bcSlotChoicesOf, bcSlotWordsOf } from "./page/reach";
 import { bcComposerGlass } from "./page/send-screen";
 import {
+  useBcArmed,
   useBcList,
   useBcNow,
   useBcOffered,
@@ -128,7 +129,7 @@ function useBroadcastsPage({
       : cmDefaultChannels(cmReadyOf(data.ready), templates.find((t) => t.id === tplId)?.message ?? null),
   );
   const words = useBcWords(kept);
-  const { params, sources, name, whenAt, wrote, clearWords } = words;
+  const { params, sources, name, whenAt, heardTooFor, wrote, clearWords } = words;
   const work = useUnsavedWork("broadcast", null, {
     value: { aud, tplId, channels, params, sources, name, whenAt },
     dirty: wrote,
@@ -146,10 +147,8 @@ function useBroadcastsPage({
   // The band the list is filtered to (a state), or none: everything open and the latest gone.
   const [band, setBand] = useState<string | null>(null);
   const now = useBcNow(data);
-  // Whether Send now has been pressed once and is asking. A question about one
-  // template and one audience cannot be answered for another, so changing either
-  // puts the button back.
-  const [armed, setArmed] = useState(false);
+  // Whether Send now has been pressed once and is asking: put away once it is not the question asked (useBcArmed).
+  const { armed, setArmed } = useBcArmed({ tplId, aud, channels, whenAt, heardTooFor });
   // The run open beside the list is the address's (`broadcasts/run:<id>`), replaced as it opens and closes, so a reload
   // opens it again and the crumbs name it; Back leaves the page rather than replaying every run read (the Inbox's rule,
   // and Playbooks'). A link to a run, or one that closes it, moves the page the same way.
@@ -188,10 +187,8 @@ function useBroadcastsPage({
     const d = bcDefault(templates);
     if (!templates.some((t) => t.id === tplId) && d) setTplId(d.id);
   }, [templates, tplId]);
-  // The armed question names a template, an audience and how many of them it reaches, which the channels it goes by
-  // decide: change any and it is no longer the question that was asked.
+  // A new message, list or channels starts the preview on its first person; a time picked, or the switch, does not move it.
   useEffect(() => {
-    setArmed(false);
     setWho(0);
   }, [tplId, aud, channels]);
 

@@ -221,7 +221,7 @@ Object.assign(globalThis, {
   __surfaceState: () => "live",
 });
 const { BroadcastsPage } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
-const { bcWhenNote } = await import(`${SRC}/surfaces/campaigns/broadcasts/when.tsx`);
+const { bcWhenNote, BcWhenPick } = await import(`${SRC}/surfaces/campaigns/broadcasts/when.tsx`);
 const { BroadcastDetail } = await import(`${SRC}/surfaces/campaigns/broadcasts/run.tsx`);
 // The receipt's sentence is words alone, apart from the picker, so the shell that publishes it carries no picker.
 const { bcWhenWords } = await import(`${SRC}/surfaces/campaigns/broadcasts/when-words.ts`);
@@ -961,7 +961,7 @@ test("a run waiting on you opens as the sheet the canvas draws -- where it sits 
     assert.ok(
       reach.includes("2will get it") &&
         reach.includes("each said yes to offers") &&
-        reach.includes("none heard from any campaign this week"),
+        reach.includes("none hears from you within a week of it"),
       reach,
     );
     assert.ok(!/ of \d/.test(reach), `REGRESSION-IN-WAITING: a pool the run never recorded -- ${reach}`);
@@ -1196,7 +1196,7 @@ test("a run that kept who it left out opens as the board's card: of how many, th
   assert.equal(textOf(byTestId(card, "bc-sheet-pool")), "312", "out of everyone its moment named");
   assert.deepEqual(
     all(byTestId(card, "bc-sheet-why"), (n) => n.type === "li").map((li) => textOf(li)),
-    ["94 never said yes to offersGet their yes", "32 heard from a campaign this week"],
+    ["94 never said yes to offersGet their yes", "32 hear from you within a week of it"],
   );
   // The bar is the whole list: green reaches, amber waits, and the grey is the rest.
   const parts = all(card, (n) => /^bc-sheet-bar-/.test(String(n.props?.className || ""))).map((n) => [
@@ -4192,8 +4192,9 @@ test("the send screen says how many of an audience heard from a playbook or a br
   let tree = writing({ initialSegment: null, initialRun: null });
   assert.equal(textOf(byTestId(tree, "bc-heard")), "1 left out: they hear from you within a week of it");
   // The count is who it sends to: of the two it reaches, the one who heard waits; Cy, with no yes to offers, is held back.
-  assert.equal(textOf(byTestId(tree, "bc-who-n")), "1");
-  assert.equal(textOf(byTestId(tree, "bc-who-count")), "·1 of 3 can hear it");
+  assert.equal(whoN(tree), "1");
+  assert.ok(reachText(tree).includes("1 of 3 can hear it"), reachText(tree));
+  assert.equal(byTestId(tree, "bc-reach").props["data-count"], 1, "the line carries its count, which the e2e reads");
   assert.ok(textOf(byTestId(tree, "bc-send")).includes("Send to 1 now"), textOf(byTestId(tree, "bc-send")));
   const sw = heardToo(tree);
   assert.ok(sw, "the switch is drawn where somebody heard");
@@ -4218,13 +4219,13 @@ test("the send screen says how many of an audience heard from a playbook or a br
   tree = again({ initialSegment: null, initialRun: null });
   assert.equal(heardToo(tree).props.checked, true);
   assert.equal(textOf(byTestId(tree, "bc-heard")), "One of them hears from you within a week of it.");
-  assert.equal(textOf(byTestId(tree, "bc-who-n")), "2");
+  assert.equal(whoN(tree), "2");
   // It answers for this message, list and channels alone: on another list it says nothing of them, and the send there
   // breathes; back on this one, the choice made for it stands.
   pickerOf(tree, "bc-audience").props.onValueChange("saved:s1");
   tree = again({ initialSegment: null, initialRun: null });
   assert.equal(heardToo(tree), null, "nobody on Regulars heard");
-  assert.equal(textOf(byTestId(tree, "bc-who-n")), "2");
+  assert.equal(whoN(tree), "2");
   pickerOf(tree, "bc-audience").props.onValueChange("everyone:");
   tree = again({ initialSegment: null, initialRun: null });
   assert.equal(heardToo(tree).props.checked, true, "as it was chosen for Everyone");
@@ -4250,7 +4251,7 @@ test("the send screen says how many of an audience heard from a playbook or a br
   tree = writing({ initialSegment: null, initialRun: null });
   assert.equal(byTestId(tree, "bc-heard"), null, "nobody heard, nothing said");
   assert.equal(heardToo(tree), null, "and no switch");
-  assert.equal(textOf(byTestId(tree, "bc-who-n")), "2");
+  assert.equal(whoN(tree), "2");
 
   // Everyone it reaches heard: the foot says so and Send waits, never "nobody said yes"; the switch sends to them all.
   const all2 = contracts.audiencePreview(rows, "everyone", null, null, "marketing", HOW, 5, {
@@ -5297,7 +5298,7 @@ test("by more than WhatsApp, every number beside the count is who it sends to: t
   viaOf(tree).email.props.onCheckedChange(true);
   tree = viaAgain();
   assert.equal(textOf(byTestId(tree, "bc-heard")), contracts.heardWords(1, true));
-  assert.equal(textOf(byTestId(tree, "bc-who-n")), "2");
+  assert.equal(whoN(tree), "2");
   assert.equal(textOf(byTestId(tree, "bc-reach-by")), "2 on WhatsApp", "nobody by email: Mia is left out");
   assert.deepEqual(
     byTestId(tree, "bc-reach-bar").props.parts.map((p) => p.share),
@@ -5311,7 +5312,7 @@ test("by more than WhatsApp, every number beside the count is who it sends to: t
     (n) => n.props?.["data-testid"] === "bc-heard-too" && typeof n.props.onCheckedChange === "function",
   ).props.onCheckedChange(true);
   tree = viaAgain();
-  assert.equal(textOf(byTestId(tree, "bc-who-n")), "3");
+  assert.equal(whoN(tree), "3");
   assert.equal(textOf(byTestId(tree, "bc-reach-by")), "2 on WhatsApp, 1 by email");
   assert.deepEqual(
     byTestId(tree, "bc-reach-bar").props.parts.map((p) => p.share),
@@ -5338,7 +5339,7 @@ test("a send scheduled ahead leaves out who hears from you within a week of it: 
   // Now: both heard this week, so both are left out and nobody is left to send it to.
   let tree = writing(props);
   assert.equal(textOf(byTestId(tree, "bc-heard")), contracts.heardWords(2, true));
-  assert.equal(textOf(byTestId(tree, "bc-who-n")), "0");
+  assert.equal(whoN(tree), "0");
   assert.equal(textOf(byTestId(tree, "bc-foot-say")), contracts.allLeftOutWords("Everyone", 2));
   // Three days ahead: a week before it holds Ana's message, not Bo's.
   pickerOf(tree, "bc-when-mode").props.onValueChange("later");
@@ -5348,7 +5349,7 @@ test("a send scheduled ahead leaves out who hears from you within a week of it: 
   pickerOf(tree, "bc-when-time").props.onValueChange("14:30");
   tree = again(props);
   assert.equal(textOf(byTestId(tree, "bc-heard")), "1 left out: they hear from you within a week of it");
-  assert.equal(textOf(byTestId(tree, "bc-who-n")), "1");
+  assert.equal(whoN(tree), "1");
   assert.equal(
     textOf(byTestId(tree, "bc-heard-too-word")),
     "Also send to the one who hears from you within a week of it",
@@ -5359,20 +5360,7 @@ test("a send scheduled ahead leaves out who hears from you within a week of it: 
   tree = again(props);
   assert.equal(byTestId(tree, "bc-heard"), null);
   assert.equal(heardToo(tree), null);
-  assert.equal(textOf(byTestId(tree, "bc-who-n")), "2");
-  // Send now, beside it, goes at once to nobody: both hear from you within a week of now. It waits, and the one line under
-  // the foot says why, while Schedule it may go.
-  assert.equal(byTestId(tree, "bc-send").props.disabled, true, "Send now waits");
-  assert.equal(
-    textOf(byTestId(tree, "bc-foot-say")),
-    `Send now: ${contracts.allLeftOutWords("Everyone", 2)}`,
-    "and the foot says why",
-  );
-  assert.equal(
-    find(tree, (n) => String(n.props?.className || "").includes("bc-send-later")).props.disabled,
-    false,
-    "Schedule it may go",
-  );
+  assert.equal(whoN(tree), "2");
 });
 
 test("a message due weeks ahead leaves nobody out of a send now, and one due in three days does: the composer counts both sides of the send", () => {
@@ -5386,7 +5374,7 @@ test("a message due weeks ahead leaves nobody out of a send now, and one due in 
   const props = { initialSegment: null, initialRun: null };
   let tree = writing(props);
   assert.equal(textOf(byTestId(tree, "bc-heard")), contracts.heardWords(1, true), "Bo, three days ahead, is left out");
-  assert.equal(textOf(byTestId(tree, "bc-who-n")), "1", "Ana, twenty-five days ahead, goes");
+  assert.equal(whoN(tree), "1", "Ana, twenty-five days ahead, goes");
   // Set for twenty days ahead, Ana's run is five days after it: she is left out, and Bo goes.
   pickerOf(tree, "bc-when-mode").props.onValueChange("later");
   tree = again(props);
@@ -5395,80 +5383,63 @@ test("a message due weeks ahead leaves nobody out of a send now, and one due in 
   pickerOf(tree, "bc-when-time").props.onValueChange("14:30");
   tree = again(props);
   assert.equal(textOf(byTestId(tree, "bc-heard")), contracts.heardWords(1, true));
-  assert.equal(textOf(byTestId(tree, "bc-who-n")), "1");
+  assert.equal(whoN(tree), "1");
 });
 
-test("Send now beside a picked time is counted for now: its button and its confirm leave out who heard this week, while the count above is the picked time's", () => {
-  // Ana (WhatsApp) and Mia (email) heard two days ago, Bo did not: by WhatsApp and email the send reaches the three.
+/**
+ * Ana (WhatsApp) and Mia (email) heard two days ago, Bo did not: by WhatsApp and email the send reaches the three, and
+ * now it leaves the two out. The send screen opened on them, with email ticked.
+ */
+const openTwoHeard = (props) => {
   setSurfaceValue(
     "broadcasts",
     viaSurface({
       audiences: [viaAudience(viaRows(), ALL_READY, { "c-wa": [iso(-2 * D)], "c-mail": [iso(-2 * D)] })],
     }),
   );
-  const props = { initialSegment: null, initialRun: null };
-  let tree = writing(props);
-  viaOf(tree).email.props.onCheckedChange(true);
-  tree = again(props);
+  viaOf(writing(props)).email.props.onCheckedChange(true);
+  return again(props);
+};
+
+test("Send now with no time picked is counted for now: its button leaves out who hears from you within a week of now", () => {
+  const tree = openTwoHeard({ initialSegment: null, initialRun: null });
   // Now: the two are left out, and Send now names the one it goes to.
-  assert.equal(textOf(byTestId(tree, "bc-who-n")), "1");
+  assert.equal(whoN(tree), "1");
   assert.ok(textOf(byTestId(tree, "bc-send")).includes("Send to 1 now"), textOf(byTestId(tree, "bc-send")));
-  // Ten days ahead: Schedule it goes to the three, nobody left out...
-  pickerOf(tree, "bc-when-mode").props.onValueChange("later");
+});
+
+test("a Confirm asked for a send now is put away when a time is picked: the act is Schedule, for the picked time's count, and the preview stays on the person it showed", () => {
+  const props = { initialSegment: null, initialRun: null };
+  const C = globalThis.__clock;
+  /** Who the preview is drawn for: the stepper's name. */
+  const shownName = (t) =>
+    textOf(find(byTestId(t, "mp-step"), (n) => String(n.props?.className || "") === "mp-step-name"));
+  let tree = openTwoHeard(props);
+  // The preview walked on from its first person.
+  const first = shownName(tree);
+  press(find(byTestId(tree, "mp-step"), (n) => n.props?.["aria-label"] === "The next person"));
   tree = again(props);
-  find(tree, (n) => n.type === DatePicker).props.onValueChange(globalThis.__clock.dayKey(Date.now() + 10 * D));
-  tree = again(props);
-  pickerOf(tree, "bc-when-time").props.onValueChange("14:30");
-  tree = again(props);
-  assert.equal(textOf(byTestId(tree, "bc-who-n")), "3");
-  assert.equal(byTestId(tree, "bc-heard"), null);
-  // ...while Send now, which goes at once, still leaves the two out, and its confirm says the same.
-  assert.ok(textOf(byTestId(tree, "bc-send")).includes("Send to 1 now"), textOf(byTestId(tree, "bc-send")));
+  const shown = shownName(tree);
+  assert.ok(shown && shown !== first, `the preview moved on from ${first}: ${shown}`);
+  // Send now asks first, and the question is about the one it goes to now.
   press(byTestId(tree, "bc-send"));
   tree = again(props);
   const confirm = textOf(byTestId(tree, "bc-send-confirm"));
   assert.ok(confirm.includes("to 1 person on “Everyone”"), confirm);
-  assert.ok(!confirm.includes("by email"), `who goes now goes by WhatsApp alone: ${confirm}`);
-});
-
-test("Send now beside a picked time that leaves everyone out still sends now: its Yes sends at once, with no time", async () => {
-  // Ana and Bo are queued for a run twelve days ahead: nobody now, everyone ten days ahead (two days apart).
-  setSurfaceValue(
-    "broadcasts",
-    viaSurface({
-      audiences: [viaAudience(viaRows(), ALL_READY, { "c-wa": [iso(12 * D)], "c-both": [iso(12 * D)] })],
-    }),
-  );
-  const sent = [];
-  broadcasts.send = async (body) => {
-    sent.push(body);
-    return {
-      ok: true,
-      data: { id: "b-now", name: "Now", recipient_count: 2, left_out: 0, scheduled_for: iso(0), moved_from: null },
-    };
-  };
-  const props = { initialSegment: null, initialRun: null };
-  let tree = writing(props);
-  pickerOf(tree, "bc-when-mode").props.onValueChange("later");
+  // A time ten days ahead, picked in the sentence while it asks: no longer the question that was asked.
+  const at = C.fromInput(`${C.dayKey(Date.now() + 10 * D)}T14:30`);
+  find(tree, (n) => n.type === BcWhenPick).props.onChange(at);
+  again(props); // the effect that puts the question away runs on this draw, and the screen shows it on the next
   tree = again(props);
-  find(tree, (n) => n.type === DatePicker).props.onValueChange(globalThis.__clock.dayKey(Date.now() + 10 * D));
-  tree = again(props);
-  pickerOf(tree, "bc-when-time").props.onValueChange("14:30");
-  tree = again(props);
-  // Ten days ahead nobody goes: Schedule it waits, and the foot says why.
-  assert.equal(textOf(byTestId(tree, "bc-who-n")), "0");
-  assert.equal(
-    find(tree, (n) => String(n.props?.className || "").includes("bc-send-later")).props.disabled,
-    true,
-    "Schedule it waits",
-  );
-  // Now both go: Send now is offered, and its Yes sends, now.
-  assert.equal(byTestId(tree, "bc-send").props.disabled, false, "Send now may go");
-  assert.ok(textOf(byTestId(tree, "bc-send")).includes("Send to 2 now"), textOf(byTestId(tree, "bc-send")));
-  press(byTestId(tree, "bc-send"));
-  await press(byTestId(again(props), "bc-send-yes"));
-  assert.equal(sent.length, 1, "the Yes sent it");
-  assert.equal(sent[0].scheduled_for, null, "at once, with no time");
+  assert.equal(byTestId(tree, "bc-send-confirm"), null, "the Confirm is put away: its Yes would send now");
+  assert.equal(byTestId(tree, "bc-send"), null, "the act is Schedule alone");
+  const schedule = byTestId(tree, "bc-schedule");
+  assert.ok(schedule, "Schedule is drawn for the picked time");
+  assert.equal(schedule.props.disabled, false, "and may go");
+  // Ten days ahead nobody hears from you within a week of it: the count is the three.
+  assert.equal(whoN(tree), "3");
+  assert.equal(byTestId(tree, "bc-heard"), null);
+  assert.equal(shownName(tree), shown, "picking a time does not move the preview");
 });
 
 test("a composer whose read of who heard this week failed says the send still leaves them out, and counts as it can", () => {

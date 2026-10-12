@@ -13170,10 +13170,11 @@ interface ApprovalVM {
     /**
      * Out of how many, and who the rest are: everyone its moment named, as the
      * run counted them when it was drawn (playbookRunReach). `held` is who waits
-     * only for time -- heard from a playbook lately, past the number's day -- and
-     * is the bar's amber; the rest of the bar is grey: no yes, a stop, no number,
-     * past the cap. Each reason is a line, the most first, and the one an owner
-     * can act on carries its door. Null for a run that kept no count.
+     * only for time -- hears from you within a week of it (a message sent or due),
+     * heard from this campaign lately, past the month's allowance or the number's
+     * day -- and is the bar's amber; the rest of the bar is grey: no yes, a stop,
+     * no number, past the cap. Each reason is a line, the most first, and the one
+     * an owner can act on carries its door. Null for a run that kept no count.
      */
     of: {
         pool: number;
