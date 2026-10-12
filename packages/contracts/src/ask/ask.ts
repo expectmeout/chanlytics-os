@@ -40,7 +40,7 @@ export const ASK_MAX_ROUNDS = 3;
 /** End to end, under the route's sixty-second ceiling. */
 export const ASK_TURN_BUDGET_MS = 45_000;
 /**
- * The most the owner's tools block may be, in characters as the model is sent it (66,050 on 11 October 2026; 70,286 on
+ * The most the owner's tools block may be, in characters as the model is sent it (66,050 on 11 October 2026; 70,426 on
  * 12 October, after the review of Ask's campaign cards, its reads and its plan).
  */
 export const ASK_TOOLS_CHARS_CEILING = 72_000;

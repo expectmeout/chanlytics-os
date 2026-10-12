@@ -21068,7 +21068,7 @@ var PLAN_WORDS = {
   notADay: "from and until are days on the business's calendar, written YYYY-MM-DD: ask for them again.",
   fromAfterUntil: "until comes before from: an offer's last day is its first day or later. Ask which dates they meant.",
   fromPast: "from is a day already past on the business's calendar: an offer starts today or later. Ask when it starts.",
-  /** No channel asked for can carry it: each closed, with its reason; one open but not asked, to name; else what to set up. */
+  /** None asked for can carry it: each closed one given, why; an open one not asked, to name; else what to set up. */
   noChannel: (closed, open) => [
     `Nothing ${open.length ? "asked for" : "here"} can carry this offer.`,
     ...closed.map((c) => `${VERSION_CHANNEL_WORDS[c.channel]} cannot: ${whyOf(c.why)}`),
@@ -21097,8 +21097,8 @@ var PLAN_WORDS = {
   without: (channel, why) => `It goes without ${versionWord(channel)}: ${whyOf(why)}`,
   /** Why it goes without WhatsApp where the one message that carries it waits on WhatsApp's review (a send it holds). */
   reviewing: (name) => `WhatsApp is still reviewing the WhatsApp version of \u201C${name}\u201D.`,
-  /** That message, and WhatsApp the one channel asked for and open: no twin is written, and nothing goes yet. */
-  reviewRefused: (name) => `\u201C${name}\u201D, the one message here that carries an offer, waits on WhatsApp's review of its WhatsApp version, and WhatsApp is the one channel this offer may go by: say so, and ask again once WhatsApp has reviewed it.`,
+  /** That message, and WhatsApp the one channel asked for: no twin; email named where it is open but not asked. */
+  reviewRefused: (name, emailOpen) => `\u201C${name}\u201D, the one message here that carries an offer, waits on WhatsApp's review of its WhatsApp version, and WhatsApp is the one channel ${emailOpen ? "asked for" : "this offer may go by"}: say so, and ${emailOpen ? "that email can carry it now (name it, or leave channels out), or " : ""}ask again once WhatsApp has reviewed it.`,
   noText: CHANNEL_WORDS.noOffersByText,
   noteMade: (until) => `Tells the receptionist about the offer, until ${until}.`,
   noteKnown: "The receptionist already has a note about the offer.",
@@ -21116,8 +21116,8 @@ var PLAN_WORDS = {
   reviewFirst: "The send can be approved once WhatsApp has reviewed its WhatsApp version.",
   /** A paced campaign by email too: approved now, its WhatsApp people held until the version is approved. */
   whatsappReview: "Its WhatsApp version waits on WhatsApp's review, which may still be running at the first send: whoever it reaches on WhatsApp waits for it.",
-  /** The reminder is a question of its own on its day, when who has booked is known: a send counts its people at its Approve. */
-  reminderAsk: (day, list2) => `On ${day}, ask me to send a reminder to whoever on \u201C${list2}\u201D has not booked by then: that is its own question on the day, when who has booked is known.`,
+  /** The reminder, its own question on its day (who has booked is known then); short, to fit the answer whole. */
+  reminderAsk: (day, list2) => `On ${day}, ask me to send a reminder to whoever on \u201C${list2}\u201D has not booked by then.`,
   cover: (n) => `Starts ${plural(n, "campaign")}, one on each moment not covered yet, each its own card.`,
   notOffered: (stages) => `Not offered here: ${joinWords(stages)}.`,
   pausedOn: (name) => `\u201C${name}\u201D stands paused on its moment: resume it from its drawer.`,
@@ -21180,12 +21180,15 @@ function offerDates(offer, world) {
 function offerChannels(asked, can) {
   const want = asked ?? OFFER_CHANNELS;
   const shut = OFFER_CHANNELS.filter((c) => want.includes(c) && !can[c].ok);
+  const unasked = OFFER_CHANNELS.filter((c) => !want.includes(c) && can[c].ok);
+  const told = unasked.length ? shut : OFFER_CHANNELS.filter((c) => !can[c].ok);
   return {
     on: OFFER_CHANNELS.filter((c) => want.includes(c) && can[c].ok),
+    unasked,
     said: [...want.includes("sms") ? [SAY.noText] : [], ...shut.map((c) => SAY.without(c, can[c].why))],
     refused: SAY.noChannel(
-      shut.map((c) => ({ channel: c, why: can[c].why })),
-      OFFER_CHANNELS.filter((c) => !want.includes(c) && can[c].ok)
+      told.map((c) => ({ channel: c, why: can[c].why })),
+      unasked
     )
   };
 }
@@ -21250,14 +21253,14 @@ function writtenMessage(world, on, line) {
     params: valuesOf(slots, line)
   };
 }
-function offerMessage(world, on, line, kind) {
+function offerMessage(world, on, line, kind, unasked) {
   const held = sendWaitsForReview(kind, on);
   const [ready] = offerFits(world, on, held);
   if (ready) return { message: reusedMessage(ready, on, line), on, said: [] };
   const [waiting] = held ? offerFits(world, on, false) : [];
   if (!waiting) return { message: writtenMessage(world, on, line), on, said: [] };
   const rest = on.filter((c) => c !== "whatsapp");
-  if (rest.length === 0) return { refused: SAY.reviewRefused(waiting.name) };
+  if (rest.length === 0) return { refused: SAY.reviewRefused(waiting.name, unasked.includes("email")) };
   return {
     message: reusedMessage(waiting, rest, line),
     on: rest,
@@ -21302,7 +21305,7 @@ function offerRead(offer, say2, world) {
   const tight = room && audience.count !== null && room.open * 2 < audience.count ? { room, audience: audience.count } : null;
   const cap2 = tight && dates.from === dates.today ? capOf(tight.room) : null;
   const kind = cap2 === null ? "broadcast" : "playbook";
-  const picked = offerMessage(world, channels.on, line, kind);
+  const picked = offerMessage(world, channels.on, line, kind, channels.unasked);
   if ("refused" in picked) return picked;
   return {
     offer,
@@ -21320,18 +21323,23 @@ function offerRead(offer, say2, world) {
     pauses: monthsOfferPauses(world, dates.untilWords)
   };
 }
-function sendWords(r2, world) {
-  const hour = clockHour(SEND_HOUR);
-  const first = r2.tight && r2.cap !== null ? [SAY.paced(r2.tight.room, r2.tight.audience)] : [
-    r2.dates.firstAt === null ? SAY.firstAtApprove(r2.audience.name, hour) : SAY.firstSend(r2.audience.name, r2.dates.fromWords, hour),
-    ...r2.tight ? [SAY.roomTight(r2.tight.room, r2.tight.audience, r2.dates.fromWords)] : []
-  ];
+function sendUnseen(r2, world) {
+  const room = r2.tight ? [
+    r2.cap !== null ? SAY.paced(r2.tight.room, r2.tight.audience) : SAY.roomTight(r2.tight.room, r2.tight.audience, r2.dates.fromWords)
+  ] : [];
   const reviewing = r2.on.includes("whatsapp") && (r2.message.made || r2.message.inReview);
   const review = sendWaitsForReview(r2.kind, r2.on) ? SAY.reviewFirst : SAY.whatsappReview;
   return [
-    ...first,
+    ...room,
     ...reviewing ? [review] : [],
     ...r2.reminder ? [SAY.reminderAsk(campaignDayWords(r2.reminder, world.tz, world.now), r2.audience.name)] : []
+  ];
+}
+function sendDay(r2) {
+  if (r2.cap !== null) return [];
+  const hour = clockHour(SEND_HOUR);
+  return [
+    r2.dates.firstAt === null ? SAY.firstAtApprove(r2.audience.name, hour) : SAY.firstSend(r2.audience.name, r2.dates.fromWords, hour)
   ];
 }
 function offerPlan(r2, world) {
@@ -21369,11 +21377,13 @@ function offerPlan(r2, world) {
       SAY.why.first
     );
   const words3 = [
-    r2.message.made ? SAY.writeMessage(r2.message.name, r2.on) : SAY.reuseMessage(r2.message.name),
     ...r2.onSaid,
-    r2.note.said,
+    ...r2.note.input ? [] : [r2.note.said],
     ...r2.pauses.map((p) => p.said),
-    ...sendWords(r2, world)
+    ...sendUnseen(r2, world),
+    r2.message.made ? SAY.writeMessage(r2.message.name, r2.on) : SAY.reuseMessage(r2.message.name),
+    ...r2.note.input ? [r2.note.said] : [],
+    ...sendDay(r2)
   ];
   return { steps, words: words3.join(" ") };
 }
@@ -28392,8 +28402,8 @@ function visitFactsFor(trigger, visit, tz, names3, sendAt) {
 function visitDayWord(visit, tz, sendAt, assumed) {
   if (!sendAt) return assumed;
   const visitDay2 = localDate(tz, new Date(visit.start));
-  const sendDay = localDate(tz, sendAt);
-  const delta = Math.round((Date.parse(`${visitDay2}T00:00:00Z`) - Date.parse(`${sendDay}T00:00:00Z`)) / DAY_MS);
+  const sendDay2 = localDate(tz, sendAt);
+  const delta = Math.round((Date.parse(`${visitDay2}T00:00:00Z`) - Date.parse(`${sendDay2}T00:00:00Z`)) / DAY_MS);
   if (delta === 1) return "tomorrow";
   if (delta === 0) return "today";
   if (delta === -1) return "yesterday";
@@ -30843,13 +30853,13 @@ var CAN_SEND_WORDS = {
   LIMITED: "limited",
   BLOCKED: "blocked"
 };
-var sendWords2 = (w) => {
+var sendWords = (w) => {
   if (typeof w !== "string" || !w) return null;
   return Object.hasOwn(CAN_SEND_WORDS, w) ? CAN_SEND_WORDS[w] ?? null : w.toLowerCase().replace(/_/g, " ");
 };
 function standingChangeWords(p) {
-  const to = sendWords2(p.to);
-  const from = sendWords2(p.from);
+  const to = sendWords(p.to);
+  const from = sendWords(p.from);
   if (!to) return null;
   return from ? `from ${from} to ${to}` : to;
 }

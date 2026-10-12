@@ -1007,6 +1007,59 @@ test("with a calendar, the plan alone in its round says when to ask for the remi
   assert.ok(op.answer.say.detail.includes(W.noteLeftOut), op.answer.say.detail);
 });
 
+/** Harbor with a calendar open one hour on Mondays (four slots in the next fourteen days), the month's offer running. */
+const tightRows = (over = {}) => {
+  const rows = withCalendar({ templates: [tpl(OFFER_EMAIL)], playbooks: [pbRow(MONTHLY)], ...over });
+  const [cfg] = rows.tenant_config;
+  const profile = { ...PROFILE, hours: { mon: { open: "09:00", close: "10:00" } } };
+  rows.tenant_config = [{ ...cfg, config: { ...cfg.config, brain: { ...cfg.config.brain, profile } } }];
+  return rows;
+};
+/** Ten people who can receive offers: more than twice the room. */
+const TEN = Array.from({ length: 10 }, (_, i) =>
+  row(i, { id: `aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaab${String(i).padStart(2, "0")}` }),
+);
+/** The November offer's room, tight for the ten: its broadcast reaches the whole list on Nov 1. */
+const ROOM_TIGHT = W.roomTight({ open: 4, days: 14 }, 10, "Nov 1");
+const REMINDS = W.reminderAsk("Nov 20", "Can receive offers");
+
+test("a US number, the month's offer running and a tight room for a later offer: the plan's words pass the answer's 700 characters, and the detail keeps whole what no card carries, the reminder last of it, losing only what the cards show (fix round of batch P)", async () => {
+  const US = "+12125550123";
+  const rows = () => tightRows({ tenant_channels: [waRow(US)] });
+  const r = await planTurn([PLAN_CALL], { ctx: ctxOf(rows(), USER, TEN) });
+  assert.equal(r.failed, false, JSON.stringify(r));
+  readerCache.clear();
+  const words = said(await call({ action: "plan", ...offer() }, rows(), "owner", TEN)).words;
+  assert.ok(words.length > C.ASK_ANSWER_CAPS.detail, `past the cap: ${words.length}`);
+  const detail = r.answer.say.detail;
+  assert.ok(detail.length <= C.ASK_ANSWER_CAPS.detail, `${detail.length}`);
+  for (const unseen of [
+    W.without("whatsapp", C.whatsappOffersOpen(US).why),
+    W.monthsOfferPaused("This month's offer", "Nov 30"),
+    ROOM_TIGHT,
+    REMINDS,
+  ])
+    assert.ok(detail.includes(unseen), `whole: ${unseen}\nin: ${detail}`);
+  assert.ok(detail.indexOf(REMINDS) < detail.indexOf(W.reuseMessage("this_months_offer")), detail);
+});
+
+test("an operator's offer with email not set up, a new WhatsApp message, the month's offer running and a tight later room: the detail keeps the note left out, WhatsApp's review and the reminder whole (fix round of batch P)", async () => {
+  const rows = () => tightRows({ mailboxes: [] });
+  const op = await planTurn([PLAN_CALL], { role: "operator", ctx: ctxOf(rows(), "u2", TEN) });
+  assert.equal(op.failed, false, JSON.stringify(op));
+  assert.deepEqual(
+    op.proposals.map((p) => p.kind),
+    ["message", "playbook_change", "broadcast"],
+  );
+  readerCache.clear();
+  const words = said(await call({ action: "plan", ...offer() }, rows(), "operator", TEN)).words;
+  assert.ok(words.length > C.ASK_ANSWER_CAPS.detail, `past the cap: ${words.length}`);
+  const detail = op.answer.say.detail;
+  assert.ok(detail.length <= C.ASK_ANSWER_CAPS.detail, `${detail.length}`);
+  for (const unseen of [W.noteLeftOut, ROOM_TIGHT, W.reviewFirst, REMINDS])
+    assert.ok(detail.includes(unseen), `whole: ${unseen}\nin: ${detail}`);
+});
+
 test("a setup's plan alone in its round: its campaigns are plain cards (D3), so the answer counts them as cards, and the plan's words are its detail", async () => {
   const setup = { ...PLAN_CALL, json: JSON.stringify({ action: "plan", intent: "cover_journey" }) };
   const r = await planTurn([setup], { text: "Set up my campaigns", ctx: ctxOf(withCalendar()) });

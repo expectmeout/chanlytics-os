@@ -17714,7 +17714,7 @@ declare const ASK_MAX_ROUNDS = 3;
 /** End to end, under the route's sixty-second ceiling. */
 declare const ASK_TURN_BUDGET_MS = 45000;
 /**
- * The most the owner's tools block may be, in characters as the model is sent it (66,050 on 11 October 2026; 70,286 on
+ * The most the owner's tools block may be, in characters as the model is sent it (66,050 on 11 October 2026; 70,426 on
  * 12 October, after the review of Ask's campaign cards, its reads and its plan).
  */
 declare const ASK_TOOLS_CHARS_CEILING = 72000;
@@ -18828,7 +18828,7 @@ declare const PLAN_WORDS: {
     readonly notADay: "from and until are days on the business's calendar, written YYYY-MM-DD: ask for them again.";
     readonly fromAfterUntil: "until comes before from: an offer's last day is its first day or later. Ask which dates they meant.";
     readonly fromPast: "from is a day already past on the business's calendar: an offer starts today or later. Ask when it starts.";
-    /** No channel asked for can carry it: each closed, with its reason; one open but not asked, to name; else what to set up. */
+    /** None asked for can carry it: each closed one given, why; an open one not asked, to name; else what to set up. */
     readonly noChannel: (closed: readonly {
         channel: OfferChannel;
         why: string | null;
@@ -18855,8 +18855,8 @@ declare const PLAN_WORDS: {
     readonly without: (channel: OfferChannel, why: string | null) => string;
     /** Why it goes without WhatsApp where the one message that carries it waits on WhatsApp's review (a send it holds). */
     readonly reviewing: (name: string) => string;
-    /** That message, and WhatsApp the one channel asked for and open: no twin is written, and nothing goes yet. */
-    readonly reviewRefused: (name: string) => string;
+    /** That message, and WhatsApp the one channel asked for: no twin; email named where it is open but not asked. */
+    readonly reviewRefused: (name: string, emailOpen: boolean) => string;
     readonly noText: "Texts carry no offers.";
     readonly noteMade: (until: string) => string;
     readonly noteKnown: "The receptionist already has a note about the offer.";
@@ -18874,7 +18874,7 @@ declare const PLAN_WORDS: {
     readonly reviewFirst: "The send can be approved once WhatsApp has reviewed its WhatsApp version.";
     /** A paced campaign by email too: approved now, its WhatsApp people held until the version is approved. */
     readonly whatsappReview: "Its WhatsApp version waits on WhatsApp's review, which may still be running at the first send: whoever it reaches on WhatsApp waits for it.";
-    /** The reminder is a question of its own on its day, when who has booked is known: a send counts its people at its Approve. */
+    /** The reminder, its own question on its day (who has booked is known then); short, to fit the answer whole. */
     readonly reminderAsk: (day: string, list: string) => string;
     readonly cover: (n: number) => string;
     readonly notOffered: (stages: readonly string[]) => string;
