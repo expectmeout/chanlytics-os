@@ -54,10 +54,11 @@ const changeListing = (db: Db, tenantId: string, set: Database["public"]["Tables
  * now" at once), and one whose location Google gives another link, or none, follows it. It is written only onto the
  * listing of the location's own place on Maps: the write names the place, so a listing the public read linked to
  * another place, or one re-bound to another location while this sync ran, is not matched, and a location Google gives
- * no place (which the bind refuses, not_on_maps) writes and clears nothing. Each of those, and a read that fails or
- * answers another location, leaves the link as it is (google_review_link_read_failed); so does a write that fails
- * (google_review_link_write_failed). Neither fails the sync or reaches its `sync_error`. It runs last, after the bells
- * and the event, so its call to Google never holds them.
+ * no place (which the bind refuses, not_on_maps) writes and clears nothing. Each of those leaves the link as it is
+ * (google_review_link_not_its_place: Google's read succeeded, so a lasting state, not an outage); so does a read that
+ * fails or answers another location (google_review_link_read_failed), and a write that fails
+ * (google_review_link_write_failed). None fails the sync or reaches its `sync_error`. It runs last, after the bells and
+ * the event, so its call to Google never holds them.
  */
 async function keepReviewLink(
   db: Db,
@@ -72,7 +73,11 @@ async function keepReviewLink(
   try {
     const bound = await readLocation(net, token, location);
     if (bound.name !== location) throw new Error(`Google answered ${bound.name} for ${location}`);
-    if (!bound.place_id) throw new Error(`${location} has no place on Maps`);
+    // Google answered: a location with no place on Maps is a lasting state, never a read that failed.
+    if (!bound.place_id) {
+      L.warn("google_review_link_not_its_place", { why: "the location has no place on Maps" });
+      return;
+    }
     if (bound.new_review_uri === (await reviewLinkOf(db, conn.tenant_id))) return;
     link = bound.new_review_uri;
     place = bound.place_id;
@@ -89,7 +94,7 @@ async function keepReviewLink(
     return;
   }
   if (!wrote.data?.length)
-    L.warn("google_review_link_read_failed", { error: `the listing is not the place of ${location} (${place})` });
+    L.warn("google_review_link_not_its_place", { why: "no listing of that place", place_id: place });
 }
 
 /**

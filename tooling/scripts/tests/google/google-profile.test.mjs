@@ -1520,6 +1520,8 @@ async function syncTheLink({
       bells: tables.notifications.length,
       told: tables.events.map((e) => e.kind),
       events: lines.map((l) => l.event).filter((e) => e.startsWith("google_review_link")),
+      /** Why a link left as it is was not its place's, as its line says. */
+      whys: lines.filter((l) => l.event === "google_review_link_not_its_place").map((l) => l.why),
     };
   } finally {
     setPg(null);
@@ -1676,7 +1678,7 @@ test("the link is read last: a new review's bell and the google.reviews event ar
   }
 });
 
-test("a location Google gives no place on Maps clears nothing: the bind refuses it, so its link is never the listing's", async () => {
+test("a location Google gives no place on Maps clears nothing: the bind refuses it, so its link is never the listing's; Google's read succeeded, so it is logged as a lasting state, never as a read that failed", async () => {
   for (const link of [REVIEW_LINK, undefined]) {
     const s = await syncTheLink({ link, locations: boundLocation({ placeId: undefined }) });
     const what = link ? "a link on file" : "none on file";
@@ -1684,11 +1686,12 @@ test("a location Google gives no place on Maps clears nothing: the bind refuses 
     assert.equal(s.listing.new_review_uri, link, `${what}: left as it is`);
     assert.deepEqual(s.written, [], `${what}: nothing written`);
     assert.equal(s.connection.sync_error, null, what);
-    assert.deepEqual(s.events, ["google_review_link_read_failed"], `${what}: logged`);
+    assert.deepEqual(s.events, ["google_review_link_not_its_place"], `${what}: logged`);
+    assert.deepEqual(s.whys, ["the location has no place on Maps"], what);
   }
 });
 
-test("the bound location's link is written only onto the listing of its own place: a listing the public read linked to another place, or one re-bound while the sweep ran, keeps its own", async () => {
+test("the bound location's link is written only onto the listing of its own place: a listing the public read linked to another place, or one re-bound while the sweep ran, keeps its own, logged as no listing of that place, never as a read that failed", async () => {
   // The public link (POST /api/v1/google/link) is not refused while a profile is connected, and writes no review link.
   for (const link of [undefined, "https://example.com/review/ada-elsewhere"]) {
     const s = await syncTheLink({ link, place: "p-public", locations: boundLocation({ newReviewUri: REVIEW_LINK }) });
@@ -1696,7 +1699,8 @@ test("the bound location's link is written only onto the listing of its own plac
     assert.equal(s.r.ok, true, `${what}: ${JSON.stringify(s.r)}`);
     assert.equal(s.listing.place_id, "p-public", what);
     assert.equal(s.listing.new_review_uri, link, `${what}: never the bound location's link`);
-    assert.deepEqual(s.events, ["google_review_link_read_failed"], `${what}: logged`);
+    assert.deepEqual(s.events, ["google_review_link_not_its_place"], `${what}: logged`);
+    assert.deepEqual(s.whys, ["no listing of that place"], what);
   }
 
   // The owner chose another location (p2, its own link written by the bind) while this sweep held the old connection.
@@ -1712,7 +1716,7 @@ test("the bound location's link is written only onto the listing of its own plac
     ["p2", uptown],
     "the re-bound listing keeps the link its bind wrote",
   );
-  assert.deepEqual(raced.events, ["google_review_link_read_failed"]);
+  assert.deepEqual(raced.events, ["google_review_link_not_its_place"]);
 });
 
 test("a listing whose link cannot be read is left as it is, and the sync whole", async () => {
