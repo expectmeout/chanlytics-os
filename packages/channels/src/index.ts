@@ -379,7 +379,8 @@ export { signEdgeToken, verifyEdgeToken, edgeBodyMatches, EDGE_TOKEN_TTL_MS } fr
 export { requestIdOf, requestIdShaped, REQUEST_ID_HEADER } from "./tokens/request-id";
 export { logger, errField } from "./log/logger";
 export type { Logger, LogFields, LogLevel } from "./log/logger";
-export { withRequestId, requestId, noteTenant, requestTenant } from "./log/request";
+export { withRequestId, requestId, noteTenant, requestTenant, noteTiming, requestTimings } from "./log/request";
+export type { RequestTiming } from "./log/request";
 export type { EdgeClaims, EdgeTokenVerdict } from "./tokens/edge-token";
 export {
   signUnsubscribeToken,

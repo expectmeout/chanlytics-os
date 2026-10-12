@@ -11306,18 +11306,20 @@ COMMENT ON FUNCTION public.note_for_you_notify(p_tenant_id uuid, p_contact_id uu
 
 
 --
--- Name: note_page_vitals(text, jsonb); Type: FUNCTION; Schema: public; Owner: -
+-- Name: note_page_vitals(text, jsonb, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.note_page_vitals(p_page text, p_vitals jsonb) RETURNS integer
+CREATE FUNCTION public.note_page_vitals(p_page text, p_vitals jsonb, p_device text DEFAULT NULL::text, p_build text DEFAULT NULL::text) RETURNS integer
     LANGUAGE sql
     SET search_path TO 'public'
     AS $$
   with kept as (
-    insert into public.page_vitals (id, page, metric, value)
-    select distinct on (v.id) v.id, p_page, v.name, v.value
-      from jsonb_to_recordset(p_vitals) as v(id text, name text, value double precision)
-    on conflict (id) do update set value = excluded.value
+    insert into public.page_vitals (id, page, metric, value, part, came_from, warm, device, build, detail)
+    select distinct on (v.id)
+           v.id, coalesce(v.page, p_page), v.name, v.value, v.part, v."from", v.warm, p_device, p_build, v.detail
+      from jsonb_to_recordset(p_vitals)
+           as v(id text, name text, value double precision, page text, part text, "from" text, warm boolean, detail jsonb)
+    on conflict (id) do update set value = excluded.value, detail = excluded.detail
     returning 1
   )
   select count(*)::integer from kept
@@ -11325,10 +11327,10 @@ $$;
 
 
 --
--- Name: FUNCTION note_page_vitals(p_page text, p_vitals jsonb); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION note_page_vitals(p_page text, p_vitals jsonb, p_device text, p_build text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.note_page_vitals(p_page text, p_vitals jsonb) IS 'Keeps one page load''s reports ([{id, name, value}]) under the page it landed on; a known id takes the new value. Answers how many it kept. Service role: POST /api/v1/vitals.';
+COMMENT ON FUNCTION public.note_page_vitals(p_page text, p_vitals jsonb, p_device text, p_build text) IS 'Keeps one page load''s reports ([{id, name, value, page?, part?, from?, warm?, detail?}]) with the device and the build; a report naming no page is of p_page; a known id takes the new value and detail. Answers how many it kept. Service role: POST /api/v1/vitals.';
 
 
 --
@@ -11701,6 +11703,95 @@ $$;
 
 
 --
+-- Name: page_speed(integer, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.page_speed(p_days integer DEFAULT 7, p_most integer DEFAULT 50000) RETURNS TABLE(metric text, page text, part text, how text, device text, warm text, samples integer, p75 double precision, waits_on text, since timestamp with time zone)
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  with recent as (
+    select v.metric,
+           v.page,
+           coalesce(v.part, '') as part,
+           case when v.came_from is null then 'load' when v.came_from = v.page then 'within' else 'move' end as how,
+           coalesce(v.device, 'unknown') as device,
+           case when v.warm then 'held' when not v.warm then 'read' else 'unknown' end as warm,
+           v.value,
+           v.detail ->> 'wait' as wait,
+           v.at
+      from public.page_vitals v
+     where v.at > now() - make_interval(days => p_days)
+       and v.metric in ('READY', 'SETTLED', 'LCP', 'INP', 'CLS')
+     order by v.at desc
+     limit p_most
+  )
+  select r.metric,
+         case when grouping(r.page) = 1 then null else r.page end,
+         r.part,
+         case when grouping(r.how) = 1 then 'all' else r.how end,
+         case when grouping(r.device) = 1 then 'all' else r.device end,
+         case when grouping(r.warm) = 1 then 'all' else r.warm end,
+         count(*)::integer,
+         percentile_cont(0.75) within group (order by r.value),
+         mode() within group (order by r.wait),
+         min(r.at)
+    from recent r
+   group by grouping sets (
+     (r.metric, r.part, r.how),
+     (r.metric, r.page, r.part),
+     (r.metric, r.page, r.part, r.how),
+     (r.metric, r.page, r.part, r.how, r.device),
+     (r.metric, r.page, r.part, r.how, r.warm)
+   )
+   order by 1, 2 nulls first, 3, 4, 5, 6
+$$;
+
+
+--
+-- Name: FUNCTION page_speed(p_days integer, p_most integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.page_speed(p_days integer, p_most integer) IS 'Where the pages'' time goes (00408): READY, SETTLED and the browser''s LCP, INP, CLS at the 75th percentile, over every page (page null) and each page, by part ('''' the page itself), how it was reached (load, move, within, all), device and held rows (all where over both), with the read waited on most. The latest p_most rows of the last p_days. Service role: the back office.';
+
+
+--
+-- Name: page_spots(integer, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.page_spots(p_days integer DEFAULT 7, p_most integer DEFAULT 50000) RETURNS TABLE(metric text, page text, el text, samples integer, p75 double precision, phase text)
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  with recent as (
+    select v.metric, v.page, v.detail ->> 'el' as el, v.detail ->> 'phase' as phase, v.value
+      from public.page_vitals v
+     where v.at > now() - make_interval(days => p_days)
+       and v.metric in ('INP', 'LCP', 'CLS')
+       and v.detail ? 'el'
+     order by v.at desc
+     limit p_most
+  )
+  select r.metric,
+         r.page,
+         r.el,
+         count(*)::integer,
+         percentile_cont(0.75) within group (order by r.value),
+         mode() within group (order by r.phase)
+    from recent r
+   group by r.metric, r.page, r.el
+   order by r.metric, r.page, r.el
+$$;
+
+
+--
+-- Name: FUNCTION page_spots(p_days integer, p_most integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.page_spots(p_days integer, p_most integer) IS 'The elements that cost the most (00408): INP, LCP and CLS at the 75th percentile by page and element (detail.el, a test id), with the phase their time went on most. The latest p_most rows of the last p_days. Service role: the back office.';
+
+
+--
 -- Name: page_vitals_p75(integer, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -11712,6 +11803,9 @@ CREATE FUNCTION public.page_vitals_p75(p_days integer DEFAULT 7, p_most integer 
     select v.page, v.metric, v.value, v.at
       from public.page_vitals v
      where v.at > now() - make_interval(days => p_days)
+       and v.came_from is null
+       and v.part is null
+       and v.metric in ('LCP', 'INP', 'CLS', 'FCP', 'TTFB')
      order by v.at desc
      limit p_most
   )
@@ -25851,9 +25945,20 @@ CREATE TABLE public.page_vitals (
     page text NOT NULL,
     metric text NOT NULL,
     value double precision NOT NULL,
+    part text,
+    came_from text,
+    warm boolean,
+    device text,
+    build text,
+    detail jsonb,
+    CONSTRAINT page_vitals_build_check CHECK ((build ~ '^[0-9a-z]{3,40}$'::text)),
+    CONSTRAINT page_vitals_came_from_check CHECK ((came_from ~ '^[a-z][a-z0-9-]{0,31}$'::text)),
+    CONSTRAINT page_vitals_detail_check CHECK (((jsonb_typeof(detail) = 'object'::text) AND (pg_column_size(detail) <= 2048))),
+    CONSTRAINT page_vitals_device_check CHECK ((device = ANY (ARRAY['desk'::text, 'phone'::text]))),
     CONSTRAINT page_vitals_id_check CHECK ((id ~ '^[A-Za-z0-9-]{1,64}$'::text)),
-    CONSTRAINT page_vitals_metric_check CHECK ((metric = ANY (ARRAY['LCP'::text, 'INP'::text, 'CLS'::text, 'FCP'::text, 'TTFB'::text]))),
+    CONSTRAINT page_vitals_metric_check CHECK ((metric = ANY (ARRAY['LCP'::text, 'INP'::text, 'CLS'::text, 'FCP'::text, 'TTFB'::text, 'READY'::text, 'SETTLED'::text]))),
     CONSTRAINT page_vitals_page_check CHECK ((page ~ '^[a-z][a-z0-9-]{0,31}$'::text)),
+    CONSTRAINT page_vitals_part_check CHECK ((part ~ '^[a-z][a-z0-9-]{0,31}$'::text)),
     CONSTRAINT page_vitals_value_check CHECK (((value >= (0)::double precision) AND (value <= (600000)::double precision)))
 );
 
@@ -25862,7 +25967,49 @@ CREATE TABLE public.page_vitals (
 -- Name: TABLE page_vitals; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.page_vitals IS 'Field data (00255): one row per metric per page load, under the browser''s own id; the landing page, the metric (LCP, INP, CLS, FCP, TTFB) and its value, in ms but for CLS. No person, no workspace. Kept thirty days.';
+COMMENT ON TABLE public.page_vitals IS 'Field data (00255, 00408): one row per metric per page load or move, under its own id; the page it is of, a part of it, the page a move left, whether it drew held rows, the device, the build, and what the time went on. The metrics are the browser''s five (LCP, INP, CLS, FCP, TTFB) and the shell''s two (READY, SETTLED), in ms but for CLS. No person, no workspace. Kept thirty days.';
+
+
+--
+-- Name: COLUMN page_vitals.part; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.page_vitals.part IS 'The part of the page a READY is of (`queue`, `table`); null for the page itself (00408).';
+
+
+--
+-- Name: COLUMN page_vitals.came_from; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.page_vitals.came_from IS 'The page a move left; null for a page load; the page itself for a move inside it (00408).';
+
+
+--
+-- Name: COLUMN page_vitals.warm; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.page_vitals.warm IS 'Whether what it drew was already held when it began: the tab''s cache, a view held (00408).';
+
+
+--
+-- Name: COLUMN page_vitals.device; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.page_vitals.device IS 'desk, or phone at the kit''s one phone width and under (00408).';
+
+
+--
+-- Name: COLUMN page_vitals.build; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.page_vitals.build IS 'The deploy the page ran: its sha''s first twelve, or dev (00408).';
+
+
+--
+-- Name: COLUMN page_vitals.detail; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.page_vitals.detail IS 'What the time went on: a read''s route and its server and database time, a chunk, an element''s test id, a phase. Never a person or anything they wrote (00408).';
 
 
 --
@@ -35635,11 +35782,11 @@ GRANT ALL ON FUNCTION public.note_for_you_notify(p_tenant_id uuid, p_contact_id 
 
 
 --
--- Name: FUNCTION note_page_vitals(p_page text, p_vitals jsonb); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION note_page_vitals(p_page text, p_vitals jsonb, p_device text, p_build text); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.note_page_vitals(p_page text, p_vitals jsonb) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.note_page_vitals(p_page text, p_vitals jsonb) TO service_role;
+REVOKE ALL ON FUNCTION public.note_page_vitals(p_page text, p_vitals jsonb, p_device text, p_build text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.note_page_vitals(p_page text, p_vitals jsonb, p_device text, p_build text) TO service_role;
 
 
 --
@@ -35715,6 +35862,22 @@ GRANT ALL ON FUNCTION public.outreach_lead_facts(p_tenant_id uuid, p_contact_id 
 
 REVOKE ALL ON FUNCTION public.outreach_wrote_back(p_tenant_id uuid, p_contact_ids uuid[]) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.outreach_wrote_back(p_tenant_id uuid, p_contact_ids uuid[]) TO service_role;
+
+
+--
+-- Name: FUNCTION page_speed(p_days integer, p_most integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.page_speed(p_days integer, p_most integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.page_speed(p_days integer, p_most integer) TO service_role;
+
+
+--
+-- Name: FUNCTION page_spots(p_days integer, p_most integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.page_spots(p_days integer, p_most integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.page_spots(p_days integer, p_most integer) TO service_role;
 
 
 --

@@ -4,7 +4,7 @@
  * model's, from contracts.
  */
 import { useState } from "react";
-import type { PageVitalsRowDto, PlatformHealth, PlatformQueueVM } from "@chanlytics/contracts";
+import type { PageVitalsRowDto, PlatformHealth, PlatformQueueVM, Tone } from "@chanlytics/contracts";
 import type { PlatformApi } from "@/legacy-bridge/platform";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
@@ -233,7 +233,86 @@ function PlatformDaysCard({ P, problem }: { P: PlatformApi; problem: string | nu
   );
 }
 
-/** The platform's work, below its health: how fast the pages are, and each workspace's day. */
+/** One card of lines, each a label and its words in the tone they are said in: the speed cards' one shape. */
+function SpeedCard({
+  title,
+  sentence,
+  lines,
+  testid,
+}: {
+  title: string;
+  sentence: string;
+  lines: ReadonlyArray<{ key: string; label: string; hint: string; tone: Tone }>;
+  testid: string;
+}) {
+  return (
+    <section className="rec-card set-card" data-testid={testid}>
+      <div className="rec-card-head">
+        <h2 className="rec-card-title">{title}</h2>
+        <span className="rec-card-sub set-says" data-testid={`${testid}-words`}>
+          {sentence}
+        </span>
+      </div>
+      {lines.length > 0 && (
+        <div className="cl-attn-list" data-testid={`${testid}-lines`}>
+          {lines.map((l) => (
+            <div className="set-row" key={l.key}>
+              <div className="set-row-info">
+                <span className="set-row-label">{l.label}</span>
+                <span className="set-row-hint" data-tone={l.tone}>
+                  {l.hint}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Where the pages' time goes (00408, decision 0053): each page by how it opens and how a move reaches it, slowest first;
+ * the parts of a page drawn last; and the taps, paints and shifts that cost the most, each by the element's test id.
+ * Read from the overview this tab holds (peekList), so the page's own reads are unchanged; an overview that predates it
+ * draws no card, and a read that failed says so in the first card's sentence alone. Every word is the view model's
+ * (contracts pageSpeedWords).
+ */
+function PlatformSpeedCards({ P, problem }: { P: PlatformApi; problem: string | null }) {
+  const held = P.peekList ? P.peekList() : null;
+  const speed = held && held.ok ? held.speed : undefined;
+  if (problem || speed === undefined) return null;
+  const where = P.speedWords(speed);
+  const spots = [...where.taps, ...where.paints, ...where.shifts];
+  return (
+    <>
+      <SpeedCard
+        title="Where the pages' time goes"
+        sentence={where.sentence}
+        lines={where.pages.map((p) => ({ key: p.page, label: `${p.label} · ${p.value}`, hint: p.hint, tone: p.tone }))}
+        testid="platform-speed"
+      />
+      {where.parts.length > 0 && (
+        <SpeedCard
+          title="Drawn last"
+          sentence={where.partsSentence}
+          lines={where.parts}
+          testid="platform-speed-parts"
+        />
+      )}
+      {spots.length > 0 && (
+        <SpeedCard
+          title="What a person waits on"
+          sentence={where.spotsSentence}
+          lines={spots}
+          testid="platform-speed-spots"
+        />
+      )}
+    </>
+  );
+}
+
+/** The platform's work, below its health: how fast the pages are, where their time goes, and each workspace's day. */
 export function PlatformWorkCards({
   P,
   vitals,
@@ -246,6 +325,7 @@ export function PlatformWorkCards({
   return (
     <>
       <PlatformVitalsCard P={P} rows={vitals} problem={problem} />
+      <PlatformSpeedCards P={P} problem={problem} />
       <PlatformDaysCard P={P} problem={problem} />
     </>
   );

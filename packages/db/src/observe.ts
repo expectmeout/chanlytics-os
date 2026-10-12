@@ -26,6 +26,11 @@ export interface DbObserver {
   log: DbLog;
   /** The request the code running now serves, or null outside one. */
   requestId(): string | null;
+  /**
+   * How long one call to the database took, inside the request that made it (decision 0053): the app adds it to the
+   * request's `db` share, which its answer says in Server-Timing. Absent, nothing is timed.
+   */
+  timed?(ms: number): void;
 }
 
 /** The header a request's name rides to the database in: PostgREST hands it to SQL as request.headers. */
@@ -69,9 +74,15 @@ export function dbRequestId(): string | null {
   return (observerHolder[OBSERVER_SLOT] ?? FALLBACK).requestId();
 }
 
+/** One call's time, told to the process that asked to hear it. */
+function dbTimed(ms: number): void {
+  (observerHolder[OBSERVER_SLOT] ?? FALLBACK).timed?.(ms);
+}
+
 /**
  * A fetch that names the request it is made for: the database client's transport, so a SQL function writing to the
- * ledger in that request can say which it was. A call outside a request goes as it came.
+ * ledger in that request can say which it was, and that says how long each call took (`timed`), so the answer can say
+ * how much of its time was the database's and in how many calls. A call outside a request goes as it came.
  */
 export function namedFetch(base?: typeof fetch): typeof fetch {
   return (input, init) => {
@@ -81,6 +92,13 @@ export function namedFetch(base?: typeof fetch): typeof fetch {
     if (!id) return send(input, init);
     const headers = new Headers(init?.headers);
     headers.set(DB_REQUEST_HEADER, id);
-    return send(input, { ...init, headers });
+    const started = performance.now();
+    const call = send(input, { ...init, headers });
+    // Timed to its headers: what the request waited for before it could read the answer.
+    void call.then(
+      () => dbTimed(performance.now() - started),
+      () => dbTimed(performance.now() - started),
+    );
+    return call;
   };
 }

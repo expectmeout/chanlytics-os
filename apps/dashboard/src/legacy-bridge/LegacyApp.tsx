@@ -14,12 +14,14 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   useSyncExternalStore,
   type ReactNode,
 } from "react";
+import { frameDrawn, installPageSpeed, type SpeedShell } from "@/client/page-speed";
 import { FIRST_RUN_ROUTE, type PendingWorkspace, type Theme, type LookPref } from "@chanlytics/contracts";
 // The live feed's own entry: the package's index is the server's repositories, and reached the browser whole for this.
 import { subscribeWorkspaceChanges } from "@chanlytics/db/realtime";
@@ -152,6 +154,33 @@ markHydrated(hydrateSurfaceCache());
 // A tab opened on a person's page asks for them now, ahead of every surface's boot: the page is their read alone.
 warmPersonOnScreen();
 
+/** A route as the shell parses it (app-shell.jsx parseRoute): its page, and the param after it. */
+const routeParts = (route: string): [string, string | null] => {
+  const [page, param] = route.split("/");
+  return [page || "today", param || null];
+};
+
+/**
+ * What the page's measures read of the shell (client/page-speed.ts, decision 0053): the address and its moves, the
+ * surfaces a page is drawn from and whether each is read, and the gate the frame draws by.
+ */
+const speedShell: SpeedShell = {
+  route: () => routeOnScreen(),
+  hearRoute: (fn) => hearAddress(fn),
+  hearAsked: onRouteAsked,
+  surfacesOf: (route) => routeSurfaces(...routeParts(route)),
+  ownSurface: (route) => routeSurfaceFor(...routeParts(route)),
+  isRead: (key) => getSurfaceStatuses().has(key),
+  isReady: isSurfaceReady,
+  gateOpen: (route) => routeGateOpen(...routeParts(route)),
+  hearSurfaces: onSurfaceStatusChange,
+};
+// Where each page's time goes: the document's visit begins at its start, and each move of the address from the press
+// that asked for it. After the cache has been restored, so a page drawn from it is said to have drawn held rows; on a
+// workspace's page alone (the home sends the tab on).
+if (getActiveWorkspace())
+  installPageSpeed(speedShell, { build: publicEnv.NEXT_PUBLIC_BUILD_SHA, report: publicEnv.productionBuild });
+
 // The mockup's own data-before-mount contract (boot gate). The Agents roster and the seeded Today (FLEET_DATA,
 // CHANLY_DATA) are the demo's, loaded only in a demo session (manifest-demo.ts).
 const REQUIRED = ["CHANLY", "INBOX_DATA", "CLIENTS", "POLICY", "ChanlyticsApp"] as const;
@@ -230,8 +259,16 @@ const SURFACE_LABELS: Record<string, string> = {
 // both live in surface-registry.ts so the classification and the wiring cannot
 // drift apart. Routes absent from ROUTE_SURFACE are seeded by design and are
 // always "ready" — the registry decides separately whether they may RENDER.
-import { installRouteGate, installSurfaceRegistry, readWhatWasMissed, warmWhatItDraws } from "./surface-registry";
-import { onRouteReachedFor } from "./workspace";
+import {
+  installRouteGate,
+  installSurfaceRegistry,
+  readWhatWasMissed,
+  routeGateOpen,
+  routeSurfaceFor,
+  routeSurfaces,
+  warmWhatItDraws,
+} from "./surface-registry";
+import { getActiveWorkspace, hearAddress, onRouteAsked, onRouteReachedFor, routeOnScreen } from "./workspace";
 
 /**
  * The shell's route gate, installed at MODULE SCOPE — not in an effect.
@@ -348,6 +385,21 @@ const SHARED_PAGE = (
   </Suspense>
 );
 
+/** Drawn again when the surfaces of a route move, as the shell is (surface-status.ts surfaceHook over routeSurfaces). */
+const useRouteMoved = surfaceHook({ useCallback, useSyncExternalStore }, routeSurfaces);
+
+/**
+ * Says each draw of the frame to the page's measures (client/page-speed.ts frameDrawn): drawn again when the surfaces
+ * of the route on screen move, in the same draw as the shell, so a page with no first part of its own is READY at the
+ * frame its gate opened in, never at one before the page was put on it.
+ */
+function SpeedFrame({ route }: { route: string | null }) {
+  const [page, param] = routeParts(route ?? routeOnScreen());
+  useRouteMoved({ page, param });
+  useLayoutEffect(() => frameDrawn());
+  return null;
+}
+
 /** The workspaces this account may open, as the workspace's read last said. */
 const listedWorkspaces = (): Workspace[] => (window as unknown as { __WORKSPACES?: Workspace[] }).__WORKSPACES ?? [];
 
@@ -395,6 +447,8 @@ function useShellApp(
           <NewConversationHost />
           {/* The Booking tool's sheet, on whichever page a door to it was pressed (settings/booking-tool/host.tsx). */}
           <BookingToolHost route={route} />
+          {/* Each draw of the frame, said to the page's measures (client/page-speed.ts). */}
+          <SpeedFrame route={route} />
         </>
       ) : null,
     [

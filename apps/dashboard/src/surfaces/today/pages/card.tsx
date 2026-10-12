@@ -24,7 +24,7 @@ import type { PageClock } from "@/legacy-bridge/zone";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { surfaceValue } from "../../surface-values";
-import { useSurface, useSurfaceFailed } from "../../use-surface";
+import { usePartShown, useSurface, useSurfaceFailed } from "../../use-surface";
 import { TODAY_HELPERS } from "../helpers";
 import { appNavigate, doorGlyph, borrowed, workspaceClock, useMoved } from "../shell";
 import { Button } from "../../kit/button/button";
@@ -281,6 +281,8 @@ export const TodayCard = () => {
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
   const vm = surfaceValue("today");
+  // Drawn with the day and its period line, or with the line's read failed (client/page-speed.ts).
+  usePartShown("today", "card", !!vm && (!!R || headlineFailed));
   if (!vm) return null;
   const { recap, quiet } = vm;
   // The tile whole (canvas E3): on a quiet day the four figures are zeros, each with what is true under it (contracts

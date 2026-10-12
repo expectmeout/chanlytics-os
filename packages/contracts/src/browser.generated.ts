@@ -292,10 +292,11 @@ export { CAMPAIGN_ROOMS, PLAYBOOK_DELETE_WORDS, NO_TEMPLATE_WORDS, noMessageWord
 export { nextThemePref, themeButtonWords, resolveTheme, themeColorOf, themeBootScript, inAppFrom, inAppBootScript, isTypingTarget, pageTitle, notFoundPageMetadata, shellStatusLine, shortcutGroups, toastShape, THEME_OPTIONS, isThemePref, DEFAULT_THEME_PREF, themePrefOf, LOOK_OPTIONS, isLookPref, DEFAULT_LOOK_PREF, lookPrefOf, LOOK_OFFERED, DEVICE_PREFS_STORAGE, THEME_COLORS, THEME_INK, THEME_COLOR_META, IN_APP_UA_RE, IN_APP_CLASS, APP_KEYS_RESIZE_CLASS, isSidebarPref, SHORTCUTS, TOAST_TONES, TOAST_MS, TOAST_UNDO_MS, TOAST_MIN_MS, TOAST_ICONS } from "./shell/chrome";
 export { CLIENT_ERROR_BOUNDARIES, CLIENT_ERROR_LIMITS, clientErrorOf } from "./shell/client-error";
 export { personInitials, identityWords, memberWords, cleanDisplayName, providerNameOf, invitationWords, joinedWords, TEAM_INVITE_DAYS, ROLE_WORDS, DISPLAY_NAME_MAX } from "./shell/identity";
+export { PAGE_SPEED_READ, PAGE_SPEED_MIN, pageSpeedWords } from "./shell/page-speed";
 export { refusalOf, roleGate, waitWords, NEEDS_TITLE, PERM_DOING, SESSION_ENDED, sessionEnded } from "./shell/refusal";
 export { routePrefetchScript, PREFETCH_SLOT, PREFETCH_READS } from "./shell/route-prefetch";
 export { stateTone, stateLabel, stateOf, leadPinTone, leadMapLegend, TONES } from "./shell/tone";
-export { PAGE_VITALS, PAGE_VITAL_BANDS, PAGE_VITAL_WORDS, PAGE_VITALS_READ, PAGE_VITALS_MIN_LOADS, PageVitalReport, vitalsPageOf, vitalValueWords, vitalVerdict, pageVitalsWords } from "./shell/vitals";
+export { PAGE_VITALS, PAGE_METRICS, PAGE_DEVICES, PAGE_PHONE_QUERY, PAGE_BUILD, PAGE_VITALS_PER_BEACON, PAGE_VITAL_BANDS, PAGE_VITAL_WORDS, PAGE_VITALS_READ, PAGE_VITALS_MIN_LOADS, PRIMARY_PART, PageVitalReport, vitalsPageOf, vitalValueWords, vitalVerdict, pageVitalsWords } from "./shell/vitals";
 export { campaignMessageOf, campaignMessagesOf, messageHolds, messageWhyNot, readyForMessage, messageStandingWords, variablesSlotCount, MESSAGE_GONE_WORDS, MESSAGE_BEGIN_WORDS, RUN_NOW_WITHOUT_VERSION_WORDS, STARTER_LINE_WORDS, whatsappStoppedRunWords } from "./templates/campaign-message";
 export { emailFoot, emailFootHtml } from "./templates/email-foot";
 export { inboxTemplates, inboxSlots, noTemplateWords, slotToWrite, templateHolds } from "./templates/inbox-templates";

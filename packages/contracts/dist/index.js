@@ -1877,7 +1877,7 @@ var holdNote = (hold) => hold ? ` \xB7 includes your ${hold.label} hold` : "";
 // src/reports/report-tiles.ts
 var REPORT_MIN_N = 5;
 var isThinShare = (n, minN) => n > 0 && n < minN;
-var shareSaid = (share, count2, of) => share === null ? null : of >= REPORT_MIN_N ? `${share}%` : `${count2} of ${of}`;
+var shareSaid = (share2, count2, of) => share2 === null ? null : of >= REPORT_MIN_N ? `${share2}%` : `${count2} of ${of}`;
 function fmtSeconds(s) {
   if (s == null || !Number.isFinite(s)) return "\u2014";
   return durationWords(s);
@@ -8085,9 +8085,9 @@ function canonicalNumber(run) {
   const m = /^(\d{1,3}(?:[.,]\d{3})+|\d+)(?:[.,](\d{1,2}))?$/.exec(run);
   if (!m) return run.replace(/[.,]0+$/, "");
   const [, whole = "", cents = ""] = m;
-  const int2 = String(Number(whole.replace(/[.,]/g, "")));
+  const int3 = String(Number(whole.replace(/[.,]/g, "")));
   const dec = cents.replace(/0+$/, "");
-  return dec ? `${int2}.${dec}` : int2;
+  return dec ? `${int3}.${dec}` : int3;
 }
 var NUMBER_WORDS = /* @__PURE__ */ (() => {
   const w = {};
@@ -10643,9 +10643,9 @@ function leadLowShare(dist) {
   if (!dist) return null;
   const total = dist.one + dist.two + dist.three + dist.four + dist.five;
   if (total <= 0) return null;
-  const share = (dist.one + dist.two) / total;
-  if (share < LEAD_LOW_SHARE_FLOOR) return null;
-  return `${Math.round(share * 100)}% at 1\u20132 stars`;
+  const share2 = (dist.one + dist.two) / total;
+  if (share2 < LEAD_LOW_SHARE_FLOOR) return null;
+  return `${Math.round(share2 * 100)}% at 1\u20132 stars`;
 }
 var LEAD_NO_CARD_LINE = "I can find local businesses for now.";
 var LEAD_OUTSIDE_US_LINE = "I can only find businesses in the US for now. The rules for emailing businesses in Canada, the UK and the EU are different, and Chanlytics follows the US ones.";
@@ -10841,9 +10841,9 @@ function leadPlanLikely(plan, facts) {
   if (!facts || !p || p.places < LEAD_PRIOR_MIN_PLACES || p.matched <= 0) {
     return { emailPct: null, phonePct: null, line: "The share with an email shows after the first 25." };
   }
-  const share = Math.min(1, p.with_email / p.matched);
-  const emailPct = Math.round(share * 100);
-  const withEmail = Math.round(plan.count * share);
+  const share2 = Math.min(1, p.with_email / p.matched);
+  const emailPct = Math.round(share2 * 100);
+  const withEmail = Math.round(plan.count * share2);
   const of = facts.priorOf ? ` \xB7 from past searches for ${facts.priorOf}` : "";
   return { emailPct, phonePct: 100 - emailPct, line: `About ${withEmail} will have an email; the rest you call${of}` };
 }
@@ -23556,12 +23556,12 @@ function blockShareWords(chars, total) {
   const f = Math.min(1, chars / total);
   if (f >= 0.95) return "nearly everything it reads";
   if (f < 0.075) return "less than a tenth of everything it reads";
-  const [share, words3] = SHARES.reduce((best, s) => Math.abs(s[0] - f) < Math.abs(best[0] - f) ? s : best);
-  return `${Math.abs(share - f) > 0.03 ? "about " : ""}${words3} of everything it reads`;
+  const [share2, words3] = SHARES.reduce((best, s) => Math.abs(s[0] - f) < Math.abs(best[0] - f) ? s : best);
+  return `${Math.abs(share2 - f) > 0.03 ? "about " : ""}${words3} of everything it reads`;
 }
 function promptCostWords(chars, total) {
-  const share = blockShareWords(chars, total);
-  return `${count(chars)} characters${share ? ` \u2014 ${share}` : ""}.`;
+  const share2 = blockShareWords(chars, total);
+  return `${count(chars)} characters${share2 ? ` \u2014 ${share2}` : ""}.`;
 }
 function promptTotalWords(total) {
   return `${count(total)} ${total === 1 ? "character" : "characters"} in all.`;
@@ -23619,9 +23619,9 @@ function servicesWords(services) {
 function servicesToldWords(i) {
   const n = i.count;
   if (!n) return `No services, so it ${CANNOT_SAY_SERVICES}.`;
-  const share = i.chars ? blockShareWords(i.chars, i.total ?? 0) : null;
+  const share2 = i.chars ? blockShareWords(i.chars, i.total ?? 0) : null;
   const size = i.chars ? `, ${count(i.chars)} characters` : "";
-  return `${count(n)} ${n === 1 ? "service" : "services"}${size}${share ? ` \u2014 ${share}` : ""}.`;
+  return `${count(n)} ${n === 1 ? "service" : "services"}${size}${share2 ? ` \u2014 ${share2}` : ""}.`;
 }
 function serviceUndoName(name) {
   const n = typeof name === "string" ? name.trim() : "";
@@ -31939,8 +31939,8 @@ var STATE_WORDS = {
   sending: "Sending"
 };
 function reachOutRunWordsOf(r2, p) {
-  const share = chainPaceOf(r2).share;
-  const a = approvalWordsOf(r2, { timezone: p.timezone, share, today: p.today, now: p.now });
+  const share2 = chainPaceOf(r2).share;
+  const a = approvalWordsOf(r2, { timezone: p.timezone, share: share2, today: p.today, now: p.now });
   const waiting = p.state === "pending_approval";
   const earlier = !!r2.run_for && r2.run_for < p.today;
   const checked = r2.planned.filter((x) => x.checked);
@@ -32036,8 +32036,8 @@ function reachOutLineOf(l, nowMs, tz) {
 }
 function reachOutStripOf(s, chain, nowMs, tz) {
   const running2 = s.chain.state === "running";
-  const share = chain ? chainPaceOf(chain).share : 0;
-  const parts2 = [share > 0 ? `${s.today} of ${share} today` : `${s.today} today`];
+  const share2 = chain ? chainPaceOf(chain).share : 0;
+  const parts2 = [share2 > 0 ? `${s.today} of ${share2} today` : `${s.today} today`];
   const next = s.next ? at(s.next.at) : null;
   if (!running2) parts2.push("nothing goes while it is paused");
   else if (s.next && next !== null) {
@@ -32050,7 +32050,7 @@ function reachOutStripOf(s, chain, nowMs, tz) {
     title: running2 ? `Writing to ${plural(s.written_to, "business", "businesses")}` : `Paused \xB7 ${plural(s.written_to, "business", "businesses")} written to`,
     parts: parts2,
     running: running2,
-    progress: share > 0 ? Math.min(1, s.today / share) : null,
+    progress: share2 > 0 ? Math.min(1, s.today / share2) : null,
     going: { label: "How it's going", to: `outbound/${s.chain.root_id}` },
     toggle: running2 ? { label: "Pause", pause: true } : { label: "Resume", pause: false },
     waiting: s.waiting_run_id ? { label: "A run waits for you", to: `broadcasts/run:${s.waiting_run_id}` } : null
@@ -35214,7 +35214,7 @@ var STARS = [5, 4, 3, 2, 1];
 function reviewsStarMixOf(current) {
   const counts = STARS.map((n) => ({ n, value: current.filter((r2) => r2.rating === n).length }));
   const rated = sumOf(counts.map((c) => c.value));
-  const share = (value) => `${pct(value, rated) ?? 0}%`;
+  const share2 = (value) => `${pct(value, rated) ?? 0}%`;
   return {
     rated,
     good: sumOf(counts.filter((c) => c.n >= 4).map((c) => c.value)),
@@ -35222,11 +35222,11 @@ function reviewsStarMixOf(current) {
       id: String(n),
       label: plural(n, "star"),
       value,
-      display: `${value} \xB7 ${share(value)}`
+      display: `${value} \xB7 ${share2(value)}`
     })),
     table: {
       columns: ["Stars", "Reviews", "Share"],
-      rows: counts.map((c) => [plural(c.n, "star"), c.value, share(c.value)])
+      rows: counts.map((c) => [plural(c.n, "star"), c.value, share2(c.value)])
     }
   };
 }
@@ -36511,8 +36511,8 @@ var NO_EMAILS = {
   handed: 0
 };
 var pctText = (n, d) => {
-  const share = pct(n, d);
-  return share === null ? DASH2 : `${share}%`;
+  const share2 = pct(n, d);
+  return share2 === null ? DASH2 : `${share2}%`;
 };
 var tenthOf = (n, d) => d > 0 ? Math.round(n / d * 1e3) / 10 : null;
 var countedBusinesses = (c) => isCount(c.businesses) ? c.businesses : void 0;
@@ -36738,8 +36738,8 @@ function domainStateWords(d, nowMs, tz) {
   }
   return "Not sending yet";
 }
-function domainCell(n, sent2, share) {
-  return shareSaid(share(n, sent2), n, sent2) ?? DASH2;
+function domainCell(n, sent2, share2) {
+  return shareSaid(share2(n, sent2), n, sent2) ?? DASH2;
 }
 function domainRows(dto, nowMs) {
   return dto.domains.map((d) => ({
@@ -37026,12 +37026,12 @@ function sentToFigures(report, series) {
   ];
 }
 function deliveredShareFigure({ totals, before, days }) {
-  const share = pct(totals.delivered, totals.sent);
+  const share2 = pct(totals.delivered, totals.sent);
   return {
     id: "delivered",
     metric: "delivered_share",
     label: "Delivered",
-    value: share === null ? NO_FIGURE : `${share}%`,
+    value: share2 === null ? NO_FIGURE : `${share2}%`,
     meta: deliveredMeta(totals.delivered, totals.sent),
     compare: shareWasWords(totals.sent, { part: before.delivered, of: before.sent }, rangeLabelOf(days)),
     n: totals.sent,
@@ -37042,14 +37042,14 @@ function wroteBackFigures(series) {
   if (series === null) return [];
   const { sentTo, wroteBack, counting, before } = reachedPeopleOf(series);
   if (sentTo === null || wroteBack === null) return [];
-  const share = pct(wroteBack, sentTo);
+  const share2 = pct(wroteBack, sentTo);
   const was = before.sentTo === null || before.wroteBack === null ? null : shareWasWords(sentTo, { part: before.wroteBack, of: before.sentTo }, rangeLabelOf(series.days));
   return [
     {
       id: "wrote-back",
       metric: "people_wrote_back",
       label: "Wrote back",
-      value: share === null ? NO_FIGURE : `${share}%`,
+      value: share2 === null ? NO_FIGURE : `${share2}%`,
       meta: wroteBackMeta({ wroteBack, people: sentTo, counting }),
       compare: was,
       n: sentTo,
@@ -40581,7 +40581,8 @@ var SCHEMA_SETS = {
     "reach_out_day",
     "booking_notice"
   ],
-  "page_vitals.metric": ["LCP", "INP", "CLS", "FCP", "TTFB"],
+  "page_vitals.device": ["desk", "phone"],
+  "page_vitals.metric": ["LCP", "INP", "CLS", "FCP", "TTFB", "READY", "SETTLED"],
   "partner_earnings.kind": ["share", "refund", "dispute", "dispute_won"],
   "partner_earnings.state": ["held", "payable", "paid", "void"],
   "partner_reversals_waiting.kind": ["refund", "dispute", "dispute_won"],
@@ -41198,6 +41199,10 @@ function routePrefetchScript() {
 // src/shell/vitals.ts
 import * as z17 from "zod/mini";
 var PAGE_VITALS = ["LCP", "INP", "CLS", "FCP", "TTFB"];
+var PAGE_SPEED = ["READY", "SETTLED"];
+var PAGE_METRICS = [...PAGE_VITALS, ...PAGE_SPEED];
+var PAGE_DEVICES = ["desk", "phone"];
+var PAGE_PHONE_QUERY = "(max-width: 900px)";
 var PAGE_VITAL_BANDS = {
   LCP: [2500, 4e3],
   INP: [200, 500],
@@ -41214,16 +41219,70 @@ var PAGE_VITAL_WORDS = {
 };
 var PAGE_NAME = /^[a-z][a-z0-9-]{0,31}$/;
 var VITAL_ID = /^[A-Za-z0-9-]{1,64}$/;
+var PAGE_BUILD = /^[0-9a-z]{3,40}$/;
 var VITAL_CEILING = 10 * MIN_MS;
+var PAGE_VITALS_PER_BEACON = 100;
+var DETAIL_WORD = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,79}$/;
+var detailWord = () => z17.optional(z17.string().check(z17.regex(DETAIL_WORD)));
+var detailMs = () => z17.optional(z17.number().check(z17.minimum(0), z17.maximum(VITAL_CEILING)));
+var PageVitalDetail = z17.object({
+  wait: detailWord(),
+  wait_ms: detailMs(),
+  server_ms: detailMs(),
+  db_ms: detailMs(),
+  db_n: z17.optional(z17.int().check(z17.minimum(0), z17.maximum(1e4))),
+  chunk_ms: detailMs(),
+  render_ms: detailMs(),
+  el: detailWord(),
+  type: z17.optional(z17.enum(["pointer", "keyboard"])),
+  input_ms: detailMs(),
+  processing_ms: detailMs(),
+  presentation_ms: detailMs(),
+  script_ms: detailMs(),
+  ttfb_ms: detailMs(),
+  load_delay_ms: detailMs(),
+  load_ms: detailMs(),
+  render_delay_ms: detailMs(),
+  shift: z17.optional(z17.number().check(z17.minimum(0), z17.maximum(100))),
+  state: z17.optional(z17.enum(["loading", "dom-interactive", "dom-content-loaded", "complete"])),
+  phase: detailWord()
+});
 var PageVitalReport = z17.object({
   id: z17.string().check(z17.regex(VITAL_ID, { error: "A report needs the browser's id." })),
-  name: z17.enum(PAGE_VITALS, { error: "A report names one of the five." }),
-  value: z17.number().check(z17.minimum(0), z17.maximum(VITAL_CEILING))
+  name: z17.enum(PAGE_METRICS, { error: "A report names one of the seven." }),
+  value: z17.number().check(z17.minimum(0), z17.maximum(VITAL_CEILING)),
+  page: z17.optional(z17.string().check(z17.regex(PAGE_NAME))),
+  part: z17.optional(z17.string().check(z17.regex(PAGE_NAME))),
+  from: z17.optional(z17.string().check(z17.regex(PAGE_NAME))),
+  warm: z17.optional(z17.boolean()),
+  detail: z17.optional(PageVitalDetail)
 });
+var PEOPLE_SCOPES = [
+  [/^leads(:|$)/, "leads"],
+  [/^pipeline(:|$)/, "pipeline"],
+  [/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, "person"]
+];
 function vitalsPageOf(route) {
-  const first = (route ?? "").split(/[/?]/)[0] ?? "";
-  return PAGE_NAME.test(first) ? first : "other";
+  const path = (route ?? "").split("?")[0] ?? "";
+  const at3 = path.indexOf("/");
+  const head = at3 < 0 ? path : path.slice(0, at3);
+  const rest = at3 < 0 ? "" : path.slice(at3 + 1);
+  if (head === "") return "today";
+  if (head === "clients") return PEOPLE_SCOPES.find(([test]) => test.test(rest))?.[1] ?? "people";
+  const word = ROUTE_WORDS[head] ?? head;
+  return PAGE_NAME.test(word) ? word : "other";
 }
+var PRIMARY_PART = {
+  today: "queue",
+  inbox: "list",
+  conversations: "list",
+  live: "list",
+  people: "table",
+  leads: "table",
+  pipeline: "board",
+  person: "hero",
+  calendar: "board"
+};
 var PAGE_VITALS_READ = { days: 7, most: 25e3 };
 var PAGE_VITALS_MIN_LOADS = 20;
 var PAGES_SHOWN = 8;
@@ -41311,8 +41370,191 @@ function pageVitalsWords(rows2) {
 import { z as z18 } from "zod";
 var PageVitalsInput = z18.object({
   page: z18.string().regex(PAGE_NAME, { error: "A page's name is a word in lower case." }),
-  vitals: z18.array(PageVitalReport).min(1).max(PAGE_VITALS.length)
+  device: z18.enum(PAGE_DEVICES).optional(),
+  build: z18.string().regex(PAGE_BUILD, { error: "A build is its sha, or dev." }).optional(),
+  vitals: z18.array(PageVitalReport).min(1).max(PAGE_VITALS_PER_BEACON)
 });
+
+// src/shell/page-speed.ts
+var PAGE_SPEED_READ = { days: 7, most: 5e4 };
+var PAGE_SPEED_MIN = 20;
+var SPOT_MIN = 10;
+var PAGE_SPEED_BANDS = {
+  load: [1500, 3e3],
+  move: [500, 1200],
+  within: PAGE_VITAL_BANDS.INP
+};
+var PAGE_LABELS = {
+  today: "Today",
+  inbox: "Inbox",
+  conversations: "Conversations",
+  live: "Live",
+  people: "People",
+  leads: "Leads",
+  pipeline: "Pipeline",
+  person: "A person's page",
+  lists: "Lists",
+  calendar: "Calendar",
+  reports: "Reports",
+  campaigns: "Campaigns",
+  broadcasts: "Sent",
+  playbooks: "Playbooks",
+  templates: "Templates",
+  settings: "Settings",
+  start: "Getting started",
+  other: "Other pages"
+};
+var PART_LABELS = {
+  queue: "the queue",
+  setup: "what is left to set up",
+  strip: "the strip",
+  card: "the day's card",
+  look: "Worth a look",
+  list: "the list",
+  thread: "a thread opened",
+  call: "a call opened",
+  table: "the table",
+  board: "the board",
+  hero: "the person"
+};
+function pageSpeedLabel(page) {
+  return PAGE_LABELS[page] ?? page.charAt(0).toUpperCase() + page.slice(1);
+}
+function partLabel(part) {
+  return PART_LABELS[part] ?? part;
+}
+var VERDICT_TONES2 = { good: "ok", "needs work": "warn", poor: "danger" };
+function speedVerdict(how, p75) {
+  const [good, poor] = PAGE_SPEED_BANDS[how];
+  if (p75 <= good) return "good";
+  return p75 <= poor ? "needs work" : "poor";
+}
+var msWords = (v) => vitalValueWords("LCP", v);
+var countWords = (n, one, many = `${one}s`) => `${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;
+function indexOf(rows2) {
+  const by = /* @__PURE__ */ new Map();
+  for (const r2 of rows2) by.set(`${r2.metric}|${r2.page ?? "*"}|${r2.part}|${r2.how}|${r2.device}|${r2.warm}`, r2);
+  return (metric, page, part, how, device = "all", warm = "all") => {
+    const r2 = by.get(`${metric}|${page ?? "*"}|${part}|${how}|${device}|${warm}`);
+    return r2 && r2.samples >= PAGE_SPEED_MIN ? r2 : null;
+  };
+}
+function share(part, whole) {
+  return `${Math.round(part / whole * 10)} in 10`;
+}
+function pageLine(at3, page) {
+  const load = at3("READY", page, "", "load");
+  const move = at3("READY", page, "", "move");
+  const lead = move ?? load;
+  if (!lead) return null;
+  const how = move ? "move" : "load";
+  const held = at3("READY", page, "", "move", "all", "held");
+  const read = at3("READY", page, "", "move", "all", "read");
+  const settled = at3("SETTLED", page, "", "load");
+  const phone = at3("READY", page, "", how, "phone");
+  const waits = read?.waits_on ?? load?.waits_on ?? null;
+  const said = [
+    load ? `opened ${msWords(load.p75)}` : null,
+    move ? `moved to ${msWords(move.p75)}${held ? `, ${share(held.samples, move.samples)} from held rows` : ""}` : null,
+    read ? `${msWords(read.p75)} when it had to read` : null,
+    settled ? `all in ${msWords(settled.p75)}` : null,
+    waits ? `waits on ${waits}` : null,
+    phone ? `on a phone ${msWords(phone.p75)}` : null
+  ].filter(Boolean);
+  const text = said.join(" \xB7 ");
+  const verdict = speedVerdict(how, lead.p75);
+  return {
+    page,
+    label: pageSpeedLabel(page),
+    value: msWords(lead.p75),
+    tone: VERDICT_TONES2[verdict],
+    hint: `${text.charAt(0).toUpperCase()}${text.slice(1)} \xB7 ${countWords(lead.samples, how === "move" ? "move" : "load")}`
+  };
+}
+function partLines(rows2, shown2) {
+  return rows2.filter(
+    (r2) => r2.metric === "READY" && r2.page !== null && r2.part !== "" && r2.how === "all" && r2.device === "all" && r2.warm === "all" && r2.samples >= PAGE_SPEED_MIN
+  ).sort((a, b) => b.p75 - a.p75 || `${a.page}.${a.part}`.localeCompare(`${b.page}.${b.part}`)).slice(0, shown2).map((r2) => {
+    const page = r2.page ?? "";
+    const verdict = speedVerdict(r2.part === "thread" || r2.part === "call" ? "within" : "move", r2.p75);
+    return {
+      key: `${page}.${r2.part}`,
+      label: `${pageSpeedLabel(page)} \xB7 ${partLabel(r2.part)}`,
+      value: msWords(r2.p75),
+      tone: VERDICT_TONES2[verdict],
+      hint: `${msWords(r2.p75)} \xB7 ${countWords(r2.samples, "time")} drawn${r2.waits_on ? ` \xB7 waits on ${r2.waits_on}` : ""}`
+    };
+  });
+}
+var PHASE_WORDS = {
+  input: "waiting for the page to be free",
+  processing: "in the page's own handlers",
+  presentation: "drawing what changed",
+  ttfb: "waiting for the server",
+  load_delay: "before its file was asked for",
+  load: "loading its file",
+  render_delay: "waiting to be drawn"
+};
+function spotLines(spots, metric, shown2, noun) {
+  const band = PAGE_VITAL_BANDS[metric];
+  return spots.filter((s) => s.metric === metric && s.samples >= SPOT_MIN && (metric !== "CLS" || s.p75 > band[0] / 2)).sort((a, b) => b.p75 - a.p75 || `${a.page}.${a.el}`.localeCompare(`${b.page}.${b.el}`)).slice(0, shown2).map((s) => {
+    const value = vitalValueWords(metric, s.p75);
+    const verdict = s.p75 <= band[0] ? "good" : s.p75 <= band[1] ? "needs work" : "poor";
+    const phase = s.phase ? PHASE_WORDS[s.phase] : void 0;
+    return {
+      key: `${metric}.${s.page}.${s.el}`,
+      label: `${s.el} on ${pageSpeedLabel(s.page)}`,
+      value,
+      tone: VERDICT_TONES2[verdict],
+      hint: `${value} \xB7 ${countWords(s.samples, noun)}${phase ? ` \xB7 mostly ${phase}` : ""}`
+    };
+  });
+}
+function speedSentence(at3) {
+  const move = at3("READY", null, "", "move");
+  const load = at3("READY", null, "", "load");
+  const days = PAGE_SPEED_READ.days;
+  if (move && load)
+    return `Of ${countWords(move.samples, "move")} in the last ${days} days, three in four drew their page within ${msWords(move.p75)}; of ${countWords(load.samples, "page load")}, within ${msWords(load.p75)}.`;
+  if (move)
+    return `Of ${countWords(move.samples, "move")} in the last ${days} days, three in four drew their page within ${msWords(move.p75)}.`;
+  if (load)
+    return `Of ${countWords(load.samples, "page load")} in the last ${days} days, three in four drew their page within ${msWords(load.p75)}.`;
+  return `Not enough pages have said where their time went in the last ${days} days.`;
+}
+var PARTS_SAID = "The parts of a page drawn last, three in four times, from the page's start or from the press that opened them.";
+var SPOTS_SAID = "The taps that waited longest, the paints drawn last and what moved under a person's eye, each by the element's test id.";
+var PAGES_SHOWN2 = 12;
+var PARTS_SHOWN = 10;
+function pageSpeedWords(speed) {
+  const none = {
+    pages: [],
+    parts: [],
+    taps: [],
+    paints: [],
+    shifts: [],
+    partsSentence: PARTS_SAID,
+    spotsSentence: SPOTS_SAID
+  };
+  if (speed === null) return { sentence: "Where the pages' time goes could not be read just now.", ...none };
+  const at3 = indexOf(speed.rows);
+  const named = [...new Set(speed.rows.map((r2) => r2.page).filter((p) => p !== null))];
+  const pages = named.map((p) => pageLine(at3, p)).filter((p) => p !== null).sort((a, b) => {
+    const pa = at3("READY", a.page, "", "move") ?? at3("READY", a.page, "", "load");
+    const pb = at3("READY", b.page, "", "move") ?? at3("READY", b.page, "", "load");
+    return (pb?.p75 ?? 0) - (pa?.p75 ?? 0) || a.page.localeCompare(b.page);
+  }).slice(0, PAGES_SHOWN2);
+  return {
+    sentence: speedSentence(at3),
+    pages,
+    partsSentence: PARTS_SAID,
+    spotsSentence: SPOTS_SAID,
+    parts: partLines(speed.rows, PARTS_SHOWN),
+    taps: spotLines(speed.spots, "INP", 6, "tap"),
+    paints: spotLines(speed.spots, "LCP", 4, "paint"),
+    shifts: spotLines(speed.spots, "CLS", 4, "shift")
+  };
+}
 
 // src/shell/client-error.ts
 var CLIENT_ERROR_BOUNDARIES = ["shell", "os", "root"];
@@ -46701,8 +46943,15 @@ export {
   OWN_VERSION_CHANNELS,
   PACE_AFTER_YESES,
   PACE_WINDOW_DAYS,
+  PAGE_BUILD,
+  PAGE_DEVICES,
+  PAGE_METRICS,
+  PAGE_PHONE_QUERY,
+  PAGE_SPEED_MIN,
+  PAGE_SPEED_READ,
   PAGE_VITALS,
   PAGE_VITALS_MIN_LOADS,
+  PAGE_VITALS_PER_BEACON,
   PAGE_VITALS_READ,
   PAGE_VITAL_BANDS,
   PAGE_VITAL_WORDS,
@@ -46800,6 +47049,7 @@ export {
   PREVIEW,
   PREVIEW_CHANNEL_WORDS,
   PREVIEW_WORDS,
+  PRIMARY_PART,
   PROFILE_CROSSING_WORDS,
   PROFILE_LIMITS,
   PROFILE_NAME_MAX,
@@ -48019,6 +48269,7 @@ export {
   ownWordsOf,
   ownedDomainOf,
   paceWords,
+  pageSpeedWords,
   pageTitle,
   pageTotals,
   pageVitalsWords,

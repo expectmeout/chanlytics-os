@@ -11,7 +11,7 @@ import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
 import { surfaceValue } from "../../surface-values";
-import { useSurface, useSurfaceFailed } from "../../use-surface";
+import { usePartShown, useSurface, useSurfaceFailed } from "../../use-surface";
 import { TODAY_HELPERS } from "../helpers";
 import { appNavigate, doorGlyph, askAbout, borrowed, surfaceFailed, useMoved } from "../shell";
 
@@ -56,6 +56,8 @@ export const TodayLeaks = () => {
       : !P && surfaceFailed("people")
         ? ["People", "people"]
         : null;
+  // Drawn once the period and People are in, or one of them failed: Today's last part, People being its heaviest read.
+  usePartShown("today", "look", !!broke || (!!R && !!P));
   if (broke) {
     return (
       <section className="tsec tl" data-testid="today-leaks">

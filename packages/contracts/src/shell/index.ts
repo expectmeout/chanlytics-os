@@ -90,10 +90,16 @@ export { stateTone, stateLabel, stateOf, leadPinTone, leadMapLegend, TONES } fro
 export type { Tone, StateKind, LeadPinnable } from "./tone";
 export {
   PAGE_VITALS,
+  PAGE_METRICS,
+  PAGE_DEVICES,
+  PAGE_PHONE_QUERY,
+  PAGE_BUILD,
+  PAGE_VITALS_PER_BEACON,
   PAGE_VITAL_BANDS,
   PAGE_VITAL_WORDS,
   PAGE_VITALS_READ,
   PAGE_VITALS_MIN_LOADS,
+  PRIMARY_PART,
   PageVitalReport,
   vitalsPageOf,
   vitalValueWords,
@@ -103,6 +109,11 @@ export {
 export { PageVitalsInput } from "./vitals-schema";
 export type {
   PageVital,
+  PageSpeedMetric,
+  PageMetric,
+  PageDevice,
+  PageVitalDetailDto,
+  PageVitalReportDto,
   PageVitalsRowDto,
   PageVitalVerdict,
   PageVitalLineVM,
@@ -110,6 +121,16 @@ export type {
   PageVitalsVM,
 } from "./vitals";
 export type { PageVitalsInputDto } from "./vitals-schema";
+export { PAGE_SPEED_READ, PAGE_SPEED_MIN, pageSpeedWords } from "./page-speed";
+export type {
+  PageSpeedHow,
+  PageSpeedRowDto,
+  PageSpotRowDto,
+  PageSpeedPageVM,
+  PageSpeedPartVM,
+  PageSpeedSpotVM,
+  PageSpeedVM,
+} from "./page-speed";
 export { CLIENT_ERROR_BOUNDARIES, CLIENT_ERROR_LIMITS, clientErrorOf } from "./client-error";
 export { ClientErrorInput } from "./client-error-schema";
 export type { ClientErrorBoundary } from "./client-error";

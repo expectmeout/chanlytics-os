@@ -115,6 +115,20 @@ function noteTenant(tenantId) {
 function requestTenant() {
   return serving.getStore()?.tenantId ?? null;
 }
+var TIMINGS_HELD = 32;
+function noteTiming(name, ms) {
+  const store = serving.getStore();
+  if (!store || !Number.isFinite(ms) || ms < 0) return;
+  const timings = store.timings ??= /* @__PURE__ */ new Map();
+  const had = timings.get(name);
+  if (had) {
+    had.ms += ms;
+    had.n += 1;
+  } else if (timings.size < TIMINGS_HELD) timings.set(name, { ms, n: 1 });
+}
+function requestTimings() {
+  return serving.getStore()?.timings ?? /* @__PURE__ */ new Map();
+}
 
 // src/log/logger.ts
 var ENVELOPE = /* @__PURE__ */ new Set(["level", "event", "request_id"]);
@@ -5304,6 +5318,7 @@ export {
   normalizeCall,
   normalizeInbound,
   noteTenant,
+  noteTiming,
   oneTimeCodeOf,
   ownDomainIdentity,
   pageText,
@@ -5345,6 +5360,7 @@ export {
   requestIdShaped,
   requestLeavesAs,
   requestTenant,
+  requestTimings,
   resendLimitOf,
   resendRequest,
   resendWebhookSignature,

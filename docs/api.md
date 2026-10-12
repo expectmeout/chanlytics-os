@@ -1946,7 +1946,9 @@ Writes; for any signed-in person, for themselves; counts against the `vitals` ra
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `page` | string | yes | matches `^[a-z][a-z0-9-]{0,31}$` |
-| `vitals` | array of object | yes | at least 1; at most 5 |
+| `device` | one of `"desk"`, `"phone"` | no |  |
+| `build` | string | no | matches `^[0-9a-z]{3,40}$` |
+| `vitals` | array of object | yes | at least 1; at most 100 |
 
 ## workspaces
 

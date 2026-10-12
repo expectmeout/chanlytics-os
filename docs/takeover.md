@@ -45,7 +45,7 @@ as never                             13
 non-null assertions, x!             104
 index reads the compiler lets pass  464   in 123 files
 table names outside packages/db     439
-SQL functions outside packages/db   121   called by .rpc
+SQL functions outside packages/db   119   called by .rpc
 edge statements naming no workspace   27   in 14 files
 doors importing db or channels        0   imports in 0 files
 unnamed durations                    63   in 33 files

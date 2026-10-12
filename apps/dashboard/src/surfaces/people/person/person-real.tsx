@@ -28,6 +28,7 @@ import { settingsCard } from "./settings-card";
 import { heldPerson, readPerson } from "./read";
 import { usePeopleSeam } from "./use-people";
 import { useSeeOpen } from "../../seen";
+import { usePartShown } from "../../use-surface";
 import { plReading } from "../cells/columns";
 
 /** What the page holds of the person: the read under way, the copy it has, that they are not here, or that reading failed. */
@@ -162,6 +163,9 @@ function ClientProfileReal({ id }: { id: string }) {
   const load = useLoad(id, setSt);
   const people = usePeopleSeam();
   const { vm, loading, missing, error } = st;
+  // The page's first part (client/page-speed.ts): the person drawn whole, or said missing or unread. A person opened
+  // from another is a move inside the page, timed from its press.
+  usePartShown("person", "hero", !!vm || missing || (!!error && !loading), id);
   // Their People row, once People has it. Their page open is them read (surfaces/seen.ts), here as in People, the Inbox
   // and Conversations: the row says what was new, and the page on screen is the reader seeing it.
   const peopleRow = people && people.rows ? people.rows.find((r) => r.id === id) : null;

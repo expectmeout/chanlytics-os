@@ -12,7 +12,7 @@
  */
 import { useEffect, useState } from "react";
 import { EmptyState } from "../../kit/empty/empty";
-import { useSurface } from "../../use-surface";
+import { usePartShown, useSurface } from "../../use-surface";
 import { InboxAgentRail } from "./agent-rail";
 import { ixHoldAll } from "./hold-all";
 import { inboxBulkActs, inboxRealBulk, type InboxRealBulk } from "./inbox-bulk";
@@ -443,8 +443,10 @@ export const Inbox = ({
   onOpenClient = () => {},
   initialThreadId = null,
 }: InboxProps) => {
-  // The page draws again when the Inbox surface moves, as the frame drew it again.
-  useSurface("inbox");
+  // The page draws again when the Inbox surface moves, as the frame drew it again; its list is the page's first part
+  // (client/page-speed.ts), drawn once the Inbox's read is in, the empty Inbox included.
+  const inboxRead = useSurface("inbox");
+  usePartShown("inbox", "list", inboxRead !== undefined);
   // The pane is drawn only where it is on the screen (inboxPage, ixOnPhone): a phone turned sideways crosses the
   // breakpoint, and the pane it had no need of is drawn then.
   const [, setViewport] = useState(0);
@@ -478,6 +480,8 @@ export const Inbox = ({
   const reading = open && (!ixOnPhone() || withScreen.phoneThreadOpen) ? open : null;
   useSeeOpen(reading ? threadWhose(reading) : null, reading ? threadReading(reading) : undefined);
   useSeen();
+  // Each thread opened, timed from the press that opened it: a move inside the page.
+  usePartShown("inbox", "thread", !!open, open ? open.id : null);
   const withBucketMoves = Object.assign(withScreen, inboxBucketMoves(withScreen));
   const full = Object.assign(
     withBucketMoves,

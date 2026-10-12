@@ -1955,7 +1955,7 @@ Systemic conditions (provider auth failing, heartbeat mass-failing, ledger backl
 
 ### page_vitals
 
-Field data (00255): one row per metric per page load, under the browser's own id; the landing page, the metric (LCP, INP, CLS, FCP, TTFB) and its value, in ms but for CLS. No person, no workspace. Kept thirty days.
+Field data (00255, 00408): one row per metric per page load or move, under its own id; the page it is of, a part of it, the page a move left, whether it drew held rows, the device, the build, and what the time went on. The metrics are the browser's five (LCP, INP, CLS, FCP, TTFB) and the shell's two (READY, SETTLED), in ms but for CLS. No person, no workspace. Kept thirty days.
 
 - Owned by: none
 - Primary key: `id`
@@ -1968,6 +1968,12 @@ Field data (00255): one row per metric per page load, under the browser's own id
 | `page` | text | no |  |  |
 | `metric` | text | no |  |  |
 | `value` | double precision | no |  |  |
+| `part` | text | yes |  | The part of the page a READY is of (`queue`, `table`); null for the page itself (00408). |
+| `came_from` | text | yes |  | The page a move left; null for a page load; the page itself for a move inside it (00408). |
+| `warm` | boolean | yes |  | Whether what it drew was already held when it began: the tab's cache, a view held (00408). |
+| `device` | text | yes |  | desk, or phone at the kit's one phone width and under (00408). |
+| `build` | text | yes |  | The deploy the page ran: its sha's first twelve, or dev (00408). |
+| `detail` | jsonb | yes |  | What the time went on: a read's route and its server and database time, a chunk, an element's test id, a phase. Never a person or anything they wrote (00408). |
 
 ### partner_earnings
 

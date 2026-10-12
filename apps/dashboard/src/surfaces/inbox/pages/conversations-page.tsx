@@ -14,7 +14,7 @@ import { useSwapMotion } from "../../kit/motion/use-swap-motion";
 import { Search } from "../../kit/search/search";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { StatePill } from "../../kit/pill/state-pill";
-import { useSurface } from "../../use-surface";
+import { usePartShown, useSurface } from "../../use-surface";
 import { ROUTES, TICK_MS } from "../constants";
 import {
   CV_ICON,
@@ -608,8 +608,10 @@ export const ConversationsPage = ({
   // A decision or a call's end is drawn at once (a row's pill), before any read: a draw, and nothing it is kept on.
   const [, setTick] = useState(0);
   // Its own rows, and where a call opens depends on the threads the Inbox read (cvOpens): drawn again when either lands.
-  useSurface("conversations");
+  const cvRead = useSurface("conversations");
   useSurface("inbox");
+  // The list is the page's first part (client/page-speed.ts): drawn once Conversations' read is in.
+  usePartShown("conversations", "list", cvRead !== undefined);
   const { openRow, closeRow } = useCvAddress(channel, setSelectedId, setPhoneOpen);
 
   // Deep-link follows later navigations; decisions flip pills live. An address naming no row is the list: Back from a
@@ -682,6 +684,8 @@ export const ConversationsPage = ({
   const onScreen = selected && !requestedMissing && (!cvOnPhone() || phoneOpen) ? (selectedRow ?? selected) : null;
   useSeeOpen(onScreen ? cvWhoseRow(onScreen) : null, onScreen ? cvSeenOf(onScreen) : undefined);
   useSeen();
+  // Each row opened, timed from the press that opened it: a move inside the page.
+  usePartShown("conversations", "thread", !!onScreen, onScreen ? onScreen.id : null);
   const openByHand = (id: string) => {
     const hit = cvFind(visible, id);
     if (hit && cvUnread(hit.row)) seePerson(cvWhoseRow(hit.row), cvSeenOf(hit.row));

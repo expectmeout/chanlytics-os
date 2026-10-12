@@ -16,7 +16,7 @@
  */
 import type { CalendarBlockVM } from "@chanlytics/contracts";
 import { demoSession } from "../legacy-verbs";
-import { useSurface } from "../use-surface";
+import { usePartShown, useSurface } from "../use-surface";
 import { aboutToggleAct, copyLinkAct, refreshAct, swipePagesOf } from "./acts";
 import { CrAgenda, CrBoard, CrMonth } from "./blocks";
 import {
@@ -49,6 +49,8 @@ interface CalendarAddress {
 export function CalendarPage(props: CalendarAddress) {
   const live = useSurface("calendar");
   const C = live ?? (demoSession() ? calendarSample() : undefined);
+  // The Calendar's first part (client/page-speed.ts): its board, drawn once the weeks are in.
+  usePartShown("calendar", "board", !!C);
   if (!C) return null;
   return <CalendarReal {...props} C={C} />;
 }
