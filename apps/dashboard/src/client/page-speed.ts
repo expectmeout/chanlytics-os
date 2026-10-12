@@ -85,22 +85,22 @@ interface Installed {
   host: SpeedHost;
 }
 
-let installed: Installed | null = null;
+let speedInstalled: Installed | null = null;
 
 /** The measures, once installed; null in the mockup and in a test that installs none. */
 export function speedHost(): SpeedHost | null {
-  return installed?.host ?? null;
+  return speedInstalled?.host ?? null;
 }
 
 /** A part of the page on screen begins (usePartShown), from the press that asked for it where one just came. */
 export function partBegins(begun: PartBegun): void {
-  if (!installed) return;
-  installed.speed.partBegins(begun, installed.inputAt(performance.now()));
+  if (!speedInstalled) return;
+  speedInstalled.speed.partBegins(begun, speedInstalled.inputAt(performance.now()));
 }
 
 /** A part's rows are drawn (usePartShown). */
 export function partReady(page: string, part: string, key: string): void {
-  installed?.speed.partReady(page, part, key);
+  speedInstalled?.speed.partReady(page, part, key);
 }
 
 /**
@@ -109,7 +109,7 @@ export function partReady(page: string, part: string, key: string): void {
  * change, so a load is never READY at a frame before the page was put on it.
  */
 export function frameDrawn(): void {
-  installed?.frameDrawn();
+  speedInstalled?.frameDrawn();
 }
 
 /** After the next frame is painted: the frame's callback, then a task, which runs once the frame is on the screen. */
@@ -224,7 +224,7 @@ const PAGES_HELD = 200;
  * measures.
  */
 export function installPageSpeed(shell: SpeedShell, facts: { build: string; report: boolean }): SpeedHost | null {
-  if (installed) return installed.host;
+  if (speedInstalled) return speedInstalled.host;
   if (typeof window === "undefined" || typeof performance === "undefined") return null;
   const landing = vitalsPageOf(shell.route());
   const device = window.matchMedia?.(PAGE_PHONE_QUERY).matches ? "phone" : "desk";
@@ -310,6 +310,6 @@ export function installPageSpeed(shell: SpeedShell, facts: { build: string; repo
       return at ? { page: at.page, from: at.from } : { page: landing, from: null };
     },
   };
-  installed = { speed, inputAt, frameDrawn, host };
+  speedInstalled = { speed, inputAt, frameDrawn, host };
   return host;
 }
