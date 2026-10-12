@@ -25,9 +25,14 @@
  * palette sends it, with the scope its route opens. A case without one is asked as before.
  *
  * A case may need its workspace to hold what no page carries (`needs`, eval-ask-context.mjs WORKSPACE_NEEDS: a calendar
- * or none, a yes to offers, a call in progress, deals on, the Win-back's seed). EVAL_WORKSPACE_HAS names what the
- * run's workspace holds (comma-separated, none by default); a case needing anything else is said as `skip <id> (needs
- * …)` before a turn is spent, counted as skipped, and never run or failed.
+ * or none, a yes to offers, a call in progress, deals on, the Win-back's seed, and a channel an offer can go by or
+ * none). EVAL_WORKSPACE_HAS names what the run's workspace holds (comma-separated, none by default); a case needing
+ * anything else is said as `skip <id> (needs …)` before a turn is spent, counted as skipped, and never run or failed,
+ * and `--list` says each case's needs. A channel an offer can go by (`offers_channel`) is one an offer's plan opens
+ * (contracts channelChoices with the marketing purpose): email set up for offers, or WhatsApp on a number that sends and
+ * is outside +1 (`offers_whatsapp`, which holds offers_channel too), since Meta pauses offers to US numbers. The
+ * nightly's workspace (e2e-workspace.mjs: no calendar, nobody's yes to offers, a +1 WhatsApp number and no mailbox)
+ * holds `no_calendar,no_offers_channel`, and `winback_seed` once the Win-back's seed has been run there.
  *
  * A case may carry a second turn (`then`, eval-ask-context.mjs; the Phase 5 plan, PR 5.2), asked in the first turn's
  * thread once it has answered: its page resolved at its own clock and warmed again when it differs from turn 1's other

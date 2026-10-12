@@ -343,10 +343,29 @@ function secondTurnProblems(c) {
 
 /**
  * What a case may need its workspace to hold beyond the page a context carries (`needs`): a calendar or none, someone's
- * yes to offers, a call in progress, deals on, the Win-back's seed. A run names what its workspace holds
- * (EVAL_WORKSPACE_HAS, comma-separated), and a case needing anything else is skipped: said, never run or failed.
+ * yes to offers, a call in progress, deals on, the Win-back's seed, and a channel an offer can go by or none. A run names
+ * what its workspace holds (EVAL_WORKSPACE_HAS, comma-separated), and a case needing anything else is skipped: said,
+ * never run or failed.
+ *
+ * `offers_channel` is a channel that carries an offer now, by the rule an offer's plan reads (act/plan.ts planWorld:
+ * contracts channelChoices with the marketing purpose, for the business's own news): email set up for offers, or
+ * WhatsApp on a number that sends and is outside +1, since Meta pauses offers to US numbers. `offers_whatsapp` is
+ * WhatsApp among them: what a send of a message with a WhatsApp version alone needs, as the Win-back's seed is; a
+ * workspace that holds it holds offers_channel too, and names both. `no_offers_channel` is none, as on the nightly's
+ * workspace (e2e-workspace.mjs: a +1 WhatsApp number and no mailbox), where an offer's plan is refused in
+ * PLAN_WORDS.noChannel's words and makes no card.
  */
-export const WORKSPACE_NEEDS = ["calendar", "no_calendar", "offers_yes", "live_call", "deals_on", "winback_seed"];
+export const WORKSPACE_NEEDS = [
+  "calendar",
+  "no_calendar",
+  "offers_yes",
+  "offers_channel",
+  "offers_whatsapp",
+  "no_offers_channel",
+  "live_call",
+  "deals_on",
+  "winback_seed",
+];
 
 /** The line a case is skipped with, `skip <id> (needs <tokens>)`, or null for a case this workspace (`has`) runs. */
 export function skipFor(c, has) {
@@ -524,20 +543,31 @@ export function namesCard(m, first) {
   return fails;
 }
 
+/** What a card's payload holds at a path, dotted (`versions.sms`): null and nothing there both hold nothing. */
+function heldAt(payload, at) {
+  const held = at.split(".").reduce((v, k) => (v && typeof v === "object" ? v[k] : undefined), payload);
+  return held === undefined || held === null ? null : held;
+}
+
 /**
  * A setup's cards (the moment spec, A8): `proposals_max` fails more cards than N (four is near where presses go reflex);
+ * `proposals_not` fails a card of any kind it names (an offer no channel carries makes no send and no campaign);
  * `card_fields_not` fails a card of the kind whose field holds a value the words ruled out (a reminder of an appointment
  * in a setup); `card_fields_absent` fails a card of the kind that holds anything at a path into its payload, dotted
- * (`versions.sms`: a message written with a text version, which an offer never has); `next_any` fails unless one of the
- * answer's next questions holds one of the words (a campaign on a list made in the same answer waits for a next
- * question, A2). `e` is a case's expect, `m` the turn's final message. It judges every case's cards, not a setup's alone:
- * an offer's, a written message's and a text refused are held by the same keys.
+ * (`versions.sms`: a message written with a text version, which an offer never has), and `card_fields_present` one that
+ * holds nothing there (`until`: a change asked to end on a day that names none), null holding nothing either way;
+ * `next_any` fails unless one of the answer's next questions holds one of the words (a campaign on a list made in the
+ * same answer waits for a next question, A2). `e` is a case's expect, `m` the turn's final message. It judges every
+ * case's cards, not a setup's alone: an offer's, a written message's, a change's and a text refused are held by the same
+ * keys. That a card of a kind was made at all is proposals_any's.
  */
 export function setupCardsFails(e, m) {
   const fails = [];
   const cards = m?.proposals ?? [];
   if (typeof e.proposals_max === "number" && cards.length > e.proposals_max)
     fails.push(`${cards.length} cards, where at most ${e.proposals_max} were expected`);
+  const barred = [...new Set(cards.map((p) => p.kind))].filter((k) => (e.proposals_not ?? []).includes(k));
+  if (barred.length) fails.push(`a ${barred.join("/")} card, which the words ruled out`);
   for (const [kind, fields] of Object.entries(e.card_fields_not ?? {}))
     for (const p of cards.filter((x) => x.kind === kind))
       for (const [k, banned] of Object.entries(fields))
@@ -545,10 +575,13 @@ export function setupCardsFails(e, m) {
           fails.push(`a ${kind} card with ${k} ${JSON.stringify(p.payload?.[k])}, which the words ruled out`);
   for (const [kind, paths] of Object.entries(e.card_fields_absent ?? {}))
     for (const p of cards.filter((x) => x.kind === kind))
-      for (const at of paths) {
-        const held = at.split(".").reduce((v, k) => (v && typeof v === "object" ? v[k] : undefined), p.payload);
-        if (held !== undefined && held !== null) fails.push(`a ${kind} card holding ${at}, which the words ruled out`);
-      }
+      for (const at of paths)
+        if (heldAt(p.payload, at) !== null) fails.push(`a ${kind} card holding ${at}, which the words ruled out`);
+  for (const [kind, paths] of Object.entries(e.card_fields_present ?? {}))
+    for (const p of cards.filter((x) => x.kind === kind))
+      for (const at of paths)
+        if (heldAt(p.payload, at) === null)
+          fails.push(`a ${kind} card holding nothing at ${at}, which the words named`);
   if (Array.isArray(e.next_any)) {
     const next = (m?.answer?.do?.next ?? m?.followups ?? []).map((q) => String(q).toLowerCase());
     if (!e.next_any.some((w) => next.some((q) => q.includes(w.toLowerCase()))))

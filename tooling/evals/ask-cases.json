@@ -1535,6 +1535,7 @@
     "id": "change_resume_by_name",
     "text": "resume the win-back",
     "surface": "campaigns",
+    "needs": ["winback_seed"],
     "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
     "expect": {
       "tools_any": ["propose_campaign.change"],
@@ -1548,6 +1549,7 @@
     "id": "change_pause_already_paused",
     "text": "pause the win-back",
     "surface": "campaigns",
+    "needs": ["winback_seed"],
     "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
     "expect": { "proposals_none": true, "includes_any": ["already paused", "paused"], "no_write": true }
   },
@@ -1555,6 +1557,7 @@
     "id": "change_rename_and_hour",
     "text": "rename the win-back to Past clients and send it at 9am",
     "surface": "campaigns",
+    "needs": ["winback_seed"],
     "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
     "expect": {
       "proposals_any": ["playbook_change"],
@@ -1566,6 +1569,7 @@
     "id": "change_hour_out_of_bounds",
     "text": "send the win-back at 7am",
     "surface": "campaigns",
+    "needs": ["winback_seed"],
     "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
     "expect": { "proposals_none": true, "includes_any": ["9", "nine", "between"], "no_write": true }
   },
@@ -1578,15 +1582,63 @@
     "expect": { "proposals_none": true, "includes_any": ["sheet", "reach-out", "reach out"], "no_write": true }
   },
   {
+    "id": "change_words",
+    "text": "change the Win-back's words to say 15% off",
+    "surface": "campaigns",
+    "needs": ["winback_seed"],
+    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "expect": { "tools_any": ["propose_campaign.change"], "no_write": true }
+  },
+  {
+    "id": "change_last_day",
+    "text": "end the Win-back on November 30",
+    "surface": "campaigns",
+    "needs": ["winback_seed"],
+    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "expect": {
+      "tools_any": ["propose_campaign.change"],
+      "proposals_any": ["playbook_change"],
+      "card_fields_present": { "playbook_change": ["until"] },
+      "no_write": true
+    }
+  },
+  {
+    "id": "change_trial_week",
+    "text": "put the Win-back on trial for a week",
+    "surface": "campaigns",
+    "needs": ["winback_seed"],
+    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "expect": {
+      "tools_any": ["propose_campaign.change"],
+      "proposals_any": ["playbook_change"],
+      "card_fields_present": { "playbook_change": ["trial_until"] },
+      "no_write": true
+    }
+  },
+  {
     "id": "offer_november_colour",
     "text": "I want to offer 10% off colour all of November",
     "surface": "campaigns",
+    "needs": ["offers_yes", "offers_channel"],
     "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
     "expect": {
       "tools_order": ["propose_campaign.plan"],
       "proposals_any": ["message", "broadcast"],
       "proposals_max": 6,
       "card_fields_absent": { "message": ["versions.sms"] },
+      "no_write": true
+    }
+  },
+  {
+    "id": "offer_no_offers_channel",
+    "text": "I want to offer 15% off everything in December",
+    "surface": "campaigns",
+    "must_never": true,
+    "needs": ["no_offers_channel"],
+    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "expect": {
+      "proposals_not": ["broadcast", "playbook"],
+      "includes_any": ["email", "Connections", "outside the US", "US numbers", "correo"],
       "no_write": true
     }
   },
@@ -1656,7 +1708,7 @@
     "id": "covers_propose_campaign_broadcast",
     "text": "send the Win-back message once to everyone who said yes, this Saturday at 10am",
     "surface": "campaigns",
-    "needs": ["offers_yes"],
+    "needs": ["offers_yes", "offers_whatsapp", "winback_seed"],
     "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
     "expect": { "tools_any": ["propose_campaign.broadcast"], "proposals_any": ["broadcast"], "no_write": true }
   },
@@ -1711,5 +1763,27 @@
     "surface": "people",
     "context": { "surface": "people", "route": "clients/<row:1>", "rows": "GET contacts:40" },
     "expect": { "tools_any": ["propose_person.mode"], "proposals_any": ["person_mode"], "no_write": true }
+  },
+  {
+    "id": "room_two_weeks",
+    "text": "how full is my book over the next two weeks",
+    "surface": "calendar",
+    "needs": ["calendar"],
+    "context": { "surface": "calendar", "route": "calendar" },
+    "expect": { "tools_any": ["calendar.room"], "no_write": true }
+  },
+  {
+    "id": "journey_whats_missing",
+    "text": "what am I missing in my campaigns",
+    "surface": "campaigns",
+    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "expect": { "tools_any": ["campaigns.journey"], "no_write": true }
+  },
+  {
+    "id": "messages_waiting_on_whatsapp",
+    "text": "is any of my messages still waiting for WhatsApp to approve it",
+    "surface": "campaigns",
+    "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
+    "expect": { "tools_any": ["campaigns.messages"], "no_write": true }
   }
 ]
