@@ -621,6 +621,19 @@ export function installSurfaceRegistry(): void {
 }
 
 /**
+ * Whether the gate is open on a route: its own surface holds real rows, and (unless `own`) what its first draw waits
+ * for beside it is in or has failed (ROUTE_WAITS). The PANE decides, not the page: asked with the bare page name,
+ * Settings resolved to nothing and the gate waved a cold load straight through onto the mockup's fabricated business.
+ * The shell's gate (installRouteGate) and the page's measures (client/page-speed.ts) ask this one rule.
+ */
+export function routeGateOpen(page: string, param?: string | null, own = false): boolean {
+  const key = routeSurfaceFor(page, param);
+  if (key && !isSurfaceReady(key)) return false;
+  if (own) return true;
+  return (ROUTE_WAITS[page] ?? []).every((k) => isSurfaceReady(k) || isSurfaceFailed(k));
+}
+
+/**
  * The shell's route gate, installed at MODULE SCOPE — not in an effect.
  *
  * app-shell.jsx computes `routeLoading`'s INITIAL state during its first
@@ -644,16 +657,8 @@ export function installRouteGate(): void {
     __routeWaitMs?: number;
   };
   w.__routeWaitMs = ROUTE_WAIT_MS;
-  // The PANE decides, not the page. Asked with the bare page name, Settings
-  // resolved to nothing and the gate waved a cold load straight through onto
-  // the mockup's fabricated business.
   // `own`: the route's own surface alone, without what its first draw waits for beside it (ROUTE_WAITS).
-  w.__surfaceGate = (page, param, own = false) => {
-    const key = routeSurfaceFor(page, param);
-    if (key && !isSurfaceReady(key)) return false;
-    if (own) return true;
-    return (ROUTE_WAITS[page] ?? []).every((k) => isSurfaceReady(k) || isSurfaceFailed(k));
-  };
+  w.__surfaceGate = routeGateOpen;
   w.__surfaceFailed = (page, param) => {
     const key = routeSurfaceFor(page, param);
     return key ? isSurfaceFailed(key) : false;

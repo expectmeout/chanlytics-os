@@ -6,10 +6,11 @@
  *
  * The typed door onto the seam, where the shell's pages read `window.__PEOPLE`. A surface reads nothing off `window`.
  */
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback, useLayoutEffect, useRef, useSyncExternalStore } from "react";
 import { followState, surfaceValue } from "./surface-values";
 import type { FollowState, SurfaceKey, SurfaceValues } from "./surface-values";
 import { getSurfaceStatuses, isSurfaceFailed, onSurfaceMoved } from "@/legacy-bridge/surface-status";
+import { partBegins, partReady } from "@/client/page-speed";
 
 export function useSurface<K extends SurfaceKey>(key: K): SurfaceValues[K] | undefined {
   const subscribe = useCallback((fn: () => void) => onSurfaceMoved([key], fn), [key]);
@@ -57,4 +58,28 @@ export function useFollower<K extends SurfaceKey>(key: K): Follower<SurfaceValue
   const snapshot = () => followState(key);
   const state = useSyncExternalStore(subscribe, snapshot, snapshot);
   return { value, state };
+}
+
+/**
+ * Say when a part of the page is drawn with its rows (client/page-speed.ts, decision 0053): `page` as the field data
+ * names it (contracts vitalsPageOf), `part` the part's own word, `ready` whether what it draws has arrived (its
+ * surface's value, a read it waited for; an empty state drawn is drawn). Its READY is the frame after the first draw
+ * with `ready`, timed from the page's start, so it says which part a person waited for. A part that shows one thing at a
+ * time (an open thread, a call) names it as `key`, `null` when nothing is open: each new one is timed from the press
+ * that opened it, as a move inside its page. Call it before any early return, as any hook.
+ */
+export function usePartShown(page: string, part: string, ready: boolean, key?: string | null): void {
+  // Read at the start of a run: whether its rows were there as it began (the tab's cache, a view held).
+  const readyNow = useRef(ready);
+  readyNow.current = ready;
+  const begun = useRef(false);
+  const runKey = key === undefined ? "" : key;
+  useLayoutEffect(() => {
+    if (runKey === null) return;
+    partBegins({ page, part, key: runKey, warm: readyNow.current, changed: begun.current });
+    begun.current = true;
+  }, [page, part, runKey]);
+  useLayoutEffect(() => {
+    if (runKey !== null && ready) partReady(page, part, runKey);
+  }, [page, part, runKey, ready]);
 }

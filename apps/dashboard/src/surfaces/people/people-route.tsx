@@ -10,7 +10,7 @@
 import { useEffect, useRef, useState } from "react";
 import { personRouteOf, routeOfPath } from "@chanlytics/contracts";
 import { demoSession, navigate } from "../legacy-verbs";
-import { useSurface } from "../use-surface";
+import { usePartShown, useSurface } from "../use-surface";
 import { takeOwnAddress } from "./page/own-address";
 import { usePeopleStanding } from "./page/people-head";
 import { PeopleReal } from "./page/people-real";
@@ -67,6 +67,8 @@ function LeadsScopePage({ param }: { param: string }) {
     if (!leadsModule) void loadLeads().then(() => landed((n) => n + 1));
   }, []);
   const Page = leadsModule?.LeadsReal;
+  // Leads' first part (client/page-speed.ts): its rows drawn, which wait for both its read and its chunk.
+  usePartShown("leads", "table", !!(leads && Page));
   return leads && Page ? (
     <Page key="leads" leadsRoute={param} onNavigate={ownGo} onOpenProfile={(id) => navigate(`clients/${id}`)} />
   ) : null;
@@ -98,6 +100,8 @@ export function PeopleRoute({ pathname }: { pathname: string | null }) {
   // Until the list can be drawn, the route says People's name.
   const listDrawn = !!live || demoSession();
   usePeopleStanding(person ? "person" : pipeline || leads || listDrawn ? null : "people");
+  // People's first part (client/page-speed.ts): its table, drawn once People's read is in. Its scopes say their own.
+  usePartShown("people", "table", !!live && !person && !leads && !pipeline);
   // A person's page reads the person itself (people-detail.ts) and never waits for People's rows; it is a new mount per person,
   // and one mount across their tabs (`<id>/history`, 0052), which the page follows as a prop.
   if (person) {

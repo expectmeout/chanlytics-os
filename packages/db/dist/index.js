@@ -31,6 +31,9 @@ function dbLog() {
 function dbRequestId() {
   return (observerHolder[OBSERVER_SLOT] ?? FALLBACK).requestId();
 }
+function dbTimed(ms) {
+  (observerHolder[OBSERVER_SLOT] ?? FALLBACK).timed?.(ms);
+}
 function namedFetch(base) {
   return (input, init) => {
     const send = base ?? globalThis.fetch;
@@ -38,7 +41,13 @@ function namedFetch(base) {
     if (!id) return send(input, init);
     const headers = new Headers(init?.headers);
     headers.set(DB_REQUEST_HEADER, id);
-    return send(input, { ...init, headers });
+    const started = performance.now();
+    const call = send(input, { ...init, headers });
+    void call.then(
+      () => dbTimed(performance.now() - started),
+      () => dbTimed(performance.now() - started)
+    );
+    return call;
   };
 }
 
@@ -3383,6 +3392,29 @@ async function firstReplies(db, tenantId, since) {
   );
 }
 
+// src/repositories/reports/page-vitals.ts
+async function notePageVitals(db, load) {
+  const { data, error } = await db.rpc("note_page_vitals", {
+    p_page: load.page,
+    p_vitals: load.vitals,
+    ...load.device ? { p_device: load.device } : {},
+    ...load.build ? { p_build: load.build } : {}
+  });
+  return { data, error };
+}
+async function pageVitalsP75(db, window) {
+  const { data, error } = await db.rpc("page_vitals_p75", { p_days: window.days, p_most: window.most });
+  return { data, error };
+}
+async function pageSpeed(db, window) {
+  const { data, error } = await db.rpc("page_speed", { p_days: window.days, p_most: window.most });
+  return { data, error };
+}
+async function pageSpots(db, window) {
+  const { data, error } = await db.rpc("page_spots", { p_days: window.days, p_most: window.most });
+  return { data, error };
+}
+
 // src/repositories/notifications.ts
 import {
   CATCH_UP_VISITS,
@@ -5666,6 +5698,7 @@ export {
   moveVoiceSessionContext,
   namedFetch,
   namesOfPeople,
+  notePageVitals,
   notesForReceptionist,
   noticeFor,
   noticeKept,
@@ -5683,6 +5716,9 @@ export {
   outreachModeOf,
   ownLineOf,
   ownVersionsFiled,
+  pageSpeed,
+  pageSpots,
+  pageVitalsP75,
   parentEmailOf,
   pauseConversation,
   pauseEmailOffers,

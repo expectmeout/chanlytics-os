@@ -27,6 +27,7 @@ import {
   platformPartnerSummary,
   platformPartnerStanding,
   pageVitalsWords,
+  pageSpeedWords,
   platformDaysWords,
   partnerPayoutOutcomeWords,
   partnerStandingOutcomeWords,
@@ -45,6 +46,8 @@ import {
   type PlatformPartnerBalanceDto,
   type PlatformPartnerWorkspaceDto,
   type PageVitalsRowDto,
+  type PageSpeedRowDto,
+  type PageSpotRowDto,
   type PlatformDayRowDto,
 } from "@chanlytics/contracts";
 import { api } from "./api";
@@ -79,6 +82,11 @@ type OverviewAnswer = {
    * and absent from an overview that predates it, which draws no card.
    */
   vitals?: PageVitalsRowDto[] | null;
+  /**
+   * Where the pages' time goes (00412, decision 0053): each page by how it opens and how a move reaches it, its parts,
+   * and the elements that cost the most; null when unread, absent from an overview that predates it, which draws no card.
+   */
+  speed?: { rows: PageSpeedRowDto[]; spots: PageSpotRowDto[] } | null;
   /** Each workspace's day, counted (00277); null when unread, absent from an overview that predates it. */
   days?: PlatformDayRowDto[] | null;
   message: string;
@@ -95,6 +103,8 @@ export interface PlatformApi {
   healthWords: typeof platformHealthWords;
   /** The field data card: a sentence, a line per metric, the slowest pages. Pure, from contracts. */
   vitalsWords: typeof pageVitalsWords;
+  /** Where the pages' time goes: a sentence, each page slowest first, the parts drawn last, the costliest taps. Pure, from contracts. */
+  speedWords: typeof pageSpeedWords;
   /** The day-by-workspace card: a sentence and a line per workspace's newest day. Pure, from contracts. */
   daysWords: typeof platformDaysWords;
   /** The waiting list as rows and a sentence. Pure, from contracts. */
@@ -186,6 +196,7 @@ const platformVerbs: PlatformApi = {
           queue: null,
           partners: null,
           vitals: null,
+          speed: null,
           days: null,
           message: r.message,
         };
@@ -199,6 +210,7 @@ const platformVerbs: PlatformApi = {
         queue: r.data.queue ?? null,
         partners: r.data.partners ?? null,
         vitals: r.data.vitals,
+        speed: r.data.speed,
         days: r.data.days,
         message: "",
       };
@@ -291,6 +303,7 @@ const platformVerbs: PlatformApi = {
   rows: platformRows,
   healthWords: platformHealthWords,
   vitalsWords: pageVitalsWords,
+  speedWords: pageSpeedWords,
   daysWords: platformDaysWords,
   queue: platformQueue,
   words: activityWords,

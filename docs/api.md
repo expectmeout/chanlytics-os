@@ -1003,7 +1003,6 @@ Body 4:
 | `kind` | `"outcome"` | yes |  |
 | `outcome` | one of `"interested"`, `"call_back"`, `"not_interested"`, `"voicemail"`, `"no_answer"`, `"wrong_number"` | yes |  |
 | `note` | string | no | at most 280 characters |
-| `spoke_with` | string | no | at most 80 characters |
 
 Body 5:
 
@@ -1298,9 +1297,7 @@ Writes; for any signed-in person, for themselves; counts against the `partner_ha
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `person_edit` rate; spends nothing.
 
-| Body field | Type | Required | Limits |
-| --- | --- | --- | --- |
-| `lead_id` | string (uuid) | yes |  |
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/people/[id]/business/route.ts`).
 
 ### `DELETE /api/v1/people/[id]/business`
 
@@ -1339,27 +1336,7 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `person_edit` rate; spends nothing.
 
-One of 3 bodies.
-
-Body 1:
-
-| Body field | Type | Required | Limits |
-| --- | --- | --- | --- |
-| `act` | `"adopt"` | yes |  |
-| `message_id` | string (uuid) | yes |  |
-
-Body 2:
-
-| Body field | Type | Required | Limits |
-| --- | --- | --- | --- |
-| `act` | `"undo"` | yes |  |
-
-Body 3:
-
-| Body field | Type | Required | Limits |
-| --- | --- | --- | --- |
-| `act` | `"decline"` | yes |  |
-| `message_id` | string (uuid) | yes |  |
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/people/[id]/name/route.ts`).
 
 ### `GET /api/v1/people/[id]/reach`
 
@@ -2002,7 +1979,9 @@ Writes; for any signed-in person, for themselves; counts against the `vitals` ra
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `page` | string | yes | matches `^[a-z][a-z0-9-]{0,31}$` |
-| `vitals` | array of object | yes | at least 1; at most 5 |
+| `device` | one of `"desk"`, `"phone"` | no |  |
+| `build` | string | no | matches `^[0-9a-z]{3,40}$` |
+| `vitals` | array of object | yes | at least 1; at most 100 |
 
 ## workspaces
 

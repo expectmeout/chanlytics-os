@@ -1,6 +1,6 @@
 import { read, platform } from "@/server/route";
 import { platformHealth, platformOverview, platformPartners, platformWaitlist } from "@/server/platform/platform";
-import { platformVitals } from "@/server/platform/vitals";
+import { platformSpeed, platformVitals } from "@/server/platform/vitals";
 import { platformDays } from "@/server/platform/day-counts";
 
 /**
@@ -36,20 +36,22 @@ import { platformDays } from "@/server/platform/day-counts";
  * page. Null when it could not be read; the workspaces still come back.
  *
  * How fast the pages are (00255) rides here for the first reason too: it is the platform's own state, platform-wide
- * like the clocks, and nobody else's to see. Null when it could not be read. So does each workspace's day, counted
- * (00277 platform_metrics): the workspaces' work, where the page lists the workspaces.
+ * like the clocks, and nobody else's to see. Null when it could not be read. So does where the pages' time goes (00412,
+ * decision 0053: each page by how it opens and how a move reaches it, its parts, the elements that cost the most), and
+ * each workspace's day, counted (00277 platform_metrics): the workspaces' work, where the page lists the workspaces.
  */
 export const GET = read({
   scope: platform,
   handle: async ({ office }) => {
-    const [tenants, health, queue, partners, vitals, days] = await Promise.all([
+    const [tenants, health, queue, partners, vitals, speed, days] = await Promise.all([
       platformOverview(office),
       platformHealth(office),
       platformWaitlist(office),
       platformPartners(office),
       platformVitals(office),
+      platformSpeed(office),
       platformDays(office),
     ]);
-    return { tenants, health, queue, partners, vitals, days };
+    return { tenants, health, queue, partners, vitals, speed, days };
   },
 });

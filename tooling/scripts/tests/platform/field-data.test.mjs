@@ -10,8 +10,11 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 import { asEventAndJson } from "../_log-lines.mjs";
 import {
+  PAGE_DEVICES,
+  PAGE_METRICS,
   PAGE_VITALS,
   PAGE_VITALS_MIN_LOADS,
+  PAGE_VITALS_PER_BEACON,
   PAGE_VITALS_READ,
   SCHEMA_SETS,
   pageVitalsWords,
@@ -56,24 +59,32 @@ async function refused(p, code, status) {
 }
 const load = (id, name, value) => ({ id: `v4-1727430000000-${id}`, name, value });
 
-test("the five are the table's five, and a page is named for the route a load landed on", () => {
-  assert.deepEqual([...PAGE_VITALS], SCHEMA_SETS["page_vitals.metric"]);
+test("the seven are the table's seven, its devices its two, and a page is named for the route as people see it", () => {
+  assert.deepEqual([...PAGE_METRICS], SCHEMA_SETS["page_vitals.metric"]);
+  assert.deepEqual([...PAGE_METRICS.slice(0, 5)], [...PAGE_VITALS], "the browser's five, then the shell's two");
+  assert.deepEqual([...PAGE_DEVICES], SCHEMA_SETS["page_vitals.device"]);
   // The address's own reading (a path, else a hash: shell/address.ts), then the name the table keeps: its first
-  // segment, or "other".
-  const landed = (address) => vitalsPageOf(routeOfAddress(address));
-  assert.equal(landed({ hash: "#/clients/5f0c9a3e" }), "clients");
-  assert.equal(landed({ pathname: "/w/acme/clients/5f0c9a3e" }), "clients");
-  assert.equal(landed({ hash: "#/inbox" }), "inbox");
-  assert.equal(landed({ pathname: "/w/acme/inbox", hash: "" }), "inbox");
-  assert.equal(landed({ hash: "" }), "today");
-  assert.equal(landed({ pathname: "/w/acme" }), "today");
-  assert.equal(landed({ hash: "#/settings?tab=team" }), "settings");
-  // Settings' path says the product's word, and the page is named for the shell's route that word is (contracts ROUTE_WORDS).
-  assert.equal(landed({ pathname: "/w/acme/settings", search: "?tab=team" }), "admin");
-  assert.equal(landed({ pathname: "/w/acme/settings/billing" }), "admin");
-  assert.equal(landed({ pathname: "/w/acme/admin/billing" }), "admin", "and the old name reads the same");
-  assert.equal(landed({ hash: "#/Über" }), "other");
-  assert.equal(landed({ hash: `#/${"a".repeat(40)}` }), "other");
+  // segment in the product's word, People's scopes by their own names (decision 0053), or "other".
+  const named = (address) => vitalsPageOf(routeOfAddress(address));
+  const person = "5f0c9a3e-1111-4222-8333-444455556666";
+  assert.equal(named({ hash: `#/clients/${person}` }), "person");
+  assert.equal(named({ pathname: `/w/acme/people/${person}` }), "person");
+  assert.equal(named({ pathname: "/w/acme/people" }), "people");
+  assert.equal(named({ pathname: "/w/acme/people/seg:needs_you" }), "people", "a list of People is People");
+  assert.equal(named({ pathname: "/w/acme/people/leads" }), "leads");
+  assert.equal(named({ pathname: "/w/acme/people/leads:s-1:l-2" }), "leads");
+  assert.equal(named({ pathname: "/w/acme/people/pipeline:v-board" }), "pipeline");
+  assert.equal(named({ hash: "#/inbox" }), "inbox");
+  assert.equal(named({ pathname: "/w/acme/inbox/th-1", hash: "" }), "inbox");
+  assert.equal(named({ hash: "" }), "today");
+  assert.equal(named({ pathname: "/w/acme" }), "today");
+  // Settings' path says the product's word, and so does the table (contracts ROUTE_WORDS), whichever name the address used.
+  assert.equal(named({ hash: "#/settings?tab=team" }), "settings");
+  assert.equal(named({ pathname: "/w/acme/settings", search: "?tab=team" }), "settings");
+  assert.equal(named({ pathname: "/w/acme/admin/billing" }), "settings", "and the old name reads the same");
+  assert.equal(named({ pathname: "/w/acme/calendar/2026-10-12" }), "calendar");
+  assert.equal(named({ hash: "#/Über" }), "other");
+  assert.equal(named({ hash: `#/${"a".repeat(40)}` }), "other");
 });
 
 test("the route: yours, not a workspace's, counted; it keeps what the page sent and says how many rows took it", async () => {
@@ -99,7 +110,25 @@ test("the route: yours, not a workspace's, counted; it keeps what the page sent 
   );
   const body = { page: "inbox", vitals: [load(1, "LCP", 2140.5), load(2, "CLS", 0.03)] };
   assert.deepEqual(await vitalsRoute.POST.run(post(body), ctxFor()), { kept: 2 });
-  assert.deepEqual(calls, [{ p_page: "inbox", p_vitals: body.vitals }]);
+  assert.deepEqual(calls, [{ p_page: "inbox", p_vitals: body.vitals }], "a shell from before 0053 is read as it was");
+  // A load's device and build ride beside its reports; a report of another page names it, with its part, the page it
+  // left, whether it drew held rows, and what its time went on (decision 0053).
+  const moved = {
+    page: "today",
+    device: "phone",
+    build: "b220a8b74abc",
+    vitals: [
+      { ...load(3, "READY", 340), page: "calendar", from: "today", warm: true, detail: { wait: "page", wait_ms: 55 } },
+      { ...load(4, "READY", 120), part: "queue", warm: false },
+      {
+        ...load(5, "INP", 240),
+        page: "inbox",
+        detail: { el: "inbox-approve", phase: "processing", processing_ms: 200 },
+      },
+    ],
+  };
+  assert.deepEqual(await vitalsRoute.POST.run(post(moved), ctxFor()), { kept: 3 });
+  assert.deepEqual(calls[1], { p_page: "today", p_vitals: moved.vitals, p_device: "phone", p_build: "b220a8b74abc" });
 });
 
 test("the route refuses what the table would, before it reaches the table", async () => {
@@ -128,8 +157,34 @@ test("the route refuses what the table would, before it reaches the table", asyn
     "validation",
     400,
   );
-  const six = [...PAGE_VITALS, "LCP"].map((n, i) => load(i, n, 10));
-  await refused(vitalsRoute.POST.run(post({ page: "inbox", vitals: six }), ctxFor()), "validation", 400);
+  const tooMany = Array.from({ length: PAGE_VITALS_PER_BEACON + 1 }, (_, i) => load(i, "READY", 10));
+  await refused(vitalsRoute.POST.run(post({ page: "inbox", vitals: tooMany }), ctxFor()), "validation", 400);
+  // What a report's time went on is the code's own words: an id, a selector or a sentence is refused.
+  for (const detail of [
+    { el: "div#th-5f0c" },
+    { wait: "a sentence a person wrote" },
+    { wait_ms: -1 },
+    { type: "touch" },
+  ]) {
+    await refused(
+      vitalsRoute.POST.run(post({ page: "inbox", vitals: [{ ...ok, name: "READY", detail }] }), ctxFor()),
+      "validation",
+      400,
+    );
+  }
+  for (const bad of [{ part: "Queue" }, { from: "To day" }, { page: "Inbox" }]) {
+    await refused(
+      vitalsRoute.POST.run(post({ page: "inbox", vitals: [{ ...ok, ...bad }] }), ctxFor()),
+      "validation",
+      400,
+    );
+  }
+  await refused(
+    vitalsRoute.POST.run(post({ page: "inbox", device: "tablet", vitals: [ok] }), ctxFor()),
+    "validation",
+    400,
+  );
+  await refused(vitalsRoute.POST.run(post({ page: "inbox", build: "A!", vitals: [ok] }), ctxFor()), "validation", 400);
   assert.deepEqual(calls, [], "nothing refused reached the table");
 });
 
@@ -197,7 +252,7 @@ test("the timings ride on the overview, and a read that fails takes nothing else
   assert.equal(down.health.backlog, 0);
 });
 
-test("the collector: the latest of each of the five, sent once at each value, in the order the card says them", () => {
+test("the collector: the latest report under each id, sent once at each value, in the order the card says them", () => {
   const sent = [];
   const fd = createFieldData("inbox", (body) => sent.push(body));
   fd.flush();
@@ -336,4 +391,33 @@ test("the card: unread says so, a quiet week says so, and a week of loads is a s
   );
   const undrawn = pageVitalsWords([row("TTFB", null, 3, 500)]);
   assert.equal(undrawn.sentence, "3 page loads in the last 7 days; none has drawn its page yet.");
+});
+
+test("the collector says the load's device and build, holds a beacon's worth at most, and sends more in several", () => {
+  const sent = [];
+  const fd = createFieldData("today", (body) => sent.push(body), { device: "phone", build: "b220a8b74abc" });
+  for (let i = 0; i < PAGE_VITALS_PER_BEACON - 1; i += 1) fd.note({ ...load(i, "READY", 10 + i), part: "queue" });
+  assert.equal(sent.length, 0, "a beacon's worth less one waits for the page to be put away");
+  fd.note(load(99, "READY", 5));
+  assert.equal(sent.length, 1, "a beacon's worth is sent at once, so a tab never put away still says what it measured");
+  assert.equal(sent[0].vitals.length, PAGE_VITALS_PER_BEACON);
+  assert.deepEqual([sent[0].page, sent[0].device, sent[0].build], ["today", "phone", "b220a8b74abc"]);
+  fd.note(load(101, "LCP", 900));
+  fd.note({ ...load(102, "READY", 300), detail: { wait: "calendar" } });
+  fd.flush();
+  assert.deepEqual(
+    sent[1].vitals.map((v) => [v.name, v.value]),
+    [
+      ["LCP", 900],
+      ["READY", 300],
+    ],
+    "the browser's five first, then the shell's two",
+  );
+  fd.note({ ...load(102, "READY", 300), detail: { wait: "contacts" } });
+  fd.flush();
+  assert.deepEqual(
+    sent[2].vitals.map((v) => v.detail),
+    [{ wait: "contacts" }],
+    "the same value gone elsewhere is news",
+  );
 });
