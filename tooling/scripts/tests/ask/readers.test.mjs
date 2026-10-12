@@ -6343,7 +6343,7 @@ test("campaigns.playbooks says a campaign's end and its trial as its card does: 
   assert.deepEqual(
     facts(by["Winter offer"]),
     ["running", "veto", "today 10:00 AM", undefined, undefined, "Dec 8", "Dec 31"],
-    "REGRESSION: it said a run sends on its own, where each waits half an hour with a Stop",
+    "REGRESSION: it said a run sends on its own, where each waits 30 minutes with a Stop",
   );
   assert.deepEqual(facts(by["Always on"]), [
     "running",

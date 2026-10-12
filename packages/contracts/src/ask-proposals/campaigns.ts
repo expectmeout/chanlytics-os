@@ -13,7 +13,7 @@ import {
 } from "../consent/consent-channels";
 import { LIFECYCLE_TOAST, LIFECYCLE_WORDS, channelsGoesByWords } from "../playbooks/lifecycle/lifecycle-words";
 import { PLAYBOOK_PATCH_CLEARS, PLAYBOOK_PATCH_KEYS } from "../playbooks/playbook-patch";
-import { SENDING_HOURS_WORDS } from "../playbooks/playbook-triggers";
+import { PLAYBOOK_VETO_DELAY_WORDS, SENDING_HOURS_WORDS } from "../playbooks/playbook-triggers";
 import { clockWhen } from "../shared/clock";
 import { joinWords, plural } from "../shared/words";
 import { CAMPAIGN_ROOMS, LIBRARY_STARTER_WORDS, LIBRARY_WORDS } from "../shell/campaign-rooms";
@@ -112,9 +112,10 @@ export const twinRunsWords = (name: string): string =>
 export const PLAYBOOK_CARD_WORDS = {
   /**
    * A campaign that starts on trial (D5: under an auto class only): for its first week, counted from its Approve
-   * (contracts newCampaignTrialUntil, at the route's clock), each run waits half an hour for a Stop, as veto's do.
+   * (contracts newCampaignTrialUntil, at the route's clock), each run waits for a Stop as veto's do, said in veto's own
+   * words (PLAYBOOK_VETO_DELAY_WORDS), so a sentence that says both the trial and veto names one wait.
    */
-  trial: "on trial for a week from when you approve it: for seven days each run waits half an hour with a Stop",
+  trial: `on trial for a week from when you approve it: for seven days each run waits ${PLAYBOOK_VETO_DELAY_WORDS} with a Stop`,
   /**
    * A reminder the day before or a check after an appointment (D2): one message per appointment, sent whatever else
    * the person hears from you within a week of it, sent or due (BREATH_WHY), since the run is daily and the appointment

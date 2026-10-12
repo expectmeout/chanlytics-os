@@ -433,7 +433,7 @@ const approveAt = async (rows, call, clock) => {
 test("a new campaign under an auto class starts on trial for a week from when it is approved (D5): its card carries the flag and no instant, says so, and commits the flag; the route counts the week from its own clock at Approve, never from the card's; under ask or veto there is no trial and nothing said of one", async () => {
   assert.equal(
     PLAYBOOK_CARD_WORDS.trial,
-    "on trial for a week from when you approve it: for seven days each run waits half an hour with a Stop",
+    "on trial for a week from when you approve it: for seven days each run waits 30 minutes with a Stop",
   );
   const onStarter = await propose({ trigger: "quiet_30" }, { policies: modes("auto") }).made;
   // Its WhatsApp version approved, with the starter's two values: the message-on-file path.

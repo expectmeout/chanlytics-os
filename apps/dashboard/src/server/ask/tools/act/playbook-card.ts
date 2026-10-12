@@ -137,7 +137,7 @@ export const breathSaid = (trig: Trigger): string =>
  * trial changes nothing: a run there waits for a person, waits for a Stop already, or runs nothing. The payload carries
  * the flag and no instant: the week starts at its Approve, counted by POST playbooks at its own clock (contracts
  * newCampaignTrialUntil), never when the card was made. And what the card says of it, before its class's mode and in the
- * order they happen: "…waits half an hour with a Stop; after that, under “Offers” (auto): each run sends on its own."
+ * order they happen: "…waits 30 minutes with a Stop; after that, under “Offers” (auto): each run sends on its own."
  */
 export function trialOf(mode: string): { payload: { trial?: true }; said: string } {
   return mode === "auto"

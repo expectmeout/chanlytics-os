@@ -19159,9 +19159,10 @@ declare const twinRunsWords: (name: string) => string;
 declare const PLAYBOOK_CARD_WORDS: {
     /**
      * A campaign that starts on trial (D5: under an auto class only): for its first week, counted from its Approve
-     * (contracts newCampaignTrialUntil, at the route's clock), each run waits half an hour for a Stop, as veto's do.
+     * (contracts newCampaignTrialUntil, at the route's clock), each run waits for a Stop as veto's do, said in veto's own
+     * words (PLAYBOOK_VETO_DELAY_WORDS), so a sentence that says both the trial and veto names one wait.
      */
-    readonly trial: "on trial for a week from when you approve it: for seven days each run waits half an hour with a Stop";
+    readonly trial: `on trial for a week from when you approve it: for seven days each run waits ${string} with a Stop`;
     /**
      * A reminder the day before or a check after an appointment (D2): one message per appointment, sent whatever else
      * the person hears from you within a week of it, sent or due (BREATH_WHY), since the run is daily and the appointment
