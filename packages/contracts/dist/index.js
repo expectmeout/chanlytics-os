@@ -14852,7 +14852,7 @@ var MESSAGE_BEGIN_WORDS = {
    * templates/message): a language of a message is the same kind of message with the same values, its kind what a send
    * judges it by (consent purposeOfTemplate: a row with no category is an offer), so `purpose` is the held one's.
    */
-  heldOtherwise: (purpose, slots) => `This message is on file in another language as ${purpose === "marketing" ? "an offer or news" : `a message ${THEIRS_WORDS}`} with ${slots} value${slots === 1 ? "" : "s"}. Write this language the same way, or give it another name.`,
+  heldOtherwise: (purpose, slots) => `This message is on file in another language as ${purpose === "marketing" ? "an offer or news" : `a message ${THEIRS_WORDS},`} with ${slots} value${slots === 1 ? "" : "s"}. Write this language the same way, or give it another name.`,
   /**
    * A name on file in another language as a code for signing in (Meta's `authentication`): no campaign sends one, so no
    * kind of message is written beside it, and "write it the same way" would be no way out.
@@ -14914,7 +14914,10 @@ var PLAYBOOK_CARD_REFUSALS = {
   hiddenTemplate: (from) => `that template is one the workspace keeps out of the composers; ${from} names the ones that may send`,
   noList: (from) => `no such list; ${from} names them`,
   uncounted: (list2, why) => `${list2} can't be counted right now: ${why}`,
-  /** A second running campaign on the same moment, list and message, where they named none of its own (D9). */
+  /**
+   * A second running campaign on the same moment, list and message, where they named none of its own (D9). The model's
+   * words, when the card is made; a card's start that meets one is answered in twinRunsWords, the owner's.
+   */
   twin: (name) => `\u201C${name}\u201D already runs on this moment with this message: say so, and propose a second only when they ask for another by a name of its own`,
   followUpsUnread: "who already had a proposal follow-up could not be read just now; say so, and try again in a moment",
   /**
@@ -14933,6 +14936,7 @@ var PLAYBOOK_CARD_REFUSALS = {
   listToken: (from) => `a playbook on a list needs list: the list's token from ${from} (seg:<id> or list:<id>)`,
   templateId: (from) => `template_id must be an id ${from} returned, or omitted for the trigger's starter`
 };
+var twinRunsWords = (name) => `\u201C${name}\u201D already runs on this moment with this message, so nothing was started.`;
 var PLAYBOOK_CARD_WORDS = {
   /**
    * A campaign that starts on trial (D5: under an auto class only): for its first week, counted from its Approve
@@ -49663,6 +49667,7 @@ export {
   triggerWords,
   trimmedOrNull,
   tryItLink,
+  twinRunsWords,
   tzClock,
   tzSince,
   unknownDetails,

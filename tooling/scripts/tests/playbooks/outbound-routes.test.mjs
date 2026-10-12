@@ -1201,8 +1201,8 @@ test("one proposal follow-up per workspace (00167): the database's refusal of a 
   );
 });
 
-test("a card's start (x-via ask) refuses a running twin by the rule its card was made by: a press that outlived its key's day starts nothing; the composer's start, and a card's under a name of its own, start", async () => {
-  const { PLAYBOOK_CARD_REFUSALS } = await import("@chanlytics/contracts");
+test("a card's start (x-via ask) refuses the running twin its first press started, in the owner's words: a press that outlived its key's day starts nothing; the composer's start, and a card's under a name of its own, start", async () => {
+  const { twinRunsWords } = await import("@chanlytics/contracts");
   const tables = {
     memberships: both("viewer", "operator"),
     // The campaign the card's first press started: running, on its moment, its message, under the card's name.
@@ -1216,12 +1216,7 @@ test("a card's start (x-via ask) refuses a running twin by the rule its card was
   const body = { trigger: "quiet_30", template_id: T1, params: [], name: "Win-back" };
   // A card's commit is Ask's (the x-via header with-route reads into ctx.via); its key's day is gone, so it is run.
   const asAsk = () => ({ ...ctxFor(tables), via: "ask" });
-  await refused(
-    playbooks.POST.run(send("POST", body, inB), asAsk()),
-    "conflict",
-    409,
-    PLAYBOOK_CARD_REFUSALS.twin("Win-back"),
-  );
+  await refused(playbooks.POST.run(send("POST", body, inB), asAsk()), "conflict", 409, twinRunsWords("Win-back"));
   assert.deepEqual(
     [tables.playbooks.map((p) => p.id), tables.decisions],
     [[K2], []],
@@ -1234,6 +1229,32 @@ test("a card's start (x-via ask) refuses a running twin by the rule its card was
   const own = await playbooks.POST.run(send("POST", { ...body, name: "Win-back for regulars" }, inB), asAsk());
   assert.equal(tables.playbooks.find((p) => p.id === own.id)?.name, "Win-back for regulars");
   assert.equal(tables.playbooks.length, 3);
+});
+
+test("a card's later press whose name was asked with runs of space meets its twin by the name as kept, one space each, and starts nothing", async () => {
+  const { twinRunsWords } = await import("@chanlytics/contracts");
+  const tables = {
+    memberships: both("viewer", "operator"),
+    // The first press kept the name as core checkPlaybook keeps one: trimmed, its runs of space one.
+    playbooks: [pb(K2, B, { name: "Win back regulars", template_id: T1 })],
+    broadcasts: [],
+    broadcast_recipients: [],
+    tenants: [{ id: B, name: "Bayside", timezone: "America/Chicago" }],
+    templates: [tpl(T1, B, { name: "winback_offer", category: "marketing" })],
+    decisions: [],
+  };
+  const body = { trigger: "quiet_30", template_id: T1, params: [], name: " Win  back\tregulars " };
+  await refused(
+    playbooks.POST.run(send("POST", body, inB), { ...ctxFor(tables), via: "ask" }),
+    "conflict",
+    409,
+    twinRunsWords("Win back regulars"),
+  );
+  assert.deepEqual(
+    [tables.playbooks.map((p) => p.id), tables.decisions],
+    [[K2], []],
+    "nothing started, nothing on the ledger",
+  );
 });
 
 test("a reach-out's step is no moment: never listed among the playbooks, never rewritten as one, and still paused and resumed (Reach out, Part 3)", async () => {

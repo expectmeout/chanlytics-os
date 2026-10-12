@@ -10,12 +10,14 @@ import { writeMessage, type WriteMessageAnswer, type WriteMessageBody } from "@/
  * { name, language, category: "marketing" | "utility", versions: { whatsapp?: { body, footer? }, email?: { subject,
  * body }, sms?: { body } }, slots: [{ position, label, example?, kind }] }, as WriteMessageBody says it, which the schema
  * below is held to. Everything that could refuse it is said first and nothing is filed: a text of an offer (texts carry
- * no offers), a `utility` message with no WhatsApp version for Meta to review (a message somebody writes is an offer or
- * news, as POST templates/versions says), words a channel refuses, a twin (the same name and language on file, 409), a
+ * no offers), a `utility` message with no WhatsApp version for Meta to review (contracts
+ * MESSAGE_BEGIN_WORDS.utilityNeedsWhatsapp), words a channel refuses, a twin (the same name and language on file, 409), a
  * language of a message held in another said as another kind or with other values (409). Then the email and text
  * versions are filed at once, approved, and WhatsApp's last, sent to Meta for review, so a refusal there leaves the
- * others filed. The answer is WriteMessageAnswer, { name, language, versions: [{ channel, id, state: "approved" |
- * "pending" }], refused?: { channel, words } }: each version filed, and the first that could not be.
+ * others filed. The answer is WriteMessageAnswer, { name, language, versions: [{ channel, id, state }], refused?: {
+ * channel, words } }: each version filed, its state a TemplateStatus (an email or a text approved, WhatsApp's what Meta
+ * answered its filing, read by contracts metaStatusOf: rejected where Meta refused it at once, pending where it named no
+ * status), and the first that could not be.
  *
  * The handle is writeMessage in src/server/campaigns/write-message.ts: the route is its declaration (who may, how
  * often), the verb is what it does.

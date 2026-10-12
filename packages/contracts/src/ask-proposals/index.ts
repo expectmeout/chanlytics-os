@@ -9,6 +9,7 @@ export {
   MESSAGE_WORDS,
   proposalChannelsWords,
   stepOfferWords,
+  twinRunsWords,
 } from "./campaigns";
 export { PERSON_DETAIL_WORDS } from "./person";
 export { PROPOSAL_WORDS } from "./spec";

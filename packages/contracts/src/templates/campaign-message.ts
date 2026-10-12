@@ -388,7 +388,7 @@ export const MESSAGE_BEGIN_WORDS = {
    * judges it by (consent purposeOfTemplate: a row with no category is an offer), so `purpose` is the held one's.
    */
   heldOtherwise: (purpose: AskedPurpose, slots: number) =>
-    `This message is on file in another language as ${purpose === "marketing" ? "an offer or news" : `a message ${THEIRS_WORDS}`} with ${slots} value${slots === 1 ? "" : "s"}. Write this language the same way, or give it another name.`,
+    `This message is on file in another language as ${purpose === "marketing" ? "an offer or news" : `a message ${THEIRS_WORDS},`} with ${slots} value${slots === 1 ? "" : "s"}. Write this language the same way, or give it another name.`,
   /**
    * A name on file in another language as a code for signing in (Meta's `authentication`): no campaign sends one, so no
    * kind of message is written beside it, and "write it the same way" would be no way out.

@@ -71,7 +71,10 @@ export const PLAYBOOK_CARD_REFUSALS = {
     `that template is one the workspace keeps out of the composers; ${from} names the ones that may send`,
   noList: (from: string): string => `no such list; ${from} names them`,
   uncounted: (list: string, why: string): string => `${list} can't be counted right now: ${why}`,
-  /** A second running campaign on the same moment, list and message, where they named none of its own (D9). */
+  /**
+   * A second running campaign on the same moment, list and message, where they named none of its own (D9). The model's
+   * words, when the card is made; a card's start that meets one is answered in twinRunsWords, the owner's.
+   */
   twin: (name: string): string =>
     `“${name}” already runs on this moment with this message: say so, and propose a second only when they ask for another by a name of its own`,
   followUpsUnread: "who already had a proposal follow-up could not be read just now; say so, and try again in a moment",
@@ -96,6 +99,14 @@ export const PLAYBOOK_CARD_REFUSALS = {
   templateId: (from: string): string =>
     `template_id must be an id ${from} returned, or omitted for the trigger's starter`,
 } as const;
+
+/**
+ * What POST playbooks answers, 409, a card's start (x-via ask) that a running twin refuses (the dashboard's
+ * campaigns/playbook-row.ts twinRefusal): the card shows a route's refusal to the owner who pressed it, so it says what
+ * happened, never what to do next (PLAYBOOK_CARD_REFUSALS.twin is the model's, when the card is made).
+ */
+export const twinRunsWords = (name: string): string =>
+  `“${name}” already runs on this moment with this message, so nothing was started.`;
 
 /** What a new campaign's card says beside its moment, its reach and its class's mode (propose_campaign.playbook). */
 export const PLAYBOOK_CARD_WORDS = {

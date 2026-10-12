@@ -12,7 +12,6 @@ import {
   NEW_PLAYBOOK_TICKS_EVERY_CHANNEL,
   PLAYBOOK_CARD_REFUSALS,
   PLAYBOOK_DEFAULTS,
-  PLAYBOOK_NAME_MAX,
   PLAYBOOK_PATCH_WORDS,
   PLAYBOOK_VETO_DELAY_WORDS,
   REACH_OUT_IS_NOT_A_MOMENT,
@@ -44,7 +43,13 @@ import {
   type PlaybookTrigger,
   type StarterTemplate,
 } from "@chanlytics/contracts";
-import { playbookNumber, refuseWithoutBookingLink, refuseWithoutReviewLink, untilOf } from "@chanlytics/core";
+import {
+  playbookNameAsked,
+  playbookNumber,
+  refuseWithoutBookingLink,
+  refuseWithoutReviewLink,
+  untilOf,
+} from "@chanlytics/core";
 import { followUpOnFile } from "@chanlytics/db";
 import { sellsByOf } from "../../../people/deals";
 import { twinRefusal } from "../../../campaigns/playbook-row";
@@ -360,7 +365,7 @@ async function checkedPlaybook(
       t.ctx,
       t.tenantId,
       {
-        name: str(input.name, 80) || undefined,
+        name: playbookNameAsked(input.name) || undefined,
         trigger: trig.id,
         ...listBody(input, listRef),
         template_id: said.templateId,
@@ -456,7 +461,7 @@ async function proposeOnStarter(
   const held = await allowanceHeld(t, channels, reading, clock, purposeOfPlaybook(cls));
   const under = underMode(cls, policies);
   const trial = trialOf(under.mode);
-  const name = str(input.name, PLAYBOOK_NAME_MAX);
+  const name = playbookNameAsked(input.name);
   // Its WhatsApp version goes for review at Approve only where none is on file; one on file is said as it stands, by the
   // drawer's reading (in review, refused), and the filing leaves it so.
   const forReview = judged.whatsappOnFile === null && judged.message.versions.whatsapp !== null;
@@ -561,7 +566,7 @@ async function proposeOnStep(
   const { goes, waiting } = playbookChannelsSaid(how, by, drawn.reach.by_channel, held);
   const under = underMode(cls, policies);
   const trial = trialOf(under.mode);
-  const name = str(input.name, PLAYBOOK_NAME_MAX) || null;
+  const name = playbookNameAsked(input.name) || null;
   const { word, moment } = await wordedMoment(t, trig);
   return propose({
     kind: "playbook",
@@ -630,8 +635,9 @@ async function proposePlaybook(t: ToolContext, proposed: PlaybookProposed): Prom
     channels: picked.channels,
   });
   if ("refusal" in checked) return refuse(checked.refusal);
-  // A running twin (D9), by the rule its Approve is held to again (campaigns/playbook-row.ts twinRefusal).
-  const twin = await twinRefusal(t.ctx, t.tenantId, checked, input.name);
+  // A running twin (D9), in the model's words (campaigns/playbook-row.ts twinRefusal). Its Approve meets the rule again
+  // only for a press after its key's day, refused by the campaign its first press started under the same name.
+  const twin = await twinRefusal(t.ctx, t.tenantId, checked, input.name, PLAYBOOK_CARD_REFUSALS.twin);
   if (twin) return refuse(twin);
   // By the channels it goes by: said and committed whenever they are more than WhatsApp alone by default.
   const by = { channels: checked.channels, named: picked.channels !== undefined };

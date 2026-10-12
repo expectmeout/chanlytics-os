@@ -3250,8 +3250,10 @@ async function checkPlaybookChannels(ports, row, asked2) {
   const cls = row.policy_class ?? triggerOf4(row.trigger)?.cls ?? null;
   return channelsItMayGoBy(Array.isArray(asked2) ? asked2 : [], row.channels, cls, message);
 }
+var oneSpaced = (v) => typeof v === "string" ? v.trim().replace(/\s+/g, " ") : "";
+var playbookNameAsked = (v) => oneSpaced(v).slice(0, PLAYBOOK_NAME_MAX);
 function patchName(v) {
-  const name = typeof v === "string" ? v.trim().replace(/\s+/g, " ") : "";
+  const name = oneSpaced(v);
   if (!name) throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.nameMissing);
   if (name.length > PLAYBOOK_NAME_MAX)
     throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.nameLong(PLAYBOOK_NAME_MAX));
@@ -3358,7 +3360,7 @@ async function checkPlaybookMoment(ports, body, existing) {
   return { trig, cls, listName, listKey, listId };
 }
 async function checkPlaybook(ports, body, existing) {
-  const name = typeof body?.name === "string" ? body.name.trim().replace(/\s+/g, " ").slice(0, PLAYBOOK_NAME_MAX) : "";
+  const name = playbookNameAsked(body?.name);
   const { trig, cls, listName, listKey, listId } = await checkPlaybookMoment(ports, body, existing);
   const templateId = typeof body?.template_id === "string" ? body.template_id : "";
   const { message, specs } = await templateValues(ports, {
@@ -39424,6 +39426,7 @@ export {
   outboundGate,
   parseChannels,
   photoUserText,
+  playbookNameAsked,
   playbookNumber,
   probeAsk,
   probeYield,

@@ -18,7 +18,7 @@ export { FLAGS, FLAG_MECHANISMS, daysToSunset } from "./ai/flags";
 export { MODELS, MODEL_IDS, MODEL_EFFORTS, MODEL_PURPOSES, MODEL_ROUTES, MODEL_PORTS, RETELL_MODELS, modelRoute, fallbackModel, shadowPortOf, isModelId, readsAsModel } from "./ai/models";
 export { MODEL_TURN_WRITE_MS, modelTurnRequestOf, modelTurnResponseOf } from "./ai/turn";
 export { MODEL_PRICES, MODEL_CALL_OUTCOMES, NO_USAGE, priceOf, usageDollars, usageTokens, usageOf, aiUsageBodyOf, usageMonthOf } from "./ai/usage";
-export { RUN_VERBS, PLAYBOOK_CARD_REFUSALS, PLAYBOOK_CARD_WORDS, MESSAGE_WORDS, proposalChannelsWords, stepOfferWords } from "./ask-proposals/campaigns";
+export { RUN_VERBS, PLAYBOOK_CARD_REFUSALS, PLAYBOOK_CARD_WORDS, MESSAGE_WORDS, proposalChannelsWords, stepOfferWords, twinRunsWords } from "./ask-proposals/campaigns";
 export { ASK_THREAD_ROUTES } from "./ask-proposals/inbox";
 export { PERSON_DETAIL_WORDS } from "./ask-proposals/person";
 export { PROPOSAL_SPECS, proposalSpec, proposalBelowNeeds, PROPOSAL_GATE, askUndoOpen } from "./ask-proposals/proposals";

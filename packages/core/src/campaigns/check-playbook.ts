@@ -262,9 +262,19 @@ export interface PlaybookPatchRow {
   trial_until: string | null;
 }
 
-/** A name as a change keeps it: trimmed, its runs of space one, never empty and never past the bound (D25). */
+/** A name as it is kept: trimmed, its runs of space one; "" for anything but words. */
+const oneSpaced = (v: unknown): string => (typeof v === "string" ? v.trim().replace(/\s+/g, " ") : "");
+
+/**
+ * A new playbook's name as it is kept from what was asked (checkPlaybook): oneSpaced, cut at PLAYBOOK_NAME_MAX. Whatever
+ * compares an asked name with a kept one reads it by this (the twin rule, at a card and at its Approve:
+ * campaigns/playbook-row.ts twinRefusal), so a name asked with two spaces is the one kept with one.
+ */
+export const playbookNameAsked = (v: unknown): string => oneSpaced(v).slice(0, PLAYBOOK_NAME_MAX);
+
+/** A name as a change keeps it: oneSpaced, never empty and never past the bound (D25). */
 function patchName(v: unknown): string {
-  const name = typeof v === "string" ? v.trim().replace(/\s+/g, " ") : "";
+  const name = oneSpaced(v);
   if (!name) throw new AppError("validation", PLAYBOOK_PATCH_WORDS.nameMissing);
   if (name.length > PLAYBOOK_NAME_MAX)
     throw new AppError("validation", PLAYBOOK_PATCH_WORDS.nameLong(PLAYBOOK_NAME_MAX));
@@ -472,7 +482,7 @@ export async function checkPlaybook(
   body: Record<string, unknown> | null,
   existing: { trigger: string; channels?: string[] | null } | null,
 ): Promise<PlaybookInput> {
-  const name = typeof body?.name === "string" ? body.name.trim().replace(/\s+/g, " ").slice(0, PLAYBOOK_NAME_MAX) : "";
+  const name = playbookNameAsked(body?.name);
   const { trig, cls, listName, listKey, listId } = await checkPlaybookMoment(ports, body, existing);
   const templateId = typeof body?.template_id === "string" ? body.template_id : "";
   const { message, specs } = await templateValues(ports, {

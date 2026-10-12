@@ -500,6 +500,8 @@ test("(h) a Spanish body for a name held in English as another kind of message i
     MESSAGE_BEGIN_WORDS.heldOtherwise("marketing", 2),
   );
   assert.match(MESSAGE_BEGIN_WORDS.heldOtherwise("marketing", 2), /an offer or news with 2 values/);
+  // Its values are the message's, as utilityNeedsWhatsapp's comma says: never the proposal's.
+  assert.match(MESSAGE_BEGIN_WORDS.heldOtherwise("conversational", 2), /a proposal of theirs, with 2 values/);
   assert.deepEqual(w.order, []);
   assert.equal(w.tables.templates.length, 1);
 });

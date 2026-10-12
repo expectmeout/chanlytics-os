@@ -14,17 +14,16 @@ import { z } from "zod";
 import {
   AppError,
   CAMPAIGN_NOT_FOUND,
-  PLAYBOOK_CARD_REFUSALS,
-  PLAYBOOK_NAME_MAX,
   PLAYBOOK_PATCH_WORDS,
   REACH_OUT_IS_NOT_A_MOMENT,
   REACH_OUT_REFUSALS,
   isPlaybookState,
   newCampaignTrialUntil,
   triggerOf,
+  twinRunsWords,
   type PlaybookPatch,
 } from "@chanlytics/contracts";
-import { checkPlaybookPatch, trialUntilOf, untilOf } from "@chanlytics/core";
+import { checkPlaybookPatch, playbookNameAsked, trialUntilOf, untilOf } from "@chanlytics/core";
 import {
   emitEvent,
   playbookForChange,
@@ -124,15 +123,17 @@ function trialAsked(asked: Record<string, unknown> | null, now: Date): string | 
 
 /**
  * A second running playbook on the same moment, list and message (the moment spec, D9): a second "set up my campaigns"
- * proposed a twin win-back, which the week's breath then left reaching nobody. Refused in words, unless it is named apart
- * from every one that runs: a name of its own is a second they asked for. Null where there is no twin. Ask's card is made
- * by it (act/playbook.ts), and a card's start is held to it again (startNewPlaybook), so one rule says both.
+ * proposed a twin win-back, which the week's breath then left reaching nobody. Refused in `words`, unless it is named
+ * apart from every one that runs: a name of its own is a second they asked for, compared as it is kept (core
+ * playbookNameAsked). Null where there is no twin. Ask's card is made by it, in the model's words (act/playbook.ts), and a
+ * card's start meets it again, in the owner's (startNewPlaybook).
  */
 export async function twinRefusal(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
   checked: Pick<PlaybookInput, "trigger" | "list_id" | "list_key" | "template_id">,
   named: unknown,
+  words: (name: string) => string,
 ): Promise<string | null> {
   const twins = await runningTwins(ctx.supabase, tenantId, {
     trigger: checked.trigger,
@@ -144,9 +145,9 @@ export async function twinRefusal(
   // (unchecked-index.json).
   const [first] = twins;
   if (!first) return null;
-  const own = typeof named === "string" ? named.trim().slice(0, PLAYBOOK_NAME_MAX) : "";
+  const own = playbookNameAsked(named);
   if (own && !twins.some((x) => x.name === own)) return null;
-  return PLAYBOOK_CARD_REFUSALS.twin(first.name);
+  return words(first.name);
 }
 
 /**
@@ -160,11 +161,13 @@ export async function twinRefusal(
  * starts on (trialAsked) and its last day (`until`, YYYY-MM-DD: core untilOf, a change's own judge, today or later by
  * the business's clock) are judged first, at this route's clock.
  *
- * A card's start (x-via ask) is held to the twin rule its card was made by (twinRefusal), 409 in its words. A press
- * within its key's day is answered its first answer before this runs (route.ts onceForKey), but a plan's card can be
- * approved for a week, its key kept a day (0035): a press that outlived its key reaches here, under the first press's
- * name, so it starts nothing a second time. A starter on file is reused, and one not on file has no running twin on its
- * template, so a refused start files nothing new. The composer's start is a person's, and is not held to it.
+ * A card's start (x-via ask) meets twinRefusal again, 409 in the owner's words (contracts twinRunsWords), and what that
+ * guards is a press after its key's day: one within it is answered its first answer before this runs (route.ts
+ * onceForKey), but a plan's card can be approved for a week, its key kept a day (0035), so a later press reaches here
+ * under the name the first press started its campaign by, and that campaign refuses it. It is not the card's rule again:
+ * a card on a message the Library holds always carries a name, so a twin under another name is not refused here. A
+ * starter on file is reused, and one not on file has no running twin on its template, so a refused start files nothing
+ * new. The composer's start is a person's, and does not meet it.
  */
 export async function startNewPlaybook(ctx: RouteContext, req: Request, member: Member) {
   const tenantId = member.tenantId;
@@ -175,7 +178,7 @@ export async function startNewPlaybook(ctx: RouteContext, req: Request, member: 
   // A starter named and no message (A0): the starter is filed first, and the playbook goes by it.
   const { body, starter } = await withStarterMessage(ctx, member, asked);
   const v = await checkPlaybookInput(ctx, tenantId, body, null);
-  const twin = ctx.via === "ask" ? await twinRefusal(ctx, tenantId, v, asked?.name) : null;
+  const twin = ctx.via === "ask" ? await twinRefusal(ctx, tenantId, v, asked?.name, twinRunsWords) : null;
   if (twin) throw new AppError("conflict", twin, 409);
   const { data: made, error } = await startPlaybook(ctx.supabase, {
     tenantId,
