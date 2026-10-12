@@ -159,7 +159,7 @@ function LastWords({ c }: { c: PageCtx }) {
 }
 
 /** Their notes: the log and the composer, the page's one place to write one. */
-export function NotesSection({ c }: { c: PageCtx }) {
+function NotesSection({ c }: { c: PageCtx }) {
   return (
     <section
       className="cl-prof-section cl-prof-notes-pane"

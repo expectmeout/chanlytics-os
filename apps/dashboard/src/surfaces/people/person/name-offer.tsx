@@ -18,7 +18,7 @@ import { Icon } from "../../kit/icon/icon";
 import { meNow } from "../../legacy-verbs";
 
 /** What the page's toast is told. */
-export type NameSay = (flash: { tone?: string; msg: ReactNode; ms?: number; undo?: (() => void) | null }) => void;
+type NameSay = (flash: { tone?: string; msg: ReactNode; ms?: number; undo?: (() => void) | null }) => void;
 
 /** The door: use, put back, or decline a reply's signer's name. */
 function actOnPersonName(personId: string, body: PersonNameAct) {
@@ -53,7 +53,7 @@ export async function putNameBack(personId: string, say: NameSay, onChanged: () 
   onChanged();
 }
 
-export interface NameOfferProps {
+interface NameOfferProps {
   personId: string;
   /** The reply the name was read from. */
   messageId: string;

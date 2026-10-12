@@ -22,7 +22,7 @@ import { replyTextOf } from "../reach-out/reach-out-replies";
 export const AUTOMATIC_NAMING = false;
 
 /** The most characters a signer's name or title keeps (00412's check). */
-export const SIGNER_MAX = 80;
+const SIGNER_MAX = 80;
 
 /** What a signer is, once it passed the gate. */
 export interface Signer {
@@ -198,11 +198,7 @@ function standsIn(text: string, words: string): boolean {
 }
 
 /** The human-name gate: whether `name` is one person's own name, by the rules above. */
-export function isPersonsName(
-  name: string,
-  notNames: readonly (string | null | undefined)[],
-  from?: string | null,
-): boolean {
+function isPersonsName(name: string, notNames: readonly (string | null | undefined)[], from?: string | null): boolean {
   const tokens = name.split(" ");
   if (tokens.length < 1 || tokens.length > 4) return false;
   if (!tokens.every((t) => NAME_WORD.test(t))) return false;

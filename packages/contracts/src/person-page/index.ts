@@ -4,7 +4,7 @@
  */
 export { asNameSource, BUSINESS_DOOR_LABEL, NAME_SOURCES, PERSON_NAME_WORDS, WORKS_AT_WORDS } from "./words";
 export type { NameSource } from "./words";
-export { AUTOMATIC_NAMING, isPersonsName, SIGNER_MAX, signerAgrees, signerOf } from "./signer";
+export { AUTOMATIC_NAMING, signerAgrees, signerOf } from "./signer";
 export type { Signer, SignerFacts } from "./signer";
 export { businessRecordOf, businessTrailOf, personHeadOf, worksAtOf } from "./business";
 export type {
@@ -19,7 +19,6 @@ export type {
 export {
   PERSON_FIGURES_LABEL,
   PERSON_TAB_WORDS,
-  PERSON_TABS,
   PERSON_TABS_LABEL,
   personRouteOf,
   personTabRoute,

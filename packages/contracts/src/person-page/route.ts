@@ -5,7 +5,7 @@
  * writer (personTabRoute), and the tabs a person has (personTabsOf): a tab exists only when it holds something.
  */
 
-export const PERSON_TABS = ["overview", "history", "visits", "deals", "campaigns", "about"] as const;
+const PERSON_TABS = ["overview", "history", "visits", "deals", "campaigns", "about"] as const;
 export type PersonTab = (typeof PERSON_TABS)[number];
 
 export const PERSON_TAB_WORDS: Record<PersonTab, string> = {
