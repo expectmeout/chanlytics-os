@@ -55,7 +55,7 @@ const changeListing = (db: Db, tenantId: string, set: Database["public"]["Tables
  * listing of the location's own place on Maps: the write names the place, so a listing the public read linked to
  * another place, or one re-bound to another location while this sync ran, is not matched, and a location Google gives
  * no place (which the bind refuses, not_on_maps) writes and clears nothing. Each of those leaves the link as it is
- * (google_review_link_not_its_place: Google's read succeeded, so a lasting state, not an outage); so does a read that
+ * (google_review_link_not_its_place: Google's read succeeded, so not an outage); so does a read that
  * fails or answers another location (google_review_link_read_failed), and a write that fails
  * (google_review_link_write_failed). None fails the sync or reaches its `sync_error`. It runs last, after the bells and
  * the event, so its call to Google never holds them.

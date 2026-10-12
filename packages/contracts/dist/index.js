@@ -21097,7 +21097,7 @@ var PLAN_WORDS = {
   without: (channel, why) => `It goes without ${versionWord(channel)}: ${whyOf(why)}`,
   /** Why it goes without WhatsApp where the one message that carries it waits on WhatsApp's review (a send it holds). */
   reviewing: (name) => `WhatsApp is still reviewing the WhatsApp version of \u201C${name}\u201D.`,
-  /** That message, WhatsApp alone asked: no twin; email, where open, named (the message may have no email version). */
+  /** That message, WhatsApp the one channel it goes by: no twin; email named where open (never channels left out). */
   reviewRefused: (name, emailOpen) => `\u201C${name}\u201D, the one message here that carries an offer, waits on WhatsApp's review of its WhatsApp version, and WhatsApp is the one channel ${emailOpen ? "asked for" : "this offer may go by"}: say so, and ${emailOpen ? "that email can carry it now (name it), or " : ""}ask again once WhatsApp has reviewed it.`,
   noText: CHANNEL_WORDS.noOffersByText,
   noteMade: (until) => `Tells the receptionist about the offer, until ${until}.`,
@@ -21112,7 +21112,7 @@ var PLAN_WORDS = {
   paced: (room, audience) => `${roomWords(room, audience)}, so the offer goes as a campaign: up to ${capOf(room)} a day, each person once, until it ends, starting when you approve it.`,
   /** The same room for an offer that starts later: its send reaches the whole list, or is dismissed to pace it then. */
   roomTight: (room, audience, from) => `${roomWords(room, audience)}, and the send goes to the whole list at once: to pace the offer to the room instead, dismiss the send and ask again on ${from}.`,
-  /** A send WhatsApp's review holds (sendWaitsForReview), not approved yet: at its press, as its card says too. */
+  /** Its WhatsApp version unapproved, a send waits (sendWaitsForReview) at its press, whatever its day; its card says. */
   reviewFirst: "The send can be approved once WhatsApp has reviewed its WhatsApp version.",
   /** A paced campaign by email too: approved now, its WhatsApp people held until the version is approved. */
   whatsappReview: "Its WhatsApp version waits on WhatsApp's review, which may still be running at the first send: whoever it reaches on WhatsApp waits for it.",

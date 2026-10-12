@@ -162,7 +162,7 @@ export async function twinRefusal(
  * the business's clock) are judged first, at this route's clock.
  *
  * A card's start (x-via ask) meets twinRefusal again, 409 in the owner's words (contracts twinRunsWords). It refuses a
- * twin started since the card was made: under the name the card carries, or under any name where it carries none (a
+ * twin running since the card was made: under the name the card carries, or under any name where it carries none (a
  * starter's card, or a plan step's, that named nothing). So it also refuses a press after its key's day: one within it
  * is answered its first answer before this runs (route.ts onceForKey), but a plan's card can be approved for a week, its
  * key kept a day (0035), so a later press reaches here carrying what the first carried, and the campaign that first

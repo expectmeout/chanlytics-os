@@ -11,7 +11,8 @@
  * words say first what no card carries (the channels left out and why, a note left out or already held, the month's
  * offer to resume after, the room, WhatsApp's review of a paced campaign that also goes by email, the reminder last of
  * them), then what the cards show (WhatsApp's review of a send it holds, the message, the note made, the send's day and
- * hour), so the answer's detail, cut at its 700 characters, loses only what a card says. The dates are the business's: a start already past is refused by the same judge that refuses a campaign's past
+ * hour), so the answer's detail, cut at its 700 characters, loses only what a card says. The dates are the business's:
+ * a start already past is refused by the same judge that refuses a campaign's past
  * end (contracts localDate), and ten o'clock is wallClockAt's.
  *
  * Every step's input is the input of the Ask action it is expanded through (Task 17): each is parsed, strictly, by that
@@ -978,7 +979,7 @@ for (const row of ROWS) {
   });
 }
 
-test("what no card carries comes first, so the answer's detail, cut at its own 700 characters, keeps the reminder whole, and the review after it: the worlds the reviews of batch P measured past the cap", () => {
+test("what no card carries comes first, so the answer's detail, cut at its own 700 characters, keeps the reminder whole, and the review after it: the worlds measured past the cap (batch P's reviews and the final cleanup)", () => {
   const cap = C.ASK_ANSWER_CAPS.detail;
   const both = world({ playbooks: [monthsOffer()], room: { open: 15, days: 14 } });
   const worlds = [

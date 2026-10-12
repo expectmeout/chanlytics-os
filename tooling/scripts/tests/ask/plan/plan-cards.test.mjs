@@ -1043,7 +1043,7 @@ test("a US number, the month's offer running and a tight room for a later offer:
   assert.ok(detail.indexOf(REMINDS) < detail.indexOf(W.reuseMessage("this_months_offer")), detail);
 });
 
-test("an operator's offer with email not set up, a new WhatsApp message, the month's offer running and a tight later room: the detail keeps the note left out, WhatsApp's review and the reminder whole (fix round of batch P)", async () => {
+test("an operator's offer with email not set up, a new WhatsApp message, the month's offer running and a tight later room: the detail keeps what no card carries whole, the note left out, the room and the reminder (fix round of batch P)", async () => {
   const rows = () => tightRows({ mailboxes: [] });
   const op = await planTurn([PLAN_CALL], { role: "operator", ctx: ctxOf(rows(), "u2", TEN) });
   assert.equal(op.failed, false, JSON.stringify(op));
@@ -1056,7 +1056,7 @@ test("an operator's offer with email not set up, a new WhatsApp message, the mon
   assert.ok(words.length > C.ASK_ANSWER_CAPS.detail, `past the cap: ${words.length}`);
   const detail = op.answer.say.detail;
   assert.ok(detail.length <= C.ASK_ANSWER_CAPS.detail, `${detail.length}`);
-  for (const unseen of [W.noteLeftOut, ROOM_TIGHT, W.reviewFirst, REMINDS])
+  for (const unseen of [W.noteLeftOut, ROOM_TIGHT, REMINDS])
     assert.ok(detail.includes(unseen), `whole: ${unseen}\nin: ${detail}`);
 });
 
