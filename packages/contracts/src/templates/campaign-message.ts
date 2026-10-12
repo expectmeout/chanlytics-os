@@ -359,8 +359,8 @@ export const STARTER_LINE_WORDS = {
   written: "written for you",
 } as const;
 
-/** What a message about the person's own booking or proposal is called where a sentence names what is on file. */
-const THEIRS_WORDS = "a message about something they booked, or a proposal of theirs";
+/** What a message about the person's own booking or proposal is about, as a sentence after "a message" names it. */
+const THEIRS_WORDS = "about something they booked, or a proposal of theirs";
 
 /**
  * What the route that writes a message's first version (an email or a text, with no WhatsApp row) says when it refuses
@@ -378,8 +378,7 @@ export const MESSAGE_BEGIN_WORDS = {
    * written with a WhatsApp version for WhatsApp to review: never with an email or a text alone, which nobody reviews.
    * Its own sentence, since customIsAnOffer (POST templates/versions's) is not true of this door.
    */
-  utilityNeedsWhatsapp:
-    "A message about something they booked, or a proposal of theirs, needs a WhatsApp version, which WhatsApp reviews.",
+  utilityNeedsWhatsapp: `A message ${THEIRS_WORDS}, needs a WhatsApp version, which WhatsApp reviews.`,
   starterNeedsItsOwnWords:
     "A starter begins with its own words. Add the starter set, then change the words in the Library.",
   doorNotSwitchedOn: "Writing a message with no WhatsApp version is not switched on here yet.",
@@ -389,7 +388,7 @@ export const MESSAGE_BEGIN_WORDS = {
    * judges it by (consent purposeOfTemplate: a row with no category is an offer), so `purpose` is the held one's.
    */
   heldOtherwise: (purpose: AskedPurpose, slots: number) =>
-    `This message is on file in another language as ${purpose === "marketing" ? "an offer or news" : THEIRS_WORDS} with ${slots} value${slots === 1 ? "" : "s"}. Write this language the same way, or give it another name.`,
+    `This message is on file in another language as ${purpose === "marketing" ? "an offer or news" : `a message ${THEIRS_WORDS}`} with ${slots} value${slots === 1 ? "" : "s"}. Write this language the same way, or give it another name.`,
   /**
    * A name on file in another language as a code for signing in (Meta's `authentication`): no campaign sends one, so no
    * kind of message is written beside it, and "write it the same way" would be no way out.
