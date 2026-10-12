@@ -182,6 +182,7 @@ export {
   heardTooWords,
   allLeftOutWords,
   breathWaitWords,
+  BREATH_WHY,
   HEARD_UNREAD_WORDS,
   goesToOf,
   HELD_REASONS,

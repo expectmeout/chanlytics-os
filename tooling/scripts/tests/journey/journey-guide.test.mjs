@@ -1,10 +1,11 @@
 /**
- * The journey's guide (spec 2026-10-10 §5.1, Ask the marketing manager, task 4): what a business of any trade sends at
- * each touch point of the journey it can run, as Ask reads it beside the stages (campaigns.journey). One guide, keyed by
- * the calendar and by deals, never by a trade: its stages are the journey's own (journeyOf), each on the moment that runs
- * it here, and the month's offer, which stands on no stage, after them. Executed over contracts' own function; every
- * sentence is held to the words trade-neutral.test.mjs bans, copied here, since that test's scan reads no value a
- * function returns.
+ * The journey's guide (spec 2026-10-10 §5.1, Ask the marketing manager, task 4): what each touch point of the journey a
+ * workspace can run sends, and when, as Ask reads it beside the stages (campaigns.journey). One guide, keyed by the
+ * calendar and by deals, never by a trade: its stages are the journey's own (journeyOf), each on the moment that runs it
+ * here and said when its moment says it is, and the month's offer, which stands on no stage, after them. It states what
+ * the product does and nothing it cannot vouch for (12 Oct 2026, the review after the merge): no "why". Executed over
+ * contracts' own function; every sentence is held to the words trade-neutral.test.mjs bans, copied here, since that
+ * test's scan reads no value a function returns.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -34,10 +35,34 @@ test("with a calendar, five rows in the journey's order, the day before and the 
   ]);
   const guide = C.journeyGuide(SHAPES[1]);
   const said = (stage) => guide.find((r) => r.stage === stage).sends;
-  assert.equal(said("before"), "the day before an appointment, a reminder");
-  assert.equal(said("after"), "the day after an appointment, a thank-you and a review ask");
-  assert.equal(said("quiet"), "quiet six weeks or more, a win-back");
+  assert.equal(
+    said("first_contact"),
+    "your receptionist's answers, which ask once on WhatsApp for the yes to offers, the yes every offer needs",
+    "the receptionist asks once, on WhatsApp alone (contracts offers-ask.ts), never in a first reply of its own",
+  );
+  assert.equal(said("before"), "the day before an appointment on the calendar: a reminder");
+  assert.equal(
+    said("after"),
+    "the day after an appointment, when nothing is booked next: a thank-you and how it went, with a review ask where your Google listing keeps a review link",
+  );
   assert.equal(guide.at(-1).sends, "every month, one offer to those who said yes");
+  // What goes out, never a why: the outcomes the guide once promised are no fact the product keeps.
+  assert.deepEqual(
+    guide.map((r) => Object.keys(r)),
+    guide.map(() => ["stage", "moment", "sends"]),
+  );
+});
+
+test("the win-back's row says when it goes in its own moment's words, by silence without a calendar and by appointments with one, never a count of weeks of its own", () => {
+  for (const shape of SHAPES) {
+    const row = C.journeyGuide(shape).find((r) => r.stage === "quiet");
+    const when = C.triggerWords(C.triggerOf(row.moment), shape.word).hint.toLowerCase();
+    assert.equal(row.sends, `${when}: a win-back`, JSON.stringify(shape));
+    assert.ok(!/weeks/.test(row.sends), `${row.sends}: the moment's days, never weeks`);
+  }
+  // Both win-backs are said, each by the moment that runs it: the hints differ, so the rows do.
+  const [none, cal] = [SHAPES[0], SHAPES[1]].map((s) => C.journeyGuide(s).find((r) => r.stage === "quiet").sends);
+  assert.notEqual(none, cal);
 });
 
 test("without a calendar, no row for the day before or the day after, and the win-back goes by silence", () => {
@@ -89,8 +114,8 @@ test("every row's moment is a trigger a campaign starts from, offered here, and 
 });
 
 test("every sentence the guide says is any trade's: none of trade-neutral's banned words, and an appointment, never a visit", () => {
-  const said = SHAPES.flatMap((shape) => C.journeyGuide(shape).flatMap((r) => [r.sends, r.why]));
-  assert.ok(said.length >= 2 * 3 * SHAPES.length, "every row says what it sends and why");
+  const said = SHAPES.flatMap((shape) => C.journeyGuide(shape).map((r) => r.sends));
+  assert.ok(said.length >= 3 * SHAPES.length, "every row says what it sends");
   for (const s of said) {
     assert.ok(s.trim().length > 0, "a sentence");
     assert.equal(BANNED.exec(s), null, `a trade's word: ${s}`);
@@ -100,23 +125,24 @@ test("every sentence the guide says is any trade's: none of trade-neutral's bann
   assert.ok(BANNED.test("a reminder from the salon") && VISIT.test("the day before a visit"));
 });
 
-test("the guide says the workspace's own word for an appointment, and the day after names the review ask, which the review starter sends", () => {
+test("the guide says the workspace's own word for an appointment, and the day after names the review ask only where the listing keeps a review link, which the review starter takes", () => {
   const guide = C.journeyGuide({ calendarOn: true, dealsOn: true, word: "meeting" });
   const row = (stage) => guide.find((r) => r.stage === stage);
-  assert.equal(row("before").sends, "the day before a meeting, a reminder");
+  assert.equal(row("before").sends, "the day before a meeting on the calendar: a reminder");
   assert.equal(
-    row("before").why,
-    "a reminder keeps a meeting from being missed, and a change comes early enough to fill the time",
+    row("after").sends,
+    "the day after a meeting, when nothing is booked next: a thank-you and how it went, with a review ask where your Google listing keeps a review link",
   );
-  assert.equal(row("after").sends, "the day after a meeting, a thank-you and a review ask");
-  assert.equal(
-    row("after").why,
-    "the day after is when a customer most often leaves a review and books the next meeting",
-  );
+  // Each moment's row says when in its moment's own words (contracts triggerWords), the workspace's word among them.
+  for (const r of guide.filter((x) => x.stage !== null && x.moment !== null)) {
+    const when = C.triggerWords(C.triggerOf(r.moment), "meeting").hint.toLowerCase();
+    assert.ok(r.sends.startsWith(`${when}: `), `${r.stage}: ${r.sends}`);
+  }
   // Every sentence of a workspace that says meeting says it, and never the appointment it does not say.
-  const said = guide.flatMap((r) => [r.sends, r.why]).join(" ");
+  const said = guide.map((r) => r.sends).join(" ");
   assert.ok(!/\bappointments?\b/.test(said), said);
-  // The after row's moment sends the review ask: a starter written for it takes the review link.
+  // Where the listing keeps a review link, the after row's moment sends the review ask: a starter written for it takes
+  // the link (Ask's plan and its campaign card propose it only there; elsewhere the check that asks how it went).
   assert.ok(
     C.startersForTrigger(row("after").moment).some((s) =>
       C.starterText(s, "en_US").slots.some((x) => x.kind === "review_link"),

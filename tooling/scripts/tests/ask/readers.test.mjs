@@ -19,6 +19,7 @@ import {
   journeyGuide,
   newReceptionistDefaults,
   numberHealthOfConfig,
+  PLAYBOOK_CARD_WORDS,
   peopleNowOf,
   personName,
   reportFacts,
@@ -6289,16 +6290,75 @@ test("campaigns.journey says the journey as Campaigns' home draws it: 2 of 4 mom
     assert.deepEqual(said.guide, journeyGuide({ calendarOn: true, dealsOn: false, word: "appointment" }));
     assert.equal(
       said.guide.find((r) => r.stage === "after").sends,
-      "the day after an appointment, a thank-you and a review ask",
+      "the day after an appointment, when nothing is booked next: a thank-you and how it went, with a review ask where your Google listing keeps a review link",
     );
     const before = said.guide.find((r) => r.stage === "before");
     assert.deepEqual(
       [Object.keys(before), before.moment, before.sends],
-      [["stage", "moment", "sends", "why"], "visit_tomorrow", "the day before an appointment, a reminder"],
-      "the day before's row: its moment, what it sends and why",
+      [["stage", "moment", "sends"], "visit_tomorrow", "the day before an appointment on the calendar: a reminder"],
+      "the day before's row: its moment, and what it sends when",
+    );
+    // The win-back here goes by appointments, so its row says its moment's own days, never weeks of its own.
+    assert.equal(
+      said.guide.find((r) => r.stage === "quiet").sends,
+      "no appointment in 45 days, and nothing booked: a win-back",
     );
     assert.deepEqual([...tc.read.playbook.keys()], [PB1], "the campaign it names, a row a citation names");
   });
+});
+
+/**
+ * 12 Oct 2026 (Ask, the marketing manager, the review after the merge): campaigns.playbooks says a campaign's end and its
+ * trial as its card on Campaigns does, through the page's one reading of GET playbooks' answer (contracts
+ * lifecyclePlaybooksOf). A campaign past its last day still reads running and runs nothing, so it has no next run and
+ * says why; one on trial under a class that sends on its own runs under veto until its trial ends; a last day ahead is
+ * said. Harbor here, on a frozen clock, Thursday 3 December 2026 at nine in the morning in New York, its campaigns' class
+ * on auto; the month's offer three times: ended on 30 November, on trial until 8 December and ending on the 31st, and one
+ * whose trial ended in November.
+ */
+const LIFE_NOW = new Date("2026-12-03T14:00:00.000Z");
+test("campaigns.playbooks says a campaign's end and its trial as its card does: one past its last day, still running, has no next run and says it ended; one on trial under auto runs under veto until the day its trial ends, and says its last day ahead; one whose trial is over runs under its class's mode", async () => {
+  const PB3 = "99999999-9999-4999-8999-999999999993";
+  const monthly = { trigger: "everyone_monthly", policy_class: "campaign", cadence_days: 30, gap_days: 0 };
+  const w = countsWorld(pagedPeople([]), {
+    policies: [{ tenant_id: A, class: "campaign", mode: "auto", subject_type: null, subject_id: null }],
+    playbooks: [
+      pbRow(PB1, { ...monthly, name: "November offer", until: "2026-11-30", trial_until: null }),
+      pbRow(PB2, { ...monthly, name: "Winter offer", until: "2026-12-31", trial_until: "2026-12-08T14:00:00.000Z" }),
+      pbRow(PB3, { ...monthly, name: "Always on", until: null, trial_until: "2026-11-20T14:00:00.000Z" }),
+    ],
+  });
+  const tc = newToolContext(worldCtx(w), A, "owner", "America/New_York", LIFE_NOW);
+  const out = await runTool(tc, { name: "campaigns", input: { action: "playbooks" } });
+  assert.equal(out.isError, false, out.result);
+  const said = JSON.parse(out.result);
+  assert.equal(said.modes.campaign, "auto", "the class sends on its own");
+  const by = Object.fromEntries(said.playbooks.map((p) => [p.name, p]));
+  const facts = (p) => [p.state, p.mode, p.next_run, p.runs_nothing, p.ended, p.on_trial_until, p.ends];
+  assert.deepEqual(
+    facts(by["November offer"]),
+    ["running", "auto", null, "Ended Nov 30", "Nov 30", undefined, undefined],
+    "REGRESSION: it said its next run was today at 10, a month after its last day",
+  );
+  assert.deepEqual(
+    facts(by["Winter offer"]),
+    ["running", "veto", "today 10:00 AM", undefined, undefined, "Dec 8", "Dec 31"],
+    "REGRESSION: it said a run sends on its own, where each waits half an hour with a Stop",
+  );
+  assert.deepEqual(facts(by["Always on"]), [
+    "running",
+    "auto",
+    "today 10:00 AM",
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+  ]);
+  // The note says the run's breath in the contracts' words, and the appointment moments it does not hold.
+  assert.ok(
+    said.note.includes(PLAYBOOK_CARD_WORDS.appointmentBreath) && !said.note.includes("per person per week"),
+    said.note,
+  );
 });
 
 /**

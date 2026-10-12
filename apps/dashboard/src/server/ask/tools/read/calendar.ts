@@ -93,7 +93,7 @@ async function getCalendar(t: ToolContext, input: { day: string; days?: number }
 export const calendarTool = defineActions({
   name: "calendar",
   description: "The owner's calendar as the receptionist reads it.",
-  tail: "Call action week for what a day looks like or who is booked when, and action openings for when there is room or what is free on a day, the free slots alone, sized to a service. Openings need a connected calendar feed, said in the workspace's facts above. Taken is the owner's own calendar and open is what the receptionist would offer; nothing is booked from here, since customers book through the booking link, or with the team where there is none.",
+  tail: "Call action week for what a day looks like or who is booked when, action openings for when there is room or what is free on a day, the free slots alone, sized to a service, and action room for how full the book is over the next fourteen days, to pace an offer. Openings need a connected calendar feed, said in the workspace's facts above. Taken is the owner's own calendar and open is what the receptionist would offer; nothing is booked from here, since customers book through the booking link, or with the team where there is none.",
   actions: {
     week: readAction({
       input: z.object({ day: z.string(), days: z.number().optional() }),

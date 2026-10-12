@@ -976,12 +976,26 @@ function withTheBreathsWords(frozen) {
 }
 
 /**
+ * 12 Oct 2026 (Ask as the marketing manager, the review after the merge): the run's breath is a week either side of it,
+ * a message sent or due, never one playbook message a week, and the appointment moments are exempt from it, so
+ * campaigns.playbooks' note says both in the contracts' words (BREATH_WHY, PLAYBOOK_CARD_WORDS.appointmentBreath), in
+ * this workspace's word (it sells by proposal: a meeting). The one sentence, once; this world lists no playbook, so the
+ * fields that say a campaign's end and its trial are not in these bytes.
+ */
+function withTheRunsBreath(frozen) {
+  return frozen.replace(
+    "and sends one playbook message per person per week.",
+    "and holds whoever hears from you within a week of it, by a message already sent or one due, for a later run; a reminder the day before a meeting and a check the day after go one per meeting and are exempt from one a week per person: each goes whatever else they hear from you within a week of it.",
+  );
+}
+
+/**
  * 9 Oct 2026 (the moment spec, A6, D35): campaigns.playbooks says each playbook's last 30 days (last_30_days, from
  * campaign_series' sources; null where that read fails, as in this world, which models no campaign_series) in the place
  * of its all-time runs, sent and replied, and its route is Campaigns' own word. Nothing else moved.
  */
 function withLastThirtyDays(frozen) {
-  const said = JSON.parse(withTheBreathsWords(frozen));
+  const said = JSON.parse(withTheRunsBreath(withTheBreathsWords(frozen)));
   if (!Array.isArray(said.playbooks)) return frozen;
   const playbooks = said.playbooks.map((p) =>
     Object.fromEntries(

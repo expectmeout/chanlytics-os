@@ -29559,45 +29559,29 @@ function sendingDomainsFootWords(count2, max) {
 }
 
 // src/journey/journey-guide.ts
-function guideStageWords(W) {
-  return {
-    first_contact: {
-      sends: "the first reply, from your receptionist, which asks for the yes to offers",
-      why: "a first message answered at once is the one most likely to book, and every offer later needs that yes"
-    },
-    before: {
-      sends: `the day before ${W.a}, a reminder`,
-      why: `a reminder keeps ${W.a} from being missed, and a change comes early enough to fill the time`
-    },
-    after: {
-      sends: `the day after ${W.a}, a thank-you and a review ask`,
-      why: `the day after is when a customer most often leaves a review and books the next ${W.one}`
-    },
-    proposal: {
-      sends: "a proposal waiting with nothing back, one follow-up with its link",
-      why: "a proposal left unanswered is often only waiting for a nudge, and its link makes the answer one tap"
-    },
-    quiet: {
-      sends: "quiet six weeks or more, a win-back",
-      why: "a customer who has gone quiet is easier to bring back with one message than a new one is to find"
-    }
-  };
-}
+var STAGE_SENDS = {
+  first_contact: "your receptionist's answers, which ask once on WhatsApp for the yes to offers, the yes every offer needs",
+  before: "a reminder",
+  after: "a thank-you and how it went, with a review ask where your Google listing keeps a review link",
+  proposal: "one follow-up with its link",
+  quiet: "a win-back"
+};
 var MONTHS_OFFER = {
   stage: null,
   moment: "everyone_monthly",
-  sends: "every month, one offer to those who said yes",
-  why: "one offer a month keeps the business in mind without wearing out the yes, and it reaches only those who gave it"
+  sends: "every month, one offer to those who said yes"
 };
 function journeyGuide(input) {
-  const words3 = guideStageWords(appointmentWords(input.word));
   const stages = journeyOf({ ...input, held: /* @__PURE__ */ new Set() }).filter((s) => s.unmet === null);
   return [
-    ...stages.map((s) => ({
-      stage: s.id,
-      moment: s.trigger === null ? null : triggerOf(s.trigger)?.id ?? null,
-      ...words3[s.id]
-    })),
+    ...stages.map((s) => {
+      const t = s.trigger === null ? void 0 : triggerOf(s.trigger);
+      return {
+        stage: s.id,
+        moment: t?.id ?? null,
+        sends: t ? `${triggerWords(t, input.word).hint.toLowerCase()}: ${STAGE_SENDS[s.id]}` : STAGE_SENDS[s.id]
+      };
+    }),
     { ...MONTHS_OFFER }
   ];
 }
@@ -47220,6 +47204,7 @@ export {
   BRAIN_INTENTS,
   BRAIN_LANGUAGES,
   BRAIN_OUTPUT_JSON_SCHEMA,
+  BREATH_WHY,
   BROADCAST_CHUNK,
   BROADCAST_FAILURES,
   BROADCAST_FAILURE_FIX,

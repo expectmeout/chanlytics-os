@@ -187,6 +187,23 @@ const BREATH_TAIL_WORDS = [
   "or heard from a broadcast this week: say so the same way.",
   "or hear from you within a week of today: say so the same way.",
 ];
+/**
+ * 12 Oct 2026 (Ask as the marketing manager, the review after the merge): each playbook says a next run only where it
+ * runs, why it runs nothing, the day an ended one ended and the last day ahead of one, and the mode its runs go under
+ * now, veto while on trial, where it said the mode its class runs under. The one phrase, once.
+ */
+const PLAYBOOK_END_TRIAL_WORDS = [
+  "its clock and next run, whether it is running, the autonomy mode its class runs under,",
+  "its clock and next run (next_run, null where it runs nothing here: runs_nothing says why, and ended the day one ended, its state still running), its last day ahead (ends), whether it is running, the mode its runs go under now (mode: its class's, but veto while on trial until on_trial_until),",
+];
+/**
+ * 12 Oct 2026 (the same review): how full the book is is action room's to say, so the calendar's tail sends a question
+ * of room for an offer there, beside openings. The one phrase, once.
+ */
+const ROOM_TAIL_WORDS = [
+  "who is booked when, and action openings for when there is room or what is free on a day, the free slots alone, sized to a service.",
+  "who is booked when, action openings for when there is room or what is free on a day, the free slots alone, sized to a service, and action room for how full the book is over the next fourteen days, to pace an offer.",
+];
 /** 9 Oct 2026 (the moment spec, A6, D35): each playbook says its last 30 days, where it said what its runs earned. */
 const PLAYBOOK_RESULTS_WORDS = [
   "its list when it runs on one, what its runs earned,",
@@ -557,10 +574,12 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
         .replace(...PLAYBOOK_CHANNELS_WORDS)
         .replace(...PLAYBOOK_RESULTS_WORDS)
         .replace(...BROADCAST_BY_WORDS)
-        .replace(...BREATH_TAIL_WORDS),
+        .replace(...BREATH_TAIL_WORDS)
+        .replace(...PLAYBOOK_END_TRIAL_WORDS),
     );
-    // calendar (10 Oct 2026): the room in the book (LANE_ACTIONS), and nothing else it says moved.
-    laneAdded(role, "calendar", was(role, "calendar").description);
+    // calendar (10 Oct 2026): the room in the book (LANE_ACTIONS), which its tail names (12 Oct 2026), and nothing else it
+    // says moved.
+    laneAdded(role, "calendar", was(role, "calendar").description.replace(...ROOM_TAIL_WORDS));
   }
   for (const role of ["operator", "partner", "owner"]) {
     // propose_thread_verb: the sentence that sent every role to an owner's action now says whose it is, which is true for
