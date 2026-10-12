@@ -6,12 +6,13 @@ block lists seven amendments that win over §5.4 and §5.8 where they differ: a 
 `plan` card kind, no `POST campaigns/plan`), `propose_plan` is the action `propose_campaign.plan` (the registry holds
 every role to twenty tools), the lapse is read from the card's stamp, the review ask is a second starter, the
 `change_playbook` door is replaced for its three new keys, a written message is filed through `POST templates/message`,
-and a tool call may return several cards. Nothing built yet. Written against `origin/main` at `ef0aea36a`
-(#1537), read by three read-only explorations on that commit (Ask's tool layer; campaigns, messages and moments; the
-receptionist's knowledge, lists, calendar and doors) and checked by hand where this document names a line; the code wins
-where they disagree. Branch `ask/the-marketing-manager`, worktree `cm-ask-manager` (source only, no install yet). To be
-built end to end on the local branch, by one Sonnet implementer per part with one combined review round each, and pushed
-as one pull request labelled `suite` after Ruben's review (his 9 October rule for the moment lane).
+and a tool call may return several cards. Built on its lane by 12 October 2026 (§13, As built; decision 0055).
+Written against `origin/main` at `ef0aea36a` (#1537), read by three read-only explorations on that commit (Ask's tool
+layer; campaigns, messages and moments; the receptionist's knowledge, lists, calendar and doors) and checked by hand
+where this document names a line; the code wins where they disagree. Branch `ask/the-marketing-manager`, worktree
+`cm-ask-manager` (source only, no install yet). To be built end to end on the local branch, by one Sonnet implementer
+per part with one combined review round each, and pushed as one pull request labelled `suite` after Ruben's review (his
+9 October rule for the moment lane).
 
 Asked by Ruben on 10 October 2026 in three messages: that Ask should think like the owner's marketing manager; that it
 should know every offer and campaign, recommend and write new messages for WhatsApp, email and text, turn "I want to offer
@@ -144,7 +145,7 @@ keys `tools_any`, `tools_order`, `proposals_any`, `proposals_max`, `card_fields_
 | D1 | Ask may write a new message, a version per channel, shown whole on the card | **Yes** | decision 30 of the 9 Oct spec ("starters only") |
 | D2 | Ask may propose the appointment moments (`visit_tomorrow`, `visited`) where a calendar is connected | **Yes**; core's `checkPlaybook` already refuses them without one | decision 24 ("forms for reminders") and the setup rule's "never a reminder" |
 | D3 | `propose_plan` now, for an offer and for "set up my campaigns" | **Yes** for both. The plan *card* appears only where a plan has silent steps (a message, a list, a note, a change): an offer has them, a setup of campaigns usually has none and comes out as one campaign card per stage. Decision 28's "only if owners stall" was written before an offer needed dependent steps | decision 28 (narrowed, not reversed) |
-| D4 | While an offer runs, may the receptionist confirm its discount? | **No change**: the note states the offer; a reply naming the discount stays held under the price rule; a per-offer switch is a later lane | nothing |
+| D4 | While an offer runs, may the receptionist confirm its discount? | **No change**: the note states the offer; a reply naming the discount stays held under the price rule; a per-offer switch is a later lane. Restated under decision 0051 in §13 | nothing |
 | D5 | A new campaign Ask proposes runs on trial: for its first seven days `auto` behaves as `veto` | **Yes**, per campaign (`trial_until`), never by changing the class's mode | nothing |
 | D6 | An API, webhooks or an MCP server as the medium | **No**; they are lane 7 of the 9 Oct plan (web chat, then keys and webhooks, then MCP). The registry stays the one place every capability is defined, so an MCP server later wraps it and a proposal over MCP is still a card approved in Chanlytics | nothing |
 | D7 | New list fields (visit count, service, language) | **Not here**: they need the person read to carry visits and services, which is lane 6 (server-side lists). "Regulars" waits | nothing |
@@ -301,8 +302,9 @@ A broadcast's recipients who heard from a campaign or a broadcast this week are 
 skipped with reason `heard_this_week`, through the recipient door) unless the send carries `breathe: false`;
 `create-broadcast.ts`'s audience step reads the touches it already counts (`broadcast-audience.ts:262-274`,
 `db/repositories/touches.ts`). The composer keeps its sentence and gains a switch "Also send to the N who heard this
-week", off by default; Ask's `broadcast` card says "N left out: heard from you this week" and never sets `breathe: false`. If
-`broadcast_recipients`' reasons are a closed set in SQL, the migration widens it; `gen:schema-sets` follows.
+week", off by default; Ask's `broadcast` card says "N left out: they hear from you within a week of it" and never sets
+`breathe: false`. If `broadcast_recipients`' reasons are a closed set in SQL, the migration widens it; `gen:schema-sets`
+follows.
 
 ### 5.7 The prompt and the offer (`srv/ask/prompt.ts`, `offer.ts`)
 
@@ -329,9 +331,10 @@ review"). The kit's classes only; the route's JS growth is argued in the pull re
 ### 5.9 A salon with a calendar and nothing running, through this spec
 
 On "set up my campaigns": the journey read says First contact covered (the receptionist), the day before and after
-uncovered (calendar connected), Quiet uncovered; the plan proposes three campaigns (reminder, after-appointment with the
-review line, win-back by appointments) on trial for a week, as three campaign cards and no plan card (no silent
-step, D3), three presses that each send; Ask's prose recommends the month's offer and a partner search next (`do.next`), each its own question.
+uncovered (calendar connected), Quiet uncovered; the plan proposes three campaigns (reminder, after-appointment with a
+review ask where the listing keeps a review link, win-back by appointments) on trial for a week, as three campaign
+cards and no plan card (no silent step, D3), three presses that each send; Ask's prose recommends the month's offer
+and a partner search next (`do.next`), each its own question.
 On "10% off colour in November": §5.4's six steps. What this spec does not give her: a "Regulars" list (D7), a new
 greeting (D8), a Monday note (D9), dollars earned (no booking is linked to a message; the `campaigns` read says
 `last_30_days: { sent, replied }`, and that is what the card and the answer say).
@@ -350,8 +353,9 @@ ledger, rail and address; nothing to Expo; no new dependency.
 Each part is its own commit group on `ask/the-marketing-manager`, built by one Sonnet implementer with one combined
 review round, gates green on the files it touches (`node tooling/scripts/checks/test.mjs <file>` per file; never the
 whole suite locally), then the next. Nothing is pushed until Ruben has reviewed the branch; the pull request is labelled
-`suite`. Migrations are numbered from **00408** (00392 and 00393 are claimed by the evidence lane in `cm-glass`, not yet
-merged) and renumbered at the pull request if taken (`docs/debt.md`'s rule; two files on one number fail the build).
+`suite`. Migrations are numbered after main's 00414 (main took 00392-00414 while the lane was open): **00415** and
+**00416**, provisional, and renumbered at the pull request if taken (`docs/debt.md`'s rule; two files on one number
+fail the build).
 
 | Part | What lands | Doors it needs |
 |---|---|---|
@@ -360,12 +364,14 @@ merged) and renumbered at the pull request if taken (`docs/debt.md`'s rule; two 
 | **P2 Words** | `propose_campaign.message` and card `message` (§5.2); `change` gains `params`; `@review_link` + `google_listings.new_review_uri` + the after-appointment line (§5.5); `PROPOSABLE_TRIGGERS` widened (§5.3); prompt lines | migration A (`new_review_uri`), `POST templates/versions` and `POST templates` rows in `route-policy.json` if their input changes, `docs/api.md`, the typed client |
 | **P3 Dates** | Note `until` + `notesSection`; `playbooks.until` and `trial_until` + `run-playbook.ts` + ledger words + `change` fields; the breath holds a broadcast (§5.6) | migration B (`playbooks.until`, `playbooks.trial_until`, the recipients' reason), `gen:db-types`, `gen:schema-sets`, `gen:schema-snapshot`, `gen:data-model` |
 | **P4 The plan** | `ct/ask/plan.ts` (`planOf` + its table of worlds), `act/plan.ts`, card spec `ct/ask-proposals/plan.ts`, `AskProposal.after`, `lapseMs`, `POST campaigns/plan`, the commit's `@step` resolution, the card on screen (§5.4, §5.8), prompt lines (§5.7) | `route-policy.json` row, `docs/api.md`, the typed client, `ask-registry`/`ask-specs` fixtures, `ADDED_SINCE` |
-| **P5 Proof** | The §8 evals run by Ruben on the default model (they spend the receptionist's key); the real-app pass (dev server, the plan card at 1440 and on a phone, screenshots in the pull request); e2e; `docs/decisions/0043-a-plan-is-steps-the-server-expands.md`; the spec's "As built" section | his key, a workspace with a calendar and a WhatsApp number for the Meta path (never production's customers: the e2e workspace) |
+| **P5 Proof** | The §8 evals run by Ruben on the default model (they spend the receptionist's key); the real-app pass (dev server, the plan card at 1440 and on a phone, screenshots in the pull request); e2e; `docs/decisions/0055-a-plan-is-steps-the-server-expands.md` (0043 was taken); the spec's "As built" section | his key, a workspace with a calendar and a WhatsApp number for the Meta path (never production's customers: the e2e workspace) |
 
-Either deploy order works for every part: the dashboard derives everything from columns that are null until written, the
-edge reads `until` on a note as an optional field, and a run reads `trial_until`/`until` as null where the migration has
-not landed (the dashboard's writes to them fail loudly, not silently, until it has: the pull request says "apply B before
-the dashboard").
+The deploy order is not either, as built (corrected 12 October 2026; §13.2): 00416 (migration B) is applied before the
+dashboard deploys, since its change-in-place PUTs read both columns and fail without them; 00415 (migration A) before
+the edge, which writes the review link; dry run first, by hand. The edge deploys about three minutes after the
+dashboard, and only the edge keeps a campaign's trial and its last day, so until the edge's `/api/version` names the
+merge no card that starts a campaign on trial or gives one a last day is approved. A note's `until` alone is either
+order: an older edge drops it and tells the note as before.
 
 ## 8. Tests
 
@@ -400,7 +406,8 @@ the dashboard").
 - **E2e** (`e2e/ask/plan.spec.ts`, the e2e workspace, which owns its data): ask for an offer, see the plan card and two
   held sends, approve the plan (email-only versions so nothing reaches Meta), see the message in the Library and the note
   in Settings, and refuse every send route as `refuseAnswers` refuses lead answers (asserted 0 sends). The real-app pass
-  of P5 is screenshots, not a spec.
+  of P5 is screenshots, not a spec. As built, the e2e is one case in `e2e/ask.spec.ts`, since the suite's workspace
+  cannot carry an offer (§13.2).
 
 ## 9. Risks
 
@@ -416,9 +423,9 @@ the dashboard").
   Meta, by design; the receipt is honest.
 - **The appointment moments from Ask (D2)** reach customers around real appointments; `checkPlaybook`'s calendar
   requirement and the trial (D5) bound the blast radius; the breath exemption is said on the card.
-- **Collisions.** Migration numbers (00408+, renumbered at the PR); `ask-turn.jsx` and `prompt.ts` move daily (fetch and
-  rebase before the pull request; `?v=` bumps one above main's); the evidence lane's `cm-glass` branch touches
-  `srv/log.ts` and will merge first.
+- **Collisions.** Migration numbers (00415 and 00416, numbered after main's 00414, renumbered at the PR);
+  `ask-turn.jsx` and `prompt.ts` move daily (fetch and rebase before the pull request; `?v=` bumps one above main's);
+  the evidence lane's `cm-glass` branch touches `srv/log.ts` and will merge first.
 - **Disk.** `C:` had 2.9 GB free on 10 October, then 20 GB after Ruben cleared space the same day: enough for the
   install, a dashboard build and this worktree's `.next`. The cache is removed when the lane merges
   (`feedback_fewer_worktrees`).
@@ -430,7 +437,9 @@ the dashboard").
 New: `ct/ask/plan.ts`, `ct/ask-proposals/plan.ts`, `ct/journey/journey-guide.ts`, `act/plan.ts`,
 `apps/dashboard/app/api/v1/campaigns/plan/route.ts`, `srv/campaigns/apply-plan.ts`, `mig/00415_a_listing_keeps_its_review_link.sql`,
 `mig/00416_a_campaign_ends_and_runs_on_trial.sql`, `tooling/scripts/tests/ask/plan-of.test.mjs`,
-`e2e/ask/plan.spec.ts`, `docs/decisions/0043-a-plan-is-steps-the-server-expands.md`.
+`e2e/ask/plan.spec.ts`, `docs/decisions/0043-a-plan-is-steps-the-server-expands.md`. As built (§13): no
+`campaigns/plan` route, no `apply-plan.ts` and no `ct/ask-proposals/plan.ts` (a plan is ordinary cards; its token rules
+are `ct/ask/plan-steps.ts`); the e2e is a block in `e2e/ask.spec.ts`; the note is 0055, 0043 being taken.
 
 Changed: `read/campaigns.ts` (two actions), `read/calendar.ts` (`room`), `srv/readers/templates.ts` (the whole library),
 `act/campaign.ts` (+ `message`), `act/playbook.ts` (`PROPOSABLE_TRIGGERS`, `trial_until`), `act/playbook-change.ts`
@@ -468,3 +477,106 @@ Changed: `read/campaigns.ts` (two actions), `read/calendar.ts` (`room`), `srv/re
 7. The appointment moments are proposable where a calendar is connected, on trial.
 8. No new page: the plan shows as a card and its records show where they already do.
 9. Tool search, programmatic calling, a higher effort and an MCP server are measured-for, not built.
+
+## 13. As built (12 October 2026)
+
+Read at `5e178d62c` on the branch: the lane, with main's `425d8a52d` merged in. Nothing of it is on main or production
+yet. Decision 0055 (`docs/decisions/0055-a-plan-is-steps-the-server-expands.md`) records each call below with the line
+that proves it.
+
+### 13.1 What changed from this spec
+
+The plan's seven amendments, then the rulings made while building:
+
+1. **A plan is the group of ordinary cards its steps make**, each stamped `plan: { id, step, of, silent, after }`: no
+   `plan` card kind, no `POST campaigns/plan`, no `apply-plan.ts`. Its silent steps are committed in order by
+   `commitPlan` (`apps/dashboard/src/legacy-bridge/ask/commit.ts`), each through its own route under the key
+   `plan:<id>:<n>`, and a send unlocks when the steps it names are done. Undo stays per card.
+2. **`propose_plan` is the action `propose_campaign.plan`**, so every role keeps twenty tools.
+3. **No `lapseMs`:** `askCardLapsed` gives a stamped card a week and any other a day.
+4. **The review ask is a second starter**, `after_visit_review` (utility, on the day after an appointment), offered only
+   where the Google listing keeps a review link; How did it go keeps its words.
+5. **00416 replaces two doors:** `change_playbook` takes `params`, `until` and `trial_until`, and `start_playbook`
+   writes `until` and `trial_until`.
+6. **A written message is filed by one door,** `POST templates/message`.
+7. **A tool call may return several cards.**
+8. **The reminder is a sentence, not a second send.** A send enrols its people at its Approve, so who has not booked is
+   known only on the day: the plan's words say when to ask for it (nineteen days in, or the offer's last day), where a
+   calendar can say who booked. §5.4's list step went with it; no plan makes a list.
+9. **The month's offer is always paused while an offer runs**, from the plan's Approve, and resumed by hand: §5.4's
+   "until `until` + 1" had nothing to resume it, since `until` became a campaign's last day. No plan changes its slot
+   text.
+10. **A plan paces only an offer that starts today,** capped at the open slots a day, rounded up (`ceil(open / days)`,
+    never `open`), ending with the offer. A later offer keeps its broadcast to the whole list, and its words say to
+    dismiss the send and ask again on its first day to pace it.
+11. **An operator's plan has no note,** and its words say the receptionist is not told until an owner or a partner adds
+    one.
+12. **A new campaign's trial starts at its Approve, and only under an auto class:** the card carries `trial: true` and
+    `POST playbooks` counts the week at its own clock. Under ask, veto or never no trial is set. Each run of that week
+    waits 30 minutes with a Stop, as veto's does.
+13. **The week's breath is two-sided:** a message sent or due within a week of a send, before or after, leaves that
+    person out (contracts `heardWithin`), on a one-off send, Ask's cards, the composer and a moment's run alike. Before
+    a send: "N left out: they hear from you within a week of it".
+14. **D3 as built:** a setup with no silent step is plain cards with a day's lapse, never stamped as a plan.
+15. **A plan's words are its answer's detail,** what no card carries first, cut at the answer's 700 characters. They are
+    English, so a Spanish answer carries them in English.
+16. **A reused WhatsApp version still in review is never sent by a held send:** where the one message that fits waits on
+    that review, the plan writes no twin, and the offer goes without WhatsApp and says why, or is refused.
+17. **A step pressed again after its key's day** is guarded by what the turn recorded, the message's name (409), the
+    running twin `POST playbooks` refuses for an Ask card, and the week's breath. The key keeps decision 0035's one day.
+
+**Migrations.** `00415_a_listing_keeps_its_review_link.sql` and `00416_a_campaign_ends_and_runs_on_trial.sql`, numbered
+after main's 00414 (main took 00392-00414 while the lane was open). Provisional: the final numbers are claimed when the
+branch is about to push. Applied nowhere.
+
+**The tools block.** The owner's, in characters of `JSON.stringify(toApiTools("owner", true))`, read from the frozen
+fixture each commit holds (`ask-registry.test.mjs` pins it to the registry) and, at `5e178d62c`, printed by
+`tooling/scripts/tests/ask/tools/ask-tools-size.test.mjs`: 57,761 at the lane's base `ef0aea36a`; 60,608 on main at
+`b220a8b74` and 60,616 at `425d8a52d`, main's own growth while the lane was open; 70,432 at `5e178d62c`, the lane's
+9,816 over main's. The ceiling is 72,000 (`ASK_TOOLS_CHARS_CEILING`). The other roles at `5e178d62c`: viewer 32,184,
+operator 62,744, partner 68,084. The owner's registry: twenty tools, twenty-eight read actions (twenty-five on main),
+twenty act actions (eighteen) and nineteen card kinds (eighteen).
+
+### 13.2 Where it shows, and what it needs
+
+- **A note's last day** is the note's own Until box, under Settings › Business. A note past it is marked there ("ended
+  Jun 30", contracts `noteEndedWords`) and is no longer told. Which notes hold is one rule, contracts `notesInForce`:
+  the composer, Ask's facts, the plan and the price allowance all read it, so an ended note's price is no longer one
+  the receptionist may say. Ask's `workspace.settings` read lists only the notes in force.
+- **The review link** (`google_listings.new_review_uri`) is written when a Business Profile location is bound, and every
+  sync after the first (the sweep's, about daily, or Sync now) reads it again from the bound location and writes it
+  where it differs, onto that location's own place alone (`apps/edge/lib/google/profile-sync.ts`, `keepReviewLink`,
+  run last so it never holds the bells). A listing bound before 00415 has it from its next sync after its first.
+- **A campaign's trial and last day are kept only by the edge** (core `runPlaybook`: `effectiveMode`,
+  `campaignEnded`). An ended campaign stays running and says Ended; its runs record `ended` once a day. So the deploy
+  order is not either: 00416 before the dashboard (its change-in-place PUTs read the two columns), 00415 before the edge
+  (the edge writes the link), dry run first, applied by Ruben by hand with the Supabase CLI from a linked worktree. The
+  edge deploys about three minutes after the dashboard; until its `/api/version` names the merge, no card that starts a
+  campaign on trial or gives one a last day is approved.
+- **The e2e** is a describe block, "Ask as the marketing manager", in `e2e/ask.spec.ts`, not `e2e/ask/plan.spec.ts`.
+  CLAUDE.md keeps a domain's only spec at the root until its second, and a second would move `ask.spec.ts`, which
+  `tooling/scripts/tests/e2e/e2e-shape.test.mjs` and `e2e/setup.spec.ts` name. And §8's flow cannot happen on the
+  suite's workspace: its seed has a +1 WhatsApp number, whose offers WhatsApp pauses, no mailbox, and nobody's yes to
+  offers, so an offer's plan there is refused in words (`PLAN_WORDS.noChannel`). The block asks for an offer there and
+  asserts no send card, no campaign card and no words claiming one; it presses nothing and deletes its thread. The
+  silent steps' press, the message in the Library, the note in Settings and Undo are the node tests'
+  (`tooling/scripts/tests/ask/plan/`) and Ruben's own run on a workspace that sends offers by email. It is written and
+  typechecked, never run here: its first run is after 00415 and 00416 are applied, with `E2E_PAID_MODEL=1`.
+- **The eval cases** name what their workspace must hold (`needs`), and a run names what it holds
+  (`EVAL_WORKSPACE_HAS`). The suite's workspace (`no_calendar,no_offers_channel,no_offers_yes`) runs 108 of the 123
+  cases, 116 once its Win-back is seeded, and no offer case (`docs/runbook.md`, "Turn on Ask, spoken").
+
+**D4, restated under decision 0051.** A cut in a reply ("10% off", any discount) is always held for a person. A fixed
+offer price written in the plan's note may be said only while "Never quote a price" is off, and only through the note's
+last day, since the price allowance reads the notes in force. Taken as recommended; the switch-off case is Ruben's to
+confirm.
+
+**Owed to Ruben** (the plan's "Owed to Ruben" holds the same list):
+
+- The `change_words` eval case proves only the tool: a seeded message with one text value would let it expect a
+  `playbook_change` card with `params`.
+- The e2e block and the real-app screenshots run only after he applies 00415 and 00416: the e2e and the local dev
+  server read production.
+- The live and nightly evals spend his key; the push and the `suite` label are his; so is his look on a desk and a
+  phone.
+- Decision 0035's door order (the scope read before the key) is a separate task against main.

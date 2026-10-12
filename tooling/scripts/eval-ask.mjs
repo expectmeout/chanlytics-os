@@ -58,7 +58,8 @@
  * compare.
  *
  *   NEXT_PUBLIC_SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… NEXT_PUBLIC_SUPABASE_ANON_KEY=… \
- *   E2E_USER_EMAIL=… [REPS=3] [SURFACE=today] [ONLY=id,id] node tooling/scripts/eval-ask.mjs [tooling/evals/ask-cases.json]
+ *   E2E_USER_EMAIL=… [EVAL_WORKSPACE_HAS=no_calendar,no_offers_channel,no_offers_yes] \
+ *   [REPS=3] [SURFACE=today] [ONLY=id,id] node tooling/scripts/eval-ask.mjs [tooling/evals/ask-cases.json]
  *   [REPS=3] [SURFACE=…] [ONLY=…] node tooling/scripts/eval-ask.mjs --list [tooling/evals/ask-cases.json]
  *   ELEVENLABS_LLM_SECRET=… … node tooling/scripts/eval-ask.mjs --spoken   # every turn through the brain door, as the agent asks it (eval-ask-spoken.mjs)
  *

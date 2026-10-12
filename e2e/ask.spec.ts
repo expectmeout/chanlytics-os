@@ -327,6 +327,54 @@ test.describe("Ask with the page it is asked on", () => {
     });
 });
 
+/**
+ * Ask as the marketing manager (docs/superpowers/specs/2026-10-10-ask-the-marketing-manager-design.md, decision
+ * 0055), on the suite's workspace as tooling/scripts/ops/e2e-workspace.mjs seeds it: a +1 WhatsApp number, whose
+ * offers WhatsApp pauses, no mailbox, and nobody's yes to offers. An offer asked for there can go by nothing, so its
+ * plan is refused in its own words (contracts PLAN_WORDS.noChannel) and nothing that sends is proposed: no broadcast
+ * card, no campaign card, and no words claiming one was made. That holds whatever else the model writes on that seed.
+ * A plan approved, the message it writes in the Library, the receptionist's note and Undo need a workspace that sends
+ * offers by email: the node tests prove them (tooling/scripts/tests/ask/plan/), and so does Ruben's own run on such a
+ * workspace. Written and typechecked with the lane, never run by it: its first run is after 00415 and 00416 are
+ * applied to production, with E2E_PAID_MODEL=1.
+ */
+const OFFER_ASKED = "I want to offer 10% off everything from today until the end of next month.";
+const CLAIMS_A_SEND = /\bI (have )?(sent|scheduled|set up|created)\b/i;
+
+test.describe("Ask as the marketing manager", () => {
+  test.skip(!HAVE_SESSION, WHY_SKIPPED);
+  test.beforeEach(async ({ page }) => {
+    await signIn(page);
+  });
+
+  test("an offer where nothing can carry one proposes no send and no campaign, and claims none", async ({ page }) => {
+    test.skip(!PAID, WHY_UNPAID);
+    test.setTimeout(120_000);
+    const ws = await activeWorkspace(page);
+    const res = await page.request.post(scoped("/api/v1/ask", ws), {
+      data: { text: OFFER_ASKED, thread_id: null, scope: null, surface: "campaigns" },
+      ...fromTheApp,
+      timeout: 90_000,
+    });
+    expect(res.status()).toBe(200);
+    const lines = (await res.text())
+      .split("\n")
+      .filter(Boolean)
+      .map((l) => JSON.parse(l));
+    const final = lines.find((l) => l.t === "final");
+    expect(final, "a final message").toBeTruthy();
+    if (!final.message.failed) {
+      const kinds = final.message.proposals.map((p: { kind: string }) => p.kind);
+      expect(kinds, "no one-off send is proposed").not.toContain("broadcast");
+      expect(kinds, "no campaign is proposed").not.toContain("playbook");
+      expect(final.message.text).not.toMatch(CLAIMS_A_SEND);
+    }
+    // The thread is the run's own, deleted as every turn here leaves none behind; no card was pressed.
+    const del = await page.request.delete(scoped(`/api/v1/ask/threads/${lines[0].id}`, ws), fromTheApp);
+    expect(del.status()).toBe(200);
+  });
+});
+
 test.describe("Ask on a phone", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
   test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });

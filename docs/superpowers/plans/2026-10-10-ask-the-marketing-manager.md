@@ -6,7 +6,7 @@
 
 **Architecture:** The model states an intent; a pure contracts function (`planOf`) expands it into steps, deciding reuse or create in code that is tested with no model. A plan is a numbered *group of ordinary cards*: each step is proposed through the act handler its card already has, stamped `plan: { id, step, of, silent }`, and committed through its own route by the commit runner that exists, so no new card kind, no new commit route and no new policy row are needed for the plan itself. Three reads are projections of readers that exist (`campaigns.journey`, `campaigns.messages`, `calendar.room`); one new door files a written message as a starter is filed (`POST templates/message`); dates live on the records (`note.until`, `playbooks.until`, `playbooks.trial_until`), and a one-off send honours the week's breath by default.
 
-**Tech Stack:** TypeScript (contracts, core, db, the Next dashboard), zod 4 (server only), Supabase Postgres (plpgsql, RLS), node:test over the repo's database in memory (`_fake-db.mjs`) and stub React, Playwright (the nightly's workspace, run once by hand here), the Ask eval runner (`tooling/scripts/eval-ask.mjs`, run by Ruben).
+**Tech Stack:** TypeScript (contracts, core, db, the Next dashboard), zod 4 (server only), Supabase Postgres (plpgsql, RLS), node:test over the repo's database in memory (`_fake-db.mjs`) and stub React, Playwright (one case on the nightly's workspace, written here and first run after the migrations are applied), the Ask eval runner (`tooling/scripts/eval-ask.mjs`, run by Ruben).
 
 **Spec:** `docs/superpowers/specs/2026-10-10-ask-the-marketing-manager-design.md` (approved 10 October 2026), **as amended by this plan** (the block below): §3 D1–D10, §5.1–5.9, §6, §7 P0–P5, §8, §12.
 
@@ -52,9 +52,9 @@
 - **Words.** The page's word is **campaign** (never "playbook" to a person, never "sequence"); a **message** has a
   **version** per channel; a **moment**; a **list**; an **offer** is a marketing message; a **plan** is this lane's word
   for steps the server expands. Customer-facing strings pass `trade-neutral.test.mjs` (no one trade's words).
-- **Migrations:** 00415 and 00416 provisionally (the evidence lane in `cm-glass` holds 00392/00393, unmerged); Task 21
-  renumbers if main took them. Forward-only, re-runnable statements, a header of a few lines, RLS and grants as the
-  table's.
+- **Migrations:** 00415 and 00416 provisionally, numbered after main's 00414 (main took 00392-00414 while the lane was
+  open); Task 21 renumbers if main took them. Forward-only, re-runnable statements, a header of a few lines, RLS and
+  grants as the table's.
 - **No customer in the code.** Fixtures take 555-01xx numbers and example.com links.
 
 ## Conventions used by every task
@@ -135,8 +135,8 @@ Dn is decision n of the spec's §3.
 | `tests/journey/journey-guide.test.mjs` | the guide's rows and words |
 | `tests/ask/tools/ask-tools-size.test.mjs` | the tools block in characters per role, under `ASK_TOOLS_CHARS_CEILING` |
 | `tests/playbooks/change/change-playbook-keys.db.test.mjs` | migration B applies twice; the door takes the three keys |
-| `e2e/ask/plan.spec.ts` | a plan approved on the e2e workspace, email-only, sends refused |
-| `docs/decisions/0043-a-plan-is-steps-the-server-expands.md` | the decision note |
+| `e2e/ask.spec.ts` (a describe block, "Ask as the marketing manager"; no new spec file) | an offer on the suite's workspace proposes no send and no campaign, and claims none |
+| `docs/decisions/0055-a-plan-is-steps-the-server-expands.md` | the decision note |
 
 **Modified**
 
@@ -501,7 +501,9 @@ Run (R1): `tests/ask/ask-tools-size.test.mjs`. Expected: PASS, four printed line
   `act/playbook.ts` (`PROPOSABLE_TRIGGERS` → the moments `momentOffered` allows for this workspace, read from the facts
   the handler already loads plus the calendar's state from the `connections` reader; every new playbook card sets
   `trial_until = now + 7 days` and its summary says "on trial for a week: for seven days each run waits half an hour
-  with a Stop"), `srv/ask/prompt.ts` (the reminder line of spec §5.3), registry tests, `rename-ask-tools.mjs`; fixture (R5)
+  with a Stop"; as built, the week counts from Approve, under an auto class only, and each run waits 30 minutes, veto's
+  own words: the spec's §13), `srv/ask/prompt.ts` (the reminder line of spec §5.3), registry tests,
+  `rename-ask-tools.mjs`; fixture (R5)
 - Test: `tests/playbooks/change/ask-playbook-change.test.mjs` (exists; append), `tests/playbooks/ask-setup/starter-card.test.mjs`
   (exists; append)
 
@@ -729,23 +731,32 @@ Run (R1): `tests/ask/ask-tools-size.test.mjs`. Expected: PASS, four printed line
 
 ### Task 20: The decision note, the e2e, the docs
 
-**Files:**
-- Create: `docs/decisions/0043-a-plan-is-steps-the-server-expands.md` (status, context, decision: amendments 1–7
-  above in the note's voice, what would reopen it: a plan outliving a sitting, Ask outside the dashboard), `e2e/ask/plan.spec.ts`
-- Modify: `docs/system-prd.md` (the Ask sheet: the actions; the campaigns sheet: `until`, `trial_until`, the breath, the
-  review starter), `docs/glossary.md` (Plan; Trial), the spec (an "As built" section listing each amendment and the
-  tools-block numbers), `docs/decisions/README.md` (the row)
-- Test: `tests/docs/docs-paths.test.mjs` (R1), the decisions index test if one exists
+**Files** (as corrected 12 Oct 2026; the first draft named decision 0043, which was taken, and `e2e/ask/plan.spec.ts`):
+- Create: `docs/decisions/0055-a-plan-is-steps-the-server-expands.md` (status, context, decision: amendments 1–7
+  above in the note's voice and the rulings made while building, D4 under decision 0051, what would reopen it: a plan
+  outliving a sitting, Ask outside the dashboard, a step kind no name or breath guards). Main holds 0052-0054; the
+  number is checked again at the pull request.
+- Modify: `e2e/ask.spec.ts` (a describe block, "Ask as the marketing manager": no new spec file, since CLAUDE.md keeps a
+  domain's only spec at the root until its second), `e2e/campaigns/offered.ts` and its two specs (`SlotRule` takes the
+  review link, as contracts `templateSlots` asks since Task 6), `docs/system-prd.md` (S-18 the actions, the reads and
+  the plan; S-14 `until`, `trial_until`, the two-sided breath, the review starter, the twin at Approve; S-16 the review
+  link; S-13 a note's `until`), `docs/glossary.md` (Plan, Trial, Left out, A campaign's last day), the spec (§13, As
+  built), `docs/runbook.md` (the eval gate names `EVAL_WORKSPACE_HAS` and its tokens), `docs/decisions/README.md` (the
+  row), `apps/dashboard/src/server/ask/prompt.ts` (the two rules that ask for a sentence of Ask's own name the plan's
+  exception)
+- Test: `tests/history` (the decisions index), `tests/docs`, `tests/ask` (the prompt), the e2e's typecheck
 
 **Interfaces:**
-- Produces: `e2e/ask/plan.spec.ts`: on the e2e workspace (its seed holds no WhatsApp number, so a written message is
-  email-only), ask for the offer on Campaigns, expect the group with "Approve the N silent steps", press it, expect the
-  message in the Library and the note in Settings › Business with "until"; every send route (`POST broadcasts`, `POST
-  playbooks`, `PUT playbooks/[id]`) refused and counted as `e2e/waiting-search.ts` refuses answers (asserted 0); undo the
-  message. Not run in CI by this lane; run once by hand in Task 21.
+- Produces: in `e2e/ask.spec.ts`, one case on the suite's workspace as it is seeded (a +1 WhatsApp number, whose offers
+  WhatsApp pauses, no mailbox, nobody's yes to offers), where an offer's plan is refused in words: `POST /api/v1/ask` on
+  Campaigns with an offer from today to a later day, then no `broadcast` or `playbook` card among the final message's
+  proposals, no words claiming a send, and the thread deleted. Gated by the file's own `E2E_PAID_MODEL` switch. The
+  silent steps' press, the Library, the note and Undo are the node tests' and Ruben's hand run on a workspace that sends
+  offers by email. Written and typechecked only: it runs after Ruben applies 00415 and 00416.
 
 - [ ] **Step 1: Write the note, the spec section, the glossary rows, the PRD paragraphs, the e2e.**
-- [ ] **Step 2: Run `docs-paths`, the e2e's typecheck (`corepack pnpm --filter e2e typecheck` or the root's).** Expected: PASS.
+- [ ] **Step 2: Run `docs-paths`, the e2e's typecheck** (no e2e project exists: `tsc --noEmit` over the touched e2e
+  files with the dashboard's compiler options and node's types). Expected: PASS.
 - [ ] **Step 3: Commit (R7).**
 
 ### Task 21: The lane closes: every file's tests, the builds, the real app, and what waits for Ruben
@@ -753,27 +764,37 @@ Run (R1): `tests/ask/ask-tools-size.test.mjs`. Expected: PASS, four printed line
 **Files:** none new; a `Bundle:` line and the numbers go in the pull request text drafted at
 `docs/superpowers/plans/2026-10-10-ask-the-marketing-manager-pr.md` (uncommitted; Ruben reads it).
 
-- [ ] **Step 1: Fetch and rebase.** `git fetch origin main`; `git rebase origin/main`; a contracts `dist` conflict is
-  rebuild + `git add packages/contracts/dist` + `rebase --continue`. If main took 00408 or 00409, renumber both files
-  and every reference (`git grep -n "0040[89]"`), regenerate the four generated files (R6), one commit "Migrations
-  renumbered after main".
+- [ ] **Step 1: Main is merged in, not rebased** (corrected 12 Oct 2026). Main was merged twice, at `735b16279`
+  (`b220a8b74`) and `8e66d37aa` (`425d8a52d`); a pull request is squash-merged, and `check:local` needs only that the
+  branch holds main. `git fetch origin main`; where main moved, merge it again the same way. The migrations are
+  `00415`/`00416`, provisional: claim the final numbers through `Claude Video/docs/migration-claims.md` just before the
+  push (main, production's ledger and the Claimed table; the next free above all three), then renumber with the same
+  procedure as the merges (the file names, the lane's own references only, the ledger re-recorded by its tool, the
+  schema regenerated on `cm-ask-test`), one commit.
 - [ ] **Step 2: Every test file this lane touched** (R1, one per command; the list is this plan's File map).
 - [ ] **Step 3: `corepack pnpm check:local`** (the packages' build, typecheck, lint, dead exports, formatting, the tests of
   what the branch changes). Expected: green; it writes the "Checked locally" commit.
 - [ ] **Step 4: The dashboard build and the bundle:** `corepack pnpm --filter @chanlytics/dashboard build` then `corepack
-  pnpm check:bundle`. Record the route's JS and the Ask page's own JS against the ceilings; write the `Bundle: <why>`
-  line (the group's rows and the message card's versions).
-- [ ] **Step 5: The real app.** `PORT=3360 corepack pnpm --filter @chanlytics/dashboard dev` (the local server reads
-  production's database: use the e2e workspace only, never a customer's), open `/w/<e2e-slug>/campaigns`, ask the offer,
-  screenshot the group at 1440 and at 390 wide (the Browser pane), press the silent steps, screenshot the receipts,
-  undo the message. Save the screenshots beside the PR text. Stop the server; `git checkout -- apps/dashboard/tsconfig.json`
-  if `next dev` rewrote it.
-- [ ] **Step 6: The e2e once by hand:** `E2E_BASE_URL=http://localhost:3360 corepack pnpm e2e -- e2e/ask/plan.spec.ts`
-  with the e2e owner's session as `e2e/session.ts` reads it. Expected: PASS, 0 sends.
-- [ ] **Step 7: Write the PR text** (what changes for a customer; apply migration B before the dashboard; either order
-  otherwise; the `Bundle:` line; the tools-block numbers before and after; the screenshots) and **stop**. Nothing is
-  pushed. **Waits for Ruben:** the eval run (`E2E_BASE_URL=... REPS=3 node tooling/scripts/eval-ask.mjs`, which spends
-  the receptionist's key), his read of the branch, the push and the `suite` label.
+  pnpm check:bundle`. There is no Ask page: Ask rides the route. Record the route's JS and CSS and the Campaigns and
+  Settings pages' own JS against the ceilings; CI's build job measures every sum against main's own record, so write a
+  `Bundle: <why>` line for each sum past its growth line (the group's rows and the message card's versions).
+- [ ] **Step 5: The real app — a PR note, owed after Ruben applies 00415 and 00416.** The local dev server reads
+  production's database, which lacks the review link's column and a campaign's `until` and `trial_until` until then.
+  Then: `PORT=3360 corepack pnpm --filter @chanlytics/dashboard dev` on the e2e workspace only, never a customer's;
+  `/w/<e2e-slug>/campaigns`, ask the offer, screenshot the group at 1440 and at 390 wide, press the silent steps,
+  screenshot the receipts, undo the message.
+- [ ] **Step 6: The e2e — a PR note, owed after the same.** `E2E_PAID_MODEL=1 E2E_BASE_URL=… corepack pnpm e2e --
+  e2e/ask.spec.ts -g "Ask as the marketing manager"` with the e2e owner's session as `e2e/session.ts` reads it. It
+  reads production and spends the key.
+- [ ] **Step 7: Write the PR text** and **stop**. Nothing is pushed. It says what changes for a customer; the `Bundle:`
+  line; the tools-block numbers before and after; and the order, which is not either: apply 00415 and 00416 before
+  merging, dry run first, by hand with the Supabase CLI from a linked worktree (runbook, "Apply a migration"); 00416
+  before the dashboard deploys (every change in place, `PUT playbooks/:id`, fails without it), 00415 before the edge
+  (the edge writes the review link); the edge deploys about three minutes after the dashboard, and until the edge's
+  `/api/version` names the merge no card that starts a campaign on trial or gives one a last day is approved (only the
+  edge keeps the trial and the last day). **Waits for Ruben:** applying the migrations, the eval run
+  (`EVAL_WORKSPACE_HAS=… REPS=3 node tooling/scripts/eval-ask.mjs`, which spends his key), his read of the branch, the
+  push and the `suite` label, and "Owed to Ruben" below.
 
 ## Spec coverage
 
@@ -789,14 +810,33 @@ Run (R1): `tests/ask/ask-tools-size.test.mjs`. Expected: PASS, four printed line
 | §5.8 the card on screen | 18 |
 | §8 evals, e2e, db, contracts, core | 2, 20, 10, 15, 11, 14 |
 | §7 P5 proof, the decision note | 20, 21 |
-| D4, D6–D10 | no task (out of scope by decision) |
+| D4 | no code; restated under decision 0051 in Task 20 (decision 0055, the spec's §13) |
+| D6–D10 | no task (out of scope by decision) |
 
 ## Open points (the spec and the code, or Ruben's word)
 
 - `card_fields` / `say_any` judge keys (Task 2): if the runner lacks them, the case keeps `tools_any` and the gap is
   listed in Task 21's PR text; adding judge keys is lane 4's Task 20 shape and may be folded into Task 2 if small.
 - A CHECK on `broadcast_recipients.reason` (Task 14): the reader found none; verified in the tree before Task 14 ends.
-- The listing's writer (Task 6): the sync lives where `maps_uri` is written; if it is on the edge, the column's write
-  rides the edge and either deploy order holds (null until written).
-- Spend: the e2e's approve files an email version on the e2e workspace (allowed: a real save there is the rule), and
-  nothing reaches Meta (no number on the seed); the eval run is Ruben's.
+- Spend: the e2e presses no card (the suite's workspace cannot carry an offer, so its case proves no send is proposed),
+  and its turn spends the key only under `E2E_PAID_MODEL=1`; the eval run is Ruben's.
+
+## Owed to Ruben
+
+What the branch cannot do for itself, each also a line of the lane's ledger
+(`.superpowers/sdd/2026-10-10-ask-the-marketing-manager/progress.md`, kept out of git, so the list is here):
+
+- **Apply 00415 and 00416** before merging, dry run first, in the order Task 21's Step 7 gives; their final numbers are
+  claimed just before the push.
+- **The `change_words` eval case proves only the tool:** a seeded message with one text value would let it expect a
+  `playbook_change` card with `params`.
+- **The e2e block and the real-app screenshots** run only after he applies 00415 and 00416: the e2e and the local dev
+  server read production.
+- **The live and nightly evals spend his key;** the push and the `suite` label are his; so is his look on a desk and a
+  phone (the plan's group, "pasos silenciosos", the four coral buttons).
+- **His calls, taken as recommended** (decision 0055): D4 under decision 0051, the switch-off case to confirm; the
+  review ask filed utility (its English text may bill as two parts once a real link fills it); Undo leaving a WhatsApp
+  version; an ended campaign staying running; the month's offer resumed by hand; the reminder as a sentence; the group
+  press approving a silent step set aside with Not now; `CROSS_PAGE_MAX` not raised.
+- **Decision 0035's door order** (the scope read before the key, so no kind's delete undo replays from its key) is a
+  separate task against main.

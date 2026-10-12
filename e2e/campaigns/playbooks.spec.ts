@@ -61,7 +61,10 @@ test.describe("Campaigns' home on a real workspace", () => {
       appointment_word?: string | null;
     };
     const read = (await tpl.json()).data as TemplatesRead;
-    const bookingLink = !!(await cfg.json()).data.config?.brain?.booking_link;
+    // The links a slot may be filled from, as the page reads them (playbooks/surface.ts): the booking link on file, and
+    // whether the Google listing keeps a review link (GET settings' review_link).
+    const settings = (await cfg.json()).data;
+    const links = { bookingLink: !!settings.config?.brain?.booking_link, reviewLink: settings.review_link === true };
 
     // The rail is the journey this business follows (journeyOf, spec §4.8), worked out from the answer the page reads, as
     // the page works it out (playbooks/surface.ts): four moments, or five where deals are on or a follow-up is held; a
@@ -187,7 +190,7 @@ test.describe("Campaigns' home on a real workspace", () => {
     // a channel, so a workspace with no WhatsApp number is offered the messages it has written.
     const { groups: usable } = messagesOffered(
       read,
-      momentSlots((await composer.getByTestId("pb-moment").innerText()).trim(), bookingLink),
+      momentSlots((await composer.getByTestId("pb-moment").innerText()).trim(), links),
     );
     await expect(composer.getByTestId("pb-message")).toBeVisible();
     // With nothing to send, the moment's own message is offered to add (Turn on adds it), else the honest line says so.

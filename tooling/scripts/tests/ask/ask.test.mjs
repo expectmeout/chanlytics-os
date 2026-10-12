@@ -1922,6 +1922,11 @@ test("the rules know the plan and the message (the marketing manager's §5.7): a
   assert.ok(
     setup.includes("A reminder before an appointment, or a check after one, only where a calendar is connected"),
   );
+  // A plan's answer is its own words (the last rule: the plan is called alone): each rule that asks for a sentence of
+  // Ask's own after a proposal names that exception, so no two rules disagree about a plan's answer.
+  const act = ASK_RULES.find((r) => r.startsWith("You never act."));
+  for (const r of [act, setup]) assert.ok(r.includes("(a plan's answer is its own words)"), r);
+  assert.ok(ASK_RULES.at(-1).includes("A plan is the exception"), "the rule both point to");
   // What the rules said before a plan and a written message, none of it left: a whole setup's cards assembled by hand,
   // a campaign on a held message or its starter and nothing else, every card its own press, Ask never writing a message.
   const rules = ASK_RULES.join("\n");
