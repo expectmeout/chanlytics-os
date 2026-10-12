@@ -225,18 +225,28 @@ function answerOf<T>(
       }
       return NextResponse.json(ok(data), { headers: timed(authMs, started) });
     } catch (e) {
-      if (e instanceof AppError) {
-        log.warn("route_refused", { route, code: e.code, ms: Date.now() - started });
-        return NextResponse.json(err(e.code, e.message, e.details), {
-          status: e.status,
-          headers: { ...PRIVATE, ...refusalHeaders(e) },
-        });
-      }
-      // The error itself, so the line carries its stack; the workspace rides from the request (memberContext).
-      log.error("route_failed", { route, user: userId, error: e instanceof Error ? e : String(e) });
-      return NextResponse.json(err("internal", "Something went wrong."), { status: 500, headers: PRIVATE });
+      const answer = answerOfThrow(e, { route, started, userId });
+      return NextResponse.json(answer.body, { status: answer.status, headers: { ...PRIVATE, ...answer.headers } });
     }
   };
+}
+
+/**
+ * What a handler's throw answers, logged where it is decided: a refusal as its own code, status and sentence (with the
+ * wait a limit counted), anything else as "Something went wrong.", its line carrying the stack. The one rule withRoute and
+ * GET open's reads share (workspace/page-open.ts).
+ */
+export function answerOfThrow(
+  e: unknown,
+  at: { route: string; started: number; userId?: string | undefined },
+): { status: number; body: ReturnType<typeof err>; headers: Record<string, string> } {
+  if (e instanceof AppError) {
+    log.warn("route_refused", { route: at.route, code: e.code, ms: Date.now() - at.started });
+    return { status: e.status, body: err(e.code, e.message, e.details), headers: refusalHeaders(e) };
+  }
+  // The error itself, so the line carries its stack; the workspace rides from the request (memberContext).
+  log.error("route_failed", { route: at.route, user: at.userId, error: e instanceof Error ? e : String(e) });
+  return { status: 500, body: err("internal", "Something went wrong."), headers: {} };
 }
 
 /* ---- Control plane (Session A): who is acting, on which tenant, as what ---- */
@@ -279,6 +289,37 @@ export async function memberContext(
   wanted?: string | null,
   /** Only GET /workspaces may fall back to the oldest membership: answering "which workspace should this tab open" is its job. */
   opts: { defaultAllowed?: boolean } = {},
+): Promise<MemberContext> {
+  const shared = SHARED_MEMBERS.get(ctx);
+  if (!shared) return resolveMember(ctx, wanted, opts);
+  const key = `${wanted ?? ""}|${opts.defaultAllowed === true}`;
+  const had = shared.get(key);
+  if (had) return had;
+  const resolving = resolveMember(ctx, wanted, opts);
+  shared.set(key, resolving);
+  // A refusal is not a fact the next read may share: it asks again, as its own request would.
+  resolving.catch(() => {
+    if (shared.get(key) === resolving) shared.delete(key);
+  });
+  return resolving;
+}
+
+/** The memberships of a request that answers several reads (GET open), resolved once for them all, by what was asked. */
+const SHARED_MEMBERS = new WeakMap<RouteContext, Map<string, Promise<MemberContext>>>();
+
+/**
+ * A request that answers several reads as one (GET open, decision 0053 step 2): the workspace each asks for is resolved
+ * once for all of them, as one membership read, rather than once a read. Only for a request whose reads are all its
+ * own: nothing it reads changes who is a member.
+ */
+export function shareMembership(ctx: RouteContext): void {
+  if (!SHARED_MEMBERS.has(ctx)) SHARED_MEMBERS.set(ctx, new Map());
+}
+
+async function resolveMember(
+  ctx: RouteContext,
+  wanted: string | null | undefined,
+  opts: { defaultAllowed?: boolean },
 ): Promise<MemberContext> {
   const { data, error } = await ctx.supabase
     .from("memberships")

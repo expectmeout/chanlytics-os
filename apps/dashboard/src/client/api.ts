@@ -68,6 +68,13 @@ interface Options<K extends RouteKey> {
    */
   refresh?: boolean | "behind";
   /**
+   * A write that changes nothing a read holds, unless its answer says so (the boot's one accept of invitations: a seat
+   * it made is the caller's to say, and it forgets then). Every other write forgets every read in flight or held, as a
+   * change does; this one leaves them, so the boot's held answers are still shared. Measured 12 Oct 2026: the accept,
+   * answered 600 ms into a cold load of Today, had every read after it asked again, nine of them twice.
+   */
+  keepsReads?: boolean;
+  /**
    * Fired the moment the server accepts, before the surfaces are re-read, with what it answered: a form can say
    * "saved", and an approve what it scheduled, without waiting for every re-read; and a write that follows can build
    * on the answer (the settings save's `{ config, version }`) instead of on a read that is about to be replaced.
@@ -315,7 +322,7 @@ export function createApi(deps: ApiDeps) {
         // Something changed. A read still in flight was issued before that
         // change and cannot describe the world the operator is now in; sharing
         // it with the refresh that follows would repaint the thread as it was.
-        forget();
+        if (!opts.keepsReads) forget();
         if (opts.refresh === "behind") void deps.refresh(key).catch(() => {});
         else if (opts.refresh !== false) await deps.refresh(key);
       }
