@@ -1043,7 +1043,7 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
   );
   const bridge = readCode("apps/dashboard/src/surfaces/setup/surface.ts");
   assert.ok(
-    /declareReads\("setup", \{\s*reads: \["channel", "notification", "billing", "review", "call"\],\s*fresh: "live",/.test(
+    /declareReads\("setup", \{\s*reads: \["channel", "notification", "billing", "review", "call", "lead", "reach_out"\],\s*fresh: "live",/.test(
       bridge,
     ),
     "every kind of record a row derives from repaints the page (the tables are derived: declared-reads-are-what-was-heard.test.mjs)",
