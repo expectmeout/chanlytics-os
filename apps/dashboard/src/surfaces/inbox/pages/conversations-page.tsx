@@ -17,7 +17,7 @@ import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { StatePill } from "../../kit/pill/state-pill";
 import { StoppedMark } from "../../kit/pill/stopped-mark";
 import { holderName } from "../../holder-names";
-import { useSurface } from "../../use-surface";
+import { usePartShown, useSurface } from "../../use-surface";
 import { ROUTES, TICK_MS } from "../constants";
 import {
   CV_ICON,
@@ -600,6 +600,15 @@ function readingPane(p: {
   );
 }
 
+/**
+ * The page's parts (client/page-speed.ts): its list, its first part, drawn once Conversations' read is in; and each row
+ * opened, timed from the press that opened it, a move inside the page.
+ */
+function useCvParts(listRead: boolean, open: { id: string } | null): void {
+  usePartShown("conversations", "list", listRead);
+  usePartShown("conversations", "thread", !!open, open ? open.id : null);
+}
+
 export const ConversationsPage = ({
   channel = "all",
   initialId = null,
@@ -628,7 +637,7 @@ export const ConversationsPage = ({
   // the live feed, which the read above draws again.
   const [, setTick] = useState(0);
   // Its own rows, and where a call opens depends on the threads the Inbox read (cvOpens): drawn again when either lands.
-  useSurface("conversations");
+  const cvRead = useSurface("conversations");
   useSurface("inbox");
   const { openRow, closeRow } = useCvAddress(channel, setSelectedId, setPhoneOpen);
 
@@ -702,6 +711,7 @@ export const ConversationsPage = ({
   const onScreen = selected && !requestedMissing && (!cvOnPhone() || phoneOpen) ? (selectedRow ?? selected) : null;
   useSeeOpen(onScreen ? cvWhoseRow(onScreen) : null, onScreen ? cvSeenOf(onScreen) : undefined);
   useSeen();
+  useCvParts(cvRead !== undefined, onScreen);
   const openByHand = (id: string) => {
     const hit = cvFind(visible, id);
     if (hit && cvUnread(hit.row)) seePerson(cvWhoseRow(hit.row), cvSeenOf(hit.row));

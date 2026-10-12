@@ -4268,24 +4268,42 @@ export type Database = {
       page_vitals: {
         Row: {
           at: string
+          build: string | null
+          came_from: string | null
+          detail: Json | null
+          device: string | null
           id: string
           metric: string
           page: string
+          part: string | null
           value: number
+          warm: boolean | null
         }
         Insert: {
           at?: string
+          build?: string | null
+          came_from?: string | null
+          detail?: Json | null
+          device?: string | null
           id: string
           metric: string
           page: string
+          part?: string | null
           value: number
+          warm?: boolean | null
         }
         Update: {
           at?: string
+          build?: string | null
+          came_from?: string | null
+          detail?: Json | null
+          device?: string | null
           id?: string
           metric?: string
           page?: string
+          part?: string | null
           value?: number
+          warm?: boolean | null
         }
         Relationships: []
       }
@@ -7295,7 +7313,12 @@ export type Database = {
         Returns: undefined
       }
       note_page_vitals: {
-        Args: { p_page: string; p_vitals: Json }
+        Args: {
+          p_build?: string
+          p_device?: string
+          p_page: string
+          p_vitals: Json
+        }
         Returns: number
       }
       note_sweep_backlog: {
@@ -7349,6 +7372,32 @@ export type Database = {
       outreach_wrote_back: {
         Args: { p_contact_ids: string[]; p_tenant_id: string }
         Returns: string[]
+      }
+      page_speed: {
+        Args: { p_days?: number; p_most?: number }
+        Returns: {
+          device: string
+          how: string
+          metric: string
+          p75: number
+          page: string
+          part: string
+          samples: number
+          since: string
+          waits_on: string
+          warm: string
+        }[]
+      }
+      page_spots: {
+        Args: { p_days?: number; p_most?: number }
+        Returns: {
+          el: string
+          metric: string
+          p75: number
+          page: string
+          phase: string
+          samples: number
+        }[]
       }
       page_vitals_p75: {
         Args: { p_days?: number; p_most?: number }

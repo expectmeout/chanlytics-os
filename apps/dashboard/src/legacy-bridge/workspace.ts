@@ -193,6 +193,16 @@ export function setAppRouter(router: AppRouter | null): void {
 }
 
 /**
+ * Who hears the shell ask for a route (client/page-speed.ts, decision 0053): a move is timed from the press that asked
+ * for it, and for a route with a page of its own the address moves only once the router has its page, which on a phone
+ * is the wait a person sees.
+ */
+let routeAsked: ((route: string) => void) | null = null;
+export function onRouteAsked(fn: ((route: string) => void) | null): void {
+  routeAsked = fn;
+}
+
+/**
  * Move to a route: a path pushed (or, for a page saying the same place more exactly, replaced) through the history
  * the App Router patches, which follows it for usePathname and keeps its Back. Not router.push: every legacy route is
  * drawn by the same catch-all page, so that would ask the server for a page that draws nothing on every press, and a
@@ -208,6 +218,8 @@ export function setAppRouter(router: AppRouter | null): void {
 export function goToRoute(asked: string, opts: GoOptions = {}, win: AddressWindow = window): void {
   // A route that retired lands on the one that replaced it (`outbound/pb-1` on `campaigns/moment:pb-1`) in one move.
   const route = doorOf(asked) ?? asked;
+  // A move is timed from its ask, and a page with a page of its own is drawn only once the router has fetched it.
+  routeAsked?.(route);
   const to = hrefOfRoute(route, win);
   const here = to.startsWith("#") ? win.location.hash : win.location.pathname;
   // A move within one route's page (`inbox/th-1` to `inbox/th-2`) stays on the patched history: the page follows the

@@ -9,6 +9,7 @@
  */
 import type { TodayDayItemVM } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
+import { usePartShown, useSurface } from "../../use-surface";
 import { appNavigate } from "../shell";
 import { useDayVm } from "./day";
 import { liveClock, useLiveNow } from "./live-now";
@@ -33,6 +34,8 @@ const WAVE = Array.from({ length: 8 }, (_, i) => <i key={i} />);
 export const TodayStrip = () => {
   const { live, nowMs } = useLiveNow();
   const day = useDayVm();
+  // Drawn once the Calendar's weeks are in, whatever they hold (client/page-speed.ts).
+  usePartShown("today", "strip", useSurface("calendar") !== undefined);
   const today = day?.frames.find((f) => f.today) ?? null;
   const next = today ? nextOf(today.items) : null;
   const call = live[0] ?? null;

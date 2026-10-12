@@ -28,6 +28,7 @@ import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { useNeedsYou } from "../../needs-you";
 import { surfaceValue } from "../../surface-values";
+import { usePartShown } from "../../use-surface";
 import { TODAY_HELPERS } from "../helpers";
 import { appNavigate, doorGlyph, surfaceFailed, useMoved, useToast } from "../shell";
 import { useDayVm } from "./day";
@@ -39,6 +40,8 @@ import { askedVisits, visitActs, visitSay, visitsLeft } from "./queue-visits";
 export const AgentCommand = () => {
   useMoved("today");
   const vm = surfaceValue("today");
+  // Today's first part: the page is READY when its queue is drawn (client/page-speed.ts).
+  usePartShown("today", "queue", !!vm);
   return vm ? <TodayQueue vm={vm} /> : null;
 };
 

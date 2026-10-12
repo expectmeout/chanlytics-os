@@ -74,7 +74,6 @@
   "apps/dashboard/src/server/platform/day-counts.ts::rpc": 1,
   "apps/dashboard/src/server/platform/platform.ts": 2,
   "apps/dashboard/src/server/platform/platform.ts::rpc": 4,
-  "apps/dashboard/src/server/platform/vitals.ts::rpc": 2,
   "apps/dashboard/src/server/ports/campaign-ports.ts": 1,
   "apps/dashboard/src/server/ports/core-ports.ts": 8,
   "apps/dashboard/src/server/public/business-page.ts": 4,

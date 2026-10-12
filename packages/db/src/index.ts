@@ -242,6 +242,7 @@ export {
 } from "./repositories/reports/report-series";
 export type { ReportWindow } from "./repositories/reports/report-series";
 export { firstReplies } from "./repositories/reports/first-replies";
+export { notePageVitals, pageSpeed, pageSpots, pageVitalsP75 } from "./repositories/reports/page-vitals";
 export {
   forgetNotification,
   noticeKept,

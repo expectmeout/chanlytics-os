@@ -1,5 +1,6 @@
 import "server-only";
 import type { AskCitationKind, AskRowRef } from "@chanlytics/contracts";
+import { noteTiming } from "@chanlytics/channels";
 import type { RouteContext } from "../with-route";
 import type { Member } from "../route";
 
@@ -130,8 +131,14 @@ export class TurnCache {
     const key = `${r.name}:${stableJson(args)}`;
     const had = this.hits.get(key) as Promise<Read<T>> | undefined;
     if (had) return had;
+    const started = performance.now();
     const read = rc.keep && r.ttlMs ? readerCache.get(rc, r, args, key) : r.read(rc, args);
     this.hits.set(key, read);
+    // How long the read took, for the answer's Server-Timing (`read.<name>`, decision 0053): which reader a slow answer waited on.
+    void read.then(
+      () => noteTiming(`read.${r.name}`, performance.now() - started),
+      () => {},
+    );
     // A failure is never kept: once the read settles as a rejection it leaves
     // the cache, so the next call in the turn reads again.
     read.catch(() => {

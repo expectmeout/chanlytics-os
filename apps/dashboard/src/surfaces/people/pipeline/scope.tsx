@@ -25,10 +25,13 @@ import { usePipelineState } from "./scope-hook";
 import type { PipelineScopeProps } from "./scope-state";
 import { pipelineScreen } from "./scope-screen";
 import { usePipelineStanding } from "./standing";
+import { usePartShown } from "../../use-surface";
 
 export const PipelineScope = (props: PipelineScopeProps) => {
   const s = usePipelineState(props);
   // What the page says to the frame's head in Glass: its name, the line over the table, and New proposal (standing.tsx).
   usePipelineStanding(s.r.all.line, { openNew: s.newActs.openNew, gate: s.newGate });
+  // The Pipeline's first part (client/page-speed.ts): drawn from People's rows, which it is drawn only once it has.
+  usePartShown("pipeline", "board", true);
   return pipelineScreen(s);
 };

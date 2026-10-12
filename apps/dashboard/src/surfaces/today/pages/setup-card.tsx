@@ -11,7 +11,7 @@ import { routeDoor } from "../../legacy-verbs";
 import { SetupCardRow } from "../../setup/rows/card-row";
 import { SetupRows } from "../../setup/rows/rows";
 import { setupVerbs, type SetupSurface } from "../../setup/surface";
-import { useSurface } from "../../use-surface";
+import { usePartShown, useSurface } from "../../use-surface";
 import { appNavigate, refusalFlash, useToast, type Flash } from "../shell";
 
 /** While a step is open: the one row that opens the first run. */
@@ -68,6 +68,8 @@ function optionalRows(S: SetupSurface, card: SetupCardVM, flash: (flash: Flash) 
 // next thing with its button beside it and the count under its name (canvas P9, mobile.css).
 export const TodaySetup = () => {
   const S = useSurface("setup");
+  // Drawn once Setup's read is in, the card or nothing (client/page-speed.ts).
+  usePartShown("today", "setup", !!S);
   // The card's toast, lent to its rows: a Skip or a Hide can take the card away while its Undo is still up.
   const [toastNode, flash] = useToast();
   const card = S ? FIRST_RUN_HELPERS.todayCard(S.vm) : null;

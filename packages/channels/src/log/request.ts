@@ -1,5 +1,6 @@
 /**
- * The request the code running now serves: its name, and the workspace once the request has said which.
+ * The request the code running now serves: its name, the workspace once the request has said which, and where its time
+ * has gone (decision 0053: what a route answers in Server-Timing, beside the session check and the handler).
  *
  * One store for the whole process, whichever copy of this module asks. Each package's build inlined channels until its
  * dist imported its siblings' (#1382), and a test that loads source beside a dist still holds two copies; a store made
@@ -17,6 +18,14 @@ interface Serving {
   readonly id: string;
   /** The workspace this request acts on, once it is known (`noteTenant`): every line after carries it. */
   tenantId?: string;
+  /** What its time went on, by name (`noteTiming`): its database calls, each reader it read through. */
+  timings?: Map<string, RequestTiming>;
+}
+
+/** One name's share of a request's time: how long all of it took, and how many there were. */
+export interface RequestTiming {
+  ms: number;
+  n: number;
 }
 
 const REQUEST_SLOT: unique symbol = Symbol.for("chanlytics.request");
@@ -45,4 +54,28 @@ export function noteTenant(tenantId: string): void {
 /** The workspace the request running now acts on, when it has said. */
 export function requestTenant(): string | null {
   return serving.getStore()?.tenantId ?? null;
+}
+
+/** How many names one request keeps the time of. */
+const TIMINGS_HELD = 32;
+
+/**
+ * A share of the request's time, said where it was spent: the database client after each call, a reader after each read.
+ * Durations add up under one name and are counted, so `db` is every call and how many. Outside a request it does
+ * nothing, and it never holds more than a few dozen names: past that a new name is not kept.
+ */
+export function noteTiming(name: string, ms: number): void {
+  const store = serving.getStore();
+  if (!store || !Number.isFinite(ms) || ms < 0) return;
+  const timings = (store.timings ??= new Map<string, RequestTiming>());
+  const had = timings.get(name);
+  if (had) {
+    had.ms += ms;
+    had.n += 1;
+  } else if (timings.size < TIMINGS_HELD) timings.set(name, { ms, n: 1 });
+}
+
+/** Where the request running now has spent its time so far, by name; none outside a request. */
+export function requestTimings(): ReadonlyMap<string, RequestTiming> {
+  return serving.getStore()?.timings ?? new Map();
 }

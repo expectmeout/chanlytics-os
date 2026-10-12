@@ -425,6 +425,14 @@ five. Measured on production, 9 October 2026: the Inbox had its rows 350 ms into
   (`apps/dashboard/src/server/readers/`): one after the other, the Calendar's read spent 180 ms on the server for a
   workspace with no calendar.
 
+**How long it took** is said by the page itself (decision 0053). Each part a person waits for calls
+`usePartShown(page, part, ready, key)` (`apps/dashboard/src/surfaces/use-surface.ts`), the value it draws from as
+`ready`, and `PRIMARY_PART` (`packages/contracts/src/shell/vitals.ts`) names the part whose READY is its page's; a page
+with none is READY when its route's gate opens and the frame paints. The timer (`apps/dashboard/src/client/page-speed-rules.ts`, installed by `page-speed.ts` beside it)
+times it from the press or the document's start and says what the time went on, from the resources the browser fetched
+and the `Server-Timing` each route's answer carries: `auth`, `app`, `db` and each reader
+(`apps/dashboard/src/server/server-timing.ts`). `docs/runbook.md`, "See how fast the pages are", reads them.
+
 ## The interface
 
 The plan (`docs/plans/2026-09-28-the-interface-kit-and-its-looks.md`) puts
