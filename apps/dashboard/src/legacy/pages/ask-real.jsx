@@ -30,7 +30,7 @@ const arScopeLabel = (page, param) => {
   if (!param) return null;
   const T = (window.INBOX_DATA || {}).THREADS || [];
   if (page === "inbox") { const t = T.find((x) => x.id === param); return t ? t.who : null; }
-  if (page === "clients") { const p = ((window.__PEOPLE || {}).rows || []).find((x) => x.id === param); return p ? p.name : null; }
+  if (page === "clients") { const p = ((window.__PEOPLE || {}).rows || []).find((x) => x.id === param); return p && !p.standIn ? p.name : null; } // a stand-in's name is the business's: "this person" (0052)
   if (page === "conversations" && param.startsWith("cv-")) {
     const L = window.__LIVE || {};
     const c = [...(L.now || []), ...(L.recent || [])].find((x) => x.callId === param.slice(3));

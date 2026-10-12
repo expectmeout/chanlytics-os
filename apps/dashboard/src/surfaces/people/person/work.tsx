@@ -5,11 +5,21 @@
  * that says more, or to the business sheet. A thin record (no thread, no deal, little history) has neither, and reads as
  * one scroll. Every word is contracts'.
  */
-import type { ReactNode } from "react";
-import { PERSON_FIGURES_LABEL, PERSON_TAB_WORDS, PERSON_TABS_LABEL } from "@chanlytics/contracts";
+import { useEffect, useRef, useState } from "react";
+import type { ReactNode, RefObject } from "react";
+import { flushSync } from "react-dom";
+import {
+  NEW_SINCE_WORDS,
+  PERSON_FIGURES_LABEL,
+  PERSON_TAB_WORDS,
+  PERSON_TABS_LABEL,
+  PERSON_WASH_WORDS,
+} from "@chanlytics/contracts";
 import type { PersonFigureVM, PersonVM } from "@chanlytics/contracts";
 import { Figure } from "../../kit/figure/figure";
+import { useWash } from "../../kit/motion/wash";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
+import { touchSwipe, type SwipeHandlers } from "../../legacy-verbs";
 import { PersonDealCard } from "../deal/person-deal";
 import { Overview } from "./overview";
 import { campaignsCard, comingUpSection, historySection } from "./sections";
@@ -23,6 +33,12 @@ function figureDoor(c: PageCtx, f: PersonFigureVM) {
   return { door: { onClick: () => (to === "business" ? c.setSheet(true) : c.goTab(to)) } };
 }
 
+/** One figure, washed when someone else moves it while the page is open (canvas A's wash). */
+function WatchedFigure({ c, f }: { c: PageCtx; f: PersonFigureVM }) {
+  const washed = useWash(c.p.id, f.value, PERSON_WASH_WORDS.figure(f.label, f.value));
+  return <Figure id={f.id} label={f.label} value={f.value} meta={f.sub} washed={washed} {...figureDoor(c, f)} />;
+}
+
 /** The figures: four at most, each a door. None on a thin record. */
 export function Figures({ c }: { c: PageCtx }) {
   const figures = c.p.figures;
@@ -30,16 +46,78 @@ export function Figures({ c }: { c: PageCtx }) {
   return (
     <dl className="cl-prof-figures" aria-label={PERSON_FIGURES_LABEL} data-testid="person-figures">
       {figures.map((f) => (
-        <Figure key={f.id} id={f.id} label={f.label} value={f.value} meta={f.sub} {...figureDoor(c, f)} />
+        <WatchedFigure key={f.id} c={c} f={f} />
       ))}
     </dl>
   );
 }
 
-/** The tabs this width draws: a desk's with their counts, a phone's with About. None on a thin record. */
+/**
+ * Whether the strip has left its place and stands stuck under the top bar (canvas A: the glass only once stuck): a mark just
+ * above it, watched against the page's scroller.
+ */
+function useStuck(): [RefObject<HTMLSpanElement | null>, boolean] {
+  const mark = useRef<HTMLSpanElement | null>(null);
+  const [stuck, setStuck] = useState(false);
+  // Judged on every scroll against the scroller the mark is in at that moment, the mark read as the scroll comes: a thin
+  // record draws no strip, and an observer rooted on the scroller at mount kept one the page had since drawn again.
+  useEffect(() => {
+    const judge = () => {
+      const el = mark.current;
+      const scroller = el && el.isConnected ? el.closest(".cl-profile") : null;
+      // Two rectangles a scroll; a state set to what it holds draws nothing.
+      if (el && scroller) setStuck(el.getBoundingClientRect().top < scroller.getBoundingClientRect().top);
+    };
+    document.addEventListener("scroll", judge, true);
+    return () => document.removeEventListener("scroll", judge, true);
+  }, []);
+  return [mark, stuck];
+}
+
+/**
+ * The tabs this width draws: a desk's with their counts, a phone's with About. None on a thin record. The strip sticks
+ * under the top bar as the tab's panes scroll (canvas A), and wears the glass once it is stuck.
+ */
 export function PersonTabs({ c }: { c: PageCtx }) {
+  const [mark, stuck] = useStuck();
   const tabs = c.phone ? c.p.tabs.phone : c.p.tabs.desk;
   if (!tabs.length) return null;
+  return (
+    <>
+      <span ref={mark} className="cl-prof-strip-sentinel" aria-hidden="true" />
+      <div className="cl-prof-strip-stand" data-stuck={stuck || undefined} data-testid="person-strip">
+        {strip(c, tabs)}
+      </div>
+    </>
+  );
+}
+
+/**
+ * On a phone a swipe across the work column walks its tabs (canvas A): the column follows the thumb, leaves, and comes back
+ * in on the tab beside, as the Calendar's days turn (data-bits touchSwipe, a page that stays). Never from 24px of either
+ * edge, the phone's own back, nor from a field or a row that scrolls across. Nothing on a desk.
+ */
+export function tabSwipe(c: PageCtx): SwipeHandlers {
+  if (!c.phone) return {};
+  const tabs = c.p.tabs.phone;
+  const at = tabs.findIndex((t) => t.id === c.tab);
+  if (at < 0 || tabs.length < 2) return {};
+  return touchSwipe({
+    pages: () => ({
+      prev: at > 0,
+      next: at < tabs.length - 1,
+      stays: true,
+      go: (step: number) => {
+        const to = tabs[at + step];
+        if (to) flushSync(() => c.goTab(to.id));
+      },
+    }),
+    when: () => c.phone,
+  });
+}
+
+/** The strip itself: the kit's sub-tabs, a press moving the address. */
+function strip(c: PageCtx, tabs: PersonVM["tabs"]["desk"]) {
   return (
     <SubTabs
       label={PERSON_TABS_LABEL}
@@ -48,6 +126,8 @@ export function PersonTabs({ c }: { c: PageCtx }) {
         id: t.id,
         label: t.label,
         ...(t.count !== null ? { count: t.count } : {}),
+        // History says something there is new since the reader last looked (0052): the dot, never a second figure.
+        ...(t.id === "history" && c.fresh.size > 0 ? { fresh: NEW_SINCE_WORDS } : {}),
         testid: `person-tab-${t.id}`,
       }))}
       onSelect={(id) => {

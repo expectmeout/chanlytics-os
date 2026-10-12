@@ -161,12 +161,16 @@ export const reportsOverride: SurfaceOverride = {
   // visit or the hours moves the period's numbers: read again only while its page is on screen, and once when it comes back
   // (surface-registry.ts).
   ...declareReads("reports", {
-    reads: ["conversation", "hold", "call", "deal", "visit", "person", "facts"],
+    reads: ["conversation", "hold", "call", "deal", "visit", "person", "facts", "lead", "reach_out"],
     fresh: "its-page",
     omit: [
       {
         tables: ["appointment_notices"],
         why: "its booking line reads the appointments; a held booking email is not one",
+      },
+      {
+        tables: ["leads", "lead_searches", "lead_rounds", "lead_search_members", "reach_out_replies"],
+        why: "People's read carries each person's business and offered signer (0052), and no lens counts either",
       },
     ],
     when: (change) => !isLiveCallTurn(change),

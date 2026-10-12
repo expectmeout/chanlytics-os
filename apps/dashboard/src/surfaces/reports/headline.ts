@@ -45,13 +45,17 @@ export const headline = periodSurface({
   // turn of a call in progress changes nothing it counts (surface-realtime.ts isLiveCallTurn, as Today's own rule leaves it out):
   // asked first, so a turn heard on another page is not kept for Today either.
   live: {
-    reads: ["conversation", "call", "visit", "person"],
+    reads: ["conversation", "call", "visit", "person", "lead", "reach_out"],
     fresh: "its-page",
     omit: [
       { tables: ["conversations"], why: "it counts the messages, not the threads they are in" },
       {
         tables: ["appointment_notices"],
         why: "its booking line reads the appointments; a held booking email is not one",
+      },
+      {
+        tables: ["leads", "lead_searches", "lead_rounds", "lead_search_members", "reach_out_replies"],
+        why: "People's read carries each person's business and offered signer (0052), and the headline counts neither",
       },
     ],
     when: (change) => !isLiveCallTurn(change),

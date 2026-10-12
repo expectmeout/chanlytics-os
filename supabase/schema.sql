@@ -13394,7 +13394,7 @@ COMMENT ON FUNCTION public.pause_email_offers(p_tenant_id uuid, p_reason text, p
 -- Name: people_list(uuid, uuid, text, integer, integer, timestamp with time zone, timestamp with time zone, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT NULL::uuid, p_query text DEFAULT NULL::text, p_limit integer DEFAULT 1000, p_offset integer DEFAULT 0, p_after_at timestamp with time zone DEFAULT NULL::timestamp with time zone, p_after_added timestamp with time zone DEFAULT NULL::timestamp with time zone, p_after_id uuid DEFAULT NULL::uuid) RETURNS TABLE(id uuid, display_name text, wa_profile_name text, phone_e164 text, email text, email_suppressed_at timestamp with time zone, consent text, consent_source text, consent_updated_at timestamp with time zone, dnc boolean, marketing_consent text, marketing_consent_source text, marketing_consent_updated_at timestamp with time zone, consent_channels text[], marketing_channels text[], offers_asked_at timestamp with time zone, email_marketing text, email_marketing_source text, email_marketing_updated_at timestamp with time zone, channels text[], conversation_count integer, escalation_count integer, needs_human boolean, open_escalation_reason text, open_escalation_since timestamp with time zone, latest_conversation_id uuid, latest_state text, latest_paused_until timestamp with time zone, latest_assignee_user_id uuid, latest_snooze_until timestamp with time zone, latest_wa_inbound_at timestamp with time zone, last_message_at timestamp with time zone, last_message_direction text, last_message_sender text, last_inbound_text text, last_inbound_at timestamp with time zone, last_inbound_channel text, last_wrote_at timestamp with time zone, last_call_at timestamp with time zone, last_inbound_call_at timestamp with time zone, last_inbound_call_summary text, call_count integer, call_seconds integer, first_contact_at timestamp with time zone, earliest_row_at timestamp with time zone, has_backfill boolean, has_chat boolean, message_channels text[], queued_reply_at timestamp with time zone, came_from text, deal_id uuid, deal_stage text, deal_service text, deal_proposed_at timestamp with time zone, deal_decided_at timestamp with time zone, deal_ended_at timestamp with time zone, deal_amount_cents integer, deal_per text, deal_proposal_url text, deal_valid_until date, deal_lost_reason text, open_deals jsonb, step_id uuid, step_body text, step_due_on date, step_for_user_id uuid, step_deal_id uuid, in_touch_at timestamp with time zone, added_at timestamp with time zone, lead_id uuid, lead_name text, lead_gone boolean, name_source text, name_settled_at timestamp with time zone, signer_message_id uuid, signer_name text, signer_title text, signer_read_at timestamp with time zone)
+CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT NULL::uuid, p_query text DEFAULT NULL::text, p_limit integer DEFAULT 1000, p_offset integer DEFAULT 0, p_after_at timestamp with time zone DEFAULT NULL::timestamp with time zone, p_after_added timestamp with time zone DEFAULT NULL::timestamp with time zone, p_after_id uuid DEFAULT NULL::uuid) RETURNS TABLE(id uuid, display_name text, wa_profile_name text, phone_e164 text, email text, email_suppressed_at timestamp with time zone, consent text, consent_source text, consent_updated_at timestamp with time zone, dnc boolean, marketing_consent text, marketing_consent_source text, marketing_consent_updated_at timestamp with time zone, consent_channels text[], marketing_channels text[], offers_asked_at timestamp with time zone, email_marketing text, email_marketing_source text, email_marketing_updated_at timestamp with time zone, channels text[], conversation_count integer, escalation_count integer, needs_human boolean, open_escalation_reason text, open_escalation_since timestamp with time zone, latest_conversation_id uuid, latest_state text, latest_paused_until timestamp with time zone, latest_assignee_user_id uuid, latest_snooze_until timestamp with time zone, latest_wa_inbound_at timestamp with time zone, last_message_at timestamp with time zone, last_message_direction text, last_message_sender text, last_inbound_text text, last_inbound_at timestamp with time zone, last_inbound_channel text, last_wrote_at timestamp with time zone, last_call_at timestamp with time zone, last_inbound_call_at timestamp with time zone, last_inbound_call_summary text, call_count integer, call_seconds integer, first_contact_at timestamp with time zone, earliest_row_at timestamp with time zone, has_backfill boolean, has_chat boolean, message_channels text[], queued_reply_at timestamp with time zone, came_from text, deal_id uuid, deal_stage text, deal_service text, deal_proposed_at timestamp with time zone, deal_decided_at timestamp with time zone, deal_ended_at timestamp with time zone, deal_amount_cents integer, deal_per text, deal_proposal_url text, deal_valid_until date, deal_lost_reason text, open_deals jsonb, step_id uuid, step_body text, step_due_on date, step_for_user_id uuid, step_deal_id uuid, in_touch_at timestamp with time zone, added_at timestamp with time zone, lead_id uuid, lead_name text, lead_gone boolean, lead_emails text[], name_source text, name_settled_at timestamp with time zone, signer_message_id uuid, signer_name text, signer_title text, signer_read_at timestamp with time zone)
     LANGUAGE sql STABLE
     SET search_path TO 'public'
     AS $$
@@ -13464,6 +13464,7 @@ CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT N
     st.id, st.body, st.due_on, st.for_user_id, st.deal_id,
     c.in_touch_at, c.added_at,
     ch.lead_id, case when not coalesce(ld.gone, false) then ld.business_name end, coalesce(ld.gone, false),
+    ld.emails,
     ch.name_source, ch.name_settled_at,
     sg.message_id, sg.signer_name, sg.signer_title, sg.read_at
   from page c
@@ -13477,8 +13478,16 @@ CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT N
      where k.id = c.id and k.tenant_id = p_tenant_id
   ) ch on true
   left join lateral (
-    -- The business they work at (0052), by its key: its name, and whether it was erased or blanked since.
-    select l.business_name, (l.erased_at is not null or l.blanked_at is not null) as gone
+    -- The business they work at (0052), by its key: its name, and whether it was erased or blanked since; and, for its
+    -- own person alone while it stands, its addresses (its email and its alternates), each once, lower-cased.
+    select l.business_name, (l.erased_at is not null or l.blanked_at is not null) as gone,
+           case when l.contact_id = c.id and l.erased_at is null and l.blanked_at is null then
+             (select array_agg(distinct lower(btrim(a.address)) order by lower(btrim(a.address)))
+                from (select l.email as address
+                      union all
+                      select x->>'email' from jsonb_array_elements(coalesce(l.email_alternates, '[]'::jsonb)) x) a
+               where nullif(btrim(coalesce(a.address, '')), '') is not null)
+           end as emails
       from leads l
      where l.id = ch.lead_id and l.tenant_id = p_tenant_id
   ) ld on true
@@ -13642,7 +13651,7 @@ $$;
 -- Name: FUNCTION people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) IS 'Everyone this workspace has ever heard from, with both consent answers: `consent` for conversation and their own appointments, `marketing_consent` for offers. Two answers because the carriers require them collected separately (error 30913). `came_from` says where each first came from: the door that added them (calendar, lead, import, manual); else a history moved in from before the database says how it began, in the thread''s own order (a call''s note is call, anything else its wire; import only when it names none); else their first call (call) or the wire of their first message (whatsapp, sms, email); null when nothing says. p_query matches a name, a WhatsApp name, an email address or three digits of the number; p_contact_id names one person, their row alone. The page is chosen before it is read (0021, people_page): its people come from person_moments in one whole order, latest contact first (in_touch_at, -infinity for never), then the newest added (added_at), then the id, falling, at most p_limit (1000) of them after p_offset or after the cursor p_after_at, p_after_added, p_after_id (the last row''s in_touch_at, added_at and id); every other column is read for them alone. The deal_* columns carry the newest open or current deal, else the newest of any (0004), with its link, its valid-until day and why they passed (0008); `open_deals` carries every open deal (proposed or won, one per service), newest first, in the same fields (0029), null with none open. The step_* columns carry their next step: the earliest open note with a day (0007, amended), by its day and then as written. `consent_channels` and `marketing_channels` are the channels each yes covers (00297; null: a yes recorded before the channels were kept, which covers WhatsApp alone) and `offers_asked_at` is when the receptionist first asked for the yes to offers. `last_inbound_channel` is the channel of the last written message they sent themselves (their own words: not an automatic reply or a list''s mail) (whatsapp, sms or email; null when they have sent none): the channel a campaign reaches them on first (00298, contracts'' reachFor). `last_wrote_at` is when they last wrote words that were a person''s own, an automatic reply, a list''s mail or a delivery report left out (00299, message_is_a_persons_words): the fact of "they wrote" that contracts'' relationshipOnRecord reads. `email_suppressed_at` is when their address stopped being sent to (a bounce, a complaint; null while it is good): a campaign does not pick email for a person who has it. `email_marketing`, `email_marketing_source` and `email_marketing_updated_at` are the person''s own answer about offers by email (00174, 00299): an offer by email goes to someone who has not unsubscribed and who asked for offers by email or has a relationship with the business on record (contracts'' mayMessageFor). `lead_id`, `lead_name` and `lead_gone` are the business they work at (0052: the lead, its name while it stands, and whether it was erased or blanked since); p_query matches its name too. `name_source` is where their name came from (typed, import, calendar, signature, wire, lead) and `name_settled_at` when a member settled it. `signer_*` is the newest reply signer offered as their name (the notice Use this name), null with none.';
+COMMENT ON FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid, p_query text, p_limit integer, p_offset integer, p_after_at timestamp with time zone, p_after_added timestamp with time zone, p_after_id uuid) IS 'Everyone this workspace has ever heard from, with both consent answers: `consent` for conversation and their own appointments, `marketing_consent` for offers. Two answers because the carriers require them collected separately (error 30913). `came_from` says where each first came from: the door that added them (calendar, lead, import, manual); else a history moved in from before the database says how it began, in the thread''s own order (a call''s note is call, anything else its wire; import only when it names none); else their first call (call) or the wire of their first message (whatsapp, sms, email); null when nothing says. p_query matches a name, a WhatsApp name, an email address or three digits of the number; p_contact_id names one person, their row alone. The page is chosen before it is read (0021, people_page): its people come from person_moments in one whole order, latest contact first (in_touch_at, -infinity for never), then the newest added (added_at), then the id, falling, at most p_limit (1000) of them after p_offset or after the cursor p_after_at, p_after_added, p_after_id (the last row''s in_touch_at, added_at and id); every other column is read for them alone. The deal_* columns carry the newest open or current deal, else the newest of any (0004), with its link, its valid-until day and why they passed (0008); `open_deals` carries every open deal (proposed or won, one per service), newest first, in the same fields (0029), null with none open. The step_* columns carry their next step: the earliest open note with a day (0007, amended), by its day and then as written. `consent_channels` and `marketing_channels` are the channels each yes covers (00297; null: a yes recorded before the channels were kept, which covers WhatsApp alone) and `offers_asked_at` is when the receptionist first asked for the yes to offers. `last_inbound_channel` is the channel of the last written message they sent themselves (their own words: not an automatic reply or a list''s mail) (whatsapp, sms or email; null when they have sent none): the channel a campaign reaches them on first (00298, contracts'' reachFor). `last_wrote_at` is when they last wrote words that were a person''s own, an automatic reply, a list''s mail or a delivery report left out (00299, message_is_a_persons_words): the fact of "they wrote" that contracts'' relationshipOnRecord reads. `email_suppressed_at` is when their address stopped being sent to (a bounce, a complaint; null while it is good): a campaign does not pick email for a person who has it. `email_marketing`, `email_marketing_source` and `email_marketing_updated_at` are the person''s own answer about offers by email (00174, 00299): an offer by email goes to someone who has not unsubscribed and who asked for offers by email or has a relationship with the business on record (contracts'' mayMessageFor). `lead_id`, `lead_name` and `lead_gone` are the business they work at (0052: the lead, its name while it stands, and whether it was erased or blanked since); p_query matches its name too. `lead_emails` is that lead''s own addresses (its email and the other ones the finder read off its site, lower-cased) on its own person''s row alone, while it stands: a calendar booking from one of them is theirs, matched by their business (0052, I24). `name_source` is where their name came from (typed, import, calendar, signature, wire, lead) and `name_settled_at` when a member settled it. `signer_*` is the newest reply signer offered as their name (the notice Use this name), null with none.';
 
 
 --
@@ -13956,6 +13965,93 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.people_series(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports › People: who reached the business over p_days and the same number of days before them, as people and never as messages (distinct live people with an inbound message in their own words on WhatsApp, SMS or email, or an inbound call that connected; new where contact_first_moments, 00394, puts their first reach-in in the same period), on which channel, how the new ones first came (contacts.acquired_via, 00306; null is unknown), the yeses and stops recorded (contact.consent_changed events, one per person, kind of message and answer, a merge and a stop that ends a yes to offers left out; by source and kind of message in the window, in totals before it), the email addresses that stopped working (contact.email_suppressed events, once a person), and the steps done (person_notes with a day, done in the window) and how many on their day or before by the workspace''s own day. Counts only. SECURITY INVOKER: the caller''s RLS decides what a member reads. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
+
+
+--
+-- Name: person_call_logged(uuid, text, text, date, boolean, text, text, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date DEFAULT NULL::date, p_tell boolean DEFAULT false, p_step_body text DEFAULT NULL::text, p_lead_stage text DEFAULT NULL::text, p_lead_reason text DEFAULT NULL::text, p_lead_note text DEFAULT NULL::text, p_spoke_with text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user   uuid := auth.uid();
+  v_person public.contacts%rowtype;
+  v_lead   public.leads%rowtype;
+  v_tell   boolean := coalesce(p_tell, false);
+  v_step_b text := coalesce(nullif(btrim(coalesce(p_step_body, '')), ''), p_body);
+  v_stage  text := p_lead_stage;
+  v_note   jsonb;
+  v_step   jsonb := null;
+  v_moved  jsonb := null;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_outcome is null
+     or p_outcome not in ('spoke', 'interested', 'call_back', 'not_interested', 'voicemail', 'no_answer', 'wrong_number') then
+    return jsonb_build_object('error', 'bad_outcome');
+  end if;
+  -- Both notes' words are judged before either is written, so a call is kept whole or not at all.
+  if nullif(btrim(coalesce(p_body, '')), '') is null then
+    return jsonb_build_object('error', 'empty');
+  end if;
+  if char_length(btrim(p_body)) > 600 or char_length(btrim(v_step_b)) > 600 then
+    return jsonb_build_object('error', 'too_long');
+  end if;
+  select * into v_person
+    from public.contacts c
+   where c.id = p_contact_id and c.erased_at is null and c.merged_into_contact_id is null;
+  if not found or not public.is_acting_member(v_person.tenant_id) then
+    return jsonb_build_object('error', 'not_found');
+  end if;
+
+  -- The note: with a day it is the step itself, unless the receptionist reads it, when the step is its own note beside it
+  -- (a step is always the team's, 00166).
+  if v_tell and p_due_on is not null then
+    v_note := public.person_note_add(p_contact_id, p_body, null, false, 'page', null, null);
+    if v_note ? 'error' then
+      return v_note;
+    end if;
+    v_step := public.person_note_add(p_contact_id, v_step_b, null, true, 'page', p_due_on, null);
+    if v_step ? 'error' then
+      raise exception 'The call back could not be kept: %', v_step->>'error' using errcode = '22023';
+    end if;
+  else
+    v_note := public.person_note_add(p_contact_id, p_body, null, not v_tell, 'page', p_due_on, null);
+    if v_note ? 'error' then
+      return v_note;
+    end if;
+  end if;
+
+  -- The lead, where the business they work at is still being worked and the outcome is one of a lead's.
+  if p_outcome <> 'spoke' and v_person.lead_id is not null then
+    select * into v_lead
+      from public.leads l
+     where l.id = v_person.lead_id and l.tenant_id = v_person.tenant_id;
+    -- A lead nobody stands for yet (a colleague linked by hand to a business never written to) is not moved: its
+    -- Interested would make a second person, the business's, beside the one called.
+    if found and v_lead.stage <> 'archived' and v_lead.erased_at is null and v_lead.blanked_at is null
+       and v_lead.contact_id is not null
+       and (p_outcome <> 'wrong_number' or v_person.phone_e164 is null) then
+      if v_lead.stage = 'converted' and v_stage = 'nurture' then
+        v_stage := null;
+      end if;
+      v_moved := public.lead_set_stage(v_lead.id, v_stage, p_lead_reason, null, p_outcome, left(p_lead_note, 280),
+                                       p_spoke_with);
+    end if;
+  end if;
+
+  return jsonb_build_object('note', v_note->'note', 'step', v_step->'note', 'lead', v_moved);
+end $$;
+
+
+--
+-- Name: FUNCTION person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text) IS 'A call a member made, logged on the person (0052, canvas A M4): a note, the team''s unless p_tell, a step with p_due_on (beside the note where the receptionist reads it), and, where the person''s business is an open lead with its own person, the outcome through lead_set_stage (never Spoke; Wrong number only where the person has no number of their own; a lead Talking kept so by a call that went nowhere). Owner, operator or partner. Answers {note, step, lead} or {error}.';
 
 
 --
@@ -37019,6 +37115,15 @@ GRANT ALL ON FUNCTION public.people_page(p_tenant_id uuid, p_contact_id uuid, p_
 REVOKE ALL ON FUNCTION public.people_series(p_tenant_id uuid, p_days integer, p_end date) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.people_series(p_tenant_id uuid, p_days integer, p_end date) TO authenticated;
 GRANT ALL ON FUNCTION public.people_series(p_tenant_id uuid, p_days integer, p_end date) TO service_role;
+
+
+--
+-- Name: FUNCTION person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text) TO authenticated;
+GRANT ALL ON FUNCTION public.person_call_logged(p_contact_id uuid, p_outcome text, p_body text, p_due_on date, p_tell boolean, p_step_body text, p_lead_stage text, p_lead_reason text, p_lead_note text, p_spoke_with text) TO service_role;
 
 
 --

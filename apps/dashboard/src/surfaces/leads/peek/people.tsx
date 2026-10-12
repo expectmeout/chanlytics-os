@@ -4,7 +4,7 @@
  * press, Undo and x as their page (people/person/name-offer.tsx). Nothing for a lead nobody works at, or before People
  * is read. Every word is contracts'.
  */
-import { WORKS_AT_WORDS } from "@chanlytics/contracts";
+import { WORKS_AT_WORDS, leadPeopleIndex, leadPeopleOf } from "@chanlytics/contracts";
 import type { PersonRowVM } from "@chanlytics/contracts";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { mayAtLeast } from "../../legacy-verbs";
@@ -12,16 +12,21 @@ import { surfaceValue } from "../../surface-values";
 import { NameOffer } from "../../people/person/name-offer";
 import type { PeekActs } from "./types";
 
-/** The people People holds who work at this lead, the ones waiting on you first. */
-function peopleAt(leadId: string): PersonRowVM[] {
+/**
+ * The people People holds who work at this lead, in the order the row names them (contracts leadPeopleOf): the one a
+ * member knows the business by, then whoever waits on you, then the rest.
+ */
+function peopleAt(lead: { id: string; contactId: string | null }): PersonRowVM[] {
   const rows = surfaceValue("people")?.rows ?? [];
-  return rows
-    .filter((r) => r.worksAt?.leadId === leadId)
-    .sort((a, b) => Number(b.state === "needs_you") - Number(a.state === "needs_you"));
+  const index = leadPeopleIndex(rows);
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  return leadPeopleOf(lead, index)
+    .order.map((id) => byId.get(id))
+    .filter((r): r is PersonRowVM => !!r);
 }
 
-export function LeadPeekPeople({ leadId, on }: { leadId: string; on: PeekActs }) {
-  const people = peopleAt(leadId);
+export function LeadPeekPeople({ lead, on }: { lead: { id: string; contactId: string | null }; on: PeekActs }) {
+  const people = peopleAt(lead);
   if (!people.length) return null;
   return (
     <section className="pk-box pk-people" aria-label={WORKS_AT_WORDS.inPeople(people.length)} data-testid="peek-people">

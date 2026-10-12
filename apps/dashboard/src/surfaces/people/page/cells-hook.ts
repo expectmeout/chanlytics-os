@@ -7,6 +7,7 @@ import type { PersonRowVM } from "@chanlytics/contracts";
 import { askOnScreenKey, setAskOnScreen } from "../../legacy-verbs";
 import { useSeen } from "../../seen";
 import { warmPeople, warmPerson } from "../people-detail";
+import { keepWalk } from "../walk";
 import { usePlPlace } from "../hooks/use-place";
 import type { PlaceControls } from "../hooks/use-place";
 import type { PeopleCellCtx, PeopleRead, SavedList } from "../types";
@@ -122,6 +123,12 @@ export function usePeoplePlace({
   useEffect(() => {
     if (aheadKey) warmPeople(aheadKey.split(","));
   }, [aheadKey]);
+  // The order this view draws its people in, kept in the tab: a person opened from it steps to the one before and after
+  // ("‹ 4 of 24 ›", walk.ts, 0052) without going back to the list.
+  const walkIds = shownIds.join(",");
+  useEffect(() => {
+    keepWalk(peopleView, walkIds ? walkIds.split(",") : []);
+  }, [peopleView, walkIds]);
   // What Ask is told is on screen (legacy-bridge/ask/context.ts): the people this view draws, in its order after its list,
   // search and sort, forty at most, and the view that chose them; taken back when the list goes.
   useEffect(() => {

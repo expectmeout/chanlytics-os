@@ -351,10 +351,17 @@ export const peopleOverride: SurfaceOverride = {
       "deal",
       "step",
       "list",
+      "reach_out",
+      "lead",
     ],
     fresh: "its-page",
     always: ["visit", "deal", "step", "list"],
     omit: [
+      {
+        // A reply's signer offered (reach_out_replies, 0052) is heard: a row says "Use this name". The leads are not.
+        tables: ["leads", "lead_searches", "lead_rounds", "lead_search_members"],
+        why: "a row trails its business (0052), which a search's thousands of lead writes never change for a person linked to one; a link or an unlink moves the person, which is heard",
+      },
       {
         tables: ["lines", "mailboxes", "sending_domains", "capability_activations", "business_records"],
         why: "its reach is counted against the numbers connected (tenant_channels) and the workspace's pause; a line's saga, a mailbox, a domain, an activation and the carriers' record are not among them",

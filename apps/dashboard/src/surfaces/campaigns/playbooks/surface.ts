@@ -383,10 +383,16 @@ export const playbooksOverride: SurfaceOverride = {
       "facts",
       "send",
       "campaign",
+      "lead",
+      "reach_out",
     ],
     fresh: "its-page",
     always: ["send", "campaign"],
     omit: [
+      {
+        tables: ["leads", "lead_searches", "lead_rounds", "lead_search_members", "reach_out_replies"],
+        why: "People's read carries each person's business and offered signer (0052); no moment's pool is counted from either, and a greeting's name is the person's, heard with them",
+      },
       {
         tables: ["appointment_notices"],
         why: "a booking email held for a look is the Calendar's and Settings'; the pools read the appointments themselves",

@@ -53,6 +53,12 @@ export interface PersonLike {
   reach?: { wire: "whatsapp" | "sms" | "email" | null; emailStopped: boolean; optedOut: boolean };
   /** The business they work at, while it stands (0052): a booking that names it is theirs, where nobody else works there. */
   business?: string | null;
+  /**
+   * That business's own addresses, lower-cased, on its own person alone (0052, I24: its email and the other ones the finder
+   * read off its site): a booking from one is theirs, matched by their business, since the address is the business's and
+   * not theirs. None for anyone else.
+   */
+  businessEmails?: readonly string[];
 }
 
 /** How a match was made, surest first: a number and an address are exact, a name is a guess. */
@@ -301,6 +307,13 @@ export function matchPerson(
       const p = byEmail.get(em);
       if (p) return { id: p.id, name: labelOf(p), via: "email", ...threadOf(p), ...replyFactsOf(p) };
     }
+    // A business's own address (0052, I24): its person's, and said as their business, since it is not their own.
+    const byBusiness = new Map<string, PersonLike>();
+    for (const p of people) for (const em of p.businessEmails ?? []) byBusiness.set(em, p);
+    for (const em of c.emails) {
+      const p = byBusiness.get(em);
+      if (p) return { id: p.id, name: labelOf(p), via: "business", ...threadOf(p), ...replyFactsOf(p) };
+    }
   }
   const words = [item.title, ...c.names, item.description ?? ""].join("\n");
   const p = personInText(words, people);
@@ -408,6 +421,7 @@ export function allVisitsIn(index: FeedIndex, person: PersonLike): Visit[] {
   };
   if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
   if (person.email) for (const it of index.byEmail.get(person.email.toLowerCase()) ?? []) take(it, "email");
+  for (const em of person.businessEmails ?? []) for (const it of index.byEmail.get(em) ?? []) take(it, "business");
   const re = nameMatcher(person.name);
   if (re) for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
   return out.sort((a, b) => a.start - b.start);
@@ -438,6 +452,7 @@ export function visitsIn(index: FeedIndex, person: PersonLike, nowMs: number): V
   };
   if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
   if (person.email) for (const it of index.byEmail.get(person.email.toLowerCase()) ?? []) take(it, "email");
+  for (const em of person.businessEmails ?? []) for (const it of index.byEmail.get(em) ?? []) take(it, "business");
   const re = nameMatcher(person.name);
   if (re) for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
   return { next, last, near: near.sort((a, b) => a.start - b.start), missed };
@@ -523,43 +538,6 @@ export function describeVisits(
     );
   }
   return out.length ? out.join(" ") : null;
-}
-
-/* ---------------------------------------------------------------- words */
-
-/** Which calendar the feed comes from, from its address alone — the address itself never leaves the server. */
-export function feedSourceLabel(url: string | null | undefined): string {
-  if (!url) return "your calendar";
-  let host: string;
-  try {
-    host = new URL(url.replace(/^webcal:\/\//i, "https://")).hostname.toLowerCase();
-  } catch {
-    return "your calendar";
-  }
-  if (host.includes("google")) return "Google Calendar";
-  if (host.includes("icloud")) return "Apple Calendar";
-  if (host.includes("office365") || host.includes("outlook") || host.includes("live.com")) return "Outlook";
-  return "your calendar";
-}
-
-/** A description as plain text: tags out, entities back, at most a screen of it. */
-export function eventText(raw: string | null | undefined, max = 1500): string | null {
-  if (!raw) return null;
-  const text = raw
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/?(p|div|li|tr|h[1-6])\b[^>]*>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;|&apos;/g, "'")
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-  if (!text) return null;
-  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
 }
 
 /* ------------------------------------------------------------- the wire */

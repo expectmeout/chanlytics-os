@@ -16,7 +16,7 @@ import { priceBreach } from "../../packages/contracts/dist/index.js";
 
 /**
  * @typedef {{ intent?: string | string[], escalate?: boolean, language?: string, includes?: string[], excludes?: string[], min_confidence?: number, grounded?: boolean }} Expect
- * @typedef {{ id: string, text: string, expect?: Expect, hard?: boolean, provisional?: boolean }} EvalCase
+ * @typedef {{ id: string, text: string, expect?: Expect, hard?: boolean, provisional?: boolean, who?: { name: string, standIn?: boolean, returning?: boolean } }} EvalCase
  * @typedef {{ id: string, ok: boolean, text?: string, escalate?: boolean, reason?: string | null, meta?: { intent?: string, confidence?: number, language?: string, facts_used?: string[] } | null, usage?: { input_tokens: number, output_tokens: number } | null, ms?: number, error?: string }} EvalResult
  */
 
@@ -80,6 +80,9 @@ export function validateCases(cases) {
     if (e.grounded !== undefined && typeof e.grounded !== "boolean")
       problems.push(`${c.id}: grounded is true or false`);
     if (c.hard && c.provisional) problems.push(`${c.id}: a hard case is never on trial`);
+    // Who the case is speaking with (nightly.mjs whoOf): a name, at least, as the database would hold it.
+    if (c.who !== undefined && (typeof c.who !== "object" || c.who === null || typeof c.who.name !== "string"))
+      problems.push(`${c.id}: who names the person, with a name`);
   }
   return problems;
 }

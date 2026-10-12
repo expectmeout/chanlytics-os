@@ -253,10 +253,26 @@ export const broadcastsOverride: SurfaceOverride = {
   // an offer by email names and the booking link a slot fills. Not the templates: the messages it offers are the settings
   // read's, which hears them and which this surface follows (followSettings above).
   ...declareReads("broadcasts", {
-    reads: ["conversation", "hold", "visit", "channel", "billing", "person", "rules", "facts", "send"],
+    reads: [
+      "conversation",
+      "hold",
+      "visit",
+      "channel",
+      "billing",
+      "person",
+      "rules",
+      "facts",
+      "send",
+      "lead",
+      "reach_out",
+    ],
     fresh: "its-page",
     always: ["send"],
     omit: [
+      {
+        tables: ["leads", "lead_searches", "lead_rounds", "lead_search_members", "reach_out_replies"],
+        why: "People's read carries each person's business and offered signer (0052); no audience is counted from either, and a greeting's name is the person's, heard with them",
+      },
       {
         tables: ["appointment_notices"],
         why: "a booking email held for a look is the Calendar's and Settings'; the audiences' pools read the appointments themselves",

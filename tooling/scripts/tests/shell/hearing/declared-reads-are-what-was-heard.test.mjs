@@ -132,6 +132,8 @@ const HEARD_BEFORE = {
     "person_notes",
     "segments",
     "segment_members",
+    // A reply's signer offered (0052): a row carries it, which the Inbox's header and Leads' peek say from People's rows.
+    "reach_out_replies",
   ],
   leads: ["leads", "lead_searches", "lead_rounds", "lead_search_members"],
   // Task 3.2 adds the calls the report counts (not a transcript turn) and the hours its "while closed" counts by.
@@ -200,6 +202,7 @@ const ON_ITS_PAGE_BEFORE = {
     "policies",
     "templates",
     "tenant_config",
+    "reach_out_replies",
   ],
   broadcasts: SENT_PAGE,
   playbooks: COMPOSER_PAGE,

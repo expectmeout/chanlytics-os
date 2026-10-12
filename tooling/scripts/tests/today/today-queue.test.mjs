@@ -269,6 +269,21 @@ test("one queue, longest wait first: the handoff, the call-back, the closing win
   assert.equal(ear.also, null);
 });
 
+test("each row names the person it is about by their People id, so the page can trail their name with their business (0052); a search names nobody", () => {
+  const vm = toTodayVM(metrics(), conversations, escalations, calls, NOW, [waitingSearch]);
+  const of = (kind) => vm.queue.rows.find((r) => r.kind === kind);
+  assert.equal(of("handoff").person_id, "c1", "the thread's person");
+  assert.equal(of("callback").person_id, "c2", "the call-back's thread's person");
+  assert.equal(of("window").person_id, "c3", "the closing window's person, named or not");
+  assert.equal(of("call").person_id, "c9", "the caller People holds");
+  assert.equal(of("search").person_id, null, "a search is a business nobody has met");
+  // A caller People does not hold is nobody's: the same call worth an ear, from a number no person has.
+  const stranger = toTodayVM(metrics(), [], [], [{ ...calls[1], id: "k3", contact_id: null }], NOW);
+  const ear = stranger.queue.rows.find((r) => r.kind === "call");
+  assert.ok(ear, "the call is still worth an ear");
+  assert.equal(ear.person_id, null);
+});
+
 test("a search waiting on its owner is a row in the queue, by its wait, with one button to answer it", () => {
   const vm = toTodayVM(metrics(), conversations, escalations, calls, NOW, [waitingSearch, runningSearch]);
   const rows = vm.queue.rows;

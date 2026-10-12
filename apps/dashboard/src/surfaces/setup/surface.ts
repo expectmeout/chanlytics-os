@@ -172,9 +172,13 @@ export const setupOverride: SurfaceOverride = {
   // again when a call ends, until one has reached it, and never for each turn of a call or what follows its end.
   // A sending domain added, checked, verified or held by the ten-minute clock: Connections' Email row (00175).
   ...declareReads("setup", {
-    reads: ["channel", "notification", "billing", "review", "call"],
+    reads: ["channel", "notification", "billing", "review", "call", "lead", "reach_out"],
     fresh: "live",
     omit: [
+      {
+        tables: ["leads", "lead_searches", "lead_rounds", "lead_search_members", "reach_out_replies"],
+        why: "People's read carries each person's business and offered signer (0052), and no row of Setup says either",
+      },
       {
         tables: ["mailboxes"],
         why: "the Email row follows the domain's standing (00175), not a mailbox's paused offers",

@@ -9,12 +9,14 @@ import {
   NOTE_REFUSALS,
   NOTE_WORDS,
   PEOPLE_LISTS,
+  composerDays,
   dueStepDay,
   forWords,
   nextStepOf,
   personNotesVM,
   stepDayOf,
   stepDays,
+  stepDayName,
   stepIsDue,
   toPersonRowVM,
   todayStepsDue,
@@ -60,6 +62,29 @@ test("the picker offers today, tomorrow, the weekdays to Friday, next week's Mon
   );
   assert.equal(monday[2].title, "Wednesday, Sep 23");
   assert.equal(stepDays(NOW, TZ).find((c) => c.label === "Next week").key, "2026-09-28");
+});
+
+test("the notes composer offers three of the picker's days -- tomorrow, this week's Friday or else next week, and any day -- and its button names the day chosen", () => {
+  const on = (iso) => composerDays(Date.parse(iso), TZ).map((c) => c.label);
+  assert.deepEqual(on("2026-09-21T15:00:00Z"), ["Tomorrow", "Fri", "Pick a day"], "a Monday");
+  assert.deepEqual(
+    on("2026-09-24T15:00:00Z"),
+    ["Tomorrow", "Next week", "Pick a day"],
+    "a Thursday: tomorrow is Friday",
+  );
+  assert.deepEqual(on("2026-09-26T15:00:00Z"), ["Tomorrow", "Next week", "Pick a day"], "a Saturday");
+  assert.deepEqual(on("2026-09-27T15:00:00Z"), ["Tomorrow", "Pick a day"], "a Sunday: tomorrow is next week");
+  const days = composerDays(Date.parse("2026-09-21T15:00:00Z"), TZ);
+  assert.deepEqual(
+    days.map((c) => c.key),
+    ["2026-09-22", "2026-09-25", "pick"],
+    "the picker's own days, by the business's calendar",
+  );
+  const name = (key, iso = "2026-09-21T15:00:00Z") => stepDayName(key, Date.parse(iso), TZ);
+  assert.equal(NOTE_WORDS.addStepFor(name("2026-09-22")), "Add step for Tomorrow");
+  assert.equal(NOTE_WORDS.addStepFor(name("2026-09-25")), "Add step for Fri");
+  assert.equal(NOTE_WORDS.addStepFor(name("2026-10-05", "2026-09-24T15:00:00Z")), "Add step for Oct 5");
+  assert.equal(NOTE_WORDS.addStepFor(name("2026-09-28", "2026-09-24T15:00:00Z")), "Add step for next week");
 });
 
 test("a step is due by one rule -- its day today or before, judged when asked -- and a day ahead is not", () => {

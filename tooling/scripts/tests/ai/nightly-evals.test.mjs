@@ -16,7 +16,7 @@ import { ROOT } from "../_source.mjs";
 import { answering } from "./_model-world.mjs";
 import { judgeCase, validateCases } from "../../eval-judge.mjs";
 
-const { PASS_LINE, gateOf, loadWorkspace, report, runAll, runCase, wilsonLower } = await import(
+const { PASS_LINE, gateOf, loadWorkspace, report, runAll, runCase, whoOf, wilsonLower } = await import(
   new URL("../../evals/nightly.mjs", import.meta.url).href
 );
 const cases = JSON.parse(fs.readFileSync(path.join(ROOT, "tooling/evals/nightly-cases.json"), "utf8"));
@@ -80,13 +80,46 @@ test("the cases are well formed, cover what the lane names, and mark what may ne
     byTag("injection").some((c) => /<\/customer>/.test(c.text)),
     "one closes the fence it is inside",
   );
-  assert.ok(cases.length >= 15 && cases.length <= 30);
+  // A night's cost has a ceiling: each case is asked twice. Raised from 30 for 0052's two cases on who is speaking.
+  assert.ok(cases.length >= 15 && cases.length <= 40);
+});
+
+test("the cases on who is speaking hear the person's lines the database writes, and a stand-in is never greeted by the business's name", async () => {
+  const who = cases.filter((c) => c.tag === "who");
+  assert.ok(who.length >= 2, `${who.length} cases on who is speaking`);
+  for (const c of who) {
+    assert.ok(c.provisional === true && !c.hard, `${c.id}: on trial, and never hard`);
+    assert.equal(c.who.standIn, true, `${c.id}: speaks with a stand-in`);
+    assert.ok(
+      c.expect.excludes.some((p) => new RegExp(p, "i").test("Hi Northside, thanks for writing")),
+      c.id,
+    );
+  }
+  const w = loadWorkspace();
+  const lines = await whoOf(w, who[0]);
+  assert.match(lines, /^Who you are speaking with \(a name in <profile_name>/);
+  assert.match(lines, /That is the business they are at, not their own name: never call them by it/);
+  assert.equal(
+    await whoOf(
+      w,
+      cases.find((c) => !c.who),
+    ),
+    null,
+    "a case naming nobody hears no lines",
+  );
+  assert.deepEqual(validateCases([{ ...who[0], who: { standIn: true } }]), [
+    `${who[0].id}: who names the person, with a name`,
+  ]);
 });
 
 test("the fact cases ask for an answer only the business's own facts give, and each is on trial until a run has held it", () => {
   const facts = cases.filter((c) => c.tag === "fact");
   assert.ok(facts.length >= 8, `${facts.length} fact cases`);
-  assert.deepEqual(facts, onTrial, "the cases on trial are the fact cases");
+  assert.deepEqual(
+    onTrial.filter((c) => c.tag !== "who"),
+    facts,
+    "the cases on trial are the fact cases, and those on who is speaking",
+  );
   for (const c of facts) assert.ok(c.provisional === true && !c.hard, `${c.id}: on trial, and never hard`);
   // Before these no case said what a right answer holds: every one could be passed by handing the customer over.
   assert.deepEqual(
@@ -238,7 +271,10 @@ test("a model that behaves holds the line; one that leaks its prompt or obeys a 
   for (const id of ["fact_open_tue_en", "fact_address_es", "fact_closed_sun_en"])
     assert.ok(held.trial.missed.includes(id), `${id} is missed by a model that only hands over`);
   const heldText = report(held, good);
-  assert.match(heldText, /On trial, counted in neither: \d+\/20 askings passed \(missed: .*fact_open_tue_en/);
+  assert.match(
+    heldText,
+    new RegExp(`On trial, counted in neither: \\d+/${onTrial.length * 2} askings passed \\(missed: .*fact_open_tue_en`),
+  );
   assert.match(heldText, /TRIAL fact_open_tue_en: escalate true, wanted false; missing /);
   assert.ok(!/MISS fact_/.test(heldText), "a case on trial is never a MISS");
 
@@ -348,5 +384,8 @@ test("with no eval key it asks nothing and says so, exits 0, and the production 
     encoding: "utf8",
   });
   assert.equal(dry.status, 0, dry.stderr);
-  assert.match(dry.stdout, /^dry: \d+ cases against a \d+-character prompt, nothing asked\./);
+  assert.match(
+    dry.stdout,
+    /^dry: \d+ cases \(\d+ naming who they are\) against a \d+-character prompt, nothing asked\./,
+  );
 });

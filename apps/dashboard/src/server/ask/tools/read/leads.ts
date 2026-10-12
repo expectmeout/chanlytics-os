@@ -10,6 +10,7 @@ import {
   leadSearchWords,
   leadsRoute,
   noteRows,
+  personName,
   toLeadPeekVM,
   toLeadRowVM,
   type LeadRowVM,
@@ -17,7 +18,7 @@ import {
 } from "@chanlytics/contracts";
 import { toSearchDto, waitingQuestionOf } from "../../../leads/leads";
 import { load } from "../../../readers";
-import { lead as leadReader, leads as leadsReader } from "../../../readers/leads";
+import { lead as leadReader, leadPeople, leads as leadsReader } from "../../../readers/leads";
 import { search as searchReader, searches } from "../../../readers/searches";
 import { UUID, defineActions, readAction, str, unlessNotFound, unread, type ToolContext } from "../context";
 
@@ -196,24 +197,28 @@ async function listLeads(
 /**
  * One lead, as its peek on Leads shows it (readers/leads.ts lead, GET leads/[id]'s own read, then contracts
  * toLeadPeekVM with the lead's own search): the row's facts, and what the peek adds -- what the listing says, where and
- * when it is open, its rating, why it fits, the checks made, where it was found, and how to reach it.
+ * when it is open, its rating, why it fits, the checks made, where it was found, and how to reach it; and who works there,
+ * as their business sheet lists them (readers/leads.ts leadPeople, 0052).
  */
 async function getLead(t: ToolContext, input: { lead_id: string; search_id?: string }): Promise<unknown> {
   const id = str(input.lead_id, 40);
   const searchId = str(input.search_id, 40);
   if (!UUID.test(id)) return { error: "lead_id must be an id leads with action leads returned" };
   if (searchId && !UUID.test(searchId)) return { error: "search_id must be an id leads with action searches returned" };
-  const [read, bySearch] = await Promise.all([
+  const [read, bySearch, people] = await Promise.all([
     unlessNotFound(load(t.rc, leadReader, { id, ...(searchId ? { search: searchId } : {}) })),
     searchesById(t, "leads.lead"),
+    // Who works there (0052), as their business sheet lists them; a lead whose people cannot be read is the lead alone.
+    load(t.rc, leadPeople, { id }).then((r) => r, unread(t, "leads.lead", "the people at the lead")),
   ]);
   if (!read) return { error: "no such lead in this workspace" };
   const r = read.data.row;
   const own = bySearch.get(r.search_id) ?? null;
   const vm = toLeadRowVM(r, t.timezone, t.now, own);
   const peek = toLeadPeekVM(r, own, t.timezone, t.now);
-  // The lead is a row an answer may cite, opened at its peek: the reader's RowRef.
+  // The lead is a row an answer may cite, opened at its peek: the reader's RowRef; and each of its people, at their page.
   noteRows(t.read, read.rows);
+  if (people) noteRows(t.read, people.rows);
   return {
     ...leadLine(vm, read.rows[0]?.route ?? leadsRoute({ peek: r.id })),
     about: peek.about ? cut(peek.about, 240) : null,
@@ -227,6 +232,15 @@ async function getLead(t: ToolContext, input: { lead_id: string; search_id?: str
     email_address: peek.reach.email.address,
     email_note: cut(peek.reach.email.note) || null,
     website: peek.links.website?.label ?? null,
+    // The people at the business, each a person People holds; null where they could not be read, never "nobody".
+    people: people
+      ? people.data.map((p) => ({
+          contact_id: p.id,
+          name: cut(personName(p)),
+          named_for_the_business: p.name_source === "lead",
+          needs_you: p.needs_you,
+        }))
+      : null,
   };
 }
 

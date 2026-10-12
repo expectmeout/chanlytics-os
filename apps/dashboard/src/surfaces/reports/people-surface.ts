@@ -61,10 +61,14 @@ export const reportsPeople = periodSurface({
   // address, a merge, people imported; the postal address an offer by email names), and by the channels they are reached on: the
   // number, the text line and the mailbox (who can receive an offer, channels-ready.ts) (0047).
   live: {
-    reads: ["conversation", "call", "step", "person", "facts", "channel"],
+    reads: ["conversation", "call", "step", "person", "facts", "channel", "lead", "reach_out"],
     fresh: "its-page",
     omit: [
       { tables: ["conversations"], why: "it counts the messages, not the threads they are in" },
+      {
+        tables: ["leads", "lead_searches", "lead_rounds", "lead_search_members", "reach_out_replies"],
+        why: "People's read carries each person's business and offered signer (0052), and the lens counts neither",
+      },
       {
         tables: ["sending_domains", "capability_activations", "business_records"],
         why: "who can receive an offer is told by the number, the text line and the mailbox; a sending domain, a capability or the business record changes none of them",

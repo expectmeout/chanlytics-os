@@ -520,6 +520,9 @@
      menu: it took two rows and 121px. A seeded thread's strip stays off a phone, where it said again what the banner
      and the composer say, in 126px more. A phone number as a name does not wrap thrice. */
   .ix-th-head-main { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  /* Where they work: words in the head on a phone, which has no room beside it for the desk's door. */
+  .ix-th-works { display: none; }
+  .ix-th-works-said { display: inline-flex; }
   .ix-th-who { gap: 8px; }
   .ix-th-id { min-width: 0; }
   .ix-th-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

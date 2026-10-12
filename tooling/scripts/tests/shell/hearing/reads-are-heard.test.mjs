@@ -309,10 +309,6 @@ test("the writes listed as untold are still untold, and each says why", () => {
 const NOT_READ = {
   "PUT lead-suggestions -> leads":
     "The ideas are kept through an object the trace does not follow (ideaStore.saveLine in server/leads/lead-suggestions.ts); it writes lead_suggestions, which Leads reads for a new search's ideas (GET lead-suggestions).",
-  "POST reach-outs/leads/[id]/stop -> broadcasts":
-    "The row says a held email leaves its run (Part 6, H10); the trace finds the write on the lead and reach_out_sends and no read of reach_out_sends under Broadcasts, so it is probably premature. Owed: say what the run list draws of a held email, or drop the two.",
-  "POST reach-outs/leads/[id]/stop -> playbooks":
-    "The row says a held email leaves its run (Part 6, H10); the trace finds the write on the lead and reach_out_sends and no read of reach_out_sends under the playbooks, so it is probably premature. Owed: say what the playbooks draw of a held email, or drop the two.",
   "POST broadcasts/[id]/recheck -> broadcasts":
     "Check the held again sends a run's held emails back to be checked (reach_out_run_recheck writes reach_out_sends); the trace finds no read of reach_out_sends under Broadcasts, so it is probably premature. Owed: drop the two.",
   "POST broadcasts/[id]/recheck -> playbooks":

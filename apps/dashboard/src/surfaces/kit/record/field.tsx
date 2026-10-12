@@ -272,6 +272,8 @@ interface RecordToggleGroupProps<V extends string | number | boolean> {
   readOnly?: boolean;
   gate?: Gate | null;
   testid?: string | null;
+  /** More options than one row holds (a call's seven outcomes): the options wrap onto as many rows as they need. */
+  wrap?: boolean;
 }
 
 const WALK_STEPS: Partial<Record<string, number>> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
@@ -294,6 +296,7 @@ export function RecordToggleGroup<V extends string | number | boolean>({
   readOnly = false,
   gate = null,
   testid = null,
+  wrap = false,
 }: RecordToggleGroupProps<V>) {
   const at = options.findIndex((o) => o.value === value);
   const refused = readOnly || !!(gate && gate["aria-disabled"]);
@@ -324,6 +327,7 @@ export function RecordToggleGroup<V extends string | number | boolean>({
       aria-labelledby={labelledBy || undefined}
       onKeyDown={walk}
       data-hints={hints ? "true" : undefined}
+      data-wrap={wrap ? "true" : undefined}
       data-testid={testid || undefined}
     >
       {options.map((o, i) => {

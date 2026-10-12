@@ -49,7 +49,7 @@ import {
   timelineOf,
 } from "./person-timeline";
 import { dealCardsOf } from "../deals/sheet/deal-card";
-import { LEAD_STAGE_WORDS } from "../leads/lead-words";
+import { LEAD_CONSENT_REFUSAL, LEAD_STAGE_WORDS } from "../leads/lead-words";
 import {
   businessRecordOf,
   personHeadOf,
@@ -153,6 +153,12 @@ export interface PersonVM extends PersonRowVM {
   campaigns: PersonCampaignVM[];
   /** The lead they were found as, with the door to it on Leads; null when they were never one. */
   lead: { id: string; name: string; found: string; to: string } | null;
+  /**
+   * Why a member may not record their yes (decision 19, widened by 0052): they came from a lead, or work at one, and both
+   * consent doors refuse a yes a member records for them; the sentence is the doors' own (LEAD_CONSENT_REFUSAL), the
+   * disabled Yes's caption. Null for anyone else.
+   */
+  yesLocked: string | null;
   /** What the page's More menu offers for them, in order (personActs): the page keeps those its reader's role allows. */
   acts: PersonActVM[];
   /** The open doubts naming them (0034 step 4, doubtsOf): another record one identity could belong to, each with its sentence. */
@@ -355,6 +361,8 @@ export function toPersonVM(
     smartLists: smartListsOf(d, base),
     campaigns: campaignsOf(d, tz, nowMs),
     lead: leadOf(d, base, tz, nowMs),
+    // The doors' own test, as far as the page can see it: a lead names them, or they work at one.
+    yesLocked: d.lead || base.worksAt ? LEAD_CONSENT_REFUSAL : null,
     doubts: doubtsOf(d),
     deal: ctx.current,
     deals: ctx.deals,

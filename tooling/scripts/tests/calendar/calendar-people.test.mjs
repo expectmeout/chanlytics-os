@@ -719,6 +719,8 @@ async function profileUi() {
     merge: { open: false, pick: null, typed: "", busy: false, error: null },
     setMerge() {},
     others: null,
+    // The member's own call (0052, call.tsx): nothing asked yet, and no number to ring on these fixtures.
+    call: { vm: null, open: false, asking: false, setOpen() {}, dialled() {}, logPast() {}, close() {} },
     ...over,
   });
   /** The writes a courier's call made over a wire that takes every write, with what each carried. */

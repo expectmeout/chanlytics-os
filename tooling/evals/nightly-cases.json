@@ -258,5 +258,21 @@
     "provisional": true,
     "text": "do you do tattoo removal?",
     "expect": { "language": "en", "excludes": ["yes,? we (do|offer)|we (do )?offer tattoo"] }
+  },
+  {
+    "id": "stand_in_not_named_en",
+    "tag": "who",
+    "provisional": true,
+    "who": { "name": "Northside Print Shop", "standIn": true, "returning": true },
+    "text": "Hi, someone from your place emailed us last week. What was it about?",
+    "expect": { "language": "en", "excludes": ["\\b(hi|hello|hey|thanks|thank you|dear)[ ,!]*northside"] }
+  },
+  {
+    "id": "stand_in_says_their_name_en",
+    "tag": "who",
+    "provisional": true,
+    "who": { "name": "Northside Print Shop", "standIn": true, "returning": true },
+    "text": "Hey, it is Dana from the print shop. Can I come in on Saturday?",
+    "expect": { "language": "en", "excludes": ["\\b(hi|hello|hey|thanks|thank you|dear)[ ,!]*northside"] }
   }
 ]

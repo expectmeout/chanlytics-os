@@ -96,6 +96,11 @@ export const NOTE_WORDS = {
   edited: "edited",
   forAnyone: "For anyone",
   forLabel: "For",
+  /** The composer's For, as choices under its label (0052's composer): Anyone · Me · Jo Park. */
+  anyone: "Anyone",
+  me: "Me",
+  /** The composer's button once a day is chosen: it says what pressing it makes (the motion grammar's label). */
+  addStepFor: (day: string) => `Add step for ${day}`,
   teamOnly: "Team only",
   teamOnlyHint: "The receptionist won't read it",
   readsHint: "The receptionist uses notes as facts and never reads them aloud.",

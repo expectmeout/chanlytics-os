@@ -71,6 +71,8 @@ interface AskProps {
   ) => Promise<Recorded | null | undefined>;
   testid: string;
   lockedNote?: string | null;
+  /** Why a yes is not a member's to record for them (PersonVM.yesLocked): the Yes is disabled, and this is its caption. */
+  yesLocked?: string | null;
   messages?: PersonVM["ownMessages"];
   bare?: boolean;
 }
@@ -218,30 +220,43 @@ function howPanel(a: AskProps, d: Doing) {
   );
 }
 
-/** The three answers, drawn as the record has them, an armed one dashed. */
+/**
+ * The three answers, drawn as the record has them, an armed one dashed. Where a yes is not the member's to record (a
+ * person a lead names or who works at one, 0052), the Yes is disabled and the doors' sentence is its caption, said once.
+ */
 function answers(a: AskProps, d: Doing) {
-  const { value, canRecord, label } = a;
+  const { value, canRecord, label, testid, yesLocked = null } = a;
   const { st } = d;
   const choices: [Answer, string][] = [
     ["opted_in", "Yes"],
     ["unknown", "Not asked"],
     ["opted_out", "No"],
   ];
+  const lockedYes = !!yesLocked && value !== "opted_in";
+  const caption = `${testid}-yes-locked`;
   return (
-    <div className="cl-prof-autonomy" role="group" aria-label={label}>
-      {choices.map(([sv, text]) => (
-        <button
-          key={sv}
-          type="button"
-          className={`cl-prof-aut-seg ${value === sv ? "active" : ""} ${st.pick === sv ? "armed" : ""}`}
-          aria-pressed={value === sv}
-          disabled={!canRecord || st.busy}
-          onClick={() => d.pickAnswer(sv)}
-        >
-          {text}
-        </button>
-      ))}
-    </div>
+    <>
+      <div className="cl-prof-autonomy" role="group" aria-label={label}>
+        {choices.map(([sv, text]) => (
+          <button
+            key={sv}
+            type="button"
+            className={`cl-prof-aut-seg ${value === sv ? "active" : ""} ${st.pick === sv ? "armed" : ""}`}
+            aria-pressed={value === sv}
+            disabled={!canRecord || st.busy || (sv === "opted_in" && lockedYes)}
+            aria-describedby={sv === "opted_in" && lockedYes ? caption : undefined}
+            onClick={() => d.pickAnswer(sv)}
+          >
+            {text}
+          </button>
+        ))}
+      </div>
+      {lockedYes && canRecord ? (
+        <div className="cl-prof-aut-hint" id={caption} data-testid={caption}>
+          {yesLocked}
+        </div>
+      ) : null}
+    </>
   );
 }
 

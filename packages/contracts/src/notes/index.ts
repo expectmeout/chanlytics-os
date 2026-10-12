@@ -18,6 +18,8 @@ export {
   forWords,
   nextStepOf,
   stepDays,
+  composerDays,
+  stepDayName,
   todayStepsDue,
   TODAY_STEPS_MAX,
 } from "./steps";

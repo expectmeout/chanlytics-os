@@ -50,11 +50,15 @@ export const receptionist = periodSurface({
   // are visits, the people it reached are counted from the book (the person), and "while you were closed" is read from the hours and
   // the closures the settings hold (the business's facts) (0047).
   live: {
-    reads: ["conversation", "hold", "call", "visit", "person", "facts"],
+    reads: ["conversation", "hold", "call", "visit", "person", "facts", "lead", "reach_out"],
     fresh: "its-page",
     omit: [
       { tables: ["conversations"], why: "it counts the messages, not the threads they are in" },
       { tables: ["appointment_notices"], why: "its links booked are appointments; a held booking email is not one" },
+      {
+        tables: ["leads", "lead_searches", "lead_rounds", "lead_search_members", "reach_out_replies"],
+        why: "People's read carries each person's business and offered signer (0052), and the lens counts neither",
+      },
     ],
     when: (change) => !isLiveCallTurn(change),
     debounceMs: 800,

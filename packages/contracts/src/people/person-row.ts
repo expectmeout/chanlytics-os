@@ -205,6 +205,11 @@ export interface PersonRowVM {
   unseen: boolean;
   /** The stamp of the reader's own mark as this read carried it, epoch ms; 0 where they have none (surfaces/seen.ts). */
   markAtMs: number;
+  /**
+   * How far the reader had seen their own words and calls as this read carried it (the mark's seen_at), epoch ms; 0 where
+   * they have none. Their page's "new since you last looked" reads it beside markAtMs (person-page/new-since.ts).
+   */
+  seenAtMs: number;
   needsYouSinceMs: number | null;
   /** The calendar's state for this workspace: the outcome lists exist only when it is "ok". */
   calendar: "ok" | "unavailable" | "none";
@@ -537,6 +542,7 @@ function rowThreadOf(r: PersonRowDto, askedMs: number | null) {
     conversationId: r.latest_conversation_id,
     unseen: reading.unseen,
     markAtMs: reading.markAtMs,
+    seenAtMs: r.seen_at && Number.isFinite(Date.parse(r.seen_at)) ? Date.parse(r.seen_at) : 0,
   };
 }
 

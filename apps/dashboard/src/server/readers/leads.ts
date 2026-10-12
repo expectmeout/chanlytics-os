@@ -1,5 +1,13 @@
 import "server-only";
-import { ROLE_PERMS, leadsRoute, type LeadsQuery } from "@chanlytics/contracts";
+import {
+  ROLE_PERMS,
+  addressOf,
+  leadsRoute,
+  personName,
+  type LeadsQuery,
+  type PersonAtLeadDto,
+} from "@chanlytics/contracts";
+import { peopleAtLead } from "@chanlytics/db";
 import { leadOne, leadsPage } from "../leads/lead-page";
 import { stamp, type Reader } from "./index";
 
@@ -49,6 +57,28 @@ export const lead: Reader<{ id: string; search?: string }, Awaited<ReturnType<ty
           label: data.row.business_name,
         },
       ],
+      stamp: stamp(),
+    };
+  },
+};
+
+/**
+ * The people who work at one lead (0052: contacts.lead_id, packages/db peopleAtLead), the most recently in touch first, as
+ * a person's business sheet lists them: what Ask's leads.lead says beside the lead. Each is a row a citation names,
+ * opened at their page.
+ */
+export const leadPeople: Reader<{ id: string }, PersonAtLeadDto[]> = {
+  name: "lead_people",
+  async read(rc, { id }) {
+    const data = await peopleAtLead(rc.ctx.supabase, rc.tenantId, id);
+    return {
+      data,
+      rows: data.map((p) => ({
+        kind: "person" as const,
+        id: p.id,
+        route: addressOf({ kind: "person", id: p.id }),
+        label: personName(p),
+      })),
       stamp: stamp(),
     };
   },

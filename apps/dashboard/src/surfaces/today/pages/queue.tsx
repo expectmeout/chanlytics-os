@@ -27,6 +27,7 @@ import { Button } from "../../kit/button/button";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { useNeedsYou } from "../../needs-you";
+import { businessTrailFor } from "../../people/business-trail";
 import { surfaceValue } from "../../surface-values";
 import { usePartShown } from "../../use-surface";
 import { TODAY_HELPERS } from "../helpers";
@@ -115,6 +116,8 @@ function personRows(rows: TodayQueueRowVM[], nav: Nav, acts: RowActs) {
         // whichever wire they came on, else their initials. A search and the count of steps are not a person.
         {...(namesAPerson(r) ? { person: { name: r.who, initials: r.initials } } : { initials: r.initials })}
         name={r.who}
+        // The business they work at, dim after their name, from People's rows (0052).
+        trail={namesAPerson(r) ? businessTrailFor(r.person_id) : null}
         meta={[r.channel, r.when].filter(Boolean).join(", ")}
         sentence={r.sentence}
         quoted={r.quoted}

@@ -9,6 +9,7 @@ import { EmptyState, FailedRead } from "../kit/empty/empty";
 import { Face } from "../kit/face/face";
 import { Icon } from "../kit/icon/icon";
 import { StoppedMark } from "../kit/pill/stopped-mark";
+import { businessTrailFor, usePeopleTrails } from "../people/business-trail";
 import { LrPill, lrClock } from "./call-parts";
 
 // The last thing the caller said, for the row's second line: what the call is about, in their words.
@@ -66,7 +67,16 @@ const LrRow = ({ c, active, elapsed, onSelect, order = [] }: LrRowProps) => {
       <Face person={{ name: c.who, initials: c.initials }} />
       <span className="lm-row-body">
         <span className="lm-row-line1">
-          <span className="lm-row-who">{c.who}</span>
+          <span className="lm-row-who">
+            {c.who}
+            {/* The business they work at (0052), dim after the name inside its line, so a short row cuts it first. */}
+            {businessTrailFor(c.clientId) ? (
+              <span className="lm-row-trail" data-testid="live-row-business">
+                {" "}
+                · {businessTrailFor(c.clientId)}
+              </span>
+            ) : null}
+          </span>
           {/* They asked to stop: said beside the name, as every list that offers a person to answer says it. */}
           {c.stopped && <StoppedMark testid="live-row-stopped" />}
           <span className="lm-row-clock tabular">{lrClock(elapsed)}</span>
@@ -136,6 +146,8 @@ interface LrListProps {
 // this list's own footer said. With nobody on the line it says what the line is doing and opens those.
 // A finished call still opens here from a door that names it (the bar, Today): the panel shows it.
 export const LrList = ({ live, line, lineRead = true, activeId, elapsedOf, onSelect }: LrListProps) => {
+  // People's rows can land after the calls: each caller's business follows them (0052).
+  usePeopleTrails();
   const order = live.map((c) => c.callId);
   const dot = (
     <span

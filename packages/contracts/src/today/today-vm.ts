@@ -64,6 +64,12 @@ export interface TodayQueueRowVM {
   conversationId: string | null;
   /** The call this row is about: a call-back's newest call, a call worth a listen; null otherwise. */
   callId: string | null;
+  /**
+   * The person the row names, by their People id, where the row knows them: a thread's person, a caller on record, a
+   * step's or a visit's person. The page trails their name with the business they work at, from People's rows (0052).
+   * Null for a search, a count, and a caller with no record.
+   */
+  person_id: string | null;
   who: string;
   initials: string;
   /** The wire, in the words a row shows. It was `"WhatsApp" | "Phone"`, which is

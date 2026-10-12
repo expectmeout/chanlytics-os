@@ -238,6 +238,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // A note may be a step, and a row carries the next one (00166): the Pipeline, Steps due and Today follow it, and so does the
   // People lens, which counts the steps overdue and due today.
   "POST contacts/[id]/notes": notes,
+  // A call logged (0052): a note, perhaps a step, as above; and, at an open lead, its outcome and stage, as Leads' own call.
+  "POST contacts/[id]/call": () => [...notes(), ...leadsAnswered()],
   "POST contacts/[id]/notes/done": notes,
   "POST contacts/[id]/notes/remove": notes,
   // A receptionist's suggestion kept becomes a note, perhaps a step: the same rows move.
@@ -245,12 +247,13 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST contacts": () => [...peopleAndAudiences(), ...calendarIfDrawn()],
   // A conversation begun from the Inbox: their thread is new or moved, and their row on People says so.
   "POST people/[id]/message": personAndThreads,
-  // A signer's name used, put back or declined (0052): the name is on every row and thread header that draws them, a greeting
-  // counts it (the composers' audiences), and Leads' rows and peek say who the business's person is.
-  "POST people/[id]/name": () => [...personAndThreads(), ...audiences(), ...leads()],
-  // Linked to a business, or not at it (0052): their row trails the business, and the lead's own rows list its people.
-  "PUT people/[id]/business": () => [...personAndThreads(), ...leads()],
-  "DELETE people/[id]/business": () => [...personAndThreads(), ...leads()],
+  // A signer's name used, put back or declined (0052): the name is on every row and thread header that draws them, and a
+  // greeting counts it (the composers' audiences). Leads' rows and peek say who the business's person is from People's rows,
+  // which this re-reads, never from a read of their own.
+  "POST people/[id]/name": () => [...personAndThreads(), ...audiences()],
+  // Linked to a business, or not at it (0052): their row trails the business, and Leads lists its people from People's rows.
+  "PUT people/[id]/business": personAndThreads,
+  "DELETE people/[id]/business": personAndThreads,
   "POST contacts/import": peopleAndAudiences,
   // A list is an audience and a playbook's moment too: the composer's chips and a playbook's count follow it.
   "POST segments": () => [peopleOverride, broadcastsOverride, playbooksOverride],
