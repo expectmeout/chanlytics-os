@@ -189,12 +189,13 @@ const BREATH_TAIL_WORDS = [
 ];
 /**
  * 12 Oct 2026 (Ask as the marketing manager, the review after the merge): each playbook says a next run only where it
- * runs, why it runs nothing, the day an ended one ended and the last day ahead of one, and the mode its runs go under
- * now, veto while on trial, where it said the mode its class runs under. The one phrase, once.
+ * runs, why it runs nothing, the day an ended one ended (its state may still read running: one that ended while paused
+ * reads paused) and the last day ahead of one, and the mode its runs go under now, auto reading veto while on trial
+ * (effectiveMode turns auto alone), where it said the mode its class runs under. The one phrase, once.
  */
 const PLAYBOOK_END_TRIAL_WORDS = [
   "its clock and next run, whether it is running, the autonomy mode its class runs under,",
-  "its clock and next run (next_run, null where it runs nothing here: runs_nothing says why, and ended the day one ended, its state still running), its last day ahead (ends), whether it is running, the mode its runs go under now (mode: its class's, but veto while on trial until on_trial_until),",
+  "its clock and next run (next_run, null where it runs nothing here: runs_nothing says why, and ended the day one ended, its state may still read running), its last day ahead (ends), whether it is running, the mode its runs go under now (mode: its class's, but auto reads veto while on trial until on_trial_until),",
 ];
 /**
  * 12 Oct 2026 (the same review): how full the book is is action room's to say, so the calendar's tail sends a question

@@ -977,15 +977,16 @@ function withTheBreathsWords(frozen) {
 
 /**
  * 12 Oct 2026 (Ask as the marketing manager, the review after the merge): the run's breath is a week either side of it,
- * a message sent or due, never one playbook message a week, and the appointment moments are exempt from it, so
- * campaigns.playbooks' note says both in the contracts' words (BREATH_WHY, PLAYBOOK_CARD_WORDS.appointmentBreath), in
- * this workspace's word (it sells by proposal: a meeting). The one sentence, once; this world lists no playbook, so the
- * fields that say a campaign's end and its trial are not in these bytes.
+ * a message sent or due, never one playbook message a week, and the appointment moments are exempt from it and from the
+ * playbook's gap (contracts playbookRunReach returns before either), so campaigns.playbooks' note says both in the
+ * contracts' words (BREATH_WHY, PLAYBOOK_CARD_WORDS.appointmentBreath), in this workspace's word (it sells by proposal: a
+ * meeting). The one sentence, once; this world lists no playbook, so the fields that say a campaign's end and its trial
+ * are not in these bytes.
  */
 function withTheRunsBreath(frozen) {
   return frozen.replace(
     "and sends one playbook message per person per week.",
-    "and holds whoever hears from you within a week of it, by a message already sent or one due, for a later run; a reminder the day before a meeting and a check the day after go one per meeting and are exempt from one a week per person: each goes whatever else they hear from you within a week of it.",
+    "and holds whoever hears from you within a week of it, by a message already sent or one due, for a later run; a reminder the day before a meeting and a check the day after go one per meeting, exempt from the gap and exempt from one a week per person: each goes whatever else they hear from you within a week of it.",
   );
 }
 

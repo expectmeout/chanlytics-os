@@ -37,20 +37,50 @@ test("with a calendar, five rows in the journey's order, the day before and the 
   const said = (stage) => guide.find((r) => r.stage === stage).sends;
   assert.equal(
     said("first_contact"),
-    "your receptionist's answers, which ask once on WhatsApp for the yes to offers, the yes every offer needs",
-    "the receptionist asks once, on WhatsApp alone (contracts offers-ask.ts), never in a first reply of its own",
+    "your receptionist's answers, which ask once on WhatsApp for the yes to offers, the yes an offer on WhatsApp needs",
+    "the receptionist asks once, on WhatsApp alone (contracts offers-ask.ts), never in a first reply of its own; its yes is the one an offer on WhatsApp needs",
   );
   assert.equal(said("before"), "the day before an appointment on the calendar: a reminder");
   assert.equal(
     said("after"),
     "the day after an appointment, when nothing is booked next: a thank-you and how it went, with a review ask where your Google listing keeps a review link",
   );
-  assert.equal(guide.at(-1).sends, "every month, one offer to those who said yes");
+  assert.equal(
+    guide.at(-1).sends,
+    "every month, one offer on the channels it goes by: on WhatsApp to those who said yes to offers, and by email to those who said yes by email or have dealt with you, unless they said no",
+  );
   // What goes out, never a why: the outcomes the guide once promised are no fact the product keeps.
   assert.deepEqual(
     guide.map((r) => Object.keys(r)),
     guide.map(() => ["stage", "moment", "sends"]),
   );
+});
+
+test("the offers the guide says go as the send door's predicate lets them: on WhatsApp only to a yes to offers, by email to a yes there or someone who has dealt with the business and said no to neither, never by text; so first contact's yes is the one an offer on WhatsApp needs, never every offer's", () => {
+  const offer = (row, channel) => C.mayMessageFor(row, "marketing", { proactive: true, channel, about: "ours" }).ok;
+  const dealt = { consent: "unknown", email_marketing: "unknown", has_relationship: true };
+  // On WhatsApp: the yes to offers, and nothing else.
+  assert.equal(offer({ ...dealt, marketing_consent: "unknown" }, "whatsapp"), false, "no yes, no offer on WhatsApp");
+  assert.equal(offer({ ...dealt, marketing_consent: "opted_in" }, "whatsapp"), true);
+  // By email: no WhatsApp yes asked, only a yes by email or a dealing on record, and no no.
+  assert.equal(
+    offer({ ...dealt, marketing_consent: "unknown" }, "email"),
+    true,
+    "REGRESSION: every offer needs the yes",
+  );
+  assert.equal(
+    offer({ consent: "unknown", marketing_consent: "unknown", email_marketing: "opted_in" }, "email"),
+    true,
+    "a yes by email, no dealing on record",
+  );
+  assert.equal(offer({ consent: "unknown", marketing_consent: "unknown", email_marketing: "unknown" }, "email"), false);
+  assert.equal(offer({ ...dealt, email_marketing: "opted_out" }, "email"), false, "they unsubscribed");
+  assert.equal(offer({ ...dealt, marketing_consent: "opted_out" }, "email"), false, "they said no to offers");
+  // A text never carries one, so the month's offer names WhatsApp and email alone.
+  assert.ok(C.channelNeverCarries("sms", "marketing"));
+  const month = C.journeyGuide(SHAPES[0]).at(-1).sends;
+  assert.ok(month.includes("on WhatsApp") && month.includes("by email") && !/\btext/.test(month), month);
+  assert.ok(!/every offer/.test(C.journeyGuide(SHAPES[0])[0].sends));
 });
 
 test("the win-back's row says when it goes in its own moment's words, by silence without a calendar and by appointments with one, never a count of weeks of its own", () => {

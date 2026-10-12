@@ -29564,7 +29564,7 @@ function sendingDomainsFootWords(count2, max) {
 
 // src/journey/journey-guide.ts
 var STAGE_SENDS = {
-  first_contact: "your receptionist's answers, which ask once on WhatsApp for the yes to offers, the yes every offer needs",
+  first_contact: "your receptionist's answers, which ask once on WhatsApp for the yes to offers, the yes an offer on WhatsApp needs",
   before: "a reminder",
   after: "a thank-you and how it went, with a review ask where your Google listing keeps a review link",
   proposal: "one follow-up with its link",
@@ -29573,7 +29573,7 @@ var STAGE_SENDS = {
 var MONTHS_OFFER = {
   stage: null,
   moment: "everyone_monthly",
-  sends: "every month, one offer to those who said yes"
+  sends: "every month, one offer on the channels it goes by: on WhatsApp to those who said yes to offers, and by email to those who said yes by email or have dealt with you, unless they said no"
 };
 function journeyGuide(input) {
   const stages = journeyOf({ ...input, held: /* @__PURE__ */ new Set() }).filter((s) => s.unmet === null);

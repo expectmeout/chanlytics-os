@@ -6354,9 +6354,11 @@ test("campaigns.playbooks says a campaign's end and its trial as its card does: 
     undefined,
     undefined,
   ]);
-  // The note says the run's breath in the contracts' words, and the appointment moments it does not hold.
+  // The note says the run's breath in the contracts' words, and the appointment moments neither it nor the gap holds
+  // (contracts playbookRunReach returns before both).
   assert.ok(
-    said.note.includes(PLAYBOOK_CARD_WORDS.appointmentBreath) && !said.note.includes("per person per week"),
+    said.note.includes(`, exempt from the gap and ${PLAYBOOK_CARD_WORDS.appointmentBreath}.`) &&
+      !said.note.includes("per person per week"),
     said.note,
   );
 });

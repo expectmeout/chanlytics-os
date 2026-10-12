@@ -25,22 +25,30 @@ export interface GuideRow {
 
 /**
  * What each stage sends, in any trade's words: first contact whole, since no moment leads it (the receptionist asks once,
- * on WhatsApp alone: contracts offers-ask.ts), and every other stage's what alone, said after its moment's when.
+ * on WhatsApp alone: contracts offers-ask.ts), and every other stage's what alone, said after its moment's when. The yes
+ * it asks for is the one an offer on WhatsApp needs (consent.ts mayMessageFor: a yes covers the channels it was given
+ * for, consent-channels.ts yesCovers); an offer by email needs none of it.
  */
 const STAGE_SENDS: Record<JourneyStageId, string> = {
   first_contact:
-    "your receptionist's answers, which ask once on WhatsApp for the yes to offers, the yes every offer needs",
+    "your receptionist's answers, which ask once on WhatsApp for the yes to offers, the yes an offer on WhatsApp needs",
   before: "a reminder",
   after: "a thank-you and how it went, with a review ask where your Google listing keeps a review link",
   proposal: "one follow-up with its link",
   quiet: "a win-back",
 };
 
-/** The month's offer: a touch point of every journey, on no stage of it. */
+/**
+ * The month's offer: a touch point of every journey, on no stage of it. Said by the channels it reaches people on, each
+ * person once (reach-for.ts reachFor), since a new campaign ticks every channel open to it: on WhatsApp the yes to
+ * offers, by email a yes there or a dealing with the business on record and no no (consent.ts mayMessageFor), and never
+ * by text, which carries no offers.
+ */
 const MONTHS_OFFER: GuideRow = {
   stage: null,
   moment: "everyone_monthly",
-  sends: "every month, one offer to those who said yes",
+  sends:
+    "every month, one offer on the channels it goes by: on WhatsApp to those who said yes to offers, and by email to those who said yes by email or have dealt with you, unless they said no",
 };
 
 /**

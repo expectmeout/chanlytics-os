@@ -370,7 +370,7 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
       channels: campaignChannelsOf(p.channels),
       state: p.state,
       policy_class: p.policy_class,
-      // The mode its runs go under now: its class's, but veto while on trial (contracts effectiveMode, core
+      // The mode its runs go under now: its class's, but auto reads veto while on trial (contracts effectiveMode, core
       // run-playbook's own), with the day the trial ends as its card says it.
       mode: effectiveMode(p, modeOf(p.policy_class), t.now),
       ...(c.trial ? { on_trial_until: c.trial } : {}),
@@ -407,7 +407,7 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
         ...(x.kind === "saved" ? { counted_per_list: true } : counted(x.id)),
         starter_template: starterForTrigger(x.id)?.title ?? null,
       })),
-    note: `A run is a broadcast, and ${NO_NUMBER_REACH}. It never reaches anyone twice within the playbook's gap, and holds whoever hears ${BREATH_WHY}, by a message already sent or one due, for a later run; a reminder the day before ${W.a} and a check the day after go one per ${W.one} and are ${PLAYBOOK_CARD_WORDS.appointmentBreath}. said_yes_now counts who each trigger names that said the yes its template needs, a number or not; can_be_sent_now is who of them a run reaches now, the Playbooks page's own count: whoever hears from you within a week of today, by a message already sent or one due, waits. A null count means the page could not count it just now.${pb.deals_on ? " The proposal follow-up reaches each proposal once, with its link: its counts leave out whoever already had theirs." : ""}`,
+    note: `A run is a broadcast, and ${NO_NUMBER_REACH}. It never reaches anyone twice within the playbook's gap, and holds whoever hears ${BREATH_WHY}, by a message already sent or one due, for a later run; a reminder the day before ${W.a} and a check the day after go one per ${W.one}, exempt from the gap and ${PLAYBOOK_CARD_WORDS.appointmentBreath}. said_yes_now counts who each trigger names that said the yes its template needs, a number or not; can_be_sent_now is who of them a run reaches now, the Playbooks page's own count: whoever hears from you within a week of today, by a message already sent or one due, waits. A null count means the page could not count it just now.${pb.deals_on ? " The proposal follow-up reaches each proposal once, with its link: its counts leave out whoever already had theirs." : ""}`,
   };
 }
 
@@ -666,7 +666,7 @@ export const campaignsTool = defineActions({
       examples: [{}],
       label: "Reading the campaigns",
       words:
-        "Action playbooks takes nothing more and reads the playbooks as the Playbooks page shows them, standing rules that each send one message to newly eligible people who said yes: each with what starts it, its message (template), the channels it goes by now (channels), its clock and next run (next_run, null where it runs nothing here: runs_nothing says why, and ended the day one ended, its state still running), its last day ahead (ends), whether it is running, the mode its runs go under now (mode: its class's, but veto while on trial until on_trial_until), its list when it runs on one, what it sent and how many replied over the last 30 days (last_30_days, null where that could not be read), and a run waiting for a person if there is one; then every moment this workspace can use, with who it names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter message (starter_template).",
+        "Action playbooks takes nothing more and reads the playbooks as the Playbooks page shows them, standing rules that each send one message to newly eligible people who said yes: each with what starts it, its message (template), the channels it goes by now (channels), its clock and next run (next_run, null where it runs nothing here: runs_nothing says why, and ended the day one ended, its state may still read running), its last day ahead (ends), whether it is running, the mode its runs go under now (mode: its class's, but auto reads veto while on trial until on_trial_until), its list when it runs on one, what it sent and how many replied over the last 30 days (last_30_days, null where that could not be read), and a run waiting for a person if there is one; then every moment this workspace can use, with who it names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter message (starter_template).",
       run: listPlaybooksTool,
     }),
     broadcasts: readAction({
