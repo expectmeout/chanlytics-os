@@ -81,7 +81,7 @@ function preview(sending: number, held: number, names: string[]): AudiencePrevie
     sending,
     held,
     saidYes: sending,
-    heard: 0,
+    heardTouches: [],
   };
 }
 
@@ -172,6 +172,7 @@ export function broadcastsSample(now = new Date()): BroadcastsSurface {
     month_sent: null,
     month_sent_next: null,
     listsRead: true,
+    heardRead: true,
     audiences: [
       audience(
         {
@@ -221,6 +222,8 @@ export function broadcastsSample(now = new Date()): BroadcastsSurface {
     getYes: GET_YES_ROUTE,
     businessName: "Marisa's Studio",
     bookingLink: true,
+    // The sample has no Google listing: no review link to fill a slot with.
+    reviewLink: false,
     more: false,
     scheduleMaxDays: BROADCAST_SCHEDULE_MAX_DAYS,
     fetchedAt: now.getTime(),

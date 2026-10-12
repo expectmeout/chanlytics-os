@@ -1,6 +1,8 @@
 import {
+  campaignEnded,
   campaignMessageOf,
   clockWhen,
+  effectiveMode,
   localDate,
   messageHolds,
   nextOpenMoment,
@@ -16,6 +18,7 @@ import {
   proposalFactsFor,
   readyForMessage,
   touchesAfterRun,
+  trialDayWords,
   triggerOf,
   triggerOffered,
   vetoRunNotice,
@@ -57,6 +60,8 @@ interface Run {
   by: RunBy;
   runFor: string;
   mode: string;
+  /** The day its trial ends, in words, where the trial made this run wait as veto does (its class's mode is auto); else null. */
+  trial: string | null;
   /** The channels the playbook ticks (contracts reachFor reads them at enrolment). */
   channels: ConsentChannel[];
   record(data: Record<string, unknown>): Promise<void>;
@@ -327,8 +332,9 @@ async function sayTheRun(run: Run, made: { madeId: string; n: number; at: Date |
     return;
   }
   if (mode === "veto" && by.kind !== "user") {
-    // With its day: a run made past the day's hours goes at nine tomorrow, and "9:00 AM" alone reads as already gone.
-    const told = vetoRunNotice(p.name, n, clockWhen(at.getTime(), ctx.tz, ctx.now.getTime()));
+    // With its day: a run made past the day's hours goes at nine tomorrow, and "9:00 AM" alone reads as already gone. One
+    // that waits for its trial says so, and until when.
+    const told = vetoRunNotice(p.name, n, clockWhen(at.getTime(), ctx.tz, ctx.now.getTime()), run.trial);
     // The run is made and on the ledger: telling of it must not cost the run its record, so a bell that fails is let
     // go (the adapter says so in its own log), where the ask notice, the only way a waiting run is found, is not.
     await ports.notify(told.subject, told.body, made.madeId).catch(() => undefined);
@@ -360,8 +366,11 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
   const { playbook: p, ctx, by } = cmd;
   const now = ctx.now;
   const runFor = cmd.runFor ?? localDate(ctx.tz, now);
-  // No row for the class means ask — the safest.
-  const mode = ctx.modes.get(p.policy_class) ?? "ask";
+  // No row for the class means ask — the safest. A campaign on trial (00416) waits for a person where its class would
+  // send by itself: auto goes as veto until its trial ends (contracts effectiveMode), and its notice says so.
+  const classMode = ctx.modes.get(p.policy_class) ?? "ask";
+  const mode = effectiveMode(p, classMode, now);
+  const trial = mode === classMode ? null : trialDayWords(p, ctx.tz, now);
   const record = (data: Record<string, unknown>) =>
     ports.record(p.id, runFor, now, { run_for: runFor, by: by.kind, ...data });
   // Off, and the run says why -- recorded, unless the day's run already stands.
@@ -369,6 +378,9 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
     if (opts.record !== false) await record({ mode, skipped });
     return { outcome: "off", mode, skipped };
   };
+  // A campaign past its last day (00416 `until`, the business's day) runs nothing more, whoever asks: said, and recorded
+  // for the day, before anything is read.
+  if (campaignEnded(p, runFor)) return off("ended");
   // A person who asks has decided: it sends now, unless the class is never.
   const plan: RunPlan =
     by.kind === "user"
@@ -386,7 +398,7 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
 
   // Which of WhatsApp, text and email the playbook ticks: a playbook made before ticks WhatsApp alone.
   const channels = parseChannels(undefined, p.channels ?? null);
-  const run: Run = { ports, p, ctx, by, runFor, mode, channels, record, off };
+  const run: Run = { ports, p, ctx, by, runFor, mode, trial, channels, record, off };
 
   // WhatsApp's version, where it is all the run goes by, must still be what Meta approved; the number must be one Meta
   // lets send (when WhatsApp is ticked).
@@ -451,6 +463,9 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
     })),
     sendAt: open ? open.at : null,
     held: past.held,
+    // Nobody is enrolled to be left out here: the run drew by its moment's own reading of the week's breath
+    // (eligibleForPlaybook over its touches), which leaves out who heard, or, for an appointment's message, sends anyway.
+    leftOut: [],
     // The ledger's line, in the run's own write: a run that sends says whose decision it was; one that waits says nothing
     // until a person approves it.
     decision: open ? decisionOf(run, { n, at: open.at, movedFrom }) : null,

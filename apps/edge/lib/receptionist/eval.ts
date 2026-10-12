@@ -53,13 +53,15 @@ export interface BrainPort {
 /**
  * The door's answer: what the receptionist said, case by case, and the prices the workspace may say
  * (allowed_prices, contracts priceAllowance; null for the strict rule), so the runner judges by the workspace's switch.
+ * The allowance is read at `now`, the clock the cases' prompt was composed at: a note that has ended lends it nothing.
  */
 function evalAnswer(
   rt: Awaited<ReturnType<typeof loadTenantRuntime>>,
+  now: Date,
   promptChars: number,
   results: readonly unknown[],
 ): Response {
-  const allowed = priceAllowance(rt.brain);
+  const allowed = priceAllowance(rt.brain, rt.timezone, now);
   return json(200, {
     ok: true,
     prompt_chars: promptChars,
@@ -108,11 +110,11 @@ export async function evaluateCases(
   if (!routed) return refuse(404, "no_whatsapp_channel");
   const rt = await loadTenantRuntime(db, routed);
   if (!rt.brain) return refuse(409, rt.configBroken ? "config_broken" : "no_persona");
-  const system = resolveSystemPrompt(rt.brain, "whatsapp", rt.timezone, new Date(), rt.policy, rt.known);
-  const nowNote = describeNow(rt.timezone, new Date(), rt.brain.profile?.closures);
+  const now = new Date(); // the run's one clock: the prompt, the clock note, the prices it may say, and its timing
+  const system = resolveSystemPrompt(rt.brain, "whatsapp", rt.timezone, now, rt.policy, rt.known);
+  const nowNote = describeNow(rt.timezone, now, rt.brain.profile?.closures);
   // The holding message as a customer would get it, its details filled as they are now (S5).
   const holding = fallbackMessages(rt.brain, rt.known).error;
-  const started = Date.now();
   const call = brainCallOf(tenantId, rt);
   const results = [];
   for (const c of cases) {
@@ -143,8 +145,8 @@ export async function evaluateCases(
   L.info("admin_eval", {
     tenant_id: tenantId,
     cases: cases.length,
-    ms: Date.now() - started,
+    ms: Date.now() - now.getTime(),
     prompt_chars: system.length,
   });
-  return evalAnswer(rt, system.length, results);
+  return evalAnswer(rt, now, system.length, results);
 }

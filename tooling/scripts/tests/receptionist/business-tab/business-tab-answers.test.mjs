@@ -15,6 +15,9 @@ import {
   handoffChatRow,
   HANDOFF_ANYWAY,
   notesWords,
+  noteEndedWords,
+  composeSystemPrompt,
+  DAY_MS,
   instructionsWords,
   fallbacksWords,
   chipsMoreWords,
@@ -50,6 +53,7 @@ import {
   openRows,
   ownWords,
   partsOf,
+  problemUnder,
   redrawTab,
   saveFoldOf,
   cancelFoldOf,
@@ -786,6 +790,20 @@ test("the price rule still says it is checked with the switch off, and lists wha
   );
 });
 
+test("what it may say leaves out a note that has ended on the workspace's own day, as the notes fold calls it ended", (t) => {
+  // Noon UTC on 11 October: already the 12th in Auckland, still the 11th in New York and UTC. A note whose last day is
+  // the 11th has ended only on the workspace's day, so a list read in any other zone would still offer its price.
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-10-11T12:00:00Z") });
+  const offer = { title: "Offer: Colour for $60", text: "Colour is $60 this week.", until: "2026-10-11" };
+  const parking = { title: "Parking", text: "Parking is $5." };
+  const off = { ...marisa, notes: [offer, parking], guardrails: { ...marisa.guardrails, never_quote_prices: false } };
+  const tree = rulesOpen({ profile: off, zone: "Pacific/Auckland" });
+  const listed = textOf(byTestId(tree, "rec-rules-prices"));
+  assert.match(listed, /^It may say 5 \(Notes\), as you wrote them\./);
+  assert.doesNotMatch(listed, /60/, "the ended offer's price is not one it may say");
+  assert.equal(noteEndedWords(offer.until, "Pacific/Auckland", new Date()), "ended Oct 11", "the fold's word for it");
+});
+
 test("the photos switch is an ability, not a limit, and is drawn apart from the four", () => {
   const tree = rulesOpen();
   const vision = byTestId(tree, "rec-rule-vision");
@@ -978,7 +996,7 @@ test("a note is added, and one removed comes back at its own place with its Undo
       find(foldOf(tree, "notes"), (n) => classes(n).includes("bt-note-head")),
       (n) => n.type === "span",
     ).map(textOf),
-    ["Title", "What it says", ""],
+    ["Title", "What it says", "Until (optional)", ""],
   );
   assert.equal(labelled(tree, "Note 2 title").props.value, "B");
   assert.equal(labelled(tree, "Note 2, what it says").type, "textarea");
@@ -1029,7 +1047,8 @@ test("the notes stop at ten through Add and through an Undo, and half a note is 
   tree = redrawTab(flash);
   assert.equal(undo(), false, "full again, nothing is put back");
   assert.equal(said(flashes.at(-1)), "Not put back — That is the most notes it keeps. Remove one to add another.");
-  // The new row has a title and no text: half a note, said once under its row, both its boxes wrong by it.
+  // The new row has a title and no text: half a note, said once under its row, both its boxes wrong by it, and its
+  // Until box, which half a note says nothing of, not.
   const sent = saving();
   find(noteRows(tree)[9], (n) => n.type === "input").props.onChange({ target: { value: "Parking" } });
   tree = redrawTab(flash);
@@ -1039,8 +1058,107 @@ test("the notes stop at ten through Add and through an Undo, and half a note is 
   assert.equal(textOf(byTestId(tree, "rec-note-problem-9")), "Each note needs both a title and the text to say.");
   assert.deepEqual(
     all(noteRows(tree)[9], (n) => n.type === "input" || n.type === "textarea").map((b) => b.props["aria-invalid"]),
-    [true, true],
+    [true, true, undefined],
   );
+});
+
+test("a note's last day is its Until box, a date: a save of another note writes it back as it was stored, and the box sets and clears it", () => {
+  const sent = saving();
+  const ending = { title: "Holiday hours", text: "Open 10 to 2 this week.", until: "2099-12-31" };
+  let tree = drawTab({ profile: { ...marisa, notes: [ending, ...notesOf(2)] } });
+  const stored = structuredClone(W.__SETTINGS.config);
+  openFold(tree, "notes");
+  tree = redrawTab();
+  // Drawn as a closure's day is: the kit's RecordBox, type date, named for its row.
+  const until = labelled(tree, "Note 1, until");
+  assert.deepEqual([until.props.type, until.props.value], ["date", "2099-12-31"]);
+  assert.equal(labelled(tree, "Note 2, until").props.value, "", "a note with no end has an empty box");
+  // Another note changed and saved: the note with its last day is written back exactly as it was stored.
+  find(noteRows(tree)[2], (n) => n.type === "textarea").props.onChange({ target: { value: "Note B, again." } });
+  tree = redrawTab();
+  saveFoldOf(tree, "notes");
+  const expected = structuredClone(stored);
+  expected.brain.profile.notes = [ending, notesOf(1)[0], { title: "B", text: "Note B, again." }];
+  assert.deepEqual(
+    sent.map((s) => s.config),
+    [expected],
+  );
+  // Set on a note that had none, and cleared on the one that had it: the save writes the one and drops the other.
+  const again = saving();
+  tree = drawTab({ profile: { ...marisa, notes: [ending, ...notesOf(1)] } });
+  openFold(tree, "notes");
+  tree = redrawTab();
+  labelled(tree, "Note 2, until").props.onChange({ target: { value: "2099-01-15" } });
+  tree = redrawTab();
+  labelled(tree, "Note 1, until").props.onChange({ target: { value: "" } });
+  tree = redrawTab();
+  saveFoldOf(tree, "notes");
+  assert.equal(again.length, 1);
+  assert.deepEqual(again[0].config.brain.profile.notes, [
+    { title: "Holiday hours", text: "Open 10 to 2 this week." },
+    { title: "A", text: "Note A says this.", until: "2099-01-15" },
+  ]);
+});
+
+test("a note whose last day has passed on the business's own day reads ended, with the day, beside its title", () => {
+  const ended = { title: "Summer offer", text: "Colour at 20% off.", until: "2020-06-30" };
+  const lasting = { title: "Holiday hours", text: "Open 10 to 2 this week.", until: "2099-12-31" };
+  let tree = drawTab({ profile: { ...marisa, notes: [lasting, ended, ...notesOf(1)] }, zone: "Pacific/Auckland" });
+  openFold(tree, "notes");
+  tree = redrawTab();
+  const endedOf = (i) => find(noteRows(tree)[i], (n) => classes(n).includes("rec-input-unit"));
+  // Contracts' words, on the workspace's day, as the closed days' row counts what is still ahead.
+  const words = noteEndedWords("2020-06-30", "Pacific/Auckland", new Date());
+  assert.equal(words, "ended Jun 30");
+  assert.equal(textOf(endedOf(1)), words);
+  const title = labelled(tree, "Note 2 title");
+  assert.equal(title.props.value, "Summer offer", "the title box keeps its name and its words");
+  assert.equal(title.props["aria-describedby"], "bt-note-1-ended", "and is described by the words beside it");
+  assert.deepEqual([endedOf(0), endedOf(2)], [null, null], "a note still lasting, and one with no end, say nothing");
+});
+
+test("in a workspace with no zone a note's end is judged as the composer judges it, never by the zone the page shows times in", (t) => {
+  // With no zone the composer's day is UTC's a day back: a note whose last day is that day is still told to the
+  // receptionist, so the form does not call it ended; one whose last day is the day before is not, and the form does.
+  // Noon UTC, where New York's day and UTC's are both a day past the composer's: on the real clock, from midnight to
+  // four or five UTC, New York's day IS UTC's a day back, and a form that slipped to the page's zone passed then.
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-10-11T12:00:00Z") });
+  const at = Date.now();
+  const lastDay = new Date(at - DAY_MS).toISOString().slice(0, 10);
+  const dayBefore = new Date(at - 2 * DAY_MS).toISOString().slice(0, 10);
+  const told = { title: "Holiday hours", text: "Open 10 to 2.", until: lastDay };
+  const gone = { title: "Summer offer", text: "Colour at 20% off.", until: dayBefore };
+  let tree = drawTab({ profile: { ...marisa, notes: [told, gone] }, zone: null });
+  openFold(tree, "notes");
+  tree = redrawTab();
+  const endedOf = (i) => find(noteRows(tree)[i], (n) => classes(n).includes("rec-input-unit"));
+  const base = { business_name: "Marisa's Beauty Salon", booking_link: null, whatsapp_line: null };
+  const composed = composeSystemPrompt(base, { notes: [told, gone] }, "whatsapp", null, new Date(at));
+  assert.ok(composed.includes("\n- Holiday hours (until "), "the composer, with no zone, still says it");
+  assert.equal(endedOf(0), null, "so the form does not call it ended");
+  assert.ok(!composed.includes("Summer offer"), "the composer has stopped saying the one before");
+  assert.equal(textOf(endedOf(1)), noteEndedWords(dayBefore, null, new Date(at)));
+  assert.match(textOf(endedOf(1)), /^ended [A-Z][a-z]{2} \d{1,2}$/);
+});
+
+test("a note's last day that is not on the calendar is refused under its Until box, in a closed day's words, and nothing is sent", () => {
+  const sent = saving();
+  let tree = drawTab({ profile: { ...marisa, notes: notesOf(2) } });
+  openFold(tree, "notes");
+  tree = redrawTab();
+  labelled(tree, "Note 2, until").props.onChange({ target: { value: "2026-11-31" } });
+  tree = redrawTab();
+  saveFoldOf(tree, "notes");
+  tree = redrawTab();
+  assert.equal(sent.length, 0, "nothing is sent");
+  // The save's one check of a stored day, the closures' own (config-write-rules.test.mjs holds the two to one sentence).
+  assert.equal(textOf(problemUnder(tree, "rec-note-1-until")), "2026-11-31 is not a date on the calendar.");
+  assert.equal(labelled(tree, "Note 2, until").props["aria-invalid"], true);
+  assert.equal(byTestId(tree, "rec-note-problem-1"), null, "said under its own box, not the row's");
+  // A change to that note's last day answers its sentence, as a closed day's does.
+  labelled(tree, "Note 2, until").props.onChange({ target: { value: "2026-11-30" } });
+  tree = redrawTab();
+  assert.equal(problemUnder(tree, "rec-note-1-until"), null);
 });
 
 test("a note's sentence goes when that note is changed or a note before it is taken out, and stays while another is changed", () => {

@@ -163,9 +163,6 @@
   "apps/dashboard/src/server/ask/sse.ts": {
     "@typescript-eslint/no-unsafe-assignment": 1
   },
-  "apps/dashboard/src/server/ask/tools/act/broadcast.ts": {
-    "@typescript-eslint/no-unnecessary-type-assertion": 1
-  },
   "apps/dashboard/src/server/ask/tools/act/invite.ts": {
     "@typescript-eslint/require-await": 1
   },
@@ -382,7 +379,7 @@
     "@typescript-eslint/no-deprecated": 1
   },
   "packages/contracts/src/config/workspace-config/config-schema.ts": {
-    "@typescript-eslint/no-deprecated": 7
+    "@typescript-eslint/no-deprecated": 6
   },
   "packages/contracts/src/conversations/call-vm.ts": {
     "@typescript-eslint/no-unnecessary-type-assertion": 1

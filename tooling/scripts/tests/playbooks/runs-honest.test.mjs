@@ -1078,9 +1078,12 @@ test("A paused playbook says it is paused, and a run's day is words", () => {
   // per week, across playbooks. A bare "0 people" read as broken.
   const held = lineOf(pane(playbook({ candidates: 0, held: 2 })), "pb-next");
   assert.ok(held.endsWith(" · waiting out the week's gap"), held);
-  // And one that reaches some says how many, and who waits the week out.
+  // And one that reaches some says how many, and who waits: a message within a week of today holds them, one already
+  // sent or one due, so the words say both sides, never "this week".
   const some = lineOf(pane(playbook({ candidates: 7, held: 2 })), "pb-next");
-  assert.ok(some.endsWith(" · 7 people · 2 people more wait this week"), some);
+  assert.ok(some.endsWith(" · 7 people · 2 people more hear from you within a week of today and wait"), some);
+  const one = lineOf(pane(playbook({ candidates: 7, held: 1 })), "pb-next");
+  assert.ok(one.endsWith(" · 7 people · 1 person more hears from you within a week of today and waits"), one);
 });
 
 test("a proposal follow-up's detail (0006): where deals are on, who it reaches with a proposal waiting; where they are off, why it runs nothing, and no count it never took", async () => {

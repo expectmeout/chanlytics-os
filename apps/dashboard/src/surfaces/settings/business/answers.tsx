@@ -10,7 +10,7 @@
 // and no form drew a box for it (spec D5).
 //
 // The page composes and never derives. Every sentence here with a number in it is contracts' (handoffWords,
-// handoffChatRow, handoffCallRow, notesWords, instructionsWords, fallbacksWords, TONE_PRESETS and
+// handoffChatRow, handoffCallRow, notesWords, noteEndedWords, instructionsWords, fallbacksWords, TONE_PRESETS and
 // rulesWithoutFieldsWords, through BUSINESS_TAB); what each fold opens with, refuses and writes is folds.ts's; the
 // gesture is BtFold. Each fold opens as a sheet with its title alone over its fields (Ruben, 10 Oct 2026: the sheets
 // "too wordy, too explanatory, too cluttered"): what a box is for is its placeholder, and the one thing worth knowing
@@ -36,6 +36,7 @@ import { RecordChips } from "../../kit/record/row";
 import { BtaHandoff, BtaLanguages, BtaRules, BtaVoice } from "./answers-fields";
 import type { Fields, HandoffWords } from "./answers-fields";
 import { BtFold } from "./gestures/fold";
+import { btoStoredZone } from "./open";
 import { greetingFold } from "./phone/greeting";
 import { phoneShown } from "./save";
 import type { Brain, Config, Profile } from "./save";
@@ -99,15 +100,21 @@ const BTA_DETAILS: [string, string][] = [
 const BTA_NOTES_FULL = "That is the most notes it keeps. Remove one to add another.";
 
 /** A note in the draft, as far as a hand-edited record can be trusted. */
-type NoteDraft = { title?: unknown; text?: unknown } | null;
+type NoteDraft = { title?: unknown; text?: unknown; until?: unknown } | null;
 
-/** One note: a title and what it says, each in its box, with its remove. */
+/**
+ * One note: a title, what it says and its last day, each in its box, with its remove. The last day is a date box, as a
+ * closed day's is (open.tsx), and optional; once it has passed on the business's day, `ended` (contracts
+ * noteEndedWords) is said beside the title and describes its box, since the receptionist no longer says the note.
+ */
 const BtaNote = ({
   note,
   i,
   notes,
   press,
   bad,
+  badUntil,
+  ended,
   readOnly,
 }: {
   note: NoteDraft;
@@ -115,9 +122,12 @@ const BtaNote = ({
   notes: ReturnType<Fields["rows"]>;
   press: Fields["press"];
   bad: string | null;
+  badUntil: string | null;
+  ended: string | null;
   readOnly: boolean;
 }) => {
   const problemId = `bt-note-${i}-problem`;
+  const endedId = `bt-note-${i}-ended`;
   const title = note && typeof note.title === "string" ? note.title : "";
   return (
     <div className="bt-note" data-testid={`rec-note-${i}`} {...notes.row(i)}>
@@ -128,6 +138,8 @@ const BtaNote = ({
         placeholder="A topic, like Gift cards"
         onChange={(v) => notes.setAt(i, { title: v })}
         invalid={bad ? problemId : null}
+        unit={ended ? <span id={endedId}>{ended}</span> : null}
+        aria-describedby={ended ? endedId : undefined}
         readOnly={readOnly}
       />
       <RecordBox
@@ -139,6 +151,16 @@ const BtaNote = ({
         onChange={(v) => notes.setAt(i, { text: v })}
         invalid={bad ? problemId : null}
         readOnly={readOnly}
+      />
+      <RecordBox
+        id={`bt-note-${i}-until`}
+        label={`Note ${i + 1}, until`}
+        type="date"
+        value={note && typeof note.until === "string" ? note.until : ""}
+        onChange={(v) => notes.setAt(i, { until: v })}
+        problem={badUntil}
+        readOnly={readOnly}
+        testid={`rec-note-${i}-until`}
       />
       <button
         type="button"
@@ -160,11 +182,12 @@ const BtaNote = ({
 };
 
 /**
- * The notes, each a title and what it says, with a remove. A note is words somebody typed, the same as a closure, and
- * each went with one press and no Undo (S18): now the removal says so and offers it back at its own place (BtFold's
- * rows), and the list stops at the profile's ten, where the old form stopped by hiding Add. Hookless (the kit's
- * RecordBox, a textarea for what a note says): its rows come and go. What stops a note (half of one, or more than the
- * profile keeps) is said once under its row, and both its boxes are wrong by it.
+ * The notes, each a title, what it says and an optional last day, with a remove. A note is words somebody typed, the
+ * same as a closure, and each went with one press and no Undo (S18): now the removal says so and offers it back at its
+ * own place (BtFold's rows), and the list stops at the profile's ten, where the old form stopped by hiding Add.
+ * Hookless (the kit's RecordBox, a textarea for what a note says): its rows come and go. What stops a note (half of
+ * one, or more than the profile keeps) is said once under its row, and both its boxes are wrong by it; a last day the
+ * save refuses (one not on the calendar) is said under its own box, as a closed day's is.
  */
 const BtaNotes = ({
   draft,
@@ -178,11 +201,15 @@ const BtaNotes = ({
     name: (i) => `note-${i}`,
     max: businessTabSave.LIMITS.notes,
     blank: () => ({ title: "", text: "" }),
-    keysOf: (i) => [`note-${i}`],
+    keysOf: (i) => [`note-${i}`, `note-${i}-until`],
     key: "notes",
     full: BTA_NOTES_FULL,
   });
   const list = Array.isArray(draft) ? (draft as NoteDraft[]) : [];
+  // Whether a note has ended is the composer's own rule (contracts noteEndedWords), in the zone the composer is given:
+  // the workspace's own, null where it has none, never the zone the page shows times in.
+  const zone = btoStoredZone();
+  const now = new Date();
   return (
     <div className="bt-notes" data-testid="rec-notes-rows">
       {/* The columns' names, on screen and not read out: each box carries its own, with its row's place in it. */}
@@ -190,6 +217,7 @@ const BtaNotes = ({
         <div className="bt-note-head" aria-hidden="true">
           <span>Title</span>
           <span>What it says</span>
+          <span>Until (optional)</span>
           <span />
         </div>
       ) : null}
@@ -201,6 +229,8 @@ const BtaNotes = ({
           notes={notes}
           press={press}
           bad={(problems[`note-${i}`] as string | undefined) || null}
+          badUntil={(problems[`note-${i}-until`] as string | undefined) || null}
+          ended={BUSINESS_TAB.noteEndedWords(n && n.until, zone, now)}
           readOnly={readOnly}
         />
       ))}

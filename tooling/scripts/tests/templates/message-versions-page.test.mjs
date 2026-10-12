@@ -138,15 +138,22 @@ const custom = (name, over = {}) =>
 
 const draw = () => W.React.createElement(TemplatesPage, {});
 /**
- * Templates over what the settings surface holds: the WhatsApp rows, the email and text rows, who is acting, and the
- * channels the workspace has (a WhatsApp number, unless the test says none).
+ * Templates over what the settings surface holds: the WhatsApp rows, the email and text rows, who is acting, the
+ * channels the workspace has (a WhatsApp number, unless the test says none), and whether its Google listing keeps a
+ * review link (none, unless the test says one).
  */
-const page = ({ rows = [], versions = [], role = "owner", channels = [{ kind: "whatsapp" }] } = {}) => {
+const page = ({
+  rows = [],
+  versions = [],
+  role = "owner",
+  channels = [{ kind: "whatsapp" }],
+  reviewLink = false,
+} = {}) => {
   W.ST_STORE.can = (a) => !!contracts.ROLE_PERMS[role][a];
   W.ST_STORE.myRole = () => role;
   W.__TEMPLATES_ALL = rows;
   setSurfaceValue("settings", {
-    settings: { config: { brain: { business_name: BIZ } } },
+    settings: { config: { brain: { business_name: BIZ } }, reviewLink },
     facts: null,
     channels,
     templatesAll: rows,
@@ -1851,4 +1858,20 @@ test("the Library's count says what it holds on hover in contracts' words, wheth
   );
   assert.ok(contracts.LIBRARY_WORDS.headTip.includes("an email or a text is ready the moment it is saved"));
   assert.ok(!/template/i.test(contracts.LIBRARY_WORDS.headTip));
+});
+
+test("the Library's starter set holds the review ask only where Settings says the Google listing keeps a review link, as the starter route files it: its row beside How did it go, and nowhere without one", () => {
+  const REVIEW = "after_visit_review";
+  const linked = page({ reviewLink: true });
+  assert.ok(rowOf(linked, REVIEW), "a row of its own");
+  assert.ok(
+    library.list.some((s) => s.key === REVIEW),
+    "and a starter the composer may start from",
+  );
+  const keys = library.list.map((s) => s.key);
+  assert.equal(keys.indexOf(REVIEW), keys.indexOf(AFTER_VISIT) + 1, "beside How did it go");
+  const none = page({ reviewLink: false });
+  assert.equal(rowOf(none, REVIEW) ?? null, null, "no row");
+  assert.ok(!library.list.some((s) => s.key === REVIEW), "and nothing to start from");
+  assert.ok(rowOf(none, AFTER_VISIT), "the rest of the set is there either way");
 });

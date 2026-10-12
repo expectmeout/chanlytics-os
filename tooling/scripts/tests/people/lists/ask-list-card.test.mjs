@@ -458,7 +458,12 @@ test("a list card, walked end to end: the model's call makes it, Approve makes t
   const made = tables.segments.find((s) => s.name === "Talkers");
   assert.ok(made, "the list is made");
   assert.deepEqual([made.tenant_id, made.rule, made.archived_at ?? null], [A, rule(TALKERS), null]);
-  assert.deepEqual(done, { ok: true, receipt: "Talkers made. It keeps itself current.", undo: { list_id: made.id } });
+  assert.deepEqual(done, {
+    ok: true,
+    receipt: "Talkers made. It keeps itself current.",
+    undo: { list_id: made.id },
+    made: null,
+  });
   assert.deepEqual(tab.sent, [{ key: "POST /api/v1/segments", body: { name: "Talkers", rule: rule(TALKERS) } }]);
   assert.ok(tab.events.includes("refresh POST segments"), "People, Broadcasts and Playbooks read again behind it");
   assert.deepEqual(ledger(tables), [["make_list", "list"]]);

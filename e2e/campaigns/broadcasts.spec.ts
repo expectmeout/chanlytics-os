@@ -63,7 +63,10 @@ test.describe("Broadcasts on a real workspace", () => {
     expect(ch.status()).toBe(200);
     const broadcasts = (await bc.json()).data.broadcasts as { state: string }[];
     const read = (await tpl.json()).data as TemplatesRead;
-    const bookingLink = !!(await cfg.json()).data.config?.brain?.booking_link;
+    // The links a slot may be filled from, as the page reads them (broadcasts/surface.ts): the booking link on file,
+    // and whether the Google listing keeps a review link (GET settings' review_link).
+    const settings = (await cfg.json()).data;
+    const links = { bookingLink: !!settings.config?.brain?.booking_link, reviewLink: settings.review_link === true };
     // Whether there is a number to send from, as the page reads it (broadcasts/surface.ts): an active WhatsApp channel.
     const hasNumber = ((await ch.json()).data.channels as { kind: string; status: string }[]).some(
       (c) => c.kind === "whatsapp" && c.status === "active",
@@ -94,7 +97,7 @@ test.describe("Broadcasts on a real workspace", () => {
     // one option, in two languages still one; one the wire cannot carry is left out and said so, and one a broadcast
     // cannot fill (the visit reminder) is left out -- or the honest line. Nothing here assumes a channel, so a workspace
     // with no WhatsApp number offers the messages it has written, as one with a number does.
-    const { groups: offered, why } = messagesOffered(read, broadcastSlots(bookingLink));
+    const { groups: offered, why } = messagesOffered(read, broadcastSlots(links));
     if (offered.length === 0) {
       await expect(composer.getByTestId("bc-no-template")).toBeVisible();
       await expect(composer.getByTestId("bc-template")).toHaveCount(0);
@@ -175,11 +178,15 @@ test.describe("Broadcasts on a real workspace", () => {
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("broadcasts-real")).toBeVisible();
     const composer = await openComposer(page);
-    // The count the chosen list reaches is the To sentence's own: "N of M can hear it".
-    const count = Number((await composer.getByTestId("bc-who-n").innerText()).replace(/,/g, "").trim());
+    // The count the chosen list reaches is the reach line's own ("N of M can hear it"), which it carries as data-count.
+    const count = Number(await composer.getByTestId("bc-reach").getAttribute("data-count"));
     if (count === 0) {
       await expect(composer.getByTestId("bc-send")).toBeDisabled();
-      await expect(composer.getByTestId("bc-nobody")).toBeVisible();
+      // Everyone it reaches hears from you within a week of it: they said yes, so the heard line and the foot say why,
+      // never the line about a missing yes.
+      if ((await composer.getByTestId("bc-heard-line").count()) > 0)
+        await expect(composer.getByTestId("bc-nobody")).toHaveCount(0);
+      else await expect(composer.getByTestId("bc-nobody")).toBeVisible();
     } else {
       // Someone said yes: the button follows the template and its values, never the count alone.
       await expect(composer.getByTestId("bc-nobody")).toHaveCount(0);

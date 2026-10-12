@@ -432,6 +432,36 @@ test("the week's touches could not be read: the card declines in its words, and 
   });
   assert.equal(r.isError, true, "no card on a count the page would not make");
   assert.equal(JSON.parse(r.result).error, contracts.PLAYBOOK_CARD_REFUSALS.weekUnread);
-  // Any message sent this week holds a person, a member's own among them: the words say so, never "from a campaign".
-  assert.match(contracts.PLAYBOOK_CARD_REFUSALS.weekUnread, /^who was messaged this week could not be read just now/);
+  // Any message sent or due within a week of it holds a person, a member's own among them: the words say both sides, as
+  // a broadcast's door says them (core createBroadcast), never "this week" and never "from a campaign".
+  assert.match(
+    contracts.PLAYBOOK_CARD_REFUSALS.weekUnread,
+    /^who has had a message from you lately, or has one due, could not be read just now/,
+  );
+  assert.doesNotMatch(contracts.PLAYBOOK_CARD_REFUSALS.weekUnread, /this week/);
+});
+
+test("the autonomy modes could not be read: the card declines in its words, and never guesses its class's mode (a guess of ask under auto would drop the trial week)", async () => {
+  // The read the class's mode is made of (the turn's policies) fails; every other read answers.
+  const rows = tables({
+    policies: [{ tenant_id: A, class: "campaign", mode: "auto", subject_type: null, limits: null }],
+  });
+  setServiceClient(fakeDb(rows, {}, { campaign_month_sent: () => 0 }));
+  const supabase = fakeDb(rows, { "policies.select": { message: "the read failed" } }, { people_list: () => PEOPLE });
+  const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
+  const r = await buildProposal(t, "propose_campaign", {
+    action: "playbook",
+    trigger: MOMENT,
+    template_id: OFFER,
+    params: [],
+    channels: ["whatsapp", "email"],
+    cap_per_run: 5,
+  });
+  assert.equal(r.isError, true, "no card that says a mode it does not know");
+  assert.equal(r.proposal, null);
+  assert.equal(JSON.parse(r.result).error, contracts.PLAYBOOK_CARD_REFUSALS.modeUnread);
+  assert.equal(
+    contracts.PLAYBOOK_CARD_REFUSALS.modeUnread,
+    "the sending mode of this campaign's class could not be read just now, so the card cannot say what its runs would do; say so, and try again in a moment",
+  );
 });

@@ -51,7 +51,6 @@ export {
   heldWords,
   heldBackWords,
   audienceMembers,
-  heardWords,
   audiencePreview,
   audienceTrigger,
 } from "./broadcast-audience";
@@ -174,14 +173,30 @@ export {
   REPLY_WINDOW_HOURS,
   REPLY_WINDOW_MS,
   REPLY_WINDOW_WORDS,
+  RECIPIENT_REASON_HEARD,
+  LEFT_OUT_FACTS,
+  leftOutByFacts,
+  leftOutBy,
+  heardWithin,
+  breathTouchOf,
+  heardFor,
+  breathSplit,
+  reachAfterBreath,
+  heardWords,
+  heardTooWords,
+  allLeftOutWords,
+  breathWaitWords,
+  BREATH_WHY,
+  HEARD_UNREAD_WORDS,
+  goesToOf,
   HELD_REASONS,
-  EMAIL_HOLDS,
+  HELD_WHEN_COUNTED,
   DELIVERY_RECEIPTS_TIP,
   DELIVERY_RECEIPTS_WORDS,
   finishedRunHeldWhy,
   isReplyTo,
 } from "./run-words";
-export type { EmailHold } from "./run-words";
+export type { HeardTouch } from "./run-words";
 
 /** The words a person will read: the body with its numbered slots filled. */
 export function renderTemplate(body: string | null | undefined, params: readonly string[]): string {

@@ -194,6 +194,8 @@ const two = (replyText, intent, language = "en", policy = POLICY) =>
     intent,
     language,
     known: null,
+    tz: "UTC",
+    now: NOW,
   });
 
 test("layer two holds money named in the words even when the model's intent says otherwise, in the answer's language", () => {

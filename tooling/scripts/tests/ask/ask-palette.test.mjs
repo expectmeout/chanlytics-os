@@ -842,6 +842,51 @@ test("REGRESSION: a card sent once says Sent wherever it is drawn again -- a fol
   await closes();
 });
 
+test("a card approved records what its commit made with its outcome, so a plan's made is read back after a reload; one that made nothing records null", async () => {
+  const calls = ask([]);
+  const recorded = [];
+  const MSG = "cccccccc-cccc-4ccc-8ccc-000000000009";
+  const made = { kind: "message", id: "77777777-7777-4777-8777-000000000001" };
+  Object.assign(globalThis.window.__ask, {
+    commit: async (p) => ({ ok: true, receipt: "Filed", undo: null, made: p.id === "p1" ? made : null }),
+    outcome: async (messageId, proposalId, o) => {
+      recorded.push([messageId, proposalId, o.state, o.made]);
+      return true;
+    },
+    undoOpen: () => false,
+    editReply() {},
+    send: async (input, on) => {
+      calls.sent.push(input.text);
+      on({ t: "thread", id: TH(9).id, title: input.text });
+      const card = (id) => ({
+        id,
+        kind: "message",
+        needs: "operator",
+        title: `Message ${id}`,
+        summary: "A message for the Library.",
+        payload: { name: "offer" },
+        undo: null,
+      });
+      on({ t: "final", message: { ...said(MSG, "Two cards."), proposals: [card("p1"), card("p2")] } });
+    },
+  });
+  render(Palette, OPEN);
+  let tree = await later(Palette, OPEN);
+  typed(tree, "write the offer");
+  tree = await later(Palette, OPEN);
+  keyed(tree, "Enter");
+  tree = await later(Palette, OPEN);
+  press(byTestId(tree, "ask-card-approve"));
+  tree = await later(Palette, OPEN);
+  press(byTestId(tree, "ask-card-approve"));
+  await later(Palette, OPEN);
+  assert.deepEqual(recorded, [
+    [MSG, "p1", "done", made],
+    [MSG, "p2", "done", null],
+  ]);
+  await closes();
+});
+
 test("a card's Approve is gated by the shell's rule: a role its gate refuses sees Approve, reads why at the control, and a press commits nothing; a role it lets commits (D8)", async () => {
   const calls = ask([]);
   const committed = [];
@@ -3235,6 +3280,69 @@ test("a list and a playbook's run waiting for a person (PR 4.7) are drawn as the
     });
 });
 
+test("a message the card writes (the marketing manager, §5.2) is drawn whole: its word in the Line's English and Spanish and a template's mark, each version under its channel's word as the person reached on it reads it, and when each goes and who it reaches under them", () => {
+  const { AskCard, askKindGlyph } = globalThis.window.AskAnswerKit;
+  const said = [
+    {
+      channel: "whatsapp",
+      label: "On WhatsApp",
+      words: "Hi Dani, everything is 10% off this month. Reply STOP to opt out.",
+    },
+    {
+      channel: "email",
+      label: "By email",
+      words: "“This month at the business”\nHi Dani,\n\nEverything is 10% off this month.",
+    },
+  ];
+  const follows =
+    "Ready by email once approved; its WhatsApp version once WhatsApp has reviewed it (usually minutes, sometimes a day) · On WhatsApp: only people with a recorded yes to offers and a phone number.";
+  const p = {
+    id: "p1",
+    kind: "message",
+    needs: "operator",
+    title: "New message: october_offer, in English",
+    summary: `On WhatsApp: Hi Dani, … · By email: “This month at the business” — Hi Dani, … · ${follows}`,
+    payload: {
+      name: "october_offer",
+      language: "en_US",
+      category: "marketing",
+      versions: {},
+      slots: [],
+      said,
+      follows,
+    },
+    undo: "Delete its email version",
+  };
+  for (const [lang, word] of [
+    ["en", "message"],
+    ["es", "mensaje"],
+  ]) {
+    const tree = render(AskCard, { p, t: globalThis.window.askText(lang), onNav() {} });
+    assert.equal(byTestId(tree, "ask-card").props["data-kind"], "message");
+    const head = byClass(tree, "ask-card-head")[0];
+    assert.equal(textOf(byClass(head, "ask-card-kind")[0]), word, `${lang}: its word`);
+    assert.equal(find(head, (n) => n.type === "Icon").props.name, askKindGlyph("template"), "a template's mark");
+    assert.ok(textOf(head).startsWith(p.title));
+    // Every version whole, under its channel's word, in the card's said block; the summary's quotes are the model's.
+    const versions = byTestId(tree, "ask-card-versions");
+    assert.ok(versions.props.className.split(" ").includes("ask-card-said"));
+    const rows = byClass(versions, "ask-card-summary");
+    assert.deepEqual(
+      rows.map((r) => [textOf(byClass(r, "ask-card-kind")[0]), textOf(r)]),
+      said.map((s) => [s.label, `${s.label}\n${s.words}`]),
+    );
+    assert.equal(
+      byClass(tree, "ask-card-summary").some((n) => textOf(n) === p.summary),
+      false,
+      "the versions are drawn whole, never quoted twice",
+    );
+    assert.equal(textOf(byClass(tree, "ask-card-foot")[0]), follows, "when each goes and who it reaches, under them");
+  }
+  // A message card from before its versions were carried draws its summary, as every card does.
+  const bare = render(AskCard, { p: { ...p, payload: {} }, t: globalThis.window.askText("en"), onNav() {} });
+  assert.equal(textOf(byClass(bare, "ask-card-summary")[0]), p.summary);
+});
+
 test("REGRESSION (N18): every page a real workspace ships is a jump away -- 'calendar' offered only to ask about it", async () => {
   ask();
   render(Palette, OPEN);
@@ -3894,6 +4002,758 @@ test("over the first run the Line is on the start surface: it asks about setting
   } finally {
     delete globalThis.window.__ask.context;
     globalThis.window.location.hash = hash;
+  }
+});
+
+/* ------------------------------ a plan on the Line ------------------------------ */
+
+// Ask's plan (the marketing manager's spec §5.4, §5.8): a group of ordinary cards, each stamped with the plan it is a
+// step of. Read as a module, so a name contracts does not say yet is a failing test, not a file that will not load.
+const PC = await import("@chanlytics/contracts");
+const PLAN_ID = "plan-0f1e2d3c";
+const PLAN_MSG = "cccccccc-cccc-4ccc-8ccc-000000000018";
+const PLAN_PB = "88888888-8888-4888-8888-888888888888";
+const PV = (n) => `77777777-7777-4777-8777-${String(n).padStart(12, "0")}`;
+const MADE_MESSAGE = { kind: "message", id: PV(1) };
+/** Step `step` of six: the first three send nothing, the last three are sends that wait for them. */
+const planCard = (step, kind, title, payload, over = {}) => ({
+  id: `p-${step}`,
+  kind,
+  needs: "operator",
+  title,
+  summary: `${title}.`,
+  payload,
+  undo: null,
+  made_at: new Date(Date.now() - 3_600_000).toISOString(),
+  plan: { id: PLAN_ID, step, of: 6, silent: step <= 3, after: step <= 3 ? [] : [1, 2, 3] },
+  ...over,
+});
+const offerSlots = [
+  { position: 1, label: "First name", kind: "first_name" },
+  { position: 2, label: "Business name", kind: "business_name" },
+  { position: 3, label: "The offer", kind: "text" },
+  { position: 4, label: "Booking link", kind: "booking_link" },
+];
+const offerBroadcast = (channels, name) => ({
+  template_id: "@step:1",
+  params: ["@first_name", "@business_name", "10% off colour all November.", "@booking_link"],
+  audience_kind: "list",
+  audience_id: "offers_ok",
+  scheduled_for: "2026-11-01T15:00:00.000Z",
+  name,
+  channels,
+});
+const SIX = [
+  planCard(1, "message", "New message: offer, in English", {
+    name: "offer",
+    language: "en_US",
+    category: "marketing",
+    versions: {
+      whatsapp: { body: "Hi {{1}}, an offer from {{2}}: {{3}} Book here: {{4}}" },
+      email: { subject: "An offer from {{2}}", body: "Hi {{1}},\n\nAn offer from {{2}}: {{3}}\n\nBook here: {{4}}" },
+    },
+    slots: offerSlots,
+  }),
+  planCard(2, "settings", "Remember this", {
+    change: {
+      op: "add_note",
+      title: "Offer: 10% off colour all November",
+      text: "The offer: 10% off colour all November. It runs from Nov 1 to Nov 30.",
+      until: "2026-11-30",
+    },
+  }),
+  planCard(3, "playbook_change", "Pause: This month's offer", {
+    playbook_id: PLAN_PB,
+    playbook_name: "This month's offer",
+    state: "paused",
+  }),
+  // A send by WhatsApp and email on the message step 1 writes: WhatsApp reviews that message first.
+  planCard(4, "broadcast", "Broadcast to Can receive offers", offerBroadcast(["whatsapp", "email"], "Offer: November")),
+  planCard(5, "broadcast", "Broadcast to Regulars", offerBroadcast(["email"], "Offer: November, again")),
+  planCard(6, "playbook", "New campaign: the offer's reminder", {
+    template_id: "@step:1",
+    trigger: "quiet_30",
+    channels: ["email"],
+    until: "2026-11-30",
+  }),
+];
+const PLAN_ANSWER = {
+  v: 2,
+  form: "structured",
+  say: { headline: "A plan of 3 steps and 3 sends to review.", detail: "" },
+  show: { figures: [], items: [], breakdown: null },
+  do: { open: null, next: [] },
+  language: "en",
+};
+const planProps = (cards, over = {}) => ({
+  answer: PLAN_ANSWER,
+  cardOpen: {},
+  cards,
+  messageId: PLAN_MSG,
+  t: globalThis.window.askText("en"),
+  onNav() {},
+  onFollow() {},
+  ...over,
+});
+/** A card's outcome, as the turn holds it once the card was approved (the Line's record of an Approve). */
+const approved = (p, made = null) => ({
+  ...p,
+  outcome: { state: "done", receipt: `${p.title}: done`, atMs: Date.now(), undo: null, made },
+});
+/** What a card commits to, by its kind, on a press of its own. */
+const ownMade = (p) => (p.kind === "message" ? MADE_MESSAGE : null);
+/**
+ * The bridge as installAsk publishes the plan's parts (legacy-bridge/ask.ts): contracts' cardsInPlans and planGroupOf,
+ * a recorded commit of one card and of a plan's silent steps, and the outcome route.
+ */
+const planBridge = (over = {}) => {
+  const calls = { commit: [], plan: [], outcomes: [] };
+  const was = globalThis.window.__ask;
+  globalThis.window.__ask = {
+    cardsInPlans: PC.cardsInPlans,
+    planGroupOf: PC.planGroupOf,
+    cardOpenRoute,
+    undoOpen: () => false,
+    editReply() {},
+    commit: async (p, cards) => {
+      calls.commit.push({ id: p.id, cards });
+      return { ok: true, receipt: `${p.title}: done`, undo: null, made: ownMade(p) };
+    },
+    commitPlan: async (cards) => {
+      calls.plan.push(cards);
+      return { results: [], done: [], undone: [], made: {}, stoppedAt: null };
+    },
+    outcome: async (mid, pid, o) => {
+      calls.outcomes.push([mid, pid, o]);
+      return true;
+    },
+    ...over,
+  };
+  calls.restore = () => {
+    globalThis.window.__ask = was;
+  };
+  return calls;
+};
+const classOf = (n) =>
+  String(n?.props?.className || "")
+    .split(" ")
+    .filter(Boolean);
+const stepsOf = (tree) => all(byTestId(tree, "ask-plan"), (n) => n.props?.["data-testid"] === "ask-step");
+const stepCard = (tree, n) => byTestId(stepsOf(tree)[n - 1], "ask-card");
+const titlesOf = (tree) =>
+  all(tree, (n) => n.props?.["data-testid"] === "ask-card").map((n) => textOf(byClass(n, "ask-card-title")[0]));
+const waitsOf = (tree) => stepsOf(tree).map((s) => textOf(byTestId(s, "ask-card-waits")) || null);
+
+test("a plan's cards draw as one group in step order where its first card stood, each under its head (Step 1 of 6), one press above them counting the steps that send nothing, and each send held until the steps it waits for are made (spec §5.8)", () => {
+  const calls = planBridge();
+  const AskAnswer = globalThis.window.AskAnswerKit.AskAnswer;
+  const reply = {
+    id: "p-r",
+    kind: "reply",
+    needs: "operator",
+    title: "Reply to Nora",
+    summary: "We're running late.",
+    payload: { conversation_id: "c1" },
+    undo: null,
+  };
+  const close = { ...reply, id: "p-c", kind: "thread_verb", title: "Close Sam's thread", payload: { verb: "resolve" } };
+  try {
+    // Handed as the model made them, a card of no plan before and among them.
+    const [s1, s2, s3, s4, s5, s6] = SIX;
+    const tree = render(AskAnswer, planProps([reply, s4, s2, close, s1, s6, s3, s5]));
+    assert.deepEqual(
+      titlesOf(tree),
+      [reply.title, ...SIX.map((p) => p.title), close.title],
+      "the plan's cards together, in step order, where its first card stood; the rest in their places",
+    );
+    const heads = stepsOf(tree).map((s) => find(s, (n) => classOf(n).includes("ask-step-n")));
+    assert.deepEqual(heads.map(textOf), [
+      "Step 1 of 6",
+      "Step 2 of 6",
+      "Step 3 of 6",
+      "Step 4 of 6",
+      "Step 5 of 6",
+      "Step 6 of 6",
+    ]);
+    assert.ok(
+      heads.every((h) => byClass(h, "rec-hint").length === 1),
+      "the head's words are the kit's quiet text (.rec-hint), never a class of the page's own",
+    );
+    const group = byTestId(tree, "ask-plan-approve");
+    assert.equal(textOf(group), "Approve the 3 silent steps");
+    assert.deepEqual(classOf(group), ["btn", "btn-primary", "btn-sm"], "the kit's button");
+    assert.equal(group.props.disabled, false);
+    // Each send waits for the first step it waits for, in the kit's state pill, in place of its Approve.
+    assert.deepEqual(waitsOf(tree), [null, null, null, "Waits for step 1", "Waits for step 1", "Waits for step 1"]);
+    assert.ok(
+      all(byTestId(tree, "ask-plan"), (n) => n.props?.["data-testid"] === "ask-card-waits").every(
+        (n) => classOf(n).join(" ") === "pill",
+      ),
+    );
+    assert.deepEqual(
+      stepsOf(tree).map((s) => !!byTestId(s, "ask-card-approve")),
+      [true, true, true, false, false, false],
+      "a step that sends nothing is pressable on its own; a send is not, yet",
+    );
+    // WhatsApp reviews the message step 1 writes before the send by WhatsApp can go: said before the press, in static
+    // words; the send by email alone, and the campaign by email, say nothing of it.
+    assert.deepEqual(
+      stepsOf(tree).map((s) => textOf(byTestId(s, "ask-step-note")) || null),
+      [null, null, null, "This can be approved once WhatsApp has reviewed step 1's message.", null, null],
+    );
+    assert.deepEqual(calls.commit, [], "nothing is pressed by drawing");
+  } finally {
+    calls.restore();
+  }
+});
+
+test("the group's own words are the Line's, in the Line's language (ask-text.jsx): Spanish on a Spanish Line, on an English one the words it said before, word for word; a card's own words (a refusal's) stay as every card's do", () => {
+  const calls = planBridge();
+  const AskAnswer = globalThis.window.AskAnswerKit.AskAnswer;
+  const chrome = (lang, cards) => {
+    const tree = render(AskAnswer, planProps(cards, { t: globalThis.window.askText(lang) }));
+    return {
+      heads: stepsOf(tree).map((s) => textOf(find(s, (n) => classOf(n).includes("ask-step-n")))),
+      press: textOf(byTestId(tree, "ask-plan-approve")) || null,
+      waits: waitsOf(tree),
+      notes: stepsOf(tree).map((s) => textOf(byTestId(s, "ask-step-note")) || null),
+      approve: textOf(byTestId(stepCard(tree, 1), "ask-card-approve")) || null,
+    };
+  };
+  const six = (word) => [1, 2, 3, 4, 5, 6].map(word);
+  try {
+    assert.deepEqual(chrome("es", SIX), {
+      heads: six((n) => `Paso ${n} de 6`),
+      press: "Aprobar los 3 pasos silenciosos",
+      waits: [null, null, null, "Espera el paso 1", "Espera el paso 1", "Espera el paso 1"],
+      notes: [null, null, null, "Se podrá aprobar cuando WhatsApp haya revisado el mensaje del paso 1.", null, null],
+      approve: "Aprobar",
+    });
+    assert.deepEqual(chrome("en", SIX), {
+      heads: six((n) => `Step ${n} of 6`),
+      press: "Approve the 3 silent steps",
+      waits: [null, null, null, "Waits for step 1", "Waits for step 1", "Waits for step 1"],
+      notes: [null, null, null, "This can be approved once WhatsApp has reviewed step 1's message.", null, null],
+      approve: "Approve",
+    });
+    // Step 1 undone: a send that waits for it never goes. Its pill is the Line's; why is the refusal's own sentence.
+    const undone = [
+      { ...SIX[0], outcome: { state: "undone", receipt: "Removed", atMs: 1, undo: null } },
+      ...SIX.slice(1),
+    ];
+    const es = chrome("es", undone);
+    const en = chrome("en", undone);
+    assert.deepEqual(
+      [es.press, es.waits.slice(3), es.notes.slice(3)],
+      [
+        "Aprobar los 2 pasos silenciosos",
+        ["El paso 1 se deshizo", "El paso 1 se deshizo", "El paso 1 se deshizo"],
+        [PC.PROPOSAL_WORDS.planUndone, PC.PROPOSAL_WORDS.planUndone, PC.PROPOSAL_WORDS.planUndone],
+      ],
+    );
+    assert.deepEqual(
+      [en.press, en.waits.slice(3)],
+      ["Approve the 2 silent steps", ["Step 1 was undone", "Step 1 was undone", "Step 1 was undone"]],
+    );
+    // One step that sends nothing left: said as one.
+    const one = [approved(SIX[0], MADE_MESSAGE), approved(SIX[1]), ...SIX.slice(2)];
+    assert.deepEqual(
+      [chrome("es", one).press, chrome("en", one).press],
+      ["Aprobar el paso silencioso", "Approve the silent step"],
+    );
+  } finally {
+    calls.restore();
+  }
+});
+
+test("REGRESSION: a send waits for every step it waits for, one at a time, and goes once they are made; its own press hands the bridge the turn's cards as they stand, so its tokens are filled (ruling 2, spec §5.4)", async () => {
+  const calls = planBridge();
+  const AskAnswer = globalThis.window.AskAnswerKit.AskAnswer;
+  try {
+    // Step 1, the message, was approved on its own: what it made is on its outcome.
+    const props = planProps([approved(SIX[0], MADE_MESSAGE), ...SIX.slice(1)]);
+    let tree = render(AskAnswer, props);
+    assert.deepEqual(waitsOf(tree).slice(3), ["Waits for step 2", "Waits for step 2", "Waits for step 2"]);
+    assert.equal(textOf(byTestId(tree, "ask-plan-approve")), "Approve the 2 silent steps", "the steps left");
+    assert.ok(textOf(byClass(stepCard(tree, 1), "ask-card-receipt")[0]).includes("done"), "step 1 says what it did");
+
+    press(byTestId(stepCard(tree, 2), "ask-card-approve"));
+    tree = await later(AskAnswer, props);
+    assert.deepEqual(waitsOf(tree).slice(3), ["Waits for step 3", "Waits for step 3", "Waits for step 3"]);
+    assert.equal(textOf(byTestId(tree, "ask-plan-approve")), "Approve the silent step");
+
+    press(byTestId(stepCard(tree, 3), "ask-card-approve"));
+    tree = await later(AskAnswer, props);
+    assert.deepEqual(waitsOf(tree), [null, null, null, null, null, null], "every step it waits for is made");
+    assert.equal(byTestId(tree, "ask-plan-approve"), null, "no step that sends nothing is left to approve");
+    assert.deepEqual(
+      stepsOf(tree)
+        .slice(3)
+        .map((s) => textOf(byTestId(s, "ask-card-approve"))),
+      ["Approve", "Approve", "Approve"],
+    );
+
+    press(byTestId(stepCard(tree, 5), "ask-card-approve"));
+    tree = await later(AskAnswer, props);
+    const sent = calls.commit.at(-1);
+    assert.equal(sent.id, "p-5");
+    assert.deepEqual(
+      PC.planMadeOf(PLAN_ID, sent.cards),
+      { 1: MADE_MESSAGE, 2: { kind: "settings", id: null }, 3: { kind: "playbook_change", id: null } },
+      "the bridge is handed the turn's cards with what each became, the steps pressed here among them",
+    );
+    // Each press recorded its outcome as a card's Approve always has, what it made beside it.
+    assert.deepEqual(
+      calls.outcomes.map(([mid, pid, o]) => [mid, pid, o.state, o.made]),
+      [
+        [PLAN_MSG, "p-2", "done", null],
+        [PLAN_MSG, "p-3", "done", null],
+        [PLAN_MSG, "p-5", "done", null],
+      ],
+    );
+    // WhatsApp's review answers an early press with core's 409, said as any refusal is.
+    globalThis.window.__ask.commit = async () => ({
+      ok: false,
+      message: "WhatsApp is still reviewing this message's WhatsApp version.",
+    });
+    press(byTestId(stepCard(tree, 4), "ask-card-approve"));
+    tree = await later(AskAnswer, props);
+    assert.equal(
+      textOf(byClass(stepCard(tree, 4), "ask-card-receipt")[0]),
+      "WhatsApp is still reviewing this message's WhatsApp version.Try again",
+    );
+  } finally {
+    calls.restore();
+  }
+});
+
+test("the group's one press approves the steps that send nothing through commitPlan, handed the plan's cards alone; while it runs nothing else is pressed; after it each step shows its own receipt and records its outcome as its own press would, in step order", async () => {
+  let release = () => {};
+  const held = new Promise((r) => (release = r));
+  const run = {
+    results: [
+      {
+        step: 1,
+        id: PV(1),
+        result: { ok: true, receipt: "“offer” is in the Library", undo: null, made: MADE_MESSAGE },
+      },
+      { step: 2, id: null, result: { ok: true, receipt: "The receptionist knows the offer", undo: null, made: null } },
+      { step: 3, id: null, result: { ok: true, receipt: "This month's offer is paused", undo: null, made: null } },
+    ],
+    done: [],
+    undone: [],
+    stoppedAt: null,
+    made: { 1: MADE_MESSAGE, 2: { kind: "settings", id: null }, 3: { kind: "playbook_change", id: null } },
+  };
+  const calls = planBridge({
+    commitPlan: async (cards) => {
+      calls.plan.push(cards);
+      await held;
+      return run;
+    },
+  });
+  const AskAnswer = globalThis.window.AskAnswerKit.AskAnswer;
+  const reply = { ...SIX[0], id: "p-r", kind: "reply", title: "Reply to Nora", plan: undefined, payload: {} };
+  try {
+    const props = planProps([reply, ...SIX]);
+    let tree = render(AskAnswer, props);
+    press(byTestId(tree, "ask-plan-approve"));
+    tree = await later(AskAnswer, props);
+    assert.deepEqual(
+      calls.plan.map((cards) => cards.map((p) => p.id)),
+      [["p-1", "p-2", "p-3", "p-4", "p-5", "p-6"]],
+      "one press, handed this plan's cards and no other card of the turn",
+    );
+    const busy = byTestId(tree, "ask-plan-approve");
+    assert.equal(busy.props.disabled, true, "pressed once, it waits");
+    assert.equal(textOf(busy), "Working…");
+    assert.deepEqual(
+      [1, 2, 3].map((n) => byTestId(stepCard(tree, n), "ask-card-approve").props.disabled),
+      [true, true, true],
+      "the steps it approves are not pressed again meanwhile",
+    );
+    release();
+    tree = await later(AskAnswer, props);
+    assert.deepEqual(
+      [1, 2, 3].map((n) => textOf(byClass(stepCard(tree, n), "ask-card-receipt")[0])),
+      ["“offer” is in the Library", "The receptionist knows the offer", "This month's offer is paused"],
+      "each step its own receipt",
+    );
+    assert.equal(byTestId(tree, "ask-plan-approve"), null, "nothing that sends nothing is left");
+    assert.deepEqual(waitsOf(tree), [null, null, null, null, null, null], "and every send may go");
+    assert.deepEqual(
+      calls.outcomes.map(([mid, pid, o]) => [mid, pid, o.state, o.receipt, o.made]),
+      [
+        [PLAN_MSG, "p-1", "done", "“offer” is in the Library", MADE_MESSAGE],
+        [PLAN_MSG, "p-2", "done", "The receptionist knows the offer", null],
+        [PLAN_MSG, "p-3", "done", "This month's offer is paused", null],
+      ],
+    );
+    assert.deepEqual(
+      Object.keys(calls.outcomes[0][2]).sort(),
+      ["atMs", "made", "receipt", "state", "undo"],
+      "the shape a card's own press records",
+    );
+    assert.deepEqual(calls.commit, [], "no card was pressed on its own");
+  } finally {
+    calls.restore();
+  }
+});
+
+test("REGRESSION (fix round 1): the group holds every card of its plan until each step's outcome is recorded: no send's Approve and no step's Undo can be pressed while the outcomes are on their way, since a press then would record over one of them", async () => {
+  const queued = [];
+  const undone = [];
+  const steps = SIX.map((p) => (p.plan.silent ? { ...p, undo: `Take back ${p.title}` } : p));
+  const calls = planBridge({
+    undoOpen: () => true,
+    commitPlan: async (cards) => {
+      calls.plan.push(cards);
+      return {
+        results: [1, 2, 3].map((step) => ({
+          step,
+          id: step === 1 ? PV(1) : null,
+          result: { ok: true, receipt: `Step ${step} done`, undo: { step }, made: step === 1 ? MADE_MESSAGE : null },
+        })),
+        done: [],
+        undone: [],
+        stoppedAt: null,
+        made: { 1: MADE_MESSAGE, 2: { kind: "settings", id: null }, 3: { kind: "playbook_change", id: null } },
+      };
+    },
+    undo: async (p) => {
+      undone.push(p.id);
+      return { ok: true, receipt: "Taken back", undo: null };
+    },
+    // Each outcome is kept only when the test lets it land, as a slow route would answer.
+    outcome: (mid, pid, o) =>
+      new Promise((resolve) =>
+        queued.push(() => {
+          calls.outcomes.push([mid, pid, o]);
+          resolve(true);
+        }),
+      ),
+  });
+  const AskAnswer = globalThis.window.AskAnswerKit.AskAnswer;
+  const pressable = (tree) => {
+    const plan = byTestId(tree, "ask-plan");
+    const approve = all(plan, (n) => n.props?.["data-testid"] === "ask-card-approve");
+    const undo = byClass(plan, "ask-card-undo");
+    return {
+      approve: approve.map((b) => !b.props.disabled),
+      undo: undo.map((b) => !b.props.disabled),
+      approve$: approve,
+      undo$: undo,
+    };
+  };
+  try {
+    const props = planProps(steps);
+    let tree = render(AskAnswer, props);
+    press(byTestId(tree, "ask-plan-approve"));
+    tree = await later(AskAnswer, props);
+    assert.equal(queued.length, 1, "the press is back, and its outcomes are recorded one at a time");
+    const during = pressable(tree);
+    assert.deepEqual(
+      [during.approve, during.undo],
+      [
+        [false, false, false],
+        [false, false, false],
+      ],
+      "REGRESSION: a send's Approve or a step's Undo was pressable while the group's outcomes were on their way",
+    );
+    // A press in that window does nothing: no send, no undo, nothing recorded beside the group's.
+    press(during.approve$[0]);
+    press(during.undo$[0]);
+    tree = await later(AskAnswer, props);
+    assert.deepEqual([calls.commit, undone], [[], []]);
+    while (queued.length) {
+      queued.shift()();
+      tree = await later(AskAnswer, props);
+    }
+    assert.deepEqual(
+      calls.outcomes.map(([, pid]) => pid),
+      ["p-1", "p-2", "p-3"],
+      "every outcome recorded, the group's alone",
+    );
+    const after = pressable(tree);
+    assert.deepEqual(
+      [after.approve, after.undo],
+      [
+        [true, true, true],
+        [true, true, true],
+      ],
+      "once every outcome is kept, each send and each Undo is the person's again",
+    );
+  } finally {
+    calls.restore();
+  }
+});
+
+test("two plans in one turn are two groups: each one's press is handed its own cards alone and counts its own steps", async () => {
+  const other = [1, 2, 3].map((n) =>
+    planCard(n, n < 3 ? "settings" : "broadcast", `Other step ${n}`, SIX[n === 3 ? 4 : 1].payload, {
+      id: `p-o${n}`,
+      plan: { id: "plan-other", step: n, of: 3, silent: n < 3, after: n < 3 ? [] : [1, 2] },
+    }),
+  );
+  const calls = planBridge();
+  const AskAnswer = globalThis.window.AskAnswerKit.AskAnswer;
+  try {
+    const props = planProps([...SIX, ...other]);
+    let tree = render(AskAnswer, props);
+    const groups = all(tree, (n) => n.props?.["data-testid"] === "ask-plan");
+    assert.equal(groups.length, 2);
+    const presses = groups.map((g) => byTestId(g, "ask-plan-approve"));
+    assert.deepEqual(presses.map(textOf), ["Approve the 3 silent steps", "Approve the 2 silent steps"]);
+    assert.deepEqual(
+      groups.map((g) => all(g, (n) => n.props?.["data-testid"] === "ask-card").length),
+      [6, 3],
+    );
+    press(presses[1]);
+    tree = await later(AskAnswer, props);
+    press(byTestId(all(tree, (n) => n.props?.["data-testid"] === "ask-plan")[0], "ask-plan-approve"));
+    tree = await later(AskAnswer, props);
+    assert.deepEqual(
+      calls.plan.map((cards) => cards.map((p) => p.id)),
+      [
+        ["p-o1", "p-o2", "p-o3"],
+        ["p-1", "p-2", "p-3", "p-4", "p-5", "p-6"],
+      ],
+      "each group's press reaches its own plan's cards and none of the other's",
+    );
+  } finally {
+    calls.restore();
+  }
+});
+
+test("a stop is said on the step it stopped at in the plan's own words, never wrapped again; the steps after it stay pressable one by one, and the group's press counts what is left", async () => {
+  const stopped = PC.PROPOSAL_WORDS.planStopped(2, "Someone saved the settings first. Open Settings and try again.");
+  const calls = planBridge({
+    commitPlan: async (cards) => {
+      calls.plan.push(cards);
+      return {
+        results: [
+          {
+            step: 1,
+            id: PV(1),
+            result: { ok: true, receipt: "“offer” is in the Library", undo: null, made: MADE_MESSAGE },
+          },
+          { step: 2, id: null, result: { ok: false, message: stopped, status: 409 } },
+        ],
+        done: [],
+        undone: [],
+        stoppedAt: 2,
+        made: { 1: MADE_MESSAGE },
+      };
+    },
+  });
+  const AskAnswer = globalThis.window.AskAnswerKit.AskAnswer;
+  try {
+    const props = planProps(SIX);
+    let tree = render(AskAnswer, props);
+    press(byTestId(tree, "ask-plan-approve"));
+    tree = await later(AskAnswer, props);
+    assert.equal(
+      textOf(byClass(stepCard(tree, 2), "ask-card-receipt")[0]),
+      `${stopped}${globalThis.window.askText("en").tryAgain}`,
+    );
+    assert.ok(byTestId(stepCard(tree, 3), "ask-card-approve"), "step 3 is pressable on its own");
+    assert.equal(textOf(byTestId(tree, "ask-plan-approve")), "Approve the 2 silent steps");
+    assert.deepEqual(waitsOf(tree).slice(3), ["Waits for step 2", "Waits for step 2", "Waits for step 2"]);
+    assert.deepEqual(
+      calls.outcomes.map(([, pid, o]) => [pid, o.state, o.receipt]),
+      [
+        ["p-1", "done", "“offer” is in the Library"],
+        ["p-2", "failed", stopped],
+      ],
+      "the stop recorded as a refused press records it",
+    );
+    press(byTestId(stepCard(tree, 3), "ask-card-approve"));
+    tree = await later(AskAnswer, props);
+    assert.equal(calls.commit.at(-1).id, "p-3");
+    assert.ok(textOf(byClass(stepCard(tree, 3), "ask-card-receipt")[0]).includes("done"));
+    assert.equal(textOf(byTestId(tree, "ask-plan-approve")), "Approve the silent step", "step 2 is left");
+  } finally {
+    calls.restore();
+  }
+});
+
+test("the group's press waits while any card of the plan is busy, and is not drawn for a plan with no step that sends nothing (a setup's campaigns)", async () => {
+  let release = () => {};
+  const held = new Promise((r) => (release = r));
+  const calls = planBridge({
+    commit: async (p, cards) => {
+      calls.commit.push({ id: p.id, cards });
+      await held;
+      return { ok: true, receipt: "Filed", undo: null, made: ownMade(p) };
+    },
+  });
+  const AskAnswer = globalThis.window.AskAnswerKit.AskAnswer;
+  try {
+    const props = planProps(SIX);
+    let tree = render(AskAnswer, props);
+    press(byTestId(stepCard(tree, 1), "ask-card-approve"));
+    tree = await later(AskAnswer, props);
+    assert.equal(byTestId(tree, "ask-plan-approve").props.disabled, true, "a card of the plan is busy");
+    release();
+    tree = await later(AskAnswer, props);
+    assert.equal(byTestId(tree, "ask-plan-approve").props.disabled, false);
+    assert.equal(textOf(byTestId(tree, "ask-plan-approve")), "Approve the 2 silent steps");
+
+    const journey = [1, 2, 3].map((n) =>
+      planCard(
+        n,
+        "playbook",
+        `Campaign ${n}`,
+        { trigger: "quiet_30", channels: ["email"] },
+        {
+          id: `p-j${n}`,
+          plan: { id: "plan-journey", step: n, of: 3, silent: false, after: [] },
+        },
+      ),
+    );
+    tree = render(AskAnswer, planProps(journey));
+    assert.equal(byTestId(tree, "ask-plan-approve"), null);
+    assert.deepEqual(
+      stepsOf(tree).map((s) => [
+        textOf(find(s, (n) => classOf(n).includes("ask-step-n"))),
+        !!byTestId(s, "ask-card-approve"),
+      ]),
+      [
+        ["Step 1 of 3", true],
+        ["Step 2 of 3", true],
+        ["Step 3 of 3", true],
+      ],
+    );
+  } finally {
+    calls.restore();
+  }
+});
+
+test("REGRESSION (ruling 3): what the group's press made survives a reload, through the real record path: commitPlan's results recorded one by one through the outcome route onto the turn, read back by planMadeOf, and the turn drawn again says each step's receipt and lets each send go with what its steps made", async () => {
+  const { fakeDb } = await import("../_fake-db.mjs");
+  const route = await import("../../../../apps/dashboard/app/api/v1/ask/messages/[id]/proposals/[pid]/route.ts");
+  const { createApi } = await import("../../../../apps/dashboard/src/client/api.ts");
+  const commit = await import("../../../../apps/dashboard/src/legacy-bridge/ask/commit.ts");
+  const NOW = Date.now();
+  // The routes the steps reach, answered as the server answers them, through the typed client on a fake fetch.
+  const ANSWERS = {
+    "POST /api/v1/templates/message": {
+      name: "offer",
+      language: "en_US",
+      versions: [
+        { channel: "email", id: PV(1), state: "approved" },
+        { channel: "whatsapp", id: PV(2), state: "pending" },
+      ],
+    },
+    "PUT /api/v1/settings": { config: {}, version: 4 },
+    [`PUT /api/v1/playbooks/${PLAN_PB}`]: { id: PLAN_PB, state: "paused", was: { state: "running" } },
+    "POST /api/v1/broadcasts": { id: "b1", name: "Offer: November, again", state: "scheduled", recipient_count: 3 },
+  };
+  const sent = [];
+  const client = createApi({
+    fetch: async (url, init) => {
+      const key = `${init.method} ${String(url).replace(/\?.*$/, "")}`;
+      sent.push({ key, body: init.body ? JSON.parse(init.body) : undefined });
+      if (!ANSWERS[key]) throw new Error(`a route this test does not answer: ${key}`);
+      return new Response(JSON.stringify({ ok: true, data: ANSWERS[key] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    },
+    workspace: () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    onSignedOut() {},
+    onChooseWorkspace() {},
+    refresh: async () => {},
+    now: () => 1_000,
+  });
+  const tab = {
+    __SETTINGS: { config: { brain: { business_name: "Harbor", profile: {} } }, version: 3 },
+    location: { hash: "", pathname: "/w/harbor" },
+    history: { pushState() {}, replaceState() {} },
+    addEventListener() {},
+    removeEventListener() {},
+    dispatchEvent: () => true,
+    setTimeout: (fn) => (fn(), 1),
+  };
+  // The turn as the store keeps it, and the outcome route over it: the card's record, as the Line's goes out.
+  const tables = {
+    memberships: [
+      {
+        user_id: "u1",
+        tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        role: "owner",
+        tenants: { slug: "harbor" },
+        created_at: "2026-01-01T00:00:00Z",
+      },
+    ],
+    ask_messages: [
+      {
+        id: PLAN_MSG,
+        thread_id: "dddddddd-dddd-4ddd-8ddd-ddddddddddd1",
+        tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        user_id: "u1",
+        role: "assistant",
+        content: { text: "A plan of 3 steps and 3 sends to review.", proposals: SIX },
+        created_at: "2026-10-11T10:00:00Z",
+      },
+    ],
+  };
+  const refused = [];
+  let ran = null;
+  const calls = planBridge({
+    commitPlan: async (cards) => {
+      ran = await commit.commitPlan(tab, cards, { client, nowMs: NOW });
+      return ran;
+    },
+    commit: (p, cards) => commit.commitCard(tab, p, cards, { client, nowMs: NOW }),
+    outcome: async (mid, pid, o) => {
+      try {
+        await route.POST.run(new Request("http://localhost/api/v1/x", { method: "POST", body: JSON.stringify(o) }), {
+          supabase: fakeDb(tables),
+          userId: "u1",
+          email: "ada@example.com",
+          params: { id: mid, pid },
+        });
+        return true;
+      } catch (e) {
+        refused.push(e);
+        return false;
+      }
+    },
+  });
+  const AskAnswer = globalThis.window.AskAnswerKit.AskAnswer;
+  try {
+    let tree = render(AskAnswer, planProps(SIX));
+    press(byTestId(tree, "ask-plan-approve"));
+    await until(() => tables.ask_messages[0].content.proposals[2].outcome, "the third step's outcome is kept");
+    tree = await later(AskAnswer, planProps(SIX));
+    assert.deepEqual(refused, [], "every outcome the route took");
+    assert.deepEqual(
+      sent.map((s) => s.key),
+      ["POST /api/v1/templates/message", "PUT /api/v1/settings", `PUT /api/v1/playbooks/${PLAN_PB}`],
+    );
+    // Reloaded: the turn's cards as the store keeps them now.
+    const kept = tables.ask_messages[0].content.proposals;
+    assert.deepEqual(
+      kept.map((p) => (p.outcome ? p.outcome.state : null)),
+      ["done", "done", "done", null, null, null],
+      "REGRESSION: every step's outcome kept on the turn, none written over by the next",
+    );
+    assert.deepEqual(PC.planMadeOf(PLAN_ID, kept), ran.made, "the press's made, read back from the turn");
+    assert.deepEqual(ran.made[1], MADE_MESSAGE);
+    tree = render(AskAnswer, planProps(kept));
+    assert.equal(byTestId(tree, "ask-plan-approve"), null, "nothing is offered twice after a reload");
+    assert.deepEqual(
+      [1, 2, 3].map((n) => !!byClass(stepCard(tree, n), "ask-card-receipt")[0]),
+      [true, true, true],
+    );
+    assert.deepEqual(waitsOf(tree), [null, null, null, null, null, null]);
+    press(byTestId(stepCard(tree, 5), "ask-card-approve"));
+    await until(() => sent.length === 4, "the send went");
+    assert.equal(sent[3].key, "POST /api/v1/broadcasts");
+    assert.equal(sent[3].body.template_id, PV(1), "its token filled from what step 1 made, read back after the reload");
+  } finally {
+    calls.restore();
   }
 });
 

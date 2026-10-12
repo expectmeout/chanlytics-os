@@ -204,7 +204,8 @@ function fakes(over = {}) {
     // The month's allowance, counted before anyone is enrolled: what this workspace's campaigns have sent by email and by
     // text this month (none here), and the write that holds those past it the moment the run exists.
     monthSent: 0,
-    holdRecipients: undefined,
+    // The hold answers who it skipped (db holdRecipients): everyone it was handed, unless a test says otherwise.
+    holdRecipients: (_id, ids) => ({ skipped: ids, error: null }),
     notify: undefined,
     ...over,
   };
@@ -425,6 +426,26 @@ test("who the run reaches: the trigger's list crossed with who said yes, longest
       { run_for: "2026-09-06", by: "system", mode: "auto", eligible: 0, reach: NOBODY_LEFT },
     ],
   ]);
+});
+
+test("the week's breath holds a moment's person by a message within a week either side of the run: queued on a broadcast due in three days they wait, due in twenty-five days they get today's message", async () => {
+  const rows = [person("a"), person("b"), person("c")];
+  const touches = {
+    byThis: new Map(),
+    byAny: new Map([
+      ["a", NOW.getTime() + 3 * D],
+      ["b", NOW.getTime() + 25 * D],
+      ["c", NOW.getTime() - 2 * D],
+    ]),
+  };
+  const { ports, of } = fakes();
+  await runPlaybook(ports, cmd({ ctx: context({ people: rows, touches }) }));
+  assert.deepEqual(
+    of("assemble")[0][2].map((x) => x.contact_id),
+    ["b"],
+    "three days ahead and two days ago are within a week of today; twenty-five days ahead is not",
+  );
+  assert.equal(of("assemble")[0][1].audience.reach.heardAny, 2);
 });
 
 test("a run counts everyone its moment named, each once, under the first rule that left them out -- so the counts add up to the list", async () => {

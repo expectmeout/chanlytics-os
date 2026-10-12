@@ -1,16 +1,20 @@
 import "server-only";
 import { z } from "zod";
+import { AskSettingsChangeSchema, describeSettingsChange, proposalBelowNeeds } from "@chanlytics/contracts";
 import {
-  AskSettingsChangeSchema,
-  PROPOSAL_SPECS,
-  describeSettingsChange,
-  proposalBelowNeeds,
-} from "@chanlytics/contracts";
-import { roleAtLeast } from "../../../with-route";
-import { approvalWords, defineAct, propose, refuse, type ProposalOutcome, type ToolContext } from "../context";
+  approvalWords,
+  defineAct,
+  offeredTo,
+  propose,
+  refuse,
+  type ActDef,
+  type ProposalOutcome,
+  type ToolContext,
+} from "../context";
 
 async function proposeSettings(t: ToolContext, input: { change: Record<string, unknown> }): Promise<ProposalOutcome> {
-  if (!roleAtLeast(t.role, PROPOSAL_SPECS.settings.needs)) return refuse(proposalBelowNeeds("settings"));
+  // Below the card's role, by the one predicate the registry offers it by (context.ts offeredTo).
+  if (!offeredTo(settingsAct, t.role)) return refuse(proposalBelowNeeds("settings"));
   const raw = input.change && typeof input.change === "object" ? (input.change as Record<string, unknown>) : null;
   if (!raw) return refuse("change is required");
   const clean: Record<string, unknown> = { op: raw.op };
@@ -40,27 +44,34 @@ async function proposeSettings(t: ToolContext, input: { change: Record<string, u
   });
 }
 
-export const propose_settings = defineAct({
-  name: "propose_settings",
-  description: `Propose a settings change the receptionist will follow, as one change object: add_closure (date, an optional until for a range, and an optional note), set_hours (one weekday's day with open and close, or both empty for closed), add_note (a title and the text the receptionist reads), or add_service (name, and an optional duration_min in minutes). Dates are YYYY-MM-DD, days mon..sun, times HH:MM. Call it when they say they are closed, their hours change, the receptionist should know something, or they offer a new service; propose_autonomy is for what the receptionist may do alone. ${approvalWords("settings")}.`,
-  kind: "settings",
-  // The flat shape the model is shown, as before: every field of every op, the op required. The change itself is
-  // judged by AskSettingsChangeSchema (contracts) in the handler, op by op, whose words the refusal carries.
-  input: z.object({
-    change: z.object({
-      op: z.enum(["add_closure", "set_hours", "add_note", "add_service"]),
-      date: z.string().optional(),
-      until: z.string().optional(),
-      note: z.string().optional(),
-      day: z.string().optional(),
-      open: z.string().optional(),
-      close: z.string().optional(),
-      title: z.string().optional(),
-      text: z.string().optional(),
-      name: z.string().optional(),
-      duration_min: z.number().int().optional(),
-    }),
+/**
+ * The flat shape the model is shown, as before: every field of every op, the op required (`until` is a closure's last
+ * day and a note's alike). The change itself is judged by AskSettingsChangeSchema (contracts) in the handler, op by op,
+ * whose words the refusal carries.
+ */
+const SETTINGS_INPUT = z.object({
+  change: z.object({
+    op: z.enum(["add_closure", "set_hours", "add_note", "add_service"]),
+    date: z.string().optional(),
+    until: z.string().optional(),
+    note: z.string().optional(),
+    day: z.string().optional(),
+    open: z.string().optional(),
+    close: z.string().optional(),
+    title: z.string().optional(),
+    text: z.string().optional(),
+    name: z.string().optional(),
+    duration_min: z.number().int().optional(),
   }),
+});
+
+/**
+ * A settings change as a card, propose_settings' one definition: also a plan's note for the receptionist (act/plan.ts),
+ * built by this same handler.
+ */
+export const settingsAct: ActDef<typeof SETTINGS_INPUT> = {
+  kind: "settings",
+  input: SETTINGS_INPUT,
   examples: [
     { change: { op: "add_closure", date: "2026-12-24", until: "2026-12-26", note: "Holidays" } },
     { change: { op: "set_hours", day: "sat", open: "10:00", close: "14:00" } },
@@ -68,4 +79,10 @@ export const propose_settings = defineAct({
   ],
   label: "Preparing a settings change",
   build: proposeSettings,
+};
+
+export const propose_settings = defineAct({
+  name: "propose_settings",
+  description: `Propose a settings change the receptionist will follow, as one change object: add_closure (date, an optional until for a range, and an optional note), set_hours (one weekday's day with open and close, or both empty for closed), add_note (a title, the text the receptionist reads, and an optional until, its last day), or add_service (name, and an optional duration_min in minutes). Dates are YYYY-MM-DD, days mon..sun, times HH:MM. Call it when they say they are closed, their hours change, the receptionist should know something, or they offer a new service; propose_autonomy is for what the receptionist may do alone. ${approvalWords("settings")}.`,
+  ...settingsAct,
 });

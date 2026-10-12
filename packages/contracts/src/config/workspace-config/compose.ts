@@ -11,7 +11,7 @@ import {
   offersLinkOn,
   priceNextStep,
 } from "../no-booking-link";
-import type { BookingRules, BusinessProfile, Closure } from "./business-profile";
+import type { BookingRules, BusinessProfile, Closure, Note } from "./business-profile";
 import { guardrailsInForce } from "./config-rules";
 import { bookingHeld, policyRules } from "./policy-classes";
 import { DATA_NOT_INSTRUCTIONS } from "../../ai/fence";
@@ -80,16 +80,55 @@ function labelDate(key: string, withWeekday: boolean): string {
   }).format(at);
 }
 
-/** The closures still ahead of the business, oldest first. */
-function upcomingClosures(closures: Closure[] | undefined, tz: string | null | undefined, at: Date): Closure[] {
-  if (!closures?.length) return [];
+/**
+ * The business's day, "YYYY-MM-DD", for what the prompt says only while it lasts: a closure, and a note with a last
+ * day. Worked out once per prompt, so the two can never disagree on what day it is.
+ */
+function businessToday(tz: string | null | undefined, at: Date): string | null {
   // No zone means we do not know what day it is there. Err toward stating a
-  // closure a day longer rather than hiding one that is live.
-  const today = (tz && dateKeyInZone(tz, at)) || dateKeyInZone("UTC", new Date(at.getTime() - 86400000));
+  // closure (or a note) a day longer rather than hiding one that is live.
+  return (tz && dateKeyInZone(tz, at)) || dateKeyInZone("UTC", new Date(at.getTime() - 86400000));
+}
+
+/** The closures still ahead of the business on its day (businessToday), oldest first. */
+function upcomingClosures(closures: Closure[] | undefined, today: string | null): Closure[] {
+  if (!closures?.length) return [];
   if (!today) return closures;
   return closures
     .filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= today)
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+}
+
+/**
+ * The owner's notes the receptionist is still told on the business's day `today` (businessToday): every note with no
+ * last day, and one with a last day through that day, in the stored order. One whose day has passed stays in the config
+ * and simply stops being said, as a closure does.
+ */
+function notesInForceOn<N extends Pick<Note, "until">>(notes: readonly N[] | undefined, today: string | null): N[] {
+  if (!notes?.length) return [];
+  if (!today) return [...notes];
+  return notes.filter((n) => !n.until || n.until >= today);
+}
+
+/**
+ * Which of the owner's notes still hold at `now`, on the business's day in `tz` (the closures' day, businessToday,
+ * with its fallback for no zone): the one rule the composer says notes by, for anything else that says what the
+ * receptionist is told (Ask's facts), so neither claims a note whose last day has passed.
+ */
+export function notesInForce<N extends Pick<Note, "until">>(
+  notes: readonly N[] | undefined,
+  tz: string | null | undefined,
+  now: Date,
+): N[] {
+  return notesInForceOn(notes, businessToday(tz, now));
+}
+
+/**
+ * A note as the receptionist is told it: "Parking: …", or with its last day, named as a single closed day is,
+ * "Holiday hours (until Saturday, October 10, 2026): …". The prompt's line after its "- ", and Ask's facts' alike.
+ */
+export function noteAsTold(n: Pick<Note, "title" | "text" | "until">): string {
+  return n.until ? `${n.title} (until ${labelDate(n.until, true)}): ${n.text}` : `${n.title}: ${n.text}`;
 }
 
 function closureLines(closures: Closure[]): string[] {
@@ -231,7 +270,7 @@ export function composeSystemPrompt(
   /** IANA zone from `tenants.timezone`, so stated hours are unambiguous. */
   tz?: string | null,
   /**
-   * Only used to drop closures that have already passed.
+   * Only used to drop closures, and notes with a last day, that have already passed.
    *
    * No cron, no nightly prune: the composer already runs per message and
    * already knows the zone, so "has this gone by?" is a string comparison.
@@ -274,14 +313,17 @@ function composeSystemPromptWith(
   // what the receptionist will ever say — and because the list is sorted
   // oldest-first, the ones a cap drops are the furthest out: exactly the dates
   // customers book against months ahead.
-  const closed = closureLines(upcomingClosures(profile.closures, tz, now));
-  const facts: SectionFacts = { base, profile, channel, wire, tz, policy, link, handed, hrs, closed, audience };
+  const today = businessToday(tz, now);
+  const closed = closureLines(upcomingClosures(profile.closures, today));
+  const notes = notesInForceOn(profile.notes, today).map(noteAsTold);
+  const facts: SectionFacts = { base, profile, channel, wire, tz, policy, link, handed, hrs, closed, notes, audience };
   return PROMPT_SECTIONS.flatMap((section) => section(facts)).join("\n");
 }
 
 /**
- * What every section of the prompt is built from: the composer's arguments, and the three facts worked out once
- * because more than one section reads them.
+ * What every section of the prompt is built from: the composer's arguments, the facts worked out once because more
+ * than one section reads them (the chat-or-call channel, the link and the link it may hand over, the week's lines and
+ * the closures), and the notes, worked out on the same day as the closures.
  */
 interface SectionFacts {
   /** The business as the composer is handed it: its name, its phone number and its booking link. */
@@ -301,6 +343,8 @@ interface SectionFacts {
   hrs: string[];
   /** The closures still ahead, a line each: the closures section says them, and the owner's words are told it did. */
   closed: string[];
+  /** The notes still in force on the business's day, a line each (noteAsTold): the notes section says them. */
+  notes: string[];
   /** A customer reads it, or a person's draft: the rules say it is an assistant only to a customer. */
   audience: PromptAudience;
 }
@@ -406,12 +450,13 @@ function servicesSection({ profile }: SectionFacts): string[] {
   return s;
 }
 
-/** The owner's notes: what the receptionist should know that fits no field, a topic each. */
-function notesSection({ profile }: SectionFacts): string[] {
+/**
+ * The owner's notes: what the receptionist should know that fits no field, a topic each, while each lasts. When every
+ * note has ended there is no heading over an empty list.
+ */
+function notesSection({ notes }: SectionFacts): string[] {
   const s: string[] = [];
-  if (profile.notes?.length) {
-    s.push(`\n${PROMPT_OPENINGS.notes}\n${profile.notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`);
-  }
+  if (notes.length) s.push(`\n${PROMPT_OPENINGS.notes}\n${notes.map((l) => `- ${l}`).join("\n")}`);
   return s;
 }
 

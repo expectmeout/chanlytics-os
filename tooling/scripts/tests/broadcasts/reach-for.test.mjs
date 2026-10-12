@@ -622,9 +622,11 @@ test("said before sending: how many will be held back for want of the month's ro
 
 test("an email wire the dashboard could not ask the edge about is not offered, and is not guessed ready", () => {
   const f = { whatsapp: null, textLine: null };
+  // Its state says it was not asked (`unchecked`), so a reader tells it from a no without reading the sentence.
   assert.deepEqual(channelsReady({ ...f, email: { mailbox: true, domain: null } }).email, {
     ready: false,
     why: CHANNEL_WORDS.unchecked,
+    unchecked: true,
   });
   assert.equal(CHANNEL_WORDS.unchecked, "This could not be checked just now.");
   assert.equal(channelsReady({ ...f, email: { mailbox: true, domain: true } }).email.ready, true);

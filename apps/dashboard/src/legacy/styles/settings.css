@@ -1662,9 +1662,10 @@ html.legacy-on .bt-link { position: relative; }
 .bt-languages-add[hidden] { display: none; }
 /* The hand-off at rest is one line (contracts handoffWords.line); it was a line per channel under its word. */
 .bt-handoff { min-width: 0; overflow-wrap: anywhere; }
-/* The notes: a title, what it says, and the press that removes it; the row's sentence under both boxes. */
+/* The notes: a title, what it says, its last day (a date box as wide as a closed day's), and the press that removes it;
+   the row's sentence under the boxes. */
 .bt-notes { display: flex; flex-direction: column; align-items: flex-start; gap: 0; }
-.bt-note, .bt-note-head { align-self: stretch; display: grid; grid-template-columns: 180px minmax(0, 1fr) auto; align-items: start; gap: 6px 8px; }
+.bt-note, .bt-note-head { align-self: stretch; display: grid; grid-template-columns: 180px minmax(0, 1fr) 150px auto; align-items: start; gap: 6px 8px; }
 .bt-note { padding: 6px 0; border-top: 1px solid var(--line); }
 .bt-note-head + .bt-note { border-top: none; }
 .bt-note > .field-error { grid-column: 1 / -1; }
@@ -1760,10 +1761,12 @@ html.legacy-on .bt-link { position: relative; }
      two glyphs are not a value to read down to -- and the line that carries a decision takes the row under them. */
   .bt-can-row > .bt-can-chips { grid-column: 2; grid-row: 1; }
   .bt-can-row > .bt-can-why { grid-column: 1 / -1; }
-  /* A note's title shares its line with the remove; what it says takes the next, the row's width. */
+  /* A note's title shares its line with the remove; what it says takes the next, the row's width, and its last day
+     the line under that. */
   .bt-note { grid-template-columns: minmax(0, 1fr) auto; }
   .bt-note-head { display: none; }
   .bt-note > .rec-box:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
+  .bt-note > :nth-child(3) { grid-column: 1 / -1; grid-row: 3; }
   /* The prompt sheet on a phone: a foot with Done, within a thumb's reach, since there is nothing to save. */
   /* At rest, the title and its door share the line, and who reads it takes the next rather than a sliver between them. */
   .bt-told .rec-card-head { flex-wrap: wrap; row-gap: 4px; }

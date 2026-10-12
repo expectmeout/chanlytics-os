@@ -335,7 +335,8 @@ export const peopleOverride: SurfaceOverride = {
   // looking at. They are what a row is made from that is not its own: the messages, conversations and holds its state is made
   // of; the person (a teammate's rename, an answer, a stop, a merge, people imported); the playbooks a row's follow-up names; the
   // channel and the workspace's pause its reach is counted against; the rules and templates its labels and sends read; and the
-  // business's facts it draws (the booking link, the deal pace, the postal address an offer by email names) (0047).
+  // business's facts it draws (the booking link, the deal pace, the postal address an offer by email names) (0047); and, since
+  // 0052, the business a person works at (the lead's name, its "Works at") and the signer a reply of theirs offers as a name.
   ...declareReads("people", {
     reads: [
       "conversation",
@@ -351,6 +352,8 @@ export const peopleOverride: SurfaceOverride = {
       "deal",
       "step",
       "list",
+      "lead",
+      "reach_out",
     ],
     fresh: "its-page",
     always: ["visit", "deal", "step", "list"],
@@ -362,6 +365,10 @@ export const peopleOverride: SurfaceOverride = {
       {
         tables: ["appointment_notices"],
         why: "a booking email held for a look is the Calendar's and Settings'; a row's visits are the appointments themselves",
+      },
+      {
+        tables: ["lead_searches", "lead_rounds", "lead_search_members"],
+        why: "a row draws the lead its person works at, by name; the searches that found leads, their rounds and members are the Leads page's",
       },
     ],
   }),

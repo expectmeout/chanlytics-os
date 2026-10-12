@@ -2,7 +2,15 @@
 export { PROPOSAL_SPECS, proposalSpec, proposalBelowNeeds, PROPOSAL_GATE, askUndoOpen } from "./proposals";
 export type { ProposalKindAboveOperator } from "./proposals";
 export { ASK_THREAD_ROUTES } from "./inbox";
-export { RUN_VERBS, PLAYBOOK_CARD_REFUSALS, proposalChannelsWords } from "./campaigns";
+export {
+  RUN_VERBS,
+  PLAYBOOK_CARD_REFUSALS,
+  PLAYBOOK_CARD_WORDS,
+  MESSAGE_WORDS,
+  proposalChannelsWords,
+  stepOfferWords,
+  twinRunsWords,
+} from "./campaigns";
 export { PERSON_DETAIL_WORDS } from "./person";
 export { PROPOSAL_WORDS } from "./spec";
 export type {

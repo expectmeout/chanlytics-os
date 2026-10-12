@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { OWN_VERSION_CHANNELS, TEMPLATE_CATEGORIES, type OwnVersionChannel } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
-import { saveVersion } from "@/server/campaigns/template-versions";
+import { MESSAGE_VALUES_WORDS, saveVersion } from "@/server/campaigns/template-versions";
 
 /**
  * POST /api/v1/templates/versions — the email or text version of a message, in a language, written or rewritten.
@@ -31,19 +31,17 @@ import { saveVersion } from "@/server/campaigns/template-versions";
  *
  * The answer is the row's `template` ({ id, name, language, channel }) and the check's `warnings`.
  */
-const VALUES_WORDS = "Give each value a number, in order from 1, and a name.";
-
 const Message = z.object({
   category: z.enum(TEMPLATE_CATEGORIES, {
     message: "A message is an offer or news, or about their own visit or proposal.",
   }),
   variables: z.array(
     z.object({
-      position: z.number({ message: VALUES_WORDS }).int(VALUES_WORDS),
-      label: z.string({ message: VALUES_WORDS }),
+      position: z.number({ message: MESSAGE_VALUES_WORDS }).int(MESSAGE_VALUES_WORDS),
+      label: z.string({ message: MESSAGE_VALUES_WORDS }),
       example: z.string().nullish(),
     }),
-    { message: VALUES_WORDS },
+    { message: MESSAGE_VALUES_WORDS },
   ),
   title: z.string().nullish(),
 });

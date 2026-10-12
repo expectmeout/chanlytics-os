@@ -28,6 +28,7 @@ import {
   optInLink,
   reachCountsOf,
   toBroadcastVM,
+  whatsappLineOf,
   type AudienceKind,
   type AudiencePreview,
   type BroadcastVM,
@@ -128,6 +129,11 @@ export interface BroadcastsSurface {
   month_sent_next: { from: number; sent: MonthSent | null } | null;
   /** Whether the saved lists were read; false leaves the audiences without them, and the page says so. */
   listsRead: boolean;
+  /**
+   * Whether who heard from a campaign or a broadcast this week was read (GET broadcasts' `touched_at`); false counts the
+   * audiences with nobody left out, and the composer says the send still leaves them out (contracts HEARD_UNREAD_WORDS).
+   */
+  heardRead: boolean;
   audiences: AudienceOption[];
   /**
    * Who can hear the workspace, counted once over everyone read from the one rule every page asks (contracts
@@ -154,6 +160,8 @@ export interface BroadcastsSurface {
   /** Its postal address where the Business record holds one: the foot of an email names it (contracts emailFoot). */
   businessAddress?: string | null;
   bookingLink: boolean;
+  /** Whether the Google listing keeps a review link (GET settings' `review_link`): what may fill a review-link slot. */
+  reviewLink: boolean;
   /** Older broadcasts exist beyond the rows: the history's numbers are the latest fifty, and the page says so. */
   more: boolean;
   /** How far ahead a send may be scheduled, in days: the schedule box stops where the route does. */
@@ -212,13 +220,13 @@ function savedHint(byHand: boolean): string {
 function optionReadings(
   rows: Parameters<typeof audiencePreview>[0],
   of: { kind: AudienceKind; id: string | null; ids: Set<string> | null },
-  how: { ready: ChannelsReady; touched: ReadonlySet<string> },
+  how: { ready: ChannelsReady; touches: Readonly<Record<string, readonly string[]>> },
 ): Pick<AudienceOption, "counts" | "preview" | "by"> {
   const { kind, id, ids } = of;
-  const { ready, touched } = how;
+  const { ready, touches } = how;
   // A broadcast is the business's news: by email it asks for a yes covering email or a relationship (decision D1).
   const reading = (purpose: AskedPurpose, channels: readonly ConsentChannel[]) =>
-    audiencePreview(rows, kind, id, ids, purpose, { channels, ready, about: "ours" }, 5, touched);
+    audiencePreview(rows, kind, id, ids, purpose, { channels, ready, about: "ours" }, 5, touches);
   const preview = {
     conversational: reading("conversational", DEFAULT_CAMPAIGN_CHANNELS),
     marketing: reading("marketing", DEFAULT_CAMPAIGN_CHANNELS),
@@ -273,15 +281,14 @@ export const broadcastsOverride: SurfaceOverride = {
       read("GET contacts"),
       read("GET segments").catch((e: unknown) => e as Error),
       read("GET channels").catch((e: unknown) => e as Error),
-      // The business's name and whether a booking link is on file, for the slots that name them.
+      // The business's name, whether a booking link is on file and whether the listing keeps a review link, for the
+      // slots that name them.
       read("GET settings").catch((e: unknown) => e as Error),
       // When a broadcast went or goes, by the business's clock (zone.ts).
       workspaceZone(),
     ]);
-    const wa =
-      ch instanceof Error
-        ? null
-        : ((ch.channels ?? []).find((c) => c.kind === "whatsapp" && c.status === "active") ?? null);
+    // The number they go out on: the workspace's WhatsApp line (contracts whatsappLineOf), as the playbooks surface reads it.
+    const wa = ch instanceof Error ? null : whatsappLineOf(ch.channels);
     const brain = cfg instanceof Error ? null : (cfg.config?.brain ?? null);
     if (ch instanceof Error) console.error("broadcasts_channels_fetch_failed", ch.message);
     const now = new Date();
@@ -311,11 +318,12 @@ export const broadcastsOverride: SurfaceOverride = {
     // Both purposes, for every audience, so picking a template re-reads a number
     // rather than recomputing a list. Two passes over the people already in hand, for WhatsApp alone, as every broadcast
     // went; and one more for each other set of channels the owner could tick for the purpose, since who is reached on
-    // which channel depends on the set (reachFor). Who a run reached within the week, for the note on how many of an
-    // audience heard from one.
-    const touched = new Set(bc.touched ?? []);
+    // which channel depends on the set (reachFor). Who a run reached from a week ago on, or is due to, and when, for the
+    // note on how many of an audience hear from one within a week of the send, either side (contracts heardFor, at the
+    // picked time).
+    const touches = bc.touched_at ?? {};
     const optionFor = (kind: AudienceKind, id: string | null, ids: Set<string> | null) =>
-      optionReadings(rows, { kind, id, ids }, { ready, touched });
+      optionReadings(rows, { kind, id, ids }, { ready, touches });
     const audiences: AudienceOption[] = [
       {
         kind: "everyone",
@@ -378,6 +386,8 @@ export const broadcastsOverride: SurfaceOverride = {
       scheduleMaxDays: BROADCAST_SCHEDULE_MAX_DAYS,
       more: bc.more === true,
       listsRead: !(saved instanceof Error),
+      // Null is a read that failed; a server from before it was carried says nothing, and is read as read.
+      heardRead: bc.touched_at !== null,
       // The messages are the settings read's, as it stands now (absent while that is still being read; followSettings above).
       templates: shareUnchanged(surfaceValue("broadcasts")?.templates, cmOfferedFrom(surfaceValue("settings"))),
       audiences,
@@ -392,6 +402,8 @@ export const broadcastsOverride: SurfaceOverride = {
       businessName: brain?.business_name || "the business",
       businessAddress: cmAddressOf(brain),
       bookingLink: !!brain?.booking_link,
+      // A read that failed, a broken config and an older server's answer all say nothing of the listing: none.
+      reviewLink: !(cfg instanceof Error) && !cfg.configBroken && cfg.review_link === true,
       optIn: {
         phrase: OFFERS_OPT_IN_PHRASES.en,
         phraseEs: OFFERS_OPT_IN_PHRASES.es,

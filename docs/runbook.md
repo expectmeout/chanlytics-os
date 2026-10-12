@@ -1019,10 +1019,27 @@ nothing asked (the usual end since the hold became the one mic: most rows), `typ
 Healthy: `connect_p50_ms` under 3,000, `first_audio_p50_ms` under 6,000 (the press to the agent's first word of the
 answer: the hold itself is in it), `spoke` close to `n`, few `start` and `vendor`.
 
-The gate, as every phase's: `E2E_BASE_URL=https://<host> ELEVENLABS_LLM_SECRET=… REPS=3 node tooling/scripts/eval-ask.mjs --spoken`
+The gate, as every phase's: `E2E_BASE_URL=https://<host> ELEVENLABS_LLM_SECRET=… EVAL_WORKSPACE_HAS=no_calendar,no_offers_channel,no_offers_yes REPS=3 node tooling/scripts/eval-ask.mjs --spoken`
 asks every first turn through the brain door as the agent would and adds the spoken rules to the judge
 (`tooling/scripts/eval-ask-spoken.mjs`): no id, no route, no bracketed tag, an early comma in a long headline; the
 numbers go into the spec's §4.
+
+**What the run's workspace holds.** Every run of `eval-ask.mjs`, spoken or typed, reads `EVAL_WORKSPACE_HAS`: what
+the workspace it signs in to (as `E2E_USER_EMAIL`) holds, comma-separated. A case whose `needs` name anything else is
+said as `skip <id> (needs …)` and counted as skipped, never run or failed, and `--list` says each case's needs
+(`tooling/scripts/eval-ask-context.mjs`, `WORKSPACE_NEEDS`). Unset, every case with a need is skipped. The tokens:
+`calendar` or `no_calendar`; `offers_yes` (someone said yes to offers) or `no_offers_yes` (nobody has); an offer's
+channel, `offers_channel` (one carries an offer now: email set up for offers, or WhatsApp on a number outside +1, since
+WhatsApp pauses offers to US numbers), `offers_whatsapp` (WhatsApp among them, named beside `offers_channel`) or
+`no_offers_channel`; `live_call`; `deals_on`; and `winback_seed` (the paused Win-back,
+`tooling/scripts/ops/e2e-workspace.mjs --seed-win-back`, by hand). The suite's own workspace has no calendar, a +1
+WhatsApp number, no mailbox and nobody's yes to offers: it is `no_calendar,no_offers_channel,no_offers_yes`, and
+`winback_seed` once seeded. Counted 12 Oct 2026, it runs 108 of the 123 cases (116 seeded) and no case where an offer can be carried. The two
+offer cases (`offer_november_colour`, `covers_propose_campaign_broadcast`) need a workspace where someone said yes to
+offers and a channel carries them: email set up for offers (a verified campaigns domain and a postal address), or
+WhatsApp on a number outside +1, which the broadcast case needs, with its Win-back seeded. The calendar cases need a
+calendar connected, `covers_propose_whisper` a call in progress and `covers_propose_deal` deals on. Do not run across
+09:00 UTC, when the nightly rewrites the suite's workspace.
 
 ## Walk the phone app
 

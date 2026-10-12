@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { ResendConfig, EmailSendsAs, WaConfig, EmailRequest, ResendLimit, SendResult, ApifyClient, LeadJudge, NormalizedInbound, CarrierConsent } from '@chanlytics/channels';
-import { SendPurpose, MessageAbout, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, ConsentChannel, WriteRow, ChannelsReady, WriteWay, AppointmentState, FeedNames, EmailHold, JobNews, EmailClaim, BookingTool, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, PurposeRefusal, PurposeBearing, AskedPurpose, AppointmentStatus, NoticeHold, ParamSpec, Audience, PersonRowVM, ListRef, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, CampaignMessage, CampaignHow, AppointmentWord, PlaybookTrigger, PlaybookPolicyClass, PlaybookState, triggerOf, PlaybookPatch, PLAYBOOK_LIMITS, StepHand, TimetableDomain, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts, Handled, BrainIntent, EventSubscriber, HoldFacts, OptOutPerson, BookedVisit, MemberJoined } from '@chanlytics/contracts';
+import { SendPurpose, MessageAbout, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, ConsentChannel, WriteRow, ChannelsReady, WriteWay, AppointmentState, FeedNames, JobNews, EmailClaim, BookingTool, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, PurposeRefusal, PurposeBearing, AskedPurpose, AppointmentStatus, NoticeHold, ParamSpec, Audience, PersonRowVM, ListRef, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, CampaignMessage, CampaignHow, AppointmentWord, PlaybookTrigger, PlaybookPolicyClass, PlaybookState, triggerOf, PlaybookPatch, PLAYBOOK_LIMITS, StepHand, TimetableDomain, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts, Handled, BrainIntent, EventSubscriber, HoldFacts, OptOutPerson, BookedVisit, MemberJoined } from '@chanlytics/contracts';
 export { AppointmentStatus, DeliveryRefusal, EmailClaim } from '@chanlytics/contracts';
 import { Json, Database, MessageVersionRow, RoutedChannel, LeadContext, IngestResult, DeliveredEvent } from '@chanlytics/db';
 
@@ -1030,8 +1030,8 @@ interface BroadcastBatchPorts {
      */
     message(name: string, language: string): Promise<MessageVersionRow[]>;
     /**
-     * The workspace's own words for the slots that name it, and its clock (IANA zone), which the sending hours are kept
-     * by; and the postal address its emails' foot gives (the Business record's), null when it has none.
+     * The workspace's own words for the slots that name it, and its clock (IANA zone), which the sending hours are kept by;
+     * and the postal address its emails' foot gives (the Business record's), null when it has none.
      */
     facts(): Promise<{
         businessName: string;
@@ -1039,6 +1039,12 @@ interface BroadcastBatchPorts {
         timezone: string;
         address?: string | null;
     }>;
+    /**
+     * The link a customer leaves the business a review at, as its Google listing keeps it (db reviewLinkOf, 00415), or null
+     * where it keeps none; throws when it cannot be read. Asked once a batch, and only of a run whose message has a review
+     * slot: a send without one never depends on the listing.
+     */
+    reviewLink(): Promise<string | null>;
     /** Up to `limit` people still queued; throws when it cannot be read. */
     batch(id: string, limit: number): Promise<RecipientRow[]>;
     /** The people on the batch by id, one read for all of them; a row that is gone is absent. Throws when it cannot be read. */
@@ -1197,10 +1203,11 @@ interface BroadcastBatchPorts {
         held: number;
     }>;
     /**
-     * Which of the workspace's holds on email (contracts EMAIL_HOLDS) anyone on the run was skipped for: the finished run's
-     * news names those, and only those, among its reasons. Asked once nobody is queued, of a run that held someone back.
+     * Which of the reasons a finished run names only when counted (contracts HELD_WHEN_COUNTED: the workspace's holds on
+     * email, the week's breath, the month's allowance) anyone on the run was skipped for: the finished run's news names
+     * those, and only those, among its reasons. Asked once nobody is queued, of a run that held someone back.
      */
-    heldForEmail(id: string): Promise<EmailHold[]>;
+    heldFor(id: string): Promise<string[]>;
     /** sending → sent, and the event with the tally. */
     finish(id: string, tally: {
         sent: number;
@@ -2000,10 +2007,15 @@ interface AssemblePorts {
     monthSent(channel: "email" | "sms", at: Date): Promise<number>;
     /**
      * People of a run just assembled, held at once: each still queued is skipped, with `reason`, as the send would have
-     * held them (allowance.ts). A person already settled is left as it is. Throws when it cannot be written, and then the
-     * people stay queued, which the send's own check holds all the same.
+     * held them (allowance.ts; the week's breath). A person the send already claimed or settled is left as it is. Answers
+     * who it skipped (the rows it changed, never one it did not) and, where a step of the write failed, its words: the
+     * people not skipped stay queued, and the send's own check holds them all the same (overAllowance; LEFT_OUT_FACTS).
+     * May throw, and then none is counted as skipped.
      */
-    holdRecipients(broadcastId: string, contactIds: string[], reason: string): Promise<void>;
+    holdRecipients(broadcastId: string, contactIds: string[], reason: string): Promise<{
+        skipped: readonly string[];
+        error: string | null;
+    }>;
 }
 interface AssembleCommand {
     broadcast: NewBroadcast;
@@ -2014,19 +2026,29 @@ interface AssembleCommand {
      * enrolled with everyone, and held the moment the run exists, so its report says so before anything is sent.
      */
     held: readonly string[];
+    /**
+     * The people of `recipients` a send by hand leaves out, hearing from a campaign or a broadcast within a week of it,
+     * before or after (the week's breath, create-broadcast.ts), by contact: enrolled with everyone, their row marked in the run's own write
+     * (contracts LEFT_OUT_FACTS, which the send's check at the wire skips them for), and skipped with RECIPIENT_REASON_HEARD
+     * the moment the run exists, before anyone held for the month. A playbook's run names none: its moment draws by its own
+     * reading of the breath (contracts eligibleForPlaybook).
+     */
+    leftOut: readonly string[];
     /** Whose decision the send is, kept with the run; none for a run that waits for a person. */
     decision: AssembleDecision | null;
 }
 /**
  * The run made (its id, and its decision's when one was asked for), or why not. `unheld` is how many of the people to
- * hold at enrolment could not be written as held: they are queued, and the send holds them at the wire, so nothing is
- * lost; the run's record says so.
+ * hold at enrolment were not written as held: they are queued, and the send holds them at the wire, so nothing is lost;
+ * the run's record says so. `leftOutUnwritten` is the same of the people left out for the breath: queued, and held at
+ * the wire by their row's mark, so the receipt claims no skip it did not write.
  */
 type Assembled = {
     ok: true;
     id: string;
     decisionId: string | null;
     unheld: number;
+    leftOutUnwritten: number;
 } | {
     ok: false;
     error: string;
@@ -2055,6 +2077,10 @@ interface PlaybookRow {
     list_key?: string | null;
     /** The channels it may go by (`playbooks.channels`); absent or empty on a row made before: WhatsApp alone. */
     channels?: string[] | null;
+    /** Its last day (00416), YYYY-MM-DD by the business's clock: a run for a day past it is off as `ended`. Absent before it. */
+    until?: string | null;
+    /** Until when it runs on trial (00416): before it, a run its class would send by itself waits (contracts effectiveMode). */
+    trial_until?: string | null;
 }
 /** The workspace as the run reads it once per tenant: the people, the modes, the number, the touches, the calendar. */
 interface RunContext {
@@ -2071,6 +2097,10 @@ interface RunContext {
     /** When each person last heard from each playbook, from any, and had a proposal follow-up; contact id → ms. */
     touches: {
         byThis: Map<string, Map<string, number>>;
+        /**
+         * The breath's: their latest message by any run within a week of the run's now, either side (packages/db touchIndex
+         * by contracts heardWithin), which the run asks the same predicate of (contracts eligibleForPlaybook).
+         */
         byAny: Map<string, number>;
         followUps: Map<string, number>;
         /** The latest follow-up by person and by what it was about (contracts followUpKey, 0029): which proposals had theirs. */
@@ -2115,7 +2145,9 @@ type RunOutcome =
 } | {
     outcome: "off";
     mode: string;
-    skipped: "never" | "template_not_approved" | "number_flagged" | "already_ran_today" | "no_calendar" | "no_list" | "list_uncounted" | "deals_off";
+    skipped: "never" | "template_not_approved" | "number_flagged" | "already_ran_today" | "no_calendar" | "no_list" | "list_uncounted" | "deals_off"
+    /** A run for a day past the campaign's last (00416 `until`): it has ended, and sends nothing more. */
+     | "ended";
 } | {
     outcome: "failed";
     error: string;
@@ -2157,6 +2189,11 @@ interface TemplateValuesPorts {
     message(id: string): Promise<MessageVersionRow[]>;
     /** The booking link on file, or null. */
     bookingLink(): Promise<string | null>;
+    /**
+     * The link a customer leaves the business a review at, as its Google listing keeps it (db reviewLinkOf, 00415), or
+     * null: no listing, or none bound from a Business Profile. Throws when it cannot be read: unreadable is not absent.
+     */
+    reviewLink(): Promise<string | null>;
 }
 /** A run or broadcast as the route's scope loaded it. */
 interface BroadcastRef {
@@ -2200,9 +2237,23 @@ interface CreateBroadcastPorts extends AssemblePorts, TemplateValuesPorts {
         ready: ChannelsReady;
         health: NumberHealth | null;
     }>;
+    /**
+     * Who a run of any kind reached from the week's breath before `now` on (contracts PLAYBOOK_BREATH_MS), or is about to
+     * reach, and when: contact id -> the time of every touch of theirs, the read the composer
+     * counts who a send leaves out by (packages/db recentTouches), so the page, Ask's card and the people a send skips are
+     * one number. A send leaves out those with one within a week of it, either side, for the time it goes (contracts
+     * leftOutBy). Read once per send, at its press, and only when it breathes. Throws when it cannot be read: "nobody
+     * heard" is the reading that messages people twice.
+     */
+    touches(now: Date): Promise<Readonly<Record<string, readonly string[]>>>;
 }
 interface CreateBroadcastCommand {
     userId: string;
+    /**
+     * The body as the route was handed it, the verb's own to judge (create-broadcast.ts `asked`): { template_id, params,
+     * audience, channels?, scheduled_for?, name?, breathe? }. `breathe` is whether the send leaves out the people who heard
+     * from a campaign or a broadcast within the week: absent (or null) is true; false only from the composer's own switch.
+     */
     body: unknown;
     now: Date;
 }
@@ -2240,11 +2291,13 @@ interface CancelBroadcastPorts {
  * answered with a 500 that a person presses again. The caller decides what a failure means to whoever asked: the
  * sweep counts it, a person is told.
  *
- * Whom the month's allowance already holds (`cmd.held`) is written as held once the run exists, not before: the run's
- * people are enrolled whole and the held are skipped in their own write, so a write that fails leaves them queued and
- * the send holds them at the wire (overAllowance), which is the backstop. It never fails the run, but it is never silent:
- * the failure is logged (`campaign_hold_unwritten`) and the answer says how many were left unheld (`unheld`), which the
- * caller records beside what it did hold, so a receipt never claims a hold that was not written.
+ * Who a send by hand leaves out for the breath (`cmd.leftOut`) and whom the month's allowance already holds (`cmd.held`)
+ * are written as skipped once the run exists, so its report says so before anything is sent: the breath's first, then
+ * the month's, each in its own write. Neither is the only thing that holds them: the left out carry their row's mark,
+ * written with the run (contracts LEFT_OUT_FACTS), and a person past the month's room is held by the send's own count
+ * (overAllowance), so a skip the hold did not write -- it failed, failed part-way, or the send claimed the person first
+ * -- is still a person never sent. It never fails the run, but it is never silent: logged (`campaign_hold_unwritten`,
+ * with its reason) and answered (`leftOutUnwritten`, `unheld`), so a receipt never claims a skip that was not written.
  */
 declare function assembleRun(ports: AssemblePorts, cmd: AssembleCommand): Promise<Assembled>;
 
@@ -2289,6 +2342,11 @@ declare function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookCommand): 
  */
 declare function parseChannels(asked: unknown, kept?: readonly string[] | null): ConsentChannel[];
 
+/** The refusals a message's values meet for a link the workspace has not given, in the words the composer shows. */
+declare const TEMPLATE_VALUE_WORDS: {
+    readonly noBookingLink: "This message takes the booking link, and none is on file. Add it in Settings › Business first.";
+    readonly noReviewLink: "Connect your Google listing so the review link can be filled.";
+};
 /**
  * The message a version's id names, read once from the rows this workspace holds of it (contracts campaignMessageOf):
  * the one verb a broadcast, a playbook and Ask's proposals read a message by. The id is any version's, WhatsApp's or an
@@ -2300,8 +2358,8 @@ declare function readCampaignMessage(ports: Pick<TemplateValuesPorts, "message">
 /**
  * The message and the values as its channels will accept them: what a broadcast and a playbook both name, judged once.
  * As many values as the message takes (contracts' one count, whichever version carries it); each typed text once or a
- * value the job fills per person; a booking-link slot needs a link on file. Every refusal is a sentence for the person
- * composing.
+ * value the job fills per person; a booking-link slot needs a link on file, and a review-link slot the link the Google
+ * listing keeps. Every refusal is a sentence for the person composing.
  */
 declare function templateValues(ports: TemplateValuesPorts, 
 /** `visits`: a visit playbook, whose run knows each visit; `proposal`: the follow-up, whose run knows each link. */
@@ -2320,6 +2378,11 @@ cmd: {
  * before anything is filed) are held to.
  */
 declare function refuseWithoutBookingLink(ports: Pick<TemplateValuesPorts, "bookingLink">, specs: readonly ParamSpec[]): Promise<void>;
+/**
+ * A review-link slot needs the link the workspace's Google listing keeps (a bound Business Profile's, 00415): refused
+ * in words where there is none, and the link read only where a slot asks for it, as the booking link is.
+ */
+declare function refuseWithoutReviewLink(ports: Pick<TemplateValuesPorts, "reviewLink">, specs: readonly ParamSpec[]): Promise<void>;
 
 interface BroadcastReceipt {
     id: string;
@@ -2335,6 +2398,19 @@ interface BroadcastReceipt {
      * says so (`campaign_hold_unwritten`); the ledger's line says how many the month holds.
      */
     held_for_allowance: number;
+    /**
+     * How many of the people enrolled hear from a campaign or a broadcast within a week of it, either side, and were left
+     * out (the week's breath), as written on their rows: skipped with contracts RECIPIENT_REASON_HEARD. Those whose skip the hold did not
+     * write are queued, held at the wire by their row's mark, logged, and not counted here. Who it goes to is
+     * recipient_count less these (contracts goesToOf).
+     */
+    left_out: number;
+    /**
+     * Whether it was set for a time still ahead at the press: its breath was judged within a week of that time, and a
+     * receipt says it is scheduled. False for a send that goes now, one asked for a time already past (which goes now), and
+     * one moved to the morning from now (`moved_from`).
+     */
+    scheduled_ahead: boolean;
     decision_id: string;
 }
 /**
@@ -2365,7 +2441,7 @@ declare function campaignHowOf(ports: Pick<CreateBroadcastPorts, "channels">, me
 /**
  * A person's broadcast: one message to the people who said yes.
  *
- * { template_id, params, audience: { kind, id }, channels?, scheduled_for?, name? }.
+ * { template_id, params, audience: { kind, id }, channels?, scheduled_for?, name?, breathe? }.
  * `template_id` is any version of the message, and the message needs no WhatsApp
  * version: each channel ticked needs only its own (WhatsApp's approved by Meta, an
  * email's and a text's written here), and a tick whose version the message does not
@@ -2376,7 +2452,11 @@ declare function campaignHowOf(ports: Pick<CreateBroadcastPorts, "channels">, me
  * when none is named), each person once, on the first channel the send can reach
  * them on (contracts reachFor), written on their row. The recipients are enrolled
  * now, so the owner sees who and how many; the job re-checks each person at the
- * wire. The ledger records the decision to send, in the run's own write. The body is judged here, in
+ * wire. Whoever hears from a campaign or a broadcast within a week of it, before or
+ * after (now, or the time it is set for) is left out (the week's breath, `breathe` true
+ * unless the body says false; contracts leftOutBy): enrolled, their row
+ * marked (LEFT_OUT_FACTS, which the wire's check skips them for), and skipped with
+ * RECIPIENT_REASON_HEARD. The ledger records the decision to send, in the run's own write. The body is judged here, in
  * sentences for the person composing: the values are judged against the message
  * the workspace holds, which no schema knows.
  */
@@ -2478,12 +2558,18 @@ declare function checkPlaybookChannels(ports: Pick<TemplateValuesPorts, "message
     template_id: string | null;
     channels: string[] | null;
 }, asked: unknown): Promise<ConsentChannel[]>;
-/** What a change in place reads beyond the playbook: why its list keeps it paused (decision 0009), or null. */
-interface CheckPlaybookPatchPorts {
+/**
+ * What a change in place reads beyond the playbook: why its list keeps it paused (decision 0009), or null; its message
+ * and the links its values may need, for a change of its words (as a new campaign's are read); and the business's zone,
+ * for a change of its end. Each is asked only of a change that names what it decides.
+ */
+interface CheckPlaybookPatchPorts extends TemplateValuesPorts {
     archivedList(row: {
         id: string;
         trigger: string;
     }): Promise<string | null>;
+    /** The business's zone: an end is a day by its clock, today or later. */
+    timezone(): Promise<string>;
 }
 /**
  * A playbook as a change is judged against it: its row as the database holds it now, never a caller's copy. Its state
@@ -2498,17 +2584,57 @@ interface PlaybookPatchRow {
     cap_per_run: number;
     gap_days: number;
     cadence_days: number;
+    /** The message it sends, by any version's id: its words are held to that message's slots. */
+    template_id: string | null;
+    /** Its words as the row stores them (playbooks.params): the slot specs a run fills, read as a run reads them. */
+    params: unknown;
+    /** Its last day (00416), YYYY-MM-DD by the business's clock, or null. */
+    until: string | null;
+    /** Until when it runs on trial (00416), an instant, or null. */
+    trial_until: string | null;
 }
 /**
- * A playbook changed in place (the moment spec §4.9 A5): what Ask's change card proposes and PUT playbooks/:id's patch
- * writes, judged one way. `asked` names any of the six fields (contracts PLAYBOOK_PATCH_KEYS) and nothing else; each is
- * held to its bounds (PLAYBOOK_LIMITS; a name past PLAYBOOK_NAME_MAX is refused, never cut, so a card says exactly what
- * is stored), a cadence to the month's offer, a resume to a list that is not archived (by the port), and a reach-out's
- * step to its state alone (its sheet changes the rest). It answers only what differs from the row as it stands, `set`,
- * and what each of those held, `was`; nothing that differs is `{ set: {}, was: {} }`, which the card refuses in words and
- * the route answers without a write.
+ * A new playbook's name as it is kept from what was asked (checkPlaybook): oneSpaced, cut at PLAYBOOK_NAME_MAX. Whatever
+ * compares an asked name with a kept one reads it by this (the twin rule, at a card and at its Approve:
+ * campaigns/playbook-row.ts twinRefusal), so a name asked with two spaces is the one kept with one.
  */
-declare function checkPlaybookPatch(ports: CheckPlaybookPatchPorts, row: PlaybookPatchRow, asked: Record<string, unknown>): Promise<{
+declare const playbookNameAsked: (v: unknown) => string;
+/**
+ * When a change is judged (`now`) and whether it is an undo (`undo`): one that writes back what the door recorded a
+ * change held (its `was`), which restores a past end or a past trial as it was, since nothing clears either when it
+ * passes. A change that is not an undo names a date still to come at `now`.
+ */
+interface PatchWhen {
+    now: Date;
+    undo: boolean;
+}
+/**
+ * The last day a change or a new campaign names (00416 `until`): a day by the business's clock, today or later, or on an
+ * undo the day it held, past or not; null clears it, or names none. The one judgement checkPlaybookPatch, POST playbooks
+ * (the dashboard's startNewPlaybook) and Ask's new campaign card ask; the zone is read only where a day is to be judged.
+ */
+declare function untilOf(ports: Pick<CheckPlaybookPatchPorts, "timezone">, v: unknown, when: PatchWhen): Promise<string | null | undefined>;
+/**
+ * The end of its trial a change or a new campaign names (00416 `trial_until`): an instant still to come at `now`, kept
+ * in one spelling (UTC); null ends it, or starts none. A trial that has already ended is none, so an instant past is
+ * refused, from every caller but an undo (`when.undo`), which writes back the instant the door recorded, past or not.
+ * The one judgement checkPlaybookPatch and POST playbooks (the dashboard's startNewPlaybook, before a starter is filed)
+ * ask.
+ */
+declare function trialUntilOf(v: unknown, when: PatchWhen): string | null | undefined;
+/**
+ * A playbook changed in place (the moment spec §4.9 A5): what Ask's change card proposes and PUT playbooks/:id's patch
+ * writes, judged one way. `asked` names any of the nine (contracts PLAYBOOK_PATCH_KEYS) and nothing else; each number is
+ * held to its bounds (PLAYBOOK_LIMITS; a name past PLAYBOOK_NAME_MAX is refused, never cut, so a card says exactly what
+ * is stored), a cadence to the month's offer, a resume to a list that is not archived (by the port), its words to its
+ * message's slots (patchParams), its end to a day today or later by the business's clock at `when.now`, its trial's end
+ * to an instant after it (trialUntilOf), and a reach-out's step to its state alone (its sheet changes the rest). An undo
+ * (`when.undo`: PUT playbooks/:id naming the decision it undoes) writes back what the door recorded, so its end and its
+ * trial are restored past or not, their shapes still judged. It answers only what differs from the row as it stands,
+ * `set`, and what each of those held, `was`; nothing that differs is `{ set: {}, was: {} }`, which the card refuses in
+ * words and the route answers without a write.
+ */
+declare function checkPlaybookPatch(ports: CheckPlaybookPatchPorts, row: PlaybookPatchRow, asked: Record<string, unknown>, when: PatchWhen): Promise<{
     set: PlaybookPatch;
     was: PlaybookPatch;
 }>;
@@ -4286,6 +4412,12 @@ interface LayerTwoIn {
     language?: string | null;
     /** What the platform knows independently of what was typed; the number to call resolves over both. */
     known?: KnownFacts | null;
+    /**
+     * The zone and the clock the reply's prompt was composed with: a price from an owner's note is one it may say while
+     * the note holds on the business's day (contracts priceAllowance, notesInForce), and never after it ends.
+     */
+    tz: string | null | undefined;
+    now: Date;
 }
 interface LayerTwoOut {
     replyText: string;
@@ -4304,7 +4436,8 @@ interface LayerTwoOut {
  * Layer-2 policy enforcement (Blueprint §6): prompt text is never the only
  * defense. A price it may not say blocks the send outright: any price while
  * "Never quote a price" is on, and with it off any amount the owner did not
- * write (priceAllowance, decision 0051). Money -- a refund, a
+ * write, or wrote in a note that has ended (priceAllowance at the reply's own
+ * zone and clock, decision 0051). Money -- a refund, a
  * discount, a deposit, a payment term, named in the draft or read as the
  * model's intent -- is a person's, whatever the model's record says (the
  * charter's locked row). Under "ask", a booking or a service/pricing question
@@ -4543,4 +4676,4 @@ type Subscriber = (event: DeliveredEvent, ports: SubscriberPorts) => Promise<voi
 declare function toldFromItsEvent(written: string | null | undefined): boolean;
 declare const SUBSCRIBERS: Readonly<Record<EventSubscriber, Subscriber>>;
 
-export { type AfterProbe, type AppointmentPatch, type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssembleDecision, type AssemblePorts, type Assembled, type AssembledRun, BROADCAST_STALLS_MAX, BROADCAST_STALL_RETRY_MS, type BatchCarry, type BeginAsk, type BeginCommand, type BeginPorts, type BeginReceipt, type BookingNoticePorts, type BrainCall, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, CARDS, CHECKER_FIELDS, CHECKER_RUN_TIMEOUT_SECS, CHECK_BATCH, CLOSED_REASON, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type CheckAgain, type CheckOutcome, type CheckPlaybookPatchPorts, type CheckPlaybookPorts, type CleanPlace, type CollectCommitResult, type CollectJudgment, type CollectOutcome, type CollectPage, type CollectPlace, type ConsentDecision, type ConsentInputs, type ConsentSource, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, type CredentialsRead, DEADLINE_MARGIN_MS, DUPLICATE_REASON, type Db, type DeliverPorts, type Delivered, type Delivery, type Door, type DraftMark, type DraftState, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EmailRoute, type EscalationPorts, FACT_MAX, FINAL_RUN_STATES, FIRST_COLLECT_SECONDS, type FollowedStep, HOLD_EXPIRY_MS, type HandBackPorts, type HandItem, type HandStep, type HandStepPorts, IDEMPOTENCY_WINDOW_MS, INPUT_MARKER, type Identity, type InboundBrainReply, type InboundCarrier, type InboundChannel, type InboundDb, type InboundHandoff, type InboundInput, type InboundLog, type InboundPorts, type InboundRuntime, type InboundSink, type IncomingEmail, IngestFailed, JUDGE_MARGIN_MS, JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, type JudgedBatch, type KeptReading, type KeyClaim, type KeyHold, LEASE_SECONDS, type LatLng, type LateFailureCommand, type LateFailureFacts, type LateFailureOutcome, type LateFailurePorts, type LayerTwoIn, type LayerTwoOut, type LeadCardRunner, type LeadColumns, type LeadDb, type LeadMemberRow, type LeadPorts, LeadRetry, type LeadRoundRow, type LeadRunRow, type LeadShare, type ListCount, MAPS_CAP_FLOOR_USD, MAPS_FIELDS, MAPS_RUN_TIMEOUT_SECS, MARK_ALLOWANCE_MS, MARK_AT_ONCE, MARK_MAX_BYTES, MARK_MAX_RATIO, MARK_MIN_SIDE, MARK_TRIES, MAX_REPLIES_PER_DAY, MAX_SNOOZE_MS, type MapsPlace, type MarkImage, type MarkKind, type MemberJudgment, NEEDS_UNTIL, NO_LOCATION_REASON, NO_MODEL_PAGE, type NewAppointment, type NewBroadcast, type NewReachOutRun, type NewRecipient, NotTakenError, type NoticeClient, type NoticeEmail, type NoticeLedgerRow, type NoticeOutcome, OUT_OF_AREA_REASON, type OutboundRefusal, type Owner, PAGE_ITEMS, PAGE_READ_ALLOWANCE_MS, PERSON_CONTROL_MAX_S, POLL_SECONDS, PROVIDER_RUN_PAGE, type Phase, type PlannedSend, type PlaybookInput, type PlaybookPatchRow, type PlaybookRow, type ProbeYieldMember, type ProvisionLinePorts, type QueuedReply, RADIUS_MAX_M, RADIUS_MIN_M, REPLY_IN_PROGRESS_REFUSAL, type ReachOutFollower, type ReachOutLead, type ReachOutRunOutcome, type ReachOutRunPorts, type ReachOutStep, type ReadBookingNoticeCommand, type ReadBookingNoticeOutcome, type ReadReplyCommand, type ReadReplyOutcome, type RecipientMark, type RecipientRow, type ReconcileOutcome, type RejudgeOutcome, type RejudgeResult, type ReplyBody, type ReplyCommand, type ReplyFacts, type ReplyNotice, type ReplyPorts, type ReplyPosture, type ReplyReadPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RoundQuestion, type RoutingFacts, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, SEND_RETRY_WAITS_MS, STALE_MS, STALE_REPLY_MS, SUBSCRIBERS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type StartOutcome, type StoredAppointment, type Subscriber, type SubscriberPorts, type TakeOverPorts, type TakeOverResult, type TemplateSend, type TemplateValuesPorts, type TermOutcome, type Thread, type ThreadPorts, type ThreadState, type ThreadTurn, UNKNOWN_START_GRACE_MS, VISION_MAX_BYTES, VISION_MIMES, type WakePorts, type Wire, type WirePayload, type WireUnavailable, WireUnavailableError, afterProbe, ageVerdict, answerInbound, approveRun, archive, areaCenter, assembleRun, beginConversation, bookingPageLinkedFrom, campaignHow, campaignHowOf, cancelBroadcast, cancelSend, centerOf, check, checkPlaybook, checkPlaybookChannels, checkPlaybookMoment, checkPlaybookPatch, checkable, cleanPlace, collect, createBroadcast, deliver, deliverSafely, discoveryEnding, effectiveReplyMode, emailSender, fact, factsOf, foldDuplicates, handBack, handStepIdFor, hasContact, haversineM, holdCopy, holdPlan, identityOf, imageHeaderOf, inArea, ingestEmail, isAgainRun, isFreeMail, isNotTakenError, isThreadUnknown, isVisionMime, isWireUnavailable, isWireUnavailableError, judgeBatch, layerTwo, leadMarksFrom, mainAsk, markImageFrom, markPlaces, mayBegin, medianCenter, memberOf, nearbyFor, nearestAreas, noModelPlan, opIdFor, outboundGate, parseChannels, photoUserText, playbookNumber, probeAsk, probeYield, provisionLine, radiusFromSpread, raiseLateFailure, reachOutRunIdFor, readBookingNotice, readCampaignMessage, readReply, reconcileUnknownRuns, recordInbound, refusalScript, refuseWithoutBookingLink, rejudgeProbe, replyPosture, replyToConversation, resolveConsent, resolveEscalation, runCaps, runHandStep, runIdFor, runPlaybook, runReachOut, runStateOf, sendBroadcastBatch, sendIdFor, sendMessageId, sendQueued, sha256Hex, shareKeysOf, sharesWithin, snooze, startRound, takeBatch, takeOver, targetOf, templatePurpose, templateValues, termsShortOf, toBase64, toldFromItsEvent, unreadableThread, wake, whatsappSender, whatsappWire, wireUnavailable, yieldOf, zctaCenter };
+export { type AfterProbe, type AppointmentPatch, type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssembleDecision, type AssemblePorts, type Assembled, type AssembledRun, BROADCAST_STALLS_MAX, BROADCAST_STALL_RETRY_MS, type BatchCarry, type BeginAsk, type BeginCommand, type BeginPorts, type BeginReceipt, type BookingNoticePorts, type BrainCall, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, CARDS, CHECKER_FIELDS, CHECKER_RUN_TIMEOUT_SECS, CHECK_BATCH, CLOSED_REASON, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type CheckAgain, type CheckOutcome, type CheckPlaybookPatchPorts, type CheckPlaybookPorts, type CleanPlace, type CollectCommitResult, type CollectJudgment, type CollectOutcome, type CollectPage, type CollectPlace, type ConsentDecision, type ConsentInputs, type ConsentSource, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, type CredentialsRead, DEADLINE_MARGIN_MS, DUPLICATE_REASON, type Db, type DeliverPorts, type Delivered, type Delivery, type Door, type DraftMark, type DraftState, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EmailRoute, type EscalationPorts, FACT_MAX, FINAL_RUN_STATES, FIRST_COLLECT_SECONDS, type FollowedStep, HOLD_EXPIRY_MS, type HandBackPorts, type HandItem, type HandStep, type HandStepPorts, IDEMPOTENCY_WINDOW_MS, INPUT_MARKER, type Identity, type InboundBrainReply, type InboundCarrier, type InboundChannel, type InboundDb, type InboundHandoff, type InboundInput, type InboundLog, type InboundPorts, type InboundRuntime, type InboundSink, type IncomingEmail, IngestFailed, JUDGE_MARGIN_MS, JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, type JudgedBatch, type KeptReading, type KeyClaim, type KeyHold, LEASE_SECONDS, type LatLng, type LateFailureCommand, type LateFailureFacts, type LateFailureOutcome, type LateFailurePorts, type LayerTwoIn, type LayerTwoOut, type LeadCardRunner, type LeadColumns, type LeadDb, type LeadMemberRow, type LeadPorts, LeadRetry, type LeadRoundRow, type LeadRunRow, type LeadShare, type ListCount, MAPS_CAP_FLOOR_USD, MAPS_FIELDS, MAPS_RUN_TIMEOUT_SECS, MARK_ALLOWANCE_MS, MARK_AT_ONCE, MARK_MAX_BYTES, MARK_MAX_RATIO, MARK_MIN_SIDE, MARK_TRIES, MAX_REPLIES_PER_DAY, MAX_SNOOZE_MS, type MapsPlace, type MarkImage, type MarkKind, type MemberJudgment, NEEDS_UNTIL, NO_LOCATION_REASON, NO_MODEL_PAGE, type NewAppointment, type NewBroadcast, type NewReachOutRun, type NewRecipient, NotTakenError, type NoticeClient, type NoticeEmail, type NoticeLedgerRow, type NoticeOutcome, OUT_OF_AREA_REASON, type OutboundRefusal, type Owner, PAGE_ITEMS, PAGE_READ_ALLOWANCE_MS, PERSON_CONTROL_MAX_S, POLL_SECONDS, PROVIDER_RUN_PAGE, type Phase, type PlannedSend, type PlaybookInput, type PlaybookPatchRow, type PlaybookRow, type ProbeYieldMember, type ProvisionLinePorts, type QueuedReply, RADIUS_MAX_M, RADIUS_MIN_M, REPLY_IN_PROGRESS_REFUSAL, type ReachOutFollower, type ReachOutLead, type ReachOutRunOutcome, type ReachOutRunPorts, type ReachOutStep, type ReadBookingNoticeCommand, type ReadBookingNoticeOutcome, type ReadReplyCommand, type ReadReplyOutcome, type RecipientMark, type RecipientRow, type ReconcileOutcome, type RejudgeOutcome, type RejudgeResult, type ReplyBody, type ReplyCommand, type ReplyFacts, type ReplyNotice, type ReplyPorts, type ReplyPosture, type ReplyReadPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RoundQuestion, type RoutingFacts, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, SEND_RETRY_WAITS_MS, STALE_MS, STALE_REPLY_MS, SUBSCRIBERS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type StartOutcome, type StoredAppointment, type Subscriber, type SubscriberPorts, TEMPLATE_VALUE_WORDS, type TakeOverPorts, type TakeOverResult, type TemplateSend, type TemplateValuesPorts, type TermOutcome, type Thread, type ThreadPorts, type ThreadState, type ThreadTurn, UNKNOWN_START_GRACE_MS, VISION_MAX_BYTES, VISION_MIMES, type WakePorts, type Wire, type WirePayload, type WireUnavailable, WireUnavailableError, afterProbe, ageVerdict, answerInbound, approveRun, archive, areaCenter, assembleRun, beginConversation, bookingPageLinkedFrom, campaignHow, campaignHowOf, cancelBroadcast, cancelSend, centerOf, check, checkPlaybook, checkPlaybookChannels, checkPlaybookMoment, checkPlaybookPatch, checkable, cleanPlace, collect, createBroadcast, deliver, deliverSafely, discoveryEnding, effectiveReplyMode, emailSender, fact, factsOf, foldDuplicates, handBack, handStepIdFor, hasContact, haversineM, holdCopy, holdPlan, identityOf, imageHeaderOf, inArea, ingestEmail, isAgainRun, isFreeMail, isNotTakenError, isThreadUnknown, isVisionMime, isWireUnavailable, isWireUnavailableError, judgeBatch, layerTwo, leadMarksFrom, mainAsk, markImageFrom, markPlaces, mayBegin, medianCenter, memberOf, nearbyFor, nearestAreas, noModelPlan, opIdFor, outboundGate, parseChannels, photoUserText, playbookNameAsked, playbookNumber, probeAsk, probeYield, provisionLine, radiusFromSpread, raiseLateFailure, reachOutRunIdFor, readBookingNotice, readCampaignMessage, readReply, reconcileUnknownRuns, recordInbound, refusalScript, refuseWithoutBookingLink, refuseWithoutReviewLink, rejudgeProbe, replyPosture, replyToConversation, resolveConsent, resolveEscalation, runCaps, runHandStep, runIdFor, runPlaybook, runReachOut, runStateOf, sendBroadcastBatch, sendIdFor, sendMessageId, sendQueued, sha256Hex, shareKeysOf, sharesWithin, snooze, startRound, takeBatch, takeOver, targetOf, templatePurpose, templateValues, termsShortOf, toBase64, toldFromItsEvent, trialUntilOf, unreadableThread, untilOf, wake, whatsappSender, whatsappWire, wireUnavailable, yieldOf, zctaCenter };

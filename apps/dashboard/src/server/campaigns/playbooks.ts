@@ -2,10 +2,10 @@ import "server-only";
 import {
   AppError,
   audienceTrigger,
+  breathTouchOf,
   campaignMessageOf,
   FOLLOW_UP_ONE,
   parseParamSpecs,
-  PLAYBOOK_BREATH_MS,
   PLAYBOOK_TOUCH_WINDOW_MS,
   playbookStopBy,
   purposeOfTemplate,
@@ -27,6 +27,7 @@ import {
   checkPlaybook,
   checkPlaybookChannels,
   checkPlaybookMoment,
+  type CheckPlaybookPatchPorts,
   type CheckPlaybookPorts,
   type PlaybookInput,
 } from "@chanlytics/core";
@@ -37,8 +38,8 @@ import {
   playbookChannels,
   playbookTotals,
   readAllRows,
+  recentTouches,
   touchIndex,
-  touchesSince,
   workspacePaused,
   type Touch,
 } from "@chanlytics/db";
@@ -52,6 +53,7 @@ import { whatsappHealthOf } from "@/server/campaigns/channels-ready";
 import { sellsByOf } from "@/server/people/deals";
 import { appointmentWordFor } from "@/server/readers/facts";
 import { lazily } from "@/server/lazy";
+import { tenantFacts } from "@/server/tenant";
 
 /**
  * Playbooks, read and checked.
@@ -63,7 +65,7 @@ import { lazily } from "@/server/lazy";
  * broadcast could not send or a slot the workspace cannot fill.
  */
 const COLUMNS =
-  "id, name, trigger, list_id, list_key, template_id, template_name, template_language, params, policy_class, state, run_hour, cap_per_run, gap_days, cadence_days, last_run_for, last_run_at, created_at, channels";
+  "id, name, trigger, list_id, list_key, template_id, template_name, template_language, params, policy_class, state, run_hour, cap_per_run, gap_days, cadence_days, last_run_for, last_run_at, created_at, channels, until, trial_until";
 
 /** One moment playbook's totals as the database counts them (playbook_totals, 00374): the card's shapes are read off it. */
 type TotalsRow = PlaybookTotalsDto[string];
@@ -85,20 +87,6 @@ export interface PlaybookTotals {
   waiting: TotalsRow["waiting"];
   /** The most recent runs, newest first, from the same rows the totals are summed over. */
   history: RunSummary[];
-}
-
-/**
- * Who a broadcast of any kind reached, or is about to, within the week: the touches the sweep applies as the breath
- * (packages/db touchesSince, the sweep's own reader), so the Playbooks page can say how many of a trigger's people wait
- * for it rather than counting them as due. contact id -> the time of their latest touch, as the row keeps it.
- */
-export async function recentTouches(ctx: RouteContext, tenantId: string, now: Date): Promise<Record<string, string>> {
-  const touched: Record<string, string> = {};
-  for (const t of await touchesSince(ctx.supabase, tenantId, new Date(now.getTime() - PLAYBOOK_BREATH_MS), now)) {
-    const was = touched[t.contact_id];
-    if (!was || Date.parse(t.at) > Date.parse(was)) touched[t.contact_id] = t.at;
-  }
-  return touched;
 }
 
 /** The proposals out here (0006): who holds one, and when the oldest went. Null with none. A read that fails throws. */
@@ -144,16 +132,21 @@ export const noFollowUps = (): FollowUpsRead => ({ followUps: new Map(), followU
 
 /**
  * The touches a moment is counted against before a campaign on it has run (contracts playbookRunReach): nobody heard from
- * that campaign yet, who any campaign reached this week (`touched`, recentTouches: the week's breath), and who had a
- * proposal's follow-up. The page's pools (playbook-pools.ts triggerPools) and Ask's campaign card count by it, so the
- * card's count is the page's.
+ * that campaign yet, who any campaign reaches within a week of `now`, either side (`touched`, db recentTouches, by
+ * contracts breathTouchOf: the week's breath, as the sweep's touchIndex reads it), and who had a proposal's follow-up.
+ * The page's pools (playbook-pools.ts triggerPools) and Ask's campaign card count by it, so the card's count is the page's.
  */
-export function poolTouches(touched: Readonly<Record<string, string>>, followUps: FollowUpsRead): Touches {
-  return {
-    byThis: new Map(),
-    byAny: new Map(Object.entries(touched).map(([id, at]) => [id, Date.parse(at)])),
-    ...followUps,
-  };
+export function poolTouches(
+  touched: Readonly<Record<string, readonly string[]>>,
+  followUps: FollowUpsRead,
+  now: Date,
+): Touches {
+  const byAny = new Map<string, number>();
+  for (const [id, times] of Object.entries(touched)) {
+    const at = breathTouchOf(times, now.getTime(), now.getTime());
+    if (at !== null) byAny.set(id, at);
+  }
+  return { byThis: new Map(), byAny, ...followUps };
 }
 
 /**
@@ -164,7 +157,7 @@ export function poolTouches(touched: Readonly<Record<string, string>>, followUps
 export async function proposalFollowUps(ctx: RouteContext, tenantId: string, now: Date): Promise<FollowUpsRead> {
   const out = await proposalsOut(ctx, tenantId);
   if (!out) return noFollowUps();
-  const { followUps, followUpKeys } = touchIndex(await followUpTouchesFor(ctx, tenantId, now, out));
+  const { followUps, followUpKeys } = touchIndex(await followUpTouchesFor(ctx, tenantId, now, out), now);
   return { followUps, followUpKeys };
 }
 
@@ -238,20 +231,24 @@ export async function followUpFacts(ctx: RouteContext, tenantId: string, now: Da
   ]);
   const message = campaignMessageOf(rows, p.template_name, p.template_language);
   if (whatsappStops(channels, number, message?.versions.whatsapp?.status ?? null)) return null;
+  // Who heard, or is due a message, is the breath's one read (packages/db recentTouches), as every other page and the
+  // send read it.
   const [followUps, recent] = await Promise.all([
     followUpTouchesFor(ctx, tenantId, now, out),
-    touchesSince(ctx.supabase, tenantId, new Date(now.getTime() - PLAYBOOK_BREATH_MS), now),
+    recentTouches(ctx.supabase, tenantId, now),
   ]);
   const had: Record<string, string> = {};
   const queued: Record<string, string> = {};
   const held: Record<string, string> = {};
-  const heard: Record<string, string> = {};
+  const heard: Record<string, string[]> = {};
   const latest = (m: Record<string, string>, t: Touch) => {
     if (!m[t.contact_id] || Date.parse(t.at) > Date.parse(m[t.contact_id])) m[t.contact_id] = t.at;
   };
   // Only who holds a proposal out: the rows the facts are for.
   for (const t of followUps) if (out.contacts.has(t.contact_id)) latest(t.sent ? had : t.held ? held : queued, t);
-  for (const t of recent) if (out.contacts.has(t.contact_id)) latest(heard, t);
+  // Every message of theirs, sent or due, from the breath's read: the stand walks the run's ticks to the first none falls
+  // within a week of (contracts followUpStandOf), so its day is the day the sweep would next send them.
+  for (const [id, times] of Object.entries(recent)) if (out.contacts.has(id)) heard[id] = times;
   return {
     run_hour: p.run_hour,
     last_run_for: p.last_run_for,
@@ -299,9 +296,15 @@ export async function playbookRows(ctx: RouteContext, tenantId: string): Promise
   let { data: rows, error } = await read(COLUMNS);
   const missing = (col: string) =>
     !!error && new RegExp(col).test(error.message) && /does not exist|could not find/i.test(error.message);
+  // A database 00416 has not reached has no end and no trial, and every playbook there runs on with neither: read again
+  // without them, and each of the reads below keeps that.
+  let columns = COLUMNS;
+  if (missing("until")) {
+    columns = columns.replace(", until, trial_until", "");
+    ({ data: rows, error } = await read(columns));
+  }
   // A database 00298 has not reached has no channels, and every playbook there goes by WhatsApp: read again without it,
   // and each of the reads below keeps that.
-  let columns = COLUMNS;
   if (missing("channels")) {
     columns = columns.replace(", channels", "");
     ({ data: rows, error } = await read(columns));
@@ -435,7 +438,7 @@ export type { PlaybookInput };
  * runs on none of the workspace's own: what a resume (core checkPlaybookPatch's port) and a run now ask. It is neither
  * resumed nor run until its list is restored or it is moved to another.
  */
-export async function archivedListRefusal(
+async function archivedListRefusal(
   ctx: Pick<RouteContext, "supabase">,
   p: { id: string; trigger: string },
 ): Promise<string | null> {
@@ -455,6 +458,20 @@ export async function refuseOnArchivedList(
 ): Promise<void> {
   const words = await archivedListRefusal(ctx, p);
   if (words) throw new AppError("validation", words);
+}
+
+/**
+ * What a change in place reads of this workspace (core checkPlaybookPatch), for PUT playbooks/:id and Ask's change card
+ * alike: why its list keeps it paused (archivedListRefusal), its message and links for a change of its words (the ports a
+ * new playbook's values are read through), and the business's zone for a change of its end. Each is read only when a
+ * change asks it.
+ */
+export function playbookPatchPorts(ctx: RouteContext, tenantId: string): CheckPlaybookPatchPorts {
+  return {
+    ...templateValuePorts(ctx, tenantId),
+    archivedList: (r) => archivedListRefusal(ctx, r),
+    timezone: async () => (await tenantFacts(ctx.supabase, tenantId)).timezone,
+  };
 }
 
 /**

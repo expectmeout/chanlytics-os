@@ -206,6 +206,7 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "loadSaveRules",
     "namesMoney",
     "needsConsultation",
+    "noteEndedWords",
     "notesWords",
     "offersBookingLink",
     "openWeekWords",

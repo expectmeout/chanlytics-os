@@ -128,6 +128,8 @@ export function linkRow(details: PlaceDetails, tenantId: string, userId: string 
     name: details.name,
     address: details.address,
     maps_uri: details.maps_uri,
+    // The public read gives no review link, and the one kept may be the place this replaces: a profile's bind writes it.
+    new_review_uri: null,
     business_status: details.business_status,
     facts: details.facts,
     linked_by: userId,

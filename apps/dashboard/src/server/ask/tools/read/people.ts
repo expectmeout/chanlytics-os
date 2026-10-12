@@ -222,9 +222,9 @@ const PIPELINE_CAP = 30;
  * cannot, with why; and the workspace's own lists, kept by hand or by a rule, each with its rule in the page's words
  * and its count or why it cannot be counted. Counted over the audience pool (readers/audience-pool.ts: everyone, for
  * the member asking, as a send counts them), where the page counts the people it has loaded; the lists are People's
- * rail's read (readers/lists.ts), once a turn.
+ * rail's read (readers/lists.ts), once a turn. Ask's plan reads the lists through it too (act/plan.ts).
  */
-async function listLists(t: ToolContext): Promise<unknown> {
+export async function listLists(t: ToolContext) {
   const [pool, saved] = await Promise.all([
     load(t.rc, audiencePool, undefined).then((r) => r.data),
     load(t.rc, listsReader, undefined),

@@ -5,19 +5,18 @@ import {
   NOTE_WORDS,
   PERSON_DETAIL_WORDS,
   PERSON_MODES,
-  PROPOSAL_SPECS,
   normalizeEmail,
   personName,
   proposalBelowNeeds,
   whyNotAnEmail,
 } from "@chanlytics/contracts";
-import { roleAtLeast } from "../../../with-route";
 import {
   UUID,
   actAction,
   approvalWords,
   defineActions,
   noteRow,
+  offeredTo,
   propose,
   refuse,
   str,
@@ -64,7 +63,8 @@ async function proposePersonMode(
   t: ToolContext,
   input: { contact_id: string; mode: string },
 ): Promise<ProposalOutcome> {
-  if (!roleAtLeast(t.role, PROPOSAL_SPECS.person_mode.needs)) return refuse(proposalBelowNeeds("person_mode"));
+  // Below the card's role, by the one predicate the registry offers it by (context.ts offeredTo).
+  if (!offeredTo(modeAction, t.role)) return refuse(proposalBelowNeeds("person_mode"));
   const mode = str(input.mode, 10);
   if (!(["inherit", ...PERSON_MODES] as string[]).includes(mode))
     return refuse("mode must be auto, ask, never or inherit");
@@ -158,6 +158,17 @@ async function proposePersonDetails(
   });
 }
 
+/** How the receptionist treats one person: propose_person's action mode, an owner's, named so its builder asks its role. */
+const modeAction = actAction({
+  kind: "person_mode",
+  input: z.object({ contact_id: z.string(), mode: z.enum(["auto", "ask", "never", "inherit"]) }),
+  examples: [{ contact_id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", mode: "never" }],
+  label: "Preparing a receptionist change",
+  // Its card's role clause, its own (approvalWords, one derivation): an action beside it may need another role.
+  words: `Action mode takes contact_id, the id a read returned, and mode, how the receptionist treats them: auto (answers them), ask (asks a person first), never (stays silent with them), or inherit (follows the workspace's rule). Call it when they want the receptionist to stop, resume or check first with one person; propose_autonomy changes a whole class instead, and propose_thread_verb acts on one thread. ${approvalWords("person_mode")}.`,
+  build: proposePersonMode,
+});
+
 /**
  * One person (D11), by action, each a card of its own (the Phase 4 plan, D2, D8, D9): how the receptionist treats them
  * (mode, once propose_person_mode; an owner's), a note on them and who reads it, and the name and address their
@@ -168,15 +179,7 @@ export const propose_person = defineActions({
   description:
     "Propose a change to someone in People, by action: a card the person asking approves, and nothing changes until they do.",
   actions: {
-    mode: actAction({
-      kind: "person_mode",
-      input: z.object({ contact_id: z.string(), mode: z.enum(["auto", "ask", "never", "inherit"]) }),
-      examples: [{ contact_id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", mode: "never" }],
-      label: "Preparing a receptionist change",
-      // Its card's role clause, its own (approvalWords, one derivation): an action beside it may need another role.
-      words: `Action mode takes contact_id, the id a read returned, and mode, how the receptionist treats them: auto (answers them), ask (asks a person first), never (stays silent with them), or inherit (follows the workspace's rule). Call it when they want the receptionist to stop, resume or check first with one person; propose_autonomy changes a whole class instead, and propose_thread_verb acts on one thread. ${approvalWords("person_mode")}.`,
-      build: proposePersonMode,
-    }),
+    mode: modeAction,
     note: actAction({
       kind: "note",
       input: z.object({ contact_id: z.string(), body: z.string(), for: z.enum(NOTE_FOR) }),

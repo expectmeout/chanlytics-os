@@ -46,15 +46,31 @@ export interface TemplatesRead {
 export const messagesOf = (read: TemplatesRead): CampaignMessage[] =>
   read.messages ?? campaignMessagesOf(read.templates);
 
-/** What a composer may fill a slot from: a broadcast has no visit and no proposal, a playbook's moment says. */
+/**
+ * What a composer may fill a slot from: a broadcast has no visit and no proposal, a playbook's moment says; the booking
+ * link where one is on file, and the review link where the Google listing keeps one (GET settings' `review_link`, which
+ * the pages read: broadcasts/surface.ts and playbooks/surface.ts `reviewLink`).
+ */
 export interface SlotRule {
   visits: boolean;
   bookingLink: boolean;
+  reviewLink: boolean;
   proposal: boolean;
 }
 
+/** The links a workspace's slots may be filled from, as the composers are given them. */
+export interface SlotLinks {
+  bookingLink: boolean;
+  reviewLink: boolean;
+}
+
 /** The broadcast composer's rule (broadcasts/page/words.ts bcSlots): no visit's time or service, no proposal's link. */
-export const broadcastSlots = (bookingLink: boolean): SlotRule => ({ visits: false, bookingLink, proposal: false });
+export const broadcastSlots = (links: SlotLinks): SlotRule => ({
+  visits: false,
+  bookingLink: links.bookingLink,
+  reviewLink: links.reviewLink,
+  proposal: false,
+});
 
 /**
  * A playbook composer's rule for the moment it is on (playbooks/composer-model.ts): a visit moment has a visit and the
@@ -62,7 +78,7 @@ export const broadcastSlots = (bookingLink: boolean): SlotRule => ({ visits: fal
  * ("everyone with an appointment tomorrow", in whichever word the workspace uses: contracts LIFECYCLE_WORDS.compose.sentence
  * .who), or by its label (contracts PLAYBOOK_TRIGGERS).
  */
-export function momentSlots(face: string, bookingLink: boolean): SlotRule {
+export function momentSlots(face: string, links: SlotLinks): SlotRule {
   const said = (t: (typeof PLAYBOOK_TRIGGERS)[number]) =>
     APPOINTMENT_WORDS.some((word) => LIFECYCLE_WORDS.compose.sentence.who(t.id, word) === face);
   const byWho = PLAYBOOK_TRIGGERS.filter(said);
@@ -72,7 +88,12 @@ export function momentSlots(face: string, bookingLink: boolean): SlotRule {
     byWho.length > 0 ? byWho : PLAYBOOK_TRIGGERS.filter((t) => t.label.length === longest && face.includes(t.label));
   if (named.length === 0) throw new Error(`the moment "${face}" is none of contracts' PLAYBOOK_TRIGGERS`);
   const kinds = new Set(named.map((t) => t.kind));
-  return { visits: kinds.has("visit"), bookingLink, proposal: kinds.has("deal") };
+  return {
+    visits: kinds.has("visit"),
+    bookingLink: links.bookingLink,
+    reviewLink: links.reviewLink,
+    proposal: kinds.has("deal"),
+  };
 }
 
 /**

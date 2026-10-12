@@ -1,6 +1,6 @@
 /**
- * The starter set (2 Oct 2026, the lifecycle set): seven messages written for the moments Chanlytics acts on, in
- * English and Spanish, each a name with a version per channel (One message, every channel): WhatsApp's, an email's and
+ * The starter set (2 Oct 2026, the lifecycle set): eight messages written for the moments Chanlytics acts on (the review
+ * ask the eighth, 10 Oct 2026, offered where the Google listing keeps a review link), in English and Spanish, each a name with a version per channel (One message, every channel): WhatsApp's, an email's and
  * a text's where the channel means something for it. Every WhatsApp version passes the check a template written by
  * hand passes, with no warnings, so what a new workspace gets is a set WhatsApp is expected to approve; every email
  * and text version passes its own channel's check the same way. Titles for people, names for the wire; the slots
@@ -11,6 +11,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   MOMENT_TRIGGERS,
+  PLAYBOOK_PATCH_WORDS,
   STARTER_LANGUAGES,
   STARTER_TEMPLATES,
   bookingTemplate,
@@ -20,6 +21,7 @@ import {
   defaultTemplate,
   guessSlotKind,
   isLibrarySample,
+  paramSaid,
   slotLabels,
   starterByKey,
   starterByName,
@@ -30,6 +32,7 @@ import {
   starterPreview,
   starterSmsText,
   starterText,
+  startersForTrigger,
   startersOffered,
   templateTitle,
   validateOwnVersion,
@@ -37,22 +40,25 @@ import {
 } from "@chanlytics/contracts";
 import { readCode, readRaw, importSrc } from "../_source.mjs";
 
-/** The set a workspace with deals on is offered, in the order a composer opens on. */
+/** The set a workspace with deals on and a review link on its Google listing is offered, in the order a composer opens on. */
 const OFFERED = [
   "winback_reply",
   "this_months_offer",
   "visit_reminder",
   "after_visit_check",
+  "after_visit_review",
   "proposal_follow_up",
   "quick_note",
   "call_text",
 ];
 /** What it replaced: never offered again, found by name for a workspace that added one. */
 const RETIRED = ["winback_offer", "welcome_new", "save_our_number", "monthly_offer", "after_visit", "booking_link"];
+/** A workspace's shape as the set is offered by it: deals on, and its Google listing keeping a review link. */
+const ALL = { dealsOn: true, reviewLink: true };
 
-test("seven starters are offered in the library's order, six are retired and still found by name; each in English and Spanish", () => {
+test("eight starters are offered in the library's order, six are retired and still found by name; each in English and Spanish", () => {
   assert.deepEqual(
-    startersOffered(true).map((s) => s.key),
+    startersOffered(ALL).map((s) => s.key),
     OFFERED,
   );
   assert.deepEqual(
@@ -72,11 +78,11 @@ test("seven starters are offered in the library's order, six are retired and sti
       s.retired.by === null || OFFERED.includes(s.retired.by),
       `${key} is replaced by a starter still offered, or by none`,
     );
-    assert.ok(!startersOffered(true).includes(s), `${key} is never offered`);
+    assert.ok(!startersOffered(ALL).includes(s), `${key} is never offered`);
   }
   for (const key of OFFERED) assert.equal(starterByName(key)?.retired, undefined, key);
   assert.deepEqual(
-    startersOffered(true)
+    startersOffered(ALL)
       .filter((s) => s.trigger === null)
       .map((s) => s.key),
     ["quick_note", "call_text"],
@@ -137,7 +143,7 @@ test("every email and text version passes its channel's check with no warnings, 
         `${s.key}: its ${channel} version is in both languages or absent`,
       );
   }
-  for (const s of startersOffered(true)) {
+  for (const s of startersOffered(ALL)) {
     // Texts carry no offers (deliver.ts): a marketing message has no text version, and a utility one has.
     assert.equal(
       !!s.sms,
@@ -149,11 +155,11 @@ test("every email and text version passes its channel's check with no warnings, 
   }
   assert.ok(starterByKey("call_text").sms && !starterByKey("call_text").email);
   assert.deepEqual(
-    startersOffered(true)
+    startersOffered(ALL)
       .filter((s) => s.email && s.sms)
       .map((s) => s.key),
-    ["visit_reminder", "after_visit_check", "proposal_follow_up"],
-    "the three about a person's own visit or proposal go by every channel",
+    ["visit_reminder", "after_visit_check", "after_visit_review", "proposal_follow_up"],
+    "the four about a person's own appointment or proposal go by every channel",
   );
 });
 
@@ -342,6 +348,14 @@ test("a saved template reads as this business's message: its own name and bookin
 test("a slot's source: a starter's own, or a guess from the label and the example a template written elsewhere carries", () => {
   assert.equal(guessSlotKind("Booking link", null), "booking_link");
   assert.equal(guessSlotKind("Value 2", "https://booksy.com/x"), "booking_link");
+  // A review's link is a link too, and the drafter labels it so: the review link, never the booking link (00415).
+  assert.equal(guessSlotKind("Review link", null), "review_link");
+  assert.equal(guessSlotKind("Reviews link", null), "review_link");
+  assert.equal(guessSlotKind("Enlace para la reseña", null), "review_link");
+  assert.equal(guessSlotKind("Value 3", "https://search.google.com/local/writereview?placeid=x"), "review_link");
+  // The word, never the letters inside another: a preview, a service reviewed or a reviewer is typed text.
+  for (const label of ["Preview", "Service reviewed", "Reviewer"])
+    assert.equal(guessSlotKind(label, null), "text", label);
   assert.equal(guessSlotKind("Business name", null), "business_name");
   assert.equal(guessSlotKind("First name", null), "first_name");
   assert.equal(guessSlotKind("Name", null), "first_name");
@@ -380,6 +394,17 @@ test("a slot's source: a starter's own, or a guess from the label and the exampl
     { kind: "business_name" },
     { kind: "text", value: "" },
   ]);
+});
+
+test("a slot's value as a card quotes it, the one rule every card says it by: typed words in quotes, a value a run fills by its name", () => {
+  assert.equal(paramSaid({ kind: "text", value: "15% off a colour" }), "“15% off a colour”");
+  assert.equal(paramSaid({ kind: "first_name" }), "their first name");
+  assert.equal(paramSaid({ kind: "review_link" }), "the review link");
+  assert.equal(
+    PLAYBOOK_PATCH_WORDS.params([{ kind: "first_name" }, { kind: "text", value: "15% off a colour" }]),
+    `Its words changed: ${paramSaid({ kind: "first_name" })}, ${paramSaid({ kind: "text", value: "15% off a colour" })}`,
+    "a campaign's change card says its words by the same rule",
+  );
 });
 
 test("the door: idempotent, one language at a time, synced in when the number's account already holds it, Meta's own words when it refuses", async () => {
@@ -675,12 +700,12 @@ test("a template's title: the workspace's own words, set through its door, shown
 
 test("the set a workspace is offered (0006): the proposal follow-up only where deals are on, a utility with no figure in it", () => {
   assert.deepEqual(
-    startersOffered(false).map((s) => s.key),
+    startersOffered({ ...ALL, dealsOn: false }).map((s) => s.key),
     OFFERED.filter((k) => k !== "proposal_follow_up"),
     "a workspace whose customers book is never offered it, nor has it filed with WhatsApp",
   );
   assert.deepEqual(
-    startersOffered(true).map((s) => s.key),
+    startersOffered(ALL).map((s) => s.key),
     OFFERED,
     "and no workspace is offered a starter the set replaced",
   );
@@ -699,4 +724,87 @@ test("the set a workspace is offered (0006): the proposal follow-up only where d
       `${l.id}: no price, date or amount in its words`,
     );
   assert.equal(guessSlotKind("Proposal link"), "proposal_link", "a label that names the proposal is its link");
+});
+
+/** repo/trade-neutral.test.mjs's two predicates, as it writes them: one trade's words, and a visit where an appointment is. */
+const BANNED = /\b(salons?|stylists?|balayage|therapists?|chair rental|haircuts?|keratin|blowouts?|lash(?:es)?)\b/i;
+const VISIT = /(?<![\w-])visit(?:a)?s?(?![\w-])/i;
+
+test("the day after an appointment has two starters: how did it go, which a composer opens on, and the review ask beside it", () => {
+  assert.deepEqual(
+    startersForTrigger("visited")
+      .filter((s) => !s.retired)
+      .map((s) => s.key),
+    ["after_visit_check", "after_visit_review"],
+    "the set's own, in the library's order",
+  );
+  assert.deepEqual(
+    startersForTrigger("visited").map((s) => s.key),
+    ["after_visit_check", "after_visit_review", "after_visit"],
+    "then the one the set replaced",
+  );
+  assert.equal(starterForTrigger("visited").key, "after_visit_check", "nothing picked: how did it go");
+});
+
+test("the review ask: a utility message about the appointment they just had, its third slot the review link the Google listing keeps, in every version and both languages", () => {
+  const s = starterByKey("after_visit_review");
+  assert.deepEqual(
+    [s.name, s.title, s.category, s.trigger, s.retired],
+    ["after_visit_review", "After the appointment, with a review ask", "utility", "visited", undefined],
+  );
+  assert.deepEqual(
+    STARTER_LANGUAGES.map((l) => starterText(s, l.id).slots),
+    [
+      [
+        { kind: "first_name", label: "First name", example: "Dani" },
+        { kind: "business_name", label: "Business name", example: "Luna Studio" },
+        { kind: "review_link", label: "Review link", example: "https://g.page/r/example/review" },
+      ],
+      [
+        { kind: "first_name", label: "Nombre", example: "Dani" },
+        { kind: "business_name", label: "Nombre del negocio", example: "Luna Studio" },
+        { kind: "review_link", label: "Enlace de reseñas", example: "https://g.page/r/example/review" },
+      ],
+    ],
+  );
+  // A run and a card fill it from the starter's own sources: the review link is the listing's, never typed.
+  assert.deepEqual(defaultParamSpecs({ name: s.name, variables: [] }), [
+    { kind: "first_name" },
+    { kind: "business_name" },
+    { kind: "review_link" },
+  ]);
+  for (const l of STARTER_LANGUAGES) {
+    const sms = starterSmsText(s, l.id);
+    const email = starterEmailText(s, l.id);
+    assert.ok(sms && sms.body.trim(), `${l.id}: a text version`);
+    assert.ok(email && email.subject.trim(), `${l.id}: an email version`);
+    // The review link is in each version a customer reads: WhatsApp's, the email's and the text's.
+    for (const [channel, body] of [
+      ["whatsapp", starterText(s, l.id).body],
+      ["email", email.body],
+      ["sms", sms.body],
+    ])
+      assert.ok(body.includes("{{3}}"), `${l.id} ${channel} holds the review link: ${body}`);
+    // Any trade's words: an appointment's, never one trade's, and never a visit.
+    for (const said of [starterText(s, l.id).body, email.subject, email.body, sms.body]) {
+      assert.equal(BANNED.exec(said), null, `a trade's word: ${said}`);
+      assert.equal(VISIT.test(said), false, `a visit: ${said}`);
+    }
+  }
+  assert.equal(VISIT.test(`${s.title} ${s.purpose}`), false, "its title and purpose say appointment");
+  // As a person picks it: the slot a business has not given is a blank, never the sample filed with Meta.
+  assert.ok(starterPreview(s, "en_US", "Harbor Studio").includes("[Review link]"));
+});
+
+test("the review ask is offered only where the workspace's Google listing keeps a review link, which its slot is filled from; the rest of the set either way", () => {
+  for (const dealsOn of [false, true]) {
+    const withLink = startersOffered({ dealsOn, reviewLink: true }).map((s) => s.key);
+    const without = startersOffered({ dealsOn, reviewLink: false }).map((s) => s.key);
+    assert.ok(withLink.includes("after_visit_review"), `deals ${dealsOn}: offered with a link`);
+    assert.deepEqual(
+      without,
+      withLink.filter((k) => k !== "after_visit_review"),
+      `deals ${dealsOn}: without one, the set less the review ask`,
+    );
+  }
 });

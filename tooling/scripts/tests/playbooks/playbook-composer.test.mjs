@@ -532,6 +532,11 @@ test("slotChoices: what keeps a known slot true, anything for a guessed one; tem
   assert.deepEqual(slotChoices("business_name", o), ["business_name", "text"]);
   assert.deepEqual(slotChoices("booking_link", o), ["booking_link", "text"]);
   assert.deepEqual(slotChoices("booking_link", { ...o, bookingLink: false }), ["text"]);
+  // The review link the Google listing keeps (00415), as the booking link: offered where the one choosing knows of one.
+  assert.deepEqual(slotChoices("review_link", { ...o, reviewLink: true }), ["review_link", "text"]);
+  assert.deepEqual(slotChoices("review_link", { ...o, reviewLink: false }), ["text"]);
+  assert.ok(slotChoices("text", { ...o, known: false, reviewLink: true }).includes("review_link"));
+  assert.ok(!slotChoices("text", { ...o, known: false, reviewLink: false }).includes("review_link"));
   assert.deepEqual(slotChoices("visit_when", o), []);
   assert.deepEqual(slotChoices("visit_when", { ...o, visits: true }), ["visit_when"]);
   assert.deepEqual(slotChoices("text", o), ["text"]);

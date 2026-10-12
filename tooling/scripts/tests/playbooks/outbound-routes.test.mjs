@@ -11,6 +11,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
+import { changePlaybookDoor } from "./change/_change-door.mjs";
 import { PLAYBOOK_PATCH_WORDS, REACH_OUT_IS_NOT_A_MOMENT } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -100,41 +101,8 @@ const withStartDoor = (tables, rpcs = {}, refusal = null) => ({
     return { id: row.id, decision_id: decision.id, undo_dropped: false };
   },
 });
-/**
- * The `change_playbook` door for a database in memory: the row the caller names in the workspace named, the
- * columns the set names written, then the decision as theirs -- start_playbook, pause_playbook or change_playbook -- in
- * `tables.decisions`; the row's id, what each written column held and the decision's id. No such row is P0002, and
- * nothing is written, as its one transaction leaves it. Of the columns named only those that differ are written, the
- * verb following the state that moved; where none differs nothing is written and no line: `was` empty, `decision_id`
- * null (00377's no-op).
- */
-const withChangeDoor = (tables, rpcs = {}) => ({
-  ...rpcs,
-  change_playbook: (a) => {
-    const row = (tables.playbooks ?? []).find((p) => p.id === a.p_playbook_id && p.tenant_id === a.p_tenant_id);
-    if (!row) throw Object.assign(new Error("Playbook not found."), { code: "P0002" });
-    const set = Object.fromEntries(Object.entries(a.p_set).filter(([k, v]) => row[k] !== v));
-    if (Object.keys(set).length === 0) return { id: row.id, was: {}, decision_id: null, undo_dropped: false };
-    const was = Object.fromEntries(Object.keys(set).map((k) => [k, row[k]]));
-    Object.assign(row, set);
-    const decisions = (tables.decisions ??= []);
-    const verb =
-      set.state === "running" ? "start_playbook" : set.state === "paused" ? "pause_playbook" : "change_playbook";
-    const decision = {
-      id: `decision-${decisions.length + 1}`,
-      tenant_id: a.p_tenant_id,
-      subject_type: "playbook",
-      subject_id: row.id,
-      verb,
-      actor_type: "user",
-      actor_user_id: USER,
-      payload: { ...(a.p_decision ?? {}), ...(a.p_via ? { via: a.p_via } : {}) },
-      undo_of: a.p_undo_of ?? null,
-    };
-    decisions.push(decision);
-    return { id: row.id, was, decision_id: decision.id, undo_dropped: false };
-  },
-});
+/** The `change_playbook` door for a database in memory, as 00416 writes it (change/_change-door.mjs), beside `rpcs`. */
+const withChangeDoor = (tables, rpcs = {}) => ({ ...rpcs, ...changePlaybookDoor(tables, USER) });
 const ctxFor = (tables, params = {}, rpcs = {}, opts = {}) => ({
   supabase: fakeDb(tables, {}, withChangeDoor(tables, withStartDoor(tables, rpcs)), opts),
   userId: USER,
@@ -328,7 +296,11 @@ test("the broadcasts list carries who a run of any kind reached this week, for t
     ],
   };
   const out = await broadcasts.GET.run(get(inA), ctxFor(tables));
-  assert.deepEqual(out.touched, ["k1"], "sent this week; not held back, not canceled, not last month");
+  assert.deepEqual(Object.keys(out.touched_at), ["k1"], "sent this week; not held back, not canceled, not last month");
+  // And when last, so the composer judges a send set for later by the week before it goes (contracts heardFor).
+  assert.equal(out.touched_at.k1.length, 1, "the one message");
+  const at = Date.parse(out.touched_at.k1[0]);
+  assert.ok(at <= Date.now() && Date.now() - at < 2 * hour, `when it went, an hour ago: ${out.touched_at.k1}`);
 });
 
 test("a broadcast: the workspace must be named, a viewer is refused as a viewer, then the message, its values and the audience are judged in the person's words, before anything is written", async () => {
@@ -411,6 +383,40 @@ test("a broadcast: the workspace must be named, a viewer is refused as a viewer,
     409,
   );
   assert.equal(writes(nobody), 0, "nothing enrolled, nothing scheduled, nothing on the ledger");
+});
+
+test("a broadcast's breathe is the body's to say, true or false: anything else is refused in the person's words before anything is written, and false is judged on as any send is", async () => {
+  const tables = {
+    memberships: both("viewer", "operator"),
+    templates: [tpl(T2, B, { name: "offer", meta_status: "pending" })],
+    tenants: [],
+    tenant_config: [],
+    policies: [],
+  };
+  const rpcs = { people_list: () => [] };
+  const everyone = { kind: "everyone" };
+  for (const breathe of ["no", 1]) {
+    const ctx = ctxFor(tables, {}, rpcs);
+    await refused(
+      broadcasts.POST.run(send("POST", { template_id: T2, audience: everyone, breathe }, inB), ctx),
+      "validation",
+      400,
+      "breathe is true or false: whether the people who hear from you within a week of it are left out.",
+    );
+    assert.equal(writes(ctx), 0);
+  }
+  // False is a body the route takes: judged on, here to the message, whose WhatsApp version is still in review.
+  for (const breathe of [false, true]) {
+    await refused(
+      broadcasts.POST.run(
+        send("POST", { template_id: T2, audience: everyone, breathe }, inB),
+        ctxFor(tables, {}, rpcs),
+      ),
+      "conflict",
+      409,
+      "Connect a WhatsApp number first.",
+    );
+  }
 });
 
 test("approving and canceling a run: judged where it lives; a run not waiting is refused; a waiting run is skipped and a sending one stopped, each on the ledger; anything ended says so", async () => {
@@ -1199,6 +1205,62 @@ test("one proposal follow-up per workspace (00167): the database's refusal of a 
   );
 });
 
+test("a card's start (x-via ask) refuses the running twin its first press started, in the owner's words: a press that outlived its key's day starts nothing; the composer's start, and a card's under a name of its own, start", async () => {
+  const { twinRunsWords } = await import("@chanlytics/contracts");
+  const tables = {
+    memberships: both("viewer", "operator"),
+    // The campaign the card's first press started: running, on its moment, its message, under the card's name.
+    playbooks: [pb(K2, B, { name: "Win-back", template_id: T1 })],
+    broadcasts: [],
+    broadcast_recipients: [],
+    tenants: [{ id: B, name: "Bayside", timezone: "America/Chicago" }],
+    templates: [tpl(T1, B, { name: "winback_offer", category: "marketing" })],
+    decisions: [],
+  };
+  const body = { trigger: "quiet_30", template_id: T1, params: [], name: "Win-back" };
+  // A card's commit is Ask's (the x-via header with-route reads into ctx.via); its key's day is gone, so it is run.
+  const asAsk = () => ({ ...ctxFor(tables), via: "ask" });
+  await refused(playbooks.POST.run(send("POST", body, inB), asAsk()), "conflict", 409, twinRunsWords("Win-back"));
+  assert.deepEqual(
+    [tables.playbooks.map((p) => p.id), tables.decisions],
+    [[K2], []],
+    "nothing started, nothing on the ledger",
+  );
+  // The composer's own start (no x-via) is a person's, as it always was: a second by hand is theirs to make.
+  const plain = await playbooks.POST.run(send("POST", body, inB), ctxFor(tables));
+  assert.equal(plain.state, "running");
+  // A card under a name of its own is a second they asked for, as the card's rule reads it.
+  const own = await playbooks.POST.run(send("POST", { ...body, name: "Win-back for regulars" }, inB), asAsk());
+  assert.equal(tables.playbooks.find((p) => p.id === own.id)?.name, "Win-back for regulars");
+  assert.equal(tables.playbooks.length, 3);
+});
+
+test("a card's later press whose name was asked with runs of space meets its twin by the name as kept, one space each, and starts nothing", async () => {
+  const { twinRunsWords } = await import("@chanlytics/contracts");
+  const tables = {
+    memberships: both("viewer", "operator"),
+    // The first press kept the name as core checkPlaybook keeps one: trimmed, its runs of space one.
+    playbooks: [pb(K2, B, { name: "Win back regulars", template_id: T1 })],
+    broadcasts: [],
+    broadcast_recipients: [],
+    tenants: [{ id: B, name: "Bayside", timezone: "America/Chicago" }],
+    templates: [tpl(T1, B, { name: "winback_offer", category: "marketing" })],
+    decisions: [],
+  };
+  const body = { trigger: "quiet_30", template_id: T1, params: [], name: " Win  back\tregulars " };
+  await refused(
+    playbooks.POST.run(send("POST", body, inB), { ...ctxFor(tables), via: "ask" }),
+    "conflict",
+    409,
+    twinRunsWords("Win back regulars"),
+  );
+  assert.deepEqual(
+    [tables.playbooks.map((p) => p.id), tables.decisions],
+    [[K2], []],
+    "nothing started, nothing on the ledger",
+  );
+});
+
 test("a reach-out's step is no moment: never listed among the playbooks, never rewritten as one, and still paused and resumed (Reach out, Part 3)", async () => {
   const K3 = "99999999-9999-4999-8999-999999999993";
   const reachOut = pb(K3, B, {
@@ -1496,7 +1558,7 @@ test("a playbook's channels alone: judged against the playbook as it stands and 
       playbook.PUT.run(send("PUT", { channels }), ctxFor(tables, { id: K1 })),
       "validation",
       400,
-      "Send a change (any of state, name, run_hour, cap_per_run, gap_days and cadence_days), the channels alone as a list (channels: whatsapp, sms or email), or the whole campaign with its trigger and template_id.",
+      "Send a change (any of state, name, run_hour, cap_per_run, gap_days, cadence_days, params, until and trial_until), the channels alone as a list (channels: whatsapp, sms or email), or the whole campaign with its trigger and template_id.",
     );
   assert.deepEqual(rowOf(K1).channels, ["whatsapp", "email"], "a refusal writes nothing");
   // A channel named twice is one channel.

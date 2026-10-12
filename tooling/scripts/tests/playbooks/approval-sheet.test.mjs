@@ -3,7 +3,7 @@
  *
  * The canvas draws the phone moment -- "approving from the sofa" -- with a
  * reach card reading "186 of 312 will get it", "94 never said yes to offers",
- * "32 heard from a campaign this week". A run keeps who its moment named and
+ * "32 hear from you within a week of it". A run keeps who its moment named and
  * why each of the rest was left out (playbookRunReach, on its audience), so the
  * sheet says exactly that; a run made before runs kept it says the number it
  * has and the RULES that made the list, which are true of everyone on it by
@@ -44,10 +44,10 @@ test("a run that kept no count says who it reaches by the number it has and the 
   assert.deepEqual(vm.rules, [
     "each said yes to offers",
     "none heard from this campaign in 30 days",
-    "none heard from any campaign this week",
+    "none hears from you within a week of it",
   ]);
   assert.ok(
-    !vm.rules.some((r) => /\d+ (never|heard|have not)/.test(r)),
+    !vm.rules.some((r) => /\d+ (never|hears?|heard|have not)/.test(r)),
     "no count of who was left out: the run never recorded one",
   );
   // A list playbook's gap is its own, and its cap is said when the run reached it.
@@ -58,8 +58,18 @@ test("a run that kept no count says who it reaches by the number it has and the 
   assert.deepEqual(winback.rules, [
     "each said yes to offers",
     "none heard from this campaign in 90 days",
-    "none heard from any campaign this week",
+    "none hears from you within a week of it",
     "capped at 25 a run, the longest unheard first",
+  ]);
+  // A proposal's follow-up keeps the same breath, in the same words.
+  const deal = C.toApprovalVM(
+    { broadcast: run(), recipients: people },
+    opts({ playbook: { trigger: "proposal_waiting", cap_per_run: 25, gap_days: 90, cadence_days: 30, word: "visit" } }),
+  );
+  assert.deepEqual(deal.rules.slice(-3), [
+    "each has a proposal waiting with nothing back, and its link",
+    "none followed up on that proposal before",
+    "none hears from you within a week of it",
   ]);
   // A reminder is owed to everyone with a visit: no gap, no week's breath, no cap -- and its yes is to hearing from you.
   const visit = C.toApprovalVM(
@@ -270,12 +280,17 @@ test("a run that kept who it left out says the board's card: 186 of 312, the wai
     vm.of.lines.map((l) => [l.words, l.tone]),
     [
       ["94 never said yes to offers", "plain"],
-      ["32 heard from a campaign this week", "warn"],
+      ["32 hear from you within a week of it", "warn"],
     ],
   );
   // Of every reason, the one an owner can change carries its door (#663).
   assert.deepEqual(vm.of.lines[0].door, { words: "Get their yes", to: C.GET_YES_ROUTE });
   assert.equal(vm.of.lines[1].door, null);
+  // The week's breath is two-sided: a message sent or due within a week of the run, and one person hears.
+  assert.deepEqual(
+    counted(kept({ noYes: 0, heardAny: 1 })).of.lines.map((l) => l.words),
+    ["1 hears from you within a week of it"],
+  );
   // A reminder's yes is to hearing from you, and one person is one person.
   const visit = counted(
     kept({ pool: 5, will: 3, noYes: 1, heardAny: 0, noNumber: 1 }),
@@ -331,13 +346,17 @@ test("the month's allowance: people it already holds are in the held line and ou
   assert.equal(vm.approve, "Approve — 6 now", "the act says six");
   assert.deepEqual(vm.byChannel, { whatsapp: 4, sms: 0, email: 2 }, "the four come off the channel they were to go by");
   assert.equal(vm.of.pool, 20);
-  assert.equal(vm.of.held, 6, "the bar's amber holds the two who heard this week and the four the month holds");
+  assert.equal(
+    vm.of.held,
+    6,
+    "the bar's amber holds the two who hear from you within a week of it and the four the month holds",
+  );
   assert.deepEqual(
     vm.of.lines.map((l) => [l.words, l.tone]),
     [
       ["6 never said yes to offers", "plain"],
       ["4 held for this month's allowance", "warn"],
-      ["2 heard from a campaign this week", "warn"],
+      ["2 hear from you within a week of it", "warn"],
     ],
     "one line for them, said in the contracts' words",
   );
@@ -418,7 +437,7 @@ test("the run's rules say what each person was asked on the channel they are rea
     "each reached on WhatsApp said yes to offers",
     "each reached by email asked for offers by email, or has dealt with you",
     "none heard from this campaign in 30 days",
-    "none heard from any campaign this week",
+    "none hears from you within a week of it",
   ]);
   // An offer by email alone is not "said yes to offers": a relationship on record is enough.
   assert.equal(

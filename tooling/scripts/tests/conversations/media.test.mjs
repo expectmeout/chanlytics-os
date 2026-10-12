@@ -224,8 +224,11 @@ test("the handler looks only when the workspace, the mode and the moment allow, 
     ),
     "the record keeps the caption, not the instruction",
   );
+  // The photo's instruction says what the reply may say of prices: the allowance at the turn's own zone and clock.
   assert.ok(
-    wa.includes('photo ? photoUserText(n.media?.caption, priceAllowance(brainCfg) ? "written" : "none") : bodyText,'),
+    /photo\s*\?\s*photoUserText\(n\.media\?\.caption, priceAllowance\(brainCfg, rt\?\.timezone, now\) \? "written" : "none"\)\s*:\s*bodyText,/.test(
+      wa,
+    ),
   );
   assert.ok(/photo \?\? undefined,\s*undefined,/.test(wa), "the image reaches the brain");
   assert.ok(readCode("apps/edge/lib/whatsapp/persist.ts").includes("return got;"), "sink.media hands the bytes back");

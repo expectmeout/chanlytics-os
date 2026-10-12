@@ -1,6 +1,6 @@
 /**
  * A playbook changed in place (the moment spec §4.9 A5): the bounds of its whole numbers said once (contracts
- * PLAYBOOK_LIMITS, read by a new playbook's check and a change's), the six things a change may name, and the words a change
+ * PLAYBOOK_LIMITS, read by a new playbook's check and a change's), the nine things a change may name, and the words a change
  * card says. Then core checkPlaybookPatch, the one judgement Ask's change card and PUT playbooks/:id both run;
  * playbookNumber, the one reading of a whole number a new playbook's check and a change's share; and checkPlaybookMoment,
  * what a new playbook names before its message, judged without reading the message (a starter card's first check).
@@ -31,8 +31,11 @@ test("the bounds a playbook's whole numbers keep are said once: the hour the sen
   assert.equal(PLAYBOOK_NAME_MAX, 80);
 });
 
-test("a change names any of six things, in the order a card says them, and says each in the product's words", () => {
-  assert.deepEqual([...PLAYBOOK_PATCH_KEYS], ["state", "name", "run_hour", "cap_per_run", "gap_days", "cadence_days"]);
+test("a change names any of nine things, in the order a card says them, and says each of the six in the product's words (the three of 00416: playbook-change-words.test.mjs)", () => {
+  assert.deepEqual(
+    [...PLAYBOOK_PATCH_KEYS],
+    ["state", "name", "run_hour", "cap_per_run", "gap_days", "cadence_days", "params", "until", "trial_until"],
+  );
   const W = PLAYBOOK_PATCH_WORDS;
   assert.deepEqual(
     [

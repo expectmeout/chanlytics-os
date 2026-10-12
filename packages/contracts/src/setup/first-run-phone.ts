@@ -688,7 +688,7 @@ function noLineYetStageOf(s: PhoneStep): FirstRunPhoneVM {
   // No provider here, or a person was asked for a line: the row says who has it.
   if (!dto.lines?.ready || dto.requests.line || dto.requests.port) return s.rows;
   const onTrial = billingDoorOpen(dto.billing) && dto.billing.status === "trialing";
-  const plan = planOf(dto.billing, onTrial);
+  const plan = phonePlanOf(dto.billing, onTrial);
   if (!s.canSpend && !plan) return s.rows;
   if (plan && returned) return startingStageOf(s);
   if (s.canSpend && choice?.pending) return buyingStageOf(s);
@@ -699,7 +699,7 @@ function noLineYetStageOf(s: PhoneStep): FirstRunPhoneVM {
  * The plan the number starts: none yet (the step's checkout, which takes no trial), or a free trial (its plan starts
  * early, here). Anything else that cannot spend (a failed card, a subscription that ended) is Billing's, on the row.
  */
-function planOf(billing: SetupDto["billing"], onTrial: boolean): FirstRunPhoneVM["plan"] {
+function phonePlanOf(billing: SetupDto["billing"], onTrial: boolean): FirstRunPhoneVM["plan"] {
   const W = FIRST_RUN_PHONE_WORDS;
   return billingDoorOpen(billing) && (billing.status === "none" || onTrial)
     ? { offer: W.planOffer(priceWords(billing.price ?? null)), note: onTrial ? W.planNoteTrial : W.planNote }

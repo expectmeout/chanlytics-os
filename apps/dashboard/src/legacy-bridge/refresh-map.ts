@@ -320,6 +320,11 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // the playbooks' counts. Taking a version away moves the same surfaces as writing one: the channel it was on closes.
   "POST templates/versions": versionWrite,
   "DELETE templates/versions/[id]": versionWrite,
+  // A whole message written at once, from Ask's message card (decision 0055): every channel's version filed and its
+  // WhatsApp one submitted. It moves what a message and its versions move: the settings read the Library and both
+  // composers are drawn from, and the playbooks (a message's category is its versions'). Not the reach-outs: a message
+  // written here is on no chain.
+  "POST templates/message": () => [settingsOverride, playbooksOverride],
   // Settings and the team.
   // Settings FIRST: it carries the version the next save has to send. Today
   // states the workspace's facts; hours, closures, rules and services are the

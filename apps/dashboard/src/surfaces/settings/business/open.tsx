@@ -67,13 +67,20 @@ const btoHoursLine = (hours: HoursIn): string | null => {
   return lines(hours).join(" · ") || null;
 };
 
-/** The workspace's zone, as the workspace list carries it: the one every time on this card is in until a read says otherwise. */
-const btoWorkspaceZone = (): string => {
+/**
+ * The workspace's own zone, as the workspace list carries it (tenants.timezone), or null where it carries none: the
+ * zone the receptionist is composed with, never a default. The notes' fold (answers.tsx) judges a note's end in it, so
+ * with no zone the composer's own fallback decides there too.
+ */
+export const btoStoredZone = (): string | null => {
   // The list carries each workspace's zone (surface-data.ts), whatever else a page types of it.
   const listed: { id: string; timezone?: string | null }[] = workspacesNow() || [];
   const ws = listed.find((t) => t.id === activeWorkspaceNow()) || null;
-  return (ws && ws.timezone) || defaultTimezone() || "America/New_York";
+  return (ws && ws.timezone) || null;
 };
+
+/** The workspace's zone, else the device's default: the one every time on this card is shown in until a read says otherwise. */
+const btoWorkspaceZone = (): string => btoStoredZone() || defaultTimezone() || "America/New_York";
 
 /**
  * The week, as its row states it and its fold edits it. `prompt` is the settings read's preview: the zone the

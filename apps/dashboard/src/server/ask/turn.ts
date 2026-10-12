@@ -86,7 +86,8 @@ export async function turnFacts(rc: ReaderContext): Promise<{ facts: WorkspaceFa
   ]);
   // The rows the pane draws: the follow-ups' only where deals are on (0006).
   const offered = policies.filter((p) => policyClassOffered(p.class, dealsAreOn(sellsBy)));
-  return { facts: workspaceFacts(name, timezone, cfg?.config ?? null, offered), timezone };
+  // At the turn's clock (rc.now), so the notes Ask is told are the ones the receptionist is told today.
+  return { facts: workspaceFacts(name, timezone, cfg?.config ?? null, rc.now, offered), timezone };
 }
 
 export async function prepareAskTurn(ctx: RouteContext, member: Member, ask: AskTurnAsk): Promise<PreparedTurn> {

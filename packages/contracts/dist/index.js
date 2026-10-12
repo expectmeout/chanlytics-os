@@ -7352,6 +7352,7 @@ function promptSafeName(name) {
 }
 
 // src/playbooks/playbook-time.ts
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
 var SWEEP_TICK_MS = 5 * MIN_MS;
 function sweepTickAtOrAfter(ms2) {
   return Math.ceil((ms2 - SWEEP_TICK_MS) / HOUR_MS) * HOUR_MS + SWEEP_TICK_MS;
@@ -7478,7 +7479,6 @@ var SENDING_HOURS_WORDS = {
   between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
 };
 var sendsWaitWords = (hours = SENDING_HOURS_WORDS) => `sends wait for ${hours.range}`;
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
 var PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
 function delayWords(ms2) {
   const minutes = Math.round(ms2 / MIN_MS);
@@ -7486,11 +7486,12 @@ function delayWords(ms2) {
   return minutes === 60 ? "an hour" : plural(minutes / 60, "hour");
 }
 var PLAYBOOK_VETO_DELAY_WORDS = delayWords(PLAYBOOK_VETO_DELAY_MS);
-function vetoRunNotice(name, people, when) {
+function vetoRunNotice(name, people, when, trialUntil) {
   const who = `${people} ${people === 1 ? "person" : "people"}`;
+  const trial = trialUntil ? ` \u201C${name}\u201D is on trial until ${trialUntil}: until then each of its runs waits ${PLAYBOOK_VETO_DELAY_WORDS} for you to stop it, and after it they send on their own.` : "";
   return {
     subject: `Campaign \u201C${name}\u201D sends ${when}: ${who}`,
-    body: `${who} will be sent \u201C${name}\u201D ${when}. Stop the run on Today or in Campaigns before then if it should not go.`
+    body: `${who} will be sent \u201C${name}\u201D ${when}. Stop the run on Today or in Campaigns before then if it should not go.${trial}`
   };
 }
 var PLAYBOOK_NAME_MAX = 80;
@@ -9032,8 +9033,11 @@ var VERSION_CHANNEL_WORDS = {
   email: "Email",
   sms: "Text"
 };
+function versionWord(channel) {
+  return channel === "whatsapp" ? VERSION_CHANNEL_WORDS.whatsapp : VERSION_CHANNEL_WORDS[channel].toLowerCase();
+}
 function noVersionWords(channel) {
-  return channel === "whatsapp" ? "This message has no WhatsApp version." : `This message has no ${VERSION_CHANNEL_WORDS[channel].toLowerCase()} version yet.`;
+  return channel === "whatsapp" ? "This message has no WhatsApp version." : `This message has no ${versionWord(channel)} version yet.`;
 }
 var EMAIL_SUBJECT_MAX = 60;
 var EMAIL_BODY_MAX = 2e3;
@@ -11946,6 +11950,7 @@ function pipelineRail(vm, nowMs) {
 var ASK_MAX_CHARS = 1e3;
 var ASK_MAX_ROUNDS = 3;
 var ASK_TURN_BUDGET_MS = 45e3;
+var ASK_TOOLS_CHARS_CEILING = 72e3;
 var ASK_VOICE_PULSE_MS = 1e4;
 var ASK_VOICE_FIRST_WORDS_MS = 2500;
 var ASK_VOICE_CLAIM_STALE_MS = MIN_MS;
@@ -11976,9 +11981,10 @@ var ASK_CAPS = {
 var ASK_THREAD_VERBS = ["take_over", "hand_back", "snooze", "wake", "archive", "resolve"];
 var ASK_UNDO_MS = 10 * 6e4;
 var ASK_CARD_FRESH_MS = DAY_MS;
+var ASK_PLAN_FRESH_MS = WEEK_MS;
 function askCardLapsed(p, nowMs) {
   const made = typeof p.made_at === "string" ? Date.parse(p.made_at) : NaN;
-  return Number.isFinite(made) && nowMs - made > ASK_CARD_FRESH_MS;
+  return Number.isFinite(made) && nowMs - made > (p.plan ? ASK_PLAN_FRESH_MS : ASK_CARD_FRESH_MS);
 }
 var ASK_SCOPE_KINDS = [
   "thread",
@@ -13458,6 +13464,534 @@ function citationRoute(c, read) {
   return read?.[c.kind].get(c.id)?.route ?? OWN_ROUTES[c.kind]?.(c.id) ?? "";
 }
 
+// src/people/person-merge.ts
+var MERGE_CONSENT_SOURCE = "merge";
+var MERGE_REFUSALS = {
+  same: "Choose two different records to merge.",
+  owner: "Only an owner can merge two records.",
+  deleted: "One of these people was deleted, so there is nothing to merge.",
+  merged: "One of these records was already merged into another.",
+  phones: "These two records have different phone numbers, so they may be two people. They can't be merged.",
+  emails: "These two records have different email addresses, so they may be two people. They can't be merged.",
+  deals: "Both records have an open deal for the same service. Close or move one of them first."
+};
+var MERGE_WORDS = {
+  act: "Merge with another record\u2026",
+  actHint: "Two records of one person become one",
+  pick: "Which record is the same person?",
+  pickPlaceholder: "Search by name, number or email",
+  pickEmpty: "Nobody else matches",
+  pickNone: "Choose the other record",
+  pickReading: "People is still being read; the other records are offered once it lands.",
+  question: (kept, other) => `Merge ${other} into ${kept}?`,
+  detail: (kept, other) => `${kept} keeps their record and takes ${other}'s messages, calls, deals, notes and lists. Their answers about messages and offers become the more careful of the two. ${other}'s record stays as a merged record with no number or address. This cannot be undone.`,
+  typed: (kept) => `Type ${kept} to confirm.`,
+  yes: "Merge the two records",
+  busy: "Merging\u2026",
+  done: (kept, other) => `${other} merged into ${kept}`
+};
+function offersAnswer(a, b, stopped) {
+  if (a === "opted_out" || b === "opted_out") return "opted_out";
+  if (stopped) return "unknown";
+  return a === "opted_in" || b === "opted_in" ? "opted_in" : "unknown";
+}
+function mergedAnswers(a, b) {
+  const stopped = a.consent === "opted_out" || a.dnc || b.consent === "opted_out" || b.dnc;
+  return {
+    consent: stopped ? "opted_out" : a.consent === "opted_in" || b.consent === "opted_in" ? "opted_in" : "unknown",
+    dnc: stopped,
+    marketing: offersAnswer(a.marketing, b.marketing, stopped),
+    emailMarketing: offersAnswer(a.emailMarketing, b.emailMarketing, stopped)
+  };
+}
+
+// src/people/person-consent.ts
+var CONSENT_SOURCES = [
+  { id: "in_person", label: "In person" },
+  { id: "phone", label: "On the phone" },
+  { id: "form", label: "Sign-up form" },
+  { id: "customer_message", label: "Their own message" }
+];
+var CONSENT_RESET_SOURCE = "operator";
+var CARRIER_CONSENT_SOURCE = "carrier";
+var STOP_ENDED_OFFERS_SOURCE = "stop";
+var WHATSAPP_CONSENT_SOURCE = "whatsapp";
+var OFFERS_YES_SOURCES = ["form", "customer_message"];
+function offersYesRefusal(source) {
+  if (source && OFFERS_YES_SOURCES.includes(source)) return null;
+  return "A yes to offers has to be in writing: a sign-up form they signed, or their own message. A spoken yes covers messages about their visit, not offers.";
+}
+var OWN_MESSAGE_REFUSALS = {
+  /** Their own message, with no message named. */
+  missing: "Choose the message where they said it. If they wrote to you somewhere Chanlytics doesn't see, record a sign-up form and say where in the note.",
+  /** The message named is not one this person sent this workspace. */
+  notTheirs: "That isn't a message this person sent you. Choose one of theirs.",
+  /** The message named has nothing written in it. */
+  wordless: "That message has no words in it to show their answer. Choose the one where they said it.",
+  /** A message named beside another way of answering. */
+  notOwnMessage: "Only an answer in their own message names a message.",
+  /** Their own message, for many people at once: one message cannot be every person's. */
+  batch: "Their own message is recorded one person at a time, on their page, where you choose the message. For signed slips, choose Sign-up form."
+};
+function ownMessageRefusal(source, messageId) {
+  if (source === "customer_message") return messageId ? null : OWN_MESSAGE_REFUSALS.missing;
+  return messageId ? OWN_MESSAGE_REFUSALS.notOwnMessage : null;
+}
+function consentSourceLabel(source) {
+  if (!source) return null;
+  const known = CONSENT_SOURCES.find((s) => s.id === source);
+  if (known) return known.label;
+  if (source === CARRIER_CONSENT_SOURCE) return "Reported by the carrier";
+  if (source === STOP_ENDED_OFFERS_SOURCE) return "Ended when they said stop";
+  if (source === WHATSAPP_CONSENT_SOURCE) return "Reported by WhatsApp";
+  if (source === MERGE_CONSENT_SOURCE) return "From a merged record";
+  return source === CONSENT_RESET_SOURCE ? null : source;
+}
+function mayReceive(r2, purpose, channel, about) {
+  return whyNotReceive(r2, purpose, channel, about) === null;
+}
+function bearingOf(c) {
+  return {
+    consent: c.state,
+    dnc: c.dnc,
+    marketing_consent: c.marketing,
+    consent_channels: c.channels,
+    marketing_channels: c.marketingChannels,
+    // Email's own answer and the relationship an offer by email may rest on; absent reads as nothing, and fails closed.
+    email_marketing: c.emailMarketing,
+    has_relationship: c.relationship
+  };
+}
+function whyNotReceive(r2, purpose, channel, about) {
+  if (channel === "email") {
+    if (!r2.email) return "no_address";
+    if (r2.emailSuppressed) return "address_stopped";
+  } else if (!r2.phone) return "no_number";
+  const said = mayMessageFor(bearingOf(r2.consent), purpose, { proactive: true, channel, about });
+  if (said.ok) return null;
+  const { reason } = said;
+  switch (reason) {
+    case "opted_out":
+      return "stopped";
+    case "unsubscribed":
+      return "unsubscribed";
+    case "no_marketing_consent":
+    case "not_opted_in":
+      return "no_yes";
+    default: {
+      const unreachable = reason;
+      return unreachable;
+    }
+  }
+}
+function saidYesTo(r2, purpose, channel, about) {
+  return mayMessageFor(bearingOf(r2.consent), purpose, { proactive: true, channel, about }).ok;
+}
+
+// src/broadcasts/email-offers.ts
+var OFFERS_BY_EMAIL_WORDS = {
+  /** The deployment's campaigns domain is not set up or not verified yet. */
+  noCampaignsDomain: "Offers by email start once the campaigns domain is set up.",
+  /** The business has no postal address on file, which every offer's foot names. */
+  noAddress: "Add your business's address to send offers by email.",
+  /** The workspace's offers are paused by a gate. */
+  paused: "Offers by email are paused while complaints and bounces settle."
+};
+var OFFER_GATES = {
+  complaints: { window: 1e3, above: 1e-3, minimum: 200 },
+  bounces: { window: 500, above: 0.02, minimum: 100 }
+};
+var OFFER_PAUSE_REASONS = ["complaints", "bounces"];
+function offerGate(c) {
+  const { complaints, bounces } = OFFER_GATES;
+  if (c.complaintSample >= complaints.minimum && c.complaints / c.complaintSample > complaints.above)
+    return "complaints";
+  if (c.bounceSample >= bounces.minimum && c.bounces / c.bounceSample > bounces.above) return "bounces";
+  return null;
+}
+function offerPauseOf(at3, reason) {
+  if (!at3) return null;
+  return {
+    at: at3,
+    reason: OFFER_PAUSE_REASONS.includes(reason ?? "") ? reason : null
+  };
+}
+var pausedBecause = (reason) => reason === "complaints" ? "too many people marked offers as spam" : reason === "bounces" ? "too many offers went to addresses that did not accept them" : "complaints and bounces need a look";
+var OFFERS_PAUSED_WORDS = {
+  head: (reason) => `Offers and news by email are paused: ${pausedBecause(reason)}. Appointment messages and replies still go by email.`,
+  /** Where it is told once more, to the person who can do something about it. */
+  fix: "Check your list for old or wrong addresses. We'll turn them back on once it looks right."
+};
+var OFFERS_NOTICE_WORDS = {
+  paused: (reason) => ({
+    title: "Offers and news by email are paused",
+    body: `We paused your offers and news by email: ${pausedBecause(reason)}. They wait until it is fixed: a broadcast or a campaign that goes only by email stops when it reaches them, and one that also goes another way skips the people it would reach by email and goes on for everyone else. Messages about a visit, replies by email and everything on WhatsApp go on. ${OFFERS_PAUSED_WORDS.fix}`
+  })
+};
+function emailOffersOpen(f, couldNotBeChecked) {
+  if (f.campaigns === null) return { ok: false, why: couldNotBeChecked, paused: f.paused };
+  if (!f.campaigns) return { ok: false, why: OFFERS_BY_EMAIL_WORDS.noCampaignsDomain, paused: f.paused };
+  if (!f.address) return { ok: false, why: OFFERS_BY_EMAIL_WORDS.noAddress, paused: f.paused };
+  if (f.paused) return { ok: false, why: OFFERS_BY_EMAIL_WORDS.paused, paused: f.paused };
+  return { ok: true, why: null, paused: null };
+}
+function offersPausedLine(offers) {
+  return offers?.paused ? OFFERS_PAUSED_WORDS.head(offers.paused.reason) : null;
+}
+
+// src/broadcasts/whatsapp-offers.ts
+var PLUS_ONE = /^\+1\d{10}$/;
+var US_PAUSED = "Meta has paused offers on WhatsApp to US numbers. Appointment messages and replies still go.";
+function whatsappOffersPaused(e164) {
+  return typeof e164 === "string" && PLUS_ONE.test(e164.trim());
+}
+function whatsappOffersOpen(e164) {
+  return whatsappOffersPaused(e164) ? { ok: false, why: US_PAUSED, paused: null } : { ok: true, why: null, paused: null };
+}
+
+// src/broadcasts/reach-for.ts
+var DEFAULT_CAMPAIGN_CHANNELS = ["whatsapp"];
+var NEW_PLAYBOOK_TICKS_EVERY_CHANNEL = true;
+function newCampaignChannels(kind, open) {
+  const [first] = open ?? [];
+  if (!open || first === void 0) return [...DEFAULT_CAMPAIGN_CHANNELS];
+  return kind === "playbook" && NEW_PLAYBOOK_TICKS_EVERY_CHANNEL ? [...open] : [first];
+}
+var CHANNEL_WORDS = {
+  noOffersByText: "Texts carry no offers.",
+  /**
+   * What an offer by email says where the read carries no facts about offers (the WhatsApp-alone reading, a page cached before
+   * them, Ask's own): the campaigns domain, which is what its absence is. A read that has them says the reason that is true.
+   */
+  noOffersByEmailYet: OFFERS_BY_EMAIL_WORDS.noCampaignsDomain,
+  noWhatsApp: "Connect a WhatsApp number first.",
+  noTextLine: "No texting line yet.",
+  textLineMock: "Your texting line is a test filing: it sends nothing.",
+  textLineNotActive: "Your texting line is not approved by the carriers yet.",
+  noMailbox: "Set up email in Settings \u203A Connections first.",
+  noEmailDomain: "Email is not switched on for this deployment yet.",
+  /** What could not be asked of the edge just now: not offered, and not guessed to be ready either. */
+  unchecked: "This could not be checked just now."
+};
+function channelNeverCarries(channel, purpose) {
+  return purpose === "marketing" && channel === "sms" ? CHANNEL_WORDS.noOffersByText : null;
+}
+function channelRefuses(channel, purpose, about, ready) {
+  const never = channelNeverCarries(channel, purpose);
+  if (never) return never;
+  if (channel === "whatsapp" && purpose === "marketing") {
+    const offers2 = ready.whatsapp.offers;
+    return offers2 && !offers2.ok ? offers2.why : null;
+  }
+  if (!isOfferByEmail({ channel, purpose, proactive: true, about })) return null;
+  const offers = ready.email.offers;
+  return offers?.ok ? null : offers?.why ?? CHANNEL_WORDS.noOffersByEmailYet;
+}
+function offersNote(ready) {
+  const byWhatsApp2 = channelRefuses("whatsapp", "marketing", "ours", ready) === null;
+  const byEmail = channelRefuses("email", "marketing", "ours", ready) === null;
+  const noText = "The text line is registered with the carriers for replies and appointment messages, so nothing promotional is sent by text";
+  const paused = ready.whatsapp.offers?.why ?? "";
+  if (byWhatsApp2 && byEmail)
+    return `Offers and news go by WhatsApp and by email. ${noText}; someone who has only ever texted you hears about offers on WhatsApp once they say yes there, or by email if you have their address and they have not said no.`;
+  if (byWhatsApp2)
+    return `Offers and news go by WhatsApp only. ${noText}; someone who has only ever texted you hears about offers once they say yes on WhatsApp.`;
+  if (byEmail)
+    return `Offers and news go by email only for now. ${paused} ${noText}; someone hears about offers by email if you have their address and they have not said no.`;
+  return `Offers and news have no channel right now. ${paused} ${noText}, and offers by email wait until email is set up for them.`;
+}
+function channelsReady(f) {
+  const waNow = !f.whatsapp ? { ready: false, why: CHANNEL_WORDS.noWhatsApp } : f.whatsapp.canSend ? { ready: true, why: null } : { ready: false, why: f.whatsapp.refusal ?? CHANNEL_WORDS.noWhatsApp };
+  const wa = f.whatsapp && f.whatsapp.number !== void 0 ? { ...waNow, offers: whatsappOffersOpen(f.whatsapp.number) } : waNow;
+  const sms = !f.textLine ? { ready: false, why: CHANNEL_WORDS.noTextLine } : f.textLine.reg_mock ? { ready: false, why: CHANNEL_WORDS.textLineMock } : f.textLine.sms_state === "active" ? { ready: true, why: null } : { ready: false, why: CHANNEL_WORDS.textLineNotActive };
+  const emailNow = f.email.domain === null ? { ready: false, why: CHANNEL_WORDS.unchecked, unchecked: true } : !f.email.domain ? { ready: false, why: CHANNEL_WORDS.noEmailDomain } : f.email.mailbox ? { ready: true, why: null } : { ready: false, why: CHANNEL_WORDS.noMailbox };
+  const email = f.email.offers ? { ...emailNow, offers: emailOffersOpen(f.email.offers, CHANNEL_WORDS.unchecked) } : emailNow;
+  return { whatsapp: wa, sms, email, ...f.paused ? { paused: true } : {} };
+}
+function channelChoices(ready, purpose, about) {
+  return CONSENT_CHANNELS.map((channel) => {
+    const refuses = channelRefuses(channel, purpose, about, ready);
+    if (refuses) return { channel, ok: false, why: refuses };
+    return { channel, ok: ready[channel].ready, why: ready[channel].why };
+  });
+}
+var HELD_ORDER = {
+  stopped: 0,
+  unsubscribed: 1,
+  no_yes: 2,
+  no_number: 3,
+  no_address: 4,
+  address_stopped: 5,
+  no_channel: 6
+};
+var HELD_ON = Object.keys(HELD_ORDER).sort(
+  (a, b) => HELD_ORDER[a] - HELD_ORDER[b]
+);
+function reachFor(r2, purpose, o) {
+  const usable = CONSENT_CHANNELS.filter(
+    (c) => o.channels.includes(c) && o.ready[c].ready && channelRefuses(c, purpose, o.about, o.ready) === null
+  );
+  if (usable.length === 0) return { channel: null, held: "no_channel" };
+  const last = r2.lastChannel ?? null;
+  const order = last && usable.includes(last) ? [last, ...usable.filter((c) => c !== last)] : usable;
+  const why = [];
+  for (const c of order) {
+    const w = whyNotReceive(r2, purpose, c, o.about);
+    if (w === null) return { channel: c, held: null };
+    why.push(w);
+  }
+  return { channel: null, held: HELD_ON.find((w) => why.includes(w)) ?? "no_channel" };
+}
+function reachSplit(rows2, purpose, o) {
+  const out = { reached: 0, byChannel: { whatsapp: 0, sms: 0, email: 0 }, held: 0, heldBy: {} };
+  for (const r2 of rows2) {
+    const p = reachFor(r2, purpose, o);
+    if (p.channel) {
+      out.reached += 1;
+      out.byChannel[p.channel] += 1;
+    } else {
+      out.held += 1;
+      out.heldBy[p.held] = (out.heldBy[p.held] ?? 0) + 1;
+    }
+  }
+  return out;
+}
+var SPLIT_CHANNEL_WORDS = {
+  whatsapp: "on WhatsApp",
+  sms: "by text",
+  email: "by email"
+};
+function reachSplitWords(s) {
+  const parts2 = CONSENT_CHANNELS.filter((c) => s.byChannel[c] > 0).map(
+    (c) => `${s.byChannel[c]} ${SPLIT_CHANNEL_WORDS[c]}`
+  );
+  const head = s.reached === 0 ? "Reaches nobody" : parts2.length === 1 ? `Reaches ${parts2[0]}` : `Reaches ${s.reached}: ${parts2.join(", ")}`;
+  return s.held > 0 ? `${head} \xB7 ${s.held} can't be reached` : head;
+}
+var CAMPAIGN_MONTH_ALLOWANCE = {
+  email: 2e3,
+  sms: 500
+};
+function heldByAllowance(trigger, purpose) {
+  const t = trigger ? triggerOf(trigger) : null;
+  return !(t?.cls === "booking" && purpose === "conversational");
+}
+function nextMonthStart(tz, atMs) {
+  const { y, m } = dayInZone(tz, atMs);
+  const [year, month] = m === 12 ? [y + 1, 1] : [y, m + 1];
+  return wallClockAt(tz, `${year}-${String(month).padStart(2, "0")}-01`, 0, 0);
+}
+function monthSentAt(read, at3) {
+  const next = read.month_sent_next;
+  if (next && at3 >= next.from) return next.sent;
+  return read.month_sent ?? null;
+}
+function allowanceRoom(channel, sent2) {
+  return Math.max(0, CAMPAIGN_MONTH_ALLOWANCE[channel] - sent2);
+}
+function pastAllowance(people, sent2, trigger, purpose) {
+  if (!heldByAllowance(trigger, purpose)) return [];
+  const room = { email: allowanceRoom("email", sent2.email), sms: allowanceRoom("sms", sent2.sms) };
+  const past = [];
+  for (const p of people) {
+    if (p.channel === "whatsapp") continue;
+    if (room[p.channel] > 0) room[p.channel] -= 1;
+    else past.push(p);
+  }
+  return past;
+}
+function sends(channel, n) {
+  const one = channel === "email" ? "email" : "text";
+  return `${n.toLocaleString("en-US")} ${n === 1 ? one : `${one}s`}`;
+}
+var peopleWord2 = (n) => `${n.toLocaleString("en-US")} ${n === 1 ? "person" : "people"}`;
+function allowanceBeforeSend(byChannel, sent2, trigger, purpose) {
+  if (!sent2 || !heldByAllowance(trigger, purpose)) return null;
+  const lines = [];
+  for (const channel of ["email", "sms"]) {
+    const room = allowanceRoom(channel, sent2[channel]);
+    const past = byChannel[channel] - room;
+    if (past <= 0) continue;
+    lines.push(
+      room === 0 ? `This month's ${sends(channel, CAMPAIGN_MONTH_ALLOWANCE[channel])} are used up: ${peopleWord2(past)} will be held back.` : `Only ${sends(channel, room)} ${room === 1 ? "is" : "are"} left this month: ${past.toLocaleString("en-US")} of these people will be held back.`
+    );
+  }
+  return lines.length > 0 ? lines.join(" ") : null;
+}
+function allowanceLine(channel, used) {
+  const of = CAMPAIGN_MONTH_ALLOWANCE[channel];
+  if (used * 2 < of) return null;
+  const noun = channel === "email" ? "emails" : "texts";
+  return `${used.toLocaleString("en-US")} of ${of.toLocaleString("en-US")} ${noun} used this month`;
+}
+function allowanceLines(sent2) {
+  if (!sent2) return [];
+  return ["email", "sms"].flatMap((channel) => allowanceLine(channel, sent2[channel]) ?? []);
+}
+
+// src/broadcasts/run-words.ts
+var REPLY_WINDOW_HOURS = 72;
+var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * HOUR_MS;
+var REPLY_DAYS = `${REPLY_WINDOW_HOURS / 24} days`;
+var REPLY_WINDOW_WORDS = `within ${REPLY_DAYS}`;
+var STUCK_DAYS = "30 days";
+function isReplyTo(sentAt, at3) {
+  const s = Date.parse(sentAt);
+  const a = Date.parse(at3);
+  return Number.isFinite(s) && Number.isFinite(a) && a > s && a - s <= REPLY_WINDOW_MS;
+}
+var RECIPIENT_REASON_HEARD = "heard_this_week";
+var LEFT_OUT_FACTS = { breath: RECIPIENT_REASON_HEARD };
+function leftOutByFacts(facts) {
+  return facts.breath === RECIPIENT_REASON_HEARD;
+}
+function heardWithin(sendsAt, now) {
+  const t = Math.max(sendsAt, now);
+  return (at3) => at3 >= t - PLAYBOOK_BREATH_MS && at3 <= t + PLAYBOOK_BREATH_MS;
+}
+function breathTouchOf(times, sendsAt, now) {
+  const within2 = heardWithin(sendsAt, now);
+  let latest = null;
+  for (const at3 of times.map(Date.parse)) if (within2(at3) && (latest === null || at3 > latest)) latest = at3;
+  return latest;
+}
+function leftOutBy(touches, sendsAt, now) {
+  return new Set(
+    Object.entries(touches).filter(([, times]) => breathTouchOf(times, sendsAt, now) !== null).map(([id]) => id)
+  );
+}
+function heardFor(heard, sendsAt, now) {
+  const within2 = heardWithin(sendsAt, now);
+  const heardBy = { whatsapp: 0, sms: 0, email: 0 };
+  for (const h of heard) if (h.times.some(within2)) heardBy[h.channel] += 1;
+  return { heard: heardBy.whatsapp + heardBy.sms + heardBy.email, heardBy };
+}
+function breathSplit(reached, idOf, out) {
+  const goes = [];
+  const leftOut2 = [];
+  for (const person of reached) (out.has(idOf(person)) ? leftOut2 : goes).push(person);
+  return { goes, leftOut: leftOut2 };
+}
+function reachAfterBreath(split, heardBy, breathe) {
+  if (!breathe) return split;
+  const byChannel = {
+    whatsapp: split.byChannel.whatsapp - (heardBy.whatsapp ?? 0),
+    sms: split.byChannel.sms - (heardBy.sms ?? 0),
+    email: split.byChannel.email - (heardBy.email ?? 0)
+  };
+  return { ...split, byChannel, reached: byChannel.whatsapp + byChannel.sms + byChannel.email };
+}
+var BREATH_WHY = "from you within a week of it";
+var hearsOrHear = (n) => n === 1 ? "hears" : "hear";
+function breathWaitWords(n, who) {
+  return `${who} ${hearsOrHear(n)} from you within a week of today and ${n === 1 ? "waits" : "wait"}`;
+}
+function heardWords(n, breathe) {
+  if (!(n > 0)) return null;
+  if (breathe) return `${n} left out: they hear ${BREATH_WHY}`;
+  return `${n === 1 ? "One" : n} of them ${hearsOrHear(n)} ${BREATH_WHY}.`;
+}
+function heardTooWords(n) {
+  return `Also send to the ${n === 1 ? "one" : n} who ${hearsOrHear(n)} ${BREATH_WHY}`;
+}
+function allLeftOutWords(label, n) {
+  return `Everyone it reaches on \u201C${label}\u201D hears ${BREATH_WHY}, so ${n === 1 ? "the one person is" : `all ${n} are`} left out.`;
+}
+var HEARD_UNREAD_WORDS = `Who hears ${BREATH_WHY} could not be read just now: the send still leaves them out, so it may go to fewer.`;
+function goesToOf(receipt) {
+  return receipt.recipient_count - (receipt.left_out ?? 0);
+}
+var HELD_REASONS = {
+  opted_out: "asked to stop",
+  not_opted_in: "no recorded yes",
+  // The reason the send job writes when the OTHER yes is the missing one. It was
+  // added to the wire (00095) and not to these words, so the owner read the raw
+  // enum `no_marketing_consent` on the broadcast's own detail pane -- and the
+  // distinction it draws is the entire point of the split, so it is the last one
+  // that should have arrived untranslated.
+  no_marketing_consent: "no yes to offers",
+  no_phone: "no number",
+  // The channel picked was email and no address is on file (step 3), or no channel the send ticks could carry it.
+  no_address: "no email address",
+  no_channel: "no channel it can go by",
+  sms_line_not_active: "the texting line is not active",
+  // The workspace's month of emails or texts is used up (CAMPAIGN_MONTH_ALLOWANCE): held on its channel, never moved.
+  month_allowance: "this month's allowance is used up",
+  // A send by hand left them out: another message from a campaign or a broadcast reaches them within a week of it, before
+  // or after (the week's breath), and they were never sent it. Spelled out rather than computed from
+  // RECIPIENT_REASON_HEARD, as outcome_unknown is below; run-report.test.mjs holds the two spellings together.
+  heard_this_week: "not sent: they hear from you within a week of it",
+  // The message's WhatsApp version is no longer one a send can use: it holds the people who go by WhatsApp, and only them.
+  template_not_approved: "its WhatsApp version is no longer approved",
+  // The number is on file but no thread answers to it on this line: a stored
+  // number that does not normalise, or one no contact row matches.
+  no_thread: "no thread for that number",
+  human_has_it: "a person had the thread",
+  paused: "the workspace was paused",
+  superseded_by_human: "a person answered first",
+  sms_carries_no_promotions: "no offers by text",
+  // The campaigns domain offers leave from is not this deployment's to use, or the provider does not verify it: the business's
+  // news by email is an offer at the door (decision D2), so it waits as an offer does. Each person's own skip, final.
+  email_marketing_disabled: "offers and news by email can't leave yet: the campaigns domain isn't switched on",
+  // The workspace's offers by email are paused while complaints or bounces settle (email-offers.ts), and the business's news
+  // by email with them (decision D2); a visit's reminder and a reply still go.
+  email_offers_paused: "offers and news by email are paused",
+  // An offer's foot names the business's address, and it has none on file: the person is held until it does.
+  no_business_address: "no business address on file",
+  email_suppressed: "their email address stopped accepting mail",
+  recipient_changed: "their email address changed",
+  erased: "deleted",
+  // The provider refused the send, on whichever channel the person was reached by: a page that knows the channel says
+  // it by SEND_REFUSED_WORDS, and a row that does not (a person's own page, a run made before rows kept theirs) says this.
+  send_failed: "the provider refused it",
+  missing_value: "a value was missing",
+  // A reminder's appointment moved, was cancelled or marked missed, or left the calendar between the run and the send
+  // (calendar/feed-appointments.ts appointmentHolds): held, never sent for a time that no longer stands.
+  appointment_changed: "their appointment moved or was cancelled",
+  // Spelled out rather than computed from OUTCOME_UNKNOWN: a computed key makes
+  // this object opaque to the bundler, which then carries the whole map into
+  // every package that imports anything from here. core-broadcast.test.mjs
+  // holds the two spellings together.
+  outcome_unknown: "a run that did not finish",
+  // Reach out's (a cold email), short, for a run's line.
+  unsubscribed: "unsubscribed",
+  outreach_is_email_only: "cold email goes by email only",
+  outreach_not_a_lead: "not a business your searches found",
+  outreach_lead_closed: "no longer being written to",
+  outreach_suppressed: "on the never-again list",
+  outreach_wrote_back: "wrote back or called",
+  outreach_away: "away until the day they're back",
+  outreach_stopped: "you stopped writing to them",
+  outreach_without_unsubscribe: "no unsubscribe link",
+  outreach_needs_own_domain: "not from your own domain",
+  sending_domain_not_ready: "the domain isn't sending",
+  sending_domain_at_cap: "the domain's day is full"
+};
+var DELIVERY_RECEIPTS_WORDS = "each channel's own receipts";
+var DELIVERY_RECEIPTS_TIP = "Each channel's own receipts";
+var HELD_WHEN_COUNTED = [
+  // The two the workspace, not the person, holds an email for: its offers and news by email paused by a gate, and a
+  // campaigns domain that cannot be used. A run that also goes another way skips each email person for them, one by one,
+  // and goes on (core broadcast-stops.ts), and must say that is what happened to them.
+  "email_offers_paused",
+  "email_marketing_disabled",
+  // The week's breath: a send by hand leaves out whoever hears from you within a week of it, and its tally counts them
+  // held, as the run's own page files them under Held back.
+  RECIPIENT_REASON_HEARD,
+  // The workspace's month of emails or texts used up (CAMPAIGN_MONTH_ALLOWANCE).
+  "month_allowance"
+];
+function finishedRunHeldWhy(counted3) {
+  const why = [
+    HELD_REASONS.not_opted_in,
+    HELD_REASONS.opted_out,
+    HELD_REASONS.no_phone,
+    HELD_REASONS.human_has_it,
+    ...HELD_WHEN_COUNTED.filter((r2) => counted3.includes(r2)).map((r2) => HELD_REASONS[r2])
+  ];
+  return `${why.join(", ")}, or ${HELD_REASONS.outcome_unknown}`;
+}
+
 // src/ask/ask-suggestions.ts
 var CHIPS_OF = {
   pipeline: "people",
@@ -13952,371 +14486,6 @@ function pausedVoiceFacts(businessName) {
   ].join("\n");
 }
 
-// src/people/person-merge.ts
-var MERGE_CONSENT_SOURCE = "merge";
-var MERGE_REFUSALS = {
-  same: "Choose two different records to merge.",
-  owner: "Only an owner can merge two records.",
-  deleted: "One of these people was deleted, so there is nothing to merge.",
-  merged: "One of these records was already merged into another.",
-  phones: "These two records have different phone numbers, so they may be two people. They can't be merged.",
-  emails: "These two records have different email addresses, so they may be two people. They can't be merged.",
-  deals: "Both records have an open deal for the same service. Close or move one of them first."
-};
-var MERGE_WORDS = {
-  act: "Merge with another record\u2026",
-  actHint: "Two records of one person become one",
-  pick: "Which record is the same person?",
-  pickPlaceholder: "Search by name, number or email",
-  pickEmpty: "Nobody else matches",
-  pickNone: "Choose the other record",
-  pickReading: "People is still being read; the other records are offered once it lands.",
-  question: (kept, other) => `Merge ${other} into ${kept}?`,
-  detail: (kept, other) => `${kept} keeps their record and takes ${other}'s messages, calls, deals, notes and lists. Their answers about messages and offers become the more careful of the two. ${other}'s record stays as a merged record with no number or address. This cannot be undone.`,
-  typed: (kept) => `Type ${kept} to confirm.`,
-  yes: "Merge the two records",
-  busy: "Merging\u2026",
-  done: (kept, other) => `${other} merged into ${kept}`
-};
-function offersAnswer(a, b, stopped) {
-  if (a === "opted_out" || b === "opted_out") return "opted_out";
-  if (stopped) return "unknown";
-  return a === "opted_in" || b === "opted_in" ? "opted_in" : "unknown";
-}
-function mergedAnswers(a, b) {
-  const stopped = a.consent === "opted_out" || a.dnc || b.consent === "opted_out" || b.dnc;
-  return {
-    consent: stopped ? "opted_out" : a.consent === "opted_in" || b.consent === "opted_in" ? "opted_in" : "unknown",
-    dnc: stopped,
-    marketing: offersAnswer(a.marketing, b.marketing, stopped),
-    emailMarketing: offersAnswer(a.emailMarketing, b.emailMarketing, stopped)
-  };
-}
-
-// src/people/person-consent.ts
-var CONSENT_SOURCES = [
-  { id: "in_person", label: "In person" },
-  { id: "phone", label: "On the phone" },
-  { id: "form", label: "Sign-up form" },
-  { id: "customer_message", label: "Their own message" }
-];
-var CONSENT_RESET_SOURCE = "operator";
-var CARRIER_CONSENT_SOURCE = "carrier";
-var STOP_ENDED_OFFERS_SOURCE = "stop";
-var WHATSAPP_CONSENT_SOURCE = "whatsapp";
-var OFFERS_YES_SOURCES = ["form", "customer_message"];
-function offersYesRefusal(source) {
-  if (source && OFFERS_YES_SOURCES.includes(source)) return null;
-  return "A yes to offers has to be in writing: a sign-up form they signed, or their own message. A spoken yes covers messages about their visit, not offers.";
-}
-var OWN_MESSAGE_REFUSALS = {
-  /** Their own message, with no message named. */
-  missing: "Choose the message where they said it. If they wrote to you somewhere Chanlytics doesn't see, record a sign-up form and say where in the note.",
-  /** The message named is not one this person sent this workspace. */
-  notTheirs: "That isn't a message this person sent you. Choose one of theirs.",
-  /** The message named has nothing written in it. */
-  wordless: "That message has no words in it to show their answer. Choose the one where they said it.",
-  /** A message named beside another way of answering. */
-  notOwnMessage: "Only an answer in their own message names a message.",
-  /** Their own message, for many people at once: one message cannot be every person's. */
-  batch: "Their own message is recorded one person at a time, on their page, where you choose the message. For signed slips, choose Sign-up form."
-};
-function ownMessageRefusal(source, messageId) {
-  if (source === "customer_message") return messageId ? null : OWN_MESSAGE_REFUSALS.missing;
-  return messageId ? OWN_MESSAGE_REFUSALS.notOwnMessage : null;
-}
-function consentSourceLabel(source) {
-  if (!source) return null;
-  const known = CONSENT_SOURCES.find((s) => s.id === source);
-  if (known) return known.label;
-  if (source === CARRIER_CONSENT_SOURCE) return "Reported by the carrier";
-  if (source === STOP_ENDED_OFFERS_SOURCE) return "Ended when they said stop";
-  if (source === WHATSAPP_CONSENT_SOURCE) return "Reported by WhatsApp";
-  if (source === MERGE_CONSENT_SOURCE) return "From a merged record";
-  return source === CONSENT_RESET_SOURCE ? null : source;
-}
-function mayReceive(r2, purpose, channel, about) {
-  return whyNotReceive(r2, purpose, channel, about) === null;
-}
-function bearingOf(c) {
-  return {
-    consent: c.state,
-    dnc: c.dnc,
-    marketing_consent: c.marketing,
-    consent_channels: c.channels,
-    marketing_channels: c.marketingChannels,
-    // Email's own answer and the relationship an offer by email may rest on; absent reads as nothing, and fails closed.
-    email_marketing: c.emailMarketing,
-    has_relationship: c.relationship
-  };
-}
-function whyNotReceive(r2, purpose, channel, about) {
-  if (channel === "email") {
-    if (!r2.email) return "no_address";
-    if (r2.emailSuppressed) return "address_stopped";
-  } else if (!r2.phone) return "no_number";
-  const said = mayMessageFor(bearingOf(r2.consent), purpose, { proactive: true, channel, about });
-  if (said.ok) return null;
-  const { reason } = said;
-  switch (reason) {
-    case "opted_out":
-      return "stopped";
-    case "unsubscribed":
-      return "unsubscribed";
-    case "no_marketing_consent":
-    case "not_opted_in":
-      return "no_yes";
-    default: {
-      const unreachable = reason;
-      return unreachable;
-    }
-  }
-}
-function saidYesTo(r2, purpose, channel, about) {
-  return mayMessageFor(bearingOf(r2.consent), purpose, { proactive: true, channel, about }).ok;
-}
-
-// src/broadcasts/email-offers.ts
-var OFFERS_BY_EMAIL_WORDS = {
-  /** The deployment's campaigns domain is not set up or not verified yet. */
-  noCampaignsDomain: "Offers by email start once the campaigns domain is set up.",
-  /** The business has no postal address on file, which every offer's foot names. */
-  noAddress: "Add your business's address to send offers by email.",
-  /** The workspace's offers are paused by a gate. */
-  paused: "Offers by email are paused while complaints and bounces settle."
-};
-var OFFER_GATES = {
-  complaints: { window: 1e3, above: 1e-3, minimum: 200 },
-  bounces: { window: 500, above: 0.02, minimum: 100 }
-};
-var OFFER_PAUSE_REASONS = ["complaints", "bounces"];
-function offerGate(c) {
-  const { complaints, bounces } = OFFER_GATES;
-  if (c.complaintSample >= complaints.minimum && c.complaints / c.complaintSample > complaints.above)
-    return "complaints";
-  if (c.bounceSample >= bounces.minimum && c.bounces / c.bounceSample > bounces.above) return "bounces";
-  return null;
-}
-function offerPauseOf(at3, reason) {
-  if (!at3) return null;
-  return {
-    at: at3,
-    reason: OFFER_PAUSE_REASONS.includes(reason ?? "") ? reason : null
-  };
-}
-var pausedBecause = (reason) => reason === "complaints" ? "too many people marked offers as spam" : reason === "bounces" ? "too many offers went to addresses that did not accept them" : "complaints and bounces need a look";
-var OFFERS_PAUSED_WORDS = {
-  head: (reason) => `Offers and news by email are paused: ${pausedBecause(reason)}. Appointment messages and replies still go by email.`,
-  /** Where it is told once more, to the person who can do something about it. */
-  fix: "Check your list for old or wrong addresses. We'll turn them back on once it looks right."
-};
-var OFFERS_NOTICE_WORDS = {
-  paused: (reason) => ({
-    title: "Offers and news by email are paused",
-    body: `We paused your offers and news by email: ${pausedBecause(reason)}. They wait until it is fixed: a broadcast or a campaign that goes only by email stops when it reaches them, and one that also goes another way skips the people it would reach by email and goes on for everyone else. Messages about a visit, replies by email and everything on WhatsApp go on. ${OFFERS_PAUSED_WORDS.fix}`
-  })
-};
-function emailOffersOpen(f, couldNotBeChecked) {
-  if (f.campaigns === null) return { ok: false, why: couldNotBeChecked, paused: f.paused };
-  if (!f.campaigns) return { ok: false, why: OFFERS_BY_EMAIL_WORDS.noCampaignsDomain, paused: f.paused };
-  if (!f.address) return { ok: false, why: OFFERS_BY_EMAIL_WORDS.noAddress, paused: f.paused };
-  if (f.paused) return { ok: false, why: OFFERS_BY_EMAIL_WORDS.paused, paused: f.paused };
-  return { ok: true, why: null, paused: null };
-}
-function offersPausedLine(offers) {
-  return offers?.paused ? OFFERS_PAUSED_WORDS.head(offers.paused.reason) : null;
-}
-
-// src/broadcasts/whatsapp-offers.ts
-var PLUS_ONE = /^\+1\d{10}$/;
-var US_PAUSED = "Meta has paused offers on WhatsApp to US numbers. Appointment messages and replies still go.";
-function whatsappOffersPaused(e164) {
-  return typeof e164 === "string" && PLUS_ONE.test(e164.trim());
-}
-function whatsappOffersOpen(e164) {
-  return whatsappOffersPaused(e164) ? { ok: false, why: US_PAUSED, paused: null } : { ok: true, why: null, paused: null };
-}
-
-// src/broadcasts/reach-for.ts
-var DEFAULT_CAMPAIGN_CHANNELS = ["whatsapp"];
-var NEW_PLAYBOOK_TICKS_EVERY_CHANNEL = true;
-function newCampaignChannels(kind, open) {
-  const [first] = open ?? [];
-  if (!open || first === void 0) return [...DEFAULT_CAMPAIGN_CHANNELS];
-  return kind === "playbook" && NEW_PLAYBOOK_TICKS_EVERY_CHANNEL ? [...open] : [first];
-}
-var CHANNEL_WORDS = {
-  noOffersByText: "Texts carry no offers.",
-  /**
-   * What an offer by email says where the read carries no facts about offers (the WhatsApp-alone reading, a page cached before
-   * them, Ask's own): the campaigns domain, which is what its absence is. A read that has them says the reason that is true.
-   */
-  noOffersByEmailYet: OFFERS_BY_EMAIL_WORDS.noCampaignsDomain,
-  noWhatsApp: "Connect a WhatsApp number first.",
-  noTextLine: "No texting line yet.",
-  textLineMock: "Your texting line is a test filing: it sends nothing.",
-  textLineNotActive: "Your texting line is not approved by the carriers yet.",
-  noMailbox: "Set up email in Settings \u203A Connections first.",
-  noEmailDomain: "Email is not switched on for this deployment yet.",
-  /** What could not be asked of the edge just now: not offered, and not guessed to be ready either. */
-  unchecked: "This could not be checked just now."
-};
-function channelNeverCarries(channel, purpose) {
-  return purpose === "marketing" && channel === "sms" ? CHANNEL_WORDS.noOffersByText : null;
-}
-function channelRefuses(channel, purpose, about, ready) {
-  const never = channelNeverCarries(channel, purpose);
-  if (never) return never;
-  if (channel === "whatsapp" && purpose === "marketing") {
-    const offers2 = ready.whatsapp.offers;
-    return offers2 && !offers2.ok ? offers2.why : null;
-  }
-  if (!isOfferByEmail({ channel, purpose, proactive: true, about })) return null;
-  const offers = ready.email.offers;
-  return offers?.ok ? null : offers?.why ?? CHANNEL_WORDS.noOffersByEmailYet;
-}
-function offersNote(ready) {
-  const byWhatsApp2 = channelRefuses("whatsapp", "marketing", "ours", ready) === null;
-  const byEmail = channelRefuses("email", "marketing", "ours", ready) === null;
-  const noText = "The text line is registered with the carriers for replies and appointment messages, so nothing promotional is sent by text";
-  const paused = ready.whatsapp.offers?.why ?? "";
-  if (byWhatsApp2 && byEmail)
-    return `Offers and news go by WhatsApp and by email. ${noText}; someone who has only ever texted you hears about offers on WhatsApp once they say yes there, or by email if you have their address and they have not said no.`;
-  if (byWhatsApp2)
-    return `Offers and news go by WhatsApp only. ${noText}; someone who has only ever texted you hears about offers once they say yes on WhatsApp.`;
-  if (byEmail)
-    return `Offers and news go by email only for now. ${paused} ${noText}; someone hears about offers by email if you have their address and they have not said no.`;
-  return `Offers and news have no channel right now. ${paused} ${noText}, and offers by email wait until email is set up for them.`;
-}
-function channelsReady(f) {
-  const waNow = !f.whatsapp ? { ready: false, why: CHANNEL_WORDS.noWhatsApp } : f.whatsapp.canSend ? { ready: true, why: null } : { ready: false, why: f.whatsapp.refusal ?? CHANNEL_WORDS.noWhatsApp };
-  const wa = f.whatsapp && f.whatsapp.number !== void 0 ? { ...waNow, offers: whatsappOffersOpen(f.whatsapp.number) } : waNow;
-  const sms = !f.textLine ? { ready: false, why: CHANNEL_WORDS.noTextLine } : f.textLine.reg_mock ? { ready: false, why: CHANNEL_WORDS.textLineMock } : f.textLine.sms_state === "active" ? { ready: true, why: null } : { ready: false, why: CHANNEL_WORDS.textLineNotActive };
-  const emailNow = f.email.domain === null ? { ready: false, why: CHANNEL_WORDS.unchecked } : !f.email.domain ? { ready: false, why: CHANNEL_WORDS.noEmailDomain } : f.email.mailbox ? { ready: true, why: null } : { ready: false, why: CHANNEL_WORDS.noMailbox };
-  const email = f.email.offers ? { ...emailNow, offers: emailOffersOpen(f.email.offers, CHANNEL_WORDS.unchecked) } : emailNow;
-  return { whatsapp: wa, sms, email, ...f.paused ? { paused: true } : {} };
-}
-function channelChoices(ready, purpose, about) {
-  return CONSENT_CHANNELS.map((channel) => {
-    const refuses = channelRefuses(channel, purpose, about, ready);
-    if (refuses) return { channel, ok: false, why: refuses };
-    return { channel, ok: ready[channel].ready, why: ready[channel].why };
-  });
-}
-var HELD_ORDER = {
-  stopped: 0,
-  unsubscribed: 1,
-  no_yes: 2,
-  no_number: 3,
-  no_address: 4,
-  address_stopped: 5,
-  no_channel: 6
-};
-var HELD_ON = Object.keys(HELD_ORDER).sort(
-  (a, b) => HELD_ORDER[a] - HELD_ORDER[b]
-);
-function reachFor(r2, purpose, o) {
-  const usable = CONSENT_CHANNELS.filter(
-    (c) => o.channels.includes(c) && o.ready[c].ready && channelRefuses(c, purpose, o.about, o.ready) === null
-  );
-  if (usable.length === 0) return { channel: null, held: "no_channel" };
-  const last = r2.lastChannel ?? null;
-  const order = last && usable.includes(last) ? [last, ...usable.filter((c) => c !== last)] : usable;
-  const why = [];
-  for (const c of order) {
-    const w = whyNotReceive(r2, purpose, c, o.about);
-    if (w === null) return { channel: c, held: null };
-    why.push(w);
-  }
-  return { channel: null, held: HELD_ON.find((w) => why.includes(w)) ?? "no_channel" };
-}
-function reachSplit(rows2, purpose, o) {
-  const out = { reached: 0, byChannel: { whatsapp: 0, sms: 0, email: 0 }, held: 0, heldBy: {} };
-  for (const r2 of rows2) {
-    const p = reachFor(r2, purpose, o);
-    if (p.channel) {
-      out.reached += 1;
-      out.byChannel[p.channel] += 1;
-    } else {
-      out.held += 1;
-      out.heldBy[p.held] = (out.heldBy[p.held] ?? 0) + 1;
-    }
-  }
-  return out;
-}
-var SPLIT_CHANNEL_WORDS = {
-  whatsapp: "on WhatsApp",
-  sms: "by text",
-  email: "by email"
-};
-function reachSplitWords(s) {
-  const parts2 = CONSENT_CHANNELS.filter((c) => s.byChannel[c] > 0).map(
-    (c) => `${s.byChannel[c]} ${SPLIT_CHANNEL_WORDS[c]}`
-  );
-  const head = s.reached === 0 ? "Reaches nobody" : parts2.length === 1 ? `Reaches ${parts2[0]}` : `Reaches ${s.reached}: ${parts2.join(", ")}`;
-  return s.held > 0 ? `${head} \xB7 ${s.held} can't be reached` : head;
-}
-var CAMPAIGN_MONTH_ALLOWANCE = {
-  email: 2e3,
-  sms: 500
-};
-function heldByAllowance(trigger, purpose) {
-  const t = trigger ? triggerOf(trigger) : null;
-  return !(t?.cls === "booking" && purpose === "conversational");
-}
-function nextMonthStart(tz, atMs) {
-  const { y, m } = dayInZone(tz, atMs);
-  const [year, month] = m === 12 ? [y + 1, 1] : [y, m + 1];
-  return wallClockAt(tz, `${year}-${String(month).padStart(2, "0")}-01`, 0, 0);
-}
-function monthSentAt(read, at3) {
-  const next = read.month_sent_next;
-  if (next && at3 >= next.from) return next.sent;
-  return read.month_sent ?? null;
-}
-function allowanceRoom(channel, sent2) {
-  return Math.max(0, CAMPAIGN_MONTH_ALLOWANCE[channel] - sent2);
-}
-function pastAllowance(people, sent2, trigger, purpose) {
-  if (!heldByAllowance(trigger, purpose)) return [];
-  const room = { email: allowanceRoom("email", sent2.email), sms: allowanceRoom("sms", sent2.sms) };
-  const past = [];
-  for (const p of people) {
-    if (p.channel === "whatsapp") continue;
-    if (room[p.channel] > 0) room[p.channel] -= 1;
-    else past.push(p);
-  }
-  return past;
-}
-function sends(channel, n) {
-  const one = channel === "email" ? "email" : "text";
-  return `${n.toLocaleString("en-US")} ${n === 1 ? one : `${one}s`}`;
-}
-var peopleWord2 = (n) => `${n.toLocaleString("en-US")} ${n === 1 ? "person" : "people"}`;
-function allowanceBeforeSend(byChannel, sent2, trigger, purpose) {
-  if (!sent2 || !heldByAllowance(trigger, purpose)) return null;
-  const lines = [];
-  for (const channel of ["email", "sms"]) {
-    const room = allowanceRoom(channel, sent2[channel]);
-    const past = byChannel[channel] - room;
-    if (past <= 0) continue;
-    lines.push(
-      room === 0 ? `This month's ${sends(channel, CAMPAIGN_MONTH_ALLOWANCE[channel])} are used up: ${peopleWord2(past)} will be held back.` : `Only ${sends(channel, room)} ${room === 1 ? "is" : "are"} left this month: ${past.toLocaleString("en-US")} of these people will be held back.`
-    );
-  }
-  return lines.length > 0 ? lines.join(" ") : null;
-}
-function allowanceLine(channel, used) {
-  const of = CAMPAIGN_MONTH_ALLOWANCE[channel];
-  if (used * 2 < of) return null;
-  const noun = channel === "email" ? "emails" : "texts";
-  return `${used.toLocaleString("en-US")} of ${of.toLocaleString("en-US")} ${noun} used this month`;
-}
-function allowanceLines(sent2) {
-  if (!sent2) return [];
-  return ["email", "sms"].flatMap((channel) => allowanceLine(channel, sent2[channel]) ?? []);
-}
-
 // src/broadcasts/channels-standing.ts
 var CHANNELS_DOOR = "admin/integrations";
 var BILLING_DOOR = "admin/billing";
@@ -14549,6 +14718,10 @@ var LIFECYCLE_WORDS = {
     quiet: "Brings back people who've gone quiet"
   },
   monthsOffer: { name: "The month's offer" },
+  /** A campaign past its last day (00416 `until`), its state: "Ended Oct 1", the day by the business's calendar. */
+  ended: (day) => `Ended ${day}`,
+  /** A campaign on trial (00416 `trial_until`), its state: "On trial until Oct 9", the day its trial ends. */
+  onTrial: (day) => `On trial until ${day}`,
   gone: {
     title: "That campaign isn't here any more.",
     body: "Its runs stay in Sent, with their numbers."
@@ -14927,10 +15100,12 @@ var stated = (words3, tone, paused = false, short = words3) => ({
   paused
 });
 function lifecycleStateOf(p) {
+  if (p.ended) return stated(LIFECYCLE_WORDS.ended(p.ended), "plain");
   if (p.off) return stated("Not running here", "plain");
   const paused = p.state !== "running";
   if (p.totals.waiting) return stated(RUN_WAITING_WORDS, "warn", paused);
   if (paused) return stated("Paused", "plain", true);
+  if (p.trial) return stated(LIFECYCLE_WORDS.onTrial(p.trial), "ok");
   return stated(`On \xB7 ${lifecycleClock(p)}`, "ok", false, lifecycleClock(p));
 }
 function lifecycleChainStateOf(c) {
@@ -14948,8 +15123,338 @@ function tallyWords(n, t) {
   ].filter(Boolean).join(" \xB7 ");
 }
 
+// src/shared/unknown.ts
+var finiteOrNull = (v) => typeof v === "number" && Number.isFinite(v) ? v : null;
+var isCount = (v) => typeof v === "number" && Number.isInteger(v) && v >= 0;
+var finiteOrZero = (v) => typeof v === "number" && Number.isFinite(v) ? v : 0;
+var trimmedOrNull = (v) => typeof v === "string" && v.trim() ? v.trim() : null;
+var nonBlankOrNull = (v) => typeof v === "string" && v.trim() ? v : null;
+var recordOrNull = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : null;
+var lineOrNull = (s) => {
+  const t = (s ?? "").replace(/[\r\n]+/g, " ").trim();
+  return t ? t.slice(0, 200) : null;
+};
+
+// src/templates/templates.ts
+var TEMPLATE_STATUS_WORDS = {
+  approved: "Approved",
+  pending: "In review",
+  rejected: "Refused",
+  paused: "Paused",
+  disabled: "Disabled"
+};
+var TEMPLATE_LANGUAGES = WHATSAPP_LANGUAGES;
+var TEMPLATE_CATEGORIES = ["marketing", "utility"];
+var TEMPLATE_BODY_MAX = 1024;
+var TEMPLATE_FOOTER_MAX = 60;
+var TEMPLATE_EXAMPLE_MAX = 100;
+var TEMPLATE_LABEL_MAX = 40;
+var TEMPLATE_NAME_MAX = 60;
+var TEMPLATE_NAME_WORDS = "The name needs letters, digits or underscores.";
+var TEMPLATE_BODY_WORDS = `The message must be under ${TEMPLATE_BODY_MAX} characters.`;
+var TEMPLATE_SAME_NAME_WORDS = "A template with that name and language already exists. Pick another name.";
+var TEMPLATE_BUTTON_TEXT_MAX = 25;
+var NAME = /^[a-z0-9_]{1,512}$/;
+function templateNameOk(name) {
+  return NAME.test(name);
+}
+function slugTemplateName(raw) {
+  return String(raw ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, TEMPLATE_NAME_MAX).replace(/_+$/g, "");
+}
+var bodyAsReviewed = (body) => String(body ?? "").replace(/\r\n/g, "\n").trim();
+function templateBodyTooLong(body) {
+  return bodyAsReviewed(body).length > TEMPLATE_BODY_MAX;
+}
+function placeholdersOf(body) {
+  const set = /* @__PURE__ */ new Set();
+  for (const m of String(body ?? "").matchAll(/\{\{(\d+)\}\}/g)) set.add(Number(m[1]));
+  return [...set].sort((a, b) => a - b);
+}
+function placeholdersSequential(positions) {
+  return positions.every((n, i) => n === i + 1);
+}
+function validateTemplateDraft(d) {
+  const name = slugTemplateName(d.name);
+  if (!name || !templateNameOk(name)) return { ok: false, error: TEMPLATE_NAME_WORDS };
+  if (!TEMPLATE_LANGUAGES.some((l) => l.id === d.language))
+    return { ok: false, error: "Pick a language from the list." };
+  if (!TEMPLATE_CATEGORIES.includes(d.category))
+    return { ok: false, error: "A template is marketing or utility." };
+  const body = bodyAsReviewed(d.body);
+  if (!body) return { ok: false, error: "Write the message." };
+  if (templateBodyTooLong(body)) return { ok: false, error: TEMPLATE_BODY_WORDS };
+  const slots = placeholdersOf(body);
+  if (!placeholdersSequential(slots))
+    return { ok: false, error: "Number the values {{1}}, {{2}}, {{3}} in order, with no gaps." };
+  const examples = (d.examples ?? []).map((e) => String(e ?? "").trim());
+  if (examples.length !== slots.length)
+    return {
+      ok: false,
+      error: slots.length === 0 ? "This message takes no values, so it needs no examples." : `Give one example for each of the ${slots.length} value${slots.length === 1 ? "" : "s"} \u2014 WhatsApp's reviewers read them.`
+    };
+  if (examples.some((e) => !e || e.length > TEMPLATE_EXAMPLE_MAX))
+    return { ok: false, error: `Every example needs words, under ${TEMPLATE_EXAMPLE_MAX} characters.` };
+  const footer = d.footer ? String(d.footer).trim() : "";
+  if (footer.length > TEMPLATE_FOOTER_MAX)
+    return { ok: false, error: `The footer must be under ${TEMPLATE_FOOTER_MAX} characters.` };
+  if (/\{\{/.test(footer)) return { ok: false, error: "The footer cannot take a value." };
+  let button = null;
+  if (d.button) {
+    const text = String(d.button.text ?? "").replace(/\s+/g, " ").trim();
+    const url = String(d.button.url ?? "").trim();
+    if (!text) return { ok: false, error: "Give the button its words, or leave it out." };
+    if (text.length > TEMPLATE_BUTTON_TEXT_MAX)
+      return { ok: false, error: `A button's words must be under ${TEMPLATE_BUTTON_TEXT_MAX} characters.` };
+    if (/\{\{/.test(text) || /\{\{/.test(url))
+      return {
+        ok: false,
+        error: "A button cannot take a value: Chanlytics sends the message and nothing else, and WhatsApp would refuse every send."
+      };
+    let parsed;
+    try {
+      parsed = new URL(url);
+    } catch {
+      parsed = null;
+    }
+    if (!parsed || !/^https?:$/.test(parsed.protocol))
+      return { ok: false, error: "The button needs a web address to open, starting with https://." };
+    button = { text, url };
+  }
+  const warnings = [];
+  if (/^\s*\{\{\d+\}\}/.test(body) || /\{\{\d+\}\}\s*$/.test(body))
+    warnings.push("WhatsApp often rejects a message that starts or ends with a value; put words around it.");
+  if (d.category === "marketing" && !/stop/i.test(body + " " + footer))
+    warnings.push("A marketing message should say how to opt out, such as \u201CReply STOP to opt out\u201D.");
+  if (/\n{3,}/.test(body)) warnings.push("More than one blank line in a row is usually rejected.");
+  return {
+    ok: true,
+    value: {
+      name,
+      language: d.language,
+      category: d.category,
+      body,
+      footer: footer || null,
+      examples,
+      button
+    },
+    warnings
+  };
+}
+function templateComponents(v) {
+  const body = { type: "BODY", text: v.body };
+  if (v.examples.length) body.example = { body_text: [v.examples] };
+  const out = [body];
+  if (v.footer) out.push({ type: "FOOTER", text: v.footer });
+  if (v.button) out.push({ type: "BUTTONS", buttons: [{ type: "URL", text: v.button.text, url: v.button.url }] });
+  return out;
+}
+var PARAM_SOURCES = [
+  "text",
+  "first_name",
+  "business_name",
+  "booking_link",
+  "review_link",
+  "visit_when",
+  "visit_service",
+  "proposal_link"
+];
+var PARAM_SOURCE_LABELS = {
+  text: "Type it",
+  first_name: "Their first name",
+  business_name: "The business name",
+  booking_link: "The booking link",
+  review_link: "The review link",
+  visit_when: "Their booked time",
+  visit_service: "Their booked service",
+  proposal_link: "Their proposal's link"
+};
+var PARAM_SOURCE_HINTS = {
+  first_name: "Each person's own \u2014 \u201Cthere\u201D when none is on file",
+  business_name: "From Settings \u203A Business",
+  booking_link: "From Settings \u203A Business",
+  review_link: "From your Google listing",
+  visit_when: "Each one's own, from the calendar",
+  visit_service: "Each one's own, from the calendar",
+  proposal_link: "Each proposal's own, from its deal"
+};
+function parseParamSpec(raw) {
+  if (typeof raw === "string") {
+    const m = /^@(first_name|business_name|booking_link|review_link|visit_when|visit_service|proposal_link)$/.exec(
+      raw.trim()
+    );
+    if (m) return { kind: m[1] };
+    return { kind: "text", value: raw };
+  }
+  if (raw && typeof raw === "object") {
+    const o = raw;
+    if (o.kind === "text") return typeof o.value === "string" ? { kind: "text", value: o.value } : null;
+    if (o.kind === "first_name" || o.kind === "business_name" || o.kind === "booking_link" || o.kind === "review_link" || o.kind === "visit_when" || o.kind === "visit_service" || o.kind === "proposal_link")
+      return { kind: o.kind };
+  }
+  return null;
+}
+function parseParamSpecs(raw) {
+  return Array.isArray(raw) ? raw.map((p) => parseParamSpec(p) ?? { kind: "text", value: String(p) }) : [];
+}
+function paramLabel(spec) {
+  return spec.kind === "text" ? spec.value : PARAM_SOURCE_LABELS[spec.kind].toLowerCase();
+}
+function paramSaid(spec) {
+  return spec.kind === "text" ? `\u201C${spec.value}\u201D` : paramLabel(spec);
+}
+function playbooksStillSending(names3) {
+  const quoted = names3.map((n) => `\u201C${n}\u201D`);
+  if (quoted.length <= 1)
+    return `${quoted[0] ?? "A campaign"} still uses this template. Pause it, or give it another, first.`;
+  return `${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]} still use this template. Pause them, or give them another, first.`;
+}
+function firstNameOf(displayName, waProfileName, name) {
+  if (displayName && name) {
+    if (name.source === "lead") return null;
+    if ((name.source === "signature" || name.source === "wire") && !name.settled) return null;
+  }
+  const raw = (displayName || waProfileName || "").trim();
+  if (!raw || isIdentifierName(raw)) return null;
+  const first = raw.split(/\s+/)[0].replace(/[^\p{L}\p{M}'’-]/gu, "");
+  return first ? first.slice(0, 30) : null;
+}
+function resolveParams(specs, f) {
+  return specs.map((s) => {
+    switch (s.kind) {
+      case "text":
+        return s.value;
+      case "first_name":
+        return f.firstName || "there";
+      case "business_name":
+        return f.businessName;
+      case "booking_link":
+        return f.bookingLink ?? "";
+      case "review_link":
+        return f.reviewLink ?? "";
+      case "visit_when":
+        return f.visitWhen ?? "";
+      case "visit_service":
+        return f.visitService ?? "";
+      case "proposal_link":
+        return f.proposalLink ?? "";
+    }
+  });
+}
+function exampleParams(specs, businessName) {
+  return resolveParams(specs, {
+    firstName: "Dani",
+    businessName,
+    bookingLink: "your booking link",
+    reviewLink: "your review link",
+    visitWhen: "tomorrow at 2:00 PM",
+    visitService: "a consultation",
+    proposalLink: "their proposal's link"
+  });
+}
+var NOTHING = { playbooks: [], broadcasts: 0, recent: [], booking: false };
+function templateUsage(src) {
+  const out = {};
+  const at3 = (name) => out[name] ??= { playbooks: [], broadcasts: 0, recent: [], booking: false };
+  const asking = new Set(
+    src.broadcasts.filter((b) => b.playbook_id && b.state === "pending_approval").map((b) => b.playbook_id)
+  );
+  for (const p of src.playbooks) {
+    if (!p.template_name) continue;
+    at3(p.template_name).playbooks.push({
+      id: p.id,
+      name: p.name,
+      paused: p.state === "paused",
+      waiting: asking.has(p.id),
+      runs: p.runs ?? null
+    });
+  }
+  const byHand = src.broadcasts.filter((b) => !!b.template_name && !b.playbook_id).slice().sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
+  for (const b of byHand) {
+    const u = at3(b.template_name);
+    u.broadcasts += 1;
+    if (b.name && u.recent.length < 2) u.recent.push(b.name);
+  }
+  if (src.bookingName) at3(src.bookingName).booking = true;
+  return out;
+}
+var sayList = (parts2) => parts2.length < 2 ? parts2[0] ?? "" : `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
+var capital = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
+function templateUseWords(use) {
+  const u = use ?? NOTHING;
+  const parts2 = [];
+  for (const p of u.playbooks) parts2.push(p.paused ? `${p.name} (paused)` : p.name);
+  if (u.broadcasts > 0) parts2.push(`${u.broadcasts} broadcast${u.broadcasts === 1 ? "" : "s"}`);
+  if (u.booking) parts2.push("the Inbox");
+  if (parts2.length === 0) return "Nothing sends it";
+  if (parts2.length === 1 && u.playbooks.length === 1) return `${u.playbooks[0].name} campaign`;
+  return capital(sayList(parts2));
+}
+function templateUseNote(use) {
+  const u = use ?? NOTHING;
+  if (u.playbooks.some((p) => p.waiting)) return `a run is ${RUN_WAITING_WORDS.toLowerCase()}`;
+  if (u.playbooks.length === 1) return u.playbooks[0].paused ? "paused \u2014 nothing goes out" : u.playbooks[0].runs;
+  if (u.playbooks.length > 1) return u.playbooks.every((p) => p.paused) ? "all paused \u2014 nothing goes out" : null;
+  if (u.recent.length > 0)
+    return u.broadcasts > u.recent.length ? `${u.recent.join(", ")} and ${u.broadcasts - u.recent.length} more` : u.recent.join(", ");
+  if (u.booking) return "what the receptionist sends to book";
+  return null;
+}
+function templateUnused(use) {
+  const u = use ?? NOTHING;
+  return u.playbooks.length === 0 && u.broadcasts === 0 && !u.booking;
+}
+function templateSends(src) {
+  const out = {};
+  const nameOf = new Map(src.runs.map((r2) => [r2.id, r2.template_name]));
+  const went = (name, at3) => {
+    const s = out[name] ??= { count: 0, lastAt: null };
+    s.count += 1;
+    const ms2 = at3 === null ? NaN : Date.parse(at3);
+    if (Number.isFinite(ms2) && (s.lastAt === null || ms2 > Date.parse(s.lastAt))) s.lastAt = at3;
+  };
+  for (const r2 of src.recipients) {
+    const name = r2.state === "sent" ? nameOf.get(r2.broadcast_id) : void 0;
+    if (name) went(name, r2.sent_at);
+  }
+  for (const m of src.inbox) {
+    if (m.template_name && m.external_id) went(m.template_name, m.created_at);
+  }
+  return out;
+}
+function templateSendsOf(answer) {
+  const byName = recordOrNull(answer);
+  if (!byName) return null;
+  const out = {};
+  for (const [name, raw] of Object.entries(byName)) {
+    const s = recordOrNull(raw);
+    if (!s || !isCount(s.count) || !(s.last_at === null || typeof s.last_at === "string")) return null;
+    out[name] = { count: s.count, lastAt: s.last_at };
+  }
+  return out;
+}
+function templateSentWords(s, tz, nowMs) {
+  if (!s || s.count === 0) return { count: null, when: "Never sent" };
+  const at3 = s.lastAt === null ? NaN : Date.parse(s.lastAt);
+  return {
+    count: s.count.toLocaleString("en-US"),
+    when: Number.isFinite(at3) ? agoWords(at3, nowMs, { date: (ms2) => clockDate(ms2, tz, nowMs) }) : null
+  };
+}
+
 // src/playbooks/playbook-patch.ts
-var PLAYBOOK_PATCH_KEYS = ["state", "name", "run_hour", "cap_per_run", "gap_days", "cadence_days"];
+var PLAYBOOK_PATCH_KEYS = [
+  "state",
+  "name",
+  "run_hour",
+  "cap_per_run",
+  "gap_days",
+  "cadence_days",
+  "params",
+  "until",
+  "trial_until"
+];
+var PLAYBOOK_PATCH_CLEARS = ["until", "trial_until"];
+var keysSaid = (last) => `${PLAYBOOK_PATCH_KEYS.slice(0, -1).join(", ")} ${last} ${PLAYBOOK_PATCH_KEYS.at(-1) ?? ""}`;
 var PLAYBOOK_PATCH_WORDS = {
   title: (p, name) => p.state === "paused" ? `Pause: ${name}` : p.state === "running" ? `Resume: ${name}` : `Change: ${name}`,
   name: (to) => `Renamed \u201C${to}\u201D`,
@@ -14957,23 +15462,1419 @@ var PLAYBOOK_PATCH_WORDS = {
   cap_per_run: (to, was) => `Up to ${to} people a run, where it was ${was}`,
   gap_days: (to, was) => `Reaches a person again after ${to} days, where it was ${was}`,
   cadence_days: (to, was) => `Every ${to} days, where it was every ${was}`,
+  /** Its words, each value as every card quotes one (templates paramSaid). */
+  params: (to) => `Its words changed: ${to.map(paramSaid).join(", ")}`,
+  /** Its last day, said by the business's calendar (contracts campaignDayWords: "Nov 30"), or none. */
+  until: (day) => day ? `Ends ${day}` : "Runs until it is paused, with no last day",
+  /** The day its trial ends (campaignDayWords), or none: what a trial does is said with it. */
+  trial_until: (day) => day ? `On trial until ${day}: each run waits ${PLAYBOOK_VETO_DELAY_WORDS} for you to stop it` : "No longer on trial: its runs go as its class is set in Settings \u203A Autonomy",
+  /**
+   * A trial set where its class's mode sends nothing by itself (ask, never): the trial changes nothing there, said with
+   * what a run does under that mode (`does`), never that each run waits for a Stop.
+   */
+  trialInert: (day, cls, mode, does) => `On trial until ${day}, which changes nothing under \u201C${cls}\u201D (${mode}): ${does}`,
   paused: "Nothing more runs until it is resumed",
   /** D8: a pause leaves the run that waits; skipping it is a second card. */
   pausedWaits: (people) => `The run waiting for you (${people} ${people === 1 ? "person" : "people"}) stays waiting: approve or skip it under Coming up`,
   /** D7: a resume says its class's mode, in full. */
   resumed: (cls, mode, does) => `Runs again under \u201C${cls}\u201D (${mode}): ${does}`,
   same: (name) => `\u201C${name}\u201D already reads so: say so, and change nothing`,
-  nothing: "Name what changes: state, name, run_hour, cap_per_run, gap_days or cadence_days.",
+  nothing: `Name what changes: ${keysSaid("or")}.`,
   state: "A campaign is running or paused.",
   nameMissing: "A name needs words.",
   nameLong: (max) => `A name is at most ${max} characters.`,
   /** Only the month's offer runs every N days; every other playbook runs as people reach its moment. */
   cadenceOffer: (name) => `Only the month's offer runs on a cadence; \u201C${name}\u201D runs as people reach its moment.`,
+  /** An end that is no day. */
+  untilDay: "An end is a day, written YYYY-MM-DD.",
+  /** An end before the business's today (`today` in campaignDayWords). */
+  untilPast: (today) => `An end is today or later: today is ${today} by your clock.`,
+  /** A trial's end that is no instant with its zone. */
+  trialWhen: "A trial ends at a date and a time with its zone, as 2026-10-18T14:00:00Z, or at null, which ends it now.",
+  /** A trial's end that has already passed: a trial that ended is none. */
+  trialPast: "A trial ends at a time still to come: name a later one, or null, which ends it now.",
   /**
    * What PUT playbooks/:id refuses a body that is none of its three in (a change, the channels alone, the whole
    * campaign): one sentence that names them, where zod said the first key of the nearest one it did not take.
    */
-  putBody: "Send a change (any of state, name, run_hour, cap_per_run, gap_days and cadence_days), the channels alone as a list (channels: whatsapp, sms or email), or the whole campaign with its trigger and template_id."
+  putBody: `Send a change (any of ${keysSaid("and")}), the channels alone as a list (channels: whatsapp, sms or email), or the whole campaign with its trigger and template_id.`
+};
+
+// src/shared/enums.ts
+var TENANT_STATUSES = ["active", "paused", "test"];
+var MEMBERSHIP_ROLES = ["owner", "operator", "partner", "viewer"];
+var CHANNEL_KINDS = ["whatsapp", "voice", "sms", "email", "instagram"];
+var IDENTITY_ASSURANCES = ["observed", "asserted", "found"];
+var CONVERSATION_STATES = ["open", "needs_human", "snoozed", "archived"];
+var MESSAGE_CHANNELS = ["whatsapp", "voice", "sms", "email", "system"];
+var MESSAGE_DIRECTIONS = ["inbound", "outbound"];
+var MESSAGE_SENDERS = ["customer", "ai", "human", "system"];
+var MESSAGE_TYPES = ["text", "template", "media", "call_summary", "note"];
+var MESSAGE_STATUSES = ["received", "queued", "sent", "delivered", "read", "failed", "canceled"];
+var CONSENT_STATES = ["unknown", "opted_in", "opted_out"];
+var JOB_KINDS = [
+  "outbound_send",
+  "broadcast_send",
+  /**
+   * A line's provisioning saga, run under the ledger's lease and resumed by
+   * the heartbeat if a worker dies (00109). The saga itself stays on the
+   * edge with the provider's credentials and is injected into the tick.
+   */
+  "line_provision",
+  /**
+   * One received email, fetched from the provider and taken in (00127). The
+   * webhook that announces it is a pointer, and a fetch can fail, so intake is
+   * a job: once per mailbox however often the webhook is replayed, and resumed
+   * where an interrupted run stopped. The fetch stays on the edge with the
+   * provider's key and is injected into the tick.
+   */
+  "email_ingest",
+  /**
+   * The lead finder (00140, PRD v3 §12.5). lead_round_start starts one round:
+   * a run per term, each claimed before the provider is called. lead_collect
+   * reads one page of one run, judges it and commits it in one transaction;
+   * seq is p<offset> for a page, final from the webhook, s<minute> from the
+   * sweep, stop from the stop door. lead_check checks one batch of emails. A
+   * provider's 429 or 5xx throws and is tried again by RETRY_WAITS_MS.
+   */
+  "lead_round_start",
+  "lead_collect",
+  "lead_check",
+  /**
+   * One kept notification (00057) to every phone of the people it is for
+   * (00162). Scheduled by the edge's notify when the row's kind is one of
+   * contracts PUSH_KINDS; a transport failure throws and is tried again by
+   * RETRY_WAITS_MS. Internal work: a second claim runs it again.
+   */
+  "push_send",
+  /**
+   * The receipts of one push_send, read a quarter of an hour on (00189):
+   * Expo's ticket says the service took a message, its receipt says whether
+   * the phone did, and a phone answered gone is forgotten here. Carries the
+   * tickets in its payload; a transport failure throws and is tried again.
+   */
+  "push_receipts",
+  /**
+   * One reply to a reach-out, read for what it means (Reach out Part 5, 00222): the model's reading, applied through
+   * reach_out_reply_apply, and the workspace told once. Scheduled by the email intake once per message
+   * (jobs_reply_read_once, scheduleJobOnce), and by itself for a re-read of a reply it could not read ({ stage:
+   * "reread-<n>" }). Internal work written to be run again: a second claim finds the reading and pays nothing.
+   */
+  "reply_read",
+  /**
+   * One booking tool's notice read into an appointment (docs/plans/2026-10-07-bookings-arrive-by-email.md): the
+   * email_ingest that recognised it schedules one per delivery (payload { received_id, mailbox_id }, keyed on the
+   * delivery), the handler fetches the email again, asks the model and writes the row. Internal work written to be run
+   * again: a second claim finds the row by the delivery's id and pays nothing.
+   */
+  "booking_read",
+  /**
+   * One event's delivery to one subscriber (00334, decision 0032): the relay writes it beside the event_deliveries row,
+   * keyed 'deliver:<event>:<subscriber>' (jobs.dedupe_key), in the subscription's lane (payload.lane). The handler runs
+   * the subscriber (core SUBSCRIBERS) and settles the delivery; a subscriber this build does not know is kept, as an
+   * unknown kind is. Internal work written to be run again: every subscriber assumes a second delivery.
+   */
+  "event_deliver",
+  /**
+   * One text answered after its acknowledgement (00347, decision 0031 Phase 2): the SMS door records the text and answers
+   * Twilio, and this job takes it up again through the whole inbound phase (core answerInbound with `resume`), keyed
+   * 'inbound_answer:<message>' (jobs.dedupe_key), in the reply lane. A runner killed mid-turn leaves it to be claimed
+   * again: the message is answered while it is unprocessed and no reply names it, so a second claim never texts twice.
+   */
+  "inbound_answer"
+];
+var EVENT_SUBSCRIBERS = [
+  "audit",
+  "reach_out_booked",
+  "owner_notice",
+  "consent_notice",
+  "visit_notice",
+  "team_notice"
+];
+var JOB_STATES = ["scheduled", "fired", "done", "canceled", "failed"];
+var WABA_FIELDS = [
+  "phone_number_quality_update",
+  "account_update",
+  "message_template_status_update",
+  "account_review_update",
+  "message_template_quality_update",
+  "template_category_update",
+  "phone_number_name_update"
+];
+var EVENT_KINDS = [
+  "message.received",
+  "message.sent",
+  "contact.consent_changed",
+  "usage.llm_tokens",
+  "usage.wa_conversation",
+  "ingest.allowlist_skip",
+  /** The sender cannot receive a reply — a short code. Recorded, never answered. */
+  "ingest.unreachable_sender",
+  "message.send_failed",
+  "message.send_blocked",
+  "message.send_raced_cancel",
+  /** An outbound chat message carrying the workspace's booking link has left (00313): { channel, sender }. */
+  "booking_link.sent",
+  "conversation.reopened",
+  "conversation.pause_expired",
+  "contact.erased",
+  /** Two records of one person became one (00326, decision 0028): on the kept record, with what moved. */
+  "contact.merged",
+  /**
+   * A door resolved who a person is (resolve_person, 00342, decision 0034): the outcome (new, matched, filled), how it
+   * matched, what it filled and the doubt it raised; never the number or the address. Evidence, purged with the other
+   * evidence kinds, and hidden from the activity log unless asked for by name: the record is contact.added.
+   */
+  "person.resolved",
+  "setup.requested",
+  "voice.provisioned",
+  "line.answering",
+  "line.failed",
+  "line.released",
+  "line.forwarding_verified",
+  /**
+   * Somebody at Chanlytics acted on a workspace they are not a member of.
+   *
+   * The back office's write half. Recorded BEFORE the action, and the action is
+   * refused if it cannot be recorded: a cross-tenant write that nobody can be
+   * held to is worse than one that did not happen. What happened next is the
+   * line's own event, written by the edge, immediately after this one.
+   */
+  "platform.acted",
+  /** The carriers answered: texting is on, the business is through, or it came back. */
+  "line.texting_on",
+  "line.texting_approved",
+  "line.texting_rejected",
+  /** The business on record for the carriers, saved or changed. */
+  "business.recorded",
+  /** The workspace's listing on Google: linked, removed, and a read that found new reviews or ratings. */
+  "google.linked",
+  "google.unlinked",
+  "google.reviews",
+  /** The owner's Business Profile: connected, disconnected, and a review answered from here. */
+  "google.connected",
+  "google.disconnected",
+  "google.replied",
+  // An automatic review reply written and not posted: it named a price or money (contracts autoReplyHold).
+  "google.reply_held",
+  "workspace.created",
+  /** The owner's controls changed: which config fields moved (never their values); a policy row's class, mode and the limit keys that moved. */
+  "settings.changed",
+  "policy.changed",
+  "billing.updated",
+  "billing.paused",
+  "billing.resumed",
+  /** A call: the row (00007) and the seconds it cost. */
+  "call.recorded",
+  /** A call ended in a transfer to a person (00312): { answered }, whether they picked up. */
+  "call.transferred",
+  "usage.voice_seconds",
+  /** The assistant's model usage, per turn (ask-gateway). */
+  "usage.ask_tokens",
+  /** Retell's webhook: every delivery and every refused signature, kept thirty days (00038). */
+  "webhook.auth",
+  "webhook.delivery",
+  /** A person who came from the calendar or a hand, not from a message (00053). */
+  "contact.added",
+  /** A person renamed or annotated at the desk (00054), or given an email address (00125). */
+  "contact.named",
+  /**
+   * Where a person works (0052, 00413): linked to a lead (its first email or call, a reply that cited ours, a member's
+   * hand), or not at it any more: { lead_id, via, by? }, never a name.
+   */
+  "contact.business_linked",
+  "contact.business_unlinked",
+  "contact.noted",
+  /** A note changed, taken away, or the receptionist's suggestion kept or dismissed (00157, 0007). Never the words. */
+  "contact.note_changed",
+  "contact.note_removed",
+  "contact.note_suggested",
+  "contact.note_kept",
+  "contact.note_dismissed",
+  "contact.note_done",
+  "contact.note_undone",
+  /** The member a note is for said Got it (0052): { note_id, by }, never the words. */
+  "contact.note_seen",
+  "contact.email_set",
+  /** A person's proposal link set or cleared at the desk (00154). Never the address. */
+  "contact.proposal_set",
+  /** A person's address stopped being sent to: a permanent bounce, a complaint, or the provider's own list (00126). The reason, never the address. */
+  "contact.email_suppressed",
+  /** An inbound the router could not place on any workspace. */
+  "ingest.unroutable",
+  /** A reply skipped because its veto window had already been spent. */
+  "policy.veto_window_skipped",
+  /** The sweep woke a snooze whose time had passed (00082). */
+  "conversation.snooze_expired",
+  /** A handover's reason was replaced by another while it was open (00308): { from, to }, reasons only, never the words. */
+  "escalation.changed",
+  /** A broadcast finished, with its tally; a playbook made a run. */
+  "broadcast.sent",
+  /**
+   * A broadcast stopped before it was done, or never went (state `failed`): its failure code and how many it reached
+   * first (contracts BROADCAST_FAILURES), from every place a run is failed. A finished run was on the ledger and a
+   * stopped one was not (the 4 Oct wiring review, P2 5).
+   */
+  "broadcast.stopped",
+  "playbook.run",
+  /** A WhatsApp number connected through Embedded Signup (admin/whatsapp/connect). */
+  "channel.connected",
+  /** A WhatsApp number's quality rating, read on a clock, changed (00315): { from?, to }. Meta's own news of it is channel.phone_number_quality_update. */
+  "channel.quality_rating",
+  /** What Meta holds about a WhatsApp number (may it send, and what stands in the way) changed: read at connection, on a clock or when an owner asks (00338): { from?, to }, the word of can_send only. */
+  "channel.standing",
+  /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
+  "mailbox.created",
+  "mailbox.renamed",
+  /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00299). The reason, never an address. */
+  "mailbox.offers_paused",
+  "mailbox.offers_resumed",
+  /** A workspace's own sending domain (Reach out, 00175): added, verified, held by the domains clock, sending again,
+   * removed. The host and the reason, never the provider's id. */
+  "sending_domain.added",
+  "sending_domain.verified",
+  "sending_domain.held",
+  "sending_domain.released",
+  /** The owner resumed a domain held for its bounces or a complaint (00176): 30 a day again. */
+  "sending_domain.resumed",
+  "sending_domain.removed",
+  /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
+  "lead.round",
+  /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
+  "lead.no_card",
+  /** A lead worked: its stage moved, the owner said they sent the email, a call happened, it became a person, or it was not a fit (release B). */
+  "lead.stage",
+  "lead.emailed",
+  "lead.call",
+  "lead.converted",
+  "lead.not_a_fit",
+  /**
+   * A lead was set aside as stale (archived, closed stale), by the nightly purge or by hand (00309): { stage, reason, from },
+   * written on the move into it, so a lead restored and set aside again writes a second. `from` is the stage the lead left to be
+   * set aside, null when it was already archived and only its reason changed (nothing moved: not an exit). The purge writes only
+   * this event; by hand (lead_set_stage to archived with the reason stale) the move also writes its lead.stage, so a count of
+   * exits takes one per lead and moment, never both kinds. Its own kind, not lead.stage, so the Activity log is not filled with
+   * one line per lead.
+   */
+  "lead.set_aside",
+  /**
+   * The ideas for a new search were written (00400: lead_suggestions_write), { how: "written" | "line", count, by_owner }:
+   * "written" when the model's ideas were kept, with how many; "line" when the owner set the business line they are
+   * written from, which asks for new ones. A record for Reports (how often ideas are written, whether owners rewrite
+   * the line), never a line of the owner's Activity.
+   */
+  "lead.ideas_written",
+  // A deal (0004): written by deal_record, one kind per stage; record kinds, kept.
+  "deal.proposed",
+  "deal.won",
+  "deal.lost",
+  "deal.ended",
+  // A partner (0012): the workspace was made through a partner's link and the partner joined its team, or the code
+  // the link left named no partner who could be credited (unknown, paused, or the caller's own).
+  "partner.attributed",
+  "partner.code_ignored",
+  // The ledger (0012, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
+  // standing the sweep decided for a workspace once it had paid.
+  "partner.earned",
+  "partner.reversed",
+  "partner.standing_set",
+  // A payout sent by hand (0012, P5), on each workspace it came from, with that workspace's part.
+  "partner.paid",
+  // A workspace a partner set up for a business (0016): handed to its owner (again, on a resend), accepted, declined.
+  "partner.handover_sent",
+  "partner.handover_accepted",
+  "partner.handover_declined",
+  // An existing workspace asks a partner to join it (0020): asked (again, on a second ask), taken back, joined, declined.
+  "partner.invited",
+  "partner.invite_withdrawn",
+  "partner.invite_accepted",
+  "partner.invite_declined",
+  // A reply to a reach-out, read (00222, Reach out Part 5): what it meant ({ intent, claim, reread, unread }), on the lead.
+  "reach_out.replied",
+  // A reply read as no, undone by a member within seven days (00222 reach_out_reply_undo).
+  "reach_out.reply_undone",
+  // A workspace reached an activation milestone for the first time (contracts ACTIVATION_MILESTONES): the funnel's rows.
+  "workspace.activated",
+  /**
+   * An appointment of the record changed (decision 0002), never its title: the calendar's hourly read writes { change:
+   * added | moved | vanished | back, source, starts_at } (appointments_feed_sync, 00348), and every other writer's row
+   * { change: added | confirmed | cancelled | moved, ... } in its own transaction (appointments_note_change, 00389). On
+   * the appointment; hidden from the activity log unless asked for by name, since a calendar read writes one per
+   * appointment.
+   */
+  "appointment.changed",
+  /**
+   * What a member did, or the receptionist, that neither ledger kept (the activity log's review, 8 Oct 2026). Each
+   * names the member in its data (`by`), as the settings' and the notes' kinds do, and none carries a customer's words.
+   *
+   * A thread handed to the team: a new open escalation ({ reason }), on the conversation. Every path that flags a
+   * thread writes it through one door, with the hold, in one transaction (escalation_open, 00388), once per hold; a
+   * reason that changes under an open hold is escalation.changed.
+   */
+  "escalation.opened",
+  /** A person accepted an invitation and joined the workspace ({ by, role }), on the invitation. */
+  "member.joined",
+  /** A playbook, or a reach-out's chain, edited ({ name, by, fields }: which parts moved, never their words). */
+  "playbook.changed",
+  /** A message sent to WhatsApp for approval, and one deleted from the Library ({ name, language, by }). */
+  "template.submitted",
+  "template.removed",
+  /** The owner switched what the workspace answers on or off ({ capability, by }: calls, WhatsApp or texts). */
+  "capability.activated",
+  "capability.deactivated",
+  /** A person left the workspace by deleting their account ({ by, how }): the seat is gone, and so is its name. */
+  "member.left",
+  /** "Stop writing to them" on a reach-out's lead, and a held reach-out email decided ({ decision, by }), on its run. */
+  "reach_out.lead_stopped",
+  "reach_out.send_decided",
+  /** A place in Needs review kept (it counts against the month), left out, or put back ({ by, search_id }), on the lead. */
+  "lead.kept",
+  "lead.excluded",
+  "lead.put_back",
+  /** A search renamed ({ name, by }) or removed ({ kept, archived, by }), on the search. */
+  "lead.search_renamed",
+  "lead.search_removed",
+  /** Two records a doubt named, said to be two people ({ by }), on the person. */
+  "contact.kept_apart",
+  /** The number a business keeps set to forward to its line ({ carrier, mode, by }: never the number), on the line. */
+  "line.forwarding_set",
+  /**
+   * A booking tool's email, read into the calendar (packages/jobs booking-read): a visit booked, moved or cancelled
+   * ({ source: "booking_email", tool }), on the appointment. Shown, where appointment.changed (the calendar's hourly
+   * read) is a kept record: an email is one thing that happened, said once.
+   */
+  "appointment.booked",
+  "appointment.moved",
+  "appointment.cancelled",
+  /** The owner answered from the WhatsApp Business app, so the receptionist stepped back until `until` (recordEchoAndPause). */
+  "conversation.owner_replied",
+  /** Stripe's own news of a payment and of a trial about to end (billing.ts notePayment, noteTrialEnding): never an amount. */
+  "billing.payment_failed",
+  "billing.paid",
+  "billing.trial_ending"
+];
+var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
+var EMAIL_STOP_PATTERN = /^\s*(stop|baja|alto)\s*[.!]?\s*$/i;
+var EMAIL_UNSUBSCRIBE_PATTERN = /^\s*(?:please\s+)?(?:unsubscribe(?:\s+me)?|desuscribir(?:me)?)\s*[.!]?\s*$/i;
+var SMS_OPT_OUT_PATTERN = /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|optout|baja|alto)\s*[.!]?\s*$/i;
+var OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta|yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
+var MARKETING_OPT_IN_PATTERN = /^\s*(yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
+var CONVERSATION_OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta)\s*[.!]?\s*$/i;
+function optInPurposeOf(text) {
+  if (MARKETING_OPT_IN_PATTERN.test(text)) return "marketing";
+  if (CONVERSATION_OPT_IN_PATTERN.test(text)) return "conversational";
+  return null;
+}
+var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
+function waMeDigits(number2) {
+  const digits2 = String(number2 ?? "").replace(/\D/g, "");
+  return digits2.length < 8 ? null : digits2;
+}
+function waMeLink(number2, text) {
+  const digits2 = waMeDigits(number2);
+  if (!digits2) return null;
+  return `https://wa.me/${digits2}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
+}
+function optInLink(numberE164, phrase = OFFERS_OPT_IN_PHRASES.en) {
+  return waMeLink(numberE164, phrase);
+}
+var ESCALATION_REASONS = [
+  "human_token",
+  "non_text",
+  "refusal",
+  "rate_cap",
+  "policy_block",
+  "send_failed",
+  "deadman",
+  "brain_error",
+  "manual",
+  "opt_out",
+  "state_unavailable",
+  /** Delivered so late that an automated reply would arrive out of nowhere. */
+  "stale",
+  /** The owner set the receptionist to Ask or Never for THIS person; the
+   *  thread is theirs to answer. A choice about one customer, never a
+   *  workspace setting. */
+  "person_hold",
+  /** The workspace's day of model tokens is spent (limits.max_llm_tokens_day). */
+  "budget",
+  /** A booking or a service/pricing question, with that class set to Ask me first on the Autonomy pane: a person answers. */
+  "policy_ask",
+  /** The phone receptionist could not finish the call: a person calls them back. What to do rides in the details. */
+  "callback",
+  /** The workspace is paused (billing): calls only take a message and messages wait for a person, until it resumes. */
+  "paused",
+  /** A text arrived on a line the carriers have not approved for texting yet: kept, a person answers. */
+  "carriers",
+  /** An email a person must read before anyone answers it (00127). */
+  "email_review"
+];
+var ESCALATION_STATES = ["open", "resolved"];
+var DECISION_VERBS = [
+  "approve",
+  "edit",
+  "decline",
+  "snooze",
+  "wake",
+  "take_over",
+  "hand_back",
+  "resolve",
+  "archive",
+  "reply",
+  "cancel_send",
+  "pause_agent",
+  "resume_agent",
+  /**
+   * What one member can do to another.
+   *
+   * The ledger recorded every conversation verb and nothing about the team —
+   * the one table where "who did this" is hardest to reconstruct afterwards
+   * and matters most. Promoting someone to owner hands them billing, the
+   * ability to remove everyone else, and the receptionist's voice.
+   *
+   * These must stay in step with decisions_verb_check (migration 00023): the
+   * database rejects a verb this list allows, and a verb the database allows
+   * but this omits cannot be written by any typed caller.
+   */
+  "invite",
+  "revoke_invite",
+  "change_role",
+  "remove_member",
+  /**
+   * The only irreversible verb. privacy.html promises deletion on verified
+   * request; this is the record that it happened, on subject_type 'contact',
+   * and it survives the data it destroyed. Written by the owner (actor_type
+   * 'user'), and again by the route for a leg that finished after the rows
+   * were gone — the storage sweep.
+   */
+  "erase",
+  /**
+   * Two records of one person became one (merge_people, 00326; decision 0028). On subject_type 'contact', the kept
+   * record; the payload names the merged one and counts what moved. Owner only, and never undone.
+   */
+  "merge",
+  /**
+   * A sentence handed to the phone receptionist mid-call, heard by it alone
+   * and worked into its next answer (Retell update-live-call). Subject
+   * 'call'. The ledger keeps the words: they are the operator's, and they
+   * changed what a customer was told.
+   */
+  "whisper",
+  /**
+   * A business connected its own channel (Embedded Signup): subject
+   * 'channel', payload the number, the WABA and the registration outcome.
+   * The one verb whose consequence is a credential in Vault.
+   */
+  "connect_channel",
+  /**
+   * A customer's answer about marketing messages, recorded by the person
+   * who heard it: subject 'contact', payload the answer, how it was given,
+   * and what it was before. The record a broadcast stands on.
+   */
+  "consent_change",
+  /**
+   * A broadcast: one message, on the channels it holds, to the people who said
+   * yes. The decision to send (subject 'broadcast', payload the message, the
+   * audience and the count) and the decision to stop one.
+   */
+  "send_broadcast",
+  "cancel_broadcast",
+  /** A playbook started or paused: subject 'playbook'. Its runs are send_broadcast rows. */
+  "start_playbook",
+  "pause_playbook",
+  /**
+   * A playbook changed in place (the change_playbook door): its name, hour, cap, gap or cadence. Subject 'playbook'; the
+   * payload names what changed. A pause or a resume stays pause_playbook or start_playbook.
+   */
+  "change_playbook",
+  /**
+   * An answer to a review on Google, in the business's own words: subject
+   * 'review' (the row's id), payload the words and when Google took them.
+   * Replaces the previous answer; Google keeps one per review.
+   */
+  "reply_review",
+  /**
+   * A copy of the workspace's data left the building: everyone as a CSV, a
+   * thread, a call, or the whole workspace. Subject "workspace" for the two
+   * that carry everyone; the thread's or the call's own row for the others.
+   * The one verb an auditor asks about that the ledger did not keep.
+   */
+  "export",
+  /** A call in progress ended from the Live page (00118). Passing one to the business is take_over, the Inbox's word for the same intent. */
+  "end_call",
+  "record_deal",
+  /**
+   * A list's life (00169, decision 0009): made, renamed, its rule changed, people put on or taken off, archived (a
+   * playbook or another list depends on it), restored, deleted. Subject 'list'; the payload says what changed.
+   */
+  "make_list",
+  "rename_list",
+  "change_list_rule",
+  "add_to_list",
+  "drop_from_list",
+  "archive_list",
+  "restore_list",
+  "delete_list",
+  /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
+  "import",
+  /**
+   * A member opened a call's recording (00277): subject 'call', written by recording_opened as the member, once per
+   * member per call per hour. A customer's voice left the building to someone's speakers; who listened is the audit.
+   */
+  "open_recording",
+  /**
+   * A member said what became of a visit (00397 mark_visit, decision 0002 step 8): kept, missed or cancelled, subject
+   * 'appointment' (its row), payload from, to, the row's source, its start and the person it is for.
+   */
+  "mark_visit"
+];
+var DECISION_SUBJECTS = [
+  "conversation",
+  "escalation",
+  "draft",
+  "lead",
+  "message",
+  "agent",
+  "membership",
+  "invitation",
+  "contact",
+  "call",
+  "channel",
+  "broadcast",
+  "playbook",
+  "review",
+  /** The workspace itself: an export of everyone, or of everything. Its id is the tenant's. */
+  "workspace",
+  "deal",
+  /** One of the workspace's own lists (segments): its life, in the ledger (00169). */
+  "list",
+  /** A visit the record keeps (00345): what a member said became of it (00397). */
+  "appointment"
+];
+var ACTOR_TYPES = ["user", "ai", "system", "owner_phone"];
+var TEMPLATE_STATUSES = ["approved", "pending", "rejected", "paused", "disabled"];
+
+// src/templates/starter-templates.ts
+var STARTER_LANGUAGES = [
+  { id: "en_US", label: "English" },
+  { id: "es", label: "Spanish" }
+];
+function messageLanguageCode(language) {
+  const base = languageBase(language);
+  return STARTER_LANGUAGES.find((l) => languageBase(l.id) === base)?.id ?? language;
+}
+var FIRST = { kind: "first_name", label: "First name", example: "Dani" };
+var BUSINESS = { kind: "business_name", label: "Business name", example: "Luna Studio" };
+var LINK = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
+var FIRST_ES = { ...FIRST, label: "Nombre" };
+var BUSINESS_ES = { ...BUSINESS, label: "Nombre del negocio" };
+var LINK_ES = { ...LINK, label: "Enlace de reservas" };
+var WHEN = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
+var SERVICE = { kind: "visit_service", label: "Service", example: "a consultation" };
+var WHEN_ES = { ...WHEN, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
+var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "una consulta" };
+var PROPOSAL = {
+  kind: "proposal_link",
+  label: "Proposal link",
+  example: "https://docs.example.com/proposal"
+};
+var PROPOSAL_ES = { ...PROPOSAL, label: "Enlace de la propuesta" };
+var REVIEW = { kind: "review_link", label: "Review link", example: "https://g.page/r/example/review" };
+var REVIEW_ES = { ...REVIEW, label: "Enlace de rese\xF1as" };
+var OFFER = { kind: "text", label: "The offer", example: "20% off any service booked before Friday." };
+var OFFER_ES = {
+  kind: "text",
+  label: "La oferta",
+  example: "20% de descuento en cualquier servicio reservado antes del viernes."
+};
+var STOP_EN = SENDER_WORDS.en.textStop;
+var STOP_ES = SENDER_WORDS.es.textStop;
+var STARTER_TEMPLATES = [
+  /* ---- The set (2 Oct 2026), in the order a composer opens on ---- */
+  {
+    // An offer, and honest about it: it waits for a yes to offers. It asks for a reply rather than sending them to a
+    // link, so it needs no booking link on file, and what comes back is a conversation the receptionist can carry.
+    key: "winback_reply",
+    name: "winback_reply",
+    title: "Win-back",
+    purpose: "for anyone who has gone quiet",
+    category: "marketing",
+    trigger: "quiet_30",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, it's been a while since we last saw you at {{2}}. We'd love to see you again: reply with a day that suits you and we'll find you a time.",
+        footer: STOP_EN,
+        slots: [FIRST, BUSINESS]
+      },
+      es: {
+        body: "Hola {{1}}, hace tiempo que no te vemos en {{2}}. Nos encantar\xEDa volver a verte: responde con el d\xEDa que mejor te venga y te buscamos una hora.",
+        footer: STOP_ES,
+        slots: [FIRST_ES, BUSINESS_ES]
+      }
+    },
+    email: {
+      en_US: {
+        subject: "It's been a while",
+        body: "Hi {{1}},\n\nIt's been a while since we last saw you at {{2}}, and we'd love to see you again.\n\nReply with a day that suits you and we'll find you a time."
+      },
+      es: {
+        subject: "Hace tiempo que no te vemos",
+        body: "Hola {{1}}:\n\nHace tiempo que no te vemos en {{2}}, y nos encantar\xEDa volver a verte.\n\nResponde con el d\xEDa que mejor te venga y te buscamos una hora."
+      }
+    }
+  },
+  {
+    key: "this_months_offer",
+    name: "this_months_offer",
+    title: "This month's offer",
+    purpose: "for everyone who said yes to offers, once a month",
+    category: "marketing",
+    trigger: "everyone_monthly",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, this month at {{2}}: {{3}} Book here: {{4}} or reply with a day that suits you.",
+        footer: STOP_EN,
+        slots: [FIRST, BUSINESS, OFFER, LINK]
+      },
+      es: {
+        body: "Hola {{1}}, este mes en {{2}}: {{3}} Reserva aqu\xED: {{4}} o responde con el d\xEDa que mejor te venga.",
+        footer: STOP_ES,
+        slots: [FIRST_ES, BUSINESS_ES, OFFER_ES, LINK_ES]
+      }
+    },
+    email: {
+      en_US: {
+        subject: "This month at {{2}}",
+        body: "Hi {{1}},\n\nThis month at {{2}}: {{3}}\n\nBook here: {{4}}, or reply with a day that suits you."
+      },
+      es: {
+        subject: "Este mes en {{2}}",
+        body: "Hola {{1}}:\n\nEste mes en {{2}}: {{3}}\n\nReserva aqu\xED: {{4}}, o responde con el d\xEDa que mejor te venga."
+      }
+    }
+  },
+  {
+    key: "visit_reminder",
+    name: "visit_reminder",
+    title: "Visit reminder",
+    purpose: "for the day before an appointment",
+    category: "utility",
+    trigger: "visit_tomorrow",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, it's {{2}}. A reminder of your appointment {{3}} for {{4}}. If you need to change it, just reply here.",
+        footer: null,
+        slots: [FIRST, BUSINESS, WHEN, SERVICE]
+      },
+      es: {
+        body: "Hola {{1}}, te escribimos de {{2}}. Te recordamos tu cita {{3}} para {{4}}. Si necesitas cambiarla, responde aqu\xED.",
+        footer: null,
+        slots: [FIRST_ES, BUSINESS_ES, WHEN_ES, SERVICE_ES]
+      }
+    },
+    email: {
+      en_US: {
+        subject: "Your appointment {{3}}",
+        body: "Hi {{1}},\n\nA reminder of your appointment at {{2}} {{3}} for {{4}}.\n\nIf you need to change it, just reply to this email."
+      },
+      es: {
+        subject: "Tu cita {{3}}",
+        body: "Hola {{1}}:\n\nTe recordamos tu cita en {{2}} {{3}} para {{4}}.\n\nSi necesitas cambiarla, responde a este correo."
+      }
+    },
+    sms: {
+      en_US: {
+        body: "Hi {{1}}, it's {{2}}. A reminder of your appointment {{3}} for {{4}}. Reply here if you need to change it."
+      },
+      es: {
+        // Spanish texts keep to the letters the carriers send plainly (é, ñ, ¿ but not á, í, ó, ú), so each goes as one part.
+        body: "Hola {{1}}, te escribimos de {{2}}. Te recordamos tu cita {{3}} para {{4}}. Si necesitas cambiarla, responde a este mensaje."
+      }
+    }
+  },
+  {
+    // About the visit they just had, and nothing else: no offer and no booking push, so it is utility and reaches a
+    // yes to texts. Their reply opens WhatsApp's 24 hours, inside which the receptionist may say anything.
+    key: "after_visit_check",
+    name: "after_visit_check",
+    title: "How did it go",
+    purpose: "for the day after a visit",
+    category: "utility",
+    trigger: "visited",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, thanks for coming to {{2}} yesterday. How did everything go? If anything isn't right, reply here and we'll sort it out.",
+        footer: null,
+        slots: [FIRST, BUSINESS]
+      },
+      es: {
+        body: "Hola {{1}}, gracias por venir ayer a {{2}}. \xBFQu\xE9 tal fue todo? Si algo no est\xE1 bien, responde aqu\xED y lo solucionamos.",
+        footer: null,
+        slots: [FIRST_ES, BUSINESS_ES]
+      }
+    },
+    email: {
+      en_US: {
+        subject: "How did everything go?",
+        body: "Hi {{1}},\n\nThanks for coming to {{2}} yesterday. How did everything go?\n\nIf anything isn't right, just reply to this email and we'll sort it out."
+      },
+      es: {
+        subject: "\xBFQu\xE9 tal fue todo?",
+        body: "Hola {{1}}:\n\nGracias por venir ayer a {{2}}. \xBFQu\xE9 tal fue todo?\n\nSi algo no est\xE1 bien, responde a este correo y lo solucionamos."
+      }
+    },
+    sms: {
+      en_US: {
+        body: "Hi {{1}}, thanks for coming to {{2}} yesterday. How did everything go? If anything isn't right, reply here and we'll sort it out."
+      },
+      es: {
+        body: "Hola {{1}}, gracias por venir ayer a {{2}}. \xBFQu\xE9 tal fue todo? Si algo no te ha gustado, responde a este mensaje y lo solucionamos."
+      }
+    }
+  },
+  {
+    // The day after's other message (10 Oct 2026): the thank-you with a review ask, the link the Google listing keeps.
+    // About the appointment they just had, with no offer and no booking push, so it is utility like How did it go. It is
+    // offered only where the listing keeps a review link (startersOffered), as its slot is filled from nothing else, and
+    // How did it go stays the moment's own: what a composer opens on, and what a campaign picks when nothing is picked.
+    key: "after_visit_review",
+    name: "after_visit_review",
+    title: "After the appointment, with a review ask",
+    purpose: "for the day after an appointment, asking for a review",
+    category: "utility",
+    trigger: "visited",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, thanks for coming to {{2}} yesterday. If you have a minute, a review helps others find us: {{3}}. If anything wasn't right, reply here and we'll sort it out.",
+        footer: null,
+        slots: [FIRST, BUSINESS, REVIEW]
+      },
+      es: {
+        body: "Hola {{1}}, gracias por venir ayer a {{2}}. Si tienes un minuto, tu rese\xF1a ayuda a otros a encontrarnos: {{3}}. Si algo no estuvo bien, responde aqu\xED y lo solucionamos.",
+        footer: null,
+        slots: [FIRST_ES, BUSINESS_ES, REVIEW_ES]
+      }
+    },
+    email: {
+      en_US: {
+        subject: "Thanks for coming to {{2}}",
+        body: "Hi {{1}},\n\nThanks for coming to {{2}} yesterday. If you have a minute, a review helps others find us: {{3}}\n\nIf anything wasn't right, just reply to this email and we'll sort it out."
+      },
+      es: {
+        subject: "Gracias por venir a {{2}}",
+        body: "Hola {{1}}:\n\nGracias por venir ayer a {{2}}. Si tienes un minuto, tu rese\xF1a ayuda a otros a encontrarnos: {{3}}\n\nSi algo no estuvo bien, responde a este correo y lo solucionamos."
+      }
+    },
+    sms: {
+      en_US: {
+        body: "Hi {{1}}, thanks for coming to {{2}} yesterday. A review helps others find us: {{3}} If anything wasn't right, reply here."
+      },
+      es: {
+        body: "Hola {{1}}, gracias por venir ayer a {{2}}. Tu rese\xF1a ayuda a otros a encontrarnos: {{3}} Si algo no estuvo bien, responde a este mensaje."
+      }
+    }
+  },
+  {
+    // 0006: one nudge per proposal, with its link. Utility, as a reminder of a person's own request is; it names no
+    // price, date, amount or offer, and Meta's category decides the yes it needs at the wire (deliver.ts).
+    key: "proposal_follow_up",
+    name: "proposal_follow_up",
+    title: "Proposal follow-up",
+    purpose: "for a proposal waiting with nothing back",
+    category: "utility",
+    trigger: "proposal_waiting",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, just making sure the proposal from {{2}} reached you: {{3}}. Reply here with any questions.",
+        footer: null,
+        slots: [FIRST, BUSINESS, PROPOSAL]
+      },
+      es: {
+        body: "Hola {{1}}, solo queremos confirmar que te lleg\xF3 la propuesta de {{2}}: {{3}}. Responde aqu\xED con cualquier pregunta.",
+        footer: null,
+        slots: [FIRST_ES, BUSINESS_ES, PROPOSAL_ES]
+      }
+    },
+    email: {
+      en_US: {
+        subject: "Your proposal from {{2}}",
+        body: "Hi {{1}},\n\nJust making sure the proposal from {{2}} reached you: {{3}}\n\nReply to this email with any questions."
+      },
+      es: {
+        subject: "Tu propuesta de {{2}}",
+        body: "Hola {{1}}:\n\nSolo queremos confirmar que te lleg\xF3 la propuesta de {{2}}: {{3}}\n\nResponde a este correo con cualquier pregunta."
+      }
+    },
+    sms: {
+      en_US: {
+        body: "Hi {{1}}, just making sure the proposal from {{2}} reached you: {{3}} Reply here with any questions."
+      },
+      es: {
+        body: "Hola {{1}}, queremos confirmar que recibiste la propuesta de {{2}}: {{3}} Responde a este mensaje con cualquier pregunta."
+      }
+    }
+  },
+  {
+    key: "quick_note",
+    name: "quick_note",
+    title: "A quick note",
+    purpose: "for any broadcast: news, hours, a heads-up",
+    category: "marketing",
+    trigger: null,
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, a quick note from {{2}}: {{3}} Write back here if you have any questions.",
+        footer: STOP_EN,
+        slots: [
+          FIRST,
+          BUSINESS,
+          { kind: "text", label: "The note", example: "we're open late on Thursdays this month." }
+        ]
+      },
+      es: {
+        body: "Hola {{1}}, una nota r\xE1pida de {{2}}: {{3}} Escr\xEDbenos aqu\xED si tienes alguna pregunta.",
+        footer: STOP_ES,
+        slots: [
+          FIRST_ES,
+          BUSINESS_ES,
+          { kind: "text", label: "La nota", example: "este mes abrimos hasta tarde los jueves." }
+        ]
+      }
+    },
+    email: {
+      en_US: {
+        subject: "A quick note from {{2}}",
+        body: "Hi {{1}},\n\nA quick note from {{2}}: {{3}}\n\nReply to this email if you have any questions."
+      },
+      es: {
+        subject: "Una nota r\xE1pida de {{2}}",
+        body: "Hola {{1}}:\n\nUna nota r\xE1pida de {{2}}: {{3}}\n\nResponde a este correo si tienes alguna pregunta."
+      }
+    }
+  },
+  {
+    // The one a caller asks for OUT LOUD, mid-call: the phone agent texts it when somebody wants to book (edge
+    // retell-fn.ts), with the business's WhatsApp named, so a caller who only ever phoned learns where to write.
+    //
+    // UTILITY, and that is the whole point of writing it down here. It answers a request the person just made, so it
+    // needs no separate yes to offers -- and because the category is Meta's own word for that, purposeOfTemplate reads
+    // it correctly and nothing has to override the purpose at a call site. It is LAST on purpose: the order is what a
+    // composer opens on, and this is the one a caller asks for rather than one anybody broadcasts.
+    key: "call_text",
+    name: "call_text",
+    title: "The call's text",
+    purpose: "for a caller who asks to book",
+    category: "utility",
+    trigger: null,
+    texts: {
+      en_US: {
+        // The first name every starter opens with, and here it is usually "there": the phone agent texts somebody
+        // whose name nobody has yet, and resolveParams says so rather than leaving a gap.
+        body: "Hi {{1}}, it's {{2}}, thanks for calling. Here's the link to book: {{3}}. This is our WhatsApp too: write to us here any time to book, move or ask about an appointment.",
+        footer: null,
+        slots: [FIRST, BUSINESS, LINK]
+      },
+      es: {
+        body: "Hola {{1}}, te escribimos de {{2}}, gracias por llamar. Aqu\xED tienes el enlace para reservar: {{3}}. Este tambi\xE9n es nuestro WhatsApp: escr\xEDbenos aqu\xED cuando quieras para reservar, cambiar o preguntar por una cita.",
+        footer: null,
+        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
+      }
+    },
+    sms: {
+      en_US: {
+        body: "Hi {{1}}, it's {{2}}, thanks for calling. Here's the link to book: {{3}}. You can text us here any time too."
+      },
+      es: {
+        body: "Hola {{1}}, te escribimos de {{2}}, gracias por llamar. Este es el enlace para reservar: {{3}}. Puedes responder a este mensaje cuando quieras."
+      }
+    }
+  },
+  /* ---- Retired (2 Oct 2026): never offered again, kept so a workspace that added one still reads it ---- */
+  {
+    key: "winback_offer",
+    name: "winback_offer",
+    // Called apart from the set's own Win-back, which a workspace that has this one sees listed beside it.
+    title: "Win-back (earlier)",
+    purpose: "for anyone quiet 30 days",
+    category: "marketing",
+    trigger: "quiet_30",
+    retired: { by: "winback_reply", why: "It sent people to a link; its place asks for a reply." },
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, it's been a while since we last saw you at {{2}}. We'd love to have you back \u2014 pick a time that suits you here: {{3}} and we'll take care of the rest.",
+        footer: STOP_EN,
+        slots: [FIRST, BUSINESS, LINK]
+      },
+      es: {
+        body: "Hola {{1}}, hace tiempo que no te vemos en {{2}}. Nos encantar\xEDa volver a atenderte \u2014 elige la hora que mejor te venga aqu\xED: {{3}} y nosotros nos ocupamos del resto.",
+        footer: STOP_ES,
+        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
+      }
+    }
+  },
+  {
+    key: "welcome_new",
+    name: "welcome_new",
+    title: "Welcome",
+    purpose: "for anyone new this week",
+    category: "marketing",
+    trigger: "new_week",
+    retired: {
+      by: null,
+      why: "The receptionist answers a first contact itself; as an offer, a welcome reached nobody new."
+    },
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, welcome to {{2}}! This is our WhatsApp \u2014 message us here any time to book, move or ask about an appointment. Book whenever you're ready: {{3}} and we'll take it from there.",
+        footer: STOP_EN,
+        slots: [FIRST, BUSINESS, LINK]
+      },
+      es: {
+        body: "Hola {{1}}, \xA1bienvenido/a a {{2}}! Este es nuestro WhatsApp \u2014 escr\xEDbenos aqu\xED cuando quieras para reservar, cambiar o preguntar por una cita. Reserva cuando quieras: {{3}} y nosotros nos encargamos del resto.",
+        footer: STOP_ES,
+        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
+      }
+    }
+  },
+  {
+    key: "save_our_number",
+    name: "save_our_number",
+    title: "Save our number",
+    purpose: "for anyone who only ever phoned",
+    category: "marketing",
+    trigger: "phoned_only",
+    retired: {
+      by: "call_text",
+      why: "Its people only ever phoned, so none could have said yes to offers; the call's text does its work during the call."
+    },
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, thanks for calling {{2}}. Save this number \u2014 on WhatsApp you can book, reschedule or ask us anything in a message, and we answer fast. Book any time: {{3}} or just write to us here.",
+        footer: STOP_EN,
+        slots: [FIRST, BUSINESS, LINK]
+      },
+      es: {
+        body: "Hola {{1}}, gracias por llamar a {{2}}. Guarda este n\xFAmero \u2014 por WhatsApp puedes reservar, cambiar tu cita o preguntarnos lo que quieras, y respondemos r\xE1pido. Reserva cuando quieras: {{3}} o escr\xEDbenos aqu\xED.",
+        footer: STOP_ES,
+        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
+      }
+    }
+  },
+  {
+    key: "monthly_offer",
+    name: "monthly_offer",
+    title: "This month's offer (earlier)",
+    purpose: "for everyone who said yes, once a month",
+    category: "marketing",
+    trigger: "everyone_monthly",
+    retired: { by: "this_months_offer", why: "It promised that spaces were limited, which a business may not mean." },
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, this month at {{2}}: {{3}} Book here: {{4}} \u2014 spaces are limited.",
+        footer: STOP_EN,
+        slots: [FIRST, BUSINESS, OFFER, LINK]
+      },
+      es: {
+        body: "Hola {{1}}, este mes en {{2}}: {{3}} Reserva aqu\xED: {{4}} \u2014 las plazas son limitadas.",
+        footer: STOP_ES,
+        slots: [FIRST_ES, BUSINESS_ES, OFFER_ES, LINK_ES]
+      }
+    }
+  },
+  {
+    key: "after_visit",
+    name: "after_visit",
+    title: "After the visit",
+    purpose: "for the day after a visit",
+    category: "marketing",
+    trigger: "visited",
+    retired: {
+      by: "after_visit_check",
+      why: "Asking them to book again made it an offer, which reached only a yes to offers; its place asks how it went."
+    },
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, thank you for coming to {{2}} yesterday \u2014 we hope you love the result. When you're ready for your next appointment, pick a time here: {{3}}.",
+        footer: STOP_EN,
+        slots: [FIRST, BUSINESS, LINK]
+      },
+      es: {
+        body: "Hola {{1}}, gracias por venir ayer a {{2}} \u2014 esperamos que te encante el resultado. Cuando quieras tu pr\xF3xima cita, elige la hora aqu\xED: {{3}}.",
+        footer: STOP_ES,
+        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
+      }
+    }
+  },
+  {
+    // The row this replaced was hand-written straight into one workspace's database, marked approved, with no
+    // meta_id: an approval Meta had never given, so every send of it failed, and it failed for every other workspace
+    // by not existing at all.
+    key: "booking_link",
+    name: "booking_link",
+    title: "Booking link",
+    purpose: "for a caller who asks to book",
+    category: "utility",
+    trigger: null,
+    retired: { by: "call_text", why: "The call's text sends the link and names the business's WhatsApp too." },
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, it's {{2}}. Here's the link to book your appointment: {{3}} \u2014 pick any time that suits you.",
+        footer: null,
+        slots: [FIRST, BUSINESS, LINK]
+      },
+      es: {
+        body: "Hola {{1}}, te escribimos de {{2}}. Aqu\xED tienes el enlace para reservar tu cita: {{3}} \u2014 elige la hora que mejor te venga.",
+        footer: null,
+        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
+      }
+    }
+  }
+];
+
+// src/templates/starter-lookup.ts
+function starterByName(name) {
+  return STARTER_TEMPLATES.find((s) => s.name === name) ?? null;
+}
+function starterByKey(key) {
+  return STARTER_TEMPLATES.find((s) => s.key === key) ?? null;
+}
+var STARTER_OF = { lapsed: "quiet_30" };
+function startersOffered(here) {
+  return STARTER_TEMPLATES.filter((s) => {
+    if (s.retired) return false;
+    if (!here.reviewLink && starterText(s, "en_US").slots.some((x) => x.kind === "review_link")) return false;
+    const t = s.trigger ? triggerOf(s.trigger) : null;
+    return !t || triggerOffered(t, here.dealsOn);
+  });
+}
+function starterForTrigger(trigger) {
+  return startersForTrigger(trigger)[0] ?? null;
+}
+function startersForTrigger(trigger) {
+  if (!trigger) return [];
+  const own = STARTER_OF[trigger] ?? trigger;
+  const all = STARTER_TEMPLATES.filter((s) => s.trigger === own);
+  return [...all.filter((s) => !s.retired), ...all.filter((s) => s.retired)];
+}
+function starterSmsText(s, language) {
+  return s.sms?.[language] ?? s.sms?.en_US ?? null;
+}
+function starterEmailText(s, language) {
+  return s.email?.[language] ?? s.email?.en_US ?? null;
+}
+function starterText(s, language) {
+  return s.texts[language] ?? s.texts.en_US;
+}
+function starterDraft(s, language) {
+  const t = starterText(s, language);
+  return {
+    name: s.name,
+    language,
+    category: s.category,
+    body: t.body,
+    footer: t.footer,
+    examples: t.slots.map((x) => x.example)
+  };
+}
+
+// src/templates/template-parts.ts
+function footerOf(components) {
+  if (!Array.isArray(components)) return null;
+  for (const c of components) {
+    if (!c || typeof c !== "object") continue;
+    const part = c;
+    if (String(part.type ?? "").toUpperCase() !== "FOOTER") continue;
+    const text = typeof part.text === "string" ? part.text.trim() : "";
+    if (text) return text;
+  }
+  return null;
+}
+function templateFooter(t) {
+  if (typeof t.footer === "string" && t.footer.trim()) return t.footer.trim();
+  const stored = footerOf(t.components);
+  if (stored) return stored;
+  const s = starterByName(t.name);
+  return s ? starterText(s, t.language ?? "en_US").footer ?? null : null;
+}
+var FILLED_PARTS = ["HEADER", "BODY", "FOOTER", "BUTTONS"];
+var partOf = (components, type) => {
+  if (!Array.isArray(components)) return null;
+  for (const c of components) {
+    if (c && typeof c === "object" && String(c.type ?? "").toUpperCase() === type)
+      return c;
+  }
+  return null;
+};
+var textOf = (part) => {
+  const t = part && typeof part.text === "string" ? part.text.trim() : "";
+  return t || null;
+};
+var BUTTON_KIND = { URL: "url", QUICK_REPLY: "reply", PHONE_NUMBER: "call" };
+function templateParts(components) {
+  const header = partOf(components, "HEADER");
+  const buttons = [];
+  const holder = partOf(components, "BUTTONS");
+  const list2 = holder && Array.isArray(holder.buttons) ? holder.buttons : [];
+  for (const b of list2) {
+    if (!b || typeof b !== "object") continue;
+    const kind = BUTTON_KIND[String(b.type ?? "").toUpperCase()];
+    const text = typeof b.text === "string" ? b.text.trim() : "";
+    if (kind && text) buttons.push({ text, kind });
+  }
+  return {
+    // A picture heading is not words and is not drawn as any.
+    header: header && String(header.format ?? "TEXT").toUpperCase() === "TEXT" ? textOf(header) : null,
+    footer: footerOf(components),
+    buttons
+  };
+}
+function templateBlocked(t) {
+  if (typeof t.blocked === "string") return t.blocked.trim() || null;
+  if (t.blocked === null) return null;
+  const components = t.components;
+  if (!Array.isArray(components)) return null;
+  const unfilled = components.some((c) => {
+    const type = c && typeof c === "object" ? c.type : null;
+    return !(typeof type === "string" && FILLED_PARTS.includes(type.toUpperCase()));
+  });
+  if (unfilled) return "a part Chanlytics cannot fill";
+  const header = partOf(components, "HEADER");
+  if (header) {
+    const format = String(header.format ?? "TEXT").toUpperCase();
+    if (format !== "TEXT")
+      return format === "IMAGE" ? "a picture for a heading" : `a ${format.toLowerCase()} for a heading`;
+    if (/\{\{\d+\}\}/.test(String(header.text ?? ""))) return "a heading that takes a value";
+  }
+  const holder = partOf(components, "BUTTONS");
+  const list2 = holder && Array.isArray(holder.buttons) ? holder.buttons : [];
+  for (const b of list2) {
+    if (!b || typeof b !== "object") continue;
+    const button = b;
+    const type = String(button.type ?? "").toUpperCase();
+    if (!(type in BUTTON_KIND)) return "a button Chanlytics cannot fill";
+    if (type === "URL" && /\{\{\d+\}\}/.test(String(button.url ?? ""))) return "a button that takes a value";
+  }
+  return null;
+}
+function refusedWords(reason) {
+  const said = String(reason ?? "").trim().replace(/[.!?\s]+$/, "");
+  if (!said) return null;
+  const words3 = /^[A-Z0-9_]+$/.test(said) ? said.toLowerCase().replace(/_/g, " ") : said;
+  return `WhatsApp refused this one: ${words3}. Change the words and send it back.`;
+}
+var COUNT_WORDS = ["", "one", "two", "three", "four", "five"];
+function blockedWords(reasons) {
+  const seen = /* @__PURE__ */ new Map();
+  for (const r2 of reasons) seen.set(r2, (seen.get(r2) ?? 0) + 1);
+  const parts2 = [...seen].map(([reason, n]) => `${COUNT_WORDS[n] ?? n} ${n === 1 ? "has" : "have"} ${reason}`);
+  return parts2.length > 1 ? `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}` : parts2[0];
+}
+function sendableTemplates(list2) {
+  const sendable = [];
+  const blocked = [];
+  for (const t of list2) (templateBlocked(t) ? blocked : sendable).push(t);
+  if (blocked.length === 0) return { sendable, blocked, why: null };
+  const n = blocked.length;
+  const reasons = blocked.map((t) => templateBlocked(t));
+  const words3 = n === 1 ? `it has ${reasons[0]}` : blockedWords(reasons);
+  const many = COUNT_WORDS[n] ?? String(n);
+  const lead = n === 1 ? "One of your messages" : `${many[0].toUpperCase()}${many.slice(1)} of your messages`;
+  return {
+    sendable,
+    blocked,
+    why: `${lead} can't go out from here \u2014 ${words3}. ${n === 1 ? "It still works" : "They still work"} in WhatsApp Manager.`
+  };
+}
+function templateLinkButton(components) {
+  const holder = partOf(components, "BUTTONS");
+  const list2 = holder && Array.isArray(holder.buttons) ? holder.buttons : [];
+  for (const b of list2) {
+    if (!b || typeof b !== "object") continue;
+    const x = b;
+    if (String(x.type ?? "").toUpperCase() !== "URL") continue;
+    const text = typeof x.text === "string" ? x.text.trim() : "";
+    const url = typeof x.url === "string" ? x.url.trim() : "";
+    if (text && url) return { text, url };
+  }
+  return null;
+}
+
+// src/templates/template-titles.ts
+var TEMPLATE_TITLE_MAX = 60;
+function templateTitle(name, title) {
+  const given = typeof title === "string" ? title.replace(/\s+/g, " ").trim() : "";
+  if (given) return given.slice(0, TEMPLATE_TITLE_MAX);
+  const s = starterByName(name);
+  if (s) return s.title;
+  const words3 = String(name ?? "").replace(/_v\d+$/i, "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  return words3 ? words3[0].toUpperCase() + words3.slice(1) : String(name ?? "");
+}
+function playbookName(trigger, tpl) {
+  return startersForTrigger(trigger.id).some((s) => s.name === tpl.name) ? trigger.label : `${trigger.label} \xB7 ${templateTitle(tpl.name, tpl.title)}`;
+}
+
+// src/templates/campaign-message.ts
+function variablesSlotCount(variables) {
+  if (!Array.isArray(variables)) return 0;
+  const positions = variables.map((v) => Number(v?.position)).filter((position) => Number.isFinite(position));
+  return Math.max(variables.length, ...positions);
+}
+function metaStatusOf(raw) {
+  return TEMPLATE_STATUSES.find((s) => s === raw) ?? "pending";
+}
+function strictestCategory(categories) {
+  if (categories.some((c) => purposeOfTemplate(c) === "marketing")) return "marketing";
+  return categories.find((c) => c !== null) ?? null;
+}
+function whatsappVersionOf(row2) {
+  const status = metaStatusOf(row2.meta_status);
+  return {
+    id: row2.id,
+    status,
+    hidden: Boolean(row2.hidden_at),
+    blocked: templateBlocked(row2),
+    reason: status === "rejected" ? refusedWords(row2.rejected_reason) : null
+  };
+}
+function messageFrom(name, language, rows2) {
+  const {
+    whatsapp: [w = null],
+    email: [e = null],
+    sms: [s = null]
+  } = versionsOf(rows2, name);
+  const anchorRow = w ?? e ?? s;
+  if (anchorRow === null) return null;
+  const category = w ? w.category ?? null : strictestCategory([e, s].flatMap((r2) => r2 ? [r2.category ?? null] : []));
+  const versions = {
+    whatsapp: w ? whatsappVersionOf(w) : null,
+    email: e ? { id: e.id } : null,
+    sms: s ? { id: s.id } : null
+  };
+  const held = messageHolds({ versions });
+  const hidden = Boolean(anchorRow.hidden_at);
+  const titled = [w, e, s].map((r2) => r2?.title ?? null).find((t) => t !== null && t.trim() !== "") ?? null;
+  return {
+    name,
+    language,
+    title: templateTitle(name, titled),
+    anchor: { id: anchorRow.id, channel: w ? "whatsapp" : e ? "email" : "sms" },
+    slots: variablesSlotCount((w ?? anchorRow).variables),
+    category,
+    purpose: purposeOfTemplate(category),
+    hidden,
+    offered: !hidden && CONSENT_CHANNELS.some((c) => held[c]),
+    versions
+  };
+}
+function campaignMessageOf(rows2, name, language) {
+  return messageFrom(
+    name,
+    language,
+    rows2.filter((r2) => r2.language === language)
+  );
+}
+function campaignMessagesOf(rows2) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const r2 of rows2) {
+    if (isReachOutRow(r2)) continue;
+    const key = JSON.stringify([r2.name, r2.language]);
+    const group = groups.get(key) ?? { name: r2.name, language: r2.language, rows: [] };
+    group.rows.push(r2);
+    groups.set(key, group);
+  }
+  return [...groups.values()].flatMap((g) => {
+    const message = messageFrom(g.name, g.language, g.rows);
+    return message ? [message] : [];
+  });
+}
+function messageHolds(m) {
+  const w = m.versions.whatsapp;
+  return {
+    whatsapp: w !== null && w.status === "approved" && w.blocked === null,
+    email: m.versions.email !== null,
+    sms: m.versions.sms !== null
+  };
+}
+var NOT_APPROVED_WORDS = {
+  pending: "WhatsApp is still reviewing this message's WhatsApp version.",
+  rejected: "WhatsApp refused this message's WhatsApp version.",
+  paused: "WhatsApp has paused this message's WhatsApp version.",
+  disabled: "WhatsApp has disabled this message's WhatsApp version."
+};
+function messageWhyNot(m, channel) {
+  if (messageHolds(m)[channel]) return null;
+  const w = m.versions.whatsapp;
+  if (channel !== "whatsapp" || w === null) return noVersionWords(channel);
+  if (w.status !== "approved") return NOT_APPROVED_WORDS[w.status];
+  return w.blocked === null ? null : `This message's WhatsApp version has ${w.blocked}, so it cannot be sent from here.`;
+}
+var HOLDS_NOTHING = { versions: { whatsapp: null, email: null, sms: null } };
+function readyForMessage(ready, message) {
+  const out = { ...ready };
+  for (const c of CONSENT_CHANNELS) {
+    const why = messageWhyNot(message ?? HOLDS_NOTHING, c);
+    if (ready[c].ready && why !== null) out[c] = { ...ready[c], ready: false, why };
+  }
+  return out;
+}
+var whatsappStandingWord = (status) => TEMPLATE_STATUS_WORDS[status].toLowerCase();
+function messageStandingWords(m) {
+  const at3 = (channel, word) => `${VERSION_CHANNEL_WORDS[channel]} \xB7 ${word}`;
+  const w = m?.versions.whatsapp ?? null;
+  return {
+    whatsapp: at3("whatsapp", w ? whatsappStandingWord(w.status) : "not added"),
+    email: at3("email", m?.versions.email ? "ready" : "not written"),
+    sms: at3("sms", m?.versions.sms ? "ready" : m?.purpose === "marketing" ? "not for offers" : "not written")
+  };
+}
+function whatsappStoppedRunWords(m) {
+  const why = m === null ? null : messageWhyNot(m, "whatsapp");
+  return `${why ?? noVersionWords("whatsapp")} Everyone on this run goes by WhatsApp, so nothing was sent.`;
+}
+var NO_RUN_VERSION_WORDS = "has no version its runs can send";
+var MESSAGE_GONE_WORDS = {
+  card: `Its message ${NO_RUN_VERSION_WORDS}, so they are skipped until it has one again or the campaign sends another.`,
+  composer: (title) => `Its message, ${title}, ${NO_RUN_VERSION_WORDS} any more. Pick another to save a change.`
+};
+var RUN_NOW_WITHOUT_VERSION_WORDS = "Its message has no WhatsApp version a run can send, and nobody it would reach goes by email or text. Pick another message, or give this one an email or a text version and tick it on the campaign.";
+var STARTER_LINE_WORDS = {
+  /** The send screen, with no message it can send yet: how many starters' WhatsApp versions WhatsApp is still reviewing. */
+  reviewing: (n) => `Your starter messages' WhatsApp versions are in review (${n}) \u2014 they appear here once approved, usually within minutes.`,
+  /** The playbook composer, after the moment's own message and a comma: where its WhatsApp version stands. */
+  standing: (status) => {
+    const at3 = metaStatusOf(status);
+    return at3 === "pending" ? "has its WhatsApp version in review \u2014 it appears here once approved, usually within minutes." : `has its WhatsApp version ${whatsappStandingWord(at3)} \u2014 see ${CAMPAIGN_ROOMS.home} \u203A ${CAMPAIGN_ROOMS.library}.`;
+  },
+  /**
+   * The link that adds the moment's own message: its email and text versions at once, a WhatsApp version where a number
+   * is, which the line says once it is in review (`standing`). The link was the whole of that, in 25 words.
+   */
+  add: "Add it",
+  /** After the moment's own message's name, where it is not added yet: "Win-back, written for you". */
+  written: "written for you"
+};
+var THEIRS_WORDS = "about something they booked, or a proposal of theirs";
+var MESSAGE_BEGIN_WORDS = {
+  customIsAnOffer: "A message you write is an offer or news. Only a starter is a reminder, a check after or a follow-up.",
+  /**
+   * A message written whole (POST templates/message, Ask's message card) takes one about their own booking or proposal,
+   * written with a WhatsApp version for WhatsApp to review: never with an email or a text alone, which nobody reviews.
+   * Its own sentence, since customIsAnOffer (POST templates/versions's) is not true of this door.
+   */
+  utilityNeedsWhatsapp: `A message ${THEIRS_WORDS}, needs a WhatsApp version, which WhatsApp reviews.`,
+  starterNeedsItsOwnWords: "A starter begins with its own words. Add the starter set, then change the words in the Library.",
+  doorNotSwitchedOn: "Writing a message with no WhatsApp version is not switched on here yet.",
+  /**
+   * A message written whole in a language of a message already on file in another, said as something else (POST
+   * templates/message): a language of a message is the same kind of message with the same values, its kind what a send
+   * judges it by (consent purposeOfTemplate: a row with no category is an offer), so `purpose` is the held one's.
+   */
+  heldOtherwise: (purpose, slots) => `This message is on file in another language as ${purpose === "marketing" ? "an offer or news" : `a message ${THEIRS_WORDS},`} with ${slots} value${slots === 1 ? "" : "s"}. Write this language the same way, or give it another name.`,
+  /**
+   * A name on file in another language as a code for signing in (Meta's `authentication`): no campaign sends one, so no
+   * kind of message is written beside it, and "write it the same way" would be no way out.
+   */
+  heldAuthentication: "This name is on file in another language as a code for signing in, which no campaign sends. Give this message another name."
 };
 
 // src/ask-proposals/spec.ts
@@ -14981,7 +16882,20 @@ var PROPOSAL_WORDS = {
   cannotApprove: "This card cannot be approved from here.",
   noUndo: "This one has no undo.",
   /** A card past ASK_CARD_FRESH_MS (askCardLapsed): nothing is sent, and asking again makes it from what is true now. */
-  lapsed: "This card is more than a day old, and what it would change may have moved since. Ask again and it is made from how things stand now."
+  lapsed: "This card is more than a day old, and what it would change may have moved since. Ask again and it is made from how things stand now.",
+  /** A plan's card past its week (askCardLapsed): the same, in the plan's words. */
+  planLapsed: "This plan is more than a week old, and what it would change may have moved since. Ask again and it is made from how things stand now.",
+  /** A plan's card naming a step that was undone: what that step made is gone, so nothing is sent to it. */
+  planUndone: "A step this one builds on was undone, so what it would use is gone and nothing is sent. Ask again and the plan is made from how things stand now.",
+  /** A plan's card naming a step that has made nothing yet: that step is approved first. */
+  waitsForStep: (n) => `This waits for step ${n}: approve step ${n} first, then this one.`,
+  /**
+   * A plan's card naming a step that was approved and made nothing it can use (a message whose every version was
+   * refused): waiting would never help, so the plan is asked for again.
+   */
+  stepMadeNothing: (n) => `Step ${n} made nothing this one can use, so nothing is sent. Ask again and the plan is made from how things stand now.`,
+  /** A plan's silent steps, stopped at step n by its refusal (`why`, in the refusal's own words): nothing after it was done. */
+  planStopped: (n, why) => `Stopped at step ${n}: ${/[.!?…]$/.test(why.trim()) ? why.trim() : `${why.trim()}.`} The steps after it were not done.`
 };
 var asText = (v) => v == null ? "" : String(v);
 var rec = (v) => v && typeof v === "object" ? v : {};
@@ -15009,7 +16923,7 @@ function proposalChannelsWords(channels, byChannel) {
 var PLAYBOOK_CARD_REFUSALS = {
   /** A typed slot the proposal gave no words for: a question for the person. */
   typedSlot: (label) => `this template takes typed words for \u201C${label}\u201D; ask the person what to say there, then propose again with params`,
-  value: "each value is text, or @first_name, @business_name or @booking_link, or @proposal_link on the proposal follow-up",
+  value: "each value is text, or @first_name, @business_name, @booking_link or @review_link, or @visit_when or @visit_service on a reminder or a check after an appointment, or @proposal_link on the proposal follow-up",
   plainText: "every typed value must be plain text under 1024 characters, without line breaks",
   /** The moment's starter, hidden in this workspace's Library: no card adds it back. */
   starterHidden: (title, from) => `${LIBRARY_STARTER_WORDS.hiddenInLibrary(title)} Say so; ${from} names the messages that may send.`,
@@ -15017,15 +16931,44 @@ var PLAYBOOK_CARD_REFUSALS = {
   hiddenTemplate: (from) => `that template is one the workspace keeps out of the composers; ${from} names the ones that may send`,
   noList: (from) => `no such list; ${from} names them`,
   uncounted: (list2, why) => `${list2} can't be counted right now: ${why}`,
-  /** A second running campaign on the same moment, list and message, where they named none of its own (D9). */
+  /**
+   * A second running campaign on the same moment, list and message, where they named none of its own (D9). The model's
+   * words, when the card is made; a card's start that meets one is answered in twinRunsWords, the owner's.
+   */
   twin: (name) => `\u201C${name}\u201D already runs on this moment with this message: say so, and propose a second only when they ask for another by a name of its own`,
   followUpsUnread: "who already had a proposal follow-up could not be read just now; say so, and try again in a moment",
-  /** The week's breath: every message sent this week, a member's own too, holds its person, so the count waits on it. */
-  weekUnread: "who was messaged this week could not be read just now; say so, and try again in a moment",
+  /**
+   * The week's breath: every message sent or due within a week of a run, a member's own too, holds its person, so the
+   * count waits on it. The stem a broadcast's door says it in (core createBroadcast).
+   */
+  weekUnread: "who has had a message from you lately, or has one due, could not be read just now; say so, and try again in a moment",
+  /**
+   * The autonomy modes, unread: what a card says of its runs (and of a trial, which only an auto class starts on, D5)
+   * is its class's mode, so no card is made on a guess, and a change's card is not either (act/playbook-change.ts).
+   */
+  modeUnread: "the sending mode of this campaign's class could not be read just now, so the card cannot say what its runs would do; say so, and try again in a moment",
+  /** The action named a message and a starter both: a campaign sends one. */
+  starterOrMessage: "name template_id for a message the workspace holds, or starter for the moment's starter to file at Approve, never both",
   trigger: (triggers) => `trigger must be one of ${triggers.join(", ")}`,
   listToken: (from) => `a playbook on a list needs list: the list's token from ${from} (seg:<id> or list:<id>)`,
   templateId: (from) => `template_id must be an id ${from} returned, or omitted for the trigger's starter`
 };
+var twinRunsWords = (name) => `\u201C${name}\u201D already runs on this moment with this message, so nothing was started.`;
+var PLAYBOOK_CARD_WORDS = {
+  /**
+   * A campaign that starts on trial (D5: under an auto class only): for its first week, counted from its Approve
+   * (contracts newCampaignTrialUntil, at the route's clock), each run waits for a Stop as veto's do, said in veto's own
+   * words (PLAYBOOK_VETO_DELAY_WORDS), so a sentence that says both the trial and veto names one wait.
+   */
+  trial: `on trial for a week from when you approve it: for seven days each run waits ${PLAYBOOK_VETO_DELAY_WORDS} with a Stop`,
+  /**
+   * A reminder the day before or a check after an appointment (D2): one message per appointment, sent whatever else
+   * the person hears from you within a week of it, sent or due (BREATH_WHY), since the run is daily and the appointment
+   * is on one day (contracts playbookRunReach), so the week's breath, which holds every other moment, does not hold it.
+   */
+  appointmentBreath: `exempt from one a week per person: each goes whatever else they hear ${BREATH_WHY}`
+};
+var stepOfferWords = (quotes) => quotes.length === 0 ? "" : `, with the offer ${joinWords(quotes)}`;
 var channelsNamed = (pl) => Array.isArray(pl.channels) ? { channels: pl.channels } : {};
 var cancelCall = (u) => ({
   route: "POST broadcasts/[id]/cancel",
@@ -15046,10 +16989,15 @@ var broadcastSpec = {
       ...channelsNamed(pl)
     }
   }),
-  // The count and the name are the route's answer where it gave them, the card's where it did not.
+  // The count and the name are the route's answer where it gave them, the card's where it did not: who it goes to, the
+  // people it enrolled less those it left out for the breath (goesToOf), and how many were left out.
   receipt: ({ payload: pl }, data) => {
-    const n = Number(rec(data).recipient_count ?? pl.count ?? 0);
-    return `Broadcast \u201C${rec(data).name ?? asText(pl.name)}\u201D \u2014 ${n} ${n === 1 ? "person" : "people"}, ${pl.scheduled_for ? "scheduled" : "sending now"}`;
+    const d = rec(data);
+    const leftOut2 = typeof d.left_out === "number" ? d.left_out : 0;
+    const n = typeof d.recipient_count === "number" ? goesToOf({ recipient_count: d.recipient_count, left_out: leftOut2 }) : Number(pl.count ?? 0);
+    const ahead = d.scheduled_ahead === true;
+    const said = heardWords(leftOut2, true);
+    return `Broadcast \u201C${d.name ?? asText(pl.name)}\u201D \u2014 ${n} ${n === 1 ? "person" : "people"}, ${ahead ? "scheduled" : "sending now"}${said ? ` \xB7 ${said}` : ""}`;
   },
   undo: {
     label: () => "Cancel it, if it has not finished",
@@ -15078,7 +17026,11 @@ var playbookSpec = {
       cap_per_run: pl.cap_per_run,
       gap_days: pl.gap_days,
       cadence_days: pl.cadence_days,
-      ...channelsNamed(pl)
+      ...channelsNamed(pl),
+      // It starts on trial (D5), where the card said so: the route counts the week from the Approve, at its own clock.
+      ...pl.trial === true ? { trial: true } : {},
+      // Its last day (00416), where the card named one: the route judges it again at its own clock.
+      ...typeof pl.until === "string" ? { until: pl.until } : {}
     }
   }),
   // "Campaign", the word a person reads; and, where the route says it sent the starter's WhatsApp version for review, so.
@@ -15131,7 +17083,11 @@ var playbookChannelsSpec = {
     return id ? `campaigns/moment:${id}` : "outbound";
   }
 };
-var patchIn = (pl) => Object.fromEntries(PLAYBOOK_PATCH_KEYS.filter((k) => pl[k] !== void 0 && pl[k] !== null).map((k) => [k, pl[k]]));
+var patchIn = (pl) => Object.fromEntries(
+  PLAYBOOK_PATCH_KEYS.filter((k) => pl[k] !== void 0 && (pl[k] !== null || PLAYBOOK_PATCH_CLEARS.includes(k))).map(
+    (k) => [k, pl[k]]
+  )
+);
 var resumeUndoLabel = (mode) => mode === "auto" ? `Resume it. ${LIFECYCLE_WORDS.ledger.resume.auto}` : "Resume it";
 var toastWords = (parts2) => parts2.map((part) => typeof part === "string" ? part : part.b).join("");
 var playbookChangeSpec = {
@@ -15220,6 +17176,134 @@ var runSpec = {
     const id = idIn(payload, "broadcast_id");
     return id ? `broadcasts/run:${id}` : "broadcasts";
   }
+};
+var whatsappFiledWords = (state) => {
+  const at3 = metaStatusOf(state);
+  const where = `(see ${CAMPAIGN_ROOMS.home} \u203A ${CAMPAIGN_ROOMS.library})`;
+  if (at3 === "approved") return "is approved";
+  if (at3 === "pending") return "is with WhatsApp for review";
+  return at3 === "rejected" ? `was refused by WhatsApp ${where}` : `is ${at3} by WhatsApp ${where}`;
+};
+var versionsWords = (own) => `${own.map(versionWord).join(" and ")} version${own.length === 1 ? "" : "s"}`;
+var MESSAGE_WORDS = {
+  /** A text version of an offer: the door's sentence (contracts channelNeverCarries). */
+  smsOffer: `${CHANNEL_WORDS.noOffersByText} Say so, and write the offer for WhatsApp and email alone.`,
+  /** A message about their own booking or proposal with no WhatsApp version for WhatsApp to review: the door's sentence. */
+  utilityNeedsWhatsapp: `${MESSAGE_BEGIN_WORDS.utilityNeedsWhatsapp} Add one, or write it as an offer or news (marketing).`,
+  /** A WhatsApp version past what WhatsApp takes: the door's sentence (templateBodyTooLong). */
+  tooLong: `${TEMPLATE_BODY_WORDS} Shorten its WhatsApp version, and propose it again.`,
+  /** A WhatsApp version where no number is connected: what the door answers when the edge finds none. */
+  noNumber: `${LIBRARY_WORDS.writeNeedsNumber} Say so, and write it for email or text alone, or once a number is connected.`,
+  /**
+   * An email version where email cannot send, which is known (channelsReady: no mailbox, or no email for the deployment):
+   * why, in its sentence, else the mailbox's.
+   */
+  noMailbox: (why) => `${why ?? CHANNEL_WORDS.noMailbox} Say so, and write it without an email version.`,
+  /**
+   * An email version where whether email can send could not be asked just now (channelsReady's `unchecked`): not a no, so
+   * the email stays in the message, and the card is asked for again in a moment.
+   */
+  emailUnchecked: `Whether email can send here could not be checked just now. Say so, and propose it again in a moment, with its email version.`,
+  /** A name and language the Library holds: the door's sentence for a twin, and where that message's versions change. */
+  twin: (name) => `${TEMPLATE_SAME_NAME_WORDS} Say so: \u201C${name}\u201D in this language is in ${CAMPAIGN_ROOMS.home} \u203A ${CAMPAIGN_ROOMS.library}, where its versions are changed.`,
+  /** The card's title: the name the door files the message under, and its language in words ("in English"). */
+  title: (name, language) => `${CAMPAIGN_ROOMS.newMessage}: ${name}, in ${languageName(language)}`,
+  /**
+   * When its versions are ready to send: an email's and a text's once Approve files them (the card itself sends nothing,
+   * and in a plan it sits among the silent steps), WhatsApp's once WhatsApp has reviewed it, in the product's voice (a
+   * person reads WhatsApp, never Meta, as STARTER_LINE_WORDS say the review).
+   */
+  goes: (now, review) => {
+    const reviewed = "once WhatsApp has reviewed it (usually minutes, sometimes a day)";
+    if (now.length === 0) return review ? `Its WhatsApp version is ready ${reviewed}` : "";
+    return `Ready ${channelsWords(now)} once approved${review ? `; its WhatsApp version ${reviewed}` : ""}`;
+  },
+  /**
+   * What the door filed (its answer): each version, ready, in review or as WhatsApp answered its filing (refused at once,
+   * say, which is said with where it is seen), and the one it could not file, in its words.
+   */
+  filed: (name, filed, refused) => {
+    const said = filed.map(
+      (v) => v.channel === "whatsapp" ? `its WhatsApp version ${whatsappFiledWords(v.state)}` : `its ${versionWord(v.channel)} version is ready`
+    );
+    if (said.length === 0) return `\u201C${name}\u201D was not filed${refused ? `: ${refused.words}` : ""}`;
+    const not = refused ? ` \xB7 its ${versionWord(refused.channel)} version was not filed: ${refused.words}` : "";
+    return `\u201C${name}\u201D is in the ${CAMPAIGN_ROOMS.library} \u2014 ${said.join("; ")}${not}`;
+  },
+  /** The undo's button: the email and text versions it deletes; none where the card writes none. */
+  undo: (own) => own.length > 0 ? `Delete its ${versionsWords(own)}` : null,
+  /**
+   * What the undo did: those versions deleted, and the WhatsApp version, where the door filed one, left, said so, and
+   * where a person deletes it if it should go.
+   */
+  undone: (own, whatsapp) => {
+    const gone = `Its ${versionsWords(own)} ${own.length === 1 ? "is" : "are"} deleted`;
+    return whatsapp ? `${gone}. Its WhatsApp version stays, held by WhatsApp: delete it in ${CAMPAIGN_ROOMS.home} \u203A ${CAMPAIGN_ROOMS.library} if it should go.` : gone;
+  },
+  /**
+   * An undo refused part-way: the versions already deleted, the ones that are not, and the door's refusal; nothing deleted
+   * yet, the refusal alone. Pressed again, the deleted ones are answered as they were and the rest is tried.
+   */
+  partlyUndone: (gone, left, refused) => gone.length === 0 ? refused : `Its ${versionsWords(gone)} ${gone.length === 1 ? "is" : "are"} deleted; its ${versionsWords(left)} ${left.length === 1 ? "is" : "are"} not: ${refused}`
+};
+var versionsIn = (v) => Array.isArray(v) ? v.map(rec).flatMap(
+  (x) => CONSENT_CHANNELS.includes(x.channel) && typeof x.id === "string" && x.id ? [{ channel: x.channel, id: x.id, state: asText(x.state) }] : []
+) : [];
+var writtenHere = (c) => c !== "whatsapp";
+var ownKept = (u) => versionsIn(u.versions).map((v) => v.channel).filter(writtenHere);
+var messageSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const name = asText(pl.name);
+    const versions = rec(pl.versions);
+    if (!name || Object.keys(versions).length === 0) return refuseWith(PROPOSAL_WORDS.cannotApprove);
+    return {
+      route: "POST templates/message",
+      body: {
+        name,
+        language: pl.language,
+        category: pl.category,
+        versions,
+        slots: Array.isArray(pl.slots) ? pl.slots : []
+      }
+    };
+  },
+  receipt: ({ payload: pl }, data) => {
+    const d = rec(data);
+    const refused = rec(d.refused);
+    const not = CONSENT_CHANNELS.includes(refused.channel) ? { channel: refused.channel, words: asText(refused.words) } : null;
+    return MESSAGE_WORDS.filed(asText(d.name ?? pl.name), versionsIn(d.versions), not);
+  },
+  // The first version the door filed: a broadcast and a playbook take any version's id for the message (core
+  // templateValues), so a plan's send names this one. None where nothing was filed.
+  made: (_p, data) => versionsIn(rec(data).versions).at(0)?.id ?? null,
+  undo: {
+    // The versions the card writes that an undo can delete, in the order the door files them.
+    label: ({ payload }) => MESSAGE_WORDS.undo(OWN_VERSION_CHANNELS.filter((c) => rec(payload.versions)[c] != null)),
+    window: "ten_minutes",
+    // The email and text versions the door answered it filed, and the state of a WhatsApp version it filed beside them.
+    record: (_p, data) => {
+      const filed = versionsIn(rec(data).versions);
+      const own = filed.filter((v) => writtenHere(v.channel)).map(({ channel, id }) => ({ channel, id }));
+      if (own.length === 0) return null;
+      return { versions: own, whatsapp: filed.find((v) => v.channel === "whatsapp")?.state ?? null };
+    },
+    call: (u) => {
+      const own = versionsIn(u.versions).filter((v) => writtenHere(v.channel));
+      return own.length === 0 ? refuseWith(PROPOSAL_WORDS.noUndo) : own.map(
+        // A version gone already (an earlier press deleted it, or a member did) is what the undo wants.
+        (v) => ({ route: "DELETE templates/versions/[id]", params: { id: v.id }, goneIsDone: true })
+      );
+    },
+    receipt: (_data, u) => MESSAGE_WORDS.undone(ownKept(u), u.whatsapp != null),
+    // The calls go in the order the kept versions are named, so the first `landed` of them are the ones deleted.
+    partial: (u, landed, refused) => {
+      const own = ownKept(u);
+      return MESSAGE_WORDS.partlyUndone(own.slice(0, landed), own.slice(landed), refused);
+    }
+  },
+  open: () => "messages"
 };
 
 // src/ask-proposals/inbox.ts
@@ -17236,6 +19320,7 @@ var personDetailsSpec = {
 };
 
 // src/ask/ask-settings-change.ts
+var NOTE_TEXT_SAID_MAX = 160;
 function applySettingsChange(config2, change) {
   const brain = { ...config2.brain ?? {} };
   const profile = { ...brain.profile ?? {} };
@@ -17258,7 +19343,7 @@ function applySettingsChange(config2, change) {
     }
     case "add_note": {
       const notes = [...profile.notes ?? []];
-      notes.push({ title: change.title, text: change.text });
+      notes.push({ title: change.title, text: change.text, ...change.until ? { until: change.until } : {} });
       profile.notes = notes;
       break;
     }
@@ -17278,8 +19363,10 @@ function describeSettingsChange(change) {
       return change.until ? `Closed ${change.date} to ${change.until}${change.note ? ` (${change.note})` : ""}` : `Closed on ${change.date}${change.note ? ` (${change.note})` : ""}`;
     case "set_hours":
       return change.open && change.close ? `${change.day}: ${change.open}\u2013${change.close}` : `${change.day}: closed`;
-    case "add_note":
-      return `Note for the receptionist: \u201C${change.title}\u201D`;
+    case "add_note": {
+      const text = clipAtWord(change.text.replace(/\s+/g, " "), NOTE_TEXT_SAID_MAX);
+      return `Note for the receptionist: \u201C${change.title}\u201D${change.until ? `, until ${change.until}` : ""}${text ? ` \u2014 \u201C${text}\u201D` : ""}`;
+    }
     case "add_service":
       return `New service: ${change.name}${change.duration_min ? ` (${change.duration_min} min)` : ""}`;
   }
@@ -17376,7 +19463,8 @@ var PROPOSAL_SPECS = {
   list: listSpec,
   run: runSpec,
   playbook_channels: playbookChannelsSpec,
-  playbook_change: playbookChangeSpec
+  playbook_change: playbookChangeSpec,
+  message: messageSpec
 };
 function proposalSpec(kind) {
   return Object.prototype.hasOwnProperty.call(PROPOSAL_SPECS, kind) ? PROPOSAL_SPECS[kind] : null;
@@ -17396,6 +19484,121 @@ function askUndoOpen(kind, undo, atMs, nowMs, settingsVersion) {
   if (nowMs - atMs > ASK_UNDO_MS) return false;
   if (lasts === "version") return typeof undo.version_after === "number" && settingsVersion === undo.version_after;
   return true;
+}
+
+// src/ask/plan-steps.ts
+var STEP_TOKEN = /^@step:(\d+)$/;
+function stepToken(n) {
+  return `@step:${n}`;
+}
+function resolveSteps(payload, made) {
+  let unresolved = null;
+  const fill2 = (v) => {
+    if (typeof v === "string") {
+      const m = STEP_TOKEN.exec(v);
+      if (!m) return v;
+      const n = Number(m[1]);
+      const step2 = made[n];
+      if (step2 && !("undone" in step2) && step2.id !== null) return step2.id;
+      unresolved ??= n;
+      return v;
+    }
+    if (Array.isArray(v)) return v.map(fill2);
+    if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fill2(x)]));
+    return v;
+  };
+  const out = Object.fromEntries(Object.entries(payload).map(([k, x]) => [k, fill2(x)]));
+  return unresolved === null ? out : { unresolved };
+}
+function planMadeOf(planId, cards) {
+  const made = {};
+  for (const p of cards) {
+    if (p.plan?.id !== planId || !p.outcome) continue;
+    if (p.outcome.state === "done") made[p.plan.step] = { kind: p.kind, id: p.outcome.made?.id ?? null };
+    else if (p.outcome.state === "undone") made[p.plan.step] = { undone: true };
+  }
+  return made;
+}
+function planWaits(plan, made) {
+  if (!plan) return null;
+  const undone = plan.after.find((n) => {
+    const step2 = made[n];
+    return !!step2 && "undone" in step2;
+  });
+  if (undone !== void 0) return { undone };
+  const waits = plan.after.find((n) => !made[n]);
+  return waits === void 0 ? null : { waits };
+}
+function cardsInPlans(cards) {
+  const out = [];
+  const plans = /* @__PURE__ */ new Map();
+  for (const p of cards) {
+    const id = p.plan?.id;
+    const held = id === void 0 ? void 0 : plans.get(id);
+    if (id === void 0) out.push({ card: p });
+    else if (held) held.push(p);
+    else {
+      const group = [p];
+      plans.set(id, group);
+      out.push({ plan: group });
+    }
+  }
+  return out;
+}
+function sendWaitsForReview(kind, channels) {
+  if (kind === "broadcast") return channels.includes("whatsapp");
+  return kind === "playbook" && channels.length > 0 && channels.every((c) => c === "whatsapp");
+}
+function reviewedStep(p, steps) {
+  const token2 = typeof p.payload.template_id === "string" ? STEP_TOKEN.exec(p.payload.template_id) : null;
+  if (!token2) return null;
+  const n = Number(token2[1]);
+  const message = steps.get(n);
+  const writesWhatsApp = message?.kind === "message" && !!rec(message.payload.versions).whatsapp;
+  const channels = Array.isArray(p.payload.channels) ? p.payload.channels : [];
+  return writesWhatsApp && sendWaitsForReview(p.kind, channels) ? n : null;
+}
+function planGroupOf(cards) {
+  const id = cards.find((p) => p.plan)?.plan?.id ?? "";
+  const mine = cards.flatMap((card) => card.plan && card.plan.id === id ? [{ card, plan: card.plan }] : []).sort((a, b) => a.plan.step - b.plan.step);
+  const made = planMadeOf(
+    id,
+    mine.map((s) => s.card)
+  );
+  const byStep = new Map(mine.map((s) => [s.plan.step, s.card]));
+  const steps = mine.map(({ card, plan }) => {
+    const wait = planWaits(plan, made);
+    const undone = wait !== null && "undone" in wait;
+    return {
+      card,
+      step: plan.step,
+      of: plan.of,
+      wait,
+      review: undone ? null : reviewedStep(card, byStep),
+      note: undone ? PROPOSAL_WORDS.planUndone : null
+    };
+  });
+  const left = mine.filter((s) => s.plan.silent && !made[s.plan.step]).length;
+  return { id, steps, left };
+}
+function planCountWords(cards, language, words3) {
+  const said = words3 || null;
+  const id = cards[0]?.plan?.id;
+  if (id === void 0 || cards.some((p) => p.plan?.id !== id)) return { headline: null, detail: said };
+  const silent = cards.filter((p) => p.plan?.silent).length;
+  const sends2 = cards.length - silent;
+  const es = language === "es";
+  const one = (n, singular, plural3) => `${n} ${n === 1 ? singular : plural3}`;
+  const parts2 = [
+    ...silent > 0 ? [es ? one(silent, "no env\xEDa nada", "no env\xEDan nada") : one(silent, "sends nothing", "send nothing")] : [],
+    ...sends2 > 0 ? [es ? one(sends2, "env\xEDa", "env\xEDan") : one(sends2, "sends", "send")] : []
+  ];
+  const headline2 = es ? `Un plan de ${one(cards.length, "paso", "pasos")} para revisar: ${parts2.join(" y luego ")}.` : `A plan of ${one(cards.length, "step", "steps")} to review: ${parts2.join(", then ")}.`;
+  if (said !== null || silent === 0) return { headline: headline2, detail: said };
+  const together = es ? "Los pasos que no env\xEDan nada se aprueban con un toque" : "The steps that send nothing are approved with one press";
+  const apart = es ? "; cada env\xEDo se aprueba aparte cuando est\xE9n hechos los pasos que espera" : "; each send is its own press once the steps it waits for are done";
+  const after = es ? ". Nada pasa hasta que lo hagas." : ". Nothing happens until you do.";
+  return { headline: headline2, detail: `${together}${sends2 > 0 ? apart : ""}${after}` };
 }
 
 // src/shell/address.ts
@@ -17868,14 +20071,18 @@ function partialSay(prefix) {
   return { headline: partialField(rest, "headline"), detail: partialField(rest, "detail") };
 }
 var sentence = (s) => /[.!?]$/.test(s) ? s : `${s}.`;
-function answerForCards(cards, language) {
+function answerForCards(cards, language, words3) {
   const es = language === "es";
   const n = cards.length;
+  const plan = planCountWords(cards, language, words3);
   const a = structured(
-    n === 1 ? es ? sentence(`Una tarjeta para revisar: ${cards[0].title}`) : sentence(`One card to review: ${cards[0].title}`) : es ? `${n} tarjetas para revisar.` : `${n} cards to review.`,
+    plan.headline ?? (n === 1 ? es ? sentence(`Una tarjeta para revisar: ${cards[0].title}`) : sentence(`One card to review: ${cards[0].title}`) : es ? `${n} tarjetas para revisar.` : `${n} cards to review.`),
     language
   );
-  a.say.detail = n === 1 ? es ? "Apru\xE9bala, c\xE1mbiala o desc\xE1rtala: nada pasa hasta que lo hagas." : "Approve it, change it or dismiss it: nothing happens until you do." : es ? "Cada una se aprueba por separado: apru\xE9bala, c\xE1mbiala o desc\xE1rtala; nada pasa hasta que lo hagas." : "Each is its own press: approve, change or dismiss each one; nothing happens until you do.";
+  a.say.detail = clip(
+    plan.detail ?? (n === 1 ? es ? "Apru\xE9bala, c\xE1mbiala o desc\xE1rtala: nada pasa hasta que lo hagas." : "Approve it, change it or dismiss it: nothing happens until you do." : es ? "Cada una se aprueba por separado: apru\xE9bala, c\xE1mbiala o desc\xE1rtala; nada pasa hasta que lo hagas." : "Each is its own press: approve, change or dismiss each one; nothing happens until you do."),
+    ASK_ANSWER_CAPS.detail
+  );
   return a;
 }
 function failedAnswer(sentenceText, language) {
@@ -17949,13 +20156,17 @@ var AskProposalOutcomeSchema = z4.object({
   state: z4.enum(["done", "dismissed", "failed", "undone"]),
   receipt: z4.string().max(300).catch(""),
   atMs: z4.number().catch(0),
-  undo: z4.record(z4.string(), z4.unknown()).nullable().optional()
+  undo: z4.record(z4.string(), z4.unknown()).nullable().optional(),
+  // What the commit made that a plan's later step names (AskProposalOutcome.made): kept, never stripped, so a plan's
+  // made survives a reload; absent (every outcome saved before) or unreadable, it made nothing a token names.
+  made: z4.object({ kind: z4.string().min(1).max(40), id: z4.string().min(1).max(120) }).nullable().catch(null)
 });
+var CalendarDay = z4.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 var AskSettingsChangeSchema = z4.discriminatedUnion("op", [
   z4.object({
     op: z4.literal("add_closure"),
-    date: z4.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    until: z4.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    date: CalendarDay,
+    until: CalendarDay.optional(),
     note: z4.string().max(200).optional()
   }),
   z4.object({
@@ -17964,7 +20175,12 @@ var AskSettingsChangeSchema = z4.discriminatedUnion("op", [
     open: z4.string().regex(/^\d{2}:\d{2}$/).nullable(),
     close: z4.string().regex(/^\d{2}:\d{2}$/).nullable()
   }),
-  z4.object({ op: z4.literal("add_note"), title: z4.string().min(1).max(80), text: z4.string().min(1).max(1200) }),
+  z4.object({
+    op: z4.literal("add_note"),
+    title: z4.string().min(1).max(80),
+    text: z4.string().min(1).max(1200),
+    until: CalendarDay.optional()
+  }),
   z4.object({
     op: z4.literal("add_service"),
     name: z4.string().min(1).max(80),
@@ -18804,506 +21020,6 @@ var ASK_ANSWER_FORMAT = {
   additionalProperties: false
 };
 
-// src/shared/unknown.ts
-var finiteOrNull = (v) => typeof v === "number" && Number.isFinite(v) ? v : null;
-var isCount = (v) => typeof v === "number" && Number.isInteger(v) && v >= 0;
-var finiteOrZero = (v) => typeof v === "number" && Number.isFinite(v) ? v : 0;
-var trimmedOrNull = (v) => typeof v === "string" && v.trim() ? v.trim() : null;
-var nonBlankOrNull = (v) => typeof v === "string" && v.trim() ? v : null;
-var recordOrNull = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : null;
-var lineOrNull = (s) => {
-  const t = (s ?? "").replace(/[\r\n]+/g, " ").trim();
-  return t ? t.slice(0, 200) : null;
-};
-
-// src/templates/starter-templates.ts
-var STARTER_LANGUAGES = [
-  { id: "en_US", label: "English" },
-  { id: "es", label: "Spanish" }
-];
-var FIRST = { kind: "first_name", label: "First name", example: "Dani" };
-var BUSINESS = { kind: "business_name", label: "Business name", example: "Luna Studio" };
-var LINK = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
-var FIRST_ES = { ...FIRST, label: "Nombre" };
-var BUSINESS_ES = { ...BUSINESS, label: "Nombre del negocio" };
-var LINK_ES = { ...LINK, label: "Enlace de reservas" };
-var WHEN = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
-var SERVICE = { kind: "visit_service", label: "Service", example: "a consultation" };
-var WHEN_ES = { ...WHEN, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
-var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "una consulta" };
-var PROPOSAL = {
-  kind: "proposal_link",
-  label: "Proposal link",
-  example: "https://docs.example.com/proposal"
-};
-var PROPOSAL_ES = { ...PROPOSAL, label: "Enlace de la propuesta" };
-var OFFER = { kind: "text", label: "The offer", example: "20% off any service booked before Friday." };
-var OFFER_ES = {
-  kind: "text",
-  label: "La oferta",
-  example: "20% de descuento en cualquier servicio reservado antes del viernes."
-};
-var STOP_EN = SENDER_WORDS.en.textStop;
-var STOP_ES = SENDER_WORDS.es.textStop;
-var STARTER_TEMPLATES = [
-  /* ---- The set (2 Oct 2026), in the order a composer opens on ---- */
-  {
-    // An offer, and honest about it: it waits for a yes to offers. It asks for a reply rather than sending them to a
-    // link, so it needs no booking link on file, and what comes back is a conversation the receptionist can carry.
-    key: "winback_reply",
-    name: "winback_reply",
-    title: "Win-back",
-    purpose: "for anyone who has gone quiet",
-    category: "marketing",
-    trigger: "quiet_30",
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, it's been a while since we last saw you at {{2}}. We'd love to see you again: reply with a day that suits you and we'll find you a time.",
-        footer: STOP_EN,
-        slots: [FIRST, BUSINESS]
-      },
-      es: {
-        body: "Hola {{1}}, hace tiempo que no te vemos en {{2}}. Nos encantar\xEDa volver a verte: responde con el d\xEDa que mejor te venga y te buscamos una hora.",
-        footer: STOP_ES,
-        slots: [FIRST_ES, BUSINESS_ES]
-      }
-    },
-    email: {
-      en_US: {
-        subject: "It's been a while",
-        body: "Hi {{1}},\n\nIt's been a while since we last saw you at {{2}}, and we'd love to see you again.\n\nReply with a day that suits you and we'll find you a time."
-      },
-      es: {
-        subject: "Hace tiempo que no te vemos",
-        body: "Hola {{1}}:\n\nHace tiempo que no te vemos en {{2}}, y nos encantar\xEDa volver a verte.\n\nResponde con el d\xEDa que mejor te venga y te buscamos una hora."
-      }
-    }
-  },
-  {
-    key: "this_months_offer",
-    name: "this_months_offer",
-    title: "This month's offer",
-    purpose: "for everyone who said yes to offers, once a month",
-    category: "marketing",
-    trigger: "everyone_monthly",
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, this month at {{2}}: {{3}} Book here: {{4}} or reply with a day that suits you.",
-        footer: STOP_EN,
-        slots: [FIRST, BUSINESS, OFFER, LINK]
-      },
-      es: {
-        body: "Hola {{1}}, este mes en {{2}}: {{3}} Reserva aqu\xED: {{4}} o responde con el d\xEDa que mejor te venga.",
-        footer: STOP_ES,
-        slots: [FIRST_ES, BUSINESS_ES, OFFER_ES, LINK_ES]
-      }
-    },
-    email: {
-      en_US: {
-        subject: "This month at {{2}}",
-        body: "Hi {{1}},\n\nThis month at {{2}}: {{3}}\n\nBook here: {{4}}, or reply with a day that suits you."
-      },
-      es: {
-        subject: "Este mes en {{2}}",
-        body: "Hola {{1}}:\n\nEste mes en {{2}}: {{3}}\n\nReserva aqu\xED: {{4}}, o responde con el d\xEDa que mejor te venga."
-      }
-    }
-  },
-  {
-    key: "visit_reminder",
-    name: "visit_reminder",
-    title: "Visit reminder",
-    purpose: "for the day before an appointment",
-    category: "utility",
-    trigger: "visit_tomorrow",
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, it's {{2}}. A reminder of your appointment {{3}} for {{4}}. If you need to change it, just reply here.",
-        footer: null,
-        slots: [FIRST, BUSINESS, WHEN, SERVICE]
-      },
-      es: {
-        body: "Hola {{1}}, te escribimos de {{2}}. Te recordamos tu cita {{3}} para {{4}}. Si necesitas cambiarla, responde aqu\xED.",
-        footer: null,
-        slots: [FIRST_ES, BUSINESS_ES, WHEN_ES, SERVICE_ES]
-      }
-    },
-    email: {
-      en_US: {
-        subject: "Your appointment {{3}}",
-        body: "Hi {{1}},\n\nA reminder of your appointment at {{2}} {{3}} for {{4}}.\n\nIf you need to change it, just reply to this email."
-      },
-      es: {
-        subject: "Tu cita {{3}}",
-        body: "Hola {{1}}:\n\nTe recordamos tu cita en {{2}} {{3}} para {{4}}.\n\nSi necesitas cambiarla, responde a este correo."
-      }
-    },
-    sms: {
-      en_US: {
-        body: "Hi {{1}}, it's {{2}}. A reminder of your appointment {{3}} for {{4}}. Reply here if you need to change it."
-      },
-      es: {
-        // Spanish texts keep to the letters the carriers send plainly (é, ñ, ¿ but not á, í, ó, ú), so each goes as one part.
-        body: "Hola {{1}}, te escribimos de {{2}}. Te recordamos tu cita {{3}} para {{4}}. Si necesitas cambiarla, responde a este mensaje."
-      }
-    }
-  },
-  {
-    // About the visit they just had, and nothing else: no offer and no booking push, so it is utility and reaches a
-    // yes to texts. Their reply opens WhatsApp's 24 hours, inside which the receptionist may say anything.
-    key: "after_visit_check",
-    name: "after_visit_check",
-    title: "How did it go",
-    purpose: "for the day after a visit",
-    category: "utility",
-    trigger: "visited",
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, thanks for coming to {{2}} yesterday. How did everything go? If anything isn't right, reply here and we'll sort it out.",
-        footer: null,
-        slots: [FIRST, BUSINESS]
-      },
-      es: {
-        body: "Hola {{1}}, gracias por venir ayer a {{2}}. \xBFQu\xE9 tal fue todo? Si algo no est\xE1 bien, responde aqu\xED y lo solucionamos.",
-        footer: null,
-        slots: [FIRST_ES, BUSINESS_ES]
-      }
-    },
-    email: {
-      en_US: {
-        subject: "How did everything go?",
-        body: "Hi {{1}},\n\nThanks for coming to {{2}} yesterday. How did everything go?\n\nIf anything isn't right, just reply to this email and we'll sort it out."
-      },
-      es: {
-        subject: "\xBFQu\xE9 tal fue todo?",
-        body: "Hola {{1}}:\n\nGracias por venir ayer a {{2}}. \xBFQu\xE9 tal fue todo?\n\nSi algo no est\xE1 bien, responde a este correo y lo solucionamos."
-      }
-    },
-    sms: {
-      en_US: {
-        body: "Hi {{1}}, thanks for coming to {{2}} yesterday. How did everything go? If anything isn't right, reply here and we'll sort it out."
-      },
-      es: {
-        body: "Hola {{1}}, gracias por venir ayer a {{2}}. \xBFQu\xE9 tal fue todo? Si algo no te ha gustado, responde a este mensaje y lo solucionamos."
-      }
-    }
-  },
-  {
-    // 0006: one nudge per proposal, with its link. Utility, as a reminder of a person's own request is; it names no
-    // price, date, amount or offer, and Meta's category decides the yes it needs at the wire (deliver.ts).
-    key: "proposal_follow_up",
-    name: "proposal_follow_up",
-    title: "Proposal follow-up",
-    purpose: "for a proposal waiting with nothing back",
-    category: "utility",
-    trigger: "proposal_waiting",
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, just making sure the proposal from {{2}} reached you: {{3}}. Reply here with any questions.",
-        footer: null,
-        slots: [FIRST, BUSINESS, PROPOSAL]
-      },
-      es: {
-        body: "Hola {{1}}, solo queremos confirmar que te lleg\xF3 la propuesta de {{2}}: {{3}}. Responde aqu\xED con cualquier pregunta.",
-        footer: null,
-        slots: [FIRST_ES, BUSINESS_ES, PROPOSAL_ES]
-      }
-    },
-    email: {
-      en_US: {
-        subject: "Your proposal from {{2}}",
-        body: "Hi {{1}},\n\nJust making sure the proposal from {{2}} reached you: {{3}}\n\nReply to this email with any questions."
-      },
-      es: {
-        subject: "Tu propuesta de {{2}}",
-        body: "Hola {{1}}:\n\nSolo queremos confirmar que te lleg\xF3 la propuesta de {{2}}: {{3}}\n\nResponde a este correo con cualquier pregunta."
-      }
-    },
-    sms: {
-      en_US: {
-        body: "Hi {{1}}, just making sure the proposal from {{2}} reached you: {{3}} Reply here with any questions."
-      },
-      es: {
-        body: "Hola {{1}}, queremos confirmar que recibiste la propuesta de {{2}}: {{3}} Responde a este mensaje con cualquier pregunta."
-      }
-    }
-  },
-  {
-    key: "quick_note",
-    name: "quick_note",
-    title: "A quick note",
-    purpose: "for any broadcast: news, hours, a heads-up",
-    category: "marketing",
-    trigger: null,
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, a quick note from {{2}}: {{3}} Write back here if you have any questions.",
-        footer: STOP_EN,
-        slots: [
-          FIRST,
-          BUSINESS,
-          { kind: "text", label: "The note", example: "we're open late on Thursdays this month." }
-        ]
-      },
-      es: {
-        body: "Hola {{1}}, una nota r\xE1pida de {{2}}: {{3}} Escr\xEDbenos aqu\xED si tienes alguna pregunta.",
-        footer: STOP_ES,
-        slots: [
-          FIRST_ES,
-          BUSINESS_ES,
-          { kind: "text", label: "La nota", example: "este mes abrimos hasta tarde los jueves." }
-        ]
-      }
-    },
-    email: {
-      en_US: {
-        subject: "A quick note from {{2}}",
-        body: "Hi {{1}},\n\nA quick note from {{2}}: {{3}}\n\nReply to this email if you have any questions."
-      },
-      es: {
-        subject: "Una nota r\xE1pida de {{2}}",
-        body: "Hola {{1}}:\n\nUna nota r\xE1pida de {{2}}: {{3}}\n\nResponde a este correo si tienes alguna pregunta."
-      }
-    }
-  },
-  {
-    // The one a caller asks for OUT LOUD, mid-call: the phone agent texts it when somebody wants to book (edge
-    // retell-fn.ts), with the business's WhatsApp named, so a caller who only ever phoned learns where to write.
-    //
-    // UTILITY, and that is the whole point of writing it down here. It answers a request the person just made, so it
-    // needs no separate yes to offers -- and because the category is Meta's own word for that, purposeOfTemplate reads
-    // it correctly and nothing has to override the purpose at a call site. It is LAST on purpose: the order is what a
-    // composer opens on, and this is the one a caller asks for rather than one anybody broadcasts.
-    key: "call_text",
-    name: "call_text",
-    title: "The call's text",
-    purpose: "for a caller who asks to book",
-    category: "utility",
-    trigger: null,
-    texts: {
-      en_US: {
-        // The first name every starter opens with, and here it is usually "there": the phone agent texts somebody
-        // whose name nobody has yet, and resolveParams says so rather than leaving a gap.
-        body: "Hi {{1}}, it's {{2}}, thanks for calling. Here's the link to book: {{3}}. This is our WhatsApp too: write to us here any time to book, move or ask about an appointment.",
-        footer: null,
-        slots: [FIRST, BUSINESS, LINK]
-      },
-      es: {
-        body: "Hola {{1}}, te escribimos de {{2}}, gracias por llamar. Aqu\xED tienes el enlace para reservar: {{3}}. Este tambi\xE9n es nuestro WhatsApp: escr\xEDbenos aqu\xED cuando quieras para reservar, cambiar o preguntar por una cita.",
-        footer: null,
-        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
-      }
-    },
-    sms: {
-      en_US: {
-        body: "Hi {{1}}, it's {{2}}, thanks for calling. Here's the link to book: {{3}}. You can text us here any time too."
-      },
-      es: {
-        body: "Hola {{1}}, te escribimos de {{2}}, gracias por llamar. Este es el enlace para reservar: {{3}}. Puedes responder a este mensaje cuando quieras."
-      }
-    }
-  },
-  /* ---- Retired (2 Oct 2026): never offered again, kept so a workspace that added one still reads it ---- */
-  {
-    key: "winback_offer",
-    name: "winback_offer",
-    // Called apart from the set's own Win-back, which a workspace that has this one sees listed beside it.
-    title: "Win-back (earlier)",
-    purpose: "for anyone quiet 30 days",
-    category: "marketing",
-    trigger: "quiet_30",
-    retired: { by: "winback_reply", why: "It sent people to a link; its place asks for a reply." },
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, it's been a while since we last saw you at {{2}}. We'd love to have you back \u2014 pick a time that suits you here: {{3}} and we'll take care of the rest.",
-        footer: STOP_EN,
-        slots: [FIRST, BUSINESS, LINK]
-      },
-      es: {
-        body: "Hola {{1}}, hace tiempo que no te vemos en {{2}}. Nos encantar\xEDa volver a atenderte \u2014 elige la hora que mejor te venga aqu\xED: {{3}} y nosotros nos ocupamos del resto.",
-        footer: STOP_ES,
-        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
-      }
-    }
-  },
-  {
-    key: "welcome_new",
-    name: "welcome_new",
-    title: "Welcome",
-    purpose: "for anyone new this week",
-    category: "marketing",
-    trigger: "new_week",
-    retired: {
-      by: null,
-      why: "The receptionist answers a first contact itself; as an offer, a welcome reached nobody new."
-    },
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, welcome to {{2}}! This is our WhatsApp \u2014 message us here any time to book, move or ask about an appointment. Book whenever you're ready: {{3}} and we'll take it from there.",
-        footer: STOP_EN,
-        slots: [FIRST, BUSINESS, LINK]
-      },
-      es: {
-        body: "Hola {{1}}, \xA1bienvenido/a a {{2}}! Este es nuestro WhatsApp \u2014 escr\xEDbenos aqu\xED cuando quieras para reservar, cambiar o preguntar por una cita. Reserva cuando quieras: {{3}} y nosotros nos encargamos del resto.",
-        footer: STOP_ES,
-        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
-      }
-    }
-  },
-  {
-    key: "save_our_number",
-    name: "save_our_number",
-    title: "Save our number",
-    purpose: "for anyone who only ever phoned",
-    category: "marketing",
-    trigger: "phoned_only",
-    retired: {
-      by: "call_text",
-      why: "Its people only ever phoned, so none could have said yes to offers; the call's text does its work during the call."
-    },
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, thanks for calling {{2}}. Save this number \u2014 on WhatsApp you can book, reschedule or ask us anything in a message, and we answer fast. Book any time: {{3}} or just write to us here.",
-        footer: STOP_EN,
-        slots: [FIRST, BUSINESS, LINK]
-      },
-      es: {
-        body: "Hola {{1}}, gracias por llamar a {{2}}. Guarda este n\xFAmero \u2014 por WhatsApp puedes reservar, cambiar tu cita o preguntarnos lo que quieras, y respondemos r\xE1pido. Reserva cuando quieras: {{3}} o escr\xEDbenos aqu\xED.",
-        footer: STOP_ES,
-        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
-      }
-    }
-  },
-  {
-    key: "monthly_offer",
-    name: "monthly_offer",
-    title: "This month's offer (earlier)",
-    purpose: "for everyone who said yes, once a month",
-    category: "marketing",
-    trigger: "everyone_monthly",
-    retired: { by: "this_months_offer", why: "It promised that spaces were limited, which a business may not mean." },
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, this month at {{2}}: {{3}} Book here: {{4}} \u2014 spaces are limited.",
-        footer: STOP_EN,
-        slots: [FIRST, BUSINESS, OFFER, LINK]
-      },
-      es: {
-        body: "Hola {{1}}, este mes en {{2}}: {{3}} Reserva aqu\xED: {{4}} \u2014 las plazas son limitadas.",
-        footer: STOP_ES,
-        slots: [FIRST_ES, BUSINESS_ES, OFFER_ES, LINK_ES]
-      }
-    }
-  },
-  {
-    key: "after_visit",
-    name: "after_visit",
-    title: "After the visit",
-    purpose: "for the day after a visit",
-    category: "marketing",
-    trigger: "visited",
-    retired: {
-      by: "after_visit_check",
-      why: "Asking them to book again made it an offer, which reached only a yes to offers; its place asks how it went."
-    },
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, thank you for coming to {{2}} yesterday \u2014 we hope you love the result. When you're ready for your next appointment, pick a time here: {{3}}.",
-        footer: STOP_EN,
-        slots: [FIRST, BUSINESS, LINK]
-      },
-      es: {
-        body: "Hola {{1}}, gracias por venir ayer a {{2}} \u2014 esperamos que te encante el resultado. Cuando quieras tu pr\xF3xima cita, elige la hora aqu\xED: {{3}}.",
-        footer: STOP_ES,
-        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
-      }
-    }
-  },
-  {
-    // The row this replaced was hand-written straight into one workspace's database, marked approved, with no
-    // meta_id: an approval Meta had never given, so every send of it failed, and it failed for every other workspace
-    // by not existing at all.
-    key: "booking_link",
-    name: "booking_link",
-    title: "Booking link",
-    purpose: "for a caller who asks to book",
-    category: "utility",
-    trigger: null,
-    retired: { by: "call_text", why: "The call's text sends the link and names the business's WhatsApp too." },
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, it's {{2}}. Here's the link to book your appointment: {{3}} \u2014 pick any time that suits you.",
-        footer: null,
-        slots: [FIRST, BUSINESS, LINK]
-      },
-      es: {
-        body: "Hola {{1}}, te escribimos de {{2}}. Aqu\xED tienes el enlace para reservar tu cita: {{3}} \u2014 elige la hora que mejor te venga.",
-        footer: null,
-        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
-      }
-    }
-  }
-];
-
-// src/templates/starter-lookup.ts
-function starterByName(name) {
-  return STARTER_TEMPLATES.find((s) => s.name === name) ?? null;
-}
-function starterByKey(key) {
-  return STARTER_TEMPLATES.find((s) => s.key === key) ?? null;
-}
-var STARTER_OF = { lapsed: "quiet_30" };
-function startersOffered(dealsOn) {
-  return STARTER_TEMPLATES.filter((s) => {
-    if (s.retired) return false;
-    const t = s.trigger ? triggerOf(s.trigger) : null;
-    return !t || triggerOffered(t, dealsOn);
-  });
-}
-function starterForTrigger(trigger) {
-  return startersForTrigger(trigger)[0] ?? null;
-}
-function startersForTrigger(trigger) {
-  if (!trigger) return [];
-  const own = STARTER_OF[trigger] ?? trigger;
-  const all = STARTER_TEMPLATES.filter((s) => s.trigger === own);
-  return [...all.filter((s) => !s.retired), ...all.filter((s) => s.retired)];
-}
-function starterSmsText(s, language) {
-  return s.sms?.[language] ?? s.sms?.en_US ?? null;
-}
-function starterEmailText(s, language) {
-  return s.email?.[language] ?? s.email?.en_US ?? null;
-}
-function starterText(s, language) {
-  return s.texts[language] ?? s.texts.en_US;
-}
-function starterDraft(s, language) {
-  const t = starterText(s, language);
-  return {
-    name: s.name,
-    language,
-    category: s.category,
-    body: t.body,
-    footer: t.footer,
-    examples: t.slots.map((x) => x.example)
-  };
-}
-
-// src/templates/template-titles.ts
-var TEMPLATE_TITLE_MAX = 60;
-function templateTitle(name, title) {
-  const given = typeof title === "string" ? title.replace(/\s+/g, " ").trim() : "";
-  if (given) return given.slice(0, TEMPLATE_TITLE_MAX);
-  const s = starterByName(name);
-  if (s) return s.title;
-  const words3 = String(name ?? "").replace(/_v\d+$/i, "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
-  return words3 ? words3[0].toUpperCase() + words3.slice(1) : String(name ?? "");
-}
-function playbookName(trigger, tpl) {
-  return startersForTrigger(trigger.id).some((s) => s.name === tpl.name) ? trigger.label : `${trigger.label} \xB7 ${templateTitle(tpl.name, tpl.title)}`;
-}
-
 // src/consent/consent-asks.ts
 var UNASKED = {
   consent: "unknown",
@@ -19553,296 +21269,6 @@ function personReachOf(r2, ready) {
   };
 }
 
-// src/templates/templates.ts
-var TEMPLATE_STATUS_WORDS = {
-  approved: "Approved",
-  pending: "In review",
-  rejected: "Refused",
-  paused: "Paused",
-  disabled: "Disabled"
-};
-var TEMPLATE_LANGUAGES = WHATSAPP_LANGUAGES;
-var TEMPLATE_CATEGORIES = ["marketing", "utility"];
-var TEMPLATE_BODY_MAX = 1024;
-var TEMPLATE_FOOTER_MAX = 60;
-var TEMPLATE_EXAMPLE_MAX = 100;
-var TEMPLATE_LABEL_MAX = 40;
-var TEMPLATE_NAME_MAX = 60;
-var TEMPLATE_NAME_WORDS = "The name needs letters, digits or underscores.";
-var TEMPLATE_BUTTON_TEXT_MAX = 25;
-var NAME = /^[a-z0-9_]{1,512}$/;
-function templateNameOk(name) {
-  return NAME.test(name);
-}
-function slugTemplateName(raw) {
-  return String(raw ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, TEMPLATE_NAME_MAX).replace(/_+$/g, "");
-}
-function placeholdersOf(body) {
-  const set = /* @__PURE__ */ new Set();
-  for (const m of String(body ?? "").matchAll(/\{\{(\d+)\}\}/g)) set.add(Number(m[1]));
-  return [...set].sort((a, b) => a - b);
-}
-function placeholdersSequential(positions) {
-  return positions.every((n, i) => n === i + 1);
-}
-function validateTemplateDraft(d) {
-  const name = slugTemplateName(d.name);
-  if (!name || !templateNameOk(name)) return { ok: false, error: TEMPLATE_NAME_WORDS };
-  if (!TEMPLATE_LANGUAGES.some((l) => l.id === d.language))
-    return { ok: false, error: "Pick a language from the list." };
-  if (!TEMPLATE_CATEGORIES.includes(d.category))
-    return { ok: false, error: "A template is marketing or utility." };
-  const body = String(d.body ?? "").replace(/\r\n/g, "\n").trim();
-  if (!body) return { ok: false, error: "Write the message." };
-  if (body.length > TEMPLATE_BODY_MAX)
-    return { ok: false, error: `The message must be under ${TEMPLATE_BODY_MAX} characters.` };
-  const slots = placeholdersOf(body);
-  if (!placeholdersSequential(slots))
-    return { ok: false, error: "Number the values {{1}}, {{2}}, {{3}} in order, with no gaps." };
-  const examples = (d.examples ?? []).map((e) => String(e ?? "").trim());
-  if (examples.length !== slots.length)
-    return {
-      ok: false,
-      error: slots.length === 0 ? "This message takes no values, so it needs no examples." : `Give one example for each of the ${slots.length} value${slots.length === 1 ? "" : "s"} \u2014 WhatsApp's reviewers read them.`
-    };
-  if (examples.some((e) => !e || e.length > TEMPLATE_EXAMPLE_MAX))
-    return { ok: false, error: `Every example needs words, under ${TEMPLATE_EXAMPLE_MAX} characters.` };
-  const footer = d.footer ? String(d.footer).trim() : "";
-  if (footer.length > TEMPLATE_FOOTER_MAX)
-    return { ok: false, error: `The footer must be under ${TEMPLATE_FOOTER_MAX} characters.` };
-  if (/\{\{/.test(footer)) return { ok: false, error: "The footer cannot take a value." };
-  let button = null;
-  if (d.button) {
-    const text = String(d.button.text ?? "").replace(/\s+/g, " ").trim();
-    const url = String(d.button.url ?? "").trim();
-    if (!text) return { ok: false, error: "Give the button its words, or leave it out." };
-    if (text.length > TEMPLATE_BUTTON_TEXT_MAX)
-      return { ok: false, error: `A button's words must be under ${TEMPLATE_BUTTON_TEXT_MAX} characters.` };
-    if (/\{\{/.test(text) || /\{\{/.test(url))
-      return {
-        ok: false,
-        error: "A button cannot take a value: Chanlytics sends the message and nothing else, and WhatsApp would refuse every send."
-      };
-    let parsed;
-    try {
-      parsed = new URL(url);
-    } catch {
-      parsed = null;
-    }
-    if (!parsed || !/^https?:$/.test(parsed.protocol))
-      return { ok: false, error: "The button needs a web address to open, starting with https://." };
-    button = { text, url };
-  }
-  const warnings = [];
-  if (/^\s*\{\{\d+\}\}/.test(body) || /\{\{\d+\}\}\s*$/.test(body))
-    warnings.push("WhatsApp often rejects a message that starts or ends with a value; put words around it.");
-  if (d.category === "marketing" && !/stop/i.test(body + " " + footer))
-    warnings.push("A marketing message should say how to opt out, such as \u201CReply STOP to opt out\u201D.");
-  if (/\n{3,}/.test(body)) warnings.push("More than one blank line in a row is usually rejected.");
-  return {
-    ok: true,
-    value: {
-      name,
-      language: d.language,
-      category: d.category,
-      body,
-      footer: footer || null,
-      examples,
-      button
-    },
-    warnings
-  };
-}
-function templateComponents(v) {
-  const body = { type: "BODY", text: v.body };
-  if (v.examples.length) body.example = { body_text: [v.examples] };
-  const out = [body];
-  if (v.footer) out.push({ type: "FOOTER", text: v.footer });
-  if (v.button) out.push({ type: "BUTTONS", buttons: [{ type: "URL", text: v.button.text, url: v.button.url }] });
-  return out;
-}
-var PARAM_SOURCES = [
-  "text",
-  "first_name",
-  "business_name",
-  "booking_link",
-  "visit_when",
-  "visit_service",
-  "proposal_link"
-];
-var PARAM_SOURCE_LABELS = {
-  text: "Type it",
-  first_name: "Their first name",
-  business_name: "The business name",
-  booking_link: "The booking link",
-  visit_when: "Their booked time",
-  visit_service: "Their booked service",
-  proposal_link: "Their proposal's link"
-};
-var PARAM_SOURCE_HINTS = {
-  first_name: "Each person's own \u2014 \u201Cthere\u201D when none is on file",
-  business_name: "From Settings \u203A Business",
-  booking_link: "From Settings \u203A Business",
-  visit_when: "Each one's own, from the calendar",
-  visit_service: "Each one's own, from the calendar",
-  proposal_link: "Each proposal's own, from its deal"
-};
-function parseParamSpec(raw) {
-  if (typeof raw === "string") {
-    const m = /^@(first_name|business_name|booking_link|visit_when|visit_service|proposal_link)$/.exec(raw.trim());
-    if (m) return { kind: m[1] };
-    return { kind: "text", value: raw };
-  }
-  if (raw && typeof raw === "object") {
-    const o = raw;
-    if (o.kind === "text") return typeof o.value === "string" ? { kind: "text", value: o.value } : null;
-    if (o.kind === "first_name" || o.kind === "business_name" || o.kind === "booking_link" || o.kind === "visit_when" || o.kind === "visit_service" || o.kind === "proposal_link")
-      return { kind: o.kind };
-  }
-  return null;
-}
-function parseParamSpecs(raw) {
-  return Array.isArray(raw) ? raw.map((p) => parseParamSpec(p) ?? { kind: "text", value: String(p) }) : [];
-}
-function paramLabel(spec) {
-  return spec.kind === "text" ? spec.value : PARAM_SOURCE_LABELS[spec.kind].toLowerCase();
-}
-function playbooksStillSending(names3) {
-  const quoted = names3.map((n) => `\u201C${n}\u201D`);
-  if (quoted.length <= 1)
-    return `${quoted[0] ?? "A campaign"} still uses this template. Pause it, or give it another, first.`;
-  return `${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]} still use this template. Pause them, or give them another, first.`;
-}
-function firstNameOf(displayName, waProfileName, name) {
-  if (displayName && name) {
-    if (name.source === "lead") return null;
-    if ((name.source === "signature" || name.source === "wire") && !name.settled) return null;
-  }
-  const raw = (displayName || waProfileName || "").trim();
-  if (!raw || isIdentifierName(raw)) return null;
-  const first = raw.split(/\s+/)[0].replace(/[^\p{L}\p{M}'’-]/gu, "");
-  return first ? first.slice(0, 30) : null;
-}
-function resolveParams(specs, f) {
-  return specs.map((s) => {
-    switch (s.kind) {
-      case "text":
-        return s.value;
-      case "first_name":
-        return f.firstName || "there";
-      case "business_name":
-        return f.businessName;
-      case "booking_link":
-        return f.bookingLink ?? "";
-      case "visit_when":
-        return f.visitWhen ?? "";
-      case "visit_service":
-        return f.visitService ?? "";
-      case "proposal_link":
-        return f.proposalLink ?? "";
-    }
-  });
-}
-function exampleParams(specs, businessName) {
-  return resolveParams(specs, {
-    firstName: "Dani",
-    businessName,
-    bookingLink: "your booking link",
-    visitWhen: "tomorrow at 2:00 PM",
-    visitService: "a consultation",
-    proposalLink: "their proposal's link"
-  });
-}
-var NOTHING = { playbooks: [], broadcasts: 0, recent: [], booking: false };
-function templateUsage(src) {
-  const out = {};
-  const at3 = (name) => out[name] ??= { playbooks: [], broadcasts: 0, recent: [], booking: false };
-  const asking = new Set(
-    src.broadcasts.filter((b) => b.playbook_id && b.state === "pending_approval").map((b) => b.playbook_id)
-  );
-  for (const p of src.playbooks) {
-    if (!p.template_name) continue;
-    at3(p.template_name).playbooks.push({
-      id: p.id,
-      name: p.name,
-      paused: p.state === "paused",
-      waiting: asking.has(p.id),
-      runs: p.runs ?? null
-    });
-  }
-  const byHand = src.broadcasts.filter((b) => !!b.template_name && !b.playbook_id).slice().sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
-  for (const b of byHand) {
-    const u = at3(b.template_name);
-    u.broadcasts += 1;
-    if (b.name && u.recent.length < 2) u.recent.push(b.name);
-  }
-  if (src.bookingName) at3(src.bookingName).booking = true;
-  return out;
-}
-var sayList = (parts2) => parts2.length < 2 ? parts2[0] ?? "" : `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
-var capital = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
-function templateUseWords(use) {
-  const u = use ?? NOTHING;
-  const parts2 = [];
-  for (const p of u.playbooks) parts2.push(p.paused ? `${p.name} (paused)` : p.name);
-  if (u.broadcasts > 0) parts2.push(`${u.broadcasts} broadcast${u.broadcasts === 1 ? "" : "s"}`);
-  if (u.booking) parts2.push("the Inbox");
-  if (parts2.length === 0) return "Nothing sends it";
-  if (parts2.length === 1 && u.playbooks.length === 1) return `${u.playbooks[0].name} campaign`;
-  return capital(sayList(parts2));
-}
-function templateUseNote(use) {
-  const u = use ?? NOTHING;
-  if (u.playbooks.some((p) => p.waiting)) return `a run is ${RUN_WAITING_WORDS.toLowerCase()}`;
-  if (u.playbooks.length === 1) return u.playbooks[0].paused ? "paused \u2014 nothing goes out" : u.playbooks[0].runs;
-  if (u.playbooks.length > 1) return u.playbooks.every((p) => p.paused) ? "all paused \u2014 nothing goes out" : null;
-  if (u.recent.length > 0)
-    return u.broadcasts > u.recent.length ? `${u.recent.join(", ")} and ${u.broadcasts - u.recent.length} more` : u.recent.join(", ");
-  if (u.booking) return "what the receptionist sends to book";
-  return null;
-}
-function templateUnused(use) {
-  const u = use ?? NOTHING;
-  return u.playbooks.length === 0 && u.broadcasts === 0 && !u.booking;
-}
-function templateSends(src) {
-  const out = {};
-  const nameOf = new Map(src.runs.map((r2) => [r2.id, r2.template_name]));
-  const went = (name, at3) => {
-    const s = out[name] ??= { count: 0, lastAt: null };
-    s.count += 1;
-    const ms2 = at3 === null ? NaN : Date.parse(at3);
-    if (Number.isFinite(ms2) && (s.lastAt === null || ms2 > Date.parse(s.lastAt))) s.lastAt = at3;
-  };
-  for (const r2 of src.recipients) {
-    const name = r2.state === "sent" ? nameOf.get(r2.broadcast_id) : void 0;
-    if (name) went(name, r2.sent_at);
-  }
-  for (const m of src.inbox) {
-    if (m.template_name && m.external_id) went(m.template_name, m.created_at);
-  }
-  return out;
-}
-function templateSendsOf(answer) {
-  const byName = recordOrNull(answer);
-  if (!byName) return null;
-  const out = {};
-  for (const [name, raw] of Object.entries(byName)) {
-    const s = recordOrNull(raw);
-    if (!s || !isCount(s.count) || !(s.last_at === null || typeof s.last_at === "string")) return null;
-    out[name] = { count: s.count, lastAt: s.last_at };
-  }
-  return out;
-}
-function templateSentWords(s, tz, nowMs) {
-  if (!s || s.count === 0) return { count: null, when: "Never sent" };
-  const at3 = s.lastAt === null ? NaN : Date.parse(s.lastAt);
-  return {
-    count: s.count.toLocaleString("en-US"),
-    when: Number.isFinite(at3) ? agoWords(at3, nowMs, { date: (ms2) => clockDate(ms2, tz, nowMs) }) : null
-  };
-}
-
 // src/broadcasts/broadcast-audience.ts
 var AUDIENCE_KINDS = ["everyone", "list", "saved"];
 function audienceTrigger(audience) {
@@ -19916,10 +21342,6 @@ function audienceMembers(rows2, kind, id, savedIds) {
   if (kind === "saved") return savedIds ? rows2.filter((r2) => savedIds.has(r2.id)) : [];
   return rows2;
 }
-function heardWords(n) {
-  if (n <= 0) return null;
-  return `${n === 1 ? "One" : n} of them heard from a campaign or a broadcast this week.`;
-}
 function previewPerson(r2, refusal, channel) {
   return {
     id: r2.id,
@@ -19929,8 +21351,8 @@ function previewPerson(r2, refusal, channel) {
     channel
   };
 }
-var NO_ONE = /* @__PURE__ */ new Set();
-function audiencePreview(rows2, kind, id, savedIds, purpose, how, limit = 5, touched = NO_ONE) {
+var NO_TOUCHES = {};
+function audiencePreview(rows2, kind, id, savedIds, purpose, how, limit = 5, touches = NO_TOUCHES) {
   const pool = audienceMembers(rows2, kind, id, savedIds);
   const picks = pool.map((r2) => ({ r: r2, p: reachFor(r2, purpose, how) }));
   const sending = picks.filter((x) => x.p.channel !== null);
@@ -19945,13 +21367,19 @@ function audiencePreview(rows2, kind, id, savedIds, purpose, how, limit = 5, tou
   const people = order.slice(0, limit).map((x) => previewPerson(x.r, null, x.p.channel));
   for (const { r: r2, p } of held.slice(0, 2))
     people.push(previewPerson(r2, p.held ? heldWords(p.held, purpose) : null, null));
+  const heardTouches = [];
+  for (const x of sending) {
+    const times = touches[x.r.id];
+    if (times && times.length > 0 && x.p.channel)
+      heardTouches.push({ times: times.map(Date.parse), channel: x.p.channel });
+  }
   return {
     people,
     split: reachSplit(pool, purpose, how),
     sending: sending.length,
     held: held.length,
     saidYes: pool.filter((r2) => saidYesOnAny(r2, purpose, how)).length,
-    heard: sending.filter((x) => touched.has(x.r.id)).length
+    heardTouches
   };
 }
 
@@ -20011,96 +21439,6 @@ function numberHealth(n) {
 function overLimitRefusal(h, audience) {
   if (h.limitPerDay === null || audience <= h.limitPerDay) return null;
   return `This number can start up to ${h.limitPerDay.toLocaleString("en-US")} new conversations a day; this audience is ${audience.toLocaleString("en-US")}. Send to a smaller list or split it.`;
-}
-
-// src/broadcasts/run-words.ts
-var REPLY_WINDOW_HOURS = 72;
-var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * HOUR_MS;
-var REPLY_DAYS = `${REPLY_WINDOW_HOURS / 24} days`;
-var REPLY_WINDOW_WORDS = `within ${REPLY_DAYS}`;
-var STUCK_DAYS = "30 days";
-function isReplyTo(sentAt, at3) {
-  const s = Date.parse(sentAt);
-  const a = Date.parse(at3);
-  return Number.isFinite(s) && Number.isFinite(a) && a > s && a - s <= REPLY_WINDOW_MS;
-}
-var HELD_REASONS = {
-  opted_out: "asked to stop",
-  not_opted_in: "no recorded yes",
-  // The reason the send job writes when the OTHER yes is the missing one. It was
-  // added to the wire (00095) and not to these words, so the owner read the raw
-  // enum `no_marketing_consent` on the broadcast's own detail pane -- and the
-  // distinction it draws is the entire point of the split, so it is the last one
-  // that should have arrived untranslated.
-  no_marketing_consent: "no yes to offers",
-  no_phone: "no number",
-  // The channel picked was email and no address is on file (step 3), or no channel the send ticks could carry it.
-  no_address: "no email address",
-  no_channel: "no channel it can go by",
-  sms_line_not_active: "the texting line is not active",
-  // The workspace's month of emails or texts is used up (CAMPAIGN_MONTH_ALLOWANCE): held on its channel, never moved.
-  month_allowance: "this month's allowance is used up",
-  // The message's WhatsApp version is no longer one a send can use: it holds the people who go by WhatsApp, and only them.
-  template_not_approved: "its WhatsApp version is no longer approved",
-  // The number is on file but no thread answers to it on this line: a stored
-  // number that does not normalise, or one no contact row matches.
-  no_thread: "no thread for that number",
-  human_has_it: "a person had the thread",
-  paused: "the workspace was paused",
-  superseded_by_human: "a person answered first",
-  sms_carries_no_promotions: "no offers by text",
-  // The campaigns domain offers leave from is not this deployment's to use, or the provider does not verify it: the business's
-  // news by email is an offer at the door (decision D2), so it waits as an offer does. Each person's own skip, final.
-  email_marketing_disabled: "offers and news by email can't leave yet: the campaigns domain isn't switched on",
-  // The workspace's offers by email are paused while complaints or bounces settle (email-offers.ts), and the business's news
-  // by email with them (decision D2); a visit's reminder and a reply still go.
-  email_offers_paused: "offers and news by email are paused",
-  // An offer's foot names the business's address, and it has none on file: the person is held until it does.
-  no_business_address: "no business address on file",
-  email_suppressed: "their email address stopped accepting mail",
-  recipient_changed: "their email address changed",
-  erased: "deleted",
-  // The provider refused the send, on whichever channel the person was reached by: a page that knows the channel says
-  // it by SEND_REFUSED_WORDS, and a row that does not (a person's own page, a run made before rows kept theirs) says this.
-  send_failed: "the provider refused it",
-  missing_value: "a value was missing",
-  // A reminder's appointment moved, was cancelled or marked missed, or left the calendar between the run and the send
-  // (calendar/feed-appointments.ts appointmentHolds): held, never sent for a time that no longer stands.
-  appointment_changed: "their appointment moved or was cancelled",
-  // Spelled out rather than computed from OUTCOME_UNKNOWN: a computed key makes
-  // this object opaque to the bundler, which then carries the whole map into
-  // every package that imports anything from here. core-broadcast.test.mjs
-  // holds the two spellings together.
-  outcome_unknown: "a run that did not finish",
-  // Reach out's (a cold email), short, for a run's line.
-  unsubscribed: "unsubscribed",
-  outreach_is_email_only: "cold email goes by email only",
-  outreach_not_a_lead: "not a business your searches found",
-  outreach_lead_closed: "no longer being written to",
-  outreach_suppressed: "on the never-again list",
-  outreach_wrote_back: "wrote back or called",
-  outreach_away: "away until the day they're back",
-  outreach_stopped: "you stopped writing to them",
-  outreach_without_unsubscribe: "no unsubscribe link",
-  outreach_needs_own_domain: "not from your own domain",
-  sending_domain_not_ready: "the domain isn't sending",
-  sending_domain_at_cap: "the domain's day is full"
-};
-var DELIVERY_RECEIPTS_WORDS = "each channel's own receipts";
-var DELIVERY_RECEIPTS_TIP = "Each channel's own receipts";
-var EMAIL_HOLDS = [
-  "email_offers_paused",
-  "email_marketing_disabled"
-];
-function finishedRunHeldWhy(emailHeld) {
-  const why = [
-    HELD_REASONS.not_opted_in,
-    HELD_REASONS.opted_out,
-    HELD_REASONS.no_phone,
-    HELD_REASONS.human_has_it,
-    ...EMAIL_HOLDS.filter((r2) => emailHeld.includes(r2)).map((r2) => HELD_REASONS[r2])
-  ];
-  return `${why.join(", ")}, or ${HELD_REASONS.outcome_unknown}`;
 }
 
 // src/broadcasts/run-report.ts
@@ -20521,6 +21859,520 @@ function emptyAudienceRefusal(purpose, label, pool, how) {
   return purpose === "marketing" ? "Nobody there has said yes to offers yet \u2014 that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under \u201COffers and news\u201D on a person's profile, or get their yes with the phrase and the QR in Sent." : "Nobody there has said yes to messages yet. Even a reminder needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and the QR in Sent.";
 }
 
+// src/playbooks/playbook-schedule.ts
+function onTrialAt(p, now) {
+  const end = Date.parse(p.trial_until ?? "");
+  return Number.isFinite(end) && now.getTime() < end;
+}
+function effectiveMode(p, mode, now) {
+  return mode === "auto" && onTrialAt(p, now) ? "veto" : mode;
+}
+function newCampaignTrialUntil(now) {
+  return new Date(now.getTime() + WEEK_MS).toISOString();
+}
+function campaignEnded(p, day) {
+  return p.until && day > p.until ? p.until : null;
+}
+function campaignDayWords(day, tz, now) {
+  return clockDate(zoneMidnight(tz, day) + 12 * HOUR_MS, tz, now.getTime());
+}
+function trialDayWords(p, tz, now) {
+  return onTrialAt(p, now) ? clockDate(Date.parse(p.trial_until ?? ""), tz, now.getTime()) : null;
+}
+function planRun(mode, now) {
+  switch (mode) {
+    case "auto":
+      return { kind: "send", state: "scheduled", at: now };
+    case "veto":
+      return { kind: "send", state: "scheduled", at: new Date(now.getTime() + PLAYBOOK_VETO_DELAY_MS) };
+    case "ask":
+      return { kind: "hold", state: "pending_approval" };
+    default:
+      return { kind: "off" };
+  }
+}
+function parts(tz, now) {
+  try {
+    const f = dateFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      hour12: false
+    });
+    const p = Object.fromEntries(f.formatToParts(now).map((x) => [x.type, x.value]));
+    const hour = Number(p.hour) % 24;
+    return { date: `${p.year}-${p.month}-${p.day}`, hour };
+  } catch {
+    return { date: now.toISOString().slice(0, 10), hour: now.getUTCHours() };
+  }
+}
+function localDate(tz, now) {
+  return parts(tz, now).date;
+}
+function localHour(tz, now) {
+  return parts(tz, now).hour;
+}
+function nextOpenMoment(tz, when) {
+  const { date, hour } = parts(tz, when);
+  if (hour >= PLAYBOOK_HOURS.min && hour <= PLAYBOOK_HOURS.max) return { at: when, moved: false };
+  const day = hour < PLAYBOOK_HOURS.min ? date : shiftKey(date, 1);
+  let at3 = zoneMidnight(tz, day) + PLAYBOOK_HOURS.min * HOUR_MS;
+  const landed = parts(tz, new Date(at3)).hour;
+  if (landed !== PLAYBOOK_HOURS.min) at3 += (PLAYBOOK_HOURS.min - landed) * HOUR_MS;
+  return { at: new Date(at3), moved: true };
+}
+function runDueNow(p, tz, now) {
+  if (p.state !== "running") return false;
+  const { date, hour } = parts(tz, now);
+  return hour >= p.run_hour && hour <= PLAYBOOK_HOURS.max && p.last_run_for !== date;
+}
+function inLastSendingHour(tz, now) {
+  return parts(tz, now).hour >= PLAYBOOK_HOURS.max;
+}
+function scheduleLine(p, word) {
+  const at3 = clockHour(p.run_hour);
+  if (triggerOf(p.trigger)?.kind === "visit") {
+    const W = appointmentWords(word);
+    return `Daily ${at3} \xB7 ${p.trigger === "visit_tomorrow" ? W.tomorrowWho : W.yesterdayWho} \xB7 up to ${p.cap_per_run}`;
+  }
+  if (p.trigger === "everyone_monthly") return `Every ${p.cadence_days} days at ${at3} \xB7 up to ${p.cap_per_run} a day`;
+  if (triggerOf(p.trigger)?.kind === "deal") return `Daily ${at3} \xB7 up to ${p.cap_per_run} \xB7 once per proposal`;
+  return `Daily ${at3} \xB7 up to ${p.cap_per_run} \xB7 once per person, again after ${p.gap_days} days`;
+}
+function runsWords(p) {
+  const at3 = clockHour(p.run_hour);
+  return p.trigger === "everyone_monthly" ? `runs every ${p.cadence_days} days at ${at3}` : `runs daily at ${at3}`;
+}
+var NEXT_RUN_WORKSPACE_PAUSED = "after billing resumes";
+function nextRunLabel(p, tz, now, workspacePaused) {
+  if (p.state !== "running") return "paused";
+  if (workspacePaused) return NEXT_RUN_WORKSPACE_PAUSED;
+  const next = nextRunOf(p, tz, now);
+  return next.soon ? "today, within the hour" : `${next.day} ${clockHour(next.hour)}`;
+}
+function nextRunOf(p, tz, now) {
+  const { date, hour } = parts(tz, now);
+  if (p.last_run_for !== date) {
+    if (hour < p.run_hour) return { day: "today", hour: p.run_hour, soon: false };
+    if (hour <= PLAYBOOK_HOURS.max) return { day: "today", hour: p.run_hour, soon: true };
+  }
+  return { day: "tomorrow", hour: p.run_hour, soon: false };
+}
+
+// src/ask/plan.ts
+var SEND_HOUR = PLAYBOOK_DEFAULTS.runHour;
+var REMINDER_AFTER_DAYS = 19;
+var OFFER_CHANNELS = ["whatsapp", "email"];
+var PER_PERSON = /* @__PURE__ */ new Set(["first_name", "business_name", "booking_link", "review_link"]);
+var LIVE = /* @__PURE__ */ new Set(["approved", "pending"]);
+var SENDS_NOW = /* @__PURE__ */ new Set(["approved"]);
+var WRITTEN_NAME = /^offer(?:_\d+)?$/;
+var SILENT = {
+  message: true,
+  note: true,
+  change: true,
+  broadcast: false,
+  playbook: false
+};
+var STAGE_WORDS = {
+  first_contact: "at first contact",
+  before: "the day before an appointment",
+  after: "the day after an appointment",
+  proposal: "while a proposal waits",
+  quiet: "once they go quiet"
+};
+var OFFER_MESSAGE = {
+  en: {
+    whatsapp: `Hi {{1}}, an offer from {{2}}: {{3}} Book here: {{4}} or reply with a day that suits you.
+
+${SENDER_WORDS.en.textStop}`,
+    subject: "An offer from {{2}}",
+    email: "Hi {{1}},\n\nAn offer from {{2}}: {{3}}\n\nBook here: {{4}}, or reply with a day that suits you."
+  },
+  es: {
+    whatsapp: `Hola {{1}}, una oferta de {{2}}: {{3}} Reserva aqu\xED: {{4}} o responde con el d\xEDa que mejor te venga.
+
+${SENDER_WORDS.es.textStop}`,
+    subject: "Una oferta de {{2}}",
+    email: "Hola {{1}}:\n\nUna oferta de {{2}}: {{3}}\n\nReserva aqu\xED: {{4}}, o responde con el d\xEDa que mejor te venga."
+  }
+};
+var whyOf = (why) => why ?? CHANNEL_WORDS.unchecked;
+var roomWords = (room, audience) => `The calendar has ${room.open > 0 ? plural(room.open, "open slot") : "no open slot"} in the next ${plural(room.days, "day")} for ${plural(audience, "person", "people")}`;
+var capOf = (room) => Math.min(
+  PLAYBOOK_LIMITS.cap_per_run.max,
+  Math.max(PLAYBOOK_LIMITS.cap_per_run.min, Math.ceil(room.open / Math.max(1, room.days)))
+);
+var unreadWords = (what) => `${what} could not be read just now, so nothing was proposed: say so, and ask again in a moment.`;
+var PLAN_WORDS = {
+  noOffer: "intent offer takes offer: its words, from and until, the offer's first and last day. Ask what the offer is and when it runs.",
+  noWords: "words is the offer in the owner's words: ask what the offer is.",
+  notADay: "from and until are days on the business's calendar, written YYYY-MM-DD: ask for them again.",
+  fromAfterUntil: "until comes before from: an offer's last day is its first day or later. Ask which dates they meant.",
+  fromPast: "from is a day already past on the business's calendar: an offer starts today or later. Ask when it starts.",
+  /** None asked for can carry it: each closed one given, why; an open one not asked, to name; else what to set up. */
+  noChannel: (closed, open) => [
+    `Nothing ${open.length ? "asked for" : "here"} can carry this offer.`,
+    ...closed.map((c) => `${VERSION_CHANNEL_WORDS[c.channel]} cannot: ${whyOf(c.why)}`),
+    ...open.map((c) => `${VERSION_CHANNEL_WORDS[c]} can carry it: name it, or leave channels out.`),
+    ...open.length ? [] : [`${CHANNEL_WORDS.noOffersByText} Say so, and what to set up first.`]
+  ].join(" "),
+  noChannelNamed: "channels names no channel: name WhatsApp, email or both, or leave channels out for every one the workspace sends offers on.",
+  /** Texts asked for alone: never a channel an offer goes by, whatever the workspace can send. */
+  textOnly: `${CHANNEL_WORDS.noOffersByText} An offer goes by WhatsApp or email: say so, and name either, or leave channels out for every one the workspace sends offers on.`,
+  noOffersList: "who is not a list this workspace has: name one people with action lists gives, or leave who out for everyone who can receive offers.",
+  journeyUnread: "The journey could not be read just now, so which moments are covered is not known: say so, and try again in a moment.",
+  /** A read the plan is made against that failed (Task 17's world): never a plan on a guess of what it would have said. */
+  channelsUnread: unreadWords("Which channels can send"),
+  libraryUnread: unreadWords("The message library"),
+  playbooksUnread: unreadWords("The campaigns, and so whether the month's offer runs,"),
+  listsUnread: unreadWords("The lists an offer goes to"),
+  notesUnread: unreadWords("The receptionist's notes"),
+  nothingToCover: "Every moment asked for is covered already or not offered here (an appointment's moments need a calendar connected, a proposal's needs deals on): say so, and propose nothing.",
+  /** What an offer is called: the receptionist's note, the send and the campaign. */
+  offerTitle: (words3) => `Offer: ${words3}`,
+  /** What the receptionist's note says: the offer as the message says it, its dates, and what it is for. */
+  noteText: (line, from, until, service) => `The offer: ${line} It runs from ${from} to ${until}.${service ? ` It is for ${service}.` : ""}`,
+  reuseMessage: (name) => `Sends \u201C${name}\u201D, already in the Library, with the offer in its words.`,
+  writeMessage: (name, on) => `Writes a message for offers, \u201C${name}\u201D, for ${joinWords(on.map(versionWord))}: this offer goes in its words, and the next offer can send it too.`,
+  /** A channel the offer goes without, and channelChoices' why, as a card says a channel that waits (playbook-channels.ts). */
+  without: (channel, why) => `It goes without ${versionWord(channel)}: ${whyOf(why)}`,
+  /** Why it goes without WhatsApp where the one message that carries it waits on WhatsApp's review (a send it holds). */
+  reviewing: (name) => `WhatsApp is still reviewing the WhatsApp version of \u201C${name}\u201D.`,
+  /** That message, WhatsApp the one channel it goes by: no twin; email named where open (never channels left out). */
+  reviewRefused: (name, emailOpen) => `\u201C${name}\u201D, the one message here that carries an offer, waits on WhatsApp's review of its WhatsApp version, and WhatsApp is the one channel ${emailOpen ? "asked for" : "this offer may go by"}: say so, and ${emailOpen ? "that email can carry it now (name it), or " : ""}ask again once WhatsApp has reviewed it.`,
+  noText: CHANNEL_WORDS.noOffersByText,
+  noteMade: (until) => `Tells the receptionist about the offer, until ${until}.`,
+  noteKnown: "The receptionist already has a note about the offer.",
+  /** A note is an owner's or a partner's to approve (the settings card's role), and the member asking is neither. */
+  noteLeftOut: "The receptionist is not told about the offer until an owner or a partner adds a note about it.",
+  /** The pause is a silent step: it applies at the plan's Approve, not on the offer's first day. */
+  monthsOfferPaused: (name, until) => `Pauses the month's offer, \u201C${name}\u201D, from when you approve it, so nobody gets two offers; resume it after ${until}.`,
+  firstSend: (list2, day, at3) => `The offer goes to \u201C${list2}\u201D on ${day} at ${at3}.`,
+  firstAtApprove: (list2, at3) => `The offer goes to \u201C${list2}\u201D when you approve it, as ${at3} today has passed.`,
+  /** An offer that starts today, on a calendar with less room than half its audience: a campaign, from its Approve. */
+  paced: (room, audience) => `${roomWords(room, audience)}, so the offer goes as a campaign: up to ${capOf(room)} a day, each person once, until it ends, starting when you approve it.`,
+  /** The same room for an offer that starts later: its send reaches the whole list, or is dismissed to pace it then. */
+  roomTight: (room, audience, from) => `${roomWords(room, audience)}, and the send goes to the whole list at once: to pace the offer to the room instead, dismiss the send and ask again on ${from}.`,
+  /** Its WhatsApp version unapproved, a send waits (sendWaitsForReview) at its press, whatever its day; its card says. */
+  reviewFirst: "The send can be approved once WhatsApp has reviewed its WhatsApp version.",
+  /** A paced campaign by email too: approved now, its WhatsApp people held until the version is approved. */
+  whatsappReview: "Its WhatsApp version waits on WhatsApp's review, which may still be running at the first send: whoever it reaches on WhatsApp waits for it.",
+  /** The reminder, its own question on its day (who has booked is known then); short, to fit the answer whole. */
+  reminderAsk: (day, list2) => `On ${day}, ask me to send a reminder to whoever on \u201C${list2}\u201D has not booked by then.`,
+  cover: (n) => `Starts ${plural(n, "campaign")}, one on each moment not covered yet, each its own card.`,
+  notOffered: (stages) => `Not offered here: ${joinWords(stages)}.`,
+  pausedOn: (name) => `\u201C${name}\u201D stands paused on its moment: resume it from its drawer.`,
+  /**
+   * What a card says of what an earlier step of its plan makes, named by its token (`@step:n`): not filed yet, so not
+   * quoted, and filled in by the commit once that step is approved.
+   */
+  stepMessage: (n) => `the message made by step ${n}`,
+  stepCampaign: (n) => `the campaign made by step ${n}`,
+  /** A change to a campaign a step makes: what is said without the campaign's row (its other fields are its step's). */
+  stepChangeOnly: (n) => `A change to the campaign made by step ${n} takes state paused, params or until: the rest is the step's own to say.`,
+  why: {
+    message: "No message in the Library carries an offer on every channel this one goes by.",
+    // What the note does, never what the receptionist will say of it: a discount in a reply is a person's whatever the
+    // price switch says (decision 0051, price-allowance.ts), so the reply that names it may be held for one.
+    note: "So the receptionist knows the offer and when it runs.",
+    pause: "So nobody gets the month's offer and this one.",
+    first: "The offer, on its first day.",
+    paced: "The offer, as fast as the calendar can take it.",
+    stage: (id) => `Nobody hears from you ${STAGE_WORDS[id]} yet.`
+  }
+};
+var SAY = PLAN_WORDS;
+function planSteps() {
+  const steps = [];
+  const add = (kind, input, why) => {
+    const n = steps.length + 1;
+    const after = SILENT[kind] ? [] : steps.filter((s) => s.silent).map((s) => s.n);
+    steps.push({ n, kind, silent: SILENT[kind], input, why, after });
+    return n;
+  };
+  return { steps, add };
+}
+function firstFree(named, taken) {
+  for (let i = 1; ; i += 1) {
+    const name = named(i);
+    if (!taken(name)) return name;
+  }
+}
+function audienceOf(token2) {
+  const ref = parseListToken(token2);
+  if (!ref) return null;
+  return { audience_kind: ref.kind === "builtin" ? "list" : "saved", audience_id: ref.id };
+}
+function offerDates(offer, world) {
+  if (!isDayKey(offer.from) || !isDayKey(offer.until)) return { refused: SAY.notADay };
+  if (offer.until < offer.from) return { refused: SAY.fromAfterUntil };
+  const today = localDate(world.tz, world.now);
+  if (offer.from < today) return { refused: SAY.fromPast };
+  const at3 = wallClockAt(world.tz, offer.from, SEND_HOUR, 0);
+  return {
+    today,
+    from: offer.from,
+    until: offer.until,
+    firstAt: at3 > world.now.getTime() ? at3 : null,
+    fromWords: campaignDayWords(offer.from, world.tz, world.now),
+    untilWords: campaignDayWords(offer.until, world.tz, world.now)
+  };
+}
+function offerChannels(asked, can) {
+  const want = asked ?? OFFER_CHANNELS;
+  const shut = OFFER_CHANNELS.filter((c) => want.includes(c) && !can[c].ok);
+  const unasked = OFFER_CHANNELS.filter((c) => !want.includes(c) && can[c].ok);
+  const told = unasked.length ? shut : OFFER_CHANNELS.filter((c) => !can[c].ok);
+  return {
+    on: OFFER_CHANNELS.filter((c) => want.includes(c) && can[c].ok),
+    unasked,
+    said: [...want.includes("sms") ? [SAY.noText] : [], ...shut.map((c) => SAY.without(c, can[c].why))],
+    refused: SAY.noChannel(
+      told.map((c) => ({ channel: c, why: can[c].why })),
+      unasked
+    )
+  };
+}
+var offerLine = (words3) => {
+  const t = words3.trim();
+  return /[.!?…]$/.test(t) ? t : `${t}.`;
+};
+var valuesOf = (slots, line) => [...slots].sort((a, b) => a.position - b.position).map((s) => s.kind === "text" ? line : `@${s.kind}`);
+function offerSlots(language) {
+  const starter = starterByName("this_months_offer");
+  if (!starter) throw new Error("the month's offer starter is gone from the starter set");
+  return starterText(starter, messageLanguageCode(language)).slots.map((s, i) => ({
+    position: i + 1,
+    label: s.label,
+    kind: s.kind
+  }));
+}
+var versionOn = (m, c, states) => m.versions.find((v) => v.channel === c && states.has(v.state));
+function offerFits(world, on, held) {
+  const offer = offerSlots(world.language).find((s) => s.kind === "text");
+  const takes = (m) => {
+    const typed = m.slots.filter((s) => s.kind === "text");
+    return typed.length === 1 && typed.every((s) => s.label === offer?.label) && m.slots.every((s) => s.kind === "text" || PER_PERSON.has(s.kind));
+  };
+  const states = (c) => held && c === "whatsapp" ? SENDS_NOW : LIVE;
+  const fits = world.messages.filter(
+    (m) => (
+      // A starter the set replaced is never sent anew (the earlier month's offer carries the same offer value).
+      !starterByName(m.name)?.retired && m.category === "marketing" && languageBase(m.language) === world.language && takes(m) && on.every((c) => versionOn(m, c, states(c)))
+    )
+  );
+  const rank = (m) => m.name === "this_months_offer" ? 0 : WRITTEN_NAME.test(m.name) ? 1 : 2;
+  return [...fits].sort((a, b) => rank(a) - rank(b));
+}
+function reusedMessage(m, on, line) {
+  const version = on.map((c) => versionOn(m, c, LIVE)).find((v) => v !== void 0);
+  if (!version) throw new Error(`a message that fits has a version on ${on.join(", ")}: ${m.name}`);
+  return {
+    made: false,
+    name: m.name,
+    id: version.id,
+    params: valuesOf(m.slots, line),
+    inReview: on.includes("whatsapp") && versionOn(m, "whatsapp", LIVE)?.state === "pending"
+  };
+}
+function writtenMessage(world, on, line) {
+  const slots = offerSlots(world.language);
+  const words3 = OFFER_MESSAGE[world.language];
+  const versions = {
+    ...on.includes("whatsapp") ? { whatsapp: { body: words3.whatsapp } } : {},
+    ...on.includes("email") ? { email: { subject: words3.subject, body: words3.email } } : {}
+  };
+  const held = new Set(world.messages.map((m) => m.name));
+  const name = firstFree(
+    (i) => i === 1 ? "offer" : `offer_${i}`,
+    (n) => held.has(n) || starterByName(n) !== null
+  );
+  return {
+    made: true,
+    name,
+    input: { name, language: world.language, category: "marketing", versions, slots },
+    params: valuesOf(slots, line)
+  };
+}
+function offerMessage(world, on, line, kind, unasked) {
+  const held = sendWaitsForReview(kind, on);
+  const [ready] = offerFits(world, on, held);
+  if (ready) return { message: reusedMessage(ready, on, line), on, said: [] };
+  const [waiting] = held ? offerFits(world, on, false) : [];
+  if (!waiting) return { message: writtenMessage(world, on, line), on, said: [] };
+  const rest = on.filter((c) => c !== "whatsapp");
+  if (rest.length === 0) return { refused: SAY.reviewRefused(waiting.name, unasked.includes("email")) };
+  return {
+    message: reusedMessage(waiting, rest, line),
+    on: rest,
+    said: [SAY.without("whatsapp", SAY.reviewing(waiting.name))]
+  };
+}
+function offerNote(offer, line, dates, notes) {
+  const title = clip(SAY.offerTitle(offer.words), PROFILE_LIMITS.noteTitle);
+  if (notes.some((n) => n.title === title && n.until === dates.until)) return null;
+  const service = offer.service?.trim().replace(/[.!?…]+$/, "") || null;
+  const text = SAY.noteText(line, dates.fromWords, dates.untilWords, service);
+  return { change: { op: "add_note", title, text: clip(text, PROFILE_LIMITS.noteText), until: dates.until } };
+}
+function monthsOfferPauses(world, until) {
+  const today = localDate(world.tz, world.now);
+  return world.playbooks.filter((p) => p.trigger === "everyone_monthly" && p.state === "running" && !campaignEnded(p, today)).map((p) => ({ input: { playbook_id: p.id, state: "paused" }, said: SAY.monthsOfferPaused(p.name, until) }));
+}
+function reminderDay(world, dates, paced) {
+  if (paced || !world.journey?.some((s) => s.id === "before" || s.id === "after")) return null;
+  const nineteen = shiftKey(dates.from, REMINDER_AFTER_DAYS);
+  const day = nineteen <= dates.until ? nineteen : dates.until;
+  return day > dates.from ? day : null;
+}
+function receptionistNote(offer, line, dates, world) {
+  const input = offerNote(offer, line, dates, world.notes);
+  if (!input) return { input: null, said: SAY.noteKnown };
+  return world.canNote ? { input, said: SAY.noteMade(dates.untilWords) } : { input: null, said: SAY.noteLeftOut };
+}
+function offerRead(offer, say2, world) {
+  if (!offer.words.trim()) return { refused: SAY.noWords };
+  const dates = offerDates(offer, world);
+  if ("refused" in dates) return dates;
+  if (offer.channels?.length === 0) return { refused: SAY.noChannelNamed };
+  if (offer.channels?.every((c) => c === "sms")) return { refused: SAY.textOnly };
+  const channels = offerChannels(offer.channels, world.channels);
+  if (channels.on.length === 0) return { refused: channels.refused };
+  const audience = world.lists.find((l) => l.token === (offer.who ?? world.offersList));
+  const to = audience ? audienceOf(audience.token) : null;
+  if (!audience || !to) return { refused: SAY.noOffersList };
+  const line = offerLine(say2?.trim() ? say2 : offer.words);
+  const room = world.room;
+  const tight = room && audience.count !== null && room.open * 2 < audience.count ? { room, audience: audience.count } : null;
+  const cap2 = tight && dates.from === dates.today ? capOf(tight.room) : null;
+  const kind = cap2 === null ? "broadcast" : "playbook";
+  const picked = offerMessage(world, channels.on, line, kind, channels.unasked);
+  if ("refused" in picked) return picked;
+  return {
+    offer,
+    dates,
+    on: picked.on,
+    onSaid: [...channels.said, ...picked.said],
+    audience,
+    to,
+    message: picked.message,
+    tight,
+    cap: cap2,
+    kind,
+    reminder: reminderDay(world, dates, cap2 !== null),
+    note: receptionistNote(offer, line, dates, world),
+    pauses: monthsOfferPauses(world, dates.untilWords)
+  };
+}
+var awaitsReview = (r2) => r2.on.includes("whatsapp") && (r2.message.made || r2.message.inReview);
+function sendUnseen(r2, world) {
+  const room = r2.tight ? [
+    r2.cap !== null ? SAY.paced(r2.tight.room, r2.tight.audience) : SAY.roomTight(r2.tight.room, r2.tight.audience, r2.dates.fromWords)
+  ] : [];
+  return [
+    ...room,
+    ...awaitsReview(r2) && !sendWaitsForReview(r2.kind, r2.on) ? [SAY.whatsappReview] : [],
+    ...r2.reminder ? [SAY.reminderAsk(campaignDayWords(r2.reminder, world.tz, world.now), r2.audience.name)] : []
+  ];
+}
+function sendDay(r2) {
+  if (r2.cap !== null) return [];
+  const hour = clockHour(SEND_HOUR);
+  return [
+    r2.dates.firstAt === null ? SAY.firstAtApprove(r2.audience.name, hour) : SAY.firstSend(r2.audience.name, r2.dates.fromWords, hour)
+  ];
+}
+function offerPlan(r2, world) {
+  const { steps, add } = planSteps();
+  const template_id = r2.message.made ? stepToken(add("message", r2.message.input, SAY.why.message)) : r2.message.id;
+  if (r2.note.input) add("note", r2.note.input, SAY.why.note);
+  for (const p of r2.pauses) add("change", p.input, SAY.why.pause);
+  const sends2 = { template_id, params: r2.message.params };
+  const title = SAY.offerTitle(r2.offer.words);
+  if (r2.cap !== null)
+    add(
+      "playbook",
+      {
+        trigger: "saved_list",
+        list: r2.audience.token,
+        policy_class: "campaign",
+        ...sends2,
+        cap_per_run: r2.cap,
+        name: clip(title, PLAYBOOK_NAME_MAX),
+        channels: r2.on,
+        until: r2.dates.until
+      },
+      SAY.why.paced
+    );
+  else
+    add(
+      "broadcast",
+      {
+        ...sends2,
+        ...r2.to,
+        ...r2.dates.firstAt === null ? {} : { scheduled_for: new Date(r2.dates.firstAt).toISOString() },
+        name: clip(title, BROADCAST_NAME_MAX),
+        channels: r2.on
+      },
+      SAY.why.first
+    );
+  const words3 = [
+    ...r2.onSaid,
+    ...r2.note.input ? [] : [r2.note.said],
+    ...r2.pauses.map((p) => p.said),
+    ...sendUnseen(r2, world),
+    // A send WhatsApp's review holds, approved once it is reviewed, as its card says too (plan-steps.ts reviewedStep).
+    ...awaitsReview(r2) && sendWaitsForReview(r2.kind, r2.on) ? [SAY.reviewFirst] : [],
+    r2.message.made ? SAY.writeMessage(r2.message.name, r2.on) : SAY.reuseMessage(r2.message.name),
+    ...r2.note.input ? [r2.note.said] : [],
+    ...sendDay(r2)
+  ];
+  return { steps, words: words3.join(" ") };
+}
+var REVIEW_STARTER = "after_visit_review";
+var CHECK_STARTER = "after_visit_check";
+function stageInput(id, moment, world) {
+  if (id !== "after") return { trigger: moment };
+  const reviews = world.messages.filter((m) => m.name === REVIEW_STARTER);
+  if (!world.reviewLink) return reviews.length ? { trigger: moment, starter: CHECK_STARTER } : { trigger: moment };
+  const review = reviews.find((m) => languageBase(m.language) === world.language);
+  const goes = (review?.versions ?? []).filter(
+    (v) => LIVE.has(v.state) && (v.channel !== "whatsapp" || world.whatsappSends)
+  );
+  const version = goes.find((v) => v.channel === "whatsapp") ?? goes.at(0);
+  return version ? { trigger: moment, template_id: version.id } : { trigger: moment, starter: REVIEW_STARTER };
+}
+function journeyPlan(stages, world) {
+  const journey = world.journey;
+  if (!journey) return { refused: SAY.journeyUnread };
+  const { steps, add } = planSteps();
+  const missing = [];
+  const paused = [];
+  for (const id of JOURNEY_STAGE_IDS) {
+    if (id === "first_contact" || stages && !stages.includes(id)) continue;
+    const stage = journey.find((s) => s.id === id);
+    if (!stage) {
+      if (stages) missing.push(STAGE_WORDS[id]);
+      continue;
+    }
+    if (stage.covered || !stage.moment) continue;
+    const held = world.playbooks.find((p) => p.state === "paused" && journeyStageOf(p.trigger) === id);
+    if (held) paused.push(SAY.pausedOn(held.name));
+    else add("playbook", stageInput(id, stage.moment, world), SAY.why.stage(id));
+  }
+  const said = [...missing.length ? [SAY.notOffered(missing)] : [], ...paused];
+  if (steps.length === 0) return { refused: [SAY.nothingToCover, ...said].join(" ") };
+  return { steps, words: [SAY.cover(steps.length), ...said].join(" ") };
+}
+function planOf(intent, world) {
+  if (intent.intent === "cover_journey") return journeyPlan(intent.stages, world);
+  const read = offerRead(intent.offer, intent.say, world);
+  return "refused" in read ? read : offerPlan(read, world);
+}
+
 // src/shared/html.ts
 var escapeHtml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
@@ -20622,26 +22474,32 @@ function previewOn(channel, o) {
   return { channel, label, version, foot, missing: null };
 }
 var SAID_MIN = 60;
-function previewSays(channels, o) {
-  const named = CONSENT_CHANNELS.filter((c) => channels.includes(c));
-  const room = Math.max(SAID_MIN, Math.floor(o.limit / Math.max(1, named.length)));
-  const clip2 = (words3) => {
-    const one = words3.replace(/\s+/g, " ").trim();
-    return one.length > room ? `${one.slice(0, room).trimEnd()}\u2026` : one;
-  };
+function previewParts(channels, o) {
   const parts2 = [];
-  for (const channel of named) {
+  for (const channel of CONSENT_CHANNELS.filter((c) => channels.includes(c))) {
     const label = PREVIEW_CHANNEL_WORDS[channel];
     if (channel === "whatsapp") {
-      parts2.push(`${label}: ${clip2(o.whatsapp)}`);
+      parts2.push({ channel, label, subject: null, body: o.whatsapp });
       continue;
     }
     const words3 = o.versions[channel];
     if (!words3) return { missing: channel, why: noVersionWords(channel) };
     const sent2 = renderOwnVersion(channel, words3, o.values, o.language);
-    parts2.push(`${label}: ${sent2.subject ? `\u201C${sent2.subject}\u201D \u2014 ` : ""}${clip2(sent2.body)}`);
+    parts2.push({ channel, label, subject: sent2.subject, body: sent2.body });
   }
-  return { says: parts2.join(" \xB7 ") };
+  return { parts: parts2 };
+}
+function previewSays(channels, o) {
+  const drawn = previewParts(channels, o);
+  if ("missing" in drawn) return drawn;
+  const room = Math.max(SAID_MIN, Math.floor(o.limit / Math.max(1, drawn.parts.length)));
+  const clip2 = (words3) => {
+    const one = words3.replace(/\s+/g, " ").trim();
+    return one.length > room ? `${one.slice(0, room).trimEnd()}\u2026` : one;
+  };
+  return {
+    says: drawn.parts.map((p) => `${p.label}: ${p.subject ? `\u201C${p.subject}\u201D \u2014 ` : ""}${clip2(p.body)}`).join(" \xB7 ")
+  };
 }
 function reachBarParts(split) {
   return CONSENT_CHANNELS.filter((c) => split.byChannel[c] > 0).map((channel) => ({
@@ -22282,560 +24140,6 @@ function frameOf(key, todayKey) {
   };
 }
 
-// src/shared/enums.ts
-var TENANT_STATUSES = ["active", "paused", "test"];
-var MEMBERSHIP_ROLES = ["owner", "operator", "partner", "viewer"];
-var CHANNEL_KINDS = ["whatsapp", "voice", "sms", "email", "instagram"];
-var IDENTITY_ASSURANCES = ["observed", "asserted", "found"];
-var CONVERSATION_STATES = ["open", "needs_human", "snoozed", "archived"];
-var MESSAGE_CHANNELS = ["whatsapp", "voice", "sms", "email", "system"];
-var MESSAGE_DIRECTIONS = ["inbound", "outbound"];
-var MESSAGE_SENDERS = ["customer", "ai", "human", "system"];
-var MESSAGE_TYPES = ["text", "template", "media", "call_summary", "note"];
-var MESSAGE_STATUSES = ["received", "queued", "sent", "delivered", "read", "failed", "canceled"];
-var CONSENT_STATES = ["unknown", "opted_in", "opted_out"];
-var JOB_KINDS = [
-  "outbound_send",
-  "broadcast_send",
-  /**
-   * A line's provisioning saga, run under the ledger's lease and resumed by
-   * the heartbeat if a worker dies (00109). The saga itself stays on the
-   * edge with the provider's credentials and is injected into the tick.
-   */
-  "line_provision",
-  /**
-   * One received email, fetched from the provider and taken in (00127). The
-   * webhook that announces it is a pointer, and a fetch can fail, so intake is
-   * a job: once per mailbox however often the webhook is replayed, and resumed
-   * where an interrupted run stopped. The fetch stays on the edge with the
-   * provider's key and is injected into the tick.
-   */
-  "email_ingest",
-  /**
-   * The lead finder (00140, PRD v3 §12.5). lead_round_start starts one round:
-   * a run per term, each claimed before the provider is called. lead_collect
-   * reads one page of one run, judges it and commits it in one transaction;
-   * seq is p<offset> for a page, final from the webhook, s<minute> from the
-   * sweep, stop from the stop door. lead_check checks one batch of emails. A
-   * provider's 429 or 5xx throws and is tried again by RETRY_WAITS_MS.
-   */
-  "lead_round_start",
-  "lead_collect",
-  "lead_check",
-  /**
-   * One kept notification (00057) to every phone of the people it is for
-   * (00162). Scheduled by the edge's notify when the row's kind is one of
-   * contracts PUSH_KINDS; a transport failure throws and is tried again by
-   * RETRY_WAITS_MS. Internal work: a second claim runs it again.
-   */
-  "push_send",
-  /**
-   * The receipts of one push_send, read a quarter of an hour on (00189):
-   * Expo's ticket says the service took a message, its receipt says whether
-   * the phone did, and a phone answered gone is forgotten here. Carries the
-   * tickets in its payload; a transport failure throws and is tried again.
-   */
-  "push_receipts",
-  /**
-   * One reply to a reach-out, read for what it means (Reach out Part 5, 00222): the model's reading, applied through
-   * reach_out_reply_apply, and the workspace told once. Scheduled by the email intake once per message
-   * (jobs_reply_read_once, scheduleJobOnce), and by itself for a re-read of a reply it could not read ({ stage:
-   * "reread-<n>" }). Internal work written to be run again: a second claim finds the reading and pays nothing.
-   */
-  "reply_read",
-  /**
-   * One booking tool's notice read into an appointment (docs/plans/2026-10-07-bookings-arrive-by-email.md): the
-   * email_ingest that recognised it schedules one per delivery (payload { received_id, mailbox_id }, keyed on the
-   * delivery), the handler fetches the email again, asks the model and writes the row. Internal work written to be run
-   * again: a second claim finds the row by the delivery's id and pays nothing.
-   */
-  "booking_read",
-  /**
-   * One event's delivery to one subscriber (00334, decision 0032): the relay writes it beside the event_deliveries row,
-   * keyed 'deliver:<event>:<subscriber>' (jobs.dedupe_key), in the subscription's lane (payload.lane). The handler runs
-   * the subscriber (core SUBSCRIBERS) and settles the delivery; a subscriber this build does not know is kept, as an
-   * unknown kind is. Internal work written to be run again: every subscriber assumes a second delivery.
-   */
-  "event_deliver",
-  /**
-   * One text answered after its acknowledgement (00347, decision 0031 Phase 2): the SMS door records the text and answers
-   * Twilio, and this job takes it up again through the whole inbound phase (core answerInbound with `resume`), keyed
-   * 'inbound_answer:<message>' (jobs.dedupe_key), in the reply lane. A runner killed mid-turn leaves it to be claimed
-   * again: the message is answered while it is unprocessed and no reply names it, so a second claim never texts twice.
-   */
-  "inbound_answer"
-];
-var EVENT_SUBSCRIBERS = [
-  "audit",
-  "reach_out_booked",
-  "owner_notice",
-  "consent_notice",
-  "visit_notice",
-  "team_notice"
-];
-var JOB_STATES = ["scheduled", "fired", "done", "canceled", "failed"];
-var WABA_FIELDS = [
-  "phone_number_quality_update",
-  "account_update",
-  "message_template_status_update",
-  "account_review_update",
-  "message_template_quality_update",
-  "template_category_update",
-  "phone_number_name_update"
-];
-var EVENT_KINDS = [
-  "message.received",
-  "message.sent",
-  "contact.consent_changed",
-  "usage.llm_tokens",
-  "usage.wa_conversation",
-  "ingest.allowlist_skip",
-  /** The sender cannot receive a reply — a short code. Recorded, never answered. */
-  "ingest.unreachable_sender",
-  "message.send_failed",
-  "message.send_blocked",
-  "message.send_raced_cancel",
-  /** An outbound chat message carrying the workspace's booking link has left (00313): { channel, sender }. */
-  "booking_link.sent",
-  "conversation.reopened",
-  "conversation.pause_expired",
-  "contact.erased",
-  /** Two records of one person became one (00326, decision 0028): on the kept record, with what moved. */
-  "contact.merged",
-  /**
-   * A door resolved who a person is (resolve_person, 00342, decision 0034): the outcome (new, matched, filled), how it
-   * matched, what it filled and the doubt it raised; never the number or the address. Evidence, purged with the other
-   * evidence kinds, and hidden from the activity log unless asked for by name: the record is contact.added.
-   */
-  "person.resolved",
-  "setup.requested",
-  "voice.provisioned",
-  "line.answering",
-  "line.failed",
-  "line.released",
-  "line.forwarding_verified",
-  /**
-   * Somebody at Chanlytics acted on a workspace they are not a member of.
-   *
-   * The back office's write half. Recorded BEFORE the action, and the action is
-   * refused if it cannot be recorded: a cross-tenant write that nobody can be
-   * held to is worse than one that did not happen. What happened next is the
-   * line's own event, written by the edge, immediately after this one.
-   */
-  "platform.acted",
-  /** The carriers answered: texting is on, the business is through, or it came back. */
-  "line.texting_on",
-  "line.texting_approved",
-  "line.texting_rejected",
-  /** The business on record for the carriers, saved or changed. */
-  "business.recorded",
-  /** The workspace's listing on Google: linked, removed, and a read that found new reviews or ratings. */
-  "google.linked",
-  "google.unlinked",
-  "google.reviews",
-  /** The owner's Business Profile: connected, disconnected, and a review answered from here. */
-  "google.connected",
-  "google.disconnected",
-  "google.replied",
-  // An automatic review reply written and not posted: it named a price or money (contracts autoReplyHold).
-  "google.reply_held",
-  "workspace.created",
-  /** The owner's controls changed: which config fields moved (never their values); a policy row's class, mode and the limit keys that moved. */
-  "settings.changed",
-  "policy.changed",
-  "billing.updated",
-  "billing.paused",
-  "billing.resumed",
-  /** A call: the row (00007) and the seconds it cost. */
-  "call.recorded",
-  /** A call ended in a transfer to a person (00312): { answered }, whether they picked up. */
-  "call.transferred",
-  "usage.voice_seconds",
-  /** The assistant's model usage, per turn (ask-gateway). */
-  "usage.ask_tokens",
-  /** Retell's webhook: every delivery and every refused signature, kept thirty days (00038). */
-  "webhook.auth",
-  "webhook.delivery",
-  /** A person who came from the calendar or a hand, not from a message (00053). */
-  "contact.added",
-  /** A person renamed or annotated at the desk (00054), or given an email address (00125). */
-  "contact.named",
-  /**
-   * Where a person works (0052, 00413): linked to a lead (its first email or call, a reply that cited ours, a member's
-   * hand), or not at it any more: { lead_id, via, by? }, never a name.
-   */
-  "contact.business_linked",
-  "contact.business_unlinked",
-  "contact.noted",
-  /** A note changed, taken away, or the receptionist's suggestion kept or dismissed (00157, 0007). Never the words. */
-  "contact.note_changed",
-  "contact.note_removed",
-  "contact.note_suggested",
-  "contact.note_kept",
-  "contact.note_dismissed",
-  "contact.note_done",
-  "contact.note_undone",
-  /** The member a note is for said Got it (0052): { note_id, by }, never the words. */
-  "contact.note_seen",
-  "contact.email_set",
-  /** A person's proposal link set or cleared at the desk (00154). Never the address. */
-  "contact.proposal_set",
-  /** A person's address stopped being sent to: a permanent bounce, a complaint, or the provider's own list (00126). The reason, never the address. */
-  "contact.email_suppressed",
-  /** An inbound the router could not place on any workspace. */
-  "ingest.unroutable",
-  /** A reply skipped because its veto window had already been spent. */
-  "policy.veto_window_skipped",
-  /** The sweep woke a snooze whose time had passed (00082). */
-  "conversation.snooze_expired",
-  /** A handover's reason was replaced by another while it was open (00308): { from, to }, reasons only, never the words. */
-  "escalation.changed",
-  /** A broadcast finished, with its tally; a playbook made a run. */
-  "broadcast.sent",
-  /**
-   * A broadcast stopped before it was done, or never went (state `failed`): its failure code and how many it reached
-   * first (contracts BROADCAST_FAILURES), from every place a run is failed. A finished run was on the ledger and a
-   * stopped one was not (the 4 Oct wiring review, P2 5).
-   */
-  "broadcast.stopped",
-  "playbook.run",
-  /** A WhatsApp number connected through Embedded Signup (admin/whatsapp/connect). */
-  "channel.connected",
-  /** A WhatsApp number's quality rating, read on a clock, changed (00315): { from?, to }. Meta's own news of it is channel.phone_number_quality_update. */
-  "channel.quality_rating",
-  /** What Meta holds about a WhatsApp number (may it send, and what stands in the way) changed: read at connection, on a clock or when an owner asks (00338): { from?, to }, the word of can_send only. */
-  "channel.standing",
-  /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
-  "mailbox.created",
-  "mailbox.renamed",
-  /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00299). The reason, never an address. */
-  "mailbox.offers_paused",
-  "mailbox.offers_resumed",
-  /** A workspace's own sending domain (Reach out, 00175): added, verified, held by the domains clock, sending again,
-   * removed. The host and the reason, never the provider's id. */
-  "sending_domain.added",
-  "sending_domain.verified",
-  "sending_domain.held",
-  "sending_domain.released",
-  /** The owner resumed a domain held for its bounces or a complaint (00176): 30 a day again. */
-  "sending_domain.resumed",
-  "sending_domain.removed",
-  /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
-  "lead.round",
-  /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
-  "lead.no_card",
-  /** A lead worked: its stage moved, the owner said they sent the email, a call happened, it became a person, or it was not a fit (release B). */
-  "lead.stage",
-  "lead.emailed",
-  "lead.call",
-  "lead.converted",
-  "lead.not_a_fit",
-  /**
-   * A lead was set aside as stale (archived, closed stale), by the nightly purge or by hand (00309): { stage, reason, from },
-   * written on the move into it, so a lead restored and set aside again writes a second. `from` is the stage the lead left to be
-   * set aside, null when it was already archived and only its reason changed (nothing moved: not an exit). The purge writes only
-   * this event; by hand (lead_set_stage to archived with the reason stale) the move also writes its lead.stage, so a count of
-   * exits takes one per lead and moment, never both kinds. Its own kind, not lead.stage, so the Activity log is not filled with
-   * one line per lead.
-   */
-  "lead.set_aside",
-  /**
-   * The ideas for a new search were written (00400: lead_suggestions_write), { how: "written" | "line", count, by_owner }:
-   * "written" when the model's ideas were kept, with how many; "line" when the owner set the business line they are
-   * written from, which asks for new ones. A record for Reports (how often ideas are written, whether owners rewrite
-   * the line), never a line of the owner's Activity.
-   */
-  "lead.ideas_written",
-  // A deal (0004): written by deal_record, one kind per stage; record kinds, kept.
-  "deal.proposed",
-  "deal.won",
-  "deal.lost",
-  "deal.ended",
-  // A partner (0012): the workspace was made through a partner's link and the partner joined its team, or the code
-  // the link left named no partner who could be credited (unknown, paused, or the caller's own).
-  "partner.attributed",
-  "partner.code_ignored",
-  // The ledger (0012, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
-  // standing the sweep decided for a workspace once it had paid.
-  "partner.earned",
-  "partner.reversed",
-  "partner.standing_set",
-  // A payout sent by hand (0012, P5), on each workspace it came from, with that workspace's part.
-  "partner.paid",
-  // A workspace a partner set up for a business (0016): handed to its owner (again, on a resend), accepted, declined.
-  "partner.handover_sent",
-  "partner.handover_accepted",
-  "partner.handover_declined",
-  // An existing workspace asks a partner to join it (0020): asked (again, on a second ask), taken back, joined, declined.
-  "partner.invited",
-  "partner.invite_withdrawn",
-  "partner.invite_accepted",
-  "partner.invite_declined",
-  // A reply to a reach-out, read (00222, Reach out Part 5): what it meant ({ intent, claim, reread, unread }), on the lead.
-  "reach_out.replied",
-  // A reply read as no, undone by a member within seven days (00222 reach_out_reply_undo).
-  "reach_out.reply_undone",
-  // A workspace reached an activation milestone for the first time (contracts ACTIVATION_MILESTONES): the funnel's rows.
-  "workspace.activated",
-  /**
-   * An appointment of the record changed (decision 0002), never its title: the calendar's hourly read writes { change:
-   * added | moved | vanished | back, source, starts_at } (appointments_feed_sync, 00348), and every other writer's row
-   * { change: added | confirmed | cancelled | moved, ... } in its own transaction (appointments_note_change, 00389). On
-   * the appointment; hidden from the activity log unless asked for by name, since a calendar read writes one per
-   * appointment.
-   */
-  "appointment.changed",
-  /**
-   * What a member did, or the receptionist, that neither ledger kept (the activity log's review, 8 Oct 2026). Each
-   * names the member in its data (`by`), as the settings' and the notes' kinds do, and none carries a customer's words.
-   *
-   * A thread handed to the team: a new open escalation ({ reason }), on the conversation. Every path that flags a
-   * thread writes it through one door, with the hold, in one transaction (escalation_open, 00388), once per hold; a
-   * reason that changes under an open hold is escalation.changed.
-   */
-  "escalation.opened",
-  /** A person accepted an invitation and joined the workspace ({ by, role }), on the invitation. */
-  "member.joined",
-  /** A playbook, or a reach-out's chain, edited ({ name, by, fields }: which parts moved, never their words). */
-  "playbook.changed",
-  /** A message sent to WhatsApp for approval, and one deleted from the Library ({ name, language, by }). */
-  "template.submitted",
-  "template.removed",
-  /** The owner switched what the workspace answers on or off ({ capability, by }: calls, WhatsApp or texts). */
-  "capability.activated",
-  "capability.deactivated",
-  /** A person left the workspace by deleting their account ({ by, how }): the seat is gone, and so is its name. */
-  "member.left",
-  /** "Stop writing to them" on a reach-out's lead, and a held reach-out email decided ({ decision, by }), on its run. */
-  "reach_out.lead_stopped",
-  "reach_out.send_decided",
-  /** A place in Needs review kept (it counts against the month), left out, or put back ({ by, search_id }), on the lead. */
-  "lead.kept",
-  "lead.excluded",
-  "lead.put_back",
-  /** A search renamed ({ name, by }) or removed ({ kept, archived, by }), on the search. */
-  "lead.search_renamed",
-  "lead.search_removed",
-  /** Two records a doubt named, said to be two people ({ by }), on the person. */
-  "contact.kept_apart",
-  /** The number a business keeps set to forward to its line ({ carrier, mode, by }: never the number), on the line. */
-  "line.forwarding_set",
-  /**
-   * A booking tool's email, read into the calendar (packages/jobs booking-read): a visit booked, moved or cancelled
-   * ({ source: "booking_email", tool }), on the appointment. Shown, where appointment.changed (the calendar's hourly
-   * read) is a kept record: an email is one thing that happened, said once.
-   */
-  "appointment.booked",
-  "appointment.moved",
-  "appointment.cancelled",
-  /** The owner answered from the WhatsApp Business app, so the receptionist stepped back until `until` (recordEchoAndPause). */
-  "conversation.owner_replied",
-  /** Stripe's own news of a payment and of a trial about to end (billing.ts notePayment, noteTrialEnding): never an amount. */
-  "billing.payment_failed",
-  "billing.paid",
-  "billing.trial_ending"
-];
-var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
-var EMAIL_STOP_PATTERN = /^\s*(stop|baja|alto)\s*[.!]?\s*$/i;
-var EMAIL_UNSUBSCRIBE_PATTERN = /^\s*(?:please\s+)?(?:unsubscribe(?:\s+me)?|desuscribir(?:me)?)\s*[.!]?\s*$/i;
-var SMS_OPT_OUT_PATTERN = /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|optout|baja|alto)\s*[.!]?\s*$/i;
-var OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta|yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
-var MARKETING_OPT_IN_PATTERN = /^\s*(yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
-var CONVERSATION_OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta)\s*[.!]?\s*$/i;
-function optInPurposeOf(text) {
-  if (MARKETING_OPT_IN_PATTERN.test(text)) return "marketing";
-  if (CONVERSATION_OPT_IN_PATTERN.test(text)) return "conversational";
-  return null;
-}
-var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
-function waMeDigits(number2) {
-  const digits2 = String(number2 ?? "").replace(/\D/g, "");
-  return digits2.length < 8 ? null : digits2;
-}
-function waMeLink(number2, text) {
-  const digits2 = waMeDigits(number2);
-  if (!digits2) return null;
-  return `https://wa.me/${digits2}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
-}
-function optInLink(numberE164, phrase = OFFERS_OPT_IN_PHRASES.en) {
-  return waMeLink(numberE164, phrase);
-}
-var ESCALATION_REASONS = [
-  "human_token",
-  "non_text",
-  "refusal",
-  "rate_cap",
-  "policy_block",
-  "send_failed",
-  "deadman",
-  "brain_error",
-  "manual",
-  "opt_out",
-  "state_unavailable",
-  /** Delivered so late that an automated reply would arrive out of nowhere. */
-  "stale",
-  /** The owner set the receptionist to Ask or Never for THIS person; the
-   *  thread is theirs to answer. A choice about one customer, never a
-   *  workspace setting. */
-  "person_hold",
-  /** The workspace's day of model tokens is spent (limits.max_llm_tokens_day). */
-  "budget",
-  /** A booking or a service/pricing question, with that class set to Ask me first on the Autonomy pane: a person answers. */
-  "policy_ask",
-  /** The phone receptionist could not finish the call: a person calls them back. What to do rides in the details. */
-  "callback",
-  /** The workspace is paused (billing): calls only take a message and messages wait for a person, until it resumes. */
-  "paused",
-  /** A text arrived on a line the carriers have not approved for texting yet: kept, a person answers. */
-  "carriers",
-  /** An email a person must read before anyone answers it (00127). */
-  "email_review"
-];
-var ESCALATION_STATES = ["open", "resolved"];
-var DECISION_VERBS = [
-  "approve",
-  "edit",
-  "decline",
-  "snooze",
-  "wake",
-  "take_over",
-  "hand_back",
-  "resolve",
-  "archive",
-  "reply",
-  "cancel_send",
-  "pause_agent",
-  "resume_agent",
-  /**
-   * What one member can do to another.
-   *
-   * The ledger recorded every conversation verb and nothing about the team —
-   * the one table where "who did this" is hardest to reconstruct afterwards
-   * and matters most. Promoting someone to owner hands them billing, the
-   * ability to remove everyone else, and the receptionist's voice.
-   *
-   * These must stay in step with decisions_verb_check (migration 00023): the
-   * database rejects a verb this list allows, and a verb the database allows
-   * but this omits cannot be written by any typed caller.
-   */
-  "invite",
-  "revoke_invite",
-  "change_role",
-  "remove_member",
-  /**
-   * The only irreversible verb. privacy.html promises deletion on verified
-   * request; this is the record that it happened, on subject_type 'contact',
-   * and it survives the data it destroyed. Written by the owner (actor_type
-   * 'user'), and again by the route for a leg that finished after the rows
-   * were gone — the storage sweep.
-   */
-  "erase",
-  /**
-   * Two records of one person became one (merge_people, 00326; decision 0028). On subject_type 'contact', the kept
-   * record; the payload names the merged one and counts what moved. Owner only, and never undone.
-   */
-  "merge",
-  /**
-   * A sentence handed to the phone receptionist mid-call, heard by it alone
-   * and worked into its next answer (Retell update-live-call). Subject
-   * 'call'. The ledger keeps the words: they are the operator's, and they
-   * changed what a customer was told.
-   */
-  "whisper",
-  /**
-   * A business connected its own channel (Embedded Signup): subject
-   * 'channel', payload the number, the WABA and the registration outcome.
-   * The one verb whose consequence is a credential in Vault.
-   */
-  "connect_channel",
-  /**
-   * A customer's answer about marketing messages, recorded by the person
-   * who heard it: subject 'contact', payload the answer, how it was given,
-   * and what it was before. The record a broadcast stands on.
-   */
-  "consent_change",
-  /**
-   * A broadcast: one message, on the channels it holds, to the people who said
-   * yes. The decision to send (subject 'broadcast', payload the message, the
-   * audience and the count) and the decision to stop one.
-   */
-  "send_broadcast",
-  "cancel_broadcast",
-  /** A playbook started or paused: subject 'playbook'. Its runs are send_broadcast rows. */
-  "start_playbook",
-  "pause_playbook",
-  /**
-   * A playbook changed in place (the change_playbook door): its name, hour, cap, gap or cadence. Subject 'playbook'; the
-   * payload names what changed. A pause or a resume stays pause_playbook or start_playbook.
-   */
-  "change_playbook",
-  /**
-   * An answer to a review on Google, in the business's own words: subject
-   * 'review' (the row's id), payload the words and when Google took them.
-   * Replaces the previous answer; Google keeps one per review.
-   */
-  "reply_review",
-  /**
-   * A copy of the workspace's data left the building: everyone as a CSV, a
-   * thread, a call, or the whole workspace. Subject "workspace" for the two
-   * that carry everyone; the thread's or the call's own row for the others.
-   * The one verb an auditor asks about that the ledger did not keep.
-   */
-  "export",
-  /** A call in progress ended from the Live page (00118). Passing one to the business is take_over, the Inbox's word for the same intent. */
-  "end_call",
-  "record_deal",
-  /**
-   * A list's life (00169, decision 0009): made, renamed, its rule changed, people put on or taken off, archived (a
-   * playbook or another list depends on it), restored, deleted. Subject 'list'; the payload says what changed.
-   */
-  "make_list",
-  "rename_list",
-  "change_list_rule",
-  "add_to_list",
-  "drop_from_list",
-  "archive_list",
-  "restore_list",
-  "delete_list",
-  /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
-  "import",
-  /**
-   * A member opened a call's recording (00277): subject 'call', written by recording_opened as the member, once per
-   * member per call per hour. A customer's voice left the building to someone's speakers; who listened is the audit.
-   */
-  "open_recording",
-  /**
-   * A member said what became of a visit (00397 mark_visit, decision 0002 step 8): kept, missed or cancelled, subject
-   * 'appointment' (its row), payload from, to, the row's source, its start and the person it is for.
-   */
-  "mark_visit"
-];
-var DECISION_SUBJECTS = [
-  "conversation",
-  "escalation",
-  "draft",
-  "lead",
-  "message",
-  "agent",
-  "membership",
-  "invitation",
-  "contact",
-  "call",
-  "channel",
-  "broadcast",
-  "playbook",
-  "review",
-  /** The workspace itself: an export of everyone, or of everything. Its id is the tenant's. */
-  "workspace",
-  "deal",
-  /** One of the workspace's own lists (segments): its life, in the ledger (00169). */
-  "list",
-  /** A visit the record keeps (00345): what a member said became of it (00397). */
-  "appointment"
-];
-var ACTOR_TYPES = ["user", "ai", "system", "owner_phone"];
-var TEMPLATE_STATUSES = ["approved", "pending", "rejected", "paused", "disabled"];
-
 // src/config/workspace-config/role-perms.ts
 var ROLES = MEMBERSHIP_ROLES;
 var TEAM_ROLES = ["owner", "operator", "viewer"];
@@ -23031,7 +24335,8 @@ var GuardrailsSchema = z6.object({
 }).strip();
 var NoteSchema = z6.object({
   title: z6.string().min(1).max(PROFILE_LIMITS.noteTitle),
-  text: z6.string().min(1).max(PROFILE_LIMITS.noteText)
+  text: z6.string().min(1).max(PROFILE_LIMITS.noteText),
+  until: DATE.optional()
 }).strip();
 var rule = (key) => z6.number().int().min(BOOKING_RULE_BOUNDS[key].min).max(BOOKING_RULE_BOUNDS[key].max).optional();
 var BookingRulesSchema = z6.object({
@@ -23465,22 +24770,19 @@ function checkDay(h, day, ctx) {
     });
   }
 }
+function checkCalendarDay(day, path, ctx) {
+  if (!isRealDate(day)) {
+    ctx.addIssue({
+      code: z8.ZodIssueCode.custom,
+      path,
+      message: `${day} is not a date on the calendar.`
+    });
+  }
+}
 function checkClosure(c, n, ctx) {
   const at3 = (...rest) => ["brain", "profile", "closures", n, ...rest];
-  if (!isRealDate(c.date)) {
-    ctx.addIssue({
-      code: z8.ZodIssueCode.custom,
-      path: at3("date"),
-      message: `${c.date} is not a date on the calendar.`
-    });
-  }
-  if (c.until && !isRealDate(c.until)) {
-    ctx.addIssue({
-      code: z8.ZodIssueCode.custom,
-      path: at3("until"),
-      message: `${c.until} is not a date on the calendar.`
-    });
-  }
+  checkCalendarDay(c.date, at3("date"), ctx);
+  if (c.until) checkCalendarDay(c.until, at3("until"), ctx);
   if (c.until && c.until < c.date) {
     ctx.addIssue({
       code: z8.ZodIssueCode.custom,
@@ -23515,6 +24817,9 @@ var WriteRules = TenantConfigSchema.superRefine((cfg, ctx) => {
     });
   }
   (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
+  (p.notes ?? []).forEach((note, n) => {
+    if (note.until) checkCalendarDay(note.until, ["brain", "profile", "notes", n, "until"], ctx);
+  });
 });
 var TenantConfigWriteSchema = z8.unknown().superRefine((raw, ctx) => refuseUnknownFields(TenantConfigSchema, raw, ctx)).pipe(WriteRules);
 function parseTenantConfigResult(raw) {
@@ -23619,11 +24924,24 @@ function labelDate(key, withWeekday) {
     year: "numeric"
   }).format(at3);
 }
-function upcomingClosures(closures, tz, at3) {
+function businessToday(tz, at3) {
+  return tz && dateKeyInZone(tz, at3) || dateKeyInZone("UTC", new Date(at3.getTime() - 864e5));
+}
+function upcomingClosures(closures, today) {
   if (!closures?.length) return [];
-  const today = tz && dateKeyInZone(tz, at3) || dateKeyInZone("UTC", new Date(at3.getTime() - 864e5));
   if (!today) return closures;
   return closures.filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= today).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+}
+function notesInForceOn(notes, today) {
+  if (!notes?.length) return [];
+  if (!today) return [...notes];
+  return notes.filter((n) => !n.until || n.until >= today);
+}
+function notesInForce(notes, tz, now) {
+  return notesInForceOn(notes, businessToday(tz, now));
+}
+function noteAsTold(n) {
+  return n.until ? `${n.title} (until ${labelDate(n.until, true)}): ${n.text}` : `${n.title}: ${n.text}`;
 }
 function closureLines(closures) {
   return closures.map((c) => {
@@ -23691,8 +25009,10 @@ function composeSystemPromptWith(base, profile, wire, tz, now, policy, audience)
   const link = offersBookingLink(base) ? base.booking_link : null;
   const handed = offersLinkOn(channel === "voice" ? "call" : "chat", base, base.whatsapp_line) ? link : null;
   const hrs = hoursLines(profile.hours);
-  const closed = closureLines(upcomingClosures(profile.closures, tz, now));
-  const facts = { base, profile, channel, wire, tz, policy, link, handed, hrs, closed, audience };
+  const today = businessToday(tz, now);
+  const closed = closureLines(upcomingClosures(profile.closures, today));
+  const notes = notesInForceOn(profile.notes, today).map(noteAsTold);
+  const facts = { base, profile, channel, wire, tz, policy, link, handed, hrs, closed, notes, audience };
   return PROMPT_SECTIONS.flatMap((section) => section(facts)).join("\n");
 }
 var PROMPT_SECTIONS = [
@@ -23772,13 +25092,11 @@ ${lines.join("\n")}`);
   }
   return s;
 }
-function notesSection({ profile }) {
+function notesSection({ notes }) {
   const s = [];
-  if (profile.notes?.length) {
-    s.push(`
+  if (notes.length) s.push(`
 ${PROMPT_OPENINGS.notes}
-${profile.notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`);
-  }
+${notes.map((l) => `- ${l}`).join("\n")}`);
   return s;
 }
 function bookingRulesSection({ profile }) {
@@ -24164,7 +25482,7 @@ function amountsInPriceBox(note) {
   }
   return amountsIn(note);
 }
-function allowedPrices(brain) {
+function allowedPrices(brain, tz, now) {
   const profile = brain?.profile;
   if (!profile || !hasProfile(profile) || guardrailsInForce(profile.guardrails).never_quote_prices) return null;
   const out = [];
@@ -24172,15 +25490,15 @@ function allowedPrices(brain) {
     for (const figure2 of figures) if (!out.some((p) => p.figure === figure2)) out.push({ figure: figure2, from });
   };
   for (const s of profile.services ?? []) if (s.price_note) add(amountsInPriceBox(s.price_note), s.name);
-  for (const n of profile.notes ?? []) add(amountsIn(`${n.title}. ${n.text}`), "Notes");
+  for (const n of notesInForce(profile.notes, tz, now)) add(amountsIn(`${n.title}. ${n.text}`), "Notes");
   for (const n of profile.booking_rules?.notes ?? []) add(amountsIn(n), "Booking notes");
   const greeting = profile.phone_greeting;
   const heard = greeting ? greetingOf({ name: brain?.business_name, stored: greeting, paused: false }).source : null;
   if (greeting && (heard === "owner" || heard === "owner_disclosed")) add(amountsIn(greeting), "Greeting");
   return out;
 }
-function priceAllowance(brain) {
-  const list2 = allowedPrices(brain);
+function priceAllowance(brain, tz, now) {
+  const list2 = allowedPrices(brain, tz, now);
   return list2 ? new Set(list2.map((p) => p.figure)) : null;
 }
 
@@ -24602,6 +25920,10 @@ function notesWords(notes) {
     chips: titles.slice(0, NOTE_CHIPS),
     more: n > NOTE_CHIPS ? chipsMoreWords(n - NOTE_CHIPS) : null
   };
+}
+function noteEndedWords(until, tz, now) {
+  if (typeof until !== "string" || !until) return null;
+  return notesInForce([{ until }], tz, now).length ? null : `ended ${closureDatesLabel({ date: until })}`;
 }
 var OPENING_SHOWN = 72;
 function instructionsWords(text) {
@@ -27288,89 +28610,6 @@ function visitServiceOf(title, names3) {
   return service;
 }
 
-// src/playbooks/playbook-schedule.ts
-function planRun(mode, now) {
-  switch (mode) {
-    case "auto":
-      return { kind: "send", state: "scheduled", at: now };
-    case "veto":
-      return { kind: "send", state: "scheduled", at: new Date(now.getTime() + PLAYBOOK_VETO_DELAY_MS) };
-    case "ask":
-      return { kind: "hold", state: "pending_approval" };
-    default:
-      return { kind: "off" };
-  }
-}
-function parts(tz, now) {
-  try {
-    const f = dateFormat("en-CA", {
-      timeZone: tz,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      hour12: false
-    });
-    const p = Object.fromEntries(f.formatToParts(now).map((x) => [x.type, x.value]));
-    const hour = Number(p.hour) % 24;
-    return { date: `${p.year}-${p.month}-${p.day}`, hour };
-  } catch {
-    return { date: now.toISOString().slice(0, 10), hour: now.getUTCHours() };
-  }
-}
-function localDate(tz, now) {
-  return parts(tz, now).date;
-}
-function localHour(tz, now) {
-  return parts(tz, now).hour;
-}
-function nextOpenMoment(tz, when) {
-  const { date, hour } = parts(tz, when);
-  if (hour >= PLAYBOOK_HOURS.min && hour <= PLAYBOOK_HOURS.max) return { at: when, moved: false };
-  const day = hour < PLAYBOOK_HOURS.min ? date : shiftKey(date, 1);
-  let at3 = zoneMidnight(tz, day) + PLAYBOOK_HOURS.min * HOUR_MS;
-  const landed = parts(tz, new Date(at3)).hour;
-  if (landed !== PLAYBOOK_HOURS.min) at3 += (PLAYBOOK_HOURS.min - landed) * HOUR_MS;
-  return { at: new Date(at3), moved: true };
-}
-function runDueNow(p, tz, now) {
-  if (p.state !== "running") return false;
-  const { date, hour } = parts(tz, now);
-  return hour >= p.run_hour && hour <= PLAYBOOK_HOURS.max && p.last_run_for !== date;
-}
-function inLastSendingHour(tz, now) {
-  return parts(tz, now).hour >= PLAYBOOK_HOURS.max;
-}
-function scheduleLine(p, word) {
-  const at3 = clockHour(p.run_hour);
-  if (triggerOf(p.trigger)?.kind === "visit") {
-    const W = appointmentWords(word);
-    return `Daily ${at3} \xB7 ${p.trigger === "visit_tomorrow" ? W.tomorrowWho : W.yesterdayWho} \xB7 up to ${p.cap_per_run}`;
-  }
-  if (p.trigger === "everyone_monthly") return `Every ${p.cadence_days} days at ${at3} \xB7 up to ${p.cap_per_run} a day`;
-  if (triggerOf(p.trigger)?.kind === "deal") return `Daily ${at3} \xB7 up to ${p.cap_per_run} \xB7 once per proposal`;
-  return `Daily ${at3} \xB7 up to ${p.cap_per_run} \xB7 once per person, again after ${p.gap_days} days`;
-}
-function runsWords(p) {
-  const at3 = clockHour(p.run_hour);
-  return p.trigger === "everyone_monthly" ? `runs every ${p.cadence_days} days at ${at3}` : `runs daily at ${at3}`;
-}
-var NEXT_RUN_WORKSPACE_PAUSED = "after billing resumes";
-function nextRunLabel(p, tz, now, workspacePaused) {
-  if (p.state !== "running") return "paused";
-  if (workspacePaused) return NEXT_RUN_WORKSPACE_PAUSED;
-  const next = nextRunOf(p, tz, now);
-  return next.soon ? "today, within the hour" : `${next.day} ${clockHour(next.hour)}`;
-}
-function nextRunOf(p, tz, now) {
-  const { date, hour } = parts(tz, now);
-  if (p.last_run_for !== date) {
-    if (hour < p.run_hour) return { day: "today", hour: p.run_hour, soon: false };
-    if (hour <= PLAYBOOK_HOURS.max) return { day: "today", hour: p.run_hour, soon: true };
-  }
-  return { day: "tomorrow", hour: p.run_hour, soon: false };
-}
-
 // src/playbooks/playbook-follow-ups.ts
 var FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
 var FOLLOW_UP_NEEDS_LINK = "A proposal follow-up carries the proposal's link: pick a message with a slot for it, and fill that slot with their proposal's link.";
@@ -27378,12 +28617,6 @@ var FOLLOW_UP_ONE = "This workspace already has a proposal follow-up. Change tha
 var PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS;
 function followUpNames(r2, nowMs, pace) {
   return waitingOnProposal(r2, nowMs, pace) && !!r2.deal?.proposal?.url && nowMs - (r2.deal.sinceMs ?? Number.NEGATIVE_INFINITY) <= PLAYBOOK_TOUCH_WINDOW_MS;
-}
-function breathEndsAt(atMs) {
-  return atMs + PLAYBOOK_BREATH_MS;
-}
-function breathHolds(atMs, nowMs) {
-  return nowMs < breathEndsAt(atMs);
 }
 function followUpKey(about) {
   return about.deal ? `deal:${about.deal}` : about.link ? `link:${about.link}` : "bare";
@@ -27418,19 +28651,20 @@ function playbookStopBy(o) {
     byOthers: o.channels.some((c) => c !== "whatsapp")
   });
 }
-function followUpRunAt(f, tz, fromMs, nowMs) {
+function followUpRunAt(f, tz, clearAt, nowMs) {
   const today = zoneDayKey(nowMs, tz);
   const p = { state: "running", run_hour: f.run_hour, last_run_for: f.last_run_for };
   if (f.last_run_for !== today) {
-    const tick = sweepTickAtOrAfter(Math.max(nowMs, wallClockAt(tz, today, f.run_hour, 0)));
-    if (zoneDayKey(tick, tz) === today && runDueNow(p, tz, new Date(tick)) && fromMs <= tick) return tick;
+    const tick2 = sweepTickAtOrAfter(Math.max(nowMs, wallClockAt(tz, today, f.run_hour, 0)));
+    if (zoneDayKey(tick2, tz) === today && runDueNow(p, tz, new Date(tick2)) && clearAt(tick2)) return tick2;
   }
   let day = shiftKey(today, 1);
-  for (let i = 0; i < 400; i++, day = shiftKey(day, 1)) {
-    const tick = sweepTickAtOrAfter(wallClockAt(tz, day, f.run_hour, 0));
-    if (fromMs <= tick) return tick;
+  let tick = sweepTickAtOrAfter(wallClockAt(tz, day, f.run_hour, 0));
+  for (let i = 0; i < 400 && !clearAt(tick); i++) {
+    day = shiftKey(day, 1);
+    tick = sweepTickAtOrAfter(wallClockAt(tz, day, f.run_hour, 0));
   }
-  return sweepTickAtOrAfter(fromMs);
+  return tick;
 }
 function followUpStandOf(r2, f, tz, nowMs, pace, ready) {
   if (!followUpNames(r2, nowMs, pace)) return null;
@@ -27451,9 +28685,9 @@ function followUpStandOf(r2, f, tz, nowMs, pace, ready) {
   if (queued !== null && followUpIsFor(r2, queued)) return { kind: "will", atMs: queued, asks: false };
   const held = when(f.held);
   if (held !== null && followUpIsFor(r2, held)) return { kind: "will", atMs: held, asks: true };
-  const heard = when(f.heard);
-  const free = heard !== null ? breathEndsAt(heard) : nowMs;
-  return { kind: "will", atMs: followUpRunAt(f, tz, free, nowMs), asks: f.asks };
+  const times = (f.heard[r2.id] ?? []).map(Date.parse);
+  const clearAt = (tick) => !times.some(heardWithin(tick, nowMs));
+  return { kind: "will", atMs: followUpRunAt(f, tz, clearAt, nowMs), asks: f.asks };
 }
 function followUpWords(s, tz, nowMs) {
   const day = clockNear(s.atMs, tz, nowMs);
@@ -27614,6 +28848,7 @@ function playbookRunReach(rows2, p, touches, nowMs, pace, listIds = null) {
     return done(allowed);
   }
   const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS;
+  const breathHolds = heardWithin(nowMs, nowMs);
   const heardThis = (r2) => {
     if (t.kind === "deal") return !!r2.deal && followUpCovers(r2.deal, hadOf(r2.id));
     const mine = touches.byThis.get(r2.id);
@@ -27625,7 +28860,7 @@ function playbookRunReach(rows2, p, touches, nowMs, pace, listIds = null) {
       return false;
     }
     const any2 = touches.byAny.get(r2.id);
-    if (any2 !== void 0 && breathHolds(any2, nowMs)) {
+    if (any2 !== void 0 && breathHolds(any2)) {
       reach.heardAny += 1;
       return false;
     }
@@ -27751,7 +28986,8 @@ function reachLines(reach, p, allowanceHeld = 0) {
       tone: "plain",
       door: { words: "Get their yes", to: GET_YES_ROUTE }
     },
-    { n: reach.heardAny, words: "heard from a campaign this week", tone: "warn", door: null },
+    // The week's breath, both sides of the run: a message from a campaign or a broadcast sent or due within a week of it.
+    { n: reach.heardAny, words: `${one(reach.heardAny, "hears", "hear")} ${BREATH_WHY}`, tone: "warn", door: null },
     { n: allowanceHeld, words: ALLOWANCE_HELD_WORDS, tone: "warn", door: null },
     {
       n: reach.heardThis,
@@ -27819,6 +29055,7 @@ function reachLines(reach, p, allowanceHeld = 0) {
   };
 }
 var ALLOWANCE_HELD_WORDS = "held for this month's allowance";
+var NONE_HEARS_WORDS = `none hears ${BREATH_WHY}`;
 var ALLOWANCE_REASON = "month_allowance";
 function allowanceHeldOn(recipients) {
   const held = { whatsapp: 0, sms: 0, email: 0 };
@@ -27873,13 +29110,13 @@ function toApprovalVM(d, opts) {
       rules.push(
         "each has a proposal waiting with nothing back, and its link",
         "none followed up on that proposal before",
-        "none heard from any campaign this week"
+        NONE_HEARS_WORDS
       );
       if (will >= opts.playbook.cap_per_run)
         rules.push(`capped at ${opts.playbook.cap_per_run} a run, the longest unheard first`);
     } else {
       const gap = opts.playbook.trigger === "everyone_monthly" ? opts.playbook.cadence_days : opts.playbook.gap_days;
-      rules.push(`none heard from this campaign in ${gap} days`, "none heard from any campaign this week");
+      rules.push(`none heard from this campaign in ${gap} days`, NONE_HEARS_WORDS);
       if (will >= opts.playbook.cap_per_run)
         rules.push(`capped at ${opts.playbook.cap_per_run} a run, the longest unheard first`);
     }
@@ -27951,8 +29188,8 @@ function visitFactsFor(trigger, visit, tz, names3, sendAt) {
 function visitDayWord(visit, tz, sendAt, assumed) {
   if (!sendAt) return assumed;
   const visitDay2 = localDate(tz, new Date(visit.start));
-  const sendDay = localDate(tz, sendAt);
-  const delta = Math.round((Date.parse(`${visitDay2}T00:00:00Z`) - Date.parse(`${sendDay}T00:00:00Z`)) / DAY_MS);
+  const sendDay2 = localDate(tz, sendAt);
+  const delta = Math.round((Date.parse(`${visitDay2}T00:00:00Z`) - Date.parse(`${sendDay2}T00:00:00Z`)) / DAY_MS);
   if (delta === 1) return "tomorrow";
   if (delta === 0) return "today";
   if (delta === -1) return "yesterday";
@@ -29176,6 +30413,34 @@ function sendingDomainsFootWords(count2, max) {
   if (count2 === 0)
     return "Cold email to the businesses you find leaves only from a domain you own, so cold email's reputation stays apart from your everyday email's. No spare domain? Buy one like get<yourbusiness>.com, then add it here.";
   return `A new domain starts at ${DOMAIN_RAMP[0].perDay} a day and grows with the days it sends. ${where}`;
+}
+
+// src/journey/journey-guide.ts
+var STAGE_SENDS = {
+  first_contact: "your receptionist's answers, which ask once on WhatsApp for the yes to offers, the yes an offer on WhatsApp needs",
+  before: "a reminder",
+  after: "a thank-you and how it went, with a review ask where your Google listing keeps a review link",
+  proposal: "one follow-up with its link",
+  quiet: "a win-back"
+};
+var MONTHS_OFFER = {
+  stage: null,
+  moment: "everyone_monthly",
+  sends: "every month, one offer on the channels it goes by: on WhatsApp to those who said yes to offers, and by email to those who said yes by email or have dealt with you, unless they said no"
+};
+function journeyGuide(input) {
+  const stages = journeyOf({ ...input, held: /* @__PURE__ */ new Set() }).filter((s) => s.unmet === null);
+  return [
+    ...stages.map((s) => {
+      const t = s.trigger === null ? void 0 : triggerOf(s.trigger);
+      return {
+        stage: s.id,
+        moment: t?.id ?? null,
+        sends: t ? `${triggerWords(t, input.word).hint.toLowerCase()}: ${STAGE_SENDS[s.id]}` : STAGE_SENDS[s.id]
+      };
+    }),
+    { ...MONTHS_OFFER }
+  ];
 }
 
 // src/leads/search/plan-schema.ts
@@ -31305,133 +32570,12 @@ function templateUntranslatable(t) {
   return null;
 }
 
-// src/templates/template-parts.ts
-function footerOf(components) {
-  if (!Array.isArray(components)) return null;
-  for (const c of components) {
-    if (!c || typeof c !== "object") continue;
-    const part = c;
-    if (String(part.type ?? "").toUpperCase() !== "FOOTER") continue;
-    const text = typeof part.text === "string" ? part.text.trim() : "";
-    if (text) return text;
-  }
-  return null;
-}
-function templateFooter(t) {
-  if (typeof t.footer === "string" && t.footer.trim()) return t.footer.trim();
-  const stored = footerOf(t.components);
-  if (stored) return stored;
-  const s = starterByName(t.name);
-  return s ? starterText(s, t.language ?? "en_US").footer ?? null : null;
-}
-var FILLED_PARTS = ["HEADER", "BODY", "FOOTER", "BUTTONS"];
-var partOf = (components, type) => {
-  if (!Array.isArray(components)) return null;
-  for (const c of components) {
-    if (c && typeof c === "object" && String(c.type ?? "").toUpperCase() === type)
-      return c;
-  }
-  return null;
-};
-var textOf = (part) => {
-  const t = part && typeof part.text === "string" ? part.text.trim() : "";
-  return t || null;
-};
-var BUTTON_KIND = { URL: "url", QUICK_REPLY: "reply", PHONE_NUMBER: "call" };
-function templateParts(components) {
-  const header = partOf(components, "HEADER");
-  const buttons = [];
-  const holder = partOf(components, "BUTTONS");
-  const list2 = holder && Array.isArray(holder.buttons) ? holder.buttons : [];
-  for (const b of list2) {
-    if (!b || typeof b !== "object") continue;
-    const kind = BUTTON_KIND[String(b.type ?? "").toUpperCase()];
-    const text = typeof b.text === "string" ? b.text.trim() : "";
-    if (kind && text) buttons.push({ text, kind });
-  }
-  return {
-    // A picture heading is not words and is not drawn as any.
-    header: header && String(header.format ?? "TEXT").toUpperCase() === "TEXT" ? textOf(header) : null,
-    footer: footerOf(components),
-    buttons
-  };
-}
-function templateBlocked(t) {
-  if (typeof t.blocked === "string") return t.blocked.trim() || null;
-  if (t.blocked === null) return null;
-  const components = t.components;
-  if (!Array.isArray(components)) return null;
-  const unfilled = components.some((c) => {
-    const type = c && typeof c === "object" ? c.type : null;
-    return !(typeof type === "string" && FILLED_PARTS.includes(type.toUpperCase()));
-  });
-  if (unfilled) return "a part Chanlytics cannot fill";
-  const header = partOf(components, "HEADER");
-  if (header) {
-    const format = String(header.format ?? "TEXT").toUpperCase();
-    if (format !== "TEXT")
-      return format === "IMAGE" ? "a picture for a heading" : `a ${format.toLowerCase()} for a heading`;
-    if (/\{\{\d+\}\}/.test(String(header.text ?? ""))) return "a heading that takes a value";
-  }
-  const holder = partOf(components, "BUTTONS");
-  const list2 = holder && Array.isArray(holder.buttons) ? holder.buttons : [];
-  for (const b of list2) {
-    if (!b || typeof b !== "object") continue;
-    const button = b;
-    const type = String(button.type ?? "").toUpperCase();
-    if (!(type in BUTTON_KIND)) return "a button Chanlytics cannot fill";
-    if (type === "URL" && /\{\{\d+\}\}/.test(String(button.url ?? ""))) return "a button that takes a value";
-  }
-  return null;
-}
-function refusedWords(reason) {
-  const said = String(reason ?? "").trim().replace(/[.!?\s]+$/, "");
-  if (!said) return null;
-  const words3 = /^[A-Z0-9_]+$/.test(said) ? said.toLowerCase().replace(/_/g, " ") : said;
-  return `WhatsApp refused this one: ${words3}. Change the words and send it back.`;
-}
-var COUNT_WORDS = ["", "one", "two", "three", "four", "five"];
-function blockedWords(reasons) {
-  const seen = /* @__PURE__ */ new Map();
-  for (const r2 of reasons) seen.set(r2, (seen.get(r2) ?? 0) + 1);
-  const parts2 = [...seen].map(([reason, n]) => `${COUNT_WORDS[n] ?? n} ${n === 1 ? "has" : "have"} ${reason}`);
-  return parts2.length > 1 ? `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}` : parts2[0];
-}
-function sendableTemplates(list2) {
-  const sendable = [];
-  const blocked = [];
-  for (const t of list2) (templateBlocked(t) ? blocked : sendable).push(t);
-  if (blocked.length === 0) return { sendable, blocked, why: null };
-  const n = blocked.length;
-  const reasons = blocked.map((t) => templateBlocked(t));
-  const words3 = n === 1 ? `it has ${reasons[0]}` : blockedWords(reasons);
-  const many = COUNT_WORDS[n] ?? String(n);
-  const lead = n === 1 ? "One of your messages" : `${many[0].toUpperCase()}${many.slice(1)} of your messages`;
-  return {
-    sendable,
-    blocked,
-    why: `${lead} can't go out from here \u2014 ${words3}. ${n === 1 ? "It still works" : "They still work"} in WhatsApp Manager.`
-  };
-}
-function templateLinkButton(components) {
-  const holder = partOf(components, "BUTTONS");
-  const list2 = holder && Array.isArray(holder.buttons) ? holder.buttons : [];
-  for (const b of list2) {
-    if (!b || typeof b !== "object") continue;
-    const x = b;
-    if (String(x.type ?? "").toUpperCase() !== "URL") continue;
-    const text = typeof x.text === "string" ? x.text.trim() : "";
-    const url = typeof x.url === "string" ? x.url.trim() : "";
-    if (text && url) return { text, url };
-  }
-  return null;
-}
-
 // src/templates/template-slots.ts
 function guessSlotKind(label, example) {
   const l = String(label ?? "").toLowerCase();
   const e = String(example ?? "").toLowerCase();
   if (/proposal|propuesta|quote/.test(l)) return "proposal_link";
+  if (/\breviews?\b|reseña/.test(l) || /writereview|g\.page\/r\//.test(e)) return "review_link";
   if (/link|url|book/.test(l) || /^https?:\/\//.test(e) || /booksy|calendly|square|fresha|\.com\//.test(e))
     return "booking_link";
   if (/business|salon|company|shop|studio|clinic|brand|negocio/.test(l)) return "business_name";
@@ -31453,7 +32597,7 @@ function defaultParamSpecs(t) {
   return defaultSlotKinds(t).map((k) => k === "text" ? { kind: "text", value: "" } : { kind: k });
 }
 function slotChoices(kind, o) {
-  const may = (k) => k === "booking_link" ? o.bookingLink : k === "visit_when" || k === "visit_service" ? o.visits : k === "proposal_link" ? o.proposal : true;
+  const may = (k) => k === "booking_link" ? o.bookingLink : k === "review_link" ? o.reviewLink : k === "visit_when" || k === "visit_service" ? o.visits : k === "proposal_link" ? o.proposal : true;
   if (!o.known) return [kind, ...PARAM_SOURCES.filter((k) => k !== kind)].filter(may);
   switch (kind) {
     case "first_name":
@@ -31462,6 +32606,8 @@ function slotChoices(kind, o) {
       return ["business_name", "text"];
     case "booking_link":
       return o.bookingLink ? ["booking_link", "text"] : ["text"];
+    case "review_link":
+      return o.reviewLink ? ["review_link", "text"] : ["text"];
     case "visit_when":
     case "visit_service":
       return o.visits ? [kind] : [];
@@ -31475,7 +32621,13 @@ function slotChoices(kind, o) {
 function templateSlots(t, o) {
   const known = starterByName(t.name) !== null;
   const each = defaultSlotKinds(t).map(
-    (k) => slotChoices(k, { known, visits: o.visits, bookingLink: o.bookingLink, proposal: o.proposal })
+    (k) => slotChoices(k, {
+      known,
+      visits: o.visits,
+      bookingLink: o.bookingLink,
+      reviewLink: o.reviewLink,
+      proposal: o.proposal
+    })
   );
   if (!each.every((c) => c.length > 0)) return null;
   return o.proposal && !each.some((c) => c.includes("proposal_link")) ? null : each;
@@ -31495,6 +32647,7 @@ function slotLabels(t) {
 }
 
 // src/templates/inbox-templates.ts
+var INBOX_FILLS = /* @__PURE__ */ new Set(["first_name", "business_name", "booking_link"]);
 function titleWithoutLanguage(title, code2) {
   for (const words3 of [languageLabel(code2), languageWords(code2)]) {
     const tail = ` (${words3})`;
@@ -31579,9 +32732,7 @@ function inboxSlots(t) {
   return Array.isArray(t.variables) ? defaultParamSpecs({ name: t.name, variables: t.variables }) : [{ kind: "business_name" }, { kind: "booking_link" }];
 }
 function slotToWrite(t) {
-  const at3 = inboxSlots(t).findIndex(
-    (s) => s.kind === "text" || s.kind === "visit_when" || s.kind === "visit_service" || s.kind === "proposal_link"
-  );
+  const at3 = inboxSlots(t).findIndex((s) => !INBOX_FILLS.has(s.kind));
   if (at3 < 0) return null;
   return slotLabels({ name: t.name, language: t.language ?? "en_US", variables: t.variables })[at3] ?? `Value ${at3 + 1}`;
 }
@@ -34787,152 +35938,6 @@ function heldBackOfOneRun(reading, run, sent2, purpose) {
   return split ? allowanceBeforeSend(split, sent2, run.trigger, purpose) : null;
 }
 
-// src/templates/campaign-message.ts
-function variablesSlotCount(variables) {
-  if (!Array.isArray(variables)) return 0;
-  const positions = variables.map((v) => Number(v?.position)).filter((position) => Number.isFinite(position));
-  return Math.max(variables.length, ...positions);
-}
-function statusOf(raw) {
-  return TEMPLATE_STATUSES.find((s) => s === raw) ?? "pending";
-}
-function strictestCategory(categories) {
-  if (categories.some((c) => purposeOfTemplate(c) === "marketing")) return "marketing";
-  return categories.find((c) => c !== null) ?? null;
-}
-function whatsappVersionOf(row2) {
-  const status = statusOf(row2.meta_status);
-  return {
-    id: row2.id,
-    status,
-    hidden: Boolean(row2.hidden_at),
-    blocked: templateBlocked(row2),
-    reason: status === "rejected" ? refusedWords(row2.rejected_reason) : null
-  };
-}
-function messageFrom(name, language, rows2) {
-  const {
-    whatsapp: [w = null],
-    email: [e = null],
-    sms: [s = null]
-  } = versionsOf(rows2, name);
-  const anchorRow = w ?? e ?? s;
-  if (anchorRow === null) return null;
-  const category = w ? w.category ?? null : strictestCategory([e, s].flatMap((r2) => r2 ? [r2.category ?? null] : []));
-  const versions = {
-    whatsapp: w ? whatsappVersionOf(w) : null,
-    email: e ? { id: e.id } : null,
-    sms: s ? { id: s.id } : null
-  };
-  const held = messageHolds({ versions });
-  const hidden = Boolean(anchorRow.hidden_at);
-  const titled = [w, e, s].map((r2) => r2?.title ?? null).find((t) => t !== null && t.trim() !== "") ?? null;
-  return {
-    name,
-    language,
-    title: templateTitle(name, titled),
-    anchor: { id: anchorRow.id, channel: w ? "whatsapp" : e ? "email" : "sms" },
-    slots: variablesSlotCount((w ?? anchorRow).variables),
-    category,
-    purpose: purposeOfTemplate(category),
-    hidden,
-    offered: !hidden && CONSENT_CHANNELS.some((c) => held[c]),
-    versions
-  };
-}
-function campaignMessageOf(rows2, name, language) {
-  return messageFrom(
-    name,
-    language,
-    rows2.filter((r2) => r2.language === language)
-  );
-}
-function campaignMessagesOf(rows2) {
-  const groups = /* @__PURE__ */ new Map();
-  for (const r2 of rows2) {
-    if (isReachOutRow(r2)) continue;
-    const key = JSON.stringify([r2.name, r2.language]);
-    const group = groups.get(key) ?? { name: r2.name, language: r2.language, rows: [] };
-    group.rows.push(r2);
-    groups.set(key, group);
-  }
-  return [...groups.values()].flatMap((g) => {
-    const message = messageFrom(g.name, g.language, g.rows);
-    return message ? [message] : [];
-  });
-}
-function messageHolds(m) {
-  const w = m.versions.whatsapp;
-  return {
-    whatsapp: w !== null && w.status === "approved" && w.blocked === null,
-    email: m.versions.email !== null,
-    sms: m.versions.sms !== null
-  };
-}
-var NOT_APPROVED_WORDS = {
-  pending: "WhatsApp is still reviewing this message's WhatsApp version.",
-  rejected: "WhatsApp refused this message's WhatsApp version.",
-  paused: "WhatsApp has paused this message's WhatsApp version.",
-  disabled: "WhatsApp has disabled this message's WhatsApp version."
-};
-function messageWhyNot(m, channel) {
-  if (messageHolds(m)[channel]) return null;
-  const w = m.versions.whatsapp;
-  if (channel !== "whatsapp" || w === null) return noVersionWords(channel);
-  if (w.status !== "approved") return NOT_APPROVED_WORDS[w.status];
-  return w.blocked === null ? null : `This message's WhatsApp version has ${w.blocked}, so it cannot be sent from here.`;
-}
-var HOLDS_NOTHING = { versions: { whatsapp: null, email: null, sms: null } };
-function readyForMessage(ready, message) {
-  const out = { ...ready };
-  for (const c of CONSENT_CHANNELS) {
-    const why = messageWhyNot(message ?? HOLDS_NOTHING, c);
-    if (ready[c].ready && why !== null) out[c] = { ...ready[c], ready: false, why };
-  }
-  return out;
-}
-var whatsappStandingWord = (status) => TEMPLATE_STATUS_WORDS[status].toLowerCase();
-function messageStandingWords(m) {
-  const at3 = (channel, word) => `${VERSION_CHANNEL_WORDS[channel]} \xB7 ${word}`;
-  const w = m?.versions.whatsapp ?? null;
-  return {
-    whatsapp: at3("whatsapp", w ? whatsappStandingWord(w.status) : "not added"),
-    email: at3("email", m?.versions.email ? "ready" : "not written"),
-    sms: at3("sms", m?.versions.sms ? "ready" : m?.purpose === "marketing" ? "not for offers" : "not written")
-  };
-}
-function whatsappStoppedRunWords(m) {
-  const why = m === null ? null : messageWhyNot(m, "whatsapp");
-  return `${why ?? noVersionWords("whatsapp")} Everyone on this run goes by WhatsApp, so nothing was sent.`;
-}
-var NO_RUN_VERSION_WORDS = "has no version its runs can send";
-var MESSAGE_GONE_WORDS = {
-  card: `Its message ${NO_RUN_VERSION_WORDS}, so they are skipped until it has one again or the campaign sends another.`,
-  composer: (title) => `Its message, ${title}, ${NO_RUN_VERSION_WORDS} any more. Pick another to save a change.`
-};
-var RUN_NOW_WITHOUT_VERSION_WORDS = "Its message has no WhatsApp version a run can send, and nobody it would reach goes by email or text. Pick another message, or give this one an email or a text version and tick it on the campaign.";
-var STARTER_LINE_WORDS = {
-  /** The send screen, with no message it can send yet: how many starters' WhatsApp versions WhatsApp is still reviewing. */
-  reviewing: (n) => `Your starter messages' WhatsApp versions are in review (${n}) \u2014 they appear here once approved, usually within minutes.`,
-  /** The playbook composer, after the moment's own message and a comma: where its WhatsApp version stands. */
-  standing: (status) => {
-    const at3 = statusOf(status);
-    return at3 === "pending" ? "has its WhatsApp version in review \u2014 it appears here once approved, usually within minutes." : `has its WhatsApp version ${whatsappStandingWord(at3)} \u2014 see ${CAMPAIGN_ROOMS.home} \u203A ${CAMPAIGN_ROOMS.library}.`;
-  },
-  /**
-   * The link that adds the moment's own message: its email and text versions at once, a WhatsApp version where a number
-   * is, which the line says once it is in review (`standing`). The link was the whole of that, in 25 words.
-   */
-  add: "Add it",
-  /** After the moment's own message's name, where it is not added yet: "Win-back, written for you". */
-  written: "written for you"
-};
-var MESSAGE_BEGIN_WORDS = {
-  customIsAnOffer: "A message you write is an offer or news. Only a starter is a reminder, a check after or a follow-up.",
-  starterNeedsItsOwnWords: "A starter begins with its own words. Add the starter set, then change the words in the Library.",
-  doorNotSwitchedOn: "Writing a message with no WhatsApp version is not switched on here yet."
-};
-
 // src/playbooks/playbook-channels.ts
 var WHATSAPP_VERSION_ALONE = {
   versions: {
@@ -35131,6 +36136,8 @@ function whoWill(p) {
   const reach = playbookReach({ state: p.state, candidates: p.candidates, held: p.held, waiting: p.totals.waiting });
   const of = p.named ? ` of ${p.named.pool}` : "";
   const offers = purposeOfPlaybook(triggerOf(p.trigger)?.cls ?? null) === "marketing";
+  const waits = p.held ?? 0;
+  const waitWords2 = breathWaitWords(waits, String(waits));
   switch (reach) {
     case "sends": {
       const all = p.candidates ?? 0;
@@ -35138,7 +36145,7 @@ function whoWill(p) {
       const next = nextShare(p);
       const later = all - next;
       return {
-        why: `${next}${of} will get it` + (later > 0 ? ` \xB7 up to ${later} more on later runs, ${cap2} a run` : "") + (p.held ? ` \xB7 ${p.held} heard from you this week and wait` : ""),
+        why: `${next}${of} will get it` + (later > 0 ? ` \xB7 up to ${later} more on later runs, ${cap2} a run` : "") + (waits > 0 ? ` \xB7 ${waitWords2}` : ""),
         pill: { tone: "ok", label: plural(next, "person", "people") }
       };
     }
@@ -35149,8 +36156,8 @@ function whoWill(p) {
       };
     case "all-heard":
       return {
-        why: `${p.held ?? 0} heard from you this week and wait`,
-        pill: { tone: "warn", label: "Waiting out the week" }
+        why: waitWords2,
+        pill: { tone: "warn", label: "All waiting" }
       };
     case "uncounted":
       return { why: "Who it reaches could not be counted", pill: null };
@@ -35426,7 +36433,7 @@ function rowStatusOf(p) {
 function rowHintOf(p, word) {
   if (p.trigger === "saved_list") return `On a list \xB7 ${p.triggerLabel}`;
   if (p.trigger === "everyone_monthly") return `Every ${p.cadence_days} days, to a yes to offers`;
-  if (p.off) return p.off;
+  if (p.off && !p.ended) return p.off;
   const t = triggerOf(p.trigger);
   return t ? triggerWords(t, word).hint : p.triggerLabel;
 }
@@ -35453,7 +36460,7 @@ function resumeOf(p, input) {
     workspacePausedOf(input)
   );
   const cls = p.policy_class ?? triggerOf(p.trigger)?.cls ?? null;
-  const auto = cls !== null && input.playbooks?.modes?.[cls] === "auto";
+  const auto = cls !== null && input.playbooks?.modes?.[cls] === "auto" && !p.trial;
   const detail = W.detail(when, p.candidates === null ? null : nextShare(p));
   return {
     kind: "resume",
@@ -35959,12 +36966,12 @@ function lifecycleStages(at3) {
 function emailRowsOf(reachOuts) {
   return reachOuts ? emailTemplateRowsOf(reachOuts).length : 0;
 }
-function lifecycleHeadOf(input, stages) {
-  const covered = stages.filter((s) => s.covered).length;
+function lifecycleHeadOf(input, count2) {
+  const { covered, of } = count2;
   const reach = input.broadcasts?.reach ?? null;
   const parts2 = [];
-  if (stages.length > 0) {
-    parts2.push({ b: `${covered} of ${stages.length}` }, " moments are covered");
+  if (of > 0) {
+    parts2.push({ b: `${covered} of ${of}` }, " moments are covered");
     if (reach) parts2.push(", and ", { b: `${reach.canHear} of your ${reach.people}` }, " people can hear from you");
     parts2.push(".");
   }
@@ -36001,13 +37008,14 @@ function campaignsHomeOf(input) {
   const at3 = input.playbooks && input.shape ? { ...input, playbooks: calendarRead(input.playbooks, input.shape) } : input;
   const made = at3.playbooks && at3.shape ? lifecycleStages({ playbooks: at3.playbooks, shape: at3.shape, line: hasLine(at3.broadcasts), ready: readyOf(at3) }) : { defs: [], stages: [] };
   const { defs, stages } = made;
-  const covered = stages.filter((s) => s.covered).length;
+  const count2 = { covered: stages.filter((s) => s.covered).length, of: stages.length };
   return {
-    head: lifecycleHeadOf(at3, stages),
+    head: lifecycleHeadOf(at3, count2),
     rail: {
       title: LIFECYCLE_WORDS.rail,
-      coveredWords: stages.length > 0 ? `${covered} of ${stages.length} moments covered` : null,
-      phoneWords: stages.length > 0 ? `${covered} of ${stages.length} on` : null,
+      ...count2,
+      coveredWords: count2.of > 0 ? `${count2.covered} of ${count2.of} moments covered` : null,
+      phoneWords: count2.of > 0 ? `${count2.covered} of ${count2.of} on` : null,
       stages
     },
     ledger: lifecycleLedger({ input: at3, defs, stages }),
@@ -36016,6 +37024,61 @@ function campaignsHomeOf(input) {
     results: lifecycleResults(at3),
     failed: failedOf2(at3)
   };
+}
+
+// src/playbooks/lifecycle/lifecycle-inputs.ts
+var ZONE_UNSAID = "America/New_York";
+function businessShapeOf(pb) {
+  const calendarOn = (pb.calendar ?? "none") !== "none";
+  return {
+    calendar: calendarOn ? "feed" : pb.bookings_by_email === true ? "email" : "none",
+    dealsOn: !!pb.deals_on,
+    word: appointmentWordOf({ stored: pb.appointment_word ?? null, sellsBy: pb.deals_on ? "proposal" : null })
+  };
+}
+function listNameOf(p, pb) {
+  if (p.list_key)
+    return (pb.people_lists ?? []).find((l) => l.key === p.list_key)?.label ?? PEOPLE_LISTS.find((l) => l.id === p.list_key)?.label ?? null;
+  return (pb.lists ?? []).find((l) => l.id === p.list_id)?.name ?? null;
+}
+function triggerLabelOf(p, pb, word) {
+  if (p.trigger === "saved_list")
+    return listNameOf(p, pb) ?? (pb.lists === null ? "A list that could not be read" : "A list that was deleted");
+  const t = triggerOf(p.trigger);
+  return t ? triggerWords(t, word).label : p.trigger;
+}
+function cardReadOf(p, pb, at3) {
+  const t = triggerOf(p.trigger);
+  const dealsOff = t && !triggerOffered(t, at3.shape.dealsOn) ? FOLLOW_UP_NEEDS_DEALS : null;
+  const last = campaignEnded(p, localDate(at3.tz, at3.now));
+  const ended = last ? campaignDayWords(last, at3.tz, at3.now) : null;
+  return {
+    // Its list was archived (00169): paused until the list is restored or the playbook moved to another.
+    listArchived: p.trigger === "saved_list" && !!(pb.lists ?? []).find((l) => l.id === p.list_id)?.archived,
+    triggerLabel: triggerLabelOf(p, pb, at3.shape.word),
+    // While the workspace is paused no time is promised: the card says so instead of "tomorrow 10:00 AM".
+    next: nextRunLabel(p, at3.tz, at3.now, pb.ready?.paused === true),
+    // Why it runs nothing here: the card says it, and every rule of the home that skips what runs nothing skips it.
+    off: ended ? LIFECYCLE_WORDS.ended(ended) : dealsOff,
+    ended,
+    trial: trialDayWords(p, at3.tz, at3.now)
+  };
+}
+function lifecyclePlaybooksOf(pb, now) {
+  const shape = businessShapeOf(pb);
+  const timezone = pb.timezone || ZONE_UNSAID;
+  const moments = PLAYBOOK_TRIGGERS.filter((t) => triggerOffered(t, shape.dealsOn));
+  const here = { dealsOn: shape.dealsOn, calendarOn: shape.calendar === "feed" };
+  return {
+    shape,
+    timezone,
+    cards: pb.playbooks.map((p) => ({ playbook: p, read: cardReadOf(p, pb, { tz: timezone, now, shape }) })),
+    moments: moments.map((t) => ({ trigger: t, offered: momentOffered(t, here) })),
+    countsRead: moments.every((t) => t.kind === "saved" || !!pb.pools?.[t.id])
+  };
+}
+function whatsappLineOf(channels) {
+  return channels?.find((c) => c.kind === "whatsapp" && c.status === "active") ?? null;
 }
 
 // src/playbooks/playbook-totals.ts
@@ -40828,13 +41891,13 @@ function noLineYetStageOf(s) {
   const { dto, choice, returned } = s;
   if (!dto.lines?.ready || dto.requests.line || dto.requests.port) return s.rows;
   const onTrial = billingDoorOpen(dto.billing) && dto.billing.status === "trialing";
-  const plan = planOf(dto.billing, onTrial);
+  const plan = phonePlanOf(dto.billing, onTrial);
   if (!s.canSpend && !plan) return s.rows;
   if (plan && returned) return startingStageOf(s);
   if (s.canSpend && choice?.pending) return buyingStageOf(s);
   return chooseStageOf(s, plan, onTrial);
 }
-function planOf(billing, onTrial) {
+function phonePlanOf(billing, onTrial) {
   const W = FIRST_RUN_PHONE_WORDS;
   return billingDoorOpen(billing) && (billing.status === "none" || onTrial) ? { offer: W.planOffer(priceWords(billing.price ?? null)), note: onTrial ? W.planNoteTrial : W.planNote } : null;
 }
@@ -42581,6 +43644,7 @@ var ROUTE_KEYS = [
   "POST team/partner",
   "POST templates",
   "POST templates/draft",
+  "POST templates/message",
   "POST templates/starter",
   "POST templates/sync",
   "POST templates/versions",
@@ -43359,7 +44423,8 @@ function fill(body, values) {
 }
 var OWN_SLOT_LABEL = /* @__PURE__ */ new Map([
   ["business_name", "Business name"],
-  ["booking_link", "Booking link"]
+  ["booking_link", "Booking link"],
+  ["review_link", "Review link"]
 ]);
 function slotWords(kind, label, example, own) {
   if (kind && OWN_SLOT_LABEL.has(kind)) {
@@ -48433,6 +49498,7 @@ export {
   ASK_THREAD_ROUTES,
   ASK_THREAD_VERBS,
   ASK_TOKENS_DAY,
+  ASK_TOOLS_CHARS_CEILING,
   ASK_TURN_BUDGET_MS,
   ASK_UNDO_MS,
   ASK_VOICE_CLAIM_STALE_MS,
@@ -48475,6 +49541,7 @@ export {
   BRAIN_INTENTS,
   BRAIN_LANGUAGES,
   BRAIN_OUTPUT_JSON_SCHEMA,
+  BREATH_WHY,
   BROADCAST_CHUNK,
   BROADCAST_FAILURES,
   BROADCAST_FAILURE_FIX,
@@ -48634,7 +49701,6 @@ export {
   EMAIL_BODY_MAX,
   EMAIL_CLAIMS,
   EMAIL_ELSEWHERE_SENTENCE,
-  EMAIL_HOLDS,
   EMAIL_NOT_ANSWERED_SENTENCE,
   EMAIL_STOP_PATTERN,
   EMAIL_SUBJECT_MAX,
@@ -48700,8 +49766,10 @@ export {
   HAND_KINDS,
   HAND_WORDS_MAX,
   HEAD,
+  HEARD_UNREAD_WORDS,
   HELD_ON,
   HELD_REASONS,
+  HELD_WHEN_COUNTED,
   HELD_WORDS,
   HOLD_ACT_WORDS,
   HOLD_DOOR_WORDS,
@@ -48834,6 +49902,7 @@ export {
   LEDGER,
   LEDGER_SORTS,
   LEDGER_STATUSES,
+  LEFT_OUT_FACTS,
   LENS_ROUTES,
   LIBRARY_STARTER_WORDS,
   LIBRARY_WORDS,
@@ -48914,6 +49983,7 @@ export {
   MESSAGE_SENDERS,
   MESSAGE_STATUSES,
   MESSAGE_TYPES,
+  MESSAGE_WORDS,
   MINOR_PER_UNIT,
   MIN_MS,
   MISSED_CALL_TOUCH_WORDS,
@@ -49054,6 +50124,7 @@ export {
   PIPELINE_SORTS,
   PIPELINE_WORDS,
   PLAN_NOTE_MAX,
+  PLAN_WORDS,
   PLATFORMS,
   PLATFORM_DAYS_READ,
   PLATFORM_HOLD_NOTICE,
@@ -49070,6 +50141,7 @@ export {
   PLAYBOOK_CALENDAR_UNREAD,
   PLAYBOOK_CAP_CHOICES,
   PLAYBOOK_CARD_REFUSALS,
+  PLAYBOOK_CARD_WORDS,
   PLAYBOOK_CLASS_LABEL,
   PLAYBOOK_DEFAULTS,
   PLAYBOOK_DELETE_WORDS,
@@ -49173,6 +50245,7 @@ export {
   READING_SCHEMA,
   READY_WHATSAPP_ALONE,
   RECENT_MAX,
+  RECIPIENT_REASON_HEARD,
   RECIPIENT_STATES,
   RECORDING_PURGED_WORDS,
   RECORDING_RETENTION_DAYS,
@@ -49318,6 +50391,7 @@ export {
   STATE,
   STATE_WORD,
   STEP_SHEET_WORDS,
+  STEP_TOKEN,
   STOP_ALL_REFUSALS,
   STOP_ENDED_OFFERS_SOURCE,
   STOP_WORDS,
@@ -49328,14 +50402,15 @@ export {
   TEAM_INVITE_DAYS,
   TEAM_ROLES,
   TEMPLATE_BODY_MAX,
+  TEMPLATE_BODY_WORDS,
   TEMPLATE_BUTTON_TEXT_MAX,
   TEMPLATE_CATEGORIES,
   TEMPLATE_EXAMPLE_MAX,
   TEMPLATE_FOOTER_MAX,
   TEMPLATE_LABEL_MAX,
   TEMPLATE_LANGUAGES,
-  TEMPLATE_NAME_MAX,
   TEMPLATE_NAME_WORDS,
+  TEMPLATE_SAME_NAME_WORDS,
   TEMPLATE_STATUSES,
   TEMPLATE_STATUS_WORDS,
   TEMPLATE_TITLE_MAX,
@@ -49448,6 +50523,7 @@ export {
   alertAddressesOf,
   alertGrid,
   alertTestMail,
+  allLeftOutWords,
   allVisitsIn,
   allWord,
   allowanceBeforeSend,
@@ -49540,8 +50616,9 @@ export {
   booksWithOf,
   booksWithOptions,
   brainMetaOf,
-  breathEndsAt,
-  breathHolds,
+  breathSplit,
+  breathTouchOf,
+  breathWaitWords,
   broadcastFailureFix,
   broadcastFailureWords,
   broadcastName,
@@ -49587,7 +50664,9 @@ export {
   callsToday,
   cameFromOf,
   campaignChannelsOf,
+  campaignDayWords,
   campaignEmailRules,
+  campaignEnded,
   campaignLedgerDtoOf,
   campaignMessageOf,
   campaignMessagesOf,
@@ -49596,6 +50675,7 @@ export {
   canonicalRoute,
   capabilityStatus,
   cardOpenRoute,
+  cardsInPlans,
   chainHintOf,
   chainIssueWords,
   chainOf,
@@ -49781,6 +50861,7 @@ export {
   earlierCost,
   editFootOf,
   editOf,
+  effectiveMode,
   eligibleFor,
   eligibleForPlaybook,
   emailDomainOf,
@@ -49895,6 +50976,7 @@ export {
   fromSlotParts,
   fromZonedInput,
   gainedOver,
+  goesToOf,
   googleAudienceWords,
   googleCallbackUrl,
   googleFillsOf,
@@ -49922,7 +51004,10 @@ export {
   hasHours,
   hasProfile,
   headlineOf,
+  heardFor,
   heardSinceProposal,
+  heardTooWords,
+  heardWithin,
   heardWords,
   heldBackOfOneRun,
   heldBackWords,
@@ -50065,6 +51150,7 @@ export {
   jittered,
   jobNewsWords,
   joinedWords,
+  journeyGuide,
   journeyOf,
   journeyStageOf,
   judgeAsked,
@@ -50162,6 +51248,8 @@ export {
   ledgerRowIn,
   leftOfAd,
   leftOfMoney,
+  leftOutBy,
+  leftOutByFacts,
   legacyErasedEmailHash,
   legacyErasedPhoneHash,
   legacyLeadSuppressionHash,
@@ -50177,6 +51265,7 @@ export {
   lifecycleChainStateOf,
   lifecycleChainsOf,
   lifecycleKicker,
+  lifecyclePlaybooksOf,
   lifecycleStateOf,
   lineCredentialFailure,
   lineOffGets,
@@ -50244,6 +51333,7 @@ export {
   messageFitsMoment,
   messageHolds,
   messageLanguageChoices,
+  messageLanguageCode,
   messageStandingWords,
   messageStatusLabel,
   messageText,
@@ -50251,6 +51341,7 @@ export {
   messageWhy,
   messageWhyNot,
   messageWords,
+  metaStatusOf,
   metricWordsOf,
   minorOfUnits,
   missedCall,
@@ -50286,6 +51377,7 @@ export {
   newAdModel,
   newAdRoute,
   newCampaignChannels,
+  newCampaignTrialUntil,
   newConversationOf,
   newReceptionistDefaults,
   newestPostFor,
@@ -50312,10 +51404,13 @@ export {
   normalizePhone,
   notFoundPageMetadata,
   notNowDayOf,
+  noteAsTold,
+  noteEndedWords,
   noteRows,
   noteSuggestSystemPrompt,
   noteSuggestUserContent,
   noteWhose,
+  notesInForce,
   notesWords,
   noticeAnswerOf,
   noticePrompt,
@@ -50371,6 +51466,7 @@ export {
   pageTotals,
   pageVitalsWords,
   paramLabel,
+  paramSaid,
   parseAds,
   parseAmount,
   parseBrainOutput,
@@ -50480,14 +51576,18 @@ export {
   planArea,
   planBilling,
   planCeiling,
+  planGroupOf,
   planLeadSearch,
   planLeavingOut,
+  planMadeOf,
   planMinutes,
   planNoteOf,
+  planOf,
   planRun,
   planSaid,
   planSentence,
   planVersionOf,
+  planWaits,
   planWhere,
   planWho,
   planWords,
@@ -50538,6 +51638,7 @@ export {
   previewHorizon,
   previewLinesOf,
   previewOn,
+  previewParts,
   previewRefusedWords,
   previewSays,
   previewVersionsOf,
@@ -50579,6 +51680,7 @@ export {
   raiseOf,
   ratingLine,
   ratingWords,
+  reachAfterBreath,
   reachBarParts,
   reachBarWords,
   reachByWords,
@@ -50692,6 +51794,7 @@ export {
   resolveFacts,
   resolveList,
   resolveParams,
+  resolveSteps,
   resolveSystemPrompt,
   resolveTheme,
   resultsOf,
@@ -50872,10 +51975,12 @@ export {
   stepIsDue,
   stepLabel,
   stepLabelOf,
+  stepOfferWords,
   stepSheetBody,
   stepSheetDirty,
   stepSheetFor,
   stepSheetMerge,
+  stepToken,
   stepWhenWords,
   stopRequestQuestion,
   stopToldBesideState,
@@ -50889,6 +51994,7 @@ export {
   systemOneState,
   telHref,
   templateBlocked,
+  templateBodyTooLong,
   templateComponents,
   templateFooter,
   templateHolds,
@@ -50987,6 +52093,7 @@ export {
   totalOf,
   totalsOf,
   touchesAfterRun,
+  trialDayWords,
   trialOffer,
   trialWords,
   triggerOf,
@@ -50994,6 +52101,7 @@ export {
   triggerWords,
   trimmedOrNull,
   tryItLink,
+  twinRunsWords,
   tzClock,
   tzSince,
   unknownDetails,
@@ -51024,6 +52132,7 @@ export {
   verifyCodeWords,
   versionComponents,
   versionSlotsRefusal,
+  versionWord,
   versionWords,
   versionsOf,
   vetoRunNotice,
@@ -51070,6 +52179,7 @@ export {
   websiteHostOf,
   weekHoursOf,
   weekOf,
+  whatsappLineOf,
   whatsappOffersOpen,
   whatsappStoppedRunWords,
   whenLabel,

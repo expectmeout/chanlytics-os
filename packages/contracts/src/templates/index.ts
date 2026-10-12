@@ -5,10 +5,12 @@ export {
   placeholdersOf,
   placeholdersSequential,
   validateTemplateDraft,
+  templateBodyTooLong,
   templateComponents,
   parseParamSpec,
   parseParamSpecs,
   paramLabel,
+  paramSaid,
   playbooksStillSending,
   firstNameOf,
   resolveParams,
@@ -26,8 +28,9 @@ export {
   TEMPLATE_FOOTER_MAX,
   TEMPLATE_EXAMPLE_MAX,
   TEMPLATE_LABEL_MAX,
-  TEMPLATE_NAME_MAX,
   TEMPLATE_NAME_WORDS,
+  TEMPLATE_BODY_WORDS,
+  TEMPLATE_SAME_NAME_WORDS,
   TEMPLATE_BUTTON_TEXT_MAX,
   TEMPLATE_STATUS_WORDS,
   PARAM_SOURCES,
@@ -48,7 +51,7 @@ export type {
   TemplateSendSource,
   TemplateSentWords,
 } from "./templates";
-export { STARTER_LANGUAGES, STARTER_TEMPLATES } from "./starter-templates";
+export { STARTER_LANGUAGES, STARTER_TEMPLATES, messageLanguageCode } from "./starter-templates";
 export type {
   StarterSlotKind,
   StarterSlot,
@@ -91,6 +94,7 @@ export {
   reachOutRowName,
   reachOutStepOf,
   versionsOf,
+  versionWord,
   noVersionWords,
 } from "./message-versions";
 export type {
@@ -109,6 +113,7 @@ export {
   messageWhyNot,
   readyForMessage,
   messageStandingWords,
+  metaStatusOf,
   variablesSlotCount,
   MESSAGE_GONE_WORDS,
   MESSAGE_BEGIN_WORDS,

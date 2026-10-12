@@ -212,6 +212,7 @@ export const ROUTES = {
   "POST team/partner": { method: "POST", path: "/api/v1/team/partner" },
   "POST templates": { method: "POST", path: "/api/v1/templates" },
   "POST templates/draft": { method: "POST", path: "/api/v1/templates/draft" },
+  "POST templates/message": { method: "POST", path: "/api/v1/templates/message" },
   "POST templates/starter": { method: "POST", path: "/api/v1/templates/starter" },
   "POST templates/sync": { method: "POST", path: "/api/v1/templates/sync" },
   "POST templates/versions": { method: "POST", path: "/api/v1/templates/versions" },
@@ -457,6 +458,7 @@ export type Routes = {
   "POST team/partner": typeof import("../../app/api/v1/team/partner/route").POST;
   "POST templates": typeof import("../../app/api/v1/templates/route").POST;
   "POST templates/draft": typeof import("../../app/api/v1/templates/draft/route").POST;
+  "POST templates/message": typeof import("../../app/api/v1/templates/message/route").POST;
   "POST templates/starter": typeof import("../../app/api/v1/templates/starter/route").POST;
   "POST templates/sync": typeof import("../../app/api/v1/templates/sync/route").POST;
   "POST templates/versions": typeof import("../../app/api/v1/templates/versions/route").POST;

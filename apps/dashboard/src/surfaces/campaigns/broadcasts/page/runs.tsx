@@ -136,6 +136,7 @@ type AgainIn = Pick<
   | "templates"
   | "audiences"
   | "link"
+  | "review"
   | "setAud"
   | "setTplId"
   | "setSources"
@@ -155,6 +156,7 @@ export function bcAgainOf({
   templates,
   audiences,
   link,
+  review,
   setAud,
   setTplId,
   setSources,
@@ -172,7 +174,7 @@ export function bcAgainOf({
     if (!t || !a) return null;
     // What filled each slot, where the slot may still take it; else its first choice. A run whose first name was
     // filled by the booking link is sent again with each person's own.
-    const may = bcSlots(t, link) || BC_NONE;
+    const may = bcSlots(t, { bookingLink: link, reviewLink: review }) || BC_NONE;
     const kinds = (b.params || []).map((p, i) => {
       const c = may[i] || BC_TEXT;
       return p && c.includes(p.kind) ? p.kind : c[0];

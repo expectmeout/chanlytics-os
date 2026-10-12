@@ -8,8 +8,9 @@
  * the ACTIONS it may use, each tool built per role from them; PR 4.6 gave propose_person a note and a person's details
  * beside its mode, an operator's two beside an owner's one; PR 4.5 gave inbox its search; PR 4.7 added propose_list,
  * an operator's (twenty for an owner), gave propose_campaign a waiting run's approval (run), and made
- * propose_thread_verb's words true for every role; 9 Oct 2026 gave propose_campaign a change in place (change), and 11 Oct
- * 2026 a list's rule a missed visit (missed_visit, decision 0002). What the model is sent is frozen per role in
+ * propose_thread_verb's words true for every role; 9 Oct 2026 gave propose_campaign a change in place (change), 10 Oct
+ * 2026 a new message written for the Library (message) and 11 Oct 2026 an offer or a whole setup made into its cards
+ * (plan), and 11 Oct 2026 gave a list's rule a missed visit (missed_visit, decision 0002). What the model is sent is frozen per role in
  * fixtures/ask-tools-4-7.json, and every other tool reads to every role as fixtures/ask-tools-4-6.json froze it (which
  * PR 4.6 and PR 4.5 held to fixtures/ask-tools-4-3.json, and PR 4.3 to PR 3.4's, for the tools each did not change --
  * inbox too, less its search); the rest is held as structure: the order, the four prefixes, the flattened
@@ -42,16 +43,22 @@ const {
   calledName,
   newToolContext,
 } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
-const { MOMENTS_RETIRED, PLAYBOOK_VETO_DELAY_WORDS, PROPOSAL_SPECS, roleAtLeast } =
+const { MOMENT_TRIGGERS, MOMENTS_RETIRED, PLAYBOOK_VETO_DELAY_WORDS, PROPOSAL_SPECS, roleAtLeast, startersForTrigger } =
   await import("@chanlytics/contracts");
 /**
  * 2 Oct 2026: the two moments no longer offered for a new playbook (contracts MOMENTS_RETIRED) leave the playbook's
- * trigger enum, so a schema frozen before it is held to its own less those two: the one change to its fields.
+ * trigger enum; 11 Oct 2026 (D2 of the marketing manager's spec): the two appointment moments join it, the reminder the
+ * day before and the check after, proposed where a calendar is connected (the handler judges that per workspace, as the
+ * route does). So a schema frozen before is held to its own less those two and with these two, in the moments' order:
+ * the one change to its fields.
  */
-const lessRetired = (schema) => {
+const asProposableNow = (schema) => {
   const out = structuredClone(schema);
   const t = out.properties.trigger;
-  if (t) t.enum = t.enum.filter((id) => !(id in MOMENTS_RETIRED));
+  if (t)
+    t.enum = MOMENT_TRIGGERS.filter(
+      (m) => (t.enum.includes(m.id) || m.kind === "visit") && !(m.id in MOMENTS_RETIRED),
+    ).map((m) => m.id);
   return out;
 };
 
@@ -61,10 +68,31 @@ const lessRetired = (schema) => {
  * tool, so the strict-tools cap (twenty) is untouched.
  */
 const CHANNELS = { type: "array", items: { type: "string", enum: ["whatsapp", "sms", "email"] } };
+/**
+ * Less what an action gained since: its channels (3 Oct 2026), and, a new playbook's, its last day (`until`, 11 Oct 2026:
+ * Ask's plan ends an offer's campaign with the offer), one optional day the change action already took in that shape,
+ * and the moment's starter to file at Approve (`starter`, 12 Oct 2026: the day after's review ask, named by its key).
+ */
 const lessChannels = (schema) => {
   const out = structuredClone(schema);
   delete out.properties.channels;
+  delete out.properties.until;
+  delete out.properties.starter;
   return out;
+};
+/**
+ * A new playbook's `starter` (12 Oct 2026): one optional key among the starters of the moments it may be proposed on,
+ * none the set replaced, in the moments' order.
+ */
+const STARTER = {
+  type: "string",
+  enum: [
+    ...new Set(
+      MOMENT_TRIGGERS.filter((m) => !(m.id in MOMENTS_RETIRED)).flatMap((m) =>
+        startersForTrigger(m.id).flatMap((s) => (s.retired ? [] : [s.key])),
+      ),
+    ),
+  ],
 };
 
 const fixture = (name) => JSON.parse(fs.readFileSync(path.join(ROOT, "tooling/scripts/tests/fixtures", name), "utf8"));
@@ -80,11 +108,13 @@ const PR_4_3 = fixture("ask-tools-4-3.json");
  * offered since PR 4.6. people since 12 Oct 2026 names one list as the Inbox words it (HELD_LIST_WORDS).
  */
 const CHANGED = [
+  "calendar",
   "campaigns",
   "people",
   "propose_autonomy",
   "propose_campaign",
   "propose_list",
+  "propose_settings",
   "propose_thread_verb",
   "report",
 ];
@@ -154,6 +184,33 @@ const PLAYBOOK_CHANNELS_WORDS = [
  * the field says the same word. The one phrase, once.
  */
 const BROADCAST_BY_WORDS = ["whether a playbook or a person sent it", "whether a campaign or a person sent it"];
+/**
+ * 11 Oct 2026 (a one-off send honours the breath, fix round 3): the week's breath counts a message within a week either
+ * side, one due included, so the tail says a playbook's people "hear from you within a week of today" where it said they
+ * "heard from a broadcast this week". The one phrase, once.
+ */
+const BREATH_TAIL_WORDS = [
+  "or heard from a broadcast this week: say so the same way.",
+  "or hear from you within a week of today: say so the same way.",
+];
+/**
+ * 12 Oct 2026 (Ask as the marketing manager, the review after the merge): each playbook says a next run only where it
+ * runs, why it runs nothing, the day an ended one ended (its state may still read running: one that ended while paused
+ * reads paused) and the last day ahead of one, and the mode its runs go under now, auto reading veto while on trial
+ * (effectiveMode turns auto alone), where it said the mode its class runs under. The one phrase, once.
+ */
+const PLAYBOOK_END_TRIAL_WORDS = [
+  "its clock and next run, whether it is running, the autonomy mode its class runs under,",
+  "its clock and next run (next_run, null where it runs nothing here: runs_nothing says why, and ended the day one ended, its state may still read running), its last day ahead (ends), whether it is running, the mode its runs go under now (mode: its class's, but auto reads veto while on trial until on_trial_until),",
+];
+/**
+ * 12 Oct 2026 (the same review): how full the book is is action room's to say, so the calendar's tail sends a question
+ * of room for an offer there, beside openings. The one phrase, once.
+ */
+const ROOM_TAIL_WORDS = [
+  "who is booked when, and action openings for when there is room or what is free on a day, the free slots alone, sized to a service.",
+  "who is booked when, action openings for when there is room or what is free on a day, the free slots alone, sized to a service, and action room for how full the book is over the next fourteen days, to pace an offer.",
+];
 /** 9 Oct 2026 (the moment spec, A6, D35): each playbook says its last 30 days, where it said what its runs earned. */
 const PLAYBOOK_RESULTS_WORDS = [
   "its list when it runs on one, what its runs earned,",
@@ -195,12 +252,29 @@ const MESSAGE_WORDS = [
   ],
 ];
 /**
+ * 10 Oct 2026 (Ask, the marketing manager): the actions the lane gave a read tool, each taking nothing more, by tool in
+ * the order added. campaigns, after broadcast: messages, the library whole, a version in review included (task 3); and
+ * journey, the journey as Campaigns' home draws it, with the guide (task 4). calendar, after openings: room, how full the
+ * book is over the next fourteen days (task 5). On each tool their words stand between its last action's and the tail,
+ * their names close the enum and their one example each closes the examples, and nothing else it says, takes or shows
+ * moved.
+ */
+const LANE_ACTIONS = { calendar: ["room"], campaigns: ["messages", "journey"] };
+/**
  * 9 Oct 2026 (the moment spec, A7): propose_autonomy is judged by the Autonomy page's rule (policyModeRefusal), so its
  * words say each class takes the modes its row offers, where they said veto is for replies only. The one sentence.
  */
 const AUTONOMY_MODES_WORDS = [
   "veto is for replies only.",
   `Each class takes the modes its row on the Autonomy page offers (veto holds a reply, or a campaign's run for ${PLAYBOOK_VETO_DELAY_WORDS}, so a person can stop it), and a mode a class does not take is refused in that page's words.`,
+];
+/**
+ * 11 Oct 2026 (Task 13, a note ends): propose_settings' add_note takes the until add_closure already took, a note's last
+ * day, and its words say so. The one clause; the flat shape the model is shown held `until` already.
+ */
+const NOTE_UNTIL_WORDS = [
+  "add_note (a title and the text the receptionist reads)",
+  "add_note (a title, the text the receptionist reads, and an optional until, its last day)",
 ];
 /**
  * What the report tool's description gained after PR 4.7 (the Reports fix wave, spec D14): its median and p90 reply time
@@ -393,7 +467,7 @@ test("every role is offered exactly the actions it may use (D2): a tool with non
         assert.ok(usable(name, ROLES[i]).includes(a), `${name}.${a}: ${ROLES[i - 1]}'s, so ${ROLES[i]}'s`);
 });
 
-test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, propose_thread_verb, propose_autonomy (the modes a class takes), report (its reply times say the hold, and it says the Campaigns lens, the Reviews lens, the Receptionist lens and the People lens), campaigns (a run's channels, and a message where it said a template) and people (a list in the Inbox's words) reads to every role byte for byte as PR 4.6 and PR 4.5 sent it -- per tool, per role, with its examples and without -- and every tool they offered a role is offered it still", () => {
+test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, propose_thread_verb, propose_autonomy (the modes a class takes), propose_settings (a note's last day), report (its reply times say the hold, and it says the Campaigns lens, the Reviews lens, the Receptionist lens and the People lens), campaigns (a run's channels, a message where it said a template, the library whole and the journey), calendar (the room in the book) and people (a list in the Inbox's words) reads to every role byte for byte as PR 4.6 and PR 4.5 sent it -- per tool, per role, with its examples and without -- and every tool they offered a role is offered it still", () => {
   const bare = ({ input_examples: _, ...t }) => t;
   for (const role of ROLES) {
     const was = new Map(TODAY[role].map((t) => [t.name, t]));
@@ -421,16 +495,52 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
   assert.deepEqual(
     ROLES.map((role) => tool(role, "propose_campaign")?.input_schema.properties.action.enum ?? null),
     // 8 Oct 2026: and its channels, the channels a playbook that exists goes by, to every role its playbook reaches; 9
-    // Oct 2026: and its change, a playbook that exists paused, resumed, renamed or retimed, to the same roles.
+    // Oct 2026: and its change, a playbook that exists paused, resumed, renamed or retimed, to the same roles; 10 Oct
+    // 2026: and its message, a new message written for the Library, to the same roles; 11 Oct 2026: and its plan, an
+    // offer or a whole setup made into its cards, to the same roles.
     [
       null,
-      ["broadcast", "playbook", "run", "channels", "change"],
-      ["broadcast", "playbook", "run", "channels", "change"],
-      ["broadcast", "playbook", "run", "channels", "change"],
+      ["broadcast", "playbook", "run", "channels", "change", "message", "plan"],
+      ["broadcast", "playbook", "run", "channels", "change", "message", "plan"],
+      ["broadcast", "playbook", "run", "channels", "change", "message", "plan"],
     ],
   );
   const was = (role, name) => TODAY[role].find((t) => t.name === name);
   const words = ({ description: _, ...rest }) => rest;
+  /**
+   * A tool the lane gave actions (LANE_ACTIONS), to one role: what it said before, `said`, with their words before its
+   * tail; their names closing its enum and their one example each closing its examples; and, less those, what it takes
+   * and shows PR 4.6's and PR 4.5's.
+   */
+  const laneAdded = (role, name, said) => {
+    const d = DEFS.get(name);
+    const lane = LANE_ACTIONS[name];
+    const added = lane.map((a) => d.actions[a].words).join(" ");
+    assert.equal(tool(role, name).description, said.replace(` ${d.tail}`, ` ${added} ${d.tail}`), `${role} ${name}`);
+    const now = words(tool(role, name));
+    const n = lane.length;
+    assert.deepEqual(now.input_schema.properties.action.enum.slice(-n), lane, `${role} ${name}: the lane's, last`);
+    assert.deepEqual(
+      now.input_examples.slice(-n),
+      lane.map((action) => ({ action })),
+      `${role} ${name}: their one example each, last`,
+    );
+    assert.deepEqual(
+      {
+        ...now,
+        input_schema: {
+          ...now.input_schema,
+          properties: {
+            ...now.input_schema.properties,
+            action: { type: "string", enum: now.input_schema.properties.action.enum.slice(0, -n) },
+          },
+        },
+        input_examples: now.input_examples.slice(0, -n),
+      },
+      words(was(role, name)),
+      `${role} ${name}`,
+    );
+  };
   // report (spec D14): the sentence about the reply times says the hold is in them, and nothing else it says moved.
   for (const role of ROLES) {
     assert.equal(
@@ -456,9 +566,11 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
     assert.deepEqual(words(tool(role, "report")), words(was(role, "report")), role);
     // campaigns (0030): a run's line says its channels and a read WhatsApp's alone; (lane 1, T11): a message, where it said
     // an approved WhatsApp template; (8 Oct 2026) a waiting run's one name, and the channels each playbook goes by; (10
-    // Oct 2026) a broadcast sent by a campaign; nothing else it says moved.
-    assert.equal(
-      tool(role, "campaigns").description,
+    // Oct 2026) a broadcast sent by a campaign, and the library whole and the journey (LANE_ACTIONS); nothing else it
+    // says moved.
+    laneAdded(
+      role,
+      "campaigns",
       MESSAGE_WORDS.reduce(
         (said, [from, to]) => said.replace(from, to),
         was(role, "campaigns")
@@ -468,10 +580,13 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
       )
         .replace(...PLAYBOOK_CHANNELS_WORDS)
         .replace(...PLAYBOOK_RESULTS_WORDS)
-        .replace(...BROADCAST_BY_WORDS),
-      role,
+        .replace(...BROADCAST_BY_WORDS)
+        .replace(...BREATH_TAIL_WORDS)
+        .replace(...PLAYBOOK_END_TRIAL_WORDS),
     );
-    assert.deepEqual(words(tool(role, "campaigns")), words(was(role, "campaigns")), role);
+    // calendar (10 Oct 2026): the room in the book (LANE_ACTIONS), which its tail names (12 Oct 2026), and nothing else it
+    // says moved.
+    laneAdded(role, "calendar", was(role, "calendar").description.replace(...ROOM_TAIL_WORDS));
     // people (12 Oct 2026): the list of the threads the member looking has says the Inbox's words, and nothing else moved.
     assert.equal(tool(role, "people").description, was(role, "people").description.replace(...HELD_LIST_WORDS), role);
     assert.deepEqual(words(tool(role, "people")), words(was(role, "people")), role);
@@ -496,6 +611,16 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
       role,
     );
     assert.deepEqual(words(tool(role, "propose_autonomy")), words(was(role, "propose_autonomy")), role);
+    // propose_settings (11 Oct 2026, Task 13): a note's last day, in the one clause that names add_note's fields, to
+    // the roles it was offered (a partner and an owner); nothing else it says, takes or shows moved.
+    if (was(role, "propose_settings")) {
+      assert.equal(
+        tool(role, "propose_settings").description,
+        was(role, "propose_settings").description.replace(...NOTE_UNTIL_WORDS),
+        role,
+      );
+      assert.deepEqual(words(tool(role, "propose_settings")), words(was(role, "propose_settings")), role);
+    }
     // propose_campaign: what it sent before is now's less the run and less the channels action (8 Oct 2026: its one
     // field of its own, playbook_id, beside the channels the broadcast and the playbook already take) -- the
     // broadcast's and the playbook's own fields and examples, byte for byte -- and the run's own words and the channels
@@ -510,28 +635,126 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
       state: _s,
       gap_days: _g,
       cadence_days: _c,
+      until: _u,
+      trial_until: _t,
+      language: _l,
+      category: _k,
+      versions: _w,
+      slots: _o,
+      intent: _i,
+      offer: _f,
+      say: _y,
+      stages: _g2,
+      starter,
       ...fields
     } = now.input_schema.properties;
+    // 12 Oct 2026: a new playbook's starter, named by its key, the one field the playbook action gained of its own.
+    assert.deepEqual(shapeOf(starter), STARTER, `${role}: the playbook's starter`);
+    assert.ok(STARTER.enum.includes("after_visit_review"), "the day after's review ask among them");
+    // 11 Oct 2026: the plan action's own four fields (contracts PlanIntent, flat); its language is the message's, one
+    // shape; and a new playbook's until is the change's, one shape.
+    assert.deepEqual(
+      [_i, _y, _g2].map(shapeOf),
+      [
+        { type: "string", enum: ["offer", "cover_journey"] },
+        { type: "string" },
+        { type: "array", items: { type: "string", enum: ["first_contact", "before", "after", "proposal", "quiet"] } },
+      ],
+      `${role}: plan's intent, say and stages`,
+    );
+    assert.deepEqual(
+      Object.keys(shapeOf(_f).properties),
+      ["words", "from", "until", "service", "who", "channels"],
+      `${role}: plan's offer, PlanIntent's own fields`,
+    );
+    assert.deepEqual(shapeOf(_f).required, ["words", "from", "until"], `${role}: an offer's words and its two days`);
     // 9 Oct 2026: the change action's own three fields; its name, run_hour and cap_per_run are the playbook's, one shape.
     assert.deepEqual(
       [_s, _g, _c].map(shapeOf),
       [{ type: "string", enum: ["running", "paused"] }, { type: "number" }, { type: "number" }],
       `${role}: change's own three fields`,
     );
+    // 11 Oct 2026 (00416): and its last day and its trial's end, a null ending the trial; its words are params, the
+    // broadcast's and the playbook's, one shape.
+    assert.deepEqual(
+      [_u, _t].map(shapeOf),
+      [{ type: "string" }, { type: ["string", "null"] }],
+      `${role}: change's until and trial_until`,
+    );
+    // 10 Oct 2026: the message action's own four fields; its name is the broadcast's and the playbook's, one shape.
+    const versionOf = (props) => ({
+      type: "object",
+      properties: props,
+      required: Object.keys(props),
+      additionalProperties: false,
+    });
+    assert.deepEqual(
+      [_l, _k, _w, _o].map(shapeOf),
+      [
+        { type: "string", enum: ["en", "es"] },
+        { type: "string", enum: ["marketing", "utility"] },
+        {
+          type: "object",
+          properties: {
+            whatsapp: versionOf({ body: { type: "string" } }),
+            email: versionOf({ subject: { type: "string" }, body: { type: "string" } }),
+            sms: versionOf({ body: { type: "string" } }),
+          },
+          required: [],
+          additionalProperties: false,
+        },
+        {
+          type: "array",
+          items: versionOf({
+            position: { type: "integer" },
+            label: { type: "string" },
+            kind: {
+              type: "string",
+              enum: [
+                "text",
+                "first_name",
+                "business_name",
+                "booking_link",
+                "review_link",
+                "visit_when",
+                "visit_service",
+                "proposal_link",
+              ],
+            },
+          }),
+        },
+      ],
+      `${role}: message's own four fields`,
+    );
     assert.deepEqual(shapeOf(playbookId), { type: "string" }, `${role}: playbook_id, the channels action's own field`);
     assert.deepEqual(channels, CHANNELS, `${role}: channels, one optional list of the three, for both actions`);
     assert.equal(now.input_schema.required.includes("channels"), false, `${role}: and never required`);
     assert.deepEqual(
       { ...fields, action: { type: "string", enum: ["broadcast", "playbook"] } },
-      lessRetired(before.input_schema).properties,
+      asProposableNow(before.input_schema).properties,
+    );
+    // Less the examples of the actions added since, and the playbook's one naming its starter (12 Oct 2026).
+    assert.deepEqual(
+      now.input_examples.filter(
+        (ex) => !["run", "channels", "change", "message", "plan"].includes(ex.action) && !("starter" in ex),
+      ),
+      before.input_examples,
     );
     assert.deepEqual(
-      now.input_examples.filter((ex) => !["run", "channels", "change"].includes(ex.action)),
-      before.input_examples,
+      now.input_examples.filter((ex) => "starter" in ex),
+      [{ action: "playbook", trigger: "visited", starter: "after_visit_review" }],
+      `${role}: the starter's one example, the day after's review ask`,
     );
     assert.ok(now.description.includes(` ${DEFS.get("propose_campaign").actions.run.words} `), role);
     assert.ok(now.description.includes(` ${DEFS.get("propose_campaign").actions.channels.words} `), role);
     assert.ok(now.description.includes(` ${DEFS.get("propose_campaign").actions.change.words} `), role);
+    assert.ok(now.description.includes(` ${DEFS.get("propose_campaign").actions.message.words} `), role);
+    assert.ok(now.description.includes(` ${DEFS.get("propose_campaign").actions.plan.words} `), role);
+    assert.deepEqual(
+      now.input_examples.filter((ex) => ex.action === "plan").map((ex) => ex.intent),
+      ["offer", "cover_journey"],
+      `${role}: the plan's two examples, the offer and a whole setup`,
+    );
   }
 });
 
@@ -587,11 +810,18 @@ test("the rename is a bijection: every old tool is one tool and action of the re
     const gainedChannels = old === "propose_broadcast" || old === "propose_playbook";
     assert.deepEqual(
       shapeOf(gainedChannels ? lessChannels(toolSchema(def.input)) : toolSchema(def.input)),
-      shapeOf(old === "propose_playbook" ? lessRetired(was.input_schema) : was.input_schema),
+      shapeOf(old === "propose_playbook" ? asProposableNow(was.input_schema) : was.input_schema),
       `${old} -> ${to}: the same fields`,
     );
     if (gainedChannels)
       assert.deepEqual(shapeOf(toolSchema(def.input).properties.channels), CHANNELS, `${to}: and channels`);
+    if (old === "propose_playbook") {
+      assert.deepEqual(shapeOf(toolSchema(def.input).properties.until), { type: "string" }, `${to}: and until`);
+      assert.deepEqual(shapeOf(toolSchema(def.input).properties.starter), STARTER, `${to}: and starter`);
+    } else if (gainedChannels) {
+      assert.equal("until" in toolSchema(def.input).properties, false, `${to}: no until`);
+      assert.equal("starter" in toolSchema(def.input).properties, false, `${to}: no starter`);
+    }
   }
 });
 
@@ -774,8 +1004,9 @@ test("an input a schema refuses comes back in the zod's words, under the tool's 
   );
   assert.equal(
     await words("propose_campaign", { action: "playbook", trigger: "never" }),
-    // 2 Oct 2026: the moments a new playbook may start from; welcome and save our number are no longer among them.
-    'propose_campaign: trigger Invalid option: expected one of "quiet_30"|"everyone_monthly"|"lapsed"|"saved_list"|"proposal_waiting"',
+    // 2 Oct 2026: the moments a new playbook may start from; welcome and save our number are no longer among them. 11
+    // Oct 2026 (D2): the reminder the day before and the check after an appointment are, where a calendar is connected.
+    'propose_campaign: trigger Invalid option: expected one of "quiet_30"|"everyone_monthly"|"visit_tomorrow"|"visited"|"lapsed"|"saved_list"|"proposal_waiting"',
   );
   // An owner's action, asked by an owner: past the role (D2), to the zod.
   const invite = await buildProposal(contextFor("owner").t, "propose_team", {
@@ -934,6 +1165,8 @@ test("an unknown tool is refused as it always was, for a read and for an act, an
     proposal: null,
     result: JSON.stringify({ error: "unknown tool teleport" }),
     isError: true,
+    // The refusal as the model is told it, kept beside the result (context.ts refuse): what a plan names its step's by.
+    refusal: "unknown tool teleport",
   });
   assert.equal(
     JSON.parse((await runTool(t, { name: "get_thread", input: {} })).result).error,

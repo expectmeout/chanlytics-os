@@ -276,7 +276,7 @@ import {
   signUnsubscribeToken,
   unsubscribeUrl
 } from "../../channels/dist/index.js";
-import { CAMPAIGN_EMAIL_TAG, EMAIL_HOLDS, OUTCOME_UNKNOWN, parseTenantConfig } from "../../contracts/dist/index.js";
+import { CAMPAIGN_EMAIL_TAG, HELD_WHEN_COUNTED, OUTCOME_UNKNOWN, parseTenantConfig } from "../../contracts/dist/index.js";
 import {
   deliver,
   isWireUnavailable,
@@ -295,6 +295,7 @@ import {
   releaseQueuedSend,
   resolveOutboundTarget,
   resolveOutboundTargetForContact,
+  reviewLinkOf,
   runGoesByOthers,
   withdrawEmail,
   workspacePaused,
@@ -533,6 +534,9 @@ async function broadcastSend(ctx, job) {
       // no longer approves it, which would be a lie about their Meta account told over a statement timeout.
       message: (name, language) => messageVersionRowsOf(db, job.tenant_id, { name, language }),
       facts: () => workspaceFacts(db, job.tenant_id),
+      // Asked only of a batch whose message has a review slot (core sendBroadcastBatch): a send without one never reads
+      // the Google listing, so a failure on that table never stops it.
+      reviewLink: () => reviewLinkOf(db, job.tenant_id),
       ...peoplePorts(ctx, job.tenant_id),
       // Offers by email go only where this runtime holds a verified campaigns domain (the edge binds it for this job). An
       // email is sent by the time this tick can still wait for it (ledger sendByAt), so one started late is bounded by
@@ -560,12 +564,12 @@ async function broadcastSend(ctx, job) {
         ]);
         return { sent, held: all - sent };
       },
-      // Counted, as the tally is: which of the workspace's holds on email the run skipped anyone for.
-      heldForEmail: async (id) => {
+      // Counted, as the tally is: which of the reasons a finished run names only when counted the run skipped anyone for.
+      heldFor: async (id) => {
         const counts = await Promise.all(
-          EMAIL_HOLDS.map((reason) => countRecipients(db, job.tenant_id, id, "skipped", reason))
+          HELD_WHEN_COUNTED.map((reason) => countRecipients(db, job.tenant_id, id, "skipped", reason))
         );
-        return EMAIL_HOLDS.filter((_, i) => (counts[i] ?? 0) > 0);
+        return HELD_WHEN_COUNTED.filter((_, i) => (counts[i] ?? 0) > 0);
       },
       finish: async (id, tally) => {
         must(

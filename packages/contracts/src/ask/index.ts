@@ -4,6 +4,7 @@ export {
   ASK_MAX_CHARS,
   ASK_MAX_ROUNDS,
   ASK_TURN_BUDGET_MS,
+  ASK_TOOLS_CHARS_CEILING,
   ASK_VOICE_CLAIM_STALE_MS,
   ASK_VOICE_FIRST_WORDS_MS,
   ASK_VOICE_PULSE_MS,
@@ -33,11 +34,13 @@ export type {
   AskRole,
   AskThreadVerb,
   AskProposal,
+  AskPlanStamp,
   AskProposalOutcome,
   AskMessageVM,
   AskThreadVM,
   AskScope,
   AskSurface,
+  MessageRead,
 } from "./ask";
 export { detectLanguage, ASK_LANGUAGES } from "./ask-language";
 export type { AskLanguage } from "./ask-language";
@@ -108,6 +111,10 @@ export type {
   AskAnswerRead,
 } from "./ask-answer";
 export { ASK_ANSWER_FORMAT } from "./answer-format";
+export { planOf, PLAN_WORDS } from "./plan";
+export type { PlanIntent, PlanWorld, PlanStep } from "./plan";
+export { planMadeOf, resolveSteps, stepToken, STEP_TOKEN, planWaits, cardsInPlans, planGroupOf } from "./plan-steps";
+export type { PlanMade } from "./plan-steps";
 export { ASK_CONTEXT_MAX_ROWS, ASK_CONTEXT_ROW_KINDS, itemFocus } from "./ask-context";
 export { PageContextSchema } from "./ask-schemas";
 export type { AskContextRowKind, PageContextRow, PageContext } from "./ask-context";

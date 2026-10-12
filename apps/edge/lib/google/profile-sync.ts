@@ -1,14 +1,15 @@
 /**
  * A connected profile synced: every review of its location read, decided
  * against what is on record (packages/channels google-sync.ts), written and
- * told, and under the auto mode the new ones answered (review-answers.ts).
+ * told, under the auto mode the new ones answered (review-answers.ts), and
+ * last the listing's review link read again from its location (00415).
  * The hourly sweep, "Check now" and a location's bind call it.
  */
-import { emitEvent } from "../packages/db.js";
-import { listReviews, planProfileSync, reviewParent, type PlacesHttp } from "../packages/channels.js";
+import { emitEvent, reviewLinkOf, type Database } from "../packages/db.js";
+import { listReviews, planProfileSync, readLocation, reviewParent, type PlacesHttp } from "../packages/channels.js";
 import { autoReplyBell, lensRoute, localDate, reviewRoute, type EdgeRefusal } from "../packages/contracts.js";
 import { keepAndPush, recordNotification } from "../ops/notify.js";
-import { logger } from "../log.js";
+import { errField, logger, type Logger } from "../log.js";
 import { readAllRows } from "../paged.js";
 import { http } from "./places.js";
 import { aboutReview, reviewRowIds, type ConnectionRow, type Db } from "./google-rows.js";
@@ -36,16 +37,103 @@ async function letReviewsGo(
   if (gone.error) throw new Error(gone.error.message);
 }
 
+/** The reviews a read listed, each written over the profile's row of it (one per review id), stamped with the read. */
+async function keepReviews(
+  db: Db,
+  tenantId: string,
+  reviews: ReturnType<typeof planProfileSync>["reviews"],
+): Promise<void> {
+  if (!reviews.length) return;
+  const up = await db.from("google_reviews").upsert(
+    reviews.map((r) => ({
+      tenant_id: tenantId,
+      review_id: r.review_id,
+      origin: "profile",
+      rating: r.rating,
+      author: r.author,
+      author_uri: null,
+      author_photo_uri: r.author_photo_uri,
+      body: r.text,
+      language_code: null,
+      published_at: r.created_at,
+      reply_text: r.reply_text,
+      replied_at: r.replied_at,
+      maps_uri: null,
+      last_seen_at: r.last_seen_at,
+    })),
+    { onConflict: "tenant_id,review_id" },
+  );
+  if (up.error) throw new Error(up.error.message);
+}
+
 /** What the bell is about: the review, when it tells of one by name. */
 const aboutOne = (answered: ReadonlyArray<{ id: string }>): { type: string; id: string } | null =>
   answered.length === 1 && answered[0] ? { type: "review", id: answered[0].id } : null;
+
+/** The workspace's listing, changed in place: what a sync read of the rating and the count, or the review link. */
+const changeListing = (db: Db, tenantId: string, set: Database["public"]["Tables"]["google_listings"]["Update"]) =>
+  db.from("google_listings").update(set).eq("tenant_id", tenantId);
+
+/**
+ * The listing's review link (00415) as its bound location gives it now. The bind wrote it from the location it bound
+ * (profile-connection.ts); every sync after the first reads that location again, alone, by its name (channels
+ * readLocation: one call for an account of any size, its `new_review_uri` read as the bind's list reads it) and writes
+ * it as the bind does, null where the location gives none, wherever it differs from what the listing keeps (db
+ * reviewLinkOf). So a listing bound before 00415 has its link from its next sync after its first (the card's "Sync
+ * now" at once), and one whose location Google gives another link, or none, follows it. It is written only onto the
+ * listing of the location's own place on Maps: the write names the place, so a listing the public read linked to
+ * another place, or one re-bound to another location while this sync ran, is not matched, and a location Google gives
+ * no place (which the bind refuses, not_on_maps) writes and clears nothing. Each of those leaves the link as it is
+ * (google_review_link_not_its_place: Google's read succeeded, so not an outage); so does a read that
+ * fails or answers another location (google_review_link_read_failed), and a write that fails
+ * (google_review_link_write_failed). None fails the sync or reaches its `sync_error`. It runs last, after the bells and
+ * the event, so its call to Google never holds them.
+ */
+async function keepReviewLink(
+  db: Db,
+  conn: ConnectionRow,
+  sync: { token: string; first: boolean; net: PlacesHttp; L: Logger; location: string },
+): Promise<void> {
+  const { token, net, L, location } = sync;
+  // The first sync follows the bind, which wrote the link from the location it had just read.
+  if (sync.first) return;
+  let link: string | null;
+  let place: string;
+  try {
+    const bound = await readLocation(net, token, location);
+    if (bound.name !== location) throw new Error(`Google answered ${bound.name} for ${location}`);
+    // Google answered: a location with no place on Maps is a lasting state, never a read that failed.
+    if (!bound.place_id) {
+      L.warn("google_review_link_not_its_place", { why: "the location has no place on Maps" });
+      return;
+    }
+    if (bound.new_review_uri === (await reviewLinkOf(db, conn.tenant_id))) return;
+    link = bound.new_review_uri;
+    place = bound.place_id;
+  } catch (e) {
+    L.warn("google_review_link_read_failed", { error: errField(e) });
+    return;
+  }
+  let wrote;
+  try {
+    wrote = await changeListing(db, conn.tenant_id, { new_review_uri: link }).eq("place_id", place).select("tenant_id");
+    if (wrote.error) throw new Error(wrote.error.message);
+  } catch (e) {
+    L.warn("google_review_link_write_failed", { error: errField(e) });
+    return;
+  }
+  if (!wrote.data?.length)
+    L.warn("google_review_link_not_its_place", { why: "no listing of that place", place_id: place });
+}
 
 /**
  * Every review of the connected location, decided against what is on
  * record, written, and told. The first sync replaces the five the public
  * listing showed — their ids are the public listing's, not the profile's —
  * and is history: it raises nothing. A failed sync leaves its words on the
- * connection and is tried again next hour.
+ * connection and is tried again next hour. A sync after the first, last of
+ * all, once the reviews are kept, rung and told, reads the listing's review
+ * link again from its location (keepReviewLink), which never fails it.
  */
 export async function syncProfile(
   db: Db,
@@ -104,31 +192,10 @@ export async function syncProfile(
     now.getTime(),
   );
   if (first) await letReviewsGo(db, conn.tenant_id, "places", null);
-  if (plan.reviews.length) {
-    const up = await db.from("google_reviews").upsert(
-      plan.reviews.map((r) => ({
-        tenant_id: conn.tenant_id,
-        review_id: r.review_id,
-        origin: "profile",
-        rating: r.rating,
-        author: r.author,
-        author_uri: null,
-        author_photo_uri: r.author_photo_uri,
-        body: r.text,
-        language_code: null,
-        published_at: r.created_at,
-        reply_text: r.reply_text,
-        replied_at: r.replied_at,
-        maps_uri: null,
-        last_seen_at: r.last_seen_at,
-      })),
-      { onConflict: "tenant_id,review_id" },
-    );
-    if (up.error) throw new Error(up.error.message);
-  }
+  await keepReviews(db, conn.tenant_id, plan.reviews);
   if (plan.prune) await letReviewsGo(db, conn.tenant_id, "profile", plan.synced_at);
   if (plan.listing) {
-    const l = await db.from("google_listings").update(plan.listing).eq("tenant_id", conn.tenant_id);
+    const l = await changeListing(db, conn.tenant_id, plan.listing);
     if (l.error) throw new Error(l.error.message);
   }
   if (plan.day) {
@@ -186,6 +253,8 @@ export async function syncProfile(
       review_count: plan.listing?.review_count ?? null,
     }).catch(() => {});
   }
+  // Last, once the reviews are kept, rung and told: a slow or killed read of the link costs only the link.
+  await keepReviewLink(db, conn, { token: t.token, first, net, L, location: conn.location_name });
   L.info("google_profile_synced", {
     read: plan.reviews.length,
     fresh: plan.fresh.length,

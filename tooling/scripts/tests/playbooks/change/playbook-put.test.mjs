@@ -1,8 +1,9 @@
 /**
  * PUT playbooks/:id, run through route() with the database in memory (the moment spec §4.9 A5, decision D26). The route
- * declares its body: a change in place (any of state, name, run_hour, cap_per_run, gap_days, cadence_days), the channels
- * alone, or the whole playbook, and no other key. A change is judged against the playbook as it stands (core
- * checkPlaybookPatch) and written with its line in the ledger in one call (the change_playbook door, modelled below),
+ * declares its body: a change in place (any of state, name, run_hour, cap_per_run, gap_days, cadence_days, and since 00416
+ * params, until and trial_until), the channels alone, or the whole playbook, and no other key. A change is judged against
+ * the playbook as it stands and its message (core
+ * checkPlaybookPatch) and written with its line in the ledger in one call (the change_playbook door, _change-door.mjs),
  * which answers what each field held; nothing to change writes nothing. On a database before the door (PGRST202) the
  * same change is written as it was before, for one release, and answers the same: either deploy order works.
  */
@@ -11,6 +12,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
+import { changePlaybookDoor } from "./_change-door.mjs";
 import { PLAYBOOK_PATCH_WORDS } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -58,14 +60,37 @@ const row = (id, tenant_id, over = {}) => ({
   cap_per_run: 25,
   gap_days: 90,
   cadence_days: 30,
+  until: null,
+  trial_until: null,
   created_at: "2026-09-01T00:00:00Z",
   ...over,
 });
+/** The message the win-back sends, Bayside's: WhatsApp's approved version, one value. */
+const message = {
+  id: "77777777-7777-4777-8777-777777777771",
+  tenant_id: B,
+  channel: "whatsapp",
+  name: "winback_offer",
+  language: "en_US",
+  body_preview: "We miss you, {{1}}",
+  variables: ["1"],
+  category: "marketing",
+  meta_status: "approved",
+  quality: null,
+  rejected_reason: null,
+  synced_at: null,
+  source: "meta",
+  hidden_at: null,
+  title: null,
+  components: [],
+};
 const world = (over = {}) => ({
   memberships: [
     membership(A, "viewer", "harbor", "2026-01-01T00:00:00Z"),
     membership(B, "operator", "bayside", "2026-02-01T00:00:00Z"),
   ],
+  tenants: [{ id: B, name: "Bayside", timezone: "America/New_York" }],
+  templates: [message],
   playbooks: [row(K1, A), row(K2, B)],
   broadcasts: [],
   segments: [],
@@ -74,36 +99,8 @@ const world = (over = {}) => ({
   ...over,
 });
 
-/**
- * The change_playbook door in memory, as 00377 writes it: the row as it stands then, of the columns named only those that
- * differ written, the decision as theirs, its verb following the state that moved, and what each held answered; where
- * nothing differs (a second press that lands after the first), nothing written and no line: `was` empty, `decision_id`
- * null.
- */
-const changeDoor = (tables) => ({
-  change_playbook: (a) => {
-    const p = tables.playbooks.find((x) => x.id === a.p_playbook_id && x.tenant_id === a.p_tenant_id);
-    if (!p) throw Object.assign(new Error("Playbook not found."), { code: "P0002" });
-    const set = Object.fromEntries(Object.entries(a.p_set).filter(([k, v]) => p[k] !== v));
-    if (Object.keys(set).length === 0) return { id: p.id, was: {}, decision_id: null, undo_dropped: false };
-    const was = Object.fromEntries(Object.keys(set).map((k) => [k, p[k]]));
-    Object.assign(p, set);
-    const verb =
-      set.state === "running" ? "start_playbook" : set.state === "paused" ? "pause_playbook" : "change_playbook";
-    const decision = {
-      id: `decision-${tables.decisions.length + 1}`,
-      tenant_id: a.p_tenant_id,
-      subject_type: "playbook",
-      subject_id: p.id,
-      verb,
-      actor_user_id: USER,
-      payload: { ...(a.p_decision ?? {}), ...(a.p_via ? { via: a.p_via } : {}) },
-      undo_of: a.p_undo_of ?? null,
-    };
-    tables.decisions.push(decision);
-    return { id: p.id, was, decision_id: decision.id, undo_dropped: false };
-  },
-});
+/** The change_playbook door in memory, as 00416 writes it (_change-door.mjs), on the member's session. */
+const changeDoor = (tables) => changePlaybookDoor(tables, USER);
 /** A database before the door's migration: PostgREST's answer for a function it does not hold. */
 const noDoor = () => ({
   change_playbook: () => {
@@ -138,10 +135,73 @@ test("the route declares its body: a change in place, the channels alone, or the
     { name: "Past clients", run_hour: 9 },
     { channels: ["whatsapp", "email"] },
     { name: null, trigger: "quiet_30", template_id: "t", params: [], run_hour: 10, cap_per_run: 25 },
+    // Its words, its end and its trial (00416), alone or beside the six; null clears either date.
+    { params: ["@first_name"] },
+    { until: "2026-11-30", trial_until: null },
+    { until: null, state: "paused" },
+    { trial_until: "2026-10-18T14:00:00Z" },
   ])
     assert.equal(body.safeParse(ok).success, true, JSON.stringify(ok));
-  for (const no of [{ name: "x", template: "y" }, { channels: ["sms"], name: "x" }, { trigger: "quiet_30" }, "paused"])
+  for (const no of [
+    { name: "x", template: "y" },
+    { channels: ["sms"], name: "x" },
+    { trigger: "quiet_30" },
+    "paused",
+    { until: 20261130 },
+    { trial_until: 5 },
+    { params: "@first_name" },
+  ])
     assert.equal(body.safeParse(no).success, false, JSON.stringify(no));
+});
+
+test("its words, its end and its trial change in place: judged against the row and its message, written through the door with their line, answering what each held, and an undo writes it back", async () => {
+  const tables = world({ playbooks: [row(K1, A), row(K2, B, { params: [{ kind: "text", value: "10% off" }] })] });
+  setServiceClient(fakeDb(tables));
+  const words = await put(tables, K2, { params: ["@first_name"] });
+  assert.deepEqual(words, {
+    id: K2,
+    name: "Win-back",
+    state: "running",
+    was: { params: [{ kind: "text", value: "10% off" }] },
+    decision_id: "decision-1",
+  });
+  const p = () => tables.playbooks.find((x) => x.id === K2);
+  assert.deepEqual(p().params, [{ kind: "first_name" }], "stored as the specs a run fills");
+  assert.deepEqual(tables.decisions[0].payload, { name: "Win-back", params: [{ kind: "first_name" }] });
+  // The undo is the same door with what it held.
+  assert.deepEqual((await put(tables, K2, words.was)).was, { params: [{ kind: "first_name" }] });
+  assert.deepEqual(p().params, [{ kind: "text", value: "10% off" }]);
+
+  const ends = await put(tables, K2, { until: "2099-11-30", trial_until: "2099-10-18T10:00:00-04:00" });
+  assert.deepEqual(ends.was, { until: null, trial_until: null });
+  assert.deepEqual([p().until, p().trial_until], ["2099-11-30", "2099-10-18T14:00:00.000Z"]);
+  assert.deepEqual(
+    tables.decisions.at(-1).payload,
+    { name: "Win-back", until: "2099-11-30", trial_until: "2099-10-18T14:00:00.000Z" },
+    "the line names each change as it was written",
+  );
+  // The same instant again, spelled another way, is nothing written; null clears each date.
+  assert.deepEqual((await put(tables, K2, { trial_until: "2099-10-18T14:00:00Z" })).decision_id, null);
+  const cleared = await put(tables, K2, { until: null, trial_until: null });
+  assert.deepEqual(cleared.was, { until: "2099-11-30", trial_until: "2099-10-18T14:00:00.000Z" });
+  assert.deepEqual([p().until, p().trial_until], [null, null]);
+  assert.deepEqual(
+    tables.decisions.map((d) => d.verb),
+    ["change_playbook", "change_playbook", "change_playbook", "change_playbook"],
+  );
+});
+
+test("its words, its end and its trial are refused in the product's words before anything is written: values its message does not take, an end in the past or no day, a trial's end that is no instant", async () => {
+  const tables = world();
+  setServiceClient(fakeDb(tables));
+  await refused(put(tables, K2, { params: [] }), "validation", 400, "This template takes 1 value.");
+  await refused(put(tables, K2, { params: ["@visit_when"] }), "validation", 400, "Only a reminder the day before");
+  await refused(put(tables, K2, { until: "2020-01-01" }), "validation", 400, "An end is today or later");
+  await refused(put(tables, K2, { until: "next month" }), "validation", 400, PLAYBOOK_PATCH_WORDS.untilDay);
+  await refused(put(tables, K2, { trial_until: "next week" }), "validation", 400, PLAYBOOK_PATCH_WORDS.trialWhen);
+  assert.deepEqual(tables.decisions, []);
+  const p = tables.playbooks.find((x) => x.id === K2);
+  assert.deepEqual([p.params, p.until, p.trial_until], [[], null, null]);
 });
 
 test("a change in place: judged against the row as it stands, written with its line in the ledger in one call, answering what each field held", async () => {

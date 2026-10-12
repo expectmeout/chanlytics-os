@@ -22,8 +22,9 @@ export {
   REPLY_WINDOW_HOURS,
   REPLY_WINDOW_MS,
   REPLY_WINDOW_WORDS,
+  RECIPIENT_REASON_HEARD,
   HELD_REASONS,
-  EMAIL_HOLDS,
+  HELD_WHEN_COUNTED,
   DELIVERY_RECEIPTS_TIP,
   DELIVERY_RECEIPTS_WORDS,
   finishedRunHeldWhy,
@@ -35,7 +36,21 @@ export {
   heldWords,
   heldBackWords,
   audienceMembers,
+  breathSplit,
+  reachAfterBreath,
+  LEFT_OUT_FACTS,
+  leftOutByFacts,
+  leftOutBy,
+  heardWithin,
+  breathTouchOf,
+  heardFor,
   heardWords,
+  heardTooWords,
+  allLeftOutWords,
+  breathWaitWords,
+  BREATH_WHY,
+  HEARD_UNREAD_WORDS,
+  goesToOf,
   audiencePreview,
   audienceTrigger,
   DEFAULT_CAMPAIGN_CHANNELS,
@@ -89,7 +104,7 @@ export {
 export type {
   BroadcastState,
   BroadcastFailure,
-  EmailHold,
+  HeardTouch,
   EmailRunStop,
   PlaybookRunNextBy,
   RunStop,
@@ -127,13 +142,14 @@ export {
   PREVIEW_WORDS,
   PREVIEW_CHANNEL_WORDS,
   previewOn,
+  previewParts,
   previewSays,
   previewVersionsOf,
   reachBarParts,
   reachByWords,
   reachBarWords,
 } from "./preview-by-channel";
-export type { PreviewVersions, PreviewOn, ReachBarPart } from "./preview-by-channel";
+export type { PreviewVersions, PreviewOn, PreviewPart, ReachBarPart } from "./preview-by-channel";
 export { answersToRuns } from "./run-answers";
 export type { AnswerSend, AnswerEvent, AnswerPurpose, RunAnswer } from "./run-answers";
 export { READY_WHATSAPP_ALONE, readyOrWhatsApp, answeredYes, personReachOf } from "./reach-any";

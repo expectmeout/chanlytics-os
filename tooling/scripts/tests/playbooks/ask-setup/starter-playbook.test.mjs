@@ -13,10 +13,12 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
+import { rows } from "../../_rows.mjs";
 import {
   FOLLOW_UP_ONE,
   LIBRARY_STARTER_WORDS,
   LIBRARY_WORDS,
+  PLAYBOOK_PATCH_WORDS,
   appointmentWordOf,
   channelNeverCarries,
   channelsWords,
@@ -428,6 +430,51 @@ test("WhatsApp named alone where there is no number is refused in the words that
   assert.deepEqual([tables.templates, tables.playbooks, meta.calls], [[], [], []]);
 });
 
+test("the day after's review ask is refused before anything is filed where the Google listing keeps no review link, in the words a message's values are refused in; where it keeps one, the campaign goes by it, its third slot the listing's link", async () => {
+  const { TEMPLATE_VALUE_WORDS } = await import(at("packages/core/src/campaigns/template-values.ts"));
+  const REVIEW = startersForTrigger("visited").find((s) => s.key === "after_visit_review");
+  assert.ok(REVIEW && !REVIEW.retired, "the review ask is a starter of the day after");
+  // A calendar is connected: the day after is a moment a new campaign may start from only where one is (D44).
+  const calendar = {
+    tenant_config: [
+      { tenant_id: B, config: { calendar: { ical_url: "https://calendar.example/bayside.ics" } }, version: 1 },
+    ],
+  };
+  const card = { trigger: "visited", starter_key: REVIEW.key };
+  // No listing at all, and a listing with no Business Profile location bound: no link either way.
+  for (const google_listings of [[], [rows.googleListing({ tenant_id: B, new_review_uri: null })]]) {
+    const post = open({ ...calendar, google_listings });
+    await refused(post(card), "conflict", 409, TEMPLATE_VALUE_WORDS.noReviewLink);
+    assert.deepEqual(
+      [tables.templates, tables.playbooks, tables.decisions, meta.calls],
+      [[], [], [], []],
+      "nothing filed, nothing started, nothing reached Meta",
+    );
+  }
+  // How did it go asks for no review: the same day after, on the same workspace, starts.
+  const check = open({ ...calendar, google_listings: [] });
+  const checked = await check({ trigger: "visited", starter_key: "after_visit_check" });
+  assert.equal(checked.state, "running");
+
+  const link = "https://example.com/review/bayside";
+  const post = open({ ...calendar, google_listings: [rows.googleListing({ tenant_id: B, new_review_uri: link })] });
+  const made = await post(card);
+  assert.deepEqual(made.starter, { key: REVIEW.key, status: "submitted", meta_status: "pending" });
+  assert.equal(meta.calls.length, 1, "its WhatsApp version went to Meta for review");
+  const row = tables.playbooks.find((p) => p.id === made.id);
+  assert.equal(row.trigger, "visited");
+  assert.deepEqual(
+    row.params,
+    [{ kind: "first_name" }, { kind: "business_name" }, { kind: "review_link" }],
+    "the starter's own sources: the review link is the listing's, filled at the send",
+  );
+  assert.deepEqual(
+    tables.templates.filter((t) => t.name === REVIEW.name).map((t) => t.channel),
+    ["whatsapp", "email", "sms"],
+    "its WhatsApp version in review, its email and text versions written at once",
+  );
+});
+
 test("no channel named: a WhatsApp version on file that WhatsApp refused, paused or disabled will never send, so the campaign goes by what holds it and not by WhatsApp", async () => {
   for (const meta_status of ["rejected", "paused", "disabled"]) {
     const post = open({ templates: [starterRow(T1, WIN_BACK, { meta_status })] });
@@ -439,4 +486,38 @@ test("no channel named: a WhatsApp version on file that WhatsApp refused, paused
   const post = open({ templates: [starterRow(T1, WIN_BACK, { meta_status: "pending" })] });
   const made = await post({ trigger: "quiet_30", starter_key: WIN_BACK.key });
   assert.deepEqual(tables.playbooks.find((p) => p.id === made.id).channels, ["whatsapp", "email"]);
+});
+
+test("a new campaign may name the end of its trial (D5, 00416 trial_until): written as the instant it is, by a starter's key or a message's id; one that is no instant, or already past, is refused in the change's own words before anything is filed or reaches Meta", async () => {
+  const post = open({ templates: [starterRow(T1, WIN_BACK)] });
+  const made = await post({
+    trigger: "quiet_30",
+    starter_key: WIN_BACK.key,
+    channels: ["whatsapp"],
+    trial_until: "2027-01-08T10:00:00-05:00",
+  });
+  const row = tables.playbooks.find((p) => p.id === made.id);
+  assert.equal(row.trial_until, "2027-01-08T15:00:00.000Z", "kept in one spelling, as a change keeps it");
+  // A body that names none starts with none: the composer's own campaigns run as their class says from the first run.
+  const plain = await post({ trigger: "quiet_30", template_id: T1, params: row.params, name: "Win-back again" });
+  assert.equal(tables.playbooks.find((p) => p.id === plain.id).trial_until, null);
+  for (const trial_until of ["next week", "2027-01-08", 7]) {
+    const fresh = open();
+    await refused(
+      fresh({ trigger: "quiet_30", starter_key: WIN_BACK.key, trial_until }),
+      "validation",
+      400,
+      PLAYBOOK_PATCH_WORDS.trialWhen,
+    );
+    assert.deepEqual([meta.calls, tables.templates, tables.playbooks], [[], [], []], JSON.stringify(trial_until));
+  }
+  // An instant already past is refused as a change's is, before anything is filed: a trial that ended is none.
+  const past = open();
+  await refused(
+    past({ trigger: "quiet_30", starter_key: WIN_BACK.key, trial_until: "2020-01-08T10:00:00Z" }),
+    "validation",
+    400,
+    PLAYBOOK_PATCH_WORDS.trialPast,
+  );
+  assert.deepEqual([meta.calls, tables.templates, tables.playbooks], [[], [], []], "a past trial files nothing");
 });

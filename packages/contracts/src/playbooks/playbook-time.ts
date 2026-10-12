@@ -3,9 +3,15 @@
  * Internal: index.ts never re-exports it (the person-words.ts / run-words.ts pattern). A day and an hour are
  * shared/time.ts's; the playbook modules read the day through here.
  */
-import { HOUR_MS, MIN_MS } from "../shared/time";
+import { DAY_MS, HOUR_MS, MIN_MS } from "../shared/time";
 
 export { DAY_MS } from "../shared/time";
+
+/**
+ * One playbook message per person per week, across playbooks: the week's breath, which a broadcast sent by hand keeps
+ * too (broadcasts/run-words.ts leftOutBy). Public through playbook-triggers.ts, which re-exports it.
+ */
+export const PLAYBOOK_BREATH_MS = 7 * DAY_MS;
 
 /** The playbooks sweep's tick: five past every hour (00048's cron, '5 * * * *'). */
 const SWEEP_TICK_MS = 5 * MIN_MS;

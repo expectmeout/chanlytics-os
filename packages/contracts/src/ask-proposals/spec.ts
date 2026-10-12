@@ -27,6 +27,12 @@ export interface ProposalCall {
   refresh?: "behind";
   /** What the window is told once this call lands. */
   events?: ProposalEvent[];
+  /**
+   * An undo's call whose row may already be gone (deleted by an earlier press of Undo whose later call was refused, or by
+   * hand): its route's 404 counts as done, since what it undoes is not there, and the walk goes on. A row-scoped write
+   * reads its row before its key (server/route.ts), so a pressed-again delete is never answered from the key.
+   */
+  goneIsDone?: true;
 }
 
 /** A call the card cannot make from this tab, in the person's words; nothing is sent. */
@@ -52,9 +58,19 @@ export interface ProposalUndo {
   window: "cancelable" | "ten_minutes" | "version";
   /** What the commit keeps for the undo, from the card, the route's answer and the tab at Approve; null for none. */
   record(p: AskProposal, data: unknown, tab: ProposalTab): Record<string, unknown> | null;
-  /** The call that reverses it, from what the commit kept and what the tab holds now. */
-  call(record: Record<string, unknown>, tab: ProposalTab): ProposalCall | ProposalRefusal;
-  receipt(data: unknown): string;
+  /**
+   * The call that reverses it, from what the commit kept and what the tab holds now; or the calls, made in order and
+   * stopping at the first refused, where what the commit made is several rows each with its own door (a message's
+   * versions).
+   */
+  call(record: Record<string, unknown>, tab: ProposalTab): ProposalCall | readonly ProposalCall[] | ProposalRefusal;
+  /** What the undo did: from the last call's answer, and what the commit kept. */
+  receipt(data: unknown, record: Record<string, unknown>): string;
+  /**
+   * What an undo of several calls says when one after the first is refused: what the `landed` calls before it did, then
+   * the refusal, so a person is never told only of the refusal after part of it went. Absent, the refusal alone.
+   */
+  partial?(record: Record<string, unknown>, landed: number, refused: string): string;
 }
 
 export interface ProposalSpec {
@@ -70,6 +86,12 @@ export interface ProposalSpec {
    */
   then?(p: AskProposal, data: unknown): ProposalCall | ProposalRefusal | null;
   receipt(p: AskProposal, data: unknown, then?: ProposalThen): string;
+  /**
+   * The id of what the commit made, from the route's answer, that a later step of a plan names by its token
+   * (`@step:n`, contracts resolveSteps): a message's version, which a send names the message by. Absent, or null, where
+   * the card makes nothing a step names.
+   */
+  made?(p: AskProposal, data: unknown): string | null;
   undo?: ProposalUndo;
   /** Where the card's Open goes, or null; `outcome` is what became of it. */
   open(p: Pick<AskProposal, "payload">, outcome: AskProposalOutcome | null): string | null;
@@ -88,6 +110,23 @@ export const PROPOSAL_WORDS = {
   /** A card past ASK_CARD_FRESH_MS (askCardLapsed): nothing is sent, and asking again makes it from what is true now. */
   lapsed:
     "This card is more than a day old, and what it would change may have moved since. Ask again and it is made from how things stand now.",
+  /** A plan's card past its week (askCardLapsed): the same, in the plan's words. */
+  planLapsed:
+    "This plan is more than a week old, and what it would change may have moved since. Ask again and it is made from how things stand now.",
+  /** A plan's card naming a step that was undone: what that step made is gone, so nothing is sent to it. */
+  planUndone:
+    "A step this one builds on was undone, so what it would use is gone and nothing is sent. Ask again and the plan is made from how things stand now.",
+  /** A plan's card naming a step that has made nothing yet: that step is approved first. */
+  waitsForStep: (n: number): string => `This waits for step ${n}: approve step ${n} first, then this one.`,
+  /**
+   * A plan's card naming a step that was approved and made nothing it can use (a message whose every version was
+   * refused): waiting would never help, so the plan is asked for again.
+   */
+  stepMadeNothing: (n: number): string =>
+    `Step ${n} made nothing this one can use, so nothing is sent. Ask again and the plan is made from how things stand now.`,
+  /** A plan's silent steps, stopped at step n by its refusal (`why`, in the refusal's own words): nothing after it was done. */
+  planStopped: (n: number, why: string): string =>
+    `Stopped at step ${n}: ${/[.!?…]$/.test(why.trim()) ? why.trim() : `${why.trim()}.`} The steps after it were not done.`,
 } as const;
 
 /* ------------------------------------------------------------ shared by the families */

@@ -357,6 +357,27 @@ test("REGRESSION (I6): a template is filled by its own slots, as broadcasts and 
     /needs words for “The note”, which the Inbox does not ask for/,
   );
   assert.deepEqual(q.ops(), [], "nothing is queued for a template the Inbox cannot fill");
+  // A review's link is a campaign's to fill, from the Google listing (00415): the Inbox holds none, so it never sends one blank.
+  const review = fakes({
+    template: {
+      ...welcome,
+      name: "review_thanks",
+      body_preview: "Hi {{1}}, thank you for coming in. A review helps: {{2}}",
+      variables: [
+        { label: "First name", example: "Dani", position: 1 },
+        { label: "Review link", example: "https://example.com/review/x", position: 2 },
+      ],
+    },
+  });
+  await refused(
+    replyToConversation(
+      review.ports,
+      cmd({ conv: closed, body: { template: { name: "review_thanks", language: "en_US" } } }),
+    ),
+    "validation",
+    /needs words for “Review link”, which the Inbox does not ask for/,
+  );
+  assert.deepEqual(review.ops(), []);
 
   const hello = fakes({
     template: {

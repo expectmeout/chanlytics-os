@@ -416,6 +416,8 @@
     "00411_a_review_s_first_notices_open_the_review.sql": "15e17f609c62bb1b269d8612a9d3c5996cf05ae8156ce8e16672645cac377695",
     "00412_a_page_says_where_its_time_went.sql": "0b0ef8cb3e66f17bc0f50dd36e8d2208595abdadc62897599cfa191c6aba0681",
     "00413_a_person_found_as_a_lead_keeps_the_business_and_earns_a_name.sql": "4bb474e407de2e055bd8befa14b8e5e60be7d33619440927becd6ff5eff88b40",
-    "00414_the_people_at_a_business_are_found_by_its_lead.sql": "eb2a572c721b9e6171fc63b1a887912a45e2f33173da4ab1231ba5bcd3082fec"
+    "00414_the_people_at_a_business_are_found_by_its_lead.sql": "eb2a572c721b9e6171fc63b1a887912a45e2f33173da4ab1231ba5bcd3082fec",
+    "00415_a_listing_keeps_its_review_link.sql": "7fa3142395525d19d0dc9d7b05aba1df5f7cfed28b068e72ad037b678457e874",
+    "00416_a_campaign_ends_and_runs_on_trial.sql": "398cc74f74f4cc8d1f1a847ca25d3bf53ec75d81b074db82c3d71a4e547d51c0"
   }
 }

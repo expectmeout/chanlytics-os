@@ -152,17 +152,25 @@ function momentOf({ data, f }: ModelIn) {
   const lists = data.lists || PB_NONE;
   const list = onList ? lists.find((l) => l.id === f.listId) || null : null;
   const link = !!data.bookingLink;
-  return { triggers, trig, visits, onList, lists, list, link };
+  // Whether the Google listing keeps a review link: the one fact a review-link slot is filled from (00415).
+  const review = !!data.reviewLink;
+  return { triggers, trig, visits, onList, lists, list, link, review };
 }
 
 type Moment = ReturnType<typeof momentOf>;
 
 /** The message: which of the offered ones it sends, the moment's own, and the languages it has. */
-function composerMessage({ editing, offered, templatesAll, f }: ModelIn, { trig, link }: Moment) {
+function composerMessage({ editing, offered, templatesAll, f }: ModelIn, { trig, link, review }: Moment) {
   // What each slot of a message may take on a moment -- a visit's time and service on a visit, a proposal's link on
-  // the follow-up (0006) -- or null when one of them can take nothing there.
+  // the follow-up (0006), the review link where the Google listing keeps one -- or null when one of them can take
+  // nothing there.
   const slotsOf = (t: TemplateDto, m: PlaybookTriggerOption | null = trig) =>
-    starters.slots(t, { visits: !!(m && m.kind === "visit"), bookingLink: link, proposal: !!(m && m.kind === "deal") });
+    starters.slots(t, {
+      visits: !!(m && m.kind === "visit"),
+      bookingLink: link,
+      reviewLink: review,
+      proposal: !!(m && m.kind === "deal"),
+    });
   const usable = offered.sendable.filter((t) => slotsOf(t) !== null);
   // One entry per message, whatever languages it has: the language is its own control.
   const groups = starters.group(usable);
@@ -399,7 +407,11 @@ function walkOf(
  * What the three pickers offer: every moment a new playbook may start from, and the one a playbook being changed is on
  * (a retired moment's too, so it still reads as its own), every message that fits it, and every language of the one in view.
  */
-function choicesOf({ data, editing }: ModelIn, { triggers, link }: Moment, { groups, starter, tpl, group }: Message) {
+function choicesOf(
+  { data, editing }: ModelIn,
+  { triggers, link, review }: Moment,
+  { groups, starter, tpl, group }: Message,
+) {
   const momentChoices = triggers
     .filter((t) => t.offered || (!!editing && editing.trigger === t.id))
     .map((t) => ({
@@ -421,6 +433,7 @@ function choicesOf({ data, editing }: ModelIn, { triggers, link }: Moment, { gro
         sub: starters.rowPreview(r, {
           business_name: data.businessName,
           booking_link: link ? "your booking link" : null,
+          review_link: review ? "your review link" : null,
         }),
         group: starter && g.name === starter.name ? "own" : "all",
         hint: g.rows.length > 1 ? `${g.rows.length} languages` : null,

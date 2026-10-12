@@ -24,6 +24,19 @@
  * page makes, once, before a turn is spent; the page is warmed (POST ask/warm) and rides with the question as the
  * palette sends it, with the scope its route opens. A case without one is asked as before.
  *
+ * A case may need its workspace to hold what no page carries (`needs`, eval-ask-context.mjs WORKSPACE_NEEDS: a calendar
+ * or none, a yes to offers or none, a call in progress, deals on, the Win-back's seed, and a channel an offer can go by
+ * or none). EVAL_WORKSPACE_HAS names what the run's workspace holds (comma-separated, none by default); a case needing
+ * anything else is said as `skip <id> (needs …)` before a turn is spent, counted as skipped, and never run or failed,
+ * and `--list` says each case's needs. The tokens: `calendar`, `no_calendar`; `offers_yes` (someone's yes to offers),
+ * `no_offers_yes` (nobody's, which Campaigns' decline rests on); `offers_channel`, `offers_whatsapp`,
+ * `no_offers_channel`; `live_call`; `deals_on`; `winback_seed`. A channel an offer can go by (`offers_channel`) is one
+ * an offer's plan opens (contracts channelChoices with the marketing purpose): email set up for offers, or WhatsApp on a
+ * number that sends and is outside +1 (`offers_whatsapp`, which holds offers_channel too), since Meta pauses offers to
+ * US numbers. The nightly's workspace (e2e-workspace.mjs: no calendar, nobody's yes to offers, a +1 WhatsApp number and
+ * no mailbox) holds `no_calendar,no_offers_channel,no_offers_yes`, and `winback_seed` once the Win-back's seed has been
+ * run there.
+ *
  * A case may carry a second turn (`then`, eval-ask-context.mjs; the Phase 5 plan, PR 5.2), asked in the first turn's
  * thread once it has answered: its page resolved at its own clock and warmed again when it differs from turn 1's other
  * than in its focus, and the scope the palette would send with it (the row its page opens, else turn 1's). Each turn
@@ -45,7 +58,8 @@
  * compare.
  *
  *   NEXT_PUBLIC_SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… NEXT_PUBLIC_SUPABASE_ANON_KEY=… \
- *   E2E_USER_EMAIL=… [REPS=3] [SURFACE=today] [ONLY=id,id] node tooling/scripts/eval-ask.mjs [tooling/evals/ask-cases.json]
+ *   E2E_USER_EMAIL=… [EVAL_WORKSPACE_HAS=no_calendar,no_offers_channel,no_offers_yes] \
+ *   [REPS=3] [SURFACE=today] [ONLY=id,id] node tooling/scripts/eval-ask.mjs [tooling/evals/ask-cases.json]
  *   [REPS=3] [SURFACE=…] [ONLY=…] node tooling/scripts/eval-ask.mjs --list [tooling/evals/ask-cases.json]
  *   ELEVENLABS_LLM_SECRET=… … node tooling/scripts/eval-ask.mjs --spoken   # every turn through the brain door, as the agent asks it (eval-ask-spoken.mjs)
  *
@@ -83,6 +97,7 @@ import {
   secondScope,
   secondTurn,
   setupCardsFails,
+  skipFor,
   toolsOrderNote,
   turnShapes,
   unquoted,
@@ -108,6 +123,8 @@ const file = process.argv.slice(2).find((a) => !a.startsWith("--")) || "tooling/
 const ONLY = process.env.ONLY ? new Set(process.env.ONLY.split(",")) : null;
 const REPS = Math.max(1, Math.round(Number(process.env.REPS) || 1));
 const SURFACE = process.env.SURFACE || null;
+/** What the run's workspace holds, comma-separated, in a case's `needs` words: a case needing anything else is skipped. */
+const HAS = (process.env.EVAL_WORKSPACE_HAS ?? "").match(/[a-z_]+/g) ?? [];
 /** The baseline cost of one turn (spec §9): what the announcement multiplies before a turn is spent. */
 const PER_TURN = 0.012;
 
@@ -427,33 +444,40 @@ export function judge(c, r) {
   return { pass: fails.length === 0, fails, notes };
 }
 
-const cases = JSON.parse(readFileSync(file, "utf8"))
+const matched = JSON.parse(readFileSync(file, "utf8"))
   .map((c) => ({ ...c, surface: c.surface ?? c.context?.surface ?? "today" }))
   .filter((c) => !ONLY || ONLY.has(c.id))
   .filter((c) => !SURFACE || c.surface === SURFACE);
-if (!cases.length) {
+if (!matched.length) {
   console.error("no cases match ONLY/SURFACE");
   await quit(2);
 }
 // A page the eval cannot build is said before anything is read or spent.
-const unbuildable = pageProblems(cases);
+const unbuildable = pageProblems(matched);
 if (unbuildable.length) {
   console.error(`cases whose page cannot be built:\n  ${unbuildable.join("\n  ")}`);
   await quit(2);
 }
+// A case needing what this workspace does not hold is said and set aside here: never asked, never failed.
+const skipped = matched.map((c) => skipFor(c, HAS)).filter(Boolean);
+const cases = matched.filter((c) => !skipFor(c, HAS));
 
 if (LIST) {
-  for (const c of cases) {
+  for (const c of matched) {
     console.log(
-      `${c.id} · ${c.surface}${c.must_never ? " · must-never" : ""}${c.context ? ` · ${describeContext(c.context)}` : ""}\n    ${c.text}`,
+      `${c.id} · ${c.surface}${c.must_never ? " · must-never" : ""}${c.context ? ` · ${describeContext(c.context)}` : ""}${c.needs ? ` · needs ${[c.needs].flat().join(", ")}` : ""}\n    ${c.text}`,
     );
     // A case's second turn, on its own lines under it.
     if (c.then) console.log(describeSecondTurn(c));
   }
   process.stdout.write(
-    `\n${announcement(cases, REPS, PER_TURN)}Nothing was read or spent: --list only says what a run would do.\n`,
+    `\n${skipped.map((s) => `${s}\n`).join("")}${announcement(cases, REPS, PER_TURN)}Nothing was read or spent: --list only says what a run would do.\n`,
   );
   await quit(0);
+}
+if (!cases.length) {
+  console.error(`${skipped.join("\n")}\nevery case that matches needs what EVAL_WORKSPACE_HAS does not hold`);
+  await quit(2);
 }
 
 const session = await mint();
@@ -482,6 +506,7 @@ try {
 }
 process.stderr.write(
   `Ask's budget today: ${usedToday.toLocaleString("en-US")} of ${ASK_TOKENS_DAY.toLocaleString("en-US")} tokens used before this run\n` +
+    skipped.map((s) => `${s}\n`).join("") +
     announcement(cases, REPS, PER_TURN) +
     (drawn.length ? `The pages' rows as read: ${drawn.join(", ")}\n` : "") +
     `Against ${BASE}. Every turn spends the model key the receptionist answers customers with; the run stops after three refusals in a row.\n`,
@@ -601,7 +626,15 @@ const io = { fetch, at: (path) => scopedUrl(path, tenantId), cookie, origin: new
 function saveRun(extra = {}) {
   mkdirSync("tooling/backups", { recursive: true });
   const out = `tooling/backups/eval-ask-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
-  const run = { base: BASE, file, reps: REPS, stopped, at: new Date().toISOString(), used_today_before: usedToday };
+  const run = {
+    base: BASE,
+    file,
+    reps: REPS,
+    stopped,
+    skipped,
+    at: new Date().toISOString(),
+    used_today_before: usedToday,
+  };
   writeFileSync(out, JSON.stringify({ ...run, usage: null, results, ...extra }, null, 2));
   return out;
 }
@@ -775,7 +808,7 @@ const interval = (k, n) => {
   return `${k}/${n} (95%: ${pct(lo)}–${pct(hi)})`;
 };
 console.log(
-  `\nAsk evals: ${interval(passed, results.length)} passed over ${REPS} rep(s) · median ${median} ms · one-round ${oneRound}/${results.length}` +
+  `\nAsk evals: ${interval(passed, results.length)} passed over ${REPS} rep(s) · skipped ${skipped.length} · median ${median} ms · one-round ${oneRound}/${results.length}` +
     ` · first trace median ${trace.median ?? "—"} ms · first words median ${first.median} ms, p90 ${first.p90} ms · final median ${whole.median} ms, p90 ${whole.p90} ms` +
     `\n  must-never: ${mustNeverHeld}/${mustNever.length} cases held on every rep` +
     (pairs.length ? `\n  two-turn conversations (case × rep) held on both turns: ${pairsHeld}/${pairs.length}` : "") +

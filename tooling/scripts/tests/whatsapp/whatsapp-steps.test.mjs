@@ -21,6 +21,8 @@ const { handledOf, escalationOf, processedAfter } = await import(
 
 const brainCfg = { phone_display: "(305) 555-0100", booking_link: "https://book.example/marisa", fallbacks: {} };
 const NOW = 1_800_000_000_000;
+/** The zone and the clock layer two reads the owner's notes at (contracts notesInForce). */
+const CLOCK = { tz: "America/New_York", now: new Date(NOW) };
 
 test("age: fresh inside ten minutes, late inside two hours, stale beyond — and no timestamp is now", () => {
   const at = (msAgo) => String(Math.floor((NOW - msAgo) / 1000));
@@ -57,6 +59,7 @@ test("layer two: a price blocks the send; under ask a link is taken back and an 
     escalationReason: "human_token",
     brainCfg,
     policy: { booking: { mode: "ask" }, faq: { mode: "ask" } },
+    ...CLOCK,
   };
   const price = layerTwo({ ...base, replyText: "A blowout is $45 today.", intent: "pricing" });
   assert.equal(price.priceBlocked, true);
@@ -111,6 +114,7 @@ test("layer two: the urgent line names the number the facts resolve to, and a wo
     escalate: false,
     escalationReason: "human_token",
     policy: { booking: { mode: "ask" }, faq: { mode: "ask" } },
+    ...CLOCK,
   };
   // The three replies layer two writes itself: the price block, the booking taken back, the answer held.
   const replaced = (cfg, known) =>
@@ -143,6 +147,42 @@ test("layer two: the urgent line names the number the facts resolve to, and a wo
     "no number anywhere: the sentence ends where it ends",
   );
   for (const t of bare) assert.ok(!/undefined|call\s*\./.test(t), `never "call undefined." or "call .": ${t}`);
+});
+
+test("layer two: a note's price goes out through its last day on the business's day, and the draft naming it is held after", () => {
+  // "Never quote a price" off (decision 0051), and an offer note the plan writes, ending on 30 November.
+  const open = {
+    ...brainCfg,
+    profile: {
+      hours: { mon: { open: "09:00", close: "17:00" } },
+      guardrails: { never_quote_prices: false },
+      notes: [
+        { title: "Offer: Colour for $60 all November", text: "Colour is $60 all November.", until: "2026-11-30" },
+      ],
+    },
+  };
+  const draft = (now) =>
+    layerTwo({
+      replyText: "Yes, colour is still $60.",
+      escalate: false,
+      escalationReason: "human_token",
+      brainCfg: open,
+      policy: null,
+      intent: "pricing",
+      language: "en",
+      known: null,
+      tz: "America/New_York",
+      now,
+    });
+  const lastNight = draft(new Date("2026-11-30T23:00:00-05:00"));
+  assert.deepEqual([lastNight.priceBlocked, lastNight.replyText], [false, "Yes, colour is still $60."]);
+  const after = draft(new Date("2026-12-01T12:00:00-05:00"));
+  assert.deepEqual(
+    [after.priceBlocked, after.escalate, after.escalationReason],
+    [true, true, "policy_block"],
+    "the ended offer's price is held, as any price nobody wrote",
+  );
+  assert.doesNotMatch(after.replyText, /60/, "the customer never reads the expired figure");
 });
 
 test("a held thread says why, to the Inbox and to the alert, and a broken config is named as a mistake", () => {

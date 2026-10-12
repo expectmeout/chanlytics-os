@@ -1,8 +1,12 @@
 import "server-only";
 import {
+  VERSION_CHANNELS,
   bookingTemplate,
   campaignMessagesOf,
+  defaultSlotKinds,
+  metaStatusOf,
   runsWords,
+  slotLabels,
   templateBlocked,
   templateHolds,
   templateOffered,
@@ -10,6 +14,7 @@ import {
   templateSends,
   templateSendsOf,
   templateUsage,
+  type MessageRead,
   type TemplateSends,
 } from "@chanlytics/contracts";
 // The database's count of the same sends (00374); contracts' templateSends is the fold it replaced, read below for a
@@ -181,6 +186,47 @@ async function templatesOf(rc: ReaderContext, all: boolean) {
 
 /** GET templates' answer: the rows and their messages, and for Settings (`all`) what sends each and how many went out. */
 export type TemplatesRead = Awaited<ReturnType<typeof templatesOf>>;
+
+/** Settings' answer (`all`): every row, and what sends each, beside the messages. */
+type LibraryRead = Extract<TemplatesRead, { usedBy: unknown }>;
+
+/**
+ * The library whole, as Ask reads it before it writes a message (campaigns with action messages; contracts MessageRead):
+ * every message Settings' read made of every row, so a WhatsApp version still in Meta's review is among its message's
+ * versions, each version with its row's status (contracts metaStatusOf; an email's or a text's is written approved). Its
+ * category is the one a send judges a yes by (the message's purpose: an authentication message is a utility one); its
+ * slots are the values its WhatsApp version fills, else its anchor's (contracts rule 3), each named and guessed as the
+ * composers name and guess it (slotLabels, defaultSlotKinds); `used_by` is the campaigns that send it, by its name
+ * (templateUsage's playbooks). A projection of the read, never a second one.
+ */
+export function messageReadsOf(read: LibraryRead): MessageRead[] {
+  const rows = new Map(read.templates.map((t) => [t.id, t]));
+  const usedBy = new Map(Object.entries(read.usedBy));
+  return read.messages.map((m) => {
+    const row = rows.get(m.versions.whatsapp?.id ?? m.anchor.id);
+    const variables: unknown[] = Array.isArray(row?.variables) ? row.variables : [];
+    const labels = row ? slotLabels(row) : [];
+    return {
+      name: m.name,
+      language: m.language,
+      category: m.purpose === "marketing" ? "marketing" : "utility",
+      versions: VERSION_CHANNELS.flatMap((channel) => {
+        const v = m.versions[channel];
+        return v ? [{ channel, id: v.id, state: metaStatusOf(rows.get(v.id)?.meta_status) }] : [];
+      }),
+      slots: (row ? defaultSlotKinds(row) : []).map((kind, i) => {
+        const at = variables.at(i);
+        const position = at && typeof at === "object" && "position" in at ? at.position : null;
+        return {
+          position: typeof position === "number" ? position : i + 1,
+          label: labels.at(i) ?? `Value ${i + 1}`,
+          kind,
+        };
+      }),
+      used_by: (usedBy.get(m.name)?.playbooks ?? []).map((p) => ({ id: p.id, name: p.name })),
+    };
+  });
+}
 
 /**
  * GET templates, as the route answers it: ONE workspace's templates, scoped explicitly and not by RLS alone. Unless

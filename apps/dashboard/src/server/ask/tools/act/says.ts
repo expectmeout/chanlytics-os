@@ -1,15 +1,28 @@
 import "server-only";
 import {
   CAMPAIGN_ROOMS,
+  CONSENT_CHANNELS,
+  PLAN_WORDS,
   exampleParams,
   noVersionWords,
+  paramSaid,
+  previewParts,
   previewSays,
   previewVersionsOf,
   renderTemplate,
+  stepOfferWords,
   type ConsentChannel,
   type ParamSpec,
 } from "@chanlytics/contracts";
+import type { WriteMessageBody } from "../../../campaigns/write-message";
 import type { AskedMessage } from "../context";
+
+/** The business a card's example values name, as every card says it: no business's own name is read for a quote. */
+const EXAMPLE_BUSINESS = "the business";
+
+/** Words a card quotes, in `limit` characters: cut there, with an ellipsis where they ran past. One cut for every quote. */
+const clipQuote = (words: string, limit: number): string =>
+  `${words.slice(0, limit)}${words.length > limit ? "…" : ""}`;
 
 /**
  * What a campaign card quotes of the message it proposes to send, as the person reached reads it. A proposal that names no
@@ -27,16 +40,13 @@ export function cardSays(
   limit: number,
 ): { says: string } | { refusal: string } {
   const { message, rows } = asked;
-  const values = exampleParams(specs, "the business");
+  const values = exampleParams(specs, EXAMPLE_BUSINESS);
   const row = rows.find((r) => r.id === message.versions.whatsapp?.id);
   const whatsapp = row ? renderTemplate(row.body_preview, values) : null;
   const missing = (why: string) => ({
     refusal: `${why} Say so: write it under ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library} first, or leave that channel out`,
   });
-  if (!by.named)
-    return whatsapp === null
-      ? missing(noVersionWords("whatsapp"))
-      : { says: `${whatsapp.slice(0, limit)}${whatsapp.length > limit ? "…" : ""}` };
+  if (!by.named) return whatsapp === null ? missing(noVersionWords("whatsapp")) : { says: clipQuote(whatsapp, limit) };
   if (whatsapp === null && by.channels.includes("whatsapp")) return missing(noVersionWords("whatsapp"));
   const said = previewSays(by.channels, {
     whatsapp: whatsapp ?? "",
@@ -46,4 +56,67 @@ export function cardSays(
     limit,
   });
   return "missing" in said ? missing(said.why) : said;
+}
+
+/** The room a typed value has where a step's send quotes it: what cardSays gives a broadcast's quoted words. */
+const STEP_VALUE_ROOM = 160;
+
+/**
+ * What a send says of the message step `step` of Ask's plan writes, which no row holds yet: which step makes it (contracts
+ * PLAN_WORDS.stepMessage), then the offer its typed values carry, each quoted as a card quotes a value (contracts
+ * paramSaid) and cut as cardSays cuts a message's words, so the card the owner approves shows what goes to everyone it
+ * reaches (contracts stepOfferWords). A value a run fills (a first name, a link) is the message's, said by none; none
+ * typed adds nothing. The message's own slot examples are left alone: they are what WhatsApp's reviewers read.
+ */
+export function stepSays(step: number, specs: readonly ParamSpec[]): string {
+  const quotes = specs.flatMap((s) =>
+    s.kind === "text" ? [paramSaid({ kind: "text", value: clipQuote(s.value, STEP_VALUE_ROOM) })] : [],
+  );
+  return `${PLAN_WORDS.stepMessage(step)}${stepOfferWords(quotes)}`;
+}
+
+/** The example a written message's value is quoted with (contracts exampleParams): a typed value is its own name. */
+export const slotExample = (s: { label: string; kind: ParamSpec["kind"] }): string =>
+  exampleParams([s.kind === "text" ? { kind: "text", value: s.label } : { kind: s.kind }], EXAMPLE_BUSINESS)[0] ??
+  s.label;
+
+/**
+ * What a message card quotes of the message it writes (propose_campaign's action message), which no row holds yet: every
+ * version as the person reached on it reads it, in the page's channel order, its values filled with their examples
+ * (`slots`, each with its example), through the one fill a send makes (contracts previewParts, which previewSays quotes):
+ * whole for the card's rows, an email's subject on a line of its own above its words, and in `limit` characters shared
+ * between them for its summary.
+ */
+export function writtenSays(
+  body: Pick<WriteMessageBody, "versions" | "language" | "slots">,
+  limit: number,
+): { says: string; rows: Array<{ channel: ConsentChannel; label: string; words: string }> } {
+  const { whatsapp, email, sms } = body.versions;
+  const channels = CONSENT_CHANNELS.filter((c) => body.versions[c]);
+  const o = {
+    whatsapp: whatsapp
+      ? renderTemplate(
+          whatsapp.body,
+          body.slots.map((s) => s.example ?? ""),
+        )
+      : "",
+    versions: {
+      ...(email ? { email: { subject: email.subject, body: email.body } } : {}),
+      ...(sms ? { sms: { subject: null, body: sms.body } } : {}),
+    },
+    values: body.slots.map((s) => s.example ?? ""),
+    language: body.language,
+  };
+  const whole = previewParts(channels, o);
+  const said = previewSays(channels, { ...o, limit });
+  // Every channel named has its version in hand, so neither is ever missing one.
+  if ("missing" in whole || "missing" in said) throw new Error("writtenSays: a version named and not given");
+  return {
+    says: said.says,
+    rows: whole.parts.map((p) => ({
+      channel: p.channel,
+      label: p.label,
+      words: p.subject ? `“${p.subject}”\n${p.body}` : p.body,
+    })),
+  };
 }

@@ -52,8 +52,6 @@ export {
   FOLLOW_UP_ONE,
   PLAYBOOK_TOUCH_WINDOW_MS,
   followUpNames,
-  breathEndsAt,
-  breathHolds,
   followUpIsFor,
   followUpKey,
   playbookRunStop,
@@ -124,6 +122,10 @@ export interface PlaybookDto {
   last_run_for: string | null;
   last_run_at: string | null;
   created_at: string;
+  /** Its last day (00416), YYYY-MM-DD by the business's clock, or null; absent from a server before it. */
+  until?: string | null;
+  /** Until when it runs on trial (00416), an instant, or null; absent from a server before it. */
+  trial_until?: string | null;
 }
 
 /**

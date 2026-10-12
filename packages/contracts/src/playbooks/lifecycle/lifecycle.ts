@@ -279,15 +279,15 @@ function emailRowsOf(reachOuts: LifecycleInput["reachOuts"]): number {
 
 /**
  * The head: the name, the line under it, the channels the workspace stands on, and the page's two acts. The line is facts
- * alone (what the lede explained every visit, the rail now shows): how many moments are covered, and how many people can
- * hear from you.
+ * alone (what the lede explained every visit, the rail now shows): how many moments are covered (the rail's one count),
+ * and how many people can hear from you.
  */
-function lifecycleHeadOf(input: LifecycleInput, stages: readonly LifecycleStage[]): LifecycleHead {
-  const covered = stages.filter((s) => s.covered).length;
+function lifecycleHeadOf(input: LifecycleInput, count: { covered: number; of: number }): LifecycleHead {
+  const { covered, of } = count;
   const reach = input.broadcasts?.reach ?? null;
   const parts: Array<string | { b: string }> = [];
-  if (stages.length > 0) {
-    parts.push({ b: `${covered} of ${stages.length}` }, " moments are covered");
+  if (of > 0) {
+    parts.push({ b: `${covered} of ${of}` }, " moments are covered");
     if (reach) parts.push(", and ", { b: `${reach.canHear} of your ${reach.people}` }, " people can hear from you");
     parts.push(".");
   }
@@ -339,13 +339,15 @@ export function campaignsHomeOf(input: LifecycleInput): LifecycleHome {
       ? lifecycleStages({ playbooks: at.playbooks, shape: at.shape, line: hasLine(at.broadcasts), ready: readyOf(at) })
       : { defs: [], stages: [] };
   const { defs, stages } = made;
-  const covered = stages.filter((s) => s.covered).length;
+  // How many moments are covered, of how many: counted once, and every line that says it reads this.
+  const count = { covered: stages.filter((s) => s.covered).length, of: stages.length };
   return {
-    head: lifecycleHeadOf(at, stages),
+    head: lifecycleHeadOf(at, count),
     rail: {
       title: LIFECYCLE_WORDS.rail,
-      coveredWords: stages.length > 0 ? `${covered} of ${stages.length} moments covered` : null,
-      phoneWords: stages.length > 0 ? `${covered} of ${stages.length} on` : null,
+      ...count,
+      coveredWords: count.of > 0 ? `${count.covered} of ${count.of} moments covered` : null,
+      phoneWords: count.of > 0 ? `${count.covered} of ${count.of} on` : null,
       stages,
     },
     ledger: lifecycleLedger({ input: at, defs, stages }),

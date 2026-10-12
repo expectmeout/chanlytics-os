@@ -10,6 +10,7 @@ import {
   type ResolvedFacts,
   type TenantConfig,
 } from "@chanlytics/contracts";
+import { reviewLinkOf } from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
 import { promptPreview, type PromptPreviewDto } from "../receptionist/prompt-preview";
 import { linesFor } from "../connections/lines";
@@ -86,13 +87,16 @@ type SettingsRead =
       prompt: PromptPreviewDto | null;
       updatedBy: string | null;
       updatedAt: string | null;
+      /** Whether the Google listing keeps a review link (db reviewLinkOf, 00415): never the link itself. */
+      review_link: boolean;
     }
   | { config: null; version: number; role: ReaderContext["role"]; configBroken: true; issues: string[] };
 
 /**
  * GET settings, as the route answers it: the tenant's config, with the version the client must echo back on write, the
  * member's role, and -- where the parser takes the config -- what the platform knows beside what was typed, anything
- * the two disagree on, and the prompt the receptionist is told, composed on the turn's clock. The route's body, moved
+ * the two disagree on, the prompt the receptionist is told, composed on the turn's clock, and whether the Google listing
+ * keeps a review link, which the composers read as they read the booking link from the config. The route's body, moved
  * here whole. The configuration row is the turn's one read of it (readers/facts.ts config); a workspace with none is
  * the route's 404. The prompt preview reads the calendar feed and the Autonomy rows itself, and nothing keeps it: a
  * question about the hours reads the facts (Ask's workspace.settings), never this. Not a row a citation names.
@@ -113,7 +117,13 @@ export const settings: Reader<undefined, SettingsRead> = {
       // only an owner sees it whole. Anyone else learns that one is set.
       const cfg = parsed.config;
       const visible = feedVisibleTo(rc.role, cfg);
-      const known = await knownFacts(rc.ctx, rc.tenantId);
+      const [known, reviewLink] = await Promise.all([
+        knownFacts(rc.ctx, rc.tenantId),
+        // Whether the listing keeps a review link: the composers offer it to a review-link slot, and the review ask
+        // with it, only where it does, as they offer the booking link only where one is on file. A read that fails is
+        // none here, as a fact above is: the settings read never fails for it.
+        reviewLinkOf(rc.ctx.supabase, rc.tenantId).catch(() => null),
+      ]);
       const facts = resolveFacts(cfg.brain ?? null, known);
       // What the receptionist is told, composed here with the inputs the browser
       // cannot see (the Autonomy rows, these facts, the closures, the calendar's
@@ -143,6 +153,7 @@ export const settings: Reader<undefined, SettingsRead> = {
           // Who last changed it and when (00085): the Business card says so.
           updatedBy: row.updated_by ?? null,
           updatedAt: row.updated_at ?? null,
+          review_link: reviewLink !== null,
         },
         rows: [],
         stamp: stamp(),

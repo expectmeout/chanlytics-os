@@ -273,9 +273,9 @@ export async function loadTenantRunContext(
   // A paused workspace runs nothing: the sweep counts it off, and says so once, quietly; Run now refuses it in words.
   if (tenant?.status === "paused") return { error: CONTEXT_PAUSED };
   // A touch is a message sent, or one on its way, dated by when it went or is due; a broadcast the owner sent by
-  // hand counts for the breath (byAny) and for no playbook's gap; a proposal follow-up by any playbook, for the
-  // follow-up's once per proposal (touchIndex, 0006).
-  const { byThis, byAny, followUps, followUpKeys } = touchIndex(touched.data ?? []);
+  // hand counts for the breath (byAny: within a week of now, either side) and for no playbook's gap; a proposal
+  // follow-up by any playbook, for the follow-up's once per proposal (touchIndex, 0006).
+  const { byThis, byAny, followUps, followUpKeys } = touchIndex(touched.data ?? [], now);
   // The calendar's appointments on every person, the way the People page
   // reads them: a visit playbook keys on the day, and its words come from
   // the visit itself. Read once per tenant per run.

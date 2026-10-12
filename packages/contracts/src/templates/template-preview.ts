@@ -15,17 +15,20 @@ function fill(body: string, values: string[]): string {
 export interface OwnFacts {
   business_name?: string | null;
   booking_link?: string | null;
+  /** Where a customer leaves it a review, as its Google listing keeps it (google_listings.new_review_uri). */
+  review_link?: string | null;
 }
 
 /** The slots that name the business, and what a blank one is called when there is no label of its own. */
 const OWN_SLOT_LABEL: ReadonlyMap<string, string> = new Map([
   ["business_name", "Business name"],
   ["booking_link", "Booking link"],
+  ["review_link", "Review link"],
 ]);
 
 /**
  * A slot's words for a customer's eyes. A slot that names the business takes
- * its own name or booking link, and one the business has not given yet is a
+ * its own name, booking link or review link, and one the business has not given yet is a
  * blank to fill, "[Booking link]" -- never the sample filed with Meta: a
  * starter's "Luna Studio" and its booksy link read as a real business's real
  * link. Any other slot shows its example; "Dani" is plainly a sample customer.

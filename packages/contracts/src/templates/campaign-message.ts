@@ -117,8 +117,11 @@ export function variablesSlotCount(variables: unknown): number {
   return Math.max(variables.length, ...positions);
 }
 
-/** A row's status as the set holds it: a row that names none (or one the set does not know) is waiting, as the column's default is. */
-function statusOf(raw: string | null | undefined): TemplateStatus {
+/**
+ * A row's status as the set holds it: a row that names none (or one the set does not know) is waiting, as the column's
+ * default is. The one reading of a row's `meta_status`, a WhatsApp version's here and any version's Ask reads.
+ */
+export function metaStatusOf(raw: string | null | undefined): TemplateStatus {
   return TEMPLATE_STATUSES.find((s) => s === raw) ?? "pending";
 }
 
@@ -129,7 +132,7 @@ function strictestCategory(categories: readonly (string | null)[]): string | nul
 }
 
 function whatsappVersionOf(row: CampaignMessageRow): NonNullable<CampaignMessage["versions"]["whatsapp"]> {
-  const status = statusOf(row.meta_status);
+  const status = metaStatusOf(row.meta_status);
   return {
     id: row.id,
     status,
@@ -338,7 +341,7 @@ export const STARTER_LINE_WORDS = {
     `Your starter messages' WhatsApp versions are in review (${n}) — they appear here once approved, usually within minutes.`,
   /** The playbook composer, after the moment's own message and a comma: where its WhatsApp version stands. */
   standing: (status: string | null | undefined): string => {
-    const at = statusOf(status);
+    const at = metaStatusOf(status);
     return at === "pending"
       ? "has its WhatsApp version in review — it appears here once approved, usually within minutes."
       : `has its WhatsApp version ${whatsappStandingWord(at)} — see ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library}.`;
@@ -352,18 +355,40 @@ export const STARTER_LINE_WORDS = {
   written: "written for you",
 } as const;
 
+/** What a message about the person's own booking or proposal is about, as a sentence after "a message" names it. */
+const THEIRS_WORDS = "about something they booked, or a proposal of theirs";
+
 /**
  * What the route that writes a message's first version (an email or a text, with no WhatsApp row) says when it refuses
  * one, or cannot write it. A message a member writes is an offer or news (rule 4): only a starter of the registry, which
- * Chanlytics itself writes, is about their own visit or proposal, so no one declares a custom message utility, and a
+ * Chanlytics itself writes, is about their own booking or proposal, so no one declares a custom message utility, and a
  * starter's name begins only as the starter, with its own words: the member's words under a starter's category would be
- * a custom message called a visit's. The door that files it (create_message_version, 00343) is a migration the owner
+ * a custom message called a booking's. The door that files it (create_message_version, 00343) is a migration the owner
  * applies, and until it is on a database the route says so in one sentence and nothing else changes.
  */
 export const MESSAGE_BEGIN_WORDS = {
   customIsAnOffer:
     "A message you write is an offer or news. Only a starter is a reminder, a check after or a follow-up.",
+  /**
+   * A message written whole (POST templates/message, Ask's message card) takes one about their own booking or proposal,
+   * written with a WhatsApp version for WhatsApp to review: never with an email or a text alone, which nobody reviews.
+   * Its own sentence, since customIsAnOffer (POST templates/versions's) is not true of this door.
+   */
+  utilityNeedsWhatsapp: `A message ${THEIRS_WORDS}, needs a WhatsApp version, which WhatsApp reviews.`,
   starterNeedsItsOwnWords:
     "A starter begins with its own words. Add the starter set, then change the words in the Library.",
   doorNotSwitchedOn: "Writing a message with no WhatsApp version is not switched on here yet.",
+  /**
+   * A message written whole in a language of a message already on file in another, said as something else (POST
+   * templates/message): a language of a message is the same kind of message with the same values, its kind what a send
+   * judges it by (consent purposeOfTemplate: a row with no category is an offer), so `purpose` is the held one's.
+   */
+  heldOtherwise: (purpose: AskedPurpose, slots: number) =>
+    `This message is on file in another language as ${purpose === "marketing" ? "an offer or news" : `a message ${THEIRS_WORDS},`} with ${slots} value${slots === 1 ? "" : "s"}. Write this language the same way, or give it another name.`,
+  /**
+   * A name on file in another language as a code for signing in (Meta's `authentication`): no campaign sends one, so no
+   * kind of message is written beside it, and "write it the same way" would be no way out.
+   */
+  heldAuthentication:
+    "This name is on file in another language as a code for signing in, which no campaign sends. Give this message another name.",
 } as const;

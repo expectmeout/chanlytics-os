@@ -132,6 +132,9 @@ const HEARD_BEFORE = {
     "person_notes",
     "segments",
     "segment_members",
+    // Decision 0052 (#1566) adds what a row draws of the business a person works at and the signer a reply of theirs offers.
+    "leads",
+    "reach_out_replies",
   ],
   leads: ["leads", "lead_searches", "lead_rounds", "lead_search_members"],
   // Task 3.2 adds the calls the report counts (not a transcript turn) and the hours its "while closed" counts by.
@@ -200,6 +203,9 @@ const ON_ITS_PAGE_BEFORE = {
     "policies",
     "templates",
     "tenant_config",
+    // Decision 0052 (#1566): the business a person works at and a reply's signer, heard on People's page as the rest are.
+    "leads",
+    "reach_out_replies",
   ],
   broadcasts: SENT_PAGE,
   playbooks: COMPOSER_PAGE,

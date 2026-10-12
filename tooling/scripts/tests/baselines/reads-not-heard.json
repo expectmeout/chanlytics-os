@@ -192,29 +192,41 @@
       }
     },
     {
-      "why": "Read inside people_list(), the book's list function, which joins each person's last call, deal, next step, open hold and thread to the row. The page reads the book for who is in it and what each said; the trace cannot tell which of those columns it draws, and the kinds it declares are the ones it hears. Owed: say which columns it draws and hear them, or read a narrower function.",
+      "why": "Read inside people_list(), the book's list function, which joins each person's last call, deal, next step, open hold and thread to the row, and since 0052 the business they work at (leads) and the signer a reply of theirs offers (reach_out_replies). The page reads the book for who is in it and what each said; the trace cannot tell which of those columns it draws, and the kinds it declares are the ones it hears. Owed: say which columns it draws and hear them, or read a narrower function.",
       "reads": {
         "reports": [
-          "person_notes"
+          "leads",
+          "person_notes",
+          "reach_out_replies"
         ],
         "reports_headline": [
           "deals",
           "escalations",
-          "person_notes"
+          "leads",
+          "person_notes",
+          "reach_out_replies"
         ],
         "reports_receptionist": [
           "deals",
-          "person_notes"
+          "leads",
+          "person_notes",
+          "reach_out_replies"
         ],
         "reports_people": [
           "deals",
-          "escalations"
+          "escalations",
+          "leads",
+          "reach_out_replies"
         ],
         "broadcasts": [
-          "person_notes"
+          "leads",
+          "person_notes",
+          "reach_out_replies"
         ],
         "playbooks": [
-          "person_notes"
+          "leads",
+          "person_notes",
+          "reach_out_replies"
         ],
         "calendar": [
           "calls",
@@ -222,7 +234,12 @@
           "deals",
           "escalations",
           "messages",
-          "person_notes"
+          "person_notes",
+          "reach_out_replies"
+        ],
+        "setup": [
+          "leads",
+          "reach_out_replies"
         ]
       }
     },
@@ -254,10 +271,11 @@
       }
     },
     {
-      "why": "The Calendar matches a visit to a person by name and number from the book (people_list). A person added or renamed by a teammate is matched on the next read; the Calendar's own Add to People re-reads the board (refresh-map.ts calendarIfDrawn). Owed: the Calendar hears the person kind.",
+      "why": "The Calendar matches a visit to a person by name, number and, since 0052, the business they work at (leads) from the book (people_list). A person added or renamed by a teammate is matched on the next read; the Calendar's own Add to People re-reads the board (refresh-map.ts calendarIfDrawn). Owed: the Calendar hears the person kind.",
       "reads": {
         "calendar": [
-          "contacts"
+          "contacts",
+          "leads"
         ]
       }
     },

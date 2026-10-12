@@ -117,11 +117,18 @@ export const GuardrailsSchema = z
  * chair rental, the parking. One topic each, said by BOTH receptionists. The
  * long tail that a knowledge base would hold later; never the hours or the
  * booking link, which have fields.
+ *
+ * `until` is its last day, a calendar date in the business's zone as a
+ * closure's is: said through that day and not after (compose.ts), and kept in
+ * the config once it has passed, as a passed closure is. Optional, and stripped
+ * by a build from before it, which then says the note for good: what every note
+ * did then, so either deploy order holds.
  */
 export const NoteSchema = z
   .object({
     title: z.string().min(1).max(L.noteTitle),
     text: z.string().min(1).max(L.noteText),
+    until: DATE.optional(),
   })
   .strip();
 export type Note = z.infer<typeof NoteSchema>;

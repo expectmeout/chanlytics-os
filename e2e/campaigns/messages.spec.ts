@@ -61,7 +61,11 @@ test.describe("The Library on a real workspace", () => {
       };
       return w.__WORKSPACES?.find((t) => t.id === w.__ACTIVE_WORKSPACE)?.sells_by ?? null;
     });
-    const starterNames = startersOffered(dealsAreOn(sellsBy)).map((s) => s.name);
+    // And whether its Google listing keeps a review link, as GET settings says it to the page (the review ask's offer).
+    const settings = await apiGet(page, "/api/v1/settings");
+    expect(settings.status()).toBe(200);
+    const reviewLink = ((await settings.json()).data as { review_link?: boolean }).review_link === true;
+    const starterNames = startersOffered({ dealsOn: dealsAreOn(sellsBy), reviewLink }).map((s) => s.name);
     // The list is the messages: the set's starters, a row each, whatever of it the workspace holds, then a row to each name it
     // wrote or synced, whatever languages and channels it holds, and a fold for what it hid.
     const rows = libraryRows(messages, starterNames);

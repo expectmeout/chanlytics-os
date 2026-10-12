@@ -1,7 +1,8 @@
 /**
  * One playbook, started (app/api/v1/playbooks: checked whole, then written running with its line in the ledger in one
  * transaction, startNewPlaybook), and changed or removed (app/api/v1/playbooks/:id): `{ state, name, run_hour,
- * cap_per_run, gap_days, cadence_days }`, any of them, changes it in place, judged against it as it stands and written
+ * cap_per_run, gap_days, cadence_days, params, until, trial_until }`, any of them, changes it in place, judged against it
+ * as it stands and written
  * with its line in the ledger in one transaction (the change_playbook door; on a database before it, the way it was
  * written before, for one release); `{ channels }` changes the channels it goes by and writes nothing else; the whole
  * playbook is re-checked the way a new one is checked and rewritten (campaigns/playbooks.ts); the rule can go, its runs
@@ -17,14 +18,17 @@ import {
   REACH_OUT_IS_NOT_A_MOMENT,
   REACH_OUT_REFUSALS,
   isPlaybookState,
+  newCampaignTrialUntil,
   triggerOf,
+  twinRunsWords,
   type PlaybookPatch,
 } from "@chanlytics/contracts";
-import { checkPlaybookPatch } from "@chanlytics/core";
+import { checkPlaybookPatch, playbookNameAsked, trialUntilOf, untilOf } from "@chanlytics/core";
 import {
   emitEvent,
   playbookForChange,
   removePlaybook,
+  runningTwins,
   startPlaybook,
   updatePlaybook,
   writePlaybookChange,
@@ -33,10 +37,11 @@ import { serviceDb } from "@/server/service-db";
 import { jsonBody } from "@/server/request-guards";
 import { recordDecision, type playbookScope } from "@/server/verbs";
 import {
-  archivedListRefusal,
   checkPlaybookChannelsInput,
   checkPlaybookInput,
+  playbookPatchPorts,
   playbookWriteError,
+  type PlaybookInput,
 } from "@/server/campaigns/playbooks";
 import { channelsChanged, keptChannels } from "@/server/campaigns/playbook-channels";
 import { withStarterMessage } from "@/server/campaigns/starter-templates";
@@ -57,7 +62,11 @@ const ONE_OF_THREE = {
   error: (issue: { code: string }) => (issue.code === "unrecognized_keys" ? PUT_BODY_WORDS : undefined),
 };
 
-/** A change in place (the moment spec §4.9 A5): any of the six, and no other key. Core judges each value, in words. */
+/**
+ * A change in place (the moment spec §4.9 A5): any of the nine, and no other key; its words (`params`, the values its
+ * message takes), its last day (`until`, YYYY-MM-DD) and its trial's end (`trial_until`, an instant) since 00416, a null
+ * clearing either date. Core judges each value, in words.
+ */
 const PATCH_BODY = z.strictObject(
   {
     state: z.string().optional(),
@@ -66,6 +75,9 @@ const PATCH_BODY = z.strictObject(
     cap_per_run: z.number().optional(),
     gap_days: z.number().optional(),
     cadence_days: z.number().optional(),
+    params: z.array(z.unknown()).optional(),
+    until: z.string().nullable().optional(),
+    trial_until: z.string().nullable().optional(),
   },
   ONE_OF_THREE,
 );
@@ -99,20 +111,77 @@ export const PLAYBOOK_PUT_BODY = z.union([PATCH_BODY, CHANNELS_BODY, WHOLE_BODY]
 type PlaybookPutBody = z.infer<typeof PLAYBOOK_PUT_BODY>;
 
 /**
+ * The end of the trial a new playbook starts on (00416, D5), at `now`, this route's clock: `trial: true` (Ask's card,
+ * which asks it under an auto class) is a week from now, counted from the Approve and never from when the card was made
+ * (contracts newCampaignTrialUntil); an explicit `trial_until` is an instant still to come (core trialUntilOf, a change's
+ * own judge); neither is none, as the composer's campaigns start.
+ */
+function trialAsked(asked: Record<string, unknown> | null, now: Date): string | null {
+  if (asked?.trial === true) return newCampaignTrialUntil(now);
+  return trialUntilOf(asked?.trial_until, { now, undo: false }) ?? null;
+}
+
+/**
+ * A second running playbook on the same moment, list and message (the moment spec, D9): a second "set up my campaigns"
+ * proposed a twin win-back, which the week's breath then left reaching nobody. Refused in `words`, unless it is named
+ * apart from every one that runs: a name of its own is a second they asked for, compared as it is kept (core
+ * playbookNameAsked). Null where there is no twin. Ask's card is made by it, in the model's words (act/playbook.ts), and a
+ * card's start meets it again, in the owner's (startNewPlaybook).
+ */
+export async function twinRefusal(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+  checked: Pick<PlaybookInput, "trigger" | "list_id" | "list_key" | "template_id">,
+  named: unknown,
+  words: (name: string) => string,
+): Promise<string | null> {
+  const twins = await runningTwins(ctx.supabase, tenantId, {
+    trigger: checked.trigger,
+    listId: checked.list_id,
+    listKey: checked.list_key,
+    templateId: checked.template_id,
+  });
+  // Bound and checked, never `twins[0].name`: an index read the compiler lets pass is a new offender in a file at 0
+  // (unchecked-index.json).
+  const [first] = twins;
+  if (!first) return null;
+  const own = playbookNameAsked(named);
+  if (own && !twins.some((x) => x.name === own)) return null;
+  return words(first.name);
+}
+
+/**
  * A new playbook (POST /api/v1/playbooks): everything it names checked the way the send route checks a broadcast
  * (checkPlaybookInput, in its own words, so the body is this verb's to read), then started with its line in the
  * ledger in one transaction (00357 start_playbook). The door runs on the member's own session, so the table's policy
  * judges the row as it judged the insert this replaced, and a start that cannot be recorded starts nothing: no
  * playbook sends with nobody on record as having started it, and a person who presses Start again makes one. A body
  * naming `starter_key` and no message is judged whole, then files that starter (withStarterMessage: a refused one files
- * nothing and asks nothing of Meta), and the answer says what became of its WhatsApp version (`starter`).
+ * nothing and asks nothing of Meta), and the answer says what became of its WhatsApp version (`starter`). The trial it
+ * starts on (trialAsked) and its last day (`until`, YYYY-MM-DD: core untilOf, a change's own judge, today or later by
+ * the business's clock) are judged first, at this route's clock.
+ *
+ * A card's start (x-via ask) meets twinRefusal again, 409 in the owner's words (contracts twinRunsWords). It refuses a
+ * twin running since the card was made: under the name the card carries, or under any name where it carries none (a
+ * starter's card, or a plan step's, that named nothing). So it also refuses a press after its key's day: one within it
+ * is answered its first answer before this runs (route.ts onceForKey), but a plan's card can be approved for a week, its
+ * key kept a day (0035), so a later press reaches here carrying what the first carried, and the campaign that first
+ * press started refuses it. It is not the card's rule again: a card on a message the Library holds always carries a
+ * name, so a twin started under another name is not refused here. A starter on file is reused, and one not on file has
+ * no running twin on its template, so a refused start files nothing new. The composer's start is a person's, and does
+ * not meet it.
  */
 export async function startNewPlaybook(ctx: RouteContext, req: Request, member: Member) {
   const tenantId = member.tenantId;
-  // A starter named and no message (A0): the starter is filed first, and the playbook goes by it.
   const asked = (await jsonBody(req)) as Record<string, unknown> | null;
+  const now = new Date();
+  const trialUntil = trialAsked(asked, now);
+  const until = (await untilOf(playbookPatchPorts(ctx, tenantId), asked?.until, { now, undo: false })) ?? null;
+  // A starter named and no message (A0): the starter is filed first, and the playbook goes by it.
   const { body, starter } = await withStarterMessage(ctx, member, asked);
   const v = await checkPlaybookInput(ctx, tenantId, body, null);
+  const twin = ctx.via === "ask" ? await twinRefusal(ctx, tenantId, v, asked?.name, twinRunsWords) : null;
+  if (twin) throw new AppError("conflict", twin, 409);
   const { data: made, error } = await startPlaybook(ctx.supabase, {
     tenantId,
     playbook: {
@@ -130,6 +199,8 @@ export async function startNewPlaybook(ctx: RouteContext, req: Request, member: 
       gap_days: v.gap_days,
       cadence_days: v.cadence_days,
       channels: v.channels,
+      until,
+      trial_until: trialUntil,
     },
     decision: {
       name: v.name,
@@ -139,6 +210,8 @@ export async function startNewPlaybook(ctx: RouteContext, req: Request, member: 
       run_hour: v.run_hour,
       cap_per_run: v.cap_per_run,
       channels: v.channels,
+      ...(until ? { until } : {}),
+      ...(trialUntil ? { trial_until: trialUntil } : {}),
     },
     via: ctx.via ?? null,
     undoOf: ctx.undoOf ?? null,
@@ -158,11 +231,14 @@ export async function changePlaybook(ctx: RouteContext, body: PlaybookPutBody, p
 /**
  * A change in place (the moment spec §4.9 A5; decision D26): the drawer's Pause and Resume, Ask's change card, the
  * reach-out sheet's Pause. Judged against the playbook as the database holds it now (core checkPlaybookPatch: the six
- * fields' bounds, a cadence for the month's offer alone, a resume refused on an archived list, a reach-out's step paused
- * or resumed and nothing else), then written with its line in the ledger in one transaction (the change_playbook door):
- * the row locked, only what differs set, and what each field held answered as `was`, which an undo puts back. Nothing
- * that differs writes nothing and answers what it is, so a second press of Pause is no second line. On a database before
- * the door, written the way it was before (changeTheOldWay), for one release.
+ * fields' bounds, a cadence for the month's offer alone, a resume refused on an archived list, its words held to its
+ * message's slots, its end a day today or later by the business's clock, its trial's end an instant to come, a
+ * reach-out's step paused or resumed and nothing else), then written with its line in the ledger in one transaction
+ * (the change_playbook door): the row locked, only what differs set, and what each field held answered as `was`, which
+ * an undo puts back. An undo is a change naming the decision it undoes (ctx.undoOf, the x-undo-of header Ask's commit
+ * runner sends): it restores the end and the trial the door recorded, past or not, where any other change names dates
+ * still to come. Nothing that differs writes nothing and answers what it is, so a second press of Pause is no second
+ * line. On a database before the door, written the way it was before (changeTheOldWay), for one release.
  */
 async function patchPlaybook(ctx: RouteContext, asked: Record<string, unknown>, p: PlaybookRow) {
   const read = await playbookForChange(ctx.supabase, p.tenant_id, p.id);
@@ -171,14 +247,17 @@ async function patchPlaybook(ctx: RouteContext, asked: Record<string, unknown>, 
   // The table's check holds a state to the two; one it does not know is no row a change is judged against.
   if (!isPlaybookState(read.state)) throw new Error(`playbook ${p.id} holds a state the check does not: ${read.state}`);
   const row = { ...read, state: read.state };
-  const { set, was } = await checkPlaybookPatch({ archivedList: (r) => archivedListRefusal(ctx, r) }, row, asked);
+  const { set, was } = await checkPlaybookPatch(playbookPatchPorts(ctx, p.tenant_id), row, asked, {
+    now: new Date(),
+    undo: ctx.undoOf !== undefined,
+  });
   // Nothing differs: nothing written and no line, answered as the door answers its own no-op (was empty, decision_id null).
   if (Object.keys(set).length === 0) return { id: p.id, name: row.name, state: row.state, was: {}, decision_id: null };
   const name = set.name ?? row.name;
   const wrote = await writePlaybookChange(ctx.supabase, {
     tenantId: p.tenant_id,
     playbookId: p.id,
-    set: set as Record<string, string | number>,
+    set,
     decision: { name, ...set },
     via: ctx.via ?? null,
     undoOf: ctx.undoOf ?? null,

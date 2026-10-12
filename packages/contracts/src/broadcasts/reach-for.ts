@@ -36,6 +36,11 @@ export interface ChannelReady {
    * offers on WhatsApp are then open, as every campaign went before.
    */
   offers?: EmailOffers;
+  /**
+   * True where whether it can send could not be asked just now (email: the edge did not answer about its wire): not a
+   * no, and asked again in a moment, so a reader branches on this and never on `why`'s sentence. Absent where it was read.
+   */
+  unchecked?: true;
 }
 export type ChannelsReady = Record<ConsentChannel, ChannelReady> & {
   /**
@@ -191,7 +196,7 @@ export function channelsReady(f: {
         : { ready: false, why: CHANNEL_WORDS.textLineNotActive };
   const emailNow: ChannelReady =
     f.email.domain === null
-      ? { ready: false, why: CHANNEL_WORDS.unchecked }
+      ? { ready: false, why: CHANNEL_WORDS.unchecked, unchecked: true }
       : !f.email.domain
         ? { ready: false, why: CHANNEL_WORDS.noEmailDomain }
         : f.email.mailbox

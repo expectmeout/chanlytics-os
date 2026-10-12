@@ -10,7 +10,7 @@
  * way, and one the workspace hid is never added back. The world is
  * tooling/scripts/tests/broadcasts/ask-campaign-channels.test.mjs's, copied whole.
  */
-import { test, beforeEach, after } from "node:test";
+import { test, beforeEach, after, mock } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -26,8 +26,12 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const {
   LIBRARY_STARTER_WORDS,
+  PLAYBOOK_CARD_REFUSALS,
+  PLAYBOOK_CARD_WORDS,
+  PLAYBOOK_CLASS_LABEL,
   PROPOSAL_SPECS,
   appointmentWordOf,
+  appointmentWords,
   channelsWords,
   defaultParamSpecs,
   startersForTrigger,
@@ -35,6 +39,8 @@ const {
 } = await import("@chanlytics/contracts");
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 const { emailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
+const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
+const playbooksRoute = await import(at("apps/dashboard/app/api/v1/playbooks/route.ts"));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const USER = "u1";
@@ -369,4 +375,188 @@ test("a starter that takes words of its own (the month's offer) is not proposed 
   const r = await propose({ trigger: "everyone_monthly" }).made;
   assert.equal(r.isError, true);
   assert.match(said(r), /takes words of its own/);
+});
+
+/** Each class's Autonomy row: the win-back's (reengage) and the appointment moments' (booking) at `mode`. */
+const modes = (mode) =>
+  ["reengage", "booking"].map((cls) => ({ tenant_id: A, class: cls, mode, subject_type: null, limits: null }));
+/**
+ * `start_playbook` (00357, as 00416 replaced it) for a database in memory: the row the door writes, of the columns it
+ * names and no other, running and the caller's, with its start_playbook line; the row's id with the line's.
+ */
+const START_COLUMNS = [
+  "name",
+  "trigger",
+  "list_id",
+  "list_key",
+  "template_id",
+  "template_name",
+  "template_language",
+  "params",
+  "policy_class",
+  "run_hour",
+  "cap_per_run",
+  "gap_days",
+  "cadence_days",
+  "channels",
+  "until",
+  "trial_until",
+];
+const startDoor = (rows) => ({
+  start_playbook: (a) => {
+    const named = Object.fromEntries(START_COLUMNS.map((k) => [k, a.p_playbook[k] ?? null]));
+    const made = { id: crypto.randomUUID(), tenant_id: a.p_tenant_id, ...named, state: "running", created_by: USER };
+    rows.playbooks.push(made);
+    (rows.decisions ??= []).push({
+      id: `decision-${rows.playbooks.length}`,
+      verb: "start_playbook",
+      payload: a.p_decision,
+    });
+    return { id: made.id, decision_id: `decision-${rows.playbooks.length}`, undo_dropped: false };
+  },
+});
+/** A card's commit, sent to the real POST playbooks over the same rows, with the route's clock at `clock`. */
+const approveAt = async (rows, call, clock) => {
+  assert.equal(call.route, "POST playbooks");
+  setRateStore(memoryStore());
+  mock.timers.enable({ apis: ["Date"], now: clock });
+  try {
+    return await playbooksRoute.POST.run(
+      new Request(`http://localhost/api/v1/x?workspace=${A}`, { method: "POST", body: JSON.stringify(call.body) }),
+      { supabase: fakeDb(rows, {}, startDoor(rows)), userId: USER, email: "ada@example.com", params: {} },
+    );
+  } finally {
+    mock.timers.reset();
+  }
+};
+
+test("a new campaign under an auto class starts on trial for a week from when it is approved (D5): its card carries the flag and no instant, says so, and commits the flag; the route counts the week from its own clock at Approve, never from the card's; under ask or veto there is no trial and nothing said of one", async () => {
+  assert.equal(
+    PLAYBOOK_CARD_WORDS.trial,
+    "on trial for a week from when you approve it: for seven days each run waits 30 minutes with a Stop",
+  );
+  const onStarter = await propose({ trigger: "quiet_30" }, { policies: modes("auto") }).made;
+  // Its WhatsApp version approved, with the starter's two values: the message-on-file path.
+  const approved = onFile("approved", { variables: ["1", "2"] });
+  const held = propose({ trigger: "quiet_30" }, { policies: modes("auto"), templates: [approved] });
+  const onFile_ = await held.made;
+  for (const r of [onStarter, onFile_]) {
+    assert.equal(r.isError, false, r.result);
+    const p = r.proposal;
+    assert.deepEqual([p.payload.mode, p.payload.trial], ["auto", true]);
+    assert.equal("trial_until" in p.payload, false, "no instant: the week starts at Approve");
+    // Its class's mode is still said, after the trial and in the order they happen: the trial is this campaign's first
+    // week, never a change to the class, and never two opposite sentences about every run side by side.
+    assert.ok(
+      p.summary.includes(
+        ` · ${PLAYBOOK_CARD_WORDS.trial}; after that, under “${PLAYBOOK_CLASS_LABEL.reengage}” (auto): each run sends on its own.`,
+      ),
+      p.summary,
+    );
+    assert.ok(!p.summary.includes(`${PLAYBOOK_CARD_WORDS.trial} · `), p.summary);
+    const body = PROPOSAL_SPECS.playbook.commit(p, { settings: null }).body;
+    assert.deepEqual([body.trial, "trial_until" in body], [true, false]);
+  }
+  assert.equal(onStarter.proposal.payload.starter_key, STARTER.key, "the starter path");
+  assert.ok(onFile_.proposal.payload.template_id, "the message-on-file path");
+  // Approved a week after it was made: the trial is the week after the Approve, as the card said.
+  const approvedAt = new Date(NOW.getTime() + 7 * DAY);
+  const made = await approveAt(
+    held.rows,
+    PROPOSAL_SPECS.playbook.commit(onFile_.proposal, { settings: null }),
+    approvedAt,
+  );
+  const filed = held.rows.playbooks.find((x) => x.id === made.id);
+  assert.equal(filed.trial_until, new Date(approvedAt.getTime() + 7 * DAY).toISOString());
+  assert.notEqual(filed.trial_until, new Date(NOW.getTime() + 7 * DAY).toISOString(), "never the card's week");
+  // Under ask each run waits for a person anyway, and under veto each already waits half an hour: no trial.
+  for (const policies of [[], modes("ask"), modes("veto")]) {
+    const r = await propose({ trigger: "quiet_30" }, { policies }).made;
+    assert.equal(r.isError, false, r.result);
+    assert.equal("trial" in r.proposal.payload, false, JSON.stringify(policies));
+    assert.ok(!r.proposal.summary.includes("on trial"), r.proposal.summary);
+    assert.equal("trial" in PROPOSAL_SPECS.playbook.commit(r.proposal, { settings: null }).body, false);
+  }
+});
+
+/** The workspace's settings with a calendar connected (the feed's address on file). */
+const withCalendar = () => {
+  const [row] = tables().tenant_config;
+  return [{ ...row, config: { ...row.config, calendar: { ical_url: "https://calendar.example/harbor.ics" } } }];
+};
+
+test("an appointment moment is proposed where a calendar is connected (D2): the reminder the day before is a card on its starter that says it goes whatever else they hear from you around it; with none connected it is refused in the check's own words, and nothing is filed", async () => {
+  const REMINDER = startersForTrigger("visit_tomorrow").find((s) => !s.retired);
+  const { made, rows } = propose({ trigger: "visit_tomorrow" }, { tenant_config: withCalendar() });
+  const r = await made;
+  assert.equal(r.isError, false, r.result);
+  const p = r.proposal;
+  // What the eval's remind_day_before reads off the card (ask-cases.json card_fields).
+  assert.deepEqual([p.kind, p.payload.trigger, p.payload.starter_key], ["playbook", "visit_tomorrow", REMINDER.key]);
+  // The breath is two-sided (a message sent or due within a week of it, contracts BREATH_WHY), so the words never say
+  // "this week".
+  assert.equal(
+    PLAYBOOK_CARD_WORDS.appointmentBreath,
+    "exempt from one a week per person: each goes whatever else they hear from you within a week of it",
+  );
+  assert.ok(p.summary.includes(` · ${PLAYBOOK_CARD_WORDS.appointmentBreath} · `), p.summary);
+  assert.deepEqual([rows.templates, rows.playbooks], [[], []], "nothing is filed at the card");
+  // The check after one, likewise, and only an appointment moment says it: a win-back is held to the week.
+  const after = await propose({ trigger: "visited" }, { tenant_config: withCalendar() }).made;
+  assert.equal(after.isError, false, after.result);
+  assert.ok(after.proposal.summary.includes(PLAYBOOK_CARD_WORDS.appointmentBreath), after.proposal.summary);
+  const winBack = await propose({ trigger: "lapsed" }, { tenant_config: withCalendar() }).made;
+  assert.equal(winBack.isError, false, winBack.result);
+  assert.ok(!winBack.proposal.summary.includes(PLAYBOOK_CARD_WORDS.appointmentBreath), winBack.proposal.summary);
+  // No calendar: refused in core checkPlaybook's own words, in the workspace's word for an appointment.
+  const needs = appointmentWords(appointmentWordOf({ stored: null, sellsBy: "proposal" })).needsCalendar;
+  for (const trigger of ["visit_tomorrow", "visited"]) {
+    const none = propose({ trigger });
+    assert.equal(said(await none.made), needs, trigger);
+    assert.deepEqual([none.rows.templates, none.rows.playbooks], [[], []]);
+  }
+  // A message on file for it changes nothing: the moment is judged first, before its message or its channels.
+  const held = template("dddddddd-dddd-4ddd-8ddd-ddddddddddd8", REMINDER.name, { language: "en_US" });
+  assert.equal(said(await propose({ trigger: "visit_tomorrow" }, { templates: [held] }).made), needs);
+});
+
+test("the action can name the moment's starter to file at Approve: the day after's review ask, where the Google listing keeps a review link, is a card on it that commits its key; without the link it is refused in the route's own words; unnamed, the day after is still its check", async () => {
+  const { TEMPLATE_VALUE_WORDS } = await import(at("packages/core/src/campaigns/template-values.ts"));
+  const REVIEW = startersForTrigger("visited").find((s) => s.key === "after_visit_review");
+  const CHECK = startersForTrigger("visited").find((s) => s.key === "after_visit_check");
+  const listing = [{ tenant_id: A, new_review_uri: "https://example.com/review/harbor" }];
+  const world = { tenant_config: withCalendar(), google_listings: listing };
+  const { made, rows } = propose({ trigger: "visited", starter: REVIEW.key }, world);
+  const r = await made;
+  assert.equal(r.isError, false, r.result);
+  const p = r.proposal;
+  assert.deepEqual([p.payload.trigger, p.payload.starter_key], ["visited", REVIEW.key]);
+  assert.ok(p.summary.includes(` · ${LIBRARY_STARTER_WORDS.addsFirst(REVIEW.title)} · `), p.summary);
+  assert.deepEqual(p.payload.params, defaultParamSpecs({ name: REVIEW.name, variables: [] }));
+  assert.ok(
+    p.payload.params.some((s) => s.kind === "review_link"),
+    "its third value is the listing's link, filled at the send",
+  );
+  // Its Approve files that starter, then starts on it (POST playbooks with its key: starter-playbook.test.mjs files it).
+  const body = PROPOSAL_SPECS.playbook.commit(p, { settings: null }).body;
+  assert.deepEqual([body.starter_key, body.template_id, body.trigger], [REVIEW.key, undefined, "visited"]);
+  assert.deepEqual([rows.templates, rows.playbooks], [[], []], "nothing is filed at the card");
+
+  // No review link on the listing: refused before a card, in the words the route refuses its Approve in.
+  const none = propose({ trigger: "visited", starter: REVIEW.key }, { tenant_config: withCalendar() });
+  assert.equal(said(await none.made), TEMPLATE_VALUE_WORDS.noReviewLink);
+  assert.deepEqual([none.rows.templates, none.rows.playbooks], [[], []]);
+
+  // Unnamed, the day after's own starter stays How did it go, link or none.
+  const unnamed = await propose({ trigger: "visited" }, world).made;
+  assert.equal(unnamed.isError, false, unnamed.result);
+  assert.equal(unnamed.proposal.payload.starter_key, CHECK.key);
+
+  // Another moment's starter is refused in the route's words, and a starter beside a message is one too many.
+  const other = startersForTrigger("visit_tomorrow").find((s) => !s.retired);
+  const wrong = await propose({ trigger: "visited", starter: other.key }, world).made;
+  assert.equal(wrong.isError, true);
+  assert.match(said(wrong), /^That starter is not one /);
+  const both = await propose({ trigger: "visited", starter: REVIEW.key, template_id: REMINDER }, world).made;
+  assert.equal(said(both), PLAYBOOK_CARD_REFUSALS.starterOrMessage);
 });

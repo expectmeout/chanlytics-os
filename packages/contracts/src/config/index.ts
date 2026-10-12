@@ -116,7 +116,13 @@ export type {
 } from "./workspace-config/config-schema";
 export { hoursRuns } from "./workspace-config/prompt-hours";
 export type { HoursRun } from "./workspace-config/prompt-hours";
-export { describeNow, composeSystemPrompt, PROMPT_OPENINGS } from "./workspace-config/compose";
+export {
+  describeNow,
+  composeSystemPrompt,
+  PROMPT_OPENINGS,
+  notesInForce,
+  noteAsTold,
+} from "./workspace-config/compose";
 export { offersAfterStart, offersFacts } from "./workspace-config/offers-ask";
 export { allowedPrices, priceAllowance } from "./workspace-config/price-allowance";
 export type { AllowedPrice } from "./workspace-config/price-allowance";
@@ -180,6 +186,7 @@ export { profileRefusal, writtenOutDetail, PROFILE_CROSSING_WORDS } from "./busi
 export type { ProfileCrossing, ProfileRefusalKey } from "./business-tab/fold-limits";
 export {
   notesWords,
+  noteEndedWords,
   instructionsWords,
   fallbacksWords,
   COMMON_LANGUAGES,

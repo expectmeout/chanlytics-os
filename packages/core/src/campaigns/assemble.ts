@@ -1,3 +1,4 @@
+import { RECIPIENT_REASON_HEARD } from "@chanlytics/contracts";
 import { errField, logger } from "@chanlytics/channels";
 import { MONTH_ALLOWANCE_REASON } from "./allowance";
 import type { AssembleCommand, AssemblePorts, Assembled, AssembledRun } from "./ports";
@@ -15,11 +16,13 @@ const assembleLog = logger();
  * answered with a 500 that a person presses again. The caller decides what a failure means to whoever asked: the
  * sweep counts it, a person is told.
  *
- * Whom the month's allowance already holds (`cmd.held`) is written as held once the run exists, not before: the run's
- * people are enrolled whole and the held are skipped in their own write, so a write that fails leaves them queued and
- * the send holds them at the wire (overAllowance), which is the backstop. It never fails the run, but it is never silent:
- * the failure is logged (`campaign_hold_unwritten`) and the answer says how many were left unheld (`unheld`), which the
- * caller records beside what it did hold, so a receipt never claims a hold that was not written.
+ * Who a send by hand leaves out for the breath (`cmd.leftOut`) and whom the month's allowance already holds (`cmd.held`)
+ * are written as skipped once the run exists, so its report says so before anything is sent: the breath's first, then
+ * the month's, each in its own write. Neither is the only thing that holds them: the left out carry their row's mark,
+ * written with the run (contracts LEFT_OUT_FACTS), and a person past the month's room is held by the send's own count
+ * (overAllowance), so a skip the hold did not write -- it failed, failed part-way, or the send claimed the person first
+ * -- is still a person never sent. It never fails the run, but it is never silent: logged (`campaign_hold_unwritten`,
+ * with its reason) and answered (`leftOutUnwritten`, `unheld`), so a receipt never claims a skip that was not written.
  */
 export async function assembleRun(ports: AssemblePorts, cmd: AssembleCommand): Promise<Assembled> {
   let made: AssembledRun;
@@ -29,12 +32,37 @@ export async function assembleRun(ports: AssemblePorts, cmd: AssembleCommand): P
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
   const { id, decisionId } = made;
-  if (cmd.held.length === 0) return { ok: true, id, decisionId, unheld: 0 };
+  const leftOutUnwritten = await skipAt(ports, id, cmd.leftOut, RECIPIENT_REASON_HEARD);
+  const unheld = await skipAt(ports, id, cmd.held, MONTH_ALLOWANCE_REASON);
+  return { ok: true, id, decisionId, unheld, leftOutUnwritten };
+}
+
+/** What the log calls the people a skip did not write, by its reason: the month's are unheld, the breath's left out. */
+const UNWRITTEN_FIELD: Readonly<Record<string, string>> = {
+  [MONTH_ALLOWANCE_REASON]: "unheld",
+  [RECIPIENT_REASON_HEARD]: "left_out_unwritten",
+};
+
+/**
+ * The people of a run just made skipped with `reason`, at once: how many were not written, counted from who the hold
+ * says it skipped (none asked: none), so a step that failed after others wrote counts only its own, and a person the
+ * send claimed first is not counted as skipped.
+ */
+async function skipAt(ports: AssemblePorts, id: string, people: readonly string[], reason: string): Promise<number> {
+  if (people.length === 0) return 0;
+  let done: { skipped: readonly string[]; error: string | null };
   try {
-    await ports.holdRecipients(id, [...cmd.held], MONTH_ALLOWANCE_REASON);
-    return { ok: true, id, decisionId, unheld: 0 };
+    done = await ports.holdRecipients(id, [...people], reason);
   } catch (e) {
-    assembleLog.error("campaign_hold_unwritten", { broadcast_id: id, unheld: cmd.held.length, error: errField(e) });
-    return { ok: true, id, decisionId, unheld: cmd.held.length };
+    done = { skipped: [], error: errField(e) };
   }
+  const unwritten = people.length - done.skipped.length;
+  if (unwritten > 0)
+    assembleLog.error("campaign_hold_unwritten", {
+      broadcast_id: id,
+      reason,
+      [UNWRITTEN_FIELD[reason] ?? "unheld"]: unwritten,
+      error: done.error ?? "no longer queued",
+    });
+  return unwritten;
 }

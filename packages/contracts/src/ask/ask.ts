@@ -10,14 +10,15 @@
  * The route that runs the model lives in the dashboard; the Line that shows
  * the answer lives in the legacy pages; both read from here.
  *
- * This module holds the limits, the message and its cards (and what became of each), and where a question is asked
- * from: the row in view (AskScope, scopeFromRoute) and the pages Ask knows it is on (ASK_SURFACES). The rest is beside
- * it: the languages and the guess at a question's (ask-language.ts), the rules an answer's text passes
- * (answer-text.ts), the jump index (ask-jump.ts), the suggestions (ask-suggestions.ts), the three questions answered
- * without a model (ask-fast-paths.ts) and the settings a card may change (ask-settings-change.ts).
+ * This module holds the limits, the message and its cards (and what became of each), where a question is asked
+ * from: the row in view (AskScope, scopeFromRoute) and the pages Ask knows it is on (ASK_SURFACES), and the shapes of
+ * what a read hands a plan of Ask's (MessageRead). The rest is beside it: the languages and the guess at a question's
+ * (ask-language.ts), the rules an answer's text passes (answer-text.ts), the jump index (ask-jump.ts), the suggestions
+ * (ask-suggestions.ts), the three questions answered without a model (ask-fast-paths.ts) and the settings a card may
+ * change (ask-settings-change.ts).
  */
 import type { SchemaSet } from "../shared/schema-sets";
-import { DAY_MS, MIN_MS } from "../shared/time";
+import { DAY_MS, MIN_MS, WEEK_MS } from "../shared/time";
 import type { AskAnswer } from "./ask-answer";
 import type { AskCitation } from "./citations";
 import type { ProposalNeeds } from "../ask-proposals/spec";
@@ -26,6 +27,9 @@ import { parsePipelineRoute } from "../deals/pipeline/pipeline-views";
 import { pipelinePersonOf } from "../deals/pipeline/pipeline-vm";
 import type { AskLanguage } from "./ask-language";
 import type { ReachOutChainDto } from "../reach-out/reach-out-dtos";
+import type { TemplateStatus } from "../shared/enums";
+import type { VersionChannel } from "../templates/message-versions";
+import type { TemplateCategoryChoice } from "../templates/templates";
 
 /* ------------------------------------------------------------------ limits */
 
@@ -35,6 +39,11 @@ export const ASK_MAX_CHARS = 1000;
 export const ASK_MAX_ROUNDS = 3;
 /** End to end, under the route's sixty-second ceiling. */
 export const ASK_TURN_BUDGET_MS = 45_000;
+/**
+ * The most the owner's tools block may be, in characters as the model is sent it (66,050 on 11 October 2026; 70,426 on
+ * 12 October, after the review of Ask's campaign cards, its reads and its plan).
+ */
+export const ASK_TOOLS_CHARS_CEILING = 72_000;
 /**
  * The longest the voice door lets pass with nothing speakable sent: ElevenLabs cuts a custom LLM whose stream goes
  * quiet for 15 s (its ceiling) and asks again, so while the model is quiet the door sends the vendor's own buffer words
@@ -179,7 +188,8 @@ export interface AskProposal {
     | "list"
     | "run"
     | "playbook_channels"
-    | "playbook_change";
+    | "playbook_change"
+    | "message";
   /** The lowest role that may commit it, its spec's (ask-proposals/); the route re-checks on Approve. */
   needs: ProposalNeeds;
   title: string;
@@ -200,8 +210,25 @@ export interface AskProposal {
    * Absent on a card made before this, which is not held to it.
    */
   made_at?: string;
+  /** The plan the card is a step of, where Ask's plan made it (AskPlanStamp); absent on a card of no plan. */
+  plan?: AskPlanStamp;
   /** Set once the person acted on the card. */
   outcome?: AskProposalOutcome | null;
+}
+
+/**
+ * A card's place in a plan of Ask's (the marketing manager's spec §5.4): the plan's id, which step of how many it is,
+ * and whether it sends nothing (silent: approved with the plan's other silent steps, commit.ts commitPlan) or is a send,
+ * its own press. A step's commit goes under the step's key (`plan:<id>:<step>`), whichever way it is pressed, so the
+ * plan pressed twice makes nothing twice; and a token in its payload (`@step:n`) is filled with what step n made. `after`
+ * is the steps a send waits for (contracts PlanStep.after: every silent step), none for a silent one.
+ */
+export interface AskPlanStamp {
+  id: string;
+  step: number;
+  of: number;
+  silent: boolean;
+  after: number[];
 }
 
 /** What became of a card, kept with the turn that proposed it. */
@@ -212,6 +239,12 @@ export interface AskProposalOutcome {
   atMs: number;
   /** What Undo needs, when the verb has one: an id, a previous value. */
   undo?: Record<string, unknown> | null;
+  /**
+   * What the commit made that a later step of its plan names by its token (commit.ts CommitResult.made): kept with the
+   * outcome so a plan's made is read back after a reload (planMadeOf). Null, or absent on an outcome saved before, where
+   * it made nothing a token names.
+   */
+  made?: { kind: string; id: string } | null;
 }
 
 /** How long a committed card's undo stays open, for every verb whose route sets no window of its own (askUndoOpen). */
@@ -219,15 +252,21 @@ export const ASK_UNDO_MS = 10 * 60_000;
 
 /** How long a card may be approved after it was made: a day. Past it, it is asked for again and made from what is true then. */
 const ASK_CARD_FRESH_MS = DAY_MS;
+/**
+ * How long a plan's card may be approved: a week. A plan's send is set ahead (an offer's first day, at ten) and its
+ * steps wait for one another, so a plan made on Monday for Friday is still approved on Thursday.
+ */
+const ASK_PLAN_FRESH_MS = WEEK_MS;
 
 /**
  * Whether a card is too old to approve. A card left in a thread was approved days later against the list, the thread
  * or the setting as it stood when it was proposed: a three-day-old broadcast card sent to today's audience under
- * Monday's count. False for a card that does not say when it was made, or says it unreadably: nothing is refused on a guess.
+ * Monday's count. A plan's card has a week (ASK_PLAN_FRESH_MS), any other a day. False for a card that does not say when
+ * it was made, or says it unreadably: nothing is refused on a guess.
  */
-export function askCardLapsed(p: Pick<AskProposal, "made_at">, nowMs: number): boolean {
+export function askCardLapsed(p: Pick<AskProposal, "made_at" | "plan">, nowMs: number): boolean {
   const made = typeof p.made_at === "string" ? Date.parse(p.made_at) : NaN;
-  return Number.isFinite(made) && nowMs - made > ASK_CARD_FRESH_MS;
+  return Number.isFinite(made) && nowMs - made > (p.plan ? ASK_PLAN_FRESH_MS : ASK_CARD_FRESH_MS);
 }
 
 export interface AskMessageVM {
@@ -391,3 +430,21 @@ export const ASK_SURFACES = [
   "other",
 ] as const;
 export type AskSurface = (typeof ASK_SURFACES)[number];
+
+/* ------------------------------------------------------------ what Ask reads */
+
+/**
+ * One message of the library as campaigns with action messages reads it (the dashboard's readers/templates.ts
+ * messageReadsOf), and what a plan of Ask's is checked against: a name in a language, its category as a send judges a
+ * yes (an authentication message is a utility one), each version on its channel with its row's status (a WhatsApp
+ * version still in Meta's review among them; an email's or a text's is written approved), the numbered values it fills
+ * with what each is called and most likely takes, and the campaigns that send it by name.
+ */
+export interface MessageRead {
+  name: string;
+  language: string;
+  category: TemplateCategoryChoice;
+  versions: { channel: VersionChannel; id: string; state: TemplateStatus }[];
+  slots: { position: number; label: string; kind: string }[];
+  used_by: { id: string; name: string }[];
+}

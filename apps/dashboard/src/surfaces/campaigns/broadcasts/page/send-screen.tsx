@@ -12,12 +12,14 @@
 import type { ReactNode } from "react";
 import {
   CAMPAIGN_ROOMS,
+  HEARD_UNREAD_WORDS,
   LIFECYCLE_WORDS,
   LIST_GROUP_WORDS,
   NO_TEMPLATE_WORDS,
   PREVIEW_WORDS,
   STARTER_LINE_WORDS,
   allowanceBeforeSend,
+  heardTooWords,
   heldBackWords,
   messageHolds,
   monthSentAt,
@@ -32,6 +34,7 @@ import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { Picker } from "../../../kit/picker/picker";
+import { Switch } from "../../../kit/switch/switch";
 import { UnsavedAsk } from "../../../kit/record/work";
 import { gate, gateTitle, routeDoor } from "../../../legacy-verbs";
 import { MessagePreview, PreviewStepper } from "../../parts/message-preview";
@@ -53,9 +56,10 @@ import type { BcV } from "./types";
 import { BC_SAYS, BC_TEXT, bcLangWords, bcTitle } from "./words";
 
 // What the reach line opens under the people held back (page/audience.tsx BcHeldBox): who said yes, the rules every send
-// keeps (who is held back at the wire, how many go at a time), what an offer needs, and how many heard from a run this week.
+// keeps (who is held back at the wire, how many go at a time), and what an offer needs. Who hears from you within a week
+// of the send is said under the reach line itself, with its switch (bcHeard).
 function bcWhoNotes(v: BcV) {
-  const { data, active, yesWords, purpose, sample, on } = v;
+  const { data, active, yesWords, purpose, on } = v;
   return (
     <>
       <div className="bc-meta">
@@ -75,14 +79,42 @@ function bcWhoNotes(v: BcV) {
           {offersNote(cmReadyOf(data.ready))}
         </div>
       )}
-      {/* Who of these already heard from a run this week: a send by hand is not held back by the week a playbook
-                waits, so the owner is told here, before it goes (contracts heardWords). */}
-      {active && sample && sample.heard > 0 && (
-        <div className="bc-excl-hint" data-testid="bc-heard">
-          {broadcasts.heardWords(sample.heard)}
-        </div>
-      )}
     </>
+  );
+}
+
+// Who of those it reaches hear from a campaign or a broadcast within a week of it, before or after: the send leaves them
+// out, as the route skips them (the week's breath), and the kit's switch beside it, off, sends to them too (contracts
+// heardWords, heardTooWords). Said on its own line under the reach line, where the count it changes is ("1 of 3 can hear
+// it"), and only where somebody does: the switch is the owner's to see, never behind the line's press. Where who hears
+// could not be read, the line says the send still leaves them out (contracts HEARD_UNREAD_WORDS), and there is nobody to
+// switch.
+function bcHeard(v: BcV) {
+  const { active, heard, breathe, setHeardToo, data } = v;
+  if (active && data.heardRead === false)
+    return (
+      <div className="cm-reach-line" data-testid="bc-heard-unread">
+        <span className="cm-reach-press">{HEARD_UNREAD_WORDS}</span>
+      </div>
+    );
+  if (!active || heard <= 0) return null;
+  return (
+    <div className="cm-reach-line" data-testid="bc-heard-line">
+      <span className="cm-reach-press" data-testid="bc-heard">
+        {broadcasts.heardWords(heard, breathe)}
+      </span>{" "}
+      <span className="cm-reach-press">
+        <Switch
+          labelledBy="bc-heard-too-word"
+          checked={!breathe}
+          onCheckedChange={(on) => setHeardToo(on)}
+          data-testid="bc-heard-too"
+        />
+        <span id="bc-heard-too-word" data-testid="bc-heard-too-word">
+          {heardTooWords(heard)}
+        </span>
+      </span>
+    </div>
   );
 }
 
@@ -100,12 +132,12 @@ function bcCallout(testid: string, glyph: string, words: ReactNode) {
 // cannot carry the list, the month's emails or texts running out (contracts allowanceBeforeSend; a broadcast is held at
 // it), and nobody to send it to -- with the door to where their yes is got.
 function bcCallouts(v: BcV) {
-  const { active, overLimit, number, activeCount, canSend, noNumber, yesDoor, on, purpose, sample, data, goesAt } = v;
+  const { active, overLimit, number, activeCount, leftOut, canSend, noNumber, yesDoor, on, purpose, split } = v;
+  const { data, goesAt } = v;
   // The month the send is set to go in, not the month it is made in: one set for the 1st, made on the 28th, counts against the new month.
+  // Of who it sends to, by channel: a person it leaves out is sent nothing, and counts against no month.
   const allowance =
-    active && sample && sample.split
-      ? allowanceBeforeSend(sample.split.byChannel, monthSentAt(data, goesAt), null, purpose)
-      : null;
+    active && split ? allowanceBeforeSend(split.byChannel, monthSentAt(data, goesAt), null, purpose) : null;
   return (
     <>
       {data.listsRead === false && (
@@ -130,10 +162,12 @@ function bcCallouts(v: BcV) {
           </>,
         )}
       {/* Where no channel is ticked the foot says so, by the act it stops: said here too, it was the same sentence twice
-          in one screen (Ruben, 10 Oct 2026). */}
+          in one screen (Ruben, 10 Oct 2026). Nobody it reaches, not everyone left out: that is the heard line's, with its
+          switch, and the foot's. */}
       {canSend &&
         active &&
         activeCount === 0 &&
+        leftOut === 0 &&
         on.length > 0 &&
         bcCallout(
           "bc-nobody",
@@ -185,13 +219,18 @@ function bcGroups(v: BcV) {
 }
 
 // The message it sends, a word of the sentence, one entry per message whatever languages it has (the language is its
-// own word, under the preview), and, where the library holds what cannot go on the wire, why that is not offered.
+// own word, under the preview), and, where the library holds what cannot go on the wire, why that is not offered. Each
+// message's first words fill the review link as the listing keeps it, as they fill the booking link.
 function bcMessageWord(v: BcV) {
-  const { templates, tpl, setTplId, data, link, offered } = v;
+  const { templates, tpl, setTplId, data, link, review, offered } = v;
   if (templates.length === 0) return <>a message</>;
   const { groups, group } = bcGroups(v);
   const lang = tpl ? tpl.language : null;
-  const own = { business_name: data.businessName, booking_link: link ? "your booking link" : null };
+  const own = {
+    business_name: data.businessName,
+    booking_link: link ? "your booking link" : null,
+    review_link: review ? "your review link" : null,
+  };
   return (
     <Picker
       label="The message it sends"
@@ -227,11 +266,12 @@ function bcMessageWord(v: BcV) {
 }
 
 // The channels it goes by, a word of the sentence that opens their switches (parts/send-by.tsx CmViaWord), each with how
-// many of the list it reaches there. What is on is worked out in page/reach.ts; pressing one starts from what is on, so a
-// channel that was only ticked and never open is let go.
+// many of the list it sends to there: those it leaves out for the week's breath taken off theirs (`split`, contracts
+// reachAfterBreath), as every number beside the count is. What is on is worked out in page/reach.ts; pressing one starts
+// from what is on, so a channel that was only ticked and never open is let go.
 function bcViaWord(v: BcV) {
-  const { ticks, on, setChannels, data, sample } = v;
-  const by = sample && sample.split ? sample.split.byChannel : null;
+  const { ticks, on, setChannels, data, split } = v;
+  const by = split ? split.byChannel : null;
   const counts = by
     ? Object.fromEntries(Object.entries(by).map(([c, n]) => [c, PREVIEW_WORDS.people(Number(n) || 0)]))
     : undefined;
@@ -260,8 +300,11 @@ function bcRecipe(v: BcV) {
 
 // Who it reaches, the one line under the sentence (parts/reach.tsx CmReachLine): "14 of 18 can hear it · 4 never said
 // yes", opening who is held back and why, every name a press that walks the bubble to them, with what the To row said.
+// The count is who it sends to: those it leaves out for the week's breath are out of it and in the list's whole ("1 of 3
+// can hear it"), said on the line under it with their switch (bcHeard); the channel clause and the bar are of who it
+// sends to (`split`, contracts reachAfterBreath), as the count is.
 function bcReach(v: BcV) {
-  const { active, sample, people, setWho, activeCount, heldLines, reachBy, yesLink } = v;
+  const { active, sample, people, setWho, activeCount, leftOut, split, heldLines, reachBy, yesLink } = v;
   if (!active) return null;
   const held = sample ? sample.held : 0;
   const first = heldLines[0] ? `${heldLines[0].n} ${heldLines[0].words}` : held > 0 ? `${held} held back` : null;
@@ -269,11 +312,11 @@ function bcReach(v: BcV) {
     <CmReachLine
       will={activeCount}
       // A list read before its people were kept has no pool to say: the count alone, never "All".
-      pool={sample ? activeCount + held : null}
+      pool={sample ? activeCount + held + leftOut : null}
       of={`on “${active.label}”`}
       first={first}
       by={reachBy}
-      split={sample ? sample.split : null}
+      split={split}
       box={
         <BcHeldBox
           sample={sample}
@@ -487,6 +530,9 @@ function bcNewTemplate(v: BcV) {
     composing && (
       <TemplateComposer
         businessName={data.businessName}
+        // Its starters by the review link the page's own surface read (GET settings' review_link, through the broadcasts
+        // surface), so the review ask is offered here with Settings never opened in this tab.
+        reviewLink={data.reviewLink}
         onCancel={() => setComposing(false)}
         onDone={(made) => {
           setComposing(false);
@@ -506,7 +552,9 @@ function bcNewTemplate(v: BcV) {
 // The send screen's foot: what keeps the send from going (the first thing, in one line), and the one act the sentence is
 // set up for, saying what it will do: "Send to 14 now", which asks before anything leaves, or once a time is picked
 // "Schedule for tomorrow at 9:00 AM" (Ruben, 11 Oct 2026: one send button; the time is chosen in the sentence's "now").
-// Cancel, and Escape, with something written: the one question first (UnsavedAsk), where the act was.
+// Cancel, and Escape, with something written: the one question first (UnsavedAsk), where the act was. The count the act
+// and its Confirm say is the reach line's: who it sends to at the time it goes, those the week's breath leaves out taken
+// off. Picking a time puts an open Confirm away (state.tsx useBcArmed), so Send now's count is always now's.
 function bcSendFoot(v: BcV) {
   const { data, canSend, armed, ready, say, whenAt, whenNote, submit, setArmed, active, activeCount } = v;
   const { tpl, busy, work, splitWords } = v;
@@ -618,6 +666,7 @@ export function bcComposerGlass(v: BcV) {
         {bcCallouts(v)}
         {bcRecipe(v)}
         {bcReach(v)}
+        {bcHeard(v)}
         {bcMessage(v)}
         {bcWhenLine(v)}
       </div>
