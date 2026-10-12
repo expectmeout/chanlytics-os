@@ -1995,8 +1995,9 @@ test("an offer asked for reads its journey and its Library before round 1, as a 
   const planReads = ['campaigns {"action":"journey"}', 'campaigns {"action":"messages"}'];
   for (const q of [
     "10% off colour all November",
-    // The eval's offer_november_colour.
-    "I want to offer 10% off colour all of November",
+    // The eval's offer_november_colour, and its must-never offer_no_offers_channel.
+    "I want to offer 10% off colour all next month",
+    "I want to offer 15% off everything next month",
     "For November, 10% off colour",
     "half price haircuts next Tuesday",
     "$20 off any appointment booked this week",

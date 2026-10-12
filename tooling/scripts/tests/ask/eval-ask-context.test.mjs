@@ -1335,6 +1335,12 @@ test("the cases fit their workspace and name the new reads (the review after the
       [["propose_campaign.change"], ["playbook_change"], { playbook_change: [field] }],
       id,
     );
+  // A case's days are said relative to the day it is asked ("next month"), never as a month or a date: an offer that
+  // starts on a day past is refused (contracts plan.ts offerDates, before its channels), and so is a change's last day
+  // (core untilOf), so a dated case would fail by construction once its day had passed. ("May" is English's verb too.)
+  const dated =
+    /\b(?:january|february|march|april|june|july|august|september|october|november|december|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b|\b\d{4}-\d{2}-\d{2}\b/i;
+  for (const c of CASES) for (const t of [c.text, c.then?.text]) assert.ok(!dated.test(t ?? ""), `${c.id}: ${t}`);
 });
 
 test("the case set: every surface has an on-page case, an off-page read and a decline; the focus, the scope and the foreign row", () => {
@@ -1568,18 +1574,19 @@ test("needs (a case's workspace): a case needing what EVAL_WORKSPACE_HAS does no
 });
 
 /** The nightly's workspace as its seed leaves it (e2e-workspace.mjs), in the cases' tokens, before the Win-back's seed. */
-const NIGHTLY = ["no_calendar", "no_offers_channel"];
+const NIGHTLY = ["no_calendar", "no_offers_channel", "no_offers_yes"];
 
 /** The offer's channels a workspace opens, by the rule an offer's plan reads (act/plan.ts planWorld). */
 const offerChannels = (ready) => channelChoices(ready, "marketing", "ours").filter((c) => c.channel !== "sms" && c.ok);
 
-test("needs, a channel an offer can go by: offers_channel (one channelChoices opens to an offer), offers_whatsapp (WhatsApp among them) and no_offers_channel (none) are tokens a case may name, as calendar and no_calendar are, and the runner lists and skips by them", () => {
+test("needs, a channel an offer can go by: offers_channel (one channelChoices opens to an offer), offers_whatsapp (WhatsApp among them) and no_offers_channel (none) are tokens a case may name, as calendar and no_calendar are, and so is no_offers_yes (nobody's yes to offers); the runner lists and skips by them", () => {
   const one = (id, needs) => ({ id, text: id, surface: "today", expect: { no_write: true }, needs });
   assert.deepEqual(
     pageProblems([
       one("offer", ["offers_yes", "offers_channel"]),
       one("send", ["offers_yes", "offers_whatsapp"]),
       one("none", ["no_offers_channel"]),
+      one("decline", ["no_offers_yes"]),
     ]),
     [],
   );
@@ -1588,6 +1595,11 @@ test("needs, a channel an offer can go by: offers_channel (one channelChoices op
     "skip offer (needs offers_yes, offers_channel)",
   );
   assert.equal(skipFor(one("none", ["no_offers_channel"]), NIGHTLY), null);
+  // A decline that rests on nobody's yes runs where nobody said yes, and is skipped where the offer cases run: there a
+  // send to everyone is rightly answered with a card, so the decline would fail by construction.
+  const decline = CASES.find((c) => c.id === "campaigns_decline");
+  assert.equal(skipFor(decline, NIGHTLY), null);
+  assert.equal(skipFor(decline, ["offers_yes", "offers_channel"]), "skip campaigns_decline (needs no_offers_yes)");
   // What each names, by the plan's own rule: a +1 WhatsApp number (Meta's pause on offers to US numbers) and no mailbox
   // open nothing, the nightly's workspace (no_offers_channel); a number outside +1 opens WhatsApp (offers_whatsapp).
   const ready = (number) =>
@@ -1601,11 +1613,15 @@ test("needs, a channel an offer can go by: offers_channel (one channelChoices op
     offerChannels(ready("+525550100142")).map((c) => c.channel),
     ["whatsapp"],
   );
-  // The runner itself, as the nightly's workspace runs it: the offer said as skipped, the one that names none listed.
+  // The runner itself, as the nightly's workspace runs it: the offer said as skipped, the ones that name none listed.
   const file = path.join(os.tmpdir(), `eval-ask-offers-${process.pid}.json`);
   writeFileSync(
     file,
-    JSON.stringify([one("offer", ["offers_yes", "offers_channel"]), one("none", ["no_offers_channel"])]),
+    JSON.stringify([
+      one("offer", ["offers_yes", "offers_channel"]),
+      one("none", ["no_offers_channel"]),
+      one("decline", ["no_offers_yes"]),
+    ]),
   );
   try {
     const env = { ...process.env, EVAL_WORKSPACE_HAS: NIGHTLY.join(",") };
@@ -1617,7 +1633,8 @@ test("needs, a channel an offer can go by: offers_channel (one channelChoices op
     assert.equal(run.status, 0, run.stderr);
     assert.match(run.stdout, /^skip offer \(needs offers_yes, offers_channel\)$/m);
     assert.match(run.stdout, /^none · today · needs no_offers_channel$/m);
-    assert.match(run.stdout, /^1 cases, 1 turns /m);
+    assert.match(run.stdout, /^decline · today · needs no_offers_yes$/m);
+    assert.match(run.stdout, /^2 cases, 2 turns /m);
   } finally {
     rmSync(file, { force: true });
   }

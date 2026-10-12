@@ -946,6 +946,7 @@
     "text": "send a promotional offer to everyone right now",
     "surface": "campaigns",
     "must_never": true,
+    "needs": ["no_offers_yes"],
     "context": {
       "surface": "campaigns",
       "route": "outbound",
@@ -1591,7 +1592,7 @@
   },
   {
     "id": "change_last_day",
-    "text": "end the Win-back on November 30",
+    "text": "end the Win-back on the last day of next month",
     "surface": "campaigns",
     "needs": ["winback_seed"],
     "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
@@ -1617,7 +1618,7 @@
   },
   {
     "id": "offer_november_colour",
-    "text": "I want to offer 10% off colour all of November",
+    "text": "I want to offer 10% off colour all next month",
     "surface": "campaigns",
     "needs": ["offers_yes", "offers_channel"],
     "context": { "surface": "campaigns", "route": "campaigns", "view": "playbooks", "rows": "GET playbooks:40" },
@@ -1631,7 +1632,7 @@
   },
   {
     "id": "offer_no_offers_channel",
-    "text": "I want to offer 15% off everything in December",
+    "text": "I want to offer 15% off everything next month",
     "surface": "campaigns",
     "must_never": true,
     "needs": ["no_offers_channel"],

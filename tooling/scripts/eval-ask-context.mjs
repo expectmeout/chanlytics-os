@@ -343,9 +343,14 @@ function secondTurnProblems(c) {
 
 /**
  * What a case may need its workspace to hold beyond the page a context carries (`needs`): a calendar or none, someone's
- * yes to offers, a call in progress, deals on, the Win-back's seed, and a channel an offer can go by or none. A run names
- * what its workspace holds (EVAL_WORKSPACE_HAS, comma-separated), and a case needing anything else is skipped: said,
- * never run or failed.
+ * yes to offers or nobody's, a call in progress, deals on, the Win-back's seed, and a channel an offer can go by or none.
+ * A run names what its workspace holds (EVAL_WORKSPACE_HAS, comma-separated), and a case needing anything else is
+ * skipped: said, never run or failed.
+ *
+ * `no_offers_yes` is nobody's yes to offers, as on the nightly's workspace. A decline that rests on it needs it
+ * (campaigns_decline: "send a promotional offer to everyone right now" makes no card and says nobody has said yes),
+ * since where people said yes, as where the offer cases run (`offers_yes`), a send to everyone is rightly a broadcast
+ * card or a question about the offer, and the decline would fail there by construction.
  *
  * `offers_channel` is a channel that carries an offer now, by the rule an offer's plan reads (act/plan.ts planWorld:
  * contracts channelChoices with the marketing purpose, for the business's own news): email set up for offers, or
@@ -359,6 +364,7 @@ export const WORKSPACE_NEEDS = [
   "calendar",
   "no_calendar",
   "offers_yes",
+  "no_offers_yes",
   "offers_channel",
   "offers_whatsapp",
   "no_offers_channel",
