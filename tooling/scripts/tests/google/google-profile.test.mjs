@@ -924,6 +924,24 @@ const connected = (over = {}) => ({
   ...over,
 });
 
+/**
+ * The account's locations as Google lists them (accounts/1): another location first, then the one `connected()` is bound
+ * to (locations/1), its metadata `meta`. A review link is `meta.newReviewUri`.
+ */
+const boundLocation = (meta = {}) => ({
+  status: 200,
+  body: JSON.stringify({
+    locations: [
+      {
+        name: "locations/2",
+        title: "Ada's Uptown",
+        metadata: { placeId: "p2", newReviewUri: "https://example.com/review/ada-uptown" },
+      },
+      { name: "locations/1", title: "Ada's Downtown", metadata: { placeId: "p1", ...meta } },
+    ],
+  }),
+});
+
 test("a re-connect whose vault write fails puts the working connection back, instead of deleting it", () =>
   withOAuthEnv(async () => {
     const { connectProfile } = await import("../../../../apps/edge/lib/google/profile-connection.ts");
@@ -1182,6 +1200,8 @@ test("a sync that ANSWERS reviews stays inside the injected transport too", () =
       if (req.url.includes("/token")) return { status: 200, body: grantBody("sub-1", "ada@example.com") };
       if (req.url.includes("/reviews"))
         return { status: 200, body: JSON.stringify({ reviews: [], averageRating: 4.5, totalReviewCount: 2 }) };
+      // The sync reads the bound location again for its review link (00408).
+      if (req.url.includes("/locations")) return boundLocation();
       throw new Error(`unexpected call: ${req.url}`);
     };
     const conn = connected({ last_synced_at: "2026-09-11T00:00:00Z", connected_at: "2026-08-01T00:00:00Z" });
@@ -1279,6 +1299,7 @@ test("REGRESSION (review H:0): a paused or ended workspace, or one whose plan st
         if (req.url.includes("/token")) return { status: 200, body: grantBody("sub-1", "ada@example.com") };
         if (req.url.includes("/reviews"))
           return { status: 200, body: JSON.stringify({ reviews: [], averageRating: 4.5, totalReviewCount: 2 }) };
+        if (req.url.includes("/locations")) return boundLocation();
         throw new Error(`unexpected call: ${req.url}`);
       };
       const conn = connected({ last_synced_at: "2026-09-11T00:00:00Z", connected_at: "2026-08-01T00:00:00Z" });
@@ -1354,6 +1375,172 @@ test("REGRESSION (review H:0): a paused or ended workspace, or one whose plan st
       assert.equal(await run(world), 1, `${why}: the sync reads its reviews and answers none`);
     }
   }));
+
+/* ---- the review link (00408): every sync reads the bound location again, and keeps its link as the bind does ---- */
+
+const REVIEW_LINK = "https://search.google.com/local/writereview?placeid=p1";
+
+/** What the edge's logger wrote while `run` ran: lib/log.ts writes one JSON object a line to the console. */
+async function logged(run) {
+  const lines = [];
+  const keep = (line) => {
+    try {
+      lines.push(JSON.parse(line));
+    } catch {
+      /* not one of ours */
+    }
+  };
+  const real = { log: console.log, warn: console.warn, error: console.error };
+  console.log = keep;
+  console.warn = keep;
+  console.error = keep;
+  try {
+    return { result: await run(), lines };
+  } finally {
+    Object.assign(console, real);
+  }
+}
+
+/**
+ * One sync of a bound listing, last synced at `synced` (null: never, its first after the bind), its token fresh and its
+ * reviews read (none new, and no rating or count, so the listing's row is written for its link alone): the listing
+ * keeps `link` (undefined: never written, as a listing bound before 00408), the account's locations answer
+ * `locations`, the reviews `reviews`. What reached Google, what was written to the listing, the rows after, the answer
+ * and the log's events.
+ */
+async function syncTheLink({
+  link,
+  locations,
+  reviews = { status: 200, body: '{"reviews":[]}' },
+  faults = {},
+  synced = "2026-09-11T00:00:00Z",
+}) {
+  const { syncProfile } = await import("../../../../apps/edge/lib/google/profile-sync.ts");
+  const now = new Date("2026-09-12T00:00:00Z");
+  const seen = [];
+  const net = async (req) => {
+    seen.push(req.url);
+    if (req.url.includes("/reviews")) return reviews;
+    if (req.url.includes("/locations")) return locations;
+    throw new Error(`unexpected call: ${req.url}`);
+  };
+  const conn = connected({ last_synced_at: synced });
+  const tables = {
+    google_connections: [conn],
+    google_listings: [{ tenant_id: "t1", place_id: "p1", ...(link === undefined ? {} : { new_review_uri: link }) }],
+    google_listing_days: [],
+    google_reviews: [],
+  };
+  const db = fakeDb(tables, faults, {
+    get_google_credentials: () => ({
+      refresh_token: "rt",
+      access_token: "at",
+      expires_at: now.getTime() + 3_600_000,
+      scope: "https://www.googleapis.com/auth/business.manage",
+    }),
+  });
+  const { result, lines } = await withOAuthEnv(() => logged(() => syncProfile(db, conn, "America/New_York", now, net)));
+  return {
+    r: result,
+    asked: seen.filter((u) => u.includes("/locations") && !u.includes("/reviews")),
+    written: db.seen.filter((s) => s.table === "google_listings" && s.op !== "select").map((s) => s.values),
+    listing: tables.google_listings[0],
+    connection: tables.google_connections[0],
+    events: lines.map((l) => l.event).filter((e) => e.startsWith("google_review_link")),
+  };
+}
+
+test("a sync gives a listing bound before 00408 the review link of the location it is bound to, through the injected transport", async () => {
+  const s = await syncTheLink({ link: undefined, locations: boundLocation({ newReviewUri: REVIEW_LINK }) });
+  assert.equal(s.r.ok, true, JSON.stringify(s.r));
+  assert.equal(s.listing.new_review_uri, REVIEW_LINK, "its own location's link, never the other location's");
+  assert.equal(s.asked.length, 1, "the account's locations, read once");
+  assert.ok(s.asked[0].includes("/v1/accounts/1/locations?"), "the connection's own account, through `net`");
+  assert.deepEqual(s.written, [{ new_review_uri: REVIEW_LINK }], "the link alone is written");
+  assert.equal(s.connection.sync_error, null);
+  assert.deepEqual(s.events, []);
+});
+
+test("the link follows its location as a bind writes it: a new one replaces the old, and one the location no longer gives is cleared", async () => {
+  const moved = await syncTheLink({
+    link: "https://example.com/review/ada-before",
+    locations: boundLocation({ newReviewUri: REVIEW_LINK }),
+  });
+  assert.equal(moved.r.ok, true, JSON.stringify(moved.r));
+  assert.equal(moved.listing.new_review_uri, REVIEW_LINK, "Google's link now");
+
+  const gone = await syncTheLink({ link: REVIEW_LINK, locations: boundLocation() });
+  assert.equal(gone.r.ok, true, JSON.stringify(gone.r));
+  assert.equal(gone.listing.new_review_uri, null, "the location gives none now, so the listing keeps none");
+  assert.deepEqual(gone.written, [{ new_review_uri: null }]);
+  assert.deepEqual(gone.events, []);
+});
+
+test("a listing that already keeps its location's link is not written again", async () => {
+  for (const [why, link, meta] of [
+    ["the same link", REVIEW_LINK, { newReviewUri: REVIEW_LINK }],
+    ["none on either side", undefined, {}],
+  ]) {
+    const s = await syncTheLink({ link, locations: boundLocation(meta) });
+    assert.equal(s.r.ok, true, `${why}: ${JSON.stringify(s.r)}`);
+    assert.equal(s.asked.length, 1, `${why}: the location is read`);
+    assert.deepEqual(s.written, [], `${why}: nothing differs, so nothing is written`);
+    assert.deepEqual(s.events, [], why);
+  }
+});
+
+test("a locations read that fails, or lists no bound location, leaves the link as it is and the sync whole", async () => {
+  const elsewhere = {
+    status: 200,
+    body: JSON.stringify({ locations: [{ name: "locations/2", title: "Ada's Uptown", metadata: { placeId: "p2" } }] }),
+  };
+  for (const [why, locations] of [
+    ["Google refused the read", { status: 500, body: '{"error":{"message":"boom"}}' }],
+    ["the bound location is not among the account's", elsewhere],
+  ]) {
+    for (const link of [REVIEW_LINK, undefined]) {
+      const s = await syncTheLink({ link, locations });
+      const what = `${why}, ${link ? "a link on file" : "none on file"}`;
+      assert.equal(s.r.ok, true, `${what}: the reviews were synced (${JSON.stringify(s.r)})`);
+      assert.equal(s.listing.new_review_uri, link, `${what}: the link is left as it is, never nulled`);
+      assert.deepEqual(s.written, [], `${what}: nothing written`);
+      assert.equal(s.connection.sync_error, null, `${what}: no sync_error`);
+      assert.notEqual(s.connection.last_synced_at, "2026-09-11T00:00:00Z", `${what}: the sync is stamped`);
+      assert.deepEqual(s.events, ["google_review_link_read_failed"], `${what}: logged`);
+    }
+  }
+});
+
+test("a link write that fails is logged, and the sync still answers ok with no sync_error", async () => {
+  const s = await syncTheLink({
+    link: undefined,
+    locations: boundLocation({ newReviewUri: REVIEW_LINK }),
+    faults: { "google_listings.update": { code: "42501", message: "permission denied for table google_listings" } },
+  });
+  assert.equal(s.r.ok, true, JSON.stringify(s.r));
+  assert.equal(s.connection.sync_error, null);
+  assert.equal(s.listing.new_review_uri, undefined, "nothing was kept");
+  assert.deepEqual(s.events, ["google_review_link_write_failed"]);
+});
+
+test("the first sync after a bind reads no location again: the bind wrote the link from the read it had just made", async () => {
+  const s = await syncTheLink({ link: REVIEW_LINK, synced: null, locations: boundLocation() });
+  assert.equal(s.r.ok, true, JSON.stringify(s.r));
+  assert.deepEqual(s.asked, [], "a connect reads the locations once, for the bind");
+  assert.equal(s.listing.new_review_uri, REVIEW_LINK, "the bind's link stands");
+  assert.deepEqual(s.written, []);
+});
+
+test("a sync whose reviews could not be read asks Google for no location", async () => {
+  const s = await syncTheLink({
+    link: undefined,
+    locations: boundLocation({ newReviewUri: REVIEW_LINK }),
+    reviews: { status: 500, body: '{"error":{"message":"boom"}}' },
+  });
+  assert.equal(s.r.ok, false);
+  assert.deepEqual(s.asked, [], "the link is read only after the reviews were");
+  assert.deepEqual(s.written, []);
+});
 
 /**
  * Vault's two credential doors as 00364 writes them, over one secret: a write that names the refresh token it read

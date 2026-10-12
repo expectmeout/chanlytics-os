@@ -24748,7 +24748,7 @@ COMMENT ON TABLE public.google_listings IS 'A workspace''s business on Google Ma
 -- Name: COLUMN google_listings.new_review_uri; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.google_listings.new_review_uri IS 'Where a customer leaves this business a review on Google: the bound Business Profile location''s newReviewUri, null until one is bound or when the place was linked by the public read. Filled into a message''s review_link slot.';
+COMMENT ON COLUMN public.google_listings.new_review_uri IS 'Where a customer leaves this business a review on Google: the bound Business Profile location''s newReviewUri, written when the location is bound and again by each later sync of the profile where it differs (null where the location gives none); null until one is bound, or when the place was linked by the public read. Filled into a message''s review_link slot.';
 
 
 --

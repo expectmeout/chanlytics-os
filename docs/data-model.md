@@ -1067,7 +1067,7 @@ A workspace's business on Google Maps, as the public listing says it: the place,
 | `facts` | jsonb | no | `'{}'::jsonb` |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
-| `new_review_uri` | text | yes |  | Where a customer leaves this business a review on Google: the bound Business Profile location's newReviewUri, null until one is bound or when the place was linked by the public read. Filled into a message's review_link slot. |
+| `new_review_uri` | text | yes |  | Where a customer leaves this business a review on Google: the bound Business Profile location's newReviewUri, written when the location is bound and again by each later sync of the profile where it differs (null where the location gives none); null until one is bound, or when the place was linked by the public read. Filled into a message's review_link slot. |
 
 Foreign keys:
 

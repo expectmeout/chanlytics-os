@@ -211,6 +211,8 @@ export const LOG_EVENTS = [
   "google_replied",
   "google_review_draft_failed",
   "google_review_drafted",
+  "google_review_link_read_failed",
+  "google_review_link_write_failed",
   "google_sweep",
   "google_sweep_failed",
   "google_sweep_over_budget",

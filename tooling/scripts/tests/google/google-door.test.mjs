@@ -1524,6 +1524,7 @@ test("refresh with the profile connected syncs it as the owner -- the expired to
       return { status: 200, body: { access_token: "at-new", expires_in: 3600, scope: SCOPE, token_type: "Bearer" } };
     if (u === REVIEWS_URL("accounts/111", "222"))
       return { status: 200, body: { reviews: [NEW, GBP_REVIEW], averageRating: 4.8, totalReviewCount: 2 } };
+    if (u === LOCATIONS_URL("accounts/111")) return { status: 200, body: { locations: [LOC] } };
     throw new Error(`unexpected ${req.method} ${req.url}`);
   });
   const t0 = Date.now();
@@ -1542,8 +1543,14 @@ test("refresh with the profile connected syncs it as the owner -- the expired to
     [
       ["POST", TOKEN_URL],
       ["GET", REVIEWS_URL("accounts/111", "222")],
+      ["GET", LOCATIONS_URL("accounts/111")],
     ],
-    "a token first, then the reviews as the owner",
+    "a token first, then the reviews as the owner, then the bound location again for its review link",
+  );
+  assert.equal(
+    tables.google_listings[0].new_review_uri,
+    LOC.metadata.newReviewUri,
+    "a listing bound before 00408 has its review link at the owner's Sync now",
   );
   assert.equal(net.calls[1].headers.Authorization, "Bearer at-new");
   assert.deepEqual(
@@ -1596,6 +1603,7 @@ test("refresh with the profile connected syncs it as the owner -- the expired to
         status: 200,
         body: { reviews: [GBP_REVIEW], averageRating: 4.8, totalReviewCount: 900, nextPageToken: "more" },
       };
+    if (u === LOCATIONS_URL("accounts/111")) return { status: 200, body: { locations: [LOC] } };
     throw new Error(`unexpected ${req.method} ${req.url}`);
   });
   const [s3] = await answer(await knock({ op: "refresh" }));

@@ -1,14 +1,15 @@
 /**
  * A connected profile synced: every review of its location read, decided
  * against what is on record (packages/channels google-sync.ts), written and
- * told, and under the auto mode the new ones answered (review-answers.ts).
+ * told, the listing's review link read again from its location (00408), and
+ * under the auto mode the new ones answered (review-answers.ts).
  * The hourly sweep, "Check now" and a location's bind call it.
  */
-import { emitEvent } from "../packages/db.js";
-import { listReviews, planProfileSync, reviewParent, type PlacesHttp } from "../packages/channels.js";
+import { emitEvent, reviewLinkOf, type Database } from "../packages/db.js";
+import { listLocations, listReviews, planProfileSync, reviewParent, type PlacesHttp } from "../packages/channels.js";
 import { autoReplyBell, lensRoute, localDate, type EdgeRefusal } from "../packages/contracts.js";
 import { keepAndPush, recordNotification } from "../ops/notify.js";
-import { logger } from "../log.js";
+import { errField, logger, type Logger } from "../log.js";
 import { readAllRows } from "../paged.js";
 import { http } from "./places.js";
 import type { ConnectionRow, Db } from "./google-rows.js";
@@ -40,12 +41,53 @@ async function letReviewsGo(
 const aboutOne = (answered: ReadonlyArray<{ id: string }>): { type: string; id: string } | null =>
   answered.length === 1 && answered[0] ? { type: "review", id: answered[0].id } : null;
 
+/** The workspace's listing, changed in place: what a sync read of the rating and the count, or the review link. */
+const changeListing = (db: Db, tenantId: string, set: Database["public"]["Tables"]["google_listings"]["Update"]) =>
+  db.from("google_listings").update(set).eq("tenant_id", tenantId);
+
+/**
+ * The listing's review link (00408) as its bound location gives it now. The bind wrote it from the location it bound
+ * (profile-connection.ts); every sync after the first reads that location again with the same reader (channels
+ * listLocations, its `new_review_uri`) and writes it as the bind does, null where the location gives none, wherever it
+ * differs from what the listing keeps (db reviewLinkOf). So a listing bound before 00408 has its link from its next
+ * sync (the card's "Sync now" at once), and one whose location Google gives another link, or none, follows it. A read
+ * that fails, or that does not list the bound location, leaves the link as it is, and so does a write that fails: each
+ * is logged, and neither fails the sync or reaches its `sync_error`.
+ */
+async function keepReviewLink(
+  db: Db,
+  conn: ConnectionRow,
+  sync: { token: string; first: boolean; net: PlacesHttp; L: Logger },
+): Promise<void> {
+  const { token, net, L } = sync;
+  // The first sync follows the bind, which wrote the link from the location it had just read.
+  if (sync.first) return;
+  let link: string | null;
+  try {
+    const bound = (await listLocations(net, token, conn.account_name)).find((l) => l.name === conn.location_name);
+    if (!bound) throw new Error(`${conn.location_name} is not among the locations of ${conn.account_name}`);
+    if (bound.new_review_uri === (await reviewLinkOf(db, conn.tenant_id))) return;
+    link = bound.new_review_uri;
+  } catch (e) {
+    L.warn("google_review_link_read_failed", { error: errField(e) });
+    return;
+  }
+  try {
+    const { error } = await changeListing(db, conn.tenant_id, { new_review_uri: link });
+    if (error) throw new Error(error.message);
+  } catch (e) {
+    L.warn("google_review_link_write_failed", { error: errField(e) });
+  }
+}
+
 /**
  * Every review of the connected location, decided against what is on
  * record, written, and told. The first sync replaces the five the public
  * listing showed — their ids are the public listing's, not the profile's —
  * and is history: it raises nothing. A failed sync leaves its words on the
- * connection and is tried again next hour.
+ * connection and is tried again next hour. A sync after the first, once the
+ * reviews are kept, reads the listing's review link again from its location
+ * (keepReviewLink), which never fails it.
  */
 export async function syncProfile(
   db: Db,
@@ -128,7 +170,7 @@ export async function syncProfile(
   }
   if (plan.prune) await letReviewsGo(db, conn.tenant_id, "profile", plan.synced_at);
   if (plan.listing) {
-    const l = await db.from("google_listings").update(plan.listing).eq("tenant_id", conn.tenant_id);
+    const l = await changeListing(db, conn.tenant_id, plan.listing);
     if (l.error) throw new Error(l.error.message);
   }
   if (plan.day) {
@@ -142,6 +184,7 @@ export async function syncProfile(
     .update({ last_synced_at: plan.synced_at, sync_error: null, reviews_complete: plan.complete })
     .eq("tenant_id", conn.tenant_id);
   if (done.error) throw new Error(done.error.message);
+  await keepReviewLink(db, conn, { token: t.token, first, net, L });
   // A new review reaches the phones too (decision 0040); what the receptionist answered is the bell's line alone.
   for (const b of plan.bells) {
     await keepAndPush(conn.tenant_id, {
