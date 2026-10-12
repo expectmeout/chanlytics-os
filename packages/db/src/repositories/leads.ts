@@ -91,3 +91,106 @@ export async function readLeadOne(
   if (!lead || lead.tenant_id !== tenantId || lead.blanked_at || lead.erased_at || !member) return null;
   return { lead, member, places: places.count ?? 1 };
 }
+
+/* ------------------------------------------------- the ideas for a new search -- */
+
+/**
+ * What a workspace's searches found and what came of their leads, with where it is (lead_suggest_history, 00398): the
+ * jsonb as it comes, which contracts' ideaHistoryOf narrows. The service's read alone: the route checked the member.
+ */
+export async function readIdeaHistory(db: Db, tenantId: string): Promise<Json> {
+  const { data, error } = await db.rpc("lead_suggest_history", { p_tenant_id: tenantId });
+  if (error) throw new Error(`lead_suggest_history: ${error.message}`);
+  return data;
+}
+
+/** What a workspace's ideas are kept with (lead_suggestions_write, act keep). */
+export interface IdeasKept {
+  business_line: string;
+  by_owner: boolean;
+  items: Json;
+  basis: string | null;
+  passed: Json;
+}
+
+type IdeasWriteArgs = Database["public"]["Functions"]["lead_suggestions_write"]["Args"];
+
+/** The one writer of lead_suggestions (00400), by act; its answer as a record, or {} where it answered none. */
+async function writeIdeas(db: Db, args: IdeasWriteArgs): Promise<Record<string, Json | undefined>> {
+  const { data, error } = await db.rpc("lead_suggestions_write", args);
+  if (error) throw new Error(`lead_suggestions_write(${args.p_act}): ${error.message}`);
+  return data && typeof data === "object" && !Array.isArray(data) ? data : {};
+}
+
+/**
+ * The claim on writing a workspace's ideas (00398, 00400): the claim's own moment, which keepIdeas and failIdeas take
+ * back, or null while another read writes them.
+ */
+export async function claimIdeas(db: Db, tenantId: string, line: string): Promise<string | null> {
+  const got = await writeIdeas(db, { p_tenant_id: tenantId, p_act: "claim", p_line: line });
+  return typeof got.claim === "string" && got.claim ? got.claim : null;
+}
+
+/**
+ * Keeps the ideas written under a claim, while the claim stands (00399, 00400): false when it was let go meanwhile (the
+ * owner saved a line, or a slower write was taken over), and nothing is written.
+ */
+export async function keepIdeas(db: Db, tenantId: string, claim: string, row: IdeasKept): Promise<boolean> {
+  const got = await writeIdeas(db, {
+    p_tenant_id: tenantId,
+    p_act: "keep",
+    p_claim: claim,
+    p_line: row.business_line,
+    p_by_owner: row.by_owner,
+    p_items: row.items,
+    // A keep always has a basis ("" where no round has ended); null is the owner's line, saved apart.
+    p_basis: row.basis ?? "",
+    p_passed: row.passed,
+  });
+  return got.kept === true;
+}
+
+/** The model would not write them under this claim: the claim let go, and the next reads say so for a while. */
+export async function failIdeas(db: Db, tenantId: string, claim: string): Promise<void> {
+  await writeIdeas(db, { p_tenant_id: tenantId, p_act: "fail", p_claim: claim });
+}
+
+/**
+ * The owner's own words for what they do (00400, act line): kept with no ideas and no basis, so the next read asks
+ * again; the owner's word clears any claim, so a write in flight finds its claim gone.
+ */
+export async function saveIdeasLine(db: Db, tenantId: string, line: string): Promise<void> {
+  await writeIdeas(db, { p_tenant_id: tenantId, p_act: "line", p_line: line });
+}
+
+/**
+ * The workspace's clock and language as its row says them (tenants.timezone, tenants.locale), or null where the row
+ * cannot be read: the month the ideas' room is counted in, and the language they are written in (00399). Read on the
+ * member's session; the server's tenantFactsOf says the clock where the row says none.
+ */
+export async function ideasClockAndLanguage(
+  db: Db,
+  tenantId: string,
+): Promise<{ timezone: string | null; locale: string | null } | null> {
+  const { data, error } = await db.from("tenants").select("timezone, locale").eq("id", tenantId).maybeSingle();
+  if (error) throw new Error(`tenants: ${error.message}`);
+  return data;
+}
+
+/**
+ * When the workspace's newest round ended, or null when none has: what its ideas are written over (lead_suggestions.basis),
+ * so a round that ends since asks for new ones. Read on the member's session: rounds are a member's to read.
+ */
+export async function ideasBasis(db: Db, tenantId: string): Promise<string | null> {
+  const { data, error } = await db
+    .from("lead_rounds")
+    .select("ended_at")
+    .eq("tenant_id", tenantId)
+    .eq("state", "ended")
+    .not("ended_at", "is", null)
+    .order("ended_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`lead_rounds: ${error.message}`);
+  return data ? data.ended_at : null;
+}

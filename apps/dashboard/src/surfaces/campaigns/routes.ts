@@ -7,22 +7,86 @@
  * its rooms, Sent (the shell's `broadcasts`) and the Library (`messages`, the path's `templates`); the old Playbooks list,
  * `outbound`, lands on the home (contracts doorOf). Every crumb's first word, Campaigns, goes back to the home.
  */
-import { CAMPAIGN_ROOMS, LIFECYCLE_WORDS } from "@chanlytics/contracts";
+import {
+  ADS_ROUTE,
+  ADS_WORDS,
+  CAMPAIGN_ROOMS,
+  LIFECYCLE_WORDS,
+  isAdsParam,
+  parseAds,
+  templateTitle,
+} from "@chanlytics/contracts";
+import { adsShown } from "./ads/shown";
 import { surfaceValue } from "../surface-values";
+import type { SurfaceViews } from "../routes";
+// MOCKUP: the crumb names an ad the page has read (the store remembers them) until the wiring lane's surface holds real ones.
+import { adNameOf } from "./ads/crumb-names";
 import { parseHome } from "./home/address";
 
 /** A crumb: its words, and where it goes. */
 type Crumb = string | { label: string; to: string };
 
+/**
+ * Whether Ads is drawn: a demo session, or a workspace whose Ads preview is on (ads/shown.ts), from a sample, so nothing of it
+ * (its strip, its chrome, its page) reaches any other workspace. The frame draws a chrome in the browser, but a test reads one
+ * with no window.
+ */
+const inDemo = (): boolean => adsShown();
+
 /** Campaigns, the first crumb of every address: the way back to the home. */
 const CAMPAIGNS: Crumb = { label: CAMPAIGN_ROOMS.home, to: "campaigns" };
 
 /**
+ * Messages | Ads, Campaigns' two views, as the frame's strip draws them (the one Reports and People use): what goes out to
+ * people who have your number, and what you pay to show people who don't. Library and Sent are rooms of Messages and draw no
+ * strip, as before.
+ */
+function campaignsViews(picked: "messages" | "ads"): SurfaceViews {
+  return {
+    name: "campaigns",
+    label: ADS_WORDS.viewsLabel,
+    testid: "campaigns-views",
+    picked,
+    tabs: [
+      { id: "messages", label: ADS_WORDS.messagesTab, to: "campaigns", testid: "campaigns-view-messages" },
+      { id: "ads", label: ADS_WORDS.adsTab, to: ADS_ROUTE, testid: "campaigns-view-ads" },
+    ],
+  };
+}
+
+/** Ads' crumbs: Campaigns, then Ads, and under it the ad open in its drawer or the composer. One mount for every Ads address. */
+function adsChrome(param: string): { crumbs: Crumb[]; mount: string; act: null; views: SurfaceViews } {
+  const at = parseAds(param);
+  const ads = { label: ADS_WORDS.adsTab, to: ADS_ROUTE };
+  // An ad the page has not read (a link before it loaded) names none until the wiring lane's surface holds real ones.
+  const named = at.ad ? adNameOf(at.ad) : null;
+  return {
+    crumbs: named
+      ? [CAMPAIGNS, ads, named]
+      : at.compose
+        ? [CAMPAIGNS, ads, ADS_WORDS.newAd]
+        : [CAMPAIGNS, ADS_WORDS.adsTab],
+    mount: ADS_ROUTE,
+    act: null,
+    views: campaignsViews("ads"),
+  };
+}
+
+/**
  * The home's crumbs: `campaigns/moment:<id>` opens one playbook (or reach-out) in its drawer, named once the surfaces hold it,
  * and `campaigns/new` the composer. Every address is one mount, the page's own: a moment opening is no new page. A real
- * workspace's New message is the page's own, in its head; the top bar has no act.
+ * workspace's New message is the page's own, in its head; the top bar has no act. `campaigns/ads…` is the Ads view's, and
+ * so is the strip of Messages | Ads: a demo session's alone. A real workspace is given what it was before Ads, for every
+ * param (no `views`), and an `ads…` param is the home's.
  */
-export function campaignsChrome({ param }: { param: string | null }): { crumbs: Crumb[]; mount: string; act: null } {
+export function campaignsChrome({ param }: { param: string | null }): {
+  crumbs: Crumb[];
+  mount: string;
+  act: null;
+  views?: SurfaceViews;
+} {
+  const demo = inDemo();
+  if (demo && param && isAdsParam(param)) return adsChrome(param);
   const at = parseHome(param);
   const playbooks = surfaceValue("playbooks");
   const chains = surfaceValue("reach_outs");
@@ -40,13 +104,16 @@ export function campaignsChrome({ param }: { param: string | null }): { crumbs: 
   return {
     crumbs: named
       ? [CAMPAIGNS, named]
-      : edited
-        ? [CAMPAIGNS, edited]
-        : at.compose
-          ? [CAMPAIGNS, CAMPAIGN_ROOMS.newMessage]
-          : [CAMPAIGN_ROOMS.home],
+      : at.message
+        ? [CAMPAIGNS, templateTitle(at.message, null)]
+        : edited
+          ? [CAMPAIGNS, edited]
+          : at.compose
+            ? [CAMPAIGNS, CAMPAIGN_ROOMS.newMessage]
+            : [CAMPAIGN_ROOMS.home],
     mount: "campaigns",
     act: null,
+    ...(demo ? { views: campaignsViews("messages") } : {}),
   };
 }
 

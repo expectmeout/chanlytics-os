@@ -1,14 +1,23 @@
 /**
  * What a figure counts, and that the page says it (contracts metricWordsOf): every figure a report builds names a metric that
  * has words, the words that cite a window cite the constant the report counts by, each strip draws its figures with the words
- * over the label, and the Campaigns lens draws who said yes and who asked to stop, each with the period before beside it.
- * EXECUTED on the stub React over the one read the surface holds.
+ * over the label, and the Campaigns lens draws its five figures, who said yes and who asked to stop among them, each with the
+ * period before beside it. EXECUTED on the stub React over the reads the surfaces hold.
  */
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { installLegacyReact, fresh, all, byTestId, textOf, classes, find } from "../../_legacy-react.mjs";
-import { DEALS, campaignDto, cday, reviewsDto, reviewsGoogle, reviewsHeld, surface } from "../_report-world.mjs";
+import { DEALS, reviewsDto, reviewsGoogle, reviewsHeld, surface } from "../_report-world.mjs";
 import { ownHeld } from "../receptionist/_receptionist-world.mjs";
+import { dtoWith } from "../people/_people-world.mjs";
+import {
+  CAMPAIGNS,
+  CAMPAIGNS_QUIET,
+  NOW as CAMPAIGN_NOW,
+  QUIET,
+  dtoWith as ledgerWith,
+  held as campaignsHeld,
+} from "../campaigns/_campaign-world.mjs";
 
 installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 globalThis.window.fetch = async () =>
@@ -22,6 +31,9 @@ const {
   bookedTileOf,
   metricWordsOf,
   toGoogleVM,
+  toPeopleReportVM,
+  toCampaignLensVM,
+  toReachOutLensVM,
   toReceptionistReportVM,
   MISSED_CALL_TOUCH_WORDS,
   REPLY_WINDOW_WORDS,
@@ -73,6 +85,46 @@ const receptionistTiles = () => {
   };
   const vm = toReceptionistReportVM(dto, { nowMs: NOW });
   return [...vm.handover, vm.missed, vm.closed, ...vm.stuck];
+};
+/** The People lens's own figures (contracts reports/people/): the strip, what is stuck now and where the book stands. */
+const peopleTiles = () => {
+  const vm = toPeopleReportVM(dtoWith());
+  return [...vm.strip, ...vm.stuck, ...vm.stand];
+};
+/** The Campaigns lens's Reach-outs part (contracts reports/campaigns/reach-out-lens.ts): the strip of 40 emails to 25 businesses. */
+const reachOutTiles = () => {
+  const totals = {
+    written: 40,
+    delivered: 36,
+    bounced: 2,
+    businesses: 25,
+    wrote_back: 6,
+    interested: 3,
+    booked: 1,
+    said_no: 2,
+    handed: 0,
+  };
+  const dto = {
+    timezone: "America/New_York",
+    days: 7,
+    today: "2026-09-07",
+    since: "2026-09-01",
+    has_reach_out: true,
+    totals,
+    before: { written: 30, delivered: 27, bounced: 1 },
+    series: [],
+    chains: [],
+    angles: [],
+    other_angles: { written: 0, businesses: 0, wrote_back: 0 },
+    no_angle: 0,
+    domains: [],
+  };
+  return toReachOutLensVM(dto, NOW).strip;
+};
+/** The Campaigns lens's own figures (contracts reports/campaigns/campaign-lens.ts): the strip of five and what is stuck now. */
+const campaignTiles = () => {
+  const vm = toCampaignLensVM({ campaigns: CAMPAIGNS, ledger: ledgerWith(), reachOuts: undefined }, CAMPAIGN_NOW);
+  return [...vm.strip, ...vm.stuck];
 };
 /** A listing as the edge reads it (the shape of tests/google/google.test.mjs's own), with one review. */
 const GOOGLE = {
@@ -131,12 +183,13 @@ const held = reviewsHeld;
 const PUBLIC_LISTING = held(reviewsDto({ days: 7, google: GOOGLE, ledger: null }));
 /** Harbor Studio with its Business Profile synced: the reviews on record are counted. */
 const PROFILE_SYNCED = held(reviewsDto({ days: 7, google: reviewsGoogle() }));
-const draw = (lens, R, reviews = PUBLIC_LISTING, own = ownHeld()) => {
+const draw = (lens, R, reviews = PUBLIC_LISTING, own = ownHeld(), campaigns = campaignsHeld(ledgerWith(), "7d")) => {
   workspace();
   keepReportPeriod("7d");
   setSurfaceValue("reports", R);
   setSurfaceValue("reports_reviews", reviews);
   setSurfaceValue("reports_receptionist", own);
+  setSurfaceValue("reports_campaigns", campaigns);
   fresh();
   return ReportsPage({ pathname: `/w/harbor/reports${lens === "overview" ? "" : `/${lens}`}` });
 };
@@ -154,16 +207,18 @@ test("every figure the reports build names a metric that has words, and no two m
   const tiles = [
     ...R.vm.tiles,
     bookedTileOf(R.booking),
-    ...R.campaigns.tiles,
     ...toGoogleVM(GOOGLE, { days: 7, until: null }, NOW, "UTC").tiles,
     ...reviews.tiles,
     ...receptionistTiles(),
+    ...peopleTiles(),
+    ...reachOutTiles(),
+    ...campaignTiles(),
   ];
   const metrics = [...new Set(tiles.map((t) => t.metric))];
   assert.equal(
     metrics.length,
-    26,
-    "the receptionist's six, booked, the campaigns' five, Google's four, the three more the profile's reviews add and the seven the Receptionist lens's own read adds",
+    44,
+    "the receptionist's six, booked, Google's four, the three more the profile's reviews add, the seven the Receptionist lens's own read adds, the ten the People lens's own read adds (its New people is the Overview's), the three the Campaigns lens's reach-outs add and the ten its own read adds (people sent to, delivered, people who wrote back, said yes, asked to stop, and the five that are stuck now); the sends' old Messages sent and Replied tiles went on 11 Oct 2026 with the tiles nothing drew",
   );
   for (const m of metrics) {
     const words = metricWordsOf(m);
@@ -172,11 +227,10 @@ test("every figure the reports build names a metric that has words, and no two m
   assert.equal(new Set(metrics.map(metricWordsOf)).size, metrics.length, "each metric says what only it counts");
   // What sent them is a campaign to the owner reading over a figure, never a playbook (decision 19).
   for (const m of metrics) assert.doesNotMatch(metricWordsOf(m), /playbook/i, m);
-  assert.match(metricWordsOf("messages_sent"), /^Messages your broadcasts and campaign runs sent in this period/);
 });
 
 test("the words that cite a window cite the constant the report counts by, not a second spelling of it", () => {
-  assert.ok(metricWordsOf("replied_share").includes(REPLY_WINDOW_WORDS), REPLY_WINDOW_WORDS);
+  assert.ok(metricWordsOf("said_yes").includes(REPLY_WINDOW_WORDS), REPLY_WINDOW_WORDS);
   assert.ok(metricWordsOf("delivered_share").includes(DELIVERY_RECEIPTS_WORDS), DELIVERY_RECEIPTS_WORDS);
   assert.ok(metricWordsOf("missed_calls_answered").includes(MISSED_CALL_TOUCH_WORDS), MISSED_CALL_TOUCH_WORDS);
   // Said once and read twice, in the words the figure's own line uses ("under an hour old"): the definition, character for character.
@@ -217,6 +271,165 @@ test("the Receptionist lens's seven figures name a metric each, and each metric 
   assert.equal(new Set(ids.map(metricWordsOf)).size, ids.length, "each says what only it counts");
 });
 
+test("the People lens's ten figures name a metric each, and each metric says what is not counted", () => {
+  const ids = [
+    "people_reached",
+    "yeses_won",
+    "stops_recorded",
+    "steps_overdue",
+    "steps_due_today",
+    "email_stopped_now",
+    "said_yes_messages",
+    "can_receive_offers",
+    "opted_out_now",
+    "quiet_now",
+  ];
+  const vm = toPeopleReportVM(dtoWith());
+  assert.deepEqual(
+    [...vm.strip, ...vm.stuck, ...vm.stand].map((t) => t.metric),
+    [
+      "people_reached",
+      "new_people",
+      "yeses_won",
+      "stops_recorded",
+      "steps_overdue",
+      "steps_due_today",
+      "email_stopped_now",
+      "said_yes_messages",
+      "can_receive_offers",
+      "opted_out_now",
+      "quiet_now",
+    ],
+    "the figures, in the order the lens draws them; its second is the Overview's New people",
+  );
+  for (const id of ids) {
+    const words = metricWordsOf(id);
+    assert.match(words, /\bnot counted\b/, `${id}: says what is not counted`);
+    assert.ok(words.length > 80 && words.endsWith("."), `${id}: a sentence of words`);
+    assert.doesNotMatch(words, /playbook/i, id);
+  }
+  const every = [
+    ...ids,
+    "new_people",
+    "customer_messages",
+    "said_yes",
+    "asked_to_stop",
+    "waiting_on_you",
+    "call_backs",
+  ];
+  assert.equal(new Set(every.map(metricWordsOf)).size, every.length, "each says what only it counts");
+  // The two sides of the same day say it in different words, and the two people lists that overlap say what each leaves out.
+  assert.match(metricWordsOf("steps_overdue"), /a day before today/);
+  assert.match(metricWordsOf("steps_due_today"), /has today for its day/);
+  assert.match(
+    metricWordsOf("said_yes"),
+    /counted once in the period/,
+    "the Campaigns lens's yeses are a person each, once in the period",
+  );
+  assert.match(
+    metricWordsOf("yeses_won"),
+    /one for each person and each kind of message/,
+    "the People lens's are per person",
+  );
+  // Like people_reached, the answers are of live people only: the SQL leaves out an erased person and a merged-away record.
+  for (const id of ["people_reached", "yeses_won", "stops_recorded"]) {
+    assert.match(metricWordsOf(id), /asked to be forgotten/, `${id}: says an erased person is left out`);
+  }
+  for (const id of ["yeses_won", "stops_recorded"]) {
+    assert.match(metricWordsOf(id), /a record merged into another/, `${id}: says a merged-away record is left out`);
+  }
+});
+
+test("the Reach-outs part's three figures name a metric each, and each metric says what is not counted", () => {
+  const ids = ["emails_written", "emails_landed", "emails_bounced"];
+  assert.deepEqual(
+    reachOutTiles().map((t) => t.metric),
+    ids,
+    "the figures, in the order the part draws them",
+  );
+  for (const id of ids) {
+    const words = metricWordsOf(id);
+    assert.match(words, /\bnot counted\b/, `${id}: says what is not counted`);
+    assert.ok(words.length > 80 && words.endsWith("."), `${id}: a sentence of words`);
+    assert.doesNotMatch(words, /playbook/i, id);
+  }
+  assert.equal(new Set(ids.map(metricWordsOf)).size, ids.length, "each says what only it counts");
+  // An email is one that left, however many go to a business; a call or a note handed to you is not an email.
+  assert.match(metricWordsOf("emails_written"), /one for each email that left/);
+  assert.match(
+    metricWordsOf("emails_written"),
+    /A call or a note handed to you, and an email that never left, are not counted\.$/,
+  );
+  assert.match(metricWordsOf("emails_landed"), /An email with no receipt yet is not counted as delivered\.$/);
+  assert.match(metricWordsOf("emails_bounced"), /A complaint, and an email that is only late, are not counted\.$/);
+});
+
+test("the Campaigns lens's seven new figures name a metric each, each metric says what is not counted, and its yes and stop say the new window", () => {
+  const ids = [
+    "people_sent_to",
+    "people_wrote_back",
+    "runs_waiting",
+    "runs_failed",
+    "campaign_replies_waiting",
+    "templates_paused",
+    "number_health",
+  ];
+  assert.deepEqual(
+    campaignTiles().map((t) => t.metric),
+    [
+      "people_sent_to",
+      "delivered_share",
+      "people_wrote_back",
+      "said_yes",
+      "asked_to_stop",
+      "runs_waiting",
+      "runs_failed",
+      "campaign_replies_waiting",
+      "templates_paused",
+      "number_health",
+    ],
+    "the figures, in the order the lens draws them: the strip, then what is stuck now",
+  );
+  for (const id of ids) {
+    const words = metricWordsOf(id);
+    assert.match(words, /\bnot counted\b/, `${id}: says what is not counted`);
+    assert.ok(words.length > 80 && words.endsWith("."), `${id}: a sentence of words`);
+    assert.doesNotMatch(words, /playbook/i, id);
+  }
+  const every = [...ids, "delivered_share", "said_yes", "asked_to_stop"];
+  assert.equal(new Set(every.map(metricWordsOf)).size, every.length, "each says what only it counts");
+  assert.equal(
+    metricWordsOf("people_sent_to"),
+    "People a campaign or a broadcast sent a message to in this period, counted once however many it sent them. A person a run held back, a message that failed before it left and a reach-out's email are not counted.",
+  );
+  // The window it cites is the constant the report counts by.
+  assert.equal(
+    metricWordsOf("people_wrote_back"),
+    `Of the people sent a message in this period, how many answered in their own words ${REPLY_WINDOW_WORDS}, on any channel, counted once. A note the system wrote, an automatic reply, a booking tool's notice and an answer that came later are not counted; people sent to in the last 3 days may still answer.`,
+  );
+  // The yes and the stop of a campaign are a person once in the period, within the reply window of the message that reached them.
+  assert.equal(
+    metricWordsOf("said_yes"),
+    `People who said yes to being messaged ${REPLY_WINDOW_WORDS} of a campaign or a broadcast reaching them, in their own words or recorded at the desk, counted once in the period. A yes with no campaign before it, a merge restating an answer and a person who asked to be forgotten are not counted.`,
+  );
+  assert.equal(
+    metricWordsOf("asked_to_stop"),
+    `People who asked to stop being messaged ${REPLY_WINDOW_WORDS} of a campaign or a broadcast reaching them, by STOP, a carrier's report or at the desk, and for email by the unsubscribe in the message however late it is used, counted once in the period. A stop with no campaign before it, a merge restating an answer and a person who asked to be forgotten are not counted.`,
+  );
+  for (const id of ["said_yes", "asked_to_stop"])
+    assert.doesNotMatch(metricWordsOf(id), /once a day each/, `${id}: a person once in the period, not once a day`);
+  // What is stuck is as of now; the others are of the period.
+  for (const id of ids.slice(2)) assert.match(metricWordsOf(id), /as of now, whatever period is picked/, id);
+  // The stuck count of failed runs reads every kind of run, a reach-out's step among them (00406); the window's Runs that stopped
+  // leaves a reach-out's to its own part, and says so (campaign-lens.test.mjs): the two counts differ by kind alone, in words.
+  assert.match(metricWordsOf("runs_failed"), /: a campaign, a broadcast or a reach-out step\./);
+  assert.match(
+    metricWordsOf("runs_waiting"),
+    /: a campaign, a broadcast or a reach-out step\./,
+    "said as the waiting runs say it",
+  );
+});
+
 test("the Overview's strip draws each figure with its words over the label", () => {
   const strip = figures(byTestId(draw("overview", surface({ deals: DEALS })), "reports-tiles")).map(said);
   assert.deepEqual(
@@ -252,32 +465,30 @@ test("the Receptionist lens's strip against before, its steps after a reply and 
   }
 });
 
-test("the Campaigns lens draws who said yes and who asked to stop, each with the period before in counts and its words", () => {
+test("the Campaigns lens draws its five figures, who said yes and who asked to stop among them, each with the period before in counts and its words", () => {
   const tree = draw("campaigns", surface({ deals: DEALS }));
-  const strip = byTestId(tree, "campaign-answers");
+  const strip = byTestId(tree, "campaigns-strip");
   assert.ok(strip, "the strip stands on the lens");
-  assert.deepEqual(figures(strip).map(said), [
-    {
-      metric: "said_yes",
-      value: "3up from 1",
-      tip: metricWordsOf("said_yes"),
-    },
-    {
-      metric: "asked_to_stop",
-      value: "2none the 7 days before",
-      tip: metricWordsOf("asked_to_stop"),
-    },
+  const drawn = figures(strip).map(said);
+  assert.deepEqual(
+    drawn.map((f) => f.metric),
+    ["people_sent_to", "delivered_share", "people_wrote_back", "said_yes", "asked_to_stop"],
+  );
+  for (const f of drawn) assert.equal(f.tip, metricWordsOf(f.metric), `${f.metric}: what is counted, and what is not`);
+  // The yes and the stop are counts, each beside the period before's: 14 yeses after 11, 3 stops after 2.
+  assert.deepEqual(drawn.slice(3), [
+    { metric: "said_yes", value: "14up from 11", tip: metricWordsOf("said_yes") },
+    { metric: "asked_to_stop", value: "3up from 2", tip: metricWordsOf("asked_to_stop") },
   ]);
-  const quiet = campaignDto();
   const none = draw(
     "campaigns",
-    surface({
-      deals: DEALS,
-      campaigns: { ...quiet, series: quiet.series.map((d) => cday(d.day)), sources: [] },
-    }),
+    surface({ deals: DEALS }),
+    PUBLIC_LISTING,
+    ownHeld(),
+    campaignsHeld(ledgerWith(QUIET), "7d", { campaigns: CAMPAIGNS_QUIET }),
   );
   assert.equal(
-    byTestId(none, "campaign-answers"),
+    byTestId(none, "campaigns-strip"),
     null,
     "nothing sent and nobody answered: the lens says so, with no figures",
   );

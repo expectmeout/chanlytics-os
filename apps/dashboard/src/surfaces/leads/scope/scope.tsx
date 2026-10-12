@@ -8,6 +8,7 @@
  */
 import type { ReactElement } from "react";
 import { leadReviewGroups, type LeadRowVM } from "@chanlytics/contracts";
+import { ReachOutDoor } from "../../campaigns/reach-out/door";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { PeopleListsSheet } from "../../people/rail/lists-sheet";
@@ -21,7 +22,9 @@ import { LeadRowsCallMenu } from "../cells/call-menu";
 import { ldCardRowClass } from "../cells/columns";
 import { ldRowClass } from "../cells/name-cell";
 import { LeadsFirstDay } from "../finder/first-day";
+import { planPickTitle } from "../finder/plan-card";
 import { LeadPlanPanel } from "../finder/plan-panel";
+import { jobBack } from "../../people/sheets/phone-sheet";
 import { LeadStrip } from "../finder/strip-view";
 import { LeadMap } from "../map/map";
 import { LeadPeekActions } from "../peek/acts";
@@ -30,7 +33,8 @@ import { LeadPeek } from "../peek/peek";
 import type { LeadsScopeProps } from "../page/props";
 import { LeadsBulkBar } from "./bulk-bar";
 import { LeadsActs, LeadsControlsRight, LeadsHead } from "./controls";
-import { LeadPlanSheet, LeadsPhoneBar } from "./phone-bar";
+import { LeadPlanSheet, LeadsImportAct, LeadsNewSearch, LeadsPhoneBar } from "./phone-bar";
+import { LinkButton } from "../../kit/link-button/link-button";
 import { LeadsRailRows } from "./rail";
 import { ldReviewSections } from "./review";
 
@@ -91,6 +95,7 @@ const tableOf = (p: P, phone: boolean, sections: Sections) => (
     filtered={p.filtered}
     onClearFilters={p.onClearFilters}
     selectable={p.canFind || p.canExport}
+    selectMode={p.selectMode}
     sel={p.sel}
     onToggle={p.onToggle}
     onToggleAll={p.onToggleAll}
@@ -103,9 +108,17 @@ const tableOf = (p: P, phone: boolean, sections: Sections) => (
   />
 );
 
+/** While a selection is on, how many: all that match where those are picked, else the rows shown and selected. */
+const selectedTitle = (p: P) => {
+  if (!p.selectMode && !p.rows.some((l) => p.sel.has(l.id))) return null;
+  const n = p.allMatching ? p.total : p.rows.filter((l) => p.sel.has(l.id)).length;
+  return n ? `${n.toLocaleString()} selected` : "Select leads";
+};
+
 /** A phone's one bar stands over the scroller, as the Inbox's strip does: the rows scroll and bounce under it. */
 const phoneBarOf = (p: P) => (
   <LeadsPhoneBar
+    title={selectedTitle(p)}
     mapOn={!!p.mapOpen}
     onMap={p.onMap}
     canMap={!!p.canMap}
@@ -116,11 +129,11 @@ const phoneBarOf = (p: P) => (
     q={p.q}
     onQ={p.onQ}
     searchRef={p.searchRef}
-    searchOpen={p.searchOpen}
-    onSearchOpen={p.onSearchOpen}
     onFind={p.onFind}
     canFind={p.canFind}
-    search={p.search}
+    onImport={p.onImport}
+    select={(p.canFind || p.canExport) && p.rows.length > 0 ? p.select : null}
+    sortItems={p.sortItems}
   />
 );
 
@@ -159,10 +172,12 @@ const planPanelOf = (p: P, phone: boolean) => {
   const panel = (
     <LeadPlanPanel
       open
+      asSteps={phone}
       stage={p.finderStage}
       words={p.finderWords}
       proposal={p.finderProposal}
       plan={p.finderPlan}
+      facts={p.finderFacts}
       trace={p.finderTrace}
       pick={p.finderPick}
       refusal={p.finderRefusal}
@@ -177,7 +192,28 @@ const planPanelOf = (p: P, phone: boolean) => {
       onClose={p.onCloseFinder}
     />
   );
-  return phone ? <LeadPlanSheet onClose={p.onCloseFinder}>{panel}</LeadPlanSheet> : panel;
+  return panel;
+};
+
+/** A phone's plan: the kit's sheet, its title the picker's while a word's choices are its step, with the way back. */
+const planSheetOf = (p: P) => {
+  // Over the first day too: an idea opens its plan there (00398).
+  const open = !!p.finderOpen;
+  const pick = open ? p.finderPick : null;
+  return (
+    <LeadPlanSheet
+      open={open}
+      onClose={p.onCloseFinder}
+      title={
+        pick
+          ? planPickTitle(pick)
+          : `${p.finderAnswering ? "Change the search" : "New search"}${p.finderChanged ? " · changed" : ""}`
+      }
+      back={pick ? jobBack(() => p.onFinderPick(null)) : null}
+    >
+      {open ? planPanelOf(p, true) : null}
+    </LeadPlanSheet>
+  );
 };
 
 /**
@@ -222,13 +258,13 @@ const bandOf = (p: P) =>
   ) : null;
 
 /**
- * The first day: the question, the door to Ask (Find leads is Ask on this surface, spec F1) and the ideas, each opening
- * Ask with its words in the field, ready to send; and the door for a list the owner already has, which is the rail's on
- * every other day.
+ * The first day: the question, the door to Ask (Find leads is Ask on this surface, spec F1) and the ideas, each a ready
+ * plan the plan sheet opens (00398); and the door for a list the owner already has, which is the rail's on every other
+ * day.
  */
 const firstDayOf = (p: P, phone: boolean) => (
   <LeadsFirstDay
-    suggestions={p.surface.suggestions}
+    suggestions={p.ideas}
     canFind={p.canFind}
     phone={phone}
     lineOpen={p.lineOpen}
@@ -236,8 +272,10 @@ const firstDayOf = (p: P, phone: boolean) => (
     lineError={p.lineError}
     lineBusy={p.lineBusy}
     onFind={p.onFind}
+    onIdea={p.onIdea}
     onImport={p.onImport}
     onOpenLine={p.onOpenLine}
+    onNewIdeas={p.onNewIdeas}
     onLineDraft={p.onLineDraft}
     onSaveLine={p.onSaveLine}
     onCancelLine={p.onCancelLine}
@@ -371,6 +409,27 @@ const peekOf = (p: P, phone: boolean) => {
   );
 };
 
+/**
+ * A phone's head act: Import leads where the page is the question (the first day, and New search pressed), else New
+ * search; a desk's head holds none, its door for a list standing under the question.
+ */
+const headActOf = (p: P, phone: boolean) =>
+  !phone ? undefined : p.firstDay || p.newSearch ? (
+    <LeadsImportAct onImport={p.onImport} />
+  ) : (
+    <LeadsNewSearch canFind={p.canFind} onFind={() => p.onNewSearch(true)} />
+  );
+
+/** A phone's New search: the first day's page, the question alone, with the way back to the leads it stood over. */
+const newSearchOf = (p: P, phone: boolean) => (
+  <>
+    <LinkButton className="ld-first-back" onClick={() => p.onNewSearch(false)} data-testid="leads-new-search-back">
+      <Icon name="chevron" size={12} /> All leads
+    </LinkButton>
+    {firstDayOf(p, phone)}
+  </>
+);
+
 /** The scope's main column: the phone's bar, the scroller and what is in it, and what stands over it. */
 const mainOf = (p: P, phone: boolean, railRows: ReactElement, sections: Sections) => {
   const search = p.search;
@@ -380,37 +439,48 @@ const mainOf = (p: P, phone: boolean, railRows: ReactElement, sections: Sections
     <div className="cl-main">
       {/* On the first day the page is its question alone (finder/first-day.tsx): no bar on a phone and no standing line,
           search or columns on a desk, since with no lead there is nothing for them to act on; the head says the page's
-          name. A phone's head holds Import leads on every day (controls.tsx LeadsHead); a desk's first day holds no act
-          beside the page's own door, and keeps the door for a list under it. */}
-      {phone && !p.firstDay && phoneBarOf(p)}
+          name. A phone's head holds New search past the first day (phone-bar.tsx LeadsNewSearch), and its bar Import; a
+          desk's first day holds no act beside the page's own door, and keeps the door for a list under it. */}
+      {phone && !p.firstDay && !p.newSearch && phoneBarOf(p)}
       <div className="cl-main-scroll pl-main" ref={p.scrollRef}>
-        {phone || p.firstDay ? <LeadsHead act={phone ? p.importAct : undefined} /> : deskTopOf(p)}
+        {phone || p.firstDay ? <LeadsHead act={headActOf(p, phone)} /> : deskTopOf(p)}
+        {p.newSearch ? (
+          newSearchOf(p, phone)
+        ) : (
+          <>
+            {!phone && p.finderOpen && planPanelOf(p, false)}
 
-        {!p.firstDay && p.finderOpen && planPanelOf(p, phone)}
+            {!search && !phone && !p.firstDay && !L.readFailed ? listHeadOf(p) : null}
 
-        {!search && !phone && !p.firstDay && !L.readFailed ? listHeadOf(p) : null}
-
-        {/* One line for the open search: what happened, its three piles as the tabs that open them, and the one next step.
+            {/* One line for the open search: what happened, its three piles as the tabs that open them, and the one next step.
             The band rides inside the strip; with no strip to hold it, it stands alone as it did. */}
-        {search && p.strip ? (
-          <LeadStrip vm={p.strip} onAction={p.onStripAction}>
-            {bandOf(p)}
-          </LeadStrip>
-        ) : null}
-        {search && !p.strip && p.band && bandOf(p)}
-        {p.reachOutStrip}
-        {p.view.cls === "excluded" && (
-          <LeadExcludedChips chips={ldExcludedChips(L.rows)} active={p.chip} onPick={p.onPickChip} />
-        )}
-        {p.view.cls === "review" && !p.benchGroups.length && (
-          <LeadReviewGroups groups={leadReviewGroups(L.rows, search)} onPick={p.onSelectIds} />
-        )}
+            {search && p.strip ? (
+              <LeadStrip
+                vm={p.strip}
+                onAction={p.onStripAction}
+                act={phone ? <ReachOutDoor search={search} phone /> : null}
+              >
+                {/* A phone's door to a reach-out is an accent word at the end of the strip's line, not a second coral button. */}
+                {bandOf(p)}
+              </LeadStrip>
+            ) : null}
+            {search && !p.strip && p.band && bandOf(p)}
+            {p.reachOutStrip}
+            {p.view.cls === "excluded" && (
+              <LeadExcludedChips chips={ldExcludedChips(L.rows)} active={p.chip} onPick={p.onPickChip} />
+            )}
+            {p.view.cls === "review" && !p.benchGroups.length && (
+              <LeadReviewGroups groups={leadReviewGroups(L.rows, search)} onPick={p.onSelectIds} />
+            )}
 
-        {scopeBodyOf(p, phone, table)}
-        {L.next && moreOf(p)}
+            {scopeBodyOf(p, phone, table)}
+            {L.next && moreOf(p)}
+          </>
+        )}
       </div>
       {p.listsNode}
-      {p.sel.size > 0 && p.rows.some((l) => p.sel.has(l.id)) && bulkBarOf(p, phone)}
+      {phone ? planSheetOf(p) : null}
+      {(p.selectMode || (p.sel.size > 0 && p.rows.some((l) => p.sel.has(l.id)))) && bulkBarOf(p, phone)}
       {peekOf(p, phone)}
       {/* The phone's rail, as a sheet from the bar's list button: the same rows, the same counts, the same searches and
           the same New search. People's, the kit's Sheet, in PL_OVERLAY while it is open, so the page's one listener holds

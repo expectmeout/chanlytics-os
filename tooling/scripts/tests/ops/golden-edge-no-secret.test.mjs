@@ -23,7 +23,15 @@ function stranger(req, res) {
   if (req.method === "GET" && url.pathname === "/privacy.html")
     return send(200, "<h1>Privacy policy</h1>", "text/html");
   if (url.pathname === "/api/whatsapp") return send(req.method === "GET" ? 403 : 401, '{"ok":false}');
-  if (url.pathname === "/api/retell-webhook" || url.pathname === "/api/retell-fn") return send(401, '{"ok":false}');
+  if (url.pathname === "/api/retell-webhook") return send(401, '{"ok":false}');
+  // A phone tool turns a stranger away in words the agent speaks (call-booking-link.ts KNOCK_REFUSED).
+  if (url.pathname === "/api/retell-fn")
+    return send(
+      200,
+      JSON.stringify({
+        result: "I can't send anything just now. Take the caller's name and say someone will call them back.",
+      }),
+    );
   if (url.pathname === "/api/diag") return send(403, '{"ok":false}');
   return send(404, '{"error":"not_found"}');
 }

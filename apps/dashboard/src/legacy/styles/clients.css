@@ -1889,8 +1889,13 @@
    (record.css) dress the fields, and the body carries the vertical room the kit's body leaves to its page. ---- */
 .pl-import { display: flex; flex-direction: column; gap: 16px; padding: 20px 0 24px; }
 .pl-import input[type="file"] { font: inherit; font-size: var(--text-sm); color: var(--ink-muted); }
-.pl-import input[type="file"]::file-selector-button { margin-right: 10px; padding: 5px 10px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--bg-raised); font: inherit; font-size: var(--text-sm); color: var(--ink); cursor: pointer; }
+/* The file's button is the sheet's inset capsule, as the choice above it and the boxes beside it are: it was the
+   browser's grey box with a square corner (10 Oct 2026). */
+.pl-import input[type="file"]::file-selector-button { margin-right: 10px; padding: 8px 14px; border: 0; border-radius: var(--radius-full); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-ring), var(--surface-inset-depth); font: inherit; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); cursor: pointer; }
 .pl-import-read { align-self: flex-start; }
+/* Add people, one person: the line that says either box is enough, and the quiet words that ask for a note and a list. */
+.pl-add-hint { margin: -8px 0 0; font-size: var(--text-sm); color: var(--ink-dim); }
+.pl-add-more { display: flex; flex-wrap: wrap; gap: 16px; }
 .pl-import-preview, .pl-import-summary { display: flex; flex-direction: column; gap: 8px; }
 .pl-import-counts { margin: 0; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); }
 .pl-import-hint { margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); }
@@ -2398,6 +2403,24 @@
   .pl-lists .cl-rail-row.has-acts,
   .pl-lists .cl-rail-everyone > .cl-rail-row { grid-column: 1 / -1; }
   .pl-lists .cl-rail-group + .cl-rail-group { margin-top: 6px; }
+  /* The open list's own acts at the sheet's foot (screen.tsx listActRows), under a hairline, one to a row, under the
+     sheet's one level of heading: the ⋯ that held them is gone from the bar (Ruben, 10 Oct 2026). */
+  .pl-lists .pl-lists-acts { display: flex; flex-direction: column; margin-top: 8px; padding: 8px 8px 0; border-top: 1px solid var(--line); }
+  /* The bar's words, Select, Sort and Export, on one line beside the list's name (screen.tsx phoneBarActs), and Leads'
+     Select, Sort, Import and Map (leads/scope/phone-bar.tsx barWords): the page's quiet buttons, each a thumb tall. */
+  .pp-bar-acts { display: flex; align-items: center; flex: none; }
+  /* While a selection is on, how many stands in the list's place, in its words' weight (phone-bar.tsx `title`). */
+  .pp-bar-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-base); font-weight: var(--weight-semibold); color: var(--ink); animation: pp-bar-fade-in 140ms var(--ease-out); }
+  /* Select's words in one place (phone-bar.tsx BarWord): the button keeps the longest's width, the words held to its
+     right edge so the gap to Sort never moves, and the one shown crosses in as the last crosses out. */
+  .pp-bar-morph { display: inline-grid; justify-items: end; }
+  .pp-bar-morph > span { grid-area: 1 / 1; transition: opacity var(--duration-fast) var(--ease-out); }
+  .pp-bar-morph > span:not([data-on]) { opacity: 0; }
+  @keyframes pp-bar-fade-in { from { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) {
+    .pp-bar-title, .pp-bar-morph > span { animation: none; transition: none; }
+  }
+  .pp-bar-acts .pl-file-acts { gap: 0; }
   .pl-lists .cl-rail-label,
   .pl-lists .cl-rail-group-label { margin: 0; padding: 4px 10px 2px; }
   /* The cell's height is the padding's on a mouse and the touch floor's 44px on a thumb (legacy.css): a min-height
@@ -2450,6 +2473,27 @@
   .pl-table tbody tr.pl-sec-head > th { display: block; padding: 14px 16px 6px; border-bottom: 1px solid var(--line); background: transparent; }
   .pl-table tbody tr.pl-sec-head.is-folded > th { padding-bottom: 10px; }
   .pl-table tbody tr.pl-sec-head:hover { background: transparent; }
+  /* A group's head as a desk's Glass draws it (Ruben, 10 Oct 2026): its name in the semibold at the rows' size, its
+     count and what its deals come to beside it in the dim ink, a long meta giving way at the line's end. */
+  .pipe-scope .pl-table tbody tr.pl-sec-head > th { padding: 18px 16px 8px; font-size: var(--text-sm); }
+  .pipe-scope .pl-sec-line { display: flex; min-width: 0; overflow: hidden; }
+  .pipe-scope .pl-sec-label { font-size: var(--text-base); font-weight: var(--weight-semibold); color: var(--ink); }
+  .pipe-scope .pl-sec-meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+  /* The Pipeline's line over its rows (scope-screen.tsx phoneFilters): its counts as filters, each with its dot, the one
+     shown in ink at 600 and the others quieter; then what they come to, once, in the muted ink. */
+  .pipe-summary { display: flex; flex-direction: column; gap: 2px; padding: 6px 16px 4px; }
+  .pipe-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 0 18px; }
+  html.legacy-on .pipe-filter { position: relative; gap: 6px; padding: 0; height: 30px; min-height: 30px; font-size: var(--text-sm); }
+  /* A thumb's press area over and under the word, which the line does not make room for. */
+  .pipe-filter::after { content: ""; position: absolute; inset: -7px -6px; }
+  .pipe-filter[aria-pressed="true"] { color: var(--ink); font-weight: var(--weight-semibold); }
+  .pipe-filters.is-on .pipe-filter[aria-pressed="false"] { opacity: 0.55; }
+  .pipe-filter-dot { flex: none; width: 6px; height: 6px; border-radius: var(--radius-full); }
+  .pipe-filter-dot.tone-info { background: var(--info); }
+  .pipe-filter-dot.tone-warn { background: var(--warn); }
+  .pipe-filter-dot.tone-ok { background: var(--ok); }
+  .pipe-money { margin: 0; font-size: var(--text-sm); color: var(--ink-muted); font-variant-numeric: tabular-nums; }
 }
 
 /* ---- People › Pipeline (surfaces/people/pipeline/): the rows' own cells ------------------------------------------------
@@ -3107,7 +3151,10 @@
     height: 34px;
     min-height: 0;
   }
-  .pp-bar .pp-bar-push > *::after {
+  /* A button's alone: the halo is placed against the nearest box that is placed, so on a group of words (Leads' List and
+     Map, a span then) it was placed against the page and lay over the whole bar, the list's name and the search with
+     it, and every press there landed on nothing (Ruben, 10 Oct 2026). */
+  .pp-bar .pp-bar-push > button::after {
     content: "";
     position: absolute;
     inset: -5px;
@@ -3160,16 +3207,18 @@
   /* ---- The parity pass (2 October 2026, the phone) ---- */
 
   /* A selection takes the foot, as an open thread does: the bar is the kit's capsule, docked (data-dock, mobile.css: the
-     tab bar and Ask's circle stand down) 12px in from the sides over rows that scroll under it, so it blurs them. Its
-     clear, its act and its more are the kit's buttons; the page places them and sets the count at the base step. The rows
-     keep room under their last, and a picked row is the pick's tint where Classic laid a band. */
+     tab bar and Ask's circle stand down) in the tab bar's own place and size, 14px in from the sides and the bar's foot
+     up, 6px around 50px acts, over rows that scroll under it, so it blurs them. Its clear and its acts are the kit's
+     buttons; an act is drawn as the tab bar draws a tab, its glyph at 19 over its word at the scale's smallest step
+     (phone-bulk.tsx dockAct; Ruben, 10 Oct 2026). The rows keep room under their last, and a picked row is the pick's
+     tint where Classic laid a band. */
   .cl-bulk.pp-bulk {
-    right: 12px;
-    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-    left: 12px;
-    gap: 6px;
-    height: 52px;
-    padding: 0 8px;
+    right: 14px;
+    bottom: var(--bar-foot, calc(12px + env(safe-area-inset-bottom, 0px)));
+    left: 14px;
+    gap: 4px;
+    height: auto;
+    padding: 6px;
     border: 0;
     backdrop-filter: var(--surface-control-blur);
   }
@@ -3177,11 +3226,62 @@
     font-size: var(--text-base);
     color: var(--ink);
   }
+  /* Four equal slots across the capsule, as the tab bar's tabs share it: Clear and the acts, nothing packed to a side. */
+  .pp-bulk-acts {
+    display: grid;
+    flex: 1 1 auto;
+    grid-auto-columns: 1fr;
+    grid-auto-flow: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  .pp-bulk-act {
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    min-width: 0;
+    height: 50px;
+    padding: 0;
+    border-radius: var(--radius-full);
+    font-size: var(--text-2xs);
+    font-weight: var(--weight-medium);
+    color: var(--ink-muted);
+  }
   .pl-table-wrap.selecting {
     margin-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
   }
   .pl-table-wrap.selecting tbody tr.selected {
     background: var(--bubble-us-bg);
+  }
+  .pl-table-wrap tbody > tr {
+    transition: background-color var(--duration-fast) var(--ease-out);
+  }
+  /* The dock rises 6px into the tab bar's place as the bar fades out of it, and plays out the same way, faster, from the
+     still copy React no longer holds (data-bits `leaving`): on the house's curves, never slower than a press answers. */
+  .pp-bulk[data-dock] {
+    animation: pp-dock-in 180ms var(--ease-out);
+  }
+  .pp-bulk[data-dock][data-leaving="true"] {
+    animation: pp-dock-out 140ms var(--ease-in) forwards;
+  }
+  @keyframes pp-dock-in {
+    from {
+      opacity: 0;
+      translate: 0 6px;
+    }
+  }
+  @keyframes pp-dock-out {
+    to {
+      opacity: 0;
+      translate: 0 6px;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pl-table-wrap tbody > tr,
+    .pp-bulk[data-dock] {
+      transition: none;
+      animation: none;
+    }
   }
   /* The sheets People raises from the foot (the lists, and the small jobs) are the kit's Sheet, on its own ground: the
      solid every sheet wears, its edge and its corners (kit.css). They re-spelled it here, without the edge. */

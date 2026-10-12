@@ -15,7 +15,6 @@ import {
   repliesWords,
   toPersonVM,
   peopleAggregates,
-  recencyCells,
   PEOPLE_LISTS,
   PEOPLE_TABS,
   PERSON_STATE_LABELS,
@@ -563,22 +562,6 @@ test("aggregates count measured facts and honour the evidence rule", () => {
   assert.equal(agg.reachedWeek, 3);
 });
 
-test("recency cells put a two-hour-old contact in the first bucket and a quiet one at the tail", () => {
-  const cells = recencyCells(
-    [
-      toPersonRowVM(row(), ZONE, NOW),
-      toPersonRowVM(row({ last_message_at: iso(100 * D), last_inbound_at: iso(100 * D) }), ZONE, NOW),
-    ],
-    nowMs,
-  );
-  assert.equal(cells[0].count, 1);
-  assert.equal(cells[cells.length - 1].count, 1);
-  assert.equal(
-    cells.reduce((a, c) => a + c.count, 0),
-    2,
-  );
-});
-
 /* -------------------------------- profile -------------------------------- */
 
 function msg(over) {
@@ -938,6 +921,7 @@ test("where a person came from, in the words People says it: one per stored valu
     manual: "Added by hand",
     import: "Imported",
     lead: "A lead you found",
+    ad: "An ad",
   });
   for (const [key, label] of Object.entries(contracts.PERSON_CAME_FROM_WORDS))
     assert.deepEqual(contracts.cameFromOf({ came_from: key }), { key, label });

@@ -1,11 +1,7 @@
 {
   "calendar": 1,
-  "deadman": 1,
   "lines": 1,
   "notes": 1,
-  "pauses": 1,
-  "playbooks": 1,
   "reach_out": 1,
-  "reach_out_check": 1,
-  "snoozes": 1
+  "reach_out_check": 1
 }

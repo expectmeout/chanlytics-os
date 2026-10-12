@@ -24,6 +24,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
+import { QUIET } from "../reports/people/_people-world.mjs";
+import { QUIET as CAMPAIGNS_QUIET } from "../reports/campaigns/_campaign-world.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -344,6 +346,15 @@ function quietReceptionist({ p_days: days }, over = {}) {
     ...over,
   };
 }
+/** What people_series answers (00395) for a quiet period: nobody reached the business and nothing was answered or done. */
+const quietPeople = ({ p_days: days }) => ({ timezone: TZ, today: dayKey(NOW.getTime()), days, ...QUIET });
+/** What campaign_ledger answers (00405) for a quiet window: nobody was sent to, held, stopped, failed or approved. */
+const quietCampaigns = ({ p_days: days }) => ({
+  timezone: TZ,
+  today: dayKey(NOW.getTime()),
+  days,
+  ...CAMPAIGNS_QUIET,
+});
 const RPCS = {
   people_list: (a) => (a?.p_contact_id && a.p_contact_id !== P1 ? [] : [rosaRow]),
   metrics_summary: () => ({
@@ -409,6 +420,13 @@ const RPCS = {
   }),
   // The Receptionist lens's read, which the report reads beside the series (readers/report.ts receptionistReport): a quiet period.
   receptionist_series: (a) => quietReceptionist(a),
+  // The People lens's read, which the report reads beside the series (readers/report.ts peopleReport): a quiet period.
+  people_series: (a) => quietPeople(a),
+  // The Campaigns lens's ledger and what is stuck now, which the report reads beside the sends (readers/campaign-report.ts
+  // campaignLedgerReport): a quiet window and nothing stuck. The sends themselves (campaign_series) stay unmodelled, as
+  // campaigns.playbooks' last 30 days say: the lens is read and its sends are not, so the report says the lens as an error.
+  campaign_ledger: (a) => quietCampaigns(a),
+  campaign_stuck: () => ({ runs_waiting: [], runs_failed: [], replies: [], templates: [] }),
   lead_list_counts: () => ({ all: 0, ready: 0, nurture: 0, converted: 0, said_no: 0, not_a_fit: 0 }),
   lead_niche_prior: () => null,
 };
@@ -582,6 +600,14 @@ function withCampaigns(result) {
     ? result
     : JSON.stringify({ ...said, campaigns: { error: "the campaign numbers could not be read just now" } });
 }
+/**
+ * 11 Oct 2026 (Reports, the Campaigns lens, C4 T16): the report reads the lens's ledger beside its sends, whether or not the
+ * sends could be read (readers/campaign-report.ts campaignLedgerReport, once): the database's campaign_ledger and
+ * campaign_stuck, and the connected number's row (the reader says its health from the channel's stored config, db
+ * whatsappChannelFacts: its own read of tenant_channels, one). The bytes are unchanged: this world has no campaign_series,
+ * so the lens still says error.
+ */
+const withCampaignReads = (reads) => [...reads, "rpc:campaign_ledger", "rpc:campaign_stuck", "tenant_channels.select"];
 
 /**
  * 7 Oct 2026 (Reports phase C, lens 1, T4): the report says the Reviews lens after the Campaigns lens, from the lens's own
@@ -686,6 +712,66 @@ function withReceptionist(result) {
   return said.error ? result : JSON.stringify({ ...said, receptionist: QUIET_RECEPTIONIST_SAID });
 }
 const withReceptionistReads = (reads) => [...reads, "rpc:receptionist_series"];
+
+/**
+ * 10 Oct 2026 (Reports, the People lens, C3 T13): the report says the People lens after the Receptionist lens, from the
+ * lens's own read (readers/report.ts peopleReport): the database's people_series, and the book as People counts it over
+ * the people the turn already reads for the booking line (readers/everyone.ts, once), judged against the channels the
+ * workspace can send on. This world's period is quiet and its book is Rosa alone, so it says the page's words for each part
+ * of the window with nothing in it, and a book of one: her wires, her freshness, no step, no stopped address, and where she
+ * stands. Of fewer than five, the head says no share of yes.
+ */
+const QUIET_PEOPLE_SAID = {
+  head: "Nobody reached you in this period.",
+  window: {
+    reached: [
+      { label: "People who reached you", value: "0", meta: "nobody wrote or called in this period", change: null },
+      { label: "New people", value: "0", meta: "nobody new", change: null },
+      { label: "Yeses won", value: "0", meta: "nobody said yes in this period", change: null },
+      { label: "Stops", value: "0", meta: "nobody asked to stop in this period", change: null },
+    ],
+    channels: { empty: "Nobody reached you in this period." },
+    first_came: { empty: "Nobody new reached you in this period." },
+    yeses: { empty: "Nobody said yes in this period." },
+    stops: { empty: "Nobody asked to stop in this period." },
+    steps_done: { empty: "No step was done in this period." },
+    email_stopped: { empty: "No address stopped working in this period." },
+  },
+  book: {
+    // Rosa wrote on WhatsApp and phoned: People's own channels for her are two ways in.
+    wires: { rows: ["More than one way: 1"], line: "1 of 1 have reached you more than one way, as of today." },
+    fresh: {
+      rows: [
+        "Under 7 days: 1",
+        "7 to 30 days: 0",
+        "31 to 60 days: 0",
+        "61 to 90 days: 0",
+        "91 days or more: 0",
+        "Never heard from: 0",
+      ],
+      line: "Of 1 person as of today: the days since they last wrote or called. Your own messages do not count.",
+      quiet: null,
+    },
+    stuck: [
+      { label: "Steps overdue", value: "0", meta: "no next step is past its day", change: null },
+      { label: "Steps due today", value: "0", meta: "no next step is due today", change: null },
+      { label: "Email stopped working", value: "0", meta: "every address works", change: null },
+    ],
+    stand: [
+      { label: "Said yes to messages", value: "1", meta: "of 1 person", change: null },
+      { label: "Can receive offers", value: "1", meta: "of 1 person", change: null },
+      { label: "Opted out", value: "0", meta: "of 1 person", change: null },
+      { label: "Quiet 30+ days", value: "0", meta: "of 1 person", change: null },
+    ],
+  },
+};
+function withPeople(result) {
+  const said = JSON.parse(result);
+  return said.error ? result : JSON.stringify({ ...said, people: QUIET_PEOPLE_SAID });
+}
+// The series, and the channels the book is judged against (the number's row and the texting line's: the number's health
+// is the turn's); the zone and the people are the turn's already.
+const withPeopleReads = (reads) => [...reads, "rpc:people_series", "tenant_channels.select", "lines.select"];
 
 test("the mapping names every old tool once, each to a tool and action the registry has", () => {
   assert.equal(Object.keys(NAMES).length, 26, "the twenty-six old tools");
@@ -855,6 +941,21 @@ function withCampaignWord(frozen) {
 }
 
 /**
+ * 11 Oct 2026 (Leads on a phone, and the ideas for a new search, 00398): a plan's sentence marks where its criteria
+ * begin and end (contracts planWords: "in Austin, TX: a; b; reached by …"), where these bytes ran them on after the area,
+ * and a plan Ask proposes names its kind (`category_key`, the key an idea and the platform's counts read it by), beside
+ * its name. The one frozen plan is the plumbers'; the fixture stays as it was made.
+ */
+function withThePlansWords(frozen) {
+  return frozen
+    .replaceAll(
+      "in Austin, TX has a website (confirmed) family-owned, reached by",
+      "in Austin, TX: has a website (confirmed); family-owned; reached by",
+    )
+    .replace('"name":"plumbers","asked"', '"name":"plumbers","category_key":"plumber","asked"');
+}
+
+/**
  * 10 Oct 2026 (the moment spec, decision 19): the line a read says while it runs is a person's, so campaigns.playbooks
  * says "Reading the campaigns" where these bytes say "Reading the playbooks". The action keeps its name; the fixture
  * stays as it was made.
@@ -943,10 +1044,16 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // said "Connect your calendar" to a business whose bookings arrive by email (contracts BOOKED_NEEDS_A_LINK).
     let result = want.result
       .replaceAll("+19295550100", "+442079460100")
-      .replaceAll("Connect your calendar under Settings › Business", "Add a calendar link under Settings › Business");
+      .replaceAll("Connect your calendar under Settings › Business", "Add a calendar link under Settings › Business")
+      // 11 Oct 2026 (decision 0051): saying it is an automated assistant is no longer a switch, and Ask says so.
+      .replaceAll(
+        "says it is an automated assistant when asked",
+        "always says it is the business's automated assistant, never a person",
+      );
     for (const [from, to] of Object.entries(NAMES))
       result = result.replace(new RegExp(`\\b${from}\\b`, "g"), inWords(to));
-    if (NAMES[old] === "report") result = withReceptionist(withReachOuts(withReviews(withCampaigns(withHold(result)))));
+    if (NAMES[old] === "report")
+      result = withPeople(withReceptionist(withReachOuts(withReviews(withCampaigns(withHold(result))))));
     if (NAMES[old] === "inbox.list" && input.filter === "held") result = withNothingHeld(result);
     if (old === "list_threads" || old === "get_thread") result = withNoHeldDraft(result);
     if (NAMES[old] === "calls.list" || NAMES[old] === "calls.get") result = withCallDirection(result);
@@ -959,6 +1066,9 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // 9 Oct 2026: and a playbook card's title says "Campaign" (withCampaignWord), in its result and in the card.
     const playbookCard = NAMES[old] === "propose_campaign.playbook";
     if (playbookCard) result = withCampaignWord(result);
+    // 11 Oct 2026: a plan's sentence and its kind (withThePlansWords), in the result and in the card.
+    const leadPlan = NAMES[old] === "propose_lead_search";
+    if (leadPlan) result = withThePlansWords(result);
     const card =
       campaignsOwn && typeof want.proposal === "string"
         ? {
@@ -966,7 +1076,9 @@ test("every old tool's call, made by its new name and action, answers the bytes 
               ? withCampaignWord(withTheClocksHour(want.proposal))
               : withTheClocksHour(want.proposal),
           }
-        : {};
+        : leadPlan && typeof want.proposal === "string"
+          ? { proposal: withThePlansWords(want.proposal) }
+          : {};
     // An action above the caller is refused by the registry first since PR 4.3 (the Phase 4 plan, D2), in its words,
     // before anything is read, as its builder refused it: the other change to these bytes.
     const act = ACT_DEFS.find((x) => x.name === call.name)?.actions[call.input.action ?? ""];
@@ -1033,12 +1145,14 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     const withDoubts = NAMES[old] === "people.get" ? [...withDecisions, "person_doubts.select"] : withDecisions;
     // 7 Oct 2026 (00345, bookings arrive by email): the calendar's reader reads the record beside the feed -- the
     // appointments over the span, the notices' health line (the latest, and the held count) and the workspace's mailbox
-    // -- so calendar.week makes those four reads more. Its bytes are unchanged: this workspace has no calendar and no
-    // booking has arrived, and with no feed to read nothing of the record's taken time is asked.
+    // -- so calendar.week makes those reads more. Its bytes are unchanged: this workspace has no calendar and no
+    // booking has arrived, and with no feed to read nothing of the record's taken time is asked. Since 00397 the span's
+    // record is two reads (db visitsOver: the bookings whole, and the feed's rows by key), so five more.
     const withCalendar =
       NAMES[old] === "calendar.week"
         ? [
             ...withDoubts,
+            "appointments.select",
             "appointments.select",
             "appointment_notices.select",
             "appointment_notices.select",
@@ -1084,7 +1198,12 @@ test("every old tool's call, made by its new name and action, answers the bytes 
       (NAMES[old] === "propose_campaign.broadcast" && !want.isError) || NAMES[old] === "campaigns.audiences";
     const withBreath = readsBreath ? [...withWeek, "broadcasts.select", "tenants.select"] : withWeek;
     // 10 Oct 2026 (Reports, the Receptionist lens, C2 T13): and the Receptionist lens's own: one rpc more (withReceptionistReads).
-    const reads = NAMES[old] === "report" ? withReceptionistReads(withReviewReads(withBreath)) : withBreath;
+    // 10 Oct 2026 (Reports, the People lens, C3 T13): and the People lens's: its series and the channels the book is judged against.
+    // 11 Oct 2026 (Reports, the Campaigns lens, C4 T16): and the Campaigns lens's ledger, what is stuck and the number (withCampaignReads).
+    const reads =
+      NAMES[old] === "report"
+        ? withCampaignReads(withPeopleReads(withReceptionistReads(withReviewReads(withBreath))))
+        : withBreath;
     const [gotResult, wantResult] =
       NAMES[old] === "campaigns.playbooks"
         ? againstOffered(got.result, withLastThirtyDays(result))
@@ -1108,6 +1227,22 @@ test("the report finds the people its booking link went to only where the link w
   assert.equal(none.isError, false, none.result);
   assert.equal(peopleReads(none.reads), 1, "no link sent: nobody to find");
   assert.equal(none.reads.filter((r) => r === "rpc:receptionist_series").length, 1, "the lens's read, once");
+  // The People lens counts the same People: its series is its one call more, and the book is the turn's one read, counted.
+  assert.equal(none.reads.filter((r) => r === "rpc:people_series").length, 1, "the People lens's read, once");
+  // The Campaigns lens's ledger and what is stuck: one call each, whether or not the sends could be read.
+  assert.deepEqual(
+    ["rpc:campaign_ledger", "rpc:campaign_stuck"].map((rpc) => none.reads.filter((r) => r === rpc).length),
+    [1, 1],
+    "the Campaigns lens's ledger and what is stuck, once each",
+  );
+  // The channels: the People lens judges its book against the turn's one read of them (the number's row and the texting
+  // line's), and the Campaigns lens reads the connected number's row once more, to say its health (the reader's own read,
+  // the channel's stored config): two reads of the number's row, one of the texting line's.
+  assert.deepEqual(
+    ["tenant_channels.select", "lines.select"].map((q) => none.reads.filter((r) => r === q).length),
+    [2, 1],
+    "and the channels: the book's judgment, once, and the number's health, once",
+  );
 
   const link = (a) => quietReceptionist(a, { links: { total: 1, people: [{ c: P1, at: ago(DAY) }] } });
   const sent = await answer("report", { days: 7 }, "owner", { ...RPCS, receptionist_series: link });

@@ -20,6 +20,9 @@ import {
   surface,
 } from "../_report-world.mjs";
 import { ownHeld } from "../receptionist/_receptionist-world.mjs";
+import { dtoWith, held as peopleHeld } from "../people/_people-world.mjs";
+import { dtoWith as campaignsLedger, held as campaignsHeld } from "../campaigns/_campaign-world.mjs";
+import { reachOuts as campaignsReachOuts } from "../campaigns/_reach-out-world.mjs";
 
 const reads = [];
 installLegacyReact({ __surfaceState: () => "live", __DEMO_MODE: false });
@@ -36,6 +39,7 @@ const { keepReportPeriod } = await import(`${S}/surfaces/reports/surface.ts`);
 const { setStatus } = await import(`${S}/legacy-bridge/surface-status.ts`);
 const { standingSaid, forgetStanding } = await import(`${S}/surfaces/kit/head/standing.ts`);
 const { lensAnswerOf, lensEmpty } = await import("@chanlytics/contracts");
+const { toCampaignLensVM, toPeopleReportVM } = await import("@chanlytics/contracts/report-lens");
 after(() => forgetStanding());
 
 const at = (lens) => `/w/harbor/reports${lens === "overview" ? "" : `/${lens}`}`;
@@ -70,13 +74,19 @@ const REVIEWS_UNAVAILABLE = held(
 const REVIEWS_LINKED = held(reviewsDto({ days: 7 }));
 /** The Receptionist lens's own read of the week, which that lens follows as Reviews' does: current when it is of the period shown. */
 const RECEPTIONIST_HELD = ownHeld();
+/** The People lens's own read, which that lens follows as well: current when it is of the period shown. */
+const PEOPLE_HELD = peopleHeld(dtoWith(), "7d");
+/** The Campaigns lens's own read (the sends, the ledger and the key), followed the same way. */
+const CAMPAIGNS_HELD = campaignsHeld(campaignsLedger(), "7d", { reachOuts: campaignsReachOuts({ days: 7 }) });
 /** The lens drawn over a surface: the page for its address. */
 const draw = (lens, opts = {}) => {
-  // The period the strip shows, which the Reviews and Receptionist reads follow: what each holds is current when it is of this one.
+  // The period the strip shows, which the Reviews, Receptionist, People and Campaigns reads follow: what each holds is current when it is of this one.
   keepReportPeriod("7d");
   setSurfaceValue("reports", opts.R ?? surface({ deals: DEALS }));
   setSurfaceValue("reports_reviews", "reviews" in opts ? opts.reviews : REVIEWS_NONE);
   setSurfaceValue("reports_receptionist", "receptionist" in opts ? opts.receptionist : RECEPTIONIST_HELD);
+  setSurfaceValue("reports_people", "people" in opts ? opts.people : PEOPLE_HELD);
+  setSurfaceValue("reports_campaigns", "campaigns" in opts ? opts.campaigns : CAMPAIGNS_HELD);
   fresh();
   return ReportsPage({ pathname: at(lens) });
 };
@@ -99,9 +109,45 @@ const BODIES = {
     "receptionist-figures",
     "receptionist-stuck",
   ],
-  people: ["chart-channels", "chart-rhythm", "chart-people"],
+  people: [
+    "people-strip",
+    "chart-people-channels",
+    "chart-people-first",
+    "chart-people-yeses",
+    "chart-people-stops",
+    "chart-people-wires",
+    "chart-people-fresh",
+    "chart-rhythm",
+    "chart-people",
+    "people-time",
+    "chart-people-steps",
+    "chart-people-bounced",
+    "people-stuck",
+    "people-stand",
+  ],
   pipeline: ["rpt-deals"],
-  campaigns: ["chart-funnel", "chart-campaigns", "chart-sources"],
+  campaigns: [
+    "campaigns-strip",
+    "chart-funnel",
+    "chart-campaigns",
+    "chart-campaigns-held",
+    "chart-campaigns-stopped",
+    "chart-campaigns-failed-why",
+    "chart-campaign-channels",
+    "chart-campaigns-by-message",
+    "chart-sources",
+    "campaigns-time",
+    "chart-campaigns-first-reply",
+    "chart-campaigns-approval",
+    "campaigns-stuck",
+    "ro-strip",
+    "ro-emails",
+    "ro-funnel",
+    "ro-angles",
+    "ro-domains",
+    "ro-written",
+    "ro-sources",
+  ],
   reviews: ["google-none"],
 };
 
@@ -144,9 +190,37 @@ test("the head says Reports and the lens's own answer, from contracts, on every 
     draw(lens, { R });
     const said = standingSaid();
     assert.equal(said.title, "Reports", lens);
-    assert.equal(said.sentence, lensAnswerOf(lens, { ...R, reviews: REVIEWS_NONE.vm }), `${lens}: its answer`);
+    // The page hands the head the fold of each lens's own read: People's and Campaigns' are the sentences their figures are drawn from.
+    const parts = {
+      ...R,
+      reviews: REVIEWS_NONE.vm,
+      people: toPeopleReportVM(PEOPLE_HELD.dto),
+      campaigns: toCampaignLensVM(
+        { campaigns: CAMPAIGNS_HELD.campaigns, ledger: CAMPAIGNS_HELD.ledger, reachOuts: CAMPAIGNS_HELD.reachOuts },
+        Date.now(),
+      ),
+    };
+    assert.equal(said.sentence, lensAnswerOf(lens, parts), `${lens}: its answer`);
   }
-  assert.equal(standingSaid().sentence, undefined, "with no listing linked, Reviews says nothing of itself");
+  assert.equal(
+    standingSaid().sentence,
+    undefined,
+    "with no listing linked, Reviews says nothing of itself (and the last lens drawn is Reviews)",
+  );
+  draw("campaigns", { R });
+  assert.equal(
+    standingSaid().sentence,
+    "240 messages to 180 people over 14 runs; 48 of 180 wrote back (41 the 30 days before).",
+    "Campaigns says the head of the fold its read folds to",
+  );
+  assert.notEqual(standingSaid().sentence, R.vm.lines.hero, "and nothing of the frame's");
+  draw("people", { R });
+  assert.equal(
+    standingSaid().sentence,
+    toPeopleReportVM(PEOPLE_HELD.dto).head,
+    "People says the head of the fold its read folds to",
+  );
+  assert.notEqual(standingSaid().sentence, R.vm.lines.people, "and not the frame's count of new people");
 });
 
 test("the Reviews head says the sentence of the fold its figures are drawn from, and nothing while that read is out", () => {
@@ -223,6 +297,32 @@ test("the page dims once while the Receptionist read is of another period than t
   }
 });
 
+test("the page dims once while the People read is of another period than the strip shows or still out, on that lens alone, and not when they agree", () => {
+  workspace("proposal");
+  const same = draw("people");
+  assert.deepEqual(dimmed(same), [], "the same period: nothing on its way");
+  assert.equal(dims(same).length, 1, "the page's body is the one thing the rule dims");
+  assert.equal(dims(same)[0].props["aria-busy"], "false");
+  for (const [said, people] of [
+    ["held for another period", peopleHeld(dtoWith(), "30d")],
+    ["not yet read", undefined],
+  ]) {
+    const behind = draw("people", { people });
+    assert.deepEqual(
+      dimmed(behind),
+      [byTestId(behind, "reports-real")],
+      `${said}: the page says a period is on its way`,
+    );
+    assert.equal(dims(behind).length, 1, "and one body dims, not the page's and the lens's both (they would compound)");
+    assert.ok(byTestId(dims(behind)[0], "chart-people"), "the lens's cards are in the body that dims");
+    assert.equal(dims(behind)[0].props["aria-busy"], "true");
+    assert.equal(byTestId(behind, "people-failed"), null, `${said}: a read on its way is not a failed one`);
+    // Another lens is of the report the page holds: the People read, behind or not, dims nothing there.
+    assert.deepEqual(dimmed(draw("overview", { people })), [], `${said}: it is the People lens's own to say`);
+    assert.deepEqual(dimmed(draw("receptionist", { people })), []);
+  }
+});
+
 test("a lens the workspace has no use for says so at its address, in the registry's words, and draws none of its cards", () => {
   workspace("booking");
   const tree = draw("pipeline", { R: surface({ deals: DEALS }) });
@@ -235,16 +335,40 @@ test("a lens the workspace has no use for says so at its address, in the registr
   assert.ok(byTestId(none, "lens-empty"), "deals on and none ever recorded: the same words, never a blank");
 });
 
-test("a period with nothing in it says so on each lens that draws sections", () => {
+test("Ads reaches a workspace without ads as the registry's empty at its address, with the door to Ads: none of its cards, no head sentence, and no fact on the Overview", () => {
+  for (const sellsBy of ["booking", "proposal"]) {
+    workspace(sellsBy);
+    const tree = draw("ads", { R: surface({ deals: DEALS }) });
+    const empty = byTestId(tree, "lens-empty");
+    assert.ok(empty, `${sellsBy}: the lens says it has nothing, never a blank`);
+    assert.equal(textOf(find(empty, (n) => classes(n).includes("empty-title"))), "No ads in this period");
+    assert.ok(textOf(empty).includes("Open Ads"), "and where Ads is");
+    for (const id of ["ads-lens", "ads-res-days", "ads-res-figures", "ads-res-funnel", "ads-res-platforms"])
+      assert.equal(byTestId(tree, id), null, `${sellsBy}: ${id} is a card of the demo's lens alone`);
+    assert.equal(standingSaid().sentence, undefined, "its head says Reports and nothing of ads");
+    const overview = draw("overview", { R: surface({ deals: DEALS }) });
+    assert.deepEqual(
+      all(overview, (n) => n.props?.["data-fact"] === "ads"),
+      [],
+      `${sellsBy}: Worth knowing says nothing of ads where there are none`,
+    );
+  }
+});
+
+test("a period with nothing in it says so on each lens that draws sections, and on People it hides nothing: the lens never draws the empty", () => {
   workspace("booking");
   const R = surface({ report: quiet(), deals: NO_DEALS });
-  for (const lens of ["overview", "receptionist", "people"]) {
+  for (const lens of ["overview", "receptionist"]) {
     const tree = draw(lens, { R });
     assert.ok(
       textOf(byTestId(tree, "reports-empty")).includes("Nobody wrote or called between Aug 29 and Sep 4."),
       lens,
     );
   }
+  // A person who has not written in these days is still in the book, and the lens has the book to draw.
+  const people = draw("people", { R });
+  assert.equal(byTestId(people, "reports-empty"), null);
+  assert.ok(byTestId(people, "chart-people-wires") && byTestId(people, "chart-people-fresh"), "the book draws");
 });
 
 test("Reviews says why nothing is drawn where nothing is linked, in the fold's words: a deployment that cannot look a listing up says so and offers no door, one that can says what the lens would show, and the door to find it is for a person who may use it", () => {
@@ -382,23 +506,65 @@ test("the Campaigns lens draws its channels where more than one sent (0030): a b
     { channel: "sms", sent: 4, delivered: 3, read: 0, replied: 1 },
     { channel: "email", sent: 2, delivered: 1, read: 0, replied: 0 },
   ];
-  const tree = draw("campaigns", { R: surface({ deals: DEALS, campaigns: { ...campaignDto(), by_channel: split } }) });
+  /** The Campaigns lens's own read of the week's sends, split as asked (the ledger beside it is the world's). */
+  const sends = (campaigns) => ({ campaigns: campaignsHeld(campaignsLedger(), "7d", { campaigns }) });
+  const tree = draw("campaigns", sends({ ...campaignDto(), by_channel: split }));
   const card = byTestId(tree, "chart-campaign-channels");
   assert.ok(card, "the card");
   assert.match(textOf(card), /By channel/);
   assert.match(textOf(card), /Read receipts are WhatsApp's alone: 11 of its 14 were read\./);
-  for (const words of ["WhatsApp", "14 · 86% delivered", "Text", "4 · 75% delivered", "Email", "2 · 50% delivered"])
+  // D9: of four sends or fewer the count, never a percentage; of fourteen a share.
+  for (const words of [
+    "WhatsApp",
+    "14 · 86% delivered",
+    "Text",
+    "4 · 3 of 4 delivered",
+    "Email",
+    "2 · 1 of 2 delivered",
+  ])
     assert.ok(textOf(card).includes(words), words);
-  assert.equal(byTestId(tree, "chart-channels"), null, "People's channels card is People's");
-  const one = draw("campaigns", {
-    R: surface({
-      deals: DEALS,
-      campaigns: {
-        ...campaignDto(),
-        by_channel: [{ channel: "whatsapp", sent: 20, delivered: 16, read: 11, replied: 4 }],
-      },
+  assert.equal(byTestId(tree, "chart-people-channels"), null, "People's channels card is People's");
+  const one = draw(
+    "campaigns",
+    sends({
+      ...campaignDto(),
+      by_channel: [{ channel: "whatsapp", sent: 20, delivered: 16, read: 11, replied: 4 }],
     }),
-  });
+  );
   assert.equal(byTestId(one, "chart-campaign-channels"), null, "one channel: nothing to split");
-  assert.equal(byTestId(draw("campaigns"), "chart-campaign-channels"), null, "a report from before the channels");
+  assert.equal(
+    byTestId(draw("campaigns", sends(campaignDto())), "chart-campaign-channels"),
+    null,
+    "a report from before the channels",
+  );
+});
+
+test("the page dims once while the Campaigns read is of another period than the strip shows or still out, on that lens alone, and not when they agree", () => {
+  workspace("proposal");
+  const same = draw("campaigns");
+  assert.deepEqual(dimmed(same), [], "the same period: nothing on its way");
+  assert.equal(dims(same).length, 1, "the page's body is the one thing the rule dims");
+  assert.equal(dims(same)[0].props["aria-busy"], "false");
+  for (const [said, campaigns] of [
+    ["held for another period", campaignsHeld(campaignsLedger(), "30d")],
+    ["not yet read", undefined],
+  ]) {
+    const behind = draw("campaigns", { campaigns });
+    assert.deepEqual(
+      dimmed(behind),
+      [byTestId(behind, "reports-real")],
+      `${said}: the page says a period is on its way`,
+    );
+    assert.equal(dims(behind).length, 1, "and one body dims, not the page's and the lens's both (they would compound)");
+    assert.equal(dims(behind)[0].props["aria-busy"], "true");
+    assert.equal(
+      byTestId(behind, "chart-funnel"),
+      null,
+      `${said}: nothing of a period left is drawn under this one's name`,
+    );
+    assert.equal(byTestId(behind, "campaigns-failed-ledger"), null, `${said}: a read on its way is not a failed one`);
+    // Another lens is of the report the page holds: the Campaigns read, behind or not, dims nothing there.
+    assert.deepEqual(dimmed(draw("overview", { campaigns })), [], `${said}: it is the Campaigns lens's own to say`);
+    assert.deepEqual(dimmed(draw("reviews", { campaigns })), []);
+  }
 });

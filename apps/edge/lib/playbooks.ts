@@ -20,6 +20,7 @@ import {
   textLineFacts,
   touchIndex,
   touchesSince,
+  recordOver,
   whatsappChannelFacts,
   yesesSince,
   type Database,
@@ -45,17 +46,18 @@ import {
   isSellsBy,
   offerPauseOf,
   ownAddressesOf,
-  numberHealth,
-  numberHealthWithStanding,
+  numberHealthOfConfig,
   parseTenantConfig,
-  standingFromConfig,
   peopleVisitsOf,
+  feedMarksOf,
+  seasonHorizon,
   poolListContext,
   consultFirstOf,
   poolRowsOf,
   withVisitsOf,
   membersOf,
   resolveList,
+  type NumberHealth,
   type PersonRowDto,
   type PersonVisitsDto,
   BOOKING_DEFAULTS,
@@ -143,7 +145,7 @@ async function channelFacts(db: Db, tenantId: string) {
  */
 async function channelsNow(
   channels: Awaited<ReturnType<typeof channelFacts>>,
-  health: ReturnType<typeof numberHealth>,
+  health: NumberHealth,
   profile: { address?: string | null } | null | undefined,
 ) {
   // Whether an offer by email can go: the deployment's campaigns domain (kept five minutes), the business's address, and
@@ -162,15 +164,64 @@ async function channelsNow(
 }
 
 /**
- * The number's rating (its config as Meta last said it), with what Meta holds against the number (its kept standing, 00338): a
- * number Meta has stopped, or whose account has no payment method, carries no campaign, refused in the sentence the
- * Connections row says (contracts numberHealthWithStanding: one rule, read by the dashboard's composers too).
+ * Everyone's visits for a run, as the People page reads them (contracts peopleVisitsOf): the feed over the workspace's
+ * own horizon, and the record beside it over the same season (0002's readers), where a booking's visits join the feed's,
+ * a cancelled one leaves, and a member's kept or missed rides on each. A feed or a record that could not be read is
+ * "unavailable" (the record's logged): a visit the record cancelled or a member said missed cannot be told from one
+ * that stands, and a run that cannot tell them apart sends no visit's message that hour. No calendar is "none".
  */
-function numberHealthOf(cfg: Record<string, unknown>, s: (k: string) => string | null) {
-  return numberHealthWithStanding(
-    numberHealth({ quality: s("quality_rating"), event: s("quality_event"), limit: s("messaging_limit") }),
-    standingFromConfig(cfg.standing),
+async function runVisits(
+  db: Db,
+  tenantId: string,
+  {
+    url,
+    tz,
+    now,
+    daysAhead,
+    rows,
+    cfg,
+  }: {
+    url: string | null;
+    tz: string;
+    now: Date;
+    daysAhead: number;
+    rows: Parameters<typeof peopleVisitsOf>[1];
+    cfg: ReturnType<typeof parseTenantConfig>;
+  },
+): Promise<{ calendar: TenantRunContext["calendar"]; visits: Map<string, PersonVisitsDto> }> {
+  if (!url) return { calendar: "none", visits: new Map() };
+  const season = seasonHorizon(now, daysAhead);
+  const [items, record] = await Promise.all([
+    feedItemsFor(tenantId, url, tz, now, daysAhead),
+    recordOver(db, tenantId, new Date(season.from).toISOString(), new Date(season.to).toISOString()).then(
+      (r) => ({ noted: r.noted, marks: feedMarksOf(r.feed) }),
+      (e: unknown) => {
+        logger({ tenant_id: tenantId }).error("visits_record_read_failed", {
+          error: e instanceof Error ? e.message : String(e),
+        });
+        return null;
+      },
+    ),
+  ]);
+  if (!items || !record) return { calendar: "unavailable", visits: new Map() };
+  const profile = cfg?.brain?.profile;
+  // The pool's one reading (contracts audience-pool.ts), as the dashboard reads it: the business's own addresses are
+  // never a customer's (ownAddressesOf) -- without them a visit playbook could thank the owner, as a customer, for a
+  // meeting on their own calendar -- and each visit says whether it is a consultation (0004).
+  const visits = peopleVisitsOf(
+    items,
+    rows,
+    {
+      timezone: tz,
+      source: "calendar",
+      own: ownAddressesOf(cfg),
+      services: profile?.services ?? [],
+      rules: profile?.booking_rules ?? null,
+      record,
+    },
+    now.getTime(),
   );
+  return { calendar: "ok", visits };
 }
 
 /** Read once per tenant: the people, the modes, the number, the touches. */
@@ -221,8 +272,6 @@ export async function loadTenantRunContext(
   if (kept.error) return { error: `lists: ${kept.error}` };
   // A paused workspace runs nothing: the sweep counts it off, and says so once, quietly; Run now refuses it in words.
   if (tenant?.status === "paused") return { error: CONTEXT_PAUSED };
-  const cfg = channels.whatsapp ? channels.whatsapp.config : {};
-  const s = (k: string) => (typeof cfg[k] === "string" ? cfg[k] : null);
   // A touch is a message sent, or one on its way, dated by when it went or is due; a broadcast the owner sent by
   // hand counts for the breath (byAny: within a week of now, either side) and for no playbook's gap; a proposal
   // follow-up by any playbook, for the follow-up's once per proposal (touchIndex, 0006).
@@ -238,32 +287,8 @@ export async function loadTenantRunContext(
   // (api/cron/calendar.ts). Left to the default, a workspace that books three
   // months out had its visit playbooks reading a fortnight of calendar.
   const daysAhead = cfgParsed?.brain?.profile?.booking_rules?.max_days_ahead ?? BOOKING_DEFAULTS.max_days_ahead;
-  let calendar: TenantRunContext["calendar"] = "none";
-  let visits = new Map<string, PersonVisitsDto>();
   const profile = cfgParsed?.brain?.profile;
-  if (url) {
-    const items = await feedItemsFor(tenantId, url, tz, now, daysAhead);
-    if (items) {
-      calendar = "ok";
-      // The pool's one reading (contracts audience-pool.ts), as the dashboard reads it: the business's own addresses
-      // are never a customer's (ownAddressesOf) -- without them a visit playbook could thank the owner, as a customer,
-      // for a meeting on their own calendar -- and each visit says whether it is a consultation (0004).
-      visits = peopleVisitsOf(
-        items,
-        rows,
-        {
-          timezone: tz,
-          source: "calendar",
-          own: ownAddressesOf(cfgParsed),
-          services: profile?.services ?? [],
-          rules: profile?.booking_rules ?? null,
-        },
-        now.getTime(),
-      );
-    } else {
-      calendar = "unavailable";
-    }
-  }
+  const { calendar, visits } = await runVisits(db, tenantId, { url, tz, now, daysAhead, rows, cfg: cfgParsed });
   const dealsOn = dealsAreOn(isSellsBy(tenant?.sells_by) ? tenant.sells_by : null);
   // Everyone as the pool reads them: no one looking (a run has no viewer), no deal where deals are off, and their
   // visits attached the one way (withVisitsOf), as the People list and the Playbooks page attach them.
@@ -273,7 +298,9 @@ export async function loadTenantRunContext(
     consultFirst: consultFirstOf(profile?.booking_rules),
     viewer: null,
   });
-  const health = numberHealthOf(cfg, s);
+  // The number's rating with what Meta holds against it (its kept standing, 00338): the one derivation the dashboard's
+  // composers read too (contracts numberHealthOfConfig). With no active number the config is empty and `ready` has none.
+  const health = numberHealthOfConfig(channels.whatsapp ? channels.whatsapp.config : {});
   const ready = await channelsNow(channels, health, profile);
   const vms = poolRowsOf(withVisitsOf(rows, visits, { state: calendar, timezone: tz, source: "calendar" }), {
     tz,

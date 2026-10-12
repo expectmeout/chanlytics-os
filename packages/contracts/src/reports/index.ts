@@ -47,6 +47,7 @@ export type {
 export {
   REPORT_LENSES,
   LENS_ROUTES,
+  adsReportRoute,
   lensRoute,
   isLensParam,
   lensOfRoute,
@@ -57,7 +58,7 @@ export {
   lensIsShown,
   lensEmpty,
 } from "./lenses";
-export type { LensId, LensRow, LensRange, LensEmpty, LensWho } from "./lenses";
+export type { LensId, LensRow, LensRange, LensEmpty, LensWho, ReportsParts } from "./lenses";
 export { lensAnswerOf } from "./lens-answer";
 export { toReviewsReportVM, REVIEWS_WAITING_SHOWN } from "./review-report";
 export type { ReviewsReportDto, ReviewWaitingVM, ReviewsReportVM } from "./review-report";
@@ -71,6 +72,8 @@ export {
   bookedTileOf,
   BOOKED_ENDED_META,
   REPORT_MIN_N,
+  isThinShare,
+  shareSaid,
 } from "./report-tiles";
 export type { ReportTileVM, ReportStripTile } from "./report-tiles";
 export { metricWordsOf } from "./report-metrics";
@@ -82,6 +85,13 @@ export {
   receptionistDtoOf,
 } from "./receptionist/receptionist-record";
 export type { ReceptionistDto, ReceptionistSeriesDto } from "./receptionist/receptionist-record";
+export { peopleNowOf } from "./people/people-now";
+export type { PeopleNowDto } from "./people/people-now";
+export { isPeopleSeriesDto, peopleDtoOf } from "./people/people-record";
+export type { PeopleDto, PeopleSeriesDto } from "./people/people-record";
+export { toPeopleReportVM } from "./people/people-report";
+export type { PeopleFigureVM, PeopleReportVM } from "./people/people-report";
+export { PEOPLE_RHYTHM_UNIT } from "./people/people-words";
 export {
   CAMPAIGNS_RESULTS_PERIOD,
   REPORT_PERIOD_DEFAULT,
@@ -112,7 +122,21 @@ export { closedOf } from "./report-closed";
 export type { ReportArrivalDto, ReportProfile } from "./report-closed";
 export { reportFacts } from "./report-facts";
 export type { ReportFactVM } from "./report-facts";
-export { toReachOutReportVM, reachOutDayWords, chainTotalsOf, chainTotalsFromReport } from "./reach-out-report";
+export { isCampaignLedgerSeriesDto, isCampaignStuckRawDto, campaignLedgerDtoOf } from "./campaigns/campaign-record";
+export type {
+  CampaignLedgerDto,
+  CampaignLedgerSeriesDto,
+  CampaignNumberDto,
+  CampaignStuckNowDto,
+  CampaignStuckRawDto,
+} from "./campaigns/campaign-record";
+export { toReachOutLensVM } from "./campaigns/reach-out-lens";
+export type { ReachOutLensVM, ReachOutLensSourceLine } from "./campaigns/reach-out-lens";
+export { toCampaignLensVM } from "./campaigns/campaign-lens";
+export type { CampaignFigureVM, CampaignLensInput, CampaignLensVM } from "./campaigns/campaign-lens";
+export { isUncounted } from "./report-mix";
+export type { RateRowVM } from "./report-mix";
+export { reachOutDayWords, chainTotalsOf, chainTotalsFromReport } from "./reach-out-report";
 export type {
   ReachOutChainTotalsDto,
   ReachOutReportCounts,
@@ -120,10 +144,6 @@ export type {
   ReachOutReportChainDto,
   ReachOutReportDomainDto,
   ReachOutReportDto,
-  ReachOutFunnelRow,
-  ReachOutAngleRow,
   ReachOutDomainRow,
-  ReachOutSourceLine,
-  ReachOutReportVM,
   ReachOutDayNumbers,
 } from "./reach-out-report";

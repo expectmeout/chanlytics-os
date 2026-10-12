@@ -34,11 +34,26 @@ const ok = (over) => ({
 
 test("the judge: a price always fails, and each expectation names what it wanted", () => {
   assert.deepEqual(
-    judge.judgeCase({ id: "x", text: "hours?", expect: { intent: "hours", language: "en", escalate: false } }, ok({})),
+    judge.judgeCase(
+      { id: "x", text: "hours?", expect: { intent: "hours", language: "en", escalate: false } },
+      ok({}),
+      null,
+    ),
     { pass: true, failures: [] },
   );
-  const priced = judge.judgeCase({ id: "x", text: "price?" }, ok({ text: "A balayage is $180." }));
+  const priced = judge.judgeCase({ id: "x", text: "price?" }, ok({ text: "A balayage is $180." }), null);
   assert.deepEqual(priced.failures, ["quoted a price"]);
+  // A workspace with "Never quote a price" off may say the prices its owner wrote, and only those (decision 0051).
+  const listed = new Set(["180"]);
+  assert.deepEqual(
+    judge.judgeCase({ id: "x", text: "price?" }, ok({ text: "A balayage is $180." }), listed).failures,
+    [],
+  );
+  assert.deepEqual(
+    judge.judgeCase({ id: "x", text: "price?" }, ok({ text: "A balayage is $180 to $220." }), listed).failures,
+    ["quoted a price"],
+    "a figure nobody wrote, the top of a range included",
+  );
   const wrong = judge.judgeCase(
     {
       id: "x",
@@ -53,6 +68,7 @@ test("the judge: a price always fails, and each expectation names what it wanted
       },
     },
     ok({}),
+    null,
   );
   assert.deepEqual(wrong.failures, [
     "intent hours, wanted pricing|services",
@@ -62,14 +78,14 @@ test("the judge: a price always fails, and each expectation names what it wanted
     "must not say /open at/",
     "confidence 0.9 < 0.95",
   ]);
-  assert.deepEqual(judge.judgeCase({ id: "x", text: "?" }, { id: "x", ok: false, error: "timeout" }), {
+  assert.deepEqual(judge.judgeCase({ id: "x", text: "?" }, { id: "x", ok: false, error: "timeout" }, null), {
     pass: false,
     failures: ["no answer: timeout"],
   });
-  assert.deepEqual(judge.judgeCase({ id: "x", text: "?" }, undefined).failures, ["no answer: missing result"]);
+  assert.deepEqual(judge.judgeCase({ id: "x", text: "?" }, undefined, null).failures, ["no answer: missing result"]);
   assert.ok(
     judge
-      .judgeCase({ id: "x", text: "?" }, ok({ meta: null }))
+      .judgeCase({ id: "x", text: "?" }, ok({ meta: null }), null)
       .failures.includes("no record (intent/confidence) came back"),
     "a legacy answer is a failure: the record is the point",
   );
@@ -105,7 +121,7 @@ test("the report reads at a glance and counts what passed", () => {
     { id: "a", text: "?", expect: { intent: "hours" } },
     { id: "b", text: "?", expect: { intent: "pricing" } },
   ];
-  const r = judge.formatReport(two, [ok({ id: "a" }), ok({ id: "b" })]);
+  const r = judge.formatReport(two, [ok({ id: "a" }), ok({ id: "b" })], null);
   assert.equal(r.passed, 1);
   assert.equal(r.total, 2);
   assert.ok(r.text.includes(" ok  a") && r.text.includes("FAIL b"));

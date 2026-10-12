@@ -194,6 +194,10 @@ export const RATE = {
   /** A reply reaches Google under the business's name. */
   google_reply: { limit: 20, windowMs: HOUR_MS, noun: "review replies" },
   google_draft: { limit: 30, windowMs: HOUR_MS, noun: "review drafts" },
+  /** A workspace's logo saved or taken away (00407): a picture stored, and the one before it removed, each time. */
+  workspace_logo: { limit: 20, windowMs: HOUR_MS, noun: "logo changes" },
+  /** A look for the logo on the business's own website: a page and up to two images asked of another server, each time. */
+  workspace_logo_lookup: { limit: 6, windowMs: HOUR_MS, noun: "looks for your logo" },
   /** A Checkout or portal session, a resume, a sync: each a call to Stripe for an owner that changes something. */
   billing: { limit: 20, windowMs: HOUR_MS, noun: "billing requests" },
   /** Reading the invoices: a call to Stripe that changes nothing, and must not spend the Checkout bucket. */

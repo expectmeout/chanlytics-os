@@ -401,6 +401,71 @@ test("readLeadContext carries the CURRENT deal, which may be the oldest row, and
   assert.equal(ctxNoEmail.hasEmail, false, "a contact row without an email");
 });
 
+test("the message being answered is not the writer's history: a first-time writer is new, and a regular is dated by their last turn before it", async () => {
+  // 11 Oct 2026: a text is stored before its writer is read, so every writer was "Returning contact. Last in touch
+  // today": the message was its own history, and last_seen_at, which its ingest had just moved, said today.
+  const T = "aaaaaaaa-0000-4000-8000-000000000003";
+  const NOW = new Date("2026-10-11T15:00:00Z");
+  const person = (id, phone) => ({
+    id,
+    tenant_id: T,
+    phone_e164: phone,
+    display_name: null,
+    wa_profile_name: null,
+    email: null,
+    last_seen_at: NOW.toISOString(), // the ingest of the message being answered moved it
+  });
+  const message = (id, conversation, over) => ({
+    id,
+    tenant_id: T,
+    conversation_id: conversation,
+    ...row({ created_at: NOW.toISOString(), body: "Do you have anything Saturday?" }),
+    ...over,
+  });
+  const db = fakeDb({
+    contacts: [person("c-new", "+13055550141"), person("c-regular", "+13055550142")],
+    conversations: [
+      { id: "v-new", tenant_id: T, contact_id: "c-new" },
+      { id: "v-regular", tenant_id: T, contact_id: "c-regular" },
+    ],
+    messages: [
+      message("m-new", "v-new"),
+      message("m-old", "v-regular", { body: "Thanks, see you then", created_at: "2026-04-14T10:00:00Z" }),
+      message("m-reply", "v-regular", {
+        body: "See you Tuesday!",
+        sender: "ai",
+        direction: "outbound",
+        status: "delivered",
+        created_at: "2026-04-14T10:01:00Z",
+      }),
+      // Three photos just before the text being answered: no words, so no turns, and they must not hide the history
+      // behind them (the review of 11 Oct 2026: the window was four rows).
+      ...[1, 2, 3].map((n) =>
+        message(`m-photo${n}`, "v-regular", {
+          body: null,
+          created_at: new Date(NOW.getTime() - n * 60_000).toISOString(),
+        }),
+      ),
+      message("m-now", "v-regular"),
+    ],
+  });
+  const said = async (phone, answering) =>
+    describeLead(await readLeadContext(db, T, phone, 1, answering), NOW, "America/New_York");
+
+  assert.match(await said("+13055550141", "m-new"), /First time reaching out\./);
+  assert.doesNotMatch(await said("+13055550141", "m-new"), /Returning contact/);
+  assert.match(await said("+13055550142", "m-now"), /Returning contact\. Last in touch 180 days ago\./);
+
+  // A call names no message (the caller has not written yet): the reader is as it was, last_seen_at and all.
+  assert.match(await said("+13055550142"), /Returning contact\. Last in touch today\./);
+  const call = await readLeadContext(db, T, "+13055550142", 12);
+  assert.deepEqual(
+    call.history.map((t) => t.content),
+    ["Thanks, see you then", "See you Tuesday!", "Do you have anything Saturday?"],
+    "and its history keeps every turn",
+  );
+});
+
 test("a person with open deals for three services (0029): the receptionist hears each, and every proposal out with its own link, named by its service; the phone hears a client of any service as a client", async () => {
   const T = "aaaaaaaa-0000-4000-8000-000000000002";
   const PHONE = "+13055550124";

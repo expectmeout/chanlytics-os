@@ -2621,6 +2621,14 @@ test("a spoken question asks Ask's voice to say it is working, once, in the ques
   const s = speechStub();
   const { recs, hears, down } = holdWorld();
   const waits = [];
+  // The beat after a lift in which a click on the button is the lift's own and swallowed (ask-real.jsx AR_LIFT_MS,
+  // 400 ms) is held here and passed by hand (`aBeat`): a loaded machine re-renders slower than the beat, and the Stop
+  // pressed below as the lift's click must land inside it, as a finger's does (11 Oct 2026: it missed it, three runs).
+  const LIFT_MS = 400;
+  const timeout = globalThis.window.setTimeout;
+  const beats = [];
+  globalThis.window.setTimeout = (fn, ms) => (ms === LIFT_MS ? beats.push(fn) : timeout(fn, ms));
+  const aBeat = () => beats.splice(0).forEach((fn) => fn());
   try {
     const calls = ask([]);
     const held = heldTurns(calls);
@@ -2649,6 +2657,7 @@ test("a spoken question asks Ask's voice to say it is working, once, in the ques
     held.turn.on({ t: "final", message: said("m-1", "Nobody canceled.") });
     held.turn.end();
     for (let i = 0; i < 3; i++) tree = await later(Palette, props);
+    aBeat();
     await holdAndAsk("¿alguien canceló la semana pasada?");
     assert.equal(waits.length, 2);
     assert.equal(waits[1].lang, "es", "a question in Spanish hears it in Spanish");
@@ -2657,6 +2666,7 @@ test("a spoken question asks Ask's voice to say it is working, once, in the ques
     held.turn.end();
     for (let i = 0; i < 3; i++) tree = await later(Palette, props);
     assert.equal(waits[1].answered(), true, "a turn landed with no Say drawn has its answer too");
+    aBeat();
     await holdAndAsk("and the week before");
     assert.equal(waits[2].answered(), false);
     // Stop: the lift's own click on what the button has become is swallowed, and the press after it stops the turn.
@@ -2666,10 +2676,12 @@ test("a spoken question asks Ask's voice to say it is working, once, in the ques
     tree = await later(Palette, props);
     assert.equal(waits[2].answered(), true, "Stop ended the turn: nothing is said for it");
     held.turn.end();
+    aBeat();
     tree = await later(Palette, props);
     tree = await asks(tree, props, "how did the week go?");
     assert.equal(waits.length, 3, "a typed question asks nothing of the voice");
   } finally {
+    globalThis.window.setTimeout = timeout;
     await closes();
     delete globalThis.window.SpeechRecognition;
     ph.restore();
@@ -3173,8 +3185,13 @@ test("a row of every kind an answer names draws its kind's mark, from the one ma
     Object.values(marks),
     "each row its kind's mark",
   );
+  // An ad is cited as the page it is on until the Ads read lands (decision 0049), so it wears the page's mark.
   for (const k of ASK_SCOPE_KINDS)
-    assert.equal(askKindGlyph(k), k === "run" ? marks.broadcast : marks[k], `a scope's ${k} is marked as its row`);
+    assert.equal(
+      askKindGlyph(k),
+      k === "run" ? marks.broadcast : k === "ad" ? marks.page : marks[k],
+      `a scope's ${k} is marked as its row`,
+    );
   assert.equal(askKindGlyph("something new"), "chat", "a kind the map does not know is a chat");
 });
 

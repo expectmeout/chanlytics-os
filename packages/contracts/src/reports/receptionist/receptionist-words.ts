@@ -10,27 +10,13 @@ import { BOOKED_NEEDS_A_LINK } from "../../setup/calendar-source";
 import { durationWords } from "../../shared/clock";
 import { capitalize, plural } from "../../shared/words";
 import { BOOKED_NEEDS_TODAY } from "../booking-report";
+import { ownWord, rankedEntries, type MixEntry } from "../report-mix";
 import { MISSED_CALL_TOUCH_WORDS, type ReceptionistDto, type ReceptionistSeriesDto } from "./receptionist-record";
-
-/** A row of a mix before its bar is drawn: the key it is counted under, its words and its count. */
-export type MixEntry = [id: string, label: string, value: number];
 
 type Counts = Readonly<Record<string, number>>;
 type HoldNow = ReceptionistSeriesDto["hold"]["now"];
 type MissedNow = ReceptionistSeriesDto["missed"]["now"];
 type LinksCalendar = NonNullable<ReceptionistDto["series"]>["links"]["calendar"];
-
-/** A word out of a closed set a row names by its key: nothing for a key the set does not hold (never `constructor`'s). */
-const ownWord = (words: Readonly<Record<string, string>>, key: string): string | undefined =>
-  Object.hasOwn(words, key) ? words[key] : undefined;
-
-/** A count by key as rows, most first and the key's own order between equals (the database's object has none worth keeping). */
-function rankedEntries(counts: Counts, labelOf: (key: string) => string): MixEntry[] {
-  return Object.entries(counts)
-    .filter(([, n]) => n > 0)
-    .map(([key, n]): MixEntry => [key, labelOf(key), n])
-    .sort((a, b) => b[2] - a[2] || (a[0] < b[0] ? -1 : 1));
-}
 
 /* ------------------------------------------------------------------ the hold */
 

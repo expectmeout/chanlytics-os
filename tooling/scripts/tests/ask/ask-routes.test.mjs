@@ -33,6 +33,8 @@ const reports = await import(at("apps/dashboard/app/api/v1/reports/route.ts"));
 const campaigns = await import(at("apps/dashboard/app/api/v1/reports/campaigns/route.ts"));
 const reviews = await import(at("apps/dashboard/app/api/v1/reports/reviews/route.ts"));
 const receptionist = await import(at("apps/dashboard/app/api/v1/reports/receptionist/route.ts"));
+const people = await import(at("apps/dashboard/app/api/v1/reports/people/route.ts"));
+const campaignsLedger = await import(at("apps/dashboard/app/api/v1/reports/campaigns/ledger/route.ts"));
 const { readerCache, readerContext } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 const warm = await import(at("apps/dashboard/app/api/v1/ask/warm/route.ts"));
 const { buildContext, clearContextCache } = await import(at("apps/dashboard/src/server/ask/context.ts"));
@@ -107,7 +109,7 @@ const turn = (id, thread_id, tenant_id, role, content) => ({
   created_at: "2026-09-10T00:00:01Z",
 });
 
-test("the twelve declare their policy: a question every member's and counted, the warm every member's and counted with the aggregates, the aggregates counted with their query declared, a person's own threads and cards on the account", () => {
+test("the fourteen declare their policy: a question every member's and counted, the warm every member's and counted with the aggregates, the aggregates counted with their query declared, a person's own threads and cards on the account", () => {
   const open = { kind: "read", scope: "workspace", role: null, rate: null, spend: false };
   const own = { scope: "account", role: null, rate: null, spend: false };
   assert.deepEqual(ask.POST.policy, { kind: "write", scope: "workspace", role: "viewer", rate: "ask", spend: false });
@@ -128,6 +130,8 @@ test("the twelve declare their policy: a question every member's and counted, th
   assert.deepEqual(campaigns.GET.policy, { ...open, rate: "aggregate" });
   assert.deepEqual(reviews.GET.policy, { ...open, rate: "aggregate" });
   assert.deepEqual(receptionist.GET.policy, { ...open, rate: "aggregate" });
+  assert.deepEqual(people.GET.policy, { ...open, rate: "aggregate" });
+  assert.deepEqual(campaignsLedger.GET.policy, { ...open, rate: "aggregate" });
 });
 
 test("a question: the workspace must be named, something must be asked and not too much, a thread must exist and be this workspace's — and nothing is saved for a refusal", async () => {

@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { ALWAYS, databaseSuitesOf, isDatabaseSuite, testTargets } from "../../../checks/changed-tests.mjs";
+import { ALWAYS, TESTED_IN, databaseSuitesOf, isDatabaseSuite, testTargets } from "../../../checks/changed-tests.mjs";
 import { ROOT } from "../../_source.mjs";
 
 const FOLDERS = new Set(
@@ -24,6 +24,30 @@ test("a source file runs the tests of every folder its path names, and the rules
   for (const t of ["tooling/scripts/tests/leads", "tooling/scripts/tests/edge", "tooling/scripts/tests/receptionist"])
     assert.ok(targets.includes(t), t);
   assert.ok(!targets.includes("tooling/scripts/tests/people"), "nothing the change does not name");
+});
+
+test("the composer, the answer verb and the campaign runner run the folders that prove them, which their paths do not name", () => {
+  // 11 Oct 2026: each of these selected no test, so a change to what the receptionist reads ran only the rules.
+  const named = (file) => run(file).filter((t) => !ALWAYS.includes(t));
+  assert.deepEqual(
+    named("packages/contracts/src/config/workspace-config/compose.ts").sort(),
+    ["calendar", "receptionist", "sms", "voice", "whatsapp"].map((f) => `tooling/scripts/tests/${f}`),
+  );
+  for (const f of ["whatsapp", "sms", "email", "intake", "receptionist", "conversations"])
+    assert.ok(named("packages/core/src/inbound/answer.ts").includes(`tooling/scripts/tests/${f}`), f);
+  for (const f of ["playbooks", "broadcasts"])
+    assert.ok(named("packages/core/src/campaigns/run-playbook.ts").includes(`tooling/scripts/tests/${f}`), f);
+});
+
+test("every path the map names holds source, and every folder it names holds tests", () => {
+  const tracked = execFileSync("git", ["ls-files"], { cwd: ROOT, encoding: "utf8" }).split("\n");
+  for (const [prefix, folders] of Object.entries(TESTED_IN)) {
+    assert.ok(
+      tracked.some((f) => f.startsWith(prefix)),
+      `${prefix} holds no file: move the entry with the code`,
+    );
+    for (const folder of folders) assert.ok(FOLDERS.has(folder), `${prefix}: tests/${folder} holds no test`);
+  }
 });
 
 test("a changed test runs itself; a folder already asked for covers it; a helper of a folder runs the folder", () => {

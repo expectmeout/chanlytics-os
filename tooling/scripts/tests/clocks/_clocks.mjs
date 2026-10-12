@@ -1,9 +1,13 @@
 /**
  * What kind of clock each registered sweep is (decision 0031, invariant 6: time is a row). A clock may reconcile (bring
  * the database in line with a provider, or with what a wake missed), judge (watch the rest and raise the alarm), keep
- * (retention and housekeeping: a purge, a partition made ahead), or roll (count a day). A clock that runs a timer or a
- * reaction on a schedule is event-shaped: its work belongs on a due row (a job's due_at) or after the event that starts
- * it, and the count of them may only fall (clocks/clock-kinds.test.mjs, docs/debt.md).
+ * (retention and housekeeping: a purge, a partition made ahead), roll (count a day), or carry out what is due: a time
+ * its rows already hold, a deadline or a schedule and the day it last ran, each row acted on once (`times` names the
+ * columns, and `fn` the database function that reads them, which clocks/clock-kinds.test.mjs holds to the schema). Time living in the row is 00098's rule, which retired
+ * the jobs that once kept a second copy of a pause's and a snooze's time (decision 0044, amended 11 October 2026). A clock
+ * that runs a timer or a reaction on a schedule, inferring from a condition what no row's time says, is event-shaped:
+ * its work belongs on a due row or after the event that starts it, and the count of them may only fall
+ * (clocks/clock-kinds.test.mjs, docs/debt.md).
  *
  * Keyed by the register's own name (sweep_status.sweep): ops/sweep-registry.db.test.mjs holds the register's every row
  * to a kind here, on a real database, as it holds it to its cron job. Each entry says why, and an event-shaped one says
@@ -14,7 +18,7 @@
  */
 
 /** The kinds a clock may be, the last of them the one that may only fall. */
-export const CLOCK_KINDS = ["reconcile", "judge", "keep", "roll", "event-shaped"];
+export const CLOCK_KINDS = ["reconcile", "judge", "keep", "roll", "due", "event-shaped"];
 
 /** Every registered clock: its kind, and why (for an event-shaped one, what replaces it). */
 export const CLOCKS = {
@@ -25,8 +29,8 @@ export const CLOCKS = {
   calls: { kind: "reconcile", why: "re-reads calls, recordings and notes from Retell" },
   channel_quality: { kind: "reconcile", why: "reads each connected WhatsApp number's quality rating from Meta" },
   deadman: {
-    kind: "event-shaped",
-    why: "finds threads waiting over two hours; an SLA timer on each escalation, a due row, replaces it (0003)",
+    kind: "reconcile",
+    why: "reconciles what a crash left, which no row's time says: a message no turn finished, a reply no job was left to send, a run no job started; and tells of a hold still open two hours after its own time, once",
   },
   domains: { kind: "reconcile", why: "checks each sending domain's verification, bounces and holds with the provider" },
   google: { kind: "reconcile", why: "reads each workspace's listings and profiles from Google" },
@@ -47,18 +51,32 @@ export const CLOCKS = {
   partitions: { kind: "keep", why: "makes the events partition two months ahead" },
   partners: { kind: "roll", why: "a daily batch: a partner's matured earnings, and the letters that say so" },
   pauses: {
-    kind: "event-shaped",
-    why: "scans for pauses past their time every ten seconds; a timer set by the write that pauses replaces it",
+    kind: "due",
+    why: "ends a thread's hold on who is speaking, and its pause once no request for a person still asks for one, at the time the write that paused it kept on the row (00098)",
+    times: ["conversations.paused_until", "conversations.control_until"],
+    fn: "expire_stale_pauses",
   },
   platform_metrics_roll: { kind: "roll", why: "counts each workspace's day" },
   playbooks: {
-    kind: "event-shaped",
-    why: "runs due moments and reach-out steps hourly; journeys started by events and timers replace it",
+    kind: "due",
+    why: "runs each moment and reach-out step once a day, at its hour in its workspace's zone, judged from the hour and the day it last ran on its row (00245); and writes the day's reach-out line at six",
+    times: ["playbooks.run_hour", "playbooks.last_run_for"],
+    fn: "playbooks_due",
   },
   purge_ask: { kind: "keep", why: "retention: Ask threads untouched for ninety days" },
   purge_cron_history: { kind: "keep", why: "retention: the clocks' own run history" },
   purge_events: { kind: "keep", why: "retention: evidence events after thirty days" },
+  purge_google_reviews: { kind: "keep", why: "retention: a Google review the mirror has not seen for ninety days" },
   purge_idempotency_keys: { kind: "keep", why: "retention: the keys writes were answered under, after a day" },
+  purge_invitations: { kind: "keep", why: "retention: a team invitation a month after it was accepted or taken back" },
+  purge_config_versions: {
+    kind: "keep",
+    why: "retention: a workspace's settings as they stood, 400 days after a version is replaced",
+  },
+  purge_model_turns: {
+    kind: "keep",
+    why: "retention: the receptionist's kept turns after thirty days, and the prompts no turn has read for 400",
+  },
   purge_jobs: { kind: "keep", why: "retention: the ledger's finished and failed rows" },
   purge_leads: { kind: "keep", why: "retention: leads nobody worked, and places a search left out" },
   purge_notifications: { kind: "keep", why: "retention: notifications after ninety days" },
@@ -76,8 +94,10 @@ export const CLOCKS = {
   registration: { kind: "reconcile", why: "reads carrier registration status from Twilio" },
   sending_domain_days: { kind: "roll", why: "files each sending domain's day of counters" },
   snoozes: {
-    kind: "event-shaped",
-    why: "scans for snoozes past their time every ten seconds; a timer set by the snooze replaces it",
+    kind: "due",
+    why: "wakes a snoozed thread at the time the snooze kept on the row (00098)",
+    times: ["conversations.snooze_until"],
+    fn: "wake_stale_snoozes",
   },
   sweep_voice_sessions: { kind: "keep", why: "retention: voice sessions a day past their token" },
 };

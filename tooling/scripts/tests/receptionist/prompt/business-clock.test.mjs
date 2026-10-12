@@ -112,7 +112,8 @@ test("both channels read the tenant's zone, and neither invents one", () => {
   const wa = ["answer", "context", "ingest", "gates", "unreadable", "reply-gates", "model-turn", "dispatch"]
     .map((m) => readCode(`packages/core/src/inbound/${m}.ts`))
     .join("\n");
-  assert.ok(wa.includes('resolveSystemPrompt(brainCfg, "whatsapp", rt?.timezone, new Date(), rt?.policy, rt?.known)'));
+  // The wire the message came on: a text is told it answers texts (compose.ts).
+  assert.ok(wa.includes("resolveSystemPrompt(brainCfg, channel, rt?.timezone, new Date(), rt?.policy, rt?.known)"));
   // The clock also carries the closures, so it can state a shut day in the
   // block the model reads LAST — where the weekly grid cannot outrank it.
   assert.ok(wa.includes("describeNow(rt?.timezone, new Date(), brainCfg.profile?.closures)"));

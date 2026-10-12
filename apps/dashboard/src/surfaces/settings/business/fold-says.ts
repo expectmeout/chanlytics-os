@@ -47,6 +47,7 @@ interface Said {
   caveats: string[];
   chars: number;
   total: number | null;
+  changed: boolean;
 }
 
 /** What one block is said on: the brain the save goes on, the brain it leaves, the channel, and the profile crossing if any. */
@@ -66,10 +67,14 @@ const btSayBlock = (said: Said, block: FoldSection, on: SayOn) => {
   const before = btBlockLines(stored[key]);
   const after = BUSINESS_TAB.consequenceOf(block, next, channel);
   if (!after) {
+    if (before.length) said.changed = true;
     if (!crossing) said.removed.push(...before);
     return;
   }
   const now = btBlockLines(after);
+  // Whether the block reads otherwise at all, a run block's re-cut week among it: what a sheet marks beside its folded
+  // lines ("Changed"), where `added` and `removed` say nothing of a run block that stays.
+  if (now.join("\n") !== before.join("\n")) said.changed = true;
   said.whole.push(after.text);
   if (typeof after.note === "string" && after.note && !said.caveats.includes(after.note)) said.caveats.push(after.note);
   said.chars += after.chars;
@@ -90,6 +95,7 @@ interface WillSay {
   caveat: string | null;
   chars: number | null;
   total: number | null;
+  changed: boolean;
 }
 
 /** What willSay is asked: the brain the save goes on, the brain as it would leave it, the sections, the channel. */
@@ -111,7 +117,8 @@ interface WillSayAsk {
  * consequenceOf knows (the bridge's FOLD_BLOCK), and `channel` the one its words are read on; a null channel is no
  * channel that reads them on this workspace, and nothing is resolved.
  *
- * It answers { note, added, removed, whole, caveat, chars, total }, each a string or null but the two numbers, all in
+ * It answers { note, added, removed, whole, caveat, chars, total, changed }, each a string or null but the two numbers and
+ * `changed`, all in
  * the composer's own words or prompt-blocks.ts', resolved as the edge resolves them (the bridge's consequenceOf);
  * nothing here writes a word of them:
  *   added    the lines the save adds or rewrites, which a row draws under "It will say";
@@ -128,6 +135,8 @@ interface WillSayAsk {
  *            too long to quote whole says in place of its lines (the services sheet's foot);
  *   total    the length of the whole prompt `next` would give the receptionist on `channel`, which `chars` is a share
  *            of: the prompt after the save, as the block is, never the one before it; null with no block;
+ *   changed  whether any of its blocks would read otherwise than the base's, a block coming or going whole among them:
+ *            what a sheet marks beside its folded lines, where a run block that stays says no line added or removed;
  *   note     the sentence for a save that crosses the resolver's own line between composing a prompt and answering
  *            with the stored one (hasProfile, decided in the bridge's profileCrossing): emptying the last field it
  *            composes from drops the hand-off and every rule line, far beyond the save's own lines, and the first such
@@ -142,7 +151,7 @@ export const btWillSay = ({ was, next, sections, channel }: WillSayAsk): WillSay
   if (!was || !next) return null;
   if (BUSINESS_TAB.saveIssues({ brain: next }).length) return null;
   const crossing = BUSINESS_TAB.profileCrossing(was, next);
-  const said: Said = { added: [], removed: [], whole: [], caveats: [], chars: 0, total: null };
+  const said: Said = { added: [], removed: [], whole: [], caveats: [], chars: 0, total: null, changed: false };
   if (channel) {
     if (btSaidOn.brain !== was || btSaidOn.prompt !== btPreview())
       btSaidOn = { brain: was, prompt: btPreview(), blocks: {} };
@@ -157,6 +166,7 @@ export const btWillSay = ({ was, next, sections, channel }: WillSayAsk): WillSay
     caveat: said.caveats.length ? said.caveats.join(" ") : null,
     chars: said.whole.length ? said.chars : null,
     total: said.whole.length && typeof said.total === "number" ? said.total : null,
+    changed: said.changed,
   };
 };
 

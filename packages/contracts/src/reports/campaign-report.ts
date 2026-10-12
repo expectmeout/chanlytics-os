@@ -8,13 +8,11 @@
  * shares are counts over counts; nothing is scored or estimated. A read is a share of WhatsApp's own sends alone:
  * a text or an email keeps no read receipt. Colors are the page's.
  */
-import { DELIVERY_RECEIPTS_WORDS, REPLY_WINDOW_WORDS } from "../broadcasts/broadcasts";
-import { REPORT_CHANNELS, dayPointOf, priorOf, rangeLabelOf, type ReportChannelKey } from "./reports";
-import { compareWords, deltaOf, pointsDelta, type ReportTileVM } from "./report-tiles";
+import { REPORT_CHANNELS, dayPointOf, type ReportChannelKey } from "./reports";
+import { REPORT_MIN_N, shareSaid } from "./report-tiles";
 import { templateTitle } from "../templates/template-titles";
 import { pct, sumOf } from "../shared/numbers";
 import { formatterOnUse } from "../shared/time";
-import { plural } from "../shared/words";
 
 export interface CampaignDayDto {
   day: string;
@@ -76,7 +74,7 @@ interface CampaignChannelVM {
   readPct: number | null;
   replied: number;
   repliedPct: number | null;
-  /** What its bar says beside it: what it sent, and how much of it was delivered. */
+  /** What its bar says beside it: what it sent, and how much of it was delivered (a share from five sends, else the count: shareSaid). */
   display: string;
 }
 
@@ -89,6 +87,10 @@ export interface CampaignPointVM {
   replied: number;
   optIns: number;
   optOuts: number;
+  /** What a screen reader hears of the day's column: the day and what it sent. */
+  sentWords: string;
+  /** What the column's pointer adds under its number: the messages of the day that were answered; null where none were. */
+  answeredWords: string | null;
 }
 
 export interface CampaignSourceVM {
@@ -106,9 +108,11 @@ export interface CampaignSourceVM {
   replied: number;
   deliveredPct: number | null;
   repliedPct: number | null;
+  /** What the table says of its delivered share: a percentage from five sends, else the count ("3 of 4"); a dash for none (shareSaid). */
+  deliveredWords: string;
+  /** What it says of the messages answered: a percentage with the count from five sends, else the count ("1 of 3"); a dash for none. */
+  repliedWords: string;
   lastLabel: string;
-  /** 0..1 of the source that sent the most. */
-  share: number;
 }
 
 export interface CampaignTotals {
@@ -129,15 +133,13 @@ export interface CampaignTotals {
 
 export interface CampaignReportVM {
   days: number;
-  tiles: ReportTileVM[];
   points: CampaignPointVM[];
   totals: CampaignTotals;
+  /** The period before's messages sent, delivered and answered, and its yeses and stops: what the lens's strip sets this period beside. */
+  before: { sent: number; delivered: number; replied: number; optIns: number; optOuts: number };
   sources: CampaignSourceVM[];
   /** Nothing went out and nobody answered about offers: no send, no yes, no stop. */
   empty: boolean;
-  max: number;
-  /** Messages sent the period before, day for day beside this one's (null where there is no such day). */
-  prior: (number | null)[];
   table: { columns: string[]; rows: (string | number)[][] };
   /** The channels that sent in the period, the most first (0030): the lens draws them where more than one did. */
   channels: CampaignChannelVM[];
@@ -147,10 +149,10 @@ export interface CampaignReportVM {
    */
   channelTable: { columns: string[]; rows: (string | number | null)[][] };
   /**
-   * The one sentence under each campaign card: who said yes or stop (the funnel), how many runs sent it (null with none),
-   * and what a read is, where more than one channel sent (null otherwise).
+   * The one sentence under each campaign card: how many runs sent it (null with none), and what a read is, where more than
+   * one channel sent (null otherwise). The funnel's sentence and the figures are the Campaigns lens's own (campaigns/campaign-lens.ts).
    */
-  lines: { funnel: string; sent: string | null; channels: string | null };
+  lines: { sent: string | null; channels: string | null };
 }
 
 /** The channels a campaign sends on, in a report's words and order. */
@@ -159,6 +161,13 @@ const CAMPAIGN_CHANNELS = REPORT_CHANNELS.filter(
 );
 
 const WHEN = formatterOnUse([], { month: "short", day: "numeric" });
+
+/**
+ * Whether the period before was lived in: it sent something, or somebody said yes or stop in it. A yes or a stop is set
+ * beside the period before's only then (compareWords' `priorHadAny`), which the Campaigns lens's strip asks.
+ */
+export const campaignPriorHadAny = (before: CampaignReportVM["before"]): boolean =>
+  before.sent + before.optIns + before.optOuts > 0;
 
 /** Each channel that sent in the period, its figures over its own sends; a read is WhatsApp's alone (0030). */
 function campaignChannelsOf(rows: readonly CampaignChannelDto[] | undefined): CampaignChannelVM[] {
@@ -178,10 +187,31 @@ function campaignChannelsOf(rows: readonly CampaignChannelDto[] | undefined): Ca
         readPct: whatsapp ? pct(r.read, r.sent) : null,
         replied: r.replied,
         repliedPct: pct(r.replied, r.sent),
-        display: `${r.sent} · ${deliveredPct === null ? "—" : `${deliveredPct}%`} delivered`,
+        display: `${r.sent} · ${shareSaid(deliveredPct, r.delivered, r.sent) ?? "—"} delivered`,
       },
     ];
   });
+}
+
+/** What a day's column says: to a screen reader the day and its sends, to a pointer the messages of the day that were answered (a count of messages, not of people). */
+function columnWords(d: CampaignDayDto): Pick<CampaignPointVM, "sentWords" | "answeredWords"> {
+  return {
+    sentWords: `${dayPointOf(d.day).label}: ${d.sent} sent`,
+    answeredWords: d.replied > 0 ? `${d.replied} answered` : null,
+  };
+}
+
+/**
+ * What a source's row says of its shares (D9), each of the source's own sends: of five or more a percentage (the answered with
+ * their count beside it), under that the count it is of ("3 of 4"), and a dash for a source that sent none.
+ */
+function sourceWords(s: CampaignSourceDto): Pick<CampaignSourceVM, "deliveredWords" | "repliedWords"> {
+  const delivered = shareSaid(pct(s.delivered, s.sent), s.delivered, s.sent);
+  const replied = shareSaid(pct(s.replied, s.sent), s.replied, s.sent);
+  return {
+    deliveredWords: delivered ?? "—",
+    repliedWords: replied === null ? "—" : s.sent >= REPORT_MIN_N ? `${replied} (${s.replied})` : replied,
+  };
 }
 
 /** What a read is, said once under the channels where more than one sent (0030); null where one did or none. */
@@ -205,6 +235,7 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
     replied: d.replied,
     optIns: d.opt_ins,
     optOuts: d.opt_outs,
+    ...columnWords(d),
   }));
   const tot = {
     sent: sumOf(current.map((d) => d.sent)),
@@ -226,13 +257,8 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
   const whatsapp = channels.find((c) => c.channel === "whatsapp");
   const read = dto.by_channel ? (whatsapp?.read ?? 0) : tot.read;
   const readOf = dto.by_channel ? (whatsapp?.sent ?? 0) : tot.sent;
-  const noun = plural(days, "day");
-  // The period before beside a yes or a stop, in counts, where it had a send or an answer to be compared with.
-  const rangeLabel = rangeLabelOf(days);
-  const priorHadAny = prev.sent + prev.optIns + prev.optOuts > 0;
   const rawSources = dto.sources ?? [];
   const sends = sumOf(rawSources.map((s) => s.runs));
-  const maxSent = Math.max(1, ...rawSources.map((s) => s.sent));
   const sources: CampaignSourceVM[] = rawSources.map((s) => ({
     id: s.id,
     kind: s.kind,
@@ -247,87 +273,27 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
     replied: s.replied,
     deliveredPct: pct(s.delivered, s.sent),
     repliedPct: pct(s.replied, s.sent),
+    ...sourceWords(s),
     lastLabel: s.last_at ? WHEN.format(new Date(s.last_at)) : "",
-    share: s.sent / maxSent,
   }));
-
-  const tiles: ReportTileVM[] = [
-    {
-      id: "sent",
-      metric: "messages_sent",
-      label: "Messages sent",
-      value: String(tot.sent),
-      meta: tot.sent ? `over ${sends} ${sends === 1 ? "send" : "sends"}` : "none in this period",
-      delta: deltaOf(tot.sent, prev.sent, true, noun),
-      spark: points.map((p) => p.sent),
-      compare: null,
-    },
-    {
-      id: "delivered",
-      metric: "delivered_share",
-      label: "Delivered",
-      value: pct(tot.delivered, tot.sent) === null ? "—" : `${pct(tot.delivered, tot.sent)}%`,
-      meta: tot.sent ? `${tot.delivered} of ${tot.sent} · ${DELIVERY_RECEIPTS_WORDS}` : "nothing sent",
-      delta: pointsDelta(pct(tot.delivered, tot.sent), pct(prev.delivered, prev.sent), noun),
-      spark: points.map((p) => p.delivered),
-      compare: null,
-    },
-    {
-      id: "replied",
-      metric: "replied_share",
-      label: "Replied",
-      value: pct(tot.replied, tot.sent) === null ? "—" : `${pct(tot.replied, tot.sent)}%`,
-      meta: tot.sent ? `${tot.replied} wrote back ${REPLY_WINDOW_WORDS}` : "nothing sent",
-      delta: pointsDelta(pct(tot.replied, tot.sent), pct(prev.replied, prev.sent), noun),
-      spark: points.map((p) => p.replied),
-      compare: null,
-    },
-    {
-      id: "optins",
-      metric: "said_yes",
-      label: "Said yes",
-      value: String(tot.optIns),
-      meta: tot.optIns ? "at the desk, or in their own words" : "nobody in this period",
-      delta: deltaOf(tot.optIns, prev.optIns, true, noun),
-      spark: points.map((p) => p.optIns),
-      compare: compareWords(tot.optIns, prev.optIns, rangeLabel, priorHadAny),
-    },
-    {
-      id: "optouts",
-      metric: "asked_to_stop",
-      label: "Asked to stop",
-      value: String(tot.optOuts),
-      meta: tot.optOuts ? "STOP, or recorded at the desk" : "nobody in this period",
-      delta: deltaOf(tot.optOuts, prev.optOuts, false, noun),
-      spark: points.map((p) => p.optOuts),
-      compare: compareWords(tot.optOuts, prev.optOuts, rangeLabel, priorHadAny),
-    },
-  ];
 
   return {
     days,
-    tiles,
     points,
     totals: { ...tot, read, readOf, sends },
+    before: prev,
     sources,
     empty: tot.sent === 0 && tot.optIns === 0 && tot.optOuts === 0,
-    max: Math.max(1, ...points.map((p) => p.sent)),
-    prior: priorOf(current.length, previous, (d) => d.sent),
     table: {
-      columns: ["Day", "Sent", "Delivered", "Replied", "Said yes", "Asked to stop"],
+      columns: ["Day", "Sent", "Delivered", "Answered", "Said yes", "Asked to stop"],
       rows: points.map((p) => [p.label, p.sent, p.delivered, p.replied, p.optIns, p.optOuts]),
     },
     channels,
     channelTable: {
-      columns: ["Channel", "Sent", "Delivered", "Read", "Wrote back"],
+      columns: ["Channel", "Sent", "Delivered", "Read", "Answered"],
       rows: channels.map((c) => [c.label, c.sent, c.delivered, c.read, c.replied]),
     },
     lines: {
-      // A yes is to being messaged, never to an offer: a visit reminder is no offer (the wiring audit's C25).
-      funnel:
-        tot.optIns || tot.optOuts
-          ? `${tot.optIns} ${tot.optIns === 1 ? "person" : "people"} said yes to messages, ${tot.optOuts} ${tot.optOuts === 1 ? "person" : "people"} asked to stop.`
-          : "Nobody said yes to messages or asked to stop.",
       sent: sends
         ? sends === 1
           ? "From one broadcast or campaign run."

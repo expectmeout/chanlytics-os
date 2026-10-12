@@ -102,7 +102,16 @@ async function turn({ api = jev(), env = ON, text = TEXT, faults } = {}) {
       }),
     ),
   );
-  return { reply: result, tables, api, lines };
+  return { reply: answerOf(result), tables, api, lines };
+}
+/**
+ * A reply without the id of the turn it was kept as (decision 0039): every turn has its own, so two turns' replies are
+ * compared by what they answer.
+ */
+function answerOf(reply) {
+  if (!reply?.meta) return reply;
+  const { turn_id: _turn, ...meta } = reply.meta;
+  return { ...reply, meta };
 }
 const shadowRows = (t) => t.ai_usage.filter((r) => r.shadow);
 const primaryRows = (t) => t.ai_usage.filter((r) => !r.shadow);
@@ -423,7 +432,7 @@ test("a call is built only when the shadow is on, and one that cannot be built i
         }),
       ),
     );
-    return { result, tables, api, lines };
+    return { result: answerOf(result), tables, api, lines };
   };
   const stillOff = await badWords({ TYPESAFE_API_KEY: undefined, TYPESAFE_SHADOW: undefined });
   assert.deepEqual(stillOff.result, off.reply, "off: the words were never looked at");
@@ -630,7 +639,7 @@ test("a ledger write that hangs is left behind after its own bound, and the repl
       }),
     ),
   );
-  assert.deepEqual(result, off.reply);
+  assert.deepEqual(answerOf(result), off.reply);
   assert.ok(Date.now() - t0 < SHADOW_WRITE_MS + 1_500, "the write was waited for its bound and no longer");
   assert.deepEqual(shadowRows(tables), [], "and nothing of it landed");
 });

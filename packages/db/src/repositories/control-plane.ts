@@ -304,6 +304,15 @@ export async function lineForwardingSet(db: Db, args: LineForwardingArgs) {
   return db.rpc("line_forwarding_set", args);
 }
 
+/**
+ * The workspace's logo address set through its one door (set_workspace_logo, 00407), on the member's session: the
+ * caller's settings permission, the workspace's own folder, the change's event in the same transaction. An empty path
+ * clears it. The address it held before, or the database's refusal.
+ */
+export async function setWorkspaceLogo(db: Db, tenantId: string, path: string) {
+  return db.rpc("set_workspace_logo", { p_tenant_id: tenantId, p_logo_path: path });
+}
+
 /** The columns an edit may write, as the table types them. */
 export type PlaybookPatch = Database["public"]["Tables"]["playbooks"]["Update"];
 
@@ -352,7 +361,7 @@ export type PlaybookToStart = Required<
 /**
  * Start a playbook with its line in the ledger (00357 start_playbook), on the member's own session: the row, running
  * and theirs, then the start_playbook decision, in one transaction. The door runs on the caller's rights, so the
- * table's policy, checks and unique indexes judge the row. Since 00395 it writes the last day the playbook names
+ * table's policy, checks and unique indexes judge the row. Since 00409 it writes the last day the playbook names
  * (`until`) and the end of a trial (`trial_until`; a database before it writes neither, and the campaign runs as its
  * class says from its first run, until it is paused). The
  * new row's id with its decision's, or the database's refusal, which the caller words; an answer with neither id is a

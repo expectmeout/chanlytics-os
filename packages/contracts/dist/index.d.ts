@@ -1,6 +1,3396 @@
 import { z as z$1 } from 'zod';
 import * as z from 'zod/mini';
 
+/** The words a workspace may call an appointment, in the order a picker offers them. */
+declare const APPOINTMENT_WORDS: readonly ["appointment", "visit", "meeting", "session", "lesson"];
+type AppointmentWord = (typeof APPOINTMENT_WORDS)[number];
+/** Whether a value is one of the five: a stored word read back is checked, never trusted. */
+declare function isAppointmentWord(value: unknown): value is AppointmentWord;
+/**
+ * What the workspace calls an appointment: the word it picked, else a meeting where some of its customers get a proposal
+ * first and an appointment everywhere else. The one derivation: GET playbooks, Ask's shape and core's names all ask it.
+ * Nothing is backfilled, so a salon reads "appointment" until it picks.
+ */
+declare function appointmentWordOf(o: {
+    stored: string | null;
+    sellsBy: string | null;
+}): AppointmentWord;
+/** Every phrase the word makes, as Campaigns, its drawer, its approval sheet, its composer and core's refusals say it. */
+interface AppointmentPhrases {
+    word: AppointmentWord;
+    /** "appointment", "appointments", "an appointment", "Appointment". */
+    one: string;
+    many: string;
+    a: string;
+    Title: string;
+    /** The day before: the moment's caption, a new campaign's name on it, and the trigger's hint. */
+    before: {
+        caps: string;
+        name: string;
+        hint: string;
+    };
+    /** The day after: the moment's caption, which is also a new campaign's name on it, and the trigger's hint. */
+    after: {
+        caps: string;
+        hint: string;
+    };
+    /** The win-back by appointments' hint. */
+    lapsedHint: string;
+    /** A schedule's who: "everyone with an appointment tomorrow", "everyone who had an appointment yesterday". */
+    tomorrowWho: string;
+    yesterdayWho: string;
+    /** What "of 312" counts: "with an appointment tomorrow", "who had an appointment yesterday". */
+    withTomorrow: string;
+    whoYesterday: string;
+    /** The approval sheet's rule lines. */
+    eachTomorrow: string;
+    eachYesterday: string;
+    /** Coming up's line for an off moment with people waiting. */
+    offTomorrow: (n: number) => string;
+    offYesterday: (n: number) => string;
+    /** Core's refusal names the two moments: "an appointment tomorrow, an appointment yesterday". */
+    startsWith: string;
+    /** "by appointments": how the win-back reads people where a calendar is connected. */
+    byMany: string;
+    /** Core's refusal of an appointment moment where no calendar is connected. */
+    needsCalendar: string;
+}
+declare function appointmentWords(word: AppointmentWord): AppointmentPhrases;
+
+/**
+ * What an owner's ads are, as a reader will return them (the Ads page's DTO): the data of Campaigns › Ads, in the words the
+ * rest of the product keeps. Money is an integer in the minor units of the account's currency, never a float and never
+ * converted; a day is an ISO day (`2026-10-11`) and a moment an ISO timestamp with its offset; an id is Chanlytics' own (a
+ * uuid) beside the platform's, and a person or a thread carries the id its own page opens by.
+ *
+ * Two shapes: `AdsRead`, what is true of this workspace now (its ads, accounts and people, read at one moment), and
+ * `AdsConfig`, what the platforms return as choices and estimates (fixed per account, not per ad). A page draws a model of
+ * both (page.ts, drawer.ts, new-ad.ts); nothing a page says is typed here as a total. The sample the mockup draws is a
+ * fixture of these shapes in the dashboard (surfaces/campaigns/ads/sample.ts), and a reader will return the same.
+ *
+ * A root module of the package, for the server and Reports to read: types, the day arithmetic every Ads module shares, and
+ * the one rule of how much an ad spends a day once its amount or end moves. Its words are words.ts's.
+ */
+
+/** The three platforms an owner's own ad accounts live on. */
+type AdPlatform = "meta" | "google" | "tiktok";
+/** What an ad asks a person to do: message you on WhatsApp, call you, leave their number. */
+type AdDoor = "whatsapp" | "call" | "form";
+/**
+ * What an ad is doing, in platform-free words. `too-early` is NOT stored: the page's fold reads it from an `on` ad that
+ * started fewer than TOO_EARLY_DAYS ago. `setting-up`: Turn on was pressed and Chanlytics is creating it, paused, on the
+ * platform; `couldnt-finish`: that failed part way, and what was made stays paused there (named in the drawer).
+ */
+type AdState = "setting-up" | "couldnt-finish" | "review" | "on" | "paused" | "needs-you" | "ended" | "finished";
+/** Why an ad needs the owner. */
+type AdNeedsCode = "rejected" | "payment" | "paused-in-platform" | "price-changed" | "permission-lapsing" | "number-check" | "verification" | "lead-terms" | "identity" | "out-of-budget";
+interface AdNeeds {
+    code: AdNeedsCode;
+    /** The platform's own words, verbatim, where it gave some (a rejection's policy line). */
+    platformWords: string | null;
+    /** price-changed: the price the ad says, and the one Services says now. */
+    was: string | null;
+    now: string | null;
+}
+/** What the platform enforces: a total for the whole run, or a daily amount until stopped. Minor units of the account's currency. */
+type AdBudget = {
+    mode: "total";
+    amountMinor: number;
+} | {
+    mode: "daily";
+    amountMinor: number;
+};
+/** Where it shows: a circle (Meta, Google) or ZIP codes (TikTok). */
+type AdArea = {
+    kind: "radius";
+    miles: number;
+} | {
+    kind: "zips";
+    zips: string[];
+};
+/** What the ad shows: a post as it is, a photo, a video (vertical for Reels and TikTok), or nothing (Google Search). */
+type AdMedia = {
+    kind: "post";
+    postId: string;
+} | {
+    kind: "photo";
+    label: string;
+} | {
+    kind: "video";
+    label: string;
+    vertical: boolean;
+} | {
+    kind: "none";
+};
+/** When it runs: all hours, or only while the business is open (Meta: only with a total). */
+type AdSchedule = "always" | "open-hours";
+/** Who the ad is shown as: the Facebook Page and Instagram handle, Google's business name, TikTok's display name. */
+interface AdShownAs {
+    name: string;
+    handle: string | null;
+}
+/** One day of one ad (the account's time zone for spend, the workspace's for people; the fold never mixes them up). */
+interface AdDay {
+    day: string;
+    spendMinor: number;
+    inTouch: number;
+    booked: number;
+}
+/** The platform's own numbers, kept off the page's face, never summed across platforms. Null is not read. */
+type AdTheirs = {
+    platform: "meta";
+    impressions: number | null;
+    reach: number | null;
+    taps: number | null;
+    chats: number | null;
+    leads: number | null;
+} | {
+    platform: "google";
+    impressions: number | null;
+    clicks: number | null;
+    calls: number | null;
+    longCalls: number | null;
+} | {
+    platform: "tiktok";
+    impressions: number | null;
+    reach: number | null;
+    clicks: number | null;
+    leads: number | null;
+};
+/** The words an ad is made of (every one a sentence the owner can read and change). */
+interface AdCopy {
+    headline: string;
+    text: string;
+    headlines: string[];
+    lines: string[];
+    path: string;
+    greeting: string;
+    ready: string;
+    questions: string[];
+    startWith: "ready" | "questions";
+    reply: string;
+    thanks: string;
+}
+interface AdRead {
+    /** Chanlytics' own id (a uuid). The address uses it. */
+    id: string;
+    /** The platform's id for it once made there (Meta's ad id, Google's campaign id, TikTok's ad id); null before. */
+    externalId: string | null;
+    /** Bumped on every change; a press carries the version it was drawn from and a stale one is refused. */
+    version: number;
+    name: string;
+    offer: string;
+    serviceId: string;
+    platform: AdPlatform;
+    door: AdDoor;
+    state: AdState;
+    needs: AdNeeds | null;
+    /** False for an ad the owner made on the platform itself, adopted read-only: only Pause and Resume here. */
+    madeHere: boolean;
+    startDay: string;
+    endDay: string;
+    /** `11:59 pm` where the platform says when the last day ends, else null. */
+    endsAt: string | null;
+    budget: AdBudget;
+    /**
+     * TikTok: the last day its amount was changed there (an ISO day), or null where it never was; it takes no second change
+     * for BUDGET_RULES.tiktok.waitDays after it. Absent where the platform's reader does not say, which draws no wait.
+     */
+    budgetChangedDay?: string | null;
+    /** The account's currency, ISO 4217 (`USD`). Never converted. */
+    currency: string;
+    aboutADayMinor: number;
+    area: AdArea;
+    schedule: AdSchedule;
+    shownAs: AdShownAs;
+    media: AdMedia;
+    /** Google: the page the ad opens (its final URL); null on Meta and TikTok. */
+    opensUrl: string | null;
+    /** Google: what people search, as Google grouped it (read-only). */
+    searchThemes: string[];
+    /** Google: searches left out for the owner (negative keywords). */
+    leftOut: string[];
+    approvedDay: string | null;
+    /** When it was sent to the platform to check (ISO timestamp), while in review. */
+    sentAt: string | null;
+    theirs: AdTheirs;
+    /** Chanlytics' first reply to those who wrote: the median in seconds, and how many. */
+    reply: {
+        medianSeconds: number;
+        n: number;
+    } | null;
+    todaySoFar: number;
+    /** When the last person (or number) arrived (ISO timestamp); the reach line says it, derived, never typed. */
+    lastArrivalAt: string | null;
+    copy: AdCopy;
+    days: AdDay[];
+}
+/** One person an ad brought, with where they live in the app. */
+interface AdPersonRead {
+    /** The person's id in People: their page is `clients/<personId>` (see People's route words). */
+    personId: string;
+    /** Their conversation, where there is one: `inbox/<threadId>`. */
+    threadId: string | null;
+    adId: string;
+    name: string;
+    how: "wrote" | "number";
+    day: string;
+    /** ISO timestamp, where it is today. */
+    at: string | null;
+    said: string | null;
+    /** `waiting` and `call` are on the owner; `talking` is the receptionist's. */
+    talk: "waiting" | "call" | "talking" | "quiet";
+    quietSince: string | null;
+    /** What the calendar says of them since. */
+    cal: {
+        kind: "none";
+    } | {
+        kind: "ahead";
+        day: string;
+        time: string;
+    } | {
+        kind: "kept";
+        day: string;
+    } | {
+        kind: "missed";
+        day: string;
+    } | {
+        kind: "past";
+        day: string;
+    };
+}
+type AdAccountStatus = "connected" | "not-connected" | "choose" | "lapsed";
+/** What one platform's account stands on, by id; the words for each id are words.ts's (never typed in data). */
+type AdCheckId = "account-active" | "payment" | "page-linked" | "whatsapp-linked" | "instagram-linked" | "chanlytics-whatsapp" | "number-on-page" | "call-reporting" | "verification" | "tiktok-linked" | "privacy-link" | "yes-line" | "lead-terms" | "identity" | "post-permission" | "manager-link";
+interface AdCheck {
+    id: AdCheckId;
+    ok: boolean;
+}
+interface AdAccountRead {
+    platform: AdPlatform;
+    status: AdAccountStatus;
+    /** The account's name on the platform, null until one is chosen. */
+    name: string | null;
+    externalId: string | null;
+    currency: string;
+    /** The account's time zone (IANA): spend days are the account's. */
+    timezone: string;
+    checks: AdCheck[];
+    /** TikTok's post permission, Meta's token: the day it lapses, or null. */
+    permissionEnd: string | null;
+    /** The accounts to choose from, when there are several (status `choose`). */
+    choices: {
+        externalId: string;
+        name: string;
+        currency: string;
+    }[];
+    /** When it was last read (ISO timestamp), or null. */
+    readAt: string | null;
+    /** How the last read went. */
+    read: "ok" | "reading" | "failed";
+}
+interface AdsRead {
+    business: {
+        name: string;
+        /** `12 Harbor St`. */
+        address: string;
+        /** `Harbor St`. */
+        street: string;
+        /** The receptionist's line. */
+        line: string;
+        site: string;
+        /** The hosted page Google ads can open: `chanlytics.com/b/<slug>`. */
+        page: string;
+        /** The receptionist's hours, as words: `Mon to Sat`, `Mon to Sat, 9 AM to 6 PM`. */
+        hours: string;
+    };
+    /** The workspace's today (ISO day) and when this was read (ISO timestamp), in the workspace's time zone. */
+    today: string;
+    readAt: string;
+    timezone: string;
+    /** The window the page counts: 30 days ending yesterday. */
+    window: {
+        from: string;
+        to: string;
+    };
+    appointmentWord: AppointmentWord;
+    /** Whether a calendar link is set; without one nobody can be counted as booked. */
+    calendar: {
+        linked: boolean;
+        readAt: string | null;
+    };
+    accounts: AdAccountRead[];
+    ads: AdRead[];
+    people: AdPersonRead[];
+    /** What came back of those who booked, and the appointments no person was found for. */
+    cameBack: {
+        ahead: number;
+        kept: number;
+        missed: number;
+        past: number;
+        unmatched: number;
+    };
+    /** The price note of each is verbatim from Services (`from $45`), never parsed. */
+    services: {
+        id: string;
+        name: string;
+        note: string;
+        /** Whether it is a cosmetic service, which TikTok shows to people 25 and over; the name says so where this is not set. */
+        cosmetic?: boolean;
+    }[];
+    posts: {
+        id: string;
+        platform: "meta" | "tiktok";
+        kind: "photo" | "video";
+        label: string;
+        day: string;
+        caption: string;
+    }[];
+    /** The rating line: `4.9 on Google`; null where it cannot be read. */
+    rating: {
+        stars: string;
+        reviews: number;
+        asOf: string;
+    } | null;
+    /** Whether the receptionist is set to never quote prices. */
+    neverQuotePrices: boolean;
+    /** Before any ad: how new people first reached the business (People's first touch), or null. */
+    firstTouch: {
+        since: string;
+        rows: {
+            label: string;
+            n: number;
+            own: boolean;
+        }[];
+    } | null;
+}
+/** What the platforms return as choices and estimates; fixed per account, not per ad. */
+interface AdsConfig {
+    presets: {
+        id: "try" | "steady" | "more";
+        label: string;
+        perDayMinor: number;
+        days: number;
+        /** The platform's estimate of chats over the run, or null where it returns none. */
+        estimate: readonly [number, number] | null;
+    }[];
+    areas: {
+        miles: number;
+        /** The platform's estimate of people in the circle, or null where it returns none. */
+        people: readonly [number, number] | null;
+    }[];
+    /** Google's estimate at a daily amount: clicks a month, and what a click usually costs (low, high). */
+    googleEstimate: {
+        clicks: readonly [number, number];
+        perClickMinor: readonly [number, number];
+    };
+    /** What a platform reads as its floor per day, from the ad account; null where it says none. */
+    minPerDayMinor: Record<AdPlatform, number | null>;
+}
+/** A currency's minor units in one unit (cents in a dollar): the exponent every amount here is read by. */
+declare const MINOR_PER_UNIT = 100;
+/** The ISO day `n` days after `iso` (before, where n is negative). */
+declare function addDays(iso: string, n: number): string;
+/** Whole days from `a` to `b` (positive where b is later). */
+declare const daysBetween: (a: string, b: string) => number;
+/**
+ * About how much a day an ad spends once its amount or end moves: the amount itself for a daily budget; for a total, what is
+ * left of it over the days left to its end (today included), in whole units, so "about $15 a day" follows a raise or a later
+ * end.
+ */
+declare function aboutADayAfter(o: {
+    ad: AdRead;
+    amountMinor: number;
+    endDay: string;
+    today: string;
+}): number;
+/** What Edit changes in one press of Save: only the fields it moved. */
+interface AdPatch {
+    serviceId?: string;
+    area?: AdArea;
+    endDay?: string;
+    amountMinor?: number;
+    copy?: AdCopy;
+    /** A new photo was chosen (the sample has none to pick). */
+    photo?: boolean;
+}
+/** Whether two areas are the same: the same circle, or the same ZIP codes. */
+declare function sameArea(a: AdArea, b: AdArea): boolean;
+/**
+ * Whether a change sends the ad back to its platform for checking: the offer, the photo, the words or the area do, an amount
+ * or an end date does not, and an ad the platform turned down is checked again whatever else moved.
+ */
+declare function patchRestarts(ad: AdRead, patch: AdPatch): boolean;
+/** The ad with a patch in it: the offer follows its Service, and the amount a day follows an amount or an end that moved. */
+declare function adWith(ad: AdRead, read: AdsRead, patch: AdPatch): AdRead;
+
+/**
+ * Ads' addresses (`campaigns/ads…`), the second of Campaigns' two views (Messages | Ads): the page, an ad open in its drawer,
+ * the New ad composer and the Results sheet. One param holds them, as Leads' does under People (`clients/leads:…`):
+ *
+ *   campaigns/ads                     the page
+ *   campaigns/ads:ad:<id>             an ad open in its drawer, pushed so Back closes it
+ *   campaigns/ads:new                 the New ad composer, on the door it opens on (WhatsApp)
+ *   campaigns/ads:new:<door>          the same, on a door: `whatsapp`, `call` or `form`
+ *   campaigns/ads:new:copy:<id>       New ad filled from an ad, as a copy               (Make a copy)
+ *   campaigns/ads:new:again:<id>      New ad filled to run an ended ad again            (Run it again)
+ *   campaigns/ads:new:google:<id>     New ad on Google's Call door, with this ad's offer (Also run on Google)
+ *   campaigns/ads:results             the Results sheet over the page
+ *
+ * A word the view does not know is the page (a link must never land on nothing). A root module of the package: Reports,
+ * People and Campaigns' routes link here, and the frame's route chunk reads `ADS_WORDS`, so none of it is page-only.
+ */
+
+/** The route the Ads view is spelled as. */
+declare const ADS_ROUTE = "campaigns/ads";
+/** How New ad starts from an ad: a copy of it, to run it again once it has ended, or the same offer on Google's Call door. */
+type AdStart = "copy" | "again" | "google";
+/** What the address asks of the Ads view. */
+interface AdsAddress {
+    /** The ad open in its drawer. */
+    ad: string | null;
+    /**
+     * The New ad composer. `door` is the door it opens on; with `from` it is a placeholder until the ad it starts from is read
+     * (a copy keeps that ad's door, Google's is Call).
+     */
+    compose: null | {
+        door: AdDoor;
+        from: null | {
+            how: AdStart;
+            id: string;
+        };
+    };
+    /** The Results sheet. */
+    results: boolean;
+}
+/** Whether a param of `campaigns` is the Ads view's: `ads`, or `ads:` and more. */
+declare const isAdsParam: (param: string) => boolean;
+/**
+ * Whether a workspace's config turns its Ads preview on (`features.ads_preview`, the flag registry's `ads_preview`): its
+ * Campaigns › Ads drawn from the sample, as a demo session draws it, until the Ads read is wired (0049). Read off the
+ * config as stored, so anything but `true` is off.
+ */
+declare function adsPreviewOf(config: unknown): boolean;
+/** What an Ads param says. */
+declare function parseAds(param: string): AdsAddress;
+/** An ad open in its drawer. */
+declare const adRoute: (id: string) => string;
+/** The New ad composer, on a door. */
+declare const newAdRoute: (door?: AdDoor) => string;
+/** The New ad composer, started from an ad: its copy, to run it again, or its offer on Google. */
+declare const newAdFromRoute: (how: AdStart, id: string) => string;
+/** The Results sheet over the page. */
+declare const adsResultsRoute: () => string;
+/** What results are narrowed to: every ad, the ads of one platform, or one ad. */
+type AdsScope = {
+    kind: "all";
+} | {
+    kind: "platform";
+    platform: AdPlatform;
+} | {
+    kind: "ad";
+    id: string;
+};
+declare const ADS_SCOPE_ALL: AdsScope;
+/** A scope as one word, for an address and a list's value: `all`, `platform:meta`, `ad:<id>`. */
+declare function adsScopeKey(scope: AdsScope): string;
+/** The scope a word names; null for a word that is none (a platform we do not run on, an ad with no id). */
+declare function adsScopeOfKey(key: string): AdsScope | null;
+/** The strip's and the crumbs' words for the two views. */
+declare const ADS_WORDS: {
+    readonly viewsLabel: "Which campaigns";
+    readonly messagesTab: "Messages";
+    readonly adsTab: "Ads";
+    readonly newAd: "New ad";
+};
+
+/**
+ * Every number the Ads page judges by and every rule a platform enforces, in one place (the platforms' docs, October 2026).
+ * Page-only, like the models that read them: the Ads page imports them from `@chanlytics/contracts/ads-page`. A cost is
+ * said only of REPORT_MIN_N or more booked (Reports' minimum, reports/report-tiles.ts), never a number of its own.
+ *
+ * The data the feature lanes read is here too: how an amount may change on each platform, whether "Only while you're open"
+ * can be set, and which checks a door needs before Turn on. Nothing here is a word.
+ */
+
+/** The window the page counts: this many days, ending yesterday. */
+declare const ADS_WINDOW_DAYS = 30;
+/** The newest days that are still counting: drawn lighter. */
+declare const ADS_FRESH_DAYS = 3;
+/** Whether the last two weeks are still settling in what an ad has: a cost is `so far` until they are not. */
+declare const ADS_SETTLE_DAYS = 14;
+/** An `on` ad that started fewer days ago than this is read as too early to judge (never stored). */
+declare const TOO_EARLY_DAYS = 7;
+/** An ad has brought enough people to be worth extending: this many booked, or for a call ad this many calls Google counted. */
+declare const ADS_ASK_MIN = 10;
+declare const ADS_ASK_MIN_CALLS = 20;
+/** The Ask line offers to extend an ad that ends within this many days. */
+declare const ADS_ASK_SOON_DAYS = 3;
+/** The most days an extension runs for. */
+declare const ADS_EXTEND_MAX_DAYS = 30;
+/** An ad has run long enough to compare its cost with another's. */
+declare const ADS_MOVE_DAYS = 14;
+/** What the Ask line moves between two ads, a day, in minor units. */
+declare const ADS_MOVE_STEP_MINOR = 500;
+/** The gap in cost between two ads that chance alone would not give: the z of a 95% interval. */
+declare const ADS_CHANCE_Z = 1.96;
+/** A custom daily amount runs this many days. */
+declare const ADS_OWN_DAYS = 14;
+/** The amount a custom daily amount starts at, in minor units, and the miles New ad opens on. */
+declare const ADS_OWN_START_MINOR = 1000;
+declare const ADS_DEFAULT_MILES = 5;
+/** The totals an amount's list offers, as shares of the one now; a daily amount's, in minor units. */
+declare const ADS_TOTAL_STEPS: readonly number[];
+declare const ADS_DAILY_CHOICES_MINOR: readonly number[];
+/** The end dates offered, in days from the one it has. */
+declare const ADS_END_SHIFTS: readonly number[];
+/** An area a special category (a job, a loan, a home) is limited to on Meta, in miles. */
+declare const ADS_SPECIAL_MILES = 15;
+/** TikTok's display name counts to this many characters. */
+declare const ADS_DISPLAY_NAME_MAX = 20;
+/** A ZIP code is this many digits (TikTok's area is a list of them). */
+declare const ADS_ZIP_DIGITS = 5;
+/** The soft limits Meta states for the words, shown only near the limit (`near` is the share of the limit): Meta's, not ours. */
+declare const ADS_COPY_LIMITS: {
+    readonly headlineFacebook: 27;
+    readonly headlineInstagram: 40;
+    readonly textInstagram: 125;
+    readonly near: 0.8;
+};
+/** Per platform, how an amount may change. */
+interface BudgetRule {
+    /** The most an amount may change in one step, as a share of it; null where there is no such limit. */
+    maxStep: number | null;
+    /** Days to wait between two changes. */
+    waitDays: number;
+    /** The longest a total may run, in days; null where there is no such limit. */
+    totalMaxDays: number | null;
+    /** The platform spends a daily amount as an average: some days more, never above a week's worth. */
+    dailyIsAverage: boolean;
+    /** A change of amount starts the platform's learning again. */
+    changeRelearns: boolean;
+}
+declare const BUDGET_RULES: Record<AdPlatform, BudgetRule>;
+/** Whether "Only while you're open" can be set: Meta only with a total. */
+declare const SCHEDULE_NEEDS_TOTAL: Record<AdPlatform, boolean>;
+/** Which checks a door needs before Turn on (ids into AdCheckId), per platform, in the order they are listed. */
+declare const DOOR_NEEDS: Record<AdDoor, Partial<Record<AdPlatform, AdCheckId[]>>>;
+/** The checks the account's own standing lists (the dot rows of its popover and of an ad's reach line), in order. */
+declare const STANDING_CHECKS: Record<AdPlatform, AdCheckId[]>;
+/** The days before a post permission lapses that it turns amber. */
+declare const ADS_PERMISSION_WARN_DAYS = 7;
+/** What an ad needs that does not stop it: it keeps running (`on`) while the owner sees it. */
+declare const ADS_SOFT_NEEDS: readonly AdNeedsCode[];
+/** Whether Chanlytics can count an ad's people: a Google call is Google's count, not matched to anyone. */
+declare const countedDoor: (door: AdDoor) => boolean;
+/** The ledger offers a choice of how to group its ads (by what they ask, by platform) from this many ads. */
+declare const ADS_GROUP_FROM = 7;
+
+/** What a sum of nothing is said in, and what an account that has none yet is read in: the currency most accounts are in. */
+declare const ADS_DEFAULT_CURRENCY = "USD";
+/** `$14`, `$1,284`, `$5.50`: whole units from 10 (and for any whole number), cents under 10 where there are some. */
+declare function moneyOf(minor: number, currency: string): string;
+/** An amount with its unit: `$15 a day`. */
+declare const perDayOf: (minor: number, currency: string) => string;
+/** What is left of a total: `$308 left of $720`. */
+declare const leftOfMoney: (left: number, total: number, currency: string) => string;
+/** The currency's symbol on its own: `$`, `£`. */
+declare function currencySymbol(currency: string): string;
+/** A whole number of units, as the minor units an amount is held in. */
+declare const minorOfUnits: (units: number) => number;
+/** One amount in its currency. */
+interface MoneyItem {
+    minor: number;
+    currency: string;
+}
+/** The sums of amounts, one for each currency in the order they first appear. Never converted. */
+declare function sumsOf(items: readonly MoneyItem[]): MoneyItem[];
+/** `$847`, or `$847 + £230` where the currencies differ: each currency's sum, side by side, never converted. */
+declare function sumMoney(items: readonly MoneyItem[]): string;
+
+/** `Sat 31 Oct`. */
+declare function dayWord(iso: string): string;
+/** `Sat 31 Oct` as two lines for a narrow column: the weekday, then the date. */
+declare function dayLines(iso: string): string[];
+/** `31 Oct`. */
+declare function dayShort(iso: string): string;
+/** Days as a person says them: `today`, `1 day`, `6 days`. */
+declare const daysWord: (n: number) => string;
+/** `1 person`, `26 people`. */
+declare const peopleWord: (n: number) => string;
+/** `All 96`. */
+declare const allWord: (n: number) => string;
+/** Two initials from `Jordan P.`: `JP`. */
+declare function adPersonInitials(name: string): string;
+/** Where the doors go: Settings › Connections, and Reports › People. */
+declare const ADS_DOORS: {
+    readonly accounts: "admin/integrations";
+    readonly people: "reports/people";
+};
+/** A door that goes to Settings says so (it is not a platform's own page). */
+declare const SETTINGS_DOOR = "Open Settings \u203A Connections";
+/** A platform as the owner says it. "Meta" only where billing, an account or a review is meant (PLATFORM_OWNER). */
+declare const PLATFORM_WORD: Record<AdPlatform, string>;
+/** The company that checks, charges and reads: where billing, an account or a review is meant. */
+declare const PLATFORM_OWNER: Record<AdPlatform, string>;
+/** Where the platform's ad shows, in the sentence. */
+declare const PLATFORM_SURFACE: Record<AdPlatform, string>;
+/** How long a platform says a check takes. */
+declare const REVIEW_WITHIN: Record<AdPlatform, string>;
+/** The kit Icon names the doors are drawn with. */
+type Glyph = "chat" | "phone" | "list";
+interface DoorWords {
+    /** The door's verb, as step 1 and the group head say it. */
+    label: string;
+    /** The one plain line under it. */
+    line: string;
+    /** Where it runs. */
+    runsOn: string;
+    glyph: Glyph;
+    /** What the number under a door is of: `wrote`, `calls · Google's count`, `left a number`. */
+    unit: string;
+    /** The verb a person did: `wrote`, `called`, `left a number`. */
+    did: string;
+    /** The phone row's word for the door. */
+    short: string;
+    /** The word after "so they" in the sentence. */
+    chip: string;
+}
+declare const DOOR: Record<AdDoor, DoorWords>;
+/** Doors in the order the ledger and step 1 list them. */
+declare const DOOR_ORDER: readonly AdDoor[];
+/** A check's words, as a dot row says it: `Payment method in Meta`. */
+declare function checkWords(id: AdCheckId, platform: AdPlatform): string;
+/** What to do about a check that is not met, as a step: `Add a card in Google Ads`. */
+declare const checkFix: (id: AdCheckId, platform: AdPlatform) => string;
+/** What the reach line says last, by door: what the ad stands on, or when the last number arrived. */
+declare const REACH_NOTE: {
+    whatsapp: string;
+    callChecking: string;
+    callApproved: string;
+    form: {
+        meta: string;
+        google: string;
+        tiktok: string;
+    };
+    /** When the last person got in touch, said by its day (`9:02 AM today`, `Fri 9 Oct`): a number on a form, a message on WhatsApp. */
+    lastNumber: (when: string) => string;
+    lastMessage: (when: string) => string;
+};
+/** The states an ad shows: its own, and `too-early`, which the fold reads and never stores. */
+declare const STATE_WORD: Record<AdState | "too-early", string>;
+declare const STATE: {
+    reviewSecond: (p: AdPlatform) => string;
+    settingUpSecond: (p: AdPlatform) => string;
+    couldntSecond: (p: AdPlatform) => string;
+    /** When it ends: today, tomorrow (in the evening where the platform ends it at a time), or the day. */
+    endsWhen: (o: {
+        kind: "today" | "tomorrow" | "later";
+        evening: boolean;
+        day: string;
+    }) => string;
+    ends: (when: string) => string;
+    daily: (perDayText: string) => string;
+    endedSecond: (day: string, booked: number, each: string | null) => string;
+    finishedSecond: (total: string) => string;
+    needsPayment: (p: AdPlatform) => string;
+    needsRejected: (p: AdPlatform) => string;
+    needsDefault: (p: AdPlatform) => string;
+    needsPaused: (p: AdPlatform) => string;
+    needsPrice: string;
+    needsPermission: (p: AdPlatform) => string;
+};
+/** What a role's refusal says the press would have done ("Your role can't turn on an ad"): the money presses are the owner's. */
+declare const GATE: {
+    turnOn: string;
+    change: string;
+    end: string;
+    again: string;
+    resume: string;
+    pause: string;
+};
+/** Why a press was refused: the ad changed since it was drawn, is gone, or is not Chanlytics' to change. */
+declare const REFUSED: {
+    stale: string;
+    gone: string;
+    adopted: string;
+    maximum: string;
+};
+declare const SENTENCE: {
+    show: string;
+    /** An ad that has ended reads in the past. */
+    showed: string;
+    soPast: {
+        whatsapp: string;
+        call: string;
+        form: string;
+    };
+    on: string;
+    /** What comes before the area chip. */
+    reach: {
+        meta: string;
+        google: string;
+        tiktok: string;
+    };
+    of: (street: string) => string;
+    so: string;
+    upTo: string;
+    inAllUntil: string;
+    about: string;
+    untilStop: string;
+    blank: string;
+    /** Shown once, above the sentence, the first time it is opened. */
+    tapHint: string;
+};
+/** The examples the demo store draws, in the order the Example menu lists them. */
+declare const ADS_EXAMPLES: readonly ["running", "needs-you", "finished", "no-calendar", "setting-up", "no-ads", "choose", "v0", "reading", "failed"];
+type AdsExample = (typeof ADS_EXAMPLES)[number];
+declare const EXAMPLE: {
+    /** The pill's word. */
+    pill: string;
+    note: string;
+    label: string;
+    choices: {
+        running: string;
+        "needs-you": string;
+        finished: string;
+        "no-calendar": string;
+        "setting-up": string;
+        "no-ads": string;
+        choose: string;
+        v0: string;
+        reading: string;
+        failed: string;
+    };
+};
+
+declare const HEAD: {
+    window: string;
+    /** Under the head, desk and phone. */
+    money: string;
+    noAds: string;
+    v0Strong: string;
+    v0Rest: string;
+    booked: (booked: number, of: number) => {
+        strong: string;
+        rest: string;
+    };
+    /** With no calendar link, the booked half waits. */
+    touchOnly: (n: number) => {
+        strong: string;
+        rest: string;
+    };
+    read: (time: string) => string;
+    v0Read: (since: string) => string;
+    /** The pane line while an account is being read: `Reading Meta and Google…`. */
+    reading: (list: string) => string;
+    accounts: string;
+    newAd: string;
+    ask: string;
+};
+/** The line under the pane line when an account could not be read, and the press that reads it again. */
+declare const ADS_READ: {
+    failed: (owner: string, when: string | null) => string;
+    again: string;
+};
+declare const STANDING: {
+    connected: string;
+    needsYou: string;
+    off: string;
+    /** An account that has to be chosen, and one whose access has lapsed. */
+    choose: string;
+    lapsed: string;
+    account: (name: string, time: string) => string;
+    reading: (name: string) => string;
+    failed: (name: string, when: string) => string;
+    charged: (p: AdPlatform) => string;
+    door: string;
+    /** The post permission turns amber 7 days before it lapses. */
+    permission: (day: string) => string;
+    /** An account that is connected but whose last read failed. */
+    unread: string;
+};
+interface CountCtx {
+    readAt: string;
+    calendarRead: string;
+    /** `an appointment`. */
+    a: string;
+    /** `appointment`. */
+    one: string;
+    /** `appointments`. */
+    many: string;
+}
+/** The four figures' labels and definitions: the tooltip, and the sentences under "How this is counted". */
+declare function figureWords(c: CountCtx): {
+    spent: {
+        label: string;
+        def: string;
+    };
+    touch: {
+        label: string;
+        def: string;
+    };
+    booked: {
+        label: string;
+        def: string;
+    };
+    each: {
+        label: string;
+        def: string;
+    };
+};
+declare const FIGURES: {
+    /** After the cost, while the last two weeks settle. */
+    soFar: string;
+    spentMeta: (ads: number) => string;
+    touchMeta: (wrote: number, left: number) => string;
+    bookedMeta: (of: number) => string;
+    eachMeta: (spent: string, n: number) => string;
+    /** No calendar link: Booked waits, and the cost falls back to people in touch. */
+    needsLink: string;
+    eachInTouchLabel: string;
+    eachInTouchMeta: (spent: string, n: number) => string;
+    callsNotMatched: string;
+    /** Under a dash of Spent or of the cost for each person while a platform is read: `reading Meta and Google`. */
+    reading: (list: string) => string;
+    /** Under Spent while a platform's last read failed: the sum holds its last numbers. */
+    spentMetaStale: (ads: number, owner: string, when: string | null) => string;
+    /** The door that mends a missing calendar link: the calendar is set under Settings › Business. */
+    linkDoor: string;
+};
+/** The quiet line under the figures, and the door that opens the four definitions, the fee and the calls. */
+declare const COUNTED: {
+    quiet: (time: string) => string;
+    door: string;
+    title: string;
+    fees: string;
+    calls: string;
+    /** How long what is counted here is kept (decision 0049). */
+    kept: string;
+    /** While a platform is read, the line under the figures says so. */
+    reading: string;
+    /** The door beside "How this is counted" that opens the Results sheet. */
+    results: string;
+};
+declare const LEDGER: {
+    heads: {
+        ad: string;
+        spent: string;
+        touch: string;
+        booked: string;
+        each: string;
+        state: string;
+    };
+    none: string;
+    /** Why a review ad's numbers are dashes. */
+    notStarted: string;
+    notMatched: string;
+    only: (n: number) => string;
+    noneYet: string;
+    tooFew: string;
+    hint: (o: {
+        lead: string;
+        perDay: string;
+        tail: string;
+    }) => string;
+    since: (day: string) => string;
+    /** Under an ad that has not run yet and is not in review: when it would start. */
+    starts: (day: string) => string;
+    /** Under an ad the platform has: who it was sent to, and when (`today`, or the day). */
+    sentTo: (owner: string, when: string) => string;
+    each: (cost: string) => string;
+    booked: (n: number) => string;
+    calls: (n: number) => string;
+    googleCount: string;
+    waiting: (n: number) => string;
+    /** Under the spend of an ad on a platform whose last read failed: the number is the last one read. */
+    asOf: (when: string) => string;
+    /** Why a number waits while its platform is read, and the short word under the dash. */
+    reading: (owner: string) => string;
+    readingUnit: string;
+    /** An ad the owner made on the platform itself leads its hint with where. */
+    madeIn: {
+        meta: string;
+        google: string;
+        tiktok: string;
+    };
+};
+/** How the ledger can be grouped, and the quiet line that offers it. */
+declare const GROUP: {
+    label: string;
+    door: string;
+    platform: string;
+};
+/** What a door's group says of itself: `1 ad · 96 new people wrote`. `people` is null while the numbers it counts are read. */
+declare function groupMeta(o: {
+    door: AdDoor;
+    ads: number;
+    people: number | null;
+}): string;
+/** What a platform's group says of itself: `2 ads · 96 new people in touch`; a Google group's people are calls. */
+declare function platformMeta(o: {
+    platform: AdPlatform;
+    ads: number;
+    people: number | null;
+}): string;
+declare const ASK: {
+    not: string;
+    /** The press on an ad that needs fixing opens it. */
+    open: string;
+    extendPress: (more: string) => string;
+    extend: (o: {
+        name: string;
+        when: string;
+        brought: string;
+        end: string;
+        owner: string;
+        from: string;
+        to: string;
+    }) => string;
+    extendShort: (name: string, when: string) => string;
+    broughtPeople: (n: number) => string;
+    broughtCalls: (n: number) => string;
+    extendConfirm: (o: {
+        name: string;
+        end: string;
+        perDay: string;
+        owner: string;
+        from: string;
+        to: string;
+        more: string;
+    }) => string;
+    extendToast: (name: string, end: string) => string;
+    /** The ad's name, then what is wrong with it, said as the rest of a sentence (`ASK_WHY`). */
+    fix: (name: string, why: string) => string;
+    fixShort: (name: string, why: string) => string;
+    movePress: (amount: string) => string;
+    move: (o: {
+        cheap: string;
+        cheapEach: string;
+        cheapN: number;
+        dear: string;
+        dearEach: string;
+        dearN: number;
+        amount: string;
+        end: string;
+        all: string;
+    }) => string;
+    /** `one` is the workspace's appointment word: `appointment`. */
+    moveShort: (cheap: string, one: string) => string;
+    moveConfirm: (o: {
+        amount: string;
+        dear: string;
+        cheap: string;
+        end: string;
+    }) => string;
+    moveToast: (cheap: string, amount: string) => string;
+};
+/** What is wrong with an ad that needs the owner, as the rest of the fix proposal's sentence: `was turned down by Meta`. */
+declare const askWhy: (code: AdNeedsCode | null, owner: string) => string;
+declare const TILES: {
+    waiting: {
+        title: string;
+        empty: string;
+        line: (o: {
+            ad: string;
+            what: string;
+            note: string | null;
+        }) => string;
+        wrote: (day: string) => string;
+        number: (day: string) => string;
+        callNote: string;
+        /** Where a row goes: their conversation where there is one, else their page. */
+        toThread: string;
+        toPerson: string;
+    };
+    coming: {
+        title: string;
+        endsEvening: string;
+        ends: string;
+        today: string;
+        /** What is left of an ad's total waits while its platform is read. */
+        reading: (owner: string) => string;
+        totalReading: string;
+        /** The total across ads that stop at a platform total. */
+        total: (o: {
+            sum: string;
+            ads: number;
+        }) => string;
+        plus: (daily: string) => string;
+    };
+    cameBack: {
+        title: string;
+        window: string;
+        /** The headline is this word and the number it counts, which stands large. */
+        headline: string;
+        ahead: string;
+        kept: string;
+        missed: string;
+        past: string;
+        marked: string;
+        nudge: (one: string) => string;
+        unmatched: (n: number, many: string) => string;
+        line: (o: {
+            ahead: number;
+            kept: number;
+            missed: number;
+            past: number;
+        }) => string;
+    };
+};
+declare const PHONE: {
+    line1: (spent: string, each: string | null) => string;
+    line1NoCalendar: (touch: number, spent: string) => string;
+    /** While a platform is read, the muted line says what waits instead of a spend it does not know. */
+    line1Reading: (touch: number, list: string) => string;
+    footnote: string;
+    row: (platform: string, door: string) => string;
+    /** The ad's line, with where its numbers were last read when the platform could not be read. */
+    rowAsOf: (platform: string, door: string, when: string) => string;
+    /** The people waiting on the owner, said by name: two, then how many more. */
+    names: (names: readonly string[]) => string;
+    /** The door to the Results sheet, which the phone has no figures strip to carry. */
+    results: string;
+};
+declare const V0: {
+    lead: (ad: number, of: number) => {
+        strong: string;
+        rest: string;
+    };
+    more: (n: number) => string;
+    emptyLead: string;
+    emptyLine: string;
+    notes: string[];
+    door: string;
+    platforms: {
+        meta: string;
+        google: string;
+        tiktok: string;
+    };
+    next: string;
+};
+declare const NO_ADS: {
+    title: string;
+    /** `Message you on WhatsApp · about $10 a day for 7 days · up to $70`. */
+    line: (o: {
+        door: string;
+        perDay: string;
+        days: number;
+        total: string;
+    }) => string;
+    press: string;
+    /** What stops the first ad, said as a step. The press waits for it. */
+    needs: (fix: string) => string;
+    connect: (owner: string) => string;
+    lapsed: (owner: string) => string;
+};
+/** An account that has to be chosen: the card that lists the choices, each with its currency. */
+declare const CHOOSE: {
+    title: (owner: string) => string;
+    line: string;
+    choice: (name: string, currency: string) => string;
+    use: string;
+    done: (name: string) => string;
+    /** The account was taken off the list (or never was) between the card being drawn and the press. */
+    gone: string;
+};
+
+/** The lists a tapped word opens. */
+declare const LIST: {
+    /** What a chip is, to a screen reader: "The area: 5 miles". */
+    chip: {
+        offer: string;
+        area: string;
+        amount: string;
+        end: string;
+        door: string;
+        platform: string;
+    };
+    chipSaid: (what: string, value: string) => string;
+    /** A dashed blank, to a screen reader. */
+    blank: string;
+    amountDaily: string;
+    inAll: (total: string) => string;
+    /** The unit beside the box of "Your own amount": a daily amount, or a total. */
+    unitDaily: string;
+    unitTotal: string;
+    /** A daily amount, said as the platform spends it: an average where it spends one (`about $15 a day, an average`). */
+    dailyRow: (perDay: string, average: boolean) => string;
+    raiseDaily: (perDay: string, average: boolean) => string;
+    moreSpent: (more: string) => string;
+    /** What a daily amount that moves does to a day (`about $10 a day more`): no most, so it says about. */
+    dailyMore: (perDay: string) => string;
+    dailyMoreHead: (perDay: string) => string;
+    dailyLess: (perDay: string) => string;
+    /** What a choice does to a day, over the days left to the end. */
+    perDayLeft: (perDay: string) => string;
+    asItIs: (perDay: string) => string;
+    endsSooner: (perDay: string) => string;
+    endsLater: (perDay: string) => string;
+    /** A raise's two facts on a line: the most it can spend, and what a day becomes. */
+    raiseSub: (o: {
+        more: string;
+        perDay: string;
+    }) => string;
+    pickDay: string;
+    pickDayLabel: string;
+    set: string;
+};
+/** What each tapped word says it changes. */
+declare const CHIPS: {
+    offer: (p: AdPlatform) => string;
+    areaMiles: string;
+    areaPeople: (lo: number, hi: number) => string;
+    areaSmall: string;
+    areaMeta: string;
+    areaGoogle: string;
+    areaTiktok: string;
+    amountTitle: string;
+    own: string;
+    /** What a platform needs a day (`floor`, already said), or for Google's total how long it may run. */
+    floor: (p: AdPlatform, floor: string | null, totalMaxDays: number | null) => string;
+    belowSpent: (spent: string) => string;
+    stops: (p: AdPlatform) => string;
+    noRestart: string;
+    dailyOver: string;
+    dailyOverGoogle: string;
+    /** A change of TikTok's amount: at most this share, and not within this many days of the last. */
+    tiktokChange: (maxStep: number, waitDays: number) => string;
+    /** Why TikTok will not take an amount: too far from the one now, or too soon after the last change. */
+    tiktokStepOut: (maxStep: number) => string;
+    tiktokWait: (day: string) => string;
+    tiktokRange: (o: {
+        lo: string;
+        hi: string;
+        maxStep: number;
+    }) => string;
+    endTitle: string;
+    endLater: string;
+    endGoogle: (day: string, at: string) => string;
+    /** Google's total budgets run this many days at most: the date list stops at the last day. */
+    googleLastDay: (o: {
+        days: number;
+        day: string;
+    }) => string;
+    /** A raise of spend is the only press that names its maximum; lowering, pausing and renaming are free. */
+    raise: (total: string) => string;
+    lockedWhy: string;
+    formNew: string;
+    googleWait: string;
+};
+/** TikTok's area: ZIP codes, as chips that come out and a box that takes one more. */
+declare const ZIPS: {
+    title: string;
+    add: string;
+    addPress: string;
+    placeholder: (digits: number) => string;
+    remove: (zip: string) => string;
+    bad: (digits: number) => string;
+    already: (zip: string) => string;
+    none: string;
+    save: string;
+    /** What the list says it holds, to a screen reader. */
+    held: (n: number) => string;
+};
+/** The Edit block: the photo and the words, which a sentence's chips do not hold. */
+declare const EDIT: {
+    title: string;
+    photo: string;
+    changePhoto: string;
+    photoNew: string;
+    headlineN: (n: number) => string;
+    descriptionN: (n: number) => string;
+    noChanges: string;
+    /** How the chat starts, fixed on a running ad: `How the chat starts: They send a message you wrote for them`. */
+    chatNow: (what: string, now: string) => string;
+    /** The foot's line while the changes are being made. */
+    tapHint: string;
+};
+/** The toasts a press says, each with Undo where it can be undone. */
+declare const CHANGED: {
+    ends: (name: string, day: string) => string;
+    total: (name: string, total: string) => string;
+    daily: (name: string, amount: string) => string;
+    area: (name: string, area: string, owner: string) => string;
+    renamed: (name: string) => string;
+    saved: (name: string) => string;
+    savedChecking: (o: {
+        name: string;
+        owner: string;
+        within: string;
+    }) => string;
+    updated: (o: {
+        name: string;
+        owner: string;
+        within: string;
+    }) => string;
+    /** A second look is asked of the platform; the ad stays as it is until it answers. */
+    asked: (o: {
+        owner: string;
+        within: string;
+    }) => string;
+    retrying: (owner: string) => string;
+    removing: (owner: string) => string;
+    pausedTotal: (name: string, day: string) => string;
+};
+declare const NO_AD: {
+    title: string;
+    body: string;
+};
+declare const PEOPLE_TAB: {
+    everyone: string;
+    none: string;
+};
+/** The preview and the reach line. */
+declare const SHOWN: {
+    frameLabel: string;
+    photo: string;
+    video: string;
+    adWord: string;
+    consentBox: string;
+    formRows: string;
+    reach: string;
+};
+/** A reach line: its first word is the state, in the ink; the rest is the reasons, dim. */
+interface ReachSaid {
+    state: string;
+    parts: string[];
+}
+declare const DRAWER: {
+    /** The kicker: `Facebook and Instagram · Message you on WhatsApp`. */
+    kicker: (platform: string, door: string) => string;
+    next: {
+        runs: (o: {
+            day: string;
+            left: string;
+            perDay: string | null;
+        }) => string;
+        runsDaily: (perDayText: string) => string;
+        review: (o: {
+            from: string;
+            to: string;
+            total: string;
+            perDay: string;
+        }) => string;
+        reviewDaily: (o: {
+            from: string;
+            perDay: string;
+        }) => string;
+        paused: (o: {
+            day: string;
+            left: string;
+        }) => string;
+        pausedDaily: (perDayText: string) => string;
+        ended: (o: {
+            day: string;
+            spent: string;
+        }) => string;
+        finished: (total: string) => string;
+    };
+    reach: {
+        running: (o: {
+            owner: string;
+            day: string;
+            note: string;
+        }) => ReachSaid;
+        review: (o: {
+            owner: string;
+            when: string;
+            note: string;
+        }) => ReachSaid;
+        /** When it was sent: `today 9:02 AM` on the day, else the day. */
+        sentWhen: (o: {
+            today: boolean;
+            day: string;
+            time: string;
+        }) => string;
+        paused: (note: string) => ReachSaid;
+        needs: (first: string) => ReachSaid;
+        ended: (day: string) => ReachSaid;
+        read: (time: string) => string;
+    };
+    results: {
+        header: string;
+        /** The door to this ad's numbers in Reports. */
+        report: string;
+        wrote: string;
+        calls: string;
+        leftNumber: string;
+        defWrote: string;
+        defCalls: string;
+        defNumber: string;
+        countWrote: (wrote: number, booked: number) => string;
+        countCalls: (calls: number) => string;
+        countNumber: (n: number, booked: number) => string;
+        perPerson: (spent: string, n: number) => string;
+        /** A counted zero is said in words. */
+        zero: (o: {
+            inTouch: number;
+            did: string;
+            spent: string;
+        }) => string;
+        quietStart: (spent: string) => string;
+        /** Its first words are the word that opens what each platform says about it (`many` is the appointment word, plural). */
+        tooEarly: (many: string) => {
+            word: string;
+            rest: string;
+        };
+        tooEarlySheet: {
+            meta: string;
+            tiktok: string;
+            google: string;
+        };
+        soFarToday: (time: string) => string;
+    };
+    bars: {
+        legend: (did: string) => string;
+        legendCalls: string;
+        aria: (o: {
+            n: number;
+            did: string;
+            days: number;
+            booked: number;
+        }) => string;
+        ariaCalls: (o: {
+            n: number;
+            days: number;
+        }) => string;
+        ariaNone: string;
+    };
+    quiet: {
+        reply: (median: string, n: number) => string;
+        provenance: (owner: string) => string;
+        provenanceCalls: string;
+        /** The platform's own numbers, one press away: a list by name, each "not read yet" where the platform returned none. */
+        theirsDoor: (owner: string) => string;
+        theirsNote: (owner: string) => string;
+        notRead: string;
+        theirs: {
+            saw: string;
+            reached: string;
+            impressions: string;
+            taps: string;
+            clicks: string;
+            chats: string;
+            numbers: string;
+            calls: string;
+            longCalls: string;
+        };
+        googleExtra: string;
+        /** What people searched on Google, as it groups them, and the searches left out for the owner. */
+        typedDoor: string;
+        typedNote: string;
+        leftOut: {
+            title: string;
+            note: string;
+        };
+    };
+    people: {
+        title: string;
+        booked: string;
+        notYet: string;
+        /** The door to everyone it brought: People cannot be cut by ad yet, so it says where it goes. */
+        all: (n: number) => string;
+        wrote: (day: string) => string;
+        wroteToday: (time: string) => string;
+        number: (day: string) => string;
+        waiting: (days: string) => string;
+        callNumber: string;
+        talking: string;
+        quietSince: (day: string) => string;
+        nothing: string;
+        ahead: (day: string, time: string) => string;
+        kept: (day: string) => string;
+        missed: (day: string) => string;
+        past: (day: string) => string;
+        marked: string;
+        notMarked: string;
+        emptyCalls: string;
+        emptyReview: string;
+        emptyQuiet: string;
+        /** Where a row goes, said in its tip: the person's page, or the conversation that waits on the owner. */
+        tipPerson: (name: string) => string;
+        tipConversation: (name: string) => string;
+    };
+    foot: {
+        pause: string;
+        resume: string;
+        edit: string;
+        again: string;
+        cancel: string;
+        save: string;
+        /** The one press that raises what can be spent names its most. */
+        saveRaise: (total: string) => string;
+        saveRaiseDaily: (perDay: string) => string;
+        paused: (name: string, day: string) => string;
+        pausedDaily: (name: string) => string;
+        resumed: (name: string) => string;
+        /** The edit foot: what the changes do. */
+        changes: (o: {
+            n: number;
+            restarts: boolean;
+            owner: string;
+            within: string;
+        }) => string;
+    };
+    menu: {
+        label: string;
+        ask: string;
+        copy: string;
+        end: string;
+        endConfirm: (name: string) => string;
+        endPress: string;
+        keep: string;
+        ended: (name: string) => string;
+        copied: (name: string) => string;
+    };
+    /** The questions a callout's press asks first, in the foot. */
+    confirm: {
+        update: (o: {
+            owner: string;
+            within: string;
+        }) => string;
+        updateYes: string;
+        updateNo: string;
+        remove: (owner: string) => string;
+        removeYes: string;
+        removeNo: string;
+    };
+    /** An ad the owner made on the platform itself: Chanlytics can pause and resume it, and nothing else. */
+    adopted: (p: AdPlatform) => string;
+    callout: {
+        review: (p: AdPlatform) => string;
+        /** An ad sent back for checking after a change: its results stay where they are. */
+        recheck: (o: {
+            owner: string;
+            within: string;
+        }) => string;
+        settingUp: (p: AdPlatform) => string;
+        couldntFinish: (p: AdPlatform) => string;
+        couldntExits: {
+            retry: string;
+            remove: string;
+        };
+        pausedInPlatform: (p: AdPlatform) => string;
+        resume: string;
+        /** The price the ad says and the one Services says now; either may be missing from what was read. */
+        priceChanged: (o: {
+            was: string | null;
+            now: string | null;
+        }) => string;
+        updateAd: string;
+        /** The platform's own words, verbatim, in quotes. */
+        rejected: (o: {
+            owner: string;
+            why: string;
+        }) => string;
+        rejectedExits: {
+            fix: string;
+            again: (owner: string) => string;
+            fresh: string;
+        };
+        /** The line is the platform's own payment step: `Add a card in Google Ads`. */
+        payment: (p: AdPlatform) => string;
+        lapsing: (day: string | null) => string;
+        renew: string;
+        /** After a press, until the platform answers: the press says what it did and cannot be pressed again. */
+        done: {
+            again: (owner: string) => string;
+            retry: string;
+            remove: string;
+        };
+        ended: (day: string) => string;
+        settling: (days: number) => string;
+        settled: (days: number) => string;
+        finished: (o: {
+            name: string;
+            total: string;
+        }) => string;
+        finishedBooked: (booked: number) => string;
+        finishedCalls: (calls: number) => string;
+        quiet: string;
+    };
+    edit: {
+        pen: string;
+        namePlaceholder: string;
+    };
+};
+declare const PREVIEW: {
+    fold: string;
+    frames: readonly ["Feed", "Story", "Reel"];
+    /** The capsule under the ad, in the platform's wording where it can differ by locale. */
+    cta: {
+        whatsapp: string;
+        call: string;
+        form: string;
+    };
+    tap: string;
+    call: string;
+    form: string;
+    drawn: (owner: string) => string;
+    receptionistWrites: string;
+    replyLabel: string;
+    googleCaption: (line: string) => string;
+    answers: (business: string) => string;
+    formFilled: string;
+    formName: string;
+    formPhone: string;
+    consentTitle: string;
+    consent: (business: string) => string;
+    privacy: (site: string) => string;
+    formNotice: string;
+    layout: string;
+    /** Drawn by the drawer and New ad's thank-you switch (owed). */
+    thanksOn: string;
+    thanksOff: string;
+    neverQuote: string;
+    excerpt: (text: string, cta: string) => string;
+};
+
+declare const NEW_AD: {
+    kicker: string;
+    stepOf: (n: number) => string;
+    stepLabel: (n: number) => string;
+    review: string;
+    reviewTitle: string;
+    /** The ad's name, to a screen reader. */
+    nameLabel: string;
+    zip: string;
+    miles: (n: number) => string;
+    endsAtGoogle: string;
+    /** The name, drafted once the offer is chosen: `First appointment · 12 Oct`. */
+    name: (offer: string, day: string) => string;
+    /** The phone's sentence is clamped to two lines; this opens it. */
+    sentenceMore: string;
+    sentenceLess: string;
+    steps: readonly ["What should people do?", "The ad", "Where and who", "Budget", "Review"];
+    back: string;
+    cancel: string;
+    next: readonly ["Next: the ad", "Next: where and who", "Next: budget", "Next: review"];
+    say: string;
+    sayFirst: string;
+    turnOnTotal: (total: string) => string;
+    turnOnDaily: (perDayText: string) => string;
+    /** After the press: the toast, and what Undo does. */
+    turnOnToast: (o: {
+        owner: string;
+        within: string;
+    }) => string;
+    undone: string;
+    /** What stops Turn on, said as a step; the door is Settings › Connections. */
+    blocked: {
+        need: (fix: string) => string;
+        notConnected: (owner: string) => string;
+        choose: (owner: string) => string;
+        lapsed: (owner: string) => string;
+    };
+    needs: string;
+    /** New ad opened from an ad: the name it opens with says so. */
+    from: {
+        copy: (name: string) => string;
+        again: (name: string) => string;
+        google: (name: string) => string;
+    };
+    /** A member who is not the owner can draft an ad; the owner turns it on. */
+    askOwner: string;
+    askOwnerSent: string;
+    /** Google: the page the ad opens. */
+    opens: {
+        label: string;
+        group: string;
+        page: string;
+        site: string;
+        pageNote: string;
+        siteNote: string;
+        numberOnPage: string;
+        hostedNote: string;
+        /** The display path under the headline: the page's address, then where on it. */
+        path: (host: string) => string;
+    };
+    step1: {
+        formNote: string;
+    };
+    step2: {
+        about: string;
+        aboutLabel: string;
+        aboutCaption: string;
+        quoted: string;
+        photo: string;
+        postsLabel: {
+            meta: string;
+            tiktok: string;
+        };
+        addPhoto: string;
+        addVideo: string;
+        photoHint: string;
+        postUse: string;
+        asIs: string;
+        newWords: string;
+        words: string;
+        headline: string;
+        text: string;
+        limit: (n: number, max: number, where: string) => string;
+        /** The names the limit lines use for where Meta shows the words. */
+        where: {
+            facebook: string;
+            instagram: string;
+        };
+        chat: string;
+        chatReady: string;
+        chatQuestions: string;
+        chatLocked: string;
+        chatShort: string;
+        adjust: string;
+        adjustWhat: string;
+        adjustOff: string;
+        frameLabel: string;
+        headlines: string;
+        descriptions: string;
+        googleFold: string;
+        googleShown: string;
+        /** The other wordings Google tries, so the fold's "10 headlines and 3 descriptions" are all there. */
+        googleMore: (o: {
+            offer: string;
+            business: string;
+            price: string;
+        }) => {
+            headlines: string[];
+            descriptions: string[];
+        };
+        count: (n: number, max: number) => string;
+        video: string;
+        /** A TikTok post used as an ad: its music has to be cleared for ads. */
+        sound: string;
+        newWordsVideo: string;
+        formFields: string;
+        formFilled: string;
+        askService: string;
+        askServiceHint: string;
+        doubleCheck: string;
+        privacyLink: string;
+        privacyHint: string;
+        privacyPlaceholder: string;
+        privacyNeeded: string;
+        completion: string;
+        completions: readonly ["We'll message you on WhatsApp", "Call us", "Nothing more"];
+        consentOn: string;
+        consentCounsel: string;
+        /** The thank-you line a form ends on: whether it promises a message within minutes. */
+        thanks: string;
+        thanksHint: (said: string) => string;
+        thanksOnNote: string;
+        /** Who the ad is shown as: read from the connection, changed in Settings. */
+        shownAs: {
+            label: string;
+            line: (name: string, handle: string | null) => string;
+            limit: (max: number) => string;
+            door: string;
+        };
+        /** Meta: a photo or a vertical video. */
+        media: {
+            label: string;
+            photo: string;
+            video: string;
+            videoNote: string;
+            postsVideo: string;
+        };
+        /** Google: what people search, grouped by Google. */
+        search: {
+            label: string;
+            note: string;
+            leftOut: (list: readonly string[]) => string;
+        };
+    };
+    step3: {
+        runsOn: string;
+        platformLabel: string;
+        alsoGoogle: string;
+        placementsMeta: string;
+        placementsOff: string;
+        placementsTiktok: string;
+        placementsGoogle: string;
+        area: string;
+        areaGoogle: string;
+        areaTiktok: (zip: string) => string;
+        areaPicker: string;
+        of: string;
+        regulars: string;
+        /** Drawn by New ad's area step (owed). */
+        googleSmall: string;
+        special: string;
+        no: string;
+        yes: string;
+        yesNote: string;
+        /** Drawn by New ad's area step (owed): the age lock a special category brings. */
+        ages: string;
+        agesWhy: string;
+        agesLabel: string;
+        ageLine: (floor: number) => string;
+        agesWhyDefault: (owner: string) => string;
+        agesWhyCosmetic: string;
+        alsoGoogleNote: string;
+        /** What the platform looks for, by door. */
+        who: (platform: AdPlatform, door: AdDoor) => string;
+    };
+    step4: {
+        mode: readonly ["For a set number of days", "Until I stop it"];
+        modeLabel: string;
+        presetsLabel: string;
+        /** `Steady · about $15 a day for 20 days · up to $300 · ends Sat 31 Oct`: the label, then the rest. */
+        preset: (o: {
+            perDay: string;
+            days: number;
+            total: string;
+            end: string;
+        }) => string;
+        presetDaily: (o: {
+            perDay: string;
+        }) => string;
+        own: string;
+        ownLabel: string;
+        /** The unit beside the box: the currency's symbol, then a day. */
+        ownUnit: (symbol: string) => string;
+        ownNeeds: string;
+        fees: string;
+        dailyAbout: (perDayText: string) => string;
+        estimate: (o: {
+            lo: number;
+            hi: number;
+            days: number;
+        }) => string;
+        noEstimate: string;
+        googleEstimate: (o: {
+            clicks: readonly [number, number];
+            from: string;
+            to: string;
+        }) => string;
+        history: (each: string, people: number) => string;
+        more: string;
+        /** Only while the business is open: the switch, and why it is off or not a switch. */
+        openOnly: (hours: string) => string;
+        openOnlyOn: string;
+        openOnlyOff: string;
+        openOnlyMeta: string;
+        openOnlyGoogle: string;
+        /** What each platform says about changing the amount once the ad is on. */
+        tiktokChange: (maxStep: number, waitDays: number) => string;
+        googleAverage: (o: {
+            day: number;
+            month: number;
+        }) => string;
+        relearn: string;
+    };
+    step5: {
+        kicker: (door: string) => string;
+        readyLabel: string;
+        ready: (parts: string) => string;
+        /**
+         * What the account stands on, in the words of each platform. The number on the page an ad opens is the ad's own check
+         * (it follows "The ad opens", in Checked before turning on), never the account's.
+         */
+        readyParts: {
+            meta: string[];
+            google: string[];
+            tiktok: string[];
+        };
+        forecast: (o: {
+            owner: string;
+            within: string;
+            perDay: string;
+            total: string;
+            end: string;
+        }) => string;
+        forecastDaily: (o: {
+            owner: string;
+            within: string;
+            perDay: string;
+        }) => string;
+        checked: string;
+        quiet: (owner: string) => string;
+        quietCalls: string;
+        fix: string;
+        noCalendar: string;
+        /** "Checked before turning on" counts what is ready: `7 of 7 ready`. */
+        count: (met: number, of: number) => string;
+        setFor: string;
+        /** What each door's result is called in the lowest-cost line. */
+        result: {
+            whatsapp: string;
+            call: string;
+            form: string;
+        };
+    };
+};
+/** A fourth door, quiet and not pressable, last in step 1. */
+declare const BOOK_ONLINE = "Book online comes later. Chanlytics can't see inside your booking tool, so it couldn't count who booked.";
+/** The rows of "Checked before turning on", in owner words. */
+declare const CHECKS: {
+    words: string;
+    promises: string;
+    price: string;
+    priceQuote: string;
+    rating: (line: string) => string;
+    post: string;
+    special: string;
+    privacy: string;
+    yes: string;
+    noHealth: string;
+    businessName: string;
+    /** The words fit the platform's limits, or which one does not. */
+    fits: string;
+    headlineLong: (o: {
+        n: number;
+        max: number;
+        where: string;
+    }) => string;
+    textLong: (o: {
+        n: number;
+        max: number;
+        where: string;
+    }) => string;
+    googleLong: (o: {
+        n: number;
+        max: number;
+        what: string;
+    }) => string;
+    /** The ad says a price that Services does not. */
+    priceDiffers: (o: {
+        said: string;
+        note: string;
+    }) => string;
+    /** A platform account that is not ready, as a row: it stops Turn on until it is. */
+    account: {
+        "not-connected": (owner: string) => string;
+        choose: (owner: string) => string;
+        lapsed: (owner: string) => string;
+    };
+};
+/** `4.9 on Google · 128 reviews · as of 11 Oct`. */
+declare const ratingLine: (o: {
+    stars: string;
+    reviews: number;
+    day: string;
+}) => string;
+
+type Tone = "accent" | "warn" | "info" | "ok" | "danger" | "plain";
+declare const TONES: readonly Tone[];
+/** The families of state a pill can name. */
+type StateKind = "thread" | "standing" | "call" | "person" | "consent" | "mode" | "broadcast" | "playbook" | "template" | "template_quality" | "setup" | "role" | "tone" | "calendar"
+/** Where a fact came from: the chip beside a value on the Business tab. */
+ | "fact" | "escalation" | "lead_class" | "lead_stage" | "lead_fit" | "reach" | "lead_call_outcome" | "lead_row_state" | "deal";
+/** The tone for a state, or plain for one this map has never heard of. */
+declare function stateTone(kind: StateKind, value: unknown): Tone;
+/** The words for a state, or the value itself when nobody has written any. */
+declare function stateLabel(kind: StateKind, value: unknown): string;
+/** Both at once: what the pill draws. */
+declare function stateOf(kind: StateKind, value: unknown): {
+    tone: Tone;
+    label: string;
+};
+/** What a pin needs to know about a lead to take a tone: the state its row wears. */
+interface LeadPinnable {
+    state: string;
+}
+/**
+ * The tone a lead's pin wears on the map: its row's state, from the registry the row's own tag reads, so a pin and
+ * the row under the map say the same thing (leadMapLegend, below, says which colour is which).
+ *
+ * The map kept a table of its own, in leads.css, keyed by `strong`/`part`/`talking` -- words no tone vocabulary
+ * knows -- so it was a sixth colour family that this file could not reach. It had already drifted: a `look` fit
+ * drew amber on a pin while this map calls it plain. And because those rules named no element, and leads.css is
+ * imported after clients.css, `.tone-ok` painted EVERY `tone-ok` in the app solid green -- a Today attention row,
+ * and the peek's own Interested chip. Both now come through here. It was coloured three ways too (fit, reach,
+ * stage) by a switch with no key, two of which repeated the row; the state is the one (25 Sep).
+ *
+ * A pin is data, so by the chart kit's rule it never wears the accent, and the state's tones never are it.
+ */
+declare function leadPinTone(lead: LeadPinnable): Tone;
+/** A lead's row state, as the row wears it (lead-row.ts LeadRowVM["state"]). */
+type LeadMapState = "ready" | "contacted" | "talking" | "review" | "out";
+/**
+ * What the map's pins mean, said under the map: one entry per state a pin on it wears, in the pin's own tone.
+ *
+ * The map had a switch of three colourings (Fit, Reach, Stage) and no key, so green meant a strong fit, a reachable
+ * lead or one talking to you depending on a control nothing explained, and two of the three repeated what each row
+ * under the map already says (25 Sep). A pin now says what the row's tag says, and this says which colour is which.
+ */
+declare function leadMapLegend(rows: ReadonlyArray<{
+    state: string;
+}>): Array<{
+    state: LeadMapState;
+    tone: Tone;
+    label: string;
+    out: boolean;
+}>;
+
+declare const CONNECT: {
+    title: string;
+    /** The card's second line while the page draws the Ads fixtures. */
+    sub: string;
+    off: string;
+    connect: string;
+    disconnect: string;
+    change: string;
+    use: string;
+    cancel: string;
+    /** Not connected: what connecting does, and who bills. */
+    line: (p: AdPlatform) => string;
+    /** The press of Connect in the demo: it says nothing was connected. */
+    signIn: (p: AdPlatform) => string;
+    /** `USD · New York time · set by the account`: the account's own, which Chanlytics follows and cannot change. */
+    facts: (currency: string, zone: string) => string;
+    read: (time: string) => string;
+    reading: string;
+    readFailed: (when: string) => string;
+    ready: string;
+    allReady: string;
+    needYou: (n: number) => string;
+    managerOk: string;
+    managerNot: string;
+    /** TikTok's post permission, a day it runs until. */
+    permission: (day: string) => string;
+    /** Ads the owner made on the platform itself, shown in Ads and read-only there (decision 7). */
+    adopted: (p: AdPlatform, n: number) => string;
+    /** Disconnect while an ad runs is refused (decision 8). */
+    refused: (n: number) => string;
+    refusedDoor: string;
+    refusedOk: string;
+    disconnectQ: (p: AdPlatform) => string;
+    disconnectDetail: string;
+    disconnectYes: string;
+    disconnectNo: string;
+    disconnected: (p: AdPlatform) => string;
+    /** The choice of an account: its question, and the toast of choosing one. */
+    which: (p: AdPlatform) => string;
+    using: (p: AdPlatform, name: string) => string;
+    /** Decision 9: the owner's setting that pauses ads, off unless chosen. */
+    pause: {
+        label: string;
+        line: string;
+        on: string;
+        off: string;
+    };
+    /** What a role that may not press says it would have done. */
+    gate: {
+        connect: string;
+        change: string;
+        disconnect: string;
+        pause: string;
+    };
+};
+/** One thing an account stands on: in order (a green dot), or not (an amber ring, with the step that mends it). */
+interface ReadyRowVM {
+    id: AdCheckId;
+    text: string;
+    tone: "ok" | "warn";
+    fix: string | null;
+}
+/** One account to choose among: its id, its name, and its currency (the platform's, never converted). */
+interface ConnectChoiceVM {
+    value: string;
+    label: string;
+    hint: string;
+}
+/** One platform's row. */
+interface ConnectRowVM {
+    id: AdPlatform;
+    /** `Facebook and Instagram`. */
+    title: string;
+    /** The account's name on the platform, where one is chosen. */
+    detail: string | null;
+    icon: string;
+    status: AdAccountStatus;
+    tone: Tone;
+    stateWords: string;
+    /** `USD · New York time · set by the account`; null where no account is chosen. */
+    facts: string | null;
+    /** `Read 9:19 AM`, or how the read stands. */
+    read: string | null;
+    ready: ReadyRowVM[];
+    /** The fold's mark: `2 need you`, or `all in order`. */
+    readyMark: string;
+    /** Not connected: what connecting does. */
+    line: string | null;
+    /** Ads made on the platform itself and shown here read-only. */
+    adopted: string | null;
+    /** The accounts there are to choose from, and the one in use. */
+    choices: ConnectChoiceVM[];
+    chosen: string | null;
+    /** Ads that are on, in review or being set up on this platform: Disconnect is refused while there are any. */
+    running: number;
+}
+/** The three platforms' rows, in the Ads page's order, over the accounts and ads a reader returned. */
+declare function connectModel(input: {
+    accounts: readonly AdAccountRead[];
+    ads: readonly AdRead[];
+    today: string;
+}): ConnectRowVM[];
+
+/** A tone for a dot or a line: green only for `ok`, amber only for `warn` (Needs you), red only for a failed account. */
+type AdTone = "ok" | "warn" | "plain" | "fail";
+/** A ledger number, the short unit line under it where the unit is not obvious, and the reason it is a dash. */
+interface CellVM {
+    value: string;
+    unit: string | null;
+    why: string | null;
+}
+/** A state as the ledger and the drawer say it: a dot, one word, a dim second line. */
+interface StateVM {
+    word: string;
+    tone: AdTone;
+    second: string | null;
+}
+/** One of the figures (kit Figure's props, field for field). */
+interface FigureVM {
+    id: "spent" | "touch" | "booked" | "each";
+    label: string;
+    value: string;
+    /** Beside the number in plain ink: `so far`. */
+    change: string | null;
+    meta: string | null;
+    definition: string;
+    n: number | null;
+    minN: number;
+}
+/** A door: the words, and where it goes. */
+interface DoorVM {
+    words: string;
+    to: string;
+}
+/** One dot row of what a platform, or a door, stands on. */
+interface StandRowVM {
+    text: string;
+    tone: "ok" | "warn";
+    door: DoorVM | null;
+    /** A dim line after the words, where one helps (New ad: who puts the number on the page the ad opens). */
+    note?: string | null;
+    /** What to do about a row that is not met, said as a step (`Add a payment method in Meta`). */
+    fix?: string | null;
+}
+/** A platform's standing: a word and a 7px dot (filled ok, amber ring warn, hollow ring off), and its rows. */
+interface StandingVM {
+    id: AdPlatform;
+    name: string;
+    state: "ok" | "warn" | "off";
+    word: string;
+    /** `Harbor Studio ad account · read 9:19 AM`; null where nothing is connected. */
+    account: string | null;
+    rows: StandRowVM[];
+    /** `Charged to your card by Meta. Chanlytics never holds your ad money.` */
+    note: string;
+    door: DoorVM;
+}
+/** A word of the sentence that can be tapped; `blank` is a dashed blank in New ad's unfinished sentence. */
+type ChipId = "offer" | "area" | "amount" | "end" | "door" | "platform";
+type SentencePart = {
+    text: string;
+} | {
+    chip: string;
+    id: ChipId;
+    value: string;
+    blank: boolean;
+};
+/** What a sentence is made of. A null leaves its clause out (New ad's sentence grows a step at a time). */
+interface SentenceInput {
+    /** Null is the dashed blank. */
+    offer: string | null;
+    platform: AdPlatform | null;
+    door: AdDoor;
+    /** The area chip's word: `5 miles`, `these ZIP codes`. */
+    area: string | null;
+    /** The street Google's sentence names: `Harbor St`. */
+    street: string;
+    budget: AdBudget | null;
+    /** The currency the amount is in. */
+    currency: string;
+    /** The end day of a total; null with a daily amount. */
+    endDay: string | null;
+    /** New ad: the platform and the door are words that open their step. A running ad's are plain text. */
+    chips: "new" | "running";
+    /** An ad that has ended reads in the past: `Showed … so they messaged you on WhatsApp, up to $720 in all until …`. */
+    past?: boolean;
+}
+declare const DASH: string;
+declare const PLATFORMS: readonly AdPlatform[];
+declare const sum: (xs: readonly number[]) => number;
+/** The account of a platform, if the workspace has one. */
+declare const adAccountOf: (read: AdsRead, platform: AdPlatform) => AdAccountRead | undefined;
+/** Whether a platform's account is connected and chosen. */
+declare const isConnected: (read: AdsRead, platform: AdPlatform) => boolean;
+/** Whether a check of an account is met. A check the account does not list is not met. */
+declare const checkOk: (acct: AdAccountRead | undefined, id: AdCheckId) => boolean;
+/** Whether Chanlytics can count an ad's people: a Google ad's calls are Google's count, not matched to anyone. */
+declare const counted: (ad: AdRead) => boolean;
+/** Whether the platform has approved an ad at least once: until then nothing is spent and nothing is counted. */
+declare const started: (ad: AdRead) => boolean;
+/** The state an ad is read as: its own, or `too-early` where it is on and started fewer than a week ago. */
+declare function viewState(ad: AdRead, today: string): AdRead["state"] | "too-early";
+/** `9:19 AM`, by the workspace's clock, from an ISO timestamp; empty for text that is no time. */
+declare function timeOf(iso: string, timezone: string): string;
+/** The workspace's day of an ISO timestamp: `2026-10-11`; empty for text that is no time. */
+declare function dayOfIso(iso: string, timezone: string): string;
+/** When the page was read, as the pane line says it: `9:19 AM`. */
+declare const readTime: (read: AdsRead) => string;
+/** A person as the page names them: the name, and the initials of their face. */
+declare const adPersonWho: (name: string) => {
+    name: string;
+    initials: string;
+};
+/** The Service an ad is about, by id. */
+declare const adServiceOf: (read: AdsRead, id: string) => AdsRead["services"][number] | undefined;
+/** `5 miles`, `these ZIP codes`: the word the area is in the sentence and the lists. */
+declare const areaWord: (area: AdArea) => string;
+/** The platforms a door runs on: WhatsApp on Meta, calls on Google, a form on Meta or TikTok. */
+declare const platformsFor: (door: AdDoor) => readonly AdPlatform[];
+/** The platform and where it shows, as a ledger's hint leads with: `Facebook and Instagram · a form`. */
+declare function leadOf(o: {
+    platform: AdPlatform;
+    door: AdDoor;
+    area: AdArea;
+}): string;
+declare const totalOf: (ad: AdRead) => number | null;
+/** The cost for each person who booked, in minor units: from REPORT_MIN_N booked, else none. */
+declare const costEach: (spentMinor: number, booked: number) => number | null;
+/** One ad's numbers over the window, and what it has spent in all. */
+interface Totals {
+    spentMinor: number;
+    inTouch: number;
+    booked: number;
+    days: number;
+    lifetimeMinor: number;
+}
+declare function totalsOf(ad: AdRead, read: AdsRead): Totals;
+declare const leftOfAd: (ad: AdRead, t: Totals) => number | null;
+/** Whether the last two weeks are still settling in what these ads have: a cost is `so far` until they are not. */
+declare const settling: (ads: readonly AdRead[], today: string) => boolean;
+declare const endsWhenOf: (ad: AdRead, today: string) => string;
+/** The dim line of an ad that needs the owner: what it is. */
+declare function needsSecond(ad: AdRead): string;
+declare function adStateOf(ad: AdRead, t: Totals, read: AdsRead): StateVM;
+declare function countCtx(read: AdsRead): CountCtx;
+/** What one platform stands on (its dot rows), as the standing popover and an ad's reach line draw them. */
+declare function accountRows(read: AdsRead, platform: AdPlatform): StandRowVM[];
+/** What the ad itself changes about what its door needs: where a Google ad opens, and whether TikTok's is made from a post. */
+interface NeedsChoice {
+    /** Google: the page the ad opens. Chanlytics puts the number on its own page; on the owner's site it must already be there. */
+    opens?: "page" | "site";
+    /** TikTok: whether the ad is made from a post, which needs the post permission (left out, the account's own row stands). */
+    post?: boolean;
+}
+/** What a door needs on a platform, as dot rows: an amber one has the door that mends it. */
+declare function doorNeeds(read: AdsRead, door: AdDoor, platform: AdPlatform, choice?: NeedsChoice): StandRowVM[];
+/** The first check a door needs that an account does not meet, or null where it meets them all. */
+declare function firstMissing(acct: AdAccountRead | undefined, door: AdDoor, platform: AdPlatform): AdCheckId | null;
+/** The first door whose needs are all met, else the first door. */
+declare const firstReadyDoor: (read: AdsRead) => AdDoor;
+/** The smallest preset: the one a first ad starts on. */
+declare const smallestPreset: (config: AdsConfig) => AdsConfig["presets"][number] | undefined;
+/** What the reach line says last: what the ad stands on, or for a form when the last number arrived. */
+declare function reachNoteOf(ad: AdRead, read: AdsRead): string;
+/** Whether words quote a price (a currency sign and a digit): the one pattern, for the warning that the receptionist never quotes one. */
+declare const quotesPrice: (text: string) => boolean;
+/** Whether an ad's words quote a price: the Service's own note, or any price in the headline. */
+declare function adQuotes(copy: AdCopy, priceNote: string): boolean;
+/**
+ * The one sentence an ad is read back as: `Show [Spring offer] on Facebook and Instagram to people within [5 miles], so
+ * they message you on WhatsApp, up to [$720] in all until [Sat 31 Oct].` A word that can change is a chip; on a running ad
+ * the platform and the door are plain text (they cannot change). New ad leaves a clause out until its step is done.
+ */
+declare function sentenceParts(i: SentenceInput): SentencePart[];
+
+/** What the page adds up over the window, from the same rows every ad's own numbers come from. */
+interface PageTotals {
+    /** What each ad spent, in its currency: summed by currency, never converted. */
+    spent: MoneyItem[];
+    /** Ads that have spent anything. */
+    spentAds: number;
+    /** People Chanlytics can count: calls are left out. */
+    touch: number;
+    wrote: number;
+    left: number;
+    booked: number;
+    /** What the ads whose people Chanlytics counts spent: the cost for each person divides this. */
+    eachSpend: MoneyItem[];
+    /** The cost for each person who booked, where the counted ads share one currency and enough booked; else null. */
+    each: MoneyItem | null;
+}
+declare function pageTotals(read: AdsRead): PageTotals;
+/** The cost for each person in touch, where no calendar says who booked: the same spend over the people counted. */
+declare const eachInTouch: (p: PageTotals) => MoneyItem | null;
+interface AdWaitingRowVM {
+    personId: string;
+    /** Their conversation, where there is one: `inbox/<threadId>`. */
+    threadId: string | null;
+    adId: string;
+    name: string;
+    initials: string;
+    /** `Spring offer · wrote Mon 5 Oct`. */
+    line: string;
+    /** The amber days: `6 days`. */
+    since: string;
+    /** Where the row goes: their conversation where there is one (`inbox/<threadId>`), else their page (`clients/<personId>`). */
+    open: string;
+    /** Where it goes, said as the row's tip. */
+    tip: string;
+}
+interface ComingRowVM {
+    adId: string;
+    /** `Mon 12 Oct` as its lines (the weekday, then the date), or `Today`. */
+    when: string[];
+    name: string;
+    /** `ends that evening`; empty where the row says only why. */
+    said: string;
+    why: string;
+}
+interface CameBackRowVM {
+    id: "ahead" | "kept" | "missed" | "past";
+    label: string;
+    n: number;
+    /** `marked by your team`. */
+    note: string | null;
+}
+interface TilesVM {
+    waiting: {
+        title: string;
+        rows: AdWaitingRowVM[];
+        empty: string;
+    };
+    coming: {
+        title: string;
+        rows: ComingRowVM[];
+        total: string;
+        plus: string | null;
+    };
+    cameBack: {
+        title: string;
+        window: string;
+        /** Whether a calendar link is set. Without one nobody can be counted as booked: the headline's number is not a count (draw a dash). */
+        linked: boolean;
+        /** The word and the number it counts, which stands large: `Booked`, 26. */
+        headline: {
+            label: string;
+            n: number;
+        };
+        rows: CameBackRowVM[];
+        /** What to do next; with no calendar link, why there is nothing to count. */
+        nudge: string;
+        unmatched: string | null;
+        /** The phone's one line: `Ahead 5 · Kept 14 · Missed 2 · Past 5`; none where there is nothing to count. */
+        line: string | null;
+    };
+}
+/** The three tiles; `reading` is the platforms being read, whose numbers wait. */
+declare function tilesOf(read: AdsRead, reading?: readonly AdPlatform[]): TilesVM;
+interface PhoneVM {
+    line1: string;
+    /** `2 people from your ads are waiting on you`; null where nobody is. */
+    needs: string | null;
+    /** Who waits, by name: `Jordan P. · Amy G.`; null where nobody does. */
+    names: string | null;
+    /** The longest wait, in amber: `6 days`. */
+    since: string | null;
+    footnote: string;
+}
+/** The phone page's lines. `reading` is the platforms being read: the muted line says so instead of a spend it does not know. */
+declare function phoneOf(p: PageTotals, read: AdsRead, waiting: readonly AdWaitingRowVM[], reading?: readonly AdPlatform[]): PhoneVM;
+interface V0VM {
+    /** The lead line (bold part, rest); null where there is nothing to say yet. */
+    lead: {
+        strong: string;
+        rest: string;
+    } | null;
+    muted: string | null;
+    /** The empty workspace's two lines, instead of the lead. */
+    empty: {
+        lead: string;
+        line: string;
+    } | null;
+    /** BarList rows; `own` is the one in ink, the rest in one quiet hue. */
+    rows: {
+        label: string;
+        n: number;
+        own: boolean;
+    }[];
+    notes: string[];
+    door: DoorVM;
+    platforms: {
+        id: AdPlatform;
+        name: string;
+        line: string;
+        word: string;
+    }[];
+    next: string;
+}
+declare function v0Of(read: AdsRead): V0VM;
+/** What stops the first ad: the step, and the door that mends it. The press waits for it. */
+interface BlockedVM {
+    text: string;
+    door: DoorVM;
+}
+/** An account that has to be chosen: its choices, each with the currency it is charged in. */
+interface ChooseVM {
+    platform: AdPlatform;
+    title: string;
+    line: string;
+    use: string;
+    choices: {
+        externalId: string;
+        label: string;
+        name: string;
+    }[];
+}
+interface NoAdsVM {
+    title: string;
+    line: string;
+    press: string;
+    checklist: StandRowVM[];
+    /** The first need the door's account does not meet, else null: the press is stopped while it stands. */
+    blocked: BlockedVM | null;
+    /** The accounts waiting to be chosen; while there is one, the card for the first ad is not drawn. */
+    choose: ChooseVM[];
+}
+/** The first ad's card: the door it would start on, what that door needs, and the smallest amount it would run on. */
+declare function noAdsOf(read: AdsRead, config: AdsConfig): NoAdsVM;
+
+interface HeadVM {
+    /** The bold part of the sentence: `26 of 114`. Empty where the sentence has none. */
+    strong: string;
+    rest: string;
+    /** The money-calm line under the head (desk and phone). Null where nothing is spent. */
+    money: string | null;
+}
+/** The popover under "How this is counted ›": the four definitions, then the fee and the calls sentences. */
+interface CountedVM {
+    quiet: string;
+    door: string;
+    title: string;
+    items: {
+        label: string | null;
+        text: string;
+    }[];
+}
+/**
+ * What a press on the Ask line changes (the store's answerAsk): a longer run and a bigger total, or an amount a day moved
+ * from one ad to another until the day the second ends.
+ */
+type AskApply = {
+    kind: "extend";
+    adId: string;
+    endDay: string;
+    totalMinor: number;
+} | {
+    kind: "move";
+    fromId: string;
+    toId: string;
+    perDayMinor: number;
+    untilDay: string;
+};
+/** The Ask line: one proposal, one sentence, two presses. It exists only when it can say something true. */
+interface AskVM {
+    kind: "fix" | "extend" | "move";
+    adId: string;
+    text: string;
+    /** The phone's last row. */
+    short: string;
+    press: string;
+    dismiss: string;
+    /** The whole consequence, said before the press is final; null where the press only opens the ad. */
+    confirm: string | null;
+    toast: string;
+    apply: AskApply | null;
+}
+/** One ad as a ledger row (desk) and a phone row. */
+interface AdRowVM {
+    id: string;
+    name: string;
+    /** `Facebook and Instagram · about $15 a day · since 14 Sep`. */
+    hint: string;
+    door: AdRead["door"];
+    glyph: Glyph;
+    /** The dot's tone beside the name. */
+    tone: AdTone;
+    spent: CellVM;
+    inTouch: CellVM;
+    booked: CellVM;
+    each: CellVM;
+    state: StateVM;
+    /** An ad that runs and has something to say to the owner: its second line is that, not its end. */
+    alert: boolean;
+    /** Under the name below 1000px of page: `96` and `wrote`. */
+    fold: {
+        value: string;
+        unit: string;
+    } | null;
+    /** The ad's address, for the row's door. */
+    open: string;
+    phone: {
+        line: string;
+        endTop: string;
+        endSub: string | null;
+    };
+}
+/** How the ledger's ads are grouped: by what they ask people to do, or by the platform they run on. */
+type AdsGroupBy = "door" | "platform";
+/** The ring's glyph of a group: a door's own, or a plain one for a platform (never its logo). */
+type GroupGlyph = Glyph | "users" | "search" | "video";
+interface GroupVM {
+    /** What the group is: a door (`whatsapp`) or a platform (`meta`). */
+    key: string;
+    glyph: GroupGlyph;
+    /** `Message you on WhatsApp` (the head sets it in caps). */
+    caps: string;
+    /** `1 ad · 96 new people wrote`. */
+    meta: string;
+    rows: AdRowVM[];
+}
+/** An account whose last read failed: the line under the pane line, and the press that reads it again. */
+interface FailedVM {
+    platform: AdPlatform;
+    /** `Meta's numbers could not be read · as of Sat 6 PM`. */
+    line: string;
+    again: string;
+}
+/** The quiet choice of how to group the ledger, offered from ADS_GROUP_FROM ads. */
+interface GroupByVM {
+    label: string;
+    value: AdsGroupBy;
+    options: {
+        value: AdsGroupBy;
+        label: string;
+    }[];
+}
+interface AdsVM {
+    /** Nothing connected (v0), a connected account with no ad yet, or ads. */
+    mode: "v0" | "none" | "ads";
+    head: HeadVM;
+    /** The pane line: `Last 30 days · read 9:19 AM`. */
+    pane: string;
+    standing: StandingVM[];
+    /** The four figures; none in v0 or with no ads. */
+    figures: FigureVM[];
+    counted: CountedVM | null;
+    ask: AskVM | null;
+    /** Accounts whose last read failed, a line each under the pane line. */
+    failed: FailedVM[];
+    /** Whether an account is being read: its spend, and the cost for each person, wait. */
+    reading: boolean;
+    /** The door to the calendar link, while none is set. */
+    link: DoorVM | null;
+    /** The choice of how to group the ledger, once there are ads enough to need one. */
+    groupBy: GroupByVM | null;
+    groups: GroupVM[];
+    tiles: TilesVM | null;
+    phone: PhoneVM | null;
+    v0: V0VM | null;
+    noAds: NoAdsVM | null;
+}
+/** What the ads so far cost for each person who booked, where 10 or more booked: New ad says it under the budget. */
+declare function earlierCost(read: AdsRead): {
+    each: string;
+    people: number;
+} | null;
+/**
+ * The page: v0 (nothing connected), the first ad's card (connected, no ads yet), or the ads. `by` is how the ledger groups
+ * its ads; before ADS_GROUP_FROM ads they are grouped by what they ask.
+ */
+declare function adsModel(read: AdsRead, config: AdsConfig, by?: AdsGroupBy): AdsVM;
+
+/** The sentence behind `Too early to judge`: its word opens what each platform says about it. */
+interface JudgeVM {
+    /** The first words, which open the sheet; null where the line is plain. */
+    word: string | null;
+    rest: string;
+    /** The sheet behind the word; null otherwise. */
+    sheet: string | null;
+}
+interface ResultsVM {
+    header: string;
+    /** `96 wrote · 23 booked`. */
+    count: string;
+    all: {
+        words: string;
+        to: string;
+    } | null;
+    facts: FigureVM[];
+    /** A counted zero, a quiet start, or too early to judge, said in words. */
+    line: JudgeVM | null;
+}
+/** One column of the bar a day. */
+interface DayVM {
+    day: string;
+    /** `Sun 27 Sep`. */
+    label: string;
+    inTouch: number;
+    booked: number;
+    /** Before the ad existed: a hairline only. */
+    before: boolean;
+    /** One of the newest three days: drawn lighter. */
+    fresh: boolean;
+    today: boolean;
+    /** The bar's height, 0 to 1, against the busiest day. */
+    h: number;
+    /** The filled inner part: the share booked since, 0 to 1. */
+    f: number;
+}
+declare function resultsOf(ad: AdRead, t: Totals, o: {
+    read: AdsRead;
+    tooEarly: boolean;
+    reportTo: string;
+}): ResultsVM;
+interface BarsVM {
+    /** The 30 days of the window, then today (an outline, marked `so far today`). */
+    days: DayVM[];
+    legend: string;
+    aria: string;
+    todayNote: string;
+}
+declare function adBarsOf(ad: AdRead, t: Totals, read: AdsRead): BarsVM;
+/** One of the platform's own numbers: what it is called, and the number, or that it was not read. */
+interface TheirsRowVM {
+    label: string;
+    value: string;
+    known: boolean;
+}
+/** The platform's own numbers, by name, never summed with ours; the line says whose count they are. */
+interface TheirsVM {
+    /** The quiet door's words: `Meta's numbers`. */
+    door: string;
+    rows: TheirsRowVM[];
+    note: string;
+}
+/** What people searched on Google, as it groups them, and the searches left out for the owner: read, never changed here. */
+interface TypedVM {
+    door: string;
+    themes: string[];
+    note: string;
+    left: {
+        title: string;
+        terms: string[];
+        note: string;
+    } | null;
+}
+interface QuietVM {
+    reply: string | null;
+    replyGrey: boolean;
+    provenance: string;
+    /** The platform's own numbers, a press away; null before it has approved the ad. */
+    theirs: TheirsVM | null;
+    /** Google: what people typed; null for the others and before anything ran. */
+    typed: TypedVM | null;
+    extra: string | null;
+}
+declare function quietOf(ad: AdRead): QuietVM;
+type ThreadVM = {
+    kind: "chat";
+    title: string;
+    greeting: string;
+    ready: string | null;
+    questions: string[];
+    reply: string;
+    replyLabel: string;
+    note: string;
+} | {
+    kind: "call";
+    title: string;
+    line: string;
+} | {
+    kind: "form";
+    title: string;
+    fields: {
+        label: string;
+        note: string;
+    }[];
+    consent: {
+        title: string;
+        text: string;
+    };
+    privacy: string;
+    notice: string;
+    layout: string | null;
+    thanks: string;
+};
+interface PreviewVM {
+    frame: "feed" | "search" | "video";
+    platform: AdPlatform;
+    door: AdDoor;
+    /** `How it reads`. */
+    fold: string;
+    /** The closed fold's two-line excerpt. */
+    excerpt: string;
+    /** Who the ad is shown as. */
+    business: string;
+    /** A feed ad's headline; Google's three joined ` | `. */
+    headline: string;
+    headlines: string[];
+    text: string;
+    /** Google's two description lines. */
+    lines: string[];
+    path: string;
+    /** The capsule under the ad. */
+    cta: string;
+    caption: string;
+    /** Feed | Story | Reel; none where the frame is one shape. */
+    frames: string[];
+    thread: ThreadVM;
+    /** The amber line where the ad quotes a price and the receptionist never does. */
+    warn: string | null;
+}
+declare function adPreviewOf(ad: AdRead, read: AdsRead): PreviewVM;
+interface AdPersonRowVM {
+    /** The person's id in People: their page is `clients/<personId>`. */
+    personId: string;
+    /** Their conversation, where there is one: `inbox/<threadId>`. */
+    threadId: string | null;
+    name: string;
+    initials: string;
+    /** `Wrote Mon 5 Oct`. */
+    when: string;
+    said: string | null;
+    /** The conversation's fact, shown only where there is no appointment. */
+    talk: {
+        text: string;
+        tone: "warn" | "plain";
+    } | null;
+    cal: {
+        text: string;
+        tone: "plain";
+        note: string | null;
+    };
+    booked: boolean;
+    /** Where the row goes, and what its tip says of it: the conversation that waits on the owner, else the person's page. */
+    door: {
+        to: string;
+        tip: string;
+    };
+}
+interface PeopleVM {
+    title: string;
+    total: number;
+    filters: {
+        id: "booked" | "not-yet";
+        label: string;
+        n: number;
+    }[];
+    /** All of those shown, in the order: waiting for you, booked, talking, quiet. */
+    rows: AdPersonRowVM[];
+    all: {
+        words: string;
+        to: string;
+    } | null;
+    empty: string | null;
+}
+declare function adPeopleOf(ad: AdRead, t: Totals, o: {
+    read: AdsRead;
+    peopleTo: string;
+}): PeopleVM;
+
+/**
+ * What the tapped words' lists are made of, and what Edit's foot says of its changes (page-only): the areas and the ZIP codes,
+ * the amounts with what each does to a day and which the platform will not take, the end dates with the same, and the one
+ * press that raises what can be spent, which names its most. Apart from drawer-parts.ts only for the file limit; drawer.ts
+ * hands every name a page needs on. Pure, like the rest of the models: the rules are rules.ts's, the words words-drawer.ts's.
+ */
+
+/** The word a tapped area hands back: the miles of a circle (`5`), or the ZIP codes (`zips:10001,10003`). */
+declare const areaValueOf: (area: AdArea) => string;
+/** The area a word names (areaValueOf's other way). */
+declare function areaOfValue(value: string): AdArea;
+/** What is wrong with a ZIP code typed to add, in words; null where it can be added. */
+declare function zipIssue(text: string, have: readonly string[]): string | null;
+interface AreaOption {
+    miles: number;
+    label: string;
+    /** `About 30,000 to 55,000 people · Meta's estimate`, where Meta returned one. */
+    people: string | null;
+}
+/** One amount in the list: what it says, what it does to a day, and why the platform will not take it, if it will not. */
+interface AmountOption {
+    minor: number;
+    label: string;
+    /** What this choice changes (a day's spend, the most that can be spent); the reason, when it is refused. */
+    sub: string | null;
+    current: boolean;
+    /** Above the amount now: the one kind of press that names its most. */
+    raise: boolean;
+    /** The platform's rule that stops it, in its words; null where it is allowed. */
+    refused: string | null;
+}
+/** One end date in the list, with what it does to a day over the days left. */
+interface EndOption {
+    day: string;
+    label: string;
+    sub: string;
+    current: boolean;
+}
+/** What a typed amount may be (the box of "Your own amount"), in minor units. */
+interface OwnAmount {
+    minMinor: number;
+    /** Null where the platform bounds it by nothing but the account. */
+    maxMinor: number | null;
+    /** Why no amount can be typed now (TikTok's wait), else null. */
+    refused: string | null;
+    /** The line under the box, where the platform bounds the amount. */
+    hint: string | null;
+}
+/** What the tapped words' lists are made of. Amounts are minor units of `currency`. */
+interface EditVM {
+    areas: AreaOption[];
+    /** The ZIP codes of the area now, where it is a list of them (TikTok); null for a circle. */
+    zips: string[] | null;
+    /** The amount is a daily one (about $15 a day), not a total. */
+    daily: boolean;
+    /** Totals (or daily amounts) to choose from, ascending; those above the current one are raises. */
+    amounts: AmountOption[];
+    currentMinor: number;
+    /** The platform's floor a day, read from the ad account; null where it states none. */
+    floorMinor: number | null;
+    spentMinor: number;
+    currency: string;
+    own: OwnAmount;
+    minEnd: string;
+    endDay: string;
+    /** The end dates offered, none for a daily amount (it has no end). */
+    ends: EndOption[];
+    /** Google: the last day a total can run to (90 days from the start); null where there is none. */
+    lastEnd: string | null;
+    /** What each choice changes, one note a line. */
+    notes: Record<"offer" | "area" | "amount" | "end", string[]>;
+}
+/**
+ * The lists of an ad's tapped words. `saved` is the ad as the platform has it, where `ad` is the ad as an unsaved edit would
+ * make it: what the platform takes of an amount is measured from what it holds, never from a draft.
+ */
+declare function editOf(ad: AdRead, t: Totals, o: {
+    read: AdsRead;
+    config: AdsConfig;
+    saved?: AdRead;
+}): EditVM;
+/** What a draft does to what can be spent, where it raises it: by how much, to what, and whether that is a total. */
+declare function raiseOf(ad: AdRead, next: AdRead): {
+    total: boolean;
+    to: number;
+    by: number;
+} | null;
+/** Edit's foot: its line, and the primary's words. */
+interface EditFootVM {
+    say: string;
+    save: string;
+}
+/**
+ * Edit's foot over a draft: `n` changes, whether they send the ad back for checking, and, where the draft raises the total,
+ * the most that can then be spent, which the primary names too (`Save · raise to $900`). Lowering, and every other change,
+ * is plain `Save changes`: a raise of spend is the only press that names its most. A raised daily amount has no most, so it
+ * says about.
+ */
+declare function editFootOf(o: {
+    ad: AdRead;
+    next: AdRead;
+    patch: AdPatch;
+    n: number;
+}): EditFootVM;
+
+/**
+ * One ad's drawer (page-only), in Option B's order: kicker, name, callout, what's left, the sentence, the reach line, the
+ * results and the bar a day, the preview, the people it brought, what the tapped words change. Pure, like the rest of the
+ * models: `adModel(ad, read, config)` reads an `AdRead` in the `AdsRead` it was read with, and the lists and blocks are
+ * drawer-parts.ts's and drawer-edit.ts's (apart from this only for the file limit; this hands every name a page needs on).
+ */
+
+/** A press a callout offers. `again` asks the platform to look at a turned-down ad again; the ad stays as it is. */
+type CalloutActId = "resume" | "update" | "fix" | "again" | "fresh" | "retry" | "remove";
+interface CalloutVM {
+    tone: AdTone;
+    text: string;
+    door: DoorVM | null;
+    /** `done` is what the press says of itself once pressed, until the platform answers. */
+    acts: {
+        id: CalloutActId;
+        label: string;
+        done: string;
+    }[];
+}
+interface ReachVM {
+    tone: AdTone;
+    /** `On`, `In review`, `Ended Sat 10 Oct`: the first word of the line, in the ink. */
+    state: string;
+    /** `Meta approved it Mon 14 Sep`, `last message arrived 8:41 AM today`: the reasons, dim. */
+    parts: string[];
+    rows: StandRowVM[];
+    read: string;
+}
+/** A press in the foot. An ad the owner made on the platform itself has only Pause and Resume. */
+type FootAct = "pause" | "resume" | "edit" | "again";
+interface AdDrawerVM {
+    id: string;
+    kicker: string;
+    name: string;
+    state: StateVM;
+    platform: AdRead["platform"];
+    door: AdRead["door"];
+    owner: string;
+    /** `usually within a day`. */
+    within: string;
+    /** False for an ad the owner made on the platform itself: only Pause and Resume are here. */
+    madeHere: boolean;
+    /** `Made in Meta Ads Manager. Chanlytics can pause and resume it; change it in Meta.`; null for an ad made here. */
+    adopted: string | null;
+    /** The foot: Pause | Edit (running), Resume | Edit (paused), Run it again (done); fewer where the ad is not ours or not made. */
+    mode: "running" | "paused" | "done";
+    foot: FootAct[];
+    callout: CalloutVM | null;
+    /** `Runs to Sat 31 Oct · $308 left of $720 · about $15 a day`. */
+    next: string;
+    sentence: SentencePart[];
+    reach: ReachVM;
+    results: ResultsVM;
+    bars: BarsVM;
+    quiet: QuietVM;
+    preview: PreviewVM;
+    people: PeopleVM;
+    edit: EditVM;
+    endConfirm: string;
+    /** The questions a callout's press asks first. */
+    confirm: {
+        update: string;
+        remove: string;
+    };
+    /** Where New ad opens from this ad: a copy of it, and to run it again. */
+    go: {
+        copy: string;
+        again: string;
+    };
+}
+/**
+ * One ad's drawer, in Option B's order: kicker, name, callout, what's left, the sentence, the reach line, results, preview,
+ * people. `ad` is the ad as it would be (an Edit draft applied); `saved` is the ad as the platform has it, which what the
+ * platform takes of an amount is measured from (it is `ad` where nothing is being edited).
+ */
+declare function adModel(ad: AdRead, read: AdsRead, config: AdsConfig, saved?: AdRead): AdDrawerVM;
+
+interface ShownAsVM {
+    label: string;
+    /** `Harbor Studio · @harborstudio`. */
+    line: string;
+    /** `Up to 25 characters`, where the platform limits the name. */
+    limit: string | null;
+    /** Read-only here: the door is Settings › Connections. */
+    door: DoorVM;
+}
+interface OpensVM {
+    label: string;
+    group: string;
+    picked: AdDraft["opens"];
+    choices: {
+        id: AdDraft["opens"];
+        label: string;
+        address: string;
+    }[];
+    note: string;
+}
+interface SearchVM {
+    label: string;
+    themes: string[];
+    leftOut: string;
+    note: string;
+}
+type ScheduleVM = {
+    kind: "switch";
+    label: string;
+    hint: string;
+    on: boolean;
+    locked: boolean;
+} | {
+    kind: "line";
+    text: string;
+};
+interface AgesVM {
+    label: string;
+    /** `18 and over`, locked: nobody chooses it here. */
+    line: string;
+    why: string;
+    floor: number;
+}
+interface SetForVM {
+    label: string;
+    rows: string[];
+}
+/** One row of "Checked before turning on": a red one stops Turn on and says what to do about it, with its door. */
+interface CheckRowVM {
+    text: string;
+    tone: "ok" | "warn" | "fail";
+    note: string | null;
+    door: DoorVM | null;
+    /** What a red row says to do, as the press's reason: `Add a payment method in Meta to continue`. */
+    block: string | null;
+}
+interface CheckedVM {
+    /** `7 of 7 ready`. */
+    said: string;
+    met: number;
+    of: number;
+    rows: CheckRowVM[];
+}
+/** Where the page goes once an ad is on: the Google one, from the new ad, where "Also run on Google" was pressed. */
+declare const adFollowOn: (draft: AdDraft, id: string) => string | null;
+
+type Post = AdsRead["posts"][number];
+type Preset = AdsConfig["presets"][number];
+/** What New ad has chosen so far. `newAdDefaults` fills it; every press in a step changes one field. */
+interface AdDraft {
+    door: AdDoor;
+    platform: AdPlatform;
+    serviceId: string;
+    /** The post the ad is made from, or null for a photo (or a video) of the owner's own. */
+    postId: string | null;
+    postMode: "as-is" | "new-words";
+    /** Meta: a photo, or a vertical video for Reels and Stories. TikTok's is always a video; Google's shows neither. */
+    format: "photo" | "video";
+    areaMiles: number;
+    /** Whether the ad is about a job, a loan or a home: asked per ad, never inferred. */
+    special: boolean;
+    /** `total` is "For a set number of days"; `daily` is "Until I stop it". */
+    mode: "total" | "daily";
+    presetId: Preset["id"] | "own";
+    /** The daily amount of "Your own amount", in minor units. */
+    ownPerDayMinor: number;
+    startWith: "ready" | "questions";
+    /** Words typed over the drafted ones (the photo path); null keeps the drafted words. */
+    headline: string | null;
+    text: string | null;
+    /** A name typed over the drafted one; null keeps `First appointment · 12 Oct`. */
+    name: string | null;
+    /** Google: the page the ad opens, the hosted one or the business's own site. */
+    opens: "page" | "site";
+    /** Only while the business is open. Meta can keep to it only with a total (`scheduleAllowed`), Google's call button always does. */
+    schedule: "always" | "open-hours";
+    /** Meta: "Let Meta adjust my photo and wording"; off, so the photo and words stay the owner's. */
+    adjust: boolean;
+    /** A form: "Ask them to double-check before sending". */
+    doubleCheck: boolean;
+    /** A form: the thank-you line promises a message within minutes (else it says they will hear back). */
+    thanks: boolean;
+    /** Meta: "Also run on Google" was pressed; once this one is on, the Google one is set up from it (`adFollowOn`). */
+    alsoGoogle: boolean;
+}
+/** The newest post that can run on a platform as an ad: an Instagram post on Meta, a video on TikTok, none on Google. */
+declare function newestPostFor(posts: readonly Post[], platform: AdPlatform, kind?: Post["kind"]): Post | undefined;
+/**
+ * New ad opens already filled from the workspace: the top Service, the newest post that can run as an ad, 5 miles, the first
+ * door whose needs are all met, and the smallest preset for a first ad.
+ */
+declare function newAdDefaults(read: AdsRead, config: AdsConfig): AdDraft;
+/**
+ * New ad filled from an ad: a copy of it, to run it again once it has ended (both keep its door, platform, offer, area and
+ * amount), or the same offer on Google's Call door (keeps its offer and area). The words of a copy are the ad's own, and the
+ * name it opens with says where it came from.
+ */
+declare function newAdFrom(ad: AdRead, how: "copy" | "again" | "google", read: AdsRead): AdDraft;
+/** Every word an ad says of itself: its headline, text, chat, reply and thank-you, drafted from one Service and the business. */
+declare function starterCopy(o: {
+    service: string;
+    price: string;
+    business: Pick<AdsRead["business"], "name" | "address" | "site" | "hours">;
+    door: AdDoor;
+    word: AppointmentWord;
+}): AdCopy;
+/**
+ * The draft as an ad in review, sent to the platform at the moment the page was read: what the ledger draws when Turn on is
+ * pressed. Its id is the caller's (the composer's is a placeholder, the store gives the row its own).
+ */
+declare function draftAd(draft: AdDraft, read: AdsRead, config: AdsConfig, id: string): AdRead;
+/** One preset row of step 4. */
+interface PresetVM {
+    id: Preset["id"];
+    label: string;
+    /** `about $15 a day for 20 days · up to $300 · ends Sat 31 Oct`; in "Until I stop it", without the days and the total. */
+    rest: string;
+    perDayMinor: number;
+    days: number;
+    totalMinor: number;
+    endDay: string;
+}
+interface NewAdVM {
+    /** The draft as an ad in review. */
+    ad: AdRead;
+    /** The same ad as the drawer reads it: the preview, the forecast. A Meta video is drawn in the vertical frame. */
+    drawer: AdDrawerVM;
+    /** `First appointment · 12 Oct`: the name drafted, which a typed one replaces. */
+    name: string;
+    /** The ad as one sentence, filled in from the first step. */
+    sentence: SentencePart[];
+    presets: PresetVM[];
+    /** What "Your own amount" would run as, once chosen (a preset's line without its label); null with no amount. */
+    ownRest: string | null;
+    /** The unit beside the box of "Your own amount": `$ a day`. */
+    ownUnit: string;
+    /** Under the presets: Meta's estimate (or that it can't give one yet), Google's; null for TikTok. */
+    estimate: string | null;
+    /** The earlier ads' cost, where 10 or more booked from them. */
+    history: string | null;
+    /** The budget step's quiet lines, from the platform. */
+    lines: string[];
+    /** Step 5's forecast: when it starts and what it can spend. */
+    forecast: string;
+    /** The foot's one press: `Turn on · up to $300`. */
+    turnOn: string;
+    /** What the door needs on the platform it runs on (step 1), derived from the account's checks. */
+    needs: StandRowVM[];
+    /** Step 2 on the Call door: where the ad opens. */
+    opens: OpensVM | null;
+    /** Step 2, under the preview: who the ad is shown as, and the door to change it. */
+    shownAs: ShownAsVM;
+    /** Step 2 on the Call door: what people search, and what is left out for the owner. */
+    search: SearchVM | null;
+    /** Step 3: the age floor, locked, with its why; null where the platform sets none (Google). */
+    ages: AgesVM | null;
+    /** Step 4, behind "More choices": only while the business is open. */
+    schedule: ScheduleVM;
+    /** What stops Turn on: an account not ready, or a need not met, with the door that mends it; null where nothing does. */
+    blocked: {
+        text: string;
+        door: DoorVM;
+    } | null;
+    ready: {
+        tone: "ok" | "warn";
+        said: string;
+        rows: StandRowVM[];
+    };
+    /** Step 5: "Checked before turning on" with its count. */
+    checked: CheckedVM;
+    /** Step 5: what Chanlytics set for the owner on this platform. */
+    setFor: SetForVM;
+    /** The most it can spend, in minor units; null with a daily amount. */
+    totalMinor: number | null;
+    perDayMinor: number;
+    currency: string;
+    days: number;
+    startDay: string;
+    endDay: string;
+}
+/** Everything the steps say that depends on what has been chosen. */
+declare function newAdModel(draft: AdDraft, read: AdsRead, config: AdsConfig): NewAdVM;
+
+/** The days a fold is of, and what it is narrowed to. */
+interface ResultsAt {
+    from: string;
+    to: string;
+    scope: AdsScope;
+}
+/** One choice of the scope list: the word the address and the list keep, what it is called, and what it narrows to. */
+interface ResultsScopeVM {
+    key: string;
+    kind: AdsScope["kind"];
+    scope: AdsScope;
+    label: string;
+}
+/** One day of the two lanes. */
+interface ResultsDayVM {
+    day: string;
+    /** `Mon 5 Oct`. */
+    label: string;
+    /** `5`. */
+    short: string;
+    /** Whole units of the one currency; null where the ads are paid in several. */
+    spent: number | null;
+    /** What the ads spent that day, as money is said (each currency its own). */
+    spentWords: string;
+    inTouch: number;
+    booked: number;
+    /** In touch and not booked (yet). */
+    waiting: number;
+    /** Google's count, not people. */
+    calls: number;
+    /** One of the last 14 days: a person can still book. */
+    settling: boolean;
+}
+/** By day: the spend lane above, the people lane below with the booked part filled. */
+interface ResultsDaysVM {
+    rows: ResultsDayVM[];
+    /** The one currency the spend lane is drawn in, null where the ads are paid in several. */
+    currency: string | null;
+    spentAria: string;
+    peopleAria: string;
+    /** Under the lanes: the days still settling, the calls left out, the currencies not drawn as one. */
+    notes: string[];
+}
+interface ResultsStepVM {
+    id: "touch" | "reply" | "booked";
+    label: string;
+    /** Null where it is not read. */
+    n: number | null;
+    display: string;
+    why: string | null;
+}
+/** A row of the platform and door tables: the page's cells, over the ads of one platform or one door. */
+interface ResultsRowVM {
+    id: string;
+    label: string;
+    ads: number;
+    spent: string;
+    inTouch: CellVM;
+    booked: CellVM;
+    each: CellVM;
+}
+/** What one platform says of its ads: a row each, in the platform's own columns. Never added together. */
+interface ResultsTheirsVM {
+    platform: AdPlatform;
+    title: string;
+    columns: string[];
+    rows: {
+        id: string;
+        name: string;
+        cells: string[];
+    }[];
+    /** `Read 9:19 AM.` where the account says when it was read. */
+    read: string | null;
+}
+interface AdsResultsVM {
+    scope: AdsScope;
+    /** The scope as the list keeps it (`all`, `platform:meta`, `ad:<id>`). */
+    scopeKey: string;
+    scopeWord: string;
+    scopes: ResultsScopeVM[];
+    /** The days counted: the days asked for, ending yesterday at the latest. */
+    window: {
+        from: string;
+        to: string;
+        days: number;
+    };
+    /** Nothing to draw: the words for why, and the sections below are empty. */
+    empty: {
+        title: string;
+        body: string;
+    } | null;
+    /** The sentence at the head; null where there is nothing to draw. */
+    head: {
+        strong: string;
+        rest: string;
+    } | null;
+    /** `11 Sep – 10 Oct · 30 days · read 9:19 AM`. */
+    pane: string;
+    /** The page's four figures over these days. */
+    figures: FigureVM[];
+    /** The quiet line under them: spend is as each platform reports it. */
+    quiet: string | null;
+    /** The head's numbers, for the Overview's one fact. */
+    totals: {
+        spent: string;
+        spentAny: boolean;
+        touch: number;
+        booked: number | null;
+        calls: number;
+    };
+    days: ResultsDaysVM | null;
+    funnel: ResultsStepVM[] | null;
+    /** What came of the appointments: the page's tile for the same people, or the reason it is not read for these. */
+    cameBack: ({
+        title: string;
+    } & ({
+        tile: TilesVM["cameBack"];
+    } | {
+        why: string;
+    })) | null;
+    byPlatform: ResultsRowVM[];
+    byDoor: ResultsRowVM[];
+    byAd: AdRowVM[];
+    theirs: {
+        cards: ResultsTheirsVM[];
+        why: string | null;
+    };
+}
+/**
+ * The results of some of an owner's ads over some days: the head, the four figures, by day, the funnel, what came of the
+ * appointments, the platform, door and ad tables, and what each platform says. A scope that names an ad this read does not have, a
+ * workspace with no ad, and days with nothing spent or counted each say so in `empty` and leave the sections out.
+ */
+declare function adsResultsOf(read: AdsRead, config: AdsConfig, at: ResultsAt): AdsResultsVM;
+/** The Overview's Worth-knowing line over these days: what the ads brought. Null where there is nothing to say. */
+declare function adsFactOf(vm: AdsResultsVM): {
+    text: string;
+    sub: string;
+} | null;
+
+declare const RESULTS: {
+    /** The sheet: the quiet line it opens under, and its name. */
+    kicker: string;
+    title: string;
+    scope: {
+        label: string;
+        all: string;
+        platforms: string;
+        ads: string;
+    };
+    /** The foot's door, and the empty lens's door. */
+    fullReport: string;
+    openAds: string;
+    /** Under the head: what the days cover, and when the numbers were read. */
+    pane: (o: {
+        dates: string;
+        days: number;
+        readAt: string | null;
+    }) => string;
+    /** What the head says the results are of: `your ads`, `your Google ads`, an ad's own name. */
+    of: {
+        all: string;
+        platform: (platform: string) => string;
+        ad: (name: string) => string;
+    };
+    /** The head: the page's sentence, said of whatever the results are narrowed to. */
+    head: {
+        booked: (o: {
+            booked: number;
+            touch: number;
+            of: string;
+        }) => {
+            strong: string;
+            rest: string;
+        };
+        touchOnly: (o: {
+            touch: number;
+            of: string;
+        }) => {
+            strong: string;
+            rest: string;
+        };
+        /** Only Google's calls stand here: its count, and not people. */
+        calls: (o: {
+            calls: number;
+            of: string;
+        }) => {
+            strong: string;
+            rest: string;
+        };
+        quiet: (o: {
+            of: string;
+        }) => {
+            strong: string;
+            rest: string;
+        };
+    };
+    /** By day: two small charts, what was spent and who it brought. */
+    days: {
+        title: string;
+        spent: string;
+        spentTitle: string;
+        peopleTitle: string;
+        booked: string;
+        waiting: string;
+        peopleLine: string;
+        spentAria: (o: {
+            total: string;
+            days: number;
+        }) => string;
+        peopleAria: (o: {
+            people: number;
+            booked: number;
+            days: number;
+        }) => string;
+        /** A tooltip's line for a day still settling. */
+        settlingDay: string;
+        /** `a` is the workspace's appointment word with its article: `an appointment`. */
+        settling: (days: number, a: string) => string;
+        callsNote: (n: number) => string;
+        severalCurrencies: string;
+        columns: {
+            day: string;
+            spent: string;
+            people: string;
+            booked: string;
+            calls: string;
+        };
+    };
+    /** From first contact to booked: people only. */
+    funnel: {
+        title: string;
+        line: string;
+        touch: string;
+        reply: string;
+        booked: string;
+        columns: string[];
+        /** The middle step is the receptionist's first reply, which is counted over the last 30 days. */
+        replyWindow: string;
+        replyOf: string;
+    };
+    /** What came of the appointments: the page's own rows, when they are of the same people. */
+    cameBack: {
+        /** `many` is the workspace's appointment word, plural. */
+        title: (many: string) => string;
+        forAll: string;
+        forThirty: string;
+        columns: string[];
+    };
+    /** The tables. */
+    byPlatform: {
+        title: string;
+        line: string;
+    };
+    byDoor: {
+        title: string;
+        line: string;
+    };
+    byAd: {
+        title: string;
+    };
+    heads: {
+        platform: string;
+        door: string;
+        ad: string;
+        ads: string;
+        spent: string;
+        touch: string;
+        booked: string;
+        each: string;
+        state: string;
+    };
+    /** The ads a row of the platform and door tables stands for. */
+    adsCount: (n: number) => string;
+    /** What the platforms say: one card each, never added together. */
+    theirs: {
+        title: string;
+        line: string;
+        card: (owner: string) => string;
+        read: (time: string) => string;
+        dash: string;
+        window: string;
+        ad: string;
+        columns: {
+            meta: {
+                seen: string;
+                taps: string;
+                chats: string;
+                leads: string;
+            };
+            google: {
+                clicks: string;
+                calls: string;
+                longCalls: string;
+            };
+            tiktok: {
+                seen: string;
+                taps: string;
+                leads: string;
+            };
+        };
+    };
+    /** Where there is nothing to draw (days with nothing in them say it in the lens registry's words). */
+    empty: {
+        noAds: {
+            title: string;
+            body: string;
+        };
+    };
+    /** The Overview's one fact: what the ads brought over the same days, and the door to them. */
+    fact: {
+        brought: (n: number) => string;
+        nobody: string;
+        sub: (o: {
+            booked: number | null;
+            spent: string;
+        }) => string;
+        door: string;
+    };
+};
+
 /**
  * Which model each purpose asks, said once (scorecard move 10; defect 54).
  *
@@ -41,7 +3431,7 @@ type ModelId = (typeof MODEL_IDS)[number];
 declare const MODEL_EFFORTS: readonly ["low", "medium", "high"];
 type ModelEffort = (typeof MODEL_EFFORTS)[number];
 /** Why the platform spends its model key. The usage ledger (ai_usage.purpose) keeps these words. */
-declare const MODEL_PURPOSES: readonly ["receptionist", "reply_draft", "ask", "lead_json", "template_draft", "review_reply", "lead_judge", "note_suggest", "reach_out_check", "reply_read", "booking_read"];
+declare const MODEL_PURPOSES: readonly ["receptionist", "reply_draft", "ask", "lead_json", "template_draft", "review_reply", "lead_judge", "note_suggest", "reach_out_check", "reply_read", "booking_read", "lead_suggest"];
 type ModelPurpose = (typeof MODEL_PURPOSES)[number];
 /** The ports a model call leaves by: Anthropic's, and TypeSafe's System One (packages/channels/src/models). */
 declare const MODEL_PORTS: readonly ["anthropic", "typesafe"];
@@ -141,6 +3531,13 @@ declare const MODEL_ROUTES: {
         readonly timeoutMs: 8000;
         readonly retries: 0;
         readonly maxTokens: 600;
+    };
+    readonly lead_suggest: {
+        readonly model: "claude-sonnet-5-5";
+        readonly fallback: "claude-sonnet-5";
+        readonly timeoutMs: 55000;
+        readonly retries: 0;
+        readonly maxTokens: 1800;
     };
 };
 /** A purpose's route. */
@@ -444,6 +3841,13 @@ interface LeadSearchPlan {
     card: "local_businesses";
     /** Who is sought, plural, as the sentence says it: "personal trainers". */
     name: string;
+    /**
+     * The kind of business, as one key ("personal_trainer"): what a round that ends adds its counts to (lead_niche_priors)
+     * and what the ideas group a workspace's searches by (00398). Absent on a plan made before it was kept.
+     */
+    category_key?: string;
+    /** Where the plan came from, when it was not asked for: an idea on the first day (00398). Absent otherwise. */
+    from?: "idea";
     /** The owner's words, at most 400 characters. */
     asked: string;
     terms: string[];
@@ -677,6 +4081,105 @@ declare const PROFILE_NAME_MAX = 60;
 declare function promptSafeName(name: string | null | undefined): string | null;
 
 /**
+ * The receptionist's answer as the model writes it, and how it is read (parseBrainOutput), apart from brain.ts's
+ * words. zod is not built into the browser's contracts (decision 0024, the browser's entry): a page that says these
+ * words loads none of it.
+ */
+
+/** The read side: tolerant of what a model might still do, strict about shape. */
+declare const BrainOutputSchema: z$1.ZodObject<{
+    reply: z$1.ZodString;
+    intent: z$1.ZodCatch<z$1.ZodEnum<{
+        other: "other";
+        booking: "booking";
+        money: "money";
+        complaint: "complaint";
+        services: "services";
+        hours: "hours";
+        location: "location";
+        pricing: "pricing";
+        smalltalk: "smalltalk";
+    }>>;
+    escalate: z$1.ZodCatch<z$1.ZodBoolean>;
+    reason: z$1.ZodPipe<z$1.ZodCatch<z$1.ZodString>, z$1.ZodTransform<string, string>>;
+    confidence: z$1.ZodPipe<z$1.ZodCatch<z$1.ZodNumber>, z$1.ZodTransform<number, number>>;
+    facts_used: z$1.ZodPipe<z$1.ZodCatch<z$1.ZodArray<z$1.ZodString>>, z$1.ZodTransform<string[], string[]>>;
+    language: z$1.ZodCatch<z$1.ZodEnum<{
+        en: "en";
+        es: "es";
+        other: "other";
+    }>>;
+}, z$1.core.$strip>;
+type BrainOutput = z$1.infer<typeof BrainOutputSchema>;
+/**
+ * Parse what the model returned. With constrained decoding the JSON is well
+ * formed unless the answer was cut off by max_tokens; a truncated document
+ * fails here and the caller falls back to the holding reply, as it always
+ * did for a capped answer.
+ */
+declare function parseBrainOutput(raw: string): {
+    ok: true;
+    value: BrainOutput;
+} | {
+    ok: false;
+    error: string;
+};
+
+/**
+ * A receptionist's turn, as it is kept (decision 0039; model_turns, 00401): what the model read beside its system
+ * prompt, and what it answered before layer two replaced any of it. The prompt's own text is kept once, under its hash
+ * (model_prompts), so a turn is its prompt's hash and these two records, and reading it again needs nothing that has
+ * changed since.
+ *
+ * A photo is said and never kept: the turn names its type, and whoever reads the turn again reads the words alone.
+ * The shapes are type aliases, not interfaces, so a database client takes them as JSON without a cast.
+ */
+
+/** What the model read beside its prompt, block by block, as it was sent. */
+type ModelTurnRequest = {
+    /** The clock and what is open (its own system block); null when none was sent. */
+    now: string | null;
+    /** Who the person is, as the block the model read; null for someone nothing is known of. */
+    who: string | null;
+    /** An owner's steer, framed as the model read it; null on the receptionist's own turn. */
+    steer: string | null;
+    /** The thread's turns and the message answered, oldest first. */
+    messages: {
+        role: "user" | "assistant";
+        content: string;
+    }[];
+    /** The type of a photo that went before the last message's words; null when there was none. */
+    photo: string | null;
+};
+/** What the model answered: its words as they came, and the record the platform read from them. */
+type ModelTurnResponse = {
+    /** Why it stopped, in the API's word; null when it named none. */
+    stop_reason: string | null;
+    /** Its words as they came (the record's own JSON, where it answered in one), cut at MODEL_TURN_TEXT_MAX. */
+    text: string;
+    /**
+     * The record as the platform read it from those words (parseBrainOutput: a reason and the facts capped, a
+     * confidence held to 0..1, an intent or language it does not know made "other"), which is what the reply and its
+     * row were made from; null where no record could be read. Where the two differ, `text` is what the model wrote.
+     */
+    record: BrainOutput | null;
+};
+/** How long keeping a turn may take before it is left behind: the customer's reply never waits on it longer. */
+declare const MODEL_TURN_WRITE_MS = 1500;
+declare function modelTurnRequestOf(sent: {
+    now?: string;
+    who?: string;
+    steer?: string;
+    messages: readonly {
+        role: "user" | "assistant";
+        content: string;
+    }[];
+    photoType?: string;
+}): ModelTurnRequest;
+/** The answer as it came, with the record read from it where one could be. */
+declare function modelTurnResponseOf(stopReason: string | null, record: BrainOutput | null, text: string): ModelTurnResponse;
+
+/**
  * Every switch that turns a behaviour on or off, in one list, each with its owner and when it goes (category 39,
  * "feature flags"; scorecard move 15). A switch is not a setting a customer makes: it is a lever the platform keeps
  * while something is proven, and a lever nobody owns stays for ever. So each one here says who decides it and the day it
@@ -742,7 +4245,7 @@ declare const FLAGS: readonly Flag[];
 declare const SCHEMA_SETS: {
     readonly "ai_usage.outcome": readonly ["answered", "fell_back", "refused", "rejected", "unreachable", "unreadable"];
     readonly "ai_usage.port": readonly ["anthropic", "typesafe"];
-    readonly "ai_usage.purpose": readonly ["receptionist", "reply_draft", "ask", "lead_json", "template_draft", "review_reply", "lead_judge", "note_suggest", "reach_out_check", "reply_read", "booking_read"];
+    readonly "ai_usage.purpose": readonly ["receptionist", "reply_draft", "ask", "lead_json", "template_draft", "review_reply", "lead_judge", "note_suggest", "reach_out_check", "reply_read", "booking_read", "lead_suggest"];
     readonly "appointment_notices.hold_reason": readonly ["no_model", "may_not_spend", "unreadable", "not_a_booking", "no_time", "no_client", "gone"];
     readonly "appointment_notices.outcome": readonly ["booked", "changed", "cancelled", "held", "dismissed"];
     readonly "appointments.source": readonly ["calendar_feed", "booking_email", "booking_tool", "person"];
@@ -774,8 +4277,8 @@ declare const SCHEMA_SETS: {
     readonly "deals.source": readonly ["person", "payment"];
     readonly "deals.stage": readonly ["proposed", "won", "lost", "ended"];
     readonly "decisions.actor_type": readonly ["user", "ai", "system", "owner_phone"];
-    readonly "decisions.subject_type": readonly ["conversation", "escalation", "draft", "lead", "message", "agent", "membership", "invitation", "contact", "call", "channel", "broadcast", "playbook", "review", "workspace", "deal", "list"];
-    readonly "decisions.verb": readonly ["approve", "edit", "decline", "snooze", "wake", "take_over", "hand_back", "resolve", "archive", "reply", "cancel_send", "pause_agent", "resume_agent", "invite", "revoke_invite", "change_role", "remove_member", "erase", "whisper", "connect_channel", "consent_change", "send_broadcast", "cancel_broadcast", "start_playbook", "pause_playbook", "reply_review", "export", "end_call", "record_deal", "make_list", "rename_list", "change_list_rule", "add_to_list", "drop_from_list", "archive_list", "restore_list", "delete_list", "import", "open_recording", "merge", "change_playbook"];
+    readonly "decisions.subject_type": readonly ["conversation", "escalation", "draft", "lead", "message", "agent", "membership", "invitation", "contact", "call", "channel", "broadcast", "playbook", "review", "workspace", "deal", "list", "appointment"];
+    readonly "decisions.verb": readonly ["approve", "edit", "decline", "snooze", "wake", "take_over", "hand_back", "resolve", "archive", "reply", "cancel_send", "pause_agent", "resume_agent", "invite", "revoke_invite", "change_role", "remove_member", "erase", "whisper", "connect_channel", "consent_change", "send_broadcast", "cancel_broadcast", "start_playbook", "pause_playbook", "reply_review", "export", "end_call", "record_deal", "make_list", "rename_list", "change_list_rule", "add_to_list", "drop_from_list", "archive_list", "restore_list", "delete_list", "import", "open_recording", "merge", "change_playbook", "mark_visit"];
     readonly "escalations.reason": readonly ["human_token", "non_text", "refusal", "rate_cap", "policy_block", "send_failed", "deadman", "brain_error", "manual", "opt_out", "state_unavailable", "stale", "person_hold", "budget", "policy_ask", "callback", "paused", "carriers", "email_review"];
     readonly "escalations.state": readonly ["open", "resolved"];
     readonly "event_deliveries.state": readonly ["scheduled", "done", "failed", "paused"];
@@ -914,9 +4417,9 @@ type JobKind = (typeof JOB_KINDS)[number];
  * Every subscriber a delivery can name (event_subscriptions.subscriber, 00334, decision 0032): each is a verb in core's
  * SUBSCRIBERS that may run twice on one delivery and leave the same rows. `audit` does nothing but settle, so the
  * relay's lag is measured on real traffic; `reach_out_booked` hands a booking on the appointments record to the
- * booking door (00389), the first that acts.
+ * booking door (00389), the first that acts; `owner_notice` tells the workspace of a hold from its event (decision 0043).
  */
-declare const EVENT_SUBSCRIBERS: readonly ["audit", "reach_out_booked"];
+declare const EVENT_SUBSCRIBERS: readonly ["audit", "reach_out_booked", "owner_notice"];
 type EventSubscriber = (typeof EVENT_SUBSCRIBERS)[number];
 /**
  * `fired` means CLAIMED, not finished: claim_due_jobs() sets it with a lease,
@@ -941,7 +4444,7 @@ type WabaEventKind = `channel.${(typeof WABA_FIELDS)[number]}`;
  * kind emitted that is not here is a row nobody can name. Both were true for
  * months (three dead, fourteen undeclared) before the lint existed.
  */
-declare const EVENT_KINDS: readonly ["message.received", "message.sent", "contact.consent_changed", "usage.llm_tokens", "usage.wa_conversation", "ingest.allowlist_skip", "ingest.unreachable_sender", "message.send_failed", "message.send_blocked", "message.send_raced_cancel", "booking_link.sent", "conversation.reopened", "conversation.pause_expired", "contact.erased", "contact.merged", "person.resolved", "setup.requested", "voice.provisioned", "line.answering", "line.failed", "line.released", "line.forwarding_verified", "platform.acted", "line.texting_on", "line.texting_approved", "line.texting_rejected", "business.recorded", "google.linked", "google.unlinked", "google.reviews", "google.connected", "google.disconnected", "google.replied", "google.reply_held", "workspace.created", "settings.changed", "policy.changed", "billing.updated", "billing.paused", "billing.resumed", "call.recorded", "call.transferred", "usage.voice_seconds", "usage.ask_tokens", "webhook.auth", "webhook.delivery", "contact.added", "contact.named", "contact.noted", "contact.note_changed", "contact.note_removed", "contact.note_suggested", "contact.note_kept", "contact.note_dismissed", "contact.note_done", "contact.note_undone", "contact.email_set", "contact.proposal_set", "contact.email_suppressed", "ingest.unroutable", "policy.veto_window_skipped", "conversation.snooze_expired", "escalation.changed", "broadcast.sent", "broadcast.stopped", "playbook.run", "channel.connected", "channel.quality_rating", "channel.standing", "mailbox.created", "mailbox.renamed", "mailbox.offers_paused", "mailbox.offers_resumed", "sending_domain.added", "sending_domain.verified", "sending_domain.held", "sending_domain.released", "sending_domain.resumed", "sending_domain.removed", "lead.round", "lead.no_card", "lead.stage", "lead.emailed", "lead.call", "lead.converted", "lead.not_a_fit", "lead.set_aside", "deal.proposed", "deal.won", "deal.lost", "deal.ended", "partner.attributed", "partner.code_ignored", "partner.earned", "partner.reversed", "partner.standing_set", "partner.paid", "partner.handover_sent", "partner.handover_accepted", "partner.handover_declined", "partner.invited", "partner.invite_withdrawn", "partner.invite_accepted", "partner.invite_declined", "reach_out.replied", "reach_out.reply_undone", "workspace.activated", "appointment.changed", "escalation.opened", "member.joined", "playbook.changed", "template.submitted", "template.removed", "capability.activated", "capability.deactivated", "member.left", "reach_out.lead_stopped", "reach_out.send_decided", "lead.kept", "lead.excluded", "lead.put_back", "lead.search_renamed", "lead.search_removed", "contact.kept_apart", "line.forwarding_set", "appointment.booked", "appointment.moved", "appointment.cancelled", "conversation.owner_replied", "billing.payment_failed", "billing.paid", "billing.trial_ending"];
+declare const EVENT_KINDS: readonly ["message.received", "message.sent", "contact.consent_changed", "usage.llm_tokens", "usage.wa_conversation", "ingest.allowlist_skip", "ingest.unreachable_sender", "message.send_failed", "message.send_blocked", "message.send_raced_cancel", "booking_link.sent", "conversation.reopened", "conversation.pause_expired", "contact.erased", "contact.merged", "person.resolved", "setup.requested", "voice.provisioned", "line.answering", "line.failed", "line.released", "line.forwarding_verified", "platform.acted", "line.texting_on", "line.texting_approved", "line.texting_rejected", "business.recorded", "google.linked", "google.unlinked", "google.reviews", "google.connected", "google.disconnected", "google.replied", "google.reply_held", "workspace.created", "settings.changed", "policy.changed", "billing.updated", "billing.paused", "billing.resumed", "call.recorded", "call.transferred", "usage.voice_seconds", "usage.ask_tokens", "webhook.auth", "webhook.delivery", "contact.added", "contact.named", "contact.noted", "contact.note_changed", "contact.note_removed", "contact.note_suggested", "contact.note_kept", "contact.note_dismissed", "contact.note_done", "contact.note_undone", "contact.email_set", "contact.proposal_set", "contact.email_suppressed", "ingest.unroutable", "policy.veto_window_skipped", "conversation.snooze_expired", "escalation.changed", "broadcast.sent", "broadcast.stopped", "playbook.run", "channel.connected", "channel.quality_rating", "channel.standing", "mailbox.created", "mailbox.renamed", "mailbox.offers_paused", "mailbox.offers_resumed", "sending_domain.added", "sending_domain.verified", "sending_domain.held", "sending_domain.released", "sending_domain.resumed", "sending_domain.removed", "lead.round", "lead.no_card", "lead.stage", "lead.emailed", "lead.call", "lead.converted", "lead.not_a_fit", "lead.set_aside", "lead.ideas_written", "deal.proposed", "deal.won", "deal.lost", "deal.ended", "partner.attributed", "partner.code_ignored", "partner.earned", "partner.reversed", "partner.standing_set", "partner.paid", "partner.handover_sent", "partner.handover_accepted", "partner.handover_declined", "partner.invited", "partner.invite_withdrawn", "partner.invite_accepted", "partner.invite_declined", "reach_out.replied", "reach_out.reply_undone", "workspace.activated", "appointment.changed", "escalation.opened", "member.joined", "playbook.changed", "template.submitted", "template.removed", "capability.activated", "capability.deactivated", "member.left", "reach_out.lead_stopped", "reach_out.send_decided", "lead.kept", "lead.excluded", "lead.put_back", "lead.search_renamed", "lead.search_removed", "contact.kept_apart", "line.forwarding_set", "appointment.booked", "appointment.moved", "appointment.cancelled", "conversation.owner_replied", "billing.payment_failed", "billing.paid", "billing.trial_ending"];
 type EventKind = (typeof EVENT_KINDS)[number] | WabaEventKind;
 /** Customer texts that mean opt-out (webhook consent handling, §4). */
 declare const OPT_OUT_PATTERN: RegExp;
@@ -1020,18 +4523,20 @@ declare const OFFERS_OPT_IN_PHRASES: {
 };
 /**
  * What a wa.me link takes of a number: its digits, with no plus, spaces or brackets, from the number as E.164 or as it is shown, or
- * null where there are too few to be one. The one place that says it: the opt-in link below and the Connections row's "try it" note.
+ * null where there are too few to be one. The one place that says it: the links below (waMeLink) and the Connections row's "try it" note.
  */
 declare function waMeDigits(number: string | null | undefined): string | null;
+/** WhatsApp opened on a number, with words ready to send where there are any; null without a usable number. */
+declare function waMeLink(number: string | null | undefined, text?: string): string | null;
 /** WhatsApp opened on the workspace's number with the phrase ready to send; null without a usable number. */
 declare function optInLink(numberE164: string | null | undefined, phrase?: string): string | null;
 declare const ESCALATION_REASONS: readonly ["human_token", "non_text", "refusal", "rate_cap", "policy_block", "send_failed", "deadman", "brain_error", "manual", "opt_out", "state_unavailable", "stale", "person_hold", "budget", "policy_ask", "callback", "paused", "carriers", "email_review"];
 type EscalationReason = (typeof ESCALATION_REASONS)[number];
 declare const ESCALATION_STATES: readonly ["open", "resolved"];
 type EscalationState = (typeof ESCALATION_STATES)[number];
-declare const DECISION_VERBS: readonly ["approve", "edit", "decline", "snooze", "wake", "take_over", "hand_back", "resolve", "archive", "reply", "cancel_send", "pause_agent", "resume_agent", "invite", "revoke_invite", "change_role", "remove_member", "erase", "merge", "whisper", "connect_channel", "consent_change", "send_broadcast", "cancel_broadcast", "start_playbook", "pause_playbook", "change_playbook", "reply_review", "export", "end_call", "record_deal", "make_list", "rename_list", "change_list_rule", "add_to_list", "drop_from_list", "archive_list", "restore_list", "delete_list", "import", "open_recording"];
+declare const DECISION_VERBS: readonly ["approve", "edit", "decline", "snooze", "wake", "take_over", "hand_back", "resolve", "archive", "reply", "cancel_send", "pause_agent", "resume_agent", "invite", "revoke_invite", "change_role", "remove_member", "erase", "merge", "whisper", "connect_channel", "consent_change", "send_broadcast", "cancel_broadcast", "start_playbook", "pause_playbook", "change_playbook", "reply_review", "export", "end_call", "record_deal", "make_list", "rename_list", "change_list_rule", "add_to_list", "drop_from_list", "archive_list", "restore_list", "delete_list", "import", "open_recording", "mark_visit"];
 type DecisionVerb = (typeof DECISION_VERBS)[number];
-declare const DECISION_SUBJECTS: readonly ["conversation", "escalation", "draft", "lead", "message", "agent", "membership", "invitation", "contact", "call", "channel", "broadcast", "playbook", "review", "workspace", "deal", "list"];
+declare const DECISION_SUBJECTS: readonly ["conversation", "escalation", "draft", "lead", "message", "agent", "membership", "invitation", "contact", "call", "channel", "broadcast", "playbook", "review", "workspace", "deal", "list", "appointment"];
 type DecisionSubject = (typeof DECISION_SUBJECTS)[number];
 declare const ACTOR_TYPES: readonly ["user", "ai", "system", "owner_phone"];
 type ActorType = (typeof ACTOR_TYPES)[number];
@@ -1404,12 +4909,12 @@ declare const ServiceSchema: z$1.ZodObject<{
     price_note: z$1.ZodOptional<z$1.ZodString>;
 }, z$1.core.$strip>;
 /**
- * The rules that must survive editing.
+ * The owner's switches over what the receptionist may say (decision 0051, "The owner's words").
  *
- * Flags, never prose. A free-text prompt box hands an owner the ability to
- * delete the price policy, the never-confirm-a-booking rule and the AI
- * disclosure without knowing they have — and nothing downstream could tell.
- * Composed in every time, and default ON: the safe reading of an absent value.
+ * Flags, never prose, so a switch says exactly what it does: off means off, and the code that checks a reply reads the
+ * same switch (guardrailsInForce). Default ON, the safe reading of an absent value. `disclose_ai` is kept for the rows
+ * that store it and read as on whatever it says: the receptionist always says it is an automated assistant, because
+ * the usage policy of the model it runs on asks every consumer-facing agent to (compose.ts standingRules).
  */
 declare const GuardrailsSchema: z$1.ZodObject<{
     never_quote_prices: z$1.ZodOptional<z$1.ZodBoolean>;
@@ -1488,6 +4993,7 @@ declare const BusinessProfileSchema: z$1.ZodObject<{
     escalate_when: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
     tone: z$1.ZodOptional<z$1.ZodString>;
     handoff_number: z$1.ZodOptional<z$1.ZodString>;
+    phone_greeting: z$1.ZodCatch<z$1.ZodOptional<z$1.ZodString>>;
     website: z$1.ZodOptional<z$1.ZodString>;
     notes: z$1.ZodOptional<z$1.ZodArray<z$1.ZodObject<{
         title: z$1.ZodString;
@@ -1813,7 +5319,8 @@ interface ReportLinesVM {
     answered: string | null;
     reply: string | null;
     calls: string | null;
-    channels: string | null;
+    /** How many new people reached you, against the period before where there was one: the People lens's head until its own read lands (always a sentence; a quiet period has one too). */
+    people: string;
     rhythm: string | null;
 }
 interface ReportVM {
@@ -1968,17 +5475,30 @@ declare function toReportVM(dto: ReportDto, opts: {
  * says, by one id, where its builder builds it (`metric`): a closed set, so a tile that says what no id names is a compile
  * error rather than a lookup that falls back, and the id is what the figure is called wherever it is read (the page's
  * figures today; a definition's tooltip, Ask's block and the headline of a later phase). Not prefixed by a lens: a tile moves
- * between lenses (the lenses spec, D18) and its id does not. The receptionist's tiles are built here; the campaigns' and
- * Google's are built where their reports are, and name their figures from this same set.
+ * between lenses (the lenses spec, D18) and its id does not. The receptionist's tiles are built here; the campaigns' (the lens's
+ * strip) and Google's are built where their reports are, and name their figures from this same set.
  */
 
 /** Every figure a tile says. */
-type ReportMetric = "customer_messages" | "answered_share" | "reply_median" | "handovers" | "calls" | "new_people" | "booked" | "messages_sent" | "delivered_share" | "replied_share" | "said_yes" | "asked_to_stop" | "rating" | "reviews" | "ratings_gained" | "newest_review" | "reviews_written" | "reviews_answered" | "review_reply_time" | "handover_first_reply" | "handover_settled" | "missed_calls_answered" | "answered_while_closed" | "waiting_on_you" | "call_backs" | "replies_held_back";
+type ReportMetric = "customer_messages" | "answered_share" | "reply_median" | "handovers" | "calls" | "new_people" | "booked" | "delivered_share" | "said_yes" | "asked_to_stop" | "rating" | "reviews" | "ratings_gained" | "newest_review" | "reviews_written" | "reviews_answered" | "review_reply_time" | "handover_first_reply" | "handover_settled" | "missed_calls_answered" | "answered_while_closed" | "waiting_on_you" | "call_backs" | "replies_held_back" | "people_reached" | "yeses_won" | "stops_recorded" | "steps_overdue" | "steps_due_today" | "email_stopped_now" | "said_yes_messages" | "can_receive_offers" | "opted_out_now" | "quiet_now" | "emails_written" | "emails_landed" | "emails_bounced" | "people_sent_to" | "people_wrote_back" | "runs_waiting" | "runs_failed" | "campaign_replies_waiting" | "templates_paused" | "number_health";
 /**
  * The fewest a ratio is of for it to say anything (the reports lenses spec, D9): a share or a median of fewer than this is
  * greyed and says how few it is of. One number for every lens; the reviews' reply time keeps its own, smaller, minimum.
  */
 declare const REPORT_MIN_N = 5;
+/**
+ * Whether a share is of some, but too few, to say anything (D9): a count above none and under the fewest (`minN`: REPORT_MIN_N, or
+ * the ratio's own where it keeps one, as the reviews' reply time does; required, so a caller names the minimum it judges by).
+ * Of none there is no ratio to grey, and its line says why. The one predicate for the kit's greyed Figure, a bar of a rate,
+ * and what Ask leaves unsaid, so the three never part.
+ */
+declare const isThinShare: (n: number, minN: number) => boolean;
+/**
+ * A share as a lens says it where it is written, not drawn (D9): of five or more a percentage, under that the count it is of
+ * ("3 of 4"), and of nothing none at all (`share` is null: a dash with words is the caller's). A percentage of fewer than five
+ * is never said. The one spelling for a channel's delivered share, a source's, and Ask's.
+ */
+declare const shareSaid: (share: number | null, count: number, of: number) => string | null;
 interface ReportTileVM {
     id: string;
     /** The figure this tile says: one id, declared by the builder of the tile. */
@@ -2002,6 +5522,11 @@ interface ReportTileVM {
     n?: number;
     /** The fewest `n` that say anything (REPORT_MIN_N): a ratio of fewer is greyed on the page. */
     minN?: number;
+    /**
+     * What the number is, where it is not plain ink (the reports lenses spec, D10): `warn` for what needs you (steps overdue),
+     * `fail` for what failed (email that stopped working). On the value alone, never its change; set on no tile but those.
+     */
+    tone?: "warn" | "fail";
 }
 /** A duration in an owner's words (durationWords), or a dash where there is none. */
 declare function fmtSeconds(s: number | null | undefined): string;
@@ -2025,8 +5550,8 @@ declare function pointsDelta(current: number | null, previous: number | null, no
  * small counts.
  */
 declare function compareWords(current: number, previous: number, rangeLabel: string, priorHadAny: boolean): string | null;
-/** What the page's strip draws of a tile: its figure, its words, the period before beside it, and the page it opens and the count it is of where it has them. */
-type ReportStripTile = Pick<ReportTileVM, "id" | "metric" | "label" | "value" | "meta" | "compare" | "door" | "n" | "minN">;
+/** What the page's strip draws of a tile: its figure, its words, the period before beside it, and the page it opens, the count it is of and the tone of its number where it has them. */
+type ReportStripTile = Pick<ReportTileVM, "id" | "metric" | "label" | "value" | "meta" | "compare" | "door" | "n" | "minN" | "tone">;
 /** What the Booked tile says, under its dash, for days that ended before today: the reason booking-report's BOOKED_NEEDS_TODAY gives, in a tile's few words. */
 declare const BOOKED_ENDED_META = "not counted for days that have ended: it follows people as they stand today";
 /** Booked, from the calendar: a count where one was read, and why there is none where not (moved from the page's strip). */
@@ -2772,57 +6297,6 @@ declare function billingAccountDto(r: {
  */
 declare function pausedVoiceFacts(businessName: string | null | undefined): string;
 
-type Tone = "accent" | "warn" | "info" | "ok" | "danger" | "plain";
-declare const TONES: readonly Tone[];
-/** The families of state a pill can name. */
-type StateKind = "thread" | "standing" | "call" | "person" | "consent" | "mode" | "broadcast" | "playbook" | "template" | "template_quality" | "setup" | "role" | "tone" | "calendar"
-/** Where a fact came from: the chip beside a value on the Business tab. */
- | "fact" | "escalation" | "lead_class" | "lead_stage" | "lead_fit" | "reach" | "lead_call_outcome" | "lead_row_state" | "deal";
-/** The tone for a state, or plain for one this map has never heard of. */
-declare function stateTone(kind: StateKind, value: unknown): Tone;
-/** The words for a state, or the value itself when nobody has written any. */
-declare function stateLabel(kind: StateKind, value: unknown): string;
-/** Both at once: what the pill draws. */
-declare function stateOf(kind: StateKind, value: unknown): {
-    tone: Tone;
-    label: string;
-};
-/** What a pin needs to know about a lead to take a tone: the state its row wears. */
-interface LeadPinnable {
-    state: string;
-}
-/**
- * The tone a lead's pin wears on the map: its row's state, from the registry the row's own tag reads, so a pin and
- * the row under the map say the same thing (leadMapLegend, below, says which colour is which).
- *
- * The map kept a table of its own, in leads.css, keyed by `strong`/`part`/`talking` -- words no tone vocabulary
- * knows -- so it was a sixth colour family that this file could not reach. It had already drifted: a `look` fit
- * drew amber on a pin while this map calls it plain. And because those rules named no element, and leads.css is
- * imported after clients.css, `.tone-ok` painted EVERY `tone-ok` in the app solid green -- a Today attention row,
- * and the peek's own Interested chip. Both now come through here. It was coloured three ways too (fit, reach,
- * stage) by a switch with no key, two of which repeated the row; the state is the one (25 Sep).
- *
- * A pin is data, so by the chart kit's rule it never wears the accent, and the state's tones never are it.
- */
-declare function leadPinTone(lead: LeadPinnable): Tone;
-/** A lead's row state, as the row wears it (lead-row.ts LeadRowVM["state"]). */
-type LeadMapState = "ready" | "contacted" | "talking" | "review" | "out";
-/**
- * What the map's pins mean, said under the map: one entry per state a pin on it wears, in the pin's own tone.
- *
- * The map had a switch of three colourings (Fit, Reach, Stage) and no key, so green meant a strong fit, a reachable
- * lead or one talking to you depending on a control nothing explained, and two of the three repeated what each row
- * under the map already says (25 Sep). A pin now says what the row's tag says, and this says which colour is which.
- */
-declare function leadMapLegend(rows: ReadonlyArray<{
-    state: string;
-}>): Array<{
-    state: LeadMapState;
-    tone: Tone;
-    label: string;
-    out: boolean;
-}>;
-
 /**
  * A workspace's own sending domains: what may be added, the ramp, how a domain's facts become its state, and what
  * the Connections row says. Pure; the edge (lib/email/sending-domains.ts) reads the facts and writes the row, the
@@ -3227,6 +6701,7 @@ type CalendarConfig = z$1.infer<typeof CalendarConfigSchema>;
  */
 declare const FeaturesConfigSchema: z$1.ZodObject<{
     vision: z$1.ZodOptional<z$1.ZodBoolean>;
+    ads_preview: z$1.ZodOptional<z$1.ZodBoolean>;
 }, z$1.core.$strip>;
 type FeaturesConfig = z$1.infer<typeof FeaturesConfigSchema>;
 declare const TenantConfigSchema: z$1.ZodObject<{
@@ -3273,6 +6748,7 @@ declare const TenantConfigSchema: z$1.ZodObject<{
             escalate_when: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
             tone: z$1.ZodOptional<z$1.ZodString>;
             handoff_number: z$1.ZodOptional<z$1.ZodString>;
+            phone_greeting: z$1.ZodCatch<z$1.ZodOptional<z$1.ZodString>>;
             website: z$1.ZodOptional<z$1.ZodString>;
             notes: z$1.ZodOptional<z$1.ZodArray<z$1.ZodObject<{
                 title: z$1.ZodString;
@@ -3311,6 +6787,7 @@ declare const TenantConfigSchema: z$1.ZodObject<{
     }, z$1.core.$strip>>;
     features: z$1.ZodOptional<z$1.ZodObject<{
         vision: z$1.ZodOptional<z$1.ZodBoolean>;
+        ads_preview: z$1.ZodOptional<z$1.ZodBoolean>;
     }, z$1.core.$strip>>;
 }, z$1.core.$strip>;
 type TenantConfig = z$1.infer<typeof TenantConfigSchema>;
@@ -3366,6 +6843,7 @@ declare const TenantConfigWriteSchema: z$1.ZodPipe<z$1.ZodUnknown, z$1.ZodObject
             escalate_when: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
             tone: z$1.ZodOptional<z$1.ZodString>;
             handoff_number: z$1.ZodOptional<z$1.ZodString>;
+            phone_greeting: z$1.ZodCatch<z$1.ZodOptional<z$1.ZodString>>;
             website: z$1.ZodOptional<z$1.ZodString>;
             notes: z$1.ZodOptional<z$1.ZodArray<z$1.ZodObject<{
                 title: z$1.ZodString;
@@ -3404,6 +6882,7 @@ declare const TenantConfigWriteSchema: z$1.ZodPipe<z$1.ZodUnknown, z$1.ZodObject
     }, z$1.core.$strip>>;
     features: z$1.ZodOptional<z$1.ZodObject<{
         vision: z$1.ZodOptional<z$1.ZodBoolean>;
+        ads_preview: z$1.ZodOptional<z$1.ZodBoolean>;
     }, z$1.core.$strip>>;
 }, z$1.core.$strip>>;
 /** A config as read, with the keys it left out (`ignored`, dotted paths); or why it could not be read at all. */
@@ -3487,6 +6966,11 @@ interface SetupDto {
         address: boolean;
         /** The number the phone receptionist warm-transfers to, E.164. */
         handoff: string | null;
+        /**
+         * The business's own phone greeting as stored, {business} unfilled (decision 0051), or null for the standard one.
+         * Optional: a server older than the field answers without it, and the first run then says the standard greeting.
+         */
+        phone_greeting?: string | null;
         /** The config row exists but the parser refused it. */
         broken: boolean;
         /** Whether the receptionist is set up, by the one test (config.ts receptionistOf): none, set, or broken. */
@@ -4325,7 +7809,7 @@ declare const PARTNER_WORDS: {
     /** The offer, before the share, which is printed from the row (shareWords). */
     readonly offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays. A business already on Chanlytics can ask you in by your code: if it has not paid for a plan yet, the same share is yours once it does.";
     readonly codeLabel: "Your code";
-    readonly codeHint: "3 to 24 letters, digits or dashes. It is the end of your link, and it is yours for good.";
+    readonly codeHint: "3 to 24 letters, digits or dashes. It ends your link, for good.";
     readonly terms: "A share is paid on a workspace someone other than you brought you onto: made through your link, set up by you and handed to its owner, or one whose owner asked you in before it had paid for a plan. It is paid thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.";
     readonly termsAgree: "I agree to these terms.";
     readonly become: "Become a partner";
@@ -4768,8 +8252,8 @@ declare const ReachOutStepSchema: z$1.ZodObject<{
     after_days: z$1.ZodNullable<z$1.ZodNumber>;
     hand: z$1.ZodOptional<z$1.ZodNullable<z$1.ZodObject<{
         kind: z$1.ZodEnum<{
-            note: "note";
             call: "call";
+            note: "note";
         }>;
         words: z$1.ZodString;
     }, z$1.core.$strip>>>;
@@ -4788,8 +8272,8 @@ declare const ReachOutChainSchema: z$1.ZodObject<{
         after_days: z$1.ZodNullable<z$1.ZodNumber>;
         hand: z$1.ZodOptional<z$1.ZodNullable<z$1.ZodObject<{
             kind: z$1.ZodEnum<{
-                note: "note";
                 call: "call";
+                note: "note";
             }>;
             words: z$1.ZodString;
         }, z$1.core.$strip>>>;
@@ -5211,12 +8695,19 @@ declare const PERSON_CHANNEL_WORDS: Record<PersonChannel, string>;
  * Where a person first came from, as people_list decides it once (00138): the
  * door that added them (calendar, lead, a client list's import since 00170,
  * manual), an imported history (import), else their first call (call) or the
- * wire of their first message (whatsapp, sms, email). People's "Came from"
- * column says it in these words; a stored value is never shown.
+ * wire of their first message (whatsapp, sms, email), or an ad they tapped or answered (ad, 11 Oct 2026: any paid
+ * ad, whichever platform). People's "Came from" column says it in these words; a stored value is never shown.
  */
-type PersonCameFrom = "whatsapp" | "sms" | "email" | "call" | "calendar" | "manual" | "import" | "lead";
+type PersonCameFrom = "whatsapp" | "sms" | "email" | "call" | "calendar" | "manual" | "import" | "lead" | "ad";
 /** The words for each, once: the three wires say what a reply on them says (REPLY_VIA), and a call says what its glyph says (PERSON_CHANNEL_WORDS.voice). */
 declare const PERSON_CAME_FROM_WORDS: Record<PersonCameFrom, string>;
+/**
+ * The platforms an ad runs on, in the words the Ads page says them in (ads/words.ts PLATFORM_WORD, which is that page's
+ * alone to load: this is People's copy of three words, and tooling/scripts/tests/ads/ads-connect.test.mjs holds the two equal).
+ */
+declare const PERSON_AD_ON: Record<"meta" | "google" | "tiktok", string>;
+/** Where an ad brought someone, as a line under a name says it: `From an ad · Spring offer`, or `From an ad` where the ad is not known. */
+declare const fromAdWords: (name: string | null) => string;
 
 /**
  * The languages a template may be written in: every one WhatsApp takes
@@ -5358,7 +8849,7 @@ interface ParamFacts {
     businessName: string;
     bookingLink: string | null;
     /**
-     * The link the workspace's Google listing keeps for a review (00394), as a broadcast's send reads it; absent where
+     * The link the workspace's Google listing keeps for a review (00408), as a broadcast's send reads it; absent where
      * nothing fills a review slot: the Inbox and a call's booking link turn such a template away (inbox-templates
      * slotToWrite).
      */
@@ -5549,6 +9040,11 @@ interface FeedItem extends BusyBlock {
      * keys the appointment (appointment-key.ts), so a moved occurrence keeps its row.
      */
     occurrence?: number;
+    /**
+     * What a member said became of this visit (decision 0002 step 8), as the record's row holds it: kept or missed. Never
+     * read from a calendar; set only where the record joins the feed (feedWithRecord). Absent while it stands.
+     */
+    said?: "kept" | "missed";
 }
 interface ParsedFeed {
     busy: BusyBlock[];
@@ -5688,12 +9184,16 @@ interface Visit {
     title: string;
     allDay: boolean;
     via: MatchVia;
+    /** What a member said became of it (FeedItem.said): kept or missed. Absent while it stands. */
+    said?: "kept" | "missed";
 }
 interface Visits {
-    /** The first appointment that has not ended. */
+    /** The first appointment that has not ended, and was not said missed. */
     next: Visit | null;
-    /** The latest one that has. */
+    /** The latest one that has, and that they came to as far as anyone said: a visit said missed is no visit. */
     last: Visit | null;
+    /** The latest visit a member said they missed (decision 0002 step 8): what a win-back reads. */
+    missed?: Visit | null;
     /** Every appointment starting within NEAR_VISIT_MS of now, by start: what a day-keyed moment reads (playbook-reach visitOnDay). */
     near: Visit[];
 }
@@ -5772,6 +9272,8 @@ interface VisitDto {
     consultation?: boolean;
     /** The appointment's key (Visit.key), which a reminder keeps to ask its row again when it goes. Absent on an older read. */
     key?: string;
+    /** What a member said became of it (decision 0002 step 8): kept or missed. Absent while it stands, and on an older read. */
+    said?: "kept" | "missed";
 }
 /** A person's appointments as their profile reads them. */
 interface PersonVisitsDto {
@@ -5784,6 +9286,8 @@ interface PersonVisitsDto {
     all?: VisitDto[];
     /** The visits within a few days of the read, by start (Visits.near): what a day-keyed moment reads. Absent on an older read. */
     near?: VisitDto[];
+    /** The latest visit a member said they missed (Visits.missed), or null. Absent on an older read. */
+    missed?: VisitDto | null;
 }
 declare function toVisitDto(v: Visit | null): VisitDto | null;
 /**
@@ -5840,15 +9344,18 @@ declare function afterPersonRefused(code: string | null | undefined): "skip" | "
 /**
  * Whether someone who reached out has an appointment that answers it: one
  * upcoming, or one held since they got in touch. The conversion Chanlytics
- * counts is the booking, not a stage somebody moved a card into.
+ * counts is the booking, not a stage somebody moved a card into, so a visit a
+ * member said they missed answers it too: they booked (0002's readers).
  */
-declare function bookedAfterAsk(visits: Pick<Visits, "next" | "last"> | null | undefined, askedMs: number): boolean;
-/**
- * The same rule over the moments a person's row keeps (people.ts): a visit ahead, or a last visit that began no more
- * than a day before they asked. Reports' booking line and People's "Asked, never booked" both read it, so Today's line
- * that prints the two numbers side by side counts one rule twice, never two rules once (decision 0009).
- */
-declare function visitAnswersAsk(nextStartMs: number | null, lastStartMs: number | null, askedMs: number): boolean;
+declare function bookedAfterAsk(visits: {
+    next: Started | null;
+    last: Started | null;
+    missed?: Started | null;
+} | null | undefined, askedMs: number): boolean;
+/** A visit as a parse (ms) or the wire (ISO) carries it: its start is all the ask's rule reads. */
+type Started = {
+    start: number | string;
+};
 
 /**
  * The language a list is written in: who is on it, judged over the facts a person's row carries, so the People rail, a
@@ -5910,6 +9417,16 @@ declare const ListFactSchema: z.ZodMiniDiscriminatedUnion<[z.ZodMiniObject<{
     }>;
     days: z.ZodMiniOptional<z.ZodMiniInt>;
     field: z.ZodMiniLiteral<"next_visit">;
+}, z.core.$strict>, z.ZodMiniObject<{
+    op: z.ZodMiniEnum<{
+        never: "never";
+        more_than: "more_than";
+        within: "within";
+        ever: "ever";
+        this_week: "this_week";
+    }>;
+    days: z.ZodMiniOptional<z.ZodMiniInt>;
+    field: z.ZodMiniLiteral<"missed_visit">;
 }, z.core.$strict>, z.ZodMiniObject<{
     op: z.ZodMiniLiteral<"is">;
     yes: z.ZodMiniBoolean<boolean>;
@@ -6078,6 +9595,16 @@ declare const AnySchema: z.ZodMiniObject<{
         days: z.ZodMiniOptional<z.ZodMiniInt>;
         field: z.ZodMiniLiteral<"next_visit">;
     }, z.core.$strict>, z.ZodMiniObject<{
+        op: z.ZodMiniEnum<{
+            never: "never";
+            more_than: "more_than";
+            within: "within";
+            ever: "ever";
+            this_week: "this_week";
+        }>;
+        days: z.ZodMiniOptional<z.ZodMiniInt>;
+        field: z.ZodMiniLiteral<"missed_visit">;
+    }, z.core.$strict>, z.ZodMiniObject<{
         op: z.ZodMiniLiteral<"is">;
         yes: z.ZodMiniBoolean<boolean>;
         field: z.ZodMiniLiteral<"booked">;
@@ -6245,6 +9772,16 @@ declare const ListConditionSchema: z.ZodMiniUnion<readonly [z.ZodMiniObject<{
         days: z.ZodMiniOptional<z.ZodMiniInt>;
         field: z.ZodMiniLiteral<"next_visit">;
     }, z.core.$strict>, z.ZodMiniObject<{
+        op: z.ZodMiniEnum<{
+            never: "never";
+            more_than: "more_than";
+            within: "within";
+            ever: "ever";
+            this_week: "this_week";
+        }>;
+        days: z.ZodMiniOptional<z.ZodMiniInt>;
+        field: z.ZodMiniLiteral<"missed_visit">;
+    }, z.core.$strict>, z.ZodMiniObject<{
         op: z.ZodMiniLiteral<"is">;
         yes: z.ZodMiniBoolean<boolean>;
         field: z.ZodMiniLiteral<"booked">;
@@ -6408,6 +9945,16 @@ declare const ListConditionSchema: z.ZodMiniUnion<readonly [z.ZodMiniObject<{
     }>;
     days: z.ZodMiniOptional<z.ZodMiniInt>;
     field: z.ZodMiniLiteral<"next_visit">;
+}, z.core.$strict>, z.ZodMiniObject<{
+    op: z.ZodMiniEnum<{
+        never: "never";
+        more_than: "more_than";
+        within: "within";
+        ever: "ever";
+        this_week: "this_week";
+    }>;
+    days: z.ZodMiniOptional<z.ZodMiniInt>;
+    field: z.ZodMiniLiteral<"missed_visit">;
 }, z.core.$strict>, z.ZodMiniObject<{
     op: z.ZodMiniLiteral<"is">;
     yes: z.ZodMiniBoolean<boolean>;
@@ -6578,6 +10125,16 @@ declare const ListRuleSchema: z.ZodMiniObject<{
             days: z.ZodMiniOptional<z.ZodMiniInt>;
             field: z.ZodMiniLiteral<"next_visit">;
         }, z.core.$strict>, z.ZodMiniObject<{
+            op: z.ZodMiniEnum<{
+                never: "never";
+                more_than: "more_than";
+                within: "within";
+                ever: "ever";
+                this_week: "this_week";
+            }>;
+            days: z.ZodMiniOptional<z.ZodMiniInt>;
+            field: z.ZodMiniLiteral<"missed_visit">;
+        }, z.core.$strict>, z.ZodMiniObject<{
             op: z.ZodMiniLiteral<"is">;
             yes: z.ZodMiniBoolean<boolean>;
             field: z.ZodMiniLiteral<"booked">;
@@ -6741,6 +10298,16 @@ declare const ListRuleSchema: z.ZodMiniObject<{
         }>;
         days: z.ZodMiniOptional<z.ZodMiniInt>;
         field: z.ZodMiniLiteral<"next_visit">;
+    }, z.core.$strict>, z.ZodMiniObject<{
+        op: z.ZodMiniEnum<{
+            never: "never";
+            more_than: "more_than";
+            within: "within";
+            ever: "ever";
+            this_week: "this_week";
+        }>;
+        days: z.ZodMiniOptional<z.ZodMiniInt>;
+        field: z.ZodMiniLiteral<"missed_visit">;
     }, z.core.$strict>, z.ZodMiniObject<{
         op: z.ZodMiniLiteral<"is">;
         yes: z.ZodMiniBoolean<boolean>;
@@ -6986,7 +10553,7 @@ declare const LIST_DRAFT_JSON_SCHEMA: {
                                 };
                                 readonly value: {
                                     readonly type: "string";
-                                    readonly enum: readonly ("proposed" | "ended" | "won" | "lost" | "needs_you" | "waiting_on_you" | "consultation" | "me" | "teammate" | "nobody")[];
+                                    readonly enum: readonly ("proposed" | "ended" | "won" | "lost" | "consultation" | "needs_you" | "waiting_on_you" | "me" | "teammate" | "nobody")[];
                                 };
                             };
                         };
@@ -7022,7 +10589,7 @@ declare const LIST_DRAFT_JSON_SCHEMA: {
                     };
                     readonly value: {
                         readonly type: "string";
-                        readonly enum: readonly ("proposed" | "ended" | "won" | "lost" | "needs_you" | "waiting_on_you" | "consultation" | "me" | "teammate" | "nobody")[];
+                        readonly enum: readonly ("proposed" | "ended" | "won" | "lost" | "consultation" | "needs_you" | "waiting_on_you" | "me" | "teammate" | "nobody")[];
                     };
                 };
             };
@@ -7251,62 +10818,6 @@ declare function todayPins(view: unknown, people: {
 declare function togglePin(view: unknown, token: string): {
     pins: string[];
 } | null;
-
-/** The words a workspace may call an appointment, in the order a picker offers them. */
-declare const APPOINTMENT_WORDS: readonly ["appointment", "visit", "meeting", "session", "lesson"];
-type AppointmentWord = (typeof APPOINTMENT_WORDS)[number];
-/** Whether a value is one of the five: a stored word read back is checked, never trusted. */
-declare function isAppointmentWord(value: unknown): value is AppointmentWord;
-/**
- * What the workspace calls an appointment: the word it picked, else a meeting where some of its customers get a proposal
- * first and an appointment everywhere else. The one derivation: GET playbooks, Ask's shape and core's names all ask it.
- * Nothing is backfilled, so a salon reads "appointment" until it picks.
- */
-declare function appointmentWordOf(o: {
-    stored: string | null;
-    sellsBy: string | null;
-}): AppointmentWord;
-/** Every phrase the word makes, as Campaigns, its drawer, its approval sheet, its composer and core's refusals say it. */
-interface AppointmentPhrases {
-    word: AppointmentWord;
-    /** "appointment", "appointments", "an appointment", "Appointment". */
-    one: string;
-    many: string;
-    a: string;
-    Title: string;
-    /** The day before: the moment's caption, a new campaign's name on it, and the trigger's hint. */
-    before: {
-        caps: string;
-        name: string;
-        hint: string;
-    };
-    /** The day after: the moment's caption, which is also a new campaign's name on it, and the trigger's hint. */
-    after: {
-        caps: string;
-        hint: string;
-    };
-    /** The win-back by appointments' hint. */
-    lapsedHint: string;
-    /** A schedule's who: "everyone with an appointment tomorrow", "everyone who had an appointment yesterday". */
-    tomorrowWho: string;
-    yesterdayWho: string;
-    /** What "of 312" counts: "with an appointment tomorrow", "who had an appointment yesterday". */
-    withTomorrow: string;
-    whoYesterday: string;
-    /** The approval sheet's rule lines. */
-    eachTomorrow: string;
-    eachYesterday: string;
-    /** Coming up's line for an off moment with people waiting. */
-    offTomorrow: (n: number) => string;
-    offYesterday: (n: number) => string;
-    /** Core's refusal names the two moments: "an appointment tomorrow, an appointment yesterday". */
-    startsWith: string;
-    /** "by appointments": how the win-back reads people where a calendar is connected. */
-    byMany: string;
-    /** Core's refusal of an appointment moment where no calendar is connected. */
-    needsCalendar: string;
-}
-declare function appointmentWords(word: AppointmentWord): AppointmentPhrases;
 
 /**
  * Relative time, said one way.
@@ -9569,7 +13080,7 @@ declare function effectiveMode<M extends string>(p: {
  */
 declare function newCampaignTrialUntil(now: Date): string;
 /**
- * A campaign's last day (00395 `until`, YYYY-MM-DD by the business's clock) where `day`, the business's day, is past it:
+ * A campaign's last day (00409 `until`, YYYY-MM-DD by the business's clock) where `day`, the business's day, is past it:
  * it has ended, and a run on such a day sends nothing (core run-playbook's `ended`). Null where it has no end, or `day`
  * is its last or before.
  */
@@ -9849,9 +13360,9 @@ interface PlaybookDto {
     last_run_for: string | null;
     last_run_at: string | null;
     created_at: string;
-    /** Its last day (00395), YYYY-MM-DD by the business's clock, or null; absent from a server before it. */
+    /** Its last day (00409), YYYY-MM-DD by the business's clock, or null; absent from a server before it. */
     until?: string | null;
-    /** Until when it runs on trial (00395), an instant, or null; absent from a server before it. */
+    /** Until when it runs on trial (00409), an instant, or null; absent from a server before it. */
     trial_until?: string | null;
 }
 /**
@@ -10218,16 +13729,21 @@ interface CallDto {
  * commercially interesting event of the day, and the only lost one that leaves
  * a phone number behind.
  *
- * Fifteen seconds because the greeting carries a recording notice and the AI
- * disclosure and takes most of ten: a caller gone before that heard a machine
- * start talking and nothing else.
+ * They left with nothing when they never said a word: read from the call's
+ * transcript where the row carries one with turns in it. The business now writes its own
+ * greeting, of any length (decision 0051), so how long a call lasted no longer
+ * says whether the caller heard a machine start talking and left. A row read
+ * without its transcript keeps the old reading: under fifteen seconds, because
+ * the standard greeting carries a recording notice and the AI disclosure.
  *
  * The reason must be the CUSTOMER leaving. The receptionist ending a call, a
  * transfer to a person, and a call that ran out of time are all endings
  * somebody chose.
  */
 declare const ABANDONED_MS = 15000;
-declare function abandonedCall(dto: Pick<CallDto, "direction" | "status" | "duration_ms" | "disconnection_reason" | "in_voicemail" | "outcome">): boolean;
+declare function abandonedCall(dto: Pick<CallDto, "direction" | "status" | "duration_ms" | "disconnection_reason" | "in_voicemail" | "outcome"> & {
+    transcript_object?: CallDto["transcript_object"];
+}): boolean;
 /** Where a call's recording stands: saved, still being fetched, not saved, removed on the retention schedule, or none. */
 type RecordingState = "ready" | "pending" | "failed" | "purged" | "none";
 /**
@@ -10920,11 +14436,19 @@ interface PersonDetailDto {
     workspace_reply_mode?: string | null;
     /** Their appointments on the owner's calendar, when the workspace has one connected. */
     visits?: PersonVisitsDto;
-    /** How they came to be in People when it was not by writing or calling: the calendar sweep, or a hand. */
+    /**
+     * How they came to be in People when it was not by writing or calling: the calendar sweep, or a hand. `ad` names the ad
+     * when the source is one: its Chanlytics id (the address `campaigns/ads:ad:<id>` opens it), its name and its platform.
+     */
     added?: {
         at: string;
         source: string;
         title: string | null;
+        ad?: {
+            id: string;
+            name: string;
+            platform: "meta" | "google" | "tiktok";
+        } | null;
     };
     /** The owner's notes on this person: the field 00157 superseded, still sent for a page loaded before it. */
     notes?: string | null;
@@ -11368,6 +14892,8 @@ interface PersonRowVM {
     nextVisitDays: number | null;
     /** The workspace's days since the last visit; null without one. */
     lastVisitDays: number | null;
+    /** Whole days since the latest visit a member said they missed (PersonVisitsDto.missed), by the business's calendar; null for none. */
+    missedVisitDays: number | null;
     /** The next visit falls in this week, Monday to Sunday, by the workspace's clock. */
     nextVisitThisWeek: boolean;
     /** The workspace's days since they last wrote or called (askedMs); null when they never have. */
@@ -11604,6 +15130,81 @@ declare function numberHealth(n: NumberHealthInput): NumberHealth;
 /** Null when the audience fits the day's limit; otherwise the refusal, with the numbers. */
 declare function overLimitRefusal(h: NumberHealth, audience: number): string | null;
 
+/**
+ * The answer to a campaign run: a yes or a stop (the consent ledger's `contact.consent_changed`, 00013) that a run's
+ * message earned. One rule, said here once: the run sheet reads it (server/campaigns/broadcasts.ts, consentAfter), and
+ * `public.campaign_answers` (00403) restates it in SQL for Reports › Campaigns and the Campaigns home, which a database
+ * test holds equal to this over one world. The People lens keeps every yes and stop; this is the part of them a run
+ * is owed.
+ *
+ * An event counts only if `data.consent` is `opted_in` or `opted_out` and `data.source` is not `merge` or `stop` (a
+ * merge restates the kept person's consent, a stop ends a yes: neither is the person answering); an event that names
+ * no source counts. Its purpose is `email_marketing`, `marketing`, or `conversational` (any other). A send whose person
+ * is not live never has an answer.
+ *
+ * Which run an event answers is told by a key where it carries one that names a send, else by the clock.
+ * - **Exact.** An unsubscribe, a complaint or a reply no (purpose `email_marketing`, consent `opted_out`, source
+ *   `unsubscribe`, `complaint` or `reply`) names the outbound email by `data.message_id`; an event of source `carrier` or
+ *   `whatsapp`, of either consent (the rule does not ask `opted_out` of it), names the refused send by
+ *   `data.message_external_id`. Such an event belongs to the send of the same person whose `messageId` or
+ *   `messageExternalId` it names, whenever it came, and to no other run; a key that finds no send of the same person
+ *   belongs to no run (it answers something else: an Inbox email, a thread's text, another person's email).
+ *   - **A key is a word.** It is a JSON string that is not `''`, compared as text, exactly and case-sensitively: in SQL
+ *     `messages.id::text = data->>'message_id'` (never a cast of the key to a uuid, which would turn a key that is not
+ *     one into no key) and `messages.external_id = data->>'message_external_id'`, each read only where
+ *     `jsonb_typeof(...) = 'string'`. A number, an object, a missing key or `''` is no key, and then the event is
+ *     attributed by time; so is an event of a kind that names no key (a desk yes, an opt-in by email, an unsubscribe of
+ *     another purpose, a source that is neither of the three nor `carrier`/`whatsapp`), whatever else it carries.
+ * - **By time.** Every other event belongs to each send of the same person with `sentAt < at <= sentAt + REPLY_WINDOW_MS`,
+ *   an `email_marketing` event only to a send that went `byEmail`.
+ *
+ * Per run, the answer of a person is the latest event attributed to it (by `at`, then `eventId`).
+ *
+ * Instants are compared at millisecond precision, both sides truncated to the millisecond (here `Date.parse`; in SQL
+ * `date_trunc('milliseconds', ...)` on the event's `at` and on `sent_at`, for the window and for "the latest"). Two events at
+ * the same millisecond are ordered by the greater event id as text, which for the lowercase uuids the ledger keeps is
+ * uuid order.
+ */
+/** A campaign send, as the rule reads one: a recipient the run reached (state `sent`). */
+interface AnswerSend {
+    runId: string;
+    contactId: string;
+    sentAt: string;
+    /** Reached by email: an answer about offers by email is theirs to give it, and nobody else's. */
+    byEmail: boolean;
+    /** The person stands: not erased, not merged into another. */
+    live: boolean;
+    /** The outbound email it was (`broadcast_recipients.message_id`), where one was written. */
+    messageId: string | null;
+    /** The provider's id for its message (`messages.external_id`), which a carrier's or WhatsApp's stop names. */
+    messageExternalId: string | null;
+}
+/** A `contact.consent_changed` event: whose, when, and `data` as the ledger keeps it. */
+interface AnswerEvent {
+    id: string;
+    contactId: string;
+    at: string;
+    data: unknown;
+}
+/** Which question a person's answer was to: offers, offers by email (their own answer, 00174), or everything. */
+type AnswerPurpose = "marketing" | "email_marketing" | "conversational";
+/** What a person answered a run: the latest event that was theirs to give it. */
+interface RunAnswer {
+    runId: string;
+    contactId: string;
+    consent: "opted_in" | "opted_out";
+    purpose: AnswerPurpose;
+    at: string;
+    eventId: string;
+    /** Found by a key the event carries, not by the clock. */
+    exact: boolean;
+}
+/**
+ * What each person answered each run: for every `(runId, contactId)` that has one, a row; in no promised order, and the
+ * same rows whatever the order of `sends` and `events`.
+ */
+declare function answersToRuns(sends: readonly AnswerSend[], events: readonly AnswerEvent[]): RunAnswer[];
+
 type RunFigureId = "sent" | "delivered" | "replied" | "said_yes" | "stopped";
 /** The steps a figure's bars take: the canvas draws eight. */
 declare const RUN_REPORT_STEPS = 8;
@@ -11688,8 +15289,6 @@ interface RunReportVM {
     } | null;
 }
 type ReportRecipient = Pick<BroadcastRecipientDto, "contact_id" | "name" | "channel" | "first_name" | "state" | "reason" | "sent_at" | "message_status" | "conversation_id" | "delivered_at" | "read_at" | "replied" | "replied_at" | "consent_after" | "consent_at" | "consent_purpose" | "reply_words" | "answered_by" | "answered_at" | "waiting_on_you">;
-/** Which question a person's answer after a run was to: offers, offers by email (their own answer, 00174), or everything. */
-type AnswerPurpose = NonNullable<BroadcastRecipientDto["consent_purpose"]>;
 /**
  * Which answer a yes or a stop was, said once for a person and once for a
  * figure: a stop to offers leaves every other message going, so the canvas's
@@ -12700,6 +16299,13 @@ declare function standingAlertWords(number: string | null, s: NumberStanding): {
  * the two never disagree. Any other standing, or none read, leaves the health as the rating read it.
  */
 declare function numberHealthWithStanding(health: NumberHealth, standing: NumberStanding | null): NumberHealth;
+/**
+ * The health of the connected WhatsApp number, from what its channel's config holds: the rating Meta gave at connection
+ * (`quality_rating`), the newest quality webhook (`quality_event`) and messaging limit (`messaging_limit`), each read when it
+ * is a string and as nothing when it is not, and the standing Meta keeps for the number (`standing`, 00338). THE derivation,
+ * so the composer's gate (`whatsappHealthOf`) and Reports' Campaigns lens say the same of the same number.
+ */
+declare function numberHealthOfConfig(config: Record<string, unknown>): NumberHealth;
 
 interface ChannelDto {
     id: string;
@@ -12721,6 +16327,9 @@ interface ChannelDto {
      *  display name's review, the business's verification and tier; and when that was read. Null until it has been. */
     standing?: NumberStanding | null;
     standing_read_at?: string | null;
+    /** When the number last connected (the row's config, written by each connection): a number connected again keeps its
+     *  row, so `created_at` is its first connection's. Null on a row no connection has stamped. */
+    connected_at?: string | null;
 }
 /**
  * The row that speaks for a kind.
@@ -12773,6 +16382,8 @@ interface ChannelVM {
     /** What Meta holds about the number, and when it was read (the row's config): null until it has been read. */
     standing: NumberStanding | null;
     standingReadAt: string | null;
+    /** When the number last connected (the row's config); null on a row no connection has stamped. */
+    connectedAt: string | null;
     /** When the row was made. Carried so `channelFor` can break a tie the same way on
      *  either shape; the DTO has always had it. */
     created_at: string;
@@ -13104,6 +16715,10 @@ interface JobNews {
         type: string;
         id: string;
     } | null;
+    /** The platform's copy, for a workspace nobody can be told in: the fact, never the words. The runtime's own when absent. */
+    redactedBody?: string;
+    /** The event this notice answers (decision 0043): the bell keeps it, and a second delivery of it tells nobody. */
+    sourceEvent?: string;
 }
 interface NotificationDto {
     id: string;
@@ -13196,6 +16811,34 @@ declare function dedupeFeed(rows: NotificationRow[]): NotificationRow[];
  * name in place of the number; a name that is itself a number, or a row about nothing, is left as the edge wrote it.
  */
 declare function nameKnownCustomers<T extends NotificationRow>(rows: readonly T[], threads: readonly FeedThread[] | null | undefined, calls: readonly FeedCall[] | null | undefined): T[];
+/** What a hold's notice says, read from its rows (packages/db holdFactsOf). */
+interface HoldFacts {
+    conversationId: string;
+    /** The hold's reason, one of ESCALATION_REASONS. */
+    reason: string;
+    /** The hold's own words: what happened and what to do, written where it was decided. */
+    details: string | null;
+    /** The person's name, when the record has one. */
+    who: string | null;
+    /** Their number (E.164) or their address. */
+    address: string | null;
+    /** The channel of their latest message, or of the thread. */
+    channel: string | null;
+    /** Their latest words in the thread. */
+    customerWords: string | null;
+    /** What the receptionist said or held after them, when it did. */
+    replyWords: string | null;
+    /** How many hours the receptionist is out of the thread, when it is. */
+    pausedHours: number | null;
+    /** The person is erased, or being erased: the thread is told of, never them. */
+    erased: boolean;
+}
+/**
+ * The owner's notice of a hold (decision 0043): who needs a person and why, their words and the receptionist's, the
+ * hold's own words, where to answer, and the pause when there is one. An erased person is "A customer", with no words
+ * and no number. The platform's copy, for a workspace nobody can be told in, says the fact and never the words.
+ */
+declare function holdNotice(f: HoldFacts): Omit<JobNews, "sourceEvent">;
 
 /** Where a phone can be one of ours. Held to push_devices.platform (schema-sets.ts). */
 declare const PUSH_PLATFORMS: readonly ["ios", "android"];
@@ -13894,7 +17537,7 @@ declare function v1FromAnswer(a: AskAnswer): Pick<AskMessageVM, "text" | "citati
  * Every handler under /api/v1, keyed the way route-policy.json keys it: the dashboard's typed client's keys
  * (client/routes.generated.ts), for a contract that names a route. What each takes and answers is the dashboard's.
  */
-declare const ROUTE_KEYS: readonly ["DELETE ask/threads/[id]", "DELETE capabilities/[kind]", "DELETE contacts/[id]", "DELETE google/connection", "DELETE google/link", "DELETE lead-searches/[id]", "DELETE leads/[id]", "DELETE me", "DELETE me/devices", "DELETE playbooks/[id]", "DELETE reach-outs/[id]", "DELETE segments/[id]", "DELETE sending-domains/[id]", "DELETE team/[id]", "DELETE team/partner", "DELETE templates/[id]", "DELETE templates/versions/[id]", "GET activity", "GET ask/openings", "GET ask/threads", "GET ask/threads/[id]", "GET billing", "GET billing/invoices", "GET broadcasts", "GET broadcasts/[id]", "GET business-record", "GET calendar", "GET calls", "GET calls/[id]/export", "GET calls/[id]/recording", "GET channels", "GET channels/whatsapp/signup", "GET consent/qr", "GET contacts", "GET contacts/[id]", "GET contacts/export", "GET conversations", "GET conversations/[id]", "GET conversations/[id]/export", "GET escalations", "GET export", "GET google", "GET google/callback", "GET google/connect", "GET google/locations", "GET lead-searches", "GET lead-searches/[id]", "GET lead-suggestions", "GET leads", "GET leads/[id]", "GET leads/export", "GET lines/codes", "GET me/alerts", "GET messages/[id]/media", "GET metrics", "GET notifications", "GET partner", "GET partner/invitations", "GET partner/workspaces", "GET people/[id]/reach", "GET platform/overview", "GET platform/tenants/[id]", "GET playbooks", "GET policies", "GET reach-out-replies", "GET reach-outs", "GET reach-outs/[id]", "GET reach-outs/leads", "GET reach-outs/reach", "GET reports", "GET reports/campaigns", "GET reports/headline", "GET reports/reach-outs", "GET reports/receptionist", "GET reports/reviews", "GET segments", "GET settings", "GET setup", "GET team", "GET team/partner", "GET templates", "GET today", "GET usage", "GET views", "GET workspaces", "PATCH lead-searches/[id]", "PATCH partner", "PATCH team/[id]", "PATCH workspaces", "POST ask", "POST ask/messages/[id]/proposals/[pid]", "POST ask/speech", "POST ask/voice", "POST ask/voice/end", "POST ask/voice/page", "POST ask/warm", "POST ask/warm/model", "POST billing/checkout", "POST billing/portal", "POST billing/resume", "POST billing/start-now", "POST billing/sync", "POST broadcasts", "POST broadcasts/[id]/approve", "POST broadcasts/[id]/cancel", "POST broadcasts/[id]/recheck", "POST calendar/notices/[id]/dismiss", "POST calendar/notices/[id]/read-again", "POST calendar/preview", "POST calls/[id]/end", "POST calls/[id]/hand-over", "POST calls/[id]/whisper", "POST capabilities/[kind]", "POST channels/whatsapp/connect", "POST channels/whatsapp/standing", "POST client-errors", "POST contacts", "POST contacts/[id]/deal", "POST contacts/[id]/doubts/dismiss", "POST contacts/[id]/merge", "POST contacts/[id]/notes", "POST contacts/[id]/notes/decide", "POST contacts/[id]/notes/done", "POST contacts/[id]/notes/remove", "POST contacts/import", "POST conversations/[id]/archive", "POST conversations/[id]/hand-back", "POST conversations/[id]/reply", "POST conversations/[id]/snooze", "POST conversations/[id]/take-over", "POST conversations/[id]/wake", "POST escalations/[id]/resolve", "POST google/link", "POST google/locations", "POST google/refresh", "POST google/reviews/[id]/draft", "POST google/reviews/[id]/reply", "POST google/search", "POST handovers/[id]/accept", "POST handovers/[id]/decline", "POST lead-operations/[id]/undo", "POST lead-searches", "POST lead-searches/[id]/answer", "POST lead-searches/[id]/more", "POST lead-searches/[id]/stop", "POST lead-searches/[id]/undo", "POST lead-searches/chosen", "POST lead-searches/import", "POST leads/[id]/draft", "POST leads/[id]/exclude", "POST leads/[id]/keep", "POST leads/[id]/put-back", "POST leads/[id]/stage", "POST leads/bulk", "POST leads/check-again", "POST lines/buy", "POST lines/forwarding", "POST lines/forwarding/test", "POST lines/register", "POST lines/retry", "POST lines/search", "POST mailboxes", "POST messages/[id]/cancel-send", "POST messages/[id]/steer", "POST notifications/test", "POST partner", "POST partner/invitations/[id]/accept", "POST partner/invitations/[id]/decline", "POST partner/workspaces", "POST partner/workspaces/[id]/resend", "POST people/[id]/draft", "POST people/[id]/message", "POST platform/jobs/requeue", "POST platform/lines/refile", "POST platform/lines/release", "POST platform/lines/replace", "POST platform/lines/retry", "POST platform/partners/payout", "POST platform/partners/second-factor", "POST platform/partners/standing", "POST platform/partners/status", "POST platform/waitlist/invited", "POST playbooks", "POST playbooks/[id]/run", "POST reach-out-replies/[id]/undo", "POST reach-out-sends/[id]/decide", "POST reach-outs", "POST reach-outs/leads/[id]/stop", "POST reach-outs/preview", "POST segments", "POST segments/draft", "POST sending-domains", "POST sending-domains/[id]/check", "POST sending-domains/[id]/resume", "POST settings/receptionist", "POST setup/request", "POST team/invite", "POST team/invite/[id]/resend", "POST team/leave", "POST team/partner", "POST templates", "POST templates/draft", "POST templates/message", "POST templates/starter", "POST templates/sync", "POST templates/versions", "POST vitals", "POST workspaces/create", "PUT business-record", "PUT contacts/[id]/consent", "PUT contacts/[id]/details", "PUT contacts/[id]/marketing-consent", "PUT contacts/[id]/receptionist", "PUT contacts/[id]/seen", "PUT contacts/consent", "PUT contacts/marketing-consent", "PUT contacts/notes", "PUT contacts/receptionist", "PUT lead-suggestions", "PUT mailboxes/[id]", "PUT me", "PUT me/alerts", "PUT me/devices", "PUT notifications", "PUT playbooks/[id]", "PUT policies", "PUT reach-outs/[id]", "PUT segments/[id]", "PUT settings", "PUT templates/[id]", "PUT views/[page]"];
+declare const ROUTE_KEYS: readonly ["DELETE ask/threads/[id]", "DELETE capabilities/[kind]", "DELETE contacts/[id]", "DELETE google/connection", "DELETE google/link", "DELETE lead-searches/[id]", "DELETE leads/[id]", "DELETE me", "DELETE me/devices", "DELETE playbooks/[id]", "DELETE reach-outs/[id]", "DELETE segments/[id]", "DELETE sending-domains/[id]", "DELETE team/[id]", "DELETE team/partner", "DELETE templates/[id]", "DELETE templates/versions/[id]", "DELETE workspaces/logo", "GET activity", "GET ask/openings", "GET ask/threads", "GET ask/threads/[id]", "GET billing", "GET billing/invoices", "GET broadcasts", "GET broadcasts/[id]", "GET business-record", "GET calendar", "GET calls", "GET calls/[id]/export", "GET calls/[id]/recording", "GET channels", "GET channels/whatsapp/signup", "GET consent/qr", "GET contacts", "GET contacts/[id]", "GET contacts/export", "GET conversations", "GET conversations/[id]", "GET conversations/[id]/export", "GET escalations", "GET export", "GET google", "GET google/callback", "GET google/connect", "GET google/locations", "GET lead-searches", "GET lead-searches/[id]", "GET lead-suggestions", "GET leads", "GET leads/[id]", "GET leads/export", "GET lines/codes", "GET me/alerts", "GET messages/[id]/media", "GET metrics", "GET notifications", "GET partner", "GET partner/invitations", "GET partner/workspaces", "GET people/[id]/reach", "GET platform/overview", "GET platform/tenants/[id]", "GET playbooks", "GET policies", "GET reach-out-replies", "GET reach-outs", "GET reach-outs/[id]", "GET reach-outs/leads", "GET reach-outs/reach", "GET reports", "GET reports/campaigns", "GET reports/campaigns/ledger", "GET reports/headline", "GET reports/people", "GET reports/reach-outs", "GET reports/receptionist", "GET reports/reviews", "GET segments", "GET settings", "GET setup", "GET team", "GET team/partner", "GET templates", "GET today", "GET usage", "GET views", "GET workspaces", "PATCH lead-searches/[id]", "PATCH partner", "PATCH team/[id]", "PATCH workspaces", "POST ask", "POST ask/messages/[id]/proposals/[pid]", "POST ask/speech", "POST ask/voice", "POST ask/voice/end", "POST ask/voice/page", "POST ask/warm", "POST ask/warm/model", "POST billing/checkout", "POST billing/portal", "POST billing/resume", "POST billing/start-now", "POST billing/sync", "POST broadcasts", "POST broadcasts/[id]/approve", "POST broadcasts/[id]/cancel", "POST broadcasts/[id]/recheck", "POST calendar/notices/[id]/dismiss", "POST calendar/notices/[id]/read-again", "POST calendar/preview", "POST calendar/visits/[id]", "POST calls/[id]/end", "POST calls/[id]/hand-over", "POST calls/[id]/whisper", "POST capabilities/[kind]", "POST channels/whatsapp/connect", "POST channels/whatsapp/standing", "POST client-errors", "POST contacts", "POST contacts/[id]/deal", "POST contacts/[id]/doubts/dismiss", "POST contacts/[id]/merge", "POST contacts/[id]/notes", "POST contacts/[id]/notes/decide", "POST contacts/[id]/notes/done", "POST contacts/[id]/notes/remove", "POST contacts/import", "POST conversations/[id]/archive", "POST conversations/[id]/hand-back", "POST conversations/[id]/reply", "POST conversations/[id]/snooze", "POST conversations/[id]/take-over", "POST conversations/[id]/wake", "POST escalations/[id]/resolve", "POST google/link", "POST google/locations", "POST google/refresh", "POST google/reviews/[id]/draft", "POST google/reviews/[id]/reply", "POST google/search", "POST handovers/[id]/accept", "POST handovers/[id]/decline", "POST lead-operations/[id]/undo", "POST lead-searches", "POST lead-searches/[id]/answer", "POST lead-searches/[id]/more", "POST lead-searches/[id]/stop", "POST lead-searches/[id]/undo", "POST lead-searches/chosen", "POST lead-searches/import", "POST leads/[id]/draft", "POST leads/[id]/exclude", "POST leads/[id]/keep", "POST leads/[id]/put-back", "POST leads/[id]/stage", "POST leads/bulk", "POST leads/check-again", "POST lines/buy", "POST lines/forwarding", "POST lines/forwarding/test", "POST lines/register", "POST lines/retry", "POST lines/search", "POST mailboxes", "POST messages/[id]/cancel-send", "POST messages/[id]/steer", "POST notifications/test", "POST partner", "POST partner/invitations/[id]/accept", "POST partner/invitations/[id]/decline", "POST partner/workspaces", "POST partner/workspaces/[id]/resend", "POST people/[id]/draft", "POST people/[id]/message", "POST platform/jobs/requeue", "POST platform/lines/refile", "POST platform/lines/release", "POST platform/lines/replace", "POST platform/lines/retry", "POST platform/partners/payout", "POST platform/partners/second-factor", "POST platform/partners/standing", "POST platform/partners/status", "POST platform/waitlist/invited", "POST playbooks", "POST playbooks/[id]/run", "POST reach-out-replies/[id]/undo", "POST reach-out-sends/[id]/decide", "POST reach-outs", "POST reach-outs/leads/[id]/stop", "POST reach-outs/preview", "POST segments", "POST segments/draft", "POST sending-domains", "POST sending-domains/[id]/check", "POST sending-domains/[id]/resume", "POST settings/receptionist", "POST setup/request", "POST team/invite", "POST team/invite/[id]/resend", "POST team/leave", "POST team/partner", "POST templates", "POST templates/draft", "POST templates/message", "POST templates/starter", "POST templates/sync", "POST templates/versions", "POST vitals", "POST workspaces/create", "POST workspaces/logo/lookup", "PUT business-record", "PUT contacts/[id]/consent", "PUT contacts/[id]/details", "PUT contacts/[id]/marketing-consent", "PUT contacts/[id]/receptionist", "PUT contacts/[id]/seen", "PUT contacts/consent", "PUT contacts/marketing-consent", "PUT contacts/notes", "PUT contacts/receptionist", "PUT lead-suggestions", "PUT mailboxes/[id]", "PUT me", "PUT me/alerts", "PUT me/devices", "PUT notifications", "PUT playbooks/[id]", "PUT policies", "PUT reach-outs/[id]", "PUT segments/[id]", "PUT settings", "PUT templates/[id]", "PUT views/[page]", "PUT workspaces/logo"];
 /** A route by its key: "POST conversations/[id]/reply". */
 type ApiRouteKey = (typeof ROUTE_KEYS)[number];
 
@@ -14279,9 +17922,10 @@ interface AskThreadVM {
  * run, a Broadcasts row, which its address spells so and a citation names a broadcast. A scope is what the person was
  * looking at, a fact about the turn; a citation is a claim about a row read, and builds the answer's grammar. A
  * playbook is a campaign open in its drawer on Campaigns (the moment spec, A1); a reach-out open there is the page at
- * that address (scopeFromRoute).
+ * that address (scopeFromRoute). An ad is one paid ad open in its drawer on Campaigns › Ads (`campaigns/ads:ad:<id>`,
+ * decision 0049); nothing reads it on the server yet, so a turn about one is a turn about the page until the Ads read lands.
  */
-declare const ASK_SCOPE_KINDS: readonly ["thread", "conversation", "call", "person", "page", "lead", "search", "run", "playbook"];
+declare const ASK_SCOPE_KINDS: readonly ["thread", "conversation", "call", "person", "page", "lead", "search", "run", "playbook", "ad"];
 type AskScopeKind = (typeof ASK_SCOPE_KINDS)[number];
 /** What the person was looking at when they asked. Carried into the turn as a fact. */
 interface AskScope {
@@ -14353,20 +17997,21 @@ declare const PageContextSchema: z$1.ZodObject<{
         settings: "settings";
         conversations: "conversations";
         inbox: "inbox";
-        leads: "leads";
         pipeline: "pipeline";
         campaigns: "campaigns";
         reports: "reports";
+        leads: "leads";
         live: "live";
     }>;
     route: z$1.ZodString;
     view: z$1.ZodOptional<z$1.ZodNullable<z$1.ZodString>>;
     focus: z$1.ZodOptional<z$1.ZodNullable<z$1.ZodObject<{
         kind: z$1.ZodEnum<{
-            conversation: "conversation";
             person: "person";
             call: "call";
+            ad: "ad";
             lead: "lead";
+            conversation: "conversation";
             playbook: "playbook";
             page: "page";
             thread: "thread";
@@ -14378,10 +18023,10 @@ declare const PageContextSchema: z$1.ZodObject<{
     }, z$1.core.$strict>>>;
     rows: z$1.ZodArray<z$1.ZodObject<{
         kind: z$1.ZodEnum<{
-            conversation: "conversation";
             person: "person";
             call: "call";
             lead: "lead";
+            conversation: "conversation";
             playbook: "playbook";
             template: "template";
             thread: "thread";
@@ -15406,7 +19051,7 @@ declare function proposalBelowNeeds(kind: ProposalKindAboveOperator): string;
  * pure, as the repo's other derived tables are: a bare call at the top level is kept by every bundle that inlines
  * contracts (db, core, channels, jobs), and would carry every spec and its words in with it.
  */
-declare const PROPOSAL_GATE: Record<"message" | "reply" | "note" | "broadcast" | "playbook" | "deal" | "list" | "invite" | "whisper" | "run" | "settings" | "policy" | "steer" | "thread_verb" | "person_mode" | "lead_search" | "person_details" | "playbook_channels" | "playbook_change", ProposalGate>;
+declare const PROPOSAL_GATE: Record<"message" | "broadcast" | "playbook" | "deal" | "list" | "reply" | "invite" | "whisper" | "note" | "run" | "settings" | "policy" | "steer" | "thread_verb" | "person_mode" | "lead_search" | "person_details" | "playbook_channels" | "playbook_change", ProposalGate>;
 /**
  * Whether a committed card's undo is still true to offer: its spec's window, and ten minutes for a kind with none.
  *
@@ -15825,6 +19470,10 @@ declare function dayPlusInZone(tz: string, atMs: number, days: number): {
  */
 
 declare function appointmentKeyOf(item: Pick<FeedItem, "uid" | "start" | "occurrence">): string;
+/** A row of the record as a visit's key (feedItemOfAppointment's uid, the board's item id): `appt:<id>`. */
+declare function recordKeyOf(id: string): string;
+/** The row a visit's key names when it is a booking's from the record (recordKeyOf); null for a calendar event's. */
+declare function recordIdOf(key: string): string | null;
 
 /**
  * Read-only availability: what is open, from a calendar feed and the rules.
@@ -16266,6 +19915,11 @@ declare function forwardingConfirmationOf(e: {
  * keeps. The page's view model is made from it in calendar.ts.
  */
 
+/** The record's row for a visit the board draws, and how it stands (decision 0002): what a member's word is said on. */
+interface VisitMark {
+    id: string;
+    status: AppointmentStatus;
+}
 interface CalendarItemDto {
     id: string;
     /** ISO instants. */
@@ -16308,6 +19962,12 @@ interface CalendarItemDto {
     service?: string | null;
     staff?: string | null;
     price?: string | null;
+    /**
+     * The record's row for this visit (00345), a booking's or the one the hourly sync keeps for a feed's event (by its
+     * key), with how it stands: what a member says became of it (00397) is said on it. Null for an event the sync has not
+     * kept yet; absent on an older read.
+     */
+    visit?: VisitMark | null;
 }
 interface CalendarDayDto {
     /** "YYYY-MM-DD" in the business's zone. */
@@ -16457,6 +20117,42 @@ declare function busyOfAppointments(rows: ReadonlyArray<Pick<AppointmentLike, "s
 declare function feedItemOfAppointment(row: AppointmentLike): FeedItem;
 /** The person a row is for: by the contact the read linked, else by the number, else by the address. Never by name. */
 declare function personOfAppointment(row: AppointmentLike, people: PersonLike[]): PersonMatch | null;
+/** A feed row's word, with the start the row holds: the event's start when the word was said. */
+interface FeedMark extends VisitMark {
+    start: number;
+}
+/**
+ * The feed's rows by their key, with how each stands and when: what a feed event the board draws finds its record's
+ * row by (appointmentKeyOf), so a member's word on it is said there. Pure.
+ */
+declare function feedMarksOf(rows: ReadonlyArray<{
+    id: string;
+    status: string;
+    external_id: string | null;
+    starts_at: string;
+}>): Map<string, FeedMark>;
+/**
+ * An event's row and its word, while the event stands where its row does. An event moved on the calendar since the
+ * hourly sync last read it (00397 sets a said row aside and keeps a fresh one at the new time) carries no word, and no
+ * row a member's word could go on, until the sync has: "missed" said of the 10th is not said of the 17th it moved to.
+ */
+declare function markOn(marks: ReadonlyMap<string, FeedMark> | null | undefined, it: Pick<FeedItem, "uid" | "start" | "occurrence">): VisitMark | null;
+/**
+ * The record a reader joins to the feed (decision 0002, its readers): the rows that are not the feed's own, a booking's
+ * from its notice, however they stand, and each feed row's word by its key (feedMarksOf).
+ */
+interface PoolRecord {
+    noted: readonly AppointmentLike[];
+    marks: ReadonlyMap<string, FeedMark>;
+}
+/**
+ * The feed with the record joined (0002's readers: People, Reports and the playbooks read them together): a visit a
+ * notice states is the notice's (the feed's copy of it left out, withoutVisitsRowsDraw, as the board draws it once), a
+ * booking that stands or was said kept or missed joins as an item (feedItemOfAppointment), a request is no visit yet,
+ * and a cancelled visit is none, whoever cancelled it. Each item carries a member's kept or missed (FeedItem.said). The
+ * feed's words stay the feed's: a feed event is the event, its row's word laid on it. Pure; by start.
+ */
+declare function feedWithRecord(items: readonly FeedItem[], record: PoolRecord | null | undefined, own: OwnAddresses): FeedItem[];
 /** The board's row for an appointment: the item the day draws, with what the notice stated. */
 declare function itemOfAppointment(row: AppointmentLike, people: PersonLike[]): CalendarItemDto;
 /**
@@ -16503,6 +20199,27 @@ declare function monthLabelOf(key: string): string;
  */
 declare function zoneMidnight(tz: string, key: string): number;
 
+/** What a member may say became of a visit (00397 mark_visit). */
+type VisitWord = "kept" | "missed" | "cancelled";
+/** Each word as the panel says it, on a state and on an act alike. */
+declare const VISIT_WORDS: Record<VisitWord, string>;
+/** The door's refusals (mark_visit's `{ error }`), each in a sentence for the person who asked. */
+declare const VISIT_REFUSALS: Record<string, string>;
+/**
+ * What the panel says beside a visit's time: the member's word on it, else "Past" once it has ended (the record never
+ * infers that they came: 0002's answer 3), else nothing.
+ */
+declare function visitStateOf(visit: VisitMark | null, endMs: number, nowMs: number): {
+    text: string;
+    tone: VisitWord | "past";
+} | null;
+/**
+ * What a member may say of a visit now, in the order it is offered, by mark_visit's own rules (00397): kept or missed
+ * once it has begun, cancelled until it ends; a kept visit that has begun may be corrected to missed and a missed one to
+ * kept; nothing
+ * of a cancelled one, nor of an event the record has not kept yet.
+ */
+declare function visitActsOf(visit: VisitMark | null, startMs: number, endMs: number, nowMs: number): VisitWord[];
 /** "9 AM", "2:30 PM". */
 declare function clockLabel(t: number): string;
 /**
@@ -16676,7 +20393,6 @@ declare function booksWithName(withWhat: string): string | null;
 /** The row and its fold, in the words the product says them. */
 declare const BOOKING_TOOL_WORDS: {
     readonly label: "Booking tool";
-    readonly hint: "What you book with. It fills your calendar and tells the receptionist what is taken.";
     readonly empty: "Not set up";
     readonly placeholder: "What do you book with?";
     readonly link: {
@@ -16759,6 +20475,8 @@ interface CalendarBlockVM {
     price: string | null;
     start: string;
     end: string;
+    /** The record's row for the visit and how it stands (CalendarItemDto.visit), or null: what the panel's acts are said on. */
+    visit: VisitMark | null;
     /** Blocks that overlap in time sit side by side: this block's lane, and how many lanes its cluster needs. */
     lane: number;
     lanes: number;
@@ -16983,12 +20701,21 @@ declare function frameOf(key: string, todayKey: string): {
  */
 declare function violatesNoPrices(text: string): boolean;
 /**
- * Each price a text names, as the figure it states: "45" of "$45" and of "45 dollars", "20" of "20% off", and the
- * words themselves where a price is written with none ("half price", "forty-five dollars"). So two texts can be asked
- * whether one names a price the other does not (a draft and what its author gave it: the dashboard's person-draft.ts),
+ * Each price a text names, as the figure it states: "45" of "$45", of "45 dollars" and of "forty-five dollars";
+ * "1200" of "$1,200"; "20%" of "20% off", so a share never reads as a price of the same number; and the words
+ * themselves where a price is written with no number to read ("half price"); and the top of a range ("60" of "$45-60",
+ * "$45 to 60", "between $45 and 60"), which a pattern stops short of. So two texts can be asked whether one
+ * names a price the other does not (priceBreach; a draft and what its author gave it, the dashboard's person-draft.ts),
  * where violatesNoPrices can only say whether a price is named at all.
  */
 declare function priceFigures(text: string): string[];
+/**
+ * Whether a text names a price it may not (decision 0051). With no allowance, any price at all (violatesNoPrices: the
+ * strict rule, and every workspace's while "Never quote a price" is on). With one (price-allowance.ts: the amounts the
+ * owner wrote, while the switch is off), any figure outside it: a price it worked out, a share, or words it cannot
+ * read as a number. ONE predicate for a chat reply (layerTwo), a call (spokenBreach), a steer and the eval judge.
+ */
+declare function priceBreach(text: string, allowed: ReadonlySet<string> | null): boolean;
 /**
  * Whether a reply names money the receptionist may not decide: a refund, a
  * discount, a deposit or a payment term, in English or Spanish. Layer two
@@ -17052,8 +20779,17 @@ interface SpokenTurn {
  * "injected" — so a check that scanned every turn would find the rule it had
  * just quoted, correct the call again, and keep doing it for the length of
  * the call.
+ *
+ * The greeting is not read: the agent's first turn, before the caller has said a word, is the owner's own line spoken as
+ * written (contracts voice/greeting-owner.ts, decision 0051), never the receptionist's choice, so a price in it is
+ * theirs to say whatever the switch is ("Callers hear this one anyway"). Exempting the turn, never its figures, keeps
+ * "Never quote a price" whole for everything the receptionist says after it.
+ *
+ * `allowed` is the workspace's allowance (price-allowance.ts priceAllowance): null for the strict rule, any price at
+ * all; otherwise the amounts the owner wrote, which may be said (priceBreach, the one predicate). Required, so every
+ * caller says which: a defaulted one would let a caller forget, and nothing would fail.
  */
-declare function spokenBreach(turns: ReadonlyArray<SpokenTurn> | null | undefined): SpokenBreach | null;
+declare function spokenBreach(turns: ReadonlyArray<SpokenTurn> | null | undefined, allowed: ReadonlySet<string> | null): SpokenBreach | null;
 /** What the owner reads in the Inbox. Names the words, and what they cost. */
 declare function spokenBreachDetails(b: SpokenBreach): string;
 interface SpokenGuardVerdict {
@@ -17079,6 +20815,8 @@ declare function guardSpokenTurns(o: {
     /** The call is still in progress. */
     live: boolean;
     alreadyCorrected: boolean;
+    /** The phone allowance, or null for the strict rule (spokenBreach). */
+    allowed: ReadonlySet<string> | null;
 }): SpokenGuardVerdict;
 /** The WhatsApp 24h customer-service window (Blueprint §4/§6). Pure — imported
  *  by BOTH the reply endpoint (enforcement) and the composer (honest display). */
@@ -17378,6 +21116,7 @@ declare const BrainConfigSchema: z$1.ZodObject<{
         escalate_when: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
         tone: z$1.ZodOptional<z$1.ZodString>;
         handoff_number: z$1.ZodOptional<z$1.ZodString>;
+        phone_greeting: z$1.ZodCatch<z$1.ZodOptional<z$1.ZodString>>;
         website: z$1.ZodOptional<z$1.ZodString>;
         notes: z$1.ZodOptional<z$1.ZodArray<z$1.ZodObject<{
             title: z$1.ZodString;
@@ -17515,7 +21254,9 @@ base: {
     phone_display?: string | null;
     booking_link: string | null;
     whatsapp_line: string | null;
-}, profile: BusinessProfile, channel?: "whatsapp" | "voice", 
+}, profile: BusinessProfile, 
+/** Where it answers: a text is a chat, as WhatsApp is, and is told it is answering texts. */
+channel?: "whatsapp" | "sms" | "voice", 
 /** IANA zone from `tenants.timezone`, so stated hours are unambiguous. */
 tz?: string | null, 
 /**
@@ -17529,7 +21270,14 @@ now?: Date,
 /** The workspace's Autonomy rows (class → mode): Booking and FAQ under "ask" become rules here. */
 policy?: Record<string, {
     mode: string;
-}> | null): string;
+}> | null, 
+/** Who reads what it writes: a customer, or a person's draft, which says nothing of being an assistant. */
+audience?: PromptAudience): string;
+/**
+ * Who reads what the receptionist writes: a customer, from the receptionist itself, or a draft a person sends as
+ * themselves (the reach-out reply draft), which says nothing of being an assistant.
+ */
+type PromptAudience = "customer" | "draft";
 
 /** The channel of the conversation a note about a person is read in. */
 type LeadChannel = "whatsapp" | "sms" | "voice";
@@ -17572,6 +21320,35 @@ declare function offersAfterStart(p: {
     marketingConsent?: string | null;
     marketingConsentSource?: string | null;
 }, channel: LeadChannel | undefined): string | null;
+
+/** One amount the receptionist may say, and where the owner wrote it, for the Business tab's list. */
+interface AllowedPrice {
+    figure: string;
+    /** "Haircut" for a service's price box, "Notes", "Booking notes" or "Greeting" for the rest. */
+    from: string;
+}
+/**
+ * Every amount the receptionist may say, with where it came from, or null when it may say none: the switch on (the
+ * default), or a record whose details compose no prompt, where the switches change nothing (rule-strengths.ts).
+ */
+declare function allowedPrices(brain: Pick<BrainConfig, "profile" | "business_name"> | null | undefined): AllowedPrice[] | null;
+/** The allowance as the checks read it: the set of figures, or null for the strict rule (priceBreach). */
+declare function priceAllowance(brain: Pick<BrainConfig, "profile" | "business_name"> | null | undefined): ReadonlySet<string> | null;
+
+/** The fact, word for word: the rule names it, so the two cannot drift. */
+declare const CONVERSATION_UNDER_WAY = "This conversation is already under way.";
+/** A conversation quiet for longer than this is a new one, and the receptionist introduces itself again. */
+declare const CONVERSATION_GAP_MS = 86400000;
+/**
+ * The fact for the lead note, or nothing: said on a text conversation whose newest message before the one being
+ * answered is less than a day old. Never on a call, which the greeting opens.
+ */
+declare function disclosureFacts(p: {
+    /** They have said anything at all before (LeadContext.returning). */
+    returning: boolean;
+    /** The newest message before the one being answered, as describeLead reads it (LeadContext.lastSeenAt). */
+    lastTurnAt: string | null | undefined;
+}, channel: LeadChannel | undefined, now: Date): string[];
 
 /**
  * Which instructions a workspace's receptionist is given: a prompt composed from its profile when the profile
@@ -17626,7 +21403,7 @@ declare function instructionsDraft(brain: {
  * so an owner reading the page twice reads the same words. `hasProfile`, below, is what decides
  * whether either is said.
  */
-declare const NO_FIELDS_COMPOSED_WORDS = "None of the details on this page are composed into what it reads yet.";
+declare const NO_FIELDS_COMPOSED_WORDS = "Your details aren't in what it reads yet.";
 /** True when a profile carries anything worth composing from. */
 declare function hasProfile(p: BusinessProfile | undefined | null): boolean;
 /**
@@ -17645,7 +21422,9 @@ declare function hasProfile(p: BusinessProfile | undefined | null): boolean;
  * takes: money and someone else's instructions are never the receptionist's,
  * in any workspace's words (the scorecard, 29 September 2026).
  */
-declare function resolveSystemPrompt(brain: BrainConfig, channel?: "whatsapp" | "voice", 
+declare function resolveSystemPrompt(brain: BrainConfig, 
+/** Where it answers. A text is a chat, as WhatsApp is, and its prompt says it answers texts (compose.ts). */
+wire?: "whatsapp" | "sms" | "voice", 
 /** IANA zone from `tenants.timezone`. Labels the hours; never a second copy. */
 tz?: string | null, 
 /** Only used to drop closures, and notes with a last day, that have already passed. */
@@ -17665,7 +21444,12 @@ policy?: Record<string, {
  * it actually answers instead of nothing, and the disagreement is nameable
  * everywhere else because it is computed here.
  */
-known?: KnownFacts | null): string;
+known?: KnownFacts | null, 
+/**
+ * Who reads what it writes: a customer (every reply, a steer, a call, the preview) or a draft a person sends as
+ * themselves (the reach-out reply draft), which is never told to say it is an assistant.
+ */
+audience?: PromptAudience): string;
 /**
  * The owner's own words, as the receptionist is given them.
  *
@@ -17776,6 +21560,24 @@ declare function fallbackMessages(brain: BrainConfig, known?: KnownFacts | null)
 declare function unknownDetails(text: string): string[];
 
 /**
+ * What the Business tab says, as view models.
+ *
+ * Named apart from `business-page.ts` (the public /b/<slug> page) and
+ * `business-record.ts` (the carrier record). This one is the operator's own tab.
+ *
+ * Every sentence with a number or a judgement in it is composed here rather
+ * than in the page, for the reason Today and Reports already hold to: a
+ * sentence written in JSX cannot be tested, and the same sentence written
+ * twice is one that will be edited once.
+ *
+ * The prompt view, which cuts what the receptionist reads into the blocks that
+ * wrote it, is `prompt-blocks.ts`.
+ *
+ * This module holds the rules fold: how far each rule goes, what the row says at rest, and the one sentence for
+ * a record whose details compose nothing. The other folds' words are its neighbours in this folder.
+ */
+
+/**
  * What each channel is called, wherever this tab names one.
  *
  * The abilities card draws chat and phone beside every ability, lit for a channel that has it and dim
@@ -17833,6 +21635,11 @@ declare const VISION_STRENGTH: RuleStrengthVM;
  * The short name the row at rest says each rule by (the canvas's Record board). Not the switch's label, which is an
  * instruction to the receptionist ("Never quote or confirm a price"); this is what the receptionist does.
  */
+/**
+ * The rules that are not switches: said to every prompt, composed or stored, whatever a row stores (compose.ts
+ * standingRules). The fold draws them without a switch and names them at rest always (decision 0051).
+ */
+declare const ALWAYS_TOLD: ReadonlySet<GuardrailKey>;
 declare const RULES_AT_REST_WORDS: Record<GuardrailKey, string>;
 interface RulesKeptInputs {
     /** The four, as the fold opens them: `guardrailsInForce` over the stored record, never the raw guardrails. */
@@ -17863,15 +21670,38 @@ interface RulesKeptInputs {
  * to say it had gone.
  */
 declare function rulesKept(i: RulesKeptInputs): string[];
+/**
+ * What the rules fold says, once, on a record whose details compose nothing (config.ts hasProfile false). The resolver
+ * answers such a record with its stored prompt as it stands, and adds after it only the Autonomy tab's rules
+ * (resolveSystemPrompt's first branch), so none of the four switches changes a word it is TOLD, and there is no rules
+ * block for the fold to show. It says nothing of what the receptionist does: the price detector reads every reply
+ * whatever the profile holds (whatsapp/steps.ts layerTwo, and spokenBreach on a call), and nothing in the product can
+ * confirm a booking anyway. It first said "these four rules do not reach it", which Phase 4 would have drawn beside the
+ * price rule's "Checked, not just told".
+ *
+ * Its opening sentence is NO_FIELDS_COMPOSED_WORDS (config.ts), which the prompt view's note over the same record's
+ * stored prompt is also built from (prompt-blocks.ts): the two are on one page, so they are one sentence rather than
+ * two that happen to agree (the plan's M-2).
+ *
+ * Built inside a call marked pure, as STRENGTHS is: a template literal with a substitution in it is an
+ * expression the bundler must keep at the top level, and this sentence belongs to one tab of the dashboard.
+ */
 declare const RULES_WITHOUT_FIELDS_WORDS: string;
 /**
- * RULES_WITHOUT_FIELDS_WORDS for the record it is said of. A receptionist with no booking link is told what to do
- * instead, first among the rules after its stored prompt (config.ts resolveSystemPrompt), so the sentence names that
- * rule too, by the resolver's own test (offersBookingLink).
+ * RULES_WITHOUT_FIELDS_WORDS, as the rules' sheet asks for it. It once named, for a receptionist with no booking link, the
+ * rule it is told about that first; one line now says only what an owner can change, which is the details (Ruben, 10 Oct
+ * 2026: the sheets "too wordy, too explanatory").
  */
-declare function rulesWithoutFieldsWords(brain: {
-    booking_link?: string | null;
-} | null | undefined): string;
+declare function rulesWithoutFieldsWords(): string;
+/**
+ * What the rules fold says under "Never quote a price" while it is off (decision 0051): the amounts the receptionist may
+ * say and where the owner wrote each, so the switch's reach is read, not guessed; or that there are none yet. Null on a
+ * record whose details compose nothing, where the fold already says so (rulesWithoutFieldsWords).
+ */
+declare function pricesWrittenWords(list: readonly {
+    figure: string;
+    from: string;
+}[] | null): string | null;
 
 /**
  * What the booking link's row says with nothing in it, and the hint under its box, by how the workspace's customers buy
@@ -17977,7 +21807,7 @@ interface ServicesWordsVM {
     count: number;
     /** "33"; null with none, and the row says it has none. The key says what it counts. */
     line: string | null;
-    /** The first three in the stored order, which is the order the receptionist reads them in: each name, and "180 min" where it has a duration ("180m" a screen reader may say as metres). */
+    /** The first three in the stored order, which is the order the receptionist reads them in: each name, and how long it takes where it has a duration ("3 h", serviceTakesWords). */
     chips: {
         name: string;
         takes: string | null;
@@ -17985,6 +21815,24 @@ interface ServicesWordsVM {
     /** "+30" past the three; null when every one is a chip. */
     more: string | null;
 }
+/**
+ * How long something takes, in an owner's words: a service ("3 h"), or a shift of the hours from its opening to its
+ * closing ("8 h 30 min"). "45 min" under an hour, then hours and what is left (never "180m", which a screen reader may
+ * say as metres). Minutes as typed are read too ("90"), since the sheet's box holds a string while it is typed in;
+ * anything that is not a positive number of minutes says nothing.
+ */
+declare function lengthWords(minutes: number | string | null | undefined): string | null;
+/** What a service's price says when none is written: the receptionist quotes it at a consultation. */
+declare const SERVICE_PRICE_EMPTY = "At consult";
+/**
+ * A service's one line in the services sheet on a phone, under its name: how long it takes, its price or that it is
+ * quoted at a consultation, and that it is booked as a consultation first where the booking rules say so: "3 h · At
+ * consult", "45 min · $40 · Consult first". The row opens onto its boxes when pressed.
+ */
+declare function serviceLineWords(s: {
+    duration_min?: number | string | null;
+    price_note?: string | null;
+}, consultFirst: boolean): string;
 /**
  * The services row at rest: how many are on record, and the first few by name with how long each takes.
  *
@@ -18015,8 +21863,6 @@ declare function serviceUndoName(name: string | null | undefined): string;
  * with no rows says it has none. With no search the page says nothing: every row is in sight, which the list shows.
  */
 declare function servicesFoundWords(shown: number, total: number): string;
-/** The sheet's Save, named for what it saves: "Save 33 services". */
-declare function servicesSaveWords(n: number): string;
 
 /**
  * How much of everything the receptionist reads one block of its prompt is: "a quarter of everything it reads". `chars`
@@ -18055,12 +21901,12 @@ declare const PROMPT_READERS: {
  */
 declare const PROMPT_NOW: {
     readonly label: {
-        readonly whatsapp: "Sent alongside it, rebuilt for every message";
-        readonly voice: "Sent alongside it, rebuilt for every call";
+        readonly whatsapp: "Today's date and time";
+        readonly voice: "Today's date and time";
     };
     readonly why: {
-        readonly whatsapp: "Shown separately because it is sent separately — folding a value that changes every minute into the block above would throw away the prompt cache on every message.";
-        readonly voice: "Shown separately because it is sent separately — folding a value that changes every minute into the block above would throw away the prompt cache on every call.";
+        readonly whatsapp: "Added to every message";
+        readonly voice: "Added to every call";
     };
 };
 
@@ -18132,8 +21978,8 @@ declare const BOOKING_RULE_HINTS: Readonly<Record<"lead_hours" | "slot_min" | "b
  * profile and the next one's; these are the words.
  */
 declare const PROFILE_CROSSING_WORDS: {
-    readonly stops: "Saved like this, the receptionist stops being given the details on this page and answers from its stored instructions.";
-    readonly starts: "Saved like this, the receptionist starts being given the details on this page, and the instructions it follows today are carried in beneath them.";
+    readonly stops: "Saved like this, it stops being given your details and answers from its stored instructions.";
+    readonly starts: "Saved like this, it starts being given your details, with today's instructions kept beneath them.";
 };
 type ProfileCrossing = keyof typeof PROFILE_CROSSING_WORDS;
 /** What `profileRefusal` will say a sentence for: the caps a fold refuses AT, and the one range a language sits in. */
@@ -18194,7 +22040,7 @@ declare function noteEndedWords(until: unknown, tz: string | null | undefined, n
 interface InstructionsWordsVM {
     /** Their opening, quoted and cut at a word; null with nothing written. */
     opening: string | null;
-    /** "339 of 20,000 characters", for the foot of the box that edits them; null with nothing written. */
+    /** "18,400 of 20,000 characters", for the foot of the box that edits them, once nine tenths are used; else null. */
     limit: string | null;
 }
 /**
@@ -18242,15 +22088,35 @@ declare function handoffChatWords(i: {
     hasEscalateWhen: boolean;
     pauseHours: unknown;
 }): string;
+/** One of the hand-off's outcomes as a row of its sheet: what happens, and the condition or the detail under it. */
+interface HandoffRowVM {
+    name: string;
+    sub: string;
+}
 /**
- * The hand-off on a call, under the hand-off row's reasons: what a transfer does, and that the reasons count there too.
- * They do: the composer writes them under the call's hand-off heading as it writes them under the chat's ("and
- * whenever:"). The canvas said the phone agent's own transfer kept the reasons from reaching it, which was not true.
+ * What a WhatsApp hand-off does, as one row of the hand-off's sheet (handoffChatWords says it as a sentence, for the
+ * abilities card): it stops, the thread turns Needs you, the alerts go to whoever the Notifications tab sets, and after
+ * the Autonomy reply row's pause it answers the next message itself. `pauseHours` is that row's stored pause_hours.
  */
-declare function handoffCallWords(i: {
-    hasHandoffNumber: boolean;
-    hasEscalateWhen: boolean;
-}): string;
+declare function handoffChatRow(pauseHours: unknown): HandoffRowVM;
+/** What a call does, as one row of the hand-off's sheet, with its door to the number's own row. */
+interface HandoffCallRowVM extends HandoffRowVM {
+    /** The door's word, and its whole name for a screen reader. */
+    act: string;
+    actName: string;
+}
+/**
+ * What a call does with a caller who needs a person, as one row of the hand-off's sheet (transferWords as a sentence):
+ * during opening hours it rings the number and stays on until someone picks up, else it takes a message; with no number,
+ * a message always. The owner's reasons reach a call too, under the call's own hand-off heading ("and whenever:").
+ * `transfer` is the number as the page shows it.
+ */
+declare function handoffCallRow(transfer: string | null | undefined): HandoffCallRowVM;
+/**
+ * Who is handed over without a reason of the owner's: the composer's own triggers on both channels (a person asked
+ * for, someone upset, a question its instructions do not cover). The tip beside the reasons' box.
+ */
+declare const HANDOFF_ANYWAY = "Anyone who asks for a person, or needs help it can't give, is handed over too.";
 /** The hand-off row at rest, and what a call does, which its fold says under Phone. */
 interface HandoffWordsVM {
     /** One line: "For 2 reasons · on a call, transfers to +1 (212) 555-0142"; with no reasons, when it hands over anyway. */
@@ -18435,53 +22301,25 @@ declare const NO_LINK_DETAILS = "their name, what they need, and where and when"
 declare function offersBookingLink(brain: {
     booking_link?: string | null;
 } | null | undefined): boolean;
+/**
+ * Whether the receptionist may offer to hand over the booking link where it is speaking. In chat the link is sent in
+ * the thread, so a link is enough. A call can only send it by WhatsApp (retell-fn delivers it on the WhatsApp channel),
+ * so it needs a WhatsApp line that answers too (facts.ts whatsapp_line); whether an approved booking-link message exists
+ * is asked when it is sent, and retell-fn says so when there is none. Until 11 Oct 2026 a call offered the link by
+ * WhatsApp on a workspace with no WhatsApp, and its record then said a link went out. One answer for every place a
+ * receptionist is told it may offer the link: the prompt (compose.ts), and on a call the openings, a caller's visits,
+ * the availability tool and a correction.
+ */
+declare function offersLinkOn(on: "call" | "chat", brain: {
+    booking_link?: string | null;
+} | null | undefined, whatsappLine: string | null): boolean;
+/**
+ * What a call says to do when there is a booking link and no WhatsApp line to send it by (offersLinkOn): the details
+ * for the team, as a business with no link takes them, and the website where the caller would rather book themselves.
+ */
+declare const NO_WAY_TO_SEND_LINK = "Booking: the booking link can only be sent by WhatsApp, and this business has no WhatsApp line, so never use send_booking_link and never promise a link or a message. When the caller wants to book, change or cancel a booking, take their name, what they need, and where and when, and say the team will follow up. If they would rather book themselves and a website is listed above, they can book there.";
 /** What follows "a price is not mine to confirm", in the prompt's rule and a call's correction alike. */
 declare function priceNextStep(hasBookingLink: boolean): string;
-
-/**
- * The receptionist's answer as the model writes it, and how it is read (parseBrainOutput), apart from brain.ts's
- * words. zod is not built into the browser's contracts (decision 0024, the browser's entry): a page that says these
- * words loads none of it.
- */
-
-/** The read side: tolerant of what a model might still do, strict about shape. */
-declare const BrainOutputSchema: z$1.ZodObject<{
-    reply: z$1.ZodString;
-    intent: z$1.ZodCatch<z$1.ZodEnum<{
-        other: "other";
-        booking: "booking";
-        money: "money";
-        complaint: "complaint";
-        services: "services";
-        hours: "hours";
-        location: "location";
-        pricing: "pricing";
-        smalltalk: "smalltalk";
-    }>>;
-    escalate: z$1.ZodCatch<z$1.ZodBoolean>;
-    reason: z$1.ZodPipe<z$1.ZodCatch<z$1.ZodString>, z$1.ZodTransform<string, string>>;
-    confidence: z$1.ZodPipe<z$1.ZodCatch<z$1.ZodNumber>, z$1.ZodTransform<number, number>>;
-    facts_used: z$1.ZodPipe<z$1.ZodCatch<z$1.ZodArray<z$1.ZodString>>, z$1.ZodTransform<string[], string[]>>;
-    language: z$1.ZodCatch<z$1.ZodEnum<{
-        en: "en";
-        es: "es";
-        other: "other";
-    }>>;
-}, z$1.core.$strip>;
-type BrainOutput = z$1.infer<typeof BrainOutputSchema>;
-/**
- * Parse what the model returned. With constrained decoding the JSON is well
- * formed unless the answer was cut off by max_tokens; a truncated document
- * fails here and the caller falls back to the holding reply, as it always
- * did for a capped answer.
- */
-declare function parseBrainOutput(raw: string): {
-    ok: true;
-    value: BrainOutput;
-} | {
-    ok: false;
-    error: string;
-};
 
 declare const BRAIN_INTENTS: readonly ["booking", "pricing", "money", "hours", "services", "location", "complaint", "smalltalk", "other"];
 type BrainIntent = (typeof BRAIN_INTENTS)[number];
@@ -18553,6 +22391,11 @@ interface BrainMeta {
     prompt_hash?: string;
     /** tenant_config.version the prompt was composed from; null when it could not be read. */
     config_version?: number | null;
+    /**
+     * The turn it was written in, as the model read it (model_turns.id; decision 0039): present once the turn was kept,
+     * so it always opens one until the turn's thirty days are up.
+     */
+    turn_id?: string;
 }
 /** What an answer was written from: its prompt's hash and the settings' version. */
 interface BrainStamp {
@@ -19393,6 +23236,15 @@ declare function splitQuotedReply(body: string): {
  */
 declare function messageStatusLabel(status: string | undefined, channel?: string | null): string | undefined;
 /**
+ * The provider's error code on a failed row, wherever the writer put it: a receipt's `errors` list (WhatsApp), a
+ * receipt's `code` (a text's status callback), or the answer to the send itself, as `body`: Graph's JSON, cut at two
+ * hundred characters so read for its `"code"` rather than parsed, or "Twilio 30034".
+ *
+ * Said again once in SQL, `public.provider_code_of` (00405), which the Campaigns ledger groups why sends failed by;
+ * reports/campaigns/provider-code.db.test.mjs holds the two to the same answer for every shape of error.
+ */
+declare function providerCodeOf(error: Record<string, unknown>): number | null;
+/**
  * ONE sentence on why a message did not arrive, from what its row's `error` says (the provider's code and words, kept
  * by the receipt or the send that failed), for the owner and never for a customer: the thread draws it under "Didn't
  * send", and the hold a late failure raises says it. A code whose meaning is documented (above) is said in plain words
@@ -19400,6 +23252,22 @@ declare function messageStatusLabel(status: string | undefined, channel?: string
  * deliver it (error 131000)."). Null when the row says nothing it can be read by, which is the honest answer.
  */
 declare function sendFailureWords(error: unknown, channel: string | null | undefined): string | null;
+/**
+ * The sentence `sendFailureWords` says for a failure the Campaigns ledger keeps as a closed pair instead of the row's
+ * `error` (00405, `failed_sends.by_code`: no body, no number, no address ever leaves the database). The pair is the
+ * provider's `code` (a text's or a WhatsApp message's; an email carries none, its word decides) or, with no code, one `kind`
+ * of a closed set, read as the channel reads it:
+ *   - an email's `provider`: bounced, failed, suppressed;
+ *   - a text's `carrier`: undelivered, failed, canceled;
+ *   - a settled row's `reason`, on any wire: never_delivered, run_interrupted, orphaned;
+ *   - `outcome_unknown`, on any wire: the provider never answered (`outcome: "unknown"`), so it may have gone.
+ * `unknown`, a word the channel does not have and a null kind say null. The Inbox's thread and Reports therefore say a
+ * failure alike, from the one set of tables.
+ */
+declare function failureWordsOf(channel: string | null | undefined, key: {
+    code: number | null;
+    kind: string | null;
+}): string | null;
 /** Did the customer actually receive these words? */
 declare function reachedCustomer(status: string | undefined): boolean;
 /**
@@ -20465,23 +24333,23 @@ declare const DEAL_SHEET_WORDS: {
     };
     readonly link: {
         readonly label: "Proposal link";
-        readonly hint: "A Google Doc, a PDF or any page you would send them.";
+        readonly hint: "A doc, a PDF or any page.";
         readonly placeholder: "docs.example.com/proposal";
     };
     readonly value: {
         readonly label: "Value";
-        readonly hint: "Optional. Only you see it: the receptionist never says a figure.";
+        readonly hint: "Only you see it.";
         readonly placeholder: "2,500";
         readonly per: "How often";
     };
     readonly agreed: {
         readonly label: "Agreed amount";
-        readonly hint: "Optional.";
+        readonly hint: "Only you see it.";
         readonly fromProposal: "The proposal's value, unless they agreed another.";
     };
     readonly validUntil: {
         readonly label: "Valid until";
-        readonly hint: "Optional.";
+        readonly hint: null;
     };
     readonly when: {
         readonly won: "When they said yes";
@@ -20493,7 +24361,7 @@ declare const DEAL_SHEET_WORDS: {
     };
     readonly note: {
         readonly label: "Note";
-        readonly hint: "Optional. Only your team sees it.";
+        readonly hint: "Only your team sees it.";
         readonly placeholder: "In their words, or yours";
     };
     readonly how: {
@@ -20507,12 +24375,12 @@ declare const DEAL_SHEET_WORDS: {
     };
     readonly message: {
         readonly label: "Message";
-        readonly hint: "Sent as written. It has to carry the link.";
+        readonly hint: "It has to carry the link.";
     };
     readonly discard: {
-        readonly question: "Discard your changes?";
-        readonly detail: "Nothing here has been recorded.";
-        readonly yes: "Yes, discard";
+        readonly question: "Discard changes?";
+        readonly detail: null;
+        readonly yes: "Discard";
         readonly no: "Keep editing";
     };
     readonly reading: "Reading…";
@@ -20597,7 +24465,7 @@ interface DealSheetVM {
     } | null;
     validUntil: {
         label: string;
-        hint: string;
+        hint: string | null;
     } | null;
     when: {
         label: string;
@@ -20865,6 +24733,16 @@ interface PipelineLinePart {
      */
     joins: boolean;
 }
+/**
+ * One of a phone's filters over the Pipeline (Ruben, 10 Oct 2026): a count, the view it opens, and the tone of its dot
+ * -- proposals out, what waits on the owner, clients. What they come to is `money`, said once beside them.
+ */
+interface PipelineFilter {
+    view: PipelineView;
+    count: number;
+    words: string;
+    tone: "info" | "warn" | "ok";
+}
 interface PipelineVM<T extends PipelineSource = PersonRowVM> {
     /**
      * The line over the table, in the parts a page sets dots between -- "3 proposals out", "$4,250", "1 waiting over a
@@ -20874,6 +24752,10 @@ interface PipelineVM<T extends PipelineSource = PersonRowVM> {
     summary: string[];
     /** The same parts, with the view each opens. */
     line: PipelineLinePart[];
+    /** A phone's line of filters: each count with the view it opens; only those that have something. */
+    filters: PipelineFilter[];
+    /** What the proposals out and the clients come to, once: "$2,500 proposed · $120 a month from clients"; null with neither. */
+    money: string | null;
     /** The groups with someone in them, in order. */
     groups: PipelineGroupVM<T>[];
     /** Nobody in any group: no deal, and no consultation to follow. */
@@ -20986,8 +24868,8 @@ declare const PIPELINE_WORDS: {
     readonly waitingLine: (n: number, pace: DealPaceVM | null) => string;
     /** The Pipeline's own rail: its groups, what waits on the owner, and each service. */
     readonly rail: {
-        /** A phone's sheet of the rail's rows, behind the bar's list button. */
-        readonly sheet: "Show";
+        /** A phone's sheet of the rail's rows, behind the bar's list button: the views, as People's and Leads' say Lists. */
+        readonly sheet: "Views";
         readonly deals: "Deals";
         readonly all: "All deals";
         readonly waitingOnYou: "Waiting on you";
@@ -21467,6 +25349,35 @@ declare function pipelineMove(from: PipelineGroupKey, to: PipelineGroupKey, row:
  * the other way); Value, what each deal comes to over a year; Person, by name. The groups themselves never move.
  */
 declare const PIPELINE_SORTS: readonly ["stage", "value", "name", "next"];
+/** The sorts a phone offers, a desk's headings' own (pipelineSorted): each a sort and the way it runs first. */
+declare const PIPELINE_PHONE_SORTS: readonly {
+    by: (typeof PIPELINE_SORTS)[number];
+    dir: "asc" | "desc";
+    label: string;
+}[];
+/**
+ * The deals shown, as a file (a phone's Export; Ruben, 10 Oct 2026): who, how to reach them, and the deal as its row
+ * says it -- where it stands, the service, what it comes to, its standing, how long, the next step. Every cell is
+ * csvCell's, the one rule every file the product writes is spelled by.
+ */
+declare function pipelineCsv(rows: readonly {
+    group: PipelineGroupKey;
+    name: string;
+    person: {
+        phone?: string | null;
+        email?: string | null;
+    };
+    service: string | null;
+    value: string | null;
+    inStage: string;
+    chip: {
+        words: string;
+    } | null;
+    next: {
+        words: string;
+        when: string;
+    } | null;
+}[]): string;
 type PipelineSort = (typeof PIPELINE_SORTS)[number];
 /**
  * The same Pipeline with each group's rows in the order the member picked. A tie keeps the Pipeline's own order, and a
@@ -21628,10 +25539,14 @@ declare const LeadSearchPlanSchema: z$1.ZodType<LeadSearchPlan>;
  * The plural the sentence calls them, with the area taken out of it (§8.3).
  * `name` is the model's own words, and a model asked for a plural writes the
  * place into it ("Hair salons in Brooklyn"), which the sentence then says
- * twice. A trailing place clause whose words are the area's is dropped; a
- * clause about something else ("pharmacies inside supermarkets") is kept. With
- * nothing left, the terms say who is sought, since those are the words the
- * source is actually searched with.
+ * twice. A trailing place clause is dropped where its words are the area's, or
+ * where it names a place at all: a round further out keeps the first ask's name
+ * ("in Queens, NY") while its area is another ("near 10005"), and the sentence
+ * said both (Ruben, 10 Oct 2026). A clause about something else ("pharmacies
+ * inside supermarkets") is kept. A clause a criterion of the plan says again
+ * ("with a rating of 4.2 or lower") comes off too, since the criterion is its
+ * own word in the sentence. With nothing left, the terms say who is sought,
+ * since those are the words the source is actually searched with.
  */
 declare function planWho(plan: LeadSearchPlan): string;
 /**
@@ -21894,6 +25809,13 @@ declare function isSiteRoot(url: string | null | undefined): boolean;
 declare function siteHost(url: string | null | undefined): string | null;
 /** "Texas" or "TX" → "TX"; null for anything that is not a US state or DC. */
 declare function stateCode(raw: string | null | undefined): string | null;
+/**
+ * A kind of business as one key, one of them: "Personal trainers", "personal_trainer" and "personal-trainers" are all
+ * "personal_trainer". A plan keeps its kind by this key (planLeadSearch), a round that ends adds to its kind's counts
+ * by it (lead_niche_priors, 00398), and the ideas group a workspace's searches by it, so a model that writes the plural
+ * one day and the singular the next names one kind.
+ */
+declare function leadKindKey(words: string): string;
 
 /**
  * What the Leads routes answer: the check, the row, a search and its rounds, the counts and the month. Moved whole from leads.ts (Reach out Part 2.5), which
@@ -22068,17 +25990,33 @@ interface LeadMonthDto {
     left: number;
     renewsOn: string;
 }
+/**
+ * One idea for a new search (00398): a ready plan written from what the workspace's searches found, pressed to open the
+ * plan sheet as it is. An idea kept from before plans were written has none, and opens Ask with its words.
+ */
+interface LeadIdeaDto {
+    /** What it finds and where, as the idea says it: "Independent plumbers near 11105". */
+    words: string;
+    /** Why this one, in a line: the workspace's own numbers where its searches speak to it. */
+    who_for: string;
+    category_key: string;
+    /** How reachable the kind has been, platform-wide (leadReachLine). */
+    reach: string | null;
+    /** The platform-wide counts behind `reach`, for the plan sheet's likely line; null for a kind not searched enough. */
+    prior?: LeadNichePrior | null;
+    /** The search, ready to approve. */
+    plan?: LeadSearchPlan | null;
+    /** The same search as Ask is asked for it: Ask's Leads chip. */
+    ask?: string;
+}
 interface LeadSuggestionsDto {
     business_line: string;
     by_owner: boolean;
     made_at: string;
-    items: {
-        words: string;
-        who_for: string;
-        category_key: string;
-        reach: string | null;
-    }[];
+    items: LeadIdeaDto[];
     note?: string;
+    /** Another read is writing them this moment: the page asks again shortly. */
+    pending?: boolean;
 }
 /** What the card knows beyond the plan: the reads release A's doors answer, folded into one unit (§0.2). `planFacts` in `server/leads.ts` (4.4) builds exactly this. */
 interface LeadPlanFacts {
@@ -22358,11 +26296,11 @@ declare const LeadStageInputSchema: z$1.ZodDiscriminatedUnion<[z$1.ZodObject<{
 }, z$1.core.$strip>, z$1.ZodObject<{
     kind: z$1.ZodLiteral<"not_a_fit">;
     why: z$1.ZodEnum<{
-        customer: "customer";
         other: "other";
         chain: "chain";
         wrong_kind: "wrong_kind";
         too_far: "too_far";
+        customer: "customer";
     }>;
 }, z$1.core.$strip>, z$1.ZodObject<{
     kind: z$1.ZodLiteral<"said_no">;
@@ -22515,14 +26453,6 @@ declare const LeadDraftAnswerSchema: z$1.ZodObject<{
     subject: z$1.ZodString;
     body: z$1.ZodString;
 }, z$1.core.$strip>;
-declare const LeadSuggestAnswerSchema: z$1.ZodObject<{
-    line: z$1.ZodString;
-    items: z$1.ZodArray<z$1.ZodObject<{
-        words: z$1.ZodString;
-        who_for: z$1.ZodString;
-        category_key: z$1.ZodString;
-    }, z$1.core.$strip>>;
-}, z$1.core.$strip>;
 /**
  * The ask as a plan, or one of the three refusals in words (§8.8): outside the
  * US, people rather than businesses, and an ask no source card fits, which is
@@ -22602,35 +26532,6 @@ declare const LEAD_DRAFT_JSON_SCHEMA: {
         };
     };
 };
-declare const LEAD_SUGGEST_JSON_SCHEMA: {
-    readonly type: "object";
-    readonly additionalProperties: false;
-    readonly required: readonly ["line", "items"];
-    readonly properties: {
-        readonly line: {
-            readonly type: "string";
-        };
-        readonly items: {
-            readonly type: "array";
-            readonly items: {
-                readonly type: "object";
-                readonly additionalProperties: false;
-                readonly required: readonly ["words", "who_for", "category_key"];
-                readonly properties: {
-                    readonly words: {
-                        readonly type: "string";
-                    };
-                    readonly who_for: {
-                        readonly type: "string";
-                    };
-                    readonly category_key: {
-                        readonly type: "string";
-                    };
-                };
-            };
-        };
-    };
-};
 /** The foot every draft carries: the business's postal address and a way to say no (CAN-SPAM). */
 declare function leadDraftFooter(business: string, address: string): string;
 /** The bell's title and the email's subject when a search stops to ask (00163 writes the same words in SQL). */
@@ -22655,20 +26556,40 @@ declare const LEAD_PRIOR_MIN_PLACES = 50;
  * kind of business found, never a promise about this one. A kind never
  * searched says the share is checked after the first 25 (P3).
  */
-declare function leadPlanLikely(plan: LeadSearchPlan, facts: LeadPlanFacts): {
+declare function leadPlanLikely(plan: LeadSearchPlan, facts: LeadPlanFacts | null): {
     emailPct: number | null;
     phonePct: number | null;
     line: string;
 };
-/** The facts under the sentence (§8.3), in the one unit the owner has: leads. No dollar meter. */
-declare function leadPlanFacts(plan: LeadSearchPlan, facts: LeadPlanFacts): string[];
+/**
+ * The facts under the sentence (§8.3), in the one unit the owner has: leads. No dollar meter. Facts not read yet say no
+ * allowance: a card that had none drew "0 left this month" over a search that could run (Ruben, 10 Oct 2026).
+ */
+declare function leadPlanFacts(plan: LeadSearchPlan, facts: LeadPlanFacts | null): string[];
+/**
+ * The facts for a plan opened from a search itself (Widen, an area nearby, the map's), which no Ask turn gave any: the
+ * month the page already reads (leads_page's month, the same counter planFacts reads, so the number is spelled once),
+ * the search's own nearby areas, and nothing it cannot know (no prior, no skips counted). The allowance binds where the
+ * plan asks for more than is left. Without these the card said "0 left this month" over a search that could run, then
+ * said no allowance at all (Ruben, 10 Oct 2026). An idea's plan brings its kind's prior, which its read already had
+ * (00398), and the kind it is of.
+ */
+declare function leadMonthPlanFacts(month: {
+    left: number;
+    renewsOn: string;
+}, count: number, nearby: readonly LeadArea[], prior: {
+    of: string;
+    counts: LeadPlanFacts["prior"];
+} | null): LeadPlanFacts;
+/** The same facts as one line, a phone's (§8.3): how long, what it skips, and what is left where that is known. */
+declare function leadPlanFactLine(plan: LeadSearchPlan, facts: LeadPlanFacts | null): string;
 /**
  * What the card asks for, and how it says why it is not what was typed (§0.2,
  * decision 27). When a limit binds the count is clamped to what is left, the
  * button says that number, and one sentence says which limit and what else
  * would fit. There is no dollar meter, and the word is always leads.
  */
-declare function leadPlanAsk(plan: LeadSearchPlan, facts: LeadPlanFacts): {
+declare function leadPlanAsk(plan: LeadSearchPlan, facts: LeadPlanFacts | null): {
     count: number;
     label: string;
     covers: string | null;
@@ -23241,6 +27162,18 @@ interface LeadMapPlot {
     } | null;
 }
 /**
+ * Where an area lies from the ground being looked at, in the owner's words: "9.2 mi southwest". A ZIP alone says
+ * nothing to a person, so a nearby area is offered with this beside it (Ruben, 10 Oct 2026). Nothing where either end
+ * has no place.
+ */
+declare function leadAreaFrom(from: {
+    lat: number;
+    lng: number;
+} | null, to: {
+    lat: number;
+    lng: number;
+} | null | undefined): string;
+/**
  * Where the leads sit on the ground, relative to each other and to the area the search asked for (D5). Everything
  * is measured in metres from one centre and then scaled into a square, so the picture is honest at a town's size
  * without a projection, a tile or a request to anyone. A lead the source placed nowhere is simply not on it.
@@ -23301,7 +27234,7 @@ declare const LEAD_WORDS: {
     readonly notFit: string;
     readonly notFitTitle: "What makes it not a fit?";
     readonly whys: {
-        id: "customer" | "other" | "chain" | "wrong_kind" | "too_far";
+        id: "other" | "chain" | "wrong_kind" | "too_far" | "customer";
         label: string;
     }[];
     readonly keep: "Keep";
@@ -23357,8 +27290,12 @@ declare const LEAD_WORDS: {
         readonly sub: "Say it in a sentence. Claude finds businesses that fit, checks each one, and shows how to reach them.";
         readonly ask: "Describe the businesses you want";
         readonly ideas: "Or start from an idea";
+        /** While another read writes them (00398): the page asks again in a moment. */
+        readonly writing: "Writing your ideas…";
         readonly from: "Written from what you do:";
         readonly edit: "Edit";
+        /** New ideas from the same line, when the owner wants others (00399). */
+        readonly newIdeas: "New ideas";
         readonly lineTitle: "What your business does";
         readonly lineSub: "Claude writes your ideas from this. Say what you sell and who you sell it to.";
         readonly lineLabel: "Your business, in a sentence";
@@ -23399,8 +27336,11 @@ declare const LEAD_WORDS: {
         readonly refused: "Not erased";
     };
 };
-/** How long a workspace's suggestions stand before Claude is asked again (4.4's suggestionsFor). */
-declare const LEAD_SUGGEST_DAYS = 7;
+/**
+ * How long a workspace's ideas stand before Claude is asked again (suggestionsFor), when nothing else asks sooner: a
+ * round that ends, or a business line saved (00398). A week while they were the line's alone.
+ */
+declare const LEAD_SUGGEST_DAYS = 30;
 /** The platform-wide prior for a kind of business, as `lead_niche_prior()` answers it. */
 interface LeadNichePrior {
     places: number;
@@ -23416,6 +27356,218 @@ declare const LEAD_PRIOR_MIN = 25;
  * the same thing ("checked after the first 25").
  */
 declare function leadReachLine(prior: LeadNichePrior | null | undefined): string;
+
+/** How long a model that would not write them is left before it is asked again: the reads between say so instead. */
+declare const LEAD_SUGGEST_RETRY_MS: number;
+/** One search as lead_suggest_history answers it, narrowed. */
+interface IdeaSearch {
+    /** The plan's category_key, or a key from its name on a plan made before it was kept. */
+    kind: string;
+    name: string;
+    area: LeadArea | null;
+    at: string;
+    removed: boolean;
+    /** Its newest round ended with nothing left to find there (searched everything, or few new matches). */
+    ranDry: boolean;
+    /** Its newest round is still running, or waiting on the owner's answer. */
+    running: boolean;
+    /** It was started from an idea (plan.from, 00398): the ideas' own measure of whether they are followed. */
+    fromIdea: boolean;
+    nearby: LeadArea[];
+    exclusions: {
+        key: string;
+        text: string;
+    }[];
+    criteria: {
+        key: string;
+        text: string;
+    }[];
+    found: {
+        qualified: number;
+        review: number;
+        excluded: number;
+    };
+    /** Places left out, by the key that left them out (contracts class.ts: kind, unreachable, owner, a plan's key). */
+    leftOut: Record<string, number>;
+    leads: {
+        contacted: number;
+        interested: number;
+        booked: number;
+        customers: number;
+        said_no: number;
+        not_a_fit: number;
+        with_email: number;
+        with_phone: number;
+        /** When one of its leads was last contacted, or null. */
+        lastContactedAt: string | null;
+    };
+    /** Why leads were not a fit (LEAD_NOT_A_FIT_WHYS), as the owner said it. */
+    notAFit: Record<string, number>;
+    /** The reach-out to its leads: emails sent, replies by a person, and when the last email went. */
+    reach: {
+        sent: number;
+        replied: number;
+        interested: number;
+        declined: number;
+        lastSentAt: string | null;
+    };
+    won: {
+        deals: number;
+        cents: number;
+    };
+}
+interface IdeaHome {
+    city: string | null;
+    state: string;
+    zip: string | null;
+}
+interface IdeaHistory {
+    /** The end of the newest ended round: what ideas written now are written over. */
+    basis: string;
+    /** The business record's city, state and ZIP, when the workspace has one. */
+    home: IdeaHome | null;
+    /** The Google listing's address and its type ("plumber"), when one is linked. */
+    listing: {
+        address: string;
+        type: string;
+    } | null;
+    searches: IdeaSearch[];
+}
+/** lead_suggest_history's jsonb, narrowed: anything it does not say is nothing found. */
+declare function ideaHistoryOf(raw: unknown): IdeaHistory;
+/** A round's end as the ideas keep it (lead_suggestions.basis): one spelling, whichever read said it. */
+declare function ideaBasisOf(v: unknown): string;
+interface IdeaKind {
+    key: string;
+    name: string;
+    searches: number;
+    lastAt: string;
+    /** The places it was searched in, by their labels in lower case. */
+    places: string[];
+    /** The places it ran dry in, the same way. */
+    dry: string[];
+    verdict: "worked" | "did_not_work" | "running" | "not_reached" | "too_early";
+    /** What it found and what came of it, in lines for the model. */
+    lines: string[];
+}
+interface IdeaPlace {
+    /** P1, P2…: what the model names. */
+    id: string;
+    area: LeadArea;
+    /** What the place is to this workspace: its home, an area searched, the area beside one. */
+    note: string;
+    /** The kinds that ran dry here, or were searched here: never planned here again. */
+    takenFor: string[];
+}
+/** An idea offered before and not started, by its kind and place, and how many times it was offered. */
+interface IdeaPassed {
+    key: string;
+    /** The place's label, in lower case. */
+    place: string;
+    /** The place's label as the page said it. */
+    label: string;
+    times: number;
+}
+/** The language the ideas are written in: the workspace's (tenants.locale), English where it is not Spanish. */
+type IdeaLanguage = "en" | "es";
+/**
+ * The ideas offered before and not started since, each counted once more (IDEA_PASSED_ENOUGH says when that is a no),
+ * and those started since let go. Earlier counts are kept for ideas not offered this time, at most twelve, so a kind
+ * passed on twice stays passed on when it is offered again months later.
+ */
+declare function ideaPassed(prev: {
+    items: LeadIdeaDto[];
+    madeAt: string;
+    passed: IdeaPassed[];
+}, searches: IdeaSearch[]): IdeaPassed[];
+/** The passed ideas as a row keeps them (lead_suggestions.passed), narrowed. */
+declare function ideaPassedOf(raw: unknown): IdeaPassed[];
+interface IdeaPacket {
+    /** The business, as its owner said it or as the workspace says it is. */
+    line: string;
+    /** The Google listing's own type, when one is linked: "plumber". */
+    listingType: string | null;
+    /** The workspace's own kind, keyed, when its listing says one: never an idea, since those are its competitors. */
+    ownKind: string | null;
+    /** Ideas offered before and not started, each with how many times. */
+    passed: IdeaPassed[];
+    language: IdeaLanguage;
+    home: IdeaHome | null;
+    leadsLeft: number;
+    sizes: number[];
+    places: IdeaPlace[];
+    kinds: IdeaKind[];
+    now: Date;
+}
+/** Everything the model is told, decided here. */
+declare function ideaPacket(x: {
+    line: string;
+    history: IdeaHistory;
+    profileAddress: string;
+    leadsLeft: number;
+    passed: IdeaPassed[];
+    language: IdeaLanguage;
+    now: Date;
+}): IdeaPacket;
+/** The question, in words: the business, where it is, what is left, the places, and each kind and how it went. */
+declare function ideaPacketText(p: IdeaPacket): string;
+/**
+ * What the model answers, as a schema it is held to: the places by their ids and the sizes this month allows, so an
+ * idea cannot name another. A workspace with no place known is written without one ("none") and opens Ask instead.
+ */
+declare function ideaJsonSchema(p: IdeaPacket): Record<string, unknown>;
+/** What the model is asked to do: the rules the code has not already decided, and how each field is written. */
+declare const LEAD_IDEAS_SYSTEM: string;
+
+/**
+ * The model's answer to the ideas' question (lead-ideas.ts), read back into ready plans with the code's rules held
+ * whatever the model wrote: an idea in no listed place, of a kind that did not work or that the business is itself, of
+ * a kind searched where it names, passed on twice, or twice over, is dropped and counted by its rule. Pure, like the
+ * question's module; zod reads the answer, so this stays on the server (decision 0024, the browser's entry).
+ */
+
+/** The model's answer, read leniently: what does not fit a plan is dropped by ideasFrom, never the whole answer. */
+declare const LeadIdeasAnswerSchema: z$1.ZodObject<{
+    line: z$1.ZodPipe<z$1.ZodString, z$1.ZodTransform<string, string>>;
+    ideas: z$1.ZodArray<z$1.ZodObject<{
+        words: z$1.ZodPipe<z$1.ZodString, z$1.ZodTransform<string, string>>;
+        why: z$1.ZodPipe<z$1.ZodString, z$1.ZodTransform<string, string>>;
+        who: z$1.ZodPipe<z$1.ZodString, z$1.ZodTransform<string, string>>;
+        who_one: z$1.ZodPipe<z$1.ZodString, z$1.ZodTransform<string, string>>;
+        category_key: z$1.ZodPipe<z$1.ZodString, z$1.ZodTransform<string, string>>;
+        terms: z$1.ZodCatch<z$1.ZodArray<z$1.ZodString>>;
+        place: z$1.ZodCatch<z$1.ZodString>;
+        count: z$1.ZodCatch<z$1.ZodNumber>;
+        contact: z$1.ZodCatch<z$1.ZodEnum<{
+            email: "email";
+            phone: "phone";
+        }>>;
+        criteria: z$1.ZodCatch<z$1.ZodArray<z$1.ZodObject<{
+            text: z$1.ZodString;
+            standard: z$1.ZodCatch<z$1.ZodEnum<{
+                likely: "likely";
+                seen: "seen";
+            }>>;
+            required: z$1.ZodCatch<z$1.ZodBoolean>;
+        }, z$1.core.$strip>>>;
+        leave_out: z$1.ZodCatch<z$1.ZodArray<z$1.ZodString>>;
+    }, z$1.core.$strip>>;
+}, z$1.core.$strip>;
+type LeadIdeasAnswer = z$1.infer<typeof LeadIdeasAnswerSchema>;
+/** The plan as Ask is asked for it (Ask's Leads chip): "Find 50 plumbers near 78701, leaving out chains". */
+declare function ideaAsk(plan: LeadSearchPlan): string;
+/** Why an idea the model wrote was not kept: the rule it broke (ideasRead counts them). */
+type IdeaDropped = "no_words" | "own_kind" | "did_not_work" | "place_unlisted" | "place_taken" | "passed" | "no_plan" | "twice";
+/**
+ * The model's answer as the page's ideas, and what was dropped by which rule: each a ready plan in a listed place, at
+ * most LEAD_IDEAS_MAX, none twice.
+ */
+declare function ideasRead(answer: LeadIdeasAnswer, p: IdeaPacket): {
+    items: LeadIdeaDto[];
+    dropped: Partial<Record<IdeaDropped, number>>;
+};
+/** The model's answer as the page's ideas alone. */
+declare function ideasFrom(answer: LeadIdeasAnswer, p: IdeaPacket): LeadIdeaDto[];
 
 /** The most rows a file may bring, and leads one press may choose: one checker run's batch (CHECK_BATCH, J5). */
 declare const LEAD_LIST_MAX = 500;
@@ -23664,6 +27816,9 @@ declare const WHATSAPP_COST_WORDS: {
     /** The one line Settings > Billing says, with `pricesLink` to Meta's own page after it. */
     readonly billingLine: "WhatsApp messages your business starts are billed by Meta to the card on your WhatsApp account, not on this bill.";
 };
+
+/** WhatsApp opened on a connected number with a word ready to send; null without a usable number. */
+declare function tryItLink(number: string | null | undefined): string | null;
 
 /**
  * The clauses every carrier review looks for, word for word.
@@ -24092,6 +28247,130 @@ declare function lineReleaseWarning(i: LineReleaseWordsInput): {
 declare function lineReleasedWords(i: Omit<LineReleaseWordsInput, "on">): {
     subject: string;
     body: string;
+};
+
+/** 00407's public bucket. */
+declare const WORKSPACE_LOGOS_BUCKET = "workspace-logos";
+/** The side of the square the browser makes: a 32px circle at three times the screen's density is 96, so this is room. */
+declare const LOGO_SIDE = 256;
+/** The smallest square the server keeps: the browser makes a smaller one only to come in under LOGO_BYTES_MAX. */
+declare const LOGO_SIDE_MIN = 128;
+/** The most a kept picture weighs, and the bucket's own limit (00407). */
+declare const LOGO_BYTES_MAX = 262144;
+/** LOGO_BYTES_MAX as base64, which is how the picture travels in the save's JSON body. */
+declare const LOGO_BASE64_MAX: number;
+/** What a member may choose from their device, read before a byte of it is decoded. */
+declare const LOGO_CHOSEN_MAX_BYTES: number;
+/** The kinds of file the picker offers. A browser decodes all four; an SVG is not offered. */
+declare const LOGO_CHOSEN_TYPES: readonly ["image/png", "image/jpeg", "image/webp", "image/gif"];
+/** A logo found on the business's website: what the server will fetch and hand the page to make the picture from. */
+declare const LOGO_FOUND_MAX_BYTES = 524288;
+/** Its shorter side at least this: a favicon blown up to the circle is mush, and the owner can choose a picture instead. */
+declare const LOGO_FOUND_SIDE_MIN = 96;
+/** Its longer side at most this: a page that declares a poster as its logo has not given us a logo. */
+declare const LOGO_FOUND_SIDE_MAX = 2048;
+/** Where a new picture of this workspace is stored: its own folder, under a name no earlier picture had. */
+declare const workspaceLogoPath: (tenantId: string, fileId: string) => string;
+/** Whether an address is one of this workspace's pictures: the shape, and the workspace's own folder. */
+declare function isLogoPathOf(tenantId: string, path: string | null | undefined): path is string;
+/** Where the workspace's logo is served, or null for none, for anything that is not an address we wrote. */
+declare function workspaceLogoSrc(supabaseUrl: string | null | undefined, path: string | null | undefined): string | null;
+/**
+ * A workspace's initials, for its circle where it has no logo: the first letters of its first two words. A word is a
+ * run of letters and digits, an apostrophe inside it kept ("Rosa's" is one word), so "Nails & Co" is NC and not N&;
+ * a leading "The" names no one ("The Hair Studio" is HS). A dash where there is nothing to draw.
+ */
+declare function workspaceInitials(name: string | null | undefined): string;
+/** How a look on the business's website ended: the outcome the lookup answers and logs, never the file. */
+declare const LOGO_LOOKUP_OUTCOMES: readonly ["found", "none", "unreachable", "not_its_own", "no_website"];
+type LogoLookupOutcome = (typeof LOGO_LOOKUP_OUTCOMES)[number];
+/** What the lookup answers: the picture's bytes and where it was found, or why there is none. */
+type LogoLookupAnswer = {
+    outcome: "found";
+    host: string;
+    image: {
+        base64: string;
+        content_type: string;
+    };
+} | {
+    outcome: Exclude<LogoLookupOutcome, "found">;
+    host: string | null;
+};
+/** Every word the Logo row says. No file kind and no pixel count reaches an owner. */
+declare const LOGO_WORDS: {
+    readonly label: "Logo";
+    readonly add: "Add";
+    readonly change: "Change";
+    readonly menuLabel: "Your logo";
+    readonly choose: "Choose a picture";
+    readonly fromWebsite: "Use the one on your website";
+    readonly remove: "Remove";
+    readonly save: "Save";
+    readonly cancel: "Cancel";
+    readonly useIt: "Use it";
+    readonly notThis: "Not this one";
+    readonly looking: "Looking on your website…";
+    readonly saving: "Saving…";
+    readonly saved: "Saved";
+    readonly removed: "Removed";
+    readonly notSaved: "Not saved — it didn't go through. Try again.";
+    readonly unusable: "We couldn't use that picture. Try another.";
+    readonly wide: "This one is wide, so it will look small in the circle. A square version fits best.";
+    readonly small: "This picture is small, so it may look soft.";
+};
+/** What the row says when a look on the website found nothing to offer, by why; null when it found one. */
+declare function logoLookupWords(outcome: LogoLookupOutcome): string | null;
+/** What the row says under a found picture: the website's host, which the owner gave us, never the image's. */
+declare const logoFoundOn: (host: string) => string;
+
+/**
+ * How a chosen picture becomes the workspace's square (logo.ts), decided from its pixels alone, so the page that draws it
+ * holds no rule of its own and a node test can hold every case.
+ *
+ * Small businesses' logos come in three kinds, and each is drawn the way it was made:
+ *   - A mark on nothing (a transparent PNG): its empty edges are trimmed and it sits contained on a plate, padded so a
+ *     square mark's corners stay inside the circle. The plate is light, or dark when the mark itself is mostly light
+ *     (a white logo made for a dark website header would vanish on white).
+ *   - A mark on a plain ground (a JPEG on white, a name on a coloured card): the ground is trimmed and becomes the plate,
+ *     so the padding is the logo's own colour and the seam never shows.
+ *   - A picture to its edges (an app icon, a photograph, a round avatar): it fills the square, cropped to its middle.
+ * Nothing is cropped from a logo: a wide one is contained, and the owner is told it will look small.
+ */
+/** The picture as the page read it from a canvas: RGBA, four bytes a pixel, row by row. */
+interface LogoPixels {
+    data: ArrayLike<number>;
+    width: number;
+    height: number;
+}
+type LogoMode = "fit" | "fill";
+/** What the owner is told before they save. */
+type LogoNote = "wide" | "small";
+interface LogoLayout {
+    mode: LogoMode;
+    /** The part of the picture drawn, in its own pixels. */
+    crop: {
+        x: number;
+        y: number;
+        w: number;
+        h: number;
+    };
+    /** The square's ground, painted first; null where the picture fills it. */
+    plate: string | null;
+    notes: LogoNote[];
+}
+/** How much of the square a contained mark leaves around it, on each side: the kit's mark padding (kit.css .face-mark). */
+declare const LOGO_PAD = 0.16;
+/** The plates, as a canvas paints them. Both read on the sidebar's glass in either theme. */
+declare const LOGO_PLATE_LIGHT = "rgb(255, 255, 255)";
+declare const LOGO_PLATE_DARK = "rgb(28, 28, 32)";
+/** How the picture is drawn into the square; null when there is nothing in it to draw. */
+declare function logoLayout(px: LogoPixels): LogoLayout | null;
+/** Where the drawn part lands in a square of `side`: the whole square when it fills, centred inside the padding when it fits. */
+declare function logoDrawRect(layout: LogoLayout, side: number): {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
 };
 
 /**
@@ -24729,7 +29008,7 @@ declare const NEW_CONVERSATION_WORDS: {
     };
     readonly about: {
         readonly label: "What is it about?";
-        readonly hint: "A line is enough: follow up on their quote, tell them Saturday opened up.";
+        readonly placeholder: "Follow up on their quote, or Saturday opened up";
     };
     readonly write: {
         readonly message: "Write it";
@@ -24741,6 +29020,8 @@ declare const NEW_CONVERSATION_WORDS: {
     };
     readonly asks: "Before it is written";
     readonly wire: "How it goes";
+    /** The ways it cannot go, one press away under the way it goes: "Why not Text or Email?". */
+    readonly heldWhy: (names: readonly string[]) => string;
     readonly subject: "Subject";
     readonly words: "Message";
     readonly approved: {
@@ -24754,24 +29035,24 @@ declare const NEW_CONVERSATION_WORDS: {
     readonly then: {
         readonly label: "When they answer";
         readonly receptionist: "The receptionist answers";
-        readonly receptionistHint: "It will know your plan.";
+        readonly receptionistHint: "Knows your plan";
         readonly me: "I answer";
-        readonly meHint: "The receptionist stays quiet until you hand the thread back.";
+        readonly meHint: "It stays quiet until you hand it back";
         readonly comesToYou: "Their answer comes to you, in Needs you.";
     };
     readonly note: {
-        readonly label: "The receptionist will know";
+        readonly label: "Note for the receptionist";
         readonly leaveOut: "Leave it out";
-        readonly putBack: "Tell the receptionist";
-        readonly empty: "Say what it is about above, or write the note here.";
+        readonly putBack: "Add a note for the receptionist";
+        readonly empty: "What it should know";
     };
     readonly send: "Send";
     readonly cancel: "Cancel";
     readonly close: "Close";
     readonly leave: {
-        readonly question: "Throw away what you've written?";
-        readonly detail: "Nothing has been sent.";
-        readonly yes: "Yes, throw it away";
+        readonly question: "Discard what you wrote?";
+        readonly detail: null;
+        readonly yes: "Discard";
         readonly no: "Keep writing";
     };
     readonly done: "Done";
@@ -24848,8 +29129,8 @@ declare function planNoteOf(day: string, how: "message" | "call", about: string)
 /** POST people/[id]/draft takes: message or call, the wire for a message, the plan, and what was asked and answered. */
 declare const PersonDraftInputSchema: z$1.ZodObject<{
     how: z$1.ZodEnum<{
-        message: "message";
         call: "call";
+        message: "message";
     }>;
     wire: z$1.ZodOptional<z$1.ZodEnum<{
         whatsapp: "whatsapp";
@@ -25026,7 +29307,7 @@ declare const STEP_SHEET_WORDS: {
         readonly anyone: "Anyone on the team";
         readonly me: "Me";
     };
-    readonly teamOnly: "A step is for the team only: the receptionist never reads it.";
+    readonly teamOnly: "Only your team sees it.";
     readonly save: {
         readonly add: "Set it";
         readonly edit: "Save";
@@ -25046,9 +29327,9 @@ declare const STEP_SHEET_WORDS: {
         readonly tooLong: (max: number) => string;
     };
     readonly discard: {
-        readonly question: "Discard your changes?";
-        readonly detail: "Nothing here has been saved.";
-        readonly yes: "Yes, discard";
+        readonly question: "Discard changes?";
+        readonly detail: null;
+        readonly yes: "Discard";
         readonly no: "Keep editing";
     };
 };
@@ -25257,12 +29538,6 @@ interface PeopleAggregates {
     askedNotBooked: number;
 }
 declare function peopleAggregates(rows: PersonRowVM[], nowMs: number): PeopleAggregates;
-/** Days since last contact, bucketed — the honest replacement for the
- *  mockup's temperature strip. */
-declare function recencyCells(rows: PersonRowVM[], nowMs: number): {
-    label: string;
-    count: number;
-}[];
 
 interface AttentionRowVM {
     /** Where they last reached us: "WhatsApp" or "Phone"; null with no contact. */
@@ -25335,6 +29610,11 @@ interface PoolCalendar {
         name: string;
     }[];
     rules: ConsultRules | null;
+    /**
+     * The record over the feed's season (decision 0002's readers): a booking's rows join the feed's events, a cancelled
+     * visit leaves them, and a member's kept or missed rides on each. Null or absent: the feed alone, as before.
+     */
+    record?: PoolRecord | null;
 }
 /**
  * Everyone's next and last appointment from one parsed feed, indexed once -- the number first, the whole name second
@@ -25732,8 +30012,13 @@ declare const STARTER_LINE_WORDS: {
     readonly reviewing: (n: number) => string;
     /** The playbook composer, after the moment's own message and a comma: where its WhatsApp version stands. */
     readonly standing: (status: string | null | undefined) => string;
-    /** The link that adds the moment's own message: its email and text versions at once, a WhatsApp version where a number is. */
-    readonly add: "Add it — its email and text versions are written at once, and where a number is connected WhatsApp reviews its WhatsApp version, usually within minutes";
+    /**
+     * The link that adds the moment's own message: its email and text versions at once, a WhatsApp version where a number
+     * is, which the line says once it is in review (`standing`). The link was the whole of that, in 25 words.
+     */
+    readonly add: "Add it";
+    /** After the moment's own message's name, where it is not added yet: "Win-back, written for you". */
+    readonly written: "written for you";
 };
 /**
  * What the route that writes a message's first version (an email or a text, with no WhatsApp row) says when it refuses
@@ -25912,27 +30197,45 @@ declare const LIFECYCLE_WORDS: {
     readonly callText: {
         readonly name: "The call's text";
         readonly words: "The booking link and your WhatsApp, sent while they're on the phone";
-        readonly on: "When a caller asks";
+        readonly on: "Live";
+        readonly when: "Sent when a caller asks for it";
         readonly none: "No message for it yet";
     };
+    /**
+     * A moment with no campaign yet shows the one it offers as a row of its own, off (Ruben, 11 Oct 2026: a row to press
+     * where a heading had a Turn on under it): its line says what it does, by the moment's id.
+     */
+    readonly offered: Record<string, string>;
     readonly monthsOffer: {
         readonly name: "The month's offer";
     };
-    /** A campaign past its last day (00395 `until`), its state: "Ended Oct 1", the day by the business's calendar. */
+    /** A campaign past its last day (00409 `until`), its state: "Ended Oct 1", the day by the business's calendar. */
     readonly ended: (day: string) => string;
-    /** A campaign on trial (00395 `trial_until`), its state: "On trial until Oct 9", the day its trial ends. */
+    /** A campaign on trial (00409 `trial_until`), its state: "On trial until Oct 9", the day its trial ends. */
     readonly onTrial: (day: string) => string;
     readonly gone: {
         readonly title: "That campaign isn't here any more.";
         readonly body: "Its runs stay in Sent, with their numbers.";
     };
+    /** A message's own drawer over the home (`campaigns/message:<name>`) whose name leads to no message any more. */
+    readonly messageGone: {
+        readonly title: "That message isn't here any more.";
+        readonly body: "Every message you keep is in the Library.";
+    };
     readonly compose: {
         readonly title: "New message";
         readonly kind: "What kind of message";
         readonly once: "Send once";
-        readonly every: "Every time a moment comes";
+        readonly every: "Every time";
         /** The sheet a moment's Turn on opens, titled for the campaign it starts (spec §4.2): "Turn on Appointment reminder". */
         readonly turnOn: (name: string) => string;
+        /**
+         * The same sheet on the home, where the campaign's own name stands under it to rename in place (Ruben, 11 Oct 2026:
+         * "Turn on Win-back" over "Win-back" said the name twice).
+         */
+        readonly turnOnShort: "Turn on";
+        /** The same sheet changing a campaign the drawer showed: its kicker, over the campaign's own name. */
+        readonly edit: "Edit";
         /** A campaign the moment already holds, said as the composer opens on it (decision 20): "Win-back · On". */
         readonly holds: (name: string, paused: boolean) => string;
         /**
@@ -25953,6 +30256,69 @@ declare const LIFECYCLE_WORDS: {
                 readonly to: "admin/integrations";
             };
         };
+        /**
+         * The composers and a campaign's drawer as one sentence of words to press (Ruben, 11 Oct 2026, "Option B"): the words
+         * round its tokens, the one line under it saying who it reaches now, what happens next, and what an edit changes.
+         */
+        readonly sentence: {
+            readonly everyDay: "Every day at";
+            /** The rule its runs keep, said after its channels: the mode Autonomy holds for the moment's class. */
+            readonly rule: {
+                auto: string;
+                veto: string;
+                ask: string;
+                never: string;
+            };
+            /** What the rule's word opens, to a screen reader. */
+            readonly ruleLabel: "The rule its runs keep, on your Autonomy tab";
+            /** The channels' word, to a screen reader: what pressing it opens. */
+            readonly channelsLabel: "The channels it goes by";
+            /** Under the channels' switches: a person gets a run's message on one of them, never on each. */
+            readonly channelsNote: "Each person gets it once, on one of these.";
+            /** Where it goes by no channel yet: the channels' word says so. */
+            readonly noChannel: "no channel yet";
+            /**
+             * Who a moment's campaign goes to, after "to" in its sentence ("a WhatsApp to everyone with an appointment
+             * tomorrow"): the moment said as the people it names, in the workspace's word for an appointment.
+             */
+            readonly who: (trigger: string, word: AppointmentWord) => string;
+            /** Who it reaches now: "All 6 can hear it", "2 of 6 can hear it"; "2 can hear it" where nobody counted the pool. */
+            readonly hear: (will: number, pool: number | null) => string;
+            /** Nobody the moment names yet: "Nobody with an appointment tomorrow right now". */
+            readonly nobody: (of: string) => string;
+            /** What happens next, before it is saved ("First run today at 10:00 AM"), or for one that runs ("Next run …"). */
+            readonly firstRun: (when: string) => string;
+            readonly nextRun: (when: string) => string;
+            /** A day and an hour as a line says them, from a label's "today 10:00 AM": "today at 10:00 AM". */
+            readonly at: (label: string) => string;
+            /** A send's one act, once a time is picked: "Schedule for tomorrow at 9:00 AM". */
+            readonly scheduleFor: (when: string) => string;
+            /**
+             * The message, folded under its first words (Ruben, 11 Oct 2026: "make the preview something you expand to see, so
+             * the drawers are more compact"): what the fold says while it is open.
+             */
+            readonly previewOpen: "How it reads";
+            readonly previewLabel: "The message, as it reads";
+            /** An edit's changes, counted in its foot: "2 changes · from the next run". */
+            readonly changes: (n: number) => string;
+            /** The foot of a Turn on whose moment's own message is not in the Library yet: the one press adds it, then starts. */
+            readonly addsFirst: (title: string) => string;
+            /** The message under its preview: "Visit reminder · written for you", and its door. */
+            readonly writtenForYou: "written for you";
+            /** Beside the moment's own message, not added yet: the word that picks one of the Library's instead. */
+            readonly another: "another message";
+            readonly change: "Change";
+            readonly open: "Open";
+            /** A word of a running campaign changed in place, said with its Undo: "Visit reminder runs at 9:00 AM now". */
+            readonly saved: {
+                readonly hour: (name: string, hour: string) => LifecycleSentence;
+                readonly cap: (name: string, n: number) => LifecycleSentence;
+                readonly gap: (name: string, days: number) => LifecycleSentence;
+                readonly undone: (name: string) => LifecycleSentence;
+            };
+            /** Its runs, newest last, a bar each: what the strip says to a screen reader, and its head. */
+            readonly runs: (n: number) => string;
+        };
         readonly failed: {
             readonly what: "who and what you can send to";
             readonly body: "Nothing goes out until it reads. Everything else here is current.";
@@ -25970,6 +30336,21 @@ declare const LIFECYCLE_WORDS: {
         readonly marks: (on: readonly string[], waits: readonly string[], could: readonly string[]) => string;
         /** After a change of channels, where a run of the playbook already waits: it was made with the channels it had. */
         readonly runKeeps: "the run that waits keeps the channels it was made with";
+        /**
+         * The Moments head's channels on a phone (Ruben, 11 Oct 2026): a chip each, a filled dot where it sends and a hollow
+         * one where it is not set up, as the rows' marks draw them; a hollow chip pressed says why under the row, and one
+         * door to Settings › Connections stands at its end.
+         */
+        readonly head: "Your channels";
+        readonly sending: (word: string) => string;
+        readonly notSetUp: (word: string) => string;
+        readonly setUp: "Set up";
+        /** Nothing can send at all: one card in the head in place of the reach line, its one door to Connections. */
+        readonly none: {
+            readonly title: "Nothing can send yet";
+            readonly body: "Connect WhatsApp, a texting line or email, and your moments start here.";
+            readonly act: "Set up channels";
+        };
     };
     readonly failed: {
         readonly templates: {
@@ -26063,7 +30444,10 @@ declare const LIFECYCLE_WORDS: {
         readonly businesses: "businesses";
         readonly chainNeeds: "Writes to the businesses a search found";
         readonly openRun: "Open the run";
-        /** A row's last 30 days, as its cell says them. */
+        /**
+         * A row's last 30 days, as its cell says them. A reach-out's is in the businesses it wrote to, which "wrote back" is a
+         * count of; its emails written only where the businesses were not counted (a database before 00404).
+         */
         readonly results: (r: LifecycleRowResults) => string;
         readonly sentOnce: {
             readonly footer: (n: number) => string;
@@ -26092,6 +30476,8 @@ declare const LIFECYCLE_WORDS: {
         readonly door: "Ask";
         /** The chip Ask offers on the first day says the same sentence (contracts SET_UP_CAMPAIGNS). */
         readonly setUp: "Set up my campaigns";
+        /** The first day's door to it, at the list's top: what pressing it does, said as an offer. */
+        readonly setUpDoor: "Let Ask set up your campaigns";
         readonly about: "Ask about this campaign";
     };
     readonly reach: {
@@ -26102,7 +30488,10 @@ declare const LIFECYCLE_WORDS: {
         readonly opensMessages: "Opens:";
         readonly ownOffers: readonly ["the month's offer", "your notes"];
         readonly asks: "Your receptionist now asks for it. Once a person, inside a conversation they started. At the desk, the code or the phrase does the same.";
-        /** The phone's line in the Moments head: who of everyone in People a message can reach now. */
+        /**
+         * The phone's line in the Moments head: who of everyone in People a message can reach now. Everyone is said as
+         * everyone ("All 29 can hear you"), not as a fraction of itself; nobody in People is no line at all (the tile).
+         */
         readonly phoneHear: (canHear: number, people: number) => string;
         /** The phone's door to how the yes to offers is got: the words that door carries on a run's sheet and in Setup. */
         readonly phoneYes: "Get their yes";
@@ -26146,6 +30535,8 @@ declare const LIFECYCLE_WORDS: {
     readonly results: {
         readonly title: "What came back";
         readonly link: "All runs";
+        /** The tile's second door: Reports › Campaigns over the same days. */
+        readonly fullReport: "Full report";
         readonly quiet: "Nothing went out, and nobody said yes or asked to stop.";
         readonly funnel: {
             readonly sent: "Sent";
@@ -26253,12 +30644,12 @@ interface LifecyclePlaybook {
     /** Why it runs nothing here (a follow-up where deals are off, a campaign past its last day), or null. */
     off: string | null;
     /**
-     * Its last day as its words say it ("Oct 1"), where the business's today is past it (00395 `until`): it has ended, and
+     * Its last day as its words say it ("Oct 1"), where the business's today is past it (00409 `until`): it has ended, and
      * `off` says so. Null or absent otherwise.
      */
     ended?: string | null;
     /**
-     * The day its trial ends as its words say it ("Oct 9"), while it is on trial (00395 `trial_until`): a run its class
+     * The day its trial ends as its words say it ("Oct 9"), while it is on trial (00409 `trial_until`): a run its class
      * would send by itself waits for a person. Null or absent otherwise.
      */
     trial?: string | null;
@@ -26409,11 +30800,14 @@ interface LifecycleSource {
 /**
  * Each reach-out's last 30 days, by its root (GET reports/reach-outs' `chains`). `complete`: every chain was counted, so
  * one absent wrote nothing; false where they come from the report's twenty, so one absent may be past them and says "—".
+ * `written` is emails; `businesses` the businesses they went to, which `wroteBack` is a count of: null where it is not
+ * counted (a database before 00404), never guessed from `written`.
  */
 interface LifecycleChains {
     complete: boolean;
     byRoot: Readonly<Partial<Record<string, {
         written: number;
+        businesses: number | null;
         wroteBack: number;
     }>>>;
 }
@@ -26618,11 +31012,12 @@ interface LifecycleReachTile {
      * where the desk's tile has one: the removed tile's sentence said the receptionist asks, and opened nothing.
      */
     phone: {
-        words: string;
+        /** Null where nobody is in People yet: the line is not drawn. */
+        words: string | null;
         offers: {
             words: string;
             tone: LifecycleTone;
-        };
+        } | null;
         yes: {
             label: string;
             route: string;
@@ -26671,7 +31066,7 @@ interface LifecycleComingTile {
     /** What the sending rules say, one dim line. */
     rules: string;
 }
-/** A row's last 30 days: a playbook's or a one-off's sent and replied (campaign_series), a chain's written and wrote back (Reports' words), counted where nothing went ("none"), or not counted ("uncounted", "—"). */
+/** A row's last 30 days: a playbook's or a one-off's sent and replied (campaign_series), a chain's businesses (else emails written) and wrote back (Reports' words), counted where nothing went ("none"), or not counted ("uncounted", "—"). */
 type LifecycleRowResults = {
     kind: "sent";
     sent: number;
@@ -26679,6 +31074,7 @@ type LifecycleRowResults = {
 } | {
     kind: "written";
     written: number;
+    businesses: number | null;
     wroteBack: number;
 } | "none" | "uncounted";
 /** One row of the ledger: a campaign, or one of First contact's own (the receptionist, the call's text). */
@@ -26932,9 +31328,15 @@ declare function whatsappLineOf<C extends {
 }>(channels: readonly C[] | null | undefined): C | null;
 
 interface ReachOutReportCounts {
+    /** Emails that left (a business with three is three). */
     written: number;
     delivered: number;
     bounced: number;
+    /**
+     * The businesses written to, each once, at its last email of the period (00404): the population wrote back, interested,
+     * booked and said no are counts of, so a share of them is of this, never of `written`. Absent on a database before 00404.
+     */
+    businesses?: number;
     wrote_back: number;
     interested: number;
     booked: number;
@@ -26981,18 +31383,27 @@ interface ReachOutReportDto {
     /** The workspace has a reach-out at all: the section is drawn only then. */
     has_reach_out: boolean;
     totals: ReachOutReportCounts;
+    /** What the period before (the same count of days, ending the day before `since`) wrote: emails only, outcomes being state now (00404). */
+    before?: {
+        written: number;
+        delivered: number;
+        bounced: number;
+    };
     series: Array<{
         day: string;
         written: number;
     }>;
     chains: ReachOutReportChainDto[];
+    /** `businesses` (00404): the businesses whose last email had this angle; absent on a database before it. */
     angles: Array<{
         angle: string;
         written: number;
+        businesses?: number;
         wrote_back: number;
     }>;
     other_angles: {
         written: number;
+        businesses?: number;
         wrote_back: number;
     };
     no_angle: number;
@@ -27000,36 +31411,33 @@ interface ReachOutReportDto {
 }
 /**
  * Each reach-out's numbers over a period, by its first step's id (`reach_out_chain_totals`, one pass, every chain of the
- * workspace): what it wrote, and how many wrote back, in Reports' words. `complete` says every chain was counted, so one
- * absent from `by_root` wrote nothing; it is false where the numbers come from the report's own chains (a database
- * before the function, chainTotalsFromReport), which holds at most twenty, so one absent may be past the twenty and says
- * "—". GET reports/reach-outs answers it beside the report (spec 2026-10-09 §4.5).
+ * workspace): what it wrote (emails), to how many businesses, and how many wrote back, in Reports' words. `complete` says
+ * every chain was counted, so one absent from `by_root` wrote nothing; it is false where the numbers come from the
+ * report's own chains (a database before the function, chainTotalsFromReport), which holds at most twenty, so one absent
+ * may be past the twenty and says "—". `businesses` is the population `wrote_back` is a count of (00404): absent on a
+ * database before it, never a guess. GET reports/reach-outs answers it beside the report (spec 2026-10-09 §4.5).
  */
 interface ReachOutChainTotalsDto {
     complete: boolean;
     by_root: Record<string, {
         written: number;
+        businesses?: number;
         wrote_back: number;
     }>;
 }
-/** The function's answer, checked (no cast): each root's written and wrote back; null for anything else. */
+/**
+ * The function's answer, checked (no cast): each root's written, businesses and wrote back; null for anything else. A
+ * root without `businesses` (a database before 00404) is read as it is, with the key absent; one whose `businesses` is
+ * there and no count is no answer of the function.
+ */
 declare function chainTotalsOf(answer: unknown): ReachOutChainTotalsDto | null;
-/** The report's own chains, each its steps summed: what a database before the function can say, and not every chain. */
+/**
+ * The report's own chains, each its steps summed: what a database before the function can say, and not every chain. A
+ * chain's businesses is its steps' summed (each business is counted at one step only, its last), said only where every
+ * step carries it: a sum of some is not the chain's.
+ */
 declare function chainTotalsFromReport(report: Pick<ReachOutReportDto, "chains">): ReachOutChainTotalsDto;
-interface ReachOutFunnelRow {
-    id: string;
-    label: string;
-    value: number;
-    display: string;
-    color: string;
-}
-interface ReachOutAngleRow {
-    id: string;
-    label: string;
-    /** The share who wrote back, 0 to 100: what the bar measures. */
-    value: number;
-    display: string;
-}
+/** A domain's row in the Reach-outs part (H5): its state in words, and how its emails landed, as shares the lens words. */
 interface ReachOutDomainRow {
     id: string;
     host: string;
@@ -27040,59 +31448,6 @@ interface ReachOutDomainRow {
     bounced: string;
     complained: string;
 }
-/** A line of the sources table: a reach-out, then each of its steps on its own line. */
-interface ReachOutSourceLine {
-    id: string;
-    kind: "chain" | "step";
-    name: string;
-    meta: string;
-    /** The chain's row on Playbooks, for a reach-out's line. */
-    to: string | null;
-    written: string;
-    delivered: string;
-    wroteBack: string;
-    interested: string;
-    booked: string;
-    saidNo: string;
-    bounced: string;
-    last: string;
-}
-interface ReachOutReportVM {
-    /** Draw the section: the workspace has a reach-out. */
-    present: boolean;
-    /** Nothing was written or handed in the period. */
-    empty: boolean;
-    days: number;
-    totals: ReachOutReportCounts;
-    funnel: {
-        max: number;
-        rows: ReachOutFunnelRow[];
-    };
-    angles: {
-        rows: ReachOutAngleRow[];
-        max: number;
-    };
-    domains: ReachOutDomainRow[];
-    points: Array<{
-        day: string;
-        label: string;
-        short: string;
-        written: number;
-    }>;
-    table: {
-        columns: string[];
-        rows: Array<Array<string | number>>;
-    };
-    sources: ReachOutSourceLine[];
-    lines: {
-        funnel: string;
-        angles: string;
-        domains: string;
-        written: string;
-        empty: string;
-    };
-}
-declare function toReachOutReportVM(raw: ReachOutReportDto, nowMs?: number): ReachOutReportVM;
 /** The day's numbers (00241 reach_out_day_due). */
 interface ReachOutDayNumbers {
     written: number;
@@ -27142,12 +31497,14 @@ declare function sentResultsOfSource(s: {
 /**
  * The chains' own totals as the ledger reads them (GET reports/reach-outs' `chains`, by root); null where the answer
  * carried none (a server from before them). Campaigns' results surface and Ask's context of the page read them alike.
+ * A root whose businesses were not counted (a database before 00404) holds null for them.
  */
 declare function lifecycleChainsOf(dto: ReachOutChainTotalsDto | null | undefined): LifecycleChains | null;
 /**
- * A reach-out's last 30 days, by its root: what it wrote and how many wrote back where it wrote anything; past the
- * report's twenty, absent is "none" only where every chain was counted. The one rule a reach-out's row of the ledger and
- * Ask's context of the page (apps/dashboard/src/server/ask/context/pages.ts) both say it by.
+ * A reach-out's last 30 days, by its root: the emails it wrote, the businesses they went to (null where not counted) and
+ * how many of them wrote back, where it wrote anything; past the report's twenty, absent is "none" only where every
+ * chain was counted. The one rule a reach-out's row of the ledger and Ask's context of the page
+ * (apps/dashboard/src/server/ask/context/pages.ts) both say it by.
  */
 declare function chainResultsOf(rootId: string, chains: LifecycleInput["chains"]): LifecycleRowResults;
 /** A campaign, as every "how many campaigns" counts it: not First contact's own rows, nor the month's offer before it is made. */
@@ -27170,6 +31527,12 @@ declare function ledgerOrder(by: LedgerSort): (a: LifecycleRow, b: LifecycleRow)
  * the line leaves it out; a paused row's end is its Resume, so the line says it rests. A figure not counted is left out,
  * never said as a zero.
  */
+/**
+ * What a row that is not a campaign does, said first on its phone line: the receptionist answers whoever writes, the
+ * call's text is sent when a caller asks for it, the month's offer goes every so often. Null for a campaign, whose line is
+ * its next run and its people.
+ */
+declare function ledgerPhoneWhat(r: LifecycleRow): string | null;
 declare function ledgerPhoneLine(r: LifecycleRow, caps: string): string;
 /**
  * Who is at a row's moment now, with what they are counted as: "1 person", "7 people", a moment's own unit as it says
@@ -27616,17 +31979,17 @@ type OpeningVerdict = {
 declare function openingVerdict(code: OpeningProblem | null, reading: Reading, stepLanguage: string): OpeningVerdict;
 
 declare const REACH_OUT_SHEET_WORDS: {
-    readonly sub: "Your email, opened differently for each business, from a domain you own. Whoever writes back lands in your Inbox, and the receptionist drafts the answer.";
-    readonly who: "Ready, with a checked address, never written to. Keeps itself current as the search grows.";
-    readonly opening: "The receptionist writes the opening from the finder's record of each business: why it fit, the reviews, the site, the hours. It never invents a fact; the check before each send holds anything it can't back.";
-    readonly stops: "Stops for anyone who writes back on any channel, books, unsubscribes, bounces or says no.";
-    readonly stopOne: "To stop writing to one business, open its lead and press Stop writing to them.";
-    readonly first: `Starts today. The first run waits on you. After that, a run gives you ${string} to stop it.`;
+    readonly sub: "Your email, opened for each business, from your own domain. Replies land in your Inbox.";
+    readonly who: "Ready, with a checked address, never written to. Keeps itself current.";
+    readonly opening: "The receptionist opens each email from the finder's record. It never invents a fact: anything it can't back is held.";
+    readonly stops: "Stops when they reply, book, unsubscribe, bounce or say no.";
+    readonly stopOne: "To stop one business, press Stop writing to them on its lead.";
+    readonly first: `Starts today. You approve the first run; after that you have ${string} to stop each one.`;
     readonly slotsHint: "each is filled for each business, or the email is held";
     readonly foot: "Why they're hearing from you, your address, Unsubscribe";
     readonly footHint: "as the law asks";
     readonly repliesHint: "into your Inbox";
-    readonly checkLater: "Every email is checked before it goes. The first run shows what the check held, and waits on you.";
+    readonly checkLater: "Each email is checked before it goes. The first run waits for you.";
     readonly noDomain: "Add a domain you send from in Settings › Connections › Email first.";
     readonly anotherStep: "Another step";
     readonly anotherStepHint: "· another email";
@@ -27637,7 +32000,7 @@ declare const REACH_OUT_SHEET_WORDS: {
     readonly handWords: "What to do";
     readonly handPlaceholder: "Ask whether our quote suited them";
     readonly remove: "Remove";
-    readonly removeNote: "Removes the reach-out and its words. Only before its first email goes; after that, pause it.";
+    readonly removeNote: "Only before its first email goes; after that, pause it.";
     readonly recheck: "Check the held again";
 };
 /**
@@ -27830,9 +32193,9 @@ declare function chainReportWordsOf(c: ReachOutChainDto, report: ReachOutChainRe
         id: string;
         text: string;
     }[];
-    stopOne: "To stop writing to one business, open its lead and press Stop writing to them.";
+    stopOne: "To stop one business, press Stop writing to them on its lead.";
     canRemove: boolean;
-    remove: "Removes the reach-out and its words. Only before its first email goes; after that, pause it." | null;
+    remove: "Only before its first email goes; after that, pause it." | null;
 };
 /**
  * Templates' words for a reach-out step's email (F15; canvas board 14; R19; One message, every channel, step 5): the
@@ -28350,6 +32713,17 @@ declare const BOOKED_SEEN_CAP = 500;
  */
 declare function bookedSeenOf(items: readonly FeedItem[], own: OwnAddresses): BookedSeen[];
 
+/**
+ * Reports › Campaigns — what the campaigns sent and what came of it, as facts.
+ *
+ * Messages sent by broadcasts and playbook runs, each channel's own delivered
+ * receipts (and WhatsApp's read receipts), who wrote back afterwards, and the people who said
+ * yes or asked to stop — over the period and the one before it, and the
+ * current period by source and by the channel each went by (0030). Every number is a count over columns; the
+ * shares are counts over counts; nothing is scored or estimated. A read is a share of WhatsApp's own sends alone:
+ * a text or an email keeps no read receipt. Colors are the page's.
+ */
+
 interface CampaignDayDto {
     day: string;
     sent: number;
@@ -28405,7 +32779,7 @@ interface CampaignChannelVM {
     readPct: number | null;
     replied: number;
     repliedPct: number | null;
-    /** What its bar says beside it: what it sent, and how much of it was delivered. */
+    /** What its bar says beside it: what it sent, and how much of it was delivered (a share from five sends, else the count: shareSaid). */
     display: string;
 }
 interface CampaignPointVM {
@@ -28417,6 +32791,10 @@ interface CampaignPointVM {
     replied: number;
     optIns: number;
     optOuts: number;
+    /** What a screen reader hears of the day's column: the day and what it sent. */
+    sentWords: string;
+    /** What the column's pointer adds under its number: the messages of the day that were answered; null where none were. */
+    answeredWords: string | null;
 }
 interface CampaignSourceVM {
     id: string;
@@ -28433,9 +32811,11 @@ interface CampaignSourceVM {
     replied: number;
     deliveredPct: number | null;
     repliedPct: number | null;
+    /** What the table says of its delivered share: a percentage from five sends, else the count ("3 of 4"); a dash for none (shareSaid). */
+    deliveredWords: string;
+    /** What it says of the messages answered: a percentage with the count from five sends, else the count ("1 of 3"); a dash for none. */
+    repliedWords: string;
     lastLabel: string;
-    /** 0..1 of the source that sent the most. */
-    share: number;
 }
 interface CampaignTotals {
     sent: number;
@@ -28454,15 +32834,19 @@ interface CampaignTotals {
 }
 interface CampaignReportVM {
     days: number;
-    tiles: ReportTileVM[];
     points: CampaignPointVM[];
     totals: CampaignTotals;
+    /** The period before's messages sent, delivered and answered, and its yeses and stops: what the lens's strip sets this period beside. */
+    before: {
+        sent: number;
+        delivered: number;
+        replied: number;
+        optIns: number;
+        optOuts: number;
+    };
     sources: CampaignSourceVM[];
     /** Nothing went out and nobody answered about offers: no send, no yes, no stop. */
     empty: boolean;
-    max: number;
-    /** Messages sent the period before, day for day beside this one's (null where there is no such day). */
-    prior: (number | null)[];
     table: {
         columns: string[];
         rows: (string | number)[][];
@@ -28478,11 +32862,10 @@ interface CampaignReportVM {
         rows: (string | number | null)[][];
     };
     /**
-     * The one sentence under each campaign card: who said yes or stop (the funnel), how many runs sent it (null with none),
-     * and what a read is, where more than one channel sent (null otherwise).
+     * The one sentence under each campaign card: how many runs sent it (null with none), and what a read is, where more than
+     * one channel sent (null otherwise). The funnel's sentence and the figures are the Campaigns lens's own (campaigns/campaign-lens.ts).
      */
     lines: {
-        funnel: string;
         sent: string | null;
         channels: string | null;
     };
@@ -28520,7 +32903,7 @@ declare const REPORT_LENSES: readonly [{
 }, {
     readonly id: "people";
     readonly label: "People";
-    readonly sub: "who reached you, and where and when";
+    readonly sub: "who reached you, whether you can reach them, and who is slipping away";
     readonly shownWhen: "always";
     readonly role: "viewer";
     readonly empty: (r: LensRange) => LensEmpty;
@@ -28541,8 +32924,22 @@ declare const REPORT_LENSES: readonly [{
 }, {
     readonly id: "campaigns";
     readonly label: "Campaigns";
-    readonly sub: "what went out, and who wrote back";
+    readonly sub: "did your messages reach people, did they answer, and what is stuck";
     readonly shownWhen: "always";
+    readonly role: "viewer";
+    readonly empty: (r: LensRange) => {
+        title: string;
+        body: string;
+        door: {
+            label: string;
+            to: string;
+        };
+    };
+}, {
+    readonly id: "ads";
+    readonly label: "Ads";
+    readonly sub: "what your ads cost, who they brought, and who booked";
+    readonly shownWhen: "ads_on";
     readonly role: "viewer";
     readonly empty: (r: LensRange) => {
         title: string;
@@ -28575,38 +32972,44 @@ type LensRow = (typeof REPORT_LENSES)[number];
  * The route a lens is at: the Overview is `reports`, every other `reports/<lens>`. Over days a member picked the address
  * says them too, after the lens in the shell's own grammar (`clients/leads:…`): `reports/receptionist:2026-09-01~2026-09-20`,
  * and for the Overview the days alone, `reports/2026-09-01~2026-09-20`. A period by name is never in the address: it is
- * the device's, and a link to a lens opens on whatever period its reader keeps.
+ * the device's, and a link to a lens opens on whatever period its reader keeps. The Ads lens alone also says what it is
+ * narrowed to, after the days: `reports/ads:2026-09-01~2026-09-20:ad:<id>`, `…:platform:meta` (every ad is no word at all).
  */
-declare const lensRoute: (id: LensId, days?: ReportDays | null) => string;
+declare const lensRoute: (id: LensId, days?: ReportDays | null, scope?: AdsScope | null) => string;
+/** Reports › Ads over these days, narrowed to a scope: what the Results sheet's "Full report" and an ad's drawer open. */
+declare const adsReportRoute: (days: ReportDays | null, scope?: AdsScope) => string;
 /** Every lens's route, in the strip's order (Ask's page routes read them). */
 declare const LENS_ROUTES: readonly string[];
 /** Whether a param under `reports` is a lens's: every one but the Overview, which is `reports` itself. */
 declare const isLensParam: (param: string) => param is Exclude<LensId, "overview">;
-/**
- * What follows `reports` in an address, read: the lens, and the days a member picked where the address says them
- * (lensRoute). Nothing is the Overview; a lens is that lens; days alone are the Overview over them; `<lens>:<days>` both.
- * Null for anything else, which is no address of Reports'. Whether the days may be read (not to come, not too many) is
- * not asked here: the address is read before the workspace's today is known, and the report's own read refuses them.
- */
-declare function reportsParamParts(param: string): {
+/** What an address of Reports says: the lens, the days a member picked, and for Ads alone what it is narrowed to (none: every ad). */
+interface ReportsParts {
     lens: LensId;
     days: ReportDays | null;
-} | null;
+    scope?: AdsScope;
+}
+/**
+ * What follows `reports` in an address, read: the lens, and the days a member picked where the address says them
+ * (lensRoute). Nothing is the Overview; a lens is that lens; days alone are the Overview over them; `<lens>:<days>` both;
+ * and Ads also `ads:<days>:<scope>` or `ads:<scope>`. Null for anything else, which is no address of Reports'. Whether the days
+ * may be read (not to come, not too many) is not asked here: the address is read before the workspace's today is known, and
+ * the report's own read refuses them.
+ */
+declare function reportsParamParts(param: string): ReportsParts | null;
 /**
  * A Reports route, read: `reports` and what follows it (reportsParamParts); null for a route that is not Reports'. A
  * slash with nothing after it is no address of Reports': the Overview is `reports` alone.
  */
-declare function reportsRouteParts(route: string): {
-    lens: LensId;
-    days: ReportDays | null;
-} | null;
+declare function reportsRouteParts(route: string): ReportsParts | null;
 /** The lens a route is: `reports` is the Overview, `reports/<lens>` that lens (whatever days it is over), and anything else none. */
 declare function lensOfRoute(route: string): LensId | null;
-/** What decides which lenses a workspace is shown: how its customers buy, and the role of the person looking. */
+/** What decides which lenses a workspace is shown: how its customers buy, whether it has ads, and the role of the person looking. */
 interface LensWho {
     sellsBy: string | null | undefined;
     /** Not yet known reads as a viewer, the lowest rung; a role the ladder does not know stands on none. */
     role: string | null | undefined;
+    /** The workspace has ads to report: a demo session for now, then the workspaces with a connected ad account (decision 0049). */
+    adsOn: boolean;
 }
 /** The lenses shown to this person in this workspace, in the strip's order. */
 declare function lensesFor(who: LensWho): LensRow[];
@@ -28616,6 +33019,255 @@ declare const lensIsShown: (id: LensId, who: LensWho) => boolean;
 declare function lensOf(id: LensId): LensRow;
 /** What a lens says where it has nothing to draw, over the period's dates. */
 declare const lensEmpty: (id: LensId, range: LensRange) => LensEmpty;
+
+/**
+ * Reports — the mix every lens draws as bars (10 Oct 2026): a count by key put in order, each given its words and its
+ * share of the largest, with the line under them or the words for why there is none. Out of the Receptionist lens, which
+ * drew the first, once the People lens drew its own; each lens still words its keys and its lines itself. Pure, and only
+ * Reports' page reads it (PAGE_ONLY in tooling/scripts/gen/contracts-browser-entry.mjs).
+ */
+
+/** One mix: its bars and the line under them, or the words for why there is none. */
+interface MixPartVM {
+    rows: ReportBarVM[];
+    line: string | null;
+    empty: string | null;
+}
+/**
+ * A bar that is a rate: the share it is of, the words that say what it is of, and the count it is of (`n`: the sends that have had
+ * their time, the businesses an opening was the last email to) with the fewest that say anything (`minN`), so the page greys a bar of
+ * fewer than five (D9). The Campaigns lens's messages and its reach-outs' angles are both these.
+ */
+interface RateRowVM {
+    id: string;
+    label: string;
+    value: number;
+    display: string;
+    n: number;
+    minN: number;
+}
+/**
+ * A part the database did not count (`noMix(null)`'s shape): no bars, no line and no words for why there are none. It is not a
+ * part that counted nothing (that one says so in `empty`), and a count the database did not send is never a zero, so whoever
+ * says the parts in words of its own (Ask does) leaves this one unsaid. The one predicate for the shape, for a mix and for a
+ * rate's rows alike.
+ */
+declare const isUncounted: (m: {
+    rows: readonly unknown[];
+    line: string | null;
+    empty: string | null;
+}) => boolean;
+
+/**
+ * Reports › People — the book as it stands now, counted over the people pool by People's own rules.
+ *
+ * The window of the lens (who reached the business, how they came, what they answered) is the database's, counted over
+ * days (people_series, 00395). The book is not: it is everyone People holds at this moment, and it is counted here, from
+ * the same rows People draws (`people_list`'s, through the pool's builder, `poolRowsOf`) by the predicates People already
+ * has, never restated. How long since a person was heard is `PersonRowVM.heardDays`; who is quiet, who said yes to
+ * messages or to offers and who asked to stop are the built-in lists (`membersOf` over `BUILTIN_LISTS`, which People's rail
+ * counts too); a next step's standing is `nextStep.due`; the ways a person reaches the business are `channels`; a stopped
+ * address is `emailSuppressed`. A number here is a number the rail would show for the same people, which a test holds.
+ *
+ * Counts only: nothing of a person leaves. The book is read for no one looking (`viewer: null`), so a list that is about
+ * whoever is looking could not be counted, and none of the five lists is. Pure.
+ */
+
+/** The book as it stands now: how many people, how fresh, on which lists, with which steps and by which wires. Counts only. */
+interface PeopleNowDto {
+    /** The live people the pool holds. */
+    people: number;
+    /** By how long since they last wrote or rang, in the workspace's days; `never` for someone who has done neither. */
+    fresh: {
+        under_7: number;
+        d7_30: number;
+        d31_60: number;
+        d61_90: number;
+        d91_up: number;
+        never: number;
+    };
+    /** People's own lists, counted by `membersOf`. */
+    lists: {
+        opted_in: number;
+        offers_ok: number;
+        opted_out: number;
+        quiet: number;
+    };
+    /** People whose earliest open step's day is before today / is today. */
+    steps: {
+        overdue: number;
+        due_today: number;
+    };
+    /** People whose address has bounced or complained and is no longer sent to. */
+    email_stopped: number;
+    /** By the ways they reach the business: one wire alone, several, or none on record. */
+    wires: {
+        whatsapp_only: number;
+        sms_only: number;
+        phone_only: number;
+        email_only: number;
+        several: number;
+        none: number;
+    };
+}
+/**
+ * The book as it stands at `nowMs`, in the workspace's zone `tz`, from the people pool (`people_list`'s rows). `ready` is
+ * what the workspace can send on now, which who can be sent offers is judged against (null: counted by WhatsApp alone, as
+ * every People page counts when the channels could not be read). Throws when a list cannot be counted, so the reader
+ * leaves the book out and says so.
+ */
+declare function peopleNowOf(rows: readonly PersonRowDto[], o: {
+    tz: string;
+    nowMs: number;
+    ready: ChannelsReady | null;
+}): PeopleNowDto;
+
+/** The people who reached the business in a period: all of them, and those whose first moment with it was in the same period. */
+interface ReachedDto {
+    people: number;
+    new: number;
+}
+/** The people who reached the business on each wire, a person once in each wire they used: the four add to at least the people reached. */
+interface ByChannelDto {
+    whatsapp: number;
+    sms: number;
+    email: number;
+    voice: number;
+}
+/** The answers given in the window, one a person, a kind of message and an answer: how many, by who gave it and by what it was about. */
+interface AnswersDto {
+    total: number;
+    by_source: Record<string, number>;
+    by_purpose: {
+        messages: number;
+        offers: number;
+        email_offers: number;
+    };
+}
+/** people_series's own answer (00395). */
+interface PeopleSeriesDto {
+    timezone: string;
+    /** The workspace's day in that zone when the read was made: "2026-10-06". */
+    today: string;
+    /** The window's last day (00360): today for a period by name, an earlier day for days a member picked. */
+    end?: string;
+    days: number;
+    /** The window (`now`) and the same number of days before it (`before`). */
+    reached: {
+        now: ReachedDto;
+        before: ReachedDto;
+    };
+    by_channel: {
+        now: ByChannelDto;
+        before: ByChannelDto;
+    };
+    /** The new people of the window by the door they came through (`acquired_via`); the values add up to `reached.now.new`. */
+    first_came: {
+        by_via: Record<string, number>;
+    };
+    /** The yeses and stops of the window by who gave them and what for; the period before is totals. */
+    consent: {
+        now: {
+            yes: AnswersDto;
+            stop: AnswersDto;
+        };
+        before: {
+            yes: number;
+            stop: number;
+        };
+    };
+    /** Addresses that stopped working in the window, a person once, by the first reason. */
+    email_stopped: {
+        total: number;
+        by_reason: Record<string, number>;
+    };
+    /** The steps finished in the window, and how many of them on their day or before. */
+    steps: {
+        done: number;
+        on_time: number;
+    };
+}
+/** What the route answers (the reader's body). `series` is null where the database has no people_series yet; `now` is null where the book could not be counted. */
+interface PeopleDto {
+    timezone: string;
+    today: string;
+    end?: string;
+    days: number;
+    series: PeopleSeriesDto | null;
+    now: PeopleNowDto | null;
+}
+/**
+ * Whether the database answered a People read (people_series): the window, and the people reached, the ways they came, the
+ * answers given, the addresses stopped and the steps done the lens is made of, each an object, and not its own `{ error }`
+ * (an unknown workspace).
+ */
+declare function isPeopleSeriesDto(answer: unknown): answer is PeopleSeriesDto;
+/**
+ * The route's answer from the database's and the pool's: the window as the series says it (`end` only where there is
+ * one), or, with no people_series in this database (`series` null), as the route asked it (`head`); the book as counted,
+ * or null. Pure: the reader feeds it both halves.
+ */
+declare function peopleDtoOf(series: PeopleSeriesDto | null, parts: {
+    /** The book as it stands now; null where it could not be counted. */
+    now: PeopleNowDto | null;
+    /** The window as the route asked it, which the DTO echoes (used when `series` is null). */
+    head: {
+        timezone: string;
+        today: string;
+        end?: string;
+        days: number;
+    };
+}): PeopleDto;
+
+/**
+ * Reports › People — what the lens's own read says, counted once.
+ *
+ * The route answers the lens's two halves in one DTO (people-record.ts): the window, from the database (people_series, 00395:
+ * who reached the business and how, how the new ones first came, the yeses and stops they gave, the addresses that stopped
+ * working, the steps finished on time), and the book as it stands now, from the people pool by People's own rules
+ * (people-now.ts). This puts them in words: the head, the four figures against the period before, the mixes, the book's
+ * wires and freshness, what is stuck and where the book stands. A page draws these and makes no sentence of its own; Ask
+ * says what it says. A share carries the count it is of (REPORT_MIN_N greys it under five), a part with nothing in it says
+ * so in words and never as a zero percentage, and either half stands without the other. Pure: the page feeds it the DTO.
+ *
+ * The window is "people", not "messages": report_series counts messages and calls day by day, and a person who wrote ten
+ * times is one here. The book is "as of now, whatever period is picked", and says so wherever it is drawn.
+ */
+
+/** A figure of the lens: the strip's tile, with the count a share is of (`n`), the list a count opens (`door`) and the tone of its number where it has them. */
+type PeopleFigureVM = ReportStripTile;
+interface PeopleReportVM {
+    /** The lens's sentence; null where the window was not read, and the frame's own sentence stands. */
+    head: string | null;
+    /** False: the database has no people_series yet, and the lens draws nothing of the window. */
+    windowAvailable: boolean;
+    /** False: the people pool could not be counted, and the lens draws nothing of the book. */
+    nowAvailable: boolean;
+    /** [people who reached you, new people, yeses won, stops] */
+    strip: PeopleFigureVM[];
+    /** The window: how they reached you, how the new ones first came, how the yeses were won and the stops came, the steps done on time, the addresses that stopped. */
+    channels: MixPartVM;
+    firstCame: MixPartVM;
+    yeses: MixPartVM;
+    stops: MixPartVM;
+    stepsDone: MixPartVM;
+    emailStopped: MixPartVM;
+    /** The book as of now: the ways people reach you, and how long since they last did. */
+    wires: MixPartVM;
+    fresh: MixPartVM & {
+        quiet: {
+            line: string;
+            door: string;
+            label: string;
+        } | null;
+    };
+    /** [steps overdue, steps due today, email stopped working] */
+    stuck: PeopleFigureVM[];
+    /** [said yes to messages, can receive offers, opted out, quiet 30+ days] */
+    stand: PeopleFigureVM[];
+}
+/** The lens's own parts, in words, from the DTO the route answers. */
+declare function toPeopleReportVM(dto: PeopleDto): PeopleReportVM;
 
 /** One profile review as the period's counts read it, the day and the writer already said by the database. */
 interface ReviewWrittenDto {
@@ -28802,15 +33454,28 @@ declare function toReviewsReportVM(dto: ReviewsReportDto, opts: {
 /**
  * The one sentence the head says for a lens (the lenses spec, D4: the head stays "Reports" and the lens's answer stands beside
  * it): taken from the view model that holds it, never composed on the page. A lens with nothing to say of itself says
- * nothing, and the head is its name alone.
+ * nothing, and the head is its name alone. The People lens always has a sentence: its own where its read has landed and
+ * said one, else the frame's count of new people, which a quiet period has too (a type import alone: the fold that
+ * builds the lens's head stays in the page-only entry, out of the route's chunk). The Campaigns lens's is the head of its own
+ * read the same way, and nothing before that read lands or where it could not be made. The Ads lens's (a demo session's for now) is the
+ * head of its fold, and nothing where the fold is not drawn.
  */
 
 declare function lensAnswerOf(lens: LensId, parts: {
     vm: ReportVM;
-    campaigns: CampaignReportVM | null;
+    /** The Campaigns lens's own read, which the page holds beside the report: its head alone; null where it has not landed or failed. */
+    campaigns: {
+        head: string | null;
+    } | null;
     deals: DealReportVM | null | undefined;
     /** The Reviews lens's own read, which the page holds beside the report; null where it has not landed. */
     reviews: ReviewsReportVM | null;
+    /** The People lens's own read, which the page holds beside the report: its head alone; null where it has not landed. */
+    people: Pick<PeopleReportVM, "head"> | null;
+    /** The Ads lens's fold, which the page holds beside the report (a demo session's): its head alone; none where it is not drawn. */
+    ads?: {
+        head: string | null;
+    } | null;
 }): string | undefined;
 
 /** The words over a figure's label: what it counts and what it leaves out. */
@@ -28999,12 +33664,6 @@ declare function receptionistDtoOf(series: ReceptionistSeriesDto | null, parts: 
  * in both, so the two are never added together here or anywhere.
  */
 
-/** One mix: its bars and the line under them, or the words for why there is none. */
-interface MixPartVM {
-    rows: ReportBarVM[];
-    line: string | null;
-    empty: string | null;
-}
 /** A figure of the lens: the strip's tile, with the count a ratio is of (`n`) and the page a number opens (`door`) where it has them. */
 type ReceptionistFigureVM = ReportStripTile;
 interface ReceptionistReportVM {
@@ -29037,6 +33696,9 @@ interface ReceptionistReportVM {
 declare function toReceptionistReportVM(dto: ReceptionistDto, opts: {
     nowMs: number;
 }): ReceptionistReportVM;
+
+/** The kept rhythm card's unit: the frame's week and hours count a connected call in either direction beside the messages. */
+declare const PEOPLE_RHYTHM_UNIT = "messages and calls";
 
 /**
  * The windows a member reaches in one press that are not a period ending today, at a business day: named here, and
@@ -29107,7 +33769,7 @@ declare function reportPickWords(first: string | null, band: ReportDays, refused
  */
 
 interface ReportFactVM {
-    id: "unanswered" | "handovers" | "busiest" | "hours" | "closed" | "campaign" | "channel";
+    id: "unanswered" | "handovers" | "busiest" | "hours" | "closed" | "campaign" | "channel" | "ads";
     tone: "" | "warn";
     /** An icon the legacy Icon set draws. */
     icon: "alert" | "users" | "calendar" | "clock" | "sparkle" | "chat";
@@ -29119,7 +33781,365 @@ interface ReportFactVM {
         to: string;
     } | null;
 }
-declare function reportFacts(vm: ReportVM, campaigns: CampaignReportVM | null): ReportFactVM[];
+/**
+ * The campaigns it reads are the sources of the Campaigns lens's own read (`reports_campaigns`), which the page holds beside the
+ * report: null, or no sources, while that read is out, failed or missing, and the fact is then absent, never guessed.
+ *
+ * `ads` is the one fact the Ads fold makes of the same days ("Your ads brought 14 new people", its door Open Ads): handed only
+ * to a workspace that has ads (a demo session for now), so a workspace without them reads exactly the facts it always did. It
+ * takes the last of the three places, after the two an owner should act on first.
+ */
+declare function reportFacts(vm: ReportVM, campaigns: Pick<CampaignReportVM, "sources"> | null, ads?: ReportFactVM | null): ReportFactVM[];
+
+/** The people a period's runs sent to, and how many of them wrote back: a person once, however many runs sent to them. */
+interface PeopleCountsDto {
+    sent_to: number;
+    wrote_back: number;
+}
+/** The runs of a period that sent, by kind. A reach-out step's run is never here: its people are reach_out_sends. */
+interface RunCountsDto {
+    moment: number;
+    broadcast: number;
+}
+/** Messages that failed after they were sent, for one cause: the channel they went by and the provider's code, or with none one word of a closed set. */
+interface FailedSendDto {
+    channel: string;
+    code: number | null;
+    kind: string | null;
+    n: number;
+}
+/** One message's sends in the window (by the run's template and language), the ones whose reply window is over, and the answered of those. */
+interface ByMessageDto {
+    name: string;
+    language: string;
+    sent: number;
+    mature: number;
+    replied: number;
+}
+/** campaign_ledger's own answer (00405): counts, and the business's own template names; never a person's name, number or address. */
+interface CampaignLedgerSeriesDto {
+    timezone: string;
+    /** The workspace's day in that zone when the read was made: "2026-10-06". */
+    today: string;
+    /** The window's last day (00360): today for a period by name, an earlier day for days a member picked. */
+    end?: string;
+    days: number;
+    /** The window (`now`) and the same number of days before it (`before`); `counting` are the people whose reply window is not over. */
+    people: {
+        now: PeopleCountsDto & {
+            counting: number;
+        };
+        before: PeopleCountsDto;
+    };
+    runs: {
+        now: RunCountsDto;
+        before: RunCountsDto;
+    };
+    /** People a run did not send to, dated by the run, by a reason of ours (`other` where the database held none). */
+    held: {
+        total: number;
+        skipped: number;
+        failed: number;
+        by_reason: Record<string, number>;
+    };
+    /** The runs that failed or were canceled, the failed by their code. */
+    stopped: {
+        failed: number;
+        canceled: number;
+        by_failure: Record<string, number>;
+    };
+    failed_sends: {
+        total: number;
+        by_code: FailedSendDto[];
+    };
+    /** The twenty messages with most sends. */
+    by_message: ByMessageDto[];
+    /** The window's answered sends, by the seconds to the first answer. */
+    first_reply: {
+        n: number;
+        median_s: number | null;
+        buckets: {
+            m15: number;
+            h1: number;
+            h4: number;
+            h24: number;
+            h72: number;
+        };
+    };
+    /** The approvals made in the window, by the seconds from the run's being made to the decision. */
+    approval: {
+        n: number;
+        median_s: number | null;
+        buckets: {
+            h1: number;
+            h4: number;
+            h24: number;
+            over: number;
+        };
+    };
+}
+/** A run waiting for an OK, of any kind (a reach-out step's too): the facts the verb's refusal reads. */
+interface WaitingRunRaw {
+    id: string;
+    name: string;
+    kind: "moment" | "broadcast" | "reach_out";
+    playbook_id: string | null;
+    /** The day the run was made for, "2026-10-06"; null for a run that has none (a broadcast). */
+    run_for: string | null;
+    trigger: string | null;
+    audience_kind: string | null;
+    created_at: string;
+    recipient_count: number;
+}
+/** A run that failed in the last thirty days, by the code of ours the database sanitised it to. */
+interface FailedRunRaw {
+    id: string;
+    name: string;
+    kind: "moment" | "broadcast" | "reach_out";
+    failure: string;
+    finished_at: string;
+}
+/** A thread of someone who answered a campaign, with the columns the one standing reads. A superset of the threads that wait. */
+interface ReplyRaw {
+    state: string;
+    paused_until: string | null;
+    assignee_user_id: string | null;
+    open_escalation: boolean;
+    replied_at: string;
+}
+/** A WhatsApp template Meta paused, turned off or rejected (the SQL's own filter), used or not. */
+interface TemplateRaw {
+    name: string;
+    language: string;
+    status: "paused" | "disabled" | "rejected";
+    quality: string | null;
+}
+/** campaign_stuck's own answer (00406): as of now, never the window; each list at most 500 (templates at most 100). */
+interface CampaignStuckRawDto {
+    runs_waiting: WaitingRunRaw[];
+    runs_failed: FailedRunRaw[];
+    replies: ReplyRaw[];
+    templates: TemplateRaw[];
+}
+/** The connected WhatsApp number, as the lens says it: none connected, one that could not be read, or its health and when it was last checked. */
+type CampaignNumberDto = {
+    state: "none";
+} | {
+    state: "unread";
+} | {
+    state: "read";
+    tone: "ok" | "warn" | "danger" | "unknown";
+    can_send: boolean;
+    label: string;
+    checked_at: string | null;
+};
+/** What is stuck in the workspace's campaigns now, judged. A `capped` list reached the 500 the database lists: its count is at least that. */
+interface CampaignStuckNowDto {
+    /** Runs waiting for an OK; `late` are those the verb that approves them would refuse (their day has passed). */
+    waiting: {
+        n: number;
+        late: number;
+        oldest_at: string | null;
+        capped: boolean;
+    };
+    failed: {
+        n: number;
+        latest: {
+            name: string;
+            failure: string;
+            at: string;
+        } | null;
+        capped: boolean;
+    };
+    /** People who answered a campaign and whose thread waits on a person, the workspace's. */
+    replies: {
+        n: number;
+        oldest_at: string | null;
+        capped: boolean;
+    };
+    /** Every template Meta stopped, and the first three. */
+    templates: {
+        n: number;
+        items: Array<{
+            name: string;
+            language: string;
+            status: "paused" | "disabled" | "rejected";
+        }>;
+    };
+    number: CampaignNumberDto;
+}
+/**
+ * What the route answers (the reader's body). `series` is null where the database has no campaign_ledger yet and `stuck`
+ * where it has no campaign_stuck, or where that read failed (`stuck_failed`, set only then: a function a database lacks is
+ * not a failure).
+ */
+interface CampaignLedgerDto {
+    timezone: string;
+    today: string;
+    end?: string;
+    days: number;
+    series: CampaignLedgerSeriesDto | null;
+    stuck: CampaignStuckNowDto | null;
+    stuck_failed?: true;
+}
+/**
+ * Whether the database answered a Campaigns read (campaign_ledger): the window, and every part the lens is made of, each an
+ * object or a list of objects, and not its own `{ error }` (an unknown workspace).
+ */
+declare function isCampaignLedgerSeriesDto(answer: unknown): answer is CampaignLedgerSeriesDto;
+/** Whether the database answered a stuck read (campaign_stuck): its four lists, each a list of objects, and not its own `{ error }`. */
+declare function isCampaignStuckRawDto(answer: unknown): answer is CampaignStuckRawDto;
+/**
+ * The route's answer from the databases': the window as the series says it (`end` only where there is one), or, with no
+ * campaign_ledger in this database (`series` null), as the route asked it (`head`); and what is stuck judged at `nowMs` in
+ * the window's zone, with the number beside it. A stuck read that is missing (`stuck` null) is null; one that failed
+ * (`stuckFailed`) is null with `stuck_failed` set, whatever raw answer is passed with it: a failed read has nothing to
+ * judge. Pure: the reader feeds it the rows, the number and the clock.
+ */
+declare function campaignLedgerDtoOf(series: CampaignLedgerSeriesDto | null, parts: {
+    /** campaign_stuck's answer; null where the database has no such function or the read failed. */
+    stuck: CampaignStuckRawDto | null;
+    /** That the stuck read failed, as against a database that lacks it. */
+    stuckFailed: boolean;
+    /** The connected number, which rides with what is stuck. */
+    number: CampaignNumberDto;
+    /** The window as the route asked it, which the DTO echoes (used when `series` is null). */
+    head: {
+        timezone: string;
+        today: string;
+        end?: string;
+        days: number;
+    };
+    nowMs: number;
+}): CampaignLedgerDto;
+
+/**
+ * A line of the sources table: a reach-out, then each of its steps on its own line. Every cell is words, in businesses
+ * where it is a share of an outcome.
+ */
+interface ReachOutLensSourceLine {
+    id: string;
+    kind: "chain" | "step";
+    name: string;
+    meta: string;
+    /** The chain's row on Playbooks, for a reach-out's line. */
+    to: string | null;
+    /** Emails written. */
+    written: string;
+    /** Emails landed: a share of the emails written, from five. */
+    delivered: string;
+    /** Businesses written to, each once at its last email. */
+    businesses: string;
+    /** Businesses that wrote back: a share of the businesses, from five. */
+    wroteBack: string;
+    interested: string;
+    booked: string;
+    saidNo: string;
+    bounced: string;
+    last: string;
+}
+interface ReachOutLensVM {
+    /** Draw the part: the workspace has a reach-out. */
+    present: boolean;
+    /** Nothing was written or handed in the period. */
+    empty: boolean;
+    days: number;
+    /** As the database gave them (`businesses` absent before 00404). */
+    totals: ReachOutReportCounts;
+    /** [emails written, landed, bounced] */
+    strip: ReportStripTile[];
+    /** Written, delivered, bounced: emails. */
+    emails: MixPartVM;
+    /** Written to, wrote back, interested, booked, said no: businesses. */
+    businesses: MixPartVM;
+    /**
+     * The share of the businesses whose last email had each angle that wrote back. A bar is a rate: `n` is the businesses it is of
+     * and `minN` the fewest that say anything, so the page greys a bar of fewer than five (D9, as the messages' rates are).
+     */
+    angles: {
+        rows: RateRowVM[];
+        line: string | null;
+        empty: string | null;
+    };
+    domains: ReachOutDomainRow[];
+    /** A day written, with what a screen reader says of it (`writtenWords`). */
+    points: Array<{
+        day: string;
+        label: string;
+        short: string;
+        written: number;
+        writtenWords: string;
+    }>;
+    table: {
+        columns: string[];
+        rows: Array<Array<string | number>>;
+    };
+    /** A line a reach-out and a line a step under it, in businesses. */
+    sources: ReachOutLensSourceLine[];
+    /** `sources` is the line under the sources table: each business counts once, and what came of it is as it stands now. */
+    lines: {
+        written: string;
+        domains: string;
+        empty: string;
+        sources: string;
+    };
+}
+/** The Reach-outs part's own words, from the report the route answers (and the period before it, where there is one). */
+declare function toReachOutLensVM(raw: ReachOutReportDto, nowMs?: number): ReachOutLensVM;
+
+/** The lens's reads, by the part of the page each feeds. */
+type ReadPart = "campaigns" | "ledger" | "stuck" | "reach_outs";
+
+/** The three reads: the sends, the ledger the route answers (null where it failed), and the reach-outs (undefined in the demo). */
+interface CampaignLensInput {
+    campaigns: CampaignReportDto | null;
+    ledger: CampaignLedgerDto | null;
+    reachOuts: ReachOutReportDto | null | undefined;
+}
+/** A figure of the lens: the strip's tile, with the count a share is of (`n`), the page a count opens (`door`) and the tone of its number where it has them. */
+type CampaignFigureVM = ReportStripTile;
+interface CampaignLensVM {
+    /** The lens's sentence; null where the sends could not be read. */
+    head: string | null;
+    /** How each read went: `missing` is a function the database lacks (no failure, no words), `none` the reach-outs of a demo. */
+    reads: {
+        campaigns: "ok" | "failed";
+        ledger: "ok" | "missing" | "failed";
+        stuck: "ok" | "missing" | "failed";
+        reachOuts: "ok" | "failed" | "none";
+    };
+    /** One entry for each read that failed, with what stands. */
+    failed: Array<{
+        part: ReadPart;
+        what: string;
+        body: string;
+    }>;
+    /** Nothing went out, nothing was held, no run stopped and nobody answered: the lens draws one card, and what is stuck and the reach-outs. */
+    quiet: boolean;
+    /** The existing fold of the sends: the days, the channels, the sources and the tables. */
+    report: CampaignReportVM | null;
+    /** [people sent to, delivered, wrote back, said yes, asked to stop]; three without the ledger. */
+    strip: CampaignFigureVM[];
+    funnel: MixPartVM;
+    held: MixPartVM;
+    stopped: MixPartVM;
+    failedWhy: MixPartVM;
+    byMessage: {
+        rows: RateRowVM[];
+        line: string | null;
+        empty: string | null;
+    };
+    /** "From 12 campaign runs and 2 one-off broadcasts." */
+    runsLine: string | null;
+    firstReply: MixPartVM;
+    approval: MixPartVM;
+    /** [runs waiting, failed runs, replies waiting, messages Meta stopped, your number]; empty where not read. */
+    stuck: CampaignFigureVM[];
+    /** Null where the reach-outs were not read or failed. */
+    reachOuts: ReachOutLensVM | null;
+}
+/** The Campaigns lens's parts, in words, from its three reads and the clock. */
+declare function toCampaignLensVM(input: CampaignLensInput, nowMs: number): CampaignLensVM;
 
 /**
  * The fold over SETUP_ROWS: the rows drawn, each with its state's words and whether this member put it off; the
@@ -30234,6 +35254,8 @@ interface ReceptionistCardInputs {
             hours?: Partial<Record<string, Hours>> | null;
             services?: readonly ServiceWordsInput[] | null;
             languages?: readonly string[] | null;
+            /** The business's own phone greeting (decision 0051); absent for the standard one. */
+            phone_greeting?: string | null;
         } | null;
     } | null;
     /** The numbers as the settings read resolved them (facts.ts); null until that read lands. */
@@ -30630,7 +35652,7 @@ declare const err: (code: ErrorCode, message: string, details?: unknown) => Err;
  * Not the app plane's envelope: /api/v1 answers `{ ok: false, error: { code, message } }` with ERROR_CODES
  * (errors.ts). This is the edge's, one level down, which the dashboard reads and translates into that one.
  */
-declare const EDGE_ERROR_CODES: readonly ["accounts_unreadable", "already_registered", "already_sent", "already_subscribed", "ask_budget", "bad_request", "bad_secret", "bad_signature", "bad_template", "bad_tenant", "brain_failed", "calendar_backlog", "campaign_rejected", "channel_read_failed", "channel_write_failed", "check_unset", "cold_lane_unset", "config_broken", "connection_write_failed", "context_failed", "could_not_queue", "could_not_retire_old_draft", "credentials_failed", "direct", "dns_hold", "email_off", "empty_draft", "erasure_unreadable", "exchange_failed", "google_refused", "grant_unreadable", "host_elsewhere", "host_taken", "in_flight", "ingest_failed", "invalid", "key_unavailable", "line_exists", "line_failed_retry", "line_not_retryable", "line_retry_taken", "listing_read_failed", "listing_write_failed", "message_read_failed", "meta_failed", "meta_refused", "mock_registration", "model_failed", "model_unavailable", "model_unreachable", "moved", "no_account", "no_app_credentials", "no_billing_record", "no_business_record", "no_campaign_to_resubmit", "no_channel", "no_cold_key", "no_credentials", "no_customer", "no_database", "no_domain_readable", "no_fn_secret", "no_line_credentials", "no_line_provider", "no_listing", "no_location", "no_locations", "no_messaging_service", "no_model_key", "no_oauth_client", "no_open_handover", "no_open_invitation", "no_persona", "no_phone", "no_places_key", "no_platform_mailbox", "no_primary_profile", "no_provider", "no_provider_credentials", "no_provider_key", "no_refresh_token", "no_registration_readable", "no_review", "no_sender", "no_subaccount", "no_subscription", "no_such_location", "no_token", "no_waba", "no_whatsapp_channel", "no_workspace_readable", "not_a_held_draft", "not_connected", "not_found", "not_from_profile", "not_held", "not_on_maps", "not_paused", "not_ready", "not_rejected", "not_trialing", "nothing_to_answer", "number_ambiguous", "number_missing", "number_taken", "number_unreadable", "payment_required", "pin_required", "platform_hold", "platform_only", "playbooks_backlog", "policy_block_price", "policy_never", "preview_failed", "provider", "provider_refused", "provider_unauthorized", "provider_unreachable", "purge_failed", "query_failed", "reach_out_step", "read_failed", "record_incomplete", "register_failed", "registration_pending", "replace_failed", "resubmit_failed", "review_read_failed", "review_write_failed", "routing_unreadable", "run_failed", "scope_missing", "signature", "sole_proprietor_incomplete", "stripe_refused", "stripe_unreadable", "subscribe_failed", "token_audience", "token_body", "token_expired", "token_malformed", "token_replayed", "token_required", "token_signature", "too_large", "too_many", "unauthorized", "unavailable", "unfile_failed", "unknown_op", "unreadable", "waba_not_granted", "waba_unreadable", "workspace_mismatch", "write_failed"];
+declare const EDGE_ERROR_CODES: readonly ["accounts_unreadable", "already_registered", "already_sent", "already_subscribed", "ask_budget", "bad_request", "bad_signature", "bad_template", "bad_tenant", "brain_failed", "calendar_backlog", "campaign_rejected", "channel_read_failed", "channel_write_failed", "check_unset", "cold_lane_unset", "config_broken", "connection_write_failed", "context_failed", "could_not_queue", "could_not_retire_old_draft", "credentials_failed", "direct", "dns_hold", "email_off", "empty_draft", "erasure_unreadable", "exchange_failed", "google_refused", "grant_unreadable", "host_elsewhere", "host_taken", "in_flight", "ingest_failed", "invalid", "key_unavailable", "line_exists", "line_failed_retry", "line_not_retryable", "line_retry_taken", "listing_read_failed", "listing_write_failed", "message_read_failed", "meta_failed", "meta_refused", "mock_registration", "model_failed", "model_unavailable", "model_unreachable", "moved", "no_account", "no_app_credentials", "no_billing_record", "no_business_record", "no_campaign_to_resubmit", "no_channel", "no_cold_key", "no_credentials", "no_customer", "no_database", "no_domain_readable", "no_fn_secret", "no_line_credentials", "no_line_provider", "no_listing", "no_location", "no_locations", "no_messaging_service", "no_model_key", "no_oauth_client", "no_open_handover", "no_open_invitation", "no_persona", "no_phone", "no_places_key", "no_platform_mailbox", "no_primary_profile", "no_provider", "no_provider_credentials", "no_provider_key", "no_refresh_token", "no_registration_readable", "no_review", "no_sender", "no_subaccount", "no_subscription", "no_such_location", "no_token", "no_waba", "no_whatsapp_channel", "no_workspace_readable", "not_a_held_draft", "not_connected", "not_found", "not_from_profile", "not_held", "not_on_maps", "not_paused", "not_ready", "not_rejected", "not_trialing", "nothing_to_answer", "number_ambiguous", "number_missing", "number_taken", "number_unreadable", "payment_required", "pin_required", "platform_hold", "platform_only", "playbooks_backlog", "policy_block_price", "policy_never", "preview_failed", "provider", "provider_refused", "provider_unauthorized", "provider_unreachable", "purge_failed", "query_failed", "reach_out_step", "read_failed", "record_incomplete", "register_failed", "registration_pending", "replace_failed", "resubmit_failed", "review_read_failed", "review_write_failed", "routing_unreadable", "run_failed", "scope_missing", "signature", "sole_proprietor_incomplete", "stripe_refused", "stripe_unreadable", "subscribe_failed", "token_audience", "token_body", "token_expired", "token_malformed", "token_replayed", "token_required", "token_signature", "too_large", "too_many", "unauthorized", "unavailable", "unfile_failed", "unknown_op", "unreadable", "waba_not_granted", "waba_unreadable", "workspace_mismatch", "write_failed"];
 type EdgeErrorCode = (typeof EDGE_ERROR_CODES)[number];
 /**
  * The codes the dashboard's own side of an edge call answers with when no door answered: the call was never made
@@ -30716,6 +35738,13 @@ declare function whyNotALink(raw: string | null | undefined): string | null;
  * where the proposal is; the address itself when it cannot be read.
  */
 declare function linkHost(url: string): string;
+/**
+ * Where a file in one of our public buckets is served: the project's own storage, on the Supabase origin the
+ * dashboard's content policy already lets images in from (csp.ts reads the same variable). The caller has already held
+ * the path to its bucket's own shape (a lead's mark, a workspace's logo); this answers null without an https origin to
+ * serve it from (a laptop's own stack aside), so nothing is ever drawn from an address a browser would refuse.
+ */
+declare function publicObjectSrc(supabaseUrl: string | null | undefined, bucket: string, path: string): string | null;
 
 /** The business's day at an instant: "2026-09-06". */
 declare function zoneDayKey(atMs: number, tz: string): string;
@@ -31499,7 +36528,7 @@ declare function starterByKey(key: string): StarterTemplate | null;
  * (triggerOffered), so a workspace where deals are off is never offered the proposal follow-up, nor has it filed with
  * WhatsApp for it, and no workspace is offered a starter the set replaced (2 Oct 2026). A starter that takes the review
  * link (the review ask) is offered only where the workspace's Google listing keeps one (`reviewLink`, db reviewLinkOf,
- * 00394): its slot is filled from nothing else, and a message's values are refused without it (core
+ * 00408): its slot is filled from nothing else, and a message's values are refused without it (core
  * refuseWithoutReviewLink). Both facts are the caller's to read, every time: neither has a default.
  */
 declare function startersOffered(here: {
@@ -32992,7 +38021,7 @@ declare const ALERT_PANE_WORDS: {
     readonly bellOn: "Always on";
     readonly email: "Email";
     readonly emailNobody: "Nobody yet";
-    readonly emailNobodyHint: "Until an address is added, a customer who needs a person reaches nobody by email: Chanlytics is told the workspace needs one, without the customer's message.";
+    readonly emailNobodyHint: "Until one is added, nobody is emailed when a customer needs a person.";
     readonly emailMore: (n: number) => string;
     readonly change: "Change";
     readonly done: "Done";
@@ -33011,7 +38040,7 @@ declare const ALERT_PANE_WORDS: {
     readonly phoneHint: "Signing out on a phone stops its alerts.";
     readonly browser: "This browser";
     readonly browserValue: "When someone needs you right now";
-    readonly browserHint: "A customer who needs a person, a reply waiting for your OK, a missed call, or a search's question, while Chanlytics is open in a tab.";
+    readonly browserHint: "While Chanlytics is open in a tab.";
     readonly browserBlocked: "Your browser is blocking alerts from Chanlytics. Allow them in its settings for this site, then switch this on.";
     readonly what: "What you're told about";
     readonly whatSub: "Tick where else each one reaches you. Email is the business's; your phone is yours.";
@@ -33162,9 +38191,10 @@ declare function injectedTurn(content: string | null | undefined): {
  * the business is unknown this simply greets nobody by name, which is never
  * wrong -- and is the shell's own default, below, so the two are one sentence.
  *
- * Both disclosures -- recording, and that this is an automated assistant --
- * live here rather than in the agent's config, because they are promises the
- * product makes and should not be editable by whoever last opened Retell.
+ * The standard line, with both disclosures: recording, and that this is an
+ * automated assistant. The business may write its own (decision 0051,
+ * greeting-owner.ts greetingOf), which keeps the second whatever it says;
+ * nothing typed into Retell is spoken, since begin_message is this variable.
  *
  * Contracts' since the first run shows the owner the sentence their receptionist
  * will say (first-run.ts); the voice shell (packages/channels voice-shell.ts)
@@ -33181,6 +38211,50 @@ declare function pausedGreetingFor(name: string | null): string;
  * (db, core, jobs bundle contracts) leaves it out.
  */
 declare const GREETING_DEFAULT: string;
+
+/** Where the greeting a caller hears came from: the retell_inbound log line says it, so a call can be traced. */
+type GreetingSource = "standard" | "owner" | "owner_disclosed" | "paused" | "standard_denied";
+/** The standard greeting as the owner's box shows it: the slot in place of the name, so a rename follows it. */
+declare const GREETING_TEMPLATE: string;
+/** Whether the line tells the caller it is automated, in any words, English or Spanish. */
+declare function statesAutomated(text: string, name?: string | null): boolean;
+/** Whether the line denies being automated, or claims to be a person. */
+declare function deniesAutomated(text: string, name?: string | null): boolean;
+/** The name a caller hears: the one typed, trimmed; none when it is blank. One reading for the call, the card and the box. */
+declare function spokenNameOf(name: string | null | undefined): string | null;
+/**
+ * The greeting a caller hears, and where it came from. Paused, the product's take-a-message line. No line stored, a
+ * blank one, or one that names the business when no name is known: the standard line. A line that denies being
+ * automated or claims to be a person: the standard line. Otherwise the owner's line, the name filled, double braces made
+ * single (Retell fills its own {{…}} and never sees ours), and the AI clause added where it never says it.
+ */
+declare function greetingOf(input: {
+    name: string | null | undefined;
+    stored: string | null | undefined;
+    paused: boolean;
+}): {
+    text: string;
+    source: GreetingSource;
+};
+/** The notes an owner's line can carry, in the order the box shows them: every one that applies, never a refusal. */
+type GreetingNoteKey = "denies_ai" | "adds_ai" | "denies_recording" | "no_recording" | "long" | "link" | "slot" | "money" | "price";
+interface GreetingNote {
+    key: GreetingNoteKey;
+    words: string;
+}
+/**
+ * What the owner's line means for a caller, most important first. Pure, and asked on every read (the box, the row at
+ * rest), so a note follows a later change elsewhere (the price switch turned back on) without a save to catch it.
+ * `money` and `prices` are the policy's own detectors, passed in so this module stays free of the policy table.
+ */
+declare function greetingNotes(input: {
+    stored: string | null | undefined;
+    name: string | null | undefined;
+    /** "Never quote a price" in force (guardrailsInForce). */
+    neverQuotePrices: boolean;
+    namesMoney: (text: string) => boolean;
+    namesPrice: (text: string) => boolean;
+}): GreetingNote[];
 
 /**
  * The workspace itself, in words.
@@ -33273,6 +38347,12 @@ declare const RETENTION_DAYS: {
     readonly leads_untouched_blanked: 180;
     /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00140). */
     readonly leads_excluded_blanked: 30;
+    /** The finder's judgment of a batch of places, with its reason for each (purge_leads, 00140; decision 0036). */
+    readonly lead_judgments: 180;
+    /** A Google review the mirror has not seen for this long; a complete read drops one Google no longer lists at once (purge_google_reviews, 00392; decision 0036). */
+    readonly google_reviews: 90;
+    /** A team invitation accepted or taken back, with the address it was sent to (purge_invitations, 00392; decision 0036). */
+    readonly invitations_closed: 30;
     /** A background job done or canceled, which carried a message's number and words while it was sent (purge_jobs, 00215). */
     readonly jobs_finished: 7;
     /** A failed one lives as long as the alert that cites it (purge_jobs, 00215; notifications). */
@@ -33285,6 +38365,12 @@ declare const RETENTION_DAYS: {
     readonly provider_events: 7;
     /** What a write answered, under the key its page sent, so the same write sent twice is made once (purge_idempotency_keys, 00340; decision 0035). */
     readonly idempotency_keys: 1;
+    /** A receptionist's turn as the model read it, and what it answered (purge_model_turns, 00401; decision 0039). */
+    readonly model_turns: 30;
+    /** The text of a prompt the receptionist was given, from the last turn that read it: the usage ledger's own keep, so a kept turn's row there opens its prompt for as long as the row stands (purge_model_prompts, 00401). */
+    readonly model_prompts: 400;
+    /** A workspace's settings as they stood at a version, from the day the next replaced it; the version in force is kept (purge_config_versions, 00402; decision 0039, step 3). */
+    readonly tenant_config_versions: 400;
 };
 /** Rate-limit counters (00059): two hours, in hours. */
 declare const RATE_HITS_RETENTION_HOURS = 2;
@@ -33384,7 +38470,7 @@ declare const ACTIVITY_NOISE_PREFIXES: readonly ["usage.", "webhook.", "ingest."
  * name. Each is named, never its family, so an owner-facing kind added under the same prefix later (an `escalation.` one)
  * is shown and not hidden with them.
  */
-declare const ACTIVITY_NOISE_KINDS: readonly ["escalation.changed", "lead.set_aside", "call.transferred", "booking_link.sent", "channel.quality_rating", "person.resolved", "appointment.changed"];
+declare const ACTIVITY_NOISE_KINDS: readonly ["escalation.changed", "lead.set_aside", "lead.ideas_written", "call.transferred", "booking_link.sent", "channel.quality_rating", "person.resolved", "appointment.changed"];
 /**
  * Whether a row of the log is about money: an event its emitter filed under billing -- the subscription's
  * (billing.updated, .paused, .resumed, apps/edge/lib/billing/billing.ts) and a partner's share, its reversal, its payment and
@@ -34074,7 +39160,7 @@ interface PartnerInvitationDto {
 declare const PARTNER_INVITE_WORDS: {
     /** Settings › Team, the owner's card. */
     readonly title: "Your partner";
-    readonly intro: "A partner is someone who sets up and runs your receptionist with you: they join your team with the partner role, and never touch billing or the team. Ask one by their code, the end of their link. They have 14 days to accept.";
+    readonly intro: "Someone who sets up and runs your receptionist with you, never billing or the team. Ask one by their code; they have 14 days to accept.";
     readonly codeLabel: "Their code or link";
     readonly codePlaceholder: "their-code";
     readonly invite: "Ask them";
@@ -34148,17 +39234,6 @@ declare const PartnerInviteSchema: z$1.ZodObject<{
 declare const ACTIVATION_MILESTONES: readonly ["line_live", "first_reply", "first_lead_search"];
 type ActivationMilestone = (typeof ACTIVATION_MILESTONES)[number];
 
-/**
- * Each workspace's day, counted (00277 platform_metrics): the back office's read and the words its card says.
- *
- * The nightly rollup counts one UTC day per workspace that did anything in it: messages in and out by channel, the
- * customers' messages (asks) and how many anyone answered, the receptionist's replies answered at once, held, and
- * handed to a person, its 95th-percentile latency, the sends that failed by what they came to, and model tokens.
- * Reports shows an owner their own; this is the platform's view across every workspace, which nothing else gives:
- * a workspace whose answer rate fell to zero is found here (and paged by the health sweep) before its owner writes.
- * Field data's p75 (shell/vitals.ts) is the page's speed; this is the product's work, and the two are not mixed.
- */
-
 /** How many days the back office reads: a week, newest first. */
 declare const PLATFORM_DAYS_READ: {
     readonly days: 7;
@@ -34226,6 +39301,117 @@ interface PlatformDaysVM {
 }
 /** The card: each workspace's newest day, the silent ones first, then the busiest. */
 declare function platformDaysWords(rows: readonly PlatformDayRowDto[] | null): PlatformDaysVM;
+/** A day's number that is a count, not a promise: read beside the others, held to nothing. */
+interface PlatformCount {
+    readonly promise: false;
+    readonly why: string;
+}
+/**
+ * Every number the nightly rollup keeps (platform_metrics' columns beyond the workspace, the day and the stamp), and
+ * what each is. The targets were set on 10 October 2026 against production's own month (decision 0031): each sits above
+ * what a healthy day did, so a day past it is news. `platform/every-number-names-a-target.test.mjs` holds the list to
+ * the schema's columns.
+ */
+declare const PLATFORM_NUMBERS: {
+    readonly messages_in: PlatformCount;
+    readonly messages_out: PlatformCount;
+    readonly asks: PlatformCount;
+    readonly answered: PlatformCount;
+    readonly replies_answered: PlatformCount;
+    readonly replies_held: PlatformCount;
+    readonly replies_handed_off: PlatformCount;
+    readonly brain_p95_ms: {
+        readonly promise: true;
+        readonly most: 10000;
+        readonly unit: "ms";
+        readonly alarm: true;
+        readonly why: "the receptionist's model answers within ten seconds, at the 95th percentile";
+    };
+    readonly provider_failures: PlatformCount;
+    readonly tokens: PlatformCount;
+    readonly handled: PlatformCount;
+    readonly topics: PlatformCount;
+    readonly ai_tokens: PlatformCount;
+    readonly ai_usd: PlatformCount;
+    readonly voice_usd: PlatformCount;
+    readonly job_lag_ms: {
+        readonly promise: true;
+        readonly most: {
+            readonly "0": 10000;
+            readonly "1": 30000;
+            readonly "2": number;
+        };
+        readonly otherwise: number;
+        readonly unit: "ms";
+        readonly alarm: true;
+        readonly why: "a reply's job is claimed within ten seconds of its time, a waiting person's within thirty, bulk within five minutes, at the 95th percentile";
+    };
+    readonly first_answer_ms: {
+        readonly promise: true;
+        readonly most: {
+            readonly email: number;
+        };
+        readonly otherwise: 30000;
+        readonly unit: "ms";
+        readonly alarm: false;
+        readonly why: "a customer has a first answer within thirty seconds on a text channel and fifteen minutes by email, at the 95th percentile, whoever answers: the workspace's wait, a person's answer in it, so shown and not paged";
+    };
+    readonly duplicate_sends: {
+        readonly promise: true;
+        readonly most: 0;
+        readonly unit: "count";
+        readonly alarm: true;
+        readonly why: "nobody is sent the same words twice (invariant 4)";
+    };
+    readonly dead_letters: {
+        readonly promise: true;
+        readonly most: {};
+        readonly otherwise: 0;
+        readonly unit: "count";
+        readonly alarm: true;
+        readonly why: "no job dies";
+    };
+    readonly relay_lag_ms: {
+        readonly promise: true;
+        readonly most: 15000;
+        readonly unit: "ms";
+        readonly alarm: true;
+        readonly why: "an event reaches its subscribers' deliveries within fifteen seconds, at the 95th percentile";
+    };
+    readonly intake_lag_ms: {
+        readonly promise: true;
+        readonly most: {};
+        readonly otherwise: 60000;
+        readonly unit: "ms";
+        readonly alarm: true;
+        readonly why: "a provider's delivery is kept within a minute of the provider's own clock, at the 95th percentile";
+    };
+};
+type PlatformNumberName = keyof typeof PLATFORM_NUMBERS;
+/** One number of one workspace's day past its target. */
+interface PlatformBreach {
+    number: PlatformNumberName;
+    /** The key past it (a lane, a channel, a provider, a job's kind), or null for a single figure. */
+    key: string | null;
+    value: number;
+    most: number;
+}
+/**
+ * A workspace's day's numbers past their targets: the paged ones alone unless `all`. A number the day does not have
+ * (null, or a key absent) is past nothing.
+ */
+declare function pastTarget(row: object, { all }?: {
+    all?: boolean | undefined;
+}): PlatformBreach[];
+/** The page for a day whose numbers went past their targets: one line per workspace, each number and its target. */
+declare function pastTargetPage(day: string, workspaces: ReadonlyArray<{
+    tenantId: string;
+    name: string;
+    breaches: readonly PlatformBreach[];
+}>): {
+    subject: string;
+    body: string;
+};
 
 /**
  * The activity log's families: where in the product a row belongs, in the words the sidebar and Settings say.
@@ -34394,4 +39580,4 @@ declare function activityDoor(r: Pick<ActivityFoldRow, "subject_type" | "subject
  */
 declare function activityMemberWords(row: Pick<ActivityFoldRow, "kind" | "text">, about: string | null): string;
 
-export { ABANDONED_MS, ABILITY_CHANNEL_WORDS, ABOUT_MAX, ABOUT_MIN, ACTIVATION_MILESTONES, ACTIVITY_ACTORS, ACTIVITY_FAMILIES, ACTIVITY_FOLD_KINDS, ACTIVITY_KINDS, ACTIVITY_NOISE_KINDS, ACTIVITY_NOISE_PREFIXES, ACTIVITY_PAGE_WORDS, ACTIVITY_PROBLEM_KINDS, ACTIVITY_SPANS, ACTIVITY_SPAN_DAYS, ACTOR_TYPES, ALERT_ADDRESSES_MAX, ALERT_ADDRESSES_MIN, ALERT_KINDS, ALERT_PANE_WORDS, ALERT_REFUSED_WORDS, ALERT_TOPICS, ANALYSIS_GRACE_MS, ANGLE_WORDS_MAX, APPOINTMENT_SOURCES, APPOINTMENT_STATUSES, APPOINTMENT_WORDS, APP_KEYS_RESIZE_CLASS, APP_ROUTE_RE, ASK_ANSWER_CAPS, ASK_ANSWER_FORMAT, ASK_CAPS, ASK_CITATION_KINDS, ASK_CONTEXT_MAX_ROWS, ASK_CONTEXT_ROW_KINDS, ASK_EFFORT, ASK_LANGUAGES, ASK_MAX_CHARS, ASK_MAX_ROUNDS, ASK_MAX_TOKENS, ASK_MODEL, ASK_PAGES, ASK_PAGE_ROUTES, ASK_ROW_WORDS, ASK_SCOPE_KINDS, ASK_SPEECH_MAX_CHARS, ASK_SURFACES, ASK_THREAD_ROUTES, ASK_THREAD_VERBS, ASK_TOKENS_DAY, ASK_TOOLS_CHARS_CEILING, ASK_TURN_BUDGET_MS, ASK_UNDO_MS, ASK_VOICE_CLAIM_STALE_MS, ASK_VOICE_FIRST_WORDS_MS, ASK_VOICE_ID, ASK_VOICE_IDLE_MS, ASK_VOICE_MODEL, ASK_VOICE_PULSE_MS, ASK_VOICE_TIMING_MAX_MS, ASK_VOICE_TOKEN_MIN_MS, ASK_VOICE_UP_WAIT_MS, ASK_WARM_MAX_TOKENS, AUDIENCE_KINDS, type AbilitiesVM, type AbilityInputs, type AbilityRowVM, type ActivationMilestone, type ActivationRecord, type ActivityActor, type ActivityFamily, type ActivityFoldRow, type ActivityKindGroup, type ActivityLineVM, type ActivityMemberDto, type ActivityPageDto, type ActivityRowDto, type ActivitySpan, type DecisionVerb as ActivityVerb, type ActorType, type AddressParts, type AiUsageBody, type AlertCell, type AlertGridGroup, type AlertGridRow, type AlertGroup, type AlertRefusal, type AlertTopic, type AmountFact, type ApiRouteKey, AppError, type AppointmentLike, type AppointmentPhrases, type AppointmentSource, type AppointmentState, type AppointmentStatus, type AppointmentWord, type ApprovalVM, type AskAnswer, type AskAnswerRead, type AskBreakdown, type AskBreakdownPart, type AskCitation, type AskCitationKind, type AskContextRowKind, type AskFigure, type AskIntent, type AskItem, type AskLanguage, type AskMessageVM, type AskModelProfile, type AskOpen, type AskOpeningsView, type AskPlanStamp, type AskProposal, type AskProposalOutcome, AskProposalOutcomeSchema, type AskReadSet, type AskRole, type AskRowRef, type AskScope, type AskScopeKind, type AskSettingsChange, AskSettingsChangeSchema, type AskSource, type AskSourceRef, type AskSuggestion, type AskSurface, type AskThreadVM, type AskThreadVerb, type AskTurnShape, type AskTurnTokens, type AskWaiting, type AskedPurpose, type AssuranceLevels, type AttentionRowVM, type Audience, type AudienceKind, type AudiencePreview, type AwayGroupVM, type AwayQueueRef, type AwayRowLike, BELL_LINE_KINDS, BELL_WINDOW_DAYS, BILLING_MODES, BILLING_STATUSES, BILLING_TEST_MODE_CLAUSE, BILLING_TRIAL_DAYS, BOOKED_ENDED_META, BOOKED_NEEDS_A_LINK, BOOKED_NEEDS_TODAY, BOOKED_SEEN_CAP, BOOKING_DEFAULTS, BOOKING_LINK_NEEDED, BOOKING_PLATFORM_HOSTS, BOOKING_PLATFORM_TOOLS, BOOKING_RULE_HINTS, BOOKING_TOOL_IDS, BOOKING_TOOL_STEPS, BOOKING_TOOL_WORDS, BOOKING_TRY_NOTE, BOOKS_BY_HAND, BOOKS_WITH_CALENDAR, BRAIN_INTENTS, BRAIN_LANGUAGES, BRAIN_OUTPUT_JSON_SCHEMA, BROADCAST_CHUNK, BROADCAST_FAILURES, BROADCAST_FAILURE_FIX, BROADCAST_FAILURE_WORDS, BROADCAST_GAP_MS, BROADCAST_HOLD_WAIT_MS, BROADCAST_MAX_RECIPIENTS, BROADCAST_NAME_MAX, BROADCAST_PARAM_MAX, BROADCAST_SCHEDULE_MAX_DAYS, BROADCAST_STATES, BROADCAST_STATE_LABELS, BROADCAST_THROTTLE_WAITS_MS, BROADCAST_WORDS, BROKEN_CONFIG_WORDS, BUILTIN_LISTS, BUSINESS_INDUSTRIES, BUSINESS_TYPES, type BellLineVM, type BellNoteLike, type BellNotificationKind, type BellSectionVM, type BillingAccountDto, type BillingBell, type BillingDto, type BillingInvoiceDto, type BillingMode, type BillingPlan, type BillingPriceDto, type BillingStatus, type BillingVM, type BookedSeen, type BookingEmailsFacts, type BookingEmailsStep, type BookingReportDto, type BookingReportVM, type BookingRuleKey, type BookingRules, type BookingRulesLike, BookingRulesSchema, type BookingRulesWordsInput, type BookingRulesWordsVM, type BookingTool, type BookingToolCalendar, type BookingToolWay, type BrainConfig, BrainConfigSchema, type BrainIntent, type BrainMeta, type BrainOutput, BrainOutputSchema, type BrainStamp, type BroadcastCounts, type BroadcastDetailDto, type BroadcastDto, type BroadcastFailure, type BroadcastRecipientDto, type BroadcastState, type BroadcastVM, type BusinessFieldVM, type BusinessGap, type BusinessIndustry, BusinessLineSchema, type BusinessPageFacts, type BusinessPageVM, type BusinessProfile, BusinessProfileSchema, type BusinessRecordDto, type BusinessType, type BusyBlock, CALENDAR_FEED_WORDS, CALENDAR_SETTING_ROUTE, CALL_ACTIVITY_NAME, CALL_ACTIVITY_ROLES, CALL_ACTIVITY_STALE_MS, CALL_HEARTBEAT_MS, CALL_MISSED_WORDS, CALL_OUTCOMES, CALL_OUTCOME_WORDS, CALL_UNANSWERED_WORDS, CAMPAIGNS_PAUSED_WORDS, CAMPAIGNS_RESULTS_PERIOD, CAMPAIGN_EMAIL_TAG, CAMPAIGN_MONTH_ALLOWANCE, CAMPAIGN_NOT_FOUND, CAMPAIGN_ROOMS, CAPABILITY_KINDS, CARRIERS, CARRIER_CONSENT_SOURCE, CARRIER_WORDS, CHAIN_MIN_LISTINGS, CHANNELS_DOOR, CHANNEL_ANSWERED, CHANNEL_KINDS, CHANNEL_KIND_WORDS, CHANNEL_WORDS, CHECKOUT_OUTCOME_WORDS, CHECKOUT_RETURNS, CHECKOUT_RETURN_ROUTE, CHIPS_SHOWN, CLIENT_ERROR_BOUNDARIES, CLIENT_ERROR_LIMITS, COMMON_LANGUAGES, COMPANY_TYPES, CONFIDENCE_STEPS, CONNECTION_GROUP_WORDS, CONNECTION_KINDS, CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, CONSENT_LIST_IDS, CONSENT_PHRASE, CONSENT_PHRASE_ES, CONSENT_RESET_SOURCE, CONSENT_SOURCES, CONSENT_STATES, CONSULT_FIRST_DEAL_HINT, CONSULT_FOLLOW_DAYS, CONVERSATIONAL_ASK_TITLE, CONVERSATION_MOVES, CONVERSATION_OPT_IN_PATTERN, CONVERSATION_PHRASE, CONVERSATION_STATES, type CalendarBandVM, type CalendarBlockVM, type CalendarClosureVM, type CalendarConfig, CalendarConfigSchema, type CalendarDayDto, type CalendarDayVM, type CalendarFeedDto, type CalendarFeedHealth, type CalendarFeedNoteVM, type CalendarItemDto, type CalendarLike, type CalendarNoticesDto, type CalendarPeekDealVM, type CalendarPerson, type CalendarServiceDto, type CalendarServiceVM, type CalendarSourceFacts, type CalendarSourceState, type CalendarSourceVM, type CalendarVM, type CalendarView, type CalendarWeekDto, type CalendarWindowVM, type CallActivityProps, type CallBrief, type CallDto, type CallNotes, type CallOutcome, type CallVM, type CampaignDayDto, type CampaignHow, type CampaignMessage, type CampaignMessageRow, type CampaignPointVM, type CampaignReportDto, type CampaignReportVM, type CampaignSourceDto, type CampaignSourceVM, type CampaignTotals, type CannotRowVM, type CapabilityBlocker, type CapabilityInputs, type CapabilityKind, type CapabilityStatus, type Carrier, type ChainIssue, type ChainProblem, type ChannelDto, type ChannelHealth, type ChannelKind, type ChannelPickable, type ChannelReady, type ChannelStand, type ChannelStandingPart, type ChannelVM, type ChannelsReady, type CheckChipSetVM, type CheckChipVM, type CheckChipsVM, type CheckoutReturn, type CleanedEmails, type ClientErrorBoundary, ClientErrorInput, type ClientErrorInputDto, type Closure, ClosureSchema, type ClosuresAheadVM, type CompanyType, type ConflictSeverity, type ConnectionGroup, type ConnectionInputs, type ConnectionKind, type ConnectionRow, type ConnectionState, type ConnectionTone, type ConnectionVerb, type ConnectionWho, type ConsentAsk, type ConsentBearing, type ConsentChange, type ConsentChannel, type ConsentFormSection, type ConsentFormVM, type ConsentPageFacts, type ConsentPageVM, type ConsentState, type ConsentWay, type ConsentWayKind, type ConsultRules, ContactAddedData, ContactConsentChangedData, type ContactId, type ConversationDto, type ConversationMessageVM, type ConversationMoveName, type ConversationPatch, type ConversationState, type ConversationVM, type Crumb, type CsvCell, DATA_NOT_INSTRUCTIONS, DAYS, DAY_MS, DAY_NAMES, DEAL_ACT_HINTS, DEAL_ACT_WORDS, DEAL_CARD_WORDS, DEAL_CLEARABLE, DEAL_LINE_NONE, DEAL_LOST_REASONS, DEAL_LOST_REASON_WORDS, DEAL_NOTE_MAX, DEAL_PERS, DEAL_PER_WORDS, DEAL_REFUSALS, DEAL_SEND_WHY, DEAL_SHEET_MODES, DEAL_SHEET_WORDS, DEAL_SOURCES, DEAL_STAGES, DEAL_STAGE_WORDS, DECISION_SUBJECTS, DECISION_VERBS, DEFAULT_BUSINESS_TYPE, DEFAULT_CAMPAIGN_CHANNELS, DEFAULT_COMPANY_TYPE, DEFAULT_INDUSTRY, DEFAULT_LOOK_PREF, DEFAULT_THEME_PREF, DEFAULT_TIMEZONE, DEFAULT_WEEK, DELIVERY_RECEIPTS_TIP, DELIVERY_RECEIPTS_WORDS, DELIVERY_REFUSALS, DEVICE_PREFS_STORAGE, DISCONNECTION_LABELS, DISPLAY_NAME_MAX, DMARC_RECOMMENDED, DMARC_STATES, DNS_HOLDS, DOMAIN_HOLDS, DOMAIN_RAMP, DOMAIN_RESUMERS, DOUBT_SEEN, DOUBT_SETTLED_AS, DOUBT_WORDS, DRAFT_ABOUT_MAX, DRAFT_ANSWER_MAX, DRAFT_ASKS_MAX, DRAFT_HOWS, DRAFT_NEEDS_MS, DRAFT_NOTICE_MAX, DRAFT_TONES, DRAFT_WHYS, type DayFrameLike, type DealAct, type DealActId, type DealCardStepVM, type DealCardVM, type DealClearable, type DealColumns, type DealDto, type DealFacts, type DealLostReason, type DealOutcomeVM, type DealPaceDto, type DealPaceVM, type DealPer, type DealPerson, type DealQuietVM, type DealReportDto, type DealReportLineId, type DealReportVM, type DealSend, type DealSheetBody, type DealSheetDraft, type DealSheetField, type DealSheetMode, type DealSheetOutcome, type DealSheetProblem, type DealSheetVM, type DealSource, type DealStage, type DealStandingStage, type DealStepVM, type DealVM, type DealWaitRow, type DecisionSubject, type DecisionVerb, type DeliveryRefusal, type DeskSignVM, type DmarcState, type DomainCounts, type DomainFacts, type DomainHold, type DomainJudgement, type DomainRecord, type DomainRecordRow, type DomainResumer, type DomainRowState, type DoubtSeen, type DoubtSettledAs, type DraftAsk, type DraftHow, type DraftTone, type DraftWhy, E164, EARLIER_FALLBACK_DEFAULTS, EDGE_ERROR_CODES, EMAILED_NOTIFICATION_KINDS, EMAIL_ALWAYS_KINDS, EMAIL_BODY_MAX, EMAIL_CLAIMS, EMAIL_ELSEWHERE_SENTENCE, EMAIL_HOLDS, EMAIL_NOT_ANSWERED_SENTENCE, EMAIL_STOP_PATTERN, EMAIL_SUBJECT_MAX, EMAIL_TEMPLATE_LIST_WORDS, EMAIL_UNSUBSCRIBE_PATTERN, EMPTY_READ_STATE, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_REASON_SHORT, ESCALATION_STATES, ESCALATION_SUMMARIES, EVENT_EVIDENCE_KINDS, EVENT_KINDS, EVENT_SUBSCRIBERS, EVERYONE_HINT, EVERYONE_LABEL, type EdgeAnswerBody, type EdgeAnswerCode, type EdgeCallCode, type EdgeErrorCode, type EdgeRefusal, type EmailClaim, type EmailFoot, type EmailHeld, type EmailHold, type EmailIssue, type EmailOffers, type EmailProblem, type EmailRules, type EmailRunStop, type EmailSetupDto, type EmailStopBearing, type EmailedNotificationKind, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventContacts, type EventKind, type EventSubscriber, type Exactly, FALLBACK_DEFAULTS, FALLBACK_DETAILS, FEED_CHECK_WORDS, FEED_GUIDES, FEED_MAX_BYTES, FINISH_SETTING_UP, FIRST_RUN_FIND_ROUTE, FIRST_RUN_HELPERS, FIRST_RUN_LANDED_KEY, FIRST_RUN_LIVE_WORDS, FIRST_RUN_PHONE_WORDS, FIRST_RUN_ROUTE, FIRST_RUN_STEPS, FIRST_RUN_TRY_WORDS, FIRST_RUN_WORDS, FLAGS, FLAG_MECHANISMS, FOLLOWUP_ECHO, FOLLOW_UP_NEEDS_DEALS, FOLLOW_UP_NEEDS_LINK, FOLLOW_UP_ONE, FORWARDING_MODES, FORWARDING_MODE_WORDS, FORWARDING_TEST_WINDOW_MS, FORWARD_IS_HANDOFF, FREE_MAIL_DOMAINS, type Fact, type FactConflict, type FactSource, type FallbackDetail, type FallbacksWordsVM, type FastCall, type FeaturesConfig, FeaturesConfigSchema, type FeedAppointmentRow, type FeedAttendee, type FeedCall, type FeedFailure, type FeedHorizon, type FeedIndex, type FeedInput, type FeedInvite, type FeedItem, type FeedLive, type FeedThread, type FenceTag, type FirstReceptionistKnown, type FirstRunCheckVM, type FirstRunLiveInput, type FirstRunLiveVM, type FirstRunPhoneCodeVM, type FirstRunPhoneInput, type FirstRunPhoneQuestion, type FirstRunPhoneStage, type FirstRunPhoneVM, type FirstRunPhoneWayVM, type FirstRunStepKey, type FirstRunStepState, type FirstRunStepVM, type FirstRunTryInput, type FirstRunTryStage, type FirstRunTryVM, type FirstRunVM, type FirstRunWho, type FirstWorkspaceDoor, type Flag, type FlagMechanism, type FollowUpFactsDto, type FollowUpStand, type ForwardingCode, type ForwardingCodes, type ForwardingFacts, type ForwardingMode, type ForwardingProof, type FreeWindowsInput, GET_YES_ROUTE, GMAIL_FORWARD_NOTE, GOOGLE_SHOWN_REVIEWS, GREETING_DEFAULT, GUARDRAIL_KEYS, type GoogleAudience, type GoogleCandidateDto, type GoogleConnectionDto, type GoogleDayDto, type GoogleDto, type GoogleGainedPointVM, type GoogleListingDto, type GoogleListingFacts, type GoogleLocationDto, type GooglePeriod, type GooglePoint, type GoogleReadDto, type GoogleReviewDto, type GoogleReviewVM, type GoogleVM, type GuardrailKey, type GuardrailsInForce, GuardrailsSchema, type GuideRow, HANDLED_OUTCOMES, HANDOFF_FORWARDS_BACK, HANDOVER_DAYS, HANDOVER_WAITING_MAX, HANDOVER_WORDS, HAND_KINDS, HAND_WORDS_MAX, HEARD_UNREAD_WORDS, HELD_ON, HELD_REASONS, HELD_WORDS, HOLD_DOOR_WORDS, HOUR_MS, type HandKind, type Handled, type HandoffWordsVM, HandoverCreateSchema, HandoverResendSchema, type HandoverState, type HeardTouch, type HeldLineKind, type HeldNoticeDto, type HeldOn, type HoldDoor, type Holds, type Hours, type HoursRun, HoursSchema, IDENTITY_ASSURANCES, INSTRUCTIONS_MAX, INTENT_LABELS, INVOICE_STATUS_WORDS, IN_APP_CLASS, IN_APP_UA_RE, type IdentityAssurance, type IdentityInput, type IdentityWords, type ImportColumns, type ImportRow, type InApp, type InAppPlatform, type InList, type InboxTemplateLike, type InboxThreadVM, type InstructionsWordsVM, type Interval, IntervalSchema, InviteCodeSchema, JOB_KINDS, JOB_STATES, JOURNEY_STAGE_IDS, JUDGE_FACT_KEYS, JUDGE_OUTPUT_SCHEMA, type JobEnd, type JobKind, type JobNews, type JobNewsKind, type JobState, type JourneyGlyph, type JourneyListLike, type JourneyStage, type JourneyStageId, type JudgeCriterionAnswer, type JudgeFactKey, type JudgePlaceAnswer, type JumpEntry, KEEP_ROW, type KnownFacts, LANGUAGE_GROUP_WORDS, LEAD_ASK_MAX_FACTOR, LEAD_ASK_MIN_FACTOR, LEAD_ASSUMED_YIELD, LEAD_CALL_OUTCOMES, LEAD_CALL_OUTCOME_TONES, LEAD_CALL_OUTCOME_WORDS, LEAD_CALL_QUESTION, LEAD_CARDS, LEAD_CHECK_CENTS_EACH, LEAD_CHECK_KEYS, LEAD_CHECK_UNSURE, LEAD_CHECK_WORDS, LEAD_CLASSES, LEAD_CLASS_WORDS, LEAD_CLOSED_REASONS, LEAD_CLOSED_WORDS, LEAD_CONSENT_REFUSAL, LEAD_CONTACT_STANDARD_WORDS, LEAD_COUNTER_KINDS, LEAD_COUNT_CHOICES, LEAD_DAY_CAP_USD, LEAD_DRAFT_JSON_SCHEMA, LEAD_DRAFT_NOTE, LEAD_EMAIL_STATES, LEAD_EMAIL_WORDS, LEAD_ENDING_WORDS, LEAD_ERASE_WORDS, LEAD_ESTIMATE_MARGIN, LEAD_FACT_MAX, LEAD_FITS, LEAD_FIT_WORDS, LEAD_IMPORT_MAX_BYTES, LEAD_IMPORT_WORDS, LEAD_JUDGE_BATCH, LEAD_JUNK_EMAIL_DOMAINS, LEAD_KIND_KEY, LEAD_LEFT_OUT_WORD, LEAD_LISTS, LEAD_LIST_MAX, LEAD_LIST_VIAS, LEAD_LIST_WORDS, LEAD_LOCKED_LINE, LEAD_LOW_SHARE_FLOOR, LEAD_MAILBOX_WORDS, LEAD_MAP_MAX_SPAN_M, LEAD_MARKS_BUCKET, LEAD_MARK_PATH, LEAD_MAX_PLACES, LEAD_MEMBER_CLASSES, LEAD_MONTHLY_ALLOWANCE, LEAD_MONTHLY_BUDGET_USD, LEAD_NOTE_MAX, LEAD_NOTE_PLACEHOLDER, LEAD_NOT_A_FIT_TITLE, LEAD_NOT_A_FIT_WHYS, LEAD_NOT_A_FIT_WORDS, LEAD_NO_ADDRESS, LEAD_NO_CARD_LINE, LEAD_NO_EMAIL_LINE, LEAD_OPERATION_KINDS, LEAD_OUTSIDE_US_LINE, LEAD_PAUSED_TITLE, LEAD_PLACEHOLDER_LOCALS, LEAD_PLATFORM_DAY_CAP_USD, LEAD_PLATFORM_HOSTS, LEAD_PREFERENCE_KINDS, LEAD_PRIOR_MIN, LEAD_PRIOR_MIN_PLACES, LEAD_PROBE_PLACES, LEAD_QUESTION_MIN_EVIDENCE, LEAD_QUESTION_THRESHOLD, LEAD_QUESTION_WAIT_LINE, LEAD_REASON_MAX_WORDS, LEAD_REMOVE_KEEPS, LEAD_REVIEW_ACT_WORDS, LEAD_REVIEW_GROUP_WHY, LEAD_REVIEW_GROUP_WORDS, LEAD_REVIEW_WORD, LEAD_ROLE_LOCALS, LEAD_ROUND_ANSWERS, LEAD_ROUND_ENDINGS, LEAD_ROUND_PURPOSES, LEAD_ROUND_STATES, LEAD_RUN_PURPOSES, LEAD_RUN_STATES, LEAD_SEARCH_VIAS, LEAD_SENT_QUESTION, LEAD_SLOT_WORDS, LEAD_SORTS, LEAD_SOURCE_WORD, LEAD_STAGES, LEAD_STAGE_WORDS, LEAD_SUGGEST_DAYS, LEAD_SUGGEST_JSON_SCHEMA, LEAD_SUGGEST_UNAVAILABLE, LEAD_SUPPRESSING_WHY, LEAD_SUPPRESSION_KINDS, LEAD_SUPPRESSION_WHATS, LEAD_TALKING_NOTE, LEAD_TILE_PX, LEAD_UNCLAIMED_NOTE, LEAD_UNDO_MS, LEAD_UNREACHABLE_KEY, LEAD_UNREACHABLE_WORD, LEAD_WORDS, LEDGER_SORTS, LEDGER_STATUSES, LEFT_OUT_FACTS, LENS_ROUTES, LIBRARY_STARTER_WORDS, LIBRARY_WORDS, LIFECYCLE_TOAST, LIFECYCLE_WORDS, LIMIT_TIERS, LINE_CODES_EVERY_MS, LINE_CODES_MAX, LINE_CODES_WITHIN_MS, LINE_CREDENTIALS_SENTENCE, LINE_RELEASE_MIN_DAYS, LINE_RELEASE_REPORT_DAYS, LINE_RELEASE_WARN_DAYS, LINE_STEP_WORDS, LIST_ANY_MAX, LIST_ASSIGNED, LIST_DEAL_STAGES, LIST_DRAFT_JSON_SCHEMA, LIST_NEEDS, LIST_PLAYBOOK_CLASSES, LIST_PURPOSES, LIST_RULE_FIELDS, LIST_RULE_MAX, LIST_STANDINGS, LIVE_OVERLONG_MS, LIVE_STALE_MS, LOOK_OFFERED, LOOK_OPTIONS, type LanguageChoice, type LanguageGroup, type LeadArea, type LeadBand, type LeadCallOutcome, type LeadCardBrief, type LeadChannel, type LeadCheck, type LeadCheckKey, type LeadChips, type LeadChooseAnswer, type LeadChooseInput, LeadChooseSchema, type LeadClass, type LeadClassification, type LeadContactStandard, type LeadCounts, type LeadCriterion, type LeadCriterionStandard, LeadDraftAnswerSchema, LeadDraftInputSchema, type LeadEmailState, type LeadEndingFacts, type LeadEndingLine, type LeadExclusion, LeadExportQuerySchema, type LeadFit, type LeadImportAnswer, type LeadImportColumns, type LeadImportInput, type LeadImportRow, LeadImportRowSchema, LeadImportSchema, type LeadList, type LeadListVia, type LeadMapPin, type LeadMapPlot, type LeadMemberClass, type LeadMonthDto, type LeadNichePrior, type LeadNotAFitWhy, LeadOneQuerySchema, type LeadPeekReach, type LeadPeekVM, type LeadPhoneState, type LeadPinnable, type LeadPlanFacts, type LeadPlanRefusalKind, type LeadPlanView, type LeadPlanWord, type LeadPlanned, type LeadQuestion, type LeadReviewAct, type LeadReviewGroup, type LeadReviewGroupId, type LeadRoundAnswer, type LeadRoundEnding, type LeadRoundPurpose, type LeadRoundState, type LeadRowCard, type LeadRowDto, type LeadRowVM, type LeadRunState, type LeadSearchDto, type LeadSearchPlan, LeadSearchPlanSchema, type LeadSearchRoundDto, type LeadSearchVia, type LeadSlot, type LeadSlotState, type LeadSort, type LeadStage, type LeadStageInput, LeadStageInputSchema, LeadSuggestAnswerSchema, type LeadSuggestionsDto, type LeadWeekRow, type LeadsBulkInput, LeadsBulkSchema, type LeadsCheckAgainInput, LeadsCheckAgainSchema, type LeadsQuery, LeadsQuerySchema, LeadsViewSchema, type LedgerSort, type LedgerStatus, type LedgerWords, type LensEmpty, type LensId, type LensRange, type LensRow, type LensWho, type LifecycleAct, type LifecycleAnswer, type LifecycleAnswerRead, type LifecycleBar, type LifecycleBroadcasts, type LifecycleCameBack, type LifecycleChains, type LifecycleChannelMark, type LifecycleComing, type LifecycleComingTile, type LifecycleFailed, type LifecycleFailedRead, type LifecycleGlyph, type LifecycleGroup, type LifecycleHead, type LifecycleHome, type LifecycleInput, type LifecycleLedger, type LifecycleNamed, type LifecycleNeeds, type LifecyclePlaybook, type LifecyclePlaybooks, type LifecyclePool, type LifecycleReachTile, type LifecycleReport, type LifecycleResultsTile, type LifecycleRow, type LifecycleRowResults, type LifecycleRun, type LifecycleRung, type LifecycleSentence, type LifecycleShape, type LifecycleSource, type LifecycleStage, type LifecycleTemplate, type LifecycleTileRead, type LifecycleTone, type LifecycleTrigger, type LifecycleWaiting, type LineCodeDto, type LineDto, type LineReleaseBilling, type LineReleaseStep, type LineReleaseWarned, type LineReleaseWordsInput, type LinkedFoot, type ListAny, type ListCondition, ListConditionSchema, type ListContext, type ListDef, type ListDraftAnswer, ListDraftAnswerSchema, type ListFact, ListFactSchema, type ListLookup, type ListNeed, type ListRef, type ListRule, ListRuleSchema, type ListUnknownReason, type LiveBarVM, type LiveCallVM, type LiveLineVM, type LiveTurnVM, type LiveVM, type LookPref, MAILBOX_FROM_NAME_MAX, MAILBOX_LOCAL_PART_MAX, MAILBOX_RESERVED, MARKETING_OPT_IN_PATTERN, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, MEMBERSHIP_ROLES, MERGE_CONSENT_SOURCE, MERGE_REFUSALS, MERGE_WORDS, MESSAGE_BEGIN_WORDS, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_GONE_WORDS, MESSAGE_MOMENT_WORDS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, MESSAGE_WORDS, MIN_MS, MISSED_CALL_TOUCH_WORDS, MOCK_TEXTING_SENTENCE, MODELS, MODEL_CALL_OUTCOMES, MODEL_EFFORTS, MODEL_IDS, MODEL_PORTS, MODEL_PRICES, MODEL_PURPOSES, MODEL_ROUTES, MOMENTS_RETIRED, MOMENT_TRIGGERS, type MailboxDto, type MatchVia, type MediaVM, type MemberAlertsDto, type Membership, type MembershipRole, type MergedAnswers, type MessageAbout, type MessageAuthor, type MessageChannel, type MessageDirection, type MessageDto, type MessageRead, type MessageSender, type MessageStatus, type MessageType, type MetricsChannelDto, type MetricsSummaryDto, type ModelCallOutcome, type ModelEffort, type ModelId, type ModelPort, type ModelPrice, type ModelPurpose, type ModelRoute, type ModelUsage, type MonthSent, type MonthSentRead, NEEDS_TITLE, NEW_CONVERSATION_WORDS, NEW_MESSAGE_WORDS, NEW_PLAYBOOK_TICKS_EVERY_CHANNEL, NEW_WINDOW_DAYS, NOTE_MAX, NOTE_REFUSALS, NOTE_SUGGEST_KINDS, NOTE_SUGGEST_LIMITS, NOTE_SUGGEST_MODEL, NOTE_SUGGEST_SCHEMA, NOTE_WORDS, NOTICE_DEFAULT_LENGTH_MS, NOTICE_HOLD_WORDS, NOTICE_READ_MAX_TOKENS, NOTICE_SCHEMA, NO_CHANNEL_REACH, NO_FIELDS_COMPOSED_WORDS, NO_LINK_DETAILS, NO_NUMBER_REACH, NO_REPLY_AFTER_MS, NO_TEMPLATE_WORDS, NO_USAGE, type NameableCaller, type NameableContact, type NoMessageWords, type NotReceived, type Note, type NoteCheck, type NoteLookFacts, NoteSchema, type NoteSuggestKind, type NoteTurn, type NotesWordsVM, type NoticeHold, type NoticeKind, type NoticeReading, type NotificationDto, type NotificationItem, type NotificationKind, type NotificationReadState, type NotificationRow, type NotificationsConfig, NotificationsConfigSchema, type NotificationsDto, type NumberHealth, type NumberHealthInput, type NumberStanding, OFFERS_BY_EMAIL_WORDS, OFFERS_IN_WRITING_WORDS, OFFERS_NOTICE_WORDS, OFFERS_OPT_IN_PHRASES, OFFERS_PAUSED_WORDS, OFFERS_YES_SOURCES, OFFER_GATES, OPENING_CHARS_MAX, OPENING_FACT_KEYS, OPENING_PROBLEMS, OPENING_SCHEMA, OPENING_WORDS_MAX, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, OUTCOME_UNKNOWN, OUTREACH_WAIT_REFUSALS, OWN_MESSAGE_REFUSALS, OWN_VERSION_CHANNELS, type OfferCounts, type OfferFacts, type OfferPageButton, type OfferPageWords, type OfferPause, type OfferPauseReason, type OfferUnsubscribeView, type Ok, type OpenDealDto, type OpenHandoverDto, type OpenWindow, type Opening, type OpeningFactKey, type OpeningProblem, type OpeningRecord, type OpeningVerdict, type OpeningWorkspace, type OutreachLeadFacts, type OwnAddresses, type OwnFacts, type OwnMessageVM, type OwnVersionChannel, PACE_AFTER_YESES, PACE_WINDOW_DAYS, PAGE_VITALS, PAGE_VITALS_MIN_LOADS, PAGE_VITALS_READ, PAGE_VITAL_BANDS, PAGE_VITAL_WORDS, PARAM_SOURCES, PARAM_SOURCE_HINTS, PARAM_SOURCE_LABELS, PARTNER_CODES_RESERVED, PARTNER_CODE_MAX, PARTNER_CODE_MIN, PARTNER_COOKIE, PARTNER_COOKIE_DAYS, PARTNER_EARNING_KINDS, PARTNER_EARNING_STATES, PARTNER_HOLD_DAYS, PARTNER_INVITE_DAYS, PARTNER_INVITE_WORDS, PARTNER_REVERSAL_KINDS, PARTNER_SHARE_BP_DEFAULT, PARTNER_STANDINGS, PARTNER_STANDING_VERBS, PARTNER_STANDING_WORDS, PARTNER_STATUSES, PARTNER_STATUS_VERBS, PARTNER_WORDS, PASSWORD_MAX_BYTES, PASSWORD_MIN, PASSWORD_WORDS, PAUSED_WORDS, PAUSE_HOURS_DEFAULT, PENDING_WORKSPACE_KEY, PEOPLE_LISTS, PEOPLE_LIST_GROUPS, PEOPLE_TABS, PERM_DOING, PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, PERSON_DETAIL_WORDS, PERSON_DRAFT_JSON_SCHEMA, PERSON_MODES, PERSON_MODE_LABELS, PERSON_MODE_WORDS, PERSON_STATE_LABELS, PHONE_RINGS, PHONE_WAYS, PIPELINE_BOARD_CAP, PIPELINE_GROUPS, PIPELINE_PASS_MAX, PIPELINE_RAIL_SERVICES, PIPELINE_SORTS, PIPELINE_WORDS, PLAN_NOTE_MAX, PLAN_WORDS, PLATFORM_DAYS_READ, PLATFORM_HOLD_NOTICE, PLATFORM_HOLD_READD, PLATFORM_HOLD_REFUSAL, PLATFORM_NEW_DAYS, PLATFORM_QUIET_DAYS, PLATFORM_VERDICTS, PLAYBOOK_BREATH_MS, PLAYBOOK_CALENDAR_UNREAD, PLAYBOOK_CAP_CHOICES, PLAYBOOK_CARD_REFUSALS, PLAYBOOK_CARD_WORDS, PLAYBOOK_CLASS_LABEL, PLAYBOOK_DEFAULTS, PLAYBOOK_DELETE_WORDS, PLAYBOOK_HOURS, PLAYBOOK_LIMITS, PLAYBOOK_NAME_MAX, PLAYBOOK_PATCH_KEYS, PLAYBOOK_PATCH_WORDS, PLAYBOOK_REACH_WORDS, PLAYBOOK_STATES, PLAYBOOK_TOUCH_WINDOW_MS, PLAYBOOK_TRIGGERS, PLAYBOOK_VETO_DELAY_MS, PLAYBOOK_VETO_DELAY_WORDS, POLICY_CLASSES, POLICY_CLASS_MODES, POLICY_CLASS_WORDS, POLICY_COVERS, POLICY_MODES, POLICY_MODE_WORDS, PREFETCH_READS, PREFETCH_SLOT, PREVIEW_CHANNEL_WORDS, PREVIEW_WORDS, PROFILE_CROSSING_WORDS, PROFILE_LIMITS, PROFILE_NAME_MAX, PROMPT_NOW, PROMPT_OPENINGS, PROMPT_READERS, PROPOSAL_GATE, PROPOSAL_SPECS, PROPOSAL_WORDS, PROVIDER_STATUSES, PROVISIONING_DEADLINE_MS, PURPOSE_REFUSALS, PUSH_KINDS, PUSH_PLATFORMS, PUSH_RECEIPTS_AFTER_MS, PUSH_TOKEN_MAX, type PageContext, type PageContextRow, PageContextSchema, type PageMessage, type PageVital, type PageVitalLineVM, PageVitalReport, type PageVitalVerdict, PageVitalsInput, type PageVitalsInputDto, type PageVitalsPageVM, type PageVitalsRowDto, type PageVitalsVM, type ParamFacts, type ParamSourceKind, type ParamSpec, type ParseOptions, type ParsedFeed, type PartnerBalanceRow, PartnerBecomeSchema, type PartnerDto, type PartnerEarningsVM, type PartnerHandoverDto, type PartnerHandoverVM, type PartnerInvitationDto, PartnerInviteSchema, type PartnerLetterNews, PartnerLetterNewsSchema, PartnerLettersSchema, PartnerSecondFactorResetSchema, type PartnerVM, type PartnerWorkspaceMoneyDto, type PartnerWorkspaceVM, type PartnerWorkspacesVM, type PendingWorkspace, PendingWorkspaceSchema, type PeopleAggregates, PeopleExportQuerySchema, type PeopleListAction, type PeopleListGroup, type PeopleListsLike, type PersonActVM, type PersonCameFrom, type PersonCampaignDto, type PersonCampaignVM, type PersonChannel, type PersonConsent, type PersonDealsVM, type PersonDecisionDto, type PersonDetailDto, type PersonDoubtDto, type PersonDoubtVM, type PersonDraftAnswer, PersonDraftAnswerSchema, type PersonDraftDto, type PersonDraftInput, PersonDraftInputSchema, type PersonEscalationDto, type PersonFact, type PersonFirstContact, type PersonIdentityDto, type PersonLastContact, type PersonLeadDto, type PersonLike, type PersonMatch, type PersonMessageBody, PersonMessageBodySchema, type PersonMode, type PersonNextStepVM, type PersonNoteDto, type PersonNoteTeamDto, type PersonNoteVM, type PersonProposalVM, type PersonReach, type PersonReachDto, type PersonReceptionist, type PersonRightNow, type PersonRowDto, type PersonRowVM, type PersonState, type PersonTimelineItemVM, type PersonVM, type PersonVisitAheadVM, type PersonVisitsDto, type PhoneChoice, type PhoneCompany, type PhoneDto, type PhonePick, type PhoneRings, type PhoneWay, type PipelineChip, type PipelineGroupKey, type PipelineGroupVM, type PipelineLinePart, type PipelineMove, type PipelineNextVM, type PipelinePassManyVM, type PipelinePeekDetailVM, type PipelinePeekFact, type PipelinePeekReachVM, type PipelinePeekVM, type PipelineRailRow, type PipelineRailSection, type PipelineRowVM, type PipelineSort, type PipelineSource, type PipelineStep, type PipelineVM, type PipelineView, type PlaceFacts, type Placed, type PlanIntent, type PlanMade, type PlanStep, type PlanWorld, PlatformActedData, type PlatformDayLineVM, type PlatformDayRowDto, type PlatformDaysVM, type PlatformHealth, type PlatformLineAction, type PlatformLineActionVM, type PlatformPartnerBalanceDto, type PlatformPartnerRowVM, type PlatformPartnerStandingVM, type PlatformPartnerWorkspaceDto, type PlatformQueue, type PlatformQueueVM, type PlatformRowVM, type PlatformTenantDto, type PlatformVerdict, type PlatformVerdictWords, type PlaybookCardLike, type PlaybookChannelsRead, type PlaybookDto, type PlaybookMessage, type PlaybookPatch, type PlaybookPatchKey, type PlaybookPolicyClass, type PlaybookReach, type PlaybookRunNextBy, type PlaybookState, type PlaybookTotalsDto, type PlaybookTrigger, type PlaybookTriggerKind, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyLinks, type PolicyMode, type PolicyRow, type PoolCalendar, type PoolOptions, type PreflightFacts, type PreflightProblem, type PreviewOn, type PreviewPart, type PreviewPerson, type PreviewVersions, type ProbeMember, type ProfileCrossing, type ProfileLimitKey, type ProfileRefusalKey, type PromptBlockVM, type PromptSource, type ProposalCall, type ProposalEvent, type ProposalGate, type ProposalKindAboveOperator, type ProposalNeeds, type ProposalRefusal, type ProposalSpec, type ProposalSpecAboveOperator, type ProposalTab, type ProposalThen, type ProposalUndo, type ProposeLeadSearch, ProposeLeadSearchSchema, type PublicPageMetadata, type PurposeBearing, type PurposeRefusal, type PushDevice, type PushKind, type PushMessage, type PushPlatform, type PushTarget, QUEUE_SENDS_NOTHING, QUEUE_SHOWN, QUIET_AFTER_DAYS, QUOTE_MAX, RATE_HITS_RETENTION_HOURS, REACH_OUT_AFTER_DAYS, REACH_OUT_AWAY_DAYS, REACH_OUT_AWAY_MAX_DAYS, REACH_OUT_BODY_MAX, REACH_OUT_CHECKS_PER_DAY, REACH_OUT_DAY_ROUTE, REACH_OUT_DECISIONS, REACH_OUT_EMAILED_WORDS, REACH_OUT_FIRST_WORDS, REACH_OUT_GAP_FIRST, REACH_OUT_GAP_MINUTES, REACH_OUT_HOLDS, REACH_OUT_IS_NOT_A_MOMENT, REACH_OUT_LANGUAGE, REACH_OUT_MODEL, REACH_OUT_MONTH_EMAILS, REACH_OUT_NAME_MAX, REACH_OUT_PREVIEW_INDEX_MAX, REACH_OUT_PREVIEW_WORDS, REACH_OUT_READS_PER_DAY, REACH_OUT_REFUSALS, REACH_OUT_REPLY_DAYS, REACH_OUT_ROW_WORDS, REACH_OUT_RUN_REREAD_MS, REACH_OUT_SEND_STATES, REACH_OUT_SHEET_PARTS, REACH_OUT_SHEET_WORDS, REACH_OUT_SLOTS, REACH_OUT_SLOT_SET, REACH_OUT_SLOT_WORDS, REACH_OUT_STEPS_MAX, REACH_OUT_STOP_WORDS, REACH_OUT_SUBJECT_MAX, REACH_OUT_WORDS_MAX, READING_SCHEMA, READY_WHATSAPP_ALONE, RECENT_MAX, RECIPIENT_REASON_HEARD, RECIPIENT_STATES, RECORDING_PURGED_WORDS, RECORDING_RETENTION_DAYS, REFERRAL_ID_MAX, REGISTRATION_COST_WORDS, REGISTRATION_PATHS, REGISTRATION_PATH_WORDS, REGISTRATION_QUESTION, REPLIES_PAGE, REPLY_ANSWERED_MAX, REPLY_CAP_DEFAULT, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, REPLY_INTENTS, REPLY_INTENT_WORDS, REPLY_LIMITS, REPLY_MAX_ANY, REPLY_NOT_NOW_DAYS, REPLY_QUOTE_MAX, REPLY_READ_MAX_TOKENS, REPLY_REFER_TO_MAX, REPLY_REREADS, REPLY_REREAD_DAYS, REPLY_SCHEMA, REPLY_SUBJECT_MAX, REPLY_SUMMARY_WORDS, REPLY_UNDO_REFUSALS, REPLY_UNREADS, REPLY_WINDOW_HOURS, REPLY_WINDOW_MS, REPLY_WINDOW_WORDS, REPLY_WORDS_MAX, REPORT_CHANNELS, REPORT_LENSES, REPORT_MIN_N, REPORT_MOST_DAYS, REPORT_PERIOD_DEFAULT, REPORT_PERIOD_IDS, REPORT_PERIOD_STORAGE, REPORT_RANGES, REPORT_WEEK_LONG, REPORT_WEEK_SHORT, REPUTATION_HOLDS, REPUTATION_MEMORY_MS, RETELL_MODELS, RETENTION_DAYS, REVIEWS_WAITING_SHOWN, REVIEW_AUTO_REPLIES_PER_SYNC, REVIEW_AUTO_REPLY_MAX_AGE_MS, REVIEW_NEWS_MAX_AGE_MS, REVIEW_NEWS_MS, REVIEW_REPLY_MAX_CHARS, REVIEW_REPLY_MAX_WORDS, ROLES, ROLE_PERMS, ROLE_SAYS, ROLE_WORDS, ROUTE_KEYS, ROUTE_WORDS, RULES_AT_REST_WORDS, RULES_WITHOUT_FIELDS_WORDS, RUN_FILTERS, RUN_NOW_WITHOUT_VERSION_WORDS, RUN_REPORT_STEPS, RUN_VERBS, type ReachBarPart, type ReachCounts, type ReachOutAngleRow, type ReachOutChainDto, type ReachOutChainInput, type ReachOutChainReportDto, ReachOutChainSchema, type ReachOutChainTotalsDto, type ReachOutDayNumbers, ReachOutDecideSchema, type ReachOutDecision, type ReachOutDomainRow, type ReachOutDraft, type ReachOutDraftIssues, type ReachOutDraftStep, type ReachOutFunnelRow, type ReachOutHeldSend, type ReachOutHold, type ReachOutLeadLineDto, type ReachOutLeadTimelineDto, type ReachOutLeadsDto, type ReachOutLineReplyDto, type ReachOutNextFacts, type ReachOutPersonVM, type ReachOutPreviewDto, type ReachOutPreviewInput, ReachOutPreviewSchema, type ReachOutReachDto, type ReachOutRepliesDto, type ReachOutRepliesQuery, ReachOutRepliesQuerySchema, type ReachOutReplyDto, type ReachOutReportChainDto, type ReachOutReportCounts, type ReachOutReportDomainDto, type ReachOutReportDto, type ReachOutReportStepDto, type ReachOutReportVM, type ReachOutRunDto, type ReachOutRunLine, type ReachOutSavedDto, type ReachOutSearchLinesDto, type ReachOutSendState, type ReachOutSlot, type ReachOutSourceLine, type ReachOutStartDto, type ReachOutStepCounts, type ReachOutStepDto, ReachOutStepSchema, type ReachOutStopDto, type ReachOutStoryLine, type ReachOutStripVM, type ReachOutTimelineReadingDto, type ReachOutTimelineSendDto, type ReachOutTimelineVM, type ReachRow, type ReachSplit, type Reading, type ReadingPlan, type ReceiveRow, type ReceptionistCardInputs, type ReceptionistCardVM, type ReceptionistDto, type ReceptionistReportVM, type ReceptionistSeriesDto, type ReceptionistState, type ReceptionistTone, type RecipientState, type RecordAnswers, type RecordCheckFacts, type Refusal, type RefusalInput, type RegistrationPath, type RegistrationPathWords, RenameLeadSearchSchema, type ReplyClaim, type ReplyContext, type ReplyDoor, type ReplyFrom, type ReplyHoldDto, type ReplyIntent, type ReplyReading, type ReplyStep, type ReplyStrip, type ReplyUndoRefusal, type ReplyWhyVM, type ReportArrivalDto, type ReportBarVM, type ReportChannelCounts, type ReportChannelKey, type ReportChannelVM, type ReportDayDto, type ReportDays, type ReportDto, type ReportFactVM, type ReportHeadlineDto, type ReportHeadlineVM, type ReportHoldVM, type ReportHoursVM, type ReportLinesVM, type ReportPeriodId, type ReportPointVM, type ReportProfile, type ReportRange, type ReportSpeedPointVM, type ReportStripTile, type ReportTileVM, type ReportVM, type ReportWeekVM, type ReportWindowVM, type ResolvedFacts, type ReviewOnRecord, type ReviewReplyFacts, type ReviewReplyMode, type ReviewToAnswer, type ReviewWaitingVM, type ReviewsLedgerDto, type ReviewsReportDto, type ReviewsReportVM, type Role, type RolePerm, type RoleSays, type RoleTableRow, type RowReachWords, type RuleStrength, type RuleStrengthVM, type RulesKeptInputs, type RunFigure, type RunFigureId, type RunFilterId, type RunLike, type RunMessage, type RunPersonVM, type RunPlan, type RunPlaybook, type RunReach, type RunReading, type RunReplyVM, type RunReportVM, type RunSplit, type RunStop, type RunTone, SAME_SITTING_MS, SAME_VISIT_MS, SCHEMA_SETS, SECOND_FACTOR_LEVEL, SECOND_FACTOR_PATH, SECOND_FACTOR_REQUIRED_PATH, SECOND_FACTOR_WORDS, SELF_LIFTING_HOLDS, SELLS_BY, SELLS_BY_FIRST, SELLS_BY_QUESTION, SELLS_BY_REFUSAL, SELLS_BY_WORDS, SENDER_WORDS, SENDING_DOMAINS_MAX, SENDING_DOMAIN_STATES, SENDING_HOURS_WORDS, SEND_DAY_FRAME, SEND_WHEN_WORDS, SEND_WINDOW_MARGIN_MIN, SERVER_KEY_PREFIX, SERVER_NOTIFICATION_KINDS, SERVICE_SUGGESTION_TYPES, SESSION_ENDED, SETUP_CARD_ORDER, SETUP_LATER_REFUSED, SETUP_REQUEST_KINDS, SETUP_STATE_WORDS, SHADOW_CALL, SHADOW_CONFIDENT, SHADOW_GRACE_MS, SHADOW_TIMEOUT_MS, SHADOW_WRITE_MS, SHARED_EVENT_SHAPES, SHARED_EVENT_VERSIONS, SHORTCUTS, SIGNED_BY_MAX, SIGNIN_RESEND_COOLDOWN_S, SIGNUP_NAME_MAX, SIGNUP_NAME_MIN, SIGNUP_WAITLIST, SIGNUP_WORDS, SMS_CLAUSES, SMS_OPT_OUT_PATTERN, SMS_SEGMENTS_MAX, SOLE_PROP_CEILING_SENTENCE, SOLE_PROP_LIMITS, SOLE_PROP_TEXTING_SENTENCE, SOURCE_WORDS, SPEECH_PURPOSES, SPEND_LEADS, SPEND_NUMBER, SPEND_TEXTING, STARTER_LANGUAGES, STARTER_LINE_WORDS, STARTER_TEMPLATES, START_PLAN_WORDS, STEP_SHEET_WORDS, STEP_TOKEN, STOP_ALL_REFUSALS, STOP_ENDED_OFFERS_SOURCE, SYSTEM_ONE_MODEL, SYSTEM_ONE_STATE_MAX_CHARS, type SavedListLike, type SavedListRowLike, type SchemaAgreement, type SchemaSet, type SchemaSetKey, type SeenMarksDto, type SeenOf, type SeenReading, type SellsBy, type SellsByVM, type SendPurpose, type SenderLanguage, type SenderWords, type SendingDomainDto, type SendingDomainState, type SendingDomainWords, type ServerNotificationKind, type Service, type ServiceLike, type ServiceOffer, ServiceSchema, type ServiceWordsInput, type ServicesWordsVM, type SetupBillingFacts, type SetupCardVM, type SetupDto, type SetupGoogleFacts, type SetupInputs, type SetupPhoneWant, type SetupRequestKind, type SetupRowVM, type SetupState, type SetupVM, type SetupVerb, type ShadowCallFor, type ShadowCallOutcome, type ShadowCallSpec, type ShadowPort, type ShadowRead, type SharedEventKind, type ShellMessage, type ShellStatus, type ShellStatusLine, type Shortcut, type SidebarPref, type SignupInput, type SignupPosture, SignupSchema, type SlotEdit, type SlotKey, type SlotLead, type SlotPart, type SlotSet, type SlotValue, type SlotWorkspace, type SpanUnits, type SpeechPurpose, type SpendWords, type SpokenBreach, type SpokenGuardVerdict, type SpokenRule, type SpokenTurn, type Standing, type StandingInput, type StandingInputs, type StandingVerdict, type StarterEmailText, type StarterSlot, type StarterSlotKind, type StarterSmsText, type StarterTemplate, type StarterText, type StateKind, type StepColumns, type StepDayChoice, type StepDayVM, type StepDraft, type StepDue, type StepHand, type StepNoteBody, type StepPerson, type StepSheetVM, type SubscriptionFacts, type SuggestionInput, type SweepHealthRow, type SystemOneAnswer, type SystemOneQuestion, type SystemOneRequest, type SystemOneResponse, TEAM_INVITE_DAYS, TEAM_ROLES, TEMPLATE_BODY_MAX, TEMPLATE_BODY_WORDS, TEMPLATE_BUTTON_TEXT_MAX, TEMPLATE_CATEGORIES, TEMPLATE_EXAMPLE_MAX, TEMPLATE_FOOTER_MAX, TEMPLATE_LABEL_MAX, TEMPLATE_LANGUAGES, TEMPLATE_NAME_WORDS, TEMPLATE_SAME_NAME_WORDS, TEMPLATE_STATUSES, TEMPLATE_TITLE_MAX, TENANT_STATUSES, TEXTING_NEEDS_RECORD_CLAUSE, TEXTING_NEEDS_RECORD_SENTENCE, THEME_COLORS, THEME_COLOR_META, THEME_INK, THEME_OPTIONS, THREAD_CHANNEL_WORDS, TIMELINE_FILTERS, TIMETABLE_HORIZON_DAYS, TOAST_ICONS, TOAST_MIN_MS, TOAST_MS, TOAST_TONES, TOAST_UNDO_MS, TODAY_DAY_MAX, TODAY_LEAK_MAX, TODAY_PINS_MAX, TODAY_STEPS_MAX, TOKENS_DAY_DEFAULT, TONES, TONE_PRESETS, TRIAL_COVERS, TRY_QUIET_AFTER_MS, TRY_SKIPPED, type TemplateButton, type TemplateCategoryChoice, type TemplateDraft, type TemplateDraftCheck, type TemplateDraftInput, type TemplateGroup, type TemplateHolds, type TemplateLanguage, type TemplateParts, type TemplateSendSource, type TemplateSends, type TemplateSentWords, type TemplateStatus, type TemplateUse, type TemplateUseSource, type TenantConfig, type TenantConfigParse, TenantConfigSchema, TenantConfigWriteSchema, type TenantId, type TenantStatus, type TextingTermsVM, type Theme, type ThemePref, type ThreadHolder, type TimelineFilterId, type TimelineKind, type TimetableDomain, type TimetableInput, type TimetableResult, type TimetableSend, type ToastShape, type ToastTone, type TodayAwayVM, type TodayBriefRun, type TodayBriefWords, type TodayCallRowVM, type TodayDayFrameVM, type TodayDayItemVM, type TodayDayVM, type TodayFactVM, type TodayFigureId, type TodayFigureVM, type TodayLeakId, type TodayLeakVM, type TodayLeaksVM, type TodayNeedsRowVM, type TodayNoReplyVM, type TodayPin, type TodayQueueEmptyVM, type TodayQueueRowVM, type TodayRunWordsVM, type TodaySentenceVM, type TodayStepVM, type TodayStepsVM, type TodayVM, type TodayWidgetSnapshot, type Tone, type Touches, type TryTransferKey, type TypedFacts, UNKNOWN_AUDIENCE_WORDS, UNREAD_READING, UNSUBSCRIBE_PAGE_HEADER, US_STATE_ZONES, UUID, type Unread, type UnsubscribePageWords, type UnsubscribeView, type UsStateCode, type UsageMonthDto, VERSION_CHANNELS, VERSION_CHANNEL_WORDS, VISION_STRENGTH, VOICE_END_REASONS, type VersionChannel, type VersionCheck, type VersionWords, type Visit, type VisitDto, type Visits, type VoiceEndReason, WABA_FIELDS, WAITING_AFTER_DAYS, WA_WINDOW_MS, WEEKDAY_KEYS, WEEK_MS, WHATSAPP_CONSENT_SOURCE, WHATSAPP_COST_WORDS, WHATSAPP_LANGUAGES, WHATSAPP_VERSION_ALONE, WHY_FROM_MAPS, WRITE_HOLDS, WRITE_HOLD_WORDS, type WaWindow, type WabaEventKind, type WaitingPersonDto, type WaitingRowVM, type WaitingRunOffer, type WeakerMode, type WeekHours, type WeekdayKey, type WhoseWords, type WireFailure, type Within, type WordsIssue, type WordsProblem, type WorkspacePartnerDto, type WorkspacePartnerState, type WorkspacePartnerVM, type WriteHold, type WriteRow, type WriteWay, type WrittenOpening, type YesAsk, type YouAreLiveInput, abandonedCall, abilityRows, activityDoor, activityFamily, activityFamilyKinds, activityKindGroups, activityKindWords, activityLines, activityMemberWords, activityRowsForLines, activityTone, activityWords, addressAlreadyKnown, addressInMessage, afterPersonRefused, agentFor, ago, agoLabel, agoShort, agoWords, aiUsageBodyOf, alertAddressesOf, alertGrid, alertTestMail, allLeftOutWords, allVisitsIn, allowanceBeforeSend, allowanceLine, allowanceLines, allowanceRoom, amountTotalsWords, amountWords, answerForCards, answerFromV1, answerText, answerWireOf, answerWords, answeredYes, applyReadState, applySettingsChange, appointmentHolds, appointmentKey, appointmentKeyOf, appointmentKeysOf, appointmentTitle, appointmentWordOf, appointmentWords, approvalWordsOf, approvedWordsFor, areaCodeOf, asContactId, asListRule, asPersonMode, asTenantId, askCallOutcome, askCardLapsed, askIntent, askJump, askModelProfile, askPages, askUndoOpen, attentionOf, attentionRow, audienceMembers, audiencePreview, audienceTrigger, autoReplyBell, autoReplyCandidates, autoReplyHold, awayUntilOf, bellActionOf, bellCalls, bellLineFor, bellSections, billingAccountDto, billingDoorOpen, billingEndedAt, billingPill, blockShareWords, bookedAfterAsk, bookedSeenOf, bookedTileOf, bookingEmailsHeldWords, bookingEmailsStep, bookingHeld, bookingLinkAction, bookingLinkOptional, bookingLinkRowWords, bookingNoticeOf, bookingPageKept, bookingPageOf, bookingPageOffered, bookingRuleRefusal, bookingRulesWords, bookingTemplate, bookingToolCalendar, bookingToolName, bookingToolOfAddress, bookingToolOfLink, bookingToolOptions, booksWithName, booksWithOf, booksWithOptions, brainMetaOf, breathSplit, breathTouchOf, broadcastFailureFix, broadcastFailureWords, broadcastName, broughtWords, buildAskSuggestions, buildNotificationFeed, businessFieldsFor, businessGap, businessGroupWordsFor, businessNameOf, businessPageMetadata, businessPageVM, businessRecordForPath, businessRecordLine, businessRecordProblems, businessTypeOf, busyOfAppointments, cacheHitOf, calendarLinkNote, calendarLinkShown, calendarOwnerOf, calendarPeekDeal, calendarSourceFacts, calendarSourceOf, callActivityPropsOf, callActivityStart, callAttemptWords, callJumpSub, callLength, callNoteLines, callNotesOf, callOfKey, callOutcomeOf, callOutcomeWords, callTodoWords, callerName, callsAnswer, callsStillUp, callsToday, cameFromOf, campaignChannelsOf, campaignDayWords, campaignEmailRules, campaignEnded, campaignMessageOf, campaignMessagesOf, campaignsHomeOf, cannotRows, capabilityStatus, cardOpenRoute, cardsInPlans, chainHintOf, chainIssueWords, chainOf, chainPaceOf, chainPathWords, chainReportWordsOf, chainResultsOf, chainTotalsFromReport, chainTotalsOf, changedConfigFields, channelChoices, channelFor, channelKindWords, channelNeverCarries, channelRefuses, channelsGoesByWords, channelsOf, channelsOfYes, channelsReady, channelsStandingParts, channelsStandingWords, channelsWords, checkChipsOf, checkNoteSuggestion, checkOpening, checkResultWords, checkedWords, chipsMoreWords, citationRoute, claimsWrite, clampWords, classify, cleanAnswer, cleanDisplayName, cleanDraft, cleanEmailCandidates, cleanFactorCode, cleanParam, cleanPartnerCode, cleanTimezone, clientErrorOf, clientKeyOf, clip, clipAtWord, clockDate, clockDateYear, clockDayLabel, clockHour, clockInZone, clockLabel, clockNear, clockNearWhen, clockShort, clockStamp, clockTime, clockWhen, closedOf, closedOn, closureDatesLabel, closuresAheadWords, closuresFrom, companyTypeOf, compareTemplates, compareWords, composeSystemPrompt, connectionRows, connectionWords, consentAnswerWords, consentChangeOf, consentChangeWords, consentFormMetadata, consentFormVM, consentGuardWords, consentPageMetadata, consentPageVM, consentRuleWords, consentSourceLabel, consultFirstOf, consultServiceOf, consultationHeld, consultationsWithoutProposal, consultsHeldWords, contactMeta, contactName, conversationMoveAllowed, conversationOfNeedsKey, conversationPatch, conversationWaitsOnYou, coveredChannels, coversSpan, csvCell, customerDomainOf, customerWords, dailyLimit, dataSentences, dayFromQuestion, dayInZone, dayIntervals, dayPlusInZone, dayProblems, dayWords, daysToSunset, daysWithAppointments, daysWords, dealCardsOf, dealFactsOf, dealIsOpen, dealMenuActs, dealNextAct, dealOf, dealPaceFrom, dealPaceOf, dealPaceWords, dealSendOf, dealSentence, dealSheetBody, dealSheetDirty, dealSheetFor, dealSheetMerge, dealSheetMessage, dealSheetRefusal, dealSinceMs, dealStageOf, dealStepOf, dealsAreOn, dedupeFeed, defaultParamSpecs, defaultSlotKinds, defaultTemplate, defaultWriteWire, delayWords, deltaOf, describeNow, describeOpenings, describeSettingsChange, describeVisits, deskSignMetadata, deskSignVM, detectLanguage, deviceTimezone, divertedNumbers, domainDailyCap, domainHoldFixWords, domainHoldNoticeWords, domainHoldWords, domainPatchOf, domainRecordRows, domainRecordsIntro, domainRegistrarHint, domainStatsWords, doorNamesNoAudience, doorOf, draftExcerpt, draftListRule, draftRefusal, draftSendsAtMs, dueStepDay, durationLabel, durationWords, effectiveMode, eligibleFor, eligibleForPlaybook, emailDomainOf, emailFoot, emailFootHtml, emailIssues, emailLeftOutOf, emailNotConfirmed, emailOffersOpen, emailRowWrittenOf, emailRunStop, emailStoppedWords, emailTemplateRowsOf, emailTemplateWords, emailWires, emailWordCount, emailsFor, emailsNotificationKind, emptyAudienceRefusal, emptyBusinessRecord, emptyReadSet, endedOn, endingOfRound, enrolFor, enrolPurpose, enrolRefusalWords, eraseSlot, err, escapeHtml, estimateRoundUsd, eventText, exampleParams, extractContacts, factConflicts, factNeeds, factValue, factorCodeWords, factorStepNeeded, failedAnswer, fallbackMessages, fallbackModel, fallbacksWords, feedAppointmentRows, feedBodyProblem, feedItemOfAppointment, feedNotes, feedProblemWords, feedSourceLabel, feedUrlOk, fenceActed, fenced, fencedInline, fetchPublic, fillSlots, filterOpenings, filterTimeline, findLanguages, finishedRunHeldWhy, finiteOrNull, finiteOrZero, firstLine, firstNameOf, firstReceptionistOf, firstRunKicker, firstRunLiveOf, firstRunOf, firstRunPhoneOf, firstRunStepOf, firstRunStepRoute, firstRunTryOf, firstWorkspaceDoor, fixedDaysOf, fmtClock, fmtDay, fmtSeconds, foldName, followUpIsFor, followUpKey, followUpNames, followUpRunAt, followUpStandOf, followUpWords, footerOf, forWords, formatPhoneDisplay, formatWaited, forwardStillAsked, forwardedLineOf, forwardingCarrierOf, forwardingCodes, forwardingConfirmationOf, forwardingDialLabel, forwardingMatch, forwardingProof, forwardingTestOpen, frameGuardrail, frameHandOver, frameOf, frameSteer, frameWhisper, freeWindows, fromSlotParts, fromZonedInput, gainedOver, goesToOf, googleAudienceWords, googleCallbackUrl, googleFillsOf, greetingFor, groundCitations, groupTemplates, guardSpokenTurns, guardrailsInForce, guessName, guessSlotKind, handOf, handStepWords, handoffCallWords, handoffChatWords, handoffE164, handoffWords, handoverInviteEmail, handoverRoom, handoverUntilWords, hardLimitsWords, hasHours, hasProfile, headlineOf, heardFor, heardSinceProposal, heardTooWords, heardWithin, heardWords, heldBackOfOneRun, heldBackWords, heldByAllowance, heldDraftWaits, heldLine, heldNoticeWords, heldWords, hexOf, holdDoors, holdOf, holdWords, holderOf, hoursFromGoogle, hoursLines, hoursOf, hoursRuns, hoursZoneWords, identityWords, importCounts, importRowsOf, inAppBootScript, inAppFrom, inLastSendingHour, inLocalWeek, inboxSlots, inboxTemplates, indexFeed, industryOf, industryWords, initialsOf, injectedTurn, injectionQuestion, insertSlot, instructionsDraft, instructionsWords, invitationWords, invoiceStatusWords, isActivityFamily, isActivityMoney, isActivityNoise, isAppointmentWord, isAutomatedSend, isBaselinePrompt, isBookingTool, isCampaignEmail, isCarrier, isChatMessage, isCheckoutReturn, isConsultationTitle, isDayKey, isDealLostReason, isDealPer, isDealSheetMode, isDealStage, isDraftWhy, isE164, isEmailStopped, isForReader, isForwardingMode, isFreeMail, isFromTheirSide, isHeldDraft, isIdentifierName, isLeadList, isLedgerCampaign, isLensParam, isLibrarySample, isLiveCall, isLookPref, isModelId, isNoticeHold, isOfferByEmail, isOpeningFactKey, isOpeningProblem, isOptedOut, isOptedOutContact, isPartnerCode, isPersonRow, isPersonsWords, isPipelineView, isPlaybookState, isPlaybookTotalsDto, isProductFallback, isPushKind, isReachOutHold, isReachOutRefusal, isReachOutRow, isReachOutRun, isRealDate, isReceptionistSeriesDto, isReplyIntent, isReplyTo, isReplyUndoRefusal, isReportDays, isReportDto, isReportPeriod, isReviewsLedgerDto, isSellsBy, isSidebarPref, isSiteRoot, isTheirOwnWords, isThemePref, isTimezone, isTypingTarget, isUngrounded, isUnread, isUnseen, isUsablePassword, isUuid, isVoiceEndReason, isWaitRefusal, isWinBack, isYes, itemFocus, itemOfAppointment, jittered, jobNewsWords, joinedWords, journeyGuide, journeyOf, journeyStageOf, judgeAsked, judgeDomain, judgeOpId, judgeQuestions, judgeShadowCalls, judgeShadowSpecs, judgeSystemPrompt, judgeUserContent, keptPhoneKind, knownForwarding, knownTimezones, languageBase, languageLabel, languageLabels, languageName, languageTag, languageWords, lastWroteOn, leadAllowanceFact, leadAnd, leadAskedFor, leadBand, leadCheckAgainCents, leadCheckWord, leadChooseAnswerWords, leadChooseNameOf, leadDraftFooter, leadEndingLine, leadExclusionWord, leadHoursShort, leadImportAnswerWords, leadImportColumnWords, leadImportColumns, leadImportCountWords, leadImportEstimateUsd, leadImportNameOf, leadImportPlanOf, leadImportReady, leadImportSaveLabel, leadKindWord, leadListEmptyOf, leadListStripOf, leadLowShare, leadLowerFirst, leadMapAcross, leadMapLegend, leadMapNote, leadMapPlot, leadMarkSrc, leadMonth, leadNearWhere, leadNoCardLine, leadNotBusinessesLine, leadNoteLeft, leadPeekMenu, leadPhoneState, leadPinTone, leadPlanAsk, leadPlanFacts, leadPlanLikely, leadQuestionMail, leadQuestionRoute, leadQuestionTitle, leadRail, leadReachLine, leadReplyNote, leadReviewCosts, leadReviewGroups, leadSearchWords, leadSlots, leadTileSrc, leadTintOf, leadTodayLine, leadUndoable, leadWeekBars, leadWeekSummary, leadWhere, leadsRoute, leadsStanding, ledgerOrder, ledgerPeopleWords, ledgerPhoneLine, ledgerRowIn, leftOutBy, leftOutByFacts, legacyErasedEmailHash, legacyErasedPhoneHash, legacyLeadSuppressionHash, lensAnswerOf, lensEmpty, lensIsShown, lensOf, lensOfRoute, lensRoute, lensesFor, libraryCount, lifecycleChainsOf, lifecycleKicker, lifecyclePlaybooksOf, lineCredentialFailure, lineOrNull, lineReleaseAfterDays, lineReleaseDay, lineReleaseStep, lineReleaseWarning, lineReleasedWords, lineRetryRefusal, lineStuckProvisioning, linkCount, linkHost, linksIn, listConditionWords, listDraftFieldLines, listFactWords, listMembers, listNamer, listNeeds, listRuleMatches, listRuleParts, listRuleWhy, listToken, listUnknownWords, listingFactsOf, listingLine, listsFor, liveBar, liveStillUp, localDate, localDaysBetween, localHour, localToUtcMs, lookPrefOf, maskedEmail, matchColumns, matchPerson, matchService, mayMessageFor, mayReach, mayReceive, maySpend, mayUseModels, mediaKind, mediaVM, medianWait, memberGetsAlerts, memberMetaOf, memberWords, membersOf, mergedAnswers, messageAboutOfTrigger, messageAt, messageAuthor, messageFitsMoment, messageHolds, messageLanguageChoices, messageLanguageCode, messageStandingWords, messageStatusLabel, messageText, messageVia, messageWhy, messageWhyNot, messageWords, metaStatusOf, metricWordsOf, missedCall, missedCallIsNews, mmss, modelRoute, momentHoldsWords, momentOffered, momentReadsCalendar, mondayOf, moneyWords, monthDaysAt, monthLabelOf, monthSentAt, monthSpan, movedAddress, nameDecisionWords, nameKnownCustomers, namedProblem, namesMoney, navigateLabel, needsAnswer, needsConsultation, newCampaignChannels, newCampaignTrialUntil, newConversationOf, newReceptionistDefaults, nextMonthStart, nextOpenMoment, nextRunLabel, nextRunWords, nextStepOf, nextThemePref, noChannelWords, noMessageWords, noNumberWords, noProposalSince, noTemplateWords, noVersionWords, nonBlankOrNull, normalizeAnswer, normalizeEmail, normalizeFromLocal, normalizeHost, normalizeLink, normalizeLocalPart, normalizePhone, notFoundPageMetadata, notNowDayOf, noteAsTold, noteEndedWords, noteRows, noteSuggestSystemPrompt, noteSuggestUserContent, noteWhose, notesInForce, notesWords, noticeAnswerOf, noticePrompt, numberHealth, numberHealthWithStanding, numberedSlots, offerFor, offerGate, offerLead, offerPauseOf, offerUnsubscribeWords, offeringHorizon, offersAfterStart, offersBookingLink, offersFacts, offersNote, offersPausedLine, offersYesRefusal, ok, onDomain, oneDoor, openAt, openDealsFromJson, openDealsOf, openWeekWords, openingProblemWords, openingSystemPrompt, openingUserContent, openingVerdict, openingsAnswer, optInConfirmation, optInLink, optInPurposeOf, optOutWords, outcomeMove, outreachRefusalOf, overLimitRefusal, ownAddressesOf, ownDomainAddress, ownMessageRefusal, ownWordsOf, ownedDomainOf, paceWords, pageTitle, pageVitalsWords, paramLabel, parseAmount, parseBrainOutput, parseCsv, parseDevice, parseIcs, parseJudgeAnswer, parseLeadsRoute, parseListToken, parseMemberAlerts, parseOpening, parsePageMessage, parseParamSpec, parseParamSpecs, parsePipelineRoute, parseReading, parseReplyReading, parseShellMessage, parseSystemOneResponse, parseTenantConfig, parseTenantConfigResult, parseTodayWidgetSnapshot, partWritten, partialSay, partnerCodeFrom, partnerCodeFromCookie, partnerEarningsWords, partnerHandoverVM, partnerInvitationWords, partnerInviteEmail, partnerJoinedWords, partnerLetter, partnerLinkFor, partnerPaneUrl, partnerPathFor, partnerPayoutOutcomeWords, partnerStandingChoices, partnerStandingOutcomeWords, partnerStatusChoices, partnerStatusOutcomeWords, partnerVM, partnerWorkspacesVM, passesHandoverPause, passwordProblem, pastAllowance, pauseHoursOf, pauseMsOf, pausedGreetingFor, pausedVoiceFacts, pendingCodeOf, pendingWorkspaceOf, peopleAggregates, peopleFromItems, peopleListAction, peopleVisitsOf, personActs, personInText, personInitials, personLikeOf, personName, personNotesVM, personOfAppointment, personReachOf, personStanding, personStateFor, phoneDialable, phoneLine, phoneTail, pickCurrentDeal, pinTokens, pipelineBoardMore, pipelineMove, pipelineOf, pipelinePassDone, pipelinePassMany, pipelinePeekDetail, pipelinePeekOf, pipelinePersonOf, pipelineRail, pipelineRoute, pipelineRowId, pipelineRowNow, pipelineSorted, pipelineViewLabel, placeholdersOf, placeholdersSequential, placesQueryOf, placesToAsk, planArea, planBilling, planCeiling, planGroupOf, planLeadSearch, planLeavingOut, planMadeOf, planMinutes, planNoteOf, planOf, planRun, planSaid, planSentence, planVersionOf, planWaits, planWhere, planWho, planWords, platformActionWarning, platformDaysWords, platformHealthOf, platformHealthWords, platformLineActions, platformNumber, platformPartnerRows, platformPartnerStanding, platformPartnerSummary, platformQueue, platformRows, platformSummary, playbookChannelsRead, playbookFailedAbout, playbookFailedWords, playbookListRef, playbookName, playbookNoNumberWords, playbookPoolKey, playbookReach, playbookReachDoor, playbookRunNext, playbookRunReach, playbookRunStop, playbookStopBy, playbooksStillSending, plural, pointsDelta, policyAskClass, policyClassLabel, policyClassOfIntent, policyClassOffered, policyClassQuestion, policyLinks, policyModeOffered, policyModeRefusal, policyRules, poolListContext, poolRowOf, poolRowsOf, poolWords, posesAsReply, previewHorizon, previewLinesOf, previewOn, previewParts, previewRefusedWords, previewSays, previewVersionsOf, priceFigures, priceNextStep, priceOf, priceWords, priorOf, profileRefusal, promptBlocks, promptCostWords, promptSafeName, promptTotalWords, proposalAction, proposalBelowNeeds, proposalChannelsWords, proposalFactsFor, proposalFollowUp, proposalLinkOf, proposalMessage, proposalSpec, proposalsWaiting, proseAnswer, providerNameOf, purposeOfPlaybook, purposeOfTemplate, pushFor, pushOffOf, pushesFor, quantile, questionAfterProbe, ratingWords, reachAfterBreath, reachBarParts, reachBarWords, reachByWords, reachCountsOf, reachFor, reachLineOf, reachLines, reachOutAddHandStep, reachOutAddStep, reachOutAfterDayChoices, reachOutChainBodyOf, reachOutDayWords, reachOutDefaultName, reachOutDoorOf, reachOutDraftIssues, reachOutDraftOf, reachOutDropStep, reachOutEditedWords, reachOutEmailOf, reachOutExampleValues, reachOutLineOf, reachOutMayAddStep, reachOutMayPickDomain, reachOutPersonOf, reachOutPreviewOf, reachOutRowName, reachOutRules, reachOutRunWordsOf, reachOutSavedWords, reachOutSendsFrom, reachOutSetHandWords, reachOutSheetPaceOf, reachOutSheetUnreadOf, reachOutSlotFault, reachOutStepOf, reachOutStripOf, reachOutTimelineOf, reachOutWhoWords, reachSplit, reachSplitWords, reachedCustomer, reachedVoicemail, readAgoLabel, readingPlan, readingSystemPrompt, readingUserContent, readsAsModel, readyForMessage, readyOrWhatsApp, reasonLabelOf, reasonShort, reasonSummaryOf, receiptWords, recencyCells, receptionistCardOf, receptionistDtoOf, receptionistOf, receptionistOn, receptionistPrimary, receptionistShadowCall, recordOrNull, refusalOf, refusedWords, regionOf, registrationPathOf, registrationPreflight, relationshipOnRecord, renderOwnVersion, renderTemplate, repliesWords, replyChipOf, replyDelayMs, replyFromLineOf, replyHoldDtoOf, replyIntentQuestion, replyLeftAsOf, replyNoticeWords, replyReadPrimary, replyReadShadowCall, replyRowOf, replyStepWords, replyStripOf, replySystemPrompt, replyTextOf, replyUserContent, replyWaitsOnYou, replyWhy, replyWindow, reportDaysAsked, reportDaysCount, reportDaysRefusal, reportFacts, reportHourWords, reportPeriodOf, reportPickWords, reportRangeAsked, reportRangeKey, reportRangeOfKey, reportShortcuts, reportWindowOf, reportsParamParts, reportsRouteParts, reputationHoldOf, requestCodeWords, rereadAt, resendLeft, resolveFacts, resolveList, resolveParams, resolveSteps, resolveSystemPrompt, resolveTheme, resumeDomain, retentionWords, reviewHeldWords, reviewIsNew, reviewReplyModeOf, reviewReplyPrompt, reviewReplyWords, reviewSnippet, reviewsAreOnRecord, reviewsWindowOf, reviewsWords, rightNowCounts, rightNowLine, roleAtLeast, roleGate, roleSays, roleTable, routeOfAddress, routeOfHash, routeOfPath, routePrefetchScript, rowReachWords, ruleFacts, ruleLists, ruleNeeds, ruleNeedsViewer, ruleParts, ruleStrength, rulesKept, rulesLine, rulesWithoutFieldsWords, runApprovalRefusal, runCountsOf, runDayPassed, runDueNow, runReadingOf, runStoppedWords, runningTotal, runsWords, saidYesOnAny, saidYesTo, saidYesWords, sameAddress, sameListed, sameName, samePhone, sameQuestion, sameReportRange, savedListAction, savedListIds, savedListLookup, savedListTip, scheduleLine, scopeFromRoute, seasonHorizon, seatNeedsSecondFactor, secondFactorResetWords, secondFactorShown, seenBy, sellsBySaved, sellsByVM, sendFailureIsOurs, sendFailureWords, sendWindowsOf, sendableTemplates, senderLanguage, senderWords, sendingDomainActs, sendingDomainDtoOf, sendingDomainWords, sendingDomainsFootWords, sendsWaitWords, sentByWords, sentResultsOfSource, serverNotificationRows, serviceNamedIn, serviceOf, serviceSuggestionsOf, serviceUndoName, servicesFoundWords, servicesSaveWords, servicesToldWords, servicesWords, sessionEnded, setupCardOf, setupLaterOf, setupPhoneWantOf, setupSteps, sha256Hex, shadowBodies, shadowPortOf, shadowRead, shadowSwitchOn, shadowWordsOf, shareWords, sheetFootWords, shellStatusLine, shiftKey, shiftMonth, shortCode, shortName, shortTime, shortcutGroups, shouldLandOnFirstRun, shoutingLine, signupPosture, siteHost, slotChoices, slotCount, slotKnown, slotLabel, slotLabels, slotToWrite, slotValueOf, slotWritten, slugTemplateName, smsConsentSentence, smsSegments, smsStateRow, smsStopLine, smsVersionSegments, snoozedThreadWords, soleProprietorLimits, spanForView, spanLabel, spanUnits, speedOf, splitQuotedReply, spokenBreach, spokenBreachDetails, spokenDuration, stageArgs, standingAfterNameDecision, standingAlertWords, standingFromConfig, standingNeedsRead, standingOf, starsOf, startWords, starterByKey, starterByName, starterDraft, starterEmailText, starterForTrigger, starterIndex, starterPreview, starterPreviewValues, starterSmsText, starterText, startersForTrigger, startersOffered, startsOn, stateCode, stateLabel, stateOf, stateTone, stepDayFor, stepDayOf, stepDays, stepIsDue, stepLabel, stepLabelOf, stepSheetBody, stepSheetDirty, stepSheetFor, stepSheetMerge, stepToken, stepWhenWords, stopRequestQuestion, stoppedRunFix, suggestLocalPart, sumOf, systemOneDollars, systemOneState, telHref, templateBlocked, templateBodyTooLong, templateComponents, templateFooter, templateHolds, templateLanguage, templateLinkButton, templateNameOk, templateParts, templatePreview, templatePreviewValues, templateSends, templateSendsOf, templateSentWords, templateSlots, templateTitle, templateUntranslatable, templateUnused, templateUsage, templateUseNote, templateUseWords, tenantStatusFor, textingTermsMetadata, textingTermsVM, textingWords, theirVisitTest, themeBootScript, themeButtonWords, themeColorOf, themePrefOf, threadChannelOf, threadChannelWords, threadStanding, threadsWaitingOnYou, tidyCallSummary, timetable, timezoneCity, timezoneWords, toApprovalVM, toBillingVM, toBookingReportVM, toBroadcastVM, toCalendarVM, toCallVM, toCampaignReportVM, toChannelVM, toConversationVM, toDealReportVM, toDealVM, toGoogleReviewVM, toGoogleVM, toHeadlineVM, toInboxThreadVM, toLeadPeekVM, toLeadRowVM, toLiveCallVM, toLiveVM, toPersonRowVM, toPersonVM, toReachOutReportVM, toReceptionistReportVM, toReportVM, toReviewsReportVM, toRunReportVM, toSlotParts, toTodayVM, toVisitDto, toastShape, todayAwayGrouped, todayBriefWords, todayDay, todayLeaks, todayPeriodLine, todayPins, todayProof, todayRunApproved, todayRunWords, todayRunsSub, todaySteps, todayStepsDue, todayWidgetSnapshot, togglePin, tokenBudgetSpent, tokenCapOf, tomorrowAtIn, touchesAfterRun, trialDayWords, trialOffer, trialWords, triggerOf, triggerOffered, triggerWords, trimmedOrNull, tzClock, tzSince, unknownDetails, unmetNeed, unquoted, unreadCount, unreadFor, unsubscribePageWords, unsureHoursWords, usPhone, usableDeviceTimezone, usageDollars, usageMonthOf, usageOf, usageTokens, utf8Bytes, v1FromAnswer, validateEmailVersion, validateOwnVersion, validateReachOutChain, validateReachOutWords, validateSmsVersion, validateTemplateDraft, variablesSlotCount, verbForRoute, verbalOptInScript, verifyCodeWords, versionComponents, versionSlotsRefusal, versionWords, versionsOf, vetoRunNotice, viewerListWords, violatesNoPrices, visitAnswersAsk, visitDateKey, visitDay, visitDayWord, visitFactsFor, visitLine, visitMomentDay, visitOnDay, visitStartTime, visitTime, visitTitleFor, visitsIn, visitsOf, vitalValueWords, vitalVerdict, vitalsPageOf, waMeDigits, waWindow, waitAfterDays, waitWords, waitedLabel, waitingOnProposal, waitingRunOffer, wallClockAt, websiteHostOf, weekHoursOf, weekOf, whatsappLineOf, whatsappOffersOpen, whatsappStoppedRunWords, whenLabel, whisperText, wholeDaysSince, whoseWords, whyCannotSpend, whyFrom, whyNotAFromLocal, whyNotAFromName, whyNotAHandoff, whyNotALink, whyNotALocalPart, whyNotAPhone, whyNotASendingHost, whyNotAnEmail, whyNotForward, whyNotLook, whyNotReceive, winBackWords, windowFor, wireFailure, withAlertAddress, withFirstAlertAddress, withReplies, withStoredKeysKept, withTopicEmail, withTopicPush, withVisitsOf, withoutVisitsRowsDraw, withoutWrongPerson, wordCount, wordsIssueWords, wordsNeedOpening, workspacePartnerVM, workspacePath, writeReachOf, writeWayWords, writeWaysOf, writeWireName, writtenChannelOf, writtenOutDetail, yesAsked, yesCovers, yesWaitWords, yesWaits, youAreLiveEmail, zoneDayKey, zoneMidnight, zoneOfRegion, zoneOffsetMs, zoneSearchWords, zonedInputValue };
+export { ABANDONED_MS, ABILITY_CHANNEL_WORDS, ABOUT_MAX, ABOUT_MIN, ACTIVATION_MILESTONES, ACTIVITY_ACTORS, ACTIVITY_FAMILIES, ACTIVITY_FOLD_KINDS, ACTIVITY_KINDS, ACTIVITY_NOISE_KINDS, ACTIVITY_NOISE_PREFIXES, ACTIVITY_PAGE_WORDS, ACTIVITY_PROBLEM_KINDS, ACTIVITY_SPANS, ACTIVITY_SPAN_DAYS, ACTOR_TYPES, ADS_ASK_MIN, ADS_ASK_MIN_CALLS, ADS_ASK_SOON_DAYS, ADS_CHANCE_Z, ADS_COPY_LIMITS, ADS_DAILY_CHOICES_MINOR, ADS_DEFAULT_CURRENCY, ADS_DEFAULT_MILES, ADS_DISPLAY_NAME_MAX, ADS_DOORS, ADS_END_SHIFTS, ADS_EXAMPLES, ADS_EXTEND_MAX_DAYS, ADS_FRESH_DAYS, ADS_GROUP_FROM, ADS_MOVE_DAYS, ADS_MOVE_STEP_MINOR, ADS_OWN_DAYS, ADS_OWN_START_MINOR, ADS_PERMISSION_WARN_DAYS, ADS_READ, ADS_ROUTE, ADS_SCOPE_ALL, ADS_SETTLE_DAYS, ADS_SOFT_NEEDS, ADS_SPECIAL_MILES, ADS_TOTAL_STEPS, ADS_WINDOW_DAYS, ADS_WORDS, ADS_ZIP_DIGITS, ALERT_ADDRESSES_MAX, ALERT_ADDRESSES_MIN, ALERT_KINDS, ALERT_PANE_WORDS, ALERT_REFUSED_WORDS, ALERT_TOPICS, ALWAYS_TOLD, ANALYSIS_GRACE_MS, ANGLE_WORDS_MAX, APPOINTMENT_SOURCES, APPOINTMENT_STATUSES, APPOINTMENT_WORDS, APP_KEYS_RESIZE_CLASS, APP_ROUTE_RE, ASK, ASK_ANSWER_CAPS, ASK_ANSWER_FORMAT, ASK_CAPS, ASK_CITATION_KINDS, ASK_CONTEXT_MAX_ROWS, ASK_CONTEXT_ROW_KINDS, ASK_EFFORT, ASK_LANGUAGES, ASK_MAX_CHARS, ASK_MAX_ROUNDS, ASK_MAX_TOKENS, ASK_MODEL, ASK_PAGES, ASK_PAGE_ROUTES, ASK_ROW_WORDS, ASK_SCOPE_KINDS, ASK_SPEECH_MAX_CHARS, ASK_SURFACES, ASK_THREAD_ROUTES, ASK_THREAD_VERBS, ASK_TOKENS_DAY, ASK_TOOLS_CHARS_CEILING, ASK_TURN_BUDGET_MS, ASK_UNDO_MS, ASK_VOICE_CLAIM_STALE_MS, ASK_VOICE_FIRST_WORDS_MS, ASK_VOICE_ID, ASK_VOICE_IDLE_MS, ASK_VOICE_MODEL, ASK_VOICE_PULSE_MS, ASK_VOICE_TIMING_MAX_MS, ASK_VOICE_TOKEN_MIN_MS, ASK_VOICE_UP_WAIT_MS, ASK_WARM_MAX_TOKENS, AUDIENCE_KINDS, type AbilitiesVM, type AbilityInputs, type AbilityRowVM, type ActivationMilestone, type ActivationRecord, type ActivityActor, type ActivityFamily, type ActivityFoldRow, type ActivityKindGroup, type ActivityLineVM, type ActivityMemberDto, type ActivityPageDto, type ActivityRowDto, type ActivitySpan, type DecisionVerb as ActivityVerb, type ActorType, type AdAccountRead, type AdAccountStatus, type AdArea, type AdBudget, type AdCheck, type AdCheckId, type AdCopy, type AdDay, type AdDoor, type AdDraft, type AdDrawerVM, type AdMedia, type AdNeeds, type AdNeedsCode, type AdPatch, type AdPersonRead, type AdPersonRowVM, type AdPlatform, type AdRead, type AdRowVM, type AdSchedule, type AdShownAs, type AdStart, type AdState, type AdTheirs, type AdTone, type AdWaitingRowVM, type AddressParts, type AdsAddress, type AdsConfig, type AdsExample, type AdsGroupBy, type AdsRead, type AdsResultsVM, type AdsScope, type AdsVM, type AiUsageBody, type AlertCell, type AlertGridGroup, type AlertGridRow, type AlertGroup, type AlertRefusal, type AlertTopic, type AllowedPrice, type AmountFact, type AmountOption, type AnswerEvent, type AnswerPurpose, type AnswerSend, type ApiRouteKey, AppError, type AppointmentLike, type AppointmentPhrases, type AppointmentSource, type AppointmentState, type AppointmentStatus, type AppointmentWord, type ApprovalVM, type AreaOption, type AskAnswer, type AskAnswerRead, type AskApply, type AskBreakdown, type AskBreakdownPart, type AskCitation, type AskCitationKind, type AskContextRowKind, type AskFigure, type AskIntent, type AskItem, type AskLanguage, type AskMessageVM, type AskModelProfile, type AskOpen, type AskOpeningsView, type AskPlanStamp, type AskProposal, type AskProposalOutcome, AskProposalOutcomeSchema, type AskReadSet, type AskRole, type AskRowRef, type AskScope, type AskScopeKind, type AskSettingsChange, AskSettingsChangeSchema, type AskSource, type AskSourceRef, type AskSuggestion, type AskSurface, type AskThreadVM, type AskThreadVerb, type AskTurnShape, type AskTurnTokens, type AskVM, type AskWaiting, type AskedPurpose, type AssuranceLevels, type AttentionRowVM, type Audience, type AudienceKind, type AudiencePreview, type AwayGroupVM, type AwayQueueRef, type AwayRowLike, BELL_LINE_KINDS, BELL_WINDOW_DAYS, BILLING_MODES, BILLING_STATUSES, BILLING_TEST_MODE_CLAUSE, BILLING_TRIAL_DAYS, BOOKED_ENDED_META, BOOKED_NEEDS_A_LINK, BOOKED_NEEDS_TODAY, BOOKED_SEEN_CAP, BOOKING_DEFAULTS, BOOKING_LINK_NEEDED, BOOKING_PLATFORM_HOSTS, BOOKING_PLATFORM_TOOLS, BOOKING_RULE_HINTS, BOOKING_TOOL_IDS, BOOKING_TOOL_STEPS, BOOKING_TOOL_WORDS, BOOKING_TRY_NOTE, BOOKS_BY_HAND, BOOKS_WITH_CALENDAR, BOOK_ONLINE, BRAIN_INTENTS, BRAIN_LANGUAGES, BRAIN_OUTPUT_JSON_SCHEMA, BROADCAST_CHUNK, BROADCAST_FAILURES, BROADCAST_FAILURE_FIX, BROADCAST_FAILURE_WORDS, BROADCAST_GAP_MS, BROADCAST_HOLD_WAIT_MS, BROADCAST_MAX_RECIPIENTS, BROADCAST_NAME_MAX, BROADCAST_PARAM_MAX, BROADCAST_SCHEDULE_MAX_DAYS, BROADCAST_STATES, BROADCAST_STATE_LABELS, BROADCAST_THROTTLE_WAITS_MS, BROADCAST_WORDS, BROKEN_CONFIG_WORDS, BUDGET_RULES, BUILTIN_LISTS, BUSINESS_INDUSTRIES, BUSINESS_TYPES, type BarsVM, type BellLineVM, type BellNoteLike, type BellNotificationKind, type BellSectionVM, type BillingAccountDto, type BillingBell, type BillingDto, type BillingInvoiceDto, type BillingMode, type BillingPlan, type BillingPriceDto, type BillingStatus, type BillingVM, type BlockedVM, type BookedSeen, type BookingEmailsFacts, type BookingEmailsStep, type BookingReportDto, type BookingReportVM, type BookingRuleKey, type BookingRules, type BookingRulesLike, BookingRulesSchema, type BookingRulesWordsInput, type BookingRulesWordsVM, type BookingTool, type BookingToolCalendar, type BookingToolWay, type BrainConfig, BrainConfigSchema, type BrainIntent, type BrainMeta, type BrainOutput, BrainOutputSchema, type BrainStamp, type BroadcastCounts, type BroadcastDetailDto, type BroadcastDto, type BroadcastFailure, type BroadcastRecipientDto, type BroadcastState, type BroadcastVM, type BudgetRule, type BusinessFieldVM, type BusinessGap, type BusinessIndustry, BusinessLineSchema, type BusinessPageFacts, type BusinessPageVM, type BusinessProfile, BusinessProfileSchema, type BusinessRecordDto, type BusinessType, type BusyBlock, CALENDAR_FEED_WORDS, CALENDAR_SETTING_ROUTE, CALL_ACTIVITY_NAME, CALL_ACTIVITY_ROLES, CALL_ACTIVITY_STALE_MS, CALL_HEARTBEAT_MS, CALL_MISSED_WORDS, CALL_OUTCOMES, CALL_OUTCOME_WORDS, CALL_UNANSWERED_WORDS, CAMPAIGNS_PAUSED_WORDS, CAMPAIGNS_RESULTS_PERIOD, CAMPAIGN_EMAIL_TAG, CAMPAIGN_MONTH_ALLOWANCE, CAMPAIGN_NOT_FOUND, CAMPAIGN_ROOMS, CAPABILITY_KINDS, CARRIERS, CARRIER_CONSENT_SOURCE, CARRIER_WORDS, CHAIN_MIN_LISTINGS, CHANGED, CHANNELS_DOOR, CHANNEL_ANSWERED, CHANNEL_KINDS, CHANNEL_KIND_WORDS, CHANNEL_WORDS, CHECKOUT_OUTCOME_WORDS, CHECKOUT_RETURNS, CHECKOUT_RETURN_ROUTE, CHECKS, CHIPS, CHIPS_SHOWN, CHOOSE, CLIENT_ERROR_BOUNDARIES, CLIENT_ERROR_LIMITS, COMMON_LANGUAGES, COMPANY_TYPES, CONFIDENCE_STEPS, CONNECT, CONNECTION_GROUP_WORDS, CONNECTION_KINDS, CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, CONSENT_LIST_IDS, CONSENT_PHRASE, CONSENT_PHRASE_ES, CONSENT_RESET_SOURCE, CONSENT_SOURCES, CONSENT_STATES, CONSULT_FIRST_DEAL_HINT, CONSULT_FOLLOW_DAYS, CONVERSATIONAL_ASK_TITLE, CONVERSATION_GAP_MS, CONVERSATION_MOVES, CONVERSATION_OPT_IN_PATTERN, CONVERSATION_PHRASE, CONVERSATION_STATES, CONVERSATION_UNDER_WAY, COUNTED, type CalendarBandVM, type CalendarBlockVM, type CalendarClosureVM, type CalendarConfig, CalendarConfigSchema, type CalendarDayDto, type CalendarDayVM, type CalendarFeedDto, type CalendarFeedHealth, type CalendarFeedNoteVM, type CalendarItemDto, type CalendarLike, type CalendarNoticesDto, type CalendarPeekDealVM, type CalendarPerson, type CalendarServiceDto, type CalendarServiceVM, type CalendarSourceFacts, type CalendarSourceState, type CalendarSourceVM, type CalendarVM, type CalendarView, type CalendarWeekDto, type CalendarWindowVM, type CallActivityProps, type CallBrief, type CallDto, type CallNotes, type CallOutcome, type CallVM, type CalloutActId, type CalloutVM, type CampaignDayDto, type CampaignFigureVM, type CampaignHow, type CampaignLedgerDto, type CampaignLedgerSeriesDto, type CampaignLensInput, type CampaignLensVM, type CampaignMessage, type CampaignMessageRow, type CampaignNumberDto, type CampaignPointVM, type CampaignReportDto, type CampaignReportVM, type CampaignSourceDto, type CampaignSourceVM, type CampaignStuckNowDto, type CampaignStuckRawDto, type CampaignTotals, type CannotRowVM, type CapabilityBlocker, type CapabilityInputs, type CapabilityKind, type CapabilityStatus, type Carrier, type CellVM, type ChainIssue, type ChainProblem, type ChannelDto, type ChannelHealth, type ChannelKind, type ChannelPickable, type ChannelReady, type ChannelStand, type ChannelStandingPart, type ChannelVM, type ChannelsReady, type CheckChipSetVM, type CheckChipVM, type CheckChipsVM, type CheckRowVM, type CheckoutReturn, type ChipId, type ChooseVM, type CleanedEmails, type ClientErrorBoundary, ClientErrorInput, type ClientErrorInputDto, type Closure, ClosureSchema, type ClosuresAheadVM, type ComingRowVM, type CompanyType, type ConflictSeverity, type ConnectChoiceVM, type ConnectRowVM, type ConnectionGroup, type ConnectionInputs, type ConnectionKind, type ConnectionRow, type ConnectionState, type ConnectionTone, type ConnectionVerb, type ConnectionWho, type ConsentAsk, type ConsentBearing, type ConsentChange, type ConsentChannel, type ConsentFormSection, type ConsentFormVM, type ConsentPageFacts, type ConsentPageVM, type ConsentState, type ConsentWay, type ConsentWayKind, type ConsultRules, ContactAddedData, ContactConsentChangedData, type ContactId, type ConversationDto, type ConversationMessageVM, type ConversationMoveName, type ConversationPatch, type ConversationState, type ConversationVM, type CountCtx, type CountedVM, type Crumb, type CsvCell, DASH, DATA_NOT_INSTRUCTIONS, DAYS, DAY_MS, DAY_NAMES, DEAL_ACT_HINTS, DEAL_ACT_WORDS, DEAL_CARD_WORDS, DEAL_CLEARABLE, DEAL_LINE_NONE, DEAL_LOST_REASONS, DEAL_LOST_REASON_WORDS, DEAL_NOTE_MAX, DEAL_PERS, DEAL_PER_WORDS, DEAL_REFUSALS, DEAL_SEND_WHY, DEAL_SHEET_MODES, DEAL_SHEET_WORDS, DEAL_SOURCES, DEAL_STAGES, DEAL_STAGE_WORDS, DECISION_SUBJECTS, DECISION_VERBS, DEFAULT_BUSINESS_TYPE, DEFAULT_CAMPAIGN_CHANNELS, DEFAULT_COMPANY_TYPE, DEFAULT_INDUSTRY, DEFAULT_LOOK_PREF, DEFAULT_THEME_PREF, DEFAULT_TIMEZONE, DEFAULT_WEEK, DELIVERY_RECEIPTS_TIP, DELIVERY_RECEIPTS_WORDS, DELIVERY_REFUSALS, DEVICE_PREFS_STORAGE, DISCONNECTION_LABELS, DISPLAY_NAME_MAX, DMARC_RECOMMENDED, DMARC_STATES, DNS_HOLDS, DOMAIN_HOLDS, DOMAIN_RAMP, DOMAIN_RESUMERS, DOOR, DOOR_NEEDS, DOOR_ORDER, DOUBT_SEEN, DOUBT_SETTLED_AS, DOUBT_WORDS, DRAFT_ABOUT_MAX, DRAFT_ANSWER_MAX, DRAFT_ASKS_MAX, DRAFT_HOWS, DRAFT_NEEDS_MS, DRAFT_NOTICE_MAX, DRAFT_TONES, DRAFT_WHYS, DRAWER, type DayFrameLike, type DayVM, type DealAct, type DealActId, type DealCardStepVM, type DealCardVM, type DealClearable, type DealColumns, type DealDto, type DealFacts, type DealLostReason, type DealOutcomeVM, type DealPaceDto, type DealPaceVM, type DealPer, type DealPerson, type DealQuietVM, type DealReportDto, type DealReportLineId, type DealReportVM, type DealSend, type DealSheetBody, type DealSheetDraft, type DealSheetField, type DealSheetMode, type DealSheetOutcome, type DealSheetProblem, type DealSheetVM, type DealSource, type DealStage, type DealStandingStage, type DealStepVM, type DealVM, type DealWaitRow, type DecisionSubject, type DecisionVerb, type DeliveryRefusal, type DeskSignVM, type DmarcState, type DomainCounts, type DomainFacts, type DomainHold, type DomainJudgement, type DomainRecord, type DomainRecordRow, type DomainResumer, type DomainRowState, type DoorVM, type DoubtSeen, type DoubtSettledAs, type DraftAsk, type DraftHow, type DraftTone, type DraftWhy, E164, EARLIER_FALLBACK_DEFAULTS, EDGE_ERROR_CODES, EDIT, EMAILED_NOTIFICATION_KINDS, EMAIL_ALWAYS_KINDS, EMAIL_BODY_MAX, EMAIL_CLAIMS, EMAIL_ELSEWHERE_SENTENCE, EMAIL_HOLDS, EMAIL_NOT_ANSWERED_SENTENCE, EMAIL_STOP_PATTERN, EMAIL_SUBJECT_MAX, EMAIL_TEMPLATE_LIST_WORDS, EMAIL_UNSUBSCRIBE_PATTERN, EMPTY_READ_STATE, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_REASON_SHORT, ESCALATION_STATES, ESCALATION_SUMMARIES, EVENT_EVIDENCE_KINDS, EVENT_KINDS, EVENT_SUBSCRIBERS, EVERYONE_HINT, EVERYONE_LABEL, EXAMPLE, type EdgeAnswerBody, type EdgeAnswerCode, type EdgeCallCode, type EdgeErrorCode, type EdgeRefusal, type EditFootVM, type EditVM, type EmailClaim, type EmailFoot, type EmailHeld, type EmailHold, type EmailIssue, type EmailOffers, type EmailProblem, type EmailRules, type EmailRunStop, type EmailSetupDto, type EmailStopBearing, type EmailedNotificationKind, type EndOption, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventContacts, type EventKind, type EventSubscriber, type Exactly, FALLBACK_DEFAULTS, FALLBACK_DETAILS, FEED_CHECK_WORDS, FEED_GUIDES, FEED_MAX_BYTES, FIGURES, FINISH_SETTING_UP, FIRST_RUN_FIND_ROUTE, FIRST_RUN_HELPERS, FIRST_RUN_LANDED_KEY, FIRST_RUN_LIVE_WORDS, FIRST_RUN_PHONE_WORDS, FIRST_RUN_ROUTE, FIRST_RUN_STEPS, FIRST_RUN_TRY_WORDS, FIRST_RUN_WORDS, FLAGS, FLAG_MECHANISMS, FOLLOWUP_ECHO, FOLLOW_UP_NEEDS_DEALS, FOLLOW_UP_NEEDS_LINK, FOLLOW_UP_ONE, FORWARDING_MODES, FORWARDING_MODE_WORDS, FORWARDING_TEST_WINDOW_MS, FORWARD_IS_HANDOFF, FREE_MAIL_DOMAINS, type Fact, type FactConflict, type FactSource, type FailedVM, type FallbackDetail, type FallbacksWordsVM, type FastCall, type FeaturesConfig, FeaturesConfigSchema, type FeedAppointmentRow, type FeedAttendee, type FeedCall, type FeedFailure, type FeedHorizon, type FeedIndex, type FeedInput, type FeedInvite, type FeedItem, type FeedLive, type FeedMark, type FeedThread, type FenceTag, type FigureVM, type FirstReceptionistKnown, type FirstRunCheckVM, type FirstRunLiveInput, type FirstRunLiveVM, type FirstRunPhoneCodeVM, type FirstRunPhoneInput, type FirstRunPhoneQuestion, type FirstRunPhoneStage, type FirstRunPhoneVM, type FirstRunPhoneWayVM, type FirstRunStepKey, type FirstRunStepState, type FirstRunStepVM, type FirstRunTryInput, type FirstRunTryStage, type FirstRunTryVM, type FirstRunVM, type FirstRunWho, type FirstWorkspaceDoor, type Flag, type FlagMechanism, type FollowUpFactsDto, type FollowUpStand, type FootAct, type ForwardingCode, type ForwardingCodes, type ForwardingFacts, type ForwardingMode, type ForwardingProof, type FreeWindowsInput, GATE, GET_YES_ROUTE, GMAIL_FORWARD_NOTE, GOOGLE_SHOWN_REVIEWS, GREETING_DEFAULT, GREETING_TEMPLATE, GROUP, GUARDRAIL_KEYS, type Glyph, type GoogleAudience, type GoogleCandidateDto, type GoogleConnectionDto, type GoogleDayDto, type GoogleDto, type GoogleGainedPointVM, type GoogleListingDto, type GoogleListingFacts, type GoogleLocationDto, type GooglePeriod, type GooglePoint, type GoogleReadDto, type GoogleReviewDto, type GoogleReviewVM, type GoogleVM, type GreetingNote, type GreetingNoteKey, type GreetingSource, type GroupByVM, type GroupGlyph, type GroupVM, type GuardrailKey, type GuardrailsInForce, GuardrailsSchema, type GuideRow, HANDLED_OUTCOMES, HANDOFF_ANYWAY, HANDOFF_FORWARDS_BACK, HANDOVER_DAYS, HANDOVER_WAITING_MAX, HANDOVER_WORDS, HAND_KINDS, HAND_WORDS_MAX, HEAD, HEARD_UNREAD_WORDS, HELD_ON, HELD_REASONS, HELD_WORDS, HOLD_DOOR_WORDS, HOUR_MS, type HandKind, type Handled, type HandoffCallRowVM, type HandoffRowVM, type HandoffWordsVM, HandoverCreateSchema, HandoverResendSchema, type HandoverState, type HeadVM, type HeardTouch, type HeldLineKind, type HeldNoticeDto, type HeldOn, type HoldDoor, type HoldFacts, type Holds, type Hours, type HoursRun, HoursSchema, IDENTITY_ASSURANCES, INSTRUCTIONS_MAX, INTENT_LABELS, INVOICE_STATUS_WORDS, IN_APP_CLASS, IN_APP_UA_RE, type IdeaDropped, type IdeaHistory, type IdeaLanguage, type IdeaPacket, type IdeaPassed, type IdeaSearch, type IdentityAssurance, type IdentityInput, type IdentityWords, type ImportColumns, type ImportRow, type InApp, type InAppPlatform, type InList, type InboxTemplateLike, type InboxThreadVM, type InstructionsWordsVM, type Interval, IntervalSchema, InviteCodeSchema, JOB_KINDS, JOB_STATES, JOURNEY_STAGE_IDS, JUDGE_FACT_KEYS, JUDGE_OUTPUT_SCHEMA, type JobEnd, type JobKind, type JobNews, type JobNewsKind, type JobState, type JourneyGlyph, type JourneyListLike, type JourneyStage, type JourneyStageId, type JudgeCriterionAnswer, type JudgeFactKey, type JudgePlaceAnswer, type JudgeVM, type JumpEntry, KEEP_ROW, type KnownFacts, LANGUAGE_GROUP_WORDS, LEAD_ASK_MAX_FACTOR, LEAD_ASK_MIN_FACTOR, LEAD_ASSUMED_YIELD, LEAD_CALL_OUTCOMES, LEAD_CALL_OUTCOME_TONES, LEAD_CALL_OUTCOME_WORDS, LEAD_CALL_QUESTION, LEAD_CARDS, LEAD_CHECK_CENTS_EACH, LEAD_CHECK_KEYS, LEAD_CHECK_UNSURE, LEAD_CHECK_WORDS, LEAD_CLASSES, LEAD_CLASS_WORDS, LEAD_CLOSED_REASONS, LEAD_CLOSED_WORDS, LEAD_CONSENT_REFUSAL, LEAD_CONTACT_STANDARD_WORDS, LEAD_COUNTER_KINDS, LEAD_COUNT_CHOICES, LEAD_DAY_CAP_USD, LEAD_DRAFT_JSON_SCHEMA, LEAD_DRAFT_NOTE, LEAD_EMAIL_STATES, LEAD_EMAIL_WORDS, LEAD_ENDING_WORDS, LEAD_ERASE_WORDS, LEAD_ESTIMATE_MARGIN, LEAD_FACT_MAX, LEAD_FITS, LEAD_FIT_WORDS, LEAD_IDEAS_SYSTEM, LEAD_IMPORT_MAX_BYTES, LEAD_IMPORT_WORDS, LEAD_JUDGE_BATCH, LEAD_JUNK_EMAIL_DOMAINS, LEAD_KIND_KEY, LEAD_LEFT_OUT_WORD, LEAD_LISTS, LEAD_LIST_MAX, LEAD_LIST_VIAS, LEAD_LIST_WORDS, LEAD_LOCKED_LINE, LEAD_LOW_SHARE_FLOOR, LEAD_MAILBOX_WORDS, LEAD_MAP_MAX_SPAN_M, LEAD_MARKS_BUCKET, LEAD_MARK_PATH, LEAD_MAX_PLACES, LEAD_MEMBER_CLASSES, LEAD_MONTHLY_ALLOWANCE, LEAD_MONTHLY_BUDGET_USD, LEAD_NOTE_MAX, LEAD_NOTE_PLACEHOLDER, LEAD_NOT_A_FIT_TITLE, LEAD_NOT_A_FIT_WHYS, LEAD_NOT_A_FIT_WORDS, LEAD_NO_ADDRESS, LEAD_NO_CARD_LINE, LEAD_NO_EMAIL_LINE, LEAD_OPERATION_KINDS, LEAD_OUTSIDE_US_LINE, LEAD_PAUSED_TITLE, LEAD_PLACEHOLDER_LOCALS, LEAD_PLATFORM_DAY_CAP_USD, LEAD_PLATFORM_HOSTS, LEAD_PREFERENCE_KINDS, LEAD_PRIOR_MIN, LEAD_PRIOR_MIN_PLACES, LEAD_PROBE_PLACES, LEAD_QUESTION_MIN_EVIDENCE, LEAD_QUESTION_THRESHOLD, LEAD_QUESTION_WAIT_LINE, LEAD_REASON_MAX_WORDS, LEAD_REMOVE_KEEPS, LEAD_REVIEW_ACT_WORDS, LEAD_REVIEW_GROUP_WHY, LEAD_REVIEW_GROUP_WORDS, LEAD_REVIEW_WORD, LEAD_ROLE_LOCALS, LEAD_ROUND_ANSWERS, LEAD_ROUND_ENDINGS, LEAD_ROUND_PURPOSES, LEAD_ROUND_STATES, LEAD_RUN_PURPOSES, LEAD_RUN_STATES, LEAD_SEARCH_VIAS, LEAD_SENT_QUESTION, LEAD_SLOT_WORDS, LEAD_SORTS, LEAD_SOURCE_WORD, LEAD_STAGES, LEAD_STAGE_WORDS, LEAD_SUGGEST_DAYS, LEAD_SUGGEST_RETRY_MS, LEAD_SUGGEST_UNAVAILABLE, LEAD_SUPPRESSING_WHY, LEAD_SUPPRESSION_KINDS, LEAD_SUPPRESSION_WHATS, LEAD_TALKING_NOTE, LEAD_TILE_PX, LEAD_UNCLAIMED_NOTE, LEAD_UNDO_MS, LEAD_UNREACHABLE_KEY, LEAD_UNREACHABLE_WORD, LEAD_WORDS, LEDGER, LEDGER_SORTS, LEDGER_STATUSES, LEFT_OUT_FACTS, LENS_ROUTES, LIBRARY_STARTER_WORDS, LIBRARY_WORDS, LIFECYCLE_TOAST, LIFECYCLE_WORDS, LIMIT_TIERS, LINE_CODES_EVERY_MS, LINE_CODES_MAX, LINE_CODES_WITHIN_MS, LINE_CREDENTIALS_SENTENCE, LINE_RELEASE_MIN_DAYS, LINE_RELEASE_REPORT_DAYS, LINE_RELEASE_WARN_DAYS, LINE_STEP_WORDS, LIST, LIST_ANY_MAX, LIST_ASSIGNED, LIST_DEAL_STAGES, LIST_DRAFT_JSON_SCHEMA, LIST_NEEDS, LIST_PLAYBOOK_CLASSES, LIST_PURPOSES, LIST_RULE_FIELDS, LIST_RULE_MAX, LIST_STANDINGS, LIVE_OVERLONG_MS, LIVE_STALE_MS, LOGO_BASE64_MAX, LOGO_BYTES_MAX, LOGO_CHOSEN_MAX_BYTES, LOGO_CHOSEN_TYPES, LOGO_FOUND_MAX_BYTES, LOGO_FOUND_SIDE_MAX, LOGO_FOUND_SIDE_MIN, LOGO_LOOKUP_OUTCOMES, LOGO_PAD, LOGO_PLATE_DARK, LOGO_PLATE_LIGHT, LOGO_SIDE, LOGO_SIDE_MIN, LOGO_WORDS, LOOK_OFFERED, LOOK_OPTIONS, type LanguageChoice, type LanguageGroup, type LeadArea, type LeadBand, type LeadCallOutcome, type LeadCardBrief, type LeadChannel, type LeadCheck, type LeadCheckKey, type LeadChips, type LeadChooseAnswer, type LeadChooseInput, LeadChooseSchema, type LeadClass, type LeadClassification, type LeadContactStandard, type LeadCounts, type LeadCriterion, type LeadCriterionStandard, LeadDraftAnswerSchema, LeadDraftInputSchema, type LeadEmailState, type LeadEndingFacts, type LeadEndingLine, type LeadExclusion, LeadExportQuerySchema, type LeadFit, type LeadIdeaDto, type LeadIdeasAnswer, LeadIdeasAnswerSchema, type LeadImportAnswer, type LeadImportColumns, type LeadImportInput, type LeadImportRow, LeadImportRowSchema, LeadImportSchema, type LeadList, type LeadListVia, type LeadMapPin, type LeadMapPlot, type LeadMemberClass, type LeadMonthDto, type LeadNichePrior, type LeadNotAFitWhy, LeadOneQuerySchema, type LeadPeekReach, type LeadPeekVM, type LeadPhoneState, type LeadPinnable, type LeadPlanFacts, type LeadPlanRefusalKind, type LeadPlanView, type LeadPlanWord, type LeadPlanned, type LeadQuestion, type LeadReviewAct, type LeadReviewGroup, type LeadReviewGroupId, type LeadRoundAnswer, type LeadRoundEnding, type LeadRoundPurpose, type LeadRoundState, type LeadRowCard, type LeadRowDto, type LeadRowVM, type LeadRunState, type LeadSearchDto, type LeadSearchPlan, LeadSearchPlanSchema, type LeadSearchRoundDto, type LeadSearchVia, type LeadSlot, type LeadSlotState, type LeadSort, type LeadStage, type LeadStageInput, LeadStageInputSchema, type LeadSuggestionsDto, type LeadWeekRow, type LeadsBulkInput, LeadsBulkSchema, type LeadsCheckAgainInput, LeadsCheckAgainSchema, type LeadsQuery, LeadsQuerySchema, LeadsViewSchema, type LedgerSort, type LedgerStatus, type LedgerWords, type LensEmpty, type LensId, type LensRange, type LensRow, type LensWho, type LifecycleAct, type LifecycleAnswer, type LifecycleAnswerRead, type LifecycleBar, type LifecycleBroadcasts, type LifecycleCameBack, type LifecycleChains, type LifecycleChannelMark, type LifecycleComing, type LifecycleComingTile, type LifecycleFailed, type LifecycleFailedRead, type LifecycleGlyph, type LifecycleGroup, type LifecycleHead, type LifecycleHome, type LifecycleInput, type LifecycleLedger, type LifecycleNamed, type LifecycleNeeds, type LifecyclePlaybook, type LifecyclePlaybooks, type LifecyclePool, type LifecycleReachTile, type LifecycleReport, type LifecycleResultsTile, type LifecycleRow, type LifecycleRowResults, type LifecycleRun, type LifecycleRung, type LifecycleSentence, type LifecycleShape, type LifecycleSource, type LifecycleStage, type LifecycleTemplate, type LifecycleTileRead, type LifecycleTone, type LifecycleTrigger, type LifecycleWaiting, type LineCodeDto, type LineDto, type LineReleaseBilling, type LineReleaseStep, type LineReleaseWarned, type LineReleaseWordsInput, type LinkedFoot, type ListAny, type ListCondition, ListConditionSchema, type ListContext, type ListDef, type ListDraftAnswer, ListDraftAnswerSchema, type ListFact, ListFactSchema, type ListLookup, type ListNeed, type ListRef, type ListRule, ListRuleSchema, type ListUnknownReason, type LiveBarVM, type LiveCallVM, type LiveLineVM, type LiveTurnVM, type LiveVM, type LogoLayout, type LogoLookupAnswer, type LogoLookupOutcome, type LogoMode, type LogoNote, type LogoPixels, type LookPref, MAILBOX_FROM_NAME_MAX, MAILBOX_LOCAL_PART_MAX, MAILBOX_RESERVED, MARKETING_OPT_IN_PATTERN, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, MEMBERSHIP_ROLES, MERGE_CONSENT_SOURCE, MERGE_REFUSALS, MERGE_WORDS, MESSAGE_BEGIN_WORDS, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_GONE_WORDS, MESSAGE_MOMENT_WORDS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, MESSAGE_WORDS, MINOR_PER_UNIT, MIN_MS, MISSED_CALL_TOUCH_WORDS, MOCK_TEXTING_SENTENCE, MODELS, MODEL_CALL_OUTCOMES, MODEL_EFFORTS, MODEL_IDS, MODEL_PORTS, MODEL_PRICES, MODEL_PURPOSES, MODEL_ROUTES, MODEL_TURN_WRITE_MS, MOMENTS_RETIRED, MOMENT_TRIGGERS, type MailboxDto, type MatchVia, type MediaVM, type MemberAlertsDto, type Membership, type MembershipRole, type MergedAnswers, type MessageAbout, type MessageAuthor, type MessageChannel, type MessageDirection, type MessageDto, type MessageRead, type MessageSender, type MessageStatus, type MessageType, type MetricsChannelDto, type MetricsSummaryDto, type ModelCallOutcome, type ModelEffort, type ModelId, type ModelPort, type ModelPrice, type ModelPurpose, type ModelRoute, type ModelTurnRequest, type ModelTurnResponse, type ModelUsage, type MoneyItem, type MonthSent, type MonthSentRead, NEEDS_TITLE, NEW_AD, NEW_CONVERSATION_WORDS, NEW_MESSAGE_WORDS, NEW_PLAYBOOK_TICKS_EVERY_CHANNEL, NEW_WINDOW_DAYS, NOTE_MAX, NOTE_REFUSALS, NOTE_SUGGEST_KINDS, NOTE_SUGGEST_LIMITS, NOTE_SUGGEST_MODEL, NOTE_SUGGEST_SCHEMA, NOTE_WORDS, NOTICE_DEFAULT_LENGTH_MS, NOTICE_HOLD_WORDS, NOTICE_READ_MAX_TOKENS, NOTICE_SCHEMA, NO_AD, NO_ADS, NO_CHANNEL_REACH, NO_FIELDS_COMPOSED_WORDS, NO_LINK_DETAILS, NO_NUMBER_REACH, NO_REPLY_AFTER_MS, NO_TEMPLATE_WORDS, NO_USAGE, NO_WAY_TO_SEND_LINK, type NameableCaller, type NameableContact, type NewAdVM, type NoAdsVM, type NoMessageWords, type NotReceived, type Note, type NoteCheck, type NoteLookFacts, NoteSchema, type NoteSuggestKind, type NoteTurn, type NotesWordsVM, type NoticeHold, type NoticeKind, type NoticeReading, type NotificationDto, type NotificationItem, type NotificationKind, type NotificationReadState, type NotificationRow, type NotificationsConfig, NotificationsConfigSchema, type NotificationsDto, type NumberHealth, type NumberHealthInput, type NumberStanding, OFFERS_BY_EMAIL_WORDS, OFFERS_IN_WRITING_WORDS, OFFERS_NOTICE_WORDS, OFFERS_OPT_IN_PHRASES, OFFERS_PAUSED_WORDS, OFFERS_YES_SOURCES, OFFER_GATES, OPENING_CHARS_MAX, OPENING_FACT_KEYS, OPENING_PROBLEMS, OPENING_SCHEMA, OPENING_WORDS_MAX, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, OUTCOME_UNKNOWN, OUTREACH_WAIT_REFUSALS, OWN_MESSAGE_REFUSALS, OWN_VERSION_CHANNELS, type OfferCounts, type OfferFacts, type OfferPageButton, type OfferPageWords, type OfferPause, type OfferPauseReason, type OfferUnsubscribeView, type Ok, type OpenDealDto, type OpenHandoverDto, type OpenWindow, type Opening, type OpeningFactKey, type OpeningProblem, type OpeningRecord, type OpeningVerdict, type OpeningWorkspace, type OutreachLeadFacts, type OwnAddresses, type OwnAmount, type OwnFacts, type OwnMessageVM, type OwnVersionChannel, PACE_AFTER_YESES, PACE_WINDOW_DAYS, PAGE_VITALS, PAGE_VITALS_MIN_LOADS, PAGE_VITALS_READ, PAGE_VITAL_BANDS, PAGE_VITAL_WORDS, PARAM_SOURCES, PARAM_SOURCE_HINTS, PARAM_SOURCE_LABELS, PARTNER_CODES_RESERVED, PARTNER_CODE_MAX, PARTNER_CODE_MIN, PARTNER_COOKIE, PARTNER_COOKIE_DAYS, PARTNER_EARNING_KINDS, PARTNER_EARNING_STATES, PARTNER_HOLD_DAYS, PARTNER_INVITE_DAYS, PARTNER_INVITE_WORDS, PARTNER_REVERSAL_KINDS, PARTNER_SHARE_BP_DEFAULT, PARTNER_STANDINGS, PARTNER_STANDING_VERBS, PARTNER_STANDING_WORDS, PARTNER_STATUSES, PARTNER_STATUS_VERBS, PARTNER_WORDS, PASSWORD_MAX_BYTES, PASSWORD_MIN, PASSWORD_WORDS, PAUSED_WORDS, PAUSE_HOURS_DEFAULT, PENDING_WORKSPACE_KEY, PEOPLE_LISTS, PEOPLE_LIST_GROUPS, PEOPLE_RHYTHM_UNIT, PEOPLE_TAB, PEOPLE_TABS, PERM_DOING, PERSON_AD_ON, PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, PERSON_DETAIL_WORDS, PERSON_DRAFT_JSON_SCHEMA, PERSON_MODES, PERSON_MODE_LABELS, PERSON_MODE_WORDS, PERSON_STATE_LABELS, PHONE, PHONE_RINGS, PHONE_WAYS, PIPELINE_BOARD_CAP, PIPELINE_GROUPS, PIPELINE_PASS_MAX, PIPELINE_PHONE_SORTS, PIPELINE_RAIL_SERVICES, PIPELINE_SORTS, PIPELINE_WORDS, PLAN_NOTE_MAX, PLAN_WORDS, PLATFORMS, PLATFORM_DAYS_READ, PLATFORM_HOLD_NOTICE, PLATFORM_HOLD_READD, PLATFORM_HOLD_REFUSAL, PLATFORM_NEW_DAYS, PLATFORM_NUMBERS, PLATFORM_OWNER, PLATFORM_QUIET_DAYS, PLATFORM_SURFACE, PLATFORM_VERDICTS, PLATFORM_WORD, PLAYBOOK_BREATH_MS, PLAYBOOK_CALENDAR_UNREAD, PLAYBOOK_CAP_CHOICES, PLAYBOOK_CARD_REFUSALS, PLAYBOOK_CARD_WORDS, PLAYBOOK_CLASS_LABEL, PLAYBOOK_DEFAULTS, PLAYBOOK_DELETE_WORDS, PLAYBOOK_HOURS, PLAYBOOK_LIMITS, PLAYBOOK_NAME_MAX, PLAYBOOK_PATCH_KEYS, PLAYBOOK_PATCH_WORDS, PLAYBOOK_REACH_WORDS, PLAYBOOK_STATES, PLAYBOOK_TOUCH_WINDOW_MS, PLAYBOOK_TRIGGERS, PLAYBOOK_VETO_DELAY_MS, PLAYBOOK_VETO_DELAY_WORDS, POLICY_CLASSES, POLICY_CLASS_MODES, POLICY_CLASS_WORDS, POLICY_COVERS, POLICY_MODES, POLICY_MODE_WORDS, PREFETCH_READS, PREFETCH_SLOT, PREVIEW, PREVIEW_CHANNEL_WORDS, PREVIEW_WORDS, PROFILE_CROSSING_WORDS, PROFILE_LIMITS, PROFILE_NAME_MAX, PROMPT_NOW, PROMPT_OPENINGS, PROMPT_READERS, PROPOSAL_GATE, PROPOSAL_SPECS, PROPOSAL_WORDS, PROVIDER_STATUSES, PROVISIONING_DEADLINE_MS, PURPOSE_REFUSALS, PUSH_KINDS, PUSH_PLATFORMS, PUSH_RECEIPTS_AFTER_MS, PUSH_TOKEN_MAX, type PageContext, type PageContextRow, PageContextSchema, type PageMessage, type PageTotals, type PageVital, type PageVitalLineVM, PageVitalReport, type PageVitalVerdict, PageVitalsInput, type PageVitalsInputDto, type PageVitalsPageVM, type PageVitalsRowDto, type PageVitalsVM, type ParamFacts, type ParamSourceKind, type ParamSpec, type ParseOptions, type ParsedFeed, type PartnerBalanceRow, PartnerBecomeSchema, type PartnerDto, type PartnerEarningsVM, type PartnerHandoverDto, type PartnerHandoverVM, type PartnerInvitationDto, PartnerInviteSchema, type PartnerLetterNews, PartnerLetterNewsSchema, PartnerLettersSchema, PartnerSecondFactorResetSchema, type PartnerVM, type PartnerWorkspaceMoneyDto, type PartnerWorkspaceVM, type PartnerWorkspacesVM, type PendingWorkspace, PendingWorkspaceSchema, type PeopleAggregates, type PeopleDto, PeopleExportQuerySchema, type PeopleFigureVM, type PeopleListAction, type PeopleListGroup, type PeopleListsLike, type PeopleNowDto, type PeopleReportVM, type PeopleSeriesDto, type PeopleVM, type PersonActVM, type PersonCameFrom, type PersonCampaignDto, type PersonCampaignVM, type PersonChannel, type PersonConsent, type PersonDealsVM, type PersonDecisionDto, type PersonDetailDto, type PersonDoubtDto, type PersonDoubtVM, type PersonDraftAnswer, PersonDraftAnswerSchema, type PersonDraftDto, type PersonDraftInput, PersonDraftInputSchema, type PersonEscalationDto, type PersonFact, type PersonFirstContact, type PersonIdentityDto, type PersonLastContact, type PersonLeadDto, type PersonLike, type PersonMatch, type PersonMessageBody, PersonMessageBodySchema, type PersonMode, type PersonNextStepVM, type PersonNoteDto, type PersonNoteTeamDto, type PersonNoteVM, type PersonProposalVM, type PersonReach, type PersonReachDto, type PersonReceptionist, type PersonRightNow, type PersonRowDto, type PersonRowVM, type PersonState, type PersonTimelineItemVM, type PersonVM, type PersonVisitAheadVM, type PersonVisitsDto, type PhoneChoice, type PhoneCompany, type PhoneDto, type PhonePick, type PhoneRings, type PhoneVM, type PhoneWay, type PipelineChip, type PipelineFilter, type PipelineGroupKey, type PipelineGroupVM, type PipelineLinePart, type PipelineMove, type PipelineNextVM, type PipelinePassManyVM, type PipelinePeekDetailVM, type PipelinePeekFact, type PipelinePeekReachVM, type PipelinePeekVM, type PipelineRailRow, type PipelineRailSection, type PipelineRowVM, type PipelineSort, type PipelineSource, type PipelineStep, type PipelineVM, type PipelineView, type PlaceFacts, type Placed, type PlanIntent, type PlanMade, type PlanStep, type PlanWorld, PlatformActedData, type PlatformDayLineVM, type PlatformDayRowDto, type PlatformDaysVM, type PlatformHealth, type PlatformLineAction, type PlatformLineActionVM, type PlatformPartnerBalanceDto, type PlatformPartnerRowVM, type PlatformPartnerStandingVM, type PlatformPartnerWorkspaceDto, type PlatformQueue, type PlatformQueueVM, type PlatformRowVM, type PlatformTenantDto, type PlatformVerdict, type PlatformVerdictWords, type PlaybookCardLike, type PlaybookChannelsRead, type PlaybookDto, type PlaybookMessage, type PlaybookPatch, type PlaybookPatchKey, type PlaybookPolicyClass, type PlaybookReach, type PlaybookRunNextBy, type PlaybookState, type PlaybookTotalsDto, type PlaybookTrigger, type PlaybookTriggerKind, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyLinks, type PolicyMode, type PolicyRow, type PoolCalendar, type PoolOptions, type PoolRecord, type PreflightFacts, type PreflightProblem, type PresetVM, type PreviewOn, type PreviewPart, type PreviewPerson, type PreviewVM, type PreviewVersions, type ProbeMember, type ProfileCrossing, type ProfileLimitKey, type ProfileRefusalKey, type PromptBlockVM, type PromptSource, type ProposalCall, type ProposalEvent, type ProposalGate, type ProposalKindAboveOperator, type ProposalNeeds, type ProposalRefusal, type ProposalSpec, type ProposalSpecAboveOperator, type ProposalTab, type ProposalThen, type ProposalUndo, type ProposeLeadSearch, ProposeLeadSearchSchema, type PublicPageMetadata, type PurposeBearing, type PurposeRefusal, type PushDevice, type PushKind, type PushMessage, type PushPlatform, type PushTarget, QUEUE_SENDS_NOTHING, QUEUE_SHOWN, QUIET_AFTER_DAYS, QUOTE_MAX, type QuietVM, RATE_HITS_RETENTION_HOURS, REACH_NOTE, REACH_OUT_AFTER_DAYS, REACH_OUT_AWAY_DAYS, REACH_OUT_AWAY_MAX_DAYS, REACH_OUT_BODY_MAX, REACH_OUT_CHECKS_PER_DAY, REACH_OUT_DAY_ROUTE, REACH_OUT_DECISIONS, REACH_OUT_EMAILED_WORDS, REACH_OUT_FIRST_WORDS, REACH_OUT_GAP_FIRST, REACH_OUT_GAP_MINUTES, REACH_OUT_HOLDS, REACH_OUT_IS_NOT_A_MOMENT, REACH_OUT_LANGUAGE, REACH_OUT_MODEL, REACH_OUT_MONTH_EMAILS, REACH_OUT_NAME_MAX, REACH_OUT_PREVIEW_INDEX_MAX, REACH_OUT_PREVIEW_WORDS, REACH_OUT_READS_PER_DAY, REACH_OUT_REFUSALS, REACH_OUT_REPLY_DAYS, REACH_OUT_ROW_WORDS, REACH_OUT_RUN_REREAD_MS, REACH_OUT_SEND_STATES, REACH_OUT_SHEET_PARTS, REACH_OUT_SHEET_WORDS, REACH_OUT_SLOTS, REACH_OUT_SLOT_SET, REACH_OUT_SLOT_WORDS, REACH_OUT_STEPS_MAX, REACH_OUT_STOP_WORDS, REACH_OUT_SUBJECT_MAX, REACH_OUT_WORDS_MAX, READING_SCHEMA, READY_WHATSAPP_ALONE, RECENT_MAX, RECIPIENT_REASON_HEARD, RECIPIENT_STATES, RECORDING_PURGED_WORDS, RECORDING_RETENTION_DAYS, REFERRAL_ID_MAX, REFUSED, REGISTRATION_COST_WORDS, REGISTRATION_PATHS, REGISTRATION_PATH_WORDS, REGISTRATION_QUESTION, REPLIES_PAGE, REPLY_ANSWERED_MAX, REPLY_CAP_DEFAULT, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, REPLY_INTENTS, REPLY_INTENT_WORDS, REPLY_LIMITS, REPLY_MAX_ANY, REPLY_NOT_NOW_DAYS, REPLY_QUOTE_MAX, REPLY_READ_MAX_TOKENS, REPLY_REFER_TO_MAX, REPLY_REREADS, REPLY_REREAD_DAYS, REPLY_SCHEMA, REPLY_SUBJECT_MAX, REPLY_SUMMARY_WORDS, REPLY_UNDO_REFUSALS, REPLY_UNREADS, REPLY_WINDOW_HOURS, REPLY_WINDOW_MS, REPLY_WINDOW_WORDS, REPLY_WORDS_MAX, REPORT_CHANNELS, REPORT_LENSES, REPORT_MIN_N, REPORT_MOST_DAYS, REPORT_PERIOD_DEFAULT, REPORT_PERIOD_IDS, REPORT_PERIOD_STORAGE, REPORT_RANGES, REPORT_WEEK_LONG, REPORT_WEEK_SHORT, REPUTATION_HOLDS, REPUTATION_MEMORY_MS, RESULTS, RETELL_MODELS, RETENTION_DAYS, REVIEWS_WAITING_SHOWN, REVIEW_AUTO_REPLIES_PER_SYNC, REVIEW_AUTO_REPLY_MAX_AGE_MS, REVIEW_NEWS_MAX_AGE_MS, REVIEW_NEWS_MS, REVIEW_REPLY_MAX_CHARS, REVIEW_REPLY_MAX_WORDS, REVIEW_WITHIN, ROLES, ROLE_PERMS, ROLE_SAYS, ROLE_WORDS, ROUTE_KEYS, ROUTE_WORDS, RULES_AT_REST_WORDS, RULES_WITHOUT_FIELDS_WORDS, RUN_FILTERS, RUN_NOW_WITHOUT_VERSION_WORDS, RUN_REPORT_STEPS, RUN_VERBS, type RateRowVM, type ReachBarPart, type ReachCounts, type ReachOutChainDto, type ReachOutChainInput, type ReachOutChainReportDto, ReachOutChainSchema, type ReachOutChainTotalsDto, type ReachOutDayNumbers, ReachOutDecideSchema, type ReachOutDecision, type ReachOutDomainRow, type ReachOutDraft, type ReachOutDraftIssues, type ReachOutDraftStep, type ReachOutHeldSend, type ReachOutHold, type ReachOutLeadLineDto, type ReachOutLeadTimelineDto, type ReachOutLeadsDto, type ReachOutLensSourceLine, type ReachOutLensVM, type ReachOutLineReplyDto, type ReachOutNextFacts, type ReachOutPersonVM, type ReachOutPreviewDto, type ReachOutPreviewInput, ReachOutPreviewSchema, type ReachOutReachDto, type ReachOutRepliesDto, type ReachOutRepliesQuery, ReachOutRepliesQuerySchema, type ReachOutReplyDto, type ReachOutReportChainDto, type ReachOutReportCounts, type ReachOutReportDomainDto, type ReachOutReportDto, type ReachOutReportStepDto, type ReachOutRunDto, type ReachOutRunLine, type ReachOutSavedDto, type ReachOutSearchLinesDto, type ReachOutSendState, type ReachOutSlot, type ReachOutStartDto, type ReachOutStepCounts, type ReachOutStepDto, ReachOutStepSchema, type ReachOutStopDto, type ReachOutStoryLine, type ReachOutStripVM, type ReachOutTimelineReadingDto, type ReachOutTimelineSendDto, type ReachOutTimelineVM, type ReachRow, type ReachSaid, type ReachSplit, type ReachVM, type Reading, type ReadingPlan, type ReadyRowVM, type ReceiveRow, type ReceptionistCardInputs, type ReceptionistCardVM, type ReceptionistDto, type ReceptionistReportVM, type ReceptionistSeriesDto, type ReceptionistState, type ReceptionistTone, type RecipientState, type RecordAnswers, type RecordCheckFacts, type Refusal, type RefusalInput, type RegistrationPath, type RegistrationPathWords, RenameLeadSearchSchema, type ReplyClaim, type ReplyContext, type ReplyDoor, type ReplyFrom, type ReplyHoldDto, type ReplyIntent, type ReplyReading, type ReplyStep, type ReplyStrip, type ReplyUndoRefusal, type ReplyWhyVM, type ReportArrivalDto, type ReportBarVM, type ReportChannelCounts, type ReportChannelKey, type ReportChannelVM, type ReportDayDto, type ReportDays, type ReportDto, type ReportFactVM, type ReportHeadlineDto, type ReportHeadlineVM, type ReportHoldVM, type ReportHoursVM, type ReportLinesVM, type ReportPeriodId, type ReportPointVM, type ReportProfile, type ReportRange, type ReportSpeedPointVM, type ReportStripTile, type ReportTileVM, type ReportVM, type ReportWeekVM, type ReportWindowVM, type ReportsParts, type ResolvedFacts, type ResultsAt, type ResultsDayVM, type ResultsDaysVM, type ResultsRowVM, type ResultsScopeVM, type ResultsStepVM, type ResultsTheirsVM, type ResultsVM, type ReviewOnRecord, type ReviewReplyFacts, type ReviewReplyMode, type ReviewToAnswer, type ReviewWaitingVM, type ReviewsLedgerDto, type ReviewsReportDto, type ReviewsReportVM, type Role, type RolePerm, type RoleSays, type RoleTableRow, type RowReachWords, type RuleStrength, type RuleStrengthVM, type RulesKeptInputs, type RunAnswer, type RunFigure, type RunFigureId, type RunFilterId, type RunLike, type RunMessage, type RunPersonVM, type RunPlan, type RunPlaybook, type RunReach, type RunReading, type RunReplyVM, type RunReportVM, type RunSplit, type RunStop, type RunTone, SAME_SITTING_MS, SAME_VISIT_MS, SCHEDULE_NEEDS_TOTAL, SCHEMA_SETS, SECOND_FACTOR_LEVEL, SECOND_FACTOR_PATH, SECOND_FACTOR_REQUIRED_PATH, SECOND_FACTOR_WORDS, SELF_LIFTING_HOLDS, SELLS_BY, SELLS_BY_FIRST, SELLS_BY_QUESTION, SELLS_BY_REFUSAL, SELLS_BY_WORDS, SENDER_WORDS, SENDING_DOMAINS_MAX, SENDING_DOMAIN_STATES, SENDING_HOURS_WORDS, SEND_DAY_FRAME, SEND_WHEN_WORDS, SEND_WINDOW_MARGIN_MIN, SENTENCE, SERVER_KEY_PREFIX, SERVER_NOTIFICATION_KINDS, SERVICE_PRICE_EMPTY, SERVICE_SUGGESTION_TYPES, SESSION_ENDED, SETTINGS_DOOR, SETUP_CARD_ORDER, SETUP_LATER_REFUSED, SETUP_REQUEST_KINDS, SETUP_STATE_WORDS, SHADOW_CALL, SHADOW_CONFIDENT, SHADOW_GRACE_MS, SHADOW_TIMEOUT_MS, SHADOW_WRITE_MS, SHARED_EVENT_SHAPES, SHARED_EVENT_VERSIONS, SHORTCUTS, SHOWN, SIGNED_BY_MAX, SIGNIN_RESEND_COOLDOWN_S, SIGNUP_NAME_MAX, SIGNUP_NAME_MIN, SIGNUP_WAITLIST, SIGNUP_WORDS, SMS_CLAUSES, SMS_OPT_OUT_PATTERN, SMS_SEGMENTS_MAX, SOLE_PROP_CEILING_SENTENCE, SOLE_PROP_LIMITS, SOLE_PROP_TEXTING_SENTENCE, SOURCE_WORDS, SPEECH_PURPOSES, SPEND_LEADS, SPEND_NUMBER, SPEND_TEXTING, STANDING, STANDING_CHECKS, STARTER_LANGUAGES, STARTER_LINE_WORDS, STARTER_TEMPLATES, START_PLAN_WORDS, STATE, STATE_WORD, STEP_SHEET_WORDS, STEP_TOKEN, STOP_ALL_REFUSALS, STOP_ENDED_OFFERS_SOURCE, SYSTEM_ONE_MODEL, SYSTEM_ONE_STATE_MAX_CHARS, type SavedListLike, type SavedListRowLike, type SchemaAgreement, type SchemaSet, type SchemaSetKey, type SeenMarksDto, type SeenOf, type SeenReading, type SellsBy, type SellsByVM, type SendPurpose, type SenderLanguage, type SenderWords, type SendingDomainDto, type SendingDomainState, type SendingDomainWords, type SentenceInput, type SentencePart, type ServerNotificationKind, type Service, type ServiceLike, type ServiceOffer, ServiceSchema, type ServiceWordsInput, type ServicesWordsVM, type SetupBillingFacts, type SetupCardVM, type SetupDto, type SetupGoogleFacts, type SetupInputs, type SetupPhoneWant, type SetupRequestKind, type SetupRowVM, type SetupState, type SetupVM, type SetupVerb, type ShadowCallFor, type ShadowCallOutcome, type ShadowCallSpec, type ShadowPort, type ShadowRead, type SharedEventKind, type ShellMessage, type ShellStatus, type ShellStatusLine, type Shortcut, type SidebarPref, type SignupInput, type SignupPosture, SignupSchema, type SlotEdit, type SlotKey, type SlotLead, type SlotPart, type SlotSet, type SlotValue, type SlotWorkspace, type SpanUnits, type SpeechPurpose, type SpendWords, type SpokenBreach, type SpokenGuardVerdict, type SpokenRule, type SpokenTurn, type StandRowVM, type Standing, type StandingInput, type StandingInputs, type StandingVM, type StandingVerdict, type StarterEmailText, type StarterSlot, type StarterSlotKind, type StarterSmsText, type StarterTemplate, type StarterText, type StateKind, type StateVM, type StepColumns, type StepDayChoice, type StepDayVM, type StepDraft, type StepDue, type StepHand, type StepNoteBody, type StepPerson, type StepSheetVM, type SubscriptionFacts, type SuggestionInput, type SweepHealthRow, type SystemOneAnswer, type SystemOneQuestion, type SystemOneRequest, type SystemOneResponse, TEAM_INVITE_DAYS, TEAM_ROLES, TEMPLATE_BODY_MAX, TEMPLATE_BODY_WORDS, TEMPLATE_BUTTON_TEXT_MAX, TEMPLATE_CATEGORIES, TEMPLATE_EXAMPLE_MAX, TEMPLATE_FOOTER_MAX, TEMPLATE_LABEL_MAX, TEMPLATE_LANGUAGES, TEMPLATE_NAME_WORDS, TEMPLATE_SAME_NAME_WORDS, TEMPLATE_STATUSES, TEMPLATE_TITLE_MAX, TENANT_STATUSES, TEXTING_NEEDS_RECORD_CLAUSE, TEXTING_NEEDS_RECORD_SENTENCE, THEME_COLORS, THEME_COLOR_META, THEME_INK, THEME_OPTIONS, THREAD_CHANNEL_WORDS, TILES, TIMELINE_FILTERS, TIMETABLE_HORIZON_DAYS, TOAST_ICONS, TOAST_MIN_MS, TOAST_MS, TOAST_TONES, TOAST_UNDO_MS, TODAY_DAY_MAX, TODAY_LEAK_MAX, TODAY_PINS_MAX, TODAY_STEPS_MAX, TOKENS_DAY_DEFAULT, TONES, TONE_PRESETS, TOO_EARLY_DAYS, TRIAL_COVERS, TRY_QUIET_AFTER_MS, TRY_SKIPPED, type TemplateButton, type TemplateCategoryChoice, type TemplateDraft, type TemplateDraftCheck, type TemplateDraftInput, type TemplateGroup, type TemplateHolds, type TemplateLanguage, type TemplateParts, type TemplateSendSource, type TemplateSends, type TemplateSentWords, type TemplateStatus, type TemplateUse, type TemplateUseSource, type TenantConfig, type TenantConfigParse, TenantConfigSchema, TenantConfigWriteSchema, type TenantId, type TenantStatus, type TextingTermsVM, type TheirsRowVM, type TheirsVM, type Theme, type ThemePref, type ThreadHolder, type ThreadVM, type TilesVM, type TimelineFilterId, type TimelineKind, type TimetableDomain, type TimetableInput, type TimetableResult, type TimetableSend, type ToastShape, type ToastTone, type TodayAwayVM, type TodayBriefRun, type TodayBriefWords, type TodayCallRowVM, type TodayDayFrameVM, type TodayDayItemVM, type TodayDayVM, type TodayFactVM, type TodayFigureId, type TodayFigureVM, type TodayLeakId, type TodayLeakVM, type TodayLeaksVM, type TodayNeedsRowVM, type TodayNoReplyVM, type TodayPin, type TodayQueueEmptyVM, type TodayQueueRowVM, type TodayRunWordsVM, type TodaySentenceVM, type TodayStepVM, type TodayStepsVM, type TodayVM, type TodayWidgetSnapshot, type Tone, type Totals, type Touches, type TryTransferKey, type TypedFacts, type TypedVM, UNKNOWN_AUDIENCE_WORDS, UNREAD_READING, UNSUBSCRIBE_PAGE_HEADER, US_STATE_ZONES, UUID, type Unread, type UnsubscribePageWords, type UnsubscribeView, type UsStateCode, type UsageMonthDto, V0, type V0VM, VERSION_CHANNELS, VERSION_CHANNEL_WORDS, VISION_STRENGTH, VISIT_REFUSALS, VISIT_WORDS, VOICE_END_REASONS, type VersionChannel, type VersionCheck, type VersionWords, type Visit, type VisitDto, type VisitMark, type VisitWord, type Visits, type VoiceEndReason, WABA_FIELDS, WAITING_AFTER_DAYS, WA_WINDOW_MS, WEEKDAY_KEYS, WEEK_MS, WHATSAPP_CONSENT_SOURCE, WHATSAPP_COST_WORDS, WHATSAPP_LANGUAGES, WHATSAPP_VERSION_ALONE, WHY_FROM_MAPS, WORKSPACE_LOGOS_BUCKET, WRITE_HOLDS, WRITE_HOLD_WORDS, type WaWindow, type WabaEventKind, type WaitingPersonDto, type WaitingRowVM, type WaitingRunOffer, type WeakerMode, type WeekHours, type WeekdayKey, type WhoseWords, type WireFailure, type Within, type WordsIssue, type WordsProblem, type WorkspacePartnerDto, type WorkspacePartnerState, type WorkspacePartnerVM, type WriteHold, type WriteRow, type WriteWay, type WrittenOpening, type YesAsk, type YouAreLiveInput, ZIPS, abandonedCall, abilityRows, aboutADayAfter, accountRows, activityDoor, activityFamily, activityFamilyKinds, activityKindGroups, activityKindWords, activityLines, activityMemberWords, activityRowsForLines, activityTone, activityWords, adAccountOf, adBarsOf, adFollowOn, adModel, adPeopleOf, adPersonInitials, adPersonWho, adPreviewOf, adQuotes, adRoute, adServiceOf, adStateOf, adWith, addDays, addressAlreadyKnown, addressInMessage, adsFactOf, adsModel, adsPreviewOf, adsReportRoute, adsResultsOf, adsResultsRoute, adsScopeKey, adsScopeOfKey, afterPersonRefused, agentFor, ago, agoLabel, agoShort, agoWords, aiUsageBodyOf, alertAddressesOf, alertGrid, alertTestMail, allLeftOutWords, allVisitsIn, allWord, allowanceBeforeSend, allowanceLine, allowanceLines, allowanceRoom, allowedPrices, amountTotalsWords, amountWords, answerForCards, answerFromV1, answerText, answerWireOf, answerWords, answeredYes, answersToRuns, applyReadState, applySettingsChange, appointmentHolds, appointmentKey, appointmentKeyOf, appointmentKeysOf, appointmentTitle, appointmentWordOf, appointmentWords, approvalWordsOf, approvedWordsFor, areaCodeOf, areaOfValue, areaValueOf, areaWord, asContactId, asListRule, asPersonMode, asTenantId, askCallOutcome, askCardLapsed, askIntent, askJump, askModelProfile, askPages, askUndoOpen, askWhy, attentionOf, attentionRow, audienceMembers, audiencePreview, audienceTrigger, autoReplyBell, autoReplyCandidates, autoReplyHold, awayUntilOf, bellActionOf, bellCalls, bellLineFor, bellSections, billingAccountDto, billingDoorOpen, billingEndedAt, billingPill, blockShareWords, bookedAfterAsk, bookedSeenOf, bookedTileOf, bookingEmailsHeldWords, bookingEmailsStep, bookingHeld, bookingLinkAction, bookingLinkOptional, bookingLinkRowWords, bookingNoticeOf, bookingPageKept, bookingPageOf, bookingPageOffered, bookingRuleRefusal, bookingRulesWords, bookingTemplate, bookingToolCalendar, bookingToolName, bookingToolOfAddress, bookingToolOfLink, bookingToolOptions, booksWithName, booksWithOf, booksWithOptions, brainMetaOf, breathSplit, breathTouchOf, broadcastFailureFix, broadcastFailureWords, broadcastName, broughtWords, buildAskSuggestions, buildNotificationFeed, businessFieldsFor, businessGap, businessGroupWordsFor, businessNameOf, businessPageMetadata, businessPageVM, businessRecordForPath, businessRecordLine, businessRecordProblems, businessTypeOf, busyOfAppointments, cacheHitOf, calendarLinkNote, calendarLinkShown, calendarOwnerOf, calendarPeekDeal, calendarSourceFacts, calendarSourceOf, callActivityPropsOf, callActivityStart, callAttemptWords, callJumpSub, callLength, callNoteLines, callNotesOf, callOfKey, callOutcomeOf, callOutcomeWords, callTodoWords, callerName, callsAnswer, callsStillUp, callsToday, cameFromOf, campaignChannelsOf, campaignDayWords, campaignEmailRules, campaignEnded, campaignLedgerDtoOf, campaignMessageOf, campaignMessagesOf, campaignsHomeOf, cannotRows, capabilityStatus, cardOpenRoute, cardsInPlans, chainHintOf, chainIssueWords, chainOf, chainPaceOf, chainPathWords, chainReportWordsOf, chainResultsOf, chainTotalsFromReport, chainTotalsOf, changedConfigFields, channelChoices, channelFor, channelKindWords, channelNeverCarries, channelRefuses, channelsGoesByWords, channelsOf, channelsOfYes, channelsReady, channelsStandingParts, channelsStandingWords, channelsWords, checkChipsOf, checkFix, checkNoteSuggestion, checkOk, checkOpening, checkResultWords, checkWords, checkedWords, chipsMoreWords, citationRoute, claimsWrite, clampWords, classify, cleanAnswer, cleanDisplayName, cleanDraft, cleanEmailCandidates, cleanFactorCode, cleanParam, cleanPartnerCode, cleanTimezone, clientErrorOf, clientKeyOf, clip, clipAtWord, clockDate, clockDateYear, clockDayLabel, clockHour, clockInZone, clockLabel, clockNear, clockNearWhen, clockShort, clockStamp, clockTime, clockWhen, closedOf, closedOn, closureDatesLabel, closuresAheadWords, closuresFrom, companyTypeOf, compareTemplates, compareWords, composeSystemPrompt, connectModel, connectionRows, connectionWords, consentAnswerWords, consentChangeOf, consentChangeWords, consentFormMetadata, consentFormVM, consentGuardWords, consentPageMetadata, consentPageVM, consentRuleWords, consentSourceLabel, consultFirstOf, consultServiceOf, consultationHeld, consultationsWithoutProposal, consultsHeldWords, contactMeta, contactName, conversationMoveAllowed, conversationOfNeedsKey, conversationPatch, conversationWaitsOnYou, costEach, countCtx, counted, countedDoor, coveredChannels, coversSpan, csvCell, currencySymbol, customerDomainOf, customerWords, dailyLimit, dataSentences, dayFromQuestion, dayInZone, dayIntervals, dayLines, dayOfIso, dayPlusInZone, dayProblems, dayShort, dayWord, dayWords, daysBetween, daysToSunset, daysWithAppointments, daysWord, daysWords, dealCardsOf, dealFactsOf, dealIsOpen, dealMenuActs, dealNextAct, dealOf, dealPaceFrom, dealPaceOf, dealPaceWords, dealSendOf, dealSentence, dealSheetBody, dealSheetDirty, dealSheetFor, dealSheetMerge, dealSheetMessage, dealSheetRefusal, dealSinceMs, dealStageOf, dealStepOf, dealsAreOn, dedupeFeed, defaultParamSpecs, defaultSlotKinds, defaultTemplate, defaultWriteWire, delayWords, deltaOf, deniesAutomated, describeNow, describeOpenings, describeSettingsChange, describeVisits, deskSignMetadata, deskSignVM, detectLanguage, deviceTimezone, disclosureFacts, divertedNumbers, domainDailyCap, domainHoldFixWords, domainHoldNoticeWords, domainHoldWords, domainPatchOf, domainRecordRows, domainRecordsIntro, domainRegistrarHint, domainStatsWords, doorNamesNoAudience, doorNeeds, doorOf, draftAd, draftExcerpt, draftListRule, draftRefusal, draftSendsAtMs, dueStepDay, durationLabel, durationWords, eachInTouch, earlierCost, editFootOf, editOf, effectiveMode, eligibleFor, eligibleForPlaybook, emailDomainOf, emailFoot, emailFootHtml, emailIssues, emailLeftOutOf, emailNotConfirmed, emailOffersOpen, emailRowWrittenOf, emailRunStop, emailStoppedWords, emailTemplateRowsOf, emailTemplateWords, emailWires, emailWordCount, emailsFor, emailsNotificationKind, emptyAudienceRefusal, emptyBusinessRecord, emptyReadSet, endedOn, endingOfRound, endsWhenOf, enrolFor, enrolPurpose, enrolRefusalWords, eraseSlot, err, escapeHtml, estimateRoundUsd, eventText, exampleParams, extractContacts, factConflicts, factNeeds, factValue, factorCodeWords, factorStepNeeded, failedAnswer, failureWordsOf, fallbackMessages, fallbackModel, fallbacksWords, feedAppointmentRows, feedBodyProblem, feedItemOfAppointment, feedMarksOf, feedNotes, feedProblemWords, feedSourceLabel, feedUrlOk, feedWithRecord, fenceActed, fenced, fencedInline, fetchPublic, figureWords, fillSlots, filterOpenings, filterTimeline, findLanguages, finishedRunHeldWhy, finiteOrNull, finiteOrZero, firstLine, firstMissing, firstNameOf, firstReadyDoor, firstReceptionistOf, firstRunKicker, firstRunLiveOf, firstRunOf, firstRunPhoneOf, firstRunStepOf, firstRunStepRoute, firstRunTryOf, firstWorkspaceDoor, fixedDaysOf, fmtClock, fmtDay, fmtSeconds, foldName, followUpIsFor, followUpKey, followUpNames, followUpRunAt, followUpStandOf, followUpWords, footerOf, forWords, formatPhoneDisplay, formatWaited, forwardStillAsked, forwardedLineOf, forwardingCarrierOf, forwardingCodes, forwardingConfirmationOf, forwardingDialLabel, forwardingMatch, forwardingProof, forwardingTestOpen, frameGuardrail, frameHandOver, frameOf, frameSteer, frameWhisper, freeWindows, fromAdWords, fromSlotParts, fromZonedInput, gainedOver, goesToOf, googleAudienceWords, googleCallbackUrl, googleFillsOf, greetingFor, greetingNotes, greetingOf, groundCitations, groupMeta, groupTemplates, guardSpokenTurns, guardrailsInForce, guessName, guessSlotKind, handOf, handStepWords, handoffCallRow, handoffChatRow, handoffChatWords, handoffE164, handoffWords, handoverInviteEmail, handoverRoom, handoverUntilWords, hardLimitsWords, hasHours, hasProfile, headlineOf, heardFor, heardSinceProposal, heardTooWords, heardWithin, heardWords, heldBackOfOneRun, heldBackWords, heldByAllowance, heldDraftWaits, heldLine, heldNoticeWords, heldWords, hexOf, holdDoors, holdNotice, holdOf, holdWords, holderOf, hoursFromGoogle, hoursLines, hoursOf, hoursRuns, hoursZoneWords, ideaAsk, ideaBasisOf, ideaHistoryOf, ideaJsonSchema, ideaPacket, ideaPacketText, ideaPassed, ideaPassedOf, ideasFrom, ideasRead, identityWords, importCounts, importRowsOf, inAppBootScript, inAppFrom, inLastSendingHour, inLocalWeek, inboxSlots, inboxTemplates, indexFeed, industryOf, industryWords, initialsOf, injectedTurn, injectionQuestion, insertSlot, instructionsDraft, instructionsWords, invitationWords, invoiceStatusWords, isActivityFamily, isActivityMoney, isActivityNoise, isAdsParam, isAppointmentWord, isAutomatedSend, isBaselinePrompt, isBookingTool, isCampaignEmail, isCampaignLedgerSeriesDto, isCampaignStuckRawDto, isCarrier, isChatMessage, isCheckoutReturn, isConnected, isConsultationTitle, isDayKey, isDealLostReason, isDealPer, isDealSheetMode, isDealStage, isDraftWhy, isE164, isEmailStopped, isForReader, isForwardingMode, isFreeMail, isFromTheirSide, isHeldDraft, isIdentifierName, isLeadList, isLedgerCampaign, isLensParam, isLibrarySample, isLiveCall, isLogoPathOf, isLookPref, isModelId, isNoticeHold, isOfferByEmail, isOpeningFactKey, isOpeningProblem, isOptedOut, isOptedOutContact, isPartnerCode, isPeopleSeriesDto, isPersonRow, isPersonsWords, isPipelineView, isPlaybookState, isPlaybookTotalsDto, isProductFallback, isPushKind, isReachOutHold, isReachOutRefusal, isReachOutRow, isReachOutRun, isRealDate, isReceptionistSeriesDto, isReplyIntent, isReplyTo, isReplyUndoRefusal, isReportDays, isReportDto, isReportPeriod, isReviewsLedgerDto, isSellsBy, isSidebarPref, isSiteRoot, isTheirOwnWords, isThemePref, isThinShare, isTimezone, isTypingTarget, isUncounted, isUngrounded, isUnread, isUnseen, isUsablePassword, isUuid, isVoiceEndReason, isWaitRefusal, isWinBack, isYes, itemFocus, itemOfAppointment, jittered, jobNewsWords, joinedWords, journeyGuide, journeyOf, journeyStageOf, judgeAsked, judgeDomain, judgeOpId, judgeQuestions, judgeShadowCalls, judgeShadowSpecs, judgeSystemPrompt, judgeUserContent, keptPhoneKind, knownForwarding, knownTimezones, languageBase, languageLabel, languageLabels, languageName, languageTag, languageWords, lastWroteOn, leadAllowanceFact, leadAnd, leadAreaFrom, leadAskedFor, leadBand, leadCheckAgainCents, leadCheckWord, leadChooseAnswerWords, leadChooseNameOf, leadDraftFooter, leadEndingLine, leadExclusionWord, leadHoursShort, leadImportAnswerWords, leadImportColumnWords, leadImportColumns, leadImportCountWords, leadImportEstimateUsd, leadImportNameOf, leadImportPlanOf, leadImportReady, leadImportSaveLabel, leadKindKey, leadKindWord, leadListEmptyOf, leadListStripOf, leadLowShare, leadLowerFirst, leadMapAcross, leadMapLegend, leadMapNote, leadMapPlot, leadMarkSrc, leadMonth, leadMonthPlanFacts, leadNearWhere, leadNoCardLine, leadNotBusinessesLine, leadNoteLeft, leadOf, leadPeekMenu, leadPhoneState, leadPinTone, leadPlanAsk, leadPlanFactLine, leadPlanFacts, leadPlanLikely, leadQuestionMail, leadQuestionRoute, leadQuestionTitle, leadRail, leadReachLine, leadReplyNote, leadReviewCosts, leadReviewGroups, leadSearchWords, leadSlots, leadTileSrc, leadTintOf, leadTodayLine, leadUndoable, leadWeekBars, leadWeekSummary, leadWhere, leadsRoute, leadsStanding, ledgerOrder, ledgerPeopleWords, ledgerPhoneLine, ledgerPhoneWhat, ledgerRowIn, leftOfAd, leftOfMoney, leftOutBy, leftOutByFacts, legacyErasedEmailHash, legacyErasedPhoneHash, legacyLeadSuppressionHash, lengthWords, lensAnswerOf, lensEmpty, lensIsShown, lensOf, lensOfRoute, lensRoute, lensesFor, libraryCount, lifecycleChainsOf, lifecycleKicker, lifecyclePlaybooksOf, lineCredentialFailure, lineOrNull, lineReleaseAfterDays, lineReleaseDay, lineReleaseStep, lineReleaseWarning, lineReleasedWords, lineRetryRefusal, lineStuckProvisioning, linkCount, linkHost, linksIn, listConditionWords, listDraftFieldLines, listFactWords, listMembers, listNamer, listNeeds, listRuleMatches, listRuleParts, listRuleWhy, listToken, listUnknownWords, listingFactsOf, listingLine, listsFor, liveBar, liveStillUp, localDate, localDaysBetween, localHour, localToUtcMs, logoDrawRect, logoFoundOn, logoLayout, logoLookupWords, lookPrefOf, markOn, maskedEmail, matchColumns, matchPerson, matchService, mayMessageFor, mayReach, mayReceive, maySpend, mayUseModels, mediaKind, mediaVM, medianWait, memberGetsAlerts, memberMetaOf, memberWords, membersOf, mergedAnswers, messageAboutOfTrigger, messageAt, messageAuthor, messageFitsMoment, messageHolds, messageLanguageChoices, messageLanguageCode, messageStandingWords, messageStatusLabel, messageText, messageVia, messageWhy, messageWhyNot, messageWords, metaStatusOf, metricWordsOf, minorOfUnits, missedCall, missedCallIsNews, mmss, modelRoute, modelTurnRequestOf, modelTurnResponseOf, momentHoldsWords, momentOffered, momentReadsCalendar, mondayOf, moneyOf, moneyWords, monthDaysAt, monthLabelOf, monthSentAt, monthSpan, movedAddress, nameDecisionWords, nameKnownCustomers, namedProblem, namesMoney, navigateLabel, needsAnswer, needsConsultation, needsSecond, newAdDefaults, newAdFrom, newAdFromRoute, newAdModel, newAdRoute, newCampaignChannels, newCampaignTrialUntil, newConversationOf, newReceptionistDefaults, newestPostFor, nextMonthStart, nextOpenMoment, nextRunLabel, nextRunWords, nextStepOf, nextThemePref, noAdsOf, noChannelWords, noMessageWords, noNumberWords, noProposalSince, noTemplateWords, noVersionWords, nonBlankOrNull, normalizeAnswer, normalizeEmail, normalizeFromLocal, normalizeHost, normalizeLink, normalizeLocalPart, normalizePhone, notFoundPageMetadata, notNowDayOf, noteAsTold, noteEndedWords, noteRows, noteSuggestSystemPrompt, noteSuggestUserContent, noteWhose, notesInForce, notesWords, noticeAnswerOf, noticePrompt, numberHealth, numberHealthOfConfig, numberHealthWithStanding, numberedSlots, offerFor, offerGate, offerLead, offerPauseOf, offerUnsubscribeWords, offeringHorizon, offersAfterStart, offersBookingLink, offersFacts, offersLinkOn, offersNote, offersPausedLine, offersYesRefusal, ok, onDomain, oneDoor, openAt, openDealsFromJson, openDealsOf, openWeekWords, openingProblemWords, openingSystemPrompt, openingUserContent, openingVerdict, openingsAnswer, optInConfirmation, optInLink, optInPurposeOf, optOutWords, outcomeMove, outreachRefusalOf, overLimitRefusal, ownAddressesOf, ownDomainAddress, ownMessageRefusal, ownWordsOf, ownedDomainOf, paceWords, pageTitle, pageTotals, pageVitalsWords, paramLabel, parseAds, parseAmount, parseBrainOutput, parseCsv, parseDevice, parseIcs, parseJudgeAnswer, parseLeadsRoute, parseListToken, parseMemberAlerts, parseOpening, parsePageMessage, parseParamSpec, parseParamSpecs, parsePipelineRoute, parseReading, parseReplyReading, parseShellMessage, parseSystemOneResponse, parseTenantConfig, parseTenantConfigResult, parseTodayWidgetSnapshot, partWritten, partialSay, partnerCodeFrom, partnerCodeFromCookie, partnerEarningsWords, partnerHandoverVM, partnerInvitationWords, partnerInviteEmail, partnerJoinedWords, partnerLetter, partnerLinkFor, partnerPaneUrl, partnerPathFor, partnerPayoutOutcomeWords, partnerStandingChoices, partnerStandingOutcomeWords, partnerStatusChoices, partnerStatusOutcomeWords, partnerVM, partnerWorkspacesVM, passesHandoverPause, passwordProblem, pastAllowance, pastTarget, pastTargetPage, patchRestarts, pauseHoursOf, pauseMsOf, pausedGreetingFor, pausedVoiceFacts, pendingCodeOf, pendingWorkspaceOf, peopleAggregates, peopleDtoOf, peopleFromItems, peopleListAction, peopleNowOf, peopleVisitsOf, peopleWord, perDayOf, personActs, personInText, personInitials, personLikeOf, personName, personNotesVM, personOfAppointment, personReachOf, personStanding, personStateFor, phoneDialable, phoneLine, phoneOf, phoneTail, pickCurrentDeal, pinTokens, pipelineBoardMore, pipelineCsv, pipelineMove, pipelineOf, pipelinePassDone, pipelinePassMany, pipelinePeekDetail, pipelinePeekOf, pipelinePersonOf, pipelineRail, pipelineRoute, pipelineRowId, pipelineRowNow, pipelineSorted, pipelineViewLabel, placeholdersOf, placeholdersSequential, placesQueryOf, placesToAsk, planArea, planBilling, planCeiling, planGroupOf, planLeadSearch, planLeavingOut, planMadeOf, planMinutes, planNoteOf, planOf, planRun, planSaid, planSentence, planVersionOf, planWaits, planWhere, planWho, planWords, platformActionWarning, platformDaysWords, platformHealthOf, platformHealthWords, platformLineActions, platformMeta, platformNumber, platformPartnerRows, platformPartnerStanding, platformPartnerSummary, platformQueue, platformRows, platformSummary, platformsFor, playbookChannelsRead, playbookFailedAbout, playbookFailedWords, playbookListRef, playbookName, playbookNoNumberWords, playbookPoolKey, playbookReach, playbookReachDoor, playbookRunNext, playbookRunReach, playbookRunStop, playbookStopBy, playbooksStillSending, plural, pointsDelta, policyAskClass, policyClassLabel, policyClassOfIntent, policyClassOffered, policyClassQuestion, policyLinks, policyModeOffered, policyModeRefusal, policyRules, poolListContext, poolRowOf, poolRowsOf, poolWords, posesAsReply, previewHorizon, previewLinesOf, previewOn, previewParts, previewRefusedWords, previewSays, previewVersionsOf, priceAllowance, priceBreach, priceFigures, priceNextStep, priceOf, priceWords, pricesWrittenWords, priorOf, profileRefusal, promptBlocks, promptCostWords, promptSafeName, promptTotalWords, proposalAction, proposalBelowNeeds, proposalChannelsWords, proposalFactsFor, proposalFollowUp, proposalLinkOf, proposalMessage, proposalSpec, proposalsWaiting, proseAnswer, providerCodeOf, providerNameOf, publicObjectSrc, purposeOfPlaybook, purposeOfTemplate, pushFor, pushOffOf, pushesFor, quantile, questionAfterProbe, quietOf, quotesPrice, raiseOf, ratingLine, ratingWords, reachAfterBreath, reachBarParts, reachBarWords, reachByWords, reachCountsOf, reachFor, reachLineOf, reachLines, reachNoteOf, reachOutAddHandStep, reachOutAddStep, reachOutAfterDayChoices, reachOutChainBodyOf, reachOutDayWords, reachOutDefaultName, reachOutDoorOf, reachOutDraftIssues, reachOutDraftOf, reachOutDropStep, reachOutEditedWords, reachOutEmailOf, reachOutExampleValues, reachOutLineOf, reachOutMayAddStep, reachOutMayPickDomain, reachOutPersonOf, reachOutPreviewOf, reachOutRowName, reachOutRules, reachOutRunWordsOf, reachOutSavedWords, reachOutSendsFrom, reachOutSetHandWords, reachOutSheetPaceOf, reachOutSheetUnreadOf, reachOutSlotFault, reachOutStepOf, reachOutStripOf, reachOutTimelineOf, reachOutWhoWords, reachSplit, reachSplitWords, reachedCustomer, reachedVoicemail, readAgoLabel, readTime, readingPlan, readingSystemPrompt, readingUserContent, readsAsModel, readyForMessage, readyOrWhatsApp, reasonLabelOf, reasonShort, reasonSummaryOf, receiptWords, receptionistCardOf, receptionistDtoOf, receptionistOf, receptionistOn, receptionistPrimary, receptionistShadowCall, recordIdOf, recordKeyOf, recordOrNull, refusalOf, refusedWords, regionOf, registrationPathOf, registrationPreflight, relationshipOnRecord, renderOwnVersion, renderTemplate, repliesWords, replyChipOf, replyDelayMs, replyFromLineOf, replyHoldDtoOf, replyIntentQuestion, replyLeftAsOf, replyNoticeWords, replyReadPrimary, replyReadShadowCall, replyRowOf, replyStepWords, replyStripOf, replySystemPrompt, replyTextOf, replyUserContent, replyWaitsOnYou, replyWhy, replyWindow, reportDaysAsked, reportDaysCount, reportDaysRefusal, reportFacts, reportHourWords, reportPeriodOf, reportPickWords, reportRangeAsked, reportRangeKey, reportRangeOfKey, reportShortcuts, reportWindowOf, reportsParamParts, reportsRouteParts, reputationHoldOf, requestCodeWords, rereadAt, resendLeft, resolveFacts, resolveList, resolveParams, resolveSteps, resolveSystemPrompt, resolveTheme, resultsOf, resumeDomain, retentionWords, reviewHeldWords, reviewIsNew, reviewReplyModeOf, reviewReplyPrompt, reviewReplyWords, reviewSnippet, reviewsAreOnRecord, reviewsWindowOf, reviewsWords, rightNowCounts, rightNowLine, roleAtLeast, roleGate, roleSays, roleTable, routeOfAddress, routeOfHash, routeOfPath, routePrefetchScript, rowReachWords, ruleFacts, ruleLists, ruleNeeds, ruleNeedsViewer, ruleParts, ruleStrength, rulesKept, rulesLine, rulesWithoutFieldsWords, runApprovalRefusal, runCountsOf, runDayPassed, runDueNow, runReadingOf, runStoppedWords, runningTotal, runsWords, saidYesOnAny, saidYesTo, saidYesWords, sameAddress, sameArea, sameListed, sameName, samePhone, sameQuestion, sameReportRange, savedListAction, savedListIds, savedListLookup, savedListTip, scheduleLine, scopeFromRoute, seasonHorizon, seatNeedsSecondFactor, secondFactorResetWords, secondFactorShown, seenBy, sellsBySaved, sellsByVM, sendFailureIsOurs, sendFailureWords, sendWindowsOf, sendableTemplates, senderLanguage, senderWords, sendingDomainActs, sendingDomainDtoOf, sendingDomainWords, sendingDomainsFootWords, sendsWaitWords, sentByWords, sentResultsOfSource, sentenceParts, serverNotificationRows, serviceLineWords, serviceNamedIn, serviceOf, serviceSuggestionsOf, serviceUndoName, servicesFoundWords, servicesToldWords, servicesWords, sessionEnded, settling, setupCardOf, setupLaterOf, setupPhoneWantOf, setupSteps, sha256Hex, shadowBodies, shadowPortOf, shadowRead, shadowSwitchOn, shadowWordsOf, shareSaid, shareWords, sheetFootWords, shellStatusLine, shiftKey, shiftMonth, shortCode, shortName, shortTime, shortcutGroups, shouldLandOnFirstRun, shoutingLine, signupPosture, siteHost, slotChoices, slotCount, slotKnown, slotLabel, slotLabels, slotToWrite, slotValueOf, slotWritten, slugTemplateName, smallestPreset, smsConsentSentence, smsSegments, smsStateRow, smsStopLine, smsVersionSegments, snoozedThreadWords, soleProprietorLimits, spanForView, spanLabel, spanUnits, speedOf, splitQuotedReply, spokenBreach, spokenBreachDetails, spokenDuration, spokenNameOf, stageArgs, standingAfterNameDecision, standingAlertWords, standingFromConfig, standingNeedsRead, standingOf, starsOf, startWords, started, starterByKey, starterByName, starterCopy, starterDraft, starterEmailText, starterForTrigger, starterIndex, starterPreview, starterPreviewValues, starterSmsText, starterText, startersForTrigger, startersOffered, startsOn, stateCode, stateLabel, stateOf, stateTone, statesAutomated, stepDayFor, stepDayOf, stepDays, stepIsDue, stepLabel, stepLabelOf, stepSheetBody, stepSheetDirty, stepSheetFor, stepSheetMerge, stepToken, stepWhenWords, stopRequestQuestion, stoppedRunFix, suggestLocalPart, sum, sumMoney, sumOf, sumsOf, systemOneDollars, systemOneState, telHref, templateBlocked, templateBodyTooLong, templateComponents, templateFooter, templateHolds, templateLanguage, templateLinkButton, templateNameOk, templateParts, templatePreview, templatePreviewValues, templateSends, templateSendsOf, templateSentWords, templateSlots, templateTitle, templateUntranslatable, templateUnused, templateUsage, templateUseNote, templateUseWords, tenantStatusFor, textingTermsMetadata, textingTermsVM, textingWords, theirVisitTest, themeBootScript, themeButtonWords, themeColorOf, themePrefOf, threadChannelOf, threadChannelWords, threadStanding, threadsWaitingOnYou, tidyCallSummary, tilesOf, timeOf, timetable, timezoneCity, timezoneWords, toApprovalVM, toBillingVM, toBookingReportVM, toBroadcastVM, toCalendarVM, toCallVM, toCampaignLensVM, toCampaignReportVM, toChannelVM, toConversationVM, toDealReportVM, toDealVM, toGoogleReviewVM, toGoogleVM, toHeadlineVM, toInboxThreadVM, toLeadPeekVM, toLeadRowVM, toLiveCallVM, toLiveVM, toPeopleReportVM, toPersonRowVM, toPersonVM, toReachOutLensVM, toReceptionistReportVM, toReportVM, toReviewsReportVM, toRunReportVM, toSlotParts, toTodayVM, toVisitDto, toastShape, todayAwayGrouped, todayBriefWords, todayDay, todayLeaks, todayPeriodLine, todayPins, todayProof, todayRunApproved, todayRunWords, todayRunsSub, todaySteps, todayStepsDue, todayWidgetSnapshot, togglePin, tokenBudgetSpent, tokenCapOf, tomorrowAtIn, totalOf, totalsOf, touchesAfterRun, trialDayWords, trialOffer, trialWords, triggerOf, triggerOffered, triggerWords, trimmedOrNull, tryItLink, tzClock, tzSince, unknownDetails, unmetNeed, unquoted, unreadCount, unreadFor, unsubscribePageWords, unsureHoursWords, usPhone, usableDeviceTimezone, usageDollars, usageMonthOf, usageOf, usageTokens, utf8Bytes, v0Of, v1FromAnswer, validateEmailVersion, validateOwnVersion, validateReachOutChain, validateReachOutWords, validateSmsVersion, validateTemplateDraft, variablesSlotCount, verbForRoute, verbalOptInScript, verifyCodeWords, versionComponents, versionSlotsRefusal, versionWords, versionsOf, vetoRunNotice, viewState, viewerListWords, violatesNoPrices, visitActsOf, visitDateKey, visitDay, visitDayWord, visitFactsFor, visitLine, visitMomentDay, visitOnDay, visitStartTime, visitStateOf, visitTime, visitTitleFor, visitsIn, visitsOf, vitalValueWords, vitalVerdict, vitalsPageOf, waMeDigits, waMeLink, waWindow, waitAfterDays, waitWords, waitedLabel, waitingOnProposal, waitingRunOffer, wallClockAt, websiteHostOf, weekHoursOf, weekOf, whatsappLineOf, whatsappOffersOpen, whatsappStoppedRunWords, whenLabel, whisperText, wholeDaysSince, whoseWords, whyCannotSpend, whyFrom, whyNotAFromLocal, whyNotAFromName, whyNotAHandoff, whyNotALink, whyNotALocalPart, whyNotAPhone, whyNotASendingHost, whyNotAnEmail, whyNotForward, whyNotLook, whyNotReceive, winBackWords, windowFor, wireFailure, withAlertAddress, withFirstAlertAddress, withReplies, withStoredKeysKept, withTopicEmail, withTopicPush, withVisitsOf, withoutVisitsRowsDraw, withoutWrongPerson, wordCount, wordsIssueWords, wordsNeedOpening, workspaceInitials, workspaceLogoPath, workspaceLogoSrc, workspacePartnerVM, workspacePath, writeReachOf, writeWayWords, writeWaysOf, writeWireName, writtenChannelOf, writtenOutDetail, yesAsked, yesCovers, yesWaitWords, yesWaits, youAreLiveEmail, zipIssue, zoneDayKey, zoneMidnight, zoneOfRegion, zoneOffsetMs, zoneSearchWords, zonedInputValue };

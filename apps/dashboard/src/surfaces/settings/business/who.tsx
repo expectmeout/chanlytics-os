@@ -19,6 +19,7 @@ import { RecordField, RecordToggleGroup } from "../../kit/record/field";
 import { RecordRow } from "../../kit/record/row";
 import { BT_SAVED } from "./gestures/common";
 import { BtRow } from "./gestures/row";
+import { BtLogoRow } from "./logo/row";
 import type { BtDisputed } from "./gestures/row";
 import { phoneShown } from "./save";
 import type { Brain, Config, Saver } from "./save";
@@ -114,7 +115,7 @@ function btPublishedNote({ line, handoff, kept, draft }: PublishedNumbers & { dr
         Customers who ring this will not reach your receptionist on <b className="tabular">{lineShown}</b>.
       </>
     );
-  return <>The receptionist has no line of its own yet, so this is the number it gives out.</>;
+  return <>The number it gives customers.</>;
 }
 
 /**
@@ -263,7 +264,6 @@ export const BtAddressRow = ({ brain, base = null, canEdit, flash, saver }: RowS
       body={btTextBox({
         placeholder: "123 Example St, Brooklyn, NY 11208",
         autoComplete: "street-address",
-        hint: "Given when someone asks how to find you.",
       })}
     />
   );
@@ -284,11 +284,8 @@ export const BtWebsiteRow = ({ brain, base = null, canEdit, flash, saver }: RowS
       label="Website"
       value={website.value ? <span className="bt-one-line">{website.value}</span> : null}
       empty="Not set"
-      // What empty means, and only what is exact: the prompt names a website only when one is typed here. Not that it
-      // has none to give, since the owner's own words may name one. Nor what the canvas said, that empty sent
-      // customers and the carriers to the page we publish, /b/<slug>: no receptionist is told that page, and the
-      // carriers are filed the business record's own website (Connections), or that page when the record has none.
-      hint={website.value ? null : "Optional. Left empty, the receptionist is given no website."}
+      // No line under it (Ruben, 10 Oct 2026: a row says its value and stops): "Not set" is the whole of it. The prompt
+      // names a website only when one is typed here; empty never sends customers or the carriers anywhere of ours.
       source={btSourceOf(website)}
       disputed={btDispute(website, btConflictOn("website"), BT_TAKE_THEIRS)}
       gate={btChangeGate("website")}
@@ -299,7 +296,6 @@ export const BtWebsiteRow = ({ brain, base = null, canEdit, flash, saver }: RowS
         placeholder: "https://example.com",
         inputMode: "url",
         autoComplete: "url",
-        hint: "Optional. Given when someone asks.",
       })}
     />
   );
@@ -335,8 +331,7 @@ export const BtBookingLinkRow = ({
       label="Booking link"
       value={brain.booking_link ? <span className="bt-one-line">{brain.booking_link}</span> : null}
       empty={linkWords.empty}
-      // What an empty one means, while it is empty (BtRow): a row that has its link states it and stops.
-      hint={linkWords.hint}
+      // What it is for is its editor's line, not the row's (Ruben, 10 Oct 2026: a row says its value and stops).
       source={btSourceOf(link)}
       disputed={btDispute(link, btConflictOn("booking_link"), BT_TAKE_THEIRS) || other}
       gate={btChangeGate("booking link")}
@@ -492,7 +487,7 @@ const BtTransferRow = ({ shared, brain, numbers }: { shared: RowShared; brain: B
         placeholder: "+1 212 555 0143",
         inputMode: "tel",
         autoComplete: "tel",
-        hint: "A line a person answers, with the country code. Empty and the phone receptionist takes a message instead of transferring — which is better than a number nobody picks up.",
+        hint: "Empty, it takes a message.",
       })}
     />
   );
@@ -522,6 +517,8 @@ export const BtWhoCard = ({ brain, base = null, canEdit, flash, saver }: RowShar
       </div>
 
       <BtNameRow shared={shared} brain={brain} goesOn={goesOn} />
+
+      <BtLogoRow canEdit={canEdit} flash={flash} />
 
       <BtAddressRow {...shared} />
 
@@ -557,7 +554,7 @@ export const BtWhoCard = ({ brain, base = null, canEdit, flash, saver }: RowShar
 
       {/* Nothing is asked twice (spec §3): the carrier record is Connections', and this card only says where it is. */}
       <p className="bt-card-foot" data-testid="rec-who-foot">
-        Your legal name and registered address are asked once on{" "}
+        Your legal name and address are on{" "}
         <button
           type="button"
           className="bt-link"
@@ -566,7 +563,7 @@ export const BtWhoCard = ({ brain, base = null, canEdit, flash, saver }: RowShar
         >
           Connections
         </button>
-        , for the carriers. Nothing here repeats them.
+        .
       </p>
     </section>
   );

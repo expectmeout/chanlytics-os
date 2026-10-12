@@ -104,6 +104,11 @@ export interface BrainMeta {
   prompt_hash?: string;
   /** tenant_config.version the prompt was composed from; null when it could not be read. */
   config_version?: number | null;
+  /**
+   * The turn it was written in, as the model read it (model_turns.id; decision 0039): present once the turn was kept,
+   * so it always opens one until the turn's thirty days are up.
+   */
+  turn_id?: string;
 }
 
 /** What an answer was written from: its prompt's hash and the settings' version. */

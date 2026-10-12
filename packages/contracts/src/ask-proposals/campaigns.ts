@@ -180,7 +180,7 @@ export const playbookSpec: ProposalSpec = {
       ...channelsNamed(pl),
       // It starts on trial (D5), where the card said so: the route counts the week from the Approve, at its own clock.
       ...(pl.trial === true ? { trial: true } : {}),
-      // Its last day (00395), where the card named one: the route judges it again at its own clock.
+      // Its last day (00409), where the card named one: the route judges it again at its own clock.
       ...(typeof pl.until === "string" ? { until: pl.until } : {}),
     },
   }),
@@ -274,7 +274,7 @@ const patchIn = (pl: Record<string, unknown>): Record<string, unknown> =>
  * `auto` it says in full that the campaign sends on its own, in the Resume ask's own sentence
  * (LIFECYCLE_WORDS.ledger.resume.auto, decision 7). Any other mode adds nothing, and a card made where the mode could not
  * be read (`mode` null) claims none. The payload's `mode` is decided where the row and the clock are, by the card's
- * builder through contracts effectiveMode (00395): a campaign on trial under an auto class is `veto` there, so its undo
+ * builder through contracts effectiveMode (00409): a campaign on trial under an auto class is `veto` there, so its undo
  * never promises it sends on its own. This label has neither: it is written once, from the payload, when the card is made.
  */
 const resumeUndoLabel = (mode: unknown): string =>

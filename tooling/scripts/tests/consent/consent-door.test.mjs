@@ -590,10 +590,10 @@ test("the page: TWO asks, each asking how before it writes, a STOP is not undone
     await renderLoadedProfile({ row: { ...ROW, consent: "opted_out", consent_source: "customer_message" } }),
   );
   assert.equal(stopped.length, 2);
-  assert.ok(stopped[0].hint.includes("Record a yes only if they have asked again themselves."), stopped[0].hint);
+  assert.ok(stopped[0].hint.includes("Record a yes only if they ask again."), stopped[0].hint);
   assert.equal(stopped[0].canRecord, true, "the visit ask may still record an answer");
   assert.equal(stopped[1].canRecord, false, "the offers ask has nothing to record while a STOP stands");
-  assert.ok(stopped[1].hint.includes("They asked us to stop, which stops offers too."), stopped[1].hint);
+  assert.ok(stopped[1].hint.includes("They asked us to stop, offers included."), stopped[1].hint);
   await quiet();
 
   // REGRESSION: one control labelled for offers, writing the other column.
@@ -674,7 +674,7 @@ test("on the loaded profile, the offers ask offers only written ways to say yes;
     talk.yesHow.includes(verbalOptInScript("Marisa's Beauty Salon")),
     "the script, verbatim, with the workspace's name",
   );
-  assert.match(talk.yesHow, /^How did they tell you\? In person or on the phone, ask in these words: /);
+  assert.match(talk.yesHow, /^Asking in person or on the phone\? Say: /);
   const spoken = mount({ ...talk, onRecord: async () => ({ ok: true }) });
   await spoken.click(byLabel(spoken.tree, "Yes"));
   assert.match(
@@ -703,7 +703,7 @@ test("on the loaded profile, the offers ask offers only written ways to say yes;
       .filter((t) => t !== "Cancel"),
     ["Sign-up form", "Their own message"],
   );
-  assert.match(textOf(how), /A spoken yes is not enough for offers/);
+  assert.match(textOf(how), /How did they say yes in writing\?/, "the ask says a yes to offers is a written one");
   const no = mount({ ...offers, onRecord: async () => ({ ok: true }) });
   await no.click(byLabel(no.tree, "No"));
   assert.deepEqual(

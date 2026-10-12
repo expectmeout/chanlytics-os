@@ -27,14 +27,18 @@ export function resultsWords(r: LifecycleRow, W: Words): { words: string; dim: b
 /** Who is at a row's moment now, or a dash where it was not counted: never a zero nobody counted. */
 const peopleWords = (r: LifecycleRow, W: Words): string => (r.people.n === null ? W.dash : String(r.people.n));
 
-/** A row's name: its door where it opens something (a drawer, the Library, a run), else its words. */
-export function RowName({ r, acts }: { r: LifecycleRow; acts: LedgerActs }) {
+/**
+ * A row's name: its door where it opens something (a drawer, the call's text's message in its own, a run, the
+ * receptionist's settings), else its words. `plain` draws no chevron of its own, where the row carries one at its end
+ * (the phone's list, every row's).
+ */
+export function RowName({ r, acts, plain = false }: { r: LifecycleRow; acts: LedgerActs; plain?: boolean }) {
   const door = r.open ? acts.door(r.open) : null;
   if (!door) return <span className="cmh-row-name">{r.name}</span>;
   return (
     <LinkButton {...door} size="inherit" className="cmh-row-name" data-row-open data-testid="cmh-row-open">
       {r.name}
-      {r.kind === "call_text" ? <Icon name="chevron" size={12} /> : null}
+      {r.kind === "call_text" && !plain ? <Icon name="chevron" size={12} /> : null}
     </LinkButton>
   );
 }

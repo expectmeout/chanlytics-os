@@ -302,7 +302,8 @@ export interface AskThreadVM {
  * run, a Broadcasts row, which its address spells so and a citation names a broadcast. A scope is what the person was
  * looking at, a fact about the turn; a citation is a claim about a row read, and builds the answer's grammar. A
  * playbook is a campaign open in its drawer on Campaigns (the moment spec, A1); a reach-out open there is the page at
- * that address (scopeFromRoute).
+ * that address (scopeFromRoute). An ad is one paid ad open in its drawer on Campaigns › Ads (`campaigns/ads:ad:<id>`,
+ * decision 0049); nothing reads it on the server yet, so a turn about one is a turn about the page until the Ads read lands.
  */
 export const ASK_SCOPE_KINDS = [
   "thread",
@@ -314,6 +315,7 @@ export const ASK_SCOPE_KINDS = [
   "search",
   "run",
   "playbook",
+  "ad",
 ] as const;
 export type AskScopeKind = (typeof ASK_SCOPE_KINDS)[number];
 
@@ -377,15 +379,30 @@ export function scopeFromRoute(
   if (page === "live" && UUID.test(param)) return { kind: "call", id: param, label: label || "this call" };
   if (page === "broadcasts" && param.startsWith("run:") && UUID.test(param.slice(4)))
     return { kind: "run", id: param.slice(4), label: label || "this run" };
-  // A campaign open in its drawer on Campaigns' home (surfaces/campaigns/home/address.ts), and the old Playbooks address
-  // it replaced; or a reach-out open in the same drawer.
-  if ((page === "campaigns" || page === "outbound") && param.startsWith("moment:") && UUID.test(param.slice(7))) {
+  if (page === "campaigns" || page === "outbound") return campaignsScope(page, param, label, chains);
+  if (page === "clients") return clientsScope(param, label);
+  return null;
+}
+
+/**
+ * Campaigns' rows: a campaign open in its drawer on the home (surfaces/campaigns/home/address.ts), and the old Playbooks
+ * address it replaced; a reach-out open in the same drawer, which is the page at its address; and a paid ad open in its
+ * drawer on Campaigns › Ads (contracts ads/address.ts: `ads:ad:<id>`, decision 0049).
+ */
+function campaignsScope(
+  page: string,
+  param: string,
+  label: string | null | undefined,
+  chains: readonly ChainRead[] | null | undefined,
+): AskScope | null {
+  if (param.startsWith("moment:") && UUID.test(param.slice(7))) {
     const id = param.slice(7);
     const chain = chains?.find((c) => c.root_id === id);
     if (chain) return { kind: "page", id: `campaigns/moment:${id}`, label: label || chain.name || "this reach-out" };
     return { kind: "playbook", id, label: label || "this campaign" };
   }
-  if (page === "clients") return clientsScope(param, label);
+  if (page === "campaigns" && param.startsWith("ads:ad:") && UUID.test(param.slice(7)))
+    return { kind: "ad", id: param.slice(7), label: label || "this ad" };
   return null;
 }
 

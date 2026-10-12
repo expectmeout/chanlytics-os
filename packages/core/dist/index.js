@@ -876,6 +876,50 @@ async function pageTheProvider(pager, f, about) {
   }
 }
 
+// src/subscribers.ts
+import { holdNotice } from "../../contracts/dist/index.js";
+function toldFromItsEvent(written) {
+  return written === "opened" || written === "changed" || written === "refreshed";
+}
+function holdOfEvent(event2) {
+  if (!event2.subject_id) return null;
+  if (event2.kind === "escalation.opened" && event2.subject_type === "conversation")
+    return { conversationId: event2.subject_id };
+  if (event2.kind === "escalation.changed") return { escalationId: event2.subject_id };
+  return null;
+}
+function reasonOfEvent(event2) {
+  const data = event2.data && typeof event2.data === "object" && !Array.isArray(event2.data) ? event2.data : {};
+  return data[event2.kind === "escalation.changed" ? "to" : "reason"];
+}
+var TOLD_WHERE_TAKEN_IN = "email_review";
+var BOOKS = /* @__PURE__ */ new Set(["added", "confirmed", "moved"]);
+var SUBSCRIBERS = {
+  audit: async () => {
+  },
+  reach_out_booked: async (event2, ports) => {
+    if (event2.kind !== "appointment.changed" || event2.subject_type !== "appointment" || !event2.subject_id) return;
+    const data = event2.data && typeof event2.data === "object" && !Array.isArray(event2.data) ? event2.data : {};
+    const { change, source } = data;
+    if (typeof change !== "string" || !BOOKS.has(change) || source === "calendar_feed") return;
+    await ports.bookedFromAppointment(event2.tenant_id, event2.subject_id);
+  },
+  owner_notice: async (event2, ports) => {
+    const ref = holdOfEvent(event2);
+    if (!ref || reasonOfEvent(event2) === TOLD_WHERE_TAKEN_IN) return;
+    const facts = await ports.holdFacts(event2.tenant_id, ref);
+    if (!facts || facts.reason === TOLD_WHERE_TAKEN_IN) return;
+    if (reasonOfEvent(event2) !== facts.reason) return;
+    const told = await ports.holdTold(event2.tenant_id, {
+      eventId: event2.id,
+      conversationId: facts.conversationId,
+      at: event2.created_at
+    });
+    if (told) return;
+    await ports.tell({ ...holdNotice(facts), sourceEvent: event2.id });
+  }
+};
+
 // src/messages/send.ts
 var SEND_RETRY_WAITS_MS = [MIN_MS2, 3 * MIN_MS2, 10 * MIN_MS2, 30 * MIN_MS2];
 async function sendQueued(ports, cmd) {
@@ -968,26 +1012,21 @@ async function sayItFailed(ports, cmd, f) {
   if (channel === "email" && isCampaignEmail(msg.email)) return;
   const cause = causeOf(out, channel);
   const receptionist = msg.sender === "ai";
-  await raiseSendFailed(ports, {
+  const flagged = await raiseSendFailed(ports, {
     conversationId: p.conversation_id,
-    details: `${receptionist ? "The receptionist's reply" : "Dashboard reply"} could not be delivered (${cause}).`,
+    details: `${receptionist ? "The receptionist's reply" : "Dashboard reply"} could not be delivered (${cause}).`
+  });
+  if (toldFromItsEvent(flagged)) return;
+  await ports.alert({
+    kind: "handoff",
+    route: `inbox/th-${p.conversation_id}`,
+    about: { type: "conversation", id: p.conversation_id },
     subject: `Reply delivery failed: ${to}`,
     body: `${receptionist ? "A reply the receptionist queued" : "A reply queued from the dashboard"} could not be sent (${cause}). The thread is flagged in the Inbox.`
   });
 }
-async function raiseSendFailed(ports, f, again = false) {
-  const flagged = await ports.escalate(f.conversationId, "send_failed", f.details);
-  if (again && flagged === "failed")
-    throw new Error(`send failed: its thread ${f.conversationId} could not be flagged`);
-  if (flagged === "refreshed") return flagged;
-  await ports.alert({
-    kind: "handoff",
-    route: `inbox/th-${f.conversationId}`,
-    about: { type: "conversation", id: f.conversationId },
-    subject: f.subject,
-    body: f.body
-  });
-  return flagged;
+function raiseSendFailed(ports, f) {
+  return ports.escalate(f.conversationId, "send_failed", f.details);
 }
 function causeOf(out, channel) {
   const limit = out.limit ?? null;
@@ -1010,16 +1049,11 @@ async function raiseLateFailure(ports, cmd) {
   if (m.status === "failed" || m.status === "canceled") return "already_over";
   const why = sendFailureWords(cmd.error, cmd.channel) ?? "The provider reported it as not delivered.";
   const who = m.sender === "ai" ? "The receptionist's reply" : "A reply from your team";
-  await raiseSendFailed(
-    ports,
-    {
-      conversationId: m.conversationId,
-      details: `${who} was accepted for sending but did not reach them. ${why}`,
-      subject: `Reply delivery failed: ${m.to ?? "a customer"}`,
-      body: `${who} was accepted for sending, and then the provider reported that it was not delivered. ${why} The thread is flagged in the Inbox.`
-    },
-    true
-  );
+  const flagged = await raiseSendFailed(ports, {
+    conversationId: m.conversationId,
+    details: `${who} was accepted for sending but did not reach them. ${why}`
+  });
+  if (!toldFromItsEvent(flagged)) throw new Error(`send failed: its thread ${m.conversationId} could not be flagged`);
   await ports.noteFailed(m.messageId, {
     reason: "receipt",
     outcome: "refused",
@@ -38268,11 +38302,12 @@ function isVisionMime(mime) {
   if (!mime) return false;
   return VISION_MIMES.has(mime.toLowerCase().split(";")[0].trim());
 }
-function photoUserText(caption) {
+function photoUserText(caption, prices) {
   const said = (caption ?? "").trim();
+  const price = prices === "written" ? "no price the business has not written" : "no price";
   return [
     said ? `The customer sent this photo with the message: "${said}"` : "The customer sent this photo, with no words.",
-    "Answer as the receptionist would to a customer who has just shown you a picture: say what you notice that matters for this business \u2014 what it shows, its style, colour, size or condition, or the product \u2014 and what the next step is. Every rule you were given still holds: no price, no promised result, no health or skin advice, and never a confirmed appointment. If the picture is not something the business can help with, say so kindly."
+    `Answer as the receptionist would to a customer who has just shown you a picture: say what you notice that matters for this business \u2014 what it shows, its style, colour, size or condition, or the product \u2014 and what the next step is. Every rule you were given still holds: ${price}, no promised result, no health or skin advice, and never a confirmed appointment. If the picture is not something the business can help with, say so kindly.`
   ].join("\n\n");
 }
 function toBase64(bytes) {
@@ -38282,7 +38317,8 @@ function toBase64(bytes) {
 // src/inbound/steps.ts
 import {
   replyDelayMs,
-  violatesNoPrices,
+  priceBreach,
+  priceAllowance,
   namesMoney,
   heldLine,
   policyAskClass,
@@ -38310,7 +38346,7 @@ function layerTwo(x) {
   const phone = urgentPhone(x);
   let priceBlocked = false;
   const moneyHeld = x.intent === "money" || namesMoney(replyText);
-  if (violatesNoPrices(replyText)) {
+  if (priceBreach(replyText, priceAllowance(x.brainCfg))) {
     priceBlocked = true;
     replyText = heldLine("price", x.language, phone);
     escalate = true;
@@ -38449,6 +38485,21 @@ async function ingestOrSay(cx) {
     throw e;
   }
 }
+var KIND_OF_CODE = String.raw`(?:verification|security|one[- ]time|log ?in|sign[- ]in|authentication|2fa|otp)`;
+var A_CODE = String.raw`(?:[A-Z]{1,3}-)?\d{4,8}`;
+var ONE_TIME_CODE = new RegExp(
+  [
+    String.raw`\b${KIND_OF_CODE}\s+(?:code|pin|passcode)\b[^\n]{0,20}?\b${A_CODE}\b`,
+    String.raw`\b${A_CODE}\s+is\s+your\b[^\n]{0,40}?\b(?:code|pin|passcode)\b`,
+    String.raw`\buse\s+${A_CODE}\s+to\s+(?:sign in|log in|login|verify|confirm)\b`,
+    String.raw`\b(?:do not|don'?t|never) share (?:this|the|your) code\b`
+  ].join("|"),
+  "i"
+);
+function oneTimeCode(body) {
+  const t = (body ?? "").trim();
+  return t.length > 0 && t.length <= 320 && ONE_TIME_CODE.test(t);
+}
 async function setAside(cx) {
   const { ports, tenantId, isEnvDefault, from, channel, db, rt } = cx;
   const recordOrSay = () => ingestOrSay(cx);
@@ -38456,6 +38507,13 @@ async function setAside(cx) {
     const ing = await recordOrSay();
     const sink = ports.persist.sink(db, tenantId, ing, rt, channel);
     await sink.unreachableSender();
+    await sink.processed(handledOf(SET_ASIDE));
+    return true;
+  }
+  if (oneTimeCode(cx.n.body)) {
+    const ing = await recordOrSay();
+    const sink = ports.persist.sink(db, tenantId, ing, rt, channel);
+    cx.L.info("one_time_code_set_aside");
     await sink.processed(handledOf(SET_ASIDE));
     return true;
   }
@@ -38500,14 +38558,17 @@ async function ingestMessage(cx, resume = false) {
   const firstReply = thread.textedBefore === void 0 ? thread.replies.length === 0 && !thread.history.some((h) => h.role === "assistant") : !thread.textedBefore;
   const wire = (text) => carrier ? carrier.body(text, firstReply) : text;
   const send = (text, meta, purpose, kind) => sink.deliver(from, wire(text), meta, purpose, kind);
-  const tell = (userText, botText, reason, pausedHours = null) => ports.alertStaff(from, userText, botText, reason, {
-    target: notifyTarget,
-    channel,
-    pausedHours,
-    route: ing ? `inbox/th-${ing.conversation_id}` : "inbox",
-    who: n.profileName ?? null,
-    about: ing ? { type: "conversation", id: ing.conversation_id } : null
-  });
+  const tell = async (asked2, { said, answered, why, pausedHours = null }) => {
+    if (toldFromItsEvent(asked2 ? await asked2.catch(() => void 0) : void 0)) return;
+    await ports.alertStaff(from, said, answered, why, {
+      target: notifyTarget,
+      channel,
+      pausedHours,
+      route: ing ? `inbox/th-${ing.conversation_id}` : "inbox",
+      who: n.profileName ?? null,
+      about: ing ? { type: "conversation", id: ing.conversation_id } : null
+    });
+  };
   if (ing && !ing.is_new && !(resume && !ing.processed && !await answeredBefore(cx, ing))) {
     L.info("wa_skip_pg_dupe");
     return;
@@ -38541,11 +38602,11 @@ async function firstGates(at) {
     );
     await Promise.all([
       asked2,
-      tell(
-        n.body ?? `[${raw.type}]`,
-        "(no reply sent \u2014 the receptionist could not read the thread state)",
-        "state unavailable"
-      ),
+      tell(asked2, {
+        said: n.body ?? `[${raw.type}]`,
+        answered: "(no reply sent \u2014 the receptionist could not read the thread state)",
+        why: "state unavailable"
+      }),
       processedAfter(sink, asked2, "none")
     ]);
     return;
@@ -38569,7 +38630,14 @@ async function firstGates(at) {
     ) : null;
     await Promise.all([
       processedAfter(sink, asked2, "none"),
-      ...asked2 ? [asked2, tell(n.body ?? `[${raw.type}]`, "(no reply sent \u2014 the customer opted out)", "opt-out")] : []
+      ...asked2 ? [
+        asked2,
+        tell(asked2, {
+          said: n.body ?? `[${raw.type}]`,
+          answered: "(no reply sent \u2014 the customer opted out)",
+          why: "opt-out"
+        })
+      ] : []
     ]);
     L.info("wa_skip_opt_out", {
       this_message: n.optOut,
@@ -38582,11 +38650,11 @@ async function firstGates(at) {
     const asked2 = sink.escalate(carrier.held.reason, carrier.held.details);
     await Promise.all([
       asked2,
-      tell(
-        n.body ?? `[${raw.type}]`,
-        "(no reply sent \u2014 the carriers have not approved this line for texting yet)",
-        "carriers"
-      ),
+      tell(asked2, {
+        said: n.body ?? `[${raw.type}]`,
+        answered: "(no reply sent \u2014 the carriers have not approved this line for texting yet)",
+        why: "carriers"
+      }),
       processedAfter(sink, asked2, "none")
     ]);
     L.info("sms_held_for_carriers");
@@ -38601,7 +38669,7 @@ async function firstGates(at) {
     const asked2 = sink.escalate("non_text", `${n.body} \u2014 needs a person.`);
     await Promise.all([
       asked2,
-      tell(n.body ?? `[${raw.type}]`, "(no reply sent \u2014 passed to a human)", n.kind),
+      tell(asked2, { said: n.body ?? `[${raw.type}]`, answered: "(no reply sent \u2014 passed to a human)", why: n.kind }),
       processedAfter(sink, asked2, "none")
     ]);
     L.info("wa_escalate_readable_nontext", { kind: n.kind });
@@ -38627,7 +38695,12 @@ function seeingOf(at) {
     await Promise.all([
       ...pausedUntil ? [sink.pause(new Date(pausedUntil).toISOString())] : [],
       asked2,
-      tell(`[${raw.type} message]`, `(${why})`, "non-text message", pausedUntil ? pauseHours : null)
+      tell(asked2, {
+        said: `[${raw.type} message]`,
+        answered: `(${why})`,
+        why: "non-text message",
+        pausedHours: pausedUntil ? pauseHours : null
+      })
     ]);
     L.info("wa_nontext", { acked, may_ack: mayAck, mode: replyMode, person_mode: personMode });
     return { pausedUntil, way: { escalation: escalationOf(await asked2), reply: acked ? "sent" : "none" } };
@@ -38705,7 +38778,11 @@ async function tooLate(at) {
     );
     await Promise.all([
       asked2,
-      tell(n.body ?? `[${raw.type}]`, "(no reply sent \u2014 arrived too late to answer automatically)", "late message"),
+      tell(asked2, {
+        said: n.body ?? `[${raw.type}]`,
+        answered: "(no reply sent \u2014 arrived too late to answer automatically)",
+        why: "late message"
+      }),
       processedAfter(sink, asked2, "none"),
       ...n.media ? [sink.media(n)] : []
     ]);
@@ -38737,7 +38814,11 @@ async function confirmedYes(at, bodyText) {
       );
       await Promise.all([
         asked2,
-        tell(bodyText, `(the confirmation of their yes was not delivered \u2014 ${why})`, "opt-in not confirmed")
+        tell(asked2, {
+          said: bodyText,
+          answered: `(the confirmation of their yes was not delivered \u2014 ${why})`,
+          why: "opt-in not confirmed"
+        })
       ]);
     }
     await processedAfter(sink, asked2, confirmed.outcome === "sent" ? "sent" : "none");
@@ -38789,7 +38870,11 @@ async function heldForThePerson(at, bodyText) {
     );
     await Promise.all([
       asked2,
-      tell(bodyText, "(no reply sent \u2014 daily automatic-reply limit reached)", "rate cap"),
+      tell(asked2, {
+        said: bodyText,
+        answered: "(no reply sent \u2014 daily automatic-reply limit reached)",
+        why: "rate cap"
+      }),
       processedAfter(sink, asked2, "none")
     ]);
     return;
@@ -38802,7 +38887,11 @@ async function heldForThePerson(at, bodyText) {
     );
     await Promise.all([
       asked2,
-      tell(bodyText, "(no reply sent \u2014 the workspace is paused until billing resumes)", "paused"),
+      tell(asked2, {
+        said: bodyText,
+        answered: "(no reply sent \u2014 the workspace is paused until billing resumes)",
+        why: "paused"
+      }),
       processedAfter(sink, asked2, "none")
     ]);
     return;
@@ -38818,7 +38907,7 @@ async function heldForThePerson(at, bodyText) {
       );
       await Promise.all([
         asked2,
-        tell(bodyText, "(no reply sent \u2014 the day's model budget is used up)", "budget"),
+        tell(asked2, { said: bodyText, answered: "(no reply sent \u2014 the day's model budget is used up)", why: "budget" }),
         processedAfter(sink, asked2, "none")
       ]);
       return;
@@ -38833,9 +38922,9 @@ async function heldForThePerson(at, bodyText) {
       loadFailed: !!rt?.loadFailed
     });
     const outcome = await sink.escalate(hold.reason, hold.details);
-    const alertNeeded = !hold.personHold || outcome !== "refreshed";
+    const alertNeeded = !toldFromItsEvent(outcome);
     await Promise.all([
-      ...alertNeeded ? [tell(bodyText, hold.botText, hold.why)] : [],
+      tell(Promise.resolve(outcome), { said: bodyText, answered: hold.botText, why: hold.why }),
       sink.processed(handledOf({ escalation: escalationOf(outcome), reply: "none" }))
     ]);
     L.info("wa_held_by_policy", {
@@ -38853,15 +38942,15 @@ async function heldForThePerson(at, bodyText) {
 }
 
 // src/inbound/model-turn.ts
-import { resolveSystemPrompt, describeNow, shadowWordsOf } from "../../contracts/dist/index.js";
+import { resolveSystemPrompt, describeNow, shadowWordsOf, priceAllowance as priceAllowance2 } from "../../contracts/dist/index.js";
 import { errField as errField9 } from "../../channels/dist/index.js";
 async function leadNoteFor(at) {
-  const { db, tenantId, from, ports, rt, L, channel } = at;
+  const { db, tenantId, from, ports, rt, L, channel, ing } = at;
   let leadNote;
   if (db && tenantId) {
     try {
       const e164 = from.startsWith("+") ? from : `+${from}`;
-      const lead = await ports.leads.read(db, tenantId, e164, 1);
+      const lead = await ports.leads.read(db, tenantId, e164, 1, ing?.message_id);
       leadNote = ports.leads.describe(lead, /* @__PURE__ */ new Date(), rt?.timezone ?? "UTC", channel);
       const visits = rt ? await ports.calendar.visits(rt, { phone: e164, name: lead.name }) : null;
       if (visits) leadNote = `${leadNote}
@@ -38891,7 +38980,7 @@ function checked(at, brainCfg, r) {
   return { replyText: two.replyText, escalate: two.escalate, escalationReason: two.escalationReason };
 }
 async function modelTurn(at, bodyText, photo) {
-  const { ports, db, rt, thread, n, fallbacks, L } = at;
+  const { ports, db, rt, thread, n, fallbacks, L, channel } = at;
   const brainCfg = at.brainCfg;
   let replyText;
   let escalate;
@@ -38908,13 +38997,13 @@ async function modelTurn(at, bodyText, photo) {
       const tBrain = Date.now();
       const r = await generateReply(
         thread.history,
-        photo ? photoUserText(n.media?.caption) : bodyText,
+        photo ? photoUserText(n.media?.caption, priceAllowance2(brainCfg) ? "written" : "none") : bodyText,
         // Composed from the workspace's structured facts when it has them,
         // and its hand-written prompt when it does not. lib/call-start.ts
         // composes the SAME thing for the voice agent, which is the point:
         // two copies of the hours is how two channels start disagreeing
-        // about when the business opens.
-        resolveSystemPrompt(brainCfg, "whatsapp", rt?.timezone, /* @__PURE__ */ new Date(), rt?.policy, rt?.known),
+        // about when the business opens. A text is told it answers texts (compose.ts).
+        resolveSystemPrompt(brainCfg, channel, rt?.timezone, /* @__PURE__ */ new Date(), rt?.policy, rt?.known),
         fallbacks.error,
         leadNote,
         // "Are you open?" it could already answer. "Are you open RIGHT NOW?"
@@ -39014,12 +39103,12 @@ async function heldOrKept(at, turn, hold, bodyText) {
     );
     post.push(asked2);
     post.push(
-      tell(
-        bodyText,
-        replyText,
-        "held for low confidence; the hold could not be scheduled, so nothing was sent",
-        pauseHours
-      )
+      tell(asked2, {
+        said: bodyText,
+        answered: replyText,
+        why: "held for low confidence; the hold could not be scheduled, so nothing was sent",
+        pausedHours: pauseHours
+      })
     );
     await Promise.all(post);
     await processedAfter(sink, asked2, "none", brainMeta?.intent ?? null);
@@ -39039,7 +39128,14 @@ async function heldOrKept(at, turn, hold, bodyText) {
         fallback ? fallback.escalationDetails(bodyText) : brainMeta?.reason ? `${brainMeta.reason} \u2014 "${bodyText}"` : bodyText
       );
       post.push(asked2);
-      post.push(tell(bodyText, replyText, "assistant flagged handoff (reply held for review)", pauseHours));
+      post.push(
+        tell(asked2, {
+          said: bodyText,
+          answered: replyText,
+          why: "assistant flagged handoff (reply held for review)",
+          pausedHours: pauseHours
+        })
+      );
     }
     await Promise.all(post);
     await processedAfter(sink, asked2, "queued", brainMeta?.intent ?? null);
@@ -39068,7 +39164,14 @@ async function sendNow(at, turn, hold, bodyText) {
         fallback ? fallback.escalationDetails(bodyText) : brainMeta?.reason ? `${brainMeta.reason} \u2014 "${bodyText}"` : bodyText
       );
       post.push(asked2);
-      post.push(tell(bodyText, replyText, fallback ? fallback.alertReason : "assistant flagged handoff", pauseHours));
+      post.push(
+        tell(asked2, {
+          said: bodyText,
+          answered: replyText,
+          why: fallback ? fallback.alertReason : "assistant flagged handoff",
+          pausedHours: pauseHours
+        })
+      );
     }
     await Promise.all(post);
     await processedAfter(sink, asked2, "sent", brainMeta?.intent ?? null);
@@ -39080,7 +39183,14 @@ async function sendNow(at, turn, hold, bodyText) {
       "send_failed",
       sent.reason === "wire_unreadable" ? "Auto-reply could not be sent: the thread could not be read at the wire. Customer got no answer." : `Auto-reply could not be delivered (HTTP ${sent.status}). Customer got no answer.`
     );
-    await Promise.all([tell(bodyText, "(send failed \u2014 the customer received no reply)", "wa_send_failed"), asked2]);
+    await Promise.all([
+      tell(asked2, {
+        said: bodyText,
+        answered: "(send failed \u2014 the customer received no reply)",
+        why: "wa_send_failed"
+      }),
+      asked2
+    ]);
     await noteHandledAfter(sink, asked2, "none", brainMeta?.intent ?? null);
   }
   L.info("wa_replied", {
@@ -39183,20 +39293,6 @@ function bookingPageLinkedFrom(html, pageUrl) {
     if (page) return page;
   }
 }
-
-// src/subscribers.ts
-var BOOKS = /* @__PURE__ */ new Set(["added", "confirmed", "moved"]);
-var SUBSCRIBERS = {
-  audit: async () => {
-  },
-  reach_out_booked: async (event2, ports) => {
-    if (event2.kind !== "appointment.changed" || event2.subject_type !== "appointment" || !event2.subject_id) return;
-    const data = event2.data && typeof event2.data === "object" && !Array.isArray(event2.data) ? event2.data : {};
-    const { change, source } = data;
-    if (typeof change !== "string" || !BOOKS.has(change) || source === "calendar_feed") return;
-    await ports.bookedFromAppointment(event2.tenant_id, event2.subject_id);
-  }
-};
 export {
   BROADCAST_STALLS_MAX,
   BROADCAST_STALL_RETRY_MS,
@@ -39305,6 +39401,7 @@ export {
   isWireUnavailableError,
   judgeBatch,
   layerTwo,
+  leadMarksFrom,
   mainAsk,
   markImageFrom,
   markPlaces,
@@ -39360,6 +39457,7 @@ export {
   templateValues,
   termsShortOf,
   toBase64,
+  toldFromItsEvent,
   trialUntilOf,
   unreadableThread,
   untilOf,

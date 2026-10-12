@@ -1402,8 +1402,8 @@ test("the Pipeline has its own rail under People's switch (the frame's strip), t
     ),
     rowOf(vm, "sara").chip.words,
   );
-  // The foot counts everyone in the Pipeline, the folded included.
-  assert.match(textOf(find(tree, (n) => n.props?.className === "cl-table-foot")), /^7 people/);
+  // The foot counts every deal in the Pipeline, the folded included (Ruben, 10 Oct 2026: a row is a deal).
+  assert.match(textOf(find(tree, (n) => n.props?.className === "cl-table-foot")), /^7 deals/);
 });
 
 test("Passed or ended opens with its Show, folds again with Hide, and a row opens its peek, not the person's page", async () => {
@@ -1544,7 +1544,7 @@ test("with nobody to follow, the table says so in contracts' words", async () =>
   assert.equal(byTestId(tree, "pipeline-summary"), null, "a line with nothing in it is not drawn");
   assert.match(textOf(tree), /No deals yet\./);
   assert.match(textOf(tree), /Proposals you start show here, with what they come to\./);
-  assert.match(textOf(find(tree, (n) => n.props?.className === "cl-table-foot")), /^0 people/);
+  assert.match(textOf(find(tree, (n) => n.props?.className === "cl-table-foot")), /^0 deals/);
 });
 
 test("where deals are off the address draws People", async () => {
@@ -1593,7 +1593,7 @@ test("a view in the address holds its rows alone; the line's press opens it, and
   assert.deepEqual(rowIds(tree), ["wes", "nia"], "the view's rows alone");
   assert.match(
     textOf(find(tree, (n) => n.props?.className === "cl-table-foot")),
-    /^2 people/,
+    /^2 deals/,
     "the foot counts the view",
   );
   assert.deepEqual(
@@ -1657,9 +1657,9 @@ test("New proposal: pick someone, or add them by number, and the one deal sheet 
   let tree = draw();
   const open = newOpen(tree);
   assert.deepEqual(
-    [open.props.className.includes("btn-primary"), textOf(open).trim()],
-    [true, "New proposal"],
-    "the page's one filled button",
+    [open.props.variant, textOf(open).trim()],
+    ["primary", "New proposal"],
+    "the page's one filled button: the kit's primary",
   );
   click(open);
   tree = draw();
@@ -1787,7 +1787,7 @@ test("on a phone: one bar with the view's list button and search, New proposal i
     // Beside three scopes a narrow phone has room for one word: the act says "New" with its mark, and the rest gives way.
     assert.equal(textOf(find(headAct, (n) => n.props?.className === "pg-act-keep")), "New");
     assert.equal(textOf(find(headAct, (n) => n.props?.className === "pg-act-rest")), " proposal");
-    assert.equal(byTestId(bar, "pipeline-phone-search-open").props["aria-label"], "Search names, numbers and emails");
+    assert.equal(byTestId(bar, "pipeline-phone-search").props["aria-label"], "Search names, numbers and emails");
     assert.ok(byTestId(tree, "pipeline-summary"));
     const card = find(tree, (n) => n.type === "tr" && n.props?.id === "person-wes");
     assert.match(card.props.className, /\bpl-card-row\b/);
@@ -1808,7 +1808,7 @@ test("on a phone: one bar with the view's list button and search, New proposal i
     // The kit's Sheet (kit/sheet/sheet.tsx), read by what the page hands it while it is open: its title names it.
     const sheet = find(sheetTree, (n) => n.type === Sheet && n.props.testid === "people-lists-sheet" && n.props.open);
     assert.ok(sheet, "the rail's rows, as a sheet");
-    assert.equal(sheet.props.title, "Show", "named for what it holds: the Pipeline's views, not People's lists");
+    assert.equal(sheet.props.title, "Views", "named for what it holds: the Pipeline's views, not People's lists");
     click(byTestId(sheet, "pipeline-rail-row-clients"));
     assert.equal(went.at(-1), "clients/pipeline:v-clients");
     assert.equal(

@@ -174,8 +174,8 @@ test("an email has its subject; a note that names a price is not kept", async ()
 test("a price is held to its figure: the member's own may be written any way, and another amount is refused", async () => {
   assert.deepEqual(
     new Set(priceFigures("It is $120.00, or 20% off, or 45 dollars.")),
-    new Set(["120", "20", "45"]),
-    "each figure a price names, however it is written",
+    new Set(["120", "20%", "45"]),
+    "each figure a price names, however it is written, and a share kept apart from a price",
   );
   assert.deepEqual(new Set(priceFigures("The deep clean is $120.")), new Set(["120"]));
   assert.deepEqual(new Set(priceFigures("120 dollars")), new Set(["120"]), "the same figure, written the other way");

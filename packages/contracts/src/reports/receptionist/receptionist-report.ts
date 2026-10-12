@@ -15,6 +15,7 @@
  */
 import { rangeLabelOf, type ReportBarVM } from "../reports";
 import { closedOf, hoursUnsetOf, type ReportProfile } from "../report-closed";
+import { barsOf, mixOf, noMix, type MixPartVM } from "../report-mix";
 import { REPORT_MIN_N, beforeWords, fmtSeconds, type ReportStripTile } from "../report-tiles";
 import type { ReceptionistDto } from "./receptionist-record";
 import {
@@ -42,15 +43,7 @@ import {
   topicsEmpty,
   topicsLine,
   waitingMeta,
-  type MixEntry,
 } from "./receptionist-words";
-
-/** One mix: its bars and the line under them, or the words for why there is none. */
-export interface MixPartVM {
-  rows: ReportBarVM[];
-  line: string | null;
-  empty: string | null;
-}
 
 /** A figure of the lens: the strip's tile, with the count a ratio is of (`n`) and the page a number opens (`door`) where it has them. */
 export type ReceptionistFigureVM = ReportStripTile;
@@ -77,15 +70,6 @@ export interface ReceptionistReportVM {
 }
 
 type Series = NonNullable<ReceptionistDto["series"]>;
-
-/** 0..1 of the largest bar in its group, as every bar of the reports. */
-function barsOf(entries: MixEntry[]): ReportBarVM[] {
-  const max = Math.max(1, ...entries.map(([, , value]) => value));
-  return entries.map(([id, label, value]) => ({ id, label, value, share: value / max }));
-}
-
-const mixOf = (entries: MixEntry[], line: string): MixPartVM => ({ rows: barsOf(entries), line, empty: null });
-const noMix = (empty: string | null): MixPartVM => ({ rows: [], line: null, empty });
 
 function holdPart({ hold }: Series): MixPartVM {
   return hold.now.total === 0 ? noMix(HOLD_EMPTY) : mixOf(holdEntries(hold.now), holdLine(hold.now));

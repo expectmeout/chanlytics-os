@@ -3,7 +3,7 @@
  * reading the Playbooks and Broadcasts surfaces (cmp/playbooks/surface.ts, cmp/broadcasts/surface.ts) and Ask's
  * campaigns.journey all make, so the page and Ask hand the home (campaignsHomeOf) the same input and no rule of it is
  * said twice. The business's shape, each card's next run, why it runs nothing here, the day it ended and the day its trial
- * ends (00395, on the business's clock), its archived list and its trigger's words, the moments a new campaign may start
+ * ends (00409, on the business's clock), its archived list and its trigger's words, the moments a new campaign may start
  * from, whether every moment was counted, and the workspace's WhatsApp line.
  *
  * Pure, and tolerant of a key a server from before it does not send (either deploy order): no zone is New York's, no
@@ -117,7 +117,7 @@ function cardReadOf(
   const t = triggerOf(p.trigger);
   // A follow-up made while deals were on runs nothing once they are off (0006).
   const dealsOff = t && !triggerOffered(t, at.shape.dealsOn) ? FOLLOW_UP_NEEDS_DEALS : null;
-  // Nor does a campaign past its last day, by the business's today (00395).
+  // Nor does a campaign past its last day, by the business's today (00409).
   const last = campaignEnded(p, localDate(at.tz, at.now));
   const ended = last ? campaignDayWords(last, at.tz, at.now) : null;
   return {

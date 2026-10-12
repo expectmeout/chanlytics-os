@@ -9,15 +9,12 @@
 import { useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import {
-  DELIVERY_RECEIPTS_TIP,
   LIFECYCLE_TOAST,
   LIFECYCLE_WORDS,
   MESSAGE_GONE_WORDS,
   PLAYBOOK_DELETE_WORDS,
   appointmentWordOf,
-  appointmentWords,
   pipelineRoute,
-  poolWords,
 } from "@chanlytics/contracts";
 import type { AppointmentWord, ConsentChannel } from "@chanlytics/contracts";
 import type { Output } from "@/client/api";
@@ -30,19 +27,21 @@ import { LinkButton } from "../../kit/link-button/link-button";
 import { Menu } from "../../kit/menu/menu";
 import type { MenuItem } from "../../kit/menu/menu";
 import { StatePill } from "../../kit/pill/state-pill";
-import { PolicyChip } from "../../kit/policy-chip/policy-chip";
 import { useSurface } from "../../use-surface";
 import { bcRunOffer, bcWhenWords } from "../broadcasts/when-words";
 import { askAboutItem } from "../home/ask-on-campaigns";
 import { SentenceParts } from "../home/sentence";
 import { MessagePreview } from "../parts/message-preview";
+import { CmPreviewFold } from "../parts/preview-fold";
 import { CmPane, useCmPhone } from "../parts/split";
-import { CardVia, cardViaOf, goesBySaid } from "./card-channels";
+import { cardViaOf, goesBySaid } from "./card-channels";
+import { CardRuns } from "./card-runs";
+import { CardSentence } from "./card-sentence";
+import type { CardChange } from "./card-sentence";
 import type { PlaybookCardVM, PlaybookTriggerOption, PlaybooksSurface } from "./surface";
 import { playbooks as V } from "./verbs";
 import {
   PB_NONE,
-  pbDay,
   pbFooter,
   pbIcon,
   pbLangWords,
@@ -52,21 +51,19 @@ import {
   pbReach,
   pbReachDoor,
   pbReachWords,
-  pbReplyTip,
   pbSentWhen,
   pbStatus,
   pbTitle,
   pbWrongSlot,
 } from "./words";
 
-/** What the toast raises (the shell's one flash). */
-export type Flash = (flash: { tone?: string; msg: ReactNode }) => void;
+/** What the toast raises (the shell's one flash): its words, and an Undo where what it says can be taken back. */
+export type Flash = (flash: { tone?: string; msg: ReactNode; undo?: (() => unknown) | null }) => void;
 
 /** A playbook as the surface holds it. */
 type PlaybookRow = PlaybookCardVM;
 
 type Waiting = NonNullable<PlaybookCardVM["totals"]["waiting"]>;
-type History = PlaybookCardVM["totals"]["history"][number];
 
 /** What an act's verb answers: the API's own, a refusal carrying the sentence for the toast. */
 type Outcome<D> = { ok: true; data: D } | { ok: false; message: string };
@@ -161,13 +158,14 @@ function cardActs({ p, busy, setBusy, setSure, setSkipSure, flash, onGone }: Act
   const act = async <D,>(
     fn: (o: { onAccepted: (d: D) => void }) => Promise<Outcome<D>>,
     said: (d: D) => ReactNode,
+    undo: (() => unknown) | null = null,
   ): Promise<void> => {
     if (busy) return;
     setBusy(true);
     let done = false;
     const say = (d: D) => {
       done = true;
-      flash({ tone: "ok", msg: said(d) });
+      flash({ tone: "ok", msg: said(d), undo });
     };
     const r = await fn({ onAccepted: say });
     setBusy(false);
@@ -247,14 +245,32 @@ function cardActs({ p, busy, setBusy, setSure, setSkipSure, flash, onGone }: Act
   // One channel switched in the drawer: the channels it keeps now are sent, alone (verbs.ts `channels`). The server
   // judges them against the playbook as it stands and writes nothing else, and the page says so the moment it takes
   // them. A run that already waits keeps the channels it was made with, and the receipt says that too.
-  const channels = (next: readonly ConsentChannel[]) => {
+  const channels = (next: readonly ConsentChannel[], was: readonly ConsentChannel[]) => {
     if (next.length === 0) return Promise.resolve();
     return act(
       (o) => V.channels(p.id, [...next], o),
       () => goesBySaid(p.name, next, !!p.totals.waiting),
+      // Undo sends back what it kept, and says so the same way.
+      () =>
+        void act(
+          (o) => V.channels(p.id, [...was], o),
+          () => goesBySaid(p.name, was, !!p.totals.waiting),
+        ),
     );
   };
-  return { act, toggle, runNow, approve, skip, remove, channels };
+  // A word of its sentence changed in place (card-sentence.tsx): that field alone, said with its Undo, which sends back
+  // what the field held.
+  const change = (c: CardChange) =>
+    act(
+      (o) => V.change(p.id, c.body, o),
+      () => <SentenceParts parts={c.said} />,
+      () =>
+        void act(
+          (o) => V.change(p.id, c.was, o),
+          () => <SentenceParts parts={LIFECYCLE_WORDS.compose.sentence.saved.undone(p.name)} />,
+        ),
+    );
+  return { act, toggle, runNow, approve, skip, remove, channels, change };
 }
 
 /** Everything the card's sections read. */
@@ -264,6 +280,8 @@ interface CardCtx extends ReturnType<typeof cardRead> {
   word: AppointmentWord;
   canAct: boolean;
   onEdit: (p: PlaybookRow) => void;
+  /** Open its message in a drawer of its own, where the home offers one. */
+  onMessage?: (name: string) => void;
   /** Close the pane, the way its sheet closes (the home's drawer: Back, or the home's address). */
   onClose: () => void;
   busy: boolean;
@@ -274,65 +292,42 @@ interface CardCtx extends ReturnType<typeof cardRead> {
   acts: ReturnType<typeof cardActs>;
 }
 
-/** The message first, beside what the rule does with it. */
+/**
+ * What it sends, folded under its first words (Ruben, 11 Oct 2026: "more compact"), opening onto the message as a customer
+ * reads it; under it which message and in which language, a door to that message, which opens over the home in a drawer
+ * of its own (`onMessage`, the home's `message:<name>`), where it is read and changed; the Library's page where no drawer
+ * is offered.
+ */
 function cardWords(c: CardCtx) {
-  const { p, message, businessName } = c;
+  const { p, message, businessName, onMessage } = c;
+  const S = LIFECYCLE_WORDS.compose.sentence;
   return (
     message && (
       <div className="ob-words" data-testid="pb-words">
-        <MessagePreview
-          from={businessName}
-          body={message.body}
-          values={message.values}
-          header={message.template.header}
-          footer={pbFooter(message.template)}
-          buttons={message.template.buttons}
-          compact
-        />
-        {/* Which message this is, captioning the message itself, and in which
-            language -- that was a data-tip on a chip, and no finger reaches one.
-            It opens the Library, where the same one is renamed or replaced. */}
-        <LinkButton className="ob-words-name" onClick={() => navigate("messages")} data-testid="pb-template-name">
-          {pbTitle(p.template_name)} <span className="dim">&middot; {pbLangWords(p.template_language)}</span>
-        </LinkButton>
+        <CmPreviewFold id={`pb-words-${p.id}`} body={message.body} values={message.values} testid="pb-words-fold">
+          <MessagePreview
+            from={businessName}
+            body={message.body}
+            values={message.values}
+            header={message.template.header}
+            footer={pbFooter(message.template)}
+            buttons={message.template.buttons}
+            bare
+          />
+        </CmPreviewFold>
+        <p className="cm-msg-cap">
+          <LinkButton
+            className="ob-words-name"
+            onClick={() => (onMessage ? onMessage(p.template_name) : navigate("messages"))}
+            data-testid="pb-template-name"
+          >
+            <b>{pbTitle(p.template_name)}</b>
+            <span className="cm-msg-cap-dim"> · {pbLangWords(p.template_language)} · </span>
+            {S.open} <Icon name="chevron" size={11} />
+          </LinkButton>
+        </p>
       </div>
     )
-  );
-}
-
-/** Who its moment reaches, as a link that opens them, and who of them wait: nothing where the server could not count. */
-function sentenceCounted(c: CardCtx) {
-  const { p, trig, noNumber, named, listRoute, word } = c;
-  if (named === null || p.candidates === null || p.held === null) return false;
-  return (
-    <>
-      {" "}
-      &mdash;{" "}
-      <LinkButton
-        className="ob-link"
-        data-tip={
-          trig && trig.kind === "visit"
-            ? `Everyone with a recorded yes — the day's ${appointmentWords(word).many} are picked from them · click to open them in People`
-            : trig && trig.kind === "deal"
-              ? "The proposals waiting with nothing back — before their links, their follow-ups and the week's breath · click to open them in the Pipeline"
-              : "The list this campaign watches — before the gap and the week's breath · click to open it in People"
-        }
-        onClick={() => navigate(listRoute)}
-        data-testid="pb-audience"
-      >
-        {noNumber ||
-          `${pbPeople(p.candidates)} ${trig && trig.kind === "deal" ? poolWords(p.trigger, word) : "on the list"} said yes`}
-      </LinkButton>
-      {/* Why a list with people on it can still offer nobody: one message per
-          person per week, across playbooks, a message already sent or one due
-          within a week of today. A bare "0 people" read as broken. */}
-      {p.held > 0 ? (
-        <>
-          , and {pbPeople(p.held)} more {p.held === 1 ? "hears" : "hear"} from you within a week of today and{" "}
-          {p.held === 1 ? "waits" : "wait"}
-        </>
-      ) : null}
-    </>
   );
 }
 
@@ -368,159 +363,103 @@ function sentenceArchived(c: CardCtx) {
   );
 }
 
-/** "Next run paused" was the words when it is. A follow-up where deals are off says why it runs nothing. */
-function sentenceState(c: CardCtx) {
-  const { p, reachWords, reachDoor } = c;
-  if (p.off) return <>{p.off}</>;
+/**
+ * When it runs next, as its line says it: the hour and who that run reaches ("Today 9:00 AM · 7 people"), with the door
+ * that mends a run reaching nobody; or why it runs nothing (off, its list archived, paused).
+ */
+function nextWords(c: CardCtx): ReactNode {
+  const { p, trig, reachWords, reachDoor } = c;
   if (p.listArchived) return sentenceArchived(c);
-  if (p.state === "paused") return <>Paused &mdash; nothing runs until you resume it.</>;
-  // The hour was in bold on its own, which promised a send. It keeps
-  // the hour and says what the hour will do.
-  if (reachWords)
-    return (
-      <>
-        Next run {p.next} &mdash; <b>{reachWords}</b>.
-        {reachDoor && (
-          <>
-            {" "}
-            <LinkButton className="ob-link" onClick={() => navigate(reachDoor.to)} data-testid="pb-reach-door">
-              {reachDoor.label}
-            </LinkButton>
-            .
-          </>
-        )}
-      </>
-    );
+  if (p.state === "paused") return <>Paused &mdash; nothing runs until you resume it</>;
+  // Who the run reaches now, as many as one run takes (a visit's moment has no cap), and who waits out the week's breath:
+  // said where the moment was counted, where the drawer's Who line said it (Ruben, 11 Oct 2026: the line is the sentence
+  // now). They wait for a message within a week of today on either side, one already sent or one due, so the words say
+  // both, never "this week".
+  const now = p.candidates ?? 0;
+  const waits = p.held ?? 0;
+  const counted = p.candidates !== null && p.held !== null && !p.totals.waiting;
+  const reaches = counted && now > 0 ? (trig && trig.kind === "visit" ? now : Math.min(now, p.cap_per_run)) : 0;
   return (
     <>
-      Next run <b>{p.next}</b>.
+      {LIFECYCLE_WORDS.compose.sentence.nextRun("")}
+      <b>{LIFECYCLE_WORDS.compose.sentence.at(p.next)}</b>
+      {reaches > 0 ? <> &middot; {pbPeople(reaches)}</> : null}
+      {reachWords ? <> &middot; {reachWords}</> : null}
+      {reaches > 0 && waits > 0 ? (
+        <>
+          {" "}
+          &middot; {pbPeople(waits)} more {waits === 1 ? "hears" : "hear"} from you within a week of today and{" "}
+          {waits === 1 ? "waits" : "wait"}
+        </>
+      ) : null}
+      {reachDoor ? (
+        <>
+          {" "}
+          &middot;{" "}
+          <LinkButton className="ob-link" onClick={() => navigate(reachDoor.to)} data-testid="pb-reach-door">
+            {reachDoor.label}
+          </LinkButton>
+        </>
+      ) : null}
     </>
   );
 }
 
-/** The trigger's hint, who it reaches, the clock, and when it last ran, as one sentence. */
-function cardSentence(c: CardCtx) {
-  const { p } = c;
+/** One callout over the sentence: what stops it, and the door that mends it where there is one. */
+function cardCallout(testid: string, glyph: string, words: ReactNode, tone: "warn" | "plain" = "warn") {
   return (
-    <p className="ob-sentence">
-      {/* The trigger's hint is a CONDITION, not an audience -- "Nothing heard
-          in 30 days", "Only ever phoned, never texted" -- so "Goes to" in
-          front of it was broken English on five of the six triggers. It
-          leads, and the count follows it. */}
-      {p.triggerHint}
-      {sentenceCounted(c)}. {p.schedule}. {sentenceState(c)}
-      {p.last_run_for ? <> Last ran {pbDay(p.last_run_for)}.</> : <> It has not run yet.</>}
+    <p className="cm-callout" data-tone={tone === "plain" ? "plain" : undefined} data-testid={testid}>
+      <Icon name={glyph} size={14} />
+      <span className="cm-callout-words">{words}</span>
     </p>
   );
 }
 
-/** The sentence, the channels it goes by, what is wrong with the message, and what the runs earned. */
-function cardFacts(c: CardCtx) {
-  const { p, canAct, busy, via, acts, onEdit, templateGone, wrongSlot } = c;
+/**
+ * What stops it, said over the sentence, a callout each: why it runs nothing (a follow-up where deals are off: no next run
+ * to say), the message gone, a slot that reads wrong (Edit, for a role that may), or a list whose yes has no number.
+ */
+function cardWarnings(c: CardCtx) {
+  const { p, canAct, onEdit, templateGone, wrongSlot, noNumber } = c;
   return (
-    <div className="ob-facts">
-      {cardSentence(c)}
-      {/* Goes by (card-channels.tsx): the composer's Send by row, switched here in place. */}
-      <CardVia p={p} canAct={canAct} busy={busy} via={via} onChannels={(next) => void acts.channels(next)} />
-      {templateGone && (
-        <p className="bc-excl-hint warn" data-testid="pb-template-gone">
-          {MESSAGE_GONE_WORDS.card}
-        </p>
-      )}
-      {wrongSlot && (
-        <p className="bc-excl-hint warn" data-testid="pb-slot-wrong">
-          Its message reads wrong: {wrongSlot}
-          {canAct ? (
-            <>
-              {" "}
-              <LinkButton className="ob-link" onClick={() => onEdit(p)} data-testid="pb-slot-wrong-edit">
-                Edit it
-              </LinkButton>
-              , and each slot takes what it should.
-            </>
-          ) : null}
-        </p>
-      )}
-      {/* What its runs earned, as ONE sentence rather than five numbers with
-          dots between them. Numbers read as a sentence here the way they do on
-          Today, Reports and People; each run below still says its own. */}
-      {/* One run says itself once: the row below carries the same numbers
-          with its date and its door, and the two disagreed about which
-          numbers to show. The sum is worth a sentence once there is a sum. */}
-      {p.totals.runs > 1 && (
-        <p className="ob-sentence ob-sentence-dim" data-testid="pb-results">
-          <span className="tabular">{p.totals.runs}</span> {p.totals.runs === 1 ? "run" : "runs"} so far:{" "}
-          <span className="tabular">{p.totals.sent}</span> sent,{" "}
-          <span className="tabular" data-tip={DELIVERY_RECEIPTS_TIP}>
-            {p.totals.delivered}
-          </span>{" "}
-          delivered,{" "}
-          <span className="tabular" data-tip={pbReplyTip()}>
-            {p.totals.replied}
-          </span>{" "}
-          wrote back
-          {p.totals.held > 0 ? (
-            <>
-              , <span className="tabular">{p.totals.held}</span> held back
-            </>
-          ) : null}
-          .
-        </p>
-      )}
-    </div>
-  );
-}
-
-/** One run, as a line that opens as itself on Broadcasts (broadcasts/run:<id>), read by its id however old it is. */
-function historyRow(h: History) {
-  return (
-    <LinkButton
-      key={h.id}
-      className="cl-prof-aut-hint ob-history-row"
-      onClick={() => navigate(`broadcasts/run:${h.id}`)}
-      data-testid="pb-run-open"
-    >
-      <span className="tabular">{pbDay(h.run_for || (h.scheduled_for ? h.scheduled_for.slice(0, 10) : ""))}</span>
-      {" · "}
-      {h.state === "sent" ? (
-        <>
-          {h.sent} sent{h.delivered > 0 ? `, ${h.delivered} delivered` : ""}
-          {h.held > 0 ? `, ${h.held} held` : ""}
-          {h.replied > 0 ? `, ${h.replied} replied` : ""}
-        </>
-      ) : h.state === "pending_approval" ? (
-        `waiting for you · ${h.recipient_count} people`
-      ) : h.state === "sending" ? (
-        `sending · ${h.sent} so far`
-      ) : h.state === "scheduled" ? (
-        `scheduled · ${h.recipient_count} people`
-      ) : (
-        h.state
-      )}
-      <Icon name="arrow-right" size={10} />
-    </LinkButton>
+    <>
+      {p.off && cardCallout("pb-off", "pause", p.off, "plain")}
+      {templateGone && cardCallout("pb-template-gone", "alert", MESSAGE_GONE_WORDS.card)}
+      {wrongSlot &&
+        cardCallout(
+          "pb-slot-wrong",
+          "alert",
+          <>
+            Its message reads wrong: {wrongSlot}
+            {canAct ? (
+              <>
+                {" "}
+                <LinkButton className="ob-link" onClick={() => onEdit(p)} data-testid="pb-slot-wrong-edit">
+                  Edit it
+                </LinkButton>
+                , and each slot takes what it should.
+              </>
+            ) : null}
+          </>,
+        )}
+      {noNumber && cardCallout("pb-no-number", "chat", noNumber)}
+    </>
   );
 }
 
 /**
- * The runs themselves, newest first, from the same rows the totals are summed over -- every run, not the recent fifty
- * broadcasts of any kind.
+ * When it runs next, the line over its sentence ("Next run today at 9:00 AM · 7 people"), with the door that mends a run
+ * reaching nobody; or why it runs nothing.
  */
-function cardHistory(c: CardCtx) {
-  const { p } = c;
+function cardNext(c: CardCtx) {
+  if (c.p.off) return null;
   return (
-    p.totals.history &&
-    p.totals.history.length > 0 && (
-      <div className="ob-history" data-testid="pb-history">
-        {/* Each run opens as itself on Broadcasts (broadcasts/run:<id>), read by its id however old it is. */}
-        {p.totals.history.map((h) => historyRow(h))}
-        {p.totals.runs > p.totals.history.length && (
-          <span className="ob-history-more" data-testid="pb-history-more">
-            The newest {p.totals.history.length} of {p.totals.runs} runs
-          </span>
-        )}
-      </div>
-    )
+    <p className="cm-next" data-testid="pb-next">
+      <Icon name="clock" size={13} />
+      <span className="ob-line-words" data-testid={c.reachWords ? "pb-reach" : undefined}>
+        {nextWords(c)}
+      </span>
+    </p>
   );
 }
 
@@ -591,12 +530,13 @@ function cardOwnActs(c: CardCtx, phone = false) {
   };
   // On a phone the pane's head is a capsule a thumb wide: its acts are the menu's, as a thread's Actions are, but Pause or
   // Resume, which the docked foot holds while no run waits (PlaybookPane); a run waiting holds the foot, and it stays here.
-  const words: MenuItem[] = phone
-    ? [
-        ...(waiting ? [pauseItem] : []),
-        { label: "Edit", glyph: <Icon name="pencil" size={13} />, disabled: busy, onSelect: () => onEdit(p) },
-      ]
-    : [];
+  const words: MenuItem[] =
+    phone && waiting
+      ? [
+          pauseItem,
+          { label: "Edit", glyph: <Icon name="pencil" size={13} />, disabled: busy, onSelect: () => onEdit(p) },
+        ]
+      : [];
   // Ask first on a desk; on a phone after the menu's own acts, so its first item stays the act the drawer is for.
   const more: MenuItem[] = [
     ...words,
@@ -666,30 +606,42 @@ function cardDeleteAsk(c: CardCtx) {
   );
 }
 
-/** What the card says: the message beside what the rule does with it, then its runs, newest first. */
+/**
+ * What the card says, down one column (Ruben, 11 Oct 2026, "Option B"): what stops it, if anything; when it runs next;
+ * its sentence, each word that can change changed in place (card-sentence.tsx); what it sends, folded under its first
+ * words; then its runs, folded under their one line.
+ */
 function cardBody(c: CardCtx) {
+  const { p, word, canAct, busy, via, listRoute, acts } = c;
   return (
     <>
-      {/* The message first, beside what the rule does with it.
-          The card led with the trigger, the schedule, the audience, the template's
-          NAME and the next run -- five chips and a meta line -- and the thing that
-          actually reaches a customer was two clamped lines at 12px in --ink-muted,
-          under a "Show the whole message" toggle. A playbook IS a message, a list
-          and a clock; the message goes first and the rest is one sentence. */}
-      <div className="ob-body">
-        {cardWords(c)}
-        {cardFacts(c)}
-      </div>
-
-      {/* The runs themselves, newest first, from the same rows the totals are
-          summed over -- every run, not the recent fifty broadcasts of any kind. */}
-      {cardHistory(c)}
+      {cardWarnings(c)}
+      {cardNext(c)}
+      <CardSentence
+        p={p}
+        word={word}
+        canAct={canAct}
+        busy={busy}
+        via={via}
+        listRoute={listRoute}
+        onChange={(change) => void acts.change(change)}
+        onChannels={(next) => void acts.channels(next, via.kept)}
+      />
+      {cardWords(c)}
+      <CardRuns p={p} />
     </>
   );
 }
 
 /** A playbook's state and verbs, held once for the pane it is open in (Campaigns' home draws it in a sheet). */
-function useCard({ p, canAct, onEdit, flash, onClose }: CardProps & { onClose: () => void }): CardCtx {
+function useCard({
+  p,
+  canAct,
+  onEdit,
+  onMessage,
+  flash,
+  onClose,
+}: CardProps & { onClose: () => void; onMessage?: (name: string) => void }): CardCtx {
   const [busy, setBusy] = useState(false);
   const [sure, setSure] = useState(false);
   // Skip asks first, as it does on Broadcasts, with a question of its own apart from the delete's.
@@ -699,13 +651,15 @@ function useCard({ p, canAct, onEdit, flash, onClose }: CardProps & { onClose: (
   const acts = cardActs({ p, busy, setBusy, setSure, setSkipSure, flash, onGone: onClose });
   // The workspace's word, from the surface the card reads; unread, the one derivation over nothing known.
   const word = surface ? surface.shape.word : appointmentWordOf({ stored: null, sellsBy: null });
-  return { ...read, p, word, canAct, onEdit, onClose, busy, sure, skipSure, setSure, setSkipSure, acts };
+  return { ...read, p, word, canAct, onEdit, onMessage, onClose, busy, sure, skipSure, setSure, setSkipSure, acts };
 }
 
 interface PaneProps {
   p: PlaybookRow;
   canAct: boolean;
   onEdit: (p: PlaybookRow) => void;
+  /** Open the message it sends, by its name, in a drawer of its own (the home's `message:<name>`). */
+  onMessage?: (name: string) => void;
   flash: Flash;
   onClose: () => void;
 }
@@ -716,14 +670,15 @@ interface PaneProps {
  * body; and a run waiting on you, or a delete asked, in the foot. It opened under its own row, which pushed every row
  * after it down by the card's height, the list's columns over a card that had none.
  */
-export function PlaybookPane({ p, canAct, onEdit, flash, onClose }: PaneProps) {
-  const c = useCard({ p, canAct, onEdit, flash, onClose });
+export function PlaybookPane({ p, canAct, onEdit, onMessage, flash, onClose }: PaneProps) {
+  const c = useCard({ p, canAct, onEdit, onMessage, flash, onClose });
   const phone = useCmPhone();
-  const { status, reachWords, waiting } = c;
+  const { status, waiting } = c;
   const asking = cardDeleteAsk(c);
   // On a phone the foot's acts are the kit's equal pair (kit.css `data-foot-pair`), as every phone foot's are, but while
-  // a question stands there; and with no run waiting the foot holds Pause or Resume, the head's words on a desk, a thumb's
-  // reach from where the menu kept them (spec 2026-10-09 §4.4).
+  // a question stands there; and with no run waiting the foot holds Edit and Pause or Resume, the head's words on a desk,
+  // a thumb's reach from where the menu kept them (spec 2026-10-09 §4.4; Edit joined Pause there on 11 Oct 2026, where
+  // one button stood alone across the foot and Edit hid in the menu).
   const foot = asking ? (
     <div className="pb-pane-foot">{asking}</div>
   ) : waiting ? (
@@ -735,8 +690,17 @@ export function PlaybookPane({ p, canAct, onEdit, flash, onClose }: PaneProps) {
     </div>
   ) : phone && canAct ? (
     <div className="pb-pane-foot" data-foot-pair="">
-      <Button size="sm" disabled={c.busy} onClick={() => void c.acts.toggle()} data-testid="pb-pause-foot">
+      <Button
+        size="sm"
+        variant={p.state === "paused" ? "primary" : undefined}
+        disabled={c.busy}
+        onClick={() => void c.acts.toggle()}
+        data-testid="pb-pause-foot"
+      >
         <Icon name={p.state === "paused" ? "play" : "pause"} size={12} /> {p.state === "paused" ? "Resume" : "Pause"}
+      </Button>
+      <Button size="sm" disabled={c.busy} onClick={() => onEdit(p)} data-testid="pb-edit-foot">
+        <Icon name="pencil" size={12} /> Edit
       </Button>
     </div>
   ) : null;
@@ -744,10 +708,13 @@ export function PlaybookPane({ p, canAct, onEdit, flash, onClose }: PaneProps) {
     <CmPane
       testid="pb-pane"
       className="pb-pane"
+      // A phone's head is a line a thumb wide: the moment's glyph is the kicker's word over it there.
       mark={
-        <span className="mark pb-row-mark" aria-hidden="true">
-          <Icon name={pbIcon(p.trigger)} size={13} />
-        </span>
+        phone ? null : (
+          <span className="mark pb-row-mark" aria-hidden="true">
+            <Icon name={pbIcon(p.trigger)} size={13} />
+          </span>
+        )
       }
       title={p.name}
       badge={
@@ -756,22 +723,11 @@ export function PlaybookPane({ p, canAct, onEdit, flash, onClose }: PaneProps) {
           value={status === "paused" ? "paused" : status === "approval" ? "approval" : "running"}
         />
       }
-      sub={p.triggerHint}
       tools={cardOwnActs(c, phone)}
       foot={foot}
       onClose={onClose}
     >
-      <div className="ob-card-detail" data-testid="pb-detail" data-state={status}>
-        {(reachWords || p.policy_class) && (
-          <div className="ob-head ob-head-bare">
-            {reachWords && (
-              <span className="ob-reach" data-testid="pb-reach">
-                {reachWords}
-              </span>
-            )}
-            <PolicyChip cls={p.policy_class} />
-          </div>
-        )}
+      <div className="ob-card-detail cm-sentence" data-testid="pb-detail" data-state={status}>
         {cardBody(c)}
       </div>
     </CmPane>

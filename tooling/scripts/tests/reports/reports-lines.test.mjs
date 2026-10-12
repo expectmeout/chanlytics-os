@@ -208,26 +208,40 @@ test("calls: about how long a call lasts, said by fmtSeconds; nothing with no ca
   assert.equal(lines().calls, null);
 });
 
-test("where: mostly one channel or one leading, as before or taking over, with calls and email said as nouns", () => {
-  const where = (current, previous = ZEROS) =>
-    lines({ channels: { current: { ...ZEROS, ...current }, previous: { ...ZEROS, ...previous } } }).channels;
-  assert.equal(
-    where({ whatsapp: 12, voice: 3, email: 4, sms: 1 }, { whatsapp: 7 }),
-    "Mostly WhatsApp, as the 7 days before.",
+test("the donut's sentence went with the donut: the lines say nothing of channels, counted or not", () => {
+  const counted = lines({ channels: { current: { ...ZEROS, whatsapp: 12 }, previous: { ...ZEROS, whatsapp: 7 } } });
+  assert.ok(!("channels" in counted), "the lens that draws the split says its own sentence (the fold's)");
+  assert.ok(!("channels" in lines()));
+});
+
+/** The week of `weekDto`, whose new people are `now` spread over its last seven days and `before` over the seven before. */
+function withNewPeople(now, before, { lived = true } = {}) {
+  const dto = weekDto([0, 7, 1, 3, 2, 5, 2]);
+  const spread = (n, i) => Math.floor(n / 7) + (i < n % 7 ? 1 : 0);
+  dto.series = dto.series.map((d, i) =>
+    i < 7
+      ? { ...d, messages_in: lived ? d.messages_in : 0, new_contacts: spread(before, i) }
+      : { ...d, new_contacts: spread(now, i - 7) },
   );
+  return dto;
+}
+
+test("the People head's fallback: how many new people reached you, against the period before when there was one", () => {
+  const said = (now, before, opts) => toReportVM(withNewPeople(now, before, opts)).lines.people;
+  assert.equal(said(12, 8), "12 new people reached you (8 the 7 days before).");
+  assert.equal(said(1, 0), "1 new person reached you (none the 7 days before).");
+  assert.equal(said(0, 3), "Nobody new reached you in this period.");
   assert.equal(
-    where({ whatsapp: 4, voice: 3, email: 3 }),
-    "WhatsApp leads.",
-    "four of ten is no majority; nothing before",
+    said(5, 0, { lived: false }),
+    "5 new people reached you.",
+    "nobody lived in the period before: no comparison",
   );
-  assert.equal(where({ voice: 4, whatsapp: 3, email: 3 }), "Calls lead.");
-  assert.equal(where({ email: 6, whatsapp: 2 }), "Mostly email.");
-  assert.equal(where({ sms: 4, whatsapp: 3, email: 3 }), "Texts lead.", "a text is a common noun, and plural");
-  assert.equal(where({ email: 6, whatsapp: 2 }, { whatsapp: 8, email: 1 }), "Email took over from WhatsApp.");
-  assert.equal(where({ whatsapp: 6, voice: 2 }, { voice: 5, whatsapp: 1 }), "WhatsApp took over from calls.");
-  assert.equal(where({ sms: 6, voice: 1 }, { voice: 5, sms: 1 }), "Texts took over from calls.");
-  assert.equal(where({}, { whatsapp: 3 }), null, "nobody reached it this period");
-  assert.equal(lines().channels, null, "a v2 payload counted no channel");
+  assert.equal(typeof lines().people, "string");
+  assert.equal(
+    typeof toReportVM(weekDto([0, 0, 0, 0, 0, 0, 0])).lines.people,
+    "string",
+    "a quiet week has a sentence too, never null",
+  );
 });
 
 test("when, over a week: the days nothing came in, or the one quietest day, as days", () => {

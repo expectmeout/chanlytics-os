@@ -333,17 +333,18 @@ function newLanguage(c: RowCtx) {
   );
 }
 
-/** The foot of an open message: what it is called at WhatsApp, its rating, and the act that adds a language. */
+/**
+ * The foot of an open message: where it was made, its rating, and the act that adds a language; where the language in
+ * view is not on WhatsApp, that the words are what WhatsApp would review. The name WhatsApp files it under and its
+ * category stood here too ("visit_reminder · utility · from WhatsApp Manager"): nothing an owner acts on (Ruben, 11 Oct
+ * 2026), and the rename's own receipt says the filed name where it matters.
+ */
 function cardFoot(c: RowCtx) {
   const { g, busy, doing, row, cur, starterText, onAdd } = c;
   return (
     <div className="msg-card-foot">
       {row ? (
-        <span className="msg-card-meta">
-          {row.name}
-          {row.category ? ` · ${row.category}` : ""}
-          {row.source === "chanlytics" ? " · made here" : " · from WhatsApp Manager"}
-        </span>
+        <span className="msg-card-meta">{row.source === "chanlytics" ? "Made here" : "From WhatsApp Manager"}</span>
       ) : (
         <span className="msg-card-meta">Not on WhatsApp in {cur.lang.label} yet — the words WhatsApp would review</span>
       )}
@@ -549,7 +550,7 @@ function readPane(c: RowCtx) {
  */
 function languageStandingLine(c: RowCtx) {
   return (
-    <p className="bc-excl-hint" data-testid="template-standing">
+    <p className="bc-excl-hint tpl-standing" data-testid="template-standing">
       {VERSION_CHANNELS.map((channel, i) => (
         <span key={channel} data-channel={channel}>
           {i > 0 ? ", " : ""}

@@ -10,9 +10,11 @@
 // and no form drew a box for it (spec D5).
 //
 // The page composes and never derives. Every sentence here with a number in it is contracts' (handoffWords,
-// handoffChatWords, handoffCallWords, notesWords, noteEndedWords, instructionsWords, fallbacksWords, TONE_PRESETS and
+// handoffChatRow, handoffCallRow, notesWords, noteEndedWords, instructionsWords, fallbacksWords, TONE_PRESETS and
 // rulesWithoutFieldsWords, through BUSINESS_TAB); what each fold opens with, refuses and writes is folds.ts's; the
-// gesture is BtFold.
+// gesture is BtFold. Each fold opens as a sheet with its title alone over its fields (Ruben, 10 Oct 2026: the sheets
+// "too wordy, too explanatory, too cluttered"): what a box is for is its placeholder, and the one thing worth knowing
+// beside it is a tip.
 //
 // It holds no hook of its own (its folds hold theirs), and what comes and goes inside a fold (a language, a note) is
 // drawn hookless, as the kit's RecordBox and plain buttons.
@@ -28,12 +30,14 @@ import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import { gate } from "../../legacy-verbs";
 import { Icon } from "../../kit/icon/icon";
 import { FieldError } from "../../kit/field-error/field-error";
+import { RecordDisclosure } from "../../kit/record/disclosure";
 import { RecordBox, RecordField } from "../../kit/record/field";
 import { RecordChips } from "../../kit/record/row";
 import { BtaHandoff, BtaLanguages, BtaRules, BtaVoice } from "./answers-fields";
 import type { Fields, HandoffWords } from "./answers-fields";
 import { BtFold } from "./gestures/fold";
 import { btoStoredZone } from "./open";
+import { greetingFold } from "./phone/greeting";
 import { phoneShown } from "./save";
 import type { Brain, Config, Profile } from "./save";
 import { businessTabSave } from "./saver";
@@ -73,23 +77,21 @@ const btaComposes = (on: Brain) => BUSINESS_TAB.hasProfile((on.profile || null) 
 /* ------------------------------------ the lists ------------------------------------ */
 
 // The three messages sent in the business's name when the receptionist cannot answer (S5), in the order an owner meets
-// them, each with when it goes out -- the edge's own conditions (whatsapp/inbound.ts), in an owner's words.
+// them, each with when it goes out -- the edge's own conditions (whatsapp/inbound.ts), in an owner's words, and as few
+// of them as say it: the AI's failure leaves the thread for a person, a voice note, a sticker or a photo it cannot look
+// at is left for a person, and only while Chanlytics' AI connection is down does every conversation wait.
 const BTA_FALLBACK_ROWS: { key: FallbackKey; label: string; when: string }[] = [
-  {
-    key: "error",
-    label: "If it can't write a reply",
-    when: "The AI service failed or couldn't finish an answer. The conversation then waits for you.",
-  },
-  {
-    key: "non_text",
-    label: "If it gets something it can't read",
-    when: "A voice note, a sticker, or a photo it can't look at. It then stays out of that conversation and asks for you.",
-  },
-  {
-    key: "greeting",
-    label: "If replies can't be written at all",
-    when: "Only while Chanlytics' AI connection is down. Each conversation then waits for you.",
-  },
+  { key: "error", label: "It couldn't write a reply", when: "Then it waits for you" },
+  { key: "non_text", label: "It got something it can't read", when: "Voice notes, stickers, some photos" },
+  { key: "greeting", label: "The AI is down", when: "Rare. Every chat waits for you" },
+];
+
+// The details a message may name, which are filled in as each goes out (contracts fallbackMessages): a press puts the
+// name where the box's caret was, so the box teaches them by using them, where a sentence over the three listed them.
+const BTA_DETAILS: [string, string][] = [
+  ["{business}", "Business"],
+  ["{booking link}", "Booking link"],
+  ["{phone}", "Phone"],
 ];
 
 /* ------------------------------------ the things it should know ------------------------------------ */
@@ -133,7 +135,7 @@ const BtaNote = ({
         id={`bt-note-${i}-title`}
         label={`Note ${i + 1} title`}
         value={title}
-        placeholder="Gift cards"
+        placeholder="A topic, like Gift cards"
         onChange={(v) => notes.setAt(i, { title: v })}
         invalid={bad ? problemId : null}
         unit={ended ? <span id={endedId}>{ended}</span> : null}
@@ -278,8 +280,7 @@ const BtaOwnWords = ({
       {/* Text nobody here wrote sat under "written in your own words" (S4): say where it came from, and which wins. */}
       {d.carried ? (
         <p className="bt-fold-note" data-testid="rec-own-carried">
-          Carried over from the instructions your receptionist followed before this form. Trim what the fields above now
-          cover — where the two disagree about the address, hours or services, the fields win.
+          Carried over from its earlier instructions. Where they disagree with the rows above, the rows win.
         </p>
       ) : null}
       <RecordField
@@ -290,7 +291,7 @@ const BtaOwnWords = ({
         value={text}
         onChange={(v) => update((was) => ({ ...(was as OwnDraft), text: v }), ["extra_instructions"])}
         problem={problems.extra_instructions || null}
-        placeholder="Parking is behind the building. We do not take walk-ins after 5pm."
+        placeholder="Anything the rows above don't cover"
         readOnly={readOnly || undefined}
         testid="rec-own-box"
       />
@@ -336,7 +337,33 @@ const BtaWrittenOut = ({ messageKey, written }: { messageKey: FallbackKey; writt
   </span>
 );
 
-/** One of the three messages: its label and when it goes out, its box, what a customer would read, and its default. */
+/**
+ * Put a detail's name where the box's caret was (or at its end, with no box on the page to ask), as a change of the
+ * draft, and hand the box its focus back: the press took it.
+ */
+const btaInsert = (key: FallbackKey, token: string, update: Fields["update"]) => {
+  const box = typeof document === "undefined" ? null : document.getElementById(`bt-fallback-${key}`);
+  const typed = box instanceof HTMLTextAreaElement ? box : null;
+  update(
+    (was) => {
+      const d = was as FallbacksDraft;
+      const cur = typeof d[key] === "string" ? d[key] : "";
+      // The caret counts only in the box that shows this draft: a box a step behind it holds other words.
+      const at = typed && typed.value === cur ? typed.selectionStart : cur.length;
+      const to = typed && typed.value === cur ? typed.selectionEnd : at;
+      return { ...d, [key]: cur.slice(0, at) + token + cur.slice(to) };
+    },
+    [key],
+  );
+  if (typed) typed.focus();
+};
+
+/**
+ * One of the three messages, folded behind its line (the kit's RecordDisclosure): its label and when it goes out, and,
+ * opened, its box, the details it may name, what a customer would read, and the way back to the default. Its mark says
+ * what is worth knowing without opening it: that it is in the owner's words, or that it stops the save, in which case it
+ * stands open so the sentence under its box is seen.
+ */
 const BtaFallback = ({
   row,
   d,
@@ -364,28 +391,52 @@ const BtaFallback = ({
   // contracts' (writtenOutDetail), written once and tested there.
   const written = BUSINESS_TAB.writtenOutDetail(text, link);
   const defaultWording = defaults[key];
+  const own = defaultWording !== undefined && !BUSINESS_TAB.isProductFallback(key, text);
+  const wrong = problems[key] || null;
   return (
-    <div className="bt-fallback" data-testid={`rec-fallback-${key}`}>
-      <span className="bt-fallback-label" id={`bt-fallback-${key}-label`}>
-        {label}
-      </span>
-      <span className="bt-fallback-when">{when}</span>
+    <RecordDisclosure
+      id={`bt-fallback-${key}-fold`}
+      label={
+        <>
+          <span className="bt-disc-name" id={`bt-fallback-${key}-label`}>
+            {label}
+          </span>
+          <span className="bt-disc-sub">{when}</span>
+        </>
+      }
+      mark={wrong ? "Check it" : own ? "Your words" : null}
+      forceOpen={!!wrong}
+      testid={`rec-fallback-${key}`}
+    >
       <RecordBox
         id={`bt-fallback-${key}`}
         label={label}
         rows={3}
         value={text}
         onChange={(v) => update((was) => ({ ...(was as FallbacksDraft), [key]: v }), [key])}
-        problem={problems[key] || null}
+        problem={wrong}
         readOnly={readOnly}
       />
-      {shown && !problems[key] ? (
+      <span className="bt-insert" data-testid={`rec-fallback-${key}-details`}>
+        {BTA_DETAILS.map(([token, name]) => (
+          <button
+            key={token}
+            type="button"
+            className="bt-link"
+            aria-label={`Put ${token} in the message`}
+            {...press(() => btaInsert(key, token, update))}
+          >
+            + {name}
+          </button>
+        ))}
+      </span>
+      {shown && !wrong ? (
         <span className="bt-fallback-reads" data-testid={`rec-fallback-${key}-reads`}>
-          A customer reads: {shown}
+          <b className="bt-fold-lead">Reads as</b> {shown}
         </span>
       ) : null}
       {written ? <BtaWrittenOut messageKey={key} written={written} /> : null}
-      {defaultWording !== undefined && !BUSINESS_TAB.isProductFallback(key, text) ? (
+      {own ? (
         <button
           type="button"
           className="btn btn-ghost btn-sm bt-fallback-default"
@@ -396,18 +447,18 @@ const BtaFallback = ({
           Use the default wording
         </button>
       ) : null}
-    </div>
+    </RecordDisclosure>
   );
 };
 
 /**
- * The three messages sent in the business's name when the receptionist cannot answer (S5): shown, and the owner's to
- * change. Each is its label and when it goes out (the edge's own conditions), its box, and what a customer would read
- * with the business's details as they are now -- shown only when the message names a detail, since one that names
- * none reads as written (contracts fallbackMessages, the function each goes out through). A link or a number written
- * out stays as written when the details change, where the name of a detail follows them, so the box says so. Each can
- * go back to the product's wording in one press. They are never part of the prompt, so the fold says nothing it will
- * be told.
+ * The three messages sent in the business's name when the receptionist cannot answer (S5): three lines, each opening
+ * onto its box, so the sheet is three choices to read and not three editors to scroll (Ruben, 10 Oct 2026). Opened, a
+ * message shows what a customer would read with the business's details as they are now -- only when it names a detail,
+ * since one that names none reads as written (contracts fallbackMessages, the function each goes out through). A link
+ * or a number written out stays as written when the details change, where the name of a detail follows them, so the box
+ * says so. Each can go back to the product's wording in one press. They are never part of the prompt, so the fold says
+ * nothing it will be told.
  */
 const BtaFallbacks = ({
   draft,
@@ -422,10 +473,7 @@ const BtaFallbacks = ({
   // What a customer would read with the messages as typed and the details as the brain holds them.
   const reads: Partial<Record<FallbackKey, string>> = btaReads(d, brain, link);
   return (
-    <div className="bt-fallbacks" data-testid="rec-fallbacks">
-      <p className="bt-fold-note">
-        {"{business}"}, {"{booking link}"} and {"{phone}"} are filled in as each goes out.
-      </p>
+    <div className="bt-stack" data-testid="rec-fallbacks">
       {BTA_FALLBACK_ROWS.map((row) => (
         <BtaFallback
           key={row.key}
@@ -468,9 +516,6 @@ export const BtLanguagesRow = ({
       saver={saver}
       id="languages"
       label="Languages"
-      // The old form's words: on WhatsApp the composer says only "You speak: …", and "whichever the caller uses" is a
-      // call's line (config.ts), so the canvas's "It replies in whichever the customer uses" said more than chat is told.
-      hint="It answers in whichever of these a customer uses."
       lines
       gate={gate("settings", "change the languages it speaks")}
       rest={rest}
@@ -519,7 +564,6 @@ export const BtRulesRow = ({
       saver={saver}
       id="guardrails"
       label="Rules it always keeps"
-      hint="These hold whatever else you write."
       gate={gate("settings", "change the rules it always keeps")}
       row={{
         // Capped like every other row of chips (the kit's RecordChips, contracts CHIPS_SHOWN): five of them wrapped
@@ -534,7 +578,14 @@ export const BtRulesRow = ({
         ) : null,
         name: "Change the rules it always keeps",
       }}
-      body={(f) => <BtaRules {...f} unread={composes ? null : BUSINESS_TAB.rulesWithoutFieldsWords(on)} />}
+      body={(f) => (
+        <BtaRules
+          {...f}
+          unread={composes ? null : BUSINESS_TAB.rulesWithoutFieldsWords()}
+          profile={(on.profile || null) as BusinessProfile | null}
+          name={on.business_name ?? null}
+        />
+      )}
     />
   );
 };
@@ -595,7 +646,6 @@ const toneFold = (shared: Shared, tone: string | null) => (
     {...shared}
     id="tone"
     label="Its voice"
-    hint="A sentence. How it should sound, not what it should say."
     lines
     gate={gate("settings", "change its voice")}
     row={{
@@ -613,7 +663,6 @@ const handoffFold = (shared: Shared, a: AnswersFacts) => (
     {...shared}
     id="escalate_when"
     label="Hands you a customer"
-    hint="When it hands a conversation to you, on WhatsApp and on a call."
     gate={gate("settings", "change how it hands you a customer")}
     row={{
       // One line, contracts' (handoffWords.line): the reasons counted and what a call does. The reasons themselves
@@ -626,7 +675,7 @@ const handoffFold = (shared: Shared, a: AnswersFacts) => (
       empty: "Not set",
       name: "Change how it hands you a customer",
     }}
-    body={(f) => <BtaHandoff {...f} words={a.handoff} transfer={a.transfer} calls={a.calls} policies={policiesNow()} />}
+    body={(f) => <BtaHandoff {...f} transfer={a.transfer} calls={a.calls} policies={policiesNow()} />}
   />
 );
 
@@ -635,7 +684,6 @@ const notesFold = (shared: Shared, notes: AnswersFacts["notes"]) => (
     {...shared}
     id="notes"
     label="Things it should know"
-    hint="One topic each: parking, gift cards, a second location. Both receptionists say these."
     gate={gate("settings", "change the things it should know")}
     row={{
       value: notes.count ? (
@@ -653,7 +701,6 @@ const ownWordsFold = (shared: Shared, opening: string | null) => (
     {...shared}
     id="extra_instructions"
     label="In your own words"
-    hint="Optional. Anything the rows on this page do not cover."
     gate={gate("settings", "change what it is told in your own words")}
     row={{
       // Their opening, and nothing else. "339 characters" stood in front of it, which is a number an owner can do
@@ -676,7 +723,6 @@ const fallbacksFold = (shared: Shared, a: AnswersFacts) => (
     {...shared}
     id="fallbacks"
     label="When it can't answer"
-    hint="What a customer is sent when it cannot reply itself."
     channel={null}
     gate={gate("settings", "change the messages sent when it can't answer")}
     row={{
@@ -695,7 +741,8 @@ const fallbacksFold = (shared: Shared, a: AnswersFacts) => (
 );
 
 /**
- * How it answers (spec §4.5): seven rows in the canvas's order, each a fold. `brain` and `config` are the settings
+ * How it answers (spec §4.5): seven rows in the canvas's order, each a fold, and an eighth after the voice where the
+ * workspace answers calls: what callers hear first (decision 0051). `brain` and `config` are the settings
  * read's, which the rows state; `base` is the config the next save goes on (the saver's base), which is what the rules
  * fold judges "composes nothing" by, as its save will be; what a fold opens with and saves onto is the saver's base,
  * which BtFold asks for itself.
@@ -720,6 +767,8 @@ export const BtAnswersCard = ({
       </div>
 
       {toneFold(shared, a.tone)}
+
+      {a.calls ? greetingFold(shared, brain) : null}
 
       <BtLanguagesRow brain={brain} {...shared} />
 

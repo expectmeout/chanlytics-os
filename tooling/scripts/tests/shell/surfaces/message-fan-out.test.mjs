@@ -72,6 +72,8 @@ const REAL = [
   (await importSrc("apps/dashboard/src/surfaces/reports/headline.ts")).reportsHeadlineOverride,
   (await importSrc("apps/dashboard/src/surfaces/reports/reviews-surface.ts")).reviewsOverride,
   (await importSrc("apps/dashboard/src/surfaces/reports/receptionist-surface.ts")).receptionistOverride,
+  (await importSrc("apps/dashboard/src/surfaces/reports/people-surface.ts")).reportsPeopleOverride,
+  (await importSrc("apps/dashboard/src/surfaces/reports/campaigns-surface.ts")).reportsCampaignsOverride,
   (await importSrc("apps/dashboard/src/surfaces/live/surface.ts")).liveOverride,
   (await importSrc("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts")).broadcastsOverride,
   (await importSrc("apps/dashboard/src/surfaces/campaigns/playbooks/surface.ts")).playbooksOverride,
@@ -205,9 +207,10 @@ test("a receipt never reads People, Reports or Campaigns on their own pages, and
   };
   for (const hash of ["#/clients", "#/reports", "#/campaigns"]) {
     win.location.hash = hash;
-    // Campaigns' own 30 days are read on demand and again once aged (results-surface.ts, a period surface): a read recorded
-    // holds nothing and would always say it has aged, so it is held fresh here, and what this asks is what was kept.
-    const r = await running({ fresh: ["campaign_results"] });
+    // Campaigns' own 30 days are read on demand and again once aged (results-surface.ts, a period surface), and so is the Campaigns
+    // lens's, which the Overview draws too: a read recorded holds nothing and would always say it has aged, so each is held fresh
+    // here, and what this asks is what was kept.
+    const r = await running({ fresh: ["campaign_results", "reports_campaigns"] });
     try {
       await away("#/calendar", hash);
       r.asked.length = 0;
@@ -270,7 +273,11 @@ test("the page on screen hears messages too, and a surface that let one pass is 
     win.location.hash = "#/reports";
     win.dispatchEvent({ type: "popstate" });
     await settle();
-    assert.deepEqual(r.asked, ["reports"], "Reports let two messages pass, and is read once as it comes on screen");
+    assert.deepEqual(
+      [...r.asked].sort(),
+      ["reports", "reports_campaigns"],
+      "Reports let two messages pass, and is read once as it comes on screen, with the Campaigns read its Overview draws for one fact",
+    );
     r.asked.length = 0;
     win.location.hash = "#/clients/pipeline";
     win.dispatchEvent({ type: "popstate" });
@@ -366,7 +373,8 @@ test("Campaigns' home owns what it draws but Sent's runs: a message re-reads the
 
 test("the Reviews lens hears the listing's tables only while it is on screen, and is read once as it comes back; no other page of Reports hears them", async () => {
   win.location.hash = "#/reports/reviews";
-  const r = await running({ fresh: ["reports_reviews"] });
+  // The Campaigns lens's read is a stranger here, held fresh: this asks what the Reviews lens hears and keeps, not what another lens ages.
+  const r = await running({ fresh: ["reports_reviews", "reports_campaigns"] });
   try {
     // A review seen for the first time: the lens re-reads its own, and Google's own surface lets it pass, for the lens's read carries
     // Google's and publishes it (no second read of the same listing while the lens is open).
@@ -381,7 +389,7 @@ test("the Reviews lens hears the listing's tables only while it is on screen, an
     r.asked.length = 0;
 
     // Elsewhere it is Google's surface alone that hears them, as it always did: the lens's read is left for its lens.
-    for (const hash of ["#/reports", "#/reports/people", "#/inbox"]) {
+    for (const hash of ["#/reports", "#/reports/pipeline", "#/inbox"]) {
       win.location.hash = hash;
       win.dispatchEvent({ type: "popstate" });
       await settle();
@@ -455,7 +463,7 @@ test("the Receptionist lens hears messages, escalations and calls only while it 
     r.asked.length = 0;
 
     // Elsewhere it hears none of them, and what passed is read once, when the lens comes back.
-    for (const hash of ["#/reports", "#/reports/people", "#/reports/reviews", "#/inbox", "#/today"]) {
+    for (const hash of ["#/reports", "#/reports/pipeline", "#/reports/reviews", "#/inbox", "#/today"]) {
       win.location.hash = hash;
       win.dispatchEvent({ type: "popstate" });
       await settle();
@@ -507,21 +515,276 @@ test("the Receptionist lens hears messages, escalations and calls only while it 
   }
 });
 
-test("the page that owns what it draws is an explicit one: the surface registry names Campaigns' home and Reports' Reviews and Receptionist lenses, and no other page's draws are owned", async () => {
+test("the People lens hears messages, calls and notes only while it is on screen, and is read once as it comes back; no other page of Reports hears them", async () => {
+  win.location.hash = "#/reports/people";
+  const r = await running({ fresh: ["reports_people"] });
+  const lensReads = () => r.asked.filter((k) => k === "reports_people");
+  try {
+    // A person writing or ringing, a note or a step written, changed or taken away: the lens on screen re-reads its own.
+    for (const [table, event] of [
+      ["messages", "INSERT"],
+      ["calls", "INSERT"],
+      ["person_notes", "INSERT"],
+      ["person_notes", "UPDATE"],
+      ["person_notes", "DELETE"],
+    ]) {
+      r.asked.length = 0;
+      await r.change(table, event);
+      assert.deepEqual(lensReads(), ["reports_people"], `${table} ${event}: heard on the lens`);
+    }
+    // A call ending is heard; a transcript turn of one in progress is not, by the lens or by Today.
+    r.asked.length = 0;
+    await r.change("calls", "UPDATE", "ended");
+    assert.deepEqual(lensReads(), ["reports_people"], "a call ending: heard on the lens");
+    for (let turn = 0; turn < 3; turn += 1) {
+      r.asked.length = 0;
+      await r.change("calls", "UPDATE", "ongoing");
+      assert.deepEqual(
+        lensReads(),
+        [],
+        "REGRESSION: a transcript turn re-read the lens every few seconds of a live call",
+      );
+    }
+    // A send's tick is no one reaching the business: a message's update is not heard.
+    for (const status of ["sent", "delivered", "failed"]) {
+      r.asked.length = 0;
+      await r.change("messages", "UPDATE", status);
+      assert.deepEqual(lensReads(), [], `a message ${status}: not the lens's`);
+    }
+    // It is told of no table it does not name: an escalation, a conversation's own row, a person's, a review.
+    for (const table of ["escalations", "conversations", "contacts", "google_reviews"]) {
+      r.asked.length = 0;
+      await r.change(table, "UPDATE");
+      assert.deepEqual(lensReads(), [], `${table}: not the lens's`);
+    }
+    r.asked.length = 0;
+
+    // Elsewhere it hears none of them, and what passed is read once, when the lens comes back.
+    for (const hash of ["#/reports", "#/reports/receptionist", "#/reports/pipeline", "#/inbox", "#/today"]) {
+      win.location.hash = hash;
+      win.dispatchEvent({ type: "popstate" });
+      await settle();
+      r.asked.length = 0;
+      await r.change("person_notes", "INSERT");
+      await r.change("calls", "UPDATE", "ended");
+      await r.message();
+      assert.deepEqual(lensReads(), [], `${hash}: the lens is not on screen`);
+
+      r.asked.length = 0;
+      win.location.hash = "#/reports/people";
+      win.dispatchEvent({ type: "popstate" });
+      await settle();
+      assert.deepEqual(lensReads(), ["reports_people"], `${hash}: read once as the lens came back`);
+      r.asked.length = 0;
+      win.location.hash = "#/reports/campaigns";
+      win.dispatchEvent({ type: "popstate" });
+      win.location.hash = "#/reports/people";
+      win.dispatchEvent({ type: "popstate" });
+      await settle();
+      assert.deepEqual(lensReads(), [], `${hash}: and once: the next arrival reads nothing new`);
+    }
+
+    // Over days a member picked it is the same lens, and hears the same.
+    win.location.hash = "#/reports/people:2026-09-01~2026-09-20";
+    win.dispatchEvent({ type: "popstate" });
+    await settle();
+    r.asked.length = 0;
+    await r.change("person_notes", "INSERT");
+    assert.deepEqual(lensReads(), ["reports_people"], "over picked days: heard on the lens");
+
+    // A transcript turn heard away from the lens keeps nothing for it: the guard comes before the page rule, so it is not "missed".
+    for (const hash of ["#/inbox", "#/today"]) {
+      win.location.hash = hash;
+      win.dispatchEvent({ type: "popstate" });
+      await settle();
+      r.asked.length = 0;
+      await r.change("calls", "UPDATE", "ongoing");
+      await r.change("calls", "UPDATE", "ongoing");
+      win.location.hash = "#/reports/people";
+      win.dispatchEvent({ type: "popstate" });
+      await settle();
+      assert.deepEqual(lensReads(), [], `${hash}: only turns passed, so nothing is read as the lens comes back`);
+    }
+
+    // And nothing here moves another lens's read: a review is the Reviews lens's, and the Receptionist lens counts escalations and holds.
+    r.asked.length = 0;
+    await r.message();
+    await r.change("person_notes", "INSERT");
+    assert.equal(r.asked.includes("reports_reviews"), false, "the Reviews lens counts reviews, not these");
+    assert.equal(
+      r.asked.includes("reports_receptionist"),
+      false,
+      "the Receptionist lens's is heard on its own lens alone",
+    );
+  } finally {
+    r.stop();
+    win.location.hash = "#/today";
+  }
+});
+
+test("the Campaigns lens hears messages, conversations, escalations and runs only while it is on screen, and is read once as it comes back; the Overview, which draws it for one fact, hears none of them and keeps them for the lens; no other page of Reports hears them", async () => {
+  win.location.hash = "#/reports/campaigns";
+  // A read recorded holds nothing and would always say it has aged: held fresh, so what is asked is what a change moved or kept.
+  const r = await running({ fresh: ["reports_campaigns"] });
+  const lensReads = () => r.asked.filter((k) => k === "reports_campaigns");
+  try {
+    // A message, a conversation moved, an escalation opened or resolved, a run made or moved: the lens on screen re-reads its own.
+    for (const [table, event] of [
+      ["messages", "INSERT"],
+      ["conversations", "UPDATE"],
+      ["escalations", "INSERT"],
+      ["escalations", "UPDATE"],
+      ["broadcasts", "INSERT"],
+      ["broadcasts", "UPDATE"],
+    ]) {
+      r.asked.length = 0;
+      await r.change(table, event);
+      assert.deepEqual(lensReads(), ["reports_campaigns"], `${table} ${event}: heard on the lens`);
+    }
+    // A delivery receipt, a failure written late: the sends' ticks are read as the lens opens, and a tick moves no figure by itself.
+    for (const status of ["sent", "delivered", "read", "failed"]) {
+      r.asked.length = 0;
+      await r.change("messages", "UPDATE", status);
+      assert.deepEqual(lensReads(), [], `a message ${status}: not the lens's`);
+    }
+    // It is told of no table it does not name: a call (a call is the Receptionist's and the People lens's), a note, a review, a person's row.
+    for (const table of ["calls", "person_notes", "contacts", "google_reviews", "deals"]) {
+      r.asked.length = 0;
+      await r.change(table, "UPDATE");
+      assert.deepEqual(lensReads(), [], `${table}: not the lens's`);
+    }
+    r.asked.length = 0;
+
+    // Elsewhere it hears none of them, and what passed is read once, when the lens comes back.
+    for (const hash of ["#/reports/receptionist", "#/reports/people", "#/reports/pipeline", "#/inbox", "#/today"]) {
+      win.location.hash = hash;
+      win.dispatchEvent({ type: "popstate" });
+      await settle();
+      r.asked.length = 0;
+      await r.change("escalations", "INSERT");
+      await r.change("broadcasts", "UPDATE");
+      await r.message();
+      assert.deepEqual(lensReads(), [], `${hash}: the lens is not on screen`);
+
+      r.asked.length = 0;
+      win.location.hash = "#/reports/campaigns";
+      win.dispatchEvent({ type: "popstate" });
+      await settle();
+      assert.deepEqual(lensReads(), ["reports_campaigns"], `${hash}: read once as the lens came back`);
+      r.asked.length = 0;
+      win.location.hash = "#/reports/pipeline";
+      win.dispatchEvent({ type: "popstate" });
+      win.location.hash = "#/reports/campaigns";
+      win.dispatchEvent({ type: "popstate" });
+      await settle();
+      assert.deepEqual(lensReads(), [], `${hash}: and once: the next arrival reads nothing new`);
+    }
+
+    // The Overview draws it for one fact: it reads it as it comes on screen and again when it has aged (on-demand-boot.test.mjs),
+    // never for each burst; but the burst it did not read is kept for the lens, which would otherwise show the numbers the
+    // Overview read on arrival, minutes old: the lens reads once as it comes on screen, and the next arrival reads nothing.
+    for (const hash of ["#/reports", "#/reports/2026-09-01~2026-09-20"]) {
+      win.location.hash = hash;
+      win.dispatchEvent({ type: "popstate" });
+      await settle();
+      r.asked.length = 0;
+      await r.change("escalations", "INSERT");
+      await r.change("broadcasts", "UPDATE");
+      await r.message();
+      await r.message();
+      assert.deepEqual(lensReads(), [], `${hash}: the Overview does not hear a burst`);
+      win.location.hash = "#/reports/campaigns";
+      win.dispatchEvent({ type: "popstate" });
+      await settle();
+      assert.deepEqual(
+        lensReads(),
+        ["reports_campaigns"],
+        `${hash}: but the burst is kept for the lens: read once as the lens came on screen`,
+      );
+      r.asked.length = 0;
+      win.location.hash = "#/reports/pipeline";
+      win.dispatchEvent({ type: "popstate" });
+      win.location.hash = "#/reports/campaigns";
+      win.dispatchEvent({ type: "popstate" });
+      await settle();
+      assert.deepEqual(lensReads(), [], `${hash}: and once: the next arrival reads nothing new`);
+    }
+
+    // Over days a member picked it is the same lens, and hears the same.
+    win.location.hash = "#/reports/campaigns:2026-09-01~2026-09-20";
+    win.dispatchEvent({ type: "popstate" });
+    await settle();
+    r.asked.length = 0;
+    await r.change("escalations", "INSERT");
+    assert.deepEqual(lensReads(), ["reports_campaigns"], "over picked days: heard on the lens");
+
+    // And nothing here moves another lens's read: the People lens counts calls and notes, the Receptionist lens escalations and calls.
+    win.location.hash = "#/reports/campaigns";
+    win.dispatchEvent({ type: "popstate" });
+    await settle();
+    r.asked.length = 0;
+    await r.message();
+    await r.change("escalations", "INSERT");
+    for (const key of ["reports_reviews", "reports_receptionist", "reports_people"])
+      assert.equal(r.asked.includes(key), false, `${key} is heard on its own lens alone`);
+  } finally {
+    r.stop();
+    win.location.hash = "#/today";
+  }
+});
+
+test("the page that owns what it draws is an explicit one: the surface registry names Campaigns' home and Reports' Reviews, Receptionist, People and Campaigns lenses, and no other page's draws are owned", async () => {
   const owns = (key, route) => registry.ownsTheScreen(key, route);
   // Reports owns what it names for a lens, and that lens alone: Reviews' read, and no other of its pages or lenses.
   assert.equal(owns("reports_reviews", "reports/reviews"), true);
-  for (const route of ["reports", "reports/people", "reports/campaigns", "today", "campaigns"])
+  for (const route of ["reports", "reports/pipeline", "reports/campaigns", "today", "campaigns"])
     assert.equal(owns("reports_reviews", route), false, `${route} does not own the Reviews lens's read`);
   assert.equal(owns("reports", "reports/reviews"), true, "and the page's own surface is still its own");
   assert.equal(owns("reports_headline", "reports/reviews"), false, "while what Today draws is not drawn there");
   // The Receptionist lens's, the same way, and the two lenses' reads are not each other's.
   assert.equal(owns("reports_receptionist", "reports/receptionist"), true);
-  for (const route of ["reports", "reports/people", "reports/campaigns", "reports/reviews", "today", "campaigns"])
+  for (const route of ["reports", "reports/pipeline", "reports/campaigns", "reports/reviews", "today", "campaigns"])
     assert.equal(owns("reports_receptionist", route), false, `${route} does not own the Receptionist lens's read`);
   assert.equal(owns("reports_reviews", "reports/receptionist"), false, "the Reviews lens's read is not drawn there");
   assert.equal(owns("reports", "reports/receptionist"), true, "and the page's own surface is still its own");
   assert.equal(owns("reports_headline", "reports/receptionist"), false, "while what Today draws is not drawn there");
+  // The People lens's, the same way, and none of the three lenses' reads is another's.
+  assert.equal(owns("reports_people", "reports/people"), true);
+  assert.equal(owns("reports_people", "reports/people:2026-09-01~2026-09-20"), true, "over picked days it is the lens");
+  for (const route of [
+    "reports",
+    "reports/pipeline",
+    "reports/campaigns",
+    "reports/reviews",
+    "reports/receptionist",
+    "today",
+    "campaigns",
+  ])
+    assert.equal(owns("reports_people", route), false, `${route} does not own the People lens's read`);
+  for (const key of ["reports_reviews", "reports_receptionist", "reports_headline"])
+    assert.equal(owns(key, "reports/people"), false, `${key} is not drawn on the People lens`);
+  assert.equal(owns("reports", "reports/people"), true, "and the page's own surface is still its own");
+  // The Campaigns lens's, the same way; and the Overview draws it for the one fact it says from it, so it owns the screen for it too.
+  assert.equal(owns("reports_campaigns", "reports/campaigns"), true);
+  assert.equal(
+    owns("reports_campaigns", "reports/campaigns:2026-09-01~2026-09-20"),
+    true,
+    "over picked days it is the lens",
+  );
+  for (const route of ["reports", "reports/2026-09-01~2026-09-20"])
+    assert.equal(owns("reports_campaigns", route), true, `${route}: the Overview draws it for one fact`);
+  for (const route of [
+    "reports/pipeline",
+    "reports/reviews",
+    "reports/receptionist",
+    "reports/people",
+    "today",
+    "campaigns",
+  ])
+    assert.equal(owns("reports_campaigns", route), false, `${route} does not own the Campaigns lens's read`);
+  for (const key of ["reports_reviews", "reports_receptionist", "reports_people", "reports_headline"])
+    assert.equal(owns(key, "reports/campaigns"), false, `${key} is not drawn on the Campaigns lens`);
+  assert.equal(owns("reports", "reports/campaigns"), true, "and the page's own surface is still its own");
   for (const key of ["playbooks", "campaign_results"]) assert.equal(owns(key, "campaigns"), true, key);
   assert.equal(owns("broadcasts", "campaigns"), false, "Sent's runs are drawn on the home and re-read on Sent");
   // The reach-outs are drawn on the home too; they have no table of their own to refresh on a message, but a route that

@@ -18,6 +18,14 @@ import {
   capabilityStatus,
   POLICY_MODES,
   ruleStrength,
+  ALWAYS_TOLD,
+  allowedPrices,
+  pricesWrittenWords,
+  greetingNotes,
+  greetingOf,
+  GREETING_TEMPLATE,
+  namesMoney,
+  violatesNoPrices,
   VISION_STRENGTH,
   rulesKept,
   GUARDRAIL_KEYS,
@@ -33,7 +41,6 @@ import {
   FEED_CHECK_WORDS,
   servicesWords,
   servicesToldWords,
-  servicesSaveWords,
   blockShareWords,
   promptCostWords,
   promptTotalWords,
@@ -45,11 +52,16 @@ import {
   foldName,
   serviceUndoName,
   servicesFoundWords,
+  serviceLineWords,
+  lengthWords,
+  SERVICE_PRICE_EMPTY,
   bookingRuleRefusal,
   TONE_PRESETS,
   handoffWords,
   handoffChatWords,
-  handoffCallWords,
+  handoffChatRow,
+  handoffCallRow,
+  HANDOFF_ANYWAY,
   notesWords,
   noteEndedWords,
   CHIPS_SHOWN,
@@ -145,6 +157,8 @@ export const FOLD_BLOCK = {
   system_prompt: "platform",
   // Sent in the business's name in place of a reply the model wrote (no model, a failed call, a voice note), never part of the prompt.
   fallbacks: null,
+  // Spoken by the phone as a call's first words, word for word (call-start's greeting variable), never part of the prompt.
+  phone_greeting: null,
   // The feed's openings follow the prompt, in the block rebuilt for every message and call (prompt-preview.ts `now`);
   // and what the owner books with (00345) is where the bookings come from, never a word of the prompt.
   calendar: null,
@@ -305,7 +319,7 @@ export function saveIssues(part: unknown): Array<{ path: Array<string | number>;
 
 // openWeekWords and closuresAheadWords are the When you're open card's two sentences with a number in them, and
 // hoursZoneWords is the line over the week while it is edited, which names the zone the way that card names it; the
-// services row's and sheet's (servicesWords, servicesToldWords, servicesSaveWords, blockShareWords) and the booking
+// services row's and sheet's (servicesWords, servicesToldWords, blockShareWords) and the booking
 // rules' (bookingRulesWords, BOOKING_RULE_HINTS) are What you offer's. The prompt sheet's are promptBlocks (above) with
 // the share it draws a block's cost by, promptCostWords (the exact count, for its description only), promptTotalWords,
 // PROMPT_READERS (who reads it, per channel) and PROMPT_NOW (what is sent beside it, and why it is apart).
@@ -325,8 +339,8 @@ export function saveIssues(part: unknown): Array<{ path: Array<string | number>;
 // CHIPS_SHOWN and chipsMoreWords are how many chips any row of the record draws at rest and how the rest are said:
 // one number and one spelling for the services, the notes and the rules alike (the kit's RecordChips keeps the cap).
 // How it answers' are the voice's starting points (TONE_PRESETS), the hand-off row's (handoffWords, handoffChatWords,
-// handoffCallWords), the notes' (notesWords, and noteEndedWords beside a note whose last day has passed), the owner's
-// own words' (instructionsWords), the three messages'
+// and its sheet's two rows and tip: handoffChatRow, handoffCallRow, HANDOFF_ANYWAY), the notes' (notesWords, and
+// noteEndedWords once a note's last day has passed), the owner's own words' (instructionsWords), the three messages'
 // (fallbacksWords), and what the rules fold says on a record whose details compose nothing (rulesWithoutFieldsWords),
 // which it asks the resolver's own test of (hasProfile), never a copy of it. guardrailsInForce is which rules are in
 // force, each with its default applied: the composer's and Ask's one reading, which the rules fold opens its switches by,
@@ -346,6 +360,14 @@ export const BUSINESS_TAB = {
   capabilityStatus,
   POLICY_MODES,
   ruleStrength,
+  ALWAYS_TOLD,
+  allowedPrices,
+  pricesWrittenWords,
+  greetingNotes,
+  greetingOf,
+  GREETING_TEMPLATE,
+  namesMoney,
+  violatesNoPrices,
   GUARDRAIL_KEYS,
   promptBlocks,
   consequenceOf,
@@ -361,7 +383,6 @@ export const BUSINESS_TAB = {
   closuresAheadWords,
   servicesWords,
   servicesToldWords,
-  servicesSaveWords,
   blockShareWords,
   promptCostWords,
   promptTotalWords,
@@ -373,11 +394,16 @@ export const BUSINESS_TAB = {
   foldName,
   serviceUndoName,
   servicesFoundWords,
+  serviceLineWords,
+  lengthWords,
+  SERVICE_PRICE_EMPTY,
   bookingRuleRefusal,
   TONE_PRESETS,
   handoffWords,
   handoffChatWords,
-  handoffCallWords,
+  handoffChatRow,
+  handoffCallRow,
+  HANDOFF_ANYWAY,
   notesWords,
   noteEndedWords,
   CHIPS_SHOWN,

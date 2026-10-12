@@ -379,7 +379,7 @@ test("a starter that takes words of its own (the month's offer) is not proposed 
 const modes = (mode) =>
   ["reengage", "booking"].map((cls) => ({ tenant_id: A, class: cls, mode, subject_type: null, limits: null }));
 /**
- * `start_playbook` (00357, as 00395 replaced it) for a database in memory: the row the door writes, of the columns it
+ * `start_playbook` (00357, as 00409 replaced it) for a database in memory: the row the door writes, of the columns it
  * names and no other, running and the caller's, with its start_playbook line; the row's id with the line's.
  */
 const START_COLUMNS = [

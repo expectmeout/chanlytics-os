@@ -205,10 +205,21 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // A search's reach-out sheet (Part 4 PR 6) sends from Setup's sending domains and checks Settings' booking link: both
   // read next on Leads, so a sheet opened on a cold boot is not left saying it is reading them.
   leads: ["setup", "settings"],
-  // The Reviews and Receptionist lenses draw their own reads beside Reports' (surfaces/reports/reviews-surface.ts, receptionist-surface.ts):
-  // no other lens of Reports does.
+  // The Reviews, Receptionist, People and Campaigns lenses draw their own reads beside Reports' (surfaces/reports/reviews-surface.ts,
+  // receptionist-surface.ts, people-surface.ts, campaigns-surface.ts): no other lens of Reports does, and the Pipeline's row says so
+  // (an empty one), or it would fall to the page's.
   "reports/reviews": ["reports_reviews"],
   "reports/receptionist": ["reports_receptionist"],
+  "reports/people": ["reports_people"],
+  "reports/campaigns": ["reports_campaigns"],
+  "reports/pipeline": [],
+  // The Ads lens (a demo session's, from the Ads sample) reads nothing of its own: an empty row, or it would fall to the Overview's
+  // read of the Campaigns lens.
+  "reports/ads": [],
+  // The Overview draws the Campaigns lens's reads for one fact, which campaign drew the most replies (the page makes it from
+  // `campaigns.sources`): the page's own row, which the Overview and a lens with no row of its own fall to. It is read as the
+  // Overview comes on screen and again when it has aged, never for each burst of messages (campaigns-surface.ts heardOnTheLens).
+  reports: ["reports_campaigns"],
   // Settings' Connections pane draws Google's listing and its connection beside the settings read, as Today's card draws its
   // review line (`google` is read where one of the two is on screen, legacy-bridge/google.ts): no other pane of Settings does.
   "admin/integrations": ["google"],
@@ -249,8 +260,8 @@ function paneOf(page: string, param?: string | null): string | null | undefined 
 
 /**
  * What a route draws beside its own surface: a person's page is one route of its own, whatever its id, and a lens or a pane
- * that names its draws (`reports/reviews`, `reports/receptionist`, `admin/integrations`) is asked about before its page, as
- * routeSurfaceFor asks it.
+ * that names its draws (`reports/reviews`, `reports/receptionist`, `reports/people`, `reports/campaigns`, `reports/pipeline`,
+ * `admin/integrations`) is asked about before its page, as routeSurfaceFor asks it.
  */
 export function routeDrawsFor(page: string, at?: string | null): readonly string[] {
   const param = paneOf(page, at);
@@ -284,9 +295,12 @@ function pageOfRoute(route: string): { page: string; param: string | null } {
  * playbooks' moments, Sent's runs, its own 30 days, the reach-outs' chains), and a message moves the replies its rows and "What
  * came back" say: left to another page, its numbers stood where they were read for as long as the home was open. Today draws more (People, Reports, the Calendar) and does not own them, for a
  * message re-reads the three that draw messages and Today, and People's pages of contacts are the heaviest read there is
- * (shell/surfaces/message-fan-out.test.mjs). Reports owns the one it names for a lens (`reports/reviews`, `reports/receptionist`): a
- * review seen for the first time moves the Reviews lens's read, and a message, an escalation or a call the Receptionist lens's, each
- * heard while that lens is on screen and not on Reports' other lenses or pages.
+ * (shell/surfaces/message-fan-out.test.mjs). Reports owns the one it names for a lens (`reports/reviews`, `reports/receptionist`,
+ * `reports/people`, `reports/campaigns`): a review seen for the first time moves the Reviews lens's read, a message, an escalation or
+ * a call the Receptionist lens's, a message, a call or a note the People lens's, and a message, a conversation, an escalation or a run
+ * the Campaigns lens's, each heard while that lens is on screen and not on Reports' other lenses or pages. The Overview owns the
+ * Campaigns read too, for the one fact it draws from it, but does not read it for a burst: the read's own rule asks for the lens, and
+ * keeps what the Overview heard for the lens (keepForItsPage, campaigns-surface.ts), read once as either comes on screen.
  */
 const OWNS_WHAT_IT_DRAWS: ReadonlySet<string> = new Set(["campaigns", "reports"]);
 

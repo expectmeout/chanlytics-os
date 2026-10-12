@@ -29,11 +29,12 @@ import { shortCode, addressInMessage } from "@chanlytics/contracts";
 import type { SendPurpose } from "@chanlytics/contracts";
 import type { IngestResult, Json } from "@chanlytics/db";
 import type { Wire } from "../deliver";
-import { IngestFailed } from "./ports";
+import { type EscalateOutcome, IngestFailed } from "./ports";
+import { toldFromItsEvent } from "../subscribers";
 import { handledOf, SET_ASIDE } from "./handled";
 import type { ThreadState } from "./thread";
 import { errField } from "@chanlytics/channels";
-import type { InboundContext, Ingested } from "./context";
+import type { HoldWords, InboundContext, Ingested } from "./context";
 
 // Persist first, or say so. An ingest write that fails is the one loss the
 // provider can undo: the customer's words go to the workspace mailbox as a
@@ -65,8 +66,31 @@ async function ingestOrSay(cx: InboundContext): Promise<IngestResult | null> {
 }
 
 /**
- * A sender the receptionist never answers, recorded and set aside: a short code, or a sender off the pilot allowlist.
- * True when the message was one, and is finished with.
+ * A one-time code, as services word one: four to eight digits (a letter prefix allowed, "G-123456") with the word for a
+ * code beside them -- "verification code is 482913", "482913 is your login code", "use 4829 to sign in" -- or the line
+ * asking it never be shared. A code word is required, so a person's own numbers are theirs: a one-time clean of 1,200
+ * sq ft, a security deposit of 2,500, a log-in error 5003, a gate code, a confirmation code (the review of 11 Oct 2026
+ * found the first draft took all of those). A long message is a person's.
+ */
+const KIND_OF_CODE = String.raw`(?:verification|security|one[- ]time|log ?in|sign[- ]in|authentication|2fa|otp)`;
+const A_CODE = String.raw`(?:[A-Z]{1,3}-)?\d{4,8}`;
+const ONE_TIME_CODE = new RegExp(
+  [
+    String.raw`\b${KIND_OF_CODE}\s+(?:code|pin|passcode)\b[^\n]{0,20}?\b${A_CODE}\b`,
+    String.raw`\b${A_CODE}\s+is\s+your\b[^\n]{0,40}?\b(?:code|pin|passcode)\b`,
+    String.raw`\buse\s+${A_CODE}\s+to\s+(?:sign in|log in|login|verify|confirm)\b`,
+    String.raw`\b(?:do not|don'?t|never) share (?:this|the|your) code\b`,
+  ].join("|"),
+  "i",
+);
+function oneTimeCode(body: string | null | undefined): boolean {
+  const t = (body ?? "").trim();
+  return t.length > 0 && t.length <= 320 && ONE_TIME_CODE.test(t);
+}
+
+/**
+ * A sender the receptionist never answers, recorded and set aside: a short code, a one-time code from any number, or
+ * a sender off the pilot allowlist. True when the message was one, and is finished with.
  */
 async function setAside(cx: InboundContext): Promise<boolean> {
   const { ports, tenantId, isEnvDefault, from, channel, db, rt } = cx;
@@ -97,6 +121,16 @@ async function setAside(cx: InboundContext): Promise<boolean> {
     const ing = await recordOrSay();
     const sink = ports.persist.sink(db, tenantId, ing, rt, channel);
     await sink.unreachableSender();
+    await sink.processed(handledOf(SET_ASIDE));
+    return true;
+  }
+
+  // A one-time code a service sent from an ordinary number reads like a person's text to everything else, and was
+  // answered with a sales reply (the engine review's second pass, 11 Oct 2026). Recorded for the owner, not answered.
+  if (oneTimeCode(cx.n.body)) {
+    const ing = await recordOrSay();
+    const sink = ports.persist.sink(db, tenantId, ing, rt, channel);
+    cx.L.info("one_time_code_set_aside");
     await sink.processed(handledOf(SET_ASIDE));
     return true;
   }
@@ -209,8 +243,14 @@ export async function ingestMessage(cx: InboundContext, resume = false): Promise
    * pause, and an owner who believes in one that did not happen answers at
    * their leisure and is talked over by the bot's next reply.
    */
-  const tell = (userText: string, botText: string, reason: string, pausedHours: number | null = null) =>
-    ports.alertStaff(from, userText, botText, reason, {
+  const tell = async (
+    asked: Promise<EscalateOutcome> | null,
+    { said, answered, why, pausedHours = null }: HoldWords,
+  ) => {
+    // A hold written is told from its event (decision 0043): once, after the commit, out of this request. One whose
+    // write failed, or a deployment with no database to write it in, is told here, as it was decided.
+    if (toldFromItsEvent(asked ? await asked.catch(() => undefined) : undefined)) return;
+    await ports.alertStaff(from, said, answered, why, {
       target: notifyTarget,
       channel,
       pausedHours,
@@ -218,6 +258,7 @@ export async function ingestMessage(cx: InboundContext, resume = false): Promise
       who: n.profileName ?? null,
       about: ing ? { type: "conversation", id: ing.conversation_id } : null,
     });
+  };
 
   // Atomic concurrent-redelivery gate. ingest_inbound's is_new claim IS the
   // dedupe, and it is stronger than the `seen` array the retired store kept (a

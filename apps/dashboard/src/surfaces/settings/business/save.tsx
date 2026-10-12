@@ -72,6 +72,7 @@ export interface Profile {
   website?: string;
   handoff_number?: string;
   tone?: string;
+  phone_greeting?: string;
   hours?: Record<string, StoredDay | undefined>;
   closures?: StoredClosure[];
   services?: StoredService[];

@@ -190,12 +190,7 @@ test("on an address that says days Reports is read over them, by their first and
       hash: "",
       globals: { localStorage: { getItem: (k) => (k === REPORT_PERIOD_STORAGE ? saved : null) } },
     }).calls.map(([u]) => u);
-  const days = [
-    "/api/v1/workspaces?workspace=acme",
-    "/api/v1/reports?from=2026-09-01&to=2026-09-20&workspace=acme",
-    "/api/v1/reports/campaigns?from=2026-09-01&to=2026-09-20&workspace=acme",
-    "/api/v1/reports/reach-outs?from=2026-09-01&to=2026-09-20&workspace=acme",
-  ];
+  const days = ["/api/v1/workspaces?workspace=acme", "/api/v1/reports?from=2026-09-01&to=2026-09-20&workspace=acme"];
   // A link someone sent: the Overview over the days, a lens over them, and with nothing kept on the device at all.
   assert.deepEqual(
     over(`reports/${DAYS}`),
@@ -229,12 +224,7 @@ test("Reports is read over the period this device last picked, as the page reads
   for (const period of REPORT_PERIOD_IDS)
     assert.deepEqual(
       over(period),
-      [
-        "/api/v1/workspaces?workspace=acme",
-        `/api/v1/reports?period=${period}&workspace=acme`,
-        `/api/v1/reports/campaigns?period=${period}&workspace=acme`,
-        `/api/v1/reports/reach-outs?period=${period}&workspace=acme`,
-      ],
+      ["/api/v1/workspaces?workspace=acme", `/api/v1/reports?period=${period}&workspace=acme`],
       period,
     );
   assert.ok(REPORT_PERIOD_IDS.length > 1 && REPORT_PERIOD_IDS.includes(REPORT_PERIOD_DEFAULT));
@@ -555,7 +545,7 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
       .calls.map(([u]) => u)
       .slice(1)
       .sort();
-    assert.equal(head.length, 3, `${route}: the report, the offers' and the reach-outs'`);
+    assert.equal(head.length, 1, `${route}: the report alone (the Campaigns lens's reads are its own surface's)`);
     assert.deepEqual(head, theirs, `${route}: the head starts what Reports asks for over the days`);
   }
   win.location.pathname = "/w/harbor";

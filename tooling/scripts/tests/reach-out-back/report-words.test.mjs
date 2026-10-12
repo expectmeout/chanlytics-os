@@ -1,15 +1,14 @@
 /**
- * Reports › Reach-outs, and the day's numbers at 6 PM (Reach out Part 6: H1, H3–H6, H12; contracts reach-out-report.ts):
- * the view model over the report's shape, executed. The funnel counts from written to booked with each share of what
- * was written; the angles show the share who wrote back, the eight most written and the rest as one; a domain says
- * how its mail landed and its state now, and a removed one is one line; each reach-out is a line with each of its
- * steps under it, a hand step's handed and nothing else; an empty period says so; nothing is said that is not counted.
+ * The day's numbers at 6 PM (Reach out Part 6: H12) and each reach-out's own totals, executed (contracts
+ * reach-out-report.ts): the bell's line says what happened and nothing it did not count; a chain's totals are checked, not
+ * cast, and carry the businesses a share of an outcome is of (00404). The report's own fold, in businesses, is the
+ * Campaigns lens's (tooling/scripts/tests/reports/campaigns/reach-out-lens.test.mjs); the first fold of it, whose cases
+ * stood here, went on 11 Oct 2026.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chainTotalsFromReport, chainTotalsOf, reachOutDayWords, toReachOutReportVM } from "@chanlytics/contracts";
+import { chainTotalsFromReport, chainTotalsOf, reachOutDayWords } from "@chanlytics/contracts";
 
-const NOW = Date.parse("2026-09-28T22:00:00.000Z");
 const counts = (over = {}) => ({
   written: 0,
   delivered: 0,
@@ -20,218 +19,6 @@ const counts = (over = {}) => ({
   said_no: 0,
   handed: 0,
   ...over,
-});
-const report = (over = {}) => ({
-  timezone: "America/Chicago",
-  days: 7,
-  today: "2026-09-28",
-  since: "2026-09-22",
-  has_reach_out: true,
-  totals: counts({ written: 40, delivered: 38, bounced: 1, wrote_back: 6, interested: 3, booked: 1, said_no: 2 }),
-  series: [
-    { day: "2026-09-22", written: 10 },
-    { day: "2026-09-23", written: 30 },
-  ],
-  chains: [
-    {
-      root_id: "r1",
-      name: "Trainers in Austin",
-      state: "running",
-      search: { id: "s1", name: "Personal trainers · Austin" },
-      last_at: "2026-09-23T15:00:00.000Z",
-      runs: 2,
-      steps: [
-        {
-          id: "p1",
-          n: 0,
-          hand: null,
-          ...counts({ written: 30, delivered: 29, bounced: 1, wrote_back: 5, interested: 3, booked: 1, said_no: 1 }),
-        },
-        { id: "p2", n: 1, hand: null, ...counts({ written: 10, delivered: 9, wrote_back: 1, said_no: 1 }) },
-        { id: "p3", n: 2, hand: "call", ...counts({ handed: 4 }) },
-      ],
-    },
-  ],
-  angles: [
-    { angle: "their rating", written: 20, wrote_back: 4 },
-    { angle: "mid-session calls", written: 10, wrote_back: 1 },
-  ],
-  other_angles: { written: 0, wrote_back: 0 },
-  no_angle: 10,
-  domains: [
-    {
-      host: "mail.example.com",
-      state: "verified",
-      held_why: null,
-      held_at: null,
-      sent: 30,
-      delivered: 29,
-      bounced: 1,
-      complained: 0,
-    },
-    {
-      host: "hi.example.com",
-      state: "held",
-      held_why: "bounces",
-      held_at: "2026-09-26T15:00:00.000Z",
-      sent: 5,
-      delivered: 4,
-      bounced: 1,
-      complained: 0,
-    },
-    { host: null, state: null, held_why: null, held_at: null, sent: 5, delivered: 5, bounced: 0, complained: 0 },
-  ],
-  ...over,
-});
-
-test("the funnel counts from written to booked, each a share of what was written", () => {
-  const vm = toReachOutReportVM(report(), NOW);
-  assert.equal(vm.present, true);
-  assert.equal(vm.empty, false);
-  assert.deepEqual(
-    vm.funnel.rows.map((r) => [r.label, r.value, r.display]),
-    [
-      ["Written", 40, "40"],
-      ["Delivered", 38, "38  95%"],
-      ["Wrote back", 6, "6  15%"],
-      ["Interested", 3, "3  8%"],
-      ["Booked", 1, "1  3%"],
-      ["Said no", 2, "2  5%"],
-      ["Bounced", 1, "1  3%"],
-    ],
-  );
-  assert.equal(vm.funnel.max, 40);
-  assert.match(vm.lines.funnel, /Of 40 emails written in these 7 days/);
-  assert.match(vm.lines.funnel, /a question counts as interested/);
-  assert.doesNotMatch(JSON.stringify(vm), /open(ed|s)? rate|clicked/i);
-});
-
-test("the angles show the share who wrote back, and say how many had none", () => {
-  const vm = toReachOutReportVM(report(), NOW);
-  assert.deepEqual(
-    vm.angles.rows.map((r) => [r.label, r.value, r.display]),
-    [
-      ["their rating", 20, "4 of 20  20%"],
-      ["mid-session calls", 10, "1 of 10  10%"],
-    ],
-  );
-  assert.equal(vm.angles.max, 20);
-  assert.match(vm.lines.angles, /10 emails had no opening, so no angle/);
-  const more = toReachOutReportVM(report({ other_angles: { written: 7, wrote_back: 2 }, no_angle: 0 }), NOW);
-  assert.deepEqual(more.angles.rows.at(-1), { id: "other", label: "Other angles", value: 29, display: "2 of 7  29%" });
-  assert.doesNotMatch(more.lines.angles, /no opening/);
-  const none = toReachOutReportVM(report({ angles: [], no_angle: 40 }), NOW);
-  assert.deepEqual(none.angles.rows, []);
-  assert.match(none.lines.angles, /no angle to compare/);
-});
-
-test("a domain says how its mail landed and its state now; a removed one is one line", () => {
-  const vm = toReachOutReportVM(report(), NOW);
-  assert.deepEqual(
-    vm.domains.map((d) => [d.host, d.state, d.sent, d.landed, d.bounced, d.complained]),
-    [
-      ["mail.example.com", "Verified", 30, "97%", "3.3%", "0%"],
-      ["hi.example.com", "Held since Sat: more than 2% of its recent emails bounced", 5, "80%", "20%", "0%"],
-      ["A domain since removed", "Since removed", 5, "100%", "0%", "0%"],
-    ],
-  );
-  assert.equal(vm.domains[1].held, true);
-});
-
-test("each reach-out is a line, with each of its steps on its own line under it", () => {
-  const vm = toReachOutReportVM(report(), NOW);
-  const [chain, first, nudge, call] = vm.sources;
-  assert.equal(chain.kind, "chain");
-  assert.equal(chain.name, "Trainers in Austin");
-  assert.equal(chain.to, "outbound/r1");
-  assert.equal(chain.meta, "Reach-out · 3 steps · 2 runs · Personal trainers · Austin");
-  assert.deepEqual(
-    [
-      chain.written,
-      chain.delivered,
-      chain.wroteBack,
-      chain.interested,
-      chain.booked,
-      chain.saidNo,
-      chain.bounced,
-      chain.last,
-    ],
-    ["40", "95%", "15% (6)", "3", "1", "2", "1", "Sep 23"],
-  );
-  assert.deepEqual([first.bounced, nudge.bounced, call.bounced], ["1", "0", "—"]);
-  assert.deepEqual(
-    [first.kind, first.name, first.written, first.wroteBack],
-    ["step", "1 · Your email", "30", "17% (5)"],
-  );
-  assert.equal(nudge.name, "2 · A short nudge");
-  assert.deepEqual(
-    [call.name, call.meta, call.written, call.interested],
-    ["3 · A call for you", "4 handed to you", "—", "—"],
-  );
-  const paused = toReachOutReportVM(
-    report({ chains: [{ ...report().chains[0], state: "paused", search: null }] }),
-    NOW,
-  );
-  assert.equal(paused.sources[0].meta, "Reach-out · 3 steps · 2 runs · paused");
-});
-
-test("written day by day is the series, with its table twin", () => {
-  const vm = toReachOutReportVM(report(), NOW);
-  assert.deepEqual(
-    vm.points.map((p) => [p.day, p.written]),
-    [
-      ["2026-09-22", 10],
-      ["2026-09-23", 30],
-    ],
-  );
-  assert.deepEqual(vm.table.columns, ["Day", "Written"]);
-  assert.equal(vm.table.rows.length, 2);
-  assert.equal(vm.lines.written, "");
-  const handed = toReachOutReportVM(report({ totals: counts({ written: 40, handed: 4 }) }), NOW);
-  assert.equal(handed.lines.written, "4 businesses handed to you as a call or a note, too.");
-});
-
-test("a period that wrote nothing says so; a workspace with no reach-out draws nothing", () => {
-  const empty = toReachOutReportVM(report({ totals: counts(), chains: [], angles: [], domains: [], no_angle: 0 }), NOW);
-  assert.equal(empty.empty, true);
-  assert.equal(empty.present, true);
-  assert.equal(empty.lines.empty, "No reach-out wrote in the last 7 days.");
-  assert.equal(toReachOutReportVM(report({ has_reach_out: false }), NOW).present, false);
-  // Only handed to the team is not empty: the steps say so.
-  assert.equal(toReachOutReportVM(report({ totals: counts({ handed: 2 }) }), NOW).empty, false);
-});
-
-test("a period of one day (This month so far, on the 1st) is today, never 'these 1 day'", () => {
-  const day = { days: 1, since: "2026-09-28", series: [{ day: "2026-09-28", written: 40 }] };
-  const vm = toReachOutReportVM(report(day), NOW);
-  assert.match(vm.lines.funnel, /^Of 40 emails written today\. /);
-  const empty = toReachOutReportVM(
-    report({ ...day, totals: counts(), chains: [], angles: [], domains: [], no_angle: 0 }),
-    NOW,
-  );
-  assert.equal(empty.lines.empty, "No reach-out wrote today.");
-  assert.equal(empty.lines.funnel, "Nothing was written today.");
-  const unangled = toReachOutReportVM(report({ ...day, angles: [], other_angles: { written: 0, wrote_back: 0 } }), NOW);
-  assert.equal(unangled.lines.angles, "No email today had an opening, so there is no angle to compare.");
-  assert.doesNotMatch(JSON.stringify([vm.lines, empty.lines, unangled.lines]), /\b1 day\b|these days/);
-  // A day a member picked that ended before today (00360) is said by its date, never as today.
-  const picked = { days: 1, end: "2026-09-20", since: "2026-09-20", series: [{ day: "2026-09-20", written: 40 }] };
-  assert.match(toReachOutReportVM(report(picked), NOW).lines.funnel, /^Of 40 emails written on Sep 20\. /);
-  const pickedEmpty = toReachOutReportVM(
-    report({ ...picked, totals: counts(), chains: [], angles: [], domains: [], no_angle: 0 }),
-    NOW,
-  );
-  assert.deepEqual(
-    [pickedEmpty.lines.empty, pickedEmpty.lines.funnel],
-    ["No reach-out wrote on Sep 20.", "Nothing was written on Sep 20."],
-  );
-  // Any other period keeps its words.
-  const week = report({ totals: counts(), chains: [], angles: [], other_angles: { written: 0, wrote_back: 0 } });
-  assert.equal(toReachOutReportVM(week, NOW).lines.funnel, "Nothing was written in these days.");
-  assert.equal(
-    toReachOutReportVM(week, NOW).lines.angles,
-    "No email in these days had an opening, so there is no angle to compare.",
-  );
 });
 
 test("the day's line at 6 PM says what happened, and nothing it did not count", () => {
@@ -263,19 +50,100 @@ test("a chain's own totals: every chain counted by the function, each by its roo
   for (const bad of [null, "x", [], { [ROOT_A]: { written: "40" } }, { [ROOT_A]: null }])
     assert.equal(chainTotalsOf(bad), null, `${JSON.stringify(bad)} is no answer of the function`);
   // A database before the function: the report's own chains, its steps summed, and not every chain.
-  const step = (written, wrote_back) => ({ ...counts({ written, wrote_back }), id: "s", n: 1, hand: null });
-  const fromReport = chainTotalsFromReport({
-    chains: [
-      {
-        root_id: ROOT_A,
-        name: "A",
-        state: "running",
-        search: null,
-        last_at: null,
-        runs: 2,
-        steps: [step(30, 4), step(10, 2)],
-      },
-    ],
+  const step = (written, wrote_back, businesses) => ({
+    ...counts({ written, wrote_back }),
+    ...(businesses === undefined ? {} : { businesses }),
+    id: "s",
+    n: 1,
+    hand: null,
   });
+  const chain = (steps) => ({
+    root_id: ROOT_A,
+    name: "A",
+    state: "running",
+    search: null,
+    last_at: null,
+    runs: 2,
+    steps,
+  });
+  const fromReport = chainTotalsFromReport({ chains: [chain([step(30, 4), step(10, 2)])] });
   assert.deepEqual(fromReport, { complete: false, by_root: { [ROOT_A]: { written: 40, wrote_back: 6 } } });
+});
+
+test("a chain's businesses (00404): a reach-out is counted in the businesses it wrote to, each once at its last email; absent on a database before it, refused where it is no count", () => {
+  const ROOT_A = "11111111-1111-4111-8111-111111111111";
+  const ROOT_B = "22222222-2222-4222-8222-222222222222";
+  // Nine emails to four businesses, two of whom wrote back: the share of a business is of businesses, never of emails.
+  assert.deepEqual(chainTotalsOf({ r1: { written: 9, businesses: 4, wrote_back: 2, last_at: null } }), {
+    complete: true,
+    by_root: { r1: { written: 9, businesses: 4, wrote_back: 2 } },
+  });
+  // A chain that wrote nothing is zeros, and a zero is a count.
+  assert.deepEqual(chainTotalsOf({ r0: { written: 0, businesses: 0, wrote_back: 0, last_at: null } })?.by_root.r0, {
+    written: 0,
+    businesses: 0,
+    wrote_back: 0,
+  });
+  // A database before 00404 answers without it: the key stays absent (not undefined, not zero).
+  const before = chainTotalsOf({ r1: { written: 9, wrote_back: 2 } });
+  assert.deepEqual(before, { complete: true, by_root: { r1: { written: 9, wrote_back: 2 } } });
+  assert.equal("businesses" in (before?.by_root.r1 ?? {}), false, "absent, so the Home says its old line");
+  // Present and no count: no answer of the function.
+  for (const bad of ["4", null, -1, 1.5, {}, [], true])
+    assert.equal(
+      chainTotalsOf({ r1: { written: 9, businesses: bad, wrote_back: 2 } }),
+      null,
+      `businesses ${JSON.stringify(bad)} is no count`,
+    );
+  // One root of two with a bad count refuses the whole answer, as a bad written does.
+  assert.equal(
+    chainTotalsOf({
+      r1: { written: 9, businesses: 4, wrote_back: 2 },
+      r2: { written: 3, businesses: "1", wrote_back: 0 },
+    }),
+    null,
+  );
+
+  // The report's own chains stand in on a database without the function: their steps' businesses summed, but only
+  // where every step carries it (a step without it, an older report, would make a sum that is not the chain's).
+  const step = (businesses, over = {}) => ({
+    ...counts({ written: 5, wrote_back: 1 }),
+    ...(businesses === undefined ? {} : { businesses }),
+    id: "s",
+    n: 1,
+    hand: null,
+    ...over,
+  });
+  const chain = (root_id, steps) => ({
+    root_id,
+    name: root_id,
+    state: "running",
+    search: null,
+    last_at: null,
+    runs: 1,
+    steps,
+  });
+  assert.deepEqual(chainTotalsFromReport({ chains: [chain(ROOT_A, [step(2), step(2)])] }), {
+    complete: false,
+    by_root: { [ROOT_A]: { written: 10, businesses: 4, wrote_back: 2 } },
+  });
+  assert.deepEqual(
+    chainTotalsFromReport({ chains: [chain(ROOT_A, [step(), step()])] }).by_root[ROOT_A],
+    { written: 10, wrote_back: 2 },
+    "steps without it leave it absent",
+  );
+  assert.deepEqual(
+    chainTotalsFromReport({ chains: [chain(ROOT_A, [step(2), step()])] }).by_root[ROOT_A],
+    { written: 10, wrote_back: 2 },
+    "one step without it leaves it absent: half a sum is no count",
+  );
+  assert.deepEqual(
+    chainTotalsFromReport({ chains: [chain(ROOT_A, [step(0), step(0)]), chain(ROOT_B, [step(3, { hand: "call" })])] })
+      .by_root,
+    {
+      [ROOT_A]: { written: 10, businesses: 0, wrote_back: 2 },
+      [ROOT_B]: { written: 5, businesses: 3, wrote_back: 1 },
+    },
+    "a zero is summed as a count, and each chain is its own",
+  );
 });

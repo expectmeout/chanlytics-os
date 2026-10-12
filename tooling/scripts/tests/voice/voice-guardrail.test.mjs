@@ -37,6 +37,8 @@ const agent = (content) => ({ role: "agent", content });
 const user = (content) => ({ role: "user", content });
 const injected = (content) => ({ role: "injected", content });
 const QUOTE = "It's usually $45 for a trim.";
+/** A call as it runs: the greeting, the caller's question, then what the agent said. */
+const asked = (said) => [agent("Thanks for calling. How can I help?"), user("How much is a trim?"), agent(said)];
 
 test("nothing said, nothing to answer for", () => {
   for (const turns of [null, undefined, [], [user("hi")], [agent("We open at nine.")]]) {
@@ -52,6 +54,12 @@ test("a price said out loud is found, with the words and which turn it was", () 
   assert.equal(b.rule, "price");
   assert.equal(b.said, QUOTE);
   assert.equal(b.turn, 2, "the agent's SECOND turn, counting only the agent's");
+});
+
+test("the greeting is the owner's line: a price in it, before the caller speaks, is theirs (decision 0051)", () => {
+  assert.equal(spokenBreach([agent("Thanks for calling. Trims start at $45. How can I help?")]), null);
+  assert.equal(spokenBreach([agent("Thanks for calling."), user("hi"), agent(QUOTE)]).turn, 2);
+  assert.equal(spokenBreach([user("hello?"), agent(QUOTE)]).turn, 1, "a first turn after the caller is no greeting");
 });
 
 test("only the agent answers for what the agent said", () => {
@@ -74,7 +82,7 @@ test("a correction is not speech, or it would correct itself for ever", () => {
 });
 
 test("the owner is told whether or not the call is still live; the call is corrected only while there is one", () => {
-  const turns = [agent(QUOTE)];
+  const turns = asked(QUOTE);
   const live = guardSpokenTurns({ turns, live: true, alreadyCorrected: false });
   assert.equal(live.correct, true);
   assert.equal(live.escalate.reason, "policy_block", "the same reason a blocked text draft raises");
@@ -89,7 +97,7 @@ test("the owner is told whether or not the call is still live; the call is corre
 });
 
 test("what the owner reads names the words and says why a call is different", () => {
-  const d = spokenBreachDetails(spokenBreach([agent(QUOTE)]));
+  const d = spokenBreachDetails(spokenBreach(asked(QUOTE)));
   assert.ok(d.includes(QUOTE), "the words are the evidence");
   assert.match(d, /cannot be taken back/i, "and the reason this is not simply a blocked draft");
   assert.match(d, /before confirming anything/i, "with the thing to actually do");
@@ -123,7 +131,7 @@ test("ONE rule: what layerTwo blocks on a text is what spokenBreach finds on a c
     });
     assert.equal(text.priceBlocked, true, `text blocks: ${said}`);
     assert.equal(text.escalationReason, "policy_block");
-    assert.ok(spokenBreach([agent(said)]), `voice finds: ${said}`);
+    assert.ok(spokenBreach(asked(said)), `voice finds: ${said}`);
   }
   // And they agree on the sentences a salon legitimately says, so neither
   // channel refuses an honest answer.

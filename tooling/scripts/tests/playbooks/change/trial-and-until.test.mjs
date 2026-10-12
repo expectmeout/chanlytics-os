@@ -1,5 +1,5 @@
 /**
- * A campaign runs on trial, and ends (00395 `trial_until`, `until`), EXECUTED: contracts effectiveMode, the one reading of
+ * A campaign runs on trial, and ends (00409 `trial_until`, `until`), EXECUTED: contracts effectiveMode, the one reading of
  * the mode a run goes under (auto waits for a person, as veto does, until the trial ends; every other mode is its own);
  * core runPlaybook over fakes that log their calls, a run on trial planned and told as veto ("on trial until"), a run on a
  * day past the campaign's last recorded once as `ended` with nothing read or sent; and Campaigns' home, which reads both
@@ -29,7 +29,7 @@ test("effectiveMode: auto waits for a person, as veto does, until the trial ends
   assert.equal(effectiveMode(trial, "auto", new Date("2026-10-19T09:00:00Z")), "auto");
   for (const mode of ["veto", "ask", "never"]) assert.equal(effectiveMode(trial, mode, before), mode, mode);
   assert.equal(effectiveMode({ trial_until: null }, "auto", before), "auto");
-  assert.equal(effectiveMode({}, "auto", before), "auto", "a row read before 00395 has no trial");
+  assert.equal(effectiveMode({}, "auto", before), "auto", "a row read before 00409 has no trial");
   assert.equal(effectiveMode({ trial_until: "next week" }, "auto", before), "auto");
   // The same instant however it is spelled: ten in New York is two in the afternoon UTC.
   assert.equal(effectiveMode({ trial_until: "2026-10-18T10:00:00-04:00" }, "auto", before), "veto");

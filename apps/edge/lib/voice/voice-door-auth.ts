@@ -40,6 +40,7 @@ import crypto from "node:crypto";
 import { stripKey, verifyRetellSignature } from "../packages/channels.js";
 import { env } from "../env.js";
 import { logger } from "../log.js";
+import { json } from "../http.js";
 
 /** Retell's signature over a delivery: the badged key, the raw body, then the body as Retell's example re-serialises it. */
 export function retellSigned(
@@ -128,6 +129,16 @@ function presentedSecret(door: VoiceDoor, request: Request): string | null {
  * away without a word is how the webhook lost 127 deliveries. Until then a refusal is somebody without the secret,
  * and a public URL does not write a line for each of those.
  */
+/**
+ * A phone tool's answer to a knock its door turned away, before anything is read or sent: a sentence the agent speaks,
+ * since a 401 has no words and the call went silent mid-sentence, and a line in the log, since the 401 in the access log
+ * was the only trace of a secret gone stale on a tool (the review of 11 Oct 2026).
+ */
+export function refusedOutLoud(door: "fn" | "availability", result: string): Response {
+  logger().warn("voice_tool_knock_refused", { door });
+  return json(200, { result });
+}
+
 export function voiceDoorAuth(
   door: VoiceDoor,
   request: Request,

@@ -11,6 +11,7 @@ import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
 import { useSwapMotion } from "../../kit/motion/use-swap-motion";
+import { Search } from "../../kit/search/search";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { StatePill } from "../../kit/pill/state-pill";
 import { useSurface } from "../../use-surface";
@@ -410,14 +411,14 @@ function listPane(p: {
       <div className="cv-list-head">
         {canPick.length > 0 &&
           pickAll({ ids: canPick, selected: pick.selected, onToggle: pick.toggle, onClear: pick.clear })}
-        <div className="cl-search-wrap">
-          <Icon name="search" size={13} />
-          <input
-            placeholder="Search names, transcripts, messages…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </div>
+        {/* The kit's search, Needs you's and People's capsule (it was People's old desk box, a second look on one page). */}
+        <Search
+          className="cv-lookup"
+          label="Search names, transcripts, messages"
+          value={query}
+          onChange={setQuery}
+          testid="cv-search"
+        />
       </div>
       {CALLS_READ === false && (
         <FailedRead

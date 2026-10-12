@@ -6,10 +6,12 @@
  *
  * Pure: the dashboard's week assembler (server/calendar/calendar-week.ts) hands the rows in and takes the items out.
  */
-import type { CalendarItemDto } from "./calendar-dto";
+import type { CalendarItemDto, VisitMark } from "./calendar-dto";
+import { APPOINTMENT_STATUSES, type AppointmentStatus } from "./feed-appointments";
 import type { BusyBlock, FeedItem } from "./feed";
 import { extractContacts, type OwnAddresses, type PersonLike, type PersonMatch } from "./calendar-people";
 import { bookingToolName, SAME_VISIT_MS } from "./booking-notice";
+import { appointmentKeyOf, recordKeyOf } from "./appointment-key";
 import { shiftKey, zoneMidnight } from "./day-keys";
 
 /** An appointment row as the board reads it: the columns a notice fills (packages/db appointments). */
@@ -58,10 +60,11 @@ export function feedItemOfAppointment(row: AppointmentLike): FeedItem {
     end: Date.parse(row.ends_at),
     title: appointmentTitle(row),
     allDay: row.all_day,
-    uid: `appt:${row.id}`,
-    description: row.note,
+    uid: recordKeyOf(row.id),
+    // The client's number where an event carries one, and their address as a guest, so the one visits index
+    // (indexFeed) finds the row by either as it finds an event: a notice that gave a number alone is still theirs.
+    description: [row.note, row.client_phone].filter(Boolean).join("\n") || null,
     location: null,
-    // The client as a guest, so the one visits index (indexFeed) finds the row by their address as it finds an event.
     attendees: row.client_email ? [{ name: row.client_name, email: row.client_email }] : [],
     organizer: null,
   };
@@ -83,10 +86,86 @@ export function personOfAppointment(row: AppointmentLike, people: PersonLike[]):
   };
 }
 
+/** The row's id and status as the board carries them: null for a status the record does not hold. */
+function visitMarkOf(row: Pick<AppointmentLike, "id" | "status">): VisitMark | null {
+  return (APPOINTMENT_STATUSES as readonly string[]).includes(row.status)
+    ? { id: row.id, status: row.status as AppointmentStatus }
+    : null;
+}
+
+/** A feed row's word, with the start the row holds: the event's start when the word was said. */
+export interface FeedMark extends VisitMark {
+  start: number;
+}
+
+/**
+ * The feed's rows by their key, with how each stands and when: what a feed event the board draws finds its record's
+ * row by (appointmentKeyOf), so a member's word on it is said there. Pure.
+ */
+export function feedMarksOf(
+  rows: ReadonlyArray<{ id: string; status: string; external_id: string | null; starts_at: string }>,
+): Map<string, FeedMark> {
+  const marks = new Map<string, FeedMark>();
+  for (const r of rows) {
+    const mark = visitMarkOf(r);
+    if (mark && r.external_id) marks.set(r.external_id, { ...mark, start: Date.parse(r.starts_at) });
+  }
+  return marks;
+}
+
+/**
+ * An event's row and its word, while the event stands where its row does. An event moved on the calendar since the
+ * hourly sync last read it (00397 sets a said row aside and keeps a fresh one at the new time) carries no word, and no
+ * row a member's word could go on, until the sync has: "missed" said of the 10th is not said of the 17th it moved to.
+ */
+export function markOn(
+  marks: ReadonlyMap<string, FeedMark> | null | undefined,
+  it: Pick<FeedItem, "uid" | "start" | "occurrence">,
+): VisitMark | null {
+  const m = marks?.get(appointmentKeyOf(it));
+  return m && m.start === it.start ? { id: m.id, status: m.status } : null;
+}
+
+/**
+ * The record a reader joins to the feed (decision 0002, its readers): the rows that are not the feed's own, a booking's
+ * from its notice, however they stand, and each feed row's word by its key (feedMarksOf).
+ */
+export interface PoolRecord {
+  noted: readonly AppointmentLike[];
+  marks: ReadonlyMap<string, FeedMark>;
+}
+
+/**
+ * The feed with the record joined (0002's readers: People, Reports and the playbooks read them together): a visit a
+ * notice states is the notice's (the feed's copy of it left out, withoutVisitsRowsDraw, as the board draws it once), a
+ * booking that stands or was said kept or missed joins as an item (feedItemOfAppointment), a request is no visit yet,
+ * and a cancelled visit is none, whoever cancelled it. Each item carries a member's kept or missed (FeedItem.said). The
+ * feed's words stay the feed's: a feed event is the event, its row's word laid on it. Pure; by start.
+ */
+export function feedWithRecord(
+  items: readonly FeedItem[],
+  record: PoolRecord | null | undefined,
+  own: OwnAddresses,
+): FeedItem[] {
+  if (!record) return [...items];
+  const out: FeedItem[] = [];
+  for (const it of withoutVisitsRowsDraw([...items], [...record.noted], own)) {
+    const said = markOn(record.marks, it)?.status;
+    if (said === "cancelled") continue;
+    out.push(said === "kept" || said === "missed" ? { ...it, said } : it);
+  }
+  for (const r of record.noted) {
+    if (r.status !== "booked" && r.status !== "kept" && r.status !== "missed") continue;
+    const it = feedItemOfAppointment(r);
+    out.push(r.status === "booked" ? it : { ...it, said: r.status });
+  }
+  return out.sort((a, b) => a.start - b.start);
+}
+
 /** The board's row for an appointment: the item the day draws, with what the notice stated. */
 export function itemOfAppointment(row: AppointmentLike, people: PersonLike[]): CalendarItemDto {
   return {
-    id: `appt:${row.id}`,
+    id: recordKeyOf(row.id),
     start: new Date(Date.parse(row.starts_at)).toISOString(),
     end: new Date(Date.parse(row.ends_at)).toISOString(),
     title: appointmentTitle(row),
@@ -104,6 +183,7 @@ export function itemOfAppointment(row: AppointmentLike, people: PersonLike[]): C
     service: row.service,
     staff: row.staff,
     price: row.price,
+    visit: visitMarkOf(row),
   };
 }
 

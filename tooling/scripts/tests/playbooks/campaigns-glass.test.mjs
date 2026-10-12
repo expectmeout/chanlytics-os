@@ -60,7 +60,6 @@ const within = (tree, id, inner) => {
   const outer = byTestId(tree, id);
   return !!outer && !!find(outer, (n) => n.props?.["data-testid"] === inner);
 };
-const wordOf = (row) => textOf(find(row, (n) => String(n.props?.className || "").includes("-grow-word")));
 
 /** Campaigns' home over the two surfaces it is made from (the samples a demo draws), the month said as the test gives it. */
 const homeOf = (over = {}) => {
@@ -146,41 +145,32 @@ test("the head says the month's allowance from half used, quietly: one line afte
   assert.ok(textOf(standingSaid()?.sentence).includes("300 of 500 texts used this month"));
 });
 
-test("the playbook composer: five rows, To, Send by, Says, When and Under, each holding its section", () => {
+test('the playbook composer is one sentence (Ruben, 11 Oct 2026, "Option B"): its words the hour, the channels and the moment, who it reaches under it, then the message and when it first runs', () => {
   const glass = composing();
-  const rows = ["pb-row-to", "pb-row-via", "pb-row-says", "pb-row-when", "pb-row-under"].map((id) =>
-    byTestId(glass, id),
-  );
-  assert.ok(
-    rows.every((r) => r),
-    "the five rows",
-  );
-  assert.deepEqual(rows.map(wordOf), ["To", "Send by", "Says", "When", "Under"]);
-  // In the order they are drawn: Send by stands under To (8 Oct 2026), beside the count its switches change, where it
-  // stood two rows and a whole preview below it.
-  assert.deepEqual(
-    all(glass, (n) => String(n.props?.className || "") === "pb-grow").map((n) => n.props["data-testid"]),
-    ["pb-row-to", "pb-row-via", "pb-row-says", "pb-row-when", "pb-row-under"],
-  );
-  assert.ok(within(glass, "pb-row-to", "pb-who"), "To holds who it is for");
-  assert.ok(within(glass, "pb-row-says", "pb-message"), "Says holds the message");
-  assert.ok(within(glass, "pb-row-via", "pb-via-sec"), "Send by holds the channels it goes by");
-  assert.ok(within(glass, "pb-row-when", "pb-clock"), "When holds the sentence of its numbers");
-  assert.ok(within(glass, "pb-row-under", "pb-guard"), "Under holds the guardrails");
-  assert.ok(
-    within(glass, "pb-row-under", "pb-runs-under") || byTestId(glass, "pb-runs-under") === null,
-    "and the row it runs under",
-  );
+  const recipe = byTestId(glass, "pb-recipe");
+  assert.ok(recipe, "the sentence");
+  for (const id of ["pb-hour", "pb-moment"])
+    assert.equal(
+      all(recipe, (n) => n.type === Picker && n.props["data-testid"] === id).length,
+      1,
+      `${id} is a word of it, once: the kit's Picker`,
+    );
+  assert.ok(byTestId(recipe, "pb-via"), "the channels are a word of it, their list behind it");
+  // Down the sheet: the sentence, who it reaches, the message, when it first runs. No row and no word at the left of one.
+  const order = ["pb-recipe", "pb-reach", "pb-message", "pb-forecast"].filter((id) => byTestId(glass, id));
+  const drawn = all(glass, (n) => order.includes(n.props?.["data-testid"])).map((n) => n.props["data-testid"]);
+  assert.deepEqual([...new Set(drawn)], order);
+  assert.equal(all(glass, (n) => String(n.props?.className || "") === "pb-grow").length, 0, "no rows");
   assert.equal(
-    all(glass, (n) => n.type === Picker && n.props["data-testid"] === "pb-hour").length,
-    1,
-    "the hour is chosen where it was, once: the kit's Picker in the When row's sentence",
+    byTestId(glass, "pb-guard"),
+    null,
+    "the guardrails are behind who it reaches, not a shield of their own",
   );
   assert.ok(!textOf(glass).includes("One approved message"), "no explanation under the title");
   for (const id of ["pb-save", "pb-cancel"]) assert.ok(byTestId(glass, id), `the foot keeps ${id}`);
 });
 
-test("the broadcast composer: the rows To, Send by, Says, When in one pane", () => {
+test("the broadcast composer is one sentence in one pane: what, to whom, by which channels and when, who hears it under it, the message, and when it goes", () => {
   const open = () => {
     setSurfaceValue("broadcasts", broadcastsSample(NOW));
     freshTree();
@@ -190,19 +180,15 @@ test("the broadcast composer: the rows To, Send by, Says, When in one pane", () 
     return page();
   };
   const glass = open();
-  const rows = all(glass, (n) => String(n.props?.className || "") === "bc-grow");
-  // Send by is the row under To (8 Oct 2026; One message, every channel, step 3 drew it between Says and When).
-  assert.deepEqual(rows.map(wordOf), ["To", "Send by", "Says", "When"]);
-  assert.ok(within(glass, "bc-composer", "bc-col-who") && within(glass, "bc-composer", "bc-col-what"));
-  assert.ok(within(glass, "bc-composer", "bc-col-when"), "each column keeps its testid");
-  assert.ok(within(glass, "bc-composer", "bc-col-via"), "Send by keeps its testid");
-  // Each holds its sentence of tokens (the kit's pickers).
-  for (const [col, id] of [
-    ["bc-col-who", "bc-audience"],
-    ["bc-col-what", "bc-preview"],
-    ["bc-col-when", "bc-when-mode"],
-  ])
-    assert.ok(within(glass, col, id), `${col} holds ${id}`);
+  assert.equal(all(glass, (n) => String(n.props?.className || "") === "bc-grow").length, 0, "no rows");
+  const recipe = byTestId(glass, "bc-recipe");
+  assert.ok(within(glass, "bc-composer", "bc-recipe"), "the sentence, in the pane");
+  // Its words are the kit's pickers: the list and the time; the channels a word that opens their list.
+  for (const id of ["bc-audience", "bc-when-mode"]) assert.ok(byTestId(recipe, id), `${id} is a word of the sentence`);
+  assert.ok(byTestId(recipe, "bc-via"), "and the channels");
+  assert.ok(within(glass, "bc-composer", "bc-col-what"), "the message keeps its testid");
+  assert.ok(within(glass, "bc-col-what", "bc-preview"), "and holds the preview");
+  assert.ok(within(glass, "bc-composer", "bc-when-note"), "when it goes, under the message");
   assert.ok(String(byTestId(glass, "bc-composer").props.className).includes("bc-glass"));
   assert.ok(byTestId(glass, "bc-send") && byTestId(glass, "bc-compose-close"), "the foot and Cancel are the same");
 });

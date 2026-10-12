@@ -4,11 +4,12 @@
  * says, by one id, where its builder builds it (`metric`): a closed set, so a tile that says what no id names is a compile
  * error rather than a lookup that falls back, and the id is what the figure is called wherever it is read (the page's
  * figures today; a definition's tooltip, Ask's block and the headline of a later phase). Not prefixed by a lens: a tile moves
- * between lenses (the lenses spec, D18) and its id does not. The receptionist's tiles are built here; the campaigns' and
- * Google's are built where their reports are, and name their figures from this same set.
+ * between lenses (the lenses spec, D18) and its id does not. The receptionist's tiles are built here; the campaigns' (the lens's
+ * strip) and Google's are built where their reports are, and name their figures from this same set.
  */
 import type { BookingReportVM } from "./booking-report";
 import { durationWords } from "../shared/clock";
+import { pct } from "../shared/numbers";
 import { plural } from "../shared/words";
 import { holdNote } from "./report-speed";
 import type { PeriodFacts } from "./reports";
@@ -22,9 +23,7 @@ export type ReportMetric =
   | "calls"
   | "new_people"
   | "booked"
-  | "messages_sent"
   | "delivered_share"
-  | "replied_share"
   | "said_yes"
   | "asked_to_stop"
   | "rating"
@@ -40,13 +39,49 @@ export type ReportMetric =
   | "answered_while_closed"
   | "waiting_on_you"
   | "call_backs"
-  | "replies_held_back";
+  | "replies_held_back"
+  | "people_reached"
+  | "yeses_won"
+  | "stops_recorded"
+  | "steps_overdue"
+  | "steps_due_today"
+  | "email_stopped_now"
+  | "said_yes_messages"
+  | "can_receive_offers"
+  | "opted_out_now"
+  | "quiet_now"
+  | "emails_written"
+  | "emails_landed"
+  | "emails_bounced"
+  | "people_sent_to"
+  | "people_wrote_back"
+  | "runs_waiting"
+  | "runs_failed"
+  | "campaign_replies_waiting"
+  | "templates_paused"
+  | "number_health";
 
 /**
  * The fewest a ratio is of for it to say anything (the reports lenses spec, D9): a share or a median of fewer than this is
  * greyed and says how few it is of. One number for every lens; the reviews' reply time keeps its own, smaller, minimum.
  */
 export const REPORT_MIN_N = 5;
+
+/**
+ * Whether a share is of some, but too few, to say anything (D9): a count above none and under the fewest (`minN`: REPORT_MIN_N, or
+ * the ratio's own where it keeps one, as the reviews' reply time does; required, so a caller names the minimum it judges by).
+ * Of none there is no ratio to grey, and its line says why. The one predicate for the kit's greyed Figure, a bar of a rate,
+ * and what Ask leaves unsaid, so the three never part.
+ */
+export const isThinShare = (n: number, minN: number): boolean => n > 0 && n < minN;
+
+/**
+ * A share as a lens says it where it is written, not drawn (D9): of five or more a percentage, under that the count it is of
+ * ("3 of 4"), and of nothing none at all (`share` is null: a dash with words is the caller's). A percentage of fewer than five
+ * is never said. The one spelling for a channel's delivered share, a source's, and Ask's.
+ */
+export const shareSaid = (share: number | null, count: number, of: number): string | null =>
+  share === null ? null : of >= REPORT_MIN_N ? `${share}%` : `${count} of ${of}`;
 
 export interface ReportTileVM {
   id: string;
@@ -68,6 +103,11 @@ export interface ReportTileVM {
   n?: number;
   /** The fewest `n` that say anything (REPORT_MIN_N): a ratio of fewer is greyed on the page. */
   minN?: number;
+  /**
+   * What the number is, where it is not plain ink (the reports lenses spec, D10): `warn` for what needs you (steps overdue),
+   * `fail` for what failed (email that stopped working). On the value alone, never its change; set on no tile but those.
+   */
+  tone?: "warn" | "fail";
 }
 
 /** A duration in an owner's words (durationWords), or a dash where there is none. */
@@ -122,6 +162,40 @@ export function compareWords(
   if (previous === 0) return `none ${beforeWords(rangeLabel)}`;
   if (current === previous) return `same as ${beforeWords(rangeLabel)}`;
   return `${current > previous ? "up" : "down"} from ${previous}`;
+}
+
+/**
+ * A share against the period before's share, in words: "was 88% the 30 days before". The period before's share only where
+ * that period had five or more to take it of (REPORT_MIN_N), else the count it is of in the same place ("was 2 of 3 the 30
+ * days before", as shareSaid says it): a share of fewer than five is never said, in a period before any more than in this one
+ * (D9). The figure's own label says what is counted ("Delivered", "Wrote back"), so neither form repeats it. None where this
+ * period or the period before has nothing to take a share of (`nowOf`, `was.of`), so there is nothing to set beside it. The one
+ * rule for the Campaigns lens's Delivered and Wrote back and for the Reach-outs' Landed.
+ */
+export function shareWasWords(nowOf: number, was: { part: number; of: number }, rangeLabel: string): string | null {
+  if (nowOf === 0) return null;
+  const said = shareSaid(pct(was.part, was.of), was.part, was.of);
+  return said === null ? null : `was ${said} ${beforeWords(rangeLabel)}`;
+}
+
+/**
+ * Messages answered, as a count of the messages sent: "9 of 24 were answered", "1 of 3 was answered". A message is answered and
+ * a person writes back: the Campaigns lens says each message's rate this way, and the Overview's fact of the campaign that drew
+ * the most replies says it as the lens does; "wrote back" is left to the people (the lens's strip and head).
+ */
+export const messagesAnsweredWords = (answered: number, of: number): string =>
+  `${answered} of ${of} ${answered === 1 ? "was" : "were"} answered`;
+
+/**
+ * The People lens's head until its own read lands, and when it says nothing: how many new people reached the business,
+ * against the period before where that was lived in (priorHadAny, as compareWords has it). A quiet period has a sentence
+ * too ("Nobody new reached you"): the head is never empty.
+ */
+export function newPeopleLine(newNow: number, newBefore: number, rangeLabel: string, priorHadAny: boolean): string {
+  if (newNow === 0) return "Nobody new reached you in this period.";
+  const reached = `${plural(newNow, "new person", "new people")} reached you`;
+  if (!priorHadAny) return `${reached}.`;
+  return `${reached} (${newBefore === 0 ? "none" : newBefore} ${beforeWords(rangeLabel)}).`;
 }
 
 /** A tile: a number over the period, what it is, a line under it, and the period before beside it. */
@@ -222,10 +296,10 @@ export const REPORT_TILES: readonly ReportTile[] = [
   peopleTile,
 ];
 
-/** What the page's strip draws of a tile: its figure, its words, the period before beside it, and the page it opens and the count it is of where it has them. */
+/** What the page's strip draws of a tile: its figure, its words, the period before beside it, and the page it opens, the count it is of and the tone of its number where it has them. */
 export type ReportStripTile = Pick<
   ReportTileVM,
-  "id" | "metric" | "label" | "value" | "meta" | "compare" | "door" | "n" | "minN"
+  "id" | "metric" | "label" | "value" | "meta" | "compare" | "door" | "n" | "minN" | "tone"
 >;
 
 /** What the Booked tile says, under its dash, for days that ended before today: the reason booking-report's BOOKED_NEEDS_TODAY gives, in a tile's few words. */

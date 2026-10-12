@@ -366,7 +366,7 @@ function consentItems({ profile, stamp }: PersonCardContext): PersonTimelineItem
 
 /**
  * Their visits, from the calendar: what happened in the chair belongs on
- * the same line as what was said. A visit ahead reads as booked.
+ * the same line as what was said. A visit ahead reads as booked, one behind as past.
  */
 function visitItems({ profile, nowMs, base, stamp }: PersonCardContext): PersonTimelineItemVM[] {
   const items: PersonTimelineItemVM[] = [];
@@ -383,7 +383,9 @@ function visitItems({ profile, nowMs, base, stamp }: PersonCardContext): PersonT
         ...stamp(t),
         kind: "visit",
         who: "Calendar",
-        text: `${ahead ? "Booked" : "Visited"} · ${visitTitleFor(v.title, base.name)}`,
+        // Past, never "visited": the calendar says when, not that they came (decision 0002's answer 3). A member's word on
+        // it is said instead (step 8): kept, or missed.
+        text: `${ahead ? "Booked" : v.said === "missed" ? "Missed" : v.said === "kept" ? "Kept" : "Past visit"} · ${visitTitleFor(v.title, base.name)}`,
         sub: `${visitTime(v, zone)} · from ${profile.visits.source}${v.via === "name" ? " · matched by name" : ""}`,
         link: { label: "Open the day", to: `calendar/${visitDateKey(v.start, zone)}` },
       });
@@ -417,12 +419,15 @@ function dealItems({ profile, dealsOn, stamp }: PersonCardContext): PersonTimeli
   return items;
 }
 
-/** How they came to be in People, when a door other than their own words added them (addedBy). */
+/** How they came to be in People, when a door other than their own words added them (addedBy); an ad that did is a door to it. */
 function addedItems({ profile, stamp }: PersonCardContext): PersonTimelineItemVM[] {
   if (!profile.added) return [];
   const t = ts(profile.added.at);
   const by = addedBy(profile.added);
-  return t !== null ? [{ id: "added", ts: t, ...stamp(t), kind: "system", who: by.who, text: `Added ${by.how}` }] : [];
+  const door = by.to ? { link: { label: "Open the ad", to: by.to } } : {};
+  return t !== null
+    ? [{ id: "added", ts: t, ...stamp(t), kind: "system", who: by.who, text: `Added ${by.how}`, ...door }]
+    : [];
 }
 
 /** Where the reach-out's lead was found, with the door to it on Leads (Part 6, H11). */

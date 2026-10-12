@@ -109,7 +109,7 @@ const PROPOSAL = {
   example: "https://docs.example.com/proposal",
 };
 const PROPOSAL_ES = { ...PROPOSAL, label: "Enlace de la propuesta" };
-// Where a customer leaves the business a review: the link its Google listing keeps (00394), filled at the send.
+// Where a customer leaves the business a review: the link its Google listing keeps (00408), filled at the send.
 const REVIEW = { kind: "review_link" as const, label: "Review link", example: "https://g.page/r/example/review" };
 const REVIEW_ES = { ...REVIEW, label: "Enlace de reseñas" };
 const OFFER = { kind: "text" as const, label: "The offer", example: "20% off any service booked before Friday." };

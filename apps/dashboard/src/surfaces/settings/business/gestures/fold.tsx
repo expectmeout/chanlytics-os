@@ -24,6 +24,9 @@ import { type BtEditDoor, useBtEditor, type BtEditor } from "./editor";
 
 /* ------------------------------------ a set of fields, under the row that states them ------------------------------------ */
 
+/** The line a sheet folds what saving tells the receptionist behind (RecordSays' `folded`). */
+const BT_TOLD_LABEL = "Preview what it's told";
+
 /** What a fold's row says at rest. */
 interface BtFoldRow {
   value?: ReactNode;
@@ -200,13 +203,16 @@ function btFoldAtRest<D>(r: BtFoldR<D>, e: BtEditor<D>, has: boolean) {
  * chosen says why under the choice rather than closing as if it had saved. `after(draft)` runs once the fold's save is
  * taken, with the draft it saved: the create card sends what the settings do not hold through its own door then.
  *
- * What it will say is its blocks whole, under "Your receptionist will be told", with the lines that go under "It will
- * no longer be told", and before them the sentence for a save that crosses the resolver's line and each block's own
- * note (willSay's `caveat`: the rules' block says which of its lines the Autonomy tab wrote, the hand-off's that it is
- * always sent). A fold whose fields are LINES of a block other rows write too (`lines`: the voice and the languages are
- * lines of Who you are, beside the name, the address and the link) says only the lines its draft changes, as a row does,
- * under "It will be told": the whole block would say eight lines about a change to one, and say them before anything
- * was typed.
+ * What it will say is folded behind one line in the sheet, "Preview what it's told" (the kit's RecordSays, folded),
+ * marked "Changed" when the draft makes any of its blocks read otherwise (willSay's `changed`): its blocks whole, with
+ * the lines that go under "No longer told", and each block's own note inside with them (willSay's `caveat`: the rules'
+ * block says whose lines beside it, the hand-off's that it is always sent). The sentence for a save that crosses the
+ * resolver's line stays on show over the line, since it says what the save does past its own lines. A fold whose
+ * fields are LINES of a block other rows write too (`lines`: the voice and the languages are lines of Who you are,
+ * beside the name, the address and the link) holds only the lines its draft changes, as a row does: the whole block
+ * would say eight lines about a change to one, and say them before anything was typed. Its title stands alone over its
+ * fields (Ruben, 10 Oct 2026): a `hint` is passed only where it is the one fact the sheet needs (the hours' zone, the
+ * first run's three things it asks for).
  */
 export function BtFold<D = unknown>(props: BtFoldProps<D>) {
   const r = btFoldProps(props);
@@ -229,7 +235,10 @@ export function BtFold<D = unknown>(props: BtFoldProps<D>) {
   });
   const found = e.fields.problems;
   const will = e.will;
-  const note = will ? [will.note, lines ? null : will.caveat].filter(Boolean).join(" ") || null : null;
+  // The crossing stays on show over the folded lines (it says what the save does past them); the block's own note goes
+  // in with them (`saysAside`), since it says whose lines they are.
+  const note = will ? will.note : null;
+  const aside = will && !lines ? will.caveat : null;
   const says = will ? (lines ? will.added : will.whole) : null;
   const changed = useBtChanged(says);
   const goneChanged = useBtChanged(will ? will.removed : null);
@@ -248,9 +257,11 @@ export function BtFold<D = unknown>(props: BtFoldProps<D>) {
         says={says}
         changed={changed}
         goneChanged={goneChanged}
-        saysLabel={lines ? "It will be told" : "Your receptionist will be told"}
+        saysLabel={BT_TOLD_LABEL}
+        saysMark={will && will.changed ? "Changed" : null}
+        saysAside={aside}
         gone={will ? will.removed : null}
-        goneLabel="It will no longer be told"
+        goneLabel="No longer told"
         note={note}
         footNote={r.footNote}
         focusOn={e.focusOn}
@@ -368,6 +379,8 @@ export function BtSheet<D = unknown>(props: BtSheetProps<D>) {
       title={r.title}
       sub={r.sub}
       className={r.className}
+      // As tall as what it holds, up to a list's height, on a phone: a short list never opens onto a screen of blank.
+      fit
       onClose={e.asks.cancel}
       focusOn={e.focusOn}
       tools={tools ? tools(f) : null}

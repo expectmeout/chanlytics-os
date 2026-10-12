@@ -256,9 +256,9 @@ export interface PlaybookPatchRow {
   template_id: string | null;
   /** Its words as the row stores them (playbooks.params): the slot specs a run fills, read as a run reads them. */
   params: unknown;
-  /** Its last day (00395), YYYY-MM-DD by the business's clock, or null. */
+  /** Its last day (00409), YYYY-MM-DD by the business's clock, or null. */
   until: string | null;
-  /** Until when it runs on trial (00395), an instant, or null. */
+  /** Until when it runs on trial (00409), an instant, or null. */
   trial_until: string | null;
 }
 
@@ -276,7 +276,7 @@ const patchNumber = (k: keyof typeof PLAYBOOK_LIMITS, v: unknown, was: number): 
   v === undefined ? undefined : playbookNumber(k, v, was);
 
 /**
- * Its words a change names (00395 `params`): as many values as its message takes, each judged as a new campaign's are
+ * Its words a change names (00409 `params`): as many values as its message takes, each judged as a new campaign's are
  * (templateValues: typed text, or a value the run fills that this moment and this workspace can fill), and a follow-up's
  * link kept. The specs a run fills, as the route stores them; undefined where the change names none.
  */
@@ -308,7 +308,7 @@ interface PatchWhen {
 }
 
 /**
- * The last day a change or a new campaign names (00395 `until`): a day by the business's clock, today or later, or on an
+ * The last day a change or a new campaign names (00409 `until`): a day by the business's clock, today or later, or on an
  * undo the day it held, past or not; null clears it, or names none. The one judgement checkPlaybookPatch, POST playbooks
  * (the dashboard's startNewPlaybook) and Ask's new campaign card ask; the zone is read only where a day is to be judged.
  */
@@ -331,7 +331,7 @@ export async function untilOf(
 const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/;
 
 /**
- * The end of its trial a change or a new campaign names (00395 `trial_until`): an instant still to come at `now`, kept
+ * The end of its trial a change or a new campaign names (00409 `trial_until`): an instant still to come at `now`, kept
  * in one spelling (UTC); null ends it, or starts none. A trial that has already ended is none, so an instant past is
  * refused, from every caller but an undo (`when.undo`), which writes back the instant the door recorded, past or not.
  * The one judgement checkPlaybookPatch and POST playbooks (the dashboard's startNewPlaybook, before a starter is filed)

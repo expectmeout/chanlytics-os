@@ -35,8 +35,8 @@
     "depth": 2
   },
   "apps/dashboard/src/legacy/components/sidebar.jsx::Sidebar#1": {
-    "lines": 208,
-    "branches": 32,
+    "lines": 205,
+    "branches": 31,
     "depth": 0
   },
   "apps/dashboard/src/legacy/components/sidebar.jsx::SidebarRow#1": {
@@ -169,11 +169,6 @@
     "branches": 32,
     "depth": 2
   },
-  "apps/edge/lib/playbooks.ts::loadTenantRunContext#1": {
-    "lines": 135,
-    "branches": 35,
-    "depth": 2
-  },
   "apps/edge/lib/reach-out/check.ts::checkSends#1": {
     "lines": 188,
     "branches": 13,
@@ -200,8 +195,8 @@
     "depth": 2
   },
   "apps/edge/lib/receptionist/steer.ts::steerHeldDraft#1": {
-    "lines": 128,
-    "branches": 35,
+    "lines": 123,
+    "branches": 34,
     "depth": 1
   },
   "apps/edge/lib/tenant-runtime.ts::loadTenantRuntime#1": {
@@ -210,13 +205,13 @@
     "depth": 2
   },
   "apps/edge/lib/voice/call-booking-link.ts::sendBookingLinkOnCall#1": {
-    "lines": 269,
+    "lines": 267,
     "branches": 40,
     "depth": 3
   },
   "apps/edge/lib/voice/call-start.ts::planCallStart#1": {
-    "lines": 149,
-    "branches": 34,
+    "lines": 139,
+    "branches": 31,
     "depth": 6
   },
   "apps/edge/lib/whatsapp/connect-number.ts::connectWhatsAppNumber#1": {
@@ -305,13 +300,13 @@
     "depth": 0
   },
   "packages/contracts/src/people/lists/list-rules.ts::listFactWords#1": {
-    "lines": 60,
-    "branches": 49,
+    "lines": 53,
+    "branches": 46,
     "depth": 1
   },
   "packages/contracts/src/people/person-row.ts::toPersonRowVM#1": {
-    "lines": 124,
-    "branches": 57,
+    "lines": 117,
+    "branches": 53,
     "depth": 0
   },
   "packages/contracts/src/setup/capabilities.ts::capabilityStatus#1": {
@@ -331,7 +326,7 @@
   },
   "packages/contracts/src/setup/first-run.ts::receptionistCardOf#1": {
     "lines": 55,
-    "branches": 39,
+    "branches": 38,
     "depth": 1
   },
   "packages/contracts/src/shell/refusal.ts::refusalOf#1": {

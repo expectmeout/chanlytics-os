@@ -22,6 +22,7 @@ export const ROUTE_KEYS = [
   "DELETE team/partner",
   "DELETE templates/[id]",
   "DELETE templates/versions/[id]",
+  "DELETE workspaces/logo",
   "GET activity",
   "GET ask/openings",
   "GET ask/threads",
@@ -76,7 +77,9 @@ export const ROUTE_KEYS = [
   "GET reach-outs/reach",
   "GET reports",
   "GET reports/campaigns",
+  "GET reports/campaigns/ledger",
   "GET reports/headline",
+  "GET reports/people",
   "GET reports/reach-outs",
   "GET reports/receptionist",
   "GET reports/reviews",
@@ -114,6 +117,7 @@ export const ROUTE_KEYS = [
   "POST calendar/notices/[id]/dismiss",
   "POST calendar/notices/[id]/read-again",
   "POST calendar/preview",
+  "POST calendar/visits/[id]",
   "POST calls/[id]/end",
   "POST calls/[id]/hand-over",
   "POST calls/[id]/whisper",
@@ -213,6 +217,7 @@ export const ROUTE_KEYS = [
   "POST templates/versions",
   "POST vitals",
   "POST workspaces/create",
+  "POST workspaces/logo/lookup",
   "PUT business-record",
   "PUT contacts/[id]/consent",
   "PUT contacts/[id]/details",
@@ -236,6 +241,7 @@ export const ROUTE_KEYS = [
   "PUT settings",
   "PUT templates/[id]",
   "PUT views/[page]",
+  "PUT workspaces/logo",
 ] as const;
 
 /** A route by its key: "POST conversations/[id]/reply". */

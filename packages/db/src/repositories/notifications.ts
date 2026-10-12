@@ -4,7 +4,9 @@
  * throws.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { HOUR_MS, MIN_MS } from "@chanlytics/contracts";
 import type { Database } from "../database.types";
+import { DELIVERED } from "./thread";
 
 type Db = SupabaseClient<Database>;
 
@@ -141,4 +143,141 @@ export async function membersPushedFor(
   const all = await db.from("memberships").select("user_id").eq("tenant_id", p.tenantId);
   if (all.error) throw new Error(`cannot read who is in the workspace: ${all.error.message}`);
   return (all.data ?? []).map((m) => m.user_id);
+}
+
+/** What a hold's notice is read from: the hold by its thread (an opened one's event) or by its own id (a change's). */
+type HoldRef = { conversationId: string } | { escalationId: string };
+
+/** The rows a hold's notice says (contracts HoldFacts), or null when the thread no longer waits for a person. */
+interface HoldFactsRow {
+  conversationId: string;
+  reason: string;
+  details: string | null;
+  who: string | null;
+  address: string | null;
+  channel: string | null;
+  customerWords: string | null;
+  replyWords: string | null;
+  pausedHours: number | null;
+  erased: boolean;
+}
+
+/** One row of a read, or null; a read that fails throws with what it read. */
+const oneOr = <T>(r: { data: T[] | null; error: { message: string } | null }, what: string): T | null => {
+  if (r.error) throw new Error(`cannot read ${what}: ${r.error.message}`);
+  return r.data?.[0] ?? null;
+};
+
+/**
+ * A hold's notice, read from its rows (decision 0043): the open hold (by its thread, or by its own id for a change), the
+ * person, their latest words in the thread and what the receptionist wrote after them, and the pause when it runs.
+ * Null when the hold is no longer open: a hold answered before its notice tells nobody. A read that fails throws.
+ */
+export async function holdFactsOf(db: Db, tenantId: string, ref: HoldRef, nowMs: number): Promise<HoldFactsRow | null> {
+  const holds = db
+    .from("escalations")
+    .select("id, conversation_id, reason, details")
+    .eq("tenant_id", tenantId)
+    .eq("state", "open");
+  const hold = oneOr(
+    await (
+      "conversationId" in ref ? holds.eq("conversation_id", ref.conversationId) : holds.eq("id", ref.escalationId)
+    ).limit(1),
+    "the hold",
+  );
+  if (!hold) return null;
+  const thread = oneOr(
+    await db
+      .from("conversations")
+      .select("contact_id, paused_until")
+      .eq("tenant_id", tenantId)
+      .eq("id", hold.conversation_id)
+      .limit(1),
+    "the thread",
+  );
+  if (!thread) return null;
+  const person = oneOr(
+    await db
+      .from("contacts")
+      .select("display_name, wa_profile_name, phone_e164, email, erased_at, erasing_since")
+      .eq("tenant_id", tenantId)
+      .eq("id", thread.contact_id)
+      .limit(1),
+    "the person",
+  );
+  const theirs = oneOr(
+    await db
+      .from("messages")
+      .select("body, channel, created_at")
+      .eq("tenant_id", tenantId)
+      .eq("conversation_id", hold.conversation_id)
+      .eq("direction", "inbound")
+      .eq("sender", "customer")
+      .order("created_at", { ascending: false })
+      .limit(1),
+    "their words",
+  );
+  const reply = theirs
+    ? oneOr(
+        await db
+          .from("messages")
+          .select("body")
+          .eq("tenant_id", tenantId)
+          .eq("conversation_id", hold.conversation_id)
+          .eq("direction", "outbound")
+          .eq("sender", "ai")
+          // Words that reached them: a held draft, a failed or a withdrawn reply was never said.
+          .in("status", DELIVERED)
+          .gte("created_at", theirs.created_at)
+          .order("created_at", { ascending: false })
+          .limit(1),
+        "the receptionist's reply",
+      )
+    : null;
+  const pausedMs = thread.paused_until ? Date.parse(thread.paused_until) - nowMs : 0;
+  return {
+    conversationId: hold.conversation_id,
+    reason: hold.reason,
+    details: hold.details,
+    who: person?.display_name ?? person?.wa_profile_name ?? null,
+    address: person?.phone_e164 ?? person?.email ?? null,
+    channel: theirs?.channel ?? null,
+    customerWords: theirs?.body ?? null,
+    replyWords: reply?.body ?? null,
+    pausedHours: pausedMs > 0 ? Math.max(1, Math.round(pausedMs / HOUR_MS)) : null,
+    erased: !person || !!person.erased_at || !!person.erasing_since,
+  };
+}
+
+/**
+ * Whether the workspace was already told of this hold: the notice answering this event, or (while an edge from before
+ * decision 0043 still tells inline) a handoff about this thread kept within a minute of the event and answering no event:
+ * a notice this subscriber kept for an earlier event of the thread is that event's, and a hold that changed its reason a
+ * moment later is news of its own. A read that fails throws: "could not check" is not "never told".
+ */
+export async function holdTold(
+  db: Db,
+  p: { tenantId: string; eventId: string; conversationId: string; at: string },
+): Promise<boolean> {
+  const answered = await db
+    .from("notifications")
+    .select("id")
+    .eq("tenant_id", p.tenantId)
+    .eq("source_event", p.eventId)
+    .limit(1);
+  if (answered.error) throw new Error(`cannot read what the workspace was told: ${answered.error.message}`);
+  if ((answered.data ?? []).length) return true;
+  const since = new Date(Date.parse(p.at) - MIN_MS).toISOString();
+  const inline = await db
+    .from("notifications")
+    .select("id")
+    .eq("tenant_id", p.tenantId)
+    .eq("kind", "handoff")
+    .eq("subject_type", "conversation")
+    .eq("subject_id", p.conversationId)
+    .is("source_event", null)
+    .gte("created_at", since)
+    .limit(1);
+  if (inline.error) throw new Error(`cannot read what the workspace was told: ${inline.error.message}`);
+  return (inline.data ?? []).length > 0;
 }

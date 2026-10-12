@@ -30,7 +30,9 @@ import {
   resolveSystemPrompt,
   describeNow,
   frameSteer,
-  violatesNoPrices,
+  priceBreach,
+  priceAllowance,
+  priceFigures,
   namesMoney,
   replyDelayMs,
   fallbackMessages,
@@ -60,12 +62,24 @@ export interface BrainPort {
 }
 
 /**
- * Whether a rewrite may not go out: a price never goes out, nor money a person decides (a refund, a discount, a
- * deposit). Both are refused as policy_block_price, the one code the two apps read whichever deploys first; the log
- * line says which, and never the words.
+ * The prices a rewrite may carry: the amounts the owner wrote while "Never quote a price" is off (priceAllowance), and
+ * any the owner typed into this instruction, which a person chose for this one message (as person-draft.ts counts what
+ * a draft was given). Null, the strict rule, when there is neither (decision 0051).
  */
-function rewriteBlocked(text: string, messageId: string): boolean {
-  if (violatesNoPrices(text)) {
+function steerAllowance(brain: Parameters<typeof priceAllowance>[0], instruction: string): ReadonlySet<string> | null {
+  const listed = priceAllowance(brain);
+  const typed = priceFigures(instruction);
+  if (!listed && !typed.length) return null;
+  return new Set([...(listed ?? []), ...typed]);
+}
+
+/**
+ * Whether a rewrite may not go out: a price it may not say (priceBreach over steerAllowance), or money a person decides
+ * (a refund, a discount, a deposit) whatever was typed. Both are refused as policy_block_price, the one code the two
+ * apps read whichever deploys first; the log line says which, and never the words.
+ */
+function rewriteBlocked(text: string, messageId: string, allowed: ReadonlySet<string> | null): boolean {
+  if (priceBreach(text, allowed)) {
     steerLog.warn("steer_policy_block_price", { message_id: messageId });
     return true;
   }
@@ -79,6 +93,36 @@ function rewriteBlocked(text: string, messageId: string): boolean {
  * workspace's drafts: another's is a draft that is not there, the answer a made-up id gets, so the door cannot be
  * used to find out which ids exist. A knock that names none (a preview's key) reads the id as it always did.
  */
+/**
+ * The customer's message a draft answers (meta.reply_to, written by the draft writer and carried by each rewrite), or
+ * nothing.
+ */
+function replyToOf(meta: unknown): string | undefined {
+  const replyTo = typeof meta === "object" && meta ? (meta as { reply_to?: unknown }).reply_to : undefined;
+  return typeof replyTo === "string" ? replyTo : undefined;
+}
+
+/**
+ * Who the customer is, as the reply being rewritten found them: the message the draft answers (its reply_to) is not
+ * their history (db readLeadContext's `answering`). Nothing when they cannot be read, which costs the note, never the
+ * rewrite.
+ */
+async function leadNoteOf(
+  db: NonNullable<ReturnType<typeof pg>>,
+  m: { tenant_id: string; meta: unknown },
+  phone: string,
+  timezone: string,
+  channel: "whatsapp" | "sms",
+): Promise<string | undefined> {
+  try {
+    const lead = await readLeadContext(db, m.tenant_id, phone, 1, replyToOf(m.meta));
+    return describeLead(lead, undefined, timezone, channel);
+  } catch (e) {
+    steerLog.warn("steer_lead_context_unavailable", { error: errField(e) });
+    return undefined;
+  }
+}
+
 function draftOf(db: NonNullable<ReturnType<typeof pg>>, messageId: string, workspace: string | null) {
   const draft = db
     .from("messages")
@@ -197,12 +241,7 @@ export async function steerHeldDraft(
   const lastUser = [...thread.history].reverse().find((t) => t.role === "user");
   if (!lastUser) return refuse(409, "nothing_to_answer");
 
-  let leadNote: string | undefined;
-  try {
-    leadNote = describeLead(await readLeadContext(db, m.tenant_id, phone, 1), undefined, rt.timezone ?? "UTC", channel);
-  } catch (e) {
-    steerLog.warn("steer_lead_context_unavailable", { error: errField(e) });
-  }
+  const leadNote = await leadNoteOf(db, m, phone, rt.timezone ?? "UTC", channel);
 
   const t0 = Date.now();
   let r: Awaited<ReturnType<typeof generateReply>>;
@@ -210,7 +249,7 @@ export async function steerHeldDraft(
     r = await ask(
       thread.history,
       lastUser.content,
-      resolveSystemPrompt(rt.brain, "whatsapp", rt.timezone, new Date(), rt.policy, rt.known),
+      resolveSystemPrompt(rt.brain, channel, rt.timezone, new Date(), rt.policy, rt.known),
       fallbackMessages(rt.brain, rt.known).error,
       leadNote,
       describeNow(rt.timezone, new Date(), rt.brain.profile?.closures),
@@ -223,7 +262,7 @@ export async function steerHeldDraft(
     return refuse(502, "brain_failed");
   }
   // The same second door the handler keeps: no price, no money a person decides; the original draft stays.
-  if (rewriteBlocked(r.text, messageId)) return refuse(409, "policy_block_price");
+  if (rewriteBlocked(r.text, messageId, steerAllowance(rt.brain, text))) return refuse(409, "policy_block_price");
   const words = wordsForTheWire(channel, r.text, thread.textedBefore);
 
   const delayMs =
@@ -248,7 +287,7 @@ export async function steerHeldDraft(
       // WhatsApp to a number that had only ever texted — and the customer's own
       // thread never got its answer.
       channel,
-      extra: { steer: text, steered_from: m.id, escalate: r.escalate },
+      extra: { steer: text, steered_from: m.id, escalate: r.escalate, reply_to: replyToOf(m.meta) },
     },
     steerLog,
   );

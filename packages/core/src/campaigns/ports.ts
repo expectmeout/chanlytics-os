@@ -156,9 +156,9 @@ export interface PlaybookRow {
   list_key?: string | null;
   /** The channels it may go by (`playbooks.channels`); absent or empty on a row made before: WhatsApp alone. */
   channels?: string[] | null;
-  /** Its last day (00395), YYYY-MM-DD by the business's clock: a run for a day past it is off as `ended`. Absent before it. */
+  /** Its last day (00409), YYYY-MM-DD by the business's clock: a run for a day past it is off as `ended`. Absent before it. */
   until?: string | null;
-  /** Until when it runs on trial (00395): before it, a run its class would send by itself waits (contracts effectiveMode). */
+  /** Until when it runs on trial (00409): before it, a run its class would send by itself waits (contracts effectiveMode). */
   trial_until?: string | null;
 }
 
@@ -226,7 +226,7 @@ export type RunOutcome =
         | "no_list"
         | "list_uncounted"
         | "deals_off"
-        /** A run for a day past the campaign's last (00395 `until`): it has ended, and sends nothing more. */
+        /** A run for a day past the campaign's last (00409 `until`): it has ended, and sends nothing more. */
         | "ended";
     }
   | { outcome: "failed"; error: string };
@@ -272,7 +272,7 @@ export interface TemplateValuesPorts {
   /** The booking link on file, or null. */
   bookingLink(): Promise<string | null>;
   /**
-   * The link a customer leaves the business a review at, as its Google listing keeps it (db reviewLinkOf, 00394), or
+   * The link a customer leaves the business a review at, as its Google listing keeps it (db reviewLinkOf, 00408), or
    * null: no listing, or none bound from a Business Profile. Throws when it cannot be read: unreadable is not absent.
    */
   reviewLink(): Promise<string | null>;

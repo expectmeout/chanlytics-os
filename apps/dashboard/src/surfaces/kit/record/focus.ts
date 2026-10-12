@@ -124,8 +124,9 @@ export function useRecFocusHold(open: boolean, box: Box, inner: string, fallback
       had.current = t;
       if (!t.closest(inner) || t.closest(".confirm") || t.closest(".rec-foot")) return;
       // A field is where a person was; a plain press (a row's remove, Add, a menu's item) is what they did there, and is
-      // often the very thing that has gone. A switch or a radio is a button that is a field.
-      if (t.matches && t.matches("button:not([role])")) return;
+      // often the very thing that has gone. A switch or a radio is a button that is a field, and so is a button in the
+      // kit's box (.rec-input: a select's, or a time of the hours, which opens its list of times).
+      if (t.matches && t.matches("button:not([role]):not(.rec-input)")) return;
       last.current = t;
     },
   };

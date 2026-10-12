@@ -810,3 +810,78 @@ test("a stored email_off that is not a list of short names reads as none, and th
   });
   assert.deepEqual(kept.config.notifications.email_off, ["call"]);
 });
+
+// Decision 0043: a hold's notice is told by owner_notice, from its event, and must be told exactly once: a delivery
+// that runs twice, or a mail that fails, cannot become two notices or none.
+test("an event's notice is told once: its row keeps the event and the mail goes; a failed mail takes the row back and the delivery tries again; a twin's row refuses a second; nobody to mail keeps the bell and tells the platform without the words", async () => {
+  const { alertFor } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/ops/job-alert.ts")).href);
+  const E = "e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1";
+  const news = {
+    kind: "handoff",
+    route: "inbox/th-c1",
+    about: { type: "conversation", id: "c1" },
+    subject: "Rosa Diaz needs a person — asked for a person",
+    body: "They wrote: “Can I move my visit?”",
+    redactedBody: "A WhatsApp conversation needed a person (asked for a person), and nobody could be told.",
+    sourceEvent: E,
+  };
+  const job = { tenant_id: TENANT, kind: "event_deliver" };
+  const world = (faults = {}) => {
+    const tables = {
+      tenant_config: [{ tenant_id: TENANT, config: { notifications: MAILBOX } }],
+      notifications: [],
+      jobs: [],
+    };
+    return { tables, db: fakeDb(tables, faults) };
+  };
+
+  const told = world();
+  const t = transport(true);
+  await withEnv(PLATFORM_ENV, () => alertFor(told.db, job, { db: told.db, send: t.send })(news));
+  assert.deepEqual(
+    told.tables.notifications.map((n) => [n.kind, n.source_event, n.subject_id]),
+    [["handoff", E, "c1"]],
+  );
+  assert.deepEqual(
+    t.sent.map((m) => m.to),
+    [["owner@salon.example"]],
+  );
+  assert.equal(told.tables.jobs.filter((j) => j.kind === "push_send").length, 1, "and the phones, once told");
+
+  const lost = world();
+  const refused = transport(false);
+  await assert.rejects(
+    withEnv(PLATFORM_ENV, () => alertFor(lost.db, job, { db: lost.db, send: refused.send })(news)),
+    /was not told; its delivery tries again/,
+  );
+  assert.deepEqual(
+    [lost.tables.notifications, lost.tables.jobs],
+    [[], []],
+    "the row is taken back, so the retry finds the notice owed",
+  );
+
+  const twin = world({
+    "notifications.insert": { code: "23505", message: "duplicate key value violates unique constraint" },
+  });
+  const second = transport(true);
+  await assert.rejects(
+    withEnv(PLATFORM_ENV, () => alertFor(twin.db, job, { db: twin.db, send: second.send })(news)),
+    /was not told/,
+  );
+  assert.deepEqual(second.sent, [], "REGRESSION: the second run of a delivery mailed the owner again");
+
+  // A workspace with nobody on file: its bell is the notice, and the platform hears the fact without the words.
+  const rows = [];
+  const platform = transport(true);
+  await withEnv(PLATFORM_ENV, () =>
+    alertFor(null, job, { db: fakeDb({ notifications: rows, jobs: [] }), send: platform.send })(news),
+  );
+  assert.deepEqual(
+    rows.map((n) => n.source_event),
+    [E],
+  );
+  assert.equal(platform.sent.length, 1);
+  assert.equal(platform.sent[0].subject, "A workspace needs notification settings");
+  assert.match(platform.sent[0].text, /^A WhatsApp conversation needed a person/);
+  assert.doesNotMatch(platform.sent[0].text, /Rosa|visit/, "never the customer's name or words");
+});

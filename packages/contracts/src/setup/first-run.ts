@@ -11,7 +11,7 @@
  * known (first-receptionist.ts), on an owner's press.
  */
 import { formatPhoneDisplay } from "../shared/phone";
-import { greetingFor } from "../voice/greeting";
+import { greetingOf } from "../voice/greeting-owner";
 import { initialsOf } from "../conversations/thread-contact";
 import { openWeekWords } from "../config/business-tab/open-week";
 import { servicesWords, type ServiceWordsInput } from "../config/business-tab/services-words";
@@ -522,6 +522,8 @@ export interface ReceptionistCardInputs {
       hours?: Partial<Record<string, Hours>> | null;
       services?: readonly ServiceWordsInput[] | null;
       languages?: readonly string[] | null;
+      /** The business's own phone greeting (decision 0051); absent for the standard one. */
+      phone_greeting?: string | null;
     } | null;
   } | null;
   /** The numbers as the settings read resolved them (facts.ts); null until that read lands. */
@@ -558,6 +560,19 @@ export interface ReceptionistCardVM {
 /** A link as a person reads it: no scheme, no "www.", no trailing slash. */
 const linkShown = (url: string): string => url.replace(/^https?:\/\/(www\.)?/i, "").replace(/\/+$/, "");
 
+/**
+ * What the card says every caller hears: the business's own greeting where it wrote one, read from the settings once
+ * they have arrived and from Setup until then, through the one function the call itself asks (greetingOf).
+ */
+function cardGreeting(
+  spoken: string,
+  profile: { phone_greeting?: string | null } | null,
+  setup: Pick<SetupDto, "business">,
+): string {
+  const stored = profile?.phone_greeting ?? setup.business.phone_greeting ?? null;
+  return greetingOf({ name: spoken, stored, paused: false }).text;
+}
+
 /** The owner's receptionist, so far: who it is, whether it answers, what it greets with and what it knows. */
 export function receptionistCardOf(i: ReceptionistCardInputs): ReceptionistCardVM {
   if (i.sellsBy !== null && typeof i.sellsBy !== "string") {
@@ -591,7 +606,7 @@ export function receptionistCardOf(i: ReceptionistCardInputs): ReceptionistCardV
     status,
     strip: `Your receptionist · ${status.words}`,
     greetingLabel: "Greets every caller with",
-    greeting: greetingFor(spoken || null),
+    greeting: cardGreeting(spoken, p, i.setup),
     rows: [
       { key: "open", label: "Open", value: i.setup.business.hours && p?.hours ? openWeekWords(p.hours, i.tz) : null },
       {

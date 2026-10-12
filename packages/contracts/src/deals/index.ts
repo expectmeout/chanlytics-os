@@ -111,6 +111,7 @@ export type {
   PipelineStep,
   PipelineGroupVM,
   PipelineLinePart,
+  PipelineFilter,
   PipelineVM,
 } from "./pipeline/pipeline-vm";
 export { PIPELINE_WORDS } from "./pipeline/pipeline-words";
@@ -134,6 +135,8 @@ export type {
 export {
   pipelineMove,
   pipelineSorted,
+  pipelineCsv,
+  PIPELINE_PHONE_SORTS,
   pipelinePassMany,
   pipelinePassDone,
   pipelineBoardMore,

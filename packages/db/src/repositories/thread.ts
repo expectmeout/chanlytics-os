@@ -33,6 +33,7 @@ import {
   dealSentence,
   dealsAreOn,
   offersFacts,
+  disclosureFacts,
   pickCurrentDeal,
   proposalLinkOf,
 } from "@chanlytics/contracts";
@@ -66,7 +67,7 @@ export interface PgThreadState {
 /** Outbound rows only count as memory once they actually left. A canceled or
  *  failed send was never seen by the customer, so it must not appear in the
  *  model's context as something "we said". */
-const DELIVERED = ["sent", "delivered", "read"];
+export const DELIVERED = ["sent", "delivered", "read"];
 
 /**
  * Voice notes moved in from before the database, as ordinary assistant turns.
@@ -116,7 +117,8 @@ type HistoryRow = {
   meta?: unknown;
 };
 
-export function assembleHistory(rows: HistoryRow[], limit: number): ThreadTurn[] {
+/** The rows that count as turns under the four rules, oldest first. */
+function keptTurns<T extends HistoryRow>(rows: T[]): T[] {
   const kept = rows.filter((m) => {
     const body = (m.body ?? "").trim();
     if (!body) return false;
@@ -124,8 +126,11 @@ export function assembleHistory(rows: HistoryRow[], limit: number): ThreadTurn[]
     if (isBackfill(m) && IMPORTED_CALL_NOTE.test(body)) return false;
     return true;
   });
-  kept.sort((a, b) => effectiveAt(a) - effectiveAt(b));
-  return kept
+  return kept.sort((a, b) => effectiveAt(a) - effectiveAt(b));
+}
+
+export function assembleHistory(rows: HistoryRow[], limit: number): ThreadTurn[] {
+  return keptTurns(rows)
     .map((m) => ({
       // A call note is the customer's own history on another channel — one
       // agent, so it counts the same as a message.
@@ -297,6 +302,8 @@ export async function readLeadContext(
   tenantId: string,
   phoneE164: string,
   historyLimit = 16,
+  /** The message being answered, stored before they were read: not their history, nor their last touch (none on a call). */
+  answering?: string,
 ): Promise<LeadContext> {
   // Who they are, and in the same round trip how their workspace's customers buy (0008): a deal and a proposal link are
   // the receptionist's to say only where deals are on. A database 00160 has not reached answers "column does not exist"
@@ -365,18 +372,9 @@ export async function readLeadContext(
     .maybeSingle();
   if (vErr) throw new Error(`readLeadContext/conversation: ${vErr.message}`);
 
-  let history: ThreadTurn[] = [];
-  if (conv) {
-    const { data: rows, error: hErr } = await db
-      .from("messages")
-      .select(HISTORY_COLUMNS)
-      .eq("tenant_id", tenantId)
-      .eq("conversation_id", conv.id)
-      .order("created_at", { ascending: false })
-      .limit(historyLimit * 3);
-    if (hErr) throw new Error(`readLeadContext/history: ${hErr.message}`);
-    history = assembleHistory(rows ?? [], historyLimit);
-  }
+  const { history, lastTurnAt } = conv
+    ? await turnsBefore(db, tenantId, conv.id, historyLimit, answering)
+    : { history: [], lastTurnAt: null };
 
   // Their deal, read beside the note (0004), only where deals are on: a context lookup must never cost the reply, so an
   // error is no deal. The whole list, because the current one may be the oldest: a running engagement outlives any
@@ -415,7 +413,7 @@ export async function readLeadContext(
     // Having said anything at all is what makes someone returning — not merely
     // existing as a row, which an outbound-only contact would also satisfy.
     returning: history.length > 0,
-    lastSeenAt: contact.last_seen_at ?? null,
+    lastSeenAt: answering ? lastTurnAt : (contact.last_seen_at ?? null),
     history,
     optedOut: contact.consent === "opted_out" || contact.dnc === true,
     hasEmail: !!contact.email,
@@ -429,6 +427,22 @@ export async function readLeadContext(
     deal: current ? dealRowFacts(current) : null,
     otherDeals: others.map((d) => ({ ...dealRowFacts(d), proposal_url: d.proposal_url })),
   };
+}
+
+/** A person's turns, and when the newest happened, without the message being answered (readLeadContext's `answering`). */
+async function turnsBefore(db: Db, tenantId: string, conversationId: string, limit: number, answering?: string) {
+  const { data: rows, error } = await db
+    .from("messages")
+    .select(`id, ${HISTORY_COLUMNS}`)
+    .eq("tenant_id", tenantId)
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: false })
+    .limit(answering ? Math.max(limit * 3, 24) + 1 : limit * 3); // photos and dropped drafts never hide a returner
+  if (error) throw new Error(`readLeadContext/history: ${error.message}`);
+  const before = (rows ?? []).filter((m) => m.id !== answering);
+  const newest = keptTurns(before).at(-1);
+  const lastTurnAt = newest ? new Date(effectiveAt(newest)).toISOString() : null;
+  return { history: assembleHistory(before, limit), lastTurnAt };
 }
 
 /** A deal row's facts as the receptionist and the phone read them: its stage, its service and its days. */
@@ -522,20 +536,12 @@ export function describeLead(
   // a reader that never learned it (undefined) says nothing rather than a guess.
   if (lead.hasEmail === true) bits.push("Their email address is on file.");
   else if (lead.hasEmail === false) bits.push("No email address on file.");
-  // What they answered about offers, whether they were asked for the yes, and a text conversation said to be one: the
-  // rule that asks for it once reads these (contracts offers-ask.ts), and a reader that never learned them says nothing.
+  // What they answered about offers, whether they were asked for the yes, a text conversation said to be one, and one
+  // already under way: the rules that ask for the yes once (contracts offers-ask.ts) and open by saying it is an
+  // automated assistant (assistant-disclosure.ts) read these; a reader that never learned them says nothing.
   bits.push(
-    ...offersFacts(
-      {
-        marketingConsent: lead.marketingConsent,
-        marketingChannels: lead.marketingChannels,
-        offersAskedAt: lead.offersAskedAt,
-        optedOut: lead.optedOut,
-      },
-      channel,
-      now,
-      tz,
-    ),
+    ...offersFacts(lead, channel, now, tz),
+    ...disclosureFacts({ returning: lead.returning, lastTurnAt: lead.lastSeenAt }, channel, now),
   );
   if (lead.returning) {
     const days = lead.lastSeenAt ? Math.floor((now.getTime() - new Date(lead.lastSeenAt).getTime()) / DAY_MS) : null;

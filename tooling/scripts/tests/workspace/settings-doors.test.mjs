@@ -735,7 +735,7 @@ test("the email row's form: offered from the business's name, judged under its o
   const box = () => find(byTestId(tree, "email-local"), (n) => n.type === "input");
   assert.equal(box().props.value, "best-movers", "an address to start from, never a blank box");
   assert.match(textOf(byTestId(tree, "email-local")), /@mail\.chanlytics\.com/);
-  assert.match(textOf(byTestId(tree, "email-local")), /cannot be changed later/);
+  assert.match(textOf(byTestId(tree, "email-local")), /can't be changed later/);
 
   box().props.onChange({ target: { value: "best movers" } });
   tree = settle(Connections);
@@ -977,6 +977,73 @@ test("Meta's SDK is fetched ahead only where the row offers Connect to someone w
     assert.deepEqual(prepared, []);
   } finally {
     Object.assign(waConnect, { config: async () => null, start: realStart, prepare: realPrepare });
+  }
+});
+
+test("a number that has just connected is tried through its own link: the toast offers it and the row says it, and a sign-up that did not connect offers nothing", async () => {
+  // 8 October 2026: an owner searched their contacts for a number that had just connected, WhatsApp on their phone still
+  // said "invite", and they took the connection for a failure. The number's wa.me link opens the chat whatever the phone's own
+  // record says (contracts tryItLink), so the toast a connection ends with offers it.
+  asRole("owner");
+  seam({ channels: [], google: null, setup: null });
+  const realStart = waConnect.start;
+  const realToast = globalThis.window.usePPToast;
+  const realOpen = globalThis.window.open;
+  const flashes = [];
+  const opened = [];
+  let finish;
+  globalThis.window.usePPToast = () => [null, (f) => flashes.push(f)];
+  globalThis.window.open = (...args) => opened.push(args);
+  Object.assign(waConnect, {
+    config: async () => ({ ready: true, reason: null }),
+    start: () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  });
+  try {
+    render(Connections);
+    await flush();
+    press(byTestId(settle(Connections), "connect-whatsapp-btn"));
+    finish({ ok: true, number: "+1 (305) 555-0188", verifiedName: "Harbor Moving", qualityRating: null });
+    await flush();
+    assert.equal(flashes.length, 1);
+    assert.equal(flashes[0].tone, "ok");
+    assert.equal(flashes[0].action.label, "Try it");
+    flashes[0].action.onClick();
+    assert.deepEqual(opened, [["https://wa.me/13055550188?text=Hi", "_blank", "noopener,noreferrer"]]);
+
+    // No number came back, or nothing connected: there is no chat to open.
+    press(byTestId(settle(Connections), "connect-whatsapp-btn"));
+    finish({ ok: true, number: null, verifiedName: null, qualityRating: null });
+    await flush();
+    assert.equal(flashes[1].action, null);
+    press(byTestId(settle(Connections), "connect-whatsapp-btn"));
+    finish({ ok: false, reason: "failed", message: "The connection could not be saved. Try again." });
+    await flush();
+    assert.deepEqual([flashes[2].tone, flashes[2].action], ["danger", null]);
+    assert.equal(opened.length, 1);
+
+    // And the row of a number that connected minutes ago says the same link itself, to press, without being asked.
+    const fresh = { created_at: new Date(Date.now() - 2 * MIN).toISOString() };
+    seam({ channels: [whatsappChannel(null, null, fresh)], google: null, setup: null });
+    render(Connections);
+    await flush();
+    const tree = settle(Connections);
+    assert.match(
+      noteTexts(tree, "whatsapp")[0],
+      /^Try it from your phone with this link, not by searching your contacts:/,
+    );
+    assert.deepEqual(noteLinks(tree, "whatsapp")[0], [
+      "wa.me/13055550188",
+      "https://wa.me/13055550188?text=Hi",
+      "_blank",
+      "noopener noreferrer",
+    ]);
+  } finally {
+    Object.assign(waConnect, { config: async () => null, start: realStart });
+    globalThis.window.usePPToast = realToast;
+    globalThis.window.open = realOpen;
   }
 });
 

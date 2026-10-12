@@ -5,12 +5,12 @@
  * The header is a function per part, called by `ThreadHeader` and not drawn as a component of its own, so the tree is
  * the tree it was; its hooks stay in `ThreadHeader`, in the order they were.
  */
-import { linkHost, proposalLinkOf, proposalMessage } from "@chanlytics/contracts";
+import { adRoute, fromAdWords, linkHost, proposalLinkOf, proposalMessage } from "@chanlytics/contracts";
 import type { DealVM, PersonNextStepVM, PersonRowVM } from "@chanlytics/contracts";
 import { useState, type ReactNode } from "react";
 import { Icon } from "../../kit/icon/icon";
 import { Menu, type MenuGroup, type MenuItem } from "../../kit/menu/menu";
-import { askAbout } from "../../legacy-verbs";
+import { askAbout, routeDoor } from "../../legacy-verbs";
 import { ROUTES } from "../constants";
 import {
   clockZone,
@@ -31,6 +31,7 @@ import { ixBandCallBack } from "./band";
 import { channelIconOf } from "./timeline";
 import { IxWho } from "./who";
 import { Button } from "../../kit/button/button";
+import { LinkButton } from "../../kit/link-button/link-button";
 
 // A step due under the head (0007, amended): their next step once its day has come, with Done, so whoever answers
 // them ticks it where they are. People's row carries it, judged as every page judges a step: at the moment People's
@@ -224,6 +225,21 @@ function dealGroup(thread: Thread, facts: HeaderFacts): MenuItem[] {
           }))
       : [];
   return [...(sendItem ? [sendItem] : []), ...dealItems];
+}
+
+/**
+ * Where an ad brought them, as a line under the head: a door to the ad (the demo's threads alone carry one; a real thread has
+ * none). It stands under the head and beside the person's link, never inside it: a link inside a link is neither valid nor
+ * reachable, and the name's link opens the person.
+ */
+function fromAdLine(ad: NonNullable<Thread["fromAd"]>) {
+  return (
+    <div className="ix-th-ad" data-testid="ix-th-ad">
+      <LinkButton size="inherit" className="ix-th-ad-door" {...routeDoor(adRoute(ad.id))}>
+        {fromAdWords(ad.name)} <Icon name="chevron" size={10} />
+      </LinkButton>
+    </div>
+  );
 }
 
 /** The seeded "Also in Leads" chip, a button of its own, so it stands beside the link, never inside it. */
@@ -499,6 +515,7 @@ export const ThreadHeader = (props: ThreadHeaderProps) => {
           groups={actionsMenu(thread, dealActs, { onSnooze, onMarkUnread, onOpenClient, onArchive })}
         />
       </div>
+      {thread.fromAd ? fromAdLine(thread.fromAd) : null}
       {person && person.nextStep && !demoSession() ? (
         <IxThreadStep key={person.nextStep.id} personId={person.id} step={person.nextStep} flash={flash} />
       ) : null}

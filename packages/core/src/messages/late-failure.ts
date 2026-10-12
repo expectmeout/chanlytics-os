@@ -1,5 +1,6 @@
-import { isAutomatedSend, sendFailureWords, type JobNews } from "@chanlytics/contracts";
+import { isAutomatedSend, sendFailureWords } from "@chanlytics/contracts";
 import { raiseSendFailed } from "./send";
+import { toldFromItsEvent } from "../subscribers";
 
 /** What a late failure needs to know of the message the provider's id names. */
 export interface LateFailureFacts {
@@ -13,8 +14,6 @@ export interface LateFailureFacts {
   status: string;
   /** The row's meta, as stored: what a campaign's send is read from. */
   meta: unknown;
-  /** Their number or address, as the hand-off names them; null when the row names no person. */
-  to: string | null;
 }
 
 export interface LateFailurePorts {
@@ -26,8 +25,6 @@ export interface LateFailurePorts {
     reason: string,
     details: string,
   ): Promise<"opened" | "changed" | "refreshed" | "failed">;
-  /** Tell this workspace's people (the job runner's own alert, job-alert.ts: who is told is its decision). */
-  alert(news: JobNews): Promise<void>;
   /** `message.send_failed` on the ledger, best effort: the Activity feed and the platform's day count it. */
   noteFailed(messageId: string, data: { reason: string; outcome: "refused"; body: string }): Promise<void>;
 }
@@ -42,7 +39,8 @@ export interface LateFailureCommand {
 }
 
 /**
- * What a late failure came to: `raised` (the thread flagged, the owner told, the ledger written), or nothing was owed:
+ * What a late failure came to: `raised` (the thread flagged, which its event tells the owner of, and the ledger
+ * written), or nothing was owed:
  * `not_ours` (no message of this workspace carries the id), `not_a_reply` (not a message a person or the receptionist
  * wrote to a customer, or a campaign's), `already_over` (the row had already failed or been canceled: a receipt seen
  * before).
@@ -77,18 +75,14 @@ export async function raiseLateFailure(ports: LateFailurePorts, cmd: LateFailure
 
   const why = sendFailureWords(cmd.error, cmd.channel) ?? "The provider reported it as not delivered.";
   const who = m.sender === "ai" ? "The receptionist's reply" : "A reply from your team";
-  // The hold is the one thing that must not be lost: a flag that could not be written throws, before anyone is told, and
-  // the receipt's redelivery says it again.
-  await raiseSendFailed(
-    ports,
-    {
-      conversationId: m.conversationId,
-      details: `${who} was accepted for sending but did not reach them. ${why}`,
-      subject: `Reply delivery failed: ${m.to ?? "a customer"}`,
-      body: `${who} was accepted for sending, and then the provider reported that it was not delivered. ${why} The thread is flagged in the Inbox.`,
-    },
-    true,
-  );
+  // The hold is the one thing that must not be lost: written, its event tells the owner, once, after the commit and out
+  // of the provider's request (decision 0043); a flag that could not be written throws, and the receipt's redelivery
+  // says it again.
+  const flagged = await raiseSendFailed(ports, {
+    conversationId: m.conversationId,
+    details: `${who} was accepted for sending but did not reach them. ${why}`,
+  });
+  if (!toldFromItsEvent(flagged)) throw new Error(`send failed: its thread ${m.conversationId} could not be flagged`);
   await ports.noteFailed(m.messageId, {
     reason: "receipt",
     outcome: "refused",

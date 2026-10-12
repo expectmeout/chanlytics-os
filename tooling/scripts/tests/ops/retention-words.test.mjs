@@ -27,12 +27,18 @@ test("the numbers, and the paragraph the privacy page prints from them", () => {
     leads_untouched: 90,
     leads_untouched_blanked: 180,
     leads_excluded_blanked: 30,
+    lead_judgments: 180,
+    google_reviews: 90,
+    invitations_closed: 30,
     jobs_finished: 7,
     jobs_failed: 90,
     page_vitals: 30,
     ai_usage: 400,
     provider_events: 7,
     idempotency_keys: 1,
+    model_turns: 30,
+    model_prompts: 400,
+    tenant_config_versions: 400,
   });
   assert.equal(RATE_HITS_RETENTION_HOURS, 2);
   assert.equal(RECORDING_RETENTION_DAYS, 90);
@@ -43,7 +49,15 @@ test("the numbers, and the paragraph the privacy page prints from them", () => {
   assert.match(words, /run history is kept for 14 days and rate-limit counters for 2 hours/);
   assert.match(
     words,
-    /Leads nobody has worked are set aside after 90 days and their details removed after 180; places a search left out lose their details after 30 days\./,
+    /Leads nobody has worked are set aside after 90 days and their details removed after 180; places a search left out lose their details after 30 days, and the finder's reasons for a batch of places are removed after 180\./,
+  );
+  assert.match(
+    words,
+    /A Google review is kept while Google shows it: one it no longer lists is removed at the next full read, and any review is removed 90 days after we last saw it\./,
+  );
+  assert.match(
+    words,
+    /A team invitation that was accepted or taken back is removed 30 days later, with the address on it, and the address a workspace was handed over to is cleared once its new owner accepts\./,
   );
   assert.match(
     words,
@@ -61,6 +75,11 @@ test("the numbers, and the paragraph the privacy page prints from them", () => {
     words,
     /How fast each page loaded, with no person or workspace attached, is kept for 30 days, and what each model call cost for 400 days\./,
   );
+  assert.match(
+    words,
+    /What the receptionist was shown when it wrote a reply, and what it answered, is kept for 30 days, and the instructions it was given for 400 days after they were last used\./,
+  );
+  assert.match(words, /A workspace's settings as they stood before a change are kept for 400 days after the change\./);
   assert.match(
     words,
     /A voice conversation's session, which holds nothing of what was said, is removed the day after it expires\./,

@@ -296,7 +296,7 @@ export async function playbookRows(ctx: RouteContext, tenantId: string): Promise
   let { data: rows, error } = await read(COLUMNS);
   const missing = (col: string) =>
     !!error && new RegExp(col).test(error.message) && /does not exist|could not find/i.test(error.message);
-  // A database 00395 has not reached has no end and no trial, and every playbook there runs on with neither: read again
+  // A database 00409 has not reached has no end and no trial, and every playbook there runs on with neither: read again
   // without them, and each of the reads below keeps that.
   let columns = COLUMNS;
   if (missing("until")) {

@@ -3,18 +3,32 @@ import {
   AppError,
   CAMPAIGNS_RESULTS_PERIOD,
   MIN_MS,
+  campaignLedgerDtoOf,
   chainTotalsFromReport,
   chainTotalsOf,
+  isCampaignLedgerSeriesDto,
+  isCampaignStuckRawDto,
+  numberHealthOfConfig,
+  type CampaignLedgerDto,
+  type CampaignNumberDto,
   type CampaignReportDto,
   type CampaignSourceDto,
+  type CampaignStuckRawDto,
   type ReachOutChainTotalsDto,
   type ReachOutReportDto,
 } from "@chanlytics/contracts";
-import { campaignSeries, reachOutChainTotals, type ReportWindow } from "@chanlytics/db";
+import {
+  campaignLedger,
+  campaignSeries,
+  campaignStuck,
+  reachOutChainTotals,
+  whatsappChannelFacts,
+  type ReportWindow,
+} from "@chanlytics/db";
 import { log } from "@/server/log";
 import { reachOutReportOf } from "../campaigns/reach-out-report";
 import { load, stamp, type Reader, type ReaderContext } from "./index";
-import { reportWindowFor, windowRead } from "./report";
+import { askedHead, reportWindowFor, windowRead } from "./report";
 
 /**
  * GET reports/campaigns, as the route answers it: what the offers earned over one of the three presets (the route
@@ -119,3 +133,105 @@ export async function chainLastDays(rc: ReaderContext): Promise<ReachOutChainTot
     return null;
   }
 }
+
+/**
+ * What is stuck, as the database lists it (campaign_stuck): the facts contracts' campaignLedgerDtoOf judges. A database
+ * without the function (00406 goes to production on the owner's word, either deploy order works) is `stuck: null`, said
+ * in the log once, and no failure; a read that fails, or an answer that is not the four lists (its own `{ error }` for an
+ * unknown workspace), is `stuckFailed`, said in the log with the workspace, so the lens can tell a read that failed from
+ * a function not applied yet. Never fatal: the window is answered without it.
+ */
+async function stuckOf(rc: ReaderContext): Promise<{ stuck: CampaignStuckRawDto | null; stuckFailed: boolean }> {
+  try {
+    const answer = await campaignStuck(rc.ctx.supabase, rc.tenantId);
+    if (answer === null) {
+      log.warn("campaign_stuck_missing", { tenant_id: rc.tenantId });
+      return { stuck: null, stuckFailed: false };
+    }
+    if (!isCampaignStuckRawDto(answer)) throw new Error("campaign_stuck: the answer is not its four lists");
+    return { stuck: answer, stuckFailed: false };
+  } catch (e) {
+    log.error("campaign_stuck_failed", {
+      tenant_id: rc.tenantId,
+      error: e instanceof Error ? e.message : String(e),
+    });
+    return { stuck: null, stuckFailed: true };
+  }
+}
+
+/** The dates a WhatsApp channel's config keeps of when Meta last spoke of the number: its rating, its standing, its newest quality webhook. */
+const NUMBER_READ_KEYS = ["quality_read_at", "standing_read_at", "quality_at"] as const;
+
+/**
+ * When the number was last checked: the newest of the dates its config keeps (NUMBER_READ_KEYS) that parse, as the config
+ * wrote it; null where it keeps none.
+ */
+function checkedAtOf(config: Record<string, unknown>): string | null {
+  const dates = NUMBER_READ_KEYS.map((key) => config[key]).filter(
+    (at): at is string => typeof at === "string" && !Number.isNaN(Date.parse(at)),
+  );
+  return dates.reduce<string | null>(
+    (newest, at) => (newest === null || Date.parse(at) > Date.parse(newest) ? at : newest),
+    null,
+  );
+}
+
+/**
+ * The connected WhatsApp number as the lens says it: its health as the composers' gate derives it from the channel's stored
+ * config (contracts numberHealthOfConfig: one derivation), and when that was last checked. None with no active number; a
+ * channel that cannot be read is `unread`, said in the log with the workspace, never none. Never fatal: what is stuck is
+ * answered without it.
+ */
+async function numberOf(rc: ReaderContext): Promise<CampaignNumberDto> {
+  try {
+    const channel = await whatsappChannelFacts(rc.ctx.supabase, rc.tenantId);
+    if (channel === null) return { state: "none" };
+    const health = numberHealthOfConfig(channel.config);
+    return {
+      state: "read",
+      tone: health.tone,
+      can_send: health.canSend,
+      label: health.label,
+      checked_at: checkedAtOf(channel.config),
+    };
+  } catch (e) {
+    log.error("campaign_number_failed", {
+      tenant_id: rc.tenantId,
+      error: e instanceof Error ? e.message : String(e),
+    });
+    return { state: "unread" };
+  }
+}
+
+/**
+ * GET reports/campaigns/ledger, as the route answers it: what the Campaigns lens reads beyond the sends' own report
+ * (campaignReport). Three reads, made together, each failing alone: the window over `days` and the same number before
+ * them, which one SECURITY INVOKER function counts in the workspace's own zone (campaignLedger: the people sent to and who
+ * wrote back, the runs, what was held back and why they stopped, why sends failed, each message, how soon the first reply
+ * came and how long approvals waited); what is stuck now (stuckOf), as of now whatever the days; and the connected
+ * number's health (numberOf). Contracts' campaignLedgerDtoOf makes the route's answer of them, and judges what is stuck by
+ * the product's own rules (a run is late when the verb that approves it would refuse it, a reply waits on you by the one
+ * standing) at the turn's clock in the window's zone. Nothing of the member asking reaches it (`rc.userId` is not passed on):
+ * the answer is the workspace's. A function that answers nothing is the page's 404, in its words; any other failure of the
+ * ledger is the route's. A database that does not have the function yet (00405 is applied on the owner's word, after the
+ * dashboard deploys) answers null for a period and for picked days alike: the answer is then the window the route was asked
+ * with `series: null`, the lens draws what is stuck and none of its own window's parts, and the log says
+ * `campaign_ledger_missing` once a read. No row of its own, and no ttl: a route reads it fresh and a turn keeps its own,
+ * since what is stuck is judged at the turn's clock. It is drawn on the Reports page, which `report` names.
+ */
+export const campaignLedgerReport: Reader<ReportWindow, CampaignLedgerDto> = {
+  name: "campaignLedgerReport",
+  async read(rc, window) {
+    const [answer, stuck, number] = await Promise.all([
+      campaignLedger(rc.ctx.supabase, rc.tenantId, window),
+      stuckOf(rc),
+      numberOf(rc),
+    ]);
+    const series = isCampaignLedgerSeriesDto(answer) ? answer : null;
+    if (answer === null) log.warn("campaign_ledger_missing", { tenant_id: rc.tenantId });
+    else if (series === null) throw new AppError("not_found", "No workspace found for this report.", 404);
+    const head = series ?? (await askedHead(rc, window));
+    const data = campaignLedgerDtoOf(series, { ...stuck, number, head, nowMs: rc.now.getTime() });
+    return { data, rows: [], stamp: stamp() };
+  },
+};

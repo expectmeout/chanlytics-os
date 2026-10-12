@@ -350,7 +350,7 @@ ledger, rail and address; nothing to Expo; no new dependency.
 Each part is its own commit group on `ask/the-marketing-manager`, built by one Sonnet implementer with one combined
 review round, gates green on the files it touches (`node tooling/scripts/checks/test.mjs <file>` per file; never the
 whole suite locally), then the next. Nothing is pushed until Ruben has reviewed the branch; the pull request is labelled
-`suite`. Migrations are numbered from **00394** (00392 and 00393 are claimed by the evidence lane in `cm-glass`, not yet
+`suite`. Migrations are numbered from **00408** (00392 and 00393 are claimed by the evidence lane in `cm-glass`, not yet
 merged) and renumbered at the pull request if taken (`docs/debt.md`'s rule; two files on one number fail the build).
 
 | Part | What lands | Doors it needs |
@@ -416,7 +416,7 @@ the dashboard").
   Meta, by design; the receipt is honest.
 - **The appointment moments from Ask (D2)** reach customers around real appointments; `checkPlaybook`'s calendar
   requirement and the trial (D5) bound the blast radius; the breath exemption is said on the card.
-- **Collisions.** Migration numbers (00394+, renumbered at the PR); `ask-turn.jsx` and `prompt.ts` move daily (fetch and
+- **Collisions.** Migration numbers (00408+, renumbered at the PR); `ask-turn.jsx` and `prompt.ts` move daily (fetch and
   rebase before the pull request; `?v=` bumps one above main's); the evidence lane's `cm-glass` branch touches
   `srv/log.ts` and will merge first.
 - **Disk.** `C:` had 2.9 GB free on 10 October, then 20 GB after Ruben cleared space the same day: enough for the
@@ -428,8 +428,8 @@ the dashboard").
 ## 10. Files
 
 New: `ct/ask/plan.ts`, `ct/ask-proposals/plan.ts`, `ct/journey/journey-guide.ts`, `act/plan.ts`,
-`apps/dashboard/app/api/v1/campaigns/plan/route.ts`, `srv/campaigns/apply-plan.ts`, `mig/00394_a_listing_keeps_its_review_link.sql`,
-`mig/00395_a_campaign_ends_and_runs_on_trial.sql`, `tooling/scripts/tests/ask/plan-of.test.mjs`,
+`apps/dashboard/app/api/v1/campaigns/plan/route.ts`, `srv/campaigns/apply-plan.ts`, `mig/00408_a_listing_keeps_its_review_link.sql`,
+`mig/00409_a_campaign_ends_and_runs_on_trial.sql`, `tooling/scripts/tests/ask/plan-of.test.mjs`,
 `e2e/ask/plan.spec.ts`, `docs/decisions/0043-a-plan-is-steps-the-server-expands.md`.
 
 Changed: `read/campaigns.ts` (two actions), `read/calendar.ts` (`room`), `srv/readers/templates.ts` (the whole library),

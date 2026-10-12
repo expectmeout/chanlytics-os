@@ -118,7 +118,7 @@ test("what fills a slot: typed text once, or the person's first name, the busine
     ],
   );
   assert.deepEqual(parseParamSpec("@proposal_link"), { kind: "proposal_link" }, "the follow-up's link (0006)");
-  assert.deepEqual(parseParamSpec("@review_link"), { kind: "review_link" }, "the Google listing's review link (00394)");
+  assert.deepEqual(parseParamSpec("@review_link"), { kind: "review_link" }, "the Google listing's review link (00408)");
   assert.deepEqual(parseParamSpec({ kind: "review_link" }), { kind: "review_link" });
   assert.deepEqual(parseParamSpec("20%"), { kind: "text", value: "20%" });
   assert.deepEqual(parseParamSpec("@first_name"), { kind: "first_name" });
@@ -259,7 +259,7 @@ test("the job fills the slots per person and holds anyone a slot cannot be fille
     head.includes('data-testid="template-new"') &&
       // Delete is an item of the pane's kit Menu: its test id rides the item's `gate` (the question it asks is `testid=`).
       s.includes('"data-testid": "template-delete"') &&
-      s.includes('" · made here"'),
+      s.includes('"Made here"'),
   );
   const tc = readCode("apps/dashboard/src/surfaces/campaigns/templates/composer-forms.tsx");
   for (const id of [

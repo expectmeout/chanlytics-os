@@ -420,7 +420,7 @@ test.describe("Phone shell on a real workspace", () => {
     await page.waitForLoadState("networkidle");
     const bar = page.getByTestId("people-phone-bar");
     await expect(bar).toBeVisible();
-    for (const id of ["people-phone-lists", "people-phone-search-open"])
+    for (const id of ["people-phone-lists", "people-phone-search"])
       await expect(bar.getByTestId(id)).toBeInViewport({ ratio: 1 });
     await expect(page.locator(".cl-controls")).toHaveCount(0);
     expect(
@@ -440,16 +440,21 @@ test.describe("Phone shell on a real workspace", () => {
       (await row.locator(".pl-card > .list-row-end").boundingBox())!.height,
       "a state is a pill, not a 36px button",
     ).toBeLessThanOrEqual(22);
-    // Search: the bar becomes the field, at 16px (a phone zooms into anything smaller), and Cancel gives it back.
-    // On a touch screen the field waits for a tap: no keyboard rises by itself.
-    await bar.getByTestId("people-phone-search-open").click();
+    // Search: the field from the first draw, at 16px (a phone zooms into anything smaller). Nothing focuses it by
+    // itself, and ONE tap begins the typing: it rested as a capsule a tap only swapped for the field, and a second tap
+    // raised the keyboard (Ruben, 11 Oct 2026). The clear (×) empties it from the first word and keeps it in focus
+    // (there is no Cancel).
     const field = page.getByTestId("people-phone-search");
     await expect(field).toBeVisible();
     await expect(field).not.toBeFocused();
     await field.tap();
     await expect(field).toBeFocused();
     expect(await field.evaluate((el) => Number.parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
-    await page.getByTestId("people-phone-search-cancel").click();
+    await field.fill("zz");
+    await page.getByTestId("people-phone-search-clear").tap();
+    await expect(field).toHaveValue("");
+    await expect(field).toBeFocused();
+    await field.blur();
     await expect(bar.getByTestId("people-phone-lists")).toBeVisible();
     // A list picked in the sheet closes it and leaves no tip behind: the tap focused its row, the sheet took the row
     // away, and the tip was placed at the corner of the top bar 280ms later.
@@ -460,21 +465,18 @@ test.describe("Phone shell on a real workspace", () => {
     await expect(sheet).toHaveCount(0);
     await page.waitForTimeout(400);
     await expect(page.locator(".ui-tip.show")).toHaveCount(0);
-    // Add a person: a sheet whose one button is on the screen.
-    await bar.getByRole("button", { name: "More" }).click();
-    // The menu is the kit's (Base UI), which opens a beat after the press: what it holds is read once it is open.
-    await expect(page.getByRole("menu")).toBeVisible();
-    const add = page.getByRole("menuitem", { name: "Add a person" });
+    // Add people: the page's act opens a sheet whose Save is on the screen.
+    const add = page.getByTestId("add-people");
     test.skip((await add.count()) === 0, "this member cannot add people");
     await add.click();
-    await expect(page.getByTestId("add-person-sheet")).toBeVisible();
-    await expect(page.getByTestId("add-person-save")).toBeInViewport({ ratio: 1 });
-    await page.getByTestId("add-person-sheet-close").click();
-    await expect(page.getByTestId("add-person-sheet")).toHaveCount(0);
+    await expect(page.getByTestId("people-add-sheet")).toBeVisible();
+    await expect(page.getByTestId("rec-sheet-save-people-add")).toBeInViewport({ ratio: 1 });
+    await page.getByTestId("people-add-sheet").locator(".rec-sheet-close").click();
+    await expect(page.getByTestId("people-add-sheet")).toHaveCount(0);
   });
   /**
    * A sheet stands on the keyboard (25 Sep). A phone lays its keyboard over the page and keeps the layout's height, so
-   * Add a person's Save sat under the keys. The shell says what the keyboard covers as --kb (data-bits watchKeyboard;
+   * Add people's Save sat under the keys. The shell says what the keyboard covers as --kb (data-bits watchKeyboard;
    * keyboard-inset.test.mjs proves the measure); here a keyboard 300px tall is said as the phone would say it, and the
    * sheet stands on it, whole, with its Save above the keys, and goes back down when the keyboard goes.
    */
@@ -483,13 +485,11 @@ test.describe("Phone shell on a real workspace", () => {
     await page.waitForLoadState("networkidle");
     const said = () => page.evaluate(() => document.documentElement.style.getPropertyValue("--kb"));
     expect(await said(), "the shell measures it, and no keyboard is up").toBe("0px");
-    await page.getByTestId("people-phone-bar").getByRole("button", { name: "More" }).click();
-    // The menu is the kit's (Base UI), which opens a beat after the press: what it holds is read once it is open.
-    await expect(page.getByRole("menu")).toBeVisible();
-    const add = page.getByRole("menuitem", { name: "Add a person" });
+    // Add people, the page's act, opens its sheet (Ruben, 10 Oct 2026: it was a ⋯'s item).
+    const add = page.getByTestId("add-people");
     test.skip((await add.count()) === 0, "this member cannot add people");
     await add.click();
-    const sheet = page.getByTestId("add-person-sheet");
+    const sheet = page.getByTestId("people-add-sheet");
     await expect(sheet).toBeVisible();
     const tall = page.viewportSize()!.height;
     const foot = async () => {
@@ -501,7 +501,7 @@ test.describe("Phone shell on a real workspace", () => {
     await page.evaluate((kb) => document.documentElement.style.setProperty("--kb", `${kb}px`), keys);
     await expect.poll(foot, { message: "standing on the keys" }).toBe(tall - keys);
     expect((await sheet.boundingBox())!.y, "its top on the screen").toBeGreaterThanOrEqual(0);
-    const save = (await page.getByTestId("add-person-save").boundingBox())!;
+    const save = (await page.getByTestId("rec-sheet-save-people-add").boundingBox())!;
     expect(save.y + save.height, "Save above the keys").toBeLessThanOrEqual(tall - keys);
     await page.evaluate(() => document.documentElement.style.setProperty("--kb", "0px"));
     await expect.poll(foot, { message: "back down when the keyboard goes" }).toBe(tall);
@@ -513,13 +513,11 @@ test.describe("Phone shell on a real workspace", () => {
   test("a sheet pulled down from its handle past a third closes", async ({ page }) => {
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
-    await page.getByTestId("people-phone-bar").getByRole("button", { name: "More" }).click();
-    // The menu is the kit's (Base UI), which opens a beat after the press: what it holds is read once it is open.
-    await expect(page.getByRole("menu")).toBeVisible();
-    const add = page.getByRole("menuitem", { name: "Add a person" });
+    // Add people, the page's act, opens its sheet (Ruben, 10 Oct 2026: it was a ⋯'s item).
+    const add = page.getByTestId("add-people");
     test.skip((await add.count()) === 0, "this member cannot add people");
     await add.click();
-    const sheet = page.getByTestId("add-person-sheet");
+    const sheet = page.getByTestId("people-add-sheet");
     await expect(sheet).toBeVisible();
     const b = (await sheet.boundingBox())!;
     await pullDown(page, b.x + b.width / 2, b.y + 10, b.height * 0.6);
@@ -564,10 +562,12 @@ test.describe("Phone shell on a real workspace", () => {
   });
   /**
    * Selecting on a phone (the same spec, 4.5): the face is the checkbox, and a selection is one capsule docked at the foot, the tab
-   * bar standing down -- ✕, the count, Add to list and ⋯ -- whose ⋯ opens a sheet with the rest. On 22 Sep the bar was a pill 188px
+   * bar standing down -- ✕, the count, then Add to list, Note and More as its tabs are drawn -- whose More opens a sheet with the rest. On 22 Sep the bar was a pill 188px
    * wide at the middle of the screen, its seven controls stacked 312px tall over the rows.
    */
-  test("a selection is one docked capsule at the foot, and ⋯ opens its sheet whole on the screen", async ({ page }) => {
+  test("a selection is one docked capsule at the foot, and More opens its sheet whole on the screen", async ({
+    page,
+  }) => {
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
     const row = page.locator(".pl-table tbody tr.pl-card-row").first();

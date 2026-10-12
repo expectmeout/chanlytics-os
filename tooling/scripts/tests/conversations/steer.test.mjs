@@ -19,7 +19,7 @@ const S = "../../../../apps/dashboard/src";
 const { steerDraft } = await import(`${S}/surfaces/inbox/verbs.ts`);
 const { startSurfaces } = await import(`${S}/legacy-bridge/surface-runner.ts`);
 
-test("the frame quotes the owner, asks for a rewrite that keeps what was right, and restates the rules", () => {
+test("the frame quotes the owner, asks for a rewrite that keeps what was right, and says the rules still hold", () => {
   const f = frameSteer("  mention Saturday is full  ");
   assert.ok(
     f.startsWith(
@@ -29,13 +29,11 @@ test("the frame quotes the owner, asks for a rewrite that keeps what was right, 
   assert.ok(f.includes('Owner: "mention Saturday is full"\n'));
   assert.ok(f.includes("Write your reply again and follow it where it fits. Keep everything else that was right."));
   assert.ok(f.includes("Never repeat the instruction word for word."));
-  for (const rule of [
-    "do not quote or confirm a price",
-    "do not confirm a booking yourself",
-    "no health advice",
-    "automated assistant if asked",
-  ])
-    assert.ok(f.includes(rule), rule);
+  // The rules are said once, in the prompt, as the owner's switches set them (decision 0051): the frame says they hold,
+  // and the one that is not a switch.
+  assert.ok(f.includes("The rules in your instructions still hold"));
+  assert.ok(f.includes("you are the business's automated assistant, never a person"));
+  assert.ok(!f.includes("do not quote or confirm a price"), "never a switch-dependent rule restated");
   assert.equal(
     whisperText(f),
     "mention Saturday is full",

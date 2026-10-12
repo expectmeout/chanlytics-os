@@ -28,6 +28,7 @@
   "line_forwarding_test()": 1,
   "member_push_off_set()": 1,
   "member_view_set()": 1,
+  "model_turn_keep()": 2,
   "note_for_you_notify()": 1,
   "notification_mark()": 1,
   "notifications_seen()": 1,
@@ -66,5 +67,6 @@
   "set_template_hidden()": 1,
   "set_template_title()": 1,
   "sweep_voice_sessions()": 1,
+  "tenant_config_version_keep()": 1,
   "tenant_config_write()": 1
 }

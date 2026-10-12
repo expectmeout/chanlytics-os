@@ -110,6 +110,21 @@ const recSays = ({ inline = false, note = null } = {}) =>
       `<pre><span class="rec-says-line">Open on public holidays.</span></pre></div>`) +
   `</div>`;
 
+/** What saving writes folded behind one line, as a sheet draws it (RecordSays' `folded`): closed, or open on its lines. */
+const recSaysFolded = ({ open = false, mark = null } = {}) =>
+  `<div class="rec-says" data-folded="true"><div class="rec-disclosure" data-open="${open}">` +
+  `<button type="button" class="rec-disclosure-press" aria-expanded="${open}">` +
+  `<span class="rec-disclosure-label">Preview what it's told</span>` +
+  (mark ? `<span class="rec-disclosure-mark">${mark}</span>` : "") +
+  `${icon("chevron", 12)}</button>` +
+  `<div class="rec-disclosure-panel" role="region"><div class="rec-disclosure-inner">` +
+  `<div class="rec-says-part" data-part="says"><pre><span class="rec-says-line">Open Monday to Friday, 9:30 to 6.</span>
+` +
+  `<span class="rec-says-line" data-changed="true">Closed on public holidays.</span></pre></div>` +
+  `<div class="rec-says-part" data-part="gone"><span class="rec-says-eyebrow">No longer told</span>` +
+  `<pre><span class="rec-says-line">Open on public holidays.</span></pre></div>` +
+  `</div></div></div></div>`;
+
 /** A field (RecordField): its label holding the box, and a hint under it. */
 const recField = (label, value, hint = null) =>
   `<div class="rec-field"><label><span class="rec-field-label">${label}</span>` +
@@ -181,10 +196,10 @@ const dangerAsk = () =>
  * A record sheet over its wash; `leaving` draws the still copies that play its leaving (data-bits leaving), and
  * `asking` a question that destroys in its foot.
  */
-const recSheet = (leaving = false, asking = false) =>
+const recSheet = (leaving = false, asking = false, phone = false) =>
   `<div class="rec-sheet-backdrop" aria-hidden="true"${leaving ? ' data-leaving="true"' : ""}></div>` +
   `<section class="rec-sheet" role="dialog" aria-modal="true" aria-label="Services" tabindex="-1"` +
-  `${leaving ? ' data-leaving="true"' : ""}>` +
+  `${leaving ? ' data-leaving="true"' : ""}${phone ? ' data-phone="true" data-fit="true"' : ""}>` +
   recSheetHead("Services", "What you offer, and how long each takes.") +
   `<div class="rec-sheet-tools">${recCombo({ label: "Find a service", placeholder: "Find a service" })}` +
   `<span class="rec-sr" role="status" aria-live="polite">3 services</span></div>` +
@@ -205,7 +220,7 @@ const discardAsk = () =>
  * A fold drawn as a sheet (RecordFold's `frame`), its row behind it; `leaving` draws the copies that go, and `asking`
  * the question in its foot, in Save's and Cancel's place.
  */
-const recFoldSheet = (leaving = false, asking = false) =>
+const recFoldSheet = (leaving = false, asking = false, phone = false) =>
   (leaving
     ? ""
     : `<div class="rec-fold-behind" aria-hidden="true" inert><section class="rec-card">` +
@@ -214,11 +229,12 @@ const recFoldSheet = (leaving = false, asking = false) =>
       `${recAct("Change")}</div></section></div>`) +
   `<div class="rec-sheet-backdrop" data-fold="true" aria-hidden="true"${leaving ? ' data-leaving="true"' : ""}></div>` +
   `<section class="rec-sheet rec-fold-sheet" role="dialog" aria-modal="true" aria-label="Hours" data-open="true"` +
-  `${leaving ? ' data-leaving="true"' : ""}>` +
+  `${leaving ? ' data-leaving="true"' : ""}${phone ? ' data-phone="true"' : ""}>` +
   recSheetHead("Hours", "When you are open, each day.") +
   `<div class="rec-sheet-body"><div class="rec-fold-inner">` +
   recField("Monday opens", "09:30") +
   recField("Monday closes", "18:00") +
+  (phone ? recSaysFolded({ mark: "Changed" }) : "") +
   `</div></div>` +
   (asking
     ? `<footer class="rec-sheet-foot" data-asking="true">${discardAsk()}</footer></section>`
@@ -246,11 +262,13 @@ const PHOTO =
  * A person's row on a phone, as the kit draws it, with a line of words said or not, a note under it or not, as a link to
  * their page or not, and a row whose first column is its kind (the kit's mark) instead of someone's face.
  */
-const listRow = ({ said = true, note = false, door = false, mark = false } = {}) =>
-  (door ? `<a class="list-row" href="#kit">` : `<div class="list-row">`) +
-  (mark
-    ? `<span class="mark list-row-mark" aria-hidden="true">${icon("bell", 13)}</span>`
-    : `<span class="face list-row-face" aria-hidden="true"><span>AR</span></span>`) +
+const listRow = ({ said = true, note = false, door = false, mark = false, bare = false } = {}) =>
+  (door ? `<a class="list-row" href="#kit">` : `<div class="list-row${bare ? " list-row-bare" : ""}">`) +
+  (bare
+    ? ""
+    : mark
+      ? `<span class="mark list-row-mark" aria-hidden="true">${icon("bell", 13)}</span>`
+      : `<span class="face list-row-face" aria-hidden="true"><span>AR</span></span>`) +
   `<div class="list-row-name">Aisha Rahman</div><span class="pill pill-warn list-row-end">Needs you</span>` +
   (said ? `<div class="list-row-said">asked about Saturday</div>` : "") +
   `<div class="list-row-facts"><span>Sat · 10:00</span><span>2 h ago</span></div>` +
@@ -365,6 +383,23 @@ const kitSheet = () =>
   `<button type="button" class="btn btn-sm btn-ghost">Cancel</button>` +
   `<button type="button" tabindex="0" aria-label="More for the services" aria-haspopup="menu" aria-expanded="false" ` +
   `class="btn btn-icon btn-sm btn-ghost">${icon("more", 14)}</button></div></footer></section>`;
+
+/**
+ * The kit's Sheet with its title a kicker (`kicker`, kit-behaves.tsx's): the title a quiet line with its small Close at
+ * its end and no rule under it, over rows that carry their own name, and a foot that closes it (`footCloses`: its
+ * Cancel), where on a phone the corner's Close steps out of sight.
+ */
+const kitKickerSheet = () =>
+  `<button type="button" class="btn">Turn on Win-back</button>` +
+  `<div class="sheet-backdrop" role="presentation" aria-hidden="true"></div>` +
+  `<section class="sheet sheet-kicker" role="dialog" tabindex="-1" data-foot-closes="true">` +
+  `<div class="sheet-handle" aria-hidden="true"></div>` +
+  `<header class="rec-sheet-head"><div class="rec-sheet-heading"><h2 class="rec-sheet-title">Turn on</h2></div>` +
+  `<button type="button" tabindex="0" aria-label="Close" class="rec-sheet-close">${icon("x", 13)}</button></header>` +
+  `<div class="rec-sheet-body">${KIT_ROWS}</div>` +
+  `<footer class="rec-sheet-foot"><div data-foot-pair="">` +
+  `<button type="button" class="btn btn-sm btn-ghost">Cancel</button>` +
+  `<button type="button" class="btn btn-sm btn-primary">Start it</button></div></footer></section>`;
 
 /**
  * The kit's Sheet in a phone's job's shape, open on its second step (kit-behaves.tsx's): the control that opened it,
@@ -602,6 +637,7 @@ const figure = ({
   meta = "on 6 of 7 days",
   door = null,
   thin = null,
+  tone = null,
 } = {}) => {
   const number =
     door === "a"
@@ -610,7 +646,7 @@ const figure = ({
         ? `<button type="button" class="figure-door">${value}</button>`
         : value;
   return (
-    `<dl class="gx-figs"><div class="figure${thin === null ? "" : " is-thin"}"><dt class="figure-label">${term}</dt>` +
+    `<dl class="gx-figs"><div class="figure${thin === null ? "" : " is-thin"}${tone === null ? "" : ` is-${tone}`}"><dt class="figure-label">${term}</dt>` +
     `<dd class="figure-value">${number}${change ? `<span class="figure-change">${change}</span>` : ""}</dd>` +
     `${meta ? `<dd class="figure-meta">${meta}</dd>` : ""}` +
     `${thin === null ? "" : `<dd class="figure-n">only ${thin}, too few to read</dd>`}</div></dl>`
@@ -753,6 +789,13 @@ const kitPickerReadOnly = () =>
   `<span class="token-face">10:00</span><span aria-hidden="true" class="token-caret">` +
   `${icon("chevron-down", 11)}</span></button></span>`;
 
+/** The kit's Picker read as a word of its sentence (`inline`): no capsule, its words underlined, its chevron after. */
+const kitPickerInline = () =>
+  `<span class="gx-pop-words">Every day at <button type="button" tabindex="0" role="combobox" aria-expanded="false" ` +
+  `aria-haspopup="listbox" aria-label="The hour it runs: 10:00" class="token token-inline">` +
+  `<span class="token-face">10:00</span><span aria-hidden="true" class="token-caret">` +
+  `${icon("chevron-down", 11)}</span></button>, up to 25 people a run.</span>`;
+
 /** The kit's toast, raised: Base UI's region wearing the house's stack, a confirmation with its Undo and its ×. */
 const kitToast = () =>
   `<div class="pp-toast-stack" role="region" tabindex="-1" aria-live="polite" aria-label="Notifications">` +
@@ -842,7 +885,7 @@ export const FAMILIES = [
   {
     family: "Button",
     about:
-      "The button: secondary, primary, quiet and danger; small, and a glyph alone; the size of the words it holds, in their own type; a link drawn as one; off; refused by a role.",
+      "The button: secondary, primary, quiet, plain and danger; small, and a glyph alone; the size of the words it holds, in their own type; a link drawn as one; off; refused by a role.",
     entries: [
       {
         id: "btn",
@@ -850,6 +893,13 @@ export const FAMILIES = [
       },
       { id: "btn-primary", html: `<button type="button" class="btn btn-primary">${icon("check", 13)}Save</button>` },
       { id: "btn-ghost", html: `<button type="button" class="btn btn-ghost">Cancel</button>` },
+      {
+        id: "btn-plain",
+        html:
+          `<button type="button" class="btn btn-sm btn-plain">Select</button>` +
+          `<button type="button" class="btn btn-sm btn-plain" aria-haspopup="menu" aria-expanded="true">Sort</button>` +
+          `<button type="button" class="btn btn-sm btn-plain">Export</button>`,
+      },
       { id: "btn-danger", html: `<button type="button" class="btn btn-danger">${icon("x", 13)}Yes, delete</button>` },
       { id: "btn-danger-quiet", html: `<button type="button" class="btn danger">Delete…</button>` },
       {
@@ -933,31 +983,25 @@ export const FAMILIES = [
   {
     family: "Search",
     about:
-      "The capsule a list is searched from, Search (surfaces/kit/search/search.tsx), People's and the Inbox's: at rest on " +
-      "a phone a button saying what it finds; pressed, the field (16px on a phone) with its words, their clear and " +
-      "Cancel beside it; on a desk the field alone, at the page's size.",
+      "The capsule a list is searched from, Search (surfaces/kit/search/search.tsx), People's, the Inbox's and " +
+      "Conversations': the field, always, the capsule its label, so a press anywhere on it is in the field (typed at 16px " +
+      "on a phone, drawn at the page's size), and the clear in its end from the first word.",
     entries: [
       {
         id: "search",
         html:
-          `<div class="search"><button type="button" class="search-rest" aria-label="Search names, numbers and emails">` +
-          `${icon("search", 15)}<span>Search names, numbers and emails</span></button></div>`,
+          `<div class="search"><label class="search-box">${icon("search", 15)}` +
+          `<span class="search-field"><input type="search" inputmode="search" enterkeyhint="search" autocomplete="off" ` +
+          `value="" placeholder="Search names, numbers and emails" aria-label="Search names, numbers and emails"></span>` +
+          `</label></div>`,
       },
       {
-        id: "search-open",
-        html:
-          `<div class="search" tabindex="-1"><label class="search-box">${icon("search", 15)}` +
-          `<input type="search" inputmode="search" enterkeyhint="search" autocomplete="off" value="Sam" ` +
-          `placeholder="Search names, numbers and emails" aria-label="Search names, numbers and emails">` +
-          `<button type="button" class="search-clear" aria-label="Clear the search">${icon("x", 12)}</button></label>` +
-          `<button type="button" class="search-cancel">Cancel</button></div>`,
-      },
-      {
-        id: "search-desk",
+        id: "search-words",
         html:
           `<div class="search"><label class="search-box">${icon("search", 15)}` +
-          `<input type="search" inputmode="search" enterkeyhint="search" autocomplete="off" value="" ` +
-          `placeholder="Search by name or message" aria-label="Search by name or message"></label></div>`,
+          `<span class="search-field"><input type="search" inputmode="search" enterkeyhint="search" autocomplete="off" ` +
+          `value="Sam" placeholder="Search names, numbers and emails" aria-label="Search names, numbers and emails"></span>` +
+          `<button type="button" class="search-clear" aria-label="Clear the search">${icon("x", 12)}</button></label></div>`,
       },
     ],
   },
@@ -1497,7 +1541,7 @@ export const FAMILIES = [
   {
     family: "Fold, inline editor, what saving writes",
     about:
-      "The record kit's edits in place: a fold opened under its row with its fields, what saving writes and Save; a wide one; one closed; one saving; the inline editor in the row it edits, open, saving and closed.",
+      "The record kit's edits in place: a fold opened under its row with its fields, what saving writes and Save; a wide one; one closed; one saving; what saving writes folded behind one line, as a sheet draws it (RecordDisclosure), closed and open; the inline editor in the row it edits, open, saving and closed.",
     entries: [
       {
         id: "rec-fold",
@@ -1568,6 +1612,8 @@ export const FAMILIES = [
             `<div class="rec-inline-more">${recSays({ inline: true })}</div></div>`,
         ),
       },
+      { id: "rec-says-folded", html: recCard(recSaysFolded({ mark: "Changed" })) },
+      { id: "rec-says-folded-open", html: recCard(recSaysFolded({ open: true, mark: "Changed" })) },
       {
         id: "rec-inline-saving",
         html: recCard(
@@ -1593,7 +1639,7 @@ export const FAMILIES = [
   {
     family: "Record sheet",
     about:
-      "RecordSheet, beside the page over its wash: its head, tools, rows and foot; a fold drawn as a sheet with its row behind it, and with the question a discard asks in its foot; and the still copies that play each one's leaving.",
+      "RecordSheet, beside the page over its wash: its head, tools, rows and foot; a fold drawn as a sheet with its row behind it, and with the question a discard asks in its foot; the still copies that play each one's leaving; and each as a phone draws it from the bottom (data-phone: its grabber, its Close out of sight beside a foot that closes, the list fitted to what it holds).",
     entries: [
       { id: "rec-sheet", stage: "sheet", html: recSheet() },
       { id: "rec-sheet-leaving", stage: "sheet", html: recSheet(true) },
@@ -1601,6 +1647,8 @@ export const FAMILIES = [
       { id: "rec-fold-sheet", stage: "sheet", html: recFoldSheet() },
       { id: "rec-fold-sheet-asking", stage: "sheet", html: recFoldSheet(false, true) },
       { id: "rec-fold-sheet-leaving", stage: "sheet", html: recFoldSheet(true) },
+      { id: "rec-sheet-phone", stage: "sheet", html: recSheet(false, false, true) },
+      { id: "rec-fold-sheet-phone", stage: "sheet", html: recFoldSheet(false, false, true) },
     ],
   },
   {
@@ -1787,13 +1835,16 @@ export const FAMILIES = [
       "phone shares: three lines, two (nothing said, so the face spans two), a line of its own under the facts, and " +
       "a row with a page of its own, a link that keeps the row's colours with no underline. People's and Leads' phone " +
       "rows draw it (surfaces/people/cells/row-card.tsx); and a row whose first column is its kind, the kit's mark in " +
-      "the face's place (Campaigns' phone list, surfaces/campaigns/home/ledger/ledger-phone.tsx).",
+      "the face's place; and a row with nothing in its first column, its lines from its start, where what the rows " +
+      "are is said around them (Campaigns' phone list, each row on its moment's line: " +
+      "surfaces/campaigns/home/ledger/ledger-phone.tsx).",
     entries: [
       { id: "list-row", html: listRow() },
       { id: "list-row-two", html: listRow({ said: false }) },
       { id: "list-row-note", html: listRow({ note: true }) },
       { id: "list-row-door", html: listRow({ note: true, door: true }) },
       { id: "list-row-mark", html: listRow({ said: false, mark: true }) },
+      { id: "list-row-bare", html: listRow({ bare: true }) },
     ],
   },
   {
@@ -1828,13 +1879,16 @@ export const FAMILIES = [
       "the number at the large step, the period before beside it in plain ink, one line under it. The number a link where " +
       "it has an address and a button where it acts. A ratio of some, but too few (its count above none and under the " +
       "minimum) is greyed and says how few, under the line under it; of none there is no ratio, and nothing is greyed. " +
-      "Reports' strip is drawn with it.",
+      "A tone is on the number alone: amber for what needs you, red for what failed, never green, and never the period " +
+      "before beside it, which stays in plain ink. Reports' strip is drawn with it.",
     entries: [
       { id: "figure", html: figure() },
       { id: "figure-change", html: figure({ change: "up from 7" }) },
       { id: "figure-door", html: figure({ door: "a" }) },
       { id: "figure-door-act", html: figure({ door: "button" }) },
       { id: "figure-thin", html: figure({ value: "62%", thin: 3 }) },
+      { id: "figure-warn", html: figure({ tone: "warn" }) },
+      { id: "figure-fail", html: figure({ tone: "fail" }) },
     ],
   },
   {
@@ -1893,6 +1947,7 @@ export const FAMILIES = [
     entries: [
       { id: "sheet-kit", stage: "sheet", html: kitSheet() },
       { id: "sheet-kit-job", stage: "sheet", html: kitJobSheet() },
+      { id: "sheet-kit-kicker", stage: "sheet", html: kitKickerSheet() },
     ],
   },
   {
@@ -1973,6 +2028,7 @@ export const FAMILIES = [
       { id: "picker-kit-find", stage: "pop", html: kitPickerFind() },
       { id: "picker-kit-none", stage: "pop", html: kitPickerNone() },
       { id: "picker-kit-readonly", html: kitPickerReadOnly() },
+      { id: "picker-kit-inline", html: kitPickerInline() },
     ],
   },
   {

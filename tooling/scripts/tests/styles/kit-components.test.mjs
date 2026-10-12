@@ -25,6 +25,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { isThinShare } from "@chanlytics/contracts";
 import { FAMILIES } from "../../e2e-harness/kit-gallery.mjs";
 import { again, fresh, installLegacyReact, press, textOf } from "../_legacy-react.mjs";
 import { Button } from "../../../../apps/dashboard/src/surfaces/kit/button/button.tsx";
@@ -362,6 +363,11 @@ const BUTTONS = {
   btn: () => [h(Button, null, "Export"), h(Button, null, glyph(), "Add a person")],
   "btn-primary": () => h(Button, { variant: "primary" }, glyph(), "Save"),
   "btn-ghost": () => h(Button, { variant: "quiet" }, "Cancel"),
+  "btn-plain": () => [
+    h(Button, { variant: "plain", size: "sm" }, "Select"),
+    h(Button, { variant: "plain", size: "sm", "aria-haspopup": "menu", "aria-expanded": true }, "Sort"),
+    h(Button, { variant: "plain", size: "sm" }, "Export"),
+  ],
   "btn-danger": () => h(Button, { variant: "danger" }, glyph(), "Yes, delete"),
   "btn-danger-quiet": () => h(Button, { tone: "danger" }, "Delete…"),
   "btn-sm": () => [
@@ -533,12 +539,12 @@ test("Face draws the gallery's Face family, hidden from a screen reader, its pic
 });
 
 /**
- * A person's row, as the gallery draws it, with what was said or not, a note or not, an address or none, and a row's
- * kind as its mark instead of a face.
+ * A person's row, as the gallery draws it, with what was said or not, a note or not, an address or none, a row's kind as
+ * its mark instead of a face, or nothing in its first column (`bare`).
  */
-const row = ({ said = true, note = false, href = undefined, mark = false } = {}) =>
+const row = ({ said = true, note = false, href = undefined, mark = false, bare = false } = {}) =>
   h(ListRow, {
-    ...(mark ? { mark: glyph() } : { face: { initials: "AR" } }),
+    ...(bare ? { bare: true } : mark ? { mark: glyph() } : { face: { initials: "AR" } }),
     name: "Aisha Rahman",
     end: (place) => h("span", { className: cx("pill pill-warn", place) }, "Needs you"),
     said: said ? "asked about Saturday" : undefined,
@@ -557,6 +563,7 @@ const LIST_ROWS = {
   "list-row-note": () => row({ note: true }),
   "list-row-door": () => row({ note: true, href: "#kit" }),
   "list-row-mark": () => row({ said: false, mark: true }),
+  "list-row-bare": () => row({ bare: true }),
 };
 
 test("ListRow draws the gallery's List row family, and the page's own elements where the row takes them", () => {
@@ -744,6 +751,8 @@ const FIGURES = {
   "figure-door-act": () =>
     h(Figure, { label: "Customer messages", value: "17", meta: "on 6 of 7 days", door: { onClick } }),
   "figure-thin": () => h(Figure, { label: "Customer messages", value: "62%", meta: "on 6 of 7 days", n: 3, minN: 5 }),
+  "figure-warn": () => h(Figure, { label: "Customer messages", value: "17", meta: "on 6 of 7 days", tone: "warn" }),
+  "figure-fail": () => h(Figure, { label: "Customer messages", value: "17", meta: "on 6 of 7 days", tone: "fail" }),
 };
 
 test("Figure draws the gallery's Figure family: a term and its definitions, the number a door where it opens something, the page's class last", () => {
@@ -787,6 +796,13 @@ test("Figure draws the gallery's Figure family: a term and its definitions, the 
     "of none there is no ratio: its dash and its line say why, and nothing is greyed",
   );
   assert.deepEqual(rows({ n: 0, minN: 5 }), ["figure-label", "figure-value"], "and no line says it is of none");
+  // The kit greys by contracts' one predicate (a bar of a rate and Ask's answer judge by it too): the two agree at 0, 4, 5 and beyond.
+  for (const n of [0, 1, 4, 5, 6])
+    assert.equal(
+      drawn(h(Figure, { label: "Calls", value: "3", n, minN: 5 })).props.className === "figure is-thin",
+      isThinShare(n, 5),
+      `n ${n}`,
+    );
   const thin = drawn(h(Figure, { label: "Calls", value: "3", n: 1, minN: 5 }))
     .props.children.filter(Boolean)
     .at(-1);
@@ -806,6 +822,24 @@ test("Figure draws the gallery's Figure family: a term and its definitions, the 
     ["figure-label", "figure-value", "figure-meta", "figure-n"],
     "the count's line comes after the line under the number",
   );
+  // A tone is for what needs you (warn) or what failed (fail), the reports lenses spec D10: the figure wears it, and the
+  // stylesheet reads it on the number alone. It adds no row, and a thin figure keeps its state ahead of it.
+  const tone = (props) => drawn(h(Figure, { label: "Steps overdue", value: "6", ...props }));
+  assert.equal(tone({ tone: "warn" }).props.className, "figure is-warn");
+  assert.equal(tone({ tone: "fail" }).props.className, "figure is-fail");
+  assert.equal(tone({}).props.className, "figure", "no tone, no class");
+  assert.equal(tone({ tone: undefined }).props.className, "figure", "an unset tone is none");
+  assert.equal(
+    tone({ n: 2, minN: 5, tone: "warn" }).props.className,
+    "figure is-thin is-warn",
+    "thin first, then the tone",
+  );
+  assert.equal(
+    tone({ tone: "fail", className: "rpt-cell" }).props.className,
+    "figure is-fail rpt-cell",
+    "the page's layout class stays last",
+  );
+  assert.deepEqual(rows({ tone: "warn", change: "up from 2" }), ["figure-label", "figure-value"], "a tone adds no row");
 });
 
 /**
@@ -1170,49 +1204,51 @@ test("ViewTabs draws the gallery's Tab strip family: links on one capsule, the h
   );
 });
 
-/** A search, as a page hands it: what it finds, its words, and whether it is open. */
+/** A search, as a page hands it: what it finds, its words, and the field's test id. */
 const searchOf = (props) =>
   h(Search, {
     label: "Search names, numbers and emails",
     value: "",
     onChange() {},
-    open: false,
-    onOpen() {},
     testid: "people-phone-search",
     ...props,
   });
 
 /** The gallery's Search family, entry by entry. */
 const SEARCHES = {
-  search: () => searchOf({ rests: true }),
-  "search-open": () => searchOf({ rests: true, open: true, value: "Sam" }),
-  "search-desk": () => searchOf({ rests: false, label: "Search by name or message", testid: "inbox-search" }),
+  search: () => searchOf(),
+  "search-words": () => searchOf({ value: "Sam" }),
 };
 
-test("Search draws the gallery's Search family: the capsule at rest, the field with its clear and Cancel, the desk's field", () => {
+test("Search draws the gallery's Search family: the field in its capsule, and the clear once there are words", () => {
   assert.deepEqual(parting(FAMILIES, "Search", SEARCHES), HELD);
-  const rest = drawn(searchOf({ rests: true, className: "pp-lookup" }));
-  assert.equal(rest.props.className, "search pp-lookup", "the page's layout class comes last");
-  const [button] = rest.props.children.flat().filter(Boolean);
-  assert.equal(button.props["data-testid"], "people-phone-search-open");
-  fresh();
-  let opened = false;
-  const pressed = drawn(searchOf({ rests: true, onOpen: (o) => (opened = o) }));
-  press(pressed.props.children.flat().filter(Boolean)[0]);
-  assert.equal(opened, true, "a press on the capsule asks for the field");
-  let words = "x";
-  let shut = null;
-  const open = drawn(
-    searchOf({ rests: true, open: true, value: "Sam", onChange: (q) => (words = q), onOpen: (o) => (shut = o) }),
+  // The field from the first draw, at every width: it rested as a button on a phone, and a tap only drew the field in
+  // its place, so a second tap began the typing (Ruben, 11 Oct 2026).
+  const empty = drawn(searchOf({ className: "pp-lookup" }));
+  assert.equal(empty.props.className, "search pp-lookup", "the page's layout class comes last");
+  const [box] = empty.props.children.flat().filter(Boolean);
+  assert.equal(box.type, "label", "the capsule is the field's label: a press anywhere on it is in the field");
+  const parts = box.props.children.flat().filter(Boolean);
+  assert.equal(parts.length, 2, "the glyph and the field: no clear until a word is typed");
+  const field = [parts[1].props.children].flat()[0];
+  assert.deepEqual(
+    [field.type, field.props.type, field.props["data-testid"], field.props.placeholder],
+    ["input", "search", "people-phone-search", "Search names, numbers and emails"],
   );
-  const cancel = open.props.children.flat().filter(Boolean).at(-1);
-  assert.equal(cancel.props["data-testid"], "people-phone-search-cancel");
-  press(cancel);
-  assert.deepEqual([words, shut], ["", false], "Cancel empties the field and rests it");
-  const desk = drawn(searchOf({ rests: false, value: "Sam" }));
   assert.equal(
-    desk.props.children.flat().filter(Boolean).length,
-    1,
-    "on a desk the field stands alone, with no Cancel",
+    field.props.autoFocus,
+    undefined,
+    "nothing focuses by itself: the field takes the press that lands on it",
   );
+  let words = "x";
+  const typed = drawn(searchOf({ value: "Sam", onChange: (q) => (words = q) }));
+  const clear = typed.props.children.flat().filter(Boolean)[0].props.children.flat().filter(Boolean).at(-1);
+  assert.equal(clear.props["data-testid"], "people-phone-search-clear");
+  // No Cancel (Ruben, 10 Oct 2026): the clear stands in the field's end from the first word. Its press leaves focus in
+  // the field, so the caret, and a phone's keyboard, stay through it.
+  let kept = false;
+  clear.props.onPointerDown({ preventDefault: () => (kept = true) });
+  assert.equal(kept, true, "a press on the clear keeps the field's focus");
+  press(clear);
+  assert.equal(words, "", "the clear empties the field");
 });

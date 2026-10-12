@@ -209,6 +209,34 @@ async function seed() {
     }),
     "reach_out_replies",
   );
+  // A turn the receptionist took about them (00401, decision 0039): what it was told and what it answered, kept
+  // through the port's own write. It goes with their conversation, by the fence's cascade.
+  ok(
+    await db.rpc("model_turn_keep", {
+      p_tenant_id: T,
+      p_turn_id: globalThis.crypto.randomUUID(),
+      p_conversation_id: conversation,
+      p_prompt_hash: "0123456789abcdef",
+      p_prompt_text: "You are the receptionist for Example Studio.",
+      p_request: { who: WORDS, messages: [{ role: "user", content: WORDS }] },
+      p_response: { record: { reply: WORDS } },
+    }),
+    "model_turns",
+  );
+  // And a turn about someone else, whose notes named them: found by the needles and deleted (model_turns_scrub).
+  made.othersThread = await insert("conversations", { tenant_id: T, contact_id: B });
+  ok(
+    await db.rpc("model_turn_keep", {
+      p_tenant_id: T,
+      p_turn_id: globalThis.crypto.randomUUID(),
+      p_conversation_id: made.othersThread,
+      p_prompt_hash: "0123456789abcdef",
+      p_prompt_text: "You are the receptionist for Example Studio.",
+      p_request: { who: `Name on record: Bo. A note says: ${WORDS}`, messages: [{ role: "user", content: "hi" }] },
+      p_response: { text: WORDS, record: null },
+    }),
+    "model_turns, someone else's",
+  );
   await insert("calls", {
     tenant_id: T,
     retell_call_id: `call-${DIGITS}-${RUN}`,
@@ -572,6 +600,15 @@ test(
     const [note] = query(`select body from public.person_notes where contact_id = '${B}'`);
     assert.match(note.body, /\[erased\]/);
     assert.ok(!note.body.includes(DIGITS) && !note.body.includes(EMAIL));
+    const [turns] = query(
+      `select (select count(*)::int from public.model_turns where tenant_id = '${T}') as turns,
+              (select count(*)::int from public.conversations where id = '${made.othersThread}') as thread`,
+    );
+    assert.deepEqual(
+      turns,
+      { turns: 0, thread: 1 },
+      "the turn that quoted them is gone; the other person's thread stays",
+    );
     const [kept] = query(`select display_name, phone_e164 from public.contacts where id = '${B}'`);
     assert.deepEqual(kept, { display_name: "Bo Kept", phone_e164: "+16465550198" });
   },

@@ -2,6 +2,7 @@
 export {
   violatesNoPrices,
   priceFigures,
+  priceBreach,
   namesMoney,
   heldLine,
   spokenBreach,
@@ -123,6 +124,9 @@ export {
   noteAsTold,
 } from "./workspace-config/compose";
 export { offersAfterStart, offersFacts } from "./workspace-config/offers-ask";
+export { allowedPrices, priceAllowance } from "./workspace-config/price-allowance";
+export type { AllowedPrice } from "./workspace-config/price-allowance";
+export { disclosureFacts, CONVERSATION_UNDER_WAY, CONVERSATION_GAP_MS } from "./workspace-config/assistant-disclosure";
 export type { LeadChannel } from "./workspace-config/offers-ask";
 export {
   instructionsDraft,
@@ -150,6 +154,8 @@ export {
   VISION_STRENGTH,
   RULES_AT_REST_WORDS,
   RULES_WITHOUT_FIELDS_WORDS,
+  ALWAYS_TOLD,
+  pricesWrittenWords,
 } from "./business-tab/rule-strengths";
 export type { RuleStrength, RuleStrengthVM, RulesKeptInputs } from "./business-tab/rule-strengths";
 export { bookingLinkRowWords, businessGap } from "./business-tab/business-gap";
@@ -162,7 +168,9 @@ export {
   servicesToldWords,
   serviceUndoName,
   servicesFoundWords,
-  servicesSaveWords,
+  serviceLineWords,
+  lengthWords,
+  SERVICE_PRICE_EMPTY,
 } from "./business-tab/services-words";
 export type { ServiceWordsInput, ServicesWordsVM } from "./business-tab/services-words";
 export {
@@ -185,11 +193,25 @@ export {
   TONE_PRESETS,
 } from "./business-tab/how-it-answers";
 export type { NotesWordsVM, InstructionsWordsVM, FallbacksWordsVM } from "./business-tab/how-it-answers";
-export { handoffChatWords, handoffCallWords, handoffWords } from "./business-tab/handoff-words";
+export {
+  handoffChatWords,
+  handoffChatRow,
+  handoffCallRow,
+  HANDOFF_ANYWAY,
+  handoffWords,
+  type HandoffRowVM,
+  type HandoffCallRowVM,
+} from "./business-tab/handoff-words";
 export type { HandoffWordsVM } from "./business-tab/handoff-words";
 export { abilityRows, cannotRows } from "./business-tab/abilities";
 export type { AbilityInputs, AbilityRowVM, AbilitiesVM, CannotRowVM } from "./business-tab/abilities";
-export { offersBookingLink, priceNextStep, NO_LINK_DETAILS } from "./no-booking-link";
+export {
+  offersBookingLink,
+  offersLinkOn,
+  priceNextStep,
+  NO_LINK_DETAILS,
+  NO_WAY_TO_SEND_LINK,
+} from "./no-booking-link";
 export {
   brainMetaOf,
   replyWhy,

@@ -1,17 +1,21 @@
 /**
- * The send screen: who, what and when, one under the other, and the send alone at the foot (moved from
- * legacy/pages/broadcasts.jsx, decision 0015; then onto the kit, Claude Video/docs/2026-10-02-campaigns-on-the-kit.md
- * §3.3). Each question is one sentence of tokens: To [a list] · 24 of 29 can hear it, with the people held back behind
- * one quiet link; Says [a message] [its language], the message as the customer reads it and each slot of it the control
- * that changes what fills it; Send by one switch for each channel it may go by (WhatsApp, Text, Email); When [Now] or [a day]
- * at [a time]. Plain functions that return the elements they draw,
- * called from BroadcastsReal with the page's state.
+ * The send screen as one sentence (moved from legacy/pages/broadcasts.jsx, decision 0015; then onto the kit, Claude
+ * Video/docs/2026-10-02-campaigns-on-the-kit.md §3.3; Ruben, 11 Oct 2026, "Option B"): "Send [A quick note] to [Regulars]
+ * by [WhatsApp], [now]." Each choice is a word of the sentence that is pressed; one quiet line under it says how many of
+ * the list can hear it and opens who is held back; the message, folded under its first words, opens onto the bubble with
+ * each slot the control that fills it; one line says when it goes and from which number; and the foot holds the one act,
+ * which says what it will do ("Send to 14 now", "Schedule for tomorrow at 9:00 AM"). It stood as five rows (To, Send by,
+ * Says, When, Name), each a word at the left, with a count, a bar, a clause and a link on its first. What stops the send
+ * stands over the sentence, one callout each. Plain functions that return the elements they draw, called from
+ * BroadcastsReal with the page's state.
  */
 import type { ReactNode } from "react";
 import {
   CAMPAIGN_ROOMS,
   HEARD_UNREAD_WORDS,
+  LIFECYCLE_WORDS,
   NO_TEMPLATE_WORDS,
+  PREVIEW_WORDS,
   STARTER_LINE_WORDS,
   allowanceBeforeSend,
   heardTooWords,
@@ -21,6 +25,7 @@ import {
   offersNote,
 } from "@chanlytics/contracts";
 import type { ParamSourceKind, TemplateGroup } from "@chanlytics/contracts";
+import { pageClock } from "@/legacy-bridge/zone";
 import { Button } from "../../../kit/button/button";
 import { Confirm } from "../../../kit/confirm/confirm";
 import { FailedRead } from "../../../kit/empty/empty";
@@ -32,24 +37,26 @@ import { Switch } from "../../../kit/switch/switch";
 import { UnsavedAsk } from "../../../kit/record/work";
 import { gate, gateTitle, routeDoor } from "../../../legacy-verbs";
 import { MessagePreview, PreviewStepper } from "../../parts/message-preview";
-import { CM_NO_MESSAGE_YET, CM_VIA_WORDS, cmNothingOpen, cmReadyOf, cmTick } from "../../parts/channels";
+import { CM_NO_MESSAGE_YET, cmNothingOpen, cmReadyOf, cmTick } from "../../parts/channels";
 import { CmLangGlyph } from "../../parts/picker";
 import { cmChevron, cmGroups, cmSearch } from "../../parts/picks";
-import { CmVia } from "../../parts/send-by";
+import { CmPreviewFold } from "../../parts/preview-fold";
+import { CmReachLine } from "../../parts/reach";
+import { CmViaWord } from "../../parts/send-by";
 import { CmSlot } from "../../parts/slot";
-import { CmSplitBar } from "../../parts/split-bar";
 import { CmPane } from "../../parts/split";
 import { TemplateComposer } from "../../templates/composer";
 import { starters } from "../../templates/verbs";
 import type { BroadcastTemplate } from "../surface";
 import { broadcasts } from "../verbs";
 import { BcWhenPick, bcNowNote } from "../when";
-import { BcAudiencePick, BcCount, BcHeldBack, BcReachBar, BcReachBy } from "./audience";
+import { BcAudiencePick, BcHeldBox } from "./audience";
 import type { BcV } from "./types";
 import { BC_SAYS, BC_TEXT, bcLangWords, bcTitle } from "./words";
 
-// What stood as paragraphs under the To row, and now sits behind "Who's held back" (page/audience.tsx BcHeldBack): who said yes,
-// the rules every send keeps (who is held back at the wire, how many go at a time), and what an offer needs.
+// What the reach line opens under the people held back (page/audience.tsx BcHeldBox): who said yes, the rules every send
+// keeps (who is held back at the wire, how many go at a time), and what an offer needs. Who hears from you within a week
+// of the send is said under the reach line itself, with its switch (bcHeard).
 function bcWhoNotes(v: BcV) {
   const { data, active, yesWords, purpose, on } = v;
   return (
@@ -77,29 +84,32 @@ function bcWhoNotes(v: BcV) {
 
 // Who of those it reaches hear from a campaign or a broadcast within a week of it, before or after: the send leaves them
 // out, as the route skips them (the week's breath), and the kit's switch beside it, off, sends to them too (contracts
-// heardWords, heardTooWords). Said in the To row, where the count it changes is, and only where somebody does. Where who
-// hears could not be read, one line says the send still leaves them out (contracts HEARD_UNREAD_WORDS), and there is
-// nobody to switch.
+// heardWords, heardTooWords). Said on its own line under the reach line, where the count it changes is ("1 of 3 can hear
+// it"), and only where somebody does: the switch is the owner's to see, never behind the line's press. Where who hears
+// could not be read, the line says the send still leaves them out (contracts HEARD_UNREAD_WORDS), and there is nobody to
+// switch.
 function bcHeard(v: BcV) {
   const { active, heard, breathe, setHeardToo, data } = v;
   if (active && data.heardRead === false)
     return (
-      <div className="bc-excl-hint" data-testid="bc-heard-unread">
-        {HEARD_UNREAD_WORDS}
+      <div className="cm-reach-line" data-testid="bc-heard-unread">
+        <span className="cm-reach-press">{HEARD_UNREAD_WORDS}</span>
       </div>
     );
   if (!active || heard <= 0) return null;
   return (
-    <div className="bc-excl-hint" data-testid="bc-heard-line">
-      <span data-testid="bc-heard">{broadcasts.heardWords(heard, breathe)}</span>{" "}
-      <span className="cm-via-one">
+    <div className="cm-reach-line" data-testid="bc-heard-line">
+      <span className="cm-reach-press" data-testid="bc-heard">
+        {broadcasts.heardWords(heard, breathe)}
+      </span>{" "}
+      <span className="cm-reach-press">
         <Switch
           labelledBy="bc-heard-too-word"
           checked={!breathe}
           onCheckedChange={(on) => setHeardToo(on)}
           data-testid="bc-heard-too"
         />
-        <span id="bc-heard-too-word" className="cm-via-word" data-testid="bc-heard-too-word">
+        <span id="bc-heard-too-word" data-testid="bc-heard-too-word">
           {heardTooWords(heard)}
         </span>
       </span>
@@ -107,10 +117,20 @@ function bcHeard(v: BcV) {
   );
 }
 
-// What stops the send, said under the To line where the sender reads it and only while it does: a number that cannot carry
-// the list, the month's emails or texts running out (contracts allowanceBeforeSend; a broadcast is held at it), and nobody
-// to send it to -- with the door to where their yes is got.
-function bcBlockers(v: BcV) {
+/** One callout over the sentence: what keeps the send from going, with its door where it has one. */
+function bcCallout(testid: string, glyph: string, words: ReactNode) {
+  return (
+    <p className="cm-callout" data-testid={testid}>
+      <Icon name={glyph} size={14} />
+      <span className="cm-callout-words">{words}</span>
+    </p>
+  );
+}
+
+// What stops the send, said over its sentence and only while it does: the lists that could not be read, a number that
+// cannot carry the list, the month's emails or texts running out (contracts allowanceBeforeSend; a broadcast is held at
+// it), and nobody to send it to -- with the door to where their yes is got.
+function bcCallouts(v: BcV) {
   const { active, overLimit, number, activeCount, leftOut, canSend, noNumber, yesDoor, on, purpose, split } = v;
   const { data, goesAt } = v;
   // The month the send is set to go in, not the month it is made in: one set for the 1st, made on the 28th, counts against the new month.
@@ -119,67 +139,6 @@ function bcBlockers(v: BcV) {
     active && split ? allowanceBeforeSend(split.byChannel, monthSentAt(data, goesAt), null, purpose) : null;
   return (
     <>
-      {allowance && (
-        <div className="bc-excl-hint" data-testid="bc-allowance">
-          {allowance}
-        </div>
-      )}
-      {overLimit && active && number && (
-        <div className="bc-excl-hint" data-testid="bc-over-limit">
-          This number can start up to {number.health.limitPerDay?.toLocaleString()} new conversations a day; “
-          {active.label}” is {activeCount.toLocaleString()}. Send to a smaller list or split it.
-        </div>
-      )}
-      {/* Nobody it reaches, not everyone left out: that is the heard line's, with its switch, and the foot's. */}
-      {canSend && active && activeCount === 0 && leftOut === 0 && (
-        <div className="bc-excl-hint" data-testid="bc-nobody">
-          {on.length === 0 ? (
-            CM_VIA_WORDS.nowhere
-          ) : noNumber ? (
-            noNumber
-          ) : purpose === "marketing" ? (
-            <>
-              Nobody on “{active.label}” has said yes to offers yet — that is a separate answer from saying yes to
-              messages. Record it under “Offers and news” on their profile{yesDoor}.
-            </>
-          ) : (
-            <>
-              Nobody on “{active.label}” has said yes to messages yet. Record it on their profile{yesDoor}.
-            </>
-          )}
-        </div>
-      )}
-    </>
-  );
-}
-
-// To: the list as a token on one line, with how many of it can hear the message, on which channel where it goes by more than
-// WhatsApp, and one quiet link to who is held back and why (everything this row said in paragraphs is behind it); a thin bar
-// under it -- who it reaches on which channel, else who it reaches against who is held -- and, while it stops the send, why.
-function bcColWho(v: BcV) {
-  const { audiences, active, sizeOf, setAud, data, sample, people, setWho, activeCount, heldLines, reachBy, yesLink } =
-    v;
-  // Who it leaves out is out of the count it sends to, and into the list's whole: "1 of 3 can hear it". The bar by channel
-  // is of who it sends to (`split`, contracts reachAfterBreath), as the clause beside the count is.
-  const { leftOut, split } = v;
-  return (
-    <div className="bc-col" data-testid="bc-col-who">
-      <span className="bc-col-label">Who</span>
-      <p className="bc-to-line">
-        <BcAudiencePick audiences={audiences} active={active} sizeOf={sizeOf} onPick={setAud} />
-        {active ? <BcCount sending={activeCount} held={sample ? sample.held + leftOut : null} /> : null}
-        {reachBy ? <BcReachBy words={reachBy} /> : null}
-        {active ? (
-          <BcHeldBack
-            sample={sample}
-            people={people}
-            heldLines={heldLines}
-            onWho={setWho}
-            notes={bcWhoNotes(v)}
-            yesLink={yesLink}
-          />
-        ) : null}
-      </p>
       {data.listsRead === false && (
         <FailedRead
           kind="line"
@@ -189,15 +148,43 @@ function bcColWho(v: BcV) {
           testid="bc-lists-failed"
         />
       )}
-      {/* Where the send goes by more than WhatsApp alone the bar is who it reaches on which channel, its words on hover. */}
-      {sample && reachBy && split ? (
-        <CmSplitBar split={split} className="bc-to-bar" testid="bc-reach-bar" />
-      ) : sample ? (
-        <BcReachBar sending={activeCount} held={sample.held + leftOut} />
-      ) : null}
-      {bcHeard(v)}
-      {bcBlockers(v)}
-    </div>
+      {allowance && bcCallout("bc-allowance", "alert", allowance)}
+      {overLimit &&
+        active &&
+        number &&
+        bcCallout(
+          "bc-over-limit",
+          "alert",
+          <>
+            This number can start up to {number.health.limitPerDay?.toLocaleString()} new conversations a day; “
+            {active.label}” is {activeCount.toLocaleString()}. Send to a smaller list or split it.
+          </>,
+        )}
+      {/* Where no channel is ticked the foot says so, by the act it stops: said here too, it was the same sentence twice
+          in one screen (Ruben, 10 Oct 2026). Nobody it reaches, not everyone left out: that is the heard line's, with its
+          switch, and the foot's. */}
+      {canSend &&
+        active &&
+        activeCount === 0 &&
+        leftOut === 0 &&
+        on.length > 0 &&
+        bcCallout(
+          "bc-nobody",
+          "alert",
+          noNumber ? (
+            noNumber
+          ) : purpose === "marketing" ? (
+            <>
+              Nobody on “{active.label}” has said yes to offers yet. Record it under “Offers and news” on their profile
+              {yesDoor}.
+            </>
+          ) : (
+            <>
+              Nobody on “{active.label}” has said yes to messages yet. Record it on their profile{yesDoor}.
+            </>
+          ),
+        )}
+    </>
   );
 }
 
@@ -223,13 +210,20 @@ function bcLanguageChoices(g: BcGroup) {
   });
 }
 
-// The message it sends, one entry per message whatever languages it has (the language is its own control, and only a
-// message in more than one has one), and, where the library holds what cannot go on the wire, why that is not offered.
-function bcMessagePicks(v: BcV) {
-  const { templates, tpl, tplId, setTplId, data, link, review, offered } = v;
-  if (templates.length === 0) return null;
-  const groups: BcGroup[] = starters.group(templates);
-  const group = groups.find((g) => g.rows.some((r) => r.id === tplId)) ?? null;
+/** The messages as the library groups them, and the one in view's. */
+function bcGroups(v: BcV) {
+  const groups: BcGroup[] = starters.group(v.templates);
+  const group = groups.find((g) => g.rows.some((r) => r.id === v.tplId)) ?? null;
+  return { groups, group };
+}
+
+// The message it sends, a word of the sentence, one entry per message whatever languages it has (the language is its
+// own word, under the preview), and, where the library holds what cannot go on the wire, why that is not offered. Each
+// message's first words fill the review link as the listing keeps it, as they fill the booking link.
+function bcMessageWord(v: BcV) {
+  const { templates, tpl, setTplId, data, link, review, offered } = v;
+  if (templates.length === 0) return <>a message</>;
+  const { groups, group } = bcGroups(v);
   const lang = tpl ? tpl.language : null;
   const own = {
     business_name: data.businessName,
@@ -237,60 +231,103 @@ function bcMessagePicks(v: BcV) {
     review_link: review ? "your review link" : null,
   };
   return (
-    <>
-      <Picker
-        label="The message it sends"
-        value={group ? group.name : null}
-        onValueChange={(name) => {
-          const r = bcRowIn(
-            groups.find((g) => g.name === name),
-            lang,
-          );
-          if (r) setTplId(r.id);
-        }}
-        groups={cmGroups(
-          groups.map((g) => {
-            const r = bcRowIn(g, lang);
-            return {
-              id: g.name,
-              label: g.title,
-              // Its first words as a customer reads them, so a message is chosen by what it says.
-              ...(r ? { sub: starters.rowPreview(r, own) } : {}),
-              hint: g.rows.length > 1 ? `${g.rows.length} languages` : null,
-            };
-          }),
-        )}
-        chevron={cmChevron()}
-        face={group ? group.title : undefined}
-        placeholder="Pick a message"
-        {...(groups.length > 7 ? { search: cmSearch("Find a message", "No message has those words.") } : {})}
-        {...(offered.why ? { note: offered.why } : {})}
-        data-testid="bc-template"
-      />
-      {tpl && group && group.rows.length > 1 && (
-        <Picker
-          label="The language it goes out in"
-          value={tpl.language}
-          onValueChange={(next) => {
-            const r = group.rows.find((x) => x.language === next);
-            if (r) setTplId(r.id);
-          }}
-          groups={cmGroups(bcLanguageChoices(group))}
-          chevron={cmChevron()}
-          face={
-            <>
-              <CmLangGlyph status={tpl.meta_status || "approved"} />{" "}
-              {starters.langTag(
-                tpl.language,
-                group.rows.map((r) => r.language),
-              )}
-            </>
-          }
-          note="A broadcast sends one language to everyone on the list."
-          data-testid="bc-template-lang"
-        />
+    <Picker
+      label="The message it sends"
+      value={group ? group.name : null}
+      onValueChange={(name) => {
+        const r = bcRowIn(
+          groups.find((g) => g.name === name),
+          lang,
+        );
+        if (r) setTplId(r.id);
+      }}
+      groups={cmGroups(
+        groups.map((g) => {
+          const r = bcRowIn(g, lang);
+          return {
+            id: g.name,
+            label: g.title,
+            // Its first words as a customer reads them, so a message is chosen by what it says.
+            ...(r ? { sub: starters.rowPreview(r, own) } : {}),
+            hint: g.rows.length > 1 ? `${g.rows.length} languages` : null,
+          };
+        }),
       )}
-    </>
+      chevron={cmChevron()}
+      face={group ? group.title : undefined}
+      placeholder="a message"
+      inline
+      {...(groups.length > 7 ? { search: cmSearch("Find a message", "No message has those words.") } : {})}
+      {...(offered.why ? { note: offered.why } : {})}
+      data-testid="bc-template"
+    />
+  );
+}
+
+// The channels it goes by, a word of the sentence that opens their switches (parts/send-by.tsx CmViaWord), each with how
+// many of the list it sends to there: those it leaves out for the week's breath taken off theirs (`split`, contracts
+// reachAfterBreath), as every number beside the count is. What is on is worked out in page/reach.ts; pressing one starts
+// from what is on, so a channel that was only ticked and never open is let go.
+function bcViaWord(v: BcV) {
+  const { ticks, on, setChannels, data, split } = v;
+  const by = split ? split.byChannel : null;
+  const counts = by
+    ? Object.fromEntries(Object.entries(by).map(([c, n]) => [c, PREVIEW_WORDS.people(Number(n) || 0)]))
+    : undefined;
+  return (
+    <CmViaWord
+      ticks={ticks}
+      onTick={(channel, next) => setChannels(cmTick(on, channel, next))}
+      testid="bc-via"
+      standing={cmNothingOpen(data.ready)}
+      {...(counts ? { counts } : {})}
+    />
+  );
+}
+
+// The sentence: what is sent, to whom, by which channels, and when.
+function bcRecipe(v: BcV) {
+  const { audiences, active, sizeOf, setAud, whenAt, maxDays, setWhenAt } = v;
+  return (
+    <p className="cm-recipe" data-testid="bc-recipe">
+      Send {bcMessageWord(v)} to{" "}
+      <BcAudiencePick audiences={audiences} active={active} sizeOf={sizeOf} onPick={setAud} inline /> by {bcViaWord(v)},{" "}
+      <BcWhenPick at={whenAt} maxDays={maxDays} onChange={setWhenAt} />.
+    </p>
+  );
+}
+
+// Who it reaches, the one line under the sentence (parts/reach.tsx CmReachLine): "14 of 18 can hear it · 4 never said
+// yes", opening who is held back and why, every name a press that walks the bubble to them, with what the To row said.
+// The count is who it sends to: those it leaves out for the week's breath are out of it and in the list's whole ("1 of 3
+// can hear it"), said on the line under it with their switch (bcHeard); the channel clause and the bar are of who it
+// sends to (`split`, contracts reachAfterBreath), as the count is.
+function bcReach(v: BcV) {
+  const { active, sample, people, setWho, activeCount, leftOut, split, heldLines, reachBy, yesLink } = v;
+  if (!active) return null;
+  const held = sample ? sample.held : 0;
+  const first = heldLines[0] ? `${heldLines[0].n} ${heldLines[0].words}` : held > 0 ? `${held} held back` : null;
+  return (
+    <CmReachLine
+      will={activeCount}
+      // A list read before its people were kept has no pool to say: the count alone, never "All".
+      pool={sample ? activeCount + held + leftOut : null}
+      of={`on “${active.label}”`}
+      first={first}
+      by={reachBy}
+      split={split}
+      box={
+        <BcHeldBox
+          sample={sample}
+          people={people}
+          heldLines={heldLines}
+          onWho={setWho}
+          notes={bcWhoNotes(v)}
+          yesLink={yesLink}
+        />
+      }
+      testid="bc-reach"
+    />
   );
 }
 
@@ -327,35 +364,6 @@ function bcNoMessage({ starterPending, addingStarters, addStarters }: BcV) {
   );
 }
 
-// The message and the language it goes out in as tokens, and the way to write one here, or why there is none.
-function bcMessageLine(v: BcV) {
-  const { templatesRead, templates, offered, setComposing } = v;
-  return (
-    <>
-      {!templatesRead && (
-        <FailedRead kind="line" what="your templates" surface="broadcasts" testid="bc-templates-failed" />
-      )}
-      {templatesRead && templates.length === 0 && bcNoMessage(v)}
-      <p className="bc-says-line">
-        {bcMessagePicks(v)}
-        <LinkButton
-          onClick={() => setComposing((c) => !c)}
-          data-testid="bc-new-template"
-          {...gate("approve", "write a template")}
-        >
-          <Icon name="plus" size={11} /> New template
-        </LinkButton>
-      </p>
-      {/* With nothing to pick, the reason the library's messages are not offered has no list to stand under. */}
-      {templates.length === 0 && offered.why && (
-        <div className="bc-excl-hint warn" data-testid="bc-blocked">
-          {offered.why}
-        </div>
-      )}
-    </>
-  );
-}
-
 // One slot of the message, in the bubble (parts/slot.tsx): its words where the customer reads them, and, where it may take
 // more than one thing or is typed, the control that changes what fills it -- the sources it may take, and the words typed
 // when it is typed. The slot is the template's {{n}}, the nth of its values.
@@ -386,91 +394,131 @@ function bcSlot(v: BcV) {
   };
 }
 
-// What: the message and its language, or why there is none, and the message as this person reads it -- the bubble is the
-// fields, each slot of it the control that changes what fills it (the table of slots under it said every value again).
-function bcColWhat(v: BcV) {
+// Under the preview: the language it goes out in, where the message has more than one, and the way to write a message here.
+function bcMessageCaption(v: BcV) {
+  const { tpl, setTplId, setComposing } = v;
+  const { group } = bcGroups(v);
+  return (
+    <p className="cm-msg-cap" data-testid="bc-msg-cap">
+      {tpl && group && group.rows.length > 1 ? (
+        <>
+          <Picker
+            label="The language it goes out in"
+            value={tpl.language}
+            onValueChange={(next) => {
+              const r = group.rows.find((x) => x.language === next);
+              if (r) setTplId(r.id);
+            }}
+            groups={cmGroups(bcLanguageChoices(group))}
+            chevron={cmChevron()}
+            face={group.labels[tpl.language] || starters.langLabel(tpl.language)}
+            inline
+            note="A broadcast sends one language to everyone on the list."
+            data-testid="bc-template-lang"
+          />
+          <span className="cm-msg-cap-dim"> · </span>
+        </>
+      ) : null}
+      <LinkButton
+        onClick={() => setComposing((c) => !c)}
+        data-testid="bc-new-template"
+        {...gate("approve", "write a template")}
+      >
+        <Icon name="plus" size={11} /> New template
+      </LinkButton>
+    </p>
+  );
+}
+
+// What: the message as this person reads it, folded under its first words and open by itself while a slot waits to be
+// typed -- the bubble is the fields, each slot of it the control that changes what fills it -- with the people it reaches
+// walked over its head; or why there is no message to send.
+function bcMessage(v: BcV) {
   const { tpl, data, vars, forPerson, goesAt, person, people, sample, who, setWho, personNote, noName, preview } = v;
+  const { templatesRead, templates, offered, filled } = v;
+  const blank = filled.some((x) => !String(x).trim());
   return (
     <div className="bc-col bc-col-what" data-testid="bc-col-what">
-      <span className="bc-col-label">What</span>
-      {bcMessageLine(v)}
+      {!templatesRead && (
+        <FailedRead kind="line" what="your templates" surface="broadcasts" testid="bc-templates-failed" />
+      )}
+      {templatesRead && templates.length === 0 && bcNoMessage(v)}
+      {/* With nothing to pick, the reason the library's messages are not offered has no list to stand under. */}
+      {templates.length === 0 && offered.why && (
+        <div className="bc-excl-hint warn" data-testid="bc-blocked">
+          {offered.why}
+        </div>
+      )}
       {tpl && preview && (
         <div className="bc-preview-wrap" data-testid="bc-preview">
           {/* The message as the person reads it on the channel they are reached on: preview is what that channel's version
               is handed to the bubble or the mail (parts/preview-by.ts), WhatsApp's template where it is WhatsApp. */}
-          <MessagePreview
-            from={data.businessName}
-            values={forPerson}
-            at={goesAt}
-            held={person ? person.refusal : null}
-            slot={vars.length > 0 ? bcSlot(v) : null}
-            {...preview}
-          >
-            <PreviewStepper
-              people={people.map((x, i) => ({
-                label: x.label,
-                position: x.refusal ? "held back" : `${i + 1} of ${sample ? sample.sending : 0}`,
-              }))}
-              index={Math.min(who, Math.max(people.length - 1, 0))}
-              onStep={setWho}
-              note={personNote}
-              tone={person && (person.refusal || noName) ? "warn" : null}
-            />
-          </MessagePreview>
+          <CmPreviewFold id="bc-preview" body={preview.body} values={forPerson} open={blank} testid="bc-preview-fold">
+            <MessagePreview
+              from={data.businessName}
+              values={forPerson}
+              at={goesAt}
+              held={person ? person.refusal : null}
+              slot={vars.length > 0 ? bcSlot(v) : null}
+              bare
+              {...preview}
+            >
+              <PreviewStepper
+                people={people.map((x, i) => ({
+                  label: x.label,
+                  position: x.refusal ? "held back" : `${i + 1} of ${sample ? sample.sending : 0}`,
+                }))}
+                index={Math.min(who, Math.max(people.length - 1, 0))}
+                onStep={setWho}
+                note={personNote}
+                tone={person && (person.refusal || noName) ? "warn" : null}
+              />
+            </MessagePreview>
+          </CmPreviewFold>
         </div>
       )}
+      {bcMessageCaption(v)}
     </div>
   );
 }
 
-// Send by: one switch for each channel the send may go by (parts/send-by.tsx), each closed with its reason where the
-// workspace cannot send on it or the message cannot go by it. What is on is worked out in page/reach.ts; pressing one
-// starts from what is on, so a channel that was only ticked and never open is let go.
-function bcColVia({ ticks, on, setChannels, data }: BcV) {
-  return (
-    <div className="bc-col bc-col-via" data-testid="bc-col-via">
-      <span className="bc-col-label">{CM_VIA_WORDS.label}</span>
-      <CmVia
-        ticks={ticks}
-        onTick={(channel, next) => setChannels(cmTick(on, channel, next))}
-        testid="bc-via"
-        standing={cmNothingOpen(data.ready)}
-      />
-    </div>
-  );
-}
-
-// When: now, or a day and a time by the business's clock, what that means, and the number it goes from -- where the send
-// goes by WhatsApp, the only channel that has one, or would but for the number, which is then what says why. Never under a
-// message with no WhatsApp version: the tick stays ticked when the message is changed to one, and the number is nothing to
-// it there.
-function bcColWhen({ whenAt, maxDays, setWhenAt, whenNote, number, channels, tpl, data }: BcV) {
+// When it goes and from where, the line under the message: now or the time picked, by the business's clock, and the number
+// it goes from where it goes by WhatsApp, the only channel that has one. What WhatsApp says of the number (its rating, its
+// daily limit) is said only where it stops or slows the send, over the sentence: "Number quality not reported yet · daily
+// limit not reported yet" under every send was a line nobody acts on (Ruben, 11 Oct 2026). Never under a message with no
+// WhatsApp version: the tick stays ticked when the message is changed to one, and the number is nothing to it there.
+function bcWhenLine({ whenAt, whenNote, number, channels, tpl, data }: BcV) {
   const byWhatsApp = channels.includes("whatsapp") && messageHolds(tpl?.message ?? CM_NO_MESSAGE_YET).whatsapp;
-  // Where nothing can send at all and there is no number, the Send by row has just said so, its door beside it: the
-  // number's line here would be the same sentence a second time.
+  // Where nothing can send at all and there is no number, the channels' list says so, its door beside it.
   const saidAbove = !!number && !number.present && cmNothingOpen(data.ready) !== null;
+  const troubled =
+    !!number && (!number.health.canSend || number.health.tone === "warn" || number.health.tone === "danger");
+  const from =
+    number && byWhatsApp && !saidAbove && number.present && !troubled ? `From WhatsApp ${number.display || ""}` : null;
   return (
-    <div className="bc-col" data-testid="bc-col-when">
-      <span className="bc-col-label">When</span>
-      <BcWhenPick at={whenAt} maxDays={maxDays} onChange={setWhenAt} />
-      <div
-        className={`bc-excl-hint${whenAt !== null && whenNote.tone === "warn" ? " bc-when-note-warn" : ""}`}
+    <>
+      {number && byWhatsApp && !saidAbove && (!number.present || troubled)
+        ? bcCallout(
+            "bc-number",
+            "chat",
+            !number.present
+              ? BC_SAYS.noNumber
+              : !number.health.canSend
+                ? number.health.refusal
+                : `WhatsApp ${number.display || ""} · ${number.health.label}`,
+          )
+        : null}
+      <p
+        className={`cm-next${whenAt !== null && whenNote.tone === "warn" ? " bc-when-note-warn" : ""}`}
         data-testid="bc-when-note"
       >
-        {whenAt === null ? bcNowNote() : whenNote.words}
-      </div>
-      {number && byWhatsApp && !saidAbove && (
-        <div className={`bc-number bc-number-${number.health.tone}`} data-testid="bc-number">
-          <Icon name="chat" size={11} />
-          <span>{number.present ? `WhatsApp ${number.display || ""} · ${number.health.label}` : BC_SAYS.noNumber}</span>
-        </div>
-      )}
-      {number && byWhatsApp && number.present && !number.health.canSend && (
-        <div className="bc-excl-hint" data-testid="bc-number-refusal">
-          {number.health.refusal}
-        </div>
-      )}
-    </div>
+        <Icon name="clock" size={13} />
+        <span>
+          {whenAt === null ? bcNowNote() : whenNote.words}
+          {from ? <span data-testid="bc-number"> · {from}</span> : null}
+        </span>
+      </p>
+    </>
   );
 }
 
@@ -500,53 +548,47 @@ function bcNewTemplate(v: BcV) {
   );
 }
 
-// The send screen's foot: what keeps the send from going (the first thing, in one line, as the playbook composer's foot says
-// its own: on a phone the foot is docked away from the columns that explain it), the name, and the two acts, the one that
-// cannot be taken back asking before anything leaves. A time picked makes Schedule it the act, with Send now beside it. Cancel,
-// and Escape, with something written: the one question first (UnsavedAsk), where the foot's acts were.
+// The send screen's foot: what keeps the send from going (the first thing, in one line), and the one act the sentence is
+// set up for, saying what it will do: "Send to 14 now", which asks before anything leaves, or once a time is picked
+// "Schedule for tomorrow at 9:00 AM" (Ruben, 11 Oct 2026: one send button; the time is chosen in the sentence's "now").
+// Cancel, and Escape, with something written: the one question first (UnsavedAsk), where the act was.
 function bcSendFoot(v: BcV) {
-  const { data, name, setName, canSend, armed, ready, say, whenAt, whenNote, submit, setArmed, active } = v;
-  // Send now goes at once: its button, its confirm and what stops it are who it sends to now (reach.ts bcSendNowOf,
-  // `sayNow`), whatever time is picked for Schedule it.
-  const { tpl, busy, work, sendNow, readyNow, sayNow } = v;
+  const { data, canSend, armed, ready, say, whenAt, whenNote, submit, setArmed, active } = v;
+  // Send now goes at once: its button, its readiness and its confirm are who it sends to now (reach.ts bcSendNowOf), so a
+  // confirm still open after a time is picked asks for, and sends, what goes now. With no time picked it is the screen's own
+  // count, which is when its button stands.
+  const { tpl, busy, work, sendNow, readyNow } = v;
   if (work.asking) return <UnsavedAsk onYes={work.discard} onNo={work.stay} testid="bc-leave" />;
-  // The act is the one the screen is set up for: Send now, or Schedule it once a time is picked, which is then the last
-  // of the two, where the act stood.
-  const later = whenAt !== null;
-  // A time picked that cannot be scheduled (passed, or past the ceiling) is what Schedule it waits on, when nothing else is;
-  // and where Schedule it may go but Send now may not, the one line says why Send now waits.
-  const stop =
-    say ??
-    (later && !whenNote.ok ? { tone: "warn" as const, words: whenNote.words } : null) ??
-    (later && sayNow ? { tone: sayNow.tone, words: `Send now: ${sayNow.words}` } : null);
-  const scheduleIt = (
-    <Button
-      key="later"
-      variant={later ? "primary" : undefined}
-      className={`bc-send-later ${later ? "bc-act-main" : "bc-act-second"}`}
-      disabled={!ready || !whenNote.ok}
-      onClick={() => submit(true)}
-      {...gate("approve", "schedule a broadcast")}
-    >
-      Schedule it
-    </Button>
-  );
-  const sendNowAct = (
-    <Button
-      key="now"
-      variant={later ? undefined : "primary"}
-      className={`bc-send-now ${later ? "bc-act-second" : "bc-act-main"}`}
-      disabled={!readyNow}
-      onClick={() => setArmed(true)}
-      data-testid="bc-send"
-      {...gate("approve", "send a broadcast")}
-    >
-      <Icon name="send" size={13} /> {active && sendNow.count > 0 ? `Send to ${sendNow.count} now` : "Send now"}
-    </Button>
-  );
+  // A time picked that cannot be scheduled (passed, or past the ceiling) is what Schedule waits on, when nothing else is.
+  const stop = say ?? (whenAt !== null && !whenNote.ok ? { tone: "warn" as const, words: whenNote.words } : null);
+  const S = LIFECYCLE_WORDS.compose.sentence;
+  const act =
+    whenAt !== null ? (
+      <Button
+        variant="primary"
+        className="bc-send-later bc-act-main"
+        disabled={!ready || !whenNote.ok}
+        onClick={() => submit(true)}
+        data-testid="bc-schedule"
+        {...gate("approve", "schedule a broadcast")}
+      >
+        <Icon name="clock" size={13} /> {S.scheduleFor(S.at(pageClock().when(whenAt)))}
+      </Button>
+    ) : (
+      <Button
+        variant="primary"
+        className="bc-send-now bc-act-main"
+        disabled={!readyNow}
+        onClick={() => setArmed(true)}
+        data-testid="bc-send"
+        {...gate("approve", "send a broadcast")}
+      >
+        <Icon name="send" size={13} /> {active && sendNow.count > 0 ? `Send to ${sendNow.count} now` : "Send now"}
+      </Button>
+    );
   return (
     <div className="bc-foot">
-      {/* Said while the person who may press the acts is stopped; a role that may not has its own line below. */}
+      {/* Said while the person who may press the act is stopped; a role that may not has its own line below. */}
       {canSend && stop && (
         <span
           className={`bc-excl-hint bc-foot-say${stop.tone === "warn" ? " warn" : ""}`}
@@ -556,14 +598,6 @@ function bcSendFoot(v: BcV) {
           {stop.words}
         </span>
       )}
-      <Field
-        className="bc-foot-name"
-        aria-label="Name this broadcast"
-        placeholder="Name this broadcast (optional)"
-        value={name}
-        onValueChange={setName}
-        maxLength={80}
-      />
       {/* Stop, Skip and Cancel stay with the roles that may press them; the page says why once, in the gate's words. */}
       {!canSend && (
         <div className="bc-excl-hint" data-testid="bc-role">
@@ -572,11 +606,9 @@ function bcSendFoot(v: BcV) {
       )}
       <span className="bc-actions-spacer" />
       <div className="bc-actions" data-foot-pair="">
-        {/* Schedule stays one press: a scheduled run is cancelled from the row above,
-                and nothing has left. Send now does not -- it is the only act on this
-                surface that cannot be taken back, and it was the only one that was not
-                armed, while Stop, Skip and both Deletes each ask first. */}
-        {!armed && (later ? [sendNowAct, scheduleIt] : [scheduleIt, sendNowAct])}
+        {/* Schedule stays one press: a scheduled run is cancelled from the row above, and nothing has left. Send now does
+            not -- it is the only act on this surface that cannot be taken back, so it asks first. */}
+        {!armed && act}
         {armed && tpl && active && (
           <Confirm
             question={`Send “${bcTitle(tpl.name)}”${bcLangWords(tpl)} to ${sendNow.count} ${sendNow.count === 1 ? "person" : "people"} on “${active.label}”?`}
@@ -593,50 +625,51 @@ function bcSendFoot(v: BcV) {
   );
 }
 
-// The send screen is a pane (parts/split.tsx), as a thread opens beside the Inbox's list, or the home's sheet holds it: titled
-// "New message" (Campaigns' one name for the one door), its Cancel the pane's Close (which asks first where something was written, and is Escape's too), and the
-// send alone in its foot. The one screen in Campaigns that cannot be undone: who, what and when at once, with the
-// people named rather than counted.
-function bcSendPane(v: BcV, body: ReactNode) {
+// The send's name, the pane's own title, written where it is read: the message's own name where none is typed (it stood as
+// a row of its own, "Name · Optional", under When).
+function bcTitleField({ name, setName, tpl }: BcV) {
+  return (
+    <span className="pb-title-wrap">
+      <Field
+        className="pb-title-box"
+        shape="title"
+        aria-label="Name this broadcast"
+        placeholder={tpl ? bcTitle(tpl.name) : CAMPAIGN_ROOMS.newMessage}
+        value={name}
+        onValueChange={setName}
+        maxLength={80}
+        spellCheck={false}
+        data-testid="bc-name"
+      />
+      <Icon name="pencil" size={13} />
+    </span>
+  );
+}
+
+// The send screen is a pane (parts/split.tsx), as a thread opens beside the Inbox's list, or the home's sheet holds it: its
+// name the pane's title, its Cancel the pane's Close (which asks first where something was written, and is Escape's too),
+// and the send alone in its foot. The one screen in Campaigns that cannot be undone: who, what and when in one sentence,
+// with the people named rather than counted.
+export function bcComposerGlass(v: BcV) {
   return (
     <CmPane
       testid="bc-composer"
       className="bc-pane bc-glass"
-      title={CAMPAIGN_ROOMS.newMessage}
+      title={bcTitleField(v)}
       closeLabel="Cancel"
       closeTestid="bc-compose-close"
       onClose={v.work.leave}
       foot={bcSendFoot(v)}
     >
-      <div className="bc-composer">
+      <div className="bc-composer cm-sentence">
         {bcNewTemplate(v)}
-        {body}
+        {bcCallouts(v)}
+        {bcRecipe(v)}
+        {bcReach(v)}
+        {bcHeard(v)}
+        {bcMessage(v)}
+        {bcWhenLine(v)}
       </div>
     </CmPane>
-  );
-}
-
-// The questions stand as the canvas's rows (the compact composer, C2): To, Send by, Says, When, one under the other in one
-// pane, each with its word at the left, and the foot the glass bar. The columns keep their own markup, testids and words;
-// the row's word says what their eyebrows (Who, What, When) said. Send by stands under To (8 Oct 2026): the count under To
-// is counted over the channels ticked, and stood two rows and a whole preview away from the switches that change it.
-function bcGlassRow(word: string, body: ReactNode) {
-  return (
-    <div className="bc-grow">
-      <span className="bc-grow-word">{word}</span>
-      <div className="bc-grow-body">{body}</div>
-    </div>
-  );
-}
-
-export function bcComposerGlass(v: BcV) {
-  return bcSendPane(
-    v,
-    <div className="bc-grows">
-      {bcGlassRow("To", bcColWho(v))}
-      {bcGlassRow(CM_VIA_WORDS.label, bcColVia(v))}
-      {bcGlassRow("Says", bcColWhat(v))}
-      {bcGlassRow("When", bcColWhen(v))}
-    </div>,
   );
 }

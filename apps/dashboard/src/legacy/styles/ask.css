@@ -289,7 +289,16 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
   /* Inside a page that takes the screen over (data-takeover on its root: a thread, a call) the reply box IS the action,
      and Send sits a thumb from here. Ask comes back with the list. A bar docked at the foot (data-dock, mobile.css) takes
      the same room. */
-  body:has([data-takeover], [data-dock]) .phone-ask { display: none; }
+  body:has([data-takeover]) .phone-ask { display: none; }
+  /* A dock fades the circle aside with the tab bar, and brings it back as the dock plays out (mobile.css). */
+  .phone-ask { transition: opacity var(--duration-fast) var(--ease-out), visibility 0s linear 0s; }
+  body:has([data-dock]:not([data-leaving])) .phone-ask {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity var(--duration-fast) var(--ease-out), visibility 0s linear var(--duration-fast);
+  }
+  @media (prefers-reduced-motion: reduce) { .phone-ask, body:has([data-dock]) .phone-ask { transition: none; } }
 
   /* Every dialog on the ask overlay sits on the bottom edge on a phone: the Calendar's event panel (calendar-real.jsx)
      shares .ask-overlay and was docked here by this rule before the Line. The Line itself is the whole screen. Behind

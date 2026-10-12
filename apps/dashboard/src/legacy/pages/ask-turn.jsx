@@ -24,6 +24,7 @@ const AT_KIND_GLYPHS = {
   broadcast: "wave",
   run: "wave",
   playbook: "bolt",
+  ad: "arrow-right",
   template: "content",
   domain: "globe",
 };

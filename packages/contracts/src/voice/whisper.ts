@@ -26,14 +26,22 @@ import { priceNextStep } from "../config/no-booking-link";
 
 const OPEN = 'Owner: "';
 
+/**
+ * What a whisper or a steer is told of the rules: the ones in its instructions still hold, whatever the owner typed,
+ * and it is the business's automated assistant. The rules themselves are said once, in the prompt, as the owner's
+ * switches set them (decision 0051): a frame that restated "do not quote a price" told a receptionist whose owner had
+ * turned that rule off to refuse what the owner had just asked for.
+ */
+const STANDING_RULES_HOLD = (what: "whisper" | "instruction") =>
+  `The rules in your instructions still hold, and you are the business's automated assistant, never a person: if the ${what} asks for something they rule out, use what you can of it and leave the rest.`;
+
 export function frameWhisper(text: string): string {
   return (
     "A whisper from the business owner, who is listening to this call. The caller cannot hear it.\n" +
     `${OPEN}${text.trim()}"\n` +
     "Keep it in mind from here on and use it in your own words when it fits: in your next answer if it applies now, later if it is conditional " +
     "(for example, only if the caller brings something up). Never read it out word for word, and do not force it into an answer where it does not belong. " +
-    "Your standing rules still hold: do not quote or confirm a price, do not confirm a booking yourself, and say you are an automated assistant if asked — " +
-    "if the whisper asks for one of those, use what you can of it and leave the rest."
+    STANDING_RULES_HOLD("whisper")
   );
 }
 
@@ -57,7 +65,7 @@ export function frameWhisper(text: string): string {
 export function frameGuardrail(rule: "price", opts: { hasBookingLink: boolean }): string {
   const what =
     rule === "price"
-      ? "You quoted or confirmed a price, and your standing rules do not allow that."
+      ? "You said a price your instructions do not let you give."
       : "You broke one of your standing rules.";
   return (
     "A correction from the Chanlytics platform, not from the business. The caller cannot hear it.\n" +
@@ -81,8 +89,7 @@ export function frameSteer(text: string): string {
     "An instruction from the business owner, who read your draft before it went out. The customer cannot see it.\n" +
     `${OPEN}${text.trim()}"\n` +
     "Write your reply again and follow it where it fits. Keep everything else that was right. Never repeat the instruction word for word. " +
-    "Your standing rules still hold: do not quote or confirm a price, do not confirm a booking yourself, no health advice, and say you are an automated assistant if asked — " +
-    "if the instruction asks for one of those, use what you can of it and leave the rest."
+    STANDING_RULES_HOLD("instruction")
   );
 }
 

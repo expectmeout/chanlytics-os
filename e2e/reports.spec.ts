@@ -21,6 +21,22 @@ import { routeOf } from "./address";
  * keeps no opening hours (its config has no profile), so "answered while you were closed" asks for them. A database without
  * 00380 answers that route `series: null` and the lens draws its kept cards and none of its own parts: the spec reads which
  * of the two it is on and asserts the cards that database can draw.
+ *
+ * The People lens has two halves in one read (`GET reports/people`): the window (00395: who reached you and how many were new, how
+ * they came, the yeses and stops, the steps done on time) and the book as it stands now (how fresh it is, where they stand, the
+ * steps overdue). The nightly's workspace holds the rows the window counts (e2e-workspace.mjs, convergePeople: a yes for each of
+ * its three people on the ledger, and three steps the owner finished) and no open step, so the book's steps overdue is a count
+ * the seed does not set; what each part says is the unit tests', and here it is that each is drawn and agrees with the read. A
+ * database without 00395 answers `series: null`: the lens draws the book and its kept cards and no window card.
+ *
+ * The Campaigns lens draws the sends' own read (`GET reports/campaigns`: the funnel, the day card, the channels and the sources) and
+ * two of its own: the window beyond the sends' counts (`GET reports/campaigns/ledger`, 00405: the people reached and who wrote back,
+ * what was held and why, each message's replies, the time between steps) and what is stuck now (the same route's `stuck`, 00406),
+ * and with them the reach-outs (`GET reports/reach-outs`). The nightly's workspace holds one run that went out three days ago to
+ * its three people (e2e-workspace.mjs, convergeCampaigns: Casey's message delivered and answered, Sam's read, Robin held back
+ * because a person had his thread, and the owner's approval), no run waiting and no message failed. A database without 00405
+ * answers `series: null` and one without 00406 `stuck: null`: the lens then draws the sends' cards and none of that read's,
+ * and says nothing failed.
  */
 const INVENTED = [
   "Revenue",
@@ -119,6 +135,194 @@ async function theReceptionistLens(page: Page, report: Locator) {
   expect(Number(shown?.[0]), "the strip counts the same persons' words").toBe(persons);
 }
 
+/**
+ * The parts of `GET reports/people` this spec reads (contracts' PeopleDto): the window's people reached, and the book's count of
+ * the Said yes to messages list. `series` is null on a database without the window's read (00395), and `now` where the book
+ * could not be counted.
+ */
+type PeopleRead = {
+  series: { reached: { now: { people: number } } } | null;
+  now: { lists: { opted_in: number; quiet: number } } | null;
+};
+
+async function readPeople(page: Page): Promise<PeopleRead> {
+  const res = await apiGet(page, "/api/v1/reports/people?period=30d");
+  expect(res.status()).toBe(200);
+  return (await res.json()).data as PeopleRead;
+}
+
+/**
+ * Whether this database has the lens's own window (`people_series`, 00395), as the route says it: a database without it answers
+ * `series: null`, and the lens then draws the book and its kept cards and no window card.
+ */
+async function hasPeopleSeries(page: Page): Promise<boolean> {
+  return (await readPeople(page)).series !== null;
+}
+
+/** The figure of a strip with this label, found by what it says. */
+const figureLabelled = (strip: Locator, page: Page, label: RegExp) =>
+  strip.locator(".figure").filter({ has: page.locator(".figure-label", { hasText: label }) });
+
+/**
+ * What the People lens draws once its own read has landed, on the nightly's workspace (e2e-workspace.mjs, convergePeople: a yes
+ * for each of its three people a week ago, and three steps finished, none open). The kept cards (the rhythm and the new people
+ * adding up) and the book are drawn either way: the book is counted from the people, and it needs no function of the
+ * database's. The window (the strip, how they came by channel, how the new ones first came, the yeses and stops, the steps done
+ * and the email that stopped working) is 00395's, so on a database without it no window card is drawn and nothing failed.
+ *
+ * The numbers are read, never written here: the nightly's other specs write to the workspace, and the sum is what the seed
+ * and they together made. The strip's first figure is the read's people reached; the stand's Said yes to messages is the
+ * read's list, and the seed's three people said yes to messages.
+ */
+async function thePeopleLens(page: Page, report: Locator) {
+  const { series, now } = await readPeople(page);
+  expect(now, "the nightly's workspace has people the book can count").not.toBeNull();
+  const kept = ["chart-rhythm", "chart-people"];
+  const book = ["chart-people-wires", "chart-people-fresh", "people-stuck", "people-stand"];
+  const windowCards = [
+    "people-strip",
+    "chart-people-channels",
+    "chart-people-first",
+    "chart-people-yeses",
+    "chart-people-stops",
+    "people-time",
+    "chart-people-steps",
+    "chart-people-bounced",
+  ];
+  for (const id of [...kept, ...book]) await expect(report.getByTestId(id), id).toBeVisible({ timeout: 20_000 });
+  for (const id of ["people-failed", "people-now-failed"])
+    await expect(report.getByTestId(id), `${id}: both reads were made`).toHaveCount(0);
+  if (series === null) {
+    for (const id of windowCards)
+      await expect(report.getByTestId(id), `${id}: no people_series on this database`).toHaveCount(0);
+  } else {
+    for (const id of windowCards) await expect(report.getByTestId(id), id).toBeVisible({ timeout: 20_000 });
+
+    const figures = report.getByTestId("people-strip").locator(".figure");
+    await expect(figures).toHaveCount(4);
+    const labels = (await figures.locator(".figure-label").allInnerTexts()).map((l) => l.trim().toLowerCase());
+    expect(labels).toEqual(["people who reached you", "new people", "yeses won", "stops"]);
+    await expect(
+      report.getByTestId("chart-people-channels").locator("button.ck-barlist-row"),
+      "no channel is a door",
+    ).toHaveCount(0);
+
+    const reached = /^\d+/.exec((await figures.first().locator(".figure-value").innerText()).trim());
+    expect(Number(reached?.[0]), "the strip counts the people the read counted").toBe(series.reached.now.people);
+    expect(series.reached.now.people, "the seed's people wrote to the workspace").toBeGreaterThanOrEqual(1);
+  }
+
+  // The book, as it stands now: where they stand has a door to each list, and the steps are a count with a door.
+  const stand = figureLabelled(report.getByTestId("people-stand"), page, /^said yes to messages$/i);
+  const yes = /^\d+/.exec((await stand.locator(".figure-value").innerText()).trim());
+  expect(Number(yes?.[0]), "the stand counts the people the read counted").toBe(now?.lists.opted_in);
+  expect(now?.lists.opted_in, "the seed's three people said yes to messages").toBeGreaterThanOrEqual(3);
+  await expect(stand.locator('a[href*="seg:opted_in"]'), "and it opens that list").toHaveCount(1);
+
+  // The seed holds no open step, but a spec that failed halfway may have left one: a count, and a door to the list either way.
+  const overdue = figureLabelled(report.getByTestId("people-stuck"), page, /^steps overdue$/i);
+  await expect(overdue.locator(".figure-value"), "a count, and 0 where no step is past its day").toHaveText(/^\d+$/);
+  await expect(overdue.locator('a[href*="seg:steps_due"]'), "and the Steps due list is its door").toHaveCount(1);
+
+  // The quiet door is there for the people who have been quiet, and not otherwise.
+  await expect(report.getByTestId("people-quiet-door"), "a door to the Quiet list where someone is quiet").toHaveCount(
+    now && now.lists.quiet > 0 ? 1 : 0,
+  );
+}
+
+/**
+ * The parts of `GET reports/campaigns/ledger` this spec reads (contracts' CampaignLedgerDto): the window's people sent to (a person
+ * once, however many runs sent to them) and what is stuck now. `series` is null on a database without the window's read (00405)
+ * and `stuck` on one without what is stuck (00406), or where that read failed.
+ */
+type CampaignsRead = {
+  series: { people: { now: { sent_to: number } } } | null;
+  stuck: object | null;
+};
+
+/** The lens's own read, in which each of its two halves says whether the database has it: a database without 00405 or 00406 answers null for it. */
+async function readCampaigns(page: Page): Promise<CampaignsRead> {
+  const res = await apiGet(page, "/api/v1/reports/campaigns/ledger?period=30d");
+  expect(res.status()).toBe(200);
+  return (await res.json()).data as CampaignsRead;
+}
+
+/**
+ * What the Campaigns lens draws once its reads have landed, on the nightly's workspace (e2e-workspace.mjs, convergeCampaigns: one
+ * run to its three people three days ago, two messages delivered or read, a reply, Robin held back, an approval; no run waiting and
+ * no message failed). The funnel, the day card and the sources are the sends' own read and are drawn either way; the strip of five
+ * figures, how many were held and why, the messages' replies and the time between steps are the ledger's (00405), and the strip of
+ * what is stuck now is the second half's (00406): on a database without either, those cards are not drawn and nothing failed.
+ * The reach-outs are drawn exactly where the workspace has one.
+ *
+ * The numbers are read, never written here: the nightly's other specs write to the workspace, and the sum is what the seed and
+ * they together made. The strip's first figure is the read's people sent to, and the seed's run went to two. Runs waiting for you
+ * is a count, not a zero: the seed holds none, but a spec that failed halfway may have left one.
+ */
+async function theCampaignsLens(page: Page, report: Locator) {
+  const { series, stuck } = await readCampaigns(page);
+  for (const id of ["chart-funnel", "chart-sources", "chart-campaigns"])
+    await expect(report.getByTestId(id), id).toBeVisible({ timeout: 20_000 });
+  // A run went out in the 30 days, so this lens is not the quiet one, and every read it made was answered.
+  await expect(report.getByTestId("chart-campaigns-quiet"), "a run went out in the 30 days").toHaveCount(0);
+  for (const id of ["campaigns-failed-campaigns", "campaigns-failed-ledger", "campaigns-failed-stuck", "ro-failed"])
+    await expect(report.getByTestId(id), `${id}: every read was made`).toHaveCount(0);
+
+  const windowCards = [
+    "chart-campaigns-held",
+    "chart-campaigns-stopped",
+    "chart-campaigns-by-message",
+    "campaigns-time",
+    "chart-campaigns-first-reply",
+    "chart-campaigns-approval",
+    "chart-campaigns-failed-why",
+  ];
+  const figures = report.getByTestId("campaigns-strip").locator(".figure");
+  if (series === null) {
+    for (const id of windowCards)
+      await expect(report.getByTestId(id), `${id}: no campaign_ledger on this database`).toHaveCount(0);
+    await expect(figures, "the ledger's two figures are not drawn").not.toHaveCount(5);
+  } else {
+    for (const id of windowCards) await expect(report.getByTestId(id), id).toBeVisible({ timeout: 20_000 });
+    await expect(figures).toHaveCount(5);
+    const labels = (await figures.locator(".figure-label").allInnerTexts()).map((l) => l.trim().toLowerCase());
+    expect(labels).toEqual(["people sent to", "delivered", "wrote back", "said yes", "asked to stop"]);
+
+    const sentTo = /^\d+/.exec((await figures.first().locator(".figure-value").innerText()).trim());
+    expect(Number(sentTo?.[0]), "the strip counts the people the read counted").toBe(series.people.now.sent_to);
+    expect(series.people.now.sent_to, "the seed's run went to two people").toBeGreaterThanOrEqual(2);
+
+    // Robin was held back because a person had his thread, and nothing the run sent failed: the card says so in its own words.
+    await expect(report.getByTestId("chart-campaigns-held")).toContainText("A person had the thread");
+    await expect(report.getByTestId("chart-campaigns-failed-why")).toContainText(
+      "No sent message failed in this period.",
+    );
+  }
+
+  // What is stuck now: five figures, a count of the runs waiting with the Campaigns home for its door, and the number's health.
+  const stuckNow = report.getByTestId("campaigns-stuck");
+  if (stuck === null) {
+    await expect(stuckNow, "no campaign_stuck on this database").toHaveCount(0);
+  } else {
+    await expect(stuckNow).toBeVisible({ timeout: 20_000 });
+    await expect(stuckNow.locator(".figure")).toHaveCount(5);
+    const waiting = figureLabelled(stuckNow, page, /^runs waiting for you$/i);
+    await expect(waiting.locator(".figure-value"), "a count, and 0 where no run waits").toHaveText(/^\d+$/);
+    await expect(waiting.locator('a[href*="campaigns"]'), "and Campaigns is its door").toHaveCount(1);
+    await expect(
+      figureLabelled(stuckNow, page, /^your whatsapp number$/i),
+      "the number's health is drawn",
+    ).toBeVisible();
+  }
+
+  // The reach-outs are drawn where the workspace has one, and only there.
+  const res = await apiGet(page, "/api/v1/reports/reach-outs?period=30d");
+  expect(res.status()).toBe(200);
+  const { report: reachOuts } = (await res.json()).data as { report: { has_reach_out: boolean } };
+  if (reachOuts.has_reach_out) await expect(report.getByTestId("rpt-reach-outs")).toBeVisible({ timeout: 20_000 });
+  else await expect(report.getByTestId("rpt-reach-outs")).toHaveCount(0);
+}
+
 test.describe("Reports on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
   test.beforeEach(async ({ page }) => {
@@ -175,6 +379,15 @@ test.describe("Reports on a real workspace", () => {
       return;
     }
     await expect(report.getByTestId("reports-facts")).toContainText("Worth knowing");
+    // The campaign that drew the most replies is one fact of the three the list keeps, so it is there only if a source had replies
+    // (the sends' own read, which the Overview draws it from); a list that has room for it is the unit tests' to say.
+    const sends = await apiGet(page, "/api/v1/reports/campaigns?period=30d");
+    expect(sends.status()).toBe(200);
+    const { report: sent } = (await sends.json()).data as { report: { sources?: Array<{ replied: number }> } };
+    if (!(sent.sources ?? []).some((s) => s.replied > 0))
+      await expect(report.getByTestId("reports-facts"), "no source had a reply").not.toContainText(
+        "drew the most replies",
+      );
     // The receptionist's lens: who answered, with a table twin.
     await page.getByTestId("lens-receptionist").click();
     const main = report.getByTestId("chart-answered");
@@ -195,12 +408,14 @@ test.describe("Reports on a real workspace", () => {
     }
     // The rest of the lens is a read of its own: the hold, the topics, how calls ended, the time between steps, what is stuck.
     await theReceptionistLens(page, report);
+    // The People lens: its kept cards and its book either way, its window from a read of its own (who reached you, how they came,
+    // the yeses and stops, the steps done), and the numbers the read counted.
     await page.getByTestId("lens-people").click();
-    for (const id of ["chart-channels", "chart-rhythm", "chart-people"]) {
-      await expect(report.getByTestId(id), id).toBeVisible();
-    }
+    await thePeopleLens(page, report);
+    // The Campaigns lens: the sends' own cards either way, its window and what is stuck from reads of its own (the people the run
+    // reached, what was held and why, the time between steps), and the reach-outs where the workspace has one.
     await page.getByTestId("lens-campaigns").click();
-    await expect(report.getByTestId("chart-campaigns")).toBeVisible();
+    await theCampaignsLens(page, report);
     // Reviews is shown to every workspace, and draws from a read of its own: here, a listing's.
     await page.getByTestId("lens-reviews").click();
     await expect(reviewsLens(page)).toBeVisible();
@@ -250,7 +465,7 @@ test.describe("Reports on a real workspace", () => {
     await expect(page.getByTestId("reports-hero")).toHaveCount(0);
     await page.getByTestId("lens-people").click();
     await expect.poll(() => routeOf(page.url())).toBe("reports/people");
-    await expect(page.getByTestId("chart-channels")).toBeVisible();
+    await expect(page.getByTestId("chart-people-wires")).toBeVisible({ timeout: 20_000 });
     await page.goBack();
     await expect.poll(() => routeOf(page.url())).toBe("reports/receptionist");
     await expect(page.getByTestId("chart-answered")).toBeVisible();
@@ -262,8 +477,31 @@ test.describe("Reports on a real workspace", () => {
     // A lens address loads on its own, the frame around it; the Overview is `reports` and `reports/overview` is no address.
     await page.goto(`/w/${slug}/reports/campaigns`);
     await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByTestId("chart-campaigns")).toBeVisible();
+    // The funnel, not the day card alone: the lens's three states (quiet, failed, drawn) have each a card of their own now.
+    await expect(page.getByTestId("chart-funnel")).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId("lens-campaigns")).toHaveAttribute("aria-current", "page");
+    await expect(page.getByTestId("reports-period-open"), "the lens opened on the default period").toHaveText(
+      "30 days",
+    );
+    // A pick of another period on it reads the lens's ledger for the period asked (its window and what is stuck are the ledger's)
+    // and requests no page.
+    documents.length = 0;
+    const campaignsRead = page.waitForRequest(
+      (r) =>
+        new URL(r.url()).pathname.endsWith("/api/v1/reports/campaigns/ledger") &&
+        r.url().includes("period=7d") &&
+        r.method() === "GET",
+    );
+    await page.getByTestId("reports-period-open").click();
+    await page.getByTestId("period-7d").click();
+    await campaignsRead;
+    await page.getByTestId("reports-period-open").click();
+    await expect(page.getByTestId("period-7d")).toHaveAttribute("aria-checked", "true");
+    await page.keyboard.press("Escape");
+    expect(documents, "a pick of another period is never a page request").toEqual([]);
+    // The pick is kept by the page (REPORT_PERIOD_STORAGE), and the Reviews address below picks 7 days itself: the stored period is
+    // cleared, or that lens would open on 7 days, its read would be over before it is waited for, and its pick would read nothing.
+    await page.evaluate(() => localStorage.removeItem("chanlytics.report.period"));
     await page.goto(`/w/${slug}/reports/reviews`);
     await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("reports-real")).toBeVisible();
@@ -315,6 +553,34 @@ test.describe("Reports on a real workspace", () => {
     await expect(page.getByTestId("period-7d")).toHaveAttribute("aria-checked", "true");
     await page.keyboard.press("Escape");
     expect(documents, "a pick of another period is never a page request").toEqual([]);
+    // The People lens is an address too, and reads its own surface as it loads. The block above picked 7 days, which the page
+    // keeps: the stored period is cleared again, or the lens would open on 7 days and a pick of 7 days would read nothing.
+    await page.evaluate(() => localStorage.removeItem("chanlytics.report.period"));
+    await page.goto(`/w/${slug}/reports/people`);
+    await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("reports-real")).toBeVisible();
+    await expect(page.getByTestId("lens-people")).toHaveAttribute("aria-current", "page");
+    // On a database without 00395 the window's card is not drawn: the book is the proof the lens's own read was drawn.
+    await expect(page.getByTestId((await hasPeopleSeries(page)) ? "people-strip" : "chart-people-wires")).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(page.getByTestId("reports-period-open"), "the lens opened on the default period").toHaveText(
+      "30 days",
+    );
+    documents.length = 0;
+    const peopleRead = page.waitForRequest(
+      (r) =>
+        new URL(r.url()).pathname.endsWith("/api/v1/reports/people") &&
+        r.url().includes("period=7d") &&
+        r.method() === "GET",
+    );
+    await page.getByTestId("reports-period-open").click();
+    await page.getByTestId("period-7d").click();
+    await peopleRead;
+    await page.getByTestId("reports-period-open").click();
+    await expect(page.getByTestId("period-7d")).toHaveAttribute("aria-checked", "true");
+    await page.keyboard.press("Escape");
+    expect(documents, "a pick of another period is never a page request").toEqual([]);
     await page.goto(`/w/${slug}/reports/overview`);
     await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("reports-real")).toHaveCount(0);
@@ -335,7 +601,8 @@ test.describe("Reports on a real workspace", () => {
     await expect(report).toBeVisible();
 
     const req = page.waitForRequest(
-      // The Reports read alone: a pick also reads `reports/headline` (Today's line) and `reports/campaigns`, and the first of those is no answer.
+      // The Reports read alone: a pick also reads `reports/headline` (Today's line) and the Overview's one campaign fact (`reports/campaigns`, its
+      // ledger and `reports/reach-outs`, the Campaigns lens's reads), and the first of those is no answer.
       (r) =>
         new URL(r.url()).pathname.endsWith("/api/v1/reports") && r.url().includes("period=7d") && r.method() === "GET",
     );

@@ -1,6 +1,6 @@
 /**
  * PUT playbooks/:id, run through route() with the database in memory (the moment spec §4.9 A5, decision D26). The route
- * declares its body: a change in place (any of state, name, run_hour, cap_per_run, gap_days, cadence_days, and since 00395
+ * declares its body: a change in place (any of state, name, run_hour, cap_per_run, gap_days, cadence_days, and since 00409
  * params, until and trial_until), the channels alone, or the whole playbook, and no other key. A change is judged against
  * the playbook as it stands and its message (core
  * checkPlaybookPatch) and written with its line in the ledger in one call (the change_playbook door, _change-door.mjs),
@@ -99,7 +99,7 @@ const world = (over = {}) => ({
   ...over,
 });
 
-/** The change_playbook door in memory, as 00395 writes it (_change-door.mjs), on the member's session. */
+/** The change_playbook door in memory, as 00409 writes it (_change-door.mjs), on the member's session. */
 const changeDoor = (tables) => changePlaybookDoor(tables, USER);
 /** A database before the door's migration: PostgREST's answer for a function it does not hold. */
 const noDoor = () => ({
@@ -135,7 +135,7 @@ test("the route declares its body: a change in place, the channels alone, or the
     { name: "Past clients", run_hour: 9 },
     { channels: ["whatsapp", "email"] },
     { name: null, trigger: "quiet_30", template_id: "t", params: [], run_hour: 10, cap_per_run: 25 },
-    // Its words, its end and its trial (00395), alone or beside the six; null clears either date.
+    // Its words, its end and its trial (00409), alone or beside the six; null clears either date.
     { params: ["@first_name"] },
     { until: "2026-11-30", trial_until: null },
     { until: null, state: "paused" },

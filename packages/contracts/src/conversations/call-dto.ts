@@ -70,9 +70,12 @@ export interface CallDto {
  * commercially interesting event of the day, and the only lost one that leaves
  * a phone number behind.
  *
- * Fifteen seconds because the greeting carries a recording notice and the AI
- * disclosure and takes most of ten: a caller gone before that heard a machine
- * start talking and nothing else.
+ * They left with nothing when they never said a word: read from the call's
+ * transcript where the row carries one with turns in it. The business now writes its own
+ * greeting, of any length (decision 0051), so how long a call lasted no longer
+ * says whether the caller heard a machine start talking and left. A row read
+ * without its transcript keeps the old reading: under fifteen seconds, because
+ * the standard greeting carries a recording notice and the AI disclosure.
  *
  * The reason must be the CUSTOMER leaving. The receptionist ending a call, a
  * transfer to a person, and a call that ran out of time are all endings
@@ -81,15 +84,21 @@ export interface CallDto {
 export const ABANDONED_MS = 15_000;
 
 export function abandonedCall(
-  dto: Pick<CallDto, "direction" | "status" | "duration_ms" | "disconnection_reason" | "in_voicemail" | "outcome">,
+  dto: Pick<CallDto, "direction" | "status" | "duration_ms" | "disconnection_reason" | "in_voicemail" | "outcome"> & {
+    transcript_object?: CallDto["transcript_object"];
+  },
 ): boolean {
   if (dto.direction !== "inbound") return false;
   // A dial that never connected is the other thing entirely, and a call that
   // reached voicemail already has its own row.
   if (neverConnected(dto) || reachedVoicemail(dto)) return false;
+  if (dto.disconnection_reason !== "user_hangup") return false;
+  // A transcript with turns in it says whether they spoke; an empty one says nothing either way, as a missing one does.
+  if (Array.isArray(dto.transcript_object) && dto.transcript_object.length) {
+    return !dto.transcript_object.some((t) => t?.role === "user" && (t.content ?? "").trim() !== "");
+  }
   const ms = dto.duration_ms;
-  if (typeof ms !== "number" || ms <= 0 || ms >= ABANDONED_MS) return false;
-  return dto.disconnection_reason === "user_hangup";
+  return typeof ms === "number" && ms > 0 && ms < ABANDONED_MS;
 }
 
 /** Retell's not_connected: the dial never connected. An attempt, not a call, whoever dialled (missedCall says whose). */

@@ -15,7 +15,7 @@ import {
   leadNotBusinessesLine,
 } from "./lead-words";
 import { LEAD_MAX_PLACES } from "./search/caps";
-import { stateCode } from "./search/clean";
+import { leadKindKey, stateCode } from "./search/clean";
 import type { LeadArea, LeadSearchPlan } from "./search/plan";
 import { LeadSearchPlanSchema } from "./search/plan-schema";
 import type { LeadPlanned } from "./lead-plan";
@@ -134,20 +134,6 @@ export const LeadDraftAnswerSchema = z.object({
   body: z.string().trim().min(20).max(2000),
 });
 
-export const LeadSuggestAnswerSchema = z.object({
-  line: z.string().trim().min(3).max(160),
-  items: z
-    .array(
-      z.object({
-        words: z.string().trim().min(3).max(80),
-        who_for: z.string().trim().min(3).max(120),
-        category_key: z.string().regex(/^[a-z_]{2,40}$/),
-      }),
-    )
-    .min(1)
-    .max(4),
-});
-
 // The plan from the ask (server: Ask's lead-search tool), read against its schema: here with the schema, so the browser,
 // which reads lead-plan.ts's address and words, loads none of it.
 const US_NAMES = new Set([
@@ -261,6 +247,9 @@ export function planLeadSearch(input: ProposeLeadSearch): LeadPlanned {
     version: 1,
     card: "local_businesses",
     name: input.who,
+    // The kind, kept as one key (leadKindKey: one of them, "plumber" for "plumbers"): a round that ends adds to its
+    // counts, and the ideas read a workspace's searches by it (00398).
+    category_key: leadKindKey(input.category_key),
     asked: input.asked,
     // Widest first, and at most the three the tool asks the model for.
     terms: [...new Set(input.terms.map((t) => t.trim()).filter(Boolean))].slice(0, 3),

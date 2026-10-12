@@ -6,6 +6,7 @@
  * numbers. People's and a person's standing are said by page/people-head.tsx; the Pipeline says its own because the act
  * is the page's, and the route cannot reach it.
  */
+import { Button } from "../../kit/button/button";
 import { ActWords } from "../../kit/head/act-words";
 import { useStanding } from "../../kit/head/standing";
 import { Icon } from "../../kit/icon/icon";
@@ -25,15 +26,16 @@ export function usePipelineStanding(line: readonly { words: string }[], newAct: 
     sentence: sentence || undefined,
     // The one filled button, shown to every role and said why where the role may not press it (as the controls row draws it).
     act: newAct ? (
-      <button
-        type="button"
-        className="btn btn-primary btn-sm pipe-new-btn"
+      <Button
+        variant="primary"
+        size="sm"
+        className="pipe-new-btn"
         onClick={newAct.openNew}
         data-testid="pipeline-new-open"
         {...newAct.gate}
       >
         <ActWords icon={<Icon name="plus" size={12} />} words={P.words.newProposal.button} />
-      </button>
+      </Button>
     ) : undefined,
     // A scope is picked in the page's own strip (People | Leads | Pipeline), so it has no way back above its name (D1).
     back: null,

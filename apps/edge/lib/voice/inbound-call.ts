@@ -47,7 +47,7 @@ import { markForwardingVerified } from "./forwarding.js";
 import { json } from "../http.js";
 import { pg } from "../pg.js";
 import { keepDelivery, signatureHeaders } from "../intake/keep.js";
-import { planCallStart } from "./call-start.js";
+import { planCallStartWithin } from "./call-start.js";
 import { claimControl, CALL_CONTROL_S } from "../packages/db.js";
 import { alertUnroutable } from "../whatsapp/alerts.js";
 import { logger } from "../log.js";
@@ -55,6 +55,17 @@ import { keptUrl, voiceDoorAuth } from "./voice-door-auth.js";
 
 /** How long the unroutable alert may hold the answer. Retell's own ceiling is ten seconds. */
 const ALERT_BUDGET_MS = 3_000;
+
+/** The unroutable alert, waited for no longer than ALERT_BUDGET_MS. */
+async function alertWithin(agentId: string | undefined): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([
+    alertUnroutable("voice", agentId ?? undefined, 1).catch(() => {}),
+    new Promise((r) => {
+      timer = setTimeout(r, ALERT_BUDGET_MS);
+    }),
+  ]).finally(() => clearTimeout(timer));
+}
 
 export async function receiveInboundCall(request: Request): Promise<Response> {
   const raw = await request.text();
@@ -86,90 +97,79 @@ export async function receiveInboundCall(request: Request): Promise<Response> {
   // later stages carry, so one call reads as one call in the log.
   const L = logger({ from_tail: phoneTail(from), agent_id: agentId, call_id: inbound.call_id });
 
-  const start = await planCallStart({ agentId, from, db: pg() });
-  // Kept under the call's id, before the answer (decision 0032, 00336); a call with no id is nothing to replay. Kept
-  // without the ?key= it may have come in on (keptUrl): a ledger row is no place for the secret to every voice door.
-  const ledger = pg();
-  if (ledger && inbound.call_id)
-    await keepDelivery(ledger, {
-      provider: "retell",
-      id: `call_inbound:${inbound.call_id}`,
-      door: "/api/retell-inbound",
-      url: keptUrl(request),
-      tenantId: start.tenantId ?? null,
-      headers: signatureHeaders(request, ["x-retell-signature"]),
-      body: raw,
-    });
+  // Within its budget (PLAN_BUDGET_MS): past it the call is answered with the shell's own words, never dropped.
+  const t0 = Date.now();
+  const start = await planCallStartWithin({ agentId, from, db: pg() });
+  const planMs = Date.now() - t0;
 
   if (start.error) L.error("inbound_ctx_failed", { facts: start.facts, memory: start.memory, error: start.error });
   else if (start.facts === "unrouted") L.warn("inbound_ctx_unrouted");
   else if (start.facts === "missing") L.warn("inbound_facts_missing");
-  // The platform is told, as it is for a text: a call answered with no facts
-  // is a customer nobody knows about. Suppressed per agent for fifteen minutes
-  // inside alertUnroutable, which is why the judgement says whether they are
-  // told rather than telling them.
-  //
-  // WAITED FOR, up to three seconds. It was fired and forgotten because Retell
-  // gives this webhook ten -- but a serverless invocation is frozen the moment
-  // it answers, and nothing here registers a waitUntil, so the send was
-  // abandoned mid-flight. Worse, alertUnroutable claims its fifteen-minute
-  // window BEFORE sending and gives it back only on a failure it never lived
-  // to see: the alarm was neither sent nor re-armed. The race keeps the
-  // provider's budget while making the common case -- a Resend POST, well
-  // under a second -- actually happen.
-  if (start.alert) {
-    // The timer is cleared whichever side wins, as lib/voice/call-recording.ts does:
-    // the common case is a send well under a second, and leaving three seconds
-    // of timer armed behind the answer is the same class of thing this await
-    // exists to stop.
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    await Promise.race([
-      alertUnroutable("voice", agentId ?? undefined, 1).catch(() => {}),
-      new Promise((r) => {
-        timer = setTimeout(r, ALERT_BUDGET_MS);
-      }),
-    ]).finally(() => clearTimeout(timer));
-  }
 
-  // A call in progress holds the caller's thread (00132), so the text
-  // receptionist does not answer the same person on WhatsApp while they are on
-  // the phone with us -- two of our own agents, one customer, the same minute.
-  // Only a caller we already know has a thread to hold; a first-time caller has
-  // nothing to collide with. Never fatal: a hold we could not take costs the
-  // guard, and refusing a call over it would cost the call.
-  let held: string | null = null;
+  // The four things the answer waits for, each never fatal and none needing another, so they run together (they ran
+  // one after another inside Retell's ten seconds, behind the plan): the delivery kept, the platform told, the
+  // caller's thread held, a test of "keep my number" proven.
   const db = pg();
-  if (db && start.tenantId && start.conversationId && inbound.call_id) {
-    held = await claimControl(db, {
-      tenantId: start.tenantId,
-      conversationId: start.conversationId,
-      holder: { kind: "call", callId: inbound.call_id },
-      seconds: CALL_CONTROL_S,
-    }).catch((e: unknown) => {
-      L.error("retell_inbound_hold_failed", { error: e instanceof Error ? e.message : String(e) });
-      return null;
-    });
-  }
-
-  // A test of "keep my number" is proven here, as the call arrives, with the one thing the call webhook never sees:
-  // the diversion headers, which may name the kept number the carrier forwarded from (lib/voice/forwarding.ts). Only a
-  // forwarded line inside its test window is read, and it never throws: a proof unrecorded costs nothing the call
-  // webhook will not do moments later without them.
-  if (db && start.tenantId && inbound.call_id) {
-    await markForwardingVerified(db, start.tenantId, {
-      fromE164: inbound.from_number ?? null,
-      toE164: inbound.to_number ?? null,
-      startedAtIso: new Date().toISOString(),
-      callId: inbound.call_id,
-      diverted: divertedNumbers(inbound.custom_sip_headers),
-    });
-  }
+  const [, , held] = await Promise.all([
+    // Kept under the call's id, before the answer (decision 0032, 00336); a call with no id is nothing to replay. Kept
+    // without the ?key= it may have come in on (keptUrl): a ledger row is no place for the secret to every voice door.
+    db && inbound.call_id
+      ? keepDelivery(db, {
+          provider: "retell",
+          id: `call_inbound:${inbound.call_id}`,
+          door: "/api/retell-inbound",
+          url: keptUrl(request),
+          tenantId: start.tenantId ?? null,
+          headers: signatureHeaders(request, ["x-retell-signature"]),
+          body: raw,
+        })
+      : null,
+    // The platform is told, as it is for a text: a call answered with no facts is a customer nobody knows about.
+    // Suppressed per agent for fifteen minutes inside alertUnroutable, which is why the judgement says whether they are
+    // told rather than telling them. WAITED FOR, up to three seconds: a serverless invocation is frozen the moment it
+    // answers, and alertUnroutable claims its window before sending, so a send abandoned mid-flight was neither sent nor
+    // re-armed. The timer is cleared whichever side wins, as lib/voice/call-recording.ts does.
+    start.alert ? alertWithin(agentId) : null,
+    // A call in progress holds the caller's thread (00132), so the text receptionist does not answer the same person on
+    // WhatsApp while they are on the phone with us. Only a caller we already know has a thread to hold. Never fatal: a
+    // hold we could not take costs the guard, and refusing a call over it would cost the call.
+    db && start.tenantId && start.conversationId && inbound.call_id
+      ? claimControl(db, {
+          tenantId: start.tenantId,
+          conversationId: start.conversationId,
+          holder: { kind: "call", callId: inbound.call_id },
+          seconds: CALL_CONTROL_S,
+        }).catch((e: unknown) => {
+          L.error("retell_inbound_hold_failed", { error: e instanceof Error ? e.message : String(e) });
+          return null;
+        })
+      : null,
+    // A test of "keep my number" is proven here, as the call arrives, with the one thing the call webhook never sees:
+    // the diversion headers, which may name the kept number the carrier forwarded from (lib/voice/forwarding.ts). Only a
+    // forwarded line inside its test window is read, and it never throws.
+    db && start.tenantId && inbound.call_id
+      ? markForwardingVerified(db, start.tenantId, {
+          fromE164: inbound.from_number ?? null,
+          toE164: inbound.to_number ?? null,
+          startedAtIso: new Date().toISOString(),
+          callId: inbound.call_id,
+          diverted: divertedNumbers(inbound.custom_sip_headers),
+        })
+      : null,
+  ]);
 
   L.info("retell_inbound", {
     facts: start.facts,
     memory: start.memory,
     facts_chars: start.variables.business_facts.length,
     hold: held,
+    // How long the call waited, and how much of it was the plan: the budget is Retell's ten seconds.
+    plan_ms: planMs,
+    late: start.late,
+    // Which greeting the caller heard: the standard, the business's own (with the AI clause added or not), paused, or the
+    // standard because its own denied being automated (decision 0051). Which words, the version table says.
+    greeting: start.greetingSource,
+    ms: Date.now() - t0,
   });
   return json(200, { call_inbound: { dynamic_variables: start.variables } });
 }

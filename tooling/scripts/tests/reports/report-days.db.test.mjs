@@ -7,8 +7,8 @@
  * them, a zero on a day with nothing, from calls, escalations, first messages and replies seeded on known days; the
  * contacts pass runs once, not once a day (with sequential scans off, its index is read four times a person: the first
  * word is asked for where the pass filters and where it says the day, and a history moved in once; as written, that
- * was four times a person for each of the fourteen days); and a campaign's sends, receipts, replies, yeses and stops
- * land on their days.
+ * was four times a person for each of the fourteen days); and a campaign's sends, receipts and replies land on their
+ * days, and so do the answers to its runs (a yes or a stop, dated by when it came: 00403).
  *
  * Everything happens in a transaction on this machine's database that never commits. The workspace keeps UTC, so a
  * day is a UTC date. Read through the CLI, as sweep-registry.db.test.mjs turns a clock; SUPABASE_CLI names the binary
@@ -129,10 +129,14 @@ test(
   },
 );
 
-test("campaign_series: each day's sends, receipts, replies, yeses and stops land on it", { skip }, () => {
-  const seen = rolledBack(`
+test(
+  "campaign_series: each day's sends, receipts, replies and answers (a yes or a stop to a run, 00403) land on it",
+  { skip },
+  () => {
+    const seen = rolledBack(`
     declare
-      t uuid; tpl uuid; b uuid; cid uuid; first uuid; conv uuid; mid uuid; day0 timestamptz; k int; receipt text; report jsonb;
+      t uuid; tpl uuid; b uuid; cid uuid; first uuid; second uuid; conv uuid; mid uuid; day0 timestamptz; k int; receipt text;
+      report jsonb;
     begin
       insert into public.tenants (slug, name, timezone) values ('campaign-days-' || gen_random_uuid(), 'Campaign days', 'UTC')
         returning id into t;
@@ -142,19 +146,22 @@ test("campaign_series: each day's sends, receipts, replies, yeses and stops land
         values (t, 'Campaign days', tpl, 'campaign_days', 'en', day0 - interval '5 days') returning id into b;
       -- Six sends: three today (read, delivered, sent; the read one answered an hour later), two three days ago, and
       -- one three days ago that failed and counts nowhere. The second's thread got a call's note and the third's an
-      -- out-of-office from their mailbox: rows that came in, and nobody's answer (00320).
+      -- out-of-office from their mailbox: rows that came in, and nobody's answer (00320). The second went by email,
+      -- the others by WhatsApp (a row naming no channel, as every one did before channels).
       for i in 1..6 loop
         k := case when i <= 3 then 0 else 3 end;
         receipt := (array['read', 'delivered', 'sent', 'sent', 'sent', 'failed'])[i];
         insert into public.contacts (tenant_id) values (t) returning id into cid;
         if i = 1 then first := cid; end if;
+        if i = 2 then second := cid; end if;
         insert into public.conversations (tenant_id, contact_id) values (t, cid) returning id into conv;
         insert into public.messages (tenant_id, conversation_id, contact_id, channel, direction, sender, type, body, status, created_at)
-          values (t, conv, cid, 'whatsapp', 'outbound', 'human', 'template', 'an offer', receipt,
+          values (t, conv, cid, case when i = 2 then 'email' else 'whatsapp' end, 'outbound', 'human', 'template', 'an offer', receipt,
                   day0 - make_interval(days => k) + make_interval(mins => i))
           returning id into mid;
-        insert into public.broadcast_recipients (tenant_id, broadcast_id, contact_id, message_id, state, sent_at)
-          values (t, b, cid, mid, case when i = 6 then 'failed' else 'sent' end, day0 - make_interval(days => k) + make_interval(mins => i));
+        insert into public.broadcast_recipients (tenant_id, broadcast_id, contact_id, message_id, state, sent_at, channel)
+          values (t, b, cid, mid, case when i = 6 then 'failed' else 'sent' end, day0 - make_interval(days => k) + make_interval(mins => i),
+                  case when i = 2 then 'email' end);
         if i = 1 then
           insert into public.messages (tenant_id, conversation_id, contact_id, channel, direction, sender, type, body, status, created_at)
             values (t, conv, cid, 'whatsapp', 'inbound', 'customer', 'text', 'yes please', 'received', day0 + interval '61 minutes');
@@ -169,50 +176,57 @@ test("campaign_series: each day's sends, receipts, replies, yeses and stops land
                     '{"email": {"claim": "auto_reply"}}');
         end if;
       end loop;
-      -- A day ago: one person says yes, then presses "stop all" on the unsubscribe page, which writes the STOP and
-      -- email's own no for the one press (00174): one stop. Another person unsubscribes from offers by email: a stop
-      -- to what a campaign sends, counted with the others since offers go by email (00320).
+      -- Three hours into today, after today's three sends and inside their 72 hours: a yes or a stop is an answer to the
+      -- run that reached the person, dated by when it came (00403), not a line of the consent ledger on a day of its own.
+      -- The first person (reached by WhatsApp) says yes, then presses "stop all" on the unsubscribe page, which writes
+      -- the STOP and email's own no for the one press (00174): the stop is the latest they said to the run and stands,
+      -- the yes is superseded, and email's no is no answer of a person the run did not reach by email. The second
+      -- (reached by email) unsubscribes from offers by email: a stop (00320). Two people stopped and nobody said yes.
       insert into public.events (tenant_id, kind, category, subject_type, subject_id, created_at, data) values
-        (t, 'contact.consent_changed', 'contact', 'contact', cid, day0 - interval '1 day' + interval '1 minute', '{"consent": "opted_in"}'),
-        (t, 'contact.consent_changed', 'contact', 'contact', cid, day0 - interval '1 day' + interval '2 minutes', '{"consent": "opted_out"}'),
-        (t, 'contact.consent_changed', 'contact', 'contact', cid, day0 - interval '1 day' + interval '3 minutes',
+        (t, 'contact.consent_changed', 'contact', 'contact', first, day0 + interval '3 hours', '{"consent": "opted_in"}'),
+        (t, 'contact.consent_changed', 'contact', 'contact', first, day0 + interval '3 hours 1 minute', '{"consent": "opted_out"}'),
+        (t, 'contact.consent_changed', 'contact', 'contact', first, day0 + interval '3 hours 2 minutes',
          '{"consent": "opted_out", "purpose": "email_marketing"}'),
-        (t, 'contact.consent_changed', 'contact', 'contact', first, day0 - interval '1 day' + interval '4 minutes',
+        (t, 'contact.consent_changed', 'contact', 'contact', second, day0 + interval '3 hours 3 minutes',
          '{"consent": "opted_out", "purpose": "email_marketing"}');
       report := public.campaign_series(t, 7);
       seen := jsonb_build_object('report', report);
     end;
   `);
-  const { report } = seen;
-  assert.equal(report.series.length, 14);
-  const days = byDay(report.series);
-  const row = (k) => {
-    const d = days[ago(k)];
-    return [d.sent, d.delivered, d.read, d.replied, d.opt_ins, d.opt_outs];
-  };
-  assert.deepEqual(
-    row(0),
-    [3, 2, 1, 1, 0, 0],
-    "today: three sent, two delivered (one read), one answered; a call's note and an out-of-office are no answer",
-  );
-  assert.deepEqual(
-    row(1),
-    [0, 0, 0, 0, 1, 2],
-    "a day ago: a yes; one person's stop-all, two events and one stop; and another's unsubscribe from offers by email",
-  );
-  assert.deepEqual(row(3), [2, 0, 0, 0, 0, 0], "three days ago: two sent, and the failed one counts nowhere");
-  for (const k of [2, 4, 5, 6, 7, 13]) assert.deepEqual(row(k), [0, 0, 0, 0, 0, 0], `${ago(k)} had nothing`);
-  assert.equal(report.sources.length, 1);
-  assert.deepEqual(
-    [report.sources[0].sent, report.sources[0].delivered, report.sources[0].read, report.sources[0].replied],
-    [5, 2, 1, 1],
-  );
-  assert.deepEqual(
-    report.by_channel,
-    [{ channel: "whatsapp", sent: 5, delivered: 2, read: 1, replied: 1 }],
-    "rows from before channels name none: they went by WhatsApp (0030)",
-  );
-});
+    const { report } = seen;
+    assert.equal(report.series.length, 14);
+    const days = byDay(report.series);
+    const row = (k) => {
+      const d = days[ago(k)];
+      return [d.sent, d.delivered, d.read, d.replied, d.opt_ins, d.opt_outs];
+    };
+    assert.deepEqual(
+      row(0),
+      [3, 2, 1, 1, 0, 2],
+      "today: three sent, two delivered (one read), one replied (a call's note and an out-of-office are no reply); two people stopped and none said yes: the first one's yes is superseded in the run by the stop-all after it (and the email no of that press is no answer of a person not reached by email), and the second one's unsubscribe from offers by email is theirs, reached by email",
+    );
+    assert.deepEqual(
+      row(1),
+      [0, 0, 0, 0, 0, 0],
+      "a day ago: the answers are dated by when they came, and none came (they were a line of the ledger on this day before 00403)",
+    );
+    assert.deepEqual(row(3), [2, 0, 0, 0, 0, 0], "three days ago: two sent, and the failed one counts nowhere");
+    for (const k of [2, 4, 5, 6, 7, 13]) assert.deepEqual(row(k), [0, 0, 0, 0, 0, 0], `${ago(k)} had nothing`);
+    assert.equal(report.sources.length, 1);
+    assert.deepEqual(
+      [report.sources[0].sent, report.sources[0].delivered, report.sources[0].read, report.sources[0].replied],
+      [5, 2, 1, 1],
+    );
+    assert.deepEqual(
+      report.by_channel,
+      [
+        { channel: "whatsapp", sent: 4, delivered: 1, read: 1, replied: 1 },
+        { channel: "email", sent: 1, delivered: 1, read: 0, replied: 0 },
+      ],
+      "rows from before channels name none: they went by WhatsApp (0030); the second went by email",
+    );
+  },
+);
 
 test(
   "campaign_series by channel (0030): the current period's sends, receipts and replies, each channel its own; a row naming none went by WhatsApp; the period before is not in it",

@@ -5,7 +5,7 @@ other people's notes, nothing of anyone else's is deleted, names are left); step
 and its ratchet, and the notes' scrub, 00341); step 2's test built on 7 October 2026
 (`people/erasure/erasure-completeness.db.test.mjs`: the needles seeded into every registered column, the real route run
 as the owner, every column searched after; its number on the back office is not yet written); step 3 built on
-10 October 2026 (00391): 187 of the 195 classified, 8 left counted, each waiting on a word below. Proposed the same day: the registry 0031's invariant 10 names ("every
+10 October 2026 (00391): 187 of the 195 classified; its three open questions answered the same day (Ruben: "go with the best recommendations") and built (00392), so 2 stay counted, the message's words, on purpose. Proposed the same day: the registry 0031's invariant 10 names ("every
 table has a tenant, a floor and an erasure strategy") and leaves to a note of its own. Written against commit
 `163f367` (main, 6 October 2026) with Phase 1's pull request (#1447) on it, and built on `266fff9a`. Where this note
 and the code disagree, the code wins.
@@ -104,19 +104,19 @@ someone else's thread stays, and stays counted, until an exception to that trigg
 
 ## Open questions
 
-- A Google review's reviewer, words and reply (`google_reviews.author`, `author_uri`, `author_photo_uri`, `body`,
-  `reply_text`): nothing joins a review to a person, and a name is not a key, so no erasure reaches them; and a review
-  taken down at Google stays here, since the sync adds and never prunes. Recommended: the mirror follows Google (a full
-  read drops the rows it no longer lists), with a retention key and its sentence on the privacy page, and the five named
-  by age. Whether the mirror may keep a reviewer's name while it is public on Google is Ruben's call.
-- A lead batch's judgment (`lead_judgments.answer`): the judge's answer, with its reason for each place, keyed by the
-  batch, so no leg by lead reaches it. purge_leads removes it at 180 days, and `RETENTION_DAYS` has no key for it, so
-  the privacy page does not say so. Recommended: a key, `lead_judgments: 180`, and its sentence.
-- With the workspace, a closed invitation's address (`invitations.email`) and the address a partner hands a workspace
-  to (`partner_tenants.handover_email`) stay for the workspace's life after the invitation is answered. Recommended,
-  not built: a purge of answered invitations after a stated number of days, and the handover's address cleared once
-  it is accepted.
-
+- Answered (10 October 2026, built in 00392): **the mirror follows Google.** A profile's read that lists every
+  review drops the ones it no longer lists the same day (`planProfileSync`'s `prune`, never on a capped read or a page
+  that came back without its list), and `purge_google_reviews` removes any review not seen for 90 days
+  (`RETENTION_DAYS.google_reviews`, stated on the privacy page), the backstop for what a read never reaches. The five
+  columns are by age. The mirror keeps a reviewer's name while Google shows it: it is Google's public page, read for the
+  business's own replies and reports.
+- Answered (10 October 2026): **a lead batch's judgment is kept 180 days,** as `purge_leads` already removed it, now
+  stated (`RETENTION_DAYS.lead_judgments`) and by age in the registry.
+- Answered (10 October 2026, built in 00392): **a closed invitation goes after 30 days** with its address
+  (`purge_invitations`, `RETENTION_DAYS.invitations_closed`), from the decisions that recorded it too; an open or
+  expired one stays, for the Team card to send again. The sign-in account an invitation makes for a new address (Supabase Auth, `inviteUserByEmail`) is not the purge's: one never confirmed and holding no seat is a sweep still owed. **A handover's address is cleared once accepted**
+  (`handover_accept`); a declined or expired one keeps it, for the partner to send again. Both stay with the workspace
+  in the registry, since the open ones do.
 - Answered: a person's words in a workspace's own notes are scrubbed in place, numbers and addresses only, and nothing
   of anyone else's is deleted (Ruben, 6 October 2026). In messages they are counted until an exception to 00326 is
   costed.

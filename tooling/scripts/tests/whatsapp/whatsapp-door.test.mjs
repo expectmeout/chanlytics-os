@@ -1608,8 +1608,11 @@ function accepted(w, over = {}) {
   return { row, wamid, errors, failed };
 }
 const holds = (w) => (w.tables.escalations ?? []).filter((e) => e.state !== "resolved");
+/** The events that tell the owner of a hold: owner_notice rings the bell from them, after the commit (decision 0043). */
+const told = (w) =>
+  (w.tables.events ?? []).filter((e) => e.kind === "escalation.opened" || e.kind === "escalation.changed");
 
-test("a WhatsApp message Meta then reports failed flags its thread, rings the bell and writes the ledger, saying why", async () => {
+test("a WhatsApp message Meta then reports failed flags its thread, whose event rings the bell, and writes the ledger, saying why", async () => {
   const w = world();
   const { row, errors, failed } = accepted(w);
   w.open();
@@ -1622,11 +1625,12 @@ test("a WhatsApp message Meta then reports failed flags its thread, rings the be
   assert.deepEqual([hold.conversation_id, hold.reason], [`cv-${w.i}`, "send_failed"]);
   assert.match(hold.details, /^A reply from your team was accepted for sending but did not reach them\. /);
   assert.match(hold.details, /more than 24 hours have passed since they last replied.*\(WhatsApp error 131047\)\.$/);
-  assert.equal(w.tables.notifications.length, 1);
   assert.deepEqual(
-    [w.tables.notifications[0].kind, w.tables.notifications[0].route, w.tables.notifications[0].subject_id],
-    ["handoff", `inbox/th-cv-${w.i}`, `cv-${w.i}`],
+    told(w).map((e) => [e.kind, e.subject_type, e.subject_id]),
+    [["escalation.opened", "conversation", `cv-${w.i}`]],
+    "the hold's event, which tells the owner after the commit, out of Meta's request",
   );
+  assert.deepEqual(w.tables.notifications, [], "and no bell of the door's own beside it");
   const failures = kind(w.tables, "message.send_failed");
   assert.equal(failures.length, 1);
   assert.deepEqual(
@@ -1646,10 +1650,7 @@ test("the same failure said twice, in one delivery or two, raises once", async (
   twice.entry[0].changes[0].value.statuses.push(twice.entry[0].changes[0].value.statuses[0]);
   await deliver(twice);
   assert.equal(row.status, "failed");
-  assert.deepEqual(
-    [holds(w).length, w.tables.notifications.length, kind(w.tables, "message.send_failed").length],
-    [1, 1, 1],
-  );
+  assert.deepEqual([holds(w).length, told(w).length, kind(w.tables, "message.send_failed").length], [1, 1, 1]);
 });
 
 test("the same failure twice in the FIRST delivery, while the row still says sent, raises once", async () => {
@@ -1665,7 +1666,7 @@ test("the same failure twice in the FIRST delivery, while the row still says sen
   assert.deepEqual(await answer(await deliver(twice)), [200, { ok: true }]);
   assert.equal(row.status, "failed");
   assert.deepEqual(
-    [holds(w).length, w.tables.notifications.length, kind(w.tables, "message.send_failed").length],
+    [holds(w).length, told(w).length, kind(w.tables, "message.send_failed").length],
     [1, 1, 1],
     "REGRESSION: two bells and two ledger rows for one message",
   );
@@ -1717,7 +1718,7 @@ test("a flag the database would not take leaves the message as it was and the de
   // Meta redelivers, the database is back: the failure lands and is raised, once.
   w.open();
   assert.deepEqual(await answer(await deliver(failed())), [200, { ok: true }]);
-  assert.deepEqual([row.status, holds(w).length, w.tables.notifications.length], ["failed", 1, 1]);
+  assert.deepEqual([row.status, holds(w).length, told(w).length], ["failed", 1, 1]);
 });
 
 test("a failure that is the person's own no to offers (131050) is recorded as that no and is not a send the owner has to fix: no hold, no bell, no failure on the ledger", async () => {

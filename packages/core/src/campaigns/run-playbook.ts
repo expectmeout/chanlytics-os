@@ -366,7 +366,7 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
   const { playbook: p, ctx, by } = cmd;
   const now = ctx.now;
   const runFor = cmd.runFor ?? localDate(ctx.tz, now);
-  // No row for the class means ask — the safest. A campaign on trial (00395) waits for a person where its class would
+  // No row for the class means ask — the safest. A campaign on trial (00409) waits for a person where its class would
   // send by itself: auto goes as veto until its trial ends (contracts effectiveMode), and its notice says so.
   const classMode = ctx.modes.get(p.policy_class) ?? "ask";
   const mode = effectiveMode(p, classMode, now);
@@ -378,7 +378,7 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
     if (opts.record !== false) await record({ mode, skipped });
     return { outcome: "off", mode, skipped };
   };
-  // A campaign past its last day (00395 `until`, the business's day) runs nothing more, whoever asks: said, and recorded
+  // A campaign past its last day (00409 `until`, the business's day) runs nothing more, whoever asks: said, and recorded
   // for the day, before anything is read.
   if (campaignEnded(p, runFor)) return off("ended");
   // A person who asks has decided: it sends now, unless the class is never.

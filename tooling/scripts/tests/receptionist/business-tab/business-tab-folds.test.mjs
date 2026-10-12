@@ -13,6 +13,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  NO_WAY_TO_SEND_LINK,
+  GREETING_TEMPLATE,
   newReceptionistDefaults,
   instructionsDraft,
   FALLBACK_DEFAULTS,
@@ -156,6 +158,12 @@ const EDITS = {
     () => "Bright, and quick to the point.",
     (next) => assert.equal(next.brain.profile.tone, "Bright, and quick to the point."),
   ],
+  // The phone greeting (decision 0051): the owner's line, stored with {business} for the name; the standard line stores nothing.
+  phone_greeting: [
+    () => "  Hi, {business}! I'm the virtual assistant. How can I help?  ",
+    (next) =>
+      assert.equal(next.brain.profile.phone_greeting, "Hi, {business}! I'm the virtual assistant. How can I help?"),
+  ],
   hours: [
     (d) => ({ ...d, sun: { isOpen: true, shifts: [{ open: "10:00", close: "16:00" }] } }),
     (next) => assert.deepEqual(next.brain.profile.hours.sun, { open: "10:00", close: "16:00" }),
@@ -293,6 +301,7 @@ test("every fold is named once, owns exactly its paths, and is a fold the bridge
   assert.deepEqual(Object.keys(S.PATHS_OF).sort(), [...FOLDS].sort());
   assert.deepEqual(S.KEYS_OF, {
     tone: ["tone"],
+    phone_greeting: ["phone_greeting"],
     hours: ["hours"],
     closures: ["closures"],
     services: ["services"],
@@ -428,6 +437,11 @@ test("a draft is the fold's own: changing it in place changes nothing stored", (
 test("each fold opens with its stored values, as the form it replaces opened them", () => {
   const s = stored();
   assert.equal(S.draftOf("tone", s), "Warm and unhurried.");
+  assert.equal(
+    S.draftOf("phone_greeting", s),
+    GREETING_TEMPLATE,
+    "nothing stored: the standard line, to be made their own",
+  );
   assert.deepEqual(S.draftOf("languages", s), ["English", "Spanish"]);
   assert.equal(S.draftOf("escalate_when", s), "They ask for Marisa\nThey are upset, or have a complaint");
   assert.equal(S.draftOf("consult_first", s), "Color correction\nExtensions");
@@ -519,6 +533,8 @@ test("each fold opens with its stored values, as the form it replaces opened the
     FOLDS.map((f) => [f, S.draftOf(f, none)]),
     [
       ["tone", ""],
+      // The greeting opens on the standard line, the slot where the name goes (decision 0051).
+      ["phone_greeting", GREETING_TEMPLATE],
       ["hours", Object.fromEntries(DAYS.map((d) => [d, { isOpen: false, shifts: [] }]))],
       ["closures", []],
       ["services", []],
@@ -1114,7 +1130,11 @@ test("the own-words fold opens the baseline a save before S4 left in the owner's
   const bare = { ...record.brain, profile: without(profile, "extra_instructions") };
   assert.deepEqual(
     told(bare),
-    [withStanding(record.brain.system_prompt, "whatsapp"), withStanding(record.brain.system_prompt, "voice")],
+    [
+      withStanding(record.brain.system_prompt, "whatsapp"),
+      // A call with the link and no WhatsApp line to send it by is told so first (contracts offersLinkOn).
+      withStanding(record.brain.system_prompt, "voice", record.brain.booking_link ? [NO_WAY_TO_SEND_LINK] : []),
+    ],
     "and without it the resolver hands the stored prompt back with only the standing rules after it, which is what review measured",
   );
 
@@ -1751,7 +1771,7 @@ test("one helper says what a row's or a fold's save will tell the receptionist: 
     const kept = S.willSay({ was: base.brain, next: rules, sections: "guardrails", channel: "whatsapp" });
     assert.equal(kept.whole, tab.consequenceOf("guardrails", rules, "whatsapp").text);
     assert.equal(kept.caveat, tab.consequenceOf("guardrails", rules, "whatsapp").note);
-    assert.match(kept.caveat, /Autonomy tab/);
+    assert.match(kept.caveat, /Autonomy/);
     // A block whose lines are facts says each that comes and goes: a closed day added is one line that comes.
     const days = S.draftOf("closures", base);
     days.push({ date: "2099-07-04", note: "Independence Day" });
@@ -1798,6 +1818,7 @@ test("one helper says what a row's or a fold's save will tell the receptionist: 
       caveat: null,
       chars: null,
       total: null,
+      changed: false,
     });
     // A draft the save's own schema refuses: nothing true can be said of a save that will not go, and a block that is
     // null for THAT reason must not read as one the save takes away.
@@ -1847,7 +1868,7 @@ test("a save that crosses the resolver's line says so, whichever gesture sends i
       sections: "hours",
       channel: "whatsapp",
     });
-    assert.match(stops.note, /stops being given the details on this page/);
+    assert.match(stops.note, /stops being given your details/);
     assert.deepEqual(
       [stops.whole, stops.added, stops.removed],
       [null, null, null],
@@ -1864,7 +1885,7 @@ test("a save that crosses the resolver's line says so, whichever gesture sends i
       sections: "hours",
       channel: "whatsapp",
     });
-    assert.match(starts.note, /starts being given the details on this page/);
+    assert.match(starts.note, /starts being given your details/);
     assert.equal(starts.added, linesOf(starts.whole).join("\n"), "every line of the block is new");
   } finally {
     delete W.__SETTINGS;
@@ -1976,7 +1997,7 @@ test("the two caps the write schema keeps are in LIMITS, once, and a day with mo
 
 test("a block whose lines are runs says nothing goes unless the whole block goes: a changed Friday takes no Monday with it", () => {
   // The quality review's probe. The hours block's lines are run-collapsed ("Monday–Thursday: 09:30–18:00"). Changing
-  // only Friday's close re-cut the runs, and "It will no longer be told" listed "Monday–Thursday: 09:30–18:00", a line
+  // only Friday's close re-cut the runs, and "No longer told" listed "Monday–Thursday: 09:30–18:00", a line
   // about days that were unchanged. Which sections say their lines in runs is one table's (RUN_BLOCKS), never an
   // `if (fold === "hours")` in the page.
   try {

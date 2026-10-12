@@ -3,13 +3,17 @@ import { z } from "zod";
 import {
   AppError,
   dealsAreOn,
+  DEFAULT_TIMEZONE,
   fixedDaysOf,
   headlineOf,
+  isPeopleSeriesDto,
   isReceptionistSeriesDto,
   isReportDto,
   isReviewsLedgerDto,
   monthDaysAt,
   parseTenantConfigResult,
+  peopleDtoOf,
+  peopleNowOf,
   plural,
   receptionistDtoOf,
   REPORT_PERIOD_IDS,
@@ -23,6 +27,8 @@ import {
   zoneMidnight,
   type BookingReportDto,
   type DealReportDto,
+  type PeopleDto,
+  type PeopleNowDto,
   type PersonRowDto,
   type ReceptionistDto,
   type ReceptionistSeriesDto,
@@ -34,6 +40,7 @@ import {
 } from "@chanlytics/contracts";
 import {
   ReportWindowNotReadable,
+  peopleSeries,
   receptionistSeries,
   reportSeries,
   reviewsLedger,
@@ -393,5 +400,83 @@ export const receptionistReport: Reader<ReportWindow, ReceptionistDto> = {
     if (!isReceptionistSeriesDto(answer)) throw new AppError("not_found", "No workspace found for this report.", 404);
     const booked = await linksOf(rc, window, answer.links);
     return { data: receptionistDtoOf(answer, { booked, profile, head: answer, nowMs }), rows: [], stamp: stamp() };
+  },
+};
+
+/**
+ * The book as it stands now, for the People lens: everyone People holds (the turn's one read, everyoneOf) counted by
+ * contracts' peopleNowOf in the workspace's zone at the turn's clock, and judged against what the workspace can send on
+ * (the turn's channels, which say so in the log and are null where they could not be read). It is as of now and so is read
+ * for every window, days that ended included. Nothing of the member asking reaches it (`rc.userId` is not passed on): the
+ * answer is the workspace's. Never fatal: People that cannot be read, or a list that cannot be counted, leave null (logged
+ * `people_pool_failed`), and the window is answered without the book; each half of the lens fails alone.
+ */
+async function bookOf(rc: ReaderContext): Promise<PeopleNowDto | null> {
+  try {
+    const [people, zone, ready] = await Promise.all([
+      everyoneOf(rc),
+      load(rc, facts.facts, undefined),
+      load(rc, facts.channelsReady, undefined),
+    ]);
+    return peopleNowOf(people, { tz: zone.data.timezone, nowMs: rc.now.getTime(), ready: ready.data });
+  } catch (e) {
+    log.error("people_pool_failed", {
+      tenant_id: rc.tenantId,
+      error: e instanceof Error ? e.message : String(e),
+    });
+    return null;
+  }
+}
+
+/**
+ * The window as the route asked it, dated in the workspace's zone (the turn's), for an answer with no series to carry its
+ * own: People's and the Campaigns ledger's on a database without their function. A zone that cannot be read is the product's
+ * default, never the route's failure: what is still answered is judged in it. (The Receptionist's reader starts the zone's
+ * read with its other two and lets a failure of it fail the read, so it builds its own head.)
+ */
+export async function askedHead(
+  rc: ReaderContext,
+  window: ReportWindow,
+): Promise<{ timezone: string; today: string; end?: string; days: number }> {
+  const timezone = await load(rc, facts.facts, undefined).then(
+    (f) => f.data.timezone,
+    () => DEFAULT_TIMEZONE,
+  );
+  return {
+    timezone,
+    today: zoneDayKey(rc.now.getTime(), timezone),
+    ...(window.end !== null && { end: window.end }),
+    days: window.days,
+  };
+}
+
+/**
+ * GET reports/people, as the route answers it: who reached the business over `days` and the same number of days before
+ * them, which one SECURITY INVOKER function counts in the workspace's own zone (peopleSeries: by the wire they used, how
+ * the new ones first came, the yeses and stops they gave, the addresses that stopped working, the steps done on time), and
+ * beside it the book as it stands now (bookOf). Contracts' peopleDtoOf makes the route's answer of the two. The two reads
+ * are independent, so they are made together, and each fails alone: a book that cannot be counted is `now: null`. A
+ * function that answers nothing is the page's 404, in its words; any other failure of the series is the route's. A database
+ * that does not have the function yet (00395 is applied on the owner's word, after the dashboard deploys) answers null for
+ * a period and for picked days alike: the answer is then the window the route was asked with `series: null`, the lens draws
+ * the book and its kept cards and none of its own parts, and the log says `people_series_missing` once a read. If the
+ * workspace's zone cannot be read either, the book is null as well (bookOf says so in the log) and the answer is
+ * `series: null, now: null`, never the route's failure: the lens then has nothing of its own to draw, and Ask says
+ * `available: false`. No row of its own: it is drawn on the Reports page, which `report` names.
+ */
+export const peopleReport: Reader<ReportWindow, PeopleDto> = {
+  name: "peopleReport",
+  async read(rc, window) {
+    const [answer, now] = await Promise.all([peopleSeries(rc.ctx.supabase, rc.tenantId, window), bookOf(rc)]);
+    if (answer === null) {
+      log.warn("people_series_missing", { tenant_id: rc.tenantId });
+      // The zone the book was counted in, which the turn holds: asked again only if that read failed, and if it fails
+      // again the answer carries the product's default zone, which nothing reads of an answer with neither half (the
+      // page draws its kept cards, Ask says `available: false`).
+      const head = await askedHead(rc, window);
+      return { data: peopleDtoOf(null, { now, head }), rows: [], stamp: stamp() };
+    }
+    if (!isPeopleSeriesDto(answer)) throw new AppError("not_found", "No workspace found for this report.", 404);
+    return { data: peopleDtoOf(answer, { now, head: answer }), rows: [], stamp: stamp() };
   },
 };

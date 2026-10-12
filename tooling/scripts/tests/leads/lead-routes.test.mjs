@@ -729,11 +729,19 @@ function fakeModel(answerOfPurpose = {}) {
           }
         : {
             line: "a personal training studio in Austin",
-            items: [
+            ideas: [
               {
-                words: "Chiropractors within 5 miles",
-                who_for: "Partners · their patients often need a trainer next",
-                category_key: "chiropractor",
+                words: "chiropractors",
+                why: "Partners: their patients often need a trainer next",
+                who: "chiropractors",
+                who_one: "chiropractor",
+                category_key: "chiropractors",
+                terms: ["chiropractor"],
+                place: "P1",
+                count: 50,
+                contact: "email",
+                criteria: [],
+                leave_out: ["chains"],
               },
             ],
           });
@@ -1710,58 +1718,166 @@ test("erasing a lead is the owner's, final, and on the ledger once however often
   );
 });
 
-test("the first day's suggestions are asked once a week, carry how reachable each kind is, and a model that will not answer is a note", async () => {
+/** A kept row of ideas, as 00398 keeps it: written over the newest round (basis "" where none has ended). */
+const keptIdeas = (over = {}) => [
+  {
+    tenant_id: A,
+    business_line: "a personal training studio in Denver",
+    by_owner: true,
+    made_at: new Date().toISOString(),
+    basis: "",
+    failed_at: null,
+    passed: [],
+    items: [
+      {
+        words: "Chiropractors near 78704",
+        who_for: "Partners",
+        category_key: "chiropractor",
+        reach: null,
+        plan: {
+          ...PLAN,
+          category_key: "chiropractor",
+          area: { ...PLAN.area, kind: "zip", label: "near 78704", zip: "78704" },
+        },
+        ask: "Find 50 chiropractors near 78704",
+      },
+    ],
+    ...over,
+  },
+];
+/** What the ideas' store answers a test: the home known, no search yet. */
+const ideaStore = (over = {}) => ({
+  history: async () => ({ home: { city: "Austin", region: "TX", zip: "78704" }, searches: [] }),
+  keep: async (tenantId, _claim, row) => {
+    saved.push({ tenantId, ...row });
+    return true;
+  },
+  ...over,
+});
+
+test("the ideas are written from the line and what was found, on their own route, each a plan in a listed place with how reachable its kind is", async () => {
+  setSuggestionsWriter(ideaStore());
   const rpcs = doors();
   const fresh = await suggestions.GET.run(get(inA), ctxOf(world({ role: "owner" }), {}, rpcs));
   assert.deepEqual(
     [modelCalls.length, modelCalls[0].purpose, modelCalls[0].request.max_tokens],
-    [1, "lead_suggest", 400],
+    [1, "lead_suggest", 1800],
   );
-  assert.equal(fresh.business_line, "a personal training studio in Austin");
-  assert.deepEqual(fresh.items[0].reach, "About 6 in 10 have an email");
-  const kept = [
-    {
-      tenant_id: A,
-      business_line: "a personal training studio in Denver",
-      by_owner: true,
-      made_at: new Date().toISOString(),
-      items: [{ words: "Chiropractors", who_for: "Partners", category_key: "chiropractor" }],
-    },
-  ];
-  modelCalls = [];
-  const again = await suggestions.GET.run(get(inA), ctxOf(world({ role: "owner", suggestions: kept }), {}, rpcs));
+  assert.match(modelCalls[0].request.messages[0].content, /P1 · near 78704 · home/, "the places the model may name");
+  assert.match(modelCalls[0].request.messages[0].content, /No searches yet/);
+  assert.equal(
+    fresh.business_line,
+    "a personal training studio in Austin",
+    "the model's line, as the owner would say it",
+  );
+  const [idea] = fresh.items;
+  assert.equal(idea.words, "Chiropractors near 78704");
+  assert.equal(idea.category_key, "chiropractor", "one key, one of them");
+  assert.equal(idea.plan.area.zip, "78704");
+  assert.equal(idea.plan.count, 50);
+  assert.deepEqual(
+    idea.plan.exclusions.map((x) => x.text),
+    ["chains"],
+  );
+  assert.equal(idea.ask, "Find 50 chiropractors near 78704, leaving out chains");
+  assert.equal(idea.reach, "About 6 in 10 have an email");
+  assert.deepEqual(idea.prior, { places: 1200, matched: 700, with_email: 406 });
+  assert.equal(saved.length, 1, "kept under the claim");
+  assert.deepEqual(
+    [saved[0].business_line, saved[0].by_owner, saved[0].basis, saved[0].passed],
+    ["a personal training studio in Austin", false, "", []],
+  );
+  assert.equal(saved[0].items[0].plan.category_key, "chiropractor");
+  assert.equal(/apify|compass|anthropic|claude-/i.test(JSON.stringify(fresh)), false);
+});
+
+test("kept ideas stand while the newest round is the one they were written over, a month at most; a row from before, or a round ended since, is written again", async () => {
+  setSuggestionsWriter(ideaStore());
+  const rpcs = doors();
+  const again = await suggestions.GET.run(
+    get(inA),
+    ctxOf(world({ role: "owner", suggestions: keptIdeas() }), {}, rpcs),
+  );
   assert.deepEqual(
     [modelCalls.length, again.by_owner, again.business_line],
     [0, true, "a personal training studio in Denver"],
-    "a week's cache is one model call a week",
   );
-  assert.deepEqual(saved, [
-    {
-      tenantId: A,
-      business_line: "a personal training studio in Austin",
-      by_owner: false,
-      items: [
-        {
-          words: "Chiropractors within 5 miles",
-          who_for: "Partners · their patients often need a trainer next",
-          category_key: "chiropractor",
-        },
-      ],
-    },
-  ]);
-  const stale = [{ ...kept[0], made_at: "2026-09-01T00:00:00Z" }];
-  await suggestions.GET.run(get(inA), ctxOf(world({ role: "owner", suggestions: stale }), {}, rpcs));
-  assert.equal(modelCalls.length, 1, "eight days old, so it is asked again");
+  assert.equal(again.items[0].reach, "About 6 in 10 have an email", "how reachable is read fresh each time");
+  // A row from before plans were kept has no basis: written again, from the owner's own line.
+  await suggestions.GET.run(
+    get(inA),
+    ctxOf(world({ role: "owner", suggestions: keptIdeas({ basis: null }) }), {}, rpcs),
+  );
+  assert.equal(modelCalls.length, 1, "no basis, so it is asked again");
+  assert.equal(
+    saved.at(-1).business_line,
+    "a personal training studio in Denver",
+    "the owner's line is kept as theirs",
+  );
+  assert.equal(saved.at(-1).by_owner, true);
+  // A round ended since: the basis moved, so they are written again.
+  const ended = world({ role: "owner", suggestions: keptIdeas() });
+  ended.lead_rounds = [{ id: R1, tenant_id: A, search_id: SEARCH, state: "ended", ended_at: "2026-10-10T15:00:00Z" }];
+  await suggestions.GET.run(get(inA), ctxOf(ended, {}, rpcs));
+  assert.equal(modelCalls.length, 2, "a round ended since: asked again");
+  assert.equal(saved.at(-1).basis, "2026-10-10T15:00:00.000Z", "written over that round");
+  // A month old: asked again.
+  const old = keptIdeas({ made_at: "2026-09-01T00:00:00Z" });
+  await suggestions.GET.run(get(inA), ctxOf(world({ role: "owner", suggestions: old }), {}, rpcs));
+  assert.equal(modelCalls.length, 3, "a month old, so it is asked again");
+});
+
+test("two reads write once: the second finds the claim taken and says so, and the page asks again; a member who may not find reads what was written", async () => {
+  const rpcs = doors();
+  setSuggestionsWriter(ideaStore({ claim: async () => null }));
+  const taken = await suggestions.GET.run(get(inA), ctxOf(world({ role: "owner" }), {}, rpcs));
+  assert.deepEqual([modelCalls.length, taken.items, taken.pending], [0, [], true]);
+  const held = await suggestions.GET.run(
+    get(inA),
+    ctxOf(world({ role: "owner", suggestions: keptIdeas({ basis: null }) }), {}, rpcs),
+  );
+  assert.equal(held.items.length, 1, "the older ideas stand meanwhile");
+  assert.equal(held.pending, undefined);
+  // The claim let go meanwhile (the owner saved a line): what was written is not kept, and the page asks again.
+  setSuggestionsWriter(ideaStore({ keep: async () => false }));
+  const lost = await suggestions.GET.run(get(inA), ctxOf(world({ role: "owner" }), {}, rpcs));
+  assert.deepEqual([modelCalls.length, lost.items, lost.pending], [1, [], true]);
+  // An operator reads what was written and asks for nothing.
+  setSuggestionsWriter(ideaStore());
+  modelCalls = [];
+  const read = await suggestions.GET.run(
+    get(inA),
+    ctxOf(world({ role: "operator", suggestions: keptIdeas({ basis: null }) }), {}, rpcs),
+  );
+  assert.deepEqual([modelCalls.length, read.items.length], [0, 1]);
+  const none = await suggestions.GET.run(get(inA), ctxOf(world({ role: "operator" }), {}, rpcs));
+  assert.deepEqual([modelCalls.length, none.items, none.note], [0, [], "Suggestions are not available right now."]);
+});
+
+test("a model that will not answer is a note, the failure is kept under the claim, and it is not asked again for a while", async () => {
+  const rpcs = doors();
+  const failed = [];
+  setSuggestionsWriter(ideaStore({ fail: async (tenantId, claim) => failed.push([tenantId, claim]) }));
   // eslint-disable-next-line require-yield -- the gateway refuses before it streams a first block
   setModelStream(async function* () {
     throw new GatewayRefused({ kind: "budget", used: 1, cap: 1 });
   });
   const note = await suggestions.GET.run(get(inA), ctxOf(world({ role: "owner" }), {}, rpcs));
   assert.deepEqual([note.items, note.note], [[], "Suggestions are not available right now."], "the page still draws");
+  assert.deepEqual(failed, [[A, "2026-01-01T00:00:00.000Z"]], "the failure is kept under this read's claim");
   assert.equal(/apify|compass|anthropic|claude-opus/i.test(JSON.stringify(note)), false);
+  // Failed a moment ago: not asked again, the note stands (or the older ideas do).
+  setModelStream(fakeModel());
+  const soon = keptIdeas({ items: [], basis: null, failed_at: new Date().toISOString() });
+  const held = await suggestions.GET.run(get(inA), ctxOf(world({ role: "owner", suggestions: soon }), {}, rpcs));
+  assert.deepEqual([modelCalls.length, held.note], [0, "Suggestions are not available right now."]);
+  const older = keptIdeas({ basis: null, failed_at: new Date().toISOString() });
+  const stood = await suggestions.GET.run(get(inA), ctxOf(world({ role: "owner", suggestions: older }), {}, rpcs));
+  assert.deepEqual([modelCalls.length, stood.items.length, stood.note], [0, 1, undefined]);
 });
 
 test("a kind of business nobody has searched says so, and never a share from too little evidence", async () => {
+  setSuggestionsWriter(ideaStore());
   const thin = doors({ lead_niche_prior: () => ({ places: 30, matched: 12, with_email: 9 }) });
   const out = await suggestions.GET.run(get(inA), ctxOf(world({ role: "owner" }), {}, thin));
   assert.equal(out.items[0].reach, "New kind of search · checked after 25");
@@ -1779,8 +1895,17 @@ test("the owner's own business line is saved with no suggestions, so the next re
   assert.deepEqual(out, { business_line: "a personal training studio in Denver" });
   assert.deepEqual(
     saved,
-    [{ tenantId: A, business_line: "a personal training studio in Denver", by_owner: true, items: [] }],
-    "saved with no suggestions, so the next read asks Claude again",
+    [
+      {
+        tenantId: A,
+        business_line: "a personal training studio in Denver",
+        by_owner: true,
+        items: [],
+        basis: null,
+        passed: [],
+      },
+    ],
+    "saved with no ideas and no basis, so the next read asks Claude again",
   );
   await refused(
     suggestions.PUT.run(req("PUT", { business_line: "no" }), ctxOf(world({ role: "owner" }), {}, rpcs)),

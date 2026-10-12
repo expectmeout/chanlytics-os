@@ -17,20 +17,14 @@ import {
   REPORT_PERIOD_DEFAULT,
   REPORT_PERIOD_STORAGE,
   isReportPeriod,
-  reportFacts,
   reportRangeKey,
   reportsRouteParts,
   toBookingReportVM,
-  toCampaignReportVM,
   toDealReportVM,
-  toReachOutReportVM,
   toReportVM,
   type BookingReportVM,
-  type CampaignReportVM,
   type DealReportVM,
-  type ReachOutReportVM,
   type ReportDays,
-  type ReportFactVM,
   type ReportPeriodId,
   type ReportRange,
   type ReportVM,
@@ -82,21 +76,17 @@ export function keepReportPeriod(period: ReportPeriodId): void {
   }
 }
 
+/**
+ * The report and what it holds beside it: the booking line and the deals. What the broadcasts and campaigns sent, and what the
+ * reach-outs wrote, are the Campaigns lens's own read (`reports_campaigns`, campaigns-surface.ts), not this one's; Worth knowing is
+ * the page's, from this report and that read.
+ */
 export interface ReportsSurface {
   vm: ReportVM;
-  /** What the broadcasts and campaigns sent over the same period; null when that read failed and the receptionist's own numbers still stand (D9). */
-  campaigns: CampaignReportVM | null;
   /** Asked, then booked: the one conversion line, from the calendar. */
   booking: BookingReportVM;
   /** Deals: one cohort and the stock; present only where a deal was ever recorded (0004). */
   deals: DealReportVM;
-  /**
-   * What the reach-outs wrote and what came back over the same period (Reach out Part 6, H3); null when that read failed,
-   * absent where nothing reads it (the demo): the section then draws nothing of its own.
-   */
-  reachOuts?: ReachOutReportVM | null;
-  /** Worth knowing: at most three facts from these same numbers (contracts' reportFacts). */
-  facts: ReportFactVM[];
   /** The range this is of: what the control says is chosen. */
   range: ReportRange;
   /** Its one name (contracts reportRangeKey): what the views are held by, and what Ask reads of days a member picked. */
@@ -124,18 +114,13 @@ export function paintHeldReports(): boolean {
   return true;
 }
 
-/** The report, the offers' and the reach-outs' over one range: the three reads the page opens on (contracts PREFETCH_READS). */
+/**
+ * The report over one range: the read the page opens on (contracts PREFETCH_READS). The offers' and the reach-outs' numbers are
+ * the Campaigns lens's own (campaigns-surface.ts), each failing alone, as they once did here after the audit's D9 (one of them
+ * failing used to fail the whole surface and the page went blank).
+ */
 function readRange(range: ReportRange) {
-  const query = rangeQuery(range);
-  return Promise.all([
-    read("GET reports", { query }),
-    // The offers' numbers are their own read. A failure there used to fail
-    // the whole surface -- the page went blank, and its own "could not be
-    // read" line could never render (the audit's D9). Null is its state.
-    read("GET reports/campaigns", { query }).catch((e: unknown) => e as Error),
-    // The reach-outs' are too (Part 6): their section says it could not read them, and the rest stands.
-    read("GET reports/reach-outs", { query }).catch((e: unknown) => e as Error),
-  ]);
+  return read("GET reports", { query: rangeQuery(range) });
 }
 
 /**
@@ -147,8 +132,8 @@ const refusesDays = (range: ReportRange, e: unknown): range is ReportDays =>
 
 /**
  * Reports: the receptionist's own numbers over the period the page shows, built from one SQL function that already applies the
- * Today metrics' rules (the tenant's time zone, no undated imports, answered-by = first reply), with the campaigns' and the
- * reach-outs' reads beside it. Realtime message inserts re-apply it while its page is on screen, so today's column moves.
+ * Today metrics' rules (the tenant's time zone, no undated imports, answered-by = first reply). Realtime message inserts
+ * re-apply it while its page is on screen, so today's column moves.
  */
 export const reportsOverride: SurfaceOverride = {
   key: "reports",
@@ -173,34 +158,28 @@ export const reportsOverride: SurfaceOverride = {
     // true: the workspace answered.
     let range = asked;
     let refused: ReportDays | null = null;
-    const [data, campaigns, reachOuts] = await readRange(asked).catch((e: unknown) => {
+    const data = await readRange(asked).catch((e: unknown) => {
       if (!refusesDays(asked, e)) throw e;
       refused = asked;
       range = reportPeriod;
       return readRange(range);
     });
     const key = reportRangeKey(range);
-    if (campaigns instanceof Error) console.error("reports_campaigns_fetch_failed", campaigns.message);
-    if (reachOuts instanceof Error) console.error("reports_reach_outs_fetch_failed", reachOuts.message);
     // A pick of another range while this read was out: its answer is for a range left, and never lands on the new
     // one. A held range answers a pick at once and is read again behind it, so two reads can be out together.
     if (reportRangeKey(asked) !== shownReportKey()) return;
     const vm = toReportVM(data.report, { profile: data.profile });
-    const surface: Omit<ReportsSurface, "facts"> = {
+    const whole: ReportsSurface = {
       vm,
-      campaigns: campaigns instanceof Error ? null : toCampaignReportVM(campaigns.report),
       booking: toBookingReportVM(data.booking),
       // The period's name is the report's, so the two sentences never disagree about the range.
       deals: toDealReportVM(data.deals, vm.period.within),
-      reachOuts: reachOuts instanceof Error ? null : toReachOutReportVM(reachOuts.report),
       range,
       key,
       period: typeof range === "string" ? range : null,
       days: vm.days,
       fetchedAt: Date.now(),
     };
-    // Worth knowing is derived here, once, from the same two view models the page draws: never in the page.
-    const whole: ReportsSurface = { ...surface, facts: reportFacts(surface.vm, surface.campaigns) };
     reportsHeld.hold(key, whole);
     setSurfaceValue("reports", refused ? { ...whole, refused } : whole);
   },

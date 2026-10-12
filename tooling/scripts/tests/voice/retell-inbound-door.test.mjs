@@ -391,8 +391,12 @@ test("a routed call is answered 200 with the four variables the shell's prompt r
       "routed by the agent the call arrived on",
     );
 
+    // The time the call waited, and the plan's share of it: measured, so only their shape is pinned.
+    const [line] = log.said("retell_inbound");
+    const { plan_ms, ms, ...rest } = line ?? {};
+    assert.ok(Number.isInteger(plan_ms) && Number.isInteger(ms) && plan_ms <= ms, `plan ${plan_ms} ms of ${ms} ms`);
     assert.deepEqual(
-      log.said("retell_inbound"),
+      [rest],
       [
         {
           stream: "log",
@@ -403,10 +407,13 @@ test("a routed call is answered 200 with the four variables the shell's prompt r
           memory: "known",
           facts_chars: v.business_facts.length,
           hold: "claimed",
+          late: false,
+          greeting: "standard",
         },
       ],
       "one line: the caller's tail, the agent, the call, and what the agent was handed",
     );
+    assert.equal(log.said("retell_inbound").length, 1);
     assert.deepEqual(
       log.lines.filter((l) => l.stream !== "log"),
       [],

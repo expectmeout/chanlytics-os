@@ -10,6 +10,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
 import { rows } from "../../_rows.mjs";
+import { QUIET } from "../people/_people-world.mjs";
+import { QUIET as LEDGER_QUIET } from "../campaigns/_campaign-world.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -329,6 +331,163 @@ test("the Receptionist lens's route takes the period, or days a member picked, a
   // No route reads `days` now: none named is thirty.
   const aged = await route.GET.run(
     new Request(`http://localhost/api/v1/reports/receptionist?days=7&workspace=${W}`),
+    ctx(),
+  );
+  assert.equal(aged.days, 30, "thirty days, whatever the old query says");
+});
+
+test("the People lens's route takes the period, or days a member picked, and nothing else: Month is the days since the 1st in the workspace's zone, picked days name their last day and the book is still read (it is as of now), any other period is refused at the door, and `days` is none of its query", async () => {
+  setRateStore(memoryStore());
+  const route = await importSrc("apps/dashboard/app/api/v1/reports/people/route.ts");
+  const asked = [];
+  const ctx = () => ({
+    supabase: fakeDb(
+      {
+        memberships: [
+          {
+            user_id: "u1",
+            tenant_id: W,
+            role: "viewer",
+            tenants: { slug: "harbor", name: "Harbor Studio", timezone: "America/New_York" },
+            created_at: "2026-01-01",
+          },
+        ],
+        tenant_channels: [],
+      },
+      {},
+      {
+        // The database's answer for the days asked.
+        people_series: (a) => {
+          asked.push(a);
+          return {
+            timezone: "America/New_York",
+            today: "2026-10-07",
+            ...(a.p_end ? { end: a.p_end } : {}),
+            days: a.p_days,
+            ...QUIET,
+          };
+        },
+        people_list: () => [],
+      },
+    ),
+    userId: "u1",
+    email: "ada@example.com",
+    params: {},
+  });
+  const get = (query, c = ctx()) =>
+    route.GET.run(new Request(`http://localhost/api/v1/reports/people?${query}&workspace=${W}`), c);
+
+  const month = await get("period=month");
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  assert.equal(month.days, Number(today.slice(8, 10)), "the days since the 1st, in the workspace's zone");
+  assert.deepEqual(asked, [{ p_tenant_id: W, p_days: month.days }], "a period names no last day");
+  assert.equal(month.now.people, 0, "and the book is counted: nobody in this workspace, which is a zero");
+
+  // Days a member picked, long past, whatever today is: twenty of them, to the 20th. The book is as of now, so it is read still.
+  asked.length = 0;
+  const c = ctx();
+  const picked = await get("from=2026-01-01&to=2026-01-20", c);
+  assert.deepEqual(asked, [{ p_tenant_id: W, p_days: 20, p_end: "2026-01-20" }]);
+  assert.deepEqual([picked.days, picked.end], [20, "2026-01-20"]);
+  assert.equal(
+    c.supabase.seen.filter((q) => q.rpc === "people_list").length,
+    1,
+    "People are read for days that ended: the book is as of now",
+  );
+  assert.equal(picked.now.people, 0);
+
+  for (const bad of ["period=14d", "period=7", "period=MONTH"])
+    await assert.rejects(get(bad), (e) => e.status === 400, `${bad} is no id of the table`);
+  asked.length = 0;
+  for (const bad of ["from=2999-01-01&to=2999-01-05", "from=2026-01-01", "from=2026-01-20&to=2026-01-01"])
+    await assert.rejects(get(bad), (e) => e.status === 400, bad);
+  await assert.rejects(get("from=2026-01-01&to=2026-01-20&period=7d"), (e) => e.status === 400, "days beside a period");
+  assert.deepEqual(asked, [], "nothing was asked of the database for days it would not be read over");
+
+  // No route reads `days` now: none named is thirty.
+  const aged = await route.GET.run(new Request(`http://localhost/api/v1/reports/people?days=7&workspace=${W}`), ctx());
+  assert.equal(aged.days, 30, "thirty days, whatever the old query says");
+});
+
+test("the Campaigns lens' ledger route takes the period, or days a member picked, and nothing else: Month is the days since the 1st in the workspace's zone, picked days name their last day, what is stuck is asked of no window at all, any other period is refused at the door, and `days` is none of its query", async () => {
+  setRateStore(memoryStore());
+  const route = await importSrc("apps/dashboard/app/api/v1/reports/campaigns/ledger/route.ts");
+  const asked = [];
+  const stuckAsked = [];
+  const ctx = () => ({
+    supabase: fakeDb(
+      {
+        memberships: [
+          {
+            user_id: "u1",
+            tenant_id: W,
+            role: "viewer",
+            tenants: { slug: "harbor", name: "Harbor Studio", timezone: "America/New_York" },
+            created_at: "2026-01-01",
+          },
+        ],
+        tenant_channels: [],
+      },
+      {},
+      {
+        // The database's answer for the days asked.
+        campaign_ledger: (a) => {
+          asked.push(a);
+          return {
+            timezone: "America/New_York",
+            today: "2026-10-07",
+            ...(a.p_end ? { end: a.p_end } : {}),
+            days: a.p_days,
+            ...LEDGER_QUIET,
+          };
+        },
+        // What is stuck as it stands: it takes the workspace alone, whatever days the lens is of.
+        campaign_stuck: (a) => {
+          stuckAsked.push(a);
+          return { runs_waiting: [], runs_failed: [], replies: [], templates: [] };
+        },
+      },
+    ),
+    userId: "u1",
+    email: "ada@example.com",
+    params: {},
+  });
+  const get = (query, c = ctx()) =>
+    route.GET.run(new Request(`http://localhost/api/v1/reports/campaigns/ledger?${query}&workspace=${W}`), c);
+
+  const month = await get("period=month");
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  assert.equal(month.days, Number(today.slice(8, 10)), "the days since the 1st, in the workspace's zone");
+  assert.deepEqual(asked, [{ p_tenant_id: W, p_days: month.days }], "a period names no last day");
+  assert.deepEqual(stuckAsked, [{ p_tenant_id: W }], "and what is stuck is asked of the workspace alone");
+  assert.equal(month.stuck.waiting.n, 0, "nothing is stuck: a zero, said");
+  assert.deepEqual(month.stuck.number, { state: "none" }, "and the workspace has no WhatsApp number");
+
+  // Days a member picked, long past, whatever today is: twenty of them, to the 20th. What is stuck is as of now, so it is read still.
+  asked.length = 0;
+  stuckAsked.length = 0;
+  const picked = await get("from=2026-01-01&to=2026-01-20");
+  assert.deepEqual(asked, [{ p_tenant_id: W, p_days: 20, p_end: "2026-01-20" }]);
+  assert.deepEqual([picked.days, picked.end], [20, "2026-01-20"]);
+  assert.deepEqual(stuckAsked, [{ p_tenant_id: W }], "what is stuck is read for days that ended: it is as of now");
+  assert.equal(picked.stuck.waiting.n, 0);
+
+  for (const bad of ["period=14d", "period=7", "period=MONTH"])
+    await assert.rejects(get(bad), (e) => e.status === 400, `${bad} is no id of the table`);
+  asked.length = 0;
+  stuckAsked.length = 0;
+  for (const bad of ["from=2999-01-01&to=2999-01-05", "from=2026-01-01", "from=2026-01-20&to=2026-01-01"])
+    await assert.rejects(get(bad), (e) => e.status === 400, bad);
+  await assert.rejects(get("from=2026-01-01&to=2026-01-20&period=7d"), (e) => e.status === 400, "days beside a period");
+  assert.deepEqual(
+    [asked, stuckAsked],
+    [[], []],
+    "nothing was asked of the database for days it would not be read over",
+  );
+
+  // No route reads `days` now: none named is thirty.
+  const aged = await route.GET.run(
+    new Request(`http://localhost/api/v1/reports/campaigns/ledger?days=7&workspace=${W}`),
     ctx(),
   );
   assert.equal(aged.days, 30, "thirty days, whatever the old query says");

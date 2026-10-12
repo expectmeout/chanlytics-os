@@ -125,6 +125,12 @@ const SurfaceTabs = ({ page, param, views, onNavigate }) => {
 // ---- Where a route stands on a strip, and which way a view comes in -----------------------------------------------
 // People's scopes are People's own views (its chrome's, drawn by SurfaceTabs above), in plScopes' order; every other strip is a group's here. A
 // person's page, and a route no strip carries, stand nowhere, and a view arriving there comes in as any other does.
+/** Whether the workspace's Ads preview is on (`features.ads_preview` in the settings it holds, `__SETTINGS`). */
+const stAdsPreviewOn = () => {
+  const config = window.__SETTINGS && window.__SETTINGS.config;
+  return !!(config && config.features && config.features.ads_preview === true);
+};
+
 const stripPlace = (page, param) => {
   if (page === "clients") {
     if (!window.plScopes || !window.plScopeRoute) return null;
@@ -136,6 +142,9 @@ const stripPlace = (page, param) => {
     const at = route ? window.plScopes(true).map((s) => window.plScopeRoute(s.id)).indexOf(route) : -1;
     return at < 0 ? null : { strip: "people", at };
   }
+  // Campaigns' own views (its chrome's, surfaces/campaigns/routes.ts): Messages, the home and its addresses, then Ads. A demo session's,
+  // or a workspace's whose Ads preview is on (surfaces/campaigns/ads/shown.ts): any other has no Ads view and no strip.
+  if (page === "campaigns" && (window.__DEMO_MODE || stAdsPreviewOn())) return { strip: "campaigns", at: param && /^ads(:|$)/.test(param) ? 1 : 0 };
   const found = Object.entries(ST_GROUPS).find(([key, g]) => key !== "people" && g.match.includes(page));
   if (!found) return null;
   const at = found[1].tabs.filter((t) => !t.demoOnly || window.__DEMO_MODE).findIndex((t) => t.id === page);

@@ -32,7 +32,7 @@ const SAID: Record<string, string> = {
   number_flagged: "WhatsApp flagged this number's quality; wait for it to recover.",
   already_ran_today: "It already ran today. It runs again tomorrow at its hour.",
   deals_off: FOLLOW_UP_NEEDS_DEALS,
-  // Past the campaign's last day (00395 until): it runs nothing more until its end is moved or cleared.
+  // Past the campaign's last day (00409 until): it runs nothing more until its end is moved or cleared.
   ended: "This campaign has ended: its last day has passed. Give it a later end, or none, to run it again.",
   // A paused workspace sends nothing (the edge's 402 payment_required): the pause's own words, the ones approving a run says.
   payment_required: CAMPAIGNS_PAUSED_WORDS,

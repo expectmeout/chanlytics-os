@@ -355,8 +355,7 @@ export const ALERT_PANE_WORDS = {
   bellOn: "Always on",
   email: "Email",
   emailNobody: "Nobody yet",
-  emailNobodyHint:
-    "Until an address is added, a customer who needs a person reaches nobody by email: Chanlytics is told the workspace needs one, without the customer's message.",
+  emailNobodyHint: "Until one is added, nobody is emailed when a customer needs a person.",
   emailMore: (n: number) => (n === 1 ? "and 1 more" : `and ${n} more`),
   change: "Change",
   done: "Done",
@@ -380,8 +379,7 @@ export const ALERT_PANE_WORDS = {
   phoneHint: "Signing out on a phone stops its alerts.",
   browser: "This browser",
   browserValue: "When someone needs you right now",
-  browserHint:
-    "A customer who needs a person, a reply waiting for your OK, a missed call, or a search's question, while Chanlytics is open in a tab.",
+  browserHint: "While Chanlytics is open in a tab.",
   browserBlocked:
     "Your browser is blocking alerts from Chanlytics. Allow them in its settings for this site, then switch this on.",
   what: "What you're told about",

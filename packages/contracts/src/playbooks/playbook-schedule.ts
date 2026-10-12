@@ -13,7 +13,7 @@ export type RunPlan =
   { kind: "send"; state: "scheduled"; at: Date } | { kind: "hold"; state: "pending_approval" } | { kind: "off" };
 
 /**
- * Whether a campaign runs on trial at `now` (00395 `trial_until`): before that instant, a run its class would send by
+ * Whether a campaign runs on trial at `now` (00409 `trial_until`): before that instant, a run its class would send by
  * itself waits for a person. No trial, one that is over, and a value that is no instant are none.
  */
 function onTrialAt(p: { trial_until?: string | null }, now: Date): boolean {
@@ -40,7 +40,7 @@ export function newCampaignTrialUntil(now: Date): string {
 }
 
 /**
- * A campaign's last day (00395 `until`, YYYY-MM-DD by the business's clock) where `day`, the business's day, is past it:
+ * A campaign's last day (00409 `until`, YYYY-MM-DD by the business's clock) where `day`, the business's day, is past it:
  * it has ended, and a run on such a day sends nothing (core run-playbook's `ended`). Null where it has no end, or `day`
  * is its last or before.
  */

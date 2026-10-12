@@ -152,7 +152,7 @@ function momentOf({ data, f }: ModelIn) {
   const lists = data.lists || PB_NONE;
   const list = onList ? lists.find((l) => l.id === f.listId) || null : null;
   const link = !!data.bookingLink;
-  // Whether the Google listing keeps a review link: the one fact a review-link slot is filled from (00394).
+  // Whether the Google listing keeps a review link: the one fact a review-link slot is filled from (00408).
   const review = !!data.reviewLink;
   return { triggers, trig, visits, onList, lists, list, link, review };
 }

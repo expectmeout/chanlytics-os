@@ -15,15 +15,23 @@ export {
   settleDelivery,
 } from "./events";
 export type { EmittedKind, EventData, DeliveredEvent, DeliveryRow } from "./events";
-export { recordModelUsage, workspaceMayUseModels, aiFailuresHour, purgeAiUsage, usageMonth } from "./ai-usage";
-export type { AiFailures, UsageMonthRow } from "./ai-usage";
+export {
+  recordModelUsage,
+  workspaceMayUseModels,
+  aiFailuresHour,
+  purgeAiUsage,
+  usageMonth,
+  keepModelTurn,
+  scrubModelTurns,
+} from "./ai-usage";
+export type { AiFailures, UsageMonthRow, ModelTurnKept } from "./ai-usage";
 export { keepInvoiceAmount } from "./billing/events";
 export { applyBilling } from "./billing/account";
 export type { BillingPatch, BillingExpectation } from "./billing/account";
-export { migrationHead } from "./ops";
+export { migrationHead, platformDay } from "./ops";
 export { ERASURE_LEGS, ERASURE_STRATEGIES } from "./erasure-registry";
 export type { ErasureLeg, ErasureStrategy } from "./erasure-registry";
-export type { MigrationHead } from "./ops";
+export type { MigrationHead, PlatformDayPromises } from "./ops";
 export { signUpOnPublicKey, inviteUserByEmail, listSecondFactors, deleteSecondFactor } from "./auth";
 export { addToWaitlist, refreshWaitlistRow, waitlistWaiting, markWaitlistInvited } from "./waitlist";
 export { createServiceClient } from "./service-client";
@@ -221,6 +229,9 @@ export {
   campaignSeries,
   reviewsLedger,
   receptionistSeries,
+  peopleSeries,
+  campaignLedger,
+  campaignStuck,
   reachOutReport,
   ReportWindowNotReadable,
   playbookTotals,
@@ -233,6 +244,8 @@ export { firstReplies } from "./repositories/reports/first-replies";
 export {
   forgetNotification,
   noticeKept,
+  holdFactsOf,
+  holdTold,
   activityTokensOf,
   forgetActivityTokens,
   memberAlertsOf,
@@ -379,6 +392,7 @@ export {
   workspaceIdsOf,
   createWorkspaceFn,
   lineForwardingSet,
+  setWorkspaceLogo,
   updatePlaybook,
   removePlaybook,
   startPlaybook,
@@ -408,6 +422,7 @@ export {
   scrubPersonNotes,
   mergePeople,
   recordConsent,
+  addPersonByHand,
   resolvePerson,
   PERSON_FORGOTTEN,
   openDoubtsOf,
@@ -490,9 +505,18 @@ export type {
   PartnerJoined,
   PartnerInviteMail,
 } from "./repositories/partner";
-export { readLeadOne } from "./repositories/leads";
+export {
+  readLeadOne,
+  readIdeaHistory,
+  claimIdeas,
+  keepIdeas,
+  failIdeas,
+  saveIdeasLine,
+  ideasBasis,
+  ideasClockAndLanguage,
+} from "./repositories/leads";
 export { ownLineOf } from "./lines";
-export type { LeadOneLead, LeadOneMember } from "./repositories/leads";
+export type { LeadOneLead, LeadOneMember, IdeasKept } from "./repositories/leads";
 export { watchedTables, watchedEvents, subscribeWorkspaceChanges } from "./realtime";
 export type { SubscribeOptions } from "./realtime";
 export { readAllRows, readAllRowsByKey, MAX_ROWS, DEFAULT_ROW_CAP } from "./paged";
@@ -513,6 +537,11 @@ export {
   insertAppointment,
   updateAppointment,
   appointmentsBetween,
+  visitsOver,
+  recordOver,
+  feedWordsOver,
+  markVisit,
+  appointmentWorkspace,
   appointmentsForClient,
   appointmentsScrub,
   contactIdByPhone,

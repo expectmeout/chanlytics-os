@@ -60,12 +60,12 @@ export interface LifecyclePlaybook {
   /** Why it runs nothing here (a follow-up where deals are off, a campaign past its last day), or null. */
   off: string | null;
   /**
-   * Its last day as its words say it ("Oct 1"), where the business's today is past it (00395 `until`): it has ended, and
+   * Its last day as its words say it ("Oct 1"), where the business's today is past it (00409 `until`): it has ended, and
    * `off` says so. Null or absent otherwise.
    */
   ended?: string | null;
   /**
-   * The day its trial ends as its words say it ("Oct 9"), while it is on trial (00395 `trial_until`): a run its class
+   * The day its trial ends as its words say it ("Oct 9"), while it is on trial (00409 `trial_until`): a run its class
    * would send by itself waits for a person. Null or absent otherwise.
    */
   trial?: string | null;
@@ -214,10 +214,12 @@ export interface LifecycleSource {
 /**
  * Each reach-out's last 30 days, by its root (GET reports/reach-outs' `chains`). `complete`: every chain was counted, so
  * one absent wrote nothing; false where they come from the report's twenty, so one absent may be past them and says "—".
+ * `written` is emails; `businesses` the businesses they went to, which `wroteBack` is a count of: null where it is not
+ * counted (a database before 00404), never guessed from `written`.
  */
 export interface LifecycleChains {
   complete: boolean;
-  byRoot: Readonly<Partial<Record<string, { written: number; wroteBack: number }>>>;
+  byRoot: Readonly<Partial<Record<string, { written: number; businesses: number | null; wroteBack: number }>>>;
 }
 
 /** How the business works, as the home reads it (the playbooks surface's, from GET playbooks' businessShape). */
@@ -399,8 +401,9 @@ export interface LifecycleReachTile {
    * where the desk's tile has one: the removed tile's sentence said the receptionist asks, and opened nothing.
    */
   phone: {
-    words: string;
-    offers: { words: string; tone: LifecycleTone };
+    /** Null where nobody is in People yet: the line is not drawn. */
+    words: string | null;
+    offers: { words: string; tone: LifecycleTone } | null;
     yes: { label: string; route: string } | null;
   } | null;
 }
@@ -444,10 +447,10 @@ export interface LifecycleComingTile {
   rules: string;
 }
 
-/** A row's last 30 days: a playbook's or a one-off's sent and replied (campaign_series), a chain's written and wrote back (Reports' words), counted where nothing went ("none"), or not counted ("uncounted", "—"). */
+/** A row's last 30 days: a playbook's or a one-off's sent and replied (campaign_series), a chain's businesses (else emails written) and wrote back (Reports' words), counted where nothing went ("none"), or not counted ("uncounted", "—"). */
 export type LifecycleRowResults =
   | { kind: "sent"; sent: number; replied: number }
-  | { kind: "written"; written: number; wroteBack: number }
+  | { kind: "written"; written: number; businesses: number | null; wroteBack: number }
   | "none"
   | "uncounted";
 

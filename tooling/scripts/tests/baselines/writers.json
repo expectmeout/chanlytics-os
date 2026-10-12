@@ -1,6 +1,6 @@
 {
   "ai_usage": 2,
-  "appointments": 3,
+  "appointments": 4,
   "ask_voice_sessions": 2,
   "billing_accounts": 2,
   "billing_events": 2,
@@ -55,5 +55,5 @@
   "templates": 10,
   "tenant_channels": 7,
   "tenant_config": 4,
-  "tenants": 4
+  "tenants": 5
 }

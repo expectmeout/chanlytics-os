@@ -57,6 +57,8 @@ import {
   releaseQueuedSend,
   membersPushedFor,
   reachOutBookedFrom,
+  holdFactsOf,
+  holdTold,
 } from "@chanlytics/db";
 import { upsertEscalation, type EscalationOutcome } from "./escalate";
 import { broadcastSend } from "./broadcast-send";
@@ -496,6 +498,10 @@ async function eventDeliver(ctx: JobContext, job: ClaimedJob): Promise<void> {
   // What a subscriber acts through: this job's database, behind the verbs it needs.
   const ports: SubscriberPorts = {
     bookedFromAppointment: (tenantId, appointmentId) => reachOutBookedFrom(ctx.db, tenantId, appointmentId),
+    holdFacts: (tenantId, ref) => holdFactsOf(ctx.db, tenantId, ref, Date.now()),
+    holdTold: (tenantId, p) => holdTold(ctx.db, { tenantId, ...p }),
+    // The delivery is the event's workspace's job, so the runtime addresses the notice to it (job-alert.ts).
+    tell: (news) => ctx.alert(news),
   };
   try {
     await subscriber(event, ports);

@@ -122,7 +122,7 @@ function RoFoot({ W, work, say, ready, busy, editing, onStart, saved, onClose, o
   if (work.asking)
     return (
       <div className="pb-foot">
-        <UnsavedAsk onYes={work.discard} onNo={work.stay} what="saved" testid="ro-leave" />
+        <UnsavedAsk onYes={work.discard} onNo={work.stay} testid="ro-leave" />
       </div>
     );
   return (

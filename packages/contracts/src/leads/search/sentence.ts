@@ -20,25 +20,37 @@ const US_NAMES: Record<string, string> = Object.fromEntries(
 );
 const bits = (s: string): string[] => s.toLowerCase().match(/[a-z0-9]{3,}/g) ?? [];
 
+/** A clause after the plural that a criterion of the plan already says ("with a rating of 4.2 or lower"). */
+const QUALITY_CLAUSE = /\s+(?:with|that|who|which|having|rated)\s+\S.*$/i;
+/**
+ * A place clause that names a place: a place word, then a capitalised word or a ZIP ("in Queens", "near 10005"). Not
+ * "serving", "at" or "inside", whose names are often what is sought ("restaurants serving Mexican food").
+ */
+const NAMES_A_PLACE = /^\s+(?:in|near|around|within|across|throughout)\s+(?:[A-Z]|\d{5})/i;
+
 /**
  * The plural the sentence calls them, with the area taken out of it (§8.3).
  * `name` is the model's own words, and a model asked for a plural writes the
  * place into it ("Hair salons in Brooklyn"), which the sentence then says
- * twice. A trailing place clause whose words are the area's is dropped; a
- * clause about something else ("pharmacies inside supermarkets") is kept. With
- * nothing left, the terms say who is sought, since those are the words the
- * source is actually searched with.
+ * twice. A trailing place clause is dropped where its words are the area's, or
+ * where it names a place at all: a round further out keeps the first ask's name
+ * ("in Queens, NY") while its area is another ("near 10005"), and the sentence
+ * said both (Ruben, 10 Oct 2026). A clause about something else ("pharmacies
+ * inside supermarkets") is kept. A clause a criterion of the plan says again
+ * ("with a rating of 4.2 or lower") comes off too, since the criterion is its
+ * own word in the sentence. With nothing left, the terms say who is sought,
+ * since those are the words the source is actually searched with.
  */
 export function planWho(plan: LeadSearchPlan): string {
-  const m = PLACE_CLAUSE.exec(plan.name);
   const a = plan.area;
   const known = new Set(bits(`${a.label} ${a.query} ${a.zip ?? ""} ${a.state} ${US_NAMES[a.state] ?? ""}`));
   const whole = SAYS_WHERE.test(plan.name) && bits(plan.name).some((w) => known.has(w));
-  const cut = whole
-    ? ""
-    : m && bits(m[0]).some((w) => known.has(w))
-      ? plan.name.slice(0, m.index).trim()
-      : plan.name.trim();
+  let cut = whole ? "" : plan.name.trim();
+  const m = PLACE_CLAUSE.exec(cut);
+  if (m && (bits(m[0]).some((w) => known.has(w)) || NAMES_A_PLACE.test(m[0]))) cut = cut.slice(0, m.index).trim();
+  const said = new Set(plan.criteria.flatMap((c) => bits(c.text)));
+  const q = QUALITY_CLAUSE.exec(cut);
+  if (q && bits(q[0]).filter((w) => said.has(w)).length >= 2) cut = cut.slice(0, q.index).trim();
   return lowerFirst(cut) || list(plan.terms.map(lowerFirst));
 }
 
@@ -93,15 +105,17 @@ export function planWords(plan: LeadSearchPlan): LeadPlanWord[] {
     { text: " ", pick: null },
     { text: planWhere(plan.area), pick: "where" },
   ];
-  for (const c of plan.criteria) {
-    out.push({ text: " ", pick: null });
+  // The criteria are a list after the place, each its own clause, so a sentence of three reads as three (Ruben, 10 Oct
+  // 2026: joined by spaces they ran together, "in Austin, TX independent, not a chain has a website").
+  plan.criteria.forEach((c, i) => {
+    out.push({ text: i === 0 ? ": " : "; ", pick: null });
     out.push({
       text: c.standard === "seen" ? `${lowerFirst(c.text)} (confirmed)` : lowerFirst(c.text),
       pick: "criterion",
       key: c.key,
     });
-  }
-  out.push({ text: ", ", pick: null });
+  });
+  out.push({ text: plan.criteria.length ? "; " : ", ", pick: null });
   out.push({
     text: plan.contact === "email" ? "reached by a checked email or a phone" : "reached by phone or a checked email",
     pick: "contact",

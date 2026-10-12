@@ -231,7 +231,7 @@ export async function bindLocation(
           name: loc.title,
           address: loc.address,
           maps_uri: loc.maps_uri,
-          // Where a customer leaves it a review (00394): a message's review_link slot is filled from it.
+          // Where a customer leaves it a review (00408): a message's review_link slot is filled from it.
           new_review_uri: loc.new_review_uri,
         }
       : {

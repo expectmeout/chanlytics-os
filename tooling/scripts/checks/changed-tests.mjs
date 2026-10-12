@@ -10,6 +10,8 @@
  *   - any other changed file, every folder of tooling/scripts/tests named like one of its path's parts
  *     (packages/core/src/leads/cards.ts runs tests/leads; apps/edge/lib/receptionist/steer.ts runs tests/edge and
  *     tests/receptionist); supabase/ runs tests/database, and docs/ tests/history (the decisions' index);
+ *   - a path whose tests live in folders it does not name, those folders too (TESTED_IN: the composer, the answer verb,
+ *     the campaign runner);
  *   - the folders that hold the repository's own rules and ratchets, always (ALWAYS): the five reds were all there.
  * A helper every test loads (the runner, a root helper, a stand-in) used to run the whole suite, which took 21 to 40
  * minutes on 6-9 Oct 2026 and ran #1535's and #1539's CI past its cap. Ruben, 10 Oct 2026: a push is through CI in
@@ -32,6 +34,18 @@ const TESTS = "tooling/scripts/tests";
 export const ALWAYS = [`${TESTS}/repo`, `${TESTS}/types`, `${TESTS}/docs`, `${TESTS}/routes/wire-casing.test.mjs`];
 
 /**
+ * Paths whose tests live in folders their names do not say, each with those folders: the prompt's composer is proved
+ * where each channel reads what it composes, the answer verb through the doors that call it, and the campaign runner
+ * where playbooks and broadcasts run. Until 11 Oct 2026 each selected no test, so a change to what the receptionist
+ * reads on every message ran only the rules on its pull request.
+ */
+export const TESTED_IN = {
+  "packages/contracts/src/config/workspace-config/": ["receptionist", "whatsapp", "voice", "calendar", "sms"],
+  "packages/core/src/inbound/": ["whatsapp", "sms", "email", "intake", "receptionist", "conversations"],
+  "packages/core/src/campaigns/": ["playbooks", "broadcasts"],
+};
+
+/**
  * What to run for a set of changed paths, given the folders of tooling/scripts/tests that hold tests: the files and
  * folders to hand the runner, ALWAYS first.
  */
@@ -43,6 +57,10 @@ export function testTargets(changed, testFolders) {
       if (/\.test\.mjs$/.test(file)) targets.add(file);
       else if (testFolders.has(folder)) targets.add(`${TESTS}/${folder}`);
       continue;
+    }
+    for (const [prefix, folders] of Object.entries(TESTED_IN)) {
+      if (!file.startsWith(prefix)) continue;
+      for (const folder of folders) if (testFolders.has(folder)) targets.add(`${TESTS}/${folder}`);
     }
     if (file.startsWith("supabase/")) targets.add(`${TESTS}/database`);
     if (file.startsWith("docs/")) targets.add(`${TESTS}/history`);

@@ -8,11 +8,14 @@ import {
   isLeadList,
   type leadBand,
   leadMapPlot,
+  leadKindKey,
+  leadMonthPlanFacts,
   leadReviewGroups,
   leadsRoute,
   type leadsStanding,
   type LeadArea,
   type LeadClass,
+  type LeadIdeaDto,
   type LeadRowVM,
   type LeadSearchDto,
   type LeadSearchPlan,
@@ -24,7 +27,14 @@ import type { usePlPlace } from "../../people/hooks/use-place";
 import type { PeopleRead, TableEmpty } from "../../people/types";
 import type { ReviewDoors } from "../bench/types";
 import type { LeadCellCtx } from "../cells/types";
-import { bulkLeads, checkLeadsAgain, peekVMFor, warmLeadsView as warmView, type LeadsSurface } from "../surface";
+import {
+  bulkLeads,
+  checkLeadsAgain,
+  peekVMFor,
+  readSuggestions,
+  warmLeadsView as warmView,
+  type LeadsSurface,
+} from "../surface";
 import { ReachOutLeadsStrip, type ReachOutLines } from "../reach-out/lines";
 import type { LeadLists } from "../reach-out/lists";
 import type { LeadRail } from "../scope/rail";
@@ -70,6 +80,39 @@ export type LeadsPage = Controls &
     lists: LeadLists;
   };
 
+/**
+ * A phone's Select walks a selection as People's does (people/page/screen.tsx selectStep; Ruben, 10 Oct 2026): Select
+ * starts one, Select all then takes every lead shown, and once they all are (or all that match), Cancel ends it.
+ */
+const leadsSelectStep = (p: LeadsPage) => {
+  const { phone, selectMode, sel, leadShown, allMatching, setSel, setAllMatching } = p;
+  const selecting = (phone && selectMode) || leadShown.some((l) => sel.has(l.id));
+  if (!selecting) return { word: "Select", press: () => p.setSelectMode(true) };
+  if (allMatching || leadShown.every((l) => sel.has(l.id))) return { word: "Cancel", press: p.clearSelection };
+  return {
+    word: "Select all",
+    press: () => {
+      setSel(new Set(leadShown.map((l) => l.id)));
+      setAllMatching(false);
+    },
+  };
+};
+
+/** The sorts a phone's Leads offers, as a desk's headings give them (leads_page's p_sort); Nearest where a search has a centre. */
+const LD_PHONE_SORTS: readonly { by: string; dir: "asc" | "desc"; label: string; near?: boolean }[] = [
+  { by: "fit", dir: "asc", label: "Best fit first" },
+  { by: "rating", dir: "desc", label: "Highest rated first" },
+  { by: "found", dir: "desc", label: "Newest found first" },
+  { by: "distance", dir: "asc", label: "Nearest first", near: true },
+  { by: "business", dir: "asc", label: "Name, A to Z" },
+];
+const leadsSortItems = (p: LeadsPage) =>
+  LD_PHONE_SORTS.filter((s) => !s.near || p.cellCtxLeads.hasCenter).map((s) => ({
+    label: s.label,
+    checked: p.sortBy === s.by && p.sortDir === s.dir,
+    onClick: () => p.pickSort(s.by, s.dir),
+  }));
+
 /** A list of your own (Reach out Part 7, 00242: `via` import or chosen): no area to draw or widen, and no round strip. */
 const isOwnList = (s: LeadSearchDto | null) => isLeadList(s);
 
@@ -96,6 +139,11 @@ export const leadsListProps = (p: LeadsPage) => {
   const railCount = openSearch ? (openSearch.round ? openSearch.round.counted : 0) : openList ? openList.count : null;
   return {
     surface: leads,
+    // The ideas, less any the workspace is already searching for in that place (a search started since they were
+    // written, or one the ideas were written beside): the server writes new ones once that round ends.
+    ideas: leads.suggestions
+      ? { ...leads.suggestions, items: leads.suggestions.items.filter((i) => !searchedAlready(i, leads.searches)) }
+      : null,
     rail,
     railLabel,
     railCount,
@@ -127,11 +175,20 @@ export const leadsListProps = (p: LeadsPage) => {
     sortBy: p.sortBy,
     sortDir: p.sortDir,
     onSort: p.onSort,
+    // A phone's New search: the first day's question, for the view it was pressed on.
+    newSearch: p.phone && p.newSearchAt === JSON.stringify(p.leadView),
+    onNewSearch: (on: boolean) => {
+      p.setNewSearchAt(on ? JSON.stringify(p.leadView) : null);
+      // A workspace that has searched was never read its ideas: ask for them as the question opens.
+      if (on && !p.leads.suggestions) void readSuggestions();
+    },
+    // A phone's bar: Select, Sort and Import as People's Select, Sort and Export stand; Select mode is a phone's alone.
+    selectMode: p.phone && p.selectMode,
+    select: leadsSelectStep(p),
+    sortItems: leadsSortItems(p),
     q: p.q,
     onQ: setQ,
     searchRef: p.searchRef,
-    searchOpen: p.searchOpen,
-    onSearchOpen: p.setSearchOpen,
     scrollRef: p.scrollRef,
     scrolled: p.scrolledX,
     onScrolled: p.setScrolledX,
@@ -309,7 +366,6 @@ export const leadsBulkProps = (p: LeadsPage) => {
     canFind: p.canFind,
     canExport: p.canExport,
     importDoor: p.lists.importDoor,
-    importAct: p.lists.importAct,
     listsNode: p.lists.node,
     // Write to them (Part 7): the rows chosen and shown, never all that match (a view is not a list of ids).
     writeToThem: p.lists.writeAct({
@@ -327,6 +383,35 @@ export const leadsBulkProps = (p: LeadsPage) => {
   };
 };
 
+/** Whether an idea's kind is already searched for in its place: by the plan's own key and the area's label. */
+const searchedAlready = (idea: LeadIdeaDto, searches: LeadSearchDto[]): boolean => {
+  const plan = idea.plan;
+  if (!plan) return false;
+  const place = plan.area.label.toLowerCase();
+  // A list brought in has a plan with no area (00242): it is no place searched.
+  return searches.some(
+    (s) =>
+      leadKindKey(s.plan.category_key || s.plan.name) === idea.category_key &&
+      !!s.plan.area &&
+      s.plan.area.label.toLowerCase() === place,
+  );
+};
+
+/**
+ * A plan opened from a search itself has no Ask turn's facts: the month the page reads, and the search's nearby areas,
+ * stand in (contracts leadMonthPlanFacts). None until a first page has said the month, or with no plan.
+ */
+const monthFactsOf = (p: LeadsPage) => {
+  const { finder, leads } = p;
+  if (!finder.plan || !leads.month) return null;
+  const id = finder.more ? finder.more.searchId : null;
+  const s = id ? leads.searches.find((x) => x.id === id) || null : null;
+  // An idea's plan brings what past searches measured of its kind (00398).
+  const idea = finder.idea;
+  const prior = idea ? { of: finder.plan.name, counts: idea.prior || null } : null;
+  return leadMonthPlanFacts(leads.month, finder.plan.count, (s && s.round && s.round.nearby) || [], prior);
+};
+
 /** The plan panel: its state as the panel reads it, and its moves. */
 const finderProps = (p: LeadsPage) => {
   const { finder, setFinder, closeFinder, openFind } = p;
@@ -338,6 +423,8 @@ const finderProps = (p: LeadsPage) => {
     finderRefusal: finder.refusal,
     finderBusy: p.leadBusy,
     finderPlan: finder.plan,
+    finderFacts: monthFactsOf(p),
+    finderChanged: !!finder.plan && finder.plan.version > ((finder.proposal?.payload?.plan?.version as number) || 1),
     finderTrace: finder.trace,
     finderPick: finder.pick,
     onFinderWords: (words: string) => setFinder({ words }),
@@ -385,6 +472,7 @@ export const leadsPeekProps = (p: LeadsPage) => {
     onFindNewOnes: p.findNewOnes,
     onSearchAgain: p.searchAgain,
     onFind: p.openFind,
+    onIdea: (idea: LeadIdeaDto) => p.openIdea(idea, p.leads.month ? p.leads.month.left : null),
     ...finderProps(p),
     peek: peekId ? peekVMFor(peekId) : null,
     // Where this lead sits in the pile, and the two ways through it (D5). Moving the deck moves the page's own cursor as J
@@ -404,8 +492,8 @@ export const leadsPeekProps = (p: LeadsPage) => {
     onArmed: p.setArmed,
     draft: p.draft,
     onDraftState: p.setDraft,
-    // On a phone, while anyone is selected a tap on a row selects it, as on People (the face is the checkbox).
-    onPeek: p.phone && p.leadShown.some((l) => p.sel.has(l.id)) ? p.toggleSel : setPeekId,
+    // On a phone, while Select is on or anyone is selected a tap on a row selects it, as on People (the face is the checkbox).
+    onPeek: p.phone && (p.selectMode || p.leadShown.some((l) => p.sel.has(l.id))) ? p.toggleSel : setPeekId,
     onPeekId: setPeekId,
     onOpenPerson: p.onOpenProfile,
     flash: p.plFlash,
@@ -444,6 +532,7 @@ export const leadsFootProps = (p: LeadsPage) => {
     onLineDraft: (draft: string) => setLeadLine((l) => ({ busy: false, ...l, draft, error: null })),
     onSaveLine: p.saveBusinessLine,
     onCancelLine: () => setLeadLine(null),
+    onNewIdeas: p.newIdeas,
     toastNode: p.toastNode,
   };
 };

@@ -5,14 +5,16 @@
 // messages sent when it cannot answer are there with it; these four are here so that neither module passes the
 // file-length ratchet (800 lines). Hookless, as the card is: the folds hold the hooks.
 
-import type { GuardrailKey } from "@chanlytics/contracts";
+import type { BusinessProfile, GuardrailKey } from "@chanlytics/contracts";
 import type { ComponentProps, ReactNode } from "react";
 import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import { Icon } from "../../kit/icon/icon";
 import { FailedRead } from "../../kit/empty/empty";
 import { FieldError } from "../../kit/field-error/field-error";
 import { MoreMenu } from "../../kit/more-menu/more-menu";
-import { RecordField, RecordSwitch } from "../../kit/record/field";
+import { Panel } from "../../kit/panel/panel";
+import { RecordDisclosure } from "../../kit/record/disclosure";
+import { RecordField, RecordSwitch, RecordTip } from "../../kit/record/field";
 import { RecordCombobox } from "../../kit/record/combobox";
 import { recFolds } from "../../kit/record/registry";
 import type { BtFold } from "./gestures/fold";
@@ -187,22 +189,25 @@ export const BtaLanguages = ({
 
 /* ------------------------------------ the rules it always keeps ------------------------------------ */
 
-// The four rules, in the schema's order (contracts GUARDRAIL_KEYS), each with the old form's label and the short name
-// the row says it by at rest (the canvas's Record board). The sentence under the label is NOT here: it is the rule's
-// own strength (contracts ruleStrength(key).sentence, Task 4.2), because the form's hint said what the rule asks for
-// and the strength says how far it actually goes -- and two sentences on one switch is the clutter the owner asked us
-// to stop. The health rule's hint WAS its strength's sentence, word for word; contracts has it now.
+// The four rules, in the schema's order (contracts GUARDRAIL_KEYS), each with its switch's label and the short name the
+// row says it by at rest (the canvas's Record board). How far each goes is the rule's own strength (contracts
+// ruleStrength(key)): its word beside the switch, and its sentence behind the tip (Ruben, 10 Oct 2026: the sheets "too
+// wordy, too explanatory"; four paragraphs under four switches were most of a phone's screen).
 const BTA_RULES: [GuardrailKey, string, string][] = [
-  ["never_quote_prices", "Never quote or confirm a price", "Never quotes a price"],
-  ["never_confirm_booking", "Never confirm an appointment itself", "Never confirms a booking"],
-  ["disclose_ai", "Say it is an assistant if asked", "Says it's an assistant"],
-  ["no_health_advice", "Never give health advice", "No health advice"],
+  ["never_quote_prices", "Never quote a price", "Never quotes a price"],
+  ["never_confirm_booking", "Never confirm an appointment", "Never confirms a booking"],
+  ["disclose_ai", "Says it's an automated assistant", "Says it's an assistant"],
+  ["no_health_advice", "No health advice", "No health advice"],
 ];
 
 /** The guardrails draft: the four rules and the photos switch, each a switch. */
 type RulesDraft = Partial<Record<GuardrailKey | "vision", unknown>>;
 
-/** One of the four switches: its label, how far the rule goes in contracts' words, and the switch itself. */
+/**
+ * One of the four rules, on one line: its label, how far it goes as one quiet word (the kit's pill at rest), the
+ * sentence behind a tip, and the switch, which carries the sentence as its description too. A rule that is not a switch
+ * (contracts ALWAYS_TOLD: saying it is an automated assistant, decision 0051) says "Always on" where the switch would be.
+ */
 const BtaRule = ({
   ruleKey,
   label,
@@ -216,121 +221,161 @@ const BtaRule = ({
   update: Fields["update"];
   readOnly: boolean;
 }) => {
-  // How far this rule goes, in contracts' words: one badge and one sentence, never typed here.
+  // How far this rule goes, in contracts' words: one word and one sentence, never typed here.
   const r = BUSINESS_TAB.ruleStrength(ruleKey);
   return (
-    <div className="bt-rule" data-testid={`rec-rule-${ruleKey}`}>
-      <span className="bt-rule-words">
-        <span className="bt-rule-head">
-          <span className="bt-rule-label" id={`bt-rule-${ruleKey}-label`}>
-            {label}
-          </span>
-          {/* A muted word, never a filled pill: the strength is the one quiet signal this row carries. */}
-          <span className="bt-rule-chip">{r.chip}</span>
+    <div className="bt-line" data-testid={`rec-rule-${ruleKey}`}>
+      <span className="bt-line-words">
+        <span className="bt-line-name" id={`bt-rule-${ruleKey}-label`}>
+          {label}
         </span>
-        {/* Not drawn under 761px (settings.css), where four sentences are most of a phone's screen -- so the switch
-            carries it as its description at every width, and a screen reader hears the guarantee either way. */}
-        <span className="bt-rule-says" id={`bt-rule-${ruleKey}-says`}>
-          {r.sentence}
-        </span>
-        {/* Only the checked rule has two channels to tell apart: in chat the words are swapped before anyone reads
-            them, on a call the figure has already been heard. Both are contracts', channel name and all. */}
-        {r.checkedOn ? (
-          <span className="bt-rule-checked">
-            {r.checkedOn.map((c) => (
-              <span key={c.channel} className="bt-rule-checked-line">
-                <span className="bt-rule-checked-who">{c.label}</span> {c.words}
-              </span>
-            ))}
-          </span>
-        ) : null}
       </span>
-      <RecordSwitch
-        on={on}
-        onChange={(v) => update((d) => ({ ...(d as RulesDraft), [ruleKey]: v }))}
-        labelledBy={`bt-rule-${ruleKey}-label`}
-        describedBy={`bt-rule-${ruleKey}-says`}
-        readOnly={readOnly}
-        testid={`rec-rule-switch-${ruleKey}`}
-      />
+      <span className="bt-line-end">
+        {/* The kit's pill at rest, its dot and its word, plain: a sheet paints the house's neutrals alone (Ruben's quiet
+            rule, the record spec's sheet check), and the word says how far the rule goes. */}
+        <span className="pill" data-tone="plain" data-testid={`rec-rule-strength-${ruleKey}`}>
+          {r.chip}
+        </span>
+        <RecordTip text={r.sentence} label={`How far "${label}" goes`} testid={`rec-rule-tip-${ruleKey}`} />
+        {BUSINESS_TAB.ALWAYS_TOLD.has(ruleKey) ? (
+          <span className="bt-line-sub" data-testid={`rec-rule-always-${ruleKey}`}>
+            Always on
+          </span>
+        ) : (
+          <RecordSwitch
+            on={on}
+            onChange={(v) => update((d) => ({ ...(d as RulesDraft), [ruleKey]: v }))}
+            labelledBy={`bt-rule-${ruleKey}-label`}
+            describedBy={`bt-rule-${ruleKey}-says`}
+            readOnly={readOnly}
+            testid={`rec-rule-switch-${ruleKey}`}
+          />
+        )}
+      </span>
+      <span className="rec-sr" id={`bt-rule-${ruleKey}-says`}>
+        {r.sentence}
+      </span>
     </div>
   );
 };
 
 /**
- * The photos switch, apart from the four. Opt-in, unlike the rules above: this gives the receptionist an ability rather
- * than a limit, so it starts off. Apart from them, under a dashed rule (rec-rule-sep is the name Phase 4's test knows
- * it by). It changes no word of the prompt (a photo's words go in the customer's own turn), so it draws no "It will be
- * told" of its own.
+ * The photos switch, in a group of its own: opt-in, unlike the rules, since it gives the receptionist an ability rather
+ * than a limit, so it starts off. Its line says what Off does, which is the decision an owner makes here. It changes no
+ * word of the prompt (a photo's words go in the customer's own turn), so it draws no "what it's told" of its own.
  */
 const BtaVisionRule = ({ on, update, readOnly }: { on: boolean; update: Fields["update"]; readOnly: boolean }) => {
-  // The fifth strength, from contracts like the four above it (VISION_STRENGTH): a badge typed here and typed again in
-  // the page's test agreed with each other and with nothing else.
+  // Contracts', like the four (VISION_STRENGTH): a sentence typed here and typed again in the page's test agreed with
+  // each other and with nothing else.
   const vision = BUSINESS_TAB.VISION_STRENGTH;
   return (
-    <div className="bt-rule bt-rule-power" data-testid="rec-rule-vision">
-      <span className="bt-rule-sep rec-rule-sep" aria-hidden="true" />
-      <span className="bt-rule-words">
-        <span className="bt-rule-head">
-          <span className="bt-rule-label" id="bt-rule-vision-label">
-            Look at photos customers send
+    <>
+      <p className="bt-list-head" id="bt-rules-abilities">
+        Abilities
+      </p>
+      <Panel variant="inset" size="flush" className="bt-lines" role="group" aria-labelledby="bt-rules-abilities">
+        <div className="bt-line" data-testid="rec-rule-vision">
+          <span className="bt-line-words">
+            <span className="bt-line-name" id="bt-rule-vision-label">
+              Look at photos customers send
+            </span>
+            <span className="bt-line-sub" id="bt-rule-vision-says">
+              {vision.sentence}
+            </span>
           </span>
-          <span className="bt-rule-chip">{vision.chip}</span>
-        </span>
-        {/* Drawn at every width, unlike the four: it is the one switch whose sentence says what each POSITION does,
-            which is a decision an owner makes here. Not the canvas's "The four above are limits and start on":
-            health advice starts off too. */}
-        <span className="bt-rule-hint">{vision.sentence}</span>
-      </span>
-      <RecordSwitch
-        on={on}
-        onChange={(v) => update((d) => ({ ...(d as RulesDraft), vision: v }))}
-        labelledBy="bt-rule-vision-label"
-        readOnly={readOnly}
-        testid="rec-rule-switch-vision"
-      />
-    </div>
+          <span className="bt-line-end">
+            <RecordSwitch
+              on={on}
+              onChange={(v) => update((d) => ({ ...(d as RulesDraft), vision: v }))}
+              labelledBy="bt-rule-vision-label"
+              describedBy="bt-rule-vision-says"
+              readOnly={readOnly}
+              testid="rec-rule-switch-vision"
+            />
+          </span>
+        </div>
+      </Panel>
+    </>
   );
 };
 
+/** How the checked rule lands on each channel (contracts' checkedOn), folded behind one line. */
+const BtaRuleChecked = () => {
+  const lines = BUSINESS_TAB.ruleStrength("never_quote_prices").checkedOn || [];
+  return lines.length ? (
+    <RecordDisclosure id="bt-rules-how" label="How price checking works" testid="rec-rules-checked">
+      {lines.map((c) => (
+        <p key={c.channel} className="bt-fold-note">
+          <b className="bt-fold-lead">{c.label}</b>, {c.words}
+        </p>
+      ))}
+    </RecordDisclosure>
+  ) : null;
+};
+
 /**
- * The four switches, and the photos switch apart from them. Each rule is ONE element holding its label, its hint and
- * its switch (rec-rule-<key>), so Phase 4 draws its strength into it rather than rebuilding it. The draft is the fold's
- * whole guardrails draft, and a press writes one key of it, spread over the rest: saveFold refuses a draft with any of
- * the five missing (folds.ts btWhole), because a missing switch written as it stood was stored as off, the opposite of
- * the schema's "absent means on".
+ * The four switches in one group, the photos switch in one of its own, and how the checked rule lands folded under
+ * them. Each rule is ONE element holding its label, its word, its tip and its switch (rec-rule-<key>). The draft is the
+ * fold's whole guardrails draft, and a press writes one key of it, spread over the rest: saveFold refuses a draft with
+ * any of the five missing (folds.ts btWhole), because a missing switch written as it stood was stored as off, the
+ * opposite of the schema's "absent means on".
  *
  * Absent means ON for the first three and OFF for health advice, as draftOf opens them: a record that stores no rules
  * opens with three on, and a Save that changes nothing sends nothing. On a record whose details compose nothing, none
- * of the four changes a word the receptionist is told (the price detector still reads every reply), and the fold says
- * so once, in contracts' words, where the rules' block would be (`unread`); it draws no empty "It will be told".
+ * of the four changes a word the receptionist is told (the price detector still reads every reply), and the sheet says
+ * so once, first, in contracts' words (`unread`), in the warn tone of a fact the owner may want to change.
  */
 export const BtaRules = ({
   draft,
   update,
   readOnly,
   unread,
-}: Pick<Fields, "draft" | "update" | "readOnly"> & { unread: string | null }) => {
+  profile,
+  name,
+}: Pick<Fields, "draft" | "update" | "readOnly"> & {
+  unread: string | null;
+  profile: BusinessProfile | null;
+  /** The business's name, so a greeting callers never hear lends the list no price. */
+  name: string | null;
+}) => {
   const rules = draft as RulesDraft;
+  // With "Never quote a price" off in the draft, the amounts it may say, read as the save would leave them (0051).
+  const prices =
+    rules.never_quote_prices === false
+      ? BUSINESS_TAB.pricesWrittenWords(
+          BUSINESS_TAB.allowedPrices({
+            business_name: name ?? "",
+            profile: { ...(profile || {}), guardrails: { ...(profile?.guardrails || {}), never_quote_prices: false } },
+          }),
+        )
+      : null;
   return (
-    <div className="bt-rules-list" data-testid="rec-rules-switches">
-      {BTA_RULES.map(([key, label]) => (
-        <BtaRule key={key} ruleKey={key} label={label} on={rules[key] === true} update={update} readOnly={readOnly} />
-      ))}
+    <div className="bt-stack" data-testid="rec-rules-switches">
       {unread ? (
-        <p className="bt-fold-note" data-testid="rec-rules-unread">
+        <p className="bt-held" data-testid="rec-rules-unread">
           {unread}
+        </p>
+      ) : null}
+      <Panel variant="inset" size="flush" className="bt-lines" role="group" aria-label="The rules">
+        {BTA_RULES.map(([key, label]) => (
+          <BtaRule key={key} ruleKey={key} label={label} on={rules[key] === true} update={update} readOnly={readOnly} />
+        ))}
+      </Panel>
+      {prices ? (
+        <p className="bt-fold-note" data-testid="rec-rules-prices">
+          {prices}
         </p>
       ) : null}
       {/* Opt-in, unlike the rules above: this gives the receptionist an ability rather than a limit, so it starts off. */}
       <BtaVisionRule on={rules.vision === true} update={update} readOnly={readOnly} />
+      <BtaRuleChecked />
     </div>
   );
 };
 
 /* ------------------------------------ how it hands you a customer ------------------------------------ */
 
-/** What the hand-off row says at rest, and the Phone half of it. */
+/** What the hand-off row says at rest. */
 export type HandoffWords = ReturnType<typeof BUSINESS_TAB.handoffWords>;
 
 /** The Autonomy reply row's pause, as it is stored: usually nothing, which contracts reads as a day, as the pane does. */
@@ -339,71 +384,79 @@ const btaPauseHours = (policies: ReturnType<typeof policiesNow>): unknown => {
   return reply && reply.limits ? reply.limits.pause_hours : undefined;
 };
 
-/** The WhatsApp half of a hand-off: what the chat hand-off does, or that the Autonomy tab could not be read. */
-const BtaHandoffChat = ({ reasons, policies }: { reasons: boolean; policies: ReturnType<typeof policiesNow> }) => (
-  <div className="bt-handoff-part" data-testid="rec-handoff-chat-part">
-    <span className="bt-channel">WhatsApp</span>
-    {policies === null ? (
-      <FailedRead kind="line" what="the Autonomy tab" surface="settings" testid="rec-handoff-unread" />
-    ) : (
-      <p className="bt-fold-note" data-testid="rec-handoff-chat-says">
-        {BUSINESS_TAB.handoffChatWords({ hasEscalateWhen: reasons, pauseHours: btaPauseHours(policies) })}
-      </p>
-    )}
-  </div>
+/** A channel's glyph at the head of one of the hand-off's rows, named for a screen reader, since the row's words are not. */
+const BtaChannel = ({ icon, name }: { icon: "chat" | "phone"; name: string }) => (
+  <span className="bt-line-glyph" role="img" aria-label={name}>
+    <Icon name={icon} size={14} />
+  </span>
 );
 
-/** The Phone half of a hand-off: the number as it stands, what a call does with it, and the door to the row that sets it. */
-const BtaHandoffCall = ({
-  reasons,
-  words,
-  transfer,
-  calls,
-  press,
-}: {
-  reasons: boolean;
-  words: HandoffWords | null;
-  transfer: string | null | undefined;
-  calls: boolean;
-  press: Fields["press"];
-}) => (
-  <div className="bt-handoff-part" data-testid="rec-handoff-call-part">
-    <span className="bt-channel">Phone</span>
-    <span className="bt-handoff-number" data-testid="rec-handoff-number">
-      {words ? words.phone : null}
-    </span>
-    {calls ? (
-      <p className="bt-fold-note" data-testid="rec-handoff-call-says">
-        {BUSINESS_TAB.handoffCallWords({ hasHandoffNumber: !!transfer, hasEscalateWhen: reasons })}
-      </p>
-    ) : null}
-    {calls ? (
-      <button
-        type="button"
-        className="bt-link"
-        {...press(() => {
-          recFolds.request("handoff_number");
-        })}
-        data-testid="rec-handoff-door"
-      >
-        {transfer ? "Change the transfer number" : "Add a transfer number"}
-      </button>
-    ) : null}
-  </div>
-);
+/** What a WhatsApp hand-off does, as one row (contracts handoffChatRow), or that the Autonomy tab could not be read. */
+const BtaHandoffChat = ({ policies }: { policies: ReturnType<typeof policiesNow> }) => {
+  if (policies === null)
+    return (
+      <div className="bt-line" data-testid="rec-handoff-chat-part">
+        <BtaChannel icon="chat" name="On WhatsApp" />
+        <FailedRead kind="line" what="the Autonomy tab" surface="settings" testid="rec-handoff-unread" />
+      </div>
+    );
+  const row = BUSINESS_TAB.handoffChatRow(btaPauseHours(policies));
+  return (
+    <div className="bt-line" data-testid="rec-handoff-chat-part">
+      <BtaChannel icon="chat" name="On WhatsApp" />
+      <span className="bt-line-words">
+        <span className="bt-line-name">{row.name}</span>
+        <span className="bt-line-sub" data-testid="rec-handoff-chat-says">
+          {row.sub}
+        </span>
+      </span>
+    </div>
+  );
+};
+
+/** What a call does, as one row (contracts handoffCallRow), and the door to the row that sets the number. */
+const BtaHandoffCall = ({ transfer, press }: { transfer: string | null | undefined; press: Fields["press"] }) => {
+  const row = BUSINESS_TAB.handoffCallRow(transfer);
+  return (
+    <div className="bt-line" data-testid="rec-handoff-call-part">
+      <BtaChannel icon="phone" name="On a call" />
+      <span className="bt-line-words">
+        <span className="bt-line-name" data-testid="rec-handoff-number">
+          {row.name}
+        </span>
+        <span className="bt-line-sub" data-testid="rec-handoff-call-says">
+          {row.sub}
+        </span>
+      </span>
+      <span className="bt-line-end">
+        <button
+          type="button"
+          className="bt-link"
+          aria-label={row.actName}
+          {...press(() => {
+            recFolds.request("handoff_number");
+          })}
+          data-testid="rec-handoff-door"
+        >
+          {row.act}
+        </button>
+      </span>
+    </div>
+  );
+};
 
 /**
- * Both halves of a hand-off, in one row naming both channels (spec §4.5): the owner's reasons, one to a line, and what
- * each channel does with them. The sentences are contracts', checked against the edge (handoffChatWords says what the
- * chat hand-off does, and how long it holds off, which is the Autonomy tab's; handoffCallWords says what a transfer
- * does, and that the reasons reach a call too).
+ * The hand-off (spec §4.5): the owner's reasons, one to a line, then what each channel does with a customer handed over,
+ * as two rows (Ruben, 10 Oct 2026: a paragraph for each channel became an outcome each). The sentences are contracts',
+ * checked against the edge (handoffChatRow says what the chat hand-off does and how long it holds off, which is the
+ * Autonomy tab's; handoffCallRow what a call does, which the reasons reach too). Who is handed over without a reason
+ * (asked for a person, or past what it can help with) is the tip by the box.
  *
- * The transfer number is only shown here, never edited: Who you are's "Transfer number" is its one editor (the
- * plan's decision in Task 3.2's review), and a door opens that row, by its id, as the gap line's door opens a
- * row. With the Autonomy tab's read failed, how long it holds off cannot be said, and a failed read says so where the
- * sentence would be. On a workspace with no line to call (`calls` false) no receptionist of it takes a call, so what a
- * call does is not said, nor is the door offered: Who you are's transfer row says nothing it will say there either.
- * What a call would do with the number stays at rest, as that row keeps its value.
+ * The transfer number is only shown here, never edited: Who you are's "Transfer number" is its one editor (the plan's
+ * decision in Task 3.2's review), and the call's row opens that row, by its id, as the gap line's door opens a row. With
+ * the Autonomy tab's read failed, how long it holds off cannot be said, and a failed read says so where the row would
+ * be. On a workspace with no line to call (`calls` false) no receptionist of it takes a call, so the call's row is not
+ * drawn.
  */
 export const BtaHandoff = ({
   draft,
@@ -411,34 +464,41 @@ export const BtaHandoff = ({
   press,
   problems,
   readOnly,
-  words,
   transfer,
   calls,
   policies,
 }: Pick<Fields, "draft" | "update" | "press" | "problems" | "readOnly"> & {
-  words: HandoffWords | null;
   transfer: string | null | undefined;
   calls: boolean;
   policies: ReturnType<typeof policiesNow>;
-}) => {
-  // Whether the draft holds a reason, by the rule its save writes the lines by.
-  const reasons = businessTabSave.linesOf(draft).length > 0;
-  return (
-    <>
+}) => (
+  <div className="bt-stack">
+    <div className="bt-ask">
+      <span className="bt-ask-head">
+        <span className="bt-ask-name" id="bt-escalate-when-label">
+          Hand over when…
+        </span>
+        <RecordTip text={BUSINESS_TAB.HANDOFF_ANYWAY} label="Who else it hands over" testid="rec-handoff-tip" />
+      </span>
       <RecordField
         id="bt-escalate-when"
-        label="Your reasons"
-        hint="One per line."
+        label={null}
+        aria-labelledby="bt-escalate-when-label"
         rows={4}
         value={draft as string}
         onChange={(v) => update(() => v, ["escalate_when"])}
         problem={problems.escalate_when || null}
-        placeholder={"They ask for the owner by name\nThey are unhappy about a previous visit"}
+        placeholder={"They ask for the owner by name\nThey're unhappy about a visit"}
         readOnly={readOnly || undefined}
         testid="rec-handoff-reasons"
       />
-      <BtaHandoffChat reasons={reasons} policies={policies} />
-      <BtaHandoffCall reasons={reasons} words={words} transfer={transfer} calls={calls} press={press} />
-    </>
-  );
-};
+    </div>
+    <p className="bt-list-head" id="bt-handoff-what">
+      What happens
+    </p>
+    <Panel variant="inset" size="flush" className="bt-lines" role="group" aria-labelledby="bt-handoff-what">
+      <BtaHandoffChat policies={policies} />
+      {calls ? <BtaHandoffCall transfer={transfer} press={press} /> : null}
+    </Panel>
+  </div>
+);

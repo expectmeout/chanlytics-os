@@ -2,7 +2,14 @@ import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { atRoute } from "../address";
 import { apiGet } from "../workspace";
-import { appointmentWordOf, journeyOf, journeyStageOf, type JourneyStageId } from "../../packages/contracts/src/index";
+import {
+  LIFECYCLE_WORDS,
+  VERSION_CHANNEL_WORDS,
+  appointmentWordOf,
+  journeyOf,
+  journeyStageOf,
+  type JourneyStageId,
+} from "../../packages/contracts/src/index";
 import { messagesOffered, momentSlots, type TemplatesRead } from "./offered";
 
 /**
@@ -75,26 +82,24 @@ test.describe("Campaigns' home on a real workspace", () => {
     ).toEqual(journey.map((s) => s.id));
     const text = await home.innerText();
     for (const s of INVENTED) expect(text, `invented: "${s}"`).not.toContain(s);
-    // Where the workspace stands on its channels, said once at the rail's head (8 Oct 2026): the channels the readiness
-    // answered, in the product's words, each closed one with its reason; a workspace paused for billing says that
-    // alone. Where this read carries no readiness the page asks the broadcasts' (lifecycle.ts readyOf), so the line may
-    // still be drawn: only its words are held, where the read says what they must be.
+    // Where the workspace stands on its channels, said once at the rail's head: a chip each (Ruben, 11 Oct 2026, where
+    // three sentences stood), an open one saying it sends and a closed one pressed for why, in the product's words; a
+    // workspace paused for billing says that alone. Where this read carries no readiness the page asks the broadcasts'
+    // (lifecycle.ts readyOf), so the chips may still be drawn: only what they say is held, where the read says it.
     type Ready = Record<string, { ready: boolean }> & { paused?: boolean };
     const ready = (await pb.json()).data.ready as Ready | null;
     const channelsLine = home.getByTestId("cmh-channels-rail");
     if (ready) {
       await expect(channelsLine).toBeVisible();
-      const line = await channelsLine.innerText();
       if (ready.paused) {
-        expect(line).toMatch(/^This workspace is paused/);
+        expect(await channelsLine.innerText()).toMatch(/^This workspace is paused/);
       } else {
-        expect(line).toMatch(/^Sending |^Nothing can send yet/);
-        for (const [channel, word] of [
-          ["whatsapp", "on WhatsApp"],
-          ["sms", "by text"],
-          ["email", "by email"],
-        ] as const) {
-          if (ready[channel]?.ready) expect(line).toContain(word);
+        for (const channel of ["whatsapp", "sms", "email"] as const) {
+          const word = VERSION_CHANNEL_WORDS[channel];
+          const chip = ready[channel]?.ready
+            ? channelsLine.getByRole("img", { name: LIFECYCLE_WORDS.channels.sending(word) })
+            : channelsLine.getByRole("button", { name: LIFECYCLE_WORDS.channels.notSetUp(word) });
+          await expect(chip, `${word}'s chip`).toBeVisible();
         }
       }
     }
@@ -140,7 +145,7 @@ test.describe("Campaigns' home on a real workspace", () => {
     }
     await expect(home.getByTestId("cmh-coming").getByTestId("cmh-waiting-acts")).toHaveCount(0);
 
-    // New message opens the composer in a sheet from the side, on Send once; Every time a moment comes is the playbook
+    // New message opens the composer in a sheet from the side, on Send once; Every time is the playbook
     // composer: the moments behind its moment, each with who it reaches today; the messages that fit it, or the honest
     // line; the clock in the business's zone. Cancelled -- nothing is saved. (In Glass, the default look, the page's act
     // is drawn in the frame's head, outside the page's own element, so it is found on the page.)
@@ -165,15 +170,17 @@ test.describe("Campaigns' home on a real workspace", () => {
     await page.keyboard.press("Escape");
     await expect(page.locator(".rec-combo-pop")).toBeHidden();
     await expect(composer).toBeVisible();
-    await expect(composer.getByTestId("pb-guard")).toBeVisible();
-    // Send by stands under To and over Says (8 Oct 2026): the count under To is counted over the channels ticked.
+    await expect(composer.getByTestId("pb-recipe")).toBeVisible();
+    // One sentence (Ruben, 11 Oct 2026, "Option B"): the moment and the channels are words of it, over the message.
     const tops: number[] = [];
-    for (const id of ["pb-row-to", "pb-row-via", "pb-row-says"]) {
+    for (const id of ["pb-recipe", "pb-message"]) {
       const box = await composer.getByTestId(id).boundingBox();
       expect(box, id).not.toBeNull();
       tops.push(box!.y);
     }
-    expect(tops, "To, Send by, Says, in that order down the sheet").toEqual([...tops].sort((a, b) => a - b));
+    expect(tops, "the sentence, then the message, down the sheet").toEqual([...tops].sort((a, b) => a - b));
+    await expect(composer.getByTestId("pb-recipe").getByTestId("pb-moment")).toBeVisible();
+    await expect(composer.getByTestId("pb-recipe").getByTestId("pb-via-word")).toBeVisible();
     // The messages it may offer are the ones a send by any of WhatsApp, email and text can carry (messagesOffered: what the
     // route answers, by contracts' rules), left with those whose every slot the moment it opened on can fill -- a visit's
     // time on a visit moment, a proposal's link on the follow-up -- which the picker says by its label. None of it assumes
@@ -183,7 +190,9 @@ test.describe("Campaigns' home on a real workspace", () => {
       momentSlots((await composer.getByTestId("pb-moment").innerText()).trim(), bookingLink),
     );
     await expect(composer.getByTestId("pb-message")).toBeVisible();
-    if (usable.length === 0) {
+    // With nothing to send, the moment's own message is offered to add (Turn on adds it), else the honest line says so.
+    const starter = (await composer.getByTestId("pb-starter").count()) > 0;
+    if (usable.length === 0 && !starter) {
       await expect(composer.getByTestId("pb-no-template")).toBeVisible();
     } else {
       await expect(composer.getByTestId("pb-no-template")).toHaveCount(0);
@@ -213,17 +222,24 @@ test.describe("Campaigns' home on a real workspace", () => {
     const drawer = page.getByTestId("cmh-drawer");
     await expect(drawer).toBeVisible();
     await expect(drawer.getByTestId("pb-detail")).toBeVisible();
-    // Goes by: the channels it goes by, as the composer's Send by row, switched here in place (8 Oct 2026). A switch per
-    // channel, WhatsApp, Text and Email, each read-only where the workspace cannot send on it or the message cannot go by
-    // it, the group named as it is labelled. Nothing is pressed: a press would change the workspace's playbook. A
-    // follow-up where deals are off runs nothing here, and has no row.
-    const via = drawer.getByTestId("pb-goes-by");
+    // Goes by: the channels it goes by, a word of the drawer's sentence (Ruben, 11 Oct 2026, "Option B") that opens their
+    // list, switched there in place (8 Oct 2026). A row per channel, WhatsApp, Text and Email, a switch to a screen
+    // reader, each taking no press where the workspace cannot send on it or the message cannot go by it, the group named
+    // as it is labelled. Nothing is switched: a press would change the workspace's playbook. A follow-up where deals are
+    // off runs nothing here, and has no channels' word.
+    const via = drawer.getByTestId("pb-via-word");
     if (first.trigger === "proposal_waiting" && data.deals_on === false) {
       await expect(via).toHaveCount(0);
     } else {
       await expect(via).toBeVisible();
-      await expect(via.getByRole("switch")).toHaveCount(3);
-      await expect(via.getByRole("group", { name: "Goes by" })).toBeVisible();
+      await via.click();
+      const list = page.getByRole("group", { name: "Goes by" });
+      await expect(list).toBeVisible();
+      await expect(list.getByRole("switch")).toHaveCount(3);
+      // Escape closes the list, and only the list.
+      await page.keyboard.press("Escape");
+      await expect(list).toBeHidden();
+      await expect(drawer).toBeVisible();
     }
     // Closed, the address is the home's again, and the home is still there.
     await page.keyboard.press("Escape");

@@ -10,7 +10,9 @@ import { ownsTheScreen } from "@/legacy-bridge/surface-registry";
 import { routeOnScreen } from "@/legacy-bridge/workspace";
 import { navigate } from "../legacy-verbs";
 import { surfaceValue } from "../surface-values";
+import { reportsCampaigns } from "./campaigns-surface";
 import { headline } from "./headline";
+import { reportsPeople } from "./people-surface";
 import { receptionist } from "./receptionist-surface";
 import { reviews } from "./reviews-surface";
 import { keepReportPeriod, paintHeldReports, reportsOverride, shownReportKey, shownReportPeriod } from "./surface";
@@ -18,13 +20,16 @@ import { keepReportPeriod, paintHeldReports, reportsOverride, shownReportKey, sh
 /**
  * The reads that say what is shown too (period-surface.ts). Each is read behind a pick only when none is held for what it follows or
  * the held one is old, so a pick does not double a read nobody is looking at. `preReads`: Today's line is read behind a pick wherever
- * it was made, so it is right when Today opens; the Reviews and Receptionist lenses are read only while their lens is on screen, and
- * otherwise as it comes on screen (readWhatWasMissed), a range it does not hold being stale.
+ * it was made, so it is right when Today opens; the Reviews, Receptionist, People and Campaigns lenses are read only while the page that
+ * draws them is on screen (the Campaigns read is the Overview's too, for one fact), and otherwise as it comes on screen
+ * (readWhatWasMissed), a range it does not hold being stale.
  */
 const followers = [
   { surface: headline, preReads: true },
   { surface: reviews, preReads: false },
   { surface: receptionist, preReads: false },
+  { surface: reportsPeople, preReads: false },
+  { surface: reportsCampaigns, preReads: false },
 ];
 
 /**
@@ -43,7 +48,7 @@ function followShown(kept: boolean): void {
 /**
  * The address says a range the report could not read: it takes the one the page shows, in the entry's own place, so the
  * address and the numbers under it are of one range and Back does not return to days that fail again. What follows the
- * range shown (Today's line, the Reviews and Receptionist lenses) says that one too: what it read for the range that failed may have
+ * range shown (Today's line, the Reviews, Receptionist, People and Campaigns lenses) says that one too: what it read for the range that failed may have
  * landed behind it. The address stays where nothing is shown, or where it is no longer Reports'.
  */
 export function backToShown(): void {
@@ -51,7 +56,7 @@ export function backToShown(): void {
   const here = reportsRouteParts(at);
   const shown = surfaceValue("reports");
   if (here && shown) {
-    const to = lensRoute(here.lens, typeof shown.range === "string" ? null : shown.range);
+    const to = lensRoute(here.lens, typeof shown.range === "string" ? null : shown.range, here.scope ?? null);
     if (to !== at) navigate(to, { replace: true });
   }
   followShown(true);
@@ -74,9 +79,9 @@ export async function setReportRange(range: ReportRange): Promise<boolean> {
   // are no period's) the one kept before the pick. Never the one a caller kept on the way here.
   const prev = surfaceValue("reports")?.period ?? shownReportPeriod();
   if (typeof range === "string") keepReportPeriod(range);
-  const to = here ? lensRoute(here.lens, typeof range === "string" ? null : range) : before;
+  const to = here ? lensRoute(here.lens, typeof range === "string" ? null : range, here.scope ?? null) : before;
   if (to !== before) navigate(to);
-  // Today's line and Worth a look say the period too (the headline), and so do the Reviews and Receptionist lenses. One this tab holds paints at once;
+  // Today's line and Worth a look say the period too (the headline), and so do the Reviews, Receptionist, People and Campaigns lenses. One this tab holds paints at once;
   // it is read behind that only when none is held for the range or the held one is old.
   followShown(false);
   // A range this tab has read paints at once; the read behind it keeps it current (the loading standard's held

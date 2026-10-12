@@ -90,6 +90,13 @@ const ingested = (n) => ({
   paused_until: null,
 });
 
+/**
+ * A hold the database took is told from its event, once, after the commit (core SUBSCRIBERS.owner_notice, decision 0043;
+ * events/an-event-is-delivered-to-its-subscriber.test.mjs); the handler tells, in its own words, only a hold it could
+ * not write (`escalateAnswer: "failed"`).
+ */
+const FROM_ITS_EVENT = "the hold is written, so its event tells the owner, not the handler (decision 0043)";
+
 /** The handler's world, recording everything that crosses it. */
 function world(over = {}) {
   // The rows, as Postgres would hold them for this one conversation.
@@ -324,13 +331,21 @@ test("no model key: the workspace's greeting leaves labelled a fallback, the thr
   assert.equal(w.seen.escalations[0].reason, "brain_error");
   assert.match(w.seen.escalations[0].details, /no model key/);
   assert.match(w.seen.escalations[0].details, /do you have time tomorrow/, "the customer's words travel with it");
-  assert.equal(w.seen.alerts.length, 1);
-  assert.equal(w.seen.alerts[0].reason, "no model");
-  assert.equal(w.seen.alerts[0].who, "Dana");
-  assert.equal(w.seen.alerts[0].route, "inbox/th-conv1");
+  assert.deepEqual(w.seen.alerts, [], FROM_ITS_EVENT);
   assert.deepEqual(
     w.seen.pages.map((p) => p.key),
     ["brain_unavailable"],
+  );
+  // A hold the database refused is told here, by the customer's name, opening the thread it names.
+  const unwritten = world({ escalateAnswer: "failed" });
+  await unwritten.run(text("hi, do you have time tomorrow?"));
+  assert.deepEqual(
+    unwritten.seen.refused.map((e) => e.reason),
+    ["brain_error"],
+  );
+  assert.deepEqual(
+    unwritten.seen.alerts.map((a) => [a.reason, a.who, a.route]),
+    [["no model", "Dana", "inbox/th-conv1"]],
   );
   assert.equal(w.seen.pauses.length, 1, "the thread is handed over for the pause window");
   assert.equal(w.seen.processed, 1);
@@ -378,8 +393,7 @@ test("a hold that cannot be written: the veto window sends now and says so; the 
   assert.match(floor.seen.escalations[0].details, /could not be written/);
   assert.match(floor.seen.escalations[0].details, /when do you open/, "the customer's words travel with it");
   assert.equal(floor.seen.pauses.length, 1, "the thread is a person's for the pause window");
-  assert.equal(floor.seen.alerts.length, 1, "the owner is told");
-  assert.match(floor.seen.alerts[0].reason, /nothing was sent/);
+  assert.deepEqual(floor.seen.alerts, [], FROM_ITS_EVENT);
   assert.equal(floor.seen.processed, 1, "marked handled: the redelivery gate holds");
   const t = floor.thread();
   assert.ok(t.pausedUntil > Date.now());
@@ -388,6 +402,15 @@ test("a hold that cannot be written: the veto window sends now and says so; the 
     ["user"],
     "the unsent words are not remembered as said",
   );
+  // Nor could the handoff be written: the owner is told here, that nothing was sent.
+  const unwritten = world({
+    escalateAnswer: "failed",
+    env: { modelKey: "sk-test" },
+    rt: runtime({ policy: { reply: { mode: "auto", limits: { min_confidence: 0.7, reply_delay_ms: 60_000 } } } }),
+  });
+  await unwritten.run(text("when do you open?"), model(unsure));
+  assert.equal(unwritten.seen.alerts.length, 1, "the owner is told");
+  assert.match(unwritten.seen.alerts[0].reason, /nothing was sent/);
 
   // Sure enough under the same floor: the reply goes (the hold was never asked for).
   const fine = world({
@@ -489,6 +512,43 @@ test("a short code is a sender, never a person: recorded, marked handled, nothin
   assert.equal(w.seen.escalations.length, 0);
 });
 
+test("a one-time code from an ordinary number is a service, never a person: recorded, marked handled, nothing sent; a person's own code is answered", async () => {
+  // 11 Oct 2026: verification codes from long numbers were answered with a sales reply.
+  const codes = [
+    "Your verification code is 482913. It expires in 10 minutes.",
+    "G-482913 is your Google verification code.",
+    "482913 is your login code. Do not share this code with anyone.",
+    "Use 4829 to sign in to your account.",
+  ];
+  for (const [i, body] of codes.entries()) {
+    const w = world();
+    await w.run(text(body, `wamid.otp${i}`));
+    assert.equal(w.seen.sent.length, 0, body);
+    assert.equal(w.seen.processed, 1, `${body}: recorded and handled`);
+    assert.equal(w.seen.escalations.length, 0, body);
+    assert.equal(w.seen.unreachable, 0, `${body}: the sender can be written to; it is the words that are a service's`);
+  }
+  // A person's text with a number in it is theirs: a door code, a booking reference.
+  const meta = { intent: "booking", confidence: 0.9, reason: "", facts_used: [], language: "en", model: "m" };
+  for (const [i, body] of [
+    "The gate code is 4829, see you Tuesday",
+    "My confirmation code is 482913, can I move it?",
+    // The review of 11 Oct 2026: each of these was set aside by the first draft, which took any number near a word.
+    "I need a one time deep clean for my 1200 sq ft apartment",
+    "one-time move, about 1800 sq ft",
+    "Can I pay a security deposit of 2500",
+    "I can't log in to your booking page, error 5003",
+    "Our building security closes at 5, I'm in apartment 1204",
+  ].entries()) {
+    let asked = 0;
+    const w = world({ env: { modelKey: "k" } });
+    await w.run(text(body, `wamid.person${i}`), {
+      brain: async () => ({ generateReply: async () => ((asked += 1), { text: "Thanks!", escalate: false, meta }) }),
+    });
+    assert.equal(asked, 1, `${body}: the receptionist was asked`);
+  }
+});
+
 test("an ingest the database refuses is not swallowed: IngestFailed surfaces and a copy reaches the mailbox", async () => {
   const w = world({
     ingest: async () => {
@@ -512,7 +572,7 @@ test("STOP records the opt-out, escalates once, answers nothing, and keeps no se
     w.seen.escalations.map((e) => e.reason),
     ["opt_out"],
   );
-  assert.equal(w.seen.alerts[0].reason, "opt-out");
+  assert.deepEqual(w.seen.alerts, [], FROM_ITS_EVENT);
   assert.equal(w.seen.processed, 1);
   // The answer lives in `contacts.consent` and nowhere else. It used to be
   // cached on the Blob thread as well, for the case where Postgres did not
@@ -545,8 +605,7 @@ test("a memory that cannot be read hands the conversation to a person, and answe
     ["state_unavailable"],
   );
   assert.match(w.seen.escalations[0].details, /could not read this thread's history/);
-  assert.equal(w.seen.alerts.length, 1, "and a person is told, by name of the thread");
-  assert.equal(w.seen.alerts[0].reason, "state unavailable");
+  assert.deepEqual(w.seen.alerts, [], FROM_ITS_EVENT);
   assert.equal(w.seen.processed, 1, "marked handled, so a redelivery does not open it twice");
   assert.equal(w.seen.pauses.length, 0, "the receptionist did not speak, so it claims no pause");
 });
@@ -557,7 +616,7 @@ test("a workspace on ask holds every message for a person and says why", async (
   assert.equal(w.seen.sent.length, 0);
   assert.equal(w.seen.escalations.length, 1);
   assert.equal(w.seen.escalations[0].reason, "policy_block");
-  assert.equal(w.seen.alerts.length, 1);
+  assert.deepEqual(w.seen.alerts, [], FROM_ITS_EVENT);
   assert.equal(w.seen.pages.length, 0, "a workspace's own setting is not the platform's condition");
 });
 
@@ -646,7 +705,7 @@ test("a START whose answer is taken up after the person said STOP is held by the
     ["opt_out"],
     "and nobody is told the customer said yes and was not confirmed",
   );
-  assert.equal(w.seen.alerts.length, 1, "the STOP's own alert, and no other");
+  assert.deepEqual(w.seen.alerts, [], `the STOP's hold is its one notice: ${FROM_ITS_EVENT}`);
   assert.equal(kept.record.consent, "opted_out", "the STOP stands");
 });
 
@@ -800,8 +859,9 @@ test("a handoff names the wire the customer wrote on, and promises a pause only 
   // The email hardcoded "WhatsApp" and hardcoded the pause, so an owner with
   // both wires connected opened the wrong app, and one told "the receptionist
   // is paused on this thread for 24h" by a branch that paused nothing replied
-  // at their leisure and was talked over by the bot's next reply.
-  const held = world({ rt: runtime({ policy: { reply: { mode: "ask", limits: {} } } }) });
+  // at their leisure and was talked over by the bot's next reply. These are the handler's own words, for a hold the
+  // database refused; a written one is told from its event, whose pause line reads the thread's own pause.
+  const held = world({ escalateAnswer: "failed", rt: runtime({ policy: { reply: { mode: "ask", limits: {} } } }) });
   await held.run(text("can I book Friday?"));
   assert.equal(held.seen.alerts.length, 1);
   assert.equal(held.seen.alerts[0].pauseHours, null, "'ask' never pauses the thread, so the email must not say it did");
@@ -809,12 +869,13 @@ test("a handoff names the wire the customer wrote on, and promises a pause only 
   assert.equal(held.seen.pauses.length, 0);
 
   // The escalating reply DOES pause, and says so.
-  const paged = world();
+  const paged = world({ escalateAnswer: "failed" });
   await paged.run(text("hi"));
   assert.equal(paged.seen.alerts[0].pauseHours, 24);
   assert.equal(paged.seen.pauses.length, 1);
 
   const sms = world({
+    escalateAnswer: "failed",
     carrier: {
       channel: "sms",
       send: async () => ({ ok: true, wamid: "s1", status: 200 }),
@@ -846,7 +907,7 @@ test("a redelivered pin drop escalates and emails once, not once per redelivery"
   await w.run(pin);
   await w.run(pin);
   assert.equal(w.seen.escalations.length, 1, "one escalation for one pin drop");
-  assert.equal(w.seen.alerts.length, 1, "and one email");
+  assert.deepEqual(w.seen.alerts, [], `and its one notice: ${FROM_ITS_EVENT}`);
   assert.equal(w.seen.sent.length, 0, "a pin drop is readable: no apology");
 });
 
@@ -858,7 +919,7 @@ test("a redelivered STOP does not open the handoff twice", async () => {
     w.seen.escalations.map((e) => e.reason),
     ["opt_out"],
   );
-  assert.equal(w.seen.alerts.length, 1);
+  assert.deepEqual(w.seen.alerts, [], FROM_ITS_EVENT);
 });
 
 test("a thumbs-up or a system notice is kept and handled, and nothing is said, escalated, paused or downloaded", async () => {
@@ -926,7 +987,7 @@ test("a person set to Never who sends a voice note hears nothing back, and the t
     ["non_text"],
   );
   assert.match(w.seen.escalations[0].details, /this person is set to 'never'/);
-  assert.equal(w.seen.alerts.length, 1, "a person is told");
+  assert.deepEqual(w.seen.alerts, [], `a person is told: ${FROM_ITS_EVENT}`);
   assert.equal(w.seen.pauses.length, 0, "nothing was said, so nothing is paused");
   assert.equal(w.seen.processed, 1);
 });
@@ -936,6 +997,7 @@ test("an acknowledgement that did not send neither pauses the thread nor is repo
   // paused the receptionist for a day and still told the owner the customer had
   // been acknowledged.
   const w = world({
+    escalateAnswer: "failed",
     delivered: { outcome: "failed", reason: "no_credentials", status: 503, errorBody: null, messageId: null },
   });
   await w.run({
@@ -950,7 +1012,7 @@ test("an acknowledgement that did not send neither pauses the thread nor is repo
   assert.equal(w.thread().pausedUntil, 0);
   assert.equal(w.seen.alerts[0].pauseHours, null);
   assert.match(w.seen.alerts[0].botText, /could not be sent/);
-  assert.match(w.seen.escalations[0].details, /could not be sent/);
+  assert.match(w.seen.refused[0].details, /could not be sent/);
 });
 
 test("an opt-in confirmation that did not send is not remembered as said, and somebody is told", async () => {
@@ -958,6 +1020,7 @@ test("an opt-in confirmation that did not send is not remembered as said, and so
   // outcome then dropped — so the bot believed it had named the program, the
   // frequency, the rates, HELP and STOP to somebody who heard nothing.
   const w = world({
+    escalateAnswer: "failed",
     delivered: { outcome: "failed", reason: "provider", status: 500, errorBody: null, messageId: null },
   });
   await w.run(text("START"));
@@ -967,10 +1030,10 @@ test("an opt-in confirmation that did not send is not remembered as said, and so
     "only what the customer actually said",
   );
   assert.deepEqual(
-    w.seen.escalations.map((e) => e.reason),
+    w.seen.refused.map((e) => e.reason),
     ["send_failed"],
   );
-  assert.equal(w.seen.alerts[0].reason, "opt-in not confirmed");
+  assert.equal(w.seen.alerts[0].reason, "opt-in not confirmed", "a hold the database refused is told here");
   assert.equal(w.seen.processed, 1, "the message is still handled");
 });
 
@@ -983,7 +1046,11 @@ test("a workspace whose settings could not be READ is not told it has no persona
   assert.equal(w.seen.escalations.length, 1);
   assert.match(w.seen.escalations[0].details, /could not be reached/);
   assert.doesNotMatch(w.seen.escalations[0].details, /No brain profile configured/);
-  assert.equal(w.seen.alerts[0].reason, "the workspace's settings could not be reached");
+  assert.deepEqual(w.seen.alerts, [], FROM_ITS_EVENT);
+  // An outage that refuses the hold as well is told here, in the same words.
+  const unwritten = world({ escalateAnswer: "failed", rt: runtime({ brain: null, policy: {}, loadFailed: true }) });
+  await unwritten.run(text("hi"));
+  assert.equal(unwritten.seen.alerts[0].reason, "the workspace's settings could not be reached");
 });
 
 test("the rate cap, the budget and a paused workspace all keep the customer's words", async () => {
@@ -1075,7 +1142,7 @@ test("a photo the receptionist meant to read and could not is handed over, never
     w.seen.escalations.map((e) => e.reason),
     ["non_text"],
   );
-  assert.equal(w.seen.alerts[0].reason, "non-text message");
+  assert.deepEqual(w.seen.alerts, [], FROM_ITS_EVENT);
   assert.equal(w.seen.processed, 1);
   assert.equal(w.seen.sent.length, 1, "only the canned acknowledgement");
   assert.deepEqual(w.seen.sent[0].meta, { ack: true });
@@ -1094,7 +1161,7 @@ test("an unreadable attachment still reaches storage, and a redelivery of it doe
   assert.equal(w.seen.media, 1, "the attachment is stored even though nobody may look at it");
   await w.run(note);
   assert.equal(w.seen.escalations.length, 1);
-  assert.equal(w.seen.alerts.length, 1);
+  assert.deepEqual(w.seen.alerts, [], FROM_ITS_EVENT);
 });
 
 test("an old voice note or sticker Meta sent again after an outage is a person's: no acknowledgement and no pause, handed over as too late, its attachment still kept", async () => {
@@ -1105,20 +1172,20 @@ test("an old voice note or sticker Meta sent again after an outage is a person's
     ["a voice note", { type: "audio", audio: { id: "a-old", mime_type: "audio/ogg" } }],
     ["a sticker", { type: "sticker", sticker: { id: "s-old", mime_type: "image/webp" } }],
   ]) {
-    const w = world();
+    const w = world({ escalateAnswer: "failed" });
     await w.run({ from: FROM, id: `wamid.old-${m.type}`, timestamp: at(3), ...m });
     assert.deepEqual(w.seen.sent, [], `${name}: REGRESSION, the canned acknowledgement went out three hours late`);
     assert.deepEqual([w.seen.pauses, w.thread().pausedUntil], [[], 0], `${name}: nothing was said, so nothing paused`);
     assert.deepEqual(
-      w.seen.escalations.map((e) => e.reason),
+      w.seen.refused.map((e) => e.reason),
       ["stale"],
       name,
     );
-    assert.match(w.seen.escalations[0].details, /minutes late — too old to answer automatically/, name);
+    assert.match(w.seen.refused[0].details, /minutes late — too old to answer automatically/, name);
     assert.deepEqual(
       w.seen.alerts.map((a) => [a.userText, a.botText]),
       [[`[${m.type}]`, "(no reply sent — arrived too late to answer automatically)"]],
-      `${name}: a person is told what it was`,
+      `${name}: a person is told what it was, here, since the database refused the hold`,
     );
     assert.equal(w.seen.media, 1, `${name}: kept for the person it is handed to`);
     assert.equal(w.seen.processed, 1, name);
@@ -1152,7 +1219,10 @@ test("a confirmation the door refuses reaches a person, not just the log", async
   // best-effort a moment earlier and the door fails closed without it, so a
   // consent write that did not land would leave a customer subscribed to
   // nothing and told nothing.
-  const w = world({ delivered: { outcome: "refused", reason: "no_marketing_consent", messageId: null } });
+  const w = world({
+    escalateAnswer: "failed",
+    delivered: { outcome: "refused", reason: "no_marketing_consent", messageId: null },
+  });
   await w.run(text("YES OFFERS"));
   assert.deepEqual(
     w.thread().history.map((h) => h.role),
@@ -1160,11 +1230,11 @@ test("a confirmation the door refuses reaches a person, not just the log", async
     "nothing is remembered as said",
   );
   assert.deepEqual(
-    w.seen.escalations.map((e) => e.reason),
+    w.seen.refused.map((e) => e.reason),
     ["send_failed"],
   );
-  assert.match(w.seen.escalations[0].details, /no_marketing_consent/);
-  assert.equal(w.seen.alerts[0].reason, "opt-in not confirmed");
+  assert.match(w.seen.refused[0].details, /no_marketing_consent/);
+  assert.equal(w.seen.alerts[0].reason, "opt-in not confirmed", "a hold the database refused is told here");
   assert.equal(w.seen.processed, 1);
 });
 
@@ -1251,6 +1321,26 @@ test("REGRESSION (S5): the holding message is filled as it goes out, whether the
   assert.deepEqual(
     failed.seen.sent.map((s) => s.body),
     ["Sorry — Harbor Nails will reply here soon."],
+  );
+});
+
+test("the writer is read without the message being answered: the reader is handed its id, which was stored first", async () => {
+  // 11 Oct 2026: every writer was "Returning contact. Last in touch today." (db readLeadContext says why).
+  const asked = [];
+  const meta = { intent: "booking", confidence: 0.9, reason: "", facts_used: [], language: "en", model: "m" };
+  const w = world({ env: { modelKey: "k" } });
+  await w.run(text("do you have anything saturday?"), {
+    leads: {
+      read: async (...args) => (asked.push(args.slice(2)), { name: null }),
+      describe: () => "First time reaching out.",
+      personReplyMode: async () => null,
+    },
+    brain: async () => ({ generateReply: async () => ({ text: "We do, at 10.", escalate: false, meta }) }),
+  });
+  assert.deepEqual(
+    asked,
+    [[`+${FROM}`, 1, "m-in"]],
+    "the person's number, one turn, and the message the ingest stored",
   );
 });
 

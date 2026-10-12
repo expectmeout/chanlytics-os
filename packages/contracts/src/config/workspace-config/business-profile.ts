@@ -90,12 +90,12 @@ export const ServiceSchema = z
   .strip();
 
 /**
- * The rules that must survive editing.
+ * The owner's switches over what the receptionist may say (decision 0051, "The owner's words").
  *
- * Flags, never prose. A free-text prompt box hands an owner the ability to
- * delete the price policy, the never-confirm-a-booking rule and the AI
- * disclosure without knowing they have — and nothing downstream could tell.
- * Composed in every time, and default ON: the safe reading of an absent value.
+ * Flags, never prose, so a switch says exactly what it does: off means off, and the code that checks a reply reads the
+ * same switch (guardrailsInForce). Default ON, the safe reading of an absent value. `disclose_ai` is kept for the rows
+ * that store it and read as on whatever it says: the receptionist always says it is an automated assistant, because
+ * the usage policy of the model it runs on asks every consumer-facing agent to (compose.ts standingRules).
  */
 export const GuardrailsSchema = z
   .object({
@@ -183,6 +183,15 @@ export const BusinessProfileSchema = z
      * receptionist's own line — that would ring itself.
      */
     handoff_number: z.string().regex(E164, "E.164, like +12125550143").optional(),
+    /**
+     * The first thing a caller hears, in the owner's words, with {business} for the name (decision 0051): no cap and
+     * nothing refused, only notes (voice/greeting-owner.ts greetingNotes). Absent is the standard greeting. The one
+     * thing the product holds is said where the line is spoken, not here: a line that never says it is automated has
+     * the product's clause added (greetingOf). Never part of the composed prompt, so not in hasProfile.
+     */
+    // `.catch`: a stored value that is not a string reads as none (the standard greeting), never as a config that cannot
+    // be parsed, which would leave the receptionist silent.
+    phone_greeting: z.string().optional().catch(undefined),
     website: z.string().url().max(500).optional(),
     notes: z.array(NoteSchema).max(L.notes).optional(),
     booking_rules: BookingRulesSchema.optional(),

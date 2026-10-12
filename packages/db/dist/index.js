@@ -336,6 +336,26 @@ async function purgeAiUsage(db) {
   if (error) throw new Error(`ai_usage_purge: ${error.message}`);
   return Number(data) || 0;
 }
+async function keepModelTurn(db, turn) {
+  const { error } = await db.rpc("model_turn_keep", {
+    p_tenant_id: turn.tenantId,
+    p_turn_id: turn.turnId,
+    p_conversation_id: turn.conversationId,
+    p_prompt_hash: turn.promptHash,
+    p_prompt_text: turn.promptText,
+    p_request: turn.request,
+    ...turn.response ? { p_response: turn.response } : {},
+    ...turn.model ? { p_model: turn.model } : {},
+    ...turn.latencyMs === null ? {} : { p_latency_ms: Math.max(0, Math.round(turn.latencyMs)) }
+  });
+  if (error) throw new Error(`model_turn_keep: ${error.message}`);
+}
+async function scrubModelTurns(db, tenantId, needles) {
+  const { data, error } = await db.rpc("model_turns_scrub", { p_tenant_id: tenantId, p_needles: [...needles] });
+  if (error && (error.code === "PGRST202" || error.code === "42883")) return 0;
+  if (error) throw new Error(`model_turns_scrub: ${error.message}`);
+  return data ?? 0;
+}
 async function usageMonth(db, tenantId, month) {
   const { data, error } = await db.rpc("ai_usage_month", { p_tenant_id: tenantId, p_month: month });
   if (error) throw new Error(`ai_usage_month: ${error.message}`);
@@ -386,6 +406,31 @@ async function migrationHead(db) {
   const row = data?.[0];
   return { head: row?.head ?? null, applied: row?.applied ?? 0 };
 }
+var NAMES_PER_READ = 100;
+async function platformDay(db, day) {
+  const { data, error } = await db.from("platform_metrics").select("tenant_id, brain_p95_ms, job_lag_ms, duplicate_sends, dead_letters, relay_lag_ms, intake_lag_ms").eq("day", day);
+  if (error) throw new Error(error.message);
+  const rows = data ?? [];
+  const ids = [...new Set(rows.map((r) => r.tenant_id))];
+  const live = /* @__PURE__ */ new Map();
+  for (let i = 0; i < ids.length; i += NAMES_PER_READ) {
+    const t = await db.from("tenants").select("id, name, status").in("id", ids.slice(i, i + NAMES_PER_READ));
+    if (t.error) throw new Error(t.error.message);
+    for (const w of t.data ?? []) if (w.status === "active") live.set(w.id, w.name);
+  }
+  return rows.flatMap((r) => {
+    const name = live.get(r.tenant_id);
+    return name === void 0 ? [] : [
+      {
+        ...r,
+        name,
+        job_lag_ms: r.job_lag_ms,
+        dead_letters: r.dead_letters,
+        intake_lag_ms: r.intake_lag_ms
+      }
+    ];
+  });
+}
 
 // src/erasure-registry.ts
 var ERASURE_LEGS = {
@@ -402,6 +447,7 @@ var ERASURE_LEGS = {
   ask_scrub: "scrub_ask_for_contact: the assistant's turns that name them deleted (00238)",
   deliveries_scrub: "provider_events_scrub: a kept delivery that names them deleted (00336)",
   notes_scrub: "person_notes_scrub: their numbers and addresses overwritten in other people's notes (00341)",
+  turns_scrub: "model_turns_scrub: the receptionist's kept turns that name them, in anyone's thread, deleted (00401); their own went with their conversation",
   appointments_scrub: "appointments_scrub: their visits keep their time and service and lose the client's name, number, address and note; the notices that made them, and any whose subject names them, lose the name (00345)"
 };
 var withPerson = (by) => ({ kind: "with_person", by });
@@ -563,10 +609,15 @@ var ERASURE_STRATEGIES = {
     "new_review_uri",
     "place_id"
   ),
-  // A review's ids and language. Its reviewer, words and reply are counted (above).
-  google_reviews: all(NOT_PERSONAL, "language_code", "maps_uri", "review_id"),
+  // A review as Google shows it: a complete read drops one Google no longer lists, and one not seen for its days goes
+  // (purge_google_reviews, 00392). Its ids and language are nobody's.
+  google_reviews: {
+    ...all(byAge("google_reviews"), "author", "author_uri", "author_photo_uri", "body", "reply_text"),
+    ...all(NOT_PERSONAL, "language_code", "maps_uri", "review_id")
+  },
   idempotency_keys: all(byAge("idempotency_keys"), "key", "route", "request_hash", "response"),
-  // A team invitation's address: the workspace's, kept with it.
+  // A team invitation's address: the workspace's while it is open or expired (the Team card sends it again); one
+  // accepted or taken back goes with its address 30 days later (purge_invitations, 00392).
   invitations: { email: WITH_WORKSPACE },
   jobs: {
     // A thrown error can quote the recipient a provider refused.
@@ -575,8 +626,12 @@ var ERASURE_STRATEGIES = {
     dedupe_key: NOT_PERSONAL
   },
   lead_counters: { period: NOT_PERSONAL },
-  // A batch's judge: its model and the hashes of its work. Its answer is counted (above).
-  lead_judgments: all(NOT_PERSONAL, "model", "op_id", "request_hash"),
+  // A batch's judge: its answer, with a reason for each place, goes with the batch (purge_leads, 00140); its model and
+  // the hashes of its work are nobody's.
+  lead_judgments: {
+    answer: byAge("lead_judgments"),
+    ...all(NOT_PERSONAL, "model", "op_id", "request_hash")
+  },
   // A lead's stage before and after a move, its counts, ids and a keyed hash of its place.
   lead_operations: all(NOT_PERSONAL, "before", "after"),
   lead_preferences: {
@@ -603,7 +658,8 @@ var ERASURE_STRATEGIES = {
   },
   // What the owner asked the finder for, and the kinds of business it suggested.
   lead_searches: all(NOT_PERSONAL, "asked", "card", "name", "plan"),
-  lead_suggestions: all(NOT_PERSONAL, "business_line", "items"),
+  // The ideas for a search (00398, 00399): the business line, the plans, what they were written over and what was passed on.
+  lead_suggestions: all(NOT_PERSONAL, "business_line", "items", "basis", "passed"),
   lead_suppressions: { hash: DIGEST },
   leads: {
     ...all(
@@ -663,6 +719,17 @@ var ERASURE_STRATEGIES = {
   // The kinds a member's phones are not told (00372), and a member's sort and columns: the member's own settings.
   memberships: all(NOT_PERSONAL, "push_off", "views"),
   messages: all(withPerson("erase_contact"), "template_name", "media", "external_id", "content_hash", "error", "meta"),
+  // A kept turn (decision 0039): the person's own go when their conversation does, by the fence's cascade, and a turn
+  // about someone else that quoted them is deleted by needle; the prompt it read is the business's own facts, and
+  // leaves by its clock.
+  model_turns: {
+    ...all(scrubbedBy("turns_scrub", "erase_contact"), "request", "response"),
+    ...all(NOT_PERSONAL, "prompt_hash", "model")
+  },
+  model_prompts: { text: byAge("model_prompts"), prompt_hash: NOT_PERSONAL },
+  // The settings as they stood (decision 0039, step 3): the business's own, as tenant_config.config is, and unlike it
+  // a version leaves by its clock once it is replaced.
+  tenant_config_versions: { config: byAge("tenant_config_versions") },
   notifications: {
     ...all(byAge("notifications"), "title", "body"),
     ...all(NOT_PERSONAL, "route", "subject_type", "subject_id")
@@ -701,7 +768,7 @@ var ERASURE_STRATEGIES = {
     )
   },
   // A partner's ledger of the workspaces it brought: Stripe's ids, the code used, the sweep's checks and reasons; the
-  // address a workspace is handed to, the workspace's.
+  // address a workspace is handed to, the workspace's, cleared once its new owner accepts (00392).
   partner_earnings: all(NOT_PERSONAL, "currency", "stripe_event_id", "stripe_invoice_id"),
   partner_tenants: {
     handover_email: WITH_WORKSPACE,
@@ -1181,6 +1248,23 @@ async function recordConsent(db, p) {
   });
   return { data, error };
 }
+async function addPersonByHand(db, p) {
+  const { data, error } = p.email ? await db.rpc("add_person", {
+    p_tenant_id: p.tenantId,
+    p_phone_e164: p.phone ?? "",
+    p_email: p.email,
+    p_display_name: p.name,
+    p_source: p.source
+  }) : await db.rpc("create_person", {
+    p_tenant_id: p.tenantId,
+    p_phone_e164: p.phone ?? "",
+    p_display_name: p.name,
+    p_source: p.source
+  });
+  if (error) return { data: null, error };
+  const o = data ?? {};
+  return { data: { contact_id: String(o.contact_id), existed: o.existed === true }, error: null };
+}
 
 // src/repositories/control.ts
 var CALL_CONTROL_S = 15 * 60;
@@ -1626,7 +1710,7 @@ async function recordStatusByExternalId(db, tenantId, externalId, status, errorD
   }
 }
 async function messageByExternalId(db, tenantId, externalId) {
-  const { data, error } = await db.from("messages").select("id, conversation_id, direction, sender, channel, status, meta, contacts (phone_e164, email)").eq("tenant_id", tenantId).eq("external_id", externalId).maybeSingle();
+  const { data, error } = await db.from("messages").select("id, conversation_id, direction, sender, status, meta").eq("tenant_id", tenantId).eq("external_id", externalId).maybeSingle();
   if (error) throw new Error(`messageByExternalId: ${error.message}`);
   if (!data) return null;
   return {
@@ -1635,8 +1719,7 @@ async function messageByExternalId(db, tenantId, externalId) {
     direction: data.direction,
     sender: data.sender,
     status: data.status,
-    meta: data.meta,
-    to: (data.channel === "email" ? data.contacts?.email : data.contacts?.phone_e164) ?? null
+    meta: data.meta
   };
 }
 async function keepMessageCost(db, tenantId, externalId, pricing) {
@@ -3124,6 +3207,30 @@ async function receptionistSeries(db, tenantId, window) {
   }
   return data;
 }
+async function peopleSeries(db, tenantId, window) {
+  const { data, error } = await db.rpc("people_series", windowArgs(tenantId, window));
+  if (error) {
+    if (isMissingDoor(error)) return null;
+    throw new Error(`people_series: ${error.message}`);
+  }
+  return data;
+}
+async function campaignLedger(db, tenantId, window) {
+  const { data, error } = await db.rpc("campaign_ledger", windowArgs(tenantId, window));
+  if (error) {
+    if (isMissingDoor(error)) return null;
+    throw new Error(`campaign_ledger: ${error.message}`);
+  }
+  return data;
+}
+async function campaignStuck(db, tenantId) {
+  const { data, error } = await db.rpc("campaign_stuck", { p_tenant_id: tenantId });
+  if (error) {
+    if (isMissingDoor(error)) return null;
+    throw new Error(`campaign_stuck: ${error.message}`);
+  }
+  return data;
+}
 async function reachOutReport(db, tenantId, window) {
   const { data, error } = await db.rpc("reach_out_report", windowArgs(tenantId, window));
   if (error) {
@@ -3170,6 +3277,298 @@ async function firstReplies(db, tenantId, since) {
       }
     ] : []
   );
+}
+
+// src/repositories/notifications.ts
+import { HOUR_MS as HOUR_MS2, MIN_MS } from "../../contracts/dist/index.js";
+
+// src/repositories/thread.ts
+import {
+  fencedInline,
+  promptSafeName,
+  clockDate,
+  DAY_MS,
+  dealIsOpen,
+  dealSentence,
+  dealsAreOn,
+  offersFacts,
+  disclosureFacts,
+  pickCurrentDeal,
+  proposalLinkOf
+} from "../../contracts/dist/index.js";
+var DELIVERED = ["sent", "delivered", "read"];
+var IMPORTED_CALL_NOTE = /^\[voice call note /;
+var isBackfill = (m) => !!m.meta && typeof m.meta === "object" && m.meta.backfill === true;
+var isAcknowledgement = (m) => !!m.meta && typeof m.meta === "object" && m.meta.ack === true;
+var effectiveAt = (m) => new Date(m.channel_ts ?? m.created_at).getTime();
+function keptTurns(rows) {
+  const kept = rows.filter((m) => {
+    const body = (m.body ?? "").trim();
+    if (!body) return false;
+    if (m.direction === "outbound" && !DELIVERED.includes(String(m.status))) return false;
+    if (isBackfill(m) && IMPORTED_CALL_NOTE.test(body)) return false;
+    return true;
+  });
+  return kept.sort((a, b) => effectiveAt(a) - effectiveAt(b));
+}
+function assembleHistory(rows, limit) {
+  return keptTurns(rows).map((m) => ({
+    // A call note is the customer's own history on another channel — one
+    // agent, so it counts the same as a message.
+    role: m.sender === "customer" ? "user" : "assistant",
+    content: (m.body ?? "").trim()
+  })).slice(-limit);
+}
+var HISTORY_COLUMNS = "body, sender, direction, type, status, created_at, channel_ts, meta";
+async function readThreadState(db, tenantId, conversationId, pausedUntilIso, historyLimit = 16) {
+  const since = new Date(Date.now() - DAY_MS).toISOString();
+  const [recent, replies, texted] = await Promise.all([
+    db.from("messages").select(HISTORY_COLUMNS).eq("tenant_id", tenantId).eq("conversation_id", conversationId).order("created_at", { ascending: false }).limit(historyLimit * 3),
+    // headroom: duplicates and blanks drop out below
+    db.from("messages").select("created_at, meta").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("sender", "ai").eq("direction", "outbound").in("status", DELIVERED).gte("created_at", since),
+    // One row is the answer: a text of ours that left, at any time. Not read off `recent`, which is the last few
+    // rows of every wire: a long thread's first text would fall out of it, and a campaign by WhatsApp or email is in it.
+    db.from("messages").select("id").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("direction", "outbound").eq("channel", "sms").in("status", DELIVERED).limit(1)
+  ]);
+  if (recent.error) throw new Error(`readThreadState/history: ${recent.error.message}`);
+  if (replies.error) throw new Error(`readThreadState/replies: ${replies.error.message}`);
+  if (texted.error) throw new Error(`readThreadState/texted: ${texted.error.message}`);
+  const history = assembleHistory(recent.data ?? [], historyLimit);
+  return {
+    history,
+    textedBefore: (texted.data ?? []).length > 0,
+    pausedUntil: pausedUntilIso ? new Date(pausedUntilIso).getTime() : 0,
+    // Imported rows carry the timestamp of the IMPORT, not of a send. Counting
+    // them would let a backfill silence the bot for a day against a cap it
+    // never actually spent.
+    replies: (replies.data ?? []).filter((r) => !isBackfill(r) && !isAcknowledgement(r)).map((r) => new Date(r.created_at).getTime())
+  };
+}
+function sellsByOf(embedded) {
+  const t = Array.isArray(embedded) ? embedded[0] : embedded;
+  const v = t && typeof t === "object" ? t.sells_by : null;
+  return typeof v === "string" ? v : null;
+}
+var noSellsBy = (message) => /\bsells_by\b/.test(message) && /does not exist|could not find/i.test(message);
+var noOffersColumns = (message) => /\b(offers_asked_at|marketing_channels)\b/.test(message) && /does not exist|could not find/i.test(message);
+var EMPTY_LEAD = {
+  contactId: null,
+  conversationId: null,
+  name: null,
+  returning: false,
+  lastSeenAt: null,
+  history: [],
+  optedOut: false
+};
+async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16, answering) {
+  const withAnswer = await db.from("contacts").select(
+    "id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, marketing_channels, offers_asked_at, tenants(sells_by)"
+  ).eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
+  let contact = withAnswer.data ? { ...withAnswer.data, sellsBy: sellsByOf(withAnswer.data.tenants) } : null;
+  let cErr = withAnswer.error;
+  if (cErr && noOffersColumns(cErr.message)) {
+    const unasked = await db.from("contacts").select(
+      "id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, tenants(sells_by)"
+    ).eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
+    contact = unasked.data ? { ...unasked.data, sellsBy: sellsByOf(unasked.data.tenants) } : null;
+    cErr = unasked.error;
+  }
+  if (cErr && noSellsBy(cErr.message)) {
+    const older = await db.from("contacts").select(
+      "id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent"
+    ).eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
+    contact = older.data ? { ...older.data, sellsBy: null } : null;
+    cErr = older.error;
+  }
+  if (cErr) throw new Error(`readLeadContext/contact: ${cErr.message}`);
+  if (!contact) return EMPTY_LEAD;
+  const dealsOn = dealsAreOn(contact.sellsBy);
+  const { data: conv, error: vErr } = await db.from("conversations").select("id").eq("tenant_id", tenantId).eq("contact_id", contact.id).maybeSingle();
+  if (vErr) throw new Error(`readLeadContext/conversation: ${vErr.message}`);
+  const { history, lastTurnAt } = conv ? await turnsBefore(db, tenantId, conv.id, historyLimit, answering) : { history: [], lastTurnAt: null };
+  const { data: dealRows } = dealsOn ? await db.from("deals").select("stage, service, proposed_at, decided_at, ended_at, created_at, proposal_url").eq("tenant_id", tenantId).eq("contact_id", contact.id).order("created_at", { ascending: false }) : { data: [] };
+  const current = pickCurrentDeal(dealRows ?? []);
+  const others = (dealRows ?? []).filter((d) => d !== current && dealIsOpen(d));
+  const { data: noteRows, error: nErr } = await db.from("person_notes").select("body, created_at").eq("tenant_id", tenantId).eq("contact_id", contact.id).eq("state", "kept").eq("team_only", false).order("created_at", { ascending: false }).limit(NOTES_READ);
+  return {
+    contactId: contact.id,
+    conversationId: conv?.id ?? null,
+    // display_name is what a human typed; wa_profile_name is what WhatsApp
+    // reports. The human's version wins, and neither is invented.
+    name: contact.display_name || contact.wa_profile_name || null,
+    // Having said anything at all is what makes someone returning — not merely
+    // existing as a row, which an outbound-only contact would also satisfy.
+    returning: history.length > 0,
+    lastSeenAt: answering ? lastTurnAt : contact.last_seen_at ?? null,
+    history,
+    optedOut: contact.consent === "opted_out" || contact.dnc === true,
+    hasEmail: !!contact.email,
+    marketingConsent: contact.marketing_consent,
+    marketingChannels: contact.marketing_channels,
+    // Undefined where the column could not be read: not null, which says "never asked".
+    offersAskedAt: contact.offers_asked_at,
+    notes: contact.notes ?? null,
+    noteList: nErr ? null : (noteRows ?? []).map((n) => ({ body: n.body, at: n.created_at })),
+    proposalUrl: dealsOn ? proposalLinkOf(current, contact.proposal_url) : null,
+    deal: current ? dealRowFacts(current) : null,
+    otherDeals: others.map((d) => ({ ...dealRowFacts(d), proposal_url: d.proposal_url }))
+  };
+}
+async function turnsBefore(db, tenantId, conversationId, limit, answering) {
+  const { data: rows, error } = await db.from("messages").select(`id, ${HISTORY_COLUMNS}`).eq("tenant_id", tenantId).eq("conversation_id", conversationId).order("created_at", { ascending: false }).limit(answering ? Math.max(limit * 3, 24) + 1 : limit * 3);
+  if (error) throw new Error(`readLeadContext/history: ${error.message}`);
+  const before = (rows ?? []).filter((m) => m.id !== answering);
+  const newest = keptTurns(before).at(-1);
+  const lastTurnAt = newest ? new Date(effectiveAt(newest)).toISOString() : null;
+  return { history: assembleHistory(before, limit), lastTurnAt };
+}
+function dealRowFacts(d) {
+  return {
+    stage: d.stage,
+    service: d.service,
+    proposed_at: d.proposed_at,
+    decided_at: d.decided_at,
+    ended_at: d.ended_at
+  };
+}
+async function readDealForPhone(db, tenantId, phoneE164) {
+  const { data: c } = await db.from("contacts").select("id, tenants(sells_by)").eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
+  if (!c || !dealsAreOn(sellsByOf(c.tenants))) return null;
+  const { data } = await db.from("deals").select("stage, service, proposed_at, decided_at, ended_at, created_at").eq("tenant_id", tenantId).eq("contact_id", c.id).order("created_at", { ascending: false });
+  const d = (data ?? []).find((x) => x.stage === "won") ?? pickCurrentDeal(data ?? []);
+  return d ? dealRowFacts(d) : null;
+}
+var NOTES_READ = 12;
+var NOTES_BUDGET = 1200;
+function notesForReceptionist(lead, now = /* @__PURE__ */ new Date(), tz = "UTC") {
+  if (Array.isArray(lead.noteList)) {
+    const parts = [];
+    let used = 0;
+    for (const n of lead.noteList) {
+      const body = n.body.replace(/\s+/g, " ").trim();
+      if (!body) continue;
+      const t = Date.parse(n.at);
+      const part = Number.isFinite(t) ? `(${clockDate(t, tz, now.getTime())}) ${body}` : body;
+      if (parts.length && used + part.length > NOTES_BUDGET) break;
+      parts.push(part);
+      used += part.length + 2;
+    }
+    return parts.length ? `Notes from the team about them, newest first (use as facts, never read aloud or quoted): ${parts.join("; ")}` : null;
+  }
+  const notes = (lead.notes ?? "").replace(/\s+/g, " ").trim();
+  return notes ? `Notes from the owner about them (use as facts, never read aloud or quoted): ${notes}` : null;
+}
+function describeLead(lead, now = /* @__PURE__ */ new Date(), tz = "UTC", channel) {
+  if (!lead.contactId) return "New contact \u2014 no prior history on record.";
+  const bits = [];
+  const name = promptSafeName(lead.name);
+  bits.push(name ? `Name on record: ${fencedInline("profile_name", name)}.` : "No name on record.");
+  if (lead.hasEmail === true) bits.push("Their email address is on file.");
+  else if (lead.hasEmail === false) bits.push("No email address on file.");
+  bits.push(
+    ...offersFacts(lead, channel, now, tz),
+    ...disclosureFacts({ returning: lead.returning, lastTurnAt: lead.lastSeenAt }, channel, now)
+  );
+  if (lead.returning) {
+    const days = lead.lastSeenAt ? Math.floor((now.getTime() - new Date(lead.lastSeenAt).getTime()) / DAY_MS) : null;
+    const when = days === null ? "" : days <= 0 ? " Last in touch today." : days === 1 ? " Last in touch yesterday." : ` Last in touch ${days} days ago.`;
+    bits.push(`Returning contact.${when}`);
+  } else {
+    bits.push("First time reaching out.");
+  }
+  if (lead.optedOut) bits.push("They have asked not to receive messages.");
+  const notes = notesForReceptionist(lead, now, tz);
+  if (notes) bits.push(notes);
+  const deal = dealSentence(lead.deal ?? null, now.getTime(), tz, { hasLink: !!(lead.proposalUrl ?? "").trim() });
+  if (deal) bits.push(deal);
+  const others = lead.otherDeals ?? [];
+  for (const d of others) {
+    const said = dealSentence(d, now.getTime(), tz, { hasLink: !!(d.proposal_url ?? "").trim() });
+    if (said) bits.push(said);
+  }
+  const links = proposalLinkWords(lead);
+  if (links) bits.push(links);
+  return bits.join(" ");
+}
+function proposalLinkWords(lead) {
+  const others = lead.otherDeals ?? [];
+  const links = [
+    { url: (lead.proposalUrl ?? "").trim(), service: lead.deal?.service ?? null },
+    ...others.filter((d) => d.stage === "proposed").map((d) => ({ url: (d.proposal_url ?? "").trim(), service: d.service }))
+  ].filter((x) => x.url);
+  const [first] = links;
+  if (!first) return null;
+  if (!others.length)
+    return `The owner has a proposal ready for them at ${first.url}. If they ask about price, a quote or the proposal, send that link and state none of its figures; on a call, never read the address out \u2014 say it is being sent to them in writing.`;
+  const rest = "and state none of its figures; a question about any other deal of theirs follows that deal's own sentence; on a call, never read an address out \u2014 say it is being sent to them in writing.";
+  if (links.length === 1)
+    return `The owner has a proposal${first.service ? ` for ${first.service}` : ""} ready for them at ${first.url}. If they ask about that proposal, its price or a quote for it, send that link ${rest}`;
+  const named = links.map((x) => x.service ? `${x.service} at ${x.url}` : x.url).join("; ");
+  return `The owner has proposals ready for them: ${named}. If they ask about one of these, its price or a quote for it, send the link for the one they mean (ask which, if it is not clear) ${rest}`;
+}
+function hitKind(kind) {
+  if (kind === "message" || kind === "call") return kind;
+  throw new Error(`searchMessages: unknown kind ${kind}`);
+}
+async function searchMessages(db, tenantId, words, since, limit) {
+  const { data, error } = await db.rpc("search_messages", {
+    p_tenant: tenantId,
+    p_words: words,
+    p_since: since.toISOString(),
+    p_limit: limit
+  });
+  if (error) throw new Error(`searchMessages: ${error.message}`);
+  return (data ?? []).map((r) => ({
+    kind: hitKind(r.kind),
+    id: r.id,
+    conversationId: r.conversation_id ?? null,
+    contactId: r.contact_id ?? null,
+    channel: r.channel ?? null,
+    direction: r.direction,
+    at: r.at,
+    snippet: r.snippet ?? ""
+  }));
+}
+async function failedMessageErrors(db, tenantId, ids) {
+  const out = [];
+  for (let i = 0; i < ids.length; i += IDS_PER_READ2) {
+    const { data, error } = await db.from("messages").select("id, error").eq("tenant_id", tenantId).eq("status", "failed").in("id", ids.slice(i, i + IDS_PER_READ2));
+    if (error) throw new Error(`failedMessageErrors: ${error.message}`);
+    for (const r of data ?? [])
+      if (r.error !== null && typeof r.error === "object" && !Array.isArray(r.error))
+        out.push({ id: r.id, error: r.error });
+  }
+  return out;
+}
+async function messageSenders(db, tenantId, ids) {
+  const out = [];
+  for (let i = 0; i < ids.length; i += IDS_PER_READ2) {
+    const { data, error } = await db.from("messages").select("id, sender, status, type").eq("tenant_id", tenantId).in("id", ids.slice(i, i + IDS_PER_READ2));
+    if (error) throw new Error(`messageSenders: ${error.message}`);
+    out.push(...data ?? []);
+  }
+  return out;
+}
+async function repliedTo(db, tenantId, conversationId, messageId) {
+  const { data, error } = await db.from("messages").select("id").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("direction", "outbound").eq("meta->>reply_to", messageId).limit(1);
+  if (error) throw new Error(`repliedTo: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+async function textReached(db, tenantId, conversationId) {
+  const { data, error } = await db.from("messages").select("id").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("direction", "outbound").eq("channel", "sms").in("status", DELIVERED).limit(1);
+  if (error) throw new Error(`textReached: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+async function openConversation(db, tenantId, contactId) {
+  const { data, error } = await db.rpc("conversation_open", { p_tenant_id: tenantId, p_contact_id: contactId });
+  if (error) throw error;
+  if (typeof data !== "string" || !data) throw new Error("conversation_open: the door answered no thread");
+  return data;
+}
+async function ourLastWire(db, tenantId, conversationId) {
+  const { data, error } = await db.from("messages").select("channel").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("direction", "outbound").in("type", ["text", "template", "media"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error(`reading the last outbound: ${error.message}`);
+  return data?.channel ?? null;
 }
 
 // src/repositories/notifications.ts
@@ -3233,6 +3632,57 @@ async function membersPushedFor(db, p) {
   if (all2.error) throw new Error(`cannot read who is in the workspace: ${all2.error.message}`);
   return (all2.data ?? []).map((m) => m.user_id);
 }
+var oneOr = (r, what) => {
+  if (r.error) throw new Error(`cannot read ${what}: ${r.error.message}`);
+  return r.data?.[0] ?? null;
+};
+async function holdFactsOf(db, tenantId, ref, nowMs) {
+  const holds = db.from("escalations").select("id, conversation_id, reason, details").eq("tenant_id", tenantId).eq("state", "open");
+  const hold = oneOr(
+    await ("conversationId" in ref ? holds.eq("conversation_id", ref.conversationId) : holds.eq("id", ref.escalationId)).limit(1),
+    "the hold"
+  );
+  if (!hold) return null;
+  const thread = oneOr(
+    await db.from("conversations").select("contact_id, paused_until").eq("tenant_id", tenantId).eq("id", hold.conversation_id).limit(1),
+    "the thread"
+  );
+  if (!thread) return null;
+  const person = oneOr(
+    await db.from("contacts").select("display_name, wa_profile_name, phone_e164, email, erased_at, erasing_since").eq("tenant_id", tenantId).eq("id", thread.contact_id).limit(1),
+    "the person"
+  );
+  const theirs = oneOr(
+    await db.from("messages").select("body, channel, created_at").eq("tenant_id", tenantId).eq("conversation_id", hold.conversation_id).eq("direction", "inbound").eq("sender", "customer").order("created_at", { ascending: false }).limit(1),
+    "their words"
+  );
+  const reply = theirs ? oneOr(
+    await db.from("messages").select("body").eq("tenant_id", tenantId).eq("conversation_id", hold.conversation_id).eq("direction", "outbound").eq("sender", "ai").in("status", DELIVERED).gte("created_at", theirs.created_at).order("created_at", { ascending: false }).limit(1),
+    "the receptionist's reply"
+  ) : null;
+  const pausedMs = thread.paused_until ? Date.parse(thread.paused_until) - nowMs : 0;
+  return {
+    conversationId: hold.conversation_id,
+    reason: hold.reason,
+    details: hold.details,
+    who: person?.display_name ?? person?.wa_profile_name ?? null,
+    address: person?.phone_e164 ?? person?.email ?? null,
+    channel: theirs?.channel ?? null,
+    customerWords: theirs?.body ?? null,
+    replyWords: reply?.body ?? null,
+    pausedHours: pausedMs > 0 ? Math.max(1, Math.round(pausedMs / HOUR_MS2)) : null,
+    erased: !person || !!person.erased_at || !!person.erasing_since
+  };
+}
+async function holdTold(db, p) {
+  const answered = await db.from("notifications").select("id").eq("tenant_id", p.tenantId).eq("source_event", p.eventId).limit(1);
+  if (answered.error) throw new Error(`cannot read what the workspace was told: ${answered.error.message}`);
+  if ((answered.data ?? []).length) return true;
+  const since = new Date(Date.parse(p.at) - MIN_MS).toISOString();
+  const inline = await db.from("notifications").select("id").eq("tenant_id", p.tenantId).eq("kind", "handoff").eq("subject_type", "conversation").eq("subject_id", p.conversationId).is("source_event", null).gte("created_at", since).limit(1);
+  if (inline.error) throw new Error(`cannot read what the workspace was told: ${inline.error.message}`);
+  return (inline.data ?? []).length > 0;
+}
 
 // src/repositories/campaigns/workspace.ts
 async function workspacePaused(db, tenantId) {
@@ -3248,9 +3698,9 @@ async function reviewLinkOf(db, tenantId) {
 }
 
 // src/repositories/routing.ts
-import { MIN_MS } from "../../contracts/dist/index.js";
-var POS_TTL_MS = 5 * MIN_MS;
-var NEG_TTL_MS = MIN_MS;
+import { MIN_MS as MIN_MS2 } from "../../contracts/dist/index.js";
+var POS_TTL_MS = 5 * MIN_MS2;
+var NEG_TTL_MS = MIN_MS2;
 var cache = /* @__PURE__ */ new Map();
 async function resolveChannelDetailed(db, kind, externalId) {
   const key = `${kind}:${externalId}`;
@@ -3399,298 +3849,6 @@ async function isWorkspaceCall(db, tenantId, retellCallId) {
   const { data, error } = await tenantDb(db, tenantId).from("calls").select("id").eq("retell_call_id", retellCallId).limit(1).maybeSingle();
   if (error) return null;
   return data !== null;
-}
-
-// src/repositories/thread.ts
-import {
-  fencedInline,
-  promptSafeName,
-  clockDate,
-  DAY_MS,
-  dealIsOpen,
-  dealSentence,
-  dealsAreOn,
-  offersFacts,
-  pickCurrentDeal,
-  proposalLinkOf
-} from "../../contracts/dist/index.js";
-var DELIVERED = ["sent", "delivered", "read"];
-var IMPORTED_CALL_NOTE = /^\[voice call note /;
-var isBackfill = (m) => !!m.meta && typeof m.meta === "object" && m.meta.backfill === true;
-var isAcknowledgement = (m) => !!m.meta && typeof m.meta === "object" && m.meta.ack === true;
-var effectiveAt = (m) => new Date(m.channel_ts ?? m.created_at).getTime();
-function assembleHistory(rows, limit) {
-  const kept = rows.filter((m) => {
-    const body = (m.body ?? "").trim();
-    if (!body) return false;
-    if (m.direction === "outbound" && !DELIVERED.includes(String(m.status))) return false;
-    if (isBackfill(m) && IMPORTED_CALL_NOTE.test(body)) return false;
-    return true;
-  });
-  kept.sort((a, b) => effectiveAt(a) - effectiveAt(b));
-  return kept.map((m) => ({
-    // A call note is the customer's own history on another channel — one
-    // agent, so it counts the same as a message.
-    role: m.sender === "customer" ? "user" : "assistant",
-    content: (m.body ?? "").trim()
-  })).slice(-limit);
-}
-var HISTORY_COLUMNS = "body, sender, direction, type, status, created_at, channel_ts, meta";
-async function readThreadState(db, tenantId, conversationId, pausedUntilIso, historyLimit = 16) {
-  const since = new Date(Date.now() - DAY_MS).toISOString();
-  const [recent, replies, texted] = await Promise.all([
-    db.from("messages").select(HISTORY_COLUMNS).eq("tenant_id", tenantId).eq("conversation_id", conversationId).order("created_at", { ascending: false }).limit(historyLimit * 3),
-    // headroom: duplicates and blanks drop out below
-    db.from("messages").select("created_at, meta").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("sender", "ai").eq("direction", "outbound").in("status", DELIVERED).gte("created_at", since),
-    // One row is the answer: a text of ours that left, at any time. Not read off `recent`, which is the last few
-    // rows of every wire: a long thread's first text would fall out of it, and a campaign by WhatsApp or email is in it.
-    db.from("messages").select("id").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("direction", "outbound").eq("channel", "sms").in("status", DELIVERED).limit(1)
-  ]);
-  if (recent.error) throw new Error(`readThreadState/history: ${recent.error.message}`);
-  if (replies.error) throw new Error(`readThreadState/replies: ${replies.error.message}`);
-  if (texted.error) throw new Error(`readThreadState/texted: ${texted.error.message}`);
-  const history = assembleHistory(recent.data ?? [], historyLimit);
-  return {
-    history,
-    textedBefore: (texted.data ?? []).length > 0,
-    pausedUntil: pausedUntilIso ? new Date(pausedUntilIso).getTime() : 0,
-    // Imported rows carry the timestamp of the IMPORT, not of a send. Counting
-    // them would let a backfill silence the bot for a day against a cap it
-    // never actually spent.
-    replies: (replies.data ?? []).filter((r) => !isBackfill(r) && !isAcknowledgement(r)).map((r) => new Date(r.created_at).getTime())
-  };
-}
-function sellsByOf(embedded) {
-  const t = Array.isArray(embedded) ? embedded[0] : embedded;
-  const v = t && typeof t === "object" ? t.sells_by : null;
-  return typeof v === "string" ? v : null;
-}
-var noSellsBy = (message) => /\bsells_by\b/.test(message) && /does not exist|could not find/i.test(message);
-var noOffersColumns = (message) => /\b(offers_asked_at|marketing_channels)\b/.test(message) && /does not exist|could not find/i.test(message);
-var EMPTY_LEAD = {
-  contactId: null,
-  conversationId: null,
-  name: null,
-  returning: false,
-  lastSeenAt: null,
-  history: [],
-  optedOut: false
-};
-async function readLeadContext(db, tenantId, phoneE164, historyLimit = 16) {
-  const withAnswer = await db.from("contacts").select(
-    "id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, marketing_channels, offers_asked_at, tenants(sells_by)"
-  ).eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
-  let contact = withAnswer.data ? { ...withAnswer.data, sellsBy: sellsByOf(withAnswer.data.tenants) } : null;
-  let cErr = withAnswer.error;
-  if (cErr && noOffersColumns(cErr.message)) {
-    const unasked = await db.from("contacts").select(
-      "id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, tenants(sells_by)"
-    ).eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
-    contact = unasked.data ? { ...unasked.data, sellsBy: sellsByOf(unasked.data.tenants) } : null;
-    cErr = unasked.error;
-  }
-  if (cErr && noSellsBy(cErr.message)) {
-    const older = await db.from("contacts").select(
-      "id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent"
-    ).eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
-    contact = older.data ? { ...older.data, sellsBy: null } : null;
-    cErr = older.error;
-  }
-  if (cErr) throw new Error(`readLeadContext/contact: ${cErr.message}`);
-  if (!contact) return EMPTY_LEAD;
-  const dealsOn = dealsAreOn(contact.sellsBy);
-  const { data: conv, error: vErr } = await db.from("conversations").select("id").eq("tenant_id", tenantId).eq("contact_id", contact.id).maybeSingle();
-  if (vErr) throw new Error(`readLeadContext/conversation: ${vErr.message}`);
-  let history = [];
-  if (conv) {
-    const { data: rows, error: hErr } = await db.from("messages").select(HISTORY_COLUMNS).eq("tenant_id", tenantId).eq("conversation_id", conv.id).order("created_at", { ascending: false }).limit(historyLimit * 3);
-    if (hErr) throw new Error(`readLeadContext/history: ${hErr.message}`);
-    history = assembleHistory(rows ?? [], historyLimit);
-  }
-  const { data: dealRows } = dealsOn ? await db.from("deals").select("stage, service, proposed_at, decided_at, ended_at, created_at, proposal_url").eq("tenant_id", tenantId).eq("contact_id", contact.id).order("created_at", { ascending: false }) : { data: [] };
-  const current = pickCurrentDeal(dealRows ?? []);
-  const others = (dealRows ?? []).filter((d) => d !== current && dealIsOpen(d));
-  const { data: noteRows, error: nErr } = await db.from("person_notes").select("body, created_at").eq("tenant_id", tenantId).eq("contact_id", contact.id).eq("state", "kept").eq("team_only", false).order("created_at", { ascending: false }).limit(NOTES_READ);
-  return {
-    contactId: contact.id,
-    conversationId: conv?.id ?? null,
-    // display_name is what a human typed; wa_profile_name is what WhatsApp
-    // reports. The human's version wins, and neither is invented.
-    name: contact.display_name || contact.wa_profile_name || null,
-    // Having said anything at all is what makes someone returning — not merely
-    // existing as a row, which an outbound-only contact would also satisfy.
-    returning: history.length > 0,
-    lastSeenAt: contact.last_seen_at ?? null,
-    history,
-    optedOut: contact.consent === "opted_out" || contact.dnc === true,
-    hasEmail: !!contact.email,
-    marketingConsent: contact.marketing_consent,
-    marketingChannels: contact.marketing_channels,
-    // Undefined where the column could not be read: not null, which says "never asked".
-    offersAskedAt: contact.offers_asked_at,
-    notes: contact.notes ?? null,
-    noteList: nErr ? null : (noteRows ?? []).map((n) => ({ body: n.body, at: n.created_at })),
-    proposalUrl: dealsOn ? proposalLinkOf(current, contact.proposal_url) : null,
-    deal: current ? dealRowFacts(current) : null,
-    otherDeals: others.map((d) => ({ ...dealRowFacts(d), proposal_url: d.proposal_url }))
-  };
-}
-function dealRowFacts(d) {
-  return {
-    stage: d.stage,
-    service: d.service,
-    proposed_at: d.proposed_at,
-    decided_at: d.decided_at,
-    ended_at: d.ended_at
-  };
-}
-async function readDealForPhone(db, tenantId, phoneE164) {
-  const { data: c } = await db.from("contacts").select("id, tenants(sells_by)").eq("tenant_id", tenantId).eq("phone_e164", phoneE164).maybeSingle();
-  if (!c || !dealsAreOn(sellsByOf(c.tenants))) return null;
-  const { data } = await db.from("deals").select("stage, service, proposed_at, decided_at, ended_at, created_at").eq("tenant_id", tenantId).eq("contact_id", c.id).order("created_at", { ascending: false });
-  const d = (data ?? []).find((x) => x.stage === "won") ?? pickCurrentDeal(data ?? []);
-  return d ? dealRowFacts(d) : null;
-}
-var NOTES_READ = 12;
-var NOTES_BUDGET = 1200;
-function notesForReceptionist(lead, now = /* @__PURE__ */ new Date(), tz = "UTC") {
-  if (Array.isArray(lead.noteList)) {
-    const parts = [];
-    let used = 0;
-    for (const n of lead.noteList) {
-      const body = n.body.replace(/\s+/g, " ").trim();
-      if (!body) continue;
-      const t = Date.parse(n.at);
-      const part = Number.isFinite(t) ? `(${clockDate(t, tz, now.getTime())}) ${body}` : body;
-      if (parts.length && used + part.length > NOTES_BUDGET) break;
-      parts.push(part);
-      used += part.length + 2;
-    }
-    return parts.length ? `Notes from the team about them, newest first (use as facts, never read aloud or quoted): ${parts.join("; ")}` : null;
-  }
-  const notes = (lead.notes ?? "").replace(/\s+/g, " ").trim();
-  return notes ? `Notes from the owner about them (use as facts, never read aloud or quoted): ${notes}` : null;
-}
-function describeLead(lead, now = /* @__PURE__ */ new Date(), tz = "UTC", channel) {
-  if (!lead.contactId) return "New contact \u2014 no prior history on record.";
-  const bits = [];
-  const name = promptSafeName(lead.name);
-  bits.push(name ? `Name on record: ${fencedInline("profile_name", name)}.` : "No name on record.");
-  if (lead.hasEmail === true) bits.push("Their email address is on file.");
-  else if (lead.hasEmail === false) bits.push("No email address on file.");
-  bits.push(
-    ...offersFacts(
-      {
-        marketingConsent: lead.marketingConsent,
-        marketingChannels: lead.marketingChannels,
-        offersAskedAt: lead.offersAskedAt,
-        optedOut: lead.optedOut
-      },
-      channel,
-      now,
-      tz
-    )
-  );
-  if (lead.returning) {
-    const days = lead.lastSeenAt ? Math.floor((now.getTime() - new Date(lead.lastSeenAt).getTime()) / DAY_MS) : null;
-    const when = days === null ? "" : days <= 0 ? " Last in touch today." : days === 1 ? " Last in touch yesterday." : ` Last in touch ${days} days ago.`;
-    bits.push(`Returning contact.${when}`);
-  } else {
-    bits.push("First time reaching out.");
-  }
-  if (lead.optedOut) bits.push("They have asked not to receive messages.");
-  const notes = notesForReceptionist(lead, now, tz);
-  if (notes) bits.push(notes);
-  const deal = dealSentence(lead.deal ?? null, now.getTime(), tz, { hasLink: !!(lead.proposalUrl ?? "").trim() });
-  if (deal) bits.push(deal);
-  const others = lead.otherDeals ?? [];
-  for (const d of others) {
-    const said = dealSentence(d, now.getTime(), tz, { hasLink: !!(d.proposal_url ?? "").trim() });
-    if (said) bits.push(said);
-  }
-  const links = proposalLinkWords(lead);
-  if (links) bits.push(links);
-  return bits.join(" ");
-}
-function proposalLinkWords(lead) {
-  const others = lead.otherDeals ?? [];
-  const links = [
-    { url: (lead.proposalUrl ?? "").trim(), service: lead.deal?.service ?? null },
-    ...others.filter((d) => d.stage === "proposed").map((d) => ({ url: (d.proposal_url ?? "").trim(), service: d.service }))
-  ].filter((x) => x.url);
-  const [first] = links;
-  if (!first) return null;
-  if (!others.length)
-    return `The owner has a proposal ready for them at ${first.url}. If they ask about price, a quote or the proposal, send that link and state none of its figures; on a call, never read the address out \u2014 say it is being sent to them in writing.`;
-  const rest = "and state none of its figures; a question about any other deal of theirs follows that deal's own sentence; on a call, never read an address out \u2014 say it is being sent to them in writing.";
-  if (links.length === 1)
-    return `The owner has a proposal${first.service ? ` for ${first.service}` : ""} ready for them at ${first.url}. If they ask about that proposal, its price or a quote for it, send that link ${rest}`;
-  const named = links.map((x) => x.service ? `${x.service} at ${x.url}` : x.url).join("; ");
-  return `The owner has proposals ready for them: ${named}. If they ask about one of these, its price or a quote for it, send the link for the one they mean (ask which, if it is not clear) ${rest}`;
-}
-function hitKind(kind) {
-  if (kind === "message" || kind === "call") return kind;
-  throw new Error(`searchMessages: unknown kind ${kind}`);
-}
-async function searchMessages(db, tenantId, words, since, limit) {
-  const { data, error } = await db.rpc("search_messages", {
-    p_tenant: tenantId,
-    p_words: words,
-    p_since: since.toISOString(),
-    p_limit: limit
-  });
-  if (error) throw new Error(`searchMessages: ${error.message}`);
-  return (data ?? []).map((r) => ({
-    kind: hitKind(r.kind),
-    id: r.id,
-    conversationId: r.conversation_id ?? null,
-    contactId: r.contact_id ?? null,
-    channel: r.channel ?? null,
-    direction: r.direction,
-    at: r.at,
-    snippet: r.snippet ?? ""
-  }));
-}
-async function failedMessageErrors(db, tenantId, ids) {
-  const out = [];
-  for (let i = 0; i < ids.length; i += IDS_PER_READ2) {
-    const { data, error } = await db.from("messages").select("id, error").eq("tenant_id", tenantId).eq("status", "failed").in("id", ids.slice(i, i + IDS_PER_READ2));
-    if (error) throw new Error(`failedMessageErrors: ${error.message}`);
-    for (const r of data ?? [])
-      if (r.error !== null && typeof r.error === "object" && !Array.isArray(r.error))
-        out.push({ id: r.id, error: r.error });
-  }
-  return out;
-}
-async function messageSenders(db, tenantId, ids) {
-  const out = [];
-  for (let i = 0; i < ids.length; i += IDS_PER_READ2) {
-    const { data, error } = await db.from("messages").select("id, sender, status, type").eq("tenant_id", tenantId).in("id", ids.slice(i, i + IDS_PER_READ2));
-    if (error) throw new Error(`messageSenders: ${error.message}`);
-    out.push(...data ?? []);
-  }
-  return out;
-}
-async function repliedTo(db, tenantId, conversationId, messageId) {
-  const { data, error } = await db.from("messages").select("id").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("direction", "outbound").eq("meta->>reply_to", messageId).limit(1);
-  if (error) throw new Error(`repliedTo: ${error.message}`);
-  return (data ?? []).length > 0;
-}
-async function textReached(db, tenantId, conversationId) {
-  const { data, error } = await db.from("messages").select("id").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("direction", "outbound").eq("channel", "sms").in("status", DELIVERED).limit(1);
-  if (error) throw new Error(`textReached: ${error.message}`);
-  return (data ?? []).length > 0;
-}
-async function openConversation(db, tenantId, contactId) {
-  const { data, error } = await db.rpc("conversation_open", { p_tenant_id: tenantId, p_contact_id: contactId });
-  if (error) throw error;
-  if (typeof data !== "string" || !data) throw new Error("conversation_open: the door answered no thread");
-  return data;
-}
-async function ourLastWire(db, tenantId, conversationId) {
-  const { data, error } = await db.from("messages").select("channel").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("direction", "outbound").in("type", ["text", "template", "media"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (error) throw new Error(`reading the last outbound: ${error.message}`);
-  return data?.channel ?? null;
 }
 
 // src/ask-voice-session.ts
@@ -3978,6 +4136,9 @@ async function createWorkspaceFn(db, args) {
 }
 async function lineForwardingSet(db, args) {
   return db.rpc("line_forwarding_set", args);
+}
+async function setWorkspaceLogo(db, tenantId, path) {
+  return db.rpc("set_workspace_logo", { p_tenant_id: tenantId, p_logo_path: path });
 }
 async function updatePlaybook(db, id, patch) {
   const { error } = await db.from("playbooks").update(patch).eq("id", id);
@@ -4593,6 +4754,50 @@ async function readLeadOne(db, tenantId, leadId, searchId) {
   if (!lead || lead.tenant_id !== tenantId || lead.blanked_at || lead.erased_at || !member) return null;
   return { lead, member, places: places.count ?? 1 };
 }
+async function readIdeaHistory(db, tenantId) {
+  const { data, error } = await db.rpc("lead_suggest_history", { p_tenant_id: tenantId });
+  if (error) throw new Error(`lead_suggest_history: ${error.message}`);
+  return data;
+}
+async function writeIdeas(db, args) {
+  const { data, error } = await db.rpc("lead_suggestions_write", args);
+  if (error) throw new Error(`lead_suggestions_write(${args.p_act}): ${error.message}`);
+  return data && typeof data === "object" && !Array.isArray(data) ? data : {};
+}
+async function claimIdeas(db, tenantId, line) {
+  const got = await writeIdeas(db, { p_tenant_id: tenantId, p_act: "claim", p_line: line });
+  return typeof got.claim === "string" && got.claim ? got.claim : null;
+}
+async function keepIdeas(db, tenantId, claim, row) {
+  const got = await writeIdeas(db, {
+    p_tenant_id: tenantId,
+    p_act: "keep",
+    p_claim: claim,
+    p_line: row.business_line,
+    p_by_owner: row.by_owner,
+    p_items: row.items,
+    // A keep always has a basis ("" where no round has ended); null is the owner's line, saved apart.
+    p_basis: row.basis ?? "",
+    p_passed: row.passed
+  });
+  return got.kept === true;
+}
+async function failIdeas(db, tenantId, claim) {
+  await writeIdeas(db, { p_tenant_id: tenantId, p_act: "fail", p_claim: claim });
+}
+async function saveIdeasLine(db, tenantId, line) {
+  await writeIdeas(db, { p_tenant_id: tenantId, p_act: "line", p_line: line });
+}
+async function ideasClockAndLanguage(db, tenantId) {
+  const { data, error } = await db.from("tenants").select("timezone, locale").eq("id", tenantId).maybeSingle();
+  if (error) throw new Error(`tenants: ${error.message}`);
+  return data;
+}
+async function ideasBasis(db, tenantId) {
+  const { data, error } = await db.from("lead_rounds").select("ended_at").eq("tenant_id", tenantId).eq("state", "ended").not("ended_at", "is", null).order("ended_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error(`lead_rounds: ${error.message}`);
+  return data ? data.ended_at : null;
+}
 
 // src/lines.ts
 async function ownLineOf(db, tenantId) {
@@ -4836,7 +5041,9 @@ async function keepChannelStanding(db, tenantId, channelId, standing) {
 
 // src/repositories/calendar/appointments.ts
 import {
-  APPOINTMENT_STATUSES
+  APPOINTMENT_STATUSES,
+  recordIdOf,
+  recordKeyOf
 } from "../../contracts/dist/index.js";
 var LIVE_STATUSES = ["proposed", "booked"];
 var SPAN_MAX = 2e3;
@@ -4878,10 +5085,51 @@ async function appointmentsBetween(db, tenantId, fromIso, toIso) {
   if (error) throw new Error(`appointments_between: ${error.message}`);
   return data ?? [];
 }
+var FEED_SPAN_MAX = 1e4;
+async function visitsOver(db, tenantId, fromIso, toIso) {
+  const [noted, feed] = await Promise.all([
+    db.from("appointments").select("*").eq("tenant_id", tenantId).neq("source", "calendar_feed").gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).limit(SPAN_MAX),
+    db.from("appointments").select("id, status, external_id, starts_at").eq("tenant_id", tenantId).eq("source", "calendar_feed").is("vanished_at", null).gt("ends_at", fromIso).lt("starts_at", toIso).limit(FEED_SPAN_MAX)
+  ]);
+  if (noted.error) throw new Error(`visits_over: ${noted.error.message}`);
+  if (feed.error) throw new Error(`visits_over: ${feed.error.message}`);
+  return { noted: noted.data ?? [], feed: feed.data ?? [] };
+}
+var SAID_STATUSES = ["kept", "missed", "cancelled"];
+async function feedWordsOver(db, tenantId, fromIso, toIso) {
+  return readAllRows(
+    "appointments_feed_words",
+    (from, to) => db.from("appointments").select("id, status, external_id, starts_at").eq("tenant_id", tenantId).eq("source", "calendar_feed").is("vanished_at", null).in("status", [...SAID_STATUSES]).gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).order("id", { ascending: true }).range(from, to)
+  );
+}
+async function recordOver(db, tenantId, fromIso, toIso) {
+  const [noted, feed] = await Promise.all([
+    readAllRows(
+      "appointments_noted",
+      (from, to) => db.from("appointments").select("*").eq("tenant_id", tenantId).neq("source", "calendar_feed").gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).order("id", { ascending: true }).range(from, to)
+    ),
+    feedWordsOver(db, tenantId, fromIso, toIso)
+  ]);
+  return { noted, feed };
+}
+async function appointmentWorkspace(db, id) {
+  const { data, error } = await db.from("appointments").select("id, tenant_id").eq("id", id).maybeSingle();
+  if (error) throw new Error(`appointment_workspace: ${error.message}`);
+  return data ?? null;
+}
+async function markVisit(db, p) {
+  const { data, error } = await db.rpc("mark_visit", {
+    p_appointment_id: p.appointmentId,
+    p_status: p.status,
+    ...p.via ? { p_via: p.via } : {},
+    ...p.undoOf ? { p_undo_of: p.undoOf } : {}
+  });
+  return { data, error };
+}
 async function appointmentsForClient(db, tenantId, who, fromIso) {
   const or = clientFilter(who);
   if (!or) return [];
-  const { data, error } = await db.from("appointments").select("*").eq("tenant_id", tenantId).in("status", [...LIVE_STATUSES]).gt("ends_at", fromIso).or(or).order("starts_at", { ascending: true }).limit(50);
+  const { data, error } = await db.from("appointments").select("*").eq("tenant_id", tenantId).neq("source", "calendar_feed").gt("ends_at", fromIso).or(or).order("starts_at", { ascending: true }).limit(50);
   if (error) throw new Error(`appointments_for_client: ${error.message}`);
   return data ?? [];
 }
@@ -4937,19 +5185,22 @@ var KEYS_PER_READ = 25;
 var isStatus = (s) => APPOINTMENT_STATUSES.includes(s);
 async function appointmentStates(db, tenantId, keys) {
   const out = /* @__PURE__ */ new Map();
-  for (let i = 0; i < keys.length; i += KEYS_PER_READ) {
-    const { data, error } = await db.from("appointments").select("external_id, status, starts_at, vanished_at, updated_at").eq("tenant_id", tenantId).eq("source", "calendar_feed").in("external_id", keys.slice(i, i + KEYS_PER_READ));
+  const put = (key, r) => {
+    if (key && isStatus(r.status))
+      out.set(key, { status: r.status, starts_at: r.starts_at, vanished_at: r.vanished_at, updated_at: r.updated_at });
+  };
+  const ids = keys.flatMap((k) => recordIdOf(k) ?? []);
+  const feedKeys = keys.filter((k) => recordIdOf(k) === null);
+  for (let i = 0; i < feedKeys.length; i += KEYS_PER_READ) {
+    const { data, error } = await db.from("appointments").select("external_id, status, starts_at, vanished_at, updated_at").eq("tenant_id", tenantId).eq("source", "calendar_feed").in("external_id", feedKeys.slice(i, i + KEYS_PER_READ));
     if (error && (error.code === "PGRST205" || error.code === "42P01")) return out;
     if (error) throw new Error(`appointments: ${error.message}`);
-    for (const r of data ?? []) {
-      if (r.external_id && isStatus(r.status))
-        out.set(r.external_id, {
-          status: r.status,
-          starts_at: r.starts_at,
-          vanished_at: r.vanished_at,
-          updated_at: r.updated_at
-        });
-    }
+    for (const r of data ?? []) put(r.external_id, r);
+  }
+  for (let i = 0; i < ids.length; i += KEYS_PER_READ) {
+    const { data, error } = await db.from("appointments").select("id, status, starts_at, vanished_at, updated_at").eq("tenant_id", tenantId).in("id", ids.slice(i, i + KEYS_PER_READ));
+    if (error) throw new Error(`appointments: ${error.message}`);
+    for (const r of data ?? []) put(recordKeyOf(r.id), r);
   }
   return out;
 }
@@ -5019,6 +5270,7 @@ export {
   activeWhatsappNumbers,
   activitySubjects,
   activityTokensOf,
+  addPersonByHand,
   addPersonNote,
   addToList,
   addToWaitlist,
@@ -5034,6 +5286,7 @@ export {
   appointmentNoticeOf,
   appointmentNoticesOf,
   appointmentStates,
+  appointmentWorkspace,
   appointmentsBetween,
   appointmentsForClient,
   appointmentsScrub,
@@ -5046,11 +5299,14 @@ export {
   callBackMessage,
   callerNameOf,
   callersOf,
+  campaignLedger,
   campaignMonthSent,
   campaignSeries,
+  campaignStuck,
   claimCallActivity,
   claimCallNotification,
   claimControl,
+  claimIdeas,
   claimIdempotencyKey,
   claimQueuedSend,
   claimReplyTell,
@@ -5100,9 +5356,11 @@ export {
   eventOfDelivery,
   everyoneIn,
   everyoneOnceIn,
+  failIdeas,
   failQueuedSend,
   failStrandedRun,
   failedMessageErrors,
+  feedWordsOver,
   finishableRuns,
   firstReplies,
   followUpOnFile,
@@ -5130,8 +5388,12 @@ export {
   heldNoticeDue,
   heldNoticesOf,
   heldStale,
+  holdFactsOf,
   holdRecipients,
+  holdTold,
   holdsReplyTurn,
+  ideasBasis,
+  ideasClockAndLanguage,
   ingestCall,
   ingestInbound,
   ingestInboundEmail,
@@ -5146,9 +5408,11 @@ export {
   keepChannelQuality,
   keepChannelStanding,
   keepForwardingConfirmation,
+  keepIdeas,
   keepIdempotencyReceipt,
   keepInvoiceAmount,
   keepMessageCost,
+  keepModelTurn,
   keepProviderEvent,
   lastInboundEmail,
   lastOutboundEmailSubject,
@@ -5171,6 +5435,7 @@ export {
   markProcessed,
   markReplyDraft,
   markReplyTold,
+  markVisit,
   markWaitlistInvited,
   memberAlertsOf,
   memberHasAddress,
@@ -5209,9 +5474,11 @@ export {
   pauseEmailOffers,
   peopleCursorOf,
   peoplePage,
+  peopleSeries,
   personDecisions,
   personReplyMode,
   personRow,
+  platformDay,
   platformHoldStands,
   platformWide,
   playbookChannels,
@@ -5240,6 +5507,7 @@ export {
   readAllRows,
   readAllRowsByKey,
   readDealForPhone,
+  readIdeaHistory,
   readJobToRequeue,
   readLeadContext,
   readLeadOne,
@@ -5262,6 +5530,7 @@ export {
   recordLateCarrierOptOut,
   recordModelUsage,
   recordOutbound,
+  recordOver,
   recordPartnerSecondFactorReset,
   recordProviderDomain,
   recordStatusByExternalId,
@@ -5297,10 +5566,12 @@ export {
   runSending,
   runningTwins,
   runsWaitingOf,
+  saveIdeasLine,
   saveReachOutChain,
   saveTemplateVersion,
   savedListFor,
   savedListsFor,
+  scrubModelTurns,
   scrubPersonNotes,
   scrubProviderEvents,
   searchMessages,
@@ -5326,6 +5597,7 @@ export {
   setPersonReplyMode,
   setPolicyMode,
   setTemplateQuality,
+  setWorkspaceLogo,
   settleDelivery,
   signUpOnPublicKey,
   staleSends,
@@ -5368,6 +5640,7 @@ export {
   updateAppointment,
   updatePlaybook,
   usageMonth,
+  visitsOver,
   waitlistWaiting,
   watchedEvents,
   watchedTables,

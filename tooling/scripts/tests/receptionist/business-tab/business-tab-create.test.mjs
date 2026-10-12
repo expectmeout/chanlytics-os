@@ -510,7 +510,7 @@ test("a business that quotes sets up its receptionist with no booking link, and 
   tree = redrawCreate();
   typeIn(tree, "rec-create-name", "Harbor Moving");
   tree = redrawCreate();
-  assert.match(textOf(byTestId(tree, "rec-create-link")), /Optional for a business that quotes/);
+  assert.match(textOf(byTestId(tree, "rec-create-link")), /Optional\. Without one, it takes their details\./);
   save(tree);
   tree = redrawCreate();
   assert.equal(sent.length, 1, wrongIn(tree, "rec-create-link") ?? "sent");
@@ -522,7 +522,7 @@ test("a business that quotes sets up its receptionist with no booking link, and 
     tree = redrawCreate();
     typeIn(tree, "rec-create-name", "Harbor Moving");
     tree = redrawCreate();
-    assert.match(textOf(byTestId(tree, "rec-create-link")), /Sent instead of confirming an appointment itself/);
+    assert.match(textOf(byTestId(tree, "rec-create-link")), /Sent so customers book themselves/);
     save(tree);
     tree = redrawCreate();
     assert.equal(wrongIn(tree, "rec-create-link"), BOOKING_LINK_NEEDED, String(sellsBy));
@@ -541,12 +541,12 @@ test("a new workspace that chooses 'Some get a proposal first' in the fold sets 
     tree = redrawCreate();
     assert.match(
       textOf(byTestId(tree, "rec-create-link")),
-      /Sent instead of confirming an appointment itself/,
+      /Sent so customers book themselves/,
       "not said yet: asked for one",
     );
     press(answersIn(tree).find((r) => labelOf(r) === "Some get a proposal first"));
     tree = redrawCreate();
-    assert.match(textOf(byTestId(tree, "rec-create-link")), /Optional for a business that quotes/);
+    assert.match(textOf(byTestId(tree, "rec-create-link")), /Optional\. Without one, it takes their details\./);
     save(tree);
     await settle();
     tree = redrawCreate();

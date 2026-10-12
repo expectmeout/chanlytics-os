@@ -8,10 +8,11 @@
  * groups: Connected, Available, Later. "Later" is a row's state, not a list at the bottom. Settings' page (settings.jsx)
  * still draws it by its old name, which seed-globals publishes (settings/globals.ts), until Settings' frame moves.
  */
-import { Fragment, useEffect, useState, type ReactNode } from "react";
+import { Fragment, Suspense, lazy, useEffect, useState, type ReactNode } from "react";
 import {
   CONNECTION_GROUP_WORDS,
   connectionRows,
+  tryItLink,
   type ConnectionGroup,
   type ConnectionRow as Row,
   type LineCodeDto,
@@ -22,6 +23,7 @@ import { googleVerbs } from "@/legacy-bridge/google";
 import { FailedRead } from "../../kit/empty/empty";
 import { RecordRow } from "../../kit/record/row";
 import { refusalToast, useLegacyToast, type LegacyFlash } from "../../legacy-verbs";
+import { useAdsShown } from "../../campaigns/ads/shown";
 import { useSurface } from "../../use-surface";
 import type { SetupSurface } from "../../setup/surface";
 import { SendingDomains } from "./domains-block";
@@ -33,6 +35,9 @@ import { ConnectionRow, type Arm } from "./row";
 import { signupLeftOpenAt, waConnect, type SignupDoor } from "./whatsapp";
 
 type WaConfig = SignupDoor | null | undefined;
+
+// The Ad accounts card (MOCKUP) is a chunk of its own, fetched only by a demo session: a real workspace's pane draws none of it.
+const AdAccounts = lazy(() => import("./ad-accounts").then((m) => ({ default: m.AdAccounts })));
 
 /** What the browser came back from Google with, said once. */
 function googleNote(): string | null {
@@ -134,6 +139,9 @@ async function runVerb(
       k.setSignup(false);
       k.setBusy(false);
       if (!res.ok && res.reason !== "cancelled") k.setSignupSaid(res.message);
+      // A number that just connected is tried through its own link, which opens the chat whatever the phone's record of
+      // the number says (contracts tryItLink): the toast offers it at the moment an owner reaches for the phone.
+      const tryIt = res.ok ? tryItLink(res.number) : null;
       k.flash({
         tone: res.ok ? "ok" : "danger",
         msg: res.ok ? (
@@ -141,6 +149,7 @@ async function runVerb(
         ) : (
           <>{res.message}</>
         ),
+        action: tryIt ? { label: "Try it", onClick: () => window.open(tryIt, "_blank", "noopener,noreferrer") } : null,
       });
       return;
     }
@@ -241,6 +250,8 @@ export const PaneIntegrationsReal = () => {
   const G = useSurface("google");
   const waCfg = useWhatsAppConfig();
   const [busy, setBusy] = useState(false);
+  // Ad accounts, a demo's card or a workspace's whose Ads preview is on (campaigns/ads/shown.ts); no other workspace draws it.
+  const adsShown = useAdsShown();
   const [arm, setArm] = useState<Arm | null>(null);
   // The email row's form, open only once its verb is pressed.
   const [emailOpen, setEmailOpen] = useState(false);
@@ -346,6 +357,11 @@ export const PaneIntegrationsReal = () => {
   return (
     <>
       {groups.map(({ g, list }) => groupCard({ g, list, note, setNote, row }))}
+      {adsShown && (
+        <Suspense fallback={null}>
+          <AdAccounts flash={flash} />
+        </Suspense>
+      )}
       {toastNode}
     </>
   );

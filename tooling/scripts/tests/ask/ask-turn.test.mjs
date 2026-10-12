@@ -26,6 +26,16 @@ function fromRecord(sent) {
 }
 import { rows } from "../_rows.mjs";
 import { fieldsOf, logLineOf } from "../_log-lines.mjs";
+import { QUIET, SERIES } from "../reports/people/_people-world.mjs";
+import {
+  CAMPAIGNS as SALON_SENDS,
+  CAMPAIGNS_QUIET as SALON_QUIET_SENDS,
+  NOW as SALON_NOW,
+  QUIET as SALON_QUIET,
+  SERIES as SALON_WINDOW,
+  STUCK as SALON_STUCK,
+  dtoWith as salonLedger,
+} from "../reports/campaigns/_campaign-world.mjs";
 import {
   ASK_ANSWER_FORMAT,
   ASK_CAPS,
@@ -50,10 +60,12 @@ import {
   toPersonVM,
   toPersonRowVM,
   nextRunLabel,
+  toCampaignLensVM,
+  toPeopleReportVM,
+  toReachOutLensVM,
   toReceptionistReportVM,
   toReportVM,
   toReviewsReportVM,
-  toReachOutReportVM,
   toBookingReportVM,
   toDealReportVM,
   compareTemplates,
@@ -973,81 +985,486 @@ test("the questions production paid a second round for (the week to 5 Oct 2026) 
   }
 });
 
-test("report says the Campaigns lens beside the page (0030): its tiles, the read a share of WhatsApp's own sends, by_channel where more than one sent, its sources; null where its read fails", async () => {
-  const today = iso(NOW.getTime()).slice(0, 10);
-  const days = (n) =>
-    Array.from({ length: 2 * n }, (_, i) => {
-      const day = new Date(Date.parse(`${today}T12:00:00Z`) - (2 * n - 1 - i) * 86_400_000).toISOString().slice(0, 10);
-      return i === 2 * n - 1
-        ? { day, sent: 20, delivered: 16, read: 11, replied: 4, opt_ins: 1, opt_outs: 0 }
-        : { day, sent: 0, delivered: 0, read: 0, replied: 0, opt_ins: 0, opt_outs: 0 };
-    });
-  const rpcs = {
-    ...RPCS,
-    report_series: (a) => ({
-      timezone: TZ,
-      days: a.p_days,
-      span_days: a.p_days * 2,
-      today,
-      series: [],
-      reasons: {},
-      reply_seconds: [],
-      sentiments: {},
-      voicemail: 0,
-    }),
-    campaign_series: (a) => ({
-      timezone: TZ,
-      days: a.p_days,
-      span_days: a.p_days * 2,
-      today,
-      series: days(a.p_days),
-      sources: [
-        {
-          id: "pb-1",
-          kind: "playbook",
-          name: "Win-back",
-          template_name: "winback_offer",
-          runs: 1,
-          sent: 20,
-          delivered: 16,
-          read: 11,
-          replied: 4,
-          last_at: `${today}T12:00:00Z`,
-        },
-      ],
-      by_channel: [
-        { channel: "whatsapp", sent: 14, delivered: 12, read: 11, replied: 3 },
-        { channel: "sms", sent: 6, delivered: 4, read: 0, replied: 1 },
-      ],
-    }),
-  };
-  const run = async (r) => {
-    const tc = newToolContext(ctxFor(tables(), r), A, "owner", TZ, NOW);
-    const out = await runTool(tc, { name: "report", input: { days: 7 } });
-    assert.equal(out.isError, false, out.result);
-    return JSON.parse(out.result);
-  };
-  const said = (await run(rpcs)).campaigns;
-  assert.deepEqual(said.tiles.map((t) => [t.label, t.value]).slice(0, 3), [
-    ["Messages sent", "20"],
-    ["Delivered", "80%"],
-    ["Replied", "20%"],
+/* ------------------------------------------------------------------------ the Campaigns lens, said (C4, task 16) */
+
+/**
+ * Harbor's Campaigns lens as the fold, the reader and the page share it (reports/campaigns/_campaign-world.mjs): 240
+ * messages to 180 people over 14 runs, three runs waiting for an OK, a good WhatsApp number. The turn's clock is the world's
+ * own (noon on Fri 4 Sep 2026 at Harbor), since what is stuck is judged at it.
+ */
+const SALON_TODAY = SALON_WINDOW.today;
+const salonRpcs = (over = {}) => ({
+  ...RPCS,
+  report_series: (a) => ({
+    timezone: TZ,
+    days: a.p_days,
+    span_days: a.p_days * 2,
+    today: SALON_TODAY,
+    series: [],
+    reasons: {},
+    reply_seconds: [],
+    sentiments: {},
+    voicemail: 0,
+  }),
+  campaign_series: () => SALON_SENDS,
+  campaign_ledger: (a) => ({ ...SALON_WINDOW, end: a.p_end ?? SALON_WINDOW.end, days: a.p_days }),
+  campaign_stuck: () => SALON_STUCK,
+  ...over,
+});
+/** The WhatsApp number, rated good, whose rating Meta last said at six on that Friday morning. */
+const salonTables = () =>
+  tables({
+    tenant_channels: [
+      { ...WHATSAPP_NUMBER, config: { ...WHATSAPP_NUMBER.config, quality_read_at: "2026-09-04T10:00:00.000Z" } },
+    ],
+  });
+/** One report call over the salon: the tool as the model calls it, its answer parsed. */
+async function salonReport(rpcs, input = { days: 30 }) {
+  const tc = newToolContext(ctxFor(salonTables(), rpcs), A, "owner", TZ, new Date(SALON_NOW));
+  const out = await runTool(tc, { name: "report", input });
+  assert.equal(out.isError, false, out.result);
+  return JSON.parse(out.result);
+}
+/** A function the database does not have yet, as PostgREST refuses a call to it. */
+const functionGone = (signature) => () => {
+  throw Object.assign(new Error(`Could not find the function public.${signature} in the schema cache`), {
+    code: "PGRST202",
+  });
+};
+/** A figure as Ask says it (the page's label, value, meta and its change, the figure's own `compare`). */
+const saidFigure = (x) => ({ label: x.label, value: x.value, meta: x.meta, change: x.compare });
+
+test("report says the Campaigns lens as the page does (C4): the sentence, the five figures, the funnel, the channels, the sources, the window's six parts and what is stuck now, each the one fold's", async () => {
+  const said = (await salonReport(salonRpcs())).campaigns;
+  assert.deepEqual(Object.keys(said), ["head", "figures", "funnel", "by_channel", "sources", "window", "stuck"]);
+  assert.equal(said.head, "240 messages to 180 people over 14 runs; 48 of 180 wrote back (41 the 30 days before).");
+  assert.deepEqual(said.figures, [
+    { label: "People sent to", value: "180", meta: "240 messages over 14 runs", change: "up from 150" },
+    {
+      label: "Delivered",
+      value: "92%",
+      meta: "220 of 240 · each channel's own receipts",
+      change: "was 88% the 30 days before",
+    },
+    {
+      label: "Wrote back",
+      value: "27%",
+      meta: "48 of 180 people within 3 days, 9 sent to in the last 3 days may still answer",
+      change: "was 27% the 30 days before",
+    },
+    { label: "Said yes", value: "14", meta: "after a message of yours, within 3 days", change: "up from 11" },
+    { label: "Asked to stop", value: "3", meta: "after a message of yours, within 3 days", change: "up from 2" },
   ]);
-  assert.equal(said.read, "11 of the 14 sent by WhatsApp");
+  // The people are 180 and the messages 240: the figures say the people, the funnel the messages.
+  assert.equal(said.figures[0].value, "180");
+  assert.deepEqual(said.funnel, {
+    rows: ["Sent: 240", "Delivered: 220", "Read: 31", "Answered: 50"],
+    line: "92% were delivered, 26% of WhatsApp's were read and 21% were answered within 3 days, of 240 messages.",
+  });
   assert.deepEqual(said.by_channel, [
-    { channel: "WhatsApp", sent: 14, delivered: "86%", read: "79%", wrote_back: "21%" },
-    { channel: "Text", sent: 6, delivered: "67%", read: null, wrote_back: "17%" },
+    { channel: "WhatsApp", sent: 120, delivered: "92%", read: "26%", answered: "25%" },
+    { channel: "Text", sent: 70, delivered: "94%", read: null, answered: "17%" },
+    { channel: "Email", sent: 50, delivered: "88%", read: null, answered: "16%" },
   ]);
   assert.deepEqual(said.sources, [
     // The page's own word for a source's kind (contracts campaign-report.ts kindLabel), a campaign since decision 19.
-    { name: "Win-back", kind: "Campaign", runs: 1, sent: 20, delivered: "80%", wrote_back: "20%" },
+    { name: "Win-back", kind: "Campaign", runs: 12, sent: 120, delivered: "92%", answered: "23%" },
+    { name: "Spring note", kind: "Broadcast", runs: 2, sent: 120, delivered: "92%", answered: "18%" },
   ]);
-  const { campaign_series: _, ...without } = rpcs;
-  assert.deepEqual(
-    (await run(without)).campaigns,
-    { error: "the campaign numbers could not be read just now" },
-    "its read failed: said so, never as nothing sent, and the report stands",
+  // A share of MESSAGES answered is `answered`, as the page's funnel, channels and sources say it; `wrote_back` is people, and
+  // only the reach-outs' businesses keep that key: no `wrote_back` among the sends' parts, so one answer never holds two units under one word.
+  assert.doesNotMatch(JSON.stringify([said.by_channel, said.sources]), /wrote_back/);
+  assert.match(
+    JSON.stringify(said.figures.at(2)),
+    /Wrote back/,
+    "the strip's people are still the people who wrote back",
   );
+  assert.deepEqual(said.window, {
+    held: {
+      rows: ["Asked to stop: 5", "No number: 3", "The provider refused it: 3", "Another reason: 1"],
+      line: "12 of the 252 messages planned were held back or could not be sent.",
+    },
+    runs_stopped: {
+      rows: ["Canceled: 1", "The workspace was paused: 1", "The texting provider could not be reached: 1"],
+      // The window's card counts a campaign's and a broadcast's runs; a reach-out's are under Reach-outs (the stuck figure counts them).
+      line: "2 runs failed and 1 was canceled. A reach-out's runs are not counted here.",
+    },
+    failed_sends: {
+      rows: [
+        "WhatsApp held it back: Meta limits marketing messages to each person, and isn't delivering marketing messages to US numbers at all for now (WhatsApp error 131049): 4",
+        "The email bounced: their address didn't accept it: 2",
+      ],
+      line: "6 messages failed after they were sent, for the provider's own reason.",
+    },
+    by_message: {
+      rows: ["Win-back (earlier): 30 of 110 were answered  27%", "Spring note: 18 of 120 were answered  15%"],
+      line: "A reply is counted only for messages sent more than 3 days ago, so each has had its time. 10 sent since are not counted yet.",
+    },
+    send_to_first_reply: {
+      rows: [
+        "Within 15 minutes: 8",
+        "Within an hour: 14",
+        "Within 4 hours: 12",
+        "Within a day: 11",
+        "Within 3 days: 5",
+      ],
+      line: "The middle one was answered 1h 30m after it was sent, of 50 answered messages.",
+    },
+    wait_for_your_ok: {
+      rows: ["An hour or less: 1", "Up to 4 hours: 1", "Up to a day: 1", "More than a day: 1"],
+      line: "4 runs you approved: too few for a middle.",
+    },
+  });
+  assert.deepEqual(said.stuck, [
+    {
+      label: "Runs waiting for you",
+      value: "3",
+      meta: "1 past their day (skip those), 2 can still be approved",
+      change: null,
+    },
+    {
+      label: "Failed runs",
+      value: "1",
+      meta: "the latest: Spring note, the workspace was paused · a reach-out's step counts too",
+      change: null,
+    },
+    {
+      label: "Replies waiting on you",
+      value: "2",
+      meta: "people who answered a campaign in the last 30 days and wait for a person",
+      change: null,
+    },
+    {
+      label: "Messages Meta stopped",
+      value: "2",
+      meta: "Win-back (earlier) paused, Spring note rejected",
+      change: null,
+    },
+    {
+      label: "Your WhatsApp number",
+      value: "Good",
+      meta: "Number quality: good · up to 1,000 new conversations a day · checked today",
+      change: null,
+    },
+  ]);
+  assert.equal(said.stuck[0].value, "3");
+});
+
+test("report says what the Campaigns page shows: the same fold over the same reads, so the sentence, every figure and every part are the page's words", async () => {
+  const said = (await salonReport(salonRpcs())).campaigns;
+  // The page folds the sends' report and the ledger the route answers (dtoWith: the world's stuck half, judged at its clock);
+  // the reach-outs of this world could not be read (no reach_out_report), which the page's reads say as null.
+  const page = toCampaignLensVM({ campaigns: SALON_SENDS, ledger: salonLedger(), reachOuts: null }, SALON_NOW);
+  assert.equal(said.head, page.head);
+  assert.deepEqual(said.figures, page.strip.map(saidFigure));
+  assert.deepEqual(said.stuck, page.stuck.map(saidFigure));
+  assert.deepEqual(
+    [said.funnel.line, said.window.held.line, said.window.by_message.line, said.window.send_to_first_reply.line],
+    [page.funnel.line, page.held.line, page.byMessage.line, page.firstReply.line],
+  );
+  assert.deepEqual(
+    said.window.held.rows,
+    page.held.rows.map((r) => `${r.label}: ${r.value}`),
+  );
+  assert.deepEqual(
+    said.window.by_message.rows,
+    page.byMessage.rows.map((r) => `${r.label}: ${r.display}`),
+  );
+  // Nothing of the old tool's: no tile with a percentage's change, no yes-and-stop sentence, no separate read line.
+  assert.deepEqual(
+    ["tiles", "yes_and_stop", "read"].filter((k) => k in said),
+    [],
+  );
+});
+
+test("report says the Campaigns lens where the database does not keep the ledger or what is stuck yet, and where either read fails: window and stuck are null, an error beside them says which of the two could not be read, and the rest stands", async () => {
+  const sends = (said) => said.figures.map((f) => f.label);
+  const alone = ["Delivered", "Said yes", "Asked to stop"];
+
+  // No campaign_ledger (00405 not applied): the sends alone, what is stuck still said, no failure and no silence either.
+  const noLedger = await logged("campaign_ledger_missing", () =>
+    salonReport(salonRpcs({ campaign_ledger: functionGone("campaign_ledger(p_days, p_tenant_id)") })),
+  );
+  assert.deepEqual(noLedger.lines, [JSON.stringify({ tenant_id: A })], "said once in the log, naming the workspace");
+  const { campaigns: bare } = noLedger.result;
+  assert.deepEqual(Object.keys(bare), ["head", "figures", "funnel", "by_channel", "sources", "window", "stuck"]);
+  assert.equal(bare.head, "240 messages over 14 runs; people wrote back to 50 of them.");
+  assert.deepEqual(sends(bare), alone, "the people sent to and who wrote back need the ledger");
+  assert.equal(bare.window, null);
+  assert.equal(bare.stuck.length, 5, "what is stuck is a read of its own");
+  assert.equal(bare.stuck[0].value, "3");
+  assert.equal(bare.funnel.rows[0], "Sent: 240");
+  assert.equal(bare.sources.length, 2);
+
+  // Neither function: no window and nothing stuck, said as null and not as nothing waiting.
+  const neither = await logged("campaign_stuck_missing", () =>
+    salonReport(
+      salonRpcs({
+        campaign_ledger: functionGone("campaign_ledger(p_days, p_tenant_id)"),
+        campaign_stuck: functionGone("campaign_stuck(p_tenant_id)"),
+      }),
+    ),
+  );
+  assert.equal(neither.result.campaigns.window, null);
+  assert.equal(neither.result.campaigns.stuck, null);
+  assert.equal("error" in neither.result.campaigns, false, "a function not applied yet is no failure");
+
+  // campaign_stuck alone missing: the window stands, nothing stuck is said.
+  const noStuck = await logged("campaign_stuck_missing", () =>
+    salonReport(salonRpcs({ campaign_stuck: functionGone("campaign_stuck(p_tenant_id)") })),
+  );
+  assert.equal(noStuck.result.campaigns.stuck, null);
+  assert.deepEqual(Object.keys(noStuck.result.campaigns.window), [
+    "held",
+    "runs_stopped",
+    "failed_sends",
+    "by_message",
+    "send_to_first_reply",
+    "wait_for_your_ok",
+  ]);
+
+  // The ledger's read fails: it took what is stuck with it, and the error says so once, in the page's words for it. The
+  // sends stand, and the log says the read once, beside the others' failures.
+  const down = await logged("ask_tool_read_failed", () =>
+    salonReport(
+      salonRpcs({
+        campaign_ledger: () => {
+          throw new Error("canceling statement due to statement timeout");
+        },
+      }),
+    ),
+  );
+  assert.deepEqual(
+    down.lines.map((l) => JSON.parse(l).read).filter((read) => read === "campaign_ledger"),
+    ["campaign_ledger"],
+    "and said once in the log",
+  );
+  const lost = down.result.campaigns;
+  assert.deepEqual(
+    [lost.window, lost.stuck, lost.error],
+    [null, null, "who it reached and what is stuck could not be read just now"],
+    "never silence, and never nothing waiting",
+  );
+  assert.deepEqual(sends(lost), alone);
+  assert.equal(lost.head, "240 messages over 14 runs; people wrote back to 50 of them.");
+  assert.equal(lost.funnel.rows.length, 4);
+
+  // What is stuck fails alone: the window stands, and the error names the part.
+  const stuckDown = await logged("campaign_stuck_failed", () =>
+    salonReport(
+      salonRpcs({
+        campaign_stuck: () => {
+          throw new Error("connection refused");
+        },
+      }),
+    ),
+  );
+  assert.deepEqual(stuckDown.lines.length, 1, "said once in the log");
+  const half = stuckDown.result.campaigns;
+  assert.deepEqual([half.stuck, half.error], [null, "what is stuck now could not be read just now"]);
+  assert.equal(half.window.held.rows.length, 4);
+  assert.equal(half.figures[0].value, "180");
+});
+
+test("report says the Campaigns lens as an error where the sends could not be read, never as nothing sent, and the report and the other lenses stand", async () => {
+  const { campaign_series: _, ...without } = salonRpcs();
+  const failed = await salonReport(without);
+  assert.deepEqual(failed.campaigns, { error: "the campaign numbers could not be read just now" });
+  assert.equal(failed.range, "30 days");
+  assert.ok(failed.tiles.length > 0, "the report's own numbers stand");
+});
+
+test("report says the window part by part: a count the database did not send leaves its part null -- never an empty mix, never a zero -- and the parts it did send stand", async () => {
+  // A database answers the container, and not every leaf is promised (contracts campaign-lens.ts knownCount): the holds' and the
+  // failed sends' totals, the stops' counts, each message's counts and the first replies' n are left out; the approvals' stand.
+  const partial = salonRpcs({
+    campaign_ledger: (a) => ({
+      ...SALON_WINDOW,
+      days: a.p_days,
+      held: { by_reason: SALON_WINDOW.held.by_reason },
+      stopped: { by_failure: SALON_WINDOW.stopped.by_failure },
+      failed_sends: { by_code: SALON_WINDOW.failed_sends.by_code },
+      by_message: SALON_WINDOW.by_message.map(({ name, language }) => ({ name, language })),
+      first_reply: { buckets: SALON_WINDOW.first_reply.buckets },
+    }),
+  });
+  const said = (await salonReport(partial)).campaigns;
+  assert.deepEqual(said.window, {
+    held: null,
+    runs_stopped: null,
+    failed_sends: null,
+    by_message: null,
+    send_to_first_reply: null,
+    wait_for_your_ok: {
+      rows: ["An hour or less: 1", "Up to 4 hours: 1", "Up to a day: 1", "More than a day: 1"],
+      line: "4 runs you approved: too few for a middle.",
+    },
+  });
+  assert.equal("error" in said, false, "a leaf the database left out is no failed read");
+  assert.equal(said.figures[0].value, "180", "and what the ledger did send stands");
+});
+
+test("report says by_channel only where more than one channel sent: a lone channel is the funnel's own numbers, and none is null", async () => {
+  const lone = salonRpcs({
+    campaign_series: () => ({
+      ...SALON_SENDS,
+      by_channel: [{ channel: "whatsapp", sent: 240, delivered: 220, read: 31, replied: 50 }],
+    }),
+  });
+  assert.equal((await salonReport(lone)).campaigns.by_channel, null);
+});
+
+test("report says the strip's shares only of five or more: of four sends the page greys Delivered and Wrote back, and Ask says no percentage -- the value is null and the meta carries the count -- while of five it says them", async () => {
+  /** `sent` messages to `sent` people on the last day, all but one delivered and all but two answered, and nothing before. */
+  const world = (sent) =>
+    salonRpcs({
+      campaign_series: () => ({
+        ...SALON_QUIET_SENDS,
+        series: SALON_QUIET_SENDS.series.map((d, i, days) =>
+          i === days.length - 1 ? { ...d, sent, delivered: sent - 1, replied: sent - 2 } : d,
+        ),
+      }),
+      campaign_ledger: (a) => ({
+        ...SALON_WINDOW,
+        ...SALON_QUIET,
+        days: a.p_days,
+        people: {
+          now: { sent_to: sent, wrote_back: sent - 2, counting: 0 },
+          before: { sent_to: 0, wrote_back: 0 },
+        },
+        runs: { now: { moment: 1, broadcast: 0 }, before: { moment: 0, broadcast: 0 } },
+      }),
+    });
+  const four = (await salonReport(world(4))).campaigns.figures;
+  assert.deepEqual(
+    four.map((f) => [f.label, f.value]),
+    [
+      ["People sent to", "4"],
+      ["Delivered", null],
+      ["Wrote back", null],
+      ["Said yes", "0"],
+      ["Asked to stop", "0"],
+    ],
+  );
+  assert.deepEqual(
+    four.slice(1, 3).map((f) => [f.meta, f.change]),
+    [
+      ["3 of 4 · each channel's own receipts", null],
+      ["2 of 4 people within 3 days", null],
+    ],
+    "the count it is of is the fold's own, and nothing is set against a period with nothing to take a share of",
+  );
+  const five = (await salonReport(world(5))).campaigns.figures;
+  assert.deepEqual(
+    five.map((f) => [f.label, f.value]),
+    [
+      ["People sent to", "5"],
+      ["Delivered", "80%"],
+      ["Wrote back", "60%"],
+      ["Said yes", "0"],
+      ["Asked to stop", "0"],
+    ],
+  );
+});
+
+test("report says an empty period in the lens's own words, with no share and no zero said for what has no source, and what is stuck as it stands", async () => {
+  const quiet = salonRpcs({
+    campaign_series: () => SALON_QUIET_SENDS,
+    campaign_ledger: (a) => ({ ...SALON_WINDOW, ...SALON_QUIET, days: a.p_days }),
+    campaign_stuck: () => ({ runs_waiting: [], runs_failed: [], replies: [], templates: [] }),
+  });
+  const said = (await salonReport(quiet)).campaigns;
+  assert.equal(said.head, "Nothing went out in this period.");
+  assert.deepEqual(said.figures, [
+    { label: "People sent to", value: "0", meta: "no message went out in this period", change: null },
+    { label: "Delivered", value: "—", meta: "nothing sent", change: null },
+    { label: "Wrote back", value: "—", meta: "nobody was sent a message in this period", change: null },
+    { label: "Said yes", value: "0", meta: "nobody in this period", change: null },
+    { label: "Asked to stop", value: "0", meta: "nobody in this period", change: null },
+  ]);
+  assert.deepEqual(said.funnel, { empty: "No message went out in this period." });
+  assert.equal(said.by_channel, null, "no channel sent");
+  assert.deepEqual(said.sources, []);
+  assert.deepEqual(said.window, {
+    held: { empty: "Nobody was held back in this period." },
+    runs_stopped: {
+      empty: "No run failed or was canceled in this period. A reach-out's runs are not counted here.",
+    },
+    failed_sends: { empty: "No sent message failed in this period." },
+    by_message: { empty: "No message went out in this period." },
+    send_to_first_reply: { empty: "No message was answered in this period." },
+    wait_for_your_ok: { empty: "No run waited for your OK in this period." },
+  });
+  assert.deepEqual(
+    said.stuck.map((f) => [f.label, f.value, f.meta]),
+    [
+      ["Runs waiting for you", "0", "nothing is waiting for your OK"],
+      ["Failed runs", "0", "no run failed in the last 30 days"],
+      ["Replies waiting on you", "0", "nobody who answered a campaign is waiting"],
+      ["Messages Meta stopped", "0", "every WhatsApp message is approved"],
+      ["Your WhatsApp number", "Good", "Number quality: good · up to 1,000 new conversations a day · checked today"],
+    ],
+  );
+  const text = JSON.stringify(said);
+  for (const bad of ["NaN", "undefined", "null%", "%"]) assert.equal(text.includes(bad), false, bad);
+});
+
+test("report says a share of the lens only of five or more -- a channel's and a source's -- and the count it is of under that, and only the five sources that sent the most", async () => {
+  const source = (n, sent, delivered, replied) => ({
+    id: `s${n}`,
+    kind: "broadcast",
+    name: `Note ${n}`,
+    template_name: null,
+    runs: 1,
+    sent,
+    delivered,
+    read: 0,
+    replied,
+    last_at: "2026-09-01T15:00:00.000Z",
+  });
+  const small = salonRpcs({
+    campaign_series: () => ({
+      ...SALON_SENDS,
+      // The database orders them by what they sent; seven, of which the page's table shows them all and Ask five.
+      sources: [
+        source(1, 60, 54, 12),
+        source(2, 40, 36, 8),
+        source(3, 20, 18, 4),
+        source(4, 5, 4, 1),
+        source(5, 4, 3, 2),
+        source(6, 3, 3, 0),
+        source(7, 2, 2, 1),
+      ],
+      by_channel: [
+        { channel: "sms", sent: 6, delivered: 6, read: 0, replied: 3 },
+        { channel: "whatsapp", sent: 4, delivered: 3, read: 2, replied: 1 },
+      ],
+    }),
+  });
+  const said = (await salonReport(small)).campaigns;
+  assert.deepEqual(
+    said.sources.map((s) => [s.name, s.sent, s.delivered, s.answered]),
+    [
+      ["Note 1", 60, "90%", "20%"],
+      ["Note 2", 40, "90%", "20%"],
+      ["Note 3", 20, "90%", "20%"],
+      ["Note 4", 5, "80%", "20%"],
+      // Four sends: 3 of 4 delivered is a count, not 75%.
+      ["Note 5", 4, "3 of 4", "2 of 4"],
+    ],
+  );
+  assert.deepEqual(said.by_channel, [
+    { channel: "Text", sent: 6, delivered: "100%", read: null, answered: "50%" },
+    // WhatsApp sent four, so its read is a count too.
+    { channel: "WhatsApp", sent: 4, delivered: "3 of 4", read: "2 of 4", answered: "1 of 4" },
+  ]);
+  // A source that sent nothing has no share to say.
+  const none = salonRpcs({
+    campaign_series: () => ({ ...SALON_SENDS, sources: [source(1, 0, 0, 0)], by_channel: [] }),
+  });
+  assert.deepEqual((await salonReport(none)).campaigns.sources, [
+    { name: "Note 1", kind: "Broadcast", runs: 1, sent: 0, delivered: null, answered: null },
+  ]);
 });
 
 test("report says the Reviews lens as the page does (Reports phase C, lens 1): the head and the figures from the one fold, the mix and who waits where the Business Profile holds the reviews, the head and four figures from a public listing, linked false with none, and an error where its read failed", async () => {
@@ -1545,7 +1962,375 @@ test("report says the Receptionist lens as the page does (Reports C2, the Recept
   }
 });
 
-test("report says the Reach-outs section as the page does (a moment holds many campaigns, lane 2, task 6): its counts and its sentences from the page's own fold where the workspace has a reach-out, null where it has none, and an error where its read failed", async () => {
+/* ------------------------------------------------------------ the People lens (Reports, C3) */
+
+const PEOPLE_DAY = 86_400_000;
+/**
+ * A person as people_list answers it (readers.test.mjs's book): wrote on WhatsApp `daysAgo` days before NOW, said yes to
+ * messages and to offers on it, with nothing else open. `over` is what a case puts in the row.
+ */
+const bookRow = (n, daysAgo, over = {}) => {
+  const heard = iso(NOW.getTime() - daysAgo * PEOPLE_DAY);
+  return {
+    id: `k-${n}`,
+    display_name: `Person ${n}`,
+    wa_profile_name: null,
+    phone_e164: `+1917555${String(n).padStart(4, "0")}`,
+    email: null,
+    consent: "opted_in",
+    consent_source: "customer_message",
+    consent_updated_at: heard,
+    marketing_consent: "opted_in",
+    marketing_consent_source: "form",
+    marketing_consent_updated_at: heard,
+    marketing_channels: ["whatsapp"],
+    dnc: false,
+    channels: ["whatsapp"],
+    conversation_count: 1,
+    escalation_count: 0,
+    needs_human: false,
+    open_escalation_reason: null,
+    open_escalation_since: null,
+    latest_conversation_id: `cv-${n}`,
+    latest_state: "open",
+    latest_paused_until: null,
+    latest_assignee_user_id: null,
+    latest_snooze_until: null,
+    latest_wa_inbound_at: heard,
+    last_message_at: heard,
+    last_message_direction: "inbound",
+    last_message_sender: "customer",
+    last_inbound_text: "Can I move Saturday to 11?",
+    last_inbound_at: heard,
+    last_call_at: null,
+    last_inbound_call_at: null,
+    call_count: 0,
+    call_seconds: 0,
+    first_contact_at: heard,
+    earliest_row_at: heard,
+    has_backfill: false,
+    has_chat: true,
+    message_channels: ["whatsapp"],
+    queued_reply_at: null,
+    ...over,
+  };
+};
+/** The next step of a person, due on a day (the workspace's today is 14 Sep 2026): the member's own. */
+const stepDue = (id, on) => ({ step_id: id, step_body: "Call back", step_due_on: on, step_for_user_id: USER });
+/** No yes to offers. */
+const NO_OFFERS = {
+  marketing_consent: null,
+  marketing_consent_source: null,
+  marketing_consent_updated_at: null,
+  marketing_channels: [],
+};
+/**
+ * Eight people, heard 1, 2, 3, 10, 40, 70, 20 and 120 days before NOW: the first six have a step a day past, the seventh
+ * one due today, the first three said yes to offers, the second reaches Harbor by WhatsApp and by phone, and the last asked
+ * to stop.
+ */
+const BOOK = [
+  bookRow(1, 1, stepDue("s1", "2026-09-12")),
+  bookRow(2, 2, { ...stepDue("s2", "2026-09-12"), channels: ["whatsapp", "voice"] }),
+  bookRow(3, 3, stepDue("s3", "2026-09-13")),
+  bookRow(4, 10, { ...NO_OFFERS, ...stepDue("s4", "2026-09-12") }),
+  bookRow(5, 40, { ...NO_OFFERS, ...stepDue("s5", "2026-09-01") }),
+  bookRow(6, 70, { ...NO_OFFERS, ...stepDue("s6", "2026-09-10") }),
+  bookRow(7, 20, { ...NO_OFFERS, ...stepDue("s7", "2026-09-14") }),
+  bookRow(8, 120, { ...NO_OFFERS, consent: "opted_out" }),
+];
+/** The counts of that book, by hand: eight live people, seven with a yes, three with a yes to offers, three quiet. */
+const BOOK_NOW = {
+  people: 8,
+  fresh: { under_7: 3, d7_30: 2, d31_60: 1, d61_90: 1, d91_up: 1, never: 0 },
+  lists: { opted_in: 7, offers_ok: 3, opted_out: 1, quiet: 3 },
+  steps: { overdue: 6, due_today: 1 },
+  email_stopped: 0,
+  wires: { whatsapp_only: 7, sms_only: 0, phone_only: 0, email_only: 0, several: 1, none: 0 },
+};
+/** What people_series answers (00395) for the days asked, as the database says it: SERIES's counts, or `over` in their place. */
+const peopleSeriesFor = (a, over = {}) => ({
+  ...SERIES,
+  timezone: TZ,
+  today: "2026-09-14",
+  days: a.p_days,
+  ...over,
+});
+const PEOPLE_GONE = Object.assign(
+  new Error("Could not find the function public.people_series(p_days, p_tenant_id) in the schema cache"),
+  { code: "PGRST202" },
+);
+
+test("report says the People lens as the page does (Reports C3, the People lens): the head, the window's four figures and six mixes, and the book's wires, freshness, what is stuck and where it stands -- each sentence the fold's, one read of the series and of People; either half alone, an error where it could not be read, and available false where neither could", async () => {
+  const today = "2026-09-14";
+  const quietReport = (a) => ({
+    timezone: TZ,
+    days: a.p_days,
+    span_days: a.p_days * 2,
+    today,
+    series: [],
+    reasons: {},
+    reply_seconds: [],
+    sentiments: {},
+    voicemail: 0,
+  });
+  const rpcs = {
+    ...RPCS,
+    report_series: quietReport,
+    people_list: () => BOOK,
+    people_series: (a) => peopleSeriesFor(a),
+  };
+  const run = async (over = {}) => {
+    const ctx = ctxFor(tables(), { ...rpcs, ...over });
+    const out = await runTool(newToolContext(ctx, A, "owner", TZ, NOW), { name: "report", input: { days: 7 } });
+    assert.equal(out.isError, false, out.result);
+    return { said: JSON.parse(out.result), ctx };
+  };
+  const readsOf = ({ ctx }, rpc) => ctx.supabase.seen.filter((q) => q.rpc === rpc).length;
+  const down = () => {
+    throw new Error("people down");
+  };
+  const gone = () => {
+    throw PEOPLE_GONE;
+  };
+
+  // The book of eight, as the page draws it.
+  const BOOK_SAID = {
+    wires: {
+      rows: ["WhatsApp only: 7", "More than one way: 1"],
+      line: "1 of 8 have reached you more than one way, as of today.",
+    },
+    fresh: {
+      rows: [
+        "Under 7 days: 3",
+        "7 to 30 days: 2",
+        "31 to 60 days: 1",
+        "61 to 90 days: 1",
+        "91 days or more: 1",
+        "Never heard from: 0",
+      ],
+      line: "Of 8 people as of today: the days since they last wrote or called. Your own messages do not count.",
+      quiet: "3 people have been quiet for more than 30 days.",
+    },
+    stuck: [
+      { label: "Steps overdue", value: "6", meta: "people whose next step is past its day", change: null },
+      { label: "Steps due today", value: "1", meta: "people whose next step is due today", change: null },
+      { label: "Email stopped working", value: "0", meta: "every address works", change: null },
+    ],
+    stand: [
+      { label: "Said yes to messages", value: "7", meta: "of 8 people", change: null },
+      { label: "Can receive offers", value: "3", meta: "of 8 people", change: null },
+      { label: "Opted out", value: "1", meta: "of 8 people", change: null },
+      { label: "Quiet 30+ days", value: "3", meta: "of 8 people", change: null },
+    ],
+  };
+
+  // A busy week: every part, in the page's own words.
+  const week = await run();
+  assert.deepEqual(week.said.people, {
+    head: "40 people reached you, 12 new (8 the 7 days before); 7 of 8 have said yes to messages.",
+    window: {
+      reached: [
+        { label: "People who reached you", value: "40", meta: "12 new · 28 you knew already", change: "up from 31" },
+        { label: "New people", value: "12", meta: "of the 40 who reached you", change: "up from 8" },
+        {
+          label: "Yeses won",
+          value: "9",
+          meta: "6 to messages · 2 to offers · 1 to email offers",
+          change: "up from 7",
+        },
+        {
+          label: "Stops",
+          value: "4",
+          meta: "2 stopped all messages · 1 stopped offers · 1 stopped email offers",
+          change: "up from 2",
+        },
+      ],
+      channels: {
+        rows: ["WhatsApp: 25", "Phone: 11", "Email: 6", "Text: 3"],
+        line: "A person who reached you more than one way is counted in each.",
+      },
+      first_came: {
+        rows: ["WhatsApp: 5", "Phone: 3", "Your calendar: 1", "An ad: 1", "Not recorded: 2"],
+        line: "10 of 12 new people have a recorded way in.",
+      },
+      yeses: {
+        rows: ["Their own message: 6", "A form: 2", "In person: 1"],
+        line: "Each person is counted once for each kind of message they said yes to.",
+      },
+      stops: {
+        rows: ["Their own STOP: 2", "The carrier: 1", "An unsubscribe: 1"],
+        line: "Each person is counted once for each kind of message they stopped.",
+      },
+      steps_done: {
+        rows: ["Done on or before their day: 8", "Done after their day: 3"],
+        line: "8 of 11 were done on or before their day.",
+      },
+      email_stopped: {
+        rows: ["Bounced for good: 1", "Marked as spam: 1"],
+        line: "2 addresses stopped working in this period.",
+      },
+    },
+    book: BOOK_SAID,
+  });
+  assert.equal(week.said.people.window.reached[0].value, "40");
+  assert.equal(week.said.people.book.stuck[0].value, "6");
+  assert.equal(week.said.people.book.stand[0].label, "Said yes to messages");
+  // The same fold the page draws: the lens's sentence is the view model's, whoever asks.
+  const folded = toPeopleReportVM({
+    timezone: TZ,
+    today,
+    days: 7,
+    series: peopleSeriesFor({ p_days: 7 }),
+    now: BOOK_NOW,
+  });
+  assert.equal(week.said.people.head, folded.head);
+  assert.equal(week.said.people.book.fresh.quiet, folded.fresh.quiet.line);
+  assert.deepEqual(
+    week.said.people.window.reached.map((x) => x.meta),
+    folded.strip.map((x) => x.meta),
+  );
+  // One read of the series and of People, and of the channels the book is judged against, for the whole report.
+  assert.deepEqual(
+    ["people_series", "people_list"].map((rpc) => readsOf(week, rpc)),
+    [1, 1],
+    "the booking line's read of People and the book's are the turn's one read (readers/everyone.ts)",
+  );
+  // The channels: the book is judged against the turn's one read of them (the number's row and the texting line's), and the
+  // Campaigns lens's ledger reads the connected number's row once more, to say its health (readers/campaign-report.ts).
+  assert.deepEqual(
+    ["tenant_channels", "lines"].map((table) => week.ctx.supabase.seen.filter((q) => q.table === table).length),
+    [2, 1],
+    "the channels: the book's judgment, once, and the number's health, once",
+  );
+  assert.deepEqual(
+    [week.said.range, week.said.campaigns.error, week.said.reviews.linked],
+    ["7 days", "the campaign numbers could not be read just now", false],
+    "the report's own parts stand beside it",
+  );
+
+  // A database that does not have the function yet (00395 not applied): the book alone, no head of the window's, once in the log.
+  const absent = await logged("people_series_missing", () => run({ people_series: gone }));
+  assert.deepEqual(absent.result.said.people, { head: null, window: null, book: BOOK_SAID });
+  assert.deepEqual(absent.lines, [JSON.stringify({ tenant_id: A })], "said once for the read, naming the workspace");
+
+  // People that cannot be read: the window alone, said without the yes of the book, and in the log.
+  const pool = await logged("people_pool_failed", () => run({ people_list: down }));
+  assert.deepEqual(pool.result.said.people, {
+    head: "40 people reached you, 12 new (8 the 7 days before).",
+    window: week.said.people.window,
+    book: null,
+  });
+  assert.equal(pool.lines.length, 1, "said once in the log");
+  assert.match(JSON.parse(pool.lines[0]).error, /people down/);
+  assert.equal(pool.result.said.range, "7 days", "the report's own numbers stand");
+
+  // Neither half: not "nothing", the lens is not kept in this database.
+  const { result: neither } = await logged("people_pool_failed", () => run({ people_series: gone, people_list: down }));
+  assert.deepEqual(neither.said.people, { available: false });
+
+  // A read that fails, here a function nobody scripted, or one that raises: an error in words, never as nobody reached
+  // you, and once in the log; the report's own numbers stand.
+  const { people_series: _scripted, ...unscripted } = rpcs;
+  const failed = await logged("ask_tool_read_failed", async () => {
+    const ctx = ctxFor(tables(), unscripted);
+    const out = await runTool(newToolContext(ctx, A, "owner", TZ, NOW), { name: "report", input: { days: 7 } });
+    assert.equal(out.isError, false, out.result);
+    return JSON.parse(out.result);
+  });
+  assert.deepEqual(failed.result.people, { error: "the people numbers could not be read just now" });
+  assert.deepEqual(
+    failed.lines.map((l) => JSON.parse(l).read).filter((read) => read === "people"),
+    ["people"],
+    "and said once in the log",
+  );
+  assert.equal(failed.result.range, "7 days");
+  const { result: raised } = await logged("ask_tool_read_failed", () =>
+    run({
+      people_series: () => {
+        throw new Error("connection refused");
+      },
+    }),
+  );
+  assert.deepEqual(raised.said.people, { error: "the people numbers could not be read just now" });
+
+  // A period nobody reached you in: the page's words for each part, and no zero said for what has no source; the book stands.
+  const quiet = await run({ people_series: (a) => peopleSeriesFor(a, QUIET) });
+  assert.deepEqual(quiet.said.people, {
+    head: "Nobody reached you in this period; 7 of 8 have said yes to messages.",
+    window: {
+      reached: [
+        { label: "People who reached you", value: "0", meta: "nobody wrote or called in this period", change: null },
+        { label: "New people", value: "0", meta: "nobody new", change: null },
+        { label: "Yeses won", value: "0", meta: "nobody said yes in this period", change: null },
+        { label: "Stops", value: "0", meta: "nobody asked to stop in this period", change: null },
+      ],
+      channels: { empty: "Nobody reached you in this period." },
+      first_came: { empty: "Nobody new reached you in this period." },
+      yeses: { empty: "Nobody said yes in this period." },
+      stops: { empty: "Nobody asked to stop in this period." },
+      steps_done: { empty: "No step was done in this period." },
+      email_stopped: { empty: "No address stopped working in this period." },
+    },
+    book: BOOK_SAID,
+  });
+  assert.equal(JSON.stringify(quiet.said.people).includes("NaN"), false);
+
+  // A book with nobody in it says its words, not a zero share; a book of four says no share of yes in the head.
+  const empty = await run({ people_list: () => [] });
+  assert.deepEqual(empty.said.people.book.wires, { empty: "Nobody is in your book yet." });
+  assert.deepEqual(empty.said.people.book.fresh, { empty: "Nobody is in your book yet.", quiet: null });
+  assert.deepEqual(empty.said.people.book.stand[0], {
+    label: "Said yes to messages",
+    value: "0",
+    meta: "nobody is in your book yet",
+    change: null,
+  });
+  assert.equal(empty.said.people.head, "40 people reached you, 12 new (8 the 7 days before).");
+  const four = await run({ people_list: () => BOOK.slice(0, 4) });
+  assert.equal(
+    four.said.people.head,
+    "40 people reached you, 12 new (8 the 7 days before).",
+    "of fewer than five: no share",
+  );
+  assert.equal(four.said.people.book.stand[0].meta, "of 4 people");
+  assert.equal(four.said.people.book.stuck[0].value, "4");
+});
+
+test("report withholds only a share of fewer than five: a count of fewer is said as it is, with the count it stands against in its meta", async () => {
+  // A book of three people: the page greys nothing that is a count, and so does Ask (the book's figures carry n = 3 and minN = 5,
+  // as the shares do, but their values are counts of people).
+  const ctx = ctxFor(tables(), {
+    ...RPCS,
+    report_series: (a) => ({
+      timezone: TZ,
+      days: a.p_days,
+      span_days: a.p_days * 2,
+      today: "2026-09-14",
+      series: [],
+      reasons: {},
+      reply_seconds: [],
+      sentiments: {},
+      voicemail: 0,
+    }),
+    people_list: () => BOOK.slice(0, 3),
+    people_series: (a) => peopleSeriesFor(a),
+  });
+  const out = await runTool(newToolContext(ctx, A, "owner", TZ, NOW), { name: "report", input: { days: 7 } });
+  assert.equal(out.isError, false, out.result);
+  const { stand } = JSON.parse(out.result).people.book;
+  assert.deepEqual(
+    stand.map((f) => [f.label, typeof f.value, f.meta]),
+    [
+      ["Said yes to messages", "string", "of 3 people"],
+      ["Can receive offers", "string", "of 3 people"],
+      ["Opted out", "string", "of 3 people"],
+      ["Quiet 30+ days", "string", "of 3 people"],
+    ],
+  );
+});
+
+test("report says the Reach-outs section as the page does (the Campaigns lens, C4): the emails and the businesses counted apart, each sentence from the page's own fold where the workspace has a reach-out, null where it has none, and an error where its read failed", async () => {
   const today = iso(NOW.getTime()).slice(0, 10);
   const counts = (over = {}) => ({
     written: 0,
@@ -1558,7 +2343,10 @@ test("report says the Reach-outs section as the page does (a moment holds many c
     handed: 0,
     ...over,
   });
-  /** What reach_out_report answers (00241) over the days asked: one chain's period, or none at all with `over`. */
+  /**
+   * What reach_out_report answers (00404) over the days asked: 40 emails to 25 businesses (30 emails the period before), of
+   * which 6 businesses wrote back as they stand now, two angles, or none at all with `over`.
+   */
   const reachOuts = (days, over = {}) => ({
     timezone: TZ,
     days,
@@ -1569,17 +2357,22 @@ test("report says the Reach-outs section as the page does (a moment holds many c
       written: 40,
       delivered: 38,
       bounced: 1,
+      businesses: 25,
       wrote_back: 6,
       interested: 3,
       booked: 1,
       said_no: 2,
       handed: 4,
     }),
+    before: { written: 30, delivered: 27, bounced: 1 },
     series: [{ day: today, written: 40 }],
     chains: [],
-    angles: [],
-    other_angles: { written: 0, wrote_back: 0 },
-    no_angle: 0,
+    angles: [
+      { angle: "their rating", written: 20, businesses: 8, wrote_back: 2 },
+      { angle: "mid-session calls", written: 8, businesses: 4, wrote_back: 2 },
+    ],
+    other_angles: { written: 0, businesses: 0, wrote_back: 0 },
+    no_angle: 10,
     domains: [],
     ...over,
   });
@@ -1607,16 +2400,96 @@ test("report says the Reach-outs section as the page does (a moment holds many c
     return JSON.parse(out.result);
   };
 
-  // A workspace with a reach-out: the page's own fold (toReachOutReportVM) over the page's own payload, its totals, the
-  // funnel's sentence and the line on what was handed.
+  // A workspace with a reach-out: the page's own fold (toReachOutLensVM) over the page's own payload. The emails are counted
+  // in emails and the businesses in businesses, and an outcome (wrote back, interested, booked, said no) is a count of
+  // businesses as they stand now, said against nothing of the period before.
   const said = (await run(rpcs)).reach_outs;
-  const page = toReachOutReportVM(reachOuts(7), NOW.getTime());
-  assert.deepEqual(said, { empty: false, totals: page.totals, funnel: page.lines.funnel, written: page.lines.written });
+  assert.deepEqual(Object.keys(said), ["empty", "strip", "emails", "businesses", "angles", "handed"]);
+  assert.deepEqual(said, {
+    empty: false,
+    strip: [
+      { label: "Emails written", value: "40", meta: "25 businesses written to", change: "up from 30" },
+      { label: "Landed", value: "95%", meta: "38 of 40 emails delivered", change: "was 90% the 7 days before" },
+      { label: "Bounced", value: "1", meta: "1 of 40 emails bounced", change: "same as the 7 days before" },
+    ],
+    emails: {
+      rows: ["Written: 40", "Delivered: 38", "Bounced: 1"],
+      line: "Of 40 emails written in these 7 days: 95% were delivered and 3% bounced. No opens: only what came back.",
+    },
+    businesses: {
+      rows: ["Written to: 25", "Wrote back: 6", "Interested: 3", "Booked: 1", "Said no: 2"],
+      line: "Of 25 businesses written to in these 7 days: 24% wrote back and 12% were interested. Each counts once, at the last email that wrote to it; a question counts as interested. Who wrote back, was interested, booked or said no is as it stands now.",
+    },
+    angles: {
+      rows: ["their rating: 2 of 8  25%", "mid-session calls: 2 of 4"],
+      line: "The opening written for each business, and who answered, as they stand now. 10 emails had no opening, so no angle.",
+    },
+    handed: "4 businesses handed to you as a call or a note, too.",
+  });
+  // The same fold the page draws, whoever asks: the businesses' rows are its rows, its sentences its sentences.
+  const page = toReachOutLensVM(reachOuts(7), NOW.getTime());
   assert.deepEqual(
-    [said.totals.written, said.totals.wrote_back, said.written],
-    [40, 6, "4 businesses handed to you as a call or a note, too."],
-    "the numbers the page draws, and its words",
+    said.businesses.rows,
+    page.businesses.rows.map((r) => `${r.label}: ${r.value}`),
   );
+  assert.deepEqual(
+    [said.businesses.line, said.emails.line, said.angles.line, said.handed],
+    [page.businesses.line, page.emails.line, page.angles.line, page.lines.written],
+  );
+  assert.deepEqual(said.strip, page.strip.map(saidFigure));
+  assert.equal(JSON.stringify(said).includes("funnel"), false, "the old fold's funnel sentence is gone");
+
+  // Nothing handed over: no line on it, never an empty sentence.
+  const unhanded = await run({
+    ...rpcs,
+    reach_out_report: (a) =>
+      reachOuts(a.p_days, { totals: counts({ written: 12, delivered: 12, businesses: 12, wrote_back: 1 }) }),
+  });
+  assert.equal(unhanded.reach_outs.handed, null);
+
+  // A database before 00404 sends no businesses: the emails stand, and the businesses part says it does not count them.
+  const old = await run({
+    ...rpcs,
+    reach_out_report: (a) => {
+      const { before: _, ...beforeIt } = reachOuts(a.p_days, {
+        totals: counts({ written: 40, delivered: 38, bounced: 1, wrote_back: 6 }),
+        angles: [{ angle: "their rating", written: 20, wrote_back: 2 }],
+        other_angles: { written: 0, wrote_back: 0 },
+      });
+      return beforeIt;
+    },
+  });
+  assert.deepEqual(old.reach_outs.businesses, { empty: "This database does not count businesses yet." });
+  assert.deepEqual(old.reach_outs.angles, { empty: "This database does not count businesses yet." });
+  assert.equal(old.reach_outs.emails.rows[0], "Written: 40");
+  assert.equal(old.reach_outs.strip[0].meta, "40 emails");
+
+  // Reach-outs that wrote alone: the lens's sentence says so after "Nothing went out", as the page's head does.
+  const alone = salonRpcs({
+    campaign_series: () => SALON_QUIET_SENDS,
+    campaign_ledger: (a) => ({ ...SALON_WINDOW, ...SALON_QUIET, days: a.p_days }),
+    reach_out_report: (a) => reachOuts(a.p_days),
+    reach_out_chain_totals: () => ({}),
+  });
+  const wrote = await salonReport(alone);
+  assert.equal(
+    wrote.campaigns.head,
+    "Nothing went out in this period. Your reach-outs wrote 40 emails to 25 businesses.",
+  );
+  assert.equal(wrote.reach_outs.businesses.rows[0], "Written to: 25");
+
+  // A share of fewer than five emails: the page greys "Landed" (its n and minN), and Ask, which cannot grey, does not say the
+  // percentage -- its value is null and the fold's own meta carries the count. Of five, the share is said.
+  const emailsOf = (written, delivered) =>
+    reachOuts(7, {
+      totals: counts({ written, delivered, bounced: written - delivered, businesses: written }),
+      before: { written: 0, delivered: 0, bounced: 0 },
+    });
+  const four = (await run({ ...rpcs, reach_out_report: () => emailsOf(4, 3) })).reach_outs.strip;
+  assert.deepEqual(four.at(1), { label: "Landed", value: null, meta: "3 of 4 emails delivered", change: null });
+  assert.deepEqual([four.at(0).value, four.at(2).value], ["4", "1"], "and the counts beside it are said as they are");
+  const five = (await run({ ...rpcs, reach_out_report: () => emailsOf(5, 4) })).reach_outs.strip;
+  assert.deepEqual(five.at(1), { label: "Landed", value: "80%", meta: "4 of 5 emails delivered", change: null });
 
   // No reach-out at all: the page draws no section, and the tool says null, never a section of zeros.
   const none = await run({
@@ -3179,9 +4052,11 @@ test("calendar.week reads the board as its page reads it (ledger #11): with no d
       // notices' health line (two reads) and the workspace's mailbox, before everyone; and, once the feed has read,
       // the record's taken time over the days on offer, which a week alone does not cover. The record's reads are
       // asked together (9 Oct 2026, calendar-week.ts recordOverSpan), so they reach the database in no one order:
-      // each, as often.
+      // each, as often. The span's record is two reads since a member's word on a visit (00397, visitsOver): the
+      // bookings whole, and the feed's rows by key.
       [...weekAsked].sort(),
       [
+        "appointments.select",
         "appointments.select",
         "appointment_notices.select",
         "appointment_notices.select",
@@ -3390,11 +4265,22 @@ test("report reads what the Reports page reads (ledger #1): the series, then the
         "google_connections.select",
         "google_reviews.select",
         "google_listing_days.select",
-        // Everyone, once, for the booking line and the deals alike.
+        // Everyone, once, for the booking line and the deals alike, and for the People lens's book (10 Oct 2026, Reports
+        // C3): which is counted against the channels the workspace can send on (the number's row and the texting line's),
+        // the one read of them; this world's database has no people_series, which no read counts.
         "rpc:people_list",
+        "tenant_channels.select",
+        "lines.select",
         "policies.select",
+        // And the Campaigns lens's ledger (11 Oct 2026, Reports C4): it reads the connected number's row once more, to say the
+        // number's health (the reader's own read, readers/campaign-report.ts numberOf). This world's database has no
+        // campaign_ledger or campaign_stuck, which no read counts.
+        "tenant_channels.select",
         // The calendar's zone and settings for the booking line, and how the workspace's customers buy, are the
-        // turn's: none read again. The deals.
+        // turn's: none read again. The record over the feed's season, joined to it (0002's readers): a booking's rows,
+        // and the feed's rows by key. The deals.
+        "appointments.select",
+        "appointments.select",
         "deals.select",
       ].sort(),
     );
@@ -4200,7 +5086,9 @@ test("the rules Ask says the receptionist follows are the ones the composer gave
   });
   const PRICE = "never quotes or confirms a price";
   const BOOKING = "never confirms a booking itself";
-  const AI = "says it is an automated assistant when asked";
+  // Always (decision 0051): a stored false changes nothing, and the price rule off says what it may say instead.
+  const AI = "always says it is the business's automated assistant, never a person";
+  const WRITTEN = "says only the prices the business wrote, never another";
   const HEALTH = "gives no health advice";
 
   // No `guardrails` key at all: what every workspace that never opened the rules has.
@@ -4222,8 +5110,7 @@ test("the rules Ask says the receptionist follows are the ones the composer gave
     config({ never_quote_prices: false, never_confirm_booking: false, disclose_ai: false }),
     NOW,
   );
-  assert.deepEqual(off.guardrails, [], "switched off is off, and the health rule is still not on");
-  assert.doesNotMatch(factsBlock(off), /The receptionist /);
+  assert.deepEqual(off.guardrails, [WRITTEN, AI], "switched off is off, and the health rule is still not on");
 
   // The same three configs through the composer: Ask lists the health rule exactly when the receptionist's prompt holds it.
   for (const [guardrails, facts] of [
@@ -4238,11 +5125,9 @@ test("the rules Ask says the receptionist follows are the ones the composer gave
     );
     assert.equal(facts.guardrails.includes(HEALTH), /Never give medical or health advice/.test(composed));
     assert.equal(facts.guardrails.includes(PRICE), /Never quote or confirm a price/.test(composed));
+    assert.equal(facts.guardrails.includes(WRITTEN), /Say a price only as the business wrote it/.test(composed));
     assert.equal(facts.guardrails.includes(BOOKING), /Never promise or confirm an appointment yourself/.test(composed));
-    assert.equal(
-      facts.guardrails.includes(AI),
-      /say plainly that you are the business's automated assistant/.test(composed),
-    );
+    assert.ok(facts.guardrails.includes(AI) && /never claim or hint that you are a person/.test(composed));
   }
 
   // The one reading both go through, with the defaults applied; null and undefined are a workspace with no rules stored.
@@ -4259,6 +5144,7 @@ test("the rules Ask says the receptionist follows are the ones the composer gave
     disclose_ai: true,
     no_health_advice: true,
   });
+  assert.equal(guardrailsInForce({ disclose_ai: false }).disclose_ai, true, "always on, whatever a row stores");
 });
 
 test("the notes Ask says the receptionist follows are the ones the composer tells it today: an ended note is not listed, a lasting one says its end in the prompt's words, and one with no end reads as before", async () => {
@@ -8304,10 +9190,7 @@ test("a broadcast or a playbook proposed on a workspace with no WhatsApp number 
   const us = { ...WHATSAPP_NUMBER, number_e164: "+19295550198" };
   const paused = await buildProposal(toolContext([us]), "propose_campaign", broadcast);
   assert.deepEqual([paused.proposal, paused.isError], [null, true], paused.result);
-  assert.match(
-    JSON.parse(paused.result).error,
-    /Meta isn't delivering marketing messages on WhatsApp to US numbers right now/,
-  );
+  assert.match(JSON.parse(paused.result).error, /Meta has paused offers on WhatsApp to US numbers/);
   const unpaid = {
     ...WHATSAPP_NUMBER,
     config: { ...WHATSAPP_NUMBER.config, standing: { can_send: "AVAILABLE", has_payment_method: false } },

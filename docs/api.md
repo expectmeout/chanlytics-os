@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-231 handlers in 47 domains.
+237 handlers in 47 domains.
 
 ## activity
 
@@ -258,6 +258,14 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 Writes; for a member of the workspace the request names, operator or above; counts against the `settings` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/calendar/preview/route.ts`).
+
+### `POST /api/v1/calendar/visits/[id]`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `person_edit` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `status` | one of `"kept"`, `"missed"`, `"cancelled"` | yes |  |
 
 ## calls
 
@@ -793,6 +801,8 @@ Writes; for a member of the workspace the request names, partner or above; count
 | `version` | integer | yes | ≥ 1; ≤ 9007199254740991 |
 | `card` | `"local_businesses"` | yes |  |
 | `name` | string | yes |  |
+| `category_key` | string | no | matches `^[a-z][a-z0-9_]{0,39}$` |
+| `from` | `"idea"` | no |  |
 | `asked` | string | yes |  |
 | `terms` | array of string | yes | at least 1; at most 5 |
 | `area` | object | yes |  |
@@ -1602,6 +1612,16 @@ Reads; for a member of the workspace the request names; counts against the `aggr
 | `from` | string | no |  |
 | `to` | string | no |  |
 
+### `GET /api/v1/reports/campaigns/ledger`
+
+Reads; for a member of the workspace the request names; counts against the `aggregate` rate; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `period` | one of `"7d"`, `"30d"`, `"90d"`, `"month"` | no |  |
+| `from` | string | no |  |
+| `to` | string | no |  |
+
 ### `GET /api/v1/reports/headline`
 
 Reads; for a member of the workspace the request names; counts against the `aggregate` rate; spends nothing.
@@ -1609,6 +1629,16 @@ Reads; for a member of the workspace the request names; counts against the `aggr
 | Query field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `period` | one of `"7d"`, `"30d"`, `"90d"`, `"month"` | no |  |
+
+### `GET /api/v1/reports/people`
+
+Reads; for a member of the workspace the request names; counts against the `aggregate` rate; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `period` | one of `"7d"`, `"30d"`, `"90d"`, `"month"` | no |  |
+| `from` | string | no |  |
+| `to` | string | no |  |
 
 ### `GET /api/v1/reports/reach-outs`
 
@@ -1952,3 +1982,23 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 Writes; for any signed-in person, for themselves; counts against the `create_workspace` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/workspaces/create/route.ts`).
+
+### `PUT /api/v1/workspaces/logo`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `workspace_logo` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `image` | string | yes | at least 1 characters; at most 349528 characters; matches `^[A-Za-z0-9+/]+={0,2}$` |
+
+### `DELETE /api/v1/workspaces/logo`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `workspace_logo` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/workspaces/logo/route.ts`).
+
+### `POST /api/v1/workspaces/logo/lookup`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `workspace_logo_lookup` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/workspaces/logo/lookup/route.ts`).

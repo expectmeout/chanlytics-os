@@ -602,7 +602,7 @@ test("a proposal follow-up's send (0006): the link each person's run froze fills
   );
 });
 
-test("a review ask's send: the link the workspace's Google listing keeps (00394) fills its slot for each person, and a workspace with none holds them, never a bare ask", async () => {
+test("a review ask's send: the link the workspace's Google listing keeps (00408) fills its slot for each person, and a workspace with none holds them, never a bare ask", async () => {
   const ask = broadcast({ params: [{ kind: "first_name" }, { kind: "review_link" }] });
   const words = { meta_status: "approved", body_preview: "Thanks, {{1}}! A review helps: {{2}}", category: "utility" };
   const link = "https://example.com/review/harbor-studio";

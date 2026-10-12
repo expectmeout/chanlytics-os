@@ -101,8 +101,31 @@ test("a page-only module's names are in no page's entry, and in its own", () => 
   assert.deepEqual(PAGE_ONLY, [
     "reports/report-metrics.ts",
     "reports/report-window.ts",
+    "reports/report-mix.ts",
     "reports/receptionist/receptionist-report.ts",
     "reports/receptionist/receptionist-words.ts",
+    "reports/people/people-report.ts",
+    "reports/people/people-words.ts",
+    "reports/campaigns/reach-out-lens.ts",
+    "reports/campaigns/campaign-words.ts",
+    "reports/campaigns/campaign-lens.ts",
+    "ads/rules.ts",
+    "ads/money.ts",
+    "ads/words.ts",
+    "ads/words-page.ts",
+    "ads/words-drawer.ts",
+    "ads/words-new.ts",
+    "ads/results/words-results.ts",
+    "ads/results/results.ts",
+    "ads/words-connect.ts",
+    "ads/vm-base.ts",
+    "ads/page.ts",
+    "ads/page-parts.ts",
+    "ads/drawer.ts",
+    "ads/drawer-parts.ts",
+    "ads/drawer-edit.ts",
+    "ads/new-ad.ts",
+    "ads/new-ad-parts.ts",
   ]);
   for (const name of [
     "metricWordsOf",
@@ -110,20 +133,50 @@ test("a page-only module's names are in no page's entry, and in its own", () => 
     "reportPickWords",
     "reportShortcuts",
     "toReceptionistReportVM",
+    "toPeopleReportVM",
+    "PEOPLE_RHYTHM_UNIT",
+    "toReachOutLensVM",
+    "toCampaignLensVM",
   ])
     assert.ok(!current.names.includes(name), `${name} is the Reports page's, by its own entry`);
+  // Campaigns › Ads: its models, rules, money and words are its page's, by its own entry; the data, the addresses and the
+  // day arithmetic are the root's, since Reports, People and Campaigns' routes read them too.
+  for (const name of ["adsModel", "adModel", "newAdModel", "moneyOf", "BUDGET_RULES", "DOOR_NEEDS", "DRAWER", "NEW_AD"])
+    assert.ok(!current.names.includes(name), `${name} is the Ads page's, by its own entry`);
+  for (const name of ["addDays", "daysBetween", "parseAds", "adRoute", "ADS_WORDS"])
+    assert.ok(current.names.includes(name), `${name} stays in the root entry for the frame's routes`);
+  const ads = fs.readFileSync(path.join(ROOT, "packages/contracts/dist/ads-page.js"), "utf8");
+  assert.match(ads, /adsModel/);
+  assert.match(ads, /newAdModel/);
+  assert.match(ads, /moneyOf/);
   const lens = fs.readFileSync(path.join(ROOT, "packages/contracts/dist/report-lens.js"), "utf8");
   assert.match(lens, /metricWordsOf/);
   assert.match(lens, /toReceptionistReportVM/);
+  assert.match(lens, /toPeopleReportVM/);
+  assert.match(lens, /PEOPLE_RHYTHM_UNIT/);
+  assert.match(lens, /toReachOutLensVM/);
+  assert.match(lens, /toCampaignLensVM/);
   // The Receptionist lens's record is the server's: the root barrel names it, so the browser's entry carries it, and a page
-  // imports only its types.
-  for (const name of ["receptionistDtoOf", "isReceptionistSeriesDto", "MISSED_CALL_TOUCH_WORDS"])
+  // imports only its types. The People lens's record and the book's count are the server's the same way.
+  for (const name of [
+    "receptionistDtoOf",
+    "isReceptionistSeriesDto",
+    "MISSED_CALL_TOUCH_WORDS",
+    "peopleDtoOf",
+    "isPeopleSeriesDto",
+    "peopleNowOf",
+  ])
     assert.ok(current.names.includes(name), `${name} stays in the root barrel for the server`);
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "packages/contracts/package.json"), "utf8"));
   assert.deepEqual(pkg.exports["./report-lens"], {
     types: "./dist/report-lens.d.ts",
     import: "./dist/report-lens.js",
     default: "./dist/report-lens.js",
+  });
+  assert.deepEqual(pkg.exports["./ads-page"], {
+    types: "./dist/ads-page.d.ts",
+    import: "./dist/ads-page.js",
+    default: "./dist/ads-page.js",
   });
 });
 
@@ -148,15 +201,27 @@ test("every page-only path names a file, since one that names none would filter 
     );
   // The list the generator is given decides what the entry leaves out: with none, the page-only names come back.
   const all = generate(ROOT, []);
-  for (const name of ["metricWordsOf", "toReceptionistReportVM", "reportWindowOf"])
+  for (const name of [
+    "metricWordsOf",
+    "toReceptionistReportVM",
+    "toPeopleReportVM",
+    "toReachOutLensVM",
+    "toCampaignLensVM",
+    "reportWindowOf",
+    "adsModel",
+    "newAdModel",
+  ])
     assert.ok(all.names.includes(name), `${name} is in the entry when nothing is page-only`);
 });
 
 test("the page-only entry reaches no classic zod", () => {
-  const built = fs.readFileSync(path.join(ROOT, "packages/contracts/dist/report-lens.js"), "utf8");
-  const specs = [...built.matchAll(/^import\b[^"']*["']([^"']+)["']/gm)].map((m) => m[1]);
-  assert.deepEqual(
-    specs.filter((s) => ["zod", "zod/v4", "zod/v4/classic"].includes(s)),
-    [],
-  );
+  for (const entry of ["report-lens", "ads-page"]) {
+    const built = fs.readFileSync(path.join(ROOT, `packages/contracts/dist/${entry}.js`), "utf8");
+    const specs = [...built.matchAll(/^import\b[^"']*["']([^"']+)["']/gm)].map((m) => m[1]);
+    assert.deepEqual(
+      specs.filter((s) => ["zod", "zod/v4", "zod/v4/classic"].includes(s)),
+      [],
+      entry,
+    );
+  }
 });

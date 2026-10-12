@@ -103,7 +103,7 @@ export function useHomeData(nowMs?: number): HomeData {
  */
 export function useKeptGroup(address: HomeAddress): string | null {
   const kept = useRef<string | null>(address.group);
-  if (address.moment === null && address.compose === null) kept.current = address.group;
+  if (address.moment === null && address.message === null && address.compose === null) kept.current = address.group;
   return kept.current;
 }
 
@@ -118,7 +118,7 @@ export function useHomeNav(address: HomeAddress, group: string | null) {
   // How many entries stand over the home: the drawer, and a composer opened over it.
   const pushed = useRef(0);
   const swapped = useRef(false);
-  const open = address.moment !== null || address.compose !== null;
+  const open = address.moment !== null || address.message !== null || address.compose !== null;
   const wasOpen = useRef(open);
   useEffect(() => {
     if (!open) pushed.current = 0;
@@ -160,7 +160,7 @@ export function useReopenDrafts(
   useEffect(() => {
     if (asked.current || !playbooks) return;
     asked.current = true;
-    if (address.moment !== null || address.compose !== null) return;
+    if (address.moment !== null || address.message !== null || address.compose !== null) return;
     if (tabDraft("broadcast")) swap(composeRoute("once"));
     else if (tabDraft("playbook", "new")) swap(composeRoute("every"));
     else {

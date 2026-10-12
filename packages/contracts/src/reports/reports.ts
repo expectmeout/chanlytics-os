@@ -27,7 +27,7 @@ import {
   type ReportHoldVM,
 } from "./report-speed";
 import { closedOf, hoursUnsetOf, type ReportArrivalDto, type ReportProfile } from "./report-closed";
-import { REPORT_TILES, beforeWords, fmtSeconds, type ReportTileVM } from "./report-tiles";
+import { REPORT_TILES, beforeWords, fmtSeconds, newPeopleLine, type ReportTileVM } from "./report-tiles";
 import type { ReportHeadlineDto } from "./report-headline";
 import type { ReportPeriodId } from "./report-periods";
 import type { BookingReportDto } from "./booking-report";
@@ -183,7 +183,8 @@ export interface ReportLinesVM {
   answered: string | null;
   reply: string | null;
   calls: string | null;
-  channels: string | null;
+  /** How many new people reached you, against the period before where there was one: the People lens's head until its own read lands (always a sentence; a quiet period has one too). */
+  people: string;
   rhythm: string | null;
 }
 
@@ -423,27 +424,6 @@ const moodRank = (s: string): number => (s === "Positive" ? 0 : s === "Negative"
 const listWords = (names: readonly string[], last: "or" | "and"): string =>
   names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} ${last} ${names[names.length - 1]}`;
 
-/** A channel inside a sentence: calls, email and texts are common nouns there; WhatsApp is a name. */
-const channelNoun = (c: ReportChannelVM): string =>
-  c.key === "voice" ? "calls" : c.key === "email" ? "email" : c.key === "sms" ? "texts" : c.label;
-
-/** Where people reached the business, beside where they reached it the period before. */
-function channelsLine(channels: ReportChannelVM[] | null, rangeLabel: string): string | null {
-  if (!channels) return null;
-  const reached = channels.reduce((s, c) => s + c.value, 0);
-  if (!reached) return null;
-  const top = channels.reduce((a, c) => (c.value > a.value ? c : a));
-  const lead =
-    top.value * 2 > reached
-      ? `Mostly ${channelNoun(top)}`
-      : `${capitalize(channelNoun(top))} ${top.key === "voice" || top.key === "sms" ? "lead" : "leads"}`;
-  const before = channels.reduce((s, c) => s + c.prior, 0);
-  if (!before) return `${lead}.`;
-  const wasTop = channels.reduce((a, c) => (c.prior > a.prior ? c : a));
-  if (wasTop.key === top.key) return `${lead}, as ${beforeWords(rangeLabel)}.`;
-  return `${capitalize(channelNoun(top))} took over from ${channelNoun(wasTop)}.`;
-}
-
 /**
  * The quiet side of the week (Worth knowing says the busy side): the days nothing came in, or the quietest one. Said
  * of one week as days ("Monday was the quietest day") and of a longer period as weekdays ("Quietest on Mondays").
@@ -668,7 +648,7 @@ function replyLine({ sortedReply, p90, hold }: PeriodFacts): string | null {
 }
 
 /** The one sentence under each chart, each adding the next thing (ReportLinesVM). */
-function linesOf(f: PeriodFacts, week: ReportWeekVM, channels: ReportChannelVM[] | null): ReportLinesVM {
+function linesOf(f: PeriodFacts, week: ReportWeekVM): ReportLinesVM {
   const { points, tot, prev, rangeLabel, answeredTotal, prevAnsweredTotal } = f;
   // The busiest date (the first of a tie): Worth knowing names the busiest weekday, this the one day.
   const busiestDay = tot.in ? points.reduce((b, p) => (p.in > b.in ? p : b)) : null;
@@ -683,7 +663,7 @@ function linesOf(f: PeriodFacts, week: ReportWeekVM, channels: ReportChannelVM[]
     answered: busiestDay ? `Most messages on ${busiestDay.label}: ${busiestDay.in}.` : null,
     reply: replyLine(f),
     calls: tot.calls ? `About ${fmtSeconds(tot.callSeconds / tot.calls)} a call.` : null,
-    channels: channelsLine(channels, rangeLabel),
+    people: newPeopleLine(tot.newPeople, prev.newPeople, rangeLabel, f.priorHadAny),
     rhythm: rhythmLine(week),
   };
 }
@@ -754,7 +734,7 @@ export function toReportVM(dto: ReportDto, opts: { profile: ReportProfile | null
     hoursUnset: hoursUnsetOf(dto.arrivals, opts?.profile),
     channels,
     period: periodWords(f.days, f.until),
-    lines: linesOf(f, week, channels),
+    lines: linesOf(f, week),
     table: {
       columns: [
         "Day",

@@ -4,11 +4,12 @@
  * in the owner's place (whoseWords), which the Business tab's instructions box opens with (instructionsDraft).
  */
 import { resolveFacts, type KnownFacts } from "../facts";
-import { offersBookingLink } from "../no-booking-link";
+import { samePhone } from "../../shared/phone";
+import { NO_WAY_TO_SEND_LINK, offersBookingLink, offersLinkOn } from "../no-booking-link";
 import { BASELINE_CLOSING, BASELINE_OPENING, isBaselinePrompt } from "./brain-config";
 import type { BrainConfig } from "./brain-config-schema";
 import type { BusinessProfile } from "./business-profile";
-import { composeSystemPrompt, noLinkBooking, standingRules, PROMPT_OPENINGS } from "./compose";
+import { composeSystemPrompt, noLinkBooking, standingRules, PROMPT_OPENINGS, type PromptAudience } from "./compose";
 
 /**
  * What the Business form's instructions box opens with (S4).
@@ -61,7 +62,7 @@ export function instructionsDraft(
  * so an owner reading the page twice reads the same words. `hasProfile`, below, is what decides
  * whether either is said.
  */
-export const NO_FIELDS_COMPOSED_WORDS = "None of the details on this page are composed into what it reads yet.";
+export const NO_FIELDS_COMPOSED_WORDS = "Your details aren't in what it reads yet.";
 
 /** True when a profile carries anything worth composing from. */
 export function hasProfile(p: BusinessProfile | undefined | null): boolean {
@@ -110,7 +111,8 @@ export function hasProfile(p: BusinessProfile | undefined | null): boolean {
  */
 export function resolveSystemPrompt(
   brain: BrainConfig,
-  channel: "whatsapp" | "voice" = "whatsapp",
+  /** Where it answers. A text is a chat, as WhatsApp is, and its prompt says it answers texts (compose.ts). */
+  wire: "whatsapp" | "sms" | "voice" = "whatsapp",
   /** IANA zone from `tenants.timezone`. Labels the hours; never a second copy. */
   tz?: string | null,
   /** Only used to drop closures, and notes with a last day, that have already passed. */
@@ -129,19 +131,36 @@ export function resolveSystemPrompt(
    * everywhere else because it is computed here.
    */
   known?: KnownFacts | null,
+  /**
+   * Who reads what it writes: a customer (every reply, a steer, a call, the preview) or a draft a person sends as
+   * themselves (the reach-out reply draft), which is never told to say it is an assistant.
+   */
+  audience: PromptAudience = "customer",
 ): string {
+  const channel = wire === "voice" ? "voice" : "whatsapp";
+  const facts = resolveFacts(brain, known);
   if (!hasProfile(brain.profile)) {
     // A stored prompt says nothing of a link it does not have: a receptionist with none is told what to do instead,
-    // first among the rules that follow it.
+    // first among the rules that follow it, and so is a call with a link and no WhatsApp line to send it by.
     // The standing rules (the money row, the fence) are said to every prompt, so the rules always follow it.
-    const rules = [...(offersBookingLink(brain) ? [] : [noLinkBooking(channel)]), ...standingRules(policy, channel)];
+    const link = !offersBookingLink(brain)
+      ? [noLinkBooking(channel)]
+      : channel === "voice" && !offersLinkOn("call", brain, facts.whatsapp_line.value)
+        ? [NO_WAY_TO_SEND_LINK]
+        : [];
+    const rules = [...link, ...standingRules(policy, channel, audience)];
     return `${brain.system_prompt}\n\n${PROMPT_OPENINGS.rules}\n${rules.map((r) => `- ${r}`).join("\n")}`;
   }
   const profile = brain.profile as BusinessProfile;
-  const facts = resolveFacts(brain, known);
+  // On a call, the number the caller is ringing (the line itself, or a kept number that forwards to it) is no number to
+  // give them: "call us" there pointed the caller back at the call they were on (11 Oct 2026).
+  const ringing =
+    wire === "voice" &&
+    (samePhone(facts.phone_display.value, facts.voice_line.value) ||
+      samePhone(facts.phone_display.value, facts.kept_line.value));
   const resolved = {
     business_name: facts.business_name.value ?? brain.business_name,
-    phone_display: facts.phone_display.value,
+    phone_display: ringing ? null : facts.phone_display.value,
     booking_link: facts.booking_link.value ?? brain.booking_link ?? null,
     // Provisioned or nothing, never typed (facts.ts): the ask for the yes to offers is composed only where there is one.
     whatsapp_line: facts.whatsapp_line.value,
@@ -159,7 +178,7 @@ export function resolveSystemPrompt(
   // old text in the form and decided what to keep. ownWordsOf states that
   // rule, so anything looking for these words in the prompt uses the same one.
   const carried = { ...profile, extra_instructions: ownWordsOf(brain) ?? undefined };
-  return composeSystemPrompt(resolved, carried, channel, tz, now, policy);
+  return composeSystemPrompt(resolved, carried, wire, tz, now, policy, audience);
 }
 
 /**

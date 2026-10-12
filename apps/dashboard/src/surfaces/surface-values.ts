@@ -18,6 +18,8 @@
 import type { ReportsSurface } from "./reports/surface";
 import type { ReviewsSurface } from "./reports/reviews-surface";
 import type { ReceptionistSurface } from "./reports/receptionist-surface";
+import type { PeopleSurface as ReportsPeopleSurface } from "./reports/people-surface";
+import type { CampaignsSurface } from "./reports/campaigns-surface";
 import type { GoogleSurface } from "../legacy-bridge/google";
 import type { BroadcastsSurface } from "./campaigns/broadcasts/surface";
 import type { PlaybooksSurface } from "./campaigns/playbooks/surface";
@@ -44,6 +46,10 @@ export interface SurfaceValues {
   reports_reviews: ReviewsSurface;
   /** The Receptionist lens's own read, as the route gave it: the page folds it (reports/receptionist-surface.ts). It follows the period (reports/period-surface.ts). */
   reports_receptionist: ReceptionistSurface;
+  /** The People lens's own read, as the route gave it: the page folds it (reports/people-surface.ts). It follows the period (reports/period-surface.ts). */
+  reports_people: ReportsPeopleSurface;
+  /** The Campaigns lens's own reads, each as its route gave it (null where it failed): the page folds them (reports/campaigns-surface.ts). It follows the period (reports/period-surface.ts). */
+  reports_campaigns: CampaignsSurface;
   google: GoogleSurface;
   inbox: InboxSurface;
   conversations: ConversationsSurface;
@@ -178,6 +184,8 @@ const SURFACE_KEYS: Record<SurfaceKey, true> = {
   reports_headline: true,
   reports_reviews: true,
   reports_receptionist: true,
+  reports_people: true,
+  reports_campaigns: true,
   google: true,
   inbox: true,
   conversations: true,

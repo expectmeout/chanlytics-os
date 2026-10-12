@@ -67,6 +67,8 @@ export interface NotifyMessage {
    *  notice a sweep raises again until its mail goes (the deadman), so a failing provider does not push it to every
    *  phone on every tick (decision 0040). Unsaid, a kept row of a PUSH_KINDS kind is pushed at once, mail or not. */
   push?: boolean | "after_mail";
+  /** The event this notice answers (decision 0043): kept on the row, unique, so a second delivery of it tells nobody. */
+  sourceEvent?: string;
 }
 
 export function platformFrom(): string | null {
@@ -196,7 +198,14 @@ const KEPT_KINDS: ReadonlySet<string> = new Set(SERVER_NOTIFICATION_KINDS);
  */
 export async function recordNotification(
   tenantId: string | null,
-  n: { kind?: string; title: string; body: string; route?: string | null; about?: { type: string; id: string } | null },
+  n: {
+    kind?: string;
+    title: string;
+    body: string;
+    route?: string | null;
+    about?: { type: string; id: string } | null;
+    sourceEvent?: string;
+  },
   db: Db | null = pg(),
 ): Promise<{ id: string; kind: string } | null> {
   if (!tenantId) return null;
@@ -214,6 +223,7 @@ export async function recordNotification(
         route: n.route ?? null,
         subject_type: n.about?.type ?? null,
         subject_id: n.about?.id ?? null,
+        ...(n.sourceEvent ? { source_event: n.sourceEvent } : {}),
       })
       .select("id")
       .single();
@@ -269,7 +279,14 @@ export async function notify(target: NotifyTarget, msg: NotifyMessage, ports: No
   const db = ports.db === undefined ? pg() : ports.db;
   const kept = await recordNotification(
     target.tenantId,
-    { kind: msg.kind, title: msg.subject, body: msg.body, route: msg.route, about: msg.about },
+    {
+      kind: msg.kind,
+      title: msg.subject,
+      body: msg.body,
+      route: msg.route,
+      about: msg.about,
+      sourceEvent: msg.sourceEvent,
+    },
     db,
   );
   if (kept && target.tenantId && msg.push !== false && msg.push !== "after_mail")
@@ -290,14 +307,50 @@ export async function notify(target: NotifyTarget, msg: NotifyMessage, ports: No
  * the notice then. True only when the owner was told.
  */
 export async function notifyOnce(target: NotifyTarget, msg: NotifyMessage, ports: NotifyPorts = {}): Promise<boolean> {
+  return keepThenMail(target, msg, ports, false);
+}
+
+/**
+ * notifyOnce, for the notice an event raises (a hold's: decision 0043, core SUBSCRIBERS.owner_notice). The row keeps the
+ * event it answers, so a twin delivery's row refuses a second (and the delivery that kept the first tells); a workspace
+ * nobody can be mailed at has its bell row, and the platform the fact without the words, as notify sends it. True only
+ * when the owner was told: a mail that failed takes the row back, and the delivery tries again.
+ */
+export async function notifyEvent(
+  target: NotifyTarget,
+  msg: NotifyMessage & { sourceEvent: string },
+  ports: NotifyPorts = {},
+): Promise<boolean> {
+  return keepThenMail(target, msg, ports, true);
+}
+
+/** The row first, and no mail without it; then the mail, and on a mail that failed the row goes again. */
+async function keepThenMail(
+  target: NotifyTarget,
+  msg: NotifyMessage,
+  ports: NotifyPorts,
+  platformCopy: boolean,
+): Promise<boolean> {
   const db = ports.db === undefined ? pg() : ports.db;
   const kept = await recordNotification(
     target.tenantId,
-    { kind: msg.kind, title: msg.subject, body: msg.body, route: msg.route, about: msg.about },
+    {
+      kind: msg.kind,
+      title: msg.subject,
+      body: msg.body,
+      route: msg.route,
+      about: msg.about,
+      sourceEvent: msg.sourceEvent,
+    },
     db,
   );
   if (!kept || !target.tenantId || !db) return false;
-  const told = !reachesTenant(target) || !emailsFor(target.notifications, msg.kind) || (await mail(target, msg, ports));
+  let told = true;
+  if (emailsFor(target.notifications, msg.kind)) {
+    if (reachesTenant(target)) told = await mail(target, msg, ports);
+    // Nobody in the workspace to mail: the bell's row is the notice, and the platform's copy is said if it can be.
+    else if (platformCopy) await mail(target, msg, ports);
+  }
   if (!told) {
     await forgetNotification(db, { tenantId: target.tenantId, id: kept.id }).catch((e) =>
       logger({ tenant_id: target.tenantId }).error("notification_record_failed", {

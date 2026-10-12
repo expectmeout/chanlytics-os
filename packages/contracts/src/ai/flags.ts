@@ -269,6 +269,13 @@ export const FLAGS: readonly Flag[] = [
     sunset: "2026-12-31",
   },
   {
+    name: "ads_preview",
+    mechanism: "workspace_feature",
+    does: "Campaigns › Ads (its page, its Reports lens, Ad accounts in Connections) drawn from its sample in this workspace, as a demo session draws it, before the Ads read is wired (0049).",
+    owner: "Ruben",
+    sunset: "2026-12-31",
+  },
+  {
     name: "ANTHROPIC_EVAL_KEY",
     mechanism: "ci_secret",
     does: "Runs the nightly evals (nightly-evals.yml) on a sandbox key; unset, the job says it skipped.",

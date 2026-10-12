@@ -230,9 +230,14 @@ export function workspaceFacts(
   const guardrails: string[] = [];
   // The composer's own reading of the four, so Ask never claims a rule the receptionist was not given.
   const g = guardrailsInForce(profile?.guardrails);
-  if (g.never_quote_prices) guardrails.push("never quotes or confirms a price");
+  guardrails.push(
+    g.never_quote_prices
+      ? "never quotes or confirms a price"
+      : "says only the prices the business wrote, never another",
+  );
   if (g.never_confirm_booking) guardrails.push("never confirms a booking itself");
-  if (g.disclose_ai) guardrails.push("says it is an automated assistant when asked");
+  // Always (decision 0051): a call's greeting says it, a new text conversation opens with it, and it says so when asked.
+  guardrails.push("always says it is the business's automated assistant, never a person");
   if (g.no_health_advice) guardrails.push("gives no health advice");
   return {
     businessName: cfg?.brain?.business_name || name,

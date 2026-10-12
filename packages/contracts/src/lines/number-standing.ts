@@ -13,7 +13,7 @@
  * is. The account's payment method (is one on file), the business that owns the account and the account itself ride with the
  * standing, so the row can send the owner to Meta's own page for each (whatsapp-cost.ts addPaymentMethodLink, and the links here).
  */
-import { dailyLimit, type NumberHealth } from "../broadcasts/broadcast-number";
+import { dailyLimit, numberHealth, type NumberHealth } from "../broadcasts/broadcast-number";
 import { formatPhoneDisplay } from "../shared/phone";
 import { MIN_MS } from "../shared/time";
 import type { ConnectionNote } from "./connection-note";
@@ -399,6 +399,21 @@ export function standingAlertWords(number: string | null, s: NumberStanding): { 
 export function numberHealthWithStanding(health: NumberHealth, standing: NumberStanding | null): NumberHealth {
   const row = standing ? standingRow(standing) : null;
   return row ? { ...health, canSend: false, tone: "danger", refusal: row.sentence } : health;
+}
+
+/**
+ * The health of the connected WhatsApp number, from what its channel's config holds: the rating Meta gave at connection
+ * (`quality_rating`), the newest quality webhook (`quality_event`) and messaging limit (`messaging_limit`), each read when it
+ * is a string and as nothing when it is not, and the standing Meta keeps for the number (`standing`, 00338). THE derivation,
+ * so the composer's gate (`whatsappHealthOf`) and Reports' Campaigns lens say the same of the same number.
+ */
+export function numberHealthOfConfig(config: Record<string, unknown>): NumberHealth {
+  const s = (key: string): string | null => {
+    const value = config[key];
+    return typeof value === "string" ? value : null;
+  };
+  const health = numberHealth({ quality: s("quality_rating"), event: s("quality_event"), limit: s("messaging_limit") });
+  return numberHealthWithStanding(health, standingFromConfig(config.standing));
 }
 
 const CAN_SEND_WORDS: Readonly<Record<string, string>> = {

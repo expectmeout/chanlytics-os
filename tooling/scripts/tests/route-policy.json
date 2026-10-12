@@ -321,6 +321,13 @@
       "rate": "consent",
       "spend": false
     },
+    "POST calendar/visits/[id]": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "person_edit",
+      "spend": false
+    },
     "POST contacts/[id]/deal": {
       "kind": "write",
       "scope": "row",
@@ -1313,7 +1320,21 @@
       "rate": "aggregate",
       "spend": false
     },
+    "GET reports/campaigns/ledger": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": "aggregate",
+      "spend": false
+    },
     "GET reports/headline": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": "aggregate",
+      "spend": false
+    },
+    "GET reports/people": {
       "kind": "read",
       "scope": "workspace",
       "role": null,
@@ -1626,6 +1647,27 @@
       "scope": "account",
       "role": null,
       "rate": "create_workspace",
+      "spend": false
+    },
+    "POST workspaces/logo/lookup": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "workspace_logo_lookup",
+      "spend": false
+    },
+    "PUT workspaces/logo": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "workspace_logo",
+      "spend": false
+    },
+    "DELETE workspaces/logo": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "workspace_logo",
       "spend": false
     },
     "GET workspaces": {

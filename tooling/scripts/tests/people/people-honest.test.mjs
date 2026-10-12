@@ -499,7 +499,7 @@ Object.assign(globalThis.window, peoplePages);
 Object.assign(globalThis, peoplePages);
 installLists();
 const { PeopleReal } = await import("../../../../apps/dashboard/src/surfaces/people/page/people-real.tsx");
-const { AddPersonButton } = await import("../../../../apps/dashboard/src/surfaces/people/sheets/add-person.tsx");
+const { PeopleAddSheet } = await import("../../../../apps/dashboard/src/surfaces/people/import/import-sheet.tsx");
 const { standingSaid } = await import("../../../../apps/dashboard/src/surfaces/kit/head/standing.ts");
 const { PL_FIRST_ROWS, PL_WINDOW_ROWS, PL_WINDOW_STEP } =
   await import("../../../../apps/dashboard/src/surfaces/people/table/row-window.ts");
@@ -1137,7 +1137,7 @@ test("REGRESSION: on a phone People is one bar, one line and the people -- a 57p
       "the scopes are the frame's strip of views over the page, never the bar's",
     );
     assert.equal(textOf(byTestId(bar, "people-phone-lists")).trim(), "Everyone", "the list being shown");
-    assert.equal(byTestId(bar, "people-phone-search-open").props["aria-label"], "Search names, numbers and emails");
+    assert.equal(byTestId(bar, "people-phone-search").props["aria-label"], "Search names, numbers and emails");
     assert.ok(
       find(bar, (n) => n.type === Menu),
       "and the page's more-menu",
@@ -1208,7 +1208,7 @@ test("on a phone the top is the list's row and the search under the frame's stri
   onPhone(async () => {
     await freshPage({ people: [person(1)], dealsOn: true });
     went.length = 0;
-    let tree = draw();
+    const tree = draw();
     const top = byTestId(tree, "people-phone-bar");
     const kids = (top.props.children || []).filter(Boolean);
     // The frame's strip of views stands over this (SurfaceTabs); the page's top begins at the bar.
@@ -1225,11 +1225,10 @@ test("on a phone the top is the list's row and the search under the frame's stri
     );
     assert.ok(scroller, "the page's scroller");
     assert.equal(byTestId(scroller, "people-phone-bar"), null, "the top is not inside what scrolls");
-    click(byTestId(tree, "people-phone-search-open"));
-    tree = draw();
-    const searching = byTestId(tree, "people-phone-bar");
-    assert.ok(byTestId(searching, "people-phone-search"), "the bar is the field");
-    assert.ok(byTestId(searching, "people-phone-lists"), "and the list stays over it");
+    // The search is the field from the first draw, no button a press swaps for it (Ruben, 11 Oct 2026), under the list.
+    assert.equal(byTestId(top, "people-phone-search-open"), null, "no capsule at rest to press first");
+    assert.ok(byTestId(top, "people-phone-search"), "the bar's search is the field");
+    assert.ok(byTestId(top, "people-phone-lists"), "and the list stays over it");
   }));
 
 test("a desktop draws no phone bar, and keeps its controls row and its list head", async () => {
@@ -1240,95 +1239,85 @@ test("a desktop draws no phone bar, and keeps its controls row and its list head
   assert.ok(find(tree, (n) => n.props?.className === "cl-section-head"));
 });
 
-test("on a desk Add a person is the page's act, at the right of the strip over the list, and not in the list's controls row", async () => {
+test("Add people is the page's act, its one filled button, beside the strip over the list; the controls row holds Columns and Export", async () => {
   await freshPage({ people: [person(1)] });
-  const tree = draw();
+  let tree = draw();
   const said = standingSaid();
   assert.equal(said?.title, "People", "the list says People's standing itself");
+  const act = find(said.act, (n) => n.props?.["data-testid"] === "add-people");
+  assert.ok(act, "with Add people for its act, which the frame draws beside the strip");
+  assert.equal(act.props.variant, "primary", "the list's one filled button, as Campaigns' New message is");
+  assert.equal(byTestId(tree, "people-import"), null, "Import is the sheet's now, not a word in the controls row");
   assert.equal(
-    said?.act?.type,
-    AddPersonButton,
-    "with Add a person for its act, which the frame draws beside the strip",
-  );
-  assert.match(
-    String(byTestId(said.act, "add-person")?.props.className),
-    /\bbtn-primary\b/,
-    "the list's one filled button, as Campaigns' New message is",
-  );
-  said.act.props.onAdded("p9");
-  assert.deepEqual(opened, ["p9"], "added, the person's page opens, as it did from the controls row");
-  assert.equal(
-    find(tree, (n) => n.type === AddPersonButton),
+    find(tree, (n) => n.type === PeopleAddSheet),
     null,
-    "REGRESSION: Add a person stood in the controls row, inside the list's pane",
+    "nothing is open yet",
   );
+  act.props.onClick();
+  tree = draw();
+  const sheet = find(tree, (n) => n.type === PeopleAddSheet);
+  assert.ok(sheet, "the press opens Add people");
+  assert.equal(sheet.props.canImport, true, "an owner may bring a list in from it");
+  sheet.props.onAdded("p9");
+  assert.deepEqual(opened, ["p9"], "added, the person's page opens");
 });
 
-test("on a phone the page's act is Add a person too, its first word kept where the row is short, and it opens the phone's sheet", () =>
+test("on a phone the page's act is Add people too, its first word kept where the row is short, and it opens the one sheet", () =>
   onPhone(async () => {
     // It was the more-menu's alone, and the frame hid the act: a phone showed no way to add a person (Ruben, 7 Oct 2026).
-    // It stands on the row of views, at its right, as a desk's does (components.css).
     await freshPage({ people: [person(1)] });
     let tree = draw();
     const said = standingSaid();
     assert.equal(said?.title, "People");
-    const act = find(said.act, (n) => n.props?.["data-testid"] === "add-person-open");
-    assert.ok(act, "the head holds Add a person");
-    assert.match(textOf(act), /Add a person/, "with its words");
+    const act = find(said.act, (n) => n.props?.["data-testid"] === "add-people");
+    assert.ok(act, "the head holds Add people");
     // The words come in two parts (kit/head/act-words.tsx): the mark and the first word, which a narrow phone keeps
     // beside three scopes, and the rest, which gives way there and is still read out.
     const part = (name) => find(act, (n) => n.props?.className === name);
     assert.equal(textOf(part("pg-act-keep")), "Add", "the first word is kept with the mark");
-    assert.equal(textOf(part("pg-act-rest")), " a person", "the rest follows, its own space with it");
+    assert.equal(textOf(part("pg-act-rest")), " people", "the rest follows, its own space with it");
     assert.equal(
-      byTestId(said.act, "add-person"),
+      find(tree, (n) => n.type === PeopleAddSheet),
       null,
-      "never the desk's button, which opens into two fields in the row",
+      "nothing is open yet",
     );
-    assert.equal(openSheet(tree, "add-person-sheet"), null, "nothing is open yet");
     act.props.onClick();
     tree = draw();
-    assert.ok(openSheet(tree, "add-person-sheet"), "the press opens the phone's sheet, as the more-menu's item does");
+    assert.ok(
+      find(tree, (n) => n.type === PeopleAddSheet),
+      "the press opens Add people, at every width the same sheet",
+    );
   }));
 
-test("on a phone search is a capsule at rest that opens into the field; Cancel gives the capsule back and clears the words", () =>
+test("on a phone search is the field from the first draw: nothing focuses it by itself, the clear empties it, and it stays", () =>
   onPhone(async () => {
     await freshPage({ people: [person(1, { display_name: "Rosa Diaz" }), person(2, { display_name: "Ana Lee" })] });
     let tree = draw();
-    assert.equal(byTestId(tree, "people-phone-search"), null, "no box until asked");
-    click(byTestId(tree, "people-phone-search-open"));
-    tree = draw();
+    // It rested as a capsule a tap only swapped for the field, so a second tap began the typing (Ruben, 11 Oct 2026).
+    assert.equal(byTestId(tree, "people-phone-search-open"), null, "no capsule at rest to press first");
     const field = byTestId(tree, "people-phone-search");
     assert.equal(field.props.type, "search");
-    assert.equal(field.props.autoFocus, true, "with keys the field is ready");
-    // On a touch screen the field waits for a tap: the button showed it, and the keyboard is the person's to ask for.
-    const media = globalThis.window.matchMedia;
-    globalThis.window.matchMedia = (q) => ({ ...media(q), matches: q === "(pointer: coarse)" || media(q).matches });
-    try {
-      assert.equal(byTestId(draw(), "people-phone-search").props.autoFocus, false, "no keyboard by itself");
-    } finally {
-      globalThis.window.matchMedia = media;
-    }
+    assert.notEqual(field.props.autoFocus, true, "nothing focuses by itself: the field takes the tap that lands on it");
     assert.ok(
       byTestId(tree, "people-phone-lists"),
       "the list stays over the field, as the Inbox's buckets stay over its search",
     );
-    assert.equal(byTestId(tree, "people-phone-search-open"), null, "the capsule at rest is the field now");
     field.props.onChange({ target: { value: "rosa" } });
     tree = draw();
     assert.deepEqual(idsShown(tree), ["person-p1"]);
-    click(byTestId(tree, "people-phone-search-cancel"));
+    assert.equal(byTestId(tree, "people-phone-search-cancel"), null, "no Cancel: the clear stands in the field");
+    click(byTestId(tree, "people-phone-search-clear"));
     tree = draw();
-    assert.ok(byTestId(tree, "people-phone-search-open"), "Cancel gives the capsule back");
-    assert.equal(byTestId(tree, "people-phone-search"), null, "and closes the field");
-    assert.equal(idsShown(tree).length, 2, "and clears the words");
-    // The page's / opens it too.
+    assert.equal(idsShown(tree).length, 2, "the clear empties the words");
+    assert.ok(byTestId(tree, "people-phone-search"), "and the field stays");
+    assert.equal(byTestId(tree, "people-phone-search-clear"), null, "with no clear until a word is typed again");
+    // The page's / puts the caret in it (the field's ref, a browser's), and draws nothing new.
     press("/");
-    assert.ok(byTestId(draw(), "people-phone-search"), "/ opens the field");
+    assert.ok(byTestId(draw(), "people-phone-search"), "/ leaves the field where it stands");
   }));
 
-/** The phone bar's more-menu, its items as the page built them: a set of choices (the sorts) as items ticked or not. */
-const phoneMenuOf = (tree) =>
+/** The phone bar's Sort, its items as the page built them: a set of choices (the sorts) as items ticked or not. */
+const sortMenuOf = (tree) =>
   find(byTestId(tree, "people-phone-bar"), (n) => n.type === Menu).props.groups.flatMap((g) =>
     g.choose
       ? g.choose.options.map((o) => ({
@@ -1338,8 +1327,15 @@ const phoneMenuOf = (tree) =>
         }))
       : g.items.map((i) => ({ ...i, onClick: i.onSelect })),
   );
+/** The open list's acts at the foot of the Lists sheet, opened from the bar: each row's words and its press. */
+const listActsOf = (opts) => {
+  click(byTestId(draw(opts), "people-phone-lists"));
+  return all(byTestId(draw(opts), "people-list-acts") ?? { props: {} }, (n) =>
+    String(n.props?.testid ?? "").startsWith("people-list-act-"),
+  ).map((r) => ({ label: r.props.label, onClick: r.props.onClick }));
+};
 
-test("the phone's more-menu adds a person in a sheet, sorts as a desktop's headings do, and holds the open list's own acts", () =>
+test("on a phone Sort sorts as a desktop's headings do, Add people adds one person, and the Lists sheet holds the open list's own acts", () =>
   onPhone(async () => {
     const seen = await freshPage({
       people: [person(1, { display_name: "Zed" }), person(2, { display_name: "Abe" })],
@@ -1347,7 +1343,7 @@ test("the phone's more-menu adds a person in a sheet, sorts as a desktop's headi
     });
     let tree = draw();
     assert.deepEqual(
-      phoneMenuOf(tree)
+      sortMenuOf(tree)
         .filter((i) => typeof i.checked === "boolean")
         .map((i) => [i.label, i.checked]),
       [
@@ -1358,31 +1354,32 @@ test("the phone's more-menu adds a person in a sheet, sorts as a desktop's headi
       ],
       "the sorts a desktop's headings give, the one in use ticked; Soonest visit only with a calendar",
     );
-    phoneMenuOf(tree)
+    sortMenuOf(tree)
       .find((i) => i.label === "Name, A to Z")
       .onClick();
     tree = draw();
     assert.deepEqual(idsShown(tree), ["person-p2", "person-p1"], "A to Z");
-    // Add a person: a sheet, not the desktop's row, which was 479px wide on a 365px screen.
-    phoneMenuOf(tree)
-      .find((i) => i.label === "Add a person")
-      .onClick();
+    // Add people, one person: the sheet's first way in, its number on a phone's number pad.
+    find(standingSaid().act, (n) => n.props?.["data-testid"] === "add-people").props.onClick();
     tree = draw();
-    const sheet = openSheet(tree, "add-person-sheet");
-    assert.equal(sheet.props.shape, "job", "the kit's sheet, in a job's shape");
-    assert.deepEqual(sheet.props.close, { word: "Cancel" }, "its word to close it");
-    assert.equal(byTestId(sheet, "add-person-phone").props.type, "tel", "a phone's number pad");
-    byTestId(sheet, "add-person-phone").props.onChange({ target: { value: "+1 786 555 0100" } });
+    assert.ok(find(tree, (n) => n.type === PeopleAddSheet));
+    assert.equal(byTestId(tree, "add-person-phone").props.type, "tel", "a phone's number pad");
+    byTestId(tree, "add-person-phone").props.onChange({ target: { value: "+1 786 555 0100" } });
     tree = draw();
-    await byTestId(tree, "add-person-save").props.onClick();
+    // The record sheet's Save hands back nothing to wait on: the add settles, then the page is drawn again.
+    byTestId(tree, "rec-sheet-save-people-add").props.onClick();
+    await until(() => opened.at(-1) === "p9", "the person added opens");
     tree = draw();
     assert.deepEqual(wrote(seen).at(-1), ["POST", "contacts", { phone: "+1 786 555 0100" }]);
-    assert.equal(openSheet(tree, "add-person-sheet"), null, "added: the sheet closes");
-    assert.equal(opened.at(-1), "p9", "and their page opens, as the desktop's form does");
-    // A list open: its rename and its delete are the menu's.
+    assert.equal(
+      find(tree, (n) => n.type === PeopleAddSheet),
+      null,
+      "added: the sheet closes",
+    );
+    assert.equal(opened.at(-1), "p9", "and their page opens");
+    // A list open: its rename and its delete are at the foot of the Lists sheet.
     draw({ initialSaved: "s1" });
-    tree = draw({ initialSaved: "s1" });
-    phoneMenuOf(tree)
+    listActsOf({ initialSaved: "s1" })
       .find((i) => i.label === "Rename this list")
       .onClick();
     tree = draw({ initialSaved: "s1" });
@@ -1398,7 +1395,7 @@ test("the phone's more-menu adds a person in a sheet, sorts as a desktop's headi
       flashes.some((f) => textOf(f.msg).includes("VIP")),
       "said",
     );
-    phoneMenuOf(tree)
+    listActsOf({ initialSaved: "s1" })
       .find((i) => i.label === "Delete this list…")
       .onClick();
     tree = draw({ initialSaved: "s1" });
@@ -1412,13 +1409,13 @@ test("the phone's more-menu adds a person in a sheet, sorts as a desktop's headi
 
 test("the page holds its keys while a phone's sheet is open, leaves its Esc to it, and closes it when it asks", () =>
   onPhone(async () => {
-    await freshPage({ people: [person(1), person(2)] });
-    let tree = draw();
-    phoneMenuOf(tree)
-      .find((i) => i.label === "Add a person")
+    await freshPage({ people: [person(1), person(2)], lists: [{ id: "s1", name: "Regulars", ids: ["p1", "p2"] }] });
+    draw({ initialSaved: "s1" });
+    listActsOf({ initialSaved: "s1" })
+      .find((i) => i.label === "Rename this list")
       .onClick();
-    tree = draw();
-    const sheet = openSheet(tree, "add-person-sheet");
+    const tree = draw({ initialSaved: "s1" });
+    const sheet = openSheet(tree, "list-act-sheet");
     assert.ok(sheet);
     // The kit's sheet as Base UI draws it open, on the body: the page holds still behind it.
     overlayOpen = { role: "dialog", inApp: false, className: "sheet" };
@@ -1427,7 +1424,7 @@ test("the page holds its keys while a phone's sheet is open, leaves its Esc to i
     overlayOpen = null;
     // Its Esc, its wash, its word and a pull down all ask through onClose.
     sheet.props.onClose();
-    assert.equal(openSheet(draw(), "add-person-sheet"), null, "asked, the page closed it");
+    assert.equal(openSheet(draw({ initialSaved: "s1" }), "list-act-sheet"), null, "asked, the page closed it");
   }));
 
 test("a phone sheet's list is rows of one shape, and a step inside a sheet has a way back", () => {
@@ -1472,35 +1469,48 @@ test("a phone sheet's list is rows of one shape, and a step inside a sheet has a
   assert.equal(backs, 1, "Back walks to the list the step came from");
 });
 
-test("on a phone More › Select people starts a selection with nobody picked: the faces are rings, a tap selects, and ✕ ends it", () =>
+/** The bar's Select, whichever word it says now: the one `data-on` of the three it holds for the morph. */
+const selectWord = (tree) =>
+  textOf(find(byTestId(tree, "people-phone-select"), (n) => n.props?.["data-on"] === "")).trim();
+/** The dock's name says the count (Ruben, 10 Oct 2026: the count left the row). */
+const dockSays = (tree) => byTestId(tree, "bulk-bar").props["aria-label"];
+
+test("on a phone Select walks a selection -- Select, Select all, Cancel -- the faces are rings, a tap selects, and ✕ ends it", () =>
   onPhone(async () => {
     await freshPage({ people: [person(1), person(2)] });
     let tree = draw();
-    phoneMenuOf(tree)
-      .find((i) => i.label === "Select people")
-      .onClick();
+    assert.equal(selectWord(tree), "Select");
+    click(byTestId(tree, "people-phone-select"));
     tree = draw();
     assert.match(
       find(tree, (n) => /\bpl-table-wrap\b/.test(String(n.props?.className || ""))).props.className,
       /\bselecting\b/,
       "the faces are rings, ready for a tap",
     );
+    assert.equal(selectWord(tree), "Select all", "the mode on, the word offers everyone");
     const bar = byTestId(tree, "bulk-bar");
     assert.ok(bar, "the bar says the mode is on");
-    assert.match(textOf(bar), /Tap people to select them/, "and what to do, with nothing yet to act on");
-    assert.equal(byTestId(bar, "bulk-more"), null);
+    assert.equal(bar.props["aria-label"], "Select people", "and what to do, with nothing yet to act on");
+    assert.equal(byTestId(bar, "bulk-more").props.disabled, true, "its acts stand and wait for someone picked");
     const before = opened.length;
     rowOf(tree, "p1").props.onClick();
     tree = draw();
     assert.equal(opened.length, before, "a tap selects rather than opens");
-    assert.match(textOf(byTestId(tree, "bulk-bar")), /1 selected/);
-    rowOf(tree, "p1").props.onClick();
+    assert.equal(dockSays(tree), "1 people selected");
+    assert.equal(selectWord(tree), "Select all");
+    click(byTestId(tree, "people-phone-select"));
     tree = draw();
-    assert.match(
-      textOf(byTestId(tree, "bulk-bar")),
-      /Tap people to select them/,
-      "the last one off, the mode stays until ✕",
-    );
+    assert.equal(dockSays(tree), "2 people selected", "Select all takes everyone shown");
+    assert.equal(selectWord(tree), "Cancel", "everyone picked, the word is the way out");
+    click(byTestId(tree, "people-phone-select"));
+    tree = draw();
+    assert.equal(byTestId(tree, "bulk-bar"), null, "Cancel ends it");
+    assert.equal(selectWord(tree), "Select", "and the word starts over");
+    click(byTestId(tree, "people-phone-select"));
+    rowOf(draw(), "p1").props.onClick();
+    rowOf(draw(), "p1").props.onClick();
+    tree = draw();
+    assert.equal(dockSays(tree), "Select people", "the last one off, the mode stays until ✕");
     click(byTestId(tree, "bulk-clear"));
     tree = draw();
     assert.equal(byTestId(tree, "bulk-bar"), null, "✕ ends it");
@@ -1512,9 +1522,7 @@ test("Esc ends a Select-people selection; a member who may neither edit nor expo
   onPhone(async () => {
     await freshPage({ people: [person(1)] });
     let tree = draw();
-    phoneMenuOf(tree)
-      .find((i) => i.label === "Select people")
-      .onClick();
+    click(byTestId(tree, "people-phone-select"));
     assert.ok(byTestId(draw(), "bulk-bar"));
     assert.equal(press("Escape"), true, "the page takes the key");
     assert.equal(byTestId(draw(), "bulk-bar"), null, "and the mode ends");
@@ -1523,11 +1531,7 @@ test("Esc ends a Select-people selection; a member who may neither edit nor expo
     try {
       await freshPage({ people: [person(1)] });
       tree = draw();
-      assert.equal(
-        phoneMenuOf(tree).find((i) => i.label === "Select people"),
-        undefined,
-        "nothing a selection could become",
-      );
+      assert.equal(byTestId(tree, "people-phone-select"), null, "nothing a selection could become");
     } finally {
       globalThis.window.__ME = me;
     }
@@ -1541,48 +1545,56 @@ const hasClass = (n, c) =>
 /** The sheet's rows, in order, by their test ids. */
 const sheetRows = (sheet) =>
   all(sheet, (n) => n.type === "button" && hasClass(n, "pp-sheet-row")).map((n) => n.props["data-testid"]);
-/** A phone's selection of p1 and p2 by their faces, and its sheet opened with ⋯. */
+/** A phone's selection of p1 and p2 by their faces, and its More opened. */
 const bulkSheetOpen = () => {
   byTestId(rowOf(draw(), "p1"), "row-select").props.onChange();
   byTestId(rowOf(draw(), "p2"), "row-select").props.onChange();
   click(byTestId(draw(), "bulk-more"));
   return draw();
 };
+/** The dock's acts, in order, by their test ids (a component and what it draws name one act once). */
+const dockActIds = (bar) => [
+  ...new Set(all(bar, (n) => hasClass(n, "pp-bulk-act")).map((n) => n.props["data-testid"])),
+];
 
-test("REGRESSION: on a phone a selection is one row -- ✕, the count, Add to list and ⋯ -- its seven controls stacked into a 312px pill over the rows", () =>
+test("REGRESSION: on a phone a selection is one row in the tab bar's shape -- ✕, the count, then Add to list, Note and More as glyphs over words -- where a menu's chevron stood beside a bare ⋯", () =>
   onPhone(async () => {
     await freshPage({ people: [person(1), person(2), person(3)], lists: [{ id: "s1", name: "Regulars", ids: [] }] });
     byTestId(rowOf(draw(), "p1"), "row-select").props.onChange();
     byTestId(rowOf(draw(), "p2"), "row-select").props.onChange();
-    const tree = draw();
+    let tree = draw();
     const bar = byTestId(tree, "bulk-bar");
     assert.ok(hasClass(bar, "pp-bulk"), "the phone's row");
-    const controls = bar.props.children
-      .filter(Boolean)
-      .map((k) => k.props?.["data-testid"] || (k.type === Menu ? `menu:${k.props.label}` : k.props?.className));
-    assert.deepEqual(
-      controls,
-      ["bulk-clear", "cl-bulk-count", "menu:Add to a list", "bulk-more"],
-      "four things, in one row",
-    );
-    assert.equal(textOf(find(bar, (n) => hasClass(n, "cl-bulk-count"))), "2 selected");
-    for (const id of ["bulk-note", "bulk-form-note", "bulk-list-name", "bulk-export"])
-      assert.equal(byTestId(bar, id), null, `${id} is the sheet's, not the row's`);
-    assert.equal(
-      all(bar, (n) => n.type === Menu).filter((n) => n.props.label !== "Add to a list").length,
-      0,
-      "REGRESSION: Record a yes and Receptionist were menus in the row",
-    );
-    const add = find(bar, (n) => n.type === Menu);
     assert.ok(hasClass(bar, "capsule") && bar.props["data-dock"] === true, "the kit's capsule, docked (mobile.css)");
+    assert.equal(bar.props["aria-label"], "2 people selected", "the count is the dock's name");
     assert.deepEqual(
-      add.props.groups.flatMap((g) => [g.header, ...g.items.map((i) => i.label)]),
-      ["Add to", "Regulars", "New list…"],
+      dockActIds(bar),
+      ["bulk-clear", "bulk-add-list", "bulk-note", "bulk-more"],
+      "Clear first, then the acts",
     );
-    assert.equal(openSheet(tree, "bulk-sheet"), null, "the sheet waits for ⋯");
+    assert.deepEqual(
+      [...new Set(all(bar, (n) => hasClass(n, "pp-bulk-act")).map((n) => textOf(n).trim()))],
+      ["Clear", "Add to list", "Note", "More"],
+      "each says what it opens, as the tab bar's tabs do",
+    );
+    assert.equal(
+      find(bar, (n) => n.type === Menu),
+      null,
+      "REGRESSION: Add to list was a menu with a chevron",
+    );
+    for (const id of ["bulk-form-note", "bulk-list-name", "bulk-note-line", "bulk-export"])
+      assert.equal(byTestId(bar, id), null, `${id} is a sheet's, not the row's`);
+    assert.equal(openSheet(tree, "bulk-sheet"), null, "the sheet waits for an act");
+    // Add to list is a sheet of the lists kept by hand, then a new one.
+    click(byTestId(bar, "bulk-add-list"));
+    tree = draw();
+    const sheet = openSheet(tree, "bulk-sheet");
+    assert.equal(sheet.props.title, "Add to list");
+    assert.deepEqual(sheetRows(sheet), ["bulk-list-s1", "bulk-list-new"]);
+    assert.match(textOf(byTestId(sheet, "bulk-list-s1")), /Regulars/);
   }));
 
-test("on a phone ⋯ opens the selection's sheet -- Select all, Record a yes ›, Add a note ›, Export -- and a step asks, acts, then shuts", () =>
+test("on a phone More opens the selection's sheet -- Record a yes ›, Receptionist ›, Export -- Note is the dock's own, and a step asks, acts, then shuts", () =>
   onPhone(async () => {
     const seen = await freshPage({ people: [person(1), person(2), person(3)] });
     let tree = bulkSheetOpen();
@@ -1590,14 +1602,8 @@ test("on a phone ⋯ opens the selection's sheet -- Select all, Record a yes ›
     assert.equal(sheet.props.title, "2 selected");
     // The owner's Receptionist step is there too: the JSX drew it only where the shell had published its verb on the window (a
     // name this harness never gave it); the TSX imports the verb, so the step is always drawn for the role that may take it.
-    assert.deepEqual(sheetRows(sheet), [
-      "bulk-select-all",
-      "bulk-yes",
-      "bulk-receptionist",
-      "bulk-note",
-      "bulk-export",
-    ]);
-    assert.equal(textOf(byTestId(sheet, "bulk-select-all")), "Select all 3");
+    // Select all is the bar's at the top, and the note is up front in the dock.
+    assert.deepEqual(sheetRows(sheet), ["bulk-yes", "bulk-receptionist", "bulk-export"]);
     // Record a yes, on a sign-up form: the step asks which forms, then records, then the sheet shuts.
     click(byTestId(sheet, "bulk-yes"));
     tree = draw();
@@ -1623,7 +1629,7 @@ test("on a phone ⋯ opens the selection's sheet -- Select all, Record a yes ›
       { ids: ["p1", "p2"], consent: "opted_in", source: "form", note: "Saturday's slips" },
     ]);
     assert.equal(openSheet(tree, "bulk-sheet"), null, "the sheet shuts once it lands");
-    assert.match(textOf(byTestId(tree, "bulk-bar")), /2 selected/, "the selection stays, as on a desktop");
+    assert.equal(dockSays(tree), "2 people selected", "the selection stays, as on a desktop");
     // A spoken yes is recorded at the tap.
     click(byTestId(tree, "bulk-more"));
     click(byTestId(draw(), "bulk-yes"));
@@ -1635,11 +1641,12 @@ test("on a phone ⋯ opens the selection's sheet -- Select all, Record a yes ›
       { ids: ["p1", "p2"], consent: "opted_in", source: "in_person" },
     ]);
     assert.equal(openSheet(draw(), "bulk-sheet"), null);
-    // Add a note: one line, Add; noted, the selection is done with.
-    click(byTestId(draw(), "bulk-more"));
+    // Note, from the dock: one line, Add; noted, the selection is done with. Reached from the dock, it has no way back.
     click(byTestId(draw(), "bulk-note"));
     tree = draw();
-    assert.equal(openSheet(tree, "bulk-sheet").props.title, "Add a note");
+    sheet = openSheet(tree, "bulk-sheet");
+    assert.equal(sheet.props.title, "Add a note");
+    assert.equal(sheet.props.back, null, "the dock's own step walks back to nothing");
     byTestId(tree, "bulk-note-line").props.onChange({ target: { value: "Called about the move" } });
     await byTestId(draw(), "bulk-note-save").props.onClick();
     await settle();
@@ -1651,7 +1658,7 @@ test("on a phone ⋯ opens the selection's sheet -- Select all, Record a yes ›
     assert.equal(byTestId(draw(), "bulk-bar"), null, "noted, the selection clears, as on a desktop");
   }));
 
-test("on a phone Esc shuts the selection's sheet and keeps the selection; Back walks a step back; Select all picks everyone shown", () =>
+test("on a phone Esc shuts the selection's sheet and keeps the selection; Back walks a step back; the bar's Select all picks everyone shown", () =>
   onPhone(async () => {
     await freshPage({ people: [person(1), person(2), person(3)] });
     let tree = bulkSheetOpen();
@@ -1659,8 +1666,8 @@ test("on a phone Esc shuts the selection's sheet and keeps the selection; Back w
     tree = draw();
     openSheet(tree, "bulk-sheet").props.back.onBack();
     tree = draw();
-    assert.ok(byTestId(tree, "bulk-select-all"), "back at the list");
-    assert.equal(openSheet(tree, "bulk-sheet").props.back, null, "the list has no way back of its own");
+    assert.ok(byTestId(openSheet(tree, "bulk-sheet"), "bulk-yes"), "back at More");
+    assert.equal(openSheet(tree, "bulk-sheet").props.back, null, "More has no way back of its own");
     // The kit's sheet, open on the body: the page holds still behind it, and its Esc is its own (Base UI's), which asks.
     overlayOpen = { role: "dialog", inApp: false, className: "sheet" };
     assert.equal(press("j"), false, "the sheet holds the keys: J walks nothing behind it");
@@ -1669,31 +1676,29 @@ test("on a phone Esc shuts the selection's sheet and keeps the selection; Back w
     openSheet(tree, "bulk-sheet").props.onClose();
     tree = draw();
     assert.equal(openSheet(tree, "bulk-sheet"), null, "Esc shut the sheet");
-    assert.match(textOf(byTestId(tree, "bulk-bar")), /2 selected/, "REGRESSION: and not the selection behind it");
-    click(byTestId(tree, "bulk-more"));
-    click(byTestId(draw(), "bulk-select-all"));
+    assert.equal(dockSays(tree), "2 people selected", "REGRESSION: and not the selection behind it");
+    assert.equal(selectWord(tree), "Select all", "a selection begun on a face offers everyone too");
+    click(byTestId(tree, "people-phone-select"));
     tree = draw();
-    assert.match(textOf(byTestId(tree, "bulk-bar")), /3 selected/);
-    assert.equal(openSheet(tree, "bulk-sheet"), null, "Select all shuts the sheet");
+    assert.equal(dockSays(tree), "3 people selected");
+    assert.equal(selectWord(tree), "Cancel");
     assert.equal(press("Escape"), true);
     assert.equal(byTestId(draw(), "bulk-bar"), null, "and the next Esc clears the selection");
   }));
 
-test("on a phone Add to list › New list… names the list in the sheet; a member who may only export gets Export and the reason", () =>
+test("on a phone Add to list › New list names the list in the sheet, with its way back; a member who may only export gets Export alone", () =>
   onPhone(async () => {
     const seen = await freshPage({ people: [person(1), person(2)] });
     byTestId(rowOf(draw(), "p1"), "row-select").props.onChange();
+    click(byTestId(draw(), "bulk-add-list"));
+    click(byTestId(openSheet(draw(), "bulk-sheet"), "bulk-list-new"));
     let tree = draw();
-    find(byTestId(tree, "bulk-bar"), (n) => n.type === Menu)
-      .props.groups.flatMap((g) => g.items)
-      .find((i) => i.label === "New list…")
-      .onSelect();
+    let sheet = openSheet(tree, "bulk-sheet");
+    assert.equal(sheet.props.title, "New list", "the name is asked in the sheet, not in the row");
+    sheet.props.back.onBack();
+    assert.equal(openSheet(draw(), "bulk-sheet").props.title, "Add to list", "Back walks to the lists");
+    click(byTestId(openSheet(draw(), "bulk-sheet"), "bulk-list-new"));
     tree = draw();
-    assert.equal(
-      openSheet(tree, "bulk-sheet").props.title,
-      "New list",
-      "the name is asked in the sheet, not in the row",
-    );
     byTestId(tree, "bulk-list-name").props.onChange({ target: { value: "Saturday" } });
     await byTestId(draw(), "bulk-list-save").props.onClick();
     await settle();
@@ -1717,15 +1722,11 @@ test("on a phone Add to list › New list… names the list in the sheet; a memb
       await freshPage({ people: [person(1), person(2)] });
       byTestId(rowOf(draw(), "p1"), "row-select").props.onChange();
       tree = draw();
-      assert.equal(
-        find(byTestId(tree, "bulk-bar"), (n) => n.type === Menu),
-        null,
-        "no Add to list for a member who may not edit",
+      assert.deepEqual(
+        dockActIds(byTestId(tree, "bulk-bar")),
+        ["bulk-clear", "bulk-export"],
+        "no list, note or More for a member who may not edit: Clear and the file alone, which needs no sheet",
       );
-      click(byTestId(tree, "bulk-more"));
-      const sheet = openSheet(draw(), "bulk-sheet");
-      assert.deepEqual(sheetRows(sheet), ["bulk-select-all", "bulk-export"]);
-      assert.match(textOf(sheet.props.children), /Only an owner or operator can add to lists or record a yes\./);
     } finally {
       globalThis.window.__ME = me;
       restore();
@@ -1765,10 +1766,7 @@ test("on a phone the face is the checkbox, and while anyone is selected a tap on
     assert.match(rowOf(tree, "p2").props.className, /\bselected\b/, "it selects them");
     const bar = byTestId(tree, "bulk-bar");
     assert.ok(bar, "the bar");
-    assert.ok(
-      find(bar, (n) => n.type === Menu),
-      "its menu is the kit's, drawn on the body: the docked row scrolls, and would cut it off",
-    );
+    assert.ok(byTestId(bar, "bulk-add-list"), "its acts open the kit's sheet, drawn on the body");
     click(byTestId(tree, "bulk-clear"));
     tree = draw();
     rowOf(tree, "p2").props.onClick();
@@ -2068,13 +2066,13 @@ test("Save these keeps the rule behind the view by default -- a copy of one of P
   );
 });
 
-test("on a phone a smart list's rule is shown and changed from the more-menu: the phone draws no title line", () =>
+test("on a phone a smart list's rule is shown and changed from the Lists sheet: the phone draws no title line", () =>
   onPhone(async () => {
     await freshPage({ people: [person(1)], lists: [{ id: "s2", name: "Texters", ids: [], rule: TEXTERS }] });
     draw({ initialSaved: "s2" });
-    let tree = draw({ initialSaved: "s2" });
-    const rule = phoneMenuOf(tree).find((i) => i.label === "Who is on it");
-    assert.ok(rule, "the more-menu offers it for a smart list");
+    let tree;
+    const rule = listActsOf({ initialSaved: "s2" }).find((i) => i.label === "Who is on it");
+    assert.ok(rule, "the Lists sheet offers it for a smart list");
     rule.onClick();
     tree = draw({ initialSaved: "s2" });
     const sheet = openSheet(tree, "list-act-sheet");
@@ -2144,7 +2142,7 @@ test("export follows the list that is open, and is not offered for a list that c
     assert.equal(
       find(draw(), (n) => n.type === Menu && n.props.trigger?.props?.["data-testid"] === "people-file-menu"),
       null,
-      "the ⋯ More menu is gone: Import and Export stand as words",
+      "the ⋯ More menu is gone: Export stands as a word",
     );
     assert.equal(exportItem(draw()).props["data-tip"], "Download everyone as a CSV file");
     assert.deepEqual(linkOf(exportItem(draw())), ["/api/v1/contacts/export", null], "no list open: everyone");
@@ -2172,14 +2170,17 @@ test("export follows the list that is open, and is not offered for a list that c
     gone.props.onClick();
     assert.equal(flashes.at(-1).msg, "This list isn't here. It was deleted, or the link is from another workspace.");
     assert.equal(opened.length, before, "and nothing opens");
-    // The owner has Import beside Export, as words; a role that may not export has neither a file in nor, pressed, a file out:
+    // Import is Add people's now (its sheet's second way in); a role that may not export has no file out, pressed:
     // the button stays, gated with the role's reason, and opens nothing.
-    assert.ok(byTestId(draw(), "people-import"), "an owner may bring a client list in");
+    assert.equal(
+      byTestId(draw(), "people-import"),
+      null,
+      "no Import word: the owner brings a list in through Add people",
+    );
     const me = globalThis.window.__ME;
     globalThis.window.__ME = { role: "viewer" };
     try {
       const tree = draw();
-      assert.equal(byTestId(tree, "people-import"), null, "no Import for a role that may not export");
       const denied = byTestId(tree, "people-export");
       assert.ok(denied, "Export stays, so the member sees it is held rather than missing");
       assert.equal(denied.props["data-gated"], "", "gated");
@@ -2501,15 +2502,16 @@ test("a row says where the person came from, in words, and nothing when nothing 
       person(2, { came_from: "sms" }),
       person(3, { came_from: null }),
       person(4),
+      person(5, { came_from: "ad" }),
     ],
     views: { people: { sortBy: "last", sortDir: "desc", columns: { came_from: true } } },
   });
   const tree = draw();
   const said = (id) => textOf(byTestId(rowOf(tree, id), "row-came-from")).trim();
   assert.deepEqual(
-    ["p1", "p2", "p3", "p4"].map(said),
-    ["Your calendar", "Text", "", ""],
-    "and a row read before the column existed says nothing either",
+    ["p1", "p2", "p3", "p4", "p5"].map(said),
+    ["Your calendar", "Text", "", "", "An ad"],
+    "and a row read before the column existed says nothing either; an ad is a way in like the rest",
   );
   for (const id of ["p3", "p4"])
     assert.ok(
@@ -2771,25 +2773,30 @@ test("a key with a modifier is not the page's: Ctrl-K is Ask's, and Ctrl-J, Ctrl
   assert.equal(byTestId(tree, "bulk-bar"), null, "and nobody was selected");
 });
 
-test("Esc closes the phone's lists sheet first, and the selection stays; the next Esc clears it", () =>
+test("Esc closes the phone's lists sheet, and a selection on takes the lists button's place in the bar until Esc clears it", () =>
   onPhone(async () => {
     await freshPage({ people: [person(1), person(2)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
-    byTestId(draw(), "select-all").props.onChange();
     click(byTestId(draw(), "people-phone-lists"));
     assert.ok(openSheet(draw(), "people-lists-sheet"), "the sheet is open");
     // The kit's sheet, open on the body: the page holds still behind it, and its Esc is its own (Base UI's), which asks.
     overlayOpen = { role: "dialog", inApp: false, className: "sheet" };
-    assert.equal(press("Escape"), false, "its Esc is its own, and the selection behind it holds");
+    assert.equal(press("Escape"), false, "its Esc is its own");
     overlayOpen = null;
     openSheet(draw(), "people-lists-sheet").props.onClose();
     let tree = draw();
     assert.equal(openSheet(tree, "people-lists-sheet"), null, "Esc closed the sheet");
-    assert.match(textOf(byTestId(tree, "bulk-bar")), /2 selected/, "and left the selection alone");
+    // A selection on: the bar says the count where the lists button stood (Ruben, 10 Oct 2026), so nothing opens the
+    // sheet over a selection, and the next Esc clears it.
+    byTestId(tree, "select-all").props.onChange();
+    tree = draw();
+    assert.equal(byTestId(tree, "people-phone-lists"), null, "the lists button stands down while a selection is on");
+    assert.equal(textOf(byTestId(tree, "people-phone-title")).trim(), "2 selected", "the bar says the count");
+    assert.equal(dockSays(tree), "2 people selected");
     assert.equal(press("Escape"), true);
     tree = draw();
-    assert.equal(byTestId(tree, "bulk-bar"), null, "the next Esc clears it");
+    assert.equal(byTestId(tree, "bulk-bar"), null, "Esc clears it");
+    assert.ok(byTestId(tree, "people-phone-lists"), "and the lists button is back");
   }));
-
 test("x and Space select nobody for a member who can neither edit lists nor export", async () => {
   await freshPage({ people: [person(1), person(2)] });
   const me = globalThis.window.__ME;

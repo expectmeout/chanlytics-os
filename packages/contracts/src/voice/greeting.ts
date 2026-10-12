@@ -11,17 +11,28 @@
  * the business is unknown this simply greets nobody by name, which is never
  * wrong -- and is the shell's own default, below, so the two are one sentence.
  *
- * Both disclosures -- recording, and that this is an automated assistant --
- * live here rather than in the agent's config, because they are promises the
- * product makes and should not be editable by whoever last opened Retell.
+ * The standard line, with both disclosures: recording, and that this is an
+ * automated assistant. The business may write its own (decision 0051,
+ * greeting-owner.ts greetingOf), which keeps the second whatever it says;
+ * nothing typed into Retell is spoken, since begin_message is this variable.
  *
  * Contracts' since the first run shows the owner the sentence their receptionist
  * will say (first-run.ts); the voice shell (packages/channels voice-shell.ts)
  * re-exports it, so the phone and the page say one sentence.
  */
 export function greetingFor(name: string | null): string {
-  const who = name ? ` ${name}` : "";
-  return `Thank you for calling${who}! This call may be recorded. I'm the automated assistant — how can I help you today?`;
+  return `${opening(name)} I'm the automated assistant, and calls are recorded. How can I help?`;
+}
+
+/**
+ * Short on purpose. The line it replaced ran 22 words, about nine seconds at the live voice's pace, and of the salon's
+ * twelve callers in thirty days five hung up within four seconds and three heard it out in silence (the engine review's
+ * second pass, 11 Oct 2026). This one is 16 words with the salon's name, about six seconds, and keeps both disclosures,
+ * "calls are recorded" in place of "may be", which every call is. Ruben approved a greeting of about fifteen words the
+ * same day (the review's decision 6); decision 0051 then let the business write the whole line itself.
+ */
+function opening(name: string | null): string {
+  return name ? `Hi, ${name}.` : "Hi, thanks for calling.";
 }
 
 /**
@@ -29,8 +40,7 @@ export function greetingFor(name: string | null): string {
  * asks for anything, that today it only takes a message -- rather than "how can I help you today?" and a refusal after.
  */
 export function pausedGreetingFor(name: string | null): string {
-  const who = name ? ` ${name}` : "";
-  return `Thank you for calling${who}! This call may be recorded. I'm the automated assistant, and today I can only take a message for the team.`;
+  return `${opening(name)} I'm the automated assistant, and calls are recorded. Today I can only take a message for the team.`;
 }
 
 /**

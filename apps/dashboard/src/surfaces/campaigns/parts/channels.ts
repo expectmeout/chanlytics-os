@@ -37,13 +37,13 @@ import { RPT_CHANNEL_COLORS } from "@/surfaces/reports/series";
 
 /** What the page says of the Send by row, beyond the reasons contracts words (CHANNEL_WORDS, messageWhyNot). */
 /** What a playbook's kept channel that cannot send yet is promised. */
-const ONCE_IT_CAN = "It goes by it once it can.";
+const ONCE_IT_CAN = "It sends once it can.";
 
 export const CM_VIA_WORDS = {
   /** The row's word, and the group's name to a screen reader. */
   label: "Send by",
   /** The one channel on stays on: a campaign goes by at least one. */
-  lastOne: "A campaign goes by at least one channel.",
+  lastOne: "Keep at least one on.",
   /** Every ticked channel is closed to it: nobody is reached. */
   nowhere: "None of the channels ticked can carry this message yet.",
   /** A playbook keeps a channel that cannot send yet: its run holds those people until it can. */

@@ -40,6 +40,8 @@ export const DB_PATHS = [
   // and the stack check and migration runner the suites that run a migration share (google/review-link.db.test.mjs,
   // playbooks/change/change-playbook-keys.db.test.mjs)
   "tooling/scripts/tests/google/_db-stack.mjs",
+  // and the campaign answers' world, which campaign-answers.db.test.mjs builds and holds the rule against (00403)
+  "tooling/scripts/tests/reports/campaigns/_*.mjs",
   // what the suites run against it: the packages that write rows, their sources and the dists built from them (a change
   // to contracts or channels that reaches a suite through one of them rewrites that dist, and so replays)
   "packages/core/**",
@@ -62,6 +64,10 @@ export const DB_PATHS = [
   "tooling/scripts/gen/schema-snapshot.mjs",
   // the ledger the migrations are held to, which a stack suite (migration-head) loads
   "tooling/scripts/checks/migration-ledger.mjs",
+  // what the kept turns' suite (ai/model-turns.db.test.mjs) runs over the database: the scripted model its door asks,
+  // and the operator's reader, which it runs as a person runs it
+  "tooling/scripts/tests/ai/_model-world.mjs",
+  "tooling/scripts/ops/turn-read.mjs",
   // the launcher `pnpm test:db` runs through, and the module it loads
   "tooling/scripts/checks/test.mjs",
   "tooling/scripts/checks/coverage.mjs",

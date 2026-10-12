@@ -65,7 +65,7 @@ globalThis.window.fetch = async (url) => {
   const period = days ? `${days.from}~${days.to}` : u.searchParams.get("period");
   const route = u.pathname.replace("/api/v1/", "");
   asked.push(period ? `${route} ${period}` : route);
-  if (/^reports\/(campaigns|reach-outs)$/.test(route)) return down();
+  if (/^reports\/(campaigns|campaigns\/ledger|reach-outs)$/.test(route)) return down();
   if (parked && parked.route === route && parked.period === period) await parked.until;
   if (route === "reports") {
     if (refuse === period) return down();
@@ -411,7 +411,8 @@ test("a period pick made anywhere but on the lens reads nothing of it: a held pe
     reset("30d");
     onLens();
     await reviewsOverride.apply();
-    for (const route of ["reports", "reports/people", "reports/campaigns"]) {
+    // (A page that is not a lens with a read of its own: the People lens reads a surface of its own when it is on screen.)
+    for (const route of ["reports", "reports/pipeline", "reports/campaigns"]) {
       elsewhere(route);
       asked.length = 0;
       await setReportRange("7d");

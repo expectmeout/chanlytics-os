@@ -1,4 +1,4 @@
-/** The model layer: which model each purpose asks, what a call cost, the one fence for someone else's words, the switches. */
+/** The model layer: which model each purpose asks, what a call cost, a turn as it is kept, the one fence for someone else's words, the switches. */
 export {
   MODELS,
   MODEL_IDS,
@@ -61,5 +61,7 @@ export {
   promptSafeName,
 } from "./fence";
 export type { FenceTag } from "./fence";
+export { MODEL_TURN_WRITE_MS, modelTurnRequestOf, modelTurnResponseOf } from "./turn";
+export type { ModelTurnRequest, ModelTurnResponse } from "./turn";
 export { FLAGS, FLAG_MECHANISMS, daysToSunset } from "./flags";
 export type { Flag, FlagMechanism, WeakerMode } from "./flags";

@@ -1,6 +1,7 @@
 import { isUuid, type PersonRowDto } from "@chanlytics/contracts";
 import {
   PEOPLE_PAGE,
+  addPersonByHand,
   everyoneIn,
   everyoneOnceIn,
   peopleCursorOf,
@@ -8,7 +9,7 @@ import {
   readAllRows,
   type PeopleCursor,
 } from "@chanlytics/db";
-import type { RouteContext } from "../with-route";
+import { dbRefusal, type RouteContext } from "../with-route";
 import { log } from "@/server/log";
 
 /**
@@ -184,4 +185,18 @@ export async function countPeople(
   const { count, error } = await query;
   if (error) throw new Error(error.message);
   return count ?? 0;
+}
+
+/**
+ * A person added by hand: a number, an address or both, read and checked by the route; the door picked by
+ * packages/db (create_person for a number alone, add_person with an address, 00393). A refusal is the door's, worded.
+ */
+export async function addPerson(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+  p: { phone: string | null; email: string | null; name: string; source: string },
+): Promise<{ contact_id: string; existed: boolean }> {
+  const { data, error } = await addPersonByHand(ctx.supabase, { tenantId, ...p });
+  if (error || !data) throw dbRefusal(error ?? { message: "add_person answered without a person" });
+  return data;
 }

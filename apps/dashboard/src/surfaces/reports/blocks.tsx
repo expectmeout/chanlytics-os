@@ -2,7 +2,7 @@
  * The pieces of the Reports page: a section under its title, the headline meter, Worth knowing, the strip of counts,
  * Asked-then-booked, and the table of sources.
  *
- * Every sentence beside a number is the view model's (vm.lines, cm.lines, the booking's words, the facts): these
+ * Every sentence beside a number is the view model's (vm.lines, the sends' lines, the booking's words, the facts): these
  * say each number once and compose no claim about the numbers of their own.
  */
 import { useEffect, useState } from "react";
@@ -170,8 +170,8 @@ export function RptFacts({ facts }: { facts: ReportFactVM[] }) {
  * A tile as the kit's figure: its value, the period before in counts beside it, its line under it, and over its label the
  * words for what it counts (contracts metricWordsOf), named by its metric. Every strip of the page draws its tiles with it,
  * so a figure says the same on every lens; the grid, the dividers and the padding are the page's. A tile that names a work
- * page (`door`) opens it from its number, and a ratio of too few (`n` under `minN`) is greyed and says how few, as the kit's
- * figure draws both.
+ * page (`door`) opens it from its number, a ratio of too few (`n` under `minN`) is greyed and says how few, and a tile that
+ * says what needs you or what failed (`tone`) has its number read in amber or red, as the kit's figure draws each.
  */
 export function RptFigure({ t }: { t: ReportStripTile }) {
   return (
@@ -185,6 +185,7 @@ export function RptFigure({ t }: { t: ReportStripTile }) {
       definition={metricWordsOf(t.metric)}
       n={t.n}
       minN={t.minN}
+      tone={t.tone}
       door={t.door ? routeDoor(t.door) : undefined}
     />
   );
@@ -297,20 +298,17 @@ function sourceRow(s: CampaignSourceVM) {
         </span>
       </td>
       <td className="num">{s.sent}</td>
-      <td className="num">{s.deliveredPct == null ? "—" : `${s.deliveredPct}%`}</td>
-      <td className="num">
-        {s.repliedPct == null ? "—" : `${s.repliedPct}%`} <span className="rpt-dim">({s.replied})</span>
-      </td>
+      <td className="num">{s.deliveredWords}</td>
+      <td className="num">{s.repliedWords}</td>
       <td className="num rpt-dim">{s.lastLabel}</td>
     </tr>
   );
 }
 
-// The period's sources: a playbook's runs together, a broadcast alone; shares are of each one's own sent. The name is
-// the row's door, to the playbook's card or the broadcast's own page.
+// The period's sources: a playbook's runs together, a broadcast alone; shares are of each one's own sent, said as the view model
+// says them (a share from five sends, the count under that). The name is the row's door, to the playbook's card or the
+// broadcast's own page. The lens draws the card only where a run sent (campaigns.tsx), so a table of none is not drawn.
 export function RptSources({ rows }: { rows: CampaignSourceVM[] }) {
-  if (!rows.length)
-    return <EmptyState kind="line" title="No broadcast or campaign run reached anyone in this period." />;
   return (
     <div className="ck-table-wrap rpt-sources">
       <table className="ck-table">
@@ -319,7 +317,7 @@ export function RptSources({ rows }: { rows: CampaignSourceVM[] }) {
             <th>Source</th>
             <th className="num">Sent</th>
             <th className="num">Delivered</th>
-            <th className="num">Wrote back</th>
+            <th className="num">Answered</th>
             <th className="num">Last</th>
           </tr>
         </thead>

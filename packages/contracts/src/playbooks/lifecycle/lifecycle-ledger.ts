@@ -166,27 +166,35 @@ function sentResultsOf(id: string, report: LifecycleInput["report"]): LifecycleR
 /**
  * The chains' own totals as the ledger reads them (GET reports/reach-outs' `chains`, by root); null where the answer
  * carried none (a server from before them). Campaigns' results surface and Ask's context of the page read them alike.
+ * A root whose businesses were not counted (a database before 00404) holds null for them.
  */
 export function lifecycleChainsOf(dto: ReachOutChainTotalsDto | null | undefined): LifecycleChains | null {
   if (!dto) return null;
   return {
     complete: dto.complete,
     byRoot: Object.fromEntries(
-      Object.entries(dto.by_root).map(([root, c]) => [root, { written: c.written, wroteBack: c.wrote_back }]),
+      Object.entries(dto.by_root).map(([root, c]) => [
+        root,
+        { written: c.written, businesses: c.businesses ?? null, wroteBack: c.wrote_back },
+      ]),
     ),
   };
 }
 
 /**
- * A reach-out's last 30 days, by its root: what it wrote and how many wrote back where it wrote anything; past the
- * report's twenty, absent is "none" only where every chain was counted. The one rule a reach-out's row of the ledger and
- * Ask's context of the page (apps/dashboard/src/server/ask/context/pages.ts) both say it by.
+ * A reach-out's last 30 days, by its root: the emails it wrote, the businesses they went to (null where not counted) and
+ * how many of them wrote back, where it wrote anything; past the report's twenty, absent is "none" only where every
+ * chain was counted. The one rule a reach-out's row of the ledger and Ask's context of the page
+ * (apps/dashboard/src/server/ask/context/pages.ts) both say it by.
  */
 export function chainResultsOf(rootId: string, chains: LifecycleInput["chains"]): LifecycleRowResults {
   if (!chains) return "uncounted";
   const c = chains.byRoot[rootId];
   if (!c) return chains.complete ? "none" : "uncounted";
-  return c.written > 0 ? { kind: "written", written: c.written, wroteBack: c.wroteBack } : "none";
+  // Read as null where the key is absent, too: an input from before 00404 (an older fixture) has no businesses to say.
+  return c.written > 0
+    ? { kind: "written", written: c.written, businesses: c.businesses ?? null, wroteBack: c.wroteBack }
+    : "none";
 }
 
 /** What a search matches: the parts, lower-cased. */
@@ -262,7 +270,7 @@ function resumeOf(p: LifecyclePlaybook, input: LifecycleInput): LifecycleAct {
     workspacePausedOf(input),
   );
   const cls = p.policy_class ?? triggerOf(p.trigger)?.cls ?? null;
-  // On trial (00395), a run of an auto class still waits for a person: it does not send on its own until the trial ends.
+  // On trial (00409), a run of an auto class still waits for a person: it does not send on its own until the trial ends.
   const auto = cls !== null && input.playbooks?.modes?.[cls] === "auto" && !p.trial;
   const detail = W.detail(when, p.candidates === null ? null : nextShare(p));
   return {
@@ -303,7 +311,10 @@ function playbookRow(p: LifecyclePlaybook, at: RowAt): LifecycleRow {
   };
 }
 
-/** The receptionist: First contact's own row, never counted, opening nothing. */
+/**
+ * The receptionist: First contact's own row, never counted. It opens what it is told, Settings › Business (Ruben, 11 Oct
+ * 2026: every row opens something; this one was the one that did nothing).
+ */
 function receptionistRow(stage: LifecycleStage): LifecycleRow {
   return {
     id: "receptionist",
@@ -320,14 +331,18 @@ function receptionistRow(stage: LifecycleStage): LifecycleRow {
     people: { n: stage.people, unit: stage.unit },
     results: "uncounted",
     next: NO_NEXT,
-    open: null,
+    open: { kind: "route", label: "Open", route: "admin/workspace" },
     waiting: null,
     act: null,
     search: rowSearchOf(stage.name, stage.caps),
   };
 }
 
-/** The call's text: the message the phone agent texts a caller who asks to book, a door to the Library. Never counted. */
+/**
+ * The call's text: the message the phone agent texts a caller who asks to book. Never counted. Its door opens that message
+ * in a drawer of its own over the home (`campaigns/message:<name>`, Ruben, 11 Oct 2026: a page it went to read as a page);
+ * where there is none yet, the Library, where one is written.
+ */
 function callTextRow(library: LifecycleInput["library"], caps: string): LifecycleRow {
   const W = LIFECYCLE_WORDS.callText;
   const found = library ? bookingTemplate(library) : null;
@@ -352,7 +367,7 @@ function callTextRow(library: LifecycleInput["library"], caps: string): Lifecycl
     people: { n: null, unit: "" },
     results: "uncounted",
     next: NO_NEXT,
-    open: { kind: "route", label: "Open", route: "messages" },
+    open: { kind: "route", label: "Open", route: found ? `campaigns/message:${found.name}` : "messages" },
     waiting: null,
     act: null,
     search: rowSearchOf(W.name, W.words, caps),
@@ -668,6 +683,19 @@ export function ledgerOrder(by: LedgerSort): (a: LifecycleRow, b: LifecycleRow) 
  * the line leaves it out; a paused row's end is its Resume, so the line says it rests. A figure not counted is left out,
  * never said as a zero.
  */
+/**
+ * What a row that is not a campaign does, said first on its phone line: the receptionist answers whoever writes, the
+ * call's text is sent when a caller asks for it, the month's offer goes every so often. Null for a campaign, whose line is
+ * its next run and its people.
+ */
+export function ledgerPhoneWhat(r: LifecycleRow): string | null {
+  if (r.kind === "receptionist") return r.hint;
+  if (r.kind === "call_text") return LIFECYCLE_WORDS.callText.when;
+  // The month's offer, not made yet: how often it would go, and to whom ("Every 30 days, to a yes to offers").
+  if (r.kind === "offer" && r.status === "off") return r.hint;
+  return null;
+}
+
 export function ledgerPhoneLine(r: LifecycleRow, caps: string): string {
   const dash = LIFECYCLE_WORDS.ledger.dash;
   const next = r.status === "waiting" || r.next.words === dash ? null : r.next.words;

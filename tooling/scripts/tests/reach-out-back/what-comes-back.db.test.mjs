@@ -444,8 +444,12 @@ test(
 
     const rep = ok(await as.viewer.c.rpc("reach_out_report", { p_tenant_id: A, p_days: 7 }));
     assert.equal(rep.has_reach_out, true);
+    // Emails written, businesses answered (00404): this world wrote one email to each of its five businesses, so the
+    // two are equal here and the outcomes below are of five either way; reports/campaigns/reach-out-businesses.db.test.mjs
+    // holds the world where a business gets two emails, and the share it was divided by `written` before.
     assert.deepEqual(rep.totals, {
       written: 5,
+      businesses: 5,
       delivered: 4,
       bounced: 1,
       wrote_back: 1,
@@ -454,6 +458,7 @@ test(
       said_no: 1,
       handed: 0,
     });
+    assert.deepEqual(rep.before, { written: 0, delivered: 0, bounced: 0 }, "nothing was written in the week before");
     assert.equal(rep.series.length, 7);
     assert.equal(
       rep.series.reduce((t, d) => t + d.written, 0),
@@ -467,10 +472,16 @@ test(
         [1, 0, 0, 0, 0, 0, 0, 0],
       ],
     );
+    // The businesses whose last email was each step: all five stopped at the first.
+    assert.deepEqual(
+      chain.steps.map((s) => s.businesses),
+      [5, 0],
+    );
     assert.deepEqual(rep.angles, [
-      { angle: "their rating", written: 3, wrote_back: 1 },
-      { angle: "their reviews", written: 1, wrote_back: 0 },
+      { angle: "their rating", written: 3, businesses: 3, wrote_back: 1 },
+      { angle: "their reviews", written: 1, businesses: 1, wrote_back: 0 },
     ]);
+    assert.deepEqual(rep.other_angles, { written: 0, businesses: 0, wrote_back: 0 });
     assert.equal(rep.no_angle, 1);
     const dom = rep.domains.find((d) => d.host === `back-${stamp}.example`);
     assert.deepEqual([dom.state, dom.sent, dom.delivered, dom.bounced, dom.complained], ["verified", 5, 4, 1, 0]);
@@ -495,6 +506,7 @@ test(
     const earlier = ok(await as.viewer.c.rpc("reach_out_report", { p_tenant_id: A, p_days: 7, p_end: dayBefore(30) }));
     assert.deepEqual([earlier.end, earlier.today, earlier.days], [dayBefore(30), today, 7]);
     assert.equal(earlier.totals.written, 0, "REGRESSION: a window counted everything written since its first day");
+    assert.equal(earlier.totals.businesses, 0, "and wrote to no business");
     assert.equal(
       earlier.series.reduce((t, d) => t + d.written, 0),
       0,

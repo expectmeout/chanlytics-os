@@ -34,6 +34,8 @@
  *       RETELL_FN_SECRET optional — sets the booking tool's x-fn-secret header
  *                        when the live tool has none (the edge refuses calls
  *                        without it). A live header is carried over untouched.
+ *       VOICE_LANGUAGES  the languages the workspace speaks, as Settings writes them ("English,Spanish"): the
+ *                        locales the agent listens for (retellLocalesFor). Unset, the language is left as it is.
  *       VOICE_FN_URL     where the booking tool posts; optional while the live
  *                        LLM has a booking tool, whose address is kept
  *
@@ -49,12 +51,22 @@
  *           pinned to latest_published to pick them up).
  *
  * The agent's own settings are planned too (planAgentSettings): the
- * transcript_updated event, a 20 s webhook budget, signed recording links.
+ * transcript_updated event, a 20 s webhook budget, signed recording links,
+ * a silent caller reminded after 4 s twice, and, with VOICE_LANGUAGES, the
+ * locales the agent listens for. The model, its temperature, the voice and
+ * the post-call model are reported when they differ, and never changed.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { desiredVoiceShell, planVoiceConvergence, planAgentSettings } from "@chanlytics/channels";
+import {
+  desiredVoiceShell,
+  planVoiceConvergence,
+  planAgentSettings,
+  retellLocalesFor,
+  unpublishedLatestNote,
+  newDraftNote,
+} from "@chanlytics/channels";
 
 const KEY = process.env.RETELL_API_KEY;
 const AGENT_ID = process.env.VOICE_AGENT_ID;
@@ -114,6 +126,8 @@ writeFileSync(
 console.log(`backup: ${backupPath}`);
 console.log(`agent ${agent.agent_id} "${agent.agent_name}" version ${agent.version} published=${agent.is_published}`);
 console.log(`llm ${llm.llm_id} version ${llm.version} (${(llm.general_prompt ?? "").length} chars of prompt)`);
+// Said first, run or not: everything below is planned against that draft, not against what the line runs.
+if (!agent.is_published) console.log(`\n! ${unpublishedLatestNote(agent.version)}.`);
 
 // 3. The plan. The live booking tool's headers are carried over; a tool with
 //    none gets the env secret if given, and is otherwise reported.
@@ -140,13 +154,26 @@ if (!headers)
 if (plan.llmPatch)
   console.log(`  PATCH /update-retell-llm/${llm.llm_id} with: ${Object.keys(plan.llmPatch).join(", ")}`);
 
-// The agent's own settings: the events, the webhook budget, signed links.
-const agentPlan = planAgentSettings(agent, retentionDays !== undefined ? { retentionDays } : {});
+// The agent's own settings: the events, the webhook budget, signed links, the silence reminders, the locales.
+const languages = process.env.VOICE_LANGUAGES?.split(",")
+  .map((l) => l.trim())
+  .filter(Boolean);
+const spoken = languages?.length ? retellLocalesFor(languages) : null;
+const agentPlan = planAgentSettings(agent, {
+  ...(retentionDays !== undefined ? { retentionDays } : {}),
+  ...(spoken && "locales" in spoken ? { locales: spoken.locales } : {}),
+});
 console.log("\nagent settings:");
+if (spoken && "kept" in spoken) console.log(`  ! VOICE_LANGUAGES: ${spoken.kept}`);
 if (!agentPlan.drift.length) console.log("  converged — nothing to change");
 for (const line of agentPlan.drift) console.log(`  - ${line}`);
 if (agentPlan.agentPatch)
   console.log(`  PATCH /update-agent/${agent.agent_id} with: ${Object.keys(agentPlan.agentPatch).join(", ")}`);
+const notes = [...plan.notes, ...agentPlan.notes];
+if (notes.length) {
+  console.log("\nkept as they are (reported, never changed here):");
+  for (const line of notes) console.log(`  - ${line}`);
+}
 if ((plan.llmPatch || agentPlan.agentPatch) && agent.is_published) {
   console.log(
     `  v${agent.version} is published: the changes go on a NEW DRAFT first${publish ? ", then it is published" : " — add --publish to make them live on a pinned number"}`,
@@ -216,10 +243,11 @@ if (working.version !== agent.version) {
     });
     console.log(`published v${working.version}; a number pinned to latest_published follows it`);
   } else {
-    console.log(
-      `\n! v${working.version} is a DRAFT: a pinned line stays on v${agent.version} until it is published (re-run with --publish).`,
-    );
+    console.log(`\n! ${newDraftNote(working.version, agent.version)}.`);
   }
+} else if ((plan.llmPatch || agentPlan.agentPatch) && !agent.is_published) {
+  // The patches went on the draft that was already the latest; it is not published (said at the top, said again).
+  console.log(`\n! the changes went on v${agent.version}, which was NOT published, even with --publish.`);
 }
 if (numberPatch) {
   const n = await call("PATCH", `/update-phone-number/${encodeURIComponent(number.phone_number)}`, numberPatch);

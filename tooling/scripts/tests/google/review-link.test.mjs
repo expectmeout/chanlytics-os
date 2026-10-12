@@ -1,7 +1,7 @@
 /**
- * What db reviewLinkOf says when the database answers badly (00394, a listing keeps its review link). Either deploy order
+ * What db reviewLinkOf says when the database answers badly (00408, a listing keeps its review link). Either deploy order
  * works only where "the column is not there yet" is told apart from "the read failed": the first is a database before
- * 00394 and reads as no link, so a send holds its review-ask people and the composer's refusal says to connect the
+ * 00408 and reads as no link, so a send holds its review-ask people and the composer's refusal says to connect the
  * listing; the second is "we could not read it", which is never "there is none". The client is a double that answers what
  * it is told; nothing here reaches a database (review-link.db.test.mjs does).
  */
@@ -53,7 +53,7 @@ test("reviewLinkOf reads as none only where Postgres says its own column is not 
   assert.equal(
     await reviewLinkOf(client(error("42703", "column google_listings.new_review_uri does not exist")).db, T),
     null,
-    "a database before 00394",
+    "a database before 00408",
   );
   for (const [what, e] of [
     ["another column", error("42703", "column google_listings.maps_uri does not exist")],

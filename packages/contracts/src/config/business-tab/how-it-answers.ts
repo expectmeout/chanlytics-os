@@ -110,7 +110,7 @@ export function noteEndedWords(until: unknown, tz: string | null | undefined, no
 export interface InstructionsWordsVM {
   /** Their opening, quoted and cut at a word; null with nothing written. */
   opening: string | null;
-  /** "339 of 20,000 characters", for the foot of the box that edits them; null with nothing written. */
+  /** "18,400 of 20,000 characters", for the foot of the box that edits them, once nine tenths are used; else null. */
   limit: string | null;
 }
 
@@ -128,9 +128,11 @@ const OPENING_SHOWN = 72;
 export function instructionsWords(text: string | null | undefined): InstructionsWordsVM {
   const t = typeof text === "string" ? text.trim() : "";
   if (!t) return { opening: null, limit: null };
+  // The room is said only as it runs out: under a box with room to spare, a count is a number to read and nothing
+  // to do (Ruben, 10 Oct 2026, the sheets in one shape).
   return {
     opening: `“${cutAtWord(t, OPENING_SHOWN)}”`,
-    limit: `${count(t.length)} of ${count(INSTRUCTIONS_MAX)} characters`,
+    limit: t.length >= INSTRUCTIONS_MAX * 0.9 ? `${count(t.length)} of ${count(INSTRUCTIONS_MAX)} characters` : null,
   };
 }
 

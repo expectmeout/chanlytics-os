@@ -163,7 +163,7 @@ export function VersionEditor(p: VersionEditorProps) {
       <FieldError message={problem ?? namedProblem(check, written, slots)} testid="template-version-error" />
       <div className="tpl-ver-acts">
         {work.asking ? (
-          <UnsavedAsk onYes={work.discard} onNo={work.stay} what={WORDS.leaves} testid="template-version-leave" />
+          <UnsavedAsk onYes={work.discard} onNo={work.stay} testid="template-version-leave" />
         ) : (
           <>
             <Button

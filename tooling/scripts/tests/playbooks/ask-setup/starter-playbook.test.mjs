@@ -488,7 +488,7 @@ test("no channel named: a WhatsApp version on file that WhatsApp refused, paused
   assert.deepEqual(tables.playbooks.find((p) => p.id === made.id).channels, ["whatsapp", "email"]);
 });
 
-test("a new campaign may name the end of its trial (D5, 00395 trial_until): written as the instant it is, by a starter's key or a message's id; one that is no instant, or already past, is refused in the change's own words before anything is filed or reaches Meta", async () => {
+test("a new campaign may name the end of its trial (D5, 00409 trial_until): written as the instant it is, by a starter's key or a message's id; one that is no instant, or already past, is refused in the change's own words before anything is filed or reaches Meta", async () => {
   const post = open({ templates: [starterRow(T1, WIN_BACK)] });
   const made = await post({
     trigger: "quiet_30",

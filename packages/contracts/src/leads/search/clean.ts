@@ -220,3 +220,31 @@ export function stateCode(raw: string | null | undefined): string | null {
   if (up.length === 2 && US_CODES.has(up)) return up;
   return US_STATES[s.toLowerCase()] ?? null;
 }
+
+/** One of a word: "bakeries" -> "bakery", "classes" -> "class", "studios" -> "studio"; "glass" and "bus" stay. */
+const oneOf = (w: string): string =>
+  /ies$/.test(w)
+    ? w.replace(/ies$/, "y")
+    : /(sses|ches|shes|xes|zes)$/.test(w)
+      ? w.replace(/es$/, "")
+      : /[^su]s$/.test(w)
+        ? w.slice(0, -1)
+        : w;
+
+/**
+ * A kind of business as one key, one of them: "Personal trainers", "personal_trainer" and "personal-trainers" are all
+ * "personal_trainer". A plan keeps its kind by this key (planLeadSearch), a round that ends adds to its kind's counts
+ * by it (lead_niche_priors, 00398), and the ideas group a workspace's searches by it, so a model that writes the plural
+ * one day and the singular the next names one kind.
+ */
+export function leadKindKey(words: string): string {
+  const k = words
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^[^a-z]+/, "")
+    .replace(/_+$/, "")
+    .slice(0, 40)
+    .replace(/_+$/, "")
+    .replace(/[a-z]+$/, oneOf);
+  return k.length >= 2 ? k : "business";
+}

@@ -1,10 +1,9 @@
 import { z } from "zod";
-import { AppError, normalizePhone, whyNotAPhone } from "@chanlytics/contracts";
+import { AppError, normalizeEmail, normalizePhone, whyNotAPhone, whyNotAnEmail } from "@chanlytics/contracts";
 import { read, write, workspace } from "@/server/route";
 import { load, readerContext } from "@/server/readers";
 import { people } from "@/server/readers/people";
-import { dbRefusal } from "@/server/with-route";
-import { peopleCursorParam } from "@/server/people/people";
+import { addPerson, peopleCursorParam } from "@/server/people/people";
 
 const Query = z.object({
   q: z.string().max(80).optional(),
@@ -45,28 +44,34 @@ export const GET = read({
 });
 
 /**
- * POST /api/v1/contacts — add a person by phone, before they ever write or call.
+ * POST /api/v1/contacts — add a person by their number, their address or both, before they ever write or call (Add
+ * people, one person). Owner or operator, as create_person and add_person are: an existing number or address returns
+ * that person, a name and an address fill only what is empty, and consent stays unknown, so nobody is messaged by
+ * adding them. `{ phone?, email?, name?, source? }` in, one of the first two at least; `{ contact_id, existed }` out.
  *
- * From an appointment on the calendar, or anywhere an owner meets a number
- * first. Get-or-create through the `create_person` door (owner or
- * operator): an existing number returns that person, a name fills only an
- * empty one, and consent stays unknown — a booking is not a yes to offers
- * by WhatsApp. `{ phone, name?, source? }` in; `{ contact_id, existed }` out.
- *
- * The body is the route's own to read: normalizePhone decides what a phone
- * is, and whyNotAPhone says which kind of not-a-number it was given, in the
- * product's words. One sentence for every refusal told an owner looking at
- * a short code on their own screen that "a phone number is needed".
- */
+ * The body is the route's own to read: normalizePhone and normalizeEmail decide what a number and an address are, as
+ * the import door does, so a typed "646 555 0101" is read as the import reads it and a refusal says which is wrong in
+ * the words the owner sees (whyNotAPhone, whyNotAnEmail). A number alone goes through create_person, as it always did,
+ * so an older database answers it; an address goes through add_person (00393), which takes either. */
 export const POST = write({
   scope: workspace,
   role: "operator",
   rate: "person_create",
   handle: async ({ ctx, req, member }) => {
-    const body = (await req.json().catch(() => null)) as { phone?: unknown; name?: unknown; source?: unknown } | null;
-    const raw = typeof body?.phone === "string" ? body.phone : null;
-    const phone = normalizePhone(raw);
-    if (!phone) throw new AppError("validation", whyNotAPhone(raw) ?? "A phone number is needed to add a person.");
+    const body = (await req.json().catch(() => null)) as {
+      phone?: unknown;
+      email?: unknown;
+      name?: unknown;
+      source?: unknown;
+    } | null;
+    const rawPhone = typeof body?.phone === "string" && body.phone.trim() ? body.phone : null;
+    const rawEmail = typeof body?.email === "string" && body.email.trim() ? body.email : null;
+    const phone = normalizePhone(rawPhone);
+    const email = normalizeEmail(rawEmail);
+    if (rawPhone && !phone) throw new AppError("validation", whyNotAPhone(rawPhone) ?? "That is not a phone number.");
+    if (rawEmail && !email)
+      throw new AppError("validation", whyNotAnEmail(rawEmail) ?? "That is not an email address.");
+    if (!phone && !email) throw new AppError("validation", "A mobile number or an email is needed to add a person.");
     const name = typeof body?.name === "string" ? body.name.trim().slice(0, 80) : "";
     // Which door, for the record. Never "calendar" or "lead", the two doors people_list names (00138): those are the
     // sweep's and the converter's, written server-side, and a person added here by hand would say "A lead you found".
@@ -77,14 +82,6 @@ export const POST = write({
       body.source !== "lead"
         ? body.source
         : "manual";
-    const { data, error } = await ctx.supabase.rpc("create_person", {
-      p_tenant_id: member.tenantId,
-      p_phone_e164: phone,
-      p_display_name: name,
-      p_source: source,
-    });
-    if (error) throw dbRefusal(error);
-    const out = data as { contact_id: string; existed: boolean };
-    return { contact_id: out.contact_id, existed: out.existed };
+    return addPerson(ctx, member.tenantId, { phone, email, name, source });
   },
 });

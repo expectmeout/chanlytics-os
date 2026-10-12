@@ -20,7 +20,10 @@ export const LeadPick = ({
   options,
   onOpen,
   onPick,
+  inline = true,
 }: {
+  /** Its options under it, as a listbox (a desk); false where the sheet draws them as a step (a phone, plan-card.tsx). */
+  inline?: boolean;
   id: string;
   label: string;
   cls?: string;
@@ -49,7 +52,7 @@ export const LeadPick = ({
     >
       {label}
     </button>
-    {open ? (
+    {open && inline ? (
       <span
         className="lf-pop panel panel-pop"
         role="listbox"

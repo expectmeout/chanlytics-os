@@ -28,8 +28,8 @@
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/charts.css": {
-    "font": 11,
-    "radius": 4,
+    "font": 9,
+    "radius": 3,
     "shadow": 0,
     "colour": 30,
     "blur": 0
@@ -42,10 +42,10 @@
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/components.css": {
-    "font": 54,
+    "font": 53,
     "radius": 14,
     "shadow": 5,
-    "colour": 7,
+    "colour": 4,
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/conversations.css": {
@@ -86,7 +86,7 @@
   "apps/dashboard/src/legacy/styles/leads.css": {
     "font": 33,
     "radius": 22,
-    "shadow": 15,
+    "shadow": 14,
     "colour": 9,
     "blur": 1
   },

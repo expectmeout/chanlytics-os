@@ -15,7 +15,7 @@
  * to leave here as `job_failed`, so a broadcast that ran to completion was
  * counted into Today's "N jobs did not finish" (00141).
  */
-import { notify, type NotifyPorts } from "./notify.js";
+import { notify, notifyEvent, type NotifyMessage, type NotifyPorts } from "./notify.js";
 import { loadTenantNotifications } from "../tenant-runtime.js";
 import type { pg } from "../pg.js";
 import type { JobNews, JobNewsKind } from "../packages/contracts.js";
@@ -52,18 +52,23 @@ export function alertFor(db: ReturnType<typeof pg>, job: AlertableJob, ports: No
     const addressing = db
       ? await loadTenantNotifications(db, job.tenant_id)
       : { notifications: null, isEnvDefault: false };
-    await notify(
-      { tenantId: job.tenant_id, ...addressing },
-      {
-        kind: news.kind,
-        route: news.route,
-        about: news.about ?? null,
-        subject: news.subject,
-        body: news.body,
-        redactedBody: REDACTED[news.kind](job.kind),
-        push: !NEVER_PUSHED.has(job.kind),
-      },
-      ports,
-    );
+    const target = { tenantId: job.tenant_id, ...addressing };
+    const msg: NotifyMessage = {
+      kind: news.kind,
+      route: news.route,
+      about: news.about ?? null,
+      subject: news.subject,
+      body: news.body,
+      // The news says what it is when it can (a hold's notice names the hold); the job's kind otherwise.
+      redactedBody: news.redactedBody ?? REDACTED[news.kind](job.kind),
+      push: !NEVER_PUSHED.has(job.kind),
+    };
+    if (!news.sourceEvent) {
+      await notify(target, msg, ports);
+      return;
+    }
+    // An event's notice is told exactly once (decision 0043): one not told throws, so its delivery tries again.
+    if (!(await notifyEvent(target, { ...msg, sourceEvent: news.sourceEvent }, ports)))
+      throw new Error(`the notice of event ${news.sourceEvent} was not told; its delivery tries again`);
   };
 }

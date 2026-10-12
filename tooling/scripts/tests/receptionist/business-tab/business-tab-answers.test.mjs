@@ -11,8 +11,9 @@ import {
   roleGate,
   TONE_PRESETS,
   handoffWords,
-  handoffChatWords,
-  handoffCallWords,
+  handoffCallRow,
+  handoffChatRow,
+  HANDOFF_ANYWAY,
   notesWords,
   noteEndedWords,
   composeSystemPrompt,
@@ -28,10 +29,13 @@ import {
   newReceptionistDefaults,
   hasProfile,
   GUARDRAIL_KEYS,
+  ALWAYS_TOLD,
   ruleStrength,
   VISION_STRENGTH,
   rulesKept,
   guardrailsInForce,
+  GREETING_TEMPLATE,
+  greetingOf,
 } from "@chanlytics/contracts";
 import { unmount, all, find, byTestId, textOf, classes, press } from "../../_legacy-react.mjs";
 import {
@@ -108,9 +112,11 @@ test("the voice's box is the first row of How it answers, reading Not set on a r
   assert.match(textOf(rows[0]), /Not set/);
   assert.equal(rows[0].props["data-empty"], "true");
   assert.equal(textOf(byTestId(rows[0], "rec-row-act-tone")).trim(), "Give it one", "the canvas's act for the gap");
-  // Seven rows, in the canvas's order, under its title and sub.
+  // Seven rows, in the canvas's order, under its title and sub, and on a workspace that answers calls (Marisa's does)
+  // the eighth after the voice: what callers hear first (decision 0051).
   assert.deepEqual(all(card, (n) => classes(n).includes("rec-row-key")).map(textOf), [
     "Its voice",
+    "Greets every caller with",
     "Languages",
     "Rules it always keeps",
     "Hands you a customer",
@@ -157,7 +163,7 @@ test("typing a voice reaches the composer: the fold says the Tone line it will b
   assert.equal(line, "Tone: Calm and kind.", "the composer's own line");
   assert.deepEqual(
     partsOf(byTestId(tree, "rec-fold-says-tone")),
-    [["It will be told", line]],
+    [["Preview what it's told", line]],
     "the one line it changes, not the whole of Who you are",
   );
   saveFoldOf(tree, "tone");
@@ -176,8 +182,8 @@ test("typing a voice reaches the composer: the fold says the Tone line it will b
   typeIn(tree, "tone", "Calm and kind.");
   tree = redrawTab();
   assert.deepEqual(partsOf(byTestId(tree, "rec-fold-says-tone")), [
-    ["It will be told", "Tone: Calm and kind."],
-    ["It will no longer be told", `Tone: ${marisa.tone}`],
+    ["Preview what it's told", "Tone: Calm and kind."],
+    ["No longer told", `Tone: ${marisa.tone}`],
   ]);
 });
 
@@ -233,7 +239,7 @@ test("a starting point fills the voice with its sentence, which is contracts', a
   assert.equal(items(tree).length, 0, "a pick closes the menu");
   const tone = TONE_PRESETS.find((p) => p.label === "Professional, no small talk").tone;
   assert.equal(boxIn(tree, "tone").props.value, tone, "the press fills the box");
-  assert.deepEqual(partsOf(byTestId(tree, "rec-fold-says-tone")), [["It will be told", `Tone: ${tone}`]]);
+  assert.deepEqual(partsOf(byTestId(tree, "rec-fold-says-tone")), [["Preview what it's told", `Tone: ${tone}`]]);
   saveFoldOf(tree, "tone");
   assert.equal(sent[0].config.brain.profile.tone, tone);
 });
@@ -308,8 +314,8 @@ test("a language is added from the list or as typed, removed with its Undo, and 
   tree = redrawTab(flash);
   assert.deepEqual(tokensOf(tree), ["English", "Spanish", "French"]);
   assert.deepEqual(partsOf(byTestId(tree, "rec-fold-says-languages")), [
-    ["It will be told", "You speak: English, Spanish, French."],
-    ["It will no longer be told", "You speak: English, Spanish."],
+    ["Preview what it's told", "You speak: English, Spanish, French."],
+    ["No longer told", "You speak: English, Spanish."],
   ]);
   langBox(tree).props.onChange({ target: { value: "Xhosa" } });
   tree = redrawTab(flash);
@@ -459,12 +465,16 @@ test("the rules at rest are a chip for each rule in force and one for photos, an
   assert.equal(chipsMoreWords(2), "+2");
   openFold(tree, "guardrails");
   tree = redrawTab();
-  // One element per rule, holding its label, its hint and its switch, so Phase 4 draws its strength into it.
+  // One element per rule, holding its label, its strength, its tip and its switch; saying it is an assistant is always on
+  // (decision 0051), so its row says so where the switch would be.
+  const always = byTestId(tree, "rec-rule-disclose_ai");
+  assert.match(textOf(always), /Says it's an automated assistant/);
+  assert.equal(textOf(byTestId(always, "rec-rule-always-disclose_ai")), "Always on");
+  assert.equal(switchOf(tree, "disclose_ai"), null, "no switch for a rule that is not one");
   for (const [k, label] of [
-    ["never_quote_prices", "Never quote or confirm a price"],
-    ["never_confirm_booking", "Never confirm an appointment itself"],
-    ["disclose_ai", "Say it is an assistant if asked"],
-    ["no_health_advice", "Never give health advice"],
+    ["never_quote_prices", "Never quote a price"],
+    ["never_confirm_booking", "Never confirm an appointment"],
+    ["no_health_advice", "No health advice"],
   ]) {
     const r = byTestId(tree, `rec-rule-${k}`);
     assert.ok(
@@ -479,12 +489,15 @@ test("the rules at rest are a chip for each rule in force and one for photos, an
     );
   }
   const vision = byTestId(tree, "rec-rule-vision");
-  assert.ok(
-    find(vision, (n) => classes(n).includes("rec-rule-sep")),
-    "a dashed rule sets the photos switch apart from the four limits",
+  const four = find(tree, (n) => n.props?.["aria-label"] === "The rules");
+  assert.equal(
+    find(four, (n) => n === vision),
+    null,
+    "the photos switch is in a group of its own, apart from the four limits",
   );
+  assert.equal(textOf(find(tree, (n) => n.props?.id === "bt-rules-abilities")), "Abilities");
   assert.match(textOf(vision), /Look at photos customers send/);
-  assert.match(textOf(vision), new RegExp(escape(VISION_STRENGTH.chip)));
+  assert.match(textOf(vision), new RegExp(escape(VISION_STRENGTH.sentence)));
   assert.doesNotMatch(
     textOf(vision),
     /four above .* start on/i,
@@ -501,14 +514,17 @@ test("the rules the fold draws are the four the schema keeps, in its order, and 
   let tree = drawTab();
   openFold(tree, "guardrails");
   tree = redrawTab();
-  const rows = all(byTestId(tree, "rec-rules-switches"), (n) => classes(n).includes("bt-rule"));
+  const rows = all(byTestId(tree, "rec-rules-switches"), (n) => classes(n).includes("bt-line"));
   const drawn = rows.map((n) => String(n.props["data-testid"]).replace("rec-rule-", ""));
   assert.deepEqual(drawn, [...GUARDRAIL_KEYS, "vision"], "the four rules in the schema's order, then the photos power");
-  for (const key of GUARDRAIL_KEYS) assert.ok(switchOf(tree, key), `${key} has a switch`);
+  for (const key of GUARDRAIL_KEYS) {
+    if (ALWAYS_TOLD.has(key)) assert.ok(byTestId(tree, `rec-rule-always-${key}`), `${key} is always on`);
+    else assert.ok(switchOf(tree, key), `${key} has a switch`);
+  }
 });
 
 test("each switch saves only its own key, and the photos switch writes features.vision and nothing else", () => {
-  for (const k of ["never_quote_prices", "never_confirm_booking", "disclose_ai", "no_health_advice"]) {
+  for (const k of ["never_quote_prices", "never_confirm_booking", "no_health_advice"]) {
     const sent = saving();
     let tree = drawTab();
     const stored = structuredClone(W.__SETTINGS.config);
@@ -559,10 +575,10 @@ test("absent means on: a record that stores no rules opens with three on, and a 
   openFold(tree, "guardrails");
   tree = redrawTab();
   assert.deepEqual(
-    ["never_quote_prices", "never_confirm_booking", "disclose_ai", "no_health_advice", "vision"].map(
+    ["never_quote_prices", "never_confirm_booking", "no_health_advice", "vision"].map(
       (k) => switchOf(tree, k).props["aria-checked"],
     ),
-    [true, true, true, false, false],
+    [true, true, false, false],
   );
   saveFoldOf(tree, "guardrails");
   tree = redrawTab();
@@ -570,9 +586,9 @@ test("absent means on: a record that stores no rules opens with three on, and a 
   // Switched and switched back is nothing too.
   openFold(tree, "guardrails");
   tree = redrawTab();
-  press(switchOf(tree, "disclose_ai"));
+  press(switchOf(tree, "no_health_advice"));
   tree = redrawTab();
-  press(switchOf(tree, "disclose_ai"));
+  press(switchOf(tree, "no_health_advice"));
   tree = redrawTab();
   saveFoldOf(tree, "guardrails");
   assert.equal(sent.length, 0);
@@ -591,17 +607,18 @@ test("the rules fold says the rules block it will be told, with the Autonomy tab
   tree = redrawTab();
   const says = byTestId(tree, "rec-fold-says-guardrails");
   const block = W.__businessTab.consequenceOf("guardrails", W.__SETTINGS.config.brain, "whatsapp");
-  assert.deepEqual(partsOf(says), [["Your receptionist will be told", block.text]]);
+  assert.deepEqual(partsOf(says), [["Preview what it's told", block.text]]);
   assert.match(
     block.text,
     /Booking: when someone wants to book, reschedule or cancel, do not send the booking link/,
     "Autonomy's line is in the block",
   );
   assert.equal(
-    textOf(byTestId(tree, "rec-fold-says-guardrails-note")),
+    textOf(find(says, (n) => classes(n).includes("rec-says-note"))),
     block.note,
-    "and the block's own note says whose lines they are",
+    "and inside the fold, the block's own note says whose lines they are",
   );
+  assert.equal(byTestId(tree, "rec-fold-says-guardrails-note"), null, "only a crossing stands over the folded line");
   assert.equal(byTestId(tree, "rec-rules-unread"), null, "a record that composes says nothing of reaching nothing");
 });
 
@@ -617,7 +634,7 @@ test("on a record whose details compose nothing, the rules fold says why once, a
   assert.equal(textOf(byTestId(tree, "rec-rules-unread")), RULES_WITHOUT_FIELDS_WORDS);
   assert.equal(all(tree, (n) => ownWords(n) === RULES_WITHOUT_FIELDS_WORDS).length, 1, "said once");
   assert.equal(byTestId(tree, "rec-fold-says-guardrails"), null, "never an empty It will be told");
-  press(switchOf(tree, "disclose_ai"));
+  press(switchOf(tree, "no_health_advice"));
   tree = redrawTab();
   assert.equal(
     byTestId(tree, "rec-fold-says-guardrails"),
@@ -656,10 +673,15 @@ test("M-2: on a record that composes nothing, the row names only what holds, in 
   assert.equal(hasProfile(profile), false, "the fixture composes nothing");
   const tree = drawTab({ profile });
   const chips = all(byTestId(tree, "rec-rules-chips"), (n) => classes(n).includes("rec-chip")).map(textOf);
-  assert.deepEqual(chips, ["Never quotes a price", "Cannot book anything", "Won't look at photos"]);
+  assert.deepEqual(chips, [
+    "Never quotes a price",
+    "Cannot book anything",
+    "Says it's an assistant",
+    chipsMoreWords(1),
+  ]);
   assert.deepEqual(
-    chips,
-    rulesKept({ rules: guardrailsInForce(profile.guardrails), vision: false, composes: false }),
+    chips.slice(0, 3),
+    rulesKept({ rules: guardrailsInForce(profile.guardrails), vision: false, composes: false }).slice(0, 3),
     "contracts', not the page's",
   );
   // And a record that DOES compose says the two it is told as well.
@@ -668,18 +690,19 @@ test("M-2: on a record that composes nothing, the row names only what holds, in 
   assert.ok(told.includes("Never confirms a booking"), "a line it reads, so the claim is covered too");
 });
 
-test("at rest the price rule keeps its word with the switch off, and the booking rule changes its words", () => {
-  // Task 3.5's review: a row that dropped "Never quotes a price" with the switch off would read as if prices went
-  // through. They do not -- the detector runs either way (the owner's decision, 20 Sep 2026).
+test("at rest the price rule says what off lets through, and the booking rule changes its words", () => {
+  // Decision 0051: off, it may say the prices the owner wrote, and the row says that rather than dropping the word,
+  // which would read as if any price went through.
   const off = { ...marisa, guardrails: { ...marisa.guardrails, never_quote_prices: false } };
   const chips = (t) => all(byTestId(t, "rec-rules-chips"), (n) => classes(n).includes("rec-chip")).map(textOf);
-  assert.ok(chips(drawTab({ profile: off })).includes("Never quotes a price"));
+  const said = chips(drawTab({ profile: off }));
+  assert.ok(said.includes("Says only the prices you wrote") && !said.includes("Never quotes a price"));
   // The structural one is different: the switch decides only whether it is told not to CLAIM it booked, so the fact
   // that stays is what it cannot do.
   const noBooking = { ...marisa, guardrails: { ...marisa.guardrails, never_confirm_booking: false } };
-  const said = chips(drawTab({ profile: noBooking }));
-  assert.ok(said.includes("Cannot book anything"));
-  assert.ok(!said.includes("Never confirms a booking"));
+  const booking = chips(drawTab({ profile: noBooking }));
+  assert.ok(booking.includes("Cannot book anything"));
+  assert.ok(!booking.includes("Never confirms a booking"));
 });
 
 /* --- the three strengths, in the fold (Task 4.2) --- */
@@ -692,7 +715,7 @@ const rulesOpen = (over = {}) => {
 };
 /** A rule's row in the fold, and the badge word on it. */
 const ruleRow = (tree, key) => byTestId(tree, `rec-rule-${key}`);
-const badgesOn = (row) => all(row, (n) => classes(n).includes("bt-rule-chip")).map(textOf);
+const badgesOn = (row) => all(row, (n) => classes(n).includes("pill")).map(textOf);
 
 test("each rule in the fold says how far it goes, in the words contracts wrote", () => {
   const tree = rulesOpen();
@@ -707,6 +730,7 @@ test("each rule in the fold says how far it goes, in the words contracts wrote",
     // whatever the width: a badge word alone says nothing about what the switch does.
     const says = find(row, (n) => n.props?.id === `bt-rule-${key}-says`);
     assert.equal(textOf(says), r.sentence, `${key}'s sentence is one element`);
+    if (ALWAYS_TOLD.has(key)) continue;
     assert.equal(
       switchOf(tree, key).props["aria-describedby"],
       `bt-rule-${key}-says`,
@@ -719,38 +743,46 @@ test("each rule in the fold says how far it goes, in the words contracts wrote",
 
 test("the checked rule draws both channels, because they differ, and no other rule draws any", () => {
   const tree = rulesOpen();
-  const priced = ruleRow(tree, "never_quote_prices");
-  const lines = all(priced, (n) => classes(n).includes("bt-rule-checked-line")).map(textOf);
+  // Folded under the rules, one line a channel (Ruben, 10 Oct 2026: the sheets "too wordy"), and only the checked
+  // rule's: the other three land the same way on both.
+  const how = byTestId(tree, "rec-rules-checked");
+  assert.equal(textOf(find(how, (n) => classes(n).includes("rec-disclosure-label"))), "How price checking works");
+  const lines = all(how, (n) => classes(n).includes("bt-fold-note")).map(textOf);
   assert.deepEqual(
     lines,
-    ruleStrength("never_quote_prices").checkedOn.map((c) => `${c.label} ${c.words}`),
+    ruleStrength("never_quote_prices").checkedOn.map((c) => `${c.label}, ${c.words}`),
     "the two lines are contracts', channel name and all",
   );
   assert.match(lines[0], /In chat/);
-  assert.match(lines[0], /before the customer sees them/i);
+  assert.match(lines[0], /before the customer sees it/i);
   assert.match(lines[1], /On a call/);
   // A call has no before, and saying there was one is the sentence this whole task exists to stop.
   assert.doesNotMatch(lines[1], /before/i);
   for (const key of GUARDRAIL_KEYS) {
     if (key === "never_quote_prices") continue;
     assert.deepEqual(
-      all(ruleRow(tree, key), (n) => classes(n).includes("bt-rule-checked-line")),
+      all(ruleRow(tree, key), (n) => classes(n).includes("bt-fold-note")),
       [],
       `${key} lands the same way on both channels, so it names neither`,
     );
   }
 });
 
-test("the price rule still says it is checked with the switch off", () => {
-  // The owner's decision (20 Sep 2026): a receptionist never states a price. The detector runs
-  // whether the switch is on or off; the switch changes one prompt line, and the row says so.
+test("the price rule still says it is checked with the switch off, and lists what it may say", () => {
+  // Decision 0051: off, it may say the prices the owner wrote and any other is swapped out; the detector runs either way.
   const off = { ...marisa, guardrails: { ...marisa.guardrails, never_quote_prices: false } };
   const tree = rulesOpen({ profile: off });
   const row = ruleRow(tree, "never_quote_prices");
   assert.equal(switchOf(tree, "never_quote_prices").props["aria-checked"], false, "the switch really is off");
-  assert.deepEqual(badgesOn(row), ["Checked, not just told"]);
-  assert.match(textOf(row), /whether this switch is on or off/);
-  assert.equal(all(row, (n) => classes(n).includes("bt-rule-checked-line")).length, 2, "and both channels still");
+  assert.deepEqual(badgesOn(row), ["Checked"]);
+  assert.match(textOf(row), /off, it may say the ones you've written, and any other is swapped out/);
+  // The list of what it may say, read off what the owner wrote, as the save would leave it.
+  assert.match(textOf(byTestId(tree, "rec-rules-prices")), /^(It may say |You haven't written a price yet)/);
+  assert.equal(
+    all(byTestId(tree, "rec-rules-checked"), (n) => classes(n).includes("bt-fold-note")).length,
+    2,
+    "and both channels still",
+  );
   // No alarm beside it: nothing about switching it off lets a price through.
   assert.equal(
     find(row, (n) => classes(n).includes("rec-warn")),
@@ -761,21 +793,19 @@ test("the price rule still says it is checked with the switch off", () => {
 test("the photos switch is an ability, not a limit, and is drawn apart from the four", () => {
   const tree = rulesOpen();
   const vision = byTestId(tree, "rec-rule-vision");
-  assert.ok(
-    find(vision, (n) => classes(n).includes("rec-rule-sep")),
-    "a dashed rule separates it from the four limits",
-  );
-  assert.deepEqual(badgesOn(vision), [VISION_STRENGTH.chip], "one badge here too, and contracts' word for it");
+  const four = find(tree, (n) => n.props?.["aria-label"] === "The rules");
   assert.equal(
-    textOf(find(vision, (n) => classes(n).includes("bt-rule-hint"))),
+    find(four, (n) => n === vision),
+    null,
+    "a group of its own separates it from the four limits",
+  );
+  assert.deepEqual(badgesOn(vision), [], "an ability wears no strength: its group's name says what it is");
+  assert.equal(
+    textOf(find(vision, (n) => n.props?.id === "bt-rule-vision-says")),
     VISION_STRENGTH.sentence,
-    "and its sentence is contracts' too, never typed in the page",
+    "and its line is contracts', never typed in the page",
   );
-  assert.equal(
-    all(vision, (n) => classes(n).includes("bt-rule-checked-line")).length,
-    0,
-    "it is not a rule anything checks",
-  );
+  assert.equal(switchOf(tree, "vision").props["aria-describedby"], "bt-rule-vision-says");
 });
 
 /* ------------------------------------ how it hands you a customer ------------------------------------ */
@@ -786,7 +816,7 @@ test("the transfer number is shown in the hand-off fold, never edited there, and
   openFold(tree, "escalate_when");
   tree = redrawTab();
   const fold = foldOf(tree, "escalate_when");
-  assert.equal(textOf(byTestId(fold, "rec-handoff-number")), "transfers to +1 (212) 555-0142");
+  assert.equal(textOf(byTestId(fold, "rec-handoff-number")), "Rings +1 (212) 555-0142");
   const boxes = all(fold, (n) => n.type === "input" || n.type === "textarea");
   assert.equal(boxes.length, 1, "one box, the reasons'");
   assert.ok(
@@ -795,7 +825,8 @@ test("the transfer number is shown in the hand-off fold, never edited there, and
   );
   // The door is the Who you are row's act, by that row's id, guarded as its own act would be.
   const door = byTestId(fold, "rec-handoff-door");
-  assert.equal(textOf(door), "Change the transfer number");
+  assert.equal(textOf(door), "Change");
+  assert.equal(door.props["aria-label"], "Change the transfer number", "named whole for a screen reader");
   press(door);
   tree = redrawTab();
   assert.equal(W.__recordFolds.open(), "handoff_number");
@@ -822,14 +853,10 @@ test("the hand-off fold says what each channel does in contracts' words, and the
   let tree = drawTab();
   openFold(tree, "escalate_when");
   tree = redrawTab();
-  assert.equal(
-    textOf(byTestId(tree, "rec-handoff-chat-says")),
-    handoffChatWords({ hasEscalateWhen: true, pauseHours: undefined }),
-  );
-  assert.equal(
-    textOf(byTestId(tree, "rec-handoff-call-says")),
-    handoffCallWords({ hasHandoffNumber: true, hasEscalateWhen: true }),
-  );
+  assert.equal(textOf(byTestId(tree, "rec-handoff-chat-says")), handoffChatRow(undefined).sub);
+  assert.equal(textOf(byTestId(tree, "rec-handoff-call-says")), handoffCallRow("+1 (212) 555-0142").sub);
+  // Who it hands over without a reason is the tip beside the box (the kit's RecordTip carries its words).
+  assert.equal(byTestId(tree, "rec-handoff-tip").props["data-tip"], HANDOFF_ANYWAY);
   assert.doesNotMatch(
     textOf(foldOf(tree, "escalate_when")),
     /your staff|do not reach it/,
@@ -841,19 +868,18 @@ test("the hand-off fold says what each channel does in contracts' words, and the
   const next = structuredClone(W.__SETTINGS.config.brain);
   next.profile.escalate_when = ["Refunds", "A price they want held"];
   const block = W.__businessTab.consequenceOf("escalate_when", next, "whatsapp");
-  assert.deepEqual(partsOf(byTestId(tree, "rec-fold-says-escalate_when"))[0], [
-    "Your receptionist will be told",
-    block.text,
-  ]);
+  assert.deepEqual(partsOf(byTestId(tree, "rec-fold-says-escalate_when"))[0], ["Preview what it's told", block.text]);
   assert.match(block.text, /\[\[HUMAN\]\][\s\S]*- Refunds\n- A price they want held/);
-  assert.equal(textOf(byTestId(tree, "rec-fold-says-escalate_when-note")), block.note);
-  // The sentences follow the draft: with no reasons typed, neither says the reasons count.
+  const says = byTestId(tree, "rec-fold-says-escalate_when");
+  assert.equal(
+    textOf(find(says, (n) => classes(n).includes("rec-says-note"))),
+    block.note,
+    "its note, inside the fold",
+  );
+  // The rows say what happens, reasons or none: with none typed, they say the same.
   typeIn(tree, "escalate_when", "  ");
   tree = redrawTab();
-  assert.equal(
-    textOf(byTestId(tree, "rec-handoff-chat-says")),
-    handoffChatWords({ hasEscalateWhen: false, pauseHours: undefined }),
-  );
+  assert.equal(textOf(byTestId(tree, "rec-handoff-chat-says")), handoffChatRow(undefined).sub);
   assert.doesNotMatch(textOf(byTestId(tree, "rec-handoff-call-says")), /Your reasons/);
 });
 
@@ -864,15 +890,12 @@ test("with no transfer number, the fold's call sentence says it takes a message,
   });
   openFold(tree, "escalate_when");
   tree = redrawTab();
-  assert.equal(textOf(byTestId(tree, "rec-handoff-number")), "takes a message");
-  const says = textOf(byTestId(tree, "rec-handoff-call-says"));
-  assert.equal(says, handoffCallWords({ hasHandoffNumber: false, hasEscalateWhen: true }));
-  assert.equal(
-    says,
-    "Your reasons reach a call too. No number yet, so it takes a message instead — which is better than a number nobody picks up.",
-  );
+  assert.equal(textOf(byTestId(tree, "rec-handoff-number")), "Takes a message");
+  assert.equal(textOf(byTestId(tree, "rec-handoff-call-says")), handoffCallRow(null).sub);
+  assert.equal(textOf(byTestId(tree, "rec-handoff-call-says")), "No transfer number");
   const door = byTestId(tree, "rec-handoff-door");
-  assert.equal(textOf(door), "Add a transfer number", "named for what it does with no number to change");
+  assert.equal(textOf(door), "Add one");
+  assert.equal(door.props["aria-label"], "Add a transfer number", "named for what it does with no number to change");
   press(door);
   assert.equal(W.__recordFolds.open(), "handoff_number");
 });
@@ -904,7 +927,7 @@ test("how long a hand-off holds off is the Autonomy tab's, and a failed read of 
     });
     openFold(tree, "escalate_when");
     tree = redrawTab();
-    assert.match(textOf(byTestId(tree, "rec-handoff-chat-says")), /holds off for 4 hours/);
+    assert.match(textOf(byTestId(tree, "rec-handoff-chat-says")), /replies again after 4 hours/);
     W.__POLICIES = null;
     tree = redrawTab();
     assert.equal(byTestId(tree, "rec-handoff-chat-says"), null, "no sentence it cannot back");
@@ -984,7 +1007,7 @@ test("a note is added, and one removed comes back at its own place with its Undo
   const next = structuredClone(W.__SETTINGS.config.brain);
   next.profile.notes = [...notesOf(3), { title: "Parking", text: "Behind the building." }];
   assert.deepEqual(partsOf(byTestId(tree, "rec-fold-says-notes")), [
-    ["Your receptionist will be told", W.__businessTab.consequenceOf("notes", next, "whatsapp").text],
+    ["Preview what it's told", W.__businessTab.consequenceOf("notes", next, "whatsapp").text],
   ]);
   saveFoldOf(tree, "notes");
   const expected = structuredClone(stored);
@@ -1167,10 +1190,7 @@ test("own words carried from the prompt before the form say so, and the save wri
   assert.equal(textOf(byTestId(tree, "rec-row-extra_instructions")).includes("characters"), false);
   openFold(tree, "extra_instructions");
   tree = redrawTab();
-  assert.match(
-    textOf(byTestId(tree, "rec-own-carried")),
-    /^Carried over from the instructions your receptionist followed before this form\./,
-  );
+  assert.match(textOf(byTestId(tree, "rec-own-carried")), /^Carried over from its earlier instructions\./);
   assert.equal(boxIn(tree, "extra_instructions").props.value, before, "the box opens with the prompt it carries");
   // Untouched, a Save sends nothing: sent, it would have written the prompt twice.
   saveFoldOf(tree, "extra_instructions");
@@ -1208,15 +1228,15 @@ test("emptying the only words a record composes from says it stops composing, an
     [],
     "no block to quote a line of: the sentence says all of it",
   );
-  // Under the box, how much room is left, with the limit in it, in contracts' words -- from the first character, not
-  // only near the end: the count is the box's now, and a count nobody sees until four fifths is a surprise.
-  const long = "x".repeat(16001);
+  // Under the box, how much room is left, with the limit in it, in contracts' words, once the room runs out: under a
+  // box with room to spare, a count is a number to read and nothing to do (Ruben, 10 Oct 2026).
+  const long = "x".repeat(18001);
   typeIn(tree, "extra_instructions", long);
   tree = redrawTab();
   assert.equal(textOf(byTestId(tree, "rec-own-count")), instructionsWords(long).limit);
   typeIn(tree, "extra_instructions", "Short.");
   tree = redrawTab();
-  assert.equal(textOf(byTestId(tree, "rec-own-count")), instructionsWords("Short.").limit);
+  assert.equal(byTestId(tree, "rec-own-count"), null, "room to spare: no count");
   // Past what it takes, the refusal is said under the box, and the count gives way to it: one sentence, not two.
   const over = "x".repeat(20001);
   typeIn(tree, "extra_instructions", over);
@@ -1284,14 +1304,20 @@ test("each message shows what a customer reads, points at a link or a number wri
   openFold(tree, "fallbacks");
   tree = redrawTab();
   const part = (t, k) => byTestId(t, `rec-fallback-${k}`);
-  // Each is its label and when it goes out, its box named by the label, and nothing it will be told.
-  assert.match(textOf(part(tree, "error")), /If it can't write a reply/);
-  assert.match(textOf(part(tree, "error")), /The AI service failed or couldn't finish an answer\./);
-  assert.equal(labelled(tree, "If it can't write a reply").type, "textarea");
+  // Each is a line that opens onto it: its label and when it goes out, its box named by the label, and nothing it
+  // will be told.
+  assert.match(textOf(part(tree, "error")), /It couldn't write a reply/);
+  assert.match(textOf(part(tree, "error")), /Then it waits for you/);
+  assert.equal(labelled(tree, "It couldn't write a reply").type, "textarea");
+  // The details it may name are presses under its box, one each.
+  assert.deepEqual(
+    all(byTestId(tree, "rec-fallback-error-details"), (n) => n.type === "button").map((b) => b.props["aria-label"]),
+    ["Put {business} in the message", "Put {booking link} in the message", "Put {phone} in the message"],
+  );
   assert.equal(byTestId(tree, "rec-fold-says-fallbacks"), null, "never part of the prompt");
   assert.equal(byTestId(tree, "rec-fallback-error-reads"), null, "a message naming no detail reads as written");
   // A message naming a detail shows it filled, as it goes out.
-  labelled(tree, "If it can't write a reply").props.onChange({
+  labelled(tree, "It couldn't write a reply").props.onChange({
     target: { value: "Thanks for writing to {business}! Book: {booking link}" },
   });
   tree = redrawTab();
@@ -1305,10 +1331,10 @@ test("each message shows what a customer reads, points at a link or a number wri
     },
     { channels: [{ kind: "voice", number_e164: "+13055550123", status: "active" }] },
   ).error;
-  assert.equal(textOf(byTestId(tree, "rec-fallback-error-reads")), `A customer reads: ${reads}`);
+  assert.equal(textOf(byTestId(tree, "rec-fallback-error-reads")), `Reads as ${reads}`);
   assert.match(reads, /Marisa's Beauty Salon! Book: https:\/\/book\.example\.com/);
   // A link or a number written out stays as written: said.
-  labelled(tree, "If it gets something it can't read").props.onChange({
+  labelled(tree, "It got something it can't read").props.onChange({
     target: { value: "Book at https://book.example.com/en-us/4471902 or call (212) 555-0142." },
   });
   tree = redrawTab();
@@ -1316,7 +1342,7 @@ test("each message shows what a customer reads, points at a link or a number wri
     textOf(byTestId(tree, "rec-fallback-non_text-written")),
     /^Your booking link is written out here — \{booking link\} keeps it current\./,
   );
-  labelled(tree, "If it gets something it can't read").props.onChange({ target: { value: "Call (212) 555-0142." } });
+  labelled(tree, "It got something it can't read").props.onChange({ target: { value: "Call (212) 555-0142." } });
   tree = redrawTab();
   assert.match(
     textOf(byTestId(tree, "rec-fallback-non_text-written")),
@@ -1324,13 +1350,10 @@ test("each message shows what a customer reads, points at a link or a number wri
   );
   // The default wording, in one press, heard with the message it is for; gone once the message is it.
   const back = byTestId(tree, "rec-fallback-greeting-default");
-  assert.equal(
-    textOf(find(tree, (n) => n.props?.id === back.props["aria-describedby"])),
-    "If replies can't be written at all",
-  );
+  assert.equal(textOf(find(tree, (n) => n.props?.id === back.props["aria-describedby"])), "The AI is down");
   press(back);
   tree = redrawTab();
-  assert.equal(labelled(tree, "If replies can't be written at all").props.value, FALLBACK_DEFAULTS.greeting);
+  assert.equal(labelled(tree, "The AI is down").props.value, FALLBACK_DEFAULTS.greeting);
   assert.equal(byTestId(tree, "rec-fallback-greeting-default"), null);
   saveFoldOf(tree, "fallbacks");
   const expected = structuredClone(stored);
@@ -1351,11 +1374,11 @@ test("what stops a message is said under its own box, each at once, and nothing 
   let tree = drawTab();
   openFold(tree, "fallbacks");
   tree = redrawTab();
-  labelled(tree, "If it can't write a reply").props.onChange({ target: { value: "   " } });
+  labelled(tree, "It couldn't write a reply").props.onChange({ target: { value: "   " } });
   tree = redrawTab();
-  labelled(tree, "If it gets something it can't read").props.onChange({ target: { value: "Call {phone number}." } });
+  labelled(tree, "It got something it can't read").props.onChange({ target: { value: "Call {phone number}." } });
   tree = redrawTab();
-  labelled(tree, "If replies can't be written at all").props.onChange({ target: { value: "x".repeat(2001) } });
+  labelled(tree, "The AI is down").props.onChange({ target: { value: "x".repeat(2001) } });
   tree = redrawTab();
   saveFoldOf(tree, "fallbacks");
   tree = redrawTab();
@@ -1367,6 +1390,12 @@ test("what stops a message is said under its own box, each at once, and nothing 
   );
   assert.equal(problemOf(tree, "bt-fallback-greeting"), "At most 2,000 characters — this is 2,001.");
   assert.equal(byTestId(tree, "rec-fallback-non_text-reads"), null, "a message that is refused shows no reading of it");
+  // A message that stops the save stands open, marked, so the sentence under its box is seen.
+  for (const k of ["error", "non_text", "greeting"]) {
+    const line = byTestId(tree, `rec-fallback-${k}`);
+    assert.equal(line.props["data-open"], "true", `${k} stands open`);
+    assert.equal(textOf(find(line, (n) => classes(n).includes("rec-disclosure-mark"))), "Check it", k);
+  }
 });
 
 /* ------------------------------------ the card as a whole ------------------------------------ */
@@ -1539,4 +1568,46 @@ test("a message in the product's earlier wording is the product's: no default wo
   tree = redrawTab();
   for (const key of ["greeting", "error", "non_text"])
     assert.equal(byTestId(tree, `rec-fallback-${key}-default`), null, key);
+});
+
+/* --- what callers hear first (decision 0051) --- */
+
+test("the greeting row: what callers hear at rest; the box opens on the standard line, says what callers hear and every note, and saves anything", () => {
+  const sent = saving();
+  let tree = drawTab();
+  // At rest, the words a caller hears, named by the business.
+  assert.equal(
+    textOf(byTestId(tree, "rec-greeting-line")),
+    greetingOf({ name: "Marisa's Beauty Salon", stored: undefined, paused: false }).text,
+  );
+  openFold(tree, "phone_greeting");
+  tree = redrawTab();
+  assert.equal(
+    boxIn(tree, "phone_greeting").props.value,
+    GREETING_TEMPLATE,
+    "the standard line, {business} where the name goes",
+  );
+  assert.equal(byTestId(tree, "rec-greeting-default"), null, "nothing to go back to yet");
+  // A line that never says it is automated: callers hear the product's words added, and the note says so first.
+  typeIn(tree, "phone_greeting", "Thanks for calling {business}. How can I help?");
+  tree = redrawTab();
+  assert.match(
+    textOf(byTestId(tree, "rec-greeting-hears")),
+    /Thanks for calling Marisa's Beauty Salon\. I'm the automated assistant\. How can I help\?/,
+  );
+  assert.match(
+    textOf(byTestId(tree, "rec-greeting-note-adds_ai")),
+    /doesn't say it's automated, so callers also hear “I'm the automated assistant.”/,
+  );
+  assert.ok(byTestId(tree, "rec-greeting-note-no_recording"), "every note that applies, not the first alone");
+  assert.ok(byTestId(tree, "rec-greeting-default"), "the way back to the standard line");
+  // Nothing about a greeting stops a save: no cap, no refusal, the recording sentence the owner's to drop.
+  saveFoldOf(tree, "phone_greeting");
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].config.brain.profile.phone_greeting, "Thanks for calling {business}. How can I help?");
+});
+
+test("the greeting row is drawn only where the workspace answers calls", () => {
+  const tree = drawTab({ facts: { voice_line: { value: null, source: "none" } } });
+  assert.equal(byTestId(tree, "rec-greeting-line"), null);
 });

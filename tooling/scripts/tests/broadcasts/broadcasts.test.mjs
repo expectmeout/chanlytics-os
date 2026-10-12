@@ -897,10 +897,7 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
   // sent the owner to record a consent that message does not need.
   const nobody = { audiences: [NOBODY] };
   const offers = textOf(byTestId(drawn({ initialSegment: "s-nobody" }, nobody), "bc-nobody"));
-  assert.ok(
-    offers.includes("has said yes to offers yet — that is a separate answer from saying yes to messages"),
-    offers,
-  );
+  assert.ok(offers.includes("has said yes to offers yet. Record it under “Offers and news”"), offers);
   const messages = textOf(
     byTestId(drawn({ initialSegment: "s-nobody" }, { ...nobody, templates: [utility] }), "bc-nobody"),
   );
@@ -946,7 +943,11 @@ test("the number's health: what WhatsApp said decides what may be sent; nothing 
 test("the detail: every person on a broadcast, with what happened to them; the send route refuses what the number cannot carry; the thread says which broadcast", () => {
   // The detail route answers getBroadcast's own answer: run through its reader in readers.test.mjs.
   const s = readCode("apps/dashboard/src/server/campaigns/broadcasts.ts");
-  assert.ok(s.includes("contacts(display_name, wa_profile_name, phone_e164, email)"), "names come with the rows");
+  // With the two columns that say whether the person stands (00403's rule, contracts answersToRuns): an erased person answers nothing.
+  assert.ok(
+    s.includes("contacts(display_name, wa_profile_name, phone_e164, email, erased_at, merged_into_contact_id)"),
+    "names come with the rows",
+  );
   assert.ok(s.includes("replied: !!(r.messages?.conversation_id && replied.has(r.messages.conversation_id)),"));
   // The number's refusals are run: core-campaigns.test.mjs. Its quality, read from the row's config, is run through the
   // channels route in reads-routes.test.mjs ("the channels read") and through its reader in readers.test.mjs.
@@ -972,7 +973,7 @@ test("the detail: every person on a broadcast, with what happened to them; the s
     "a number that may send, an audience inside its limit: the button is live",
   );
   const flagged = numberOn(numberHealth({ quality: "GREEN", event: "FLAGGED", limit: "TIER_1K" }));
-  assert.ok(textOf(byTestId(flagged, "bc-number-refusal")).includes("flagged"), "why it may not send");
+  assert.ok(textOf(byTestId(flagged, "bc-number")).includes("flagged"), "why it may not send, over the sentence");
   assert.equal(send(flagged).props.disabled, true, "the button follows the number");
   const big = audienceOf("s-regulars", "Regulars", { conversational: 300, marketing: 300 });
   const over = numberOn(numberHealth({ quality: "GREEN", event: null, limit: "TIER_250" }), { audiences: [big] });

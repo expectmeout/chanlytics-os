@@ -40,9 +40,7 @@
     "00295": "held by the Reports lane's drafts (cm-reports) when #1374 numbered its migrations",
     "00322": "the tables leave Postgres Changes held this number in #1411 and landed as 00324, above the head by then; a stop ends the yes to offers had moved to 00323 to leave it room (#1409)",
     "00325": "unused: #1417 (a message's status is told to its workspace) held it, but 00326 (two records of one person become one) reached production first, so #1417 landed as 00327 above the head",
-    "00378": "held for the doors lane (#1537), whose eleven moved above #1539's 00379 and 00380 when that merged first: they landed as 00381 to 00391",
-    "00392": "held by the evidence lane's drafts (cm-glass, a reply keeps what the receptionist was told) when the Ask lane numbered 00394",
-    "00393": "held by the evidence lane's drafts (cm-glass, a reply keeps what the receptionist was told) when the Ask lane numbered 00394"
+    "00378": "held for the doors lane (#1537), whose eleven moved above #1539's 00379 and 00380 when that merged first: they landed as 00381 to 00391"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -396,7 +394,23 @@
     "00389_a_booking_reaches_its_reach_out_through_its_event.sql": "f239aae5eddc56e3fcd7d75fbfc02678074bd2cfe6fdb012bff480f9976c4cd3",
     "00390_a_paused_subscription_keeps_what_it_would_have_been_handed.sql": "d6775bf1d2836ce20f21b193c85ab236e072d81af4e464dab717f69d91157b81",
     "00391_what_a_run_and_a_reach_out_kept_of_a_person_goes_with_them.sql": "41977bd9d75769f42b88c5a5e6c214dc1b9ac3dc33eb220eeba09664ce6f5bbd",
-    "00394_a_listing_keeps_its_review_link.sql": "7f084b462347d86e40b09d3b17464c57b7145cb39faf42ec722816a6b1fd6d7a",
-    "00395_a_campaign_ends_and_runs_on_trial.sql": "e19d3f30e7b3bde9b271a59d231434946a674a8e8f9c2cbda868b34158cae855"
+    "00392_a_review_google_no_longer_shows_and_a_closed_invitation_go.sql": "a2f60beed4051a4b072b0db14e7584e6bb5d1101cd0a5a1da1c8da244352660d",
+    "00393_a_person_is_added_by_their_number_or_their_address.sql": "c9fec19f278c7c93b2062e3c80e9b6e8d400f2b3613b444a986ab3efee1309b4",
+    "00394_a_new_person_is_one_who_reached_you.sql": "8a3e70409ab7eb04060a591956846c3b4bdbecd551f8a00a09d6e67a1fed0a2f",
+    "00395_the_people_lens_is_read_beyond_the_days_counts.sql": "2c4b85c3506e5dba229b3f37da31b87b2c7f50f684b73d8a4a50bf6fb805a5cf",
+    "00396_a_hold_is_told_from_its_event.sql": "b04adcf408584fb773642bb0fc4899fe50b32ee259a9ef6045207d598bfb8c4c",
+    "00397_a_member_says_what_became_of_a_visit.sql": "a55a9b3c7b23973b9ab64cf5d672c0084398e629ef5a01691ee81405f92aa9de",
+    "00398_an_idea_for_a_search_is_written_from_what_searches_found.sql": "6984bf02a866f283fe4d7fc8cdc990d0050042e1d216daaee696ed734ab44d3d",
+    "00399_an_idea_is_judged_with_the_clock_and_kept_only_by_its_claim.sql": "bcbcf26962c044529d9e9fc741ee6ef79fbdc700a70379ab099daad7484061d0",
+    "00400_the_ideas_are_written_through_one_door_which_keeps_their_event.sql": "212c29ef6a932e926a2cb418029f6c8fa056d33226229ec7254ef22f12980ebc",
+    "00401_a_reply_keeps_what_the_receptionist_was_told.sql": "edb76da1403ad24ea8887bd0b6ad27192e8ad6fdaf7dd90427ecef81f9944b48",
+    "00402_a_settings_change_keeps_what_the_settings_said.sql": "a1024754150f10b2933709d125d00d1b3ca15ef5e02c8e754d297e4fef45b431",
+    "00403_a_yes_or_a_stop_after_a_campaign_is_the_answer_to_its_run.sql": "3c11cac3035f4ef2150b84e878cdb8d0c3ed64a03bec752983062330e883df4d",
+    "00404_a_reach_out_is_counted_in_the_businesses_it_wrote_to.sql": "f7499080b7599d817c368569fecc5971035c5df8eb753c8589c56c311ddec008",
+    "00405_the_campaigns_lens_is_read_beyond_the_days_counts.sql": "b147c560f1a73a799842bb881986b5be61e4fdaba9e101547660b1bb93a6ec70",
+    "00406_what_is_stuck_in_a_workspace_s_campaigns_is_read_as_it_stands.sql": "75ea067386120f66daf809961b8bee857f5b71a0ed52af01331dbb92de5b2737",
+    "00407_a_workspace_wears_its_own_logo.sql": "4632d59f0dd0e5b9da6a19a6f1b27c024f32462c0ac851c12c3dd7b31857a992",
+    "00408_a_listing_keeps_its_review_link.sql": "7da2a20c89182da26ba4101a2bdf61da8a1951fdee178e09307fa4f36a66d282",
+    "00409_a_campaign_ends_and_runs_on_trial.sql": "3bef57be1f6b7a7fca1e2e16217f9d2aa94d91e039546256205d54e4643dcc77"
   }
 }

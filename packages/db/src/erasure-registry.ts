@@ -23,9 +23,9 @@
  * "personal columns with no erasure strategy" (docs/debt.md) hold the count to fall, so a new column arrives with its
  * strategy. messages.body and messages.template_vars are counted on purpose: a message is immutable by trigger (00326),
  * so a person's words in someone else's thread stay until an exception to that is costed (Ruben, 6 October 2026).
- * Counted too, each waiting on a word (decision 0036, open questions): a Google review's reviewer, words and reply,
- * which no erasure can reach (nothing joins a review to a person, and a name is not a key) and no clock removes; and a
- * lead batch's judgment, which purge_leads removes at 180 days with no RETENTION_DAYS key of its own to say so.
+ * A Google review's reviewer, words and reply are reached by no erasure (nothing joins a review to a person, and a name
+ * is not a key): the mirror follows Google, and a review it has not seen for its days goes (00392, answered 10 October
+ * 2026).
  */
 import type { RETENTION_DAYS } from "@chanlytics/contracts";
 
@@ -50,6 +50,8 @@ export const ERASURE_LEGS = {
   ask_scrub: "scrub_ask_for_contact: the assistant's turns that name them deleted (00238)",
   deliveries_scrub: "provider_events_scrub: a kept delivery that names them deleted (00336)",
   notes_scrub: "person_notes_scrub: their numbers and addresses overwritten in other people's notes (00341)",
+  turns_scrub:
+    "model_turns_scrub: the receptionist's kept turns that name them, in anyone's thread, deleted (00401); their own went with their conversation",
   appointments_scrub:
     "appointments_scrub: their visits keep their time and service and lose the client's name, number, address and note; the notices that made them, and any whose subject names them, lose the name (00345)",
 } as const;
@@ -229,10 +231,15 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     "new_review_uri",
     "place_id",
   ),
-  // A review's ids and language. Its reviewer, words and reply are counted (above).
-  google_reviews: all(NOT_PERSONAL, "language_code", "maps_uri", "review_id"),
+  // A review as Google shows it: a complete read drops one Google no longer lists, and one not seen for its days goes
+  // (purge_google_reviews, 00392). Its ids and language are nobody's.
+  google_reviews: {
+    ...all(byAge("google_reviews"), "author", "author_uri", "author_photo_uri", "body", "reply_text"),
+    ...all(NOT_PERSONAL, "language_code", "maps_uri", "review_id"),
+  },
   idempotency_keys: all(byAge("idempotency_keys"), "key", "route", "request_hash", "response"),
-  // A team invitation's address: the workspace's, kept with it.
+  // A team invitation's address: the workspace's while it is open or expired (the Team card sends it again); one
+  // accepted or taken back goes with its address 30 days later (purge_invitations, 00392).
   invitations: { email: WITH_WORKSPACE },
   jobs: {
     // A thrown error can quote the recipient a provider refused.
@@ -241,8 +248,12 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     dedupe_key: NOT_PERSONAL,
   },
   lead_counters: { period: NOT_PERSONAL },
-  // A batch's judge: its model and the hashes of its work. Its answer is counted (above).
-  lead_judgments: all(NOT_PERSONAL, "model", "op_id", "request_hash"),
+  // A batch's judge: its answer, with a reason for each place, goes with the batch (purge_leads, 00140); its model and
+  // the hashes of its work are nobody's.
+  lead_judgments: {
+    answer: byAge("lead_judgments"),
+    ...all(NOT_PERSONAL, "model", "op_id", "request_hash"),
+  },
   // A lead's stage before and after a move, its counts, ids and a keyed hash of its place.
   lead_operations: all(NOT_PERSONAL, "before", "after"),
   lead_preferences: {
@@ -269,7 +280,8 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   },
   // What the owner asked the finder for, and the kinds of business it suggested.
   lead_searches: all(NOT_PERSONAL, "asked", "card", "name", "plan"),
-  lead_suggestions: all(NOT_PERSONAL, "business_line", "items"),
+  // The ideas for a search (00398, 00399): the business line, the plans, what they were written over and what was passed on.
+  lead_suggestions: all(NOT_PERSONAL, "business_line", "items", "basis", "passed"),
   lead_suppressions: { hash: DIGEST },
   leads: {
     ...all(
@@ -329,6 +341,17 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   // The kinds a member's phones are not told (00372), and a member's sort and columns: the member's own settings.
   memberships: all(NOT_PERSONAL, "push_off", "views"),
   messages: all(withPerson("erase_contact"), "template_name", "media", "external_id", "content_hash", "error", "meta"),
+  // A kept turn (decision 0039): the person's own go when their conversation does, by the fence's cascade, and a turn
+  // about someone else that quoted them is deleted by needle; the prompt it read is the business's own facts, and
+  // leaves by its clock.
+  model_turns: {
+    ...all(scrubbedBy("turns_scrub", "erase_contact"), "request", "response"),
+    ...all(NOT_PERSONAL, "prompt_hash", "model"),
+  },
+  model_prompts: { text: byAge("model_prompts"), prompt_hash: NOT_PERSONAL },
+  // The settings as they stood (decision 0039, step 3): the business's own, as tenant_config.config is, and unlike it
+  // a version leaves by its clock once it is replaced.
+  tenant_config_versions: { config: byAge("tenant_config_versions") },
   notifications: {
     ...all(byAge("notifications"), "title", "body"),
     ...all(NOT_PERSONAL, "route", "subject_type", "subject_id"),
@@ -367,7 +390,7 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     ),
   },
   // A partner's ledger of the workspaces it brought: Stripe's ids, the code used, the sweep's checks and reasons; the
-  // address a workspace is handed to, the workspace's.
+  // address a workspace is handed to, the workspace's, cleared once its new owner accepts (00392).
   partner_earnings: all(NOT_PERSONAL, "currency", "stripe_event_id", "stripe_invoice_id"),
   partner_tenants: {
     handover_email: WITH_WORKSPACE,

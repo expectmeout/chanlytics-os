@@ -412,6 +412,7 @@ function businessSection({ parsed, brain, profile }: SetupConfig): SetupDto["bus
     bookingLink: !!brain?.booking_link,
     address: !!profile?.address,
     handoff: profile?.handoff_number ?? null,
+    phone_greeting: profile?.phone_greeting ?? null,
     broken: receptionist === "broken",
     receptionist,
   };

@@ -1,5 +1,5 @@
 /**
- * The change_playbook door in memory, as 00395 writes it, for the suites that run a change in place through the real
+ * The change_playbook door in memory, as 00409 writes it, for the suites that run a change in place through the real
  * route over `_fake-db.mjs` (PUT playbooks/:id, Ask's change card, a list's archive and restore, the outbound routes).
  *
  * It refuses what the door refuses, with its code: nothing named, or a key outside the nine (22023); a null for any key
@@ -12,7 +12,7 @@
  * Not named *.test.mjs on purpose: the runner globs that pattern.
  */
 
-/** The nine columns the door may write (00395), and the two of them a null clears. The door's own list, not core's. */
+/** The nine columns the door may write (00409), and the two of them a null clears. The door's own list, not core's. */
 const DOOR_KEYS = [
   "state",
   "name",

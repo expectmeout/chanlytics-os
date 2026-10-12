@@ -1,11 +1,12 @@
 /**
- * The report functions Reports reads (00251, 00304, 00241, 00350, 00380): the receptionist's series, the campaigns', the
- * reviews', the Receptionist lens's and the reach-outs', each over a period of days and the period before it; and the
- * counts Campaigns reads (00374, 00375): a playbook's totals, a run's counts, a message's sends and every chain's numbers.
- * The one place they are called by name; the dashboard asks on the session client, so RLS decides what a member reads
- * (`report_series`, `campaign_series`, `reviews_ledger` and `receptionist_series` are SECURITY INVOKER;
- * `reach_out_report` is a definer that checks the member again). A read that fails throws: "we could not read" is never
- * "none".
+ * The report functions Reports reads (00251, 00304, 00241, 00350, 00380, 00395, 00405): the receptionist's series, the
+ * campaigns', the reviews', the Receptionist lens's, the People lens's, the Campaigns lens's ledger (`campaignLedger`) and
+ * the reach-outs', each over a period of days and the period before it; the Campaigns lens's stuck-now read
+ * (`campaignStuck`, 00406), which reads the present and takes no window; and the counts Campaigns reads (00374, 00375): a
+ * playbook's totals, a run's counts, a message's sends and every chain's numbers. The one place they are called by name;
+ * the dashboard asks on the session client, so RLS decides what a member reads (`report_series`, `campaign_series`,
+ * `reviews_ledger`, `receptionist_series`, `people_series`, `campaign_ledger` and `campaign_stuck` are SECURITY INVOKER;
+ * `reach_out_report` is a definer that checks the member again). A read that fails throws: "we could not read" is never "none".
  *
  * Each reads a WINDOW (00360): a count of days, and the day they end on. A period by name ends on the workspace's today
  * and names no day, which is the call every one of these was before 00360, so a database that has not run it yet reads a
@@ -93,6 +94,61 @@ export async function receptionistSeries(db: Db, tenantId: string, window: Repor
   if (error) {
     if (isMissingDoor(error)) return null;
     throw new Error(`receptionist_series: ${error.message}`);
+  }
+  return data;
+}
+
+/**
+ * The People lens's numbers, over the window and the period before it (`people_series`, 00395): the people who reached
+ * the business and how many of them were new, by the way they came in and the way they first came, the answers recorded
+ * about being written to, the email addresses that stopped working and the steps done and done on time. Counts only.
+ * Null is a database that does not have the function yet: the dashboard deploys at the merge and 00395 goes to production
+ * on the owner's word (either order works), so for that window every read answers it, and the lens draws the book
+ * (People's own pool) and its kept cards and none of its series parts (the function itself never answers null). A window
+ * that names its last day is the same answer, for the same reason: the one function takes the last day, so a database
+ * without it has no function at all. Any other failure throws.
+ */
+export async function peopleSeries(db: Db, tenantId: string, window: ReportWindow): Promise<Json | null> {
+  const { data, error } = await db.rpc("people_series", windowArgs(tenantId, window));
+  if (error) {
+    if (isMissingDoor(error)) return null;
+    throw new Error(`people_series: ${error.message}`);
+  }
+  return data;
+}
+
+/**
+ * The Campaigns lens's numbers beyond the days' counts, over the window and the period before it (`campaign_ledger`,
+ * 00405): the people sent to and who wrote back, the runs that sent, what runs held back and why they stopped, why sends
+ * failed, each message's sends and replies, how soon the first reply came and how long approvals waited. Counts only: free
+ * text never leaves SQL. Null is a database that does not have the function yet: the dashboard deploys at the merge and
+ * 00405 goes to production on the owner's word (either order works), so for that window every read answers it and the
+ * lens draws what it can without it (the function itself never answers null). A window that names its last day is the
+ * same answer, for the same reason: the one function takes the last day, so a database without it has no function at all.
+ * Any other failure throws.
+ */
+export async function campaignLedger(db: Db, tenantId: string, window: ReportWindow): Promise<Json | null> {
+  const { data, error } = await db.rpc("campaign_ledger", windowArgs(tenantId, window));
+  if (error) {
+    if (isMissingDoor(error)) return null;
+    throw new Error(`campaign_ledger: ${error.message}`);
+  }
+  return data;
+}
+
+/**
+ * What is stuck in the workspace's campaigns as it stands now (`campaign_stuck`, 00406): the runs waiting for an OK, the
+ * runs that failed in the last 30 days, the threads that answered a campaign and may wait on a person, and the WhatsApp
+ * messages Meta stopped, as the facts the reader's rules judge (the function ships no verdicts). Asked for the workspace
+ * alone: it reads the present, never a window. Null is a database that does not have the function yet (00406 goes to
+ * production on the owner's word, either deploy order works), and the lens then draws its other parts and none of the
+ * stuck ones (the function itself never answers null). Any other failure throws.
+ */
+export async function campaignStuck(db: Db, tenantId: string): Promise<Json | null> {
+  const { data, error } = await db.rpc("campaign_stuck", { p_tenant_id: tenantId });
+  if (error) {
+    if (isMissingDoor(error)) return null;
+    throw new Error(`campaign_stuck: ${error.message}`);
   }
   return data;
 }

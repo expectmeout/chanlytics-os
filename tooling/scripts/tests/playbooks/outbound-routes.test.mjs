@@ -101,7 +101,7 @@ const withStartDoor = (tables, rpcs = {}, refusal = null) => ({
     return { id: row.id, decision_id: decision.id, undo_dropped: false };
   },
 });
-/** The `change_playbook` door for a database in memory, as 00395 writes it (change/_change-door.mjs), beside `rpcs`. */
+/** The `change_playbook` door for a database in memory, as 00409 writes it (change/_change-door.mjs), beside `rpcs`. */
 const withChangeDoor = (tables, rpcs = {}) => ({ ...rpcs, ...changePlaybookDoor(tables, USER) });
 const ctxFor = (tables, params = {}, rpcs = {}, opts = {}) => ({
   supabase: fakeDb(tables, {}, withChangeDoor(tables, withStartDoor(tables, rpcs)), opts),

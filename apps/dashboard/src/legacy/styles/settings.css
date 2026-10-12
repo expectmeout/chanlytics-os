@@ -520,7 +520,7 @@
    row with two keeps them in its ⋯ -- never a line of boxed buttons under the words. A row that wants something
    (Connect Google) keeps its one button, in the state's place; a Later row is its name. */
 @media (max-width: 640px) {
-  .set-conn > .set-int-row { align-items: center; min-height: 56px; padding: 10px 0; }
+  .set-conn > .set-int-row { align-items: center; min-height: 56px; padding: 10px 0; row-gap: 3px; }
   .set-conn > .set-int-row > .set-int-tile { align-self: start; }
   .set-int-detail { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--set-hint); line-height: 1.45; }
   .set-int-sep { display: none; }
@@ -530,23 +530,30 @@
   .set-conn > .set-int-row[data-state="later"] .set-team-mail { display: none; }
   .set-conn > .set-int-row:is([data-offers="one"], [data-offers="menu"], [data-offers="none"]) > .set-int-actions { display: none; }
   .set-conn > .set-int-row[data-offers="primary"] > .pill { display: none; }
-  /* A row that wants something says it across the row: its button stands beside its name, in the state's place, and its
-     sentence and notes run under both (7 Oct: beside the button they were a column two words wide, and the WhatsApp row
-     stood 700px tall with its button halfway down it). */
+  /* A row that wants something has its button beside its name, in the state's place, and its sentence and notes run
+     under both, as every row's do below (7 Oct: beside the button they were a column two words wide, and the WhatsApp
+     row stood 700px tall with its button halfway down it). */
   /* Such a row lays its own columns here, so its name has what its own button leaves. Sharing the group's, every name
      had what the group's longest button left: 108px for a name and its press beside "Connect your calendar", and
      "Phone line" stood on two lines beside "Get a line", "Google Business Profile" on three (seen on production,
      8 Oct 2026). The buttons still end on one edge, the card's. */
-  .set-conn > .set-int-row[data-offers="primary"] { grid-template-columns: var(--set-lead) minmax(0, 1fr) auto; row-gap: 3px; }
-  .set-conn > .set-int-row[data-offers="primary"] > .set-team-body { display: contents; }
-  .set-conn > .set-int-row[data-offers="primary"] > :first-child { grid-row: 1; align-self: center; }
-  .set-conn > .set-int-row[data-offers="primary"] > .set-int-actions { grid-column: 3 / -1; grid-row: 1; }
-  .set-conn > .set-int-row[data-offers="primary"] .set-int-head { grid-column: 2; grid-row: 1; }
+  .set-conn > .set-int-row[data-offers="primary"] { grid-template-columns: var(--set-lead) minmax(0, 1fr) auto; }
+  .set-conn > .set-int-row[data-offers="primary"] > :first-child { align-self: center; }
+  .set-conn > .set-int-row[data-offers="primary"] > .set-int-actions { grid-column: 3 / -1; }
   .set-conn > .set-int-row[data-offers="primary"] .set-team-name { white-space: normal; }
+  /* Every row does: its name stands beside its state and its act, and what it says runs under them, the row's width
+     (8 Oct: a number that had just connected said how to try it in the name's own column, 115px wide and twelve lines
+     tall, beside its state). The state is what follows the words, named by its place rather than as `.pill`, a kit
+     class a page's rule may not name again (kit-primitives.json); a row's act, its chevron or its menu ends the line. */
+  .set-conn > .set-int-row > .set-team-body { display: contents; }
+  .set-conn > .set-int-row > :first-child { grid-row: 1; }
+  .set-conn > .set-int-row .set-int-head { grid-column: 2; grid-row: 1; }
+  .set-conn > .set-int-row > .set-team-body + * { grid-column: 3; grid-row: 1; }
+  .set-conn > .set-int-row > :is(.set-int-actions, .set-int-chev, .set-int-more) { grid-column: 4; grid-row: 1; }
   /* The press beside a name is a finger's 44px here around a 13px glyph (mobile.css): its box reaches 8px over the
      name's end and 8px toward the row's button, so the name is not charged for the room a thumb needs. */
   .set-int-head > :nth-child(2) { margin-inline: -8px; }
-  .set-conn > .set-int-row[data-offers="primary"] :is(.set-team-mail, .set-int-notes) { grid-column: 2 / -1; }
+  .set-conn > .set-int-row :is(.set-team-mail, .set-int-notes) { grid-column: 2 / -1; }
   .set-conn > .set-int-row[data-offers="one"] > .set-int-chev { display: inline-flex; justify-self: end; color: var(--ink-faint); }
   .set-conn > .set-int-row[data-offers="menu"] > .set-int-more { display: inline-flex; justify-self: end; }
   .set-conn > .set-int-row[data-state="later"] { min-height: 48px; padding: 6px 0; }
@@ -1435,8 +1442,8 @@ html.legacy-on .bt-link { position: relative; }
 /* The week (pages/business-tab-open.jsx): at rest one sentence, the composer's own run-collapsing; in its fold seven
    lines, a switch, the day and its times. It was drawn on one scale too, as bars in a ribbon at rest and on a track
    beside each day's boxes, which said nothing the sentence did not (removed 23 Sep). The fold's label column is
-   --bt-week-key: the day's switch and name, which the copy menu lines up with. */
-.bt-week { --bt-week-key: 96px; }
+   --bt-week-key: the day's switch and name, which the copy menu lines up with; --bt-time-w a time box's width. */
+.bt-week { --bt-week-key: 96px; --bt-time-w: 110px; }
 .bt-hours-line { font-size: var(--text-base); line-height: var(--leading-normal); color: var(--ink); text-wrap: pretty; }
 /* A link's address on one line (23 Sep): cut with an ellipsis where it does not fit, never broken across three lines
    at any character; the whole of it is in its editor, a press away. */
@@ -1451,26 +1458,66 @@ html.legacy-on .bt-link { position: relative; }
 /* Seven lines, each its switch, its day and its times (23 Sep): the week's scale and each day's track went, and a
    hairline stands between days; the row at rest says the week in one sentence. */
 .bt-week { display: flex; flex-direction: column; gap: 0; }
-.bt-week-row { display: grid; grid-template-columns: var(--bt-week-key) minmax(0, 1fr) auto; align-items: center; column-gap: 12px; row-gap: 4px; padding: 5px 0; border-top: 1px solid var(--line); }
+.bt-week-row { display: grid; grid-template-columns: var(--bt-week-key) minmax(0, 1fr); align-items: center; column-gap: 12px; row-gap: 4px; padding: 5px 0; border-top: 1px solid var(--line); }
 .bt-week-row:first-of-type { border-top: none; }
 .bt-week-row .field-error { grid-column: 2 / -1; }
 .bt-week-day { display: flex; align-items: center; gap: 9px; }
 .bt-week-name { font-size: var(--text-base); color: var(--ink); }
 .bt-week-row[data-open="false"] .bt-week-name { color: var(--ink-dim); }
 .bt-week-times { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
-/* The press that adds a break sits past the times, level with the day's last shift. */
-.bt-week-more { align-self: end; display: flex; align-items: center; min-height: 28px; }
-.bt-week-shift { display: flex; align-items: center; gap: 5px; }
-/* A time box is the kit's small box (RecordBox size="sm") at the width of a time: the width is this page's, the rest the kit's. */
-/* Wide enough for "09:30 AM" and the picker's own mark at the column's size: at 96px the meridiem was cut. */
-.bt-time { width: 110px; font-variant-numeric: tabular-nums; }
+/* A shift is one line: its two times and the act it ends in (the first shift's adds a break, a later one's removes it),
+   on tracks every line shares, so a day's shifts stand in columns. */
+.bt-week-shift { display: grid; grid-template-columns: var(--bt-time-w) auto var(--bt-time-w) auto; align-items: center; gap: 5px; }
+/* A time is the house's menu standing in the kit's box (open-week.tsx BtoTime): its track's width, the time it holds and
+   the box's chevron; "Set" in the dim ink while it holds none. The width is this page's, the rest the kit's. */
+.bt-time-pick { display: grid; min-width: 0; }
+.bt-time { width: 100%; min-width: 0; padding-inline: 10px; font-size: var(--text-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bt-time[data-empty="true"] { color: var(--ink-dim); }
 .bt-week-to { font-size: var(--text-sm); color: var(--ink-dim); }
+/* The press that adds a break: quiet ink, the plus and the word. */
+.bt-week-break { display: inline-flex; align-items: center; gap: 2px; font-size: var(--text-sm); color: var(--ink-muted); }
 .bt-week-closed { font-size: var(--text-sm); color: var(--ink-dim); }
 /* Under the tracks, past the label column and the gap after it. */
 .bt-week-copy { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 12px 0 0 calc(var(--bt-week-key) + 12px); }
 .bt-week-copy-menu[hidden] { display: none; }
 /* A sentence of the page's inside a fold: what a control does, what an address is, the one case a list cannot say. */
 .bt-fold-note { margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
+/* ---- A sheet's parts, in one shape (Ruben, 10 Oct 2026: the sheets "too wordy, too explanatory, too cluttered") ----
+   Under the title, the fields. What a sheet holds that is a list of settings is one inset (the kit's Panel, inset and
+   flush) of lines: each its name, and a quiet line under it, on the left, and its control on the right, a hairline
+   between them; a group's name over it in the dim ink; what is folded away is the kit's folding row. Layout and the
+   page's own type alone: the surfaces and the controls are the kit's. */
+.bt-stack { display: flex; flex-direction: column; gap: 12px; }
+.bt-list-head { margin: 4px 0 -4px; padding: 0 4px; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); }
+.bt-lines { display: flex; flex-direction: column; }
+.bt-line { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; min-height: 46px; padding: 8px 14px; }
+.bt-line + .bt-line { border-top: 1px solid var(--line); }
+.bt-line-words { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.bt-line-name { font-size: var(--text-base); line-height: var(--leading-normal); color: var(--ink); }
+.bt-line-sub { font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
+.bt-line-end { flex: none; display: flex; align-items: center; gap: 8px; }
+/* A number's box with its unit, at the width of a few digits and a short word, so the line keeps its name. */
+.bt-number { display: grid; width: 8.5rem; }
+/* Which channel a line is about, as a glyph in a quiet square, named for a screen reader where it is drawn. */
+.bt-line-glyph { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--radius-md); background: var(--bg-hover); color: var(--ink-muted); }
+/* What stops a line's save, under the whole line rather than under its small box. */
+.bt-line-wrong { flex: 1 1 100%; }
+.bt-line-wrong:empty { display: none; }
+/* A box's own name over it with a tip beside the name: the kit's field label holds its box, and cannot hold a button. */
+.bt-ask { display: flex; flex-direction: column; gap: 6px; }
+.bt-ask-head { display: flex; align-items: center; gap: 6px; }
+.bt-ask-name { font-size: var(--text-base); color: var(--ink); }
+/* A fact the owner may want to change, said once at the top of a sheet: a warn dot before words in the muted ink,
+   never a box and never the warn ink, since a sheet paints the house's neutrals alone. */
+.bt-held { margin: 0; display: flex; align-items: baseline; gap: 8px; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); text-wrap: pretty; }
+.bt-held::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: var(--radius-full); background: var(--warn); transform: translateY(-1px); }
+/* A folding row's two lines (the kit's RecordDisclosure, its label): the name in the ink, its line in the dim. */
+.bt-disc-name { display: block; font-size: var(--text-base); line-height: var(--leading-normal); color: var(--ink); }
+.bt-disc-sub { display: block; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
+/* The details a message may name, as presses under its box; an add with its tip beside it; a line's lead word. */
+.bt-insert { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: var(--text-sm); }
+.bt-add-line { display: flex; align-items: center; gap: 8px; }
+.bt-fold-lead { font-weight: var(--weight-medium); color: var(--ink-muted); }
 /* The Booking tool fold's parts (the calendar link, the booking emails): each a group of its own under a hairline, its
    name in the ink and, in the fold's own dim, what it is for. */
 .bt-fold-part { display: grid; gap: 10px; padding-top: 14px; border-top: 1px solid var(--line); }
@@ -1492,6 +1539,8 @@ html.legacy-on .bt-link { position: relative; }
 .bt-bookings-held { display: grid; gap: 8px; }
 .bt-bookings-notice { display: grid; gap: 2px; }
 .bt-bookings-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+/* The logo row's Save and Cancel (or Use it and Not this one), under the picture it would keep (00407). */
+.bt-logo-acts { display: flex; flex-wrap: wrap; gap: 6px; }
 
 /* The closed days: from, until, why, and the press that removes one. */
 .bt-closures { display: flex; flex-direction: column; align-items: flex-start; gap: 0; }
@@ -1531,10 +1580,6 @@ html.legacy-on .bt-link { position: relative; }
 .bt-rules-notes { color: var(--ink-dim); }
 .rec-row-val > .bt-rules-notes { flex: 1 1 100%; font-size: var(--text-sm); line-height: var(--leading-normal); text-wrap: pretty; }
 
-/* The booking rules fold (the canvas's Edit-Fold): the five numbers two to a line, then the notes. */
-.bt-rules { display: flex; flex-direction: column; gap: 14px; }
-.bt-rules-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
-
 /* The services sheet (the canvas's Edit-Sheet): the search and Add above the rows, the rows in three columns, and the
    foot's line over its Save. A row the search leaves out is hidden, never taken off the page, so its display must
    yield to the attribute. The head holds still over the rows as they scroll. */
@@ -1559,6 +1604,8 @@ html.legacy-on .bt-link { position: relative; }
    and a Remove on each of thirty-three rows (23 Sep). */
 .bt-service-row { display: grid; grid-template-columns: minmax(0, 1fr) 96px minmax(0, 0.8fr) 28px; align-items: start; gap: 6px; padding: 3px 0; border-top: 1px solid var(--line); }
 .bt-service-row[hidden] { display: none; }
+/* A service's one line, a phone's (services.tsx btsLine): a desk draws its boxes instead. */
+.bt-service-line { display: none; }
 .bt-service-head { position: sticky; top: 0; z-index: 1; padding: 10px 0 6px; border-top: none; background: var(--bg-raised); font-size: var(--text-xs); color: var(--ink-dim); }
 .bt-service-name { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .bt-service-name > .rec-box { flex: 1; }
@@ -1587,50 +1634,15 @@ html.legacy-on .bt-link { position: relative; }
 /* ---- What your receptionist is told (pages/business-tab-prompt.jsx) ---- */
 /* At rest the section is its title, who reads it and one door, on the card's own head line. */
 .bt-told-open { flex: none; font-size: var(--text-sm); }
-/* The sheet is wider than a list's: the contents sit beside the blocks. Like the services sheet it is drawn in
-   .app-root, outside the Settings pane; its buttons are sized with the other sheets' (above). */
-.bt-prompt-sheet { width: min(820px, 92vw); }
-/* Nothing here to save: the foot is a Close, and on a desktop the head's Close is within reach, so the foot is a
-   phone's alone (below). */
+/* Nothing here to save: the foot is a Done, and on a desktop the head's Close is within reach, so the foot is a
+   phone's alone (below). Each block is the kit's folding row (prompt.tsx): its door inside it, its text in the page's
+   own face with its real line breaks (an unbroken booking address must never widen the sheet), and its share a thin
+   meter on its line. */
 .bt-prompt-sheet .rec-sheet-foot { display: none; }
-.bt-prompt { display: grid; grid-template-columns: 168px minmax(0, 1fr); align-items: start; gap: 28px; padding: 16px 0 22px; }
-/* The contents hold still beside the blocks as they scroll. Each entry's cost is ONE thin bar as long as its share:
-   the owner's "smart indicator", in the line's own neutrals, never a colour, and never a number on the glass (the count
-   is the entry's description and its tip). */
-.bt-prompt-rail { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.bt-prompt-rail-title { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.bt-prompt-entries { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
-.bt-prompt-entry { width: 100%; height: auto; white-space: normal; justify-content: flex-start; display: flex; flex-direction: column; align-items: stretch; gap: 5px; padding: 6px 8px; border-radius: var(--radius-sm); text-align: left; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); }
-.bt-prompt-entry:hover { background: var(--bg-hover); color: var(--ink); }
-.bt-prompt-entry:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.bt-prompt-blocks { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
-.bt-prompt-block { display: flex; flex-direction: column; gap: 6px; scroll-margin-top: 16px; border-radius: var(--radius-sm); }
-.bt-prompt-block:focus { outline: none; }
-.bt-prompt-block:focus-visible { box-shadow: var(--focus-ring); }
-/* The label and its door on one line; under the label, on a phone, its share. A grid, so a long label or share wraps
-   in its own column and the door never drops under them. */
-.bt-prompt-block-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 2px 12px; }
-.bt-prompt-block-label { grid-column: 1; grid-row: 1; min-width: 0; margin: 0; font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink); }
-/* A phone's share, where the contents are not drawn (below): the rail's bar under the label, and the words for a
-   screen reader. Neither above 760px, where the entry in the contents says it. */
-.bt-prompt-block-share { display: none; }
-.bt-prompt-door { grid-column: 2; grid-row: 1; font-size: var(--text-sm); }
-/* Latent at rest, drawn on approach, as a row's act is (record.css .rec-row-act; the spec's §11): eight underlined
-   Changes down the page's most text-heavy surface were eight controls at rest. Opacity alone, so every door stays in
-   the tab order and :focus-within draws it -- a block walked to from the contents is focused, and its door shows. Only
-   where there is a pointer that hovers and room beside the block: under a finger, and at a phone's width, every door is
-   drawn, since nothing hovers there. */
-@media (hover: hover) and (pointer: fine) and (min-width: 761px) {
-  .bt-prompt-door { opacity: 0; transition: opacity var(--duration-fast) var(--ease-out); }
-  .bt-prompt-block:hover .bt-prompt-door, .bt-prompt-block:focus-within .bt-prompt-door { opacity: 1; }
-}
-@media (prefers-reduced-motion: reduce) { .bt-prompt-door { transition: none; } }
-/* The prompt itself, in the page's own face: sentences about a business, not a listing. It has real line breaks and
-   keeps them, and an unbroken booking address must never widen the sheet. */
+.bt-prompt { padding: 14px 0 20px; }
+.bt-prompt-door { align-self: flex-start; font-size: var(--text-sm); }
 .bt-prompt-block-text { margin: 0; font-family: inherit; font-size: var(--text-sm); line-height: var(--leading-relaxed); color: var(--ink-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
-.bt-prompt-block-note { margin: 0; font-size: var(--text-xs); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
-/* What is sent beside the prompt, under a dashed rule: it is rebuilt every time, and apart on purpose. */
-.bt-prompt-now { display: flex; flex-direction: column; gap: 6px; padding-top: 18px; border-top: 1px dashed var(--line-strong); }
+.bt-prompt-share { width: 44px; margin-top: 6px; }
 
 /* ---- How it answers (pages/business-tab-answers.jsx) ---- */
 /* The voice's three starting points: a row of presses after the words that name them. */
@@ -1648,34 +1660,8 @@ html.legacy-on .bt-link { position: relative; }
 .bt-token-x { position: relative; display: inline-grid; place-items: center; width: 18px; height: 18px; min-width: 0; padding: 0; border-radius: var(--radius-full); color: var(--ink-dim); }
 .bt-token-x:hover { color: var(--ink); background: var(--bg-hover); }
 .bt-languages-add[hidden] { display: none; }
-/* The rules: each one label, hint and switch on one line, and the photos switch apart from the four under a dashed
-   rule. The chip says it is an ability, in the info tone, which says a fact, never the accent. */
-.bt-rules-list { display: flex; flex-direction: column; gap: 12px; }
-.bt-rule { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; column-gap: 14px; }
-.bt-rule-words { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.bt-rule-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; }
-.bt-rule-label { font-size: var(--text-base); color: var(--ink); }
-.bt-rule-hint { font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
-/* A word, not a pill: the owner asked for smart indicators and subtle badges, and a filled --info-soft capsule beside
-   every switch was five coloured capsules in one fold. No border, no fill, no colour of its own. */
-.bt-rule-chip { font-size: var(--text-xs); line-height: 1.4; color: var(--ink-dim); white-space: nowrap; }
-/* How far the rule goes, in contracts' words. Not drawn on a phone (below): the switch carries it as its description. */
-.bt-rule-says { font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
-/* The checked rule alone: what it does on each channel, side by side where there is room and stacked where there is
-   not. They stay on a phone -- "before the customer sees them" and "it has already been heard" are the difference the
-   badge above only names. */
-.bt-rule-checked { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 4px; }
-.bt-rule-checked-line { flex: 1 1 220px; min-width: 0; font-size: var(--text-xs); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
-.bt-rule-checked-who { color: var(--ink-muted); }
-.bt-rule-sep { grid-column: 1 / -1; display: block; margin-bottom: 12px; border-top: 1px dashed var(--line-strong); }
-.bt-rule > .rec-switch { margin-top: 2px; }
 /* The hand-off at rest is one line (contracts handoffWords.line); it was a line per channel under its word. */
 .bt-handoff { min-width: 0; overflow-wrap: anywhere; }
-/* Which channel a part of the fold is about, as a muted word. It was a bordered pill, twice on the one row, which at a phone's
-   width is two outlined boxes over two sentences: the word does the same job and the row keeps its one grammar. */
-.bt-channel { flex: none; font-size: var(--text-xs); line-height: var(--leading-normal); color: var(--ink-dim); }
-.bt-handoff-part { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
-.bt-handoff-number { font-size: var(--text-sm); color: var(--ink); }
 /* The notes: a title, what it says, its last day (a date box as wide as a closed day's), and the press that removes it;
    the row's sentence under the boxes. */
 .bt-notes { display: flex; flex-direction: column; align-items: flex-start; gap: 0; }
@@ -1689,14 +1675,9 @@ html.legacy-on .bt-link { position: relative; }
 .bt-own { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; min-width: 0; }
 .bt-own-opening { min-width: 0; font-size: var(--text-sm); color: var(--ink-muted); overflow-wrap: anywhere; }
 .bt-own-count { font-size: var(--text-sm); font-variant-numeric: tabular-nums; color: var(--ink-dim); }
-/* The three messages at rest, and in the fold: each its label, when it goes out, its box, and what a customer reads. */
+/* The three messages at rest; in the sheet each is a folding row, and opened, what a customer reads under its box. */
 .bt-messages { min-width: 0; }
-.bt-fallbacks { display: flex; flex-direction: column; gap: 16px; }
-.bt-fallback { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
-.bt-fallback > .rec-box { align-self: stretch; }
-.bt-fallback-label { font-size: var(--text-base); color: var(--ink); }
-.bt-fallback-when { font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
-.bt-fallback-reads { padding: 7px 10px; border-radius: var(--radius-sm); background: var(--bg-sunken); font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+.bt-fallback-reads { font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
 /* What it can do: an ability is its title, two glyphs at the row's end, and -- only where something on this page is
    missing -- one muted line saying what happens instead, with the door to the row that fixes it. The title is the
    row's fact, not its label, so it takes the row rather than the key column's 168px, and the glyphs go to the end. */
@@ -1734,19 +1715,24 @@ html.legacy-on .bt-link { position: relative; }
 
 /* While a fold saves, the page's own controls inside it wait as the kit's do (record.css: the gesture says aria-busy),
    and so do a sheet's. */
-:is(.rec-fold, .rec-fold-sheet)[aria-busy="true"] :is(.bt-closure .btn, .bt-week-shift .btn, .bt-presets .btn, .bt-token-x, .bt-note .btn, .bt-fallback .btn, .bt-handoff-part .bt-link) { cursor: progress; }
+:is(.rec-fold, .rec-fold-sheet)[aria-busy="true"] :is(.bt-closure .btn, .bt-week-shift .btn, .bt-presets .btn, .bt-token-x, .bt-note .btn, .bt-insert .bt-link, .bt-line .bt-link) { cursor: progress; }
 .rec-sheet[aria-busy="true"] :is(.bt-service-row .btn, .rec-sheet-tools .btn, .bt-service-gone .bt-link) { cursor: progress; }
 
 @media (max-width: 760px) {
-  /* No room for four columns: the day and the press that adds a break share a line, its bars take the next, and its
-     times the one after, each the width of the fold. */
-  .bt-week { --bt-week-key: 0px; }
-  .bt-week-row { grid-template-columns: minmax(0, 1fr) auto; }
-  .bt-week-row > .bt-week-day { grid-column: 1; grid-row: 1; }
-  .bt-week-row > .bt-week-more { grid-column: 2; grid-row: 1; align-self: center; }
-  /* A phone's day: the switch and its name on one line, the two time boxes on the line under them. */
-  .bt-week-row > .bt-week-times { grid-column: 1 / -1; grid-row: 3; width: auto; }
-  .bt-week-row > .field-error { grid-column: 1 / -1; }
+  /* A phone's day is one line (Ruben, 10 Oct 2026: a day took two): the switch and the day, its times at the line's
+     end, and the plus that adds a break after them, its word left to its tip. A break's times stand under the day's,
+     each shift's remove after it; a closed day says so where its times would be. Where the line is too narrow for
+     both (under about 370px) the times wrap under the day by themselves, with no width of their own to hold. */
+  .bt-week { --bt-week-key: 0px; --bt-time-w: 96px; }
+  .bt-week-row { display: flex; flex-wrap: wrap; justify-content: space-between; column-gap: 10px; }
+  .bt-week-day { gap: 8px; min-height: 44px; }
+  .bt-week-row > .bt-week-times { margin-left: auto; align-items: flex-end; }
+  .bt-week-shift { grid-template-columns: var(--bt-time-w) auto var(--bt-time-w) 32px; gap: 3px; }
+  .bt-week-break-word { display: none; }
+  /* A finger's size (44px) in the line's 32px act column: the press reaches past it into the sheet's margin, never over
+     the closing time beside it. */
+  .bt-week-break { width: 44px; height: 44px; margin-right: -12px; justify-content: center; }
+  .bt-week-row > .field-error { flex-basis: 100%; }
   /* No label column to line up with: the copy menu starts at the fold's edge. calc(var(--bt-week-key) + 12px) still
      added the column's gap with the column at 0px, and set the menu 12px in from everything above it. */
   .bt-week-copy { padding-left: 0; }
@@ -1754,25 +1740,23 @@ html.legacy-on .bt-link { position: relative; }
   /* The dates share the first line with the remove; the reason (the third box) takes the next. */
   .bt-closure > .rec-box:nth-child(3) { grid-column: 1 / 3; grid-row: 2; }
   .bt-closure-head { display: none; }
-  /* One number to a line. */
-  .bt-rules-grid { grid-template-columns: minmax(0, 1fr); }
-  /* Four strength sentences are most of a phone's screen, and each switch already wears its strength as a word. The
-     sentence stays in the accessibility tree, where the switch names it (aria-describedby), so nothing is lost to a
-     screen reader -- it is off the glass, not gone. The photos switch keeps its hint: it is the one switch whose
-     sentence says what each position does. */
-  .bt-rule-says { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  /* One place for the badge. Left to wrap, it sat under the label on the two switches with a long name and inline on
-     the three with a short one: the same signal in two positions down one fold, which is a fold an owner has to read
-     rather than scan. Its own line under the label, always, at the label's own edge. */
-  .bt-rule-head > .bt-rule-chip { flex-basis: 100%; }
-  /* A service's three columns stack into one row: its name with the remove at the right, then how long and the price,
-     side by side, each row ruled off from the next. The columns' head has nothing left to name. */
+  /* A phone's service is one line, its name and "3 h · At consult" under it, pressed to open (Ruben, 10 Oct 2026: each
+     took two lines of boxes). Open, its three columns stack: its name with the remove at the right, then how long and
+     the price, side by side. Each row is ruled off from the next, and the columns' head has nothing left to name. */
   .bt-service-head { display: none; }
   .bt-service-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; padding: 8px 0; border-top: 1px solid var(--line); }
   .bt-service-row > .bt-service-name { grid-column: 1 / 3; grid-row: 1; }
   .bt-service-row > .btn { grid-column: 3; grid-row: 1; }
-  .bt-service-row > .rec-box:nth-child(2) { grid-column: 1; grid-row: 2; }
-  .bt-service-row > .rec-box:nth-child(3) { grid-column: 2; grid-row: 2; }
+  .bt-service-row > .rec-box:nth-child(3) { grid-column: 1; grid-row: 2; }
+  .bt-service-row > .rec-box:nth-child(4) { grid-column: 2; grid-row: 2; }
+  .bt-service-row[data-open="false"] { padding: 0; }
+  .bt-service-row[data-open="false"] > :not(.bt-service-line) { display: none; }
+  .bt-service-line { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; width: 100%; min-height: 56px; padding: 8px 0; text-align: left; color: var(--ink); }
+  .bt-service-row[data-open="true"] > .bt-service-line { display: none; }
+  .bt-service-line-words { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .bt-service-line-name { overflow: hidden; font-size: var(--text-base); white-space: nowrap; text-overflow: ellipsis; }
+  .bt-service-line-sub { font-size: var(--text-sm); color: var(--ink-dim); }
+  .bt-service-line > svg { flex: none; color: var(--ink-faint); }
   /* An ability keeps its title and its glyphs on one line -- the kit's phone row puts the value under the label, and
      two glyphs are not a value to read down to -- and the line that carries a decision takes the row under them. */
   .bt-can-row > .bt-can-chips { grid-column: 2; grid-row: 1; }
@@ -1783,30 +1767,13 @@ html.legacy-on .bt-link { position: relative; }
   .bt-note-head { display: none; }
   .bt-note > .rec-box:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
   .bt-note > :nth-child(3) { grid-column: 1 / -1; grid-row: 3; }
-  /* The prompt sheet on a phone: the kit's sheet from the bottom, full width; no contents beside the blocks, so each
-     block's head carries its share in words; and a foot with Close, within a thumb's reach, since there is nothing to
-     save. */
-  .bt-prompt-sheet { width: auto; }
+  /* The prompt sheet on a phone: a foot with Done, within a thumb's reach, since there is nothing to save. */
   /* At rest, the title and its door share the line, and who reads it takes the next rather than a sliver between them. */
   .bt-told .rec-card-head { flex-wrap: wrap; row-gap: 4px; }
   .bt-told .rec-card-title { flex: 1 1 auto; min-width: 0; }
   .bt-told .rec-card-sub { order: 1; flex-basis: 100%; }
-  .bt-prompt { display: block; padding-top: 12px; }
-  .bt-prompt-rail { display: none; }
-  .bt-prompt-blocks { gap: 18px; }
-  /* The same bar the rail draws, under each label: one quiet indicator at every width. In words the same sentence
-     stood under most heads ("less than a tenth of everything it reads"), so the words are a screen reader's here. */
-  .bt-prompt-block-share { display: block; position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .bt-prompt-sheet .rec-sheet-foot { display: flex; }
   .bt-prompt-sheet .rec-sheet-foot > .btn { height: 40px; }
-}
-
-/* WCAG's reflow width, 320px: nothing runs past the edge. A shift's two time boxes share the line, each taking what is
-   left of it. */
-@media (max-width: 400px) {
-  .bt-week-shift { width: 100%; }
-  .bt-week-shift > .rec-box { flex: 1 1 0; min-width: 0; }
-  .bt-time { width: 100%; min-width: 0; }
 }
 
 /* Settings › Connections › Email: the domains a workspace sends cold email from (Reach out; the canvas's
@@ -2045,3 +2012,16 @@ html.legacy-on .bt-link { position: relative; }
     box-shadow: var(--selected-depth);
   }
 }
+
+/* ---- Ad accounts (Settings › Connections; a demo's card until the wiring lane) --------------------------------------
+   A platform's row is the connection row above (.set-int-row, in the group's columns); what stands under it starts where its
+   words do (.set-conn > .set-row-stack). The dot rows are Ads' standing's (ads.css: .ads-dots, .ads-dotline), and an amber
+   one says the step that mends it on a line of its own, under the dot's words. */
+.set-ads-facts { margin: 0; font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); text-wrap: pretty; }
+.set-ads-stack { gap: var(--space-2); }
+.set-ads-ready { padding-top: var(--space-1); }
+.set-ads-ready .ads-dotline { flex-wrap: wrap; row-gap: 0; }
+.set-ads-fix { flex: 1 1 100%; padding-left: calc(7px + var(--space-2)); font-size: var(--text-xs); line-height: var(--leading-snug); color: var(--ink-dim); }
+/* Disconnect while an ad runs is refused: what to do first, then its two quiet words. */
+.set-ads-refused { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); margin: 0; font-size: var(--set-hint); line-height: 1.5; color: var(--warn-ink); }
+.set-ads-choose { display: flex; flex-direction: column; gap: var(--space-2); }

@@ -11,6 +11,7 @@ import { trimmed, type Config, type StoredNote } from "./save";
 /** The folds, each named by its id. */
 export type FoldName =
   | "tone"
+  | "phone_greeting"
   | "hours"
   | "closures"
   | "services"
@@ -79,6 +80,7 @@ export interface ReceptionistDraft {
 /** What each fold opens with, by its id. */
 export interface DraftOf {
   tone: string;
+  phone_greeting: string;
   hours: Record<string, DayDraft>;
   closures: ClosureRow[];
   services: ServiceRow[];
@@ -194,6 +196,7 @@ export const BT_DAY_NAMES: Record<string, string> = {
  */
 export const BT_PATHS_OF: Record<FoldName, string[]> = {
   tone: ["brain.profile.tone"],
+  phone_greeting: ["brain.profile.phone_greeting"],
   hours: ["brain.profile.hours"],
   closures: ["brain.profile.closures"],
   services: ["brain.profile.services"],

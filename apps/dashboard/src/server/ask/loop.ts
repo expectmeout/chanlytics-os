@@ -247,8 +247,9 @@ function wordsBlock(
   rode: { built: BuiltContext | null; crossBlocks: SearchResultBlock[]; scopedRow: unknown; read: AskReadSet },
 ) {
   const focus = input.context?.focus;
-  // A focus is a scope: a run is cited, and so read, as its broadcast; a page is never a row.
-  const kind = focus?.kind === "run" ? "broadcast" : focus?.kind;
+  // A focus is a scope: a run is cited, and so read, as its broadcast; a page is never a row, and an ad has no read
+  // until the Ads read lands (decision 0049), so neither is looked for in the read set.
+  const kind = focus?.kind === "run" ? "broadcast" : focus?.kind === "ad" ? "page" : focus?.kind;
   const facts = {
     role: input.role,
     personLabel: input.personLabel,

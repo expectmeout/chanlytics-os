@@ -4,29 +4,8 @@
  * `toReceptionistReportVM`, page-only): a card draws a bar a row, the line under its title, and, for a part with nothing in it,
  * the fold's words for why, never a bar of nothing.
  */
-import type { MixPartVM, ReceptionistReportVM } from "@chanlytics/contracts/report-lens";
-import { BarList } from "../../kit/charts/bar";
-import { ChartCard } from "../../kit/charts/card";
-import { EmptyState } from "../../kit/empty/empty";
-
-/** One mix as a card: its bars, the fold's line under the title, and the table the card offers beside them. */
-function mixCard(
-  part: MixPartVM,
-  card: { title: string; testid: string; className: string; columns: [string, string] },
-) {
-  const rows = part.rows.map((r) => ({ id: r.id, label: r.label, value: r.value }));
-  return (
-    <ChartCard
-      className={card.className}
-      title={card.title}
-      testid={card.testid}
-      takeaway={part.line}
-      table={rows.length ? { columns: card.columns, rows: rows.map((r) => [r.label, r.value]) } : null}
-    >
-      {rows.length ? <BarList rows={rows} /> : part.empty ? <EmptyState kind="line" title={part.empty} /> : null}
-    </ChartCard>
-  );
-}
+import type { ReceptionistReportVM } from "@chanlytics/contracts/report-lens";
+import { mixCard } from "./shared";
 
 /** What became of the replies held for the owner to change, cancel or let go. */
 export function holdCard(v: ReceptionistReportVM, className: string) {

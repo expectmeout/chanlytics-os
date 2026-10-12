@@ -9,8 +9,8 @@
  * never render (the audit's D9). Two primitives now (the kit's EmptyState
  * and FailedRead, surfaces/kit/empty), a Retry that re-reads one surface through the runner, and
  * per-read catches in the overrides. Run here: the primitives mounted, the
- * view models' read flags, the Reports override executed against a fake wire
- * with its campaigns read failing, and two pages drawn with a failed part.
+ * view models' read flags, the Reports override executed against a fake wire (it reads the report alone) and
+ * the Campaigns lens's own override with one of its three reads failing, and two pages drawn with a failed part.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -228,18 +228,22 @@ test("EmptyState: three kinds of the one shape -- a glyph, a title, a line of bo
 
 test("FailedRead: the alert, what could not be read, that the rest is current, and a Retry that re-reads the surface", () => {
   calls.refresh.length = 0;
-  const card = FailedRead({ what: "the campaign numbers", surface: "reports", testid: "chart-campaigns" });
+  const card = FailedRead({
+    what: "the campaign numbers",
+    surface: "reports_campaigns",
+    testid: "campaigns-failed-campaigns",
+  });
   assert.equal(card.props.className, "empty empty-card empty-failed");
   assert.equal(card.props.role, "status");
-  assert.equal(card.props["data-testid"], "chart-campaigns");
+  assert.equal(card.props["data-testid"], "campaigns-failed-campaigns");
   assert.equal(byType(card, "Icon").props.name, "alert");
   assert.equal(textOf(byClass(card, "empty-title")), "Couldn't read the campaign numbers");
   assert.ok(textOf(byClass(card, "empty-body")).includes("Everything else here is current"), textOf(card));
-  const retry = byTestId(card, "chart-campaigns-retry");
+  const retry = byTestId(card, "campaigns-failed-campaigns-retry");
   assert.ok(retry, "a Retry, named from the card");
   assert.equal(textOf(retry).trim(), "Retry");
   retry.props.onClick();
-  assert.deepEqual(calls.refresh, ["reports"], "`surface` re-reads that surface through the runner");
+  assert.deepEqual(calls.refresh, ["reports_campaigns"], "`surface` re-reads that surface through the runner");
   let own = 0;
   const mine = FailedRead({
     what: "this person",
@@ -258,7 +262,7 @@ test("FailedRead: the alert, what could not be read, that the rest is current, a
   assert.equal(textOf(r2).trim(), "Retrying…");
   r2.props.onClick();
   assert.equal(own, 1, "`onRetry` wins over the surface");
-  assert.deepEqual(calls.refresh, ["reports"]);
+  assert.deepEqual(calls.refresh, ["reports_campaigns"]);
   const none = FailedRead({ title: "This workspace's settings can't be read", body: "Chanlytics has to repair it." });
   assert.equal(byClass(none, "empty-acts"), null, "nothing to press when nobody can retry");
   assert.equal(textOf(byClass(none, "empty-title")), "This workspace's settings can't be read");
@@ -371,12 +375,15 @@ const reportDto = () => ({
   sentiments: {},
   voicemail: 0,
 });
+/** What the Campaigns lens's three routes answer, as far as the surface that publishes them as they are is concerned. */
 const campaignsDto = () => ({
   days: 7,
   series: [],
   sources: [],
   totals: { sent: 0, delivered: 0, read: 0, replied: 0, opted_in: 0, opted_out: 0 },
 });
+const ledgerDto = () => ({ timezone: "America/New_York", today: "2026-09-04", days: 7, series: null, stuck: null });
+const reachOutsDto = () => ({ report: { days: 7, has_reach_out: false }, chains: [] });
 const json = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 const errors = [];
@@ -385,60 +392,79 @@ console.error = (...a) => {
   errors.push(a.map(String).join(" "));
 };
 const { reportsOverride } = await import("../../../../apps/dashboard/src/surfaces/reports/surface.ts");
+const { reportsCampaignsOverride } =
+  await import("../../../../apps/dashboard/src/surfaces/reports/campaigns-surface.ts");
 console.error = realConsoleError;
 const { surfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 
-test("REGRESSION (D9): a campaigns read that fails leaves the report standing with campaigns null -- it used to fail the whole surface, and the page went blank", async () => {
-  const hits = [];
-  globalThis.window.fetch = async (url) => {
+/** The wire the Reports surfaces read: the report, and the Campaigns lens's three routes, each answering as `campaigns`, `ledger` and `reachOuts` say (500 for a route that is down). */
+const wire = (hits, { campaigns = "ok", ledger = "ok", reachOuts = "ok", report = "ok" } = {}) => {
+  const down = { ok: false, error: { code: "internal", message: "boom" } };
+  const answer = (state, data) => (state === "ok" ? json(200, { ok: true, data }) : json(500, down));
+  return async (url) => {
     hits.push(url);
-    if (url.includes("/reports/campaigns"))
-      return json(500, { ok: false, error: { code: "internal", message: "boom" } });
+    if (url.includes("/reports/campaigns/ledger")) return answer(ledger, ledgerDto());
+    if (url.includes("/reports/campaigns")) return answer(campaigns, { report: campaignsDto() });
+    if (url.includes("/reports/reach-outs")) return answer(reachOuts, reachOutsDto());
     if (url.includes("/reports"))
-      return json(200, {
-        ok: true,
-        data: { report: reportDto(), booking: { calendar: "none", days: 7, asked: 0, booked: 0 } },
-      });
+      return answer(report, { report: reportDto(), booking: { calendar: "none", days: 7, asked: 0, booked: 0 } });
     return json(404, { ok: false, error: { code: "not_found", message: "no" } });
   };
+};
+/** An override applied with the console trapped: what it logged. */
+const applied = async (override) => {
   errors.length = 0;
   console.error = (...a) => {
     errors.push(a.map(String).join(" "));
   };
   try {
-    await reportsOverride.apply();
+    await override.apply();
   } finally {
     console.error = realConsoleError;
   }
+};
+
+test("REGRESSION (D9): a campaigns read that fails leaves the others standing, and the report never waits on it -- it used to fail the whole surface, and the page went blank", async () => {
+  const hits = [];
+  globalThis.window.fetch = wire(hits, { campaigns: "down" });
+  await applied(reportsOverride);
   const R = surfaceValue("reports");
   assert.ok(R && R.vm, "the receptionist's own numbers are published");
-  assert.equal(R.campaigns, null, "the offers' numbers are their own state: unread");
+  assert.equal("campaigns" in R, false, "the frame holds nothing of campaigns: the lens's read is its own");
+  assert.deepEqual(
+    hits.filter((u) => /\/reports\/(campaigns|reach-outs)/.test(u)),
+    [],
+    "and the report is read alone",
+  );
+  // The lens's own read: the sends failing leaves the ledger and the reach-outs standing, logged by name.
+  hits.length = 0;
+  await applied(reportsCampaignsOverride);
+  const own = surfaceValue("reports_campaigns");
+  assert.ok(own, "published, not failed");
+  assert.equal(own.campaigns, null, "the sends are their own state: unread");
+  assert.ok(own.ledger && own.reachOuts, "and the ledger and the reach-outs stand");
   assert.ok(
-    hits.some((u) => u.includes("/reports/campaigns")),
-    "the campaigns read was made",
+    hits.some((u) => u.includes("/reports/campaigns?")) && hits.some((u) => u.includes("/reports/campaigns/ledger")),
+    "all three reads were made",
   );
   assert.ok(
     errors.some((e) => e.includes("reports_campaigns_fetch_failed")),
-    "and logged by name",
+    "and the one that failed is logged by name",
   );
 });
 
-test("both reads good: the campaigns are published; the report read failing fails the surface, as it should", async () => {
-  globalThis.window.fetch = async (url) => {
-    if (url.includes("/reports/campaigns")) return json(200, { ok: true, data: { report: campaignsDto() } });
-    if (url.includes("/reports"))
-      return json(200, {
-        ok: true,
-        data: { report: reportDto(), booking: { calendar: "none", days: 7, asked: 0, booked: 0 } },
-      });
-    return json(404, { ok: false, error: { code: "not_found", message: "no" } });
-  };
+test("the report read failing fails the surface, as it should; the Campaigns lens's reads good are published as the routes answered", async () => {
+  globalThis.window.fetch = wire([]);
   await reportsOverride.apply();
-  assert.ok(surfaceValue("reports").campaigns, "read, so published");
-  globalThis.window.fetch = async (url) => {
-    if (url.includes("/reports/campaigns")) return json(200, { ok: true, data: { report: campaignsDto() } });
-    return json(500, { ok: false, error: { code: "internal", message: "down" } });
-  };
+  assert.ok(surfaceValue("reports").vm, "the report is read");
+  await reportsCampaignsOverride.apply();
+  const own = surfaceValue("reports_campaigns");
+  assert.deepEqual(
+    [own.campaigns, own.ledger, own.reachOuts].map((v) => v !== null && v !== undefined),
+    [true, true, true],
+    "read, so published",
+  );
+  globalThis.window.fetch = wire([], { report: "down" });
   await assert.rejects(
     () => reportsOverride.apply(),
     (e) => e && e.code === "internal",
@@ -446,29 +472,22 @@ test("both reads good: the campaigns are published; the report read failing fail
   );
 });
 
-test("Worth knowing is published beside the numbers it is drawn from, once, by the bridge", async () => {
-  globalThis.window.fetch = async (url) => {
-    if (url.includes("/reports/campaigns")) return json(200, { ok: true, data: { report: campaignsDto() } });
-    if (url.includes("/reports"))
-      return json(200, {
-        ok: true,
-        data: { report: reportDto(), booking: { calendar: "none", days: 7, asked: 0, booked: 0 } },
-      });
-    return json(404, { ok: false, error: { code: "not_found", message: "no" } });
-  };
+test("Worth knowing is made from the numbers it is drawn from, once, by the page: the frame publishes none of it", async () => {
+  globalThis.window.fetch = wire([]);
   await reportsOverride.apply();
   const R = surfaceValue("reports");
+  assert.equal(
+    "facts" in R,
+    false,
+    "a fact about a campaign needs the Campaigns lens's read, which the frame does not hold",
+  );
+  const facts = reportFacts(R.vm, null);
   assert.deepEqual(
-    R.facts.map((f) => f.id),
+    facts.map((f) => f.id),
     ["busiest"],
     "a Saturday of four messages: nothing unanswered, nobody handed over",
   );
-  assert.equal(R.facts[0].text, "Saturday was your busiest day");
-  assert.deepEqual(
-    R.facts,
-    reportFacts(R.vm, R.campaigns),
-    "contracts' facts, from the same two view models the page draws",
-  );
+  assert.equal(facts[0].text, "Saturday was your busiest day");
 });
 
 /* -------------------- Settings › Team, with a failed read ---------------- */

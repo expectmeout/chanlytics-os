@@ -186,6 +186,13 @@ export interface ProfileSyncPlan {
    * read ran out: the reviews on record are then every one Google lists (google_connections.reviews_complete).
    */
   complete: boolean;
+  /**
+   * Whether the reviews on record that this read did not list may go (decision 0036, 00392): only after a complete read
+   * that holds as many reviews as Google counts (or holds reviews, when Google gives no count), or one Google says holds
+   * none. A complete read with no reviews and no count is a page that came back without its list, and one with fewer
+   * than the count a list cut short, never a location that lost them: the purge's ninety days take what this leaves.
+   */
+  prune: boolean;
 }
 
 export function planProfileSync(
@@ -226,5 +233,9 @@ export function planProfileSync(
     bells: reviewBells(news, 0, { rating: listing?.rating ?? null, review_count: count }),
     synced_at: now,
     complete: page.next_page_token === null,
+    prune:
+      page.next_page_token === null &&
+      (page.total_count === 0 ||
+        (page.reviews.length > 0 && (page.total_count === null || page.reviews.length >= page.total_count))),
   };
 }

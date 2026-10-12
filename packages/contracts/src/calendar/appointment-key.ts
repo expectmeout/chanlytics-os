@@ -12,3 +12,16 @@ export function appointmentKeyOf(item: Pick<FeedItem, "uid" | "start" | "occurre
   if (!item.uid) return `ev:${item.start}`;
   return item.occurrence === undefined ? item.uid : `${item.uid}:${item.occurrence}`;
 }
+
+/** What a booking's row of the record goes by where an event goes by its UID: its id, behind a prefix no UID takes. */
+const RECORD_KEY = "appt:";
+
+/** A row of the record as a visit's key (feedItemOfAppointment's uid, the board's item id): `appt:<id>`. */
+export function recordKeyOf(id: string): string {
+  return `${RECORD_KEY}${id}`;
+}
+
+/** The row a visit's key names when it is a booking's from the record (recordKeyOf); null for a calendar event's. */
+export function recordIdOf(key: string): string | null {
+  return key.startsWith(RECORD_KEY) ? key.slice(RECORD_KEY.length) : null;
+}

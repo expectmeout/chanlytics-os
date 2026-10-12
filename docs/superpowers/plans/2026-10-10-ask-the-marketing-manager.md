@@ -52,7 +52,7 @@
 - **Words.** The page's word is **campaign** (never "playbook" to a person, never "sequence"); a **message** has a
   **version** per channel; a **moment**; a **list**; an **offer** is a marketing message; a **plan** is this lane's word
   for steps the server expands. Customer-facing strings pass `trade-neutral.test.mjs` (no one trade's words).
-- **Migrations:** 00394 and 00395 provisionally (the evidence lane in `cm-glass` holds 00392/00393, unmerged); Task 21
+- **Migrations:** 00408 and 00409 provisionally (the evidence lane in `cm-glass` holds 00392/00393, unmerged); Task 21
   renumbers if main took them. Forward-only, re-runnable statements, a header of a few lines, RLS and grants as the
   table's.
 - **No customer in the code.** Fixtures take 555-01xx numbers and example.com links.
@@ -122,8 +122,8 @@ Dn is decision n of the spec's §3.
 | `act/message.ts` | `messageAction`: a message with a version per channel, checked, quoted whole |
 | `srv/campaigns/write-message.ts` | `writeMessage(ctx, member, body)`: files every version, submits WhatsApp, answers each version's state |
 | `apps/dashboard/app/api/v1/templates/message/route.ts` | `POST templates/message` |
-| `mig/00394_a_listing_keeps_its_review_link.sql` | `google_listings.new_review_uri` |
-| `mig/00395_a_campaign_ends_and_runs_on_trial.sql` | `playbooks.until`, `playbooks.trial_until`; `change_playbook` replaced for `params`, `until`, `trial_until` |
+| `mig/00408_a_listing_keeps_its_review_link.sql` | `google_listings.new_review_uri` |
+| `mig/00409_a_campaign_ends_and_runs_on_trial.sql` | `playbooks.until`, `playbooks.trial_until`; `change_playbook` replaced for `params`, `until`, `trial_until` |
 | `tests/ask/plan/plan-of.test.mjs` | `planOf` by world, no model (`tests/ask/` holds 20 files already: this lane's Ask tests live in subfolders, lane 4's `tests/playbooks/change/` precedent) |
 | `tests/ask/plan/plan-cards.test.mjs` | the `plan` action's cards, tokens, stamps, refusals |
 | `tests/ask/plan/plan-commit.test.mjs` | `commitPlan` over a stub client: order, keys, a stop, a held send, resolution |
@@ -338,7 +338,7 @@ Run (R1): `tests/ask/ask-tools-size.test.mjs`. Expected: PASS, four printed line
 ### Task 6: The review link: stored, a slot kind, a port (migration A)
 
 **Files:**
-- Create: `mig/00394_a_listing_keeps_its_review_link.sql`
+- Create: `mig/00408_a_listing_keeps_its_review_link.sql`
 - Modify: `packages/channels/src/google/google-profile.ts`'s caller (the sync that writes `google_listings`, find it with
   `git grep -n "maps_uri" -- packages/db apps/edge`), `db/` the listing repository, `db/database.types.ts`
   (`gen:db-types`), `ct/templates/templates.ts` (slot kind), `ct/templates/template-preview.ts` (`OwnFacts.review_link`,
@@ -450,7 +450,7 @@ Run (R1): `tests/ask/ask-tools-size.test.mjs`. Expected: PASS, four printed line
 ### Task 10: Migration B: a campaign ends, runs on trial, and changes its words
 
 **Files:**
-- Create: `mig/00395_a_campaign_ends_and_runs_on_trial.sql`, `tests/campaigns/change-playbook-keys.db.test.mjs`
+- Create: `mig/00409_a_campaign_ends_and_runs_on_trial.sql`, `tests/campaigns/change-playbook-keys.db.test.mjs`
 - Regenerate: `db/database.types.ts`, `ct/schema-sets.generated.ts`, `supabase/schema.sql`, `docs/data-model.md` (R6)
 
 **Interfaces:**
@@ -754,8 +754,8 @@ Run (R1): `tests/ask/ask-tools-size.test.mjs`. Expected: PASS, four printed line
 `docs/superpowers/plans/2026-10-10-ask-the-marketing-manager-pr.md` (uncommitted; Ruben reads it).
 
 - [ ] **Step 1: Fetch and rebase.** `git fetch origin main`; `git rebase origin/main`; a contracts `dist` conflict is
-  rebuild + `git add packages/contracts/dist` + `rebase --continue`. If main took 00394 or 00395, renumber both files
-  and every reference (`git grep -n "0039[45]"`), regenerate the four generated files (R6), one commit "Migrations
+  rebuild + `git add packages/contracts/dist` + `rebase --continue`. If main took 00408 or 00409, renumber both files
+  and every reference (`git grep -n "0040[89]"`), regenerate the four generated files (R6), one commit "Migrations
   renumbered after main".
 - [ ] **Step 2: Every test file this lane touched** (R1, one per command; the list is this plan's File map).
 - [ ] **Step 3: `corepack pnpm check:local`** (the packages' build, typecheck, lint, dead exports, formatting, the tests of

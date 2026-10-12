@@ -319,7 +319,7 @@ export interface ParamFacts {
   businessName: string;
   bookingLink: string | null;
   /**
-   * The link the workspace's Google listing keeps for a review (00394), as a broadcast's send reads it; absent where
+   * The link the workspace's Google listing keeps for a review (00408), as a broadcast's send reads it; absent where
    * nothing fills a review slot: the Inbox and a call's booking link turn such a template away (inbox-templates
    * slotToWrite).
    */

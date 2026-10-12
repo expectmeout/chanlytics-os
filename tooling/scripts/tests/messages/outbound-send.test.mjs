@@ -385,7 +385,7 @@ test("a person's OLDER words do not retire the draft, and a person's own reply i
   assert.equal(graph.length, 1, "two people replying is two replies");
 });
 
-test("no credentials is a refusal at the wire, said to the owner, never a send on the environment's pair", async () => {
+test("no credentials is a refusal at the wire, said to the owner by its hold, never a send on the environment's pair", async () => {
   graph.length = 0;
   const db = wrap(tables());
   const { ctx, alerts } = ctxFor(db, { wire: { whatsapp: null, sms: null } });
@@ -394,7 +394,12 @@ test("no credentials is a refusal at the wire, said to the owner, never a send o
   assert.equal(message(db).status, "failed");
   assert.equal(message(db).error.body, "no_credentials");
   assert.equal(db.tables.escalations.length, 1, "the thread is flagged for a person");
-  assert.equal(alerts.length, 1, "and the owner is told");
+  assert.deepEqual(
+    db.tables.events.filter((e) => e.kind === "escalation.opened").map((e) => e.subject_id),
+    ["c1"],
+    "and the owner is told by the hold's event (decision 0043, owner_notice)",
+  );
+  assert.deepEqual(alerts, [], "not by the send as well");
 });
 
 test("the carrier's own no on a text (Twilio 21610) is the person's STOP: the row is canceled as opted out, nobody is flagged or told, and the next job to them never reaches the line", async () => {
@@ -498,7 +503,7 @@ test("a wire that could not be bound leaves the reply queued for a fresh job a w
   const bare = ctxFor(none, { wire: { whatsapp: null, sms: null } });
   await dispatchJob(bare.ctx, job());
   assert.equal(message(none).status, "failed");
-  assert.match(bare.alerts[0].body, /the WhatsApp number is not connected/);
+  assert.match(none.tables.escalations[0].details, /the WhatsApp number is not connected/);
 });
 
 test("a reach-out's email written after the receptionist's draft is no person speaking: the draft is not retired by it", async () => {

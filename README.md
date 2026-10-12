@@ -20,9 +20,11 @@ not decide money: the money class of the Autonomy matrix is locked to `never`
 by a database trigger, the prompt says so, and a deterministic check after
 generation holds any reply that names a refund, a discount, a coupon, a deposit
 or a payment term (`namesMoney`, English and Spanish) whatever intent the model
-gave it. It does not quote a price in a reply: the same kind of check
-(`violatesNoPrices`: every currency, spelled-out amounts, cuts) replaces any
-reply carrying one and hands the thread to a person, whatever the prompt said.
+gave it. It quotes no price the business did not write: the same kind of check
+(`priceBreach`: every currency, spelled-out amounts, cuts) replaces a reply
+carrying any price while "Never quote a price" is on, and with it off any price
+the owner did not write (`priceAllowance`, decision 0051), and hands the thread
+to a person, whatever the prompt said.
 Every model call, whichever the purpose, goes through one port and one registry
 (`packages/contracts/src/ai/models.ts`) and is kept, in dollars, in `ai_usage`.
 
@@ -241,9 +243,10 @@ that budget in one go.
 The signed-in specs run in the suite's own workspace, never a customer's.
 `tooling/scripts/ops/e2e-workspace.mjs --apply` makes it, or puts it back, before
 each nightly run: a test owner and a teammate at example.com, three fictional
-people, two conversations (Robin's, and a week of Sam's that the Receptionist
-lens reads, with its two handovers already resolved), two calls (one answered,
-one nobody took), a WhatsApp channel with no credentials, and a Google listing
+people, three conversations (Robin's, a week of Sam's that the Receptionist
+lens reads, with its two handovers already resolved, and Casey's), two calls (one
+answered, one nobody took), one campaign run that went out to two of them, a
+WhatsApp channel with no credentials, and a Google listing
 with its Business Profile and four reviews (no credentials, and a place no
 Google place has). Every row is one the production sweeps leave alone, and the script refuses an
 address outside example.com, so `E2E_USER_EMAIL` can never name a real account.

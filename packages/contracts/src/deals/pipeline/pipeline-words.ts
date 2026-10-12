@@ -93,8 +93,8 @@ export const PIPELINE_WORDS = {
         : `${n} waiting over ${pace.waitDays} days`,
   /** The Pipeline's own rail: its groups, what waits on the owner, and each service. */
   rail: {
-    /** A phone's sheet of the rail's rows, behind the bar's list button. */
-    sheet: "Show",
+    /** A phone's sheet of the rail's rows, behind the bar's list button: the views, as People's and Leads' say Lists. */
+    sheet: "Views",
     deals: "Deals",
     all: "All deals",
     waitingOnYou: "Waiting on you",

@@ -4,7 +4,7 @@
  * Part 2.5), which re-exports it. The routes' inputs, and the plan made from an ask, are lead-plan-schema.ts's.
  */
 import type { LeadPlanFacts } from "./lead-dtos";
-import type { LeadSearchPlan } from "./search/plan";
+import type { LeadArea, LeadSearchPlan } from "./search/plan";
 import { planWho } from "./search/sentence";
 import { planMinutes } from "./search/cards";
 import { LEAD_CLASSES, LEAD_LISTS, leadAllowanceFact, type LeadClass, type LeadList, outcomeMove } from "./lead-words";
@@ -118,24 +118,6 @@ export const LEAD_DRAFT_JSON_SCHEMA = {
   properties: { subject: { type: "string" }, body: { type: "string" } },
 } as const;
 
-export const LEAD_SUGGEST_JSON_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: ["line", "items"],
-  properties: {
-    line: { type: "string" },
-    items: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["words", "who_for", "category_key"],
-        properties: { words: { type: "string" }, who_for: { type: "string" }, category_key: { type: "string" } },
-      },
-    },
-  },
-} as const;
-
 /** The foot every draft carries: the business's postal address and a way to say no (CAN-SPAM). */
 export function leadDraftFooter(business: string, address: string): string {
   return `\n\n—\n${business} · ${address}\nNot interested? Reply "no thanks" and I won't write again.`;
@@ -176,11 +158,11 @@ export const LEAD_PRIOR_MIN_PLACES = 50;
  */
 export function leadPlanLikely(
   plan: LeadSearchPlan,
-  facts: LeadPlanFacts,
+  facts: LeadPlanFacts | null,
 ): { emailPct: number | null; phonePct: number | null; line: string } {
-  const p = facts.prior;
-  if (!p || p.places < LEAD_PRIOR_MIN_PLACES || p.matched <= 0) {
-    return { emailPct: null, phonePct: null, line: "How many have an email is checked after the first 25." };
+  const p = facts ? facts.prior : null;
+  if (!facts || !p || p.places < LEAD_PRIOR_MIN_PLACES || p.matched <= 0) {
+    return { emailPct: null, phonePct: null, line: "The share with an email shows after the first 25." };
   }
   const share = Math.min(1, p.with_email / p.matched);
   const emailPct = Math.round(share * 100);
@@ -189,14 +171,54 @@ export function leadPlanLikely(
   return { emailPct, phonePct: 100 - emailPct, line: `About ${withEmail} will have an email; the rest you call${of}` };
 }
 
-/** The facts under the sentence (§8.3), in the one unit the owner has: leads. No dollar meter. */
-export function leadPlanFacts(plan: LeadSearchPlan, facts: LeadPlanFacts): string[] {
+/**
+ * The facts under the sentence (§8.3), in the one unit the owner has: leads. No dollar meter. Facts not read yet say no
+ * allowance: a card that had none drew "0 left this month" over a search that could run (Ruben, 10 Oct 2026).
+ */
+export function leadPlanFacts(plan: LeadSearchPlan, facts: LeadPlanFacts | null): string[] {
   return [
     `About ${planMinutes(plan)} minutes — leave the page if you like`,
     // No number: the card cannot know how many of THIS search's places are already here until it has looked.
     "Anything already yours is skipped",
-    `Counts only matches with a checked phone or email · ${leadAllowanceFact(facts.leadsLeft)}`,
+    facts
+      ? `Counts only matches with a checked phone or email · ${leadAllowanceFact(facts.leadsLeft)}`
+      : "Counts only matches with a checked phone or email",
   ];
+}
+
+/**
+ * The facts for a plan opened from a search itself (Widen, an area nearby, the map's), which no Ask turn gave any: the
+ * month the page already reads (leads_page's month, the same counter planFacts reads, so the number is spelled once),
+ * the search's own nearby areas, and nothing it cannot know (no prior, no skips counted). The allowance binds where the
+ * plan asks for more than is left. Without these the card said "0 left this month" over a search that could run, then
+ * said no allowance at all (Ruben, 10 Oct 2026). An idea's plan brings its kind's prior, which its read already had
+ * (00398), and the kind it is of.
+ */
+export function leadMonthPlanFacts(
+  month: { left: number; renewsOn: string },
+  count: number,
+  nearby: readonly LeadArea[],
+  prior: { of: string; counts: LeadPlanFacts["prior"] } | null,
+): LeadPlanFacts {
+  return {
+    dupes: 0,
+    leadsLeft: month.left,
+    bound: month.left < count ? "allowance" : null,
+    prior: prior ? prior.counts : null,
+    priorOf: prior && prior.counts ? prior.of : null,
+    cannotSee: null,
+    renewsOn: month.renewsOn,
+    nearby: [...nearby],
+  };
+}
+
+/** The same facts as one line, a phone's (§8.3): how long, what it skips, and what is left where that is known. */
+export function leadPlanFactLine(plan: LeadSearchPlan, facts: LeadPlanFacts | null): string {
+  return [
+    `About ${planMinutes(plan)} min`,
+    "skips leads you have",
+    ...(facts ? [leadAllowanceFact(facts.leadsLeft)] : []),
+  ].join(" · ");
 }
 
 /**
@@ -207,12 +229,13 @@ export function leadPlanFacts(plan: LeadSearchPlan, facts: LeadPlanFacts): strin
  */
 export function leadPlanAsk(
   plan: LeadSearchPlan,
-  facts: LeadPlanFacts,
+  facts: LeadPlanFacts | null,
 ): { count: number; label: string; covers: string | null } {
-  const binds = facts.bound !== null && facts.leadsLeft < plan.count;
-  const count = binds ? Math.max(0, facts.leadsLeft) : plan.count;
-  const label = `Find ${count} lead${count === 1 ? "" : "s"}`;
-  if (!binds) return { count, label, covers: null };
+  const binds = !!facts && facts.bound !== null && facts.leadsLeft < plan.count;
+  const count = binds && facts ? Math.max(0, facts.leadsLeft) : plan.count;
+  // None left is said on the button, which cannot be pressed, rather than "Find 0 leads".
+  const label = count < 1 ? "No leads left this month" : `Find ${count} lead${count === 1 ? "" : "s"}`;
+  if (!binds || !facts) return { count, label, covers: null };
   const who = planWho(plan);
   const covers =
     facts.bound === "budget"

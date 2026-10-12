@@ -5,15 +5,18 @@
  * mark gives way (leads.css); from 721px to 900px the controls row is gone and the shell draws no ✦, so the mark is the
  * page's one door. The same top on every scope, and nothing else sits above the rows -- no title, no sub-headline, no
  * stat cards and no second control row (legacy/CLAUDE.md, the phone shows the work first).
- * A search's reach-out (Reach out Part 4 PR 6): its sheet, or its chain (ReachOutDoor); Find leads steps back beside it on
- * a desk, and on a phone it is the sticky full-width button over the rows.
+ * A search's reach-out (Reach out Part 4 PR 6) is an accent word under its counts on a phone (scope.tsx), not here.
  */
 import type { ReactNode, RefObject } from "react";
-import type { LeadSearchDto } from "@chanlytics/contracts";
-import { ReachOutDoor } from "../../campaigns/reach-out/door";
+import { Button } from "../../kit/button/button";
+import { ActWords } from "../../kit/head/act-words";
+import { Menu } from "../../kit/menu/menu";
+import { menuGroups, type PeopleMenuItem } from "../../people/menu-groups";
 import { Icon } from "../../kit/icon/icon";
-import { gate, leaving, touchSwipe } from "../../legacy-verbs";
-import { PeoplePhoneBar } from "../../people/rail/phone-bar";
+import { gate } from "../../legacy-verbs";
+import { Sheet, type SheetBack } from "../../kit/sheet/sheet";
+import { JOB_CANCEL } from "../../people/sheets/phone-sheet";
+import { BarWord, PeoplePhoneBar, SELECT_WORDS } from "../../people/rail/phone-bar";
 
 interface LeadsPhoneBarProps {
   listLabel?: ReactNode;
@@ -23,47 +26,74 @@ interface LeadsPhoneBarProps {
   q: string;
   onQ: (q: string) => void;
   searchRef: RefObject<HTMLInputElement | null> | null;
-  searchOpen?: boolean;
-  onSearchOpen?: (open: boolean) => void;
   onFind?: () => void;
   canFind?: boolean;
   mapOn?: boolean;
   onMap?: (on: boolean) => void;
   canMap?: boolean;
-  search?: LeadSearchDto | null;
+  onImport?: () => void;
+  /** While a selection is on, how many: it stands where the list's name does. */
+  title?: ReactNode;
+  /** Select's word now and what it does, or none where nobody may act on a selection or nothing is shown. */
+  select?: { word: string; press: () => void } | null;
+  sortItems?: readonly PeopleMenuItem[];
 }
 
 /**
- * The map, from the bar (Ruben, 25 Sep): the desktop's toggle stood in the controls row, which a phone never draws, so the
- * streets had no door here. It is a switch of two, the rows and the places, the one shown pressed: a lone push-pin said
- * neither which view this was nor what it would open (Ruben: it read as a hammer). Drawn only where the rows have places.
+ * The bar's words, as People's Select, Sort and Export stand (Ruben, 10 Oct 2026): Select walks a selection (Select, Select
+ * all, Cancel), Sort opens the sorts a desk's headings give, Import brings a list in, and Map shows the places. The map
+ * (Ruben, 25 Sep): the desktop's toggle stood in the controls row, which a phone never draws, so the streets had no door
+ * here; a lone push-pin said neither which view this was nor what it would open (it read as a hammer), and the capsule of
+ * two circles after it stood too heavy beside the page's coral act. One word says the view it opens, List from the map,
+ * so the row keeps room for the list's name beside four words. Drawn only where the rows have places.
  */
-function viewSwitch(mapOn: boolean, onMap: (on: boolean) => void) {
+function barWords(o: {
+  select: { word: string; press: () => void } | null;
+  sortItems: readonly PeopleMenuItem[];
+  onImport: () => void;
+  canMap: boolean;
+  mapOn: boolean;
+  onMap: (on: boolean) => void;
+}) {
   return (
-    <span className="ld-bar-view" role="group" aria-label="Show the leads as" data-testid="leads-view-switch">
-      <button
-        type="button"
-        className={`ld-bar-view-opt${mapOn ? "" : " on"}`}
-        aria-pressed={!mapOn}
-        aria-label="The list"
-        title="The list"
-        data-testid="leads-list-toggle"
-        onClick={() => onMap(false)}
+    <div className="pp-bar-acts">
+      {o.select ? (
+        <Button variant="plain" size="sm" onClick={o.select.press} data-testid="leads-phone-select">
+          <BarWord word={o.select.word} words={SELECT_WORDS} />
+        </Button>
+      ) : null}
+      {o.sortItems.length ? (
+        <Menu
+          label="Sort"
+          groups={menuGroups(o.sortItems)}
+          trigger={
+            <Button variant="plain" size="sm" data-testid="leads-phone-sort">
+              Sort
+            </Button>
+          }
+        />
+      ) : null}
+      <Button
+        variant="plain"
+        size="sm"
+        onClick={o.onImport}
+        data-testid="leads-phone-import"
+        {...gate("find", "import leads")}
       >
-        <Icon name="list" size={15} />
-      </button>
-      <button
-        type="button"
-        className={`ld-bar-view-opt${mapOn ? " on" : ""}`}
-        aria-pressed={mapOn}
-        aria-label="The map"
-        title="The map"
-        data-testid="leads-map-toggle"
-        onClick={() => onMap(true)}
-      >
-        <Icon name="map" size={15} />
-      </button>
-    </span>
+        Import
+      </Button>
+      {o.canMap ? (
+        <Button
+          variant="plain"
+          size="sm"
+          aria-label={o.mapOn ? "Show the list" : "Show the map"}
+          onClick={() => o.onMap(!o.mapOn)}
+          data-testid="leads-view-switch"
+        >
+          {o.mapOn ? "List" : "Map"}
+        </Button>
+      ) : null}
+    </div>
   );
 }
 
@@ -75,14 +105,15 @@ export const LeadsPhoneBar = ({
   q,
   onQ,
   searchRef,
-  searchOpen = false,
-  onSearchOpen = () => undefined,
   onFind = () => undefined,
   canFind = false,
   mapOn = false,
   onMap = () => undefined,
   canMap = false,
-  search = null,
+  onImport = () => undefined,
+  select = null,
+  sortItems = [],
+  title = null,
 }: LeadsPhoneBarProps) => (
   <>
     <PeoplePhoneBar
@@ -93,13 +124,12 @@ export const LeadsPhoneBar = ({
       q={q}
       onQ={onQ}
       searchRef={searchRef}
-      searchOpen={searchOpen}
-      onSearchOpen={onSearchOpen}
       searchLabel="Search leads"
       testid="leads"
+      title={title}
       trailing={
         <>
-          {canMap ? viewSwitch(mapOn, onMap) : null}
+          {barWords({ select, sortItems, onImport, canMap, mapOn, onMap })}
           <button
             type="button"
             className="pp-bar-icon ld-bar-find"
@@ -114,29 +144,71 @@ export const LeadsPhoneBar = ({
         </>
       }
     />
-    <ReachOutDoor search={search} phone />
   </>
 );
 
 /**
- * The plan panel, as a sheet from the bottom of a phone. No listener of its own: the page's one keydown listener closes
- * the panel on Esc before anything else and holds every other key while it is open (Task 2), so a second listener here
- * would take the key twice and close the panel and then the selection on one press.
+ * A phone's one filled act, in the head beside the strip: New search, the finder Find leads opens (Ruben, 10 Oct 2026).
+ * It stood as Import leads, which the Lists sheet said again under New search; Import is a word of the bar now, and the
+ * sheet is the lists alone. Its first word is kept where the row of views is short (kit/head/act-words.tsx).
  */
-export const LeadPlanSheet = ({ onClose, children }: { onClose: () => void; children?: ReactNode }) => (
-  <>
-    <div className="sb-sheet-backdrop" role="presentation" onClick={onClose} />
-    {/* A phone's alone: its handle says a thumb pulls it down, and it goes the way it came (touchSwipe, leaving). */}
-    <div
-      className="sb-sheet pl-plan"
-      role="dialog"
-      aria-label="The plan"
-      data-testid="lead-plan-sheet"
-      ref={leaving("lead-plan")}
-      {...touchSwipe({ onDown: onClose })}
-    >
-      <div className="ld-sheet-handle" />
-      {children}
-    </div>
-  </>
+export const LeadsNewSearch = ({ canFind, onFind }: { canFind: boolean; onFind: () => void }) => (
+  <Button
+    variant="primary"
+    size="sm"
+    onClick={() => onFind()}
+    data-testid="leads-new-search-act"
+    {...(canFind ? {} : gate("find", "find leads"))}
+  >
+    <ActWords icon={<Icon name="plus" size={12} />} words="New search" />
+  </Button>
+);
+
+/**
+ * A phone's filled act where the page is the question (the first day, and New search pressed): a list the owner already
+ * has, as the first day always offered it there (Ruben, 10 Oct 2026: New search shows the first day's page, the same act
+ * in its head).
+ */
+export const LeadsImportAct = ({ onImport }: { onImport: () => void }) => (
+  <Button
+    variant="primary"
+    size="sm"
+    onClick={() => onImport()}
+    data-testid="leads-import-open"
+    {...gate("find", "import leads")}
+  >
+    <ActWords icon={<Icon name="download" size={12} />} words="Import leads" />
+  </Button>
+);
+
+/**
+ * The plan panel, as a phone's sheet: the kit's Sheet in a job's shape, as every small job on a phone is (Ruben, 10 Oct
+ * 2026: its own sheet sat in a desk's padding, and a picker's listbox ran off it). Titled New search, or the picker's
+ * own title with a way back while a word's choices are its step; Cancel, the wash, a pull down and Esc close it (the
+ * kit's, so the page's keys hold still behind it). Drawn while open and on its way out.
+ */
+export const LeadPlanSheet = ({
+  open,
+  onClose,
+  title,
+  back = null,
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  back?: SheetBack | null;
+  children?: ReactNode;
+}) => (
+  <Sheet
+    open={open}
+    shape="job"
+    title={title}
+    close={JOB_CANCEL}
+    back={back}
+    onClose={onClose}
+    testid="lead-plan-sheet"
+  >
+    {children}
+  </Sheet>
 );

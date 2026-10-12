@@ -52,6 +52,7 @@ import {
 } from "./fold-shapes";
 import { BT_RUN_BLOCKS, btChangedLines, btWillSay } from "./fold-says";
 import { fallbackDefaults, instructionsDraft, receptionistDefaults, unknownDetails } from "./shell";
+import { greetingDraftOf, greetingStoredOf } from "./phone/greeting-draft";
 
 /* ------------------------------------ what each fold opens with, refuses and writes ------------------------------------ */
 
@@ -100,6 +101,7 @@ import { fallbackDefaults, instructionsDraft, receptionistDefaults, unknownDetai
  *
  * The field keys problemsOf names, for each fold to say a problem under its own field (i is a row's place in the draft):
  *   tone                tone
+ *   phone_greeting      phone_greeting (notes only: nothing about a greeting stops a save, decision 0051)
  *   hours               hours-<day> (too many shifts, a shift typed half-way, or a day switched on with no times)
  *   closures            closure-<i>-note, closures (too many)
  *   services            service-<i>-name, service-<i>-duration_min, service-<i>-price_note, services (too many)
@@ -159,6 +161,7 @@ const btOpenRules = (p: Profile): RulesDraft => {
 /** What each fold opens with, from the stored profile, brain and config: as BusinessEditor set up its state. */
 const BT_DRAFT_OF: { [F in FoldName]: (p: Profile, brain: Brain, config: Config) => DraftOf[F] } = {
   tone: (p) => p.tone || "",
+  phone_greeting: greetingDraftOf,
   // One editable list per day, however the day happens to be stored: a plain open/close pair reads as a single shift,
   // so the two shapes are one thing to edit and only differ again on save. `isOpen` means the business is open, not
   // the opening time: a day is closed only when it has no times, which is what the schema stores.
@@ -351,6 +354,7 @@ const btWriteReceptionist = (next: Config, draft: unknown) => {
 /** How each fold writes its draft into `next`, a copy of the stored config: its own paths, and nothing else. */
 const BT_WRITE: { [F in FoldName]: (next: Config, draft: unknown) => void } = {
   tone: (next, draft) => btPutProfile(next, "tone", trimmed(draft) || undefined),
+  phone_greeting: (next, draft) => btPutProfile(next, "phone_greeting", greetingStoredOf(draft)),
   // Only once at least one day has real times: btWriteHours says why.
   hours: btWriteHours,
   closures: btWriteClosures,

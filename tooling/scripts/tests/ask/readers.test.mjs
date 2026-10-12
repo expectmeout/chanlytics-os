@@ -13,13 +13,17 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   callerName,
+  DEFAULT_TIMEZONE,
   describeNow,
   freeWindows,
   journeyGuide,
   newReceptionistDefaults,
+  numberHealthOfConfig,
+  peopleNowOf,
   personName,
   reportFacts,
   toCallVM,
+  toPeopleReportVM,
   toPersonVM,
   toReceptionistReportVM,
   toReportVM,
@@ -29,6 +33,8 @@ import { fakeDb } from "../_fake-db.mjs";
 import { rows } from "../_rows.mjs";
 import { fieldsOf, logLineOf } from "../_log-lines.mjs";
 import { PLAN } from "../_lead-fixtures.mjs";
+import { QUIET, SERIES } from "../reports/people/_people-world.mjs";
+import { NOW as LEDGER_NOW, SERIES as LEDGER, STUCK, STUCK_NOW } from "../reports/campaigns/_campaign-world.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -61,14 +67,19 @@ const {
   report: reportReader,
   reviewsReport,
   receptionistReport,
+  peopleReport,
 } = await import(at("apps/dashboard/src/server/readers/report.ts"));
 const { runTool, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const { setServiceClient } = await import(at("apps/dashboard/src/server/service-db.ts"));
-const { campaignReport } = await import(at("apps/dashboard/src/server/readers/campaign-report.ts"));
+const { campaignReport, campaignLedgerReport } = await import(
+  at("apps/dashboard/src/server/readers/campaign-report.ts")
+);
 const reportsRoute = await import(at("apps/dashboard/app/api/v1/reports/route.ts"));
 const campaignsRoute = await import(at("apps/dashboard/app/api/v1/reports/campaigns/route.ts"));
+const ledgerRoute = await import(at("apps/dashboard/app/api/v1/reports/campaigns/ledger/route.ts"));
 const reviewsRoute = await import(at("apps/dashboard/app/api/v1/reports/reviews/route.ts"));
 const receptionistRoute = await import(at("apps/dashboard/app/api/v1/reports/receptionist/route.ts"));
+const peopleRoute = await import(at("apps/dashboard/app/api/v1/reports/people/route.ts"));
 const googleRoute = await import(at("apps/dashboard/app/api/v1/google/route.ts"));
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
 const { calendarWeek } = await import(at("apps/dashboard/src/server/calendar/calendar-week.ts"));
@@ -2411,16 +2422,17 @@ test("the calendar, for Ask: the board's week exactly as calendarWeek assembles 
 });
 
 /**
- * The record's four reads (its rows over the span, the notices' latest and their held count, the mailbox) are asked for
- * together and waited for together (calendar-week.ts recordOverSpan, 9 Oct 2026: one after the other they were four
- * round trips the board stood behind). Which of the four is heard first is the database stand-in's to say, not the
- * route's, so the four are put in one order before what was asked is compared: every read is still there, once, with its
- * columns, and everything before and after them is still in its own order. `at` is where the four begin.
+ * The record's five reads (its rows over the span, in two since 00397: the bookings whole and the feed's rows by key;
+ * the notices' latest and their held count; the mailbox) are asked for together and waited for together
+ * (calendar-week.ts recordOverSpan, 9 Oct 2026: one after the other they were round trips the board stood behind). Which
+ * is heard first is the database stand-in's to say, not the route's, so the five are put in one order before what was
+ * asked is compared: every read is still there, once, with its columns, and everything before and after them is still
+ * in its own order. `at` is where the five begin.
  */
 const recordTogether = (asked, at) => [
   ...asked.slice(0, at),
-  ...asked.slice(at, at + 4).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
-  ...asked.slice(at + 4),
+  ...asked.slice(at, at + 5).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
+  ...asked.slice(at + 5),
 ];
 
 test("the calendar's reader never writes (D7): an owner's Ask reads the board of a feed naming someone People does not hold and puts nobody in People -- no door called, nothing inserted -- and its zone and settings are the turn's: a turn that holds them reads neither again", async () => {
@@ -2440,8 +2452,11 @@ test("the calendar's reader never writes (D7): an owner's Ask reads the board of
       // The record's rows over the span and the notices' health line (00345) are read beside the feed, then everyone.
       // Last, once the feed has read, the record's taken time over the days on offer (record-busy.ts): this week does
       // not cover a fortnight's offer, so the board's open times ask for it rather than reuse the span's rows.
+      // The span's record is two reads since a member's word on a visit (00397, visitsOver): the bookings, and the feed's
+      // rows by key.
       recordTogether(
         [
+          "appointments.select",
           "appointments.select",
           "appointment_notices.select",
           "appointment_notices.select",
@@ -2474,8 +2489,9 @@ test("the calendar's reader never writes (D7): an owner's Ask reads the board of
       !json.includes("cal.example") && !json.includes("front desk of Harbor"),
       "neither is anywhere in the read",
     );
-    // The record, the notices' two, the mailbox, everyone, the policies and the taken time: seven, and nothing asked again.
-    assert.equal(ctx.supabase.seen.length, before + 7, "nothing asked again");
+    // The record (two reads since 00397: the bookings, and the feed's rows by key), the notices' two, the mailbox,
+    // everyone, the policies and the taken time: eight, and nothing asked again.
+    assert.equal(ctx.supabase.seen.length, before + 8, "nothing asked again");
   });
 });
 
@@ -2531,8 +2547,10 @@ const CALENDAR_ASKED_AT_MAIN = [
   ["tenants.select", "name, timezone"],
   ["tenant_config.select", "config"],
   // Since 00345: the record's rows over the span and the notices' health line (the latest, and the held count), read
-  // beside the feed before everyone is (docs/plans/2026-10-07-bookings-arrive-by-email.md).
+  // beside the feed before everyone is (docs/plans/2026-10-07-bookings-arrive-by-email.md); since 00397 the span's
+  // record is two reads (visitsOver): the bookings whole, and the feed's rows as ids and statuses by key.
   ["appointments.select", "*"],
+  ["appointments.select", "id, status, external_id, starts_at"],
   ["appointment_notices.select", "tool, received_at"],
   ["appointment_notices.select", "id"],
   // The workspace's address the tool is to send to, and Gmail's pending confirmation of a forward here.
@@ -2561,7 +2579,7 @@ test("GET calendar through its reader asks what it asked at origin/main, in the 
         k,
         k === "tenant_config.select" ? "tenant_id, config, version, updated_at, updated_by" : cols,
       ]);
-      // The record's four begin after the door, the zone and the settings.
+      // The record's five begin after the door, the zone and the settings.
       assert.deepEqual(
         recordTogether(
           ctx.supabase.seen.map((q) => (q.rpc ? [`rpc:${q.rpc}`, null] : [`${q.table}.${q.op}`, q.columns])),
@@ -2956,6 +2974,720 @@ test("the Receptionist lens carries the hours and closures the report carries --
     assert.equal(r.data.profile, null);
     assert.notEqual(r.data.series, null);
   }
+});
+
+/* ------------------------------------------------------------------- the People lens (Reports, C3) */
+
+const BOOK_DAY = 24 * HOUR;
+/**
+ * A person as people_list answers it (people-pool.test.mjs's row): wrote on WhatsApp `daysAgo` days before CAL_NOW, a yes
+ * to messages and to offers on it, with nothing else open.
+ */
+const bookRow = (n, daysAgo, over = {}) => {
+  const heard = new Date(CAL_NOW.getTime() - daysAgo * BOOK_DAY).toISOString();
+  return {
+    id: `k-${n}`,
+    display_name: `Person ${n}`,
+    wa_profile_name: null,
+    phone_e164: `+1917555${String(n).padStart(4, "0")}`,
+    email: null,
+    consent: "opted_in",
+    consent_source: "customer_message",
+    consent_updated_at: heard,
+    marketing_consent: "opted_in",
+    marketing_consent_source: "form",
+    marketing_consent_updated_at: heard,
+    marketing_channels: ["whatsapp"],
+    dnc: false,
+    channels: ["whatsapp"],
+    conversation_count: 1,
+    escalation_count: 0,
+    needs_human: false,
+    open_escalation_reason: null,
+    open_escalation_since: null,
+    latest_conversation_id: `cv-${n}`,
+    latest_state: "open",
+    latest_paused_until: null,
+    latest_assignee_user_id: null,
+    latest_snooze_until: null,
+    latest_wa_inbound_at: heard,
+    last_message_at: heard,
+    last_message_direction: "inbound",
+    last_message_sender: "customer",
+    last_inbound_text: "Can I move Saturday to 11?",
+    last_inbound_at: heard,
+    last_call_at: null,
+    last_inbound_call_at: null,
+    call_count: 0,
+    call_seconds: 0,
+    first_contact_at: heard,
+    earliest_row_at: heard,
+    has_backfill: false,
+    has_chat: true,
+    message_channels: ["whatsapp"],
+    queued_reply_at: null,
+    ...over,
+  };
+};
+/**
+ * The moment the fifth person last wrote: 22:00 on 1 Sep in New York, 02:00 on 2 Sep in UTC. CAL_NOW is the 8th at noon in
+ * New York, so by the workspace's days they were heard 7 days ago (`d7_30`), and by UTC's 6 (`under_7`): only the workspace's
+ * zone puts them in the right bucket.
+ */
+const EDGE_HEARD = "2026-09-02T02:00:00.000Z";
+/**
+ * Five people, so the book's buckets differ: heard 2, 20, 45 and 100 days before CAL_NOW, and the fifth on the edge of the
+ * week by the zone (above). The first has a step of the member's a day past, the second one of a teammate's due today and
+ * reaches Harbor by WhatsApp and by phone, the fourth asked to stop.
+ */
+const BOOK = [
+  bookRow(1, 2, { step_id: "s1", step_body: "Send the quote", step_due_on: "2026-09-07", step_for_user_id: USER }),
+  bookRow(2, 20, {
+    channels: ["whatsapp", "voice"],
+    step_id: "s2",
+    step_body: "Call back",
+    step_due_on: "2026-09-08",
+    step_for_user_id: "u2",
+  }),
+  bookRow(3, 45),
+  bookRow(4, 100, { consent: "opted_out" }),
+  bookRow(5, 0, { last_inbound_at: EDGE_HEARD, last_message_at: EDGE_HEARD, latest_wa_inbound_at: EDGE_HEARD }),
+];
+/** The counts of the People world's busy thirty days, without the window they were read for. */
+const { timezone: _zone, today: _day, days: _span, ...BUSY } = SERIES;
+/** What people_series answers (00395) for the days asked, ending where it was asked to: a quiet window, or what `over` puts in it. */
+const peopleSeriesAnswer = (a, over = {}) => ({
+  timezone: "America/New_York",
+  today: "2026-09-08",
+  end: a.p_end ?? "2026-09-08",
+  days: a.p_days,
+  ...QUIET,
+  ...over,
+});
+/** Harbor's WhatsApp number, as the People worlds give the channels (calendar-counts.test.mjs's). */
+const WHATSAPP_ON = [{ tenant_id: A, kind: "whatsapp", status: "active", config: {} }];
+/** calendar-feed's Harbor with People as BOOK, people_series answering `over` and the channels `channels` gives. */
+const peopleLensWorld = (over = {}, rpcs = {}, channels = WHATSAPP_ON) => ({
+  tables: { ...calTables(null), tenant_channels: channels },
+  rpcs: { people_series: (a) => peopleSeriesAnswer(a, over), people_list: () => BOOK, ...rpcs },
+});
+/** What a database that has not run 00395 answers a call to people_series. */
+const peopleSeriesGone = () => {
+  throw Object.assign(
+    new Error("Could not find the function public.people_series(p_days, p_tenant_id) in the schema cache"),
+    { code: "PGRST202" },
+  );
+};
+const peopleListDown = () => {
+  throw new Error("people down");
+};
+
+test("the People lens, for Ask and for the page: GET reports/people answers its reader's payload, key for key and byte for byte, for each preset -- the database's series and the book as it stands now, no row of its own", async (t) => {
+  // The route reads the real clock: the book's days are counted from the turn's.
+  t.mock.timers.enable({ apis: ["Date"], now: CAL_NOW.getTime() });
+  const w = peopleLensWorld(BUSY);
+  for (const [period, days] of [
+    ["7d", 7],
+    ["30d", 30],
+    ["90d", 90],
+  ]) {
+    const page = await peopleRoute.GET.run(req(`?period=${period}&workspace=${A}`), worldCtx(w));
+    const r = await kernel.load(calIn(worldCtx(w)), peopleReport, { days, end: null });
+    assert.equal(JSON.stringify(r.data), JSON.stringify(page), `${period}: the route's payload, byte for byte`);
+    assert.deepEqual(Object.keys(page), ["timezone", "today", "end", "days", "series", "now"]);
+    assert.deepEqual([page.timezone, page.today, page.days], ["America/New_York", "2026-09-08", days]);
+    assert.deepEqual(r.rows, [], "drawn on the Reports page, whose row the report names");
+  }
+  await assert.rejects(
+    peopleRoute.GET.run(req(`?period=14d&workspace=${A}`), worldCtx(w)),
+    (e) => e.status === 400,
+    "a period that is none of the four is refused at the door",
+  );
+});
+
+test("the People lens carries the series as the database gave it and the book as People counts it: peopleNowOf over the rows People holds, in the workspace's zone at the turn's clock, judged against what the workspace can send on", async () => {
+  const w = peopleLensWorld(BUSY);
+  const r = await kernel.load(calIn(worldCtx(w)), peopleReport, LENS);
+  assert.deepEqual(r.data.series, peopleSeriesAnswer({ p_days: 30 }, BUSY), "the series, as the database gave it");
+
+  const held = (await kernel.load(calIn(worldCtx(w)), everyoneReader, undefined)).data;
+  const ready = await channelsReadyOrNull(worldCtx(w), A, { withPause: false });
+  assert.notEqual(ready, null, "the channels are read, WhatsApp among them");
+  const nowMs = CAL_NOW.getTime();
+  assert.deepEqual(r.data.now, peopleNowOf(held, { tz: "America/New_York", nowMs, ready }));
+  assert.equal(r.data.now.people, 5);
+  assert.deepEqual(
+    r.data.now.fresh,
+    { under_7: 1, d7_30: 2, d31_60: 1, d61_90: 0, d91_up: 1, never: 0 },
+    "the fifth, 22:00 on the 1st in New York, was heard 7 days ago by the workspace's days",
+  );
+  const inUtc = peopleNowOf(held, { tz: "UTC", nowMs, ready });
+  assert.deepEqual(
+    inUtc.fresh,
+    { under_7: 2, d7_30: 1, d31_60: 1, d61_90: 0, d91_up: 1, never: 0 },
+    "and 6 by UTC's: the zone is what tells the two apart",
+  );
+  assert.notDeepEqual(r.data.now.fresh, inUtc.fresh);
+  assert.deepEqual(r.data.now.steps, { overdue: 1, due_today: 1 }, "the days of the steps are the workspace's");
+  assert.deepEqual(r.data.now.wires, {
+    whatsapp_only: 4,
+    sms_only: 0,
+    phone_only: 0,
+    email_only: 0,
+    several: 1,
+    none: 0,
+  });
+
+  // The channels count: with no WhatsApp number nobody can be sent offers, which counting by WhatsApp alone (the channels not read) would not say.
+  const dark = await kernel.load(calIn(worldCtx(peopleLensWorld(BUSY, {}, []))), peopleReport, LENS);
+  assert.equal(r.data.now.lists.offers_ok, 4);
+  assert.equal(dark.data.now.lists.offers_ok, 0);
+  assert.equal(peopleNowOf(held, { tz: "America/New_York", nowMs, ready: null }).lists.offers_ok, 4);
+  assert.equal(
+    dark.data.now.lists.opted_in,
+    r.data.now.lists.opted_in,
+    "the yes is theirs, whether or not you can send",
+  );
+});
+
+test("the People lens on a database that does not have its function yet (00395 not applied) answers 200 with `series: null`, the book and the window it was asked, said once in the log with the workspace; any other refusal is still the route's failure", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: CAL_NOW.getTime() });
+  const absent = peopleLensWorld(BUSY, { people_series: peopleSeriesGone });
+  const { result: page, lines } = await logged("people_series_missing", () =>
+    peopleRoute.GET.run(req(`?workspace=${A}`), worldCtx(absent)),
+  );
+  assert.deepEqual(Object.keys(page), ["timezone", "today", "days", "series", "now"]);
+  assert.equal(page.series, null);
+  assert.deepEqual([page.timezone, page.today, page.days], ["America/New_York", "2026-09-08", 30]);
+  assert.equal(page.now.people, 5, "the book does not need the function");
+  assert.deepEqual(lines, [{ tenant_id: A }], "said once for the read, naming the workspace");
+
+  const ctx = worldCtx(absent);
+  const { result: r } = await logged("people_series_missing", () => kernel.load(calIn(ctx), peopleReport, LENS));
+  assert.deepEqual(r.data, page, "Ask's reader answers what the route does");
+  const seen = asked(ctx);
+  for (const q of ["rpc:people_list", "tenants.select"])
+    assert.equal(seen.filter((x) => x === q).length, 1, `${q}: once, whichever half asks`);
+
+  // Days that ended before today name their last day in the answer, as the window was asked.
+  const { result: ended } = await logged("people_series_missing", () =>
+    kernel.load(calIn(worldCtx(absent)), peopleReport, { days: 20, end: "2026-08-31" }),
+  );
+  assert.deepEqual(
+    [ended.data.timezone, ended.data.today, ended.data.end, ended.data.days, ended.data.series],
+    ["America/New_York", "2026-09-08", "2026-08-31", 20, null],
+  );
+  assert.equal(ended.data.now.people, 5);
+
+  // A different code is not this window: the route fails as it does for any read that cannot be made.
+  const denied = peopleLensWorld(BUSY, {
+    people_series: () => {
+      throw Object.assign(new Error("permission denied for function people_series"), { code: "42501" });
+    },
+  });
+  const unsaid = await logged("people_series_missing", async () => {
+    await assert.rejects(peopleRoute.GET.run(req(`?workspace=${A}`), worldCtx(denied)), /permission denied/);
+  });
+  assert.deepEqual(unsaid.lines, [], "and the log does not call it the missing function");
+});
+
+test("the People lens: a function with no workspace is the route's 404 in its words, and a read that fails is its failure -- not found and could not read are two answers", async () => {
+  const unknown = peopleLensWorld(BUSY, { people_series: () => ({ error: "unknown_tenant" }) });
+  await assert.rejects(kernel.load(turnIn(worldCtx(unknown)), peopleReport, LENS), noReport);
+  await assert.rejects(peopleRoute.GET.run(req(`?workspace=${A}`), worldCtx(unknown)), noReport);
+  const down = peopleLensWorld(BUSY, {
+    people_series: () => {
+      throw new Error("connection refused");
+    },
+  });
+  const failed = /people_series: connection refused/;
+  await assert.rejects(kernel.load(turnIn(worldCtx(down)), peopleReport, LENS), failed);
+  await assert.rejects(peopleRoute.GET.run(req(`?workspace=${A}`), worldCtx(down)), failed);
+});
+
+test("the People lens never fails for its book: People that cannot be read leave `now: null`, said once in the log with the workspace, and the series is answered -- each half fails alone, and both gone still answer the window as it was asked", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: CAL_NOW.getTime() });
+  const down = peopleLensWorld(BUSY, { people_list: peopleListDown });
+  const { result: page, lines } = await logged("people_pool_failed", () =>
+    peopleRoute.GET.run(req(`?workspace=${A}`), worldCtx(down)),
+  );
+  assert.deepEqual(Object.keys(page), ["timezone", "today", "end", "days", "series", "now"]);
+  assert.equal(page.now, null);
+  assert.deepEqual(page.series, peopleSeriesAnswer({ p_days: 30 }, BUSY), "and the rest of the lens is answered");
+  assert.equal(lines.length, 1, "logged once, never fatal");
+  assert.equal(lines[0].tenant_id, A);
+  assert.match(lines[0].error, /people down/);
+
+  const { result: r } = await logged("people_pool_failed", () =>
+    kernel.load(calIn(worldCtx(down)), peopleReport, LENS),
+  );
+  assert.deepEqual(r.data, page, "Ask's reader answers what the route does");
+
+  const both = peopleLensWorld(BUSY, { people_series: peopleSeriesGone, people_list: peopleListDown });
+  const { result: neither, lines: poolLines } = await logged("people_pool_failed", () =>
+    kernel.load(calIn(worldCtx(both)), peopleReport, LENS),
+  );
+  const none = neither.data;
+  assert.deepEqual([none.series, none.now, none.days, none.today], [null, null, 30, "2026-09-08"]);
+  assert.equal(poolLines.length, 1, "the book's failure is said once beside the missing function's");
+});
+
+test("the People lens never fails the route for a zone it cannot read: a database without its function whose workspace row cannot be read answers `series: null, now: null` -- the book's failure said once in the log -- and Ask's tool reads that as `available: false`", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: CAL_NOW.getTime() });
+  const absent = peopleLensWorld(BUSY, { people_series: peopleSeriesGone });
+  const zoneDown = { "tenants.select": { message: "tenants down" } };
+  const { result: r, lines } = await logged("people_pool_failed", () =>
+    kernel.load(calIn(worldCtx(absent, zoneDown)), peopleReport, LENS),
+  );
+  const none = r.data;
+  assert.deepEqual([none.series, none.now, none.days], [null, null, 30], "neither half, and the days as asked");
+  assert.deepEqual(Object.keys(none), ["timezone", "today", "days", "series", "now"]);
+  assert.equal(
+    typeof none.timezone,
+    "string",
+    "a zone and a day the type holds, though nothing reads them of this answer",
+  );
+  assert.match(none.today, /^\d{4}-\d{2}-\d{2}$/);
+  assert.deepEqual(r.rows, []);
+  assert.equal(lines.length, 1, "the book's failure is said once");
+  assert.match(lines[0].error, /tenants down/);
+  const lens = toPeopleReportVM(none);
+  assert.deepEqual([lens.windowAvailable, lens.nowAvailable], [false, false], "Ask's tool: `{ available: false }`");
+
+  // Days that ended before today name their last day, as the window was asked.
+  const { result: ended } = await logged("people_pool_failed", () =>
+    kernel.load(calIn(worldCtx(absent, zoneDown)), peopleReport, { days: 20, end: "2026-08-31" }),
+  );
+  assert.deepEqual(
+    [ended.data.end, ended.data.days, ended.data.series, ended.data.now],
+    ["2026-08-31", 20, null, null],
+  );
+
+  // The zone is only the missing function's trouble when both fail: with the function there, a zone that cannot be read is the series' answer to give.
+  const { result: there } = await logged("people_pool_failed", () =>
+    kernel.load(calIn(worldCtx(peopleLensWorld(BUSY), zoneDown)), peopleReport, LENS),
+  );
+  assert.deepEqual(there.data.series, peopleSeriesAnswer({ p_days: 30 }, BUSY), "the window is answered");
+  assert.equal(there.data.now, null, "and the book, which needs the zone, is not");
+});
+
+test("the People lens reads its book for days that ended before today as well: the book is as of now and the window is the database's -- people_series is asked with the last day named, and People once", async () => {
+  const ctx = worldCtx(peopleLensWorld(BUSY));
+  const ended = await kernel.load(calIn(ctx), peopleReport, { days: 20, end: "2026-08-31" });
+  assert.deepEqual(
+    ctx.supabase.seen.filter((q) => q.rpc === "people_series"),
+    [{ rpc: "people_series", args: { p_tenant_id: A, p_days: 20, p_end: "2026-08-31" } }],
+    "the database counts the 20 days to the 31st",
+  );
+  assert.equal(asked(ctx).filter((x) => x === "rpc:people_list").length, 1, "and People is read");
+  assert.equal(ended.data.end, "2026-08-31");
+  assert.equal(ended.data.days, 20);
+  const live = await kernel.load(calIn(worldCtx(peopleLensWorld(BUSY))), peopleReport, LENS);
+  assert.deepEqual(ended.data.now, live.data.now, "the book is the same as of now, whichever days are asked");
+});
+
+test("the People lens reads each of its things once in a turn: the series, People, the zone and the channels -- and a turn that already loaded People for the report reads People once", async () => {
+  const ctx = worldCtx(peopleLensWorld(BUSY));
+  await kernel.load(calIn(ctx), peopleReport, LENS);
+  for (const q of ["rpc:people_series", "rpc:people_list", "tenants.select", "tenant_channels.select", "lines.select"])
+    assert.equal(asked(ctx).filter((x) => x === q).length, 1, `${q}: once`);
+
+  const both = worldCtx(peopleLensWorld(BUSY, { report_series: series }));
+  const rc = calIn(both);
+  await Promise.all([kernel.load(rc, reportReader, LENS), kernel.load(rc, peopleReport, LENS)]);
+  await kernel.load(rc, peopleReport, LENS);
+  assert.equal(
+    asked(both).filter((x) => x === "rpc:people_list").length,
+    1,
+    "the report counted People for its booking line; the lens counts the same read",
+  );
+  assert.equal(asked(both).filter((x) => x === "rpc:people_series").length, 1);
+});
+
+test("the People lens is the workspace's, not the member's: the same answer for an owner and a viewer, whoever a step in the book is for", async () => {
+  const w = peopleLensWorld(BUSY);
+  const viewer = await kernel.load(calIn(worldCtx(w), "viewer"), peopleReport, LENS);
+  const owner = await kernel.load(
+    kernel.readerContext({ ...worldCtx(w), userId: "u2" }, { tenantId: A, role: "owner" }, CAL_NOW),
+    peopleReport,
+    LENS,
+  );
+  assert.equal(JSON.stringify(owner.data), JSON.stringify(viewer.data));
+  assert.notEqual(owner.data.now, null);
+});
+
+/* ----------------------------------------------------------------------- the Campaigns lens' ledger (C4) */
+
+/** campaigns/_campaign-world.mjs's clock: noon on Fri 4 Sep 2026 at Harbor (New York), where its stuck facts are judged. */
+const LEDGER_CLOCK = new Date(LEDGER_NOW);
+/** Harbor's WhatsApp number as Meta last said it: rated RED, and the three moments its config keeps (the standing's is the newest). */
+const RED_CONFIG = {
+  quality_rating: "RED",
+  quality_read_at: "2026-09-04T10:00:00.000Z",
+  standing_read_at: "2026-09-04T12:30:00.000Z",
+  quality_at: "2026-09-03T08:00:00.000Z",
+};
+/** An active WhatsApp channel of Harbor's holding `config`; `over` changes the row (a stopped number, another kind). */
+const numberOf = (config, over = {}) => [{ tenant_id: A, kind: "whatsapp", status: "active", config, ...over }];
+/** What campaign_ledger answers (00405) for the days asked: the world's thirty days, said for the window it was asked. */
+const ledgerAnswer = (a) => ({ ...LEDGER, end: a.p_end ?? LEDGER.end, days: a.p_days });
+/** calendar-feed's Harbor with the ledger world's two answers (campaign_stuck as the database gives it) and the channels `channels` gives. */
+const ledgerWorld = (rpcs = {}, channels = numberOf(RED_CONFIG)) => ({
+  tables: { ...calTables(null), tenant_channels: channels },
+  rpcs: { campaign_ledger: ledgerAnswer, campaign_stuck: () => STUCK, ...rpcs },
+});
+/** What a database that has not run 00405 or 00406 answers a call to its function. */
+const functionGone = (signature) => () => {
+  throw Object.assign(new Error(`Could not find the function public.${signature} in the schema cache`), {
+    code: "PGRST202",
+  });
+};
+const ledgerGone = functionGone("campaign_ledger(p_days, p_tenant_id)");
+const stuckGone = functionGone("campaign_stuck(p_tenant_id)");
+/** A function the database refuses for a reason that is not its absence. */
+const refusedFunction = (name) => () => {
+  throw Object.assign(new Error(`permission denied for function ${name}`), { code: "42501" });
+};
+/** A turn on the ledger world's clock, or on `now`. */
+const ledgerIn = (ctx, role = "viewer", now = LEDGER_CLOCK) => kernel.readerContext(ctx, { tenantId: A, role }, now);
+/** What a workspace with nothing stuck is told by campaign_stuck. */
+const NOTHING_STUCK = { runs_waiting: [], runs_failed: [], replies: [], templates: [] };
+
+test("the Campaigns lens' ledger, for Ask and for the page: GET reports/campaigns/ledger answers its reader's payload, key for key and byte for byte, for each preset -- the database's series and what is stuck, judged; no row of its own", async (t) => {
+  // The route reads the real clock: what is stuck is judged at the turn's.
+  t.mock.timers.enable({ apis: ["Date"], now: LEDGER_NOW });
+  const w = ledgerWorld();
+  for (const [period, days] of [
+    ["7d", 7],
+    ["30d", 30],
+    ["90d", 90],
+  ]) {
+    const page = await ledgerRoute.GET.run(req(`?period=${period}&workspace=${A}`), worldCtx(w));
+    const r = await kernel.load(ledgerIn(worldCtx(w)), campaignLedgerReport, { days, end: null });
+    assert.equal(JSON.stringify(r.data), JSON.stringify(page), `${period}: the route's payload, byte for byte`);
+    assert.deepEqual(Object.keys(page), ["timezone", "today", "end", "days", "series", "stuck"]);
+    assert.deepEqual([page.timezone, page.today, page.days], ["America/New_York", "2026-09-04", days]);
+    assert.deepEqual(r.rows, [], "drawn on the Reports page, whose row the report names");
+  }
+  await assert.rejects(
+    ledgerRoute.GET.run(req(`?period=14d&workspace=${A}`), worldCtx(w)),
+    (e) => e.status === 400,
+    "a period that is none of the four is refused at the door",
+  );
+});
+
+test("the Campaigns lens' ledger carries the series as the database gave it, judges what is stuck by the product's own rules at the turn's clock, and says the number's health from the channel's stored config", async () => {
+  const w = ledgerWorld();
+  const r = await kernel.load(ledgerIn(worldCtx(w)), campaignLedgerReport, LENS);
+  assert.deepEqual(r.data.series, ledgerAnswer({ p_days: 30 }), "the series, as the database gave it");
+
+  const health = numberHealthOfConfig(RED_CONFIG);
+  assert.deepEqual(
+    r.data.stuck,
+    {
+      ...STUCK_NOW,
+      number: {
+        state: "read",
+        tone: "danger",
+        can_send: false,
+        label: health.label,
+        checked_at: "2026-09-04T12:30:00.000Z",
+      },
+    },
+    "the world's stuck half, judged at its clock, with a red number beside it",
+  );
+  assert.equal(r.data.stuck.waiting.late, 1, "of the three runs waiting, only the one made for yesterday is refused");
+  assert.equal(r.data.stuck.number.tone, "danger");
+  assert.equal(r.data.stuck.number.can_send, false);
+
+  // The clock is the turn's: one minute past Harbor's midnight, the run made for Sep 4 is late as well.
+  const pastMidnight = new Date("2026-09-05T04:01:00Z");
+  const later = await kernel.load(ledgerIn(worldCtx(w), "viewer", pastMidnight), campaignLedgerReport, LENS);
+  assert.equal(later.data.stuck.waiting.late, 2, "judged at the turn's clock, in the workspace's zone");
+  assert.deepEqual(later.data.series, r.data.series, "the series is the database's, whatever the clock");
+
+  // A rating that is good, and a number Meta keeps standing against, are the gate's own words.
+  const green = { quality_rating: "GREEN", quality_at: "2026-09-03T08:00:00.000Z" };
+  const ok = await kernel.load(ledgerIn(worldCtx(ledgerWorld({}, numberOf(green)))), campaignLedgerReport, LENS);
+  assert.deepEqual(ok.data.stuck.number, {
+    state: "read",
+    tone: "ok",
+    can_send: true,
+    label: numberHealthOfConfig(green).label,
+    checked_at: "2026-09-03T08:00:00.000Z",
+  });
+
+  // The same good rating with Meta's standing against the number (BLOCKED, kept under the config's `standing`, 00338): the
+  // whole stored config reaches the rule, so the lens says the number cannot send, as the composer's gate refuses it.
+  const blocked = { ...green, standing: { can_send: "BLOCKED", problems: [], notes: [] } };
+  const stopped = await kernel.load(ledgerIn(worldCtx(ledgerWorld({}, numberOf(blocked)))), campaignLedgerReport, LENS);
+  assert.deepEqual(stopped.data.stuck.number, {
+    state: "read",
+    tone: "danger",
+    can_send: false,
+    label: numberHealthOfConfig(green).label,
+    checked_at: "2026-09-03T08:00:00.000Z",
+  });
+  assert.deepEqual(
+    [numberHealthOfConfig(blocked).tone, numberHealthOfConfig(blocked).canSend],
+    ["danger", false],
+    "and it is the rule's own answer for that config, not the rating's",
+  );
+});
+
+test("the Campaigns lens' ledger on a database that does not have its functions yet (00405, 00406 not applied) answers 200 -- without campaign_ledger `series: null`, the window it was asked and what is stuck; without campaign_stuck `stuck: null` -- each said once in the log; any other refusal is still the route's failure", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: LEDGER_NOW });
+  const noLedger = ledgerWorld({ campaign_ledger: ledgerGone });
+  const { result: page, lines } = await logged("campaign_ledger_missing", () =>
+    ledgerRoute.GET.run(req(`?workspace=${A}`), worldCtx(noLedger)),
+  );
+  assert.deepEqual(Object.keys(page), ["timezone", "today", "days", "series", "stuck"]);
+  assert.equal(page.series, null);
+  assert.deepEqual([page.timezone, page.today, page.days], ["America/New_York", "2026-09-04", 30]);
+  assert.deepEqual(page.stuck.waiting, STUCK_NOW.waiting, "what is stuck does not need the function");
+  assert.deepEqual(lines, [{ tenant_id: A }], "said once for the read, naming the workspace");
+
+  const { result: r } = await logged("campaign_ledger_missing", () =>
+    kernel.load(ledgerIn(worldCtx(noLedger)), campaignLedgerReport, LENS),
+  );
+  assert.deepEqual(r.data, page, "Ask's reader answers what the route does");
+
+  // Days that ended before today name their last day in the answer, as the window was asked.
+  const { result: ended } = await logged("campaign_ledger_missing", () =>
+    kernel.load(ledgerIn(worldCtx(noLedger)), campaignLedgerReport, { days: 20, end: "2026-08-31" }),
+  );
+  assert.deepEqual(
+    [ended.data.timezone, ended.data.today, ended.data.end, ended.data.days, ended.data.series],
+    ["America/New_York", "2026-09-04", "2026-08-31", 20, null],
+  );
+  assert.deepEqual(ended.data.stuck, r.data.stuck, "what is stuck is as of now, whichever days are asked");
+
+  // The zone is the workspace's (the turn's); one that cannot be read is the product's default, never the route's failure.
+  const auckland = {
+    ...noLedger,
+    tables: { ...noLedger.tables, tenants: [{ ...noLedger.tables.tenants[0], timezone: "Pacific/Auckland" }] },
+  };
+  const { result: nz } = await logged("campaign_ledger_missing", () =>
+    kernel.load(ledgerIn(worldCtx(auckland)), campaignLedgerReport, LENS),
+  );
+  assert.deepEqual(
+    [nz.data.timezone, nz.data.today],
+    ["Pacific/Auckland", "2026-09-05"],
+    "Harbor's own day, ahead of UTC",
+  );
+  const unzoned = worldCtx(auckland, { "tenants.select": { message: "tenants down" } });
+  const { result: lost } = await logged("campaign_ledger_missing", () =>
+    kernel.load(ledgerIn(unzoned), campaignLedgerReport, LENS),
+  );
+  assert.deepEqual([lost.data.timezone, lost.data.series], [DEFAULT_TIMEZONE, null]);
+  assert.notEqual(DEFAULT_TIMEZONE, "Pacific/Auckland");
+
+  // Without campaign_stuck as well: nothing stuck is said, once.
+  const neither = ledgerWorld({ campaign_ledger: ledgerGone, campaign_stuck: stuckGone });
+  const { result: bare, lines: bareLines } = await logged("campaign_stuck_missing", () =>
+    ledgerRoute.GET.run(req(`?workspace=${A}`), worldCtx(neither)),
+  );
+  assert.deepEqual(Object.keys(bare), ["timezone", "today", "days", "series", "stuck"]);
+  assert.deepEqual([bare.series, bare.stuck], [null, null]);
+  assert.deepEqual(bareLines, [{ tenant_id: A }], "the missing function is said once, and it is not a failure");
+  const { lines: bareLedger } = await logged("campaign_ledger_missing", () =>
+    ledgerRoute.GET.run(req(`?workspace=${A}`), worldCtx(neither)),
+  );
+  assert.deepEqual(bareLedger, [{ tenant_id: A }], "and the ledger's, once beside it");
+  // And with the ledger there: the window is the database's, and the stuck half is the one missing.
+  const noStuck = ledgerWorld({ campaign_stuck: stuckGone });
+  const { result: half } = await logged("campaign_stuck_missing", () =>
+    ledgerRoute.GET.run(req(`?workspace=${A}`), worldCtx(noStuck)),
+  );
+  assert.deepEqual(half.series, ledgerAnswer({ p_days: 30 }));
+  assert.equal(half.stuck, null);
+  assert.equal("stuck_failed" in half, false, "a function the database lacks is no failure");
+
+  // A different code is not this window: the route fails as it does for any read that cannot be made.
+  const denied = ledgerWorld({ campaign_ledger: refusedFunction("campaign_ledger") });
+  const unsaid = await logged("campaign_ledger_missing", async () => {
+    await assert.rejects(ledgerRoute.GET.run(req(`?workspace=${A}`), worldCtx(denied)), /permission denied/);
+  });
+  assert.deepEqual(unsaid.lines, [], "and the log does not call it the missing function");
+});
+
+test("the Campaigns lens' ledger: a function with no workspace is the route's 404 in its words, and a read that fails is its failure -- not found and could not read are two answers", async () => {
+  const unknown = ledgerWorld({ campaign_ledger: () => ({ error: "unknown_tenant" }) });
+  await assert.rejects(kernel.load(turnIn(worldCtx(unknown)), campaignLedgerReport, LENS), noReport);
+  await assert.rejects(ledgerRoute.GET.run(req(`?workspace=${A}`), worldCtx(unknown)), noReport);
+  // An answer short of a part the lens is made of is no answer either.
+  const short = ledgerWorld({ campaign_ledger: (a) => ({ ...ledgerAnswer(a), runs: null }) });
+  await assert.rejects(kernel.load(turnIn(worldCtx(short)), campaignLedgerReport, LENS), noReport);
+  const down = ledgerWorld({
+    campaign_ledger: () => {
+      throw new Error("connection refused");
+    },
+  });
+  const failed = /campaign_ledger: connection refused/;
+  await assert.rejects(kernel.load(turnIn(worldCtx(down)), campaignLedgerReport, LENS), failed);
+  await assert.rejects(ledgerRoute.GET.run(req(`?workspace=${A}`), worldCtx(down)), failed);
+});
+
+test("the Campaigns lens' ledger never fails for what is stuck: campaign_stuck failing, or answering what is no list of runs, replies and templates, leaves `stuck: null` and `stuck_failed: true` -- said once in the log with the workspace -- and the series is answered", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: LEDGER_NOW });
+  const down = ledgerWorld({
+    campaign_stuck: () => {
+      throw new Error("connection refused");
+    },
+  });
+  const { result: page, lines } = await logged("campaign_stuck_failed", () =>
+    ledgerRoute.GET.run(req(`?workspace=${A}`), worldCtx(down)),
+  );
+  assert.deepEqual(Object.keys(page), ["timezone", "today", "end", "days", "series", "stuck", "stuck_failed"]);
+  assert.equal(page.stuck, null);
+  assert.equal(page.stuck_failed, true);
+  assert.deepEqual(page.series, ledgerAnswer({ p_days: 30 }), "and the rest of the lens is answered");
+  assert.equal(lines.length, 1, "logged once, never fatal");
+  assert.equal(lines[0].tenant_id, A);
+  assert.match(lines[0].error, /campaign_stuck: connection refused/);
+
+  const { result: r } = await logged("campaign_stuck_failed", () =>
+    kernel.load(ledgerIn(worldCtx(down)), campaignLedgerReport, LENS),
+  );
+  assert.equal(JSON.stringify(r.data), JSON.stringify(page), "Ask's reader answers what the route does");
+
+  // An answer that is not the four lists (the database's own `{ error }`) is a failed read as well, and so is a refusal.
+  for (const stuck of [
+    () => ({ error: "unknown_tenant" }),
+    () => ({ ...NOTHING_STUCK, replies: [null] }),
+    refusedFunction("campaign_stuck"),
+  ]) {
+    const said = await logged("campaign_stuck_failed", () =>
+      kernel.load(ledgerIn(worldCtx(ledgerWorld({ campaign_stuck: stuck }))), campaignLedgerReport, LENS),
+    );
+    assert.deepEqual([said.result.data.stuck, said.result.data.stuck_failed], [null, true]);
+    assert.equal(said.lines.length, 1);
+    assert.deepEqual(said.result.data.series, ledgerAnswer({ p_days: 30 }));
+  }
+  const refused = await logged("campaign_stuck_missing", () =>
+    kernel.load(
+      ledgerIn(worldCtx(ledgerWorld({ campaign_stuck: refusedFunction("campaign_stuck") }))),
+      campaignLedgerReport,
+      LENS,
+    ),
+  );
+  assert.deepEqual(refused.lines, [], "a refusal is a failure, not the missing function");
+
+  // Nothing stuck is an answer: every list empty, which is a zero, and not a failure.
+  const quiet = await kernel.load(
+    ledgerIn(worldCtx(ledgerWorld({ campaign_stuck: () => NOTHING_STUCK }))),
+    campaignLedgerReport,
+    LENS,
+  );
+  assert.equal("stuck_failed" in quiet.data, false);
+  assert.equal(quiet.data.stuck.waiting.n, 0);
+});
+
+test("the Campaigns lens' ledger says the number apart from the rest: none with no active WhatsApp number, unread when the channels cannot be read -- said once in the log -- and when it was checked is the newest of the dates its config keeps", async () => {
+  const numberAt = async (channels) =>
+    (await kernel.load(ledgerIn(worldCtx(ledgerWorld({}, channels))), campaignLedgerReport, LENS)).data.stuck.number;
+  assert.deepEqual(await numberAt([]), { state: "none" });
+  assert.deepEqual(await numberAt(numberOf(RED_CONFIG, { status: "disabled" })), { state: "none" }, "a stopped number");
+  assert.deepEqual(await numberAt(numberOf(RED_CONFIG, { kind: "sms" })), { state: "none" }, "another wire");
+
+  const down = worldCtx(ledgerWorld(), { "tenant_channels.select": { message: "channels down" } });
+  const { result: r, lines } = await logged("campaign_number_failed", () =>
+    kernel.load(ledgerIn(down), campaignLedgerReport, LENS),
+  );
+  assert.deepEqual(r.data.stuck.number, { state: "unread" });
+  assert.deepEqual(
+    r.data.stuck.waiting,
+    STUCK_NOW.waiting,
+    "each half fails alone: the rest of what is stuck is answered",
+  );
+  assert.deepEqual(r.data.series, ledgerAnswer({ p_days: 30 }));
+  assert.equal(lines.length, 1);
+  assert.equal(lines[0].tenant_id, A);
+  assert.match(lines[0].error, /channels down/);
+
+  // When it was checked: the newest of the three dates that parse; a value that is no date is nothing.
+  const green = { quality_rating: "GREEN" };
+  for (const [config, checked] of [
+    [green, null],
+    [{ ...green, quality_at: "2026-09-03T08:00:00.000Z" }, "2026-09-03T08:00:00.000Z"],
+    [RED_CONFIG, "2026-09-04T12:30:00.000Z"],
+    [{ ...RED_CONFIG, quality_read_at: "2026-09-04T15:00:00.000Z" }, "2026-09-04T15:00:00.000Z"],
+    [{ ...RED_CONFIG, standing_read_at: "yesterday", quality_read_at: 5 }, "2026-09-03T08:00:00.000Z"],
+    [{ ...green, quality_read_at: "never", standing_read_at: null, quality_at: 0 }, null],
+  ]) {
+    const number = await numberAt(numberOf(config));
+    assert.equal(number.checked_at, checked, JSON.stringify(config));
+    assert.equal(number.tone, numberHealthOfConfig(config).tone);
+  }
+});
+
+test("the Campaigns lens' ledger asks the database what it was asked: campaign_ledger over the window, with its last day named only where it is not today, and campaign_stuck for the workspace alone, as of now", async () => {
+  const ctx = worldCtx(ledgerWorld());
+  const ended = await kernel.load(ledgerIn(ctx), campaignLedgerReport, { days: 20, end: "2026-08-31" });
+  assert.deepEqual(
+    ctx.supabase.seen.filter((q) => q.rpc),
+    [
+      { rpc: "campaign_ledger", args: { p_tenant_id: A, p_days: 20, p_end: "2026-08-31" } },
+      { rpc: "campaign_stuck", args: { p_tenant_id: A } },
+    ],
+    "the database counts the 20 days to the 31st, and what is stuck is asked of no window",
+  );
+  assert.deepEqual([ended.data.end, ended.data.days], ["2026-08-31", 20]);
+  const live = await kernel.load(ledgerIn(worldCtx(ledgerWorld())), campaignLedgerReport, LENS);
+  assert.deepEqual(ended.data.stuck, live.data.stuck, "what is stuck is the same as of now, whichever days are asked");
+
+  const today = worldCtx(ledgerWorld());
+  await kernel.load(ledgerIn(today), campaignLedgerReport, LENS);
+  assert.deepEqual(
+    today.supabase.seen.filter((q) => q.rpc),
+    [
+      { rpc: "campaign_ledger", args: { p_tenant_id: A, p_days: 30 } },
+      { rpc: "campaign_stuck", args: { p_tenant_id: A } },
+    ],
+    "a period names no last day",
+  );
+});
+
+test("the Campaigns lens' ledger reads each of its things once in a turn: the series, what is stuck and the channels; a turn that keeps (Ask) reads them again, for what is stuck is judged at its own clock", async () => {
+  const ctx = worldCtx(ledgerWorld());
+  const rc = ledgerIn(ctx);
+  await kernel.load(rc, campaignLedgerReport, LENS);
+  await kernel.load(rc, campaignLedgerReport, LENS);
+  for (const q of ["rpc:campaign_ledger", "rpc:campaign_stuck", "tenant_channels.select"])
+    assert.equal(asked(ctx).filter((x) => x === q).length, 1, `${q}: once`);
+
+  assert.equal(campaignLedgerReport.ttlMs, undefined, "a route reads it fresh, and a turn keeps its own");
+  const keeps = () =>
+    kernel.readerContext(worldCtx(ledgerWorld()), { tenantId: A, role: "viewer" }, LEDGER_CLOCK, { keep: true });
+  const [first, next] = [keeps(), keeps()];
+  for (const turn of [first, next]) await kernel.load(turn, campaignLedgerReport, LENS);
+  assert.deepEqual(
+    [first, next].map((turn) => turn.ctx.supabase.seen.filter((q) => q.rpc === "campaign_stuck").length),
+    [1, 1],
+    "the next turn read it too",
+  );
+});
+
+test("the Campaigns lens' ledger is the workspace's, not the member's: the same answer for a viewer, an owner and the teammate whose thread is among the replies", async () => {
+  const w = ledgerWorld();
+  const viewer = await kernel.load(ledgerIn(worldCtx(w)), campaignLedgerReport, LENS);
+  const owner = await kernel.load(
+    kernel.readerContext({ ...worldCtx(w), userId: "u2" }, { tenantId: A, role: "owner" }, LEDGER_CLOCK),
+    campaignLedgerReport,
+    LENS,
+  );
+  const teammate = await kernel.load(
+    kernel.readerContext({ ...worldCtx(w), userId: "user-teammate" }, { tenantId: A, role: "operator" }, LEDGER_CLOCK),
+    campaignLedgerReport,
+    LENS,
+  );
+  assert.equal(JSON.stringify(owner.data), JSON.stringify(viewer.data));
+  assert.equal(JSON.stringify(teammate.data), JSON.stringify(viewer.data));
+  assert.equal(
+    viewer.data.stuck.replies.n,
+    2,
+    "the teammate's own thread is no one's but the teammate's; two wait on a person",
+  );
 });
 
 /* ----------------------------------------------------------------------- the openings (PR 1.5) */
@@ -3354,6 +4086,10 @@ const PEOPLE_ASKED_AT_MAIN = [
   // 3 Oct 2026: the channels the follow-up ticks (db playbookChannels), beside its template: the number and Meta's
   // approval stop only a follow-up that goes by WhatsApp.
   ["playbooks.select", "channels"],
+  // 11 Oct 2026 (0002's readers): the record over the feed's season, joined to it: a booking's rows whole, and the
+  // feed's rows as ids and statuses by key (db visitsOver).
+  ["appointments.select", "*"],
+  ["appointments.select", "id, status, external_id, starts_at"],
   ["templates.select", MESSAGE_ROWS_ASKED],
   ["tenants.select", "timezone"],
   ["tenants.select", "timezone"],
@@ -3394,6 +4130,10 @@ const PEOPLE_ASKED_NOW = [
   ["rpc:contact_seen", null],
   ["rpc:team_roster", null],
   ["playbooks.select", "channels"],
+  // 11 Oct 2026 (0002's readers): the record over the feed's season, joined to it: a booking's rows whole, and the
+  // feed's rows as ids and statuses by key (db visitsOver).
+  ["appointments.select", "*"],
+  ["appointments.select", "id, status, external_id, starts_at"],
   ["templates.select", MESSAGE_ROWS_ASKED],
   ["tenants.select", "timezone"],
   ["tenants.select", "timezone"],
@@ -3409,6 +4149,14 @@ const PEOPLE_ASKED_NOW = [
     "broadcast_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id",
   ],
 ];
+/**
+ * The record's reads beside the rest (0002's readers): a reader asks for the record beside the feed, so where its two
+ * reads land among the others is the stand-in's to say. The others in their order, and the record's apart.
+ */
+const recordApart = (asked) => {
+  const isRecord = (q) => (Array.isArray(q) ? q[0] : q) === "appointments.select";
+  return [asked.filter((q) => !isRecord(q)), asked.filter(isRecord)];
+};
 /** A list of queries as a bag: the same reads, whatever their order. */
 const bagOf = (asked) => asked.map((q) => JSON.stringify(q)).sort();
 /** Every query in the order it reached the database, with the columns a select asked for. */
@@ -3427,11 +4175,11 @@ test("GET contacts through its reader asks what it asked at origin/main -- the p
     const w = peopleWorld();
     const routed = worldCtx(w);
     const page = await contactsRoute.GET.run(req(`?workspace=${A}`), routed);
-    assert.deepEqual(askedWith(routed), want, "the workspace's door, then the reads");
+    assert.deepEqual(recordApart(askedWith(routed)), recordApart(want), "the workspace's door, then the reads");
     const ctx = worldCtx(w);
     const r = await kernel.load(turnIn(ctx), peopleReader, { q: null, offset: 0 });
     assert.deepEqual(r.data, page, "the route's payload");
-    assert.deepEqual(askedWith(ctx), want.slice(1));
+    assert.deepEqual(recordApart(askedWith(ctx)), recordApart(want.slice(1)));
     // What each read was for, in the payload: Ana's visit from the feed, who each step is for, the pace, the follow-up.
     const [ana, luis] = r.data.people;
     assert.deepEqual(
@@ -3449,16 +4197,18 @@ test("GET contacts through its reader asks what it asked at origin/main -- the p
     const s = await kernel.load(turnIn(searched), peopleReader, { q: "luis", offset: 0 });
     assert.deepEqual([s.data.deal_pace, s.data.follow_up], [null, null]);
     assert.deepEqual(
-      askedWith(searched),
-      want
-        .slice(1)
-        .filter(
-          ([k, cols]) =>
-            !/^(playbooks|tenant_channels|lines|templates|broadcasts|broadcast_recipients)\./.test(k) &&
-            !(k === "deals.select") &&
-            !(k === "policies.select" && cols === "mode") &&
-            !(k === "tenants.select" && /^(status|timezone)$/.test(cols)),
-        ),
+      recordApart(askedWith(searched)),
+      recordApart(
+        want
+          .slice(1)
+          .filter(
+            ([k, cols]) =>
+              !/^(playbooks|tenant_channels|lines|templates|broadcasts|broadcast_recipients)\./.test(k) &&
+              !(k === "deals.select") &&
+              !(k === "policies.select" && cols === "mode") &&
+              !(k === "tenants.select" && /^(status|timezone)$/.test(cols)),
+          ),
+      ),
       "the same, less the pace and the follow-up",
     );
     // A turn that already holds the zone, the settings and how the customers buy is asked for none of them again.
@@ -3475,8 +4225,8 @@ test("GET contacts through its reader asks what it asked at origin/main -- the p
     assert.deepEqual(heldWant[roster + 1], ["playbooks.select", "channels"]);
     heldWant.splice(roster, 2, heldWant[roster + 1], heldWant[roster]);
     assert.deepEqual(
-      askedWith(turn.ctx).slice(held),
-      heldWant,
+      recordApart(askedWith(turn.ctx).slice(held)),
+      recordApart(heldWant),
       "the page, the steps, the pace and the follow-up's own reads: the zone, the settings and sells_by were the turn's",
     );
   });
@@ -3859,11 +4609,10 @@ test("the audience pool, for Ask: everyone with their appointments for the membe
     const held = turn.ctx.supabase.seen.length;
     assert.equal(kernel.load(turn, audiencePoolReader, undefined), kernel.load(turn, audiencePoolReader, undefined));
     await kernel.load(turn, audiencePoolReader, undefined);
-    assert.deepEqual(asked(turn.ctx).slice(held), [
-      "tenant_channels.select",
-      "lines.select",
-      "rpc:people_list",
-      "policies.select",
+    assert.deepEqual(recordApart(asked(turn.ctx).slice(held)), [
+      ["tenant_channels.select", "lines.select", "rpc:people_list", "policies.select"],
+      // The record over the feed's season (0002's readers): a booking's rows, and the feed's rows by key.
+      ["appointments.select", "appointments.select"],
     ]);
     // The settings are read only where the pool's calendar lookup would read them: one that fails costs the visits,
     // said once in the log, as server/people/audience.ts's own lookup costs them -- never the pool.
@@ -4126,6 +4875,10 @@ const PLAYBOOKS_ASKED_AT_MAIN = [
   ["policies.select", "subject_type, subject_id, mode"],
   ["tenants.select", "name, timezone"],
   ["tenant_config.select", "config"],
+  // 11 Oct 2026 (0002's readers): the record over the feed's season, beside it: a booking's rows whole, and the feed's
+  // rows as ids and statuses by key (db visitsOver).
+  ["appointments.select", "*"],
+  ["appointments.select", "id, status, external_id, starts_at"],
   ["deals.select", "id, contact_id, proposed_at"],
   ["tenants.select", "timezone"],
   ["broadcasts.select", "id, playbook_id, state, scheduled_for, created_at, run_for, params"],
@@ -4161,7 +4914,7 @@ test("GET playbooks through its reader asks what it asked at origin/main, in its
     // (server/campaigns/channels-ready.ts) with its first reads: the WhatsApp number's config and the texting line (no email
     // domain is set here, so no mailbox).
     for (const q of want) if (q[0] === "playbooks.select") q[1] += ", channels";
-    // 11 Oct 2026 (00395): and each one's last day and the end of its trial, which Campaigns' home says as its state.
+    // 11 Oct 2026 (00409): and each one's last day and the end of its trial, which Campaigns' home says as its state.
     for (const q of want) if (q[0] === "playbooks.select") q[1] += ", until, trial_until";
     // 4 Oct 2026: and whether the workspace is paused (tenants.status, db workspacePaused), which the composers and the
     // Campaigns home say instead of a time; read with the channels, for the pages that compose or promise a run.
@@ -4394,7 +5147,7 @@ const forwardedWorld = () => ({
 });
 /**
  * What GET settings asks of the database, after the workspace's door, in its order: what it asked at origin/main, and
- * the listing's review link (db reviewLinkOf, 00394) read beside the platform's facts.
+ * the listing's review link (db reviewLinkOf, 00408) read beside the platform's facts.
  */
 const SETTINGS_ASKED = [
   "tenant_config.select",
@@ -4497,7 +5250,7 @@ test("the settings read, for Ask and for the page: GET settings answers its read
   );
   assert.deepEqual(asked(routed), ["memberships.select", ...SETTINGS_ASKED], "the workspace's door, then the reads");
   assert.deepEqual(asked(ctx), SETTINGS_ASKED);
-  // The listing keeps a review link (00394): the composers offer it to a review-link slot, and the review ask with it.
+  // The listing keeps a review link (00408): the composers offer it to a review-link slot, and the review ask with it.
   const reviewed = () => ({
     ...forwardedWorld(),
     google_listings: [rows.googleListing({ tenant_id: A, new_review_uri: "https://example.com/review/harbor" })],
@@ -4881,6 +5634,8 @@ test("the channels, for the page and for Ask: GET channels answers its reader's 
     "quality_at",
     "standing",
     "standing_read_at",
+    // When the number first connected (#1541), which the toast and the row try its link by.
+    "connected_at",
   ]);
   // When each last heard from a customer: WhatsApp's last inbound message, the line's last inbound call.
   const heard = channelsWorld({

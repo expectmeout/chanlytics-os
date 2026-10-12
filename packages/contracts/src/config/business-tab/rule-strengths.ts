@@ -15,7 +15,6 @@
  * This module holds the rules fold: how far each rule goes, what the row says at rest, and the one sentence for
  * a record whose details compose nothing. The other folds' words are its neighbours in this folder.
  */
-import { offersBookingLink } from "../no-booking-link";
 import { GUARDRAIL_KEYS, type GuardrailKey, type GuardrailsInForce } from "../workspace-config/config-rules";
 import { NO_FIELDS_COMPOSED_WORDS } from "../workspace-config/resolve";
 
@@ -76,31 +75,31 @@ export interface RuleStrengthVM {
 const STRENGTHS: Record<GuardrailKey, RuleStrengthVM> = /* @__PURE__ */ (() => ({
   never_confirm_booking: {
     strength: "structural",
-    chip: "It cannot anyway",
-    sentence:
-      "Nothing in this product can create, move or cancel an appointment. Switching this off would not let it book — it would only stop it being told not to claim it had.",
+    chip: "Built in",
+    sentence: "It can't book, move or cancel an appointment anyway. Off only stops it being told not to claim it did.",
     checkedOn: null,
   },
   never_quote_prices: {
     strength: "checked",
-    chip: "Checked, not just told",
+    chip: "Checked",
     // The sentence says the rule. `checkedOn` says how it lands per channel, and the
     // page draws both -- so the sentence must not say the channels too, or an owner
     // reads the same fact twice, once in prose and once in the two boxes under it.
     // Dollars and pesos are what `violatesNoPrices` knows. "A currency figure" promised
     // more: forty-five euros, or a pound sign, would pass it untouched.
     //
-    // The owner's decision (20 Sep 2026): a receptionist never states a price, whatever
-    // this switch says. The detectors (violatesNoPrices on a chat reply, spokenBreach on a
-    // call) run either way; the switch adds or removes the one prompt line that tells it
-    // not to quote one. So the sentence cannot say the switch turns the checking on.
+    // Decision 0051 (11 Oct 2026) reversed the owner's 20 Sep decision that a receptionist never states a price
+    // whatever this switch says: off now lets it say the prices the owner wrote (priceAllowance), and only those. The
+    // detectors (priceBreach on a chat reply, spokenBreach on a call) read every reply either way, so the sentence
+    // names what is always true: a price nobody wrote never goes out. Switch-agnostic, so ruleStrength keeps its
+    // one-argument shape; the switch's own state is said by rulesKept and the fold's list.
     sentence:
-      "A detector reads every reply for a price in dollars or pesos whether this switch is on or off, and it offers a consult or the booking link instead. On, it is also told not to quote one.",
+      "Every reply is checked for a price in dollars or pesos. On, it says none; off, it may say the ones you've written, and any other is swapped out.",
     checkedOn: [
       {
         channel: "whatsapp",
         label: channelOpens("whatsapp"),
-        words: "The words are swapped before the customer sees them. A draft sits in between.",
+        words: "a price it may not say is swapped out before the customer sees it.",
       },
       {
         channel: "voice",
@@ -109,22 +108,24 @@ const STRENGTHS: Record<GuardrailKey, RuleStrengthVM> = /* @__PURE__ */ (() => (
         // still being delivered, and with that switched off on the agent the same check runs on the final transcript
         // and the owner is told after the fact instead (policy.ts). "Degrading is the point", and the line degrades
         // with it rather than promising the better half of it.
-        words:
-          "It has already been heard. You are told either way, and a correction goes into the call itself whenever it can still be reached.",
+        words: "it was already heard. You're told, and it corrects itself if the caller is still on.",
       },
     ],
   },
+  // Always on (decision 0051): the usage policy of the model it runs on asks every consumer-facing agent to say it is
+  // AI, so this is no longer a switch (ALWAYS_TOLD). Told, and nothing checks the answer: there is no clean signal to
+  // check against, since the phrase that would catch a denial also catches the correct disclosure.
   disclose_ai: {
     strength: "instructed",
-    chip: "Told, and trusted",
+    chip: "Told",
     sentence:
-      "A line in what it reads, and nothing checks the answer afterwards. There is no clean signal to check against: the phrase that would catch a denial also catches the correct disclosure.",
+      "People should know who they're talking to. A call's greeting says it; in text it opens a new conversation saying so, and says it whenever asked. Nothing checks its answer.",
     checkedOn: null,
   },
   no_health_advice: {
     strength: "instructed",
-    chip: "Told, and trusted",
-    sentence: "Skin reactions, allergies, pregnancy, medication — a professional advises at the appointment.",
+    chip: "Told",
+    sentence: "A professional advises at the appointment. It's told this, and nothing checks its answer.",
     checkedOn: null,
   },
 }))();
@@ -151,8 +152,7 @@ export const VISION_STRENGTH: RuleStrengthVM = /* @__PURE__ */ (() => ({
   // Two clauses, one per position, and nothing else. "The rules above are limits; this one gives it an ability, so
   // it starts off" went: the dashed rule above the switch says it is apart, the badge beside it says it is a power,
   // and the switch itself says it is off -- three sayings of one thing, and four lines of a phone.
-  sentence:
-    "On, it says what it sees and suggests the next step, under the rules above. Off, a photo goes to a person.",
+  sentence: "Off, photos go to a person.",
   checkedOn: null,
 }))();
 
@@ -160,6 +160,15 @@ export const VISION_STRENGTH: RuleStrengthVM = /* @__PURE__ */ (() => ({
  * The short name the row at rest says each rule by (the canvas's Record board). Not the switch's label, which is an
  * instruction to the receptionist ("Never quote or confirm a price"); this is what the receptionist does.
  */
+/**
+ * The rules that are not switches: said to every prompt, composed or stored, whatever a row stores (compose.ts
+ * standingRules). The fold draws them without a switch and names them at rest always (decision 0051).
+ */
+export const ALWAYS_TOLD: ReadonlySet<GuardrailKey> = new Set<GuardrailKey>(["disclose_ai"]);
+
+/** The price rule at rest while it is off: what it may say, not what it never says (decision 0051). */
+const PRICES_WRITTEN_WORDS = "Says only the prices you wrote";
+
 export const RULES_AT_REST_WORDS: Record<GuardrailKey, string> = {
   never_quote_prices: "Never quotes a price",
   never_confirm_booking: "Never confirms a booking",
@@ -221,9 +230,10 @@ export function rulesKept(i: RulesKeptInputs): string[] {
   const kept: string[] = [];
   for (const key of GUARDRAIL_KEYS) {
     const { strength } = ruleStrength(key);
-    // A line it actually reads: the switch on, over a record the resolver composes from.
-    const told = i.composes && rules[key];
-    if (strength === "checked" || told) kept.push(RULES_AT_REST_WORDS[key]);
+    // A line it actually reads: the switch on, over a record the resolver composes from; or a rule every prompt carries.
+    const told = (i.composes && rules[key]) || ALWAYS_TOLD.has(key);
+    if (key === "never_quote_prices" && !rules[key] && i.composes) kept.push(PRICES_WRITTEN_WORDS);
+    else if (strength === "checked" || told) kept.push(RULES_AT_REST_WORDS[key]);
     else if (strength === "structural") kept.push(CANNOT_BOOK_WORDS);
   }
   kept.push(i.vision ? PHOTOS_AT_REST_WORDS.on : PHOTOS_AT_REST_WORDS.off);
@@ -246,16 +256,33 @@ export function rulesKept(i: RulesKeptInputs): string[] {
  * Built inside a call marked pure, as STRENGTHS is: a template literal with a substitution in it is an
  * expression the bundler must keep at the top level, and this sentence belongs to one tab of the dashboard.
  */
-const rulesWithoutFields = (noLink: boolean): string =>
-  `${NO_FIELDS_COMPOSED_WORDS} These four switches change nothing it is told: it answers from its own stored instructions, followed only by ${noLink ? "what to do with no booking link and " : ""}any rules your Autonomy tab adds.`;
-export const RULES_WITHOUT_FIELDS_WORDS = /* @__PURE__ */ (() => rulesWithoutFields(false))();
-const RULES_WITHOUT_FIELDS_NO_LINK_WORDS = /* @__PURE__ */ (() => rulesWithoutFields(true))();
+export const RULES_WITHOUT_FIELDS_WORDS = /* @__PURE__ */ (() =>
+  `${NO_FIELDS_COMPOSED_WORDS} Until they are, it isn't told these rules, only that it is an automated assistant.`)();
 
 /**
- * RULES_WITHOUT_FIELDS_WORDS for the record it is said of. A receptionist with no booking link is told what to do
- * instead, first among the rules after its stored prompt (config.ts resolveSystemPrompt), so the sentence names that
- * rule too, by the resolver's own test (offersBookingLink).
+ * RULES_WITHOUT_FIELDS_WORDS, as the rules' sheet asks for it. It once named, for a receptionist with no booking link, the
+ * rule it is told about that first; one line now says only what an owner can change, which is the details (Ruben, 10 Oct
+ * 2026: the sheets "too wordy, too explanatory").
  */
-export function rulesWithoutFieldsWords(brain: { booking_link?: string | null } | null | undefined): string {
-  return offersBookingLink(brain) ? RULES_WITHOUT_FIELDS_WORDS : RULES_WITHOUT_FIELDS_NO_LINK_WORDS;
+export function rulesWithoutFieldsWords(): string {
+  return RULES_WITHOUT_FIELDS_WORDS;
+}
+
+/** How many of the amounts it may say the rules fold names before it counts the rest. */
+const PRICES_NAMED = 6;
+
+/**
+ * What the rules fold says under "Never quote a price" while it is off (decision 0051): the amounts the receptionist may
+ * say and where the owner wrote each, so the switch's reach is read, not guessed; or that there are none yet. Null on a
+ * record whose details compose nothing, where the fold already says so (rulesWithoutFieldsWords).
+ */
+export function pricesWrittenWords(list: readonly { figure: string; from: string }[] | null): string | null {
+  if (!list) return null;
+  if (!list.length) return "You haven't written a price yet. Add one to a service, and it may say it.";
+  const named = list
+    .slice(0, PRICES_NAMED)
+    .map((p) => `${p.figure} (${p.from})`)
+    .join(", ");
+  const more = list.length > PRICES_NAMED ? ` and ${list.length - PRICES_NAMED} more` : "";
+  return `It may say ${named}${more}, as you wrote them. Any other price is swapped out.`;
 }

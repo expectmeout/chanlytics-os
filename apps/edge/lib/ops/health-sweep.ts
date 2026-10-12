@@ -38,7 +38,7 @@ import {
 } from "../email/mail-domain.js";
 import { campaignsDomain } from "../email/campaigns-domain.js";
 import { coldReplyDomains, emailDomain } from "../email/email.js";
-import { watchAnswerSilence } from "./answer-silence.js";
+import { watchAnswerSilence, watchTargets } from "./day-watch.js";
 import { watchModels } from "./model-watch.js";
 import { env } from "../env.js";
 import type { SweepTick } from "./sweep-door.js";
@@ -159,6 +159,8 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
 
   // Workspaces whose customers wrote all day and got no answer from anyone (00277), paged once per silent day.
   const answerSilent = await watchAnswerSilence(db, Date.now());
+  // The day's numbers past the targets the platform answers for (decision 0031, invariant 12), paged once per day.
+  const pastTargets = await watchTargets(db, Date.now());
   // A workspace whose model keeps failing, paged once per window; the usage ledger's old rows removed.
   const models = await watchModels(db);
 
@@ -170,6 +172,7 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
     mail_domain: mail.trouble?.kind ?? mail.skipped ?? (mail.error ? "unreadable" : "ok"),
     cold_reply_trouble: coldTrouble,
     answer_silent: answerSilent,
+    past_targets: pastTargets,
     model_failures_paged: models.paged,
     ai_usage_purged: models.purged,
   });

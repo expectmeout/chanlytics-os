@@ -124,20 +124,13 @@ export const plVisitStart = (hours: string): string => {
   return meridiem ? `${start} ${meridiem[0]}` : start;
 };
 
-/** A phone sheet's draft of Add a person and of a list's name and words: the page's state. */
-export interface AddDraft {
-  name: string;
-  phone: string;
-  busy: boolean;
-  error: string | null;
-}
+/** A phone sheet's draft of a list's name and words: the page's state. */
 export interface ListDraft {
   name: string;
   busy: boolean;
   error: string | null;
   mode?: string;
 }
-export const PL_ADD_EMPTY: AddDraft = { name: "", phone: "", busy: false, error: null };
 export const PL_LIST_EMPTY: ListDraft = { name: "", busy: false, error: null };
 /** How a yes was given, as a phone's Record a yes draws it: a person, a phone, a form. */
 export const PL_SOURCE_GLYPH: Record<string, string> = { in_person: "user", phone: "phone", form: "content" };

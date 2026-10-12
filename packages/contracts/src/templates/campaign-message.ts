@@ -350,8 +350,13 @@ export const STARTER_LINE_WORDS = {
       ? "has its WhatsApp version in review — it appears here once approved, usually within minutes."
       : `has its WhatsApp version ${WHATSAPP_STANDING_WORDS[at]} — see ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library}.`;
   },
-  /** The link that adds the moment's own message: its email and text versions at once, a WhatsApp version where a number is. */
-  add: "Add it — its email and text versions are written at once, and where a number is connected WhatsApp reviews its WhatsApp version, usually within minutes",
+  /**
+   * The link that adds the moment's own message: its email and text versions at once, a WhatsApp version where a number
+   * is, which the line says once it is in review (`standing`). The link was the whole of that, in 25 words.
+   */
+  add: "Add it",
+  /** After the moment's own message's name, where it is not added yet: "Win-back, written for you". */
+  written: "written for you",
 } as const;
 
 /**

@@ -90,7 +90,7 @@ const ASK_TEXT = {
     openIt: "Open it",
     openComposer: "Open in the composer",
     tryAgain: "Try again",
-    priceNote: "This looks like a price. The receptionist never quotes one; you may.",
+    priceNote: "This looks like a price. The receptionist says only the prices your settings allow; you may say any.",
     windowNote: "Their 24-hour window is closed — only an approved template can be sent. Open the thread to pick one.",
     // A plan's group (ask-turn.jsx AskPlan, contracts planGroupOf): a step's head, the one press for the steps that send
     // nothing, what a send waits for in its Approve's place, and WhatsApp's review of the message a step writes.
@@ -182,7 +182,7 @@ const ASK_TEXT = {
     openIt: "Abrirlo",
     openComposer: "Abrir en el redactor",
     tryAgain: "Reintentar",
-    priceNote: "Parece un precio. La recepcionista nunca los da; tú sí puedes.",
+    priceNote: "Parece un precio. La recepcionista solo da los precios que permite tu configuración; tú puedes dar cualquiera.",
     windowNote: "Su ventana de 24 horas está cerrada: solo se puede enviar una plantilla aprobada. Abre el hilo para elegir una.",
     stepOf: (n, of) => `Paso ${n} de ${of}`,
     approveSilent: (n) => (n === 1 ? "Aprobar el paso silencioso" : `Aprobar los ${n} pasos silenciosos`),

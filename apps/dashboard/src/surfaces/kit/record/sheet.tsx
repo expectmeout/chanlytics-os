@@ -53,7 +53,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { MouseEvent, ReactNode, RefObject } from "react";
 import { Icon } from "../icon/icon";
-import { recKeys, recPhoneQuery, useRecFocusHold, useRecFocusOn } from "./focus";
+import { recKeys, recPhoneQuery, useRecFocusHold, useRecFocusOn, useRecPhone } from "./focus";
 import type { FocusOn } from "./focus";
 import { recPortalRoot } from "./leaving";
 import { RecordFoot } from "./says";
@@ -79,6 +79,9 @@ interface RecordSheetProps {
   gate?: Record<string, unknown> | null;
   footNote?: ReactNode;
   confirm?: ReactNode;
+  /** As tall as what it holds, up to the list's height, where it rises from the bottom: a few fields never open onto a
+   *  screen of blank (Settings' sheets, Ruben 10 Oct 2026). Left out, it stands at the list's height whatever it holds. */
+  fit?: boolean;
   children?: ReactNode;
 }
 
@@ -158,12 +161,13 @@ interface SheetHooks {
   hold: ReturnType<typeof useRecFocusHold>;
   closeRef: RefObject<(() => void) | null>;
   onEscape: (e: { key: string; defaultPrevented: boolean; preventDefault: () => void }) => void;
+  phone: boolean;
 }
 
 /** The wash and the sheet beside it: the wash's press is the sheet's Close, and nothing while a save is out. */
 function sheetNode(props: RecordSheetProps, h: SheetHooks) {
   const { id = null, className = "", testid = null, saving = false, onSave = null, gate = null } = props;
-  const { tools = null, children = null } = props;
+  const { tools = null, children = null, fit = false } = props;
   const titleId = id ? `rec-sheet-${id}-title` : undefined;
   const subId = id && props.sub ? `rec-sheet-${id}-sub` : undefined;
   const { title } = props;
@@ -184,6 +188,10 @@ function sheetNode(props: RecordSheetProps, h: SheetHooks) {
       <section
         ref={h.place}
         className={`rec-sheet${className ? ` ${className}` : ""}`}
+        // From the bottom, on a phone: kit.css draws its grabber, steps its ✕ out of sight beside a foot that closes,
+        // and, where the page asks it to fit, lets it be as tall as what it holds.
+        data-phone={h.phone ? "true" : undefined}
+        data-fit={fit ? "true" : undefined}
         role="dialog"
         aria-modal={true}
         aria-labelledby={titleId}
@@ -223,6 +231,7 @@ function sheetNode(props: RecordSheetProps, h: SheetHooks) {
 /** A list you scroll, in room of its own beside the page (from the bottom, on a phone). */
 export function RecordSheet(props: RecordSheetProps) {
   const { onClose, focusOn = null, saving = false } = props;
+  const phone = useRecPhone();
   const closeRef = useRef<(() => void) | null>(onClose);
   // Nothing cancels a save that is out: the save is on its way, and closes the sheet when the server takes it.
   closeRef.current = saving ? null : onClose;
@@ -267,5 +276,5 @@ export function RecordSheet(props: RecordSheetProps) {
     opener.current = null;
     if (back && back.focus && back.isConnected !== false) back.focus();
   }, []);
-  return portal(sheetNode(props, { place, hold, closeRef, onEscape }), recPortalRoot());
+  return portal(sheetNode(props, { place, hold, closeRef, onEscape, phone }), recPortalRoot());
 }

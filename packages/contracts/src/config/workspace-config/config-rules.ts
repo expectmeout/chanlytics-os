@@ -214,7 +214,9 @@ export function guardrailsInForce(g: StoredGuardrails | null | undefined): Guard
   return {
     never_quote_prices: g?.never_quote_prices !== false,
     never_confirm_booking: g?.never_confirm_booking !== false,
-    disclose_ai: g?.disclose_ai !== false,
+    // Always: the receptionist says it is an automated assistant whatever a row stores (decision 0051). The key stays
+    // in the schema so an open tab's rules save, which writes all four, is never refused by name.
+    disclose_ai: true,
     no_health_advice: g?.no_health_advice === true,
   };
 }

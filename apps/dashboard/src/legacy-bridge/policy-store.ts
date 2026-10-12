@@ -84,7 +84,7 @@ export const UI_ROWS: readonly UiRowMeta[] = [
     cls: "faq",
     ...W("faq"),
     hints: {
-      Auto: "answers from your business profile — never a price",
+      Auto: "answers from your business profile — a price only as your settings allow",
       Ask: "tells them a person will get back with the details, and lands the thread in Needs you",
     },
   },

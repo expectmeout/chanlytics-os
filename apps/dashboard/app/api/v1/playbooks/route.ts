@@ -31,8 +31,8 @@ import { playbooks } from "@/server/readers/playbooks";
  *      carries (texts carry no offers) is refused here, and one the workspace
  *      is not ready on is not (a run holds the people it cannot reach there).
  *      `trial_until`, an instant with its zone, starts it on trial until then
- *      (00395, D5: Ask's card under an auto class), judged as a change's is;
- *      `until`, YYYY-MM-DD, is its last day (00395: Ask's plan, an offer's
+ *      (00409, D5: Ask's card under an auto class), judged as a change's is;
+ *      `until`, YYYY-MM-DD, is its last day (00409: Ask's plan, an offer's
  *      campaign), today or later by the business's clock, judged as a
  *      change's is.
  *

@@ -173,7 +173,7 @@ export interface BroadcastBatchPorts {
    */
   message(name: string, language: string): Promise<MessageVersionRow[]>;
   /**
-   * The workspace's own words for the slots that name it (its review link the one its Google listing keeps, 00394), and
+   * The workspace's own words for the slots that name it (its review link the one its Google listing keeps, 00408), and
    * its clock (IANA zone), which the sending hours are kept by; and the postal address its emails' foot gives (the
    * Business record's), null when it has none.
    */

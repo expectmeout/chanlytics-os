@@ -111,17 +111,28 @@ const EVERY_CLOCK = {
   purge_provider_events: "purge-provider-events",
   // The keys writes were answered under (00340): nightly, a day on, judged by its run.
   purge_idempotency_keys: "purge-idempotency-keys",
+  // A review the mirror has not seen for its days, and a closed invitation (00392): nightly, judged by their runs.
+  purge_google_reviews: "purge-google-reviews",
+  purge_invitations: "purge-invitations",
+  // The receptionist's kept turns and the prompts they read (00401): nightly, thirty days on, judged by its run.
+  purge_model_turns: "purge-model-turns",
+  // A workspace's old settings (00402): nightly, 400 days after a version is replaced, judged by its run.
+  purge_config_versions: "purge-config-versions",
 };
 const RUN_JUDGED = [
   "partitions",
   "pauses",
   "platform_metrics_roll",
   "purge_ask",
+  "purge_config_versions",
   "purge_cron_history",
   "purge_events",
+  "purge_google_reviews",
   "purge_idempotency_keys",
+  "purge_invitations",
   "purge_jobs",
   "purge_leads",
+  "purge_model_turns",
   "purge_notifications",
   "purge_page_vitals",
   "purge_provider_events",

@@ -8,8 +8,9 @@
  * the ACTIONS it may use, each tool built per role from them; PR 4.6 gave propose_person a note and a person's details
  * beside its mode, an operator's two beside an owner's one; PR 4.5 gave inbox its search; PR 4.7 added propose_list,
  * an operator's (twenty for an owner), gave propose_campaign a waiting run's approval (run), and made
- * propose_thread_verb's words true for every role; 9 Oct 2026 gave propose_campaign a change in place (change), and 10 Oct
- * 2026 a new message written for the Library (message). What the model is sent is frozen per role in
+ * propose_thread_verb's words true for every role; 9 Oct 2026 gave propose_campaign a change in place (change), 10 Oct
+ * 2026 a new message written for the Library (message) and 11 Oct 2026 an offer or a whole setup made into its cards
+ * (plan), and 11 Oct 2026 gave a list's rule a missed visit (missed_visit, decision 0002). What the model is sent is frozen per role in
  * fixtures/ask-tools-4-7.json, and every other tool reads to every role as fixtures/ask-tools-4-6.json froze it (which
  * PR 4.6 and PR 4.5 held to fixtures/ask-tools-4-3.json, and PR 4.3 to PR 3.4's, for the tools each did not change --
  * inbox too, less its search); the rest is held as structure: the order, the four prefixes, the flattened
@@ -103,10 +104,12 @@ const CHANGED = [
 /**
  * 6 Oct 2026 (decision 0030, a campaign counted by its channel): report says the Campaigns lens beside the Deals
  * section, and campaigns says a run's channels and that its read is a share of what went by WhatsApp. The one sentence
- * each, and nothing else either says.
+ * each, and nothing else either says. 11 Oct 2026 (Reports, the Campaigns lens, C4 T16): report says the lens as the page
+ * does, from the one fold (toCampaignLensVM), so its sentence names the new shape (the people sent to, the window's mixes,
+ * what is stuck now) in the old one's place; it still ends with the words the next sentence follows.
  */
 const REPORT_CAMPAIGNS_WORDS =
-  "the Deals section where deals are on, and the Campaigns lens: what the broadcasts and playbooks sent, delivered and had written back, who said yes or asked to stop, the sources that sent the most, and by_channel where more than one channel sent (read is a share of what went by WhatsApp alone: a text or an email keeps no read receipt); campaigns says error where its numbers could not be read.";
+  "the Deals section where deals are on, and the Campaigns lens, as the page says it: head is its sentence; figures are the people sent to, the share of the messages delivered, the share of those people who wrote back, and the yeses and stops after a campaign, each against the period before; funnel is what was sent, delivered, read (WhatsApp's alone) and answered, counted in messages (a person sent three is three messages here and one in figures); by_channel is the same by channel where more than one sent (read is a share of what went by WhatsApp alone: a text or an email keeps no read receipt); sources are the five that sent the most; window is the period's, from the database's ledger: held (who was held back, and why), runs_stopped (the runs that failed or were canceled), failed_sends (why sends failed after they left), by_message (who wrote back to each message), send_to_first_reply (how soon the first reply came) and wait_for_your_ok (how long approvals waited); stuck is what is stuck now, whatever period is picked: the runs waiting for your OK, the failed runs, the replies waiting on you, the messages Meta stopped and your WhatsApp number; a share is said only of five or more and a count under that, and a mix with nothing to draw says the page's words in empty; window is null where the database does not keep the ledger yet and stuck where it does not keep what is stuck, each with an error beside it where its read failed, and a part of window the database did not count is null too; campaigns says error where its numbers could not be read.";
 /**
  * 7 Oct 2026 (Reports phase C, lens 1, T4): report says the Reviews lens after the Campaigns lens: the one sentence, and
  * nothing else it says moved.
@@ -115,10 +118,11 @@ const REPORT_REVIEWS_WORDS =
   "campaigns says error where its numbers could not be read. The Reviews lens is in reviews: the sentence at its head and its figures as the page says them (the rating, the count, the reviews written against the period before) and, where the owner's Business Profile is connected, how many were answered and how fast, the mix of stars, and how many wait for a reply (held is how many of the oldest waiting hold a reply the receptionist wrote and did not post); reviews says linked false where no Google listing is linked, and error where its numbers could not be read. Call it for";
 /**
  * 9 Oct 2026 (a moment holds many campaigns, lane 2, task 6): report says the Reach-outs section after the Reviews lens,
- * through the page's own reader: the one sentence, and nothing else it says moved.
+ * through the page's own reader: the one sentence, and nothing else it says moved. 11 Oct 2026 (Reports, the Campaigns lens,
+ * C4 T16): and says it in businesses, as the page's new fold does (toReachOutLensVM): the sentence is replaced whole.
  */
 const REPORT_REACH_OUTS_WORDS =
-  "reviews says linked false where no Google listing is linked, and error where its numbers could not be read. The Reach-outs section is in reach_outs, as the page says it: how many emails the reach-outs wrote, how many were delivered and bounced, and how many businesses wrote back, were interested, booked, said no or were handed to the owner, with the funnel's sentence and the line on what was handed (empty says nothing was written); reach_outs is null where the workspace has no reach-out, and error where its numbers could not be read. Call it for";
+  "reviews says linked false where no Google listing is linked, and error where its numbers could not be read. The Reach-outs section is in reach_outs, as the page says it: strip is the emails the reach-outs wrote, the share that landed and the number that bounced, each against the period before; emails is what was written, delivered and bounced, counted in emails; businesses is the businesses written to and how many wrote back, were interested, booked or said no, counted in businesses as they stand now (each counts once, at the last email that wrote to it, and an outcome is set against nothing before); angles is who wrote back, as they stand now, by the opening of the last email; handed is the line on the businesses handed to the owner, null where none were, and empty says nothing was written; reach_outs is null where the workspace has no reach-out, and error where its numbers could not be read. Call it for";
 /**
  * 10 Oct 2026 (Reports, the Receptionist lens, C2 T13): report says the Receptionist lens after the Reach-outs section: the
  * one sentence, and nothing else it says moved. It opens with the end of the Reach-outs sentence it follows, which it
@@ -126,6 +130,13 @@ const REPORT_REACH_OUTS_WORDS =
  */
 const REPORT_RECEPTIONIST_WORDS =
   "reach_outs is null where the workspace has no reach-out, and error where its numbers could not be read. The Receptionist lens is in receptionist, as the page says it: what became of the replies held before they went out (hold), what customers asked about (topics), the languages the receptionist wrote in where it wrote in more than one, how the calls someone spoke on ended, the booking link and how many of the people it went to have booked since (link), your first reply after a handover and the time to settle one (handover), the missed calls answered within an hour (missed), what came while the business was closed and how many of those the receptionist answered (closed), and what is stuck now (stuck: who waits on you, call-backs, the replies held back), with held_back giving the reasons the send door refused a reply; receptionist says available false where the database does not keep these numbers yet, and error where they could not be read.";
+/**
+ * 10 Oct 2026 (Reports, the People lens, C3 T13): report says the People lens after the Receptionist lens: the one
+ * sentence, and nothing else it says moved. It opens with the end of the Receptionist sentence it follows, which it
+ * replaces whole.
+ */
+const REPORT_PEOPLE_WORDS =
+  "receptionist says available false where the database does not keep these numbers yet, and error where they could not be read. The People lens is in people, as the page says it: head is its sentence; window is the period, counted in people (one who wrote ten times is one): reached (who reached you, how many were new, the yeses won and the stops, each against the period before), channels (how they reached you), first_came (how the new ones first came), yeses and stops (who gave them), steps_done (the steps finished and how many on their day) and email_stopped (the addresses that stopped working); book is everyone as they stand now, whatever period is picked: wires (the ways they reach you), fresh (how long since they last wrote or called, with quiet saying how many have been quiet over 30 days), stuck (the steps overdue and due today, and the email that stopped working) and stand (how many said yes to messages, can receive offers, opted out or are quiet); a mix with nothing to draw says the page's words in empty; people says window null where the database does not keep the period's numbers yet, book null where the people could not be counted, available false where neither could be read, and error where they could not be read.";
 const RUN_CHANNEL_WORDS = [
   "how many were sent, the share of those delivered and read, and how many replied,",
   "how many were sent (sent_by_channel, where it went by more than one), the share of those delivered, the share of those sent by WhatsApp that were read (a text or an email keeps no read receipt), and how many replied,",
@@ -416,7 +427,7 @@ test("every role is offered exactly the actions it may use (D2): a tool with non
         assert.ok(usable(name, ROLES[i]).includes(a), `${name}.${a}: ${ROLES[i - 1]}'s, so ${ROLES[i]}'s`);
 });
 
-test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, propose_thread_verb, propose_autonomy (the modes a class takes), propose_settings (a note's last day), report (its reply times say the hold, and it says the Campaigns lens, the Reviews lens and the Receptionist lens), campaigns (a run's channels, a message where it said a template, the library whole and the journey) and calendar (the room in the book) reads to every role byte for byte as PR 4.6 and PR 4.5 sent it -- per tool, per role, with its examples and without -- and every tool they offered a role is offered it still", () => {
+test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, propose_thread_verb, propose_autonomy (the modes a class takes), propose_settings (a note's last day), report (its reply times say the hold, and it says the Campaigns lens, the Reviews lens, the Receptionist lens and the People lens), campaigns (a run's channels, a message where it said a template, the library whole and the journey) and calendar (the room in the book) reads to every role byte for byte as PR 4.6 and PR 4.5 sent it -- per tool, per role, with its examples and without -- and every tool they offered a role is offered it still", () => {
   const bare = ({ input_examples: _, ...t }) => t;
   for (const role of ROLES) {
     const was = new Map(TODAY[role].map((t) => [t.name, t]));
@@ -505,6 +516,10 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
         .replace(
           "reach_outs is null where the workspace has no reach-out, and error where its numbers could not be read.",
           REPORT_RECEPTIONIST_WORDS,
+        )
+        .replace(
+          "receptionist says available false where the database does not keep these numbers yet, and error where they could not be read.",
+          REPORT_PEOPLE_WORDS,
         ),
       role,
     );
@@ -610,7 +625,7 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
       [{ type: "string", enum: ["running", "paused"] }, { type: "number" }, { type: "number" }],
       `${role}: change's own three fields`,
     );
-    // 11 Oct 2026 (00395): and its last day and its trial's end, a null ending the trial; its words are params, the
+    // 11 Oct 2026 (00409): and its last day and its trial's end, a null ending the trial; its words are params, the
     // broadcast's and the playbook's, one shape.
     assert.deepEqual(
       [_u, _t].map(shapeOf),

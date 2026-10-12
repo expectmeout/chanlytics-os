@@ -40,17 +40,55 @@ export function handoffChatWords(i: { hasEscalateWhen: boolean; pauseHours: unkn
 export function transferWords(hasHandoffNumber: boolean): string {
   return hasHandoffNumber
     ? "During opening hours it rings the number you gave and stays on until someone picks up. Outside them, or if nobody answers, it takes a message."
-    : "No number yet, so it takes a message instead — which is better than a number nobody picks up.";
+    : "No number yet, so it takes a message.";
+}
+
+/** One of the hand-off's outcomes as a row of its sheet: what happens, and the condition or the detail under it. */
+export interface HandoffRowVM {
+  name: string;
+  sub: string;
 }
 
 /**
- * The hand-off on a call, under the hand-off row's reasons: what a transfer does, and that the reasons count there too.
- * They do: the composer writes them under the call's hand-off heading as it writes them under the chat's ("and
- * whenever:"). The canvas said the phone agent's own transfer kept the reasons from reaching it, which was not true.
+ * What a WhatsApp hand-off does, as one row of the hand-off's sheet (handoffChatWords says it as a sentence, for the
+ * abilities card): it stops, the thread turns Needs you, the alerts go to whoever the Notifications tab sets, and after
+ * the Autonomy reply row's pause it answers the next message itself. `pauseHours` is that row's stored pause_hours.
  */
-export function handoffCallWords(i: { hasHandoffNumber: boolean; hasEscalateWhen: boolean }): string {
-  return `${i.hasEscalateWhen ? "Your reasons reach a call too. " : ""}${transferWords(!!i.hasHandoffNumber)}`;
+export function handoffChatRow(pauseHours: unknown): HandoffRowVM {
+  const pause = heldFor(hardLimitsWords({ pause_hours: pauseHours }).hours);
+  return { name: "Stops and marks it Needs you", sub: `Sends your alerts · replies again after ${pause}` };
 }
+
+/** What a call does, as one row of the hand-off's sheet, with its door to the number's own row. */
+export interface HandoffCallRowVM extends HandoffRowVM {
+  /** The door's word, and its whole name for a screen reader. */
+  act: string;
+  actName: string;
+}
+
+/**
+ * What a call does with a caller who needs a person, as one row of the hand-off's sheet (transferWords as a sentence):
+ * during opening hours it rings the number and stays on until someone picks up, else it takes a message; with no number,
+ * a message always. The owner's reasons reach a call too, under the call's own hand-off heading ("and whenever:").
+ * `transfer` is the number as the page shows it.
+ */
+export function handoffCallRow(transfer: string | null | undefined): HandoffCallRowVM {
+  const number = typeof transfer === "string" ? transfer.trim() : "";
+  return number
+    ? {
+        name: `Rings ${number}`,
+        sub: "In opening hours, otherwise takes a message",
+        act: "Change",
+        actName: "Change the transfer number",
+      }
+    : { name: "Takes a message", sub: "No transfer number", act: "Add one", actName: "Add a transfer number" };
+}
+
+/**
+ * Who is handed over without a reason of the owner's: the composer's own triggers on both channels (a person asked
+ * for, someone upset, a question its instructions do not cover). The tip beside the reasons' box.
+ */
+export const HANDOFF_ANYWAY = "Anyone who asks for a person, or needs help it can't give, is handed over too.";
 
 /** The hand-off row at rest, and what a call does, which its fold says under Phone. */
 export interface HandoffWordsVM {
