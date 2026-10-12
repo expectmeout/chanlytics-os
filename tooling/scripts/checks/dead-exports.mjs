@@ -57,6 +57,12 @@ export function knipCommand(args) {
   }
 }
 
+/**
+ * knip's heap, the lint's own: its graph of the whole tree outgrew node's default on CI's runner (about 2 GB) on
+ * 12 Oct 2026, when main's push of #1565 died in it twice ("JavaScript heap out of memory") and nothing was measured.
+ */
+const KNIP_HEAP = "--max-old-space-size=5120";
+
 const PACKAGES = ["channels", "contracts", "core", "db", "jobs"];
 const isBarrel = (f) => /(^|\/)index\.ts$/.test(f);
 
@@ -85,7 +91,7 @@ function main() {
   let raw;
   try {
     const [exe, args] = knipCommand(["--reporter", "json", "--no-progress"]);
-    raw = execFileSync(exe, args, {
+    raw = execFileSync(exe, [KNIP_HEAP, ...args], {
       cwd: ROOT,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "inherit"],
