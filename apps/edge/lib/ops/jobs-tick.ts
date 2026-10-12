@@ -30,6 +30,7 @@ import { leadPipeline } from "../leads/lead-pipeline.js";
 import { expoPush } from "./push.js";
 import { replyReader } from "../reach-out/reply-read.js";
 import { bookingReader } from "../calendar/booking-read.js";
+import { feedNamesFor } from "../calendar/feed-names.js";
 import { answerInboundJob } from "../whatsapp/answer-later.js";
 import {
   runTick,
@@ -152,11 +153,11 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
               provisionLine: (lineId, by, until) => provisionLineJob(db, job.tenant_id, lineId, by, undefined, until),
               ...(intake ? { email: intake } : {}),
               ...(leads ? { leads } : {}),
-              // The reading of a reach-out's reply: the model, the spend and the notice. With no model key it
-              // reads nothing and says so (no_model), and the reply is read again later.
+              // The reading of a reach-out's reply (model, spend, notice): with no model key it says no_model and is read later.
               replies: replyReader(db),
               // The reading of a booking tool's notice: the model, the spend and the person it is for.
               bookings: bookingReader(db),
+              calendar: { feedNames: feedNamesFor(db) }, // a reminder asks the owner's calendar beside the record
               // A message its door recorded and acknowledged, answered here: a text (decision 0031, Phase 2), or a
               // WhatsApp message of a workspace the edge names for it (Phase 3).
               inbound: { answer: (claimed) => answerInboundJob(db, claimed) },

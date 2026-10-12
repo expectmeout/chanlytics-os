@@ -9,7 +9,7 @@
 // field at the foot; ×, Esc, a pull down and Back close it.
 // This file is the shell: the state of one open Line, its keys and the turn runner. The rows are ask-home.jsx's, the
 // words ask-text.jsx's and the hooks ask-hooks.jsx's; everything that talks to the workspace goes through window.__ask.
-// No key symbol is drawn (D17): the Keyboard shortcuts sheet in the user menu lists the keys (contracts SHORTCUTS).
+// No key symbol is drawn (D17): the shortcuts sheet lists the keys (contracts SHORTCUTS), opened by ? or the account menu.
 
 const useArState = React.useState;
 const useArEffect = React.useEffect;
@@ -1037,4 +1037,4 @@ const AskReal = ({ open, onClose }) => {
   return arLineView(ln);
 };
 
-window.AskReal = AskReal;
+window.AskBar = AskReal; // the Line is what the frame draws; a demo's seeded palette (demo/pages/dashboard-a-ask.jsx) replaces it

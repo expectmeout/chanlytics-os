@@ -81,7 +81,7 @@ export function replyReader(
       (async (tenantId, notice) => {
         const target = await loadTenantNotifications(db, tenantId);
         return notifyOnce(
-          { tenantId, notifications: target.notifications, isEnvDefault: target.isEnvDefault },
+          { tenantId, ...target },
           {
             kind: "reach_out_replied",
             route: `inbox/th-${notice.conversationId}`,

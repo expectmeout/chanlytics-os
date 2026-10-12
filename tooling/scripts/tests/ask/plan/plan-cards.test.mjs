@@ -1169,7 +1169,7 @@ test("a new campaign takes its last day: its card says “Ends …” and commit
 });
 
 /**
- * `start_playbook` (00357, as 00409 replaced it) for a database in memory: the row the door writes, of the columns it
+ * `start_playbook` (00357, as 00416 replaced it) for a database in memory: the row the door writes, of the columns it
  * names, `until` among them, running and the caller's.
  */
 const startDoor = (rows) => ({

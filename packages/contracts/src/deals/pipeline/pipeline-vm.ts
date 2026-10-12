@@ -30,7 +30,9 @@ export type PipelineSource = Pick<
   | "calendarTz"
   | "nextStep"
   | "followUp"
->;
+> &
+  /** Their last visit as the one visit line, where the row carries it: a consultation is worded by its mark (D1-consult-held). */
+  Partial<Pick<PersonRowVM, "lastVisitLine">>;
 
 /** The one thing a row says beside its facts: warn where something waits on the owner, info for what is on its way, plain for a fact. */
 export interface PipelineChip {

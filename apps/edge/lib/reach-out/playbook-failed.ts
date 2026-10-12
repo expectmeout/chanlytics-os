@@ -84,7 +84,7 @@ async function tellTheOwner(f: Failure, p: FailedPlaybook): Promise<void> {
   const words = playbookFailedWords(p.name, calendarUnread(f) ? "calendar" : "other");
   const target = await loadTenantNotifications(f.db, f.tenantId);
   await notify(
-    { tenantId: f.tenantId, notifications: target.notifications, isEnvDefault: target.isEnvDefault },
+    { tenantId: f.tenantId, ...target },
     {
       kind: "playbook",
       // The playbook's own door: `outbound/<id>` lands on `campaigns/moment:<id>` (contracts doorOf).

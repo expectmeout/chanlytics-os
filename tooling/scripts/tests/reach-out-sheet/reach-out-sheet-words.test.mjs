@@ -167,6 +167,8 @@ test("the next run says a paused chain, never, billing and a waiting run as they
   assert.equal(nextRunWords(chain({}, { last_run_for: "2026-09-28" }), TZ, at).text, "Next run tomorrow 9:00 AM.");
 });
 
+/** A held business's lead: its address is the Leads peek over it (contracts addressOf, the one writer). */
+const LEAD = "6f1c2a4e-3b7d-4c58-9a10-2d5e8b7c4f01";
 const RUN = (over = {}) => ({
   root_id: "r",
   chain_name: "Reach out · Personal trainers",
@@ -182,7 +184,7 @@ const RUN = (over = {}) => ({
   held: [
     {
       send_id: "s",
-      lead_id: "l",
+      lead_id: LEAD,
       business_name: "Hyde Park Bootcamp",
       email: "x@hydepark.example",
       reason: "chain",
@@ -236,6 +238,8 @@ test("the approval sheet says who today, who later, what the check held, and nam
   assert.deepEqual(w.held[0], {
     id: "s",
     name: "Hyde Park Bootcamp",
+    // Its lead, in the Leads peek: the sheet's name is a door to who it is (D1-lead-person-door).
+    to: `clients/leads:p-${LEAD}`,
     why: "reads like a chain: 3 listings share their website",
     doors: [
       ["include", "Include"],
@@ -324,6 +328,35 @@ test("the approval sheet says who today, who later, what the check held, and nam
     now: MORNING,
   });
   assert.equal(none.approve, "Approve — 0");
+});
+
+test("D1-lead-person-door: each held and each ready business carries its lead's address, built once (addressOf); none named, none carried", () => {
+  const LEAD_READY = "9d3e5b21-7a64-4f0c-8e12-5c7a1d9b3e22";
+  const run = RUN({
+    planned: [
+      {
+        send_id: "p1",
+        lead_id: LEAD_READY,
+        business_name: "Studio Two",
+        send_at: "2026-09-28T14:40:00Z",
+        checked: true,
+      },
+      // A read from before the lead was carried.
+      { send_id: "p2", business_name: "Studio Three", send_at: "2026-09-28T14:52:00Z", checked: true },
+    ],
+  });
+  const at = { timezone: "America/Chicago", share: 30, today: "2026-09-28", now: MORNING };
+  assert.equal(approvalWordsOf(run, at).held[0].to, contracts.addressOf({ kind: "lead", id: LEAD }));
+  const said = contracts.reachOutRunWordsOf(run, { state: "pending_approval", ...at });
+  assert.deepEqual(
+    said.list.map((x) => [x.name, x.to]),
+    [
+      ["Studio Two", `clients/leads:p-${LEAD_READY}`],
+      ["Studio Three", null],
+    ],
+  );
+  const noLead = approvalWordsOf(RUN({ held: [{ ...RUN().held[0], lead_id: undefined }] }), at);
+  assert.equal(noLead.held[0].to, null);
 });
 
 const CHAIN = {

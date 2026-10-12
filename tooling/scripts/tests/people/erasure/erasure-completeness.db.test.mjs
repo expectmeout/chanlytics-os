@@ -206,6 +206,10 @@ async function seed() {
       draft: WORDS,
       draft_state: "written",
       draft_why: `${PHONE} ${EMAIL}`,
+      // Who signed it, offered as their name (0052).
+      signer_name: WORDS,
+      signer_title: WORDS,
+      signer_state: "offered",
     }),
     "reach_out_replies",
   );

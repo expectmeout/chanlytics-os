@@ -33,7 +33,14 @@ import {
   zoneDayKey,
 } from "@chanlytics/contracts";
 
-const reading = (intent, over = {}) => ({ intent, summary: "Said something", day: null, referTo: null, ...over });
+const reading = (intent, over = {}) => ({
+  intent,
+  summary: "Said something",
+  day: null,
+  referTo: null,
+  signer: null,
+  ...over,
+});
 const answer = (over = {}) => ({
   intent: "interested",
   summary: "Wants more details",
@@ -76,6 +83,13 @@ test("an answer parses to a reading; only one that names no intent is none", () 
   assert.equal(parseReplyReading(answer({ intent: "No" })).intent, "no");
   assert.equal(parseReplyReading(answer({ intent: " not now " })).intent, "not_now");
   assert.equal(parseReplyReading(answer({ intent: "Wrong-Person" })).intent, "wrong_person");
+  // Who signed it (0052), as the reader found it: a name, spaces made one, and a title when there is one; anything else is
+  // no signer. Whether it is kept is the person page's gate (signerOf), not the parse's.
+  const signer = (v) => parseReplyReading(answer({ signer: v })).signer;
+  assert.deepEqual(signer({ name: "  Dana   Reyes ", title: " Owner " }), { name: "Dana Reyes", title: "Owner" });
+  assert.deepEqual(signer({ name: "Dana Reyes", title: "" }), { name: "Dana Reyes", title: null });
+  for (const none of [null, "Dana Reyes", { name: "  " }, { title: "Owner" }, 7])
+    assert.equal(signer(none), null, JSON.stringify(none));
 });
 
 test("a malformed field degrades; it never loses the reading", () => {
@@ -118,7 +132,7 @@ test("the review's failing answers: a valid no is never dropped, and an automati
     }
   }
   const wrong = parseReplyReading({ intent: "wrong_person", summary: 7, day: "soon", refer_to: "Dana" });
-  assert.deepEqual(wrong, { intent: "wrong_person", summary: "", day: null, referTo: "Dana" });
+  assert.deepEqual(wrong, { intent: "wrong_person", summary: "", day: null, referTo: "Dana", signer: null });
   assert.equal(readingPlan(wrong, ctx({ claim: "auto_reply" })).stops, true);
 });
 

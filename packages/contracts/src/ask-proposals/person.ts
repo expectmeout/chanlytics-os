@@ -16,7 +16,6 @@ import {
   rec,
   refuseWith,
   type ProposalCall,
-  type ProposalEvent,
   type ProposalRefusal,
   type ProposalSpec,
   type ProposalSpecAboveOperator,
@@ -27,12 +26,6 @@ const cardPersonRoute = ({ payload }: Pick<AskProposal, "payload">): string | nu
   const id = idIn(payload, "contact_id");
   return id ? `clients/${id}` : null;
 };
-
-/** A note written or taken away: the person's page and the Pipeline read them again (the step sheet's event). */
-const noteSaved = (personId: unknown): ProposalEvent => ({
-  type: "note:saved",
-  detail: { personId: asText(personId) },
-});
 
 /**
  * The two fields of a person's profile a details card sets (D9), and each as its card and its receipt say it: its
@@ -127,7 +120,7 @@ export const dealSpec: ProposalSpec = {
       params: { id: asText(p.payload.contact_id) },
       body: { body: p.step.body, due_on: p.step.due_on, team_only: true, deal_id: dealId },
       refresh: "behind",
-      events: [noteSaved(p.payload.contact_id)],
+      events: [PEOPLE_CHANGED],
     };
   },
   // The deal stands either way, so a step the door refused is said on the receipt, to set again on their page.
@@ -156,7 +149,7 @@ export const noteSpec: ProposalSpec = {
           params: { id: asText(pl.contact_id) },
           body: { body: asText(pl.body), team_only: pl.team_only },
           refresh: "behind",
-          events: [noteSaved(pl.contact_id)],
+          events: [PEOPLE_CHANGED],
         },
   receipt: ({ payload: pl }) =>
     `${asText(pl.who)} · ${NOTE_WORDS.added}${pl.team_only === true ? ` · ${NOTE_WORDS.teamOnly}` : ""}`,
@@ -173,7 +166,7 @@ export const noteSpec: ProposalSpec = {
       params: { id: asText(u.contact_id) },
       body: { note_id: asText(u.note_id) },
       refresh: "behind",
-      events: [noteSaved(u.contact_id)],
+      events: [PEOPLE_CHANGED],
     }),
     receipt: () => NOTE_WORDS.removed,
   },

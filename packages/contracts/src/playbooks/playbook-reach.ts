@@ -223,13 +223,15 @@ export function theirVisitTest(
  * client saved as "Maria" was sent a reminder for another Maria's appointment, with the event's whole title in it. A run
  * enrols a visit found by name alone only when the event carries the person's FULL saved name (two words or more, first and
  * last) and no one else in the workspace is saved under it; a first name alone never enrols. The receptionist says "Matched
- * by name only -- make sure it is them" (calendar-people.ts) and a person reads it; a message sent on its own cannot.
+ * by name only -- make sure it is them" (calendar-people.ts) and a person reads it; a message sent on its own cannot. A
+ * visit matched by the business a person works at (0052) names no person at all, so it never enrols: a member reads it.
  */
 function visitIsTheirs(
   r: Pick<PersonRowVM, "givenName" | "waName">,
   via: MatchVia | null,
   holders: ReadonlyMap<string, number>,
 ): boolean {
+  if (via === "business") return false;
   if (via !== "name") return true;
   const key = fullNameKey(savedNameOf(r));
   return key !== null && holders.get(key) === 1;

@@ -5,6 +5,7 @@
  * exported from index.ts directly, since it reads people.ts's row view model.
  */
 import { clockDate } from "../shared/clock";
+import { appointmentWordWhere, appointmentWords } from "../journey/appointment-word";
 import { plural } from "../shared/words";
 import { DEAL_ACT_WORDS } from "../deals/deal-words";
 import type { DealVM } from "../deals/deal-vm";
@@ -14,12 +15,13 @@ import { MERGE_WORDS } from "./person-merge";
 import { DOUBT_WORDS, type DoubtSeen } from "./person-doubts";
 import { personName } from "./person-name";
 import { formatPhoneDisplay } from "../shared/phone";
-import type { PersonMode } from "./person-receptionist";
+import type { HolderNames, PersonMode } from "./person-receptionist";
 import { mayReach, type PersonProposalVM, proposalAction } from "./person-reach";
 import type { PersonRowVM } from "./person-row";
 import { ts } from "./person-helpers";
 import { personNotesVM, type PersonNoteTeamDto, type PersonNoteVM } from "../notes/person-notes";
 import { PERSON_CHANNEL_WORDS, type PersonChannel } from "./person-words";
+import { addressOf } from "../activity/record-address";
 import { HELD_REASONS, isReplyTo } from "../broadcasts/run-words";
 import { messageAt } from "../conversations/thread-dto";
 import { THREAD_CHANNEL_WORDS, isTheirOwnWords, writtenChannelOf } from "../conversations/thread-channel";
@@ -28,6 +30,7 @@ import {
   personFactsOf,
   lastExchangeOf,
   leadOf,
+  type PersonAboutFact,
   type PersonFact,
   type PersonLastExchange,
   type PersonRightNow,
@@ -45,6 +48,21 @@ import {
   type TimelineKind,
   timelineOf,
 } from "./person-timeline";
+import { dealCardsOf } from "../deals/sheet/deal-card";
+import { LEAD_STAGE_WORDS } from "../leads/lead-words";
+import {
+  businessRecordOf,
+  personHeadOf,
+  worksAtOf,
+  type BusinessRecordVM,
+  type PersonHeadVM,
+  type WorksAtVM,
+} from "../person-page/business";
+import { personFiguresOf, type PersonFigureVM } from "../person-page/figures";
+import { personNextOf, type UpNextVM } from "../person-page/next";
+import { lastWordsOf, type LastWordVM } from "../person-page/last-words";
+import { personNoticesOf, type NoticeVM } from "../person-page/notices";
+import { personTabsOf, type PersonTabVM } from "../person-page/route";
 
 /* -------------------------------- profile -------------------------------- */
 
@@ -60,12 +78,20 @@ export const TIMELINE_FILTERS: readonly {
   kinds: readonly TimelineKind[] | null;
 }[] = [
   { id: "all", label: "All", kinds: null },
-  { id: "messages", label: "Messages", kinds: ["customer", "receptionist", "you", "escalation", "decision"] },
+  { id: "messages", label: "Messages", kinds: ["customer", "receptionist", "team", "escalation", "decision"] },
   { id: "calls", label: "Calls", kinds: ["call"] },
-  { id: "visits", label: "Visits", kinds: ["visit"] },
+  { id: "visits", label: "Appointments", kinds: ["visit"] },
   { id: "consent", label: "Consent", kinds: ["consent"] },
   { id: "deals", label: "Deals", kinds: ["deal"] },
 ];
+
+/**
+ * A filter's heading in the workspace's words: the appointments' is the workspace's word for one ("Meetings" where some
+ * customers get a proposal first, as Campaigns says it: decision 0041), the others their own.
+ */
+export function timelineFilterLabel(f: { id: TimelineFilterId; label: string }, dealsOn: boolean): string {
+  return f.id === "visits" ? appointmentWords(appointmentWordWhere(dealsOn)).Many : f.label;
+}
 
 /** The items a filter shows, in the order they came; an unknown filter shows everything. */
 export function filterTimeline<T extends { kind: TimelineKind }>(items: readonly T[], id: string): T[] {
@@ -84,7 +110,7 @@ export interface PersonVM extends PersonRowVM {
   timeline: PersonTimelineItemVM[];
   /** Their visits that have not ended, soonest first: the page's Coming up. Each is in `timeline` too, marked `ahead`. */
   comingUp: PersonVisitAheadVM[];
-  about: { k: string; v: string }[];
+  about: PersonAboutFact[];
   /** Their notes (0007): the receptionist's suggestions first, then newest first. */
   noteList: PersonNoteVM[];
   /** The team a note can be for; empty where the team could not be read. */
@@ -131,6 +157,24 @@ export interface PersonVM extends PersonRowVM {
   acts: PersonActVM[];
   /** The open doubts naming them (0034 step 4, doubtsOf): another record one identity could belong to, each with its sentence. */
   doubts: PersonDoubtVM[];
+  /** The head (0052): their face and name, or the business's tile and name while they are a stand-in, and the line under it. */
+  head: PersonHeadVM;
+  /** The Works at row: one row, the door to the business sheet; null for someone who works nowhere. */
+  worksAtRow: WorksAtVM | null;
+  /** The business sheet, the one home of the business's details; null for someone who works nowhere it can read. */
+  business: BusinessRecordVM | null;
+  /** No thread, no deal and fewer than six rows of history: one scroll, no figures and no tabs. */
+  thin: boolean;
+  /** The figures at the top of the work column, four at most (personFiguresOf). */
+  figures: PersonFigureVM[];
+  /** Up next (personNextOf), as the page reads it before People's row lays the follow-up on (personNextFor). */
+  next: UpNextVM;
+  /** The notices (personNoticesOf), each with its one home. */
+  notices: NoticeVM[];
+  /** Their last words: their newest message and our newest, the doors to the thread (lastWordsOf). */
+  lastWords: LastWordVM[];
+  /** The tabs as addresses, a desk's and a phone's (personTabsOf). */
+  tabs: { desk: PersonTabVM[]; phone: PersonTabVM[] };
 }
 
 /**
@@ -186,19 +230,17 @@ export interface PersonActVM {
  * block of wrapped words cut off at its edge. No send reaches someone who said stop or is on do-not-contact, nor by
  * email an address that stopped accepting mail (mayReach), and no call reaches someone on do-not-contact. A call is the member's own phone ringing them (a tel: link), never the receptionist.
  */
-export function personActs(p: Omit<PersonVM, "acts">): PersonActVM[] {
+export function personActs(p: Omit<PersonVM, "acts" | PersonPageKeys>): PersonActVM[] {
   const acts: PersonActVM[] = [];
   const reach = mayReach(p);
   const on =
     p.replyVia === "Email" ? " by email" : p.replyVia === "Text" ? " as a text" : p.replyVia ? " on WhatsApp" : "";
   const ready = `Opens their thread with it ready to send${on}`;
-  if (reach && p.bookingLink)
+  if (reach && p.bookingLink && p.bookingLinkAction.offered)
     acts.push({
       id: "booking",
       label: "Send booking link",
-      hint: p.bookingLinkAction.ready
-        ? ready
-        : "Only an approved message reaches them until they write again; their thread offers the one with the link",
+      hint: p.bookingLinkAction.ready ? ready : p.bookingLinkAction.title,
       group: "send",
       needs: "record",
     });
@@ -288,12 +330,14 @@ export function toPersonVM(
   now = new Date(),
   /** The member looking (toPersonRowVM's viewer). */
   viewerId: string | null = null,
+  /** The roster, where the page has read it: a teammate's thread says whose it is (person-receptionist.ts heldThreadOf). */
+  names: HolderNames | null = null,
 ): PersonVM {
-  const ctx = personCardContext(d, tz, now, viewerId);
+  const ctx = personCardContext(d, tz, now, viewerId, names);
   const { base, nowMs, dealsOn, reply } = ctx;
-  const vm: Omit<PersonVM, "proposal" | "proposalAction" | "acts"> = {
+  const vm: Omit<PersonVM, "proposal" | "proposalAction" | "acts" | PersonPageKeys> = {
     ...base,
-    ...(reply ? replyFields(reply, base.emailSuppressed) : {}),
+    ...(reply ? replyFields(reply, base.emailSuppressed, { optedOut: base.stopped, who: base.name }) : {}),
     since: sinceWords(base),
     metaLine: `${plural(base.threads, "conversation")} · ${plural(base.calls, "call")}`,
     lastExchange: lastExchangeOf(ctx),
@@ -328,7 +372,133 @@ export function toPersonVM(
       ctx.sentWords,
     ),
   };
-  return { ...whole, acts: personActs(whole) };
+  const withActs = { ...whole, acts: personActs(whole) };
+  return { ...withActs, ...personPageOf(withActs, d, tz, now) };
+}
+
+/** The keys the person page's own parts add (decision 0052, canvas A), built last over the rest. */
+type PersonPageKeys =
+  "head" | "worksAtRow" | "business" | "thin" | "figures" | "next" | "notices" | "lastWords" | "tabs";
+
+/** "3 min" or "45 s": a call's length said as the figures say it. */
+function callLength(seconds: number): string {
+  return seconds >= 60 ? `${Math.round(seconds / 60)} min` : `${seconds} s`;
+}
+
+/** What their open deals add up to, recorded: one deal's amount, or a count; null with no amount on any. */
+function recordedOf(deals: readonly DealVM[]): string | null {
+  const open = deals.filter((x) => x.stage === "proposed" || x.stage === "won");
+  const amounts = open.map((x) => x.amount).filter((x): x is string => !!x);
+  if (!amounts.length) return null;
+  return amounts.length === 1 ? `${amounts[0]} recorded` : `${amounts.length} amounts recorded`;
+}
+
+/**
+ * Up next for a person (personNextOf), over the deal cards the page draws: `dealP` is the person with People's row's
+ * follow-up laid on where one runs (0006), so a deal whose follow-up is in hand offers no Follow up of its own.
+ */
+export function personNextFor(
+  p: Pick<
+    PersonVM,
+    "noteList" | "lastVisitLine" | "comingUp" | "dealsOn" | "business" | "nextStep" | "consent" | "campaigns"
+  >,
+  dealP: Parameters<typeof dealCardsOf>[0],
+  tz: string,
+  nowMs: number,
+): UpNextVM {
+  return personNextOf({
+    notes: p.noteList,
+    lastVisit: p.lastVisitLine,
+    ahead: p.comingUp,
+    deals: dealCardsOf(dealP, nowMs, tz),
+    dealsOn: p.dealsOn,
+    // A business you are talking to (the lead's stage converted, said "Talking"): with no deal, a proposal is next.
+    talking: !!p.business && p.business.stage.word === LEAD_STAGE_WORDS.converted,
+    step: p.nextStep,
+    visitYesHeld: p.consent.state === "unknown" && p.campaigns.some((c) => c.outcome.startsWith("Held")),
+  });
+}
+
+/** The person page's own parts (decision 0052, canvas A), over the page's view model and what was read for it. */
+function personPageOf(
+  p: Omit<PersonVM, PersonPageKeys>,
+  d: PersonDetailDto,
+  tz: string,
+  now: Date,
+): Pick<PersonVM, PersonPageKeys> {
+  const nowMs = now.getTime();
+  const reachOut = d.lead?.reach_out ?? null;
+  const firstCall = d.calls
+    .map((c) => ts(c.started_at))
+    .filter((x): x is number => x !== null)
+    .sort((a, b) => a - b)[0];
+  const saidNo = reachOut?.readings.find((r) => r.said_no && !r.undone) ?? null;
+  const head = personHeadOf(
+    {
+      name: p.name,
+      initials: p.initials,
+      givenName: p.givenName,
+      nameSource: p.nameSource,
+      worksAt: p.worksAt,
+      business: d.business ?? null,
+      signers: d.signers ?? [],
+      addedMs: ts(d.added?.at ?? null),
+      calledMs: firstCall ?? null,
+      saidNoMs: saidNo ? ts(saidNo.read_at) : null,
+    },
+    tz,
+    nowMs,
+  );
+  const business = d.business ? businessRecordOf(d.business, { personId: p.id, reachOut }, tz, now) : null;
+  const past = p.timeline.filter((t) => !t.ahead);
+  const thin = p.threads === 0 && p.deals.length === 0 && past.length < 6;
+  const visitsSeen = p.timeline.filter((t) => t.kind === "visit").length;
+  const sent = reachOut ? reachOut.sends.filter((x) => !!x.sent_at).length : 0;
+  const figures = personFiguresOf({
+    thin,
+    last: p.lastContact.ts !== null ? { value: clockDate(p.lastContact.ts, tz, nowMs), sub: p.lastContact.by } : null,
+    lead: business ? { stage: business.stage.word, since: business.stage.note } : null,
+    deals: {
+      count: p.openDeals.length,
+      recorded: recordedOf(p.openDeals),
+    },
+    step: p.nextStep ? { day: p.nextStep.day.near, words: p.nextStep.words } : null,
+    calls: { count: p.calls, minutes: callLength(p.callSeconds) },
+    visits: {
+      ahead: p.comingUp.length,
+      marked: 0,
+      any: p.calendar === "ok" && (p.comingUp.length > 0 || visitsSeen > 0),
+    },
+    emails: reachOut ? { out: sent, back: reachOut.readings.filter((r) => !r.undone).length } : null,
+  });
+  const tabFacts = {
+    id: p.id,
+    history: past.length,
+    visits: visitsSeen,
+    deals: p.deals.length,
+    campaigns: p.campaigns.length,
+    thin,
+  };
+  return {
+    head,
+    worksAtRow: worksAtOf(p.worksAt, d.business ?? null, tz, nowMs),
+    business,
+    thin,
+    figures,
+    next: personNextFor({ ...p, business }, p, tz, nowMs),
+    notices: personNoticesOf({
+      head,
+      business,
+      doubts: p.doubts,
+      email: p.email,
+      heardFrom: p.askedMs !== null,
+      peopleHere: (d.business?.people ?? [])
+        .filter((x) => x.id !== p.id)
+        .map((x) => ({ id: x.id, name: personName(x), email: x.email, nameSource: x.name_source })),
+    }),
+    lastWords: lastWordsOf(past),
+    tabs: { desk: personTabsOf(tabFacts, false), phone: personTabsOf(tabFacts, true) },
+  };
 }
 
 /**
@@ -374,7 +544,7 @@ function campaignsOf(d: PersonDetailDto, tz: string, nowMs: number): PersonCampa
       // Which wire it went by, or would have: a person on three channels is not told "Sent" with nowhere to look.
       line: `${c.playbook_id ? "Campaign" : "Broadcast"} · ${THREAD_CHANNEL_WORDS[writtenChannelOf(c.channel)]} · ${outcome}`,
       tone: replied ? "ok" : c.state === "skipped" || c.state === "failed" ? "warn" : "plain",
-      to: `broadcasts/run:${c.broadcast_id}`,
+      to: addressOf({ kind: "send", id: c.broadcast_id }),
     };
   });
 }

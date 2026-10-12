@@ -11,7 +11,6 @@ import {
   type LeadSearchDto,
   type LeadSearchPlan,
 } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
 import { askAbout, openAsk, refusalToast } from "../../legacy-verbs";
 import type { Flash } from "../../people/types";
 import { leadAnswerPlan, leadFinderApprove } from "../finder/amend";
@@ -136,6 +135,8 @@ interface SearchActsArgs {
   setLeadBusy: (busy: boolean) => void;
   leadUndo: (r: { ok: true; data: unknown }) => { undo?: () => Promise<void> };
   leadAct: (fn: () => Promise<LeadAnswer>, said: ReactNode) => Promise<void>;
+  /** A view's leads as a file: a POST, since it marks what it took (acts.tsx). */
+  exportLeads: (view: { search: string; list: "all"; sort: "fit"; dir: "asc" }) => Promise<void>;
   searchById: (id: string | null) => LeadSearchDto | null;
   setRenaming: (s: RailSearch | null) => void;
   setRemoving: (s: RailSearch | null) => void;
@@ -214,7 +215,7 @@ function keptSearchActs(a: SearchActsArgs) {
 }
 
 export const leadSearchActs = (a: SearchActsArgs) => {
-  const { leads, plFlash, leadAct, searchById, leadLine, setLeadLine, openFinder } = a;
+  const { leads, plFlash, leadAct, exportLeads, searchById, leadLine, setLeadLine, openFinder } = a;
   // The first day's business line. The door's PUT keeps it with no items, so the refresh that follows writes new
   // suggestions from the owner's own words.
   const saveBusinessLine = async () => {
@@ -269,8 +270,8 @@ export const leadSearchActs = (a: SearchActsArgs) => {
     });
   };
   const searchWordsFor = (id: string) => leadSearchWords(searchById(id), leads.tz);
-  const exportHrefFor = (s: { id: string }) =>
-    api().url("GET leads/export", { query: { search: s.id, list: "all", sort: "fit", dir: "asc" } });
-  return { ...keptSearchActs(a), saveBusinessLine, newIdeas, findNewOnes, searchAgain, searchWordsFor, exportHrefFor };
+  // A search's leads as a file, all of them in the order the table has by default.
+  const exportFor = (s: { id: string }) => () => exportLeads({ search: s.id, list: "all", sort: "fit", dir: "asc" });
+  return { ...keptSearchActs(a), saveBusinessLine, newIdeas, findNewOnes, searchAgain, searchWordsFor, exportFor };
 };
 export type SearchActs = ReturnType<typeof leadSearchActs>;

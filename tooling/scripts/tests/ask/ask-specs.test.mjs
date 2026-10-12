@@ -551,7 +551,8 @@ const WRITTEN = {
 
 test("a note (D8): the words and who reads them to the notes route, nothing else; the undo takes away the note the door wrote, by the id it answered; a card that does not say who reads it is never sent", () => {
   const spec = PROPOSAL_SPECS.note;
-  const saved = { type: "note:saved", detail: { personId: P1 } };
+  // The one event a person's card says (0047): the person's page and the Pipeline's peek follow People, as they follow every card.
+  const saved = { type: "surface:clients" };
   const forReceptionist = card("note", { contact_id: P1, body: "Prefers mornings.", team_only: false, who: "Rosa" });
   const forTeam = card("note", { contact_id: P1, body: "Owes us a callback.", team_only: true, who: "Rosa" });
   assert.deepEqual(spec.commit(forReceptionist, TAB), {

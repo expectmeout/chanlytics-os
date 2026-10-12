@@ -1,6 +1,4 @@
 import {
-  appointmentKeysOf,
-  type AppointmentState,
   BROADCAST_CHUNK,
   BROADCAST_GAP_MS,
   BROADCAST_THROTTLE_WAITS_MS,
@@ -38,6 +36,7 @@ import {
   startsInTime,
   type Work,
 } from "./broadcast-channels";
+import { appointmentsOf, feedOf, visitStands } from "./broadcast-feed";
 import { afterRefusal, pageTheDomain, release, stopForTheWorkspace, type Verdict } from "./broadcast-stops";
 import type { BroadcastBatchCommand, BroadcastBatchPorts, BroadcastRow, ContactRow, RecipientRow } from "./ports";
 import { LIMIT_WORDS, WIRE_WORDS, gotIt, thenWhat } from "./broadcast-words";
@@ -146,41 +145,26 @@ async function readPeople(
   ports: BroadcastBatchPorts,
   b: BroadcastRow,
   batch: readonly RecipientRow[],
-): Promise<Pick<Work, "people" | "priors" | "appointments"> & { unreadable: boolean }> {
+): Promise<Pick<Work, "people" | "priors" | "appointments" | "feed"> & { unreadable: boolean }> {
   const ids = batch.map((r) => r.contact_id);
-  if (ids.length === 0) return { people: new Map(), priors: new Map(), appointments: new Map(), unreadable: false };
+  if (ids.length === 0)
+    return { people: new Map(), priors: new Map(), appointments: new Map(), feed: null, unreadable: false };
   try {
-    const [people, priors, appointments] = await Promise.all([
+    const [people, priors, appointments, feed] = await Promise.all([
       ports.contacts(ids),
       ports.alreadySent(b.id, ids),
       appointmentsOf(ports, b, batch),
+      feedOf(ports, b, batch),
     ]);
-    return { people, priors, appointments, unreadable: false };
+    return { people, priors, appointments, feed, unreadable: false };
   } catch (e) {
     broadcastLog.error("broadcast_batch_unreadable", { broadcast_id: b.id, error: errField(e) });
-    return { people: new Map(), priors: new Map(), appointments: new Map(), unreadable: true };
+    return { people: new Map(), priors: new Map(), appointments: new Map(), feed: null, unreadable: true };
   }
 }
 
-/**
- * The appointments the batch's reminders were drawn for (decision 0002), one read for all of them. A read that fails is
- * none, said in the log: the people go as they did before the record, never held for a read this run could not make.
- */
-async function appointmentsOf(
-  ports: BroadcastBatchPorts,
-  b: BroadcastRow,
-  batch: readonly RecipientRow[],
-): Promise<ReadonlyMap<string, AppointmentState>> {
-  const keys = appointmentKeysOf(batch);
-  if (!ports.appointments || keys.length === 0) return new Map();
-  return ports.appointments(keys).catch((e: unknown) => {
-    broadcastLog.warn("broadcast_appointments_unread", { broadcast_id: b.id, error: errField(e) });
-    return new Map<string, AppointmentState>();
-  });
-}
-
 /** Where a person is reached on their channel, or why not: a number for WhatsApp and a text, an address for an email. */
-function addressOf(c: ContactRow, channel: Channel): { to: string } | { held: string } {
+function recipientAddressOf(c: ContactRow, channel: Channel): { to: string } | { held: string } {
   const to = channel === "email" ? c.email : c.phone_e164;
   return to ? { to } : { held: channel === "email" ? "no_address" : "no_phone" };
 }
@@ -198,7 +182,7 @@ async function sendOne(w: Work, r: RecipientRow): Promise<Verdict> {
   const c = w.people.get(r.contact_id) ?? null;
   if (!c || c.erased_at) return skip("erased");
   const channel = channelOf(r);
-  const where = addressOf(c, channel);
+  const where = recipientAddressOf(c, channel);
   if ("held" in where) return skip(where.held);
   // A run that died between the wire and its own bookkeeping left this
   // person a message row and a queued recipient row. Resumed (jobs/settle
@@ -212,8 +196,12 @@ async function sendOne(w: Work, r: RecipientRow): Promise<Verdict> {
     await w.mark(r.contact_id, { state: "sent", message_id: prior.id, sent_at: prior.sentAt });
     return "go on";
   }
-  // Their own row holds them: left out for the week's breath, or a reminder whose appointment no longer stands (rowHold).
-  const rowHeld = rowHold(w.appointments, r);
+  // Their own row holds them (rowHold): left out for the week's breath, or a reminder's appointment, asked again at the send
+  // (decision 0002): one that moved, was cancelled or left the calendar since the run drew it holds the person, never a
+  // message for a time that no longer stands. The record is asked, and the calendar feed beside it (S1-05), which is newer
+  // than the record by up to the hourly sweep; a feed that could not be read leaves a reminder for a calendar event queued
+  // for the next batch, never sent on a guess (broadcast-feed.ts).
+  const rowHeld = rowHold(r, () => visitStands(w, r));
   if (rowHeld) return skip(rowHeld);
   // Meta no longer approves WhatsApp's template: that holds the people who go by WhatsApp, and by no other channel, who
   // stay as they were and go on their own versions (the run fails only when nobody else is on it, below).
@@ -234,7 +222,7 @@ async function sendOne(w: Work, r: RecipientRow): Promise<Verdict> {
   // nobody keeps) holds the person, never a blank send. A visit run's words were resolved when the run was made.
   const facts = rowFacts(r);
   const params = resolveParams(w.specs, {
-    firstName: firstNameOf(c.display_name, c.wa_profile_name),
+    firstName: firstNameOf(c.display_name, c.wa_profile_name, { source: c.name_source, settled: !!c.name_settled_at }),
     businessName: w.facts.businessName,
     bookingLink: w.facts.bookingLink,
     reviewLink: w.reviewLink,
@@ -358,7 +346,7 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
     await ports.fail(b.id, "template_not_approved");
     await ports.alert({
       kind: "broadcast_stopped",
-      route: "broadcasts",
+      route: `broadcasts/run:${b.id}`,
       about: { type: "broadcast", id: b.id },
       subject: `Broadcast “${b.name}” stopped`,
       body: whatsappStoppedRunWords(message),
@@ -380,7 +368,7 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
   const offers = isOfferByEmail({ channel: "email", purpose, proactive: true, about: messageAboutOfTrigger(trigger) });
   const head = await offersAtTheHead(ports, { b, cmd, batch, offers });
   if (head === "wait" || head === "stopped") return;
-  const { people, priors, appointments, unreadable } = await readPeople(ports, b, batch);
+  const { people, priors, appointments, feed, unreadable } = await readPeople(ports, b, batch);
   const w: Work = {
     ports,
     cmd,
@@ -395,6 +383,7 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
     people,
     priors,
     appointments,
+    feed,
     month: {},
     offersClosed: head === "closed",
     // The head asked, where the domain was closed: the run goes on, so somebody on it goes another way.
@@ -490,7 +479,7 @@ function finishedNews(
   const people = (n: number) => `${n} ${n === 1 ? "person" : "people"}`;
   return {
     kind: sent > 0 ? "broadcast_sent" : "broadcast_stopped",
-    route: "broadcasts",
+    route: `broadcasts/run:${b.id}`,
     about: { type: "broadcast", id: b.id },
     subject: sent > 0 ? `Broadcast “${b.name}” sent` : `Broadcast “${b.name}” reached nobody`,
     body:
@@ -617,7 +606,7 @@ async function stall(
   await ports.fail(b.id, what === "people" ? "people_unreadable" : wireFailure("stalled", what));
   await ports.alert({
     kind: "broadcast_stopped",
-    route: "broadcasts",
+    route: `broadcasts/run:${b.id}`,
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast “${b.name}” stopped`,
     body: [
@@ -643,7 +632,7 @@ async function stopAfterHours(ports: BroadcastBatchPorts, b: StoppedRun, waited:
   await ports.fail(b.id, "after_hours");
   await ports.alert({
     kind: "broadcast_stopped",
-    route: "broadcasts",
+    route: `broadcasts/run:${b.id}`,
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast “${b.name}” stopped`,
     body: [
@@ -694,7 +683,7 @@ async function stopForTheWire(
   const theirs = out.reason === "provider" ? words.platformKey : null;
   await ports.alert({
     kind: "broadcast_stopped",
-    route: "broadcasts",
+    route: `broadcasts/run:${b.id}`,
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast “${b.name}” stopped`,
     body: theirs
@@ -725,7 +714,7 @@ async function stopForTheLimit(
   await ports.fail(b.id, "provider_limit");
   await ports.alert({
     kind: "broadcast_stopped",
-    route: "broadcasts",
+    route: `broadcasts/run:${b.id}`,
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast “${b.name}” stopped`,
     body: [
@@ -789,7 +778,7 @@ async function backOff(
   const until = at ? "until the day's sending hours ran out" : "for about an hour";
   await ports.alert({
     kind: "broadcast_stopped",
-    route: "broadcasts",
+    route: `broadcasts/run:${b.id}`,
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast “${b.name}” stopped`,
     body:

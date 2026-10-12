@@ -1,5 +1,5 @@
 /**
- * A campaign's words, its end and its trial, changed in place (00409 `params`, `until`, `trial_until`): the three keys a
+ * A campaign's words, its end and its trial, changed in place (00416 `params`, `until`, `trial_until`): the three keys a
  * change may name beside its six, the words a card and the ledger say for each, and core checkPlaybookPatch, the one
  * judgement Ask's change card and PUT playbooks/:id both run, EXECUTED over ports in memory. Its words are held to its
  * message's slots as a new campaign's are (core templateValues: as many values as the message takes, each one a value

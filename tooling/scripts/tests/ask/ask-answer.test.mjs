@@ -220,13 +220,13 @@ const waiting = (people, runs = 0, more = 0, searches = []) => ({
 });
 
 test("Right now is Today's queue in a sentence: the people waiting, then the runs waiting for a yes, in English and Spanish", () => {
-  assert.equal(rightNowLine(waiting([]), "en"), "Nobody is waiting on you right now.");
-  assert.equal(rightNowLine(waiting(["Ana"]), "en"), "Ana is waiting on you.");
+  assert.equal(rightNowLine(waiting([]), "en"), "Nobody needs you right now.");
+  assert.equal(rightNowLine(waiting(["Ana"]), "en"), "Ana needs you.");
   assert.equal(
     rightNowLine(waiting(["Ana", "Sam"], 1), "en"),
-    "Ana and Sam are waiting on you; one campaign run is waiting for your approval.",
+    "Ana and Sam need you; one campaign run is waiting for your approval.",
   );
-  assert.equal(rightNowLine(waiting(["Ana", "Sam", "Lee", "Kai"]), "en"), "Ana, Sam and 2 others are waiting on you.");
+  assert.equal(rightNowLine(waiting(["Ana", "Sam", "Lee", "Kai"]), "en"), "Ana, Sam and 2 others need you.");
   // A person reads "campaign", never "playbook" (the moment spec, D19), in both languages.
   assert.equal(rightNowLine(waiting([], 2), "en"), "2 campaign runs are waiting for your approval.");
   assert.equal(rightNowLine(waiting([], 1), "es"), "Un envío de campaña espera tu aprobación.");
@@ -235,7 +235,7 @@ test("Right now is Today's queue in a sentence: the people waiting, then the run
   assert.equal(rightNowLine(waiting(["Ana", "Sam"]), "es"), "Ana y Sam te esperan.");
   assert.equal(
     rightNowLine(waiting(["A", "B", "C", "D", "E", "F"], 0, 4), "en"),
-    "A, B and 8 others are waiting on you.",
+    "A, B and 8 others need you.",
     "REGRESSION: the queue draws six rows; the people past them wait too",
   );
   assert.equal(
@@ -249,7 +249,7 @@ test("Right now is Today's queue in a sentence: the people waiting, then the run
 test("Right now names the one search waiting for an answer, counts several, after the people and the runs", () => {
   assert.equal(
     rightNowLine(waiting(["Ana"], 0, 0, [SEARCH]), "en"),
-    "Ana is waiting on you; your search for personal trainers is waiting for your answer.",
+    "Ana needs you; your search for personal trainers is waiting for your answer.",
   );
   assert.equal(
     rightNowLine(waiting([], 0, 0, [SEARCH, { ...SEARCH, id: "q-s-s2", name: "yoga studios" }]), "en"),
@@ -257,7 +257,7 @@ test("Right now names the one search waiting for an answer, counts several, afte
   );
   assert.equal(
     rightNowLine(waiting(["Ana"], 1, 0, [SEARCH]), "en"),
-    "Ana is waiting on you; one campaign run is waiting for your approval; your search for personal trainers is waiting for your answer.",
+    "Ana needs you; one campaign run is waiting for your approval; your search for personal trainers is waiting for your answer.",
     "three populations, three clauses, in this order",
   );
   assert.equal(
@@ -284,7 +284,7 @@ test("rightNowCounts: the people, the runs and the searches the sentence counts;
   assert.deepEqual(rightNowCounts(w), { people: 3, runs: 1, searches: 1 });
   assert.equal(
     rightNowLine(w, "en"),
-    "Nora, Emily and 1 other are waiting on you; one campaign run is waiting for your approval; your search for personal trainers is waiting for your answer.",
+    "Nora, Emily and 1 other need you; one campaign run is waiting for your approval; your search for personal trainers is waiting for your answer.",
   );
 });
 
@@ -293,7 +293,7 @@ test("who needs me: the sentence, then the people, the searches and the runs as 
   assert.equal(a.form, "structured");
   assert.equal(
     a.say.headline,
-    "Ana and Sam are waiting on you; one campaign run is waiting for your approval; your search for personal trainers is waiting for your answer.",
+    "Ana and Sam need you; one campaign run is waiting for your approval; your search for personal trainers is waiting for your answer.",
   );
   assert.deepEqual(
     a.show.items.map((i) => [i.title, i.meta, i.line, i.source.to]),
@@ -324,7 +324,7 @@ test("who needs me: the sentence, then the people, the searches and the runs as 
     { to: "inbox", label: "See all 9 in the Inbox", now: false },
     "the Inbox, for everyone waiting, not only the six rows drawn",
   );
-  assert.equal(answerText(needsAnswer(waiting([]), "en")), "Nobody is waiting on you right now.");
+  assert.equal(answerText(needsAnswer(waiting([]), "en")), "Nobody needs you right now.");
   const unread = needsAnswer(null, "en");
   assert.deepEqual(
     [unread.say.headline, unread.show.items.length, unread.do.open],

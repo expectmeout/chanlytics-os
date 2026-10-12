@@ -87,7 +87,7 @@ type SettingsRead =
       prompt: PromptPreviewDto | null;
       updatedBy: string | null;
       updatedAt: string | null;
-      /** Whether the Google listing keeps a review link (db reviewLinkOf, 00408): never the link itself. */
+      /** Whether the Google listing keeps a review link (db reviewLinkOf, 00415): never the link itself. */
       review_link: boolean;
     }
   | { config: null; version: number; role: ReaderContext["role"]; configBroken: true; issues: string[] };

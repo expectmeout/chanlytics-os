@@ -1,15 +1,32 @@
 /** The owner's calendar as the receptionist reads it: the feed's address, what is open, and the people in it. */
 export { zoneOffsetMs, localToUtcMs, clockInZone, dayInZone, dayPlusInZone, WEEKDAY_KEYS } from "./zone-math";
 export { parseIcs } from "./feed";
-export { appointmentKeyOf, recordKeyOf, recordIdOf } from "./appointment-key";
+export {
+  appointmentKeyOf,
+  recordKeyOf,
+  recordIdOf,
+  visitRoute,
+  visitDoor,
+  visitLinkWords,
+  calendarParamParts,
+} from "./appointment-key";
 export {
   APPOINTMENT_SOURCES,
   APPOINTMENT_STATUSES,
   appointmentHolds,
   appointmentKeysOf,
+  asksTheFeed,
   feedAppointmentRows,
+  feedNamesOf,
+  feedStillNames,
 } from "./feed-appointments";
-export type { AppointmentSource, AppointmentState, AppointmentStatus, FeedAppointmentRow } from "./feed-appointments";
+export type {
+  AppointmentSource,
+  AppointmentState,
+  AppointmentStatus,
+  FeedAppointmentRow,
+  FeedNames,
+} from "./feed-appointments";
 export type { BusyBlock, FeedAttendee, FeedItem, ParsedFeed, ParseOptions } from "./feed";
 export {
   dayIntervals,
@@ -114,8 +131,22 @@ export {
   VISIT_REFUSALS,
   visitStateOf,
   visitActsOf,
+  visitStands,
+  VISIT_ASK_WORDS,
+  visitLineOf,
+  visitLineOfBlock,
+  visitMarkOfDto,
+  ADD_TO_PEOPLE_WORDS,
+  addToPeopleOf,
 } from "./calendar-words";
-export type { CalendarFeedNoteVM, CalendarFeedHealth, VisitWord } from "./calendar-words";
+export type {
+  CalendarFeedNoteVM,
+  CalendarFeedHealth,
+  VisitWord,
+  VisitStateVM,
+  VisitLineVM,
+  VisitLineInput,
+} from "./calendar-words";
 export type {
   CalendarBlockVM,
   CalendarBandVM,
@@ -143,6 +174,7 @@ export {
   visitDateKey,
   visitStartTime,
   visitLine,
+  matchWordsOf,
   describeVisits,
   feedSourceLabel,
   eventText,

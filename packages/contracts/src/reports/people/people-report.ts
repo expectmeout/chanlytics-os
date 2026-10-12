@@ -12,6 +12,7 @@
  * The window is "people", not "messages": report_series counts messages and calls day by day, and a person who wrote ten
  * times is one here. The book is "as of now, whatever period is picked", and says so wherever it is drawn.
  */
+import { STOP_WORDS } from "../../consent/consent";
 import { barsOf, mixOf, noMix, type MixEntry, type MixPartVM } from "../report-mix";
 import { REPORT_MIN_N, compareWords, type ReportMetric, type ReportStripTile } from "../report-tiles";
 import { rangeLabelOf } from "../reports";
@@ -247,7 +248,7 @@ function stuckNowFigures({ steps, email_stopped }: PeopleNowDto): PeopleFigureVM
 const STAND_LISTS = [
   { id: "said-yes-messages", metric: "said_yes_messages", label: "Said yes to messages", list: "opted_in" },
   { id: "can-receive-offers", metric: "can_receive_offers", label: "Can receive offers", list: "offers_ok" },
-  { id: "opted-out", metric: "opted_out_now", label: "Opted out", list: "opted_out" },
+  { id: "opted-out", metric: "opted_out_now", label: STOP_WORDS.pill, list: "opted_out" },
   { id: "quiet-30", metric: "quiet_now", label: "Quiet 30+ days", list: "quiet" },
 ] as const satisfies readonly {
   id: string;

@@ -1,5 +1,5 @@
 /**
- * A campaign runs on trial, and ends (00409 `trial_until`, `until`), EXECUTED: contracts effectiveMode, the one reading of
+ * A campaign runs on trial, and ends (00416 `trial_until`, `until`), EXECUTED: contracts effectiveMode, the one reading of
  * the mode a run goes under (auto waits for a person, as veto does, until the trial ends; every other mode is its own);
  * core runPlaybook over fakes that log their calls, a run on trial planned and told as veto ("on trial until"), a run on a
  * day past the campaign's last recorded once as `ended` with nothing read or sent; and Campaigns' home, which reads both
@@ -29,7 +29,7 @@ test("effectiveMode: auto waits for a person, as veto does, until the trial ends
   assert.equal(effectiveMode(trial, "auto", new Date("2026-10-19T09:00:00Z")), "auto");
   for (const mode of ["veto", "ask", "never"]) assert.equal(effectiveMode(trial, mode, before), mode, mode);
   assert.equal(effectiveMode({ trial_until: null }, "auto", before), "auto");
-  assert.equal(effectiveMode({}, "auto", before), "auto", "a row read before 00409 has no trial");
+  assert.equal(effectiveMode({}, "auto", before), "auto", "a row read before 00416 has no trial");
   assert.equal(effectiveMode({ trial_until: "next week" }, "auto", before), "auto");
   // The same instant however it is spelled: ten in New York is two in the afternoon UTC.
   assert.equal(effectiveMode({ trial_until: "2026-10-18T10:00:00-04:00" }, "auto", before), "veto");
@@ -351,5 +351,5 @@ test("the ledger says it: a campaign past its last day reads Ended with its day,
     .find((r) => r.id === "pb-1");
   assert.ok(plainPause.act.ask.detail.endsWith(LIFECYCLE_WORDS.ledger.resume.auto), "off trial, auto says so in full");
   const waits = homeOf([card({ trial: "Oct 9", totals: { waiting: { id: "r-1", recipient_count: 7 } } })]);
-  assert.equal(waits.ledger.groups.flatMap((g) => g.rows).find((r) => r.id === "pb-1").stateWords, "Waiting on you");
+  assert.equal(waits.ledger.groups.flatMap((g) => g.rows).find((r) => r.id === "pb-1").stateWords, C.RUN_WAITING_WORDS);
 });

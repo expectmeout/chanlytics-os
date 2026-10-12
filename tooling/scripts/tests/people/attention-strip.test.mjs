@@ -101,7 +101,8 @@ test("waiting on you: the state's own words, and the same primary button", () =>
   assert.equal(vm.state, "waiting_on_you");
   const a = attentionRow(vm, ZONE, nowMs);
   assert.deepEqual(a.status, ["You have it", "they wrote last"], "the Inbox's own pill for a thread you have");
-  assert.equal(vm.stateDetail, "you have it, and they wrote last");
+  assert.equal(vm.stateLabel, "You have it", "the pill says it, so the detail says only whose turn it is");
+  assert.equal(vm.stateDetail, "they wrote last");
   assert.equal(a.cta.label, "Open in Inbox");
   // A thread you took over and answered still waits on you (you have it), but they did not write last: it said they had.
   const answered = toPersonRowVM(
@@ -120,7 +121,7 @@ test("waiting on you: the state's own words, and the same primary button", () =>
     ["You have it"],
     "REGRESSION: 'they wrote last' over your reply",
   );
-  assert.equal(answered.stateDetail, "you have it");
+  assert.equal(answered.stateDetail, "", 'the pill already said "You have it"');
 });
 
 test("a caller with nothing in writing: the call's summary is the sentence; the phone receptionist is the state; no button without a thread", () => {

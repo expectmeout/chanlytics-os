@@ -1073,11 +1073,31 @@ on 10 Oct 2026 at 800 KiB for the route's JS, 160 KiB for its CSS and 256 KiB fo
 work at the rate main grew in early October, read again with these numbers): LCP for the page drawn, INP for a tap
 answered.
 
-1. **Read it** on the back office, or in SQL as the service role: `select * from page_vitals_p75();` gives one row per
-   metric over every page (`page` null), then one per metric and page.
-2. **An empty card** after the migration is applied means no page has been hidden since: open a workspace, switch
+Since 00412 (decision 0053) a load also says where its time went. Each page, and each part of one a person waits for
+(Today's queue, the Inbox's list and thread, People's table, the Calendar's board…), reports `READY` when it is drawn
+with its rows: from the document's start on a load, from the press on a move between pages, and from the press that
+opened a thread or a person on a move within one. `SETTLED` says when every surface a load's page draws was read. Each
+report says the page it came from, whether it drew held rows, the device (`desk` or `phone`, at 900px) and the
+build, and what its time went on: the read it waited for and how long (`wait`, `wait_ms`), that read's server and
+database time and how many calls (`server_ms`, `db_ms`, `db_n`), the chunk it fetched and the rendering after. The
+browser's five are said for the page they were of, a move's under the page it reached, with the element and the phase
+that took the time. Only a production build sends, and never a browser driven by automation, so a dev server or a
+suite's run adds nothing.
+
+1. **Read it** on the back office (Settings, Platform): "How fast the pages are" over page loads, then "Where the pages'
+   time goes" (each page by how it is reached, slowest first), "Drawn last" (the parts) and "What a person waits on"
+   (the elements whose taps, paints and shifts cost the most). A row needs 20 samples, an element 10. In SQL, as the
+   service role: `select * from page_vitals_p75();` for the loads; `select * from page_speed(7, 50000) where metric =
+'READY' and page is not null and how = 'move' and device = 'all' and warm = 'all';` for each page's moves and parts
+   (`part = ''` is the page itself), with `waits_on` the read the slowest waited on most often; and `select * from
+page_spots(7, 50000);` for the elements.
+2. **Watch it in a browser**: DevTools' Performance panel draws each report as a measure on the track "Pages" in the
+   group "Chanlytics", with its detail. A dev build measures and draws them too, and sends nothing.
+3. **Read a route's answer**: its `Server-Timing` header says `auth`, `app`, `db` (with how many calls in `desc`)
+   and each reader it read through (`read.<name>`), slowest first. The Network panel's Timing tab draws it.
+4. **An empty card** after the migration is applied means no page has been hidden since: open a workspace, switch
    tabs, and read it again.
-3. **Watch** `page_vitals_not_kept` on the dashboard's logs: the table refused a load's reports, which on a deploy
+5. **Watch** `page_vitals_not_kept` on the dashboard's logs: the table refused a load's reports, which on a deploy
    ahead of its migration is expected, and otherwise is the database.
 
 ## Read the logs

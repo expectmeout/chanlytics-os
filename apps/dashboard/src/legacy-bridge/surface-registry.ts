@@ -21,6 +21,13 @@
  */
 import { FIRST_RUN_ROUTE, reportsParamParts } from "@chanlytics/contracts";
 
+import {
+  heardOnItsPage,
+  heardTables,
+  type DeclaredReads,
+  type ReadsDeclaration,
+  type RealtimeChange,
+} from "./surface-realtime";
 import { getSurfaceStatuses, isSurfaceFailed, isSurfaceReady, onSurfaceStatusChange } from "./surface-status";
 import { hearAddress, routeOnScreen } from "./workspace";
 
@@ -59,8 +66,11 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   broadcasts: "real", // Campaigns › Sent: the runs, and the send screen where an audience is named; SMS and email stay not available
   messages: "real", // Campaigns › Library: what the receptionist and the campaigns send, as the customer sees it, a reach-out's emails included (drawn from the reach_outs surface's chains, each count read as its row opens)
   start: "real", // the first run: Setup's rows a step at a time, read from the workspace (contracts/first-run.ts)
-  admin: "demo", // the page itself: every pane below is classified, and a
-  // pane nobody has listed inherits this honest default
+  // Settings, the page itself. Every pane it draws is classified below, and one nobody has listed is not a pane: Settings
+  // opens Profile for it (settings/frame/tabs.ts SET_TAB), which the settings read feeds. It was "demo" once, as the honest
+  // default for a pane nobody had classified, and the frame drew the card that says Not in this release for any address
+  // nobody had listed -- a typed one (settings/hours), and the retired admin/setup, for a frame before the move ran (A3c).
+  admin: "real",
   "admin/profile": "real", // you: name, the address you signed in with, your role
   "admin/workspace": "real",
   "admin/team": "real", // split out of workspace: the people, their roles, invites
@@ -92,6 +102,8 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
  * and a test pins that every "real" row has an entry and vice versa.
  */
 export const ROUTE_SURFACE: Record<string, string> = {
+  // Settings: every pane, and Profile for an address that names none, is fed by the settings read.
+  admin: "settings",
   today: "today",
   inbox: "inbox",
   conversations: "conversations",
@@ -142,8 +154,10 @@ export const PERSON_ROUTE = "clients/person";
  * server/request-guards.ts requireUuid); the mockup's seeded people are `c-…` and keep the list's gate and its seeds.
  */
 export function personRouteId(page: string, param?: string | null): string | null {
-  return page === "clients" && param && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(param)
-    ? param
+  // A person's tab is their address with its word (0052): `clients/<id>/history` is still their page.
+  const id = param ? param.split("/")[0] : null;
+  return page === "clients" && id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+    ? id
     : null;
 }
 
@@ -197,8 +211,10 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   outbound: ["reach_outs"],
   // Campaigns' home draws Sent's runs (Coming up, a row's waiting run, who can hear you) from the broadcasts, its own 30
   // days from campaign_results (read on demand: no other page's boot pays for them), and the reach-outs as rows. The call's
-  // text and the Library's count are the playbooks surface's own read of the templates, so Settings is not drawn here.
-  campaigns: ["broadcasts", "campaign_results", "reach_outs"],
+  // text and the Library's count are made of the templates, which are the settings read's, the one read of them
+  // (surfaces/offered-templates.ts), so Settings is drawn here, last: the home's first draw would otherwise add its line after
+  // the rest, and say nothing of the call's text until the boot's second pass.
+  campaigns: ["broadcasts", "campaign_results", "reach_outs", "settings"],
   // Templates says which playbooks send each template (messages.jsx), and Broadcasts names a run's playbook.
   messages: ["reach_outs", "playbooks"],
   broadcasts: ["playbooks"],
@@ -301,25 +317,44 @@ function pageOfRoute(route: string): { page: string; param: string | null } {
  * the Campaigns lens's, each heard while that lens is on screen and not on Reports' other lenses or pages. The Overview owns the
  * Campaigns read too, for the one fact it draws from it, but does not read it for a burst: the read's own rule asks for the lens, and
  * keeps what the Overview heard for the lens (keepForItsPage, campaigns-surface.ts), read once as either comes on screen.
+ * Today owns the headline its period line and Worth a look are printed from (and the replies to a reach-out its queue draws), and
+ * only those: the headline moves with a message, a call or a visit while Today is open, a long wait later (headline.ts), and the
+ * rest of what Today draws stays its own page's (LEFT_TO_THEIR_PAGE).
  */
-const OWNS_WHAT_IT_DRAWS: ReadonlySet<string> = new Set(["campaigns", "reports"]);
+const OWNS_WHAT_IT_DRAWS: ReadonlySet<string> = new Set(["campaigns", "reports", "today"]);
 
 /**
  * What a page that owns what it draws still leaves to the surface's own page. Campaigns draws Sent's runs for Coming up
  * and a row's waiting run, and what a message moves of them (a run's replies) it reads from its own 30 days now
  * (campaign_results, spec 2026-10-09 §4.5): so a message on Campaigns no longer re-reads the broadcasts and every page of
- * People behind them. They are heard on Sent, their own page, and read once as Sent comes back.
+ * People behind them. They are heard on Sent, their own page, and read once as Sent comes back. Today leaves everything it
+ * draws beside the headline and the replies to a reach-out: People's pages of contacts are the heaviest read there is, and a
+ * message on Today re-reads the three that draw messages and nothing else (shell/surfaces/message-fan-out.test.mjs).
  */
-const LEFT_TO_THEIR_PAGE: Readonly<Partial<Record<string, readonly string[]>>> = { campaigns: ["broadcasts"] };
+const LEFT_TO_THEIR_PAGE: Readonly<Partial<Record<string, readonly string[]>>> = {
+  campaigns: ["broadcasts"],
+  today: ["setup", "calendar", "broadcasts", "playbooks", "notifications", "live", "google", "people"],
+};
+
+/**
+ * The panes that draw a surface of another page and read it as their own. Settings' Business pane lists the booking emails held for a
+ * look, and states the calendar link's last read, from the Calendar's read (settings/business/open-bookings.tsx, open-calendar.tsx):
+ * a held email's bell row opens it, so a read of the Calendar is due there, as it is on the board.
+ */
+const PANE_OWNS: Readonly<Record<string, readonly string[]>> = {
+  "admin/workspace": ["calendar"],
+};
 
 /**
  * Whether this surface is the one the page on screen is of: its own surface, and, on a page that owns what it draws
  * (OWNS_WHAT_IT_DRAWS), the surfaces it draws beside it (ROUTE_DRAWS), but those it leaves to their own page
- * (LEFT_TO_THEIR_PAGE).
+ * (LEFT_TO_THEIR_PAGE); and the surfaces a pane reads as its own (PANE_OWNS).
  */
 export function ownsTheScreen(key: string, route: string): boolean {
   const { page, param } = pageOfRoute(route);
   if (routeSurfaceFor(page, param) === key) return true;
+  const pane = paneOf(page, param) || SURFACE_DEFAULT_PARAM[page];
+  if (pane && PANE_OWNS[`${page}/${pane}`]?.includes(key)) return true;
   return (
     OWNS_WHAT_IT_DRAWS.has(page) &&
     routeDrawsFor(page, param).includes(key) &&
@@ -343,6 +378,18 @@ export function keepForItsPage(key: string): void {
 }
 
 /**
+ * What a change made somewhere else owes the pages that draw it: of these surfaces, the ones whose page is on screen, which the caller
+ * reads now, and the rest kept for their own page (keepForItsPage), read once as it comes on screen. A bell row about a template or a
+ * held email (notice-re-reads.ts), and a rule saved on Settings that Campaigns' Resume question speaks of (refresh-map.ts), reach
+ * their pages this way.
+ */
+export function whereDrawn<T extends { key: string }>(overrides: readonly T[], route: string = routeOnScreen()): T[] {
+  const here = overrides.filter((o) => ownsTheScreen(o.key, route));
+  for (const o of overrides) if (!here.includes(o)) keepForItsPage(o.key);
+  return here;
+}
+
+/**
  * A surface that counts messages but is not where they are read -- People's rows, Reports' numbers, a campaign's
  * replies -- hears these tables only while its own page is on screen; an event it lets pass is kept, and the surface
  * is read once as its page comes on screen (readWhatWasMissed). One message used to re-read seven surfaces, four of
@@ -358,6 +405,28 @@ export function onlyOnItsPage(
     if (!tables.includes(change.table) || ownsTheScreen(key, route())) return true;
     missedWhileAway.add(key);
     return false;
+  };
+}
+
+/**
+ * A surface's declaration as the runner reads it (decision 0047): the kinds of record it draws and how fresh it must stay, and
+ * from them the tables it hears (`refreshOnTables`) and the rule that judges an event (`refreshWhen`: its own `when`, then the
+ * page rule `onlyOnItsPage` for the tables it hears only on its page). `key` is the surface's own. Spread into its override,
+ * which never writes `refreshOnTables` itself: `...declareReads("people", { reads, fresh: "its-page", always, omit })`.
+ */
+export function declareReads(key: string, d: ReadsDeclaration): DeclaredReads {
+  const tables = heardTables(d);
+  const standard: ((c: RealtimeChange) => boolean) | null =
+    d.fresh === "its-page" ? onlyOnItsPage(key, heardOnItsPage(d)) : null;
+  const onPage = standard && d.page ? d.page(standard) : standard;
+  const { when } = d;
+  const refreshWhen = when && onPage ? (c: RealtimeChange) => when(c) && onPage(c) : (when ?? onPage ?? undefined);
+  return {
+    reads: d.reads,
+    fresh: d.fresh,
+    ...(d.omit?.length ? { omit: d.omit } : {}),
+    ...(tables.length ? { refreshOnTables: tables } : {}),
+    ...(refreshWhen ? { refreshWhen } : {}),
   };
 }
 
@@ -429,15 +498,17 @@ export function warmWhatItDraws(
 /**
  * The state of one route, most specific first.
  *
- * Settings is one page with six panes behind it, and they are not all at the
- * same stage: the workspace pane can be fed by real APIs while billing and
- * integrations are still drawn from seeds. Classifying only the PAGE forced a
+ * Settings is one page with panes behind it, and they were not all at the
+ * same stage: the workspace pane could be fed by real APIs while billing and
+ * integrations were still drawn from seeds. Classifying only the PAGE forced a
  * choice between hiding a finished pane and shipping five invented ones — so
- * the table now accepts `admin/workspace` as well as `admin`, and falls back
+ * the table accepts `admin/workspace` as well as `admin`, and falls back
  * to the page when no sub-route is listed.
  *
- * The fallback is what keeps this safe: a new pane nobody has classified
- * inherits its page's state, which is `demo`, which is the honest default.
+ * Every pane Settings draws is real now, and so is the page: an address that
+ * names no pane of it is not a pane nobody classified but Profile, which
+ * Settings opens (settings/frame/tabs.ts SET_TAB). A new pane is classified in
+ * the same change that draws it.
  */
 /**
  * The pane a page opens on when the route names none.
@@ -471,6 +542,8 @@ export const SURFACE_DEFAULT_PARAM: Record<string, string> = {
  */
 export function routeSurfaceFor(page: string, param?: string | null): string | undefined {
   const pane = paneOf(page, param) || SURFACE_DEFAULT_PARAM[page];
+  // An address that moves on (ROUTES_MOVED: admin/setup is the first run) draws nothing, so there is nothing to wait for.
+  if (pane && ROUTES_MOVED[`${page}/${pane}`]) return undefined;
   // People has two scopes and they are fed by two surfaces. Leads is
   // `clients/leads` with the view spelled after it (`clients/leads:s-…:l-…`),
   // so the gate must be asked about the SCOPE, not the page: asked about
@@ -548,6 +621,19 @@ export function installSurfaceRegistry(): void {
 }
 
 /**
+ * Whether the gate is open on a route: its own surface holds real rows, and (unless `own`) what its first draw waits
+ * for beside it is in or has failed (ROUTE_WAITS). The PANE decides, not the page: asked with the bare page name,
+ * Settings resolved to nothing and the gate waved a cold load straight through onto the mockup's fabricated business.
+ * The shell's gate (installRouteGate) and the page's measures (client/page-speed.ts) ask this one rule.
+ */
+export function routeGateOpen(page: string, param?: string | null, own = false): boolean {
+  const key = routeSurfaceFor(page, param);
+  if (key && !isSurfaceReady(key)) return false;
+  if (own) return true;
+  return (ROUTE_WAITS[page] ?? []).every((k) => isSurfaceReady(k) || isSurfaceFailed(k));
+}
+
+/**
  * The shell's route gate, installed at MODULE SCOPE — not in an effect.
  *
  * app-shell.jsx computes `routeLoading`'s INITIAL state during its first
@@ -571,16 +657,8 @@ export function installRouteGate(): void {
     __routeWaitMs?: number;
   };
   w.__routeWaitMs = ROUTE_WAIT_MS;
-  // The PANE decides, not the page. Asked with the bare page name, Settings
-  // resolved to nothing and the gate waved a cold load straight through onto
-  // the mockup's fabricated business.
   // `own`: the route's own surface alone, without what its first draw waits for beside it (ROUTE_WAITS).
-  w.__surfaceGate = (page, param, own = false) => {
-    const key = routeSurfaceFor(page, param);
-    if (key && !isSurfaceReady(key)) return false;
-    if (own) return true;
-    return (ROUTE_WAITS[page] ?? []).every((k) => isSurfaceReady(k) || isSurfaceFailed(k));
-  };
+  w.__surfaceGate = routeGateOpen;
   w.__surfaceFailed = (page, param) => {
     const key = routeSurfaceFor(page, param);
     return key ? isSurfaceFailed(key) : false;

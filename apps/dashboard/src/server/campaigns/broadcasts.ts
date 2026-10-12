@@ -74,6 +74,9 @@ interface RecipientRow {
   contacts?: {
     display_name: string | null;
     wa_profile_name: string | null;
+    /** Where the name came from and whether a member settled it (0052): a stand-in's first name is "there". */
+    name_source?: string | null;
+    name_settled_at?: string | null;
     phone_e164: string | null;
     email: string | null;
     /** Whether the person stands (answersToRuns): erased, or merged into another, they answer nothing. */
@@ -519,8 +522,14 @@ function nameOf(r: RecipientRow): string {
   });
 }
 
+/** The first name a run may greet them by: none for a stand-in, or a name the engine set and nobody settled (0052). */
+function firstNameOfRecipient(r: RecipientRow): string | null {
+  const c = r.contacts;
+  return firstNameOf(c?.display_name, c?.wa_profile_name, { source: c?.name_source, settled: !!c?.name_settled_at });
+}
+
 const RECIPIENT_COLUMNS =
-  "broadcast_id, contact_id, message_id, state, reason, sent_at, messages(conversation_id, status, meta, external_id), contacts(display_name, wa_profile_name, phone_e164, email, erased_at, merged_into_contact_id)";
+  "broadcast_id, contact_id, message_id, state, reason, sent_at, messages(conversation_id, status, meta, external_id), contacts(display_name, wa_profile_name, phone_e164, email, erased_at, merged_into_contact_id, name_source, name_settled_at)";
 
 /**
  * Every person on a run, a page at a time, each with the channel the send picked for them. A database 00298 has not
@@ -582,7 +591,7 @@ export async function getBroadcast(ctx: RouteContext, tenantId: string, id: stri
     contact_id: r.contact_id,
     name: nameOf(r),
     channel: r.channel,
-    first_name: firstNameOf(r.contacts?.display_name, r.contacts?.wa_profile_name),
+    first_name: firstNameOfRecipient(r),
     phone: r.contacts?.phone_e164 ?? null,
     state: r.state as RecipientState,
     reason: r.reason,

@@ -6,7 +6,9 @@ import type { KeyboardEvent } from "react";
 import type { LiveCallVM, LiveLineVM } from "@chanlytics/contracts";
 import { navigate } from "../legacy-verbs";
 import { EmptyState, FailedRead } from "../kit/empty/empty";
+import { Face } from "../kit/face/face";
 import { Icon } from "../kit/icon/icon";
+import { StoppedMark } from "../kit/pill/stopped-mark";
 import { LrPill, lrClock } from "./call-parts";
 
 // The last thing the caller said, for the row's second line: what the call is about, in their words.
@@ -61,10 +63,12 @@ const LrRow = ({ c, active, elapsed, onSelect, order = [] }: LrRowProps) => {
       <span className="lm-row-dot" aria-hidden="true">
         {c.live && !c.checking && <span className="live-dot" />}
       </span>
-      <span className="lm-row-avatar">{c.initials}</span>
+      <Face person={{ name: c.who, initials: c.initials }} />
       <span className="lm-row-body">
         <span className="lm-row-line1">
           <span className="lm-row-who">{c.who}</span>
+          {/* They asked to stop: said beside the name, as every list that offers a person to answer says it. */}
+          {c.stopped && <StoppedMark testid="live-row-stopped" />}
           <span className="lm-row-clock tabular">{lrClock(elapsed)}</span>
         </span>
         <span className={`lm-row-said ${said ? "" : "is-waiting"}`}>
@@ -98,7 +102,7 @@ const LrLineNote = ({ line, lineRead = true }: { line: LiveLineVM | null; lineRe
     line === null ? (
       "This workspace has no phone line yet."
     ) : !line.on ? (
-      "The line is switched off — the receptionist is not picking up."
+      line.offWords
     ) : (
       <>
         The line is on

@@ -24,7 +24,7 @@ export async function workspacePaused(db: Db, tenantId: string): Promise<boolean
 
 /**
  * The link a customer leaves the business a review at, as its Google listing keeps it (google_listings.new_review_uri,
- * 00408: the bound Business Profile location's), or null: no listing, none bound, or a database 00408 has not reached
+ * 00415: the bound Business Profile location's), or null: no listing, none bound, or a database 00415 has not reached
  * (Postgres's 42703 on that column, and only that), so either app may deploy first. THE one reading of it for a
  * message's review_link slot: the dashboard's template-values port, on the member's session (refused in words where it
  * is null), and the send job. Any other failed read throws: "we could not read it" is not "there is none".

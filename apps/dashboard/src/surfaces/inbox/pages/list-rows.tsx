@@ -3,9 +3,12 @@
  * the pills, the one time, what was said, and what is under it. Plain functions returning JSX, called by the list, so the
  * row has the nodes it always had.
  */
+import { heldPill } from "@chanlytics/contracts";
+import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
-import { ixAnswerer } from "../answerer";
+import { StoppedMark } from "../../kit/pill/stopped-mark";
+import { holderName } from "../../holder-names";
 import { CONF } from "../constants";
 import type { ListCtx } from "./inbox-list";
 import { pickBox } from "./pick";
@@ -13,6 +16,7 @@ import { ReplyChip } from "../thread/reply-strip";
 import { channelIconOf } from "../thread/timeline";
 import { inboxData } from "../store";
 import { threadUnread } from "../../seen";
+import { businessTrailFor } from "../thread/shell-thread";
 import type { Thread } from "../types";
 
 /**
@@ -104,6 +108,16 @@ function rowFoot(L: ListCtx, t: Thread) {
   );
 }
 
+/** The business a named person works at, dim after their name (0052), giving way before the name does. */
+function rowTrail(t: Thread) {
+  const trail = t.real ? businessTrailFor(t.clientId) : null;
+  return trail ? (
+    <span className="ix-thread-trail" data-testid="thread-business">
+      · {trail}
+    </span>
+  ) : null;
+}
+
 /** A row's first line: who, the pill and the one time. */
 function rowLine1(L: ListCtx, t: Thread) {
   const { activeBucket, inNeedsBucket, searching, sendingIn } = L;
@@ -122,22 +136,26 @@ function rowLine1(L: ListCtx, t: Thread) {
   return (
     <div className="ix-thread-line1">
       <span className="ix-thread-who">{t.who}</span>
+      {rowTrail(t)}
       {t.pinned && <Icon name="pin" size={10} />}
       <div className="ix-thread-meta">
+        {/* They asked to stop: said beside the name, where the owner picks who to answer, not first at a reply box that
+            will not take the words (D1-stop-unseen). */}
+        {t.real && t.optedOut && <StoppedMark className="ix-state-pill" testid="thread-stopped" />}
         {showStatePill && <StatePill kind="thread" value="escalated" className="ix-state-pill" testid="thread-state" />}
         {/* A teammate has it: say whose, never Needs you. */}
         {t.real && t.claimedByOther && (
           <StatePill
             kind="thread"
             value="theirs"
-            label={`${ixAnswerer(t)} has it`}
+            label={heldPill("theirs", holderName(t.assigneeUserId))}
             className="ix-state-pill ix-name-pill"
             testid="thread-theirs"
           />
         )}
         {/* A thread you have is yours to answer, not waiting on you (I2). */}
         {t.real && t.takenOver && (
-          <StatePill kind="thread" value="yours" label="You have it" className="ix-state-pill" testid="thread-yours" />
+          <StatePill kind="thread" value="yours" className="ix-state-pill" testid="thread-yours" />
         )}
         <ReplyChip thread={t} />
         {/* A Handled thread whose last reply didn't send says so here, not only in the pane (I1's lastWord). */}
@@ -203,10 +221,11 @@ export function threadRow(L: ListCtx, t: Thread, i: number) {
       {/* The mouse's box: the row itself says selected, and Space picks it. */}
       {pickBox({ picked: isSelected, onToggle: () => onToggleSelect(t.id) })}
 
-      <div className="ix-thread-avatar" data-priority={t.priority}>
-        {t.avatar}
+      {/* The one face (the kit's, by contracts' personFaceOf), with the wire of the words as a badge at its foot. */}
+      <span className="ix-thread-lead">
+        <Face person={{ name: t.who, initials: t.avatar }} priority={t.priority} className="ix-thread-pic" />
         {rowWire(words.wire)}
-      </div>
+      </span>
 
       {rowBody(L, t, words)}
     </div>

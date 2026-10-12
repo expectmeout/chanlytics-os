@@ -1181,11 +1181,15 @@ type Database = {
                     first_seen_at: string;
                     id: string;
                     last_seen_at: string;
+                    lead_id: string | null;
+                    lead_settled_at: string | null;
                     marketing_channels: string[] | null;
                     marketing_consent: string;
                     marketing_consent_source: string | null;
                     marketing_consent_updated_at: string | null;
                     merged_into_contact_id: string | null;
+                    name_settled_at: string | null;
+                    name_source: string | null;
                     notes: string | null;
                     offers_asked_at: string | null;
                     phone_e164: string | null;
@@ -1217,11 +1221,15 @@ type Database = {
                     first_seen_at?: string;
                     id?: string;
                     last_seen_at?: string;
+                    lead_id?: string | null;
+                    lead_settled_at?: string | null;
                     marketing_channels?: string[] | null;
                     marketing_consent?: string;
                     marketing_consent_source?: string | null;
                     marketing_consent_updated_at?: string | null;
                     merged_into_contact_id?: string | null;
+                    name_settled_at?: string | null;
+                    name_source?: string | null;
                     notes?: string | null;
                     offers_asked_at?: string | null;
                     phone_e164?: string | null;
@@ -1253,11 +1261,15 @@ type Database = {
                     first_seen_at?: string;
                     id?: string;
                     last_seen_at?: string;
+                    lead_id?: string | null;
+                    lead_settled_at?: string | null;
                     marketing_channels?: string[] | null;
                     marketing_consent?: string;
                     marketing_consent_source?: string | null;
                     marketing_consent_updated_at?: string | null;
                     merged_into_contact_id?: string | null;
+                    name_settled_at?: string | null;
+                    name_source?: string | null;
                     notes?: string | null;
                     offers_asked_at?: string | null;
                     phone_e164?: string | null;
@@ -1267,6 +1279,13 @@ type Database = {
                     wa_profile_name?: string | null;
                 };
                 Relationships: [
+                    {
+                        foreignKeyName: "contacts_lead_id_same_workspace";
+                        columns: ["tenant_id", "lead_id"];
+                        isOneToOne: false;
+                        referencedRelation: "leads";
+                        referencedColumns: ["tenant_id", "id"];
+                    },
                     {
                         foreignKeyName: "contacts_merged_into_contact_id_same_workspace";
                         columns: ["tenant_id", "merged_into_contact_id"];
@@ -4194,6 +4213,7 @@ type Database = {
                     created_at: string;
                     id: string;
                     kind: string;
+                    mail_due_at: string | null;
                     recipient_user_id: string | null;
                     route: string | null;
                     source_event: string | null;
@@ -4207,6 +4227,7 @@ type Database = {
                     created_at?: string;
                     id?: string;
                     kind: string;
+                    mail_due_at?: string | null;
                     recipient_user_id?: string | null;
                     route?: string | null;
                     source_event?: string | null;
@@ -4220,6 +4241,7 @@ type Database = {
                     created_at?: string;
                     id?: string;
                     kind?: string;
+                    mail_due_at?: string | null;
                     recipient_user_id?: string | null;
                     route?: string | null;
                     source_event?: string | null;
@@ -4265,24 +4287,42 @@ type Database = {
             page_vitals: {
                 Row: {
                     at: string;
+                    build: string | null;
+                    came_from: string | null;
+                    detail: Json | null;
+                    device: string | null;
                     id: string;
                     metric: string;
                     page: string;
+                    part: string | null;
                     value: number;
+                    warm: boolean | null;
                 };
                 Insert: {
                     at?: string;
+                    build?: string | null;
+                    came_from?: string | null;
+                    detail?: Json | null;
+                    device?: string | null;
                     id: string;
                     metric: string;
                     page: string;
+                    part?: string | null;
                     value: number;
+                    warm?: boolean | null;
                 };
                 Update: {
                     at?: string;
+                    build?: string | null;
+                    came_from?: string | null;
+                    detail?: Json | null;
+                    device?: string | null;
                     id?: string;
                     metric?: string;
                     page?: string;
+                    part?: string | null;
                     value?: number;
+                    warm?: boolean | null;
                 };
                 Relationships: [];
             };
@@ -4745,6 +4785,7 @@ type Database = {
                     done_at: string | null;
                     done_by: string | null;
                     due_on: string | null;
+                    for_seen_at: string | null;
                     for_user_id: string | null;
                     id: string;
                     kept_at: string | null;
@@ -4767,6 +4808,7 @@ type Database = {
                     done_at?: string | null;
                     done_by?: string | null;
                     due_on?: string | null;
+                    for_seen_at?: string | null;
                     for_user_id?: string | null;
                     id?: string;
                     kept_at?: string | null;
@@ -4789,6 +4831,7 @@ type Database = {
                     done_at?: string | null;
                     done_by?: string | null;
                     due_on?: string | null;
+                    for_seen_at?: string | null;
                     for_user_id?: string | null;
                     id?: string;
                     kept_at?: string | null;
@@ -5283,6 +5326,12 @@ type Database = {
                     reread_at: string | null;
                     rereads: number;
                     send_id: string | null;
+                    signer_name: string | null;
+                    signer_settled_at: string | null;
+                    signer_settled_by: string | null;
+                    signer_state: string | null;
+                    signer_title: string | null;
+                    signer_was: string | null;
                     summary: string | null;
                     tell_claimed_at: string | null;
                     tenant_id: string;
@@ -5311,6 +5360,12 @@ type Database = {
                     reread_at?: string | null;
                     rereads?: number;
                     send_id?: string | null;
+                    signer_name?: string | null;
+                    signer_settled_at?: string | null;
+                    signer_settled_by?: string | null;
+                    signer_state?: string | null;
+                    signer_title?: string | null;
+                    signer_was?: string | null;
                     summary?: string | null;
                     tell_claimed_at?: string | null;
                     tenant_id: string;
@@ -5339,6 +5394,12 @@ type Database = {
                     reread_at?: string | null;
                     rereads?: number;
                     send_id?: string | null;
+                    signer_name?: string | null;
+                    signer_settled_at?: string | null;
+                    signer_settled_by?: string | null;
+                    signer_state?: string | null;
+                    signer_title?: string | null;
+                    signer_was?: string | null;
                     summary?: string | null;
                     tell_claimed_at?: string | null;
                     tenant_id?: string;
@@ -7238,6 +7299,14 @@ type Database = {
                 };
                 Returns: Json;
             };
+            lead_person_leg: {
+                Args: {
+                    p_email: string;
+                    p_lead_id: string;
+                    p_phone: string;
+                };
+                Returns: undefined;
+            };
             lead_plan_check: {
                 Args: {
                     p_plan: Json;
@@ -7420,6 +7489,7 @@ type Database = {
                     p_note?: string;
                     p_outcome?: string;
                     p_reason?: string;
+                    p_spoke_with?: string;
                     p_stage?: string;
                 };
                 Returns: Json;
@@ -7782,6 +7852,8 @@ type Database = {
             };
             note_page_vitals: {
                 Args: {
+                    p_build?: string;
+                    p_device?: string;
                     p_page: string;
                     p_vitals: Json;
                 };
@@ -7858,6 +7930,38 @@ type Database = {
                     p_tenant_id: string;
                 };
                 Returns: string[];
+            };
+            page_speed: {
+                Args: {
+                    p_days?: number;
+                    p_most?: number;
+                };
+                Returns: {
+                    device: string;
+                    how: string;
+                    metric: string;
+                    p75: number;
+                    page: string;
+                    part: string;
+                    samples: number;
+                    since: string;
+                    waits_on: string;
+                    warm: string;
+                }[];
+            };
+            page_spots: {
+                Args: {
+                    p_days?: number;
+                    p_most?: number;
+                };
+                Returns: {
+                    el: string;
+                    metric: string;
+                    p75: number;
+                    page: string;
+                    phase: string;
+                    samples: number;
+                }[];
             };
             page_vitals_p75: {
                 Args: {
@@ -8132,11 +8236,16 @@ type Database = {
                     latest_snooze_until: string;
                     latest_state: string;
                     latest_wa_inbound_at: string;
+                    lead_gone: boolean;
+                    lead_id: string;
+                    lead_name: string;
                     marketing_channels: string[];
                     marketing_consent: string;
                     marketing_consent_source: string;
                     marketing_consent_updated_at: string;
                     message_channels: string[];
+                    name_settled_at: string;
+                    name_source: string;
                     needs_human: boolean;
                     offers_asked_at: string;
                     open_deals: Json;
@@ -8144,6 +8253,10 @@ type Database = {
                     open_escalation_since: string;
                     phone_e164: string;
                     queued_reply_at: string;
+                    signer_message_id: string;
+                    signer_name: string;
+                    signer_read_at: string;
+                    signer_title: string;
                     step_body: string;
                     step_deal_id: string;
                     step_due_on: string;
@@ -8191,6 +8304,19 @@ type Database = {
             person_doubt_dismiss: {
                 Args: {
                     p_doubt_id: string;
+                };
+                Returns: Json;
+            };
+            person_join_lead: {
+                Args: {
+                    p_contact_id: string;
+                    p_lead_id: string;
+                };
+                Returns: Json;
+            };
+            person_leave_lead: {
+                Args: {
+                    p_contact_id: string;
                 };
                 Returns: Json;
             };
@@ -8249,6 +8375,42 @@ type Database = {
                 };
                 Returns: number;
             };
+            person_name_adopt: {
+                Args: {
+                    p_contact_id: string;
+                    p_message_id: string;
+                };
+                Returns: Json;
+            };
+            person_name_decline: {
+                Args: {
+                    p_contact_id: string;
+                    p_message_id: string;
+                };
+                Returns: Json;
+            };
+            person_name_rank: {
+                Args: {
+                    p_source: string;
+                };
+                Returns: number;
+            };
+            person_name_take: {
+                Args: {
+                    p_by: string;
+                    p_contact_id: string;
+                    p_message_id: string;
+                    p_tenant_id: string;
+                    p_via: string;
+                };
+                Returns: Json;
+            };
+            person_name_undo: {
+                Args: {
+                    p_contact_id: string;
+                };
+                Returns: Json;
+            };
             person_note_add: {
                 Args: {
                     p_body: string;
@@ -8292,6 +8454,12 @@ type Database = {
                 Returns: Json;
             };
             person_note_remove: {
+                Args: {
+                    p_note_id: string;
+                };
+                Returns: Json;
+            };
+            person_note_seen: {
                 Args: {
                     p_note_id: string;
                 };
@@ -9881,10 +10049,11 @@ type Database = {
  * The live feed (Blueprint §5, decision 0019): every surface hears the database through here, so no surface knows
  * how. The database tells each workspace what changed (00265): a notice on the private topic `workspace:<id>:changes`
  * when a statement on a watched table changes its rows, once a transaction for each table and event, naming the table
- * and the event, and the statuses a call's or a message update's statement left. It never carries a row; a surface that
- * wants one reads it. Realtime admits a member to their workspaces' topics (the one policy on realtime.messages) and
- * lets nobody speak on them. The session token is pushed to Realtime EXPLICITLY before the channel joins: relying on
- * supabase-js's auth-listener propagation races the join, and a private channel that joins as `anon` is refused.
+ * and the event, the statuses a call's or a message update's statement left, and the clock when it was told (`at`,
+ * 00408). It never carries a row; a surface that wants one reads it. Realtime admits a member to their workspaces'
+ * topics (the one policy on realtime.messages) and lets nobody speak on them. The session token is pushed to Realtime
+ * EXPLICITLY before the channel joins: relying on supabase-js's auth-listener propagation races the join, and a private
+ * channel that joins as `anon` is refused.
  *
  * The topic is the authorization, so it carries no caller's suffix, and realtime-js hands back the channel it already
  * has for a topic and joins it once. So each client keeps one channel per topic and counts who listens on it: two
@@ -9905,11 +10074,14 @@ declare function watchedEvents(): Array<{
     table: string;
     events: Event[];
 }>;
-/** What a surface hears of a change: the workspace, and a call's or a message update's status. Never the row. */
+/**
+ * What a surface hears of a change: the workspace, and a call's or a message update's status. Never the row. And, as the
+ * fourth argument, the clock the database told it by (`at`, ISO 8601 in UTC): absent from a notice sent before 00408.
+ */
 type OnChange = (row: {
     tenant_id: string;
     status?: string;
-}, table: string, event: string) => void;
+}, table: string, event: string, at?: string) => void;
 declare function subscribeWorkspaceChanges(client: SupabaseClient<Database>, 
 /** Called with the table a change was told for, its event, and a row of the workspace and its status, where it has one. */
 onChange: OnChange, opts?: SubscribeOptions): () => void;

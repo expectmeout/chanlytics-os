@@ -12,12 +12,12 @@
  * height and a period of days that gained one rating apiece was stretched to match it, which is a picture of nothing. A run
  * of days wants width; the reviews want a readable measure, which reports.css gives them in columns.
  */
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
-import { lensEmpty } from "@chanlytics/contracts";
+import { lensEmpty, lensRoute } from "@chanlytics/contracts";
 import type { GoogleReviewVM, GoogleVM, LensRange, ReviewWaitingVM, ReviewsReportVM } from "@chanlytics/contracts";
 import { draftReply, replyToReview } from "@/legacy-bridge/google";
-import { canDo, useLegacyToast, type LegacyFlash } from "../legacy-verbs";
+import { canDo, navigate, useLegacyToast, type LegacyFlash } from "../legacy-verbs";
 import { BarChart, BarList } from "../kit/charts/bar";
 import { ChartCard } from "../kit/charts/card";
 import { EmptyState } from "../kit/empty/empty";
@@ -44,16 +44,22 @@ type Flash = (flash: LegacyFlash) => void;
 // empty and nothing is asked.
 // A reply that lands moves the review out of the waiting card, and this composer with it, before the toast is raised: the toast
 // is the section's (`flash`), so it is still drawn, and so is where focus goes (`sent`, the card's heading), which the row took with it.
+// The review a link names (reports/reviews:<id>) opens its box as it is drawn, as a press on Reply would; once it is answered the
+// address drops the review (`answered`). The section brings it into view.
 function ReviewReply({
   r,
   mode,
   flash,
   sent,
+  named,
+  answered,
 }: {
   r: GoogleReviewVM;
   mode: ReplyMode;
   flash: Flash;
   sent: (() => void) | null;
+  named: boolean;
+  answered: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState(r.replyText || "");
@@ -72,6 +78,15 @@ function ReviewReply({
       setDrafted("yes");
     } else setDrafted(d.message || "No draft this time — write the reply yourself.");
   };
+  // The review a link names: its box opens as it is drawn (once), and the review is brought into view.
+  const opened = useRef(false);
+  useEffect(() => {
+    if (!named || opened.current) return;
+    opened.current = true;
+    void openIt();
+    // `openIt` is this draw's own; the review named is what asks for it, once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [named]);
   const send = async () => {
     if (busy || drafting || !text.trim()) return;
     setBusy(true);
@@ -83,6 +98,7 @@ function ReviewReply({
     });
     if (res.ok) {
       setOpen(false);
+      answered(r.id);
       sent?.();
     }
   };
@@ -146,22 +162,42 @@ function ReviewReply({
   );
 }
 
-/** What a list of reviews draws them with: the listing's own figures, who may answer, the toast, and where focus goes once a reply has taken a row out of its card. */
+/**
+ * What a list of reviews draws them with: the listing's own figures, who may answer, the toast, where focus goes once a reply has taken
+ * a row out of its card, and the review a link names (its box opens) with what to do once it is answered.
+ */
 interface Rows {
   vm: ReviewsReportVM["google"];
   operator: boolean;
   flash: Flash;
   sent: (() => void) | null;
+  named: string | null;
+  answered: (id: string) => void;
 }
+
+/** What every card of reviews shares: who may answer, the toast, and the review a link names with what to do once it is answered. */
+type Shared = Pick<Rows, "operator" | "flash" | "named" | "answered">;
+
+/** The review a link names is brought into view as it is drawn (its `ref`); a browser without the verb leaves the page where it is. */
+const bringIntoView = (el: HTMLElement | null) => {
+  el?.scrollIntoView?.({ block: "center" });
+};
 
 /**
  * One review: its stars, who and when, its words (or that there are none), the reply the receptionist wrote and held back
  * (`held`, which a row that waits carries), and the reply, or the door to write one.
  */
-function reviewRow(r: GoogleReviewVM | ReviewWaitingVM, { vm, operator, flash, sent }: Rows) {
+function reviewRow(r: GoogleReviewVM | ReviewWaitingVM, { vm, operator, flash, sent, named, answered }: Rows) {
   const held = "held" in r ? r.held : null;
+  const isNamed = r.id === named;
   return (
-    <li key={r.id} className={"rp2-review" + (r.isNew ? " is-new" : "")} data-testid="google-review">
+    <li
+      key={r.id}
+      className={"rp2-review" + (r.isNew ? " is-new" : "") + (isNamed ? " is-named" : "")}
+      data-testid="google-review"
+      data-named={isNamed ? "true" : undefined}
+      ref={isNamed ? bringIntoView : undefined}
+    >
       <div className="rp2-review-head">
         <span
           className="rp2-review-stars"
@@ -188,7 +224,7 @@ function reviewRow(r: GoogleReviewVM | ReviewWaitingVM, { vm, operator, flash, s
         </span>
       )}
       {vm.canReply && operator && r.fromProfile ? (
-        <ReviewReply r={r} mode={vm.reply.mode} flash={flash} sent={sent} />
+        <ReviewReply r={r} mode={vm.reply.mode} flash={flash} sent={sent} named={isNamed} answered={answered} />
       ) : r.replied ? (
         <p className="rp2-review-replytext">
           <b>Replied:</b> {r.replyText}
@@ -287,12 +323,7 @@ function weeklyCard(V: ReviewsReportVM) {
  * The reviews that wait for a reply, the oldest first, each with the reply the receptionist held back where it did, and the door to
  * answer. Its heading takes focus (`heading`) when a reply has landed, since the row that had it is gone.
  */
-function waitingCard(
-  V: ReviewsReportVM,
-  operator: boolean,
-  flash: Flash,
-  heading: RefObject<HTMLHeadingElement | null>,
-) {
+function waitingCard(V: ReviewsReportVM, shared: Shared, heading: RefObject<HTMLHeadingElement | null>) {
   const { total, rows } = V.waiting;
   return (
     <ChartCard
@@ -303,7 +334,7 @@ function waitingCard(
       titleRef={heading}
     >
       {rows.length ? (
-        reviewList(rows, { vm: V.google, operator, flash, sent: () => heading.current?.focus() })
+        reviewList(rows, { vm: V.google, sent: () => heading.current?.focus(), ...shared })
       ) : (
         <EmptyState kind="line" title={V.lines.waitingEmpty} />
       )}
@@ -328,7 +359,7 @@ function connectCard(V: ReviewsReportVM, may: boolean) {
 }
 
 /** The latest reviews with their words, and the listing's own address for the rest. A review that waits for a reply is drawn once, above. */
-function latestCard(V: ReviewsReportVM, mapsUri: string | null, operator: boolean, flash: Flash) {
+function latestCard(V: ReviewsReportVM, mapsUri: string | null, shared: Shared) {
   const G = V.google;
   return (
     <ChartCard
@@ -339,7 +370,7 @@ function latestCard(V: ReviewsReportVM, mapsUri: string | null, operator: boolea
       takeaway={V.latest.length ? (G.reply.words ? `${G.source} · ${G.reply.words}` : G.source) : null}
     >
       {V.latest.length ? (
-        reviewList(V.latest, { vm: G, operator, flash, sent: null })
+        reviewList(V.latest, { vm: G, sent: null, ...shared })
       ) : (
         <EmptyState kind="line" title={V.lines.latestEmpty} />
       )}
@@ -389,7 +420,18 @@ function notLinked(V: ReviewsReportVM, range: LensRange, may: boolean) {
   );
 }
 
-export function GoogleSection({ V, range, phone }: { V: ReviewsReportVM; range: LensRange; phone: boolean }) {
+export function GoogleSection({
+  V,
+  range,
+  phone,
+  review,
+}: {
+  V: ReviewsReportVM;
+  range: LensRange;
+  phone: boolean;
+  /** The review the address names (contracts reviewRoute): drawn where it is listed, marked, with its reply box open. */
+  review: string | null;
+}) {
   const operator = canDo("approve");
   // The doors out of the lens lead to what only an owner (or the workspace's partner) does: finding the listing, connecting the profile.
   const may = canDo("settings");
@@ -400,11 +442,23 @@ export function GoogleSection({ V, range, phone }: { V: ReviewsReportVM; range: 
   const L = V.google.listing;
   if (V.state !== "linked" || !L) return notLinked(V, range, may);
   const profile = V.source === "profile";
+  // Once the review is answered the address is the lens's again, in the entry's own place (Back does not return to a box that is closed).
+  const answered = (id: string) => {
+    if (id === review) navigate(lensRoute("reviews"), { replace: true });
+  };
+  const shared: Shared = { operator, flash, named: review, answered };
+  // The review a link names is one of those listed (waiting for a reply, or among the latest), or the lens says it is not here.
+  const listed = review !== null && [...V.waiting.rows, ...V.latest].some((r) => r.id === review);
   // On a phone the work comes first: reviews that wait for a reply stand ahead of the figures, as they are what the person came to do.
   const waitingFirst = phone && profile && V.waiting.rows.length > 0;
-  const waiting = profile ? waitingCard(V, operator, flash, waitingHeading) : null;
+  const waiting = profile ? waitingCard(V, shared, waitingHeading) : null;
   return (
     <RptSection title="Google reviews" meta={sectionMeta(V, L)}>
+      {review !== null && !listed && (
+        <p className="rp2-review-drafted dim" data-testid="google-review-missing">
+          That review is not among the ones listed here. The latest are below.
+        </p>
+      )}
       {waitingFirst && <div className="rpt-grid">{waiting}</div>}
       {/* The strip's own pattern (RptTiles in blocks.tsx): the kit's figure in a list of terms, named by its metric; five from the profile, four without it. */}
       <dl className={`rpt-figures ${profile ? "profile" : "listing"}`} data-testid="google-tiles">
@@ -425,7 +479,7 @@ export function GoogleSection({ V, range, phone }: { V: ReviewsReportVM; range: 
             {connectCard(V, may)}
           </>
         )}
-        {latestCard(V, L.mapsUri, operator, flash)}
+        {latestCard(V, L.mapsUri, shared)}
       </div>
       {toastNode}
     </RptSection>

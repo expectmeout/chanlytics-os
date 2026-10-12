@@ -5,14 +5,18 @@
  * PersonCardContext), merged newest first. Decomposed from toPersonVM (Phase 2 of the organization plan), proven equal
  * by value. index.ts names the item types and consentChangeWords; the builders are internal.
  */
-import { visitDateKey, visitDay, visitTime } from "../calendar/calendar-people";
+import { visitDateKey, visitDay } from "../calendar/calendar-people";
+import { visitDoor, visitLinkWords } from "../calendar/appointment-key";
+import { appointmentWordWhere } from "../journey/appointment-word";
+import type { VisitLineVM } from "../calendar/calendar-words";
 import { callNoteLines, callNotesOf, tidyCallSummary } from "../voice/call-words";
-import type { ConsentChange } from "../consent/consent";
+import { STOP_WORDS, type ConsentChange } from "../consent/consent";
 import { DEAL_LOST_REASON_WORDS, DEAL_STAGE_WORDS, isDealLostReason } from "../deals/deal-words";
 import { amountWords } from "../deals/deal-amount";
-import type { PersonCampaignDto } from "./person-dto";
+import type { PersonCampaignDto, PersonDecisionDto } from "./person-dto";
+import type { HolderNames } from "./person-receptionist";
 import { reasonShort } from "../conversations/escalations";
-import { visitTitleFor } from "./person-row";
+import { visitLineForDto } from "./person-row";
 import {
   CARRIER_CONSENT_SOURCE,
   CONSENT_RESET_SOURCE,
@@ -25,17 +29,25 @@ import { MERGE_CONSENT_SOURCE } from "./person-merge";
 import { capitalize } from "../shared/words";
 import { callLength } from "../shared/clock";
 import { shortName } from "../conversations/thread-contact";
-import { callAttemptWords, neverConnected, reachedVoicemail, recordingStateOf } from "../conversations/call-dto";
+import {
+  CALL_OUTCOME_WORDS,
+  callAttemptWords,
+  neverConnected,
+  reachedVoicemail,
+  recordingStateOf,
+} from "../conversations/call-dto";
+import { callOutcomeFor } from "../conversations/call-vm";
+import { isLiveCall } from "../config/policy";
 import { type MessageAuthor, messageAuthor } from "../conversations/message-author";
 import { messageAt, type MessageDto } from "../conversations/thread-dto";
-import { clipAtWord, messageWords } from "../conversations/message-words";
+import { clipAtWord, messageStatusLabel, messageWords, reachedCustomer } from "../conversations/message-words";
 import type { PersonCardContext } from "./person-cards";
 import { reachOutPersonOf, type ReachOutPersonVM } from "../reach-out/reach-out-leads";
-import { leadsRoute } from "../leads/lead-plan";
+import { addressOf } from "../activity/record-address";
 import { dateFormat } from "../shared/time";
 
 export type TimelineKind =
-  "customer" | "receptionist" | "you" | "system" | "call" | "escalation" | "decision" | "visit" | "consent" | "deal";
+  "customer" | "receptionist" | "team" | "system" | "call" | "escalation" | "decision" | "visit" | "consent" | "deal";
 
 export interface PersonTimelineItemVM {
   id: string;
@@ -49,8 +61,15 @@ export interface PersonTimelineItemVM {
   /** More lines under the row's text, each said once: what a call's analysis left (its to-do, what the caller gave). */
   notes?: string[];
   link?: { label: string; to: string };
-  /** A visit that has not ended yet: the page says it under Coming up (comingUp), not in what has happened. */
+  /**
+   * A visit nobody has marked that has not ended yet: the page says it under Coming up (comingUp), not in what has
+   * happened. A visit marked while it is under way reads as its mark and is not ahead.
+   */
   ahead?: boolean;
+  /** On a visit's row: the visit as the one visit line (calendar-words.ts visitLineOf), whose state and presses the page draws. */
+  visit?: VisitLineVM;
+  /** A message of ours that has not reached them (queued, failed or canceled): `sub` says which. A reader that tells what was said skips it. */
+  unsent?: true;
 }
 
 /**
@@ -64,8 +83,10 @@ export interface PersonVisitAheadVM {
   day: string;
   title: string;
   time: string;
-  /** Matched to them by their name alone, which the page says, as the Next visit fact does. */
-  byName: boolean;
+  /** How it was matched to them, in the one set of words (MATCH_WORDS), when that was a guess (a name); null for an exact match. */
+  match: string | null;
+  /** The visit as the one visit line: a visit under way and nobody has marked asks the same two presses a past one does. */
+  visit: VisitLineVM;
   to: string;
 }
 
@@ -151,28 +172,49 @@ export function consentChangeWords(c: ConsentChange): { who: string; text: strin
       : c.consent === "opted_out"
         ? offers
           ? "Said no to offers"
-          : "Said stop — nothing goes out to them"
+          : `${STOP_WORDS.said()} — nothing goes out to them`
         : offers
           ? "Offers: back to not asked"
           : "Back to not asked";
   return { who: offers ? "Offers" : "Consent", text, sub: howKnown(c) };
 }
 
-const DECISION_LABELS: Record<string, { who: string; text: string }> = {
-  take_over: { who: "Took over", text: "You paused the receptionist on this thread" },
-  hand_back: { who: "Handed back", text: "You returned the thread to the receptionist" },
-  snooze: { who: "Snoozed", text: "You snoozed the thread" },
-  wake: { who: "Woke", text: "You brought the thread back" },
-  resolve: { who: "Resolved", text: "You marked the escalation resolved" },
-  archive: { who: "Archived", text: "You archived the thread" },
-  cancel_send: { who: "Canceled a reply", text: "You stopped a reply before it sent" },
-  pause_agent: { who: "Paused the receptionist", text: "You paused automatic replies" },
-  resume_agent: { who: "Resumed the receptionist", text: "You resumed automatic replies" },
+/** What each verb of the ledger did, said after who did it ("You paused automatic replies", "Ruben snoozed the thread"). */
+const DECISION_LABELS: Record<string, { who: string; did: string }> = {
+  take_over: { who: "Took over", did: "paused the receptionist on this thread" },
+  hand_back: { who: "Handed back", did: "returned the thread to the receptionist" },
+  snooze: { who: "Snoozed", did: "snoozed the thread" },
+  wake: { who: "Woke", did: "brought the thread back" },
+  resolve: { who: "Resolved", did: "marked the escalation resolved" },
+  archive: { who: "Archived", did: "archived the thread" },
+  cancel_send: { who: "Canceled a reply", did: "stopped a reply before it sent" },
+  pause_agent: { who: "Paused the receptionist", did: "paused automatic replies" },
+  resume_agent: { who: "Resumed the receptionist", did: "resumed automatic replies" },
 };
 
-/** A message's kind on the timeline, by who sent it. */
+/**
+ * Who a decision was by, in the words a line says it: "You" only for the member looking, a teammate by the roster's name
+ * (memberWords, via the page's `names`), "Your team" where the roster does not name them -- as the thread says a reply
+ * that no one can name the sender of -- and the receptionist or the system where it was one of them. Every decision read
+ * "You", whoever made it.
+ */
+function decidedBy(
+  dec: Pick<PersonDecisionDto, "actor_type" | "actor_user_id">,
+  viewerId: string | null,
+  names: HolderNames | null,
+): string {
+  if (dec.actor_type === "ai") return "The receptionist";
+  if (dec.actor_type === "system") return "The system";
+  if (dec.actor_user_id && dec.actor_user_id === viewerId) return "You";
+  return (dec.actor_user_id ? names?.(dec.actor_user_id) : null) || "Your team";
+}
+
+/**
+ * A message's kind on the timeline, by who sent it. A person's reply is the team's, never "you": the row does not say
+ * which member sent it (messageAuthor), so no page may claim it was the member looking.
+ */
 function timelineKindOf(sender: MessageDto["sender"]): TimelineKind {
-  return sender === "customer" ? "customer" : sender === "human" ? "you" : sender === "ai" ? "receptionist" : "system";
+  return sender === "customer" ? "customer" : sender === "human" ? "team" : sender === "ai" ? "receptionist" : "system";
 }
 
 /**
@@ -216,22 +258,26 @@ function messageItems(ctx: PersonCardContext): PersonTimelineItemVM[] {
   const { profile, base, stamp } = ctx;
   // A reach-out's email is named for its chain and step, and a reply it read says how it was read (Part 6, H11).
   const reach = reachOutOf(ctx);
-  // A person we know only by number or address keeps the whole identifier: "+1" as a speaker label is nobody.
-  const first = shortName(base.name);
+  // A person we know only by number or address keeps the whole identifier: "+1" as a speaker label is nobody. A stand-in
+  // named for their business reads whole (0052): "Bloom & Vow Bridal", never "Bloom".
+  const first = base.standIn ? base.name : shortName(base.name);
   const runOf = new Map((profile.campaigns ?? []).filter((c) => c.message_id).map((c) => [c.message_id!, c]));
   const items: PersonTimelineItemVM[] = [];
   for (const c of profile.conversations) {
     for (const m of c.messages) {
       if (m.type === "call_summary") continue; // the call carries its own item
-      if (m.status === "canceled") continue; // never reached them
       const t = ts(messageAt(m));
       if (t === null) continue;
       const kind = timelineKindOf(m.sender);
       const author = messageAuthor(asRunMessage(m, runOf.get(m.id)));
       const cold = reach?.emails.get(m.id);
       const read = reach?.readings.get(m.id);
-      const sub =
-        cold?.sub ?? read ?? (m.status === "failed" ? "Not delivered" : m.status === "queued" ? "Sending" : undefined);
+      // A message that has not reached them says what the thread says of it (messageStatusLabel): "Sending…", "Didn't
+      // send" and "Canceled before sending" -- a canceled reply stays a line, as it is a bubble in the thread, and a
+      // message that never left must not read as one that did. One that reached them has no word here: the row is the
+      // record, not the receipt.
+      const unsent = reachedCustomer(m.status) ? undefined : messageStatusLabel(m.status, m.channel);
+      const sub = [unsent, cold?.sub ?? read].filter(Boolean).join(" · ") || undefined;
       items.push({
         id: `m-${m.id}`,
         ts: t,
@@ -240,7 +286,8 @@ function messageItems(ctx: PersonCardContext): PersonTimelineItemVM[] {
         who: kind === "customer" ? first : (cold?.who ?? speakerOf(author)),
         text: messageWords(m),
         ...(sub ? { sub } : {}),
-        link: { label: "Open the thread", to: `inbox/th-${c.id}` },
+        ...(unsent ? { unsent: true as const } : {}),
+        link: { label: "Open the thread", to: addressOf({ kind: "conversation", id: c.id }) },
       });
     }
   }
@@ -248,11 +295,13 @@ function messageItems(ctx: PersonCardContext): PersonTimelineItemVM[] {
 }
 
 /** Their calls: what they wanted, else the summary's first sentence, and where the recording is. */
-function callItems({ profile, stamp }: PersonCardContext): PersonTimelineItemVM[] {
+function callItems({ profile, stamp, now }: PersonCardContext): PersonTimelineItemVM[] {
   const items: PersonTimelineItemVM[] = [];
   for (const k of profile.calls) {
     const t = ts(k.started_at);
     if (t === null) continue;
+    // How it ended, by the ladder Live, Conversations and the thread's call card read (callOutcomeFor), in their one word.
+    const outcome = CALL_OUTCOME_WORDS[callOutcomeFor(k, isLiveCall(k, now))];
     const dur = callLength(k.duration_ms);
     const wanted = (k.wanted || "").trim();
     const summary = tidyCallSummary(k.summary) ?? "";
@@ -278,12 +327,18 @@ function callItems({ profile, stamp }: PersonCardContext): PersonTimelineItemVM[
         : `${k.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` · ${dur}` : ""}`,
       text: sentence,
       ...(notes.length ? { notes } : {}),
-      sub: missed
-        ? "Never connected"
-        : recordingStateOf(k) === "ready"
-          ? "Recording and transcript in Conversations"
-          : "Transcript in Conversations",
-      link: { label: "Open", to: `conversations/cv-${k.id}` },
+      // The outcome's word, then where the call is kept; not said twice where the sentence is the word ("Reached voicemail.").
+      sub: [
+        sentence.replace(/\.$/, "") === outcome ? null : outcome,
+        missed
+          ? null
+          : recordingStateOf(k) === "ready"
+            ? "Recording and transcript in Conversations"
+            : "Transcript in Conversations",
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      link: { label: "Open", to: addressOf({ kind: "call", id: k.id }) },
     });
   }
   return items;
@@ -316,14 +371,14 @@ function escalationItems({ profile, stamp }: PersonCardContext): PersonTimelineI
         e.state === "resolved"
           ? `Resolved${resolvedAt !== null ? ` · ${stamp(resolvedAt).time} ${stamp(resolvedAt).day}` : ""}${e.resolved_by_user_id ? " · by a person" : ""}`
           : "Still open",
-      link: { label: "Open the thread", to: `inbox/th-${e.conversation_id}` },
+      link: { label: "Open the thread", to: addressOf({ kind: "hold", conversationId: e.conversation_id }) },
     });
   }
   return items;
 }
 
 /** The decisions on their threads and on them (DECISION_LABELS): what a person did, in the ledger's words. */
-function decisionItems({ profile, row, stamp }: PersonCardContext): PersonTimelineItemVM[] {
+function decisionItems({ profile, row, stamp, viewerId, names }: PersonCardContext): PersonTimelineItemVM[] {
   const convIds = new Set(profile.conversations.map((c) => c.id));
   const items: PersonTimelineItemVM[] = [];
   for (const dec of profile.decisions) {
@@ -335,7 +390,14 @@ function decisionItems({ profile, row, stamp }: PersonCardContext): PersonTimeli
     if (!mine) continue;
     const t = ts(dec.created_at);
     if (t === null) continue;
-    items.push({ id: `d-${dec.id}`, ts: t, ...stamp(t), kind: "decision", who: label.who, text: label.text });
+    items.push({
+      id: `d-${dec.id}`,
+      ts: t,
+      ...stamp(t),
+      kind: "decision",
+      who: label.who,
+      text: `${decidedBy(dec, viewerId, names)} ${label.did}`,
+    });
   }
   return items;
 }
@@ -365,17 +427,22 @@ function consentItems({ profile, stamp }: PersonCardContext): PersonTimelineItem
 }
 
 /**
- * Their visits, from the calendar: what happened in the chair belongs on
- * the same line as what was said. A visit ahead reads as booked, one behind as past.
+ * Their visits, from the calendar: what happened in the chair belongs on the same line as what was said. Each is the one
+ * visit line (person-row.ts visitLineForDto): its word is the line's state (Kept, Missed, or Past once it has ended and
+ * nobody has said), "Booked" while it is ahead; a visit marked while it is under way reads as its mark and is not ahead.
  */
-function visitItems({ profile, nowMs, base, stamp }: PersonCardContext): PersonTimelineItemVM[] {
+function visitItems({ profile, nowMs, base, stamp, dealsOn }: PersonCardContext): PersonTimelineItemVM[] {
   const items: PersonTimelineItemVM[] = [];
+  const word = appointmentWordWhere(dealsOn);
   if (profile.visits?.all?.length) {
     const zone = profile.visits.timezone;
     for (const v of profile.visits.all) {
       const t = Date.parse(v.start);
       if (!Number.isFinite(t)) continue;
-      const ahead = Date.parse(v.end) >= nowMs;
+      const line = visitLineForDto(v, { zone, nowMs, person: { id: base.id, name: base.name } });
+      // Past, never "visited": the calendar says when, not that they came (decision 0002's answer 3). A member's word on it
+      // is said instead (step 8): kept, or missed. No state is a visit still ahead.
+      const ahead = line.state === null;
       items.push({
         ...(ahead ? { ahead: true } : {}),
         id: `v-${v.id}`,
@@ -383,11 +450,11 @@ function visitItems({ profile, nowMs, base, stamp }: PersonCardContext): PersonT
         ...stamp(t),
         kind: "visit",
         who: "Calendar",
-        // Past, never "visited": the calendar says when, not that they came (decision 0002's answer 3). A member's word on
-        // it is said instead (step 8): kept, or missed.
-        text: `${ahead ? "Booked" : v.said === "missed" ? "Missed" : v.said === "kept" ? "Kept" : "Past visit"} · ${visitTitleFor(v.title, base.name)}`,
-        sub: `${visitTime(v, zone)} · from ${profile.visits.source}${v.via === "name" ? " · matched by name" : ""}`,
-        link: { label: "Open the day", to: `calendar/${visitDateKey(v.start, zone)}` },
+        text: `${line.state ? line.state.text : "Booked"} · ${line.title}`,
+        sub: `${line.time} · from ${profile.visits.source}${line.guess && line.match ? ` · ${line.match}` : ""}`,
+        visit: line,
+        // The visit itself when the record has a row for it (the Calendar opens its panel), else its day.
+        link: { label: visitLinkWords(v.record_id, word), to: visitDoor(visitDateKey(v.start, zone), v.record_id) },
       });
     }
   }
@@ -443,7 +510,7 @@ function foundItems(ctx: PersonCardContext): PersonTimelineItemVM[] {
       kind: "system",
       who: "Leads",
       text: found.text,
-      link: { label: "Open the lead", to: leadsRoute({ peek: lead.id }) },
+      link: { label: "Open the lead", to: addressOf({ kind: "lead", id: lead.id }) },
     },
   ];
 }
@@ -473,8 +540,10 @@ export function comingUpOf({ profile, nowMs, base }: PersonCardContext): PersonV
     for (const v of profile.visits.all) {
       const t = Date.parse(v.start);
       if (!Number.isFinite(t)) continue;
-      const ahead = Date.parse(v.end) >= nowMs;
-      if (!ahead) continue;
+      // Ahead is the timeline's own test: nobody has marked it and it has not ended (a visit marked while under way is
+      // in what has happened, reading as its mark).
+      const line = visitLineForDto(v, { zone, nowMs, person: { id: base.id, name: base.name } });
+      if (line.state !== null) continue;
       const on = visitDay(t, zone, nowMs);
       found.push({
         t,
@@ -486,10 +555,11 @@ export function comingUpOf({ profile, nowMs, base }: PersonCardContext): PersonV
             on === "Today" || on === "Tomorrow"
               ? on
               : dateFormat("en-US", { timeZone: zone, weekday: "short" }).format(new Date(t)),
-          title: visitTitleFor(v.title, base.name),
-          time: visitTime(v, zone),
-          byName: v.via === "name",
-          to: `calendar/${visitDateKey(v.start, zone)}`,
+          title: line.title,
+          time: line.time,
+          match: line.guess ? line.match : null,
+          visit: line,
+          to: visitDoor(visitDateKey(v.start, zone), v.record_id),
         },
       });
     }

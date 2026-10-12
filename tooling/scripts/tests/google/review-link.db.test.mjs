@@ -1,5 +1,5 @@
 /**
- * 00408 on a real Postgres: a listing keeps its review link.
+ * 00415 on a real Postgres: a listing keeps its review link.
  *
  *   1. The migration runs again, twice, and changes nothing: google_listings.new_review_uri is text, null, with no
  *      default, and says what it is.
@@ -85,7 +85,7 @@ let memberA;
 
 before(async () => {
   if (skip) return;
-  // A database the replay built holds the column already; one that has not reached 00408 gets it here.
+  // A database the replay built holds the column already; one that has not reached 00415 gets it here.
   runMigration(migrationNamed(REVIEW_LINK));
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   A = await workspace("review-link-a", true);
@@ -101,7 +101,7 @@ after(async () => {
 });
 
 test(
-  "00408 runs again, twice, and changes nothing: new_review_uri is text, null, with no default, and says what it is",
+  "00415 runs again, twice, and changes nothing: new_review_uri is text, null, with no default, and says what it is",
   { skip },
   () => {
     const once = column();

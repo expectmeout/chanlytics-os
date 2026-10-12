@@ -6,7 +6,8 @@
  *
  * What the JSX read off the window is an import: the deal kit's menu (`window.__deal.menu` is contracts' dealMenuActs),
  * the Pipeline's words and rules (`window.__pipeline`, pipeline-helpers.ts), the bridge's pass (`window.__passDeals`,
- * people-detail.ts passDeals) and the record kit's toggle group. The guards for their absence went with them.
+ * people-detail.ts passDeals) and the record kit's toggle group. The guards for their absence went with them, and the
+ * window names are no longer published (O4b).
  */
 import { useEffect, useRef, useState } from "react";
 

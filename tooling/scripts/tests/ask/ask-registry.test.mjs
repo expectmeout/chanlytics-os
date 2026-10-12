@@ -105,11 +105,12 @@ const PR_4_3 = fixture("ask-tools-4-3.json");
 /**
  * The tools PR 4.7 changed, on purpose: propose_list is new; propose_campaign gained action run (its description, tail,
  * schema and examples); propose_thread_verb no longer points every role to a person's mode, which only an owner is
- * offered since PR 4.6.
+ * offered since PR 4.6. people since 12 Oct 2026 names one list as the Inbox words it (HELD_LIST_WORDS).
  */
 const CHANGED = [
   "calendar",
   "campaigns",
+  "people",
   "propose_autonomy",
   "propose_campaign",
   "propose_list",
@@ -158,11 +159,16 @@ const RUN_CHANNEL_WORDS = [
   "how many were sent (sent_by_channel, where it went by more than one), the share of those delivered, the share of those sent by WhatsApp that were read (a text or an email keeps no read receipt), and how many replied,",
 ];
 /**
- * 8 Oct 2026 (Campaigns, one name per thing): a run waiting on its owner is "Waiting on you" in what the tool answers
- * (contracts BROADCAST_STATE_LABELS), so the sentence that tells the model which state that is says the same words. It
+ * 8 Oct 2026 (Campaigns, one name per thing): a run waiting on its owner says one phrase in what the tool answers, since
+ * 11 Oct 2026 "Waiting for your approval" (contracts BROADCAST_STATE_LABELS), so the sentence that tells the model which state that is says the same words. It
  * said the Inbox's "Needs you" over an answer that no longer did. The one phrase, once.
  */
-const RUN_WAITING_WORDS = ["is Needs you, with waiting_on_you", "is Waiting on you, with waiting_on_you"];
+const RUN_WAITING_WORDS = ["is Needs you, with waiting_on_you", "is Waiting for your approval, with waiting_on_you"];
+/**
+ * 12 Oct 2026 (D1-hold-words): People's list of the threads the member looking has is worded as the Inbox words them,
+ * "You have it", so the people tool names that list in the same words; its id, waiting_on_you, stays. The one phrase, once.
+ */
+const HELD_LIST_WORDS = ["waiting_on_you (Waiting on you)", "waiting_on_you (You have it)"];
 /**
  * 8 Oct 2026 (Ask names channels, the review of that day): each playbook the listing gives says the channels it goes by
  * now, since propose_campaign with action channels asks for all of them, and the model was told to read them from an
@@ -461,7 +467,7 @@ test("every role is offered exactly the actions it may use (D2): a tool with non
         assert.ok(usable(name, ROLES[i]).includes(a), `${name}.${a}: ${ROLES[i - 1]}'s, so ${ROLES[i]}'s`);
 });
 
-test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, propose_thread_verb, propose_autonomy (the modes a class takes), propose_settings (a note's last day), report (its reply times say the hold, and it says the Campaigns lens, the Reviews lens, the Receptionist lens and the People lens), campaigns (a run's channels, a message where it said a template, the library whole and the journey) and calendar (the room in the book) reads to every role byte for byte as PR 4.6 and PR 4.5 sent it -- per tool, per role, with its examples and without -- and every tool they offered a role is offered it still", () => {
+test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, propose_thread_verb, propose_autonomy (the modes a class takes), propose_settings (a note's last day), report (its reply times say the hold, and it says the Campaigns lens, the Reviews lens, the Receptionist lens and the People lens), campaigns (a run's channels, a message where it said a template, the library whole and the journey), calendar (the room in the book) and people (a list in the Inbox's words) reads to every role byte for byte as PR 4.6 and PR 4.5 sent it -- per tool, per role, with its examples and without -- and every tool they offered a role is offered it still", () => {
   const bare = ({ input_examples: _, ...t }) => t;
   for (const role of ROLES) {
     const was = new Map(TODAY[role].map((t) => [t.name, t]));
@@ -581,6 +587,9 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
     // calendar (10 Oct 2026): the room in the book (LANE_ACTIONS), which its tail names (12 Oct 2026), and nothing else it
     // says moved.
     laneAdded(role, "calendar", was(role, "calendar").description.replace(...ROOM_TAIL_WORDS));
+    // people (12 Oct 2026): the list of the threads the member looking has says the Inbox's words, and nothing else moved.
+    assert.equal(tool(role, "people").description, was(role, "people").description.replace(...HELD_LIST_WORDS), role);
+    assert.deepEqual(words(tool(role, "people")), words(was(role, "people")), role);
   }
   for (const role of ["operator", "partner", "owner"]) {
     // propose_thread_verb: the sentence that sent every role to an owner's action now says whose it is, which is true for
@@ -665,7 +674,7 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
       [{ type: "string", enum: ["running", "paused"] }, { type: "number" }, { type: "number" }],
       `${role}: change's own three fields`,
     );
-    // 11 Oct 2026 (00409): and its last day and its trial's end, a null ending the trial; its words are params, the
+    // 11 Oct 2026 (00416): and its last day and its trial's end, a null ending the trial; its words are params, the
     // broadcast's and the playbook's, one shape.
     assert.deepEqual(
       [_u, _t].map(shapeOf),

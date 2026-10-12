@@ -99,7 +99,7 @@ const FRESH = [
   "POST team/leave",
   "GET export",
   "GET contacts/export",
-  "GET leads/export",
+  "POST leads/export",
   "DELETE contacts/[id]",
   "POST contacts/[id]/merge",
   "DELETE leads/[id]",

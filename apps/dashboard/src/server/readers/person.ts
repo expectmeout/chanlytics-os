@@ -2,6 +2,7 @@ import "server-only";
 import {
   AppError,
   NEW_CONVERSATION_WORDS,
+  addressOf,
   callerName,
   consentChangeOf,
   dealsAreOn,
@@ -14,7 +15,16 @@ import {
   type PersonReachDto,
 } from "@chanlytics/contracts";
 import { SMS_FOOTER } from "@chanlytics/channels";
-import { openDoubtsOf, personDecisions, personReplyMode, personRow, readAllRows, textReached } from "@chanlytics/db";
+import {
+  openDoubtsOf,
+  peopleAtLead,
+  personDecisions,
+  personReplyMode,
+  personRow,
+  readAllRows,
+  signersOf,
+  textReached,
+} from "@chanlytics/db";
 import {
   CALL_COLUMNS,
   CONVERSATION_COLUMNS,
@@ -27,6 +37,7 @@ import { personLike } from "../calendar/calendar-week";
 import { personVisits } from "../calendar/person-visits";
 import { personRuns } from "../campaigns/broadcasts";
 import { leadOfPerson } from "../leads/leads";
+import { leadOne } from "../leads/lead-page";
 import { personNotesRead, stepFor } from "../people/person-notes";
 import { DEAL_DTO_COLUMNS, dealPaceRead } from "../people/deals";
 import { load, stamp, type Reader, type ReaderContext, type RowRef } from "./index";
@@ -67,6 +78,57 @@ function cameFrom(row: { created_at: string; data: unknown } | null): PersonDeta
     source: String(data?.source ?? "manual"),
     title: typeof data?.title === "string" ? data.title : null,
   };
+}
+
+/**
+ * What the workspace's config gives a person's page: the booking link, so the profile can text it in one step; the
+ * services, the page's service picker; and the services that need a consultation first, so a proposal started after one
+ * names the service it was for (0008).
+ */
+function configFacts(config: unknown): { bookingLink: string | null; services: string[]; consultFirst: string[] } {
+  type Brain = {
+    booking_link?: unknown;
+    profile?: { services?: { name: string }[]; booking_rules?: { consult_first?: unknown } };
+  };
+  const brain = (config as { brain?: Brain } | null)?.brain;
+  const link = brain?.booking_link;
+  const consult = brain?.profile?.booking_rules?.consult_first;
+  return {
+    bookingLink: typeof link === "string" && link.trim() ? link.trim() : null,
+    services: (brain?.profile?.services ?? []).map((s) => s.name),
+    consultFirst: Array.isArray(consult) ? consult.filter((x): x is string => typeof x === "string") : [],
+  };
+}
+
+/**
+ * The business a person works at and who signed their replies (decision 0052), read beside the rest of their page: the
+ * lead their row names, read as Leads reads one (its listing, stage, verdict and reach, through the list's own builder),
+ * the people who work there, and the signers of their replies still offered or taken. Never fatal: a lead that cannot be
+ * read costs the Works at row and the sheet, a signer the notice, not the page; a lead erased since has no row.
+ */
+async function businessAndSigners(
+  rc: ReaderContext,
+  tenantId: string,
+  id: string,
+  rowRead: Promise<{ lead_id?: string | null; lead_gone?: boolean | null } | null>,
+): Promise<Pick<PersonDetailDto, "business" | "signers">> {
+  const sb = rc.ctx.supabase;
+  const business = rowRead
+    .then(async (r) => {
+      const leadId = r?.lead_id && !r.lead_gone ? r.lead_id : null;
+      if (!leadId) return null;
+      const [one, people] = await Promise.all([leadOne(rc.ctx, tenantId, leadId), peopleAtLead(sb, tenantId, leadId)]);
+      return { lead: one.row, people };
+    })
+    .catch((e: unknown) => {
+      log.error("person_business_failed", { contact: id, error: e instanceof Error ? e.message : String(e) });
+      return null;
+    });
+  const signers = signersOf(sb, tenantId, id).catch((e: unknown) => {
+    log.error("person_signers_failed", { contact: id, error: e instanceof Error ? e.message : String(e) });
+    return [];
+  });
+  return { business: await business, signers: await signers };
 }
 
 /**
@@ -154,6 +216,7 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       notes,
       pace,
       doubts,
+      work,
     ] = await Promise.all([
       rowRead,
       sb.from("contact_identities").select("channel, external_id, created_at").eq("contact_id", id).order("created_at"),
@@ -234,6 +297,8 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       dealPaceRead(rc.ctx, tenantId),
       // The open doubts naming them (0034 step 4); none on a database before the table.
       openDoubtsOf(sb, tenantId, id),
+      // The business they work at and who signed their replies (0052); never fatal.
+      businessAndSigners(rc, tenantId, id, rowRead),
     ]);
     if (!row) throw new AppError("not_found", "This person is not in your workspace.", 404);
     if (history.error) throw new Error(history.error.message);
@@ -244,17 +309,7 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
     // vanishes for a workspace that has it configured.
     if (cfg.error) throw cfg.error;
     if (added.error) throw new Error(added.error.message);
-    const bookingLink = (cfg.data?.config as { brain?: { booking_link?: unknown } } | null)?.brain?.booking_link;
-    // The profile's services: the page's service picker.
-    const profile = (
-      cfg.data?.config as {
-        brain?: { profile?: { services?: { name: string }[]; booking_rules?: { consult_first?: unknown } } };
-      } | null
-    )?.brain?.profile;
-    // The services that need a consultation first: a proposal started after one names the service it was for (0008).
-    const consultFirst = Array.isArray(profile?.booking_rules?.consult_first)
-      ? (profile.booking_rules.consult_first as unknown[]).filter((x): x is string => typeof x === "string")
-      : [];
+    const fromConfig = configFacts(cfg.data?.config);
     if (idents.error) throw new Error(idents.error.message);
     if (personPol.error) throw new Error(personPol.error.message);
     if (wsPol.error) throw new Error(wsPol.error.message);
@@ -281,7 +336,7 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       ...(notes.notes ? { person_notes: notes.notes } : {}),
       ...(notes.team ? { note_team: notes.team } : {}),
       proposal_url: own.data?.proposal_url ?? null,
-      booking_link: typeof bookingLink === "string" && bookingLink.trim() ? bookingLink.trim() : null,
+      booking_link: fromConfig.bookingLink,
       consent_history: (history.data ?? []).map(consentChangeOf),
       campaigns: runs,
       lead,
@@ -289,26 +344,36 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       deals: deals ?? undefined,
       deals_on: dealsAreOn(sellsBy),
       deal_pace: dealsAreOn(sellsBy) ? pace : null,
-      services: (profile?.services ?? []).map((s) => s.name),
-      consult_first: consultFirst,
+      services: fromConfig.services,
+      consult_first: fromConfig.consultFirst,
       added: cameFrom(added.data),
+      ...work,
     };
-    // The person as People names them, and each of their threads by the same name, as the Inbox names a thread by its
-    // person; each call by its caller, as the Calls page does.
-    const label = personName(row);
-    const rows: RowRef[] = [
-      { kind: "person", id, route: `clients/${id}`, label },
-      ...person.conversations.map((c): RowRef => ({ kind: "thread", id: c.id, route: `inbox/th-${c.id}`, label })),
-      ...person.calls.map((c): RowRef => ({
-        kind: "call",
-        id: c.id,
-        route: `conversations/cv-${c.id}`,
-        label: callerName(c),
-      })),
-    ];
-    return { data: { person }, rows, stamp: stamp() };
+    return { data: { person }, rows: rowsOfPerson(person, personName(row)), stamp: stamp() };
   },
 };
+
+/**
+ * The rows a person's read returned, each at its address: the person as People names them, and each of their threads by the
+ * same name, as the Inbox names a thread by its person; each call by its caller, as the Calls page does.
+ */
+function rowsOfPerson(person: PersonDetailDto, label: string): RowRef[] {
+  return [
+    { kind: "person", id: person.row.id, route: addressOf({ kind: "person", id: person.row.id }), label },
+    ...person.conversations.map((c): RowRef => ({
+      kind: "thread",
+      id: c.id,
+      route: addressOf({ kind: "conversation", id: c.id }),
+      label,
+    })),
+    ...person.calls.map((c): RowRef => ({
+      kind: "call",
+      id: c.id,
+      route: addressOf({ kind: "call", id: c.id }),
+      label: callerName(c),
+    })),
+  ];
+}
 
 /**
  * How one person can be written to and called now (GET people/[id]/reach; a conversation begins from the Inbox): People's
@@ -347,7 +412,9 @@ export const personReach: Reader<{ id: string }, { reach: PersonReachDto }> = {
     });
     return {
       data: { reach },
-      rows: [{ kind: "person", id: row.id, route: `clients/${row.id}`, label: reach.person.name }],
+      rows: [
+        { kind: "person", id: row.id, route: addressOf({ kind: "person", id: row.id }), label: reach.person.name },
+      ],
       stamp: stamp(),
     };
   },

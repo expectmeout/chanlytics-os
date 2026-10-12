@@ -28,7 +28,7 @@ import { isSameOrigin } from "./request-guards";
 import { bearerOf, verifyBearer } from "./bearer";
 import { isRetryableAuthError } from "./auth-errors";
 import { serverTimingHeader } from "./server-timing";
-import { REQUEST_ID_HEADER, requestIdOf } from "@chanlytics/channels";
+import { REQUEST_ID_HEADER, requestIdOf, requestTimings } from "@chanlytics/channels";
 import { log, noteTenant, withRequestId } from "./log";
 import { tenantFactsOf } from "./tenant";
 
@@ -81,10 +81,13 @@ export interface RouteContext {
  * response. Applied on ALL exits so no path can be forgotten.
  */
 const PRIVATE = { "cache-control": "private, no-store" } as const;
-/** The answer's own timing beside the cache rule: the session check and the handler, apart (server-timing.ts). */
+/**
+ * The answer's own timing beside the cache rule: the session check and the handler, apart, then where the handler's time
+ * went, its database calls and its readers (server-timing.ts; decision 0053). Called inside the request, which holds them.
+ */
 const timed = (authMs: number, started: number) => ({
   ...PRIVATE,
-  "server-timing": serverTimingHeader({ auth: authMs, app: Date.now() - started - authMs }),
+  "server-timing": serverTimingHeader({ auth: authMs, app: Date.now() - started - authMs }, requestTimings()),
 });
 
 /**
@@ -247,6 +250,12 @@ export interface MemberContext {
    * Absent where the membership's row did not carry them.
    */
   facts?: { name: string; timezone: string };
+  /**
+   * The workspace's address word (tenants.slug), from the same row: what a server-written link back to the workspace is made
+   * of (contracts appLink), such as the page Google returns the browser to. Absent where the row did not carry it. Not part of
+   * a route's `member` (route.ts mint): a route that links reads it from the context.
+   */
+  slug?: string;
 }
 
 /**
@@ -304,6 +313,7 @@ export async function memberContext(
     tenantId: m.tenant_id,
     role: m.role as MemberContext["role"],
     ...(typeof row?.timezone === "string" ? { facts: tenantFactsOf(row) } : {}),
+    ...(typeof row?.slug === "string" && row.slug ? { slug: row.slug } : {}),
   };
 }
 

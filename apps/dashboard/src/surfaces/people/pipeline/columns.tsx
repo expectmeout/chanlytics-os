@@ -8,12 +8,12 @@
  * has come. Person, Value, Stage and Next step sort within each group (contracts pipelineSorted); Stage is the
  * Pipeline's own order, as the page opens. And a row on a phone: People's card.
  */
-import type { PipelineRowVM } from "@chanlytics/contracts";
+import { isIdentifierName, type PipelineRowVM } from "@chanlytics/contracts";
 import { StatePill } from "../../kit/pill/state-pill";
+import { StoppedMark } from "../../kit/pill/stopped-mark";
 import { plNameCell } from "../cells/columns";
 import { plRowCard } from "../cells/row-card";
 import type { RowPick, TableColumn, TableCtx } from "../types";
-import { plFace, plIsNumber } from "../words";
 import { P } from "./pipe";
 import { PipelineRowMenu, PipelineTrack } from "./row";
 
@@ -42,7 +42,7 @@ const pipeColumns = (): PipelineColumn[] => {
       sortFirst: "asc",
       width: { base: 300, min: 240, max: 640, grow: 4 },
       pinned: true,
-      cell: (r, x) => plNameCell(r.person, x, undefined, r.id),
+      cell: (r, x) => plNameCell(r.person, { ...x, stopMark: true }, undefined, r.id),
     },
     {
       key: "service",
@@ -180,7 +180,7 @@ export const pipeGlassColumns = (): PipelineColumn[] => {
       sortFirst: "asc",
       width: { base: 300, min: 240, max: 640, grow: 4 },
       pinned: true,
-      cell: (r, x) => plNameCell(r.person, x, r.service, r.id),
+      cell: (r, x) => plNameCell(r.person, { ...x, stopMark: true }, r.service, r.id),
     },
     kept("value"),
     {
@@ -216,14 +216,16 @@ export const pipeGlassColumns = (): PipelineColumn[] => {
 const pipeCardCell = (r: PipelineRowVM, _x: unknown, pick?: RowPick) => {
   const p = r.person;
   return plRowCard({
-    face: plFace(p),
+    face: { person: { name: p.name, initials: p.initials } },
     pick,
     name: p.name,
-    numeric: plIsNumber(p.name),
+    numeric: isIdentifierName(p.name),
     pill: r.chip ? <StatePill kind="tone" value={r.chip.tone} label={r.chip.words} testid="pipe-chip" /> : null,
     lead: r.service,
     leadTestid: "pipe-service",
     facts: [
+      // They asked to stop: the first of the card's facts, as the table's person cell says it beside the name.
+      p.stopped ? <StoppedMark key="stopped" testid="pipe-row-stopped" /> : null,
       r.track.length ? <PipelineTrack key="track" steps={r.track} /> : null,
       r.value ? (
         <span key="value" className="pipe-card-value" data-testid="pipe-value">

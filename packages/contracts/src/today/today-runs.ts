@@ -4,6 +4,7 @@
  */
 
 import { isReachOutRun } from "../reach-out/reach-out-rules";
+import { RUN_WAITING_WORDS, runStopWords } from "../shell/campaign-rooms";
 
 /* ------------------------------ the runs' words ------------------------------ */
 
@@ -56,12 +57,14 @@ export function todayRunWords(r: RunLike): TodayRunWordsVM {
     waiting: {
       meta: `${kind} · ready`,
       sentence: `${people}. Nothing sends until you say so.`,
-      status: ["Waiting for your approval"],
+      // The run's one phrase for it (broadcasts.ts BROADCAST_STATE_LABELS), which Sent, Campaigns and the drawer say too.
+      status: [RUN_WAITING_WORDS],
     },
     late: { meta: `${kind} · too late to approve`, status: ["Too late to approve"] },
     soon: {
       meta: `${kind} · sends ${r.when}`,
-      sentence: `${people}. Stop it if you'd rather not.`,
+      // The verb of Sent's own cancel of a run still to come (campaign-rooms.ts RUN_STOP_WORDS), not a second one.
+      sentence: `${people}. ${runStopWords("scheduled").verb} it if you'd rather not.`,
       status: ["Scheduled", `sends ${r.when}`],
     },
     done: { counts: r.counts.replied ? `${sent}, ${r.counts.replied} replied` : sent, still: r.state === "sending" },

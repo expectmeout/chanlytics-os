@@ -2,7 +2,7 @@
  * A playbook changed in place (the moment spec §4.9 A5, decisions D8, D25, D26): the nine things a change may name and
  * the words a change says. The drawer's Pause and Resume, Ask's change card and PUT playbooks/:id's patch body name them
  * from here; core checkPlaybookPatch judges a change against the playbook as it stands; the change_playbook door writes
- * it with its line in the ledger. Since 00409 a change may name the campaign's words (`params`, the slot specs a run
+ * it with its line in the ledger. Since 00416 a change may name the campaign's words (`params`, the slot specs a run
  * fills), its last day (`until`) and the end of its trial (`trial_until`); null clears either date. English, as every
  * card is (Spanish cards are one later lane for all of them, D31).
  */
@@ -25,7 +25,7 @@ export const PLAYBOOK_PATCH_KEYS = [
 export type PlaybookPatchKey = (typeof PLAYBOOK_PATCH_KEYS)[number];
 
 /**
- * The keys a null clears (00409): the campaign's last day and its trial's end. The seven others are never empty, so a
+ * The keys a null clears (00416): the campaign's last day and its trial's end. The seven others are never empty, so a
  * null there names nothing; here it is the change, and an undo of a first end writes it back.
  */
 export const PLAYBOOK_PATCH_CLEARS: readonly PlaybookPatchKey[] = ["until", "trial_until"];

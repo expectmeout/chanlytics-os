@@ -25,12 +25,15 @@
 import { reportRangeKey, type ReportRange } from "@chanlytics/contracts";
 import { heldViews } from "@/legacy-bridge/held-views";
 import { readAged, type SurfaceOverride } from "@/legacy-bridge/surface-data";
+import type { ReadsDeclaration } from "@/legacy-bridge/surface-realtime";
+import { declareReads } from "@/legacy-bridge/surface-registry";
 import { isSurfaceDegraded, isSurfaceFailed, surfaceMoved } from "@/legacy-bridge/surface-status";
 import { declareFollower, setSurfaceValue, surfaceValue, type SurfaceKey, type SurfaceValues } from "../surface-values";
 
 /**
- * What a surface follows, the read for it, and the live-feed rule of the surface where it hears the feed at all: the tables,
- * where it hears them, and how long after the last change it reads (Campaigns' 30 days wait out a burst, as Reports does).
+ * What a surface follows, the read for it, and what it draws and how fresh it must stay (`live`, declareReads): the kinds of
+ * record, where it hears them, how long after the last change it reads (Campaigns' 30 days wait out a burst, as Reports does) and
+ * the longest it waits from the first (a dear read, Today's headline, asks for more than the runner's three seconds).
  */
 interface PeriodSurfaceOptions<K extends SurfaceKey, R extends ReportRange> {
   key: K;
@@ -40,7 +43,9 @@ interface PeriodSurfaceOptions<K extends SurfaceKey, R extends ReportRange> {
   of: (value: NonNullable<SurfaceValues[K]>) => string;
   /** The whole value the surface publishes for `range`, made by its one read. */
   read: (range: R) => Promise<NonNullable<SurfaceValues[K]>>;
-  live?: Pick<SurfaceOverride, "refreshOnTables" | "refreshWhen" | "debounceMs">;
+  live: ReadsDeclaration & Pick<SurfaceOverride, "debounceMs" | "maxWaitMs">;
+  /** Whether it counts "the day so far", so the business's midnight reads it again (SurfaceOverride.readAtMidnight). */
+  readAtMidnight?: boolean;
 }
 
 export function periodSurface<K extends SurfaceKey, R extends ReportRange>({
@@ -49,6 +54,7 @@ export function periodSurface<K extends SurfaceKey, R extends ReportRange>({
   of,
   read,
   live,
+  readAtMidnight,
 }: PeriodSurfaceOptions<K, R>) {
   /** The ranges this tab has read: going back to one paints at once, and a read behind it keeps it current. */
   const held = heldViews<{ value: NonNullable<SurfaceValues[K]>; readAt: number }>(4);
@@ -91,6 +97,16 @@ export function periodSurface<K extends SurfaceKey, R extends ReportRange>({
     announce();
   }
 
+  /**
+   * A write made every range held wrong, and the page that draws what is published is on screen and is about to read it: nothing
+   * is held, so no pick paints a count from before the write, but what is published stays until the read replaces it. A band that
+   * went blank for the length of a read (Worth a look, which is not drawn without its numbers) would jump on every reply.
+   */
+  function outdate(): void {
+    generation += 1;
+    held.forget();
+  }
+
   declareFollower(key, () => {
     if (isCurrent()) return "current";
     return (surfaceValue(key) === undefined ? isSurfaceFailed(key) : isSurfaceDegraded(key)) ? "failed" : "coming";
@@ -104,7 +120,11 @@ export function periodSurface<K extends SurfaceKey, R extends ReportRange>({
     onDemand: true,
     isStale,
     events: [`surface:${key}`],
-    ...live,
+    ...(readAtMidnight ? { readAtMidnight } : {}),
+    // What it draws and how fresh it must stay: the tables it hears and the rule over them are derived (declareReads).
+    ...declareReads(key, live),
+    ...(live.debounceMs === undefined ? {} : { debounceMs: live.debounceMs }),
+    ...(live.maxWaitMs === undefined ? {} : { maxWaitMs: live.maxWaitMs }),
     // A range's reads take their turn; a pick of another range is read at once (activateOverride).
     view: shownKey,
     apply: async () => {
@@ -120,5 +140,5 @@ export function periodSurface<K extends SurfaceKey, R extends ReportRange>({
     },
   };
 
-  return { override, paintHeld, paintKept, isStale, forget };
+  return { override, paintHeld, paintKept, isStale, forget, outdate };
 }

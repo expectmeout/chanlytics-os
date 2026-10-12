@@ -643,7 +643,7 @@ const AgentStore = () => {
         <StatStrip className="cl-head-stats">
           <StatCell label="Installed" value={installedCount} meta="on your fleet" />
           <StatCell label="Available" value={availableCount} meta="new abilities" />
-          <StatCell label="Credits" tip="Shared usage pool for all installed agents · renews monthly" value={window.__BILLING ? (window.__BILLING.creditsTotal + window.__BILLING.topup - window.__BILLING.creditsUsed).toLocaleString() : "5,350"} meta="renews Aug 1" />
+          <StatCell label="Credits" tip="Shared usage pool for all installed agents · renews monthly" value="5,350" meta="renews Aug 1" />
         </StatStrip>
       </div>
 

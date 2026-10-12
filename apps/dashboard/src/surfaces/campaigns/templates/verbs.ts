@@ -132,7 +132,7 @@ export function titleOf(t: string | { name: string; title?: string | null } | nu
 export interface StarterLibrary {
   /**
    * The starters this workspace is offered (contracts startersOffered): the proposal follow-up's only where deals are on
-   * (0006), the review ask's only where the Google listing keeps a review link (00408).
+   * (0006), the review ask's only where the Google listing keeps a review link (00415).
    */
   readonly list: readonly StarterTemplate[];
   /**

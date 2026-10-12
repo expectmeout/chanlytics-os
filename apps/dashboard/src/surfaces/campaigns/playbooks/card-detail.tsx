@@ -9,12 +9,14 @@
 import { useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import {
+  BROADCAST_STATE_LABELS,
   LIFECYCLE_TOAST,
   LIFECYCLE_WORDS,
   MESSAGE_GONE_WORDS,
   PLAYBOOK_DELETE_WORDS,
   appointmentWordOf,
   breathWaitWords,
+  lifecycleStateOf,
   pipelineRoute,
 } from "@chanlytics/contracts";
 import type { AppointmentWord, ConsentChannel } from "@chanlytics/contracts";
@@ -53,7 +55,6 @@ import {
   pbReachDoor,
   pbReachWords,
   pbSentWhen,
-  pbStatus,
   pbTitle,
   pbWrongSlot,
 } from "./words";
@@ -100,7 +101,8 @@ function cardListRoute(p: PlaybookRow, trig: PlaybookTriggerOption | null): stri
 /** What the card reads of its playbook and of the surface, worked out once as it draws. */
 function cardRead(p: PlaybookRow, surface: PlaybooksSurface | undefined) {
   const waiting = p.totals.waiting;
-  const status = pbStatus(p);
+  // Its state as the home says it (contracts lifecycleStateOf): a run waiting first, paused or not, then paused, else on.
+  const state = lifecycleStateOf(p);
   const trig = triggerOption(surface, p.trigger);
   // What its runs send. Templates that could not be read are said once, over the cards; one not among the approved, here.
   const templates = surface?.templates;
@@ -116,7 +118,7 @@ function cardRead(p: PlaybookRow, surface: PlaybooksSurface | undefined) {
   const noNumber = pbNoNumberWords(p, named);
   return {
     waiting,
-    status,
+    state,
     trig,
     businessName,
     message,
@@ -668,7 +670,7 @@ interface PaneProps {
 export function PlaybookPane({ p, canAct, onEdit, onMessage, flash, onClose }: PaneProps) {
   const c = useCard({ p, canAct, onEdit, onMessage, flash, onClose });
   const phone = useCmPhone();
-  const { status, waiting } = c;
+  const { state, waiting } = c;
   const asking = cardDeleteAsk(c);
   // On a phone the foot's acts are the kit's equal pair (kit.css `data-foot-pair`), as every phone foot's are, but while
   // a question stands there; and with no run waiting the foot holds Edit and Pause or Resume, the head's words on a desk,
@@ -679,7 +681,7 @@ export function PlaybookPane({ p, canAct, onEdit, onMessage, flash, onClose }: P
   ) : waiting ? (
     <div className="pb-pane-foot" data-foot-pair={c.skipSure ? undefined : ""}>
       <span className="pb-pane-foot-say" data-testid="pb-waiting">
-        This run waits on you
+        {BROADCAST_STATE_LABELS.pending_approval}
       </span>
       {cardWaitActs(c)}
     </div>
@@ -712,17 +714,12 @@ export function PlaybookPane({ p, canAct, onEdit, onMessage, flash, onClose }: P
         )
       }
       title={p.name}
-      badge={
-        <StatePill
-          kind="playbook"
-          value={status === "paused" ? "paused" : status === "approval" ? "approval" : "running"}
-        />
-      }
+      badge={<StatePill kind="tone" value={state.tone} label={state.words} testid="pb-pane-state" />}
       tools={cardOwnActs(c, phone)}
       foot={foot}
       onClose={onClose}
     >
-      <div className="ob-card-detail cm-sentence" data-testid="pb-detail" data-state={status}>
+      <div className="ob-card-detail cm-sentence" data-testid="pb-detail" data-state={waiting ? "approval" : p.state}>
         {cardBody(c)}
       </div>
     </CmPane>

@@ -223,6 +223,7 @@ export interface SeededThread extends ThreadBase {
   /** Fields only a real thread carries, absent on this kind. */
   conversationId?: undefined;
   escalationId?: undefined;
+  holdAct?: undefined;
   windowOpen?: undefined;
   optedOut?: undefined;
   offersOk?: undefined;
@@ -328,6 +329,8 @@ export interface ConversationRow {
   id: string;
   who: string;
   initials: string;
+  /** They asked to stop, or are on do-not-contact (contracts isOptedOutContact, carried on the chat's and the call's view models): the row says it beside the name. */
+  stopped?: boolean;
   clientId: string | null;
   channel: string;
   agent: { glyph: string; name: string };
@@ -335,6 +338,8 @@ export interface ConversationRow {
   outcome: string;
   /** Who has the thread, by the one rule (contracts standingOf): the pill reads it before `outcome`. A call's is its thread's. */
   standing?: Standing;
+  /** The teammate who has the thread, by user id, where `standing` is `theirs` (contracts toConversationVM); a call's is its thread's. */
+  holderId?: string | null;
   /** New to the reader, by the one rule (contracts isUnseen); a call's is its thread's, as its standing is. */
   unseen?: boolean;
   /** When they last wrote or called, epoch ms: how far a mark made in this tab says the reader has seen (surfaces/seen.ts). */

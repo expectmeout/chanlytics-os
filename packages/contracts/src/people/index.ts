@@ -16,9 +16,12 @@ export type {
   PersonCampaignDto,
   PersonLeadDto,
   PersonCampaignVM,
+  PersonAtLeadDto,
+  PersonSignerDto,
+  PersonBusinessDto,
 } from "./person-dto";
 export { asPersonMode, PERSON_MODES, PERSON_MODE_LABELS, PERSON_MODE_WORDS } from "./person-receptionist";
-export type { PersonMode, ReceptionistTone, PersonReceptionist } from "./person-receptionist";
+export type { PersonMode, ReceptionistTone, PersonReceptionist, HolderNames } from "./person-receptionist";
 export { ago } from "./person-row-facts";
 export type { PersonLastContact, PersonFirstContact } from "./person-row-facts";
 export {
@@ -26,6 +29,7 @@ export {
   attentionOf,
   holderOf,
   personStateFor,
+  stopToldBesideState,
   PERSON_STATE_LABELS,
   PEOPLE_TABS,
   NEW_WINDOW_DAYS,
@@ -41,8 +45,8 @@ export {
   mayReach,
 } from "./person-reach";
 export type { RowReachWords } from "./person-reach";
-export type { PersonProposalVM } from "./person-reach";
-export { cameFromOf, visitTitleFor, toPersonRowVM } from "./person-row";
+export type { PersonProposalVM, BookingLinkAction } from "./person-reach";
+export { cameFromOf, visitLineForDto, visitTitleFor, toPersonRowVM } from "./person-row";
 export type { PersonRowVM } from "./person-row";
 export {
   offersYesRefusal,
@@ -73,9 +77,16 @@ export {
 export type { PeopleListAction, PeopleAggregates } from "./people-lists";
 export { attentionRow } from "./person-attention";
 export type { AttentionRowVM } from "./person-attention";
-export { filterTimeline, personActs, toPersonVM, TIMELINE_FILTERS } from "./person-profile";
+export {
+  filterTimeline,
+  personActs,
+  personNextFor,
+  timelineFilterLabel,
+  toPersonVM,
+  TIMELINE_FILTERS,
+} from "./person-profile";
 export type { TimelineFilterId, PersonVM, PersonActVM, OwnMessageVM, PersonDoubtVM } from "./person-profile";
-export type { PersonRightNow, PersonFact } from "./person-cards";
+export type { PersonAboutFact, PersonRightNow, PersonFact } from "./person-cards";
 export { consentChangeWords } from "./person-timeline";
 export type { TimelineKind, PersonTimelineItemVM, PersonVisitAheadVM } from "./person-timeline";
 export {
@@ -126,6 +137,7 @@ export {
   todayPins,
   togglePin,
   PEOPLE_LIST_GROUPS,
+  LIST_GROUP_WORDS,
   BUILTIN_LISTS,
   PEOPLE_LISTS,
   viewerListWords,

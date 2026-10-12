@@ -41,7 +41,8 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
     "views",
     "calendar?around=today",
   ],
-  inbox: ["conversations", "escalations?state=open", "templates"],
+  // The reply box's approved templates are the settings read's, the one read of the templates (surfaces/offered-templates.ts).
+  inbox: ["conversations", "escalations?state=open"],
   // A row's standing reads the thread's open escalation, as the Inbox's does (conversations-surface.ts).
   conversations: ["conversations", "calls", "escalations?state=open"],
   // People's list, its lists and the Pipeline are one page over one surface (a person's page reads the person instead).
@@ -55,14 +56,15 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   // own surface's (reports_campaigns), made where the lens is drawn and not by the head.
   reports: ["reports?period=30d"],
   live: ["calls", "channels"],
-  // Sent: the runs, who an audience reaches and the composers' reads.
-  broadcasts: ["broadcasts", "contacts", "segments", "templates", "channels", "settings"],
-  outbound: ["playbooks", "templates", "channels", "settings"],
+  // Sent: the runs, who an audience reaches and the composers' reads. The messages a composer offers are the settings read's, the
+  // one read of the templates, which Sent draws when it is composing and reads in the boot's second pass.
+  broadcasts: ["broadcasts", "contacts", "segments", "channels", "settings"],
+  outbound: ["playbooks", "channels", "settings"],
   // Campaigns' home is the playbooks' moments first (surface-registry ROUTE_SURFACE), and beside them Sent's runs, its own
-  // 30 days (campaign_results, the period named once) and the reach-outs' chains (ROUTE_DRAWS): each surface's first reads.
+  // 30 days (campaign_results, the period named once), the reach-outs' chains and the settings read (ROUTE_DRAWS), which holds the
+  // templates: its call's text and the Library's count, and the messages a composer offers. Each surface's first reads.
   campaigns: [
     "playbooks",
-    "templates",
     "channels",
     "settings",
     "broadcasts",
@@ -71,6 +73,9 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
     `reports/campaigns?period=${CAMPAIGNS_RESULTS_PERIOD}`,
     `reports/reach-outs?period=${CAMPAIGNS_RESULTS_PERIOD}`,
     "reach-outs",
+    "team",
+    "policies",
+    "templates?all=1",
   ],
   // Templates and every pane of Settings are drawn from the settings surface.
   messages: ["settings", "team", "policies", "channels", "templates?all=1"],

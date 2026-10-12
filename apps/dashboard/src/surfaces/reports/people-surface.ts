@@ -20,12 +20,12 @@
  * table, an event and a call's status), so an outbound message cannot be told from an inbound one here, and each is heard.
  * A write that makes it wrong from another page (who is in the book, a yes or a
  * stop, an address, a step, a channel opened or closed, the workspace's zone) forgets it instead of reading it from there
- * (`forgetReportsPeople`, refresh-map.ts), and reads it again only where the lens is on screen, since the feed tells it of none of
- * those writes. A conversation write, a reply or a hold moves nothing it counts, and does not name it.
+ * (`forgetReportsPeople`, refresh-map.ts), and reads it again only where the lens is on screen: the feed tells the lens of a
+ * teammate's yes, address, step or channel while it is open (and of none of the zone's), so the writer's own tab is what the map
+ * is for. A conversation write, a reply or a hold moves nothing it counts, and does not name it.
  */
 import { read } from "@/legacy-bridge/api";
 import { isLiveCallTurn } from "@/legacy-bridge/surface-realtime";
-import { onlyOnItsPage } from "@/legacy-bridge/surface-registry";
 import { reportRangeKey, type PeopleDto } from "@chanlytics/contracts";
 import { periodSurface } from "./period-surface";
 import { rangeQuery, shownReportRange } from "./surface";
@@ -37,12 +37,6 @@ export interface PeopleSurface {
   /** The range it is of, by its one name (contracts reportRangeKey): a period's id, or the days a member picked. */
   key: string;
 }
-
-/** The tables whose changes the live feed tells a workspace of and that the People read draws from. */
-const PEOPLE_TABLES: string[] = ["messages", "calls", "person_notes"];
-
-/** Where the lens is on screen: the rest are held for it (surface-registry.ts onlyOnItsPage). */
-const onItsPage = onlyOnItsPage("reports_people", PEOPLE_TABLES);
 
 /**
  * How long a burst of changes is waited out before the lens is read again. Asked for as five seconds; the runner never waits
@@ -62,15 +56,23 @@ export const reportsPeople = periodSurface({
   }),
   // Read again only while the lens is on screen, and once when it comes back (surface-registry.ts), a burst of messages later. A
   // transcript turn of a call in progress changes nothing it counts (surface-realtime.ts isLiveCallTurn, as Today's rule leaves it
-  // out): asked first, so a turn heard on another page is not kept for the lens either.
+  // out): asked first, so a turn heard on another page is not kept for the lens either. What the read draws from: who wrote or
+  // phoned, and the steps; and the book itself, counted by what each person said and whether they can be reached (a yes, a stop, an
+  // address, a merge, people imported; the postal address an offer by email names), and by the channels they are reached on: the
+  // number, the text line and the mailbox (who can receive an offer, channels-ready.ts) (0047).
   live: {
-    refreshOnTables: PEOPLE_TABLES,
-    refreshWhen: (change) => !isLiveCallTurn(change) && onItsPage(change),
+    reads: ["conversation", "call", "step", "person", "facts", "channel"],
+    fresh: "its-page",
+    omit: [
+      { tables: ["conversations"], why: "it counts the messages, not the threads they are in" },
+      {
+        tables: ["sending_domains", "capability_activations", "business_records"],
+        why: "who can receive an offer is told by the number, the text line and the mailbox; a sending domain, a capability or the business record changes none of them",
+      },
+    ],
+    when: (change) => !isLiveCallTurn(change),
     debounceMs: LIVE_WAIT_MS,
   },
 });
 
 export const reportsPeopleOverride = reportsPeople.override;
-
-/** A write from another page changed what the lens counts: nothing is held of it, and it is read as the lens comes on screen. */
-export const forgetReportsPeople = reportsPeople.forget;

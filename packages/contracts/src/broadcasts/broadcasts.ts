@@ -23,6 +23,7 @@
  * exactly the rows most likely to matter.
  */
 import { MIN_MS } from "../shared/time";
+import { RUN_WAITING_WORDS } from "../shell/campaign-rooms";
 import { isCount, recordOrNull } from "../shared/unknown";
 import type { ReachOutRunDto } from "../reach-out/reach-out-dtos";
 import { templateTitle } from "../templates/template-titles";
@@ -121,12 +122,15 @@ export const REACH_OUT_SEND_STATES = [
 export type ReachOutSendState = (typeof REACH_OUT_SEND_STATES)[number];
 
 /**
- * A run waiting on its owner says "Waiting on you", as its tab on Sent, its line on Campaigns' home, the drawer and Today
- * say it (run-report.ts, lifecycle-words.ts). It said "Needs you" on its row's pill alone until 8 Oct 2026, which is the
- * Inbox's word for a thread a person must answer: a different thing, under one name.
+ * A run waiting on its owner says "Waiting for your approval", as its tab on Sent, its line on Campaigns' home, the drawer,
+ * Coming up, Today's row and brief and Ask say it (lifecycle-words.ts, today-runs.ts, reach-out-approval.ts all read this
+ * one). It said "Needs you" on its row's pill alone until 8 Oct 2026, which is the Inbox's word for a thread a person must
+ * answer, and then "Waiting on you", which People used for a thread you have and Reports for a thread nobody has: three
+ * things under one name, and a run waiting wore nine phrasings (D1-run-words). A thread is NEEDS_YOU_WORD or HELD_WORDS'
+ * (conversations/standing.ts); a run is this.
  */
 export const BROADCAST_STATE_LABELS: Record<BroadcastState, string> = {
-  pending_approval: "Waiting on you",
+  pending_approval: RUN_WAITING_WORDS,
   scheduled: "Scheduled",
   sending: "Sending",
   sent: "Sent",

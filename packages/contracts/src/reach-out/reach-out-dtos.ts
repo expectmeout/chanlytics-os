@@ -168,8 +168,11 @@ export interface ReachOutRunDto {
   /** Planned and not yet checked: the check reads them within minutes. */
   checking: number;
   held: ReachOutHeldSend[];
-  /** Who gets it: each planned business, when its email goes, and whether it is checked yet. */
-  planned: Array<{ send_id: string; business_name: string; send_at: string; checked: boolean }>;
+  /**
+   * Who gets it: each planned business, when its email goes, and whether it is checked yet. `lead_id` is the business's
+   * lead, which the sheet's name opens in Leads; a read from before it was carried has none.
+   */
+  planned: Array<{ send_id: string; lead_id?: string; business_name: string; send_at: string; checked: boolean }>;
   /** Skipped at planning or by the check, by reason (closed_every_day, missing_value, owner_skipped, …). */
   skipped: Record<string, number>;
   /** The first checked business's email as it reads: its values in, its opening written. */

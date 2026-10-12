@@ -153,8 +153,12 @@ test("Today shows the steps due, today or before: the oldest day first, three at
     due.rows.map((x) => x.row.name),
     ["Ben", "Dee", "Fay"],
   );
-  assert.deepEqual([due.count, due.more], [4, "and 1 more"]);
-  assert.deepEqual(todayStepsDue(rows, NOW, TZ, 5).more, null);
+  assert.equal(due.count, 4, "the ones named and the one past them");
+  assert.deepEqual(
+    todayStepsDue(rows, NOW, TZ, 5).rows.map((x) => x.row.name),
+    ["Ben", "Dee", "Fay", "Ada"],
+    "room for every one: all four, today's last",
+  );
   // Judged again when asked: Cy's step, ahead when the rows were read, is due once its day comes.
   const later = Date.parse("2026-09-30T15:00:00Z");
   const then = todayStepsDue(rows, later, TZ, 10);
@@ -162,7 +166,7 @@ test("Today shows the steps due, today or before: the oldest day first, three at
   assert.equal(then.rows.find((x) => x.row.name === "Cy").step.day.words, "Due today");
 });
 
-test("Today's block says each step due as the page draws it -- who, what, when -- and sends the rest to People's Steps due; none due, no block", () => {
+test("Today's steps say each step due as its row draws it -- who, what, when -- and how many in all, the rest on People's Steps due; none due, none", () => {
   const rows = [
     ["b", "Ben", "2026-09-21"],
     ["d", "Dee", "2026-09-22"],
@@ -178,7 +182,6 @@ test("Today's block says each step due as the page draws it -- who, what, when -
     ),
   );
   const vm = todaySteps(rows, NOW, TZ);
-  assert.equal(vm.title, NOTE_WORDS.stepsDue);
   assert.deepEqual(
     vm.items.map((s) => [s.personId, s.name, s.words, s.when, s.due]),
     [
@@ -188,12 +191,12 @@ test("Today's block says each step due as the page draws it -- who, what, when -
     ],
   );
   assert.equal(TODAY_STEPS_MAX, 3);
-  assert.deepEqual(vm.more, { words: "and 1 more", to: "clients/seg:steps_due" });
+  assert.deepEqual([vm.count, vm.to], [4, "clients/seg:steps_due"], "four due, the rest on People's Steps due");
   assert.ok(
     PEOPLE_LISTS.some((l) => l.id === "steps_due"),
-    "the list the line opens is People's own",
+    "the list the rest's row opens is People's own",
   );
-  assert.equal(todaySteps(rows, NOW, TZ, 4).more, null);
+  assert.equal(todaySteps(rows, NOW, TZ, 4).items.length, 4, "room for every one: each named");
   assert.equal(todaySteps(rows.slice(4), NOW, TZ), null, "none due: no block");
   assert.equal(todaySteps(null, NOW, TZ), null, "People not read yet: no block");
 });

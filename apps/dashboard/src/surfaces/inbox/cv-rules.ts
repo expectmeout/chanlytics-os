@@ -83,6 +83,7 @@ export function cvCallsStandAsTheirThread(
     return {
       ...c,
       ...(t.standing ? { standing: t.standing } : {}),
+      ...(t.holderId !== undefined ? { holderId: t.holderId } : {}),
       ...(t.unseen !== undefined ? { unseen: t.unseen } : {}),
       ...(t.heardAtMs !== undefined ? { heardAtMs: t.heardAtMs } : {}),
       ...(t.markAtMs !== undefined ? { markAtMs: t.markAtMs } : {}),
@@ -135,6 +136,12 @@ export const cvWhoseRow = (c: ConversationRow): { personId: string | null; conve
   personId: c.clientId,
   conversationId: c.threadId && c.threadId.startsWith("th-") ? c.threadId.slice(3) : null,
 });
+
+/**
+ * Whether the person a row stands for asked to stop (contracts isOptedOutContact, as each row's view model carries it):
+ * the mark beside the name says it. It is the person's, so any row it stands for may say so, a call's as well as the thread's.
+ */
+export const cvStopped = (c: ConversationRow): boolean => cvPartsOf(c).some((p) => !!p.stopped);
 
 /**
  * What the last read said of a person's row (contracts SeenReading): new to the reader when any row it stands for is, when

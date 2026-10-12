@@ -62,7 +62,7 @@ interface Offered {
  * The templates a composer may offer: as sendableTemplates takes them, by a shape that names `components`, which the
  * rows this page holds do not carry.
  */
-export function composerOffered(templates: readonly TemplateDto[] | null): Offered {
+export function composerOffered(templates: readonly TemplateDto[] | null | undefined): Offered {
   const list: (TemplateDto & { components?: unknown })[] = (templates || PB_NONE).slice().sort(pbOrder);
   return starters.sendable(list);
 }
@@ -152,7 +152,7 @@ function momentOf({ data, f }: ModelIn) {
   const lists = data.lists || PB_NONE;
   const list = onList ? lists.find((l) => l.id === f.listId) || null : null;
   const link = !!data.bookingLink;
-  // Whether the Google listing keeps a review link: the one fact a review-link slot is filled from (00408).
+  // Whether the Google listing keeps a review link: the one fact a review-link slot is filled from (00415).
   const review = !!data.reviewLink;
   return { triggers, trig, visits, onList, lists, list, link, review };
 }

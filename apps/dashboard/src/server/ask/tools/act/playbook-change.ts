@@ -40,7 +40,7 @@ const resumeDoes = (mode: string): string =>
   mode === "auto" ? LIFECYCLE_WORDS.ledger.resume.auto : (MODE_WORDS[mode] ?? mode);
 
 /**
- * What a change of its trial says (00409): its last day, by the business's calendar (contracts trialDayWords), and what
+ * What a change of its trial says (00416): its last day, by the business's calendar (contracts trialDayWords), and what
  * the trial does, by its class's mode. Where a run sends by itself or after a Stop (contracts planRun: auto, veto) each
  * waits for a Stop; under ask or never the trial changes nothing, and the card says so with what a run does there,
  * never that each run waits for a Stop. Null ends it, which reads the same under any mode.
@@ -122,7 +122,7 @@ async function proposeChangeOnStep(t: ToolContext, input: ChangeAsked, step: num
 }
 
 /**
- * A playbook that exists, paused, resumed, renamed or retimed (the moment spec §4.9 A5), and since 00409 given new
+ * A playbook that exists, paused, resumed, renamed or retimed (the moment spec §4.9 A5), and since 00416 given new
  * words, a last day or a trial's end (D5: null ends its trial): what its drawer does, proposed as a card. It reads the
  * one playbook (packages/db playbookForChange: its row, and a run of it that waits), never the Playbooks page, and judges
  * what is asked by the PUT's own judgement (core checkPlaybookPatch, against the playbook as it stands), so a value its
@@ -174,7 +174,7 @@ async function proposePlaybookChange(t: ToolContext, input: ChangeAsked): Promis
   const policies = set.state || trialSet ? await listPolicies(t.ctx.supabase, t.tenantId).catch(() => null) : [];
   if (!policies && (set.state === "running" || trialSet)) return refuse(PLAYBOOK_CARD_REFUSALS.modeUnread);
   // A class with no row of its own runs under ask, as a run reads it (core run-playbook). And a run goes as the campaign
-  // will stand after this change: under auto while it is on trial, as veto does (contracts effectiveMode, 00409), so the
+  // will stand after this change: under auto while it is on trial, as veto does (contracts effectiveMode, 00416), so the
   // card and a pause's undo say how its runs go, never its class's mode alone.
   const classMode = policies ? (policies.find((r) => r.class === row.policy_class)?.mode ?? "ask") : null;
   const mode = classMode === null ? null : effectiveMode({ ...row, ...set }, classMode, t.now);

@@ -108,13 +108,15 @@ const { setSurfaceValue, surfaceValue } = await import(`${S}/surfaces/surface-va
 test("REGRESSION (A15): a templates read that fails leaves null -- 'could not read' -- where it left [], 'none approved'", async () => {
   globalThis.window.fetch = async (url) => {
     const path = new URL(String(url), "https://app.chanlytics.com").pathname;
-    if (path === "/api/v1/templates") return json(500, { ok: false, error: { code: "internal", message: "down" } });
+    // The Inbox asks for no templates of its own: they are the settings read's (offered-templates.ts), the one read of them.
     if (path === "/api/v1/conversations") return json(200, { ok: true, data: { conversations: [conv()] } });
     if (path === "/api/v1/escalations") return json(200, { ok: true, data: { escalations: [] } });
     if (path === "/api/v1/workspaces")
       return json(200, { ok: true, data: { workspaces: globalThis.window.__WORKSPACES, activeWorkspaceId: "t1" } });
     return json(404, { ok: false, error: { code: "not_found", message: path } });
   };
+  // Settings' templates read failed: the slice it publishes says null, and so does the Inbox's.
+  setSurfaceValue("settings", { templatesAll: null, templateVersions: null, messages: null });
   await quiet(() => inboxOverride.apply());
   assert.equal(
     surfaceValue("inbox").templates,
@@ -122,6 +124,13 @@ test("REGRESSION (A15): a templates read that fails leaves null -- 'could not re
     "REGRESSION: a failed read stored [] and the page said no template was approved",
   );
   assert.equal(surfaceValue("inbox").THREADS.length, 1, "the Inbox itself still reads");
+  // A read that held no rows is the other answer, 'none approved' ([]), made of Settings the moment it lands...
+  setSurfaceValue("settings", { templatesAll: [], templateVersions: [], messages: [] });
+  assert.deepEqual(surfaceValue("inbox").templates, []);
+  // ...and one that has not been read yet is neither: the picker is still reading (absent) until it is.
+  setSurfaceValue("settings", undefined);
+  await quiet(() => inboxOverride.apply());
+  assert.equal(surfaceValue("inbox").templates, undefined);
 });
 
 /* ------------------------------ the pages, drawn ------------------------------ */

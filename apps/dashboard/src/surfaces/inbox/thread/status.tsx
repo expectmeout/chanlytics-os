@@ -7,10 +7,10 @@
  * the tree it was.
  */
 import type { ReactElement, ReactNode } from "react";
-import { snoozedThreadWords } from "@chanlytics/contracts";
+import { HOLD_ACT_WORDS, heldPill, snoozedThreadWords } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
-import { ixAnswerer } from "../answerer";
+import { holderName } from "../../holder-names";
 import { gate, navigate } from "../shell";
 import type { Thread, ThreadAsk, TimelineEntry as TlEntry } from "../types";
 import { ixDockDials } from "./band";
@@ -181,7 +181,9 @@ function needsYouState(p: StatusProps, thread: Thread) {
       ask={thread.ask && thread.ask.kind !== "call" ? <IxAsk ask={thread.ask} /> : null}
       acts={
         <>
-          {ixDockDials(thread) ? (
+          {/* A hold nothing may be sent for (its reason's act is to hand back, escalations.ts HOLD_ACT_WORDS) offers no
+              reply to write: Hand back is the thread's own verb. */}
+          {thread.holdAct === "hand_back" ? null : ixDockDials(thread) ? (
             <Button
               size="sm"
               className="ix-state-go"
@@ -203,7 +205,7 @@ function needsYouState(p: StatusProps, thread: Thread) {
                   <Icon name="phone" size={12} /> Call back
                 </>
               ) : (
-                "I'll answer this"
+                HOLD_ACT_WORDS.reply.take
               )}
             </Button>
           )}
@@ -413,11 +415,11 @@ const ixStanding = (thread: Thread): Standing | null => {
       pill: <StatePill kind="thread" value="snoozed" />,
       meta: `back ${thread.wake || "tomorrow 10:00"}`,
     };
-  if (thread.takenOver) return { pill: <StatePill kind="thread" value="yours" label="You have it" /> };
+  if (thread.takenOver) return { pill: <StatePill kind="thread" value="yours" /> };
   const waiting = thread.waited ? `waiting ${thread.waited}` : null;
   if (thread.claimedByOther)
     return {
-      pill: <StatePill kind="thread" value="theirs" label={`${ixAnswerer(thread)} has it`} />,
+      pill: <StatePill kind="thread" value="theirs" label={heldPill("theirs", holderName(thread.assigneeUserId))} />,
       meta: waiting,
     };
   // Amber past half an hour, as the row's pill is.

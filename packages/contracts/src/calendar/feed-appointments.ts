@@ -11,7 +11,7 @@
 import type { FeedItem } from "./feed";
 import { serviceNamedIn, type ConsultRules } from "./service-offer";
 import { matchPerson, type OwnAddresses, type PersonLike } from "./calendar-people";
-import { appointmentKeyOf } from "./appointment-key";
+import { appointmentKeyOf, recordIdOf } from "./appointment-key";
 import { isConsultationTitle } from "../deals/deal-consultations";
 
 /** Who wrote the row: the hourly read of the feed, a booking tool's notice or its webhook, or a person. Never the receptionist. */
@@ -120,6 +120,58 @@ export function appointmentHolds(rows: ReadonlyMap<string, AppointmentState>, fa
   if (!Number.isFinite(read)) return true;
   if (row.vanished_at !== null && Date.parse(row.vanished_at) > read) return false;
   return Date.parse(row.starts_at) === start || !(Date.parse(row.updated_at) > read);
+}
+
+/**
+ * What the owner's calendar feed names NOW (the edge's feed, kept five minutes), asked by a send beside the record: the
+ * record is only as new as the hourly sweep, so a visit cancelled in the owner's calendar and nowhere else is still
+ * `booked` on it until the sweep marks it vanished, and a reminder that goes within that hour would still go. The feed
+ * drops a cancelled event at once (the parser skips STATUS:CANCELLED), so a key it no longer names is a visit that is gone.
+ */
+export interface FeedNames {
+  /** The keys of the events the feed names, as the record keeps them (appointmentKeyOf). */
+  keys: ReadonlySet<string>;
+  /** The span the feed was read over (seasonHorizon), in epoch ms: an event outside it is not named because it is not looked for. */
+  from: number;
+  to: number;
+}
+
+/** The names a feed's items carry, over the span they were read for. */
+export function feedNamesOf(
+  items: readonly Pick<FeedItem, "uid" | "start" | "occurrence">[],
+  span: { from: number; to: number },
+): FeedNames {
+  return { keys: new Set(items.map(appointmentKeyOf)), from: span.from, to: span.to };
+}
+
+/**
+ * The calendar event a recipient's words were drawn for, by the key kept on their row, when the feed can say whether it is
+ * still there: a visit with its start, whose key is a calendar event's. A booking from the record (recordKeyOf) is no
+ * event of the feed and has none.
+ */
+function feedKeyOf(facts: Record<string, unknown>): string | null {
+  const key = typeof facts.appointment === "string" && facts.appointment ? facts.appointment : null;
+  const start = typeof facts.visit_start === "string" ? Date.parse(facts.visit_start) : NaN;
+  return key && recordIdOf(key) === null && Number.isFinite(start) ? key : null;
+}
+
+/** Whether the send must ask the feed about this recipient: a reminder drawn for a calendar event. */
+export function asksTheFeed(facts: Record<string, unknown>): boolean {
+  return feedKeyOf(facts) !== null;
+}
+
+/**
+ * Whether the calendar feed still names the visit a recipient's words were drawn for (S1-05, decision 0002 beside
+ * appointmentHolds): false only for a calendar event the feed, read now over a span that holds the visit, no longer
+ * names. A recipient drawn for no calendar event (a run made before the record, a booking from the record), or for a visit
+ * outside the span the feed was read over, goes on what the record says.
+ */
+export function feedStillNames(feed: FeedNames, facts: Record<string, unknown>): boolean {
+  const key = feedKeyOf(facts);
+  if (key === null) return true;
+  const start = Date.parse(String(facts.visit_start));
+  if (start < feed.from || start > feed.to) return true;
+  return feed.keys.has(key);
 }
 
 /** The keys a batch's recipients were drawn for: what the send reads the rows of, once. */

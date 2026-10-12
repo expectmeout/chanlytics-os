@@ -49,6 +49,7 @@ export {
   LENS_ROUTES,
   adsReportRoute,
   lensRoute,
+  reviewRoute,
   isLensParam,
   lensOfRoute,
   reportsParamParts,

@@ -19,7 +19,9 @@ export * from "./logo";
 export * from "./mobile";
 export * from "./new-conversation";
 export * from "./notes";
+export * from "./notices";
 export * from "./people";
+export * from "./person-page";
 export * from "./playbooks";
 export * from "./reach-out";
 export * from "./reports";
@@ -29,6 +31,7 @@ export * from "./shell";
 export * from "./templates";
 export * from "./today";
 export * from "./voice";
+export * from "./waits";
 export * from "./workspace";
 // Last, though first by name: it reads the workspace's own words (workspace/activity.ts), so it is built after them.
 export * from "./activity";

@@ -1,6 +1,7 @@
 import type { DecisionVerb, EVENT_KINDS } from "../shared/enums";
 import { ACTIVITY_KINDS, activityKindWords, isActivityNoise } from "../workspace/activity";
 import { activityTone } from "./tones";
+import { UNKNOWN_MEMBER_WORD } from "../shared/words";
 
 /**
  * The activity log's families: where in the product a row belongs, in the words the sidebar and Settings say.
@@ -236,7 +237,8 @@ export const ACTIVITY_PAGE_WORDS = {
     hide: (said: string): string => `${said}: hide them`,
   },
   since: (time: string): string => `since ${time}`,
-  member: "A member",
+  /** Who did a row whose member the roster does not know (they have left the team): memberWords' word for it. */
+  member: UNKNOWN_MEMBER_WORD,
   foot: "Model usage, webhook receipts and unplaced messages are kept out of the log. Pick Kept records to see them.",
   ownerOnly:
     "Only an owner can read the activity log: it is the whole record of the workspace, including what every member did.",

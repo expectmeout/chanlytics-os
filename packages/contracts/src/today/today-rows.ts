@@ -3,6 +3,7 @@
  * waiting with nothing back, the receipts, and the calls worth an ear. The queue that draws them in one grammar is
  * today-queue.ts.
  */
+import { addressOf } from "../activity/record-address";
 import { standingOfThread } from "../conversations/standing";
 import { abandonedCall, endedHowOf, neverConnected, reachedVoicemail, type CallDto } from "../conversations/call-dto";
 import { toCallVM, spokenDuration } from "../conversations/call-vm";
@@ -12,6 +13,7 @@ import { lastExchanged, messageText } from "../conversations/message-words";
 import { isTheirOwnWords, threadChannelWords } from "../conversations/thread-channel";
 import { formatWaited } from "../conversations/thread-clock";
 import { contactName, contactMeta } from "../conversations/thread-contact";
+import { isOptedOut } from "../conversations/thread-dto";
 import { waWindow } from "../config/policy";
 import { ANALYSIS_GRACE_MS } from "../voice/live";
 import { MIN_MS, HOUR_MS } from "../shared/time";
@@ -44,7 +46,7 @@ function todayNeedsRows(f: TodayFacts): TodayNeedsRowVM[] {
           ? contactMeta(r.conv, threadChannelWords(r.conv.messages))
           : "WhatsApp",
     windowNote: r.closes ? `Reply window closes ${r.closes}` : null,
-    to: `inbox/th-${r.e.conversation_id}`,
+    to: addressOf({ kind: "hold", conversationId: r.e.conversation_id }),
   }));
 }
 
@@ -76,7 +78,7 @@ export function todayWindowClosing(f: TodayFacts): TodayVM["windowClosing"] {
     return {
       id: `wc-${c.id}`,
       text: `${contactName(c)} — window closes ${tzClock(w.closesAtIso, tz, now) ?? "soon"} (in ${formatWaited(mins * MIN_MS)})`,
-      to: `inbox/th-${c.id}`,
+      to: addressOf({ kind: "conversation", id: c.id }),
     };
   });
   return rows.length
@@ -104,8 +106,9 @@ export function todayNoReply(f: TodayFacts): TodayNoReplyVM[] {
   const closingSet = new Set(closingConvs.map((c) => c.id));
   return conversations
     .flatMap((c) => {
-      // Archived is filed away, which standingOf reads as quiet; it is not waiting on anybody.
-      if (escSet.has(c.id) || closingSet.has(c.id) || c.state === "archived") return [];
+      // Archived is filed away, which standingOf reads as quiet; it is not waiting on anybody. Nor is someone who asked to stop:
+      // nothing may be sent to them, so there is no reply to be waiting for (the closing window's own rule, today-facts.ts).
+      if (escSet.has(c.id) || closingSet.has(c.id) || c.state === "archived" || isOptedOut(c)) return [];
       // No escalation open on it: the queue above holds the escalated threads (escSet).
       const { standing } = standingOfThread(c, false, now.getTime());
       if (standing !== "quiet" && standing !== "needs_you") return [];
@@ -113,7 +116,14 @@ export function todayNoReply(f: TodayFacts): TodayNoReplyVM[] {
       if (!last || !isTheirOwnWords(last)) return [];
       const lastMs = new Date(last.created_at).getTime();
       if (now.getTime() - lastMs < NO_REPLY_AFTER_MS) return [];
-      return [{ conversationId: c.id, who: contactName(c), sinceMs: lastMs, to: `inbox/th-${c.id}` }];
+      return [
+        {
+          conversationId: c.id,
+          who: contactName(c),
+          sinceMs: lastMs,
+          to: addressOf({ kind: "conversation", id: c.id }),
+        },
+      ];
     })
     .sort((a, b) => a.sinceMs - b.sinceMs);
 }
@@ -152,7 +162,7 @@ export function todayReceipts(f: TodayFacts): NonNullable<TodayVM["recap"]>["rec
     .map(({ conv, msg }) => ({
       at: tzTime(msg.created_at, tz) ?? "",
       text: `replied to ${contactName(conv)}: “${messageText(msg).slice(0, 90)}”`,
-      to: `inbox/th-${conv.id}`,
+      to: addressOf({ kind: "conversation", id: conv.id }),
     }));
 }
 

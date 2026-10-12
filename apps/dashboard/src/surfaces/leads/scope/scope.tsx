@@ -7,7 +7,7 @@
  * and where each fact came from. Its parts are plain functions, never components, so its tree is the one it always drew.
  */
 import type { ReactElement } from "react";
-import { leadReviewGroups, type LeadRowVM } from "@chanlytics/contracts";
+import { LEAD_WORDS, leadReviewGroups, type LeadRowVM } from "@chanlytics/contracts";
 import { ReachOutDoor } from "../../campaigns/reach-out/door";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
@@ -70,7 +70,7 @@ const railRowsOf = (p: P, phone: boolean) => (
     onMore={p.onFindNewOnes}
     importDoor={p.importDoor}
     onAgain={p.onSearchAgain}
-    hrefFor={p.exportHrefFor}
+    exportFor={p.exportFor}
     onNew={p.onFind}
   />
 );
@@ -359,7 +359,7 @@ const bulkBarOf = (p: P, phone: boolean) => (
     onNotAFit={p.onBulkNotAFit}
     whyOpen={p.bulkWhy}
     onWhyOpen={p.onBulkWhy}
-    exportHref={p.exportHref}
+    onExport={p.onExport}
     phone={phone}
     sheet={p.bulkSheet}
     onSheet={p.onBulkSheet}
@@ -488,7 +488,11 @@ const mainOf = (p: P, phone: boolean, railRows: ReactElement, sections: Sections
           expanded (D5): the peek's own view model, drawn large with the facts about the place beside it. */}
       {p.lightbox ? <LeadLightbox vm={p.lightbox} onClose={p.onCloseLightbox} /> : null}
       {phone ? (
-        <PeopleListsSheet open={!!p.listsOpen} onClose={p.onCloseLists}>
+        <PeopleListsSheet
+          open={!!p.listsOpen}
+          onClose={p.onCloseLists}
+          title={`${LEAD_WORDS.viewsHeading} and ${LEAD_WORDS.searchesHeading.toLowerCase()}`}
+        >
           {p.listsOpen ? railRows : null}
         </PeopleListsSheet>
       ) : null}

@@ -2,10 +2,11 @@
  * The live feed (Blueprint §5, decision 0019): every surface hears the database through here, so no surface knows
  * how. The database tells each workspace what changed (00265): a notice on the private topic `workspace:<id>:changes`
  * when a statement on a watched table changes its rows, once a transaction for each table and event, naming the table
- * and the event, and the statuses a call's or a message update's statement left. It never carries a row; a surface that
- * wants one reads it. Realtime admits a member to their workspaces' topics (the one policy on realtime.messages) and
- * lets nobody speak on them. The session token is pushed to Realtime EXPLICITLY before the channel joins: relying on
- * supabase-js's auth-listener propagation races the join, and a private channel that joins as `anon` is refused.
+ * and the event, the statuses a call's or a message update's statement left, and the clock when it was told (`at`,
+ * 00408). It never carries a row; a surface that wants one reads it. Realtime admits a member to their workspaces'
+ * topics (the one policy on realtime.messages) and lets nobody speak on them. The session token is pushed to Realtime
+ * EXPLICITLY before the channel joins: relying on supabase-js's auth-listener propagation races the join, and a private
+ * channel that joins as `anon` is refused.
  *
  * The topic is the authorization, so it carries no caller's suffix, and realtime-js hands back the channel it already
  * has for a topic and joins it once. So each client keeps one channel per topic and counts who listens on it: two
@@ -25,11 +26,13 @@ type Event = "INSERT" | "UPDATE" | "DELETE";
 const EVERY: readonly Event[] = ["INSERT", "UPDATE", "DELETE"];
 const INSERTS: readonly Event[] = ["INSERT"];
 const INSERTS_AND_UPDATES: readonly Event[] = ["INSERT", "UPDATE"];
+const UPDATES: readonly Event[] = ["UPDATE"];
 
 /**
  * Tables whose changes must repaint the live surfaces (Blueprint §5), and the events each is told for. 00265's loop
  * makes a trigger for each, and database/each-workspace-is-told-what-changed.db.test.mjs holds the two equal: a table
- * joins the live feed with its trigger, in one change.
+ * joins the live feed with its trigger, in one change. Where a note says "when it moved", the event is told only when
+ * a column a page draws holds something else than it did (00408): the trigger is narrowed, the list is not.
  */
 const WATCHED: ReadonlyArray<{ table: string; events: readonly Event[] }> = [
   { table: "messages", events: INSERTS_AND_UPDATES }, // arrivals, then a send's ticks and a failure written late: an update is told with its statuses (00327)
@@ -68,6 +71,31 @@ const WATCHED: ReadonlyArray<{ table: string; events: readonly Event[] }> = [
   { table: "playbooks", events: EVERY },
   // a booking that arrived by email written, moved or withdrawn by the booking_read job: the Calendar repaints (00345)
   { table: "appointments", events: EVERY },
+  // The records no page was told of (00408, 0047). A person made, or renamed, answered, stopped, merged or erased by a
+  // teammate, a job or the customer's own link: People, the Inbox's thread heads and Campaigns' counts repaint. Their
+  // updates are told when an identity or an answer moved; a message's stamp on last_seen_at is not one.
+  { table: "contacts", events: INSERTS_AND_UPDATES },
+  // The settings saved in another tab or by a teammate: Settings, the Calendar, Setup and the composers repaint. Told
+  // when the version moved, so the hourly stamp on calendar_checked_at tells nothing. The receptionist's stamp reads it.
+  { table: "tenant_config", events: UPDATES },
+  // The Autonomy matrix, and a person's or a list's own rule: the chips beside every approval repaint. Read by the stamp.
+  { table: "policies", events: EVERY },
+  // Meta's answer to a template, a sync, a hide, a template made or removed: the Library and the composers repaint. The
+  // update is told when its status, rejection, quality, category, visibility or words moved.
+  { table: "templates", events: EVERY },
+  // Offers by email paused by the gate or resumed by the back office: Campaigns' head line and send tick repaint. The
+  // update is told when the pause columns moved.
+  { table: "mailboxes", events: UPDATES },
+  // A booking email the reader held for a look, or settled: the Business tab's held list repaints.
+  { table: "appointment_notices", events: INSERTS_AND_UPDATES },
+  // A seat taken, changed or left, and an invitation sent, renewed, accepted or revoked: the Team pane and the workspace
+  // list repaint, and a member whose own role moved is told. A seat's update is told when its role moved, never for the
+  // member's own saved views.
+  { table: "memberships", events: EVERY },
+  { table: "invitations", events: EVERY },
+  // The workspace paused or resumed (billing, the back office): the shell and Today's band repaint. Told when the status
+  // moved. The receptionist's stamp reads the row.
+  { table: "tenants", events: UPDATES },
 ];
 
 /** The tables the database tells a workspace about: a surface's refreshOnTables can only name one of these. */
@@ -80,8 +108,11 @@ export function watchedEvents(): Array<{ table: string; events: Event[] }> {
   return WATCHED.map((w) => ({ table: w.table, events: [...w.events] }));
 }
 
-/** What a surface hears of a change: the workspace, and a call's or a message update's status. Never the row. */
-type OnChange = (row: { tenant_id: string; status?: string }, table: string, event: string) => void;
+/**
+ * What a surface hears of a change: the workspace, and a call's or a message update's status. Never the row. And, as the
+ * fourth argument, the clock the database told it by (`at`, ISO 8601 in UTC): absent from a notice sent before 00408.
+ */
+type OnChange = (row: { tenant_id: string; status?: string }, table: string, event: string, at?: string) => void;
 
 interface Listener {
   onChange: OnChange;
@@ -186,17 +217,18 @@ function report(listener: Listener, topic: string, status: string): void {
 }
 
 /**
- * A notice, handed to each listener as a change: its table, its event, and a row of the workspace. A call's notice,
- * and a message update's, carries the statuses its statement left, and each is a change of its own, so a rule that
- * reads a status reads every one.
+ * A notice, handed to each listener as a change: its table, its event, a row of the workspace, and the clock it was
+ * told by (`at`) where it carries one. A call's notice, and a message update's, carries the statuses its statement
+ * left, and each is a change of its own, so a rule that reads a status reads every one; they share the notice's clock.
  */
 function tell(hearing: Hearing, tenantId: string, message: { event?: string; payload?: unknown }): void {
-  const notice = (message.payload ?? {}) as { table?: unknown; statuses?: unknown };
+  const notice = (message.payload ?? {}) as { table?: unknown; statuses?: unknown; at?: unknown };
   if (typeof notice.table !== "string") return;
   const table = notice.table;
   const event = message.event ?? "*";
+  const at = typeof notice.at === "string" ? notice.at : undefined;
   const statuses = Array.isArray(notice.statuses) ? notice.statuses : [undefined];
   for (const listener of [...hearing.listeners])
     for (const status of statuses)
-      listener.onChange({ tenant_id: tenantId, ...(typeof status === "string" ? { status } : {}) }, table, event);
+      listener.onChange({ tenant_id: tenantId, ...(typeof status === "string" ? { status } : {}) }, table, event, at);
 }

@@ -51,36 +51,13 @@ const sortAgents = (list) => [...list].sort((a, b) =>
   (STATUS_RANK[a.status] - STATUS_RANK[b.status]) || a.name.localeCompare(b.name)
 );
 
-// Session overlay: FL_STORE pauses + LM_STORE call endings reshape the strip
+// Session overlay: FL_STORE pauses reshape the strip (the demo's)
 const sbOverlay = (a) => {
   let next = a;
-  const regId = window.CHANLY ? window.CHANLY.agentIdFor(a.name) : a.id;
+  const regId = window.CHANLY && window.CHANLY.agentIdFor ? window.CHANLY.agentIdFor(a.name) : a.id;
   const st = window.FL_STORE && window.FL_STORE.statuses && window.FL_STORE.statuses[regId];
   if (st === "paused") next = { ...next, status: "paused", task: "Paused by you — resume in Fleet" };
-  if (a.glyph === "P" && window.LM_STORE && window.LM_STORE.isEnded("lc-selena") && /Selena/.test(a.task)) {
-    next = { ...next, status: st === "paused" ? "paused" : "idle", task: st === "paused" ? next.task : "Wrapped call · Selena Cho · summary in Conversations" };
-  }
   return next;
-};
-
-// Seed-honest needs count: live threads in "needs" minus session decisions
-const sbNeedsCount = () => {
-  const threads = ((window.INBOX_DATA || {}).THREADS) || [];
-  return threads.filter(t => {
-    // A real thread counts when it needs you, the badge's rule (needsYou): this counted a teammate's thread (I2).
-    // The Inbox owns that rule (ixWaitsOnYou), so a reply about to send counts in both places, or in neither.
-    if (t.real) return window.ixWaitsOnYou ? window.ixWaitsOnYou(t) : !!t.needsYou;
-    if (t.state !== "needs" && !(t.state === "escalated" && !t.takenOver)) return false;
-    const rec = window.IX_STORE && window.IX_STORE.get(t.id);
-    return !(rec && (rec.kind === "decided" || rec.kind === "snoozed"));
-  }).length;
-};
-
-// Credits: shared billing source (Settings › Billing top-ups move this)
-const sbCredits = () => {
-  const b = window.__BILLING;
-  if (!b) return "5,350";
-  return (b.creditsTotal + b.topup - b.creditsUsed).toLocaleString();
 };
 
 const SidebarRow = ({ item, active, parentActive, onNavigate, depth = 0, expanded, onToggle, badges = {}, collapsed = false }) => {
@@ -307,7 +284,8 @@ const WorkspaceMenu = ({ onNavigate, close }) => {
 };
 
 // The account: who you are, the doors to Settings, your profile and your notifications (which says where this device is not alerted), the
-// theme and the look, and sign out (the shortcuts sheet opens on ?, and is listed nowhere a pointer must find it). Alerts on this device
+// theme and the look, the Keyboard shortcuts sheet on a desk (a pointer's door to it: the sheet opens on ? for a hand on the keys, and a
+// phone needs no keys; Ruben, 23 Sep 2026: the shortcuts live in the account menu), and sign out. Alerts on this device
 // reuse the bell's own switch (the notifications bridge), not a second one.
 const UserMenu = ({ who, themePref, onTheme, look, onLook, onNavigate, close, flash }) => {
   const real = !window.__DEMO_MODE && window.__notifs ? window.__notifs : null;
@@ -366,6 +344,13 @@ const UserMenu = ({ who, themePref, onTheme, look, onLook, onNavigate, close, fl
         </>
       )}
       <div className="more-divider" />
+      {/* The sheet registers its opener (shortcuts.jsx openShortcuts), so this is a call and not a window event; the row's words
+          name no key, the sheet is the one place a key is drawn. */}
+      {sbBeside() && window.openShortcuts && (
+        <button className="more-item" role="menuitem" onClick={() => { close(); window.openShortcuts(); }} data-testid="sb-me-shortcuts">
+          <Icon name="keyboard" size={13} /><span className="more-item-label">Keyboard shortcuts</span>
+        </button>
+      )}
       <button className="more-item danger" role="menuitem" onClick={signOut} data-testid="sb-signout">
         <Icon name="logout" size={13} /><span className="more-item-label">Sign out</span>
       </button>
@@ -389,31 +374,21 @@ const Sidebar = ({
   look, onLook,
 }) => {
   const [, setTick] = React.useState(0);
-  const [needs, setNeeds] = React.useState(sbNeedsCount);
   const [toastNode, flash] = window.usePPToast();
   const wsMenu = useSbMenu();
   const meMenu = useSbMenu();
 
-  // Live session overlays: fleet pauses, ended calls, decisions, inbox counts, billing, identity
+  // What redraws the sidebar: who is looking and which workspace (the workspace read). A fleet pause is the demo's own strip of
+  // agents (FL_STORE, the Agents pages), so only a demo session hears it. What needs you is not counted here: the frame hands
+  // the Inbox's badge in (`badges`), made by the one selector every surface reads (surfaces/needs-you.ts). The credits line,
+  // the call endings and a patched-ahead name left with their senders (nothing sends them).
   React.useEffect(() => {
     const bump = () => setTick(n => n + 1);
-    const onCounts = (e) => setNeeds(e.detail && typeof e.detail.needs === "number" ? e.detail.needs : sbNeedsCount());
-    const onDecisions = () => setNeeds(sbNeedsCount());
-    window.addEventListener("fleet:status", bump);
-    window.addEventListener("live:ended", bump);
-    window.addEventListener("billing:changed", bump);
-    window.addEventListener("inbox:counts", onCounts);
-    window.addEventListener("inbox:decisions", onDecisions);
-    window.addEventListener("me:changed", bump);
+    if (window.__DEMO_MODE) window.addEventListener("fleet:status", bump);
     window.addEventListener("surface:workspace", bump);
     return () => {
-      window.removeEventListener("me:changed", bump);
       window.removeEventListener("surface:workspace", bump);
       window.removeEventListener("fleet:status", bump);
-      window.removeEventListener("live:ended", bump);
-      window.removeEventListener("billing:changed", bump);
-      window.removeEventListener("inbox:counts", onCounts);
-      window.removeEventListener("inbox:decisions", onDecisions);
     };
   }, []);
 
@@ -422,7 +397,6 @@ const Sidebar = ({
 
   // Computed badges — seed-honest counts; caller-supplied badges win
   const computedBadges = {
-    inbox: needs > 0 ? String(needs) : null,
     // The seeded LEADS are the mockup's, so the count is demo-only; a real
     // workspace's leads are the scope of People at clients/leads.
     people: window.__DEMO_MODE ? (String(((window.LEADS || []).filter(l => l.stage === "ready").length) || "") || null) : null,
@@ -571,7 +545,7 @@ const Sidebar = ({
             <div className="name">{who.name}</div>
             <div className="email">{sbAccountSub(look, who)}</div>
           </div>
-          {window.__DEMO_MODE && !collapsed && <div className="user-credits mono tabular">{sbCredits()}</div>}<Icon name="chevrons" size={14} className="sb-chev" />
+          <Icon name="chevrons" size={14} className="sb-chev" />
         </button>
         <SbMenu menu={meMenu} side="up" label="Account" testid="sb-account-menu">
           <UserMenu who={who} themePref={themePref} onTheme={onTheme} look={look} onLook={onLook} onNavigate={onNavigate} close={meMenu.close} flash={flash} />
@@ -583,6 +557,3 @@ const Sidebar = ({
 };
 
 window.Sidebar = Sidebar;
-window.ACTIVE_AGENTS_DEFAULT = ACTIVE_AGENTS_DEFAULT;
-// Published for inbox-counts.test.mjs, which counts the sidebar's first number on its own.
-window.sbNeedsCount = sbNeedsCount;

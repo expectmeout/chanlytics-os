@@ -58,18 +58,52 @@ test("REGRESSION: the rail button says Collapse, and its tip on the rail says Ex
   assert.deepEqual(keysDrawn(tree), [], "nor as a rail");
 });
 
-test("the account menu draws no key and no row for the shortcuts: the sheet opens on ?, and the menu holds Settings, Profile and Notifications", () => {
-  // Keyboard shortcuts left the menu (Ruben, 7 Oct 2026): a list of keys is found by its key. Settings came in from the sidebar's list.
-  let tree = draw();
-  press(byTestId(tree, "sb-account"));
-  tree = redraw();
-  const menu = byTestId(tree, "sb-account-menu");
-  assert.ok(menu, "the menu is open");
-  assert.equal(byTestId(menu, "sb-me-shortcuts"), null);
-  assert.deepEqual(keysDrawn(menu), []);
-  assert.equal(textOf(byTestId(menu, "sb-me-settings")), "Settings");
-  assert.match(textOf(byTestId(menu, "sb-me-name")), /^Profile/);
-  assert.equal(textOf(byTestId(menu, "sb-me-notifications")), "Notifications");
+/** The viewport as a desk (the sidebar stands beside the page) or a phone (it is a drawer), for the menu's doors. */
+const onDesk = (desk, run) => {
+  const was = W.matchMedia;
+  W.matchMedia = (q) => ({
+    matches: desk && q === "(min-width: 901px)",
+    addEventListener() {},
+    removeEventListener() {},
+  });
+  try {
+    run();
+  } finally {
+    W.matchMedia = was;
+  }
+};
+
+test("the account menu draws no key: Settings, Profile and Notifications on any screen, and on a desk the Keyboard shortcuts row, a pointer's door to the sheet", () => {
+  // The row left the menu on 7 Oct 2026 (the sheet opens on ?) and a person who does not know to press ? could not find the list;
+  // a phone needs no keys. The row's words name none (Ruben, 23 Sep 2026), and the sheet is the one place a key is drawn.
+  onDesk(false, () => {
+    let tree = draw();
+    press(byTestId(tree, "sb-account"));
+    tree = redraw();
+    const menu = byTestId(tree, "sb-account-menu");
+    assert.ok(menu, "the menu is open");
+    assert.equal(byTestId(menu, "sb-me-shortcuts"), null, "a phone needs no keys");
+    assert.deepEqual(keysDrawn(menu), []);
+    assert.equal(textOf(byTestId(menu, "sb-me-settings")), "Settings");
+    assert.match(textOf(byTestId(menu, "sb-me-name")), /^Profile/);
+    assert.equal(textOf(byTestId(menu, "sb-me-notifications")), "Notifications");
+  });
+  onDesk(true, () => {
+    let tree = draw();
+    press(byTestId(tree, "sb-account"));
+    tree = redraw();
+    const menu = byTestId(tree, "sb-account-menu");
+    const row = byTestId(menu, "sb-me-shortcuts");
+    assert.ok(row, "on a desk the menu holds the row");
+    assert.equal(textOf(row), "Keyboard shortcuts");
+    assert.deepEqual(keysDrawn(menu), [], "its words name no key");
+    assert.equal(textOf(byTestId(menu, "sb-me-settings")), "Settings", "beside the doors it always had");
+    assert.equal(byTestId(tree, "shortcuts-sheet"), null, "closed until asked");
+    press(row);
+    tree = redraw();
+    assert.ok(byTestId(tree, "shortcuts-sheet"), "the press opens the sheet");
+    assert.equal(byTestId(tree, "sb-account-menu"), null, "and the menu lets go");
+  });
 });
 
 test("REGRESSION: the workspace menu names the workspaces and the one being viewed, with no ⌘1 or ⌘2 beside them", () => {
@@ -88,9 +122,22 @@ test("REGRESSION: the workspace menu names the workspaces and the one being view
   assert.deepEqual(keysDrawn(menu), []);
 });
 
-test("the sheet is the one place a key is drawn: every key the app answers to, the Calendar's among them", () => {
+test("the sheet opens on ? and by the opener it registers, never by an event, and Esc closes it", () => {
   draw();
   W.dispatchEvent(new CustomEvent("shortcuts:open"));
+  assert.equal(byTestId(redraw(), "shortcuts-sheet"), null, "nothing sends or hears shortcuts:open any more");
+  const key = (k) => W.dispatchEvent({ type: "keydown", key: k, target: null, preventDefault() {} });
+  key("?");
+  assert.ok(byTestId(redraw(), "shortcuts-sheet"), "? opens it");
+  key("Escape");
+  assert.equal(byTestId(redraw(), "shortcuts-sheet"), null, "and Esc closes it");
+  W.openShortcuts();
+  assert.ok(byTestId(redraw(), "shortcuts-sheet"), "openShortcuts() opens it");
+});
+
+test("the sheet is the one place a key is drawn: every key the app answers to, the Calendar's among them", () => {
+  draw();
+  W.openShortcuts();
   const tree = redraw();
   const sheet = byTestId(tree, "shortcuts-sheet");
   assert.ok(sheet, "open");

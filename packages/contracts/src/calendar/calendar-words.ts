@@ -9,11 +9,13 @@ import { hoursRuns } from "../config/workspace-config/prompt-hours";
 import { BOOKING_DEFAULTS, dayIntervals, type BookingRulesLike } from "./availability";
 import { DAY_SHORT, keyParts } from "./day-keys";
 import type { CalendarFeedDto, VisitMark } from "./calendar-dto";
+import { isGuess, matchWordsOf, type MatchVia } from "./calendar-people";
+import type { VisitWord } from "../shared/enums";
 
 /* ----------------------------------------------------------- what became of a visit (decision 0002, step 8) */
 
-/** What a member may say became of a visit (00397 mark_visit). */
-export type VisitWord = "kept" | "missed" | "cancelled";
+/** What a member may say became of a visit (00397 mark_visit): the closed set is shared/enums.ts's. */
+export type { VisitWord };
 
 /** Each word as the panel says it, on a state and on an act alike. */
 export const VISIT_WORDS: Record<VisitWord, string> = { kept: "Kept", missed: "Missed", cancelled: "Cancelled" };
@@ -28,17 +30,42 @@ export const VISIT_REFUSALS: Record<string, string> = {
 };
 
 /**
- * What the panel says beside a visit's time: the member's word on it, else "Past" once it has ended (the record never
- * infers that they came: 0002's answer 3), else nothing.
+ * Whether a visit still stands: the record has not been told it was cancelled, whoever cancelled it. A cancelled visit is
+ * drawn on the board, struck, and is none anywhere a visit is counted or said to be booked (Today's day, People's visits,
+ * Ask's calendar).
  */
-export function visitStateOf(
-  visit: VisitMark | null,
-  endMs: number,
-  nowMs: number,
-): { text: string; tone: VisitWord | "past" } | null {
+export function visitStands(visit: Pick<VisitMark, "status"> | null | undefined): boolean {
+  return visit?.status !== "cancelled";
+}
+
+/** The word for a visit that has ended and nobody has said what became of: said once, by every page (D1-visit-match-words). */
+const VISIT_PAST_WORD = "Past";
+
+/** The tone each state wears on the kit's pill, in tone.ts's six: a kept visit is done, a missed one is for a person to look at, the rest are neutral. */
+const VISIT_PILL_TONES: Record<VisitWord | "past", "ok" | "warn" | "plain"> = {
+  kept: "ok",
+  missed: "warn",
+  cancelled: "plain",
+  past: "plain",
+};
+
+/** How a visit stands, as every page says it: the word, the state it is of, and the tone of the pill that wears it. */
+export interface VisitStateVM {
+  text: string;
+  tone: VisitWord | "past";
+  pill: "ok" | "warn" | "plain";
+}
+
+/**
+ * What a page says beside a visit's time: the member's word on it, else "Past" once it has ended (the record never
+ * infers that they came: 0002's answer 3), else nothing. A word said stands whether or not the visit has ended, so a
+ * visit marked while it is under way reads as its mark.
+ */
+export function visitStateOf(visit: VisitMark | null, endMs: number, nowMs: number): VisitStateVM | null {
   const said = visit?.status;
-  if (said === "kept" || said === "missed" || said === "cancelled") return { text: VISIT_WORDS[said], tone: said };
-  return endMs <= nowMs ? { text: "Past", tone: "past" } : null;
+  if (said === "kept" || said === "missed" || said === "cancelled")
+    return { text: VISIT_WORDS[said], tone: said, pill: VISIT_PILL_TONES[said] };
+  return endMs <= nowMs ? { text: VISIT_PAST_WORD, tone: "past", pill: VISIT_PILL_TONES.past } : null;
 }
 
 /**
@@ -65,6 +92,173 @@ export function visitActsOf(visit: VisitMark | null, startMs: number, endMs: num
       return out;
     }
   }
+}
+
+/* ----------------------------------------------------------- one visit line (decision 0047, D1-visit-mark) */
+
+/** What a page asks of the owner about a visit nobody has marked, and the role gate's "to ...". */
+export const VISIT_ASK_WORDS = {
+  /** The question over the presses: Today's row, the person's History and Coming up. */
+  question: "Did they come?",
+  /** What a visit that has ended and nobody has marked is, said where "Past" alone would leave the owner guessing. */
+  unmarked: "Not marked yet",
+  gate: "say whether they came",
+  /** The confirm before a cancel, under the workspace's own question (appointmentWords cancelAsk). */
+  cancel: {
+    detail: "It can't be undone here. Its reminders stop; the calendar keeps the time until it is changed there.",
+    yes: "Yes, cancelled",
+    no: "Keep it",
+  },
+} as const;
+
+/**
+ * A visit as one line, whichever page draws it (the Calendar's panel and board, People's Visits cell, the person's
+ * History and Coming up, the Inbox's chip, Today): when, what, who, how it stands, how it was matched and what can be
+ * said of it. A page draws these fields and works none of them out, so a visit never reads one way here and another there.
+ */
+export interface VisitLineVM {
+  id: string;
+  /** The record's row and how it stands: what a press is said on. Null for an event the record has not kept yet. */
+  mark: VisitMark | null;
+  title: string;
+  /** "Tue, Sep 8", "Today" or "Yesterday": the page's day word, "" where the page says the day elsewhere. */
+  day: string;
+  /** "2 – 3:30 PM" */
+  time: string;
+  person: { id: string; name: string } | null;
+  /** Kept, missed, cancelled, or Past once it has ended; null while it is ahead or under way and nobody has said. */
+  state: VisitStateVM | null;
+  /** The record holds a row for it, it has ended, and nobody has said whether they came: it asks "Did they come?". */
+  unmarked: boolean;
+  /** How the calendar found it to be theirs, in the one set of words (MATCH_WORDS); null without a route. */
+  match: string | null;
+  /** The match is a guess (a name): a page about the person says it only then; the Calendar's panel says every match. */
+  guess: boolean;
+  /** Everything mark_visit allows now, in the order the panel offers it (visitActsOf). */
+  acts: VisitWord[];
+  /** The two presses a visit nobody has marked is asked with, once it has begun: Kept and Missed, and never Cancelled. */
+  asks: VisitWord[];
+  /** Where it opens on the Calendar (visitDoor); null where the page gives none. */
+  to: string | null;
+}
+
+/** What a visit line is made from: the facts every page holds of a visit, whatever they came in. */
+export interface VisitLineInput {
+  id: string;
+  mark: VisitMark | null;
+  startMs: number;
+  endMs: number;
+  title: string;
+  day: string;
+  time: string;
+  person: { id: string; name: string } | null;
+  via: MatchVia | null;
+  to?: string | null;
+}
+
+/**
+ * The one visit line: its state from visitStateOf, its presses from visitActsOf (so no page offers what the door would
+ * refuse), its match from MATCH_WORDS. `asks` are the acts of a visit nobody has marked without Cancelled: a page outside
+ * the Calendar asks whether they came, and the Calendar's panel keeps the rest.
+ */
+export function visitLineOf(v: VisitLineInput, nowMs: number): VisitLineVM {
+  const acts = visitActsOf(v.mark, v.startMs, v.endMs, nowMs);
+  const standing = v.mark?.status === "booked";
+  return {
+    id: v.id,
+    mark: v.mark,
+    title: v.title,
+    day: v.day,
+    time: v.time,
+    person: v.person,
+    state: visitStateOf(v.mark, v.endMs, nowMs),
+    unmarked: standing && v.endMs <= nowMs,
+    match: matchWordsOf(v.via),
+    guess: isGuess(v.via),
+    acts,
+    asks: standing ? acts.filter((a) => a !== "cancelled") : [],
+    to: v.to ?? null,
+  };
+}
+
+/** A block of the board as a visit line reads it (CalendarBlockVM satisfies it). */
+interface VisitLineBlock {
+  id: string;
+  title: string;
+  time: string;
+  /** ISO instants. */
+  start: string;
+  end: string;
+  visit: VisitMark | null;
+  person: { id: string; name: string; via?: MatchVia | null } | null;
+}
+
+/** The board's block as a visit line, at `nowMs`; `day` is the page's own word for the day ("" where it says it beside). */
+export function visitLineOfBlock(b: VisitLineBlock, nowMs: number, day = "", to: string | null = null): VisitLineVM {
+  return visitLineOf(
+    {
+      id: b.visit ? b.visit.id : b.id,
+      mark: b.visit,
+      startMs: Date.parse(b.start),
+      endMs: Date.parse(b.end),
+      title: b.title,
+      day,
+      time: b.time,
+      person: b.person ? { id: b.person.id, name: b.person.name } : null,
+      via: b.person?.via ?? null,
+      to,
+    },
+    nowMs,
+  );
+}
+
+/**
+ * The record's row for a visit a person's read carries (VisitDto), as a mark: its id, and how it stands. A visit nobody has
+ * said anything of stands as booked, the only way a visit gets here unsaid (a cancelled one is none, and a request is no
+ * visit yet: feedWithRecord). Null for an event the record has not kept yet. A member's word stands even where the read
+ * carries no id for the row (an older one): the mark then has an empty id, so it is read and never pressed on.
+ */
+export function visitMarkOfDto(v: { record_id?: string | null; said?: "kept" | "missed" | null }): VisitMark | null {
+  if (v.said) return { id: v.record_id ?? "", status: v.said };
+  return v.record_id ? { id: v.record_id, status: "booked" } : null;
+}
+
+/* ----------------------------------------------------------- adding the person an appointment names (decision 0047, lane 6) */
+
+/**
+ * What the board says when it offers to add the person a visit names. Reading the calendar adds nobody (a read never
+ * writes: decision 0034 section 4); the hourly sweep and the booking email's reader put the calendar's people in People,
+ * and a visit whose person the board cannot match offers the press, here, through the door "Add a person" uses.
+ */
+export const ADD_TO_PEOPLE_WORDS = {
+  /** The press, and the role gate's "to ...". */
+  act: "Add to People",
+  gate: "add this person to People",
+  busy: "Adding…",
+  /** Said once the door answered: made now, or already there (a person is never made twice). */
+  added: (name: string | null) => (name ? `${name} is in People now` : "In People now"),
+  existed: (name: string | null) => (name ? `${name} was in People already` : "They were in People already"),
+} as const;
+
+/**
+ * What a press on "Add to People" adds, from the block alone, as the add takes it (a number, an address or both, and the
+ * name the event gave): one number names one person (their one address rides
+ * beside it, as the sweep's rule has it: two addresses are nobody's), and with no number one address does. An event with
+ * several numbers or several addresses does not say which is the customer, so it offers nothing and the sweep adds the
+ * numbers within the hour. Nothing for a visit whose person People already matched.
+ */
+export function addToPeopleOf(b: {
+  person: unknown;
+  /** Absent on a week the tab cached before the panel read it. */
+  contacts?: { e164: readonly string[]; emails: readonly string[] } | null;
+  guess: string | null;
+}): { phone: string | null; email: string | null; name: string | null } | null {
+  if (b.person || !b.contacts) return null;
+  const { e164, emails } = b.contacts;
+  const email = emails.length === 1 ? (emails.at(0) ?? null) : null;
+  if (e164.length === 1) return { phone: e164.at(0) ?? null, email, name: b.guess };
+  if (e164.length === 0 && email) return { phone: null, email, name: b.guess };
+  return null;
 }
 
 /* ----------------------------------------------------------- the words */

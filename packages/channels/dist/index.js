@@ -115,6 +115,20 @@ function noteTenant(tenantId) {
 function requestTenant() {
   return serving.getStore()?.tenantId ?? null;
 }
+var TIMINGS_HELD = 32;
+function noteTiming(name, ms) {
+  const store = serving.getStore();
+  if (!store || !Number.isFinite(ms) || ms < 0) return;
+  const timings = store.timings ??= /* @__PURE__ */ new Map();
+  const had = timings.get(name);
+  if (had) {
+    had.ms += ms;
+    had.n += 1;
+  } else if (timings.size < TIMINGS_HELD) timings.set(name, { ms, n: 1 });
+}
+function requestTimings() {
+  return serving.getStore()?.timings ?? /* @__PURE__ */ new Map();
+}
 
 // src/log/logger.ts
 var ENVELOPE = /* @__PURE__ */ new Set(["level", "event", "request_id"]);
@@ -4381,7 +4395,14 @@ function placesFetch(fetchImpl = fetch, timeoutMs = PLACES_TIMEOUT_MS) {
 var PLACE_ID = /^[A-Za-z0-9_-]{10,300}$/;
 
 // src/google/google-sync.ts
-import { plural, ratingWords, reviewSnippet, starsOf, DAY_MS } from "../../contracts/dist/index.js";
+import {
+  plural,
+  ratingWords,
+  reviewSnippet,
+  starsOf,
+  DAY_MS,
+  NEW_REVIEW_NEWS
+} from "../../contracts/dist/index.js";
 var REVIEW_BELL_MAX = 3;
 var FRESH_SLACK_MS = 2 * DAY_MS;
 function overall(rating, count) {
@@ -4390,7 +4411,7 @@ function overall(rating, count) {
 function reviewBells(news, counted, listing) {
   if (news.length > 0 && news.length <= REVIEW_BELL_MAX) {
     return news.map((r) => ({
-      title: `New on Google: ${starsOf(r.rating)} from ${r.author?.trim() || "a customer"}`,
+      title: `${NEW_REVIEW_NEWS} ${starsOf(r.rating)} from ${r.author?.trim() || "a customer"}`,
       body: `${r.text?.trim() ? `\u201C${reviewSnippet(r.text, 280)}\u201D` : "A rating without words."}
 ${overall(listing.rating, listing.review_count)}.`,
       review_id: r.review_id
@@ -5317,6 +5338,7 @@ export {
   normalizeCall,
   normalizeInbound,
   noteTenant,
+  noteTiming,
   oneTimeCodeOf,
   ownDomainIdentity,
   pageText,
@@ -5359,6 +5381,7 @@ export {
   requestIdShaped,
   requestLeavesAs,
   requestTenant,
+  requestTimings,
   resendLimitOf,
   resendRequest,
   resendWebhookSignature,

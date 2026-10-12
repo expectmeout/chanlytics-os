@@ -181,7 +181,7 @@ test("a run waiting on its owner: today's share and the rest, the held, the skip
   const head = find(byTestId(tree, "bc-run-solo"), (n) => n.type === "h2");
   assert.equal(textOf(head.props.children[0]), "Reach out · Personal trainers", "the run's name is the pane's title");
   assert.ok(byTestId(tree, "bc-detail-close"), "the pane's Close, where the block's back button was");
-  assert.equal(textOf(byTestId(tree, "ro-run-k")), "Waiting on you");
+  assert.equal(textOf(byTestId(tree, "ro-run-k")), "Waiting for your approval");
   assert.equal(textOf(byTestId(tree, "ro-run-will")), "30 will get it today");
   assert.match(textOf(byTestId(tree, "ro-run-reach")), /of 44/);
   const why = textOf(byTestId(tree, "ro-run-why"));
@@ -339,6 +339,47 @@ test("Check the held again, for the holds the check could not answer: one press 
   w.detail = DETAIL("sending", RUN({ held: [RUN().held[0]] }));
   const none = await open();
   assert.equal(byTestId(none(), "ro-run-recheck"), null);
+});
+
+test("D1-lead-person-door: a held and a ready business on the sheet each open their lead in the Leads peek; one with no lead named is its name alone", async () => {
+  // The page moves through the bridge's door, which without a frame is the shell's own (CHANLY.nav).
+  const went = [];
+  const nav = W.CHANLY.nav;
+  W.CHANLY.nav = (to) => went.push(to);
+  try {
+    const LEAD_HELD = "6f1c2a4e-3b7d-4c58-9a10-2d5e8b7c4f01";
+    const LEAD_READY = "9d3e5b21-7a64-4f0c-8e12-5c7a1d9b3e22";
+    world(
+      "scheduled",
+      RUN({
+        held: [{ ...RUN().held[0], lead_id: LEAD_HELD }],
+        planned: [
+          { send_id: "p1", lead_id: LEAD_READY, business_name: "Studio Two", send_at: FIRST_AT, checked: true },
+          // A read from before the lead was carried: the name stands without a door.
+          { send_id: "p9", business_name: "Studio Nine", send_at: FIRST_AT, checked: true },
+        ],
+      }),
+    );
+    const redraw = await open();
+    let tree = redraw();
+    const held = byTestId(tree, "ro-held-lead");
+    assert.equal(textOf(held), "Studio One");
+    assert.equal(held.props.title, contracts.REACH_OUT_SHEET_WORDS.openLead);
+    press(held);
+    assert.deepEqual(went, [contracts.addressOf({ kind: "lead", id: LEAD_HELD })]);
+    assert.equal(went[0], `clients/leads:p-${LEAD_HELD}`);
+    press(byTestId(tree, "ro-run-see"));
+    tree = redraw();
+    const ready = all(tree, (n) => n.props?.["data-testid"] === "ro-run-person");
+    assert.equal(ready.length, 2);
+    assert.equal(textOf(byTestId(ready[0], "ro-person-lead")), "Studio Two");
+    assert.equal(byTestId(ready[1], "ro-person-lead"), null, "no lead named, no door");
+    assert.match(textOf(ready[1]), /Studio Nine/);
+    press(byTestId(ready[0], "ro-person-lead"));
+    assert.equal(went[1], `clients/leads:p-${LEAD_READY}`);
+  } finally {
+    W.CHANLY.nav = nav;
+  }
 });
 
 test("a viewer sees the held and why, told once why they may not decide; no door", async () => {

@@ -189,7 +189,10 @@ test("by email to a stopped address, the booking link and the proposal say why t
 
   // The same words from the functions the row and the page call, and the Replies row beside them.
   assert.deepEqual(
-    bookingLinkAction({ via: "Email", window: { open: false, hoursLeft: 0 }, emailStopped: true }).title,
+    bookingLinkAction(
+      { via: "Email", window: { open: false, hoursLeft: 0 }, emailStopped: true },
+      { optedOut: false, who: "Ana Reyes" },
+    ).title,
     STOPPED,
   );
   assert.equal(proposalAction({ via: "Email", window: null, emailStopped: true }, null).title, STOPPED);

@@ -254,8 +254,10 @@ listed there with its date and the program it waits on.
 - A fetch in a page, a provider key in the dashboard, a table name typed outside `packages/db`.
 - A profile, number or link for a real business, anywhere in the tree.
 - A fallback that answers in anyone's voice when the database cannot be read. It holds for a person.
-- A new dependency where the repository already solves the problem (charts, calendar parsing,
-  phone formatting are hand-rolled on purpose).
+- A dependency outside decision 0054's rule: one per job and the job's standard, pinned exactly, its licence allowed,
+  behind a seam of ours, on the server where it can be, its browser bytes argued
+  (`docs/decisions/0054-a-dependency-is-taken-when-it-is-the-job-s-standard.md`, which also lists each candidate
+  weighed and what was decided).
 - A primitive of a page's own, a page's rule over a kit class, or a second implementation of a kit component (**One
   kit** above says what is counted).
 - A literal colour, type size, radius, shadow or blur in a stylesheet: the values are in `tokens.css`, and a chart's

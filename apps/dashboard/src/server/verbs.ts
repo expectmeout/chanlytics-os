@@ -54,6 +54,9 @@ export interface VerbConversation {
   phone_e164: string | null;
   display_name: string | null;
   wa_profile_name: string | null;
+  /** Where the name came from and whether a member settled it (0052): a stand-in is greeted "there" (firstNameOf). */
+  name_source: string | null;
+  name_settled_at: string | null;
   /** Consent travels with every verb load so no send path has to remember to
    *  ask for it separately. */
   consent: string | null;
@@ -74,7 +77,7 @@ export async function loadConversation(ctx: RouteContext, id: string): Promise<V
   const { data, error } = await ctx.supabase
     .from("conversations")
     .select(
-      "id, tenant_id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at, last_message_at, last_inbound_at, contact_id, contacts (phone_e164, display_name, wa_profile_name, consent, dnc, marketing_consent, email, email_suppressed_at)",
+      "id, tenant_id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at, last_message_at, last_inbound_at, contact_id, contacts (phone_e164, display_name, wa_profile_name, name_source, name_settled_at, consent, dnc, marketing_consent, email, email_suppressed_at)",
     )
     .eq("id", convId)
     .maybeSingle();
@@ -95,6 +98,8 @@ export async function loadConversation(ctx: RouteContext, id: string): Promise<V
     phone_e164: data.contacts?.phone_e164 ?? null,
     display_name: data.contacts?.display_name ?? null,
     wa_profile_name: data.contacts?.wa_profile_name ?? null,
+    name_source: data.contacts?.name_source ?? null,
+    name_settled_at: data.contacts?.name_settled_at ?? null,
     consent: data.contacts?.consent ?? null,
     dnc: data.contacts?.dnc ?? false,
     marketing_consent: data.contacts?.marketing_consent ?? null,

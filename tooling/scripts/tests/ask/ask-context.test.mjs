@@ -401,10 +401,7 @@ test("the Inbox: the threads in the bucket the page drew, each in inbox.list's w
     ],
     "in the page's order, bayside's thread left out",
   );
-  assert.match(
-    textOf(inbox.blocks[0]),
-    /^Inbox, all: 2 threads on screen · needs you: 1 · held: 0 · waiting on you: 0/,
-  );
+  assert.match(textOf(inbox.blocks[0]), /^Inbox, all: 2 threads on screen · needs you: 1 · held: 0 · you have it: 0/);
   assert.match(textOf(inbox.blocks[1]), /^Rosa · answering · Are you open Saturday\?/);
   assert.match(textOf(inbox.blocks[2]), /^Quinn · needs you · /);
 
@@ -603,6 +600,90 @@ test("the Calendar: the people its board names in the span the page drew, each w
   }
 });
 
+test("the Calendar page context leaves a cancelled visit out, as the board's record strikes it: not under what a person has on, not in taken, and a person with only a cancelled visit is absent (1.6)", async () => {
+  const event = (uid, summary, phone, day, from, to) => [
+    "BEGIN:VEVENT",
+    `UID:${uid}`,
+    `SUMMARY:${summary}`,
+    `DESCRIPTION:${phone}`,
+    `DTSTART;TZID=America/New_York:${day}T${from}00`,
+    `DTEND;TZID=America/New_York:${day}T${to}00`,
+    "END:VEVENT",
+  ];
+  const ics = [
+    "BEGIN:VCALENDAR",
+    ...event("a1", "Ana Ruiz · Balayage", "Ana Ruiz +1 (917) 555-0100", "20260915", "1400", "1530"),
+    ...event("a2", "Ana Ruiz · Gloss", "Ana Ruiz +1 (917) 555-0100", "20260916", "1000", "1100"),
+    ...event("b1", "Bea Cole · Cut", "Bea Cole +1 (917) 555-0111", "20260917", "1000", "1100"),
+    "END:VCALENDAR",
+  ].join("\r\n");
+  const ANA = { id: "k-ana", display_name: "Ana Ruiz", wa_profile_name: null, phone_e164: "+19175550100", email: null };
+  const BEA = { id: "k-bea", display_name: "Bea Cole", wa_profile_name: null, phone_e164: "+19175550111", email: null };
+  const cancelled = (id, external_id, start, end) => ({
+    id,
+    tenant_id: A,
+    source: "calendar_feed",
+    external_id,
+    status: "cancelled",
+    starts_at: start,
+    ends_at: end,
+    vanished_at: null,
+  });
+  const t = tables({
+    tenant_config: [
+      {
+        tenant_id: A,
+        config: {
+          calendar: { ical_url: "https://cal.example/ok.ics" },
+          brain: brain({
+            profile: {
+              hours: { mon: { open: "09:00", close: "18:00" }, tue: { open: "09:00", close: "18:00" } },
+              closures: [],
+              services: [{ name: "Balayage", duration_min: 90 }],
+              booking_rules: { lead_hours: 2, max_days_ahead: 14, slot_min: 30 },
+            },
+          }),
+        },
+        version: 1,
+      },
+    ],
+    appointments: [
+      cancelled("ap-a2", "a2", "2026-09-16T14:00:00Z", "2026-09-16T15:00:00Z"),
+      cancelled("ap-b1", "b1", "2026-09-17T14:00:00Z", "2026-09-17T15:00:00Z"),
+    ],
+  });
+  const was = globalThis.fetch;
+  globalThis.fetch = async () => new Response(ics, { status: 200, headers: { "content-type": "text/calendar" } });
+  forgetFeeds();
+  try {
+    const b = await buildContext(
+      rcIn(ctxFor(t, { ...RPCS, people_list: (a) => (a.p_tenant_id === A ? [ANA, BEA] : []) })),
+      page(
+        "calendar",
+        [
+          { kind: "person", id: "k-ana" },
+          { kind: "person", id: "k-bea" },
+        ],
+        { view: "2026-09-14/7" },
+      ),
+    );
+    assert.deepEqual(
+      b.blocks.map((x) => [x.source, x.title]),
+      [
+        ["page://calendar", "Calendar"],
+        ["person://k-ana", "Ana Ruiz"],
+      ],
+      "Bea has only a cancelled visit on the board: she is not named by it",
+    );
+    assert.match(textOf(b.blocks[1]), /Balayage/);
+    assert.ok(!/Gloss/.test(textOf(b.blocks[1])), `a cancelled visit under what she has on: ${textOf(b.blocks[1])}`);
+    assert.match(textOf(b.blocks[0]), /taken: 1 /, "REGRESSION: it counted the two cancelled visits as taken");
+  } finally {
+    globalThis.fetch = was;
+    forgetFeeds();
+  }
+});
+
 test("Leads: the leads the page drew, each as its row says it and opened where the page opens it, the rail's counts and the searches waiting for an answer; a lead the Leads read did not return is absent, and each lead is a row a citation names", async () => {
   const LEAD = "12121212-1212-4121-8121-121212121212";
   const SEARCH = "34343434-3434-4343-8343-343434343434";
@@ -789,7 +870,11 @@ test("Campaigns: the playbooks, the broadcasts or the messages the page drew, by
   // only where it is not its name (a Win-back on the Win-back moment says it once); and where its drawer opens (the
   // moment spec, A6).
   const pbLine = textOf(pb.blocks[1]);
-  assert.match(pbLine, /^Win-back · 30d: not read · running · next run [^·]+ · route: campaigns\/moment:/, pbLine);
+  assert.match(
+    pbLine,
+    /^Win-back · 30d: not read · On · daily [^·]+ · next run [^·]+ · route: campaigns\/moment:/,
+    pbLine,
+  );
   assert.ok(pbLine.endsWith(`route: campaigns/moment:${PB1}`), pbLine);
   assert.match(textOf(pb.blocks[0]), /^Campaigns, playbooks: 1 on screen · playbooks: 1, 1 running/);
   assert.equal(unread.filter((l) => l.includes('"campaign_last_days_read_failed"')).length, 1, unread.join("\n"));
@@ -810,8 +895,8 @@ test("Campaigns: the playbooks, the broadcasts or the messages the page drew, by
     }),
   });
   for (const [sent, replied, said] of [
-    [0, 2, "Win-back · 30d: nothing sent · running · next run "],
-    [4, 1, "Win-back · 30d: 4 sent, 1 replied · running · next run "],
+    [0, 2, "Win-back · 30d: nothing sent · On · daily "],
+    [4, 1, "Win-back · 30d: 4 sent, 1 replied · On · daily "],
   ]) {
     clearContextCache();
     readerCache.clear();
@@ -904,7 +989,7 @@ test("Campaigns: the playbooks, the broadcasts or the messages the page drew, by
   assert.deepEqual(
     [pb, bc, msgs].map((b) => b.refs.slice(1)),
     [
-      [{ kind: "playbook", id: PB1, route: `outbound/${PB1}`, label: "Win-back" }],
+      [{ kind: "playbook", id: PB1, route: `campaigns/moment:${PB1}`, label: "Win-back" }],
       [{ kind: "broadcast", id: BC1, route: `broadcasts/run:${BC1}`, label: "September offer" }],
       [{ kind: "template", id: T1, route: "messages", label: "Win-back offer" }],
     ],
@@ -1067,10 +1152,10 @@ test("Campaigns' reach-outs (A2): each one the ledger shows is a row of its own,
   );
   assert.equal(
     textOf(got.blocks[1]),
-    `Movers in Austin · 30d: 5 businesses, 2 wrote back · running · next run waiting on you · route: campaigns/moment:${ROOT}`,
+    `Movers in Austin · 30d: 5 businesses, 2 wrote back · Waiting for your approval · route: campaigns/moment:${ROOT}`,
   );
   // Every chain was counted, so one with no totals wrote nothing in these days.
-  assert.equal(textOf(got.blocks[3]), `Gyms nearby · 30d: nothing sent · paused · route: campaigns/moment:${PAUSED}`);
+  assert.equal(textOf(got.blocks[3]), `Gyms nearby · 30d: nothing sent · Paused · route: campaigns/moment:${PAUSED}`);
   assert.match(
     textOf(got.blocks[0]),
     /^Campaigns, playbooks:all: 3 on screen · playbooks: 1, 1 running · reach-outs: 2/,
@@ -1078,9 +1163,9 @@ test("Campaigns' reach-outs (A2): each one the ledger shows is a row of its own,
   assert.deepEqual(
     got.refs.slice(1).map((r) => [r.kind, r.id, r.route]),
     [
-      ["playbook", ROOT, `outbound/${ROOT}`],
-      ["playbook", PB, `outbound/${PB}`],
-      ["playbook", PAUSED, `outbound/${PAUSED}`],
+      ["playbook", ROOT, `campaigns/moment:${ROOT}`],
+      ["playbook", PB, `campaigns/moment:${PB}`],
+      ["playbook", PAUSED, `campaigns/moment:${PAUSED}`],
     ],
   );
   // A database before 00404 counts no businesses: the old line, in the emails written. One business is one business.
@@ -1092,7 +1177,7 @@ test("Campaigns' reach-outs (A2): each one the ledger shows is a row of its own,
     reach_out_chain_totals: () => ({ [ROOT]: { written: 12, wrote_back: 2 } }),
   });
   assert.ok(
-    textOf(old.blocks[1]).startsWith("Movers in Austin · 30d: 12 written, 2 wrote back · running"),
+    textOf(old.blocks[1]).startsWith("Movers in Austin · 30d: 12 written, 2 wrote back · Waiting for your approval"),
     textOf(old.blocks[1]),
   );
   clearContextCache();
@@ -1103,7 +1188,7 @@ test("Campaigns' reach-outs (A2): each one the ledger shows is a row of its own,
     reach_out_chain_totals: () => ({ [ROOT]: { written: 3, businesses: 1, wrote_back: 1 } }),
   });
   assert.ok(
-    textOf(one.blocks[1]).startsWith("Movers in Austin · 30d: 1 business, 1 wrote back · running"),
+    textOf(one.blocks[1]).startsWith("Movers in Austin · 30d: 1 business, 1 wrote back · Waiting for your approval"),
     textOf(one.blocks[1]),
   );
   // Totals that could not be read are said so, and logged; never "nothing sent".
@@ -1113,7 +1198,7 @@ test("Campaigns' reach-outs (A2): each one the ledger shows is a row of its own,
     ledger({ ...RPCS, reach_out_report: () => ({ chains: [] }), reach_out_chain_totals: () => [] }),
   );
   assert.ok(
-    textOf(unread.blocks[1]).startsWith("Movers in Austin · 30d: not read · running"),
+    textOf(unread.blocks[1]).startsWith("Movers in Austin · 30d: not read · Waiting for your approval"),
     textOf(unread.blocks[1]),
   );
   assert.equal(lines.filter((l) => l.includes('"reach_out_last_days_read_failed"')).length, 0, "a report that answers");
@@ -1126,7 +1211,7 @@ test("Campaigns' reach-outs (A2): each one the ledger shows is a row of its own,
     ledger({ ...RPCS, reach_out_report: timeout, reach_out_chain_totals: timeout }),
   );
   assert.ok(
-    textOf(failed.blocks[1]).startsWith("Movers in Austin · 30d: not read · running"),
+    textOf(failed.blocks[1]).startsWith("Movers in Austin · 30d: not read · Waiting for your approval"),
     textOf(failed.blocks[1]),
   );
   assert.equal(

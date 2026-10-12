@@ -21,13 +21,16 @@ export function ReviewsLens({
   reviews,
   range,
   phone,
+  review,
 }: {
   reviews: Follower<ReviewsSurface>;
   range: LensRange;
   phone: boolean;
+  /** The review the address names (reports/reviews:<id>): drawn where it is listed, with its reply box open. */
+  review: string | null;
 }) {
   const { value, state } = reviews;
   if (state === "failed") return readFailed();
   if (!value) return null;
-  return <GoogleSection V={value.vm} range={range} phone={phone} />;
+  return <GoogleSection V={value.vm} range={range} phone={phone} review={review} />;
 }

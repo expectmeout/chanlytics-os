@@ -5,6 +5,8 @@
  * (brief-pane.tsx). It said "Nothing has come in yet today" over two conversations waiting since the 18th and a day
  * of appointments (Ruben, 1 Oct 2026): the brief is everything that needs a person now, then the day, then the rest.
  */
+import { appointmentWords } from "../journey/appointment-word";
+import { RUN_WAITING_WORDS } from "../shell/campaign-rooms";
 import { todayAlsoWaiting } from "./today-bands";
 import type { TodayDayItemVM, TodayDayVM } from "./today-day";
 import { isPersonRow } from "./today-queue";
@@ -73,11 +75,23 @@ function needsSentences(vm: TodayVM): TodayBriefSegment[][] {
   return out;
 }
 
-/** Who an appointment is with, in bold, and what for; or what it is where nobody is named. */
-const withWhom = (b: TodayDayItemVM): TodayBriefSegment[] =>
-  b.person ? [bold(b.person.name), ...(b.service ? [plain(` (${b.service})`)] : [])] : [plain(b.service || b.title)];
+/**
+ * Who an appointment is with, in bold, and what for; or what it is where nobody is named. A visit a member said became
+ * something carries that word beside it, in the board's own: "Ana Reyes (Trim, kept)".
+ */
+const withWhom = (b: TodayDayItemVM): TodayBriefSegment[] => {
+  const said = b.said ? b.said.word.toLowerCase() : "";
+  const what = [b.person ? b.service : "", said].filter(Boolean).join(", ");
+  return b.person
+    ? [bold(b.person.name), ...(what ? [plain(` (${what})`)] : [])]
+    : [plain(`${b.service || b.title}${said ? ` (${said})` : ""}`)];
+};
 
-/** The calendar's day: how many, the one under way, the next, and how many after; or that the day is closed or empty. */
+/**
+ * The calendar's day: how many (a cancelled visit is none, and one said missed is counted and said), the one under way,
+ * the next, and how many after; or that the day is closed or empty, or over. A day that is over is past, never "done":
+ * the record never infers that they came (decision 0002).
+ */
 function daySentence(day: TodayDayVM | null): TodayBriefSegment[] | null {
   const today = day?.feed === "ok" ? day.frames.find((f) => f.today) : undefined;
   if (!today) return null;
@@ -88,7 +102,9 @@ function daySentence(day: TodayDayVM | null): TodayBriefSegment[] | null {
   const now = items.find((b) => b.phase === "now");
   const next = items.find((b) => b.phase === "next");
   const after = items.filter((b) => b.phase === "later").length + today.more;
-  const out: TodayBriefSegment[] = [plain(`${total} appointment${total === 1 ? "" : "s"} today`)];
+  // In the workspace's word for an appointment, as Campaigns says it (decision 0041): "3 meetings today".
+  const out: TodayBriefSegment[] = [plain(appointmentWords(day?.word ?? "appointment").today(total))];
+  if (today.missed) out.push(plain(`, ${today.missed} missed`));
   if (now) out.push(plain(": "), ...withWhom(now), plain(` is in now${now.dur ? ` (${now.dur})` : ""}`));
   if (next)
     out.push(
@@ -96,7 +112,7 @@ function daySentence(day: TodayDayVM | null): TodayBriefSegment[] | null {
       ...withWhom(next),
       plain(next.allDay ? ", all day" : ` at ${next.start}`),
     );
-  if (!now && !next) out.push(plain(items.length && items.every((b) => b.phase === "past") ? ", all done" : ""));
+  if (!now && !next) out.push(plain(items.length && items.every((b) => b.phase === "past") ? ", all past" : ""));
   else if (after) out.push(plain(`, ${after} more after`));
   out.push(plain("."));
   return out;
@@ -115,7 +131,7 @@ function cameIn(vm: TodayVM): TodayBriefSegment[][] {
 /** A run waiting for a word: its name in bold, then the queue's own sentence about it. */
 const runSentence = (r: TodayBriefRun): TodayBriefSegment[] => [
   bold(r.label),
-  plain(` is waiting for your word: ${r.sentence}`),
+  plain(` is ${RUN_WAITING_WORDS.toLowerCase()}: ${r.sentence}`),
 ];
 
 /**

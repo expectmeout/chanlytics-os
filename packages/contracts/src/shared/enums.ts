@@ -133,9 +133,20 @@ export type JobKind = (typeof JOB_KINDS)[number];
  * Every subscriber a delivery can name (event_subscriptions.subscriber, 00334, decision 0032): each is a verb in core's
  * SUBSCRIBERS that may run twice on one delivery and leave the same rows. `audit` does nothing but settle, so the
  * relay's lag is measured on real traffic; `reach_out_booked` hands a booking on the appointments record to the
- * booking door (00389), the first that acts; `owner_notice` tells the workspace of a hold from its event (decision 0043).
+ * booking door (00389), the first that acts; `owner_notice` tells the workspace of a hold from its event (decision 0043);
+ * `consent_notice` tells it once on the bell when a customer asked to stop, from the consent event whichever door wrote
+ * it (decision 0048, 00409); `visit_notice` tells it once on the bell when a booking arrived, from the appointment's
+ * event whichever door wrote it (00410, S1-01); `team_notice` tells it once on the bell when a teammate joined, from
+ * the seat's event (00410, S1-19).
  */
-export const EVENT_SUBSCRIBERS = ["audit", "reach_out_booked", "owner_notice"] as const;
+export const EVENT_SUBSCRIBERS = [
+  "audit",
+  "reach_out_booked",
+  "owner_notice",
+  "consent_notice",
+  "visit_notice",
+  "team_notice",
+] as const;
 export type EventSubscriber = (typeof EVENT_SUBSCRIBERS)[number];
 
 /**
@@ -248,6 +259,12 @@ export const EVENT_KINDS = [
   "contact.added",
   /** A person renamed or annotated at the desk (00054), or given an email address (00125). */
   "contact.named",
+  /**
+   * Where a person works (0052, 00413): linked to a lead (its first email or call, a reply that cited ours, a member's
+   * hand), or not at it any more: { lead_id, via, by? }, never a name.
+   */
+  "contact.business_linked",
+  "contact.business_unlinked",
   "contact.noted",
   /** A note changed, taken away, or the receptionist's suggestion kept or dismissed (00157, 0007). Never the words. */
   "contact.note_changed",
@@ -257,6 +274,8 @@ export const EVENT_KINDS = [
   "contact.note_dismissed",
   "contact.note_done",
   "contact.note_undone",
+  /** The member a note is for said Got it (0052): { note_id, by }, never the words. */
+  "contact.note_seen",
   "contact.email_set",
   /** A person's proposal link set or cleared at the desk (00154). Never the address. */
   "contact.proposal_set",
@@ -720,3 +739,10 @@ export type ActorType = (typeof ACTOR_TYPES)[number];
 
 export const TEMPLATE_STATUSES = ["approved", "pending", "rejected", "paused", "disabled"] as const;
 export type TemplateStatus = (typeof TEMPLATE_STATUSES)[number];
+
+/**
+ * What a member may say became of a visit (00397 mark_visit; decision 0002, step 8). Here, with the closed sets, and not in
+ * calendar-words.ts, which says them: Today's view model names it and the phone app's program reaches that (mobile/widget.ts),
+ * which must not reach the calendar's words.
+ */
+export type VisitWord = "kept" | "missed" | "cancelled";

@@ -225,7 +225,7 @@ export async function reachOutRunContext(
     notifyWaiting: async (runId, planned, firstAt) => {
       const target = await loadTenantNotifications(db, tenantId);
       await notify(
-        { tenantId, notifications: target.notifications, isEnvDefault: target.isEnvDefault },
+        { tenantId, ...target },
         {
           kind: "playbook",
           // The row opens the run it is about, where its emails are approved (as a playbook's does, playbooks.ts notify).

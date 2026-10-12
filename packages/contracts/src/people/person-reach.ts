@@ -1,10 +1,12 @@
 /**
  * Whether and how a person may be reached from their page: the booking link's and the proposal's buttons by the wire
  * a reply goes out on, what a reply may be in the owner's words, the words a proposal goes with, and the one rule
- * every send the page offers asks (mayReach). Its one import is the stop's words (consent.ts); the row (person-row.ts),
- * the page and the deal sheet read it.
+ * every send the page offers asks (mayReach). Its imports are the stop's words (consent.ts) and the reply window
+ * (policy.ts); the row (person-row.ts), the page, the deal sheet and the Calendar's block read it.
  */
 import { optOutWords } from "../consent/consent";
+import { replyWindow } from "../config/policy";
+import { HOUR_MS } from "../shared/time";
 import { PERSON_CHANNEL_WORDS, REPLY_VIA } from "./person-words";
 
 /**
@@ -21,6 +23,9 @@ const EMAIL_STOPPED_TAG = "stopped accepting mail";
  */
 export const EMAIL_CANT_REACH = `Email can't reach them: their address ${EMAIL_STOPPED_TAG}`;
 
+/** Why nothing is offered to a person with no conversation yet: no thread to open, no approved message waiting in one. */
+const NO_THREAD_YET = "No conversation with them yet: a conversation begins from the Inbox";
+
 /**
  * Where a reply to a person goes, its window when the wire has one, and whether mail to their address has stopped
  * (isEmailStopped): the one fact the booking link, the proposal and the Replies row each read. `emailStopped` is required,
@@ -33,42 +38,115 @@ interface ReplyReach {
 }
 
 /**
- * What the booking-link button says, by the wire a reply goes out on.
- *
- * Nothing is sent from the button: it opens the thread with the link ready in
- * the composer, or, where WhatsApp's window has shut, lets the thread offer the
- * approved template. Three pages carried their own two-way copy of these words,
- * so on an email-only person they read "Text the booking link" -- and before
- * the window was channel-aware, "Send the booking-link template", a template
- * that person cannot receive. `ready` is whether the composer may be filled. Where the reply goes by email and their
- * address has stopped accepting mail nothing is ready, and the title says why.
+ * The booking-link act for one person: its words, whether the composer may be filled, and whether it is offered at all.
+ * People's row, the person's page and the Calendar's block each hold one, built by bookingLinkAction below.
  */
-export function bookingLinkAction(reach: ReplyReach): { label: string; title: string; ready: boolean } {
+export interface BookingLinkAction {
+  label: string;
+  /** The same act in the fewest words, for a foot that must not wrap on a phone (the Calendar panel's): "Text the link". */
+  short: string;
+  title: string;
+  /** Whether the composer may be filled with the link. */
+  ready: boolean;
+  /**
+   * False where nothing may be sent them on the wire a reply goes out on -- they asked to stop, or are on do-not-contact,
+   * or the reply goes by email and their address has stopped accepting mail -- so no page draws the act; mayReach says
+   * the same of the person, and the person's page already hid it. True otherwise, ready or not: where WhatsApp's window
+   * has shut, the thread offers the approved message.
+   */
+  offered: boolean;
+}
+
+/**
+ * Whether the booking link may be offered to this person, and in what words: the one rule People's row, the person's page
+ * and the Calendar's panel all ask (finding D1-booking-link-stop). The stop comes first and the wire second.
+ *
+ * They asked to stop, or are on do-not-contact (`stop.optedOut`, from isOptedOutContact, the one predicate): nothing
+ * reaches them on any wire, so the act is not ready and not offered, and the title is the stop's own sentence (optOutWords).
+ * The person's page hid the act for them and People's row did not: it read "Text the booking link", ready, and carried the
+ * words to a thread whose reply box says nothing can be sent. The Calendar's panel kept a copy worded by WhatsApp's window
+ * alone, which offered it to anyone inside the window, stopped or not.
+ *
+ * Otherwise, by the wire a reply goes out on. Nothing is sent from the button: it opens the thread with the link ready in
+ * the composer, or, where WhatsApp's window has shut, lets the thread offer the approved template. Three pages carried their
+ * own two-way copy of these words, so on an email-only person they read "Text the booking link" -- and before the window was
+ * channel-aware, "Send the booking-link template", a template that person cannot receive. `ready` is whether the composer
+ * may be filled. Where the reply goes by email and their address has stopped accepting mail nothing is ready and the act is
+ * not offered (as mayReach has it), and the title says why.
+ */
+export function bookingLinkAction(reach: ReplyReach, stop: { optedOut: boolean; who: string }): BookingLinkAction {
   const { via, window: win } = reach;
-  const notReady = (title: string) => ({ label: "Send the booking link", title, ready: false });
+  const notReady = (title: string, offered = true): BookingLinkAction => ({
+    label: "Send the booking link",
+    short: "Send the link",
+    title,
+    ready: false,
+    offered,
+  });
+  if (stop.optedOut) return notReady(optOutWords(stop.who), false);
+  // No wire is no conversation (replyChannelOfRow: they have never written): there is no thread for the act to open, and no
+  // approved message waits there, so nothing is offered rather than a button whose title promises a thread.
+  if (via === null) return notReady(NO_THREAD_YET, false);
+  const ready = (by: "Email" | "Text", title: string): BookingLinkAction => ({
+    label: `${by} the booking link`,
+    short: `${by} the link`,
+    title,
+    ready: true,
+    offered: true,
+  });
   if (via === "Email")
     return reach.emailStopped
-      ? notReady(EMAIL_CANT_REACH)
-      : {
-          label: "Email the booking link",
-          title: "Opens the thread with the link ready to send by email",
-          ready: true,
-        };
-  if (via === "Text")
-    return {
-      label: "Text the booking link",
-      title: "Opens the thread with the link ready to send as a text",
-      ready: true,
-    };
+      ? notReady(EMAIL_CANT_REACH, false)
+      : ready("Email", "Opens the thread with the link ready to send by email");
+  if (via === "Text") return ready("Text", "Opens the thread with the link ready to send as a text");
   if (win && win.open)
-    return {
-      label: "Text the booking link",
-      title: `Opens the thread with the link ready to send · any message for ${win.hoursLeft}h more`,
-      ready: true,
-    };
+    return ready("Text", `Opens the thread with the link ready to send · any message for ${win.hoursLeft}h more`);
   return notReady(
     "Only an approved message reaches them until they write again; their thread offers the one with the link",
   );
+}
+
+/**
+ * A person's reply reach in one answer: the wire a reply goes out on in words, its window (only WhatsApp has one), and the
+ * booking-link act for it. The People row builds it from its row (person-row.ts rowReplyOf) and the Calendar's block from
+ * the same facts the board's week carries (calendar.ts), so the two cannot word the link, or its window, differently.
+ * `wire` is where a reply goes (person-row.ts replyChannelOfRow); `waInboundAt` their last WhatsApp message; `emailStopped`
+ * whether mail to their address has stopped; `optedOut` whether they asked to stop or are on do-not-contact.
+ */
+export function replyReachOf(
+  p: {
+    wire: "whatsapp" | "sms" | "email" | null;
+    waInboundAt: string | null | undefined;
+    emailStopped: boolean;
+    optedOut: boolean;
+    who: string;
+  },
+  now: Date,
+): {
+  replyWindow: { open: boolean; hoursLeft: number } | null;
+  replyVia: "WhatsApp" | "Text" | "Email" | null;
+  bookingLinkAction: BookingLinkAction;
+} {
+  const stop = { optedOut: p.optedOut, who: p.who };
+  if (!p.wire)
+    return {
+      replyWindow: null,
+      replyVia: null,
+      bookingLinkAction: bookingLinkAction({ via: null, window: null, emailStopped: p.emailStopped }, stop),
+    };
+  const w = replyWindow(p.wire, p.waInboundAt, now);
+  const win = {
+    open: w.open,
+    hoursLeft: w.closesAtIso
+      ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - now.getTime()) / HOUR_MS))
+      : 0,
+  };
+  const via = REPLY_VIA[p.wire];
+  return {
+    replyWindow: win,
+    replyVia: via,
+    bookingLinkAction: bookingLinkAction({ via, window: win, emailStopped: p.emailStopped }, stop),
+  };
 }
 
 /** The owner's proposal for a person (00154), for the page: the address, where it lives, and whether it went out. */

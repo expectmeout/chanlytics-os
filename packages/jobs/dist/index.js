@@ -193,6 +193,7 @@ async function requeueFailedJob(db, tenantId, jobId, record) {
 
 // src/handlers.ts
 import {
+  noticeRoute,
   pushFor,
   isForReader,
   unreadFor,
@@ -239,7 +240,14 @@ import {
   membersPushedFor,
   reachOutBookedFrom,
   holdFactsOf,
-  holdTold
+  holdTold,
+  personFactsOf,
+  optOutTold,
+  eventTold,
+  bookedVisitsOf,
+  feedAdditionsWith,
+  memberJoinedOf,
+  noticeKept
 } from "../../db/dist/index.js";
 
 // src/escalate.ts
@@ -391,6 +399,7 @@ function frozen(r) {
 }
 function peoplePorts(ctx, tenantId) {
   const db = ctx.db;
+  const calendar = ctx.calendar;
   return {
     // On a database 00298 has not reached, a recipient has no channel and everyone goes by WhatsApp, as every run did
     // (packages/db queuedRecipients): code that ships before its migration must keep its broadcasts going.
@@ -398,13 +407,16 @@ function peoplePorts(ctx, tenantId) {
     // The batch's people in one read, not one read per person.
     contacts: async (ids) => {
       const { data, error } = await db.from("contacts").select(
-        "id, phone_e164, consent, dnc, marketing_consent, erased_at, display_name, wa_profile_name, email, email_marketing"
+        "id, phone_e164, consent, dnc, marketing_consent, erased_at, display_name, wa_profile_name, email, email_marketing, name_source, name_settled_at"
       ).in("id", ids).eq("tenant_id", tenantId);
       if (error) throw new Error(`broadcast_send: cannot read the people: ${error.message}`);
       return new Map((data ?? []).map((c) => [c.id, c]));
     },
     // The appointments a visit run's reminders were drawn for, by the calendar's key (00348, decision 0002).
     appointments: (keys) => appointmentStates(db, tenantId, keys),
+    // And the owner's calendar feed beside it, which is newer than the record by up to the hourly sweep (S1-05): the edge
+    // reads it (kept five minutes); a runtime without one sends on the record alone.
+    ...calendar ? { feed: () => calendar.feedNames(tenantId, /* @__PURE__ */ new Date()) } : {},
     // create: false — a broadcast never opens a contact. touch: false — the
     // door below still has to refuse some of these people, and a thread they
     // were not messaged in has nothing new in it.
@@ -649,7 +661,9 @@ function replyFactsOf(r) {
     leadWebsite: r.lead_website,
     leadWebsiteRoot: r.lead_website_root,
     signedBy: r.signed_by,
-    tz: r.tz ?? DEFAULT_TIMEZONE
+    tz: r.tz ?? DEFAULT_TIMEZONE,
+    fromName: r.from_name,
+    notNames: r.not_names
   };
 }
 function keptReadingOf(row) {
@@ -671,6 +685,7 @@ function keptReadingOf(row) {
     draft: plan.draft === "answer" || plan.draft === "thanks" ? plan.draft : null,
     draftState: row.draft_state,
     // one of DRAFT_STATES, checked above
+    signerOffered: row.signer_state === "offered" ? row.signer_name : null,
     draftText: row.draft
   };
 }
@@ -706,7 +721,9 @@ async function replyRead(ctx, job) {
           summary: p.reading.summary,
           day: p.reading.day,
           refer_to: p.reading.referTo,
-          unread: p.unread
+          unread: p.unread,
+          // The signer the gate kept (0052): offered to the owner, or taken when the plan says adoptSigner.
+          signer: p.reading.signer
         },
         plan: planJson(p.plan),
         reread: p.reread,
@@ -1136,7 +1153,8 @@ async function pushSend(ctx, job) {
   const badges = await badgesFor(ctx, job.tenant_id, [...new Set(devices.map((d) => d.user_id))]);
   const receipts = await ctx.push.send(
     pushFor(
-      n,
+      // The phone opens the place the bell does (contracts noticeRoute): a row kept with no route opens its kind's list.
+      { ...n, route: noticeRoute(n.kind, n.route) },
       devices.map((d) => ({ token: d.token, badge: badges.get(d.user_id) ?? 0 }))
     )
   );
@@ -1271,6 +1289,13 @@ async function eventDeliver(ctx, job) {
     bookedFromAppointment: (tenantId, appointmentId) => reachOutBookedFrom(ctx.db, tenantId, appointmentId),
     holdFacts: (tenantId, ref) => holdFactsOf(ctx.db, tenantId, ref, Date.now()),
     holdTold: (tenantId, p) => holdTold(ctx.db, { tenantId, ...p }),
+    optOutPerson: (tenantId, contactId) => personFactsOf(ctx.db, tenantId, contactId),
+    optOutTold: (tenantId, p) => optOutTold(ctx.db, { tenantId, ...p }),
+    eventTold: (tenantId, eventId) => eventTold(ctx.db, { tenantId, eventId }),
+    bookedVisits: (tenantId, ids, nowMs) => bookedVisitsOf(ctx.db, tenantId, ids, nowMs),
+    feedAdditionsWith: (tenantId, event2) => feedAdditionsWith(ctx.db, tenantId, event2),
+    memberJoined: (tenantId, invitationId) => memberJoinedOf(ctx.db, tenantId, invitationId),
+    memberTold: (tenantId, invitationId) => noticeKept(ctx.db, { tenantId, kind: "member_joined", subjectType: "invitation", subjectId: invitationId }),
     // The delivery is the event's workspace's job, so the runtime addresses the notice to it (job-alert.ts).
     tell: (news) => ctx.alert(news)
   };

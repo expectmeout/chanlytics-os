@@ -1,12 +1,13 @@
 /**
  * The Inbox's rules, said once (moved from pages/inbox.jsx and pages/thread-pane.jsx, decision 0015, step 3): what waits
  * on you, the bucket a thread sits in, the order a bucket stands in, a draft's own key in the veto store, and the
- * thread a route names. The sidebar's badge, the surface tabs and the pages read them, so no two of them can say
- * different numbers; the shell that has not moved gets `ixWaitsOnYou` from legacy-globals.ts.
+ * thread a route names. The pages read them, and so does the selector the sidebar's badge, the strip's tab, the title and the
+ * phone read (needs-you.ts, through `ixWaiting`), so no two of them can say different numbers; the standalone mockup gets
+ * `ixWaitsOnYou` from legacy-globals.ts.
  */
-import { replyWaitsOnYou } from "@chanlytics/contracts";
+import { replyWaitsOnYou, threadWait, type WaitingThread } from "@chanlytics/contracts";
 import { VW_STORE, type VetoState } from "./store";
-import type { Thread, ThreadState } from "./types";
+import type { RealThread, Thread, ThreadState } from "./types";
 
 // ---- A draft counting down, by its own record ----
 
@@ -47,14 +48,27 @@ export const ixSending = (t: Thread | null | undefined, nowMs: number = Date.now
   !!(t && t.real && t.veto && replyWaitsOnYou({ endsAtMs: t.veto.endsAtMs, held: ixHeld(VW_STORE.state, t) }, nowMs));
 
 /**
+ * A real thread as contracts' count reads it (waits.ts WaitingThread): the answer its view model carries, and the reply
+ * counting down with whether THIS tab has held it, the one thing only a tab knows. The Inbox's chip and list, and the badge
+ * (needs-you.ts), ask contracts' `threadWait` of this, so none of them can count a thread the others do not.
+ */
+export const ixWaiting = (t: RealThread): WaitingThread => ({
+  needsYou: !!t.needsYou,
+  send:
+    t.veto && typeof t.veto.endsAtMs === "number"
+      ? { endsAtMs: t.veto.endsAtMs, held: ixHeld(VW_STORE.state, t) }
+      : null,
+});
+
+/**
  * What waits on you now: a real thread nobody has taken, or a reply about to send. A seeded thread keeps the
  * mockup's rule, since "needs" is a state no real thread holds. The same two facts read off the wire, for a page that
- * holds the conversations and not these rows, are contracts' `conversationWaitsOnYou` (Today's badge): the two are one
- * count, and inbox-counts.test.mjs holds them to it.
+ * holds the conversations and not these rows, are contracts' `conversationWaitsOnYou` (Today's headline): the two are one
+ * rule (waits.ts threadWait), and inbox-counts.test.mjs holds them to it.
  */
 export const ixWaitsOnYou = (t: Thread | null | undefined, nowMs: number = Date.now()): boolean =>
   t && t.real
-    ? !!t.needsYou || ixSending(t, nowMs)
+    ? threadWait(ixWaiting(t), nowMs) !== null
     : !!t && (t.state === "needs" || (t.state === "escalated" && !t.takenOver));
 
 /**

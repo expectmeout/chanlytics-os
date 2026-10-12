@@ -1,7 +1,7 @@
 /**
  * A list kept by hand, named on the rail (moved whole from legacy/pages/people.jsx, decision 0015). The name is the only
  * thing typed here; people join from their profile. The POST answers before the rail re-reads the surface, so the new
- * row is the server's. `openSignal` opens the box from outside: the shell's and a profile's "New list" (segments:new).
+ * row is the server's. `openSignal` opens the box from outside: the shell's and a profile's "New list" (the address `clients/new-list`).
  * A new list: a name kept by hand, or -- "Describe who" -- a smart list whose rule the assistant drafts from the owner's
  * own words and the page shows back as chips with who it holds for today, before anything is saved.
  */

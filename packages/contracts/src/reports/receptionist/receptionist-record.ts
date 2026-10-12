@@ -160,7 +160,8 @@ function stuckOf(open: readonly OpenEscalationDto[], nowMs: number): StuckNowDto
   const needsYou = (o: OpenEscalationDto): boolean =>
     standingOfThread(
       { state: o.state, paused_until: o.paused_until, assignee_user_id: o.assignee_user_id },
-      true,
+      // The hold itself: one that waits on nobody (a STOP, opened before decision 0048) is no wait.
+      o,
       nowMs,
     ).standing === "needs_you";
   const waiting = open.filter(needsYou);

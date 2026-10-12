@@ -1,6 +1,6 @@
 /**
  * The record kit: the sheet (moved whole from legacy/components/record-sheet.jsx, decision 0015: the kit's one
- * implementation, which seed-globals publishes as window.RecordSheet for the pages that have not moved).
+ * implementation, which the pages import).
  *
  * A list you scroll gets room of its own, beside the page (from the bottom, on a phone): a head with its name, the line
  * under it and a Close; an optional strip of tools (a search, an Add); the rows, which scroll; and a foot that holds

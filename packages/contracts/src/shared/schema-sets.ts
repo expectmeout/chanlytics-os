@@ -55,12 +55,13 @@ import type { POLICY_CLASSES, POLICY_MODES } from "../config/workspace-config/po
 import type { DEAL_LOST_REASONS, DEAL_PERS, DEAL_SOURCES, DEAL_STAGES } from "../deals/deal-words";
 import type { SELLS_BY } from "../deals/sells-by";
 import type { DOUBT_SEEN, DOUBT_SETTLED_AS } from "../people/person-doubts";
+import type { NAME_SOURCES } from "../person-page/words";
 import type { APPOINTMENT_SOURCES, APPOINTMENT_STATUSES } from "../calendar/feed-appointments";
 import type { SERVER_NOTIFICATION_KINDS } from "../today/notifications";
 import type { PLAYBOOK_STATES, PLAYBOOK_TRIGGERS } from "../playbooks/playbooks";
 import type { TEMPLATE_CATEGORIES } from "../templates/templates";
 import type { PUSH_PLATFORMS } from "../today/push";
-import type { PAGE_VITALS } from "../shell/vitals";
+import type { PAGE_DEVICES, PAGE_METRICS } from "../shell/vitals";
 import type { VOICE_END_REASONS } from "../ask/ask";
 import type { DMARC_STATES, DOMAIN_HOLDS, DOMAIN_RESUMERS, SENDING_DOMAIN_STATES } from "../email/sending-domains";
 import type {
@@ -142,6 +143,8 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof CONSENT_STATES>, SchemaSet<"contacts.marketing_consent">>>,
   // The email answer (00174): the same three words, asked of marketing email (Reach out's unsubscribe).
   Holds<Exactly<Of<typeof CONSENT_STATES>, SchemaSet<"contacts.email_marketing">>>,
+  // Where a person's name came from (0052, 00413), in its one order.
+  Holds<Exactly<Of<typeof NAME_SOURCES>, SchemaSet<"contacts.name_source">>>,
 
   // Conversations and messages.
   Holds<Exactly<Of<typeof CONVERSATION_STATES>, SchemaSet<"conversations.state">>>,
@@ -223,8 +226,9 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof DMARC_STATES>, SchemaSet<"sending_domains.dmarc">>>,
   // Who lifts a reputation hold (00188, D16).
   Holds<Exactly<Of<typeof DOMAIN_RESUMERS>, SchemaSet<"sending_domains.resume_by">>>,
-  // Field data (00255): the five numbers a page load reports.
-  Holds<Exactly<Of<typeof PAGE_VITALS>, SchemaSet<"page_vitals.metric">>>,
+  // Field data (00255, 00412): the browser's five and the shell's own two, and the two shapes of screen a report is from.
+  Holds<Exactly<Of<typeof PAGE_METRICS>, SchemaSet<"page_vitals.metric">>>,
+  Holds<Exactly<Of<typeof PAGE_DEVICES>, SchemaSet<"page_vitals.device">>>,
   // How a voice session ended (00300, 00302): the browser's word, kept on the row.
   Holds<Exactly<Of<typeof VOICE_END_REASONS>, SchemaSet<"ask_voice_sessions.end_reason">>>,
 ];

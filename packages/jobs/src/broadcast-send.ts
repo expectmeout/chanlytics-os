@@ -216,6 +216,7 @@ function peoplePorts(
   | "batch"
   | "contacts"
   | "appointments"
+  | "feed"
   | "target"
   | "targetOfContact"
   | "emailRequest"
@@ -228,6 +229,7 @@ function peoplePorts(
   | "mark"
 > {
   const db = ctx.db;
+  const calendar = ctx.calendar;
   return {
     // On a database 00298 has not reached, a recipient has no channel and everyone goes by WhatsApp, as every run did
     // (packages/db queuedRecipients): code that ships before its migration must keep its broadcasts going.
@@ -237,7 +239,7 @@ function peoplePorts(
       const { data, error } = await db
         .from("contacts")
         .select(
-          "id, phone_e164, consent, dnc, marketing_consent, erased_at, display_name, wa_profile_name, email, email_marketing",
+          "id, phone_e164, consent, dnc, marketing_consent, erased_at, display_name, wa_profile_name, email, email_marketing, name_source, name_settled_at",
         )
         .in("id", ids)
         .eq("tenant_id", tenantId);
@@ -246,6 +248,9 @@ function peoplePorts(
     },
     // The appointments a visit run's reminders were drawn for, by the calendar's key (00348, decision 0002).
     appointments: (keys) => appointmentStates(db, tenantId, keys),
+    // And the owner's calendar feed beside it, which is newer than the record by up to the hourly sweep (S1-05): the edge
+    // reads it (kept five minutes); a runtime without one sends on the record alone.
+    ...(calendar ? { feed: () => calendar.feedNames(tenantId, new Date()) } : {}),
     // create: false — a broadcast never opens a contact. touch: false — the
     // door below still has to refuse some of these people, and a thread they
     // were not messaged in has nothing new in it.

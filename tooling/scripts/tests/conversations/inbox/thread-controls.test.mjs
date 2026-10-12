@@ -258,27 +258,61 @@ test("the line under the name says the wires the conversation is on, once -- nev
   assert.ok(!/\+1|no name/.test(head(toInboxThreadVM(conv(), asked, ZONE, NOW))));
 });
 
+/** A visit as People's row carries it (contracts visitLineOf): the chip draws its day, its time and how it stands. */
+const visitLine = (day, time, state = null) => ({
+  id: "v1",
+  mark: null,
+  title: "Balayage",
+  day,
+  time,
+  person: null,
+  state,
+  unmarked: false,
+  match: null,
+  guess: false,
+  acts: [],
+  asks: [],
+  to: null,
+});
+const PAST = { text: "Past", tone: "past", pill: "plain" };
+
 test("beside the wires, the person's next visit from People -- or their last -- as one quiet chip; nothing without one, and the wires' line is untouched", () => {
   // The header said only the channel; who this is (a visit ahead, a visit behind) was a page away on People. The
-  // chip is People's own words (nextVisitDay, lastVisitDay), never a repeat of the band below the conversation.
+  // chip is People's own visit line (nextVisitLine, lastVisitLine), never a repeat of the band below the conversation.
   const vm = toInboxThreadVM(conv(), asked, ZONE, NOW);
   const chip = (tree) => find(tree, hasClass("ix-th-visit"));
-  const person = (over) => ({ id: "k1", nextVisitDay: null, nextVisit: null, lastVisitDay: null, ...over });
+  const person = (over) => ({ id: "k1", nextVisitLine: null, lastVisitLine: null, ...over });
   try {
     globalThis.window.__PEOPLE = {
-      rows: [person({ nextVisitDay: "Tue, Sep 8", nextVisit: "Tue, Sep 8 · 2:00 – 5:00 PM · Balayage" })],
+      rows: [person({ nextVisitLine: visitLine("Tue, Sep 8", "2:00 – 5:00 PM") })],
     };
     let tree = draw(vm);
     assert.equal(textOf(chip(tree)).trim(), "Tue, Sep 8 · 2:00 – 5:00 PM", "a visit ahead: its day and time");
     assert.ok(chip(tree).props.className.split(" ").includes("ahead"), "marked as ahead");
     assert.equal(textOf(find(tree, hasClass("ix-th-meta"))), "WhatsApp", "the wires' line says the wires, once");
-    globalThis.window.__PEOPLE = { rows: [person({ lastVisitDay: "Thu, Aug 20" })] };
+    globalThis.window.__PEOPLE = {
+      rows: [person({ lastVisitLine: visitLine("Thu, Aug 20", "10:00 AM – 12:00 PM", PAST) })],
+    };
     tree = draw(vm);
-    assert.equal(textOf(chip(tree)).trim(), "Last · Thu, Aug 20", "nothing ahead: the last visit, as People says it");
+    assert.equal(
+      textOf(chip(tree)).trim(),
+      "Last · Thu, Aug 20 · Past",
+      "nothing ahead: the last visit, as People says it, and that it has ended with nobody saying what became of it",
+    );
     assert.ok(!chip(tree).props.className.split(" ").includes("ahead"));
+    globalThis.window.__PEOPLE = {
+      rows: [
+        person({
+          lastVisitLine: visitLine("Thu, Aug 20", "10:00 AM – 12:00 PM", { text: "Kept", tone: "kept", pill: "ok" }),
+        }),
+      ],
+    };
+    assert.equal(textOf(chip(draw(vm))).trim(), "Last · Thu, Aug 20 · Kept", "a member's word on it, in place of Past");
     globalThis.window.__PEOPLE = { rows: [person()] };
     assert.ok(!chip(draw(vm)), "no visit either way: no chip");
-    globalThis.window.__PEOPLE = { rows: [person({ id: "somebody-else", nextVisitDay: "Tue, Sep 8" })] };
+    globalThis.window.__PEOPLE = {
+      rows: [person({ id: "somebody-else", nextVisitLine: visitLine("Tue, Sep 8", "2:00 – 5:00 PM") })],
+    };
     assert.ok(!chip(draw(vm)), "another person's visit is not this one's");
   } finally {
     delete globalThis.window.__PEOPLE;
@@ -522,9 +556,8 @@ test("the chip beside the wires says the deal before the visit: a client, a prop
   const vm = toInboxThreadVM(conv(), asked, ZONE, NOW);
   const rowWith = (person) => ({
     id: "k1",
-    nextVisitDay: "Tue, Sep 8",
-    nextVisit: "Tue, Sep 8 · 2:00 PM · Call",
-    lastVisitDay: null,
+    nextVisitLine: visitLine("Tue, Sep 8", "2:00 PM"),
+    lastVisitLine: null,
     deal: null,
     ...person,
   });
@@ -627,7 +660,13 @@ test("a step due under the head: what, and when it was due, with Done outside th
     await first;
     hold = null;
     assert.deepEqual(pressed, [["k1", "s1", true]]);
-    assert.deepEqual(events.at(-1), ["note:saved", { personId: "k1" }], "the person's page and the peek hear it");
+    // A done the door took says nothing of its own (0047): People is read behind the write, and the person's page and the peek follow.
+    const aboutThePerson = () => events.filter(([type]) => type === "note:saved" || type === "surface:clients");
+    assert.deepEqual(
+      aboutThePerson(),
+      [],
+      "REGRESSION: a done said note:saved, a second carrier of what the refresh and the feed tell",
+    );
     tree = redraw();
     assert.equal(find(tree, byTestId("ix-th-step")), undefined, "done: the line goes before People is read again");
     assert.equal(textOf(find(tree, hasClass("pp-toast-msg"))), NOTE_WORDS.stepDone);
@@ -650,6 +689,9 @@ test("a step due under the head: what, and when it was due, with Done outside th
     tree = redraw();
     assert.ok(find(tree, byTestId("ix-th-step")), "refused: the line stays");
     assert.equal(textOf(find(tree, hasClass("pp-toast-msg"))), "Only a note with a day can be done.");
+    // Nothing was written, so nothing is read behind it: People moved, said so that the page reads the step as it now is (a
+    // CustomEvent made without a detail carries null).
+    assert.deepEqual(aboutThePerson(), [["surface:clients", null]], "a refused done reads the person's page again");
     // One whose day is ahead waits for it; one today is said.
     w.__PEOPLE = { rows: [{ id: "k1", deal: null, nextStep: stepOf(3) }] };
     assert.equal(find(draw(vm), byTestId("ix-th-step")), undefined, "ahead: not said");

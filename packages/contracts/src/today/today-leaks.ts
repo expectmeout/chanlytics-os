@@ -2,6 +2,7 @@
  * Worth a look: the few things Today holds that no row on it says on its own, each a re-print of a number
  * Reports (the headline, reports/report-headline.ts) or People already publishes, in the order of what they cost.
  */
+import { addressOf } from "../activity/record-address";
 import type { PersonRowVM } from "../people/person-row";
 import { NO_CHANNEL_REACH, NO_NUMBER_REACH } from "../people/people-lists";
 import type { DealVM } from "../deals/deal-vm";
@@ -233,10 +234,13 @@ function consultsWaitingLeak({ people, dealsAt }: LeakFacts): TodayLeakVM | null
     icon: "calendar",
     text,
     math,
-    people: held
-      .slice(0, 2)
-      .map((r) => ({ id: r.id, name: r.name, to: `clients/${r.id}`, title: `Open ${r.name} in People` })),
-    peopleLead: "Held with",
+    people: held.slice(0, 2).map((r) => ({
+      id: r.id,
+      name: r.name,
+      to: addressOf({ kind: "person", id: r.id }),
+      title: `Open ${r.name} in People`,
+    })),
+    peopleLead: "Consultation with",
     ask: askWhy(text, math),
     cta: { label: "See who", to: "clients/pipeline" },
     also: null,
@@ -276,7 +280,9 @@ function yoursToFollowUp(waiting: readonly ProposalRow[]): TodayLeakVM["people"]
     .filter((r, i, all) => all.findIndex((x) => x.id === r.id) === i)
     .slice(0, 2)
     .flatMap((r) =>
-      r.id && r.name ? [{ id: r.id, name: r.name, to: `clients/${r.id}`, title: `Open ${r.name}` }] : [],
+      r.id && r.name
+        ? [{ id: r.id, name: r.name, to: addressOf({ kind: "person", id: r.id }), title: `Open ${r.name}` }]
+        : [],
     );
 }
 

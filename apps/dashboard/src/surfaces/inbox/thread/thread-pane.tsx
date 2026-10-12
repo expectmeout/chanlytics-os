@@ -16,7 +16,7 @@ import { useSurface } from "../../use-surface";
 import { TICK_MS } from "../constants";
 import { ixAnswerer } from "../answerer";
 import { ixDraftKey, ixHeld, ixReadAgain } from "../rules";
-import { canDo, presenceAway, useToast, type Flash } from "../shell";
+import { canDo, demoSession, presenceAway, useToast, type Flash } from "../shell";
 import { unseePerson } from "../../seen";
 import { inboxData, OWN_VERBS, VW_STORE } from "../store";
 import { InboxThread, type InboxThreadProps } from "./thread";
@@ -99,7 +99,8 @@ function tickCountdown(shownRef: { current: Thread | null }, redraw: () => void)
     redraw();
   };
   const iv = window.setInterval(tick, TICK_MS);
-  window.addEventListener("presence:changed", redraw);
+  // Away is the demo's (its control is drawn only in a demo session): a real session has none to hear.
+  if (demoSession()) window.addEventListener("presence:changed", redraw);
   return () => {
     window.clearInterval(iv);
     window.removeEventListener("presence:changed", redraw);

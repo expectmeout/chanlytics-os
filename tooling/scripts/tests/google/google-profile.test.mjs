@@ -1253,7 +1253,7 @@ test("a sync that ANSWERS reviews stays inside the injected transport too", () =
       if (req.url.includes("/token")) return { status: 200, body: grantBody("sub-1", "ada@example.com") };
       if (req.url.includes("/reviews"))
         return { status: 200, body: JSON.stringify({ reviews: [], averageRating: 4.5, totalReviewCount: 2 }) };
-      // The sync reads the bound location again for its review link (00408).
+      // The sync reads the bound location again for its review link (00415).
       if (req.url.includes("/locations")) return boundLocation();
       throw new Error(`unexpected call: ${req.url}`);
     };
@@ -1429,7 +1429,7 @@ test("REGRESSION (review H:0): a paused or ended workspace, or one whose plan st
     }
   }));
 
-/* ---- the review link (00408): every sync reads the bound location again, and keeps its link as the bind does ---- */
+/* ---- the review link (00415): every sync reads the bound location again, and keeps its link as the bind does ---- */
 
 const REVIEW_LINK = "https://search.google.com/local/writereview?placeid=p1";
 
@@ -1457,7 +1457,7 @@ async function logged(run) {
 /**
  * One sync of a bound listing, last synced at `synced` (null: never, its first after the bind), its token fresh and its
  * reviews read (none new, and no rating or count, so the listing's row is written for its link alone): the listing is
- * linked to `place` and keeps `link` (undefined: never written, as a listing bound before 00408), the bound location's
+ * linked to `place` and keeps `link` (undefined: never written, as a listing bound before 00415), the bound location's
  * read answers `locations` (a function: what it returns or throws), the reviews `reviews`; `meanwhile` changes the rows
  * as Google is asked for the location, as a re-bind would. The bells and the events are kept in the same database. What
  * reached Google, what was written to the listing, the rows after, how many bells and events were kept when the location
@@ -1528,7 +1528,7 @@ async function syncTheLink({
   }
 }
 
-test("a sync gives a listing bound before 00408 the review link of the location it is bound to, through the injected transport", async () => {
+test("a sync gives a listing bound before 00415 the review link of the location it is bound to, through the injected transport", async () => {
   const s = await syncTheLink({ link: undefined, locations: boundLocation({ newReviewUri: REVIEW_LINK }) });
   assert.equal(s.r.ok, true, JSON.stringify(s.r));
   assert.equal(s.listing.new_review_uri, REVIEW_LINK, "its own location's link");

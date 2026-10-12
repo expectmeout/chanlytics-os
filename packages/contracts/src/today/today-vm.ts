@@ -2,6 +2,7 @@
  * Today's view model: the shape of the brief (`TodayVM`) and of each row and figure in it. Types only; the brief
  * that builds it is today-brief.ts, over the facts (today-facts.ts) and the bands, rows and queue beside them.
  */
+import type { VisitWord } from "../shared/enums";
 
 export interface TodayNeedsRowVM {
   id: string;
@@ -51,8 +52,14 @@ export interface TodaySentenceVM {
  */
 export interface TodayQueueRowVM {
   id: string;
-  /** `reply`: a reply to a reach-out, read (Reach out Part 5), in place of its thread's handoff (withReplies). */
-  kind: "handoff" | "callback" | "window" | "call" | "search" | "reply";
+  /**
+   * `reply`: a reply to a reach-out, read (Reach out Part 5), in place of its thread's handoff (withReplies). `step`: a
+   * person's next step come due (0007), and `steps` the one row for the rest, to People's Steps due (withSteps): both are
+   * the team's own to-do and nobody waiting on a person, so neither is a person row (isPersonRow). `visit`: a visit of
+   * yesterday's nobody has marked, asking "Did they come?" with Kept and Missed, and `visits` the one row for the rest, to
+   * the Calendar on yesterday (withVisitsAsked, 0047): the team's to-do as a step is, and no person waiting either.
+   */
+  kind: "handoff" | "callback" | "window" | "call" | "search" | "reply" | "step" | "steps" | "visit" | "visits";
   /** The thread this row is about; null for a call with no thread. The away card drops a bell row about the same thread. */
   conversationId: string | null;
   /** The call this row is about: a call-back's newest call, a call worth a listen; null otherwise. */
@@ -62,9 +69,10 @@ export interface TodayQueueRowVM {
   /** The wire, in the words a row shows. It was `"WhatsApp" | "Phone"`, which is
    *  what let every escalation row be hard-coded to WhatsApp: the type could
    *  not have held an email even if the code had tried to put one there.
-   *  "Leads" is a search waiting on its owner (spec G6), the one row that is not a person. */
-  channel: "WhatsApp" | "Phone" | "Text" | "Email" | "Leads";
-  /** "waited 2h" · "closes 5:10 PM · in 40m" · "2:14 PM · 1:35". */
+   *  "Leads" is a search waiting on its owner (spec G6), the one row that is not a person. "Next step" is a step due: no
+   *  wire at all, the kind of row. "Calendar" is a visit to mark, which the Calendar holds. */
+  channel: "WhatsApp" | "Phone" | "Text" | "Email" | "Leads" | "Next step" | "Calendar";
+  /** "waited 2h" · "closes 5:10 PM · in 40m" · "2:14 PM · 1:35"; empty on a step, whose day is the first word of its state line. */
   when: string;
   sentence: string;
   quoted: boolean;
@@ -73,6 +81,17 @@ export interface TodayQueueRowVM {
   warn: boolean;
   cta: { label: string; to: string };
   also: { label: string; verb: "snooze" | "resolve"; conversationId: string; escalationId: string } | null;
+  /**
+   * On a `step` only: whose step it is and which note, and the deal it moves, so the row's button can mark it done (the
+   * person-notes verb the thread header uses). Its `cta.to` is the person, which the row opens; its `cta.label` is the verb.
+   */
+  step?: { person_id: string; note_id: string; deal_id: string | null };
+  /**
+   * On a `visit` only: the record's row for the visit, and the presses it is asked with (Kept, then Missed: visitLineOf's
+   * `asks`), so the row's two buttons can say what became of it (POST calendar/visits/[id], the Calendar's own door). Its
+   * `cta.to` is the visit on the Calendar, which the row opens.
+   */
+  visit?: { id: string; asks: VisitWord[] };
   /** For the order: the longest wait first; a window by how soon it closes; a call last. */
   waitedMs: number;
 }

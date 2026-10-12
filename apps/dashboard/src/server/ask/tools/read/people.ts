@@ -192,7 +192,15 @@ async function getPerson(t: ToolContext, input: { contact_id: string }): Promise
       .map((c) => ({ call_id: c.id, route: `conversations/cv-${c.id}`, at: c.started_at, status: c.status })),
     timeline: vm.timeline
       .slice(0, 20)
-      .map((i) => ({ day: i.day, time: i.time, kind: i.kind, who: i.who, text: i.text.slice(0, 240) })),
+      // A message that never reached them says so (`not_sent`), so Ask does not tell it as something they heard.
+      .map((i) => ({
+        day: i.day,
+        time: i.time,
+        kind: i.kind,
+        who: i.who,
+        text: i.text.slice(0, 240),
+        ...(i.unsent && i.sub ? { not_sent: i.sub } : {}),
+      })),
     // A suggestion is the receptionist's, not yet kept by anyone: said as such, never as a fact the team wrote.
     notes: vm.noteList.slice(0, 20).map((n) => ({
       who: n.who,

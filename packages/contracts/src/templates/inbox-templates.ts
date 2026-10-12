@@ -7,7 +7,7 @@ import { purposeOfTemplate } from "../consent/consent";
 import { languageWords } from "./message-languages";
 import { templateBlocked } from "./template-parts";
 import { languageBase, languageLabel } from "./template-languages";
-import type { ParamSourceKind, ParamSpec } from "./templates";
+import { TEMPLATE_STATUS_WORDS, type ParamSourceKind, type ParamSpec } from "./templates";
 import { defaultParamSpecs, slotLabels } from "./template-slots";
 import { templateTitle } from "./template-titles";
 
@@ -109,6 +109,15 @@ export function inboxTemplates<T extends InboxTemplateLike>(
 }
 
 /**
+ * Whether a picker may offer a row: approved, and not hidden by the workspace. The one statement of it. The templates
+ * reader keeps the rows it is true of for the composers (and counts the rest, templateHolds), and the pages that draw their
+ * pickers from the settings read, which holds every row and is the one read of the templates, judge the same rows by it.
+ */
+export function templateOffered(t: { meta_status?: string | null; hidden_at?: string | null }): boolean {
+  return t.meta_status === "approved" && !t.hidden_at;
+}
+
+/**
  * The WhatsApp messages the composers cannot offer, counted by why: not approved yet, refused, paused or disabled by
  * WhatsApp, or hidden by the workspace. The templates read answers it beside the approved rows, so an empty picker can
  * say why it is empty (noTemplateWords).
@@ -139,11 +148,15 @@ export function templateHolds(
   return out;
 }
 
-const HOLD_WORDS: Array<[keyof TemplateHolds, string]> = [
+/** A status WhatsApp put on a version, as the picker says why a message is not offered: the Library's own word for it, lower case (TEMPLATE_STATUS_WORDS). */
+const byWhatsApp = (status: "rejected" | "paused" | "disabled"): string =>
+  `${TEMPLATE_STATUS_WORDS[status].toLowerCase()} by WhatsApp`;
+
+const templateHoldWords = (): Array<[keyof TemplateHolds, string]> => [
   ["pending", "waiting for WhatsApp to review"],
-  ["rejected", "refused by WhatsApp"],
-  ["paused", "paused by WhatsApp"],
-  ["disabled", "disabled by WhatsApp"],
+  ["rejected", byWhatsApp("rejected")],
+  ["paused", byWhatsApp("paused")],
+  ["disabled", byWhatsApp("disabled")],
   ["hidden", "hidden by you"],
 ];
 
@@ -155,7 +168,7 @@ const HOLD_WORDS: Array<[keyof TemplateHolds, string]> = [
  * the plain sentence.
  */
 export function noTemplateWords(held: Partial<TemplateHolds> | null | undefined): string {
-  const parts = HOLD_WORDS.flatMap(([key, words]) => {
+  const parts = templateHoldWords().flatMap(([key, words]) => {
     const n = held?.[key] ?? 0;
     return n > 0 ? [`${n} ${words}`] : [];
   });

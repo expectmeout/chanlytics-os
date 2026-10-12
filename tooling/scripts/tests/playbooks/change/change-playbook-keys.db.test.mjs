@@ -1,5 +1,5 @@
 /**
- * 00409 on a real Postgres: a campaign ends, runs on trial, and changes its words.
+ * 00416 on a real Postgres: a campaign ends, runs on trial, and changes its words.
  *
  *   1. The migration runs again, twice, and changes nothing: playbooks.until is a date and playbooks.trial_until a
  *      timestamptz, both null with no default, each saying what it is, a member's session may write both, and the
@@ -50,7 +50,7 @@ const ok = (res) => {
 
 before(async () => {
   if (skip) return;
-  // A database the replay built holds the columns and the door already; one that has not reached 00409 gets them here.
+  // A database the replay built holds the columns and the door already; one that has not reached 00416 gets them here.
   runMigration(migrationNamed(MIGRATION));
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   tenantId = ok(
@@ -164,7 +164,7 @@ const door = (signature = "public.change_playbook(uuid, uuid, jsonb, jsonb, text
 const START = "public.start_playbook(uuid, jsonb, jsonb, text, uuid)";
 
 test(
-  "00409 runs again, twice, and changes nothing: until is a date and trial_until a timestamptz, null, with no default, each saying what it is and written by a member's session, and the door is the same",
+  "00416 runs again, twice, and changes nothing: until is a date and trial_until a timestamptz, null, with no default, each saying what it is and written by a member's session, and the door is the same",
   { skip },
   () => {
     const once = columns();

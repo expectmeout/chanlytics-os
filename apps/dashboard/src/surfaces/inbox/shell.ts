@@ -117,19 +117,7 @@ export function clockZone(): string {
   return window.__clock && window.__clock.zone ? window.__clock.zone() : "UTC";
 }
 
-/** Whether a call ended in the Live Monitor's session (`LM_STORE.isEnded`): the demo's, and nothing on a real workspace. */
-export function liveCallEnded(id: string): boolean {
-  const store = object<{ isEnded?: (id: string) => boolean }>("LM_STORE");
-  return !!(store && store.isEnded && store.isEnded(id));
-}
-
 /* --------------------------------- people --------------------------------- */
-
-/** Who a thread's teammate is, from the team Settings reads: nobody when the roster is unread. */
-export function team(): Array<{ userId: string; email: string; displayName?: string | null }> | null {
-  const t = windowValue("__TEAM");
-  return Array.isArray(t) ? (t as Array<{ userId: string; email: string; displayName?: string | null }>) : null;
-}
 
 /** A person's own sheet: the one deal sheet, asked for by the person and the move (data-bits `openDealSheet`). */
 export function openDealSheet(ask: { personId: string; mode: string; dealId?: string | null }): void {
@@ -153,24 +141,8 @@ export function hasStepSheet(): boolean {
 
 /* ----------------------------------- Ask ----------------------------------- */
 
-/** What Ask is told is on screen: the rows a list draws, in its order, and what chose them. */
-interface OnScreen {
-  key: string;
-  ids: string[];
-  labels: string[];
-  view: string | null;
-}
-
-/** Say what is on screen to Ask (`__askOnScreen`), or take it back with null. */
-export function setAskOnScreen(value: OnScreen | null): void {
-  Reflect.set(window, "__askOnScreen", value);
-}
-
-/** The surface whose rows Ask was last told of, when one is. */
-export function askOnScreenKey(): string | null {
-  const v = windowValue("__askOnScreen");
-  return typeof v === "object" && v !== null && "key" in v && typeof v.key === "string" ? v.key : null;
-}
+/* What Ask is told is on screen is one ledger with one writer (legacy-bridge/ask/on-screen.ts), as every page says it. */
+export { askOnScreenKey, setAskOnScreen } from "../legacy-verbs";
 
 /* ----------------------------- the mockup's seeds ----------------------------- */
 
@@ -248,9 +220,4 @@ export function policy():
     set: (id: string, mode: string) => void;
   }>("POLICY");
   return p;
-}
-
-/** A member's name in the words the workspace says it (`__identity.member`); nothing where the shell has no identity. */
-export function memberName(m: { email: string | null; display_name?: string | null }): string | undefined {
-  return window.__identity ? window.__identity.member(m).name : undefined;
 }

@@ -119,6 +119,8 @@ interface ReplyRaw {
   paused_until: string | null;
   assignee_user_id: string | null;
   open_escalation: boolean;
+  /** What the open hold is for (the thread's newest open one), so a hold that waits on nobody is not counted (00409). Absent from a database before it. */
+  open_escalation_reason?: string | null;
   replied_at: string;
 }
 
@@ -307,7 +309,8 @@ function repliesWaitingOf(replies: readonly ReplyRaw[], nowMs: number): Campaign
     (r) =>
       standingOfThread(
         { state: r.state, paused_until: r.paused_until, assignee_user_id: r.assignee_user_id },
-        r.open_escalation,
+        // The hold itself where the database says what it is for: one that waits on nobody (a STOP) is no wait.
+        r.open_escalation ? { reason: r.open_escalation_reason } : false,
         nowMs,
       ).standing === "needs_you",
   );

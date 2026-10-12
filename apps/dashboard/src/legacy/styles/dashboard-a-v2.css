@@ -744,52 +744,6 @@
   color: var(--ink-dim);
 }
 
-/* ------------------------------------------------------------
-   AMBIENT DOCK
-   ------------------------------------------------------------ */
-.dock {
-  position: fixed;
-  bottom: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 8px 8px 14px;
-  background: var(--bg-raised);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-full);
-  box-shadow: 0 6px 24px -8px oklch(from var(--ink) l c h / 0.25);
-  font-size: 12px;
-  z-index: 50;
-  max-width: 600px;
-  animation: dock-in 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-@keyframes dock-in {
-  from { opacity: 0; transform: translate(-50%, 12px); }
-  to { opacity: 1; transform: translate(-50%, 0); }
-}
-.dock-pulse {
-  display: flex;
-  align-items: center;
-}
-.dock-text {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--ink);
-}
-.dock-text strong { font-weight: 500; }
-.dock-text .muted { color: var(--ink-muted); }
-.dock-elapsed {
-  font-size: 10.5px;
-  color: var(--accent);
-  background: var(--accent-soft);
-  padding: 1px 6px;
-  border-radius: var(--radius-full);
-  font-weight: 500;
-}
-
 /* ---------- Ask's conversation (the demo's palette, dashboard-a-ask.jsx) ---------- */
 .ask-msgs {
   flex: 1; min-height: 0; overflow-y: auto;
@@ -973,42 +927,6 @@
 /* The one FailedRead under the rows (the broadcasts read): .empty-line's own padding is 12px 0, which puts it against the card's edge. */
 .tq-failed { padding: 10px 16px; border-top: 1px solid var(--line); }
 
-/* ---- The day beside the queue: today and tomorrow from the calendar --------- */
-.td-day { background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; }
-.td-day-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--bg-sunken); }
-.td-day-head .btn { margin-left: auto; }
-.td-day-title { font-size: 13px; font-weight: 500; color: var(--ink); }
-.td-day-sub { order: 3; flex-basis: 100%; font-size: 11.5px; color: var(--ink-dim); }
-.td-day-sub:empty { display: none; }
-.td-frame { display: flex; flex-direction: column; gap: 10px; padding: 12px 16px 14px; border-top: 1px solid var(--line); }
-.td-frame:first-of-type { border-top: none; }
-.td-frame-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
-.td-frame-label { font-size: 12px; font-weight: 500; color: var(--ink-muted); min-width: 0; }
-.td-frame.today .td-frame-label { color: var(--ink); }
-.td-frame-note { flex: none; font-size: 10.5px; color: var(--ink-dim); white-space: nowrap; }
-/* "1 needs you" is amber, as "needs you" is on every badge; red is for what failed, and never the coral accent. */
-.td-frame-note .warn { color: var(--warn-ink); font-weight: 500; }
-/* The schedule's rows are the shared agenda row (components.css .ag-*, components/day-agenda.jsx): the same
-   row the Calendar's agenda wears, so one appointment reads the same on both. Its numbers were these.
-   What stays here is the day card the rows sit in. */
-.td-empty { font-size: 11.5px; color: var(--ink-faint); }
-/* The cap's tail: the rest of the day is on the Calendar, one line, one door. */
-.td-day-more { display: inline-flex; align-items: center; gap: 5px; align-self: flex-start; padding: 2px 0; border: none; background: transparent; font: inherit; font-size: 11.5px; color: var(--ink-muted); cursor: pointer; }
-.td-day-more:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
-/* The steps due at the head of the day (0007, amended), a frame of their own: who, what, and when it was due, each
-   row a press to their page, the day in the warn ink; the rest a line to People's Steps due. */
-.td-steps-list { list-style: none; margin: -4px 0; padding: 0; display: flex; flex-direction: column; }
-.td-step { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; padding: 4px 0; border: 0; background: none; font: inherit; font-size: var(--text-sm); text-align: left; color: var(--ink); cursor: pointer; }
-.td-step:hover .td-step-who { text-decoration: underline; text-underline-offset: 2px; }
-.td-step:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
-.td-step-who { flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
-.td-step-words { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-muted); }
-.td-step-for { flex: none; font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; }
-.td-step-when { flex: none; font-size: 11.5px; color: var(--warn-ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.td-day-foot { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 10px 16px; border: none; border-top: 1px solid var(--line); background: var(--bg-sunken); color: var(--ink-muted); font-size: 11.5px; cursor: pointer; }
-.td-day-foot span { flex: 1; min-width: 0; }
-.td-day-foot:hover { color: var(--ink); }
-
 /* ---- The day's card: four figures, each with its receipt; the lines that are not numbers; the period in one line -- */
 /* overflow stays visible: the receipt is a popover that leaves the card's box. The foot draws its own bottom radius. */
 .today-card { background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-lg); display: flex; flex-direction: column; }
@@ -1036,7 +954,7 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 .tc-receipt-door { align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; padding: 0; border: none; background: transparent; font: inherit; font-size: 12px; font-weight: 500; color: var(--ink-muted); cursor: pointer; }
 .tc-receipt-door:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
 /* Every control here takes the house focus ring (spec 8). */
-.tc-receipt-door:focus-visible, .td-day-more:focus-visible, .ta-main:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
+.tc-receipt-door:focus-visible, .ta-main:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
 .tc-beats { padding: 10px 18px 14px; margin-top: 0; }
 .tc-beats:empty { display: none; }
 .tc-foot { display: flex; align-items: center; gap: 12px; padding: 10px 18px; border-top: 1px solid var(--line); background: var(--bg-sunken); border-radius: 0 0 var(--radius-lg) var(--radius-lg); font-size: 12px; color: var(--ink-muted); }
@@ -1122,6 +1040,11 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 @media (pointer: coarse) { .ta-x { width: 44px; margin-right: -8px; } }
 .ta-row[data-count="1"] .ta-msg { color: var(--ink-dim); }
 .ta-row:not([data-count="1"]) .ta-title { letter-spacing: -0.005em; }
+/* A group opens in place, as the bell's does (topbar.jsx): the chevron turns, and the notes under it are rows of their own. */
+.ta-chev { flex: none; align-self: center; display: inline-flex; color: var(--ink-faint); transition: rotate var(--duration-fast) var(--ease-out); }
+.ta-main[aria-expanded="true"] .ta-chev { rotate: 180deg; }
+.ta-row.in-group .ta-title { font-weight: var(--weight-regular); }
+@media (prefers-reduced-motion: reduce) { .ta-chev { transition: none; } }
 
 /* Below 1180px each row is one column, in the same order (spec 4.1). today-day.test pins this block's first two lines. */
 @media (max-width: 1180px) {
@@ -1165,7 +1088,8 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 }
 /* The canvas names the person and drops the initials disc: at this size the two
    words carry it, and the row gains the whole column. */
-:where(.dash-a-v2) .tq .cl-attn-avatar { display: none; }
+:where(.dash-a-v2) .tq .cl-attn-avatar,
+:where(.dash-a-v2) .tq .cl-attn-pic { display: none; }
 :where(.dash-a-v2) .tq .cl-attn-body { gap: 6px; }
 :where(.dash-a-v2) .tq .cl-attn-name { font-size: var(--text-base); }
 :where(.dash-a-v2) .tq .cl-attn-meta { font-size: var(--text-sm); }
@@ -1225,7 +1149,7 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 
 /* One surface, not a bar over a list: the head loses its sunken fill and its rule,
    and the sentence sits under the title instead of beside it. */
-.tq-head, .td-day-head {
+.tq-head {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
@@ -1234,9 +1158,9 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   background: transparent;
   border-bottom: none;
 }
-.tq-title, .td-day-title { grid-column: 1; font-size: var(--text-base); }
-.tq-sub, .td-day-sub { grid-column: 1; order: 0; flex-basis: auto; font-size: var(--text-sm); white-space: normal; overflow: visible; text-overflow: clip; }
-.tq-head > button, .td-day-head > button { grid-column: 2; grid-row: 1 / span 2; align-self: start; }
+.tq-title { grid-column: 1; font-size: var(--text-base); }
+.tq-sub { grid-column: 1; order: 0; flex-basis: auto; font-size: var(--text-sm); white-space: normal; overflow: visible; text-overflow: clip; }
+.tq-head > button { grid-column: 2; grid-row: 1 / span 2; align-self: start; }
 .tq-live { padding: 10px 18px; }
 .tq-foot, .tq-failed, .tq-empty { padding-left: 18px; padding-right: 18px; }
 /* The queue, compact (as the setup card above it, canvas R10): one head line -- the title, what the rows hold beside
@@ -1254,11 +1178,6 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 .tq-open:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 :where(.dash-a-v2) .today-queue .cl-attn-row { gap: 4px; padding: 10px 18px; }
 :where(.dash-a-v2) .today-queue .empty-line { flex-wrap: nowrap; align-items: baseline; gap: 8px; padding: 4px 18px 12px; }
-
-/* The day's rows: a wider time column, and air between them. */
-.td-frame { padding: 12px 18px 14px; gap: 12px; }
-.td-item { grid-template-columns: 52px 12px minmax(0, 1fr) auto; padding: 7px 0; }
-.td-item-start { font-size: 13px; }
 
 /* The figures take the canvas's tighter letter-spacing. */
 .tc-fig-n { letter-spacing: -0.025em; }
@@ -1302,18 +1221,6 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 .tsec-title { font-size: var(--text-base); }
 .tq-count.calm { display: none; }
 
-/* The day's rows read across: the time, who, and what on the right. The rail
-   goes; now is the time in the accent, in weight. */
-.td-items::before { display: none; }
-.td-item { grid-template-columns: 52px minmax(0, 1fr); }
-.td-item-rail, .td-item-glyph { display: none; }
-.td-item-body { flex-direction: row; align-items: baseline; justify-content: space-between; gap: 4px 10px; flex-wrap: wrap; }
-.td-item-title { flex: 1 1 auto; display: block; font-size: 13px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.td-item-sub { display: block; font-size: var(--text-sm); white-space: nowrap; }
-.td-item-flag { font-size: var(--text-sm); }
-.td-item-flag::before { display: none; }
-.td-item.now .td-item-time { font-weight: 500; }
-
 /* The page's top gutter is the gap between its bands, 12px: the queue's card sits
    under the bar as it sits under any card above it, and a line that is down
    (TodayAlert, 2px of its own) lands its words 14px down, where the Inbox's first
@@ -1355,10 +1262,10 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   gap: 14px;
 }
 
-/* The cards: the setup card and the queue, the day, the day's card, Worth a look and While you were away are clear panes
+/* The cards: the setup card and the queue, the day's card, Worth a look and While you were away are clear panes
    with the look's rim and depth, and the head and foot bars lose their sunken fills. The day's card is reached by its
    testid: in the bento it sits in the bottom row, not under the page, and the ratchet counts its class. */
-.dash-a-v2 :is(.tq, .td-day, .tsec, [data-testid="today-card"]),
+.dash-a-v2 :is(.tq, .tsec, [data-testid="today-card"]),
 .dash-a-v2 > section {
   position: relative;
   border: 0;
@@ -1366,7 +1273,7 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   background: var(--surface-pane-fill);
   box-shadow: var(--surface-pane-depth);
 }
-.dash-a-v2 :is(.tq, .td-day, .tsec, [data-testid="today-card"])::after,
+.dash-a-v2 :is(.tq, .tsec, [data-testid="today-card"])::after,
 .dash-a-v2 > section::after {
   content: "";
   position: absolute;
@@ -1379,11 +1286,11 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
     linear-gradient(#000 0 0);
   pointer-events: none;
 }
-.dash-a-v2 :is(.tq-head, .td-day-head, .tsec-head) {
+.dash-a-v2 :is(.tq-head, .tsec-head) {
   background: transparent;
   border-bottom-color: transparent;
 }
-.dash-a-v2 :is(.tq-foot, .td-day-foot, .tc-foot, .tsec-note) {
+.dash-a-v2 :is(.tq-foot, .tc-foot, .tsec-note) {
   background: transparent;
   border-top-color: var(--line);
 }
@@ -1601,7 +1508,7 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 
 /* The panes' titles at the canvas's size, and the queue's head: the count as the filled disc before the name, the
    sentence beside it, the door to the Inbox in ink with its arrow. */
-.dash-a-v2 :is(.tq-title, .td-day-title, .tsec-title, .tc-title) {
+.dash-a-v2 :is(.tq-title, .tsec-title, .tc-title) {
   font-size: var(--text-xl);
   font-weight: var(--weight-semibold);
   letter-spacing: -0.01em;
@@ -1832,6 +1739,7 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   color: var(--warn-ink);
 }
 .dash-a-v2 .ta-row .ta-title { font-size: var(--text-base); font-weight: var(--weight-semibold); color: var(--ink); }
+.dash-a-v2 .ta-row.in-group .ta-title { font-weight: var(--weight-medium); }
 .dash-a-v2 .ta-time { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0; }
 .dash-a-v2 .ta-msg { font-size: var(--text-sm); }
 

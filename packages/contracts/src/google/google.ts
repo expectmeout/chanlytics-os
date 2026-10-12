@@ -17,9 +17,9 @@
 import type { SchemaSet } from "../shared/schema-sets";
 import { clockDate, zoneDayKey } from "../shared/clock";
 import { agoWords, isoMs, WEEK_MS, HOUR_MS, DAY_MS } from "../shared/time";
-import { plural } from "../shared/words";
+import { plural, reviewsPhrase } from "../shared/words";
 import { reviewReplyWords, type ReviewReplyMode } from "./review-reply";
-import { lensRoute } from "../reports/lenses";
+import { reviewRoute } from "../reports/lenses";
 import { dayPointOf, fmtDay, rangeLabelOf, withinWords } from "../reports/reports";
 import { beforeWords, compareWords, type ReportTileVM } from "../reports/report-tiles";
 import type { Hours } from "../config/workspace-config/business-profile";
@@ -311,6 +311,12 @@ export interface SetupGoogleFacts {
 /** Google shows this many reviews of a listing, the most relevant first. */
 export const GOOGLE_SHOWN_REVIEWS = 5;
 
+/**
+ * What a notice of a new review begins with, on the bell and on Today's line (packages/channels google-sync.ts reviewBells says
+ * it): the one way to tell a review that waits for an answer from the notice that the receptionist gave one ("Replied to …").
+ */
+export const NEW_REVIEW_NEWS = "New on Google:";
+
 /** A review first seen this recently is news on Today. */
 export const REVIEW_NEWS_MS = 36 * HOUR_MS;
 /** …unless it was written long ago and merely resurfaced in the five Google shows. */
@@ -331,7 +337,7 @@ export function starsOf(rating: number | null | undefined): string {
 
 /** "213 reviews"; "reviews not counted yet" before the first read. */
 export function reviewsWords(count: number | null | undefined): string {
-  return typeof count === "number" ? plural(count, "review") : "reviews not counted yet";
+  return typeof count === "number" ? reviewsPhrase(count) : "reviews not counted yet";
 }
 
 /** One line about the listing: "Northside Movers · 4.8 ★ · 213 reviews on Google". */
@@ -379,7 +385,10 @@ export function reviewSnippet(body: string | null | undefined, max = 90): string
 }
 
 export interface GoogleReviewVM {
+  /** The review's row (google_reviews.id): what its address, the reply door and the ledger name it by. */
   id: string;
+  /** Google's own id for the review: what the first notices of a new review were kept about (reviewNoticeIsAbout). */
+  reviewId: string;
   stars: string;
   rating: number | null;
   author: string;
@@ -442,8 +451,23 @@ export interface GoogleVM {
   /** "the five Google shows first" or "every review, from your Business Profile". */
   source: string;
   table: { columns: string[]; rows: (string | number)[][] };
-  /** Today's one line when a review is news, and where it leads. */
-  todayLine: { text: string; to: string } | null;
+  /**
+   * Today's one line when a review is news and not yet answered, where it leads (that review, with its reply box), and which
+   * review it draws: the bell's row about the same review is not said again under it (todayAwayGrouped), and an answer takes it
+   * away.
+   */
+  todayLine: { text: string; to: string; review: { id: string; reviewId: string } } | null;
+}
+
+/**
+ * Whether a bell row's subject is this review. A new review's notice was kept about Google's own id for it, the receptionist's
+ * reply notice about the review's row, so a row is about the review when its subject is either.
+ */
+export function reviewNoticeIsAbout(
+  about: { type: string; id: string } | null | undefined,
+  review: { id: string; reviewId?: string | null },
+): boolean {
+  return !!about && about.type === "review" && (about.id === review.id || about.id === review.reviewId);
 }
 
 /** The rating against the one before the period, in words: "up from 4.7", "down from 4.9", "same as the 30 days before". */
@@ -479,6 +503,7 @@ export function reviewIsNew(
 export function toGoogleReviewVM(r: GoogleReviewDto, linkedAt: string, tz: string, nowMs: number): GoogleReviewVM {
   return {
     id: r.id,
+    reviewId: r.review_id,
     stars: starsOf(r.rating),
     rating: r.rating,
     author: r.author?.trim() || "A customer",
@@ -720,11 +745,13 @@ export function toGoogleVM(dto: GoogleReadDto, period: GainWindow, nowMs: number
     },
   ];
 
-  const news = latest.find((r) => r.isNew) ?? null;
+  // News until it is answered: a review the owner (or the receptionist) has replied to is dealt with, and its line goes.
+  const news = latest.find((r) => r.isNew && !r.replied) ?? null;
   const todayLine = news
     ? {
-        text: `New on Google: ${news.stars} from ${news.author}${news.text ? ` — “${reviewSnippet(news.text)}”` : ""}`,
-        to: lensRoute("reviews"),
+        text: `${NEW_REVIEW_NEWS} ${news.stars} from ${news.author}${news.text ? ` — “${reviewSnippet(news.text)}”` : ""}`,
+        to: reviewRoute(news.id),
+        review: { id: news.id, reviewId: news.reviewId },
       }
     : null;
 

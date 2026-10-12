@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { dayInZone, isDayKey, shiftKey, toCalendarVM } from "@chanlytics/contracts";
+import { dayInZone, isDayKey, shiftKey, toCalendarVM, visitStands, type CalendarBlockVM } from "@chanlytics/contracts";
 import { load } from "../../../readers";
 import { calendar } from "../../../readers/calendar";
 import { openings } from "../../../readers/openings";
@@ -63,9 +63,11 @@ async function getCalendar(t: ToolContext, input: { day: string; days?: number }
     asked ? { from, days } : { from: null, days: input.days === undefined ? 7 : days },
   );
   const vm = toCalendarVM(r.data.calendar, t.now);
+  // Taken is what stands: the board draws a visit the record says was cancelled, struck, and Today and People count it none.
+  const standing = (blocks: CalendarBlockVM[]) => blocks.filter((b) => visitStands(b.visit));
   // A person the calendar names is a row read: the answer may name them, and open their profile.
   for (const d of vm.days)
-    for (const b of [...d.allDay, ...d.blocks])
+    for (const b of [...standing(d.allDay), ...standing(d.blocks)])
       if (b.person) noteRow(t, "person", b.person.id, b.person.name, `clients/${b.person.id}`);
   return {
     route: "calendar",
@@ -75,7 +77,7 @@ async function getCalendar(t: ToolContext, input: { day: string; days?: number }
       day: d.key,
       label: d.long,
       closed: d.closed.yes ? (d.closed.note ? `closed · ${d.closed.note}` : "closed") : null,
-      taken: [...d.allDay, ...d.blocks].map((b) => ({
+      taken: [...standing(d.allDay), ...standing(d.blocks)].map((b) => ({
         time: b.time,
         title: b.title,
         person: b.person ? { contact_id: b.person.id, name: b.person.name } : null,

@@ -1067,33 +1067,24 @@
   display: flex;
   flex-direction: column;
 }
-/* What is coming and what has happened, and beside them the card of what is known. The card is not a pane of its own
-   any more: it is as tall as what it holds, and the page scrolls. */
-.cl-prof-body {
+/* The record (canvas A, "The Person Record", decision 0052): on a desk the identity rail (who they are and the page's
+   acts, then what is known of them) beside the work column (the figures, the tabs, what the tab holds); on a phone one
+   column, the head first, and what the rail knows is the About tab. Each column is a stack of panes, 14 between. */
+.cl-prof-record {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
-  grid-template-areas: "up rail" "hist rail";
-  grid-template-rows: auto 1fr;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
   align-items: start;
 }
-.cl-prof-body:not(:has(> .cl-prof-up)) { grid-template-areas: "hist rail"; grid-template-rows: auto; }
-.cl-prof-body > .cl-prof-up { grid-area: up; }
-.cl-prof-body > .cl-prof-history { grid-area: hist; }
-.cl-prof-body > .cl-prof-rail { grid-area: rail; }
-/* Narrower than a column and a card side by side: one column, and on it what is coming, then what is known, then what
-   has happened. The phone's page had About, the next visit and both answers 1,720px down, under the whole timeline. */
-@container person (max-width: 880px) {
-  .cl-prof-body { grid-template-columns: minmax(0, 1fr); grid-template-areas: "up" "rail" "hist"; grid-template-rows: auto; }
-  .cl-prof-body:not(:has(> .cl-prof-up)) { grid-template-areas: "rail" "hist"; }
+.cl-prof-side,
+.cl-prof-work {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
 }
-/* Their deal (0008) comes first in the column, above what is coming, where deals are on: beside the card on a desk,
-   and first of everything on a phone. After the rules above, which it overrides where it is drawn. */
-.cl-prof-body > .cl-prof-deal { grid-area: deal; }
-.cl-prof-body:has(> .cl-prof-deal) { grid-template-areas: "deal rail" "up rail" "hist rail"; grid-template-rows: auto auto 1fr; }
-.cl-prof-body:has(> .cl-prof-deal):not(:has(> .cl-prof-up)) { grid-template-areas: "deal rail" "hist rail"; grid-template-rows: auto 1fr; }
-@container person (max-width: 880px) {
-  .cl-prof-body:has(> .cl-prof-deal) { grid-template-areas: "deal" "up" "rail" "hist"; grid-template-rows: auto; }
-  .cl-prof-body:has(> .cl-prof-deal):not(:has(> .cl-prof-up)) { grid-template-areas: "deal" "rail" "hist"; }
+@media (width > 900px) {
+  .cl-prof-record { grid-template-columns: 340px minmax(0, 1fr); }
 }
 
 .cl-prof-rail {
@@ -1124,6 +1115,13 @@
 /* As wide as its words: stretched across its row, the whole line over the name was a press that left the page. The
    button is the kit's (quiet, small); the page places it. */
 .cl-prof-hero > .cl-prof-back { align-self: flex-start; justify-self: start; margin: 0; }
+/* The head at the top of the identity rail (canvas A): who they are, then the page's acts under them, the thread's button
+   as wide as the rail and Call, Note and More on a line under it. A column, not the grid of areas the head was beside its
+   acts: the way back takes no row where it is not drawn. */
+.cl-prof-hero.cl-prof-head { display: flex; flex-direction: column; align-items: stretch; }
+.cl-prof-hero.cl-prof-head > .cl-prof-queue-actions { flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 8px; }
+.cl-prof-head > .cl-prof-queue-actions > :is([data-testid="person-open-thread"], [data-testid="person-start-conversation"]) { justify-content: center; }
+.cl-prof-acts-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
 
 .cl-prof-id {
   display: flex;
@@ -1303,6 +1301,9 @@
 .cl-prof-up-words { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
 .cl-prof-up-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cl-prof-up-go { flex: none; display: flex; color: var(--ink-faint); }
+/* A visit under way and nobody has said whether they came asks under its door, aligned with its words (the leaf and the gap before them). */
+.cl-prof-up-item { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cl-prof-up-ask { padding-left: 58px; }
 
 /* Their deal (0008, surfaces/people/deal/person-deal.tsx): a card per open deal in Coming up's family -- the raised ground, one
    hairline, the middle radius, no shadow -- held to the prose measure, so its three steps read as steps rather than a
@@ -1488,6 +1489,8 @@
 }
 .cl-tl-time { margin-left: auto; color: var(--ink-faint); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .cl-tl-sub { margin-top: 3px; font-size: var(--text-xs); color: var(--ink-faint); }
+/* A visit that asks "Did they come?" (surfaces/visit-line.tsx): the question and its presses, and the door beside them. */
+.cl-tl-ask { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; }
 .cl-tl-who { font-weight: 500; color: var(--ink); }
 .cl-tl-channel {
   display: inline-flex;
@@ -1913,6 +1916,13 @@
 .tabular { font-variant-numeric: tabular-nums; }
 .cl-row-fullname { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .cl-row-fullname > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* A stop the row says beside the name (the Pipeline's person cell) or beside the State pill (People's, where "Needs you"
+   outranks it): it keeps its whole word, and stands off the pill it follows. */
+.cl-row-fullname > .cl-row-stopped { flex: none; overflow: visible; }
+/* The business a person works at, dim after their name (0052): it gives way, and ends in an ellipsis, before the name does. */
+.cl-row-fullname > .cl-row-trail { flex: 0 100 auto; white-space: nowrap; font-weight: var(--weight-regular); color: var(--ink-dim); }
+.cl-row-trail { color: var(--ink-dim); font-weight: var(--weight-regular); }
+.cl-state-cell > .cl-row-stopped { margin-left: 6px; }
 .cl-row-name-them { display: inline-flex; align-items: center; gap: 3px; border: none; background: transparent; padding: 0; font: inherit; font-size: 10.5px; color: var(--ink-faint); cursor: pointer; opacity: 0; transition: opacity 120ms ease, color 120ms ease; }
 .cl-table tbody tr:hover .cl-row-name-them, .cl-table tbody tr.focused .cl-row-name-them, .cl-row-name-them:focus-visible { opacity: 1; }
 .cl-row-name-them:hover { color: var(--accent); }
@@ -2172,6 +2182,8 @@
   letter-spacing: 0.02em;
 }
 .cl-attn-avatar.glyph { color: var(--ink-faint); }
+/* A person's face in this row is the kit's (AttnRow's `person`): the first column's width is all it is told. */
+.cl-attn-pic { width: 30px; height: 30px; }
 .cl-attn-body { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .cl-attn-name { display: flex; align-items: baseline; gap: 8px; min-width: 0; font-size: var(--text-sm); font-weight: 500; color: var(--ink); line-height: 1.3; }
 .cl-attn-who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -2181,7 +2193,7 @@
    line of it is not enough: on Today's queue at 1440 a call-back summary lost
    23% of itself, including who the caller had asked to speak to. Two is a
    ceiling, not a target: a short sentence still draws a short row, and past two
-   the row opens. The idiom is the one .td-item-title already uses. */
+   the row opens. */
 .cl-attn-sentence {
   font-size: 12px; color: var(--ink-muted); line-height: 1.35;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
@@ -2254,6 +2266,8 @@
 .cl-row-state-detail { display: block; margin-top: 3px; font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cl-row-visit { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
 .cl-row-visit:hover .cl-row-next, .cl-row-visit:hover .cl-row-last-visit { text-decoration: underline; }
+/* How the visit stands (Kept, Missed, Past), the kit's pill beside its day: placed, not drawn (surfaces/visit-line.tsx). */
+.cl-row-visit-state { margin-left: 6px; }
 /* A profile's timeline filter: the kit's sub-tabs, where the page stands them: over the rows, a gap under. */
 .cl-tl-filters { --subtabs-side: 0px; margin: 0 0 var(--space-3); }
 
@@ -2513,8 +2527,9 @@
    A desk's only: the phone keeps the list, and the switch is not drawn there. */
 .pipe-views .cl-tab { min-width: 52px; justify-content: center; }
 .pipe-peek .pk-head { align-items: center; }
-.pipe-peek-face { flex: none; width: 36px; height: 36px; font-size: 12px; }
 .pipe-peek .pk-name { font-size: 15px; }
+/* A stop, said once beside the line under the name (StoppedMark; contracts' STOP_WORDS.mark). */
+.pipe-stop-said { margin-left: 8px; }
 .pipe-peek-body { gap: 16px; }
 .pipe-peek .cl-prof-deal-card { max-width: none; padding: 0; background: transparent; border: 0; }
 .pipe-peek .cl-prof-deal-none { max-width: none; }
@@ -2540,6 +2555,7 @@
 .pipe-card.is-dragging { opacity: .4; }
 .pipe-card-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .pipe-card-face { flex: none; width: 24px; height: 24px; font-size: 9px; }
+.pipe-stopped { flex: none; }
 .pipe-card-name { min-width: 0; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pipe-card-service { font-size: 12px; color: var(--ink-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pipe-card-line { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 12px; font-variant-numeric: tabular-nums; }
@@ -2561,7 +2577,8 @@
 .pipe-new-row { width: 100%; display: grid; grid-template-columns: 28px minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 10px; align-items: center; padding: 7px 8px; border: 0; background: none; font: inherit; text-align: left; color: var(--ink); cursor: pointer; }
 .pipe-new-row:hover { background: var(--bg-hover); }
 .pipe-new-row:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.pipe-new-face { grid-row: 1 / span 2; width: 28px; height: 28px; font-size: 10px; }
+.pipe-new-face { grid-row: 1 / span 2; }
+.pipe-new-stopped { margin-left: 8px; }
 .pipe-new-name { min-width: 0; font-size: var(--text-sm); font-weight: var(--weight-medium); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pipe-new-said { min-width: 0; font-size: 12px; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pipe-new-none { margin: 0; font-size: var(--text-sm); color: var(--ink-dim); }
@@ -3368,11 +3385,8 @@
 .cl-prof-hero > .cl-prof-queue-actions {
   gap: 8px;
 }
-/* The panes: what is coming, their deal, what has happened, and the card's each one, with the look's rim. */
-.cl-prof-body {
-  gap: 14px;
-}
-.cl-prof-body > :is(.cl-prof-deal, .cl-prof-history, .cl-prof-up),
+/* The panes: the figures, each part of the tab picked, and the rail's each one, with the look's rim. */
+.cl-prof-work > :is(.cl-prof-section, .cl-prof-rail-section, .cl-prof-figures),
 .cl-prof-rail > :is(.cl-prof-rail-section, .cl-prof-rec) {
   position: relative;
   padding: 18px;
@@ -3381,7 +3395,7 @@
   background: var(--surface-pane-fill);
   box-shadow: var(--surface-pane-depth);
 }
-.cl-prof-body > :is(.cl-prof-deal, .cl-prof-history, .cl-prof-up)::after,
+.cl-prof-work > :is(.cl-prof-section, .cl-prof-rail-section, .cl-prof-figures)::after,
 .cl-prof-rail > :is(.cl-prof-rail-section, .cl-prof-rec)::after {
   content: "";
   position: absolute;
@@ -3606,8 +3620,8 @@
   .cl-prof-page {
     padding: 0 var(--gutter-page) 48px;
   }
-  .cl-prof-body {
-    grid-template-columns: minmax(0, 1fr) 360px;
+  .cl-prof-record {
+    grid-template-columns: 360px minmax(0, 1fr);
   }
 }
 /* A phone (P-phone-person): the page 12px from the sides with 12 between its parts, the panes 16px inside, the face
@@ -3652,7 +3666,7 @@
   .cl-prof-name {
     font-size: var(--text-2xl);
   }
-  .cl-prof-body > :is(.cl-prof-deal, .cl-prof-history, .cl-prof-up),
+  .cl-prof-work > :is(.cl-prof-section, .cl-prof-rail-section, .cl-prof-figures),
   .cl-prof-rail > :is(.cl-prof-rail-section, .cl-prof-rec) {
     padding: 16px;
   }
@@ -3672,6 +3686,411 @@
     content: "";
     position: absolute;
     inset: -11px -8px;
+  }
+}
+
+/* ====================================================================
+   A person, canvas A "The Person Record" (decision 0052, 12 October 2026): the parts the record added. The figures as
+   one pane of four, the strip of tabs over the tab's panes, the notices under the name, the business's tile in its
+   tint, the Works at row, the business record in the kit's sheet, Up next's rungs, and their last words as two bubbles
+   that are doors. The kit draws every control; these rules place them, and read every value from tokens.css.
+   ==================================================================== */
+/* The figures: four to a line on a desk, two on a phone, in one pane. */
+.cl-prof-figures {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin: 0;
+}
+/* The strip of tabs stands on the page, between the figures and the tab's panes, at the panes' own sides. */
+.cl-prof-strip {
+  --subtabs-side: 4px;
+}
+/* Under the name: the business as a door to its sheet (a 44px press around its words), or a stand-in's story. */
+.cl-prof-business {
+  position: relative;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  color: var(--ink-muted);
+}
+.cl-prof-business::after {
+  content: "";
+  position: absolute;
+  inset: -12px -6px;
+}
+.cl-prof-business > svg {
+  transition: translate var(--duration-fast) var(--ease-out);
+}
+@media (hover: hover) {
+  .cl-prof-business:hover {
+    color: var(--ink);
+  }
+  /* A door's chevron nudges; a fold's turns (canvas A, door vs fold). */
+  .cl-prof-business:hover > svg {
+    translate: 2px 0;
+  }
+}
+.cl-prof-origin {
+  margin: 0;
+  font-size: var(--text-base);
+  color: var(--ink-dim);
+}
+/* A notice (canvas A, one suggestion grammar): the fact, its day dim after it, one quiet act and the x. On a phone the
+   acts take a row of their own under the fact. */
+.cl-prof-notices {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.cl-prof-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--ink);
+}
+.cl-prof-notice-fact {
+  font-weight: var(--weight-medium);
+  overflow-wrap: anywhere;
+}
+.cl-prof-notice-src {
+  color: var(--ink-dim);
+}
+.cl-prof-notice-acts {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.cl-prof-notice-why {
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+/* The name a signer gave, said in its field, with the way back to the business. */
+.cl-prof-name-from {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+/* A business's tile: the inset's corners in its kind's tint (contracts leadTintOf), as Leads draws it. */
+.cl-prof-brand {
+  border-radius: var(--surface-inset-radius);
+  color: var(--tile-tint-ink);
+}
+.cl-prof-brand[data-tint="1"] {
+  background: var(--tile-tint-1);
+}
+.cl-prof-brand[data-tint="2"] {
+  background: var(--tile-tint-2);
+}
+.cl-prof-brand[data-tint="3"] {
+  background: var(--tile-tint-3);
+}
+.cl-prof-brand[data-tint="4"] {
+  background: var(--tile-tint-4);
+}
+.cl-prof-brand[data-tint="5"] {
+  background: var(--tile-tint-5);
+}
+.cl-prof-brand[data-tint="6"] {
+  background: var(--tile-tint-6);
+}
+/* Works at: one row, the whole row the press, its tile, two lines and the door's chevron. */
+.cl-prof-rail-section > .cl-prof-works-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  width: 100%;
+  height: auto;
+  min-height: 44px;
+  padding: 6px 0;
+  text-align: left;
+  white-space: normal;
+}
+.cl-prof-rail-section > .cl-prof-works-row > svg {
+  flex: none;
+  margin-left: auto;
+  color: var(--ink-faint);
+}
+.cl-prof-works-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.cl-prof-works-name {
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.cl-prof-works-kind {
+  font-size: var(--text-sm);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.cl-prof-works-read,
+.cl-prof-works-gone {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+/* The business record, in the kit's sheet: the band, the date line, its people, what the listing says, its links. */
+.cl-prof-biz {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.cl-prof-biz-band {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.cl-prof-biz-band-words {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.cl-prof-biz-rating {
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+.cl-prof-biz-read {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.cl-prof-biz-part {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cl-prof-biz-title {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.cl-prof-biz-people {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cl-prof-biz-person {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  border-top: 1px solid var(--line);
+}
+.cl-prof-biz-person:first-child {
+  border-top: 0;
+}
+.cl-prof-biz-name {
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+.cl-prof-biz-line {
+  margin-left: auto;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+.cl-prof-biz-needs {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  background: var(--warn);
+}
+.cl-prof-biz-door {
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+  text-decoration: none;
+}
+.cl-prof-biz-door:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.cl-prof-biz-door:focus-visible {
+  outline: none;
+  border-radius: var(--radius-xs);
+  box-shadow: var(--focus-ring);
+}
+.cl-prof-biz-facts {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+.cl-prof-biz-fact {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: 12px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+  font-size: var(--text-sm);
+}
+.cl-prof-biz-fact:first-child {
+  border-top: 0;
+}
+.cl-prof-biz-fact > dt {
+  color: var(--ink-dim);
+}
+.cl-prof-biz-fact > dd {
+  margin: 0;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.cl-prof-biz-dim {
+  color: var(--ink-dim);
+}
+.cl-prof-biz-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: var(--text-sm);
+}
+.cl-prof-biz-leave {
+  align-self: flex-start;
+  font-size: var(--text-sm);
+}
+/* Up next: each rung an inset, its fact and the line under it, its one act at the end (under them on a narrow pane). */
+.cl-prof-next,
+.cl-prof-words {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cl-prof-rungs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cl-prof-rung {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+  padding: 12px 14px;
+  border-radius: var(--surface-inset-radius);
+  background: var(--surface-inset-fill);
+  box-shadow:
+    var(--surface-inset-ring),
+    var(--surface-inset-depth);
+}
+.cl-prof-rung-words {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 240px;
+}
+.cl-prof-rung-title {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.cl-prof-rung-sub {
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+.cl-prof-rungs-more {
+  align-self: flex-start;
+}
+/* Their last words: theirs on the left, ours on the right, each bubble a door to the thread. */
+.cl-prof-word-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cl-prof-word {
+  display: flex;
+  flex-direction: column;
+  align-self: flex-start;
+  gap: 4px;
+  max-width: min(520px, 88%);
+  color: inherit;
+  text-decoration: none;
+}
+.cl-prof-word[data-mine] {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+.cl-prof-word-meta {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--ink-dim);
+}
+.cl-prof-word-text {
+  padding: 9px 13px;
+  border: 1px solid var(--bubble-them-line);
+  border-radius: var(--radius-xl);
+  background: var(--bubble-them-bg);
+  font-size: var(--text-base);
+  line-height: 1.45;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.cl-prof-word[data-mine] > .cl-prof-word-text {
+  border-color: var(--bubble-us-line);
+  background: var(--bubble-us-bg);
+}
+a.cl-prof-word:hover > .cl-prof-word-text {
+  border-color: var(--line-strong);
+}
+a.cl-prof-word:focus-visible {
+  outline: none;
+}
+a.cl-prof-word:focus-visible > .cl-prof-word-text {
+  box-shadow: var(--focus-ring);
+}
+@media (max-width: 900px) {
+  .cl-prof-figures {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 16px;
+  }
+  .cl-prof-notice-acts {
+    flex-basis: 100%;
+  }
+  /* The foot dock (canvas A): the head's acts again once they scroll away, a 52px capsule over the page's foot, which
+     keeps the room for it under its last pane. */
+  .cl-prof-dock {
+    position: fixed;
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    left: 12px;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 52px;
+    padding: 6px;
+  }
+  .cl-prof-dock > .cl-prof-dock-lead {
+    flex: 1 1 auto;
+    justify-content: center;
+    height: 40px;
+  }
+  .main-scroll .cl-prof-page {
+    padding-bottom: calc(52px + 26px + env(safe-area-inset-bottom, 0px));
   }
 }
 

@@ -7,9 +7,9 @@
  * read served and said to be stale, too large, not iCal, a private address
  * never fetched), the preview's refusals in the same words, the board's
  * module over a database in memory (no feed, a failed feed with its reason,
- * a good feed with its items and windows, an owner's read adding the people
- * it names and counting a refusal, a day capped at what the board draws),
- * the route itself (no address in the answer; a viewer's read adds nobody),
+ * a good feed with its items and windows, a read that adds nobody to People
+ * whoever makes it, a day capped at what the board draws),
+ * the route itself (no address in the answer; no read of it adds anybody),
  * and the save that refuses an address the fetch would refuse.
  */
 import { test, beforeEach, after } from "node:test";
@@ -546,7 +546,7 @@ test("the last good read is served when the calendar goes away, and the chip and
   assert.equal(vm.feed.stale, true);
 });
 
-test("an owner's read puts the people the feed names in People through the door; one refused number costs one person; a viewer's read adds nobody", async () => {
+test("reading the week adds nobody to People, whoever reads it; the board draws the people it can match and leaves the rest to the sweep and to a press (decision 0047, lane 6)", async () => {
   const url = "https://cal.example/two.ics";
   answers.set(url, {
     body: ics(
@@ -566,59 +566,49 @@ test("an owner's read puts the people the feed names in People through the door;
       ]),
     ),
   });
-  const made = [];
-  const emailed = [];
+  // Every door a read could add a person through is a trap: it is called, the test fails.
+  const doors = [];
+  const never = (door) => (args) => {
+    doors.push([door, args]);
+    return { contact_id: "p-made", existed: false };
+  };
   const rpcs = {
     people_list: () => [],
-    create_person: (args) => {
-      made.push(args);
-      if (args.p_phone_e164 === "+19175550101") {
-        const e = new Error("bad number");
-        e.code = "22023";
-        throw e;
-      }
-      return { contact_id: "p-ana", existed: false };
-    },
-    set_person_email: (a) => {
-      emailed.push(a);
-      return { contact_id: a.p_contact_id, email: a.p_email };
-    },
+    create_person: never("create_person"),
+    add_person: never("add_person"),
+    set_person_email: never("set_person_email"),
   };
-  const ctx = ctxFor(tables(url), rpcs);
-  const dto = await calendarWeek(ctx, T, { from: "2026-09-07", days: 7 }, NOW, { canAct: true });
-  assert.equal(made.length, 2, "both numbers offered to the door");
-  assert.deepEqual(made[0], {
-    p_tenant_id: T,
-    p_phone_e164: "+19175550100",
-    p_display_name: "Ana Ruiz",
-    p_source: "calendar",
-    p_title: "Ana Ruiz · Balayage",
-  });
-  const ana = dto.days.find((d) => d.key === "2026-09-08").items[0];
-  assert.deepEqual(
-    ana.person,
-    { id: "p-ana", name: "Ana Ruiz", via: "phone" },
-    "the board links the person it just made",
-  );
-  const bo = dto.days.find((d) => d.key === "2026-09-09").items[0];
-  assert.equal(bo.person, null, "the refused number is one person, not the board");
-  assert.deepEqual(
-    emailed,
-    [{ p_contact_id: "p-ana", p_email: "ana@example.com" }],
-    "the appointment's one address goes through the door to the person just made from its number; one the door refused gets none",
-  );
+  for (const role of ["owner", "operator", "viewer"]) {
+    forgetFeeds();
+    const dto = await calendarWeek(ctxFor(tables(url, role), rpcs), T, { from: "2026-09-07", days: 7 }, NOW);
+    const ana = dto.days.find((d) => d.key === "2026-09-08").items[0];
+    const bo = dto.days.find((d) => d.key === "2026-09-09").items[0];
+    assert.deepEqual([ana.person, bo.person], [null, null], `${role}: nobody in People, so nobody to link`);
+    // What the panel offers a press for: the number the event carried, E.164, and the address beside it.
+    assert.deepEqual(ana.contacts, { phones: ["+19175550100"], emails: ["ana@example.com"] }, role);
+    assert.equal(ana.guess, "Ana Ruiz", role);
+  }
+  assert.deepEqual(doors, [], "no role's read made a person, nor gave one an address");
 
+  // The same week with Ana already in People (by the sweep, or by a press): the board links her, and still writes nothing.
   forgetFeeds();
-  const quiet = [];
-  const viewer = ctxFor(tables(url, "viewer"), {
-    people_list: () => [],
-    create_person: (a) => {
-      quiet.push(a);
-      return { contact_id: "x", existed: false };
-    },
-  });
-  await calendarWeek(viewer, T, { from: "2026-09-07", days: 7 }, NOW, { canAct: false });
-  assert.equal(quiet.length, 0, "a viewer's read changes nothing");
+  const known = [
+    { id: "p-ana", display_name: "Ana Ruiz", wa_profile_name: null, phone_e164: "+19175550100", email: null },
+  ];
+  const matched = await calendarWeek(
+    ctxFor(tables(url, "owner"), { ...rpcs, people_list: () => known }),
+    T,
+    { from: "2026-09-07", days: 7 },
+    NOW,
+  );
+  assert.deepEqual(
+    matched.days.find((d) => d.key === "2026-09-08").items[0].person,
+    // With the wire a reply goes out on and the two stops, as their People row says them (contracts replyFactsOf): no
+    // thread, no stop.
+    { id: "p-ana", name: "Ana Ruiz", via: "phone", reply_wire: null, email_stopped: false, opted_out: false },
+    "the board links the person People holds",
+  );
+  assert.deepEqual(doors, [], "and a read that matched made nobody either");
 });
 
 test("(0008) the board's read marks each consultation by the rule People's visits are marked by, with the consult-first service its title names", async () => {
@@ -714,38 +704,40 @@ test("a day carries at most what the board draws; the rest are counted and said"
   );
 });
 
-test("the route: the answer carries the feed's state and never its address; a viewer's read adds nobody", async (t) => {
-  // The route reads the wall clock for which appointments name people to add (thirty days back, peopleFromItems): pinned
-  // to the week it asks for, since on the wall clock it stopped adding Ana once her 8 September visit was 30 days past.
+test("the route: the answer carries the feed's state and never its address; whoever reads, it adds nobody to People and says nothing of people made", async (t) => {
+  // The clock is pinned to the week the read asks for, as the other route tests pin it.
   t.mock.timers.enable({ apis: ["Date"], now: NOW.getTime() });
   const url = "https://cal.example/route.ics";
   answers.set(url, { body: ONE });
   const made = [];
-  const ctx = ctxFor(tables(url, "viewer"), {
+  const rpcs = {
     people_list: () => [],
     create_person: (a) => {
       made.push(a);
       return { contact_id: "x", existed: false };
     },
-  });
-  const out = await route.GET.run(
-    new Request(`http://localhost/api/v1/calendar?workspace=${T}&from=2026-09-07&days=7`),
-    ctx,
-  );
+  };
+  const ask = (role, calendar = url) =>
+    route.GET.run(
+      new Request(`http://localhost/api/v1/calendar?workspace=${T}&from=2026-09-07&days=7`),
+      ctxFor(tables(calendar, role), rpcs),
+    );
+  const out = await ask("viewer");
   assert.equal(out.calendar.feed.state, "ok");
   assert.equal(out.calendar.days.length, 7);
   assert.ok(!JSON.stringify(out).includes("cal.example"), "the address never reaches the browser");
-  assert.equal(made.length, 0);
+  for (const role of ["owner", "operator", "viewer"]) {
+    forgetFeeds();
+    const answer = await ask(role);
+    assert.deepEqual(
+      Object.keys(answer),
+      ["calendar"],
+      `${role}: the board, and nothing of people made (people_added is gone)`,
+    );
+  }
   forgetFeeds();
-  const owner = ctxFor(tables(url, "owner"), {
-    people_list: () => [],
-    create_person: (a) => {
-      made.push(a);
-      return { contact_id: "p1", existed: false };
-    },
-  });
-  await route.GET.run(new Request(`http://localhost/api/v1/calendar?workspace=${T}&from=2026-09-07&days=7`), owner);
-  assert.equal(made.length, 1, "an owner's read adds the person the feed names");
+  assert.deepEqual(Object.keys(await ask("owner", null)), ["calendar"], "no calendar: the same answer");
+  assert.deepEqual(made, [], "an owner's read does not add the person the feed names: the sweep and a press do");
 });
 
 test("the route: asked for the weeks around today, it answers the board's own window by the business's clock", async (t) => {

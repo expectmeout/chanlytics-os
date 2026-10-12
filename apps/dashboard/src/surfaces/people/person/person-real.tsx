@@ -1,33 +1,39 @@
 /**
  * One person, in full (moved from legacy/pages/client-profile.jsx `ClientProfileReal`, decision 0015, step 5): fetched on
  * open through the profile's courier (people-detail.ts: every message, call, escalation and operator decision for this
- * contact, mapped in contracts where the rule is tested). It is one quiet record: one scroll, never two panes. The head is
- * who they are, where they stand and the page's acts (hero.tsx); their deal comes first in the column, then Coming up, then
- * History, and the card of what is known beside them (sections.tsx, settings-card.tsx, notes.tsx, lists.tsx).
+ * contact, mapped in contracts where the rule is tested). It is one quiet record, canvas A "The Person Record" (decision
+ * 0052): one scroll, never two panes. On a desk the identity rail (who they are, where they stand, the page's acts, then
+ * how to reach them, where they work, what they may be sent and their lists: hero.tsx, sections.tsx, business.tsx,
+ * settings-card.tsx, lists.tsx) stands beside the work column (the figures, the tabs as addresses and what the tab holds:
+ * work.tsx, overview.tsx). On a phone it is one column, and what the rail knows is the About tab.
  *
  * Opening a person is as quick as the tab can make it, and a person's page is never drawn in parts: the tab keeps the
  * people it read, and a person the tab does not hold yet is nothing of theirs until their whole page is in, `Reading…` after
  * the standard's beat, never their name first and the rest after (Ruben, 24 Sep).
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
-import { NOTE_WORDS, shortName } from "@chanlytics/contracts";
-import type { PersonRowVM, PersonVM } from "@chanlytics/contracts";
+import { isIdentifierName, personTabRoute, shortName } from "@chanlytics/contracts";
+import type { PersonRowVM, PersonTab, PersonVM } from "@chanlytics/contracts";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { useRecordFold } from "../../kit/record/hooks";
 import { mayAtLeast } from "../../legacy-verbs";
-import { PersonDealCard } from "../deal/person-deal";
+import { addressReplace } from "../shell-verbs";
+import { PL_PHONE_QUERY } from "../words";
 import { backToPeople, hear, saidBy, usePersonToast } from "../person-verbs";
 import type { DelState, DoubtState, MergeState, PageCtx, RmState } from "./ctx";
-import { hero, openWith } from "./hero";
+import { BusinessSheet, WorksAtCard } from "./business";
+import { PhoneDock, hero, openWith } from "./hero";
 import { PersonLists } from "./lists";
-import { PersonNotes } from "./notes";
 import { PersonProfileFrame } from "./frame";
-import { aboutCard, campaignsCard, comingUpSection, historySection } from "./sections";
+import { aboutCard } from "./sections";
+import { Figures, PersonTabs, TabBody } from "./work";
 import { settingsCard } from "./settings-card";
 import { heldPerson, readPerson } from "./read";
+import { hearTheirThread } from "./their-thread";
 import { usePeopleSeam } from "./use-people";
 import { useSeeOpen } from "../../seen";
+import { usePartShown } from "../../use-surface";
 import { plReading } from "../cells/columns";
 
 /** What the page holds of the person: the read under way, the copy it has, that they are not here, or that reading failed. */
@@ -47,10 +53,13 @@ function useHeld(id: string): [PageRead, Dispatch<SetStateAction<PageRead>>] {
 }
 
 /**
- * The read of the person, and what reads it again: People landing or changing (their row's follow-up, their lists), and a deal
- * recorded or moved in the sheet or a step set, changed or done (the sheets say so with `deal:recorded` and `note:saved`).
+ * The read of the person, and what reads it again: People landing or changing (`surface:clients`: their row's follow-up, their
+ * lists, and every write that names People in the refresh map or that the live feed tells of: a deal recorded or moved, a step set,
+ * changed or done -- the sheets say nothing of their own, 0047), and this person writing or phoning: the Inbox or Conversations
+ * holding something of theirs newer than the page does (their-thread.ts;
+ * People's own list does not hear a message while another page is open, and this page is another).
  */
-function useLoad(id: string, setSt: Dispatch<SetStateAction<PageRead>>): () => void {
+function useLoad(id: string, vm: PersonVM | null, setSt: Dispatch<SetStateAction<PageRead>>): () => void {
   const load = useCallback(() => {
     // Held from the last time this tab opened them, so going back to the list and in again does not put "Loading..."
     // over a page that is already known.
@@ -67,79 +76,128 @@ function useLoad(id: string, setSt: Dispatch<SetStateAction<PageRead>>): () => v
     load();
   }, [load]);
   useEffect(() => hear("surface:clients", () => load()), [load]);
+  // The latest moment of theirs the page has read for: their last contact when the page was read, or what told it of a later one
+  // (so a thread whose clock runs ahead of their row's is read once for it, never on every message after).
+  const held = useRef(vm);
+  held.current = vm;
+  const readTo = useRef(0);
   useEffect(() => {
-    const onDeal = (d: Record<string, unknown>) => {
-      if (d.personId === id) load();
-    };
-    const offDeal = hear("deal:recorded", onDeal);
-    const offNote = hear("note:saved", onDeal);
-    return () => {
-      offDeal();
-      offNote();
-    };
+    readTo.current = 0;
+    return hearTheirThread(
+      id,
+      () => Math.max(readTo.current, held.current?.lastContact.ts ?? 0),
+      (newest) => {
+        readTo.current = newest;
+        load();
+      },
+    );
   }, [id, load]);
   return load;
 }
 
-/** The rail: the role once, About, what the page changes, the notes, the lists and the campaigns. */
-function rail(c: PageCtx) {
-  const { p, canRecord, isOwner, flash, load, first, who } = c;
+/** The phone's width (People's 900px), kept current as the window changes: the page is one column under it. */
+function usePhone(): boolean {
+  const [phone, setPhone] = useState(
+    () => typeof window !== "undefined" && !!window.matchMedia?.(PL_PHONE_QUERY).matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia ? window.matchMedia(PL_PHONE_QUERY) : null;
+    if (!mq) return undefined;
+    const on = () => setPhone(mq.matches);
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  return phone;
+}
+
+/**
+ * The tab the address names, as this width draws it (0052): a desk's Deals and Campaigns are inside a phone's Overview,
+ * a phone's About is a desk's rail, and a tab this person does not have (a History with nothing in it) is Overview. A
+ * press shows its tab at once and replaces the address, so the page is not mounted again and Back leaves the person.
+ */
+function useTab(
+  id: string,
+  asked: PersonTab,
+  vm: PersonVM | null,
+  phone: boolean,
+): [PersonTab, (t: PersonTab) => void] {
+  const [tab, setTab] = useState<PersonTab>(asked);
+  useEffect(() => setTab(asked), [asked]);
+  const goTab = useCallback(
+    (t: PersonTab) => {
+      setTab(t);
+      addressReplace(personTabRoute(id, t), { quiet: false });
+    },
+    [id],
+  );
+  const tabs = vm ? (phone ? vm.tabs.phone : vm.tabs.desk) : [];
+  return [tabs.some((t) => t.id === tab) ? tab : "overview", goTab];
+}
+
+/** What the rail knows of them: the role once, how to reach them, where they work, what they may be sent, their lists. */
+function railGroups(c: PageCtx) {
+  const { p, canRecord, flash, first } = c;
   // The role, said once for the rail: every locked control used to say it again under itself.
   const roleNote = !canRecord ? "You can read this page; an owner or operator changes it." : null;
   return (
-    <aside className="cl-prof-rail" aria-label={`About ${who === "This person" ? "this person" : who}`}>
+    <>
       {roleNote && (
         <div className="cl-prof-rail-note" data-testid="person-role-note">
           {roleNote}
         </div>
       )}
       {aboutCard(c)}
+      <WorksAtCard c={c} />
       {settingsCard(c)}
-      <div className="cl-prof-rail-section">
-        <div className="cl-prof-rail-label">{NOTE_WORDS.title}</div>
-        <PersonNotes p={p} canEdit={canRecord} isOwner={isOwner} flash={flash} onChanged={load} />
-      </div>
       <div className="cl-prof-rail-section" data-testid="person-lists">
         <div className="cl-prof-rail-label">Lists</div>
         <PersonLists personId={p.id} canEdit={canRecord} first={first} flash={flash} smart={p.smartLists || []} />
       </div>
-      {/* What a playbook or a broadcast sent them, and what came of it: each row opens the run's own report. */}
-      {campaignsCard(p)}
-    </aside>
+    </>
   );
 }
 
-/** The page of a person who is here: the hero, then the column (their deal, Coming up, History) beside the rail. */
+/**
+ * The page of a person who is here (canvas A): on a desk the identity rail beside the work column, on a phone one column
+ * with the rail's groups under About; the business sheet over it when it is open.
+ */
 function personPage(c: PageCtx, toastNode: ReactNode) {
-  const { p } = c;
-  const comingUp = p.comingUp || [];
+  const { p, who } = c;
   // Their visits ahead are Coming up, above what has happened.
   const past = p.timeline.filter((t) => !t.ahead);
   // Nobody is called "+1": a person known only by number is "them" in copy, and the line under their name does not say the
   // number twice.
-  const phoneOnly = /^[+\d(]/.test(p.name);
-  const compose = openWith(c);
+  const phoneOnly = isIdentifierName(p.name);
+  const label = `About ${who === "This person" ? "this person" : who}`;
+  const about = (
+    <aside className="cl-prof-rail" aria-label={label}>
+      {railGroups(c)}
+    </aside>
+  );
   return (
-    <div className="cl-profile" data-takeover>
+    <div className="cl-profile" data-takeover data-tab={c.tab}>
       <div className="cl-prof-page">
-        {hero(c, compose, phoneOnly)}
-
-        <div className="cl-prof-body">
-          {/* Their deal (0008), first, where the work with them is: a card per open deal and its one next act, or one quiet
-              line. Nothing where deals are off. Its sends are the More menu's own path (openWith). */}
-          <PersonDealCard p={c.dealP} canRecord={c.canRecord} onCompose={compose} flash={c.flash} />
-          {comingUpSection(comingUp)}
-          {historySection(c, past)}
-          {rail(c)}
+        <div className="cl-prof-record" data-thin={p.thin || undefined}>
+          <div className="cl-prof-side">
+            {hero(c, phoneOnly)}
+            {c.phone ? null : about}
+          </div>
+          <div className="cl-prof-work">
+            <Figures c={c} />
+            <PersonTabs c={c} />
+            <TabBody c={c} past={past} about={about} />
+          </div>
         </div>
       </div>
+      <PhoneDock c={c} />
+      <BusinessSheet c={c} />
       {toastNode}
     </div>
   );
 }
 
 /** One person: read, drawn whole, and read again when what they are made of moves. */
-function ClientProfileReal({ id }: { id: string }) {
+function ClientProfileReal({ id, tab: asked }: { id: string; tab: PersonTab }) {
   const [st, setSt] = useHeld(id);
   const [toastNode, flash] = usePersonToast();
   // "Delete this person" is a typed-name confirmation, not a click: it erases messages, media and recordings and cannot be
@@ -159,9 +217,16 @@ function ClientProfileReal({ id }: { id: string }) {
     visit: useRecordFold("person-visit"),
     offers: useRecordFold("person-offers"),
   };
-  const load = useLoad(id, setSt);
+  const load = useLoad(id, st.vm, setSt);
   const people = usePeopleSeam();
   const { vm, loading, missing, error } = st;
+  const phone = usePhone();
+  const [tab, goTab] = useTab(id, asked, vm, phone);
+  // The business sheet (0052): one at a time, closed when the person changes.
+  const [sheet, setSheet] = useState(false);
+  // The page's first part (client/page-speed.ts): the person drawn whole, or said missing or unread. A person opened
+  // from another is a move inside the page, timed from its press.
+  usePartShown("person", "hero", !!vm || missing || (!!error && !loading), id);
   // Their People row, once People has it. Their page open is them read (surfaces/seen.ts), here as in People, the Inbox
   // and Conversations: the row says what was new, and the page on screen is the reader seeing it.
   const peopleRow = people && people.rows ? people.rows.find((r) => r.id === id) : null;
@@ -199,8 +264,9 @@ function ClientProfileReal({ id }: { id: string }) {
   // Where the proposal follow-up has them in hand (0006), their People row says so: the deal card then says when its run goes,
   // and leads with no nudge of its own. People unread, the card says what it said.
   const dealP = peopleRow && peopleRow.followUp ? { ...vm, followUp: peopleRow.followUp } : vm;
-  const phoneOnly = /^[+\d(]/.test(vm.name);
-  const first = phoneOnly ? "them" : shortName(vm.name);
+  const phoneOnly = isIdentifierName(vm.name);
+  // A stand-in named for their business is said whole (0052): "More for Zilker Strength Lab", never "More for Zilker".
+  const first = phoneOnly ? "them" : vm.standIn ? vm.name : shortName(vm.name);
   const c: PageCtx = {
     p: vm,
     dealP,
@@ -226,7 +292,15 @@ function ClientProfileReal({ id }: { id: string }) {
     tlAll,
     setTlAll,
     folds,
+    tab,
+    goTab,
+    phone,
+    sheet,
+    setSheet,
+    compose: () => undefined,
   };
+  // Every send the page offers opens their thread through one path (the More menu's, the deal card's, Up next's).
+  c.compose = openWith(c);
   return personPage(c, toastNode);
 }
 
@@ -240,7 +314,7 @@ function mayMergeWith(p: PersonVM, r: PersonRowVM): boolean {
   return true;
 }
 
-/** The page a route draws for `clients/<id>`: a real workspace's person, in full. */
-export function ClientProfile({ id }: { id: string }) {
-  return <ClientProfileReal id={id} />;
+/** The page a route draws for `clients/<id>[/<tab>]`: a real workspace's person, in full, on the tab the address names. */
+export function ClientProfile({ id, tab = "overview" }: { id: string; tab?: PersonTab }) {
+  return <ClientProfileReal id={id} tab={tab} />;
 }

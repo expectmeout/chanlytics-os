@@ -4,6 +4,7 @@
  * hookless: every answer goes out through the acts (`on.<name>`) the page's factory built.
  */
 import { LEAD_WORDS as W } from "@chanlytics/contracts";
+import { Field } from "../../kit/field/field";
 import type { LeadPeekVM } from "@chanlytics/contracts";
 import { confirmPart } from "../../legacy-parts";
 import { Menu } from "../../kit/menu/menu";
@@ -136,6 +137,18 @@ export const LeadCallAsk = ({
           </button>
         ))}
       </div>
+      {/* Under Interested (0052): who the call reached, the name their page takes. */}
+      {armed && armed.outcome === "interested" ? (
+        <Field
+          label={W.spokeWith}
+          value={armed.spokeWith ?? ""}
+          onValueChange={on.onSpokeWith}
+          maxLength={80}
+          placeholder={W.spokeWithPlaceholder}
+          spellCheck={false}
+          data-testid="peek-spoke-with"
+        />
+      ) : null}
       <input
         className="pk-input"
         type="text"

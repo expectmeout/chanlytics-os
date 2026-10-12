@@ -215,16 +215,6 @@
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
-.user-credits {
-  margin-left: auto;
-  font-size: var(--text-xs);
-  color: var(--ink-dim);
-  background: var(--bg-raised);
-  padding: 2px 7px;
-  border-radius: var(--radius-full);
-  border: 1px solid var(--line);
-}
-
 .sidebar-brand {
   display: flex;
   align-items: center;
@@ -1593,10 +1583,11 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 /* ====================================================================
    ONE APPOINTMENT ON A LIST — components/day-agenda.jsx
    ==================================================================== */
-/* Today's day (dashboard-a-v2.css .td-*) and the Calendar's agenda (calendar.css .cal-agenda-*) each drew this
-   row, in their own grid and their own sizes: 56px of time against 120px, 12.5px names against 12.5px titles in
-   the other order, a rail on one and none on the other. The numbers below are Today's, which is the one the two
-   now share. A page keeps its own day heading, its own press, and its own words above and below the list. */
+/* Today's day and the Calendar's agenda (calendar.css .cal-agenda-*) each drew this row, in their own grid and
+   their own sizes: 56px of time against 120px, 12.5px names against 12.5px titles in the other order, a rail on
+   one and none on the other. The numbers below are Today's, which is the one the two shared; Today's day pane is
+   gone (canvas E3 folds the day into the strip) and the Calendar's agenda is the one page that draws it now. A page
+   keeps its own day heading, its own press, and its own words above and below the list. */
 .ag-items {
   position: relative;
   display: flex;
@@ -2788,3 +2779,10 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   letter-spacing: 0.04em;
   color: var(--ink-dim);
 }
+
+/* A visit said where it is seen (surfaces/visit-line.tsx, decision 0047): the presses in a row, the question before them, the word
+   once the door has written, and the door's refusal under them. Layout and the quiet ink alone; the presses are the kit's. */
+.visit-acts { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.visit-ask { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; }
+.visit-ask-question, .visit-said { font-size: var(--text-xs); color: var(--ink-muted); }
+.visit-refused { flex-basis: 100%; color: var(--ink-muted); font-size: var(--text-xs); }

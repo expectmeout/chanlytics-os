@@ -11,27 +11,27 @@
 
   <link rel="stylesheet" href="styles/tokens.css?v=26" />
   <link rel="stylesheet" href="surfaces/kit/kit.css?v=31" />
-  <link rel="stylesheet" href="styles/components.css?v=126" />
+  <link rel="stylesheet" href="styles/components.css?v=127" />
   <link rel="stylesheet" href="surfaces/campaigns/campaigns.css?v=10" />
   <link rel="stylesheet" href="styles/dashboard.css?v=7" />
-  <link rel="stylesheet" href="styles/dashboard-a-v2.css?v=55" />
-  <link rel="stylesheet" href="styles/inbox.css?v=39" />
-  <link rel="stylesheet" href="styles/clients.css?v=70" />
+  <link rel="stylesheet" href="styles/dashboard-a-v2.css?v=56" />
+  <link rel="stylesheet" href="styles/inbox.css?v=40" />
+  <link rel="stylesheet" href="styles/clients.css?v=71" />
   <link rel="stylesheet" href="styles/people.css?v=15" />
   <link rel="stylesheet" href="styles/leads.css?v=49" />
   <link rel="stylesheet" href="styles/store.css?v=17" />
   <link rel="stylesheet" href="styles/fleet.css?v=7" />
   <link rel="stylesheet" href="styles/pipeline.css?v=4" />
-  <link rel="stylesheet" href="styles/conversations.css?v=12" />
-  <link rel="stylesheet" href="styles/live.css?v=8" />
-  <link rel="stylesheet" href="styles/calendar.css?v=27" />
+  <link rel="stylesheet" href="styles/conversations.css?v=13" />
+  <link rel="stylesheet" href="styles/live.css?v=9" />
+  <link rel="stylesheet" href="styles/calendar.css?v=28" />
   <link rel="stylesheet" href="styles/charts.css?v=7" />
   <link rel="stylesheet" href="styles/record.css?v=29" />
-  <link rel="stylesheet" href="styles/reports.css?v=18" />
+  <link rel="stylesheet" href="styles/reports.css?v=19" />
   <link rel="stylesheet" href="styles/settings.css?v=109" />
   <link rel="stylesheet" href="styles/first-run.css?v=10" />
-  <link rel="stylesheet" href="styles/mobile.css?v=71" />
-  <link rel="stylesheet" href="styles/ask.css?v=33" />
+  <link rel="stylesheet" href="styles/mobile.css?v=72" />
+  <link rel="stylesheet" href="styles/ask.css?v=34" />
 
   <style>
     html, body { height: 100%; overflow: hidden; }
@@ -46,9 +46,9 @@
   <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 
   <!-- Bridge stand-ins (harness only — the bundle publishes these for real) -->
-  <script type="text/babel" src="data/bridge-stubs.jsx?v=7"></script>
-  <!-- The kit's components the pages below still draw by name (Icon, EmptyState, FailedRead, SegmentBar, StatePill, PolicyChip, MoreMenu, Confirm, FieldError and the record kit: RecordRow, RecordField, RecordFold, RecordSheet ...): surfaces/kit/kit-globals.ts, built by tooling/scripts/serve-legacy.mjs, the object the app publishes from seed-globals -->
-  <script src="data/kit-globals.js?v=3"></script>
+  <script type="text/babel" src="data/bridge-stubs.jsx?v=8"></script>
+  <!-- The kit's components the pages below still draw by name (Icon, FailedRead, SegmentBar, StatePill, PolicyChip, MoreMenu, Confirm, RecordSwitch ...): surfaces/kit/kit-globals.ts, built by tooling/scripts/serve-legacy.mjs, the object the app publishes from seed-globals -->
+  <script src="data/kit-globals.js?v=4"></script>
   <!-- The Inbox's and Conversations' names the pages below still read (INBOX_DATA, CONVERSATIONS_DATA, IX_STORE, ixWaitsOnYou, CV_ROUTE, CV_IN_CHANNEL): surfaces/inbox/legacy-globals.ts, built by the same server, the object the app publishes from seed-globals; the two pages themselves are App Router pages only the app draws -->
   <script src="data/inbox-globals.js?v=1"></script>
   <!-- People's parts the shell still draws by name (the strip's scopes, the deal and step sheets, the demo's Lists marks): surfaces/people/people-globals.ts, built by the same server, the object the app publishes from seed-globals -->
@@ -61,48 +61,44 @@
   <script src="data/mascot.js?v=7"></script>
 
   <!-- Foundations -->
-  <script type="text/babel" src="components/surface-tabs.jsx?v=17"></script>
-  <script type="text/babel" src="components/sidebar.jsx?v=36"></script>
-  <script type="text/babel" src="components/shortcuts.jsx?v=3"></script>
-  <script type="text/babel" src="components/ask-face.jsx?v=9"></script>
-  <script type="text/babel" src="components/topbar.jsx?v=37"></script>
-  <script type="text/babel" src="components/data-bits.jsx?v=47"></script>
+  <script type="text/babel" src="components/surface-tabs.jsx?v=18"></script>
+  <script type="text/babel" src="components/sidebar.jsx?v=37"></script>
+  <script type="text/babel" src="components/shortcuts.jsx?v=4"></script>
+  <script type="text/babel" src="components/ask-face.jsx?v=10"></script>
+  <script type="text/babel" src="components/topbar.jsx?v=38"></script>
+  <script type="text/babel" src="components/data-bits.jsx?v=48"></script>
 
   <!-- Data -->
-  <script type="text/babel" src="data/constants.jsx?v=6"></script>
-  <script type="text/babel" src="data/clients-data.jsx?v=11"></script>
-  <script type="text/babel" src="data/people-data.jsx?v=14"></script>
+  <script type="text/babel" src="data/constants.jsx?v=7"></script>
 
-  <!-- Ask: the palette the seed draws (Today's own page is TSX, an App Router page the mockup does not draw) -->
-  <script type="text/babel" src="pages/dashboard-a-ask.jsx?v=36"></script>
+  <!-- Ask: the Line (Today's own page is TSX, an App Router page the mockup does not draw); the seeded palette is the demo's, below -->
   <script type="text/babel" src="pages/ask-text.jsx?v=16"></script>
   <script type="text/babel" src="pages/ask-hooks.jsx?v=14"></script>
   <script type="text/babel" src="pages/ask-turn.jsx?v=17"></script>
   <script type="text/babel" src="pages/ask-home.jsx?v=6"></script>
-  <script type="text/babel" src="pages/ask-real.jsx?v=38"></script>
-
-  <!-- People (Triage-first portfolio) -->
-  <script type="text/babel" src="pages/clients-bits.jsx?v=2"></script>
+  <script type="text/babel" src="pages/ask-real.jsx?v=39"></script>
 
   <!-- Campaigns, Settings -->
 
 
   <!-- Shell -->
-  <script type="text/babel" src="pages/app-routes.jsx?v=8"></script>
-  <script type="text/babel" src="pages/app-shell.jsx?v=81"></script>
+  <script type="text/babel" src="pages/app-routes.jsx?v=9"></script>
+  <script type="text/babel" src="pages/app-shell.jsx?v=82"></script>
 
   <!-- The mockup's own files (legacy/demo/, legacy-bridge/manifest-demo.ts): after every file above, as the app loads
        them in a session that declared itself a demo. A real workspace never loads them. -->
+  <script type="text/babel" src="demo/data/clients-data.jsx?v=12"></script>
+  <script type="text/babel" src="demo/data/people-data.jsx?v=15"></script>
   <script type="text/babel" src="demo/data/dashboard-data.jsx?v=21"></script>
   <script type="text/babel" src="demo/data/store-data.jsx?v=12"></script>
-  <script type="text/babel" src="demo/data/fleet-data.jsx?v=9"></script>
+  <script type="text/babel" src="demo/data/fleet-data.jsx?v=10"></script>
   <script type="text/babel" src="demo/data/pipeline-data.jsx?v=5"></script>
-  <script type="text/babel" src="demo/data/calendar-data.jsx?v=6"></script>
   <script type="text/babel" src="demo/data/reports-data.jsx?v=5"></script>
   <script type="text/babel" src="demo/data/tasks-data.jsx?v=8"></script>
-  <script type="text/babel" src="demo/pages/segments.jsx?v=18"></script>
-  <script type="text/babel" src="demo/pages/agent-store.jsx?v=20"></script>
-  <script type="text/babel" src="demo/pages/agent-fleet.jsx?v=23"></script>
+  <script type="text/babel" src="demo/pages/dashboard-a-ask.jsx?v=37"></script>
+  <script type="text/babel" src="demo/pages/segments.jsx?v=19"></script>
+  <script type="text/babel" src="demo/pages/agent-store.jsx?v=21"></script>
+  <script type="text/babel" src="demo/pages/agent-fleet.jsx?v=24"></script>
   <script type="text/babel" src="demo/pages/agent-studio.jsx?v=18"></script>
   <script type="text/babel" src="demo/pages/content-cal.jsx?v=8"></script>
   <script type="text/babel" src="demo/pages/pipeline.jsx?v=12"></script>

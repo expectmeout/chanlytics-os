@@ -1173,7 +1173,7 @@ const SETUP_AND_CHANGE = [
   "change_rename_and_hour",
   "change_hour_out_of_bounds",
   "change_reach_out_refused",
-  // A change's new fields (00409; the review after the merge, batch E): its words, its last day and its trial.
+  // A change's new fields (00416; the review after the merge, batch E): its words, its last day and its trial.
   "change_words",
   "change_last_day",
   "change_trial_week",
@@ -1318,7 +1318,7 @@ test("the cases fit their workspace and name the new reads (the review after the
     }
   }
   assert.deepEqual(CASES.find((c) => c.expect.tools_any?.includes("calendar.room")).needs, ["calendar"]);
-  // A change's three new fields (00409), each asked of the seed's Win-back through action change. The seed's message
+  // A change's three new fields (00416), each asked of the seed's Win-back through action change. The seed's message
   // takes no values (e2e-workspace.mjs convergeWinBack), so new words for it are refused in the door's own words
   // ("This template takes no values."): that case grades the pick alone, and the last day and the trial grade the card.
   const expect = (id) => byId[id].expect;

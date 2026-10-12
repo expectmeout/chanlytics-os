@@ -45,7 +45,7 @@ const ARCHIVED = "2026-09-20T12:00:00.000Z";
 const operator = [
   { user_id: USER, tenant_id: B, role: "operator", tenants: { slug: "bayside" }, created_at: "2026-01-01" },
 ];
-/** The `change_playbook` door in memory, for a playbook's pause or resume, as 00409 writes it (_change-door.mjs). */
+/** The `change_playbook` door in memory, for a playbook's pause or resume, as 00416 writes it (_change-door.mjs). */
 const changeDoor = (tables) => changePlaybookDoor(tables, USER);
 const ctxFor = (tables, params = {}, faults = {}) => ({
   supabase: fakeDb(tables, faults, changeDoor(tables)),

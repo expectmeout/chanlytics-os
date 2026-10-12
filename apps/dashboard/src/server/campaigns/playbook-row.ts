@@ -64,7 +64,7 @@ const ONE_OF_THREE = {
 
 /**
  * A change in place (the moment spec §4.9 A5): any of the nine, and no other key; its words (`params`, the values its
- * message takes), its last day (`until`, YYYY-MM-DD) and its trial's end (`trial_until`, an instant) since 00409, a null
+ * message takes), its last day (`until`, YYYY-MM-DD) and its trial's end (`trial_until`, an instant) since 00416, a null
  * clearing either date. Core judges each value, in words.
  */
 const PATCH_BODY = z.strictObject(
@@ -111,7 +111,7 @@ export const PLAYBOOK_PUT_BODY = z.union([PATCH_BODY, CHANNELS_BODY, WHOLE_BODY]
 type PlaybookPutBody = z.infer<typeof PLAYBOOK_PUT_BODY>;
 
 /**
- * The end of the trial a new playbook starts on (00409, D5), at `now`, this route's clock: `trial: true` (Ask's card,
+ * The end of the trial a new playbook starts on (00416, D5), at `now`, this route's clock: `trial: true` (Ask's card,
  * which asks it under an auto class) is a week from now, counted from the Approve and never from when the card was made
  * (contracts newCampaignTrialUntil); an explicit `trial_until` is an instant still to come (core trialUntilOf, a change's
  * own judge); neither is none, as the composer's campaigns start.

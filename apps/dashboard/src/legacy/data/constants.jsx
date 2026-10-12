@@ -74,34 +74,9 @@ const CHANLY = {
   },
   fmtPct(x) { return Math.round(x * 100) + "%"; },
 
-  // ---- Agent registry (FLEET_ROSTER is the source of truth) ----
-  agents() { return (window.FLEET_DATA && window.FLEET_DATA.FLEET_ROSTER) || []; },
-  agentById(id) { return this.agents().find((a) => a.id === id) || null; },
-  agentByName(name) { return this.agents().find((a) => a.name === name) || null; },
-  agentByGlyph(g) { return this.agents().find((a) => a.glyph === g) || null; },
-  agentIdFor(name) {
-    const a = this.agentByName(name);
-    return a ? a.id : String(name || "").toLowerCase().replace(/\s+/g, "-");
-  },
-
-  // ---- Segment helpers (CLIENT_SEGMENTS + SEGMENT_META) ----
-  seg(id) { return (window.CLIENT_SEGMENTS || []).find((s) => s.id === id) || null; },
-  segsOf(personId, { lead = false } = {}) {
-    const META = window.SEGMENT_META || {};
-    return Object.keys(META)
-      .filter((k) => ((META[k] || {}).members || []).some((m) => m.id === personId && !!m.lead === lead))
-      .map((k) => this.seg(k))
-      .filter(Boolean);
-  },
-  membersOf(segId) { return (((window.SEGMENT_META || {})[segId]) || {}).members || []; },
-
-  // ---- Compliance (consent + DNC) ----
-  // Absent from the registry = consented and clear; only exceptions are recorded.
-  compliance(id) {
-    const c = (window.COMPLIANCE || {})[id] || {};
-    return { consent: c.consent || "granted", dnc: !!c.dnc, method: c.method || null, date: c.date || null };
-  },
-  canMessage(id) { const c = this.compliance(id); return c.consent === "granted" && !c.dnc; },
+  // The agent registry (agents, agentById, agentByName, agentByGlyph, agentIdFor), the segment helpers (seg, segsOf,
+  // membersOf) and the compliance ones (compliance, canMessage) read the mockup's seeded roster, people and segments, which a
+  // real workspace never loads: they live with those seeds (demo/data/fleet-data.jsx, clients-data.jsx, people-data.jsx).
 };
 
 window.CHANLY = CHANLY;

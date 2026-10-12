@@ -439,6 +439,7 @@ test("what waits, what failed, who answered and what Meta stopped", { skip }, as
         paused_until: null,
         assignee_user_id: null,
         open_escalation: true,
+        open_escalation_reason: "manual",
         replied_at: iso(sentAt.T1 + repliedAfter.T1),
       },
       {
@@ -446,6 +447,7 @@ test("what waits, what failed, who answered and what Meta stopped", { skip }, as
         paused_until: null,
         assignee_user_id: null,
         open_escalation: false,
+        open_escalation_reason: null,
         replied_at: iso(sentAt.T2 + repliedAfter.T2),
       },
       {
@@ -453,6 +455,7 @@ test("what waits, what failed, who answered and what Meta stopped", { skip }, as
         paused_until: iso(T0 - 2 * DAY),
         assignee_user_id: null,
         open_escalation: false,
+        open_escalation_reason: null,
         replied_at: iso(sentAt.T3 + repliedAfter.T3),
       },
       {
@@ -460,6 +463,7 @@ test("what waits, what failed, who answered and what Meta stopped", { skip }, as
         paused_until: null,
         assignee_user_id: colleague,
         open_escalation: true,
+        open_escalation_reason: "manual",
         replied_at: iso(sentAt.T5 + repliedAfter.T5),
       },
     ],
@@ -552,7 +556,13 @@ test("the replies prefilter is a superset of what standingOfThread calls flagged
     if (row) {
       assert.deepEqual(
         row,
-        { ...columns, open_escalation: c.escalation, replied_at: iso(sentAt(i) + MINUTE) },
+        {
+          ...columns,
+          open_escalation: c.escalation,
+          // What the open hold is for, so a hold that waits on nobody (a STOP) is not counted (00409, waitsOnAPerson).
+          open_escalation_reason: c.escalation ? "manual" : null,
+          replied_at: iso(sentAt(i) + MINUTE),
+        },
         `the facts of the thread: ${said}`,
       );
     }
@@ -776,7 +786,7 @@ test("a reach-out run is never a campaign reply, and a stranger reads nothing", 
   ]);
   assert.deepEqual(keys(answer.runs_failed), [["failure", "finished_at", "id", "kind", "name"]]);
   assert.deepEqual(keys(answer.replies), [
-    ["assignee_user_id", "open_escalation", "paused_until", "replied_at", "state"],
+    ["assignee_user_id", "open_escalation", "open_escalation_reason", "paused_until", "replied_at", "state"],
   ]);
   assert.deepEqual(keys(answer.templates), Array(2).fill(["language", "name", "quality", "status"]));
   assert.deepEqual(

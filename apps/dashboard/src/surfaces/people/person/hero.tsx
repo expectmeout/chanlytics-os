@@ -4,8 +4,16 @@
  * acts beside them: the thread, its one primary, and a More menu whose items, words, groups and roles are contracts'
  * `personActs`. What an act does is its hover, never a sentence beside the label, which wrapped and ran past the menu's edge.
  */
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
-import { DOUBT_WORDS, MERGE_WORDS, NEW_CONVERSATION_WORDS, proposalMessage } from "@chanlytics/contracts";
+import {
+  DOUBT_WORDS,
+  MERGE_WORDS,
+  NEW_CONVERSATION_WORDS,
+  appointmentWords,
+  proposalMessage,
+} from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Face } from "../../kit/face/face";
 import { Menu } from "../../kit/menu/menu";
@@ -18,9 +26,13 @@ import { Icon } from "../../kit/icon/icon";
 import { Picker } from "../../kit/picker/picker";
 import type { PickerGroup } from "../../kit/picker/picker";
 import { gate, navigate } from "../../legacy-verbs";
+import { carryReply } from "../../inbox/carried-reply";
 import { openNewConversation } from "../../inbox/new-conversation/store";
-import { deletePerson, mergePerson, settleDoubt } from "../people-detail";
+import { visitWordHere } from "../../visit-line";
+import { deletePerson, keptOf, mergePerson, settleDoubt } from "../people-detail";
+import { BusinessTile, HeadLine } from "./business";
 import { PersonName } from "./name";
+import { NameNotices, putNameBack } from "./signer";
 import { digitsOf } from "./ctx";
 import type { PageCtx } from "./ctx";
 import type { PersonDoubtVM, PersonRowVM } from "@chanlytics/contracts";
@@ -43,17 +55,9 @@ export function openWith(c: PageCtx): (text?: string | null) => void {
   const { p } = c;
   return (text) => {
     const thread = p.openThread;
-    if (text && thread !== null) {
-      try {
-        sessionStorage.setItem(
-          "chanlytics-compose",
-          JSON.stringify({ threadId: thread.replace(/^inbox\//, ""), text }),
-        );
-      } catch {
-        /* nothing to carry */
-      }
-    }
-    if (thread !== null) navigate(thread);
+    if (thread === null) return;
+    if (text) carryReply(thread, text);
+    navigate(thread);
   };
 }
 
@@ -78,7 +82,8 @@ function moreGroups(c: PageCtx, compose: (text?: string | null) => void): MenuGr
   const { p, canRecord, isOwner, setDel, setMerge } = c;
   const doAct: Record<string, () => void> = {
     booking: () => {
-      if (p.bookingLinkAction.ready) compose(`Here's the link to book your appointment: ${p.bookingLink}`);
+      if (p.bookingLinkAction.ready && p.bookingLink)
+        compose(appointmentWords(visitWordHere()).bookingLink(p.bookingLink));
       else if (p.openThread !== null) navigate(p.openThread);
     },
     proposal: () => {
@@ -100,7 +105,10 @@ function moreGroups(c: PageCtx, compose: (text?: string | null) => void): MenuGr
       setMerge({ open: true, pick: null, typed: "", busy: false, error: null });
     },
   };
-  const acts = (p.acts || []).filter((a) => a.needs === "any" || (a.needs === "record" ? canRecord : isOwner));
+  // Call is the head's own act now (canvas A: Call · Note · More), so the menu does not say it again.
+  const acts = (p.acts || []).filter(
+    (a) => a.id !== "call" && (a.needs === "any" || (a.needs === "record" ? canRecord : isOwner)),
+  );
   // A few words each, a line between the groups, and what an act does on hover: a sentence beside every label was a
   // block of wrapped words cut off at the menu's edge.
   const groups: { key: string; items: MenuItem[] }[] = [];
@@ -235,20 +243,30 @@ function doubtRows(c: PageCtx) {
 function mergeBox(c: PageCtx) {
   const { p, merge, setMerge, others, flash, load } = c;
   // People's other rows, and the other record of each doubt (0034 step 4) People has not read or does not list.
+  // Combine (0052): the people at the same business a notice offers to combine with, which People's rows do not offer (two
+  // addresses), and which the door takes as one human.
+  const combineIds = new Set(p.notices.flatMap((n) => (n.act.do.kind === "combine" ? [n.act.do.otherId] : [])));
+  const atBusiness: MergeOption[] = (p.business?.people ?? [])
+    .filter((x) => combineIds.has(x.id))
+    .map((x) => ({ id: x.id, name: x.name, phone: null, email: null }));
   const rows: MergeOption[] = [
     ...(others ?? []),
     ...p.doubts
       .filter((d) => !(others ?? []).some((o) => o.id === d.otherId))
       .map((d) => ({ id: d.otherId, name: d.other, phone: d.phone, email: d.email })),
+    ...atBusiness.filter((x) => !(others ?? []).some((o) => o.id === x.id)),
   ];
   const other = rows.find((r) => r.id === merge.pick) ?? null;
+  // From a stand-in's page, the person who answered is the one kept: their name is the one typed.
+  const keepsOther = !!other && p.standIn && combineIds.has(other.id);
+  const keptName = keepsOther && other ? other.name : p.name;
   // Two records of one name are told apart by what else the row says (a number, an address).
   const said = (r: MergeOption) => [r.phone, r.email].filter(Boolean).join(" · ");
   const nameOf = (r: MergeOption) =>
     rows.some((o) => o.id !== r.id && o.name === r.name) && said(r) ? `${r.name} (${said(r)})` : r.name;
   const typedMatches =
-    merge.typed.trim() === p.name ||
-    (!!p.phone && digitsOf(merge.typed).length >= 7 && digitsOf(merge.typed) === digitsOf(p.phone));
+    merge.typed.trim() === keptName ||
+    (!keepsOther && !!p.phone && digitsOf(merge.typed).length >= 7 && digitsOf(merge.typed) === digitsOf(p.phone));
   const groups: PickerGroup<string>[] = [
     {
       options: rows.map((r) => ({ value: r.id, label: r.name, sub: said(r) || undefined })),
@@ -262,11 +280,14 @@ function mergeBox(c: PageCtx) {
       setMerge((m) => ({ ...m, busy: false, error: r.message || "Could not merge these records." }));
       return;
     }
-    flash({ msg: MERGE_WORDS.done(p.name, nameOf(other)) });
+    const kept = keptOf(r.data, p.id);
+    flash({ msg: kept === p.id ? MERGE_WORDS.done(p.name, nameOf(other)) : MERGE_WORDS.done(keptName, p.name) });
     setMerge({ open: false, pick: null, typed: "", busy: false, error: null });
-    load();
+    // Combined into the person who answered: this record is gone, and their page is the one to be on.
+    if (kept !== p.id) navigate(`clients/${kept}`);
+    else load();
   };
-  const name = other ? nameOf(other) : "the other record";
+  const name = other ? (keepsOther ? p.name : nameOf(other)) : "the other record";
   return (
     <div className="cl-prof-danger" data-testid="merge">
       <div>
@@ -292,14 +313,14 @@ function mergeBox(c: PageCtx) {
       <Confirm
         block
         danger
-        typed={p.name}
+        typed={keptName}
         value={merge.typed}
         onType={(v) => setMerge((m) => ({ ...m, typed: v }))}
         ready={!!other && typedMatches}
-        question={MERGE_WORDS.question(p.name, name)}
+        question={MERGE_WORDS.question(keptName, name)}
         detail={
           <>
-            {MERGE_WORDS.detail(p.name, name)} {MERGE_WORDS.typed(p.name)}
+            {MERGE_WORDS.detail(keptName, name)} {MERGE_WORDS.typed(keptName)}
           </>
         }
         yes={MERGE_WORDS.yes}
@@ -328,17 +349,24 @@ function heroId(c: PageCtx, phoneOnly: boolean) {
   const idLine = idLineOf(c, phoneOnly);
   return (
     <div className="cl-prof-id">
-      <Face initials={p.initials} size="xl" />
+      {p.head.face.kind === "tile" ? (
+        <BusinessTile face={p.head.face} size="xl" />
+      ) : (
+        <Face person={{ name: p.name, initials: p.initials }} size="xl" />
+      )}
       <div className="cl-prof-titles">
         {/* The name, and beside it where they stand: a dot and the standing's word, its sentence on hover. The sentence is
             said under the line only when it asks for something: "New messages are answered automatically" under every
             answered person said nothing. */}
         <div className="cl-prof-name-line">
-          <PersonName p={p} canEdit={canRecord} flash={flash} />
+          <PersonName p={p} canEdit={canRecord} flash={flash} onPutBack={() => void putNameBack(c)} />
           <span className="cl-prof-now" data-tone={tone} data-testid="person-now" title={p.rightNow.detail}>
             <StatePill kind="standing" value={tone} testid="person-standing" />
           </span>
         </div>
+        {/* A sign-off waiting, or a record to combine with, takes the line under the name; else the business (a door
+            to its sheet), a stand-in's story, or that the business was removed (0052). */}
+        {p.notices.some((n) => n.home === "name") ? <NameNotices c={c} /> : <HeadLine c={c} />}
         {idLine.length > 0 && (
           <div className="cl-prof-meta cl-prof-idline" data-testid="person-id-line">
             <div className="cl-prof-idline-run">
@@ -372,14 +400,42 @@ function heroId(c: PageCtx, phoneOnly: boolean) {
   );
 }
 
-/** The page's acts: its one primary, their thread, and the More menu. */
+/** Note: Overview's composer, brought into view and focused (canvas A, the head's acts). */
+function toTheNote(c: PageCtx) {
+  c.goTab("overview");
+  requestAnimationFrame(() => {
+    const box = document.querySelector<HTMLElement>('[data-testid="person-notes-input"]');
+    if (!box) return;
+    box.scrollIntoView({ block: "center" });
+    box.focus();
+  });
+}
+
+/** Their number to ring from the member's own phone, or, for someone at a business with none of their own, the listing's. */
+function telOf(c: PageCtx): string | null {
+  const own = String(c.p.phone || "").replace(/[^d+]/g, "");
+  if (own) return `tel:${own}`;
+  return c.p.business?.phone?.tel ?? null;
+}
+
+/**
+ * The page's one primary: their thread in every state that has one (Right now's act where it says one), except a person who
+ * opted out, whose header's Open thread was their only way in.
+ */
+function threadCtaOf(c: PageCtx): { label: string; to: string } | null {
+  const { p } = c;
+  return p.rightNow.cta || (p.openThread ? { label: "Open the thread", to: p.openThread } : null);
+}
+
+/** The page's acts: its one primary, their thread; then Call, Note and the More menu. */
 function heroActs(c: PageCtx, more: MenuGroup[]): ReactNode {
   const { p, who } = c;
+  const tel = telOf(c);
   // The action lives in Right now, beside what needs doing. Its own button is the thread in every state that has one,
   // except a person who opted out: the header's Open thread was their only way in, so it falls back to it.
-  const threadCta = p.rightNow.cta || (p.openThread ? { label: "Open the thread", to: p.openThread } : null);
+  const threadCta = threadCtaOf(c);
   return (
-    <div className="cl-prof-queue-actions">
+    <div className="cl-prof-queue-actions" data-testid="person-acts">
       {threadCta && (
         <Button size="lg" variant="primary" onClick={() => navigate(threadCta.to)} data-testid="person-open-thread">
           {threadCta.label}
@@ -398,27 +454,43 @@ function heroActs(c: PageCtx, more: MenuGroup[]): ReactNode {
           {NEW_CONVERSATION_WORDS.personDoor}
         </Button>
       )}
-      {/* Words, not three dots: a ⋯ was too quiet to be found, and it held one thing. */}
-      {more.length > 0 && (
-        <Menu
-          label={`More for ${who}`}
-          groups={more}
-          trigger={
-            <Button size="lg" title={`More for ${who}`} data-testid="person-more">
-              More <Icon name="chevron-down" size={10} />
-            </Button>
-          }
-        />
-      )}
+      <div className="cl-prof-acts-row">
+        {/* The member's own phone rings them, as a lead is called; never the receptionist. */}
+        {tel ? (
+          <Button size="sm" href={tel} data-testid="person-call">
+            <Icon name="phone" size={12} /> Call
+          </Button>
+        ) : null}
+        {c.canRecord ? (
+          <Button size="sm" onClick={() => toTheNote(c)} data-testid="person-note-act">
+            <Icon name="edit" size={12} /> Note
+          </Button>
+        ) : null}
+        {/* Words, not three dots: a ⋯ was too quiet to be found, and it held one thing. */}
+        {more.length > 0 && (
+          <Menu
+            label={`More for ${who}`}
+            groups={more}
+            trigger={
+              <Button size="sm" title={`More for ${who}`} data-testid="person-more">
+                More <Icon name="chevron-down" size={10} />
+              </Button>
+            }
+          />
+        )}
+      </div>
     </div>
   );
 }
 
-/** The hero: Back, who they are, the acts, the doubts the door raised on them, and the delete question while it is asked. */
-export function hero(c: PageCtx, compose: (text?: string | null) => void, phoneOnly: boolean) {
-  const more = moreGroups(c, compose);
+/**
+ * The head, at the top of the identity rail (canvas A): Back, who they are, the acts, the doubts the door raised on them,
+ * and the delete or merge question while it is asked.
+ */
+export function hero(c: PageCtx, phoneOnly: boolean) {
+  const more = moreGroups(c, c.compose);
   return (
-    <div className="cl-prof-hero">
+    <div className="cl-prof-hero cl-prof-head">
       {/* On a phone the word goes and the arrow takes a thumb's width: the top bar says People over it. */}
       <Button variant="quiet" size="sm" className="cl-prof-back" onClick={c.onBack} aria-label="Back to People">
         <Icon name="chevron" size={11} style={{ transform: "rotate(180deg)" }} />
@@ -430,5 +502,73 @@ export function hero(c: PageCtx, compose: (text?: string | null) => void, phoneO
       {c.del.open && deleteBox(c)}
       {c.merge.open && mergeBox(c)}
     </div>
+  );
+}
+
+/**
+ * The phone's foot dock (canvas A): once the head's acts have scrolled away, the same acts at the foot, one 52px capsule of
+ * the control layer's glass (the kit's docked capsule): the thread, then Call, Note and More as circles. Gone again as
+ * the head's acts come back on screen; never on a desk, where the rail keeps them in view. Drawn on the body: the page's
+ * scroller is a container (`.cl-profile`), which a fixed bar inside it would be placed in, at the foot of its content.
+ */
+export function PhoneDock({ c }: { c: PageCtx }) {
+  const [away, setAway] = useState(false);
+  useEffect(() => {
+    if (!c.phone || typeof IntersectionObserver === "undefined") return undefined;
+    const acts = document.querySelector('[data-testid="person-acts"]');
+    if (!acts) return undefined;
+    const watch = new IntersectionObserver(([seen]) => setAway(!!seen && !seen.isIntersecting));
+    watch.observe(acts);
+    return () => watch.disconnect();
+  }, [c.phone]);
+  if (!c.phone || !away) return null;
+  const cta = threadCtaOf(c);
+  const tel = telOf(c);
+  const more = moreGroups(c, c.compose);
+  return createPortal(
+    <div
+      className="cl-prof-dock capsule"
+      data-dock
+      role="toolbar"
+      aria-label={`Acts for ${c.who}`}
+      data-testid="person-dock"
+    >
+      {cta ? (
+        <Button variant="primary" className="cl-prof-dock-lead" onClick={() => navigate(cta.to)}>
+          {cta.label}
+        </Button>
+      ) : (
+        <Button
+          variant="primary"
+          className="cl-prof-dock-lead"
+          onClick={() => openNewConversation(c.p.id)}
+          {...gate("approve", NEW_CONVERSATION_WORDS.gate)}
+        >
+          {NEW_CONVERSATION_WORDS.personDoor}
+        </Button>
+      )}
+      {tel ? (
+        <Button iconOnly aria-label="Call" href={tel}>
+          <Icon name="phone" size={15} />
+        </Button>
+      ) : null}
+      {c.canRecord ? (
+        <Button iconOnly aria-label="Note" onClick={() => toTheNote(c)}>
+          <Icon name="edit" size={15} />
+        </Button>
+      ) : null}
+      {more.length > 0 ? (
+        <Menu
+          label={`More for ${c.who}`}
+          groups={more}
+          trigger={
+            <Button iconOnly aria-label={`More for ${c.who}`}>
+              <Icon name="more" size={15} />
+            </Button>
+          }
+        />
+      ) : null}
+    </div>,
+    document.body,
   );
 }

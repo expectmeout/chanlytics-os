@@ -11,22 +11,16 @@
  */
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
-import {
-  DEFAULT_TIMEZONE,
-  toGoogleVM,
-  type BroadcastVM,
-  type TodayFigureId,
-  type TodayFigureVM,
-  type TodayVM,
-} from "@chanlytics/contracts";
+import type { BroadcastVM, TodayFigureId, TodayFigureVM, TodayVM } from "@chanlytics/contracts";
 import type { BroadcastsSurface } from "@/surfaces/campaigns/broadcasts/surface";
 import type { PageClock } from "@/legacy-bridge/zone";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { surfaceValue } from "../../surface-values";
-import { useSurface, useSurfaceFailed } from "../../use-surface";
+import { usePartShown, useSurface, useSurfaceFailed } from "../../use-surface";
 import { TODAY_HELPERS } from "../helpers";
 import { appNavigate, doorGlyph, borrowed, workspaceClock, useMoved } from "../shell";
+import { reviewLineOf } from "./review-line";
 import { Button } from "../../kit/button/button";
 
 /** A door to a route: the frame's move. */
@@ -83,16 +77,9 @@ const RunsDone = ({ nav }: { nav: Nav }) => {
 // first read (contracts/google.ts reviewIsNew). From the Google surface, read where Today is drawn (ROUTE_DRAWS). Gone
 // once it is old news.
 const ReviewLine = ({ nav }: { nav: Nav }) => {
-  const G = useSurface("google");
-  if (!G || !G.dto.listing) return null;
-  // Only the line is drawn, which is no time of day: the workspace's zone is for the rest of the view model.
-  // Today's line is the thirty days to today, whatever Reports shows.
-  const line = toGoogleVM(
-    G.dto,
-    { days: 30, until: null },
-    Date.now(),
-    workspaceClock()?.zone() ?? DEFAULT_TIMEZONE,
-  ).todayLine;
+  // The line opens that review with its reply box (reports/reviews:<id>), and goes once it is answered; the bell's notice of the same
+  // review is not said again under While you were away (review-line.ts, away.tsx).
+  const line = reviewLineOf(useSurface("google"));
   if (!line) return null;
   return (
     <div className="brief-beat" data-testid="brief-review">
@@ -281,6 +268,8 @@ export const TodayCard = () => {
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
   const vm = surfaceValue("today");
+  // Drawn with the day and its period line, or with the line's read failed (client/page-speed.ts).
+  usePartShown("today", "card", !!vm && (!!R || headlineFailed));
   if (!vm) return null;
   const { recap, quiet } = vm;
   // The tile whole (canvas E3): on a quiet day the four figures are zeros, each with what is true under it (contracts

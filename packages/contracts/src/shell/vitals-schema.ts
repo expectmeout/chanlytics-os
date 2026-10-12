@@ -4,12 +4,19 @@
  * contracts (decision 0024, the browser's entry): a page that reports its load loads none of it.
  */
 import { z } from "zod";
-import { PAGE_VITALS, PAGE_NAME, PageVitalReport } from "./vitals";
+import { PAGE_BUILD, PAGE_DEVICES, PAGE_NAME, PAGE_VITALS_PER_BEACON, PageVitalReport } from "./vitals";
 
-/** What the shell sends: the page a load landed on, and what its metrics came to so far, each at most once. */
+/**
+ * What the shell sends: the page a load landed on, the shape of screen it was on and the deploy it ran (decision
+ * 0053), and its reports so far, each under its own id. A report of another page (a move's) names its page; one that
+ * names none is of the page the load landed on. A shell from before 0053 sends the page and its five alone, and is
+ * read the same.
+ */
 export const PageVitalsInput = z.object({
   page: z.string().regex(PAGE_NAME, { error: "A page's name is a word in lower case." }),
-  vitals: z.array(PageVitalReport).min(1).max(PAGE_VITALS.length),
+  device: z.enum(PAGE_DEVICES).optional(),
+  build: z.string().regex(PAGE_BUILD, { error: "A build is its sha, or dev." }).optional(),
+  vitals: z.array(PageVitalReport).min(1).max(PAGE_VITALS_PER_BEACON),
 });
 
 export type PageVitalsInputDto = z.infer<typeof PageVitalsInput>;

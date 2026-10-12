@@ -745,7 +745,7 @@ test("what is stuck now: five figures, each with the tone it earns and the page 
     [
       "replies-waiting",
       "campaign_replies_waiting",
-      "Replies waiting on you",
+      "Replies that need you",
       "2",
       "warn",
       "inbox",
@@ -758,7 +758,7 @@ test("what is stuck now: five figures, each with the tone it earns and the page 
       "2",
       "fail",
       "messages",
-      "Win-back (earlier) paused, Spring note rejected",
+      "Win-back (earlier) paused, Spring note refused",
     ],
     [
       "number-health",
@@ -839,10 +839,14 @@ test("two counts of failed runs, told apart in words: the stuck figure counts a 
 test("the messages Meta stopped name up to two, and say how each was stopped", () => {
   const items = (...statuses) => statuses.map((status, i) => ({ name: `offer_${i}`, language: "en_US", status }));
   const meta = (list) => stuckWith({ templates: { n: list.length, items: list.slice(0, 3) } }).at(3);
-  assert.equal(meta(items("disabled")).meta, "Offer 0 turned off");
-  assert.equal(meta(items("paused", "rejected")).meta, "Offer 0 paused, Offer 1 rejected");
+  assert.equal(
+    meta(items("disabled")).meta,
+    "Offer 0 disabled",
+    "the Library's own word for it (TEMPLATE_STATUS_WORDS)",
+  );
+  assert.equal(meta(items("paused", "rejected")).meta, "Offer 0 paused, Offer 1 refused");
   const three = meta(items("paused", "rejected", "disabled"));
-  assert.deepEqual([three.value, three.meta, three.tone], ["3", "Offer 0 paused, Offer 1 rejected", "fail"]);
+  assert.deepEqual([three.value, three.meta, three.tone], ["3", "Offer 0 paused, Offer 1 refused", "fail"]);
 });
 
 test("your WhatsApp number: how it is rated, and the two states with no number to rate", () => {

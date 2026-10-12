@@ -7,7 +7,8 @@
 import { DEAL_ACT_WORDS, type DealActId, type DealStage } from "../deal-words";
 import type { DealVM } from "../deal-vm";
 import { waitingOnProposal, type DealPaceVM } from "../deal-waits";
-import { consultServiceOf, noProposalSince } from "../deal-consultations";
+import type { VisitMark } from "../../calendar/calendar-dto";
+import { consultationHappened, consultServiceOf, noProposalSince } from "../deal-consultations";
 import { EMAIL_CANT_REACH, mayReach, proposalAction, proposalMessage } from "../../people/person-reach";
 import type { PersonNoteVM } from "../../notes/person-notes";
 import type { FollowUpStand } from "../../playbooks/playbooks";
@@ -60,6 +61,8 @@ export interface DealPerson {
   consultationVisit?: boolean;
   /** That consultation's title, as the calendar says it: the service it names draws the Consultation step. */
   consultationTitle?: string | null;
+  /** Their last visit as the one visit line, a consultation when `consultedMs` is set: its mark words the Consultation step (Kept, or Past while nobody has said). */
+  lastVisitLine?: { mark: VisitMark | null } | null;
   /** The services that need a consultation first (PersonVM.consultFirst): which one the consultation was for. */
   consultFirst?: readonly string[];
 }
@@ -245,12 +248,16 @@ export interface CalendarPeekDealVM {
   start: { act: DealAct; personId: string; service: string | null } | null;
 }
 
-/** The appointment as the Calendar's view model carries it (CalendarBlockVM): who, a consultation or not, its end. */
+/**
+ * The appointment as the Calendar's view model carries it (CalendarBlockVM): who, a consultation or not, its end, and how
+ * the record has it standing. Absent on a block read before the marks existed, which stands as any visit does.
+ */
 interface PeekBlock {
   person: { id: string } | null;
   consultation: boolean;
   consultService: string | null;
   end: string;
+  visit?: Pick<VisitMark, "status"> | null;
 }
 
 /** The People surface, as far as the peek reads it: whether deals are on here, and each person's deal. */
@@ -269,7 +276,8 @@ export function calendarPeekDeal(
   if (!who || !row) return { stage: null, start: null };
   const deal = row.deal ?? null;
   const endMs = Date.parse(block.end);
-  const over = block.consultation && Number.isFinite(endMs) && endMs < nowMs;
+  // Over, and held as far as anyone said: one marked missed or cancelled took none, so no proposal follows it (D1-consult-held).
+  const over = block.consultation && Number.isFinite(endMs) && endMs < nowMs && consultationHappened(block.visit);
   return {
     stage: deal ? deal.stage : null,
     start:

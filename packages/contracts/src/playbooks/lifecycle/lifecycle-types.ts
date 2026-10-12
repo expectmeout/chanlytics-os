@@ -60,12 +60,12 @@ export interface LifecyclePlaybook {
   /** Why it runs nothing here (a follow-up where deals are off, a campaign past its last day), or null. */
   off: string | null;
   /**
-   * Its last day as its words say it ("Oct 1"), where the business's today is past it (00409 `until`): it has ended, and
+   * Its last day as its words say it ("Oct 1"), where the business's today is past it (00416 `until`): it has ended, and
    * `off` says so. Null or absent otherwise.
    */
   ended?: string | null;
   /**
-   * The day its trial ends as its words say it ("Oct 9"), while it is on trial (00409 `trial_until`): a run its class
+   * The day its trial ends as its words say it ("Oct 9"), while it is on trial (00416 `trial_until`): a run its class
    * would send by itself waits for a person. Null or absent otherwise.
    */
   trial?: string | null;
@@ -341,7 +341,7 @@ export interface LifecycleStage {
   needs: LifecycleNeeds;
   needsWords: string;
   covered: boolean;
-  /** Its playbook is on and a run of it waits for the person's approval: the node says so, where the check stood. */
+  /** A run of its playbook waits for the person's approval, whether or not the playbook is paused: the node says so, where the check stood. */
   waits: boolean;
   /** "Turn on · 3 tomorrow" on the one off moment that has people waiting, else null. */
   hint: string | null;

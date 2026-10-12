@@ -249,14 +249,14 @@ interface PlaybookProposed {
   cap_per_run?: number;
   name?: string;
   channels?: ConsentChannel[];
-  /** Its last day, YYYY-MM-DD by the business's clock (00409): once judged (endOf), the day itself. */
+  /** Its last day, YYYY-MM-DD by the business's clock (00416): once judged (endOf), the day itself. */
   until?: string;
   /** The moment's starter to file at Approve, by its key, in place of a message (heldStarter). */
   starter?: string;
 }
 
 /**
- * A new campaign's last day (00409 `until`), judged as POST playbooks judges it at the card's Approve and as a change's is
+ * A new campaign's last day (00416 `until`), judged as POST playbooks judges it at the card's Approve and as a change's is
  * (core untilOf: a day by the business's clock, today or later), in the judge's own words where it is not one; undefined
  * where none is named.
  */

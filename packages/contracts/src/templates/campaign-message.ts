@@ -48,6 +48,7 @@ import {
   type VersionChannel,
 } from "./message-versions";
 import { refusedWords, templateBlocked } from "./template-parts";
+import { TEMPLATE_STATUS_WORDS } from "./templates";
 import type { VariableLike } from "./template-slots";
 import { templateTitle } from "./template-titles";
 
@@ -272,16 +273,11 @@ export function readyForMessage(
 }
 
 /**
- * What WhatsApp's standing says of a version, as the word that follows its channel ("WhatsApp · in review"). They are the
- * pill's own words for a template (tone.ts) in lower case, but for a refusal, which every sentence here says as refused.
+ * What WhatsApp's standing says of a version, as the word that follows its channel ("WhatsApp · in review"): the pill's own
+ * words for a template (TEMPLATE_STATUS_WORDS, which tone.ts reads too) in lower case. A refusal was "Rejected" on the pill and
+ * "refused" here; it is "refused" on both now.
  */
-const WHATSAPP_STANDING_WORDS: Record<TemplateStatus, string> = {
-  approved: "approved",
-  pending: "in review",
-  rejected: "refused",
-  paused: "paused",
-  disabled: "disabled",
-};
+const whatsappStandingWord = (status: TemplateStatus): string => TEMPLATE_STATUS_WORDS[status].toLowerCase();
 
 /**
  * Where one language of a message stands on each channel, in the words the Library says it in (rule 8): its email and its
@@ -295,7 +291,7 @@ export function messageStandingWords(
   const at = (channel: VersionChannel, word: string): string => `${VERSION_CHANNEL_WORDS[channel]} · ${word}`;
   const w = m?.versions.whatsapp ?? null;
   return {
-    whatsapp: at("whatsapp", w ? WHATSAPP_STANDING_WORDS[w.status] : "not added"),
+    whatsapp: at("whatsapp", w ? whatsappStandingWord(w.status) : "not added"),
     email: at("email", m?.versions.email ? "ready" : "not written"),
     sms: at("sms", m?.versions.sms ? "ready" : m?.purpose === "marketing" ? "not for offers" : "not written"),
   };
@@ -348,7 +344,7 @@ export const STARTER_LINE_WORDS = {
     const at = metaStatusOf(status);
     return at === "pending"
       ? "has its WhatsApp version in review — it appears here once approved, usually within minutes."
-      : `has its WhatsApp version ${WHATSAPP_STANDING_WORDS[at]} — see ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library}.`;
+      : `has its WhatsApp version ${whatsappStandingWord(at)} — see ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library}.`;
   },
   /**
    * The link that adds the moment's own message: its email and text versions at once, a WhatsApp version where a number

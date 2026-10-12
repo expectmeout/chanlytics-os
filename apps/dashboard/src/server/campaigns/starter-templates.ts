@@ -1,7 +1,7 @@
 /**
  * The starter set, added to a workspace (POST /api/v1/templates/starter): { keys?, languages?, channels? }, every starter
  * the workspace is offered by default (contracts startersOffered: the proposal follow-up's only where deals are on,
- * 0006, and the review ask's only where the Google listing keeps a review link, 00408), in English by default, on every
+ * 0006, and the review ask's only where the Google listing keeps a review link, 00415), in English by default, on every
  * channel by default. Idempotent: a starter already on file is left as it is; one
  * the number's account already holds (a shared account, or written in WhatsApp Manager) is synced in rather than
  * refused; the rest are submitted to Meta for review, exactly as a template written by hand is. The answer says what
@@ -130,7 +130,7 @@ interface StartersAsked {
 
 /**
  * The set this workspace is offered (contracts startersOffered): the proposal follow-up only where deals are on, and the
- * review ask only where the Google listing keeps a review link (db reviewLinkOf, 00408), which its slot is filled from. A
+ * review ask only where the Google listing keeps a review link (db reviewLinkOf, 00415), which its slot is filled from. A
  * link that could not be read is none here: the review ask is left out of a press, which costs nothing. A starter asked
  * for by its key and left out for want of the link is refused in the words a message's values are (core
  * TEMPLATE_VALUE_WORDS), never as "pick at least one".

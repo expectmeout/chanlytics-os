@@ -42,6 +42,20 @@ export const REPLY_INTENT_WORDS: Record<ReplyIntent, string> = {
 };
 
 /**
+ * An intent as the Inbox's chip says it (the pill kind `reply`, shell/tone.ts): what the reply was read as, or "Wrote back"
+ * when it was not. The sentence beside it ("Wrote back · interested") keeps REPLY_INTENT_WORDS.
+ */
+export const REPLY_CHIP_WORDS: Record<ReplyIntent, string> = {
+  interested: "Interested",
+  question: "Question",
+  not_now: "Not now",
+  no: "Said no",
+  wrong_person: "Wrong person",
+  away: "Away",
+  other: "Wrote back",
+};
+
+/**
  * Text held to a bound in characters: whole when it fits, else cut after a whole word with an ellipsis, the ellipsis
  * inside the bound.
  */
@@ -59,6 +73,11 @@ export interface ReplyReading {
   day: string | null;
   /** Who they said to write to, as they wrote it: wrong_person only. */
   referTo: string | null;
+  /**
+   * Who signed it, as the reader found it (0052), unchecked: the person page's gate (signerOf) keeps it only when it
+   * stands word for word in their own lines and is one person's own name. Null when nobody signed.
+   */
+  signer: { name: string; title: string | null } | null;
 }
 
 /** Why a reply was not read: it is `other`, and it is read again later (G4). The table's CHECK holds the same list. */
@@ -87,8 +106,8 @@ export const REPLY_WORDS_MAX = 4000;
 export const REPLY_SUBJECT_MAX = 200;
 /** How much of their words the notice quotes. */
 export const REPLY_QUOTE_MAX = 280;
-/** The answer's token cap: four short fields. */
-export const REPLY_READ_MAX_TOKENS = 400;
+/** The answer's token cap: five short fields. */
+export const REPLY_READ_MAX_TOKENS = 480;
 /** A not-now that names no day is written to again this long after (§4.7), and never sooner than a week or later than a year. */
 export const REPLY_NOT_NOW_DAYS = 90;
 const NOT_NOW_MIN_DAYS = 7;
@@ -111,8 +130,23 @@ export const REPLY_SCHEMA = /* @__PURE__ */ (() => ({
     refer_to: {
       anyOf: [{ type: "string", description: `At most ${REPLY_REFER_TO_MAX} characters.` }, { type: "null" }],
     },
+    // Who signed it (0052): one person's own name as they signed, and their title; null when nobody did.
+    signer: {
+      anyOf: [
+        {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            title: { anyOf: [{ type: "string" }, { type: "null" }] },
+          },
+          required: ["name", "title"],
+          additionalProperties: false,
+        },
+        { type: "null" },
+      ],
+    },
   },
-  required: ["intent", "summary", "day", "refer_to"],
+  required: ["intent", "summary", "day", "refer_to", "signer"],
   additionalProperties: false,
 }))();
 
@@ -151,6 +185,7 @@ export function replySystemPrompt(): string {
     `summary: at most ${REPLY_SUMMARY_WORDS} words, in English, saying only what they asked or said. Never copy an address, a phone number or a person's name into it: name someone by their role ("their office manager") or say "someone else".`,
     "day: YYYY-MM-DD, or null unless the reply names a day, a date or a month. For not_now, the first day they said to write again; for away, the day they are back. Work it out from the day the reply was received: a weekday alone is the next one after it; a day of the month alone (\"the 12th\") is the next such day; a month alone is that month's first Monday; a full date already past is next year's.",
     `refer_to: null unless the intent is wrong_person; then who they said to write to, as they wrote it (a name, an address, or both), at most ${REPLY_REFER_TO_MAX} characters.`,
+    "signer: the one person who signed the reply, from their own lines only (never the quoted email under it, never the business's name, a team, a role or a mailbox): their name exactly as they wrote it, and their title if they gave one, else null. Null when nobody signed, when two people signed, or when it is signed by a team or a business.",
   ].join("\n");
 }
 
@@ -279,7 +314,18 @@ export function parseReplyReading(a: unknown): ReplyReading | null {
     summary: referTo && saysAny(summary, referralNames(refer)) ? REFERRAL_SUMMARY : summary,
     day: intent === "not_now" || intent === "away" ? day : null,
     referTo,
+    signer: signerFieldOf(o.signer),
   };
+}
+
+/** The reader's signer as it answered: a name and maybe a title, spaces made one and bounded; null for anything else. */
+function signerFieldOf(v: unknown): ReplyReading["signer"] {
+  if (!v || typeof v !== "object") return null;
+  const o = v as Record<string, unknown>;
+  const name = typeof o.name === "string" ? o.name.replace(/\s+/g, " ").trim().slice(0, 80) : "";
+  if (!name) return null;
+  const title = typeof o.title === "string" ? o.title.replace(/\s+/g, " ").trim().slice(0, 80) : "";
+  return { name, title: title || null };
 }
 
 /* ---------------------------------------------------------------- what the reader is shown */
@@ -459,6 +505,8 @@ export interface ReadingPlan {
   draft: "answer" | "thanks" | null;
   /** The owner is told (G16). */
   tell: boolean;
+  /** The signer is taken as the writer's name without a press (0052, automatic naming: off until its evals pass). */
+  adoptSigner?: boolean;
 }
 
 const NO_EFFECT: ReadingPlan = {
@@ -476,7 +524,7 @@ const NO_EFFECT: ReadingPlan = {
 };
 
 /** A reply that could not be read is `other` (§4.12): the reading its door is handed. */
-export const UNREAD_READING: ReplyReading = { intent: "other", summary: "", day: null, referTo: null };
+export const UNREAD_READING: ReplyReading = { intent: "other", summary: "", day: null, referTo: null, signer: null };
 
 /** The address that wrote, when it is another than the one the reach-out wrote to. */
 function otherWriter(leadAddress: string | null, replyFrom: string | null): string | null {
@@ -632,6 +680,8 @@ export function replyNoticeWords(p: {
   unread: Unread | null;
   automatic: boolean;
   reread: boolean;
+  /** The reply's signer offered as its writer's name (0052): the body's last line says so; never in `redacted`. */
+  signer?: string | null;
 }): { subject: string; body: string; redacted: string; push: string } {
   const business = p.business.trim() || "A business";
   const intent = p.unread ? "other" : p.intent;
@@ -649,6 +699,7 @@ export function replyNoticeWords(p: {
     intent === "no" ? "If that's a misreading, undo it on the thread within seven days." : null,
     p.unread ? `It could not be read (${UNREAD_WORDS[p.unread]}), so it is read again later.` : null,
     p.draft ? `The receptionist drafted an answer: “${draftExcerpt(p.draft)}” Nothing is sent without you.` : null,
+    p.signer ? `Signed ${p.signer} · Use this name on the thread.` : null,
   ].filter((l): l is string => l !== null);
   return {
     subject: `${subjectOf({ intent, business, automatic: p.automatic })}${p.reread ? " (read again later)" : ""}`,

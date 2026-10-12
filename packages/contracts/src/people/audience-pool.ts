@@ -20,15 +20,34 @@ import {
   type VisitDto,
 } from "../calendar/calendar-people";
 import type { ChannelsReady } from "../broadcasts/reach-for";
+import { isOptedOutContact } from "../consent/consent";
+import { isEmailStopped } from "../conversations/thread-contact";
 import { isConsultationTitle } from "../deals/deal-consultations";
 import type { ListContext } from "./lists/lists";
 import type { PersonRowDto } from "./person-dto";
-import { toPersonRowVM, type PersonRowVM } from "./person-row";
+import type { HolderNames } from "./person-receptionist";
+import { replyChannelOfRow, toPersonRowVM, type PersonRowVM } from "./person-row";
 
 /** A People row as the calendar matches it: a name a human gave, their number, their address. */
 export function personLikeOf(
   p: Pick<PersonRowDto, "id" | "display_name" | "wa_profile_name" | "phone_e164"> &
-    Partial<Pick<PersonRowDto, "email" | "has_chat" | "latest_conversation_id" | "latest_wa_inbound_at">>,
+    Partial<
+      Pick<
+        PersonRowDto,
+        | "email"
+        | "has_chat"
+        | "latest_conversation_id"
+        | "latest_wa_inbound_at"
+        | "last_inbound_channel"
+        | "message_channels"
+        | "email_suppressed_at"
+        | "consent"
+        | "dnc"
+        | "lead_id"
+        | "lead_name"
+        | "lead_gone"
+      >
+    >,
 ): PersonLike {
   return {
     id: p.id,
@@ -39,6 +58,20 @@ export function personLikeOf(
     email: p.email ?? null,
     thread: p.has_chat && p.latest_conversation_id ? p.latest_conversation_id : null,
     waInboundAt: p.latest_wa_inbound_at ?? null,
+    // What a reply to them is judged by, from the same row and the same functions the People row asks (person-row.ts), so the
+    // board's block offers the booking link, or does not, as the row does. A row without the columns says no stop: absence is
+    // no opt-out (consent.ts).
+    reach: {
+      wire: replyChannelOfRow({
+        has_chat: p.has_chat ?? false,
+        last_inbound_channel: p.last_inbound_channel ?? null,
+        message_channels: p.message_channels,
+      }),
+      emailStopped: isEmailStopped({ email_suppressed_at: p.email_suppressed_at ?? null }),
+      optedOut: isOptedOutContact({ consent: p.consent, dnc: p.dnc }),
+    },
+    // The business they work at, while it stands (0052): the calendar's fourth match.
+    business: p.lead_id && !p.lead_gone && p.lead_name ? p.lead_name : null,
   };
 }
 
@@ -124,6 +157,8 @@ export interface PoolOptions {
    * out and count another workspace's. Null where it could not be read: counted as before the channels were, by WhatsApp.
    */
   ready: ChannelsReady | null;
+  /** The roster, where the page has read it: a teammate's thread says whose it is (person-receptionist.ts heldThreadOf). */
+  names?: HolderNames | null;
 }
 
 /**
@@ -131,7 +166,7 @@ export interface PoolOptions {
  * the row's second line, the thread's chip, or Today's proposals waiting, which all read it from here.
  */
 export function poolRowOf(person: PersonRowDto, o: PoolOptions): PersonRowVM {
-  const vm = toPersonRowVM(person, o.tz, o.now, o.viewer, o.ready);
+  const vm = toPersonRowVM(person, o.tz, o.now, o.viewer, o.ready, o.names ?? null);
   return o.dealsOn ? vm : { ...vm, deal: null, dealStage: null, openDeals: [], dealStages: [] };
 }
 

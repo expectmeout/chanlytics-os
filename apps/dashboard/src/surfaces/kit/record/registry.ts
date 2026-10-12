@@ -1,8 +1,7 @@
 /**
  * The rule that only one fold is open (moved whole from legacy/components/record-fold.jsx, decision 0015).
  *
- * `recFolds` is what the pages read as `window.__recordFolds` (seed-globals and the mockup's bundle publish it from
- * kit-globals.ts), and it is what the Settings rail asks before it replaces a pane. A page asks it to open a fold with
+ * `recFolds` is what the pages import (`window.__recordFolds` it was, until nothing read that name: O4b), and it is what the Settings rail asks before it replaces a pane. A page asks it to open a fold with
  * request(id), or request(id, { dirty }), where `dirty` says whether that fold holds unsaved changes once it is open.
  * Without one, the fold's own is used: useRecordFold binds each fold's dirty test to its id as the fold mounts, so a fold
  * opened from anywhere by its id alone (the Business tab's gap line opens a row it names) is guarded exactly as its own

@@ -1,5 +1,5 @@
 import "server-only";
-import { logger, noteTenant, requestId, withRequestId, type Logger } from "@chanlytics/channels";
+import { logger, noteTenant, noteTiming, requestId, withRequestId, type Logger } from "@chanlytics/channels";
 import { observeDb } from "@chanlytics/db";
 
 /**
@@ -74,10 +74,6 @@ export const DASHBOARD_LOG_EVENTS = [
   "broadcast_touches_failed",
   "calendar_notices_read_failed",
   "calendar_parse_failed",
-  "calendar_people_refused",
-  "calendar_people_seen_failed",
-  "calendar_person_add_failed",
-  "calendar_person_email_failed",
   "campaign_channels_failed",
   "campaign_last_days_read_failed",
   "campaign_ledger_missing",
@@ -133,6 +129,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "lead_ideas_written",
   "media_remove_failed",
   "media_remove_refused",
+  "member_joined_not_recorded",
   "message_version_not_filed",
   "native_sign_in_failed",
   "native_sign_in_rate_limited",
@@ -151,7 +148,9 @@ export const DASHBOARD_LOG_EVENTS = [
   "people_seen_unavailable",
   "people_series_missing",
   "people_visits_failed",
+  "person_business_failed",
   "person_notes_read_failed",
+  "person_signers_failed",
   "person_visits_failed",
   "platform_waitlist_unreadable",
   "playbook_pools_follow_ups_failed",
@@ -214,5 +213,6 @@ export const log: Logger<DashboardLogEvent> = logger<DashboardLogEvent>();
 
 export { withRequestId, requestId, noteTenant };
 
-// packages/db writes its lines through the one logger and names the request it writes for from the same store.
-observeDb({ log: logger(), requestId });
+// packages/db writes its lines through the one logger and names the request it writes for from the same store, and says
+// how long each of its calls took, which the request's answer says in Server-Timing as `db` (with-route.ts, decision 0053).
+observeDb({ log: logger(), requestId, timed: (ms) => noteTiming("db", ms) });

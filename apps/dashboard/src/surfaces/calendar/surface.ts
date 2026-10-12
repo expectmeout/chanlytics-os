@@ -6,10 +6,12 @@
 import { read } from "@/legacy-bridge/api";
 import { heldViews } from "@/legacy-bridge/held-views";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
+import { declareReads } from "@/legacy-bridge/surface-registry";
 import { getActiveWorkspace, routeOnScreen } from "@/legacy-bridge/workspace";
 import { knownZone } from "@/legacy-bridge/zone";
 import { toCalendarVM, windowFor, zoneDayKey, type CalendarVM } from "@chanlytics/contracts";
 import { declareSurfaceValue, setSurfaceValue } from "../surface-values";
+import { calendarAddress, calendarParam } from "./address";
 
 // Today, Ask, People and the Business tab, which have not moved, still read this under its old name.
 declareSurfaceValue("calendar", "__CALENDAR");
@@ -100,20 +102,25 @@ export const calendarOverride: SurfaceOverride = {
   key: "calendar",
   value: "calendar",
   events: ["surface:calendar"],
-  // A booking that arrived by email is a row written (00345): the board repaints as it lands, without a reload.
-  refreshOnTables: ["appointments"],
+  // A booking that arrived by email is a row written (00345): the board repaints as it lands, without a reload. And the two
+  // records beside it that the board and its panel draw (0047): a booking email the reader held for a look, or settled
+  // (appointment_notices: the held list the card and Settings > Business both draw), and the business's hours, closures and
+  // services (tenant_config: the open times, the windows a caller is offered), which a save in another tab or by a teammate
+  // moved only in the board's own five minutes. A few a day. This tab's own save is read once, by the refresh map.
+  ...declareReads("calendar", { reads: ["visit", "facts"], fresh: "live" }),
   // A span's reads take their turn; a move to another span is read at once (activateOverride).
   view: () => `${calendarFrom ?? "today"}|${calendarDays}`,
   apply: async () => {
-    // A cold boot on a day the address names (calendar/<day>) reads the weeks around that day: the page's own read.
-    // It read today's weeks first, and the page read the day's after them. Only the first read looks at the address.
+    // A cold boot on a day the address names (calendar/<day>, or a visit on its day, calendar/<day>:a-<id>) reads the weeks
+    // around that day: the page's own read. It read today's weeks first, and the page read the day's after them. Only the
+    // first read looks at the address.
     if (!calendarBooted) {
       calendarBooted = true;
-      const named = /^calendar\/(\d{4}-\d{2}-\d{2})$/.exec(
-        typeof window !== "undefined" && window.location ? routeOnScreen() : "",
-      );
+      const named = calendarAddress(
+        calendarParam(typeof window !== "undefined" && window.location ? routeOnScreen() : null),
+      ).initialDay;
       if (named && calendarFrom === null) {
-        const w = windowFor(named[1]);
+        const w = windowFor(named);
         setCalendarSpan(w.from, w.days);
       }
     }

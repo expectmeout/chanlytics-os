@@ -1,5 +1,4 @@
 import {
-  CONSENT_SOURCES,
   DEAL_ACT_WORDS,
   DEAL_REFUSALS,
   DEAL_CARD_WORDS,
@@ -24,8 +23,6 @@ import {
   dealSheetMessage,
   dealSheetRefusal,
   isDealSheetMode,
-  mayReceive,
-  offersYesRefusal,
   toPersonVM,
   type DealClearable,
   type DealDto,
@@ -40,20 +37,21 @@ import { api } from "@/legacy-bridge/api";
 import { ApiError, type ApiResult } from "@/client/api";
 import { workspaceZone } from "@/legacy-bridge/zone";
 import { readCache, staleReadCaches } from "@/legacy-bridge/read-cache";
+import { holderName } from "../holder-names";
 import { keepSavedView, placeDeal } from "./surface";
 import { personRouteId } from "@/legacy-bridge/surface-registry";
 import { afterBoot, bootWaitsFor } from "@/legacy-bridge/surface-runner";
 import { getActiveWorkspace, routeOnScreen } from "@/legacy-bridge/workspace";
 
 /**
- * The profile courier: `window.__personDetail(id)`.
+ * The profile courier: `personDetail(id)`.
  *
  * The list feeds the surface through the seam's globals; a profile is one
  * person in full — every message, call and decision — and is fetched when it
- * opens, the way the Inbox fetches an off-page escalation. The mockup's
- * ClientProfile (a classic script that cannot import) calls this and renders
- * the view model it gets back, so the mapping stays in contracts where it is
- * tested by execution.
+ * opens, the way the Inbox fetches an off-page escalation. The pages import it
+ * (the mockup's ClientProfile, a classic script that could not, called it by its
+ * window name, which went with the last such page) and render the view model
+ * it gets back, so the mapping stays in contracts where it is tested by execution.
  *
  * Resolves null for "not in your workspace" (404) so the page can say so;
  * a session expiry has already signed the tab out by the time this throws.
@@ -64,7 +62,7 @@ export function personDetail(id: string): Promise<PersonVM | null> {
     const [r, tz] = await Promise.all([api()("GET contacts/[id]", { params: { id } }), workspaceZone()]);
     // For the member looking (__ME): a teammate's thread is theirs, not waiting on you.
     const me = (window as unknown as { __ME?: { id?: string | null } }).__ME?.id ?? null;
-    if (r.ok) return toPersonVM(r.data.person, tz, new Date(), me);
+    if (r.ok) return toPersonVM(r.data.person, tz, new Date(), me, holderName);
     // Gone: the copy this tab kept of them goes too, or the next open would paint someone who is not there.
     if (r.status === 404) {
       people().forget(id);
@@ -95,7 +93,7 @@ let ahead: string[] = [];
 let aheadOut = 0;
 
 /**
- * Read the people a list shows before any of them is pressed: `window.__warmPeople(ids)`, the rows on screen in their
+ * Read the people a list shows before any of them is pressed: `warmPeople(ids)`, the rows on screen in their
  * order. A person the tab does not hold opens on nothing of theirs until their whole page is in (client-profile.jsx),
  * so the one way their page opens at once is to have read them already. Measured on production (24 Sep 2026): a person
  * never opened drew their page 289 ms after the press; one the tab held, in 8. Only after the boot (afterBoot), two at
@@ -187,8 +185,15 @@ export async function deletePerson(id: string): Promise<DeleteResult> {
  */
 export async function mergePerson(keep: string, merge: string): Promise<DeleteResult> {
   const r = await api()("POST contacts/[id]/merge", { params: { id: keep }, body: { merge } });
-  if (r.ok) people().forget(merge);
+  // Combine (0052) keeps the person, whichever was named to keep: the record the door merged away is the one let go.
+  if (r.ok) people().forget(keptOf(r.data, keep) === keep ? merge : keep);
   return r;
+}
+
+/** The record a merge kept, as the door answers it (its contact_id), else the one named to keep. */
+export function keptOf(answer: unknown, keep: string): string {
+  const kept: unknown = answer && typeof answer === "object" ? Reflect.get(answer, "contact_id") : undefined;
+  return typeof kept === "string" && kept ? kept : keep;
 }
 
 /**
@@ -427,7 +432,7 @@ export async function recordDeal(
 }
 
 /**
- * A selection's pass (0008, the Pipeline's Mark as passed · N): `window.__passDeals(items, reason)`.
+ * A selection's pass (0008, the Pipeline's Mark as passed · N): `passDeals(items, reason)`.
  *
  * Each is recorded through the one deal door in turn, with the version the person's own read says -- read now, not
  * the tab's copy, which a teammate's move since does not age -- and only while that deal is still a proposal out: the
@@ -512,6 +517,11 @@ export async function markStepDone(
   });
 }
 
+/** Got it (canvas A, Up next): a note for the reader, marked read; it leaves their Up next. */
+export async function seePersonNote(id: string, noteId: string): Promise<ApiResult<{ seen: string }>> {
+  return api()("POST contacts/[id]/notes/seen", { params: { id }, body: { note_id: noteId } });
+}
+
 export async function removePersonNote(id: string, noteId: string): Promise<ApiResult<{ removed: string }>> {
   return api()("POST contacts/[id]/notes/remove", { params: { id }, body: { note_id: noteId }, refresh: "behind" });
 }
@@ -546,15 +556,8 @@ declare global {
       words: typeof NOTE_WORDS;
       max: number;
     };
-    __personDetail?: (id: string) => Promise<PersonVM | null>;
-    /** The person this tab already read: what the page paints before its own read lands. */
-    __peekPerson?: (id: string) => PersonVM | null;
-    /** Read someone before their row is clicked. */
+    /** Read someone before their row is clicked (the shell's `routeDoor` asks, data-bits.jsx). */
     __warmPerson?: (id: string) => void;
-    /** Read the people a list shows, after the boot, a few at a time. */
-    __warmPeople?: (ids: string[]) => void;
-    __consentSources?: readonly { id: string; label: string }[];
-    __passDeals?: typeof passDeals;
     /**
      * A deal on the page (0008): the one sheet every move goes through (deal-sheet.ts: its modes, what it says and
      * opens with, the draft once they are read again, the body it sends, where a refusal goes), the person page's deal
@@ -575,10 +578,6 @@ declare global {
       next: typeof dealNextAct;
       actWords: typeof DEAL_ACT_WORDS;
     };
-    /** The broadcast's own "may this person be reached", for pages that count people. */
-    __mayReceive?: typeof mayReceive;
-    /** The ways a yes to OFFERS may be recorded: in writing only (00100). A no keeps every source. */
-    __offersYesSources?: readonly { id: string; label: string }[];
   }
 }
 
@@ -601,11 +600,14 @@ export async function setPersonDetails(id: string, body: DetailsBody): Promise<D
   return api()("PUT contacts/[id]/details", { params: { id }, body });
 }
 
+/** "Link a business…" (a lead of the workspace) and "Not at this business" (null), decision 0052. */
+export async function setPersonBusiness(id: string, leadId: string | null): Promise<DeleteResult> {
+  if (leadId === null) return api()("DELETE people/[id]/business", { params: { id } });
+  return api()("PUT people/[id]/business", { params: { id }, body: { lead_id: leadId } });
+}
+
 export function installPeopleCourier(): void {
-  window.__personDetail = personDetail;
-  window.__peekPerson = peekPerson;
   window.__warmPerson = (id) => void warmPerson(id);
-  window.__warmPeople = warmPeople;
   window.__personNotes = {
     write: writePersonNote,
     remove: removePersonNote,
@@ -622,8 +624,6 @@ export function installPeopleCourier(): void {
     words: NOTE_WORDS,
     max: NOTE_MAX,
   };
-  window.__consentSources = CONSENT_SOURCES;
-  window.__passDeals = passDeals;
   // One sheet for every move, and the card and the thread's group that open it (0008): the rules, never a copy.
   window.__deal = {
     isMode: isDealSheetMode,
@@ -641,9 +641,4 @@ export function installPeopleCourier(): void {
     next: dealNextAct,
     actWords: DEAL_ACT_WORDS,
   };
-  // The rule, not a copy of it: the Lists page counts who a broadcast reaches, and
-  // it was spelling that by hand -- without the phone the route requires.
-  window.__mayReceive = mayReceive;
-  // The rule, applied once, so the profile and the bulk menu offer the same ways.
-  window.__offersYesSources = CONSENT_SOURCES.filter((s) => offersYesRefusal(s.id) === null);
 }

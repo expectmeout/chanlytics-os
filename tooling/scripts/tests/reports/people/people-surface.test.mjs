@@ -38,7 +38,7 @@ globalThis.window.CHANLY = {
 };
 const keepError = console.error;
 console.error = () => {};
-const { reportsPeople, reportsPeopleOverride, forgetReportsPeople } = await importSrc(
+const { reportsPeople, reportsPeopleOverride } = await importSrc(
   "apps/dashboard/src/surfaces/reports/people-surface.ts",
 );
 const { headline, reportsHeadlineOverride } = await importSrc("apps/dashboard/src/surfaces/reports/headline.ts");
@@ -314,7 +314,18 @@ test("a read that fails fails the surface: the lens says so, never a count of no
 
 test("its live-feed rule is the lens's own: messages, calls and notes, a burst waited out for longer than Reports' own read waits, heard while the lens is on screen and left for it otherwise", () => {
   reset("30d");
-  assert.deepEqual(reportsPeopleOverride.refreshOnTables, ["messages", "calls", "person_notes"]);
+  // And the book it counts (contacts), the postal address an offer by email names (tenant_config) and the channels they are reached
+  // on: the number, the text line and the mailbox (0047).
+  assert.deepEqual(reportsPeopleOverride.refreshOnTables, [
+    "messages",
+    "calls",
+    "person_notes",
+    "contacts",
+    "tenant_config",
+    "tenant_channels",
+    "lines",
+    "mailboxes",
+  ]);
   assert.equal(
     reportsPeopleOverride.debounceMs,
     5_000,
@@ -326,7 +337,11 @@ test("its live-feed rule is the lens's own: messages, calls and notes, a burst w
     undefined,
     "it names its tables, not the historical trio",
   );
-  assert.deepEqual(reportsHeadlineOverride.refreshOnTables, undefined, "the headline has none");
+  assert.deepEqual(
+    reportsHeadlineOverride.refreshOnTables,
+    ["messages", "calls", "appointments", "contacts"],
+    "the headline has its own, Today's (headline-live.test.mjs)",
+  );
   const change = (table) => ({ table, event: "INSERT", row: {} });
   for (const route of ["reports/people", "reports/people:2026-09-01~2026-09-20"]) {
     elsewhere(route);
@@ -668,8 +683,8 @@ test("a write that makes the read wrong forgets it, and nothing reads it from th
     assert.equal(reportsPeople.isStale(), true, "so the lens reads it as it comes on screen");
     assert.deepEqual(peopleReads(), [], "and it is not read from the Inbox");
     await reportsPeopleOverride.apply();
-    forgetReportsPeople();
-    assert.equal(surfaceValue("reports_people"), undefined, "forgetReportsPeople is the helper's forget");
+    reportsPeople.forget();
+    assert.equal(surfaceValue("reports_people"), undefined, "the helper's forget holds nothing of it");
   } finally {
     stop();
   }

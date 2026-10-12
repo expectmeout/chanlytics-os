@@ -578,8 +578,8 @@ test("a deal is open while it is a proposal out or a client; the current deal an
   ];
   assert.equal(pickCurrentDeal(rows).id, "old-won");
   // The Pipeline's Consultations and Today's row say the count in this one sentence.
-  assert.equal(consultsHeldWords(2), "2 held in the last week, no proposal yet");
-  assert.equal(consultsHeldWords(1), "1 held in the last week, no proposal yet");
+  assert.equal(consultsHeldWords(2), "2 ended in the last week, no proposal yet");
+  assert.equal(consultsHeldWords(1), "1 ended in the last week, no proposal yet");
 });
 
 /** A report as the route answers it (dealReport, 0008), the least one can be: a deal on file, none sent, nothing open. */

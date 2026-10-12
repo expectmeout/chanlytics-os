@@ -159,12 +159,6 @@ const FleetDetail = ({ agent, status, onToggleStatus, onFlash }) => {
   const [pbPaused, setPbPaused] = useFleetState(() =>
     Object.fromEntries(flPlaybooks(agent.id).map(pb => [pb.id, !!(window.FL_STORE && window.FL_STORE.isPbPaused(pb.id))]))
   );
-  const [, setLmTick] = useFleetState(0);
-  useFleetEffect(() => {
-    const bump = () => setLmTick(n => n + 1);
-    window.addEventListener("live:ended", bump);
-    return () => window.removeEventListener("live:ended", bump);
-  }, []);
   const playbooks = flPlaybooks(agent.id);
   const guardrails = window.SEG_GUARDRAILS || [];
   const isPaused = status === "paused";
@@ -200,9 +194,6 @@ const FleetDetail = ({ agent, status, onToggleStatus, onFlash }) => {
       },
     });
   };
-
-  // Ended live call reshapes "Right now" for the agent that was on it
-  const lmEnded = agent.glyph === "P" && window.LM_STORE && window.LM_STORE.isEnded("lc-selena") && /Selena/.test((agent.activity || {}).target || "");
 
   return (
     <div className="fl-detail">
@@ -437,16 +428,10 @@ const FleetDetail = ({ agent, status, onToggleStatus, onFlash }) => {
                 </span>
               </div>
               <div className="fl-now">
-                <span className="fl-now-verb">{isPaused ? "Paused" : lmEnded ? "Wrapped call" : agent.activity.verb}</span>
-                {!isPaused && lmEnded && <span className="fl-now-target"> · Selena Cho — booked Swedish 60</span>}
-                {!isPaused && !lmEnded && agent.activity.target && <span className="fl-now-target"> · {agent.activity.target}</span>}
-                {!isPaused && !lmEnded && agent.activity.elapsed && <span className="fl-now-elapsed mono tabular">{agent.activity.elapsed}</span>}
+                <span className="fl-now-verb">{isPaused ? "Paused" : agent.activity.verb}</span>
+                {!isPaused && agent.activity.target && <span className="fl-now-target"> · {agent.activity.target}</span>}
+                {!isPaused && agent.activity.elapsed && <span className="fl-now-elapsed mono tabular">{agent.activity.elapsed}</span>}
               </div>
-              {lmEnded && !isPaused && (
-                <button className="btn btn-ghost btn-sm fl-inbox-link" onClick={() => window.CHANLY.nav(window.CHANLY.R.conversation("cv-selena-live"))}>
-                  Open the transcript <Icon name="arrow-right" size={11} />
-                </button>
-              )}
               <div className="fl-recent">
                 {agent.recent.map((r, i) => (
                   <div key={i} className="fl-recent-row">

@@ -1,5 +1,6 @@
 import "server-only";
 import {
+  addressOf,
   dealPaceOf,
   type AppointmentWord,
   type ChannelsReady,
@@ -124,7 +125,12 @@ export const playbooks: Reader<undefined, PlaybooksPage> = {
         // Each autonomy class's mode as stored (a class with no row is `ask`); null where the matrix could not be read.
         modes: policyRows ? Object.fromEntries(policyRows.map((p) => [p.class, p.mode])) : null,
       },
-      rows: playbooks.map((p) => ({ kind: "playbook" as const, id: p.id, route: `outbound/${p.id}`, label: p.name })),
+      rows: playbooks.map((p) => ({
+        kind: "playbook" as const,
+        id: p.id,
+        route: addressOf({ kind: "campaign", id: p.id }),
+        label: p.name,
+      })),
       stamp: stamp(),
     };
   },
@@ -145,7 +151,7 @@ export const reachOutChains: Reader<undefined, { chains: ReachOutChainDto[] }> =
       rows: chains.map((c) => ({
         kind: "playbook" as const,
         id: c.root_id,
-        route: `outbound/${c.root_id}`,
+        route: addressOf({ kind: "reach_out", id: c.root_id }),
         label: c.name,
       })),
       stamp: stamp(),

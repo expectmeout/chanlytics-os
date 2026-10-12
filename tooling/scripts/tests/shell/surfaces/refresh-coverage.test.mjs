@@ -13,11 +13,13 @@ import { importSrc } from "../../_source.mjs";
 
 globalThis.window ??= globalThis;
 // The address a page is at, which what Reports shows is read from (the days a member picked are the address's own). A page that draws
-// none of the lenses' reads: the Overview draws the Campaigns lens's (ROUTE_DRAWS), so a write made there reads it again at once, and
-// the tests that name the surfaces a write re-reads from "elsewhere" are asked from here.
-globalThis.location ??= { pathname: "/w/studio", hash: "#/today" };
+// none of the lenses' reads, the overview or the headline: the Overview draws the Campaigns lens's (ROUTE_DRAWS) and Today owns the
+// headline (surface-registry.ts), so a write made there reads them again at once, and the tests that name the surfaces a write
+// re-reads from "elsewhere" are asked from here.
+globalThis.location ??= { pathname: "/w/studio", hash: "#/inbox" };
 const { ROUTES } = await importSrc("apps/dashboard/src/client/routes.generated.ts");
-const { AFTER, REFRESHES_NOTHING } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
+const refreshMap = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
+const { AFTER, REFRESHES_NOTHING } = refreshMap;
 
 const writes = Object.keys(ROUTES).filter((k) => ROUTES[k].method !== "GET");
 const keysOf = (route) => AFTER[route]().map((o) => o.key);
@@ -64,11 +66,23 @@ test("REGRESSION: a contact's edit re-reads the threads with them -- their name 
   assert.deepEqual(keysOf("PUT contacts/[id]/receptionist"), ["people"]);
 });
 
-test("a booking email held for a look, read again or dismissed, re-reads the Calendar, whose read carries the list", () => {
+test("a booking email held for a look and dismissed re-reads the Calendar, whose read carries the list; read again is a job, and re-reads nothing", () => {
   // The fold under Settings › Business and the board's card both draw the held list from the Calendar's read (00345),
   // so the write names that surface here: the fold asks for no read of its own.
-  for (const route of ["POST calendar/notices/[id]/read-again", "POST calendar/notices/[id]/dismiss"]) {
-    assert.deepEqual(keysOf(route), ["calendar"], route);
+  assert.deepEqual(keysOf("POST calendar/notices/[id]/dismiss"), ["calendar"]);
+  // Read again schedules a booking_read job and changes no row the Calendar reads: a read made when the job is only scheduled
+  // shows the list as it was, and the visit the job makes is told to the Calendar by the appointments notice.
+  assert.ok("POST calendar/notices/[id]/read-again" in REFRESHES_NOTHING);
+  assert.equal("POST calendar/notices/[id]/read-again" in AFTER, false);
+});
+
+test("a press on a call in progress re-reads nothing: the provider changes the call, and the calls notice reads Live then", () => {
+  // Live reads the calls and the channels. A whisper, an end and a hand-over ask the phone provider and record a decision; the call's
+  // row moves with the provider's webhook, which the live feed tells a workspace of (WATCHED calls), so a read made when the provider
+  // has only just answered shows the call as it was.
+  for (const route of ["POST calls/[id]/whisper", "POST calls/[id]/end", "POST calls/[id]/hand-over"]) {
+    assert.ok(route in REFRESHES_NOTHING, `${route} is decided: it refreshes nothing`);
+    assert.equal(route in AFTER, false, `${route} is not also in the map`);
   }
 });
 
@@ -123,10 +137,36 @@ test("a partner joining a workspace goes through the map, the switcher's list an
 
 test("REGRESSION: taking an email or text version away re-reads what saving one does -- the composers kept the channel open", () => {
   // The Send by row closes a channel its message has no version on, and the preview draws a person as that version
-  // reads: both composers read their surfaces, and a delete that re-read Settings alone left the channel ticked.
+  // reads. Both composers are made of the settings read now (offered-templates.ts), so the read that moves them is Settings';
+  // a delete that re-read nothing the composers follow left the channel ticked. (templates-are-read-once.test.mjs runs the
+  // composers over a version taken away.)
   const saved = keysOf("POST templates/versions");
-  for (const key of ["settings", "playbooks", "broadcasts"]) assert.ok(saved.includes(key), `${key}: ${saved}`);
+  for (const key of ["settings", "playbooks"]) assert.ok(saved.includes(key), `${key}: ${saved}`);
+  assert.equal(
+    saved.includes("broadcasts"),
+    false,
+    "Sent's composer is made of the settings read and reads no template itself",
+  );
   assert.deepEqual(keysOf("DELETE templates/versions/[id]"), saved, "one list for the two writes");
+});
+
+test("a template written, hidden, removed, added from a starter or synced re-reads Settings alone: the one read of the templates, which every picker is made of", () => {
+  for (const route of [
+    "POST templates",
+    "PUT templates/[id]",
+    "DELETE templates/[id]",
+    "POST templates/starter",
+    "POST templates/sync",
+  ])
+    assert.deepEqual(keysOf(route), ["settings"], route);
+  // A playbook named by a starter files its message too, so the Library moves with it, beside the playbooks and People's rows.
+  assert.ok(keysOf("POST playbooks").includes("settings"), "POST playbooks");
+  // No window hook is called behind a write any more: the map holds no second table.
+  assert.equal(
+    Object.hasOwn(refreshMap, "HOOKS"),
+    false,
+    "HOOKS went with __refreshBroadcasts and the template rows' hook calls",
+  );
 });
 
 test("REGRESSION: a broadcast made re-reads Playbooks with Broadcasts, as approving or cancelling a run does", () => {
@@ -217,14 +257,7 @@ test("a write that moves the listing, its reviews or the day a review is counted
     assert.equal(reviews.isStale(), true, `${route}: so the lens reads it as it comes on screen`);
   }
   assert.deepEqual(keysOf("POST google/link"), ["google", "setup"], "beside Google's own and Setup's row");
-  assert.deepEqual(keysOf("PATCH workspaces"), [
-    "settings",
-    "people",
-    "reports",
-    "reports_headline",
-    "today",
-    "playbooks",
-  ]);
+  assert.deepEqual(keysOf("PATCH workspaces"), ["settings", "people", "today", "playbooks"]);
   held();
   assert.deepEqual(
     keysOf("POST google/reviews/[id]/reply"),
@@ -285,16 +318,14 @@ test("a write that moves who waits on you, the zone's days or the hours and clos
   }
   // Each keeps what it re-read before.
   assert.deepEqual(keysOf("POST conversations/[id]/reply"), ["inbox", "conversations", "today"]);
-  assert.deepEqual(keysOf("PATCH workspaces"), [
-    "settings",
-    "people",
-    "reports",
-    "reports_headline",
-    "today",
-    "playbooks",
-  ]);
-  for (const key of ["settings", "today", "calendar", "setup"])
+  assert.deepEqual(keysOf("PATCH workspaces"), ["settings", "people", "today", "playbooks"]);
+  for (const key of ["settings", "calendar", "setup"])
     assert.ok(keysOf("PUT settings").includes(key), `PUT settings re-reads ${key}`);
+  assert.equal(
+    keysOf("PUT settings").includes("today"),
+    false,
+    "Today's five reads (the day's metrics, the threads, the escalations, the calls, the searches) draw no configuration",
+  );
   // The two writes that carry the hours are one list: the first receptionist writes its profile's hours, a save writes them too.
   assert.deepEqual(keysOf("POST settings/receptionist"), keysOf("PUT settings"));
   // A write that changes nothing the lens counts leaves what it holds alone.
@@ -328,6 +359,7 @@ test("where the Receptionist lens is on screen, the same writes read it again at
         "POST settings/receptionist",
       ]) {
         setSurfaceValue("reports_receptionist", { dto: {}, key: "30d", readAt: 1 });
+        const before = surfaceValue("reports_receptionist");
         const keys = keysOf(route);
         assert.equal(
           keys.filter((k) => k === "reports_receptionist").length,
@@ -336,8 +368,8 @@ test("where the Receptionist lens is on screen, the same writes read it again at
         );
         assert.equal(
           surfaceValue("reports_receptionist"),
-          undefined,
-          `${route}: and what it held is dropped first, every period's`,
+          before,
+          `${route}: and what it shows stays on screen while it is read again, the periods it held dropped (outdate)`,
         );
         assert.equal(receptionist.isStale(), true);
       }
@@ -355,18 +387,25 @@ test("where the Receptionist lens is on screen, the same writes read it again at
   }
 });
 
-test("the Receptionist lens's read repaints on the tables of the live feed that move it, 800 ms after the last change, and on no table the feed does not tell a workspace of", async () => {
+test("the Receptionist lens's read repaints on the tables of the live feed that move it (its links booked are visits), 800 ms after the last change, and on no table the feed does not tell a workspace of", async () => {
   const { receptionistOverride } = await importSrc("apps/dashboard/src/surfaces/reports/receptionist-surface.ts");
   const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
   const { watchedTables } = await importSrc("packages/db/src/realtime.ts");
-  assert.deepEqual(receptionistOverride.refreshOnTables, ["messages", "escalations", "calls"]);
+  assert.deepEqual(receptionistOverride.refreshOnTables, [
+    "messages",
+    "escalations",
+    "calls",
+    "appointments",
+    "contacts",
+    "tenant_config",
+  ]);
   assert.equal(receptionistOverride.debounceMs, 800);
   for (const table of receptionistOverride.refreshOnTables)
     assert.ok(watchedTables().includes(table), `${table}: the feed tells of it`);
   // Which page hears them is the rule `refreshWhen` holds, run on the real routes in message-fan-out.test.mjs.
   for (const table of receptionistOverride.refreshOnTables)
     assert.equal(wantsRefresh(receptionistOverride, table), true, table);
-  for (const table of ["conversations", "google_reviews", "google_listings", "events", "contacts"])
+  for (const table of ["conversations", "google_reviews", "google_listings", "events"])
     assert.equal(wantsRefresh(receptionistOverride, table), false, `${table}: not the lens's`);
   assert.equal(receptionistOverride.refreshOnMessageInserts, undefined, "it names its tables");
 });
@@ -449,14 +488,7 @@ test("a write that changes who is in the book, what they answered, their steps, 
       assert.equal(reportsPeople.isStale(), true, `${route}: so the lens reads it as it comes on screen`);
     }
     // Each keeps what it re-read before.
-    assert.deepEqual(keysOf("PATCH workspaces"), [
-      "settings",
-      "people",
-      "reports",
-      "reports_headline",
-      "today",
-      "playbooks",
-    ]);
+    assert.deepEqual(keysOf("PATCH workspaces"), ["settings", "people", "today", "playbooks"]);
     assert.deepEqual(keysOf("PUT contacts/[id]/details").sort(), [
       "broadcasts",
       "conversations",
@@ -468,7 +500,7 @@ test("a write that changes who is in the book, what they answered, their steps, 
     assert.deepEqual(keysOf("POST contacts/[id]/notes"), ["people"]);
     assert.deepEqual(keysOf("POST lines/buy").sort(), ["broadcasts", "people", "playbooks", "setup"]);
     assert.deepEqual(keysOf("POST leads/[id]/stage"), ["leads", "people"]);
-    for (const key of ["settings", "today", "calendar", "setup", "broadcasts", "playbooks", "people"])
+    for (const key of ["settings", "calendar", "setup", "broadcasts", "playbooks", "people"])
       assert.ok(keysOf("PUT settings").includes(key), `PUT settings still re-reads ${key}`);
     assert.deepEqual(
       keysOf("POST settings/receptionist"),
@@ -496,6 +528,7 @@ test("where the People lens is on screen, the same writes read it again at once,
       globalThis.location.hash = hash;
       for (const route of PEOPLE_WRITES) {
         setSurfaceValue("reports_people", { dto: {}, key: "30d" });
+        const before = surfaceValue("reports_people");
         const keys = keysOf(route);
         assert.equal(
           keys.filter((k) => k === "reports_people").length,
@@ -504,8 +537,8 @@ test("where the People lens is on screen, the same writes read it again at once,
         );
         assert.equal(
           surfaceValue("reports_people"),
-          undefined,
-          `${route}: and what it held is dropped first, every period's`,
+          before,
+          `${route}: and what it shows stays on screen while it is read again, the periods it held dropped (outdate)`,
         );
         assert.equal(reportsPeople.isStale(), true);
       }
@@ -532,7 +565,16 @@ test("the People lens's read repaints on the tables of the live feed that move i
   const { reportsPeopleOverride } = await importSrc("apps/dashboard/src/surfaces/reports/people-surface.ts");
   const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
   const { watchedTables } = await importSrc("packages/db/src/realtime.ts");
-  assert.deepEqual(reportsPeopleOverride.refreshOnTables, ["messages", "calls", "person_notes"]);
+  assert.deepEqual(reportsPeopleOverride.refreshOnTables, [
+    "messages",
+    "calls",
+    "person_notes",
+    "contacts",
+    "tenant_config",
+    "tenant_channels",
+    "lines",
+    "mailboxes",
+  ]);
   // Asked for five seconds; the runner never waits more than three after the first change (people-surface.test.mjs runs it).
   assert.equal(reportsPeopleOverride.debounceMs, 5_000);
   for (const table of reportsPeopleOverride.refreshOnTables)
@@ -540,7 +582,7 @@ test("the People lens's read repaints on the tables of the live feed that move i
   // Which page hears them is the rule `refreshWhen` holds, run on the real routes in message-fan-out.test.mjs.
   for (const table of reportsPeopleOverride.refreshOnTables)
     assert.equal(wantsRefresh(reportsPeopleOverride, table), true, table);
-  for (const table of ["conversations", "escalations", "google_reviews", "google_listings", "events", "contacts"])
+  for (const table of ["conversations", "escalations", "google_reviews", "google_listings", "events"])
     assert.equal(wantsRefresh(reportsPeopleOverride, table), false, `${table}: not the lens's`);
   assert.equal(reportsPeopleOverride.refreshOnMessageInserts, undefined, "it names its tables");
   // A message's update (a send's tick) is no one reaching the business: only an arrival is heard.
@@ -634,21 +676,14 @@ test("a write that changes a yes or a stop, who waits on you, a run, the number 
     assert.deepEqual(keysOf("POST conversations/[id]/reply"), ["inbox", "conversations", "today"]);
     assert.deepEqual(keysOf("POST broadcasts").sort(), ["broadcasts", "playbooks"]);
     assert.deepEqual(keysOf("POST broadcasts/[id]/approve").sort(), ["broadcasts", "playbooks", "reach_outs"]);
-    assert.deepEqual(keysOf("PATCH workspaces"), [
-      "settings",
-      "people",
-      "reports",
-      "reports_headline",
-      "today",
-      "playbooks",
-    ]);
+    assert.deepEqual(keysOf("PATCH workspaces"), ["settings", "people", "today", "playbooks"]);
     assert.deepEqual(keysOf("POST channels/whatsapp/standing"), ["settings"]);
     assert.deepEqual(keysOf("POST lines/buy").sort(), ["broadcasts", "people", "playbooks", "setup"]);
     // A lead's stage, in one or many, and its undo: the Leads page (and People, for a stage that converts) as before.
     assert.deepEqual(keysOf("POST leads/[id]/stage"), ["leads", "people"]);
     assert.deepEqual(keysOf("POST leads/bulk"), ["leads"]);
     assert.deepEqual(keysOf("POST lead-operations/[id]/undo"), ["leads"]);
-    for (const key of ["settings", "today", "calendar", "setup", "broadcasts", "playbooks", "people"])
+    for (const key of ["settings", "calendar", "setup", "broadcasts", "playbooks", "people"])
       assert.ok(keysOf("PUT settings").includes(key), `PUT settings still re-reads ${key}`);
     // A yes or a stop, and a merge, are the lens's and the People lens's now, not the report's own: the report no longer counts them.
     for (const route of CAMPAIGNS_WRITES.slice(0, 5)) {
@@ -657,10 +692,22 @@ test("a write that changes a yes or a stop, who waits on you, a run, the number 
         assert.ok(keys.includes(key), `${route} still re-reads ${key}: ${keys}`);
       assert.equal(keys.includes("reports"), false, `${route}: consentWrite no longer names the report's own read`);
     }
-    // A deal is the report's own Deals section, and nothing the lens says.
-    assert.ok(
+    // A deal is the report's own Deals section, and nothing the lens says: read where the overview is on screen and forgotten
+    // elsewhere (a-visit-reaches-every-reader.test.mjs runs both).
+    const was = globalThis.location.hash;
+    try {
+      globalThis.location.hash = "#/reports";
+      assert.ok(
+        keysOf("POST contacts/[id]/deal").includes("reports"),
+        "a deal still re-reads the report's Deals section, where Reports is on screen",
+      );
+    } finally {
+      globalThis.location.hash = was;
+    }
+    assert.equal(
       keysOf("POST contacts/[id]/deal").includes("reports"),
-      "a deal still re-reads the report's Deals section",
+      false,
+      "and does not read it from a page that does not draw it",
     );
     for (const route of LEAVES_CAMPAIGNS) {
       held();
@@ -690,6 +737,7 @@ test("where the Campaigns lens or the Overview is on screen, the same writes rea
       globalThis.location.hash = hash;
       for (const route of CAMPAIGNS_WRITES) {
         held();
+        const before = surfaceValue("reports_campaigns");
         const keys = keysOf(route);
         assert.equal(
           keys.filter((k) => k === "reports_campaigns").length,
@@ -698,8 +746,8 @@ test("where the Campaigns lens or the Overview is on screen, the same writes rea
         );
         assert.equal(
           surfaceValue("reports_campaigns"),
-          undefined,
-          `${route}: and what it held is dropped first, every period's`,
+          before,
+          `${route}: and what it shows stays on screen while it is read again, the periods it held dropped (outdate)`,
         );
         assert.equal(reportsCampaigns.isStale(), true);
       }
@@ -737,6 +785,9 @@ test("the Campaigns lens's read repaints on the tables of the live feed that mov
     "conversations",
     "escalations",
     "broadcasts",
+    "reach_out_replies",
+    "tenant_channels",
+    "sending_domains",
   ]);
   // Asked for five seconds; the runner never waits more than three after the first change (campaigns-surface.test.mjs runs it).
   assert.equal(reportsCampaignsOverride.debounceMs, 5_000);
@@ -745,7 +796,17 @@ test("the Campaigns lens's read repaints on the tables of the live feed that mov
   // Which page hears them is the rule `refreshWhen` holds, run on the real routes in message-fan-out.test.mjs.
   for (const table of reportsCampaignsOverride.refreshOnTables)
     assert.equal(wantsRefresh(reportsCampaignsOverride, table), true, table);
-  for (const table of ["calls", "person_notes", "google_reviews", "google_listings", "events", "contacts", "deals"])
+  for (const table of [
+    "calls",
+    "person_notes",
+    "google_reviews",
+    "google_listings",
+    "events",
+    "contacts",
+    "deals",
+    "lines",
+    "mailboxes",
+  ])
     assert.equal(wantsRefresh(reportsCampaignsOverride, table), false, `${table}: not the lens's`);
   assert.equal(reportsCampaignsOverride.refreshOnMessageInserts, undefined, "it names its tables");
   // A message's update (a send's tick, a failure written late) is not heard: the lens reads the sends' receipts as it opens.
@@ -756,5 +817,58 @@ test("the Campaigns lens's read repaints on the tables of the live feed that mov
       false,
       `a message ${status}: a tick is not heard`,
     );
+  }
+});
+
+test("a reach-out saved or removed and a message version written or taken away read no lead: Leads' rows carry nothing of a chain; a lead's own writes still do", () => {
+  // The chain, its runs and its words are what these write (the trace of each route, shell/hearing/reads-are-heard.test.mjs, finds no
+  // leads, lead_searches, lead_rounds or lead_search_members among them). An answer that moves a lead is the lead's own write.
+  for (const route of [
+    "POST reach-outs",
+    "PUT reach-outs/[id]",
+    "DELETE reach-outs/[id]",
+    "POST templates/versions",
+    "DELETE templates/versions/[id]",
+  ]) {
+    const keys = keysOf(route);
+    assert.equal(keys.includes("leads"), false, `${route} reads Leads for nothing: ${keys}`);
+    // A version moves the chain's words and the playbooks' counts; the runs a held send is in read no template, so Sent is not
+    // read for it (the composer's messages are the settings read's: offered-templates.ts).
+    const named = route.includes("templates/versions")
+      ? ["reach_outs", "playbooks"]
+      : ["reach_outs", "playbooks", "broadcasts"];
+    for (const key of named) assert.ok(keys.includes(key), `${route}: ${key}`);
+  }
+  for (const route of [
+    "POST leads/[id]/stage",
+    "POST reach-outs/leads/[id]/stop",
+    "POST reach-out-sends/[id]/decide",
+    "POST reach-out-replies/[id]/undo",
+  ])
+    assert.ok(keysOf(route).includes("leads"), `${route} still moves the lead it is about`);
+});
+
+test("Not the same reads no list: the open person page reads itself again with the doubt gone, and no row of People carries a doubt", () => {
+  assert.ok("POST contacts/[id]/doubts/dismiss" in REFRESHES_NOTHING, "decided as a write that re-reads no surface");
+  assert.equal("POST contacts/[id]/doubts/dismiss" in AFTER, false, "and not also named to re-read People");
+});
+
+test("a person erased takes their messages, calls and threads with them: the report overview and the Campaigns home read where drawn and forget where not, and a merge re-reads the bell, whose lines it re-addresses", () => {
+  const was = globalThis.location.hash;
+  try {
+    for (const [hash, drawn, notDrawn] of [
+      ["#/reports", "reports", "campaign_results"],
+      ["#/campaigns", "campaign_results", "reports"],
+      ["#/inbox", null, "reports"],
+    ]) {
+      globalThis.location.hash = hash;
+      const keys = keysOf("DELETE contacts/[id]");
+      if (drawn) assert.equal(keys.filter((k) => k === drawn).length, 1, `${hash}: ${drawn} is read once: ${keys}`);
+      assert.equal(keys.includes(notDrawn), false, `${hash}: ${notDrawn} is not read from here: ${keys}`);
+    }
+    globalThis.location.hash = "#/inbox";
+    assert.ok(keysOf("POST contacts/[id]/merge").includes("notifications"), "a merge re-addresses the bell's lines");
+  } finally {
+    globalThis.location.hash = was;
   }
 });

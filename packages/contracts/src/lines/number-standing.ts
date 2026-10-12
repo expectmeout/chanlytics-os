@@ -204,15 +204,22 @@ const PAYMENT_ACT: Record<PaymentTrouble, string> = { missing: "Add a card", fai
  * What a connected number's row says while Meta holds something against it: its state's words, one sentence, and the one act
  * that mends it, a page of Meta's. Null where Meta holds nothing against it (the row is then its rating's and its last message's).
  */
+/**
+ * The row's word while Meta holds a payment method against the account (missing or failing): it names the payment. It said
+ * "Waiting on you", which Setup says of a step it waits on you for, People said of a thread you have and Reports of a thread
+ * nobody has (D1-waiting-on-you); the act beside it (Add a card, Fix the card) says what to do.
+ */
+export const PAYMENT_HOLD_WORD = "Payment needed";
+
 interface StandingRow {
-  stateWords: "Waiting on you" | "Needs attention";
+  stateWords: typeof PAYMENT_HOLD_WORD | "Needs attention";
   sentence: string;
   act: { label: string; href: string } | null;
 }
 
 /**
  * The row's words for what Meta holds against a number, in the order an owner can act on: the account's payment method, missing
- * or failing, is the owner's to mend ("Waiting on you", Meta's billing page for this account); a number Meta has stopped for
+ * or failing, is the owner's to mend ("Payment needed", Meta's billing page for this account); a number Meta has stopped for
  * anything else needs attention, with Meta's first problem about messaging in Meta's words, and WhatsApp Manager to read the
  * rest. Nothing else of Meta's is repeated: its notes, its calling problems, and a limit or a review the notes say in
  * Chanlytics' words (standingNotes).
@@ -227,7 +234,7 @@ export function standingRow(s: NumberStanding): StandingRow | null {
       ...(href ? [] : [ADD_ONE_IN_SUITE]),
     ];
     return {
-      stateWords: "Waiting on you",
+      stateWords: PAYMENT_HOLD_WORD,
       sentence: words.join(" "),
       act: href ? { label: PAYMENT_ACT[payment], href } : null,
     };

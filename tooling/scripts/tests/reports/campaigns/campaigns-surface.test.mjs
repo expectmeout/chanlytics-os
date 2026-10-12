@@ -40,7 +40,7 @@ globalThis.window.CHANLY = {
 };
 const keepError = console.error;
 console.error = () => {};
-const { reportsCampaigns, reportsCampaignsOverride, forgetReportsCampaigns } = await importSrc(
+const { reportsCampaigns, reportsCampaignsOverride } = await importSrc(
   "apps/dashboard/src/surfaces/reports/campaigns-surface.ts",
 );
 const { headline, reportsHeadlineOverride } = await importSrc("apps/dashboard/src/surfaces/reports/headline.ts");
@@ -427,13 +427,16 @@ test("all three reads failing is three nulls in a value that is held, not a fail
   assert.deepEqual(surfaceValue("reports_campaigns").reachOuts, reachOutsFor({ days: 30 }).report);
 });
 
-test("its live-feed rule is the lens's own: messages, conversations, escalations and runs, a burst waited out for longer than Reports' own read waits, heard on the Campaigns lens alone and left for it otherwise", () => {
+test("its live-feed rule is the lens's own: messages, conversations, escalations and runs, a reach-out's replies and the number and domains it speaks of, a burst waited out for longer than Reports' own read waits, heard on the Campaigns lens alone and left for it otherwise", () => {
   reset("30d");
   assert.deepEqual(reportsCampaignsOverride.refreshOnTables, [
     "messages",
     "conversations",
     "escalations",
     "broadcasts",
+    "reach_out_replies",
+    "tenant_channels",
+    "sending_domains",
   ]);
   for (const table of reportsCampaignsOverride.refreshOnTables)
     assert.ok(watchedTables().includes(table), `${table}: the feed tells of it`);
@@ -459,7 +462,11 @@ test("its live-feed rule is the lens's own: messages, conversations, escalations
       false,
       `a message ${status}: a tick is not heard`,
     );
-  assert.deepEqual(reportsHeadlineOverride.refreshOnTables, undefined, "the headline has none");
+  assert.deepEqual(
+    reportsHeadlineOverride.refreshOnTables,
+    ["messages", "calls", "appointments", "contacts"],
+    "the headline has its own, Today's (headline-live.test.mjs)",
+  );
   const change = (table) => ({ table, event: "INSERT", row: {} });
   for (const route of ["reports/campaigns", "reports/campaigns:2026-09-01~2026-09-20"]) {
     elsewhere(route);
@@ -843,8 +850,8 @@ test("a write that makes the read wrong forgets it, and nothing reads it from th
     assert.equal(reportsCampaigns.isStale(), true, "so the lens reads it as it comes on screen");
     assert.deepEqual(lensReads(), [], "and it is not read from the Inbox");
     await reportsCampaignsOverride.apply();
-    forgetReportsCampaigns();
-    assert.equal(surfaceValue("reports_campaigns"), undefined, "forgetReportsCampaigns is the helper's forget");
+    reportsCampaigns.forget();
+    assert.equal(surfaceValue("reports_campaigns"), undefined, "the helper's forget holds nothing of it");
   } finally {
     stop();
   }

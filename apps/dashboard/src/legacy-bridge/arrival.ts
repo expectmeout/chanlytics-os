@@ -4,11 +4,13 @@
  * takeover's own width), Ask's door (body.ask-open, ask-real.jsx, watched as it changes), the boot (surface-runner
  * afterBoot), what needs you (Ask's own standing, ask/palette.ts rightNowParts, and the bell's unread,
  * notifications.ts; asked again as the surfaces they are built from land, as the bell moves and as the phone comes
- * back) and the inbox's count (inbox:counts, surface-data.ts). Installed at boot by LegacyApp. The first
+ * back) and the count of what needs you (surfaces/needs-you.ts, the selector every badge reads). Installed at boot by
+ * LegacyApp. The first
  * page is read as the first face mounts (MASCOT.onMount): the shell's files compile in the browser for seconds after
  * the app boots, and a read that ran before the ✦ existed showed on nothing; it still lasts as long as the boot,
  * should the boot still be out.
  */
+import { hearNeedsYou, needsYouNow as heardCount } from "../surfaces/needs-you";
 import { MASCOT } from "./mascot";
 import { watchArrival } from "./mascot/arrival";
 import { afterBoot } from "./surface-runner";
@@ -57,15 +59,16 @@ export function installArrival(): () => void {
   });
   const onHash = () => arrival.arrived();
   const onStanding = () => arrival.recheck();
-  const onCounts = (e: Event) => {
-    arrival.noticed(Number((e as CustomEvent<{ needs?: number }>).detail?.needs));
+  // The needs-you count as the one selector says it (surfaces/needs-you.ts): a rise is noticed, a count not yet read is none.
+  const onCounts = () => {
+    arrival.noticed(heardCount() ?? Number.NaN);
     onStanding();
   };
   const onVisible = () => {
     if (document.visibilityState === "visible") onStanding();
   };
   const offAddress = hearAddress(onHash);
-  window.addEventListener("inbox:counts", onCounts);
+  const offCounts = hearNeedsYou(onCounts);
   for (const ev of STANDING_EVENTS) window.addEventListener(ev, onStanding);
   document.addEventListener("visibilitychange", onVisible);
   // the bell moving (Mark all read, a note read where it stands) says so at once, before any surface lands
@@ -84,7 +87,7 @@ export function installArrival(): () => void {
   });
   return () => {
     offAddress();
-    window.removeEventListener("inbox:counts", onCounts);
+    offCounts();
     for (const ev of STANDING_EVENTS) window.removeEventListener(ev, onStanding);
     document.removeEventListener("visibilitychange", onVisible);
     offBell?.();

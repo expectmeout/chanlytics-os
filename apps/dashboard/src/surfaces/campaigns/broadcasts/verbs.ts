@@ -26,8 +26,6 @@ import {
 import { api } from "@/legacy-bridge/api";
 import { readCache } from "@/legacy-bridge/read-cache";
 import type { ApiResult, Output } from "@/client/api";
-import { broadcastsOverride } from "./surface";
-import { refreshSurfaces } from "@/legacy-bridge/surface-runner";
 import { surfaceValue } from "../../surface-values";
 
 export interface SendBody {
@@ -40,12 +38,6 @@ export interface SendBody {
   name?: string | null;
   /** False sends to whoever heard from a campaign or a broadcast this week too (the composer's switch); absent, they are left out. */
   breathe?: boolean;
-}
-
-/** Re-read the surface: for Ask's cards and anything else that changes a broadcast elsewhere. */
-export async function refreshBroadcasts(): Promise<void> {
-  api().forget();
-  await refreshSurfaces([broadcastsOverride]);
 }
 
 /**
@@ -131,11 +123,9 @@ export const broadcasts = {
 declare global {
   interface Window {
     __broadcasts?: typeof broadcasts;
-    __refreshBroadcasts?: () => Promise<void>;
   }
 }
 
 export function installBroadcasts(): void {
   window.__broadcasts = broadcasts;
-  window.__refreshBroadcasts = refreshBroadcasts;
 }

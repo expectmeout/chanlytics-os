@@ -202,10 +202,49 @@ function intentsOf(deps: ApiDeps): ReturnType<typeof intentKeys> {
   return store;
 }
 
+/**
+ * The reads on their way, or answered and held, that an identical read shares. `kept`: settled, answered, and held
+ * (holdAnswers) -- shared whatever its age until the hold is let go.
+ */
+type InFlightRead = { p: Promise<unknown>; at: number; kept?: boolean; early?: boolean };
+type InFlight = Map<string, InFlightRead>;
+
+/** Whether a read asked for at `t` shares this one: held, or sent within the burst (a prefetch's, the longer). */
+function sharedAt(e: InFlightRead, t: number): boolean {
+  return !!e.kept || t - e.at < (e.early ? PREFETCH_SHARE_MS : INFLIGHT_MS);
+}
+
+/**
+ * The oldest moment a read asked for at `t` could be answered from (ms, this client's clock): `t`, unless an identical read is
+ * out, or held, that a new one would share (`send`), when it is the moment the oldest of those was sent. A write and the
+ * runner's own reads `forget` first, so after them it is the moment of the forgetting at the earliest. What a surface read is
+ * as new as this, never newer: the runner judges a notice of the live feed against it (surface-runner.ts).
+ */
+function oldestShared(inFlight: InFlight, t: number): number {
+  let from = t;
+  for (const e of inFlight.values()) if (sharedAt(e, t)) from = Math.min(from, e.at);
+  return from;
+}
+
+/** What a request is sent as: its method, its headers, its body, and how long it may take. */
+function initFor<K extends RouteKey>(key: K, opts: ApiOptions<K>): RequestInit {
+  const { method } = ROUTES[key];
+  const headers: Record<string, string> = {};
+  if (opts.body !== undefined) headers["content-type"] = "application/json";
+  if (opts.idempotencyKey) headers["idempotency-key"] = opts.idempotencyKey;
+  if (opts.via) headers["x-via"] = opts.via;
+  if (opts.undoOf) headers["x-undo-of"] = opts.undoOf;
+  return {
+    method,
+    headers,
+    ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
+    signal: AbortSignal.timeout(opts.timeoutMs ?? (method === "GET" ? READ_TIMEOUT_MS : WRITE_TIMEOUT_MS)),
+  };
+}
+
 export function createApi(deps: ApiDeps) {
   const now = deps.now ?? (() => Date.now());
-  // `kept`: settled, answered, and held (holdAnswers) -- shared whatever its age until the hold is let go.
-  const inFlight = new Map<string, { p: Promise<unknown>; at: number; kept?: boolean; early?: boolean }>();
+  const inFlight: InFlight = new Map();
   let holds = 0;
 
   function urlFor<K extends RouteKey>(key: K, opts: Options<K> = {}): string {
@@ -220,21 +259,6 @@ export function createApi(deps: ApiDeps) {
     return q ? `${url}?${q}` : url;
   }
 
-  function initFor<K extends RouteKey>(key: K, opts: ApiOptions<K>): RequestInit {
-    const { method } = ROUTES[key];
-    const headers: Record<string, string> = {};
-    if (opts.body !== undefined) headers["content-type"] = "application/json";
-    if (opts.idempotencyKey) headers["idempotency-key"] = opts.idempotencyKey;
-    if (opts.via) headers["x-via"] = opts.via;
-    if (opts.undoOf) headers["x-undo-of"] = opts.undoOf;
-    return {
-      method,
-      headers,
-      ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
-      signal: AbortSignal.timeout(opts.timeoutMs ?? (method === "GET" ? READ_TIMEOUT_MS : WRITE_TIMEOUT_MS)),
-    };
-  }
-
   async function send<K extends RouteKey>(
     key: K,
     ...[opts = {} as ApiOptions<K>]: OptionsOf<K>
@@ -244,8 +268,7 @@ export function createApi(deps: ApiDeps) {
     const sent = intentsOf(deps).keyed(ROUTES[key].method, url, opts);
     if (isRead) {
       const hit = inFlight.get(url);
-      if (hit && (hit.kept || now() - hit.at < (hit.early ? PREFETCH_SHARE_MS : INFLIGHT_MS)))
-        return hit.p as Promise<ApiResult<OutputOf<Routes[K]>>>;
+      if (hit && sharedAt(hit, now())) return hit.p as Promise<ApiResult<OutputOf<Routes[K]>>>;
     }
     // What the head started for this URL, else the read's own fetch; a prefetch that failed is asked again.
     const early = isRead ? (deps.prefetched?.(url) ?? null) : null;
@@ -301,11 +324,7 @@ export function createApi(deps: ApiDeps) {
     if (isRead) {
       // A refusal must not be shared beyond its burst, and neither is an answer unless answers are held: drop the
       // entry as it settles, or keep it for whoever asks next while the hold lasts.
-      const entry: { p: Promise<unknown>; at: number; kept?: boolean; early?: boolean } = {
-        p,
-        at: now(),
-        early: !!early,
-      };
+      const entry: InFlightRead = { p, at: now(), early: !!early };
       inFlight.set(url, entry);
       p.then(
         (r) => {
@@ -350,7 +369,10 @@ export function createApi(deps: ApiDeps) {
     inFlight.clear();
   }
 
-  return Object.assign(send, { raw, url: urlFor, forget, holdAnswers });
+  /** The oldest moment a read asked for now could be answered from (oldestShared). */
+  const sharesFrom = (): number => oldestShared(inFlight, now());
+
+  return Object.assign(send, { raw, url: urlFor, forget, holdAnswers, sharesFrom });
 }
 
 export type Api = ReturnType<typeof createApi>;

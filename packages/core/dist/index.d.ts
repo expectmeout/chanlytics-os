@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { ResendConfig, EmailSendsAs, WaConfig, EmailRequest, ResendLimit, SendResult, ApifyClient, LeadJudge, NormalizedInbound, CarrierConsent } from '@chanlytics/channels';
-import { SendPurpose, MessageAbout, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, ConsentChannel, WriteRow, ChannelsReady, WriteWay, AppointmentState, JobNews, EmailClaim, BookingTool, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, PurposeRefusal, PurposeBearing, AskedPurpose, AppointmentStatus, NoticeHold, ParamSpec, Audience, PersonRowVM, ListRef, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, CampaignMessage, CampaignHow, AppointmentWord, PlaybookTrigger, PlaybookPolicyClass, PlaybookState, triggerOf, PlaybookPatch, PLAYBOOK_LIMITS, StepHand, TimetableDomain, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts, Handled, BrainIntent, EventSubscriber, HoldFacts } from '@chanlytics/contracts';
+import { SendPurpose, MessageAbout, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, ConsentChannel, WriteRow, ChannelsReady, WriteWay, AppointmentState, FeedNames, JobNews, EmailClaim, BookingTool, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, PurposeRefusal, PurposeBearing, AskedPurpose, AppointmentStatus, NoticeHold, ParamSpec, Audience, PersonRowVM, ListRef, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, CampaignMessage, CampaignHow, AppointmentWord, PlaybookTrigger, PlaybookPolicyClass, PlaybookState, triggerOf, PlaybookPatch, PLAYBOOK_LIMITS, StepHand, TimetableDomain, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts, Handled, BrainIntent, EventSubscriber, HoldFacts, OptOutPerson, BookedVisit, MemberJoined } from '@chanlytics/contracts';
 export { AppointmentStatus, DeliveryRefusal, EmailClaim } from '@chanlytics/contracts';
 import { Json, Database, MessageVersionRow, RoutedChannel, LeadContext, IngestResult, DeliveredEvent } from '@chanlytics/db';
 
@@ -555,6 +555,9 @@ interface ReplyThread extends Pick<Thread, "id" | "tenant_id" | "phone_e164"> {
     /** The names on file, for a template that opens with their first name. */
     display_name?: string | null;
     wa_profile_name?: string | null;
+    /** Where that name came from, and whether a member settled it (0052): a stand-in is "there" (firstNameOf). */
+    name_source?: string | null;
+    name_settled_at?: string | null;
     /** The address on the person's page, and whether it has stopped being sent to (00125, 00126). */
     email?: string | null;
     email_suppressed_at?: string | null;
@@ -995,6 +998,9 @@ interface ContactRow {
     erased_at: string | null;
     display_name: string | null;
     wa_profile_name: string | null;
+    /** Where that name came from, and whether a member settled it (0052): a stand-in is "there" (firstNameOf). */
+    name_source?: string | null;
+    name_settled_at?: string | null;
 }
 type RecipientMark = {
     /**
@@ -1034,7 +1040,7 @@ interface BroadcastBatchPorts {
         address?: string | null;
     }>;
     /**
-     * The link a customer leaves the business a review at, as its Google listing keeps it (db reviewLinkOf, 00408), or null
+     * The link a customer leaves the business a review at, as its Google listing keeps it (db reviewLinkOf, 00415), or null
      * where it keeps none; throws when it cannot be read. Asked once a batch, and only of a run whose message has a review
      * slot: a send without one never depends on the listing.
      */
@@ -1049,6 +1055,14 @@ interface BroadcastBatchPorts {
      * appointments, and a read that fails is no rows: the send goes as it did before the record.
      */
     appointments?(keys: string[]): Promise<Map<string, AppointmentState>>;
+    /**
+     * What the owner's calendar feed names now (the edge's feed, kept five minutes), asked beside the record because the
+     * record is only as new as the hourly sweep: a visit cancelled in the calendar alone is still `booked` there, and its
+     * reminder would go. Null where the workspace has no calendar feed (nothing to ask); absent where the runtime has none.
+     * THROWS when the feed cannot be read: a reminder for a calendar event whose standing is unknown waits, queued, for the
+     * next batch, as every read the send cannot make does (broadcast.ts readPeople), and is never sent on a guess.
+     */
+    feed?(): Promise<FeedNames | null>;
     /** The thread this send belongs to, never created here. */
     target(phoneE164: string): Promise<{
         conversationId: string;
@@ -1528,6 +1542,9 @@ interface ReplyFacts {
     signedBy: string | null;
     /** The business's zone. */
     tz: string;
+    /** The From line's own words, and the names a signer can never be: the workspace's and its members' (0052). */
+    fromName?: string | null;
+    notNames?: readonly string[];
 }
 /** A reading as it is kept. */
 interface KeptReading {
@@ -1544,6 +1561,8 @@ interface KeptReading {
     draft: "answer" | "thanks" | null;
     draftState: DraftState;
     draftText: string | null;
+    /** The reply's signer while their name is offered (0052, "Use this name"); null otherwise. */
+    signerOffered: string | null;
 }
 /** reach_out_replies.draft_state. */
 type DraftState = "none" | "waiting" | "written" | "not_written";
@@ -2058,9 +2077,9 @@ interface PlaybookRow {
     list_key?: string | null;
     /** The channels it may go by (`playbooks.channels`); absent or empty on a row made before: WhatsApp alone. */
     channels?: string[] | null;
-    /** Its last day (00409), YYYY-MM-DD by the business's clock: a run for a day past it is off as `ended`. Absent before it. */
+    /** Its last day (00416), YYYY-MM-DD by the business's clock: a run for a day past it is off as `ended`. Absent before it. */
     until?: string | null;
-    /** Until when it runs on trial (00409): before it, a run its class would send by itself waits (contracts effectiveMode). */
+    /** Until when it runs on trial (00416): before it, a run its class would send by itself waits (contracts effectiveMode). */
     trial_until?: string | null;
 }
 /** The workspace as the run reads it once per tenant: the people, the modes, the number, the touches, the calendar. */
@@ -2127,7 +2146,7 @@ type RunOutcome =
     outcome: "off";
     mode: string;
     skipped: "never" | "template_not_approved" | "number_flagged" | "already_ran_today" | "no_calendar" | "no_list" | "list_uncounted" | "deals_off"
-    /** A run for a day past the campaign's last (00409 `until`): it has ended, and sends nothing more. */
+    /** A run for a day past the campaign's last (00416 `until`): it has ended, and sends nothing more. */
      | "ended";
 } | {
     outcome: "failed";
@@ -2171,7 +2190,7 @@ interface TemplateValuesPorts {
     /** The booking link on file, or null. */
     bookingLink(): Promise<string | null>;
     /**
-     * The link a customer leaves the business a review at, as its Google listing keeps it (db reviewLinkOf, 00408), or
+     * The link a customer leaves the business a review at, as its Google listing keeps it (db reviewLinkOf, 00415), or
      * null: no listing, or none bound from a Business Profile. Throws when it cannot be read: unreadable is not absent.
      */
     reviewLink(): Promise<string | null>;
@@ -2360,7 +2379,7 @@ cmd: {
  */
 declare function refuseWithoutBookingLink(ports: Pick<TemplateValuesPorts, "bookingLink">, specs: readonly ParamSpec[]): Promise<void>;
 /**
- * A review-link slot needs the link the workspace's Google listing keeps (a bound Business Profile's, 00408): refused
+ * A review-link slot needs the link the workspace's Google listing keeps (a bound Business Profile's, 00415): refused
  * in words where there is none, and the link read only where a slot asks for it, as the booking link is.
  */
 declare function refuseWithoutReviewLink(ports: Pick<TemplateValuesPorts, "reviewLink">, specs: readonly ParamSpec[]): Promise<void>;
@@ -2569,9 +2588,9 @@ interface PlaybookPatchRow {
     template_id: string | null;
     /** Its words as the row stores them (playbooks.params): the slot specs a run fills, read as a run reads them. */
     params: unknown;
-    /** Its last day (00409), YYYY-MM-DD by the business's clock, or null. */
+    /** Its last day (00416), YYYY-MM-DD by the business's clock, or null. */
     until: string | null;
-    /** Until when it runs on trial (00409), an instant, or null. */
+    /** Until when it runs on trial (00416), an instant, or null. */
     trial_until: string | null;
 }
 /**
@@ -2590,13 +2609,13 @@ interface PatchWhen {
     undo: boolean;
 }
 /**
- * The last day a change or a new campaign names (00409 `until`): a day by the business's clock, today or later, or on an
+ * The last day a change or a new campaign names (00416 `until`): a day by the business's clock, today or later, or on an
  * undo the day it held, past or not; null clears it, or names none. The one judgement checkPlaybookPatch, POST playbooks
  * (the dashboard's startNewPlaybook) and Ask's new campaign card ask; the zone is read only where a day is to be judged.
  */
 declare function untilOf(ports: Pick<CheckPlaybookPatchPorts, "timezone">, v: unknown, when: PatchWhen): Promise<string | null | undefined>;
 /**
- * The end of its trial a change or a new campaign names (00409 `trial_until`): an instant still to come at `now`, kept
+ * The end of its trial a change or a new campaign names (00416 `trial_until`): an instant still to come at `now`, kept
  * in one spelling (UTC); null ends it, or starts none. A trial that has already ended is none, so an instant past is
  * refused, from every caller but an undo (`when.undo`), which writes back the instant the door recorded, past or not.
  * The one judgement checkPlaybookPatch and POST playbooks (the dashboard's startNewPlaybook, before a starter is filed)
@@ -3971,9 +3990,14 @@ interface InboundDb {
  * customer's words to the workspace mailbox, and the edge's persist adapter
  * throws it (apps/edge/lib/whatsapp/persist.ts re-exports it for the two doors
  * that count it into their 503).
+ *
+ * `kept`: the message IS recorded, and what failed is a yes it carried (db AnswerNotKept: a START's channel, YES OFFERS).
+ * The provider is still told to send it again (the redelivery finds the message unhandled and writes the yes), and a job
+ * is tried again, but nobody is told the words were lost: they were not.
  */
 declare class IngestFailed extends Error {
-    constructor(message: string);
+    readonly kept: boolean;
+    constructor(message: string, kept?: boolean);
 }
 /**
  * A logger with context bound to it, as the verb uses one: three levels and a
@@ -3993,6 +4017,8 @@ interface InboundLog {
  */
 interface InboundRuntime {
     tenantId: string;
+    /** The workspace's address word (tenants.slug), when the runtime read it: an alert mail links the workspace's page by it. */
+    slug?: string | null;
     /** null = this tenant's receptionist does not speak (unconfigured persona —
      *  persist + escalate only; silence over someone else's voice). */
     brain: BrainConfig | null;
@@ -4040,6 +4066,8 @@ interface InboundHandoff {
         notifications: NotificationsConfig | null;
         /** True when this tenant is the env-default one, whose owner IS the address in LEAD_TO. */
         isEnvDefault: boolean;
+        /** The workspace's address word, when it was read with the recipients (the edge's NotifyTarget.slug). */
+        slug?: string | null;
     };
     /** The wire the customer wrote on. WhatsApp unless the text came in on a carrier's. */
     channel?: InboundChannel;
@@ -4178,7 +4206,11 @@ interface InboundPorts {
         /** Persist first. Null when there is nothing to record for; IngestFailed when the write FAILED. */
         ingest(db: InboundDb | null, tenantId: string | null, n: NormalizedInbound, channel?: InboundChannel, 
         /** The line the message came in on, a tenant_channels id: the first touch of the person it makes carries it (K3). */
-        line?: string | null): Promise<IngestResult | null>;
+        line?: string | null, 
+        /** A job takes this message up next (a door that records it and schedules its answer): a yes that fails here is left owed to that job. */
+        opts?: {
+            jobFollows?: boolean;
+        }): Promise<IngestResult | null>;
         sink(db: InboundDb | null, tenantId: string | null, ing: IngestResult | null, rt?: InboundRuntime | null, channel?: InboundChannel, wire?: Wire): InboundSink;
         /**
          * The thread's reply turn (00284, ./turn.ts): `claim` takes it for this message before the model is asked, and
@@ -4553,7 +4585,19 @@ declare function bookingPageLinkedFrom(html: string, pageUrl: string): string | 
  *   owner_notice      a thread handed to a person (escalation.opened, or an open hold taking another reason:
  *                     escalation.changed; 00388, 00396) is told to its workspace once, from its rows (decision 0043):
  *                     the hold read again, so one answered since tells nobody; the notice keeps its event, so a second
- *                     run, or a notice an edge from before told inline, sends nothing again.
+ *                     run, or a notice an edge from before told inline, sends nothing again. A hold that waits on
+ *                     nobody (an `opt_out` an edge from before opened) is not told here: consent_notice tells it.
+ *   consent_notice    a customer's no (contact.consent_changed, whichever door wrote it: a typed STOP, the unsubscribe
+ *                     link, a complaint, a carrier's report) is told to its workspace once on the bell, in the Inbox's
+ *                     words (decision 0048, 00409). News and no wait: no hold is opened for it, and the mail follows
+ *                     only as the business chose. A no a member recorded, and every yes, tell nobody.
+ *   visit_notice      a booking that arrived (appointment.changed, a visit added or a hold confirmed, by a booking tool or the
+ *                     owner's calendar feed: 00410, S1-01) is told once on the bell, opening the visit on its day. The
+ *                     visits one read of the calendar added together are one line, told by the first of their events, and
+ *                     a read that adds more than a customer could book in an hour (a calendar newly connected) tells
+ *                     nobody. A visit withdrawn or already past by the time the delivery runs is not news.
+ *   team_notice       a teammate who accepted an invitation and joined (member.joined: 00410, S1-19) is told once on the
+ *                     bell, opening Settings > Team.
  */
 
 /** What a subscriber acts through: the job's own database, behind the verbs it needs. */
@@ -4566,12 +4610,56 @@ interface SubscriberPorts {
     } | {
         escalationId: string;
     }): Promise<HoldFacts | null>;
-    /** Whether the workspace was told of this hold already: this event's notice, or an inline one about the thread. */
+    /**
+     * Whether the workspace was told of this hold in full already: this event's notice with nothing owed, or an inline one
+     * about the thread. A notice kept whose mail is still owed (the mail failed after the row and the phones went) is not
+     * told yet: `tell` then sends the mail alone, and the row is never kept twice.
+     */
     holdTold(tenantId: string, p: {
         eventId: string;
         conversationId: string;
         at: string;
     }): Promise<boolean>;
+    /** The person a consent change is about, as their record says it (packages/db personFactsOf); null when there is no such person. */
+    optOutPerson(tenantId: string, contactId: string): Promise<OptOutPerson | null>;
+    /**
+     * Whether the workspace was told of this no already in full: this event's notice with nothing owed, or another door's
+     * notice for the same person within the minute (an unsubscribe page's "Stop all messages" writes two events for one
+     * press).
+     */
+    optOutTold(tenantId: string, p: {
+        eventId: string;
+        contactId: string;
+        at: string;
+    }): Promise<boolean>;
+    /**
+     * Whether the workspace was told of this event in full already: a notice answering it, with nothing owed (news that has no
+     * twin to look for but its own earlier delivery).
+     */
+    eventTold(tenantId: string, eventId: string): Promise<boolean>;
+    /**
+     * The visits of the record that are booked and still ahead among these, as the record says them now, with who booked
+     * (packages/db bookedVisitsOf). A visit cancelled, vanished from the feed, past, or a member's own entry is not among them.
+     */
+    bookedVisits(tenantId: string, ids: readonly string[], nowMs: number): Promise<BookedVisit[]>;
+    /**
+     * The calendar's additions one read of the feed wrote in the same transaction as this event, by event id (packages/db
+     * feedAdditionsWith): at most CATCH_UP_VISITS + 1, so a read that added more is seen as more without reading all of it.
+     */
+    feedAdditionsWith(tenantId: string, event: {
+        id: string;
+        at: string;
+    }): Promise<Array<{
+        eventId: string;
+        appointmentId: string;
+    }>>;
+    /** The invitation a member.joined event is about: who accepted it and as what (packages/db memberJoinedOf); null when it is gone. */
+    memberJoined(tenantId: string, invitationId: string): Promise<MemberJoined | null>;
+    /**
+     * Whether the workspace was told of this invitation's acceptance already, by whichever event: a read that took the seat
+     * twice (two tabs at once) writes two member.joined events, and the owner is told of one arrival once.
+     */
+    memberTold(tenantId: string, invitationId: string): Promise<boolean>;
     /**
      * Tell the workspace: the bell, the email its settings allow, the phones each member allows (decision 0040), exactly
      * once for the event the news names. Throws when it could not, so the delivery tries again.

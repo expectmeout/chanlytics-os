@@ -50,6 +50,8 @@ function replyFactsOf(r: ReachOutReplyOf): ReplyFacts {
     leadWebsiteRoot: r.lead_website_root,
     signedBy: r.signed_by,
     tz: r.tz ?? DEFAULT_TIMEZONE,
+    fromName: r.from_name,
+    notNames: r.not_names,
   };
 }
 
@@ -71,6 +73,7 @@ function keptReadingOf(row: ReplyReadingRow): KeptReading {
     undone: row.undone_at !== null,
     draft: plan.draft === "answer" || plan.draft === "thanks" ? plan.draft : null,
     draftState: row.draft_state as DraftState, // one of DRAFT_STATES, checked above
+    signerOffered: row.signer_state === "offered" ? row.signer_name : null,
     draftText: row.draft,
   };
 }
@@ -112,6 +115,8 @@ export async function replyRead(ctx: JobContext, job: ClaimedJob): Promise<void>
             day: p.reading.day,
             refer_to: p.reading.referTo,
             unread: p.unread,
+            // The signer the gate kept (0052): offered to the owner, or taken when the plan says adoptSigner.
+            signer: p.reading.signer,
           },
           plan: planJson(p.plan),
           reread: p.reread,

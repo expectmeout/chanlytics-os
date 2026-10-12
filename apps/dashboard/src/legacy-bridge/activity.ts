@@ -1,5 +1,6 @@
 /**
- * The activity log, on the classic Settings page: `window.__activity`.
+ * The activity log, on Settings (the pane imports `activity`; it was once published as `window.__activity` for the
+ * classic page, and the name went with that page, O4b).
  *
  * Read on demand rather than published as a surface -- it is opened by an
  * owner, rarely, and a surface would fetch both ledgers into every member's
@@ -70,13 +71,3 @@ export const activity = {
     return r.data.people.slice(0, 10).map((p) => ({ id: p.id, name: personName(p), phone: p.phone_e164 }));
   },
 };
-
-declare global {
-  interface Window {
-    __activity?: typeof activity;
-  }
-}
-
-export function installActivity(): void {
-  window.__activity = activity;
-}

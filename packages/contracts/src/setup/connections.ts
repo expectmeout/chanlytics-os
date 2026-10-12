@@ -12,6 +12,7 @@
  */
 import type { Tone } from "../shell/tone";
 import { numberHealth } from "../broadcasts/broadcasts";
+import { PHONE_LINE_OFF } from "../lines/caller-gets";
 import { channelFor, type ChannelVM } from "../lines/channels";
 import type { ConnectionNote } from "../lines/connection-note";
 import { codeNotes, type LineCodeDto } from "../lines/line-codes";
@@ -20,7 +21,8 @@ import { whatsappCostNotes } from "../lines/whatsapp-cost";
 import { tryItNotes } from "../lines/whatsapp-try-it";
 import type { GoogleListingDto, GoogleConnectionDto, GoogleAudience } from "../google/google";
 import type { LineDto, SetupDto } from "./setup";
-import { LINE_STEP_WORDS, textingWords, SOLE_PROP_CEILING_SENTENCE, TEXTING_NEEDS_RECORD_SENTENCE } from "./setup";
+import { SETUP_STATE_WORDS, textingWords, SOLE_PROP_CEILING_SENTENCE, TEXTING_NEEDS_RECORD_SENTENCE } from "./setup";
+import { ownLineStandOf } from "./setup-rows-phone";
 import { agoWords, HOUR_MS } from "../shared/time";
 import { checkedWords, connectionWords, listingLine } from "../google/google";
 import { formatPhoneDisplay } from "../shared/phone";
@@ -114,7 +116,8 @@ export interface ConnectionInputs {
 const TONE: Record<ConnectionState, ConnectionTone> = {
   connected: "ok",
   attention: "warn",
-  off: "warn",
+  // A line that is off is drawn in the tone its standing value gives (lines/caller-gets.ts), here and wherever it is told.
+  off: PHONE_LINE_OFF.tone,
   waiting_you: "info",
   waiting_them: "info",
   none: "plain",
@@ -175,7 +178,7 @@ export function smsStateRow(line: LineDto | null, nowMs: number): Draft {
     return {
       ...base,
       state: "waiting_you",
-      stateWords: "Waiting on you",
+      stateWords: SETUP_STATE_WORDS.waiting_you,
       sentence: TEXTING_NEEDS_RECORD_SENTENCE,
       verb: { label: "Fill it in", to: "verb:business-record", who: "owner" },
       body: "business_record",
@@ -189,7 +192,12 @@ export function smsStateRow(line: LineDto | null, nowMs: number): Draft {
   // exactly what it is -- joined, not working -- and the sentence is the one
   // Setup says, from one function, so the two pages cannot drift apart.
   if (line?.reg_mock) {
-    return { ...base, state: "attention", stateWords: "Waiting on us", sentence: textingWords(line).sentence };
+    return {
+      ...base,
+      state: "attention",
+      stateWords: SETUP_STATE_WORDS.waiting_them,
+      sentence: textingWords(line).sentence,
+    };
   }
   switch (line?.sms_state) {
     case "active":
@@ -223,7 +231,7 @@ export function smsStateRow(line: LineDto | null, nowMs: number): Draft {
         ? {
             ...base,
             state: "waiting_you",
-            stateWords: "Waiting on you",
+            stateWords: SETUP_STATE_WORDS.waiting_you,
             sentence: line.last_error,
             verb: { label: "Open the record", to: "verb:business-record", who: "owner" },
             body: "business_record",
@@ -231,7 +239,7 @@ export function smsStateRow(line: LineDto | null, nowMs: number): Draft {
         : {
             ...base,
             state: "waiting_you",
-            stateWords: "Waiting on you",
+            stateWords: SETUP_STATE_WORDS.waiting_you,
             sentence: TEXTING_NEEDS_RECORD_SENTENCE,
             verb: { label: "Fill it in", to: "verb:business-record", who: "owner" },
             body: "business_record",
@@ -254,7 +262,7 @@ export function smsStateRow(line: LineDto | null, nowMs: number): Draft {
       return {
         ...base,
         state: "waiting_you",
-        stateWords: "Waiting on you",
+        stateWords: SETUP_STATE_WORDS.waiting_you,
         sentence:
           "The carriers texted your mobile — reply to that message from the handset itself and texting switches on. There is nothing to type here. The code lasts a day; if it runs out, Chanlytics asks the carriers for another.",
       };
@@ -289,7 +297,7 @@ export function smsStateRow(line: LineDto | null, nowMs: number): Draft {
       return {
         ...base,
         state: "attention",
-        stateWords: "Waiting on us",
+        stateWords: SETUP_STATE_WORDS.waiting_them,
         sentence: line?.last_error || "Registering stopped. A person at Chanlytics has it.",
       };
     default:
@@ -388,7 +396,7 @@ const LIBRARY: ConnectionVerb = { label: "Library", to: "messages", who: "operat
 
 /**
  * The row of a connected number. What Meta holds against it comes first (channel.standing, 00338, in contracts' words: a
- * payment method missing or failing is "Waiting on you", a number Meta has stopped for anything else "Needs attention", each
+ * payment method missing or failing is "Payment needed", a number Meta has stopped for anything else "Needs attention", each
  * with the one act that mends it, a page of Meta's), else its rating (a flagged number is the "joined but not working" the
  * attention state exists for), else on. The notes say what changes what the owner can do, and no more (standingNotes). A row
  * says one daily limit, the quality webhook's once Meta has sent one, else the tier the standing read: in the sentence where
@@ -489,24 +497,17 @@ function phoneRow(i: ConnectionInputs, { voice, own, nowMs }: ConnectionFacts): 
       verb: null,
     };
   }
-  if (own && own.voice_state === "provisioning") {
+  // The own line from bought to answering, as Start's row says it (ownLineStandOf): stuck past its deadline, still setting up,
+  // stopped at the vault (no Retry that cannot help) or elsewhere (Retry, in place). Its number is the row's detail.
+  const stand = own ? ownLineStandOf(own, nowMs, null) : null;
+  if (own && stand && stand.kind !== "connecting") {
     return {
       ...base,
       detail: formatPhoneDisplay(own.e164),
       state: "waiting_them",
-      stateWords: "Waiting on us",
-      sentence: `Setting up — ${LINE_STEP_WORDS[own.step ?? ""] ?? "working on it"}, since ${agoWords(Date.parse(own.state_since), nowMs)}. Usually a minute or two.`,
-      verb: null,
-    };
-  }
-  if (own && own.voice_state === "failed") {
-    return {
-      ...base,
-      detail: formatPhoneDisplay(own.e164),
-      state: "waiting_them",
-      stateWords: "Waiting on us",
-      sentence: "Setting up stopped. A person at Chanlytics has it, or you can retry it.",
-      verb: { label: "Retry it", to: firstRunStepRoute("phone"), who: "owner" },
+      stateWords: SETUP_STATE_WORDS.waiting_them,
+      sentence: [stand.sentence, ...stand.details.slice(0, 1).map((d) => `${d}.`)].join(" "),
+      verb: stand.retry ? { label: "Retry", to: stand.retry, who: "owner" } : null,
     };
   }
   if (i.lineRequestedAt) {
@@ -514,7 +515,7 @@ function phoneRow(i: ConnectionInputs, { voice, own, nowMs }: ConnectionFacts): 
       ...base,
       detail: null,
       state: "waiting_them",
-      stateWords: "Waiting on us",
+      stateWords: SETUP_STATE_WORDS.waiting_them,
       sentence: `Requested ${agoWords(Date.parse(i.lineRequestedAt), nowMs)} — a person at Chanlytics will set up your line with you and reach you by email.`,
       verb: null,
     };
@@ -567,7 +568,7 @@ function googleProfileRow(i: ConnectionInputs, { connection: c, nowMs }: Connect
       ...base,
       detail: null,
       state: "waiting_you",
-      stateWords: "Waiting on you",
+      stateWords: SETUP_STATE_WORDS.waiting_you,
       sentence: `${connectionWords(c, nowMs)}.`,
       verb: null,
       body: "google_choose",
@@ -699,7 +700,7 @@ function emailRow(i: ConnectionInputs, { nowMs }: ConnectionFacts): Draft {
       detail: mailbox.address,
       state: mailbox.last_error || heldDomains ? "attention" : "connected",
       stateWords: mailbox.last_error
-        ? "Waiting on us"
+        ? SETUP_STATE_WORDS.waiting_them
         : heldDomains
           ? `On · ${heldDomains} domain${heldDomains === 1 ? "" : "s"} held`
           : "On",

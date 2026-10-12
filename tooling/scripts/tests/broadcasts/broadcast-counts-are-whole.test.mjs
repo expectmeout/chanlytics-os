@@ -445,7 +445,7 @@ const json = (status, body) =>
 const realConsoleError = console.error;
 console.error = () => {};
 const { broadcastsOverride } = await import("../../../../apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts");
-const { surfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
+const { setSurfaceValue, surfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 console.error = realConsoleError;
 
 /**
@@ -681,10 +681,23 @@ test("the surface offers the messages of the templates read by the channels each
     // A WhatsApp version alone, still in review: not offered.
     version("later_note", "whatsapp", { meta_status: "pending" }),
   ];
-  wire({
-    templates: { templates: rows.filter((r) => r.meta_status === "approved"), messages: campaignMessagesOf(rows) },
+  // The messages are the settings read's, the one read of the templates (offered-templates.ts): the surface asks for no GET templates
+  // of its own. What Settings publishes of it: WhatsApp's rows with every status, the email and text rows, and the messages made of all.
+  const settings = (over = {}) => ({
+    templatesAll: rows.filter((r) => r.channel === "whatsapp"),
+    templateVersions: rows.filter((r) => r.channel !== "whatsapp"),
+    messages: campaignMessagesOf(rows),
+    ...over,
   });
+  wire({ templates: { templates: [] } });
+  setSurfaceValue("settings", undefined);
   await broadcastsOverride.apply();
+  assert.equal(
+    surfaceValue("broadcasts").templates,
+    undefined,
+    "Settings is not read yet: still reading, never 'none yet'",
+  );
+  setSurfaceValue("settings", settings());
   const offered = surfaceValue("broadcasts").templates;
   assert.deepEqual(
     offered.map((t) => [t.name, t.id, t.channel, t.channels, t.purpose]),
@@ -703,17 +716,90 @@ test("the surface offers the messages of the templates read by the channels each
   assert.deepEqual(offered[0].versions, {
     email: { subject: "Subject of hours_note", body: "Words of hours_note on email" },
   });
-  // A read from before messages were kept: the same, made of the rows it holds (which leave the version in review out).
-  wire({ templates: { templates: rows.filter((r) => r.meta_status === "approved") } });
-  await broadcastsOverride.apply();
+  // A read from before messages were kept: the same, made of the rows it holds (which leave the version in review out), in
+  // the order the settings read holds them: WhatsApp's rows, then the email and text rows (offered-templates.ts offeredRows).
+  setSurfaceValue("settings", settings({ messages: null }));
   assert.deepEqual(
     surfaceValue("broadcasts").templates.map((t) => [t.name, t.id, t.channels]),
     [
+      ["quick_note", "t-quick_note-whatsapp", ["whatsapp"]],
       ["hours_note", "t-hours_note-email", ["email"]],
       ["fall_offer", "t-fall_offer-email", ["email"]],
-      ["quick_note", "t-quick_note-whatsapp", ["whatsapp"]],
     ],
   );
+  // A read of Settings that failed on its templates is 'could not read' here too, and the surface's own read keeps what it holds.
+  setSurfaceValue("settings", settings({ templatesAll: null }));
+  assert.equal(surfaceValue("broadcasts").templates, null);
+  await broadcastsOverride.apply();
+  assert.equal(surfaceValue("broadcasts").templates, null);
+  setSurfaceValue("settings", undefined);
+});
+
+test("a template approved, hidden or taken away reaches an open composer with Settings' read alone: Sent is not read again, and asks for no template", async () => {
+  const { campaignMessagesOf } = await import("@chanlytics/contracts");
+  const row = (name, channel, over = {}) => ({
+    id: `t-${name}-${channel}`,
+    channel,
+    name,
+    language: "en_US",
+    meta_status: "approved",
+    category: "utility",
+    hidden_at: null,
+    title: null,
+    blocked: null,
+    variables: [],
+    body_preview: `Words of ${name}`,
+    ...over,
+  });
+  const settings = (rows) => ({
+    templatesAll: rows.filter((r) => r.channel === "whatsapp"),
+    templateVersions: rows.filter((r) => r.channel !== "whatsapp"),
+    messages: campaignMessagesOf(rows),
+  });
+  const asked = [];
+  wire();
+  const fetchWas = globalThis.window.fetch;
+  globalThis.window.fetch = async (url) => {
+    asked.push(new URL(String(url), "https://app.chanlytics.com").pathname);
+    return fetchWas(url);
+  };
+  setSurfaceValue("settings", settings([row("quick_note", "whatsapp")]));
+  await broadcastsOverride.apply();
+  assert.deepEqual(
+    surfaceValue("broadcasts").templates.map((t) => t.name),
+    ["quick_note"],
+  );
+  const before = surfaceValue("broadcasts");
+  asked.length = 0;
+  // Meta approves another one: the composer offers it the moment Settings' read lands.
+  setSurfaceValue("settings", settings([row("quick_note", "whatsapp"), row("later_note", "whatsapp")]));
+  assert.deepEqual(
+    surfaceValue("broadcasts").templates.map((t) => t.name),
+    ["quick_note", "later_note"],
+  );
+  // The rest of the surface is the object it was: nothing but the messages moved.
+  assert.equal(surfaceValue("broadcasts").audiences, before.audiences);
+  // The owner hides one, and then adds an email version of the other: both are Settings' news.
+  setSurfaceValue(
+    "settings",
+    settings([
+      row("quick_note", "whatsapp"),
+      row("later_note", "whatsapp", { hidden_at: "2026-10-10T00:00:00Z" }),
+      row("quick_note", "email"),
+    ]),
+  );
+  assert.deepEqual(
+    surfaceValue("broadcasts").templates.map((t) => [t.name, t.channels]),
+    [["quick_note", ["whatsapp", "email"]]],
+  );
+  // The email version taken away: the channel closes on the composer with no read of Sent's.
+  setSurfaceValue("settings", settings([row("quick_note", "whatsapp")]));
+  assert.deepEqual(
+    surfaceValue("broadcasts").templates.map((t) => [t.name, t.channels]),
+    [["quick_note", ["whatsapp"]]],
+  );
+  assert.deepEqual(asked, [], "not a request was made for any of it");
+  setSurfaceValue("settings", undefined);
 });
 
 test("with run_counts on the database, a list of runs is its answer, asked once for every run, never a person read", async () => {

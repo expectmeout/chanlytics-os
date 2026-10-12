@@ -76,8 +76,8 @@ test("the shell's one line: a pause outranks a newer build, and points at Billin
 test("the wiring: the runtime reads the switch, every path honours it, the shell says so", () => {
   const rt = readCode("apps/edge/lib/tenant-runtime.ts");
   assert.ok(
-    rt.includes('db.from("tenants").select("name, timezone, status")') &&
-      rt.includes('paused: tzQ.data?.status === "paused",') &&
+    rt.includes('db.from("tenants").select("name, slug, timezone, status")') &&
+      rt.includes('paused: t?.status === "paused"') &&
       rt.includes("paused: false,"),
     "one read, the same query the clock uses",
   );

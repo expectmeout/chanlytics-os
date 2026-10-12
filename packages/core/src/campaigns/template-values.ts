@@ -109,7 +109,7 @@ export async function refuseWithoutBookingLink(
 }
 
 /**
- * A review-link slot needs the link the workspace's Google listing keeps (a bound Business Profile's, 00408): refused
+ * A review-link slot needs the link the workspace's Google listing keeps (a bound Business Profile's, 00415): refused
  * in words where there is none, and the link read only where a slot asks for it, as the booking link is.
  */
 export async function refuseWithoutReviewLink(

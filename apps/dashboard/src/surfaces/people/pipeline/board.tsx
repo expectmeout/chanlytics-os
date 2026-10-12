@@ -13,11 +13,12 @@
  */
 import type { DragEvent } from "react";
 import type { PipelineGroupKey, PipelineMove, PipelineRowVM } from "@chanlytics/contracts";
+import { isIdentifierName } from "@chanlytics/contracts";
+import { Face } from "../../kit/face/face";
 import { StatePill } from "../../kit/pill/state-pill";
+import { StoppedMark } from "../../kit/pill/stopped-mark";
 import { Menu } from "../../kit/menu/menu";
 import { menuGroups, moreButton } from "../menu-groups";
-import { Icon } from "../../kit/icon/icon";
-import { plFace, plIsNumber } from "../words";
 import { PipelineTrack } from "./row";
 import { P } from "./pipe";
 import type { PipelineSection } from "./pipe";
@@ -60,7 +61,6 @@ const PipelineCard = ({
   onMove: (row: PipelineRowVM, from: PipelineGroupKey, to: PipelineGroupKey) => void;
 }) => {
   const p = r.person;
-  const face = plFace(p);
   const W = P.words.board;
   return (
     <div className="pipe-card-wrap">
@@ -100,13 +100,10 @@ const PipelineCard = ({
         onDragEnd={canDrag ? onDragEnd : undefined}
       >
         <div className="pipe-card-top">
-          <span
-            className={`ix-thread-avatar pipe-card-face${face.glyph ? " cl-row-avatar-glyph" : ""}`}
-            aria-hidden="true"
-          >
-            {face.glyph ? <Icon name={face.glyph} size={11} /> : face.initials}
-          </span>
-          <span className={`pipe-card-name${plIsNumber(p.name) ? " tabular" : ""}`}>{r.name}</span>
+          <Face person={{ name: p.name, initials: p.initials }} className="pipe-card-face" />
+          <span className={`pipe-card-name${isIdentifierName(p.name) ? " tabular" : ""}`}>{r.name}</span>
+          {/* They asked to stop: a card is where a person is picked up to answer, so it says it (D1-stop-unseen). */}
+          {p.stopped && <StoppedMark className="pipe-stopped" testid="pipe-card-stopped" />}
         </div>
         {r.service ? (
           <div className="pipe-card-service" data-testid="pipe-service">

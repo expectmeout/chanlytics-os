@@ -1,15 +1,20 @@
 /**
- * Today's helpers for the legacy page, computed in contracts from the
- * surfaces the page already holds — the calendar, the playbooks, the people,
- * Reports, the bell, the broadcasts, the readings of reach-out replies. Published on window the way the
- * calendar's verbs are, so the page composes and never derives. The mockup's
- * sample (today-sample.ts) publishes the same object, so the two cannot drift.
+ * Today's helpers, computed in contracts from the surfaces the page already holds — the calendar, the playbooks, the
+ * people, Reports, the bell, the broadcasts, the readings of reach-out replies — so the page composes and never derives.
+ * The page imports them; nothing reads them off `window`.
  */
 import {
   todayDay,
   todayAwayGrouped,
   todayBriefWords,
   todaySteps,
+  todayStepsFoot,
+  todayStepsSub,
+  withSteps,
+  todayVisitsAsked,
+  todayVisitsFoot,
+  todayVisitsSub,
+  withVisitsAsked,
   todayLeaks,
   todayPeriodLine,
   todayRunWords,
@@ -35,22 +40,19 @@ export const TODAY_HELPERS = {
   runApproved: todayRunApproved,
   leaks: todayLeaks,
   awayGrouped: todayAwayGrouped,
-  // The steps due at the head of the day (0007, amended).
+  // The steps due (0007, amended): the block, its words in the queue's head and foot, and the queue's rows with them among them.
   steps: todaySteps,
+  stepsSub: todayStepsSub,
+  stepsFoot: todayStepsFoot,
+  withSteps,
+  // Yesterday's visits nobody has marked (0047): the block, its words in the queue's head and foot, and the queue's rows with them among them.
+  visitsAsked: todayVisitsAsked,
+  visitsSub: todayVisitsSub,
+  visitsFoot: todayVisitsFoot,
+  withVisitsAsked,
   // The queue's handoffs whose thread's reply to a reach-out was read, as that reply's row (Reach out Part 5, PR 8).
   withReplies: (rows: TodayQueueRowVM[]) => withReplies(rows, readings()),
   // Who is waiting with nothing back, less a reply read as a wrong person: nobody there is to answer (contracts
   // withoutWrongPerson), over the same readings as the queue's, so the page asks for the replies once.
   withoutWrongPerson: (waiting: TodayNoReplyVM[]) => withoutWrongPerson(waiting, readings()),
 };
-type TodayHelpers = typeof TODAY_HELPERS;
-
-declare global {
-  interface Window {
-    __today?: TodayHelpers;
-  }
-}
-
-export function installToday(): void {
-  window.__today = TODAY_HELPERS;
-}

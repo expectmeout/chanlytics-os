@@ -357,7 +357,7 @@ test("REGRESSION (I6): a template is filled by its own slots, as broadcasts and 
     /needs words for “The note”, which the Inbox does not ask for/,
   );
   assert.deepEqual(q.ops(), [], "nothing is queued for a template the Inbox cannot fill");
-  // A review's link is a campaign's to fill, from the Google listing (00408): the Inbox holds none, so it never sends one blank.
+  // A review's link is a campaign's to fill, from the Google listing (00415): the Inbox holds none, so it never sends one blank.
   const review = fakes({
     template: {
       ...welcome,

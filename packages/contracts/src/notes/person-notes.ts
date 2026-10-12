@@ -35,6 +35,8 @@ export interface PersonNoteDto {
   done_by_me?: boolean;
   /** The deal it moves, when it names one. */
   deal_id?: string | null;
+  /** The member it is for said Got it (00413): it leaves their Up next. Absent on a read before the column. */
+  for_seen?: boolean;
 }
 
 /** A member of the team a note can be for, the reader marked. */
@@ -56,6 +58,8 @@ export interface PersonNoteVM {
   /** "For you", or "For Maria"; null when it is for everyone. */
   forWho: string | null;
   forMe: boolean;
+  /** For the reader, and they said Got it (00413): no longer in their Up next. */
+  forSeen: boolean;
   forUserId: string | null;
   teamOnly: boolean;
   /** The receptionist's suggestion, waiting for Keep or Dismiss; `from` says what it came out of. */
@@ -140,6 +144,7 @@ export const NOTE_REFUSALS: Record<string, string> = {
   bad_source: "Could not save this note.",
   bad_deal: "That deal is not this person's.",
   not_a_step: "Only a note with a day can be done.",
+  not_for_you: "This note is for someone else.",
 };
 
 const NOTE_FROM: Record<PersonNoteDto["source"], string | null> = {
@@ -202,6 +207,7 @@ export function personNotesVM(
         whenFull: `${clockDateYear(t, tz)} · ${clockTime(t, tz)}`,
         forWho: forWords(n.for_me, n.for_user_id, n.for_name),
         forMe: n.for_me,
+        forSeen: n.for_me && !!n.for_seen,
         forUserId: n.for_user_id,
         teamOnly: n.team_only,
         suggested: n.state === "suggested",

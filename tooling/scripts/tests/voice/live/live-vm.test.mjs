@@ -284,7 +284,12 @@ test("who: a name, else the number, else 'withheld' — and a phone-like name is
 
 test("the line: number and switch from the voice channel; null when there is none", () => {
   const vm = toLiveVM([], [voice], ZONE, NOW);
-  assert.deepEqual(vm.line, { number: "+1 (305) 555-0123", on: true, lastCallLabel: vm.line.lastCallLabel });
+  assert.deepEqual(vm.line, {
+    number: "+1 (305) 555-0123",
+    on: true,
+    offWords: "The line is switched off — calls are picked up without your facts and are not recorded.",
+    lastCallLabel: vm.line.lastCallLabel,
+  });
   assert.ok(vm.line.lastCallLabel);
   assert.equal(toLiveVM([], [{ ...voice, status: "disabled" }], ZONE, NOW).line.on, false);
   assert.equal(toLiveVM([], [{ ...voice, kind: "whatsapp" }], ZONE, NOW).line, null);

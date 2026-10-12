@@ -88,8 +88,9 @@ export interface IngestEmailParams {
   unsubscribe?: boolean;
   /**
    * The email's own words are YES OFFERS, from a sender nothing says is forged: the yes to offers by email, in their own
-   * message (set_email_offers_yes). Best-effort, as WhatsApp's is: they have been received, and a yes that has to be
-   * repaired is logged, never a reason to fail their message.
+   * message (set_email_offers_yes). Only for an email not yet handled, and a write that fails throws, as the no's do: the
+   * email_ingest job runs again, finds the email kept and unhandled, and writes it (a text's yes is owed the same way,
+   * ingest.ts ingestInbound). They have been received either way; what they asked for is never left to a log line.
    */
   optInOffers?: boolean;
   /**
@@ -107,24 +108,11 @@ export async function ingestInboundEmail(db: Db, p: IngestEmailParams): Promise<
   // matches by the email identity, then by the address on a row, keeps the identity, and sets the address on a new
   // person's row). The read and the two writes that did that here until 00344 was on production are gone.
 
-  // A START is a yes, and until 00361 ingest_inbound wrote a yes before it knew the message was one it already held (its
-  // replay gate is the message's own insert). An email delivered twice, or a run that resumes, would write the yes again,
-  // over a STOP the person has sent since by any wire. So a delivery this workspace already holds says nothing new: the
-  // first one wrote its answer in the same transaction that kept the message. After 00361 the door asks this itself;
-  // this read leaves once 00361 is on production.
-  let optIn = p.optIn ?? false;
-  if (optIn) {
-    const held = await db
-      .from("messages")
-      .select("id")
-      .eq("tenant_id", p.tenantId)
-      .eq("external_id", p.receivedId)
-      .limit(1);
-    if (held.error)
-      throw new Error(`ingest_email: cannot read whether the email is already held: ${held.error.message}`);
-    optIn = (held.data ?? []).length === 0;
-  }
-
+  // A START is a yes. ingest_inbound writes it only for the call that keeps the message (00361), so an email delivered
+  // twice, or a run that resumes, writes nothing over a STOP the person has sent since by any wire; and the yes on the
+  // channel it came on, which the database cannot write in the same call, is owed by ingestInbound until the email is
+  // handled and keyed by the message (ingest.ts), so a run that resumes after a failed note writes it. The read that asked
+  // whether the email was already held left with 00361's arrival on production: it also kept that run from writing it.
   const out = await ingestInbound(db, {
     tenantId: p.tenantId,
     channel: "email",
@@ -137,7 +125,7 @@ export async function ingestInboundEmail(db: Db, p: IngestEmailParams): Promise<
     channelTs: p.channelTs,
     meta: p.meta,
     optOut: p.optOut ?? false,
-    optIn,
+    optIn: p.optIn ?? false,
   });
 
   // They wrote from the address a hard bounce stopped: it works. Lifted for that address and that reason alone, and
@@ -170,28 +158,29 @@ export async function ingestInboundEmail(db: Db, p: IngestEmailParams): Promise<
     // The same rule a texted YES OFFERS has (ingest.ts stoppedNow): a yes under a stop is not recorded.
     dbLog().warn("offers_yes_while_stopped", { tenant_id: p.tenantId, contact_id: out.contact_id, channel: "email" });
   } else if (p.optInOffers && !out.processed) {
-    try {
-      const yes = await setEmailOffersYes(db, {
-        tenantId: p.tenantId,
-        contactId: out.contact_id,
-        source: "customer_message",
-        messageId: out.message_id,
-        evidence,
-      });
-      // A yes never undoes an unsubscribe: said, so "I wrote YES OFFERS and nothing happened" has an answer.
-      if (yes === "unsubscribed")
-        dbLog().warn("email_yes_refused", {
-          tenant_id: p.tenantId,
-          contact_id: out.contact_id,
-          reason: "unsubscribed",
-        });
-    } catch (e) {
+    // A write that fails is said, then thrown: the run that resumes finds the email unhandled and writes the yes again,
+    // which changes nothing twice (the no's above are written the same way).
+    const yes = await setEmailOffersYes(db, {
+      tenantId: p.tenantId,
+      contactId: out.contact_id,
+      source: "customer_message",
+      messageId: out.message_id,
+      evidence,
+    }).catch((e: unknown) => {
       dbLog().error("email_yes_not_recorded", {
         tenant_id: p.tenantId,
         contact_id: out.contact_id,
         error: e instanceof Error ? e.message : String(e),
       });
-    }
+      throw e;
+    });
+    // A yes never undoes an unsubscribe: said, so "I wrote YES OFFERS and nothing happened" has an answer.
+    if (yes === "unsubscribed")
+      dbLog().warn("email_yes_refused", {
+        tenant_id: p.tenantId,
+        contact_id: out.contact_id,
+        reason: "unsubscribed",
+      });
   }
   return out;
 }

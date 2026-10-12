@@ -511,8 +511,9 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
   const paramOf = { admin: "workspace" };
   // What a page draws on its first screen from another page's surface, started with its own: Today's strip (the next
   // visit, the next opening) is the calendar's weeks, which the frame reads right after Today's own (ROUTE_DRAWS); and
-  // Campaigns' home draws Sent's runs, its own 30 days (campaign_results) and the reach-outs' chains.
-  const alsoDrawn = { today: ["calendar"], campaigns: ["broadcasts", "campaign_results", "reach_outs"] };
+  // Campaigns' home draws Sent's runs, its own 30 days (campaign_results), the reach-outs' chains and the settings read, which holds
+  // the templates its call's text and Library count are made of (the one read of them, task 3.3).
+  const alsoDrawn = { today: ["calendar"], campaigns: ["broadcasts", "campaign_results", "reach_outs", "settings"] };
   for (const [route, drawn] of Object.entries(alsoDrawn))
     for (const k of drawn) assert.ok(registry.ROUTE_DRAWS[route].includes(k), `${route} draws ${k} beside its own`);
   for (const route of Object.keys(PREFETCH_READS)) {
@@ -527,8 +528,11 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
     asked.length = 0;
     for (const k of keys) void overrides[k].apply().catch(() => {});
     await settle();
-    // Who is looking is every page's (and a surface's clock reads it when the tab knows no zone yet).
-    const theirs = [...new Set(asked)].filter((u) => !u.startsWith("/api/v1/workspaces")).sort();
+    // Who is looking is every page's (and a surface's clock reads it when the tab knows no zone yet), and so is the one accept of
+    // invitations the shell makes beside it (a POST, not a read the head starts: invitations/accept.ts).
+    const theirs = [...new Set(asked)]
+      .filter((u) => !u.startsWith("/api/v1/workspaces") && !u.startsWith("/api/v1/me/invitations/accept"))
+      .sort();
     const head = opensOn("harbor", route).slice(1).sort();
     assert.deepEqual(head, theirs, `${route}: the head starts what ${keys.join(" and ")} ask for first`);
   }
@@ -540,7 +544,9 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
     asked.length = 0;
     for (const k of ["reports", "workspace"]) void overrides[k].apply().catch(() => {});
     await settle();
-    const theirs = [...new Set(asked)].filter((u) => !u.startsWith("/api/v1/workspaces")).sort();
+    const theirs = [...new Set(asked)]
+      .filter((u) => !u.startsWith("/api/v1/workspaces") && !u.startsWith("/api/v1/me/invitations/accept"))
+      .sort();
     const head = headRuns({ pathname: win.location.pathname, hash: "" })
       .calls.map(([u]) => u)
       .slice(1)

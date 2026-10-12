@@ -2,18 +2,20 @@
 
 import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
-import { lazy, memo, Suspense, useCallback, useEffect, useLayoutEffect, useState, type ReactNode } from "react";
-import { movedAddress, routeOfAddress, routeOfPath } from "@chanlytics/contracts";
+import { memo, useCallback, useEffect, useLayoutEffect, useState, type ReactNode } from "react";
+import { movedAddress, routeOfPath } from "@chanlytics/contracts";
 import { routeHasPage } from "@/surfaces/routes";
+import { speedHost } from "@/client/page-speed";
 import { api } from "./api";
+import { acceptedInTime } from "./invitations/accept";
 import { homeHref, lastWorkspace, notifyAddress, setAppRouter } from "./workspace";
 
 /**
  * Client-only mount for the legacy tree: module-scope code in the mockup
  * touches document/window at import time, so SSR/prerender must never
  * evaluate it (Blueprint §7 — the (os) surfaces are client-rendered).
- * `data/people-data.jsx` in particular reads `window` at module scope; dropping
- * ssr:false would throw during prerender.
+ * `seed-globals.ts` and the shell's files in particular read `window` at module scope (so does the demo's
+ * `demo/data/people-data.jsx`); dropping ssr:false would throw during prerender.
  *
  * The fallback below is the FIRST thing every visitor sees, for the whole
  * duration of the chunk download. It used to be hardcoded `#93a5a0` on the
@@ -67,15 +69,22 @@ const LegacyApp = dynamic(() => import("./LegacyApp"), { ssr: false, loading: ()
 if (typeof window !== "undefined") void import("./LegacyApp");
 
 /**
- * Field data (00255): what this page load came to, sent when the page is put away (src/client/field-data.ts). The
- * reporter loads once the page has, as a chunk of its own, so nobody waits for it and the route's budget does not
- * carry it; its observers read what the browser buffered, so the numbers are the whole load's. The route is read
- * as the page begins, because the frame may move the address before the reporter arrives.
+ * Field data (00255, 00412): the browser's five for this load and each move it counts, beside the shell's own
+ * measures (src/client/page-speed.ts, installed with the frame), sent when the page is put away. The reporter loads
+ * once the page has, as a chunk of its own, so nobody waits for it and the route's budget does not carry it; its
+ * observers read what the browser buffered, so the numbers are the whole load's. The page the load landed on is the
+ * measures', read as the frame was installed, before the address could move.
  */
-const FieldDataReporter = lazy(() => import("../client/field-data-reporter"));
+const reportWebVitals = () =>
+  // The frame's chunk first: the measures are installed as it evaluates, which may be after the page's load event.
+  import("./LegacyApp")
+    .then(() => import("../client/field-data-reporter"))
+    .then(({ reportWebVitals: report }) => {
+      const host = speedHost();
+      if (host) report(host);
+    });
 /** The shell's pane boundary says what it caught on window; this sends it (src/client/client-error.ts). */
 const shellErrors = () => import("../client/client-error").then((m) => m.listenForShellErrors(window));
-const landedOn = typeof window === "undefined" ? "" : routeOfAddress(window.location);
 
 /** True once the page's load event has fired: what waits for it never competes with what the page is loading. */
 function useLoaded(): boolean {
@@ -184,6 +193,10 @@ export default function LegacyHost({ home = false, children }: { home?: boolean;
       unhook?.();
     };
   }, []);
+  // The home's own load is the redirect's, so only a workspace's address reports its timings: once the page has loaded.
+  useEffect(() => {
+    if (!home && loaded) void reportWebVitals().catch(() => {});
+  }, [home, loaded]);
   useEffect(() => {
     if (!home) return;
     let cancelled = false;
@@ -191,6 +204,9 @@ export default function LegacyHost({ home = false, children }: { home?: boolean;
       const after = window.location.search + window.location.hash;
       let href = homeHref(lastWorkspace(), null, after);
       if (!href) {
+        // A tab that remembers no workspace is a first sign-in or a cleared browser, and the list of an account an invitation is
+        // about to seat is empty until the accept has (invitations/accept.ts): the accept goes first here, as the boot's list waits for it.
+        await acceptedInTime();
         const r = await api()("GET workspaces");
         href = homeHref(null, r.ok ? r.data : null, after);
       }
@@ -210,14 +226,8 @@ export default function LegacyHost({ home = false, children }: { home?: boolean;
         <MovedOnLoad onPlaced={place} />
       </>
     );
-  // The home's own load is the redirect's, so only a workspace's address reports its timings.
   return (
     <>
-      {!home && loaded && (
-        <Suspense fallback={null}>
-          <FieldDataReporter landedOn={landedOn} />
-        </Suspense>
-      )}
       {!home && <AddressFollower />}
       <Frame
         page={!home && routeHasPage(pageRouteOf(pathname)) ? children : null}

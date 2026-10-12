@@ -50,6 +50,8 @@ export const LeadStageInputSchema = z.discriminatedUnion("kind", [
     kind: z.literal("outcome"),
     outcome: z.enum(LEAD_CALL_OUTCOMES),
     note: z.string().trim().max(280).optional(),
+    /** Who the call reached (0052): Interested names the person it makes, or a stand-in still named for the business. */
+    spoke_with: z.string().trim().max(80).optional(),
   }),
   /** "Did you send it?" Yes. */
   z.object({ kind: z.literal("emailed") }),

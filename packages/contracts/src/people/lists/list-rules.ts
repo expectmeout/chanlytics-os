@@ -18,6 +18,7 @@ import * as z from "zod/mini";
 import { PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, type PersonCameFrom, type PersonChannel } from "../person-words";
 import type { PersonRowVM } from "../person-row";
 import { plural } from "../../shared/words";
+import { HELD_WORDS, NEEDS_YOU_WORD } from "../../conversations/standing";
 
 /**
  * What a list may need that a workspace, a reader or a moment may not have: a calendar read, a consult-first service
@@ -437,8 +438,8 @@ export function listRuleMatches(rule: ListRule, v: PersonRowVM, inList: InList =
 const lower = (s: string) => `${s.charAt(0).toLowerCase()}${s.slice(1)}`;
 
 const STANDING_WORDS: Record<(typeof LIST_STANDINGS)[number], string> = {
-  needs_you: "Needs you",
-  waiting_on_you: "Waiting on you",
+  needs_you: NEEDS_YOU_WORD,
+  waiting_on_you: HELD_WORDS.yours.pill,
 };
 const ASSIGNED_WORDS: Record<(typeof LIST_ASSIGNED)[number], string> = {
   me: "you",

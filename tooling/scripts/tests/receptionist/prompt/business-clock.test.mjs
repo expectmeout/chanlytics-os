@@ -127,7 +127,7 @@ test("both channels read the tenant's zone, and neither invents one", () => {
 
   const runtime = readCode("apps/edge/lib/tenant-runtime.ts");
   assert.ok(
-    runtime.includes('db.from("tenants").select("name, timezone, status")'),
+    runtime.includes('db.from("tenants").select("name, slug, timezone, status")'),
     "read from the tenants row, not from config",
   );
   for (const src of [wa, voice, runtime]) {

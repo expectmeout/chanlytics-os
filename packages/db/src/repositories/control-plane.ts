@@ -265,6 +265,13 @@ export async function workspaceNamed(db: Db, tenantId: string): Promise<{ name: 
   return data ? { name: data.name, slug: data.slug } : null;
 }
 
+/** The zone a workspace keeps its clock in (`tenants.timezone`); null when there is no such workspace. A read that fails throws. */
+export async function workspaceZoneOf(db: Db, tenantId: string): Promise<string | null> {
+  const { data, error } = await db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle();
+  if (error) throw new Error(`cannot read the workspace's zone: ${error.message}`);
+  return data?.timezone ?? null;
+}
+
 // ---- setup acts a member makes from the dashboard: the caller decides what a refusal means; what comes back is the
 // database's own answer, the error untouched, since the words for what it raises are theirs.
 
@@ -361,7 +368,7 @@ export type PlaybookToStart = Required<
 /**
  * Start a playbook with its line in the ledger (00357 start_playbook), on the member's own session: the row, running
  * and theirs, then the start_playbook decision, in one transaction. The door runs on the caller's rights, so the
- * table's policy, checks and unique indexes judge the row. Since 00409 it writes the last day the playbook names
+ * table's policy, checks and unique indexes judge the row. Since 00416 it writes the last day the playbook names
  * (`until`) and the end of a trial (`trial_until`; a database before it writes neither, and the campaign runs as its
  * class says from its first run, until it is paused). The
  * new row's id with its decision's, or the database's refusal, which the caller words; an answer with neither id is a

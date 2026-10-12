@@ -22,9 +22,9 @@
 import {
   type AppointmentState,
   type AskedPurpose,
+  type FeedNames,
   RECIPIENT_REASON_HEARD,
   allowanceRoom,
-  appointmentHolds,
   emailFoot,
   emailFootHtml,
   enrolPurpose,
@@ -109,6 +109,12 @@ export interface Work {
   priors: Map<string, { id: string; sentAt: string | null }>;
   /** The appointments the batch's reminders were drawn for, by key (ports.appointments): what each send asks again. */
   appointments: ReadonlyMap<string, AppointmentState>;
+  /**
+   * What the owner's calendar feed names now (ports.feed), asked once for the batch when a reminder in it was drawn for a
+   * calendar event: null where there is no feed to ask (or nothing in the batch needs it), "unread" where it could not be
+   * read, so a reminder for a calendar event waits for the next batch rather than going on a guess.
+   */
+  feed: FeedNames | "unread" | null;
   /** The month's emails and texts already sent, read once for the first person who needs it and counted as the batch sends. */
   month: Partial<Record<"email" | "sms", number>>;
   /**
@@ -147,7 +153,7 @@ export function rowFacts(r: Pick<RecipientRow, "facts">): Record<string, unknown
 /**
  * What fills the message's slots, read once for the batch: its specs, and the Google listing's review link only where a
  * slot asks for it (ports.reviewLink), else null. A message with no review slot never depends on the listing, as before
- * 00408, so a failure on that table never stops its send; one whose slot needs the link stops on the read, which the
+ * 00415, so a failure on that table never stops its send; one whose slot needs the link stops on the read, which the
  * batch makes before the run is marked sending or anyone is claimed, so the job's next try finds the run as it was.
  */
 export async function batchSlots(
@@ -160,16 +166,13 @@ export async function batchSlots(
 
 /**
  * Why a person's own row holds them at the wire, or null: a send by hand left them out for the week's breath, in the run's
- * own write (contracts LEFT_OUT_FACTS: never sent, whatever the hold after the run wrote), or a reminder's appointment moved,
- * was cancelled or left the calendar since the run drew it (decision 0002: never a message for a time that no longer stands).
+ * own write (contracts LEFT_OUT_FACTS: never sent, whatever the hold after the run wrote), or a reminder's visit no longer
+ * stands (broadcast-feed.ts visitStands, handed in, and asked only of a person not left out: one the breath left out is
+ * skipped even where the calendar could not be read).
  */
-export function rowHold(
-  appointments: ReadonlyMap<string, AppointmentState>,
-  r: Pick<RecipientRow, "facts">,
-): string | null {
-  const facts = rowFacts(r);
-  if (leftOutByFacts(facts)) return RECIPIENT_REASON_HEARD;
-  return appointmentHolds(appointments, facts) ? null : "appointment_changed";
+export function rowHold(r: Pick<RecipientRow, "facts">, visitStands: () => boolean): string | null {
+  if (leftOutByFacts(rowFacts(r))) return RECIPIENT_REASON_HEARD;
+  return visitStands() ? null : "appointment_changed";
 }
 
 /** What a run's messages record: that a broadcast sent them, which, and for a run, its playbook (a thread reads "by the Win-back playbook"). */

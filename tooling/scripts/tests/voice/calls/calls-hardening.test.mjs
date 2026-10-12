@@ -79,7 +79,11 @@ test("realtime events are routed by table: a transcript turn repaints Live, not 
   assert.equal(wantsRefresh(live, "messages"), false);
   assert.equal(subscribesToRealtime({}), false);
   assert.equal(subscribesToRealtime(live), true);
-  assert.deepEqual(liveOverride.refreshOnTables, ["calls"], "Live listens to calls alone");
+  assert.deepEqual(
+    liveOverride.refreshOnTables,
+    ["calls", "tenant_channels"],
+    "Live listens to the calls and the line's own row, which carries its number and switch",
+  );
   assert.equal(subscribesToRealtime(liveOverride), true);
   assert.deepEqual(
     [wantsRefresh(liveOverride, "calls"), wantsRefresh(liveOverride, "messages")],

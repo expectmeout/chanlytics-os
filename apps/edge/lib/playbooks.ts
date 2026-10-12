@@ -412,7 +412,7 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
       notify: async (subject, body, runId) => {
         const target = await loadTenantNotifications(db, tenantId);
         await notify(
-          { tenantId, notifications: target.notifications, isEnvDefault: target.isEnvDefault },
+          { tenantId, ...target },
           {
             kind: "playbook",
             route: `broadcasts/run:${runId}`,

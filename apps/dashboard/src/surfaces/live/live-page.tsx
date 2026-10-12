@@ -17,7 +17,7 @@ import { liveStillUp } from "@chanlytics/contracts";
 import type { LiveCallVM } from "@chanlytics/contracts";
 import { refreshLive } from "@/legacy-bridge/inbox-verbs";
 import { demoSession, navigate, replaceRoute } from "../legacy-verbs";
-import { useSurface } from "../use-surface";
+import { usePartShown, useSurface } from "../use-surface";
 import { LrList } from "./list";
 import { LrPanel } from "./panel";
 import { liveSample } from "./sample";
@@ -73,6 +73,8 @@ const LiveMonitorReal = ({ initialCallId = null, sample = null }: LiveMonitorPro
     // eslint-disable-next-line react-hooks/exhaustive-deps -- as the JSX had it
   }, [L && L.fetchedAtMs]);
 
+  // Each call opened, timed from the press that opened it: a move inside the page (client/page-speed.ts).
+  usePartShown("live", "call", !!L, activeId ?? L?.now[0]?.callId ?? null);
   if (!L) return null;
 
   // The heartbeat rule, re-applied between refreshes: a call nobody has heard
@@ -139,6 +141,8 @@ const LiveMonitorReal = ({ initialCallId = null, sample = null }: LiveMonitorPro
 // sample, and a session with neither draws nothing.
 export function LivePage(props: LivePageProps) {
   const live = useSurface("live");
+  // The page's first part: drawn once Live's read is in (client/page-speed.ts). Live is never kept in the tab, so a load waits for it.
+  usePartShown("live", "list", live !== undefined);
   if (live !== undefined) return <LiveMonitorReal {...props} />;
   return demoSession() ? <LiveMonitorReal {...props} sample={liveSample()} /> : null;
 }

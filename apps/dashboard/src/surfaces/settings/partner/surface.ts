@@ -33,9 +33,11 @@ import {
 } from "@chanlytics/contracts";
 import { switchWorkspace, type SurfaceOverride, type Workspace } from "@/legacy-bridge/surface-data";
 import { api, read } from "@/legacy-bridge/api";
+import { declareReads } from "@/legacy-bridge/surface-registry";
 import { refreshSurfaces } from "@/legacy-bridge/surface-runner";
 import { createClient } from "@/lib/supabase/client";
 import { confirmEnrolment, factorState, startEnrolment, type Enrolment } from "@/auth/second-factor";
+import { windowObject, windowValue } from "../../legacy-verbs";
 import { setSurfaceValue, surfaceValue } from "../../surface-values";
 
 export interface PartnerSurface {
@@ -110,6 +112,9 @@ export const partnerOverride: SurfaceOverride = {
   key: "partner",
   value: "partner",
   events: ["surface:partner"],
+  // The partner account is not a record of the workspace's, so the feed tells it nothing, and no clock ages it: it is read at
+  // boot, and a verb that writes it publishes the answer itself.
+  ...declareReads("partner", { reads: [], fresh: "own-change" }),
   apply: async () => {
     try {
       const d = await read("GET partner");
@@ -130,7 +135,7 @@ function publish(value: PartnerSurface): void {
 
 /** The workspaces on the switcher (the workspace surface's rows); none where the shell has none. */
 function workspaceRows(): Workspace[] {
-  const list: unknown = Reflect.get(window, "__WORKSPACES");
+  const list = windowValue("__WORKSPACES");
   return Array.isArray(list) ? (list as Workspace[]) : [];
 }
 
@@ -210,8 +215,7 @@ export const partnerVerbs: PartnerApi = {
     return { ok: true, sent: r.data.sent };
   },
   open(tenantId) {
-    const shell = Reflect.get(window, "__shell") as { switchWorkspace?: (id: string) => void } | undefined;
-    shell?.switchWorkspace?.(tenantId);
+    windowObject<{ switchWorkspace?: (id: string) => void }>("__shell")?.switchWorkspace?.(tenantId);
   },
   inviteWords: PARTNER_INVITE_WORDS,
   async invitations() {

@@ -14,12 +14,14 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   useSyncExternalStore,
   type ReactNode,
 } from "react";
+import { frameDrawn, installPageSpeed, type SpeedShell } from "@/client/page-speed";
 import { FIRST_RUN_ROUTE, type PendingWorkspace, type Theme, type LookPref } from "@chanlytics/contracts";
 // The live feed's own entry: the package's index is the server's repositories, and reached the browser whole for this.
 import { subscribeWorkspaceChanges } from "@chanlytics/db/realtime";
@@ -80,7 +82,6 @@ import { reachOutsOverride } from "@/surfaces/campaigns/reach-out/surface";
 import { campaignResultsOverride } from "@/surfaces/campaigns/home/results-surface";
 import { installReplies, repliesOverride } from "./reach-out/replies";
 import { installCalendar } from "@/surfaces/calendar/verbs";
-import { installToday } from "@/surfaces/today/helpers";
 import { installMascot } from "./mascot";
 import { installArrival } from "./arrival";
 import { installAppBridge } from "./app-bridge";
@@ -89,13 +90,13 @@ import { installSetup, setupOverride } from "@/surfaces/setup/surface";
 import { googleOverride } from "./google";
 import { installBilling, billingOverride } from "@/surfaces/settings/billing/surface";
 import { alertsOverride } from "@/surfaces/settings/notifications/surface";
-import { installPlatform } from "./platform";
 import { partnerOverride } from "@/surfaces/settings/partner/surface";
-import { installActivity } from "./activity";
 import { installIdentity } from "./identity";
+import { fillDoors } from "../surfaces/frame-doors";
 import { installShell, publishShellStatus, shellStatusOf } from "./shell";
 import { installClock } from "./zone";
 import CreateWorkspace, { useHandoverAsk } from "./CreateWorkspace";
+import { JoinedNote } from "./invitations/joined-note";
 import type { OpenHandoverDto } from "@chanlytics/contracts";
 import { publicEnv } from "@/lib/public-env";
 
@@ -122,7 +123,6 @@ installBroadcasts();
 installPlaybooks();
 installReplies();
 installCalendar();
-installToday();
 // The three, Today's face: the character, its driver and the turn reducer (mascot/index.ts).
 installMascot();
 // On a phone the three take a page in as it arrives and notice what comes for you (arrival.ts).
@@ -132,8 +132,6 @@ installAppBridge();
 installBusinessTab();
 installSetup();
 installBilling();
-installPlatform();
-installActivity();
 installIdentity();
 installShell();
 // The installable shell's service worker (public/sw.js). It caches nothing
@@ -152,9 +150,36 @@ markHydrated(hydrateSurfaceCache());
 // A tab opened on a person's page asks for them now, ahead of every surface's boot: the page is their read alone.
 warmPersonOnScreen();
 
-// The mockup's own data-before-mount contract (boot gate). The Agents roster and the seeded Today (FLEET_DATA,
-// CHANLY_DATA) are the demo's, loaded only in a demo session (manifest-demo.ts).
-const REQUIRED = ["CHANLY", "INBOX_DATA", "CLIENTS", "POLICY", "ChanlyticsApp"] as const;
+/** A route as the shell parses it (app-shell.jsx parseRoute): its page, and the param after it. */
+const routeParts = (route: string): [string, string | null] => {
+  const [page, param] = route.split("/");
+  return [page || "today", param || null];
+};
+
+/**
+ * What the page's measures read of the shell (client/page-speed.ts, decision 0053): the address and its moves, the
+ * surfaces a page is drawn from and whether each is read, and the gate the frame draws by.
+ */
+const speedShell: SpeedShell = {
+  route: () => routeOnScreen(),
+  hearRoute: (fn) => hearAddress(fn),
+  hearAsked: onRouteAsked,
+  surfacesOf: (route) => routeSurfaces(...routeParts(route)),
+  ownSurface: (route) => routeSurfaceFor(...routeParts(route)),
+  isRead: (key) => getSurfaceStatuses().has(key),
+  isReady: isSurfaceReady,
+  gateOpen: (route) => routeGateOpen(...routeParts(route)),
+  hearSurfaces: onSurfaceStatusChange,
+};
+// Where each page's time goes: the document's visit begins at its start, and each move of the address from the press
+// that asked for it. After the cache has been restored, so a page drawn from it is said to have drawn held rows; on a
+// workspace's page alone (the home sends the tab on).
+if (getActiveWorkspace())
+  installPageSpeed(speedShell, { build: publicEnv.NEXT_PUBLIC_BUILD_SHA, report: publicEnv.productionBuild });
+
+// The mockup's own data-before-mount contract (boot gate). The seeded people (CLIENTS), the Agents roster and the
+// seeded Today (FLEET_DATA, CHANLY_DATA) are the demo's, loaded only in a demo session (manifest-demo.ts).
+const REQUIRED = ["CHANLY", "INBOX_DATA", "POLICY", "ChanlyticsApp"] as const;
 
 // leadsOverride rides beside peopleOverride: Leads is the other scope of that page.
 const SURFACES = [
@@ -230,8 +255,16 @@ const SURFACE_LABELS: Record<string, string> = {
 // both live in surface-registry.ts so the classification and the wiring cannot
 // drift apart. Routes absent from ROUTE_SURFACE are seeded by design and are
 // always "ready" — the registry decides separately whether they may RENDER.
-import { installRouteGate, installSurfaceRegistry, readWhatWasMissed, warmWhatItDraws } from "./surface-registry";
-import { onRouteReachedFor } from "./workspace";
+import {
+  installRouteGate,
+  installSurfaceRegistry,
+  readWhatWasMissed,
+  routeGateOpen,
+  routeSurfaceFor,
+  routeSurfaces,
+  warmWhatItDraws,
+} from "./surface-registry";
+import { getActiveWorkspace, hearAddress, onRouteAsked, onRouteReachedFor, routeOnScreen } from "./workspace";
 
 /**
  * The shell's route gate, installed at MODULE SCOPE — not in an effect.
@@ -338,6 +371,8 @@ type ChanlyticsAppComponent = React.ComponentType<{
   surfaceRoutes: typeof SURFACE_ROUTES;
   /** What the shared viewer shows: the Reports page, in a chunk of its own that only that viewer loads. */
   sharedPage: ReactNode;
+  /** Fills the bridge's doors with the frame's own move, Ask and Back to People as it renders (surfaces/frame-doors.ts). */
+  fillDoors: typeof fillDoors;
 }>;
 
 const SharedReports = lazy(() => import("@/surfaces/reports/reports-page").then((m) => ({ default: m.ReportsPage })));
@@ -347,6 +382,21 @@ const SHARED_PAGE = (
     <SharedReports pathname={null} />
   </Suspense>
 );
+
+/** Drawn again when the surfaces of a route move, as the shell is (surface-status.ts surfaceHook over routeSurfaces). */
+const useRouteMoved = surfaceHook({ useCallback, useSyncExternalStore }, routeSurfaces);
+
+/**
+ * Says each draw of the frame to the page's measures (client/page-speed.ts frameDrawn): drawn again when the surfaces
+ * of the route on screen move, in the same draw as the shell, so a page with no first part of its own is READY at the
+ * frame its gate opened in, never at one before the page was put on it.
+ */
+function SpeedFrame({ route }: { route: string | null }) {
+  const [page, param] = routeParts(route ?? routeOnScreen());
+  useRouteMoved({ page, param });
+  useLayoutEffect(() => frameDrawn());
+  return null;
+}
 
 /** The workspaces this account may open, as the workspace's read last said. */
 const listedWorkspaces = (): Workspace[] => (window as unknown as { __WORKSPACES?: Workspace[] }).__WORKSPACES ?? [];
@@ -388,6 +438,7 @@ function useShellApp(
             routeNow={route}
             surfaceRoutes={SURFACE_ROUTES}
             sharedPage={SHARED_PAGE}
+            fillDoors={fillDoors}
           />
           {/* The head Glass draws into the shell's places (kit/head/frame-head.tsx): beside the shell, in one tree. */}
           <FrameHead look={look} />
@@ -395,6 +446,10 @@ function useShellApp(
           <NewConversationHost />
           {/* The Booking tool's sheet, on whichever page a door to it was pressed (settings/booking-tool/host.tsx). */}
           <BookingToolHost route={route} />
+          {/* "You joined Harbor", when the one accept of the boot seated this person in a workspace (invitations/accept.ts). */}
+          <JoinedNote />
+          {/* Each draw of the frame, said to the page's measures (client/page-speed.ts). */}
+          <SpeedFrame route={route} />
         </>
       ) : null,
     [

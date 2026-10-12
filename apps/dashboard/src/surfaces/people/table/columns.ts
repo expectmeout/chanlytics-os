@@ -7,7 +7,10 @@ import type { ColCtx, TableColumn } from "../types";
 
 /** A column of any rows: what a scope hands the table. */
 type AnyColumn = TableColumn<never, never>;
-type ColumnLike = Pick<AnyColumn, "key" | "label" | "sortable" | "pinned" | "fixed" | "on" | "needs">;
+type ColumnLike = Pick<AnyColumn, "key" | "label" | "labelOf" | "sortable" | "pinned" | "fixed" | "on" | "needs">;
+
+/** A column with its heading in the workspace's words where it has them (labelOf), else its own. */
+const withHeading = <C extends ColumnLike>(c: C, x: ColCtx): C => (c.labelOf ? { ...c, label: c.labelOf(x) } : c);
 
 /** Person and the row's actions are not the member's to hide. */
 export const plLocked = (c: ColumnLike): boolean => !!(c.pinned || c.fixed);
@@ -35,7 +38,7 @@ export const plShownColumns = <C extends ColumnLike>(
   columns: readonly C[],
   choices: Record<string, boolean>,
   x: ColCtx,
-): C[] => columns.filter((c) => (!c.needs || c.needs(x)) && plShows(c, choices, x));
+): C[] => columns.filter((c) => (!c.needs || c.needs(x)) && plShows(c, choices, x)).map((c) => withHeading(c, x));
 
 /** A saved `columns` value, read with care: only the columns a member may hide, and only true or false. */
 export const plColumnChoices = (columns: readonly ColumnLike[], raw: unknown): Record<string, boolean> => {
@@ -62,8 +65,9 @@ export const plColumnOptions = (
   choices: Record<string, boolean>,
   x: ColCtx,
 ): ColumnOption[] =>
-  columns.flatMap((c) =>
-    !c.fixed && (!c.needs || c.needs(x)) && typeof c.label === "string"
-      ? [{ key: c.key, label: c.label, on: plShows(c, choices, x), locked: !!c.pinned }]
-      : [],
-  );
+  columns.flatMap((c) => {
+    const label = c.labelOf ? c.labelOf(x) : c.label;
+    return !c.fixed && (!c.needs || c.needs(x)) && typeof label === "string"
+      ? [{ key: c.key, label, on: plShows(c, choices, x), locked: !!c.pinned }]
+      : [];
+  });

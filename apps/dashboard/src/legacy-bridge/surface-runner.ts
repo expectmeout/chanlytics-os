@@ -11,7 +11,7 @@
  */
 import type { subscribeWorkspaceChanges, SubscribeOptions } from "@chanlytics/db/realtime";
 import { MIN_MS } from "@chanlytics/contracts";
-import { activateOverride, type SurfaceOverride } from "./surface-data";
+import { activateOverride, readSlot, type SurfaceOverride } from "./surface-data";
 import { ApiError } from "../client/api";
 import { api, dropPrefetched } from "./api";
 import { cachedTenant, sealSurfaceCache, snapshotSurface } from "./surface-cache";
@@ -19,6 +19,7 @@ import { getConnection, getSurfaceStatuses, isSurfaceReady, setConnection, setSt
 import { ROUTE_WAIT_MS, keepForItsPage, routeDrawsFor, routeSurfaceFor } from "./surface-registry";
 import { feedWatch, REALTIME_GRACE_MS, subscribesToRealtime, wantsRefresh, type FeedWatch } from "./surface-realtime";
 import { getActiveWorkspace, routeOnScreen, signInHref } from "./workspace";
+import { knownZone, msUntilTheDayTurns, pageClock, workspaceZone } from "./zone";
 
 // Re-exported so consumers keep importing the seam from one place.
 export {
@@ -57,8 +58,14 @@ const REFRESH_DEBOUNCE_MS = 400;
 /**
  * And never longer than this after the first: a broadcast's receipts are each their own notice, a few hundred
  * milliseconds apart, and each restarted the wait, so a customer's new message reached no open page until they stopped.
+ * A surface whose read is dear names a longer one of its own (`maxWaitMs`).
  */
 const REFRESH_MAX_WAIT_MS = 3_000;
+/**
+ * How far the database's clock (a notice's `at`) and this browser's may disagree, and a notice still be judged by the two
+ * (readAfter). Allowed for on the side of reading: a notice is dropped only when it is older than a read by more than this.
+ */
+const CLOCK_SKEW_MS = 250;
 
 /**
  * Once the boot is in: when work nobody is waiting for may start (people.ts reading a list's people ahead) without
@@ -223,6 +230,18 @@ interface SurfaceRun {
   readonly timers: Map<string, ReturnType<typeof setTimeout>>;
   /** When each pending refresh was first asked for: the wait ends by REFRESH_MAX_WAIT_MS after it. */
   readonly firstAsked: Map<string, number>;
+  /**
+   * What each surface holds is as new as this (ms, the client's clock; `readSlot` names the surface and the view shown): when
+   * its last read was started, or the moment of the oldest read that one could share (client/api.ts sharesFrom), the older of
+   * the two. A change committed before it is in what the surface holds (readAfter).
+   */
+  readonly readFrom: Map<string, number>;
+  /**
+   * What each pending refresh was asked for by (askedBy): the view it is of, and when the newest notice behind it arrived,
+   * Infinity if any carried no `at`. A read of the same view that could not be answered from anything older than that lets the
+   * refresh go (noteRead).
+   */
+  readonly asked: Map<string, { slot: string; arrived: number }>;
   cancelled: boolean;
   /** Leaves the live feed, once it is joined. */
   unsubscribe: (() => void) | null;
@@ -246,6 +265,8 @@ function newSurfaceRun(overrides: SurfaceOverride[]): SurfaceRun {
     cancelled: false,
     timers: new Map<string, ReturnType<typeof setTimeout>>(),
     firstAsked: new Map<string, number>(),
+    readFrom: new Map<string, number>(),
+    asked: new Map<string, { slot: string; arrived: number }>(),
     realtime: overrides.filter(subscribesToRealtime),
     unsubscribe: null,
     held: new Set(),
@@ -271,9 +292,75 @@ function persistSurface(o: SurfaceOverride): void {
   if (o.globals?.length || o.value) snapshotSurface(o.key, o.globals ?? [], viewedWorkspace(), o.trimSnapshot, o.value);
 }
 
+/**
+ * A read of this surface is about to be asked for (by a write, a notice, a return to the tab, the boot): remember what it will be
+ * as new as (`readFrom`), and answer what to do when it has landed or failed. It is remembered when asked, not when the read
+ * starts: a read queued behind one still out (activateOverride) starts later, which only makes the note older, and an older
+ * note only lets fewer notices go unread.
+ *  - It covers the refresh the live feed has pending for this surface when every notice behind that refresh arrived before the
+ *    read could be answered from anything older: they were told of changes already committed, so the read holds them, and the
+ *    refresh is let go (a write's re-read made while the early commits of a multi-write verb waited out their 400 ms). Notices
+ *    that carried no `at` (a database from before 00408) are not judged: their refresh stands, as it always did.
+ *  - If it fails, the surface holds what it held: the note goes back, and a refresh it let go is asked for again.
+ */
+function noteRead(run: SurfaceRun, o: SurfaceOverride): (landed: boolean) => void {
+  const slot = readSlot(o);
+  const before = run.readFrom.get(slot);
+  const mine = api().sharesFrom();
+  run.readFrom.set(slot, mine);
+  const pending = run.asked.get(o.key);
+  const timer = run.timers.get(o.key);
+  const covers = !!pending && !!timer && pending.slot === slot && pending.arrived <= mine;
+  if (covers && timer) {
+    clearTimeout(timer);
+    run.timers.delete(o.key);
+    run.firstAsked.delete(o.key);
+    run.asked.delete(o.key);
+  }
+  return (landed) => {
+    if (landed) return;
+    if (run.readFrom.get(slot) === mine) {
+      if (before === undefined) run.readFrom.delete(slot);
+      else run.readFrom.set(slot, before);
+    }
+    if (covers && !run.cancelled) scheduleSurfaceRefresh(run, o);
+  };
+}
+
+/**
+ * Whether this surface holds what a notice of the live feed tells of: it was read after the change was made, so the notice asks
+ * for nothing (your own change is read once, 0047). The write's re-read (refresh-map.ts) and the notice its commits send are two
+ * reads of one change otherwise -- the notice's always a fresh request of its own (refreshSoon), up to 22 requests for one reply.
+ * Judged by the notice's `at`, the database's clock when it told, against the surface's own last read (`readFrom`): older than
+ * it by more than the clocks may disagree (CLOCK_SKEW_MS). `at` is taken a moment before the commit, so this reads on the side
+ * of reading; and a notice that reached the tab before the read began is judged by noteRead, by when it arrived, which is
+ * after its commit whatever either clock says.
+ * A notice with no `at` (a database from before 00408), and any notice while the boot is out (its answers are held: a read
+ * during it may be the boot's), is read as it always was.
+ */
+function readAfter(run: SurfaceRun, o: SurfaceOverride, told: string | undefined): boolean {
+  if (!told || run.held) return false;
+  const from = run.readFrom.get(readSlot(o));
+  const at = Date.parse(told);
+  return from !== undefined && Number.isFinite(at) && at < from - CLOCK_SKEW_MS;
+}
+
+/**
+ * A notice has asked for this surface to be read (refreshSoon): when it arrived, for the read that comes first to know it
+ * holds the change (noteRead). A notice that carries no `at` is not judged, and neither is any refresh it joins.
+ */
+function askedBy(run: SurfaceRun, o: SurfaceOverride, told: string | undefined, arrived: number): void {
+  if (run.held) return; // held for the boot's end: scheduled then, and never let go
+  const was = run.asked.get(o.key);
+  const newest = told && Number.isFinite(Date.parse(told)) ? arrived : Infinity;
+  run.asked.set(o.key, { slot: readSlot(o), arrived: Math.max(was?.arrived ?? 0, newest) });
+}
+
 async function refreshSurface(run: SurfaceRun, o: SurfaceOverride, phase: "boot" | "refresh"): Promise<void> {
+  const settle = noteRead(run, o);
   try {
     const ok = await activateOverride(o);
+    settle(ok);
     if (run.cancelled) return;
     if (ok) {
       persistSurface(o);
@@ -291,11 +378,15 @@ async function refreshSurface(run: SurfaceRun, o: SurfaceOverride, phase: "boot"
 
 async function bootSurface(run: SurfaceRun, o: SurfaceOverride): Promise<void> {
   try {
+    let settle = noteRead(run, o);
     let ok = await activateOverride(o);
+    settle(ok);
     if (!ok && !run.cancelled) {
       await new Promise((r) => setTimeout(r, BOOT_RETRY_MS)); // one retry covers boot blips
       if (run.cancelled) return;
+      settle = noteRead(run, o);
       ok = await activateOverride(o);
+      settle(ok);
     }
     if (run.cancelled) return;
     if (ok) {
@@ -324,11 +415,15 @@ function scheduleSurfaceRefresh(run: SurfaceRun, o: SurfaceOverride): void {
   const now = Date.now();
   const first = run.firstAsked.get(o.key) ?? now;
   run.firstAsked.set(o.key, first);
-  const wait = Math.max(0, Math.min(o.debounceMs ?? REFRESH_DEBOUNCE_MS, first + REFRESH_MAX_WAIT_MS - now));
+  const wait = Math.max(
+    0,
+    Math.min(o.debounceMs ?? REFRESH_DEBOUNCE_MS, first + (o.maxWaitMs ?? REFRESH_MAX_WAIT_MS) - now),
+  );
   run.timers.set(
     o.key,
     setTimeout(() => {
       run.firstAsked.delete(o.key);
+      run.asked.delete(o.key); // the read below is the one they asked for, not one that holds them
       void refreshSurface(run, o, "refresh");
     }, wait),
   );
@@ -336,7 +431,9 @@ function scheduleSurfaceRefresh(run: SurfaceRun, o: SurfaceOverride): void {
 
 /**
  * A surface the live feed says changed: read soon, or, while the boot is out, once it is in. A read made during the
- * boot is answered from what the boot holds (holdAnswers), which may be from before the change.
+ * boot is answered from what the boot holds (holdAnswers), which may be from before the change. Only a surface that does
+ * not hold the change already comes here (readAfter): the notice of this tab's own write, whose re-read the write has
+ * made, does not, and a read it asks for is still a read of its own.
  */
 function refreshSoon(run: SurfaceRun, o: SurfaceOverride): void {
   if (run.held) {
@@ -345,7 +442,8 @@ function refreshSoon(run: SurfaceRun, o: SurfaceOverride): void {
   }
   // A read already out was sent before this change: the refresh it asks for must not share it, as a write's must not
   // (client/api.ts forget). Today and the Inbox both read the conversations, and the Inbox's refresh after a message
-  // could be answered by Today's read from a moment before it, the message missing until the next.
+  // could be answered by Today's read from a moment before it, the message missing until the next. (And a read that
+  // did share one is as old as it, readFrom: so what it holds is never taken for newer than it is.)
   api().forget();
   scheduleSurfaceRefresh(run, o);
 }
@@ -487,8 +585,20 @@ function joinFeedEarly(run: SurfaceRun, boot: SurfaceBoot, joinFeed: JoinLiveFee
     run.unsubscribe = joinFeed(
       // Routed by table: a live call's transcript turns repaint Live, not the
       // five surfaces that never asked (three of them plpgsql aggregates).
-      (row, table, event) =>
-        run.realtime.filter((o) => wantsRefresh(o, table, { table, event, row })).forEach((o) => refreshSoon(run, o)),
+      (row, table, event, at) => {
+        const arrived = Date.now();
+        // The notice's clock rides on the change (00408), for a rule that judges a change by when it was told.
+        const change = { table, event, row, ...(at ? { at } : {}) };
+        run.realtime
+          // A surface read after the change was made holds it, and asks for nothing (readAfter): asked before its rule, which
+          // keeps a page for its own page (onlyOnItsPage) a change it already holds. Teammates' and other tabs' changes
+          // are later than any read of this tab's and read as ever.
+          .filter((o) => !readAfter(run, o, at) && wantsRefresh(o, table, change))
+          .forEach((o) => {
+            refreshSoon(run, o);
+            askedBy(run, o, at, arrived);
+          });
+      },
       {
         tenantId: ws ?? undefined,
         onStatus: (status) => {
@@ -546,6 +656,60 @@ function listenForReturns(run: SurfaceRun): () => void {
 }
 
 /**
+ * The business's day turns: the surfaces that count the day so far (`readAtMidnight`) are read again, a second past its midnight by
+ * the workspace's zone, and the timer is armed again for the next (a day the clocks change is 23 or 25 hours, so it is the zone's
+ * midnight each time, not a day's length). Nothing else moves them at midnight: a tab left open overnight said yesterday's totals
+ * under "Today so far" until its first message. A tab nobody is looking at reads as it is shown; a surface read only where it is
+ * drawn is read where its page is on screen and kept for its page elsewhere (readHere), as a return to the tab does. A zone saved
+ * moves the next midnight: the workspace's change (`workspace:changed`, told once the new zone is published) arms the timer again.
+ */
+function watchTheDayTurn(run: SurfaceRun): () => void {
+  const counting = run.overrides.filter((o) => o.readAtMidnight);
+  if (!counting.length) return () => {};
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let owed = false;
+  let stopped = false;
+  /** Which arming is the latest: one still waiting for the zone when another begins gives way to it. */
+  let armings = 0;
+  const read = () => {
+    owed = false;
+    // A read already out was sent before the day turned: the reads this asks for share none (refreshSoon).
+    api().forget();
+    readHere(counting).forEach((o) => void refreshSurface(run, o, "refresh"));
+  };
+  const arm = async (): Promise<void> => {
+    const mine = (armings += 1);
+    const zone = knownZone() ?? (await workspaceZone().catch(() => pageClock().zone()));
+    if (stopped || run.cancelled || mine !== armings) return;
+    if (timer) clearTimeout(timer);
+    let wait: number;
+    try {
+      wait = msUntilTheDayTurns(zone, Date.now());
+    } catch {
+      return; // a zone the browser cannot read: the day is not turned by a clock here
+    }
+    timer = setTimeout(() => {
+      if (document.visibilityState === "visible") read();
+      else owed = true;
+      void arm();
+    }, wait);
+  };
+  const onShown = () => {
+    if (owed && document.visibilityState === "visible") read();
+  };
+  const onZone = () => void arm();
+  document.addEventListener("visibilitychange", onShown);
+  window.addEventListener("workspace:changed", onZone);
+  void arm();
+  return () => {
+    stopped = true;
+    if (timer) clearTimeout(timer);
+    document.removeEventListener("visibilitychange", onShown);
+    window.removeEventListener("workspace:changed", onZone);
+  };
+}
+
+/**
  * Starts the surfaces: each one's first read (the boot), the live feed once who is looking is known, and the reads again on a
  * return to the tab or to the network. Answers the stop, which undoes them in the same order.
  */
@@ -560,6 +724,7 @@ export function startSurfaces(overrides: SurfaceOverride[], joinFeed: JoinLiveFe
   const boot = bootInPasses(run);
   joinFeedEarly(run, boot, joinFeed, feed);
   const stopListening = listenForReturns(run);
+  const stopDay = watchTheDayTurn(run);
 
   return () => {
     run.cancelled = true;
@@ -567,6 +732,7 @@ export function startSurfaces(overrides: SurfaceOverride[], joinFeed: JoinLiveFe
     activeRefresh = null;
     activeOverrides = [];
     stopListening();
+    stopDay();
     run.timers.forEach((t) => clearTimeout(t));
     feed.stop();
     if (run.unsubscribe) run.unsubscribe();

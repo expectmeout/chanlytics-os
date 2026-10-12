@@ -20,18 +20,18 @@ note and the code disagree, the code wins.
 
 A `contacts` row comes to exist on nine paths, traced on 5 October 2026:
 
-| Path                                  | Where                                                                    | Matched by                 | Erasure checked  |
-| ------------------------------------- | ------------------------------------------------------------------------ | -------------------------- | ---------------- |
-| A text or an email                    | `ingest_inbound`, 00110 (its lookup has no erased or merged filter)      | identity, then phone       | at the door      |
-| A call                                | `ingest_call`, 00164 (its own lock key and lookup)                       | voice identity, then phone | at the door      |
-| Added by hand                         | `create_person`, 00053 (`POST contacts`)                                 | phone                      | since 00331      |
-| A file                                | `import_person`, 00263                                                   | phone, then email          | yes              |
-| The calendar sweep                    | `apps/edge/lib/calendar/calendar-people.ts` (a direct insert)            | phone                      | yes              |
-| The board opening                     | `create_person` from `apps/dashboard/src/server/calendar/people-seen.ts` | phone                      | since 00331      |
-| A lead marked Interested              | `lead_set_stage`, 00220 (`create_person`, or its own email-only insert)  | phone, else email          | in part          |
-| A reach-out's first email             | `reach_out_person`, 00184 (email only; the lead's phone dropped)         | email                      | yes              |
-| A booking link to a first-time caller | `apps/edge/lib/voice/call-booking-link.ts` (`getOrCreateContact`)        | phone                      | no event         |
-| An address learned later              | `packages/db/src/repositories/email.ts`; `set_person_email` (00171)      | none: a backfill           | logged, no merge |
+| Path                                  | Where                                                                              | Matched by                 | Erasure checked  |
+| ------------------------------------- | ---------------------------------------------------------------------------------- | -------------------------- | ---------------- |
+| A text or an email                    | `ingest_inbound`, 00110 (its lookup has no erased or merged filter)                | identity, then phone       | at the door      |
+| A call                                | `ingest_call`, 00164 (its own lock key and lookup)                                 | voice identity, then phone | at the door      |
+| Added by hand                         | `create_person`, 00053 (`POST contacts`)                                           | phone                      | since 00331      |
+| A file                                | `import_person`, 00263                                                             | phone, then email          | yes              |
+| The calendar sweep                    | `apps/edge/lib/calendar/calendar-people.ts` (a direct insert)                      | phone                      | yes              |
+| The board opening                     | none since 11 Oct 2026: a read writes nothing (`Add to People` is `POST contacts`) | phone                      | since 00331      |
+| A lead marked Interested              | `lead_set_stage`, 00220 (`create_person`, or its own email-only insert)            | phone, else email          | in part          |
+| A reach-out's first email             | `reach_out_person`, 00184 (email only; the lead's phone dropped)                   | email                      | yes              |
+| A booking link to a first-time caller | `apps/edge/lib/voice/call-booking-link.ts` (`getOrCreateContact`)                  | phone                      | no event         |
+| An address learned later              | `packages/db/src/repositories/email.ts`; `set_person_email` (00171)                | none: a backfill           | logged, no merge |
 
 The database holds three uniques: `contacts_tenant_phone_uq` (partial, 00002), `contacts_tenant_email_uq` (partial, 00125) and `contact_identities (tenant_id, channel, external_id)` (00002). Everything else is code, and the code
 differs: `normalizePhone` (`packages/contracts/src/shared/phone.ts`) calls itself the one normaliser and reads ten
@@ -72,8 +72,10 @@ which the board skips as one person refused (`afterPersonRefused`, `packages/con
    no undo. It adds the queue in front of it: a doubt `resolve_person` records (two records one identity could belong
    to) is settled by an owner through that door, or dismissed for the pair, and never merges on its own. Reads follow
    `merged_into_contact_id` as they do today, and `erase_contact` erases the records merged into a person with it.
-4. **A read never writes a person.** The board's write (`people-seen.ts`) moves to the sweep's path once the sweep is
-   event-driven (0031, phase 2); until then it stays, behind 00331.
+4. **A read never writes a person.** The board's write (`people-seen.ts`) moved to the sweep's path and to a press:
+   built 11 October 2026 (decision 0047, lane 6, task 6.3), GET calendar adds nobody whoever reads, the hourly sweep and
+   the booking email's reader put the calendar's people in People, and a visit whose person the board cannot match
+   offers "Add to People" (`POST contacts`). `people-seen.ts` is gone.
 
 ## Shape
 

@@ -153,6 +153,19 @@ export const lensRoute = (id: LensId, days: ReportDays | null = null, scope: Ads
 export const adsReportRoute = (days: ReportDays | null, scope: AdsScope = ADS_SCOPE_ALL): string =>
   lensRoute("ads", days, scope);
 
+/** A review's id as its address spells it: the row's uuid. Anything else after `reviews:` is no review's address. */
+const REVIEW_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Where one review opens: the Reviews lens with that review drawn first and its reply box open (`reports/reviews:<id>`). The id
+ * is the review's own row (google_reviews.id), the one the reply door takes and the ledger files a reply under; every notice
+ * that tells of a review, the Today line, the bell's row and an Activity line carry this address, written here once
+ * (record-address.ts `addressOf`). It names no days: a link to a review opens on whatever period its reader keeps. A word that is
+ * no review's row (Google's own id for it, which the first bell rows carried) opens the lens, never an address no page parses.
+ */
+export const reviewRoute = (id: string): string =>
+  REVIEW_ID.test(id) ? `reports/reviews:${id}` : lensRoute("reviews");
+
 /** Every lens's route, in the strip's order (Ask's page routes read them). */
 export const LENS_ROUTES: readonly string[] = REPORT_LENSES.map((l) => lensRoute(l.id));
 
@@ -166,11 +179,15 @@ const daysOfKey = (key: string): ReportDays | null => {
   return range !== null && typeof range !== "string" ? range : null;
 };
 
-/** What an address of Reports says: the lens, the days a member picked, and for Ads alone what it is narrowed to (none: every ad). */
+/**
+ * What an address of Reports says: the lens, the days a member picked, for Ads alone what it is narrowed to (none: every ad),
+ * and for Reviews alone the one review it opens (null: none).
+ */
 export interface ReportsParts {
   lens: LensId;
   days: ReportDays | null;
   scope?: AdsScope;
+  review: string | null;
 }
 
 /**
@@ -189,24 +206,26 @@ function adsParts(rest: string): { days: ReportDays | null; scope?: AdsScope } |
 /**
  * What follows `reports` in an address, read: the lens, and the days a member picked where the address says them
  * (lensRoute). Nothing is the Overview; a lens is that lens; days alone are the Overview over them; `<lens>:<days>` both;
- * and Ads also `ads:<days>:<scope>` or `ads:<scope>`. Null for anything else, which is no address of Reports'. Whether the days
- * may be read (not to come, not too many) is not asked here: the address is read before the workspace's today is known, and
- * the report's own read refuses them.
+ * Ads also `ads:<days>:<scope>` or `ads:<scope>`; and Reviews also the one review it is to open (`reviews:<id>`, reviewRoute).
+ * Null for anything else, which is no address of Reports'. Whether the days may be read (not to come, not too many) is not
+ * asked here: the address is read before the workspace's today is known, and the report's own read refuses them.
  */
 export function reportsParamParts(param: string): ReportsParts | null {
-  if (param === "") return { lens: "overview", days: null };
+  if (param === "") return { lens: "overview", days: null, review: null };
   const alone = daysOfKey(param);
-  if (alone) return { lens: "overview", days: alone };
+  if (alone) return { lens: "overview", days: alone, review: null };
   const at = param.indexOf(":");
   const word = at < 0 ? param : param.slice(0, at);
   if (!isLensParam(word)) return null;
-  if (at < 0) return { lens: word, days: null };
+  if (at < 0) return { lens: word, days: null, review: null };
+  const rest = param.slice(at + 1);
   if (word === "ads") {
-    const ads = adsParts(param.slice(at + 1));
-    return ads ? { lens: word, ...ads } : null;
+    const ads = adsParts(rest);
+    return ads ? { lens: word, ...ads, review: null } : null;
   }
-  const days = daysOfKey(param.slice(at + 1));
-  return days ? { lens: word, days } : null;
+  if (word === "reviews" && REVIEW_ID.test(rest)) return { lens: word, days: null, review: rest };
+  const days = daysOfKey(rest);
+  return days ? { lens: word, days, review: null } : null;
 }
 
 /**

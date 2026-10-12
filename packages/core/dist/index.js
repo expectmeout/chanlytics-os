@@ -703,7 +703,10 @@ async function shapeTemplate(ports, conv, body) {
       "This template takes the booking link, and none is on file. Pick another template, or add the link in Settings \u203A Business first."
     );
   const params = resolveParams(slots, {
-    firstName: firstNameOf(conv.display_name, conv.wa_profile_name),
+    firstName: firstNameOf(conv.display_name, conv.wa_profile_name, {
+      source: conv.name_source,
+      settled: !!conv.name_settled_at
+    }),
     businessName: facts.business_name,
     bookingLink: facts.booking_link?.replace(/^https?:[/][/]/, "") ?? null
   });
@@ -877,7 +880,17 @@ async function pageTheProvider(pager, f, about) {
 }
 
 // src/subscribers.ts
-import { holdNotice } from "../../contracts/dist/index.js";
+import {
+  bookingArriving,
+  CATCH_UP_VISITS,
+  holdNotice,
+  memberJoinedBy,
+  memberJoinedNotice,
+  optOutNotice,
+  optOutOf,
+  visitNews,
+  waitsOnAPerson
+} from "../../contracts/dist/index.js";
 function toldFromItsEvent(written) {
   return written === "opened" || written === "changed" || written === "refreshed";
 }
@@ -909,6 +922,7 @@ var SUBSCRIBERS = {
     if (!ref || reasonOfEvent(event2) === TOLD_WHERE_TAKEN_IN) return;
     const facts = await ports.holdFacts(event2.tenant_id, ref);
     if (!facts || facts.reason === TOLD_WHERE_TAKEN_IN) return;
+    if (!waitsOnAPerson(facts.reason)) return;
     if (reasonOfEvent(event2) !== facts.reason) return;
     const told = await ports.holdTold(event2.tenant_id, {
       eventId: event2.id,
@@ -917,6 +931,45 @@ var SUBSCRIBERS = {
     });
     if (told) return;
     await ports.tell({ ...holdNotice(facts), sourceEvent: event2.id });
+  },
+  consent_notice: async (event2, ports) => {
+    if (event2.kind !== "contact.consent_changed" || event2.subject_type !== "contact" || !event2.subject_id) return;
+    const said = optOutOf(event2.data);
+    if (!said) return;
+    const person = await ports.optOutPerson(event2.tenant_id, event2.subject_id);
+    if (!person) return;
+    const told = await ports.optOutTold(event2.tenant_id, {
+      eventId: event2.id,
+      contactId: event2.subject_id,
+      at: event2.created_at
+    });
+    if (told) return;
+    await ports.tell({ ...optOutNotice({ ...person, ...said, contactId: event2.subject_id }), sourceEvent: event2.id });
+  },
+  visit_notice: async (event2, ports) => {
+    const arriving = bookingArriving(event2);
+    if (!arriving) return;
+    let ids = [arriving.appointmentId];
+    if (arriving.via === "calendar_feed") {
+      const together = await ports.feedAdditionsWith(event2.tenant_id, { id: event2.id, at: event2.created_at });
+      if (together.length > CATCH_UP_VISITS) return;
+      const lead = together.at(0);
+      if (lead && lead.eventId !== event2.id) return;
+      if (lead) ids = together.map((t) => t.appointmentId);
+    }
+    if (await ports.eventTold(event2.tenant_id, event2.id)) return;
+    const nowMs = Date.now();
+    const visits = await ports.bookedVisits(event2.tenant_id, ids, nowMs);
+    if (visits.length === 0) return;
+    await ports.tell({ ...visitNews(visits, nowMs), sourceEvent: event2.id });
+  },
+  team_notice: async (event2, ports) => {
+    const invitationId = memberJoinedBy(event2);
+    if (!invitationId) return;
+    if (await ports.memberTold(event2.tenant_id, invitationId)) return;
+    const member = await ports.memberJoined(event2.tenant_id, invitationId);
+    if (!member) return;
+    await ports.tell({ ...memberJoinedNotice(member), sourceEvent: event2.id });
   }
 };
 
@@ -1238,6 +1291,7 @@ function metaOf(e) {
 
 // src/messages/reply-read.ts
 import {
+  AUTOMATIC_NAMING,
   DRAFT_NEEDS_MS,
   leadReplyNote,
   parseReplyReading,
@@ -1247,6 +1301,8 @@ import {
   replyTextOf as replyTextOf2,
   replyUserContent,
   rereadAt,
+  signerAgrees,
+  signerOf,
   UNREAD_READING,
   zoneDayKey
 } from "../../contracts/dist/index.js";
@@ -1276,6 +1332,20 @@ async function readNow(ports, cmd, facts) {
       answered: facts.answered
     });
     reading = parseReplyReading(await ports.ask(replySystemPrompt(), user));
+    if (reading)
+      reading = {
+        ...reading,
+        signer: signerOf({
+          name: reading.signer?.name,
+          title: reading.signer?.title,
+          text: facts.text,
+          intent: reading.intent,
+          claim: facts.claim,
+          business: facts.business,
+          from: facts.from,
+          notNames: [facts.signedBy, ...facts.notNames ?? []]
+        })
+      };
   } catch {
     reading = null;
   }
@@ -1338,7 +1408,7 @@ async function readReply(ports, cmd) {
   let applied = false;
   if (isDue(kept, n)) {
     const { reading, unread, now } = await readNow(ports, cmd, facts);
-    const plan = readingPlan(reading, {
+    const planned = readingPlan(reading, {
       claim: facts.claim,
       receivedAt: facts.receivedAt,
       tz: facts.tz,
@@ -1350,6 +1420,11 @@ async function readReply(ports, cmd) {
       reread: n > 0,
       readAt: now
     });
+    const signer = reading?.signer ?? null;
+    const plan = {
+      ...planned,
+      adoptSigner: AUTOMATIC_NAMING && !!signer && signerAgrees(signer, { address: facts.from, name: facts.fromName })
+    };
     applied = await ports.apply(tenantId, messageId, { reading: reading ?? UNREAD_READING, unread, plan, reread: n });
     kept = await ports.reading(tenantId, messageId);
     if (!kept) throw new Error("reply_read: the reading was applied and is not there");
@@ -1376,7 +1451,8 @@ async function readReply(ports, cmd) {
     draft,
     unread: kept.unread,
     automatic: facts.claim === "auto_reply",
-    reread: n > 0
+    reread: n > 0,
+    signer: kept.signerOffered
   });
   const told = await ports.tell(tenantId, {
     conversationId: facts.conversationId,
@@ -1391,7 +1467,6 @@ async function readReply(ports, cmd) {
 
 // src/messages/broadcast.ts
 import {
-  appointmentKeysOf,
   BROADCAST_CHUNK,
   BROADCAST_GAP_MS,
   BROADCAST_THROTTLE_WAITS_MS,
@@ -1412,13 +1487,12 @@ import {
   whatsappStoppedRunWords,
   wireFailure
 } from "../../contracts/dist/index.js";
-import { errField as errField3, logger as logger4 } from "../../channels/dist/index.js";
+import { errField as errField4, logger as logger5 } from "../../channels/dist/index.js";
 
 // src/messages/broadcast-channels.ts
 import {
   RECIPIENT_REASON_HEARD,
   allowanceRoom,
-  appointmentHolds,
   emailFoot,
   emailFootHtml,
   enrolPurpose,
@@ -1472,10 +1546,9 @@ async function batchSlots(ports, params) {
   const specs = parseParamSpecs(params);
   return { specs, reviewLink: specs.some((s) => s.kind === "review_link") ? await ports.reviewLink() : null };
 }
-function rowHold(appointments, r) {
-  const facts = rowFacts(r);
-  if (leftOutByFacts(facts)) return RECIPIENT_REASON_HEARD;
-  return appointmentHolds(appointments, facts) ? null : "appointment_changed";
+function rowHold(r, visitStands2) {
+  if (leftOutByFacts(rowFacts(r))) return RECIPIENT_REASON_HEARD;
+  return visitStands2() ? null : "appointment_changed";
 }
 function metaOf2(b) {
   const label = b.audience?.label;
@@ -1586,6 +1659,39 @@ async function prepare(w, i) {
   return { delivery: { ...base, channel: "sms", body: said.body } };
 }
 
+// src/messages/broadcast-feed.ts
+import {
+  appointmentHolds,
+  appointmentKeysOf,
+  asksTheFeed,
+  feedStillNames
+} from "../../contracts/dist/index.js";
+import { errField as errField2, logger as logger3 } from "../../channels/dist/index.js";
+var askLog = logger3();
+async function appointmentsOf(ports, b, batch) {
+  const keys = appointmentKeysOf(batch);
+  if (!ports.appointments || keys.length === 0) return /* @__PURE__ */ new Map();
+  return ports.appointments(keys).catch((e) => {
+    askLog.warn("broadcast_appointments_unread", { broadcast_id: b.id, error: errField2(e) });
+    return /* @__PURE__ */ new Map();
+  });
+}
+async function feedOf(ports, b, batch) {
+  if (!ports.feed || !batch.some((r) => asksTheFeed(rowFacts(r)))) return null;
+  return ports.feed().catch((e) => {
+    askLog.warn("broadcast_feed_unread", { broadcast_id: b.id, error: errField2(e) });
+    return "unread";
+  });
+}
+function visitStands(w, r) {
+  const facts = rowFacts(r);
+  if (!appointmentHolds(w.appointments, facts)) return false;
+  if (!w.feed || !asksTheFeed(facts)) return true;
+  if (w.feed === "unread")
+    throw new Error("the calendar feed could not be read; the reminder waits for the next batch");
+  return feedStillNames(w.feed, facts);
+}
+
 // src/messages/broadcast-stops.ts
 import {
   BROADCAST_HOLD_WAIT_MS,
@@ -1596,7 +1702,7 @@ import {
   passesHandoverPause as passesHandoverPause2,
   stoppedRunFix
 } from "../../contracts/dist/index.js";
-import { errField as errField2, logger as logger3 } from "../../channels/dist/index.js";
+import { errField as errField3, logger as logger4 } from "../../channels/dist/index.js";
 
 // src/messages/broadcast-words.ts
 import { audienceTrigger, playbookRunNext } from "../../contracts/dist/index.js";
@@ -1683,7 +1789,7 @@ function thenWhat(b, remedy, again, by) {
 }
 
 // src/messages/broadcast-stops.ts
-var stopLog = logger3();
+var stopLog = logger4();
 async function release(ports, broadcastId, contactId, reason) {
   try {
     return await ports.mark(broadcastId, contactId, { state: "queued", reason, message_id: null }) !== false;
@@ -1691,7 +1797,7 @@ async function release(ports, broadcastId, contactId, reason) {
     stopLog.error("broadcast_release_refused", {
       broadcast_id: broadcastId,
       contact_id: contactId,
-      error: errField2(e)
+      error: errField3(e)
     });
     return false;
   }
@@ -1704,7 +1810,7 @@ async function stopForTheWorkspace(ports, b, why) {
   await ports.fail(b.id, why);
   await ports.alert({
     kind: "broadcast_stopped",
-    route: "broadcasts",
+    route: `broadcasts/run:${b.id}`,
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast \u201C${b.name}\u201D ${why === "paused" && sent === 0 ? "not sent" : "stopped"}`,
     body: `${stoppedRunCause(why, sent)} ${stoppedRunFix(why, { playbook_id: b.playbook_id, trigger: audienceTrigger2(b.audience) })}`
@@ -1755,7 +1861,7 @@ async function holdForLater(w, r) {
 // src/messages/broadcast.ts
 var BROADCAST_STALL_RETRY_MS = 6e4;
 var BROADCAST_STALLS_MAX = 30;
-var broadcastLog = logger4();
+var broadcastLog = logger5();
 function wireIsDown(out) {
   return out.reason === "no_credentials" || out.reason === "no_sender_for_channel" || out.reason === "provider" && (out.status === 401 || out.status === 403);
 }
@@ -1787,28 +1893,22 @@ async function wireIsUnbound(ports, b, cmd, batch) {
 }
 async function readPeople(ports, b, batch) {
   const ids = batch.map((r) => r.contact_id);
-  if (ids.length === 0) return { people: /* @__PURE__ */ new Map(), priors: /* @__PURE__ */ new Map(), appointments: /* @__PURE__ */ new Map(), unreadable: false };
+  if (ids.length === 0)
+    return { people: /* @__PURE__ */ new Map(), priors: /* @__PURE__ */ new Map(), appointments: /* @__PURE__ */ new Map(), feed: null, unreadable: false };
   try {
-    const [people, priors, appointments] = await Promise.all([
+    const [people, priors, appointments, feed] = await Promise.all([
       ports.contacts(ids),
       ports.alreadySent(b.id, ids),
-      appointmentsOf(ports, b, batch)
+      appointmentsOf(ports, b, batch),
+      feedOf(ports, b, batch)
     ]);
-    return { people, priors, appointments, unreadable: false };
+    return { people, priors, appointments, feed, unreadable: false };
   } catch (e) {
-    broadcastLog.error("broadcast_batch_unreadable", { broadcast_id: b.id, error: errField3(e) });
-    return { people: /* @__PURE__ */ new Map(), priors: /* @__PURE__ */ new Map(), appointments: /* @__PURE__ */ new Map(), unreadable: true };
+    broadcastLog.error("broadcast_batch_unreadable", { broadcast_id: b.id, error: errField4(e) });
+    return { people: /* @__PURE__ */ new Map(), priors: /* @__PURE__ */ new Map(), appointments: /* @__PURE__ */ new Map(), feed: null, unreadable: true };
   }
 }
-async function appointmentsOf(ports, b, batch) {
-  const keys = appointmentKeysOf(batch);
-  if (!ports.appointments || keys.length === 0) return /* @__PURE__ */ new Map();
-  return ports.appointments(keys).catch((e) => {
-    broadcastLog.warn("broadcast_appointments_unread", { broadcast_id: b.id, error: errField3(e) });
-    return /* @__PURE__ */ new Map();
-  });
-}
-function addressOf3(c, channel) {
+function recipientAddressOf(c, channel) {
   const to = channel === "email" ? c.email : c.phone_e164;
   return to ? { to } : { held: channel === "email" ? "no_address" : "no_phone" };
 }
@@ -1821,14 +1921,14 @@ async function sendOne(w, r) {
   const c = w.people.get(r.contact_id) ?? null;
   if (!c || c.erased_at) return skip("erased");
   const channel = channelOf(r);
-  const where = addressOf3(c, channel);
+  const where = recipientAddressOf(c, channel);
   if ("held" in where) return skip(where.held);
   const prior = w.priors.get(c.id) ?? null;
   if (prior) {
     await w.mark(r.contact_id, { state: "sent", message_id: prior.id, sent_at: prior.sentAt });
     return "go on";
   }
-  const rowHeld = rowHold(w.appointments, r);
+  const rowHeld = rowHold(r, () => visitStands(w, r));
   if (rowHeld) return skip(rowHeld);
   if (channel === "whatsapp" && !w.whatsappApproved) return skip("template_not_approved");
   if (channel === "email" && w.offersClosed) return skip("email_marketing_disabled");
@@ -1837,7 +1937,7 @@ async function sendOne(w, r) {
   if (!target) return skip("no_thread");
   const facts = rowFacts(r);
   const params = resolveParams2(w.specs, {
-    firstName: firstNameOf2(c.display_name, c.wa_profile_name),
+    firstName: firstNameOf2(c.display_name, c.wa_profile_name, { source: c.name_source, settled: !!c.name_settled_at }),
     businessName: w.facts.businessName,
     bookingLink: w.facts.bookingLink,
     reviewLink: w.reviewLink,
@@ -1903,7 +2003,7 @@ async function sendBroadcastBatch(ports, cmd) {
     await ports.fail(b.id, "template_not_approved");
     await ports.alert({
       kind: "broadcast_stopped",
-      route: "broadcasts",
+      route: `broadcasts/run:${b.id}`,
       about: { type: "broadcast", id: b.id },
       subject: `Broadcast \u201C${b.name}\u201D stopped`,
       body: whatsappStoppedRunWords(message)
@@ -1915,7 +2015,7 @@ async function sendBroadcastBatch(ports, cmd) {
   const offers = isOfferByEmail5({ channel: "email", purpose, proactive: true, about: messageAboutOfTrigger2(trigger) });
   const head = await offersAtTheHead(ports, { b, cmd, batch, offers });
   if (head === "wait" || head === "stopped") return;
-  const { people, priors, appointments, unreadable } = await readPeople(ports, b, batch);
+  const { people, priors, appointments, feed, unreadable } = await readPeople(ports, b, batch);
   const w = {
     ports,
     cmd,
@@ -1930,6 +2030,7 @@ async function sendBroadcastBatch(ports, cmd) {
     people,
     priors,
     appointments,
+    feed,
     month: {},
     offersClosed: head === "closed",
     // The head asked, where the domain was closed: the run goes on, so somebody on it goes another way.
@@ -1955,7 +2056,7 @@ async function sendBroadcastBatch(ports, cmd) {
       verdict = await sendOne(w, r);
     } catch (e) {
       if (e instanceof ThrownAtTheDoor) throw e.error;
-      broadcastLog.error("broadcast_person_unreadable", { contact_id: r.contact_id, error: errField3(e) });
+      broadcastLog.error("broadcast_person_unreadable", { contact_id: r.contact_id, error: errField4(e) });
       continue;
     }
     if (verdict === "stop") return;
@@ -1989,7 +2090,7 @@ function finishedNews(b, { sent, held, counted }) {
   const people = (n) => `${n} ${n === 1 ? "person" : "people"}`;
   return {
     kind: sent > 0 ? "broadcast_sent" : "broadcast_stopped",
-    route: "broadcasts",
+    route: `broadcasts/run:${b.id}`,
     about: { type: "broadcast", id: b.id },
     subject: sent > 0 ? `Broadcast \u201C${b.name}\u201D sent` : `Broadcast \u201C${b.name}\u201D reached nobody`,
     body: sent > 0 ? `${sent} of ${people(sent + held)} got it${held ? `; ${held} held back (${why})` : ""}. Replies land in the Inbox.` : `None of the ${people(held)} on it got it: each was held back (${why}). The broadcast's page says who and why.`
@@ -2043,7 +2144,7 @@ async function stall(ports, b, cmd, what) {
   await ports.fail(b.id, what === "people" ? "people_unreadable" : wireFailure("stalled", what));
   await ports.alert({
     kind: "broadcast_stopped",
-    route: "broadcasts",
+    route: `broadcasts/run:${b.id}`,
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast \u201C${b.name}\u201D stopped`,
     body: [
@@ -2062,7 +2163,7 @@ async function stopAfterHours(ports, b, waited) {
   await ports.fail(b.id, "after_hours");
   await ports.alert({
     kind: "broadcast_stopped",
-    route: "broadcasts",
+    route: `broadcasts/run:${b.id}`,
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast \u201C${b.name}\u201D stopped`,
     body: [
@@ -2088,7 +2189,7 @@ async function stopForTheWire(w, out, channel) {
   const theirs = out.reason === "provider" ? words.platformKey : null;
   await ports.alert({
     kind: "broadcast_stopped",
-    route: "broadcasts",
+    route: `broadcasts/run:${b.id}`,
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast \u201C${b.name}\u201D stopped`,
     body: theirs ? `${theirs.down} (HTTP ${out.status}), so the rest was not sent. ${thenWhat(b, theirs.told, `${theirs.told}. Send it again later.`, "when_it_can")}` : `${words.down} (${cause}), so the rest was not sent. ${thenWhat(b, words.reconnect, `${words.reconnect} and send it again.`, "tomorrow")}`
@@ -2105,7 +2206,7 @@ async function stopForTheLimit(w, contactId, out, limit) {
   await ports.fail(b.id, "provider_limit");
   await ports.alert({
     kind: "broadcast_stopped",
-    route: "broadcasts",
+    route: `broadcasts/run:${b.id}`,
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast \u201C${b.name}\u201D stopped`,
     body: [
@@ -2120,7 +2221,7 @@ async function withdrawQueued(ports, b, delivery) {
   const email = delivery.channel === "email" ? delivery.messageId : null;
   if (!email) return;
   await ports.withdrawEmail(email).catch((e) => {
-    broadcastLog.error("broadcast_email_not_withdrawn", { broadcast_id: b.id, message_id: email, error: errField3(e) });
+    broadcastLog.error("broadcast_email_not_withdrawn", { broadcast_id: b.id, message_id: email, error: errField4(e) });
   });
 }
 async function backOff(ports, b, cmd, how) {
@@ -2144,7 +2245,7 @@ async function backOff(ports, b, cmd, how) {
   const until = at ? "until the day's sending hours ran out" : "for about an hour";
   await ports.alert({
     kind: "broadcast_stopped",
-    route: "broadcasts",
+    route: `broadcasts/run:${b.id}`,
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast \u201C${b.name}\u201D stopped`,
     body: why === "throttled" ? `${words.limiting} ${until}, so the rest was not sent. ${gotIt(sent)} ${thenWhat(b, words.lifts, `${words.lifts}; send it again later.`, "tomorrow")}` : `${words.reach} ${until}, so the rest was not sent. ${gotIt(sent)} ${thenWhat(b, words.fine, `${words.fine}; send it again later.`, "tomorrow")}`
@@ -2369,7 +2470,7 @@ async function cancelled(ports, { tenantId, key, r, fresh }) {
 
 // src/campaigns/assemble.ts
 import { RECIPIENT_REASON_HEARD as RECIPIENT_REASON_HEARD2 } from "../../contracts/dist/index.js";
-import { errField as errField4, logger as logger5 } from "../../channels/dist/index.js";
+import { errField as errField5, logger as logger6 } from "../../channels/dist/index.js";
 
 // src/campaigns/allowance.ts
 import {
@@ -2393,7 +2494,7 @@ async function pastTheMonth(ports, people, trigger, purpose) {
 }
 
 // src/campaigns/assemble.ts
-var assembleLog = logger5();
+var assembleLog = logger6();
 async function assembleRun(ports, cmd) {
   let made;
   try {
@@ -2416,7 +2517,7 @@ async function skipAt(ports, id, people, reason) {
   try {
     done = await ports.holdRecipients(id, [...people], reason);
   } catch (e) {
-    done = { skipped: [], error: errField4(e) };
+    done = { skipped: [], error: errField5(e) };
   }
   const unwritten = people.length - done.skipped.length;
   if (unwritten > 0)
@@ -2845,9 +2946,9 @@ import {
   listToken as listToken2,
   DAY_MS as DAY_MS3
 } from "../../contracts/dist/index.js";
-import { errField as errField5, logger as logger6 } from "../../channels/dist/index.js";
+import { errField as errField6, logger as logger7 } from "../../channels/dist/index.js";
 var OFFSET = /(?:Z|[+-]\d{2}:?\d{2})$/i;
-var createLog = logger6();
+var createLog = logger7();
 function askedBreath(breathe) {
   if (breathe === void 0 || breathe === null) return true;
   if (typeof breathe !== "boolean")
@@ -2917,7 +3018,7 @@ async function audienceOf(ports, ref, now) {
 async function breathOf(ports, enrolled, breathe, at) {
   if (!breathe) return { goes: enrolled, leftOut: [] };
   const touches = await ports.touches(at.now).catch((e) => {
-    createLog.error("campaign_step_failed", { step: "touches", error: errField5(e) });
+    createLog.error("campaign_step_failed", { step: "touches", error: errField6(e) });
     throw new AppError12(
       "internal",
       "Who has had a message from you lately, or has one due, could not be read just now. Nothing was sent; try again.",
@@ -2960,7 +3061,7 @@ async function createBroadcast(ports, cmd) {
     null,
     purpose
   ).catch((e) => {
-    createLog.error("campaign_step_failed", { step: "month_count", error: errField5(e) });
+    createLog.error("campaign_step_failed", { step: "month_count", error: errField6(e) });
     throw new AppError12(
       "internal",
       "This month's emails and texts could not be counted just now. Nothing was sent; try again.",
@@ -3048,7 +3149,7 @@ function decisionPayload(s, skipped) {
 }
 
 // src/campaigns/approve.ts
-import { errField as errField6, logger as logger7 } from "../../channels/dist/index.js";
+import { errField as errField7, logger as logger8 } from "../../channels/dist/index.js";
 import {
   AppError as AppError13,
   CAMPAIGNS_PAUSED_WORDS as CAMPAIGNS_PAUSED_WORDS2,
@@ -3057,7 +3158,7 @@ import {
   nextOpenMoment as nextOpenMoment5,
   runApprovalRefusal
 } from "../../contracts/dist/index.js";
-var approveLog = logger7();
+var approveLog = logger8();
 var NOT_APPROVED_WORDS = "The send could not be scheduled. The run is still waiting; try again.";
 var MOVED_WORDS = "This run just changed state; look again.";
 async function approveRun(ports, cmd) {
@@ -3097,7 +3198,7 @@ async function approvedWhole(ports, b, at, o) {
   try {
     id = await ports.approve(b.id, at, o);
   } catch (e) {
-    approveLog.error("campaign_step_failed", { step: "approve", broadcast_id: b.id, error: errField6(e) });
+    approveLog.error("campaign_step_failed", { step: "approve", broadcast_id: b.id, error: errField7(e) });
     throw new AppError13("upstream_meta", NOT_APPROVED_WORDS, 502);
   }
   if (!id) throw new AppError13("conflict", MOVED_WORDS, 409);
@@ -38277,9 +38378,11 @@ async function reconcileUnknownRuns(p, unknownRuns) {
 
 // src/inbound/ports.ts
 var IngestFailed = class extends Error {
-  constructor(message) {
+  kept;
+  constructor(message, kept = false) {
     super(message);
     this.name = "IngestFailed";
+    this.kept = kept;
   }
 };
 
@@ -38417,7 +38520,13 @@ async function openInbound(input, ports) {
   const brainCfg = rt?.brain ?? null;
   const fallbacks = brainCfg ? fallbackMessages(brainCfg, rt?.known) : null;
   const notif = rt?.notifications ?? null;
-  const notifyTarget = { tenantId, notifications: notif, isEnvDefault };
+  const notifyTarget = {
+    tenantId,
+    notifications: notif,
+    isEnvDefault,
+    // Read with the runtime, so an alert's mail links the workspace's page without a read of its own.
+    ...rt?.slug !== void 0 ? { slug: rt.slug } : {}
+  };
   const replyLimits = rt?.policy["reply"]?.limits ?? {};
   const maxRepliesDay = replyLimits.max_replies_day ?? MAX_REPLIES_PER_DAY;
   const pauseMs = pauseMsOf(replyLimits);
@@ -38470,13 +38579,20 @@ async function noteHandledAfter(sink, asked2, reply, intent = null) {
 }
 
 // src/inbound/ingest.ts
-import { errField as errField7 } from "../../channels/dist/index.js";
-async function ingestOrSay(cx) {
+import { errField as errField8 } from "../../channels/dist/index.js";
+async function ingestOrSay(cx, jobFollows = false) {
   const { ports, db, tenantId, n, channel, from, raw, notifyTarget, L } = cx;
   try {
-    return await ports.persist.ingest(db, tenantId, n, channel, cx.routed?.channelId ?? null);
+    return await ports.persist.ingest(
+      db,
+      tenantId,
+      n,
+      channel,
+      cx.routed?.channelId ?? null,
+      jobFollows ? { jobFollows } : void 0
+    );
   } catch (e) {
-    if (e instanceof IngestFailed) {
+    if (e instanceof IngestFailed && !e.kept) {
       try {
         await ports.alertStaff(
           from,
@@ -38486,7 +38602,7 @@ async function ingestOrSay(cx) {
           { target: notifyTarget, channel, who: n.profileName ?? null }
         );
       } catch (alertErr) {
-        L.error("wa_unrecorded_alert_failed", { error: errField7(alertErr) });
+        L.error("wa_unrecorded_alert_failed", { error: errField8(alertErr) });
       }
     }
     throw e;
@@ -38537,7 +38653,7 @@ async function setAside(cx) {
 }
 async function recordMessage(cx) {
   if (await setAside(cx)) return void 0;
-  const ing = await ingestOrSay(cx);
+  const ing = await ingestOrSay(cx, true);
   return ing && !ing.is_new ? void 0 : ing;
 }
 async function answeredBefore(cx, ing) {
@@ -38631,21 +38747,7 @@ async function firstGates(at) {
   });
   const optedOut = consent.optedOut;
   if (optedOut) {
-    const asked2 = n.optOut ? sink.escalate(
-      "opt_out",
-      "Customer asked to stop receiving messages. Automatic replies are off for this contact until they text START."
-    ) : null;
-    await Promise.all([
-      processedAfter(sink, asked2, "none"),
-      ...asked2 ? [
-        asked2,
-        tell(asked2, {
-          said: n.body ?? `[${raw.type}]`,
-          answered: "(no reply sent \u2014 the customer opted out)",
-          why: "opt-out"
-        })
-      ] : []
-    ]);
+    await processedAfter(sink, null, "none");
     L.info("wa_skip_opt_out", {
       this_message: n.optOut,
       on_record: ing?.consent ?? null,
@@ -38751,7 +38853,7 @@ async function photoOf(at, seen) {
 }
 
 // src/inbound/reply-gates.ts
-import { errField as errField8 } from "../../channels/dist/index.js";
+import { errField as errField9 } from "../../channels/dist/index.js";
 import { offersAfterStart, optInConfirmation, tokenBudgetSpent, tokenCapOf } from "../../contracts/dist/index.js";
 async function offersNoteFor(at) {
   const { db, tenantId, ing, ports, channel, L } = at;
@@ -38760,7 +38862,7 @@ async function offersNoteFor(at) {
     const answer = await ports.leads.offersAnswer?.(db, tenantId, ing.contact_id);
     return answer ? offersAfterStart(answer, channel) : null;
   } catch (e) {
-    L.warn("lead_context_unavailable", { error: errField8(e) });
+    L.warn("lead_context_unavailable", { error: errField9(e) });
     return null;
   }
 }
@@ -38771,7 +38873,7 @@ async function offersTakenBack(at) {
     const answer = await ports.leads.offersAnswer?.(db, tenantId, ing.contact_id);
     return answer?.marketingConsent === "opted_out";
   } catch (e) {
-    L.warn("lead_context_unavailable", { error: errField8(e) });
+    L.warn("lead_context_unavailable", { error: errField9(e) });
     return false;
   }
 }
@@ -38950,7 +39052,7 @@ async function heldForThePerson(at, bodyText) {
 
 // src/inbound/model-turn.ts
 import { resolveSystemPrompt, describeNow, shadowWordsOf, priceAllowance as priceAllowance2 } from "../../contracts/dist/index.js";
-import { errField as errField9 } from "../../channels/dist/index.js";
+import { errField as errField10 } from "../../channels/dist/index.js";
 async function leadNoteFor(at) {
   const { db, tenantId, from, ports, rt, L, channel, ing } = at;
   let leadNote;
@@ -38963,7 +39065,7 @@ async function leadNoteFor(at) {
       if (visits) leadNote = `${leadNote}
 ${visits}`;
     } catch (e) {
-      L.warn("lead_context_unavailable", { error: errField9(e) });
+      L.warn("lead_context_unavailable", { error: errField10(e) });
     }
   }
   return leadNote;
@@ -39040,7 +39142,7 @@ ${openings}` : ""}`,
       brainMs = Date.now() - tBrain;
       ({ replyText, escalate, escalationReason } = checked(at, brainCfg, r, now));
     } catch (e) {
-      L.error("brain_failed", { error: errField9(e) });
+      L.error("brain_failed", { error: errField10(e) });
       replyText = fallbacks.error;
       escalate = true;
       escalationReason = "brain_error";
@@ -39055,7 +39157,7 @@ ${openings}` : ""}`,
       try {
         await ports.page({ db }, NO_MODEL_PAGE.key, NO_MODEL_PAGE.subject, NO_MODEL_PAGE.body);
       } catch (e) {
-        L.error("wa_no_model_page_failed", { error: errField9(e) });
+        L.error("wa_no_model_page_failed", { error: errField10(e) });
       }
     }
   }
@@ -39213,13 +39315,13 @@ async function sendNow(at, turn, hold, bodyText) {
 }
 
 // src/inbound/turn.ts
-import { errField as errField10 } from "../../channels/dist/index.js";
+import { errField as errField11 } from "../../channels/dist/index.js";
 async function claimTheTurn(at, photo) {
   const { ports, db, tenantId, ing, L, sink } = at;
   const turn = ports.persist.turn;
   if (!turn || photo || !db || !tenantId || !ing) return GO;
   const held = await turn.claim(db, tenantId, ing.conversation_id, ing.message_id).catch((e) => {
-    L.warn("wa_turn_unreadable", { error: errField10(e) });
+    L.warn("wa_turn_unreadable", { error: errField11(e) });
     return true;
   });
   if (held) return GO;
@@ -39232,7 +39334,7 @@ async function stillOurs(at, t, photo) {
   const turn = ports.persist.turn;
   if (!turn || photo || !db || !ing) return GO;
   const held = await turn.holds(db, ing.conversation_id, ing.message_id).catch((e) => {
-    L.warn("wa_turn_unreadable", { error: errField10(e) });
+    L.warn("wa_turn_unreadable", { error: errField11(e) });
     return true;
   });
   if (held) return GO;

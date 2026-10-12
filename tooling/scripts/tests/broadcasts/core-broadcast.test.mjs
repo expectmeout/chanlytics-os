@@ -73,6 +73,9 @@ const rowsOf =
     return Object.entries(versions).map(([channel, v]) => rowOf(channel, name, language, v));
   };
 
+/** Every alert any run in this file raised, for the last test: a notice that names its run opens it. */
+const alertsRaised = [];
+
 /** Every port answers a value or a function of its arguments; the writes log their call as [name, ...args]. */
 function fakes(over = {}) {
   const log = [];
@@ -128,6 +131,7 @@ function fakes(over = {}) {
     }
     ports[name] = async (...args) => {
       if (WRITES.has(name)) log.push([name, ...args]);
+      if (name === "alert") alertsRaised.push(args[0]);
       if (answer instanceof Error) throw answer;
       return typeof answer === "function" ? answer(...args) : answer;
     };
@@ -477,7 +481,8 @@ test("people still queued: the next batch is scheduled, unless a cancel landed m
   // REGRESSION: kept as "job_failed", a finished broadcast was counted into
   // Today's "N jobs did not finish", in warn amber, above everything else.
   assert.equal(news.kind, "broadcast_sent", "a broadcast that went out is not a job that did not finish");
-  assert.deepEqual([news.route, news.about], ["broadcasts", { type: "broadcast", id: "b1" }]);
+  // The run it is about, not the list of runs: the bell, the phone and the mail open THIS broadcast (wiring task 1.7, A2b).
+  assert.deepEqual([news.route, news.about], ["broadcasts/run:b1", { type: "broadcast", id: "b1" }]);
   assert.equal(news.subject, "Broadcast “Spring offer” sent");
   assert.equal(
     news.body,
@@ -549,7 +554,7 @@ test("every way a broadcast can stop says it stopped, and none of them says a jo
   for (const f of [paused, withdrawn, down]) {
     const n = f.log.at(-1)[1];
     assert.equal(n.kind, "broadcast_stopped");
-    assert.equal(n.route, "broadcasts");
+    assert.equal(n.route, "broadcasts/run:b1");
     assert.deepEqual(n.about, { type: "broadcast", id: "b1" });
   }
 });
@@ -633,7 +638,7 @@ test("a proposal follow-up's send (0006): the link each person's run froze fills
   );
 });
 
-test("a review ask's send: the link the workspace's Google listing keeps (00408) fills its slot for each person, and a workspace with none holds them, never a bare ask", async () => {
+test("a review ask's send: the link the workspace's Google listing keeps (00415) fills its slot for each person, and a workspace with none holds them, never a bare ask", async () => {
   const ask = broadcast({ params: [{ kind: "first_name" }, { kind: "review_link" }] });
   const words = { meta_status: "approved", body_preview: "Thanks, {{1}}! A review helps: {{2}}", category: "utility" };
   const link = "https://example.com/review/harbor-studio";
@@ -2788,7 +2793,7 @@ test("a message whose only row is a WhatsApp one that cannot be sent, with every
     const alert = call(alone.f.log, "alert")[1];
     assert.deepEqual(
       [alert.kind, alert.route, alert.about],
-      ["broadcast_stopped", "broadcasts", { type: "broadcast", id: "b1" }],
+      ["broadcast_stopped", "broadcasts/run:b1", { type: "broadcast", id: "b1" }],
     );
     assert.equal(alert.subject, "Broadcast “Visit reminder · 2026-09-11” stopped");
     return alert.body;
@@ -2938,4 +2943,118 @@ test("a person a send by hand left out for the week's breath is skipped at the w
     "nothing went to the person left out",
   );
   assert.equal(HELD_REASONS[RECIPIENT_REASON_HEARD], "not sent: they hear from you within a week of it");
+});
+
+test("a reminder asks the owner's calendar feed as well as the record: a visit the feed no longer names holds its person (appointment_changed) though the record still says booked; one it names, a booking from the record, a visit outside the span it was read over, and a run drawn before the record go; the feed is asked once, only when a reminder needs it; no feed to ask goes on the record; one that cannot be read leaves its reminders queued, never sent on a guess (S1-05)", async () => {
+  const start = "2026-09-12T14:00:00.000Z";
+  const read = "2026-09-11T13:05:00.000Z";
+  const older = "2026-09-11T12:23:00.000Z"; // the hourly sync before the run: the record has not heard of the calendar's change
+  const drawn = (key, over = {}) => ({
+    ...VISIT,
+    appointment: key,
+    visit_start: start,
+    appointment_read_at: read,
+    ...over,
+  });
+  const span = { from: Date.parse("2026-06-13T12:00:00Z"), to: Date.parse("2026-12-10T12:00:00Z") };
+  const names = { keys: new Set(["on-the-calendar"]), ...span };
+  const many = (ids) =>
+    new Map(
+      ids.map((id) => [
+        id,
+        { ...reachable.k1, id, phone_e164: `+1347555010${id.slice(1)}`, display_name: `Person ${id}` },
+      ]),
+    );
+  const batch = [
+    on("sms", "k1", drawn("cancelled-in-the-calendar")),
+    on("sms", "k2", drawn("on-the-calendar")),
+    on("sms", "k3", drawn("appt:0b1c2d")),
+    on("sms", "k4", drawn("outside-the-span", { visit_start: "2027-03-01T10:00:00.000Z" })),
+    on("sms", "k5", VISIT),
+  ];
+  // The record still says the cancelled visit is booked, as it does until the sweep marks it vanished.
+  const record = () =>
+    new Map([
+      ["cancelled-in-the-calendar", { status: "booked", starts_at: start, vanished_at: null, updated_at: older }],
+    ]);
+  let asked = 0;
+  const { f } = world({
+    batch,
+    appointments: record,
+    feed: () => {
+      asked += 1;
+      return names;
+    },
+    contacts: many,
+  });
+  await sendBroadcastBatch(f.ports, cmd());
+  assert.equal(asked, 1, "the feed is asked once for the batch");
+  assert.deepEqual(
+    f.marks().filter(([, state]) => state !== "failed"),
+    [
+      ["k1", "skipped", "appointment_changed"],
+      ["k2", "sent", null],
+      ["k3", "sent", null],
+      ["k4", "sent", null],
+      ["k5", "sent", null],
+    ],
+    "gone from the calendar holds its person, though the record says booked; nobody else is held",
+  );
+
+  // Nothing in the batch was drawn for a calendar event: the feed is not asked.
+  let idle = 0;
+  const plain = world({
+    batch: [on("sms", "k1", drawn("appt:0b1c2d")), on("sms", "k2")],
+    feed: () => {
+      idle += 1;
+      return names;
+    },
+    contacts: many,
+  });
+  await sendBroadcastBatch(plain.f.ports, cmd());
+  assert.equal(idle, 0, "a booking from the record and a run before the record ask the calendar nothing");
+
+  // A workspace with no calendar feed (null), and a runtime that has none: the record alone, as before.
+  for (const feed of [() => null, undefined]) {
+    const { f: g } = world({
+      batch: [on("sms", "k1", drawn("cancelled-in-the-calendar"))],
+      appointments: record,
+      ...(feed ? { feed } : {}),
+      contacts: many,
+    });
+    await sendBroadcastBatch(g.ports, cmd());
+    assert.deepEqual(
+      g.marks().filter(([, state]) => state !== "failed"),
+      [["k1", "sent", null]],
+    );
+  }
+
+  // A feed that cannot be read: the reminder for a calendar event waits, queued, for the next batch (fail closed per
+  // person), and a reminder that asks the calendar nothing goes.
+  const { f: h } = world({
+    batch: [on("sms", "k1", drawn("on-the-calendar")), on("sms", "k2")],
+    feed: new Error("the calendar feed could not be read"),
+    contacts: many,
+  });
+  await sendBroadcastBatch(h.ports, cmd());
+  assert.deepEqual(
+    h.marks().filter(([, state]) => state !== "failed"),
+    [["k2", "sent", null]],
+    "k1 is neither claimed nor skipped: it stays queued",
+  );
+  assert.equal(
+    h.of("deliver").filter((d) => d[1].contactId === "k1").length,
+    0,
+    "and nothing was sent to a visit the calendar could not vouch for",
+  );
+});
+
+test("every alert any run in this file raised opens the run it is about, and no other page (wiring task 1.7, A2b)", () => {
+  // Eight senders say it: a run finished, stopped for its workspace, stalled, outside the hours, its wire down, its mail
+  // limit, throttled, its message withdrawn. A notice that names its run and opens the list of runs is the gap A2b closed.
+  assert.ok(alertsRaised.length >= 10, `the file's runs raised ${alertsRaised.length} alerts to check`);
+  assert.deepEqual(
+    alertsRaised.filter((a) => a.about?.type !== "broadcast" || a.route !== `broadcasts/run:${a.about.id}`),
+    [],
+  );
 });

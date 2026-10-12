@@ -10,10 +10,13 @@
  *
  * The words every band is built from live here too: the list join and the seconds phrase.
  */
+import { addressOf } from "../activity/record-address";
 import { EMAIL_NOT_ANSWERED_SENTENCE } from "../email/mailbox";
-import { CHANNEL_ANSWERED } from "../lines/channels";
+import { lineOffGets } from "../lines/caller-gets";
+import { CHANNEL_ANSWERED, channelNoun } from "../lines/channels";
 import type { ReplySpeed } from "../reports/report-speed";
 import { durationWords } from "../shared/clock";
+import { PAUSED_WORDS } from "../workspace/billing";
 import type { TodayFacts } from "./today-facts";
 import type { TodayFactVM, TodayNeedsRowVM, TodayQueueEmptyVM, TodaySentenceVM, TodayVM } from "./today-vm";
 
@@ -36,6 +39,15 @@ const speedIn = (s: ReplySpeed, about = false): string =>
 
 /** The clause the answered figure ends on ("typically in 34s", or against the hold); "" with no reply to speak of. */
 export const speedClause = (s: ReplySpeed | null): string => (s === null ? "" : `typically ${speedIn(s)}`);
+
+/**
+ * What each dark wire does with what reaches it, one sentence a wire: "Phone line is disconnected — calls are picked up
+ * without your facts and are not recorded." The clause is the standing value's (lines/caller-gets.ts), the same one
+ * Connections, Live and Start say, and not a sentence of Today's own: this alert said "messages coming in are not being
+ * answered" of a phone line whose calls the receptionist picks up.
+ */
+const darkWires = (down: TodayFacts["wires"]): string =>
+  down.map((w) => `${w.label} is disconnected — ${lineOffGets(w.kind, channelNoun(w.kind)).gets}.`).join(" ");
 
 /**
  * The wires as the standing line draws them: a chip each, the count above the work, and the alert.
@@ -73,9 +85,9 @@ export function todayStanding(f: TodayFacts): Pick<TodayVM["standing"], "chips" 
   };
   const alert =
     metrics.workspace.status === "paused"
-      ? "This workspace is paused — the receptionist is not answering anything."
+      ? `This workspace is paused. ${PAUSED_WORDS}`
       : down.length
-        ? `${andList(down.map((w) => w.label))} ${down.length > 1 ? "are" : "is"} disconnected — messages coming in are not being answered.`
+        ? darkWires(down)
         : null;
   return { chips, lines, alert };
 }
@@ -94,7 +106,7 @@ export function todayQueueEmpty(f: TodayFacts): TodayQueueEmptyVM {
   const answered = on.filter((w) => CHANNEL_ANSWERED.has(w.kind));
   if (metrics.workspace.status === "paused") {
     return {
-      title: "Nothing in the queue — the workspace is paused, so nothing is being answered.",
+      title: `Nothing in the queue — the workspace is paused. ${PAUSED_WORDS}`,
       sub: "nothing in the queue",
       glyph: "alert",
       tone: "warn",
@@ -103,7 +115,7 @@ export function todayQueueEmpty(f: TodayFacts): TodayQueueEmptyVM {
   }
   if (down.length) {
     return {
-      title: "Nothing in the queue — new messages go unanswered until the line is back.",
+      title: `Nothing in the queue. ${darkWires(down)}`,
       sub: "nothing in the queue",
       glyph: "alert",
       tone: "warn",
@@ -377,6 +389,6 @@ export function todaySendFailure(f: TodayFacts): TodaySentenceVM | null {
   return {
     text: `${period.send_failures} repl${period.send_failures === 1 ? "y" : "ies"} failed to deliver — the customer got no answer.`,
     warn: true,
-    ...(lastFailed ? { to: `inbox/th-${lastFailed.conv.id}` } : {}),
+    ...(lastFailed ? { to: addressOf({ kind: "conversation", id: lastFailed.conv.id }) } : {}),
   };
 }

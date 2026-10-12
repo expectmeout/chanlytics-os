@@ -101,7 +101,7 @@ const withStartDoor = (tables, rpcs = {}, refusal = null) => ({
     return { id: row.id, decision_id: decision.id, undo_dropped: false };
   },
 });
-/** The `change_playbook` door for a database in memory, as 00409 writes it (change/_change-door.mjs), beside `rpcs`. */
+/** The `change_playbook` door for a database in memory, as 00416 writes it (change/_change-door.mjs), beside `rpcs`. */
 const withChangeDoor = (tables, rpcs = {}) => ({ ...rpcs, ...changePlaybookDoor(tables, USER) });
 const ctxFor = (tables, params = {}, rpcs = {}, opts = {}) => ({
   supabase: fakeDb(tables, {}, withChangeDoor(tables, withStartDoor(tables, rpcs)), opts),
@@ -607,7 +607,11 @@ test("what sends a template says what that thing is doing: a playbook's clock, a
     true,
     "a run pending approval is its playbook waiting on the owner",
   );
-  assert.equal(C.templateUseNote(usedBy.monthly_offer), "a run is waiting on you", "which outranks its clock");
+  assert.equal(
+    C.templateUseNote(usedBy.monthly_offer),
+    "a run is waiting for your approval",
+    "which outranks its clock",
+  );
   assert.equal(C.templateUseWords(usedBy.save_our_number), "Save our number campaign", "paused, still named plainly");
   assert.equal(
     C.templateUseNote(usedBy.save_our_number),

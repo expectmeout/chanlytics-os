@@ -52,6 +52,7 @@ import {
   knownForwarding,
   channelFor,
   hoursFromGoogle,
+  memberWords,
   type SetupDto,
   type CapabilityKind,
 } from "@chanlytics/contracts";
@@ -282,7 +283,6 @@ function calendarStands(
   return Promise.all([from.settings, tenantFacts(supabase, tenantId)])
     .then(([row, { timezone }]) =>
       calendarWeek({ supabase }, tenantId, { from: null, days: 7 }, now, {
-        canAct: false,
         feedOnly: true,
         timezone,
         config: row?.config ?? null,
@@ -528,7 +528,7 @@ function teamSection(team: SetupReads["team"], cfg: SetupConfig["cfg"]): SetupDt
       ? {
           partner: (() => {
             const p = team.members.find((m) => m.role === "partner");
-            return p ? p.displayName || p.email || null : null;
+            return p ? memberWords({ email: p.email, display_name: p.displayName }).name : null;
           })(),
         }
       : {}),

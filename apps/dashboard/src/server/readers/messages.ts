@@ -1,5 +1,5 @@
 import "server-only";
-import { DAY_MS, callerName, personName } from "@chanlytics/contracts";
+import { DAY_MS, addressOf, callerName, personName } from "@chanlytics/contracts";
 import {
   callersOf,
   messageSenders,
@@ -78,14 +78,24 @@ export const messageSearch: Reader<
         if (!c) return [];
         const who = callerName({ from_e164: c.from_e164, from_raw: c.from_raw, contact: person });
         return [
-          { ...h, who, sent: null, ref: { kind: "call", id: h.id, route: `conversations/cv-${h.id}`, label: who } },
+          {
+            ...h,
+            who,
+            sent: null,
+            ref: { kind: "call", id: h.id, route: addressOf({ kind: "call", id: h.id }), label: who },
+          },
         ];
       }
       const m = sent.get(h.id);
       if (!m) return [];
       const who = personName(person);
       const ref: RowRef | null = h.conversationId
-        ? { kind: "thread", id: h.conversationId, route: `inbox/th-${h.conversationId}`, label: who }
+        ? {
+            kind: "thread",
+            id: h.conversationId,
+            route: addressOf({ kind: "conversation", id: h.conversationId }),
+            label: who,
+          }
         : null;
       return [{ ...h, who, sent: m, ref }];
     });

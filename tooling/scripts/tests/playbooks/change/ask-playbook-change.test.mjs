@@ -74,7 +74,7 @@ const tables = (over = {}) => ({
   events: [],
   ...over,
 });
-/** The change_playbook door in memory, as 00409 writes it and the route calls it (_change-door.mjs). */
+/** The change_playbook door in memory, as 00416 writes it and the route calls it (_change-door.mjs). */
 const changeDoor = (rows) => changePlaybookDoor(rows, USER);
 const change = (input, rows = tables(), faults = {}) => {
   const supabase = fakeDb(rows, faults, changeDoor(rows));
@@ -187,7 +187,7 @@ test("a pause says the run that waits stays waiting; a resume says its class's m
   assert.match(said(unread), /sending mode .* could not be read/);
 });
 
-test("a campaign on trial goes as veto (00409): its resume card says veto's words, never that it sends on its own, and its pause's undo claims no auto; once its trial is over, auto's words again", async () => {
+test("a campaign on trial goes as veto (00416): its resume card says veto's words, never that it sends on its own, and its pause's undo claims no auto; once its trial is over, auto's words again", async () => {
   // A week of trial from the 14th: its runs wait half an hour for a Stop, whatever its auto class says.
   const onTrial = { trial_until: "2026-09-21T14:00:00Z" };
   const resume = await change(
@@ -283,7 +283,7 @@ const MONTH_OFFER = {
 /** Its words as the route stored them when it was made. */
 const HELD = [{ kind: "first_name" }, { kind: "text", value: "10% off" }];
 
-test("its words (00409 params): the model's slot text becomes the specs the route stores, as a new campaign's does, judged against its message; the card quotes them, and its Approve and Undo are the playbook's own PUT", async () => {
+test("its words (00416 params): the model's slot text becomes the specs the route stores, as a new campaign's does, judged against its message; the card quotes them, and its Approve and Undo are the playbook's own PUT", async () => {
   const rows = tables({ templates: [MONTH_OFFER], playbooks: [playbookRow({ params: HELD })] });
   const made = await change({ params: ["@first_name", "15% off a colour"] }, rows);
   assert.equal(made.isError, false, made.result);
@@ -307,7 +307,7 @@ test("its words (00409 params): the model's slot text becomes the specs the rout
   assert.equal(said(await change({ params: ["@first_name", "10% off"] }, rows)), PLAYBOOK_PATCH_WORDS.same("Win-back"));
 });
 
-test("its end (00409 until): a day by the business's clock, said as the product says a date (“Ends Nov 30”), its undo no end; a day already past is refused in the PUT's words", async () => {
+test("its end (00416 until): a day by the business's clock, said as the product says a date (“Ends Nov 30”), its undo no end; a day already past is refused in the PUT's words", async () => {
   const rows = tables();
   const made = await change({ until: "2026-11-30" }, rows);
   assert.equal(made.isError, false, made.result);
@@ -326,7 +326,7 @@ test("its end (00409 until): a day by the business's clock, said as the product 
   assert.equal(said(await change({ until: "the end of November" })), PLAYBOOK_PATCH_WORDS.untilDay);
 });
 
-test("its trial (00409 trial_until): an instant says its last day; null ends it, said in the change's words and committed as the null that clears it; a resume on a trial the card ends says its class's own mode", async () => {
+test("its trial (00416 trial_until): an instant says its last day; null ends it, said in the change's words and committed as the null that clears it; a resume on a trial the card ends says its class's own mode", async () => {
   const set = await change({ trial_until: "2026-09-21T14:00:00Z" });
   assert.equal(set.isError, false, set.result);
   assert.equal(set.proposal.summary, PLAYBOOK_PATCH_WORDS.trial_until("Sep 21"));

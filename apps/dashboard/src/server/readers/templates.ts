@@ -9,6 +9,7 @@ import {
   slotLabels,
   templateBlocked,
   templateHolds,
+  templateOffered,
   templateParts,
   templateSends,
   templateSendsOf,
@@ -132,12 +133,11 @@ async function templatesOf(rc: ReaderContext, all: boolean) {
     ...templateParts(components),
     blocked: t.channel === "whatsapp" ? templateBlocked({ components }) : null,
   }));
-  // The composers: approved, and not hidden by the workspace. Settings sees everything. The ones left out are counted by
-  // why, so an empty picker can say it (contracts noTemplateWords) -- the read that left them out is the one that knows.
-  const offered = (t: { meta_status: string; hidden_at: string | null }) =>
-    t.meta_status === "approved" && !t.hidden_at;
-  const templates = all ? every : every.filter(offered);
-  const held = templateHolds(every.filter((t) => !offered(t)));
+  // The composers: approved, and not hidden by the workspace (contracts templateOffered, which the pages that draw their
+  // pickers from the settings read judge the same rows by). Settings sees everything. The ones left out are counted by why, so
+  // an empty picker can say it (contracts noTemplateWords) -- the read that left them out is the one that knows.
+  const templates = all ? every : every.filter(templateOffered);
+  const held = templateHolds(every.filter((t) => !templateOffered(t)));
   // The messages, from every row, the ones the composers leave out included: a WhatsApp version still in review keeps
   // its standing inside its message, and a message with no WhatsApp row is one. Whether a picker lists one is the
   // message's own `offered`.

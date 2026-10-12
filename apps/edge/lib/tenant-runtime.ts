@@ -18,7 +18,13 @@ import {
   type PolicyLimits,
   type KnownFacts,
 } from "./packages/contracts.js";
-import { activeWhatsappNumbers, whatsappLineOf, type RoutedChannel, type WhatsappNumberRow } from "./packages/db.js";
+import {
+  activeWhatsappNumbers,
+  whatsappLineOf,
+  workspaceNamed,
+  type RoutedChannel,
+  type WhatsappNumberRow,
+} from "./packages/db.js";
 import {
   whatsappSender,
   wireUnavailable,
@@ -33,6 +39,11 @@ import { logger, errField } from "./log.js";
 
 export interface TenantRuntime {
   tenantId: string;
+  /**
+   * The workspace's address word (tenants.slug), read with the row the name and the clock come from: an alert mail's link
+   * to the workspace's own page is built from it. Unset when the runtime could not be read, or the row had none.
+   */
+  slug?: string | null;
   /** null = this tenant's receptionist does not speak (unconfigured persona —
    *  persist + escalate only; silence over someone else's voice). */
   brain: BrainConfig | null;
@@ -61,8 +72,9 @@ export interface TenantRuntime {
   timezone: string | null;
   /**
    * tenants.status = 'paused', written by billing for a workspace whose
-   * subscription stopped. Messages are kept and held for a person; nothing
-   * is answered and nothing automated goes out until it resumes.
+   * subscription stopped. Messages are kept and held for a person; a call is
+   * answered only to take a message (pausedVoiceFacts) and nothing automated
+   * goes out until it resumes.
    */
   paused: boolean;
   /**
@@ -196,6 +208,16 @@ async function resolveWaCredentials(
   };
 }
 
+/**
+ * What the runtime takes from the workspace's own row: its address word (an alert mail's link), its clock, and whether billing
+ * paused it. A row that could not be read says none of them.
+ */
+function workspaceRowFacts(
+  t: { slug: string | null; timezone: string | null; status: string } | null | undefined,
+): Pick<TenantRuntime, "slug" | "timezone" | "paused"> {
+  return { slug: t?.slug ?? null, timezone: t?.timezone ?? null, paused: t?.status === "paused" };
+}
+
 export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: RoutedChannel): Promise<TenantRuntime> {
   const hit = cache.get(cacheKey(routed));
   if (hit && hit.exp > Date.now()) {
@@ -223,7 +245,7 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
       // Resolving by tenant + kind closed the voice path; a WhatsApp message's
       // own number keys its entry (cacheKey), the oldest active every other's.
       resolveWaCredentials(db, routed),
-      db.from("tenants").select("name, timezone, status").eq("id", routed.tenantId).maybeSingle(),
+      db.from("tenants").select("name, slug, timezone, status").eq("id", routed.tenantId).maybeSingle(),
       // Taken with the load, so the first re-check compares like with like.
       runtimeStamp(db, routed.tenantId),
       // What the platform provisioned and what Google verified — the other half
@@ -265,6 +287,7 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
     }
     const rt: TenantRuntime = {
       tenantId: routed.tenantId,
+      ...workspaceRowFacts(tzQ.data),
       brain: parsed?.brain ?? null,
       notifications: parsed?.notifications ?? null,
       calendar: parsed?.calendar ?? null,
@@ -272,7 +295,6 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
       policy,
       waCreds: credsQ.creds,
       envNumber: credsQ.envNumber,
-      timezone: tzQ.data?.timezone ?? null,
       // Deliberately not thrown on. A channel list that failed to read leaves
       // the prompt exactly where it was before this existed — typed values,
       // unresolved — which is degraded, not silent. Throwing would mark the
@@ -282,7 +304,6 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
         channels: chanQ.error ? [] : (chanQ.data ?? []),
         listing: listQ.error ? null : (listQ.data ?? null),
       },
-      paused: tzQ.data?.status === "paused",
       ...configState(parseResult.ok, cfgQ.data),
       loadFailed: false,
     };
@@ -494,10 +515,10 @@ export function waCfgFor(
 export async function loadTenantNotifications(
   db: SupabaseClient<Database>,
   tenantId: string,
-): Promise<{ notifications: NotificationsConfig | null; isEnvDefault: boolean }> {
+): Promise<{ notifications: NotificationsConfig | null; isEnvDefault: boolean; slug?: string }> {
   const L = logger();
   try {
-    const [cfgQ, chQ] = await Promise.all([
+    const [cfgQ, chQ, named] = await Promise.all([
       db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
       // Filtered and bounded exactly as the two sibling readers above are.
       // `tenant_channels` has no unique constraint on (tenant_id, kind) and the
@@ -517,6 +538,13 @@ export async function loadTenantNotifications(
         .order("created_at", { ascending: true })
         .limit(1)
         .maybeSingle(),
+      // The workspace's address word, for the link at the foot of an alert mail (notify.ts openItLink): read beside the
+      // recipients so the mail costs no query of its own. Like the channel above, its failure costs the answer it was
+      // asked for -- a mail with no link -- and never the recipients.
+      workspaceNamed(db, tenantId).catch((e: unknown) => {
+        L.error("tenant_notifications_workspace_unreadable", { tenant_id: tenantId, error: errField(e) });
+        return null;
+      }),
     ]);
     if (cfgQ.error) throw new Error(cfgQ.error.message);
     const parsed = parseTenantConfigResult(cfgQ.data?.config);
@@ -532,6 +560,8 @@ export async function loadTenantNotifications(
     return {
       notifications: parsed.ok ? (parsed.config.notifications ?? null) : null,
       isEnvDefault: !chQ.error && !!envPhoneId && chQ.data?.external_id === envPhoneId,
+      // Unset where the workspace could not be read, so a mail reads it once itself (a null would say it has none).
+      ...(named?.slug ? { slug: named.slug } : {}),
     };
   } catch (e) {
     L.error("tenant_notifications_load_failed", { tenant_id: tenantId, error: errField(e) });

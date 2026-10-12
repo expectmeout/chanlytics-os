@@ -606,7 +606,7 @@ test("a line that was asked for waits on us and says when; one that exists but i
   );
   assert.equal(
     row(inactive, "line").sentence,
-    `Your line ${formatPhoneDisplay(VOICE)} is switched off — the receptionist is not answering it.`,
+    `Your line ${formatPhoneDisplay(VOICE)} is switched off — calls are picked up without your facts and are not recorded.`,
   );
   assert.equal(row(inactive, "line").state, "waiting_you");
   assert.equal(row(inactive, "receptionist").state, "waiting_you");
@@ -1043,10 +1043,10 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
   );
   const bridge = readCode("apps/dashboard/src/surfaces/setup/surface.ts");
   assert.ok(
-    /refreshOnTables: \[\s*"lines",\s*"notifications",\s*"tenant_channels",\s*"capability_activations",\s*"business_records",\s*"billing_accounts",\s*"google_connections",\s*"calls",\s*(\/\/[^\n]*\s*)?"sending_domains",?\s*\]/.test(
+    /declareReads\("setup", \{\s*reads: \["channel", "notification", "billing", "review", "call"\],\s*fresh: "live",/.test(
       bridge,
     ),
-    "every table a row derives from repaints the page",
+    "every kind of record a row derives from repaints the page (the tables are derived: declared-reads-are-what-was-heard.test.mjs)",
   );
   for (const pin of ['"POST lines/search"', '"POST lines/buy"', '"POST lines/retry"'])
     assert.ok(bridge.includes(pin), pin);
@@ -1275,7 +1275,7 @@ test("a save in Workspace and a WhatsApp connect repaint Setup too", async () =>
   // Both also move what the composers and People's reach read of the channels (refresh-coverage.test.mjs says which).
   assert.deepEqual(
     AFTER["PUT settings"]().map((o) => o.key),
-    ["settings", "today", "calendar", "setup", "broadcasts", "playbooks", "people"],
+    ["settings", "calendar", "setup", "broadcasts", "playbooks", "people"],
   );
   assert.deepEqual(
     AFTER["POST channels/whatsapp/connect"]().map((o) => o.key),

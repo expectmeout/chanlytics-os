@@ -348,7 +348,7 @@ test("a saved template reads as this business's message: its own name and bookin
 test("a slot's source: a starter's own, or a guess from the label and the example a template written elsewhere carries", () => {
   assert.equal(guessSlotKind("Booking link", null), "booking_link");
   assert.equal(guessSlotKind("Value 2", "https://booksy.com/x"), "booking_link");
-  // A review's link is a link too, and the drafter labels it so: the review link, never the booking link (00408).
+  // A review's link is a link too, and the drafter labels it so: the review link, never the booking link (00415).
   assert.equal(guessSlotKind("Review link", null), "review_link");
   assert.equal(guessSlotKind("Reviews link", null), "review_link");
   assert.equal(guessSlotKind("Enlace para la reseña", null), "review_link");
@@ -442,12 +442,13 @@ test("the door: idempotent, one language at a time, synced in when the number's 
       b.includes("slotKinds: defaultSlotKinds"),
     "the library reaches the pages (imported by them since decision 0015, no longer published on window)",
   );
-  assert.ok(
-    (await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts")).HOOKS["POST templates/starter"].includes(
-      "__refreshPlaybooks",
-    ),
-    "the playbook composer learns of a newly added starter",
+  const refreshMap = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
+  assert.deepEqual(
+    refreshMap.AFTER["POST templates/starter"]().map((o) => o.key),
+    ["settings"],
+    "the playbook composer learns of a newly added starter from the settings read it is made of, with no hook of its own",
   );
+  assert.equal(Object.hasOwn(refreshMap, "HOOKS"), false, "no window hook is called behind a write any more");
 });
 
 test("the pages: titles not names, the starter set in Settings, one click on Broadcasts, the trigger's starter picked for a playbook, the message as the customer sees it", () => {

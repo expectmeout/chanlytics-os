@@ -50,7 +50,14 @@ export interface CallDto {
   conversation_id: string | null;
   contact_id: string | null;
   message_id: string | null;
-  contact: { display_name: string | null; wa_profile_name: string | null; phone_e164: string | null } | null;
+  contact: {
+    display_name: string | null;
+    wa_profile_name: string | null;
+    phone_e164: string | null;
+    /** The person's consent and do-not-contact flag, as the thread's contact carries them (ConversationDto): a row says they asked to stop. Absent on payloads read without them; only 'opted_out' or dnc says so (isOptedOutContact). */
+    consent?: string | null;
+    dnc?: boolean | null;
+  } | null;
 }
 
 /**
@@ -150,6 +157,24 @@ export function missedCall(c: { missed: boolean; direction: "inbound" | "outboun
 export function callAttemptWords(direction: "inbound" | "outbound"): string {
   return missedCall({ missed: true, direction }) ? "Missed call" : "Call didn't connect";
 }
+
+/**
+ * How a call ended, in the one word each outcome of the ladder has (callOutcomeFor): the pill on Live, on Conversations'
+ * row and on the thread's call card, and the line a person's History says it with. A call simply handled was "Ended" on
+ * Live, "Receptionist handled it" in Conversations and nothing on the call's card.
+ */
+export const CALL_OUTCOME_WORDS = {
+  live: "Live",
+  missed: "Never connected",
+  failed: "Call failed",
+  handled: "Handled",
+  abandoned: "Hung up early",
+  callback: "Asked for a call back",
+  voicemail: "Reached voicemail",
+} as const;
+
+/** One of the outcomes of the ladder (callOutcomeFor). */
+export type CallOutcome = keyof typeof CALL_OUTCOME_WORDS;
 
 /** Why the call ended, in words a salon owner uses. */
 export const DISCONNECTION_LABELS: Record<string, string> = {

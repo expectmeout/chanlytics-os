@@ -1,4 +1,11 @@
-import { AppError, NOTE_REFUSALS, type PersonNoteDto, type PersonNoteTeamDto } from "@chanlytics/contracts";
+import {
+  AppError,
+  NOTE_REFUSALS,
+  memberWords,
+  type PersonNoteDto,
+  type PersonNoteTeamDto,
+} from "@chanlytics/contracts";
+import { seePersonNote } from "@chanlytics/db";
 import { dbRefusal, type RouteContext } from "@/server/with-route";
 import { log } from "@/server/log";
 
@@ -19,10 +26,12 @@ type NoteRow = {
   done_at: string | null;
   done_by: string | null;
   deal_id: string | null;
+  /** When the member it is for said Got it (00413); absent on a row read before the column. */
+  for_seen_at?: string | null;
 };
 
 const NOTE_COLUMNS =
-  "id, contact_id, body, author_kind, author_user_id, for_user_id, team_only, state, source, version, created_at, updated_at, due_on, done_at, done_by, deal_id";
+  "id, contact_id, body, author_kind, author_user_id, for_user_id, team_only, state, source, version, created_at, updated_at, due_on, done_at, done_by, deal_id, for_seen_at";
 
 /** A stored note as the page reads it, with the names of who wrote it and who it is for (0007). */
 function toNoteDto(n: NoteRow, names: Map<string, string>, me: string): PersonNoteDto {
@@ -47,10 +56,12 @@ function toNoteDto(n: NoteRow, names: Map<string, string>, me: string): PersonNo
     done_by_name: n.done_by ? (names.get(n.done_by) ?? null) : null,
     done_by_me: !!n.done_by && n.done_by === me,
     deal_id: n.deal_id ?? null,
+    // Got it (00413): the reader it is for has read it; it leaves their Up next.
+    for_seen: !!n.for_seen_at,
   };
 }
 
-/** The team by name: who wrote a note and who it is for. A member without a name is called by their address's name. */
+/** The team by name: who wrote a note and who it is for. A member is called as everywhere else (memberWords): the name they gave, else their address. */
 async function teamNames(ctx: RouteContext, tenantId: string): Promise<PersonNoteTeamDto[] | null> {
   const { data, error } = await Promise.resolve()
     .then(() => ctx.supabase.rpc("team_roster", { p_tenant_id: tenantId }))
@@ -61,7 +72,7 @@ async function teamNames(ctx: RouteContext, tenantId: string): Promise<PersonNot
   if (error) return null;
   return ((data ?? []) as { member_user_id: string; display_name: string | null; email: string | null }[]).map((m) => ({
     id: m.member_user_id,
-    name: (m.display_name ?? "").trim() || (m.email ?? "").split("@")[0] || "A teammate",
+    name: memberWords(m).name,
     me: m.member_user_id === ctx.userId,
   }));
 }
@@ -142,6 +153,24 @@ export function noteAnswer(
 /** The note a door wrote, as the page reads it: names come with the next read, so the writer's own is filled here. */
 export function writtenNote(ctx: RouteContext, n: NoteRow, forName: string | null = null): PersonNoteDto {
   return toNoteDto(n, new Map(n.for_user_id && forName ? [[n.for_user_id, forName]] : []), ctx.userId);
+}
+
+/**
+ * Got it (canvas A, Up next): the note for the reader, marked read through its door (seePersonNote). A note for someone
+ * else, or one gone, is refused in the notes' own words.
+ */
+export async function seeNote(ctx: RouteContext, contactId: string, noteId: string): Promise<{ seen: string }> {
+  await noteOn(ctx, contactId, noteId);
+  let answer: Awaited<ReturnType<typeof seePersonNote>>;
+  try {
+    answer = await seePersonNote(ctx.supabase, noteId);
+  } catch (e) {
+    throw dbRefusal(e as { code?: string; message: string });
+  }
+  if (answer.seen) return { seen: noteId };
+  const notYours = answer.why === "not_yours";
+  const why = notYours ? "not_for_you" : "not_found";
+  throw new AppError(notYours ? "forbidden" : "not_found", NOTE_REFUSALS[why] ?? why, notYours ? 403 : 404);
 }
 
 /** Who a row's next step is for, by name and whether it is the reader (00166), from the team as a note's is. */

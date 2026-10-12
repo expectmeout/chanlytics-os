@@ -35,7 +35,7 @@
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/clients.css": {
-    "font": 94,
+    "font": 92,
     "radius": 18,
     "shadow": 10,
     "colour": 7,
@@ -49,16 +49,16 @@
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/conversations.css": {
-    "font": 6,
-    "radius": 3,
+    "font": 5,
+    "radius": 2,
     "shadow": 0,
     "colour": 0,
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/dashboard-a-v2.css": {
-    "font": 70,
+    "font": 58,
     "radius": 9,
-    "shadow": 3,
+    "shadow": 2,
     "colour": 0,
     "blur": 0
   },
@@ -92,7 +92,7 @@
   },
   "apps/dashboard/src/legacy/styles/live.css": {
     "font": 16,
-    "radius": 3,
+    "radius": 2,
     "shadow": 3,
     "colour": 0,
     "blur": 0

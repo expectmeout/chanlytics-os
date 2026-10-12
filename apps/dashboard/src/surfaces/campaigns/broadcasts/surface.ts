@@ -41,11 +41,11 @@ import {
 } from "@chanlytics/contracts";
 import { otherChannelSets } from "@/lib/campaign-channels";
 import { type SurfaceOverride, workspaceOverride } from "@/legacy-bridge/surface-data";
-import { DEFAULT_REFRESH_TABLES } from "@/legacy-bridge/surface-realtime";
-import { onlyOnItsPage } from "@/legacy-bridge/surface-registry";
+import { declareReads } from "@/legacy-bridge/surface-registry";
 import { everyPerson, viewerId } from "@/surfaces/people/surface";
-import { declareSurfaceValue, setSurfaceValue } from "../../surface-values";
-import { cmAddressOf, cmOfferedMessages, cmReadyOf, type CmOffered } from "../parts/channels";
+import { followSettings } from "../../offered-templates";
+import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../../surface-values";
+import { cmAddressOf, cmOfferedFrom, cmReadyOf, type CmOffered } from "../parts/channels";
 
 // The frame (its tab counts and the route table's crumbs) reads this under its old name until it moves.
 declareSurfaceValue("broadcasts", "__BROADCASTS");
@@ -104,9 +104,12 @@ export type BroadcastTemplate = CmOffered;
 
 export interface BroadcastsSurface {
   rows: BroadcastVM[];
-  /** The messages a broadcast may be sent on, by the channels each holds, with their variables and their purpose. */
-  /** Null: the templates read failed -- its own state, never "no template yet". */
-  templates: BroadcastTemplate[] | null;
+  /**
+   * The messages a broadcast may be sent on, by the channels each holds, with their variables and their purpose: made of the
+   * settings read, the one read of the templates (parts/channels.ts cmOfferedFrom), and made of it again each time it is
+   * published. Null: that read failed -- its own state, never "no template yet". Absent while it is still being read.
+   */
+  templates?: BroadcastTemplate[] | null;
   /**
    * Whether the workspace can send on each channel now (server/campaigns/channels-ready.ts); null where that could not be
    * read. The Send by row is drawn from it (parts/channels.ts cmReadyOf), as are the audiences' previews.
@@ -191,12 +194,15 @@ function listIsAnAudience(
 }
 
 /**
- * The messages a broadcast may be sent on, by the channels each holds (parts/channels.ts cmOfferedMessages); null where the
- * templates read failed.
+ * The messages a broadcast may be sent on are the settings read's, the one read of the templates (parts/channels.ts
+ * cmOfferedFrom, over offered-templates.ts): this surface asks for no GET templates of its own, so a template approved, blocked or
+ * written is told to the composer by the read that tells Settings, and the composer is made of it again each time that is
+ * published. A surface not read yet holds nothing to make again; its own read makes its messages of what Settings holds by then.
  */
-function offeredMessages(tpl: Parameters<typeof cmOfferedMessages>[0] | Error): BroadcastTemplate[] | null {
-  return tpl instanceof Error ? null : cmOfferedMessages(tpl);
-}
+followSettings("broadcasts", (held, settings) => {
+  const templates = shareUnchanged(held.templates, cmOfferedFrom(settings));
+  return templates === held.templates ? held : { ...held, templates };
+});
 
 /** What a saved list's chip says under its name: kept by hand, or keeping itself current. */
 function savedHint(byHand: boolean): string {
@@ -248,15 +254,32 @@ export const broadcastsOverride: SurfaceOverride = {
   // A run made by the sweep, approved in another tab, sending or finished (00321) is this surface's own row: heard
   // wherever the tab is, since Today draws its Approve and Stop rows from here. A message moves a run's replies: read
   // again only while Sent is on screen, and once when it comes back (Campaigns reads its numbers from campaign_results,
-  // surface-registry.ts LEFT_TO_THEIR_PAGE).
-  refreshOnTables: [...DEFAULT_REFRESH_TABLES, "broadcasts"],
-  refreshWhen: onlyOnItsPage("broadcasts", DEFAULT_REFRESH_TABLES),
+  // surface-registry.ts LEFT_TO_THEIR_PAGE). So does a visit, which the audiences' pools read (a visit marked missed or cancelled
+  // leaves a reminder's: #1551), and a number, a line or the workspace's pause, which the Send by tick is worded from. And what the
+  // composers read of the business (0047): who may be sent to (the person: an answer, a stop, people imported), the rules the
+  // Send tick and the chips beside it say, the mailbox whose offers the gates paused and the business's facts, the postal address
+  // an offer by email names and the booking link a slot fills. Not the templates: the messages it offers are the settings
+  // read's, which hears them and which this surface follows (followSettings above).
+  ...declareReads("broadcasts", {
+    reads: ["conversation", "hold", "visit", "channel", "billing", "person", "rules", "facts", "send"],
+    fresh: "its-page",
+    always: ["send"],
+    omit: [
+      {
+        tables: ["appointment_notices"],
+        why: "a booking email held for a look is the Calendar's and Settings'; the audiences' pools read the appointments themselves",
+      },
+      {
+        tables: ["sending_domains", "capability_activations", "business_records"],
+        why: "Send by is worded from the number, the line, the mailbox's pause and the workspace's pause (channels-ready.ts); a domain, an activation and the carriers' record are not among them",
+      },
+    ],
+  }),
   apply: async () => {
-    const [bc, people, saved, tpl, ch, cfg, tz] = await Promise.all([
+    const [bc, people, saved, ch, cfg, tz] = await Promise.all([
       read("GET broadcasts"),
       read("GET contacts"),
       read("GET segments").catch((e: unknown) => e as Error),
-      read("GET templates").catch((e: unknown) => e as Error),
       read("GET channels").catch((e: unknown) => e as Error),
       // The business's name, whether a booking link is on file and whether the listing keeps a review link, for the
       // slots that name them.
@@ -356,7 +379,6 @@ export const broadcastsOverride: SurfaceOverride = {
             }))),
     ];
     if (saved instanceof Error) console.error("broadcasts_lists_fetch_failed", saved.message);
-    if (tpl instanceof Error) console.error("broadcasts_templates_fetch_failed", tpl.message);
     // The workspace being VIEWED, for the public page's address.
     const slug = workspaceOverride.current()?.slug ?? null;
     setSurfaceValue("broadcasts", {
@@ -366,7 +388,8 @@ export const broadcastsOverride: SurfaceOverride = {
       listsRead: !(saved instanceof Error),
       // Null is a read that failed; a server from before it was carried says nothing, and is read as read.
       heardRead: bc.touched_at !== null,
-      templates: offeredMessages(tpl),
+      // The messages are the settings read's, as it stands now (absent while that is still being read; followSettings above).
+      templates: shareUnchanged(surfaceValue("broadcasts")?.templates, cmOfferedFrom(surfaceValue("settings"))),
       audiences,
       reach: reachCountsOf(rows),
       number,

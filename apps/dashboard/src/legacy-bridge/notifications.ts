@@ -15,7 +15,11 @@
  *   - read and dismissed marks on DERIVED rows (a thread that needs you, a
  *     held draft, a missed call, an open invitation — rows nothing stores)
  *     stay on this device, keyed by the workspace's id, and go when their
- *     row has left the feed;
+ *     row has left the feed; except a thread that needs you whose hold the
+ *     edge has kept: that row is one with the kept notice and carries ITS
+ *     marks, the server's (contracts bellFeed);
+ *   - the phone app's icon is the kept rows' unread count alone (keptUnread),
+ *     the number the edge counts before a push;
  *   - the device-alert switch is this device's, by definition.
  *
  * Published to the mockup's top bar as window.__notifs.
@@ -24,9 +28,9 @@ import {
   ALERT_KINDS,
   EMPTY_READ_STATE,
   agoLabel,
-  applyReadState,
   bellActionOf,
   bellCalls,
+  bellFeed,
   bellSections,
   type BellSectionVM,
   buildNotificationFeed,
@@ -39,13 +43,17 @@ import {
   type NotificationsDto,
   type ReachOutRepliesDto,
   SERVER_KEY_PREFIX,
-  dedupeFeed,
+  type WhatWaits,
+  holdMarksOf,
+  keptUnreadOf,
   nameKnownCustomers,
   serverNotificationRows,
   unreadCount,
 } from "@chanlytics/contracts";
+import { surfaceValue } from "../surfaces/surface-values";
 import { api as client } from "./api";
 import type { Input } from "../client/api";
+import { onSurfaceMoved } from "./surface-status";
 import { getActiveWorkspace, goToRoute } from "./workspace";
 
 export const FEED_EVENTS = [
@@ -55,6 +63,13 @@ export const FEED_EVENTS = [
   "surface:workspace",
   "surface:notifications",
 ] as const;
+
+/**
+ * The surfaces that say whether a kept row's subject still waits (whatWaits): the runs in Sent, the booking emails the Calendar
+ * holds, the reviews Google's read holds. The bell is drawn again when one of them moves, as when its own pages do; they alert no
+ * one (the rows' own kinds do), so they are heard as surfaces moving and not as feed events.
+ */
+const WAITS_SURFACES = ["broadcasts", "calendar", "google"] as const;
 
 interface StorageLike {
   getItem(key: string): string | null;
@@ -85,6 +100,36 @@ export interface BellRow {
   /** The record it is about, when the edge said so -- how Today knows this conversation is already in its queue. */
   about: { type: string; id: string } | null;
   actions: Array<{ label: string; to: string; primary: boolean }>;
+}
+
+/**
+ * What the surfaces this tab holds say still waits on the owner (contracts notice-closes.ts): the runs Sent holds, the booking emails
+ * the Calendar's read holds, the reviews Google's read holds, each with when it was read, and none before it is. A booking email list
+ * the card cut at its twenty (or never listed) is not the whole of them, and settles nothing.
+ */
+function whatWaits(): WhatWaits {
+  // A value the tab kept from an earlier visit may predate a field: each is read only as the shape it is known to have.
+  const sent = surfaceValue("broadcasts");
+  const calendar = surfaceValue("calendar");
+  const list = calendar?.vm?.feed?.notices?.heldList;
+  const google = surfaceValue("google");
+  return {
+    runs:
+      sent && Array.isArray(sent.rows)
+        ? { readAt: sent.fetchedAt, held: new Map(sent.rows.map((r) => [r.id, r.state])) }
+        : null,
+    heldEmails:
+      calendar && Array.isArray(list) && list.length >= (calendar.vm.feed.notices.held ?? 0)
+        ? { readAt: calendar.fetchedAt, held: new Set(list.map((h) => h.id)) }
+        : null,
+    reviews:
+      google && Array.isArray(google.dto?.reviews)
+        ? {
+            readAt: google.fetchedAt,
+            held: google.dto.reviews.map((r) => ({ id: r.id, reviewId: r.review_id, replied: !!r.reply_text })),
+          }
+        : null,
+  };
 }
 
 export function storageKey(workspaceId: string | null): string {
@@ -152,6 +197,8 @@ export interface BellApi {
   /** The rows as this device sees them, now. */
   feed(): BellRow[];
   unread(): number;
+  /** The kept rows' unread count alone, by the rule the edge counts a push's badge by (contracts unreadFor): the phone app's icon. */
+  keptUnread(): number;
   seenAll(): void;
   read(key: string): void;
   dismiss(key: string): void;
@@ -159,10 +206,25 @@ export interface BellApi {
   /** Device alerts: whether they are on, and whether they can be. */
   alerts(): { on: boolean; can: boolean; permission: string };
   setAlerts(on: boolean): Promise<{ on: boolean; permission: string }>;
+  /**
+   * Read every unread kept row that `match` names, on the server: a thing dealt with elsewhere (a review answered) is read with the
+   * rows that told of it. A derived row has no subject to match and is left to its page.
+   */
+  readWhere(match: (row: { kind: string; about: { type: string; id: string } | null }) => boolean): void;
   /** Subscribe to changes of the feed or the read state; returns unsubscribe. */
   onChange(cb: () => void): () => void;
   /** The rows as the bell draws them: new above earlier, notes of one kind said once (contracts bellSections). */
   sections(rows: BellRow[]): Array<BellSectionVM<BellRow>>;
+}
+
+/**
+ * The server's rows a mark on this key is written to: a kept row's own, and for a derived row that stands for a hold the edge
+ * has kept, that hold's notices (its marks are theirs). None for any other derived row, whose marks are this device's.
+ */
+function serverIdsOf(key: string, dto: NotificationsDto | null | undefined): string[] {
+  return key.startsWith(SERVER_KEY_PREFIX)
+    ? [key.slice(SERVER_KEY_PREFIX.length)]
+    : holdMarksOf(key, dto).map((n) => n.id);
 }
 
 /**
@@ -215,20 +277,31 @@ export function installNotifications(
   // A kept row that names its customer by number takes their name when the Inbox or the calls here know it.
   const named = <T extends NotificationRow>(list: T[]): T[] =>
     nameKnownCustomers(list, win.INBOX_DATA?.THREADS, bellCalls(win.__LIVE));
+  // One row for one hold (contracts bellFeed): the row the browser derives carries the marks of the notice the edge kept.
+  // A kept row whose subject no longer waits (a run approved, a booking email dismissed, a review answered) reads as read, from what
+  // the surfaces hold (whatWaits).
   const rows = () =>
     named(
-      dedupeFeed([
-        ...applyReadState(feedFromGlobals(win, Date.now()), deviceState()),
-        ...serverNotificationRows(win.__NOTIFICATIONS?.dto),
-      ]).sort((a, b) => b.at - a.at),
+      bellFeed({
+        derived: feedFromGlobals(win, Date.now()),
+        device: deviceState(),
+        kept: win.__NOTIFICATIONS?.dto,
+        waits: whatWaits(),
+      }).sort((a, b) => b.at - a.at),
     );
-  const isKept = (key: string) => key.startsWith(SERVER_KEY_PREFIX);
   // A kept row's marks go to the server, and the refresh map re-reads the
   // surface after one lands, so every device agrees; a failure here loses a
   // mark, never a notification — the next read re-syncs.
   const mark = async (body: Input<"PUT notifications">) => {
     await client()("PUT notifications", { body });
     emit();
+  };
+  // A mark on a row the server keeps -- a kept row, or the derived row of a hold the edge has kept -- goes there; false for
+  // any other, whose marks are this device's.
+  const markOnServer = (key: string, patch: { read: true } | { dismissed: boolean }): boolean => {
+    const ids = serverIdsOf(key, win.__NOTIFICATIONS?.dto);
+    for (const id of ids) void mark({ id, ...patch });
+    return ids.length > 0;
   };
 
   // Device alerts. The keys seen at the first computation are the backlog
@@ -260,25 +333,11 @@ export function installNotifications(
     const fresh = [...items.filter((i) => !known!.has(i.key) && ALERT_KINDS.includes(i.kind)), ...kept];
     known = keys;
     emit();
-    if (!fresh.length) return;
-    const st = state();
-    const N = (win as unknown as { Notification?: typeof Notification }).Notification;
-    if (!st.alerts || !N || N.permission !== "granted") return;
-    if (win.document && win.document.visibilityState === "visible") return;
-    for (const i of fresh.slice(0, 3)) {
-      try {
-        const n = new N(i.title, { body: i.message, tag: i.key, icon: "/icons/icon-192.png" });
-        n.onclick = () => {
-          win.focus();
-          goToRoute(i.to, {}, win);
-          n.close();
-        };
-      } catch {
-        /* a browser that refuses the constructor keeps the bell */
-      }
-    }
+    if (fresh.length) alertDevice(win, fresh, state().alerts);
   };
   for (const ev of FEED_EVENTS) win.addEventListener(ev, notice);
+  // The surfaces that say what still waits move the badge without a new row: the bell is drawn again.
+  onSurfaceMoved(WAITS_SURFACES, emit);
 
   const api: BellApi = {
     feed: () => toRows(rows(), Date.now()),
@@ -287,29 +346,18 @@ export function installNotifications(
       save({ seenAt: Date.now() });
       void mark({ seen: true });
     },
+    keptUnread: () => keptUnreadOf(win.__NOTIFICATIONS?.dto, seenAt()),
     read: (key) => {
-      if (isKept(key)) {
-        void mark({ id: key.slice(SERVER_KEY_PREFIX.length), read: true });
-        return;
-      }
-      save({ read: [...new Set([...state().read, key])] });
+      if (!markOnServer(key, { read: true })) save({ read: [...new Set([...state().read, key])] });
     },
     dismiss: (key) => {
-      if (isKept(key)) {
-        void mark({ id: key.slice(SERVER_KEY_PREFIX.length), dismissed: true });
-        return;
-      }
-      save({ dismissed: [...new Set([...state().dismissed, key])] });
+      if (!markOnServer(key, { dismissed: true })) save({ dismissed: [...new Set([...state().dismissed, key])] });
     },
     restore: (key) => {
-      if (isKept(key)) {
-        void mark({ id: key.slice(SERVER_KEY_PREFIX.length), dismissed: false });
-        return;
-      }
-      save({ dismissed: state().dismissed.filter((k) => k !== key) });
+      if (!markOnServer(key, { dismissed: false })) save({ dismissed: state().dismissed.filter((k) => k !== key) });
     },
     alerts: () => {
-      const N = (win as unknown as { Notification?: typeof Notification }).Notification;
+      const N = notificationOf(win);
       return {
         on: state().alerts && !!N && N.permission === "granted",
         can: !!N,
@@ -317,7 +365,7 @@ export function installNotifications(
       };
     },
     setAlerts: async (on) => {
-      const N = (win as unknown as { Notification?: typeof Notification }).Notification;
+      const N = notificationOf(win);
       if (!on || !N) {
         save({ alerts: false });
         return { on: false, permission: N ? N.permission : "unsupported" };
@@ -333,6 +381,13 @@ export function installNotifications(
       save({ alerts: permission === "granted" });
       return { on: permission === "granted", permission };
     },
+    readWhere: (match) => {
+      for (const n of win.__NOTIFICATIONS?.dto?.notifications ?? []) {
+        if (n.read || n.dismissed || !n.subject_type || !n.subject_id) continue;
+        if (match({ kind: n.kind, about: { type: n.subject_type, id: n.subject_id } }))
+          void mark({ id: n.id, read: true });
+      }
+    },
     onChange: (cb) => {
       listeners.add(cb);
       return () => listeners.delete(cb);
@@ -340,7 +395,38 @@ export function installNotifications(
     sections: (list) => bellSections(list),
   };
   (win as unknown as { __notifs?: BellApi }).__notifs = api;
+  installed = api;
   return api;
+}
+
+/** The bell this tab installed, for a module that marks its rows (google.ts, a review answered); null before it is installed. */
+let installed: BellApi | null = null;
+export const bellNow = (): BellApi | null => installed;
+
+/** The browser's Notification, where it has one. */
+const notificationOf = (win: Window): typeof Notification | undefined =>
+  (win as unknown as { Notification?: typeof Notification }).Notification;
+
+/**
+ * Wake the device for the rows that are new since the last look: three at most, only while the app is not in view and the
+ * person turned alerts on, each opening its page.
+ */
+function alertDevice(win: Window & Globals, fresh: NotificationItem[], alertsOn: boolean): void {
+  const N = notificationOf(win);
+  if (!alertsOn || !N || N.permission !== "granted") return;
+  if (win.document && win.document.visibilityState === "visible") return;
+  for (const i of fresh.slice(0, 3)) {
+    try {
+      const note = new N(i.title, { body: i.message, tag: i.key, icon: "/icons/icon-192.png" });
+      note.onclick = () => {
+        win.focus();
+        goToRoute(i.to, {}, win);
+        note.close();
+      };
+    } catch {
+      /* a browser that refuses the constructor keeps the bell */
+    }
+  }
 }
 
 function safeStorage(): StorageLike | null {

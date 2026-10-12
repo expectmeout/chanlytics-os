@@ -226,8 +226,10 @@ test("the wiring: the pill is retired, the shell bridge carries its two actions 
     "window.__shell.switchWorkspace(w.id)",
     "window.__identity.words(me)",
     "data-tip={collapsed ? (badge ? `${item.label} · ${badge}` : item.label) : undefined}",
-    // The shortcuts sheet left the account menu (7 Oct 2026: it opens on ?); Settings came in from the sidebar's list.
+    // The sheet opens on ?, and on a desk from the account menu's row (keys-in-the-sheet.test.mjs draws it).
+    // Settings came in from the sidebar's list.
     'data-testid="sb-me-settings"',
+    'data-testid="sb-me-shortcuts"',
     "window.__shell.createWorkspace();",
   ])
     assert.ok(sidebar.includes(pin), pin);
@@ -422,7 +424,10 @@ test("navigating INSIDE a surface does not tear the surface down", () => {
   const settings = readCode("apps/dashboard/src/surfaces/settings/frame/page.tsx");
   assert.ok(settings.includes("const active = SET_TAB(tab);"), "Settings derives its tab every render");
   const inbox = readCode("apps/dashboard/src/surfaces/inbox/pages/inbox-state.tsx");
-  assert.ok(/\},\s*\[initialThreadId\],\s*\)/.test(inbox), "the Inbox follows a later deep-link");
+  assert.ok(
+    /\},\s*\[initialThreadId, addressThreadHeld\],\s*\)/.test(inbox),
+    "the Inbox follows a later deep-link, and the thread it names arriving",
+  );
 });
 
 test("the account menu offers the look only once contracts does: none while it is not offered, then the looks under the theme, a press handing it to the shell", async () => {

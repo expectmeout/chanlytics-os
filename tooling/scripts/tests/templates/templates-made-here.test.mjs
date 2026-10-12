@@ -118,7 +118,7 @@ test("what fills a slot: typed text once, or the person's first name, the busine
     ],
   );
   assert.deepEqual(parseParamSpec("@proposal_link"), { kind: "proposal_link" }, "the follow-up's link (0006)");
-  assert.deepEqual(parseParamSpec("@review_link"), { kind: "review_link" }, "the Google listing's review link (00408)");
+  assert.deepEqual(parseParamSpec("@review_link"), { kind: "review_link" }, "the Google listing's review link (00415)");
   assert.deepEqual(parseParamSpec({ kind: "review_link" }), { kind: "review_link" });
   assert.deepEqual(parseParamSpec("20%"), { kind: "text", value: "20%" });
   assert.deepEqual(parseParamSpec("@first_name"), { kind: "first_name" });

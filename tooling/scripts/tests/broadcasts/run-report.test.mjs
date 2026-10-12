@@ -529,7 +529,7 @@ test("the report's five figures are the ones Reports draws, scoped to the run: s
     },
     { windowMs: C.REPLY_WINDOW_MS, nowMs: T0 + 100 * H },
   );
-  assert.equal(waiting.figures.find((f) => f.id === "replied").sub, "1 waiting on you in the Inbox");
+  assert.equal(waiting.figures.find((f) => f.id === "replied").sub, "1 needs you in the Inbox");
   // Stops of both kinds are counted apart.
   const both = C.toRunReportVM(
     {
@@ -667,7 +667,7 @@ test('everyone it touched, each in the words of what happened to them -- and a g
   assert.deepEqual(
     [by.stop.pill, by.stop.words, by.stop.door, by.stop.attn],
     [
-      { label: "Asked to stop", tone: "warn" },
+      { label: "Opted out", tone: "plain" },
       "“STOP” — stopped offers, not messages",
       { label: "See consent", to: "clients/stop" },
       true,
@@ -704,7 +704,7 @@ test('everyone it touched, each in the words of what happened to them -- and a g
     [
       ["replied", "“Saturday at 2 works”", "The receptionist answered · t6", "ok"],
       ["stop", "“STOP”", "Not answered yet", "plain"],
-      ["waits", null, "Waiting on you", "warn"],
+      ["waits", null, "Needs you", "warn"],
     ],
   );
   assert.equal(vm.replies[0].to, "inbox/th-cv-c");

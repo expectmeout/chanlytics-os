@@ -6,7 +6,7 @@
 import { useLayoutEffect, useRef } from "react";
 import type { CSSProperties } from "react";
 import type { CalendarBlockVM, CalendarServiceVM, CalendarVM, CalendarWindowVM } from "@chanlytics/contracts";
-import { VISIT_WORDS } from "@chanlytics/contracts";
+import { visitLineOfBlock } from "@chanlytics/contracts";
 import { AgendaItem, AgendaItems, AgendaOpen } from "../kit/agenda/agenda";
 import { EmptyState } from "../kit/empty/empty";
 import { calendar } from "./verbs";
@@ -39,12 +39,16 @@ function phaseOf(b: CalendarBlockVM, d: CalendarFrame, now: number | null): stri
   return soonest && soonest.id === b.id ? "next" : "later";
 }
 
-/** What a member said became of a visit (decision 0002 step 8), in the board's word for it; null while it stands. */
-function saidOf(b: CalendarBlockVM): { status: "kept" | "missed" | "cancelled"; word: string } | null {
-  const status = b.visit?.status;
-  return status === "kept" || status === "missed" || status === "cancelled"
-    ? { status, word: VISIT_WORDS[status] }
-    : null;
+/**
+ * How a visit stands, in the word every page says it in (contracts visitLineOf): what a member said became of it, else Past
+ * once it has ended and the record keeps a row for it that nobody has marked, so the board shows which visits still wait for
+ * the owner's word. An event the record has no row for has no word to say, a visit ahead has none yet, and an event nobody is
+ * matched to (a lunch on the owner's calendar) is not asked about, as Today does not ask about it: its panel says Past.
+ */
+function saidOf(b: CalendarBlockVM): { status: string; word: string } | null {
+  if (!b.visit) return null;
+  const state = visitLineOfBlock(b, Date.now()).state;
+  return state && (state.tone !== "past" || b.person) ? { status: state.tone, word: state.text } : null;
 }
 
 /** One taken block from the feed. Neutral, never an agent's colour: the calendar did not say who booked it, only that the time is taken. */

@@ -5,6 +5,7 @@
 import { callLength, mmss } from "../shared/clock";
 import { whisperText } from "../voice/whisper";
 import { callerName } from "../people/person-name";
+import { isOptedOutContact } from "../consent/consent";
 import { isLiveCall } from "../config/policy";
 import { callNotesOf, callOutcomeOf, callOutcomeWords, tidyCallSummary, type CallNotes } from "../voice/call-words";
 import { RECORDING_PURGED_WORDS, RECORDING_RETENTION_DAYS } from "../workspace/retention";
@@ -17,6 +18,7 @@ import {
   reachedVoicemail,
   recordingStateOf,
   type CallDto,
+  type CallOutcome,
   type RecordingState,
 } from "./call-dto";
 
@@ -32,6 +34,8 @@ export interface CallVM {
   who: string;
   whoShort: string;
   initials: string;
+  /** The caller is a person who asked to stop, or is on do-not-contact (isOptedOutContact): the row says it beside the name. A caller nobody knows is not. */
+  stopped: boolean;
   clientId: string | null;
   channel: "phone";
   agent: { glyph: string; name: string };
@@ -42,7 +46,7 @@ export interface CallVM {
    *  failed: the provider could not place or keep it (status error) · abandoned · callback · voicemail: they
    *  reached the voicemail · handled: everything else. A voicemail and an errored call read "Receptionist
    *  handled it" until the 2 Oct 2026 audit. */
-  outcome: "live" | "handled" | "missed" | "failed" | "callback" | "abandoned" | "voicemail";
+  outcome: CallOutcome;
   live?: boolean;
   snippet: string;
   summary: { headline: string; bullets: string[] };
@@ -93,6 +97,43 @@ export function callOutcomeFor(
   if (abandonedCall(dto)) return "abandoned";
   if (callOutcomeOf(dto.outcome) === "callback_needed") return "callback";
   return reachedVoicemail(dto) ? "voicemail" : "handled";
+}
+
+/**
+ * A call's turns as the card draws them. Each line's moment in the call, in seconds: the provider's own start, or halfway
+ * between its neighbours for a line it gave none (two of the salon's 244 real lines, short replies with no words); its end,
+ * or where the next line begins. A whisper -- an injected turn, the owner's own words to the receptionist -- is not a sound
+ * in the recording, so it has no moment.
+ */
+function transcriptOf(turns: NonNullable<CallDto["transcript_object"]>): CallVM["transcript"] {
+  const given = turns.map((turn) => (turn.role === "injected" ? null : (turn.start ?? turn.words?.[0]?.start ?? null)));
+  const starts = given.map((s, i) => {
+    if (s != null || turns[i].role === "injected") return s;
+    const before =
+      given
+        .slice(0, i)
+        .reverse()
+        .find((x) => x != null) ?? null;
+    const after = given.slice(i + 1).find((x) => x != null) ?? null;
+    return before != null && after != null ? (before + after) / 2 : (before ?? after);
+  });
+  return turns.map((turn, i) => {
+    // An injected turn is a whisper: the owner's own words, shown as theirs.
+    if (turn.role === "injected") {
+      return { t: "—", speaker: "whisper" as const, text: whisperText(turn.content), start: null, end: null };
+    }
+    const own = given[i];
+    const start = starts[i];
+    const next = start == null ? null : (starts.slice(i + 1).find((x) => x != null && x > start) ?? null);
+    const end = start == null ? null : (turn.end ?? turn.words?.[turn.words.length - 1]?.end ?? next);
+    return {
+      t: typeof own === "number" ? mmss(own * 1000) : "—",
+      speaker: (turn.role === "agent" ? "agent" : "client") as "agent" | "client",
+      text: turn.content ?? "",
+      start,
+      end,
+    };
+  });
 }
 
 /** A call's length in words, the way the product says it everywhere: "2 min 5 sec", "6 sec". */
@@ -163,39 +204,7 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
   }
   if (dto.message_id && !withheld) bullets.push(`Noted on ${whoShort}'s thread in the Inbox`);
 
-  // Each line's moment in the call, in seconds: the provider's own start, or halfway between its neighbours for a line
-  // it gave none (two of the salon's 244 real lines, short replies with no words); its end, or where the next line
-  // begins. A whisper -- an injected turn, the owner's own words to the receptionist -- is not a sound in the recording,
-  // so it has no moment.
-  const turns = dto.transcript_object ?? [];
-  const given = turns.map((turn) => (turn.role === "injected" ? null : (turn.start ?? turn.words?.[0]?.start ?? null)));
-  const starts = given.map((s, i) => {
-    if (s != null || turns[i].role === "injected") return s;
-    const before =
-      given
-        .slice(0, i)
-        .reverse()
-        .find((x) => x != null) ?? null;
-    const after = given.slice(i + 1).find((x) => x != null) ?? null;
-    return before != null && after != null ? (before + after) / 2 : (before ?? after);
-  });
-  const transcript = turns.map((turn, i) => {
-    // An injected turn is a whisper: the owner's own words, shown as theirs.
-    if (turn.role === "injected") {
-      return { t: "—", speaker: "whisper" as const, text: whisperText(turn.content), start: null, end: null };
-    }
-    const own = given[i];
-    const start = starts[i];
-    const next = start == null ? null : (starts.slice(i + 1).find((x) => x != null && x > start) ?? null);
-    const end = start == null ? null : (turn.end ?? turn.words?.[turn.words.length - 1]?.end ?? next);
-    return {
-      t: typeof own === "number" ? mmss(own * 1000) : "—",
-      speaker: (turn.role === "agent" ? "agent" : "client") as "agent" | "client",
-      text: turn.content ?? "",
-      start,
-      end,
-    };
-  });
+  const transcript = transcriptOf(dto.transcript_object ?? []);
 
   const snippetBody = missed
     ? "The call never connected."
@@ -207,6 +216,7 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
     who,
     whoShort,
     initials: withheld ? "–" : initialsOf(who),
+    stopped: isOptedOutContact(dto.contact),
     clientId: dto.contact_id,
     channel: "phone",
     agent: { glyph: "P", name: "Phone Receptionist" },

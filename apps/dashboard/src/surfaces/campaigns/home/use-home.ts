@@ -75,7 +75,8 @@ export function useHomeData(nowMs?: number): HomeData {
   const broadcasts = liveBroadcasts ?? sample?.broadcasts ?? (broadcastsFailed ? null : undefined);
   // Campaigns' own 30 days: failed (null) where the seam says it could not be read, else not read yet (undefined).
   const results = liveResults ?? sample?.results ?? (resultsFailed ? null : undefined);
-  // The call's text and the Library's count: the playbooks surface's own read of the templates (a demo session's sample's).
+  // The call's text and the Library's count: the playbooks surface's slice, made of the settings read, the one read of the
+  // templates (a demo session's sample's).
   const library = playbooks ? playbooks.library : undefined;
   const messages = playbooks ? playbooks.messages : undefined;
   const home = useMemo(

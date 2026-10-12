@@ -392,6 +392,13 @@
       "rate": "person_edit",
       "spend": false
     },
+    "POST contacts/[id]/notes/seen": {
+      "kind": "write",
+      "scope": "row",
+      "role": "viewer",
+      "rate": "seen_mark",
+      "spend": false
+    },
     "PUT contacts/[id]/receptionist": {
       "kind": "write",
       "scope": "row",
@@ -825,8 +832,8 @@
       "rate": "lead_bulk",
       "spend": true
     },
-    "GET leads/export": {
-      "kind": "read",
+    "POST leads/export": {
+      "kind": "write",
       "fresh": true,
       "scope": "workspace",
       "role": "owner",
@@ -943,6 +950,13 @@
       "scope": "account",
       "role": null,
       "rate": "device_register",
+      "spend": false
+    },
+    "POST me/invitations/accept": {
+      "kind": "write",
+      "scope": "account",
+      "role": null,
+      "rate": "invitation_accept",
       "spend": false
     },
     "PUT me": {
@@ -1072,6 +1086,20 @@
       "rate": "partner_handover",
       "spend": false
     },
+    "PUT people/[id]/business": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "person_edit",
+      "spend": false
+    },
+    "DELETE people/[id]/business": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "person_edit",
+      "spend": false
+    },
     "POST people/[id]/draft": {
       "kind": "write",
       "scope": "row",
@@ -1084,6 +1112,13 @@
       "scope": "row",
       "role": "operator",
       "rate": "reply",
+      "spend": false
+    },
+    "POST people/[id]/name": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "person_edit",
       "spend": false
     },
     "GET people/[id]/reach": {

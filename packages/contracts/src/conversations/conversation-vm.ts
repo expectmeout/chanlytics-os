@@ -8,7 +8,7 @@
  * are the thread-* and message-* modules beside them.
  */
 import type { ReplyWhyVM } from "../config/brain";
-import { messageAt, type ConversationDto } from "./thread-dto";
+import { isOptedOut, messageAt, type ConversationDto } from "./thread-dto";
 import { agentFor, isChatMessage, writtenChannelOf, threadChannelOf } from "./thread-channel";
 import { contactName, initialsOf, shortName } from "./thread-contact";
 import { shortTime, bubbleTime } from "./thread-clock";
@@ -50,6 +50,8 @@ export interface ConversationVM {
   /** First name, or the whole thing when it is a number. */
   whoShort: string;
   initials: string;
+  /** The person asked to stop, or is on do-not-contact (isOptedOutContact, the Inbox thread's `optedOut`): the row says it beside the name. */
+  stopped: boolean;
   clientId: string | null;
   /** The Inbox thread this chat is: `th-` and the conversation's id, the id the Inbox routes by. */
   threadId: string;
@@ -66,6 +68,11 @@ export interface ConversationVM {
    * and one you had taken over read the reverse (the 2 Oct 2026 audit).
    */
   standing: Standing;
+  /**
+   * The teammate who has the thread (their user id) where `standing` is `theirs`, else null: the pill names them from the
+   * roster (standing.ts heldPill), as the Inbox's row does, and says "A teammate" where the roster does not know them.
+   */
+  holderId: string | null;
   /**
    * New to the reader: the customer wrote or called after they last opened this person, or they marked it unread
    * (standing.ts isUnseen, the Inbox's own rule). Every row drew at one weight, read or not (Ruben, 7 Oct 2026).
@@ -141,7 +148,7 @@ export function toConversationVM(
   // ONE rule for who has the thread (standing.ts), the Inbox's own: flagged is an open escalation, the needs_human
   // state or a live pause, whoever holds it. The row read only the state and the pause, so an open escalation on an
   // open thread was invisible here.
-  const v = standingOfThread(dto, !!escalation, now.getTime());
+  const v = standingOfThread(dto, escalation, now.getTime());
   const needsHuman = v.flagged;
   // Honest pills: escalated when a person is needed or has it; open while the last word is
   // the customer's; handled only when the thread is actually answered/closed.
@@ -155,6 +162,7 @@ export function toConversationVM(
     who,
     whoShort,
     initials: initialsOf(who),
+    stopped: isOptedOut(dto),
     clientId: dto.contact.id || null,
     // The Inbox's id for this conversation (toInboxThreadVM): the door from a transcript to its thread.
     threadId: `th-${dto.id}`,
@@ -168,6 +176,7 @@ export function toConversationVM(
     // preview imported at 2:15 PM.
     at: shortTime(last ? messageAt(last) : dto.last_message_at, tz, now),
     standing: v.standing,
+    holderId: v.claimedByOther ? (dto.assignee_user_id ?? null) : null,
     ...readingOf(dto.last_inbound_at, dto),
     outcome,
     snippet: last ? messageWords(last).slice(0, 110) : "",

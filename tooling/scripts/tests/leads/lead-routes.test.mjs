@@ -818,8 +818,9 @@ test("release B's ten declare their policy: working a lead is the operator's, er
     rate: "lead_bulk",
     spend: true,
   });
-  assert.deepEqual(exportRoute.GET.policy, {
-    kind: "read",
+  assert.equal(exportRoute.GET, undefined, "a copy that marks leads is no GET (decision 0047, lane 6)");
+  assert.deepEqual(exportRoute.POST.policy, {
+    kind: "write",
     fresh: true,
     scope: "workspace",
     role: "owner",
@@ -877,11 +878,12 @@ test("a stage change goes through the door with the page's words made its argume
     p_fit_reason: null,
     p_outcome: null,
     p_note: null,
+    p_spoke_with: null,
   });
   assert.equal(click.toast, "Marked talking. They join People when they write or call in, or when a call goes well.");
   assert.deepEqual([click.converted, click.contact_id, click.undo], [false, null, { op_id: OP, version: 4 }]);
   const call = await stage.POST.run(
-    req("POST", { kind: "outcome", outcome: "interested", note: "Tuesday" }),
+    req("POST", { kind: "outcome", outcome: "interested", note: "Tuesday", spoke_with: "  Priya Nair " }),
     ctxOf(world({ role: "operator" }), { id: LEAD }, rpcs),
   );
   assert.equal(call.toast, "Travis Heights Coaching Co. is in People now, with this call on their page.");
@@ -893,6 +895,8 @@ test("a stage change goes through the door with the page's words made its argume
     p_fit_reason: null,
     p_outcome: "interested",
     p_note: "Tuesday",
+    // Who they spoke with (0052): the person the call makes, named as typed.
+    p_spoke_with: "Priya Nair",
   });
 });
 
@@ -927,6 +931,7 @@ test("every other act on one lead says what it did, and Already a customer says 
     p_fit_reason: "customer",
     p_outcome: null,
     p_note: null,
+    p_spoke_with: null,
   });
   await refused(
     stage.POST.run(
@@ -952,7 +957,7 @@ test("a viewer is refused every write; an operator may work leads but not erase,
   for (const [route, method, body, params, role] of [
     [stage, "POST", { kind: "said_no" }, { id: LEAD }, "viewer"],
     [erase, "DELETE", undefined, { id: LEAD }, "operator"],
-    [exportRoute, "GET", undefined, {}, "operator"],
+    [exportRoute, "POST", { list: "all", sort: "fit", dir: "asc" }, {}, "operator"],
     [search, "DELETE", undefined, { id: SEARCH }, "operator"],
     [searchUndo, "POST", undefined, { id: SEARCH }, "operator"],
     [suggestions, "PUT", { business_line: "a personal training studio" }, {}, "operator"],
@@ -1088,20 +1093,26 @@ test("Check again goes through its door with the ids and says how many it took; 
   );
 });
 
-test("the export is the owner's, on the ledger like contacts/export, and marks what it took", async () => {
+test("the export is a POST, the owner's, on the ledger like contacts/export, and marks what it took; the file is the answer's, for the page to save", async () => {
   const tables = world({ role: "owner" });
   const rpcs = doors();
-  const res = await exportRoute.GET.run(get(`${inA}&list=ready`), ctxOf(tables, {}, rpcs));
-  assert.match(res.headers.get("content-disposition"), /^attachment; filename="leads-Zilker-Strength-\d{8}\.csv";/);
+  const out = await exportRoute.POST.run(req("POST", { list: "ready" }), ctxOf(tables, {}, rpcs));
+  assert.match(out.file, /^leads-Zilker-Strength-\d{8}\.csv$/);
+  assert.equal(out.rows, 1);
   assert.equal(rpcCalls("lead_export_mark").length, 1);
   assert.deepEqual(rpcCalls("lead_export_mark")[0], { p_tenant_id: A, p_ids: [LEAD] });
   assert.deepEqual(
     tables.decisions.map((d) => [d.verb, d.subject_type, d.payload.what, d.payload.rows]),
     [["export", "workspace", "leads", 1]],
   );
-  const csv = await res.text();
+  const csv = out.csv;
   assert.equal(
-    csv.split("\r\n")[0].replace("﻿", ""),
+    csv.startsWith("﻿"),
+    false,
+    "no byte-order mark: the page that saves the file adds one (kit downloadCsv)",
+  );
+  assert.equal(
+    csv.split("\r\n")[0],
     "Business,What they do,Street,City,State,ZIP,Phone,Email,Mailbox,Website,About,Facebook,LinkedIn,Google Maps,Rating,Reviews,Stage,Why,Search,Found",
   );
   assert.ok(csv.includes("Travis Heights Coaching Co."));

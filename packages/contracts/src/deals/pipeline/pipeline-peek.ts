@@ -3,6 +3,7 @@
  * and how to reach them and their deals' last moves once they are (pipelinePeekDetail). Every word is the person
  * page's or pipeline-words.ts's.
  */
+import { isIdentifierName } from "../../conversations/thread-contact";
 import { dealIsOpen } from "../deal-vm";
 import { emailFactWords, repliesWords } from "../../people/person-reach";
 import type { PersonVM } from "../../people/person-profile";
@@ -20,8 +21,10 @@ export interface PipelinePeekVM {
   id: string;
   name: string;
   initials: string;
-  /** Whether the name is a number or an address, drawn in figures. */
+  /** Whether the name is a number or an address, drawn in figures (isIdentifierName, the one test; the face is the kit's, by the same). */
   numeric: boolean;
+  /** They asked to stop, or are on do-not-contact (the People row's `stopped`): the head says it beside the name. */
+  stopped: boolean;
   /** The group and the deal's service: "Proposal out · Bridal package", "Consultations". */
   sub: string;
   facts: PipelinePeekFact[];
@@ -59,7 +62,8 @@ export function pipelinePeekOf(
     dealId: row.deal?.id ?? null,
     name: row.name,
     initials: p.initials,
-    numeric: /^[+\d(]/.test(row.name) || row.name.includes("@"),
+    numeric: isIdentifierName(row.name),
+    stopped: p.stopped,
     sub: row.service ? `${GROUP_WORDS[group]} · ${row.service}` : GROUP_WORDS[group],
     facts,
     thread: p.threadId,

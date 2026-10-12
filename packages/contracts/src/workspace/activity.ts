@@ -73,8 +73,8 @@ export interface ActivityPageDto {
   subjects: Record<string, string>;
   /**
    * Where a row opens, for the subjects whose page had to be looked up: `<subject_type>:<subject_id>` → a route without
-   * its slash (a message's or an escalation's thread, a deal's person). Every other subject's door is contracts
-   * activityDoor's, from the row alone.
+   * its slash (a message's or an escalation's thread, a deal's person, a visit's panel on its day: `calendar/<day>:a-<id>`,
+   * the day by the workspace's clock, a template's message in the Library: `campaigns/message:<name>`). Every other subject's door is contracts activityDoor's, from the row alone.
    */
   doors: Record<string, string>;
   /** The workspace's members, for the picker of who did it; empty where the roster could not be read. */
@@ -173,9 +173,12 @@ const WORDS: Record<string, string> = {
   "contact.consent_changed": "A consent answer changed",
   "contact.added": "A person was added",
   "contact.named": "A person was named",
+  "contact.business_linked": "A person was linked to a business",
+  "contact.business_unlinked": "A person was unlinked from a business",
   "contact.noted": "A note was written",
   "contact.note_changed": "A note was changed",
   "contact.note_removed": "A note was taken away",
+  "contact.note_seen": "A note was read by the one it was for",
   "contact.note_suggested": "The receptionist suggested a note",
   "contact.note_kept": "A suggested note was kept",
   "contact.note_dismissed": "A suggested note was dismissed",

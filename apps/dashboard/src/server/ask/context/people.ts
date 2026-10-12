@@ -14,6 +14,8 @@ import {
   poolRowOf,
   toCalendarVM,
   toLeadRowVM,
+  visitStands,
+  type CalendarBlockVM,
   type LeadClass,
   type LeadList,
   type PersonRowDto,
@@ -155,8 +157,10 @@ function spanOf(view: string | null | undefined): { from: string | null; days: n
 export const calendar: Provider = async (rc, ctx) => {
   const vm = toCalendarVM((await load(rc, calendarReader, spanOf(ctx.view))).data.calendar, rc.now);
   const named = new Map<string, { name: string; on: string[] }>();
+  // What stands: a visit the record says was cancelled is drawn struck on the board and is none anywhere it is counted.
+  const standing = (blocks: CalendarBlockVM[]) => blocks.filter((b) => visitStands(b.visit));
   for (const d of vm.days)
-    for (const b of [...d.allDay, ...d.blocks])
+    for (const b of [...standing(d.allDay), ...standing(d.blocks)])
       if (b.person) {
         const had = named.get(b.person.id) ?? { name: b.person.name, on: [] };
         had.on.push(`${d.long} ${b.time} ${b.title}`.trim());
@@ -173,7 +177,7 @@ export const calendar: Provider = async (rc, ctx) => {
       ref: refOf("person", id, p.name, `clients/${id}`),
     });
   }
-  const taken = vm.days.reduce((n, d) => n + d.allDay.length + d.blocks.length, 0);
+  const taken = vm.days.reduce((n, d) => n + standing(d.allDay).length + standing(d.blocks).length, 0);
   const open = vm.days.reduce((n, d) => n + d.windows.length, 0);
   const closed = vm.days.filter((d) => d.closed.yes).map((d) => d.long);
   return {

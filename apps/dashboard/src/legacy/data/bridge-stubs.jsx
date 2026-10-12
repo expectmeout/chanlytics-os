@@ -36,13 +36,6 @@
   // a UI review of a mockup with most of the mockup missing.
   if (!has("__DEMO_MODE")) window.__DEMO_MODE = true;
 
-  // ---- Usage (the usage spec, 2026-09-25) ---------------------------------
-  // The standing of the period's usage, which the phone's ✦ says as its dot
-  // (components/ask-face.jsx AskDisc): amber from 80%, red at 100%. The app has
-  // no usage surface yet, so there it stays absent and the dot is the mood's
-  // alone; the mockup shows the spec's example, 89% on a Pro plan: amber.
-  if (!has("__USAGE")) window.__USAGE = { standing: "warned", share: 89 };
-
   // ---- Identity (contracts/identity.ts) ------------------------------------
   // A name is what the person gave, never something invented from an email:
   // "hi@chanlytics.agency" is not "Hi". With no name the account is "Your
@@ -135,15 +128,22 @@
     };
   }
 
-  // ---- How a fact's source is said (contracts/facts.ts SOURCE_WORDS) -------
-  if (!has("__FACT_WORDS")) {
-    window.__FACT_WORDS = {
-      provisioned: "your line",
-      verified: "from Google",
-      workspace: "this workspace",
-      typed: "you set this",
-      absent: "not set",
+  // ---- The door into Ask (surfaces/frame-doors.ts) ---------------------------
+  // The frame's appAsk, then `ask:seed` for the Line (or a demo's seeded palette), as the bridge's door does where there is one.
+  if (!has("askAbout")) {
+    window.askAbout = (detail) => {
+      if (window.appAsk) window.appAsk();
+      window.dispatchEvent(new CustomEvent("ask:seed", { detail: detail || {} }));
     };
+  }
+
+  // ---- What needs you (surfaces/needs-you.ts) ------------------------------
+  // The one count the badge, the tab and the strip read: the demo's seeded threads by the Inbox's rule (ixWaitsOnYou).
+  if (!has("useNeedsYou")) {
+    window.useNeedsYou = () =>
+      (((window.INBOX_DATA || {}).THREADS) || []).filter(
+        (t) => window.ixWaitsOnYou && window.ixWaitsOnYou(t) && !(window.IX_STORE && window.IX_STORE.get(t.id)),
+      ).length;
   }
 
   // ---- Phone numbers (contracts/phone.ts, contracts/facts.ts) --------------

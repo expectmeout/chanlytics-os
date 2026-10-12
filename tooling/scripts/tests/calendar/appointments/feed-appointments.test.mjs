@@ -11,7 +11,10 @@ import {
   appointmentHolds,
   appointmentKeyOf,
   appointmentKeysOf,
+  asksTheFeed,
   feedAppointmentRows,
+  feedNamesOf,
+  feedStillNames,
   parseIcs,
   serviceNamedIn,
 } from "@chanlytics/contracts";
@@ -217,4 +220,56 @@ test("the question a reminder asks at its send: a person's cancellation or a mis
     "one read for the batch, each key once",
   );
   assert.deepEqual([...APPOINTMENT_STATUSES], ["proposed", "booked", "kept", "missed", "cancelled"]);
+});
+
+test("the question a reminder asks the calendar feed at its send (S1-05): a calendar event the feed, read now over a span that holds the visit, no longer names holds it; a booking from the record, a visit outside the span, a run drawn with no key and a feed that names it go", () => {
+  const start = new Date(T0).toISOString();
+  const items = [
+    { uid: "a1@cal.example", start: T0, occurrence: undefined },
+    { uid: "series@cal.example", start: T0 + D, occurrence: T0 + D },
+    { uid: null, start: T0 + 2 * D, occurrence: undefined },
+  ];
+  const names = feedNamesOf(items, horizon);
+  assert.deepEqual(
+    [...names.keys].sort(),
+    [`ev:${T0 + 2 * D}`, "a1@cal.example", `series@cal.example:${T0 + D}`].sort(),
+    "each event under the key the record keeps it under (appointmentKeyOf), a repeating one by the occurrence it was due",
+  );
+  assert.deepEqual([names.from, names.to], [horizon.from, horizon.to]);
+
+  const facts = (key, over = {}) => ({ appointment: key, visit_start: start, ...over });
+  assert.equal(feedStillNames(names, facts("a1@cal.example")), true, "the feed names it");
+  assert.equal(
+    feedStillNames(names, facts("cancelled@cal.example")),
+    false,
+    "cancelled in the calendar: the feed drops it at once, whatever the record still says",
+  );
+  assert.equal(
+    feedStillNames(names, facts(`series@cal.example:${T0 + D}`, { visit_start: new Date(T0 + D).toISOString() })),
+    true,
+  );
+  assert.equal(
+    feedStillNames(names, facts("cancelled@cal.example", { visit_start: new Date(T0 + 90 * D).toISOString() })),
+    true,
+    "outside the span the feed was read over, it is not looked for there: not gone",
+  );
+  assert.equal(
+    feedStillNames(names, facts("cancelled@cal.example", { visit_start: new Date(T0 - 60 * D).toISOString() })),
+    true,
+    "before the span too",
+  );
+  assert.equal(
+    feedStillNames(names, facts("appt:6c5e")),
+    true,
+    "a booking from the record is no event of the calendar",
+  );
+  assert.equal(feedStillNames(names, { visit_when: "tomorrow" }), true, "a run drawn before the record");
+  assert.equal(feedStillNames(names, { appointment: "x", visit_start: "not a time" }), true, "no start to look for");
+  assert.equal(feedStillNames(names, { appointment: "", visit_start: start }), true, "no key");
+
+  // Which reminders must ask the feed at all.
+  assert.equal(asksTheFeed(facts("a1@cal.example")), true);
+  assert.equal(asksTheFeed(facts("appt:6c5e")), false);
+  assert.equal(asksTheFeed({ visit_when: "tomorrow" }), false);
+  assert.equal(asksTheFeed({ appointment: "x" }), false, "no start");
 });

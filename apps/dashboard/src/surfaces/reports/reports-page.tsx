@@ -168,6 +168,8 @@ interface LensReads {
   campaigns: CampaignLensVM | null;
   facts: ReportFactVM[];
   ads: AdsDraw | null;
+  /** The review the address names (reports/reviews:<id>, contracts reviewRoute), which the Reviews lens opens with its reply box. */
+  review: string | null;
 }
 
 /** The lens's body: nothing where it is not yet known to be shown, what it says where it is not shown, else its cards. */
@@ -175,7 +177,7 @@ function lensBody(
   lens: LensId,
   props: LensProps,
   shown: boolean | null,
-  { own, people, campaigns, facts, ads }: LensReads,
+  { own, people, campaigns, facts, ads, review }: LensReads,
 ) {
   if (shown === null) return null;
   if (!shown) return <LensEmpty lens={lens} vm={props.R.vm} />;
@@ -198,6 +200,7 @@ function lensBody(
           reviews={own.reviews}
           range={{ since: props.R.vm.since, until: props.R.vm.until }}
           phone={props.phone}
+          review={review}
         />
       );
   }
@@ -206,7 +209,11 @@ function lensBody(
 export function ReportsPage({ pathname }: { pathname: string | null }) {
   // The lens the address names, and the days a member picked where it says them; the frame hands the page only the
   // addresses it takes (surfaces/routes.ts), so an address that is neither is not drawn here at all.
-  const at: ReportsParts = reportsRouteParts(routeOfPath(pathname) ?? "reports") ?? { lens: "overview", days: null };
+  const at: ReportsParts = reportsRouteParts(routeOfPath(pathname) ?? "reports") ?? {
+    lens: "overview",
+    days: null,
+    review: null,
+  };
   const lens = at.lens;
   const phone = useRptPhone();
   const live = useSurface("reports");
@@ -339,6 +346,7 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
             campaigns,
             facts,
             ads: adsHere.draw,
+            review: at.review,
           })}
         </div>
       </div>

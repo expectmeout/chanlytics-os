@@ -1,6 +1,15 @@
 /** Phone numbers and their carrier registration: the record, the path, the public page the carriers require, a line's failure and release. */
 export { lineCredentialFailure, LINE_CREDENTIALS_SENTENCE } from "./line-failure";
-export { channelFor, channelKindWords, toChannelVM, CHANNEL_KIND_WORDS, CHANNEL_ANSWERED } from "./channels";
+export {
+  channelFor,
+  channelKindWords,
+  channelNoun,
+  toChannelVM,
+  CHANNEL_KIND_WORDS,
+  CHANNEL_ANSWERED,
+} from "./channels";
+export { callerSentence, lineOffGets, PHONE_LINE_OFF, WORKSPACE_PAUSED } from "./caller-gets";
+export type { CallerGets } from "./caller-gets";
 export type { ChannelDto, ChannelPickable, ChannelHealth, ChannelVM } from "./channels";
 export {
   standingFromConfig,
@@ -10,6 +19,7 @@ export {
   nameDecisionWords,
   numberHealthWithStanding,
   numberHealthOfConfig,
+  PAYMENT_HOLD_WORD,
 } from "./number-standing";
 export type { NumberStanding } from "./number-standing";
 export { LINE_CODES_WITHIN_MS, LINE_CODES_MAX, LINE_CODES_EVERY_MS } from "./line-codes";
